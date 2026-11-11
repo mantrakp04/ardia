@@ -43,6 +43,8 @@ public static class ArdiaInput {
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
   [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr window);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr window);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int command);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
   [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window, out Rect rect);
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
@@ -160,6 +162,49 @@ function Test-MovedBy([string]$Log, $Counts, [string]$What, [string]$Expected) {
   return @("input: $What should have been moved by $(if ($Expected -eq 'system') { 'Windows' } else { 'the app' }), but the log shows $system system moves and $app app moves")
 }
 
+function Get-GrabPoint($Client) {
+  return [pscustomobject]@{ X = $Client.X + $Client.Width - [int](124 * $Client.Scale); Y = $Client.Y + [int](30 * $Client.Scale) }
+}
+
+function Get-WindowButton($Client, [int]$FromRight) {
+  return [pscustomobject]@{ X = $Client.X + $Client.Width - [int]($FromRight * $Client.Scale); Y = $Client.Y + [int](30 * $Client.Scale) }
+}
+
+function Test-WindowButtons([System.Diagnostics.Process]$Process, [string]$Log) {
+  $notes = @()
+  $handle = $Process.MainWindowHandle
+  $client = Get-ClientArea $Process
+  if (-not $client) { return @("input: the window could not be measured before the window buttons") }
+  $maximize = Get-WindowButton $client 60
+  Send-Click $maximize.X $maximize.Y
+  Start-Sleep -Milliseconds 900
+  Save-Screenshot (Join-Path $Out "browser-maximize-button.png")
+  if ([ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: the app's maximize button maximized the window." }
+  else { $notes += "input: a click on the app's maximize button, 60 points from the right edge, did not maximize the window" }
+
+  $client = Get-ClientArea $Process
+  if (-not $client) { return $notes + "input: the window was gone after the maximize button" }
+  $restore = Get-WindowButton $client 60
+  Send-Click $restore.X $restore.Y
+  Start-Sleep -Milliseconds 900
+  if (-not [ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: the app's restore button put the window back." }
+  else { $notes += "input: a click on the app's restore button did not restore the maximized window" }
+
+  $client = Get-ClientArea $Process
+  if (-not $client) { return $notes + "input: the window was gone after the restore button" }
+  $minimize = Get-WindowButton $client 93
+  Send-Click $minimize.X $minimize.Y
+  Start-Sleep -Milliseconds 900
+  if ([ArdiaInput]::IsIconic($handle)) { Write-Host "Input: the app's minimize button minimized the window." }
+  else { $notes += "input: a click on the app's minimize button, 93 points from the right edge, did not minimize the window" }
+  [ArdiaInput]::ShowWindow($handle, 9) | Out-Null
+  Start-Sleep -Milliseconds 700
+  [ArdiaInput]::SetForegroundWindow($handle) | Out-Null
+  Start-Sleep -Milliseconds 400
+  if ([ArdiaInput]::IsIconic($handle)) { $notes += "input: the minimized window did not come back" }
+  return $notes
+}
+
 function Test-Snap([System.Diagnostics.Process]$Process, [string]$Log) {
   $notes = @()
   $handle = $Process.MainWindowHandle
@@ -169,22 +214,24 @@ function Test-Snap([System.Diagnostics.Process]$Process, [string]$Log) {
   $screen = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
 
   $counts = Get-MoveCounts $Log
-  $fromX = $client.X + [int]($client.Width * 0.6)
-  $fromY = $client.Y + [int](16 * $client.Scale)
-  Send-Drag $fromX $fromY ([int]($screen.Width * 0.15) - $fromX) (0 - $fromY) 600
+  $grab = Get-GrabPoint $client
+  $fromX = $grab.X
+  $fromY = $grab.Y
+  Send-Drag $fromX $fromY ([int]($screen.Width * 0.5) - $fromX) (0 - $fromY) 600
   Start-Sleep -Milliseconds 700
   Save-Screenshot (Join-Path $Out "browser-maximized.png")
-  if ([ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: dragging the title band to the top edge of the screen maximized the window." }
-  else { $notes += "input: dragging the title band to the top edge of the screen did not maximize the window" }
+  if ([ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: dragging the gap beside the window buttons to the top edge of the screen maximized the window." }
+  else { $notes += "input: dragging the gap beside the window buttons to the top edge of the screen did not maximize the window" }
   $notes += @(Test-MovedBy $Log $counts "the drag to the top edge" "system")
 
   $client = Get-ClientArea $Process
   if (-not $client) { return $notes + "input: the window was gone after the snap" }
   $counts = Get-MoveCounts $Log
-  Send-Drag ($client.X + [int]($client.Width * 0.6)) ($client.Y + [int](16 * $client.Scale)) 0 160 300
+  $grab = Get-GrabPoint $client
+  Send-Drag $grab.X $grab.Y -200 160 300
   Start-Sleep -Milliseconds 700
   $after = Get-WindowRect $Process
-  if ([ArdiaInput]::IsZoomed($handle)) { $notes += "input: dragging the maximized window's title band down did not restore it" }
+  if ([ArdiaInput]::IsZoomed($handle)) { $notes += "input: dragging the maximized window down by the gap beside its buttons did not restore it" }
   elseif ($after) {
     $width = $after.Right - $after.Left
     $height = $after.Bottom - $after.Top
@@ -211,17 +258,19 @@ function Test-DoubleClick([System.Diagnostics.Process]$Process, [string]$Log) {
   $handle = $Process.MainWindowHandle
   $client = Get-ClientArea $Process
   if (-not $client) { return @("input: the window could not be measured before the double clicks") }
-  Send-DoubleClick ($client.X + [int]($client.Width * 0.6)) ($client.Y + [int](16 * $client.Scale)) 5
+  $grab = Get-GrabPoint $client
+  Send-DoubleClick $grab.X $grab.Y 5
   $path = Get-LastLogLine $Log "^window \d+ double click on"
-  if ([ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: a double click on the title band right after moving there maximized the window ($path)." }
-  else { $notes += "input: a double click on the title band right after moving there did not maximize the window (last double click logged: '$path')" }
+  if ([ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: a double click on the gap beside the window buttons right after moving there maximized the window ($path)." }
+  else { $notes += "input: a double click on the gap beside the window buttons right after moving there did not maximize the window (last double click logged: '$path')" }
 
   $client = Get-ClientArea $Process
   if (-not $client) { return $notes + "input: the window was gone after the first double click" }
-  Send-DoubleClick ($client.X + [int]($client.Width * 0.6)) ($client.Y + [int](16 * $client.Scale)) 300
+  $grab = Get-GrabPoint $client
+  Send-DoubleClick $grab.X $grab.Y 300
   $path = Get-LastLogLine $Log "^window \d+ double click on"
-  if (-not [ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: a second double click on the title band restored the window ($path)." }
-  else { $notes += "input: a second double click on the title band did not restore the maximized window (last double click logged: '$path')" }
+  if (-not [ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: a second double click on the gap beside the window buttons restored the window ($path)." }
+  else { $notes += "input: a second double click on the gap beside the window buttons did not restore the maximized window (last double click logged: '$path')" }
   return $notes
 }
 
@@ -230,15 +279,15 @@ function Test-AppDrag([System.Diagnostics.Process]$Process, [string]$Log) {
   $client = Get-ClientArea $Process
   if (-not $before -or -not $client) { return @("input: the window could not be measured before the toolbar drag") }
   $counts = Get-MoveCounts $Log
-  Send-Drag ($client.X + [int]($client.Width * 0.6)) ($client.Y + [int](52 * $client.Scale)) 40 30
+  Send-Drag ($client.X + [int]($client.Width * 0.6)) ($client.Y + [int](30 * $client.Scale)) 40 30
   $after = Get-WindowRect $Process
   if (-not $after) { return @("input: the window was gone after the toolbar drag") }
   $notes = @()
   $movedX = $after.Left - $before.Left
   $movedY = $after.Top - $before.Top
-  if ([Math]::Abs($movedX - 40) -le 12 -and [Math]::Abs($movedY - 30) -le 12) { Write-Host "Input: dragging the toolbar's empty middle below the title band moved the window by $movedX, $movedY." }
-  else { $notes += "input: dragging the toolbar's empty middle below the title band by 40, 30 moved the window by $movedX, $movedY" }
-  $notes += @(Test-MovedBy $Log $counts "the toolbar drag below the title band" "app")
+  if ([Math]::Abs($movedX - 40) -le 12 -and [Math]::Abs($movedY - 30) -le 12) { Write-Host "Input: dragging the toolbar's empty middle moved the window by $movedX, $movedY." }
+  else { $notes += "input: dragging the toolbar's empty middle by 40, 30 moved the window by $movedX, $movedY" }
+  $notes += @(Test-MovedBy $Log $counts "the toolbar drag" "app")
   return $notes
 }
 
@@ -246,11 +295,11 @@ function Test-SidebarButton([System.Diagnostics.Process]$Process, [string]$Log) 
   $client = Get-ClientArea $Process
   if (-not $client) { return @("input: the window was gone before the sidebar button click") }
   $watches = Count-LogLines $Log "^window \d+ sidebar edge watch on"
-  Send-Click ($client.X + [int](211 * $client.Scale)) ($client.Y + [int](53 * $client.Scale))
+  Send-Click ($client.X + [int](211 * $client.Scale)) ($client.Y + [int](30 * $client.Scale))
   Start-Sleep -Milliseconds 1500
   Save-Screenshot (Join-Path $Out "browser-sidebar-hidden.png")
-  if ((Count-LogLines $Log "^window \d+ sidebar edge watch on") -gt $watches) { Write-Host "Input: the sidebar button just below the title band took its click and hid the sidebar." }
-  else { return @("input: clicking the sidebar button just below the title band did not hide the sidebar") }
+  if ((Count-LogLines $Log "^window \d+ sidebar edge watch on") -gt $watches) { Write-Host "Input: the sidebar button took its click and hid the sidebar." }
+  else { return @("input: clicking the sidebar button did not hide the sidebar") }
   return @()
 }
 
@@ -286,26 +335,30 @@ function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
   $height = $before.Bottom - $before.Top
 
   $band = Get-LastLogLine $Log "^window \d+ title band of \S+ is (caption|content)"
-  if ($band -match " is caption$") { Write-Host "Input: the default layout made the title band Windows' caption ($band)." }
-  else { $notes += "input: the default layout did not make the title band Windows' caption (last title band line: '$band')" }
+  if ($band -match " is caption$") { Write-Host "Input: the default layout marked caption regions for Windows ($band)." }
+  else { $notes += "input: the default layout marked no caption region for Windows (last title band line: '$band')" }
 
+  $client = Get-ClientArea $Process
+  if (-not $client) { return @("input: the window could not be measured before the first drag") }
+  $grab = Get-GrabPoint $client
   $counts = Get-MoveCounts $Log
-  Send-Drag ($before.Left + [int]($width * 0.6)) ($before.Top + 16) 70 50
+  Send-Drag $grab.X $grab.Y 70 50
   $after = Get-WindowRect $Process
   if ($after) {
     $movedX = $after.Left - $before.Left
     $movedY = $after.Top - $before.Top
-    if ([Math]::Abs($movedX - 70) -le 12 -and [Math]::Abs($movedY - 50) -le 12) { Write-Host "Input: dragging the title band moved the window by $movedX, $movedY." }
-    else { $notes += "input: dragging the title band by 70, 50 moved the window by $movedX, $movedY" }
+    if ([Math]::Abs($movedX - 70) -le 12 -and [Math]::Abs($movedY - 50) -le 12) { Write-Host "Input: dragging the gap beside the window buttons moved the window by $movedX, $movedY." }
+    else { $notes += "input: dragging the gap beside the window buttons by 70, 50 moved the window by $movedX, $movedY" }
   } else {
     $notes += "input: the window was gone after the drag"
     return $notes
   }
-  $notes += @(Test-MovedBy $Log $counts "the title band drag by 70, 50" "system")
+  $notes += @(Test-MovedBy $Log $counts "the drag by the gap beside the window buttons" "system")
 
   Enable-WindowSnapping
   $notes += @(Test-Snap $Process $Log)
   $notes += @(Test-DoubleClick $Process $Log)
+  $notes += @(Test-WindowButtons $Process $Log)
   $notes += @(Test-AppDrag $Process $Log)
   $after = Get-WindowRect $Process
   if (-not $after) { return $notes + "input: the window was gone after the drags" }

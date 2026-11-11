@@ -5,7 +5,7 @@ import { layout } from "../ui/theme";
 import { TintInk } from "../ui/TintInk";
 import { useSettings, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { useHasDownloads, useNoTiles } from "../../state/sidebar/hooks";
-import { useAddressBarInSidebar, useSidebarCaptionRoom, useToolbarLightsCenter } from "../../state/windows/layout";
+import { collapsedSidebarHeader, useAddressBarInSidebar, useDownloadsInSidebarFooter, usePageFrameInset, useSidebarCaptionRoom, useSidebarHeaderCollapsed, useToolbarLightsCenter } from "../../state/windows/layout";
 import { DownloadsButton } from "../downloads/DownloadsButton";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "../profiles/ProfileIndicator";
 import { usePagerPages } from "../../state/windows/profilePager";
@@ -43,10 +43,12 @@ export function Sidebar({ width }: { width: number }) {
   const addressBar = useAddressBarInSidebar();
   const lightsY = useToolbarLightsCenter()[1];
   const captionRoom = useSidebarCaptionRoom();
-  const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : layout.sidebarHeader;
+  const collapsed = useSidebarHeaderCollapsed();
+  const frame = usePageFrameInset();
+  const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : collapsed ? collapsedSidebarHeader(frame) : layout.sidebarHeader;
   const hasDownloads = useHasDownloads(windowId);
   const dots = useProfileDotsShown();
-  const footerDownloads = addressBar && hasDownloads;
+  const footerDownloads = useDownloadsInSidebarFooter() && hasDownloads;
   const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
   const nothingPinned = useNoTiles(windowId, current);
   const rowLook = useSidebarRowLookSource();
@@ -131,7 +133,7 @@ export function Sidebar({ width }: { width: number }) {
                     <SidebarHeaderTools width={width} />
                     <SidebarAddressRow width={width} />
                   </>
-                ) : (
+                ) : collapsed ? null : (
                   <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT + captionRoom, paddingTop: lightsY - 17 }}>
                     <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - captionRoom - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0)} />
                     <View pointerEvents="none" style={{ flex: 1 }} />
@@ -146,7 +148,7 @@ export function Sidebar({ width }: { width: number }) {
               addressBar ? (
                 <PinFieldZone top={SIDEBAR_FIELD.top} height={SIDEBAR_FIELD.height} />
               ) : (
-                <PinSlotZone />
+                <PinSlotZone top={header - layout.sidebarHeader} />
               )
             ) : null}
             <FolderPanel windowId={windowId} />

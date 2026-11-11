@@ -47,6 +47,8 @@ struct ManagedWindow {
   bool fullScreen{false};
   winrt::Microsoft::UI::Input::InputNonClientPointerSource nonClient{nullptr};
   bool captionBand{false};
+  bool maximized{false};
+  std::wstring installedRegions;
 
   bool IsBrowser() const noexcept {
     return kind == "browser" || kind == "small";
@@ -133,7 +135,6 @@ struct WindowManager {
       Watch(entry);
       Mount(entry);
       ConnectNonClientInput(entry);
-      ApplyTitleBand(entry);
       ApplyInputRegions(entry);
 
       bool activate = request.focus && !Background();
@@ -240,9 +241,26 @@ struct WindowManager {
     if (entry) ToggleMaximized(*entry);
   }
 
-  void SetTitleBand(std::string const &id, bool caption) noexcept {
-    m_titleBands[id] = caption;
-    if (ManagedWindow *entry = Find(id)) ApplyTitleBand(*entry);
+  void Minimize(std::string_view id) noexcept {
+    ManagedWindow *entry = Find(id);
+    if (!entry || Background()) return;
+    if (auto presenter = OverlappedOf(*entry)) {
+      try {
+        if (presenter.IsMinimizable()) presenter.Minimize();
+      } catch (...) {
+      }
+    }
+  }
+
+  void ToggleMaximizeOf(std::string_view id) noexcept {
+    ManagedWindow *entry = Find(id);
+    if (!entry || Background()) return;
+    ToggleMaximized(*entry);
+  }
+
+  void SetCaptionRegions(std::string const &id, std::vector<std::array<double, 4>> regions) noexcept {
+    m_captionRegions[id] = std::move(regions);
+    if (ManagedWindow *entry = Find(id)) ApplyInputRegions(*entry);
   }
 
   void WatchSidebarEdge(std::string const &id, bool on, double hold, bool right, bool whilePressed) noexcept {
@@ -284,6 +302,8 @@ struct WindowManager {
     report["nonClient"] = static_cast<bool>(entry->nonClient);
     report["kind"] = entry->kind;
     report["titleBand"] = entry->captionBand ? "caption" : "content";
+    report["maximized"] = entry->maximized;
+    report["titleBarHeight"] = TitleBarHeightOf(*entry);
     report["caption"] = InstalledRects(*entry, winrt::Microsoft::UI::Input::NonClientRegionKind::Caption);
     report["passthrough"] = InstalledRects(*entry, winrt::Microsoft::UI::Input::NonClientRegionKind::Passthrough);
     return report;
@@ -370,12 +390,13 @@ struct WindowManager {
       auto presenter = entry.appWindow.Presenter().try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
       double scale = Scale(entry.hwnd);
       auto pixels = [scale](double points) noexcept { return static_cast<int32_t>(points * scale + 0.5); };
+      auto titleBar = entry.appWindow.TitleBar();
+      titleBar.ExtendsContentIntoTitleBar(true);
+      titleBar.PreferredHeightOption(winrt::Microsoft::UI::Windowing::TitleBarHeightOption::Standard);
+      titleBar.ButtonBackgroundColor(winrt::Windows::UI::Color{0, 0, 0, 0});
+      titleBar.ButtonInactiveBackgroundColor(winrt::Windows::UI::Color{0, 0, 0, 0});
+      if (presenter) presenter.SetBorderAndTitleBar(true, false);
       if (entry.IsBrowser()) {
-        auto titleBar = entry.appWindow.TitleBar();
-        titleBar.ExtendsContentIntoTitleBar(true);
-        titleBar.PreferredHeightOption(winrt::Microsoft::UI::Windowing::TitleBarHeightOption::Standard);
-        titleBar.ButtonBackgroundColor(winrt::Windows::UI::Color{0, 0, 0, 0});
-        titleBar.ButtonInactiveBackgroundColor(winrt::Windows::UI::Color{0, 0, 0, 0});
         if (presenter) {
           presenter.PreferredMinimumWidth(pixels(entry.kind == "small" ? 420 : 480));
           presenter.PreferredMinimumHeight(pixels(entry.kind == "small" ? 300 : 360));
@@ -483,13 +504,14 @@ struct WindowManager {
               event["id"] = id;
               event["frame"] = std::move(values);
               EmitWindow(std::move(event));
-              ApplyInputRegions(*found);
             }
+            if (args.DidSizeChange()) ApplyInputRegions(*found);
+            if (args.DidSizeChange() || args.DidPresenterChange()) ReportMaximized(*found);
             if (args.DidPresenterChange()) {
               bool fullScreen = found->appWindow.Presenter().Kind() == winrt::Microsoft::UI::Windowing::AppWindowPresenterKind::FullScreen;
               if (fullScreen != found->fullScreen) {
                 found->fullScreen = fullScreen;
-                ApplyTitleBand(*found);
+                ApplyInputRegions(*found);
                 winrt::Microsoft::ReactNative::JSValueObject event;
                 event["type"] = "fullScreen";
                 event["id"] = id;
@@ -538,7 +560,7 @@ struct WindowManager {
     RemoveWindowSubclass(found->second.hwnd, &WindowManager::WindowProc, kSubclassId);
     auto closedWindow = found->second.window;
     m_windows.erase(found);
-    m_titleBands.erase(id);
+    m_captionRegions.erase(id);
     if (m_edgeWatches.erase(id) && m_edgeWatches.empty()) StopEdgeTimer();
     std::erase(m_order, id);
     if (m_activeId == id) m_activeId = m_order.empty() ? std::string{} : m_order.back();
@@ -628,13 +650,74 @@ struct WindowManager {
     m_lastPressHwnd = nullptr;
   }
 
-  void ApplyTitleBand(ManagedWindow &entry) noexcept {
-    auto wanted = m_titleBands.find(entry.id);
-    bool caption = wanted != m_titleBands.end() && wanted->second && entry.IsBrowser() && entry.kind != "small" && !entry.fullScreen && entry.nonClient;
-    if (caption == entry.captionBand) return;
-    entry.captionBand = caption;
-    LaunchLog::Write(L"window", std::wstring(L"title band of ").append(Paths::Wide(entry.id)).append(caption ? L" is caption" : L" is content"));
-    ApplyInputRegions(entry);
+  void ReportMaximized(ManagedWindow &entry) noexcept {
+    auto presenter = OverlappedOf(entry);
+    bool maximized = false;
+    try {
+      maximized = presenter && presenter.State() == winrt::Microsoft::UI::Windowing::OverlappedPresenterState::Maximized;
+    } catch (...) {
+    }
+    if (maximized == entry.maximized) return;
+    entry.maximized = maximized;
+    LaunchLog::Write(L"window", std::wstring(maximized ? L"maximized " : L"restored ").append(Paths::Wide(entry.id)));
+    winrt::Microsoft::ReactNative::JSValueObject event;
+    event["type"] = "maximized";
+    event["id"] = entry.id;
+    event["on"] = maximized;
+    EmitWindow(std::move(event));
+  }
+
+  static int32_t TitleBarHeightOf(ManagedWindow const &entry) noexcept {
+    try {
+      return entry.appWindow.TitleBar().Height();
+    } catch (...) {
+      return 0;
+    }
+  }
+
+  static std::vector<winrt::Windows::Graphics::RectInt32> Outside(
+      winrt::Windows::Graphics::RectInt32 area, std::vector<winrt::Windows::Graphics::RectInt32> const &holes) noexcept {
+    std::vector<winrt::Windows::Graphics::RectInt32> pieces{area};
+    for (auto const &hole : holes) {
+      std::vector<winrt::Windows::Graphics::RectInt32> next;
+      for (auto const &piece : pieces) {
+        int32_t pieceRight = piece.X + piece.Width;
+        int32_t pieceBottom = piece.Y + piece.Height;
+        int32_t left = (std::max)(piece.X, hole.X);
+        int32_t top = (std::max)(piece.Y, hole.Y);
+        int32_t right = (std::min)(pieceRight, hole.X + hole.Width);
+        int32_t bottom = (std::min)(pieceBottom, hole.Y + hole.Height);
+        if (right <= left || bottom <= top) {
+          next.push_back(piece);
+          continue;
+        }
+        if (top > piece.Y) next.push_back({piece.X, piece.Y, piece.Width, top - piece.Y});
+        if (bottom < pieceBottom) next.push_back({piece.X, bottom, piece.Width, pieceBottom - bottom});
+        if (left > piece.X) next.push_back({piece.X, top, left - piece.X, bottom - top});
+        if (right < pieceRight) next.push_back({right, top, pieceRight - right, bottom - top});
+      }
+      pieces = std::move(next);
+    }
+    return pieces;
+  }
+
+  std::vector<winrt::Windows::Graphics::RectInt32> CaptionRectsOf(ManagedWindow const &entry, winrt::Windows::Graphics::SizeInt32 client) const noexcept {
+    std::vector<winrt::Windows::Graphics::RectInt32> rects;
+    auto wanted = m_captionRegions.find(entry.id);
+    if (wanted == m_captionRegions.end() || entry.fullScreen) return rects;
+    double scale = Scale(entry.hwnd);
+    auto across = [client](double value) noexcept { return static_cast<int32_t>((std::min)((std::max)(std::lround(value), 0L), static_cast<long>(client.Width))); };
+    auto down = [client](double value) noexcept { return static_cast<int32_t>((std::min)((std::max)(std::lround(value), 0L), static_cast<long>(client.Height))); };
+    for (auto const &region : wanted->second) {
+      bool finite = std::isfinite(region[0]) && std::isfinite(region[1]) && std::isfinite(region[2]) && std::isfinite(region[3]);
+      if (!finite) continue;
+      int32_t left = across(region[0] >= 0 ? region[0] * scale : client.Width + region[0] * scale);
+      int32_t right = across(client.Width - region[2] * scale);
+      int32_t top = down(region[1] * scale);
+      int32_t bottom = down((region[1] + region[3]) * scale);
+      if (right > left && bottom > top) rects.push_back({left, top, right - left, bottom - top});
+    }
+    return rects;
   }
 
   static winrt::Microsoft::ReactNative::JSValueArray InstalledRects(ManagedWindow const &entry, winrt::Microsoft::UI::Input::NonClientRegionKind kind) noexcept {
@@ -773,24 +856,38 @@ struct WindowManager {
       entry.nonClient = nullptr;
     }
     std::wstring id = Paths::Wide(entry.id);
-    if (entry.nonClient) LaunchLog::Write(L"window", std::wstring(L"drags of ").append(id).append(L" are moved by the app, and by Windows in the title band when it is a caption"));
+    if (entry.nonClient) LaunchLog::Write(L"window", std::wstring(L"drags of ").append(id).append(L" are moved by the app, and by Windows in the caption regions the UI marks"));
     else LaunchLog::Write(L"window", std::wstring(L"drags of ").append(id).append(L" are moved by the app: the window has no non-client input source"));
   }
 
-  static void ApplyInputRegions(ManagedWindow &entry) noexcept {
-    if (!entry.nonClient || !entry.IsBrowser()) return;
+  void ApplyInputRegions(ManagedWindow &entry) noexcept {
+    if (!entry.nonClient) return;
     try {
+      auto titleBar = entry.appWindow.TitleBar();
+      auto client = entry.appWindow.ClientSize();
+      auto caption = CaptionRectsOf(entry, client);
+      int32_t left = titleBar.LeftInset();
+      int32_t right = client.Width - titleBar.RightInset();
+      int32_t height = titleBar.Height();
       std::vector<winrt::Windows::Graphics::RectInt32> passthrough;
-      if (!entry.captionBand) {
-        auto titleBar = entry.appWindow.TitleBar();
-        auto client = entry.appWindow.ClientSize();
-        int32_t left = titleBar.LeftInset();
-        int32_t right = client.Width - titleBar.RightInset();
-        int32_t height = titleBar.Height();
-        if (right <= left || height <= 0) return;
-        passthrough.push_back({left, 0, right - left, height});
-      }
+      if (right > left && height > 0) passthrough = Outside({left, 0, right - left, height}, caption);
+      entry.nonClient.SetRegionRects(winrt::Microsoft::UI::Input::NonClientRegionKind::Caption, caption);
       entry.nonClient.SetRegionRects(winrt::Microsoft::UI::Input::NonClientRegionKind::Passthrough, passthrough);
+      bool captionBand = !caption.empty();
+      if (captionBand != entry.captionBand) {
+        entry.captionBand = captionBand;
+        LaunchLog::Write(L"window", std::wstring(L"title band of ").append(Paths::Wide(entry.id)).append(captionBand ? L" is caption" : L" is content"));
+      }
+      std::wstring installed = std::wstring(L"band ").append(std::to_wstring(height)).append(L", insets ").append(std::to_wstring(left)).append(L" ").append(std::to_wstring(titleBar.RightInset())).append(L", caption");
+      for (auto const &rect : caption) {
+        installed.append(L" [").append(std::to_wstring(rect.X)).append(L",").append(std::to_wstring(rect.Y)).append(L",").append(std::to_wstring(rect.Width)).append(L",").append(std::to_wstring(rect.Height)).append(L"]");
+      }
+      if (installed != entry.installedRegions) {
+        entry.installedRegions = installed;
+        LaunchLog::Write(L"window", std::wstring(L"input regions of ").append(Paths::Wide(entry.id)).append(L": ").append(installed));
+      }
+    } catch (winrt::hresult_error const &error) {
+      LaunchLog::Write(L"warning", std::wstring(L"input regions of ").append(Paths::Wide(entry.id)).append(L" could not be set: ").append(error.message()));
     } catch (...) {
     }
   }
@@ -993,7 +1090,7 @@ struct WindowManager {
   winrt::Microsoft::ReactNative::ReactContext m_context{nullptr};
   winrt::Microsoft::ReactNative::ReactNativeWindow m_spare{nullptr};
   std::map<std::string, ManagedWindow> m_windows;
-  std::map<std::string, bool> m_titleBands;
+  std::map<std::string, std::vector<std::array<double, 4>>> m_captionRegions;
   std::map<std::string, EdgeWatch> m_edgeWatches;
   winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer m_edgeTimer{nullptr};
   winrt::event_token m_edgeTick{};

@@ -64,3 +64,15 @@ export const ARC_PEEK_OUT_MS = 150;
 export const ARC_HIDE_MS = duration.fast;
 
 export const PEEK_RADIUS = radius.panel;
+
+export const WINDOW_BUTTONS = {
+  closeHover: "#C42B1C",
+  closePressed: "#B3271A",
+  closeInk: "#FFFFFF",
+  glyph: 10,
+  smallGlyph: 8,
+  smallBelow: 24,
+  glyphRadius: 1.5,
+  restoreCorner: 2,
+  plateRadius: { most: 7, share: 4 },
+} as const;

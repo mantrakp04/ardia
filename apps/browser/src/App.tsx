@@ -3,6 +3,7 @@ import { useState } from "react";
 import { StyleSheet } from "react-native";
 import { CommandPanel } from "./components/omnibox/CommandPanel";
 import { ContentCard } from "./components/window/ContentCard";
+import { BrowserWindowControls } from "./components/window/BrowserWindowControls";
 import { BookmarkDialog } from "./components/bookmarks/BookmarkDialog";
 import { EditBookmarkDialog } from "./components/bookmarks/EditBookmarkDialog";
 import { FolderMenus } from "./components/bookmarks/FolderMenus";
@@ -99,6 +100,7 @@ function BrowserWindow() {
       <SidebarOverlays windowWidth={width} />
       <OnboardingOverlay />
       <ReportSheetHost />
+      <BrowserWindowControls />
     </CrxDropArea>
   );
 }

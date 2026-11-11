@@ -6,6 +6,7 @@ import { capsule, font, radius as radii, space, type ShadowLevel } from "../../u
 import { TAB_ROW } from "../../sidebar/tokens";
 import type { ToolbarPalette } from "../../ui/toolbarColors";
 import { trafficLights } from "../tokens";
+import { WINDOW_CHROME } from "../../../lib/windowChrome";
 import { NEW_TAB, tab, type Tab } from "./content";
 import { at, atRect, CHIP, CRUMB_X, FIELD, fill, hairline, LIGHTS_Y, ROW, rowY, STRIP_H, TOOLBAR_H, TOOLBAR_ICONS, type Geo, type Rect } from "./geometry";
 import type { Look } from "./look";
@@ -39,6 +40,7 @@ export function Backdrop({ look }: { look: Look }) {
 }
 
 export function Lights({ g, y = LIGHTS_Y.toolbar, x = 25, style }: { g: Geo; y?: number; x?: number; style?: Styles }) {
+  if (!WINDOW_CHROME.leadingWidth) return null;
   return (
     <Animated.View style={[at(g, x - 6, y - 6, 52, 12), style as ViewStyle]} pointerEvents="none">
       {trafficLights.map((color, i) => (

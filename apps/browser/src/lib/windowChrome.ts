@@ -12,6 +12,10 @@ export function captionClearTop(top: number, rowHeight: number, fromRight: numbe
   return Math.max(top, chrome.titleBarHeight - rowHeight);
 }
 
-export function trailingClearance(top: number, margin: number, chrome: WindowChrome = WINDOW_CHROME): number {
-  return Math.max(margin, captionRoom(0, top, chrome));
+export function trailingClearance(top: number, margin: number, controlsBottom: number, chrome: WindowChrome = WINDOW_CHROME): number {
+  return top < controlsBottom ? Math.max(margin, chrome.trailingWidth) : margin;
 }
+
+export const WINDOW_CONTROLS = { edge: 12, gap: 3, button: 30, regular: 30, small: 28, band: 26, strip: 18 } as const;
+
+export const windowControlsWidth = (count = 3) => count * WINDOW_CONTROLS.button + (count - 1) * WINDOW_CONTROLS.gap;

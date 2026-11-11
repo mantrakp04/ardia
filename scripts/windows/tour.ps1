@@ -843,7 +843,7 @@ function Get-SidebarTabRows($Session) {
   $client = Get-Client $Session.Main
   if (-not $client) { return @() }
   $sidebarRight = $client.X + [int](190 * $client.Scale)
-  $hits = @(Find-Named $Session.Main "New Tab" | Where-Object { $_.X -lt $sidebarRight -and $_.Y -gt $client.Y + [int](40 * $client.Scale) } | Sort-Object Y)
+  $hits = @(Find-Named $Session.Main "New Tab" | Where-Object { $_.X -lt $sidebarRight -and $_.Y -gt $client.Y + [int](12 * $client.Scale) } | Sort-Object Y)
   $rows = @()
   foreach ($hit in $hits) {
     $rows += [pscustomobject]@{
@@ -990,7 +990,7 @@ function Invoke-SettingsStops($Session, [string]$Suffix, [string]$Label, [switch
           $stop.Did = "Clicked '$($pane.Name)' in the Settings sidebar, found by UI Automation at $($hits[0].X), $($hits[0].Y)."
         } elseif ($client) {
           $x = $client.X + [int](100 * $client.Scale)
-          $y = $client.Y + [int]((92 + 30 * $pane.Row + 15) * $client.Scale)
+          $y = $client.Y + [int]((52 + 30 * $pane.Row + 15) * $client.Scale)
           Send-Click $x $y
           $stop.Did = "Clicked where '$($pane.Name)' should be in the Settings sidebar ($x, $y, estimated: UI Automation did not find it)."
         } else {
@@ -1021,7 +1021,7 @@ function Invoke-MainTour {
   Invoke-Stop $session "main-window" "Main window, onboarding done" {
     param($stop)
     $stop.Did = "Launched with onboarding.json marked done and waited for the first window."
-    $stop.Expected = "one big window of ours, the first-window log line, and the default layout's title band as Windows' caption."
+    $stop.Expected = "one big window of ours, the first-window log line, the page card at the top of the window with the app's own window buttons in its toolbar, and caption regions marked for Windows."
     if (-not (Test-Usable $session)) { $stop.Seen = "no"; return }
     Focus-Window $session $session.Main $stop -ClickBand | Out-Null
     Start-Sleep -Milliseconds 600
@@ -1077,7 +1077,7 @@ function Invoke-MainTour {
   Invoke-ContextMenuStop $session "menu-sidebar-tab" "Context menu on a sidebar tab" "a tab in the sidebar" {
     $client = Get-Client $session.Main
     $sidebarRight = $client.X + [int](190 * $client.Scale)
-    $hits = @(Find-Named $session.Main "New Tab" | Where-Object { $_.X -lt $sidebarRight -and $_.Y -gt $client.Y + [int](40 * $client.Scale) } | Sort-Object Y)
+    $hits = @(Find-Named $session.Main "New Tab" | Where-Object { $_.X -lt $sidebarRight -and $_.Y -gt $client.Y + [int](12 * $client.Scale) } | Sort-Object Y)
     if ($hits.Count) {
       $pick = $hits[[int][Math]::Floor($hits.Count / 2)]
       return [pscustomobject]@{ X = $pick.X; Y = $pick.Y; How = "the middle of $($hits.Count) 'New Tab' labels UI Automation found in the sidebar" }
@@ -1130,7 +1130,7 @@ function Invoke-MainTour {
   Invoke-Stop $session "little-ardia" "Little Ardia window" {
     param($stop)
     $stop.Did = "Pressed Ctrl+Alt+N."
-    $stop.Expected = "a newLittleArdia command, a new top-level window of ours, and its command panel drawn whole below the bar's field rather than cut off 24 points down, with the caption buttons on the bare title band."
+    $stop.Expected = "a newLittleArdia command, a new top-level window of ours, and its command panel drawn whole below the bar's field rather than cut off 24 points down, with the window buttons on the bare bar."
     Focus-Window $session $session.Main $stop | Out-Null
     $mark = Get-LogCount $session
     $before = @(Get-BigWindows $session)
@@ -1216,7 +1216,7 @@ function Invoke-LayoutTour([string]$Name, [hashtable]$Settings, [string]$Title, 
     Start-Sleep -Milliseconds 1200
     Save-Shot $stop $session.Main | Out-Null
     $band = Get-TitleBand $session
-    Set-Seen $stop ($band -ne "caption")
+    Set-Seen $stop ($band -eq "caption")
     $stop.Facts.Add("title band is $band")
     $stop.Facts.Add("$((Get-LinesSince $session $mark '^command \d+ newTab$').Count) newTab commands logged")
     $problems = @(Read-LogLines $session.Log | Where-Object { $_ -match "\[config\]" })
@@ -1262,8 +1262,8 @@ $App = (Resolve-Path -LiteralPath $App).Path
 $tours = @(
   @{ Name = "onboarding"; Run = { Invoke-OnboardingTour } },
   @{ Name = "browser"; Run = { Invoke-MainTour } },
-  @{ Name = "top tabs"; Run = { Invoke-LayoutTour "top-tabs" @{ tabLayout = "top" } "Tabs in a top strip" "the title band is not a caption (the strip sits in it)." } },
-  @{ Name = "sidebar on the right"; Run = { Invoke-LayoutTour "sidebar-right" @{ sidebarSide = "right" } "Sidebar on the right" "the title band is not a caption (the page card reaches the caption buttons' side)." } },
+  @{ Name = "top tabs"; Run = { Invoke-LayoutTour "top-tabs" @{ tabLayout = "top" } "Tabs in a top strip" "the window buttons sit at the end of the strip, and the gap beside them is a caption region." } },
+  @{ Name = "sidebar on the right"; Run = { Invoke-LayoutTour "sidebar-right" @{ sidebarSide = "right" } "Sidebar on the right" "the window buttons sit in the sidebar's header, and the gap beside them is a caption region." } },
   @{ Name = "dark"; Run = { Invoke-DarkTour } }
 )
 

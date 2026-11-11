@@ -40,23 +40,34 @@ Logic is written once. Only code that calls the OS is written per platform.
   `<Module>:<event>` (`Events.h`). Folders come from `Paths.h`: data in `%LOCALAPPDATA%\Ardia` or `ARDIA_DATA_DIR`,
   config in `%APPDATA%\Ardia`.
 - Windows are the app's own (`WindowManager.h`, `ArdiaAppWindows`): one runtime, one window per window id, each
-  mounted with its id, as on the Mac. Browser windows draw into the title bar and keep the system caption buttons.
-  A drag region is a view that moves the window when the UI's own hit-testing gives it the press, so a control
-  on top of it still clicks; the top 32 points of every window drag the same way where nothing else takes the
-  press. The top 32 points of a browser window are either `content` (a pass-through region over the band, so the UI
-  gets every press and the app moves the window while the button is down; Escape puts it back, a maximized window
-  restores under the pointer and a release at the top edge maximizes) or `caption` (no pass-through, so Windows' own
-  title bar region takes the band: its move snaps, drags off a maximized window, double clicks to maximize and right
-  clicks for the system menu, and each press still reaches the UI so popovers and the command panel close). The shared
-  UI picks the mode per window (`titleBandFree` in `state/windows/layout.ts`, sent through `platform/titleBand.windows.ts`):
-  `caption` only when it can prove the band holds no control, which is the default layout (tabs in the sidebar,
-  address bar in the toolbar, the toolbar hidden while scrolling, one profile, no downloads in the sidebar header, no
-  command panel or onboarding open); the Mac never asks. Drag areas below the band always move through the app, and
-  native code detects their double clicks. The launch log says which mode each window's band is in and which path
-  each drag took. A hidden sidebar slides back in when the pointer reaches the window's edge, as on the Mac:
-  `watchSidebarEdge` polls the pointer every 40 ms while a window is watched and logs `sidebar edge over|away <id>`.
-  The caption buttons' size lives in `apps/browser/src/lib/platformChrome.windows.ts` (138 by 32). The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
-  without a reply; a no cancels the quit.
+  mounted with its id, as on the Mac. No window has a system title bar or system caption buttons: every window draws
+  into its whole frame, and the UI draws minimize, maximize and close itself (`components/window/WindowControls.tsx`),
+  as the Mac's lights live inside the UI there. So no band is kept free at the top: the page card starts at the page
+  frame, and Settings and Import have no title bar above them.
+  - Where the buttons sit comes from `windowControlsPlace` in `state/windows/layout.ts`: in the card's toolbar row, in
+    a right sidebar's header, at the end of the top tab strip, in Little Ardia's bar. Only a card with no toolbar under
+    the corner (address bar in the sidebar, sidebar on the left) keeps a 32 point band for them. They take the site's
+    toolbar colours in the toolbar, and when the toolbar hides while scrolling a smaller set fades in on the 20 point
+    strip. The room every row keeps for them (138 points: 12 to the edge, 96 of buttons, 30 to drag by) is in
+    `lib/platformChrome.windows.ts` and `WINDOW_CONTROLS` in `lib/windowChrome.ts`.
+  - With no lights on the left, a sidebar header with nothing in it collapses to the page frame on Windows
+    (`sidebarHeaderCollapsed`), so the tabs start at the top; the downloads button then sits in the sidebar's footer.
+    The header stays for a profile indicator, an incognito window, the address row, and a right sidebar.
+  - Moving the window: a drag region is a view that moves the window when the UI's own hit-testing gives it the press,
+    so a control on top of it still clicks, and the app moves the window while the button is down (Escape puts it
+    back, a maximized window restores under the pointer, a release at the top edge maximizes). The UI also marks
+    caption regions for Windows (`captionRegions` in `state/windows/layout.ts`, sent by `state/windows/captionRegions.ts`
+    through `platform/windowControls.windows.ts`): the gap beside the window buttons and the gutter above the card,
+    where nothing else sits. Windows moves the window itself from those, so its snap, drag off a maximized window,
+    double click to maximize and system menu work, and each press still reaches the UI so popovers and the command
+    panel close. No region is marked while the command panel, the downloads popover or onboarding is open. Native lays
+    a pass-through over the rest of any band Windows would treat as a title bar. The launch log says
+    `input regions of <id>: ...`, `title band of <id> is caption|content` (caption while any region is marked),
+    which path each drag took, and `maximized|restored <id>`.
+  - A hidden sidebar slides back in when the pointer reaches the window's edge, as on the Mac: `watchSidebarEdge`
+    polls the pointer every 40 ms while a window is watched and logs `sidebar edge over|away <id>`.
+  - The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
+    without a reply; a no cancels the quit.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
   signals, the clipboard, the bang list, confirm, prompt and file dialogs, the command table with its shortcuts and
@@ -91,8 +102,8 @@ Logic is written once. Only code that calls the OS is written per platform.
 - The command panel opens in place on Windows instead of growing out of its field
   (`PLATFORM_FEATURES.panelGrowsFromField`): React Native for Windows scales a view around its top-left corner, not
   its centre, so the grow's first frame landed 68 points left of Little Ardia's field and above the window, and the
-  panel stayed there, cut off 24 points down. While the panel sits in the title band it keeps the caption buttons'
-  138 points free at the right (`trailingClearance` in `lib/windowChrome.ts`). Little Ardia's bar numbers for both
+  panel stayed there, cut off 24 points down. While the panel sits beside the window buttons it keeps their 138
+  points free at the right (`trailingClearance` in `lib/windowChrome.ts`). Little Ardia's bar numbers for both
   systems are in `components/littleArdia/barLayout.ts`.
 - Icons are the web demo's set (`packages/demo/src/shims/web/symbols`), resolved in TypeScript and drawn natively as
   Direct2D geometry in Composition shapes.
@@ -116,19 +127,18 @@ Logic is written once. Only code that calls the OS is written per platform.
   which launches it three times and uploads each launch's log: a first launch (onboarding) and a launch with
   onboarding done (the browser window), each with a screenshot when the runner allows a capture, then a hidden
   self-check launch.
-- With the browser window open, the x64 run also drives the app with real input (a click and typing in the search
-  box, Ctrl+T, drags and double clicks of the title band, a drag of the toolbar below it, a click on the sidebar
-  button just below it) and fails when the default layout's band is not a caption, a title band drag is not Windows'
-  own move or does not move the window by the dragged distance, dragging to the top edge does not maximize it or
-  dragging back down does not restore its size, a double click does not maximize or restore it, the toolbar drag is
-  not the app's own move, the shortcut matches no command, the sidebar button does not take its click, or the
-  pointer just outside the window's left edge does not bring the hidden sidebar's edge over and away. The ARM runner's desktop is covered by Windows' own
-  first-run screen, so its screenshots show that screen and it skips the input.
+- With the browser window open, the x64 run also drives the app with real input and fails when the default layout
+  marks no caption region; a drag by the gap beside the window buttons is not Windows' own move or does not move the
+  window by the dragged distance; dragging it to the top edge does not maximize the window or dragging back down does
+  not restore its size; a double click there does not maximize or restore it; the app's maximize, restore or minimize
+  button does not do so; a drag of the toolbar's empty middle is not the app's own move; Ctrl+T matches no command; the sidebar button does not take its click; or the pointer just outside the
+  window's left edge does not bring the hidden sidebar's edge over and away. The ARM runner's desktop is covered by
+  Windows' own first-run screen, so its screenshots show that screen and it skips the input.
 - `scripts/windows/tour.ps1` drives a full screenshot tour and writes `tour.md`, one line per stop with the facts it
-  read. Among them: Downloads and Search Tabs must close on Escape (the title band goes from content back to a
-  caption, and for Downloads the log shows the native Escape capture taking the key), and Little Ardia's command
-  panel must be drawn whole below its field, with the caption buttons on the bare band (screen brightness where the
-  panel used to be cut off, and under the caption buttons).
+  read. Among them: Downloads and Search Tabs must close on Escape (the caption regions go away while one is open and
+  come back, and for Downloads the log shows the native Escape capture taking the key), and Little Ardia's command
+  panel must be drawn whole below its field, with the window buttons on the bare bar (screen brightness where the
+  panel used to be cut off, and under the buttons).
 - The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the
   launch fails if any check does. A new native method gets a check there.

@@ -14,7 +14,6 @@ import { DropTargets, SplitDividers, SplitToast } from "../split/SplitChrome";
 import { dockMoving, usePeekSpan, whenDockStill } from "../../state/windows/dockMotion";
 import { FrozenPage } from "./FrozenPage";
 import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useCardCaptionRoom, usePageFrameInset, useTabLayout, watchToolbarExtensionsWidth } from "../../state/windows/layout";
-import { TOP_STRIP_HEIGHT } from "../tabstrip/tokens";
 import { startSelectionTools } from "../../state/site/selection";
 import { startMedia } from "../../state/media/pip";
 import { urlFieldRight } from "../toolbar/Toolbar";
@@ -42,7 +41,7 @@ export function ContentCard() {
   const barMode = useBookmarksBarMode(windowId);
   const toolbarRow = useToolbarRow();
   const barHeight = useBookmarksBarHeight();
-  const captionRoom = useCardCaptionRoom(usePageFrameInset(), TOP_STRIP_HEIGHT);
+  const captionRoom = useCardCaptionRoom(usePageFrameInset());
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
   const container = useRef<View>(null);

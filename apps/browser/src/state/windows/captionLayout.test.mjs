@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { cardCaptionRoom, cardTopInset, sidebarCaptionRoom, titleBandFree } = await import("./layout.ts");
+const { cardCaptionRoom, cardTopInset, sidebarCaptionRoom, captionRegions, windowControlsPlace, windowControlsBottom, sidebarHeaderCollapsed, downloadsInSidebarFooter, collapsedSidebarHeader } = await import("./layout.ts");
 const { SMALL_BAR_HEIGHT, SMALL_WINDOW_BAR_HEIGHT } = await import("./small.ts");
 const windows = (await import("../../lib/platformChrome.windows.ts")).WINDOW_CHROME;
 const mac = (await import("../../lib/platformChrome.ts")).WINDOW_CHROME;
 const { littleArdiaBarLayout } = await import("../../components/littleArdia/barLayout.ts");
 const { SMALL_FIELD_HEIGHT, SMALL_BAR_BUTTON } = await import("../../components/littleArdia/tokens.ts");
-const { trailingClearance } = await import("../../lib/windowChrome.ts");
+const { trailingClearance, WINDOW_CONTROLS, windowControlsWidth } = await import("../../lib/windowChrome.ts");
+const { syncCaptionRegions } = await import("./captionRegions.ts");
 const macFeatures = (await import("../../lib/platformFeatures.ts")).PLATFORM_FEATURES;
 const windowsFeatures = (await import("../../lib/platformFeatures.windows.ts")).PLATFORM_FEATURES;
 
@@ -36,19 +37,23 @@ const LAYOUTS = [
   [{}, { fullScreen: true }],
 ];
 
-test("on the Mac no layout gives the card, the toolbar or the sidebar any caption room", () => {
+test("on the Mac no layout gives the card, the toolbar or the sidebar any caption room, window buttons or caption regions", () => {
   for (const [settings, window] of LAYOUTS) {
     const s = state(settings, window);
-    assert.equal(cardCaptionRoom(s, "w", 9, 42), 0);
+    assert.equal(cardCaptionRoom(s, "w", 9), 0);
     assert.equal(cardTopInset(s, "w", 9), 9);
     assert.equal(sidebarCaptionRoom(s, "w"), 0);
+    assert.equal(windowControlsPlace(s, "w", 9), null);
+    assert.deepEqual(captionRegions(s, "w"), []);
+    assert.equal(sidebarHeaderCollapsed(s, "w"), false);
+    assert.equal(downloadsInSidebarFooter(s, "w"), settings.addressBar === "sidebar");
   }
   assert.equal(SMALL_WINDOW_BAR_HEIGHT, SMALL_BAR_HEIGHT);
   assert.equal(SMALL_BAR_HEIGHT, 38);
 });
 
-test("on Windows the card's top row makes room for the caption buttons wherever the card reaches them", () => {
-  const room = (settings, window, frame = 9) => cardCaptionRoom(state(settings, window), "w", frame, 42, windows);
+test("on Windows the card's top row makes room for the window buttons wherever the card reaches them", () => {
+  const room = (settings, window, frame = 9) => cardCaptionRoom(state(settings, window), "w", frame, windows);
   assert.equal(room({}, {}), 129);
   assert.equal(room({}, {}, 0), 138);
   assert.equal(room({ tabLayout: "top" }, {}), 0);
@@ -59,58 +64,127 @@ test("on Windows the card's top row makes room for the caption buttons wherever 
   assert.equal(room({}, { kind: "small" }), 0);
 });
 
-test("on Windows a card without a tall enough toolbar starts below the caption buttons", () => {
+test("on Windows the room the toolbar keeps holds the buttons, their edge and a gap to drag by", () => {
+  const taken = WINDOW_CONTROLS.edge + windowControlsWidth();
+  assert.equal(taken, 108);
+  assert.ok(windows.trailingWidth - taken >= 24, "at least 24 points beside the buttons stay free to drag the window by");
+});
+
+test("on Windows the card starts at the page frame whenever it has a toolbar, also one that hides while scrolling", () => {
   const top = (settings, window) => cardTopInset(state(settings, window), "w", 9, windows);
   assert.equal(top({}, {}), 9);
   assert.equal(top({ compactToolbar: true }, {}), 9);
-  assert.equal(top({ addressBar: "sidebar" }, {}), 32);
-  assert.equal(top({ hideToolbarWhileScrolling: true }, {}), 32);
+  assert.equal(top({ hideToolbarWhileScrolling: true }, {}), 9);
+  assert.equal(top({ hideToolbarWhileScrolling: true, compactToolbar: true }, {}), 9);
+  assert.equal(top({ hideToolbarWhileScrolling: true }, { sidebarOpen: false }), 9);
   assert.equal(top({ addressBar: "sidebar", sidebarSide: "right" }, {}), 9);
   assert.equal(top({ tabLayout: "top" }, {}), 9);
   assert.equal(top({ addressBar: "sidebar" }, { fullScreen: true }), 9);
 });
 
-test("on Windows a sidebar on the right keeps its header out from under the caption buttons", () => {
+test("on Windows only a card with no toolbar under the window buttons leaves them a band", () => {
+  const top = (settings, window) => cardTopInset(state(settings, window), "w", 9, windows);
+  assert.equal(top({ addressBar: "sidebar" }, {}), 32);
+});
+
+test("on Windows a sidebar on the right keeps its header out from under the window buttons", () => {
   assert.equal(sidebarCaptionRoom(state({ sidebarSide: "right" }), "w", windows), 138);
   assert.equal(sidebarCaptionRoom(state({}), "w", windows), 0);
   assert.equal(sidebarCaptionRoom(state({ sidebarSide: "right" }, { fullScreen: true }), "w", windows), 0);
 });
 
-test("the Mac never asks for a caption title band", () => {
+const place = (settings = {}, window = {}, frame = 9) => windowControlsPlace(state(settings, window), "w", frame, windows);
+
+test("on Windows the window buttons sit in the row that reaches the window's top right corner", () => {
+  assert.deepEqual(place(), { centerY: 30.2, size: 30, host: "toolbar" });
+  assert.deepEqual(place({ hideToolbarWhileScrolling: true }), { centerY: 30.2, size: 30, host: "toolbar" });
+  assert.deepEqual(place({ compactToolbar: true }), { centerY: 23, size: 22, host: "toolbar" });
+  assert.deepEqual(place({}, {}, 0), { centerY: 21.2, size: 30, host: "toolbar" });
+  assert.deepEqual(place({}, { sidebarOpen: false }), { centerY: 30.2, size: 30, host: "toolbar" });
+  assert.deepEqual(place({ sidebarSide: "right" }), { centerY: 30, size: 30, host: "sidebar" });
+  assert.deepEqual(place({ sidebarSide: "right" }, { sidebarOpen: false }), { centerY: 30.2, size: 30, host: "toolbar" });
+  assert.deepEqual(place({ sidebarSide: "right", addressBar: "sidebar" }), { centerY: 24, size: 30, host: "sidebar" });
+  assert.deepEqual(place({ addressBar: "sidebar" }), { centerY: 16, size: 26, host: "band" });
+  assert.deepEqual(place({ tabLayout: "top" }), { centerY: 20.75, size: 30, host: "strip" });
+  assert.deepEqual(place({ tabLayout: "top" }, { sidebarOpen: false }), { centerY: 30.2, size: 30, host: "toolbar" });
+  assert.deepEqual(place({}, { kind: "small" }), { centerY: 19, size: 28, host: "strip" });
+  assert.equal(place({}, { fullScreen: true }), null);
+  assert.equal(windowControlsPlace(state(), "missing", 9, windows), null);
+});
+
+test("on Windows the window buttons stay inside their row and clear of a band-less card's corner", () => {
   for (const [settings, window] of LAYOUTS) {
-    assert.equal(titleBandFree(state(settings, window), "w"), false);
-    assert.equal(titleBandFree(state({ ...settings, hideToolbarWhileScrolling: true }, window), "w"), false);
+    const at = place(settings, window);
+    if (!at) continue;
+    assert.ok(at.centerY - at.size / 2 >= 0, `the buttons start inside the window: ${JSON.stringify([settings, window, at])}`);
+    assert.equal(windowControlsBottom(at), at.centerY + at.size / 2);
+  }
+  assert.equal(windowControlsBottom(null), 0);
+});
+
+const regions = (settings = {}, window = {}, extra = {}, overlaid = false) => captionRegions(state(settings, window, extra), "w", overlaid, windows);
+const SPACER = [-136, 0, 111];
+
+test("on Windows the gap beside the window buttons and the gutter above the card are caption regions", () => {
+  assert.deepEqual(regions(), [[...SPACER, 45.2], [0, 0, 0, 9]]);
+  assert.deepEqual(regions({ compactToolbar: true }), [[...SPACER, 34], [0, 0, 0, 9]]);
+  assert.deepEqual(regions({ pageFrame: 0 }), [[...SPACER, 36.2]]);
+  assert.deepEqual(regions({ pageFrame: 12 }), [[...SPACER, 48.2], [0, 0, 0, 12]]);
+  assert.deepEqual(regions({ sidebarSide: "right" }), [[...SPACER, 45], [0, 0, 0, 9]]);
+  assert.deepEqual(regions({ sidebarSide: "right", addressBar: "sidebar" }), [[...SPACER, 39], [0, 0, 0, 7]]);
+  assert.deepEqual(regions({ addressBar: "sidebar" }), [[...SPACER, 29]]);
+  assert.deepEqual(regions({ tabLayout: "top" }), [[...SPACER, 35.75]]);
+  assert.deepEqual(regions({}, { kind: "small" }), [[...SPACER, 33]]);
+});
+
+test("on Windows a caption region never covers the window buttons or reaches below their row", () => {
+  for (const [settings, window] of LAYOUTS) {
+    const at = place(settings, window);
+    for (const [left, top, rightInset, height] of regions(settings, window)) {
+      assert.equal(top, 0);
+      if (left === 0) assert.ok(height < at.centerY - at.size / 2, `the gutter stops above the buttons: ${JSON.stringify([settings, window])}`);
+      else assert.ok(rightInset > WINDOW_CONTROLS.edge + windowControlsWidth(), `the spacer stops before the buttons: ${JSON.stringify([settings, window])}`);
+      assert.ok(height <= windowControlsBottom(at));
+    }
   }
 });
 
-const DEFAULT_LAYOUT = { hideToolbarWhileScrolling: true };
-const bandFree = (settings = {}, window = {}, extra = {}, overlaid = false) =>
-  titleBandFree(state({ ...DEFAULT_LAYOUT, ...settings }, window, extra), "w", overlaid, windows);
-
-test("on Windows the default layout leaves the title band free for Windows' own caption", () => {
-  assert.equal(bandFree(), true);
-  assert.equal(bandFree({ compactToolbar: true }), true);
-  assert.equal(bandFree({ pageFrame: 0 }), true);
-  assert.equal(bandFree({}, { sidebarOpen: false }), true);
-  assert.equal(bandFree({ sidebarSide: "right" }, { sidebarOpen: false }), true);
+test("on Windows nothing is a caption region while something can cover it, or in full screen", () => {
+  assert.deepEqual(regions({}, { fullScreen: true }), []);
+  assert.deepEqual(regions({}, {}, { windowUi: { w: { panel: { open: true, initialText: "" }, downloadsOpen: false } } }), [], "the command panel");
+  assert.deepEqual(regions({}, {}, { windowUi: { w: { panel: { open: false, initialText: "" }, downloadsOpen: true } } }), [], "the downloads popover");
+  assert.deepEqual(regions({}, {}, {}, true), [], "an overlay such as onboarding");
+  assert.deepEqual(captionRegions(state(), "missing", false, windows), [], "a window that does not exist");
 });
 
-test("on Windows any layout that puts a control in the title band keeps the band for the UI", () => {
-  assert.equal(bandFree({ hideToolbarWhileScrolling: false }), false, "the toolbar starts inside the band");
-  assert.equal(bandFree({ tabLayout: "top" }), false, "the top tab strip fills the band");
-  assert.equal(bandFree({ tabLayout: "top" }, { sidebarOpen: false }), false, "the top strip's peek and toolbar reach the band");
-  assert.equal(bandFree({}, { tabLayout: "top" }), false, "a window with its own top tab layout");
-  assert.equal(bandFree({ sidebarSide: "right" }), false, "a sidebar on the right puts the card's toolbar in the band");
-  assert.equal(bandFree({ addressBar: "sidebar" }), false, "the sidebar's address row and header tools sit in the band");
-  assert.equal(bandFree({}, { kind: "small" }), false, "Little Ardia's bar is the band");
-  assert.equal(bandFree({}, { fullScreen: true }), false, "full screen has no title band");
-  assert.equal(bandFree({}, { kind: "private" }), false, "the incognito indicator sits in the sidebar header");
-  assert.equal(bandFree({}, {}, { profiles: { p: { id: "p" }, q: { id: "q" } }, profileOrder: ["p", "q"] }), false, "the profile indicator sits in the sidebar header");
-  assert.equal(bandFree({}, {}, { downloads: [{ id: "d", profile: "p", state: "complete" }] }), false, "the downloads button sits in the sidebar header");
-  assert.equal(bandFree({}, {}, { windowUi: { w: { panel: { open: true, initialText: "" }, downloadsOpen: false } } }), false, "the command panel can rise into the band");
-  assert.equal(bandFree({}, {}, { windowUi: { w: { panel: { open: false, initialText: "" }, downloadsOpen: true } } }), false, "the downloads popover");
-  assert.equal(bandFree({}, {}, {}, true), false, "an overlay such as onboarding covers the band");
-  assert.equal(titleBandFree(state(DEFAULT_LAYOUT), "missing", false, windows), false, "a window that does not exist");
+test("on the Mac no caption region is ever sent to native", () => {
+  const sent = [];
+  const send = (id, list) => sent.push([id, list]);
+  const open = { windowUi: { w: { panel: { open: true, initialText: "" }, downloadsOpen: false } } };
+  syncCaptionRegions(state(), null, send);
+  assert.deepEqual(sent, []);
+  syncCaptionRegions(state({}, {}, open), null, send);
+  assert.deepEqual(sent, []);
+});
+
+test("on Windows an empty sidebar header on the left collapses to the page frame, and downloads move to the footer", () => {
+  const collapsed = (settings = {}, window = {}, extra = {}) => sidebarHeaderCollapsed(state(settings, window, extra), "w", windows);
+  assert.equal(collapsed(), true);
+  assert.equal(collapsed({ compactToolbar: true }), true);
+  assert.equal(collapsed({}, { sidebarOpen: false }), true);
+  assert.equal(collapsed({ sidebarSide: "right" }), false, "the window buttons sit in a right sidebar's header");
+  assert.equal(collapsed({ addressBar: "sidebar" }), false, "the address row and header tools");
+  assert.equal(collapsed({ tabLayout: "top" }), false);
+  assert.equal(collapsed({}, { kind: "private" }), false, "the incognito indicator");
+  assert.equal(collapsed({}, {}, { profiles: { p: { id: "p" }, q: { id: "q" } }, profileOrder: ["p", "q"] }), false, "the profile indicator");
+  assert.equal(collapsedSidebarHeader(9), 9);
+  assert.equal(collapsedSidebarHeader(12), 12);
+  assert.equal(collapsedSidebarHeader(0), 6);
+  const footer = (settings = {}, window = {}) => downloadsInSidebarFooter(state(settings, window), "w", windows);
+  assert.equal(footer(), true);
+  assert.equal(footer({ addressBar: "sidebar" }), true);
+  assert.equal(footer({ sidebarSide: "right" }), false);
+  assert.equal(footer({ tabLayout: "top" }), false);
 });
 
 test("on the Mac Little Ardia's bar keeps its numbers", () => {
@@ -129,13 +203,15 @@ test("on Windows Little Ardia's bar starts at the window's left edge and its con
   assert.ok(bar.height >= windows.titleBarHeight, "the bar covers the whole title band");
 });
 
-test("the command panel keeps the Mac's 16 pt right margin and clears Windows' caption buttons while it sits in the title band", () => {
-  for (const top of [0.5, 5, 31, 32, 60]) assert.equal(trailingClearance(top, 16, mac), 16);
-  assert.equal(trailingClearance(0.5, 16, windows), 138);
-  assert.equal(trailingClearance(5, 16, windows), 138);
-  assert.equal(trailingClearance(31.5, 16, windows), 138);
-  assert.equal(trailingClearance(32, 16, windows), 16);
-  assert.equal(trailingClearance(60, 16, windows), 16);
+test("the command panel keeps the Mac's 16 pt right margin and clears the window buttons while it sits beside them", () => {
+  for (const top of [0.5, 5, 31, 32, 60]) assert.equal(trailingClearance(top, 16, 0, mac), 16);
+  for (const top of [0.5, 5, 31, 32, 60]) assert.equal(trailingClearance(top, 16, 45.2, mac), 16);
+  assert.equal(trailingClearance(0.5, 16, 45.2, windows), 138);
+  assert.equal(trailingClearance(15, 16, 45.2, windows), 138);
+  assert.equal(trailingClearance(45, 16, 45.2, windows), 138);
+  assert.equal(trailingClearance(45.2, 16, 45.2, windows), 16);
+  assert.equal(trailingClearance(60, 16, 45.2, windows), 16);
+  assert.equal(trailingClearance(5, 16, 0, windows), 16);
 });
 
 test("the command panel grows from its field on the Mac and opens in place on Windows", () => {

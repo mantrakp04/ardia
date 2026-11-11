@@ -93,10 +93,25 @@ struct WindowsModule {
     OnUI(promise, [rootTag]() noexcept { WindowManager::Shared().PressDragArea(static_cast<int64_t>(rootTag)); });
   }
 
-  REACT_METHOD(setTitleBand)
-  void setTitleBand(std::string id, std::string mode, Promise promise) noexcept {
-    bool caption = mode == "caption";
-    OnUI(promise, [id, caption]() noexcept { WindowManager::Shared().SetTitleBand(id, caption); });
+  REACT_METHOD(setCaptionRegions)
+  void setCaptionRegions(std::string id, JSValue regions, Promise promise) noexcept {
+    std::vector<std::array<double, 4>> wanted;
+    if (auto items = regions.TryGetArray()) {
+      for (auto const &item : *items) {
+        if (auto region = Numbers<4>(item)) wanted.push_back(*region);
+      }
+    }
+    OnUI(promise, [id, wanted]() noexcept { WindowManager::Shared().SetCaptionRegions(id, wanted); });
+  }
+
+  REACT_METHOD(minimizeWindow)
+  void minimizeWindow(std::string id, Promise promise) noexcept {
+    OnUI(promise, [id]() noexcept { WindowManager::Shared().Minimize(id); });
+  }
+
+  REACT_METHOD(toggleMaximizeWindow)
+  void toggleMaximizeWindow(std::string id, Promise promise) noexcept {
+    OnUI(promise, [id]() noexcept { WindowManager::Shared().ToggleMaximizeOf(id); });
   }
 
   REACT_METHOD(debugDragRegions)
