@@ -9,6 +9,7 @@ import { repoKey } from "./rows";
 import { SOURCES } from "./sources";
 import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
+import { noteLiveCompletedTabsClosed } from "../telemetry/liveCompletedTabs";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
 const STALE_ON_FOCUS_MS = 60_000;
@@ -217,7 +218,9 @@ function closeCompletedTabs() {
   const tabs = Object.values(s.tabs)
     .filter(({ id, liveItem: ref }) => ref?.completed && folders[ref.folderId]?.showCompleted === false && !shown.has(id) && !items[ref.folderId]?.some((it) => it.id === ref.itemId))
     .map((t) => t.id);
-  if (tabs.length) s.closeTabs(tabs);
+  if (!tabs.length) return;
+  s.closeTabs(tabs);
+  noteLiveCompletedTabsClosed(tabs.length);
 }
 
 let started = false;
