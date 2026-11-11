@@ -208,3 +208,12 @@ test("a merged pull request's tab another tab is sharing stays until the share e
   useMedia.setState({ tabShares: {} });
   assert.equal(S().tabs[tab], undefined);
 });
+
+test("a merged pull request's tab that's sharing another tab stays until its share ends", async () => {
+  const { id, tab, merging } = await mergeWithTabOpen(false);
+  useMedia.setState({ tabShares: { [tab]: { capturedTabId: start, origin: "https://meet.example", dismissed: {} } } });
+  finishCompleting(id, [merging.id]);
+  assert.ok(S().tabs[tab], "closing it would end its share");
+  useMedia.setState({ tabShares: {} });
+  assert.equal(S().tabs[tab], undefined);
+});

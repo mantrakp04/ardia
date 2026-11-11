@@ -214,7 +214,7 @@ function markCompletedTabs(folderId: string, gone: Record<string, CompletionStat
 
 const inUse = (s: BrowserState, id: string) => {
   const media = useMedia.getState();
-  return !!s.live[id]?.playingAudio || !!media.pipOpen[id] || isPlaying(media.sessions[id]) || Object.values(media.tabShares).some((share) => share.capturedTabId === id);
+  return !!s.live[id]?.playingAudio || !!media.pipOpen[id] || isPlaying(media.sessions[id]) || !!media.tabShares[id] || Object.values(media.tabShares).some((share) => share.capturedTabId === id);
 };
 
 const playbackEnded = (s: BrowserState, prev: BrowserState) => s.live !== prev.live && Object.keys(prev.live).some((id) => prev.live[id]?.playingAudio && !s.live[id]?.playingAudio);
