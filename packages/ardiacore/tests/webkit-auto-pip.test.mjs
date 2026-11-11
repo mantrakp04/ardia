@@ -38,7 +38,7 @@ test("WebKit tabs keep the autoPictureInPicture flag instead of a stub that read
 
 test("WebKit tabs follow the user's sight of their window the way Chromium views do", () => {
   assert.match(sight, /let seen = visible && ArdiaChromeWindowHost\.userSees\(window\)/);
-  assert.match(sight, /forName: ArdiaWindowSeenDidChange, object: window/);
+  assert.match(sight, /forName: (?:NSNotification\.Name\.)?ArdiaWindowSeenDidChange, object: window/);
   assert.match(tab, /override func viewDidMoveToWindow\(\) \{ super\.viewDidMoveToWindow\(\); watchSight\(\) \}/);
   assert.match(tab, /var visible = true \{ didSet \{ updateHidden\(\); updateSight\(\) \} \}/);
 });
