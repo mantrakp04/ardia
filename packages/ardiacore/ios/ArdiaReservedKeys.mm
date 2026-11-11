@@ -112,6 +112,11 @@ bool IsInDevTools(NSView *view) {
   return false;
 }
 
+bool IsDevToolsPickerKey(NSEvent *event) {
+  return ModifiersOfKey(@"c", event.modifierFlags) == (NSEventModifierFlagCommand | NSEventModifierFlagShift) &&
+         [event.charactersIgnoringModifiers.lowercaseString isEqualToString:@"c"];
+}
+
 }
 
 namespace ardia_window {
@@ -141,6 +146,7 @@ bool KeepsUnhandledSidebarKeyInPage(NSWindow *window, NSEvent *event) {
 }
 
 bool KeepsReservedKeyInDevTools(NSWindow *window, NSEvent *event) {
+  if (!IsDevToolsPickerKey(event)) return false;
   if (![ReservedMenuItemForEvent(event).identifier isEqualToString:kCopyUrlIdentifier]) return false;
   NSResponder *focused = window.firstResponder;
   return [focused isKindOfClass:NSView.class] && IsInDevTools((NSView *)focused);

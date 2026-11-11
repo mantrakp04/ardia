@@ -40,7 +40,9 @@ test("the kept-key handoff travels from the hook to a capped, property-free tele
   assert.match(keys, /capture\("devtools_key_kept"\);/);
   assert.match(keys, /watchDevToolsKeys = \(\) => onDevToolsKeyKept\(trackDevToolsKeyKept\);/);
   assert.match(read("../state/telemetry/index.ts"), /startUsage\(\);\s*watchDevToolsKeys\(\);/);
-  assert.match(read("../state/telemetry/copy.ts"), /Developer Tools took ⇧⌘C to turn its element picker on or off/);
+  const copy = read("../state/telemetry/copy.ts");
+  assert.match(copy, /That ⇧⌘C was passed to a focused Developer Tools instead of copying the page address, once per press/);
+  assert.doesNotMatch(copy, /element picker on or off/, "the event is a handoff, it doesn't say the picker toggled");
 });
 
 test("Developer Tools keeps only Copy URL's key, and only when the focus is inside a tab's Developer Tools view", () => {
@@ -52,6 +54,10 @@ test("Developer Tools keeps only Copy URL's key, and only when the focus is insi
   assert.match(keeps, /kCopyUrlIdentifier/, "only the Copy URL item is kept");
   assert.match(keeps, /firstResponder/, "the focus decides");
   assert.doesNotMatch(keeps, /@"ardia\./, "no other reserved key is named here, so they keep going to the main menu");
+  assert.match(keeps, /IsDevToolsPickerKey\(event\)/, "only the key Developer Tools uses is kept, not whatever Copy URL is rebound to");
+  const pickerKey = bodyOf(source, "bool IsDevToolsPickerKey(NSEvent *event)");
+  assert.match(pickerKey, /ModifiersOfKey\(@"c", event\.modifierFlags\) == \(NSEventModifierFlagCommand \| NSEventModifierFlagShift\)/, "⇧⌘C and no other modifiers");
+  assert.match(pickerKey, /charactersIgnoringModifiers\.lowercaseString isEqualToString:@"c"/, "the C key");
   const inDevTools = bodyOf(source, "bool IsInDevTools(NSView *view)");
   assert.match(inDevTools, /devtoolsView/, "the Developer Tools view is the one ArdiaWebView tracks");
   assert.match(inDevTools, /isDescendantOf:/);
