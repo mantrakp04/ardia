@@ -179,6 +179,7 @@ function PageFramePicker() {
           </Box>
         </Row>
         <SettingToggle anchor="appearance.pageFrameZeroInFullScreen" />
+        <SettingToggle anchor="appearance.pageFrameZeroWhenTabsHidden" />
       </Group>
     </>
   );

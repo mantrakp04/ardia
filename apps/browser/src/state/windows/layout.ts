@@ -39,14 +39,26 @@ export function openingLightsCenter(s: BrowserState, windowId: string): LightsPl
   const open = tabsShownIn(s, windowId);
   if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
   const width = s.settings.sidebarWidth;
-  const frame = pageFrameInsetOf(s.settings.pageFrame, s.settings.pageFrameZeroInFullScreen, !!w.fullScreen);
+  const frame = pageFrameInsetOf(s.settings.pageFrame, {
+    zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
+    fullScreen: !!w.fullScreen,
+    zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,
+    tabsHidden: s.settings.autoHideTabs,
+  });
   const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, frame);
   return sidebarLightsCenter(sidebarSideOf(s, w.id) === "right", width, open ? 0 : width, 0, base);
 }
 
 export function usePageFrameInset(): number {
   const windowId = useWindowId();
-  return useBrowser((s) => pageFrameInsetOf(s.settings.pageFrame, s.settings.pageFrameZeroInFullScreen, !!s.windows[windowId]?.fullScreen));
+  return useBrowser((s) =>
+    pageFrameInsetOf(s.settings.pageFrame, {
+      zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
+      fullScreen: !!s.windows[windowId]?.fullScreen,
+      zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,
+      tabsHidden: s.settings.autoHideTabs,
+    }),
+  );
 }
 
 export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar), usePageFrameInset());
