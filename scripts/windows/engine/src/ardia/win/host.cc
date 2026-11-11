@@ -1,6 +1,7 @@
 #include "ardia/win/host.h"
 
 #include <commctrl.h>
+#include <dwmapi.h>
 
 #include <cmath>
 #include <memory>
@@ -42,13 +43,14 @@
 #include "ui/base/window_open_disposition.h"
 #include "ui/events/event.h"
 #include "ui/events/types/event_type.h"
+#include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
 
 namespace ardia_win {
 
 namespace {
 
-constexpr wchar_t kParkingClass[] = L"ArdiaParkedPages";
+constexpr int kParkedAt = -32000;
 constexpr char kOfferedPrefix[] = "ardiacore:";
 constexpr UINT_PTR kParentSubclass = 0xA2D1A;
 
@@ -70,22 +72,32 @@ HWND WindowOf(BrowserWindowInterface* browser) {
   return native->GetHost()->GetAcceleratedWidget();
 }
 
-void MakeChild(HWND window, HWND parent) {
+void MakeBare(HWND window) {
   LONG_PTR style = ::GetWindowLongPtrW(window, GWL_STYLE);
-  style &= ~static_cast<LONG_PTR>(WS_POPUP | WS_CAPTION | WS_THICKFRAME |
+  style &= ~static_cast<LONG_PTR>(WS_CHILD | WS_CAPTION | WS_THICKFRAME |
                                   WS_SYSMENU | WS_MINIMIZEBOX |
                                   WS_MAXIMIZEBOX | WS_VISIBLE);
-  style |= WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
+  style |= WS_POPUP | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
   ::SetWindowLongPtrW(window, GWL_STYLE, style);
   LONG_PTR extended = ::GetWindowLongPtrW(window, GWL_EXSTYLE);
   extended &= ~static_cast<LONG_PTR>(WS_EX_APPWINDOW | WS_EX_WINDOWEDGE |
                                      WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE |
                                      WS_EX_STATICEDGE);
   ::SetWindowLongPtrW(window, GWL_EXSTYLE, extended);
-  ::SetParent(window, parent);
-  ::SetWindowPos(window, nullptr, 0, 0, 0, 0,
-                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+  const DWORD square = DWMWCP_DONOTROUND;
+  ::DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &square,
+                          sizeof(square));
+  const BOOL no_transitions = TRUE;
+  ::DwmSetWindowAttribute(window, DWMWA_TRANSITIONS_FORCEDISABLED,
+                          &no_transitions, sizeof(no_transitions));
+  ::SetWindowPos(window, nullptr, kParkedAt, kParkedAt, 0, 0,
+                 SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
                      SWP_FRAMECHANGED);
+}
+
+void SetOwner(HWND window, HWND owner) {
+  ::SetWindowLongPtrW(window, GWLP_HWNDPARENT,
+                      reinterpret_cast<LONG_PTR>(owner));
 }
 
 LRESULT CALLBACK ParentProcedure(HWND window,
@@ -97,23 +109,13 @@ LRESULT CALLBACK ParentProcedure(HWND window,
   if (message == WM_DESTROY) {
     Host::Get()->ParentDestroying(window);
   }
+  if (message == WM_WINDOWPOSCHANGED) {
+    Host::Get()->ParentMoved(window);
+  }
   if (message == WM_NCDESTROY) {
     ::RemoveWindowSubclass(window, &ParentProcedure, id);
   }
   return ::DefSubclassProc(window, message, w_param, l_param);
-}
-
-HWND CreateParkingWindow() {
-  HINSTANCE instance = ::GetModuleHandleW(nullptr);
-  WNDCLASSEXW window_class = {};
-  window_class.cbSize = sizeof(window_class);
-  window_class.lpfnWndProc = &::DefWindowProcW;
-  window_class.hInstance = instance;
-  window_class.lpszClassName = kParkingClass;
-  ::RegisterClassExW(&window_class);
-  return ::CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, kParkingClass,
-                           L"", WS_POPUP | WS_CLIPCHILDREN, 0, 0, 1280, 800,
-                           nullptr, nullptr, instance, nullptr);
 }
 
 int Integer(const base::DictValue& args, std::string_view key) {
@@ -181,7 +183,6 @@ void Host::Start() {
     return;
   }
   started_ = true;
-  parking_ = CreateParkingWindow();
   browsers_observation_.Observe(GlobalBrowserCollection::GetInstance());
 }
 
@@ -254,7 +255,7 @@ void Host::ParentDestroying(HWND parent) {
     }
     Hide(entry.first, hosted);
     if (HWND window = WindowOf(entry.first)) {
-      ::SetParent(window, parking_);
+      SetOwner(window, nullptr);
     }
     hosted.parent = nullptr;
   }
@@ -379,9 +380,7 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
   }
   hosted.parent = parent;
   WatchParent(parent);
-  if (::GetParent(window) != parent) {
-    ::SetParent(window, parent);
-  }
+  SetOwner(window, parent);
   double scale = Text(args, "unit") == "px"
                      ? 1.0
                      : ::GetDpiForWindow(parent) / 96.0;
@@ -395,13 +394,14 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
                           args.FindDouble("height").value_or(0),
                       scale) -
                y;
-  ::SetWindowPos(window, HWND_TOP, x, y, width, height, SWP_NOACTIVATE);
+  hosted.place = gfx::Rect(x, y, width, height);
+  Place(window, hosted);
   Shape(window, x, y, width, height,
         Scaled(args.FindDouble("radius").value_or(0), scale),
         args.FindList("holes"), scale);
   if (!::IsWindowVisible(window)) {
     browser->GetWindow()->ShowInactive();
-    ::SetWindowPos(window, HWND_TOP, x, y, width, height, SWP_NOACTIVATE);
+    Place(window, hosted);
   }
   hosted.shown = key;
   return Ok();
@@ -670,7 +670,7 @@ void Host::Park(Browser* browser) {
   if (!window) {
     return;
   }
-  MakeChild(window, parking_);
+  MakeBare(window);
   if (ui::BaseWindow* base_window = browser->GetWindow()) {
     if (gfx::NativeWindow native = base_window->GetNativeWindow()) {
       native->AddPreTargetHandler(this);
@@ -692,12 +692,34 @@ void Host::Hide(Browser* browser, Hosted& hosted) {
   hosted.shown.clear();
   HWND window = WindowOf(browser);
   if (window && ::IsWindowVisible(window)) {
-    HWND focus = ::GetFocus();
-    if (focus && (focus == window || ::IsChild(window, focus)) &&
-        hosted.parent) {
-      ::SetFocus(hosted.parent);
-    }
+    const bool active = ::GetActiveWindow() == window;
     browser->GetWindow()->Hide();
+    if (active && hosted.parent) {
+      ::SetActiveWindow(hosted.parent);
+    }
+  }
+}
+
+void Host::Place(HWND window, const Hosted& hosted) {
+  if (!hosted.parent || !::IsWindow(hosted.parent)) {
+    return;
+  }
+  POINT origin = {hosted.place.x(), hosted.place.y()};
+  ::ClientToScreen(hosted.parent, &origin);
+  ::SetWindowPos(window, nullptr, origin.x, origin.y, hosted.place.width(),
+                 hosted.place.height(),
+                 SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+}
+
+void Host::ParentMoved(HWND parent) {
+  for (auto& entry : hosted_) {
+    const Hosted& hosted = entry.second;
+    if (hosted.parent != parent || hosted.shown.empty()) {
+      continue;
+    }
+    if (HWND window = WindowOf(entry.first)) {
+      Place(window, hosted);
+    }
   }
 }
 
@@ -715,12 +737,8 @@ void Host::FocusFor(ui::Event* event) {
     return;
   }
   HWND window = target->GetHost()->GetAcceleratedWidget();
-  if (!window || !(::GetWindowLongPtrW(window, GWL_STYLE) & WS_CHILD)) {
+  if (!window) {
     return;
-  }
-  HWND focus = ::GetFocus();
-  if (focus != window && !(focus && ::IsChild(window, focus))) {
-    ::SetFocus(window);
   }
   for (const auto& entry : hosted_) {
     if (entry.second.shown.empty() || WindowOf(entry.first) != window) {

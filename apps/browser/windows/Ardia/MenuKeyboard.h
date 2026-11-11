@@ -24,7 +24,7 @@ struct ActiveWindow {
 inline ActiveWindow ActiveArdiaWindow() noexcept {
   HWND active = GetActiveWindow();
   if (!active) return {};
-  HWND root = GetAncestor(active, GA_ROOT);
+  HWND root = GetAncestor(active, GA_ROOTOWNER);
   WindowManager &manager = WindowManager::Shared();
   for (std::string const &id : manager.Ids()) {
     HWND hwnd = manager.Hwnd(id);

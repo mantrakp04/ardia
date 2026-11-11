@@ -901,7 +901,7 @@ struct WindowManager {
 
   static HWND TopWindowAt(POINT point) noexcept {
     HWND under = WindowFromPoint(point);
-    return under ? GetAncestor(under, GA_ROOT) : nullptr;
+    return under ? GetAncestor(under, GA_ROOTOWNER) : nullptr;
   }
 
   bool OverAnotherOfOurs(POINT cursor, HWND window) noexcept {
@@ -950,7 +950,7 @@ struct WindowManager {
     if (!GetCursorPos(&cursor)) return;
     bool pressed = AnyButtonDown();
     HWND foreground = GetForegroundWindow();
-    bool appActive = foreground && FindByHwnd(GetAncestor(foreground, GA_ROOT));
+    bool appActive = foreground && FindByHwnd(GetAncestor(foreground, GA_ROOTOWNER));
     for (auto it = m_edgeWatches.begin(); it != m_edgeWatches.end();) {
       ManagedWindow *entry = Find(it->first);
       if (!entry) {

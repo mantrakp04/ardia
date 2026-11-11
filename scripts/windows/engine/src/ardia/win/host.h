@@ -18,6 +18,7 @@
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "ui/events/event_handler.h"
+#include "ui/gfx/geometry/rect.h"
 
 class Browser;
 class BrowserWindowInterface;
@@ -48,6 +49,7 @@ class Host : public TabStripModelObserver,
   bool Keeps(const BrowserWindowInterface* browser) const;
   void TabDestroyed(TabState* state);
   void ParentDestroying(HWND parent);
+  void ParentMoved(HWND parent);
 
   void OnTabStripModelChanged(
       TabStripModel* tab_strip_model,
@@ -67,6 +69,7 @@ class Host : public TabStripModelObserver,
     HWND parent = nullptr;
     raw_ptr<Profile> profile = nullptr;
     std::string shown;
+    gfx::Rect place;
   };
 
   Host();
@@ -97,6 +100,7 @@ class Host : public TabStripModelObserver,
   void Park(Browser* browser);
   void ParkForeign(base::WeakPtr<BrowserWindowInterface> browser);
   void Hide(Browser* browser, Hosted& hosted);
+  void Place(HWND window, const Hosted& hosted);
   void WatchParent(HWND parent);
   void FocusFor(ui::Event* event);
   void NoteOpened(Browser* browser,
@@ -106,7 +110,6 @@ class Host : public TabStripModelObserver,
                   bool foreground);
   std::string NameOf(Profile* profile) const;
 
-  HWND parking_ = nullptr;
   std::map<Browser*, Hosted> hosted_;
   std::set<Browser*> foreign_;
   std::map<std::string, raw_ptr<content::WebContents>> tabs_;

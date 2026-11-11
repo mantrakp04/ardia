@@ -2,6 +2,8 @@
 
 #include <windows.h>
 
+#include <stdio.h>
+
 #include <memory>
 #include <string>
 #include <string_view>
@@ -146,9 +148,60 @@ void AddLaunchSwitches(base::CommandLine* command_line) {
   }
 }
 
+bool ForEngineWindow(const MSG& msg) {
+  constexpr wchar_t kPrefix[] = L"Chrome_";
+  constexpr int kPrefixLength = 7;
+  if (!msg.hwnd) {
+    return false;
+  }
+  wchar_t name[kPrefixLength + 2] = {};
+  int length = ::GetClassNameW(msg.hwnd, name, kPrefixLength + 2);
+  return length >= kPrefixLength &&
+         std::wstring_view(name, kPrefixLength) == kPrefix;
+}
+
+FILE*& InputTrace() {
+  static FILE* trace = nullptr;
+  return trace;
+}
+
+bool Traced(const MSG& msg) {
+  return (msg.message >= WM_MOUSEFIRST && msg.message <= WM_MOUSELAST) ||
+         (msg.message >= WM_NCMOUSEMOVE && msg.message <= WM_NCXBUTTONDBLCLK) ||
+         (msg.message >= WM_KEYFIRST && msg.message <= WM_KEYLAST) ||
+         (msg.message >= WM_NCPOINTERUPDATE && msg.message <= WM_POINTERHWHEEL);
+}
+
+void Trace(const MSG& msg, bool engine_window, bool taken) {
+  FILE* trace = InputTrace();
+  if (!trace || !Traced(msg)) {
+    return;
+  }
+  static int moves = 0;
+  if (msg.message == WM_MOUSEMOVE || msg.message == WM_POINTERUPDATE ||
+      msg.message == WM_NCMOUSEMOVE || msg.message == WM_NCPOINTERUPDATE) {
+    if (++moves > 40) {
+      return;
+    }
+  }
+  wchar_t name[64] = {};
+  ::GetClassNameW(msg.hwnd, name, 64);
+  fprintf(trace, "%lu msg=0x%04x hwnd=%p class=%ls engine=%d taken=%d\n",
+          static_cast<unsigned long>(::GetTickCount()), msg.message,
+          static_cast<void*>(msg.hwnd), name, engine_window ? 1 : 0,
+          taken ? 1 : 0);
+  fflush(trace);
+}
+
 bool PreTranslate(const MSG& msg) {
   App& app = TheApp();
-  return app.started && app.pre_translate && app.pre_translate(&msg) != 0;
+  const bool engine_window = ForEngineWindow(msg);
+  bool taken = false;
+  if (app.started && app.pre_translate && !engine_window) {
+    taken = app.pre_translate(&msg) != 0;
+  }
+  Trace(msg, engine_window, taken);
+  return taken;
 }
 
 void StartApp() {
@@ -172,6 +225,10 @@ void StartApp() {
     LOG(ERROR) << "Ardia: the app library has no ArdiaAppStart";
     QuitApp();
     return;
+  }
+  std::wstring traced = Environment(L"ARDIA_INPUT_TRACE");
+  if (!traced.empty()) {
+    _wfopen_s(&InputTrace(), traced.c_str(), L"w");
   }
   int result = start(EngineApi());
   if (result != 0) {

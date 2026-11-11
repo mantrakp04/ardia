@@ -1,0 +1,30 @@
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -6,6 +6,12 @@
+ 
+ #include <stdint.h>
+ 
++#include "build/build_config.h"
++
++#if BUILDFLAG(IS_WIN)
++#include "ardia/win/hooks.h"  // nogncheck
++#endif
++
+ #include <algorithm>
+ #include <memory>
+ #include <optional>
+@@ -6385,6 +6391,14 @@
+ void BrowserView::LoadAccelerators() {
+   views::FocusManager* focus_manager = GetFocusManager();
+   DCHECK(focus_manager);
++
++#if BUILDFLAG(IS_WIN)
++  // Ardia: the app owns the shortcuts of a window it hosts (//ardia/win), so
++  // a key the app does not take goes to the page and nowhere else.
++  if (g_ardia_win_hosts_normal_windows && GetIsNormalType()) {
++    return;
++  }
++#endif
+ 
+   // Let's fill our own accelerator table.
+   const bool is_app_mode = IsRunningInForcedAppMode();

@@ -9,3 +9,4 @@ chromium chromium-win-child-window-activation.patch
 chromium chromium-win-app-in-browser-process.patch
 chromium chromium-win-install-names.patch
 chromium chromium-win-hosted-page-fills-window.patch
+chromium chromium-win-hosted-no-browser-shortcuts.patch
