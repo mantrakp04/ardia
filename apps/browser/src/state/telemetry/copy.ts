@@ -70,6 +70,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",
       "Installing an extension, turning sync on or off, translating a page, and which Settings sections you open",
+      "How many extension install prompts appeared and how many times an extension's toolbar button was used in a private window, summed up once an hour. Never which extension",
       "Pressing Connect Calendar: Ardia's calendar permission before and after (not asked yet, allowed, add-only, denied or restricted), whether macOS returned an error, whether Ardia or the app that opened it was asked, whether System Settings opened, and how long it took. Never your calendars or events",
       "How many full copies sync wrote to your sync folder and their total size, summed up once an hour. Never what's in them",
       "Opening Report a Problem, and when Send was pressed before the report was ready, which field held it back (title, description or contact) and the report's kind. Never what you wrote",
