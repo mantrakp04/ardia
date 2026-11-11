@@ -12,6 +12,7 @@ if (!window[KEY]) {
   const MAX_PIECES = 40;
   const MAX_RETRIES = 2;
   const MARGIN = 300;
+  const MAX_SORTED = 2000;
   const ENDS_IN_SPACE = /\s$/;
   const STARTS_WITH_SPACE = /^\s/;
   const skipCache = new WeakMap();
@@ -96,6 +97,16 @@ if (!window[KEY]) {
       }
       return out;
     },
+    onScreenFirst() {
+      if (this.queue.length < 2) return;
+      const limit = Math.min(this.queue.length, MAX_SORTED);
+      const near = [], far = [];
+      for (let i = 0; i < limit; i++) {
+        const r = this.queue[i].getBoundingClientRect();
+        (r.bottom >= 0 && r.top <= innerHeight ? near : far).push(this.queue[i]);
+      }
+      if (near.length && far.length) this.queue = near.concat(far, this.queue.slice(limit));
+    },
     release(node) {
       this.records.delete(node);
       const tries = (this.retries.get(node) || 0) + 1;
@@ -131,6 +142,7 @@ if (!window[KEY]) {
     },
     next(token, max, maxChars) {
       if (!this.active || this.token !== token) return { passages: [], more: false, gone: true, done: 0, total: 0 };
+      this.onScreenFirst();
       const passages = [];
       let chars = 0;
       while (this.queue.length && passages.length < max && chars < maxChars) {

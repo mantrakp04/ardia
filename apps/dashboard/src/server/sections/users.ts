@@ -305,6 +305,7 @@ const NAMES: Record<string, string> = {
   sharing_turned_on: "Telemetry turned on",
   split_view_opened: "Split view opened",
   translate_used: "Translate used",
+  translate_finished: "Translation first pass",
   sync_toggled: "Sync toggled",
   extension_installed: "Extension installed",
 };

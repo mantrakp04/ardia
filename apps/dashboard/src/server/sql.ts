@@ -50,6 +50,7 @@ export const APP_EVENTS = [
   "suggestion_chosen",
   "sync_toggled",
   "tab_presses",
+  "translate_finished",
   "translate_used",
   "usage_counts",
 ];

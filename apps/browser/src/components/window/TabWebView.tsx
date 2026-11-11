@@ -43,6 +43,7 @@ import { adoptOf, loadedPage, navigationOf } from "../../state/tabs/pageSession"
 import { noteCommit } from "../../state/automation/automationEvents";
 import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading, noteUnreadPageEnded } from "../../state/tabs/unread";
 import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
+import { translateCrashContext } from "../../state/site/translate";
 import { notePagePress } from "../../state/telemetry/tabPresses";
 import { noteReopenedPage } from "../../state/telemetry/usage";
 import { isAdoptKind } from "../../state/tabs/adoptIds";
@@ -228,7 +229,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         if (!isQuitting()) {
           pageEnded(tabId);
           patchPage(tabId, { crashed, unresponsive: false, fullscreen: false, status: "" });
-          trackPageProcessGone(crashed, visible);
+          trackPageProcessGone(crashed, visible, translateCrashContext(tabId));
         }
         noteUnreadPageEnded(tabId);
       }}
