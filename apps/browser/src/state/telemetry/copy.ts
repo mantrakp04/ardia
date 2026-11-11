@@ -57,6 +57,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many tabs and windows you open (a count, not which), how often a window goes full screen, how many camera, microphone or screen sharing dots went away because a tab went to sleep or its page stopped, and how often the hidden sidebar peeks out and how many of those came back while it was still sliding away",
       "How many times Auto-hide tabs was switched on or off, how many windows had their tabs put back in line with that setting at launch, and how many times hidden tabs peeked out while the setting was off, summed up once an hour",
       "How many pinned tabs and split views an import from Arc brought over, summed up once an hour. Never which pages",
+      "How many screen shares picked a tab, a window or a whole screen, how many times the share picker opened without Screen Recording permission, and how many times its Open System Settings button was pressed, summed up once an hour. Never which tab, window or screen",
       "How many automation rules waiting for approval had their notice held until the first window opened, summed up once an hour",
       "How many closed tabs and windows you reopened came back with their Back history, summed up once an hour",
       "How many times you closed one pane of a split view or a whole split view, and how many tabs moved to another open window instead of closing with the window you closed, summed up once an hour. Never which tabs",
