@@ -58,8 +58,8 @@ export function startDevHarness() {
     get translate(): typeof import("../../state/site/translate") {
       return require("../../state/site/translate");
     },
-    get reactNative(): typeof import("react-native") {
-      return require("react-native");
+    get reactNative(): typeof import("react-native") | null {
+      return __DEV__ || require("../../platform/launchConfig").isTestInstance() ? require("react-native") : null;
     },
     get peek(): typeof import("../../state/peek/actions") {
       return require("../../state/peek/actions");
