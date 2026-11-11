@@ -30,7 +30,7 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, tabStripPeeks: 0, tabPeeksWithAutoHideOff: 0, toolbarScrollHides: 0, toolbarScrollHideBounces: 0, cardResizeLayouts: 0, cardResizeLayoutsApplied: 0, importedPinnedRows: 0, importedSplits: 0, splitPaneCloses: 0, splitViewCloses: 0, windowCloseTabsKept: 0, sharesPickedTab: 0, sharesPickedWindow: 0, sharesPickedScreen: 0, screenRecordingMissing: 0, screenRecordingAsked: 0, extensionInstallPrompts: 0, privateWindowExtensionOpens: 0, contentBlockerUnavailable: 0, contentBlockerWriteFailures: 0, newTabNoticesShown: 0, newTabNoticePresses: 0, statusBubbleTopShows: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, tabStripPeeks: 0, tabPeeksWithAutoHideOff: 0, toolbarScrollHides: 0, toolbarScrollHideBounces: 0, cardResizeLayouts: 0, cardResizeLayoutsApplied: 0, importedPinnedRows: 0, importedSplits: 0, splitPaneCloses: 0, splitViewCloses: 0, windowCloseTabsKept: 0, sharesPickedTab: 0, sharesPickedWindow: 0, sharesPickedScreen: 0, screenRecordingMissing: 0, screenRecordingAsked: 0, extensionInstallPrompts: 0, privateWindowExtensionOpens: 0, contentBlockerUnavailable: 0, contentBlockerWriteFailures: 0, newTabNoticesShown: 0, newTabNoticePresses: 0, statusBubbleTopShows: 0, dockReopens: 0, dockReopensPastFloating: 0 };
 let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
@@ -89,6 +89,7 @@ function emitCounts() {
       new_tab_notices_shown: counts.newTabNoticesShown,
       new_tab_notice_presses: counts.newTabNoticePresses,
       status_bubble_top_shows: counts.statusBubbleTopShows,
+      dock_reopens: counts.dockReopens, dock_reopens_past_floating: counts.dockReopensPastFloating,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
@@ -116,17 +117,11 @@ export function noteSharePicked(kind: "tab" | "window" | "screen") {
   else counts.sharesPickedScreen++;
 }
 
-export function noteScreenRecordingMissing() {
-  counts.screenRecordingMissing++;
-}
+export const noteScreenRecordingMissing = () => counts.screenRecordingMissing++;
 
-export function noteScreenRecordingAsked() {
-  counts.screenRecordingAsked++;
-}
+export const noteScreenRecordingAsked = () => counts.screenRecordingAsked++;
 
-export function noteExtensionInstallPrompt() {
-  counts.extensionInstallPrompts++;
-}
+export const noteExtensionInstallPrompt = () => counts.extensionInstallPrompts++;
 
 export function notePrivateWindowExtensionOpen() {
   counts.privateWindowExtensionOpens++;
@@ -169,6 +164,11 @@ export function noteTabSwitcherOpened(closedLeftOut: number) {
 
 export function noteApprovalNoticeDeferred() {
   counts.approvalNoticesDeferred++;
+}
+
+export function noteDockReopen(pastFloating: boolean) {
+  counts.dockReopens++;
+  if (pastFloating) counts.dockReopensPastFloating++;
 }
 
 export function noteReopenedPage(canGoBack: boolean) {

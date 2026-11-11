@@ -60,8 +60,12 @@ final class WindowManager: NSObject, NSWindowDelegate {
     window.level = window.level == .floating ? .normal : .floating
   }
 
-  func reopen() {
-    ShellEvents.send(.app, ["type": "reopen"])
+  func reopenFromDock() {
+    let shown = NSApp.orderedWindows.filter { $0.isVisible && !$0.isMiniaturized && $0.isOnActiveSpace }
+    let browserShown = shown.contains { isBrowserWindow($0) }
+    let floatingShown = shown.contains { id(of: $0) == nil && !($0 is NSPanel) }
+    if browserShown && id(of: NSApp.keyWindow) != nil { return }
+    ShellEvents.send(.app, ["type": "reopen", "pastFloating": floatingShown])
   }
 
   func runtimeGone() {
