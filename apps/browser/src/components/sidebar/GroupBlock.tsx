@@ -11,7 +11,7 @@ import { useCapturedGroupEntries, useGroupFirstTabIcon, useGroupTabIds, useKeptE
 import { MeetingTimeLabel, useMeetingCountdown } from "../live/MeetingCountdown";
 import { HoverSlot } from "../ui/HoverSlot";
 import { Button, ContextMenuArea, FadeLabel, font, ink, space, Symbol, Text, weight, withAlpha } from "../ui";
-import { commitRename, endRename, startRename } from "../../state/sidebar/actions";
+import { commitRename, endRename } from "../../state/sidebar/actions";
 import { useDragFolded, useDragItem, useDropInto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
 import { Fold, useFold } from "./Fold";
@@ -187,7 +187,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
   const target = { kind: "group" as const, id: groupId };
 
   return (
-    <View ref={(v) => registerRow(windowId, groupId, v)} {...hoverProps} onDoubleClick={() => void startRename(windowId, target)}>
+    <View ref={(v) => registerRow(windowId, groupId, v)} {...hoverProps}>
       <ContextMenuArea
         onContextMenu={() => {
           dismissHover();
@@ -203,8 +203,8 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
             updateGroup(groupId, { shownTabIds: [] });
           }}
         >
-          {({ pressed }) => (
-            <SidebarRowSurface fill={dropInto || pressed ? theme.tabPressed : ink.clear} cornerRadius={GROUP_INNER_RADIUS}>
+          {() => (
+            <SidebarRowSurface fill={dropInto ? theme.tabPressed : ink.clear} cornerRadius={GROUP_INNER_RADIUS}>
               {group.icon || firstTab ? (
                 <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} />
               ) : (
