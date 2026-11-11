@@ -17,10 +17,10 @@ under, so a new file there would make every Mac build miss its prebuilt engine. 
 Helium and our series apply, `gn gen` passes, and `base_unittests.exe` and `chrome` link. `chrome.exe` (3.1 MB) and
 `chrome.dll` (332 MB) are PE32+ x86-64; the output has 525 runtime files (472 MB of `.exe` and `.dll`), and
 `helium-check-build.py`, run against `chrome.dll` and the paks, finds no Helium uBlock Origin, onboarding page, non-free
-search data or Helium hosts (703,485 resources in 232 paks; 8 still say "Helium"). Not proven: that it runs. A Mac
-can't run it; the next step is a Windows machine (`mini_installer`, or the out dir copied over). The exe's product
-name is "Chromium", as the Mac framework's is (`chromium-branding.patch`). Not built yet: ArdiaCore for Windows, the
-official configuration (below). Packaged: `ardia-chromium-win-x64.zip` ([Packaging](#packaging)). ARM64 (for Windows on
+search data or Helium hosts (703,485 resources in 232 paks; 8 still say "Helium"). It runs: the app is hosted in it on
+x64 and ARM64 (`docs/windows.md`, The engine in the app), and CI launches both from the published packages. The exe's product
+name is "Chromium", as the Mac framework's is (`chromium-branding.patch`). Not built yet: the official configuration (below). The Windows side of
+ArdiaCore is `//ardia/win` (`scripts/windows/engine/src/ardia/win`), not the Mac's `engine/ardiacore`. Packaged: `ardia-chromium-win-x64.zip` ([Packaging](#packaging)). ARM64 (for Windows on
 ARM, where x64 runs emulated): `gn gen` passes and `chrome` was at 51,230 of 54,203 steps with no failures when the 2026-11-11 run ended at
 02:37 IST, left running with its packaging queued behind it ([ARM64](#arm64)).
 
@@ -134,12 +134,15 @@ On the Windows tree (2026-11-10): `pins` and `guard` pass, 356 patches applied w
 `04-series.sh` applies every `chromium` line of `engine/patches/series`, minus the `skip` lines of
 `scripts/windows/engine/series-win`, then that file's own `chromium` lines (patches in `scripts/windows/engine/patches/`),
 strictly with `git apply` and else with `patch`'s fuzz. It records a failure and goes on, and writes
-`~/chromium-build-win/logs/series-win.tsv`. `series-win` today: one skip and four Windows-only patches (the table).
+`~/chromium-build-win/logs/series-win.tsv`. `series-win` today: one skip and eleven Windows-only patches (the table).
 The layers:
 
-- `engine/chromium/apply.sh` runs as is. Its `chrome/browser/ardia` (the `ac_*` C API) is copied in but not built:
-  its `BUILD.gn` asserts `is_mac` and only the Mac framework depends on it (`chromium-ardia-layer.patch`). The Ardia
-  logos it replaces are OS-neutral and give the Windows build its branding.
+- `engine/chromium/apply.sh` runs as is. Its `chrome/browser/ardia` (the `ac_*` C API) then builds on Windows from a
+  copy `series_win.py layer` makes: the Mac sources with `ardia-layer-win.patch`, Windows stand-ins for the two
+  POSIX-only files, and a build file generated from the Mac one. The Ardia logos it replaces are OS-neutral and give
+  the Windows build its branding.
+- `series_win.py layer` also copies `//ardia/win` into the tree, with `EngineApi.h` from the app and a generated table
+  of the `ac_*` exports. `chrome.dll` depends on it; `//ardia/win:probe` builds `ArdiaProbe.dll`, a stand-in for the app.
 - `engine/ardiacore/apply.sh` doesn't run: it is Mac code. Only `ardia/core/ac_hooks.h` and `ac_content_hooks.h` are
   copied, because the hook patches include them (`// nogncheck`) and they are OS-neutral. With nothing setting the
   hooks, Chrome behaves as stock.
@@ -226,6 +229,13 @@ a Windows build needs.
 | `chromium-win-load-local-state-delegate.patch` | applies (Windows only, `series-win`) | OS-neutral | `chrome_main_delegate.cc` calls `LoadLocalState` with no delegate, as stock Chrome |
 | `chromium-win-ardia-layer-calls-mac-only.patch` | applies (Windows only, `series-win`) | OS-neutral | The two calls into `chrome/browser/ardia` become Mac only |
 | `chromium-win-mac-host-sdk-any-toolchain.patch` | applies (Windows only, `series-win`) | Mac only | `mac_sdk.gni` may be read from any toolchain when a Mac host builds for Windows; arm64 needs it ([ARM64](#arm64)) |
+| `chromium-win-app-message-pump.patch` | applies (Windows only, `series-win`) | Windows only | The UI message pump offers each message to the app first, so React Native's windows get their keys and accelerators |
+| `chromium-win-hosted-browser-windows.patch` | applies (Windows only, `series-win`) | Windows only | The hooks `//ardia/win` sets: every normal browser window is page only with a frameless frame view, and the app's main parts join the browser's |
+| `chromium-win-child-window-activation.patch` | applies (Windows only, `series-win`) | Windows only | Lets a browser window that is a child window take activation; unused since hosted windows are top-level, harmless |
+| `chromium-win-app-in-browser-process.patch` | applies (Windows only, `series-win`) | Windows only | `chrome.dll` links `//ardia/win` and calls it before Chrome's main: with `ArdiaApp.dll` beside the launcher the browser process runs the app |
+| `chromium-win-install-names.patch` | applies (Windows only, `series-win`) | Windows only | The install is named Ardia (`%LOCALAPPDATA%\Ardia\User Data`), and `ARDIA_DATA_DIR` moves Chromium's data |
+| `chromium-win-hosted-page-fills-window.patch` | applies (Windows only, `series-win`) | Windows only | A hosted window has no rounded page frame or insets: the page fills it |
+| `chromium-win-hosted-no-browser-shortcuts.patch` | applies (Windows only, `series-win`) | Windows only | Chrome's own accelerators are off in hosted windows, so Ctrl+L and the rest reach the app |
 
 Every patch that applies does so strictly (`git apply`, no fuzz). 72 of the Mac series' 73 apply; the one left out is a
 Mac-only keychain patch. Four Windows-only patches follow them (`series-win`). The file classes above come from paths, so a

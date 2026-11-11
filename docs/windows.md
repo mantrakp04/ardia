@@ -239,4 +239,6 @@ The Mac's numbers are the targets for Windows, measured from the first engine bu
 4. The Windows versions of the Mac-specific engine patches.
 5. C++ versions of what is still drawn flat or missing: shaders with Direct3D, import
    from Edge and Chrome, dragging files out of the app, swipe gestures.
-6. A signed installer and updates with WinSparkle on the existing appcast, as a nightly first.
+6. An installer exists (`scripts/windows/make-installer.ps1`, Inno Setup, per user, no admin prompt; CI builds
+   `Ardia-Setup-<cpu>.exe` and installs and uninstalls it). Left: signing it, and updates with WinSparkle on the
+   existing appcast, as a nightly first.
