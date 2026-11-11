@@ -32,8 +32,10 @@ export async function drainPassages(port: DrainPort): Promise<boolean> {
   void port.released.then(() => (released = true));
   const live = () => !released && port.holds();
   const settle = async () => {
-    await Promise.allSettled(running);
+    await Promise.race([Promise.allSettled(running), port.released]);
+    if (!live()) return false;
     if (failure) throw failure.error;
+    return true;
   };
   const start = (passage: Passage) => {
     const job = port
@@ -59,10 +61,7 @@ export async function drainPassages(port: DrainPort): Promise<boolean> {
   };
   for (;;) {
     if (!live()) return false;
-    if (failure) {
-      await settle();
-      return false;
-    }
+    if (failure) return settle();
     while (running.size < port.inFlight && backlog.length) start(backlog.shift()!);
     if (running.size < port.inFlight && !exhausted) {
       port.onStage?.("collect");
@@ -77,10 +76,7 @@ export async function drainPassages(port: DrainPort): Promise<boolean> {
         continue;
       }
     }
-    if (!running.size && !backlog.length) {
-      await settle();
-      return live();
-    }
+    if (!running.size && !backlog.length) return settle();
     await Promise.race([...running, port.released]);
     exhausted = false;
   }

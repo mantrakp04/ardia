@@ -92,3 +92,23 @@ test("a failed passage gives its pieces back and the drain reports the error", a
     [1001, null],
   ]);
 });
+
+test("a failure recorded before the translation was replaced is dropped once the replacement starts", async () => {
+  const page = fakePage([{ passages: [passage(1), passage(2)], more: false, gone: false, done: 2, total: 2 }]);
+  const first = deferred();
+  const second = deferred();
+  const answers = [first, second];
+  page.port.translate = () => answers.shift().promise;
+  const drained = drainPassages(page.port);
+  await tick();
+  first.reject(new Error("the model went away"));
+  await tick();
+  await tick();
+  page.holding = false;
+  page.release.resolve();
+  const outcome = await Promise.race([drained.then((v) => v, (e) => `threw ${e.message}`), new Promise((r) => setTimeout(() => r("still waiting"), 200))]);
+  assert.equal(outcome, false);
+  second.resolve([[2000, "late"]]);
+  await tick();
+  assert.deepEqual(page.applied, [[1000, null]]);
+});

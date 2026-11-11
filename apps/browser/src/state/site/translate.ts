@@ -7,6 +7,7 @@ import { changedIds } from "../browser/changes";
 import { incognitoOriginal, isIncognitoProfile } from "../browser/model";
 import { hideKeyedToast, showToast } from "../app/toasts";
 import { translatorCall } from "./pageTranslator";
+import { stopDocumentWatch, watchDocument } from "./documentWatch";
 import { drainPassages, type PageBatch, type Passage, type Translated } from "./translateDrain";
 import { errorText } from "../../lib/errors";
 import { capture } from "../telemetry/client";
@@ -197,19 +198,20 @@ export async function translatePage(tabId: string, target = defaultTarget()) {
   if (baseLanguage(source) === baseLanguage(target)) return toast(tabId, `Translation error (the page is already in ${languageName(target)})`);
   let shown = false;
   let started = 0;
+  let token: string | null = null;
   const progress: Progress = { applied: 0, firstAppliedAt: null };
   try {
     const status = await translation.status(source, target);
     if (status === "unsupported") return toast(tabId, `Translation error (${languageName(source)} to ${languageName(target)} isn't available)`);
     if (status === "supported") await translation.prepare(source, target);
-    const token = Math.random().toString(36).slice(2);
-    set(tabId, { status: "translating", source, target, token });
+    const mine = (token = Math.random().toString(36).slice(2));
+    set(tabId, { status: "translating", source, target, token: mine });
     atStage(tabId, "start");
-    if (!(await webviews.get(tabId)?.evaluate<boolean>(translatorCall("start", token)))) throw new Error("the page isn't ready");
+    if (!(await webviews.get(tabId)?.evaluate<boolean>(translatorCall("start", mine)))) throw new Error("the page isn't ready");
     started = Date.now();
     const done = await drain(
       tabId,
-      token,
+      mine,
       (n, total) => {
         if (Date.now() - started < PROGRESS_AFTER_MS || total <= 0) return;
         shown = true;
@@ -218,17 +220,20 @@ export async function translatePage(tabId: string, target = defaultTarget()) {
       progress,
     );
     if (!done) {
-      if (holds(tabId, token)) toIdle(tabId);
-      if (shown) hideKeyedToast(tab.windowId, PROGRESS_TOAST);
+      if (holds(tabId, mine)) toIdle(tabId);
+      if (shown && stateOf(tabId).status === "idle") hideKeyedToast(tab.windowId, PROGRESS_TOAST);
       return void reportFirstPass("stopped", started, progress);
     }
     reportFirstPass("done", started, progress);
-    if (holds(tabId, token)) set(tabId, { status: "translated", source, target, token });
+    if (holds(tabId, mine)) set(tabId, { status: "translated", source, target, token: mine });
     toast(tabId, `Translated to ${languageName(target)}`);
-    void follow(tabId, token);
+    void follow(tabId, mine);
   } catch (error) {
     if (started) reportFirstPass("failed", started, progress);
-    await revertPage(tabId, { quiet: true });
+    const replaced = token !== null && !holds(tabId, token);
+    if (shown && (!replaced || stateOf(tabId).status === "idle")) hideKeyedToast(tab.windowId, PROGRESS_TOAST);
+    if (replaced) return;
+    if (token !== null) await revertPage(tabId, { quiet: true });
     const reason = errorText(error);
     toast(tabId, `Translation error (${reason.replace(/[.\s]+$/, "")})`);
   }
@@ -266,27 +271,39 @@ export async function otherLanguages(): Promise<{ id: string; name: string }[]> 
   return [...best.values()].map((id) => ({ id, name: languageName(id) })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function watchDocument(tabId: string) {
+function watchTabDocument(tabId: string) {
   const current = stateOf(tabId);
-  if (current.status === "idle") return;
+  if (current.status === "idle") return stopDocumentWatch(tabId);
   const { token } = current;
-  while (holds(tabId, token) && useBrowser.getState().live[tabId]?.isLoading) {
-    const same = await webviews.get(tabId)?.evaluate<boolean>(translatorCall("holds", token));
-    if (same === false && holds(tabId, token)) return toIdle(tabId);
-    await new Promise((r) => setTimeout(r, DOCUMENT_POLL_MS));
-  }
+  void watchDocument(
+    tabId,
+    {
+      holds: () => holds(tabId, token),
+      loading: () => !!useBrowser.getState().live[tabId]?.isLoading,
+      sameDocument: () => webviews.get(tabId)?.evaluate<boolean>(translatorCall("holds", token)) ?? Promise.resolve(undefined),
+      release: () => toIdle(tabId),
+      wait: (ms) => new Promise((r) => setTimeout(r, ms)),
+    },
+    DOCUMENT_POLL_MS,
+  ).catch(() => {});
 }
 
 export function startTranslate() {
   if (!translation) return () => {};
   return useBrowser.subscribe((s, prev) => {
     for (const id of changedIds(s.live, prev.live)) {
-      if (s.live[id] && prev.live[id]?.isLoading && !s.live[id].isLoading) void detect(id).catch(() => {});
-      if (s.live[id]?.isLoading && prev.live[id] && !prev.live[id].isLoading) void watchDocument(id).catch(() => {});
+      if (s.live[id] && prev.live[id]?.isLoading && !s.live[id].isLoading) {
+        stopDocumentWatch(id);
+        void detect(id).catch(() => {});
+      }
+      if (s.live[id]?.isLoading && prev.live[id] && !prev.live[id].isLoading) watchTabDocument(id);
     }
     if (s.tabs === prev.tabs) return;
     const gone = Object.keys(useTranslate.getState()).filter((id) => !s.tabs[id]);
-    for (const id of gone) delete stages[id];
+    for (const id of gone) {
+      delete stages[id];
+      stopDocumentWatch(id);
+    }
     if (gone.length) useTranslate.setState(Object.fromEntries(gone.map((id) => [id, undefined])));
   });
 }

@@ -73,25 +73,20 @@ enum TranslationSessions {
 
   @available(macOS 26.4, *)
   private static func translateOnce(_ key: PassageKey, standard: Bool) async -> [String]? {
-    if key.pieces.count == 1 {
-      var out = ""
-      for piece in SentenceRuns.split(key.pieces[0]) {
-        guard !piece.text.isEmpty else {
-          out += piece.gap
-          continue
-        }
-        let text = piece.text
-        guard let translated = try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).targetText })
+    await PassageDispatch.translate(
+      key.pieces,
+      plain: { text in
+        try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).targetText })
+      },
+      linked: { pieces in
+        let text = TranslateModule.linkedPieces(pieces)
+        guard let translated = try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).attributedTargetText })
         else { return nil }
-        out += translated + piece.gap
+        return TranslateModule.parts(of: translated, over: pieces)
       }
-      return [out]
-    }
-    let text = TranslateModule.linkedPieces(key.pieces)
-    guard let translated = try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).attributedTargetText })
-    else { return nil }
-    return TranslateModule.parts(of: translated, over: key.pieces)
+    )
   }
+
 
   private static func worthAskingAgain(_ pieces: [String]) -> Bool {
     let text = pieces.joined()
