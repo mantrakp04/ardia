@@ -15,6 +15,14 @@ test("dragging a tab onto another in the top tab strip groups them only once tur
   assert.equal(DEFAULT_SETTINGS.dragToGroupInTopStrip, false);
 });
 
+test("Zero in full screen is off by default and synced", () => {
+  assert.equal(DEFAULT_SETTINGS.pageFrameZeroInFullScreen, false);
+  assert.ok(SETTING_SPECS.pageFrameZeroInFullScreen.synced);
+  assert.ok(SYNCED_SETTINGS.includes("pageFrameZeroInFullScreen"));
+  assert.equal(parseSettings({ pageFrameZeroInFullScreen: true }).pageFrameZeroInFullScreen, true);
+  assert.equal(parseSettings({ pageFrameZeroInFullScreen: "yes" }).pageFrameZeroInFullScreen, false);
+});
+
 test("a saved value of the wrong kind reads as the default, and the rest is kept", () => {
   const settings = parseSettings({
     tabLayout: "diagonal",

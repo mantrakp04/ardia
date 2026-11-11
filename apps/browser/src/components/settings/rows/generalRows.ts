@@ -364,6 +364,11 @@ export const generalRows = {
           description: "The room between the page and the window's edges, the sidebar and split panes. At 0 the page goes edge to edge with square corners; 9 pt is the default.",
           keywords: ["border", "borderless", "edge to edge", "margin", "inset", "padding", "rounded corners", "corner radius", "frame", "gap", "full bleed", "arc", "compact"],
         },
+        pageFrameZeroInFullScreen: {
+          title: "Zero in full screen",
+          description: "In macOS full screen the page goes edge to edge with square corners, whatever the frame above is set to. Windows keep the frame.",
+          keywords: ["fullscreen", "full screen", "borderless", "edge to edge", "zero", "none", "frame", "inset", "margin"],
+        },
       },
     },
     {

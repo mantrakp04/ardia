@@ -9,6 +9,9 @@ const MIN_PEEK_GAP = 4;
 
 export const validPageFrame = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= PAGE_FRAME.min && v <= PAGE_FRAME.max;
 
+export const pageFrameInsetOf = (inset: number, zeroInFullScreen: boolean, fullScreen: boolean): number =>
+  fullScreen && zeroInFullScreen ? 0 : inset;
+
 export type PageFrame = {
   inset: number;
   radius: number;

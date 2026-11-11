@@ -5,7 +5,7 @@ import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { AmountSlider } from "../ThemeControls";
@@ -178,6 +178,7 @@ function PageFramePicker() {
             </Text>
           </Box>
         </Row>
+        <SettingToggle anchor="appearance.pageFrameZeroInFullScreen" />
       </Group>
     </>
   );
