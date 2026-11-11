@@ -9,7 +9,7 @@ extension WebKitTab {
   func watchSight() {
     stopWatchingSight()
     guard !closed, let window else { return }
-    sightObserver = NotificationCenter.default.addObserver(forName: ArdiaWindowSeenDidChange, object: window, queue: .main) { [weak self] _ in
+    sightObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.ArdiaWindowSeenDidChange, object: window, queue: .main) { [weak self] _ in
       self?.updateSight()
     }
     updateSight()
