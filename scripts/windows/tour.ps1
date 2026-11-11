@@ -1307,6 +1307,29 @@ function Invoke-PagesTour {
     $stop.Facts.Add("window title: '$([ArdiaTour]::TitleOf($session.Main))'")
   } | Out-Null
 
+  Invoke-Stop $session "page-link-from-outside" "A link from another launch" {
+    param($stop)
+    $stop.Did = "Started Ardia again with https://example.org/ while it was running."
+    $stop.Expected = "the running app opens the link in a window of ours whose title names the site, and no second app stays."
+    $before = @(Get-TopWindows $session)
+    $second = Start-Process -FilePath $App -ArgumentList "https://example.org/" -PassThru
+    $ours = { @(Get-NewWindows $session $before | Where-Object { $_.ClassName -notmatch "^(#32768|Chrome_)" -and $_.Width -ge 300 -and $_.Height -ge 200 }) }
+    $opened = Wait-Until $session { (& $ours).Count -gt 0 -and [ArdiaTour]::TitleOf((& $ours)[0].Handle) -match "example\.org" } 25000
+    $handed = $second.WaitForExit(10000)
+    Start-Sleep -Milliseconds 3000
+    $shown = @(& $ours)
+    if ($shown.Count) {
+      Save-Shot $stop $shown[0].Handle | Out-Null
+      $stop.Facts.Add("the new window is titled '$([ArdiaTour]::TitleOf($shown[0].Handle))'")
+    } else {
+      $stop.Facts.Add("windows: $(Format-Windows (Get-TopWindows $session))")
+    }
+    $stop.Facts.Add("the second launch exited by itself: $handed")
+    Set-Seen $stop ($opened -and $handed)
+    foreach ($window in $shown) { [ArdiaTour]::PostMessageW($window.Handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null }
+    Start-Sleep -Milliseconds 800
+  } | Out-Null
+
   Invoke-Stop $session "page-private" "A page in a private window" {
     param($stop)
     $stop.Did = "Pressed Ctrl+Shift+N, typed example.com in the new window and pressed Enter."

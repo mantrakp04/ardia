@@ -66,9 +66,11 @@ const SETTLE_MS = [0, 50, 200, 500];
 
 type AppWindows = { setPageFullScreen(windowId: string, on: boolean): Promise<unknown> };
 
-const setWindowFullScreen = (windowId: string, on: boolean) => {
-  void Promise.resolve(requireNativeModule<AppWindows>("ArdiaAppWindows").setPageFullScreen(windowId, on)).catch(() => {});
-};
+const setWindowFullScreen = (windowId: string, on: boolean) =>
+  Promise.resolve(requireNativeModule<AppWindows>("ArdiaAppWindows").setPageFullScreen(windowId, on)).then(
+    () => {},
+    () => {},
+  );
 
 let unnamed = 0;
 
@@ -124,7 +126,9 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         const on = !!(data as { fullscreen?: unknown } | null)?.fullscreen;
         if (on !== fullScreen.current) {
           fullScreen.current = on;
-          setWindowFullScreen(windowId, on);
+          void setWindowFullScreen(windowId, on).then(() => {
+            if (on && fullScreen.current) void callPage(key, "focus");
+          });
           place();
         }
       }
@@ -136,7 +140,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       shown.current = { visible: false, placed: "" };
       if (fullScreen.current) {
         fullScreen.current = false;
-        setWindowFullScreen(windowId, false);
+        void setWindowFullScreen(windowId, false);
       }
       unmount();
     };

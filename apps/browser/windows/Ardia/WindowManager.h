@@ -864,8 +864,24 @@ struct WindowManager {
       manager->m_captionPressed = nullptr;
     }
     if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE) manager->Activated(hwnd);
+    if (message == WM_SIZE && wParam != SIZE_MINIMIZED) manager->ArrangeToClient(hwnd, LOWORD(lParam), HIWORD(lParam));
     if (message == WM_ACTIVATEAPP && wParam == FALSE) manager->EmitApp("resignActive");
     return DefSubclassProc(hwnd, message, wParam, lParam);
+  }
+
+  void ArrangeToClient(HWND hwnd, int width, int height) noexcept {
+    ManagedWindow *entry = FindByHwnd(hwnd);
+    if (!entry || width <= 0 || height <= 0) return;
+    try {
+      auto island = entry->window.ReactNativeIsland();
+      if (!island) return;
+      float scale = static_cast<float>(Scale(hwnd));
+      winrt::Microsoft::ReactNative::LayoutConstraints constraints;
+      constraints.LayoutDirection = winrt::Microsoft::ReactNative::LayoutDirection::Undefined;
+      constraints.MaximumSize = constraints.MinimumSize = winrt::Windows::Foundation::Size{width / scale, height / scale};
+      island.Arrange(constraints, {0, 0});
+    } catch (...) {
+    }
   }
 
   static void ConnectNonClientInput(ManagedWindow &entry) noexcept {
