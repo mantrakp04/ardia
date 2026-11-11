@@ -22,7 +22,14 @@ type TabEvent = { key?: unknown; name?: unknown; data?: unknown };
 const SAME_LOAD_MS = 2000;
 
 const pages = new Map<string, Page>();
+const pressListeners = new Set<(windowId: string) => void>();
 let listening = false;
+
+export function onPagePress(listener: (windowId: string) => void): () => void {
+  pressListeners.add(listener);
+  listen();
+  return () => void pressListeners.delete(listener);
+}
 
 const shaped = (name: string, data: unknown) => {
   if (name !== "media") return data ?? {};
@@ -39,6 +46,7 @@ function listen() {
     if (typeof event.key !== "string" || typeof event.name !== "string") return;
     const page = pages.get(event.key);
     if (!page) return;
+    if (event.name === "pagePress") for (const pressed of [...pressListeners]) pressed(page.windowId);
     const data = shaped(event.name, event.data);
     for (const listener of [...page.listeners]) listener(event.name, data);
   });

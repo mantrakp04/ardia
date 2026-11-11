@@ -1,3 +1,6 @@
+import { engineAvailable } from "../engine/host";
+import { onPagePress } from "../engine/pages";
+import { WindowIdContext } from "../engine/windowId";
 import { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, type ReactNode } from "react";
 import { RootTagContext, TurboModuleRegistry, View, type GestureResponderEvent, type TurboModule, type ViewStyle } from "react-native";
 import { noteMissing } from "../missing";
@@ -234,6 +237,15 @@ export function OutsidePressRoot({ children }: { children?: ReactNode }) {
     if (cancelled) dropSecondaryPress(cancelled, "was cancelled before its release");
   }, []);
   const yieldsResponder = useCallback(() => secondary.current === null, []);
+  const windowId = useContext(WindowIdContext);
+  useEffect(() => {
+    if (!engineAvailable()) return;
+    return onPagePress((pressed) => {
+      if (pressed !== windowId) return;
+      const timestamp = Date.now();
+      for (const area of [...registry.areas]) area.press(timestamp);
+    });
+  }, [registry, windowId]);
   return (
     <OutsidePressContext.Provider value={registry}>
       <View
