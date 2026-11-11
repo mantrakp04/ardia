@@ -27,7 +27,7 @@ import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../stat
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { updateSettings } from "../../../state/settings/actions";
-import { categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
+import { categoryOn, changeBlockingCategory, changeFilterList, clearBlockingFailure, useBlockingFailure } from "../../../state/site/contentBlocking";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 import { UI_LOCALE } from "../../../lib/uiLocale";
 
@@ -43,18 +43,21 @@ const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId 
 const filtersText = (n: number) => `${n.toLocaleString(UI_LOCALE)} ${n === 1 ? "filter" : "filters"}`;
 
 function useContentBlocker() {
-  const [state, reload] = useResource(contentBlocker);
+  const [read, reload] = useResource(contentBlocker);
   const refresh = () => void reload();
   useEffect(() => {
     const sub = onContentBlockerChange(refresh);
     return () => sub.remove();
   }, []);
-  return [state ?? null, refresh] as const;
+  return [read?.state ?? null, refresh, read?.problem ?? null] as const;
 }
 
 export function PrivacyPane() {
-  const [blocker, refresh] = useContentBlocker();
+  const [blocker, refresh, problem] = useContentBlocker();
+  const failure = useBlockingFailure((s) => s.message);
   const commandScrollZoom = useSettings((s) => s.commandScrollZoom);
+
+  useEffect(() => clearBlockingFailure, []);
 
   const toggleCategory = async (c: FilterListCategory, on: boolean) => {
     if (!blocker) return;
@@ -66,17 +69,17 @@ export function PrivacyPane() {
       });
       if (!confirmed) return refresh();
     }
-    try {
-      await setBlockingCategory(blocker, c, on);
-    } finally {
-      refresh();
-    }
+    await changeBlockingCategory(c, on);
+    refresh();
   };
 
   return (
     <View>
       <SectionHeader title="Content blocking" description="Built on EasyList and EasyPrivacy. Blocking happens on this Mac." />
       <Group>
+        {problem !== null && (
+          <BlockerUnavailable problem={problem} retry={refresh} />
+        )}
         {CATEGORIES.filter((c) => c.anchor).map((c) => (
           <Row key={c.id} anchor={c.anchor}>
             <Toggle value={!!blocker && categoryOn(blocker, c.id)} disabled={!blocker} onChange={(v) => void toggleCategory(c.id, v)} />
@@ -86,6 +89,11 @@ export function PrivacyPane() {
           <Button title="Advanced…" disabled={!blocker} onPress={() => showSettingsSheet(<FilterListsSheet />)} />
         </Row>
       </Group>
+      {failure && (
+        <Text size="caption" tone="destructive" style={FAILURE}>
+          {failure}
+        </Text>
+      )}
 
       {!!blocker?.allowedHosts.length && (
         <>
@@ -123,22 +131,34 @@ export function PrivacyPane() {
 }
 
 const RULES_LOADED = { marginTop: space.xl } as const;
+const FAILURE = { marginTop: space.ml } as const;
 const LISTS = { maxHeight: 420, marginTop: space.m } as const;
 const SITE_LIST = { maxHeight: 380, marginTop: space.l } as const;
 
+function BlockerUnavailable({ problem, retry }: { problem: string; retry: () => void }) {
+  return (
+    <Row title="Ad blocking isn't available" description={problem}>
+      <Button title="Retry" onPress={retry} />
+    </Row>
+  );
+}
+
 function FilterListsSheet() {
-  const [blocker, refresh] = useContentBlocker();
+  const [blocker, refresh, problem] = useContentBlocker();
+  const failure = useBlockingFailure((s) => s.message);
   const toggle = async (l: FilterList, on: boolean) => {
     if (!blocker) return;
-    try {
-      await setFilterList(blocker, l.id, on);
-    } finally {
-      refresh();
-    }
+    await changeFilterList(l.id, on);
+    refresh();
   };
   return (
     <Sheet size="l" onClose={closeSettingsSheet}>
       <DialogTitle subtitle={setting("privacy.filterLists").description}>Advanced Ad Block Settings</DialogTitle>
+      {problem !== null && (
+        <Group>
+          <BlockerUnavailable problem={problem} retry={refresh} />
+        </Group>
+      )}
       <ScrollView style={LISTS}>
         {CATEGORIES.map((c) => {
           const lists = blocker?.lists.filter((l) => l.category === c.id) ?? [];
@@ -159,6 +179,11 @@ function FilterListsSheet() {
           );
         })}
       </ScrollView>
+      {failure && (
+        <Text size="caption" tone="destructive" style={FAILURE}>
+          {failure}
+        </Text>
+      )}
       <DialogActions
         note={
           <Text size="caption" tone="textTertiary">
