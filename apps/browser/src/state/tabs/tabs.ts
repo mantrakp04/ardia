@@ -142,7 +142,7 @@ export function removeTabs(s: BrowserState, ids: string[], record: boolean): Bro
       const awake = left.filter((id) => !isAsleep(s.tabs[id]));
       const after = awake.length ? awake : left;
       const index = before.indexOf(activeId);
-      const next = openerSuccessor(s, activeId, before, left) ?? after.find((id) => before.indexOf(id) > index) ?? after.at(-1);
+      const next = otherPane(s, activeId, gone) ?? openerSuccessor(s, activeId, before, left) ?? after.find((id) => before.indexOf(id) > index) ?? after.at(-1);
       if (next) activeTabIds[profileId] = next;
       else delete activeTabIds[profileId];
     }
@@ -169,6 +169,11 @@ export function removeTabs(s: BrowserState, ids: string[], record: boolean): Bro
     if (t && needsPage(t)) next = apply(next, activated(next, t.id));
   }
   return next;
+}
+
+function otherPane(s: BrowserState, closedId: string, gone: Set<string>): string | undefined {
+  const panes = splitTabIdsOf(splitOf(s, closedId))?.filter((id) => !gone.has(id) && s.tabs[id]) ?? [];
+  return panes.reduce<string | undefined>((best, id) => (!best || s.tabs[id]!.lastActiveAt > s.tabs[best]!.lastActiveAt ? id : best), undefined);
 }
 
 function adoptOrphans(tabs: Record<string, Tab>, before: Record<string, Tab>, gone: Set<string>): Record<string, Tab> {

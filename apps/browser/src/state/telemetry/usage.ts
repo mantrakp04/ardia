@@ -27,7 +27,7 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, sidebarPeeksWithAutoHideOff: 0, importedPinnedRows: 0, importedSplits: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, sidebarPeeksWithAutoHideOff: 0, importedPinnedRows: 0, importedSplits: 0, splitPaneCloses: 0, splitViewCloses: 0, windowCloseTabsKept: 0 };
 let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
@@ -63,6 +63,9 @@ function emitCounts() {
       sidebar_peeks_with_auto_hide_off: counts.sidebarPeeksWithAutoHideOff,
       imported_pinned_rows: counts.importedPinnedRows,
       imported_splits: counts.importedSplits,
+      split_pane_closes: counts.splitPaneCloses,
+      split_view_closes: counts.splitViewCloses,
+      window_close_tabs_kept: counts.windowCloseTabsKept,
       sync_snapshots_written: snapshots.count,
       sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024),
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
@@ -75,6 +78,15 @@ function emitCounts() {
 export function noteImportedPins(made: { rows: number; splits: number }) {
   counts.importedPinnedRows += made.rows;
   counts.importedSplits += made.splits;
+}
+
+export function noteSplitClosed(whole: boolean) {
+  if (whole) counts.splitViewCloses++;
+  else counts.splitPaneCloses++;
+}
+
+export function noteWindowCloseTabsKept(n: number) {
+  counts.windowCloseTabsKept += n;
 }
 
 export function noteCaptureIndicatorCleared() {

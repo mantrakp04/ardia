@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Pressable, TextInput, View } from "react-native";
+import { Animated, Pressable, TextInput, View, type GestureResponderEvent } from "react-native";
 import { toggleMute } from "../../state/browser/actions";
 import { layout, useTheme } from "../ui/theme";
 import { useIsActiveTab, usePageProfileId, useTab, useWindow, useWindowId } from "../../state/browser/hooks";
@@ -14,7 +14,8 @@ import { commitRename, endRename, startRename } from "../../state/sidebar/action
 import { useDragItem, useDropOnto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
 import { useRowHover } from "./hoverController";
-import { pressTabClose, useTabCloseControlWhile } from "../../state/sidebar/closeControl";
+import { pressPaneClose, pressTabClose, useTabCloseControlWhile } from "../../state/sidebar/closeControl";
+import { modifiersOf } from "../../lib/keys";
 import { ACTIVE, ICON_MARKS, LOADING, mutedBy, PLAYING, SELECTED, useRowState } from "../../state/sidebar/rowState";
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
@@ -252,6 +253,7 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
   const tab = useTab(tabId);
   const active = useIsActiveTab(tabId);
   const { hovered, hoverProps } = useRowHover(windowId, { kind: "tab", id: tabId });
+  const closeControl = useTabCloseControlWhile(tabId, hovered);
   if (!tab) return null;
   return (
     <View {...hoverProps} style={{ flex: 1, minWidth: 0 }}>
@@ -269,6 +271,11 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
           >
             <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact />
             <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={active ? theme.rowSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: space.xs }} />
+            <HoverSlot
+              hovered={hovered}
+              reserve="hover"
+              hover={closeControl && <Button variant="icon" icon={closeControl.icon} size="s" weight="semibold" onPress={(e: GestureResponderEvent) => pressPaneClose(tab.id, modifiersOf(e).altKey)} tooltip={closeControl.tooltip} />}
+            />
           </View>
         )}
       </TabPressArea>

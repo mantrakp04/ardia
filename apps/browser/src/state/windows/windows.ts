@@ -22,8 +22,8 @@ import { holderOf, returnSharedPages, swapPinPage } from "../pins/pinShare";
 import { isTopApp, topAppsShared } from "../pins/topApps";
 import { MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { joinedWithCurrent, newTabPlacement } from "../tabs/openers";
-import { tabsClosedWithWindow } from "../tabs/tabShare";
-import { isLastRegularWindow, isRegularWindow, isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
+import { handOverTabs, tabsClosedWithWindow } from "../tabs/sharedWindowClose";
+import { isLastRegularWindow, isOpenRegularWindow, isRegularWindow, isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
 import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, WindowKind } from "../browser/types";
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
@@ -199,7 +199,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
   },
 
   closeWindow(id, { keepsLastWindow = false } = {}) {
-    const s = returnSharedPages(get(), id);
+    const s = handOverTabs(returnSharedPages(get(), id), id, isOpenRegularWindow);
     const w = s.windows[id];
     if (!w) return;
     const tabs = tabsClosedWithWindow(s, id);
