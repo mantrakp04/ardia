@@ -60,6 +60,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many tabs stayed listed under a collapsed tab group after you opened or switched to them, and how many clicks on a collapsed group's name hid them again, summed up once an hour. Never which tabs or groups",
       "How many tab and group changes the ardia command made (counts only, never which tabs or groups), how many of its batches were refused or stopped, and how many times its control pill appeared",
       "Opening split view, switching profiles and opening the command bar",
+      "How many times you click a split pane’s close control in the sidebar or pane toolbar, counted separately and summed up once an hour. Never which tabs",
       "Opening Picture in Picture: video or page, and whether its window can show over full-screen apps",
       "How often a site panel (Site Controls, Zoom, blocked pop-ups) is closed by a click outside it or by Esc, how often the ⌃Tab switcher opens and how many closed pinned tabs it left out, summed up once an hour",
       "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",

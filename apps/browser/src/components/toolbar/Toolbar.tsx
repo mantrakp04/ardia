@@ -18,6 +18,7 @@ import { toggleBookmarkOfTab } from "../../state/bookmarks/actions";
 import { useBookmarksShown } from "../../state/bookmarks/hooks";
 import { copyPageUrl } from "../../state/site/selection";
 import { closePane, openSplitPane, showSplitMenu } from "../../state/splits/actions";
+import { noteSplitPaneClose } from "../../state/telemetry/usage";
 import { useEasedColor, type ToolbarPalette } from "../ui/toolbarColors";
 import { useSitePalette } from "./useSitePalette";
 import { setToolbarExtensionsWidth } from "../../state/windows/layout";
@@ -127,7 +128,12 @@ export function Toolbar({
         {inSplit && (
           <View style={{ position: "absolute", top: at.top, right: 8, flexDirection: "row", gap: -space.xxs }}>
             <Button variant="icon" toolbar palette={palette} icon="rectangle.split.2x1" look="row" onPress={() => showSplitMenu(tab.id)} tooltip="Split View" />
-            <Button variant="icon" toolbar palette={palette} icon="xmark" look="row" weight="medium" onPress={() => closePane(tab.id)} tooltip="Close Pane" />
+            <View onTouchStart={(event) => event.stopPropagation()}>
+              <Button variant="icon" toolbar palette={palette} icon="xmark" look="row" weight="medium" onPress={() => {
+                noteSplitPaneClose("toolbar");
+                closePane(tab.id);
+              }} tooltip="Close Pane" />
+            </View>
           </View>
         )}
       </Animated.View>
