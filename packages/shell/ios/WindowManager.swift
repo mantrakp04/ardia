@@ -461,7 +461,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
   @objc private func frameChanged(_ notification: Notification) {
     guard let window = notification.object as? NSWindow, !window.inLiveResize else { return }
     NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportMoved(_:)), object: window)
-    perform(#selector(reportMoved(_:)), with: window, afterDelay: 0, inModes: [.default])
+    let delay = notification.name == NSWindow.didEndLiveResizeNotification ? 0 : Self.resizeReportDelay
+    perform(#selector(reportMoved(_:)), with: window, afterDelay: delay, inModes: [.default])
   }
 
   @objc private func reportMoved(_ window: NSWindow) {
