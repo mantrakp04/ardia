@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import ExpoModulesCore
 
 public class AppWindowsModule: Module {
@@ -25,6 +26,8 @@ public class AppWindowsModule: Module {
       }
       self.lifetime.end()
     }
+
+    Function("windowCornerRadius") { () -> Double in Double(ArdiaChromeWindowHost.windowCornerRadius) }
 
     AsyncFunction("openWindow") { (id: String, options: OpenWindowOptions) in
       WindowManager.shared.open(id: id, options, focus: options.focus)

@@ -8,6 +8,8 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
 import { useSettingValue } from "../tabs/tabWatch";
 
+export { windowCornerRadius } from "../../platform/windows";
+
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
   return useBrowser((s) => tabLayoutOf(s, windowId));
