@@ -1,5 +1,7 @@
 import { createElement, forwardRef, useEffect, type ComponentType } from "react";
 import { View } from "react-native";
+import { EngineWebView } from "../engine/EngineWebView";
+import { engineAvailable } from "../engine/host";
 import { noteFirstWindow, noteMissing } from "../missing";
 import { Symbol } from "../symbol/Symbol";
 import { WindowDragRegion } from "../windowDragRegion";
@@ -13,6 +15,8 @@ const known = new Map<string, ComponentType<AnyProps>>([
   ["ArdiaSymbol", Symbol as unknown as ComponentType<AnyProps>],
 ]);
 
+const withEngine = new Map<string, ComponentType<AnyProps>>([["ArdiaWebView", EngineWebView as unknown as ComponentType<AnyProps>]]);
+
 const views = new Map<string, ComponentType<AnyProps>>();
 
 export function registerView(name: string, view: ComponentType<AnyProps>) {
@@ -25,6 +29,7 @@ export function viewOnWindows(name: string): ComponentType<AnyProps> {
   if (cached) return cached;
   const made =
     known.get(name) ??
+    (engineAvailable() ? withEngine.get(name) : undefined) ??
     (forwardRef<unknown, AnyProps>(function Placeholder(props, ref) {
       useEffect(() => {
         noteFirstWindow();

@@ -1,0 +1,71 @@
+assert(is_win)
+
+source_set("win") {
+  sources = [
+    "ac_calls.cc",
+    "ac_calls.h",
+    "api.cc",
+    "api.h",
+    "frame_view.cc",
+    "frame_view.h",
+    "hooks.h",
+    "host.cc",
+    "host.h",
+    "main.cc",
+    "main.h",
+    "profiles.cc",
+    "profiles.h",
+    "public/EngineApi.h",
+    "tab_state.cc",
+    "tab_state.h",
+  ]
+
+  deps = [
+    "//base",
+    "//chrome/browser",
+    "//chrome/browser/ardia",
+    "//chrome/browser/profiles:profile",
+    "//chrome/common",
+    "//components/favicon/content",
+    "//components/favicon/core",
+    "//components/keep_alive_registry",
+    "//components/sessions",
+    "//components/version_info",
+    "//content/public/browser",
+    "//content/public/common",
+    "//net",
+    "//skia",
+    "//ui/aura",
+    "//ui/base",
+    "//ui/events",
+    "//ui/gfx",
+    "//ui/views",
+    "//url",
+  ]
+}
+
+source_set("launch_switches") {
+  sources = [
+    "//ardia/core/ac_launch_switches.cc",
+    "//ardia/core/ac_launch_switches.h",
+  ]
+
+  deps = [
+    "//base",
+    "//chrome/common:non_code_constants",
+    "//components/os_crypt/common:switches",
+    "//content/public/common",
+  ]
+}
+
+shared_library("probe") {
+  output_name = "ArdiaProbe"
+  sources = [
+    "probe/probe.cc",
+    "public/EngineApi.h",
+  ]
+  libs = [
+    "gdi32.lib",
+    "user32.lib",
+  ]
+}

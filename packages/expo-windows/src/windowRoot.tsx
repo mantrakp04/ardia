@@ -1,10 +1,14 @@
 import { createElement, type ReactNode } from "react";
 import { AppRegistry } from "react-native";
+import { WindowIdContext } from "./engine/windowId";
 import { OutsidePressRoot } from "./views/index";
 import { TitleBandDrag } from "./windowDragRegion";
 
-function WindowRoot({ children }: { children?: ReactNode }) {
-  return createElement(OutsidePressRoot, null, createElement(TitleBandDrag, null, children));
+type RootProps = { children?: ReactNode; initialProps?: { windowId?: unknown } | null };
+
+function WindowRoot({ children, initialProps }: RootProps) {
+  const windowId = typeof initialProps?.windowId === "string" ? initialProps.windowId : "";
+  return createElement(WindowIdContext.Provider, { value: windowId }, createElement(OutsidePressRoot, null, createElement(TitleBandDrag, null, children)));
 }
 
 let installed = false;

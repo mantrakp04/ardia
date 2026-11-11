@@ -1,6 +1,8 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import { addNativeListener, type EventSubscription } from "./events";
 import { moduleDefaults } from "./defaults";
+import { engineAvailable } from "./engine/host";
+import { engineModules } from "./engine/modules";
 import { noteMissing } from "./missing";
 
 type Listener = (payload: unknown) => void;
@@ -27,6 +29,8 @@ function moduleOnWindows(name: string): object {
         const fromNative = native?.[key];
         if (fromNative !== undefined) return fromNative;
         if (Object.hasOwn(constants, key)) return constants[key];
+        const withEngine = engineModules[name];
+        if (withEngine && Object.hasOwn(withEngine, key) && engineAvailable()) return withEngine[key];
         if (Object.hasOwn(defaults, key)) {
           noteMissing(`${name}.${key}`);
           return defaults[key];
@@ -46,5 +50,5 @@ export function requireNativeModule<Module = unknown>(name: string): Module {
 }
 
 export function requireOptionalNativeModule<Module = unknown>(name: string): Module | null {
-  return TurboModuleRegistry.get<TurboModule>(name) || moduleDefaults[name] ? (moduleOnWindows(name) as Module) : null;
+  return TurboModuleRegistry.get<TurboModule>(name) || moduleDefaults[name] || engineModules[name] ? (moduleOnWindows(name) as Module) : null;
 }

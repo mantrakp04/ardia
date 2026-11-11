@@ -1,0 +1,37 @@
+--- a/ui/views/widget/desktop_aura/desktop_window_tree_host_win.cc
++++ b/ui/views/widget/desktop_aura/desktop_window_tree_host_win.cc
+@@ -570,6 +570,13 @@
+ bool DesktopWindowTreeHostWin::IsActive() const {
+   if (WidgetActivationDelegate::Get()) {
+     return WidgetActivationDelegate::Get()->IsActive(GetWidget());
++  }
++  // Ardia: a child window (a browser window the app hosts, //ardia/win) is
++  // never the system's active window. It is active while it holds the
++  // keyboard focus.
++  if (::GetWindowLongPtr(GetHWND(), GWL_STYLE) & WS_CHILD) {
++    HWND focus = ::GetFocus();
++    return focus && (focus == GetHWND() || ::IsChild(GetHWND(), focus));
+   }
+   return message_handler_->IsActive();
+ }
+@@ -1397,10 +1404,20 @@
+ }
+ 
+ void DesktopWindowTreeHostWin::HandleNativeFocus(HWND last_focused_window) {
++  // Ardia: focus is activation for a child window.
++  if (::GetWindowLongPtr(GetHWND(), GWL_STYLE) & WS_CHILD) {
++    HandleActivationChanged(true);
++  }
+   // TODO(beng): inform the native_widget_delegate_.
+ }
+ 
+ void DesktopWindowTreeHostWin::HandleNativeBlur(HWND focused_window) {
++  // Ardia: a child window is inactive once focus leaves it.
++  if ((::GetWindowLongPtr(GetHWND(), GWL_STYLE) & WS_CHILD) &&
++      focused_window != GetHWND() &&
++      !(focused_window && ::IsChild(GetHWND(), focused_window))) {
++    HandleActivationChanged(false);
++  }
+   // TODO(beng): inform the native_widget_delegate_.
+ }
+ 

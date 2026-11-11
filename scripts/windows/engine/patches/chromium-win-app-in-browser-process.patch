@@ -1,0 +1,59 @@
+--- a/chrome/app/chrome_main.cc
++++ b/chrome/app/chrome_main.cc
+@@ -56,6 +56,7 @@
+ #include "chrome/common/chrome_constants.h"
+ #include "chrome/install_static/initialize_from_primary_module.h"
+ #include "chrome/install_static/install_details.h"
++#include "ardia/win/main.h"  // nogncheck
+ 
+ #define DLLEXPORT __declspec(dllexport)
+ #endif  // BUILDFLAG(IS_WIN)
+@@ -156,6 +157,9 @@
+     base::debug::DumpWithoutCrashing();
+   }
+   base::CommandLine::Init(0, nullptr);
++  // Ardia: with the app's library beside the executable, the browser
++  // process runs the app (//ardia/win) instead of opening Chrome's window.
++  ardia_win::BeforeChromeMain();
+ #else
+   params.argc = argc;
+   params.argv = argv;
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -765,6 +765,12 @@
+ }
+ 
+ // BrowserMainParts ------------------------------------------------------------
++
++#if BUILDFLAG(IS_WIN)
++// Ardia: the app's own startup and shutdown steps (//ardia/win).
++void (*g_ardia_win_add_main_parts)(ChromeBrowserMainParts* main_parts) =
++    nullptr;
++#endif
+ 
+ // static
+ std::unique_ptr<content::BrowserMainParts> ChromeBrowserMainParts::Create(
+@@ -838,6 +844,13 @@
+   main_parts->AddParts(
+       std::make_unique<ChromeBrowserMainExtraPartsPerformanceMonitor>());
+ 
++#if BUILDFLAG(IS_WIN)
++  // Ardia: the app starts after the browser, and stops before it.
++  if (g_ardia_win_add_main_parts) {
++    g_ardia_win_add_main_parts(main_parts.get());
++  }
++#endif
++
+   main_parts->AddParts(
+       std::make_unique<ChromeBrowserMainExtraPartsPerformanceManager>());
+ 
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -422,6 +422,7 @@
+       "//sandbox/win:sandbox",
+       "//third_party/cld_3/src/src:cld_3",
+       "//third_party/wtl",
++      "//ardia/win",  # Ardia: the app in the browser process (scripts/windows/engine/src)
+       "//ui/views",
+     ]
+ 

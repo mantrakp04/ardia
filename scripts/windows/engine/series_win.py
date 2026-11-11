@@ -4,10 +4,12 @@ scripts/windows/engine/series-win (when it exists; its patches in scripts/window
 and its `skip <patch>` lines leave a patch of engine/patches/series out), each applied strictly (git apply), else with patch's fuzz.
 A patch that fails is recorded and the rest still run. Each patch that goes in is written to .series-win-applied beside
 the tree and never applied again: a later patch on the same lines would hide it from a reverse check. Of the layers, engine/chromium runs as is (its
-chrome/browser/ardia is only built into the Mac framework) and engine/ardiacore gives only the hook headers the
-patches include. Writes a table: patch, result, which files it touches (Mac only, Mac and shared, OS-neutral).
+chrome/browser/ardia gets a Windows BUILD.gn made from the Mac one: no .mm, no pip/, no frameworks), engine/ardiacore
+gives the hook headers the patches include and ac_launch_switches (its Mac signature check answers no), and
+scripts/windows/engine/src/ardia/win (the app in the browser process, with the app's EngineApi.h and a generated table
+of the engine's ac_* calls) is copied to //ardia/win, only the files that changed. Writes a table: patch, result, which files it touches (Mac only, Mac and shared, OS-neutral).
 
-Usage: series_win.py apply --report TSV | classify (CHROMIUM_SRC is the tree)
+Usage: series_win.py apply --report TSV | layer | classify (CHROMIUM_SRC is the tree)
 """
 import argparse
 import os
@@ -21,6 +23,9 @@ REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 PATCHES = os.path.join(REPO, 'engine', 'patches')
 WIN_PATCHES = os.path.join(HERE, 'patches')
 HOOK_HEADERS = ['ardia/core/ac_hooks.h', 'ardia/core/ac_content_hooks.h']
+ARDIA_LAYER = os.path.join(REPO, 'engine/chromium/src/chrome/browser/ardia')
+LAUNCH_SWITCHES = 'ardia/core/ac_launch_switches'
+MAC_LAYER_LINE = re.compile(r'(\.mm"|"pip/|"ac_external_apps\.h")')
 MAC_FILE = re.compile(r'(\.mm$|_mac(_[a-z]+)?\.(cc|h)$|/mac/|cocoa|_apple\.(cc|h|mm)$|/apple/|keychain|\.icns$|\.car$)')
 
 
@@ -90,6 +95,98 @@ def layers(tree):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copyfile(os.path.join(REPO, 'engine/ardiacore/src', rel), dst)
     print(f'engine/chromium applied; {len(HOOK_HEADERS)} ArdiaCore hook headers copied')
+    win_layer(tree)
+
+
+def write_if_changed(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.isfile(path) and open(path, encoding='utf-8').read() == text:
+        return 0
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    return 1
+
+
+def ardia_build_file():
+    text = open(os.path.join(ARDIA_LAYER, 'BUILD.gn'), encoding='utf-8').read()
+    if text.count('assert(is_mac)') != 1 or 'config("exports_config")' not in text:
+        sys.exit('series_win.py: chrome/browser/ardia/BUILD.gn is not shaped as expected')
+    text = text.replace('assert(is_mac)', 'assert(is_win)')
+    text = ''.join(line for line in text.splitlines(True) if not MAC_LAYER_LINE.search(line))
+    text = text.replace('    "//ardia/core:hooks",\n', '')
+    text = text.replace('    "//ardia/core:launch_switches",\n', '    "//ardia/win:launch_switches",\n')
+    text = re.sub(r'\n  frameworks \+?= \[[^\]]*\]\n', '\n', text)
+    return text[:text.index('config("exports_config")')].rstrip() + '\n'
+
+
+def launch_switches_source():
+    text = open(os.path.join(REPO, 'engine/ardiacore/src', LAUNCH_SWITCHES + '.cc'), encoding='utf-8').read()
+    signed = re.compile(r'bool SignedForDistribution\(\) \{\n.*?\n\}\n', re.S)
+    for needed in ('#include <Security/Security.h>\n\n', '#include "base/apple/scoped_cftyperef.h"\n'):
+        if text.count(needed) != 1:
+            sys.exit(f'series_win.py: {LAUNCH_SWITCHES}.cc has no {needed.strip()}')
+        text = text.replace(needed, '')
+    if len(signed.findall(text)) != 1:
+        sys.exit(f'series_win.py: {LAUNCH_SWITCHES}.cc has no SignedForDistribution')
+    return signed.sub('bool SignedForDistribution() {\n  return false;\n}\n', text)
+
+
+def engine_calls():
+    names = set()
+    for root, _, files in os.walk(ARDIA_LAYER):
+        if os.path.basename(root) == 'pip':
+            continue
+        for name in files:
+            if name.endswith('.cc'):
+                text = open(os.path.join(root, name), encoding='utf-8').read()
+                names.update(re.findall(r'^AC_(?:PROFILE|ARGS|ENGINE)_CALL\((ac_\w+)', text, re.M))
+    return sorted(names)
+
+
+def engine_calls_source(names):
+    lines = ['#include "ardia/win/ac_calls.h"', '', 'extern "C" {']
+    lines += [f'void {name}(const char*, const char*, ac_engine_reply_t, void*);' for name in names]
+    lines += ['}', '', 'namespace ardia_win {', '', 'ac_engine_call_t FindEngineCall(std::string_view name) {',
+              '  static constexpr struct {', '    std::string_view name;', '    ac_engine_call_t call;',
+              '  } kCalls[] = {']
+    lines += [f'      {{"{name}", &{name}}},' for name in names]
+    lines += ['  };', '  for (const auto& entry : kCalls) {', '    if (entry.name == name) {',
+              '      return entry.call;', '    }', '  }', '  return nullptr;', '}', '', '}', '']
+    return '\n'.join(lines)
+
+
+def win_layer(tree):
+    source = os.path.join(HERE, 'src', 'ardia', 'win')
+    target = os.path.join(tree, 'ardia', 'win')
+    wanted = {}
+    for root, _, files in os.walk(source):
+        for name in files:
+            path = os.path.join(root, name)
+            wanted[os.path.relpath(path, source)] = path
+    wanted[os.path.join('public', 'EngineApi.h')] = os.path.join(
+        REPO, 'apps', 'browser', 'windows', 'Ardia', 'EngineApi.h')
+    copied = 0
+    for rel, path in wanted.items():
+        dst = os.path.join(target, rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        if not os.path.isfile(dst) or open(dst, 'rb').read() != open(path, 'rb').read():
+            shutil.copyfile(path, dst)
+            copied += 1
+    names = engine_calls()
+    generated = {'ac_calls.cc': engine_calls_source(names)}
+    for rel, text in generated.items():
+        copied += write_if_changed(os.path.join(target, rel), text)
+    for root, _, files in os.walk(target):
+        for name in files:
+            path = os.path.join(root, name)
+            rel = os.path.relpath(path, target)
+            if rel not in wanted and rel not in generated:
+                os.remove(path)
+    copied += write_if_changed(os.path.join(tree, 'chrome/browser/ardia/BUILD.gn'), ardia_build_file())
+    copied += write_if_changed(os.path.join(tree, LAUNCH_SWITCHES + '.cc'), launch_switches_source())
+    shutil.copyfile(os.path.join(REPO, 'engine/ardiacore/src', LAUNCH_SWITCHES + '.h'),
+                    os.path.join(tree, LAUNCH_SWITCHES + '.h'))
+    print(f'ardia/win: {len(wanted) + len(generated)} files, {len(names)} engine calls, {copied} changed')
 
 
 def skipped():
@@ -149,6 +246,11 @@ def cmd_apply(args):
     return 1 if failed else 0
 
 
+def cmd_layer(args):
+    win_layer(os.environ['CHROMIUM_SRC'])
+    return 0
+
+
 def cmd_classify(args):
     for name, path in names():
         print(f'{classify(patch_files(path)):16} {name}')
@@ -161,8 +263,9 @@ def main():
     apply = sub.add_parser('apply')
     apply.add_argument('--report', required=True)
     sub.add_parser('classify')
+    sub.add_parser('layer')
     args = parser.parse_args()
-    return {'apply': cmd_apply, 'classify': cmd_classify}[args.command](args)
+    return {'apply': cmd_apply, 'classify': cmd_classify, 'layer': cmd_layer}[args.command](args)
 
 
 if __name__ == '__main__':
