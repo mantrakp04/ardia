@@ -88,6 +88,7 @@ function scoreEntry<T extends Searchable>(p: Prepared<T>, tokens: string[], phra
   for (const token of tokens) {
     let best = 0;
     for (const [field, words] of p.fields) {
+      if (token.length === 1 && field !== "title" && field !== "keywords") continue;
       const weight = FIELD_WEIGHTS[field];
       for (const word of words) {
         const quality = tokenMatch(token, word);
@@ -99,7 +100,7 @@ function scoreEntry<T extends Searchable>(p: Prepared<T>, tokens: string[], phra
   }
   const title = p.fields[0]![2];
   const pane = p.fields[3]![2];
-  if (pane === phrase || pane.startsWith(phrase) || (phrase.startsWith(pane) && phrase.length - pane.length <= 1)) total += 6;
+  if (phrase.length > 1 && (pane === phrase || pane.startsWith(phrase) || (phrase.startsWith(pane) && phrase.length - pane.length <= 1))) total += 6;
   if (title === phrase) total += 12;
   else if (title.startsWith(phrase)) total += 8;
   else if (` ${title} `.includes(` ${phrase} `)) total += 5;
