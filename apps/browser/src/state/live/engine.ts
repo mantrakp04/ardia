@@ -10,7 +10,7 @@ import { SOURCES } from "./sources";
 import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 import { noteLiveCompletedTabsClosed } from "../telemetry/liveCompletedTabs";
-import { useMedia } from "../media/media";
+import { isPlaying, useMedia } from "../media/media";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
 const STALE_ON_FOCUS_MS = 60_000;
@@ -212,7 +212,10 @@ function markCompletedTabs(folderId: string, gone: Record<string, CompletionStat
   closeCompletedTabs();
 }
 
-const playing = (s: BrowserState, id: string) => !!s.live[id]?.playingAudio || !!useMedia.getState().pipOpen[id];
+const playing = (s: BrowserState, id: string) => {
+  const media = useMedia.getState();
+  return !!s.live[id]?.playingAudio || !!media.pipOpen[id] || isPlaying(media.sessions[id]);
+};
 
 const playbackEnded = (s: BrowserState, prev: BrowserState) => s.live !== prev.live && Object.keys(prev.live).some((id) => prev.live[id]?.playingAudio && !s.live[id]?.playingAudio);
 
@@ -277,7 +280,7 @@ export function startLiveEngine() {
     if (s.windows !== prev.windows || s.splits !== prev.splits || s.peeks !== prev.peeks || playbackEnded(s, prev)) closeCompletedTabs();
   });
   useMedia.subscribe((m, prev) => {
-    if (m.pipOpen !== prev.pipOpen) closeCompletedTabs();
+    if (m.pipOpen !== prev.pipOpen || m.sessions !== prev.sessions) closeCompletedTabs();
   });
 
   useBrowser.subscribe((s, prev) => {
