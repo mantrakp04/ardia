@@ -4,6 +4,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const { openLiveItem, refreshFolder, startLiveEngine } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
 const { setNowPlaying, useMedia } = await import("../media/media.ts");
+const { usePages } = await import("../tabs/pageState.ts");
 const { createFolder, finishCompleting, hideItems, live, removeFolder, updateFolder } = await import("./store.ts");
 
 const S = () => useBrowser.getState();
@@ -215,5 +216,15 @@ test("a merged pull request's tab that's sharing another tab stays until its sha
   finishCompleting(id, [merging.id]);
   assert.ok(S().tabs[tab], "closing it would end its share");
   useMedia.setState({ tabShares: {} });
+  assert.equal(S().tabs[tab], undefined);
+});
+
+test("a merged pull request's tab that's using the microphone, camera or screen stays until it stops", async () => {
+  const { id, tab, merging } = await mergeWithTabOpen(false);
+  const access = (mediaAccess) => usePages.setState((p) => ({ pages: { ...p.pages, [tab]: { ...p.pages[tab], mediaAccess } } }));
+  access({ camera: false, microphone: true, screen: false });
+  finishCompleting(id, [merging.id]);
+  assert.ok(S().tabs[tab], "closing it would end the call");
+  access(null);
   assert.equal(S().tabs[tab], undefined);
 });

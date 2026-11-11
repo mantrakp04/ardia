@@ -11,6 +11,8 @@ import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, ma
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 import { noteLiveCompletedTabsClosed } from "../telemetry/liveCompletedTabs";
 import { isPlaying, useMedia } from "../media/media";
+import { usePages } from "../tabs/pageState";
+import type { MediaAccess } from "../../platform/tabs";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
 const STALE_ON_FOCUS_MS = 60_000;
@@ -212,9 +214,11 @@ function markCompletedTabs(folderId: string, gone: Record<string, CompletionStat
   closeCompletedTabs();
 }
 
+const capturing = (access: MediaAccess | null | undefined) => !!access && (access.camera || access.microphone || access.screen);
+
 const inUse = (s: BrowserState, id: string) => {
   const media = useMedia.getState();
-  return !!s.live[id]?.playingAudio || !!media.pipOpen[id] || isPlaying(media.sessions[id]) || !!media.tabShares[id] || Object.values(media.tabShares).some((share) => share.capturedTabId === id);
+  return !!s.live[id]?.playingAudio || !!media.pipOpen[id] || isPlaying(media.sessions[id]) || capturing(usePages.getState().pages[id]?.mediaAccess) || !!media.tabShares[id] || Object.values(media.tabShares).some((share) => share.capturedTabId === id);
 };
 
 const playbackEnded = (s: BrowserState, prev: BrowserState) => s.live !== prev.live && Object.keys(prev.live).some((id) => prev.live[id]?.playingAudio && !s.live[id]?.playingAudio);
@@ -278,6 +282,9 @@ export function startLiveEngine() {
 
   useBrowser.subscribe((s, prev) => {
     if (s.windows !== prev.windows || s.splits !== prev.splits || s.peeks !== prev.peeks || playbackEnded(s, prev)) closeCompletedTabs();
+  });
+  usePages.subscribe((p, prev) => {
+    if (p.pages !== prev.pages && Object.keys(prev.pages).some((id) => capturing(prev.pages[id]?.mediaAccess) && !capturing(p.pages[id]?.mediaAccess))) closeCompletedTabs();
   });
   useMedia.subscribe((m, prev) => {
     if (m.pipOpen !== prev.pipOpen || m.sessions !== prev.sessions || m.tabShares !== prev.tabShares) closeCompletedTabs();
