@@ -48,10 +48,12 @@ export function Omnibox({
   onDone = onCancel,
   opensTab,
   floating = false,
+  centred = false,
   fieldRowHeight = BAR.panel.height,
 }: {
   variant: Variant;
   floating?: boolean;
+  centred?: boolean;
   fieldRowHeight?: number;
   tabId: string;
   initialText?: string;
@@ -287,6 +289,7 @@ export function Omnibox({
       inputRef={input}
       variant={variant}
       floating={floating}
+      centred={centred}
       scope={scope}
       incognito={incognito}
       onLayout={focusOnce}

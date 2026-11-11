@@ -278,7 +278,7 @@ ac.pages.bookmarkDialog.setState({ open: null });
 s.setSelection(W, []);
 s.updateGroup("g1", { collapsed: false });
 for (const sp of Object.values(s.splits)) s.separateSplit(sp.id);
-s.updateSettings({ appearance: "dark", tabLayout: "sidebar", addressBar: "toolbar", bookmarksBar: "never" });
+s.updateSettings({ appearance: "dark", tabLayout: "sidebar", addressBar: "toolbar", bookmarksBar: "never", centredUrl: false, compactToolbar: false });
 if (s.settings.autoHideTabs) s.toggleSidebar(W);
 s.activate("t3");
 s.updateProfile("default", { pinnedCollapsed: false });
@@ -302,6 +302,11 @@ const STATES = [
   main("dia-light-group-collapsed", `st().updateSettings({ appearance: "light" }); st().updateGroup("g1", { collapsed: true });`),
   main("dia-dark-sidebar-closed", `st().activate("t1"); st().toggleSidebar(W);`),
   main("dia-light-sidebar-closed", `st().updateSettings({ appearance: "light" }); st().activate("t1"); st().toggleSidebar(W);`),
+  main("dia-dark-centred-url", `st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W);`),
+  main("dia-dark-centred-url-hover", `st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W); return settle(300).then(() => ac.shell.devSetPointer(W, { x: 640, y: 21 })).then(() => settle(400));`),
+  main("dia-dark-centred-url-compact", `st().updateSettings({ centredUrl: true, compactToolbar: true }); st().activate("t1"); st().toggleSidebar(W);`),
+  main("dia-light-centred-url", `st().updateSettings({ appearance: "light" }); st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W);`),
+  main("dia-dark-centred-url-command-bar", `st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W); st().openPanel(W, "https://example.com/notes");`),
   main("dia-dark-work-profile", `st().switchProfile(W, "work");`),
   main("dia-light-work-profile", `st().updateSettings({ appearance: "light" }); st().switchProfile(W, "work");`),
   main("dia-dark-bookmarks-bar", `st().updateSettings({ bookmarksBar: "always" }); st().activate("t1");`),

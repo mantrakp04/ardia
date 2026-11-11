@@ -11,6 +11,7 @@ export function BarField({
   inputRef,
   variant,
   floating,
+  centred = false,
   scope,
   incognito,
   focusEcho,
@@ -22,6 +23,7 @@ export function BarField({
   onSelection(next: { start: number; end: number }): void;
   variant: "panel" | "hero" | "sidebar";
   floating: boolean;
+  centred?: boolean;
   scope: SearchScope | null;
   incognito: boolean;
 } & Pick<InputProps, "value" | "onLayout" | "onChangeText" | "onSubmitEditing" | "onFocus" | "onBlur" | "keyDownEvents" | "onKeyDown">) {
@@ -55,6 +57,7 @@ export function BarField({
         color: theme.textPrimary,
         paddingVertical: 0,
         marginTop: variant === "panel" ? BAR.panelFieldLift : 0,
+        ...(centred ? { textAlign: "center" as const, marginRight: BAR.panel.centredBalance } : null),
       }}
     />
   );

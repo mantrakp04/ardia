@@ -2,7 +2,7 @@ import { OutsidePressArea, reduceMotion, Surface } from "../ui";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Animated, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import { hex, useTheme } from "../ui/theme";
-import { useSidebarSide, useWindowId, useWindowUi } from "../../state/browser/hooks";
+import { useSettings, useSidebarSide, useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { closePanel } from "../../state/windows/actions";
 import { useActiveTabIdWhile, useCommandBarCentred, useTabHasUrlWhile } from "../../state/omnibox/hooks";
 import { usePage } from "../../state/tabs/pageState";
@@ -44,6 +44,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
   const toolbarRow = useToolbarRow();
   const sidebarRight = useSidebarSide(windowId) === "right";
+  const centredUrl = useSettings((s) => s.centredUrl);
   const overRows = panel.open && !panel.newTab && !centred && !!anchor?.sidebar;
   useEffect(() => {
     if (panel.open) dismissHover();
@@ -84,20 +85,28 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
     );
   }
 
-  const left = Math.max(WINDOW_MARGIN, anchor.left + urlTextLeft(insecure) - PANEL_TEXT_LEFT);
+  const textLeft = Math.max(WINDOW_MARGIN, anchor.left + urlTextLeft(insecure) - PANEL_TEXT_LEFT);
   const top = Math.max(0.5, anchor.top - ABOVE_PANE);
-  const covering = anchor.left + anchor.width + RIGHT_OF_URL - left;
-  const width = Math.min(Math.max(covering, MIN_WIDTH), room(left, covering));
+  const covering = anchor.left + anchor.width + RIGHT_OF_URL - textLeft;
+  const { left, width } = centredUrl
+    ? centredOver(anchor, Math.max(anchor.width, MIN_WIDTH), windowWidth)
+    : { left: textLeft, width: Math.min(Math.max(covering, MIN_WIDTH), room(textLeft, covering)) };
   const field = urlFieldOf(toolbarRow);
   const lift = compactLift(toolbarRow);
   const from = hasField ? { left: anchor.left, top: anchor.top + field.top, width: anchor.width, height: field.height } : null;
   return (
     <Grow from={from} frame={{ left, top, width }} openHeight={PANEL_OPEN_HEIGHT - 2 * lift} radius={PANEL_RADIUS} surface={surface(PANEL_RADIUS)}>
       <OutsidePressArea onOutsidePress={onCancel}>
-        <Omnibox key={activeId} variant="panel" tabId={activeId} initialText={panel.initialText} fieldRowHeight={BAR.panel.height - 2 * lift} onCancel={onCancel} onDone={onDone} />
+        <Omnibox key={activeId} variant="panel" centred={centredUrl} tabId={activeId} initialText={panel.initialText} fieldRowHeight={BAR.panel.height - 2 * lift} onCancel={onCancel} onDone={onDone} />
       </OutsidePressArea>
     </Grow>
   );
+}
+
+function centredOver(field: { left: number; width: number }, wanted: number, windowWidth: number) {
+  const width = windowWidth > 0 ? Math.min(wanted, windowWidth - 2 * WINDOW_MARGIN) : wanted;
+  const left = field.left + (field.width - width) / 2;
+  return { left: windowWidth > 0 ? Math.min(Math.max(WINDOW_MARGIN, left), windowWidth - WINDOW_MARGIN - width) : Math.max(WINDOW_MARGIN, left), width };
 }
 
 function panelSurface(theme: ReturnType<typeof useTheme>, radius: number) {

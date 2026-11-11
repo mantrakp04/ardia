@@ -327,6 +327,11 @@ export const generalRows = {
           description: "A 28 pt toolbar instead of Dia's 41 pt, so the page gets more height and a 16:9 video can fill a maximized window. For the address bar in the toolbar and for tabs at the top.",
           keywords: ["toolbar height", "smaller toolbar", "thin toolbar", "slim", "dense", "helium", "video", "16:9", "black bars", "url bar"],
         },
+        centredUrl: {
+          title: "Centre the URL",
+          description: "The site sits in the middle of the toolbar's address bar, and stays there while you type. Hovering no longer slides the path in, so it can't shove the site sideways.",
+          keywords: ["center", "centre", "centered", "centred", "align", "alignment", "middle", "url bar", "address", "safari", "orion"],
+        },
       },
     },
     {

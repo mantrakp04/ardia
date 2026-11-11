@@ -1,7 +1,7 @@
 import { pageHostLabel, urlTrail } from "../../lib/url";
-import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Animated, Pressable, StyleSheet, View, type ViewStyle } from "react-native";
+import { Animated, Pressable, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useTheme } from "../ui/theme";
 import { TOOLBAR_ROWS, urlFieldOf, type ToolbarRow } from "../../lib/toolbarRow";
 import { ToolbarRowContext } from "../ui/toolbarRowContext";
@@ -153,7 +153,7 @@ export function ToolbarBackdrop({ tabId }: { tabId: string }) {
   );
 }
 
-function useUrlField(tab: ToolbarTab, windowId: string, onFocus: () => void) {
+function useUrlField(tab: ToolbarTab, windowId: string, onFocus: () => void, pathOnHover = true) {
   const showFullUrl = useSettings((s) => s.showFullUrl);
   const insecure = usePage(tab.id, insecureLevel);
   const popover = usePages((p) => p.popover[tab.id] ?? null);
@@ -167,7 +167,7 @@ function useUrlField(tab: ToolbarTab, windowId: string, onFocus: () => void) {
     onFocus();
     togglePopover(tab.id, "siteControls");
   };
-  return { insecure, popover, hovered, hoverProps, openPanel, toggleSiteControls, host: pageHostLabel(tab.url), trail: urlTrail(tab.url, tab.title, { hovered, showFullUrl }) };
+  return { insecure, popover, hovered, hoverProps, openPanel, toggleSiteControls, host: pageHostLabel(tab.url), trail: urlTrail(tab.url, tab.title, { hovered: hovered && pathOnHover, showFullUrl }) };
 }
 
 type UrlFieldProps = { tab: ToolbarTab; palette: ToolbarPalette; windowId: string; onFocus: () => void };
@@ -176,9 +176,24 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
   const theme = useTheme();
   const row = useToolbarRow();
   const splitHint = useShortcutHint("openSplitPane");
-  const field = useUrlField(tab, windowId, onFocus);
+  const centred = useSettings((s) => s.centredUrl);
+  const field = useUrlField(tab, windowId, onFocus, !centred);
   const { insecure, hovered, popover, toggleSiteControls } = field;
   const glass = useGlass();
+  const [buttonsWidth, setButtonsWidth] = useState(0);
+  const measureButtons = centred ? (e: LayoutChangeEvent) => setButtonsWidth(e.nativeEvent.layout.width) : undefined;
+  const label = (
+    <View style={centred ? CENTRED_LABEL : LABEL}>
+      <Text numberOfLines={1} ellipsizeMode="head" weight="medium" color={palette.text} style={HOST_FULL}>
+        {field.host}
+      </Text>
+      {field.trail ? (
+        <Text numberOfLines={1} color={palette.secondary} style={SHRINK}>
+          {field.trail}
+        </Text>
+      ) : null}
+    </View>
+  );
 
   return (
     <View {...field.hoverProps} style={[style, { flexDirection: "row", alignItems: "center", height: row.field, borderRadius: row.fieldRadius, backgroundColor: hovered && !glass ? palette.pill : undefined }]}>
@@ -197,19 +212,10 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
       )}
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void showUrlBarMenu(tab)}>
         <Pressable onPress={field.openPanel} style={{ flex: 1, height: row.field, justifyContent: "center", paddingLeft: insecure ? LOCK.gap : urlTextLeft(false) }}>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text numberOfLines={1} ellipsizeMode="head" weight="medium" color={palette.text} style={HOST_FULL}>
-              {field.host}
-            </Text>
-            {field.trail ? (
-              <Text numberOfLines={1} color={palette.secondary} style={SHRINK}>
-                {field.trail}
-              </Text>
-            ) : null}
-          </View>
+          {centred ? null : label}
         </Pressable>
       </ContextMenuArea>
-      <FieldButtons tab={tab} palette={palette} onFocus={onFocus} popover={popover} toggleSiteControls={toggleSiteControls}>
+      <FieldButtons tab={tab} palette={palette} onFocus={onFocus} popover={popover} toggleSiteControls={toggleSiteControls} onLayout={measureButtons}>
         {hovered && (
           <>
             <PageButton tab={tab} palette={palette} windowId={windowId} />
@@ -226,6 +232,11 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
           </>
         )}
       </FieldButtons>
+      {centred && (
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, CENTRED_LAYER, { paddingHorizontal: Math.max(urlTextLeft(!!insecure), buttonsWidth) }]}>
+          {label}
+        </View>
+      )}
     </View>
   );
 });
@@ -271,6 +282,9 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
 });
 
 const HOST_FULL = { flexShrink: 0, maxWidth: "100%" } as const;
+const LABEL = { flexDirection: "row", alignItems: "center" } as const;
+const CENTRED_LABEL = { flexDirection: "row", alignItems: "center", flexShrink: 1 } as const;
+const CENTRED_LAYER = { flexDirection: "row", alignItems: "center", justifyContent: "center" } as const;
 const SHRINK = { flexShrink: 1 } as const;
 
 type PageButtonProps = { tab: ToolbarTab; palette: ToolbarPalette; windowId: string };
@@ -299,6 +313,7 @@ function FieldButtons({
   popover,
   toggleSiteControls,
   accessory,
+  onLayout,
   children,
 }: {
   tab: ToolbarTab;
@@ -307,12 +322,13 @@ function FieldButtons({
   popover: string | null;
   toggleSiteControls: () => void;
   accessory?: ReactNode;
+  onLayout?: (e: LayoutChangeEvent) => void;
   children: ReactNode;
 }) {
   const popups = usePage(tab.id, (p) => p.popups.length);
   const capture = usePage(tab.id, (p) => p.mediaAccess);
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", paddingRight: space.xs }}>
+    <View onLayout={onLayout} style={{ flexDirection: "row", alignItems: "center", paddingRight: space.xs }}>
       {children}
       {capture && <CaptureIndicator camera={capture.camera} microphone={capture.microphone} screen={capture.screen} onPress={toggleSiteControls} />}
       <TranslateButton tabId={tab.id} palette={palette} onFocus={onFocus} />

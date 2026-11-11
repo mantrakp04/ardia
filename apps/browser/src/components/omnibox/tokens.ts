@@ -25,6 +25,7 @@ export const BAR = {
     iconLeft: PANEL_ICON_LEFT,
     heroIconLeft: 18,
     right: 18,
+    centredBalance: PANEL_TEXT_LEFT - FIELD_TEXT_INSET - 18,
     heroGap: space.m,
     gap: PANEL_TEXT_LEFT - FIELD_TEXT_INSET - PANEL_ICON_LEFT - ICON_SLOT,
   },
