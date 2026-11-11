@@ -56,7 +56,10 @@ the start unless noted. All clocks are epoch ms on the same Mac: JS's `Date.now(
 Each `perf_journeys` step goes as `<step>_p50`, `_p75`, `_p95`, `_max` and `_n` (ms; at most 500 samples per step per
 summary). Counts: `j3_cold` (the page was hidden), `j3_warm` (it was still painting), `j3_load` (it had to load),
 `j3_other` (no page: New Tab), `j2_no_bar`, `j4_no_load` (not a page load: a ardia: page, a download),
-`j4_no_paint` (nothing painted within 30 s), `j4_replaced` (another navigation came first).
+`j4_no_paint` (nothing painted within 30 s), `j4_replaced` (another navigation came first), `veil_held` and `veil_plain`
+(a document from another origin committed before the bar showed it, so the page veil went up over its page view:
+`veil_held` when it went up showing the old page's frame, `veil_plain` when it went up as its plain fill, which is
+a blank frame if the page is on screen; counted once as each veil is placed, from any navigation, not only J4's).
 `perf_journeys` goes hourly and at quit, like `perf_omnibox`; `perf_launch` once its steps are in (≤ 30 s after the first
 window, or at quit), not at the first window as before.
 

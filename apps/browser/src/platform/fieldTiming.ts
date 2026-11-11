@@ -5,6 +5,7 @@ type FieldTiming = {
   markFrame(key: string, kind: string): void;
   lastInput(): [at: number, kind: number];
   drain(): [key: string, kind: string, at: number][];
+  drainCounts?(): Record<string, number>;
 };
 
 export const fieldTiming = NativeModules.ACFieldTiming as FieldTiming;

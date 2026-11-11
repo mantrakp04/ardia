@@ -39,3 +39,16 @@ test("a launch with sharing on at start sends one perf_launch with launch_ms, ho
   assert.ok(commit_ms >= 1500 && commit_ms <= launch_ms, `commit_ms ${commit_ms}`);
   assert.ok(usable_ms >= 1500 && usable_ms < 60_000, `usable_ms ${usable_ms}`);
 });
+
+test("the engine's veil counts go out with the next perf_journeys, each once", async () => {
+  const waiting = [{ veil_held: 3, veil_plain: 1 }, { veil_held: 2 }];
+  NativeModules.ACFieldTiming.drainCounts = () => waiting.shift() ?? {};
+  journeys.emitJourneys();
+  journeys.emitJourneys();
+  journeys.emitJourneys();
+
+  await client.saveQueueNow();
+  const saved = JSON.parse(stub.docs.get("telemetry-queue.json"));
+  const veils = saved.events.filter((e) => e.event === "perf_journeys" && e.properties.veil_held !== undefined).map((e) => [e.properties.veil_held, e.properties.veil_plain]);
+  assert.deepEqual(veils, [[3, 1], [2, undefined]]);
+});

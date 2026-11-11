@@ -25,6 +25,7 @@ const count = (what: string) => counts.set(what, (counts.get(what) ?? 0) + 1);
 const since = (at: number | null | undefined, from: number | null | undefined) => (at == null || from == null ? null : at - from);
 
 export function emitJourneys(final = false) {
+  for (const [what, n] of Object.entries(fieldTiming.drainCounts?.() ?? {})) counts.set(what, (counts.get(what) ?? 0) + n);
   settle(final);
   if (!samples.size && !counts.size) return;
   const props: Record<string, number> = {};

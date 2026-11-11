@@ -11,6 +11,7 @@ double ArdiaFieldNow(void);
 void ArdiaFieldMark(NSString *_Nullable key, NSString *kind, double at);
 void ArdiaFieldMarkNow(NSString *_Nullable key, NSString *kind);
 void ArdiaFieldMarkAtCommit(NSString *_Nullable key, NSString *kind);
+void ArdiaFieldCount(NSString *what);
 void ArdiaWebViewsSetFieldTiming(BOOL on);
 
 #ifdef __cplusplus

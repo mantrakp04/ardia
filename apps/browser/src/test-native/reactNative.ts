@@ -1,7 +1,7 @@
 export const View = () => null;
 
 export const NativeModules: Record<string, unknown> = {
-  ACFieldTiming: { setEnabled: () => {}, markFrame: () => {}, lastInput: () => [0, 0], drain: () => [] },
+  ACFieldTiming: { setEnabled: () => {}, markFrame: () => {}, lastInput: () => [0, 0], drain: () => [], drainCounts: () => ({}) },
 };
 
 type Finished = { finished: boolean };
