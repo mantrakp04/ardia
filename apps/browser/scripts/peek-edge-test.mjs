@@ -45,7 +45,7 @@ const run = (body) => app.eval(`${HELPERS}\n${body}`);
 
 try {
   app = await launch(appPath, { data, port, session: fixture, onboarded: true });
-  await run(`if (st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); st().updateSettings({ sidebarWidth: 160, addressBar: "toolbar" }); return settle(900);`);
+  await run(`if (!st().settings.autoHideTabs) st().toggleSidebar("w1"); st().updateSettings({ sidebarWidth: 160, addressBar: "toolbar" }); return settle(900);`);
 
   await rep.check("the left edge opens the peek and the page closes it", async () => {
     assert.equal(await run(`return peek();`), true, "opens from the left edge");

@@ -18,14 +18,16 @@ import { confirm } from "../../platform/dialogs";
 import { showMenu, type MenuItem } from "../../platform/menus";
 import type { ChoiceItem } from "../app/menuChoice";
 import { menuSections } from "../app/menuSections";
-import { openWindow } from "../browser/actions";
+import { focus, openWindow } from "../browser/actions";
 import { webviews } from "../../platform/webviews";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { shownPageId } from "../peek/peek";
+import { mainWindowFor, originalProfile } from "../windows/small";
 import { goToSettingsPane, openSettings, replaceSettingsPlace, settingsBack, useSettingsNav } from "../settings/settingsWindows";
 import { closeSidePanelsOf, toggleSidePanel } from "./sidePanels";
-import { extensionPageUrl, extensionProfile, extensionsProfileId, pageProfile, shownIn, useExtensions, windowExtensions, readyTabOf, type Anchor } from "./store";
+import { notePrivateWindowExtensionOpen } from "../telemetry/usage";
+import { extensionPageUrl, extensionProfile, extensionsProfileId, isPrivate, pageProfile, shownIn, useExtensions, windowExtensions, readyTabOf, type Anchor } from "./store";
 import { errorText } from "../../lib/errors";
 
 export * from "./sidePanels";
@@ -184,7 +186,16 @@ function patchExtension(profile: string, id: string, patch: Partial<InstalledExt
 }
 
 export function openOptions(windowId: string, ext: InstalledExtension) {
-  if (ext.optionsUrl) useBrowser.getState().newTab(windowId, { url: ext.optionsUrl });
+  const url = ext.optionsUrl;
+  if (!url) return;
+  const s = useBrowser.getState();
+  const w = s.windows[windowId];
+  if (w?.kind !== "private" || ext.incognitoSplit) return void s.newTab(windowId, { url });
+  const profileId = originalProfile(s, w);
+  const regular = profileId && mainWindowFor(s, profileId);
+  if (!regular || s.windows[regular]!.profileId !== profileId) return void openWindow({ profileId, url });
+  s.newTab(regular, { url });
+  focus(regular);
 }
 
 export const openManageExtensions = (windowId?: string | null) => openSettings("extensions", extensionsProfileId(null, windowId));
@@ -214,6 +225,7 @@ export async function activateExtension(
   if (current?.windowId === windowId && current.extensionId === ext.id) return closeExtensionPopup();
   if (!ext.enabled) return void showExtensionMenu(windowId, ext);
   if (!shownIn(windowId, ext.id)) return;
+  if (isPrivate(useBrowser.getState(), windowId)) notePrivateWindowExtensionOpen();
   const web = tabId ? webviews.get(tabId) : undefined;
   const result = web ? await web.executeExtensionAction(ext.id) : null;
   const readyTab = readyTabOf(tabId);

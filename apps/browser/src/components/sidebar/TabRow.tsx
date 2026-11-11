@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Pressable, TextInput, View } from "react-native";
+import { Animated, Pressable, TextInput, View, type GestureResponderEvent } from "react-native";
 import { toggleMute } from "../../state/browser/actions";
 import { layout, useTheme } from "../ui/theme";
 import { useIsActiveTab, usePageProfileId, useTab, useWindow, useWindowId } from "../../state/browser/hooks";
@@ -14,7 +14,8 @@ import { commitRename, endRename, startRename } from "../../state/sidebar/action
 import { useDragItem, useDropOnto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
 import { useRowHover } from "./hoverController";
-import { pressTabClose, useTabCloseControlWhile } from "../../state/sidebar/closeControl";
+import { pressPaneClose, pressTabClose, useTabCloseControlWhile } from "../../state/sidebar/closeControl";
+import { modifiersOf } from "../../lib/keys";
 import { ACTIVE, ICON_MARKS, LOADING, mutedBy, PLAYING, SELECTED, useRowState } from "../../state/sidebar/rowState";
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
@@ -27,26 +28,23 @@ import { withShortcut } from "../../state/commands/commandShortcuts";
 import { TabPressArea } from "./TabPressArea";
 import { entryKey } from "../../state/sidebar/entryKey";
 import type { RowSection } from "./dragModel";
-import { GROUP_INNER_RADIUS } from "./geometry";
 
 export const TabRowItem = memo(function TabRowItem({
   tabId,
   section,
   parentGroup,
-  lastInBox = false,
   motion = null,
 }: {
   tabId: string;
   section: RowSection;
   parentGroup?: string;
-  lastInBox?: boolean;
   motion?: EntryMotion | null;
 }) {
   const { wrapper, handle } = useDragItem(entryKey("tab", tabId), { kind: "row", tabIds: [tabId], section, parentGroup }, motion?.clip);
   const onto = useDropOnto(entryKey("tab", tabId));
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style} {...handle}>
-      <TabRow tabId={tabId} onto={onto} shift={motion?.shift ?? null} lastInBox={lastInBox} />
+      <TabRow tabId={tabId} onto={onto} shift={motion?.shift ?? null} />
     </Animated.View>
   );
 });
@@ -55,12 +53,10 @@ export const TabRow = memo(function TabRow({
   tabId,
   onto = false,
   shift = null,
-  lastInBox = false,
 }: {
   tabId: string;
   onto?: boolean;
   shift?: Animated.Value | null;
-  lastInBox?: boolean;
 }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
@@ -100,7 +96,6 @@ export const TabRow = memo(function TabRow({
             selected={active}
             border={border}
             stroke={selected && !active ? tokens.multiSelectedStroke : undefined}
-            cornerRadius={lastInBox ? GROUP_INNER_RADIUS : undefined}
             padLeft={TAB_ROW.contentLeft - border}
             padRight={TAB_ROW.trailing - border}
           >
@@ -211,13 +206,11 @@ export const SplitRowItem = memo(function SplitRowItem({
   splitId,
   section,
   parentGroup,
-  lastInBox = false,
   motion = null,
 }: {
   splitId: string;
   section: RowSection;
   parentGroup?: string;
-  lastInBox?: boolean;
   motion?: EntryMotion | null;
 }) {
   const windowId = useWindowId();
@@ -237,7 +230,6 @@ export const SplitRowItem = memo(function SplitRowItem({
           fill={active ? theme.tabSelected : hovered ? theme.tabHover : ink.clear}
           selected={active}
           border={splitBorder}
-          cornerRadius={lastInBox ? GROUP_INNER_RADIUS : undefined}
           padLeft={space.xs - splitBorder}
           padRight={space.xs - splitBorder}
         >
@@ -261,6 +253,7 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
   const tab = useTab(tabId);
   const active = useIsActiveTab(tabId);
   const { hovered, hoverProps } = useRowHover(windowId, { kind: "tab", id: tabId });
+  const closeControl = useTabCloseControlWhile(tabId, hovered);
   if (!tab) return null;
   return (
     <View {...hoverProps} style={{ flex: 1, minWidth: 0 }}>
@@ -278,6 +271,11 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
           >
             <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact />
             <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={active ? theme.rowSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: space.xs }} />
+            <HoverSlot
+              hovered={hovered}
+              reserve="hover"
+              hover={closeControl && <Button variant="icon" icon={closeControl.icon} size="s" weight="semibold" onPress={(e: GestureResponderEvent) => pressPaneClose(tab.id, modifiersOf(e).altKey)} tooltip={closeControl.tooltip} />}
+            />
           </View>
         )}
       </TabPressArea>

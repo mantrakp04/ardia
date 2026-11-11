@@ -35,6 +35,7 @@ export const APP_EVENTS = [
   "app_launched",
   "app_session_ended",
   "app_updated",
+  "calendar_connect",
   "command_bar_opened",
   "extension_installed",
   "page_process_gone",
@@ -49,6 +50,7 @@ export const APP_EVENTS = [
   "suggestion_chosen",
   "sync_toggled",
   "tab_presses",
+  "translate_finished",
   "translate_used",
   "usage_counts",
 ];

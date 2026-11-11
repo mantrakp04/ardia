@@ -60,7 +60,7 @@ const usesPageA = [
   "restore-after-close", "discard-outcomes", "memory-saver", "capture-picture", "unresponsive", "permission-dismissed",
   "save-page", "activate-request", "extension-popup-and-panel", "scroll-zoom", "print-preview",
   "extension-prompts", "traffic-lights-after-profile-switch", "extension-configure",
-  "private-windows-create", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
+  "private-windows-create", "extension-private-window", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
   "settings-services", "download-navigation", "page-events", "page-background", "external-app-answer",
   "external-app-from-extension",
   "notifications", "now-playing", "media-state", "auto-picture-in-picture", "picture-in-picture-opt-out", "pip-window", "page-focus",
@@ -2370,6 +2370,46 @@ try {
     }
   };
   const mainStrip = async () => (await engine("tabs.strips")).strips.find((st) => st.appWindow === mainWindow && st.profile === "");
+
+  await check("extension-private-window", async () => {
+    return withPopupExtension({}, async (id) => {
+      const priv = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${base}/b?private-ext" })`);
+      const shown = () => evalApp(`return ac.extensions.currentWindowExtensions(${JSON.stringify(priv)}).map((x) => x.id)`);
+      const tabsOf = (w) => evalApp(`const s = ac.store.getState(); return (s.windows[${JSON.stringify(w)}]?.tabIds ?? []).map((t) => s.tabs[t].url)`);
+      try {
+        await until("the private page", () => pageTarget("b?private-ext"), 15000);
+        if ((await shown()).includes(id)) throw new Error("the private window shows an extension that isn't allowed in incognito");
+        const configured = await engineOrError("extensions.configure", { profile: "", id, options: { incognito: true } });
+        if (configured?.error) throw new Error(`configure: ${configured.error}`);
+        await evalApp(`return ac.extensions.refreshExtensions("").then(() => true)`);
+        if (!(await shown()).includes(id)) throw new Error(`allowed in incognito, and the private window still leaves it out: ${JSON.stringify(await shown())}`);
+        await evalApp(`const ext = ac.extensions.currentWindowExtensions(${JSON.stringify(priv)}).find((x) => x.id === "${id}");
+          return ac.extensions.activateExtension(${JSON.stringify(priv)}, ext, { x: 100, y: 40, width: 20, height: 20 }).then(() => true)`);
+        const popupTarget = await until("the popup page", () => pageTarget(`${id}/popup.html`), 10000);
+        const popup = JSON.parse((await cdp(popupTarget, "Runtime.evaluate", {
+          expression: `chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => JSON.stringify({ split: chrome.extension.inIncognitoContext, visible: document.visibilityState, tab: tabs[0] && { url: tabs[0].url, incognito: tabs[0].incognito } }))`,
+          awaitPromise: true, returnByValue: true,
+        })).result.value);
+        if (popup.visible !== "visible" || popup.split || !popup.tab?.incognito || !popup.tab.url?.includes("b?private-ext"))
+          throw new Error(`the popup of a spanning extension in a private window: ${JSON.stringify(popup)}`);
+        await evalApp(`ac.extensions.closeExtensionPopup(); return true`);
+        await until("the popup gone", async () => !(await pageTarget(`${id}/popup.html`)), 8000);
+        await evalApp(`const ext = ac.extensions.currentWindowExtensions(${JSON.stringify(priv)}).find((x) => x.id === "${id}"); ac.extensions.openOptions(${JSON.stringify(priv)}, ext); return true`);
+        const optionsTitle = await until("the options page loaded", async () => {
+          const options = await pageTarget(`${id}/options.html`);
+          return options ? (await cdp(options, "Runtime.evaluate", { expression: "document.title", returnByValue: true })).result.value || null : null;
+        }, 10000);
+        const [inPrivate, inMain] = [await tabsOf(priv), await tabsOf(mainWindow)];
+        if (optionsTitle !== "Popup fixture options" || inPrivate.some((u) => u?.includes(id)) || !inMain.some((u) => u?.includes(`${id}/options.html`)))
+          throw new Error(`a spanning extension's options: "${optionsTitle}", private ${JSON.stringify(inPrivate)}, regular ${JSON.stringify(inMain)}`);
+        return { popup, options: "regular window" };
+      } finally {
+        await evalApp(`const s = ac.store.getState(); for (const t of Object.values(s.tabs)) if (t.url?.includes("${id}/options.html")) s.closeTab(t.id); s.closeWindow(${JSON.stringify(priv)}); return true`).catch(() => null);
+        await until("the closed tabs out of Chrome's strips", async () => !(await engine("tabs.strips")).strips.some((st) => st.tabs.some((x) => x.key == null)), 8000).catch(() => null);
+        await backToA().catch(() => null);
+      }
+    });
+  });
 
   await check("extension-popup-window", async () => {
     return withPopupExtension({}, async (id) => {

@@ -4,6 +4,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const { sidebarEntries } = await import("./entries.ts");
 const { entriesHeight, entriesWithin, entryHeight, firstPaintEntries, rowSpan, startsOffScreen, FIRST_PAINT_HEIGHT } = await import("./geometry.ts");
 const { groupEntries } = await import("./entries.ts");
+const { GROUP_MEMBERS_PAD_BOTTOM: PAD } = await import("../../lib/sidebarMetrics.ts");
 await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
@@ -73,13 +74,13 @@ test("lazySidebarRows off: 64 entries at first, and no page waits", () => {
   assert.equal(startsOffScreen(false, true), false);
 });
 
-test("a nested group first in its parent sits a row gap below the parent's header, in the height and in the rows' positions", () => {
+test("a nested group first in its parent sits a row gap below the parent's header, and the members end an inset above the box's bottom edge, in the height and in the rows' positions", () => {
   for (const [nested, gap] of [[["t2", "t3"], 3], [["t5", "t6"], 0]]) {
     hydrate({ nested });
     const s = S();
     const members = groupEntries(s, "g");
     assert.equal(members[0], gap ? "g:n" : "t:t2");
-    assert.equal(entryHeight(s, "w", "default", "g:g"), 1 + 34 + gap + entriesHeight(s, "w", "default", members));
+    assert.equal(entryHeight(s, "w", "default", "g:g"), 1 + 34 + gap + entriesHeight(s, "w", "default", members) + PAD);
     assert.equal(rowSpan(s, "w", "default", "t4", false).top, 2 * 37 + 0.5 + 34 + gap + (gap ? entryHeight(s, "w", "default", "g:n") + 3 : 2 * 37));
   }
 });
@@ -87,7 +88,7 @@ test("a nested group first in its parent sits a row gap below the parent's heade
 test("a collapsed group keeps its active nested group a row gap below its header", () => {
   hydrate({ collapsed: true, nested: ["t2", "t3"], active: "t3" });
   const s = S();
-  assert.equal(entryHeight(s, "w", "default", "g:n"), 1 + 34 + 34);
-  assert.equal(entryHeight(s, "w", "default", "g:g"), 1 + 34 + 3 + entryHeight(s, "w", "default", "g:n"));
+  assert.equal(entryHeight(s, "w", "default", "g:n"), 1 + 34 + 34 + PAD);
+  assert.equal(entryHeight(s, "w", "default", "g:g"), 1 + 34 + 3 + entryHeight(s, "w", "default", "g:n") + PAD);
   assert.equal(rowSpan(s, "w", "default", "t3", false).top, 2 * 37 + 0.5 + 34 + 3 + 0.5 + 34);
 });

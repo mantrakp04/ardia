@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from ardia_cli import command_metrics, guard
-from ardia_cli.browse.errors import POLICY_REFUSAL, CdpError, CdpTimeout, ConnectionLost, Gated, OutcomeUnknown, Unreachable
+from ardia_cli.browse.errors import POLICY_REFUSAL, CdpError, CdpTimeout, ConnectionLost, Gated, OutcomeUnknown, Unreachable, refusal_reason
 
 MAX_MESSAGE = 256 * 1024 * 1024
 CONNECT_TIMEOUT = 10
@@ -133,7 +133,7 @@ class Browser:
         except CommandFailed as error:
             text = str(error)
             if POLICY_REFUSAL in text:
-                raise Gated(method) from None
+                raise Gated(method, reason=refusal_reason(text, method)) from None
             detail = text.split(": ", 1)[1] if ": " in text else text
             detail = detail.rsplit(" (code", 1)[0]
             raise CdpError(method, detail) from None

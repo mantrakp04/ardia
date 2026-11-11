@@ -46,17 +46,19 @@ public struct ImportedTab: Codable, Equatable, Sendable {
   public var pinned: Bool
   public var customTitle: String?
   public var groupId: String?
+  public var splitId: String?
   public var windowIndex: Int
   public var active: Bool
   public var lastActive: Double?
 
   public init(url: String, title: String, pinned: Bool = false, customTitle: String? = nil, groupId: String? = nil,
-              windowIndex: Int = 0, active: Bool = false, lastActive: Double? = nil) {
+              splitId: String? = nil, windowIndex: Int = 0, active: Bool = false, lastActive: Double? = nil) {
     self.url = url
     self.title = title
     self.pinned = pinned
     self.customTitle = customTitle
     self.groupId = groupId
+    self.splitId = splitId
     self.windowIndex = windowIndex
     self.active = active
     self.lastActive = lastActive

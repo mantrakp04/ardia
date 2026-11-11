@@ -36,20 +36,17 @@ type ToolbarMotion = {
   bar: Animated.Value;
   fade: Animated.Value;
   groupStyle: Animated.WithAnimatedValue<ViewStyle>;
-  pageHeight: number;
   bottomStyle: Animated.WithAnimatedValue<ViewStyle>;
 };
 
 export function useToolbarMotion({
   enabled,
   mode,
-  height,
   extra,
   doc,
 }: {
   enabled: boolean;
   mode: ToolbarMode;
-  height: number;
   extra: number;
   doc: string;
 }): ToolbarMotion {
@@ -105,9 +102,9 @@ export function useToolbarMotion({
       left: 0,
       right: 0,
       top: (collapsed ? STRIP_HEIGHT : shownTop) - extra,
+      bottom: (tall.on ? STRIP_HEIGHT : shownTop) - (collapsed ? STRIP_HEIGHT : shownTop),
       transform: [{ translateY }],
     },
-    pageHeight: height - (tall.on ? STRIP_HEIGHT : shownTop),
     bottomStyle: { transform: [{ translateY: bottomShift }] },
   };
 }

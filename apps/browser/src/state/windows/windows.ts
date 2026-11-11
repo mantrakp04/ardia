@@ -22,11 +22,11 @@ import { holderOf, returnSharedPages, swapPinPage } from "../pins/pinShare";
 import { isTopApp, topAppsShared } from "../pins/topApps";
 import { MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { joinedWithCurrent, newTabPlacement } from "../tabs/openers";
-import { tabsClosedWithWindow } from "../tabs/tabShare";
-import { isLastRegularWindow, isRegularWindow, isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
+import { handOverTabs, tabsClosedWithWindow } from "../tabs/sharedWindowClose";
+import { isLastRegularWindow, isOpenRegularWindow, isRegularWindow, isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
 import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, WindowKind } from "../browser/types";
-import { emptyWindow, smallWindow, tabsShownInNewWindows, withWindow } from "./newWindow";
+import { emptyWindow, smallWindow, withWindow } from "./newWindow";
 import { choose } from "../settings/settings";
 import { lastClosedEntry, lastClosedTab, restoreTab, restoreWindow } from "./reopenClosed";
 import { groupTree, regrouped, splitsWithin, withSplitsBack } from "./groupMoves";
@@ -179,7 +179,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     const w: BrowserWindow =
       kind === "small"
         ? { ...smallWindow(id, profileId, o.frame ?? null), ...(o.linkPointer ? { linkPointer: o.linkPointer } : {}) }
-        : { ...emptyWindow(id, profileId, kind, o.frame ?? null, tabsShownInNewWindows(s)), ...(o.chromeWindow ? { chromeWindow: o.chromeWindow } : {}) };
+        : { ...emptyWindow(id, profileId, kind, o.frame ?? null), ...(o.chromeWindow ? { chromeWindow: o.chromeWindow } : {}) };
     let next = withWindow(s, w);
     if (o.tabIds?.length && !small) next = moveTabsInto(next, o.tabIds, id);
     if (!next.windows[id]!.tabIds.length) next = withNewTab(next, id, { url: o.url, adoptId: o.adoptId })[0];
@@ -199,7 +199,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
   },
 
   closeWindow(id, { keepsLastWindow = false } = {}) {
-    const s = returnSharedPages(get(), id);
+    const s = handOverTabs(returnSharedPages(get(), id), id, isOpenRegularWindow);
     const w = s.windows[id];
     if (!w) return;
     const tabs = tabsClosedWithWindow(s, id);
@@ -250,10 +250,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
   toggleSidebar(windowId) {
     set((s) => {
       const w = s.windows[windowId];
-      if (!w) return {};
-      const sidebarOpen = !w.sidebarOpen;
-      const windows = { ...s.windows, [windowId]: { ...w, sidebarOpen } };
-      return isRegularWindow(w) ? { windows, ...choose(s, { autoHideTabs: !sidebarOpen }) } : { windows };
+      return !w || isSmallWindow(w) ? {} : choose(s, { autoHideTabs: !s.settings.autoHideTabs });
     });
   },
 

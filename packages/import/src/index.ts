@@ -53,7 +53,7 @@ export type BrowserSource = {
   asksAppForTabs?: boolean;
 };
 
-export type BookmarkRole = "toolbar" | "other" | "mobile" | "menu" | "readingList" | "liveGitHubPullRequests" | "liveBitbucketPullRequests";
+export type BookmarkRole = "toolbar" | "other" | "mobile" | "menu" | "readingList" | "liveGitHubPullRequests" | "liveBitbucketPullRequests" | "split";
 
 export type BookmarkNode = {
   type: "folder" | "url";
@@ -73,6 +73,7 @@ export type ImportedTab = {
   pinned: boolean;
   customTitle?: string;
   groupId?: string;
+  splitId?: string;
   windowIndex: number;
   active: boolean;
   lastActive?: number;
