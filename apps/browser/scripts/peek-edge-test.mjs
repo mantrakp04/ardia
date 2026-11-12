@@ -7,7 +7,7 @@ import { launch, reporter, session } from "../../../scripts/lib/instance.mjs";
 const args = process.argv.slice(2);
 const appArg = args.find((a) => !a.startsWith("--"));
 if (!appArg) {
-  console.error("usage: node peek-edge-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nThe auto-hidden sidebar's peek, through the native edge watcher: a pointer resting on the window's bottom or top edge beside the peek keeps it out instead of flicking it shut and open, one that goes well past the edge closes it, an edge crossing outside the sidebar's column never opens it, and pressing the other space's dot keeps it out.");
+  console.error("usage: node peek-edge-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nThe auto-hidden sidebar's peek, through the native edge watcher: a pointer resting on the window's bottom or top edge beside the peek keeps it out instead of flicking it shut and open, one that goes well past the edge closes it, an edge crossing outside the sidebar's column never opens it, once it slides away only the window's edge brings it back, and pressing the other space's dot keeps it out.");
   process.exit(2);
 }
 const appPath = resolve(appArg);
@@ -50,6 +50,16 @@ try {
   await rep.check("the left edge opens the peek and the page closes it", async () => {
     assert.equal(await run(`return peek();`), true, "opens from the left edge");
     assert.equal(await run(`return away();`), false, "closes over the page");
+  });
+
+  await rep.check("once it starts sliding away, only the window's edge brings it back, not the column it is leaving (#1192)", async () => {
+    assert.equal(await run(`return peek();`), true);
+    const back = await run(`return at(700, 400).then(() => settle(170)).then(() => at(80, 400)).then(() => settle(700)).then(live);`);
+    assert.equal(back, false, "back into the old column mid-slide");
+    assert.equal(await run(`return peek();`), true);
+    const edge = await run(`return at(700, 400).then(() => settle(170)).then(() => at(2, 400)).then(() => settle(700)).then(live);`);
+    assert.equal(edge, true, "the edge mid-slide");
+    assert.equal(await run(`return away();`), false);
   });
 
   await rep.check("a pointer resting on the bottom edge beside the peek keeps it out", async () => {
