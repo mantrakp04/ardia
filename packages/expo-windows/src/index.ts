@@ -1,5 +1,5 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
-import { installAnimatedEndValue } from "./animatedEndValue";
+import { installAnimation } from "./animation";
 import { watchRelaunches } from "./engine/relaunch";
 import { requireNativeModule } from "./modules";
 import { runSelfCheck } from "./selfCheck";
@@ -21,7 +21,7 @@ type WindowsHost = TurboModule & { secureRandomHex(byteCount: number): string };
 
 const SELF_CHECK_AFTER_MS = 4000;
 
-installAnimatedEndValue();
+installAnimation();
 installWindowRoot();
 watchRelaunches();
 startUpdateChecks();

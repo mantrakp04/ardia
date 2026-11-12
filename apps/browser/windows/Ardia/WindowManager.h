@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -23,6 +24,7 @@
 #include "Host.h"
 #include "LaunchLog.h"
 #include "Paths.h"
+#include "WindowFade.h"
 
 #pragma comment(lib, "dwmapi.lib")
 #pragma comment(lib, "shcore.lib")
@@ -36,6 +38,7 @@ struct OpenWindowRequest {
   std::optional<std::array<double, 4>> frame;
   std::optional<std::array<double, 2>> size;
   bool focus{true};
+  bool animated{false};
 };
 
 struct ManagedWindow {
@@ -54,6 +57,10 @@ struct ManagedWindow {
   bool captionBand{false};
   bool maximized{false};
   std::wstring installedRegions;
+  std::shared_ptr<WindowFade> fade;
+  std::vector<std::function<void()>> exits;
+  std::vector<std::function<void()>> revealWaiters;
+  int closeGeneration{0};
 
   bool IsBrowser() const noexcept {
     return kind == "browser" || kind == "small";
@@ -131,8 +138,17 @@ struct WindowManager {
   }
 
   void Open(OpenWindowRequest const &request) noexcept {
-    if (Find(request.id)) {
-      if (request.focus) Focus(request.id);
+    if (ManagedWindow *existing = Find(request.id)) {
+      bool wasClosing = !existing->exits.empty() || (existing->fade && (existing->fade->phase == WindowFade::Phase::Leaving || existing->fade->phase == WindowFade::Phase::Lingering));
+      StopClosing(*existing);
+      if (request.focus) {
+        Focus(request.id);
+      } else if (ManagedWindow *reopened = Find(request.id); reopened && wasClosing) {
+        try {
+          reopened->appWindow.Show(false);
+        } catch (...) {
+        }
+      }
       return;
     }
     try {
@@ -158,14 +174,18 @@ struct WindowManager {
       ApplyInputRegions(entry);
 
       bool activate = request.focus && !Background();
+      bool entrance = request.animated || entry.kind != "browser";
+      bool fades = entrance && WindowMotion::SystemAnimates();
       HWND hwnd = entry.hwnd;
       auto appWindow = entry.appWindow;
       m_order.push_back(entry.id);
-      m_windows.emplace(entry.id, std::move(entry));
+      auto placed = m_windows.emplace(entry.id, std::move(entry)).first;
+      if (fades) BeginEntrance(placed->second);
       appWindow.Show(activate);
       if (activate) SetForegroundWindow(hwnd);
       if (m_activeId.empty()) m_activeId = request.id;
       LaunchLog::Write(L"window", std::wstring(L"opened ").append(Paths::Wide(request.id)));
+      if (entrance && !fades) LaunchLog::Write(L"window", std::wstring(L"window ").append(Paths::Wide(request.id)).append(L" shown at once: animations are off in Windows"));
     } catch (winrt::hresult_error const &error) {
       LaunchLog::Write(L"error", std::wstring(L"window could not open: ").append(error.message()));
     } catch (...) {
@@ -182,16 +202,54 @@ struct WindowManager {
     }
   }
 
-  void Hide(std::string_view id) noexcept {
+  void AnimateClose(std::string const &id, std::optional<std::string> const &replacement, std::function<void()> done) noexcept {
     ManagedWindow *entry = Find(id);
-    if (!entry) return;
-    try {
-      entry->appWindow.Hide();
-    } catch (...) {
+    if (!entry) {
+      LogFade(id, L" hidden at once: no such window");
+      return done();
     }
+    if (!entry->exits.empty()) {
+      entry->exits.push_back(std::move(done));
+      return;
+    }
+    if (const wchar_t *reason = HideAtOnceReason(*entry)) {
+      HideNow(*entry, reason);
+      return done();
+    }
+    entry->exits.push_back(std::move(done));
+    int generation = ++entry->closeGeneration;
+    if (replacement && *replacement != id && Find(*replacement)) {
+      WhenRevealed(*replacement, [this, id, generation]() noexcept {
+        After(WindowMotion::kReplacementSettle, [this, id, generation]() noexcept {
+          ManagedWindow *closing = Find(id);
+          if (!closing || closing->exits.empty() || closing->closeGeneration != generation) return;
+          HideNow(*closing, L"replaced by another window");
+          RunExits(*closing);
+        });
+      });
+      return;
+    }
+    StartLeaving(*entry);
+  }
+
+  std::optional<winrt::Microsoft::ReactNative::JSValueObject> DebugFade(std::string_view id) noexcept {
+    if (!DebugAvailable()) return std::nullopt;
+    winrt::Microsoft::ReactNative::JSValueObject report;
+    report["animates"] = WindowMotion::SystemAnimates();
+    ManagedWindow *entry = Find(id);
+    report["exists"] = entry != nullptr;
+    if (!entry) return report;
+    report["visible"] = IsWindowVisible(entry->hwnd) != FALSE;
+    report["layered"] = (GetWindowLongPtrW(entry->hwnd, GWL_EXSTYLE) & WS_EX_LAYERED) != 0;
+    report["phase"] = PhaseName(entry->fade.get());
+    report["opacity"] = entry->fade ? entry->fade->opacity : 1.0;
+    report["closing"] = !entry->exits.empty();
+    report["pageWindows"] = static_cast<int64_t>(LayeredWindows::VisibleOwnedBy(entry->hwnd).size());
+    return report;
   }
 
   void Focus(std::string_view id) noexcept {
+    if (ManagedWindow *closing = Find(id)) StopClosing(*closing);
     ManagedWindow *entry = Find(id);
     if (!entry) return;
     try {
@@ -601,7 +659,16 @@ struct WindowManager {
     if (found == m_windows.end()) return;
     RemoveWindowSubclass(found->second.hwnd, &WindowManager::WindowProc, kSubclassId);
     auto closedWindow = found->second.window;
+    auto exits = std::move(found->second.exits);
+    auto revealWaiters = std::move(found->second.revealWaiters);
+    std::shared_ptr<WindowFade> unfinished = std::move(found->second.fade);
+    found->second.fade = nullptr;
+    if (!exits.empty()) LogFade(id, L" hidden at once: closed");
     m_windows.erase(found);
+    if (unfinished) {
+      unfinished->StopTimer();
+      After(std::chrono::milliseconds(50), [unfinished]() noexcept { unfinished->layered.ReleaseAll(); });
+    }
     m_captionRegions.erase(id);
     if (m_edgeWatches.erase(id) && m_edgeWatches.empty()) StopEdgeTimer();
     std::erase(m_order, id);
@@ -618,6 +685,8 @@ struct WindowManager {
     event["id"] = id;
     EmitWindow(std::move(event));
     LaunchLog::Write(L"window", std::wstring(L"closed ").append(Paths::Wide(id)));
+    for (auto &exit : exits) exit();
+    for (auto &waiter : revealWaiters) waiter();
     After(std::chrono::milliseconds(1), [closedWindow]() noexcept {});
     if (m_windows.empty() && !m_quitting) {
       After(std::chrono::milliseconds(400), [this]() noexcept {
@@ -1128,6 +1197,230 @@ struct WindowManager {
       });
       timer.Start();
     } catch (...) {
+    }
+  }
+
+  static std::chrono::milliseconds EntranceOf(ManagedWindow const &entry) noexcept {
+    return entry.kind == "small" ? WindowMotion::kSmallEntrance : WindowMotion::kMainEntrance;
+  }
+
+  static std::chrono::milliseconds ExitOf(ManagedWindow const &entry) noexcept {
+    return entry.kind == "small" ? WindowMotion::kSmallExit : WindowMotion::kMainExit;
+  }
+
+  static const char *PhaseName(WindowFade const *fade) noexcept {
+    if (!fade) return "none";
+    switch (fade->phase) {
+      case WindowFade::Phase::Revealing:
+        return "revealing";
+      case WindowFade::Phase::Entering:
+        return "entering";
+      case WindowFade::Phase::Leaving:
+        return "leaving";
+      case WindowFade::Phase::Lingering:
+        return "lingering";
+    }
+    return "none";
+  }
+
+  static void LogFade(std::string_view id, std::wstring_view what) noexcept {
+    LaunchLog::Write(L"window", std::wstring(L"window ").append(Paths::Wide(id)).append(what));
+  }
+
+  static const wchar_t *HideAtOnceReason(ManagedWindow const &entry) noexcept {
+    if (!IsWindowVisible(entry.hwnd)) return L"not shown";
+    if (IsIconic(entry.hwnd)) return L"minimized";
+    if (entry.fullScreen) return L"full screen";
+    if (entry.fade && entry.fade->phase == WindowFade::Phase::Revealing) return L"not revealed yet";
+    if (!WindowMotion::SystemAnimates()) return L"animations are off in Windows";
+    return nullptr;
+  }
+
+  static bool HasContent(ManagedWindow const &entry) noexcept {
+    try {
+      auto root = entry.window.ReactNativeIsland().RootVisual().try_as<winrt::Microsoft::UI::Composition::ContainerVisual>();
+      if (!root) return true;
+      for (auto const &child : root.Children()) {
+        auto container = child.try_as<winrt::Microsoft::UI::Composition::ContainerVisual>();
+        if (container && container.Children().Count() > 0) return true;
+      }
+      return false;
+    } catch (...) {
+      return true;
+    }
+  }
+
+  static void HoldOpacity(WindowFade &fade, bool owner, bool clickThrough) noexcept {
+    BYTE alpha = WindowMotion::Alpha(fade.opacity);
+    fade.layered.ReleaseDeparted(fade.hwnd);
+    if (owner) fade.layered.Hold(fade.hwnd, alpha, clickThrough);
+    for (HWND owned : LayeredWindows::VisibleOwnedBy(fade.hwnd)) fade.layered.Hold(owned, alpha, clickThrough);
+  }
+
+  static void RunExits(ManagedWindow &entry) noexcept {
+    auto exits = std::move(entry.exits);
+    entry.exits.clear();
+    for (auto &exit : exits) exit();
+  }
+
+  static void RunRevealWaiters(ManagedWindow &entry) noexcept {
+    auto waiters = std::move(entry.revealWaiters);
+    entry.revealWaiters.clear();
+    for (auto &waiter : waiters) waiter();
+  }
+
+  void WhenRevealed(std::string const &id, std::function<void()> then) noexcept {
+    ManagedWindow *entry = Find(id);
+    if (!entry || !entry->fade || entry->fade->phase != WindowFade::Phase::Revealing) return then();
+    entry->revealWaiters.push_back(std::move(then));
+  }
+
+  bool StartFadeTimer(std::string const &id, std::shared_ptr<WindowFade> const &fade) noexcept {
+    try {
+      auto timer = Host::Current()->queue.DispatcherQueue().CreateTimer();
+      timer.Interval(WindowMotion::kStep);
+      timer.IsRepeating(true);
+      std::weak_ptr<WindowFade> weak = fade;
+      fade->tick = timer.Tick([this, id, weak](auto const &, auto const &) noexcept {
+        if (auto stepping = weak.lock()) StepFade(id, stepping);
+      });
+      fade->timer = timer;
+      timer.Start();
+      return true;
+    } catch (...) {
+      fade->StopTimer();
+      return false;
+    }
+  }
+
+  void BeginEntrance(ManagedWindow &entry) noexcept {
+    auto fade = std::make_shared<WindowFade>();
+    fade->phase = WindowFade::Phase::Revealing;
+    fade->hwnd = entry.hwnd;
+    fade->opacity = 0;
+    fade->started = std::chrono::steady_clock::now();
+    fade->layered.Hold(entry.hwnd, 0, false);
+    entry.fade = fade;
+    if (StartFadeTimer(entry.id, fade)) return;
+    entry.fade.reset();
+    LogFade(entry.id, L" shown at once: no timer");
+  }
+
+  void Reveal(ManagedWindow &entry) noexcept {
+    WindowFade &fade = *entry.fade;
+    fade.phase = WindowFade::Phase::Entering;
+    fade.from = 0;
+    fade.opacity = 0;
+    fade.started = std::chrono::steady_clock::now();
+    fade.duration = EntranceOf(entry);
+    HoldOpacity(fade, true, false);
+    LogFade(entry.id, std::wstring(L" fades in over ")
+                          .append(std::to_wstring(fade.duration.count()))
+                          .append(L" ms with ")
+                          .append(std::to_wstring(fade.layered.OwnedCount(fade.hwnd)))
+                          .append(L" page windows"));
+    RunRevealWaiters(entry);
+  }
+
+  void StartLeaving(ManagedWindow &entry) noexcept {
+    if (!entry.fade) {
+      auto fade = std::make_shared<WindowFade>();
+      fade->hwnd = entry.hwnd;
+      fade->opacity = 1;
+      entry.fade = fade;
+      if (!StartFadeTimer(entry.id, fade)) {
+        entry.fade.reset();
+        HideNow(entry, L"no timer");
+        return RunExits(entry);
+      }
+    }
+    WindowFade &fade = *entry.fade;
+    fade.phase = WindowFade::Phase::Leaving;
+    fade.from = fade.opacity;
+    fade.started = std::chrono::steady_clock::now();
+    fade.duration = ExitOf(entry);
+    HoldOpacity(fade, true, true);
+    LogFade(entry.id, std::wstring(L" fades out over ").append(std::to_wstring(fade.duration.count())).append(L" ms"));
+  }
+
+  static void EndFade(ManagedWindow &entry) noexcept {
+    auto fade = std::move(entry.fade);
+    entry.fade = nullptr;
+    if (!fade) return;
+    fade->StopTimer();
+    fade->layered.ReleaseAll();
+  }
+
+  void HideAndLinger(ManagedWindow &entry) noexcept {
+    try {
+      entry.appWindow.Hide();
+    } catch (...) {
+    }
+    if (!entry.fade) return;
+    WindowFade &fade = *entry.fade;
+    bool wasRevealing = fade.phase == WindowFade::Phase::Revealing;
+    fade.opacity = 0;
+    HoldOpacity(fade, false, true);
+    fade.layered.Release(fade.hwnd);
+    if (fade.layered.OwnedCount(fade.hwnd) == 0) {
+      EndFade(entry);
+    } else {
+      fade.phase = WindowFade::Phase::Lingering;
+      fade.started = std::chrono::steady_clock::now();
+    }
+    if (wasRevealing) RunRevealWaiters(entry);
+  }
+
+  void HideNow(ManagedWindow &entry, std::wstring_view reason) noexcept {
+    HideAndLinger(entry);
+    LogFade(entry.id, std::wstring(L" hidden at once: ").append(reason));
+  }
+
+  void StopClosing(ManagedWindow &entry) noexcept {
+    entry.closeGeneration++;
+    bool leaving = entry.fade && (entry.fade->phase == WindowFade::Phase::Leaving || entry.fade->phase == WindowFade::Phase::Lingering);
+    if (leaving) EndFade(entry);
+    if (leaving || !entry.exits.empty()) LogFade(entry.id, L" close stopped");
+    RunExits(entry);
+  }
+
+  void StepFade(std::string const &id, std::shared_ptr<WindowFade> const &fade) noexcept {
+    ManagedWindow *entry = Find(id);
+    if (!entry || entry->fade != fade) {
+      fade->StopTimer();
+      fade->layered.ReleaseAll();
+      return;
+    }
+    auto now = std::chrono::steady_clock::now();
+    switch (fade->phase) {
+      case WindowFade::Phase::Revealing:
+        HoldOpacity(*fade, true, false);
+        if (HasContent(*entry) || fade->Elapsed(now) >= WindowMotion::kRevealTimeout) Reveal(*entry);
+        return;
+      case WindowFade::Phase::Entering: {
+        double progress = fade->Progress(now);
+        fade->opacity = fade->from + (1.0 - fade->from) * WindowMotion::Eased(progress);
+        HoldOpacity(*fade, true, false);
+        if (progress < 1) return;
+        EndFade(*entry);
+        LogFade(id, L" shown");
+        return;
+      }
+      case WindowFade::Phase::Leaving: {
+        double progress = fade->Progress(now);
+        fade->opacity = fade->from * (1.0 - WindowMotion::Eased(progress));
+        HoldOpacity(*fade, true, true);
+        if (progress < 1) return;
+        HideAndLinger(*entry);
+        LogFade(id, L" hidden");
+        RunExits(*entry);
+        return;
+      }
+      case WindowFade::Phase::Lingering:
+        fade->opacity = 0;
+        HoldOpacity(*fade, false, true);
+        if (fade->layered.OwnedCount(fade->hwnd) == 0 || fade->Elapsed(now) >= WindowMotion::kLingerLimit) EndFade(*entry);
+        return;
     }
   }
 

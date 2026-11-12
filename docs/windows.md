@@ -85,6 +85,17 @@ Logic is written once. Only code that calls the OS is written per platform.
     polls the pointer every 40 ms while a window is watched and logs `sidebar edge over|away <id>`.
   - The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
     without a reply; a no cancels the quit.
+  - Windows fade as on the Mac (`WindowFade.h`), fade only with no grow. A window opened with `animated`, and every
+    window that is not a browser window (Little Ardia, Settings, Import: the Mac's system animates those open),
+    stays transparent until its React root has content or for 0.6 s, then fades in over 0.25 s (Little Ardia
+    0.20 s); `animateWindowClose` fades it out from where it is over 0.18 s (0.15 s), hides it and then
+    resolves. With `after` naming a new window it waits for that window to appear plus 0.20 s and hides at once. The
+    fade makes the app window and every visible window it owns (the page windows) layered for its length and puts
+    their styles back at the end; on the way out they ignore clicks, and pages still shown after the hide stay
+    transparent until the engine hides them (at most 2 s). A minimized, full screen or not yet shown window, or
+    Windows' "Animation effects" off, shows and hides at once. The launch log says `window <id> fades in over <ms> ms
+    with <n> page windows`, `window <id> shown`, `window <id> fades out over <ms> ms`, `window <id> hidden` and
+    `window <id> hidden at once: <reason>`.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
   signals, the clipboard, the bang list, confirm, prompt and file dialogs, the command table with its shortcuts and
@@ -124,12 +135,46 @@ Logic is written once. Only code that calls the OS is written per platform.
   and its own shortcut still runs. The launch log says `keys escape capture on|off` and
   `keys escape sent to the open popover or drag`. The Mac's Downloads popover does not close on Escape yet
   (`PLATFORM_FEATURES.escapeClosesDownloads` is off there).
-- The command panel opens in place on Windows instead of growing out of its field
-  (`PLATFORM_FEATURES.panelGrowsFromField`): React Native for Windows scales a view around its top-left corner, not
-  its centre, so the grow's first frame landed 68 points left of Little Ardia's field and above the window, and the
-  panel stayed there, cut off 24 points down. While the panel sits beside the window buttons it keeps their 138
-  points free at the right (`trailingClearance` in `lib/windowChrome.ts`). Little Ardia's bar numbers for both
-  systems are in `components/littleArdia/barLayout.ts`.
+- Animations run in JavaScript on Windows (`packages/expo-windows/src/animation`). React Native for Windows' native
+  animation driver adds what it animates to the view's own style instead of replacing it, turns a scale around the
+  top-left corner, never reports where an animation ended, and drops scroll and gesture events, so anything but a
+  plain fade started doubled, ended in the wrong place or did not move. `installAnimation` therefore answers
+  `useNativeDriver: true` with the JS driver, which sets the view's real props every frame, as the sidebar's slide
+  always did. The exceptions are endless loops of one animation (the loading and refresh spinners), which stay native
+  and cost the JS thread nothing.
+  - Frames are paced: React Native's `requestAnimationFrame` is a zero timeout here, so an animation would step as
+    fast as the threads allow. `motion.ts` runs every frame callback of a turn together, 60 times a second.
+  - A scale, rotation or skew turns around the view's centre, as on the Mac: React Native for Windows applies a
+    transform from the top-left corner, so `pivot.ts` wraps any transform that is not at rest in a half-size translate
+    there and back. `transformOrigin` then means what it means on the Mac, and the command panel grows out of its
+    field as it does there.
+  - While an animation runs, every shown page and every surface over a page is measured again each frame
+    (`followMotion`), so the page window and the holes cut in it follow what moves: the toolbar that hides while
+    scrolling, a peek, a popover that grows in. Endless loops do not count.
+  - The launch log says `[ardia windows] motion <n> frames in <ms> ms, longest <ms> ms, <n> long` when a burst of
+    animation ends: how many frames it got, the longest gap between two, and how many gaps were over 2.5 frames.
+    The same numbers go to telemetry, where sharing is on, as `animation_bursts` and `animation_long_frames` in the
+    hourly `usage_counts` (`platform/motion.windows.ts`, the `ArdiaMotion` module): a rising share of long frames
+    per burst is the sign that animations stutter in the field.
+  - What this costs and where it is not exact:
+    - An animation needs the UI thread: while the engine opens its first page (most of a second) a row's slide
+      stalls and then jumps. The Mac's native driver keeps going there.
+    - A value that an endless loop animates natively must not be animated any other way afterwards, and nothing
+      else may share its view's animated props: React Native refuses to mix the two drivers on one value.
+    - While a view is scaled, `measureInWindow` reports it half its size times (1 - scale) further right and down
+      than it is drawn, because React Native measures as if the platform turned around the centre by itself. So a
+      hole cut for a surface that is growing in sits off by that much until the scale reaches 1 (a popover: under
+      a tenth of its size, for 150 ms).
+    - A surface that fades in over a page shows the card through its hole for a frame or two first: the hole is
+      cut when the surface mounts, before its fade is visible, and the page, being a window above the UI, cannot
+      be faded over.
+    - React Native for Windows resolves the half-size translate when the transform changes, not when the view's
+      size changes: a view that is resized while it holds a scale or rotation keeps turning around its old centre
+      until its transform changes again. An animation changes it every frame; a fixed rotation on a view that
+      resizes would need its transform set again.
+- While the command panel sits beside the window buttons it keeps their 138 points free at the right
+  (`trailingClearance` in `lib/windowChrome.ts`). Little Ardia's bar numbers for both systems are in
+  `components/littleArdia/barLayout.ts`.
 - Icons are the web demo's set (`packages/demo/src/shims/web/symbols`), resolved in TypeScript and drawn natively as
   Direct2D geometry in Composition shapes.
 - Materials are native views (`MaterialViews.h`, the `ArdiaMaterials` module in `MaterialsModule.h`), each with the old
@@ -138,6 +183,12 @@ Logic is written once. Only code that calls the OS is written per platform.
   bubbles blur what is under them inside the window with a Composition backdrop brush (Gaussian blur, saturation and a
   tint). Window and theme gradients are Composition linear gradients at their real angle. Windows 10, a background
   instance and any failure keep the flat colours; the launch log says once which path each one took.
+- Switching profiles slides the sidebar's pages and crossfades the tint as on the Mac. The Mac's native pager
+  (`Pager.swift`) has a TypeScript version in `packages/expo-windows/src/pager`: the `ArdiaSwipe` view and module with
+  the same events (`onPagerPosition` every frame, `onPagerState` on select and settle), sequence numbers and spring
+  (critically damped, a quarter-second period), stepped on the app's 60 Hz frames. With Windows' animations off it
+  lands at once. Swipe gestures (two-finger scroll, the rubber band, haptics) have no input on Windows yet, so only
+  clicks, shortcuts and outside switches page.
 - The Windows native API has its own version: `WINDOWS_NATIVE_API_VERSION` in `platform/nativeApi.ts` and
   `windowsApiVersion` in `AppModule.h`. Bump both when the Windows native surface changes. A Mac bump doesn't
   touch it.

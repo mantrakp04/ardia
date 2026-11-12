@@ -1,9 +1,11 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
+import { windowsMotion } from "./animation/motion";
 import { addNativeListener, type EventSubscription } from "./events";
 import { moduleDefaults } from "./defaults";
 import { engineAvailable } from "./engine/host";
 import { engineModules } from "./engine/modules";
 import { noteMissing } from "./missing";
+import { windowsSwipe } from "./pager";
 import { windowsUpdater } from "./updater";
 import { setWindowDark } from "./windowDark";
 
@@ -32,7 +34,7 @@ const around: Record<string, Record<string, (native: Call) => Call>> = {
   },
 };
 
-const writtenInJs: Record<string, Record<string, unknown>> = { ArdiaUpdater: windowsUpdater };
+const writtenInJs: Record<string, Record<string, unknown>> = { ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion };
 
 const inert = (module: string, key: string) => () => {
   noteMissing(`${module}.${key}`);

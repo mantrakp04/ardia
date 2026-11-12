@@ -25,6 +25,7 @@ struct WindowsModule {
     if (auto kind = options["kind"].TryGetString()) request.kind = *kind;
     if (auto title = options["title"].TryGetString()) request.title = *title;
     if (auto focus = options["focus"].TryGetBoolean()) request.focus = *focus;
+    if (auto animated = options["animated"].TryGetBoolean()) request.animated = *animated;
     request.frame = Numbers<4>(options["frame"]);
     request.size = Numbers<2>(options["size"]);
     OnUI(promise, [request]() noexcept { WindowManager::Shared().Open(request); });
@@ -36,8 +37,21 @@ struct WindowsModule {
   }
 
   REACT_METHOD(animateWindowClose)
-  void animateWindowClose(std::string id, JSValue, Promise promise) noexcept {
-    OnUI(promise, [id]() noexcept { WindowManager::Shared().Hide(id); });
+  void animateWindowClose(std::string id, JSValue after, Promise promise) noexcept {
+    std::optional<std::string> replacement;
+    if (auto name = after.TryGetString()) replacement = *name;
+    RunOnUI(m_context, [id, replacement, promise]() noexcept {
+      WindowManager::Shared().AnimateClose(id, replacement, [promise]() noexcept { promise.Resolve(); });
+    });
+  }
+
+  REACT_METHOD(debugWindowFade)
+  void debugWindowFade(std::string id, winrt::Microsoft::ReactNative::ReactPromise<JSValue> promise) noexcept {
+    RunOnUI(m_context, [id, promise]() noexcept {
+      auto report = WindowManager::Shared().DebugFade(id);
+      if (!report) return promise.Resolve(JSValue{nullptr});
+      promise.Resolve(JSValue{std::move(*report)});
+    });
   }
 
   REACT_METHOD(focusWindow)

@@ -56,18 +56,30 @@ export function SelfCheckStage() {
 }
 
 export function renderOnStage(element: ReactElement, what: string): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
+  return stage(element, what, false).then(() => {});
+}
+
+export function holdOnStage(element: ReactElement, what: string): Promise<() => void> {
+  return stage(element, what, true);
+}
+
+function stage(element: ReactElement, what: string, held: boolean): Promise<() => void> {
+  return new Promise<() => void>((resolve, reject) => {
     let settled = false;
+    const turn = turns + 1;
+    const release = () => {
+      if (staged?.turn === turn) show(null);
+    };
     const finish = (error?: unknown) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      show(null);
-      if (error === undefined) resolve();
+      if (!held || error !== undefined) show(null);
+      if (error === undefined) resolve(release);
       else reject(new Error(`${what} threw while rendering: ${error instanceof Error ? error.message : String(error)}`));
     };
     const timer = setTimeout(() => finish(`no window rendered it within ${RENDER_DEADLINE_MS} ms`), RENDER_DEADLINE_MS);
-    turns += 1;
-    show({ turn: turns, element, settle: finish });
+    turns = turn;
+    show({ turn, element, settle: finish });
   });
 }
