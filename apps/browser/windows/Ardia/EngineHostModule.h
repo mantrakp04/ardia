@@ -20,6 +20,12 @@ namespace Ardia {
 
 namespace EngineHostParts {
 
+inline void WipeArgs(std::string &args) noexcept {
+  args.resize(args.capacity());
+  SecureZeroMemory(args.data(), args.size());
+  args.clear();
+}
+
 using Reply = winrt::Microsoft::ReactNative::ReactPromise<std::string>;
 
 constexpr char NoEngine[] = "{\"error\":\"no engine\"}";
@@ -209,10 +215,11 @@ struct EngineHostModule {
 
   REACT_METHOD(engineCall)
   void engineCall(std::string name, std::string profileDir, std::string argsJson, Reply reply) noexcept {
-    RunOnUI(m_context, [name = std::move(name), profileDir = std::move(profileDir), argsJson = std::move(argsJson), reply]() noexcept {
+    RunOnUI(m_context, [name = std::move(name), profileDir = std::move(profileDir), argsJson = std::move(argsJson), reply]() mutable noexcept {
       const ArdiaEngineApi *engine = Host::Engine();
-      if (!engine) return reply.Resolve(std::string{EngineHostParts::NoEngine});
-      engine->engineCall(name.c_str(), profileDir.c_str(), argsJson.c_str(), &EngineHostParts::OnReply, new Reply(reply));
+      if (engine) engine->engineCall(name.c_str(), profileDir.c_str(), argsJson.c_str(), &EngineHostParts::OnReply, new Reply(reply));
+      EngineHostParts::WipeArgs(argsJson);
+      if (!engine) reply.Resolve(std::string{EngineHostParts::NoEngine});
     });
   }
 
