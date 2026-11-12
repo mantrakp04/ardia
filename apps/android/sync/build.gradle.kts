@@ -31,6 +31,8 @@ android {
 dependencies {
     api(project(":shared"))
     implementation(libs.serialization.json)
+    api(libs.coroutines.android)
+    implementation(libs.work.runtime)
     testImplementation(libs.junit)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.runner)

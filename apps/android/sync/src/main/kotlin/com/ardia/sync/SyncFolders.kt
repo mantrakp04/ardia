@@ -1,7 +1,6 @@
 package com.ardia.sync
 
 import com.ardia.sync.core.Base32
-import com.ardia.sync.core.FolderStorage
 import java.io.File
 
 object SyncFolders {
@@ -16,5 +15,9 @@ object SyncFolders {
 
     fun holdsChains(folder: File): Boolean = folder.list()?.any { Base32.isTag(it) } ?: false
 
-    fun storage(path: String): FolderStorage? = File(path).takeIf { it.isDirectory }?.let(::FolderStorage)
+    fun <Entry> subfolder(children: List<Entry>, name: (Entry) -> String, isDirectory: (Entry) -> Boolean, holdsChains: (Entry) -> Boolean): Entry? {
+        if (children.any { Base32.isTag(name(it)) }) return null
+        val present = folderNames.mapNotNull { wanted -> children.firstOrNull { isDirectory(it) && name(it) == wanted } }
+        return present.firstOrNull(holdsChains) ?: present.firstOrNull()
+    }
 }

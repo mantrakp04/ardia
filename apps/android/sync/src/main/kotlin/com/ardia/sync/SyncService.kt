@@ -6,91 +6,127 @@ import com.ardia.sync.core.SyncKeyStore
 import com.ardia.sync.core.SyncKeys
 import com.ardia.sync.core.SyncStorage
 import java.io.File
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
-data class PhraseCheck(val wordCount: Int, val counterText: String, val isTooLong: Boolean, val problem: String?, val isValid: Boolean)
+interface SyncDevice {
+    val isDemo: Boolean
+    val phase: SyncPhase
+    val snapshot: SyncSnapshot
+    val pendingDownloads: Int
+    val lastSynced: Long?
+    val isEnabled: Boolean
+    val isRunning: Boolean
+    val folderName: String?
+    val hasUnsentChanges: Boolean
+    val wantsBackgroundRefresh: Boolean
+    var deviceName: String
+    var selectedProfileId: String?
+    var source: LocalBrowsingSource?
 
-sealed interface ConnectResult {
-    data object Connected : ConnectResult
-    data class InvalidPhrase(val message: String) : ConnectResult
-    data object Mismatch : ConnectResult
-    data object NoSyncData : ConnectResult
-    data object FolderUnavailable : ConnectResult
-    data object KeyStoreFailed : ConnectResult
-    data object Busy : ConnectResult
+    fun start()
+
+    fun becameActive()
+
+    fun resignedActive()
+
+    fun syncNow()
+
+    fun backgroundCycle(): Boolean
+
+    fun localDidChange()
+
+    fun cancelCoordination()
+
+    fun connect(phrase: String, pick: SyncFolderPick): ConnectResult
+
+    fun changeFolder(pick: SyncFolderPick): ConnectResult
+
+    fun stopSyncing()
+
+    fun acknowledgeReset()
+
+    fun send(url: String, title: String, to: SyncedDevice, profileSyncId: String?, key: String, fromPrivateTab: Boolean): Boolean
+
+    fun addBookmark(url: String, title: String, profileSyncId: String?, fromPrivateTab: Boolean): Boolean
+
+    fun takeReceived(): List<ReceivedTab>
+
+    fun close()
 }
 
 class SyncService(
     private val directory: File,
     private val keyStore: SyncKeyStore,
     private val assets: AssetManager,
-    private val openStorage: (String) -> SyncStorage? = SyncFolders::storage,
+    private val folders: SyncFolderAccess = LocalFolderAccess(),
     private val now: () -> Long = System::currentTimeMillis,
-) {
+) : SyncDevice {
     private val files = SyncFiles(directory)
     private var meta = files.loadMeta()
+
+    @Volatile
     private var engine: SyncEngine? = null
-    private var visitsDue = true
+    private var visitsFetchedGeneration = -1
+    private val visitGeneration = AtomicInteger(0)
     private var dueVisits: Set<String> = emptySet()
-    private var localDirty = false
+    private val localDirty = AtomicBoolean(false)
     private var missingSince: Long? = null
     private var stopping = false
+    private var foreground = false
+    private val received = ArrayList<ReceivedTab>()
 
-    var source: LocalBrowsingSource? = null
-    var foreground = true
+    override val isDemo: Boolean get() = false
 
-    var phase: SyncPhase = SyncPhase.Off
-        private set
-    var snapshot: SyncSnapshot = SyncSnapshot.empty
-        private set
-    var pendingDownloads = 0
-        private set
-    var lastSynced: Long? = meta.lastSyncedAt
-        private set
-    var isEnabled = false
-        private set
-    val folderName: String? get() = meta.folder?.let { File(it).name }
+    @Volatile
+    override var source: LocalBrowsingSource? = null
 
-    var deviceName: String
+    override var phase: SyncPhase = SyncPhase.Off
+        private set
+    override var snapshot: SyncSnapshot = SyncSnapshot.empty
+        private set
+    override var pendingDownloads = 0
+        private set
+    override var lastSynced: Long? = meta.lastSyncedAt
+        private set
+
+    @Volatile
+    override var isEnabled = false
+        private set
+    override var folderName: String? = meta.folder?.name
+        private set
+
+    override val isRunning: Boolean get() = engine != null
+    override val hasUnsentChanges: Boolean get() = localDirty.get()
+    override val wantsBackgroundRefresh: Boolean get() = isEnabled || meta.retiringDeviceId != null
+
+    override var deviceName: String
         get() = meta.deviceName
         set(value) {
-            val trimmed = value.trim()
-            updateMeta { it.copy(deviceName = trimmed.ifEmpty { SyncMeta.DEFAULT_DEVICE_NAME }) }
+            val trimmed = value.trim().ifEmpty { SyncMeta.DEFAULT_DEVICE_NAME }
+            if (trimmed == meta.deviceName) return
+            updateMeta { it.copy(deviceName = trimmed) }
             localDidChange()
         }
 
-    var selectedProfileId: String?
+    override var selectedProfileId: String?
         get() = meta.selectedProfileId
-        set(value) = updateMeta { it.copy(selectedProfileId = value) }
+        set(value) {
+            if (value != meta.selectedProfileId) updateMeta { it.copy(selectedProfileId = value) }
+        }
 
     val selectedProfile: SyncedProfile? get() = snapshot.profile(selectedProfileId)
 
-    @Synchronized
-    fun devicesThatReceiveTabs(profileSyncId: String? = selectedProfileId): List<SyncedDevice> {
-        val profile = snapshot.profile(profileSyncId) ?: return emptyList()
-        return profile.sendTargets.orEmpty().mapNotNull { id -> snapshot.devices.firstOrNull { it.id == id && it.canReceiveTabs && !it.isCurrent } }
-    }
+    fun devicesThatReceiveTabs(profileSyncId: String? = selectedProfileId): List<SyncedDevice> = snapshot.devicesThatReceiveTabs(profileSyncId)
 
-    val statusText: String
-        get() = when (val current = phase) {
-            SyncPhase.Off -> "Off"
-            SyncPhase.Starting -> "Starting up"
-            SyncPhase.Updated -> "Updated just now" + waitingText()
-            is SyncPhase.Stalled -> if (lastSynced == null) "Not syncing" else "Not syncing. ${current.message}"
-            SyncPhase.Offline -> "Offline"
-            SyncPhase.Locked -> "Enter your recovery phrase to keep syncing on this device."
-            SyncPhase.Reset -> RESET_MESSAGE
-        }
-
-    private fun waitingText(): String = when {
-        pendingDownloads <= 0 -> ""
-        pendingDownloads == 1 -> " · Waiting for 1 file to download"
-        else -> " · Waiting for $pendingDownloads files to download"
-    }
+    val statusText: String get() = SyncStatusText.of(phase, lastSynced, pendingDownloads, now())
 
     @Synchronized
-    fun start() {
+    override fun start() {
         if (engine != null) return
         meta = files.loadMeta()
+        folderName = meta.folder?.name
         if (meta.retiringDeviceId != null) finishPendingRetire(giveUp = false)
         if (meta.outOfSync) {
             isEnabled = false
@@ -98,8 +134,8 @@ class SyncService(
             return
         }
         val deviceId = meta.deviceId
-        val folder = meta.folder
-        if (!meta.enabled || deviceId == null || folder == null) {
+        val location = meta.folder
+        if (!meta.enabled || deviceId == null || location == null) {
             isEnabled = false
             phase = SyncPhase.Off
             return
@@ -110,61 +146,54 @@ class SyncService(
             phase = SyncPhase.Locked
             return
         }
-        val storage = openStorage(folder)
-        if (storage == null) {
-            phase = SyncPhase.Offline
+        val grant = folders.resolve(location)
+        if (grant == null) {
+            phase = SyncPhase.NeedsFolderAccess
             return
         }
-        val made = makeEngine(deviceId, entropy, storage) ?: return
+        val made = makeEngine(deviceId, entropy, grant.storage) ?: return
         phase = SyncPhase.Starting
         made.cachedSnapshot()?.let { if (snapshot == SyncSnapshot.empty) snapshot = it }
     }
 
-    fun check(phrase: String): PhraseCheck {
-        val count = RecoveryPhrase.tokens(phrase).size
-        val tooLong = count > RecoveryPhrase.WORD_COUNT
-        var problem: String? = null
-        var valid = false
-        if (count == RecoveryPhrase.WORD_COUNT) {
-            try {
-                RecoveryPhrase.entropy(phrase)
-                valid = true
-            } catch (failure: RecoveryPhrase.Problem) {
-                problem = message(failure)
-            }
-        }
-        return PhraseCheck(count, if (tooLong) "too many words" else "$count/${RecoveryPhrase.WORD_COUNT} words", tooLong, problem, valid)
-    }
+    fun check(phrase: String): PhraseCheck = SyncJoin.check(phrase)
+
+    fun connect(phrase: String, folder: File): ConnectResult = connect(phrase, SyncFolderPick.Folder(folder))
 
     @Synchronized
-    fun connect(phrase: String, folder: File): ConnectResult {
+    override fun connect(phrase: String, pick: SyncFolderPick): ConnectResult {
         if (stopping) return ConnectResult.Busy
         foreground = true
         val entropy = try {
             RecoveryPhrase.entropy(phrase)
         } catch (failure: RecoveryPhrase.Problem) {
-            return ConnectResult.InvalidPhrase(message(failure))
+            return ConnectResult.InvalidPhrase(SyncJoin.message(failure))
         }
-        val located = SyncFolders.locate(folder) ?: return ConnectResult.FolderUnavailable
-        val storage = openStorage(located.path) ?: return ConnectResult.FolderUnavailable
-        when (SyncEngine.check(entropy, storage)) {
+        val grant = folders.open(pick) ?: return ConnectResult.FolderUnavailable
+        when (SyncEngine.check(entropy, grant.storage)) {
             FolderCheck.MATCHES -> Unit
             FolderCheck.MISMATCH -> return ConnectResult.Mismatch
             FolderCheck.NO_SYNC_DATA -> return ConnectResult.NoSyncData
             FolderCheck.UNAVAILABLE -> return ConnectResult.FolderUnavailable
         }
+        val previousLocation = meta.folder
+        if (!folders.keep(grant.location)) return ConnectResult.FolderUnavailable
         val abandoned = finishPendingRetire(giveUp = true)
         engine?.retire()
         engine = null
         val reuse = if (phase == SyncPhase.Locked) meta.deviceId?.takeIf { opensState(entropy) } else null
         val deviceId = reuse ?: SyncKeys.newFileId()
-        if (!keyStore.save(entropy, deviceId)) return ConnectResult.KeyStoreFailed
+        if (!keyStore.save(entropy, deviceId)) {
+            folders.release(grant.location, keeping = previousLocation)
+            return ConnectResult.KeyStoreFailed
+        }
         if (reuse == null) {
             val previous = meta.deviceId
             try {
                 SyncEngine.prepareFresh(directory, deviceId, listOfNotNull(abandoned, previous))
             } catch (error: Exception) {
                 keyStore.delete(deviceId)
+                folders.release(grant.location, keeping = previousLocation)
                 return ConnectResult.KeyStoreFailed
             }
             previous?.let(keyStore::delete)
@@ -172,37 +201,106 @@ class SyncService(
             lastSynced = null
             snapshot = SyncSnapshot.empty
         }
-        updateMeta { it.copy(deviceId = deviceId, folder = located.path, enabled = true, outOfSync = false) }
+        updateMeta { it.copy(deviceId = deviceId, folder = grant.location, enabled = true, outOfSync = false) }
+        previousLocation?.let { folders.release(it, keeping = grant.location) }
+        folderName = grant.location.name
         missingSince = null
-        makeEngine(deviceId, entropy, storage) ?: return ConnectResult.Connected
+        makeEngine(deviceId, entropy, grant.storage) ?: return ConnectResult.Connected
         isEnabled = true
         phase = SyncPhase.Starting
-        visitsDue = true
+        visitsFetchedGeneration = -1
         return ConnectResult.Connected
     }
 
     @Synchronized
-    fun localDidChange() {
-        if (!isEnabled) return
-        localDirty = true
-        visitsDue = true
+    override fun changeFolder(pick: SyncFolderPick): ConnectResult {
+        val deviceId = meta.deviceId
+        val entropy = deviceId?.let(keyStore::load)
+        if (!meta.enabled || meta.outOfSync || deviceId == null || entropy == null) return ConnectResult.KeyStoreFailed
+        val grant = folders.open(pick) ?: return ConnectResult.FolderUnavailable
+        when (SyncEngine.check(entropy, grant.storage)) {
+            FolderCheck.MATCHES -> Unit
+            FolderCheck.MISMATCH -> return ConnectResult.Mismatch
+            FolderCheck.NO_SYNC_DATA -> return ConnectResult.NoSyncData
+            FolderCheck.UNAVAILABLE -> return ConnectResult.FolderUnavailable
+        }
+        if (!folders.keep(grant.location)) return ConnectResult.FolderUnavailable
+        val previous = meta.folder
+        updateMeta { it.copy(folder = grant.location, chainSeen = false) }
+        previous?.let { folders.release(it, keeping = grant.location) }
+        folderName = grant.location.name
+        missingSince = null
+        val current = engine
+        if (current != null) {
+            try {
+                current.changeStorage(grant.storage)
+            } catch (error: Exception) {
+                return ConnectResult.FolderUnavailable
+            }
+        } else if (makeEngine(deviceId, entropy, grant.storage) == null) {
+            return ConnectResult.Connected
+        }
+        phase = SyncPhase.Starting
+        return ConnectResult.Connected
     }
 
     @Synchronized
-    fun syncNow() {
+    override fun acknowledgeReset() {
+        if (phase != SyncPhase.Reset) return
+        meta.deviceId?.let(keyStore::delete)
+        updateMeta { it.copy(deviceId = null, enabled = false, outOfSync = false, lastSyncedAt = null, visitsSyncedThrough = null) }
+        lastSynced = null
+        isEnabled = false
+        phase = SyncPhase.Off
+    }
+
+    override fun localDidChange() {
+        if (!isEnabled) return
+        localDirty.set(true)
+        visitGeneration.incrementAndGet()
+    }
+
+    @Synchronized
+    override fun becameActive() {
+        foreground = true
+        if (meta.retiringDeviceId != null) finishPendingRetire(giveUp = false)
+        if (phase == SyncPhase.Locked || (meta.enabled && !meta.outOfSync && engine == null && phase != SyncPhase.NeedsFolderAccess)) start()
+    }
+
+    @Synchronized
+    override fun resignedActive() {
+        foreground = false
+        missingSince = null
+        updateMeta { it.copy(lastSyncedAt = lastSynced) }
+    }
+
+    @Synchronized
+    override fun backgroundCycle(): Boolean {
+        if (engine == null) start()
+        if (!isEnabled || engine == null) return true
+        syncNow()
+        return phase == SyncPhase.Updated
+    }
+
+    override fun cancelCoordination() {
+        engine?.cancelCoordination()
+    }
+
+    @Synchronized
+    override fun syncNow() {
         var again: Boolean
         do {
             again = false
             val current = engine ?: return
             if (!isEnabled) return
             val fetchedAt = now()
-            val local = gatherLocal(fetchedAt)
-            val dirty = localDirty
-            localDirty = false
+            val generation = visitGeneration.get()
+            val local = gatherLocal(fetchedAt, generation)
+            val dirty = localDirty.getAndSet(false)
             try {
                 val outcome = current.cycle(local)
                 if (local.visits != null && outcome.status == CycleOutcome.Status.OK) {
-                    visitsDue = false
+                    visitsFetchedGeneration = generation
                     if ((outcome.snapshot ?: snapshot).profiles.isNotEmpty()) updateMeta { it.copy(visitsSyncedThrough = fetchedAt) }
                 }
                 if (outcome.status == CycleOutcome.Status.OK && source != null) {
@@ -211,22 +309,26 @@ class SyncService(
                 }
                 apply(outcome, current)
             } catch (error: SyncError.Retired) {
-                localDirty = localDirty || dirty
+                restoreDirty(dirty)
             } catch (error: SyncError.StateUnreadable) {
-                localDirty = localDirty || dirty
+                restoreDirty(dirty)
                 if (startOver(current)) again = true
             } catch (error: SyncError.StateUnavailable) {
-                localDirty = localDirty || dirty
+                restoreDirty(dirty)
                 phase = SyncPhase.Stalled(UNAVAILABLE_MESSAGE)
             } catch (error: Exception) {
-                localDirty = localDirty || dirty
+                restoreDirty(dirty)
                 phase = SyncPhase.Stalled(STALLED_MESSAGE)
             }
         } while (again && isEnabled)
     }
 
+    fun send(url: String, title: String, to: SyncedDevice, profileSyncId: String? = null, key: String = UUID.randomUUID().toString()): Boolean =
+        send(url, title, to, profileSyncId, key, fromPrivateTab = false)
+
     @Synchronized
-    fun send(url: String, title: String, to: SyncedDevice, profileSyncId: String? = null, key: String = java.util.UUID.randomUUID().toString()): Boolean {
+    override fun send(url: String, title: String, to: SyncedDevice, profileSyncId: String?, key: String, fromPrivateTab: Boolean): Boolean {
+        if (fromPrivateTab) return false
         val current = engine ?: return false
         val profile = profileSyncId ?: selectedProfile?.syncId ?: return false
         if (devicesThatReceiveTabs(profile).none { it.id == to.id }) return false
@@ -238,8 +340,11 @@ class SyncService(
         }
     }
 
+    fun addBookmark(url: String, title: String, profileSyncId: String? = null): Boolean = addBookmark(url, title, profileSyncId, fromPrivateTab = false)
+
     @Synchronized
-    fun addBookmark(url: String, title: String, profileSyncId: String? = null): Boolean {
+    override fun addBookmark(url: String, title: String, profileSyncId: String?, fromPrivateTab: Boolean): Boolean {
+        if (fromPrivateTab) return false
         val current = engine ?: return false
         val profile = profileSyncId ?: selectedProfile?.syncId ?: return false
         return try {
@@ -251,7 +356,10 @@ class SyncService(
     }
 
     @Synchronized
-    fun stopSyncing() {
+    override fun takeReceived(): List<ReceivedTab> = received.toList().also { received.clear() }
+
+    @Synchronized
+    override fun stopSyncing() {
         if (stopping) return
         stopping = true
         try {
@@ -290,6 +398,8 @@ class SyncService(
             lastSynced = null
             missingSince = null
             pendingDownloads = 0
+            received.clear()
+            localDirty.set(false)
             phase = SyncPhase.Off
         } finally {
             stopping = false
@@ -297,10 +407,14 @@ class SyncService(
     }
 
     @Synchronized
-    fun close() {
+    override fun close() {
         updateMeta { it.copy(lastSyncedAt = lastSynced) }
         engine?.retire()
         engine = null
+    }
+
+    private fun restoreDirty(dirty: Boolean) {
+        if (dirty) localDirty.set(true)
     }
 
     private fun makeEngine(deviceId: String, entropy: ByteArray, storage: SyncStorage): SyncEngine? = try {
@@ -316,7 +430,7 @@ class SyncService(
         when (outcome.status) {
             CycleOutcome.Status.UNAVAILABLE -> {
                 missingSince = null
-                phase = SyncPhase.Offline
+                phase = if (meta.folder?.let(folders::hasAccess) == false) SyncPhase.NeedsFolderAccess else SyncPhase.Offline
             }
             CycleOutcome.Status.MISSING -> {
                 if (!foreground) {
@@ -348,6 +462,7 @@ class SyncService(
                     runCatching { current.acknowledgeRemovals(outcome.historyRemoved) }
                 }
                 if (outcome.received.isNotEmpty() && local != null && engine === current && local.receive(outcome.received)) {
+                    received += outcome.received.filter { tab -> received.none { it.key == tab.key } }
                     runCatching { current.acknowledge(outcome.received) }
                 }
             }
@@ -357,8 +472,8 @@ class SyncService(
     private fun startOver(broken: SyncEngine): Boolean {
         val oldId = meta.deviceId
         val entropy = oldId?.let(keyStore::load)
-        val storage = meta.folder?.let(openStorage)
-        if (engine !== broken || oldId == null || entropy == null || storage == null) {
+        val grant = meta.folder?.let(folders::resolve)
+        if (engine !== broken || oldId == null || entropy == null || grant == null) {
             phase = SyncPhase.Stalled(STALLED_MESSAGE)
             return false
         }
@@ -369,7 +484,9 @@ class SyncService(
         }
         try {
             SyncEngine.prepareFresh(directory, deviceId, listOf(oldId))
-            updateMeta { it.copy(deviceId = deviceId, visitsSyncedThrough = null) }
+            val next = meta.copy(deviceId = deviceId, visitsSyncedThrough = null)
+            files.saveMeta(next)
+            meta = next
         } catch (error: Exception) {
             keyStore.delete(deviceId)
             phase = SyncPhase.Stalled(STALLED_MESSAGE)
@@ -378,8 +495,8 @@ class SyncService(
         broken.retire()
         engine = null
         keyStore.delete(oldId)
-        visitsDue = true
-        return makeEngine(deviceId, entropy, storage) != null
+        visitsFetchedGeneration = -1
+        return makeEngine(deviceId, entropy, grant.storage) != null
     }
 
     private fun resetFromElsewhere(current: SyncEngine) {
@@ -394,18 +511,18 @@ class SyncService(
 
     private fun retireAsGhost(oldId: String) {
         val entropy = keyStore.load(oldId) ?: return
-        val storage = meta.folder?.let(openStorage) ?: return
+        val grant = meta.folder?.let(folders::resolve) ?: return
         val temporary = SyncKeys.newFileId()
         val ghost = try {
             SyncEngine.prepareFresh(directory, temporary, listOf(oldId))
-            SyncEngine(directory, temporary, entropy, storage, assets, now = now)
+            SyncEngine(directory, temporary, entropy, grant.storage, assets, now = now)
         } catch (error: Exception) {
             return
         }
         val local = LocalBrowsing(meta.deviceName, null, null)
-        repeat(2) {
+        for (round in 0 until 2) {
             val status = runCatching { ghost.cycle(local, retiring = true).status }.getOrNull()
-            if (status != CycleOutcome.Status.OK) return@repeat
+            if (status != CycleOutcome.Status.OK) break
         }
         ghost.forget()
     }
@@ -414,9 +531,9 @@ class SyncService(
         val deviceId = meta.retiringDeviceId ?: return null
         var landed = false
         val entropy = keyStore.load(deviceId)
-        val storage = meta.folder?.let(openStorage)
-        if (entropy != null && storage != null) {
-            val retiring = runCatching { SyncEngine(directory, deviceId, entropy, storage, assets, now = now) }.getOrNull()
+        val grant = meta.folder?.let(folders::resolve)
+        if (entropy != null && grant != null) {
+            val retiring = runCatching { SyncEngine(directory, deviceId, entropy, grant.storage, assets, now = now) }.getOrNull()
             if (retiring != null) {
                 try {
                     landed = retiring.stop(LocalBrowsing(meta.deviceName, null, null))
@@ -438,17 +555,17 @@ class SyncService(
         return if (landed) null else deviceId
     }
 
-    private fun gatherLocal(time: Long): LocalBrowsing {
+    private fun gatherLocal(time: Long, generation: Int): LocalBrowsing {
         val local = source ?: return LocalBrowsing(meta.deviceName, null, null)
         var visits: List<LocalVisitRecord>? = null
-        if (visitsDue) {
+        if (visitsFetchedGeneration != generation) {
             val window = time - HISTORY_WINDOW_MS
             val since = meta.visitsSyncedThrough?.let { maxOf(window, it - VISIT_OVERLAP_MS) } ?: window
-            visits = local.syncedVisits(since)
+            visits = local.syncedVisits(since).filterNot { it.isPrivate }
         }
         val due = dueVisits
-        if (due.isNotEmpty()) visits = visits.orEmpty() + local.syncedVisits(due)
-        return LocalBrowsing(meta.deviceName, local.syncedTabs(), visits, due)
+        if (due.isNotEmpty()) visits = visits.orEmpty() + local.syncedVisits(due).filterNot { it.isPrivate }
+        return LocalBrowsing(meta.deviceName, local.syncedTabs().filterNot { it.isPrivate }, visits, due)
     }
 
     private fun opensState(entropy: ByteArray): Boolean = files.readSealed(files.stateFile, SyncKeys(entropy), SyncFiles.STATE_FILE) != null
@@ -462,14 +579,10 @@ class SyncService(
         const val HISTORY_WINDOW_MS = 90L * 86_400_000
         const val VISIT_OVERLAP_MS = 300_000L
         const val RESET_CONFIRMATION_MS = 60_000L
-        const val RESET_MESSAGE = "This device is out of sync. Sync may have been reset from another device."
-        const val STALLED_MESSAGE = "Ardia couldn't read or write the sync folder. It will try again."
-        const val UNAVAILABLE_MESSAGE = "Ardia can't read its sync data right now. It will try again."
+        const val RESET_MESSAGE = SyncStatusText.RESET_MESSAGE
+        const val STALLED_MESSAGE = "Ardia couldn’t read or write the sync folder. It will try again."
+        const val UNAVAILABLE_MESSAGE = "Ardia can’t read its sync data right now. It will try again."
 
-        fun message(problem: RecoveryPhrase.Problem): String = when (problem) {
-            is RecoveryPhrase.Problem.WordCount -> "Recovery phrase must be exactly 24 words."
-            is RecoveryPhrase.Problem.UnknownWord -> "“${problem.word}” is not a valid recovery phrase word."
-            RecoveryPhrase.Problem.Checksum -> "This recovery phrase is not valid. Please check for typos."
-        }
+        fun message(problem: RecoveryPhrase.Problem): String = SyncJoin.message(problem)
     }
 }

@@ -34,6 +34,10 @@ data class CycleOutcome(
     val chainSeen: Boolean = false,
 ) {
     enum class Status { OK, MISSING, UNAVAILABLE }
+
+    companion object {
+        val offline = CycleOutcome(Status.UNAVAILABLE, null, emptyList(), emptyList(), pending = 0, published = 0, changed = 0)
+    }
 }
 
 enum class FolderCheck { MATCHES, MISMATCH, NO_SYNC_DATA, UNAVAILABLE }
@@ -91,9 +95,15 @@ class SyncEngine(
         return runCatching { syncJson.decodeFromString<SyncSnapshot>(String(data, Charsets.UTF_8)) }.getOrNull()
     }
 
+    fun cancelCoordination() {
+        host.coordination?.cancelAll()
+    }
+
     @Synchronized
     fun cycle(local: LocalBrowsing, retiring: Boolean = false): CycleOutcome {
         checkLive()
+        host.coordination?.resume()
+        host.timedOut = false
         load()
         val input = CycleInput(
             name = local.deviceName,
@@ -103,7 +113,12 @@ class SyncEngine(
             visits = local.visits?.map { visit -> CycleInput.Visit(visit.url, visit.title, visit.visitedAt.map { it.toDouble() }, visit.profileSyncId) },
             fetchedDue = local.fetchedDue.sorted(),
         )
-        val json = script.callAsync(SharedScript.SYNC, "runCompanionCycle", listOf(syncJson.encodeToString(input)))
+        val json = try {
+            script.callAsync(SharedScript.SYNC, "runCompanionCycle", listOf(syncJson.encodeToString(input)))
+        } catch (error: Exception) {
+            if (host.timedOut || host.coordination?.timedOut == true) return CycleOutcome.offline
+            throw error
+        }
         val output = syncJson.decodeFromString<CycleOutput>(json)
         var snapshot = output.view
         if (snapshot != null) {

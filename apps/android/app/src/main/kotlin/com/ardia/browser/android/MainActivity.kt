@@ -18,7 +18,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +31,7 @@ import com.ardia.browser.DevelopmentWebViewEngine
 import com.ardia.browser.Omnibox
 import com.ardia.browser.Page
 import com.ardia.browser.PageEngine
+import com.ardia.browser.PageSetup
 import com.ardia.browser.PageSurface
 import com.ardia.design.ArdiaTheme
 import com.ardia.design.Spacing
@@ -38,18 +39,19 @@ import com.ardia.shared.ScriptEngine
 import com.ardia.shared.SharedScript
 
 class MainActivity : ComponentActivity() {
-    private val engine: PageEngine = DevelopmentWebViewEngine()
+    private lateinit var engine: PageEngine
     private lateinit var page: Page
     private lateinit var script: ScriptEngine
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        page = engine.createPage(this)
+        engine = DevelopmentWebViewEngine(this)
+        engine.attach(this)
         script = ScriptEngine(assets, listOf(SharedScript.CORE))
         val omnibox = Omnibox(script)
         val start = intent.getStringExtra(EXTRA_URL) ?: START_URL
-        page.load(omnibox.resolve(start)?.url ?: start)
+        page = engine.open("main", PageSetup(url = omnibox.resolve(start)?.url ?: start))
         setContent {
             ArdiaTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -60,7 +62,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        page.close()
+        engine.close("main")
+        engine.detach(this)
         script.close()
         super.onDestroy()
     }
@@ -73,12 +76,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun BrowseScreen(page: Page, engine: PageEngine, omnibox: Omnibox) {
-    var state by remember { mutableStateOf(page.state) }
+    val state by page.state.collectAsState()
     var text by remember { mutableStateOf("") }
-    DisposableEffect(page) {
-        val subscription = page.observe { state = it }
-        onDispose { subscription.close() }
-    }
     BackHandler(enabled = state.canGoBack) { page.goBack() }
     Column(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
         OutlinedTextField(

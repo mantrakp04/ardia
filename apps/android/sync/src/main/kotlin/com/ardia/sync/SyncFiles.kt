@@ -14,7 +14,7 @@ import kotlinx.serialization.encodeToString
 data class SyncMeta(
     val deviceId: String? = null,
     val deviceName: String = DEFAULT_DEVICE_NAME,
-    val folder: String? = null,
+    val folder: SyncFolderLocation? = null,
     val enabled: Boolean = false,
     val setupAt: Long? = null,
     val lastSyncedAt: Long? = null,

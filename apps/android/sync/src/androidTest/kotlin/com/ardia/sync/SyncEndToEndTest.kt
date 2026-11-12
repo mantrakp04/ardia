@@ -316,4 +316,190 @@ class SyncEndToEndTest {
             sandbox.remove()
         }
     }
+
+    private class Joined(val sandbox: Sandbox, val entropy: ByteArray, val mac: FakeMac, val source: FakeSource, val clock: TestClock, val service: SyncService, val device: String)
+
+    private fun joined(source: FakeSource = FakeSource()): Joined {
+        val sandbox = Sandbox()
+        val entropy = RecoveryPhrase.generateEntropy()
+        val mac = seededMac(sandbox, entropy)
+        if (source.tabs.isEmpty()) source.tabs = listOf(LocalTabRecord("https://phone.example/", "Phone", System.currentTimeMillis(), null))
+        val clock = TestClock()
+        val service = service(sandbox, source, clock)
+        assertEquals(ConnectResult.Connected, service.connect(phrase(entropy), sandbox.root))
+        service.syncNow()
+        return Joined(sandbox, entropy, mac, source, clock, service, service.snapshot.devices.first { it.isCurrent }.id)
+    }
+
+    private fun Joined.done() {
+        mac.close()
+        sandbox.remove()
+    }
+
+    @Test
+    fun privateTabsAndVisitsNeverLeaveThePhoneAndOnlyTheThirtyNewestTabsDo() {
+        val now = System.currentTimeMillis()
+        val source = FakeSource()
+        source.tabs = (0 until 40).map { LocalTabRecord("https://tab-$it.example/", "Tab $it", now - it * 1_000L, null) } +
+            LocalTabRecord("https://secret.example/", "Secret", now + 1_000, null, isPrivate = true)
+        source.visits = listOf(
+            LocalVisitRecord("https://seen.example/", "Seen", listOf(now - 60_000), PROFILE),
+            LocalVisitRecord("https://hidden.example/", "Hidden", listOf(now - 30_000), PROFILE, isPrivate = true),
+        )
+        val j = joined(source)
+        try {
+            j.mac.sync(listOf("app", SCOPE))
+            val store = j.mac.store(SCOPE)
+            val tabs = store.getJSONObject("tabs:${j.device}").getJSONArray("tabs")
+            assertEquals((0 until 30).map { "https://tab-$it.example/" }, (0 until tabs.length()).map { tabs.getJSONObject(it).getString("u") })
+            assertTrue(store.has("h:https://seen.example/"))
+            assertFalse(store.has("h:https://hidden.example/"))
+            assertFalse(store.toString().contains("secret.example") || store.toString().contains("hidden.example"))
+            val target = SyncedDevice(j.mac.device, "MacBook Pro", SyncedDevice.MAC, null, isCurrent = false, canReceiveTabs = true)
+            assertFalse(j.service.send("https://secret.example/", "Secret", target, null, "cccccccc-cccc-4ccc-8ccc-cccccccccccc", fromPrivateTab = true))
+            assertFalse(j.service.addBookmark("https://secret.example/", "Secret", null, fromPrivateTab = true))
+            assertTrue(j.service.addBookmark("https://pinned.example/", "Pinned"))
+            j.service.syncNow()
+            j.mac.sync(listOf(SCOPE))
+            val after = j.mac.store(SCOPE)
+            val bookmarks = after.keyList().filter { it.startsWith("bm:") }.map { after.getJSONObject(it) }
+            assertEquals(1, bookmarks.count { it.optString("u") == "https://pinned.example/" })
+            assertFalse(after.toString().contains("secret.example"))
+            assertTrue(after.keyList().none { it.startsWith("send:") })
+            j.service.stopSyncing()
+        } finally {
+            j.done()
+        }
+    }
+
+    @Test
+    fun aSentTabThePhoneCouldNotSaveIsKeptUntilItIsSaved() {
+        val source = FakeSource()
+        source.savesReceived = false
+        val j = joined(source)
+        try {
+            val key = "send:dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+            j.mac.put(SCOPE, key, """{"u":"https://sent.example/","t":"Sent","to":"${j.device}","from":"${j.mac.device}","at":${System.currentTimeMillis()}}""")
+            j.mac.sync(listOf(SCOPE))
+            twice(j.service)
+            assertTrue(source.received.any { it.url == "https://sent.example/" })
+            assertTrue(j.service.takeReceived().isEmpty())
+            j.mac.sync(listOf(SCOPE))
+            assertTrue(j.mac.store(SCOPE).has(key))
+            source.savesReceived = true
+            source.received.clear()
+            twice(j.service)
+            assertEquals(listOf("https://sent.example/"), source.received.map { it.url })
+            assertEquals(listOf(key), j.service.takeReceived().map { it.key })
+            j.mac.sync(listOf(SCOPE))
+            assertFalse(j.mac.store(SCOPE).has(key))
+            j.service.stopSyncing()
+        } finally {
+            j.done()
+        }
+    }
+
+    @Test
+    fun aMissingChainNeedsTwoListingsAMinuteApartAndTheKeyStaysUntilTheResetIsSeen() {
+        val j = joined()
+        try {
+            java.io.File(j.sandbox.folder, j.mac.keys.chainTag).deleteRecursively()
+            java.io.File(j.sandbox.folder, "b".repeat(26)).mkdirs()
+            j.service.syncNow()
+            assertEquals(SyncPhase.Offline, j.service.phase)
+            assertFalse(j.sandbox.contents(j.sandbox.keys).isEmpty())
+            j.clock.advance(20)
+            j.service.syncNow()
+            assertEquals(SyncPhase.Offline, j.service.phase)
+            j.clock.advance(45)
+            j.service.syncNow()
+            assertEquals(SyncPhase.Reset, j.service.phase)
+            assertEquals(SyncService.RESET_MESSAGE, j.service.statusText)
+            assertFalse(j.service.isEnabled)
+            assertFalse(j.sandbox.contents(j.sandbox.keys).isEmpty())
+            assertTrue(j.sandbox.contents(j.sandbox.state).any { it.startsWith("sync-state.") && it != "sync-state.nns" })
+            j.service.acknowledgeReset()
+            assertEquals(SyncPhase.Off, j.service.phase)
+            assertTrue(j.sandbox.contents(j.sandbox.keys).isEmpty())
+        } finally {
+            j.done()
+        }
+    }
+
+    @Test
+    fun inTheBackgroundAMissingChainIsOnlyOffline() {
+        val j = joined()
+        try {
+            j.service.resignedActive()
+            java.io.File(j.sandbox.folder, j.mac.keys.chainTag).deleteRecursively()
+            java.io.File(j.sandbox.folder, "b".repeat(26)).mkdirs()
+            repeat(3) {
+                j.clock.advance(120)
+                assertFalse(j.service.backgroundCycle())
+                assertEquals(SyncPhase.Offline, j.service.phase)
+            }
+            assertTrue(j.service.isEnabled)
+        } finally {
+            j.done()
+        }
+    }
+
+    @Test
+    fun aMissingFolderStaysOffline() {
+        val j = joined()
+        try {
+            j.sandbox.folder.renameTo(java.io.File(j.sandbox.root, "Away"))
+            repeat(3) {
+                j.clock.advance(120)
+                j.service.syncNow()
+                assertEquals(SyncPhase.Offline, j.service.phase)
+            }
+            assertFalse(j.sandbox.contents(j.sandbox.keys).isEmpty())
+        } finally {
+            j.done()
+        }
+    }
+
+    @Test
+    fun changingTheFolderKeepsOneEngineAndEverySeqIsWrittenOnce() {
+        val j = joined()
+        try {
+            assertEquals(ConnectResult.Connected, j.service.changeFolder(SyncFolderPick.Folder(j.sandbox.root)))
+            assertTrue(j.service.addBookmark("https://moved.example/", "Moved"))
+            j.source.tabs = j.source.tabs + LocalTabRecord("https://second.example/", "Second", System.currentTimeMillis(), null)
+            j.service.localDidChange()
+            j.service.syncNow()
+            assertEquals(SyncPhase.Updated, j.service.phase)
+            val seqs = j.mac.logs(SCOPE, j.device).map { it.getInt("seq") }
+            assertEquals((1..seqs.size).toList(), seqs)
+            j.mac.sync(listOf(SCOPE))
+            assertTrue(j.mac.store(SCOPE).toString().contains("https://moved.example/"))
+            val empty = java.io.File(j.sandbox.root, "Empty").apply { mkdirs() }
+            assertEquals(ConnectResult.NoSyncData, j.service.changeFolder(SyncFolderPick.Folder(empty)))
+            assertEquals("Ardia Sync", j.service.folderName)
+            j.service.stopSyncing()
+        } finally {
+            j.done()
+        }
+    }
+
+    @Test
+    fun aLockedPhoneKeepsItsIdWhenThePhraseIsEnteredAgain() {
+        val j = joined()
+        try {
+            j.service.close()
+            j.sandbox.contents(j.sandbox.keys).forEach { java.io.File(j.sandbox.keys, it).delete() }
+            val relaunched = service(j.sandbox, j.source, j.clock)
+            relaunched.start()
+            assertEquals(SyncPhase.Locked, relaunched.phase)
+            assertEquals("Enter your recovery phrase to keep syncing on this phone.", relaunched.statusText)
+            assertEquals(ConnectResult.Connected, relaunched.connect(phrase(j.entropy), j.sandbox.root))
+            relaunched.syncNow()
+            assertEquals(SyncPhase.Updated, relaunched.phase)
+            assertEquals(j.device, relaunched.snapshot.devices.first { it.isCurrent }.id)
+            relaunched.stopSyncing()
+        } finally {
+            j.done()
+        }
+    }
 }

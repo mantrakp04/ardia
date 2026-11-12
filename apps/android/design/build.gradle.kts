@@ -9,6 +9,7 @@ android {
 
     defaultConfig {
         minSdk = libs.versions.minSdk.get().toInt()
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
@@ -19,6 +20,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -26,4 +31,7 @@ dependencies {
     api(libs.compose.ui)
     api(libs.compose.foundation)
     api(libs.compose.material3)
+    implementation(libs.coroutines.android)
+    testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
 }

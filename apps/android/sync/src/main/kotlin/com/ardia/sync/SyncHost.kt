@@ -16,10 +16,14 @@ class SyncHost(
     val keys: SyncKeys,
     storage: SyncStorage,
 ) {
+    @Volatile
     var vault = SyncVault(storage, keys)
         private set
     var journal = SyncJournal()
     var chainSeen = false
+    var timedOut = false
+
+    val coordination: CoordinatedStorage? get() = vault.storage as? CoordinatedStorage
 
     fun use(storage: SyncStorage) {
         vault = SyncVault(storage, keys)
@@ -52,7 +56,11 @@ class SyncHost(
             vault.storage.names(emptyList())
         } catch (error: Exception) {
             null
-        } ?: return "unavailable"
+        }
+        if (names == null) {
+            if (coordination?.timedOut == true) timedOut = true
+            return "unavailable"
+        }
         if (vault.chain in names) {
             chainSeen = true
             return "ok"
@@ -60,7 +68,14 @@ class SyncHost(
         return if (chainSeen || names.any { it != ".DS_Store" }) "missing" else "unavailable"
     }
 
-    private fun read(scope: String, known: List<String>): String = listingJson(vault.read(scope, known.toSet()))
+    private fun read(scope: String, known: List<String>): String {
+        val listing = vault.read(scope, known.toSet())
+        if (coordination?.timedOut == true) {
+            timedOut = true
+            throw SyncStorageTimedOut()
+        }
+        return listingJson(listing)
+    }
 
     private fun persistJournal(scope: String, batches: List<String>): String {
         val next = journal.adding(scope, batches)
