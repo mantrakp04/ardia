@@ -84,9 +84,17 @@ function day(value) {
   return value ? value.slice(0, 10) : "?";
 }
 
+async function listApps() {
+  const { rows } = await get("/v1/apps", { "fields[apps]": "name,bundleId", limit: "200" });
+  return rows;
+}
+
 async function findApp() {
-  const { rows } = await get("/v1/apps", { "filter[bundleId]": BUNDLE_PREFIX, "fields[apps]": "name,bundleId,sku" });
-  return rows.find((row) => row.attributes.bundleId === BUNDLE_PREFIX) ?? null;
+  return (await listApps()).find((row) => row.attributes.bundleId === BUNDLE_PREFIX) ?? null;
+}
+
+function ours(text) {
+  return /ardia|netnyahoo/i.test(text ?? "");
 }
 
 async function listBuilds(appId, build) {
@@ -133,19 +141,23 @@ function printBuilds(builds) {
 async function status() {
   let app = null;
   await section("App record", async () => {
-    app = await findApp();
+    const apps = await listApps();
+    app = apps.find((row) => row.attributes.bundleId === BUNDLE_PREFIX) ?? null;
     console.log(app ? `${app.attributes.name} ${app.attributes.bundleId} (id ${app.id})` : `none for ${BUNDLE_PREFIX}`);
+    const related = apps.filter((row) => row !== app && (ours(row.attributes.bundleId) || ours(row.attributes.name)));
+    for (const row of related) console.log(`also: ${row.attributes.name} ${row.attributes.bundleId}`);
+    console.log(`${apps.length} app records visible to this key`);
   });
 
   await section("App IDs", async () => {
-    const { rows, included } = await get("/v1/bundleIds", {
-      "filter[identifier]": BUNDLE_PREFIX,
+    const { rows: all, included } = await get("/v1/bundleIds", {
       "fields[bundleIds]": "identifier,platform,bundleIdCapabilities",
       include: "bundleIdCapabilities",
       limit: "200",
     });
     const capabilities = new Map(included.map((row) => [row.id, row.attributes.capabilityType]));
-    if (rows.length === 0) console.log("none");
+    const rows = all.filter((row) => ours(row.attributes.identifier));
+    console.log(`${all.length} App IDs on the team, ${rows.length} of them Ardia's`);
     for (const row of rows) {
       const types = (row.relationships?.bundleIdCapabilities?.data ?? []).map((link) => capabilities.get(link.id) ?? "?");
       console.log(`${row.attributes.identifier} ${row.attributes.platform} [${types.sort().join(", ")}]`);
