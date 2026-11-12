@@ -44,7 +44,7 @@ export function Sidebar({ width }: { width: number }) {
   const lightsY = useToolbarLightsCenter()[1];
   const nameAtTop = useSettings((s) => s.profileNameAtTop);
   const topName = addressBar && nameAtTop;
-  const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD + (topName ? PROFILE_NAME_HEIGHT : 0) : layout.sidebarHeader;
+  const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD + (topName ? PROFILE_NAME_HEIGHT + 6 : 0) : layout.sidebarHeader;
   const hasDownloads = useHasDownloads(windowId);
   const dots = useProfileDotsShown();
   const footerDownloads = addressBar && hasDownloads;
@@ -132,8 +132,8 @@ export function Sidebar({ width }: { width: number }) {
                     <SidebarHeaderTools width={width} />
                     <SidebarAddressRow width={width} />
                     {topName ? (
-                      <View style={{ position: "absolute", top: SIDEBAR_HEADER_WITH_FIELD, left: layout.sidebarInset }}>
-                        <ProfileIndicator room={width - 2 * layout.sidebarInset} expanded />
+                      <View style={{ position: "absolute", top: SIDEBAR_HEADER_WITH_FIELD + 6, left: layout.sidebarInset }}>
+                        <ProfileIndicator room={width - 2 * layout.sidebarInset} expanded sidebarRow />
                       </View>
                     ) : null}
                   </>

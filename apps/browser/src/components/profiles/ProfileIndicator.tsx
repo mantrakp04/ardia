@@ -3,10 +3,12 @@ import { Pressable, View } from "react-native";
 import { profileNameColor, useTheme } from "../ui/theme";
 import { useIsIncognito, useProfiles, useWindowId, useWindowProfile } from "../../state/browser/hooks";
 import { setMeasuredWidth, useMeasuredWidth } from "../../state/windows/measuredWidths";
-import { ContextMenuArea, radius, Text, useHover } from "../ui";
+import { ContextMenuArea, radius, space, Symbol, Text, useHover } from "../ui";
 import { openProfileItemMenu } from "./profileMenu";
 import { openProfileMenu } from "../../state/browser/actions";
 
+import { profileMark } from "../../lib/profileInitial";
+import { SwitcherMark } from "./ProfileIcons";
 import { profileIndicatorLayout } from "./profileIndicatorLayout";
 
 const HEIGHT = 34;
@@ -21,16 +23,16 @@ function useIndicator(room: number) {
   const textWidth = useMeasuredWidth(`profile-name|${title}`);
   const { shown, pad, width } = profileIndicatorLayout(room, textWidth, incognito || profiles.length >= 2);
   const color = incognito ? theme.textPrimary : profileNameColor(profile, theme.dark);
-  return { incognito, title, textWidth, shown, pad, width, color, profileId: profile.id };
+  return { incognito, title, textWidth, shown, pad, width, color, profileId: profile.id, mark: profileMark(profile) };
 }
 
 export const useProfileIndicatorWidth = (room: number) => useIndicator(room).width;
 
-export function ProfileIndicator({ room, expanded = false }: { room: number; expanded?: boolean }) {
+export function ProfileIndicator({ room, expanded = false, sidebarRow = false }: { room: number; expanded?: boolean; sidebarRow?: boolean }) {
   const theme = useTheme();
   const windowId = useWindowId();
   const { hovered, hoverProps } = useHover();
-  const { incognito, title, textWidth, shown, pad, width, color, profileId } = useIndicator(room);
+  const { incognito, title, textWidth, shown, pad, width, color, profileId, mark } = useIndicator(room);
   const indicator = useRef<View>(null);
   if (!shown) return null;
 
@@ -56,16 +58,19 @@ export function ProfileIndicator({ room, expanded = false }: { room: number; exp
                 borderRadius: radius.chrome,
                 flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
-                paddingHorizontal: pad,
+                justifyContent: sidebarRow ? "flex-start" : "center",
+                paddingHorizontal: sidebarRow ? space.m : pad,
+                gap: sidebarRow ? space.m : 0,
                 backgroundColor: incognito ? undefined : pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
               }}
             >
+              {sidebarRow ? <View style={{ width: 16, height: 20, alignItems: "center", justifyContent: "center" }}><SwitcherMark icon={mark} color={color} scale={0.875} /></View> : null}
               {textWidth ? (
-                <Text numberOfLines={1} ellipsizeMode="tail" weight="semibold" style={{ flexShrink: 1, color }}>
+                <Text numberOfLines={1} ellipsizeMode="tail" weight="semibold" style={{ flexShrink: 1, flexGrow: sidebarRow ? 1 : 0, color }}>
                   {title}
                 </Text>
               ) : null}
+              {sidebarRow && !incognito ? <Symbol name="chevron.down" size={10} color={theme.textSecondary} /> : null}
             </View>
           )}
         </Pressable>

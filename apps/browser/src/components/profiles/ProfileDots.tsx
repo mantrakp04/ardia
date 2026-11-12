@@ -82,7 +82,7 @@ function Dot({ id, windowId, icon, page, pos, selected }: { selected: boolean; i
             switchProfile(windowId, id, true);
           }}
         >
-          <View style={{ width: cell, height: BAND, alignItems: "center", justifyContent: "center", borderRadius: radius.chrome, backgroundColor: icon && selected ? theme.tabPressed : undefined }}>
+          <View style={{ width: icon ? BAND : cell, marginHorizontal: icon ? (cell - BAND) / 2 : 0, height: BAND, alignItems: "center", justifyContent: "center", borderRadius: radius.chrome, backgroundColor: icon && selected ? theme.tabPressed : undefined }}>
             <Animated.View style={{ opacity }}>
               <SwitcherMark icon={icon} color={theme.mark} />
             </Animated.View>
