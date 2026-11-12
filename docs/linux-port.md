@@ -90,9 +90,10 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   below: Views and Aura targeting on the shell, plus `BrowserView::ShouldDescendIntoChildForEventHandling` for drag and
   drop (`chromium-linux-shell-above-input.patch`). An overlay that newly covers a page stays hidden until its region is
   acknowledged, so a press on its first frame can't reach the page.
-- **Glass panels.** Menus, hover cards, the command panel, popovers, the extension popup's panel and the sidebar peek
-  can be translucent over the live page. Every other panel, and every control, keeps the opaque fallback, and
-  `isLiquidGlass` stays off.
+- **Glass panels.** Menus, hover cards, the command panel, popovers and the extension popup's panel can be
+  translucent over the live page. Every other panel, and every control, keeps the opaque fallback, and
+  `isLiquidGlass` stays off. The sidebar peek's panel opts in too, but the peek covers it with the window's opaque
+  gradient, which is never cut out of the page (see Upstream syncs, the two-tone strip).
   - **Native blur.** The shell sends the glass rects it wants (`shell.glassRegions`: id, rect, per-corner radii, blur
     24, opacity, in shell CSS px, with a generation). The engine draws one transparent layer per region with a backdrop
     blur and plain circular corners (`ShellGlassView`, `ac_linux_glass.cc`). It answers with the regions it applied and later reports `presented` for that generation. A shell
@@ -1018,6 +1019,20 @@ It works as on the Mac ([cli.md](cli.md), [automation.md](automation.md)); what 
 ## Upstream syncs
 
 Newest first. Each entry names the upstream commit `linux-support` was rebased onto and what the Linux side needed.
+
+- **2026-11-12, still upstream 42c6291: the sidebar peek's two-tone strip** (no rebase). jreyes138 reported on #622
+  that the revealed strip sometimes looked two-toned with a non-Neutral accent. The peek draws its own window backdrop,
+  the opaque display-p3 gradient, over a panel filled with the flat sRGB `windowTint[0]`. On Linux every
+  `WindowBackdrop` registered as a page-hole layer, so the page rect was cut out of the peek's backdrop too. Over the
+  page the panel showed through, and the strip split at the toolbar's bottom edge. The hole was also measured while
+  the peek slid in and never again, so it landed 100 to 160 px off and split the strip side by side by a different
+  amount each reveal. Saturated accents made the two fills different hues. Decision (owner): the peek keeps the
+  opaque window gradient, as on the Mac, rather than turning translucent over the page. `SidebarDock` takes its
+  `WindowBackdrop` from `glassUi.tsx` under `AbovePages`, and `usePageHoleLayer` skips such layers (`shellAbove.ts`).
+  UI only: the engine key stays `087c111e94fc`. Verified in a headless Sway with `grim` on a real page, before and
+  after: left sidebar in dark and light with orange, green and Neutral, and a right sidebar in dark and light with
+  orange. After the fix every row across the strip matches within 1 per channel. No telemetry: a paint mismatch has
+  no field signal.
 
 - **2026-11-12, still upstream 42c6291: the sidebar-edge watch** (no rebase). jreyes138 reported on #622 that with
   Auto-hide tabs on and Sidebar position set to Right, the strip could never be revealed: the engine advertised only
