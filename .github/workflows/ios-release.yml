@@ -4,10 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: status lists what App Store Connect holds; nothing is built or uploaded
+        description: status lists what App Store Connect holds; dry-run builds and signs; upload sends the build to TestFlight
         type: choice
-        options: [status]
+        options: [status, dry-run, upload]
         default: status
+      build:
+        description: Build number (empty takes the one after the highest uploaded)
+        type: string
+        default: ""
+      default_browser:
+        description: Sign with the default-browser entitlement (only once Apple has granted it)
+        type: boolean
+        default: false
 
 concurrency:
   group: ios-release
@@ -39,3 +47,76 @@ jobs:
           (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
           trap 'rm -f "$key"' EXIT
           ASC_KEY="$key" node apps/ios/scripts/asc.mjs status | tee -a "$GITHUB_STEP_SUMMARY"
+
+  release:
+    if: inputs.mode != 'status'
+    runs-on: xcode-27
+    timeout-minutes: 120
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      ASC_KEY: ${{ github.workspace }}/.ci/asc/AuthKey.p8
+      ASC_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+      ASC_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+      OUT: ${{ github.workspace }}/.ci/ios-release
+      MODE: ${{ inputs.mode }}
+      BUILD_INPUT: ${{ inputs.build }}
+      DEFAULT_BROWSER: ${{ inputs.default_browser }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: Toolchain
+        run: xcodebuild -version
+      - name: App Store Connect key
+        env:
+          ASC_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$ASC_KEY")" && chmod 700 "$(dirname "$ASC_KEY")"
+          (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -D > "$ASC_KEY")
+          grep -q 'BEGIN PRIVATE KEY' "$ASC_KEY" || { echo "::error::NOTARY_KEY_P8 isn't a base64 .p8 key"; exit 1; }
+          node apps/ios/scripts/asc.mjs certificates --save "$(dirname "$ASC_KEY")/certificates.json"
+      - id: plan
+        name: Build number
+        run: |
+          set -euo pipefail
+          build="$BUILD_INPUT"
+          [ -n "$build" ] || build="$(node apps/ios/scripts/asc.mjs next-build)"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "### Ardia for iPhone, build $build ($MODE)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive, sign${{ inputs.mode == 'upload' && ', upload' || '' }}
+        env:
+          BUILD: ${{ steps.plan.outputs.build }}
+        run: |
+          set -euo pipefail
+          args=("$BUILD" --out "$OUT")
+          [ "$MODE" = upload ] || args+=(--no-upload)
+          [ "$DEFAULT_BROWSER" != true ] || args+=(--default-browser)
+          scripts/release-ios.sh "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: inputs.mode == 'upload'
+        name: Wait for App Store Connect to process the build
+        env:
+          BUILD: ${{ steps.plan.outputs.build }}
+        run: node apps/ios/scripts/asc.mjs wait --build "$BUILD" --timeout 2400 | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        name: Revoke this run's development certificate
+        run: |
+          snapshot="$(dirname "$ASC_KEY")/certificates.json"
+          [ ! -f "$snapshot" ] || node apps/ios/scripts/asc.mjs certificates --revoke-new-since "$snapshot" || echo "::warning::couldn't revoke this run's development certificate"
+      - if: always()
+        name: Remove the key
+        run: |
+          rm -rf "$(dirname "$ASC_KEY")"
+          [ ! -e "$ASC_KEY" ] || { echo "::error::couldn't remove the App Store Connect key"; exit 1; }
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ios-release-logs
+          path: |
+            ${{ github.workspace }}/.ci/ios-release/*.log
+            ${{ github.workspace }}/.ci/ios-release/export/*.plist
+          if-no-files-found: ignore
+          retention-days: 14

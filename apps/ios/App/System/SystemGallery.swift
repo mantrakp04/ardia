@@ -6,7 +6,7 @@
 
   @MainActor
   enum SystemDebugHooks {
-    static let log = Logger(subsystem: "com.ardia.ios", category: "system")
+    static let log = Logger(subsystem: "com.ardia.browser.ios", category: "system")
 
     static func run(app: AppModel, open: (URL) -> Void) async {
       let arguments = ProcessInfo.processInfo.arguments
