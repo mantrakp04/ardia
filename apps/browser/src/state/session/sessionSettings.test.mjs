@@ -33,6 +33,7 @@ for (const version of [3, 4, 7]) {
       S().hydrate(loadSession());
       assert.deepEqual(loaded(), BEFORE[name]);
       assert.equal("chosen" in S().settings || "inferred" in S().settings, false);
+      assert.equal(S().settings.windowTranslucency, true);
     });
   }
 }

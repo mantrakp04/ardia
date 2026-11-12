@@ -20,5 +20,5 @@ export function launchBackdrop(s: Pick<BrowserState, "windows" | "profiles" | "u
   const dark = s.ui.appDark;
   const theme = profileColorsOf(s.profiles[w.profileId], dark, spaceLookSource(s.settings));
   if (!theme) return null;
-  return { dark, vibrancy: true, colors: theme.windowTint, ...theme.backdrop, grainOpacity: theme.grain };
+  return { dark, vibrancy: true, colors: theme.windowTint, ...theme.backdrop, backgroundBlurEnabled: s.settings.windowTranslucency && theme.backdrop.backgroundBlurEnabled, grainOpacity: theme.grain };
 }

@@ -12,6 +12,7 @@ final class WindowTreatmentView: NSView {
     didSet { if holdsKeyLook != oldValue { NotificationCenter.default.post(name: WindowActivity.changed, object: nil) } }
   }
 
+  var backgroundBlurEnabled: Bool { didSet { if backgroundBlurEnabled != oldValue { updateState() } } }
   var tint = Tint() { didSet { if tint != oldValue { updateTint() } } }
   var custom: ThemeGradient? {
     didSet {
@@ -25,7 +26,8 @@ final class WindowTreatmentView: NSView {
     }
   }
 
-  private let blur = NSVisualEffectView()
+  private var blur: NSVisualEffectView?
+  private var solid: NSView?
   private let overlay = NSView()
   private let baseTint = CALayer()
   private let gradient = CAGradientLayer()
@@ -33,11 +35,9 @@ final class WindowTreatmentView: NSView {
   private let grain = GrainLayer()
   private lazy var activity = WindowActivity { [weak self] in self?.updateGrain() }
 
-  override init(frame: NSRect) {
+  init(frame: NSRect, backgroundBlurEnabled: Bool = true) {
+    self.backgroundBlurEnabled = backgroundBlurEnabled
     super.init(frame: frame)
-    blur.blendingMode = .behindWindow
-    blur.isEmphasized = true
-    updateState()
     NotificationCenter.default.addObserver(self, selector: #selector(updateState), name: WindowActivity.changed, object: nil)
     overlay.wantsLayer = true
     for layer in [baseTint, gradient, themeLayer, grain] as [CALayer] { overlay.layer?.addSublayer(layer) }
@@ -48,8 +48,8 @@ final class WindowTreatmentView: NSView {
     for layer in [baseTint, gradient] as [CALayer] {
       layer.actions = ["bounds": NSNull(), "position": NSNull(), "backgroundColor": NSNull(), "colors": NSNull(), "opacity": NSNull(), "hidden": NSNull()]
     }
-    addSubview(blur)
     addSubview(overlay)
+    updateState()
     updateAppearance()
     updateTint()
   }
@@ -60,7 +60,8 @@ final class WindowTreatmentView: NSView {
 
   override func layout() {
     super.layout()
-    blur.frame = bounds
+    blur?.frame = bounds
+    solid?.frame = bounds
     overlay.frame = bounds
     for layer in [baseTint, gradient, themeLayer, grain] as [CALayer] { layer.frame = overlay.bounds }
     themeLayer.flipped = overlay.isFlipped
@@ -85,14 +86,48 @@ final class WindowTreatmentView: NSView {
   private var showsKeyLook: Bool { WindowActivity.override == true || (Self.holdsKeyLook && custom != nil) }
 
   @objc private func updateState() {
-    blur.state = showsKeyLook ? .active : .followsWindowActiveState
+    if backgroundBlurEnabled {
+      solid?.removeFromSuperview()
+      if blur == nil {
+        let view = NSVisualEffectView()
+        view.blendingMode = .behindWindow
+        view.isEmphasized = true
+        blur = view
+      }
+      blur?.state = showsKeyLook ? .active : .followsWindowActiveState
+      if let blur {
+        blur.frame = bounds
+        if blur.superview !== self { addSubview(blur, positioned: .below, relativeTo: overlay) }
+      }
+    } else {
+      blur?.removeFromSuperview()
+      if solid == nil {
+        let view = NSView()
+        view.wantsLayer = true
+        view.layer?.isOpaque = true
+        view.layer?.actions = ["bounds": NSNull(), "position": NSNull(), "backgroundColor": NSNull()]
+        solid = view
+      }
+      if let solid {
+        solid.frame = bounds
+        if solid.superview !== self { addSubview(solid, positioned: .below, relativeTo: overlay) }
+      }
+    }
+    updateBackgroundAppearance()
+  }
+
+  private func updateBackgroundAppearance() {
+    blur?.material = NSVisualEffectView.Material(rawValue: isDark ? 29 : 13) ?? .hudWindow
+    effectiveAppearance.performAsCurrentDrawingAppearance {
+      solid?.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(1).cgColor
+    }
   }
 
   private var isDark: Bool { effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua }
 
   private func updateAppearance() {
     let dark = isDark
-    blur.material = NSVisualEffectView.Material(rawValue: dark ? 29 : 13) ?? .hudWindow
+    updateBackgroundAppearance()
     gradient.opacity = dark ? 0.5 : 0.75
     let base = dark ? NSColor(white: 0, alpha: 0.4) : NSColor(white: 1, alpha: 0.8)
     baseTint.backgroundColor = (custom.map { (dark ? NSColor.black : NSColor.white).withAlphaComponent($0.baseAlpha) } ?? base).cgColor

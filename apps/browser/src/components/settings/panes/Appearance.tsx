@@ -5,7 +5,7 @@ import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { AmountSlider } from "../ThemeControls";
@@ -37,6 +37,7 @@ export function AppearancePane() {
           ))}
         </Box>
         <Group>
+          <SettingToggle anchor="appearance.windowTranslucency" />
           <Row anchor="appearance.spacesFollowAppearance">
             <Toggle value={spacesFollow} onChange={(v) => updateSettings({ spacesFollowAppearance: v })} />
           </Row>

@@ -28,6 +28,7 @@ type Layer = { palettes: Palettes; themes: Map<string, Theme>; custom: WeakMap<P
 
 const OWN_PALETTE: BasePalette = { revision: 0, dark: colorRoles.dark, light: colorRoles.light };
 const layers = new WeakMap<BasePalette, Layer>();
+const opaqueWindowThemes = new WeakMap<Theme, Theme>();
 
 function layerOf(base: BasePalette | null | undefined): Layer {
   const palette = base ?? OWN_PALETTE;
@@ -182,8 +183,15 @@ export function profileAccent(profile: ProfileLookFields | undefined): string {
   return (PROFILE_COLORS[profile?.color ?? "plum"] ?? PROFILE_COLORS.plum).swatch;
 }
 
-export function scopedTheme(incognito: boolean, profile: ProfileLookFields | undefined, appDark: boolean, source: LookSource, palette?: BasePalette | null, adaptTextToColor = true): Theme {
-  return incognito ? themeFor("incognito", palette) : profileTheme(profile, appDark, source, palette, adaptTextToColor);
+export function scopedTheme(incognito: boolean, profile: ProfileLookFields | undefined, appDark: boolean, source: LookSource, palette?: BasePalette | null, adaptTextToColor = true, windowTranslucency = true): Theme {
+  const theme = incognito ? themeFor("incognito", palette) : profileTheme(profile, appDark, source, palette, adaptTextToColor);
+  if (windowTranslucency || !theme.backdrop.backgroundBlurEnabled) return theme;
+  let opaque = opaqueWindowThemes.get(theme);
+  if (!opaque) {
+    opaque = { ...theme, backdrop: { ...theme.backdrop, backgroundBlurEnabled: false } };
+    opaqueWindowThemes.set(theme, opaque);
+  }
+  return opaque;
 }
 
 export function shadowOpacityOf(level: Omit<ShadowLevel, "opacity"> & { opacity: ShadowLevel["opacity"] | number }, theme: Theme): number {

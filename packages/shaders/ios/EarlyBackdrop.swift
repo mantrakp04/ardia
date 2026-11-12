@@ -11,7 +11,8 @@ public final class EarlyBackdrop: NSObject {
     if let alpha = (props["tintAlpha"] as? NSNumber)?.doubleValue { tint.alpha = alpha }
     if let lightness = (props["tintLightness"] as? NSNumber)?.doubleValue { tint.lightness = lightness }
     if (props["vibrancy"] as? NSNumber)?.boolValue ?? true {
-      let view = WindowTreatmentView(frame: .zero)
+      let blurEnabled = (props["backgroundBlurEnabled"] as? NSNumber)?.boolValue ?? true
+      let view = WindowTreatmentView(frame: .zero, backgroundBlurEnabled: blurEnabled)
       view.tint = tint
       view.custom = theme(props)
       return view

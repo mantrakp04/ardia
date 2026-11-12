@@ -30,6 +30,7 @@ public class WindowBackdropModule: Module {
     AsyncFunction("holdKeyLook") { (on: Bool) in WindowTreatmentView.holdsKeyLook = on }.runOnQueue(.main)
 
     View(WindowBackdropView.self) {
+      Prop("backgroundBlurEnabled") { (view: WindowBackdropView, enabled: Bool) in view.setBackgroundBlurEnabled(enabled) }
       Prop("colors") { (view: WindowBackdropView, colors: [String]) in view.setColors(colors) }
       Prop("vibrancy") { (view: WindowBackdropView, on: Bool) in view.setVibrancy(on) }
       Prop("tintColor") { (view: WindowBackdropView, hex: String) in
@@ -49,6 +50,7 @@ public class WindowBackdropModule: Module {
       Prop("themeTexture") { (view: WindowBackdropView, v: String) in view.setCustom { $0.texture = v } }
       Prop("themeAppearance") { (view: WindowBackdropView, v: String) in view.setCustom { $0.appearance = v } }
       Prop("themeAngle") { (view: WindowBackdropView, v: Double) in view.setCustom { $0.angle = v } }
+      OnViewDidUpdateProps { (view: WindowBackdropView) in view.propsDidUpdate() }
     }
   }
 }

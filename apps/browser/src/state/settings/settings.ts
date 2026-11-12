@@ -135,6 +135,7 @@ export const SETTING_SPECS = {
   commandBarPlacement: oneOf(["field", "centred"], "field", SYNCED),
   commandBarStart: shaped<CommandBarStart>({}, isCommandBarStart, COMMAND_BAR_START_SCHEMA),
   spacesFollowAppearance: flag(true),
+  windowTranslucency: flag(true),
   adaptTextToColor: flag(true, SYNCED),
   defaultProfileId: text(DEFAULT_PROFILE_ID),
   profileSwitcherIcons: flag(false, SYNCED),

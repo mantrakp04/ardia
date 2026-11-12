@@ -32,6 +32,7 @@ const BASE_REACH = 0.75;
 export const DEFAULT_THEME_ANGLE = 135;
 
 export const PRESET_BACKDROP: ThemeBackdropProps = {
+  backgroundBlurEnabled: true,
   themeColors: [],
   themeOpacity: 1,
   themeBaseAlpha: 0,
@@ -192,6 +193,7 @@ export function flatColors(theme: ProfileTheme): number[] {
 
 export function themeBackdrop(theme: ProfileTheme, dark: boolean): ThemeBackdropProps {
   return {
+    backgroundBlurEnabled: theme.translucency > 0,
     themeColors: flatColors(theme),
     themeOpacity: themeLayerAlpha(theme),
     themeBaseAlpha: themeUnderlayAlpha(theme, dark),

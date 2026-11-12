@@ -17,6 +17,8 @@ final class WindowBackdropView: MetalSurface {
   private var treatment: WindowTreatmentView?
   private var tint = WindowTreatmentView.Tint()
   private var custom = ThemeGradient()
+  private var vibrancy = false
+  private var backgroundBlurEnabled = true
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -33,9 +35,20 @@ final class WindowBackdropView: MetalSurface {
   }
 
   func setVibrancy(_ on: Bool) {
-    guard on != (treatment != nil) else { return }
-    if on {
-      let view = WindowTreatmentView(frame: bounds)
+    vibrancy = on
+  }
+
+  func setBackgroundBlurEnabled(_ enabled: Bool) {
+    backgroundBlurEnabled = enabled
+  }
+
+  func propsDidUpdate() {
+    if vibrancy == (treatment != nil) {
+      treatment?.backgroundBlurEnabled = backgroundBlurEnabled
+      return
+    }
+    if vibrancy {
+      let view = WindowTreatmentView(frame: bounds, backgroundBlurEnabled: backgroundBlurEnabled)
       view.tint = tint
       view.custom = custom.isEmpty ? nil : custom
       addSubview(view, positioned: .below, relativeTo: metalView)
@@ -44,7 +57,7 @@ final class WindowBackdropView: MetalSurface {
       treatment?.removeFromSuperview()
       treatment = nil
     }
-    if on {
+    if vibrancy {
       metalView.isHidden = true
       metalView.autoResizeDrawable = false
       metalView.drawableSize = CGSize(width: 1, height: 1)
