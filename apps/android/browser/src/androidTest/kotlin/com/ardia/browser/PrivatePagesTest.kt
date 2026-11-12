@@ -23,7 +23,10 @@ class PrivatePagesTest {
                 headers = mapOf("Set-Cookie" to "jar=$value; Path=/"),
             )
         }
-        server.page("/read", "<script>document.title = 'read:' + document.cookie + ':' + (localStorage.getItem('k') || '')</script>")
+        server.page(
+            "/read",
+            "<script>document.title = 'read:' + location.search.slice(1) + ':' + document.cookie + ':' + (localStorage.getItem('k') || '')</script>",
+        )
         harness.onMainSuspending { harness.engine.clearWebsiteData(setOf(WebsiteDataKind.CookiesAndSiteData, WebsiteDataKind.Cache)) }
     }
 
@@ -31,8 +34,10 @@ class PrivatePagesTest {
     fun tearDown() = harness.close()
 
     private fun read(page: Page): String {
-        harness.load(page, "/read?${System.nanoTime()}")
-        return harness.await(page.state) { it.title.startsWith("read:") && !it.isLoading }.title
+        val token = System.nanoTime().toString()
+        harness.load(page, "/read?$token")
+        val title = harness.await(page.state) { it.title.startsWith("read:$token:") && !it.isLoading }.title
+        return "read:" + title.removePrefix("read:$token:")
     }
 
     private fun set(page: Page, value: String) {

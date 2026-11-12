@@ -371,7 +371,8 @@ internal class WebViewPage(
     private fun restore(web: WebView, saved: Bundle, url: String?): Boolean {
         url?.let { prepareNavigation(web, it) }
         pendingVisit = VisitKind.Restored
-        if (web.restoreState(saved) != null) return true
+        val restored = web.restoreState(saved)
+        if (restored != null && restored.currentItem != null) return true
         pendingVisit = null
         return false
     }
@@ -442,7 +443,6 @@ internal class WebViewPage(
         val host = BrowserUrl.host(url)
         if (!engine.supportsMessageListener) applyNightShade(web, engine.sitePreferences.nightShade(host, isPrivate))
         scrollTracker.reset()
-        blockedCount.set(0)
         val zoom = engine.sitePreferences.pageZoom(host, isPrivate) ?: 1.0
         web.settings.textZoom = (zoom * 100).roundToInt()
         val keepsFailure = failedUrl != null && BrowserUrl.withoutFragment(failedUrl!!) == BrowserUrl.withoutFragment(url)
@@ -461,7 +461,7 @@ internal class WebViewPage(
                 backgroundColor = null,
                 scrollDirection = ScrollDirection.Up,
                 isScrolledToTop = true,
-                blockedRequests = 0,
+                blockedRequests = blockedCount.get(),
                 pageZoom = zoom,
             )
         }
@@ -565,8 +565,18 @@ internal class WebViewPage(
         }
     }
 
+    internal fun startDocumentRequests() {
+        sawInsecureContent = false
+        blockedCount.set(0)
+        scheduleBlockedFlush()
+    }
+
     internal fun countBlocked() {
         blockedCount.incrementAndGet()
+        scheduleBlockedFlush()
+    }
+
+    private fun scheduleBlockedFlush() {
         if (!blockedFlushPending.compareAndSet(false, true)) return
         engine.mainHandler.postDelayed({
             blockedFlushPending.set(false)

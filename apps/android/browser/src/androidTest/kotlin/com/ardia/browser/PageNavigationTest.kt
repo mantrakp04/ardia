@@ -55,7 +55,7 @@ class PageNavigationTest {
 
     @Test
     fun aLinkTheScriptFollowsIsALinkVisit() {
-        server.page("/start", "<title>Start</title><script>setTimeout(() => location.href = '/next', 2000)</script>")
+        server.page("/start", "<title>Start</title><script>setTimeout(() => location.href = '/next', 5000)</script>")
         server.page("/next", "<title>Next</title>")
         val page = harness.open("tab", "/start")
         harness.awaitTitle(page, "Start")
@@ -136,7 +136,7 @@ class PageNavigationTest {
             limited.awaitTitle(second, "C")
             assertFalse(first.state.value.isLive)
             assertNull(first.view.value)
-            assertEquals(listOf("second"), limited.engine.livePageIds)
+            assertEquals(listOf("second"), onMain { limited.engine.livePageIds })
             assertNotNull(onMain { first.saveState() })
 
             limited.open("first")

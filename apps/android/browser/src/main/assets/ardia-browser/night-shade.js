@@ -49,7 +49,7 @@
   window.__ardiaNightShade = (next) => { mode = next; evaluate(); };
   prefersDark.addEventListener("change", evaluate);
   const ask = async () => {
-    try { mode = await new Promise((resolve) => { const bridge = window.ardiaPage; bridge.addEventListener("message", function answer(event) { bridge.removeEventListener("message", answer); resolve(event.data); }); bridge.postMessage("nightShade"); }) || "disabled"; } catch (e) { mode = "disabled"; }
+    if (window.ardiaPage) try { mode = await new Promise((resolve) => { const bridge = window.ardiaPage; bridge.addEventListener("message", function answer(event) { bridge.removeEventListener("message", answer); resolve(event.data); }); bridge.postMessage("nightShade"); }) || "disabled"; } catch (e) { mode = "disabled"; }
     evaluate();
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ask, { once: true });

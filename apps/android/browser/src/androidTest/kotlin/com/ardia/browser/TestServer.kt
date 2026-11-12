@@ -21,13 +21,18 @@ class TestServer : AutoCloseable {
     private val socket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
     private val routes = Collections.synchronizedMap(HashMap<String, (Request) -> Response>())
     val requests: MutableList<Request> = Collections.synchronizedList(ArrayList())
+    val failures: MutableList<Throwable> = Collections.synchronizedList(ArrayList())
     val port: Int get() = socket.localPort
 
     init {
         thread(isDaemon = true, name = "test-server") {
             while (!socket.isClosed) {
-                val client = runCatching { socket.accept() }.getOrNull() ?: break
-                thread(isDaemon = true) { serve(client) }
+                val client = try {
+                    socket.accept()
+                } catch (error: Exception) {
+                    break
+                }
+                thread(isDaemon = true, name = "test-server-connection") { serveSafely(client) }
             }
         }
     }
@@ -44,7 +49,16 @@ class TestServer : AutoCloseable {
 
     fun requested(path: String): Boolean = synchronized(requests) { requests.any { it.path.substringBefore('?') == path } }
 
-    private fun serve(client: Socket) = client.use {
+    private fun serveSafely(client: Socket) {
+        try {
+            client.use { serve(it) }
+        } catch (error: Throwable) {
+            failures += error
+        }
+    }
+
+    private fun serve(client: Socket) {
+        client.soTimeout = READ_TIMEOUT_MILLIS
         val reader = BufferedReader(InputStreamReader(client.getInputStream(), Charsets.ISO_8859_1))
         val line = reader.readLine() ?: return
         val parts = line.split(' ')
@@ -77,6 +91,10 @@ class TestServer : AutoCloseable {
     }
 
     override fun close() {
-        socket.close()
+        runCatching { socket.close() }
+    }
+
+    private companion object {
+        const val READ_TIMEOUT_MILLIS = 15_000
     }
 }

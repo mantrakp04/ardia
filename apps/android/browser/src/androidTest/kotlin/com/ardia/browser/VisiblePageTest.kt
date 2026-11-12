@@ -4,6 +4,7 @@ import android.graphics.Color
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -52,29 +53,33 @@ class VisiblePageTest {
         harness.show(page)
         harness.awaitTitle(page, "Red")
         assertEquals(PageColors.opaque(208, 16, 16), harness.await(page.state) { it.backgroundColor != null }.backgroundColor)
-        Thread.sleep(800)
-        val snapshot = harness.onMainSuspending { page.snapshot(300) }
-        assertNotNull(snapshot)
-        assertTrue(snapshot!!.width <= 300)
-        val center = snapshot.getPixel(snapshot.width / 2, snapshot.height / 2)
-        assertTrue(Color.red(center) > 180 && Color.green(center) < 60)
-        val tone = harness.onMainSuspending { page.sampleTone(0, 0) }!!
-        assertTrue(Color.red(tone.top!!) > 180 && Color.green(tone.top!!) < 60)
-        assertTrue(Color.red(tone.bottom!!) > 180)
+        val snapshot = harness.poll(intervalMillis = 250) {
+            harness.onMainSuspending { page.snapshot(300) }?.takeIf { isRed(it.getPixel(it.width / 2, it.height / 2)) }
+        }
+        assertTrue(snapshot.width <= 300)
+        val tone = harness.onMainSuspending { page.sampleTone(0, 0) }
+        assertNotNull(tone)
+        assertTrue(isRed(tone!!.top!!))
+        assertTrue(isRed(tone.bottom!!))
     }
 
     @Test
     fun scrollingDownAndBackReportsTheDirection() {
         server.page(
             "/long",
-            "<title>Long</title><meta name=\"viewport\" content=\"width=device-width\"><div style=\"height:6000px\">tall</div>" +
-                "<script>setTimeout(() => window.scrollTo(0, 800), 1000); setTimeout(() => window.scrollTo(0, 0), 3000)</script>",
+            "<title>Long</title><meta name=\"viewport\" content=\"width=device-width\"><div style=\"height:6000px\">tall</div>",
         )
         val page = harness.open("tab", "/long")
         harness.show(page)
         harness.awaitTitle(page, "Long")
-        val down = harness.await(page.state) { it.scrollDirection == ScrollDirection.Down }
-        assertTrue(!down.isScrolledToTop)
+        val down = harness.poll(intervalMillis = 250) {
+            onMain { page.view.value?.scrollTo(0, 800) }
+            page.state.value.takeIf { it.scrollDirection == ScrollDirection.Down }
+        }
+        assertFalse(down.isScrolledToTop)
+        onMain { page.view.value?.scrollTo(0, 0) }
         harness.await(page.state) { it.scrollDirection == ScrollDirection.Up && it.isScrolledToTop }
     }
+
+    private fun isRed(color: Int): Boolean = Color.red(color) > 180 && Color.green(color) < 60 && Color.blue(color) < 60
 }

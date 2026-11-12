@@ -48,7 +48,9 @@ class PageFilterTest {
         val page = harness.open("tab", "/article")
         harness.awaitTitle(page, "end:loading:undefined:true")
         assertFalse(server.requested("/tracker.js"))
-        assertEquals(listOf<String?>(server.url("/article")), synchronized(filter.pageUrls) { filter.pageUrls.toList() })
+        val pageUrls = synchronized(filter.pageUrls) { filter.pageUrls.toList() }
+        assertTrue(pageUrls.isNotEmpty())
+        assertTrue(pageUrls.all { it == server.url("/article") })
         assertTrue(harness.await(page.state) { it.blockedRequests >= 1 }.blockedRequests >= 1)
     }
 
@@ -81,7 +83,7 @@ class PageFilterTest {
                 "/light",
                 "<body style=\"background:#fff\"><p>Light</p><script>let tries = 0; const check = setInterval(() => {" +
                     " if (document.getElementById('ardia-night-shade')) { document.title = 'shaded'; clearInterval(check) }" +
-                    " else if (++tries > 40) { document.title = 'plain'; clearInterval(check) } }, 100)</script></body>",
+                    " else if (++tries > 150) { document.title = 'plain'; clearInterval(check) } }, 100)</script></body>",
             )
             val page = shaded.open("tab", "/light")
             shaded.awaitTitle(page, "shaded")

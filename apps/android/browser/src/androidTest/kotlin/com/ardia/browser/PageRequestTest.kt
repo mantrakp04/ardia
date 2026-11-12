@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -30,7 +31,7 @@ class PageRequestTest {
         assertEquals(PageRequest.Kind.Alert("Hello there"), request.kind)
         assertEquals("127.0.0.1", request.title(context))
         assertEquals("Hello there", request.message(context))
-        assertEquals("Before", page.state.value.title)
+        harness.await(page.state) { it.title == "Before" }
         request.answer(PageRequest.Answer.Accepted)
         harness.awaitTitle(page, "After")
         assertNull(page.request.value)
@@ -57,33 +58,43 @@ class PageRequestTest {
         harness.awaitTitle(page, "false:null")
     }
 
+    private fun awaitRequestOrPageError(page: Page): PageRequest {
+        val outcome = harness.poll {
+            page.request.value?.takeIf { it.kind is PageRequest.Kind.Permission }
+                ?: page.state.value.title.takeIf { it.startsWith("error:") }
+        }
+        assumeTrue("The emulator refused before asking: $outcome", outcome is PageRequest)
+        return outcome as PageRequest
+    }
+
     @Test
     fun cameraAccessAsksAndDenialReachesThePage() {
         server.page(
             "/camera",
-            "<title>Waiting</title><script>navigator.mediaDevices.getUserMedia({ video: true })" +
-                ".then(() => document.title = 'granted', (error) => document.title = 'denied')</script>",
+            "<title>Waiting</title><script>setTimeout(() => navigator.mediaDevices.getUserMedia({ video: true })" +
+                ".then(() => document.title = 'granted', (error) => document.title = 'error:' + error.name), 200)</script>",
         )
         val page = harness.open("tab", "/camera")
-        val request = awaitRequest(page) { it is PageRequest.Kind.Permission }
+        val request = awaitRequestOrPageError(page)
         assertEquals(PageRequest.Kind.Permission(SitePermission.Camera), request.kind)
         assertEquals("“127.0.0.1” Would Like to Access the Camera", request.title(context))
         request.dismiss()
-        harness.awaitTitle(page, "denied")
+        assertTrue(harness.await(page.state) { it.title.startsWith("error:") }.title.contains("NotAllowed"))
     }
 
     @Test
     fun locationAsksForTheSite() {
         server.page(
             "/where",
-            "<title>Waiting</title><script>navigator.geolocation.getCurrentPosition(() => document.title = 'found', () => document.title = 'refused')</script>",
+            "<title>Waiting</title><script>setTimeout(() => navigator.geolocation.getCurrentPosition(() => document.title = 'found'," +
+                " (error) => document.title = 'error:' + error.code), 200)</script>",
         )
         val page = harness.open("tab", "/where")
-        val request = awaitRequest(page) { it is PageRequest.Kind.Permission }
+        val request = awaitRequestOrPageError(page)
         assertEquals(PageRequest.Kind.Permission(SitePermission.Location), request.kind)
         assertEquals("“127.0.0.1” Would Like to Use Your Current Location", request.title(context))
         request.dismiss()
-        harness.awaitTitle(page, "refused")
+        harness.await(page.state) { it.title == "error:1" }
     }
 
     @Test

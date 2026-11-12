@@ -45,14 +45,19 @@ internal class WebViewPageClient(private val page: WebViewPage) : WebViewClient(
         val uri = request.url
         if (isMainFrame) {
             page.filterPageUrl = uri.toString()
-            page.sawInsecureContent = false
+            page.startDocumentRequests()
         } else if (!page.sawInsecureContent && uri.scheme == "http" && BrowserUrl.isSecure(page.filterPageUrl)) {
             page.sawInsecureContent = true
             page.noteInsecureContent()
         }
         val filter = page.engine.filter ?: return null
         val requestUrl = uri.toString()
-        if (!filter.blocks(requestUrl, if (isMainFrame) requestUrl else page.filterPageUrl, isMainFrame)) return null
+        val blocked = try {
+            filter.blocks(requestUrl, if (isMainFrame) requestUrl else page.filterPageUrl, isMainFrame)
+        } catch (error: RuntimeException) {
+            false
+        }
+        if (!blocked) return null
         page.countBlocked()
         return WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
     }

@@ -76,6 +76,15 @@ class PageHarness(preferences: SitePreferences = RecordingPreferences(), liveLim
 
     fun awaitTitle(page: Page, title: String): PageState = await(page.state) { it.title == title && !it.isLoading }
 
+    fun <T : Any> poll(timeoutMillis: Long = 20_000, intervalMillis: Long = 100, probe: () -> T?): T {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        while (true) {
+            probe()?.let { return it }
+            if (System.currentTimeMillis() > deadline) throw AssertionError("Nothing matched within $timeoutMillis ms")
+            Thread.sleep(intervalMillis)
+        }
+    }
+
     inline fun <reified E : PageEvent> expectEvent(page: Page, crossinline matches: (E) -> Boolean = { true }): Deferred<E> =
         scope.async(start = CoroutineStart.UNDISPATCHED) { page.events.first { it is E && matches(it) } as E }
 
