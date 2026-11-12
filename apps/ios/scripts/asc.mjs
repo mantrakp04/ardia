@@ -12,6 +12,7 @@ const HELP = `App Store Connect, for the iPhone app's TestFlight builds.
   node apps/ios/scripts/asc.mjs certificates --new-since <file>
   node apps/ios/scripts/asc.mjs certificates --create <request.csr> --out <file.cer>
   node apps/ios/scripts/asc.mjs public-link --build <number> [--what-to-test <file>] [--privacy-policy <url>]
+  node apps/ios/scripts/asc.mjs add-tester --email <address> [--group <name>]
 
 Reads the API key from ASC_KEY (path to AuthKey_<id>.p8), ASC_KEY_ID and ASC_ISSUER.
 status lists what the key can see: the app record, the App IDs and their capabilities,
@@ -23,7 +24,9 @@ the team's certificate ids; --new-since fails when a development certificate was
 then, which means the archive didn't sign with the stored one. --create makes a development
 certificate from a signing request and writes it to --out. public-link puts a build in the
 external tester group (made with a public link if it doesn't exist), sets its What to Test
-text, submits it for Beta App Review and prints the link.`;
+text, submits it for Beta App Review and prints the link. add-tester invites an email address
+to an external tester group (Public Testers unless --group names another); TestFlight emails
+the invite once the group has an approved build.`;
 
 const BUNDLE_PREFIX = "com.ardia.browser.ios";
 const DEVELOPMENT_CERTIFICATES = new Set(["DEVELOPMENT", "IOS_DEVELOPMENT"]);
@@ -466,8 +469,39 @@ async function publicLink(args) {
   console.log(`public link: ${after[0].attributes.publicLink ?? "none yet"}`);
 }
 
+async function addTester(args) {
+  const email = option(args, "--email")?.trim().toLowerCase();
+  const groupName = option(args, "--group") ?? PUBLIC_GROUP;
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    console.error("asc: add-tester needs --email <address>");
+    process.exit(64);
+  }
+  const app = await requireApp();
+  const { rows: groups } = await get(`/v1/apps/${app.id}/betaGroups`, { "fields[betaGroups]": "name,isInternalGroup" });
+  const group = groups.find((row) => !row.attributes.isInternalGroup && row.attributes.name === groupName);
+  if (!group) {
+    console.error(`asc: no external group named ${groupName}; run public-link first`);
+    process.exit(1);
+  }
+  const { rows: existing } = await get("/v1/betaTesters", { "filter[email]": email, "fields[betaTesters]": "state", limit: "10" });
+  if (existing.length === 0) {
+    await post("/v1/betaTesters", {
+      data: { type: "betaTesters", attributes: { email }, relationships: { betaGroups: { data: [{ type: "betaGroups", id: group.id }] } } },
+    });
+    console.log(`tester invited to ${groupName}`);
+  } else {
+    await unlessAlready(
+      () => post(`/v1/betaGroups/${group.id}/relationships/betaTesters`, { data: [{ type: "betaTesters", id: existing[0].id }] }),
+      "tester already in the group",
+    );
+    console.log(`tester (${existing[0].attributes.state ?? "?"}) is in ${groupName}`);
+  }
+  const { rows: testers } = await get(`/v1/betaGroups/${group.id}/betaTesters`, { "fields[betaTesters]": "state", limit: "200" });
+  console.log(`${groupName} now has ${testers.length} testers`);
+}
+
 const [command, ...args] = process.argv.slice(2);
-const commands = { status, builds, wait, certificates, "next-build": nextBuild, "public-link": publicLink };
+const commands = { status, builds, wait, certificates, "next-build": nextBuild, "public-link": publicLink, "add-tester": addTester };
 if (!command || command === "-h" || command === "--help" || !commands[command]) {
   console.log(HELP);
   process.exit(command && commands[command] === undefined && command !== "-h" && command !== "--help" ? 64 : 0);
