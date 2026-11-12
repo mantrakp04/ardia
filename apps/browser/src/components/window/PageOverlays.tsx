@@ -3,6 +3,7 @@ import { Animated, StyleSheet, type ViewStyle } from "react-native";
 import { ENGINE_OFFER_WIDTH, EngineOfferPrompt } from "../site/EnginePrompt";
 import { useTabValue } from "../../state/tabs/tabWatch";
 import { CliControlPill } from "./CliControlPill";
+import { LoadingPill } from "./LoadingPill";
 import { NewTabNotice } from "./NewTabNotice";
 import { FindBar } from "../find/FindBar";
 import { POPOVER_MARGIN } from "../ui";
@@ -58,6 +59,7 @@ export function PageOverlays({
         <StatusBubble tabId={tabId} maxWidth={Math.max(160, width / 2)} />
       </Animated.View>
       <SadTab tabId={tabId} />
+      {!newTabShown && <LoadingPill tabId={tabId} />}
       {cliPill && <CliControlPill style={statusStyle} />}
       {!newTabShown && <PermissionPrompt tabId={tabId} {...at("prompt", PERMISSION_PROMPT_WIDTH)} />}
       <PasswordPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />

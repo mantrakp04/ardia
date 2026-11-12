@@ -31,7 +31,6 @@ import { ZoomIndicator } from "../site/ZoomControls";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { curve } from "../ui/motion";
 import { HistoryButton, ReloadButton } from "./NavButtons";
-import { ProgressBar, TabProgressBar } from "./ProgressBar";
 import { TOOLBAR_MOTION } from "./tokens";
 import { useToolbarRow } from "./useToolbarRow";
 
@@ -133,7 +132,6 @@ export function Toolbar({
       </Animated.View>
 
       {tab.url && !bare ? <Divider color={palette.divider} style={BOTTOM_LINE} /> : null}
-      {isLoading && <TabProgressBar key={tabId} tabId={tabId} color={palette.background ? palette.icon : theme.accent} />}
     </View>
   );
 }
@@ -230,7 +228,7 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
   );
 });
 
-export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, windowId, onFocus, height, progress, accessory }: UrlFieldProps & { height: number; progress: number | null; accessory: ReactNode }) {
+export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, windowId, onFocus, height, accessory }: UrlFieldProps & { height: number; accessory: ReactNode }) {
   const theme = useTheme();
   const field = useUrlField(tab, windowId, onFocus);
   const { insecure, hovered, popover, toggleSiteControls } = field;
@@ -261,11 +259,6 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
           {hovered && <PageButton tab={tab} palette={palette} windowId={windowId} />}
         </FieldButtons>
       </ToolbarRowContext.Provider>
-      {progress !== null ? (
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: SIDEBAR_FIELD.radius, overflow: "hidden" }]}>
-          <ProgressBar progress={progress} color={theme.accent} />
-        </View>
-      ) : null}
     </View>
   );
 });

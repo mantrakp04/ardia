@@ -6,7 +6,6 @@ import { useActiveTabId, useSettings, useSidebarSide, useTabLive, useWindowFullS
 import { toggleSidebar } from "../../state/windows/actions";
 import { openEmptySidebarField } from "../../state/omnibox/barState";
 import { isAddressBarInSidebar } from "../../state/sidebar/current";
-import { usePageProgress } from "../../state/tabs/pageProgress";
 import { extensionsFitting, ToolbarExtensions, useToolbarExtensionsWidth } from "../extensions/ToolbarExtensions";
 import { useHistoryAvailability } from "../../state/tabs/navigation";
 import { toolbarPalette, type ToolbarPalette } from "../ui/toolbarColors";
@@ -125,9 +124,6 @@ const HOST_ROOM = 84;
 
 function PageField({ tab, windowId, width }: { tab: NonNullable<ReturnType<typeof useToolbarTab>>; windowId: string; width: number }) {
   const palette = toolbarPalette(useTheme(), null);
-  const loading = useTabLive(tab.id, (l) => l.isLoading);
-  const loaded = usePageProgress(tab.id);
-  const progress = loading ? loaded : null;
   const limit = extensionsFitting(width - 10 - 3 - HOST_ROOM);
   const extensionsWidth = useToolbarExtensionsWidth(windowId, limit);
   return (
@@ -137,7 +133,6 @@ function PageField({ tab, windowId, width }: { tab: NonNullable<ReturnType<typeo
       windowId={windowId}
       onFocus={alreadyFocused}
       height={SIDEBAR_FIELD.height}
-      progress={progress}
       accessory={
         extensionsWidth ? (
           <View style={{ width: extensionsWidth - 6, height: 28 }}>
