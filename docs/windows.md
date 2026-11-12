@@ -95,6 +95,14 @@ Logic is written once. Only code that calls the OS is written per platform.
   drop at once, and reads files (`CF_HDROP`), links (`UniformResourceLocatorW`) and text (`CF_UNICODETEXT`) with the
   Mac's rules for each accept mode (`FileDropItems.h`), `.url` and `.webloc` files included. The area gets the Mac's
   enter, move, exit and drop updates. Dragging a file out of the app is not built yet, so `devLastFileDrag` is empty.
+- The app's identity (`AppIcon.h`): at startup the process takes the AppUserModelID `Ardia.Browser`, the one the
+  installer's Start menu and desktop shortcuts carry, so the taskbar groups every window under that shortcut, uses its
+  icon, and a pin made from a running window relaunches Ardia. Every window the app opens gets Ardia's icon from the
+  library's resources (`WM_SETICON`, big and small at the window's DPI), and notifications register with the name
+  Ardia and a PNG of that icon written to the data folder. The launch log says `app icon: AppUserModelID is ...`
+  (and what it was) and `app icon: set on <id>`. `scripts/windows/launcher-identity.ps1` gives the engine's launcher
+  Ardia's icon as its first icon group and Ardia's name in its version strings (Task Manager shows the
+  FileDescription); `assemble.ps1` runs it, and `-Check` only reads it back.
 - Notifications are Windows App SDK app notifications (`NotificationCenter.h`): the app registers at startup, before
   the first window, which also registers its toast activator for this unpackaged app, so a click on a toast reaches
   the running app or launches it. Clicks are held until a window is open, then sent as `onNotificationResponse`.
@@ -245,6 +253,10 @@ is plain Chromium.
   launch fails if any check does. A new native method gets a check there. It also renders every view drawn in JS
   in the window (`selfCheck/stage.tsx`), writes `config.json` and waits for the watcher's `onChange`
   (`ARDIA_CONFIG_DIR` points the config folder at the data folder for that), and moves a file to the Recycle Bin.
+- The smoke launch fails when the browser window answers `WM_GETICON` with no big or small icon, or the launch log
+  does not show the AppUserModelID and the window icon; the installer check fails when the Start menu shortcut lacks
+  the AppUserModelID or an icon file, the uninstall entry's icon is not a file, or the installed `Ardia.exe` does not
+  carry Ardia's icon and name.
 - `platform/windowsModules.test.mjs` fails when the app imports something from `expo-modules-core` that
   `packages/expo-windows` doesn't export.
 - Nobody can compile Windows code on the Mac: CI is the compiler. The Windows VM on shiv covers behaviour by hand,
