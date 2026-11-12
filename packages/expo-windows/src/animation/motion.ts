@@ -67,6 +67,10 @@ export function noteAnimation(animation: Running) {
   requestFrame(watch);
 }
 
+export function forgetAnimation(animation: Running) {
+  running.delete(animation);
+}
+
 export function followMotion(follow: Follower): () => void {
   followers.add(follow);
   return () => void followers.delete(follow);

@@ -1,4 +1,4 @@
-import { installFramePacing, noteAnimation } from "./motion";
+import { forgetAnimation, installFramePacing, noteAnimation } from "./motion";
 import { aroundCentre } from "./pivot";
 
 type Config = { useNativeDriver?: boolean; iterations?: number };
@@ -33,7 +33,9 @@ export function installAnimation() {
   running.__startAnimationIfNative = function (this: Running, target: AnimatedValue) {
     startingNatively = true;
     try {
-      return startNatively.call(this, target);
+      const native = startNatively.call(this, target);
+      if (native) forgetAnimation(this);
+      return native;
     } finally {
       startingNatively = false;
     }
