@@ -104,7 +104,9 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   history, bookmarks, the Mac's tabs, network suggestions, bangs and the calculator. Dragging along the rows scrubs
   them.
 - **Browsing.** No URL bar: the page runs under the status bar, with a frosted bottom bar (tab stack, +, chevron)
-  tinted by the page. Swipe the bar to switch tabs, swipe anywhere to go back. The chevron opens the page menu:
+  tinted by the page. WebKit is told the bar's height as an obscured inset, so a site's fixed footer lays out
+  above the bar. The bar gives way to Find on Page and returns only after the find panel and keyboard have left.
+  Swipe the bar to switch tabs, swipe anywhere to go back. The chevron opens the page menu:
   back, forward, title, pin, reload; Reader, Copy Link (without trackers), Share; Find on Page, Send to a
   Mac, Night Shade, Page Zoom, Request Desktop Site, Translate, Site Settings.
 - **Tabs.** An app-switcher deck of live snapshots; flick a card up to close it. Closing archives; tabs left alone
