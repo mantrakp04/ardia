@@ -1,8 +1,8 @@
 # Building the engine from source
 
 Ardia runs on ArdiaCore: Chrome's own framework (`//chrome:chrome_framework`) built from our Chromium tree, with our
-layers linked in (`docs/ardiacore-spike.md`). The tree is **Chromium 157.0.8103.38** (`CHROMIUM_VERSION` in
-`env.sh`), plus **Helium** 0.21.1 (helium-chromium) and 0.21.1.1 (helium-macos) minus a short skip list, then our
+layers linked in (`docs/ardiacore-spike.md`). The tree is **Chromium 157.0.8103.50** (`CHROMIUM_VERSION` in
+`env.sh`), plus **Helium** 0.21.2 (helium-chromium) and 0.21.2.1 (helium-macos) minus a short skip list, then our
 patch series. Nothing of CEF's is checked out or built. CEF left the tree
 on 2026-10-09: its 117 patches to Chrome are gone, except a few kept as `chromium-cef-carryover.patch`
 ([below](#cefs-117-patches)), and the seams of theirs ArdiaCore used are our own hooks H1–H6
@@ -398,7 +398,7 @@ order 1, 3, 4, 2, 5 on a fresh checkout (`gn gen` once the tree is patched). Hel
 `~/chromium-build/helium` and `~/chromium-build/helium-macos` (`HELIUM_DIR`, `HELIUM_MACOS_DIR`), at the commits
 `helium-pins.ini` names.
 
-The live tree in `~/chromium-build` has been Helium's since 2026-10-23 (0.2.40-nightly.5's framework), on Chromium 156 since 2026-10-25, on 156.0.8078.79 (Helium 0.20.3) since 2026-10-31, and on 157.0.8103.38 (Helium 0.21.1) since 2026-11-09.
+The live tree in `~/chromium-build` has been Helium's since 2026-10-23 (0.2.40-nightly.5's framework), on Chromium 156 since 2026-10-25, on 156.0.8078.79 (Helium 0.20.3) since 2026-10-31, on 157.0.8103.38 (Helium 0.21.1) since 2026-11-09, and on 157.0.8103.50 (Helium 0.21.2) since 2026-11-12.
 
 | Step | Script | Time (M5 Pro, shared machine) |
 |---|---|---|
@@ -456,7 +456,7 @@ Rules for editing the tree after the first build:
      checkout first and syncing again took 3.5 minutes in all, so do that up front.
   5. Step 3's `guard` stage fails when a skipped patch has left Helium's series (check what replaced it) or an
      applied one now touches what a skip protects (Safe Storage, password saving, Sparkle, the product dir, mDNS);
-     `GUARD_ALLOWED` in `03-helium.py` lists the hits reviewed for 0.19.4 (unchanged through 0.21.1). A patch that no longer applies without
+     `GUARD_ALLOWED` in `03-helium.py` lists the hits reviewed for 0.19.4 (unchanged through 0.21.2). A patch that no longer applies without
      fuzz fails `patches`, and names any skipped patch that shares its files.
   6. Our patches and the hooks may need their context refreshed; `series.py check` and `apply.sh --check` say
      which. A patch whose file moved is rewritten for the new path, and the new path's file goes into the series
@@ -465,7 +465,7 @@ Rules for editing the tree after the first build:
 ## Helium
 
 [Helium](https://github.com/imputnet/helium-chromium) is built on ungoogled-chromium. Step 3 (`03-helium.py`) applies
-helium-chromium 0.21.1's series and then helium-macos 0.21.1.1's, as `patch -p1 -l -N` with no fuzz (Helium allows 2).
+helium-chromium 0.21.2's series and then helium-macos 0.21.2.1's, as `patch -p1 -l -N` with no fuzz (Helium allows 2).
 Helium's build-time downloads (its uBlock Origin, the onboarding page, the non-free search engine data) are never
 fetched, and the hunks of its patches that edit them are left out.
 
@@ -553,6 +553,28 @@ applied them before Helium): `0005-disable-default-extensions` (without its `web
 leaves out stay out, as before: `disable-download-quarantine` (Chrome quarantines every download itself, with
 `com.apple.quarantine` and its source URL in `kMDItemWhereFroms`), `prefs-always-prompt-for-download-directory`
 (Chrome's default, save to Downloads without asking, is Ardia's) and `enable-extra-locales`.
+
+### 0.21.1 → 0.21.2 (Chromium 157.0.8103.50, 2026-11-12)
+
+A Chromium patch release, through Helium 0.21.2 and helium-macos 0.21.2.1. What changed in Helium, and what we did:
+
+- **Series.** Added `helium/core/omnibox-suggestions` and `helium/settings/omnibox-suggestions-settings`; removed
+  `helium/settings/update-search-suggest-text` (folded into the new settings patch). They add two local profile prefs,
+  `helium.omnibox.autocomplete.history_enabled` and `…bookmark_enabled` (both on by default), that Chrome's own
+  autocomplete providers check, and an "Address bar" section in chrome://settings/search with those toggles. No host,
+  no network change. Ardia's command bar doesn't use Chrome's autocomplete, so the prefs change nothing in the app.
+  helium-macos only bumped its pin. `flags.gn`, `flags.macos.gn`, `deps.ini` and the resources are unchanged.
+- **Skips and guards.** Every `SKIP` entry is still in the series and still a leaf; the `guard` stage finds the same
+  four reviewed hits; 354 patches applied with no fuzz and 14 skipped; `domsub-keep-store.txt` keeps the same 16 store
+  files.
+- **Our series.** Every patch and both layers applied strictly, unchanged; `series.py check` reproduces all 298
+  touched paths.
+- **Build.** `out/` was kept (a patch release in the same milestone): 55,800 steps, about 2 h 15 min, most of it
+  recompiling for the new PGO profile; no compile errors. `helium-check-build.py` passes with the same 9 resources
+  naming Helium.
+- **Checked in a hidden instance.** chrome://version and `/json/version` say 157.0.8103.50; a page loads; uBlock
+  blocks Google's ad script; chrome://settings/privacy shows no Helium text; chrome://settings/search shows the new
+  section branded Ardia ("Ardia sends what you type…"); Quit exits cleanly with no crash report.
 
 ### 0.20.3 → 0.21.1 (Chromium 157.0.8103.38, 2026-11-09)
 
