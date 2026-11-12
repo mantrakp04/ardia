@@ -194,8 +194,8 @@ export const toolRows = {
     {
       section: "Command line",
       rows: {
-        cliControl: { advanced: true, title: "Let the ardia command control Ardia", keywords: ["cli", "terminal", "devtools", "automation", "remote debugging"] },
-        cliInstall: { advanced: true, title: "The ardia command", keywords: ["cli", "terminal", "install"] },
+        cliControl: { advanced: true, title: "Let the ardia command control Ardia", keywords: ["cli", "command line", "terminal", "shell", "devtools", "automation", "remote debugging"] },
+        cliInstall: { advanced: true, title: "The ardia command", keywords: ["cli", "command line", "terminal", "shell", "install"] },
       },
     },
     {

@@ -32,7 +32,7 @@ export const appearanceRows = {
         glassTintWithTheme: {
           title: "Tint glass with the profile colour",
           description: "Off, the glass stays neutral grey whatever the profile's colour.",
-          keywords: ["liquid glass", "tint", "colour", "color", "profile colour", "theme"],
+          keywords: ["tint", "colour", "color", "profile colour", "theme"],
           shown: (s, env) => !!env.glass && s.interfaceStyle === "glass",
         },
         glassTintAmount: {

@@ -34,7 +34,7 @@ export const privacyRows = {
         commandScrollZoom: {
           title: "Zoom with ⌘ and the mouse wheel",
           description: "Sites that use ⌘-scroll themselves, like maps, still get it. ⌘+, ⌘− and ⌘0 zoom either way.",
-          keywords: ["scroll wheel", "command scroll", "cmd scroll", "mouse zoom", "accidental zoom", "page zoom"],
+          keywords: ["scroll wheel", "command scroll", "cmd scroll", "mouse zoom", "accidental zoom", "page zoom", "font size", "text size", "bigger text"],
         },
       },
     },
@@ -42,11 +42,11 @@ export const privacyRows = {
       section: "Crash reports and usage",
       rows: {
         shareDiagnostics: { title: "Share anonymous crash reports and usage stats", keywords: ["telemetry", "analytics", "diagnostics", "crash"] },
-        whatsSent: { title: "What's Sent", description: "Every field, and what never leaves this Mac.", keywords: ["telemetry", "data collection", "ardia command", "cli"] },
+        whatsSent: { title: "What's Sent", description: "Every field, and what never leaves this Mac.", keywords: ["telemetry", "data collection", "analytics", "usage data"] },
         anonymousId: {
           title: "Your anonymous ID",
           description: "The name and colours you appear to us as, and resetting the ID.",
-          keywords: ["install id", "identity", "reset id", "avatar", "anonymous name", "privacy"],
+          keywords: ["install id", "identity", "reset id", "avatar", "anonymous name"],
         },
       },
     },
