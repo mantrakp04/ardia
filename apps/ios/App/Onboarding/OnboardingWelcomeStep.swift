@@ -24,7 +24,7 @@ struct OnboardingWelcomeStep: View {
       AppIconPreview(side: 104)
         .padding(5)
         .background(.white, in: .rect(cornerRadius: 104 * 0.225 + 5, style: .continuous))
-        .shadow(color: Palette.gradientDeep.opacity(0.35), radius: 24, y: 12)
+        .shadow(color: .black.opacity(0.3), radius: 24, y: 12)
         .rotationEffect(.degrees(hasAppeared || reduceMotion ? -6 : -18))
         .scaleEffect(hasAppeared || reduceMotion ? 1 : 0.7)
         .opacity(hasAppeared ? 1 : 0)
@@ -49,7 +49,7 @@ struct OnboardingWelcomeStep: View {
       Button(action: onContinue) {
         Text("Get Started")
           .font(.body.weight(.semibold))
-          .foregroundStyle(Palette.indigo)
+          .foregroundStyle(Palette.ink)
           .frame(maxWidth: .infinity, minHeight: 50)
       }
       .buttonStyle(.borderedProminent)

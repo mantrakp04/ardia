@@ -76,11 +76,21 @@ the folder or the Mac's format changes, and a Mac that has never heard of the iP
 ## What the app does
 
 Arc Search's shape, measured from its App Store screenshots, preview videos and a teardown of version 1.49 (springs,
-sizes, copy), on Apple's controls:
+sizes, copy), on Apple's controls, in the Mac's colours:
 
-- **Start.** The app opens on a search sheet over a grainy indigo-to-pink gradient (a synced profile's Mac theme
-  replaces it), keyboard up. Suggestions come from the Mac's own omnibox code: open tabs, local and synced history,
-  bookmarks, the Mac's tabs, network suggestions, bangs and the calculator. Dragging along the rows scrubs them.
+- **Colours.** `ProfileLook` (`ArdiaDesign`) is the Mac's profile look: its nine profile colours with their swatches
+  (plum is the default, as on the Mac), the Mac's window tint for each (`windowTint`, the same sums as
+  `lib/windowTint.ts`, checked against the Mac's values in `ProfileLookTests`), and the gradients drawn from them.
+  With sync on, the selected profile's colour or custom theme sets it (`AppModel.look`, in the environment as
+  `profileLook`); otherwise it is plum. `Palette` holds the Mac's colour roles from `components/ui/tokens.ts`:
+  `primaryAction` and `onPrimaryAction` for the main button, `formAccent` for links, checkmarks and the caret,
+  `accent` for the loading line, `toast`, `panel`, `success`. The cover gradient under white text (onboarding, the
+  search widget) is darkened until white reads at 4.5:1. A new colour is a role there or a value derived from the
+  look, never a literal in a view.
+- **Start.** The app opens on a search sheet over a grainy gradient in the profile's colour (a synced profile's Mac
+  theme replaces it), keyboard up. Suggestions come from the Mac's own omnibox code: open tabs, local and synced
+  history, bookmarks, the Mac's tabs, network suggestions, bangs and the calculator. Dragging along the rows scrubs
+  them.
 - **Browsing.** No URL bar: the page runs under the status bar, with a frosted bottom bar (tab stack, +, chevron)
   tinted by the page. Swipe the bar to switch tabs, swipe anywhere to go back. The chevron opens the page menu:
   back, forward, title, pin, reload; Reader, Copy Link (without trackers), Share; Find on Page, Send to a

@@ -84,7 +84,7 @@ struct OnboardingPrimaryButton: View {
     }
     .buttonStyle(.borderedProminent)
     .buttonBorderShape(.roundedRectangle(radius: 14))
-    .tint(Palette.indigo)
+    .primaryActionColors()
   }
 }
 

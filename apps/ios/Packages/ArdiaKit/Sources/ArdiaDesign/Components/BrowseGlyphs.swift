@@ -67,7 +67,7 @@ public struct LittleSmile: View {
     IncognitoEyes(isOpen: false).frame(width: 26).foregroundStyle(.secondary)
     LittleSmile(openness: 1).frame(width: 80).foregroundStyle(.white)
       .padding()
-      .background(Palette.indigo, in: .circle)
+      .background(Palette.formAccent, in: .circle)
   }
   .padding()
 }

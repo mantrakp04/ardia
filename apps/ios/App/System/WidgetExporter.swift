@@ -59,7 +59,7 @@ final class WidgetExporter {
       isSyncEnabled: true,
       macTabs: macs,
       sendTargets: targets,
-      gradient: profile.theme?.colors ?? []
+      gradient: ProfileLook(profile: profile).coverHexes
     )
   }
 

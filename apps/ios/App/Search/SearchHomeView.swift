@@ -6,6 +6,7 @@ import SwiftUI
 struct SearchHomeView: View {
   @Environment(AppModel.self) private var app
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.profileLook) private var look
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
@@ -87,16 +88,8 @@ struct SearchHomeView: View {
     if app.isIncognito {
       LaunchGradient(colors: BrowsePalette.incognitoGradient)
     } else {
-      LaunchGradient(colors: themeColors)
+      LaunchGradient(colors: look.launchColors(dark: colorScheme == .dark))
     }
-  }
-
-  private var themeColors: [Color] {
-    let fallback = colorScheme == .dark ? BrowsePalette.launchGradientDark : BrowsePalette.launchGradientLight
-    guard app.sync.isEnabled, let theme = app.sync.selectedProfile?.theme else { return fallback }
-    let source = colorScheme == .dark ? (theme.darkColors ?? theme.colors) : theme.colors
-    let colors = source.compactMap(Color.init(hexString:))
-    return colors.count >= 2 ? colors : fallback
   }
 }
 

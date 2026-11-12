@@ -236,7 +236,7 @@
       VStack(spacing: Spacing.small) {
         Image(systemName: succeeded ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
           .font(.system(size: 44, weight: .semibold))
-          .foregroundStyle(succeeded ? Palette.indigo : BrowsePalette.findError)
+          .foregroundStyle(succeeded ? Palette.success : BrowsePalette.findError)
           .symbolEffect(.bounce, value: model.completions)
         Text(message)
           .font(.headline)
@@ -251,7 +251,7 @@
     static let background = Color.adaptive(light: Color(hex: 0xF2F2F7), dark: Color(hex: 0x1C1C1E))
     static let group = Color.adaptive(light: .white, dark: Color(hex: 0x2C2C2E))
     static let scrim = Color.black.opacity(0.32)
-    static let tile = Palette.indigo
+    static let tile = Palette.formAccent
   }
 
   struct ShareActionGroup<Content: View>: View {

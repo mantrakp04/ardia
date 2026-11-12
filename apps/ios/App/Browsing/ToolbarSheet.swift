@@ -64,7 +64,7 @@ struct ToolbarSheet: View {
     .background {
       Color.clear.onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { bottomInset = $0 }
     }
-    .tint(Palette.indigo)
+    .tint(Palette.formAccent)
     .presentationDetents([.height(max(contentHeight - bottomInset, 200))])
     .presentationCornerRadius(MenuLayout.sheetRadius)
     .presentationBackground(Color(.systemGroupedBackground))

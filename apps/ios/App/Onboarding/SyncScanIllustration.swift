@@ -56,7 +56,7 @@ private struct MacWindowSketch: View {
       RoundedRectangle(cornerRadius: 12, style: .continuous)
         .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
     }
-    .shadow(color: Palette.gradientDeep.opacity(0.18), radius: 18, y: 8)
+    .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
   }
 }
 
@@ -131,11 +131,11 @@ private struct SketchTab {
   var width: CGFloat
 
   static let all: [SketchTab] = [
-    SketchTab(color: Palette.indigo, width: 44),
-    SketchTab(color: Palette.gradientPink, width: 36),
-    SketchTab(color: Color(hex: 0xFF9F0A), width: 48),
-    SketchTab(color: Color(hex: 0x34C759), width: 30),
-    SketchTab(color: Palette.gradientPlum, width: 40),
+    SketchTab(color: ProfileLook(preset: .blue).swatchColor, width: 44),
+    SketchTab(color: ProfileLook(preset: .pink).swatchColor, width: 36),
+    SketchTab(color: ProfileLook(preset: .orange).swatchColor, width: 48),
+    SketchTab(color: ProfileLook(preset: .green).swatchColor, width: 30),
+    SketchTab(color: ProfileLook(preset: .purple).swatchColor, width: 40),
   ]
 }
 
