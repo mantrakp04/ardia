@@ -97,6 +97,7 @@ ARDIACORE_EXPORT
                                          NSString* _Nullable error))completion;
 @property(readonly) NSString* chromiumVersion;
 @property(readonly) NSString* keepAliveState;
+@property(readonly) NSString* pictureInPictureCloses;
 @end
 
 @interface ArdiaCoreEngine (Tracing)

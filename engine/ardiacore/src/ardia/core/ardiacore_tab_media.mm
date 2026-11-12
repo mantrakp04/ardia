@@ -256,6 +256,7 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
                        PictureInPictureWindowManager* manager =
                            PictureInPictureWindowManager::GetInstance();
                        if (contents && manager->GetWebContents() == contents.get()) {
+                         ardiacore::NotePictureInPictureExitRequested();
                          manager->ExitPictureInPicture();
                        }
                      },

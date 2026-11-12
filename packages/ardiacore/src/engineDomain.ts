@@ -9,6 +9,7 @@ export type EngineInfo = {
   popupWindows: number;
   chromeWindows: number;
   focus?: string;
+  pictureInPictureCloses?: string;
 };
 
 export type EngineComponent = {

@@ -257,6 +257,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 @interface ArdiaWebView (PictureInPictureInternal)
 - (void)traceManualPictureInPicture:(NSString *)what;
 - (void)traceAutoPictureInPicture:(NSString *)what;
+- (void)notePictureInPictureSight:(NSString *)what;
 - (void)awaitPictureInPicture:(int)tries completion:(void (^)(BOOL))completion;
 - (void)updateAutoPictureInPicture;
 - (BOOL)leftAppInPictureInPicture;

@@ -21,6 +21,7 @@
 #include "ardia/core/ac_browser_window.h"
 #include "ardia/core/ac_extension_shortcuts.h"
 #include "ardia/core/ac_modal_dialog_host.h"
+#include "ardia/core/ac_picture_in_picture.h"
 #include "ardia/core/ac_video_upscaling.h"
 #import "ardia/core/ardiacore_internal.h"
 #include "ui/views/widget/widget.h"
@@ -142,10 +143,11 @@ WindowHost::~WindowHost() {
 
 namespace {
 
-void ActivateExclusively(Browser* browser) {
+void ActivateExclusively(WindowHost* target, Browser* browser) {
   if (browser->IsDeleteScheduled()) {
     return;
   }
+  NoteWindowActivation("activate exclusively", target->ns_window().windowNumber);
   for (WindowHost* host : WindowHost::All()) {
     for (Browser* other : host->browsers()) {
       if (other != browser) {
@@ -194,7 +196,7 @@ void WindowHost::NoteHostActivated(Browser* browser) {
       ProfileManager::GetLastUsedProfileIfLoaded() == browser->GetProfile()) {
     return;
   }
-  ActivateExclusively(browser);
+  ActivateExclusively(this, browser);
 }
 
 void WindowHost::RequestActivation(Browser* browser) {
@@ -218,6 +220,10 @@ void WindowHost::RequestActivation(Browser* browser) {
 }
 
 void WindowHost::OnWidgetActivationChanged(views::Widget* widget, bool active) {
+  if (!internal_) {
+    NoteWindowActivation(active ? "widget active" : "widget inactive",
+                         ns_window().windowNumber);
+  }
   if (active && !internal_) {
     LastUsersWindow() = GetWeakPtr();
   }
@@ -226,7 +232,7 @@ void WindowHost::OnWidgetActivationChanged(views::Widget* widget, bool active) {
     return;
   }
   if (active) {
-    ActivateExclusively(browser);
+    ActivateExclusively(this, browser);
   } else {
     BrowserActiveStateManager::From(browser)->DidBecomeInactive();
   }

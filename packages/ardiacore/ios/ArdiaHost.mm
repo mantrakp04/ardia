@@ -372,6 +372,7 @@ static void (^gQuitCancelledHandler)(void);
     @"popupWindows" : @(ardia_host::PopupWindowCount()),
     @"chromeWindows" : @(chromeWindows),
     @"keepAlive" : engine.keepAliveState ?: @"",
+    @"pictureInPictureCloses" : engine.pictureInPictureCloses ?: @"",
     @"lastUsedProfile" : engine.defaultProfile.name ?: @"",
     @"focus" : ardia_host::FocusState(),
   };
