@@ -270,7 +270,9 @@ export async function flush() {
 
 export type SharingSource = "settings" | "onboarding" | "ask" | "watch" | "watch_ended";
 
-export function setSharing(on: boolean, source: SharingSource) {
+export type AskPlacement = { ask_place: "new_tab_corner"; ask_shown_tabs: number };
+
+export function setSharing(on: boolean, source: SharingSource, placement?: AskPlacement) {
   const now = Date.now();
   const current = saved();
   if (on === current.sharing) return save({ decidedAt: now, askDoneAt: current.askDoneAt ?? now });
@@ -296,7 +298,7 @@ export function setSharing(on: boolean, source: SharingSource) {
     decidedAt: now,
     askDoneAt: current.askDoneAt ?? now,
   });
-  capture("sharing_turned_on", { source });
+  capture("sharing_turned_on", { source, ...placement });
 }
 
 export function ensureInstallId(): string {
