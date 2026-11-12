@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useActiveTabId, useWindowId } from "../../state/browser/hooks";
 import { usePageFrameInset, useWindowControlsCenterY, useWindowControlsHost, useWindowControlsSize } from "../../state/windows/layout";
 import { STRIP_HEIGHT } from "../../state/windows/toolbarAutoHide";
+import { showAppMenu } from "../../state/app/appMenu";
 import { WINDOW_CONTROLS } from "../../lib/windowChrome";
 import { TintInk } from "../ui/TintInk";
 import { useSitePalette } from "../toolbar/useSitePalette";
@@ -17,16 +18,17 @@ function PlacedControls() {
   const centerY = useWindowControlsCenterY();
   const size = useWindowControlsSize();
   const host = useWindowControlsHost();
+  const onMenu = useCallback(() => void showAppMenu(windowId), [windowId]);
   if (centerY === null || !host) return null;
-  if (host === "toolbar") return <ToolbarControls windowId={windowId} centerY={centerY} size={size} />;
+  if (host === "toolbar") return <ToolbarControls windowId={windowId} centerY={centerY} size={size} onMenu={onMenu} />;
   return (
     <TintInk>
-      <WindowControls windowId={windowId} centerY={centerY} size={size} />
+      <WindowControls windowId={windowId} onMenu={onMenu} centerY={centerY} size={size} />
     </TintInk>
   );
 }
 
-function ToolbarControls({ windowId, centerY, size }: { windowId: string; centerY: number; size: number }) {
+function ToolbarControls({ windowId, centerY, size, onMenu }: { windowId: string; centerY: number; size: number; onMenu: () => void }) {
   const activeId = useActiveTabId() ?? "";
   const palette = useSitePalette(activeId);
   const frame = usePageFrameInset();
@@ -44,9 +46,9 @@ function ToolbarControls({ windowId, centerY, size }: { windowId: string; center
   const collapsed = live?.mode === "collapsed";
   return (
     <>
-      <WindowControls windowId={windowId} centerY={centerY} size={size} ink={ink} opacity={fades ? fades.row : 1} hidden={collapsed} />
+      <WindowControls windowId={windowId} onMenu={onMenu} centerY={centerY} size={size} ink={ink} opacity={fades ? fades.row : 1} hidden={collapsed} />
       {fades ? (
-        <WindowControls windowId={windowId} centerY={frame + STRIP_HEIGHT / 2} size={WINDOW_CONTROLS.strip} ink={ink} opacity={fades.strip} hidden={!collapsed} />
+        <WindowControls windowId={windowId} onMenu={onMenu} centerY={frame + STRIP_HEIGHT / 2} size={WINDOW_CONTROLS.strip} ink={ink} opacity={fades.strip} hidden={!collapsed} />
       ) : null}
     </>
   );

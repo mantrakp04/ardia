@@ -155,6 +155,11 @@ export const generalRows = {
           keywords: ["pinned tiles", "favorites", "grid", "columns", "rows", "arc"],
           shown: inSidebar,
         },
+        showUnreadCounts: {
+          title: "Show unread counts on tabs",
+          description: "The red count or dot a site like Gmail or Slack shows on its tab, pinned tile and Top App. To hide it for one site, right-click its tab and choose Hide Unread Count, or turn it off in Site Controls.",
+          keywords: ["unread", "badge", "count", "notification", "dot", "red", "gmail", "inbox", "messages", "arc"],
+        },
         fadeUnloadedTabs: {
           advanced: true,
           title: "Fade icons of unloaded tabs",

@@ -7,7 +7,7 @@ import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
 import { useSettingValue } from "../tabs/tabWatch";
-import { captionClearTop, captionRoom, WINDOW_CHROME, WINDOW_CONTROLS, windowControlsWidth, type WindowChrome } from "../../lib/windowChrome";
+import { BROWSER_WINDOW_BUTTONS, captionClearTop, captionRoom, WINDOW_CHROME, WINDOW_CONTROLS, windowControlsWidth, type WindowChrome } from "../../lib/windowChrome";
 import { toolbarRowOf } from "../../lib/toolbarRow";
 import { SMALL_BAR_HEIGHT } from "./small";
 import type { CaptionRegion } from "../../platform/windowControls";
@@ -106,7 +106,7 @@ export function captionRegions(s: BrowserState, windowId: string, overlaid = fal
   if (!place || overlaid) return [];
   const ui = s.windowUi[windowId];
   if (ui?.panel.open || ui?.downloadsOpen) return [];
-  const controls = windowControlsWidth() + WINDOW_CONTROLS.edge;
+  const controls = windowControlsWidth(BROWSER_WINDOW_BUTTONS) + WINDOW_CONTROLS.edge;
   const regions: CaptionRegion[] = [[-(chrome.trailingWidth - 2), 0, controls + WINDOW_CONTROLS.gap, windowControlsBottom(place)]];
   if (place.host === "strip") return regions;
   const gutter = Math.min(frame, place.centerY - place.size / 2 - 1, addressBarInSidebar(s, windowId) ? SIDEBAR_TOOLS_TOP : frame);

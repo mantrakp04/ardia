@@ -6,7 +6,7 @@ const windows = (await import("../../lib/platformChrome.windows.ts")).WINDOW_CHR
 const mac = (await import("../../lib/platformChrome.ts")).WINDOW_CHROME;
 const { littleArdiaBarLayout } = await import("../../components/littleArdia/barLayout.ts");
 const { SMALL_FIELD_HEIGHT, SMALL_BAR_BUTTON } = await import("../../components/littleArdia/tokens.ts");
-const { trailingClearance, WINDOW_CONTROLS, windowControlsWidth } = await import("../../lib/windowChrome.ts");
+const { BROWSER_WINDOW_BUTTONS, trailingClearance, WINDOW_CONTROLS, windowControlsWidth } = await import("../../lib/windowChrome.ts");
 const { syncCaptionRegions } = await import("./captionRegions.ts");
 
 const SETTINGS = { tabLayout: "sidebar", sidebarSide: "left", addressBar: "toolbar", compactToolbar: false, hideToolbarWhileScrolling: false, autoHideTabs: false };
@@ -52,19 +52,19 @@ test("on the Mac no layout gives the card, the toolbar or the sidebar any captio
 
 test("on Windows the card's top row makes room for the window buttons wherever the card reaches them", () => {
   const room = (settings, window, frame = 9) => cardCaptionRoom(state(settings, window), "w", frame, windows);
-  assert.equal(room({}, {}), 129);
-  assert.equal(room({}, {}, 0), 138);
+  assert.equal(room({}, {}), 162);
+  assert.equal(room({}, {}, 0), 171);
   assert.equal(room({ tabLayout: "top" }, {}), 0);
-  assert.equal(room({ tabLayout: "top", autoHideTabs: true }, {}), 129);
+  assert.equal(room({ tabLayout: "top", autoHideTabs: true }, {}), 162);
   assert.equal(room({ sidebarSide: "right" }, {}), 0);
-  assert.equal(room({ sidebarSide: "right", autoHideTabs: true }, {}), 129);
+  assert.equal(room({ sidebarSide: "right", autoHideTabs: true }, {}), 162);
   assert.equal(room({}, { fullScreen: true }), 0);
   assert.equal(room({}, { kind: "small" }), 0);
 });
 
 test("on Windows the room the toolbar keeps holds the buttons, their edge and a gap to drag by", () => {
-  const taken = WINDOW_CONTROLS.edge + windowControlsWidth();
-  assert.equal(taken, 108);
+  const taken = WINDOW_CONTROLS.edge + windowControlsWidth(BROWSER_WINDOW_BUTTONS);
+  assert.equal(taken, 141);
   assert.ok(windows.trailingWidth - taken >= 24, "at least 24 points beside the buttons stay free to drag the window by");
 });
 
@@ -86,7 +86,7 @@ test("on Windows only a card with no toolbar under the window buttons leaves the
 });
 
 test("on Windows a sidebar on the right keeps its header out from under the window buttons", () => {
-  assert.equal(sidebarCaptionRoom(state({ sidebarSide: "right" }), "w", windows), 138);
+  assert.equal(sidebarCaptionRoom(state({ sidebarSide: "right" }), "w", windows), 171);
   assert.equal(sidebarCaptionRoom(state({}), "w", windows), 0);
   assert.equal(sidebarCaptionRoom(state({ sidebarSide: "right" }, { fullScreen: true }), "w", windows), 0);
 });
@@ -121,7 +121,7 @@ test("on Windows the window buttons stay inside their row and clear of a band-le
 });
 
 const regions = (settings = {}, window = {}, extra = {}, overlaid = false) => captionRegions(state(settings, window, extra), "w", overlaid, windows);
-const SPACER = [-136, 0, 111];
+const SPACER = [-169, 0, 144];
 
 test("on Windows the gap beside the window buttons and the gutter above the card are caption regions", () => {
   assert.deepEqual(regions(), [[...SPACER, 45.2], [0, 0, 0, 9]]);
@@ -141,7 +141,7 @@ test("on Windows a caption region never covers the window buttons or reaches bel
     for (const [left, top, rightInset, height] of regions(settings, window)) {
       assert.equal(top, 0);
       if (left === 0) assert.ok(height < at.centerY - at.size / 2, `the gutter stops above the buttons: ${JSON.stringify([settings, window])}`);
-      else assert.ok(rightInset > WINDOW_CONTROLS.edge + windowControlsWidth(), `the spacer stops before the buttons: ${JSON.stringify([settings, window])}`);
+      else assert.ok(rightInset > WINDOW_CONTROLS.edge + windowControlsWidth(BROWSER_WINDOW_BUTTONS), `the spacer stops before the buttons: ${JSON.stringify([settings, window])}`);
       assert.ok(height <= windowControlsBottom(at));
     }
   }
@@ -195,7 +195,7 @@ test("on the Mac Little Ardia's bar keeps its numbers", () => {
 
 test("on Windows Little Ardia's bar starts at the window's left edge and its controls end before the caption buttons", () => {
   const bar = littleArdiaBarLayout(windows);
-  assert.deepEqual(bar, { height: 38, navLeft: 9, navPitch: 30, fieldLeft: 73, fieldTop: 5, buttonTop: 5, trailingRoom: 138, controlsRight: 147 });
+  assert.deepEqual(bar, { height: 38, navLeft: 9, navPitch: 30, fieldLeft: 73, fieldTop: 5, buttonTop: 5, trailingRoom: 171, controlsRight: 180 });
   assert.ok(bar.controlsRight >= windows.trailingWidth, "the copy, open and profile buttons stay left of minimize, maximize and close");
   assert.ok(bar.fieldTop >= 0 && bar.fieldTop + SMALL_FIELD_HEIGHT <= bar.height, "the field sits inside the bar");
   assert.ok(bar.height >= windows.titleBarHeight, "the bar covers the whole title band");
@@ -204,9 +204,9 @@ test("on Windows Little Ardia's bar starts at the window's left edge and its con
 test("the command panel keeps the Mac's 16 pt right margin and clears the window buttons while it sits beside them", () => {
   for (const top of [0.5, 5, 31, 32, 60]) assert.equal(trailingClearance(top, 16, 0, mac), 16);
   for (const top of [0.5, 5, 31, 32, 60]) assert.equal(trailingClearance(top, 16, 45.2, mac), 16);
-  assert.equal(trailingClearance(0.5, 16, 45.2, windows), 138);
-  assert.equal(trailingClearance(15, 16, 45.2, windows), 138);
-  assert.equal(trailingClearance(45, 16, 45.2, windows), 138);
+  assert.equal(trailingClearance(0.5, 16, 45.2, windows), 171);
+  assert.equal(trailingClearance(15, 16, 45.2, windows), 171);
+  assert.equal(trailingClearance(45, 16, 45.2, windows), 171);
   assert.equal(trailingClearance(45.2, 16, 45.2, windows), 16);
   assert.equal(trailingClearance(60, 16, 45.2, windows), 16);
   assert.equal(trailingClearance(5, 16, 0, windows), 16);

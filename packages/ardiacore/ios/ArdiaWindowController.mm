@@ -65,6 +65,12 @@ void HandOffTab(ArdiaCoreTab *tab) {
   return [[ArdiaWindowFullScreen ofWindow:controller.coreWindow create:YES] seen];
 }
 
++ (void)reconsiderSightOf:(NSWindow *)window {
+  ArdiaWindowController *controller = [self forNSWindow:window];
+  if (!controller || controller.stray || controller.standalone) return;
+  [[ArdiaWindowFullScreen ofWindow:controller.coreWindow create:YES] reconsiderSight];
+}
+
 + (BOOL)userSeesOnlyThroughWindowServer:(NSWindow *)window {
   ArdiaWindowController *controller = [self forNSWindow:window];
   if (!controller || controller.stray || controller.standalone) return NO;

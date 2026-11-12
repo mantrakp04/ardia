@@ -21,6 +21,7 @@
 - (void)tab:(ArdiaCoreTab *)tab fullScreen:(BOOL)fullScreen tell:(void (^)(void))tell;
 - (BOOL)seen;
 - (BOOL)seenOnlyByWindowServer;
+- (void)reconsiderSight;
 - (NSDictionary *)state;
 - (ArdiaCoreTab *)probedTab;
 - (BOOL)covered;

@@ -10,11 +10,12 @@ import { closeFromWindowControls, minimizeWindow, toggleWindowMaximized } from "
 const B = WINDOW_BUTTONS;
 
 type Ink = { icon: string; hover: string; pressed: string };
-type Kind = "minimize" | "maximize" | "restore" | "close";
+type Kind = "menu" | "minimize" | "maximize" | "restore" | "close";
 
-const LABEL: Record<Kind, string> = { minimize: "Minimize", maximize: "Maximize", restore: "Restore Down", close: "Close" };
+const LABEL: Record<Kind, string> = { menu: "Menu", minimize: "Minimize", maximize: "Maximize", restore: "Restore Down", close: "Close" };
 
 function Glyph({ kind, color, box }: { kind: Kind; color: string; box: number }) {
+  if (kind === "menu") return <Symbol name="ellipsis" size={box + 4} weight="regular" color={color} style={{ width: box + 6, height: box + 6 }} />;
   if (kind === "minimize") return <View style={{ width: box, height: 1, backgroundColor: color }} />;
   if (kind === "maximize") return <View style={{ width: box, height: box, borderWidth: 1, borderRadius: B.glyphRadius, borderColor: color }} />;
   if (kind === "restore") {
@@ -60,6 +61,7 @@ export type WindowControlsProps = {
   size: number;
   maximizable?: boolean;
   minimizable?: boolean;
+  onMenu?: () => void;
   ink?: Partial<Ink>;
   opacity?: Animated.AnimatedInterpolation<number> | number;
   hidden?: boolean;
@@ -67,14 +69,14 @@ export type WindowControlsProps = {
 
 export const controlsShown = WINDOW_CHROME.trailingWidth > 0;
 
-export const WindowControls = memo(function WindowControls({ windowId, centerY, size, maximizable = true, minimizable = true, ink, opacity = 1, hidden = false }: WindowControlsProps) {
+export const WindowControls = memo(function WindowControls({ windowId, centerY, size, maximizable = true, minimizable = true, onMenu, ink, opacity = 1, hidden = false }: WindowControlsProps) {
   const theme = useTheme();
   const maximized = useWindowMaximized(windowId);
   if (!controlsShown) return null;
   const colors: Ink = { icon: ink?.icon ?? theme.icon, hover: ink?.hover ?? theme.toolbarHover, pressed: ink?.pressed ?? theme.toolbarPressed };
   const width = WINDOW_CONTROLS.button;
   const plateRadius = Math.min(B.plateRadius.most, Math.round(size / B.plateRadius.share));
-  const count = 1 + (maximizable ? 1 : 0) + (minimizable ? 1 : 0);
+  const count = 1 + (maximizable ? 1 : 0) + (minimizable ? 1 : 0) + (onMenu ? 1 : 0);
   return (
     <Animated.View
       pointerEvents={hidden ? "none" : "box-none"}
@@ -89,6 +91,7 @@ export const WindowControls = memo(function WindowControls({ windowId, centerY, 
         opacity,
       }}
     >
+      {onMenu ? <ControlButton kind="menu" width={width} height={size} radius={plateRadius} ink={colors} onPress={onMenu} /> : null}
       {minimizable ? <ControlButton kind="minimize" width={width} height={size} radius={plateRadius} ink={colors} onPress={() => minimizeWindow(windowId)} /> : null}
       {maximizable ? <ControlButton kind={maximized ? "restore" : "maximize"} width={width} height={size} radius={plateRadius} ink={colors} onPress={() => toggleWindowMaximized(windowId)} /> : null}
       <ControlButton kind="close" width={width} height={size} radius={plateRadius} ink={colors} onPress={() => closeFromWindowControls(windowId)} />

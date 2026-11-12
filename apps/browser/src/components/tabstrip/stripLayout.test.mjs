@@ -84,8 +84,8 @@ test("the strip's controls clear the caption buttons on Windows, docked or in th
   const { stripCaptionRoom } = await import("./stripGroups.ts");
   const windows = (await import("../../lib/platformChrome.windows.ts")).WINDOW_CHROME;
   for (const floating of [false, true]) for (const fullScreen of [false, true]) assert.equal(stripCaptionRoom(floating, fullScreen), 0);
-  assert.equal(stripCaptionRoom(false, false, windows), 138);
-  assert.equal(stripCaptionRoom(true, false, windows), 131.5);
+  assert.equal(stripCaptionRoom(false, false, windows), 171);
+  assert.equal(stripCaptionRoom(true, false, windows), 164.5);
   assert.equal(stripCaptionRoom(false, true, windows), 0);
   assert.equal(stripCaptionRoom(true, true, windows), 0);
 });

@@ -98,6 +98,8 @@ export const SETTING_SPECS = {
   autoGroupMeetingTabs: flag(true, SYNCED),
   cleanUpInactiveTabsAfterMinutes: shaped<number | null>(null, (v) => v === null || isWidth(v), { type: ["number", "null"], exclusiveMinimum: 0 }, SYNCED),
   mutedSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
+  showUnreadCounts: flag(true, SYNCED),
+  unreadHiddenSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST)),
   autoPictureInPicture: flag(true, SYNCED),
   commandScrollZoom: flag(true, SYNCED),

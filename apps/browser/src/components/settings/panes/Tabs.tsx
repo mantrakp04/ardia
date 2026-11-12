@@ -112,6 +112,7 @@ export function TabsPane() {
         <SettingToggle anchor="tabs.showSidebarButton" />
         <SettingToggle anchor="tabs.showClearButton" />
         <SettingToggle anchor="tabs.balancedTopApps" />
+        <SettingToggle anchor="tabs.showUnreadCounts" />
         <SettingToggle anchor="tabs.fadeUnloadedTabs" />
         </Group>
       </Box>

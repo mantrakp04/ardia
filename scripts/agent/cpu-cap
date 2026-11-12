@@ -15,7 +15,9 @@ Codex runs started from here. The owner's apps (/Applications/Ardia.app, Claude,
   - Memory, the Mac's used share (anonymous + wired + compressor - purgeable, from vm_stat): while it is over
     --mem-cap, our largest workers (compilers, linkers, siso's python3, ffmpeg, hidden test instances and tools under
     ~/ardia-scratch or apps/browser/build-*) are paused, 2 a tick, so they stop growing; each gets a turn after
-    --max-pause seconds, and they are resumed one per tick under --mem-resume. Over --mem-kill, our largest worker
+    --max-pause seconds while memory is under --mem-cap, and they are resumed one per tick under --mem-resume.
+    Sizes come from top's memory column (compressed pages included), not ps's resident size. Over 85 % it logs a
+    census every 20 s: the most numerous processes and a sample command line, to name a runaway. Over --mem-kill, our largest worker
     is killed (SIGKILL) each tick, so a runaway build fails instead of the kernel panicking (twice on 2026-11-11).
     Agents (claude, codex, T3), coordinators (siso, ninja, xcodebuild, lockf) and the owner's apps are never touched.
   - --memory-only: just the memory cap; no CPU cap and no background QoS (the owner's default since 2026-11-11).
@@ -89,6 +91,38 @@ def memory_used():
     return used * 100 / total
 
 
+def footprints():
+    out = subprocess.run(["top", "-l", "1", "-o", "mem", "-n", "60", "-stats", "pid,mem"], capture_output=True, text=True).stdout
+    sizes = {}
+    for line in out.splitlines():
+        m = re.match(r"\s*(\d+)\s+([\d.]+)([BKMG])\+?-?\s*$", line)
+        if m:
+            sizes[int(m.group(1))] = int(float(m.group(2)) * {"B": 1, "K": 1 << 10, "M": 1 << 20, "G": 1 << 30}[m.group(3)])
+    return sizes
+
+
+last_census = [0.0]
+
+
+def census(mem):
+    if time.time() - last_census[0] < 20:
+        return
+    last_census[0] = time.time()
+    out = subprocess.run(["ps", "-axo", "pid=,ppid=,rss=,command="], capture_output=True, text=True).stdout
+    by_name, sample = {}, {}
+    for line in out.splitlines():
+        p = line.split(None, 3)
+        if len(p) < 4:
+            continue
+        name = os.path.basename(p[3].split()[0])
+        count, rss = by_name.get(name, (0, 0))
+        by_name[name] = (count + 1, rss + int(p[2]) * 1024)
+        sample.setdefault(name, f"ppid {p[1]}: {p[3][:220]}")
+    top = sorted(by_name.items(), key=lambda kv: -kv[1][0])[:6]
+    log(f"mem {mem:.0f}% census: " + ", ".join(f"{n} x{c} {r >> 20} MB" for n, (c, r) in top))
+    log(f"mem {mem:.0f}% most common: {sample[top[0][0]]}")
+
+
 def resident(pids):
     if not pids:
         return {}
@@ -118,8 +152,11 @@ def memory_tick(procs):
     mem_paused[:] = [p for p in mem_paused if alive(p)]
     mem = memory_used()
     candidates = {pid: cmd for pid, (_, _, cmd, _) in procs.items() if memory_worker(cmd)}
+    if mem > 85:
+        census(mem)
     if mem > a.mem_kill:
-        sizes = resident(list(candidates))
+        real = footprints()
+        sizes = {p: real.get(p, 0) for p in candidates} or resident(list(candidates))
         if sizes:
             pid = max(sizes, key=sizes.get)
             try:
@@ -127,7 +164,7 @@ def memory_tick(procs):
                 log(f"mem {mem:.0f}%: killed {pid} ({sizes[pid] >> 20} MB) {candidates[pid][:90]}")
             except ProcessLookupError:
                 pass
-    for pid in [p for p in mem_paused if now - paused_at.get(p, now) > a.max_pause and mem < a.mem_kill]:
+    for pid in [p for p in mem_paused if now - paused_at.get(p, now) > a.max_pause and mem < a.mem_cap]:
         try:
             os.kill(pid, signal.SIGCONT)
             log(f"mem {mem:.0f}%: turn, resumed {pid} after {now - paused_at[pid]:.0f}s")
@@ -137,7 +174,8 @@ def memory_tick(procs):
         paused_at.pop(pid, None)
         turn_until[pid] = now + a.max_pause / 2
     if mem > a.mem_cap:
-        sizes = resident([p for p in candidates if p not in mem_paused and turn_until.get(p, 0) <= now])
+        real = footprints()
+        sizes = {p: real.get(p, 0) for p in candidates if p not in mem_paused and turn_until.get(p, 0) <= now}
         for pid in sorted(sizes, key=sizes.get, reverse=True)[:2]:
             if sizes[pid] < 128 << 20:
                 break

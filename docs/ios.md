@@ -165,7 +165,9 @@ are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ar
   `gh workflow run ios-release.yml -f mode=public-link -f build=<number>` puts that build in the Public Testers group
   (made with a public link the first time), sets its What to Test text from `Config/TestFlight-WhatToTest.txt`, submits it
   for Beta App Review and prints the link. The link works once Apple approves the build; later builds of the same version
-  usually pass without a full review.
+  usually pass without a full review. To invite someone by email instead,
+  `gh workflow run ios-release.yml -f mode=add-tester -f email=<address>` adds them to Public Testers; TestFlight
+  emails the invite once that group has an approved build.
 
 ## Agent notes
 
