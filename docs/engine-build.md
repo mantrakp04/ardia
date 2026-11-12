@@ -133,8 +133,9 @@ Chromium tree downloads the prebuilt engine matching its engine key instead (`en
 `apps/browser/assets/offline-game` and `apps/browser/assets/offline-game-pipeline`, everything the framework is built
 from; `packages/ardiacore/scripts/fetch-engine.sh`,
 published with each release whose engine changed; `docs/releasing.md`). After an engine change, rebuild incrementally
-(`scripts/agent/engine-build`, or `scripts/agent/locked chromium -- autoninja -C out/Release_GN_arm64 chrome_framework`)
-and the next app build picks it up.
+with `scripts/agent/engine-build` and the next app build picks it up. Don't call `autoninja` directly for that: the
+script caps siso's parallel jobs by RAM, and siso's defaults ran ~150 mojom generators at once and ran this 32 GB Mac out
+of memory (two kernel watchdog panics, 2026-11-11).
 
 ## Our hooks in Chrome's code
 
