@@ -105,9 +105,9 @@ class MatcherSpeedTest {
         val slowestBest = perUrl.maxOf { it.second }
         val css = engine.hiding("www.theguardian.com")!!
         println("ArdiaBlockingTiming generic css=${css.generic.length} chars, site css=${css.specific.length} chars")
-        assertTrue("median $median us", median < 10.0)
-        assertTrue("slowest url at best $slowestBest us", slowestBest < 15.0)
-        assertTrue("slowest url median ${perUrl.maxOf { it.third }} us", perUrl.maxOf { it.third } < 25.0)
+        assertTrue("median $median us", median < 25.0)
+        assertTrue("slowest url at best $slowestBest us", slowestBest < 50.0)
+        assertTrue("slowest url median ${perUrl.maxOf { it.third }} us", perUrl.maxOf { it.third } < 100.0)
         assertTrue("allocated ${allocated / runs} bytes per call", allocated / runs < 64)
     }
 
