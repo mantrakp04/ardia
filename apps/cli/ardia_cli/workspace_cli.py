@@ -24,6 +24,12 @@ Without a command, it lists every window's tabs per profile: Top Apps, the pinne
 groups), then the rest, with groups nested as in the sidebar. --json prints the tree with stable ids (see
 docs/automation.md); --flat prints one tab per line.
 
+--usage adds each tab's renderer process: its pid, CPU (percent of one core, as Chrome's Task Manager shows it) and
+memory, hottest first, so a process from `top -o power` or Activity Monitor can be named. --pid N prints the tabs
+running in process N. With --json each tab gets "pid", "cpu" and "memory" (bytes); null for a sleeping tab, which has
+no process. Tabs that share a process show that process's numbers. The first --usage in a while takes about 2 s,
+since CPU is measured over time.
+
 Ids: tab-… for tabs, g-… for groups, w-… for windows (ardia tabs shows them). --group takes a group's id or its
 name (case-insensitive, in that window; an exact id wins, and a name two groups share is refused with their ids).
 --before and --after take a tab or a group id.
@@ -31,6 +37,8 @@ name (case-insensitive, in that window; an exact id wins, and a name two groups 
 {EXIT_STATUS}
 Examples:
   ardia tabs --json
+  ardia tabs --usage
+  ardia tabs --pid 61234
   ardia tabs open https://example.com news.ycombinator.com --group Work
   ardia tabs move tab-1 tab-2 --group Work
   ardia tabs move tab-3 --top
@@ -93,6 +101,8 @@ def add_parsers(commands, formatter):
     tabs.add_argument("--window", metavar="ID", help="only this window")
     tabs.add_argument("--profile", metavar="ID", help="only this profile")
     tabs.add_argument("--flat", action="store_true", help="one tab per line (with --json, a flat list)")
+    tabs.add_argument("--usage", action="store_true", help="each tab's process id, CPU and memory, hottest first")
+    tabs.add_argument("--pid", type=int, metavar="N", help="only the tabs running in process N (implies --usage)")
     verbs = tabs.add_subparsers(dest="tabs_command", metavar="<command>")
 
     opening = common(verbs.add_parser("open", help="open URLs in the background", description="Open one or more URLs as new tabs, in the background, in the last focused window (or --window, or a window\nshowing --profile), at the top level or in --group, where new tabs go or --before/--after a tab or group.\nOnly http, https and file URLs, about:blank and ardia://history, bookmarks, downloads and newtab open.", formatter_class=formatter))
@@ -369,8 +379,12 @@ def cmd_tabs(args) -> int:
     tree = read_workspace(args, "tabs")
     if isinstance(tree, int):
         return tree
+    if args.pid is not None:
+        return print_process_tabs(args, flat_tabs(tree))
     if args.json:
         say(json.dumps(flat_tabs(tree) if args.flat else tree, indent=2, ensure_ascii=False))
+    elif args.usage:
+        print_usage(by_heat(flat_tabs(tree)))
     elif args.flat:
         for tab in flat_tabs(tree):
             say(tab_line(tab, f"{shown(tab['window'])}  {shown(tab['profile'])}  "))
@@ -418,13 +432,63 @@ def cmd_apply(args) -> int:
 
 def read_workspace(args, command: str):
     params = {key: getattr(args, key) for key in ("window", "profile") if getattr(args, key, None)}
+    usage = bool(getattr(args, "usage", False) or getattr(args, "pid", None) is not None)
+    if usage:
+        params["usage"] = True
     try:
         return control.call(args.data_dir, "workspace", params)
     except Unreachable as error:
         complain(f"ardia: {error}")
         return 2
     except MethodError as error:
+        if usage and error.code == "bad_request" and "not usage" in error.message:
+            note_error("unknown_method")
+            complain(f"ardia {command}: this Ardia doesn't know --usage and --pid yet; update Ardia")
+            return 1
         return method_failed(command, error)
+
+
+def by_heat(tabs: list) -> list:
+    def heat(tab: dict):
+        cpu, memory = tab.get("cpu"), tab.get("memory")
+        return (cpu is None and memory is None, -(cpu or 0), -(memory or 0))
+
+    return sorted(tabs, key=heat)
+
+
+def megabytes(memory) -> str:
+    return f"{memory / 1_000_000:.0f} MB" if isinstance(memory, (int, float)) and not isinstance(memory, bool) else "-"
+
+
+def usage_line(tab: dict) -> str:
+    pid, cpu = tab.get("pid"), tab.get("cpu")
+    shown_cpu = f"{cpu:.1f}" if isinstance(cpu, (int, float)) and not isinstance(cpu, bool) else "-"
+    return f"{pid if isinstance(pid, int) else '-':>7}  {shown_cpu:>6}  {megabytes(tab.get('memory')):>8}  {tab_line(tab)}"
+
+
+def print_usage(tabs: list) -> None:
+    say(f"{'PID':>7}  {'CPU%':>6}  {'MEMORY':>8}    TAB")
+    for tab in tabs:
+        say(usage_line(tab))
+    if tabs and not any(isinstance(tab.get("pid"), int) for tab in tabs) and any(tab.get("memory") is not None for tab in tabs):
+        say("(this Ardia doesn't report process ids yet, only CPU and memory; update Ardia for the PID column)")
+
+
+def print_process_tabs(args, tabs: list) -> int:
+    if not any(isinstance(tab.get("pid"), int) for tab in tabs):
+        note_error("no_pid")
+        complain("ardia tabs: this Ardia doesn't report tab process ids yet; update Ardia (ardia tabs --usage still shows CPU and memory)")
+        return 1
+    found = by_heat([tab for tab in tabs if tab.get("pid") == args.pid])
+    if not found:
+        note_error("no_tab")
+        complain(f"ardia tabs: no tab runs in process {args.pid}; it may be Ardia itself, its GPU or a utility process, an extension, or a frame of another site (ardia tabs --usage lists every tab's process)")
+        return 1
+    if args.json:
+        say(json.dumps(found, indent=2, ensure_ascii=False))
+    else:
+        print_usage(found)
+    return 0
 
 
 def walk(items, depth=0, group=None):

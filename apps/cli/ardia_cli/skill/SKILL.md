@@ -98,6 +98,6 @@ EOF
 - `--port N` anywhere on the line (or `ARDIA_PORT`). Write `ardia browse` out in each command. Exit 2: Ardia
   isn't reachable; its message says what to ask the user.
 - `ardia browse <command> --help`. `references/troubleshooting.md`: input that doesn't land, background tabs,
-  refused commands, sessions, exit codes. `automation.md`: tabs and groups (`ardia tabs`, not the sidebar), events,
+  refused commands, sessions, exit codes. `automation.md`: tabs and groups (`ardia tabs`, not the sidebar; `--usage` for each tab's pid, CPU, memory), events,
   hooks. `userscripts.md`, `config.md`, `daily-reports.md`.
 - Output doesn't match this file: `ardia skills install --target <your agent>`.
