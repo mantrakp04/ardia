@@ -60,8 +60,14 @@ struct OmniboxTextField: UIViewRepresentable {
   }
 
   private func apply(to field: CompletingTextField) {
-    let placeholderColor = isIncognito ? UIColor.white.withAlphaComponent(0.45) : UIColor(BrowsePalette.foregroundTertiary)
-    field.attributedPlaceholder = NSAttributedString(string: placeholder, attributes: [.foregroundColor: placeholderColor])
+    let placeholderStyle = PlaceholderStyle(text: isFocused ? placeholder : "", isIncognito: isIncognito)
+    if field.placeholderStyle != placeholderStyle {
+      field.placeholderStyle = placeholderStyle
+      let placeholderColor = isIncognito ? UIColor.white.withAlphaComponent(0.45) : UIColor(BrowsePalette.foregroundTertiary)
+      field.attributedPlaceholder = placeholderStyle.text.isEmpty
+        ? nil
+        : NSAttributedString(string: placeholderStyle.text, attributes: [.foregroundColor: placeholderColor])
+    }
     field.textColor = isIncognito ? .white : UIColor(BrowsePalette.foregroundPrimary)
     field.tintColor = UIColor(BrowsePalette.searchAccent)
     field.completionColor = UIColor(BrowsePalette.searchAccent).withAlphaComponent(0.3)
@@ -163,8 +169,14 @@ struct OmniboxTextField: UIViewRepresentable {
   }
 }
 
+struct PlaceholderStyle: Equatable {
+  let text: String
+  let isIncognito: Bool
+}
+
 final class CompletingTextField: UITextField {
   var editor = InlineCompletionEditor()
+  var placeholderStyle: PlaceholderStyle?
   var completionColor = UIColor.systemBlue.withAlphaComponent(0.3)
   private(set) var isApplyingCompletion = false
   var wantsFocus = false
