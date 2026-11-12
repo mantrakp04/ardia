@@ -15,7 +15,8 @@ Reads the API key from ASC_KEY (path to AuthKey_<id>.p8), ASC_KEY_ID and ASC_ISS
 status lists what the key can see: the app record, the App IDs and their capabilities,
 registered devices, certificates, profiles, builds and tester groups. A section the key
 has no access to prints "forbidden". next-build prints the build number after the highest
-one uploaded. wait blocks until a build finishes processing. certificates --save records
+one uploaded. wait blocks until a build finishes processing, and stops with Apple's reasons
+when the delivery was refused. certificates --save records
 the team's certificate ids; --revoke-new-since revokes the development certificates made
 since then, which is what an archive on a fresh CI machine leaves behind.`;
 
@@ -265,6 +266,19 @@ async function builds(args) {
   printBuilds(await listBuilds(app.id, option(args, "--build")));
 }
 
+async function deliveryRefusal(appId, build) {
+  try {
+    const { rows } = await get(`/v1/apps/${appId}/buildUploads`, { "filter[cfBundleVersion]": build, limit: "10" });
+    const failed = rows.find((row) => row.attributes?.state?.state === "FAILED");
+    if (!failed) return null;
+    const errors = failed.attributes.state.errors ?? [];
+    return errors.map((error) => `${error.code ?? ""} ${error.description ?? ""}`.trim()).join("\n") || "no reason given";
+  } catch (error) {
+    if (error instanceof ApiError) return null;
+    throw error;
+  }
+}
+
 async function wait(args) {
   const build = option(args, "--build");
   if (!build) {
@@ -277,6 +291,13 @@ async function wait(args) {
   while (Date.now() < deadline) {
     const [found] = await listBuilds(app.id, build);
     const state = found ? found.processing : "not listed yet";
+    if (!found) {
+      const refusal = await deliveryRefusal(app.id, build);
+      if (refusal) {
+        console.error(`asc: App Store Connect refused build ${build}:\n${refusal}`);
+        process.exit(1);
+      }
+    }
     if (state !== last) console.log(`build ${build}: ${state}`);
     last = state;
     if (found && found.processing !== "PROCESSING") {
