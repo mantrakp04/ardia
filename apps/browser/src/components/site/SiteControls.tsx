@@ -37,7 +37,7 @@ import { TranslateRows } from "./TranslateControls";
 import { ZoomStepper } from "./ZoomControls";
 import { blockerLabel, choiceTitle, featuredPermissions, permissionValue, readSiteSettings, setSitePermission, sitePermissionsFor, type SitePermission } from "../../state/site/siteControls";
 import { isWebPageUrl } from "../../lib/url";
-import { canChooseSiteUnread, isUnreadSiteHidden, setSiteUnreadShown } from "../../state/tabs/unreadSites";
+import { ALL_UNREAD_TITLE, canChooseSiteUnread, isUnreadSiteHidden, setSiteUnreadShown, showUnreadCounts } from "../../state/tabs/unreadSites";
 
 type Expanded = "connection" | "more" | null;
 type Blocker = { enabled: boolean; allowed: boolean };
@@ -282,12 +282,16 @@ function SiteControlsPanel({
                 <MenuRow icon="trash" title="Clear Cookies and Site Data…" detail={cleared ?? undefined} onPress={() => void clearData()} />
               </>
             ) : null}
-            {origin && unreadCounts && canChooseSiteUnread(tab) ? (
-              <MenuRow
-                icon="app.badge"
-                title="Show Unread Count"
-                accessory={<Toggle look="panel" value={!unreadHidden} onChange={(v) => setSiteUnreadShown(url, v)} />}
-              />
+            {origin && canChooseSiteUnread(tab) ? (
+              unreadCounts ? (
+                <MenuRow
+                  icon="app.badge"
+                  title="Show Unread Count"
+                  accessory={<Toggle look="panel" value={!unreadHidden} onChange={(v) => setSiteUnreadShown(url, v)} />}
+                />
+              ) : (
+                <MenuRow icon="app.badge" title={ALL_UNREAD_TITLE} detail="All sites" accessory={<Toggle look="panel" value={false} onChange={showUnreadCounts} />} />
+              )
             ) : null}
             <MenuRow
               icon="text.alignleft"
