@@ -115,6 +115,9 @@ export function startDevHarness() {
     get preload(): typeof import("../../state/tabs/prewarm") {
       return require("../../state/tabs/prewarm");
     },
+    get report(): typeof import("../../state/report/actions") & typeof import("../../state/report/recording") & typeof import("../../state/report/store") {
+      return { ...require("../../state/report/actions"), ...require("../../state/report/recording"), ...require("../../state/report/store") };
+    },
     get unread(): typeof import("../../state/tabs/unread") {
       return require("../../state/tabs/unread");
     },

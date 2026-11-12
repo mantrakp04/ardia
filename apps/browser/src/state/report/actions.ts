@@ -256,6 +256,7 @@ export async function sendCurrentReport() {
   capture("report_sent", {
     kind: s.draft.kind,
     has_recording: files.some((f) => f.name === "recording.mp4"),
+    recording_pip: s.recording.phase === "ready" && !!s.recording.pictureInPicture,
     has_trace: files.some((f) => f.name === "trace.json.gz"),
     attachments: files.length,
     watch: days > 0,
