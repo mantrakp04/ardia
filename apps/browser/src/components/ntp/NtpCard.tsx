@@ -16,9 +16,9 @@ export function useCardRetire() {
   return [leaving, retire] as const;
 }
 
-export function NtpCardSlot({ width, height, children }: { width: number; height?: number; children: ReactNode }) {
+export function NtpCardSlot({ width, height, edge = "top", children }: { width: number; height?: number; edge?: "top" | "bottom"; children: ReactNode }) {
   return (
-    <Box pad="m" style={{ position: "absolute", left: 0, top: 0, width, height }} pointerEvents="box-none">
+    <Box pad="m" style={{ position: "absolute", left: 0, [edge]: 0, width, height }} pointerEvents="box-none">
       {children}
     </Box>
   );

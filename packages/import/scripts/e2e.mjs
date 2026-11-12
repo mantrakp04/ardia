@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // End-to-end import of cookies, addresses and cards into a hidden Ardia instance, from a fake Chrome home
 // (scripts/e2e_fixture.py; never a real profile). It drives the real import window through the dev harness
-// (apps/browser/src/lib/devHarness.ts) and its `globalThis.acImport` hook (components/import/ImportWindow.tsx,
+// (apps/browser/src/components/dev/devHarness.ts) and its `globalThis.acImport` hook (components/import/importDevHandle.ts,
 // Debug builds only), reads the profile's cookies over CDP, and checks a local fixture site receives them.
 //
 //   node packages/import/scripts/e2e.mjs <Ardia.app> <scratch dir> [import|restart|all] [--keep]

@@ -68,7 +68,7 @@ export const isPrivate = (s: BrowserState, windowId: string) => s.windows[window
 export const pageProfile = (s: BrowserState, windowId: string) =>
   isPrivate(s, windowId) ? engineProfile(s, s.windows[windowId]!.profileId) : extensionProfile(s, windowId);
 
-const showsExtension = (priv: boolean, ext: InstalledExtension) => ext.enabled && (!priv || (ext.incognito && !!ext.incognitoSplit));
+const showsExtension = (priv: boolean, ext: InstalledExtension) => ext.enabled && (!priv || ext.incognito);
 
 export function useWindowExtensions(windowId: string): InstalledExtension[] {
   const profile = useBrowser((s) => extensionProfile(s, windowId));

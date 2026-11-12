@@ -13,7 +13,6 @@
 #include "base/system/sys_info.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "chrome/browser/ardia/ac_input_frame_rate.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/performance_manager/public/user_tuning/battery_saver_mode_manager.h"
 #include "chrome/browser/task_manager/providers/task.h"
@@ -178,7 +177,6 @@ AC_ARGS_CALL(ac_task_manager_open) {
 }
 
 AC_ARGS_CALL(ac_battery_saver) {
-  ardia::HoldFullFrameRateDuringInput();
   ardia::Reply out = call.TakeReply();
   PrefService* local_state =
       g_browser_process ? g_browser_process->local_state() : nullptr;

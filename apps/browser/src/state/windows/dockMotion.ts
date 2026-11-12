@@ -29,8 +29,8 @@ export function sidebarLightsCenter(right: boolean, width: number, offset: numbe
 
 export type PeekSpan = readonly [from: number, to: number];
 
-type DockMotion = { moving: Record<string, true>; peeks: Record<string, PeekSpan> };
-export const useDockMotion = create<DockMotion>()(() => ({ moving: {}, peeks: {} }));
+type DockMotion = { moving: Record<string, true>; peeks: Record<string, PeekSpan>; leaving: Record<string, true> };
+export const useDockMotion = create<DockMotion>()(() => ({ moving: {}, peeks: {}, leaving: {} }));
 
 export const dockMoving = (windowId: string) => !!useDockMotion.getState().moving[windowId];
 
@@ -61,6 +61,16 @@ export const peekShown = (windowId: string) => windowId in useDockMotion.getStat
 export const overPeek = (windowId: string, x: number) => {
   const span = useDockMotion.getState().peeks[windowId];
   return !!span && x >= span[0] && x < span[1];
+};
+export function setPeekLeaving(windowId: string, leaving: boolean) {
+  const current = useDockMotion.getState().leaving;
+  if (!!current[windowId] === leaving) return;
+  const { [windowId]: _, ...rest } = current;
+  useDockMotion.setState({ leaving: leaving ? { ...current, [windowId]: true } : rest });
+}
+export const sidebarSliding = (windowId: string) => {
+  const m = useDockMotion.getState();
+  return !!m.moving[windowId] || !!m.leaving[windowId];
 };
 export const usePeekSpan = (windowId: string): PeekSpan | undefined => useDockMotion((m) => m.peeks[windowId]);
 export const devPeeks: Record<string, { show(): void; hide(): void }> = {};

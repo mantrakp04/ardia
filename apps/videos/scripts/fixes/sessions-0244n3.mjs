@@ -1,27 +1,9 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { session } from "../../../../scripts/lib/instance.mjs";
+import { DARK, PERSONAL, TITLES, writeSession } from "./sessions-lib.mjs";
 
-const out = process.argv[2];
-const TITLES = {
-  moodwall: "moodwall — ideas for everything",
-  docpad: "Trip plan — Docpad",
-  lexicon: "meadow | Lexicon dictionary",
-  crumbs: "Crumbs — Brown butter oat cookies",
-};
 const T = (id, url, extra = {}) => ({ id, profileId: "default", url, title: url ? TITLES[new URL(url).hostname.split(".")[0]] : "", ...extra });
 
-function build(file, tabs, active, settings, frame = [80, 60, 1360, 860]) {
-  const s = session({
-    profiles: [
-      { id: "default", name: "Personal", color: "plum", icon: "🪐" },
-      { id: "work", name: "Work", color: "blue", icon: null },
-    ],
-    windows: [{ id: "w1", frame, profileId: "default", activeTabIds: { default: active } }],
-    tabs,
-  });
-  s.settings = { appearance: "dark", searchSuggestions: false, warnBeforeQuitting: false, sidebarWidth: 260, ...settings };
-  writeFileSync(join(out, file), JSON.stringify(s, null, 2));
+function build(file, tabs, active, settings, frame) {
+  writeSession(file, { profiles: [PERSONAL, { id: "work", name: "Work", color: "blue", icon: null }], tabs, active, frame, settings: { ...DARK, ...settings } });
 }
 
 const TABS = [

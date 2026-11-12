@@ -7,9 +7,10 @@ import type { BookmarkFolder, Bookmarks, TabGroup } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";
 import { pinnedGroupMembers } from "../browser/structure";
 import { ASLEEP } from "../tabs/pageSession";
+import { evenSlots, paneChunks } from "../splits/splits";
 
-export type GroupDraft = { title: string; url?: string; customTitle?: string; id?: string; children?: GroupDraft[] };
-export type DraftGroups = { made: string[]; carried: Set<string>; skipped: number };
+export type GroupDraft = { title: string; url?: string; customTitle?: string; id?: string; split?: boolean; children?: GroupDraft[] };
+export type DraftGroups = { made: string[]; carried: Set<string>; skipped: number; splits: number };
 
 export const MAX_DRAFT_LINKS = 5000;
 
@@ -31,7 +32,7 @@ export function bookmarkDraft(b: Bookmarks, folderId: string): GroupDraft | null
 export function withDraftGroups(s: BrowserState, windowId: string, profileId: string, drafts: GroupDraft[]): [BrowserState, DraftGroups] {
   const carried = new Set<string>();
   const w = s.windows[windowId];
-  if (!w || w.kind === "private") return [s, { made: [], carried, skipped: 0 }];
+  if (!w || w.kind === "private") return [s, { made: [], carried, skipped: 0, splits: 0 }];
   const seen = pinnedPages(s, profileId);
   const tabs = { ...s.tabs };
   const live = { ...s.live };
@@ -42,27 +43,48 @@ export function withDraftGroups(s: BrowserState, windowId: string, profileId: st
   const now = Date.now();
   let skipped = 0;
   let taken = 0;
+  const panes: string[][] = [];
+  const add = (c: GroupDraft & { url: string }): string | null => {
+    if (taken >= MAX_DRAFT_LINKS) {
+      skipped++;
+      return null;
+    }
+    seen.add(pageKey(c.url));
+    taken++;
+    const t = { ...makeTab(windowId, profileId, c.url, { title: c.title, customTitle: c.customTitle ?? null }), page: ASLEEP };
+    tabs[t.id] = t;
+    live[t.id] = IDLE_LIVE;
+    order.push(t.id);
+    if (c.id) carried.add(c.id);
+    return t.id;
+  };
   const make = (d: GroupDraft, parentId?: string): string[] => {
     const id = newId("g");
     const tabIds: string[] = [];
     for (const c of d.children ?? []) {
+      const members = c.split ? (c.children ?? []).filter((m): m is GroupDraft & { url: string } => opens(m.url)) : [];
+      if (members.length >= 2) {
+        if (members.every((m) => seen.has(pageKey(m.url)))) continue;
+        const ids = members.map(add).filter((t): t is string => !!t);
+        tabIds.push(...ids);
+        panes.push(...paneChunks(ids));
+        continue;
+      }
+      if (c.split) {
+        for (const m of members) {
+          if (seen.has(pageKey(m.url))) continue;
+          const t = add(m);
+          if (t) tabIds.push(t);
+        }
+        continue;
+      }
       if (!c.url) {
         for (const t of make(c, id)) tabIds.push(t);
         continue;
       }
       if (!opens(c.url) || seen.has(pageKey(c.url))) continue;
-      if (taken >= MAX_DRAFT_LINKS) {
-        skipped++;
-        continue;
-      }
-      seen.add(pageKey(c.url));
-      taken++;
-      const t = { ...makeTab(windowId, profileId, c.url, { title: c.title, customTitle: c.customTitle ?? null }), page: ASLEEP };
-      tabs[t.id] = t;
-      live[t.id] = IDLE_LIVE;
-      order.push(t.id);
-      tabIds.push(t.id);
-      if (c.id) carried.add(c.id);
+      const t = add(c as GroupDraft & { url: string });
+      if (t) tabIds.push(t);
     }
     if (!tabIds.length) return tabIds;
     groups[id] = { id, windowId, profileId, name: d.title, icon: null, color: null, collapsed: false, pinned: true, tabIds, createdAt: now, ...(parentId ? { parentId } : {}) };
@@ -74,7 +96,7 @@ export function withDraftGroups(s: BrowserState, windowId: string, profileId: st
     taken = 0;
     make(d);
   }
-  if (!made.length) return [s, { made, carried, skipped }];
+  if (!made.length) return [s, { made, carried, skipped, splits: 0 }];
   const pinnedArea = pinnedGroupMembers(s.groups);
   const at = w.tabIds.reduce((last, id, i) => (s.tabs[id]?.pin || pinnedArea.has(id) ? i + 1 : last), 0);
   const ids = [...w.tabIds];
@@ -85,5 +107,13 @@ export function withDraftGroups(s: BrowserState, windowId: string, profileId: st
   if (!isIncognitoProfile(profileId)) {
     pinChoices = markPinned(pinChoices, profileId, { groups: all, placed: order });
   }
-  return [{ ...s, tabs, live, pinChoices, groups: syncGroupOrder(groups, window), windows: { ...s.windows, [windowId]: window } }, { made, carried, skipped }];
+  const splits = { ...s.splits };
+  for (const ids of panes) {
+    const split = { id: newId("split"), windowId, orientation: "horizontal" as const, slots: evenSlots(ids) };
+    splits[split.id] = split;
+  }
+  return [
+    { ...s, tabs, live, pinChoices, splits, groups: syncGroupOrder(groups, window), windows: { ...s.windows, [windowId]: window } },
+    { made, carried, skipped, splits: panes.length },
+  ];
 }

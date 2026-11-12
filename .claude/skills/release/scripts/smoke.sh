@@ -142,13 +142,14 @@ pid="$(sed -n 's/^pid \([0-9]*\) .*/\1/p' <<<"$launched")"
 sleep 8
 
 locked="$("$work/windows" --locked)"
+access="$("$work/windows" --access)"
 [ "$locked" = 1 ] && echo "note: the screen is locked; checks of window order and closing are skipped (they need an unlocked screen)"
-SMOKE_LOCKED="$locked" SMOKE_DATA="$work/data" SMOKE_KEYS="$work/keys" SMOKE_GURL="$work/gurl" node "$here/smoke.mjs" "$version" "$work/windows" "$pages" || status=1
+SMOKE_LOCKED="$locked" SMOKE_ACCESS="$access" SMOKE_DATA="$work/data" SMOKE_KEYS="$work/keys" SMOKE_GURL="$work/gurl" node "$here/smoke.mjs" "$version" "$work/windows" "$pages" || status=1
 
 children="$(ps -axo ppid=,pid=,comm= | awk -v p="$pid" '$1 == p { $1 = ""; $2 = ""; sub(/^ +/, ""); print }')"
 foreign="$(printf '%s\n' "$children" | grep -v "^$fw/Chromium Framework.framework/" | grep -v '^$' || true)"
 kinds="$(printf '%s\n' "$children" | sed -n 's/.*Helpers\/\([^/]*\)\.app\/.*/\1/p' | sort | uniq -c | tr -s ' ' | tr '\n' ',')"
-[ -z "$foreign" ] && [[ "$kinds" == *"(Renderer)"* ]] && ok=1 || ok=0
+[ -z "$foreign" ] && [[ "$kinds" =~ \((Aperitif\ )?Renderer\) ]] && ok=1 || ok=0
 check "the browser's child processes are the bundle's own helpers (a renderer among them)" $ok "${kinds%,}${foreign:+; foreign: $foreign}"
 
 log stream --style compact --predicate "process == \"runningboardd\" AND eventMessage CONTAINS \":$pid]\" AND eventMessage CONTAINS \"termination reported\"" \
@@ -185,6 +186,13 @@ logger=""
 kill -KILL "$pid" 2>/dev/null || true
 pid=""
 node "$root/packages/ardiacore/scripts/popup-check.mjs" "$app" "$work/popup-check" || status=1
+cli_tarball="$dist/ardia-cli-$version-macos-arm64.tar.gz"
+if [ -f "$cli_tarball" ]; then
+  mkdir -p "$work/cli" && tar -xzf "$cli_tarball" -C "$work/cli"
+  ARDIA_CLI_HOME="$work/cli-home" "$root/apps/cli/scripts/token-smoke.sh" "$app" "$(ls "$work"/cli/*/bin/ardia)" || status=1
+elif [ -z "${SMOKE_APP:-}" ]; then
+  check "the release has $(basename "$cli_tarball")" 0
+fi
 codesign --verify --deep --strict "$app" && echo "PASS  bundle still sealed after running" || { echo "FAIL  running the app changed its bundle"; status=1; }
 "$here/feed.sh" "$version" --before-publish "$app" || status=1
 exit $status

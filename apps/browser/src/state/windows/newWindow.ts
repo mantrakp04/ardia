@@ -2,11 +2,9 @@ import type { BrowserState } from "../browser/store";
 import { linkProfileOf } from "./small";
 import type { BrowserWindow, Frame } from "../browser/types";
 
-export function emptyWindow(id: string, profileId: string, kind: "main" | "private", frame: Frame | null = null, sidebarOpen = true): BrowserWindow {
-  return { id, profileId, kind, tabIds: [], activeTabIds: {}, sidebarOpen, frame, createdAt: Date.now() };
+export function emptyWindow(id: string, profileId: string, kind: "main" | "private", frame: Frame | null = null): BrowserWindow {
+  return { id, profileId, kind, tabIds: [], activeTabIds: {}, frame, createdAt: Date.now() };
 }
-
-export const tabsShownInNewWindows = (s: Pick<BrowserState, "settings">) => !s.settings.autoHideTabs;
 
 export const smallWindow = (id: string, profileId: string, frame: Frame | null = null): BrowserWindow => ({
   id,
@@ -14,7 +12,6 @@ export const smallWindow = (id: string, profileId: string, frame: Frame | null =
   kind: "small",
   tabIds: [],
   activeTabIds: {},
-  sidebarOpen: false,
   frame,
   createdAt: Date.now(),
 });

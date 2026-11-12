@@ -1,44 +1,120 @@
+import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { KeyCap, Symbol, Text } from "../ui";
+import { addToDock, backgroundInstance, isDefaultBrowser, isInDock, setAsDefaultBrowser } from "../../state/app/appSettings";
+import { isSharing, setSharing } from "../../state/telemetry/client";
+import { SHARING_COPY } from "../../state/telemetry/copy";
+import { Button, Symbol, Text } from "../ui";
 import { lineHeight, proseLineHeight, space } from "../ui/tokens";
 import { PostageStamp, PostcardPaper } from "../ntp/PostageStamp";
-import { finishOnboarding, QUESTION_ORDER, useOnboarding } from "../../state/onboarding/onboarding";
+import { customizeMore, finishOnboarding, QUESTION_ORDER, recordDefaultBrowserTrial, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
 import { SecondaryButton } from "./Buttons";
-import { useOnboardingColors } from "./Parts";
+import { OptionCard } from "./OptionCard";
+import { OptionRow, useOnboardingColors } from "./Parts";
+import { Receipt } from "./PrivacyStep";
 import { StepActions, StepLayout } from "./StepLayout";
 import { onboardingType } from "./tokens";
+
+type SystemState = { isDefault: boolean; inDock: boolean };
 
 export function OutroStep() {
   const colors = useOnboardingColors();
   const picked = useOnboarding((s) => s.picked);
+  const redo = useOnboarding((s) => s.redo);
+  const customizing = useOnboarding((s) => s.customizing);
+  const extras = useOnboarding((s) => s.extras);
+  const [system, setSystem] = useState<SystemState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [receipt, setReceipt] = useState(false);
   const lines = QUESTION_ORDER.flatMap((q) => picked[q] ?? []);
+  const setDefault = extras.setDefault ?? !backgroundInstance;
+  const trial = !redo && (extras.trial ?? false);
+  const dock = extras.dock ?? true;
+  const share = extras.share ?? isSharing();
+
+  useEffect(() => {
+    void Promise.all([isDefaultBrowser(), isInDock()]).then(([isDefault, inDock]) => setSystem({ isDefault, inDock }));
+  }, []);
+
+  const finish = async (tour: boolean) => {
+    if (!system) return;
+    setBusy(true);
+    try {
+      if (!system.isDefault && (setDefault || trial) && (await setAsDefaultBrowser()) && !setDefault) recordDefaultBrowserTrial();
+      if (dock && !system.inDock) await addToDock();
+    } finally {
+      if (share !== isSharing() || !redo) setSharing(share, redo ? "settings" : "onboarding");
+      setBusy(false);
+      finishOnboarding({ tour });
+    }
+  };
+
+  const defaultChoice: DefaultChoice = setDefault ? "yes" : trial ? "trial" : "no";
   return (
     <StepLayout
-      title={"Welcome to your new\nhome on the internet"}
-      subtitle="Everything you set up is saved. Change any of it later in Settings."
+      title="Last few choices"
+      subtitle="The rest is set up from what you picked. Change any of it later in Settings."
       actions={
         <>
-          <StepActions icon="arrow.right" continueTitle="Get Started" onContinue={() => finishOnboarding()} />
-          <SecondaryButton title="Take the Tour" onPress={() => finishOnboarding({ tour: true })} />
+          <StepActions icon="arrow.right" continueTitle={busy ? "Setting Up…" : redo ? "Done" : "Get Started"} disabled={!system || busy} onContinue={() => void finish(false)} />
+          {redo ? null : <SecondaryButton title="Take the Tour" onPress={() => void finish(true)} />}
         </>
       }
-      preview={<Postcard lines={lines} />}
+      preview={receipt ? <Receipt on={share} /> : <Postcard lines={lines} />}
+      previewOptional
     >
+      {system && (!system.isDefault || !system.inDock) ? (
+        <View style={{ gap: space.m }}>
+          {!system.isDefault ? (
+            <OptionRow
+              title="Default browser"
+              value={defaultChoice}
+              options={redo ? DEFAULT_CHOICES.filter((c) => c.value !== "trial") : DEFAULT_CHOICES}
+              onChange={(choice) => setOnboardingExtras({ setDefault: choice === "yes", trial: choice === "trial" })}
+            />
+          ) : null}
+          {!system.inDock ? <OptionRow title="Keep in the Dock" value={dock ? "yes" : "no"} options={DOCK_CHOICES} onChange={(v) => setOnboardingExtras({ dock: v === "yes" })} /> : null}
+        </View>
+      ) : null}
       <View style={{ gap: space.ml }}>
-        {(
-          [
-            ["⌘T", "Open a new tab"],
-            ["⌘L", "Go anywhere from the command bar"],
-            ["⌘S", "Hide the sidebar for more room"],
-          ] as const
-        ).map(([keys, label]) => (
-          <View key={keys} style={{ flexDirection: "row", alignItems: "center", gap: space.l }}>
-            <KeyCap keys={[keys]} />
-            <Text color={colors.subtitle}>{label}</Text>
-          </View>
-        ))}
+        <OptionCard
+          control="check"
+          icon="stethoscope"
+          title={SHARING_COPY.toggle}
+          subtitle={SHARING_COPY.onboarding.row}
+          selected={share}
+          onHover={setReceipt}
+          onPress={() => setOnboardingExtras({ share: !share })}
+        />
+        <Text size="small" color={colors.rowSubtitle} style={NOTE}>
+          {SHARING_COPY.onboarding.note}
+        </Text>
+        {customizing ? null : <CustomizeMoreLink />}
       </View>
     </StepLayout>
+  );
+}
+
+type DefaultChoice = "yes" | "trial" | "no";
+
+const DEFAULT_CHOICES: { value: DefaultChoice; title: string }[] = [
+  { value: "yes", title: "Yes" },
+  { value: "trial", title: "Try for 7 days" },
+  { value: "no", title: "Not now" },
+];
+
+const DOCK_CHOICES: { value: "yes" | "no"; title: string }[] = [
+  { value: "yes", title: "Yes" },
+  { value: "no", title: "No" },
+];
+
+export function CustomizeMoreLink() {
+  return (
+    <View mouseDownCanMoveWindow={false} style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+      <Text size="small" color={useOnboardingColors().rowSubtitle}>
+        Tabs, search, pinned apps and more:
+      </Text>
+      <Button variant="text" look="link" tone="textSecondary" title="Customize more…" label="Customize tabs, search, pinned apps and more" onPress={customizeMore} />
+    </View>
   );
 }
 
@@ -93,3 +169,4 @@ const WELCOME_STAMP = { icon: 46, ring: 44, tilt: -12, ringAt: { right: 32, top:
 const CAPTION_LINE = { lineHeight: lineHeight.caption } as const;
 const PICKED_LINE = { flex: 1, lineHeight: lineHeight.caption } as const;
 const GREETING = { lineHeight: proseLineHeight.small } as const;
+const NOTE = { lineHeight: proseLineHeight.small } as const;

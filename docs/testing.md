@@ -1,16 +1,19 @@
 # Testing
 
-`pnpm test` at the root runs every unit test (333 cases, 2026-10-12). Turbo caches the results; a cold run spends most
-of its time in `swift test`'s first build. Each package also runs its own:
+`pnpm test` at the root runs every package's tests through Turbo, then the root's own `node --test` over
+`extras/raycast-ardia/src/scripts.test.ts`, `scripts/**/*.test.mjs` and `apps/site/src/**/*.test.ts`. Turbo caches the
+results; a cold run spends most of its time in `swift test`'s first build. Each package also runs its own:
 
-| Package | Command | Cases |
+| Package | Command | What runs |
 | --- | --- | --- |
-| `apps/browser` | `pnpm --filter @ardia/browser test` | 228 |
-| `packages/core` | `pnpm --filter @ardia/core test` | 32 |
-| `packages/sync` | `pnpm --filter @ardia/sync test` (`swift test`, `node --test`, then the rename's launch migration end to end, `scripts/legacy-migration-e2e.mjs`) | 66 + 9 |
-| `packages/import` | `pnpm --filter @ardia/import test` (`swift test`) | 26 |
-| `packages/ardiacore` | `pnpm --filter @ardia/ardiacore test` (`tests/pip-zoom.test.cc`, compiled with `clang++`) | 1 program |
-| `extras/raycast-ardia` | `node --test extras/raycast-ardia/src/scripts.test.ts` | 6 |
+| `apps/browser` | `pnpm --filter @ardia/browser test` | Every `src/**/*.test.mjs` under the test loader (below) |
+| `packages/core` | `pnpm --filter @ardia/core test` | `apps/ios/scripts/bundle-shared.mjs --check`, then `src/**/*.test.ts` |
+| `packages/sync` | `pnpm --filter @ardia/sync test` | `swift test`, `node --test`, the shared bundle check, then the rename's launch migration end to end (`scripts/legacy-migration-e2e.mjs`) |
+| `packages/import` | `pnpm --filter @ardia/import test` | `swift test` |
+| `packages/shell` | `pnpm --filter @ardia/shell test` | `swift test` (the updater's channel switch among them) |
+| `packages/shaders` | `pnpm --filter @ardia/shaders test` | `scripts/meadow.mjs --check` |
+| `packages/ardiacore` | `pnpm --filter @ardia/ardiacore test` | `node --test` on the engine API table, page events and the WebKit page script, then the native programs in `tests/`, each compiled with `clang++` (the transfer ledger under ThreadSanitizer) |
+| `extras/raycast-ardia` | `node --test extras/raycast-ardia/src/scripts.test.ts` | The AppleScript quoting and parsing |
 
 `apps/browser` runs its TypeScript under plain Node, with the real `@ardia/shell` and `@ardia/ardiacore` code:
 `src/test-loader.mjs` swaps only the native side. `expo-modules-core` becomes `src/test-native/expo.ts`, which hands
@@ -42,15 +45,62 @@ holds the rest.
 | Sidebar clicks | `node apps/browser/scripts/sidebar-click-test.mjs <Debug app>` | One click opens a tab or pinned tile: in the frame its hover card appears, under another tile's appearing card, after a New Tab and after closing a pinned tab (0.2.39-nightly.5: tabs needed two clicks), and when the pointer drifts up to 9 pt between press and release, while a 14 pt press stays a drag (#947) |
 | Menus | `node apps/browser/scripts/menus-test.mjs <Debug app> [--only=<regex>]` | Right-clicks on the sidebar's rows, tiles, split panes, groups, header, footer and background open their menu, and each item does what it says (tab, several-tab, group, sidebar, Top Apps, reload button, profile, bookmark, history, download and extension menus; moves between profiles and windows, private windows refused); the page menu's Copy Link Address, Save Link As… cancelled, Back and Forward. Menus come from `ac.menus` in the dev harness where nothing can be right-clicked |
 | Onboarding | `node apps/browser/scripts/onboarding-test.mjs <Debug app>` | No text field sits behind the onboarding card, a click on the first row's checkbox toggles it, another window keeps its New Tab field meanwhile, and the New Tab field is back and focused once it ends, in a bar of the same height (the hidden New Tab field took the first row's cursor and its checkbox clicks) |
+| New Tab row hover | `node apps/browser/scripts/newtab-row-hover-test.mjs <Debug app> [--trials=6]` | Click the sidebar's New Tab row, open a page from the New Tab page, move the pointer off: every view the pointer entered heard it leave, with new tabs next to the current one and at the bottom (#1280: the row's size changed under the pointer as the new tab slid in, its tracking area was remade, and it stayed highlighted) |
 | Sidebar scroll | `node apps/browser/scripts/sidebar-scroll-test.mjs <Debug app>` | The pinned tiles hold still while the tabs scroll (Dia's dock), with the address field in the sidebar and without: a row dragged onto a tile after a scroll pins it there, selecting a tile while scrolled leaves the list put, and a dock too tall for the window scrolls with the tabs; after a change to another profile's page, a click on a tab in view leaves the list put |
+| Settings layout | `node apps/browser/scripts/settings-shift-test.mjs <Debug app> [--panes a,b] [--attach <data dir>] [--keep]` | Every Settings pane, the first right after the window opens: nothing moves, appears, disappears or changes between its first frame on screen and once it has settled; ⌘F, typing, Return and Escape in Settings search |
+| Peek | `node apps/browser/scripts/peek-edge-test.mjs <Debug app>` | The auto-hidden sidebar's peek: a pointer resting on the window's top or bottom edge beside it keeps it out, one well past the edge closes it, an edge crossing outside its column never opens it, and pressing another space's dot keeps it out |
+| Import window | `node apps/browser/scripts/import-flow-test.mjs <Debug app> <scratch dir> [flow…] [--record <file>] [--compare <file>] [--keep]` | Every flow of the import window (Chrome with unlock, skip and back, Arc, Firefox, Dia, Safari direct, export and a bad file) against `packages/import/fixtures`, with a background-only stand-in for Dia, never a real profile |
 | Sync | `node packages/sync/scripts/e2e.mjs <Debug app>` | Two and three hidden instances through one folder (`docs/sync.md`) |
 | Import | `node packages/import/scripts/e2e.mjs <Debug app> <scratch dir>` | Cookies, addresses and cards from a fake Chrome home (`packages/import/README.md`) |
 | Video upscaling | `node apps/browser/scripts/video-upscaling-test.mjs <Debug app> [--keep] [check…]` (`--list`) | What the GPU process upscales in every state the gate decides (playing, paused, native size, background tab, app inactive, occluded, Low Power, thermal, PiP, HDR, full screen, Little Ardia, setting off), from its `ArdiaVSR.*` trace events and `videoUpscalingState()` |
 | Engine patches | `python3 engine/patches/series.py check` | The patch series reproduces the Chromium tree (`docs/engine-build.md`) |
 | Engine (ArdiaCore) | `node packages/ardiacore/scripts/acceptance.mjs <Debug app> <scratch dir> [--keep] [check…]` | The app on ArdiaCore, hidden (`docs/ardiacore-parity.md`). `--keep` leaves the instance up and `--attach <scratch dir> [check…]` re-runs checks on it in seconds; `--list` gives each check's section and what it needs (brought along automatically) |
 | Focus (ArdiaCore) | `node packages/ardiacore/scripts/activation-acceptance.mjs <Debug app> <scratch dir> [check…]` | The panes shown, Chrome's active tab and native focus agree |
+| UI pixels | `scripts/agent/ui-snapshots capture <Debug app> <out dir>` before and after, then `scripts/agent/ui-snapshots compare <before dir> <after dir>` (`list`, `--help`) | A refactor changed no pixels: every UI state of a fixed seeded session, snapshotted in-process (works with the screen locked) and diffed |
 | Native perf | `node apps/browser/scripts/perf/native-bench.mjs --app <Release app> --out <dir>` | Launch, idle, memory, tab and window latency; the release perf gate (`docs/perf/README.md`) |
 | JS perf | `node apps/browser/scripts/perf/js-bench.mjs run --app <Release app> --bundle <main.jsbundle> --label <name>` | What each interaction costs the JS thread (`docs/perf/README.md`) |
+
+## ArdiaCore acceptance
+
+The acceptance run's checks and what each proves are listed in `docs/ardiacore-parity.md` › "Acceptance (hidden instance)".
+
+```bash
+# Engine (once, and after engine/ changes): both apply.sh, then autoninja, under the chromium lock
+#   scripts/agent/engine-build --as <you>   (docs/engine-build.md)
+# App: apps/browser/macos (the only app project; pod install there after adding native files).
+scripts/agent/build-app --as <you>     # into apps/browser/build-<you>; --help
+# Acceptance, hidden (open -g -n, ARDIA_BACKGROUND=1, a scratch data dir); METRO_PORT is a Metro for this checkout.
+METRO_PORT=8081 node packages/ardiacore/scripts/acceptance.mjs apps/browser/build-<you>/Build/Products/Debug/Ardia.app <scratch dir> [check…]
+```
+
+The app (bundle id `com.ardia.browser`, Apple Development signing with the hardened runtime in
+Debug; `scripts/release.sh` signs releases with Developer ID). A Debug build refuses to start without
+`ARDIA_DATA_DIR` (it never falls back to a real profile). A test run hands it its Metro in `ARDIA_INSTANCE` `jsLocation`
+(that launch's argument domain, never written); never `defaults write com.ardia.browser`, the installed app's. Its build stages a copy of the engine framework
+(`packages/ardiacore/scripts/stage-framework.sh`, under the chromium lock, into `ARDIACORE_STAGE_DIR`), links that, and
+`embed.sh` signs the embedded copy with the build's identity.
+
+Test hygiene the run keeps (each was a real failure):
+- Metro is reached through a proxy that refuses its websockets (`/hot`, `/message`), so another session's edits
+  never reload the app mid-run.
+- Every file the app is asked to read lives in the scratch dir: the checkout is under `~/Documents`, and an ad hoc
+  build reading it raises macOS's folder-access prompt and blocks the main thread on it (the extension fixture is
+  copied).
+- Permissions use MIDI and notifications (no macOS prompt behind them), external apps a scheme no app handles;
+  never location or `mailto:`. Camera and microphone only on a copy of the app without the device entitlements
+  (ad hoc, hardened runtime: macOS refuses the devices without asking) and Chrome's fake devices: every hidden
+  instance gets `--use-fake-device-for-media-stream` (ArdiaHost), and with it the engine keeps the microphone on a
+  fake input (`ac_fake_media.mm`), since the fake list's "default" input is the Mac's real one to the audio service and
+  a stream on it raised macOS's microphone dialog on the owner's screen (2026-10-01).
+- A check that needs a page on screen (permission prompts, choosers, context menus) shows it first: Chrome holds
+  those for hidden tabs. Checks that need "no user activation" reload the page first (CDP's `userGesture` leaves
+  one behind).
+
+`node packages/ardiacore/scripts/drag-end-check.mjs <Debug app> [scratch dir]` checks that a page keeps taking clicks and keys
+after a drag nobody ends (`chromium-drag-always-ends.patch`, `docs/engine-build.md`): a DevTools session that took a drag and went
+away, a drag DevTools input started that no session took, and a drag macOS refuses to start. It launches its own hidden
+instance with `--test nativeDragRefused`, so no macOS drag session, which would follow the owner's pointer, is ever begun;
+never drag from a page with the harness's real mouse events in an instance without that key.
 
 ## Test instances
 
@@ -133,7 +183,7 @@ Launch with `scripts/agent/ac launch <app> --data <dir> [--instance K=V] [--test
   that log a line (`ArdiaSystem`, `chromium-background-instance-no-default-handlers.patch`).
 
 A scratch `ARDIA_DATA_DIR` holds Chrome's user data and the app's documents, its defaults, keychain items and
-Sparkle state (`ArdiaIsolation.h`); Chrome gets `--use-mock-keychain`; update checks are off without
+Sparkle state (`packages/shell/ios/ArdiaIsolation.m`); Chrome gets `--use-mock-keychain`; update checks are off without
 `updateFeed`; a Release build's telemetry is tagged `test`, and the release-notes page stays closed
 unless `releaseNotes`.
 
@@ -194,4 +244,4 @@ lose or leak data, or when the bug is invisible by eye and has shipped before.
 | The rest of `pinnedClose`, `openers`, `idn`, `suggest`, `sanitize`, sync and import | Variations of a kept case |
 | `profile-pager-race-test.mjs` | Loaded the pager's source with its dependencies mocked; `profile-swipe-test.mjs` runs the same races against the real app |
 | `profile-motion-stall-test.mjs`, `profile-swipe-replay.mjs` (and the owner's trackpad recording) | One-off investigation harnesses for the native pager, done in 0.2.18 |
-| `packages/import/src/index.test.ts`, Swift tests for Dia tabs, file imports, Firefox and Chromium parsing | The JS wrapper is a thin bridge; parsing failures show in the importer's own result |
+| `packages/import/src/index.test.ts`, Swift tests for file imports, Firefox and Chromium parsing (Dia tabs have tests again: `DiaTabsTests.swift`) | The JS wrapper is a thin bridge; parsing failures show in the importer's own result |

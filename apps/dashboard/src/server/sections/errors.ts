@@ -1,4 +1,5 @@
-import { stepMs, windowFor, type RangeKey } from "../../lib/range";
+import { windowFor, type RangeKey } from "../../lib/range";
+import { UTC } from "../../lib/zone";
 import { num, query, str } from "../clickhouse";
 import { classifyNoise } from "../noise";
 import { APP_SOURCE, SITE, prop, since } from "../sql";
@@ -33,14 +34,24 @@ function framesOf(list: string): string[] {
 
 type Where = "site" | "app" | "cli";
 
+function bucketIndex(buckets: number[], at: number) {
+  let i = -1;
+  for (let lo = 0, hi = buckets.length - 1; lo <= hi; ) {
+    const mid = (lo + hi) >> 1;
+    if (buckets[mid]! <= at) (i = mid), (lo = mid + 1);
+    else hi = mid - 1;
+  }
+  return i;
+}
+
 function hashId(text: string) {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
   return (h >>> 0).toString(36);
 }
 
-export async function errorsExceptions(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function errorsExceptions(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const [recent, history] = await Promise.all([
     query(
       `SELECT uuid, toUnixTimestamp64Milli(timestamp), ${WHERE}, distinct_id, ${TYPE}, ${MESSAGE},
@@ -87,13 +98,12 @@ export async function errorsExceptions(range: RangeKey, signal?: AbortSignal) {
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
 
-  const size = stepMs(w.step);
   const series = { app: w.buckets.map(() => 0), cli: w.buckets.map(() => 0), site: w.buckets.map(() => 0), noise: w.buckets.map(() => 0) };
   const out = [...groups].map(([key, list]) => {
     const head = list[0]!;
     const noise = head.where === "cli" ? null : classifyNoise(head.where, head.message, head.list, head.ua);
     for (const r of list) {
-      const i = Math.min(series.app.length - 1, Math.floor((r.at - w.start) / size));
+      const i = bucketIndex(w.buckets, r.at);
       if (i >= 0) (noise ? series.noise : series[r.where])[i]!++;
     }
     const versions = new Map<string, number>();

@@ -1,7 +1,7 @@
 import { openTaskManager } from "../../platform/performance";
 import { copyText } from "../../platform/clipboard";
 import { engineInfo, systemInfo, updaterState } from "../../platform/app";
-import { startOnboarding } from "../onboarding/onboarding";
+import { redoOnboarding } from "../onboarding/onboarding";
 import { openVideoTour, startToolTour } from "../onboarding/tour";
 import { useBrowser } from "../browser/store";
 import { focusedWindowOf } from "../windows/ui";
@@ -12,7 +12,7 @@ import type { AppCommand } from "./commandCatalog";
 export const APP_COMMAND_HANDLERS: Readonly<Record<AppCommand, (windowId: string | null) => void>> = {
   reportProblem: (windowId) => reportProblem(windowId),
   copyDiagnostics: () => void diagnostics().then(copyText),
-  showOnboarding: (windowId) => startOnboarding(windowId),
+  showOnboarding: (windowId) => void redoOnboarding(windowId),
   toolTour: (windowId) => void startToolTour(windowId),
   videoTour: (windowId) => openVideoTour(windowId),
   releaseNotes: (windowId) => openReleaseNotesPage(windowId),

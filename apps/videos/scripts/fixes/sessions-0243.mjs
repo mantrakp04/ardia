@@ -1,25 +1,10 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { session } from "../../../../scripts/lib/instance.mjs";
+import { DARK, PERSONAL, TITLES, TRAVEL, WORK, writeSession } from "./sessions-lib.mjs";
 
-const out = process.argv[2];
-const TITLES = {
-  lexicon: "meadow | Lexicon dictionary",
-  dailyledger: "The Daily Ledger",
-  moodwall: "moodwall — ideas for everything",
-  docpad: "Trip plan — Docpad",
-  crumbs: "Crumbs — Brown butter oat cookies",
-  tunes: "Tunes · Late Night Drive",
-  watch: "Watch",
-};
-const T = (id, profileId, url, extra = {}) => ({ id, profileId, url, title: TITLES[new URL(url).hostname.split(".")[0]], ...extra });
+const TITLES_HERE = { ...TITLES, tunes: "Tunes · Late Night Drive", watch: "Watch" };
+const T = (id, profileId, url, extra = {}) => ({ id, profileId, url, title: TITLES_HERE[new URL(url).hostname.split(".")[0]], ...extra });
 const tile = (id, url) => T(id, "default", url, { pinned: true, pinnedUrl: url });
 const row = (id, url) => T(id, "default", url, { pinned: true, pinnedAsRow: true, pinnedUrl: url });
-const profiles = [
-  { id: "default", name: "Personal", color: "plum", icon: "🪐" },
-  { id: "work", name: "Work", color: "blue", icon: "🔥" },
-  { id: "travel", name: "Travel", color: "orange", icon: "✈️" },
-];
+const profiles = [PERSONAL, WORK, TRAVEL];
 const others = [T("w1", "work", "http://docpad.example/"), T("v1", "travel", "http://crumbs.example/")];
 const base = [
   tile("p1", "http://moodwall.example/"),
@@ -34,13 +19,7 @@ const base = [
 ];
 
 function build(file, { tabs = base, active = "t1", settings = {} } = {}) {
-  const s = session({
-    profiles,
-    windows: [{ id: "w1", frame: [80, 60, 1360, 860], profileId: "default", activeTabIds: { default: active, work: "w1", travel: "v1" } }],
-    tabs,
-  });
-  s.settings = { appearance: "light", searchSuggestions: false, warnBeforeQuitting: false, sidebarWidth: 260, ...settings };
-  writeFileSync(join(out, file), JSON.stringify(s, null, 2));
+  writeSession(file, { profiles, tabs, activeTabIds: { default: active, work: "w1", travel: "v1" }, settings: { ...DARK, appearance: "light", ...settings } })
 }
 
 build("session-0243-base.json");

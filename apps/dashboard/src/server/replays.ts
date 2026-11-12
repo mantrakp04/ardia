@@ -91,7 +91,7 @@ function replayHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-const TIMELINE_EVENTS = ["$pageview", "$autocapture", "$rageclick", "$dead_click", "$exception", DOWNLOAD_EVENT, CUSTOMIZE_EVENT, "github_clicked", "screenshot_opened", "release_notes_viewed", "send_to_mac_clicked", "notify_clicked"];
+const TIMELINE_EVENTS = ["$pageview", "$autocapture", "$rageclick", "$dead_click", "$exception", DOWNLOAD_EVENT, CUSTOMIZE_EVENT, "github_clicked", "screenshot_opened", "release_notes_viewed", "send_to_mac_clicked", "testflight_clicked", "notify_clicked"];
 const SESSION_CACHE = { freshMs: 60_000, keepMs: 5 * 60_000 };
 const FETCH_TIMEOUT_MS = 10_000;
 const DEADLINE_MS = 30_000;

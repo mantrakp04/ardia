@@ -1,4 +1,4 @@
-import { continueRender, delayRender, staticFile } from "remotion";
+import { cancelRender, continueRender, delayRender, staticFile } from "remotion";
 
 export const color = {
   paper: "#F1ECE2",
@@ -53,6 +53,6 @@ export function loadFonts() {
   )
     .then(() => continueRender(handle))
     .catch((error: unknown) => {
-      throw new Error(`fonts: ${String(error)} (run scripts/prepare-assets.sh)`);
+      cancelRender(new Error(`fonts: ${String(error)} (run scripts/prepare-assets.sh)`));
     });
 }

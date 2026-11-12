@@ -6,8 +6,9 @@ public enum HistoryReader {
   private static let webOnly = "(url LIKE 'http://%' OR url LIKE 'https://%')"
 
   public static func read(_ db: URL, flavor: Flavor, options: ImportOptions = .init(),
-                          observer: ImportObserver = .silent, cancellation: Cancellation = .init()) throws -> (entries: [HistoryEntry], count: Int) {
-    let snapshot = try SQLiteSnapshot(copying: db)
+                          observer: ImportObserver = .silent, cancellation: Cancellation = .init(),
+                          snapshots: SQLiteSnapshots = .init()) throws -> (entries: [HistoryEntry], count: Int) {
+    let snapshot = try snapshots.snapshot(copying: db)
     let sql: String
     var bindings: [SQLiteSnapshot.Value] = []
     switch flavor {

@@ -34,7 +34,6 @@ CH_DB = os.environ.get("CLICKHOUSE_DB", "sandbox")
 PREFIX = "ardia_"
 LOCK = os.path.join(BASE, ".ch_sync.lock")
 
-# ---------- type mapping ----------
 LC = "LowCardinality(String)"
 NLC = "LowCardinality(Nullable(String))"
 NS = "Nullable(String)"
@@ -43,7 +42,6 @@ NTS = "Nullable(DateTime64(3, 'UTC'))"
 NTS6 = "Nullable(DateTime64(6, 'UTC'))"
 TS6 = "DateTime64(6, 'UTC')"
 
-# table -> (columns [(name, ch_type)], order_by, version_column)
 TABLES = {
     "people": ([("id", "UInt32"), ("display_name", NS), ("x_handle", NS), ("x_user_id", NS),
                 ("discord_handle", NS), ("discord_id", NS), ("github_login", NS), ("link_note", NS),
@@ -93,7 +91,6 @@ TABLES = {
         ("updated_at", TS), ("status_at", TS), ("pinned_at", NTS)], "id", "synced_at"),
     "state": ([("key", "String"), ("value", NS), ("updated_at", TS)], "key", "updated_at"),
 }
-# CH column name -> SQLite column name, where they differ (issues.synced_at collides with our synced_at)
 RENAMES = {("issues", "source_synced_at"): "synced_at"}
 
 def _ts(v, nullable=True):
@@ -101,7 +98,7 @@ def _ts(v, nullable=True):
         return None
     d = datetime.datetime.fromisoformat(str(v).replace("Z", "+00:00"))
     if d.tzinfo is None:
-        d = d.replace(tzinfo=datetime.timezone.utc)  # e.g. items.created_at "2026-10-20T14:05" (assumed UTC)
+        d = d.replace(tzinfo=datetime.timezone.utc)
     return d.astimezone(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
 
 def convert(table, ch_type, v, warnings):
@@ -134,7 +131,6 @@ def convert(table, ch_type, v, warnings):
         return int(v)
     return str(v)
 
-# ---------- ClickHouse HTTP ----------
 def _auth():
     pw = os.environ.get("CLICKHOUSE_PASSWORD")
     if not pw:
@@ -151,7 +147,7 @@ def ch(sql, data=None, **settings):
     req = urllib.request.Request(CH_URL + "?" + urllib.parse.urlencode(params), data=body, method="POST",
                                  headers={"Authorization": _auth()})
     import time as _t
-    for _i in range(8):  # the box's outbound TLS drops connections now and then; retry transient errors
+    for _i in range(8):
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
                 return r.read().decode()
@@ -162,7 +158,6 @@ def ch(sql, data=None, **settings):
             if _i == 7: raise
             _t.sleep(2 + 2 * _i)
 
-# ---------- schema ----------
 def ddl(table):
     cols, order_by, ver = TABLES[table]
     lines = [f"  `{n}` {t}" for n, t in cols] + ["  `synced_at` DateTime64(3, 'UTC')"]
@@ -227,7 +222,6 @@ UNION ALL SELECT 'issue_state', ifNull(toString(state), '(null)'), count() FROM 
 def ensure_schema():
     for t in TABLES:
         ch(ddl(t))
-    # CREATE TABLE IF NOT EXISTS won't add columns introduced later (e.g. replies.needs_recheck): add the missing ones
     have = {}
     for l in ch(f"SELECT table, name FROM system.columns WHERE database = '{CH_DB}' AND startsWith(table, '{PREFIX}') "
                 "FORMAT JSONEachRow").splitlines():
@@ -243,14 +237,9 @@ def ensure_schema():
     for name, body in VIEWS.items():
         ch(f"CREATE OR REPLACE VIEW {CH_DB}.{name} AS {body.strip()}")
 
-# ---------- dashboard reply actions (ClickHouse -> SQLite) ----------
-# The deployed dashboard (mantrakp04/ardia apps/dashboard/src/server/triage/replies.ts) records every
-# sent/skipped/drafted/recheck/snooze/unsnooze click as a row in sandbox.ardia_reply_actions (reply_id UInt32, status, at DateTime64(3,'UTC'), actor)
-# and overlays it on ardia_replies. Before we wipe ardia_replies, fold those actions back into SQLite so the
-# reload doesn't lose them. ardia_reply_actions is append-only and owned by the dashboard: we only ever SELECT from it.
 ACTIONS = "ardia_reply_actions"
 ACTIONS_STATE = "ch_reply_actions_applied_at"
-ACTIONS_OVERLAP_S = 60  # re-read a little before the watermark to catch late inserts; status_at check keeps it idempotent
+ACTIONS_OVERLAP_S = 60
 
 def _dt(v):
     if v in (None, ""):
@@ -288,8 +277,6 @@ def apply_reply_actions(conn):
             skipped += 1
             continue
         if st == "recheck":
-            # "Recheck" never changes status: it flags the reply for the next routine pass (recheck_replies.py).
-            # Skip if this press was already recorded, or the reply was re-checked after it was pressed.
             req, chk = _dt(row["recheck_requested_at"]), _dt(row["last_checked_at"])
             if (req is not None and at <= req) or (chk is not None and at <= chk):
                 skipped += 1
@@ -298,8 +285,6 @@ def apply_reply_actions(conn):
             applied += 1
             continue
         if st in ("snooze", "unsnooze"):
-            # Snooze never changes status: it hides a draft from the dashboard's Waiting view for SNOOZE_HOURS.
-            # Only the newest press counts; skip if this one (or a later one) is already recorded.
             prev = _dt(row["snooze_changed_at"])
             if prev is not None and at <= prev:
                 skipped += 1
@@ -310,21 +295,19 @@ def apply_reply_actions(conn):
             continue
         cur = _dt(row["status_at"])
         if cur is not None and at <= cur:
-            skipped += 1  # SQLite already has a newer (or this very) status change
+            skipped += 1
             continue
-        # same effect as db.set_reply_status (local mark-sent), but stamped with the action's own time
         conn.execute("UPDATE replies SET status=?, status_at=? WHERE id=?", (st, _iso(at), rid))
         if st == "sent" and row["item_id"]:
             conn.execute("UPDATE items SET replied=1, replied_note=COALESCE(replied_note,'reply sent via dashboard') "
                          "WHERE id=?", (row["item_id"],))
         applied += 1
     if newest is not None and newest != mark:
-        db.set_state(conn, ACTIONS_STATE, _iso(newest))  # commits the reply/item updates too
+        db.set_state(conn, ACTIONS_STATE, _iso(newest))
     else:
         conn.commit()
     return applied, skipped
 
-# ---------- sync ----------
 def sqlite_rows(conn, table):
     cols, order_by, _ = TABLES[table]
     src = [RENAMES.get((table, n), n) for n, _ in cols]
@@ -362,7 +345,6 @@ def sync(tables=None, ensure=True):
         conn = _leads.connect()
         _attention.ensure(conn)
         try:
-            # pull dashboard reply actions into SQLite before any TRUNCATE (aborts the sync if unreadable)
             applied, skipped = apply_reply_actions(conn)
             if applied or skipped:
                 print(f"reply actions: applied {applied}, skipped {skipped}", file=sys.stderr)
@@ -373,7 +355,6 @@ def sync(tables=None, ensure=True):
             stamp = db.now()
             synced_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             warnings, counts = [], {}
-            # record the sync time first (state is pushed last so the mirror carries it too)
             for t in [t for t in tables if t != "state"]:
                 counts[t] = sync_table(conn, t, synced_at, warnings)
             db.set_state(conn, "ch_last_sync" if full else "ch_last_partial_sync", stamp)

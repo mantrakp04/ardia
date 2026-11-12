@@ -1,14 +1,15 @@
-import asyncio
 import json
 import sys
 
 from ardia_cli import control
 from ardia_cli.control import MethodError, Unreachable
-from ardia_cli.printable import shown
+from ardia_cli.endpoint import DATA_DIR_HELP
+from ardia_cli.printable import complain, say, shown
 
-DATA_DIR_HELP = "the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)"
 APPLY_TIMEOUT = 120.0
-COLORS = ("neutral", "none", "grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange")
+TINTS = ("grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange")
+COLORS = ("neutral", "none", *TINTS)
+COLOR_HELP = f"{', '.join(TINTS)}; neutral (the default: a box only under the pointer) or none (no box)"
 ICON_HELP = "an emoji from Ardia's icon picker (🚀), symbol:<SF Symbol name> (symbol:star), or none"
 EXIT_STATUS = """\
 Exit status: 0 done, 1 refused, a bad request or a target that isn't there (nothing after the failing operation
@@ -138,7 +139,7 @@ def add_parsers(commands, formatter):
 
     def looks(parser):
         parser.add_argument("--icon", metavar="ICON", help=ICON_HELP)
-        parser.add_argument("--color", choices=COLORS, metavar="COLOR", help=", ".join(COLORS))
+        parser.add_argument("--color", choices=COLORS, metavar="COLOR", help=COLOR_HELP)
 
     create = common(gverbs.add_parser("create", help="make a group", description="Make a group from the tabs given, the URLs given (opened in the background), or else one new tab.\nThe tabs move out of the groups they were in, without reloading.", formatter_class=formatter))
     create.add_argument("ids", nargs="*", metavar="TAB", help="tab ids to put in it")
@@ -186,17 +187,6 @@ def add_parsers(commands, formatter):
 
     batch = common(commands.add_parser("apply", help="apply several tab and group operations at once (JSON)", description=APPLY_DESCRIPTION, formatter_class=formatter))
     batch.add_argument("file", nargs="?", metavar="FILE", help="a JSON file (default: stdin)")
-
-
-def say(text: str) -> None:
-    sys.stdout.write(text + "\n")
-    sys.stdout.flush()
-
-
-def complain(text: str) -> None:
-    sys.stdout.flush()
-    sys.stderr.write(text + "\n")
-    sys.stderr.flush()
 
 
 def placed(args, op: dict) -> dict:
@@ -283,18 +273,6 @@ def group_op(args) -> dict:
     return {"op": f"group.{verb}", "group": args.id}
 
 
-async def with_connection(args, work):
-    connection = await control.connect(control.socket_path(args.data_dir))
-    try:
-        return await work(connection)
-    finally:
-        await connection.close()
-
-
-def call(args, method: str, params, timeout=control.CALL_TIMEOUT):
-    return asyncio.run(with_connection(args, lambda c: c.call(method, params, timeout)))
-
-
 def note_error(code) -> None:
     from ardia_cli import telemetry
 
@@ -315,7 +293,7 @@ def apply_ops(args, command: str, ops: list) -> int:
 
     telemetry.note_count("batch_steps", len(ops))
     try:
-        reply = call(args, "apply", {"ops": ops}, APPLY_TIMEOUT)
+        reply = control.call(args.data_dir, "apply", {"ops": ops}, APPLY_TIMEOUT)
     except Unreachable as error:
         if error.sent:
             complain(f"ardia {command}: the connection dropped after the request went out, so it may or may not have run ({error})")
@@ -441,7 +419,7 @@ def cmd_apply(args) -> int:
 def read_workspace(args, command: str):
     params = {key: getattr(args, key) for key in ("window", "profile") if getattr(args, key, None)}
     try:
-        return call(args, "workspace", params)
+        return control.call(args.data_dir, "workspace", params)
     except Unreachable as error:
         complain(f"ardia: {error}")
         return 2

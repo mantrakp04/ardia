@@ -45,9 +45,19 @@ public class TranslateModule: Module {
       try await DownloadPrompt.run(source: Locale.Language(identifier: source), target: Locale.Language(identifier: target))
     }
 
-    AsyncFunction("translateBlocks") { (source: String, target: String, blocks: [[String]]) async -> [[String]?] in
-      guard #available(macOS 26.4, *) else { return blocks.map { _ in nil } }
-      return await TranslationSessions.translateBlocks(source: source, target: target, blocks)
+    AsyncFunction("translateBlocks") { (source: String, target: String, blocks: [[String]], owner: String) async -> [[String]?] in
+      guard #available(macOS 26.0, *) else { return blocks.map { _ in nil } }
+      return await TranslationSessions.translateBlocks(source: source, target: target, owner: owner, blocks)
+    }
+
+    AsyncFunction("open") { (owner: String) async in
+      guard #available(macOS 26.0, *) else { return }
+      await TranslationSessions.open(owner: owner)
+    }
+
+    AsyncFunction("cancel") { (owner: String) async in
+      guard #available(macOS 26.0, *) else { return }
+      await TranslationSessions.cancel(owner: owner)
     }
 
     AsyncFunction("translate") { (source: String, target: String, texts: [String]) async throws -> [String?] in
@@ -58,62 +68,7 @@ public class TranslateModule: Module {
 }
 
 extension TranslateModule {
-  static func linkedPieces(_ pieces: [String]) -> AttributedString {
-    var text = AttributedString()
-    for (i, piece) in pieces.enumerated() {
-      var run = AttributedString(piece)
-      run.link = URL(string: "ac-piece:\(i)")
-      text += run
-    }
-    return text
-  }
-
   static func isUnchanged(_ parts: [String], from pieces: [String]) -> Bool {
     parts.joined().filter { !$0.isWhitespace } == pieces.joined().filter { !$0.isWhitespace }
-  }
-
-  static func parts(of translated: AttributedString, over pieces: [String]) -> [String]? {
-    var parts = Array(repeating: "", count: pieces.count)
-    var order: [Int] = []
-    var last = 0
-    for run in translated.runs {
-      let words = String(translated[run.range].characters)
-      if let link = run.link, link.scheme == "ac-piece", let i = Int(link.absoluteString.dropFirst("ac-piece:".count)), parts.indices.contains(i) {
-        order.append(i)
-        last = i
-        parts[i] += words
-      } else {
-        parts[last] += words
-      }
-    }
-    guard !order.isEmpty else { return nil }
-    if zip(order, order.dropFirst()).contains(where: { $0 > $1 }) {
-      return distribute(String(translated.characters), over: pieces)
-    }
-    return parts
-  }
-}
-
-extension TranslateModule {
-  static func distribute(_ text: String, over pieces: [String]) -> [String] {
-    let chars = Array(text)
-    let total = max(1, pieces.reduce(0) { $0 + $1.count })
-    var out: [String] = []
-    var start = 0
-    var seen = 0
-    for (i, piece) in pieces.enumerated() {
-      seen += piece.count
-      var end = i == pieces.count - 1 ? chars.count : min(chars.count, Int((Double(seen) / Double(total) * Double(chars.count)).rounded()))
-      if end < chars.count, end > start {
-        let window = 12
-        if let space = (0...window).lazy.flatMap({ [end + $0, end - $0] }).first(where: { $0 > start && $0 < chars.count && chars[$0] == " " }) {
-          end = space + 1
-        }
-      }
-      end = max(start, end)
-      out.append(String(chars[start..<end]))
-      start = end
-    }
-    return out
   }
 }

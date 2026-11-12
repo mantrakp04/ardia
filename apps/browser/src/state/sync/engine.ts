@@ -15,16 +15,19 @@ import { historyExpired } from "./adapters";
 import { settingsToReapply } from "./settingsAdapter";
 import { watchExtensionIntents } from "./extensions";
 import { appAdapters, extensionsOf, forgetScopeAdapters, profileAdapters, typeSynced } from "./scopeAdapters";
-import { APP_SCOPE, defaultTypes, emptyDoc, type DataType, type SyncDoc, type SyncUi } from "./syncDoc";
+import { APP_SCOPE, defaultTypes, emptyDoc, type DataType, type SendTarget, type SyncDoc, type SyncUi } from "./syncDoc";
 import { syncFiles } from "./syncFiles";
 import { settleThemeAdoption, themeChosenHere } from "./syncThemes";
 import { editClock, startEditClock } from "./editClock";
 import { addLinkedProfile, appScopeOf, linkedProfileId, linkProfiles, readyToPair, remoteProfileRecord, sharedDataChain } from "./profileLinks";
 import { summarize } from "./syncSummary";
 import { profileScope } from "./records";
+import { queueSend, sendTargetsIn } from "./sentTabs";
 import { errorText } from "../../lib/errors";
 import { isQuitting, saveBeforeQuit } from "../app/quit";
 import { onProfilesOpened, profileOpened } from "../profiles/profileLoading";
+
+export { onTabsReceived } from "./sentTabs";
 
 const CYCLE_MS = 15_000;
 const AFTER_EDIT_MS = 3_000;
@@ -51,7 +54,20 @@ let cycle: Promise<void> | null = null;
 let again = false;
 let forcePasswordsNext = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
+let snapshotWrites = { count: 0, bytes: 0 };
 const { read, loadState, persistJournal, watchScope, save, startOver, checkpoint } = syncFiles(() => doc);
+
+function noteSnapshot({ snapshotBytes }: { snapshotBytes: number }) {
+  if (!snapshotBytes) return;
+  snapshotWrites.count++;
+  snapshotWrites.bytes += snapshotBytes;
+}
+
+export function takeSnapshotWrites() {
+  const taken = snapshotWrites;
+  snapshotWrites = { count: 0, bytes: 0 };
+  return taken;
+}
 
 function load() {
   const loaded = read();
@@ -122,7 +138,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
     const app = appScopeOf(doc);
     const appSettled = watchScope(APP_SCOPE, app, clock);
     try {
-      await syncScope({
+      noteSnapshot(await syncScope({
         scope: APP_SCOPE,
         state: app,
         transport,
@@ -130,7 +146,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
         clock,
         device,
         options: { persist: persistJournal(APP_SCOPE), holdApply: isQuitting },
-      });
+      }));
     } finally {
       await appSettled();
     }
@@ -146,7 +162,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
       const state = (doc.scopes[scope] ??= emptyScope());
       const settled = watchScope(scope, state, clock);
       try {
-        await syncScope({
+        noteSnapshot(await syncScope({
           scope,
           state,
           transport,
@@ -154,7 +170,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
           clock,
           device,
           options: { expired: historyExpired, persist: persistJournal(scope), holdApply: isQuitting },
-        });
+        }));
       } finally {
         await settled();
       }
@@ -164,6 +180,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
         delete link.retire;
         if (!exists) {
           delete doc.scopes[scope];
+          delete doc.sends?.[scope];
           delete doc.profiles[profileId];
         }
       }
@@ -310,6 +327,17 @@ export function setProfileSynced(profileId: string, enabled: boolean) {
   scheduleSync(0);
 }
 
+export function sendTargets(profileId: string): SendTarget[] {
+  return useSync.getState().status === "locked" ? [] : sendTargetsIn(doc, profileId);
+}
+
+export function sendTab(tabId: string, deviceId: string): boolean {
+  if (useSync.getState().status === "locked" || !queueSend(doc, tabId, deviceId)) return false;
+  save();
+  scheduleSync(0);
+  return true;
+}
+
 export const appScopeRecords = () => doc.scopes[APP_SCOPE]?.records ?? {};
 
 export function addRemoteProfile(syncId: string): string | null {
@@ -330,12 +358,17 @@ export function startSync() {
   publishUi({ status: doc.enabled ? "starting" : "off" });
   watchExtensions();
   if (doc.enabled && doc.deviceId) {
-    void SyncNative.unlock(doc.deviceId).then(async (ok) => {
-      if (!ok) return publishUi({ status: "locked", error: "Enter your recovery phrase to keep syncing on this Mac." });
-      await loadSavedState();
-      publishUi();
-      scheduleSync(500);
-    });
+    void SyncNative.unlock(doc.deviceId)
+      .then(async (ok) => {
+        if (!ok) return publishUi({ status: "locked", error: "Enter your recovery phrase to keep syncing on this Mac." });
+        await loadSavedState();
+        publishUi();
+        scheduleSync(500);
+      })
+      .catch((error: unknown) => {
+        console.warn("[sync] unlocking at launch failed", error);
+        publishUi({ status: "stalled", error: errorText(error) });
+      });
   }
   saveBeforeQuit(checkpoint);
   onProfilesOpened(() => {

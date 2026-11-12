@@ -110,7 +110,7 @@ export function tick(s: BrowserState, now: number) {
     const w = s.windows[g.windowId];
     const active = w ? activeTabId(s, w.id) : undefined;
     const busy = g.tabIds.some((id) => id === active || s.live[id]?.playingAudio);
-    const lastUse = Math.max(m.endedAt, ...g.tabIds.map((id) => s.tabs[id]?.lastActiveAt ?? 0));
+    const lastUse = Math.max(m.endedAt, ...g.tabIds.map((id) => Math.max(s.tabs[id]?.lastActiveAt ?? 0, s.tabs[id]?.restoredAt ?? 0)));
     if (!busy && now - lastUse >= CLEANUP_IDLE_MS) {
       setMeetingGroup(null, m.groupId);
       if (!groupKeptOpen(m.groupId)) store().closeGroup(m.groupId);

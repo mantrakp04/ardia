@@ -60,7 +60,6 @@ export function seedWindow(tabs: Tab[], frame: BrowserWindow["frame"] = null, no
     kind: "main",
     tabIds: tabs.map((t) => t.id),
     activeTabIds: ACTIVE_TABS,
-    sidebarOpen: true,
     frame,
     createdAt: now,
   };

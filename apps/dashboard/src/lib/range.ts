@@ -15,6 +15,8 @@ export function parseRange(value: unknown): RangeKey {
   return RANGES.includes(value as RangeKey) ? (value as RangeKey) : "7d";
 }
 
+import { addDays, startOfDay, startOfHour, UTC } from "./zone.ts";
+
 export type Step = "hour" | "day";
 
 export type Window = {
@@ -24,6 +26,7 @@ export type Window = {
   end: number;
   prevStart: number | null;
   buckets: number[];
+  zone: string;
 };
 
 const HOUR = 3_600_000;
@@ -31,25 +34,18 @@ const DAY = 86_400_000;
 
 const QUANTUM = 5 * 60_000;
 
-export function windowFor(range: RangeKey, at = Date.now()): Window {
+export function windowFor(range: RangeKey, zone = UTC, at = Date.now()): Window {
   const now = Math.ceil(at / QUANTUM) * QUANTUM;
-  const hourStart = Math.floor(now / HOUR) * HOUR;
-  const dayStart = Math.floor(now / DAY) * DAY;
-  let start: number;
-  let step: Step = "day";
-  if (range === "24h") {
-    step = "hour";
-    start = hourStart - 23 * HOUR;
-  } else if (range === "all") {
-    start = DATA_START_MS;
-  } else {
-    const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
-    start = dayStart - (days - 1) * DAY;
-  }
-  const size = step === "hour" ? HOUR : DAY;
   const buckets: number[] = [];
-  for (let t = start; t <= now; t += size) buckets.push(t);
-  return { range, step, start, end: now, prevStart: range === "all" ? null : start - (now - start), buckets };
+  if (range === "24h") {
+    const start = startOfHour(now, zone) - 23 * HOUR;
+    for (let t = start; t <= now; t += HOUR) buckets.push(t);
+    return { range, step: "hour", start, end: now, prevStart: start - (now - start), buckets, zone };
+  }
+  const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
+  const start = range === "all" ? startOfDay(DATA_START_MS, zone) : addDays(startOfDay(now, zone), -(days - 1), zone);
+  for (let t = start; t <= now; t = addDays(t, 1, zone)) buckets.push(t);
+  return { range, step: "day", start, end: now, prevStart: range === "all" ? null : start - (now - start), buckets, zone };
 }
 
 export const stepMs = (step: Step) => (step === "hour" ? HOUR : DAY);

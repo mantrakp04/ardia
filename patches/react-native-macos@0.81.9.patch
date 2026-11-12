@@ -1,3 +1,16 @@
+diff --git a/Libraries/Components/TextInput/TextInput.js b/Libraries/Components/TextInput/TextInput.js
+index 1ae22ed66776941c33b2c0a78038b2b997506aa7..632a0f284e88e2d3034f3eeb50cf2acf3be6652e 100644
+--- a/Libraries/Components/TextInput/TextInput.js
++++ b/Libraries/Components/TextInput/TextInput.js
+@@ -247,7 +247,7 @@ function useTextInputStateSynchronization({
+       viewCommands.setTextAndSelection(
+         inputRef.current,
+         mostRecentEventCount,
+-        text,
++        nativeUpdate.text ?? null, // [Ardia: only a value JS changed is text to set; a selection-only update sent the value too, and native takes command text as meant, so it replaced an input method's marked text Ardia]
+         selection?.start ?? -1,
+         selection?.end ?? -1,
+       );
 diff --git a/Libraries/Network/RCTNetworkTask.h b/Libraries/Network/RCTNetworkTask.h
 index a413a2888789daa1a4230e301ec21af5ec203488..857bd369ad19670a96f80aa08423c3b46936061e 100644
 --- a/Libraries/Network/RCTNetworkTask.h
@@ -249,11 +262,25 @@ index 18bbe64f657a36596563b3eb6d135284e28c674a..a4046a33e13d35cac155e306f368e04e
    // enter/return
    if ((commandSelector == @selector(insertNewline:) || commandSelector == @selector(insertNewlineIgnoringFieldEditor:))) {
      if ([textInputDelegate textInputShouldSubmitOnReturn]) {
+diff --git a/Libraries/Text/TextInput/RCTBaseTextInputView.h b/Libraries/Text/TextInput/RCTBaseTextInputView.h
+index bcaa6add683bab6a3b4e86cc091c9cadb9f22970..c295eff3cbde856de41c67064d684894db00017e 100644
+--- a/Libraries/Text/TextInput/RCTBaseTextInputView.h
++++ b/Libraries/Text/TextInput/RCTBaseTextInputView.h
+@@ -62,6 +62,9 @@ NS_ASSUME_NONNULL_BEGIN
+ @property (nonatomic, strong, nullable) NSNumber *maxLength;
+ @property (nonatomic, copy, nullable) NSAttributedString *attributedText;
+ @property (nonatomic, copy) NSString *predictedText; // [macOS]
++#if TARGET_OS_OSX // [Ardia
++- (void)replaceMarkedTextWithText:(NSString *)text;
++#endif // Ardia]
+ @property (nonatomic, copy) NSString *inputAccessoryViewID;
+ #if !TARGET_OS_OSX // [macOS]
+ @property (nonatomic, strong) NSString *inputAccessoryViewButtonLabel;
 diff --git a/Libraries/Text/TextInput/RCTBaseTextInputView.mm b/Libraries/Text/TextInput/RCTBaseTextInputView.mm
-index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123b2eb3f03 100644
+index cac171e70c9fa225cdec45b205086342a0d50f06..a0d75d7f127c1da4758dcfcdd119513deb65fcc6 100644
 --- a/Libraries/Text/TextInput/RCTBaseTextInputView.mm
 +++ b/Libraries/Text/TextInput/RCTBaseTextInputView.mm
-@@ -47,6 +47,11 @@ @implementation RCTBaseTextInputView {
+@@ -47,6 +47,16 @@ @implementation RCTBaseTextInputView {
  #if TARGET_OS_OSX // [macOS avoids duplicating effects of textInputDid(Begin|End)Editing calls
    BOOL _isCurrentlyEditing;
  #endif // macOS]
@@ -262,10 +289,15 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
 +  BOOL _clickFocused;
 +#endif // Ardia]
 +  __weak NSUndoManager *_undoManagerWithActions; // [Ardia: where its text undos are, so they go when it does Ardia]
++#if TARGET_OS_OSX // [Ardia: the text JS last heard in onChange or set, so its echo can't end an input method's composition, whether text is coming from an undo or a JS command rather than a re-render, and whether text from JS is replacing marked text
++  NSString *_textKnownToJS;
++  BOOL _bypassingEchoCheck;
++  BOOL _replacingMarkedText;
++#endif // Ardia]
  }
  
  #if !TARGET_OS_OSX // [macOS]
-@@ -76,6 +81,11 @@ - (void)reactUpdateResponderOffsetForScrollView:(RCTScrollView *)scrollView
+@@ -76,6 +86,11 @@ - (void)reactUpdateResponderOffsetForScrollView:(RCTScrollView *)scrollView
  }
  #endif // [macOS]
  
@@ -277,7 +309,21 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
  - (instancetype)initWithBridge:(RCTBridge *)bridge
  {
    RCTAssertParam(bridge);
-@@ -238,7 +248,15 @@ - (void)setAttributedText:(NSAttributedString *)attributedText
+@@ -224,6 +239,13 @@ - (void)setAttributedText:(NSAttributedString *)attributedText
+ 
+   textNeedsUpdate = ([self textOf:attributedTextCopy equals:backedTextInputViewTextCopy] == NO);
+ 
++#if TARGET_OS_OSX // [Ardia: while an input method holds marked text, a re-render restating the text JS already knows is an echo and is dropped: Korean commits a syllable and marks the next consonant in one keystroke, JS only heard the committed syllable, and setting that unmarked the consonant and reset the composition (3-set typing came out as loose letters, #863). Other text from a re-render, and any text from a JS command (clear(), a controlled value JS changed) or an undo, replaces the field, and AppKit ends the composition as it does
++  if (textNeedsUpdate && !_bypassingEchoCheck && [self.backedTextInputView hasMarkedText] &&
++      [attributedTextCopy.string isEqualToString:_textKnownToJS ?: @""]) {
++    return;
++  }
++#endif // Ardia]
++
+   if ((eventLag == 0 || self.backedTextInputView.ghostTextChanging) && textNeedsUpdate) { // [macOS]
+ #if !TARGET_OS_OSX // [macOS]
+     UITextRange *selection = self.backedTextInputView.selectedTextRange;
+@@ -238,13 +260,34 @@ - (void)setAttributedText:(NSAttributedString *)attributedText
        // If there was ghost text previously, we don't want it showing up if we undo.
        // If something goes wrong when trying to remove it, just stick with oldAttributedText.
        NSAttributedString *oldAttributedTextWithoutGhostText = [self removingGhostTextFromString:oldAttributedText strict:YES] ?: oldAttributedText;
@@ -291,10 +337,55 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
 +      _undoManagerWithActions = undoManager;
 +      // Ardia]
 +      [undoManager registerUndoWithTarget:self handler:^(RCTBaseTextInputView *strongSelf) {
++#if TARGET_OS_OSX // [Ardia
++        strongSelf->_bypassingEchoCheck = YES;
++#endif // Ardia]
          strongSelf.attributedText = oldAttributedTextWithoutGhostText;
++#if TARGET_OS_OSX // [Ardia
++        strongSelf->_bypassingEchoCheck = NO;
++#endif // Ardia]
          [strongSelf textInputDidChange];
        }];
-@@ -521,6 +539,11 @@ - (void)textInputDidBeginEditing
+     }
+ 
++#if TARGET_OS_OSX // [Ardia: AppKit commits the marked text before it takes the new text, and that commit's onChange reached JS after the replacement and put the composed text back over a clear
++    _replacingMarkedText = [self.backedTextInputView hasMarkedText];
++#endif // Ardia]
+     self.backedTextInputView.attributedText = attributedText;
++#if TARGET_OS_OSX // [Ardia
++    _replacingMarkedText = NO;
++    _textKnownToJS = [attributedText.string copy];
++#endif // Ardia]
+ 
+ #if !TARGET_OS_OSX // [macOS]
+     if (selection.empty) {
+@@ -330,6 +373,15 @@ - (void)setSelection:(RCTTextSelection *)selection
+   }
+ }
+ 
++#if TARGET_OS_OSX // [Ardia: a JS command's text is meant, so it replaces marked text even when it restates what JS knew (clear() while composing in an empty field)
++- (void)replaceMarkedTextWithText:(NSString *)text
++{
++  _bypassingEchoCheck = YES;
++  self.attributedText = [[NSAttributedString alloc] initWithString:text attributes:self.textAttributes.effectiveTextAttributes ?: @{}];
++  _bypassingEchoCheck = NO;
++}
++#endif // Ardia]
++
+ - (void)setSelectionStart:(NSInteger)start selectionEnd:(NSInteger)end
+ {
+ #if !TARGET_OS_OSX // [macOS]
+@@ -342,6 +394,9 @@ - (void)setSelectionStart:(NSInteger)start selectionEnd:(NSInteger)end
+     [self.backedTextInputView setSelectedTextRange:range notifyDelegate:NO];
+   }
+ #else // [macOS
++  if (start < 0 || end < 0) { // [Ardia: setTextAndSelection sends -1 when JS sets text without a selection; as a range it moved the caret, which also ended an input method's composition
++    return;
++  } // Ardia]
+   NSInteger startPosition = MIN(start, end);
+   NSInteger endPosition = MAX(start, end);
+   [self.backedTextInputView setSelectedTextRange:NSMakeRange(startPosition, endPosition - startPosition) notifyDelegate:NO];
+@@ -521,6 +576,11 @@ - (void)textInputDidBeginEditing
      return;
    }
    _isCurrentlyEditing = YES;
@@ -306,7 +397,29 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
  #endif // macOS]
    
    [_eventDispatcher sendTextEventWithType:RCTTextEventTypeFocus
-@@ -894,8 +917,49 @@ - (RCTUIView *)reactAccessibilityElement // [macOS]
+@@ -729,6 +789,11 @@ - (NSString *)textInputShouldChangeText:(NSString *)text inRange:(NSRange)range
+ 
+ - (void)textInputDidChange
+ {
++#if TARGET_OS_OSX // [Ardia
++  if (_replacingMarkedText) {
++    return;
++  }
++#endif // Ardia]
+   [self updateLocalData];
+ 
+   id<RCTBackedTextInputViewProtocol> backedTextInputView = self.backedTextInputView;
+@@ -750,6 +815,9 @@ - (void)textInputDidChange
+   if (!self.backedTextInputView.ghostTextChanging) { // [macOS]
+     _nativeEventCount++;
+ 
++#if TARGET_OS_OSX // [Ardia
++    _textKnownToJS = _onChange ? [self.attributedText.string copy] : nil;
++#endif // Ardia]
+     if (_onChange) {
+       _onChange(@{
+         @"text" : [self.attributedText.string copy],
+@@ -894,8 +962,49 @@ - (RCTUIView *)reactAccessibilityElement // [macOS]
  
  #pragma mark - Focus Control
  
@@ -356,7 +469,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
    [self.backedTextInputView reactFocus];
  
    if (_clearTextOnFocus) {
-@@ -909,6 +973,9 @@ - (void)reactFocus
+@@ -909,6 +1018,9 @@ - (void)reactFocus
      [self.backedTextInputView setSelectedTextRange:NSMakeRange(NSNotFound, 0) notifyDelegate:NO];
  #endif // macOS]
    }
@@ -366,6 +479,22 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
  }
  
  - (void)reactBlur
+diff --git a/Libraries/Text/TextInput/RCTBaseTextInputViewManager.mm b/Libraries/Text/TextInput/RCTBaseTextInputViewManager.mm
+index fac5699dedeaaa35bb22b8f8d5d96a3817ca92b1..692ea640ba83db5b0bfe3fc1a24fda68c0568ef9 100644
+--- a/Libraries/Text/TextInput/RCTBaseTextInputViewManager.mm
++++ b/Libraries/Text/TextInput/RCTBaseTextInputViewManager.mm
+@@ -161,6 +161,11 @@ - (void)setBridge:(RCTBridge *)bridge
+     if (eventLag != 0) {
+       return;
+     }
++#if TARGET_OS_OSX // [Ardia: before the selection below, which would commit an input method's marked text, and before the shadow view's echo rule sees this text
++    if (value && [view.backedTextInputView hasMarkedText]) {
++      [view replaceMarkedTextWithText:value];
++    }
++#endif // Ardia]
+     RCTExecuteOnUIManagerQueue(^{
+       RCTBaseTextInputShadowView *shadowView =
+           (RCTBaseTextInputShadowView *)[self.bridge.uiManager shadowViewForReactTag:viewTag];
 diff --git a/Libraries/Text/TextInput/Singleline/RCTSinglelineTextInputViewManager.mm b/Libraries/Text/TextInput/Singleline/RCTSinglelineTextInputViewManager.mm
 index 386405335b411e70a82909033febc7dd5b4adabe..2b8d3d5576b83c20e6387c189943e1722cfad5ce 100644
 --- a/Libraries/Text/TextInput/Singleline/RCTSinglelineTextInputViewManager.mm
@@ -1230,7 +1359,7 @@ index 7f1aeff436b8a51514254b72d1fb1fd1ee3b1553..dd2851fec59498902a78204041d994ed
  
  - (void)setNeedsLayout
 diff --git a/React/Views/RCTView.m b/React/Views/RCTView.m
-index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..44e326774b74f03c62489dd6b4782515a626d8f9 100644
+index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..8554a54819424c7b724d8400125721ab3c4f78a0 100644
 --- a/React/Views/RCTView.m
 +++ b/React/Views/RCTView.m
 @@ -136,6 +136,24 @@ - (RCTPlatformView *)react_findClipView // [macOS]
@@ -1357,7 +1486,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..44e326774b74f03c62489dd6b4782515
    if (_removeClippedSubviews) {
      [self updateClippedSubviews];
    } else {
-@@ -1196,10 +1199,18 @@ - (void)reactSetFrame:(CGRect)frame
+@@ -1196,11 +1199,33 @@ - (void)reactSetFrame:(CGRect)frame
    // be rendered as a stretchable image, we'll need to re-render.
    // TODO: detect up-front if re-rendering is necessary
    CGSize oldSize = self.bounds.size;
@@ -1373,10 +1502,25 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..44e326774b74f03c62489dd6b4782515
 +    [RCTView ardia_markHoverDirty]; // [Ardia: hover follows layout. Ardia]
 +  }
 +#endif // macOS]
++}
++
++#if TARGET_OS_OSX
++// [Ardia: displayLayer is the only place that copies clipsToBounds to the layer, and nothing asked for one when
++// overflow changed. A view that stopped clipping at the same size (a group's rows once its fold animation ends)
++// kept masking its children, which cut the selected row's glow. Ardia]
++- (void)setClipsToBounds:(BOOL)clipsToBounds
++{
++  if (clipsToBounds == self.clipsToBounds) {
++    return;
++  }
++  [super setClipsToBounds:clipsToBounds];
++  [self.layer setNeedsDisplay];
  }
++#endif
  
  - (void)displayLayer:(CALayer *)layer
-@@ -1248,17 +1259,8 @@ - (void)displayLayer:(CALayer *)layer
+ {
+@@ -1248,17 +1273,8 @@ - (void)displayLayer:(CALayer *)layer
    RCTUIColor *backgroundColor = _backgroundColor;
  #endif // macOS]
  
@@ -1396,7 +1540,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..44e326774b74f03c62489dd6b4782515
  
    if (useIOSBorderRendering) {
      layer.cornerRadius = cornerRadii.topLeftHorizontal;
-@@ -1514,6 +1516,20 @@ - (BOOL)acceptsFirstResponder
+@@ -1514,6 +1530,20 @@ - (BOOL)acceptsFirstResponder
  	return [self focusable] || [super acceptsFirstResponder];
  }
  
@@ -1417,7 +1561,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..44e326774b74f03c62489dd6b4782515
  - (void)updateTrackingAreas
  {
    BOOL hasMouseHoverEvent = self.onMouseEnter || self.onMouseLeave;
-@@ -1522,6 +1538,13 @@ - (void)updateTrackingAreas
+@@ -1522,20 +1552,200 @@ - (void)updateTrackingAreas
    if (!wouldRecreateIdenticalTrackingArea) {
      if (_trackingArea) {
        [self removeTrackingArea:_trackingArea];
@@ -1425,26 +1569,40 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..44e326774b74f03c62489dd6b4782515
 +      // counted the removed area as "identical" and never added one again: no mouseEntered/mouseExited from then on
 +      // (the sidebar's peek panel stayed out after its first peek). Ardia]
 +      _trackingArea = nil;
-+      // [Ardia: and what it knew: a view that is under the pointer when it loses its area never hears it leave, and
-+      // its next scroll (viewBoundsChanged:) would send a leave for it. Ardia]
-+      _hasMouseOver = NO;
++      // [Ardia: and what it knew, once its handlers are gone: a view that is under the pointer when it loses its
++      // handlers never hears it leave, and its next scroll (viewBoundsChanged:) would send a leave for it. A view that
++      // keeps its handlers keeps it: its area is only being resized, and forgetting it there meant a hovered view whose
++      // size changed under the pointer (the sidebar's New Tab row as a new tab slides in) never got its leave and
++      // stayed highlighted. Ardia]
++      if (!hasMouseHoverEvent) {
++        _hasMouseOver = NO;
++      }
      }
  
      if (hasMouseHoverEvent) {
-@@ -1533,9 +1556,173 @@ - (void)updateTrackingAreas
-     }
-   }
- 
++      NSTrackingAreaOptions options = NSTrackingActiveAlways | NSTrackingMouseEnteredAndExited | (_hasMouseOver ? NSTrackingAssumeInside : 0);
+       _trackingArea = [[NSTrackingArea alloc] initWithRect:self.bounds
+-                                                   options:NSTrackingActiveAlways|NSTrackingMouseEnteredAndExited
++                                                   options:options
+                                                      owner:self
+                                                   userInfo:nil];
+       [self addTrackingArea:_trackingArea];
++      if (_hasMouseOver) {
++        [RCTView ardia_markHoverDirty]; // [Ardia: hover follows layout: the resized view may have left the pointer. Ardia]
++      }
++    }
++  }
++
 +  // [Ardia: hover follows layout: the views the check looks at. Ardia]
 +  if (hasMouseHoverEvent) {
 +    if (ArdiaHoverViews == nil) {
 +      ArdiaHoverViews = [NSHashTable weakObjectsHashTable];
-+    }
+     }
 +    [ArdiaHoverViews addObject:self];
 +  } else {
 +    [ArdiaHoverViews removeObject:self];
-+  }
-+
+   }
+ 
    [super updateTrackingAreas];
  }
  
@@ -1605,7 +1763,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..44e326774b74f03c62489dd6b4782515
  - (void)mouseEntered:(NSEvent *)event
  {
    _hasMouseOver = YES;
-@@ -1768,7 +1955,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
+@@ -1768,7 +1978,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
    static const char kRCTViewKeyboardEventEmittedKey = 0;
    NSNumber *emitted = objc_getAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey);
    BOOL alreadyEmitted = [emitted boolValue];

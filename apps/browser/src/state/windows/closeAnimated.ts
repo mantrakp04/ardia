@@ -3,6 +3,9 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import type { CloseWindowOptions } from "./windows";
 import { familyKeyOf } from "../browser/model";
 import { isWindowClosing, startClosingWindow, stopClosingWindow } from "./closingWindows";
+import { tabsHandedOver } from "../tabs/sharedWindowClose";
+import { isOpenRegularWindow } from "./small";
+import { noteWindowCloseTabsKept } from "../telemetry/usage";
 
 export { isWindowClosing };
 
@@ -31,6 +34,8 @@ export function closeWindowAnimated(windowId: string, { replacedBy = null, then,
     const now = after.windows[windowId];
     if (!now) return;
     if ([...familyCounts(after, now.tabIds)].some(([key, n]) => n > (leaving.get(key) ?? 0))) return void focusWindow(windowId);
+    const kept = tabsHandedOver(after, windowId, isOpenRegularWindow).length;
+    if (kept) noteWindowCloseTabsKept(kept);
     useBrowser.getState().closeWindow(windowId, options);
     then?.();
   };

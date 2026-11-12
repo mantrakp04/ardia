@@ -1,6 +1,6 @@
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
-import { bookmarkProfileId, engineProfile, sidebarSideOf, tabLayoutOf } from "../browser/model";
+import { bookmarkProfileId, engineProfile, sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { sidebarEdgeOf, type SidebarEdge } from "./sidebarEdge";
 import { bookmarkRoots } from "./bookmarks";
 import { bookmarksShown } from "./visibility";
@@ -24,7 +24,7 @@ export const useSidebarEdge = (windowId: string, width: number): SidebarEdge =>
   useBrowser(
     useShallow((s) => {
       const w = s.windows[windowId];
-      return sidebarEdgeOf({ shown: !!w?.sidebarOpen && tabLayoutOf(s, w.id) !== "top", side: sidebarSideOf(s, windowId), sidebarWidth: width, windowWidth: w?.frame?.[2] });
+      return sidebarEdgeOf({ shown: !!w && tabsShownIn(s, w.id) && tabLayoutOf(s, w.id) !== "top", side: sidebarSideOf(s, windowId), sidebarWidth: width, windowWidth: w?.frame?.[2] });
     }),
   );
 

@@ -9,7 +9,7 @@
     "pods": "cd macos && pod install",
     "build": "xcodebuild -workspace macos/Ardia.xcworkspace -scheme Ardia-macOS -derivedDataPath build -destination 'platform=macOS,arch=arm64' -quiet -configuration Release",
     "typecheck": "tsc -p .",
-    "test": "node --no-warnings --import ./src/test-loader.mjs --test \"src/**/*.test.mjs\""
+    "test": "node --no-warnings --import ./src/test-loader.mjs --test \"src/**/*.test.mjs\" \"scripts/**/*.test.mjs\""
   },
   "dependencies": {
     "@ardia/core": "workspace:*",

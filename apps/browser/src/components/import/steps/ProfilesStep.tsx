@@ -14,6 +14,20 @@ import {
   type ImportFlow,
 } from "../../../state/import/flow";
 import { continueImport } from "../../../state/import/runImport";
+import type { BrowserSource } from "../../../state/import/apply";
+
+const spacesNote = (name: string, zen: boolean) =>
+  zen
+    ? `Customize which spaces to bring over to ${APP}. Each space becomes a profile, kept with the ${name} profile it comes from: its spaces share that profile's logins, cookies and history, and a space tied to a container gets a profile of its own with that container's Essentials.`
+    : `Customize which spaces to bring over to ${APP}. Each space becomes a profile, and the spaces of one ${name} profile share its logins, cookies, extensions and history, as in ${name}.`;
+
+function spaceSubtitle(source: BrowserSource, s: ReturnType<typeof spacesOf>[number]) {
+  const withSpaces = source.profiles.filter((p) => p.spaces?.length);
+  const from = withSpaces.length > 1 ? source.profiles.find((p) => p.id === s.profileId)?.name : undefined;
+  return [plural(s.pinnedCount, "pinned tab"), plural(s.tabCount, "tab"), from, s.containerName ? `${s.containerName} container` : undefined]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 export function ProfilesBody({ flow }: { flow: ImportFlow }) {
   const { source, spaces, sourceProfiles } = flow;
@@ -22,7 +36,7 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
     return (
       <>
         <Title title="Select spaces to import" subtitle={`We'll import your ${source.name} spaces, tabs, and folders to ${APP}.`} />
-        <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a profile, and the spaces of one ${source.name} profile share its logins, cookies, extensions and history, as in ${source.name}.`}</Text>
+        <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{spacesNote(source.name, source.sidebar === "zen")}</Text>
         <Group>
           {spacesOf(source).map((s) => (
             <SelectRow
@@ -31,7 +45,7 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
               onToggle={(v) => toggleImportSpace(s.id, v)}
               icon={<SpaceIcon space={s} />}
               title={s.name || "Space"}
-              subtitle={`${plural(s.pinnedCount, "pinned tab")} · ${plural(s.tabCount, "tab")}`}
+              subtitle={spaceSubtitle(source, s)}
             />
           ))}
           {source.sidebar !== "zen"
