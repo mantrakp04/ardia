@@ -7,7 +7,7 @@ import { onboardingMotion } from "./tokens";
 import { useChosenSettings, useSettings, useTabLayout } from "../../state/browser/hooks";
 import { useWindowProfileValue } from "../../state/profiles/hooks";
 import type { Settings } from "../../state/settings/settings";
-import { MockWindow, type PreviewId } from "./previews";
+import { MockWindow, StylePreview, type PreviewId } from "./previews";
 import { resolveDraft, useOnboarding } from "../../state/onboarding/onboarding";
 
 export function useScreen<K extends keyof Settings>(keys: readonly K[]) {
@@ -52,6 +52,19 @@ export function MockPanel({ settings, focus, overlay, switcher }: { settings: Pa
           {shown}
         </Animated.View>
       ) : null}
+    </View>
+  );
+}
+
+const HOVERED_STYLE: Partial<Record<PreviewId, Settings["interfaceStyle"]>> = { "style-glass": "glass", "style-classic": "classic" };
+
+export function StylePanel({ settings, focus }: { settings: Partial<Settings>; focus: PreviewId | null }) {
+  const accent = useAccent();
+  return (
+    <View style={{ alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: MOCK_SIZE.width, height: MOCK_SIZE.height, alignItems: "center", justifyContent: "center" }}>
+        <StylePreview settings={settings} accent={accent} hovered={(focus && HOVERED_STYLE[focus]) ?? null} />
+      </View>
     </View>
   );
 }

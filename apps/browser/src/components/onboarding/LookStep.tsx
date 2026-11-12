@@ -7,7 +7,7 @@ import { useWindowProfileValue } from "../../state/profiles/hooks";
 import type { Settings } from "../../state/settings/settings";
 import { ChoiceList, type ChoiceOption } from "./ChoiceList";
 import { ThemePicker } from "../settings/ThemeEditor";
-import { MockPanel, useScreen } from "./Screen";
+import { MockPanel, StylePanel, useScreen } from "./Screen";
 import { previewColor, previewLive, previewTheme, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
 import { keysOf } from "../../state/onboarding/questions";
 import { change, Page, useQuestion } from "./LayoutSteps";
@@ -88,7 +88,7 @@ export function LookStep() {
         subtitle="Change it any time in Settings › Appearance."
         patch={{ interfaceStyle: values.interfaceStyle, glassTintWithTheme: values.glassTintWithTheme, glassTintAmount: values.glassTintAmount }}
         picked={values.interfaceStyle === "classic" ? ["Classic style"] : values.glassTintWithTheme ? [`Glass tinted ${Math.round(values.glassTintAmount * 100)} %`] : []}
-        preview={preview}
+        preview={<StylePanel settings={mock} focus={focus.focus} />}
       >
         <ChoiceList options={STYLE_CHOICES} value={values.interfaceStyle} onChange={(interfaceStyle) => change({ interfaceStyle }, true)} mock={focus} />
         {values.interfaceStyle === "glass" ? (
