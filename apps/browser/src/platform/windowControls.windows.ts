@@ -1,11 +1,6 @@
 import { requireNativeModule } from "expo-modules-core";
-import type { CaptionRegion, WindowControls } from "./windowControls";
-
-type WindowControlsNative = {
-  minimizeWindow(windowId: string): Promise<void>;
-  toggleMaximizeWindow(windowId: string): Promise<void>;
-  setCaptionRegions(windowId: string, regions: readonly CaptionRegion[]): Promise<void>;
-};
+import type { WindowControlsNative } from "@ardia/shell";
+import type { WindowControls } from "./windowControls";
 
 const Windows = requireNativeModule<WindowControlsNative>("ArdiaAppWindows");
 
