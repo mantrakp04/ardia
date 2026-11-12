@@ -1,5 +1,6 @@
 import { layout } from "../ui/theme";
 import { DOCK_SPRING } from "./tokens";
+import { WINDOW_CHROME } from "../../lib/windowChrome";
 
 export const easeOutCubic = (u: number) => 1 - (1 - u) ** 3;
 export const easeInOutCubic = (u: number) => (u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2);
@@ -20,7 +21,8 @@ export const dockedCardInset = (sidebarWidth: number, inset: number) => sidebarW
 
 export const cardInsetAt = (dock: number, sidebarWidth: number, inset: number) => inset + (dockedCardInset(sidebarWidth, inset) - inset) * dock;
 
-export const HEADER_TOOLS = { toggleX: 70.75 + 27, fullScreenToggleX: 29, pitch: 35, edge: layout.sidebarInset + 1 } as const;
+const FULL_SCREEN_TOGGLE_X = 29;
+export const HEADER_TOOLS = { toggleX: WINDOW_CHROME.leadingWidth ? 70.75 + 27 : FULL_SCREEN_TOGGLE_X, fullScreenToggleX: FULL_SCREEN_TOGGLE_X, pitch: 35, edge: layout.sidebarInset + 1 } as const;
 
 export type HeaderButton = "back" | "forward" | "reload";
 

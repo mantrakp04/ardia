@@ -7,6 +7,7 @@ export type WindowEvent =
   | { type: "close"; id: string }
   | { type: "frame"; id: string; frame: [number, number, number, number] }
   | { type: "fullScreen"; id: string; on: boolean }
+  | { type: "maximized"; id: string; on: boolean }
   | { type: "sidebarEdge"; id: string; over: boolean; point: [number, number] }
   | { type: "closeRequest"; id: string };
 

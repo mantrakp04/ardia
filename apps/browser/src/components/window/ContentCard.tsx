@@ -13,7 +13,7 @@ import { useFullscreenTab } from "../../state/tabs/pageState";
 import { DropTargets, SplitDividers, SplitToast } from "../split/SplitChrome";
 import { dockMoving, usePeekSpan, whenDockStill } from "../../state/windows/dockMotion";
 import { FrozenPage } from "./FrozenPage";
-import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, watchToolbarExtensionsWidth } from "../../state/windows/layout";
+import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useCardCaptionRoom, usePageFrameInset, useTabLayout, watchToolbarExtensionsWidth } from "../../state/windows/layout";
 import { startSelectionTools } from "../../state/site/selection";
 import { startMedia } from "../../state/media/pip";
 import { urlFieldRight } from "../toolbar/Toolbar";
@@ -43,6 +43,7 @@ export function ContentCard() {
   const barMode = useBookmarksBarMode(windowId);
   const toolbarRow = useToolbarRow();
   const barHeight = useBookmarksBarHeight();
+  const captionRoom = useCardCaptionRoom(usePageFrameInset());
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
   const container = useRef<View>(null);
@@ -66,7 +67,8 @@ export function ContentCard() {
   const geometryFor = (rect: Rect | undefined): ToolbarGeometry => {
     if (chrome.kind === "none") return NO_TOOLBAR;
     const leading = !!rect && rect.x === 0 && rect.y === 0;
-    return toolbarGeometry({ sidebarButton: leading && showSidebarButton });
+    const trailing = !!rect && rect.y === 0 && rect.x + rect.width === size.width ? captionRoom : 0;
+    return toolbarGeometry({ sidebarButton: leading && showSidebarButton, trailing });
   };
 
   const focusedRect = activeId ? panes[activeId] : undefined;
@@ -77,10 +79,10 @@ export function ContentCard() {
       setUrlAnchor(windowId, {
         left: origin.x + focusedRect.x + g.urlLeft,
         top: origin.y + focusedRect.y,
-        width: focusedRect.width - g.urlLeft - urlFieldRight(!!split, extensionsWidth, toolbarRow),
+        width: focusedRect.width - g.urlLeft - urlFieldRight(!!split, extensionsWidth, toolbarRow) - g.trailing,
       });
     return watchToolbarExtensionsWidth(windowId, place);
-  }, [origin, focusedRect?.x, focusedRect?.y, focusedRect?.width, tabLayout, chrome.kind, !!split, showSidebarButton, toolbarRow]);
+  }, [origin, focusedRect?.x, focusedRect?.y, focusedRect?.width, tabLayout, chrome.kind, !!split, showSidebarButton, toolbarRow, captionRoom]);
 
   useEffect(() => {
     if (origin && size.width > 0) setCardAnchor(windowId, { left: origin.x, top: origin.y, width: size.width, height: size.height });

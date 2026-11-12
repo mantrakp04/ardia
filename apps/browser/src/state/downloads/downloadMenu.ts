@@ -6,6 +6,7 @@ import { openInternalPage } from "../pages/urls";
 import { removeDownload } from "../windows/actions";
 import { opensWhenDone, toggleOpenWhenDone } from "../windows/downloadWatch";
 import { cancelDownload, keepDownload, pauseDownload, resumeDownload, type Download } from "./actions";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export const awaitsKeep = (d: Pick<Download, "state" | "dangerous">) => d.state === "downloading" && d.dangerous === true;
 
@@ -25,7 +26,7 @@ export function downloadMenuItems(d: DownloadMenuState): MenuItem[] {
         ]
       : [
           { id: "open", title: "Open", symbol: "arrow.up.forward.app", enabled: d.fileExists },
-          { id: "reveal", title: "Show in Finder", symbol: "folder", enabled: d.fileExists },
+          { id: "reveal", title: `Show in ${PLATFORM_TERMS.fileManager}`, symbol: "folder", enabled: d.fileExists },
         ];
   return menuSections(
     lead,
@@ -35,7 +36,7 @@ export function downloadMenuItems(d: DownloadMenuState): MenuItem[] {
     ],
     [
       { id: "remove", title: "Remove from List", symbol: "minus.circle", enabled: !d.downloading },
-      d.fileExists && { id: "trash", title: "Move to Trash", symbol: "trash" },
+      d.fileExists && { id: "trash", title: `Move to ${PLATFORM_TERMS.trash}`, symbol: "trash" },
     ],
   );
 }

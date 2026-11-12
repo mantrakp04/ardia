@@ -1,6 +1,7 @@
 import type { BrowserCommand } from "../../platform/commands";
 import type { Settings } from "../settings/settings";
 import { parseShortcut, type ShortcutSource } from "./shortcuts";
+import { defaultKeys, profileSwitchKey } from "./keyNotation";
 
 type Keys = readonly string[];
 type Scope = "page" | "window";
@@ -8,7 +9,7 @@ type InLittleArdia = "page" | "off";
 type Variant = { title?: string; barTitle?: string; symbol?: string; keys?: Keys };
 type BooleanSetting = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
 type ChoiceSetting = { [K in keyof Settings]: Settings[K] extends string ? K : never }[keyof Settings];
-type CommandSpec = Variant & {
+export type CommandSpec = Variant & {
   scope?: Scope;
   onInternalPages?: true;
   app?: true;
@@ -256,10 +257,10 @@ export function staticShortcutSources(): ShortcutSource[] {
   const sources: ShortcutSource[] = [];
   for (const command of ALL_COMMANDS) {
     const spec = SPECS[command];
-    sources.push(source(command, spec.keys));
-    for (const [arg, variant] of Object.entries(spec.variants ?? {})) sources.push(source(`${command}:${arg}`, variant.keys));
+    sources.push(source(command, defaultKeys(command, spec.keys)));
+    for (const [arg, variant] of Object.entries(spec.variants ?? {})) sources.push(source(`${command}:${arg}`, defaultKeys(`${command}:${arg}`, variant.keys)));
   }
-  for (const [id, item] of Object.entries(STANDARD_ITEMS)) sources.push(source(id, item.keys));
+  for (const [id, item] of Object.entries(STANDARD_ITEMS)) sources.push(source(id, defaultKeys(id, item.keys)));
   return sources;
 }
 
@@ -270,7 +271,7 @@ export function shortcutSources(profileIds: readonly string[], overriddenIds: re
   return [
     ...STATIC_SOURCES,
     ...profileIds.flatMap((id, i) => [
-      source(`switchProfile:${id}`, i < PROFILE_SHORTCUT_COUNT ? [`⌃${i + 1}`] : []),
+      source(`switchProfile:${id}`, i < PROFILE_SHORTCUT_COUNT ? [profileSwitchKey(i + 1)] : []),
       source(`newLittleArdia:${id}`),
     ]),
     ...perItem.map((id) => source(id)),

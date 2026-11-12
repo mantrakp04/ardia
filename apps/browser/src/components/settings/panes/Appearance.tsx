@@ -15,6 +15,8 @@ import { modePreview, stylePreview } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";
 import { APP_ICON_SIZE, appIconChoices, chooseAppIcon } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 
 const MODES: { value: Settings["appearance"]; title: string; description: string }[] = [
   { value: "auto", title: "Automatic", description: "Follow the system appearance setting" },
@@ -216,7 +218,7 @@ function ScrollBarsPicker() {
           <PopUp
             value={scrollBars}
             options={[
-              { value: "system", title: "Follow macOS" },
+              { value: "system", title: `Follow ${PLATFORM_TERMS.os}` },
               { value: "thin", title: "Thin" },
             ]}
             onChange={(v) => updateSettings({ pageScrollBars: v })}
@@ -242,7 +244,7 @@ function AppIconPicker() {
   const [choices] = useResource(appIconChoices);
   const icons = choices?.icons ?? [];
   const current = choices?.current ?? null;
-  if (icons.length < 2) return null;
+  if (!PLATFORM_FEATURES.appIcon || icons.length < 2) return null;
   return (
     <>
       <SectionHeader anchor="appearance.appIcon" />

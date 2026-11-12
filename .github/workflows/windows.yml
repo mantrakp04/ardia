@@ -1,0 +1,280 @@
+name: Windows
+
+on:
+  pull_request:
+    paths:
+      - "apps/browser/windows/**"
+      - "apps/browser/NuGet.config"
+      - "apps/browser/index.js"
+      - "apps/browser/metro.config.js"
+      - "apps/browser/src/**"
+      - "packages/*/src/**"
+      - "apps/browser/package.json"
+      - "packages/expo-windows/**"
+      - "scripts/windows/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/windows.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/browser/windows/**"
+      - "apps/browser/NuGet.config"
+      - "apps/browser/index.js"
+      - "apps/browser/metro.config.js"
+      - "apps/browser/src/**"
+      - "packages/*/src/**"
+      - "apps/browser/package.json"
+      - "packages/expo-windows/**"
+      - "scripts/windows/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  app:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Toolchain
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property catalog_productDisplayVersion
+          node --version
+      - name: Build the app
+        working-directory: apps/browser
+        run: npx react-native run-windows --release --arch x64 --no-launch --no-deploy --no-packager --no-telemetry --logging
+      - name: Launch it
+        shell: pwsh
+        run: scripts/windows/launch-smoke.ps1 -App apps/browser/windows/x64/Release/Ardia.exe -Out "${{ runner.temp }}/launch"
+      - name: Tour
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          scripts/windows/tour.ps1 -App apps/browser/windows/x64/Release/Ardia.exe -Out "${{ runner.temp }}/tour"
+          if (Test-Path "${{ runner.temp }}/tour/tour.md") { Get-Content "${{ runner.temp }}/tour/tour.md" >> $env:GITHUB_STEP_SUMMARY }
+      - name: Host manifest
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          $copy = Join-Path "${{ runner.temp }}" "host-manifest-check.exe"
+          Copy-Item apps/browser/windows/x64/Release/Ardia.exe $copy
+          scripts/windows/host-manifest.ps1 -From apps/browser/windows/x64/Release/ArdiaApp.dll -To $copy
+      - name: Fetch the engine
+        id: engine
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/windows/fetch-engine.ps1 -Cpu x64 -Out "${{ runner.temp }}/engine"
+      - name: Assemble with the engine
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/assemble.ps1 -App apps/browser/windows/x64/Release -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia" -Build ${{ github.run_number }}
+      - name: Make the installer
+        id: installer
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/make-installer.ps1 -Source "${{ runner.temp }}/Ardia" -Out "${{ runner.temp }}/installer" -Cpu x64
+      - name: Install and uninstall it
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/installer-check.ps1 -Setup "${{ runner.temp }}/installer/Ardia-Setup-x64.exe"
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Ardia-Setup-x64
+          path: ${{ runner.temp }}/installer
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 14
+      - name: Launch it with the engine
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/launch-smoke.ps1 -App "${{ runner.temp }}/Ardia/Ardia.exe" -Out "${{ runner.temp }}/launch-engine"
+      - name: Tour the pages
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 8
+        shell: pwsh
+        run: |
+          scripts/windows/tour.ps1 -App "${{ runner.temp }}/Ardia/Ardia.exe" -Out "${{ runner.temp }}/tour-engine" -Only pages
+          if (Test-Path "${{ runner.temp }}/tour-engine/tour.md") { Get-Content "${{ runner.temp }}/tour-engine/tour.md" >> $env:GITHUB_STEP_SUMMARY }
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: launch-engine
+          path: |
+            ${{ runner.temp }}/launch-engine
+            !${{ runner.temp }}/launch-engine/*-data
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: tour-engine
+          path: |
+            ${{ runner.temp }}/tour-engine
+            !${{ runner.temp }}/tour-engine/data
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Ardia-windows-x64
+          path: ${{ runner.temp }}/Ardia
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: tour
+          path: ${{ runner.temp }}/tour
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: launch
+          path: ${{ runner.temp }}/launch
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: build-logs
+          path: |
+            apps/browser/windows/**/*.binlog
+            apps/browser/windows/**/*.err
+            apps/browser/windows/**/*.wrn
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Ardia-windows-x64-app
+          path: apps/browser/windows/x64/Release
+          if-no-files-found: ignore
+          retention-days: 7
+
+  arm64:
+    runs-on: windows-11-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Toolchain
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property catalog_productDisplayVersion
+          node --version
+          node -p "process.arch"
+      - name: Build the app
+        working-directory: apps/browser
+        run: npx react-native run-windows --release --arch ARM64 --no-launch --no-deploy --no-packager --no-telemetry --logging
+      - name: Launch it
+        shell: pwsh
+        run: scripts/windows/launch-smoke.ps1 -App apps/browser/windows/ARM64/Release/Ardia.exe -Out "${{ runner.temp }}/launch" -NoInput
+      - name: Host manifest
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          $copy = Join-Path "${{ runner.temp }}" "host-manifest-check.exe"
+          Copy-Item apps/browser/windows/ARM64/Release/Ardia.exe $copy
+          scripts/windows/host-manifest.ps1 -From apps/browser/windows/ARM64/Release/ArdiaApp.dll -To $copy
+      - name: Fetch the engine
+        id: engine
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/windows/fetch-engine.ps1 -Cpu arm64 -Out "${{ runner.temp }}/engine"
+      - name: Assemble with the engine
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/assemble.ps1 -App apps/browser/windows/ARM64/Release -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia" -Build ${{ github.run_number }}
+      - name: Make the installer
+        id: installer
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/make-installer.ps1 -Source "${{ runner.temp }}/Ardia" -Out "${{ runner.temp }}/installer" -Cpu arm64
+      - name: Install and uninstall it
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/installer-check.ps1 -Setup "${{ runner.temp }}/installer/Ardia-Setup-arm64.exe"
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Ardia-Setup-arm64
+          path: ${{ runner.temp }}/installer
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 14
+      - name: Launch it with the engine
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/launch-smoke.ps1 -App "${{ runner.temp }}/Ardia/Ardia.exe" -Out "${{ runner.temp }}/launch-engine" -NoInput
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: launch-engine-arm64
+          path: |
+            ${{ runner.temp }}/launch-engine
+            !${{ runner.temp }}/launch-engine/*-data
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Ardia-windows-arm64
+          path: ${{ runner.temp }}/Ardia
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: launch-arm64
+          path: ${{ runner.temp }}/launch
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: build-logs-arm64
+          path: |
+            apps/browser/windows/**/*.binlog
+            apps/browser/windows/**/*.err
+            apps/browser/windows/**/*.wrn
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Ardia-windows-arm64-app
+          path: apps/browser/windows/ARM64/Release
+          if-no-files-found: ignore
+          retention-days: 7

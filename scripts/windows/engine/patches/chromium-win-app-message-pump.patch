@@ -1,0 +1,28 @@
+--- a/base/message_loop/message_pump_win.cc
++++ b/base/message_loop/message_pump_win.cc
+@@ -32,6 +32,10 @@
+ #include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_message_pump.pbzero.h"
+ 
+ namespace base {
++
++// Ardia: the app that runs inside the browser process (//ardia/win) sees
++// each message before it is translated, as its own message loop would.
++bool (*g_ardia_pre_translate_message)(const MSG& msg) = nullptr;
+ 
+ namespace {
+ 
+@@ -648,8 +652,12 @@
+     native_event_observer_->WillRunNativeEvent(
+         reinterpret_cast<uintptr_t>(&msg));
+   }
+-  ::TranslateMessage(&msg);
+-  ::DispatchMessage(&msg);
++  // Ardia: the app may take the message (ContentPreTranslateMessage).
++  if (!g_ardia_pre_translate_message ||
++      !g_ardia_pre_translate_message(msg)) {
++    ::TranslateMessage(&msg);
++    ::DispatchMessage(&msg);
++  }
+   if (native_event_observer_) {
+     native_event_observer_->DidRunNativeEvent(
+         reinterpret_cast<uintptr_t>(&msg));

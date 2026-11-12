@@ -1,0 +1,107 @@
+{
+  "forwarded": {
+    "bookmarks": {
+      "tree": "ac_bookmarks_tree",
+      "apply": "ac_bookmarks_apply",
+      "watch": "ac_bookmarks_watch"
+    },
+    "downloads": {
+      "settings": "ac_downloads_settings",
+      "setSettings": "ac_downloads_set_settings"
+    },
+    "engine": {
+      "batterySaver": "ac_battery_saver",
+      "memorySaver": "ac_memory_saver",
+      "trimMemory": "ac_memory_trim",
+      "openTaskManager": "ac_task_manager_open",
+      "cliControlStatus": "ac_cli_control"
+    },
+    "extensions": {
+      "watchActions": "ac_extensions_watch_actions",
+      "syncState": "ac_extensions_sync_state",
+      "syncApply": "ac_extensions_sync_apply"
+    },
+    "favicons": {
+      "get": "ac_favicons_get",
+      "set": "ac_favicons_set"
+    },
+    "history": {
+      "query": "ac_history_query",
+      "add": "ac_history_add",
+      "import": "ac_history_import",
+      "deleteUrls": "ac_history_delete_urls",
+      "watch": "ac_history_watch"
+    },
+    "tabs": {
+      "lastTabPolicy": "ac_tabs_last_tab_policy"
+    }
+  },
+  "missing": {
+    "autofill": ["settings", "setSettings", "showSuggestions"],
+    "bookmarks": ["exportHtml"],
+    "contentBlocker": ["state", "setEnabled", "setListEnabled", "isAllowed", "setAllowed", "devFailNextMessage", "devDelayNextLoad"],
+    "engine": ["info", "beginTracing", "endTracing", "isTracing", "systemState", "cliTabTargets"],
+    "extensions": ["inspectUnpacked", "chooseFolder", "resolveInstallPrompt", "actionStates", "sidePanelUrl"],
+    "favicons": ["fetch"],
+    "media": [
+      "displayMediaSources",
+      "screenRecordingAllowed",
+      "requestScreenRecording",
+      "selectDevice",
+      "cancelDeviceChooser",
+      "refreshDeviceChooser",
+      "openBluetoothSettings",
+      "devShowBluetoothChooser",
+      "devChooserEvents",
+      "showCastDialog",
+      "startCasting",
+      "stopCasting",
+      "closeCastDialog",
+      "watchCastRoutes",
+      "terminateCastRoute",
+      "changeCaptureSource",
+      "stopCapture"
+    ],
+    "passwords": ["export", "autofillEnabled", "setAutofillEnabled"],
+    "permissions": ["resolve", "resolveExternalApp", "externalAppAllowances", "removeExternalAppAllowance", "devExternalLaunches"],
+    "profiles": ["loaded", "release", "deleteData"],
+    "search": ["setEngineName"],
+    "tabs": [
+      "routeLinkTabs",
+      "stripCommand",
+      "strips",
+      "reportCommits",
+      "devBrowserId",
+      "devEvents",
+      "devWindowNumber",
+      "devFocusPage",
+      "devPictureInPicture",
+      "devPostPeekMouseUp",
+      "devScrollZoom",
+      "devPictureInPictureAction",
+      "devPagePhase",
+      "devClosePage"
+    ],
+    "webView": [
+      "setDisplayMediaPicker",
+      "setPeekModifier",
+      "setSplitLinkModifier",
+      "setPeekOtherSiteTabs",
+      "setSelectionPopover",
+      "setCommandScrollZoom",
+      "setLittleArdiaOpensNewTabLinks",
+      "setAutoPictureInPicture",
+      "setVideoUpscaling",
+      "setVideoUpscalingTestConditions",
+      "videoUpscalingState"
+    ],
+    "windows": ["list", "dev"]
+  },
+  "topics": {
+    "history.changed": "history.changed",
+    "bookmarks.changed": "bookmarks.changed",
+    "extensions.action": "extensions.action",
+    "extensions.sync": "extensions.sync",
+    "cliControl": "engine.cliControl"
+  }
+}

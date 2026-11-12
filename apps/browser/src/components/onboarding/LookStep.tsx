@@ -16,11 +16,12 @@ import { OptionRow } from "./Parts";
 import { Slider } from "../settings/ThemeControls";
 import { Text } from "../ui";
 import { PAGE_FRAME } from "../../lib/windowLayout";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 const LOOK_KEYS = keysOf("look");
 
 const APPEARANCE_CHOICES: ChoiceOption<Settings["appearance"]>[] = [
-  { value: "auto", preview: "appearance-auto", title: "Automatic", subtitle: "Light by day, dark by night, like your Mac" },
+  { value: "auto", preview: "appearance-auto", title: "Automatic", subtitle: `Light by day, dark by night, like your ${PLATFORM_TERMS.computer}` },
   { value: "light", preview: "appearance-light", title: "Light", subtitle: "Always light" },
   { value: "dark", preview: "appearance-dark", title: "Dark", subtitle: "Always dark" },
 ];

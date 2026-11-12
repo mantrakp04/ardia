@@ -1,4 +1,5 @@
 import { engineInfo, updaterState } from "../../platform/app";
+import { PLATFORM_IDS, PLATFORM_TERMS } from "../../lib/platformTerms";
 import { readDocument, saveDocument, writeDocument } from "../../platform/documents";
 import { MAX_BODY_BYTES } from "./config";
 import { EVENTS_SCOPE, eventRecord, LOGS_SCOPE, logRecord, logsRequest, outcome, type OtlpLogRecord, type QueuedEvent } from "./otlp";
@@ -38,7 +39,7 @@ function context(): Record<string, unknown> {
     $app_name: "Ardia",
     $app_version: info.appVersion,
     $app_build: info.appBuild,
-    $os: "macOS",
+    $os: PLATFORM_TERMS.os,
     $os_version: info.osVersion,
     arch: info.arch,
     engine_version: engineVersion,
@@ -196,13 +197,13 @@ async function send(kind: RequestLogEntry["kind"], body: string, count: number) 
   }
 }
 
-function resource(): Record<string, unknown> {
+export function resource(): Record<string, unknown> {
   const info = appInfo();
   return {
     "service.name": "ardia-app",
     "service.version": info.appVersion,
     "deployment.environment": environment() === "production" ? "production" : "development",
-    "os.type": "darwin",
+    "os.type": PLATFORM_IDS.otel,
     "os.version": info.osVersion,
     "host.arch": info.arch,
     "engine.version": engineVersion,

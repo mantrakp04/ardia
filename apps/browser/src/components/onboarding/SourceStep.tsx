@@ -13,6 +13,7 @@ import { ChoiceCard } from "./ChoiceCard";
 import { SetupCodeLink, SetupCodeStep } from "./SetupCodeStep";
 import { browserIcon } from "./browserIcons";
 import { useImageRing } from "./GlassBacking";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 const ICON = require("../../../assets/app-icon.png");
 
@@ -98,7 +99,7 @@ export function SourceStep() {
     >
       {found.length ? (
         <View style={{ gap: space.m }}>
-          <SectionLabel title="Found on this Mac" />
+          <SectionLabel title={`Found on this ${PLATFORM_TERMS.computer}`} />
           <TileGrid tiles={found} selected={source} onPress={choose} />
         </View>
       ) : null}

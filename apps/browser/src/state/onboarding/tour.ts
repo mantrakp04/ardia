@@ -6,6 +6,8 @@ import { activeTabId, resolveWindowId, tabLayoutOf, tabsShownIn } from "../brows
 import { closeReleaseNotes } from "../releaseNotes/releaseNotes";
 import { splitOf } from "../splits/splits";
 import { useUrlAnchors } from "../windows/layout";
+import { keyText } from "../commands/keyText";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 
 export type TourAnchor = "commandBar" | "page" | "tabs" | "sidebarButton";
 
@@ -39,7 +41,7 @@ const TOUR_STOPS: TourStop[] = [
   {
     id: "commandBar",
     title: "Search or go anywhere",
-    body: "Type a question, an address or the name of an open tab. ⌘L brings the command bar up from any page, and ⌘T opens a new tab.",
+    body: `Type a question, an address or the name of an open tab. ${keyText("⌘L")} brings the command bar up from any page, and ${keyText("⌘T")} opens a new tab.`,
     anchor: "commandBar",
     placement: "below",
     radius: 20,
@@ -57,7 +59,7 @@ const TOUR_STOPS: TourStop[] = [
   {
     id: "sidebar",
     title: "Room to focus",
-    body: "⌘S hides the sidebar. Move the pointer to the window's left edge to peek at your tabs while it's hidden.",
+    body: `${keyText("⌘S")} hides the sidebar. Move the pointer to the window's left edge to peek at your tabs while it's hidden.`,
     anchor: "sidebarButton",
     placement: "below",
     radius: 9,
@@ -66,7 +68,7 @@ const TOUR_STOPS: TourStop[] = [
   {
     id: "split",
     title: "Two pages, side by side",
-    body: "Drag a tab onto the page to split the window, or press ⌃⇧=. ⌃⇧] and ⌃⇧[ move between the panes.",
+    body: `Drag a tab onto the page to split the window, or press ${keyText("⌃⇧=")}. ${keyText("⌃⇧]")} and ${keyText("⌃⇧[")} move between the panes.`,
     anchor: "page",
     placement: "inside",
     radius: 10,
@@ -75,7 +77,9 @@ const TOUR_STOPS: TourStop[] = [
   {
     id: "done",
     title: "You're all set",
-    body: "Everything else is in the menu bar and in Settings (⌘,). You can take this tour again from the Help menu.",
+    body: PLATFORM_FEATURES.menuBar
+      ? "Everything else is in the menu bar and in Settings (⌘,). You can take this tour again from the Help menu."
+      : `Everything else is in Settings (${keyText("⌘,")}).`,
   },
 ];
 

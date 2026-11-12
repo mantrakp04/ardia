@@ -3,6 +3,7 @@ import { pinKeyOf } from "../browser/model";
 import { revealGroupFolder, shareFolder, stopSyncingGroup } from "./actions";
 import { canShareGroup, folderLabel, sharedFolderOfGroup } from "./removal";
 import { folderRef, useSharedFolders, type SharedFolderSync } from "./store";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export function syncStatusText(sync: SharedFolderSync | undefined, path: string): string {
   if (!sync || sync.state === "syncing") return "Syncing…";
@@ -22,7 +23,7 @@ export function sharedFolderMenuItems(s: Pick<BrowserState, "groups">, groupId: 
   return [
     { id: "sharedStatus", title: syncStatusText(sync, shared.folder.path), enabled: false },
     { id: "shareFolder", title: "Share Folder…", symbol: "person.crop.circle.badge.plus" },
-    { id: "revealFolder", title: "Show in Finder", symbol: "folder" },
+    { id: "revealFolder", title: `Show in ${PLATFORM_TERMS.fileManager}`, symbol: "folder" },
     { id: "stopSyncing", title: "Stop Syncing Folder", symbol: "icloud.slash" },
   ];
 }

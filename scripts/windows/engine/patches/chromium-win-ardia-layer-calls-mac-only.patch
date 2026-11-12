@@ -1,0 +1,58 @@
+Two of our patches call functions that //chrome/browser/ardia defines, and that layer is only built into the Mac
+framework: ardia::RegisterManagementPolicyProviders (chromium-extension-management-policy-hook.patch) and
+NewArdiaVideoOverlayWindow (chromium-pip-overlay-window.patch). On Windows the calls are left out until the layer
+builds there: no Ardia policy providers, and Chrome's own Picture-in-Picture window.
+
+build_config in pip: True
+--- a/chrome/browser/extensions/chrome_extension_system.cc
++++ b/chrome/browser/extensions/chrome_extension_system.cc
+@@ -92,10 +92,12 @@
+ 
+ static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
+ 
++#if BUILDFLAG(IS_MAC)
+ namespace ardia {
+ void RegisterManagementPolicyProviders(Profile* profile,
+                                         extensions::ManagementPolicy* policy);
+ }
++#endif
+ 
+ namespace extensions {
+ 
+@@ -197,7 +199,9 @@
+     management_policy_->RegisterProvider(extension_install_policy_service);
+   }
+ 
++#if BUILDFLAG(IS_MAC)
+   ardia::RegisterManagementPolicyProviders(profile_, management_policy_.get());
++#endif
+ }
+ 
+ void ChromeExtensionSystem::Shared::InitInstallGates() {
+--- a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
++++ b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
+@@ -321,8 +321,10 @@
+ // Ardia: Dia's window, defined in //chrome/browser/ardia (pip/). Not a
+ // GN dependency: it resolves at link time in the binary we build (ArdiaCore's
+ // chrome_dll links that target).
++#if BUILDFLAG(IS_MAC)
+ std::unique_ptr<VideoOverlayWindowViews> NewArdiaVideoOverlayWindow(
+     content::VideoPictureInPictureWindowController* controller);
++#endif
+ 
+ // static
+ std::unique_ptr<VideoOverlayWindowViews> VideoOverlayWindowViews::Create(
+@@ -330,8 +332,13 @@
+   // Can't use make_unique(), which doesn't have access to the private
+   // constructor. It's important that the constructor be private, because it
+   // doesn't initialize the object fully.
++#if BUILDFLAG(IS_MAC)
+   std::unique_ptr<VideoOverlayWindowViews> overlay_window =
+       NewArdiaVideoOverlayWindow(controller);
++#else
++  std::unique_ptr<VideoOverlayWindowViews> overlay_window =
++      base::WrapUnique(new VideoOverlayWindowViews(controller));
++#endif
+ 
+   overlay_window->SetColorModeOverride(ui::ColorProviderKey::ColorMode::kDark);
+ 

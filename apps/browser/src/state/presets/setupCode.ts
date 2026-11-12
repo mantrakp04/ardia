@@ -1,6 +1,8 @@
 import type { ProfileColor } from "../browser/types";
 import type { Preset } from "../onboarding/onboarding";
 import type { Settings } from "../settings/settings";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
+import { keyText } from "../commands/keyText";
 
 export const SETUP_CODE_VERSION = 1;
 export const SETUP_CODE_PREFIX = `ardia${SETUP_CODE_VERSION}-`;
@@ -182,7 +184,7 @@ export function decodeSetupCode(input: string): SetupCodeResult {
   return { ok: true, choices };
 }
 
-const APPEARANCE_LINE = { auto: "Appearance follows your Mac", light: "Always light", dark: "Always dark" } as const;
+const APPEARANCE_LINE = { auto: `Appearance follows your ${PLATFORM_TERMS.computer}`, light: "Always light", dark: "Always dark" } as const;
 
 export function describeSetupChoices(choices: SetupChoices): string[] {
   const s = choices.settings;
@@ -190,7 +192,7 @@ export function describeSetupChoices(choices: SetupChoices): string[] {
   if (s.tabLayout) lines.push(s.tabLayout === "top" ? "Tabs along the top" : "Tabs in the sidebar");
   if (s.sidebarSide === "right" && s.tabLayout !== "top") lines.push("Sidebar on the right");
   if (s.addressBar && s.tabLayout !== "top") lines.push(s.addressBar === "sidebar" ? "Address in the sidebar" : "Address in the toolbar");
-  if (s.newTabOpens) lines.push(s.newTabOpens === "commandBar" ? "⌘T opens the command bar" : "⌘T opens the New Tab page");
+  if (s.newTabOpens) lines.push(s.newTabOpens === "commandBar" ? `${keyText("⌘T")} opens the command bar` : `${keyText("⌘T")} opens the New Tab page`);
   if (s.appearance) lines.push(APPEARANCE_LINE[s.appearance]);
   if (choices.color) lines.push(`${choices.color[0]!.toUpperCase()}${choices.color.slice(1)} theme`);
   if (choices.pins?.length) lines.push(`${choices.pins.length} ${choices.pins.length === 1 ? "app" : "apps"} pinned`);

@@ -1,5 +1,7 @@
 import { APP, type SettingSection, type SettingsEnv } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
+import { keyText } from "../../../state/commands/keyText";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 
 const inSidebar = (_: unknown, env: SettingsEnv) => !env.top;
 
@@ -10,17 +12,17 @@ export const generalRows = {
       rows: {
         defaultBrowser: { title: "Default browser", description: `Make ${APP} your default browser.`, keywords: ["default", "set as default", "links"] },
         openAtLogin: { title: `Open ${APP} at login`, keywords: ["startup", "launch", "login items", "boot"] },
-        warnBeforeQuitting: { advanced: true, title: "Warn before quitting", description: `Asks before ${APP} quits with ⌘Q.`, keywords: ["quit", "confirm", "cmd q"] },
+        warnBeforeQuitting: { advanced: true, title: "Warn before quitting", description: `Asks before ${APP} quits with ${keyText("⌘Q")}.`, keywords: ["quit", "confirm", "cmd q"] },
         warnBeforeClosingWindow: {
           advanced: true,
           title: "Warn before closing a window with multiple tabs",
-          description: "Asks before ⇧⌘W or the close button closes its tabs.",
+          description: `Asks before ${keyText("⇧⌘W")} or the close button closes its tabs.`,
           keywords: ["close window", "confirm"],
         },
         openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail"] },
         littleArdiaOpensNewTabLinks: {
           title: "Open new-tab links inside Little Ardia",
-          description: "For links clicked in a Little Ardia window: a link that would open a new tab loads right there instead of in a tab of the main window. ⌘-click still opens it behind. Links in the main window follow Settings › Tabs › Open new-tab links in.",
+          description: `For links clicked in a Little Ardia window: a link that would open a new tab loads right there instead of in a tab of the main window. ${keyText("⌘")}-click still opens it behind. Links in the main window follow Settings › Tabs › Open new-tab links in.`,
           keywords: ["little ardia", "target blank", "new tab", "links", "mini window"],
         },
       },
@@ -106,7 +108,7 @@ export const generalRows = {
         },
       },
     },
-    { section: "Profiles", rows: { list: { title: "Profiles", description: "Drag to reorder. ⌃1–⌃9 switch to the first nine.", keywords: ["create profile", "new profile", "delete profile", "reorder", "work", "personal"] } } },
+    { section: "Profiles", rows: { list: { title: "Profiles", description: `Drag to reorder. ${keyText("⌃1")}–${keyText("⌃9")} switch to the first nine.`, keywords: ["create profile", "new profile", "delete profile", "reorder", "work", "personal"] } } },
   ],
   sync: [
     {
@@ -124,7 +126,7 @@ export const generalRows = {
       rows: {
         autoHideTabs: {
           title: "Auto-hide tabs",
-          description: "In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. ⌘S and View › Auto-Hide Tabs flip this same switch.",
+          description: `In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. ${keyText("⌘S")} and View › Auto-Hide Tabs flip this same switch.`,
           keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
         },
         sidebarSide: {
@@ -138,11 +140,11 @@ export const generalRows = {
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back. Your tabs stay put: hiding them is Auto-hide tabs.",
           keywords: ["auto hide toolbar", "address bar hides", "collapse", "compact", "scroll"],
         },
-        showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: "The button at the toolbar's leading edge. Auto-hide tabs, ⌘S and View › Auto-Hide Tabs still hide and show the tabs.", keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
+        showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: `The button at the toolbar's leading edge. Auto-hide tabs, ${keyText("⌘S")} and View › Auto-Hide Tabs still hide and show the tabs.`, keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
         showClearButton: {
           advanced: true,
           title: "Show Clear button",
-          description: "The ↓ Clear between your pinned tabs and your tabs. ⇧⌘K and File › Close All Tabs still clear them.",
+          description: `The ↓ Clear between your pinned tabs and your tabs. ${keyText("⇧⌘K")} and File › Close All Tabs still clear them.`,
           keywords: ["clear unpinned tabs", "close all tabs", "clear today", "divider", "arc"],
           shown: inSidebar,
         },
@@ -166,12 +168,12 @@ export const generalRows = {
       rows: {
         newTabOpens: {
           title: "New tab opens",
-          description: "With Command Bar, ⌘T and New Tab open the command bar over the page, as in Arc. The tab appears when you pick a result; Esc leaves everything as it was.",
+          description: `With Command Bar, ${keyText("⌘T")} and New Tab open the command bar over the page, as in Arc. The tab appears when you pick a result; Esc leaves everything as it was.`,
           keywords: ["new tab page", "command bar", "cmd t"],
         },
         newTabPosition: {
           title: "Add new tabs",
-          description: "Where ⌘T and + New Tab put the new tab. Next to the current tab, it joins that tab's group (from a pinned tab, it goes first in the list), and closing it brings you back. Links open next to their page either way.",
+          description: `Where ${keyText("⌘T")} and + New Tab put the new tab. Next to the current tab, it joins that tab's group (from a pinned tab, it goes first in the list), and closing it brings you back. Links open next to their page either way.`,
           keywords: ["new tab position", "next to current tab", "after current tab", "beside", "right of", "below", "adjacent", "end", "left", "top", "bottom", "order", "cmd t"],
         },
         newTabButtonPosition: {
@@ -214,12 +216,12 @@ export const generalRows = {
       rows: {
         peekLinksToOtherSites: {
           title: "Open a Peek window when clicking on links to other sites",
-          description: "Only from Top Apps and pinned tabs, however the page opens the link, through a redirect such as Gmail's included. Links on the same site, ⌘-clicks, downloads and sign-in pop-ups work as before.",
+          description: `Only from Top Apps and pinned tabs, however the page opens the link, through a redirect such as Gmail's included. Links on the same site, ${keyText("⌘")}-clicks, downloads and sign-in pop-ups work as before.`,
           keywords: ["peek", "preview", "external links", "other sites", "pinned", "pinned tabs", "top apps", "favorites", "glance", "arc", "zen", "gmail", "target blank"],
         },
         newTabLinksOpenIn: {
           title: "Open new-tab links in",
-          description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows.",
+          description: `Where a link that would open a new tab goes when you click it in a tab. ${keyText("⌘")}-click still opens a tab behind, and sign-in pop-ups stay windows.`,
           keywords: ["peek", "little ardia", "new tab", "target blank", "links", "preview", "arc", "mini window", "open links"],
         },
         peekModifier: {
@@ -231,7 +233,7 @@ export const generalRows = {
         splitLinkModifier: {
           advanced: true,
           title: "Open a link in split view with",
-          description: "Opens the link in a pane beside the page. ⌥⌘-click splits too, and so does ⌥⇧-click when ⌥-click is chosen. A link that downloads still downloads.",
+          description: `Opens the link in a pane beside the page. ${keyText("⌥⌘")}-click splits too, and so does ${keyText("⌥⇧")}-click when ${keyText("⌥")}-click is chosen. A link that downloads still downloads.`,
           keywords: ["split view", "split screen", "side by side", "option click", "alt click", "option shift click", "download", "dia"],
         },
       },
@@ -245,11 +247,11 @@ export const generalRows = {
           description: "Asks before Close Group closes a group and its tabs. A pinned group's − unloads its tabs instead, and keeps the group.",
           keywords: ["confirm", "close group", "folder", "accidentally"],
         },
-        cmdClickCreatesTabGroup: { advanced: true, title: "⌘-clicking links creates tab groups", keywords: ["command click", "cmd click"] },
+        cmdClickCreatesTabGroup: { advanced: true, title: `${keyText("⌘")}-clicking links creates tab groups`, keywords: ["command click", "cmd click"] },
         optShiftClickOpensInGroup: {
           advanced: true,
-          title: "⌥⇧-click opens tab in group",
-          description: "⌥⇧-click a tab to open it in a group with the current tab. (⌥⇧-clicking a link opens it in a split.)",
+          title: `${keyText("⌥⇧")}-click opens tab in group`,
+          description: `${keyText("⌥⇧")}-click a tab to open it in a group with the current tab. (${keyText("⌥⇧")}-clicking a link opens it in a split.)`,
           keywords: ["option shift click", "split"],
         },
         dragToGroupInTopStrip: {
@@ -318,8 +320,8 @@ export const generalRows = {
       rows: {
         addressBar: { title: "Address Bar", description: "In the toolbar or in the sidebar.", keywords: ["url bar", "location bar", "toolbar"] },
         commandBarPlacement: {
-          title: "⌘L opens the command bar",
-          description: "In the centre, ⌘L and a click on the address show it over the middle of the page, as in Arc.",
+          title: `${keyText("⌘L")} opens the command bar`,
+          description: `In the centre, ${keyText("⌘L")} and a click on the address show it over the middle of the page, as in Arc.`,
           keywords: ["cmd l", "command bar", "centred", "centered", "arc", "url bar", "location bar"],
         },
         compactToolbar: {
@@ -339,7 +341,7 @@ export const generalRows = {
         },
         bookmarksBar: {
           title: "Show bookmarks bar",
-          description: "Below the toolbar. Also in View › Show Bookmarks Bar, ⇧⌘B.",
+          description: `Below the toolbar. Also in View › Show Bookmarks Bar, ${keyText("⇧⌘B")}.`,
           keywords: ["bookmarks bar", "favorites bar", "favourites bar", "toolbar", "hide bookmarks", "show bookmarks"],
           shown: (s) => s.showBookmarks,
         },
@@ -383,6 +385,6 @@ export const generalRows = {
         },
       },
     },
-    { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
+    { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", shown: () => PLATFORM_FEATURES.appIcon, keywords: ["dock icon", "logo"] } } },
   ],
 } satisfies Pick<Record<SettingsPane, SettingSection[]>, "general" | "profiles" | "sync" | "tabs" | "appearance">;

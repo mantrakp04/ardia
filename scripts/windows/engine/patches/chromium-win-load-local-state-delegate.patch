@@ -1,0 +1,14 @@
+chromium-cef-carryover.patch gives LoadLocalState a ResourceBundle delegate; on the Mac, engine/ardiacore/apply.sh
+passes ArdiaCore's at this call (hook H5). Windows has no ArdiaCore yet, so the call passes none, as stock Chrome does.
+
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -985,7 +985,7 @@ std::optional<int> ChromeMainDelegate::PostEarlyInitialization(
+
+   // Initializes the resource bundle and determines the locale.
+   std::string actual_locale = LoadLocalState(
+-      chrome_feature_list_creator, invoked_in_browser->is_running_test);
++      chrome_feature_list_creator, nullptr, invoked_in_browser->is_running_test);
+   chrome_feature_list_creator->SetApplicationLocale(actual_locale);
+
+ #if BUILDFLAG(CHROME_FOR_TESTING)

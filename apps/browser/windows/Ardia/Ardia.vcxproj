@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)\ExperimentalFeatures.props" Condition="Exists('$(SolutionDir)\ExperimentalFeatures.props')" />
+  <PropertyGroup Label="Globals">
+    <CppWinRTOptimized>true</CppWinRTOptimized>
+    <CppWinRTGenerateWindowsMetadata>true</CppWinRTGenerateWindowsMetadata>
+    <MinimalCoreWin>true</MinimalCoreWin>
+    <ProjectGuid>{45D7EC94-15E4-4D88-B4A4-9065B50DD86A}</ProjectGuid>
+    <ProjectName>Ardia</ProjectName>
+    <TargetName>ArdiaApp</TargetName>
+    <ProjectPriIndexName>Ardia</ProjectPriIndexName>
+    <ProjectPriFileName>Ardia.pri</ProjectPriFileName>
+    <ShouldComputeInputPris>true</ShouldComputeInputPris>
+    <PrependPriInitialPath>false</PrependPriInitialPath>
+    <GenerateLibraryLayout>false</GenerateLibraryLayout>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>Ardia</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
+    <AppxPackage>false</AppxPackage>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="ReactNativeWindowsProps">
+    <ReactNativeWindowsDir Condition="'$(ReactNativeWindowsDir)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'node_modules\react-native-windows\package.json'))\node_modules\react-native-windows\</ReactNativeWindowsDir>
+  </PropertyGroup>
+  <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props" />
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="ReactNativeWindowsPropertySheets">
+    <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.Composition.CppApp.props" />
+  </ImportGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalOptions>%(AdditionalOptions) /bigobj</AdditionalOptions>
+      <DisableSpecificWarnings>4453;28204</DisableSpecificWarnings>
+      <AdditionalIncludeDirectories>
+        $(MSBuildThisFileDirectory);
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>shell32.lib;user32.lib;gdi32.lib;advapi32.lib;kernel32.lib;ole32.lib;oleaut32.lib;shlwapi.lib;d2d1.lib;bcrypt.lib;comctl32.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <PropertyGroup Label="UserMacros" />
+  <ItemGroup>
+    <ClInclude Include="AppImage.h" />
+    <ClInclude Include="AppModule.h" />
+    <ClInclude Include="EngineApi.h" />
+    <ClInclude Include="EngineHostModule.h" />
+    <ClInclude Include="CommandTable.h" />
+    <ClInclude Include="MenuKeyboard.h" />
+    <ClInclude Include="MenuKeys.h" />
+    <ClInclude Include="MenuPopup.h" />
+    <ClInclude Include="MenuStore.h" />
+    <ClInclude Include="MenusModule.h" />
+    <ClInclude Include="MaterialEffects.h" />
+    <ClInclude Include="MaterialSupport.h" />
+    <ClInclude Include="MaterialViews.h" />
+    <ClInclude Include="MaterialsModule.h" />
+    <ClInclude Include="VectorGeometry.h" />
+    <ClInclude Include="VectorIconView.h" />
+    <ClInclude Include="VectorPath.h" />
+    <ClInclude Include="ConfigModule.h" />
+    <ClInclude Include="DialogsModule.h" />
+    <ClInclude Include="DocumentsModule.h" />
+    <ClInclude Include="KeychainModule.h" />
+    <ClInclude Include="FileDropItems.h" />
+    <ClInclude Include="FileDropModule.h" />
+    <ClInclude Include="FileDropTarget.h" />
+    <ClInclude Include="FocusModule.h" />
+    <ClInclude Include="NotificationCenter.h" />
+    <ClInclude Include="NotificationJson.h" />
+    <ClInclude Include="NotificationsModule.h" />
+    <ClInclude Include="ShellModule.h" />
+    <ClInclude Include="SystemModule.h" />
+    <ClInclude Include="SystemSignalsModule.h" />
+    <ClInclude Include="TelemetryLocalModule.h" />
+    <ClInclude Include="UpdateModule.h" />
+    <ClInclude Include="Events.h" />
+    <ClInclude Include="Host.h" />
+    <ClInclude Include="Modules.h" />
+    <ClInclude Include="Paths.h" />
+    <ClInclude Include="PointerLatch.h" />
+    <ClInclude Include="WindowManager.h" />
+    <ClInclude Include="WindowsModule.h" />
+    <ClInclude Include="AutolinkedNativeModules.g.h" />
+    <ClInclude Include="LaunchLog.h" />
+    <ClInclude Include="LoggedErrors.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="targetver.h" />
+    <ClInclude Include="WindowsHostModule.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Ardia.cpp" />
+    <ClCompile Include="AutolinkedNativeModules.g.cpp" />
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Ardia.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Ardia.ico" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ReactNativeWindowsTargets">
+    <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.Composition.CppApp.targets" Condition="Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.Composition.CppApp.targets')" />
+  </ImportGroup>
+  <ItemDefinitionGroup>
+    <Reference>
+      <Private />
+    </Reference>
+  </ItemDefinitionGroup>
+  <Target Name="PublishWinRTRegistration" AfterTargets="CreateWinRTRegistration">
+    <Error Condition="'$(ApplicationManifest)' == '' Or !Exists('$(ApplicationManifest)')" Text="The Windows App SDK wrote no registration manifest for ArdiaApp.dll ('$(ApplicationManifest)'), so Ardia.exe would start without its WinRT classes." />
+    <Copy SourceFiles="$(ApplicationManifest)" DestinationFiles="$(OutDir)ArdiaApp.winrt.manifest" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyBundleBesideLibrary" AfterTargets="Build" Condition="'$(UseBundle)' == 'true' And '$(BundleContentRoot)' != ''">
+    <ItemGroup>
+      <BundleBesideLibrary Include="$(BundleContentRoot)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BundleBesideLibrary)" DestinationFiles="@(BundleBesideLibrary->'$(OutDir)Bundle\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="EnsureReactNativeWindowsTargets" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references targets in your node_modules\react-native-windows folder. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.Composition.CppApp.props')" Text="$([System.String]::Format('$(ErrorText)', '$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.Composition.CppApp.props'))" />
+    <Error Condition="!Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.Composition.CppApp.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.Composition.CppApp.targets'))" />
+  </Target>
+</Project>

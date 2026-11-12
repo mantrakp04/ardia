@@ -18,6 +18,7 @@ import { ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
 import { useOnboardingColors } from "./Parts";
 import { MockPanel, useScreen } from "./Screen";
 import { StepActions, StepLayout } from "./StepLayout";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 
 const ICON = require("../../../assets/app-icon.png");
 
@@ -39,7 +40,7 @@ function DefaultBrowserQuestion() {
   const [busy, setBusy] = useState(false);
   const setDefault = extras.setDefault ?? !backgroundInstance;
   const trial = extras.trial ?? false;
-  const dock = extras.dock ?? true;
+  const dock = PLATFORM_FEATURES.dock && (extras.dock ?? true);
   const login = extras.login ?? system?.loginEnabled ?? false;
   const setExtras = setOnboardingExtras;
 
@@ -96,7 +97,7 @@ function DefaultBrowserQuestion() {
         {system && !defaultOn ? (
           <OptionCard control="check" icon="calendar" title="Try it for seven days" subtitle="We'll check in to make sure you love it." selected={trial} onPress={() => setExtras({ trial: !trial })} />
         ) : null}
-        {system && !system.inDock ? (
+        {PLATFORM_FEATURES.dock && system && !system.inDock ? (
           <OptionCard control="check" icon="dock.rectangle" title="Add Ardia to Dock" subtitle="Quick access whenever you need it" selected={dock} onPress={() => setExtras({ dock: !dock })} />
         ) : null}
         <OptionCard control="check" icon="power" title="Open Ardia at login" subtitle="Ready when you sign in" selected={login} onPress={() => setExtras({ login: !login })} />
@@ -151,7 +152,7 @@ function SystemPreview({ isDefault, dock, login }: { isDefault: boolean; dock: b
       <Image source={ICON} style={{ width: 132, height: 132 }} />
       <View style={{ gap: space.m, alignItems: "center" }}>
         {chip(isDefault, "globe", "Default browser")}
-        {chip(dock, "dock.rectangle", "In your Dock")}
+        {PLATFORM_FEATURES.dock && chip(dock, "dock.rectangle", "In your Dock")}
         {chip(login, "power", "Opens at login")}
       </View>
     </View>

@@ -1,0 +1,128 @@
+#pragma once
+
+#include <memory>
+#include <string>
+#include <utility>
+
+#include "NativeModules.h"
+
+#include "EngineApi.h"
+#include "Events.h"
+#include "Host.h"
+#include "LaunchLog.h"
+#include "WindowManager.h"
+
+namespace Ardia {
+
+namespace EngineHostParts {
+
+using Reply = winrt::Microsoft::ReactNative::ReactPromise<std::string>;
+
+constexpr char NoEngine[] = "{\"error\":\"no engine\"}";
+
+struct EventRoute {
+  winrt::Microsoft::ReactNative::ReactContext context{nullptr};
+
+  static EventRoute *&Installed() noexcept {
+    static EventRoute *installed = nullptr;
+    return installed;
+  }
+};
+
+inline void OnReply(void *context, const char *json) noexcept {
+  std::unique_ptr<Reply> reply{static_cast<Reply *>(context)};
+  if (reply) reply->Resolve(std::string{json ? json : ""});
+}
+
+inline void OnEvent(void *context, const char *topic, const char *json) noexcept {
+  auto *route = static_cast<EventRoute *>(context);
+  if (!route || route != EventRoute::Installed()) return;
+  winrt::Microsoft::ReactNative::JSValueObject payload;
+  payload["topic"] = std::string{topic ? topic : ""};
+  payload["json"] = std::string{json ? json : ""};
+  EmitEvent(route->context, L"ArdiaEngineHost", L"event", std::move(payload));
+}
+
+inline void Install(EventRoute *route) noexcept {
+  const ArdiaEngineApi *engine = Host::Engine();
+  if (!engine) {
+    delete route;
+    return;
+  }
+  EventRoute::Installed() = route;
+  engine->setEventSink(&OnEvent, route);
+  LaunchLog::Write(L"engine", L"events reach the UI");
+}
+
+inline void Detach() noexcept {
+  EventRoute::Installed() = nullptr;
+  if (const ArdiaEngineApi *engine = Host::Engine()) engine->setEventSink(nullptr, nullptr);
+}
+
+inline void Remove(EventRoute *route) noexcept {
+  if (EventRoute::Installed() == route) Detach();
+  delete route;
+}
+
+}
+
+REACT_MODULE(EngineHostModule, L"ArdiaEngineHost")
+struct EngineHostModule {
+  using Reply = EngineHostParts::Reply;
+
+  EngineHostModule() noexcept = default;
+  EngineHostModule(EngineHostModule const &) = delete;
+  EngineHostModule &operator=(EngineHostModule const &) = delete;
+
+  REACT_INIT(Initialize)
+  void Initialize(winrt::Microsoft::ReactNative::ReactContext const &context) noexcept {
+    m_context = context;
+    if (!Host::Engine() || m_route) return;
+    m_route = new EngineHostParts::EventRoute{context};
+    EngineHostParts::EventRoute *route = m_route;
+    RunOnUI(context, [route]() noexcept { EngineHostParts::Install(route); });
+  }
+
+  ~EngineHostModule() noexcept {
+    EngineHostParts::EventRoute *route = m_route;
+    m_route = nullptr;
+    if (!route) return;
+    auto dispatcher = m_context ? m_context.UIDispatcher() : winrt::Microsoft::ReactNative::ReactDispatcher{nullptr};
+    if (!dispatcher) return;
+    if (dispatcher.HasThreadAccess()) {
+      EngineHostParts::Remove(route);
+      return;
+    }
+    dispatcher.Post([route]() noexcept { EngineHostParts::Remove(route); });
+  }
+
+  REACT_SYNC_METHOD(available)
+  bool available() noexcept {
+    return Host::Engine() != nullptr;
+  }
+
+  REACT_METHOD(hostCall)
+  void hostCall(std::string verb, std::string argsJson, std::string windowId, Reply reply) noexcept {
+    RunOnUI(m_context, [verb = std::move(verb), argsJson = std::move(argsJson), windowId = std::move(windowId), reply]() noexcept {
+      const ArdiaEngineApi *engine = Host::Engine();
+      if (!engine) return reply.Resolve(std::string{EngineHostParts::NoEngine});
+      HWND window = windowId.empty() ? nullptr : WindowManager::Shared().Hwnd(windowId);
+      engine->hostCall(verb.c_str(), argsJson.c_str(), reinterpret_cast<uint64_t>(window), &EngineHostParts::OnReply, new Reply(reply));
+    });
+  }
+
+  REACT_METHOD(engineCall)
+  void engineCall(std::string name, std::string profileDir, std::string argsJson, Reply reply) noexcept {
+    RunOnUI(m_context, [name = std::move(name), profileDir = std::move(profileDir), argsJson = std::move(argsJson), reply]() noexcept {
+      const ArdiaEngineApi *engine = Host::Engine();
+      if (!engine) return reply.Resolve(std::string{EngineHostParts::NoEngine});
+      engine->engineCall(name.c_str(), profileDir.c_str(), argsJson.c_str(), &EngineHostParts::OnReply, new Reply(reply));
+    });
+  }
+
+ private:
+  winrt::Microsoft::ReactNative::ReactContext m_context{nullptr};
+  EngineHostParts::EventRoute *m_route{nullptr};
+};
+
+}

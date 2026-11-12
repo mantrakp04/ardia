@@ -13,16 +13,17 @@ import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { setting, type SettingId } from "../settingsIndex";
 import { useSettingsColors } from "../useSettingsColors";
+import { keyText } from "../../../state/commands/keyText";
 
 const PEEK_WITH: { value: PeekModifier; title: string }[] = [
-  { value: "shift", title: "⇧-click" },
-  { value: "alt", title: "⌥-click" },
+  { value: "shift", title: `${keyText("⇧")}-click` },
+  { value: "alt", title: `${keyText("⌥")}-click` },
   { value: "off", title: "Off" },
 ];
 
 const SPLIT_WITH: { value: SplitLinkModifier; title: string }[] = [
-  { value: "altShift", title: "⌥⇧-click" },
-  { value: "alt", title: "⌥-click" },
+  { value: "altShift", title: `${keyText("⌥⇧")}-click` },
+  { value: "alt", title: `${keyText("⌥")}-click` },
 ];
 
 const NEW_TAB_LINKS: { value: Settings["newTabLinksOpenIn"]; title: string }[] = [
@@ -37,18 +38,18 @@ function LinkKeys() {
   const peekWith = useSettings((s) => s.peekModifier);
   const splitWith = useSettings(splitLinkModifierOf);
   const newTabLinks = useSettings((s) => s.newTabLinksOpenIn);
-  const peekOptions = PEEK_WITH.map((o) => (o.value === "alt" && splitWith === "alt" ? { ...o, title: "⌥-click (split view moves to ⌥⇧-click)" } : o));
-  const splitOptions = SPLIT_WITH.map((o) => (o.value === "alt" && peekWith === "alt" ? { ...o, title: "⌥-click (Peek moves to ⇧-click)" } : o));
+  const peekOptions = PEEK_WITH.map((o) => (o.value === "alt" && splitWith === "alt" ? { ...o, title: `${keyText("⌥")}-click (split view moves to ${keyText("⌥⇧")}-click)` } : o));
+  const splitOptions = SPLIT_WITH.map((o) => (o.value === "alt" && peekWith === "alt" ? { ...o, title: `${keyText("⌥")}-click (Peek moves to ${keyText("⇧")}-click)` } : o));
   return (
     <Group>
       <SettingToggle anchor="tabs.peekLinksToOtherSites" />
       <Row anchor="tabs.newTabLinksOpenIn">
         <PopUp value={newTabLinks} options={NEW_TAB_LINKS} onChange={(newTabLinksOpenIn) => updateSettings({ newTabLinksOpenIn })} />
       </Row>
-      <Row anchor="tabs.peekModifier" description={withNote("tabs.peekModifier", splitWith === "alt" ? "⌥-click opens a split now: choosing it here moves split view back to ⌥⇧-click." : null)}>
+      <Row anchor="tabs.peekModifier" description={withNote("tabs.peekModifier", splitWith === "alt" ? `${keyText("⌥")}-click opens a split now: choosing it here moves split view back to ${keyText("⌥⇧")}-click.` : null)}>
         <PopUp value={peekWith} options={peekOptions} onChange={(peekModifier) => updateSettings({ peekModifier })} />
       </Row>
-      <Row anchor="tabs.splitLinkModifier" description={withNote("tabs.splitLinkModifier", peekWith === "alt" ? "⌥-click peeks now: choosing it here moves Peek back to ⇧-click." : null)}>
+      <Row anchor="tabs.splitLinkModifier" description={withNote("tabs.splitLinkModifier", peekWith === "alt" ? `${keyText("⌥")}-click peeks now: choosing it here moves Peek back to ${keyText("⇧")}-click.` : null)}>
         <PopUp value={splitWith} options={splitOptions} onChange={(splitLinkModifier) => updateSettings({ splitLinkModifier })} />
       </Row>
     </Group>
@@ -102,7 +103,7 @@ export function TabsPane() {
         <Group>
           <SettingToggle
             anchor="tabs.autoHideTabs"
-            description={`In every window, the tabs slide out of view and come back when you move the pointer to the window's ${top ? "top edge" : "edge"}. ⌘S and View › Auto-Hide Tabs flip this same switch.`}
+            description={`In every window, the tabs slide out of view and come back when you move the pointer to the window's ${top ? "top edge" : "edge"}. ${keyText("⌘S")} and View › Auto-Hide Tabs flip this same switch.`}
           />
         <Row anchor="tabs.sidebarSide">
           <Segmented options={SIDEBAR_SIDES} value={sidebarSide} onChange={chooseSidebarSide} />

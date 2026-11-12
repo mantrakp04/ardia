@@ -11,10 +11,11 @@ import { MONO, onboardingButton } from "./tokens";
 import { font, proseLineHeight, radius, space } from "../ui/tokens";
 import { ChoiceCard } from "./ChoiceCard";
 import { SetupLines } from "./SetupLines";
+import { keyText } from "../../state/commands/keyText";
 
 const CODE_FIELD_HEIGHT = 44;
 
-const BRINGS = ["Where your tabs and address bar go", "What ⌘T and ⌘L open", "Light or dark, and your color", "The apps you pinned"];
+const BRINGS = ["Where your tabs and address bar go", `What ${keyText("⌘T")} and ${keyText("⌘L")} open`, "Light or dark, and your color", "The apps you pinned"];
 
 export function SetupCodeLink({ onPress }: { onPress: () => void }) {
   return (

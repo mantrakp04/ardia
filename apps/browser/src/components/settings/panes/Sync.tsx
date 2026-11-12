@@ -23,6 +23,7 @@ import { ProfileBadge } from "../../profiles/ProfileIcons";
 import { Group, PaneIntro, Row, SectionHeader } from "../Form";
 import { addAllRemoteProfiles, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
 import { ago } from "../../../lib/time";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 
 export function SyncPane() {
   const enabled = useSync((s) => s.enabled);
@@ -190,7 +191,7 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
       { id: "copy", title: "Copy Recovery Code", symbol: "doc.on.doc", enabled: !locked },
       { separator: true },
       { id: "now", title: "Sync Now", symbol: "arrow.triangle.2.circlepath" },
-      { id: "reveal", title: "Show Sync Folder in Finder", symbol: "folder", enabled: !!info?.exists },
+      { id: "reveal", title: `Show Sync Folder in ${PLATFORM_TERMS.fileManager}`, symbol: "folder", enabled: !!info?.exists },
       { separator: true },
       { id: "stop", title: "Stop Syncing…", symbol: "xmark.circle" },
     ]);

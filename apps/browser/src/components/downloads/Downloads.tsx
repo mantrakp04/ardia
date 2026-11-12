@@ -32,7 +32,7 @@ import { useDownloads, useSidebarOpen, useSidebarSide, useWindowId, useWindowUi 
 import { clearDownloads, setDownloadsOpen } from "../../state/windows/actions";
 import { watchNewDownloads } from "../../state/windows/downloadWatch";
 import { useDownload } from "../../state/windows/hooks";
-import { useAddressBarInSidebar, useTabLayout, useToolbarLightsCenter } from "../../state/windows/layout";
+import { useDownloadsInSidebarFooter, useTabLayout, useToolbarLightsCenter } from "../../state/windows/layout";
 import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
 import { PROFILE_DOTS_HEIGHT } from "../profiles/ProfileDots";
 import { openInternalPage } from "../../state/pages/urls";
@@ -46,6 +46,7 @@ import { FooterButton } from "./FooterButton";
 import { useDownloadsPlacement } from "./useDownloadsPlacement";
 import { sameSize, useSettled, type Size } from "../ui/useSettled";
 import { DOWNLOADS_LIST as L, FILE_ICON_GLYPH_SHARE, MAGNET, useDownloadsColors } from "./tokens";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 const rowFill = (theme: Theme, hovered: boolean, pressed: boolean) => (hovered || pressed ? menuRowFill(theme, pressed) : undefined);
 
@@ -85,7 +86,7 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   if (!closing) shownList.current = { ids: liveIds, clearable: liveClearable };
   const { ids, clearable } = shownList.current;
   const topStrip = useTabLayout() === "top";
-  const addressBar = useAddressBarInSidebar();
+  const addressBar = useDownloadsInSidebarFooter();
   const sidebarRight = useSidebarSide(windowId) === "right";
   const setOpen = (value: boolean) => setDownloadsOpen(windowId, value);
   const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2, sidebarRight });
@@ -253,7 +254,7 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                     hovered={hovered}
                     width={L.rowButton}
                     style={{ marginRight: -L.rowButtonBearing }}
-                    hover={<RowButton icon="magnifyingglass.circle.fill" onPress={() => void revealFile(d.path)} tooltip="Show in Finder" />}
+                    hover={<RowButton icon="magnifyingglass.circle.fill" onPress={() => void revealFile(d.path)} tooltip={`Show in ${PLATFORM_TERMS.fileManager}`} />}
                   />
                 ) : null}
               </View>
@@ -271,7 +272,7 @@ export function DownloadMagnet() {
   const sidebarWidth = useSidebarWidth(windowId);
   const topStrip = useTabLayout() === "top";
   const right = useSidebarSide(windowId) === "right";
-  const addressBar = useAddressBarInSidebar();
+  const addressBar = useDownloadsInSidebarFooter();
   const lightsY = useToolbarLightsCenter()[1];
   const [flight, setFlight] = useState<{ id: string; path: string } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });

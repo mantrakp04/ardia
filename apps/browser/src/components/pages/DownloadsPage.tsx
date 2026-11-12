@@ -13,6 +13,7 @@ import { downloadStatus } from "../../state/downloads/status";
 import { Box, Button, EmptyState, MouseArea, opacity, ProgressTrack, space, Text, useHover } from "../ui";
 import { hostLabel, matchesQuery, PAGE_WIDTH, PageHeader } from "./PageLayout";
 import { downloadCard, pageList, pageType } from "./tokens";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export function DownloadsPage({ tabId }: { tabId: string }) {
   const windowId = useTab(tabId, (t) => t?.windowId ?? "");
@@ -101,7 +102,7 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
               <Button title="Cancel" onPress={() => void cancelDownload(d.id)} />
             </View>
           ) : done ? (
-            <Button title="Show in Finder" onPress={() => void revealFile(d.path)} />
+            <Button title={`Show in ${PLATFORM_TERMS.fileManager}`} onPress={() => void revealFile(d.path)} />
           ) : null}
           <Button variant="icon" icon="ellipsis" size="l" onPress={() => void downloadMenu(d, windowId)} tooltip="More actions" />
           {d.state !== "downloading" && (

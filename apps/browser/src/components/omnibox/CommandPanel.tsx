@@ -7,7 +7,7 @@ import { closePanel } from "../../state/windows/actions";
 import { useActiveTabIdWhile, useCommandBarCentred, useTabHasUrlWhile } from "../../state/omnibox/hooks";
 import { usePage } from "../../state/tabs/pageState";
 import { dismissHover, setRowsCovered } from "../../state/sidebar/hover";
-import { useCardAnchors, useUrlAnchors } from "../../state/windows/layout";
+import { useCardAnchors, useUrlAnchors, useWindowControlsBottom } from "../../state/windows/layout";
 import { barWidth } from "../ntp/NewTabPage";
 import { closeNewTabBar } from "../../state/omnibox/newTabBar";
 import type { NewTabTarget } from "../../state/browser/types";
@@ -18,6 +18,8 @@ import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { compactLift, urlFieldOf } from "../../lib/toolbarRow";
 import { radius, shadow, space } from "../ui/tokens";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
+import { trailingClearance } from "../../lib/windowChrome";
 
 const RIGHT_OF_URL = 40;
 const ABOVE_PANE = 5.5;
@@ -43,6 +45,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const centred = useCommandBarCentred(windowId, panel.open && !panel.newTab);
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
   const toolbarRow = useToolbarRow();
+  const controlsBottom = useWindowControlsBottom();
   const sidebarRight = useSidebarSide(windowId) === "right";
   const overRows = panel.open && !panel.newTab && !centred && !!anchor?.sidebar;
   useEffect(() => {
@@ -52,7 +55,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   if (!panel.open || !activeId) return null;
   if (panel.newTab) return card ? <CentredBar windowId={windowId} tabId={activeId} target={panel.newTab} card={card} /> : null;
 
-  const room = (left: number, fallback: number) => (windowWidth > 0 ? windowWidth - left - WINDOW_MARGIN : fallback);
+  const room = (left: number, top: number, fallback: number) => (windowWidth > 0 ? windowWidth - left - trailingClearance(top, WINDOW_MARGIN, controlsBottom) : fallback);
   const onCancel = () => closePanel(windowId);
   const onDone = (reason?: BarDismissal) => closePanelToHeroBar(windowId, activeId, reason);
   const surface = (radius: number) => panelSurface(theme, radius);
@@ -73,7 +76,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
     const wanted = Math.max(DROPDOWN_MIN_WIDTH, anchor.width + DROPDOWN_PAST_FIELD);
     const end = shown ? anchor.left + anchor.width : windowWidth - WINDOW_MARGIN;
     const left = sidebarRight ? Math.max(WINDOW_MARGIN, end - wanted) : shown ? anchor.left : WINDOW_MARGIN;
-    const width = sidebarRight ? end - left : Math.min(wanted, room(left, DROPDOWN_MIN_WIDTH));
+    const width = sidebarRight ? end - left : Math.min(wanted, room(left, anchor.top, DROPDOWN_MIN_WIDTH));
     const from = shown ? { left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.sidebar.height } : null;
     return (
       <Grow from={from} frame={{ left, top: anchor.top, width }} openHeight={anchor.sidebar.height} radius={DROPDOWN_RADIUS} surface={surface(DROPDOWN_RADIUS)}>
@@ -87,7 +90,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const left = Math.max(WINDOW_MARGIN, anchor.left + urlTextLeft(insecure) - PANEL_TEXT_LEFT);
   const top = Math.max(0.5, anchor.top - ABOVE_PANE);
   const covering = anchor.left + anchor.width + RIGHT_OF_URL - left;
-  const width = Math.min(Math.max(covering, MIN_WIDTH), room(left, covering));
+  const width = Math.min(Math.max(covering, MIN_WIDTH), room(left, top, covering));
   const field = urlFieldOf(toolbarRow);
   const lift = compactLift(toolbarRow);
   const from = hasField ? { left: anchor.left, top: anchor.top + field.top, width: anchor.width, height: field.height } : null;
@@ -140,7 +143,7 @@ function CentredBar({ windowId, tabId, target, card }: { windowId: string; tabId
 }
 
 function Grow({
-  from,
+  from: requestedFrom,
   frame,
   openHeight,
   radius,
@@ -154,6 +157,7 @@ function Grow({
   surface: Omit<ComponentProps<typeof Surface>, "style">;
   children: ReactNode;
 }) {
+  const from = PLATFORM_FEATURES.panelGrowsFromField ? requestedFrom : null;
   const fade = !!from && !!reduceMotion();
   const [progress] = useState(() => new Animated.Value(from ? 0 : 1));
   const start = useRef(fade ? null : from);

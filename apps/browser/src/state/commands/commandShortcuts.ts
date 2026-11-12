@@ -3,6 +3,7 @@ import type { MenuShortcut } from "../../platform/commands";
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
 import { shortcutSources } from "./commandCatalog";
+import { ALTERNATE_MODIFIER } from "./keyNotation";
 import { formatShortcut, resolveShortcuts, type ResolvedShortcuts, type Shortcut, type ShortcutOverrides, type ShortcutSource } from "./shortcuts";
 
 export { cancelShortcutRecording, recordShortcut, type MenuShortcut } from "../../platform/commands";
@@ -53,8 +54,8 @@ export function menuShortcut(id: string, s: ShortcutState = useBrowser.getState(
 function commandAlternateOf(id: string, s: ShortcutState): Shortcut | null {
   const primary = shortcutOf(id, s);
   const modifiers = primary?.modifiers ?? [];
-  if (modifiers.includes("command")) return null;
-  const alternate: Shortcut = { key: primary?.key ?? "", modifiers: [...modifiers, "command"] };
+  if (modifiers.includes(ALTERNATE_MODIFIER)) return null;
+  const alternate: Shortcut = { key: primary?.key ?? "", modifiers: [...modifiers, ALTERNATE_MODIFIER] };
   if (alternate.key && resolvedShortcuts(s).holdersOf(alternate).length) return null;
   return alternate;
 }
@@ -62,7 +63,7 @@ function commandAlternateOf(id: string, s: ShortcutState): Shortcut | null {
 export function menuCommandAlternate(id: string, s: ShortcutState = useBrowser.getState()): MenuKey | null {
   const alternate = commandAlternateOf(id, s);
   if (!alternate) return null;
-  if (!alternate.key || alternate.modifiers.includes("function")) return { modifiers: ["command"] };
+  if (!alternate.key || alternate.modifiers.includes("function")) return { modifiers: [ALTERNATE_MODIFIER] };
   return { key: alternate.key, modifiers: alternate.modifiers.filter((m): m is MenuModifier => m !== "function") };
 }
 

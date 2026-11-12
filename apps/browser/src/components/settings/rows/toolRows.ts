@@ -1,5 +1,6 @@
 import { type SettingSection } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
+import { keyText } from "../../../state/commands/keyText";
 
 export const toolRows = {
   shortcuts: [
@@ -8,8 +9,8 @@ export const toolRows = {
       rows: {
         undoReopensClosedTab: {
           advanced: true,
-          title: "⌘Z reopens closed tabs",
-          description: "Outside text fields, as in Arc; press it again for the tab closed before. In a text field ⌘Z still undoes typing.",
+          title: `${keyText("⌘Z")} reopens closed tabs`,
+          description: `Outside text fields, as in Arc; press it again for the tab closed before. In a text field ${keyText("⌘Z")} still undoes typing.`,
           keywords: ["undo", "undo close tab", "reopen", "restore tab", "arc", "cmd z"],
         },
         actions: { title: "Customize keyboard shortcuts", keywords: ["hotkeys", "keybindings", "remap", "menu shortcuts"] },

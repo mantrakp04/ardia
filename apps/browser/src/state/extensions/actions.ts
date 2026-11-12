@@ -29,6 +29,7 @@ import { closeSidePanelsOf, toggleSidePanel } from "./sidePanels";
 import { notePrivateWindowExtensionOpen } from "../telemetry/usage";
 import { extensionPageUrl, extensionProfile, extensionsProfileId, isPrivate, pageProfile, shownIn, useExtensions, windowExtensions, readyTabOf, type Anchor } from "./store";
 import { errorText } from "../../lib/errors";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export * from "./sidePanels";
 export * from "./store";
@@ -134,7 +135,7 @@ export function cancelInstall() {
 export async function removeExtension(profile: string, ext: InstalledExtension, windowId?: string) {
   const { confirmed } = await confirm({
     title: `Remove “${ext.name}”?`,
-    message: ext.fromWebStore ? "Its data and settings will be removed too." : "The extension's folder stays on your Mac.",
+    message: ext.fromWebStore ? "Its data and settings will be removed too." : `The extension's folder stays on your ${PLATFORM_TERMS.computer}.`,
     confirmTitle: "Remove",
     destructive: true,
     windowId,

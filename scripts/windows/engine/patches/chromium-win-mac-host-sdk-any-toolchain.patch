@@ -1,0 +1,15 @@
+A Windows arm64 build also has an x64 toolchain, and Blink's scripts.gni imports mac_sdk.gni on a Mac host (gperf
+comes from Xcode) in every toolchain. mac_sdk.gni asserts it is only read for macOS, the default toolchain or Android,
+so `gn gen` of win arm64 from a Mac stops there. A Mac host building for Windows may read it from any toolchain.
+
+--- a/build/config/mac/mac_sdk.gni
++++ b/build/config/mac/mac_sdk.gni
+@@ -12,7 +12,7 @@ import("//build_overrides/build.gni")
+
+ # Allow Android builds on macOS
+ assert(current_os == "mac" || current_toolchain == default_toolchain ||
+-       target_os == "android")
++       target_os == "android" || (host_os == "mac" && target_os == "win"))
+
+ declare_args() {
+   # The following two variables control the minimum supported version for

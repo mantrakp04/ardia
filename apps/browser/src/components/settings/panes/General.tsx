@@ -16,6 +16,7 @@ import { openImport } from "../../../state/settings/settingsWindows";
 import { ExportBookmarksRow } from "./ExportBookmarksRow";
 import { SetupCodeRow } from "./SetupCodeRow";
 import { UI_LOCALE } from "../../../lib/uiLocale";
+import { keyText } from "../../../state/commands/keyText";
 
 const APP = "Ardia";
 
@@ -46,7 +47,7 @@ export function GeneralPane() {
           anchor="general.openLinksFrom"
           description={
             openLinksInLittleArdia
-              ? `A link from Discord, Slack or Mail opens in Little Ardia, a small window of its own. ⌘O moves it into ${APP}; closing it throws it away.`
+              ? `A link from Discord, Slack or Mail opens in Little Ardia, a small window of its own. ${keyText("⌘O")} moves it into ${APP}; closing it throws it away.`
               : `A link from Discord, Slack or Mail opens as a new tab in the ${APP} window you used last.`
           }
         >
