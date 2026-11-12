@@ -12,10 +12,11 @@
 # signs and uploads with that App Store Connect API key; without them it uses the account Xcode is signed
 # in to.
 #
-# --default-browser signs the app with Config/Ardia-Release.entitlements, which carries
-# com.apple.developer.web-browser. Use it only once Apple has granted that entitlement to the App ID;
-# until then signing fails with it. Without the flag the app signs with Config/Ardia.entitlements and
-# can't be chosen as the default browser.
+# --default-browser builds with ARDIA_DEFAULT_BROWSER=YES: the app signs with
+# Config/Ardia-DefaultBrowser.entitlements, which carries com.apple.developer.web-browser, and offers
+# its default browser steps in onboarding and Settings. Use it only once Apple has granted that
+# entitlement to the App ID; until then signing fails with it. Without the flag the app signs with
+# Config/Ardia.entitlements, iOS doesn't list it as a browser, and the app hides those steps.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -28,12 +29,12 @@ help() {
   exit 0
 }
 
-build="" upload=1 entitlements="Config/Ardia.entitlements" out=""
+build="" upload=1 default_browser=NO out=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -h | --help) help ;;
     --no-upload) upload=0; shift ;;
-    --default-browser) entitlements="Config/Ardia-Release.entitlements"; shift ;;
+    --default-browser) default_browser=YES; shift ;;
     --out) [ $# -ge 2 ] || die "--out needs a directory"; out="$2"; shift 2 ;;
     -*) die "unknown option $1" ;;
     *) [ -z "$build" ] || die "one build number, got $build and $1"; build="$1"; shift ;;
@@ -75,7 +76,7 @@ run_logged() {
   fi
 }
 
-echo "Ardia for iPhone $version ($build), entitlements $entitlements"
+echo "Ardia for iPhone $version ($build), default browser $default_browser"
 
 rm -rf "$archive" "$out/export"
 run_logged archive xcodebuild archive \
@@ -84,7 +85,7 @@ run_logged archive xcodebuild archive \
   -archivePath "$archive" -derivedDataPath "$out/dd" \
   -allowProvisioningUpdates ${auth[@]+"${auth[@]}"} \
   CURRENT_PROJECT_VERSION="$build" \
-  ARDIA_RELEASE_ENTITLEMENTS="$entitlements" \
+  ARDIA_DEFAULT_BROWSER="$default_browser" \
   COMPILER_INDEX_STORE_ENABLE=NO
 
 app="$archive/Products/Applications/Ardia.app"
@@ -96,6 +97,10 @@ for bundle in "$app" "$app"/PlugIns/*.appex; do
   [ "$(plist_value "$bundle" CFBundleShortVersionString)" = "$version" ] || die "$(basename "$bundle") is version $(plist_value "$bundle" CFBundleShortVersionString), not $version"
 done
 [ "$(find "$app/PlugIns" -maxdepth 1 -name '*.appex' | wc -l | tr -d ' ')" = 3 ] || die "the archive should hold three extensions"
+[ "$(plist_value "$app" ArdiaDefaultBrowser)" = "$default_browser" ] || die "the app offers the default browser steps: $(plist_value "$app" ArdiaDefaultBrowser), expected $default_browser"
+signed=NO
+if codesign -d --entitlements - --xml "$app" 2>/dev/null | plutil -extract 'com\.apple\.developer\.web-browser' raw -o - - 2>/dev/null | grep -qx true; then signed=YES; fi
+[ "$signed" = "$default_browser" ] || die "the app's signature carries the default browser entitlement: $signed, expected $default_browser"
 
 options="$out/ExportOptions.plist"
 cp "$ios/Config/ExportOptions-TestFlight.plist" "$options"

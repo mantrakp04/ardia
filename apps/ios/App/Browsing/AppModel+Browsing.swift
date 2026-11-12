@@ -85,10 +85,6 @@ extension AppModel {
     UIApplication.shared.open(url)
   }
 
-  var isDefaultBrowser: Bool {
-    (try? UIApplication.shared.isDefault(.webBrowser)) ?? false
-  }
-
   func goBackToSearchIfEmpty() {
     if tabs.selectedTab == nil, surface == .browsing { surface = .search }
   }

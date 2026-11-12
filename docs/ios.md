@@ -92,9 +92,9 @@ sizes, copy), on Apple's controls:
   converted on device, and a reject-all script for consent platforms; off per site from the page menu.
 - **System.** Widgets (search, the Mac's tabs, Lock Screen), Control Center controls, App Intents and Siri phrases,
   a share extension and an Open in Ardia action, Spotlight for open and archived tabs, Handoff of the current page,
-  Home Screen quick actions, and http/https link handling. The default-browser entitlement is in
-  `Config/Ardia-Release.entitlements`, which a release build uses only once Apple has granted it (Releasing to
-  TestFlight, below).
+  Home Screen quick actions, and http/https link handling. Being the default browser waits on an entitlement Apple
+  grants on request (Releasing to TestFlight, below); until a build carries it, onboarding and Settings leave the
+  default browser steps out.
 
 ## Demo mode and launch arguments
 
@@ -158,9 +158,20 @@ are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ar
   both (`--help` lists its commands).
 - **Version.** `MARKETING_VERSION` in `project.yml` (then `xcodegen generate`), 1.0 for the alpha; the build number is
   never committed.
-- **Default browser.** `com.apple.developer.web-browser` is in `Config/Ardia-Release.entitlements`, and Apple grants
-  it per App ID on request. Until it is granted, release builds sign with `Config/Ardia.entitlements` and iOS doesn't
-  offer Ardia as the default browser. Once granted, pass `default_browser=true` (`--default-browser`).
+- **Default browser.** iOS lists an app under Settings, Apps, Default Apps, Browser App only when it is signed with
+  `com.apple.developer.web-browser`, and Apple grants that per App ID on request: the account holder fills in
+  https://developer.apple.com/contact/request/default-browser-entitlement/ for `com.ardia.browser.ios`. One build
+  setting, `ARDIA_DEFAULT_BROWSER` (`NO` in `project.yml`), decides both halves: `YES` signs with
+  `Config/Ardia-DefaultBrowser.entitlements` and sets `ArdiaDefaultBrowser` in Info.plist, which turns on the
+  onboarding step and the Settings row; `NO` signs with `Config/Ardia.entitlements` and hides them, so the app never
+  sends anyone to a list it isn't on. Until Apple grants it, signing with `YES` fails ("requires approval from
+  Apple"). Once granted, pass `default_browser=true` (`--default-browser`), then make `YES` the default. The release
+  script checks that the Info.plist value and the signed entitlement agree. The simulator needs no grant:
+  `xcodebuild ... ARDIA_DEFAULT_BROWSER=YES` there exercises the whole flow.
+- **Am I the default.** iOS answers `UIApplication.isDefault(.webBrowser)` four times a year, so `DefaultBrowserStatus`
+  keeps the last answer and asks only on returning from the Settings button or after 100 days. A web link that
+  arrives from another app also proves it. The simulator ignores the Settings deep link and opens Settings where it
+  was left, so where the button lands is a real-phone check.
 - **Testers.** A processed build reaches the Internal group at once. For everyone else,
   `gh workflow run ios-release.yml -f mode=public-link -f build=<number>` puts that build in the Public Testers group
   (made with a public link the first time), sets its What to Test text from `Config/TestFlight-WhatToTest.txt`, submits it
