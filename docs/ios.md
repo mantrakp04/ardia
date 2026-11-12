@@ -130,9 +130,10 @@ A real iPhone and a real Mac on the same iCloud account: scan the code, pick the
 bookmarks and sent tabs go both ways; a relaunch and a reboot keep the folder bookmark; background refresh runs.
 The simulator can't sign in to iCloud Drive.
 
-Export compliance: sync encrypts with AES-GCM and HKDF from CryptoKit, so `ITSAppUsesNonExemptEncryption` is
-true. On the first App Store Connect upload, answer that the app uses standard encryption algorithms (mass market,
-no licence); availability in France may ask for a French encryption declaration.
+Export compliance: the app's only encryption is Apple's own (CryptoKit's AES-GCM, HKDF and HMAC for sync, and
+HTTPS), with no cryptography of its own and none from a third party, which Apple counts as exempt. So
+`ITSAppUsesNonExemptEncryption` is false, a build needs no compliance code, and App Store Connect asks nothing per
+build. Adding a cryptography library, or an algorithm implemented in the app, changes that answer.
 
 ## Releasing to TestFlight
 
@@ -149,7 +150,8 @@ are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ar
 - **On a Mac.** `scripts/release-ios.sh <build number>` does the same with the account Xcode is signed in to, or with
   `ASC_KEY`, `ASC_KEY_ID` and `ASC_ISSUER`. `node apps/ios/scripts/asc.mjs` is the App Store Connect client behind
   both (`--help` lists its commands).
-- **Version.** `MARKETING_VERSION` in `project.yml` (then `xcodegen generate`); the build number is never committed.
+- **Version.** `MARKETING_VERSION` in `project.yml` (then `xcodegen generate`), 1.0 for the alpha; the build number is
+  never committed.
 - **Default browser.** `com.apple.developer.web-browser` is in `Config/Ardia-Release.entitlements`, and Apple grants
   it per App ID on request. Until it is granted, release builds sign with `Config/Ardia.entitlements` and iOS doesn't
   offer Ardia as the default browser. Once granted, pass `default_browser=true` (`--default-browser`).
