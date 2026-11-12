@@ -1,40 +1,20 @@
 import { Dot, Symbol } from "../ui";
 import { memo } from "react";
 import { View } from "react-native";
-import { hex, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
 import { ink } from "../ui/tokens";
 import { usePage } from "../../state/tabs/pageState";
-import { useSidebarTokens } from "../sidebar/tokens";
-import { useMedia } from "../../state/media/media";
 import { CAPTURE_DOT_RIM } from "./tokens";
-import { UnreadBadge } from "../unread/UnreadBadge";
 import { PeekMark } from "../peek/PeekMark";
 
-export const TabBadges = memo(function TabBadges({ tabId, size = 16, pip = true, unread = true }: { tabId: string; size?: number; pip?: boolean; unread?: boolean }) {
+export const TabBadges = memo(function TabBadges({ tabId, size = 16 }: { tabId: string; size?: number }) {
   return (
     <>
-      {pip && <PipBadge tabId={tabId} size={size} />}
       <CaptureBadge tabId={tabId} size={size} />
-      {unread && <UnreadBadge tabId={tabId} />}
       <PeekMark tabId={tabId} size={size} />
     </>
   );
 });
-
-function PipBadge({ tabId, size }: { tabId: string; size: number }) {
-  const theme = useTheme();
-  const tokens = useSidebarTokens();
-  const open = useMedia((m) => !!m.pipOpen[tabId]);
-  if (!open) return null;
-  const d = Math.round(size * 0.72);
-  return (
-    <View pointerEvents="none" style={{ position: "absolute", right: -d / 3, top: -d / 3 }}>
-      <Dot size={d} color={tokens.badge}>
-        <Symbol name="pip.fill" size={d * 0.55} weight="bold" color={hex(theme.onPrimary)} style={{ width: d, height: d }} />
-      </Dot>
-    </View>
-  );
-}
 
 function CaptureBadge({ tabId, size }: { tabId: string; size: number }) {
   const theme = useTheme();

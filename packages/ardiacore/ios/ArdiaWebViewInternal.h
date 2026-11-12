@@ -82,6 +82,8 @@ struct ArdiaPageReports {
   BOOL seenByUser{YES};
   BOOL inPictureInPicture{};
   BOOL autoPictureInPictureActive{};
+  BOOL keptByWindowServer{};
+  BOOL playedForAutoPictureInPicture{};
 };
 
 struct ArdiaCommits {
@@ -257,6 +259,11 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)traceAutoPictureInPicture:(NSString *)what;
 - (void)awaitPictureInPicture:(int)tries completion:(void (^)(BOOL))completion;
 - (void)updateAutoPictureInPicture;
+- (BOOL)leftAppInPictureInPicture;
+- (BOOL)playsForAutoPictureInPicture;
+- (void)autoPictureInPictureInputsChanged;
+- (void)noteStayedOnAppSwitch;
++ (BOOL)playsForAutoPictureInPictureInWindow:(NSWindow *)window;
 @end
 
 @interface ArdiaWebView (NavigationInternal)
@@ -275,6 +282,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)emitZoom;
 - (void)runChromeCommand:(int)command;
 - (void)thawHiddenPage;
+- (BOOL)awaitsFirstDocument;
 @end
 
 @interface ArdiaWebView (InputMonitorsInternal)

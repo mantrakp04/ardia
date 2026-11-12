@@ -39,6 +39,7 @@ struct TabDeck: View {
   let geometry: TabsDeckGeometry
 
   @Environment(AppModel.self) private var app
+  @Environment(\.profileLook) private var look
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   @State private var order: [UUID] = []
@@ -82,7 +83,7 @@ struct TabDeck: View {
   var body: some View {
     let byID = tabsByID
     ZStack {
-      TabsBackdrop(tint: profileTint)
+      TabsBackdrop(look: look)
         .opacity(backdropOpacity)
         .contentShape(.rect)
         .gesture(deckDrag(for: nil))
@@ -210,12 +211,6 @@ struct TabDeck: View {
     }
   }
 
-  private var profileTint: [Color]? {
-    guard app.sync.isEnabled, let theme = app.sync.selectedProfile?.theme else { return nil }
-    let colors = theme.colors.compactMap { Color(hexString: $0) }
-    return colors.count >= 2 ? colors : nil
-  }
-
   private var backdropOpacity: Double {
     if case .opening(let id) = phase, id != nil { return min(1, positionProgress * 1.4) }
     if case .closing = phase { return min(1, positionProgress * 1.4) }
@@ -277,7 +272,7 @@ struct TabDeck: View {
       positionProgress = 0
       Task { @MainActor in
         withAnimation(TabsMotion.openScale) { scaleProgress = 1 }
-        withAnimation(TabsMotion.openPosition) {
+        withAnimation(TabsMotion.openPosition, completionCriteria: .removed) {
           positionProgress = 1
         } completion: {
           phase = .settled
@@ -347,7 +342,7 @@ struct TabDeck: View {
       await app.primeCover(for: id)
       if case .closing(id) = phase { app.beginOpening(id) }
     }
-    withAnimation(TabsMotion.expand) {
+    withAnimation(TabsMotion.expand, completionCriteria: .removed) {
       scaleProgress = 0
       positionProgress = 0
     } completion: {
@@ -612,7 +607,12 @@ struct CardMenu: View {
         }
       }
       if !tab.isPrivate, app.sync.isEnabled {
-        Button("Pin to Mac", systemImage: "star") { app.pinToMac(tab) }
+        if app.isPinnedToMac(tab) {
+          Button("Pinned to Mac", systemImage: "star.fill") {}
+            .disabled(true)
+        } else {
+          Button("Pin to Mac", systemImage: "star") { app.pinToMac(tab) }
+        }
       }
       Divider()
     }
@@ -682,7 +682,7 @@ struct DeckEmptyState: View {
       if showsArchive {
         Button("Open Archive", action: openArchive)
           .font(.subheadline.weight(.semibold))
-          .tint(Palette.indigo)
+          .tint(Palette.formAccent)
           .padding(.top, 6)
           .frame(minHeight: 44)
       }

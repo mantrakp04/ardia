@@ -27,6 +27,7 @@ chromium chromium-devtools-window-title.patch
 chromium chromium-global-trace-id-64bit.patch
 chromium chromium-drag-start-event-id.patch
 chromium chromium-devtools-control-token.patch
+chromium chromium-drag-always-ends.patch
 chromium chromium-capture-wake-lock-awake-only.patch
 chromium chromium-devtools-find-detach-keeps-selection.patch
 chromium chromium-extension-install-prompt-hook.patch
@@ -57,6 +58,7 @@ chromium chromium-branding.patch
 # their saved passwords and cookies. It must survive any re-sync (plain Chromium for ArdiaCore, a version bump), unchanged.
 chromium chromium-safe-storage-name.patch
 chromium chromium-safe-storage-no-silent-reset.patch
+chromium chromium-pref-hash-safe-storage-key-change.patch
 chromium chromium-password-bubble-hook.patch
 chromium chromium-password-generation-local.patch
 chromium chromium-password-string-erase.patch

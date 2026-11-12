@@ -27,7 +27,10 @@ struct SystemIntegrationsModifier: ViewModifier {
 
   func body(content: Content) -> some View {
     content
-      .onOpenURL { url in open(url) }
+      .onOpenURL { url in
+        if Self.isWebLink(url) { app.defaultBrowser.receivedLinkFromSystem() }
+        open(url)
+      }
       .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
         if let url = activity.webpageURL { app.openWebLink(url, origin: .link) }
       }
@@ -67,8 +70,13 @@ struct SystemIntegrationsModifier: ViewModifier {
       app.handle(link)
       return
     }
-    guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return }
+    guard Self.isWebLink(url) else { return }
     app.openWebLink(url, origin: .link)
+  }
+
+  private static func isWebLink(_ url: URL) -> Bool {
+    guard let scheme = url.scheme?.lowercased() else { return false }
+    return scheme == "http" || scheme == "https"
   }
 
   private struct Handoff: Equatable {

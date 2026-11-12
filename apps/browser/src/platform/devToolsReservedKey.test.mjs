@@ -14,7 +14,8 @@ const bodyOf = (source, signature) => {
 test("a reserved key goes to the main menu only when a focused Developer Tools doesn't keep it", () => {
   const hook = bodyOf(read(`${core}ArdiaWindowController.mm`), "- (BOOL)window:(ArdiaCoreWindow *)window preHandleKeyEvent:");
   const keeps = hook.indexOf("KeepsReservedKeyInDevTools(window.window, event)");
-  const menu = hook.indexOf("performKeyEquivalent");
+  const menu = hook.indexOf("ArdiaPerformReservedKey(event)");
+  assert.ok(menu >= 0, "preHandleKeyEvent hands a reserved key to the main menu through ArdiaPerformReservedKey");
   assert.ok(keeps >= 0, "preHandleKeyEvent must ask KeepsReservedKeyInDevTools before it sends a reserved key to the main menu");
   assert.ok(keeps < menu, "KeepsReservedKeyInDevTools must be asked before the main menu runs the key");
 });
@@ -26,8 +27,8 @@ test("a key Developer Tools keeps is refused at the hook and counted once, never
   assert.match(kept[1], /\[ArdiaEvents emit:@"engine\.devToolsKeyKept" data:@\{\}\];/, "the handoff is reported to the app");
   assert.match(kept[1], /NSEventTypeKeyDown && !event\.isARepeat/, "only the first key down counts");
   assert.match(kept[1], /\n    return NO;$/, "a key Developer Tools keeps must return NO so the page and Developer Tools get it");
-  assert.doesNotMatch(kept[1], /return YES|performKeyEquivalent/, "the main menu never runs a key Developer Tools keeps");
-  assert.ok(hook.indexOf("return NO;") < hook.indexOf("performKeyEquivalent"), "the refusal comes before the main menu runs");
+  assert.doesNotMatch(kept[1], /return YES|performKeyEquivalent|ArdiaPerformReservedKey/, "the main menu never runs a key Developer Tools keeps");
+  assert.ok(hook.indexOf("return NO;") < hook.indexOf("ArdiaPerformReservedKey(event)"), "the refusal comes before the main menu runs");
 });
 
 test("the kept-key handoff travels from the hook to a capped, property-free telemetry event", () => {

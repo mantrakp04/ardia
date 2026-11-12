@@ -14,7 +14,7 @@ variables) is in `docs/conventions.md`, enforced by `apps/browser/src/convention
   inline styles.
 - Native code lives in Expo modules under `packages/*/ios` (Swift / Objective-C++):
   - `packages/ardiacore`: the web engine, **ArdiaCore**: Chrome's own framework (`Chromium Framework.framework`,
-    Chromium 157.0.8103.38 + Helium 0.21.1 + our patch series, `docs/engine-build.md`) with our layer linked
+    Chromium 157.0.8103.50 + Helium 0.21.2 + our patch series, `docs/engine-build.md`) with our layer linked
     in, and the Expo modules and JS API the app uses (`docs/ardiacore-spike.md`, `docs/ardiacore-parity.md`).
     - **Chromium runs the process.** `main.swift` calls `ArdiaHost.run`: `ChromeMain` starts with our
       `ACMainDelegate`, `NSApp` is Chrome's `BrowserCrApplication`, and the React Native host (`AppDelegate`) starts
@@ -51,7 +51,7 @@ variables) is in `docs/conventions.md`, enforced by `apps/browser/src/convention
   pnpm can add bogus `deleted file` entries (drop them and run `pnpm install` again under the same lock).
   Mark edits `[Ardia: … Ardia]`. Current patches: `react-native-macos` (a view's `transform` survives
   AppKit layout and applies from its centre; RCTTiming's display link, c7ebd600; a view in a scroll view observes its bounds once, not once per re-add; focus() on a text field being edited keeps its edit, caret and selection; a placeholder change on an empty field being edited isn't a blur; a placeholder colour change on a field being edited reaches its field editor, so it shows once the field is emptied, and its text keeps the field's own colour; a single-line field with pastedTypes pastes only those as plain text, line breaks folded as in Chrome's omnibox, a088913e; a container whose children change leaves the ones already in place alone instead of re-adding every one, 6d7277fd; a mouse touch matches its own down on the same button and is never recorded twice, so JS never gets a null touch, 8bd086c8; mounts go through one queue in layout order, and a live-resize layout, which React Native mounts on the main thread at once, first mounts every older one still queued, so a zoomed window never keeps an older layout and its views track the window during the animation, 2f4aa603; a network task's callback blocks are atomic and only one of
-  cancel, error and completion finishes it, so a cancel racing a completion never frees the block being called, #955; a React view whose parent and children are all React views leaves Auto Layout, which every macOS 26+ window engages and whose memory exploded with thousands of sidebar rows, #952) and `expo-modules-core` (the JS
+  cancel, error and completion finishes it, so a cancel racing a completion never frees the block being called, #955; a React view whose parent and children are all React views leaves Auto Layout, which every macOS 26+ window engages and whose memory exploded with thousands of sidebar rows, #952; a view whose `overflow` changes redisplays its layer, so one that stops clipping at the same size stops masking its children) and `expo-modules-core` (the JS
   runtime is prepared on the JS thread only, 364f5f7e).
 
 ## The engine
@@ -316,6 +316,7 @@ The only variables the app and engine read, through `ArdiaLaunchConfig` (`packag
 | | `applyProfileGate` | Applies the real-profile switch gate on the mock keychain too |
 | | `screenRecording=allowed\|denied` | What the share sheet is told about macOS Screen Recording permission (Chrome still checks the real one); background mode never asks macOS for it |
 | | `contextMenu` | Context menus dump to `<data dir>/context-menu.json` and take their pick from `….pick` |
+| | `systemLocationPermission=ask\|denied\|granted` | The app's macOS location access (`ArdiaLocation`): `ask` is not determined and a request answers Allow. A background instance never asks macOS and reads as not determined without it |
 | | `appMenu` · `appDialog` | The app's own menus (`showMenu`) dump to `<data dir>/menu.json` and take their pick from `….pick` · `confirm` and `prompt` dump to `dialog.json` and take their answer from `….pick` |
 | | `pipSelfTest=close\|backToTab\|hover\|style` · `pipHover=close\|back` | PiP self-tests on the first PiP window (background mode), results in the data dir |
 | | `fakeFullScreenMs=<ms>` | Length of the acted-out full-screen transition |
@@ -326,6 +327,7 @@ The only variables the app and engine read, through `ArdiaLaunchConfig` (`packag
 | | `legacySource=<home>` · `legacyCrashAfter=<step>` | The Netnyahoo → Ardia migration from a scratch home |
 | | `bangsUrl` · `onboarding` · `whatsNew` · `telemetry` · `liveMock=<url>` · `calendarFixture` | Debug builds only: bang list, run onboarding, show What's New, send telemetry, live folders from a mock, the calendar fixture |
 | | `cdpTabsVisible` | A tab that a DevTools-port client (`ARDIA_REMOTE_DEBUGGING_PORT`) attaches to stays visible to its renderer until that session detaches, as on the `ardia` command's token path (`ac_cli_visible_tabs.cc`; `docs/cli.md` › Input) |
+| | `nativeDragRefused` | The engine refuses every macOS drag session a page asks for, as when one is already open, and ends the page's drag (`drag-end-check.mjs`; `docs/engine-build.md`, `chromium-drag-always-ends.patch`) |
 | | `loginsDelay=<profile\|account>:<ms>`, `loginsReleaseAfter=<profile\|account>`, `loginsTimeout=<s>` | Sync's password read (`ac_passwords_logins`): hold one store's answer, drop the read as a profile shutdown does once that store has answered, and the bridge's deadline (30 s otherwise) |
 | `ARDIA_FEEDBACK_URL` | URL | Report a Problem's endpoint, e.g. `http://127.0.0.1:4319/api/feedback` for `node infra/feedback/server.mjs --local <dir>` |
 | `ARDIA_PREWARM` | set | Not a setting: an older running app sets it on the staged update it prewarms, which then exits at once |

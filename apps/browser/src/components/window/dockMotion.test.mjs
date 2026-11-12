@@ -105,7 +105,7 @@ test("the sidebar's rows sit 9 pt from the window's edge and 9 pt from the card 
 
 test("the card radius follows the native window radius minus the frame, and the toolbar's lights stay 21 pt into the card", () => {
   assert.equal(dm.cardFrameOf(9).radius, 10);
-  assert.equal(dm.cardFrameOf(0).radius, 19);
+  assert.equal(dm.cardFrameOf(0).radius, 0, "edge to edge: square corners; the window rounds the page");
   assert.equal(dm.cardFrameOf(12).radius, 7);
   assert.equal(dm.cardFrameOf(4).radius, 15);
   assert.equal(pageFrameOf(18, 19, dm.PEEK_RADIUS).radius, 2);
@@ -316,13 +316,26 @@ test("the dock is fullscreen, docked, peeking, hiding or away, and only a still,
   assert.equal(st({ peekLive: true, moving: true }), "peeking");
   assert.equal(st({ moving: true }), "hiding");
   assert.equal(st({}), "away");
-  assert.deepEqual(["fullscreen", "docked", "peeking", "hiding", "away"].map(dm.shownAs), ["fullscreen", "docked", "peek", "away", "away"]);
+  assert.equal(st({ peekLive: true, peekLeaving: true }), "leaving");
+  assert.equal(st({ peekLeaving: true }), "away");
+  assert.deepEqual(["fullscreen", "docked", "peeking", "leaving", "hiding", "away"].map(dm.shownAs), ["fullscreen", "docked", "peek", "peek", "away", "away"]);
+  assert.equal(dm.watchesEdge("leaving", false), true);
   assert.equal(dm.watchesEdge("away", false), true);
   assert.equal(dm.watchesEdge("peeking", false), true);
   assert.equal(dm.watchesEdge("peeking", true), false);
   assert.equal(dm.watchesEdge("hiding", true), false);
   assert.equal(dm.watchesEdge("docked", false), false);
   assert.equal(dm.watchesEdge("fullscreen", false), false);
+});
+
+test("while the peek slides away only the window's edge brings it back, not the column it is leaving (#1192)", () => {
+  const W = 1000;
+  for (const x of [8, 40, 110, 250]) assert.equal(dm.edgeEventReveals("leaving", x, false, W), false, `left column x ${x}`);
+  for (const x of [-20, 0, 7]) assert.equal(dm.edgeEventReveals("leaving", x, false, W), true, `left edge x ${x}`);
+  for (const x of [W - 9, W - 110]) assert.equal(dm.edgeEventReveals("leaving", x, true, W), false, `right column x ${x}`);
+  for (const x of [W - 8, W - 1, W + 20]) assert.equal(dm.edgeEventReveals("leaving", x, true, W), true, `right edge x ${x}`);
+  for (const state of ["peeking", "away"]) assert.equal(dm.edgeEventReveals(state, 110, false, W), true, state);
+  assert.equal(dm.edgeWatchWidth(false, false, dm.peekHoldWidth(240, 5), 6), dm.PEEK_EDGE_STRIP, "leaving watches the edge strip, not the column");
 });
 
 test("the peek stays out within 24 pt of its right edge, the window's full height", () => {

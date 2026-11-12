@@ -140,6 +140,10 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
   return [objc_getAssociatedObject(window, kWindowFullScreenKey) enteredForPage];
 }
 
++ (BOOL)userSeesWindow:(NSWindow *)window {
+  return [ArdiaWindowController userSees:window];
+}
+
 + (void)setShouldCloseHandler:(BOOL (^)(NSWindow *))handler {
   gShouldClose = [handler copy];
 }

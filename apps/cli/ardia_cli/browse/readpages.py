@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Usage
 
 READ_TABS = 4
+READER_TRIES = 2
 HTTP_WORKERS = 4
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
@@ -370,7 +371,9 @@ async def open_reader(state, opened: list[str]):
 async def probe(page):
     try:
         return tuple(await page.call(SETTLE_PROBE, frame=page.main_frame, read=True))
-    except BrowseError:
+    except BrowseError as error:
+        if error.code == "tab_detached":
+            raise
         return None, None, True
 
 
@@ -458,6 +461,7 @@ async def read_in(ctx, page, url: str, selector: str | None, timeout: float, opt
 
 
 async def read_tabs(ctx, urls: list[str], selector: str | None, timeout: float, options: dict) -> list[dict]:
+    from ardia_cli import command_metrics
     from ardia_cli.browse import temptabs
 
     state = ctx.state
@@ -471,9 +475,13 @@ async def read_tabs(ctx, urls: list[str], selector: str | None, timeout: float, 
         page = None
         while queue:
             index, url = queue.pop(0)
-            if page is None or page.session_id is None:
-                page = await open_reader(state, opened)
-            records[index] = await read_in(ctx, page, url, selector, timeout, options)
+            for attempt in range(READER_TRIES):
+                if page is None or page.session_id is None:
+                    page = await open_reader(state, opened)
+                records[index] = await read_in(ctx, page, url, selector, timeout, options)
+                if page.session_id is not None or "error" not in records[index] or attempt + 1 == READER_TRIES:
+                    break
+                command_metrics.add("read_tabs_reopened")
 
     tasks = [asyncio.ensure_future(worker()) for _ in range(min(READ_TABS, len(urls)))]
     try:

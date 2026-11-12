@@ -16,43 +16,28 @@ public extension Color {
       light
     #endif
   }
-
-  init(p3Hex hex: UInt32, opacity: Double = 1) {
-    self.init(
-      .displayP3,
-      red: Double((hex >> 16) & 0xFF) / 255,
-      green: Double((hex >> 8) & 0xFF) / 255,
-      blue: Double(hex & 0xFF) / 255,
-      opacity: opacity
-    )
-  }
 }
 
 public enum BrowsePalette {
   public static let foregroundPrimary = Color.adaptive(light: Color(hex: 0x0E0F10, opacity: 0.9), dark: .white.opacity(0.8))
   public static let foregroundSecondary = Color.adaptive(light: .black.opacity(0.5), dark: .white.opacity(0.5))
   public static let foregroundTertiary = Color.adaptive(light: .black.opacity(0.3), dark: .white.opacity(0.3))
-  public static let popover = Color.adaptive(light: Color(hex: 0xFAFBFF), dark: Color(hex: 0x151C30))
-  public static let loadingBorder = Color.adaptive(light: Color(hex: 0x0C50FF), dark: Color(hex: 0x2AB6F6))
+  public static let popover = Palette.panel
+  public static let loadingBorder = Palette.accent
   public static let findError = Color(hex: 0xC93333)
-  public static let sheet = Color.adaptive(light: Color(hex: 0xFCFCFE, opacity: 0.86), dark: Color(hex: 0x1E1D24, opacity: 0.72))
-  public static let sheetOpaque = Color.adaptive(light: Color(hex: 0xFCFCFE), dark: Color(hex: 0x1E1D24))
   public static let fieldFill = Color.adaptive(light: .black.opacity(0.06), dark: .white.opacity(0.12))
   public static let fieldStroke = Color.adaptive(light: .black.opacity(0.06), dark: .white.opacity(0.08))
-  public static let searchAccent = Color.adaptive(light: Color(p3Hex: 0x3139FB), dark: Color(p3Hex: 0x6F86FF))
-  public static let launchGradientLight: [Color] = [Color(hex: 0x3F48F2), Color(hex: 0x6A5CE8), Color(hex: 0xA672DA), Color(hex: 0xFF8AAB)]
-  public static let launchGradientDark: [Color] = [Color(hex: 0x16182E), Color(hex: 0x1B1A30), Color(hex: 0x2A1C2B), Color(hex: 0x3B1E25)]
-  public static let incognitoGradient: [Color] = [Color(hex: 0x111120), Color(hex: 0x15141E), Color(hex: 0x1D161F), Color(hex: 0x2A191E)]
+  public static let searchAccent = Palette.formAccent
   public static let rowIcon = Color.adaptive(light: .black.opacity(0.42), dark: .white.opacity(0.5))
   public static let incognitoSheet = Color(hex: 0x151517)
   public static let incognitoField = Color.white.opacity(0.12)
   public static let incognitoCaption = Color.white.opacity(0.55)
-  public static let pageBackdrop = Color.adaptive(light: Color(p3Hex: 0xF3F6F6), dark: Color(p3Hex: 0x242424))
   public static let toolbarTile = Color.adaptive(light: .black.opacity(0.05), dark: .white.opacity(0.08))
 }
 
 public enum BrowseLayout {
   public static let sheetTopRadius: CGFloat = 40
+  public static let sheetTintShare: Double = 0.8
   public static let searchFieldHeight: CGFloat = 47.5
   public static let searchFieldInset: CGFloat = 15
   public static let suggestionPitch: CGFloat = 58.5
@@ -77,6 +62,9 @@ public enum BrowseLayout {
 
 public extension Motion {
   static let searchRise = Animation.spring(response: 0.39, dampingFraction: 1)
+  static let surfaceSwap = Animation.easeOut(duration: 0.3)
+  static let surfaceFade = Animation.easeOut(duration: 0.2)
+  static let trayDim = Animation.easeInOut(duration: 0.3)
   static let trayDismiss = Animation.spring(response: 0.32, dampingFraction: 1)
   static let traySettle = Animation.spring(response: 0.34, dampingFraction: 0.86)
   static let resultsIn = Animation.easeOut(duration: 0.14)

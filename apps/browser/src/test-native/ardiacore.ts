@@ -8,6 +8,7 @@ import type {
   CliTabTarget,
   EngineBookmark,
   EngineEvents,
+  EngineTask,
   EventName,
   HistoryChange,
   HistoryChangedBatch,
@@ -36,7 +37,9 @@ const testGlobals = globalThis as {
   acTestCliControl?: (on: boolean | null) => Promise<CliControlStatus> | undefined;
   acTestCliActive?: (tabId: string | null) => Promise<CliControlStatus> | undefined;
   acTestCliTargets?: (tabId: string) => CliTabTarget | undefined;
+  acTestTasks?: () => EngineTask[];
   acTestUserScripts?: { engine: ExtensionEngine };
+  acTestSuggest?: (args: { url: string; id: number; profile: string }) => CallResult<"search.suggest"> | undefined;
 };
 
 type VerbOf<D extends string, N extends string = CallName> = N extends `${D}.${infer V}` ? V : never;
@@ -304,7 +307,7 @@ const fakeModules = {
     "engine",
     {
       components: () => [],
-      tasks: () => [],
+      tasks: () => testGlobals.acTestTasks?.() ?? [],
       beginTracing: () => false,
       endTracing: () => null,
       isTracing: () => false,
@@ -445,7 +448,12 @@ const fakeModules = {
     syncState: () => ({ ready: false, extensions: [], pending: [], settling: [], queued: [], intents: [] }),
     syncApply: () => ({ state: "pending" }),
   }),
-  ArdiaSearch: domain("search", { engines: () => ({ list: { engines: [] } }), setEngineName: () => null }),
+  ArdiaSearch: domain("search", {
+    engines: () => ({ list: { engines: [] } }),
+    setEngineName: () => null,
+    suggest: (args) => testGlobals.acTestSuggest?.(args) ?? { status: 200, body: JSON.stringify([args.url, []]) },
+    stopSuggest: () => null,
+  }),
   ArdiaMedia: domain("media", {
     displayMediaSources: () => [],
     selectDevice: () => null,

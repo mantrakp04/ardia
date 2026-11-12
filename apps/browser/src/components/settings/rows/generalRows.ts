@@ -9,6 +9,11 @@ export const generalRows = {
       section: "General",
       rows: {
         defaultBrowser: { title: "Default browser", description: `Make ${APP} your default browser.`, keywords: ["default", "set as default", "links"] },
+        redoSetup: {
+          title: `Set up ${APP} again`,
+          description: "Walk through import, look and layout again, starting from your current settings.",
+          keywords: ["onboarding", "setup", "redo", "welcome", "start over", "walkthrough", "first run"],
+        },
         openAtLogin: { title: `Open ${APP} at login`, keywords: ["startup", "launch", "login items", "boot"] },
         warnBeforeQuitting: { advanced: true, title: "Warn before quitting", description: `Asks before ${APP} quits with ⌘Q.`, keywords: ["quit", "confirm", "cmd q"] },
         warnBeforeClosingWindow: {
@@ -17,11 +22,14 @@ export const generalRows = {
           description: "Asks before ⇧⌘W or the close button closes its tabs.",
           keywords: ["close window", "confirm"],
         },
-        openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail"] },
+        openLinksInLittleArdia: {
+          title: "Open links from other apps in Little Ardia",
+          keywords: ["little ardia", "little arc", "arc", "little window", "small window", "mini window", "external links", "links from other apps", "open links", "discord", "slack", "mail", "messages"],
+        },
         littleArdiaOpensNewTabLinks: {
-          title: "Open new-tab links inside Little Ardia",
+          title: "Keep new-tab links inside a Little Ardia window",
           description: "For links clicked in a Little Ardia window: a link that would open a new tab loads right there instead of in a tab of the main window. ⌘-click still opens it behind. Links in the main window follow Settings › Tabs › Open new-tab links in.",
-          keywords: ["little ardia", "target blank", "new tab", "links", "mini window"],
+          keywords: ["little ardia", "target blank", "new tab", "links"],
         },
       },
     },
@@ -153,6 +161,16 @@ export const generalRows = {
           keywords: ["pinned tiles", "favorites", "grid", "columns", "rows", "arc"],
           shown: inSidebar,
         },
+        showUnreadCounts: {
+          title: "Show unread counts on tabs",
+          description: "A notification badge with the unread count or dot a site like Gmail or Slack puts in its title, at the end of its tab. Off by default. Once on, hide it for one site: right-click its tab and choose Hide Unread Count, or use Site Controls.",
+          keywords: ["unread", "badge", "badges", "bubble", "bubbles", "count", "notification", "notifications", "notis", "dot", "red", "gmail", "inbox", "messages", "arc"],
+        },
+        showTopAppBadges: {
+          title: "Show tab status on Top Apps",
+          description: "A Top App's tile shows a speaker while its tab plays or is muted, a mark while it is in Picture in Picture, and its unread count when unread counts are on. Off, as in Dia, a tile shows only the site's icon.",
+          keywords: ["pinned tiles", "favorites", "badges", "indicators", "unread count", "speaker", "audio", "muted", "playing", "clean", "dia"],
+        },
         fadeUnloadedTabs: {
           advanced: true,
           title: "Fade icons of unloaded tabs",
@@ -219,8 +237,8 @@ export const generalRows = {
         },
         newTabLinksOpenIn: {
           title: "Open new-tab links in",
-          description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows.",
-          keywords: ["peek", "little ardia", "new tab", "target blank", "links", "preview", "arc", "mini window", "open links"],
+          description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.",
+          keywords: ["peek", "new tab", "target blank", "links", "preview", "open links"],
         },
         peekModifier: {
           advanced: true,
@@ -272,117 +290,4 @@ export const generalRows = {
       },
     },
   ],
-  appearance: [
-    {
-      section: "Appearance Theme",
-      rows: {
-        theme: { title: "Appearance Theme", description: "Also in View › Appearance. Incognito windows are always dark.", keywords: ["dark mode", "light mode", "automatic", "night", "system"] },
-        spacesFollowAppearance: {
-          advanced: true,
-          title: "Profile themes follow this appearance",
-          description: "Every profile goes light or dark with this choice, even when its theme (like one imported from an Arc space) says Light. In dark mode a light theme's colours are darkened so white text reads.",
-          keywords: ["space", "profile theme", "arc theme", "follow system"],
-        },
-        adaptTextToColor: {
-          title: "Adjust text to the colour",
-          description: "Switch sidebar and tab text between light and dark so it stays readable on your colour. Only applies to custom colours.",
-          keywords: ["contrast", "readable", "text colour", "text color", "white text", "black text", "custom colour", "theme", "arc"],
-        },
-      },
-    },
-    {
-      section: "Interface Style",
-      rows: {
-        interfaceStyle: {
-          title: "Interface style",
-          description: "Glass draws the pinned tiles, fields, buttons, Downloads and the site controls panel in macOS Liquid Glass. Classic keeps them flat, like Dia.",
-          keywords: ["liquid glass", "glass", "classic", "flat", "translucent", "transparency", "glow", "frosted"],
-          shown: (_, env) => !!env.glass,
-        },
-        glassTintWithTheme: {
-          title: "Tint glass with the profile colour",
-          description: "Off, the glass stays neutral grey whatever the profile's colour.",
-          keywords: ["liquid glass", "tint", "colour", "color", "profile colour", "theme"],
-          shown: (s, env) => !!env.glass && s.interfaceStyle === "glass",
-        },
-        glassTintAmount: {
-          title: "Tint amount",
-          description: "How much of the profile colour the glass takes, from a hint to fully coloured.",
-          keywords: ["liquid glass", "tint", "strength", "intensity", "colour", "color", "glossy"],
-          shown: (s, env) => !!env.glass && s.interfaceStyle === "glass" && s.glassTintWithTheme,
-        },
-      },
-    },
-    {
-      section: "Address Bar",
-      rows: {
-        addressBar: { title: "Address Bar", description: "In the toolbar or in the sidebar.", keywords: ["url bar", "location bar", "toolbar"] },
-        commandBarPlacement: {
-          title: "⌘L opens the command bar",
-          description: "In the centre, ⌘L and a click on the address show it over the middle of the page, as in Arc.",
-          keywords: ["cmd l", "command bar", "centred", "centered", "arc", "url bar", "location bar"],
-        },
-        compactToolbar: {
-          title: "Compact toolbar",
-          description: "A 28 pt toolbar instead of Dia's 41 pt, so the page gets more height and a 16:9 video can fill a maximized window. For the address bar in the toolbar and for tabs at the top.",
-          keywords: ["toolbar height", "smaller toolbar", "thin toolbar", "slim", "dense", "helium", "video", "16:9", "black bars", "url bar"],
-        },
-      },
-    },
-    {
-      section: "Bookmarks",
-      rows: {
-        showBookmarks: {
-          title: "Show bookmarks",
-          description: "Off hides the bookmark button, the bookmarks bar, the Bookmarks menu and every Bookmark command, and the address bar shows Copy URL instead. Your bookmarks stay, and importing still brings them in.",
-          keywords: ["hide bookmarks", "show bookmarks", "bookmark button", "star", "bookmarks menu", "copy url", "arc", "no bookmarks"],
-        },
-        bookmarksBar: {
-          title: "Show bookmarks bar",
-          description: "Below the toolbar. Also in View › Show Bookmarks Bar, ⇧⌘B.",
-          keywords: ["bookmarks bar", "favorites bar", "favourites bar", "toolbar", "hide bookmarks", "show bookmarks"],
-          shown: (s) => s.showBookmarks,
-        },
-        bookmarksBarSize: {
-          title: "Size",
-          description: "Large makes the bar, its icons and its text bigger, and its folder menus roomier.",
-          keywords: ["bookmarks bar", "bigger", "larger", "large", "small", "text size", "icon size", "readability", "favorites bar"],
-          shown: (s) => s.showBookmarks,
-        },
-      },
-    },
-    {
-      section: "Page Frame",
-      rows: {
-        pageFrame: {
-          title: "Frame around the page",
-          description: "The room between the page and the window's edges, the sidebar and split panes. At 0 the page goes edge to edge with square corners; 9 pt is the default.",
-          keywords: ["border", "borderless", "edge to edge", "margin", "inset", "padding", "rounded corners", "corner radius", "frame", "gap", "full bleed", "arc", "compact"],
-        },
-      },
-    },
-    {
-      section: "Selected Tab",
-      rows: {
-        selectedTabGlow: {
-          advanced: true,
-          title: "Glow around the selected tab",
-          description: "The soft light around the selected tab in the sidebar. Full is Dia's.",
-          keywords: ["glow", "shadow", "halo", "highlight", "selected tab", "active tab"],
-        },
-      },
-    },
-    {
-      section: "Scroll Bars",
-      rows: {
-        pageScrollBars: {
-          advanced: true,
-          title: "Scroll bars",
-          description: "Follow macOS uses System Settings › Appearance › Show scroll bars. Thin shows slim scroll bars over the page only while you scroll, even with a mouse.",
-          keywords: ["scrollbar", "scroll bar", "overlay", "thin", "mouse", "trackpad"],
-        },
-      },
-    },
-    { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
-  ],
-} satisfies Pick<Record<SettingsPane, SettingSection[]>, "general" | "profiles" | "sync" | "tabs" | "appearance">;
+} satisfies Pick<Record<SettingsPane, SettingSection[]>, "general" | "profiles" | "sync" | "tabs">;

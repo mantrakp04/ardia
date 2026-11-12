@@ -45,6 +45,7 @@ holds the rest.
 | Sidebar clicks | `node apps/browser/scripts/sidebar-click-test.mjs <Debug app>` | One click opens a tab or pinned tile: in the frame its hover card appears, under another tile's appearing card, after a New Tab and after closing a pinned tab (0.2.39-nightly.5: tabs needed two clicks), and when the pointer drifts up to 9 pt between press and release, while a 14 pt press stays a drag (#947) |
 | Menus | `node apps/browser/scripts/menus-test.mjs <Debug app> [--only=<regex>]` | Right-clicks on the sidebar's rows, tiles, split panes, groups, header, footer and background open their menu, and each item does what it says (tab, several-tab, group, sidebar, Top Apps, reload button, profile, bookmark, history, download and extension menus; moves between profiles and windows, private windows refused); the page menu's Copy Link Address, Save Link As… cancelled, Back and Forward. Menus come from `ac.menus` in the dev harness where nothing can be right-clicked |
 | Onboarding | `node apps/browser/scripts/onboarding-test.mjs <Debug app>` | No text field sits behind the onboarding card, a click on the first row's checkbox toggles it, another window keeps its New Tab field meanwhile, and the New Tab field is back and focused once it ends, in a bar of the same height (the hidden New Tab field took the first row's cursor and its checkbox clicks) |
+| New Tab row hover | `node apps/browser/scripts/newtab-row-hover-test.mjs <Debug app> [--trials=6]` | Click the sidebar's New Tab row, open a page from the New Tab page, move the pointer off: every view the pointer entered heard it leave, with new tabs next to the current one and at the bottom (#1280: the row's size changed under the pointer as the new tab slid in, its tracking area was remade, and it stayed highlighted) |
 | Sidebar scroll | `node apps/browser/scripts/sidebar-scroll-test.mjs <Debug app>` | The pinned tiles hold still while the tabs scroll (Dia's dock), with the address field in the sidebar and without: a row dragged onto a tile after a scroll pins it there, selecting a tile while scrolled leaves the list put, and a dock too tall for the window scrolls with the tabs; after a change to another profile's page, a click on a tab in view leaves the list put |
 | Settings layout | `node apps/browser/scripts/settings-shift-test.mjs <Debug app> [--panes a,b] [--attach <data dir>] [--keep]` | Every Settings pane, the first right after the window opens: nothing moves, appears, disappears or changes between its first frame on screen and once it has settled; ⌘F, typing, Return and Escape in Settings search |
 | Peek | `node apps/browser/scripts/peek-edge-test.mjs <Debug app>` | The auto-hidden sidebar's peek: a pointer resting on the window's top or bottom edge beside it keeps it out, one well past the edge closes it, an edge crossing outside its column never opens it, and pressing another space's dot keeps it out |
@@ -94,6 +95,12 @@ Test hygiene the run keeps (each was a real failure):
 - A check that needs a page on screen (permission prompts, choosers, context menus) shows it first: Chrome holds
   those for hidden tabs. Checks that need "no user activation" reload the page first (CDP's `userGesture` leaves
   one behind).
+
+`node packages/ardiacore/scripts/drag-end-check.mjs <Debug app> [scratch dir]` checks that a page keeps taking clicks and keys
+after a drag nobody ends (`chromium-drag-always-ends.patch`, `docs/engine-build.md`): a DevTools session that took a drag and went
+away, a drag DevTools input started that no session took, and a drag macOS refuses to start. It launches its own hidden
+instance with `--test nativeDragRefused`, so no macOS drag session, which would follow the owner's pointer, is ever begun;
+never drag from a page with the harness's real mouse events in an instance without that key.
 
 ## Test instances
 

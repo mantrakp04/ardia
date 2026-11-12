@@ -65,7 +65,7 @@ extension SyncSnapshot {
     let personal = SyncedProfile(
       syncId: "demo-personal",
       name: "Personal",
-      color: "blue",
+      color: "plum",
       icon: nil,
       isDefault: true,
       theme: nil,

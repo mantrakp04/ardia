@@ -23,10 +23,13 @@ struct TabCardContent: View {
           .resizable()
           .scaledToFit()
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+          .transition(.opacity)
       } else {
         placeholder
+          .transition(.opacity)
       }
     }
+    .animation(TabsMotion.fade, value: stored != nil)
     .clipped()
     .task(id: tab.snapshotFileName) {
       guard memoryImage == nil, let name = tab.snapshotFileName else { return }
@@ -131,7 +134,7 @@ struct ReceivedBadge: View {
     Label("From Your Mac", systemImage: "macbook")
       .font(.caption2.weight(.semibold))
       .labelStyle(.titleAndIcon)
-      .foregroundStyle(.white)
+      .foregroundStyle(Palette.onPrimaryAction)
       .padding(.horizontal, 8)
       .padding(.vertical, 4)
       .background(TabsPalette.receivedBadge, in: .capsule)

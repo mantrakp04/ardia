@@ -40,7 +40,7 @@ extension AppModel {
       })
       return
     }
-    pinToMac(tab)
+    pinToMac(tab, inPageMenu: true)
   }
 
   func setNightShade(_ on: Bool, for page: WebTab) {
@@ -83,10 +83,6 @@ extension AppModel {
   func openInDefaultBrowser(_ page: WebTab) {
     guard let url = page.url else { return }
     UIApplication.shared.open(url)
-  }
-
-  var isDefaultBrowser: Bool {
-    (try? UIApplication.shared.isDefault(.webBrowser)) ?? false
   }
 
   func goBackToSearchIfEmpty() {

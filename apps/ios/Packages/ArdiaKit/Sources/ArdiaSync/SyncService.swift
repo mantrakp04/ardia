@@ -16,6 +16,12 @@ public struct PhraseCheck: Equatable, Sendable {
   public var isValid: Bool
 }
 
+public enum PinOutcome: Equatable, Sendable {
+  case pinned
+  case alreadyPinned
+  case failed
+}
+
 public enum ConnectResult: Equatable, Sendable {
   case connected
   case invalidPhrase(String)
@@ -41,11 +47,14 @@ public enum ConnectResult: Equatable, Sendable {
 @MainActor
 @Observable
 public final class SyncService {
-  public static let backgroundTaskIdentifier = "com.ardia.ios.sync"
+  public static let backgroundTaskIdentifier = "com.ardia.browser.ios.sync"
   public static let wordCount = RecoveryPhrase.wordCount
 
   public private(set) var phase: SyncPhase = .off
-  public private(set) var snapshot: SyncSnapshot = .empty
+  public private(set) var snapshot: SyncSnapshot = .empty {
+    didSet { settlePins() }
+  }
+  private var pinnedThisSession: Set<PinnedPage> = []
   public private(set) var pendingDownloads = 0
   public private(set) var lastSynced: Date?
   public private(set) var isEnabled = false
@@ -78,6 +87,21 @@ public final class SyncService {
   }
 
   public var selectedProfile: SyncedProfile? { snapshot.profile(selectedProfileId) }
+
+  public func isPinned(_ url: URL, profileSyncId: String? = nil) -> Bool {
+    let page = url.absoluteString
+    let profile = snapshot.profile(profileSyncId ?? selectedProfileId)
+    let pin = PinnedPage(profile: profile?.syncId ?? profileSyncId ?? "", url: page)
+    return pinnedThisSession.contains(pin) || (profile?.bookmarks.containsPage(page) ?? false)
+  }
+
+  private func settlePins() {
+    guard !pinnedThisSession.isEmpty else { return }
+    let left: Set<PinnedPage> = snapshot == .empty ? [] : pinnedThisSession.filter { pin in
+      snapshot.profiles.first { $0.syncId == pin.profile }.map { !$0.bookmarks.containsPage(pin.url) } ?? true
+    }
+    if left != pinnedThisSession { pinnedThisSession = left }
+  }
 
   public var statusText: String {
     switch phase {
@@ -466,16 +490,23 @@ public final class SyncService {
   }
 
   @discardableResult
-  public func addBookmark(url: URL, title: String, profileSyncId: String? = nil) async -> Bool {
-    guard !isDemo else { return true }
-    guard let engine, let profile = profileSyncId ?? selectedProfile?.syncId else { return false }
-    do {
-      try await engine.addBookmark(url: url.absoluteString, title: title, profileSyncId: profile)
-    } catch {
-      return false
+  public func addBookmark(url: URL, title: String, profileSyncId: String? = nil) async -> PinOutcome {
+    let page = url.absoluteString
+    guard !isDemo else {
+      pinnedThisSession.insert(PinnedPage(profile: profileSyncId ?? selectedProfile?.syncId ?? "", url: page))
+      return .pinned
     }
+    guard let engine, let profile = profileSyncId ?? selectedProfile?.syncId else { return .failed }
+    let added: Bool
+    do {
+      added = try await engine.addBookmark(url: page, title: title, profileSyncId: profile)
+    } catch {
+      return .failed
+    }
+    guard added else { return .alreadyPinned }
+    pinnedThisSession.insert(PinnedPage(profile: profile, url: page))
     Task { await runCycle() }
-    return true
+    return .pinned
   }
 
   public static func registerBackgroundRefresh() {
@@ -857,4 +888,9 @@ private struct DemoKeyStore: SyncKeyStore {
   func load(account: String) -> Data? { nil }
   func save(_ secret: Data, account: String) -> Bool { true }
   func delete(account: String) {}
+}
+
+private struct PinnedPage: Hashable {
+  var profile: String
+  var url: String
 }

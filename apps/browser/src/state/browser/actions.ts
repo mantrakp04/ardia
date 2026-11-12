@@ -22,7 +22,7 @@ import { groupCloseAllowed } from "../groups/closeGuard";
 import { focusedWindowOf } from "../windows/ui";
 import { splitOf } from "../splits/splits";
 import { closeKind } from "../tabs/tabs";
-import { noteSplitClosed } from "../telemetry/usage";
+import { noteSplit } from "../telemetry/usage";
 
 const store = () => useBrowser.getState();
 
@@ -55,7 +55,7 @@ export async function closeTab(tabId: string) {
   const now = store();
   const closesItsWindow = now.tabs[tabId]?.windowId === w.id && now.peeks[w.id]?.tabId !== tabId && closesWindow(now, tabId) && !leavesEmptyWindow(now, tabId);
   if (last && closesItsWindow) return closeWindowAnimated(w.id);
-  if (splitOf(now, tabId) && closeKind(now, tabId) === "close") noteSplitClosed(false);
+  if (splitOf(now, tabId) && closeKind(now, tabId) === "close") noteSplit("splitPaneCloses");
   store().closeTab(tabId);
 }
 

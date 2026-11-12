@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "ardia/core/ac_content_hooks.h"
+#include "ardia/core/ac_launch_switches.h"
 #include "base/base64url.h"
 #include "base/command_line.h"
 #include "base/containers/span.h"
@@ -238,6 +239,18 @@ class ControlServer {
 
   base::DictValue Status() const {
     base::DictValue status;
+    status.Set("dragsEnded",
+               base::DictValue()
+                   .Set("ownerGone", g_ardia_drags_ended[kArdiaDragEndOwnerGone])
+                   .Set("debuggerUnowned",
+                        g_ardia_drags_ended[kArdiaDragEndDebuggerUnowned])
+                   .Set("nativeRefused",
+                        g_ardia_drags_ended[kArdiaDragEndNativeRefused])
+                   .Set("sourceGone",
+                        g_ardia_drags_ended[kArdiaDragEndSourceGone]));
+    if (ardiacore::TestFlag("nativeDragRefused")) {
+      status.Set("nativeDragsRefused", true);
+    }
     if (ServerStartedBySwitch()) {
       status.Set("state", "external");
       return status;

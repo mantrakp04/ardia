@@ -5,8 +5,10 @@
 //
 //   node tab-actions.mjs run --app <Release Ardia.app> --side <label>=<main.jsbundle> [--side <label>=<bundle>]
 //        [--side-env <label>:K=V] [--side-app <label>=<Release Ardia.app>] [--launches 4] [--n 5] [--actions a,b] [--out dir] [--port 9317] [--page-port 47917]
+//        [--extra-tabs N]
 //       Each launch runs every action --n times; launches alternate between the sides (A B B A ...), so the sides
-//       share the machine. Writes <out>/samples.jsonl, one line per action.
+//       share the machine. Writes <out>/samples.jsonl, one line per action. --extra-tabs adds N plain tabs to the first
+//       window's Personal list (the many-tab session: J2 and J3 must not grow with it).
 //   node tab-actions.mjs fixture <session.json> [--page-port 47917]   the session alone; serve: its pages alone
 //   node tab-actions.mjs report <out>
 //       Per side and action: median and p90 of event → last paint, its split, and React renders per action.
@@ -92,7 +94,7 @@ function serve(port) {
   return new Promise((r) => server.listen(port, "127.0.0.1", () => r(server)));
 }
 
-export function fixture(origin) {
+export function fixture(origin, extraTabs = 0) {
   const now = Date.now();
   const tabs = [];
   const groups = [];
@@ -120,6 +122,7 @@ export function fixture(origin) {
     ...group(w1, "default", "Reading", p(w1, "default", 5), false),
     ...group(w1, "default", "Errands", p(w1, "default", 4), true),
     ...p(w1, "default", 18, (i) => (i === 3 || i === 9 ? { url: `${origin}/audio/a${i}`, muted: true } : i === 6 || i === 12 ? { url: `${origin}/slow/s${i}` } : {})),
+    ...p(w1, "default", extraTabs),
   ];
   const work = [
     ...p(w1, "work", 4, () => ({ pinned: true })),
@@ -418,7 +421,7 @@ async function oneLaunch(side, opts, out) {
   rmSync(data, { recursive: true, force: true });
   mkdirSync(data, { recursive: true });
   const origin = `http://127.0.0.1:${opts.pagePort}`;
-  const fx = fixture(origin);
+  const fx = fixture(origin, Number(flags["extra-tabs"] ?? 0));
   const instance = await launch(side.app, {
     data, port: opts.port, js: "none", onboarded: true, probe: true, session: fx.session,
     env: { DYLD_INSERT_LIBRARIES: opts.lib, AC_BENCH_TABS: "1", ...side.env },
@@ -504,7 +507,7 @@ function report() {
 
 if (command === "run") await run();
 else if (command === "report") report();
-else if (command === "fixture") writeFileSync(positional[0], JSON.stringify(fixture(`http://127.0.0.1:${flags["page-port"] ?? 47917}`).session));
+else if (command === "fixture") writeFileSync(positional[0], JSON.stringify(fixture(`http://127.0.0.1:${flags["page-port"] ?? 47917}`, Number(flags["extra-tabs"] ?? 0)).session));
 else if (command === "serve") await serve(+(flags["page-port"] ?? 47917));
 else {
   const header = readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1).filter((l) => l.startsWith("//")).map((l) => l.replace(/^\/\/ ?/, ""));

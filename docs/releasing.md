@@ -195,7 +195,7 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
    latest stable release and `Ardia-Nightly.dmg` onto the `nightly` release. A new engine tree is published before the release
    by `scripts/publish-engine.sh` (`engine-<tree:12>`), never packed by release.sh. Last,
    `update-tap.sh <version>` points the Homebrew tap's `ardia` or `ardia@nightly` cask
-   (https://github.com/mantrakp04/homebrew-tap) at the new DMG: it sets `version` and `sha256` from GitHub's
+   (https://github.com/ardia-browser/homebrew-tap) at the new DMG: it sets `version` and `sha256` from GitHub's
    digest of the published DMG and pushes the tap (`PUBLISH_TAP=0` skips it).
 5. Deploy the site so `/release-notes` shows the new version (for a nightly too: the updated app opens its entry on its first launch):
    `pnpm -C apps/site run deploy` builds `apps/site` with `SITE_URL=https://ardia.dev` and ships it
@@ -268,7 +268,7 @@ the engine if `engine/` changed (below).
   remove a lock someone else holds. Dry runs take it too, and write nothing else; `PUBLISH_LOCK` renames it for dry
   runs only. The staged-rollout step that opens a release to everyone (`rollout-everyone.sh`, in the release skill)
   takes the same lock. The Homebrew tap needs a token that can push
-  to `mantrakp04/homebrew-tap` (`HOMEBREW_TAP_TOKEN`); without it, run `update-tap.sh <version>` here afterwards.
+  to `ardia-browser/homebrew-tap` (`HOMEBREW_TAP_TOKEN`); without it, run `update-tap.sh <version>` here afterwards.
 
 `dry_run` (on by default) builds a release candidate (`release.sh --rc`: the next build number, no notes needed),
 signed and notarized like a release, and runs `publish.sh --dry-run`: nothing is tagged or published. The site's `VERSION`, the landing page and the stable perf gate stay local (the release skill); the
@@ -284,7 +284,7 @@ Secrets (repository secrets, these names):
 | `NOTARY_KEY_P8` | base64 of the App Store Connect API key `AuthKey_<id>.p8` |
 | `NOTARY_KEY_ID`, `NOTARY_ISSUER` | that key's id and issuer id |
 | `SPARKLE_ED_PRIVATE_KEY` | the file `generate_keys -x` writes (as is) |
-| `HOMEBREW_TAP_TOKEN` (optional) | a token that can push to `mantrakp04/homebrew-tap` |
+| `HOMEBREW_TAP_TOKEN` (optional) | a token that can push to `ardia-browser/homebrew-tap` |
 
 A dry run without the notary secrets builds unnotarized; the others are required. `release.sh` reads the same
 material from `RELEASE_PROVISIONING_PROFILE`, `SPARKLE_KEY_FILE` and `NOTARY_KEY`/`NOTARY_KEY_ID`/`NOTARY_ISSUER`, so

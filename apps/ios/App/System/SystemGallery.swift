@@ -6,7 +6,7 @@
 
   @MainActor
   enum SystemDebugHooks {
-    static let log = Logger(subsystem: "com.ardia.ios", category: "system")
+    static let log = Logger(subsystem: "com.ardia.browser.ios", category: "system")
 
     static func run(app: AppModel, open: (URL) -> Void) async {
       let arguments = ProcessInfo.processInfo.arguments
@@ -89,13 +89,13 @@
       let snapshot = WidgetExporter.snapshot(for: app)
       return VStack(spacing: Spacing.medium) {
         tile(.medium) { MacTabsWidgetContent(snapshot: snapshot, size: .medium, store: app.systemStore) } background: {
-          LaunchGradient(softened: true)
+          ProfileBackdrop(softened: true)
         }
         tile(.large) { MacTabsWidgetContent(snapshot: snapshot, size: .large, store: app.systemStore) } background: {
-          LaunchGradient(softened: true)
+          ProfileBackdrop(softened: true)
         }
         tile(.medium) { MacTabsWidgetContent(snapshot: .empty, size: .medium, store: nil) } background: {
-          LaunchGradient(softened: true)
+          ProfileBackdrop(softened: true)
         }
       }
     }

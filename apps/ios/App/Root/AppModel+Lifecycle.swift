@@ -46,6 +46,7 @@ extension AppModel {
     tabs.appBecameActive()
     sync.appBecameActive()
     applySyncedSearch()
+    defaultBrowser.sceneBecameActive()
     guard !isDemo else { return }
     Task { await blocker.refreshIfDue() }
     let omnibox = omnibox

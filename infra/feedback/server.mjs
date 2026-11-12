@@ -24,7 +24,7 @@ production env:
   OBJECTS_HOST            SeaweedFS filer host, port 8888 (required)
   COLLECTOR_HOST          OpenTelemetry collector host, port 4318 (required)
   GITHUB_ISSUES_TOKEN     token that can open issues; without it no issue is opened
-  GITHUB_REPO             default mantrakp04/ardia
+  GITHUB_REPO             default ardia-browser/ardia
   DASHBOARD_URL           default https://dash.ardia.dev
   PUBLIC_URL              origin used in upload_urls, default https://ardia.dev
 `;
@@ -87,7 +87,7 @@ if (values.local !== undefined) {
     host: values.host ?? "0.0.0.0",
     store: seaweedStore(env.OBJECTS_HOST),
     events: otlpEvents(env.COLLECTOR_HOST),
-    issues: env.GITHUB_ISSUES_TOKEN ? githubIssues(env.GITHUB_ISSUES_TOKEN, env.GITHUB_REPO || "mantrakp04/ardia") : null,
+    issues: env.GITHUB_ISSUES_TOKEN ? githubIssues(env.GITHUB_ISSUES_TOKEN, env.GITHUB_REPO || "ardia-browser/ardia") : null,
     secret,
     publicUrl: () => publicUrl,
     rateLimits: true,

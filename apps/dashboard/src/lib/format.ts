@@ -1,4 +1,5 @@
 import type { Step } from "./range";
+import { UTC, viewerZone, zoneLabel } from "./zone";
 
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat("en-US");
@@ -22,18 +23,31 @@ export function formatDelta(value: number | null, previous: number | null, kind:
   return { text: `${pct > 0 ? "+" : pct < 0 ? "−" : "±"}${Math.abs(pct)}%`, direction: Math.sign(pct) };
 }
 
-const UTC = "UTC";
-const dayFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: UTC });
-const hourFmt = new Intl.DateTimeFormat("en-US", { hour: "numeric", timeZone: UTC });
-const fullFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: UTC });
-const dateFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: UTC });
-const weekdayFmt = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: UTC });
+const formats = new Map<string, Intl.DateTimeFormat>();
 
-export const formatTick = (ms: number, step: Step) => (step === "hour" ? hourFmt.format(ms).toLowerCase().replace(" ", "") : dayFmt.format(ms));
-export const formatBucket = (ms: number, step: Step) =>
-  step === "hour" ? `${fullFmt.format(ms)} UTC` : weekdayFmt.format(ms);
-export const formatDateTime = (ms: number) => `${fullFmt.format(ms)} UTC`;
-export const formatDate = (ms: number | string) => dateFmt.format(typeof ms === "string" ? Date.parse(ms) : ms);
+function formatIn(zone: string, kind: "day" | "hour" | "full" | "date" | "weekday") {
+  const key = `${zone}|${kind}`;
+  let fmt = formats.get(key);
+  if (!fmt) {
+    const options: Record<typeof kind, Intl.DateTimeFormatOptions> = {
+      day: { month: "short", day: "numeric" },
+      hour: { hour: "numeric" },
+      full: { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" },
+      date: { month: "short", day: "numeric", year: "numeric" },
+      weekday: { weekday: "short", month: "short", day: "numeric" },
+    };
+    fmt = new Intl.DateTimeFormat("en-US", { ...options[kind], timeZone: zone });
+    formats.set(key, fmt);
+  }
+  return fmt;
+}
+
+export const formatTick = (ms: number, step: Step, zone = UTC) =>
+  step === "hour" ? formatIn(zone, "hour").format(ms).toLowerCase().replace(" ", "") : formatIn(zone, "day").format(ms);
+export const formatBucket = (ms: number, step: Step, zone = UTC) =>
+  step === "hour" ? `${formatIn(zone, "full").format(ms)} ${zoneLabel(zone, ms)}` : formatIn(zone, "weekday").format(ms);
+export const formatDateTime = (ms: number, zone = viewerZone()) => `${formatIn(zone, "full").format(ms)} ${zoneLabel(zone, ms)}`;
+export const formatDate = (ms: number | string, zone = viewerZone()) => formatIn(zone, "date").format(typeof ms === "string" ? Date.parse(ms) : ms);
 
 export function formatAgo(ms: number, now = Date.now()) {
   const s = Math.max(0, Math.round((now - ms) / 1000));

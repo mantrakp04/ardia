@@ -115,7 +115,7 @@ function startTabIdle(send: EventSend, thresholds: ReadonlySet<number>) {
       }
       for (const id in s.tabs) {
         if (idle.has(id) || shown.has(id) || !isEligibleTab(s, id)) continue;
-        const last = Math.max(s.tabs[id]!.lastActiveAt, touched.get(id) ?? 0);
+        const last = Math.max(s.tabs[id]!.lastActiveAt, s.tabs[id]!.restoredAt ?? 0, touched.get(id) ?? 0);
         if (now - last >= threshold * 1000) {
           idle.add(id);
           send("tab.idle", { ...tabData(s, id), pinned: !!s.tabs[id]!.pin, idle: threshold, idleSince: last });

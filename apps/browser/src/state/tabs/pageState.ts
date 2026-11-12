@@ -12,6 +12,7 @@ import type { ExternalAppRequest } from "../../platform/siteSettings";
 import type { PermissionRequest } from "../../platform/permissions";
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
+import { recordWatch, useKeyed } from "../browser/keyedWatch";
 import { activeTabId } from "../browser/model";
 import { peekTabId } from "../peek/peek";
 import { splitOf, splitTabIdsOf } from "../splits/splits";
@@ -90,8 +91,10 @@ export const iconPageOf = (tabId: string): string | null => iconPages.get(tabId)
 
 export const setIconPage = (tabId: string, page: string | null) => void iconPages.set(tabId, page);
 
+const watchPageRecord = recordWatch(() => usePages, (s) => s.pages);
+
 export function usePage<T>(tabId: string | undefined, select: (p: PageState) => T): T {
-  return usePages((s) => select((tabId && s.pages[tabId]) || IDLE_PAGE));
+  return useKeyed(watchPageRecord, tabId, () => select((tabId && usePages.getState().pages[tabId]) || IDLE_PAGE));
 }
 
 let readiness = 0;

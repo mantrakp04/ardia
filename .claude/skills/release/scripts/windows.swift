@@ -1,6 +1,10 @@
 import CoreGraphics
 import Foundation
 
+if CommandLine.arguments[1] == "--access" {
+  print("post=\(CGPreflightPostEventAccess() ? 1 : 0) titles=\(CGPreflightScreenCaptureAccess() ? 1 : 0)")
+  exit(0)
+}
 if CommandLine.arguments[1] == "--locked" {
   let session = CGSessionCopyCurrentDictionary() as? [String: Any]
   print((session?["CGSSessionScreenIsLocked"] as? Bool) == true ? "1" : "0")

@@ -132,6 +132,7 @@ bool IsReservedKey(NSEvent *event) {
 bool IsSecondSidebarKeyPress(NSEvent *event) {
   if (!IsSidebarKey(event) || event.isARepeat) return false;
   const SidebarKeyPress first = gSidebarKeyPressForPage;
+  if (first.at == event.timestamp && first.window == event.windowNumber) return false;
   const bool second = first.at > 0 && first.window == event.windowNumber && event.timestamp - first.at <= NSEvent.doubleClickInterval;
   gSidebarKeyPressForPage = second ? SidebarKeyPress{} : SidebarKeyPress{event.timestamp, event.windowNumber};
   return second;
@@ -152,6 +153,11 @@ bool KeepsReservedKeyInDevTools(NSWindow *window, NSEvent *event) {
   return [focused isKindOfClass:NSView.class] && IsInDevTools((NSView *)focused);
 }
 
+}
+
+BOOL ArdiaPerformReservedKey(NSEvent *event) {
+  return event.type == NSEventTypeKeyDown && (IsReservedKey(event) || IsSecondSidebarKeyPress(event)) &&
+         [NSApp.mainMenu performKeyEquivalent:event];
 }
 
 namespace ardia_host {

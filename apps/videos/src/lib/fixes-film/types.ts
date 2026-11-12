@@ -15,6 +15,7 @@ export interface Overlay {
   y: number;
   w: number;
   h: number;
+  until?: number;
 }
 
 export interface Note {
@@ -115,6 +116,7 @@ export interface Segment {
   length: number;
   rate?: number;
   afterVersion?: string;
+  beforeVersion?: string;
   note?: string;
   cursor?: boolean;
   afterOnly?: string;

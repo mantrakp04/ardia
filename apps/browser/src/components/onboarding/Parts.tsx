@@ -1,10 +1,10 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { Animated, Image, Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 import { useTheme } from "../ui/theme";
 import { IconRing } from "./GlassBacking";
 import type { TileTheme } from "../../state/favicons/tileTheme";
-import { Checkbox, Dot, Text, useHover } from "../ui";
-import { activeSteps, useOnboarding, type OnboardingStep } from "../../state/onboarding/onboarding";
+import { Button, Checkbox, Dot, Text, useHover } from "../ui";
+import { activeSteps, cancelOnboarding, useOnboarding, type OnboardingStep } from "../../state/onboarding/onboarding";
 import { useQuestions } from "../../state/onboarding/questions";
 import { curve } from "../ui/motion";
 import { capsule, concentric, ink, radius, space, tracking } from "../ui/tokens";
@@ -12,6 +12,17 @@ import { onboardingColorsOf, onboardingMotion, onboardingType, TILE_WIDTH } from
 import { CARD_BORDER, ChoiceCard, SELECTED_BORDER } from "./ChoiceCard";
 
 export const useOnboardingColors = () => onboardingColorsOf(useTheme());
+
+export type OnboardingCardSize = { width: number; height: number; inset: number; crowded?: boolean };
+
+export const ONBOARDING_CARD = { width: 880, height: 560, inset: 40, compactBelow: 540, titleBarClearance: 46 } as const;
+
+export const OnboardingCardContext = createContext<OnboardingCardSize>({ width: ONBOARDING_CARD.width, height: ONBOARDING_CARD.height, inset: ONBOARDING_CARD.inset });
+
+export function useOnboardingCard() {
+  const card = useContext(OnboardingCardContext);
+  return { ...card, compact: !!card.crowded || card.height < ONBOARDING_CARD.compactBelow, clearTop: Math.max(0, ONBOARDING_CARD.titleBarClearance - card.inset) };
+}
 
 export function Reveal({ delay = 0, children, style }: { delay?: number; children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const t = useRef(new Animated.Value(0)).current;
@@ -51,17 +62,25 @@ export function StepProgress() {
   const colors = useOnboardingColors();
   const step = useOnboarding((s) => s.step);
   const sub = useOnboarding((s) => s.sub);
+  const redo = useOnboarding((s) => s.redo);
+  useOnboarding((s) => s.customizing);
   const count = useQuestions(step).length;
   const steps: OnboardingStep[] = activeSteps().filter((s) => s !== "intro");
   const index = steps.indexOf(step);
+  const { compact } = useOnboardingCard();
   return (
-    <View style={{ gap: space.m }}>
+    <View style={compact ? { flexDirection: "row", alignItems: "center", gap: space.ml } : { gap: space.m }}>
       <StepDots count={steps.length} index={index} shape="bar" />
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.ml, height: 14 }}>
+      <View style={{ flex: compact ? 1 : undefined, flexDirection: "row", alignItems: "center", gap: space.ml, height: 14 }}>
         <Text size="caption" weight="medium" color={colors.steps} style={{ letterSpacing: tracking.caps }}>{`STEP ${index + 1} OF ${steps.length}`}</Text>
         {count > 1 ? (
           <View accessibilityLabel={`Question ${sub + 1} of ${count}`}>
             <StepDots count={count} index={sub} shape="dot" />
+          </View>
+        ) : null}
+        {redo ? (
+          <View mouseDownCanMoveWindow={false} style={{ marginLeft: "auto" }}>
+            <Button variant="text" look="link" tone="textSecondary" title="Cancel" label="Cancel setup and keep your settings" onPress={cancelOnboarding} />
           </View>
         ) : null}
       </View>
@@ -71,9 +90,10 @@ export function StepProgress() {
 
 export function StepTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   const colors = useOnboardingColors();
+  const { compact } = useOnboardingCard();
   return (
-    <View style={{ gap: space.ml }}>
-      <Text color={colors.title} style={onboardingType.stepTitle}>
+    <View style={{ gap: compact ? space.s : space.ml }}>
+      <Text color={colors.title} style={compact ? onboardingType.stepTitleCompact : onboardingType.stepTitle}>
         {title}
       </Text>
       {subtitle ? (

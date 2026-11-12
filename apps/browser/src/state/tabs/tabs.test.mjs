@@ -538,3 +538,18 @@ test("Clear on a lone selected tab closes nothing and opens no New Tab page", ()
   assert.equal(S().clearUnpinnedTabs(w), null);
   assert.deepEqual(S().windows[w].tabIds, [a]);
 });
+
+test("a tab opened behind joins the ⌃Tab order only once it is shown, so ⌃Tab still returns to the tab before (#1190)", (t) => {
+  reset();
+  let now = Date.now();
+  t.mock.method(Date, "now", () => (now += 1000));
+  const [w, a, b] = setup("a", "b");
+  S().activate(b);
+  S().activate(a);
+  const link = open(w, "link", a);
+  const order = () => organize.recentTabIds(S(), w, now).map((id) => short(S().tabs[id].url));
+  assert.deepEqual(order(), ["a", "b", "link"]);
+  S().activate(link);
+  assert.deepEqual(order(), ["link", "a", "b"]);
+  assert.equal(S().tabs[link].unseen, undefined);
+});

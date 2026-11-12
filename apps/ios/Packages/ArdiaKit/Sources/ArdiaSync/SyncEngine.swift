@@ -51,7 +51,7 @@ public enum FolderCheck: Equatable, Sendable {
 }
 
 public actor SyncEngine {
-  private let queue = DispatchSerialQueue(label: "com.ardia.ios.sync", qos: .utility)
+  private let queue = DispatchSerialQueue(label: "com.ardia.browser.ios.sync", qos: .utility)
   public nonisolated var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
 
   public let deviceId: String
@@ -201,12 +201,12 @@ public actor SyncEngine {
   }
 
   @discardableResult
-  public func addBookmark(url: String, title: String, profileSyncId: String) throws -> String {
+  public func addBookmark(url: String, title: String, profileSyncId: String) throws -> Bool {
     try checkLive()
     try load()
     let key = UUID().uuidString.lowercased()
-    try mutate("companionAddBookmark", BookmarkInput(profile: profileSyncId, key: key, u: url, t: title, at: now().millisecondsSince1970))
-    return key
+    let saved = try mutate("companionAddBookmark", BookmarkInput(profile: profileSyncId, key: key, u: url, t: title, at: now().millisecondsSince1970))
+    return saved.existing != true
   }
 
   @discardableResult
@@ -298,11 +298,13 @@ public actor SyncEngine {
     loaded = true
   }
 
-  private func mutate(_ function: String, _ input: some Encodable) throws {
+  @discardableResult
+  private func mutate(_ function: String, _ input: some Encodable) throws -> Saved {
     let json = try script.call(.sync, function, json: [String(decoding: Self.encoder.encode(input), as: UTF8.self)])
     let result = try? JSONDecoder().decode(Saved.self, from: Data(json.utf8))
     if result?.refused == true { throw SyncError.refused }
-    if result?.saved != true { throw SyncError.couldNotSave }
+    guard let result, result.saved else { throw SyncError.couldNotSave }
+    return result
   }
 
   static let encoder: JSONEncoder = {
@@ -330,6 +332,7 @@ public enum SyncError: Error, Equatable, Sendable {
 private struct Saved: Decodable {
   var saved: Bool
   var refused: Bool?
+  var existing: Bool?
 }
 
 private struct CycleInput: Encodable {
