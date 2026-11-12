@@ -49,6 +49,9 @@ export function startDevHarness() {
     get checkIn(): typeof import("../../state/onboarding/defaultBrowserCheckIn") {
       return require("../../state/onboarding/defaultBrowserCheckIn");
     },
+    get onboarding(): typeof import("../../state/onboarding/onboarding") {
+      return require("../../state/onboarding/onboarding");
+    },
     get media(): typeof import("../../state/media/media").useMedia {
       return require("../../state/media/media").useMedia;
     },

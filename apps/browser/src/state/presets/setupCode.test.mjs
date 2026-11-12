@@ -132,3 +132,9 @@ test("the sidebar side rides in the code, and codes from before it still decode"
   assert.deepEqual(describeSetupChoices({ settings: { tabLayout: "top", sidebarSide: "right" } }), ["Tabs along the top"]);
   assert.deepEqual(describeSetupChoices({ settings: { tabLayout: "sidebar", sidebarSide: "left" } }), ["Tabs in the sidebar"]);
 });
+
+test("a Helium preset round-trips and the presets before it keep their codes", () => {
+  const helium = { preset: "helium", settings: {} };
+  assert.deepEqual(decodeSetupCode(encodeSetupCode(helium)), { ok: true, choices: helium });
+  for (const [preset, index] of [["edge", 7], ["fresh", 8], ["helium", 9]]) assert.match(encodeSetupCode({ preset, settings: {} }), new RegExp(`^${SETUP_CODE_PREFIX}p${index}[^0-9]`));
+});

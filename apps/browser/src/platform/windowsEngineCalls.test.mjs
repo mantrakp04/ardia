@@ -3,6 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { domainCall, domainFunctions, domainsOf, reproduced, topicRouter } from "../../../../packages/expo-windows/src/engine/domains/tables.ts";
 import { watchDownloads } from "../../../../packages/expo-windows/src/engine/domains/downloads.ts";
+import { suggestCalls } from "../../../../packages/expo-windows/src/engine/domains/suggest.ts";
+import { readArgs } from "../../../../packages/expo-windows/src/engine/domains/calling.ts";
 
 const repo = new URL("../../../../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, repo), "utf8");
@@ -60,7 +62,17 @@ test("the scan finds the Mac's call tables", () => {
 
 test("every verb the Mac passes straight to the engine goes to the same engine call on Windows", () => {
   const passing = Object.fromEntries(Object.entries(mac).filter(([, table]) => Object.keys(table.passing).length).map(([domain, table]) => [domain, table.passing]));
-  assert.deepEqual(rows.forwarded, passing);
+  const awaited = rows.awaitingEngine ?? {};
+  const onWindows = Object.fromEntries(
+    sorted([...new Set([...Object.keys(rows.forwarded), ...Object.keys(awaited)])]).map((domain) => [domain, { ...rows.forwarded[domain], ...awaited[domain] }]),
+  );
+  assert.deepEqual(onWindows, passing);
+  for (const [domain, verbs] of Object.entries(awaited)) {
+    for (const verb of Object.keys(verbs)) {
+      assert.equal(typeof reproduced[domain]?.[verb], "function", `${domain}.${verb} waits for the Windows engine, so Windows answers it itself meanwhile`);
+      assert.equal(rows.forwarded[domain]?.[verb], undefined, `${domain}.${verb} is not forwarded while the Windows engine lacks it`);
+    }
+  }
 });
 
 test("every verb of the Mac's tables is forwarded, reproduced or listed as missing on Windows, and nothing else is", () => {
@@ -253,4 +265,26 @@ test("the engine domain shapes what the Mac shapes", async () => {
     { name: "ac_cli_control", profile: "", args: { active: -1 } },
     { name: "ac_search_engines_list", profile: "work", args: {} },
   ]);
+});
+
+test("search suggestions are fetched by the app until the Windows engine does it, and a stopped one says so", async () => {
+  const asked = [];
+  let release;
+  const held = new Promise((resolve) => (release = resolve));
+  const calls = suggestCalls(async (url, { signal }) => {
+    asked.push(url);
+    if (url.endsWith("slow")) await held;
+    if (signal.aborted) throw new Error("aborted");
+    return { status: url.endsWith("blocked") ? 429 : 200, text: async () => (url.endsWith("blocked") ? "" : '["q",["q1"]]') };
+  });
+  const args = (fields) => readArgs("", JSON.stringify(fields));
+  assert.deepEqual(JSON.parse(await calls.suggest(args({ url: "https://www.google.com/complete/search?q=q", id: 1 }))), { status: 200, body: '["q",["q1"]]' });
+  assert.deepEqual(JSON.parse(await calls.suggest(args({ url: "https://example.com/blocked", id: 2 }))), { status: 429, body: "" });
+  const slow = calls.suggest(args({ url: "https://example.com/slow", id: 3 }));
+  await calls.stopSuggest(args({ id: 3 }));
+  release();
+  assert.deepEqual(JSON.parse(await slow), { stopped: true });
+  await calls.stopSuggest(args({ id: 99 }));
+  await assert.rejects(calls.suggest(args({ url: "file:///etc/passwd", id: 4 })), /web address/);
+  assert.deepEqual(asked, ["https://www.google.com/complete/search?q=q", "https://example.com/blocked", "https://example.com/slow"]);
 });

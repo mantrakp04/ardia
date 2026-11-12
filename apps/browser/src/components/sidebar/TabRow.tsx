@@ -21,7 +21,9 @@ import { ACTIVE, ICON_MARKS, LOADING, mutedBy, PLAYING, SELECTED, useRowState } 
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 import { TabBadges } from "../media/TabBadges";
-import { UnreadBadge } from "../unread/UnreadBadge";
+import { UnreadCount } from "../unread/UnreadBadge";
+import { useTabUnread } from "../../state/tabs/unread";
+import { titleWithoutUnread } from "../../lib/unread";
 import { TAB_ROW, useSidebarTokens } from "./tokens";
 import { useSidebarRowLook } from "./rowLook";
 import { ROW_TITLE_FRAME, SidebarRowLabel, SidebarRowSurface } from "./SidebarRow";
@@ -76,10 +78,11 @@ export const TabRow = memo(function TabRow({
   const backToPin = useHover();
   const closeControl = useTabCloseControlWhile(tabId, hovered && !renaming);
   const { backToPinHint } = useSidebarRowLook();
+  const unread = useTabUnread(tabId);
   if (!tab) return null;
   const resettable = (isPinnedRow(tab) || !tab.pin) && awayFromPin(tab);
   const resetting = resettable && backToPin.hovered && !renaming;
-  const title = resetting ? "Back to Pinned URL" : tabTitle(tab);
+  const title = resetting ? "Back to Pinned URL" : tab.customTitle ? tabTitle(tab) : titleWithoutUnread(tabTitle(tab), unread);
   const away = resettable && !resetting ? awayTitle(tab) : null;
   const fill = active ? theme.tabSelected : selected ? tokens.multiSelected : hovered ? theme.tabHover : ink.clear;
   const border = active || selected ? 0.5 : 0;
@@ -151,7 +154,7 @@ export const TabRow = memo(function TabRow({
               hover={closeControl && <Button variant="icon" icon={closeControl.icon} size="s" weight="semibold" onPress={() => pressTabClose(tab.id)} tooltip={closeControl.tooltip} />}
             >
               {loading && <ActivitySpinner style={{ width: 12, height: 12, marginRight: space.xxs }} />}
-              <UnreadBadge tabId={tab.id} inline />
+              <UnreadCount unread={unread} ink={active ? theme.rowSelectedText : theme.textTab} />
             </HoverSlot>
           </SidebarRowSurface>
       )}

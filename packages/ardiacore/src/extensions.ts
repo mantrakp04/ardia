@@ -153,6 +153,10 @@ export type ExtensionsSyncApply = {
   approval?: { v: string; fps: string[] };
 };
 
+export type ExtensionDisableReason = "user" | "permissions" | "corrupted" | "developer" | "unsupported" | "policy" | "external" | "reload" | "other";
+
+export type ExtensionsLoadHealth = { dropped: number; enabled: number; disabled: Partial<Record<ExtensionDisableReason, number>> };
+
 export type ExtensionsSyncApplied = {
   state: "invalid" | "kept" | "absent" | "cancelled" | "blocked" | "pending" | "refused" | "updating" | "installed";
 };

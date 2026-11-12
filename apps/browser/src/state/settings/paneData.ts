@@ -30,6 +30,8 @@ import { currentSyncFolder, folderInfo } from "../sync/engine";
 import { extensionsProfileId, refreshExtensions } from "../extensions/actions";
 import { cached, load, loadAll, need, resource, store, useAllLoaded, type Needed } from "./resources";
 import type { SettingsPane } from "./settingsWindows";
+import { FOLLOW_EVERY_MS, FOLLOW_FOR_MS, switchOutcome, updaterBusy } from "./updateStatus";
+import { noteUpdateChannelSwitch } from "../telemetry/usage";
 
 export const APP_ICON_SIZE = 56;
 
@@ -118,7 +120,25 @@ export function setUpdaterPrefs(patch: { automaticChecks?: boolean; automaticDow
   const reload = () => void load(updater, [], { fresh: true }).catch(() => {});
   if (patch.automaticChecks !== undefined) void setAutomaticUpdateChecks(patch.automaticChecks).finally(reload);
   if (patch.automaticDownloads !== undefined) void setAutomaticUpdateDownloads(patch.automaticDownloads).finally(reload);
-  if (patch.channel !== undefined) void setUpdateChannel(patch.channel).finally(reload);
+  if (patch.channel !== undefined) void setUpdateChannel(patch.channel).finally(() => followUpdater((s) => noteUpdateChannelSwitch(s.available ? switchOutcome(s.switchCheck) : null)));
+}
+
+let following = 0;
+let followingNow = false;
+
+export function followUpdater(settled?: (state: UpdaterState) => void) {
+  if (followingNow && !settled) return;
+  const run = ++following;
+  followingNow = true;
+  const until = Date.now() + FOLLOW_FOR_MS;
+  const tick = (): Promise<void> =>
+    load(updater, [], { fresh: true }).then((state) => {
+      if (run !== following) return;
+      if (updaterBusy(state) && Date.now() < until) return new Promise<void>((done) => setTimeout(done, FOLLOW_EVERY_MS)).then(tick);
+      followingNow = false;
+      settled?.(state);
+    });
+  void tick().catch(() => run === following && (followingNow = false));
 }
 
 export function chooseAppIcon(id: string) {

@@ -2,17 +2,18 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const { tabUnread, pageUnread } = await import("./unread.ts");
-const { isUnreadShown, toggleSiteUnread, setSiteUnreadShown } = await import("./unreadSites.ts");
+const { isUnreadShown, toggleSiteUnread, setSiteUnreadShown, showUnreadCounts } = await import("./unreadSites.ts");
 const { tabMenuItems } = await import("../sidebar/tabMenu.ts");
 const { settingsSnapshot } = await import("../telemetry/settingsSnapshot.ts");
 const { DEFAULT_SETTINGS } = await import("../settings/settings.ts");
 
 const S = () => useBrowser.getState();
 const label = (id) => tabUnread(id)?.label ?? null;
-const unreadItem = (w, id) => tabMenuItems(S(), w, S().tabs[id]).find((i) => i.id === "siteUnread")?.title ?? null;
+const unreadItem = (w, id) => tabMenuItems(S(), w, S().tabs[id]).find((i) => i.id === "siteUnread" || i.id === "allUnread")?.title ?? null;
 
-const setup = () => {
+const setup = ({ on = true } = {}) => {
   S().hydrate({});
+  if (on) S().updateSettings({ showUnreadCounts: true });
   const w = S().createWindow({ url: "https://mail.example/inbox" });
   const a = S().windows[w].tabIds[0];
   S().updateTab(a, { url: "https://mail.example/inbox", title: "(5) Inbox" });
@@ -23,10 +24,14 @@ const setup = () => {
   return { w, a, b, c };
 };
 
-test("counts show by default, on and off by default in the settings", () => {
-  const { a, c } = setup();
-  assert.equal(DEFAULT_SETTINGS.showUnreadCounts, true);
+test("counts are off by default, and turning them on shows every site's", () => {
+  const { a, c } = setup({ on: false });
+  assert.equal(DEFAULT_SETTINGS.showUnreadCounts, false);
   assert.deepEqual(DEFAULT_SETTINGS.unreadHiddenSites, []);
+  assert.equal(label(a), null);
+  assert.equal(label(c), null);
+  assert.equal(pageUnread(a)?.label, "5", "the page's count is still read, ready for the switch");
+  showUnreadCounts(true);
   assert.equal(label(a), "5");
   assert.equal(label(c), "7");
 });
@@ -83,7 +88,18 @@ test("the tab menu offers Hide Unread Count on a badged tab, Show Unread Count o
   assert.equal(unreadItem(w, a), null);
   S().updateTab(a, { title: "(1) Inbox" });
   S().updateSettings({ showUnreadCounts: false });
+  assert.equal(unreadItem(w, a), "Show Unread Counts");
+  S().updateTab(a, { title: "Inbox" });
   assert.equal(unreadItem(w, a), null);
+});
+
+test("with counts off, a badged tab's menu offers Show Unread Counts, which turns them on everywhere", () => {
+  const { w, a, c } = setup({ on: false });
+  assert.equal(unreadItem(w, a), "Show Unread Counts");
+  showUnreadCounts(true);
+  assert.equal(S().settings.showUnreadCounts, true);
+  assert.equal(unreadItem(w, a), "Hide Unread Count");
+  assert.equal(label(c), "7");
 });
 
 test("a private window's tab menu doesn't offer it, so no private host is saved", () => {

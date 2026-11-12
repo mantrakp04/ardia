@@ -36,6 +36,15 @@
       "lastTabPolicy": "ac_tabs_last_tab_policy"
     }
   },
+  "awaitingEngine": {
+    "extensions": {
+      "loadHealth": "ac_extensions_load_health"
+    },
+    "search": {
+      "suggest": "ac_search_suggest",
+      "stopSuggest": "ac_search_suggest_stop"
+    }
+  },
   "missing": {
     "autofill": ["settings", "setSettings", "showSuggestions"],
     "bookmarks": ["exportHtml"],
