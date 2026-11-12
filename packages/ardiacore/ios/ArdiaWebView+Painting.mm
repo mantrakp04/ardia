@@ -453,7 +453,9 @@ BOOL Above(NSView *a, NSView *b) {
   NSView *lingering = focused ? LingeringPaneOver(self) : nil;
   if (!lingering || ![focused isDescendantOf:lingering]) return;
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ takes focus from the lingering New Tab pane", _transferKey);
-  [window makeFirstResponder:nil];
+  if (![window makeFirstResponder:nil]) return;
+  NSView *page = _tab.view;
+  if (_visible && !_standalone && page && page.superview == self && !page.isHiddenOrHasHiddenAncestor) [self focusPage];
 }
 
 - (void)sinkLingeringPane {

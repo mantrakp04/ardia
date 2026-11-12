@@ -516,6 +516,19 @@ for (const busy of [0, 120]) {
 }
 {
   await resetToPageField("", [0, 0]);
+  const cleared = await devWindow("hoverProbe:responderNil:1");
+  await devWindow("hoverProbe:check:60,135,click");
+  await sleep(600);
+  const healed = await devWindow("hoverProbe:responderNil:0");
+  const episodes = JSON.parse(await devWindow("hoverProbe")).emitted;
+  const last = episodes[episodes.length - 1] ?? {};
+  check("a key window left with no first responder gets the page back on the next click",
+    cleared === "responder window, lost 1" && /^responder (?!nil|window)\w+, lost 0$/.test(healed) &&
+      last.reason === "responderLost" && last.healed === true && last.healWorked === true,
+    `cleared "${cleared}", healed "${healed}", episode ${JSON.stringify(last)}`);
+}
+{
+  await resetToPageField("", [0, 0]);
   await clipboard.set("first");
   await cdp("?t3", "(window.slowShortcuts ??= addEventListener('keydown', (e) => { if (e.metaKey) { const t = performance.now(); while (performance.now() - t < 200); } }, true), true)");
   await postKeys([keyPress("f", 3), keyPress("v", 9), keyPress("q", 12, 300, [])]);
