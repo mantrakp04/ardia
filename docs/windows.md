@@ -235,7 +235,8 @@ is plain Chromium.
   the find bar, dialogs, toasts, the downloads bubble) reports its rectangle (`usePageCover`), and the page window gets
   a hole there, with the surface's corners. A translucent surface shows the card behind it in the hole, not the page.
   The page window has no system backdrop: Chromium asks for Mica on its top-level windows, and Windows paints that
-  into the holes. A press in the page counts
+  into the holes. While a modal the app shows is open (a confirm, a prompt, a file or folder picker), the page windows its
+  window owns are disabled and enabled again when it closes, so a click on the page cannot raise it over the dialog. A press in the page counts
   as a press outside every popover of its window.
 - A second launch reaches the running app: Chromium's process singleton hands it the command line, and
   `chromium-win-relaunch-to-app.patch` gives that to `//ardia/win`, which sends the topic `relaunch` with the web and
