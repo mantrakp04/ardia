@@ -1,3 +1,4 @@
+import type { BarPlacement } from "../omnibox/barPlacement";
 import type { TabGroupColor } from "@ardia/core";
 import type { PageEngine } from "../../platform/tabs";
 import type { ProfileColor, ProfileTheme } from "../../lib/profileLook";
@@ -200,6 +201,6 @@ export type FindState = {
 
 export type NewTabTarget = { kind: "list" } | { kind: "group"; groupId: string } | { kind: "into"; tabId: string };
 
-export type PanelState = { open: boolean; initialText: string; newTab?: NewTabTarget };
+export type PanelState = { open: boolean; initialText: string; newTab?: NewTabTarget; placement?: BarPlacement };
 
 export type WindowUi = { panel: PanelState; downloadsOpen: boolean };
