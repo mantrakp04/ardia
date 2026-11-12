@@ -106,6 +106,12 @@ try {
   check("a click with no hover first still takes the block under it", clickOnly?.title === "Capture copied" && shotB.width === 300 * scale && shotB.height === 200 * scale, `${shotB.width}×${shotB.height}`);
   check("that block is the red card", near(shotB.corner, [220, 0, 0]), JSON.stringify(shotB.corner));
 
+  const quick = await ac(`return audit.start()
+    .then(() => ac.shell.devPointer("w1", [{ type: "move", x: 200, y: 160, wait: 0 }, { type: "down", x: 360, y: 260, wait: 0 }, { type: "up", x: 360, y: 260, wait: 900 }]))
+    .then(() => audit.toast());`);
+  const shotQ = readPasteboard();
+  check("a quick click on another block, while the last lookup is still out, takes the clicked block", quick?.title === "Capture copied" && shotQ.width === 300 * scale && near(shotQ.corner, [220, 0, 0]), `${shotQ.width}×${shotQ.height} ${JSON.stringify(shotQ.corner)}`);
+
   const stepped = await ac(`return audit.start()
     .then(() => ac.shell.devPointer("w1", [{ type: "move", x: 200, y: 160, wait: 500 }]))
     .then(() => audit.key(126, "\\uf700"))
@@ -145,6 +151,15 @@ try {
     .then(() => ac.shell.devPointer("w1", [{ type: "down", x: 360, y: 260 }, { type: "up", x: 360, y: 260, wait: 600 }]))
     .then(() => audit.toast());`);
   check("showing another tab ends it", switched === null && readPasteboard().count === before, JSON.stringify(switched));
+
+  const paint = (color) => `ac.webviews.get("a").evaluate("document.getElementById('card').style.background = '${color}'; post('result', 'true')")`;
+  const repainted = await ac(`return audit.start()
+    .then(() => ${paint("rgb(0,160,0)")})
+    .then(() => audit.settle(400))
+    .then(() => ac.shell.devPointer("w1", [{ type: "down", x: 360, y: 260 }, { type: "up", x: 360, y: 260, wait: 900 }]))
+    .then(() => { const t = audit.toast(); return ${paint("rgb(220,0,0)")}.then(() => audit.settle(300)).then(() => t); });`);
+  const shotR = readPasteboard();
+  check("a clicked block is copied as it is now, not as it was when Capture froze the page", repainted?.title === "Capture copied" && near(shotR.corner, [0, 160, 0]), JSON.stringify(shotR.corner));
 
   const saved = await ac(`return audit.start()
     .then(() => ac.shell.devPointer("w1", [{ type: "down", x: 360, y: 260 }, { type: "up", x: 360, y: 260, wait: 800 }]))

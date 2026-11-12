@@ -9,11 +9,13 @@ extension PageTabHost {
     }
     guard window != nil, !isHiddenOrHasHiddenAncestor, page.superview === self else { return false }
     captureStarting = true
+    captureAttempt += 1
     captureStartedAt = CACurrentMediaTime()
+    let attempt = captureAttempt
     let size = bounds.size
     page.copyCapturePicture { [weak self] picture, frame in
       DispatchQueue.main.async {
-        guard let self, self.captureStarting else { return }
+        guard let self, self.captureStarting, attempt == self.captureAttempt else { return }
         self.captureStarting = false
         guard let picture, self.window != nil, self.bounds.size == size, !self.isHiddenOrHasHiddenAncestor, !frame.isEmpty else {
           return self.sendCaptureEnding("failed")
@@ -31,6 +33,7 @@ extension PageTabHost {
   func endCapture() {
     if captureStarting {
       captureStarting = false
+      captureAttempt += 1
       sendCaptureEnding("cancelled")
     }
     captureOverlay?.cancel()

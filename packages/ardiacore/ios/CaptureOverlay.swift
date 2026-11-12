@@ -54,8 +54,9 @@ final class CaptureOverlay: NSView {
   private var dragStart: NSPoint?
   private var dragRect: NSRect?
   private var lens: NSRect?
-  private var clickPending = false
+  private var clickPoint: NSPoint?
   private var finished = false
+  private var closed = false
   private var keyMonitor: Any?
   private weak var previousResponder: NSResponder?
 
@@ -207,7 +208,7 @@ final class CaptureOverlay: NSView {
     }
     let point = pagePoint(event)
     if let lens, lens.contains(point) || stepOrigin != nil { return capture(lens, kind: "element") }
-    clickPending = true
+    clickPoint = point
     hoverPoint = point
     stepOrigin = nil
     requestTargets()
@@ -273,7 +274,7 @@ final class CaptureOverlay: NSView {
     page.evaluate(code) { [weak self] json in
       DispatchQueue.main.async {
         guard let self else { return }
-        self.answered(json)
+        self.answered(json, for: point)
         if self.lookup == .busyAgain {
           self.lookup = .busy
           self.askPage()
@@ -284,10 +285,10 @@ final class CaptureOverlay: NSView {
     }
   }
 
-  private func answered(_ json: String?) {
+  private func answered(_ json: String?, for point: NSPoint) {
     guard !finished, dragStart == nil, stepOrigin == nil else { return }
-    let clicked = clickPending
-    clickPending = false
+    let clicked = clickPoint == point
+    if clicked { clickPoint = nil }
     guard let data = json?.data(using: .utf8),
       let reply = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
       let boxes = reply["candidates"] as? [[Double]]
@@ -369,16 +370,31 @@ final class CaptureOverlay: NSView {
     hint.layer.frame = NSRect(x: ((bounds.width - size.width) / 2).rounded(), y: bounds.height - Self.hintGap - size.height, width: size.width, height: size.height)
   }
 
-  private func pixelRect(_ rect: NSRect) -> CGRect {
-    let scaleX = CGFloat(picture.width) / max(1, bounds.width)
-    let scaleY = CGFloat(picture.height) / max(1, bounds.height)
+  private func pixelRect(_ rect: NSRect, in image: CGImage? = nil) -> CGRect {
+    let source = image ?? picture
+    let scaleX = CGFloat(source.width) / max(1, bounds.width)
+    let scaleY = CGFloat(source.height) / max(1, bounds.height)
     let pixels = CGRect(x: (rect.minX * scaleX).rounded(), y: (rect.minY * scaleY).rounded(), width: (rect.width * scaleX).rounded(), height: (rect.height * scaleY).rounded())
-    return pixels.intersection(CGRect(x: 0, y: 0, width: picture.width, height: picture.height))
+    return pixels.intersection(CGRect(x: 0, y: 0, width: source.width, height: source.height))
   }
 
   private func capture(_ rect: NSRect, kind: String) {
-    let pixels = pixelRect(rect)
-    guard !pixels.isEmpty, let cropped = picture.cropping(to: pixels), let png = CaptureOverlay.copyToPasteboard(cropped, points: rect.size) else {
+    guard !finished else { return }
+    finished = true
+    guard kind == "element", let page else { return crop(rect, from: picture, kind: kind) }
+    let size = bounds.size
+    page.copyCapturePicture { [weak self] fresh, frame in
+      DispatchQueue.main.async {
+        guard let self, !self.closed else { return }
+        let matches = fresh != nil && frame.size == size
+        self.crop(rect, from: matches ? fresh! : self.picture, kind: kind)
+      }
+    }
+  }
+
+  private func crop(_ rect: NSRect, from image: CGImage, kind: String) {
+    let pixels = pixelRect(rect, in: image)
+    guard !pixels.isEmpty, let cropped = image.cropping(to: pixels), let png = CaptureOverlay.copyToPasteboard(cropped, points: rect.size) else {
       return finish(.failed)
     }
     finish(.copied(Shot(png: png, kind: kind, width: Int(pixels.width), height: Int(pixels.height))))
@@ -404,7 +420,8 @@ final class CaptureOverlay: NSView {
   func cancel() { finish(.cancelled) }
 
   private func finish(_ ending: Ending) {
-    guard !finished else { return }
+    guard !closed else { return }
+    closed = true
     finished = true
     if let keyMonitor {
       NSEvent.removeMonitor(keyMonitor)

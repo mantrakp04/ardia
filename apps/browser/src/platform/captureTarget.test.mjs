@@ -114,6 +114,26 @@ test("open shadow roots are searched", () => {
   assert.deepEqual(reply.candidates[reply.best], [120, 120, 200, 150]);
 });
 
+function frame(rect, inside, { scale = 1 } = {}) {
+  const node = element("IFRAME", rect.map((v, i) => (i >= 2 ? v * scale : v)), { display: "inline" });
+  Object.assign(node, { contentDocument: root(inside), clientLeft: 0, clientTop: 0, clientWidth: rect[2], clientHeight: rect[3], offsetWidth: rect[2], offsetHeight: rect[3] });
+  return node;
+}
+
+test("a block inside a frame is offered, cut to the frame", () => {
+  const tallChild = element("ARTICLE", [10, 10, 280, 900]);
+  const host = frame([100, 100, 300, 200], [tallChild]);
+  const reply = pick([host], [150, 150]);
+  assert.deepEqual(reply.candidates[0], [110, 110, 280, 190]);
+});
+
+test("a scaled frame is offered as a whole, never what's inside", () => {
+  const child = element("IMG", [0, 0, 300, 200]);
+  const host = frame([100, 100, 300, 200], [child], { scale: 0.5 });
+  const reply = pick([host], [150, 150]);
+  assert.deepEqual(reply.candidates, [[100, 100, 150, 100]]);
+});
+
 test("boxes drawn at the same place are offered once", () => {
   const outer = element("DIV", [100, 100, 300, 200]);
   const inner = element("DIV", [100, 100, 300, 200]);

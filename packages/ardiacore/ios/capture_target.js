@@ -15,35 +15,41 @@
   const clientX = pointX / pointsPerPixel + shiftX;
   const clientY = pointY / pointsPerPixel + shiftY;
 
-  const stackAt = (root, x, y, offsetX, offsetY, depth) => {
+  const stackAt = (root, x, y, offsetX, offsetY, depth, clip) => {
     const found = [];
     for (const element of root.elementsFromPoint(x, y)) {
       if (depth < 4 && element.shadowRoot) {
-        for (const inner of stackAt(element.shadowRoot, x, y, offsetX, offsetY, depth + 1)) {
+        for (const inner of stackAt(element.shadowRoot, x, y, offsetX, offsetY, depth + 1, clip)) {
           if (inner.element !== element && inner.element.getRootNode && inner.element.getRootNode() === element.shadowRoot) found.push(inner);
         }
       }
       if (depth < 4 && element.tagName === "IFRAME") {
         try {
           const inside = element.contentDocument;
-          if (inside) {
-            const frame = element.getBoundingClientRect();
+          const frame = element.getBoundingClientRect();
+          const unscaled = Math.abs(frame.width - element.offsetWidth) < 1 && Math.abs(frame.height - element.offsetHeight) < 1;
+          if (inside && unscaled) {
             const left = frame.left + element.clientLeft;
             const top = frame.top + element.clientTop;
-            found.push(...stackAt(inside, x - left, y - top, offsetX + left, offsetY + top, depth + 1));
+            const box = { left: offsetX + left, top: offsetY + top, right: offsetX + left + element.clientWidth, bottom: offsetY + top + element.clientHeight };
+            const inner = clip
+              ? { left: Math.max(box.left, clip.left), top: Math.max(box.top, clip.top), right: Math.min(box.right, clip.right), bottom: Math.min(box.bottom, clip.bottom) }
+              : box;
+            found.push(...stackAt(inside, x - left, y - top, offsetX + left, offsetY + top, depth + 1, inner));
           }
         } catch (e) {}
       }
-      found.push({ element, offsetX, offsetY });
+      found.push({ element, offsetX, offsetY, clip });
     }
     return found;
   };
 
-  const viewRect = (rect, offsetX, offsetY) => {
-    const left = Math.max(0, (rect.left + offsetX - shiftX) * pointsPerPixel);
-    const top = Math.max(0, (rect.top + offsetY - shiftY) * pointsPerPixel);
-    const right = Math.min(viewWidth, (rect.right + offsetX - shiftX) * pointsPerPixel);
-    const bottom = Math.min(viewHeight, (rect.bottom + offsetY - shiftY) * pointsPerPixel);
+  const viewRect = (rect, offsetX, offsetY, clip) => {
+    const bounds = clip || { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
+    const left = Math.max(0, (Math.max(rect.left + offsetX, bounds.left) - shiftX) * pointsPerPixel);
+    const top = Math.max(0, (Math.max(rect.top + offsetY, bounds.top) - shiftY) * pointsPerPixel);
+    const right = Math.min(viewWidth, (Math.min(rect.right + offsetX, bounds.right) - shiftX) * pointsPerPixel);
+    const bottom = Math.min(viewHeight, (Math.min(rect.bottom + offsetY, bounds.bottom) - shiftY) * pointsPerPixel);
     return { x: left, y: top, width: right - left, height: bottom - top };
   };
 
@@ -66,10 +72,10 @@
   const candidates = [];
   let best = -1;
   let bestPoints = 0;
-  for (const { element, offsetX, offsetY } of stackAt(document, clientX, clientY, 0, 0, 0)) {
+  for (const { element, offsetX, offsetY, clip } of stackAt(document, clientX, clientY, 0, 0, 0, null)) {
     if (candidates.length >= MOST) break;
     const rect = element.getBoundingClientRect();
-    const shown = viewRect(rect, offsetX, offsetY);
+    const shown = viewRect(rect, offsetX, offsetY, clip);
     const points = score(element, rect, shown);
     if (points === null) continue;
     const box = [shown.x, shown.y, shown.width, shown.height].map((value) => Math.round(value * 2) / 2);

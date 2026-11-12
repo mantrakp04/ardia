@@ -6,6 +6,7 @@ class PageTabHost: ExpoView {
   var pageEvents: Set<String> = []
   var captureOverlay: CaptureOverlay?
   var captureStarting = false
+  var captureAttempt = 0
   var captureStartedAt: CFTimeInterval = 0
   var capturedPNG: Data?
   private var propsReady = false
