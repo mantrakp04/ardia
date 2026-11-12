@@ -22,6 +22,7 @@ import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
 import { takeAutoHideTabsChoices } from "./autoHideTabsChoices";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
 import { toolbarBounces } from "./toolbarBounces";
+import { takeDownloadWork } from "../downloads/work";
 
 const HOUR_MS = 60 * 60_000;
 const FIRST_MEMORY_SAMPLE_MS = 10 * 60_000;
@@ -35,9 +36,9 @@ let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
 function emitCounts() {
-  const snapshots = takeSnapshotWrites();
+  const [snapshots, downloads] = [takeSnapshotWrites(), takeDownloadWork()];
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || snapshots.count) {
+  if (Object.values(counts).some(Boolean) || snapshots.count || Object.values(downloads).some(Boolean)) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -73,8 +74,8 @@ function emitCounts() {
       split_pane_closes: counts.splitPaneCloses,
       split_view_closes: counts.splitViewCloses,
       window_close_tabs_kept: counts.windowCloseTabsKept,
-      sync_snapshots_written: snapshots.count,
-      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024),
+      sync_snapshots_written: snapshots.count, sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024),
+      download_progress_updates: downloads.downloadProgressUpdates, download_record_updates: downloads.downloadRecordUpdates, download_history_writes: downloads.downloadHistoryWrites, download_history_kb_written: Math.round(downloads.downloadHistoryBytes / 1024),
       toolbar_scroll_hides: counts.toolbarScrollHides,
       toolbar_scroll_hide_bounces: counts.toolbarScrollHideBounces,
       card_resize_layouts: counts.cardResizeLayouts,
