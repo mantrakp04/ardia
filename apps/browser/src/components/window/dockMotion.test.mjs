@@ -313,6 +313,7 @@ test("the dock is fullscreen, docked, peeking, hiding or away, and only a still,
   assert.equal(st({ fullscreen: true, open: true }), "fullscreen");
   assert.equal(st({ fullscreen: true, open: true, peekLive: true }), "peeking", "a full-screen page peeks the sidebar from its edge, docked or not");
   assert.equal(st({ fullscreen: true, peekLive: true }), "peeking");
+  assert.equal(st({ fullscreen: true, open: true, peekLive: true, peekLeaving: true }), "leaving", "a full-screen peek slides away like any other");
   assert.equal(st({ open: true, moving: true }), "docked");
   assert.equal(st({ peekLive: true }), "peeking");
   assert.equal(st({ peekLive: true, moving: true }), "peeking");
