@@ -5,6 +5,7 @@ import { useBrowser } from "../browser/store";
 import type { Tab } from "../browser/types";
 import { hasOwnOrSharedPage, holderOfPage } from "./pageSession";
 import { useTabValue } from "./tabWatch";
+import { isUnreadShown } from "./unreadSites";
 
 export type { Unread } from "../../lib/unread";
 
@@ -97,9 +98,14 @@ export function unreadFrom(side: TabSide, page: PageSignals): Unread | null {
   return page.favicon && page.favicon.badged && page.favicon.origin === side.origin ? UNREAD_DOT : null;
 }
 
-export function tabUnread(tabId: string): Unread | null {
+export function pageUnread(tabId: string): Unread | null {
   const side = tabSide(tabId, useBrowser.getState().tabs[tabId]);
   return unreadFrom(side, side.source ? signalsOf(side.source) : NO_SIGNALS);
+}
+
+export function tabUnread(tabId: string): Unread | null {
+  const s = useBrowser.getState();
+  return isUnreadShown(s.settings, s.tabs[tabId]?.url ?? "") ? pageUnread(tabId) : null;
 }
 
 const idle = () => () => {};
@@ -109,5 +115,6 @@ export function useTabUnread(tabId: string): Unread | null {
   const source = side.source;
   const [subscribe, read] = useMemo(() => (source ? [(l: () => void) => watchSignals(source, l), () => signalsOf(source)] : [idle, () => NO_SIGNALS]), [source]);
   const page = useSyncExternalStore(subscribe, read);
-  return unreadFrom(side, page);
+  const shown = useBrowser((s) => isUnreadShown(s.settings, side.origin));
+  return shown ? unreadFrom(side, page) : null;
 }

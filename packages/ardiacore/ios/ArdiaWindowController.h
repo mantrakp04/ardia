@@ -21,9 +21,11 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable ArdiaWebView *)hostingViewForProfile:(nullable ArdiaCoreProfile *)profile;
 + (BOOL)userSees:(nullable NSWindow *)window;
 + (BOOL)userSeesOnlyThroughWindowServer:(nullable NSWindow *)window;
++ (void)reconsiderSightOf:(nullable NSWindow *)window;
 + (nullable instancetype)claimChromeMadeWindow:(nullable NSString *)token;
 - (instancetype)initWithCoreWindow:(ArdiaCoreWindow *)coreWindow;
 @end
 extern NSNotificationName const ArdiaWindowSeenDidChange;
+extern NSString *const ArdiaWindowSeenLeftAppKey;
 
 NS_ASSUME_NONNULL_END

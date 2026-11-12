@@ -28,7 +28,7 @@ export function settingsSnapshot(settings: Settings): Record<string, string> {
     out[`setting_${key}`] = value;
     out[`default_${key}`] = fallback;
   }
-  return { ...out, ...commandBarStartFlags(settings.commandBarStart) };
+  return { ...out, ...commandBarStartFlags(settings.commandBarStart), unread_hidden_sites: String(Array.isArray(settings.unreadHiddenSites) ? settings.unreadHiddenSites.length : 0) };
 }
 
 export const appIconSetting = (icon: string | null): Record<string, string> =>

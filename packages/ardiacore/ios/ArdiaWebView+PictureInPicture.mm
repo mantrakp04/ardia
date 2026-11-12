@@ -98,19 +98,6 @@ void InstallControlPressMonitor() {
                                                   }];
 }
 
-void WatchAppActivationForPictureInPicture() {
-  static BOOL watching;
-  if (watching) return;
-  watching = YES;
-  NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
-  [center addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:nil usingBlock:^(NSNotification *) {
-    for (ArdiaWebView *view in LiveViews().allObjects) [view leaveAppInPictureInPicture:YES];
-  }];
-  [center addObserverForName:NSApplicationDidBecomeActiveNotification object:nil queue:nil usingBlock:^(NSNotification *) {
-    for (ArdiaWebView *view in LiveViews().allObjects) [view leaveAppInPictureInPicture:NO];
-  }];
-}
-
 BOOL TracingPictureInPicture() {
   static const BOOL tracing = [ArdiaLaunchConfig.shared traced:@"pip"];
   return tracing;
@@ -193,15 +180,28 @@ BOOL TracingPictureInPicture() {
 }
 
 - (BOOL)leftAppInPictureInPicture {
-  return _reports.leftAppInPictureInPicture;
+  return !NSApp.isActive;
 }
 
-- (void)leaveAppInPictureInPicture:(BOOL)leaving {
-  if (leaving == _reports.leftAppInPictureInPicture) return;
-  if (leaving && (!_tab || _reports.inPictureInPicture || !self.seenByUser || !self.playsForAutoPictureInPicture)) return;
-  _reports.leftAppInPictureInPicture = leaving;
-  [self traceAutoPictureInPicture:leaving ? @"app: the user left Ardia" : @"app: the user came back to Ardia"];
++ (BOOL)playsForAutoPictureInPictureInWindow:(NSWindow *)window {
+  for (ArdiaWebView *view in LiveViews().allObjects)
+    if (view.window == window && view->_visible && view->_tab && view.playsForAutoPictureInPicture) return YES;
+  return NO;
+}
+
+- (void)autoPictureInPictureInputsChanged {
+  const BOOL plays = _tab && self.playsForAutoPictureInPicture;
+  if (plays == _reports.playedForAutoPictureInPicture) return;
+  _reports.playedForAutoPictureInPicture = plays;
+  if (!self.window) return;
+  [ArdiaWindowController reconsiderSightOf:self.window];
   [self userSightChanged];
+}
+
+- (void)noteStayedOnAppSwitch {
+  if (!_tab || !_visible || _reports.inPictureInPicture || !self.seenByUser || !self.playsForAutoPictureInPicture) return;
+  [self traceAutoPictureInPicture:@"app: the user left Ardia, the window server still shows the tab"];
+  [self emit:@"autoPictureInPictureKept" payload:@{@"appSwitch" : @YES}];
 }
 
 - (void)updateAutoPictureInPicture {

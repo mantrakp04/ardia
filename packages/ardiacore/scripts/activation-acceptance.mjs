@@ -382,6 +382,78 @@ try {
     }
   });
 
+  async function appSwitchPopsOutOnlyIfHidden(call, win) {
+    const appActive = async (on) => {
+      const r = await win(`fakeAppActive:${on ? 1 : 0}`);
+      if (r !== (on ? "1" : "0")) throw new Error(`fakeAppActive: ${JSON.stringify(r)}`);
+    };
+    try {
+      await win("fakeOcclusion:visible");
+      await win("fakeWindowServer:shows");
+      await sleep(800);
+      const base = (await pipState(call.t)).pip;
+      await appActive(false);
+      await sleep(2500);
+      const stayed = await pipState(call.t);
+      if (stayed.pip !== base || stayed.open) throw new Error(`an app switch with the window showing popped the call out: ${JSON.stringify(stayed)}`);
+      await win("fakeWindowServer:hides");
+      await until("the call popped out once the window was out of sight", async () => {
+        const p = await pipState(call.t);
+        return p.pip > base && p.open ? p : null;
+      }, 8000);
+      await appActive(true);
+      await until("closed on coming back", async () => !(await pipState(call.t)).open, 8000);
+      return { stayed: true, hiddenPopsOut: true, backCloses: true };
+    } finally {
+      await appActive(true).catch(() => null);
+      for (const action of ["fakeWindowServer:hides", "fakeOcclusion:off"]) await win(action).catch(() => null);
+    }
+  }
+
+  await check("call-app-switch-full-screen-window", async () => {
+    const call = await joinedCall();
+    const n = await engine("tabs.devWindowNumber", { tabId: call.tab });
+    const win = (action) => engine("windows.dev", { window: n, action });
+    try {
+      await win("fakeFullScreen:1");
+      await until("the window in full screen", async () => JSON.parse(await win("fullScreen")).fullScreen === true || null, 6000);
+      return await appSwitchPopsOutOnlyIfHidden(call, win);
+    } finally {
+      await win("fakeFullScreen:0").catch(() => null);
+      await until("out of full screen", async () => JSON.parse(await win("fullScreen")).fullScreen === false || null, 6000).catch(() => null);
+      await closeTab(call.tab);
+    }
+  });
+
+  await check("call-app-switch-little-ardia", async () => {
+    const before = new Set(await evalApp(`return Object.keys(ac.store.getState().windows)`));
+    await evalApp(`ac.runCommand({ command: "newLittleArdia" }); return true`);
+    const small = await until("a Little Ardia window", () => evalApp(`return Object.values(ac.store.getState().windows).find((w) => w.kind === "small" && !${JSON.stringify([...before])}.includes(w.id))?.id ?? null`), 15000);
+    let tab = null;
+    try {
+      tab = await until("its tab", () => evalApp(`return ac.store.getState().windows[${JSON.stringify(small)}]?.tabIds[0] ?? null`), 10000);
+      const url = `${origin()}/conf`;
+      await evalApp(`ac.store.getState().navigate(${JSON.stringify(tab)}, ${JSON.stringify(url)}, { userInitiated: true }); return true`);
+      const t = await pageTarget(url);
+      await until("the call page in Little Ardia", async () => (await js(t, "typeof join")) === "function", 10000);
+      const placed = await evalApp(`return ac.store.getState().tabs[${JSON.stringify(tab)}]?.windowId ?? null`);
+      if (placed !== small) throw new Error(`the call is in ${placed}, not Little Ardia ${small}`);
+      await js(t, "join(); true");
+      const request = await until("the camera prompt", () => prompt(tab), 10000);
+      await answer(tab, request.id, "accept");
+      await until("the camera live", async () => (await js(t, "state()")).camera === "live", 10000);
+      await sleep(500);
+      const n = await engine("tabs.devWindowNumber", { tabId: tab });
+      const win = (action) => engine("windows.dev", { window: n, action });
+      return { window: small, ...(await appSwitchPopsOutOnlyIfHidden({ tab, t, url }, win)) };
+    } finally {
+      if (tab) await closeTab(tab);
+      await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(small)}); return true`).catch(() => null);
+      for (const id of await evalApp(`return Object.keys(ac.store.getState().windows)`))
+        if (!before.has(id) && id !== small) await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(id)}); return true`).catch(() => null);
+    }
+  });
+
   await check("internal-page-and-space", async () => {
     const call = await joinedCall();
     const steps = {};
