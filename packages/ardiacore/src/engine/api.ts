@@ -10,7 +10,8 @@ import type { HistoryChangedBatch, HistoryWireRow } from "../history";
 import type { FaviconImage } from "../favicons";
 import type { Download, DownloadSettings } from "../downloads";
 import type {
-  BatterySaverMode, BatterySaverState, CliControlStatus, CliTabTarget, EngineComponent, EngineInfo, EngineTask, HoverLostEpisode, MemorySaverRequest, MemorySaverState, SystemState,
+  BatterySaverMode, BatterySaverState, CliControlStatus, CliTabTarget, EngineComponent, EngineInfo, EngineTask, HoverLostEpisode, MemorySaverRequest, MemorySaverState, SecureDnsMode, SecureDnsProbe,
+  SecureDnsState, SystemState,
 } from "../engineDomain";
 import type { ExternalAppAllowance, PermissionRequest, PermissionResult } from "../permissions";
 import type { BrowsingDataType } from "../profiles";
@@ -36,6 +37,8 @@ export type EngineCalls = {
   "engine.batterySaver": [{ mode: BatterySaverMode }, BatterySaverState];
   "engine.memorySaver": [MemorySaverRequest, MemorySaverState];
   "engine.validateKeepActiveSite": [{ site: string }, { valid: boolean }];
+  "engine.secureDns": [{ mode?: SecureDnsMode; templates?: string }, SecureDnsState];
+  "engine.probeSecureDns": [{ templates: string }, SecureDnsProbe];
   "engine.trimMemory": [{}, { ok: boolean }];
   "engine.openTaskManager": [{}, { ok: boolean }];
   "engine.cliControlStatus": [{}, CliControlStatus];
@@ -198,6 +201,7 @@ export type EngineCalls = {
 export type EngineEvents = {
   "engine.systemState": SystemState;
   "engine.cliControl": CliControlStatus;
+  "engine.secureDns": Record<string, never>;
   "engine.hoverLost": HoverLostEpisode;
   "tabs.strips": TabStripTransaction;
   "downloads.changed": Download;

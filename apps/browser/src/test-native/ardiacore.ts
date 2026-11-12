@@ -18,6 +18,7 @@ import type {
 } from "@ardia/ardiacore";
 import type { EventSubscription } from "expo-modules-core";
 import { nativeEvents, unfaked } from "./events";
+import { secureDnsEngine } from "./secureDns";
 
 
 type TabStripHost = {
@@ -311,6 +312,8 @@ const fakeModules = {
       isTracing: () => false,
       systemState: () => ({ onBattery: false, batteryLevel: null, lowPowerMode: false, memoryPressure: "normal", physicalMemory: 16 * 2 ** 30 }),
       batterySaver: ({ mode }) => ({ state: 0, active: mode === "on" }),
+      secureDns: ({ profile: _, ...args }) => secureDnsEngine.call(args),
+      probeSecureDns: ({ templates }) => secureDnsEngine.probe(templates),
       trimMemory: () => ({ ok: true }),
       openTaskManager: () => ({ ok: true }),
       cliControlStatus: () => cliControl(null),

@@ -38,12 +38,13 @@ bool gForwarding = false;
 NSMutableArray<NSArray *> *gPendingForwards;
 
 NSSet<NSString *> *ForwardedTopics() {
-  static NSSet *topics = [NSSet setWithArray:@[ @"history.changed", @"bookmarks.changed", @"extensions.action", @"extensions.sync", @"cliControl" ]];
+  static NSSet *topics = [NSSet setWithArray:@[ @"history.changed", @"bookmarks.changed", @"extensions.action", @"extensions.sync", @"cliControl", @"secureDns" ]];
   return topics;
 }
 
 NSString *AppEventOfTopic(NSString *topic) {
-  return [topic isEqualToString:@"cliControl"] ? @"engine.cliControl" : topic;
+  if ([topic isEqualToString:@"cliControl"] || [topic isEqualToString:@"secureDns"]) return [@"engine." stringByAppendingString:topic];
+  return topic;
 }
 
 void *Symbol(const char *name) {

@@ -1,5 +1,7 @@
 import { SETTING_SPECS, type Settings, type SettingSpec } from "../settings/settings";
 import { commandBarStartFlags } from "../omnibox/commandBarStart";
+import { secureDnsChoice } from "../settings/secureDnsChoice";
+import { getSecureDns, type SecureDnsState } from "../../platform/secureDns";
 
 export const SETTINGS_SNAPSHOT_EVENT = "settings_snapshot";
 
@@ -30,6 +32,28 @@ export function settingsSnapshot(settings: Settings): Record<string, string> {
   }
   return { ...out, ...commandBarStartFlags(settings.commandBarStart), unread_hidden_sites: String(Array.isArray(settings.unreadHiddenSites) ? settings.unreadHiddenSites.length : 0) };
 }
+
+const DNS_PROVIDERS = new Set([
+  "CleanBrowsingAdult", "CleanBrowsingFamily", "CleanBrowsingSecure", "Cloudflare", "CloudflareFamily", "CloudflareSecurity", "Comcast", "Cox", "Cznic",
+  "Dnssb", "Google", "GoogleDns64", "Iij", "NextDns", "OpenDNS", "OpenDNSFamily", "Quad9Cdn", "Quad9Insecure", "Quad9Secure", "Quickline", "Spectrum1", "Spectrum2",
+]);
+const DNS_MODES = new Set(["off", "automatic", "secure"]);
+const dnsMode = (mode: string) => (DNS_MODES.has(mode) ? mode : "off");
+
+export function secureDnsSetting(state: SecureDnsState | null): Record<string, string> {
+  if (!state) return {};
+  const choice = secureDnsChoice(state);
+  const provider = choice.kind === "provider" ? (DNS_PROVIDERS.has(choice.provider.id) ? choice.provider.id : "builtIn") : choice.kind;
+  return {
+    setting_secure_dns_mode: dnsMode(state.prefMode),
+    default_secure_dns_mode: "automatic",
+    setting_secure_dns_provider: provider,
+    secure_dns_effective_mode: dnsMode(state.effectiveMode),
+    secure_dns_override: state.policy ? "policy" : state.override,
+  };
+}
+
+export const secureDnsSnapshot = () => getSecureDns().then(secureDnsSetting, () => secureDnsSetting(null));
 
 export const appIconSetting = (icon: string | null): Record<string, string> =>
   icon && /^[a-z]{1,16}$/.test(icon) ? { setting_app_icon: icon, default_app_icon: "default" } : {};

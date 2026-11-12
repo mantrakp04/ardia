@@ -18,6 +18,20 @@ export const privacyRows = {
       },
     },
     {
+      section: "Secure DNS",
+      rows: {
+        secureDns: {
+          title: "Use secure DNS",
+          description: "Looks up the addresses of sites over an encrypted connection, for every profile and private window.",
+          keywords: ["dns", "doh", "dns over https", "encrypted dns", "resolver", "privacy"],
+        },
+        secureDnsProvider: {
+          title: "Secure DNS provider",
+          keywords: ["dns", "doh", "cloudflare", "quad9", "nextdns", "google dns", "1.1.1.1", "8.8.8.8", "custom dns", "resolver"],
+        },
+      },
+    },
+    {
       section: "Site permissions",
       rows: {
         sitePermissions: {

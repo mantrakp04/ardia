@@ -29,6 +29,7 @@ import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/s
 import { updateSettings } from "../../../state/settings/actions";
 import { blockerAvailable, categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
 import { noteContentBlockerUnavailable, noteContentBlockerWriteFailure } from "../../../state/telemetry/usage";
+import { SecureDnsSection } from "./SecureDns";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 import { UI_LOCALE } from "../../../lib/uiLocale";
 
@@ -132,6 +133,7 @@ export function PrivacyPane() {
         </>
       )}
 
+      <SecureDnsSection />
       <SitePermissions />
       <AppLinks />
       <SectionHeader anchor="privacy.commandScrollZoom" description={null} />
