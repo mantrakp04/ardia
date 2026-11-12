@@ -7,6 +7,7 @@ import { ContextMenuArea, radius, space, Symbol, Text, useHover } from "../ui";
 import { openProfileItemMenu } from "./profileMenu";
 import { openProfileMenu } from "../../state/browser/actions";
 
+import { iconSymbol } from "../../lib/customIcon";
 import { profileMark } from "../../lib/profileInitial";
 import { SwitcherMark } from "./ProfileIcons";
 import { profileIndicatorLayout } from "./profileIndicatorLayout";
@@ -64,13 +65,17 @@ export function ProfileIndicator({ room, expanded = false, sidebarRow = false }:
                 backgroundColor: incognito ? undefined : pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
               }}
             >
-              {sidebarRow ? <View style={{ width: 16, height: 20, alignItems: "center", justifyContent: "center" }}><SwitcherMark icon={mark} color={color} scale={0.875} /></View> : null}
+              {sidebarRow ? iconSymbol(mark) ? (
+                <View style={{ width: 16, alignItems: "center", justifyContent: "center" }}><SwitcherMark icon={mark} color={color} scale={0.875} /></View>
+              ) : (
+                <Text numberOfLines={1} weight="semibold" style={{ width: 16, textAlign: "center", color }}>{mark}</Text>
+              ) : null}
               {textWidth ? (
                 <Text numberOfLines={1} ellipsizeMode="tail" weight="semibold" style={{ flexShrink: 1, flexGrow: sidebarRow ? 1 : 0, color }}>
                   {title}
                 </Text>
               ) : null}
-              {sidebarRow && !incognito ? <Symbol name="chevron.down" size={10} color={theme.textSecondary} /> : null}
+              {sidebarRow && !incognito ? <Symbol name="chevron.down" size={10} color={theme.textSecondary} style={{ transform: [{ translateY: -1 }] }} /> : null}
             </View>
           )}
         </Pressable>
