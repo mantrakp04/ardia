@@ -3,7 +3,7 @@ import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { isAlive, launch, reporter, session, sleep } from "../../../scripts/lib/instance.mjs";
+import { devtools, isAlive, launch, reporter, session, sleep } from "../../../scripts/lib/instance.mjs";
 
 const [appArg, port] = process.argv.slice(2);
 const appPath = appArg && resolve(appArg);
@@ -17,9 +17,13 @@ const data = join(scratch, "data");
 const rep = reporter(join(scratch, "shortcuts-test.log"), { name: "shortcuts-test" });
 
 const server = createServer((req, res) => {
+  if (req.url === "/shortcuts.js") {
+    res.writeHead(200, { "content-type": "text/javascript" });
+    return res.end("function shortcutFixture() {\n  return 42;\n}\n");
+  }
   const name = new URL(req.url, "http://x").search.slice(1) || "page";
   res.writeHead(200, { "content-type": "text/html" });
-  res.end(`<!doctype html><title>${name}</title><body style="font:20px system-ui"><h1>${name}</h1><input id=f value="hello field" style="position:fixed;left:20px;top:120px;width:300px;height:30px">${name === "wk" ? `<input id=g style="position:fixed;left:20px;top:170px;width:300px;height:30px">` : ""}`);
+  res.end(`<!doctype html><title>${name}</title><body style="font:20px system-ui"><h1>${name}</h1><input id=f value="hello field" style="position:fixed;left:20px;top:120px;width:300px;height:30px">${name === "wk" ? `<input id=g style="position:fixed;left:20px;top:170px;width:300px;height:30px">` : ""}<script src="/shortcuts.js"></script>`);
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const pages = `http://127.0.0.1:${server.address().port}`;
@@ -231,6 +235,27 @@ async function showPage(name) {
     await sleep(250);
   }
 }
+async function devToolsPanel(panel) {
+  const target = (await app.targets()).find((t) => t.url.startsWith("devtools://"));
+  if (!target) throw new Error("no DevTools target");
+  const tools = await devtools(target);
+  try {
+    await tools.eval(`(async () => {
+      const UI = await import("./ui/legacy/legacy.js");
+      await UI.ViewManager.ViewManager.instance().showView(${JSON.stringify(panel)});
+      if (${JSON.stringify(panel)} === "sources") {
+        const Common = await import("./core/common/common.js");
+        const Workspace = await import("./models/workspace/workspace.js");
+        const source = Workspace.Workspace.WorkspaceImpl.instance().uiSourceCodeForURL(${JSON.stringify(`${pages}/shortcuts.js`)});
+        if (!source) throw new Error("shortcut fixture is missing from Sources");
+        await Common.Revealer.reveal(source.uiLocation(1, 0));
+      }
+      return true;
+    })()`);
+  } finally {
+    tools.close();
+  }
+}
 const focuses = {
   sidebar: { press: { focus: "window" } },
   page: { press: { focus: "page", asKey: true, wait: 800 }, before: () => cdp("?t3", "document.activeElement.blur(), true") },
@@ -245,6 +270,8 @@ const focuses = {
   },
   devTools: {
     press: { focus: "devtools", asKey: true, wait: 800 },
+    before: (name) => name === "⌥⌘B" ? devToolsPanel("sources") : undefined,
+    after: (name) => name === "⌥⌘B" ? devToolsPanel("elements") : undefined,
     setup: async () => {
       await ac(`ac.runCommand({ command: "devTools", arg: null, windowId: "w1" });`);
       await sleep(3000);
@@ -271,6 +298,7 @@ function recordFocus(focusName) {
 const results = new Map(shortcuts.map(([name]) => [name, {}]));
 let failures = 0;
 await showPage("t3");
+if (!(await menuLive())) throw new Error("the window's menu isn't ready for shortcut checks");
 const onlyFocuses = process.env.SHORTCUTS_FOCUSES?.split(",").filter(Boolean);
 for (const [focusName, focus] of Object.entries(focuses)) {
   if (onlyFocuses && !onlyFocuses.includes(focusName)) continue;
@@ -281,8 +309,9 @@ for (const [focusName, focus] of Object.entries(focuses)) {
       (only === "not-field" && (focusName === "field" || focusName === "commandBar" || focusName === "devTools")) ||
       (only === "page-field" && (focusName === "field" || focusName === "devTools")) ||
       ((only === "devtools-own" || devToolsOwn.has(name)) && focusName === "devTools");
-    await focus.before?.();
+    await focus.before?.(name);
     const r = await press(key, { ...focus.press, dry: true });
+    await focus.after?.(name);
     const result = verdict(r, inField ? null : expect);
     if (result === "FAIL") failures++;
     results.get(name)[focusName] = { result, detail: describe(r), responder: r.firstResponder };
@@ -309,7 +338,7 @@ const real = async (label, key, focus, expectUrl) => {
 };
 const sidebar = { focus: "window" };
 const page = { focus: "page", asKey: true, wait: 800, settle: 500 };
-const menuLive = async () => {
+async function menuLive() {
   await ac(`ac.store.getState().setFocusedWindow("w1"); return 1;`);
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
@@ -318,7 +347,7 @@ const menuLive = async () => {
     await sleep(100);
   }
   return false;
-};
+}
 check("the window's menu is live before the real presses", await menuLive(), "Select Tab 1 stayed disabled: the menu state has no focused window");
 await real("⌘1 in the sidebar", cmd("1", 18), sidebar, "pin1");
 await real("⌘2 in the sidebar", cmd("2", 19), sidebar, "pin2");
@@ -405,6 +434,17 @@ const clipboard = {
 };
 const busyJsOnce = (ms) => ac(`const off = ac.store.subscribe(() => { off(); const t = Date.now(); while (Date.now() - t < ${ms}); }); return 1;`);
 const fieldInAx = async (text) => (await devWindow("ax")).split("\n").some((l) => /AXTextField|AXTextArea/.test(l) && l.includes(text));
+const barFieldText = async () => {
+  let pageDepth = -1;
+  for (const line of (await devWindow("ax")).split("\n")) {
+    const text = line.trimStart(), depth = line.length - text.length;
+    if (depth <= pageDepth) pageDepth = -1;
+    if (pageDepth >= 0) continue;
+    if (/^AXWebArea\b/.test(text)) pageDepth = depth;
+    else if (/^AXTextField\b/.test(text)) return text.replace(/^AXTextField:? ?/, "");
+  }
+  return "";
+};
 const pageField = (expr) => cdp("?t3", `(f => ${expr})(document.getElementById('f'))`);
 await devWindow("fakeActiveClicks");
 const resetToPageField = async (value, selection) => {
@@ -416,6 +456,20 @@ const resetToPageField = async (value, selection) => {
   await pageField(`(f.value = ${JSON.stringify(value)}, f.focus(), f.setSelectionRange(${selection[0]}, ${selection[1]}), true)`);
   await sleep(100);
 };
+await resetToPageField("", [0, 0]);
+await ac(`ac.store.getState().setSelection("w1", ["t1", "t2", "t3"]); return 1;`);
+await cdp("?t3", `document.activeElement.blur(); const r = document.createRange(); r.selectNodeContents(document.querySelector("h1"));
+  getSelection().removeAllRanges(); getSelection().addRange(r); true;`);
+await clipboard.set("selected-tabs-sentinel");
+await press(cmd("c", 8), { ...page, send: true });
+check("⌘C copies selected page text with several tabs selected", (await clipboard.get()) === "t3", "page Copy was intercepted");
+const selectedUrls = ["t1", "t2", "t3"].map((id) => `${pages}/?${id}`).join("\n");
+for (const [label, key] of [["⌘C", cmd("c", 8)], ["⇧⌘C", cmd("C", 8, "shift")]]) {
+  await clipboard.set("selected-tabs-sentinel");
+  await press(key, { ...sidebar, asKey: true, send: true, wait: 400 });
+  check(`${label} copies every selected sidebar URL`, (await clipboard.get()) === selectedUrls, "selected URLs were not copied");
+}
+await ac(`ac.store.getState().setSelection("w1", []); return 1;`);
 const sidebarOpen = () => ac(`return !ac.store.getState().settings.autoHideTabs;`);
 for (const [label, presses, toggles] of [
   ["one ⌘S in a page's text field stays with the page", [keyPress("s", 1)], 0],
@@ -483,7 +537,7 @@ for (const busy of [0, 120]) {
     const typed = [["q", 12], ["w", 13], ["e", 14], ["r", 15]].map(([k, code], i) => keyPress(k, code, i ? 15 : gap, []));
     await postKeys([keyPress("l", 37), ...typed]);
     await sleep(1200);
-    const bar = (await devWindow("ax")).split("\n").find((l) => /AXTextField/.test(l))?.trim().replace(/^AXTextField:? ?/, "") ?? "";
+    const bar = await barFieldText();
     const inPage = await pageField("f.value");
     const beforeGate = gap === 0 && bar === "wer" && inPage === "q";
     check(`⌘L then typing at +${gap} ms${busy ? `, JS busy ${busy} ms` : ""}: the letters land in the bar, in order`, (bar === "qwer" && inPage === "") || beforeGate,
@@ -495,7 +549,7 @@ for (const busy of [0, 120]) {
   await clipboard.set("ordered");
   await postKeys([keyPress("l", 37), keyPress("v", 9), keyPress("q", 12, 0, [])]);
   await sleep(1200);
-  const bar = (await devWindow("ax")).split("\n").find((l) => /AXTextField/.test(l))?.trim().replace(/^AXTextField:? ?/, "") ?? "";
+  const bar = await barFieldText();
   const inPage = await pageField("f.value");
   check("⌘L ⌘V q back to back: the paste lands in the bar and keeps its place before q", (bar === "orderedq" && inPage === "") || (bar === "ordered" && inPage === "q"),
     `bar "${bar}", page "${inPage}"`);

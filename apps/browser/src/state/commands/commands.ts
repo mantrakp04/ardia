@@ -49,6 +49,7 @@ import { copyPageUrl, jumpToSelection } from "../site/selection";
 import { shareTab } from "../site/share";
 import { groupOf } from "../pins/tabGrouping";
 import { selectedTabIds } from "../pins/organize";
+import { copySelectedUrls } from "../sidebar/actions";
 import { noteSelectionClosedByKey } from "../telemetry/usage";
 import { isSmall, mainWindowFor, newWindowProfile, originalProfile } from "../windows/small";
 import {
@@ -201,9 +202,12 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "share":
       return void shareTab(page, windowId, arg?.startsWith("via:") ? arg.slice(4) : null);
     case "copyUrl":
-      return page ? void copyPageUrl(page.id) : undefined;
-    case "copyUrlAsMarkdown":
-      return page ? copyText(markdownLink(page.customTitle || page.title, page.url)) : undefined;
+    case "copyUrlAsMarkdown": {
+      const markdown = command === "copyUrlAsMarkdown";
+      if (!targeted && !peekTabId(s, windowId) && copySelectedUrls(windowId, markdown, arg === "selectedTabs")) return;
+      if (arg === "selectedTabs" || !page) return;
+      return markdown ? copyText(markdownLink(page.customTitle || page.title, page.url)) : void copyPageUrl(page.id);
+    }
     case "findInPage":
       if (page) expectFocus(windowId, findFocus(page.id));
       return page ? openFind(page.id, { replace: false }) : undefined;
