@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CAP_LOG = process.env.AC_CPU_CAP_LOG ?? "/private/tmp/claude-501/-Users-barreloflube-Documents-ardia/a6e87140-35e6-4a65-85e0-018a5c019c75/scratchpad/cpu-cap.log";
+const CAP_LOG = process.env.AC_CPU_CAP_LOG;
 const capRunning = () => spawnSync("pgrep", ["-f", "scripts/agent/cpu-cap"]).status === 0;
 const capSize = () => {
   try {
@@ -136,7 +136,7 @@ function interactions(c) {
   const store = (code) => run(`globalThis.acPerf?.reset(); const t = ac.now(); ${code}; return t;`);
   let k = 0;
   const want = async (open) => {
-    if ((await run(`return ${"ac.store.getState().windows[" + W + "].sidebarOpen"};`)) !== open) {
+    if ((await run(`return !ac.store.getState().settings.autoHideTabs;`)) !== open) {
       await run(`ac.store.getState().toggleSidebar(${W}); return 1;`);
       await sleep(2500);
     }
@@ -158,10 +158,10 @@ function interactions(c) {
     { name: "tab switch", window: 500, verify: `const s = ac.store.getState(); return s.windows[${W}].activeTabIds[s.windows[${W}].profileId] === globalThis.__frameTarget;`, before: reset, go: () => run(`globalThis.acPerf?.reset(); const t = ac.now(); const s = ac.store.getState(); const w = ${W};
         const ids = s.windows[w].tabIds.filter((id) => !s.tabs[id].pin); const id = ids[(${k++} * 7 + 3) % ids.length];
         globalThis.__frameTarget = id; ac.actions.switchToTab(id); return t;`) },
-    { name: "sidebar collapse", window: 800, verify: `return !${win}.sidebarOpen;`, before: async () => { await reset(); await want(true); }, go: () => store(`ac.store.getState().toggleSidebar(${W})`) },
-    { name: "sidebar expand", window: 800, verify: `return ${win}.sidebarOpen;`, before: async () => { await reset(); await want(false); }, go: () => store(`ac.store.getState().toggleSidebar(${W})`), after: () => sleep(300) },
-    { name: "sidebar collapse (address bar in the sidebar)", window: 800, verify: `return !${win}.sidebarOpen;`, before: async () => { await reset(); await arcLayout(true); await want(true); }, go: () => store(`ac.store.getState().toggleSidebar(${W})`) },
-    { name: "sidebar expand (address bar in the sidebar)", window: 800, verify: `return ${win}.sidebarOpen;`, before: async () => { await reset(); await arcLayout(true); await want(false); }, go: () => store(`ac.store.getState().toggleSidebar(${W})`), after: async () => { await sleep(300); await arcLayout(false); } },
+    { name: "sidebar collapse", window: 800, verify: `return ac.store.getState().settings.autoHideTabs;`, before: async () => { await reset(); await want(true); }, go: () => store(`ac.store.getState().toggleSidebar(${W})`) },
+    { name: "sidebar expand", window: 800, verify: `return !ac.store.getState().settings.autoHideTabs;`, before: async () => { await reset(); await want(false); }, go: () => store(`ac.store.getState().toggleSidebar(${W})`), after: () => sleep(300) },
+    { name: "sidebar collapse (address bar in the sidebar)", window: 800, verify: `return ac.store.getState().settings.autoHideTabs;`, before: async () => { await reset(); await arcLayout(true); await want(true); }, go: () => store(`ac.store.getState().toggleSidebar(${W})`) },
+    { name: "sidebar expand (address bar in the sidebar)", window: 800, verify: `return !ac.store.getState().settings.autoHideTabs;`, before: async () => { await reset(); await arcLayout(true); await want(false); }, go: () => store(`ac.store.getState().toggleSidebar(${W})`), after: async () => { await sleep(300); await arcLayout(false); } },
     { name: "profile swipe (next profile)", window: 1200, verify: `return ${win}.profileId !== globalThis.__frameProfile;`, before: async () => { await reset(); await run(`globalThis.__frameProfile = ${win}.profileId; return 1;`); }, go: () => store(`ac.runCommand({ command: "nextProfile", arg: null, windowId: ${W} })`), after: () => sleep(600) },
     { name: "profile swipe (previous profile)", window: 1200, verify: `return ${win}.profileId !== globalThis.__frameProfile;`, before: () => run(`globalThis.__frameProfile = ${win}.profileId; return 1;`), go: () => store(`ac.runCommand({ command: "previousProfile", arg: null, windowId: ${W} })`), after: () => sleep(600) },
     { name: "sidebar scroll (200 tabs, flick down and back)", window: 2300, before: reset,

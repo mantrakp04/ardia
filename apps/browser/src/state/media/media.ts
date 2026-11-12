@@ -9,6 +9,7 @@ import type { BrowserState } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { peekTabId } from "../peek/peek";
 import { splitOf, splitTabIdsOf } from "../splits/splits";
+import { capture } from "../telemetry/client";
 import { isSleeping } from "../tabs/sleepingTabs";
 
 export type Session = NowPlaying & {
@@ -36,7 +37,8 @@ const PER_TAB = Object.keys(noMedia()) as (keyof Store)[];
 
 export const useMedia = create<Store>()(noMedia);
 
-export function setPictureInPictureState(tabId: string, { kind, active }: PictureInPictureState) {
+export function setPictureInPictureState(tabId: string, { kind, active, fullScreenSpaces, leftApp }: PictureInPictureState) {
+  if (active && fullScreenSpaces !== undefined) capture("pip_shown", { kind, full_screen_spaces: fullScreenSpaces, left_app: !!leftApp });
   useMedia.setState((s) => {
     if (active ? s.pipOpen[tabId] === kind : !s.pipOpen[tabId]) return s;
     const pipOpen = { ...s.pipOpen };
@@ -51,7 +53,6 @@ export function setPictureInPictureState(tabId: string, { kind, active }: Pictur
 export function setNowPlaying(tabId: string, state: NowPlaying | null) {
   useMedia.setState((s) => {
     const sessions = { ...s.sessions };
-    const dismissed = { ...s.dismissed };
     if (!state) {
       if (!sessions[tabId]) return s;
       delete sessions[tabId];
@@ -60,7 +61,8 @@ export function setNowPlaying(tabId: string, state: NowPlaying | null) {
     const before = sessions[tabId];
     const started = isControllablyPlaying(state) && !(before && isControllablyPlaying(before));
     sessions[tabId] = { ...state, playedAt: started ? Date.now() : (before?.playedAt ?? 0) };
-    if (started) delete dismissed[tabId];
+    if (!started || !s.dismissed[tabId]) return { sessions };
+    const { [tabId]: _, ...dismissed } = s.dismissed;
     return { sessions, dismissed };
   });
 }

@@ -7,6 +7,7 @@
 #include <string_view>
 #include <vector>
 
+#include "ardia/core/ac_content_hooks.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/values.h"
@@ -47,7 +48,7 @@ content::DevToolsAgentHost* TokenClient::HostOf(const std::string& session) {
   auto it = targets_.find(session);
   return it == targets_.end()
              ? nullptr
-             : content::DevToolsAgentHost::GetForId(it->second).get();
+             : content::ArdiaDevToolsAgentHostForId(it->second);
 }
 
 int TokenClient::CurrentProcess(const std::string& session) {

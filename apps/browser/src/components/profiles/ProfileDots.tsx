@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { switchProfile } from "../../state/browser/actions";
+import { noteSwitcherPress } from "../../state/telemetry/switcherPresses";
 import { layout, useTheme } from "../ui/theme";
 import { useIsIncognito, useProfile, useSettings } from "../../state/browser/hooks";
 import { useProfileOrder, useProfileRecords } from "../../state/profiles/hooks";
@@ -16,7 +17,7 @@ import { profileSwitcher } from "./tokens";
 export const PROFILE_DOTS_HEIGHT = profileSwitcher.height;
 const { band: BAND, dotTooltipLift } = profileSwitcher;
 const SIDE_ROOM = layout.sidebarInset;
-const SIDE_ROOM_BESIDE_DOWNLOADS = layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size + 4;
+const SIDE_ROOM_BESIDE_DOWNLOADS = SIDEBAR_FOOTER_DOWNLOADS.left + SIDEBAR_FOOTER_DOWNLOADS.size + 4;
 
 export function useProfileDotsShown() {
   const incognito = useIsIncognito();
@@ -64,6 +65,7 @@ function Dot({ id, windowId, icon, page, pos }: { id: string; windowId: string; 
           accessibilityLabel={name}
           onPress={() => {
             setPressed(true);
+            noteSwitcherPress(windowId, id, !!icon);
             switchProfile(windowId, id, true);
           }}
         >

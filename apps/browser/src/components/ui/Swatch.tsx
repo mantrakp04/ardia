@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, View } from "react-native";
 import { curve, duration } from "./motion";
-import { capsule, swatch } from "./tokens";
+import { capsule, ink, swatch } from "./tokens";
 import { useHover } from "./useHover";
 
 const RING = { padding: swatch.inset, borderWidth: swatch.ring } as const;
@@ -30,7 +30,7 @@ export function Swatch({
       </LivelySwatch>
     );
   return (
-    <View style={[RING, { width: size, height: size, borderRadius: capsule(size), borderColor: selected ? ring : "transparent" }]}>
+    <View style={[RING, { width: size, height: size, borderRadius: capsule(size), borderColor: selected ? ring : ink.clear }]}>
       <View style={[DISC, { borderRadius: capsule(size) - swatch.inset, backgroundColor: fill }]}>{children}</View>
     </View>
   );

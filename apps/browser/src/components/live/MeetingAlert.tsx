@@ -3,7 +3,8 @@ import { Animated, Text as Span, View } from "react-native";
 import { dismiss, joinEvent, useMeetingAlert } from "../../state/live/alerts";
 import { useCalendar, useNow } from "../../state/live/calendar";
 import { attendeesLabel, guestsLabel, joinLink, joinTitle, relatedLinks, relativeTime, timeRange, type CalendarEvent } from "../../state/live/meetings";
-import { useWindow } from "../../state/browser/hooks";
+import { useSidebarSide, useTabsShown } from "../../state/browser/hooks";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { useCalendarTabIn } from "../../state/live/hooks";
 import { activate } from "../../state/tabs/actions";
 import { useIsFocusedWindow } from "../../state/windows/hooks";
@@ -28,8 +29,10 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
   const colors = useLiveColors();
   const now = useNow(15_000);
   const calendarTab = useCalendarTabIn(windowId);
-  const sidebarShown = useWindow(windowId, (w) => !!w?.sidebarOpen);
+  const sidebarShown = useTabsShown(windowId);
   const calendarName = useCalendar((s) => s.calendars.find((c) => c.id === event.calendarId)?.title);
+  const right = useSidebarSide(windowId) === "right";
+  const sidebarWidth = useSidebarWidth(windowId);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
 
@@ -50,7 +53,9 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
   const running = event.start <= now;
   const people = event.attendees.filter((a) => !a.me);
   const who = attendeesLabel(event);
-  const position = anchor ? { left: anchor.x + anchor.width + EDGE, top: Math.max(EDGE, anchor.y - 4) } : { left: Math.max(EDGE, windowWidth - WIDTH - 14), top: 52 };
+  const position = anchor
+    ? { left: right ? anchor.x - EDGE - WIDTH : anchor.x + anchor.width + EDGE, top: Math.max(EDGE, anchor.y - 4) }
+    : { left: Math.max(EDGE, windowWidth - (right && sidebarShown ? sidebarWidth : 0) - WIDTH - 14), top: 52 };
 
   return (
     <Animated.View

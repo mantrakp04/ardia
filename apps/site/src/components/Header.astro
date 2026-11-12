@@ -16,9 +16,10 @@ interface Props {
   current?: Page;
 }
 const { home = "", current } = Astro.props;
-const pages: { page: Page; href: string; section?: string; label: string; menuLabel: string }[] = [
+const pages: { page?: Page; href: string; section?: string; label: string; menuLabel: string }[] = [
   { page: "home", href: pagePath("home"), section: "top", label: "Home", menuLabel: "Home" },
   { page: "try", href: pagePath("try"), section: "demo", label: "Demo", menuLabel: "Demo" },
+  { href: `${pagePath("home")}#cli`, section: "cli", label: "CLI", menuLabel: "CLI" },
   { page: "benchmarks", href: pagePath("benchmarks"), section: "speed", label: "Benchmarks", menuLabel: "Benchmarks" },
   { page: "notes", href: pagePath("notes"), label: "Notes", menuLabel: "Release notes" },
 ];
@@ -40,7 +41,7 @@ const pages: { page: Page; href: string; section?: string; label: string; menuLa
     <nav class="links" aria-label="Sections">
       {
         pages.map((p) => (
-          <a href={p.href} data-section={p.section} aria-current={p.page === current ? "page" : undefined}>
+          <a href={p.href} data-section={p.section} aria-current={p.page && p.page === current ? "page" : undefined}>
             {p.label}
           </a>
         ))
@@ -67,7 +68,7 @@ const pages: { page: Page; href: string; section?: string; label: string; menuLa
     <div class="wrap">
       {
         pages.map((p) => (
-          <a href={p.href} data-section={p.section} aria-current={p.page === current ? "page" : undefined}>
+          <a href={p.href} data-section={p.section} aria-current={p.page && p.page === current ? "page" : undefined}>
             {p.menuLabel}
           </a>
         ))
@@ -193,6 +194,7 @@ const pages: { page: Page; href: string; section?: string; label: string; menuLa
     text-transform: uppercase;
     text-decoration: none;
     color: var(--ink-2);
+    white-space: nowrap;
     transition: color 150ms;
   }
   .links a:hover,
@@ -246,6 +248,11 @@ const pages: { page: Page; href: string; section?: string; label: string; menuLa
   .menu-btn,
   .menu {
     display: none;
+  }
+  @media (max-width: 1040px) {
+    .links {
+      gap: 16px;
+    }
   }
   @media (max-width: 820px) {
     .bar-inner {

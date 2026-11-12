@@ -1,8 +1,7 @@
 import { ContextMenuArea, Symbol, type SymbolProps } from "@ardia/shell";
-import { memo, useEffect, useRef, type ReactNode } from "react";
-import { Animated, Image, Pressable, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
+import { memo, type ReactNode } from "react";
+import { Image, Pressable, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import { modifiersOf, type ClickModifiers } from "../../lib/keys";
-import { curve, period } from "./motion";
 import { useToolbarRowContext } from "./toolbarRowContext";
 import { useHover } from "./useHover";
 import { CloseButtonView, PillButtonView, PushButtonView, StepperButtonView } from "./ButtonKinds";
@@ -22,7 +21,6 @@ type IconBase = {
   glyph?: number;
   look?: "field" | "row" | "extension";
   capsule?: boolean;
-  spinning?: boolean;
   image?: string;
   badge?: ReactNode;
   children?: ReactNode;
@@ -113,21 +111,8 @@ function useIconMetrics(props: IconProps) {
   return { box: props.box ?? step.box, glyph: props.glyph ?? step.glyph, radius: props.radius ?? (size === "toolbar" ? radii.toolbar : radii.control) };
 }
 
-function Spinning({ spinning, children }: { spinning: boolean; children: ReactNode }) {
-  const turn = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!spinning) return;
-    turn.setValue(0);
-    const loop = Animated.loop(Animated.timing(turn, { toValue: 1, duration: period.spinner, easing: curve.linear, useNativeDriver: true }));
-    loop.start();
-    return () => loop.stop();
-  }, [spinning]);
-  if (!spinning) return <>{children}</>;
-  return <Animated.View style={{ transform: [{ rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] }) }] }}>{children}</Animated.View>;
-}
-
 function IconButtonView(props: IconProps) {
-  const { icon, disabled, active, glyphBox, weight = "regular", tooltip, palette, color, style, hit, spinning = false, image, badge, children } = props;
+  const { icon, disabled, active, glyphBox, weight = "regular", tooltip, palette, color, style, hit, image, badge, children } = props;
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const metrics = useIconMetrics(props);
@@ -141,9 +126,7 @@ function IconButtonView(props: IconProps) {
       <Image source={{ uri: image }} style={{ width: IMAGE_SIZE, height: IMAGE_SIZE, opacity: disabled ? opacity.disabled : 1 }} />
     </View>
   ) : icon ? (
-    <Spinning spinning={spinning}>
-      <Symbol name={icon} size={metrics.glyph} weight={weight} color={ink} style={{ width: glyphFrame, height: glyphFrame }} />
-    </Spinning>
+    <Symbol name={icon} size={metrics.glyph} weight={weight} color={ink} style={{ width: glyphFrame, height: glyphFrame }} />
   ) : null);
   const plate = (pressed: boolean) => (
     <View

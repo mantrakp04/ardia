@@ -22,12 +22,14 @@ function Switch({
   disabled,
   look,
   animateExternalChanges = true,
+  accessibilityLabel,
 }: {
   value: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
   look: SwitchLook;
   animateExternalChanges?: boolean;
+  accessibilityLabel?: string;
 }) {
   const progress = useRef(new Animated.Value(value ? 1 : 0)).current;
   const target = useRef(value);
@@ -54,6 +56,9 @@ function Switch({
     <Pressable
       disabled={disabled}
       hitSlop={SWITCH_HIT_SLOP}
+      accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ checked: value, disabled: !!disabled }}
       onPress={() => {
         const next = !target.current;
         pressedAt.current = Date.now();
@@ -86,7 +91,19 @@ function Switch({
 const USER_CHANGE_WINDOW_MS = 2000;
 const SWITCH_HIT_SLOP = 6;
 
-export function Toggle({ value, onChange, disabled, look = "form" }: { value: boolean; onChange: (value: boolean) => void; disabled?: boolean; look?: "form" | "panel" }) {
+export function Toggle({
+  value,
+  onChange,
+  disabled,
+  look = "form",
+  accessibilityLabel,
+}: {
+  value: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+  look?: "form" | "panel";
+  accessibilityLabel?: string;
+}) {
   const theme = useTheme();
   if (look === "panel")
     return (
@@ -94,6 +111,7 @@ export function Toggle({ value, onChange, disabled, look = "form" }: { value: bo
         value={value}
         onChange={onChange}
         disabled={disabled}
+        accessibilityLabel={accessibilityLabel}
         look={{ width: 30, height: 17, knob: 14, inset: 1.5, offColor: theme.toggleOff, onColor: theme.accent, duration: duration.base, easing: curve.enter }}
       />
     );
@@ -102,6 +120,7 @@ export function Toggle({ value, onChange, disabled, look = "form" }: { value: bo
       value={value}
       onChange={onChange}
       disabled={disabled}
+      accessibilityLabel={accessibilityLabel}
       animateExternalChanges={false}
       look={{ width: 32, height: 18, knob: 15, inset: 1.5, offColor: theme.switchOff, onColor: theme.formAccent, knobBorder: theme.knobBorder, duration: duration.base, easing: curve.enter }}
     />

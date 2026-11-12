@@ -4,6 +4,7 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { inPinnedContainer, isIncognitoProfile, isPinnedRow, pinnedSectionTitle, pinSection, viewTabIds } from "../browser/model";
 import { groupOf } from "../pins/tabGrouping";
 import { bookmarkTabs, copyUrls, newGroupWithSelection } from "./actions";
+import { bookmarksShown } from "../bookmarks/visibility";
 import { bookmarkFolderItems, groupItems, hintWhen, profileItems, sections, windowItems, withAlternate, type Destination } from "./menuParts";
 
 const store = () => useBrowser.getState();
@@ -44,10 +45,12 @@ export function multiTabMenuItems(s: BrowserState, windowId: string, ids: string
       },
       { id: "moveToWindow", title: "Move to Window", symbol: "macwindow", enabled: !f.incognito, children: windowItems(s, windowId) },
     ],
-    [
-      { id: "bar", title: `Add ${n} Tabs to Bookmarks Bar`, symbol: "bookmark" },
-      { id: "bookmarkTo", title: `Add ${n} Tabs to Bookmarks Folder`, children: bookmarkFolderItems(s, windowId) },
-    ],
+    bookmarksShown(s.settings)
+      ? [
+          { id: "bar", title: `Add ${n} Tabs to Bookmarks Bar`, symbol: "bookmark" },
+          { id: "bookmarkTo", title: `Add ${n} Tabs to Bookmarks Folder`, children: bookmarkFolderItems(s, windowId) },
+        ]
+      : [],
     withAlternate({ id: "copy", title: `Copy ${n} Links`, symbol: "link" }, { id: "copyMd", title: `Copy ${n} Links as Markdown`, symbol: "link" }, null),
     [
       { id: "close", title: `Close ${n} Tabs`, symbol: "xmark" },

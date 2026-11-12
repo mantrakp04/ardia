@@ -9,6 +9,11 @@ export const generalRows = {
       section: "General",
       rows: {
         defaultBrowser: { title: "Default browser", description: `Make ${APP} your default browser.`, keywords: ["default", "set as default", "links"] },
+        redoSetup: {
+          title: `Set up ${APP} again`,
+          description: "Walk through import, look and layout again, starting from your current settings.",
+          keywords: ["onboarding", "setup", "redo", "welcome", "start over", "walkthrough", "first run"],
+        },
         openAtLogin: { title: `Open ${APP} at login`, keywords: ["startup", "launch", "login items", "boot"] },
         warnBeforeQuitting: { advanced: true, title: "Warn before quitting", description: `Asks before ${APP} quits with ⌘Q.`, keywords: ["quit", "confirm", "cmd q"] },
         warnBeforeClosingWindow: {
@@ -17,7 +22,15 @@ export const generalRows = {
           description: "Asks before ⇧⌘W or the close button closes its tabs.",
           keywords: ["close window", "confirm"],
         },
-        openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail"] },
+        openLinksInLittleArdia: {
+          title: "Open links from other apps in Little Ardia",
+          keywords: ["little ardia", "little arc", "arc", "little window", "small window", "mini window", "external links", "links from other apps", "open links", "discord", "slack", "mail", "messages"],
+        },
+        littleArdiaOpensNewTabLinks: {
+          title: "Keep new-tab links inside a Little Ardia window",
+          description: "For links clicked in a Little Ardia window: a link that would open a new tab loads right there instead of in a tab of the main window. ⌘-click still opens it behind. Links in the main window follow Settings › Tabs › Open new-tab links in.",
+          keywords: ["little ardia", "target blank", "new tab", "links"],
+        },
       },
     },
     {
@@ -81,6 +94,17 @@ export const generalRows = {
   profiles: [
     { section: "New windows open with", rows: { defaultProfile: { title: "Default profile", description: "Used for new windows. Links from other apps open in the profile you used last.", keywords: ["new window"] } } },
     {
+      section: "Shared data",
+      rows: {
+        shareTopApps: {
+          title: "Share Top Apps",
+          description:
+            "Profiles that share browsing data can show the same Top Apps, each one a single page you pick up where you left it in any of them. Pick which ones take part. A profile with its own data keeps its own Top Apps, since its logins and cookies are separate.",
+          keywords: ["pinned tabs", "favorites", "essentials", "spaces", "shared"],
+        },
+      },
+    },
+    {
       section: "Profile switcher",
       rows: {
         switcherIcons: {
@@ -106,12 +130,23 @@ export const generalRows = {
     {
       section: "Tab layout",
       rows: {
+        autoHideTabs: {
+          title: "Auto-hide tabs",
+          description: "In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. ⌘S and View › Auto-Hide Tabs flip this same switch.",
+          keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
+        },
+        sidebarSide: {
+          title: "Sidebar position",
+          description: "On the left, as in Dia, or on the right, as in Arc. The window buttons stay at the top left.",
+          keywords: ["right", "left", "side", "position", "flip", "mirror", "sidebar on the right", "right sidebar", "arc"],
+          shown: inSidebar,
+        },
         hideToolbarWhileScrolling: {
           title: "Hide toolbar while scrolling",
-          description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back.",
-          keywords: ["auto hide", "compact"],
+          description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back. Your tabs stay put: hiding them is Auto-hide tabs.",
+          keywords: ["auto hide toolbar", "address bar hides", "collapse", "compact", "scroll"],
         },
-        showSidebarButton: { advanced: true, title: "Show sidebar button", description: "⌘S and View › Auto-Hide Tabs still hide and show the sidebar.", keywords: ["toggle sidebar"], shown: inSidebar },
+        showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: "The button at the toolbar's leading edge. Auto-hide tabs, ⌘S and View › Auto-Hide Tabs still hide and show the tabs.", keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
         showClearButton: {
           advanced: true,
           title: "Show Clear button",
@@ -125,6 +160,11 @@ export const generalRows = {
           description: "As in Arc: up to four tiles across in balanced rows, and a wider sidebar makes them larger. Off, as in Dia, each row fills with as many tiles as fit.",
           keywords: ["pinned tiles", "favorites", "grid", "columns", "rows", "arc"],
           shown: inSidebar,
+        },
+        showUnreadCounts: {
+          title: "Show unread counts on tabs",
+          description: "A notification badge with the unread count or dot a site like Gmail or Slack puts in its title, on its tab, pinned tile and Top App. Off by default. Once on, hide it for one site: right-click its tab and choose Hide Unread Count, or use Site Controls.",
+          keywords: ["unread", "badge", "badges", "bubble", "bubbles", "count", "notification", "notifications", "notis", "dot", "red", "gmail", "inbox", "messages", "arc"],
         },
         fadeUnloadedTabs: {
           advanced: true,
@@ -187,8 +227,13 @@ export const generalRows = {
       rows: {
         peekLinksToOtherSites: {
           title: "Open a Peek window when clicking on links to other sites",
-          description: "This only affects Top Apps and pinned tabs. Links on the same site, ⌘-clicks and links that open a new tab or download work as before.",
-          keywords: ["peek", "preview", "external links", "other sites", "pinned", "pinned tabs", "top apps", "favorites", "glance", "arc", "zen"],
+          description: "Only from Top Apps and pinned tabs, however the page opens the link, through a redirect such as Gmail's included. Links on the same site, ⌘-clicks, downloads and sign-in pop-ups work as before.",
+          keywords: ["peek", "preview", "external links", "other sites", "pinned", "pinned tabs", "top apps", "favorites", "glance", "arc", "zen", "gmail", "target blank"],
+        },
+        newTabLinksOpenIn: {
+          title: "Open new-tab links in",
+          description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.",
+          keywords: ["peek", "new tab", "target blank", "links", "preview", "open links"],
         },
         peekModifier: {
           advanced: true,
@@ -220,6 +265,12 @@ export const generalRows = {
           description: "⌥⇧-click a tab to open it in a group with the current tab. (⌥⇧-clicking a link opens it in a split.)",
           keywords: ["option shift click", "split"],
         },
+        dragToGroupInTopStrip: {
+          shown: (_, env) => env.top,
+          title: "Drag a tab onto another to group them",
+          description: "With tabs across the top, dropping a tab on another makes a group, and dropping it on a group adds it. Off, dragging only reorders.",
+          keywords: ["drag", "drop", "group", "top tab strip", "horizontal tabs", "reorder"],
+        },
         autoGroupMeetingTabs: { advanced: true, title: "Automatically group tabs for meetings", keywords: ["calendar", "zoom", "meet", "call"] },
       },
     },
@@ -234,95 +285,4 @@ export const generalRows = {
       },
     },
   ],
-  appearance: [
-    {
-      section: "Appearance Theme",
-      rows: {
-        theme: { title: "Appearance Theme", description: "Also in View › Appearance. Incognito windows are always dark.", keywords: ["dark mode", "light mode", "automatic", "night", "system"] },
-        spacesFollowAppearance: {
-          advanced: true,
-          title: "Profile themes follow this appearance",
-          description: "Every profile goes light or dark with this choice, even when its theme (like one imported from an Arc space) says Light. In dark mode a light theme's colours are darkened so white text reads.",
-          keywords: ["space", "profile theme", "arc theme", "follow system"],
-        },
-      },
-    },
-    {
-      section: "Interface Style",
-      rows: {
-        interfaceStyle: {
-          title: "Interface style",
-          description: "Glass draws the pinned tiles, fields, buttons, Downloads and the site controls panel in macOS Liquid Glass. Classic keeps them flat, like Dia.",
-          keywords: ["liquid glass", "glass", "classic", "flat", "translucent", "transparency", "glow", "frosted"],
-          shown: (_, env) => !!env.glass,
-        },
-        glassTintWithTheme: {
-          title: "Tint glass with the profile colour",
-          description: "Off, the glass stays neutral grey whatever the profile's colour.",
-          keywords: ["liquid glass", "tint", "colour", "color", "profile colour", "theme"],
-          shown: (s, env) => !!env.glass && s.interfaceStyle === "glass",
-        },
-        glassTintAmount: {
-          title: "Tint amount",
-          description: "How much of the profile colour the glass takes, from a hint to fully coloured.",
-          keywords: ["liquid glass", "tint", "strength", "intensity", "colour", "color", "glossy"],
-          shown: (s, env) => !!env.glass && s.interfaceStyle === "glass" && s.glassTintWithTheme,
-        },
-      },
-    },
-    {
-      section: "Address Bar",
-      rows: {
-        addressBar: { title: "Address Bar", description: "In the toolbar or in the sidebar.", keywords: ["url bar", "location bar", "toolbar"] },
-        commandBarPlacement: {
-          title: "⌘L opens the command bar",
-          description: "In the centre, ⌘L and a click on the address show it over the middle of the page, as in Arc.",
-          keywords: ["cmd l", "command bar", "centred", "centered", "arc", "url bar", "location bar"],
-        },
-        compactToolbar: {
-          title: "Compact toolbar",
-          description: "A 28 pt toolbar instead of Dia's 41 pt, so the page gets more height and a 16:9 video can fill a maximized window. For the address bar in the toolbar and for tabs at the top.",
-          keywords: ["toolbar height", "smaller toolbar", "thin toolbar", "slim", "dense", "helium", "video", "16:9", "black bars", "url bar"],
-        },
-      },
-    },
-    {
-      section: "Bookmarks Bar",
-      rows: {
-        bookmarksBar: {
-          title: "Show bookmarks bar",
-          description: "Below the toolbar. Also in View › Show Bookmarks Bar, ⇧⌘B.",
-          keywords: ["bookmarks bar", "favorites bar", "favourites bar", "toolbar", "hide bookmarks", "show bookmarks"],
-        },
-        bookmarksBarSize: {
-          title: "Size",
-          description: "Large makes the bar, its icons and its text bigger, and its folder menus roomier.",
-          keywords: ["bookmarks bar", "bigger", "larger", "large", "small", "text size", "icon size", "readability", "favorites bar"],
-        },
-      },
-    },
-    {
-      section: "Selected Tab",
-      rows: {
-        selectedTabGlow: {
-          advanced: true,
-          title: "Glow around the selected tab",
-          description: "The soft light around the selected tab in the sidebar. Full is Dia's.",
-          keywords: ["glow", "shadow", "halo", "highlight", "selected tab", "active tab"],
-        },
-      },
-    },
-    {
-      section: "Scroll Bars",
-      rows: {
-        pageScrollBars: {
-          advanced: true,
-          title: "Scroll bars",
-          description: "Follow macOS uses System Settings › Appearance › Show scroll bars. Thin shows slim scroll bars over the page only while you scroll, even with a mouse.",
-          keywords: ["scrollbar", "scroll bar", "overlay", "thin", "mouse", "trackpad"],
-        },
-      },
-    },
-    { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
-  ],
-} satisfies Pick<Record<SettingsPane, SettingSection[]>, "general" | "profiles" | "sync" | "tabs" | "appearance">;
+} satisfies Pick<Record<SettingsPane, SettingSection[]>, "general" | "profiles" | "sync" | "tabs">;

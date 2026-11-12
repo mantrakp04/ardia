@@ -6,7 +6,7 @@ import { useBrowser } from "../browser/store";
 import { webviews } from "../../platform/webviews";
 import { focusHeroBar } from "../omnibox/barState";
 import { ancestorIds } from "../groups/groups";
-import { activeTabId, bookmarkProfileId, inPinnedContainer, pinSection, tabLayoutOf, tabTitle, viewTabIds } from "../browser/model";
+import { activeTabId, bookmarkProfileId, inPinnedContainer, pinSection, tabLayoutOf, tabsShownIn, tabTitle, viewTabIds } from "../browser/model";
 import type { ClickMods } from "../drag/drops";
 import { selectedTabIds } from "../pins/organize";
 import { groupLabel, groupOf } from "../pins/tabGrouping";
@@ -19,6 +19,12 @@ const store = () => useBrowser.getState();
 
 export function clickTab(windowId: string, tabId: string, mods: ClickMods = {}) {
   store().clickTab(windowId, tabId, mods);
+}
+
+export function tabPlace(tabId: string): string {
+  const s = store();
+  const tab = s.tabs[tabId];
+  return JSON.stringify([tab?.windowId, tab && s.windows[tab.windowId]?.tabIds, tab?.pin, groupOf(s, tabId)?.id ?? null]);
 }
 
 export const resetSidebarWidth = () => store().updateSettings({ sidebarWidth: DEFAULT_SIDEBAR_WIDTH });
@@ -66,7 +72,7 @@ export async function startRename(windowId: string, target: Target) {
   setSidebarUi({ renaming: { windowId, ...target } });
 }
 
-const sidebarShows = (windowId: string) => tabLayoutOf(store(), windowId) === "sidebar" && !!store().windows[windowId]?.sidebarOpen;
+const sidebarShows = (windowId: string) => tabLayoutOf(store(), windowId) === "sidebar" && !!store().windows[windowId] && tabsShownIn(store(), windowId);
 
 async function renameGroupInSheet(windowId: string, groupId: string) {
   const g = store().groups[groupId];

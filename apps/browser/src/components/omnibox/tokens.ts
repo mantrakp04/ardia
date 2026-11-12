@@ -1,5 +1,5 @@
-import { curve } from "../ui/motion";
-import { capsule, font, radius, space } from "../ui/tokens";
+import { curve, duration } from "../ui/motion";
+import { capsule, concentric, font, radius, space } from "../ui/tokens";
 
 export const PANEL_TEXT_LEFT = 48;
 const PANEL_ICON_LEFT = 21;
@@ -86,6 +86,55 @@ export const SUGGESTION = {
 
 export const SELECTED_SUGGESTION_ALPHA = { dark: 0.56, light: 0.3 } as const;
 
-export const SUGGESTION_TEXT_SIZE = font.title.fontSize;
-
 export const GROW = { duration: 130, easing: curve.outExpo } as const;
+
+export const SCOPE_PULSE = {
+  fill: { dark: 0.28, light: 0.2 },
+  ring: { dark: 0.55, light: 0.45 },
+  ringWidth: 1,
+  rest: 0.25,
+  rise: { duration: duration.fast, easing: curve.enter },
+  settle: { duration: duration.long, easing: curve.move },
+  waitForColor: duration.base,
+  luminance: { dark: [0.16, 0.6], light: [0.06, 0.3] },
+  neutralBelowSaturation: 0.16,
+  radius: { panel: radius.hero, hero: concentric(radius.hero, 0.5), sidebar: radius.panel },
+} as const;
+
+export const SITE_BRAND_COLORS: Readonly<Record<string, string>> = {
+  "youtube.com": "#FF0000",
+  "google.com": "#4285F4",
+  "maps.google.com": "#34A853",
+  "drive.google.com": "#1FA463",
+  "mail.google.com": "#EA4335",
+  "translate.google.com": "#4285F4",
+  "bing.com": "#008373",
+  "duckduckgo.com": "#DE5833",
+  "perplexity.ai": "#20808D",
+  "chatgpt.com": "#10A37F",
+  "ecosia.org": "#36ACB8",
+  "search.brave.com": "#FB542B",
+  "kagi.com": "#FFB319",
+  "startpage.com": "#6573FF",
+  "search.yahoo.com": "#6001D2",
+  "baidu.com": "#2932E1",
+  "yandex.com": "#FC3F1D",
+  "wikipedia.org": "#000000",
+  "github.com": "#181717",
+  "amazon.com": "#FF9900",
+  "reddit.com": "#FF4500",
+  "x.com": "#000000",
+  "twitter.com": "#000000",
+  "stackoverflow.com": "#F48024",
+  "npmjs.com": "#CB3837",
+  "imdb.com": "#F5C518",
+  "open.spotify.com": "#1DB954",
+  "linkedin.com": "#0A66C2",
+  "ebay.com": "#E53238",
+  "pinterest.com": "#E60023",
+  "news.ycombinator.com": "#FF6600",
+  "developer.mozilla.org": "#000000",
+  "figma.com": "#A259FF",
+  "notion.so": "#000000",
+  "apps.apple.com": "#0D96F6",
+};

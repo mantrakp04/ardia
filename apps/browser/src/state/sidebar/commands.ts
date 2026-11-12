@@ -64,9 +64,12 @@ export function sidebarMenuState(s: BrowserState, windowId: string | undefined) 
   if (windowId) {
     if (!tab || !awayFromPin(tab)) disabled.push("returnToPinnedUrl");
     titles.togglePinnedRow = movePinnedTitle(s, tab);
-    const selected = selectedTabIds(s, windowId).filter((id) => pinSection(s.tabs[id]) !== "tile");
-    if (!selected.length) disabled.push("newGroupWithTabs");
-    if (selected.length > 1) titles.newGroupWithTabs = `New Group with ${plural(selected.length, "Tab")}`;
+    const selected = selectedTabIds(s, windowId);
+    const forGroup = selected.filter((id) => pinSection(s.tabs[id]) !== "tile");
+    if (!forGroup.length) disabled.push("newGroupWithTabs");
+    if (forGroup.length > 1) titles.newGroupWithTabs = `New Group with ${plural(forGroup.length, "Tab")}`;
+    const bar = s.windowUi[windowId]?.panel;
+    if (selected.length > 1 && !bar?.open && !bar?.newTab) titles.closeTab = `Close ${plural(selected.length, "Tab")}`;
   }
   const recentlyClosedGroups: MenuEntry[] = [...s.closedGroups]
     .reverse()

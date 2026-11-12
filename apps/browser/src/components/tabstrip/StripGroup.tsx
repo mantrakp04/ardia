@@ -9,7 +9,7 @@ import { moveInGroup, tuckGroup, useHasTuckTarget } from "../../state/tabs/topSt
 import { groupTint, useSidebarTokens } from "../sidebar/tokens";
 import { Button, ContextMenuArea, Divider, useHover } from "../ui";
 import { useTheme } from "../ui/theme";
-import { font, weight, withAlpha } from "../ui/tokens";
+import { font, ink, weight, withAlpha } from "../ui/tokens";
 import { GroupMember, StripGroupIcon } from "./GroupMember";
 import { useOnto } from "./model";
 import type { StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
@@ -115,8 +115,8 @@ export function StripGroup({
           height: ITEM_HEIGHT,
           borderRadius: TAB_RADIUS,
           borderWidth: CHIP_HAIRLINE,
-          borderColor: bare ? "transparent" : theme.pinnedRestingStroke,
-          backgroundColor: tint ? withAlpha(tint, hovered ? 0.24 : 0.18) : hovered ? tokens.groupHeaderHover : bare ? "transparent" : tokens.groupFill,
+          borderColor: bare ? ink.clear : theme.pinnedRestingStroke,
+          backgroundColor: tint ? withAlpha(tint, hovered ? 0.24 : 0.18) : hovered ? tokens.groupHeaderHover : bare ? ink.clear : tokens.groupFill,
         }}
       />
       {onto && <OntoRing width={size} />}
@@ -158,7 +158,7 @@ export function StripGroup({
             style={{ height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: GROUP_CHIP_PAD.left, paddingRight: GROUP_CHIP_PAD.right }}
           >
             <StripGroupIcon icon={group.icon} tint={tint} />
-            <Text numberOfLines={1} style={{ marginLeft: GROUP_TITLE_GAP, maxWidth: GROUP_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: tint ?? (shown >= 0 ? theme.tabSelectedText : theme.textTab) }}>
+            <Text numberOfLines={1} style={{ marginLeft: GROUP_TITLE_GAP, maxWidth: GROUP_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: tint ?? (shown >= 0 ? theme.textPrimary : theme.textTab) }}>
               {group.name || `${group.tabIds.length} ${group.tabIds.length === 1 ? "Tab" : "Tabs"}`}
             </Text>
           </Pressable>

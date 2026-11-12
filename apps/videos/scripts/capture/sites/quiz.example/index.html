@@ -1,0 +1,149 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Practice Quiz 3</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--blue:#2457d6;--blue2:#e9effd;--ink:#141a2b;--soft:#4a5368;--mute:#8a92a6;--line:#e3e7f0;--bg:#f3f5fa;--ok:#14855f;--ok2:#e1f5ec;--bad:#c93a3a;--bad2:#fde9e9;--flag:#e08a00;--flag2:#fff2da}
+body{font-family:"Avenir Next",-apple-system,"Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14px}
+header{background:#fff;border-bottom:1px solid var(--line)}
+header .in{height:58px;padding:0 24px;display:flex;align-items:center;gap:14px}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;letter-spacing:-.01em}
+.logo i{width:32px;height:32px;border-radius:9px;background:var(--blue);display:grid;place-items:center}
+.crs{font-size:12.5px;font-weight:600;color:var(--soft);background:var(--bg);border-radius:7px;padding:5px 10px;white-space:nowrap}
+.mode{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ok);background:var(--ok2);border-radius:14px;padding:5px 11px;white-space:nowrap}
+.mode i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.hr{margin-left:auto;display:flex;align-items:center;gap:12px}
+.time{display:flex;align-items:center;gap:7px;font-weight:700;font-variant-numeric:tabular-nums;font-size:15px;padding:6px 12px;border:1px solid var(--line);border-radius:9px}
+.exit{height:36px;padding:0 15px;border-radius:9px;border:1px solid var(--line);font-weight:600;font-size:13.5px;display:flex;align-items:center}
+.sub{height:36px;padding:0 15px;border-radius:9px;background:var(--ink);color:#fff;font-weight:600;font-size:13.5px;display:flex;align-items:center}
+.prog{background:#fff;border-bottom:1px solid var(--line)}
+.prog .in{padding:10px 24px 12px}
+.pt{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--soft);margin-bottom:8px}
+.pt b{color:var(--ink);font-size:14px}
+.pt .r{margin-left:auto;display:flex;gap:14px;font-size:12.5px}
+.pt .r span{display:flex;align-items:center;gap:5px}
+.pt .r i{width:9px;height:9px;border-radius:3px}
+.segs{display:grid;grid-template-columns:repeat(12,1fr);gap:4px}
+.segs i{height:8px;border-radius:4px;background:#e6e9f1}
+.segs i.c{background:var(--ok)}
+.segs i.x{background:var(--bad)}
+.segs i.now{background:linear-gradient(90deg,var(--blue) 50%,#c9d6f7 50%)}
+.segs i.f{background:var(--flag)}
+.app{display:grid;grid-template-columns:200px 1fr 300px;gap:20px;padding:18px 24px 40px;max-width:1320px;margin:0 auto}
+.qnav{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;align-self:start}
+.qnav h4,.side h4{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);font-weight:700;margin-bottom:10px}
+.qg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.qg span{aspect-ratio:1;border-radius:8px;border:1.5px solid var(--line);display:grid;place-items:center;font-weight:700;font-size:13px;color:var(--soft);position:relative}
+.qg .c{background:var(--ok2);border-color:#a9dcc6;color:var(--ok)}
+.qg .x{background:var(--bad2);border-color:#f2b9b9;color:var(--bad)}
+.qg .now{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 3px 10px rgba(36,87,214,.35)}
+.qg .f:after{content:"";position:absolute;right:-3px;top:-3px;width:9px;height:9px;border-radius:50%;background:var(--flag);border:2px solid #fff}
+.lg{margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--soft)}
+.lg span{display:flex;align-items:center;gap:7px}
+.lg i{width:10px;height:10px;border-radius:3px}
+.tip{margin-top:12px;padding:10px;background:var(--bg);border-radius:9px;font-size:12px;color:var(--soft);line-height:1.45}
+.q{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 22px;margin-bottom:14px}
+.qh{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.qn{font-size:12px;font-weight:700;color:var(--blue);background:var(--blue2);padding:4px 9px;border-radius:6px;letter-spacing:.02em}
+.qh small{font-size:12.5px;color:var(--mute);font-weight:500}
+.qh .fl{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--soft)}
+.q h2{font-size:18px;font-weight:600;line-height:1.4;letter-spacing:-.005em}
+.qb{display:grid;grid-template-columns:1fr 236px;gap:20px;margin-top:14px;align-items:start}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1.5px solid var(--line);border-radius:12px;font-size:14px;line-height:1.35}
+.opt b{width:28px;height:28px;border-radius:50%;border:1.5px solid #cdd3e0;display:grid;place-items:center;font-size:12.5px;color:var(--soft);flex:none}
+.opt.sel{border-color:var(--blue);background:var(--blue2);box-shadow:0 0 0 3px rgba(36,87,214,.12)}
+.opt.sel b{background:var(--blue);border-color:var(--blue);color:#fff}
+.fig{border:1px solid var(--line);border-radius:12px;padding:10px 12px 6px}
+.fig svg{display:block;width:100%;height:auto}
+.fig p{font-size:11.5px;color:var(--mute);margin-top:4px}
+.qf{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.qf .h{font-size:13px;color:var(--soft);display:flex;align-items:center;gap:6px}
+.qf .r{margin-left:auto;display:flex;gap:8px}
+.bt{height:38px;padding:0 16px;border-radius:10px;border:1px solid var(--line);font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.bt.p{background:var(--blue);border-color:var(--blue);color:#fff}
+.q.done{padding:14px 22px}
+.q.done h2{font-size:15.5px}
+.res{display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--ok2);font-size:13px;color:#0e5c42;line-height:1.45}
+.res b{font-weight:700}
+.res i{width:24px;height:24px;border-radius:50%;background:var(--ok);display:grid;place-items:center;flex:none}
+.side .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.ring{display:flex;align-items:center;gap:14px}
+.ring svg{width:76px;height:76px;flex:none}
+.ring b{font-size:22px;font-weight:700;display:block;letter-spacing:-.02em}
+.ring span{font-size:12.5px;color:var(--mute)}
+.tp{margin-top:6px}
+.tp .row{display:flex;align-items:center;gap:8px;font-size:13px;padding:7px 0 5px}
+.tp .row em{font-style:normal;margin-left:auto;font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums}
+.tp .bar{height:6px;border-radius:3px;background:#e6e9f1;overflow:hidden;margin-top:-2px}
+.tp .bar i{display:block;height:100%;border-radius:3px}
+.ph{border-radius:14px;overflow:hidden;position:relative;height:118px;margin-bottom:14px}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(10,20,50,.8),rgba(10,20,50,.05))}
+.ph p{position:absolute;left:12px;bottom:10px;right:12px;z-index:2;color:#fff;font-size:12px;line-height:1.35}
+.ph p b{display:block;font-size:14px}
+@media (max-width:1100px){.app{grid-template-columns:1fr 260px;gap:16px}.qnav{display:none}.qb{grid-template-columns:1fr 220px}.pt .r{display:none}.mode{display:none}}
+</style></head><body>
+<header><div class="in">
+<div class="logo"><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i>Checkpoint</div>
+<span class="crs">BIO 210 · Alder State</span><span class="mode"><i></i>Practice mode · doesn't count</span>
+<div class="hr"><span class="time"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#141a2b" stroke-width="1.7"><circle cx="8" cy="9" r="5.5"/><path d="M8 6v3l2 1.5M6.5 1.5h3"/></svg>18:42</span><span class="exit">Save &amp; exit</span><span class="sub">Submit quiz</span></div>
+</div></header>
+<div class="prog"><div class="in">
+<div class="pt"><b>Practice Quiz 3: Enzymes and regulation</b><span>Question 4 of 12 · 33% done</span><div class="r"><span><i style="background:#14855f"></i>2 correct</span><span><i style="background:#c93a3a"></i>1 to review</span><span><i style="background:#e08a00"></i>1 flagged</span></div></div>
+<div class="segs"><i class="c"></i><i class="x"></i><i class="c"></i><i class="now"></i><i></i><i></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i></div>
+</div></div>
+<div class="app">
+<aside class="qnav"><h4>Questions</h4>
+<div class="qg"><span class="c">1</span><span class="x">2</span><span class="c">3</span><span class="now">4</span><span>5</span><span>6</span><span class="f">7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span></div>
+<div class="lg"><span><i style="background:#e1f5ec;border:1.5px solid #a9dcc6"></i>Correct</span><span><i style="background:#fde9e9;border:1.5px solid #f2b9b9"></i>Review</span><span><i style="background:#e08a00;border-radius:50%"></i>Flagged</span></div>
+<div class="tip">Practice quizzes show the answer after each question. Quiz 3 opens Oct 15.</div>
+</aside>
+<main>
+<div class="q">
+<div class="qh"><span class="qn">Question 4</span><small>Multiple choice · 2 points</small><span class="fl"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4a5368" stroke-width="1.6"><path d="M3 14V2.5h8.5l-1.8 3 1.8 3H3"/></svg>Flag</span></div>
+<h2>Curve B shows the same enzyme with an inhibitor added. Vmax stays the same but more substrate is needed to reach half of it. What kind of inhibitor is this?</h2>
+<div class="qb">
+<div class="opts">
+<div class="opt"><b>A</b>Non-competitive: it binds away from the active site</div>
+<div class="opt sel"><b>B</b>Competitive: it competes with substrate for the active site</div>
+<div class="opt"><b>C</b>Uncompetitive: it binds only the enzyme–substrate complex</div>
+<div class="opt"><b>D</b>Irreversible: it denatures the enzyme</div>
+</div>
+<div class="fig"><svg id="mm" viewBox="0 0 260 180"></svg><p>Figure: reaction rate vs [S], with and without inhibitor</p></div>
+</div>
+<div class="qf"><span class="h"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4a5368" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.3 1.7c-.4.2-.6.5-.6.9v.4M8 11.2v.3"/></svg>Hint: compare where each curve hits ½ Vmax</span><div class="r"><span class="bt">← Previous</span><span class="bt p">Check answer</span></div></div>
+</div>
+<div class="q done">
+<div class="qh"><span class="qn" style="background:#e1f5ec;color:#14855f">Question 3 ✓</span><small>Answered 2 min ago</small></div>
+<h2>Why does catalase activity drop sharply above about 45 °C?</h2>
+<div class="res"><i><svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></i><span><b>Correct: the enzyme denatures.</b> Heat breaks the bonds that hold the active site's shape, so substrate no longer fits.</span></div>
+</div>
+</main>
+<aside class="side">
+<div class="card"><h4>Your progress</h4>
+<div class="ring"><svg viewBox="0 0 76 76"><circle cx="38" cy="38" r="31" fill="none" stroke="#e6e9f1" stroke-width="9"/><circle cx="38" cy="38" r="31" fill="none" stroke="#14855f" stroke-width="9" stroke-linecap="round" stroke-dasharray="129.9 194.8" transform="rotate(-90 38 38)"/><circle cx="38" cy="38" r="31" fill="none" stroke="#c93a3a" stroke-width="9" stroke-dasharray="0 134 60 200" transform="rotate(-90 38 38)"/></svg><div><b>2 of 3</b><span>correct so far, 67%</span></div></div>
+<div class="tp">
+<div class="row">Enzyme structure<em>2/2</em></div><div class="bar"><i style="width:100%;background:#14855f"></i></div>
+<div class="row">Kinetics<em>0/1</em></div><div class="bar"><i style="width:8%;background:#c93a3a"></i></div>
+<div class="row">Inhibition<em>0/3</em></div><div class="bar"><i style="width:0"></i></div>
+<div class="row">Allostery<em>0/2</em></div><div class="bar"><i style="width:0"></i></div>
+</div></div>
+<div class="ph"><img src="img/0.jpg" alt=""><p><b>Pairs with Lab 4: Enzymes</b>Questions 3 to 6 use your catalase data.</p></div>
+</aside>
+</div>
+<script>
+const W=260,H=180,L=30,R=10,T=14,B=28,X=s=>L+s/10*(W-L-R),Y=v=>T+(1-v/1.1)*(H-T-B);
+let g=`<g font-family="Avenir Next,-apple-system,sans-serif" font-size="9.5" fill="#8a92a6">`;
+g+=`<line x1="${L}" x2="${L}" y1="${T}" y2="${H-B}" stroke="#cdd3e0"/><line x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}" stroke="#cdd3e0"/>`;
+g+=`<line x1="${L}" x2="${W-R}" y1="${Y(1)}" y2="${Y(1)}" stroke="#8a92a6" stroke-dasharray="3 3"/><text x="${W-R}" y="${Y(1)-4}" text-anchor="end">Vmax</text>`;
+g+=`<line x1="${L}" x2="${W-R}" y1="${Y(.5)}" y2="${Y(.5)}" stroke="#e3e7f0" stroke-dasharray="3 3"/><text x="${L-4}" y="${Y(.5)+3}" text-anchor="end">½</text>`;
+const c=k=>{let d="";for(let s=0;s<=10;s+=.1)d+=(s?"L":"M")+X(s).toFixed(1)+" "+Y(s/(k+s)).toFixed(1);return d};
+g+=`<path d="${c(.8)}" fill="none" stroke="#2457d6" stroke-width="2.4"/><path d="${c(2.6)}" fill="none" stroke="#e08a00" stroke-width="2.4"/>`;
+g+=`<line x1="${X(.8)}" x2="${X(.8)}" y1="${Y(.5)}" y2="${H-B}" stroke="#2457d6" stroke-dasharray="2 2"/><line x1="${X(2.6)}" x2="${X(2.6)}" y1="${Y(.5)}" y2="${H-B}" stroke="#e08a00" stroke-dasharray="2 2"/>`;
+g+=`<text x="${X(.8)}" y="${H-B+11}" text-anchor="middle" fill="#2457d6">Km</text><text x="${X(2.6)}" y="${H-B+11}" text-anchor="middle" fill="#e08a00">Km′</text>`;
+g+=`<text x="${(L+W-R)/2}" y="${H-4}" text-anchor="middle" fill="#4a5368">[Substrate]</text><text transform="translate(11 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle" fill="#4a5368">Rate</text>`;
+g+=`<g font-weight="700" font-size="11"><text x="${X(5.2)}" y="${Y(5.2/6)-6}" fill="#2457d6">A</text><text x="${X(6.4)}" y="${Y(6.4/9)+14}" fill="#e08a00">B</text></g></g>`;
+document.getElementById("mm").innerHTML=g;
+</script>
+</body></html>

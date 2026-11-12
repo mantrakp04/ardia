@@ -1,0 +1,24 @@
+{
+  "name": "opencode-browse-2026-11",
+  "repeats": 3,
+  "tasks": "all",
+  "results": "~/ardia-scratch/bench-proper/results/opencode-1",
+  "contenders": [
+    {
+      "id": "opencode-claude",
+      "label": "OpenCode Browse + Claude Code (Opus 5.5)",
+      "kind": "opencode",
+      "agent": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "id": "opencode-codex",
+      "label": "OpenCode Browse + Codex (GPT-6.1 Sol)",
+      "kind": "opencode",
+      "agent": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    }
+  ]
+}

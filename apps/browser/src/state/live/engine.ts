@@ -1,9 +1,12 @@
 import { onWindowEvent } from "../../platform/windows";
 import { everySlowly } from "../../platform/slowTimers";
-import { useBrowser } from "../browser/store";
-import { activeTabId, viewTabIds } from "../browser/model";
+import { useBrowser, type BrowserState } from "../browser/store";
+import { activeTabId, inPinnedContainer, viewTabIds } from "../browser/model";
+import { awayFromPin } from "../pins/organize";
+import { pinnedGroupMembers } from "../browser/structure";
+import { repoKey } from "./rows";
 import { SOURCES } from "./sources";
-import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
+import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
@@ -51,7 +54,11 @@ async function run(folderId: string) {
   if (!live().folders[folderId]) return;
   const fromFailedSource = (it: LiveItem) => failed.some((f) => f.source === it.source);
   const listedByFilters = (it: LiveItem) => (it.section === "review" || it.section === "team" ? folder.filters.reviewRequests : folder.filters.authored);
-  const fetchWouldList = (it: LiveItem) => folder.sources.includes(it.source) && !fromFailedSource(it) && listedByFilters(it);
+  const repoShown = (it: LiveItem) => {
+    const repo = repoKey(it);
+    return !repo || !live().folders[folderId]?.hiddenRepos.includes(repo);
+  };
+  const fetchWouldList = (it: LiveItem) => folder.sources.includes(it.source) && !fromFailedSource(it) && listedByFilters(it) && repoShown(it);
 
   const landed = live();
   const ids = new Set(fetched.map((it) => it.id));
@@ -67,7 +74,7 @@ async function run(folderId: string) {
   const current = live();
   const prev = current.items[folderId] ?? [];
   const animating = new Set(current.completing[folderId] ?? []);
-  const next = [...fetched, ...prev.filter((it) => fromFailedSource(it) && !animating.has(it.id))];
+  const next = [...fetched.filter(repoShown), ...prev.filter((it) => fromFailedSource(it) && !animating.has(it.id))];
 
   const firstFailure = failed[0];
   if (firstFailure && failed.length === folder.sources.length && !prev.length && !before.status[folderId]?.lastFetch) {
@@ -76,8 +83,10 @@ async function run(folderId: string) {
   }
   const lastSources = fetchedSources.get(folderId);
   const quiet = new Set(lastSources ? next.filter((it) => !lastSources.has(it.source)).map((it) => it.id) : []);
-  fetchedSources.set(folderId, new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id))));
+  const succeeded = new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id)));
+  fetchedSources.set(folderId, succeeded);
   applyFetch(folderId, order(next), gone, Date.now(), quiet);
+  releaseShownRepos(folderId, succeeded);
   if (firstFailure) setStatus(folderId, { state: "error", error: describe(firstFailure.source, firstFailure.error) });
   const leaving = Object.keys(gone);
   if (leaving.length) setTimeout(() => finishCompleting(folderId, leaving), COMPLETION_MS);
@@ -142,13 +151,29 @@ export function openLiveItem(windowId: string, folderId: string, item: LiveItem,
   const s = useBrowser.getState();
   markRead(folderId, [item.id]);
   const existing = viewTabIds(s, windowId).find((id) => s.tabs[id]?.liveItem?.itemId === item.id && s.tabs[id]?.liveItem?.folderId === folderId);
+  const home = folderItem(folderId, item.id)?.url ?? null;
   if (existing) {
+    if (!inPinnedContainer(s, existing) && s.tabs[existing]!.pinnedUrl !== home) s.updateTab(existing, { pinnedUrl: home });
     if (!options.background) s.activate(existing);
     return existing;
   }
   const id = s.newTab(windowId, { url: item.url, background: options.background });
-  useBrowser.getState().updateTab(id, { liveItem: { folderId, itemId: item.id } });
+  useBrowser.getState().updateTab(id, { liveItem: { folderId, itemId: item.id }, pinnedUrl: home });
   return id;
+}
+
+function folderItem(folderId: string, itemId: string): LiveItem | undefined {
+  const l = live();
+  return (l.items[folderId] ?? []).find((i) => i.id === itemId) ?? (l.hidden[folderId] ?? []).find((i) => i.id === itemId) ?? l.completed[folderId]?.find((c) => c.item.id === itemId)?.item;
+}
+
+export function liveTabAway(tabId: string | null, s: BrowserState = useBrowser.getState()) {
+  const tab = tabId ? s.tabs[tabId] : undefined;
+  return !!tab && awayFromPin(tab);
+}
+
+export function returnLiveTab(tabId: string) {
+  useBrowser.getState().returnToPinnedUrl(tabId);
 }
 
 export function deleteLiveFolder(folderId: string) {
@@ -156,6 +181,16 @@ export function deleteLiveFolder(folderId: string) {
   const tabs = Object.values(s.tabs).filter((t) => t.liveItem?.folderId === folderId).map((t) => t.id);
   if (tabs.length) s.closeTabs(tabs);
   removeFolder(folderId);
+}
+
+export function syncLiveHomes() {
+  const s = useBrowser.getState();
+  const members = pinnedGroupMembers(s.groups);
+  for (const t of Object.values(s.tabs)) {
+    if (!t.liveItem || t.pin || members.has(t.id) || !live().items[t.liveItem.folderId]) continue;
+    const home = folderItem(t.liveItem.folderId, t.liveItem.itemId)?.url ?? null;
+    if (home !== t.pinnedUrl) s.updateTab(t.id, { pinnedUrl: home });
+  }
 }
 
 let started = false;
@@ -171,11 +206,14 @@ export function startLiveEngine() {
     for (const t of Object.values(s.tabs)) if (t.liveItem && !folders[t.liveItem.folderId]) s.updateTab(t.id, { liveItem: undefined });
   };
   orphans();
+  syncLiveHomes();
   useLive.subscribe((s, prev) => {
     if (s.folders !== prev.folders) orphans();
+    if (s.items !== prev.items || s.hidden !== prev.hidden || s.completed !== prev.completed) syncLiveHomes();
   });
 
   useBrowser.subscribe((s, prev) => {
+    if (s.groups !== prev.groups) syncLiveHomes();
     if (s.profiles === prev.profiles) return;
     for (const f of Object.values(live().folders)) if (!s.profiles[f.profileId]) removeFolder(f.id);
   });

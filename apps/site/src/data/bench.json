@@ -7,26 +7,31 @@
     "ram": "48 GB",
     "macOS": "27.2 (26B5112a)"
   },
+  "harness": 1,
   "browsers": {
     "ardia": {
       "name": "Ardia",
       "version": "0.2.38-nightly.8",
-      "chromium": "155.0.8059.84"
+      "chromium": "155.0.8059.84",
+      "measured": "2026-10-19"
     },
     "dia": {
       "name": "Dia",
       "version": "1.53.0",
-      "chromium": "155.0.8059.80"
+      "chromium": "155.0.8059.80",
+      "measured": "2026-10-16"
     },
     "helium": {
       "name": "Helium",
       "version": "0.19.3.1",
-      "chromium": "155.0.8059.79"
+      "chromium": "155.0.8059.79",
+      "measured": "2026-10-19"
     },
     "chrome": {
       "name": "Google Chrome",
       "version": "155.0.8059.85",
-      "chromium": "155.0.8059.85"
+      "chromium": "155.0.8059.85",
+      "measured": "2026-10-16"
     }
   },
   "rows": [

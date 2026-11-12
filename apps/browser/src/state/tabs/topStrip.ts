@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useBrowser, type BrowserState } from "../browser/store";
+import { usePageProfileId } from "../browser/hooks";
 import { activeTabId, tabLabel, viewTabIds } from "../browser/model";
 import { groupIndex, splitIndex, stableList } from "../browser/structure";
 import { movingTabIds, resolveDrop, slotDrop, type DragSource, type DropSpot, type Lane } from "../drag/drops";
@@ -94,7 +95,7 @@ export function stripEntries(s: BrowserState, windowId: string, profileId: strin
     const tileFolder = tileFolderOf(t);
     if (tileFolder) {
       const folderKey = entryKey("tileFolder", tileFolder.id);
-      if (!seen.has(folderKey)) dock.push(`tilefolder:${tileFolder.id}:${folderMembers(s, windowId, tileFolder.id).join(",")}`);
+      if (!seen.has(folderKey)) dock.push(`tilefolder:${tileFolder.id}:${folderMembers(s, windowId, tileFolder.id, profileId).join(",")}`);
       seen.add(folderKey);
       if (id === activeId) dock.push(`pinned:${id}`);
       continue;
@@ -158,7 +159,10 @@ export const useShownTabIdFor = (windowId: string, profileId: string) => useBrow
 export const useHasTuckTarget = (enabled: boolean, windowId: string, profileId: string, groupId: string) =>
   useBrowser((s) => enabled && !!tuckTarget(s, windowId, profileId, groupId));
 
-export const useTileFolderLabel = (windowId: string, folderId: string) => useBrowser((s) => folderLabel(folderIn(s, windowId, folderId)));
+export function useTileFolderLabel(windowId: string, folderId: string) {
+  const profileId = usePageProfileId();
+  return useBrowser((s) => folderLabel(folderIn(s, windowId, folderId, profileId)));
+}
 
 export function tuckGroup(windowId: string, profileId: string, groupId: string) {
   const s = useBrowser.getState();

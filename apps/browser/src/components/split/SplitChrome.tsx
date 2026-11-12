@@ -45,10 +45,11 @@ function DividerHandle({ split, divider, width, height }: { split: SplitView; di
         onPanResponderMove: (_, g) => {
           const { split: v, divider: d, width: w, height: h } = latest.current;
           const delta = d.vertical ? g.dx : g.dy;
+          const gap = d.vertical ? d.rect.width : d.rect.height;
           if (d.kind === "root") {
-            updateSplit(v.id, { sizes: resize(start.current.sizes, d.index, delta, d.vertical ? w : h) });
+            updateSplit(v.id, { sizes: resize(start.current.sizes, d.index, delta, d.vertical ? w : h, gap) });
           } else if (start.current.stack) {
-            const next = resize(start.current.stack, 0, delta, d.vertical ? w : h) as [number, number];
+            const next = resize(start.current.stack, 0, delta, d.vertical ? w : h, gap) as [number, number];
             updateSplit(v.id, { stackSizes: next });
           }
         },
@@ -173,7 +174,7 @@ const ZONE_SPRING = { ...SPLIT_MOTION.zoneSpring, useNativeDriver: false } as co
 function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect; side: "left" | "right"; shown: boolean; stage: ZoneStage; pointerX: number; onHidden(): void }) {
   const theme = useTheme();
   const rect = zoneRect(pane, side, stage, pointerX);
-  const anim = useRef({ x: new Animated.Value(rect.x), y: new Animated.Value(rect.y), w: new Animated.Value(rect.width), h: new Animated.Value(rect.height) }).current;
+  const [anim] = useState(() => ({ x: new Animated.Value(rect.x), y: new Animated.Value(rect.y), w: new Animated.Value(rect.width), h: new Animated.Value(rect.height) }));
   const glow = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(0)).current;
   const active = stage === "active";

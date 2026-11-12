@@ -11,7 +11,7 @@ import { NO_TOOLBAR, toolbarGeometry, type Rect, type ToolbarGeometry } from "./
 import { startPermissionPrompts } from "../../state/site/permissions";
 import { useFullscreenTab } from "../../state/tabs/pageState";
 import { DropTargets, SplitDividers, SplitToast } from "../split/SplitChrome";
-import { dockMoving, usePeekEdge, whenDockStill } from "../../state/windows/dockMotion";
+import { dockMoving, usePeekSpan, whenDockStill } from "../../state/windows/dockMotion";
 import { FrozenPage } from "./FrozenPage";
 import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, watchToolbarExtensionsWidth } from "../../state/windows/layout";
 import { startSelectionTools } from "../../state/site/selection";
@@ -26,7 +26,10 @@ import { usePaneLayout } from "./usePaneLayout";
 import { cardChrome } from "./paneChrome";
 import { TabPane } from "./TabPane";
 import { BesidePeekPopovers, PeekPage } from "./PageOverlays";
+import { besidePeekSpan } from "./pageAnchors";
 import { splitTabIdsOf } from "../../state/splits/splits";
+import { sameSize, useSettled, type Size } from "../ui/useSettled";
+import { noteCardResizeLayout } from "../../state/telemetry/usage";
 
 export function ContentCard() {
   const windowId = useWindowId();
@@ -64,7 +67,7 @@ export function ContentCard() {
   const geometryFor = (rect: Rect | undefined): ToolbarGeometry => {
     if (chrome.kind === "none") return NO_TOOLBAR;
     const leading = !!rect && rect.x === 0 && rect.y === 0;
-    return toolbarGeometry({ sidebarButton: leading && tabLayout === "sidebar" && showSidebarButton });
+    return toolbarGeometry({ sidebarButton: leading && showSidebarButton });
   };
 
   const focusedRect = activeId ? panes[activeId] : undefined;
@@ -86,9 +89,13 @@ export function ContentCard() {
 
   const settled = useRef<{ width: number; height: number } | null>(null);
   const measure = (width: number, height: number) => {
-    setSize({ width, height });
-    container.current?.measureInWindow((x, y) => setOrigin({ x, y }));
+    setSize((prev) => (sameSize(prev, { width, height }) ? prev : { width, height }));
+    container.current?.measureInWindow((x, y) => setOrigin((prev) => (prev && prev.x === x && prev.y === y ? prev : { x, y })));
   };
+  const settleMeasure = useSettled(({ width, height }: Size) => {
+    noteCardResizeLayout(true);
+    measure(width, height);
+  });
   useEffect(
     () =>
       whenDockStill(windowId, () => {
@@ -100,9 +107,9 @@ export function ContentCard() {
     [windowId],
   );
 
-  const peekEdge = usePeekEdge(windowId);
+  const peek = usePeekSpan(windowId);
   const activeRect = activeId ? panes[activeId] : undefined;
-  const popoversOverCard = peekEdge !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
+  const popoversOverCard = peek !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
 
   return (
     <View
@@ -110,8 +117,16 @@ export function ContentCard() {
       style={{ flex: 1 }}
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
-        if (size.width > 0 && dockMoving(windowId) && !split) settled.current = { width, height };
-        else measure(width, height);
+        if (size.width > 0 && dockMoving(windowId) && !split) {
+          settleMeasure.cancel();
+          settled.current = { width, height };
+        } else if (size.width > 0 && !split && !peekId) {
+          noteCardResizeLayout(false);
+          settleMeasure({ width, height });
+        } else {
+          settleMeasure.cancel();
+          measure(width, height);
+        }
       }}
     >
       {size.width > 0 &&
@@ -151,12 +166,12 @@ export function ContentCard() {
         <FrozenPage windowId={windowId} tabId={activeId} top={(chrome.kind !== "none" && !chrome.autoHide ? toolbarRow.height : 0) + (barMode === "always" && !small && !hideWhileScrolling ? barHeight : 0)} />
       )}
       {split && !fullscreenTab && <SplitDividers split={split} dividers={dividers} width={size.width} height={size.height} />}
-      {size.width > 0 && popoversOverCard && origin && activeRect && peekEdge !== undefined && (
+      {size.width > 0 && popoversOverCard && origin && activeRect && peek !== undefined && (
         <BesidePeekPopovers
           tabId={popoversOverCard}
-          left={Math.max(activeRect.x, peekEdge - origin.x) + POPOVER_MARGIN}
+          windowId={windowId}
+          {...besidePeekSpan(peek, origin.x, size.width, activeRect)}
           top={activeRect.y + POPOVER_MARGIN}
-          room={size.width}
         />
       )}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}
@@ -167,7 +182,7 @@ export function ContentCard() {
           height={size.height}
           origin={origin}
           fullscreen={peekFullscreen}
-          page={(tabId, sourceId, width) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} fullscreen={peekFullscreen} />}
+          page={(tabId, sourceId, width) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} />}
         />
       )}
       <SplitToast windowId={windowId} />

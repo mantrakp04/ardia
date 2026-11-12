@@ -1,5 +1,6 @@
 #import "ArdiaHostInternal.h"
 #import "ArdiaEarlyWindow.h"
+#import "ArdiaEvents.h"
 #import "ArdiaServices.h"
 #import "ArdiaNavigationDownloads.h"
 #import "ArdiaStartup.h"
@@ -48,6 +49,12 @@ NSMutableDictionary<NSString *, void (^)(ArdiaCoreProfile *)> *DeletionsAfterLoa
 
 namespace {
 
+void RememberProfile(NSString *name, ArdiaCoreProfile *profile) {
+  const BOOL fresh = Profiles()[name] != profile;
+  Profiles()[name] = profile;
+  if (fresh && !profile.offTheRecord && !IsPrivateSessionId(name)) [ArdiaEvents emit:@"profiles.loaded" data:@{@"profile" : name}];
+}
+
 NSString *DirectoryName(NSString *name) {
   if (name.length && ([name isEqualToString:@"Default"] || [name hasPrefix:@"Profile "])) return nil;
   return ardia_host::ProfileDirectoryName(name);
@@ -75,6 +82,13 @@ void ForgetDestroyedProfiles() {
 NSArray<NSString *> *LoadedProfileNames() {
   ForgetDestroyedProfiles();
   return Profiles().allKeys;
+}
+
+NSArray<NSString *> *LoadedDataProfileNames() {
+  NSMutableArray<NSString *> *names = [NSMutableArray array];
+  for (NSString *name in LoadedProfileNames())
+    if (!IsPrivateSessionId(name) && !Profiles()[name].offTheRecord) [names addObject:name];
+  return names;
 }
 
 NSArray<ArdiaCoreProfile *> *LoadedProfiles() {
@@ -171,7 +185,7 @@ void WithProfile(NSString *name, void (^completion)(ArdiaCoreProfile *)) {
   if (IsPrivateSessionId(name)) return WithPrivateProfile(name, [completion copy]);
   if (name.length == 0) {
     if (ArdiaCoreProfile *personal = PersonalIfLoaded(engine)) {
-      Profiles()[@""] = personal;
+      RememberProfile(@"", personal);
       return completion(personal);
     }
   }
@@ -192,7 +206,7 @@ void WithProfile(NSString *name, void (^completion)(ArdiaCoreProfile *)) {
                deletion(loaded);
              }
              ArdiaCoreProfile *profile = [DeletedProfiles() containsObject:name] ? nil : loaded;
-             if (profile) Profiles()[name] = profile;
+             if (profile) RememberProfile(name, profile);
              if (profile) ardia_host::LoadContentBlocker(name);
              if (profile) [ArdiaServices watchDownloads:name];
              for (void (^waiter)(ArdiaCoreProfile *) in pending) waiter(profile);

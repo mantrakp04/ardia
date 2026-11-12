@@ -5,7 +5,7 @@ Audit of 2026-10-08. Not a spec: a map of what users expect from Chrome's addres
 `deleteAutocompleteMatch:`, `DeleteSuggestionView`, `SwitchToTabProvider`, and a text view tracking `backspacing`/`pendingBackspacing`, `handleMoveToRightEndOfLine`,
 `classifyPasteAndGoInput`), and where our bar (`apps/browser/src/components/omnibox/Omnibox.tsx`, `omnibox/*`, `packages/core/src/{suggest,omnibox,siteSearch}.ts`) differs.
 
-Sources. Chrome 154 tree under `~/chromium-build/chromium_git/chromium/src`: `EM` = `chrome/browser/ui/omnibox/omnibox_edit_model.cc`,
+Sources (read on 2026-10-08, when the tree was Chromium 154; it is 157 now). The tree under `~/chromium-build/chromium_git/chromium/src`: `EM` = `chrome/browser/ui/omnibox/omnibox_edit_model.cc`,
 `OV` = `chrome/browser/ui/omnibox/omnibox_view.cc`, `OVV` = `chrome/browser/ui/views/omnibox/omnibox_view_views.cc`, and `components/omnibox/browser/*`.
 Dia: the owner's recording (`/tmp/ac-omni/f/003-014.png`, Dia) and the binary's strings; "?" = not observable from either.
 Ours: line numbers are the working tree on 2026-10-08 (another agent was editing `inline.ts`, `suggest.ts`, `useSuggestions.ts`, `Omnibox.tsx`

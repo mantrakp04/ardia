@@ -174,7 +174,7 @@
  class ChromeConfigurator : public update_client::Configurator {
   public:
    ChromeConfigurator(const base::CommandLine* cmdline,
-@@ -127,8 +209,6 @@
+@@ -128,8 +210,6 @@
  
    ~ChromeConfigurator() override = default;
  
@@ -183,7 +183,7 @@
    SEQUENCE_CHECKER(sequence_checker_);
    ConfiguratorImpl configurator_impl_;
    raw_ptr<PrefService, LeakedDanglingUntriaged> pref_service_;
-@@ -184,12 +264,12 @@
+@@ -185,12 +265,12 @@
  
  std::vector<GURL> ChromeConfigurator::UpdateUrl() const {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -198,7 +198,7 @@
  }
  
  std::string ChromeConfigurator::GetProdId() const {
-@@ -246,7 +326,8 @@
+@@ -252,7 +332,8 @@
              g_browser_process->system_network_context_manager()
                  ->GetSharedURLLoaderFactory(),
              // Never send cookies for component update downloads.
@@ -208,7 +208,7 @@
    }
    return network_fetcher_factory_;
  }
-@@ -256,7 +337,7 @@
+@@ -262,7 +343,7 @@
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
    if (!crx_downloader_factory_) {
      crx_downloader_factory_ = update_client::MakeCrxDownloaderFactory(
@@ -217,7 +217,7 @@
    }
    return crx_downloader_factory_;
  }
-@@ -285,7 +366,7 @@
+@@ -291,7 +372,7 @@
  
  bool ChromeConfigurator::EnabledBackgroundDownloader() const {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -226,7 +226,7 @@
  }
  
  bool ChromeConfigurator::EnabledCupSigning() const {
-@@ -311,7 +392,7 @@
+@@ -317,7 +398,7 @@
  std::unique_ptr<update_client::ProtocolHandlerFactory>
  ChromeConfigurator::GetProtocolHandlerFactory() const {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -235,7 +235,7 @@
  }
  
  std::optional<bool> ChromeConfigurator::IsMachineExternallyManaged() const {
-@@ -334,16 +415,6 @@
+@@ -340,16 +421,6 @@
    return crx_cache_;
  }
  
@@ -481,7 +481,7 @@
    const auto config(
 --- a/components/component_updater/component_updater_service.cc
 +++ b/components/component_updater/component_updater_service.cc
-@@ -9,10 +9,12 @@
+@@ -11,10 +11,12 @@
  #include <memory>
  #include <optional>
  #include <string>
@@ -494,7 +494,7 @@
  #include "base/files/file_path.h"
  #include "base/functional/bind.h"
  #include "base/functional/callback.h"
-@@ -51,6 +53,13 @@
+@@ -53,6 +55,13 @@
    UPDATE_TYPE_AUTOMATIC,
    UPDATE_TYPE_COUNT,
  };
@@ -508,7 +508,7 @@
  
  }  // namespace
  
-@@ -494,8 +503,9 @@
+@@ -516,8 +525,9 @@
    std::vector<std::optional<CrxComponent>> crxs;
    for (std::optional<ComponentRegistration> item :
         component_updater::GetCrxComponents(components_, ids)) {
@@ -522,15 +522,15 @@
  }
 --- a/components/component_updater/component_updater_service_unittest.cc
 +++ b/components/component_updater/component_updater_service_unittest.cc
-@@ -21,6 +21,7 @@
+@@ -20,6 +20,7 @@
  #include "base/memory/ref_counted.h"
  #include "base/run_loop.h"
  #include "base/task/sequenced_task_runner.h"
 +#include "base/test/bind.h"
  #include "base/test/metrics/histogram_tester.h"
  #include "base/test/task_environment.h"
- #include "base/time/time.h"
-@@ -704,6 +705,59 @@
+ #include "base/test/test_future.h"
+@@ -755,6 +756,59 @@
  
    EXPECT_TRUE(component_updater().GetComponentDetails(id, &item));
    EXPECT_TRUE(item.component);
@@ -675,7 +675,7 @@
    std::unique_ptr<network::SimpleURLLoader> simple_url_loader_;
 --- a/components/update_client/net/network_impl.cc
 +++ b/components/update_client/net/network_impl.cc
-@@ -20,6 +20,7 @@
+@@ -23,6 +23,7 @@
  #include "net/base/net_errors.h"
  #include "net/http/http_response_headers.h"
  #include "net/traffic_annotation/network_traffic_annotation.h"
@@ -683,7 +683,7 @@
  #include "services/network/public/cpp/is_potentially_trustworthy.h"
  #include "services/network/public/cpp/resource_request.h"
  #include "services/network/public/cpp/shared_url_loader_factory.h"
-@@ -109,11 +110,18 @@
+@@ -112,11 +113,18 @@
  
  NetworkFetcherImpl::NetworkFetcherImpl(
      scoped_refptr<network::SharedURLLoaderFactory> shared_url_network_factory,
@@ -704,7 +704,7 @@
  void NetworkFetcherImpl::PostRequest(
      const GURL& url,
      const std::string& post_data,
-@@ -122,6 +130,15 @@
+@@ -125,6 +133,15 @@
      ResponseStartedCallback response_started_callback,
      ProgressCallback progress_callback,
      PostRequestCompleteCallback post_request_complete_callback) {
@@ -720,7 +720,7 @@
    auto resource_request = std::make_unique<network::ResourceRequest>();
    resource_request->url = url;
    resource_request->method = "POST";
-@@ -146,6 +163,21 @@
+@@ -149,6 +166,21 @@
        &NetworkFetcherImpl::OnProgressCallback, weak_ptr_factory_.GetWeakPtr(),
        std::move(progress_callback)));
    static constexpr size_t kMaxResponseSize = 1024 * 1024;
@@ -742,7 +742,7 @@
    simple_url_loader->DownloadToString(
        shared_url_network_factory_.get(),
        base::BindOnce(
-@@ -172,6 +204,12 @@
+@@ -175,6 +207,12 @@
      ResponseStartedCallback response_started_callback,
      ProgressCallback progress_callback,
      DownloadToFileCompleteCallback download_to_file_complete_callback) {
@@ -755,7 +755,7 @@
    auto resource_request = std::make_unique<network::ResourceRequest>();
    resource_request->url = url;
    resource_request->method = "GET";
-@@ -206,6 +244,11 @@
+@@ -209,6 +247,11 @@
        kMaxRetriesOnNetworkChange,
        network::SimpleURLLoader::RetryMode::RETRY_ON_NETWORK_CHANGE);
    simple_url_loader_->SetAllowPartialResults(true);
@@ -767,7 +767,7 @@
    simple_url_loader_->SetOnResponseStartedCallback(base::BindOnce(
        &NetworkFetcherImpl::OnResponseStartedCallback,
        weak_ptr_factory_.GetWeakPtr(), std::move(response_started_callback)));
-@@ -246,6 +289,42 @@
+@@ -249,6 +292,42 @@
                                  net::ERR_ABORTED, /*content_size=*/0));
  }
  
@@ -810,7 +810,7 @@
  void NetworkFetcherImpl::OnResponseStartedCallback(
      ResponseStartedCallback response_started_callback,
      const GURL& final_url,
-@@ -262,15 +341,17 @@
+@@ -265,15 +344,17 @@
  
  NetworkFetcherChromiumFactory::NetworkFetcherChromiumFactory(
      scoped_refptr<network::SharedURLLoaderFactory> shared_url_network_factory,
@@ -1211,7 +1211,7 @@
        return l10n_util::GetStringUTF16(IDS_COMPONENTS_SVC_STATUS_NEW);
 --- a/components/component_updater/component_installer.cc
 +++ b/components/component_updater/component_installer.cc
-@@ -11,7 +11,6 @@
+@@ -10,7 +10,6 @@
  #include <utility>
  #include <vector>
  
@@ -1219,7 +1219,7 @@
  #include "base/files/file_enumerator.h"
  #include "base/files/file_path.h"
  #include "base/files/file_util.h"
-@@ -109,22 +108,10 @@
+@@ -108,22 +107,10 @@
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
    CHECK(cus);
  
@@ -1244,7 +1244,7 @@
        base::BindOnce(&ComponentUpdateService::RegisterComponent,
 --- a/components/component_updater/configurator_impl.cc
 +++ b/components/component_updater/configurator_impl.cc
-@@ -134,7 +134,7 @@
+@@ -140,7 +140,7 @@
  
  bool ConfiguratorImpl::EnabledCupSigning() const {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);

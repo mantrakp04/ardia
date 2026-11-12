@@ -33,6 +33,7 @@ export type MenuState = {
   recentBookmarks: MenuBookmark[];
   bookmarksBar: MenuBookmark[];
   otherBookmarks: MenuBookmark[];
+  bookmarksShown?: boolean;
   recentlyClosed: MenuEntry[];
   recentlyClosedGroups?: MenuEntry[];
   warnBeforeQuitting: boolean;

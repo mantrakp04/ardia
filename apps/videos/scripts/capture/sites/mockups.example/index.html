@@ -1,0 +1,139 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Onboarding Mockups</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+:root{--ink:#1e1e1e;--soft:#5c5c5c;--mute:#9a9a9a;--line:#e6e6e6;--sel:#0d99ff;--coral:#ff6b3d}
+body{font-family:-apple-system,"SF Pro Text",sans-serif;color:var(--ink);background:#fff;-webkit-font-smoothing:antialiased;font-size:11.5px;display:grid;grid-template-rows:44px 1fr;grid-template-columns:232px 1fr 248px;height:100vh}
+.tb{grid-column:1/4;background:#2c2c2c;color:#e8e8e8;display:flex;align-items:center;padding:0 10px;gap:4px;white-space:nowrap}
+.tb .logo{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;margin-right:6px}
+.tb .t{width:32px;height:32px;border-radius:6px;display:grid;place-items:center}
+.tb .t.on{background:var(--sel)}
+.tb .t svg{width:16px;height:16px}
+.tb .file{margin:0 auto;font-size:12.5px;color:#bdbdbd}.tb .file b{color:#fff;font-weight:600}
+.tb .r{display:flex;align-items:center;gap:8px}
+.tb .av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:700 10px -apple-system,sans-serif;color:#fff;border:2px solid #2c2c2c;margin-left:-8px}
+.tb .share{height:28px;padding:0 12px;border-radius:6px;background:var(--sel);color:#fff;font-weight:600;display:flex;align-items:center;margin-left:6px}
+.tb .zoom{color:#bdbdbd;margin-left:6px}
+.left,.right{background:#fff;overflow:hidden}
+.left{border-right:1px solid var(--line)}
+.right{border-left:1px solid var(--line)}
+.sec{padding:10px 12px;border-bottom:1px solid var(--line)}
+.sec h5{font-size:11px;font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between;color:var(--ink)}
+.sec h5 span{color:var(--mute);font-weight:500}
+.pg{padding:5px 6px;border-radius:5px;color:var(--soft)}
+.pg.on{background:#f0f0f0;color:var(--ink);font-weight:600}
+.ly{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;color:var(--soft);white-space:nowrap}
+.ly svg{width:11px;height:11px;flex:none}
+.ly.f{color:var(--ink);font-weight:600}
+.ly.on{background:#e5f4ff;color:#0b7ad1}
+.ly.i1{padding-left:20px}.ly.i2{padding-left:34px}
+.cv{position:relative;background:#e9e9e9;background-image:radial-gradient(#d4d4d4 1px,transparent 1px);background-size:16px 16px;overflow:hidden}
+.fr{position:absolute;top:70px}
+.fr .lb{position:absolute;top:-18px;left:0;font-size:11px;color:var(--soft);white-space:nowrap}
+.fr.sel .lb{color:var(--sel);font-weight:600}
+.scr{width:196px;height:424px;border-radius:24px;overflow:hidden;background:#fff8f2;position:relative;box-shadow:0 1px 3px rgba(0,0,0,.12);font-family:ui-rounded,-apple-system,sans-serif}
+.fr.sel .scr{box-shadow:0 0 0 2px var(--sel),0 1px 3px rgba(0,0,0,.12)}
+.hdl{position:absolute;width:8px;height:8px;background:#fff;border:1.5px solid var(--sel)}
+.dim{position:absolute;bottom:-26px;left:50%;transform:translateX(-50%);background:var(--sel);color:#fff;font-size:10.5px;font-weight:600;padding:2px 6px;border-radius:4px;white-space:nowrap}
+.st{display:flex;justify-content:space-between;padding:10px 16px 0;font-size:9.5px;font-weight:700}
+.w1 .ph{height:216px;position:relative;overflow:hidden;margin-top:-22px}
+.w1 .ph img{width:100%;height:100%;object-fit:cover}
+.w1 .ph:after{content:"";position:absolute;left:0;right:0;bottom:0;height:60px;background:linear-gradient(0deg,#fff8f2,rgba(255,248,242,0))}
+.w1 .mk{width:34px;height:34px;border-radius:50%;background:var(--coral);margin:-6px auto 0;position:relative}
+.w1 .mk:after{content:"";position:absolute;inset:8px;border-radius:50%;border:3.5px solid #fff;border-left-color:transparent;transform:rotate(-30deg)}
+.w1 h3{text-align:center;font-size:18px;line-height:1.15;margin:12px 18px 6px;letter-spacing:-.01em}
+.w1 p{text-align:center;font-size:10.5px;color:#6b5a50;margin:0 20px;line-height:1.4}
+.btn{position:absolute;left:16px;right:16px;bottom:22px;height:38px;border-radius:19px;background:#2a1a12;color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+.dots{position:absolute;bottom:70px;left:0;right:0;display:flex;justify-content:center;gap:5px}
+.dots i{width:6px;height:6px;border-radius:3px;background:#e7d6ca}.dots i.on{width:16px;background:var(--coral)}
+.w2 h3,.w3 h3{font-size:17px;margin:18px 16px 4px;letter-spacing:-.01em}
+.w2 p,.w3 p{font-size:10.5px;color:#6b5a50;margin:0 16px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:16px 14px}
+.g div{background:#fff;border-radius:12px;padding:10px;font-size:11px;font-weight:700;border:1.5px solid #f2e4d8}
+.g div i{display:block;width:22px;height:22px;border-radius:7px;margin-bottom:8px}
+.g div.on{border-color:var(--coral);background:#fff1ea}
+.wh{margin:18px 16px;background:#fff;border-radius:16px;padding:10px 0;position:relative;text-align:center;font-weight:700}
+.wh div{font-size:15px;color:#c9b8ab;padding:4px 0}
+.wh div.on{font-size:24px;color:#2a1a12}
+.wh:before{content:"";position:absolute;left:10px;right:10px;top:50%;height:38px;margin-top:-19px;border-radius:10px;background:#fff1ea;z-index:0}
+.wh div{position:relative}
+.days{display:flex;gap:5px;padding:0 16px}
+.days span{flex:1;height:26px;border-radius:13px;background:#fff;border:1.5px solid #f2e4d8;display:grid;place-items:center;font-size:9.5px;font-weight:700}
+.days span.on{background:var(--coral);border-color:var(--coral);color:#fff}
+.w4{background:linear-gradient(180deg,#ff8b5e,#ff6b3d)}
+.w4 .ring{width:120px;height:120px;border-radius:50%;margin:70px auto 0;background:conic-gradient(#fff 0 33%,rgba(255,255,255,.3) 33%);display:grid;place-items:center}
+.w4 .ring div{width:94px;height:94px;border-radius:50%;background:#ff7647;display:grid;place-items:center;color:#fff;font-size:30px;font-weight:800}
+.w4 h3{color:#fff;text-align:center;font-size:19px;margin-top:18px}
+.w4 p{color:#ffe6da;text-align:center;font-size:10.5px;margin:4px 20px}
+.w4 .btn{background:#fff;color:#c2410c}
+.conf{position:absolute;width:6px;height:10px;border-radius:2px}
+.arrow{position:absolute;height:2px;background:var(--sel);top:290px}
+.arrow:after{content:"";position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-left:7px solid var(--sel);border-right:0}
+.arrow:before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:#fff;border:2px solid var(--sel)}
+.pin{position:absolute;width:28px;height:28px;border-radius:14px 14px 14px 2px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:10.5px;box-shadow:0 2px 6px rgba(0,0,0,.25);border:2px solid #fff}
+.cur{position:absolute}
+.cur span{position:absolute;left:14px;top:14px;background:#10b981;color:#fff;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:4px 10px 10px 10px;white-space:nowrap}
+.note{position:absolute;width:150px;background:#fff6c7;border-radius:3px;padding:10px;font-size:11px;line-height:1.4;box-shadow:0 4px 10px -4px rgba(0,0,0,.2);transform:rotate(1.5deg);color:#5b4a00}
+.ins .row{display:flex;gap:6px;margin-bottom:6px}
+.ins .row div{flex:1;height:26px;border-radius:5px;background:#f5f5f5;display:flex;align-items:center;padding:0 8px;gap:6px;color:var(--ink)}
+.ins .row div span{color:var(--mute)}
+.sw{display:flex;align-items:center;gap:8px;padding:4px 0}
+.sw i{width:18px;height:18px;border-radius:4px;border:1px solid rgba(0,0,0,.1)}
+.sw span{margin-left:auto;color:var(--mute)}
+.tabs2{display:flex;gap:14px;padding:10px 12px;border-bottom:1px solid var(--line);font-weight:600}
+.tabs2 span{color:var(--mute)}.tabs2 .on{color:var(--ink)}
+@media (max-width:1100px){body{grid-template-columns:200px 1fr 220px}}
+</style></head><body>
+<div class="tb">
+<div class="logo" style="background:#e0457b"><svg width="16" height="18" viewBox="0 0 16 18"><rect x="2.5" y="1.5" width="11" height="15" rx="2.6" fill="none" stroke="#fff" stroke-width="2"/><rect x="5.5" y="6" width="5" height="5" rx="1.4" fill="#ffd1df"/></svg></div>
+<div class="t on"><svg viewBox="0 0 16 16" fill="#fff"><path d="M3 2l10 5.5-4.4 1.2L6.8 13z"/></svg></div>
+<div class="t"><svg viewBox="0 0 16 16" fill="none" stroke="#e8e8e8" stroke-width="1.4"><path d="M4 1v14M12 1v14M1 4h14M1 12h14"/></svg></div>
+<div class="t"><svg viewBox="0 0 16 16" fill="none" stroke="#e8e8e8" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg></div>
+<div class="t"><svg viewBox="0 0 16 16" fill="none" stroke="#e8e8e8" stroke-width="1.4"><path d="M2 13c3-1 4-9 7-9s2 7 5 6"/></svg></div>
+<div class="t"><svg viewBox="0 0 16 16" fill="#e8e8e8"><path d="M4 3h8v2H9v8H7V5H4z"/></svg></div>
+<div class="t"><svg viewBox="0 0 16 16" fill="none" stroke="#e8e8e8" stroke-width="1.4"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg></div>
+<div class="file">Lumo 2.0 / <b>Onboarding Mockups</b> ▾</div>
+<div class="r"><div style="display:flex;padding-left:8px"><span class="av" style="background:#ff6b3d">MO</span><span class="av" style="background:#10b981">DK</span><span class="av" style="background:#a855f7">JL</span></div><span class="share">Share</span><span class="zoom">62% ▾</span></div>
+</div>
+<aside class="left">
+<div class="sec"><h5>Pages<span>+</span></h5><div class="pg">Cover</div><div class="pg on">Onboarding v4</div><div class="pg">Onboarding v3 (old)</div><div class="pg">Streak screens</div><div class="pg">Components</div></div>
+<div class="sec" style="border:0"><h5>Layers</h5>
+<div class="ly f"><svg viewBox="0 0 12 12" fill="none" stroke="#1e1e1e" stroke-width="1.3"><path d="M3 1v10M9 1v10M1 3h10M1 9h10"/></svg>01 Welcome</div>
+<div class="ly f on"><svg viewBox="0 0 12 12" fill="none" stroke="#0b7ad1" stroke-width="1.3"><path d="M3 1v10M9 1v10M1 3h10M1 9h10"/></svg>02 Pick habits</div>
+<div class="ly i1">▾ Header</div><div class="ly i2">Title</div><div class="ly i2">Subtitle</div><div class="ly i1">▸ Habit grid · auto layout</div><div class="ly i1">▸ Progress dots</div><div class="ly i1">▸ Button / primary</div>
+<div class="ly f"><svg viewBox="0 0 12 12" fill="none" stroke="#1e1e1e" stroke-width="1.3"><path d="M3 1v10M9 1v10M1 3h10M1 9h10"/></svg>03 Reminders</div>
+<div class="ly f"><svg viewBox="0 0 12 12" fill="none" stroke="#1e1e1e" stroke-width="1.3"><path d="M3 1v10M9 1v10M1 3h10M1 9h10"/></svg>04 First check-in</div>
+<div class="ly">Sticky · copy review</div></div>
+</aside>
+<main class="cv">
+<div class="fr" style="left:36px"><div class="lb">01 Welcome</div><div class="scr w1"><div class="st"><span>9:41</span><span>●●● ▮</span></div><div class="ph"><img src="img/0.jpg" alt=""></div><div class="mk"></div><h3>Show up.<br>Not perfect.</h3><p>Lumo counts the days you showed up, so one missed day never undoes a good week.</p><div class="dots"><i class="on"></i><i></i><i></i><i></i></div><div class="btn">Get started</div></div></div>
+<div class="arrow" style="left:236px;width:44px"></div>
+<div class="fr sel" style="left:284px"><div class="lb">02 Pick habits</div><div class="scr w2"><div class="st"><span>9:41</span><span>●●● ▮</span></div><h3>Pick three to start</h3><p>Small is the point. Add more any time.</p>
+<div class="g"><div class="on"><i style="background:#ffd2bf"></i>Morning walk</div><div><i style="background:#d6ecff"></i>Read 10 pages</div><div class="on"><i style="background:#dff5e3"></i>Water plants</div><div><i style="background:#f3e8ff"></i>Stretch</div><div class="on"><i style="background:#fff1c2"></i>No phone in bed</div><div><i style="background:#e0f2fe"></i>Journal</div></div>
+<div class="dots"><i></i><i class="on"></i><i></i><i></i></div><div class="btn">Continue · 3 picked</div></div>
+<span class="hdl" style="left:-4px;top:-4px"></span><span class="hdl" style="right:-4px;top:-4px"></span><span class="hdl" style="left:-4px;bottom:-4px"></span><span class="hdl" style="right:-4px;bottom:-4px"></span><div class="dim">390 × 844</div></div>
+<div class="arrow" style="left:484px;width:44px"></div>
+<div class="fr" style="left:532px"><div class="lb">03 Reminders</div><div class="scr w3"><div class="st"><span>9:41</span><span>●●● ▮</span></div><h3>When should we nudge you?</h3><p>One gentle reminder a day. It follows you across time zones.</p>
+<div class="wh"><div>6:30</div><div>7:00</div><div class="on">7:30 am</div><div>8:00</div><div>8:30</div></div>
+<div class="days"><span class="on">M</span><span class="on">T</span><span class="on">W</span><span class="on">T</span><span class="on">F</span><span>S</span><span>S</span></div>
+<div class="dots"><i></i><i></i><i class="on"></i><i></i></div><div class="btn">Set reminder</div></div></div>
+<div class="arrow" style="left:732px;width:44px"></div>
+<div class="fr" style="left:780px"><div class="lb">04 First check-in</div><div class="scr w4"><div class="st" style="color:#fff"><span>9:41</span><span>●●● ▮</span></div><div class="ring"><div>1</div></div><h3>Day one, done.</h3><p>That's a streak. See you tomorrow at 7:30.</p>
+<i class="conf" style="left:30px;top:60px;background:#fff;transform:rotate(20deg)"></i><i class="conf" style="left:150px;top:80px;background:#ffe08a;transform:rotate(-30deg)"></i><i class="conf" style="left:60px;top:210px;background:#ffe08a;transform:rotate(50deg)"></i><i class="conf" style="left:160px;top:190px;background:#fff;transform:rotate(-10deg)"></i><i class="conf" style="left:100px;top:46px;background:#2a1a12;transform:rotate(70deg)"></i>
+<div class="btn">Go to today</div></div></div>
+<div class="pin" style="left:452px;top:150px;background:#a855f7">JL</div>
+<div class="pin" style="left:206px;top:300px;background:#ff6b3d">MO</div>
+<div class="note" style="left:556px;top:540px">“Pick three” tested better than “Pick up to five” in beta 2 (62% vs 41% finish). — Mira</div>
+<div class="cur" style="left:420px;top:600px"><svg width="16" height="18" viewBox="0 0 16 18"><path d="M1 1l13 7-6 1.4L5 16z" fill="#10b981" stroke="#fff" stroke-width="1.4"/></svg><span>Dev K.</span></div>
+</main>
+<aside class="right ins">
+<div class="tabs2"><span class="on">Design</span><span>Prototype</span><span>Inspect</span></div>
+<div class="sec"><h5>Frame<span>iPhone 15</span></h5><div class="row"><div><span>X</span>1240</div><div><span>Y</span>0</div></div><div class="row"><div><span>W</span>390</div><div><span>H</span>844</div></div><div class="row"><div><span>◜</span>48</div><div><span>⟲</span>0°</div></div></div>
+<div class="sec"><h5>Auto layout<span>−</span></h5><div class="row"><div><span>↕</span>16</div><div><span>▭</span>28</div></div></div>
+<div class="sec"><h5>Fill<span>+</span></h5><div class="sw"><i style="background:#fff8f2"></i>Cream / 50<span>100%</span></div></div>
+<div class="sec"><h5>Lumo colours<span>6</span></h5><div class="sw"><i style="background:#ff6b3d"></i>Coral / 500<span>#FF6B3D</span></div><div class="sw"><i style="background:#2a1a12"></i>Ink / 900<span>#2A1A12</span></div><div class="sw"><i style="background:#ffe3d6"></i>Coral / 100<span>#FFE3D6</span></div><div class="sw"><i style="background:#dff5e3"></i>Mint / 100<span>#DFF5E3</span></div></div>
+<div class="sec" style="border:0"><h5>Comments<span>3 open</span></h5><div style="color:var(--soft);line-height:1.45"><b style="color:var(--ink)">Jun L.</b> Should the grid scroll if someone has bigger text? 2h</div></div>
+</aside>
+</body></html>

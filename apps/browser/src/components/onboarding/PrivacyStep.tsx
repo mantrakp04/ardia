@@ -2,17 +2,14 @@ import { engineHost } from "@ardia/core";
 import { StyleSheet, View } from "react-native";
 import { searchEngines, type Settings } from "../../state/settings/settings";
 import { useSettings } from "../../state/browser/hooks";
-import { isSharing, setSharing } from "../../state/telemetry/client";
-import { SHARING_COPY } from "../../state/telemetry/copy";
 import { Text } from "../ui";
 import { radius, space, tracking } from "../ui/tokens";
 import { SiteLogo } from "./SiteLogo";
 import { ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
 import { Page } from "./LayoutSteps";
 import { MockPanel, useScreen } from "./Screen";
-import { setOnboardingDraft, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
+import { setOnboardingDraft, useOnboarding } from "../../state/onboarding/onboarding";
 import { keysOf, useQuestions } from "../../state/onboarding/questions";
-import { OptionCard } from "./OptionCard";
 import { SelectTile, useOnboardingColors } from "./Parts";
 import { useSiteRing } from "./GlassBacking";
 import { MONO, onboardingType, receiptStamp } from "./tokens";
@@ -31,7 +28,6 @@ export function SearchPrivacyStep() {
   const focus = useMockFocus(id);
   const { values, mock } = useScreen(KEYS);
   const setDraft = setOnboardingDraft;
-  const share = useOnboarding((s) => s.extras.share) ?? isSharing();
   const all = useSettings((st) => searchEngines(st));
   const engines = all.filter((e) => ENGINES.includes(e.id) || e.id === values.searchEngine);
 
@@ -51,20 +47,6 @@ export function SearchPrivacyStep() {
           onChange={(commandBarPreference) => setDraft({ commandBarPreference })}
           mock={focus}
         />
-      </Page>
-    );
-  if (id === "crash")
-    return (
-      <Page
-        id={id}
-        title={SHARING_COPY.onboarding.title}
-        subtitle={SHARING_COPY.onboarding.subtitle}
-        patch={{}}
-        picked={share ? ["Sharing crash reports"] : []}
-        onConfirm={() => setSharing(share, "onboarding")}
-        preview={<MockPanel settings={mock} focus={null} overlay={<Receipt on={share} />} />}
-      >
-        <OptionCard control="check" icon="stethoscope" title={SHARING_COPY.toggle} subtitle={SHARING_COPY.onboarding.row} selected={share} onPress={() => setOnboardingExtras({ share: !share })} />
       </Page>
     );
   const engine = all.find((e) => e.id === values.searchEngine);
@@ -101,7 +83,7 @@ const NEVER = ["Sites you visit", "What you type", "Your tabs", "Your name"];
 
 const RECEIPT_WIDTH = 250;
 
-function Receipt({ on }: { on: boolean }) {
+export function Receipt({ on }: { on: boolean }) {
   const colors = useOnboardingColors();
   const mono = { fontFamily: MONO } as const;
   const line = (label: string, mark: string, dim: boolean) => (

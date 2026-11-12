@@ -1,0 +1,9 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>service worker</title></head>
+<body><p id="status">registering</p>
+<script>
+  navigator.serviceWorker.register("service-worker.js?" + Date.now(), { scope: "./service-worker/" })
+    .then(() => { document.getElementById("status").textContent = "worker registered"; })
+    .catch((error) => { document.getElementById("status").textContent = "worker failed: " + error; });
+</script>
+</body></html>

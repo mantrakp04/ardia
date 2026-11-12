@@ -16,6 +16,7 @@ NS_SWIFT_NAME(LaunchConfig)
 @property(readonly) BOOL background;
 @property(readonly, nullable) NSNumber *remoteDebuggingPort;
 @property(readonly) BOOL prewarm;
+@property(readonly, nullable) NSString *feedbackURL;
 @property(readonly) BOOL isolated;
 @property(readonly) BOOL testInstance;
 

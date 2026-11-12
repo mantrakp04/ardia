@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Fixture Disclosure</title>
+<style>
+  body { font: 14px system-ui; margin: 24px; }
+  #cookies { display: none; }
+  .dialog { position: fixed; top: 60px; left: 60px; background: #fff; border: 1px solid #999; padding: 12px; }
+  #report { display: none; }
+</style>
+</head>
+<body>
+<div id="cookies" role="dialog" aria-label="Cookie preferences"><button type="button">Accept all cookies</button></div>
+<h1>Automation</h1>
+<details id="rules"><summary>Main fare rules</summary><ul><li>Carry-on bag included</li></ul></details>
+<button id="row" type="button">Discord wake · When a webhook fires · Active</button>
+<button id="open" type="button">Open trigger</button>
+<button type="button" data-row="1">Delete</button>
+<button type="button" data-row="2">Delete</button>
+<pre id="report"></pre>
+<script>
+  const clicks = [];
+  const report = () => { document.getElementById("report").textContent = JSON.stringify({ clicks, open: document.getElementById("rules").open }); };
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("button, summary");
+    if (button) { clicks.push(button.id || button.dataset.row || button.textContent.trim()); setTimeout(report); }
+  });
+  document.getElementById("open").onclick = () => {
+    if (document.getElementById("trigger")) return;
+    const dialog = document.createElement("div");
+    dialog.id = "trigger";
+    dialog.className = "dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-label", "Trigger");
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.id = "webhook";
+    trigger.textContent = "When a webhook fires";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "Close";
+    close.onclick = () => dialog.remove();
+    dialog.append(trigger, close);
+    setTimeout(() => document.body.append(dialog), 50);
+  };
+  report();
+</script>
+</body>
+</html>

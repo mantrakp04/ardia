@@ -31,7 +31,6 @@ struct ChannelSwitch {
   struct Facts: Equatable {
     var busy: Bool
     var staged: Staged
-    var automaticChecks: Bool
   }
 
   struct Round: Equatable {
@@ -66,7 +65,7 @@ struct ChannelSwitch {
 
   enum Effect: Equatable {
     case resume
-    case resetCycle
+    case check
     case watch
     case unwatch
     case release([Int])
@@ -85,12 +84,12 @@ struct ChannelSwitch {
     facts.staged != .none || (phase != .idle && facts.busy)
   }
 
-  mutating func observe(_ sighting: Sighting, busy: Bool, automaticChecks: Bool) -> Facts {
+  mutating func observe(_ sighting: Sighting, busy: Bool) -> Facts {
     let kept = sighting.blind ? known : known.filter { sighting.residue.contains($0.residue) }
     known = sighting.copies.union(kept)
     let unknown = sighting.residue.subtracting(known.map(\.residue))
     let blind = sighting.blind || !unknown.isEmpty
-    let facts = Facts(busy: busy, staged: known.isEmpty ? (blind ? .unreadable : .none) : .present(known), automaticChecks: automaticChecks)
+    let facts = Facts(busy: busy, staged: known.isEmpty ? (blind ? .unreadable : .none) : .present(known))
     last = facts
     return facts
   }
@@ -245,6 +244,6 @@ struct ChannelSwitch {
     phase = .idle
     let released = waiting
     waiting = []
-    return (reset && facts.automaticChecks ? [.resetCycle] : []) + (released.isEmpty ? [] : [.release(released)])
+    return (reset ? [.check] : []) + (released.isEmpty ? [] : [.release(released)])
   }
 }
