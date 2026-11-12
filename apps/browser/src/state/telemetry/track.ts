@@ -23,7 +23,7 @@ function suggestionType(s: SuggestionLike): SuggestionType {
   }
 }
 
-export const trackSuggestionChosen = (s: SuggestionLike) => capture("suggestion_chosen", { type: suggestionType(s) });
+export const trackSuggestionChosen = (s: SuggestionLike, inlineCompletion = false) => capture("suggestion_chosen", { type: suggestionType(s), inline_completion: inlineCompletion });
 
 export type CalendarConnectReport = { before: string; after: string; responsible: string; errored: boolean; settingsOpened: boolean; ms: number };
 

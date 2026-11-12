@@ -153,7 +153,7 @@ export function Omnibox({
 
   const choose = (s: Suggestion | undefined, disposition: Disposition = "current", byEnter = false) => {
     bangEnter.cancel();
-    if (s || !scope) trackSuggestionChosen(s);
+    if (s || !scope) trackSuggestionChosen(s, s?.kind === "page" && s === current && !!shownCompletion);
     const typedSearch = !s || (byEnter && selectedIndex === 0 && s.kind === "search" && !s.bang && !s.suggested);
     if (!scope && typedSearch) {
       const text = edited ? value : initialText || value;

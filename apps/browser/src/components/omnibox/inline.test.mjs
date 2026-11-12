@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildSuggestions } from "@ardia/core";
 import { acceptsCompletion, completionToWrite, fieldChange, previewFieldChange, withoutFirst } from "./inline.ts";
+import { barReducer, initialBar, selectionTracker } from "./barText.ts";
 
 const now = Date.UTC(2026, 8, 25);
 const history = [
@@ -225,6 +226,35 @@ test("fieldChange: any deletion drops the completion; typing brings it back", ()
 
 const sel = (start, end = start) => ({ start, end });
 const edit = (typed, shown, next, before, after) => fieldChange(typed, shown, next, [], { before, after }).suppress;
+
+test("typing over the selected completion keeps the visited site first in either text and caret event order", () => {
+  const source = { tabs: [], history: [{ url: "https://chatgpt.com/?temporary-chat=true", title: "ChatGPT", favicon: null, visits: 12, lastVisit: now - 1000 }] };
+  const before = buildSuggestions("chat", source, { now });
+  assert.equal(before.completion, "gpt.com");
+  for (const caretFirst of [false, true]) {
+    let time = 1000;
+    const selection = selectionTracker(sel(4), () => time);
+    selection.note(sel(4, 11));
+    time += 200;
+    if (caretFirst) selection.note(sel(5));
+    const change = fieldChange("chat", before.completion, "chatg", [], { before: selection.beforeEdit(), after: selection.current });
+    assert.deepEqual(change, { echo: false, typed: "chatg", suppress: false });
+    const bar = barReducer(initialBar(null, "chat", 0), { kind: "typed", text: change.typed, suppress: change.suppress, selected: 0 });
+    const after = buildSuggestions(bar.typed, source, { now, preventInline: bar.suppressCompletion });
+    assert.equal(after.completion, "pt.com");
+    assert.equal(after.items[bar.selected]?.kind, "page");
+    assert.equal(after.items[bar.selected]?.url, "https://chatgpt.com/");
+    assert.equal(after.items[1]?.kind, "search");
+  }
+});
+
+test("a stale caret still suppresses a selected deletion or paste, and allows a single replacement character", () => {
+  assert.equal(edit("gi", "thub.com", "gi", sel(2, 10), sel(2, 10)), true);
+  assert.equal(edit("gi", "thub.com", "gitlab", sel(2, 10), sel(2, 10)), true);
+  assert.equal(edit("gi", "thub.com", "git", sel(2, 10), sel(2, 10)), false);
+  assert.equal(edit("gi", "thub.com", "g", sel(0, 10), sel(0, 10)), false);
+  assert.equal(edit("gi", "thub.com", "g😀", sel(1, 10), sel(1, 10)), false);
+});
 
 test("fieldChange with the field's selection: a replaced selection is typing, a removal is a deletion", () => {
   assert.equal(edit("gi", "", "g", sel(0, 2), sel(1)), false);
