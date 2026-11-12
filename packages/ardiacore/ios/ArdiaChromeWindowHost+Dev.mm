@@ -431,6 +431,10 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
       ActOcclusion(w, [to isEqualToString:@"off"] ? nil : @([to isEqualToString:@"visible"]));
       return @((w.occlusionState & NSWindowOcclusionStateVisible) != 0).stringValue;
     },
+    @"fakeWindowServer" : ^NSString *(NSWindow *w, NSString *to) {
+      ActWindowServer(w, [to isEqualToString:@"shows"]);
+      return @"ok";
+    },
     @"fullScreen" : ^NSString *(NSWindow *w, NSString *) { return FullScreen(w, nil); },
     @"fakeFullScreen" : ^NSString *(NSWindow *w, NSString *a) { return FullScreen(w, a); },
     @"snapshotFrame" : ^NSString *(NSWindow *w, NSString *path) { return SnapshotFrameView(w, path); },

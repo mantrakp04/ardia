@@ -45,7 +45,7 @@ import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading,
 import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
 import { releaseTranslation, translateCrashContext } from "../../state/site/translate";
 import { notePagePress } from "../../state/telemetry/tabPresses";
-import { notePageOverlay, noteReopenedPage, noteWebKitPageKeptHidden } from "../../state/telemetry/usage";
+import { noteAutoPictureInPictureKept, notePageOverlay, noteReopenedPage, noteWebKitPageKeptHidden } from "../../state/telemetry/usage";
 import { isAdoptKind } from "../../state/tabs/adoptIds";
 import { STATUS_FLIP_BAND } from "./tokens";
 
@@ -227,6 +227,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       }}
       onNowPlaying={(state) => setNowPlaying(tabId, state)}
       onPictureInPicture={(state) => setPictureInPictureState(tabId, state)}
+      onAutoPictureInPictureKept={noteAutoPictureInPictureKept}
       onDisplayMediaRequest={(request) => requestDisplayMedia(tabId, request)}
       onOpenWindow={onOpenWindow}
       onStatus={(status, fromBottom) => {

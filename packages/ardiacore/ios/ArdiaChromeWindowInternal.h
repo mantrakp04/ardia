@@ -20,6 +20,7 @@
 + (instancetype)ofWindow:(ArdiaCoreWindow *)coreWindow create:(BOOL)create;
 - (void)tab:(ArdiaCoreTab *)tab fullScreen:(BOOL)fullScreen tell:(void (^)(void))tell;
 - (BOOL)seen;
+- (BOOL)seenOnlyByWindowServer;
 - (NSDictionary *)state;
 - (ArdiaCoreTab *)probedTab;
 - (BOOL)covered;
@@ -55,6 +56,7 @@ extern const void *kActedFullScreenKey;
 extern const void *kWindowFullScreenKey;
 BOOL IsWindowFullScreen(NSWindow *window);
 void ActOcclusion(NSWindow *window, NSNumber *visible);
+void ActWindowServer(NSWindow *window, BOOL shows);
 extern NSTimeInterval gActedOcclusionGap;
 void ActWindowFullScreen(ArdiaCoreWindow *coreWindow, BOOL enter, NSTimeInterval seconds);
 extern NSTimeInterval gActedTransition;

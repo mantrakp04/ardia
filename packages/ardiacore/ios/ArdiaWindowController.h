@@ -20,6 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable ArdiaWindowController *)holding:(ArdiaCoreTab *)tab;
 + (nullable ArdiaWebView *)hostingViewForProfile:(nullable ArdiaCoreProfile *)profile;
 + (BOOL)userSees:(nullable NSWindow *)window;
++ (BOOL)userSeesOnlyThroughWindowServer:(nullable NSWindow *)window;
 + (nullable instancetype)claimChromeMadeWindow:(nullable NSString *)token;
 - (instancetype)initWithCoreWindow:(ArdiaCoreWindow *)coreWindow;
 @end
