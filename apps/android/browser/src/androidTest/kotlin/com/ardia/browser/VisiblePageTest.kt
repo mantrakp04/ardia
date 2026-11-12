@@ -53,15 +53,53 @@ class VisiblePageTest {
         harness.show(page)
         harness.awaitTitle(page, "Red")
         assertEquals(PageColors.opaque(208, 16, 16), harness.await(page.state) { it.backgroundColor != null }.backgroundColor)
+        assertPaintedRed(page)
+    }
+
+    @Test
+    fun drawingThePageIsAFallbackThatFollowsTheScroll() {
+        server.page(
+            "/bands",
+            "<title>Bands</title><meta name=\"viewport\" content=\"width=device-width\">" +
+                "<style>html,body{margin:0}#red{height:3000px;background:#d01010}#blue{height:6000px;background:#1010d0}</style>" +
+                "<div id=\"red\"></div><div id=\"blue\"></div>",
+        )
+        val page = harness.open("tab", "/bands")
+        val impl = page as WebViewPage
+        onMain { impl.captureRoute = CaptureRoute.ViewDraw }
+        harness.show(page)
+        harness.awaitTitle(page, "Bands")
+        assertPaintedRed(page)
+        assertEquals(CaptureRoute.ViewDraw, onMain { impl.lastCaptureRoute })
+        val intoBlue = (5000 * harness.context.resources.displayMetrics.density).toInt()
+        val blue = harness.poll(intervalMillis = 250) {
+            onMain { page.view.value?.scrollTo(0, intoBlue) }
+            harness.onMainSuspending { page.snapshot(300) }?.takeIf { isBlue(it.getPixel(it.width / 2, it.height / 2)) }
+        }
+        assertTrue(describe(blue.getPixel(blue.width / 2, blue.height / 10)), isBlue(blue.getPixel(blue.width / 2, blue.height / 10)))
+        val tone = harness.onMainSuspending { page.sampleTone(0, 0) }!!
+        assertTrue(describe(tone.top), tone.top?.let(::isBlue) == true)
+        assertEquals(CaptureRoute.ViewDraw, onMain { impl.lastCaptureRoute })
+    }
+
+    private fun assertPaintedRed(page: Page) {
         val snapshot = harness.poll(intervalMillis = 250) {
             harness.onMainSuspending { page.snapshot(300) }?.takeIf { isRed(it.getPixel(it.width / 2, it.height / 2)) }
         }
+        val route = onMain { (page as WebViewPage).lastCaptureRoute }
         assertTrue(snapshot.width <= 300)
+        val nearTop = snapshot.getPixel(snapshot.width / 2, snapshot.height / 10)
+        assertTrue("near the top via $route: ${describe(nearTop)}", isRed(nearTop))
         val tone = harness.onMainSuspending { page.sampleTone(0, 0) }
-        assertNotNull(tone)
-        assertTrue(isRed(tone!!.top!!))
-        assertTrue(isRed(tone.bottom!!))
+        assertNotNull("no tone via $route", tone)
+        val toneRoute = onMain { (page as WebViewPage).lastCaptureRoute }
+        assertTrue("top tone via $toneRoute: ${describe(tone!!.top)}", tone.top?.let(::isRed) == true)
+        assertTrue("bottom tone via $toneRoute: ${describe(tone.bottom)}", tone.bottom?.let(::isRed) == true)
     }
+
+    private fun describe(color: Int?): String = color?.let { "#%08X".format(it) } ?: "none"
+
+    private fun isBlue(color: Int): Boolean = Color.blue(color) > 180 && Color.red(color) < 60 && Color.green(color) < 60
 
     @Test
     fun scrollingDownAndBackReportsTheDirection() {

@@ -44,6 +44,17 @@ class PageLookTest {
     }
 
     @Test
+    fun aCaptureWithNothingInItIsBlank() {
+        val black = 0xFF000000.toInt()
+        assertTrue(CaptureCheck.isBlank(IntArray(0), blackIsBlank = false))
+        assertTrue(CaptureCheck.isBlank(IntArray(16), blackIsBlank = false))
+        assertTrue(CaptureCheck.isBlank(IntArray(16) { black }, blackIsBlank = true))
+        assertFalse(CaptureCheck.isBlank(IntArray(16) { black }, blackIsBlank = false))
+        assertFalse(CaptureCheck.isBlank(IntArray(16) { if (it == 3) PageColors.opaque(208, 16, 16) else black }, blackIsBlank = true))
+        assertFalse(CaptureCheck.isBlank(IntArray(16) { PageColors.opaque(255, 255, 255) }, blackIsBlank = true))
+    }
+
+    @Test
     fun toneMatchesTheIphonePriorities() {
         val theme = 1
         val background = 2

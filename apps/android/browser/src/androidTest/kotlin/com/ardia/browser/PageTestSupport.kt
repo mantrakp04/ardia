@@ -3,6 +3,7 @@ package com.ardia.browser
 import android.app.Activity
 import android.os.Bundle
 import android.view.ViewGroup
+import android.view.Window
 import android.widget.FrameLayout
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
@@ -25,6 +26,7 @@ class PageTestActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestWindowFeature(Window.FEATURE_NO_TITLE)
         container = FrameLayout(this)
         setContentView(container)
     }

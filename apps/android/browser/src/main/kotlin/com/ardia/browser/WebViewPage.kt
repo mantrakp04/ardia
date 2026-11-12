@@ -84,6 +84,8 @@ internal class WebViewPage(
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     internal val answeredSignIns = HashSet<String>()
+    internal var captureRoute = CaptureRoute.WindowCopy
+    internal var lastCaptureRoute: CaptureRoute? = null
 
     @Volatile
     internal var filterPageUrl: String? = setup.url
@@ -259,7 +261,9 @@ internal class WebViewPage(
         val web = webView ?: return@withContext null
         if (!PageCapture.isVisible(web) || mutableState.value.url == null) return@withContext null
         val scale = min(1f, maxWidth.toFloat() / web.width)
-        PageCapture.capture(web, Rect(0, 0, web.width, web.height), (web.width * scale).roundToInt(), (web.height * scale).roundToInt())
+        val width = (web.width * scale).roundToInt()
+        val height = (web.height * scale).roundToInt()
+        PageCapture.capture(web, Rect(0, 0, web.width, web.height), width, height, captureRoute, blackIsBlank = true)?.let(::remember)?.bitmap
     }
 
     override suspend fun sampleTone(topInset: Int, bottomInset: Int): PageTone? = withContext(Dispatchers.Main.immediate) {
@@ -270,9 +274,26 @@ internal class WebViewPage(
         val top = Rect(0, topInset + 1, web.width, topInset + 1 + band)
         val bottomEdge = web.height - bottomInset - band - 2
         val bottom = Rect(0, bottomEdge, web.width, bottomEdge + band)
-        val topColor = PageCapture.dominantColor(web, top)
-        val bottomColor = PageCapture.dominantColor(web, bottom)
+        var topCapture = sampleBand(web, top) ?: return@withContext null
+        val bottomCapture = sampleBand(web, bottom) ?: return@withContext null
+        if (topCapture.route != bottomCapture.route) {
+            topCapture.bitmap.recycle()
+            topCapture = sampleBand(web, top) ?: return@withContext null
+        }
+        val topColor = ToneSampler.dominant(PageCapture.pixels(topCapture.bitmap))
+        val bottomColor = ToneSampler.dominant(PageCapture.pixels(bottomCapture.bitmap))
+        topCapture.bitmap.recycle()
+        bottomCapture.bitmap.recycle()
         if (topColor == null && bottomColor == null) null else PageTone(topColor, bottomColor)
+    }
+
+    private suspend fun sampleBand(web: WebView, region: Rect): Capture? =
+        PageCapture.capture(web, region, ToneSampler.SAMPLE_WIDTH, ToneSampler.SAMPLE_HEIGHT, captureRoute, blackIsBlank = false)?.let(::remember)
+
+    private fun remember(capture: Capture): Capture {
+        captureRoute = capture.route
+        lastCaptureRoute = capture.route
+        return capture
     }
 
     override fun saveState(): ByteArray? {

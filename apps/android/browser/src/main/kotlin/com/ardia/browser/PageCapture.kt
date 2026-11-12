@@ -17,40 +17,69 @@ import android.view.View
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
+internal enum class CaptureRoute {
+    WindowCopy,
+    ViewDraw,
+}
+
+internal class Capture(val bitmap: Bitmap, val route: CaptureRoute)
+
 internal object PageCapture {
+    private const val PROBE_GRID = 12
+
     fun isVisible(view: View): Boolean = view.isAttachedToWindow && view.isShown && view.width > 0 && view.height > 0
 
-    suspend fun capture(view: View, region: Rect, width: Int, height: Int): Bitmap? {
+    suspend fun capture(view: View, region: Rect, width: Int, height: Int, preferred: CaptureRoute, blackIsBlank: Boolean): Capture? {
         if (width <= 0 || height <= 0 || region.isEmpty) return null
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val window = view.context.findActivity()?.window
-        if (window == null) {
-            val canvas = Canvas(bitmap)
-            canvas.scale(width / region.width().toFloat(), height / region.height().toFloat())
-            canvas.translate(-region.left.toFloat(), -region.top.toFloat())
-            view.draw(canvas)
-            return bitmap
+        if (preferred == CaptureRoute.WindowCopy) {
+            val copied = copyWindow(view, region, width, height)
+            if (copied != null && !CaptureCheck.isBlank(probe(copied), blackIsBlank)) return Capture(copied, CaptureRoute.WindowCopy)
+            copied?.recycle()
         }
+        return Capture(drawView(view, region, width, height), CaptureRoute.ViewDraw)
+    }
+
+    fun pixels(bitmap: Bitmap): IntArray {
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        return pixels
+    }
+
+    private suspend fun copyWindow(view: View, region: Rect, width: Int, height: Int): Bitmap? {
+        if (!view.isHardwareAccelerated) return null
+        val window = view.context.findActivity()?.window ?: return null
         val location = IntArray(2)
         view.getLocationInWindow(location)
         val source = Rect(region).apply { offset(location[0], location[1]) }
-        return suspendCancellableCoroutine { continuation ->
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val copied = suspendCancellableCoroutine { continuation ->
             try {
-                PixelCopy.request(window, source, bitmap, { result ->
-                    if (result == PixelCopy.SUCCESS) continuation.resume(bitmap) else continuation.resume(null)
-                }, Handler(Looper.getMainLooper()))
+                PixelCopy.request(window, source, bitmap, { result -> continuation.resume(result == PixelCopy.SUCCESS) }, Handler(Looper.getMainLooper()))
             } catch (error: IllegalArgumentException) {
-                continuation.resume(null)
+                continuation.resume(false)
             }
         }
+        if (copied) return bitmap
+        bitmap.recycle()
+        return null
     }
 
-    suspend fun dominantColor(view: View, region: Rect): Int? {
-        val bitmap = capture(view, region, ToneSampler.SAMPLE_WIDTH, ToneSampler.SAMPLE_HEIGHT) ?: return null
-        val pixels = IntArray(bitmap.width * bitmap.height)
-        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-        bitmap.recycle()
-        return ToneSampler.dominant(pixels)
+    private fun drawView(view: View, region: Rect, width: Int, height: Int): Bitmap {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.scale(width / region.width().toFloat(), height / region.height().toFloat())
+        canvas.translate(-(region.left + view.scrollX).toFloat(), -(region.top + view.scrollY).toFloat())
+        view.draw(canvas)
+        return bitmap
+    }
+
+    private fun probe(bitmap: Bitmap): IntArray {
+        if (bitmap.width * bitmap.height <= PROBE_GRID * PROBE_GRID) return pixels(bitmap)
+        return IntArray(PROBE_GRID * PROBE_GRID) { index ->
+            val x = (index % PROBE_GRID) * (bitmap.width - 1) / (PROBE_GRID - 1)
+            val y = (index / PROBE_GRID) * (bitmap.height - 1) / (PROBE_GRID - 1)
+            bitmap.getPixel(x, y)
+        }
     }
 
     private fun Context.findActivity(): Activity? {

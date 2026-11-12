@@ -74,3 +74,13 @@ object ToneSampler {
         return PageColors.opaque((best[1] / count).roundToInt(), (best[2] / count).roundToInt(), (best[3] / count).roundToInt())
     }
 }
+
+object CaptureCheck {
+    private const val OPAQUE_BLACK = 0xFF000000.toInt()
+
+    fun isBlank(pixels: IntArray, blackIsBlank: Boolean): Boolean {
+        if (pixels.isEmpty()) return true
+        if (pixels.all { (it ushr 24) == 0 }) return true
+        return blackIsBlank && pixels.all { it == OPAQUE_BLACK }
+    }
+}
