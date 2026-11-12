@@ -12,7 +12,7 @@ import { fromSync } from "../pins/pinOrderChoices";
 import { fromLegacy } from "../../lib/legacy";
 import type { BookmarkNode, HistoryEntry } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";
-import { BOOKMARK, DEVICE, DEVICE_TABS, HISTORY, SHARE, bookmarkValue, historyValue, passwordValue, recordId, type BookmarkValue, type DeviceRecord, type DeviceTabs, type HistoryValue, type PasswordValue, type ShareRecord } from "./records";
+import { BOOKMARK, DEVICE, DEVICE_TABS, HISTORY, RECEIVES_TABS, SHARE, bookmarkValue, historyValue, passwordValue, recordId, type BookmarkValue, type DeviceRecord, type DeviceTabs, type HistoryValue, type PasswordValue, type ShareRecord } from "./records";
 import { isAsleep } from "../tabs/pageSession";
 
 const store = () => useBrowser.getState();
@@ -50,7 +50,7 @@ export function deviceAdapter(deviceId: string, name: () => string, retired = fa
   return {
     prefix: DEVICE,
     extract: () => ({
-      values: retired ? new Map() : new Map([[`${DEVICE}${deviceId}`, { n: name() } satisfies DeviceRecord]]),
+      values: retired ? new Map() : new Map([[`${DEVICE}${deviceId}`, { n: name(), k: "mac", f: [RECEIVES_TABS] } satisfies DeviceRecord]]),
       ignore: (key) => key !== `${DEVICE}${deviceId}`,
     }),
     apply: () => true,

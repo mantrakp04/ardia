@@ -1,7 +1,4 @@
-(() => {
-  const OPTIONS = ["Travel", "Meals", "Software", "Office", "Other"];
-  const template = document.createElement("template");
-  template.innerHTML = `
+(()=>{(()=>{let r=["Travel","Meals","Software","Office","Other"],o=document.createElement("template");o.innerHTML=`
 <style>
 :host{display:block;position:relative;font:inherit}
 .trigger{width:100%;height:38px;display:flex;justify-content:space-between;align-items:center;border:1px solid #cfcfca;border-radius:8px;background:#fff;padding:0 10px;font:inherit;cursor:pointer;color:#1d1d1b}
@@ -13,176 +10,14 @@
 .filter:focus{outline:2px solid #2f6b4f;outline-offset:-1px}
 ul{list-style:none;margin:0;padding:0;max-height:220px;overflow:auto}
 li{padding:7px 10px;border-radius:6px;cursor:pointer}
-li[aria-selected=true]::after{content:"✓";float:right;color:#2f6b4f}
+li[aria-selected=true]::after{content:"\u2713";float:right;color:#2f6b4f}
 li.active{background:#eef5f0}
 li[hidden]{display:none}
 .none{padding:7px 10px;color:#6b6b66}
 </style>
-<button class="trigger" type="button" part="trigger" aria-haspopup="listbox" aria-expanded="false"><span class="text"></span><span aria-hidden="true">▾</span></button>
+<button class="trigger" type="button" part="trigger" aria-haspopup="listbox" aria-expanded="false"><span class="text"></span><span aria-hidden="true">\u25BE</span></button>
 <div class="pop" hidden>
   <input class="filter" type="text" role="combobox" aria-autocomplete="list" aria-expanded="true" autocomplete="off" spellcheck="false" placeholder="Type to filter">
   <ul role="listbox"></ul>
   <div class="none" hidden>No matches</div>
-</div>`;
-
-  let uid = 0;
-
-  class CategoryPicker extends HTMLElement {
-    constructor() {
-      super();
-      this._value = "";
-      this._active = -1;
-      this._id = `cp${++uid}`;
-      const root = this.attachShadow({ mode: "open" });
-      root.append(template.content.cloneNode(true));
-      this._trigger = root.querySelector(".trigger");
-      this._text = root.querySelector(".text");
-      this._pop = root.querySelector(".pop");
-      this._filter = root.querySelector(".filter");
-      this._list = root.querySelector("ul");
-      this._none = root.querySelector(".none");
-      this._list.id = `${this._id}-list`;
-      this._filter.setAttribute("aria-controls", this._list.id);
-      this._options = OPTIONS.map((name, i) => {
-        const li = document.createElement("li");
-        li.setAttribute("role", "option");
-        li.id = `${this._id}-opt-${i}`;
-        li.dataset.value = name;
-        li.textContent = name;
-        li.setAttribute("aria-selected", "false");
-        li.addEventListener("mousedown", (e) => e.preventDefault());
-        li.addEventListener("click", () => this._pick(name));
-        li.addEventListener("mousemove", () => this._setActive(this._visible().indexOf(li)));
-        this._list.append(li);
-        return li;
-      });
-      this._trigger.addEventListener("click", () => (this._pop.hidden ? this.open() : this.close(true)));
-      this._trigger.addEventListener("keydown", (e) => {
-        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          this.open();
-        } else if (e.key.length === 1 && /\S/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
-          e.preventDefault();
-          this.open();
-          this._filter.value = e.key;
-          this._applyFilter();
-        }
-      });
-      this._filter.addEventListener("input", () => this._applyFilter());
-      this._filter.addEventListener("keydown", (e) => this._onFilterKey(e));
-      this._outside = (e) => {
-        if (!e.composedPath().includes(this)) this.close(false);
-      };
-    }
-
-    static get observedAttributes() {
-      return ["label", "disabled"];
-    }
-
-    attributeChangedCallback() {
-      this._render();
-    }
-
-    connectedCallback() {
-      this._render();
-    }
-
-    get value() {
-      return this._value;
-    }
-
-    set value(v) {
-      this._value = OPTIONS.includes(v) ? v : "";
-      this._render();
-    }
-
-    focus() {
-      this._trigger.focus();
-    }
-
-    _render() {
-      const label = this.getAttribute("label") || "Category";
-      this._text.textContent = this._value || "Select a category";
-      this._text.className = this._value ? "text" : "text placeholder";
-      this._trigger.setAttribute("aria-label", `${label}: ${this._value || "none selected"}`);
-      this._trigger.disabled = this.hasAttribute("disabled");
-      this._list.setAttribute("aria-label", label);
-      this._filter.setAttribute("aria-label", `Filter ${label.toLowerCase()} options`);
-      for (const li of this._options) li.setAttribute("aria-selected", li.dataset.value === this._value ? "true" : "false");
-    }
-
-    _visible() {
-      return this._options.filter((li) => !li.hidden);
-    }
-
-    _setActive(i) {
-      const vis = this._visible();
-      this._active = vis.length ? Math.max(0, Math.min(vis.length - 1, i)) : -1;
-      for (const li of this._options) li.classList.remove("active");
-      const cur = vis[this._active];
-      if (cur) {
-        cur.classList.add("active");
-        this._filter.setAttribute("aria-activedescendant", cur.id);
-        cur.scrollIntoView({ block: "nearest" });
-      } else {
-        this._filter.removeAttribute("aria-activedescendant");
-      }
-    }
-
-    _applyFilter() {
-      const q = this._filter.value.trim().toLowerCase();
-      for (const li of this._options) li.hidden = !!q && !li.dataset.value.toLowerCase().includes(q);
-      const vis = this._visible();
-      this._none.hidden = vis.length > 0;
-      const starts = vis.findIndex((li) => li.dataset.value.toLowerCase().startsWith(q));
-      this._setActive(starts >= 0 ? starts : 0);
-    }
-
-    _onFilterKey(e) {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        e.preventDefault();
-        this._setActive(this._active + (e.key === "ArrowDown" ? 1 : -1));
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        const cur = this._visible()[this._active];
-        if (cur) this._pick(cur.dataset.value);
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        this.close(true);
-      } else if (e.key === "Tab") {
-        this.close(false);
-      }
-    }
-
-    open() {
-      if (!this._pop.hidden || this._trigger.disabled) return;
-      this._pop.hidden = false;
-      this._trigger.setAttribute("aria-expanded", "true");
-      this._filter.value = "";
-      this._applyFilter();
-      const sel = this._visible().findIndex((li) => li.dataset.value === this._value);
-      this._setActive(sel >= 0 ? sel : 0);
-      this._filter.focus();
-      document.addEventListener("mousedown", this._outside, true);
-    }
-
-    close(refocus) {
-      if (this._pop.hidden) return;
-      this._pop.hidden = true;
-      this._trigger.setAttribute("aria-expanded", "false");
-      document.removeEventListener("mousedown", this._outside, true);
-      if (refocus) this._trigger.focus();
-    }
-
-    _pick(name) {
-      const changed = name !== this._value;
-      this._value = name;
-      this._render();
-      this.close(true);
-      if (changed) this.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
-    }
-  }
-
-  customElements.define("category-picker", CategoryPicker);
-})();
+</div>`;let a=0;class l extends HTMLElement{constructor(){super(),this._value="",this._active=-1,this._id=`cp${++a}`;let t=this.attachShadow({mode:"open"});t.append(o.content.cloneNode(!0)),this._trigger=t.querySelector(".trigger"),this._text=t.querySelector(".text"),this._pop=t.querySelector(".pop"),this._filter=t.querySelector(".filter"),this._list=t.querySelector("ul"),this._none=t.querySelector(".none"),this._list.id=`${this._id}-list`,this._filter.setAttribute("aria-controls",this._list.id),this._options=r.map((e,s)=>{let i=document.createElement("li");return i.setAttribute("role","option"),i.id=`${this._id}-opt-${s}`,i.dataset.value=e,i.textContent=e,i.setAttribute("aria-selected","false"),i.addEventListener("mousedown",n=>n.preventDefault()),i.addEventListener("click",()=>this._pick(e)),i.addEventListener("mousemove",()=>this._setActive(this._visible().indexOf(i))),this._list.append(i),i}),this._trigger.addEventListener("click",()=>this._pop.hidden?this.open():this.close(!0)),this._trigger.addEventListener("keydown",e=>{e.key==="ArrowDown"||e.key==="Enter"||e.key===" "?(e.preventDefault(),this.open()):e.key.length===1&&/\S/.test(e.key)&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&(e.preventDefault(),this.open(),this._filter.value=e.key,this._applyFilter())}),this._filter.addEventListener("input",()=>this._applyFilter()),this._filter.addEventListener("keydown",e=>this._onFilterKey(e)),this._outside=e=>{e.composedPath().includes(this)||this.close(!1)}}static get observedAttributes(){return["label","disabled"]}attributeChangedCallback(){this._render()}connectedCallback(){this._render()}get value(){return this._value}set value(t){this._value=r.includes(t)?t:"",this._render()}focus(){this._trigger.focus()}_render(){let t=this.getAttribute("label")||"Category";this._text.textContent=this._value||"Select a category",this._text.className=this._value?"text":"text placeholder",this._trigger.setAttribute("aria-label",`${t}: ${this._value||"none selected"}`),this._trigger.disabled=this.hasAttribute("disabled"),this._list.setAttribute("aria-label",t),this._filter.setAttribute("aria-label",`Filter ${t.toLowerCase()} options`);for(let e of this._options)e.setAttribute("aria-selected",e.dataset.value===this._value?"true":"false")}_visible(){return this._options.filter(t=>!t.hidden)}_setActive(t){let e=this._visible();this._active=e.length?Math.max(0,Math.min(e.length-1,t)):-1;for(let i of this._options)i.classList.remove("active");let s=e[this._active];s?(s.classList.add("active"),this._filter.setAttribute("aria-activedescendant",s.id),s.scrollIntoView({block:"nearest"})):this._filter.removeAttribute("aria-activedescendant")}_applyFilter(){let t=this._filter.value.trim().toLowerCase();for(let i of this._options)i.hidden=!!t&&!i.dataset.value.toLowerCase().includes(t);let e=this._visible();this._none.hidden=e.length>0;let s=e.findIndex(i=>i.dataset.value.toLowerCase().startsWith(t));this._setActive(s>=0?s:0)}_onFilterKey(t){if(t.key==="ArrowDown"||t.key==="ArrowUp")t.preventDefault(),this._setActive(this._active+(t.key==="ArrowDown"?1:-1));else if(t.key==="Enter"){t.preventDefault();let e=this._visible()[this._active];e&&this._pick(e.dataset.value)}else t.key==="Escape"?(t.preventDefault(),t.stopPropagation(),this.close(!0)):t.key==="Tab"&&this.close(!1)}open(){if(!this._pop.hidden||this._trigger.disabled)return;this._pop.hidden=!1,this._trigger.setAttribute("aria-expanded","true"),this._filter.value="",this._applyFilter();let t=this._visible().findIndex(e=>e.dataset.value===this._value);this._setActive(t>=0?t:0),this._filter.focus(),document.addEventListener("mousedown",this._outside,!0)}close(t){this._pop.hidden||(this._pop.hidden=!0,this._trigger.setAttribute("aria-expanded","false"),document.removeEventListener("mousedown",this._outside,!0),t&&this._trigger.focus())}_pick(t){let e=t!==this._value;this._value=t,this._render(),this.close(!0),e&&this.dispatchEvent(new Event("change",{bubbles:!0,composed:!0}))}}customElements.define("category-picker",l)})();})();

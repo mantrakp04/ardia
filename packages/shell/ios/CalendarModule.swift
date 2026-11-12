@@ -24,10 +24,23 @@ public class CalendarModule: Module {
     }
 
     AsyncFunction("requestAccess") { (promise: Promise) in
-      self.store.requestFullAccessToEvents { granted, _ in
+      let asked = Self.status()
+      let started = Date()
+      self.store.requestFullAccessToEvents { granted, error in
         DispatchQueue.main.async {
           if granted { self.store = EKEventStore(); self.observe() }
-          promise.resolve(granted)
+          let status = Self.status()
+          let responsible = Self.responsibleForSelf()
+          if !granted {
+            NSLog("[calendar] full access not granted: asked in %@, now %@, responsible %@, error %@", asked, status, responsible, error.map { "\($0)" } ?? "none")
+          }
+          promise.resolve([
+            "granted": granted,
+            "status": status,
+            "error": error?.localizedDescription as Any,
+            "responsible": responsible,
+            "ms": Int(Date().timeIntervalSince(started) * 1000),
+          ])
         }
       }
     }.runOnQueue(.main)
@@ -65,6 +78,15 @@ public class CalendarModule: Module {
     observer = NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
       self?.sendEvent("onCalendarChanged", [:])
     }
+  }
+
+  private typealias ResponsiblePid = @convention(c) (pid_t) -> pid_t
+
+  private static func responsibleForSelf() -> String {
+    guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "responsibility_get_pid_responsible_for_pid") else { return "unknown" }
+    let responsible = unsafeBitCast(symbol, to: ResponsiblePid.self)(getpid())
+    if responsible <= 0 { return "unknown" }
+    return responsible == getpid() ? "self" : "other"
   }
 
   private static func status() -> String {

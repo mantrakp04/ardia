@@ -5,10 +5,10 @@ import { GlassGroup, useGlass } from "../ui/Glass";
 import { layout, useTheme } from "../ui/theme";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { listTopGap } from "./geometry";
-import { useIsActiveTab, useSettings, useTab, useTabLive, useWindowId } from "../../state/browser/hooks";
+import { useIsActiveTab, useSettings, useTab, useWindowId } from "../../state/browser/hooks";
 import { useIsSelected } from "../../state/pins/hooks";
-import { useMuteState } from "../../state/tabs/hooks";
 import { NextMeetingBadge } from "../live/NextMeetingBadge";
+import { TileStatus } from "./TileStatus";
 import { returnShownTabToPinnedUrl } from "../../state/sidebar/actions";
 import { cellKey, PIN_SLOT, tailKey } from "./dragModel";
 import { useDragController, useDragging, useDragItem, useDropPins, useFolderTarget, usePinnedCount, usePinSlots } from "./DragProvider";
@@ -140,13 +140,10 @@ function PinGlyph({ color }: { color: string }) {
 }
 
 const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { tabId: string; width: number; sliding: boolean; x: number; y: number }) {
-  const theme = useTheme();
   const windowId = useWindowId();
   const tab = useTab(tabId);
   const active = useIsActiveTab(tabId);
   const selected = useIsSelected(windowId, tabId);
-  const playing = useTabLive(tabId, (l) => l.playingAudio);
-  const mute = useMuteState(tabId);
   const { hovered, hoverProps } = useRowHover(windowId, { kind: "tab", id: tabId });
   const { wrapper, handle, dragging } = useDragItem(entryKey("tab", tabId), { kind: "tile", tabIds: [tabId], section: "tiles" });
   const target = useFolderTarget(entryKey("tab", tabId));
@@ -156,14 +153,10 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
     () => (
       <>
         <NextMeetingBadge tabId={tabId} />
-        {playing || mute ? (
-          <View pointerEvents="none" style={{ position: "absolute", bottom: 3, right: 4 }}>
-            <Symbol name={mute ? "speaker.slash.fill" : "speaker.wave.2.fill"} size={8} color={theme.textSecondary} style={{ width: 12, height: 10 }} />
-          </View>
-        ) : null}
+        <TileStatus tabId={tabId} />
       </>
     ),
-    [tabId, playing, mute, theme.textSecondary],
+    [tabId],
   );
   if (!tab) return null;
 

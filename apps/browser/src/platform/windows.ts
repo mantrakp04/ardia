@@ -4,6 +4,8 @@ import { nativeModule, type DragPreviewShape, type OpenWindowOptions, type Rect4
 export type { DragPreviewShape, WindowEvent, OpenWindowOptions };
 
 const Windows = nativeModule("ArdiaAppWindows");
+let cachedWindowCornerRadius: number | undefined;
+export const windowCornerRadius = () => (cachedWindowCornerRadius ??= Windows.windowCornerRadius());
 
 export const openWindow = (id: string, options: OpenWindowOptions = {}) => Windows.openWindow(id, options);
 export const closeWindow = (id: string) => Windows.closeWindow(id);

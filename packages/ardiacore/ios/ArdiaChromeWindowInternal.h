@@ -20,6 +20,8 @@
 + (instancetype)ofWindow:(ArdiaCoreWindow *)coreWindow create:(BOOL)create;
 - (void)tab:(ArdiaCoreTab *)tab fullScreen:(BOOL)fullScreen tell:(void (^)(void))tell;
 - (BOOL)seen;
+- (BOOL)seenOnlyByWindowServer;
+- (void)reconsiderSight;
 - (NSDictionary *)state;
 - (ArdiaCoreTab *)probedTab;
 - (BOOL)covered;
@@ -35,6 +37,7 @@ NSMapTable<NSWindow *, ArdiaWindowController *> *Controllers();
 extern BOOL (^gRefusesUnhandledKey)(NSWindow *, NSEvent *);
 
 void ConfigureWindow(NSWindow *window);
+CGFloat WindowCornerRadius(NSWindow *window);
 extern const void *kLightsCenterKey;
 extern const void *kLightsShownKey;
 extern const void *kLightsMoveKey;
@@ -45,19 +48,6 @@ void TranslateTrafficLights(NSWindow *window, CGFloat dx);
 void RetileTrafficLights(NSWindow *window);
 bool MoveTrafficLights(NSWindow *window, NSValue *center);
 
-void WatchFullScreenLights(NSWindow *window);
-void PlaceFullScreenLights(NSWindow *window);
-NSView *FullScreenLightsView(NSWindow *window);
-void SetFullScreenLightsPointerInside(NSWindow *window, BOOL inside);
-NSDictionary *FullScreenLightsBandState(NSWindow *window);
-
-void SuppressFullScreenTitlebar(NSWindow *window);
-CGFloat FullScreenRevealHeight(NSWindow *window);
-double FullScreenRevealAmount(NSWindow *window);
-void ApplyFullScreenReveal(NSWindow *window);
-void SetFullScreenRevealAmount(NSWindow *window, double amount);
-NSDictionary *FullScreenRevealState(NSWindow *window);
-
 NSMenuItem *ReservedMenuItemForEvent(NSEvent *event);
 bool IsReservedKey(NSEvent *event);
 bool IsSecondSidebarKeyPress(NSEvent *event);
@@ -67,6 +57,7 @@ extern const void *kActedFullScreenKey;
 extern const void *kWindowFullScreenKey;
 BOOL IsWindowFullScreen(NSWindow *window);
 void ActOcclusion(NSWindow *window, NSNumber *visible);
+void ActWindowServer(NSWindow *window, BOOL shows);
 extern NSTimeInterval gActedOcclusionGap;
 void ActWindowFullScreen(ArdiaCoreWindow *coreWindow, BOOL enter, NSTimeInterval seconds);
 extern NSTimeInterval gActedTransition;

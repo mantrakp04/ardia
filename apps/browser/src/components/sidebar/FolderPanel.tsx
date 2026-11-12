@@ -27,7 +27,6 @@ export function FolderPanel({ windowId }: { windowId: string }) {
 }
 
 function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId: string; anchor: { x: number; y: number; width: number; height: number } }) {
-  const theme = useTheme();
   const controller = useDragController();
   const members = useTileFolderMembers(windowId, folderId);
   const label = useTileFolderLabel(windowId, folderId);

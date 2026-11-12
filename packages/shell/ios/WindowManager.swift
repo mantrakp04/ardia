@@ -12,6 +12,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private var managed: [String: ManagedWindow] = [:]
   private var pending: [PendingOpen] = []
   private var lightsCenters: [String: (center: NSPoint, trailing: Bool)] = [:]
+  private var unreportedFrames = Set<ObjectIdentifier>()
   private weak var lastPlaced: NSWindow?
   private static let lastFrameKey = "ArdiaLastWindowFrame"
   private var lastFrame = UserDefaults.standard.string(forKey: WindowManager.lastFrameKey) ?? UserDefaults.standard.string(forKey: "NSWindow Frame BrowserWindow")
@@ -59,8 +60,12 @@ final class WindowManager: NSObject, NSWindowDelegate {
     window.level = window.level == .floating ? .normal : .floating
   }
 
-  func reopen() {
-    ShellEvents.send(.app, ["type": "reopen"])
+  func reopenFromDock() {
+    let shown = NSApp.orderedWindows.filter { $0.isVisible && !$0.isMiniaturized && $0.isOnActiveSpace }
+    let browserShown = shown.contains { isBrowserWindow($0) }
+    let floatingShown = shown.contains { id(of: $0) == nil && !($0 is NSPanel) }
+    if browserShown { return }
+    ShellEvents.send(.app, ["type": "reopen", "pastFloating": floatingShown])
   }
 
   func runtimeGone() {
@@ -205,6 +210,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
     for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
       NotificationCenter.default.addObserver(self, selector: #selector(fullScreenChanged(_:)), name: name, object: window)
     }
+    for name in [NSWindow.willEnterFullScreenNotification, NSWindow.willExitFullScreenNotification] {
+      NotificationCenter.default.addObserver(self, selector: #selector(fullScreenWillChange(_:)), name: name, object: window)
+    }
   }
 
   private func observeDelegateNotifications(_ window: NSWindow) {
@@ -318,6 +326,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   func animateClose(id: String, after replacement: String?, done: @escaping () -> Void) {
     guard let entry = managed[id] else { return done() }
+    flushFrameReport(entry.window)
     if entry.exit != nil { return entry.exit!.append(done) }
     let window = entry.window
     guard entry.kind.isBrowser, window.isVisible, !window.isMiniaturized, !window.styleMask.contains(.fullScreen), !entry.isWaitingToReveal
@@ -359,6 +368,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
     managed[id] = nil
     NotificationCenter.default.removeObserver(self, name: nil, object: window)
+    dropFrameReport(window)
     window.animationBehavior = .none
     window.orderOut(nil)
     CATransaction.flush()
@@ -389,6 +399,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
     guard isBrowserWindow(sender), let id = id(of: sender), ShellEvents.isAttached(.app) else { return true }
+    flushFrameReport(sender)
     return !ShellEvents.send(.window, ["type": "closeRequest", "id": id])
   }
 
@@ -401,6 +412,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   func windowWillClose(_ notification: Notification) {
     guard let window = notification.object as? NSWindow, let id = id(of: window), let entry = managed[id] else { return }
     let closedByJS = entry.closingFromJS
+    flushFrameReport(window)
     managed[id] = nil
     NotificationCenter.default.removeObserver(self, name: nil, object: window)
     if !entry.kind.isBrowser {
@@ -417,14 +429,22 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
   }
 
+  @objc func fullScreenWillChange(_ notification: Notification) {
+    guard let window = notification.object as? NSWindow, let id = id(of: window), managed[id] != nil else { return }
+    sendFullScreen(window, id: id, on: notification.name == NSWindow.willEnterFullScreenNotification)
+  }
+
   @objc func fullScreenChanged(_ notification: Notification) {
     guard let window = notification.object as? NSWindow, let id = id(of: window), let entry = managed[id] else { return }
     let entered = notification.name == NSWindow.didEnterFullScreenNotification
     entry.isFullScreen = entered
-    if isMainWindow(window) {
-      ShellEvents.send(.window, ["type": "fullScreen", "id": id, "on": entered && !ArdiaChromeWindowHost.windowFullScreenIs(forPage: window)])
-    }
+    sendFullScreen(window, id: id, on: entered)
     if entered { fullScreen.entered(id) }
+  }
+
+  private func sendFullScreen(_ window: NSWindow, id: String, on: Bool) {
+    guard isMainWindow(window) else { return }
+    ShellEvents.send(.window, ["type": "fullScreen", "id": id, "on": on && !ArdiaChromeWindowHost.windowFullScreenIs(forPage: window)])
   }
 
   private static let resizeReportDelay: TimeInterval = 0.25
@@ -433,11 +453,28 @@ final class WindowManager: NSObject, NSWindowDelegate {
     guard let window = notification.object as? NSWindow, !window.inLiveResize else { return }
     relayoutRoot(window)
     NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportResized(_:)), object: window)
+    unreportedFrames.insert(ObjectIdentifier(window))
     perform(#selector(reportResized(_:)), with: window, afterDelay: Self.resizeReportDelay)
   }
 
   @objc private func reportResized(_ window: NSWindow) {
     reportFrame(window)
+  }
+
+  func flushFrameReports() {
+    for entry in managed.values { flushFrameReport(entry.window) }
+  }
+
+  private func flushFrameReport(_ window: NSWindow) {
+    guard unreportedFrames.contains(ObjectIdentifier(window)) else { return }
+    dropFrameReport(window)
+    reportFrame(window)
+  }
+
+  private func dropFrameReport(_ window: NSWindow) {
+    unreportedFrames.remove(ObjectIdentifier(window))
+    NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportMoved(_:)), object: window)
+    NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportResized(_:)), object: window)
   }
 
   private func relayoutRoot(_ window: NSWindow) {
@@ -450,7 +487,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
   @objc private func frameChanged(_ notification: Notification) {
     guard let window = notification.object as? NSWindow, !window.inLiveResize else { return }
     NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportMoved(_:)), object: window)
-    perform(#selector(reportMoved(_:)), with: window, afterDelay: 0, inModes: [.default])
+    let delay = notification.name == NSWindow.didEndLiveResizeNotification ? 0 : Self.resizeReportDelay
+    unreportedFrames.insert(ObjectIdentifier(window))
+    perform(#selector(reportMoved(_:)), with: window, afterDelay: delay, inModes: [.default])
   }
 
   @objc private func reportMoved(_ window: NSWindow) {
@@ -458,6 +497,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   private func reportFrame(_ window: NSWindow) {
+    unreportedFrames.remove(ObjectIdentifier(window))
     guard let id = id(of: window), !window.styleMask.contains(.fullScreen), window.parent == nil else { return }
     if isMainWindow(window) {
       lastFrame = window.frameDescriptor

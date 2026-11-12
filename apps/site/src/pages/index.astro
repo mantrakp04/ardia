@@ -8,12 +8,11 @@ import Bench from "../components/Bench.astro";
 import Game from "../components/Game.astro";
 import Faq from "../components/Faq.astro";
 import Closing from "../components/Closing.astro";
+import ComputerUse from "../components/ComputerUse.astro";
 import Footer from "../components/Footer.astro";
 import { DMG, DMG_SIZE, MIN_MACOS, REPO, VERSION } from "../data/release";
 import { HERO_POSTERS } from "../data/heroPoster";
 import { faqJsonLd } from "../data/faq";
-const ComputerUse =
-  import.meta.env.DEV || import.meta.env.COMPUTER_USE_PUBLISHED ? (await import("../components/ComputerUse.astro")).default : null;
 
 const home = homeUrl(Astro.site);
 const description =
@@ -63,7 +62,7 @@ const jsonLd = [
   <main>
     <Hero />
     <Showcase />
-    {ComputerUse && <ComputerUse />}
+    <ComputerUse />
     <Bench />
     <Game />
     <Faq />

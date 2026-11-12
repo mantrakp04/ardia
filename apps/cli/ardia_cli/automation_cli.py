@@ -2,14 +2,14 @@ import asyncio
 import json
 import os
 import signal
-import sys
 import time
 from pathlib import Path
 
 from ardia_cli import control, hooks
 from ardia_cli.control import MethodError, Unreachable
+from ardia_cli.endpoint import DATA_DIR_HELP
+from ardia_cli.printable import complain, say, shown
 
-DATA_DIR_HELP = "the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)"
 RUN_DESCRIPTION = """\
 Run one of Ardia's commands, exactly as its menu item or shortcut would, in the last focused window or --window.
 ARG is one of the command's variants (ardia commands lists them); COMMAND:ARG works too.
@@ -94,7 +94,7 @@ def add_parsers(commands, formatter):
     listing = data_dir(commands.add_parser("commands", help="list the commands ardia run can run", description="List the commands ardia run can run: ids, titles and variants."))
     listing.add_argument("--json", action="store_true", help="print JSON")
 
-    windows = data_dir(commands.add_parser("windows", help="list Ardia's windows and their tabs", description="List Ardia's windows and their tabs (private windows are never included)."))
+    windows = data_dir(commands.add_parser("windows", help="list Ardia's windows and their tabs", description="List Ardia's windows and their tabs (private windows are never included). For each tab's process id, CPU and memory, use ardia tabs --usage."))
     windows.add_argument("--json", action="store_true", help="print JSON")
 
     events = data_dir(commands.add_parser("events", help="print events as they happen", description=EVENTS_DESCRIPTION, formatter_class=formatter))
@@ -127,17 +127,6 @@ def split_program(argv: list[str]) -> tuple[list[str], list[str] | None]:
     return argv[:index], argv[index + 1:]
 
 
-def say(text: str) -> None:
-    sys.stdout.write(text + "\n")
-    sys.stdout.flush()
-
-
-def complain(text: str) -> None:
-    sys.stdout.flush()
-    sys.stderr.write(text + "\n")
-    sys.stderr.flush()
-
-
 def dispatch(args, parser) -> int:
     handlers = {"run": cmd_run, "commands": cmd_commands, "windows": cmd_windows, "events": cmd_events, "on": cmd_on}
     if args.command == "hooks":
@@ -156,18 +145,6 @@ def dispatch(args, parser) -> int:
 
 def socket_for(args) -> Path:
     return control.socket_path(args.data_dir)
-
-
-async def with_connection(args, work):
-    connection = await control.connect(socket_for(args))
-    try:
-        return await work(connection)
-    finally:
-        await connection.close()
-
-
-def call(args, method: str, params=None, timeout=control.CALL_TIMEOUT):
-    return asyncio.run(with_connection(args, lambda c: c.call(method, params, timeout)))
 
 
 def closest_commands(name: str, catalog) -> str:
@@ -202,7 +179,7 @@ def cmd_run(args) -> int:
             return error, catalog
 
     try:
-        result, catalog = asyncio.run(with_connection(args, work))
+        result, catalog = asyncio.run(control.with_connection(args.data_dir, work))
     except Unreachable as error:
         if error.sent:
             complain(f"ardia run: the connection dropped after the request went out, so {command} may or may not have run ({error})")
@@ -246,7 +223,7 @@ def unreachable_exit(error: Unreachable) -> int:
 
 def cmd_commands(args) -> int:
     try:
-        catalog = call(args, "commands")
+        catalog = control.call(args.data_dir, "commands")
     except Unreachable as error:
         return unreachable_exit(error)
     except MethodError as error:
@@ -260,13 +237,13 @@ def cmd_commands(args) -> int:
     for item in rows:
         variants = item.get("variants")
         tail = f"  [{', '.join(map(str, variants))}]" if variants else ""
-        say(f"{str(item.get('id', '')).ljust(width)}  {item.get('title', '')}{tail}")
+        say(shown(f"{str(item.get('id', '')).ljust(width)}  {item.get('title', '')}{tail}"))
     return 0
 
 
 def cmd_windows(args) -> int:
     try:
-        windows = call(args, "windows")
+        windows = control.call(args.data_dir, "windows")
     except Unreachable as error:
         return unreachable_exit(error)
     except MethodError as error:
@@ -280,12 +257,12 @@ def cmd_windows(args) -> int:
             continue
         flags = [str(window.get("kind", "normal"))] + (["focused"] if window.get("focused") else [])
         profile = window.get("profileName") or window.get("profile") or ""
-        say(f"window {window.get('id')}  {', '.join(flags)}  {profile}".rstrip())
+        say(shown(f"window {window.get('id')}  {', '.join(flags)}  {profile}".rstrip()))
         for tab in window.get("tabs") or []:
             marks = ("*" if tab.get("active") else " ") + ("p" if tab.get("pinned") else " ")
             group = f"  (group {tab['group']})" if tab.get("group") is not None else ""
             title = tab.get("title") or ""
-            say(f"  {marks} {tab.get('id')}  {title}  {tab.get('url', '')}{group}")
+            say(shown(f"  {marks} {tab.get('id')}  {title}  {tab.get('url', '')}{group}"))
     return 0
 
 
@@ -308,7 +285,7 @@ def describe_event(event: dict) -> str:
         parts.append(", ".join(map(str, data["keys"])))
     if "tabId" not in data and data.get("profile"):
         parts.append(str(data["profile"]))
-    return "  ".join(parts)
+    return "  ".join(shown(part) for part in parts)
 
 
 def cmd_events(args) -> int:
@@ -337,7 +314,7 @@ def cmd_events(args) -> int:
             say(raw if args.json else describe_event(event))
 
     try:
-        asyncio.run(with_connection(args, work))
+        asyncio.run(control.with_connection(args.data_dir, work))
     except Unreachable as error:
         return unreachable_exit(error)
     except MethodError as error:
@@ -432,7 +409,21 @@ def refuse_scratch(args, verb: str) -> bool:
     return False
 
 
+def launchctl_stuck(verb: str, error) -> int:
+    complain(f"ardia hooks {verb}: launchctl didn't answer in {error.timeout:g} s; try again, or check launchctl print {hooks.domain()}/{hooks.LABEL}")
+    return 1
+
+
 def hooks_install(args, launchctl=None, sleep=time.sleep) -> int:
+    import subprocess
+
+    try:
+        return install_agent(args, launchctl, sleep)
+    except subprocess.TimeoutExpired as error:
+        return launchctl_stuck("install", error)
+
+
+def install_agent(args, launchctl, sleep) -> int:
     import plistlib
 
     from ardia_cli import config_files
@@ -470,11 +461,16 @@ def hooks_install(args, launchctl=None, sleep=time.sleep) -> int:
 
 
 def hooks_uninstall(args, launchctl=None) -> int:
+    import subprocess
+
     if refuse_scratch(args, "uninstall"):
         return 1
     launchctl = launchctl or hooks.launchctl
     paths = hooks.agent_paths()
-    result = launchctl(["bootout", f"{hooks.domain()}/{hooks.LABEL}"])
+    try:
+        result = launchctl(["bootout", f"{hooks.domain()}/{hooks.LABEL}"])
+    except subprocess.TimeoutExpired as error:
+        return launchctl_stuck("uninstall", error)
     existed = os.path.lexists(paths.plist)
     if existed:
         os.unlink(paths.plist)

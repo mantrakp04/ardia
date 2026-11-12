@@ -158,10 +158,6 @@ typedef NS_ENUM(NSInteger, ArdiaCoreAdoption) {
 - (void)window:(ArdiaCoreWindow*)window
     autofillPrompt:(NSDictionary<NSString*, id>*)prompt
             forTab:(ArdiaCoreTab*)tab;
-- (void)window:(ArdiaCoreWindow*)window
-    passwordSavePromptForTab:(ArdiaCoreTab*)tab
-                    username:(NSString*)username
-                      origin:(NSString*)origin;
 - (void)window:(ArdiaCoreWindow*)window showRequestedActive:(BOOL)active;
 - (BOOL)windowShouldClose:(ArdiaCoreWindow*)window;
 - (void)windowDidCancelClose:(ArdiaCoreWindow*)window;
@@ -209,6 +205,11 @@ ARDIACORE_EXPORT
                          foreground:(BOOL)foreground;
 - (void)placeTab:(ArdiaCoreTab*)tab index:(int)index pinned:(BOOL)pinned;
 @property(nonatomic) BOOL internal;
+@end
+
+@interface ArdiaCoreWindow (Picture)
++ (void)copyPictureOfChromeWindow:(NSWindow*)window
+                       completion:(void (^)(CGImageRef _Nullable picture))completion;
 @end
 
 @protocol ArdiaCoreTabDelegate <NSObject>
@@ -367,7 +368,6 @@ ARDIACORE_EXPORT
 - (void)exitPictureInPicture;
 - (void)enterPictureInPictureForClickAt:(NSTimeInterval)clickTime
                              completion:(void (^)(NSString* route, BOOL opened))completion;
-- (BOOL)canShareThisTabInsteadFor:(ArdiaCoreTab*)capturer;
 - (BOOL)shareThisTabInsteadFor:(ArdiaCoreTab*)capturer;
 - (BOOL)showCastDialog;
 - (BOOL)devShowBluetoothChooser:(BOOL)unauthorized;

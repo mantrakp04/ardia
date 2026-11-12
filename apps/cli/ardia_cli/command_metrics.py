@@ -8,10 +8,17 @@ DURATIONS = frozenset({
     "total_ms", "startup_ms", "daemon_start_ms", "connect_ms", "attach_ms", "snapshot_build_ms", "action_ms", "eval_ms",
     "settle_ms", "cdp_ms_total",
 })
-COUNTS = frozenset({"cdp_calls", "snapshot_nodes", "snapshot_chars", "output_chars", "network_writes_count", "batch_steps"})
-FLAGS = frozenset({"daemon_spawned", "reconnected_after_idle", "output_truncated", "humanize", "unsettled"})
+COUNTS = frozenset({"cdp_calls", "snapshot_nodes", "snapshot_chars", "output_chars", "network_writes_count", "batch_steps",
+                    "read_rows", "read_pages", "read_tabs_reopened", "skills_installed", "skills_skipped"})
+READ_FLAGS = frozenset({"read_scrolled", "read_matched", "read_virtualized_grid"})
+ACT_FLAGS = frozenset({"waited_for_enabled", "fill_picked_option", "fill_inserted_text", "drag_side_given", "drag_list_position"})
+ACT_COUNTS = frozenset({"cell_edits"})
+CHANGE_FLAGS = frozenset({"change_text", "change_run_choices", "open_report", "open_moved_tab", "snapshot_disabled_folded", "names_clipped"})
+CHANGE_COUNTS = frozenset({"change_text_chars"})
+FLAGS = frozenset({"daemon_spawned", "reconnected_after_idle", "output_truncated", "humanize", "unsettled", "daemon_answer_timed_out",
+                   "followed_redrawn_ref", "script_eval_alias", "script_page_world_hint", "attach_refused"})
 MAIN_PHASE = {"snapshot": "snapshot_build_ms", "eval": "eval_ms"}
-OUTPUT_MARKERS = ("\n[output capped at ", "\n[truncated ")
+OUTPUT_MARKERS = ("\n[output capped at ", "\n[truncated ", "\n[pages cut to fit ", " not shown. Narrow it instead: ")
 
 current: ContextVar = ContextVar("ardia_command_metrics", default=None)
 last_request_shareable = False
@@ -58,6 +65,18 @@ def flag(key: str, value: bool) -> None:
     metrics = current.get()
     if metrics is not None:
         metrics.values[key] = bool(value)
+
+
+def count(key: str, value: int) -> None:
+    metrics = current.get()
+    if metrics is not None:
+        metrics.values[key] = int(value)
+
+
+def add(key: str, value: int = 1) -> None:
+    metrics = current.get()
+    if metrics is not None:
+        metrics.values[key] = int(metrics.values.get(key, 0)) + int(value)
 
 
 def cdp_call(started: float) -> None:
@@ -107,9 +126,9 @@ def clean(values) -> dict:
     if not isinstance(values, dict):
         return out
     for key, value in values.items():
-        if key in FLAGS and isinstance(value, bool):
+        if key in FLAGS | READ_FLAGS | ACT_FLAGS | CHANGE_FLAGS and isinstance(value, bool):
             out[key] = value
-        elif key in DURATIONS | COUNTS and isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+        elif key in DURATIONS | COUNTS | ACT_COUNTS | CHANGE_COUNTS and isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
             ceiling = MAX_MS if key in DURATIONS else MAX_COUNT
             out[key] = int(min(max(round(value), 0), ceiling))
     return out

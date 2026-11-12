@@ -13,6 +13,7 @@ NOT_REACHABLE = (
     "Ardia isn't running, or \"Let the ardia command control Ardia\" is off in Settings."
 )
 CONTROL_FILE = "ArdiaControl.json"
+DATA_DIR_HELP = "the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)"
 INSTALLED_DATA_DIR = Path.home() / "Library" / "Application Support" / "com.ardia.browser"
 _BROWSER_PATH = re.compile(r"^/devtools/browser/[0-9A-Za-z-]{1,128}$")
 _TOKEN = re.compile(r"^[\x21-\x7e]{16,1024}$")

@@ -18,6 +18,8 @@ Examples:
   ardia --port 9222 browse snapshot -i
   ardia browse --port 9222 snapshot -i
   ardia windows --json
+  ardia tabs --json
+  ardia groups create tab-1 tab-2 --name Work --icon 🚀
 """
 SKILLS_DESCRIPTION = """\
 Install the ardia agent skill (SKILL.md and its references) so coding agents know how to drive Ardia.
@@ -33,6 +35,9 @@ Next to each one it installs cua-driver's own skill (cua-driver, for computer us
 ardia computer), pinned to the bundled driver; --no-cua skips it. A cua-driver skill that ardia didn't install, from
 cua's own installer for one, is left alone.
 
+Installing or updating the CLI runs `ardia skills install --auto`: the skill goes to every coding agent found here
+(Claude Code, Codex, Cursor, opencode; general when none is), never over a folder ardia didn't write, and not again where
+the user removed it.
 Ardia remembers where it installed the skill, and each CLI update rewrites those copies (ardia skills refresh).
 """
 SHARED_VALUE_FLAGS = frozenset({"--port", "--ws", "--data-dir", "--timeout"})
@@ -149,14 +154,9 @@ def run_browse(hoisted: list[str], rest: list[str]) -> int:
 def run_notes(hoisted: list[str], rest: list[str]) -> int:
     import importlib
 
-    try:
-        notes = importlib.import_module("ardia_cli.notes")
-    except ModuleNotFoundError as error:
-        if error.name != "ardia_cli.notes":
-            raise
-        sys.stderr.write("ardia notes isn't in this build of the ardia command\n")
-        return 1
     from ardia_cli import telemetry
+
+    notes = importlib.import_module("ardia_cli.notes")
 
     telemetry.note_browse(hoisted + rest, command="notes")
     return notes.main(hoisted + rest)
@@ -190,6 +190,7 @@ def build_parser():
     install.add_argument("--project", action="store_true", help="install into the current directory's project folders")
     install.add_argument("--no-cua", action="store_true", help="don't install cua-driver's computer-use skill next to it")
     install.add_argument("--replace", action="store_true", help="replace an ardia folder that ardia didn't install (only that folder)")
+    install.add_argument("--auto", action="store_true", help="install for every coding agent found on this Mac (or general when none is), skipping folders ardia didn't write and copies the user removed")
     skill_commands.add_parser("refresh", help="rewrite every copy of the skill installed before with this CLI's version")
 
     from ardia_cli import scripts_cli
@@ -203,6 +204,10 @@ def build_parser():
     from ardia_cli import automation_cli
 
     automation_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
+
+    from ardia_cli import workspace_cli
+
+    workspace_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
 
     from ardia_cli import feedback, star
 
@@ -232,9 +237,15 @@ def main(argv: list[str] | None = None) -> int:
     if argv == ["--version"]:
         print(f"ardia {__version__}")
         return 0
-    from ardia_cli import telemetry
+    from ardia_cli import printable, telemetry
 
-    return telemetry.track(argv, lambda: run(argv))
+    try:
+        index = take_shared(argv, 0, [])
+    except UsageError:
+        index = len(argv)
+    browse_renders_its_own = index < len(argv) and argv[index] in ("browse", "notes")
+    with printable.inert_output(json_stdout=browse_renders_its_own or printable.json_requested(argv)):
+        return telemetry.track(argv, lambda: run(argv))
 
 
 def run(argv: list[str]) -> int:
@@ -287,6 +298,8 @@ def run(argv: list[str]) -> int:
 
         if args.skills_command == "refresh":
             return skills.refresh()
+        if args.auto:
+            return skills.install_detected(not args.no_cua)
         return skills.install(args.target or ["general"], args.project, not args.no_cua, args.replace)
     if args.command == "scripts":
         from ardia_cli import scripts_cli
@@ -296,6 +309,10 @@ def run(argv: list[str]) -> int:
         from ardia_cli import automation_cli
 
         return automation_cli.dispatch(args, parser)
+    if args.command in ("tabs", "groups", "apply"):
+        from ardia_cli import workspace_cli
+
+        return workspace_cli.run(args, parser)
     if args.command in ("config", "theme"):
         from ardia_cli import config_cli
 

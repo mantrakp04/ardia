@@ -8,14 +8,14 @@ import type { GroupColor } from "../../state/browser/types";
 import { groupLabel } from "../../state/pins/tabGrouping";
 import { splitRowPanes } from "../../state/splits/splits";
 import { isSilenced } from "../../state/tabs/mute";
-import { groupEntries, keptEntry } from "../../state/sidebar/entries";
-import { GROUP_BORDER, GROUP_INDENT, GROUP_RADIUS } from "./geometry";
+import { groupEntries, keptEntries } from "../../state/sidebar/entries";
+import { GROUP_BORDER, GROUP_INDENT, GROUP_INSET, GROUP_RADIUS, groupMembersPadBottom } from "./geometry";
 import { headGap } from "../../state/sidebar/geometry";
 import { pointerOnGroup, pointerOnRow } from "../../state/sidebar/hover";
 import { FaviconFallback, NewTabIcon } from "../favicon/Favicon";
 import { TabIcon } from "./TabIcon";
 import { iconSymbol } from "../../lib/customIcon";
-import { groupSurface, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
+import { groupBoxAtRest, groupSurface, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
 import { SidebarRowLabel } from "./SidebarRow";
 import { entryKey, parseEntry } from "../../state/sidebar/entryKey";
 
@@ -64,8 +64,7 @@ export function snapshotEntry(s: BrowserState, windowId: string, profileId: stri
   if (kind !== "group") return tabShot(s, id, pointerOnRow(id));
   const group = s.groups[id];
   if (!group) return null;
-  const entries = groupEntries(s, id);
-  const kept = group.collapsed ? keptEntry(s, windowId, profileId, entries) : null;
+  const members = group.collapsed ? keptEntries(s, windowId, profileId, id) : groupEntries(s, id);
   const first = s.tabs[group.tabIds[0] ?? ""];
   return {
     kind: "group",
@@ -75,7 +74,7 @@ export function snapshotEntry(s: BrowserState, windowId: string, profileId: stri
     icon: group.icon || first ? { url: first?.url ?? "", favicon: first?.favicon, icon: group.icon ?? first?.customIcon, profileId: first?.profileId } : null,
     collapsed: !!group.collapsed,
     hovered: pointerOnGroup(id),
-    members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => (parseEntry(e).kind === "tab" ? tabShot(s, parseEntry(e).id, false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
+    members: members.flatMap((e) => (parseEntry(e).kind === "tab" ? tabShot(s, parseEntry(e).id, false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
   };
 }
 
@@ -140,7 +139,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
   const { fill, stroke } = groupSurface(shot.color, tokens);
   return (
     <View style={{ paddingVertical: GROUP_BORDER }}>
-      {shot.hovered ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
+      {shot.hovered || groupBoxAtRest(shot.color) ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
       <View style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: TAB_ROW.contentLeft, paddingRight: TAB_ROW.trailing }}>
         {shot.icon ? <TabIcon url={shot.icon.url} favicon={shot.icon.favicon} icon={shot.icon.icon} profileId={shot.icon.profileId} /> : <View style={{ width: 16 }} />}
         <View style={{ flexShrink: 1, height: TAB_ROW.titleHeight, marginLeft: TAB_ROW.titleGap, paddingRight: space.m, justifyContent: "center" }}>
@@ -153,7 +152,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
           <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10, height: 10 }} />
         </View>
       </View>
-      <View style={{ gap: layout.rowGap, paddingTop: headGap(shot.members[0]?.key), paddingLeft: GROUP_INDENT }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
+      <View style={{ gap: layout.rowGap, paddingTop: headGap(shot.members[0]?.key), paddingBottom: groupMembersPadBottom(shot.members.length), paddingLeft: GROUP_INDENT, paddingRight: GROUP_INSET }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
     </View>
   );
 }

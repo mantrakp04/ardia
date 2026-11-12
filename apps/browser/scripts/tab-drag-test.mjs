@@ -193,7 +193,6 @@ try {
       const unsubscribe = ac.store.subscribe((s, p) => { if (s.windows !== p.windows) log.windows.push(performance.now() - t0); });
       const begin = ac.shell.dragPreview.begin;
       ac.shell.dragPreview.begin = (...a) => { log.picture.push(performance.now() - t0); return begin(...a); };
-      // The drag's own store says when it starts and ends (the drop's store update comes right after, in the same task).
       const stop = globalThis.acTabDrag.subscribe((d, was) => { if ((d.phase === "idle") !== (was.phase === "idle")) log.drag.push([d.phase !== "idle", performance.now() - t0]); });
       return act("w1", "drag:${path.map((p) => p.join(",")).join(";")}").then(() => settle(${path.length * 12 * 16 + 1200})).then(() => {
         stop(); unsubscribe(); tabs.call = send; ac.shell.dragPreview.begin = begin;
@@ -511,7 +510,7 @@ try {
 
   await check("sidebar auto-hidden: a row dragged within the peeking sidebar reorders instead of splitting, and Esc cancels a drag", async () => {
     const edge = (p) => run(`return ac.shell.devSidebarEdgePointer("w1", ${JSON.stringify(p)}).then(() => settle(500)).then(() => !!globalThis.acLayout.peek.w1?.live);`);
-    await run(`for (const v of Object.values(st().splits)) st().separateSplit(v.id); if (st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900);`);
+    await run(`for (const v of Object.values(st().splits)) st().separateSplit(v.id); if (!st().settings.autoHideTabs) st().toggleSidebar("w1"); return settle(900);`);
     try {
       await edge({ x: -4, y: 300 });
       assert.equal(await edge({ x: 120, y: 300 }), true, "the sidebar peeks");
@@ -537,7 +536,7 @@ try {
       assert.ok(cancelled.ended !== null && cancelled.ended < 150 + 16 * 12 * 7, `Esc ended the drag before the release: ${cancelled.ended}`);
       assert.equal(await edge({ x: 800, y: 400 }), false, "it hides once the pointer leaves");
     } finally {
-      await run(`return ac.shell.devSidebarEdgePointer("w1", null).then(() => { if (!st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900); });`);
+      await run(`return ac.shell.devSidebarEdgePointer("w1", null).then(() => { if (st().settings.autoHideTabs) st().toggleSidebar("w1"); return settle(900); });`);
     }
   });
 

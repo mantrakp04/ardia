@@ -7,11 +7,12 @@ import { TOOLBAR_ROWS, urlFieldOf, type ToolbarRow } from "../../lib/toolbarRow"
 import { ToolbarRowContext } from "../ui/toolbarRowContext";
 import { activate } from "../../state/tabs/actions";
 import { openPanel as openWindowPanel, toggleSidebar } from "../../state/windows/actions";
-import { useIsBookmarked, useSettings, useSidebarSide, useTab, useTabLive } from "../../state/browser/hooks";
+import { useIsBookmarked, useSettings, useSidebarSide, useTab, useTabLayout, useTabLive, useTabsShown } from "../../state/browser/hooks";
 import type { Tab } from "../../state/browser/types";
 import { Button, ContextMenuArea, Divider, FadeLabel, font, ink, space, Symbol, Text, useHover, WindowDragRegion } from "../ui";
 import { type ToolbarGeometry } from "../window/geometry";
-import { popoverOf, setPopover, usePage, usePages, type PageState } from "../../state/tabs/pageState";
+import { usePage, usePages, type PageState } from "../../state/tabs/pageState";
+import { togglePopover } from "../../state/tabs/popoverDismiss";
 import { useHistoryAvailability } from "../../state/tabs/navigation";
 import { toggleBookmarkOfTab } from "../../state/bookmarks/actions";
 import { useBookmarksShown } from "../../state/bookmarks/hooks";
@@ -47,6 +48,12 @@ export const urlTextLeft = (insecure: boolean) => (insecure ? LOCK.left + LOCK.w
 export const insecureLevel = (p: PageState) =>
   p.security && (p.security.level === "insecure" || p.security.level === "certificateError") ? p.security.level : null;
 
+function useTabsToggleIcon(windowId: string) {
+  const top = useTabLayout(windowId) === "top";
+  const right = useSidebarSide(windowId) === "right";
+  return top ? "rectangle.topthird.inset.filled" : right ? "sidebar.right" : "sidebar.left";
+}
+
 export function Toolbar({
   tabId,
   geometry,
@@ -64,7 +71,8 @@ export function Toolbar({
 }) {
   const theme = useTheme();
   const sidebarHint = useShortcutHint("toggleSidebar");
-  const sidebarIcon = useSidebarSide(windowId) === "right" ? "sidebar.right" : "sidebar.left";
+  const tabsIcon = useTabsToggleIcon(windowId);
+  const tabsShown = useTabsShown(windowId);
   const tab = useToolbarTab(tabId);
   const isLoading = useTabLive(tabId, (l) => l.isLoading);
   const palette = useSitePalette(tabId);
@@ -103,10 +111,10 @@ export function Toolbar({
           <Button variant="icon" toolbar
             style={at.sidebarButton}
             palette={palette}
-            icon={sidebarIcon}
+            icon={tabsIcon}
             look="row"
             onPress={() => toggleSidebar(windowId)}
-            tooltip={withShortcut("Auto-Hide Tabs", sidebarHint)}
+            tooltip={withShortcut(tabsShown ? "Hide Tabs" : "Show Tabs", sidebarHint)}
           />
         )}
         <HistoryButton place={at.back} tabId={tab.id} windowId={tab.windowId} direction={-1} disabled={!history.back} palette={palette} onFocus={focus} />
@@ -157,7 +165,7 @@ function useUrlField(tab: ToolbarTab, windowId: string, onFocus: () => void) {
   };
   const toggleSiteControls = () => {
     onFocus();
-    setPopover(tab.id, currentPopover(tab.id) === "siteControls" ? null : "siteControls");
+    togglePopover(tab.id, "siteControls");
   };
   return { insecure, popover, hovered, hoverProps, openPanel, toggleSiteControls, host: pageHostLabel(tab.url), trail: urlTrail(tab.url, tab.title, { hovered, showFullUrl }) };
 }
@@ -316,7 +324,7 @@ function FieldButtons({
           look="field"
           onPress={() => {
             onFocus();
-            setPopover(tab.id, currentPopover(tab.id) === "popups" ? null : "popups");
+            togglePopover(tab.id, "popups");
           }}
           active={popover === "popups"}
           tooltip="Pop-ups blocked on this page"
@@ -334,4 +342,3 @@ function CaptureIndicator({ camera, microphone, screen, onPress }: { camera: boo
   return <Button variant="icon" icon={icon} look="field" color={theme.destructive} onPress={onPress} tooltip={`This page is using your ${what}`} />;
 }
 
-const currentPopover = (tabId: string) => popoverOf(tabId) ?? null;

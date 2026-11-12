@@ -1,6 +1,5 @@
 import { pageFrameOf, type PageFrame } from "../../lib/windowLayout";
-import { usePageFrameInset } from "../../state/windows/layout";
-import { layout } from "../ui/theme";
+import { usePageFrameInset, windowCornerRadius } from "../../state/windows/layout";
 import { PEEK_RADIUS } from "./tokens";
 import { sidebarCardGap } from "./dockMotion";
 
@@ -10,7 +9,7 @@ const frames = new Map<number, CardFrame>();
 
 export function cardFrameOf(inset: number): CardFrame {
   let frame = frames.get(inset);
-  if (!frame) frames.set(inset, (frame = { ...pageFrameOf(inset, layout.cardRadius, PEEK_RADIUS), dockGap: sidebarCardGap(inset) }));
+  if (!frame) frames.set(inset, (frame = { ...pageFrameOf(inset, windowCornerRadius(), PEEK_RADIUS), dockGap: sidebarCardGap(inset) }));
   return frame;
 }
 

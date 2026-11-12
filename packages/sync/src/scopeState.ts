@@ -16,7 +16,7 @@ export type SnapshotFile = {
 };
 export type SyncFile = LogFile | SnapshotFile;
 
-type FileMeta = { d: string; k: "log" | "snapshot" | "bad"; s?: number; vv?: Record<string, number>; at: number };
+type FileMeta = { d: string; k: "log" | "snapshot" | "bad"; s?: number; vv?: Record<string, number>; at: number; b?: number };
 
 export type ScopeState = {
   records: Record<string, SyncRecord>;
@@ -103,6 +103,8 @@ export type ScopeOptions = {
   expired?: (key: string, value: unknown, now: number) => boolean;
   tombstoneTTL?: number;
   compactAfterFiles?: number;
+  compactAfterLogs?: number;
+  compactLogShare?: number;
   compactInterval?: number;
   pruneGrace?: number;
   damagedGiveUp?: number;

@@ -3,11 +3,12 @@ import { test } from "node:test";
 
 globalThis.__DEV__ = false;
 const dm = { ...(await import("./dockMotion.ts")), ...(await import("./tokens.ts")), ...(await import("../../state/windows/dockMotion.ts")), ...(await import("./cardFrame.ts")) };
-const { PAGE_FRAME } = await import("../../lib/windowLayout.ts");
+const { PAGE_FRAME, pageFrameOf } = await import("../../lib/windowLayout.ts");
 const DEFAULT_PEEK = dm.cardFrameOf(PAGE_FRAME.default).peek;
 const motion = await import("../ui/motion.ts");
 const { toolbarGeometry } = await import("./geometry.ts");
 const { useBrowser } = await import("../../state/browser/store.ts");
+const { tabsShownIn } = await import("../../state/browser/model.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("../../state/session/persist.ts");
 const stub = await import("../../test-native/index.ts");
 
@@ -48,10 +49,14 @@ test("the traffic lights go with the sidebar: at their place when it's shown, pa
   }
 });
 
-test("at every frame thickness the peek panel's ends line up with the card's and its corners cover the card's, so no sliver of the page shows round its own", () => {
-  for (let inset = PAGE_FRAME.min; inset <= PAGE_FRAME.max; inset++) checkPeekCoversCard(dm.cardFrameOf(inset));
-  assert.equal(DEFAULT_PEEK.left, 5, "Arc's 5 pt from the window's edge at the default frame");
-  assert.equal(DEFAULT_PEEK.radius, dm.PEEK_RADIUS);
+test("the peek keeps the same gap on every edge, with a 4 pt minimum", () => {
+  for (let inset = PAGE_FRAME.min; inset <= PAGE_FRAME.max; inset++) {
+    const frame = dm.cardFrameOf(inset);
+    const gap = Math.max(4, inset);
+    assert.deepEqual([frame.peek.left, frame.peek.top, frame.peek.bottom], [gap, gap, gap]);
+    if (inset >= 4) checkPeekCoversCard(frame);
+  }
+  assert.equal(DEFAULT_PEEK.left, PAGE_FRAME.default);
 });
 
 function checkPeekCoversCard(frame) {
@@ -98,11 +103,12 @@ test("the sidebar's rows sit 9 pt from the window's edge and 9 pt from the card 
   assert.equal(dm.cardInsetAt(0.5, 190, 9), 99.5);
 });
 
-test("the frame's corners shrink with it: Dia's 10 pt at the default, square edge to edge, and the toolbar's lights stay 21 pt into the card", () => {
+test("the card radius follows the native window radius minus the frame, and the toolbar's lights stay 21 pt into the card", () => {
   assert.equal(dm.cardFrameOf(9).radius, 10);
-  assert.equal(dm.cardFrameOf(0).radius, 0);
-  assert.equal(dm.cardFrameOf(12).radius, 10);
-  assert.ok(dm.cardFrameOf(4).radius > 0 && dm.cardFrameOf(4).radius < 10);
+  assert.equal(dm.cardFrameOf(0).radius, 0, "edge to edge: square corners; the window rounds the page");
+  assert.equal(dm.cardFrameOf(12).radius, 7);
+  assert.equal(dm.cardFrameOf(4).radius, 15);
+  assert.equal(pageFrameOf(18, 19, dm.PEEK_RADIUS).radius, 2);
   assert.ok(dm.cardFrameOf(0).splitGap > 0, "split panes keep a hairline gap edge to edge, so they still read as two pages");
   assert.deepEqual(dm.toolbarLightsCenter(false, 0), [25, 21]);
   assert.deepEqual(dm.toolbarLightsCenter(false), [...dm.LIGHTS_CENTER]);
@@ -167,24 +173,36 @@ test("the sidebar's own button (address bar in the sidebar) always fits; back, f
   }
 });
 
-test("hidden or shown is each window's own, and survives a quit and relaunch; new windows open with it shown", () => {
+test("in window full screen the sidebar's button sits at Arc's 29 pt, with no room left for traffic lights (macOS shows them in its own title bar)", () => {
+  assert.equal(dm.headerToggleX(true), 29);
+  assert.equal(dm.headerToggleX(false), dm.HEADER_TOOLS.toggleX);
+  for (let w = 150; w <= 400; w += 0.5) {
+    const { buttons, step } = dm.navButtonsFitting(w, 30, true, dm.headerToggleX(true));
+    const windowed = dm.navButtonsFitting(w).buttons.length;
+    assert.ok(buttons.length >= windowed, `${w}: full screen never fits fewer buttons`);
+    const last = w - dm.HEADER_TOOLS.edge - 15;
+    const centres = [29, ...buttons.map((_, i) => last - (buttons.length - 1 - i) * step)];
+    for (let i = 1; i < centres.length; i++) assert.ok(centres[i] - centres[i - 1] >= 30 - 1e-9, `${w}: ${centres}`);
+  }
+});
+
+test("hidden or shown is one setting for every window, and survives a quit and relaunch; new and reopened windows follow it", () => {
   stub.docs.clear();
   S().hydrate({});
   const stop = startPersistence();
+  const shown = (id) => tabsShownIn(S(), id);
   const a = S().createWindow({ url: "a.com" });
   const b = S().createWindow({ url: "b.com" });
   S().toggleSidebar(a);
-  assert.equal(S().windows[a].sidebarOpen, false);
-  assert.equal(S().windows[b].sidebarOpen, true, "the other window keeps its sidebar");
+  assert.deepEqual([shown(a), shown(b)], [false, false], "every window hides its tabs");
   flushPersistence();
   S().hydrate(loadSession());
-  assert.equal(S().windows[a].sidebarOpen, false, "relaunch: still hidden");
-  assert.equal(S().windows[b].sidebarOpen, true, "relaunch: still shown");
+  assert.deepEqual([shown(a), shown(b)], [false, false], "relaunch: still hidden");
 
-  S().toggleSidebar(a);
+  S().toggleSidebar(b);
   flushPersistence();
   S().hydrate(loadSession());
-  assert.equal(S().windows[a].sidebarOpen, true);
+  assert.deepEqual([shown(a), shown(b)], [true, true], "relaunch: still shown");
 
   S().toggleSidebar(a);
   S().closeWindow(a);
@@ -194,9 +212,9 @@ test("hidden or shown is each window's own, and survives a quit and relaunch; ne
   S().reopenClosedWindow();
   const reopened = S().windowOrder.find((id) => id !== b);
   assert.ok(reopened, "the closed window came back");
-  assert.equal(S().windows[reopened].sidebarOpen, false, "reopened as it was closed");
+  assert.equal(shown(reopened), false, "reopened as the setting says");
   const c = S().createWindow({ url: "c.com" });
-  assert.equal(S().windows[c].sidebarOpen, true);
+  assert.equal(shown(c), false, "the last choice was hidden");
   stop();
 });
 
@@ -234,8 +252,16 @@ test("Arc's peek slides in on its measured spring and leaves on its ease-in-out;
   assert.equal(dm.easeInOutCubic(0), 0);
   assert.equal(dm.easeInOutCubic(0.5), 0.5);
   assert.equal(dm.easeInOutCubic(1), 1);
-  const peak = Math.max(...Array.from({ length: 60 }, (_, i) => springAt(i / 120, dm.ARC_PEEK_SPRING)));
-  assert.ok(peak > 1.01 && peak < 1.03, `the panel's overshoot ${peak}`);
+  const peak = Math.max(...Array.from({ length: 400 }, (_, i) => springAt(i / 1000, dm.ARC_PEEK_SPRING)));
+  const arcPeak = Math.max(...ARC_PEEK_IN.flat().map(([, x]) => x));
+  assert.ok(Math.abs(peak - arcPeak) < 0.002, `the panel's overshoot ${peak}, Arc's ${arcPeak}`);
+});
+
+test("the peek stays off the window edge even when the page frame is zero", () => {
+  const frameZero = dm.cardFrameOf(PAGE_FRAME.min).peek;
+  assert.deepEqual([frameZero.left, frameZero.top, frameZero.bottom], [4, 4, 4]);
+  assert.equal(dm.peekBleed(frameZero.left), 0);
+  assert.equal(dm.peekBleed(DEFAULT_PEEK.left), 0);
 });
 
 test("the peek panel covers the page up to its right edge, only while it's out", () => {
@@ -290,13 +316,26 @@ test("the dock is fullscreen, docked, peeking, hiding or away, and only a still,
   assert.equal(st({ peekLive: true, moving: true }), "peeking");
   assert.equal(st({ moving: true }), "hiding");
   assert.equal(st({}), "away");
-  assert.deepEqual(["fullscreen", "docked", "peeking", "hiding", "away"].map(dm.shownAs), ["fullscreen", "docked", "peek", "away", "away"]);
+  assert.equal(st({ peekLive: true, peekLeaving: true }), "leaving");
+  assert.equal(st({ peekLeaving: true }), "away");
+  assert.deepEqual(["fullscreen", "docked", "peeking", "leaving", "hiding", "away"].map(dm.shownAs), ["fullscreen", "docked", "peek", "peek", "away", "away"]);
+  assert.equal(dm.watchesEdge("leaving", false), true);
   assert.equal(dm.watchesEdge("away", false), true);
   assert.equal(dm.watchesEdge("peeking", false), true);
   assert.equal(dm.watchesEdge("peeking", true), false);
   assert.equal(dm.watchesEdge("hiding", true), false);
   assert.equal(dm.watchesEdge("docked", false), false);
   assert.equal(dm.watchesEdge("fullscreen", false), false);
+});
+
+test("while the peek slides away only the window's edge brings it back, not the column it is leaving (#1192)", () => {
+  const W = 1000;
+  for (const x of [8, 40, 110, 250]) assert.equal(dm.edgeEventReveals("leaving", x, false, W), false, `left column x ${x}`);
+  for (const x of [-20, 0, 7]) assert.equal(dm.edgeEventReveals("leaving", x, false, W), true, `left edge x ${x}`);
+  for (const x of [W - 9, W - 110]) assert.equal(dm.edgeEventReveals("leaving", x, true, W), false, `right column x ${x}`);
+  for (const x of [W - 8, W - 1, W + 20]) assert.equal(dm.edgeEventReveals("leaving", x, true, W), true, `right edge x ${x}`);
+  for (const state of ["peeking", "away"]) assert.equal(dm.edgeEventReveals(state, 110, false, W), true, state);
+  assert.equal(dm.edgeWatchWidth(false, false, dm.peekHoldWidth(240, 5), 6), dm.PEEK_EDGE_STRIP, "leaving watches the edge strip, not the column");
 });
 
 test("the peek stays out within 24 pt of its right edge, the window's full height", () => {

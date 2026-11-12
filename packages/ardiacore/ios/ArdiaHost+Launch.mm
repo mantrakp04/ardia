@@ -250,6 +250,7 @@ static void TryEarlyWindow() {
   if (!loaded) return;
   [loaded warmSpareRenderer];
   const BOOL shown = [ArdiaEarlyWindow showWindow:focused frame:window[@"frame"] key:key profile:profile backdrop:backdrop];
+  if (shown) launch.earlyWindowShownAt = NSDate.date.timeIntervalSince1970 * 1000;
   [ArdiaWebView startLaunchTab:key url:url profile:profile];
   if (!shown) return;
   if (ArdiaCoreTab *tab = ArdiaTabParking.launchTab) [ArdiaEarlyWindow attachPage:tab key:key];
@@ -324,6 +325,15 @@ void StartEarlyWindow() {
 
 + (BOOL)holdsIncomingLinks {
   return SavedLinkHold();
+}
+
++ (NSDictionary<NSString *, NSNumber *> *)launchMarks {
+  ArdiaLaunchSequence *launch = ArdiaLaunchSequence.shared;
+  NSMutableDictionary<NSString *, NSNumber *> *marks = [NSMutableDictionary dictionary];
+  if (launch.engineStartedAt > 0) marks[@"engineStarted"] = @(launch.engineStartedAt);
+  if (launch.reactNativeStartedAt > 0) marks[@"reactNativeStarted"] = @(launch.reactNativeStartedAt);
+  if (launch.earlyWindowShownAt > 0) marks[@"earlyWindowShown"] = @(launch.earlyWindowShownAt);
+  return marks;
 }
 
 + (void)setHoldIncomingLinks:(BOOL)hold hooksStamp:(NSString *)hooksStamp {
@@ -424,8 +434,7 @@ void StartEarlyWindow() {
       "--disable-stack-profiler",
       "--disable-features=MacAppCodeSignClone,DevToolsAcceptDebuggingConnections,AutofillAiWalletPrivatePasses",
       "--enable-features=WebContentsDiscard,BrowserInitiatedAutomaticPictureInPicture,ImprovedStartupBestEffortDelay:StartupDelayStopOnLoadingTimedOut/true,"
-      "CPUMeasurementInFreezingPolicy:freezing_visible_protection_time/0s,InfiniteTabsFreezing:ardia_unconnected_unfreeze_interval/600s,"
-      "ThrottleMainFrameTo60Hz,UrgentMainFrameForInput",
+      "CPUMeasurementInFreezingPolicy:freezing_visible_protection_time/0s",
       "--profile-directory=Default",
       "--js-flags=--no-memory-reducer",
   };

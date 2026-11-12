@@ -11,14 +11,17 @@ export type AutomationWindow = { id: string; kind: AutomationWindowKind; focused
 
 type Snapshot = Pick<BrowserState, "windows" | "windowOrder" | "tabs" | "peeks" | "groups" | "profiles" | "ui">;
 
+export const ownEntry = <T>(record: Readonly<Record<string, T>>, id: unknown): T | undefined =>
+  typeof id === "string" && Object.prototype.hasOwnProperty.call(record, id) ? record[id] : undefined;
+
 export function eligibleKind(s: Pick<BrowserState, "windows">, windowId: string | null | undefined): AutomationWindowKind | null {
-  const w = windowId ? s.windows[windowId] : undefined;
+  const w = ownEntry(s.windows, windowId);
   if (!w || w.kind === "private" || isIncognitoProfile(w.profileId)) return null;
   return w.kind === "small" ? "little" : "normal";
 }
 
 export function isEligibleTab(s: Pick<BrowserState, "windows" | "tabs" | "peeks">, tabId: string): boolean {
-  const t = s.tabs[tabId];
+  const t = ownEntry(s.tabs, tabId);
   return !!t && eligibleKind(s, t.windowId) !== null && !isIncognitoProfile(t.profileId) && !isPeekTab(s, tabId);
 }
 

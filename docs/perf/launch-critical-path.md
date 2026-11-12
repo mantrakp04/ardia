@@ -335,3 +335,33 @@ for the launches after it, and all of the gap is before JS (JS to window is ~150
 - **What stays the OS's:** a copy nothing ran before (a DMG install, a manual copy) pays the evaluation once, 2 to 5 s
   here and more on a loaded Mac; a cold first launch adds the page cache. A run killed at quit (the user quits while it
   runs) leaves the rest to the first launch.
+
+## Pre-JS time since 0.2.39 (2026-11-12)
+
+Field `perf_launch`, same installs on both versions, warm: `js_ms` +138 ms 0.2.39 → 0.2.40 and +176 ms 0.2.40 → 0.2.41,
+with `content_ms` (+128, +198) and `tab_paint_ms` (+145, +66) moving with it; `commit_ms - js_ms` flat at ~100 ms. Cold,
+0.2.44 → 0.2.45: `js_ms` +260 ms (46 installs).
+
+Lab, release builds ad-hoc signed, hidden, interleaved, medians, ms from process start. One-tab session (n=6, round-robin):
+
+| | 0.2.39 | 0.2.41 | 0.2.45 | HEAD |
+|---|---|---|---|---|
+| React Native starts executing the bundle | 252 | 279 | 271 | 263 |
+| its content on screen | 301 | 338 | 328 | 326 |
+| restored tab's first contentful paint (x.com) | 925 | 863 | 1190 | 901 |
+
+The owner's 89-tab profile on HEAD (n=8): `engineDidStart` 150, the early window built 160 → 220 (window creation in
+Chrome ~36 ms, layout ~15, ordering front ~20), its Core Animation commit until the run loop's first idle, React Native
+started at ~240 and executing at ~250. The ~90 ms between `engineDidStart` and React Native is the early window
+(shipped 0.2.40, picture and glass in 0.2.41): what moved `js_ms`. Nothing else before JS grew: dyld ~45 ms and
+`engineDidStart` ~150 ms in every version; the bundle grew 4.3 → 6.2 → 7.5 MB (0.2.39, 0.2.41, 0.2.45; mapped, its
+evaluation 22 to 30 ms in all three) and the app 304 → 390 MB with 357 more files, which only a cold or first launch
+reads.
+
+The early window is a net win on that profile (HEAD, `launchTab` off vs on, n=8): content 396 vs 396, the restored
+tab's first paint 540 vs 424, a window on screen at ~240 instead of ~400; `js_ms` 182 vs 248. Starting React Native
+earlier was tried three ways (before the early window; the early window built when JS starts; the same main-thread turn
+instead of the first idle): `js_ms` −23 to −82 ms and content −16 to −30 ms, but the restored tab's request and response
+need the main thread and waited behind React Native's first render, so its first paint was 32 to 100 ms later in every
+variant. Not shipped. `perf_launch` now sends `engine_ms`, `early_window_ms` and `rn_ms` so the field can split the
+pre-JS time the same way and tell whether the early window pays off on slower Macs.

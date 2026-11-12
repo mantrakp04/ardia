@@ -431,16 +431,12 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
       ActOcclusion(w, [to isEqualToString:@"off"] ? nil : @([to isEqualToString:@"visible"]));
       return @((w.occlusionState & NSWindowOcclusionStateVisible) != 0).stringValue;
     },
+    @"fakeWindowServer" : ^NSString *(NSWindow *w, NSString *to) {
+      ActWindowServer(w, [to isEqualToString:@"shows"]);
+      return @"ok";
+    },
     @"fullScreen" : ^NSString *(NSWindow *w, NSString *) { return FullScreen(w, nil); },
     @"fakeFullScreen" : ^NSString *(NSWindow *w, NSString *a) { return FullScreen(w, a); },
-    @"fullScreenReveal" : ^NSString *(NSWindow *w, NSString *amount) {
-      if (amount.length) SetFullScreenRevealAmount(w, amount.doubleValue);
-      return JSONText(FullScreenRevealState(w), @"{}");
-    },
-    @"fullScreenLightsHover" : ^NSString *(NSWindow *w, NSString *inside) {
-      SetFullScreenLightsPointerInside(w, inside.boolValue);
-      return JSONText(FullScreenRevealState(w), @"{}");
-    },
     @"snapshotFrame" : ^NSString *(NSWindow *w, NSString *path) { return SnapshotFrameView(w, path); },
     @"children" : ^NSString *(NSWindow *w, NSString *) {
       NSMutableArray *children = [NSMutableArray array];
@@ -457,6 +453,7 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
     @"mouse" : ^NSString *(NSWindow *w, NSString *a) { return MouseEvent(w, a); },
     @"pageMove" : ^NSString *(NSWindow *w, NSString *a) { return ardia_host::PageMoveAt(w, WindowPoint(w, a)); },
     @"focusState" : ^NSString *(NSWindow *, NSString *) { return ardia_host::FocusState(); },
+    @"hoverProbe" : ^NSString *(NSWindow *w, NSString *a) { return ardia_host::HoverProbeDev(w, a); },
     @"drag" : ^NSString *(NSWindow *w, NSString *a) { return Drag(w, a); },
     @"type" : ^NSString *(NSWindow *w, NSString *a) { return TypeText(w, a); },
     @"reserved" : ^NSString *(NSWindow *w, NSString *a) { return Reserved(w, a); },

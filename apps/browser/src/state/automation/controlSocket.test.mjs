@@ -51,7 +51,7 @@ function fresh() {
 test("hello, unknown methods and malformed lines", async () => {
   fresh();
   await controlOn();
-  assert.deepEqual(call("hello").result, { app: "Ardia", version: "1.0", protocol: 2 });
+  assert.deepEqual(call("hello").result, { app: "Ardia", version: "1.0", protocol: 3 });
   const unknown = call("dance");
   assert.equal(unknown.error.code, "unknown_method");
   const bad = call(null, null, { raw: "not json" });
@@ -249,6 +249,28 @@ test("run shows the pill and the other methods don't", async () => {
   S().updateSettings({ cliControl: false });
   assert.equal(useCliIndicator.getState().shown, true);
   useCli.setState({ server: { state: "off", connections: 0, generation: 2, file: "" } });
+  assert.equal(useCliIndicator.getState().shown, false);
+});
+
+test("organizing tabs and groups never shows the pill: only run does", async () => {
+  fresh();
+  await controlOn();
+  const windowId = S().createWindow({ url: "https://a.example/" });
+  const tab = S().windows[windowId].tabIds?.[0] ?? Object.keys(S().tabs).find((id) => S().tabs[id].windowId === windowId);
+  useCli.setState({ server: { state: "on", connections: 0, generation: 4, file: "" } });
+  useCliIndicator.setState({ shown: false });
+  call("hello", { caller: { name: "Claude Code" } });
+  assert.equal((await callAsync("workspace", {})).result.windows.length > 0, true);
+  const made = await callAsync("apply", { ops: [{ op: "group.create", tabs: [tab], name: "Work", color: "purple" }] });
+  assert.equal(made.result.ok, true);
+  assert.equal(made.result.groups[0].color, "purple");
+  await callAsync("apply", { ops: [{ op: "group.update", group: "Work", name: "Play" }] });
+  await tick();
+  assert.equal(useCliIndicator.getState().shown, false);
+  call("run", { command: "setAppearance", arg: "light" });
+  assert.equal(useCliIndicator.getState().shown, true);
+  S().updateSettings({ cliControl: false });
+  useCli.setState({ server: { state: "off", connections: 0, generation: 5, file: "" } });
   assert.equal(useCliIndicator.getState().shown, false);
 });
 

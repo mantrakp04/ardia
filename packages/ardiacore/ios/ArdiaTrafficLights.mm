@@ -6,6 +6,7 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 
+#include <cmath>
 #include <initializer_list>
 
 using namespace ardia_window;
@@ -20,6 +21,22 @@ const void *kLightsShownKey = &kLightsShownKey;
 const void *kLightsMoveKey = &kLightsMoveKey;
 
 const void *kLightsTrailingKey = &kLightsTrailingKey;
+
+CGFloat WindowCornerRadius(NSWindow *window) {
+  static CGFloat radius = 19;
+  static dispatch_once_t onceToken;
+  if (window) dispatch_once(&onceToken, ^{
+    NSView *frame = window.contentView.superview;
+    SEL selector = NSSelectorFromString(@"roundedCornerRadius");
+    CGFloat measured = frame.layer.cornerRadius;
+    if ([frame respondsToSelector:selector]) {
+      float (*send)(id, SEL) = reinterpret_cast<float (*)(id, SEL)>(objc_msgSend);
+      measured = send(frame, selector);
+    }
+    if (std::isfinite(measured) && measured > 0) radius = measured;
+  });
+  return radius;
+}
 
 }
 
@@ -401,8 +418,7 @@ void ConfigureWindow(NSWindow *window) {
   window.releasedWhenClosed = NO;
   window.tabbingMode = NSWindowTabbingModeDisallowed;
   InsetTrafficLights(window);
-  WatchFullScreenLights(window);
-  SuppressFullScreenTitlebar(window);
+  WindowCornerRadius(window);
 }
 
 }

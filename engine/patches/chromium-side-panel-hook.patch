@@ -10,7 +10,7 @@
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
  #include "chrome/browser/ui/side_panel/side_panel_entry.h"
 @@ -20,6 +22,14 @@
- #include "chrome/browser/ui/views/tabs/organizer/organizer_panel_utils.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_panel_utils.h"
  #endif
  
 +// Ardia: ArdiaCore (engine/ardiacore) shows extension side panels in its own

@@ -14,6 +14,10 @@ const stub = await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
 const settle = () => new Promise((r) => setTimeout(r, 0));
+const cpuMs = (since) => {
+  const { user, system } = process.cpuUsage(since);
+  return (user + system) / 1000;
+};
 
 function chromeTree(profile = "") {
   const db = stub.chromeBookmarks(profile);
@@ -133,22 +137,22 @@ test("select all and delete clears a 2,400-bookmark import from the store and Ch
   assert.equal(all.length, 2104);
 
   const doomed = all.filter((id) => id !== kept);
-  const started = performance.now();
+  const started = process.cpuUsage();
   const removed = S().removeBookmarks(doomed);
-  const removeMs = performance.now() - started;
+  const removeMs = cpuMs(started);
   assert.equal(removed.places.length, 2103);
   assert.equal(removed.nodes.length, 2403, "the folders' links go with them");
   assert.deepEqual(S().bookmarks.nodes[roots.bar].children, [kept]);
   await settle();
   assert.deepEqual(chromeTree().bar, { "Bookmarks Bar": ["Kept=https://kept.example/"] });
 
-  const restoring = performance.now();
+  const restoring = process.cpuUsage();
   S().restoreBookmarks(removed);
-  const restoreMs = performance.now() - restoring;
+  const restoreMs = cpuMs(restoring);
   await settle();
   assert.deepEqual(storeTree(), before);
   assert.deepEqual(chromeTree(), before);
-  assert.ok(removeMs < 250 && restoreMs < 250, `remove ${removeMs.toFixed(0)} ms, restore ${restoreMs.toFixed(0)} ms`);
+  assert.ok(removeMs < 250 && restoreMs < 250, `remove ${removeMs.toFixed(0)} ms of CPU, restore ${restoreMs.toFixed(0)} ms of CPU`);
   stop();
 });
 

@@ -5,6 +5,7 @@ import { answerExternalApp } from "../site/prompts";
 import { setPageSelection } from "../site/selection";
 import { clearEngineOffer, followSiteChoice } from "../engines/actions";
 import { revealToolbar } from "../windows/toolbarAutoHide";
+import { noteCaptureIndicatorCleared } from "../telemetry/usage";
 import { patchPage, pageOf, setPopover } from "./pageState";
 
 export function leftPage(tabId: string, url: string, previousPage: string, engine: PageEngine, inPeek: boolean) {
@@ -16,4 +17,10 @@ export function leftPage(tabId: string, url: string, previousPage: string, engin
   patchPage(tabId, { popups: [], passwordPrompt: null, crashed: null, status: "" });
   revealToolbar(tabId);
   if (!inPeek) followSiteChoice(tabId, engine, url, previousPage);
+}
+
+export function pageEnded(tabId: string) {
+  if (!pageOf(tabId).mediaAccess) return;
+  noteCaptureIndicatorCleared();
+  patchPage(tabId, { mediaAccess: null });
 }

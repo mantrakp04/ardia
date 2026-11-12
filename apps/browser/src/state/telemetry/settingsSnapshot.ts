@@ -1,4 +1,5 @@
 import { SETTING_SPECS, type Settings, type SettingSpec } from "../settings/settings";
+import { commandBarStartFlags } from "../omnibox/commandBarStart";
 
 export const SETTINGS_SNAPSHOT_EVENT = "settings_snapshot";
 
@@ -27,8 +28,12 @@ export function settingsSnapshot(settings: Settings): Record<string, string> {
     out[`setting_${key}`] = value;
     out[`default_${key}`] = fallback;
   }
-  return out;
+  return { ...out, ...commandBarStartFlags(settings.commandBarStart), unread_hidden_sites: String(Array.isArray(settings.unreadHiddenSites) ? settings.unreadHiddenSites.length : 0) };
 }
 
 export const appIconSetting = (icon: string | null): Record<string, string> =>
   icon && /^[a-z]{1,16}$/.test(icon) ? { setting_app_icon: icon, default_app_icon: "default" } : {};
+
+export const customColorProfiles = (profiles: Record<string, { theme?: unknown }>): Record<string, string> => ({
+  custom_color_profiles: String(Object.values(profiles).filter((profile) => !!profile.theme).length),
+});

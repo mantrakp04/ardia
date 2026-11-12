@@ -1,6 +1,6 @@
 import { displayHost, displayUrl, hostOf, type Suggestion } from "@ardia/core";
 import { memo } from "react";
-import { Image, Pressable, Text as NativeText, View } from "react-native";
+import { Image, Pressable, Text as NativeText, View, type TextStyle } from "react-native";
 import { Button, Symbol, Text, useHover, useTheme, withAlpha, type Theme } from "../ui";
 import { Favicon } from "../favicon/Favicon";
 import { SELECTED_SUGGESTION_ALPHA, SUGGESTION } from "./tokens";
@@ -66,12 +66,14 @@ export const SuggestionList = memo(function SuggestionList({
   selectedIndex,
   trailing,
   dropdown,
+  textStyle,
   actions,
 }: {
   items: Suggestion[];
   selectedIndex: number;
   trailing: string | null;
   dropdown: boolean;
+  textStyle: TextStyle;
   actions: RowActions;
 }) {
   if (!items.length) return null;
@@ -83,6 +85,7 @@ export const SuggestionList = memo(function SuggestionList({
           suggestion={s}
           selected={i === selectedIndex}
           trailing={i === 0 ? trailing : null}
+          textStyle={textStyle}
           actions={actions}
         />
       ))}
@@ -103,11 +106,13 @@ const SuggestionRow = memo(
     suggestion: s,
     selected,
     trailing,
+    textStyle,
     actions,
   }: {
     suggestion: Suggestion;
     selected: boolean;
     trailing: string | null;
+    textStyle: TextStyle;
     actions: RowActions;
   }) {
     const theme = useTheme();
@@ -132,7 +137,7 @@ const SuggestionRow = memo(
             }}
           >
             <SuggestionIcon suggestion={s} />
-            <Text lines={1} size="title" style={{ flexShrink: 1 }}>
+            <Text lines={1} style={[textStyle, { flexShrink: 1 }]}>
               {title}
               {accessory ? (
                 <NativeText style={{ color: theme.textSecondary }}>
@@ -151,5 +156,5 @@ const SuggestionRow = memo(
       </View>
     );
   },
-  (a, b) => a.selected === b.selected && a.trailing === b.trailing && a.actions === b.actions && sameSuggestion(a.suggestion, b.suggestion),
+  (a, b) => a.selected === b.selected && a.trailing === b.trailing && a.textStyle === b.textStyle && a.actions === b.actions && sameSuggestion(a.suggestion, b.suggestion),
 );

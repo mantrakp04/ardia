@@ -12,6 +12,7 @@ import {
 } from "../../platform/report";
 import { RECORDING_MAX_SECONDS, TRACE_MAX_SECONDS } from "./form";
 import { currentReport, patchReport } from "./store";
+import { useBrowser } from "../browser/store";
 
 let subscribed = false;
 let traceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -19,6 +20,9 @@ let traceStartedAt = 0;
 let lastResult: RecordingResult | null = null;
 
 export const lastRecordingStats = () => lastResult;
+
+export const recordedPictureInPicture = (result: RecordingResult | null) =>
+  !!result?.windows?.some((w) => w.kind === "pictureInPicture" && w.frames > 0);
 
 export function ensureDraftDir(): string {
   const dir = currentReport().draftDir;
@@ -43,12 +47,23 @@ function listen() {
 async function recordingStopped(result: RecordingResult | null) {
   void finishTrace();
   const r = currentReport().recording;
-  const includePages = r.phase === "recording" || r.phase === "saving" ? r.includePages : false;
   lastResult = result;
   if (!result) return patchReport({ recording: { phase: "failed", message: "The recording couldn't be saved." } });
   const thumbnail = `${ensureDraftDir()}/recording-${Date.now()}.png`;
   const made = await recordingThumbnail(result.path, thumbnail).catch(() => false);
-  patchReport({ recording: { phase: "ready", path: result.path, thumbnail: made ? thumbnail : null, seconds: result.seconds, bytes: result.bytes, includePages } });
+  const pictureInPicture = recordedPictureInPicture(result);
+  patchReport({
+    recording: {
+      phase: "ready",
+      path: result.path,
+      thumbnail: made ? thumbnail : null,
+      seconds: result.seconds,
+      bytes: result.bytes,
+      includePages: result.includePages,
+      pictureInPicture,
+      withheldWindows: result.withheldWindows ?? 0,
+    },
+  });
 }
 
 export async function startRecording() {
@@ -56,7 +71,7 @@ export async function startRecording() {
   if (!s.windowId || s.recording.phase === "starting" || s.recording.phase === "recording" || s.recording.phase === "saving") return;
   listen();
   discardRecording();
-  const includePages = s.draft.includePages;
+  const includePages = s.draft.includePages && useBrowser.getState().windows[s.windowId]?.kind !== "private";
   patchReport({ recording: { phase: "starting" }, attachedOpen: false, preview: false });
   const path = `${ensureDraftDir()}/recording.mp4`;
   if (s.draft.kind === "slow" && s.draft.trace) await startTrace();

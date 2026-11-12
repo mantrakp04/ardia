@@ -200,6 +200,8 @@ and a session whose window was left on its second profile, and checks, over CDP 
 
 - the engine and chrome://version are the Chromium version `engine/patches/build/env.sh` names, and the after-update release-notes tab opened exactly once;
 - the browser's child processes are the bundle's own helpers (Chrome's process checks pass under Developer ID);
+- `ardia browse read <url>`, `open <url>` and `read` work over the real token connection, with the release's own CLI
+  tarball (`apps/cli/scripts/token-smoke.sh`, in a second hidden instance with no DevTools port);
 - pages load, uBlock blocks an ad script, H.264/AAC/WebGL2;
 - no hidden full-size Chrome window (since 0.2.0 the app window is Chrome's own; before, a hidden "ghost"
   sat behind it), and the window restores as the Work profile's Chrome window, alone on screen, its pages
@@ -378,14 +380,14 @@ A release without `--phased` goes to everyone at once, as before.
 
 ### 5c. Homebrew tap
 
-https://github.com/mantrakp04/homebrew-tap holds `Casks/ardia.rb` (stable) and `Casks/ardia@nightly.rb`, so
-`brew install mantrakp04/tap/ardia` installs the latest DMG. `update-tap.sh <version>` clones the tap into a temp dir,
+https://github.com/ardia-browser/homebrew-tap holds `Casks/ardia.rb` (stable) and `Casks/ardia@nightly.rb`, so
+`brew install ardia-browser/tap/ardia` installs the latest DMG. `update-tap.sh <version>` clones the tap into a temp dir,
 sets the matching cask's `version` and `sha256` (GitHub's digest of the published DMG, checked against
 `dist/<version>/`), and pushes; `--dry-run` prints the diff instead. It refuses a version older than the cask's and
 does nothing when the cask is already there. `publish.sh` runs it for both channels (in CI only with the
 `HOMEBREW_TAP_TOKEN` secret; otherwise run it yourself after the workflow). The casks have `auto_updates true`: Sparkle updates installed copies and `brew upgrade`
 skips them, so a late tap push only delays new installs. Lint after a cask edit by hand (never `brew install` it: that
-writes `/Applications/Ardia.app`): `brew audit --cask --online mantrakp04/tap/ardia` and `brew style mantrakp04/tap`.
+writes `/Applications/Ardia.app`): `brew audit --cask --online ardia-browser/tap/ardia` and `brew style ardia-browser/tap`.
 
 ## 6. Deploy the site
 
@@ -418,8 +420,7 @@ app (listed in `apps/site/README.md` › Screenshots):
 | Asset | Shows |
 |---|---|
 | `src/assets/shots/window.webp` | the whole window: sidebar, pinned tiles, tabs, a page (Fig. 2, `Showcase.astro`) |
-| `shots/address-{toolbar,sidebar}.webp` | the address bar feature's before and after |
-| `shots/profile-*.webp` | the profiles feature, one window per profile |
+| `shots/address-sidebar.webp` | the address bar in the sidebar |
 | `shots/split.webp`, `extensions.webp`, `privacy.webp` | split view, the Web Store, Settings › Privacy & Security |
 | `src/assets/app-icon.png` | the header, the favicon source |
 | `src/assets/game/crowd.webp` | the offline game; its hotspot is in `Game.astro` |
@@ -467,8 +468,21 @@ part of a release; for site changes outside a release, ask first.
 ### 6b. The before-and-after film (every release, nightlies included)
 
 Each release gets a Remotion film of its fixes: the same clicks on the previous release and on this one, side by side
-(`apps/videos/src/videos/fixes-<id>`, like `fixes-0243n1`; footage in `apps/videos/public/footage/<id>`, filmed in
-hidden instances, captured by pid). Once the release is published:
+(composition `fixes-<id>`, like `fixes-0245n3`; footage in `apps/videos/public/footage/fixes-<id>`, filmed in hidden
+instances, captured by pid). A film is data, never a copied folder. In `apps/videos/scripts/fixes`:
+
+1. `sessions-<id>.mjs` writes the sessions the scenes start from, with `writeSession` and the shared tabs, profiles and
+   titles from `sessions-lib.mjs`.
+2. `fixes-<id>.json` lists the segments (scene, title, body, cam, lead, tail; `dropEvents` for recorded event kinds the
+   film shouldn't draw). Scenes are `scenes/<name>.mjs`; `run.mjs <scene>…` films them on both builds.
+3. `python3 gen.py fixes-<id>` writes `src/videos/fixes-<id>/segments.json`. A film that needs more than the shared
+   overlays adds `hooks/fixes-<id>.py` with `clip(seg, side, clip, video_id)`.
+4. `src/videos/fixes-<id>/index.tsx` is six lines: `fixesFilm({ id, release, before, channel, segments })` from
+   `src/lib/fixes-film/Film.tsx`, which draws the intro, cards, panels, pointer, keycaps, dialogs, notes, banners,
+   menus, overlays and outro from the segment data (`fixes-0245n3/index.tsx` is the model). New drawing goes in
+   `src/lib/fixes-film`, driven by a segment field, so every film can use it.
+
+Once the release is published:
 
 ```bash
 pnpm -C apps/videos render fixes-<id>

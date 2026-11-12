@@ -20,12 +20,16 @@ export const dockedCardInset = (sidebarWidth: number, inset: number) => sidebarW
 
 export const cardInsetAt = (dock: number, sidebarWidth: number, inset: number) => inset + (dockedCardInset(sidebarWidth, inset) - inset) * dock;
 
-export const HEADER_TOOLS = { toggleX: 70.75 + 27, pitch: 35, edge: layout.sidebarInset + 1 } as const;
+export const HEADER_TOOLS = { toggleX: 70.75 + 27, fullScreenToggleX: 29, pitch: 35, edge: layout.sidebarInset + 1 } as const;
 
 export type HeaderButton = "back" | "forward" | "reload";
 
-export function navButtonsFitting(width: number, button = 30, toggle = true): { buttons: HeaderButton[]; step: number } {
-  const { toggleX, pitch, edge } = HEADER_TOOLS;
+export function headerToggleX(windowFullScreen: boolean): number {
+  return windowFullScreen ? HEADER_TOOLS.fullScreenToggleX : HEADER_TOOLS.toggleX;
+}
+
+export function navButtonsFitting(width: number, button = 30, toggle = true, toggleX: number = HEADER_TOOLS.toggleX): { buttons: HeaderButton[]; step: number } {
+  const { pitch, edge } = HEADER_TOOLS;
   const span = width - edge - button / 2 - (toggle ? toggleX : toggleX - pitch);
   const count = Math.max(0, Math.min(3, Math.floor(span / button)));
   const buttons: HeaderButton[] = count === 3 ? ["back", "forward", "reload"] : count === 2 ? ["back", "forward"] : count === 1 ? ["back"] : [];
@@ -34,20 +38,30 @@ export function navButtonsFitting(width: number, button = 30, toggle = true): { 
 
 export const PEEK_EDGE_STRIP = 8;
 export const PEEK_HOLD_SLACK = 24;
+export const PEEK_BLEED = 16;
 
-export type DockState = "fullscreen" | "docked" | "peeking" | "hiding" | "away";
-export type DockInput = { open: boolean; fullscreen: boolean; moving: boolean; peekLive: boolean };
+export const peekBleed = (peekLeft: number) => (peekLeft > 0 ? 0 : PEEK_BLEED);
 
-export function dockState({ open, fullscreen, moving, peekLive }: DockInput): DockState {
+export type DockState = "fullscreen" | "docked" | "peeking" | "leaving" | "hiding" | "away";
+export type DockInput = { open: boolean; fullscreen: boolean; moving: boolean; peekLive: boolean; peekLeaving?: boolean };
+
+export function dockState({ open, fullscreen, moving, peekLive, peekLeaving = false }: DockInput): DockState {
   if (fullscreen) return "fullscreen";
   if (open) return "docked";
-  if (peekLive) return "peeking";
+  if (peekLive) return peekLeaving ? "leaving" : "peeking";
   return moving ? "hiding" : "away";
 }
 
-export const shownAs = (state: DockState) => (state === "peeking" ? "peek" : state === "hiding" ? "away" : state);
+export const peekOnScreen = (state: DockState) => state === "peeking" || state === "leaving";
 
-export const watchesEdge = (state: DockState, moving: boolean) => (state === "peeking" || state === "away") && !moving;
+export const shownAs = (state: DockState) => (peekOnScreen(state) ? "peek" : state === "hiding" ? "away" : state);
+
+export const watchesEdge = (state: DockState, moving: boolean) => (peekOnScreen(state) || state === "away") && !moving;
+
+export const atRevealEdge = (x: number, right: boolean, windowWidth: number) => (right ? x >= windowWidth - PEEK_EDGE_STRIP : x < PEEK_EDGE_STRIP);
+
+export const edgeEventReveals = (state: DockState, x: number, right: boolean, windowWidth: number) =>
+  state !== "leaving" || atRevealEdge(x, right, windowWidth);
 
 export const peekHoldWidth = (sidebarWidth: number, peekLeft: number) => peekLeft + sidebarWidth + PEEK_HOLD_SLACK;
 

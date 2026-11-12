@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-import re
 import signal
 import sys
 import time
@@ -12,17 +11,13 @@ from ardia_cli import command_metrics
 from ardia_cli.browse import paths
 from ardia_cli.caller import parse as parse_caller
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Unreachable, Usage
+from ardia_cli.browse.limits import QUEUE_WAIT, command_limit
 
 CONNECTED_IDLE = 30.0
 DEFAULT_DAEMON_IDLE = 3600.0
 MAX_REQUEST = 16 * 1024 * 1024
 MAX_RESPONSE = 256 * 1024 * 1024
 OUTPUT_CAP = 6000
-QUEUE_WAIT = 30.0
-COMMAND_LIMIT = 120.0
-LIMIT_MARGIN = 30.0
-SCRIPT_DEFAULT = 90.0
-LONG_COMMANDS = {"batch": 600.0, "read": 600.0, "record": 600.0}
 SETTLE_TIMEOUT = 5.0
 WATCH_INTERVAL = 2.0
 EXIT_GRACE = 3.0
@@ -109,6 +104,7 @@ def render(options: dict, result=None, error: BrowseError | None = None, name: s
 
 def _render(options: dict, result=None, error: BrowseError | None = None, name: str = "") -> tuple[int, str, str]:
     from ardia_cli.browse.commands import MUTATING, boundary
+    from ardia_cli.printable import inert, json_safe
 
     as_json = options.get("json")
     if error is not None:
@@ -119,21 +115,22 @@ def _render(options: dict, result=None, error: BrowseError | None = None, name: 
             payload = {"success": False, "data": error.data, "error": message}
             if error.code:
                 payload["code"] = error.code
-            return error.exit_code, json.dumps(sanitize(payload), ensure_ascii=False, separators=(",", ":")) + "\n", ""
-        return error.exit_code, "", f"✗ {message}\n"
+            return error.exit_code, json_safe(json.dumps(sanitize(payload), ensure_ascii=False, separators=(",", ":"))) + "\n", ""
+        return error.exit_code, "", f"✗ {inert(message)}\n"
     batch = getattr(result, "batch", None)
     code = 1 if getattr(result, "failed", False) else 0
     if as_json:
         if batch is not None:
-            return code, json.dumps(sanitize(batch), ensure_ascii=False, separators=(",", ":")) + "\n", ""
-        return code, json.dumps(sanitize({"success": True, "data": result.data, "error": None}), ensure_ascii=False, separators=(",", ":")) + "\n", ""
+            return code, json_safe(json.dumps(sanitize(batch), ensure_ascii=False, separators=(",", ":"))) + "\n", ""
+        return code, json_safe(json.dumps(sanitize({"success": True, "data": result.data, "error": None}), ensure_ascii=False, separators=(",", ":"))) + "\n", ""
     text = result.text
     if text is None:
         return code, "", ""
-    text = cap(redact_text(text), options, name)
+    text = cap(redact_text(text), options, name, getattr(result, "output_cap", None))
+    notice = cap_notice(text)
     if result.page_content and options.get("content_boundaries"):
         text = boundary(text)
-    return code, text + "\n", ""
+    return code, inert(text) + "\n", inert(notice) + "\n" if notice else ""
 
 
 NARROWER = {
@@ -141,21 +138,29 @@ NARROWER = {
     "get": "get text <css> or read -s <css> (one region)",
     "read": "read -s <css> (one region per page), or fewer pages",
     "eval": "return less from the script, or get text <css> / read -s <css> for one region",
+    "script": "return fewer fields or rows from the script",
 }
+CAP_NOTICE = "[output capped at "
 NARROW_ANY = "snapshot -i, snapshot -s <css>, get text <css>, read -s <css>, find role <role> <action> --name <text>"
 
 
-def cap(text: str, options: dict, name: str = "") -> str:
+def cap(text: str, options: dict, name: str = "", default: int | None = None) -> str:
     if options.get("full"):
         return text
     limit = options.get("max_output")
-    limit = OUTPUT_CAP if limit is None else int(limit)
+    limit = (default or OUTPUT_CAP) if limit is None else int(limit)
     if limit <= 0 or len(text) <= limit:
         return text
     cut = text.rfind("\n", 0, limit + 1)
     cut = cut if cut >= limit * 0.8 else limit
-    return text[:cut] + (f"\n[output capped at {cut:,} of {len(text):,} characters. Narrow it instead: {NARROWER.get(name, NARROW_ANY)}. "
+    return text[:cut] + (f"\n{CAP_NOTICE}{cut:,} of {len(text):,} characters. Narrow it instead: {NARROWER.get(name, NARROW_ANY)}. "
                          f"Only if you need every line: --max-output {len(text)}]")
+
+
+def cap_notice(text: str) -> str:
+    last = text.rpartition("\n")[2]
+    cut_short = last.startswith("[") and "Narrow it instead: " in last and "--max-output " in last
+    return last if last.startswith(CAP_NOTICE) or cut_short else ""
 
 
 class Daemon:
@@ -497,26 +502,6 @@ def joined_batch(out: str, closed: str, options: dict) -> str:
     return json.dumps(outcomes, ensure_ascii=False, separators=(",", ":")) + "\n"
 
 
-def seconds_of(text: str | None) -> float | None:
-    if not text:
-        return None
-    match = re.fullmatch(r"(\d+(?:\.\d+)?)(ms|s|m)?", text.strip())
-    if not match:
-        return None
-    number, unit = float(match.group(1)), match.group(2) or "ms"
-    return number * {"ms": 0.001, "s": 1, "m": 60}[unit]
-
-
-def command_limit(name: str, argv: list[str], timeout: float) -> float:
-    given = None
-    if "--timeout" in argv and argv.index("--timeout") + 1 < len(argv):
-        given = seconds_of(argv[argv.index("--timeout") + 1])
-    if name == "wait":
-        plain = next((seconds_of(arg) for arg in argv if re.fullmatch(r"\d+(\.\d+)?", arg)), None)
-        return max(COMMAND_LIMIT, (given or plain or timeout) + LIMIT_MARGIN)
-    if name == "script":
-        return (given or SCRIPT_DEFAULT) + LIMIT_MARGIN
-    return max(LONG_COMMANDS.get(name, COMMAND_LIMIT), (given or 0) + LIMIT_MARGIN)
 
 
 def timed_out(name: str, limit: float) -> BrowseError:

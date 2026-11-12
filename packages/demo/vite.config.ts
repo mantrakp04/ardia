@@ -100,6 +100,7 @@ export default defineConfig({
     extensions: [".web.tsx", ".web.ts", ".web.js", ".tsx", ".ts", ".mjs", ".js", ".jsx", ".json"],
     alias: [
       { find: /^react-native\/Libraries\/Animated\/useAnimatedProps$/, replacement: `${reactNativeWeb}/dist/vendor/react-native/Animated/useAnimatedProps.js` },
+      { find: /^react-native\/Libraries\/Core\/ExceptionsManager$/, replacement: `${shims}exceptions-manager.ts` },
       { find: /^react-native(-macos)?$/, replacement: `${shims}react-native.tsx` },
       { find: /^expo-modules-core$/, replacement: `${shims}expo-modules-core.ts` },
       { find: /^(?:\.\.\/)+platform\/webDemo$/, replacement: `${shims}webDemo.ts` },

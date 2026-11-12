@@ -10,9 +10,16 @@ const HIDE_DELAY_MS = 120;
 const ARC_IN = spring(ARC_PEEK_SPRING);
 const appInFront = () => backgroundInstance || AppState.currentState === "active";
 
-export function usePeek(enabled: boolean, arc = false, held: () => boolean = () => false, onSlideOut: () => void = () => {}) {
+export function usePeek(
+  enabled: boolean,
+  arc = false,
+  held: () => boolean = () => false,
+  onSlideOut: () => void = () => {},
+  onOpen: (bounce: boolean) => void = () => {},
+) {
   const slide = useRef(new Animated.Value(0)).current;
   const [live, setLive] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const heldBack = useRef(false);
   const out = useRef(false);
@@ -26,8 +33,12 @@ export function usePeek(enabled: boolean, arc = false, held: () => boolean = () 
     ).start(({ finished }) => finished && done?.());
   const slideOut = () => {
     out.current = false;
+    setLeaving(true);
     onSlideOut();
-    animate(0, () => setLive(false));
+    animate(0, () => {
+      setLive(false);
+      setLeaving(false);
+    });
   };
   const show = () => {
     clearTimeout(hideTimer.current);
@@ -38,7 +49,9 @@ export function usePeek(enabled: boolean, arc = false, held: () => boolean = () 
       return;
     }
     waitingForFocus.current = false;
+    if (!out.current) onOpen(live);
     out.current = true;
+    setLeaving(false);
     setLive(true);
     animate(1);
   };
@@ -71,5 +84,5 @@ export function usePeek(enabled: boolean, arc = false, held: () => boolean = () 
     if (live) slideOut();
   }, [enabled]);
   useEffect(() => () => clearTimeout(hideTimer.current), []);
-  return { slide, live, show, hide, recheck, cancelPending };
+  return { slide, live, leaving, show, hide, recheck, cancelPending };
 }

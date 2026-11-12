@@ -22,6 +22,7 @@ import { openPageIn, togglePageEngine } from "../../state/engines/actions";
 import { Box, Divider, MenuRow, MenuSeparator, PANEL, PanelHeader, Popover, PopoverValue, space, Toggle, usePopoverPresence } from "../ui";
 import { Favicon } from "../favicon/Favicon";
 import { patchPage, setPopover, usePage } from "../../state/tabs/pageState";
+import { dismissPopoverByPress } from "../../state/tabs/popoverDismiss";
 import { toggleCastPicker } from "../../state/media/cast";
 import { useMedia, usePictureInPicture } from "../../state/media/media";
 import { openSettings } from "../../state/settings/settingsWindows";
@@ -36,6 +37,7 @@ import { TranslateRows } from "./TranslateControls";
 import { ZoomStepper } from "./ZoomControls";
 import { blockerLabel, choiceTitle, featuredPermissions, permissionValue, readSiteSettings, setSitePermission, sitePermissionsFor, type SitePermission } from "../../state/site/siteControls";
 import { isWebPageUrl } from "../../lib/url";
+import { ALL_UNREAD_TITLE, canChooseSiteUnread, isUnreadSiteHidden, setSiteUnreadShown, showUnreadCounts } from "../../state/tabs/unreadSites";
 
 type Expanded = "connection" | "more" | null;
 type Blocker = { enabled: boolean; allowed: boolean };
@@ -65,6 +67,8 @@ function SiteControlsPanel({
   const security = usePage(tabId, (p) => p.security);
   const blocked = usePage(tabId, (p) => p.blocked);
   const showFullUrl = useSettings((s) => s.showFullUrl);
+  const unreadCounts = useSettings((s) => s.showUnreadCounts);
+  const unreadHidden = useSettings((s) => isUnreadSiteHidden(s, tab?.url ?? ""));
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [featured, setFeatured] = useState<Set<SiteSettingType> | null>(null);
   const [blocker, setBlocker] = useState<Blocker | null>(null);
@@ -195,7 +199,7 @@ function SiteControlsPanel({
   const value = (p: SitePermission) => (settings ? choiceTitle(p.type, permissionValue(p.type, settings, sound) ?? "ask") : "…");
 
   return (
-    <Popover width={SITE_PANEL.width} top={top} right={right} left={left} onDismiss={close} fitHeight glass closing={closing} onClosed={onClosed}>
+    <Popover width={SITE_PANEL.width} top={top} right={right} left={left} onDismiss={() => dismissPopoverByPress(tabId)} fitHeight glass closing={closing} onClosed={onClosed}>
       <View style={{ paddingTop: PANEL.inset }}>
         <TileRow>{tiles}</TileRow>
 
@@ -277,6 +281,17 @@ function SiteControlsPanel({
                 {otherPermissions.length ? <MenuSeparator /> : null}
                 <MenuRow icon="trash" title="Clear Cookies and Site Data…" detail={cleared ?? undefined} onPress={() => void clearData()} />
               </>
+            ) : null}
+            {origin && canChooseSiteUnread(tab) ? (
+              unreadCounts ? (
+                <MenuRow
+                  icon="app.badge"
+                  title="Show Unread Count"
+                  accessory={<Toggle look="panel" value={!unreadHidden} onChange={(v) => setSiteUnreadShown(url, v)} />}
+                />
+              ) : (
+                <MenuRow icon="app.badge" title={ALL_UNREAD_TITLE} detail="All sites" accessory={<Toggle look="panel" value={false} onChange={showUnreadCounts} />} />
+              )
             ) : null}
             <MenuRow
               icon="text.alignleft"
