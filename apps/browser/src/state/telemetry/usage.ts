@@ -129,21 +129,13 @@ export const noteWebKitPageKeptHidden = () => counts.webKitPagesKeptHidden++;
 
 export const noteExtensionInstallPrompt = () => counts.extensionInstallPrompts++;
 
-export function notePrivateWindowExtensionOpen() {
-  counts.privateWindowExtensionOpens++;
-}
+export const notePrivateWindowExtensionOpen = () => counts.privateWindowExtensionOpens++;
 
-export function noteContentBlockerUnavailable() {
-  counts.contentBlockerUnavailable++;
-}
+export const noteContentBlockerUnavailable = () => counts.contentBlockerUnavailable++;
 
-export function noteContentBlockerWriteFailure() {
-  counts.contentBlockerWriteFailures++;
-}
+export const noteContentBlockerWriteFailure = () => counts.contentBlockerWriteFailures++;
 
-export function noteCaptureIndicatorCleared() {
-  counts.captureIndicatorsCleared++;
-}
+export const noteCaptureIndicatorCleared = () => counts.captureIndicatorsCleared++;
 
 export function noteCliEdits(tabEdits: number, groupEdits: number, failures: number) {
   counts.cliTabEdits += tabEdits;
@@ -154,9 +146,7 @@ export function noteCliEdits(tabEdits: number, groupEdits: number, failures: num
 const OVERLAY_COUNTS = { newTabShown: "newTabNoticesShown", newTabPressed: "newTabNoticePresses", statusAtTop: "statusBubbleTopShows", newTabBarKept: "newTabBarKeeps" } as const;
 export const notePageOverlay = (event: keyof typeof OVERLAY_COUNTS) => void counts[OVERLAY_COUNTS[event]]++;
 
-export function noteCliPillShown() {
-  counts.cliPillShows++;
-}
+export const noteCliPillShown = () => counts.cliPillShows++;
 
 export function notePopoverClosed(by: "press" | "escape") {
   counts[by === "press" ? "popoverPressCloses" : "popoverEscapeCloses"]++;
@@ -167,9 +157,7 @@ export function noteTabSwitcherOpened(closedLeftOut: number) {
   counts.tabSwitcherClosedLeftOut += closedLeftOut;
 }
 
-export function noteApprovalNoticeDeferred() {
-  counts.approvalNoticesDeferred++;
-}
+export const noteApprovalNoticeDeferred = () => counts.approvalNoticesDeferred++;
 
 export function noteDockReopen(pastFloating: boolean) {
   counts.dockReopens++;
@@ -186,13 +174,9 @@ export function notePinch(on: "peek" | "littleArdia", outcome: "open" | "close")
   else counts[outcome === "open" ? "littleArdiaPinchOpens" : "littleArdiaPinchCloses"]++;
 }
 
-export function noteGroupHeaderHide() {
-  counts.groupHeaderHides++;
-}
+export const noteGroupHeaderHide = () => counts.groupHeaderHides++;
 
-export function noteSidebarMotionMerge() {
-  counts.sidebarMotionMerges++;
-}
+export const noteSidebarMotionMerge = () => counts.sidebarMotionMerges++;
 
 export function keptTabsAdded(groups: BrowserState["groups"], prev: BrowserState["groups"]): number {
   const added = new Set<string>();
