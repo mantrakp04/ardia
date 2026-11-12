@@ -81,7 +81,7 @@ NSMenuItem *MenuItemForEvent(NSEvent *event, NSSet<NSString *> *identifiers) {
   const unichar first = key.length ? [key characterAtIndex:0] : 0;
   const bool fKey = first >= NSF1FunctionKey && first <= NSF35FunctionKey;
   const bool globeKey = (mods & NSEventModifierFlagFunction) && !IsFunctionKey(key);
-  if (!fKey && !globeKey && !(mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl))) return nil;
+  if (!fKey && !globeKey && !(mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption))) return nil;
   if ([key isEqualToString:@"\x19"]) key = @"\t";
   if (NSMenuItem *item = MenuItemWithIdentifier(NSApp.mainMenu, key, mods, identifiers)) return item;
   NSString *unshifted = [event charactersByApplyingModifiers:0].lowercaseString;

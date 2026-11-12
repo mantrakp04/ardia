@@ -690,6 +690,22 @@ await sleep(1000);
   for (let i = 0; i < 30 && !(await reservedBy(cmd("t", 17))); i++) await sleep(100);
 }
 {
+  const optionC = K("c", 8, "option"), copyUrlKeys = cmd("C", 8, "shift");
+  await ac(`ac.store.getState().updateSettings({ shortcuts: { ...ac.store.getState().settings.shortcuts, copyUrl: ["c", "option"] } }); return 1;`);
+  let by = "", old = "x";
+  for (let i = 0; i < 30 && (by !== "ardia.command.copyUrl" || old); i++) {
+    await sleep(100);
+    [by, old] = [await reservedBy(optionC), await reservedBy(copyUrlKeys)];
+  }
+  check("Copy URL rebound to ⌥C: the Option-only keys are reserved and ⇧⌘C goes to the page", by === "ardia.command.copyUrl" && !old, `⌥C ${by || "page"}, ⇧⌘C ${old || "page"}`);
+  await swallowKeys();
+  const r = await press(optionC, { focus: "page", asKey: true, wait: 600, dry: true });
+  const seen = await pageKeys();
+  check("⌥C in a page that cancels every keydown: Copy URL fires and the page gets no keydown", (r.fired ?? []).some((f) => same(f, { command: "copyUrl" })) && seen === 0, `${describe(r)}, the page saw ${seen} keydown`);
+  await ac(`const { copyUrl, ...rest } = ac.store.getState().settings.shortcuts; ac.store.getState().updateSettings({ shortcuts: rest }); return 1;`);
+  for (let i = 0; i < 30 && !(await reservedBy(copyUrlKeys)); i++) await sleep(100);
+}
+{
   const fullScreenKey = cmd("f", 3, "control");
   const states = async () => Object.fromEntries(await Promise.all(
     [["⌘T", cmd("t", 17)], ["⌘W", cmd("w", 13)], ["⌘Q", cmd("q", 12)], ["⌃⌘F", fullScreenKey], ["🌐F", K("f", 3, "function")], ["⌃1", K("1", 18, "control")]]
