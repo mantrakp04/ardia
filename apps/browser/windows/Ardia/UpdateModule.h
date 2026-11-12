@@ -237,6 +237,27 @@ inline HANDLE OpenUnchanging(std::filesystem::path const &path) noexcept {
   return CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 }
 
+inline bool IsLink(std::filesystem::path const &path) noexcept {
+  DWORD attributes = GetFileAttributesW(path.c_str());
+  return attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+}
+
+inline std::wstring WhereItReallyIs(HANDLE file) noexcept {
+  try {
+    std::wstring path(1024, L'\0');
+    DWORD length = GetFinalPathNameByHandleW(file, path.data(), static_cast<DWORD>(path.size()), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    if (length == 0 || length >= path.size()) return {};
+    path.resize(length);
+    constexpr std::wstring_view kLongPathMark = L"\\\\?\\";
+    constexpr std::wstring_view kNetworkMark = L"\\\\?\\UNC\\";
+    if (StartsWith(path, kNetworkMark)) return {};
+    if (StartsWith(path, kLongPathMark)) path.erase(0, kLongPathMark.size());
+    return path;
+  } catch (...) {
+    return {};
+  }
+}
+
 inline bool AlreadyHere(std::filesystem::path const &path, std::string const &sha256) noexcept {
   HANDLE file = OpenUnchanging(path);
   if (file == INVALID_HANDLE_VALUE) return false;
@@ -256,6 +277,10 @@ inline Downloaded Download(std::wstring const &address, std::string const &sha25
     std::filesystem::path folder = UpdatesFolder();
     std::error_code ignored;
     std::filesystem::create_directories(folder, ignored);
+    if (IsLink(folder)) {
+      result.failure = "the updates folder is a link";
+      return result;
+    }
     std::filesystem::path target = folder / (L"Ardia-Setup-" + Paths::Wide(sha256.substr(0, 16)) + L".exe");
     if (AlreadyHere(target, sha256)) {
       result.path = Paths::Utf8(target.wstring());
@@ -304,11 +329,15 @@ inline std::string RunInstaller(std::string const &chosen, std::string const &sh
     std::filesystem::path path{Paths::Wide(chosen)};
     std::error_code compared;
     if (!std::filesystem::equivalent(path.parent_path(), UpdatesFolder(), compared) || compared) return "the installer is not in the updates folder";
+    if (IsLink(UpdatesFolder()) || IsLink(path)) return "the installer is behind a link";
     HANDLE file = OpenUnchanging(path);
     if (file == INVALID_HANDLE_VALUE) return Failed("opening the installer");
     std::string failure;
     if (HashOfOpenFile(file) != sha256) failure = "the installer is not the published file";
+    std::wstring real = WhereItReallyIs(file);
+    if (failure.empty() && real.empty()) failure = "the installer's place could not be read";
     if (failure.empty()) {
+      path = std::filesystem::path(real);
       std::wstring command = L"\"" + path.wstring() + L"\" /SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /relaunch=1";
       STARTUPINFOW startup{};
       startup.cb = sizeof(startup);

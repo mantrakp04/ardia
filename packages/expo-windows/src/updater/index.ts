@@ -30,6 +30,7 @@ let preferencesRead: Preferences | undefined;
 let checking = false;
 let declinedBuild = 0;
 let timer: ReturnType<typeof setInterval> | undefined;
+let firstCheck: ReturnType<typeof setTimeout> | undefined;
 
 function identity(): BuildIdentity | null {
   if (identityRead === undefined) identityRead = typeof constants().buildFile === "string" ? readBuild(constants().buildFile as string) : null;
@@ -65,6 +66,12 @@ function remember(patch: Partial<Preferences>) {
   } catch {}
 }
 
+function checksByItself() {
+  if (!configured() || !preferences().automaticChecks) return false;
+  const config = launch();
+  return !config?.background && !(config?.isolated && !feedOverride());
+}
+
 const ask = async (options: ConfirmOptions) => (await dialogs()?.confirm(options))?.confirmed === true;
 const tell = (title: string, message: string) => ask({ title, message, confirmTitle: "OK", cancelTitle: "" });
 const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -73,6 +80,7 @@ async function check(asked: boolean) {
   const current = identity();
   const update = native();
   if (checking || !update || !current || !configured()) return;
+  if (!asked && !checksByItself()) return;
   checking = true;
   try {
     const manifest = readManifest(await update.fetchText(feed()), publishedUnder());
@@ -122,19 +130,16 @@ async function check(asked: boolean) {
 }
 
 function schedule() {
-  if (timer !== undefined) {
-    clearInterval(timer);
-    timer = undefined;
-  }
-  if (!configured() || !preferences().automaticChecks) return;
-  const config = launch();
-  if (config?.background || (config?.isolated && !feedOverride())) return;
-  timer = setInterval(() => void check(false), CHECK_EVERY_MS);
+  if (timer !== undefined) clearInterval(timer);
+  if (firstCheck !== undefined) clearTimeout(firstCheck);
+  timer = undefined;
+  firstCheck = undefined;
+  if (checksByItself()) timer = setInterval(() => void check(false), CHECK_EVERY_MS);
 }
 
 export function startUpdateChecks() {
   schedule();
-  if (timer !== undefined) setTimeout(() => void check(false), FIRST_CHECK_AFTER_MS);
+  if (timer !== undefined) firstCheck = setTimeout(() => void check(false), FIRST_CHECK_AFTER_MS);
 }
 
 export const windowsUpdater: UpdaterNative = {

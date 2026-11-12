@@ -48,7 +48,44 @@ Filename: "{app}\Ardia.exe"; Description: "Open Ardia"; Flags: nowait postinstal
 Filename: "{app}\Ardia.exe"; Flags: nowait skipifnotsilent; Check: RelaunchAsked
 
 [Code]
+function CreateFile(Name: String; Access, Share, Security, Disposition, Flags, Template: Cardinal): Cardinal;
+  external 'CreateFileW@kernel32.dll stdcall';
+function CloseHandle(Handle: Cardinal): Boolean;
+  external 'CloseHandle@kernel32.dll stdcall';
+
 function RelaunchAsked: Boolean;
 begin
   Result := ExpandConstant('{param:relaunch|0}') = '1';
+end;
+
+function InUse(Path: String): Boolean;
+var
+  Handle: Cardinal;
+begin
+  Result := False;
+  if not FileExists(Path) then Exit;
+  Handle := CreateFile(Path, $40000000, 0, 0, 3, $80, 0);
+  if Handle = $FFFFFFFF then
+    Result := True
+  else
+    CloseHandle(Handle);
+end;
+
+function AppInUse: Boolean;
+begin
+  Result := InUse(ExpandConstant('{app}\Ardia.exe')) or InUse(ExpandConstant('{app}\chrome.dll')) or InUse(ExpandConstant('{app}\ArdiaApp.dll'));
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Waited: Integer;
+begin
+  Result := '';
+  if not RelaunchAsked then Exit;
+  Waited := 0;
+  while AppInUse and (Waited < 30000) do
+  begin
+    Sleep(250);
+    Waited := Waited + 250;
+  end;
 end;

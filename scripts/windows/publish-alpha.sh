@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Publishes one green Windows workflow run as the Windows alpha that the app updates from: its two installers, the
-# feed windows-update.json that names them with their SHA-256, and the engine's source, on the GitHub prerelease
-# windows-alpha (never latest). The feed is uploaded last, so an app never reads a build it cannot download.
+# Publishes one green Windows workflow run as the Windows alpha that the app updates from, on the GitHub prerelease
+# windows-alpha (never latest): its two installers under this build's own names (Ardia-Setup-<cpu>-<build>.exe), the
+# engine's source, then the feed windows-update.json that names those installers with their SHA-256, then the same
+# installers under the names people download (Ardia-Setup-<cpu>.exe). The feed only ever names files that are
+# already there and never change; the previous build's files go last.
 #
 #   scripts/windows/publish-alpha.sh [--dry-run] [--out <dir>] <Windows workflow run id>
 #   scripts/windows/publish-alpha.sh -h | --help
@@ -58,8 +60,8 @@ import hashlib, json, os, sys
 out, published, version, build = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
 feed = {"version": version, "build": build}
 for cpu in ("x64", "arm64"):
-    name = f"Ardia-Setup-{cpu}.exe"
-    path = os.path.join(out, name)
+    name = f"Ardia-Setup-{cpu}-{build}.exe"
+    path = os.path.join(out, f"Ardia-Setup-{cpu}.exe")
     digest = hashlib.sha256()
     with open(path, "rb") as file:
         for block in iter(lambda: file.read(1 << 20), b""):
@@ -124,16 +126,20 @@ EOF
 if [ "$dry" = 1 ] || ! gh release view "$tag" -R "$repo" >/dev/null 2>&1; then
   run gh release create "$tag" -R "$repo" --prerelease --latest=false --target "$commit" --title "Ardia for Windows (alpha)" --notes-file "$notes"
 fi
-for stale in $( [ "$dry" = 1 ] || gh release view "$tag" -R "$repo" --json assets -q '.assets[].name' | grep '^ardia-windows-source-' | grep -v "^$name.tar.xz$" || true); do
+before=""
+[ "$dry" = 1 ] || before="$(gh release view "$tag" -R "$repo" --json assets -q '.assets[].name')"
+for cpu in x64 arm64; do cp "$out/Ardia-Setup-$cpu.exe" "$out/Ardia-Setup-$cpu-$build.exe"; done
+run gh release upload "$tag" -R "$repo" --clobber "$out/Ardia-Setup-x64-$build.exe" "$out/Ardia-Setup-arm64-$build.exe" "$out/$name.tar.xz"
+run gh release upload "$tag" -R "$repo" --clobber "$out/windows-update.json"
+run gh release upload "$tag" -R "$repo" --clobber "$out/Ardia-Setup-x64.exe" "$out/Ardia-Setup-arm64.exe"
+run gh release edit "$tag" -R "$repo" --prerelease --latest=false --notes-file "$notes"
+for stale in $(printf '%s\n' "$before" | grep -E '^(Ardia-Setup-(x64|arm64)-[0-9]+\.exe|ardia-windows-source-[0-9]+\.tar\.xz)$' | grep -v -E -e "-$build\.(exe|tar\.xz)$" || true); do
   run gh release delete-asset "$tag" "$stale" -R "$repo" --yes
 done
-run gh release upload "$tag" -R "$repo" --clobber "$out/Ardia-Setup-x64.exe" "$out/Ardia-Setup-arm64.exe" "$out/$name.tar.xz"
-run gh release upload "$tag" -R "$repo" --clobber "$out/windows-update.json"
-run gh release edit "$tag" -R "$repo" --prerelease --latest=false --notes-file "$notes"
 if [ "$dry" = 1 ]; then
   echo "dry run: nothing published."
 else
   [ "$(gh release view "$tag" -R "$repo" --json isPrerelease -q .isPrerelease)" = true ] || die "$tag isn't a prerelease"
   echo "Published Windows alpha build $build: https://github.com/$repo/releases/tag/$tag"
 fi
-du -sh "$out"/Ardia-Setup-*.exe "$out/$name.tar.xz"
+du -sh "$out/Ardia-Setup-x64.exe" "$out/Ardia-Setup-arm64.exe" "$out/$name.tar.xz"
