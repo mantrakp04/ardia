@@ -7,7 +7,7 @@ export type WindowEvent =
   | { type: "close"; id: string }
   | { type: "frame"; id: string; frame: [number, number, number, number] }
   | { type: "fullScreen"; id: string; on: boolean }
-  | { type: "leftEdge"; id: string; over: boolean; point: [number, number] }
+  | { type: "sidebarEdge"; id: string; over: boolean; point: [number, number] }
   | { type: "closeRequest"; id: string };
 
 export type OpenWindowOptions = {
@@ -28,14 +28,15 @@ export type OpenWindowOptions = {
 export type DragPreviewShape = "hidden" | "pill" | "card";
 
 export type WindowsNative = {
+  windowCornerRadius(): number;
   addListener(name: "onWindowEvent", listener: (e: WindowEvent) => void): EventSubscription;
   openWindow(id: string, options: OpenWindowOptions): Promise<void>;
   closeWindow(id: string): Promise<void>;
   animateWindowClose(id: string, after: string | null): Promise<void>;
   focusWindow(id: string): Promise<void>;
   restoreFullScreen(ids: string[], focus: string | null): Promise<void>;
-  setTrafficLightsCenter(id: string, center: [number, number] | null): Promise<void>;
-  watchLeftEdge(id: string, on: boolean, hold: number): Promise<void>;
+  setTrafficLightsCenter(id: string, center: [number, number] | null, trailing: boolean): Promise<void>;
+  watchSidebarEdge(id: string, on: boolean, hold: number, right: boolean, whilePressed: boolean): Promise<void>;
   dragPreviewBegin(windowId: string, chip: Rect4, grab: [number, number]): Promise<void>;
   dragPreviewPage(base64: string, frame: Rect4): Promise<void>;
   dragPreviewUpdate(shape: DragPreviewShape, point: [number, number]): Promise<void>;

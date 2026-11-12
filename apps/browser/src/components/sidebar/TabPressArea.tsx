@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
 import { Pressable, type StyleProp, type ViewStyle } from "react-native";
 import type { Tab } from "../../state/browser/types";
-import { clickTab } from "../../state/sidebar/actions";
 import { middleClickTab } from "../../state/sidebar/clearTabs";
 import { dismissHover } from "../../state/sidebar/hover";
 import { openTabMenu } from "../../state/sidebar/menus";
-import { modifiersOf } from "../../lib/keys";
+import { clickHeldTabPress, holdTabPress } from "../../state/sidebar/heldTabPress";
 import { ContextMenuArea, MouseArea } from "../ui";
 
 export function TabPressArea({
@@ -14,7 +13,6 @@ export function TabPressArea({
   style,
   pressStyle,
   tooltip,
-  leading,
   children,
 }: {
   windowId: string;
@@ -22,7 +20,6 @@ export function TabPressArea({
   style?: StyleProp<ViewStyle>;
   pressStyle?: StyleProp<ViewStyle>;
   tooltip?: string;
-  leading?: ReactNode;
   children: ReactNode | ((state: { pressed: boolean }) => ReactNode);
 }) {
   return (
@@ -34,12 +31,9 @@ export function TabPressArea({
         }}
         style={style}
       >
-        {leading}
         <Pressable
-          onPress={(e) => {
-            dismissHover();
-            clickTab(windowId, tab.id, modifiersOf(e));
-          }}
+          onPressIn={(e) => holdTabPress(windowId, tab.id, e)}
+          onPress={(e) => clickHeldTabPress(windowId, tab.id, e)}
           style={pressStyle}
           tooltip={tooltip}
         >

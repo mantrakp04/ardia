@@ -1,7 +1,8 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { ContextMenuArea, WindowDragRegion } from "../ui";
+import { ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
+import { TintInk } from "../ui/TintInk";
 import { useSettings, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { useHasDownloads, useNoTiles } from "../../state/sidebar/hooks";
 import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
@@ -26,6 +27,8 @@ import { GLOW_ROOM, ROW_PITCH, type SidebarGeometry } from "./pageLayout";
 import { SidebarPage } from "./SidebarPage";
 import { SidebarRowLookContext, useSidebarRowLookSource } from "./rowLook";
 import { useRevealTabs } from "./useRevealTabs";
+
+const HEADER_RIGHT = space.m;
 
 export function Sidebar({ width }: { width: number }) {
   const windowId = useWindowId();
@@ -90,6 +93,7 @@ export function Sidebar({ width }: { width: number }) {
                     key={page.id}
                     profileId={page.id}
                     slot={page.slot}
+                    paging={paging}
                     width={width}
                     current={page.id === current}
                     resting={!!page.resting}
@@ -104,35 +108,37 @@ export function Sidebar({ width }: { width: number }) {
               </SidebarRowLookContext.Provider>
             </View>
 
-            {footer ? (
-              <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
-                <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
-                {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
-                {footerDownloads ? (
-                  <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
-                    <DownloadsButton windowId={windowId} />
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-
-            <View style={{ height: header }}>
-              <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)}>
-                <WindowDragRegion style={StyleSheet.absoluteFill} />
-              </ContextMenuArea>
-              {addressBar ? (
-                <>
-                  <SidebarHeaderTools width={width} />
-                  <SidebarAddressRow width={width} />
-                </>
-              ) : (
-                <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: 7, paddingTop: lightsY - 17 }}>
-                  <ProfileIndicator room={width - PROFILE_INDICATOR_X - 7 - (hasDownloads ? 34 + 2 : 0)} />
-                  <View pointerEvents="none" style={{ flex: 1 }} />
-                  {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
+            <TintInk>
+              {footer ? (
+                <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
+                  <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
+                  {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
+                  {footerDownloads ? (
+                    <View style={{ position: "absolute", left: SIDEBAR_FOOTER_DOWNLOADS.left, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
+                      <DownloadsButton windowId={windowId} />
+                    </View>
+                  ) : null}
                 </View>
-              )}
-            </View>
+              ) : null}
+
+              <View style={{ height: header }}>
+                <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)}>
+                  <WindowDragRegion style={StyleSheet.absoluteFill} />
+                </ContextMenuArea>
+                {addressBar ? (
+                  <>
+                    <SidebarHeaderTools width={width} />
+                    <SidebarAddressRow width={width} />
+                  </>
+                ) : (
+                  <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
+                    <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0)} />
+                    <View pointerEvents="none" style={{ flex: 1 }} />
+                    {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
+                  </View>
+                )}
+              </View>
+            </TintInk>
 
             <ResizeHandle windowId={windowId} />
             {ghost && !ghost.landing && nothingPinned ? (

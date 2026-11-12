@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { Animated, Pressable, StyleSheet, View, type ViewStyle } from "react-native";
 import { useTheme } from "../ui/theme";
 import { pageHostLabel } from "../../lib/url";
 import { useSettings, useTab, useTabLive } from "../../state/browser/hooks";
@@ -10,15 +10,15 @@ import { useToolbarHeld } from "../../state/app/transientUi";
 import { revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "../../state/windows/toolbarAutoHide";
 import { Toolbar } from "./Toolbar";
 import { curve } from "../ui/motion";
-import { font, reduceMotion, weight } from "../ui";
+import { reduceMotion, space, Text } from "../ui";
 import { TOOLBAR_MOTION } from "./tokens";
 import { motionStep, tallPage, type MotionValue, type TallPage } from "./toolbarMotion";
 import { useToolbarRow } from "./useToolbarRow";
 
 const HIDE_MS = TOOLBAR_MOTION.hide;
-const HIDE_EASING = curve.outQuad;
+const HIDE_EASING = curve.enter;
 const SHOW_MS = TOOLBAR_MOTION.show;
-const SHOW_EASING = curve.outCubic;
+const SHOW_EASING = curve.enter;
 const PEEK_DELAY = 150;
 const UNPEEK_DELAY = 250;
 const SHRINK = 0.94;
@@ -36,20 +36,17 @@ type ToolbarMotion = {
   bar: Animated.Value;
   fade: Animated.Value;
   groupStyle: Animated.WithAnimatedValue<ViewStyle>;
-  pageHeight: number;
   bottomStyle: Animated.WithAnimatedValue<ViewStyle>;
 };
 
 export function useToolbarMotion({
   enabled,
   mode,
-  height,
   extra,
   doc,
 }: {
   enabled: boolean;
   mode: ToolbarMode;
-  height: number;
   extra: number;
   doc: string;
 }): ToolbarMotion {
@@ -105,9 +102,9 @@ export function useToolbarMotion({
       left: 0,
       right: 0,
       top: (collapsed ? STRIP_HEIGHT : shownTop) - extra,
+      bottom: (tall.on ? STRIP_HEIGHT : shownTop) - (collapsed ? STRIP_HEIGHT : shownTop),
       transform: [{ translateY }],
     },
-    pageHeight: height - (tall.on ? STRIP_HEIGHT : shownTop),
     bottomStyle: { transform: [{ translateY: bottomShift }] },
   };
 }
@@ -223,9 +220,9 @@ export function AutoHideToolbar({
             onMouseEnter={() => modeNow.current === "collapsed" && peekLater(true, PEEK_DELAY)}
             onMouseLeave={() => modeNow.current === "collapsed" && clearTimeout(peekTimer.current)}
             tooltip="Show Toolbar"
-            style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 }}
+            style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: space.l }}
           >
-            <Text numberOfLines={1} ellipsizeMode="head" style={{ ...font.caption, fontWeight: weight.medium, color: palette.secondary }}>
+            <Text numberOfLines={1} ellipsizeMode="head" size="caption" weight="medium" color={palette.secondary}>
               {host}
             </Text>
           </Pressable>

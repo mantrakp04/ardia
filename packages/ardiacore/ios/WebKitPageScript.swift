@@ -198,7 +198,7 @@ enum WebKitPageScript {
   if (isTop) {
     const scrollDirection = () => {
       const DOWN = 24, UP = 12, MIN_RANGE = 120, SETTLE = 300, GESTURE = 300;
-      let anchor = 0, last = 0, lastAt = -1e9, settleUntil = -1e9, budget = 0, height = 0, sent = null, gestureSent = false;
+      let anchor = 0, last = 0, lastAt = -1e9, settleUntil = -1e9, budget = 0, height = 0, sent = null, gestureSent = false, heading = 0;
       const resized = (viewport, now) => {
         if (now >= settleUntil) budget = 0;
         if (height && viewport !== height) {
@@ -211,6 +211,16 @@ enum WebKitPageScript {
         resized,
         rebase(y) {
           anchor = last = y;
+        },
+        wheeled(deltaX, deltaY, pinch) {
+          if (pinch || !deltaY) {
+            if (pinch || deltaX) heading = 0;
+            return;
+          }
+          heading = deltaY > 0 ? 1 : -1;
+        },
+        undirected() {
+          heading = 0;
         },
         scrolled(y, range, viewport, now, user) {
           resized(viewport, now);
@@ -228,7 +238,7 @@ enum WebKitPageScript {
           }
           let state = null;
           if (y <= 2) state = "top";
-          else if (!user) anchor = y;
+          else if (!user || moved * heading < 0) anchor = y;
           else if (y - anchor >= DOWN) {
             if (range >= MIN_RANGE) state = "down";
             else anchor = y;
@@ -250,8 +260,20 @@ enum WebKitPageScript {
       inputAt = performance.now();
       if (!scroller && document.scrollingElement) direction.rebase((scroller = document.scrollingElement).scrollTop);
     };
-    for (const type of ["wheel", "keydown", "mousedown", "touchstart"]) addEventListener(type, noteInput, { passive: true, capture: true });
-    addEventListener("mousemove", (e) => e.buttons && noteInput(), { passive: true, capture: true });
+    const noteUndirectedInput = () => {
+      direction.undirected();
+      noteInput();
+    };
+    addEventListener(
+      "wheel",
+      (e) => {
+        direction.wheeled(e.deltaX, e.deltaY, e.ctrlKey);
+        noteInput();
+      },
+      { passive: true, capture: true },
+    );
+    for (const type of ["keydown", "mousedown", "touchstart"]) addEventListener(type, noteUndirectedInput, { passive: true, capture: true });
+    addEventListener("mousemove", (e) => e.buttons && noteUndirectedInput(), { passive: true, capture: true });
     const measureScroll = () => {
       try {
         const target = scrollTarget;
@@ -315,15 +337,16 @@ enum WebKitPageScript {
       schedule();
       return !!m || pageActions.length > 0;
     },
-    pictureInPicture(on) {
+    pictureInPicture(on, automatic) {
       if (!on) {
         if (document.pictureInPictureElement) document.exitPictureInPicture();
         for (const v of document.querySelectorAll("video")) if (v.webkitPresentationMode === "picture-in-picture") v.webkitSetPresentationMode("inline");
         return true;
       }
       const videos = Array.from(document.querySelectorAll("video"));
-      const v = videos.find((x) => !x.paused) || videos.sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
-      if (!v) return false;
+      const largest = () => videos.sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
+      const v = videos.find(playing) || (automatic ? null : largest());
+      if (!v) return automatic ? "nothingPlaying" : false;
       if (v.webkitSupportsPresentationMode && v.webkitSupportsPresentationMode("picture-in-picture")) v.webkitSetPresentationMode("picture-in-picture");
       else if (v.requestPictureInPicture) v.requestPictureInPicture();
       else return false;

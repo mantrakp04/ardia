@@ -1,4 +1,4 @@
-import { Animated, View } from "react-native";
+import { Animated } from "react-native";
 import { fill, type Rect, ROW, rowY, sideCard, TOOLBAR_H } from "../geometry";
 import { BLANK, tab, TRIP } from "../content";
 import { linear, tracker } from "../timeline";
@@ -6,6 +6,7 @@ import { Backdrop, Card, Glyph, Highlight, Label, NewTabButton, TabRow } from ".
 import { NewTabPage, Page } from "../MockPages";
 import { Cursor, Pill } from "../Floating";
 import { sceneMs } from "../tokens";
+import { font } from "../../../ui/tokens";
 import type { Scene } from "../scene";
 import { Chrome, Desktop, KeyPress, listTop, MINI_SIDE, MiniArdia, Std } from "./SceneParts";
 
@@ -29,11 +30,11 @@ export function tidy(auto: boolean): Scene {
               <TabRow key={i} g={g} look={look} t={tab(i)} y={rowY(i, list)} selected={i === 0} style={old.has(i) ? gone : rise(above(i))} />
             ))}
             <NewTabButton g={g} look={look} y={rowY(6, list)} style={rise(3)} />
-            <Pill g={g} look={look} style={{ right: (g.W - c.x - c.w + 16) * g.s, top: (c.y + 54) * g.s, opacity: t.in(80, 220), transform: [{ translateY: t([[80, -6 * g.s], [360, 0]]) }] }}>
+            <Pill g={g} look={look} place={{ right: (g.W - c.x - c.w + 16) * g.s, top: (c.y + 54) * g.s }} style={{ opacity: t.in(80, 220), transform: [{ translateY: t([[80, -6 * g.s], [360, 0]]) }] }}>
               <Animated.View style={{ transform: [{ rotate: t.deg([[150, 0], [850, 360]]) }] }}>
                 <Glyph g={g} name="clock" size={13} color={look.t.textPrimary} weight="medium" box={16} />
               </Animated.View>
-              <Label g={g} size={13} color={look.t.textPrimary} weight="500">
+              <Label g={g} size={font.body.fontSize} color={look.t.textPrimary} weight="500">
                 12 hours later
               </Label>
             </Pill>
@@ -54,7 +55,7 @@ export function quit(fresh: boolean): Scene {
     const quiet = { ...opts };
     return (
       <>
-        <Backdrop g={g} look={look} />
+        <Backdrop look={look} />
         <Animated.View style={[fill, fresh ? away : both]}>
           <Std g={g} look={look} opts={quiet} n={5} sel={0} />
         </Animated.View>
@@ -68,7 +69,7 @@ export function quit(fresh: boolean): Scene {
             </Card>
           </Animated.View>
         ) : null}
-        <KeyPress g={g} look={look} t={t} label="⌘Q" />
+        <KeyPress g={g} t={t} label="⌘Q" />
       </>
     );
   };
@@ -93,7 +94,7 @@ export function windows(shared: boolean): Scene {
     };
     return (
       <>
-        <Desktop g={g} look={look} />
+        <Desktop look={look} />
         <MiniArdia
           g={g}
           look={look}

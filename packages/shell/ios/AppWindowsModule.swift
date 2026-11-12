@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import ExpoModulesCore
 
 public class AppWindowsModule: Module {
@@ -11,7 +12,7 @@ public class AppWindowsModule: Module {
     OnCreate {
       self.lifetime.begin(self) {
         DragPreview.shared.cancel()
-        LeftEdgeWatcher.shared.reset()
+        SidebarEdgeWatcher.shared.reset()
         ShellEvents.retire(self)
       }
       ShellEvents.attach(.window, to: self, while: self.lifetime)
@@ -21,10 +22,12 @@ public class AppWindowsModule: Module {
       ShellEvents.detach(self) { owned in
         guard owned.contains(.window) else { return }
         WindowManager.shared.runtimeGone()
-        LeftEdgeWatcher.shared.reset()
+        SidebarEdgeWatcher.shared.reset()
       }
       self.lifetime.end()
     }
+
+    Function("windowCornerRadius") { () -> Double in Double(ArdiaChromeWindowHost.windowCornerRadius) }
 
     AsyncFunction("openWindow") { (id: String, options: OpenWindowOptions) in
       WindowManager.shared.open(id: id, options, focus: options.focus)
@@ -33,11 +36,11 @@ public class AppWindowsModule: Module {
     AsyncFunction("animateWindowClose") { (id: String, after: String?, promise: Promise) in
       WindowManager.shared.animateClose(id: id, after: after) { promise.resolve(nil) }
     }.runOnQueue(.main)
-    AsyncFunction("setTrafficLightsCenter") { (id: String, center: CGPoint?) in
-      WindowManager.shared.setTrafficLightsCenter(id: id, center: center)
+    AsyncFunction("setTrafficLightsCenter") { (id: String, center: CGPoint?, trailing: Bool) in
+      WindowManager.shared.setTrafficLightsCenter(id: id, center: center, trailing: trailing)
     }.runOnQueue(.main)
-    AsyncFunction("watchLeftEdge") { (id: String, on: Bool, hold: Double) in
-      LeftEdgeWatcher.shared.watch(id: id, on: on, hold: CGFloat(hold))
+    AsyncFunction("watchSidebarEdge") { (id: String, on: Bool, hold: Double, right: Bool, whilePressed: Bool) in
+      SidebarEdgeWatcher.shared.watch(id: id, on: on, hold: CGFloat(hold), right: right, whilePressed: whilePressed)
     }.runOnQueue(.main)
     AsyncFunction("focusWindow") { (id: String) in WindowManager.shared.focus(id: id) }.runOnQueue(.main)
     AsyncFunction("restoreFullScreen") { (ids: [String], focus: String?) in

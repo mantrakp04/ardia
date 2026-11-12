@@ -1,14 +1,14 @@
 import { terminateCastRoute, type CastRoute, toggleCastPicker, useCastRoutes } from "../../state/media/cast";
 import type { ActionState, InstalledExtension } from "../../state/extensions/store";
-import { ContextMenuArea, Symbol, Button, Text, useHover } from "../ui";
+import { Badge, Button, ContextMenuArea, Symbol, useToolbarRowContext } from "../ui";
 import { chooseFromMenu } from "../../state/app/menuChoice";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Image, Pressable, View } from "react-native";
+import { Image, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 import { usePages } from "../../state/tabs/pageState";
-import { ink, opacity, radius, weight } from "../ui/tokens";
-import { BADGE_FALLBACK_FILL, BADGE_TEXT } from "./tokens";
+import { ink, opacity } from "../ui/tokens";
+import { BADGE_FALLBACK_FILL } from "./tokens";
 import { isLight } from "../../lib/color";
 import { dropToolbarAnchor, setToolbarAnchor } from "../../state/extensions/toolbarAnchors";
 import {
@@ -24,7 +24,9 @@ import {
 } from "../../state/extensions/actions";
 
 const BUTTON = 28;
+const GLYPH = 14;
 const GLYPH_BOX = 18;
+const IMAGE = 16;
 const GAP = 2;
 const PITCH = BUTTON + GAP;
 
@@ -42,8 +44,9 @@ function useToolbarExtensions(windowId: string, limit: number) {
 
 export const extensionsFitting = (room: number) => Math.max(1, Math.floor((room + GAP) / PITCH));
 
-export function useToolbarExtensionsWidth(windowId: string, limit = Infinity, button = BUTTON): number {
+export function useToolbarExtensionsWidth(windowId: string, limit = Infinity): number {
   const { pinned, overflow, casting } = useToolbarExtensions(windowId, limit);
+  const button = useToolbarRowContext().extensionButton;
   const count = pinned.length + (overflow ? 1 : 0) + (casting ? 1 : 0);
   return count ? count * (button + GAP) - GAP + 6 : 0;
 }
@@ -55,7 +58,6 @@ type ToolbarExtensionsProps = {
   top: number;
   right: number;
   limit?: number;
-  button?: number;
 };
 
 export const ToolbarExtensions = memo(function ToolbarExtensions(props: ToolbarExtensionsProps) {
@@ -69,18 +71,17 @@ function TabToolbarExtensions({
   top,
   right,
   limit = Infinity,
-  button = BUTTON,
 }: ToolbarExtensionsProps) {
   const { pinned, overflow, routes } = useToolbarExtensions(windowId, limit);
   const ready = usePages((p) => !!p.ready[tabId]);
-  if (!pinned.length && !overflow && !routes.length) return <EmptyAnchor windowId={windowId} tabId={tabId} top={top} right={right} button={button} />;
+  if (!pinned.length && !overflow && !routes.length) return <EmptyAnchor windowId={windowId} tabId={tabId} top={top} right={right} />;
   return (
     <View style={{ position: "absolute", top, right, flexDirection: "row", gap: GAP }}>
-      {routes.length ? <CastButton windowId={windowId} tabId={tabId} routes={routes} palette={palette} button={button} /> : null}
+      {routes.length ? <CastButton windowId={windowId} tabId={tabId} routes={routes} palette={palette} /> : null}
       {pinned.map((ext) => (
-        <ExtensionButton key={ext.id} ext={ext} windowId={windowId} tabId={tabId} ready={ready} palette={palette} button={button} />
+        <ExtensionButton key={ext.id} ext={ext} windowId={windowId} tabId={tabId} ready={ready} palette={palette} />
       ))}
-      {overflow && <OverflowButton windowId={windowId} tabId={tabId} palette={palette} button={button} />}
+      {overflow && <OverflowButton windowId={windowId} tabId={tabId} palette={palette} />}
     </View>
   );
 }
@@ -89,8 +90,9 @@ export function ToolbarPopupAnchor(props: { windowId: string; tabId: string; top
   return <EmptyAnchor key={`${props.windowId}|${props.tabId}`} {...props} />;
 }
 
-function EmptyAnchor({ windowId, tabId, top, right, button = BUTTON }: { windowId: string; tabId: string; top: number; right: number; button?: number }) {
+function EmptyAnchor({ windowId, tabId, top, right }: { windowId: string; tabId: string; top: number; right: number }) {
   const { ref, measure } = useAnchor(windowId, tabId, "*");
+  const button = useToolbarRowContext().extensionButton;
   return <View ref={ref} pointerEvents="none" style={{ position: "absolute", top, right, width: button, height: button }} onLayout={() => void measure()} />;
 }
 
@@ -121,77 +123,48 @@ function useAnchor(windowId: string, tabId: string, slot: string) {
   return { ref, measure };
 }
 
-function ExtensionButton({ ext, windowId, tabId, ready, palette, button }: { ext: InstalledExtension; windowId: string; tabId: string; ready: boolean; palette: ToolbarPalette; button: number }) {
+function ExtensionButton({ ext, windowId, tabId, ready, palette }: { ext: InstalledExtension; windowId: string; tabId: string; ready: boolean; palette: ToolbarPalette }) {
   const fetched = useExtensions((e) => (ready ? e.actions[tabId] : undefined));
   const held = useRef<ActionState | undefined>(undefined);
   if (fetched) held.current = fetched[ext.id];
   const state = held.current;
   const open = useExtensions((e) => e.popup?.windowId === windowId && e.popup.extensionId === ext.id);
-  const { hovered, hoverProps } = useHover();
   const { ref, measure } = useAnchor(windowId, tabId, ext.id);
   const badge = state?.badgeText ?? "";
   const dimmed = state ? !state.enabled : false;
   const title = state?.title || ext.actionTitle || ext.name;
   const icon = state?.icon || ext.actionIcon || ext.icon;
+  const fill = state?.badgeColor && state.badgeColor !== ink.black ? state.badgeColor : BADGE_FALLBACK_FILL;
   return (
-    <View ref={ref} tooltip={title} {...hoverProps} onLayout={() => void measure()}>
+    <View ref={ref} onLayout={() => void measure()}>
       <ContextMenuArea onContextMenu={() => void showExtensionMenu(windowId, ext)}>
-        <Pressable onPress={async () => activateExtension(windowId, ext, await measure(), fetched?.[ext.id], tabId)}>
-          {({ pressed }) => (
-            <View
-              style={{
-                width: button,
-                height: button,
-                borderRadius: radius.button,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: pressed || open ? palette.pressed : hovered ? palette.hover : undefined,
-              }}
-            >
-              {icon ? (
-                <View pointerEvents="none">
-                  <Image source={{ uri: icon }} style={{ width: 16, height: 16, opacity: dimmed ? opacity.disabled : 1 }} />
-                </View>
-              ) : (
-                <Symbol name="puzzlepiece.extension" size={14} color={palette.icon} style={{ width: 18, height: 18 }} />
-              )}
-              {badge ? <Badge text={badge} color={state?.badgeColor} textColor={state?.badgeTextColor} /> : null}
+        <Button
+          variant="icon"
+          look="extension"
+          palette={palette}
+          active={open}
+          tooltip={title}
+          onPress={async () => activateExtension(windowId, ext, await measure(), fetched?.[ext.id], tabId)}
+          badge={badge ? <Badge text={badge.slice(0, 4)} size="s" fill={fill} color={state?.badgeTextColor ?? contrastText(fill)} style={BADGE_PLACE} /> : null}
+        >
+          {icon ? (
+            <View pointerEvents="none">
+              <Image source={{ uri: icon }} style={{ width: IMAGE, height: IMAGE, opacity: dimmed ? opacity.disabled : 1 }} />
             </View>
+          ) : (
+            <Symbol name="puzzlepiece.extension" size={GLYPH} color={palette.icon} style={{ width: GLYPH_BOX, height: GLYPH_BOX }} />
           )}
-        </Pressable>
+        </Button>
       </ContextMenuArea>
     </View>
   );
 }
 
-function Badge({ text, color, textColor }: { text: string; color?: string | null; textColor?: string | null }) {
-  const fill = color && color !== ink.black ? color : BADGE_FALLBACK_FILL;
-  return (
-    <View
-      pointerEvents="none"
-      style={{
-        position: "absolute",
-        right: 1,
-        bottom: 3,
-        minWidth: 13,
-        height: 11,
-        paddingHorizontal: 2.5,
-        borderRadius: 3,
-        backgroundColor: fill,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Text numberOfLines={1} weight="bold" style={[BADGE_TEXT, { color: textColor ?? contrastText(fill) }]}>
-        {text.slice(0, 4)}
-      </Text>
-    </View>
-  );
-}
+const BADGE_PLACE = { position: "absolute", right: 1, bottom: 3 } as const;
 
 const contrastText = (fill: string) => (isLight(fill) ? ink.black : ink.white);
 
-function CastButton({ windowId, tabId, routes, palette, button }: { windowId: string; tabId: string; routes: CastRoute[]; palette: ToolbarPalette; button: number }) {
+function CastButton({ windowId, tabId, routes, palette }: { windowId: string; tabId: string; routes: CastRoute[]; palette: ToolbarPalette }) {
   const theme = useTheme();
   const tooltip = routes.map((r) => (r.description ? `${r.description} on ${r.sink}` : `Casting to ${r.sink}`)).join("\n");
   const menu = async () => {
@@ -205,12 +178,12 @@ function CastButton({ windowId, tabId, routes, palette, button }: { windowId: st
   };
   return (
     <ContextMenuArea onContextMenu={() => void menu()}>
-      <Button variant="icon" icon="tv.and.mediabox.fill" size={14} box={button} glyphBox={GLYPH_BOX} radius={radius.button} color={theme.accent} palette={palette} tooltip={tooltip} onPress={() => void toggleCastPicker(windowId, tabId)} />
+      <Button variant="icon" icon="tv.and.mediabox.fill" look="extension" color={theme.accent} palette={palette} tooltip={tooltip} onPress={() => void toggleCastPicker(windowId, tabId)} />
     </ContextMenuArea>
   );
 }
 
-function OverflowButton({ windowId, tabId, palette, button }: { windowId: string; tabId: string; palette: ToolbarPalette; button: number }) {
+function OverflowButton({ windowId, tabId, palette }: { windowId: string; tabId: string; palette: ToolbarPalette }) {
   const { ref, measure } = useAnchor(windowId, tabId, "*");
   const onPress = async () => {
     const anchor = await measure();
@@ -225,7 +198,7 @@ function OverflowButton({ windowId, tabId, palette, button }: { windowId: string
   };
   return (
     <View ref={ref} onLayout={() => void measure()}>
-      <Button variant="icon" icon="puzzlepiece.extension" size={14} box={button} glyphBox={GLYPH_BOX} radius={radius.button} palette={palette} tooltip="Extensions" onPress={() => void onPress()} />
+      <Button variant="icon" icon="puzzlepiece.extension" look="extension" palette={palette} tooltip="Extensions" onPress={() => void onPress()} />
     </View>
   );
 }

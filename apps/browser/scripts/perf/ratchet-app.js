@@ -2,6 +2,7 @@ const P = globalThis.acPerf;
 const bench = globalThis.acBench;
 if (!P || !bench) throw new Error("load bench-app.js first (and turn the perf probe on)");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const pageOf = (tab) => tab.page ?? { nav: tab.navigation, adopt: tab.adoptId };
 const sum = (o) => Object.values(o ?? {}).reduce((a, b) => a + (typeof b === "number" ? b : 0), 0);
 
 const extra = {
@@ -17,7 +18,10 @@ const extra = {
         const id = w.activeTabIds?.[w.profileId];
         if (!id) continue;
         ids.add(id);
-        for (const split of Object.values(s.splits ?? {})) if (split.slots.flatMap((x) => x.stack ?? [x.tabId]).includes(id)) for (const pane of split.slots.flatMap((x) => x.stack ?? [x.tabId])) ids.add(pane);
+        for (const split of Object.values(s.splits ?? {})) {
+          const panes = split.slots ? split.slots.flatMap((x) => x.stack ?? [x.tabId]) : split.tabIds ?? [];
+          if (panes.includes(id)) for (const pane of panes) ids.add(pane);
+        }
       }
       return ids;
     };
@@ -28,7 +32,9 @@ const extra = {
       for (const [id, t] of Object.entries(s.tabs)) {
         const was = prev.tabs[id];
         if (!was || t === was || shown.has(id)) continue;
-        if ((t.page.nav && !was.page.nav) || (t.page.adopt && !was.page.adopt)) {
+        const now = pageOf(t);
+        const before = pageOf(was);
+        if ((now.nav && !before.nav) || (now.adopt && !before.adopt)) {
           backgroundWakeAt = Date.now();
           return;
         }

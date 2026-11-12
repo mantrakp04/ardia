@@ -7,6 +7,7 @@ import { usePeeks } from "../../state/peek/hooks";
 import { useTabs } from "../../state/tabs/hooks";
 import { openTabsByUse } from "../../state/tabs/tabShare";
 import { withoutFragment } from "../../lib/url";
+import { commandBarTabLimit, keepsOpenTab } from "../../state/omnibox/commandBarStart";
 
 const RECENT = 4;
 
@@ -36,10 +37,15 @@ export function useOpenTabsStart(enabled: boolean, windowId: string, profileId: 
   const tabs = useTabs((all) => (enabled ? all : null));
   const peeks = usePeeks((all) => (enabled ? all : null));
   const shared = useSettings((st) => !!st.shareTabsAcrossWindows);
+  const start = useSettings((st) => st.commandBarStart);
   const active = useWindow(windowId, (w) => (enabled ? w?.activeTabIds[profileId] : undefined));
   return useMemo(() => {
     if (!tabs || !peeks) return NO_TABS;
-    const rows = openTabsByUse(tabs, peeks, { profileId, windowId, shared }).map(({ tab: t, lastActiveAt }) => ({ id: t.id, url: t.url, title: tabTitle(t), favicon: t.favicon, lastActiveAt }));
-    return recentTabSuggestions(rows, { exclude: active });
-  }, [tabs, peeks, active, profileId, shared, windowId]);
+    const limit = commandBarTabLimit(start);
+    if (limit === 0) return NO_TABS;
+    const rows = openTabsByUse(tabs, peeks, { profileId, windowId, shared })
+      .filter(({ tab: t }) => keepsOpenTab(start, t.pin))
+      .map(({ tab: t, lastActiveAt }) => ({ id: t.id, url: t.url, title: tabTitle(t), favicon: t.favicon, lastActiveAt }));
+    return recentTabSuggestions(rows, { exclude: active, limit });
+  }, [tabs, peeks, active, profileId, shared, windowId, start]);
 }

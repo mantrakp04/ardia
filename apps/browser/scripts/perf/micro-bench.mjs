@@ -2,7 +2,7 @@
 
 const { useBrowser } = await import("../../src/state/browser/store.ts");
 const { sidebarEntries, groupEntries } = await import("../../src/state/sidebar/entries.ts");
-const { groupLabel } = await import("../../src/state/pins/organize.ts");
+const { groupLabel } = await import("../../src/state/pins/tabGrouping.ts");
 const strip = await import("../../src/state/tabs/topStrip.ts");
 await import("../../src/test-native/index.ts");
 const core = await import("../../../../packages/core/src/index.ts");
@@ -25,7 +25,6 @@ const time = (fn, runs = 30) => {
 };
 const report = (name, value, unit = "ms") => console.log(`${name.padEnd(52)} ${typeof value === "number" ? value.toFixed(3) : value} ${unit}`);
 
-// One window with `count` tabs: every 10th pair a split, groups of 20 (one of `bigGroup` members), titled pages.
 function bigSession(count, bigGroup = 0) {
   const tabs = {};
   const ids = [];

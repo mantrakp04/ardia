@@ -1,5 +1,4 @@
 import type { StripDock, StripEntry, StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
-import { spring } from "../ui/motion";
 import type { Dock, DropTarget } from "./model";
 import { DOCK_GAP, GAP, ITEM_HEIGHT, MAX_CHIP, MIN_CHIP, PINNED_CELL, PINNED_SPACING } from "./tokens";
 
@@ -8,8 +7,6 @@ export const GROUP_MARGIN_RIGHT = 4;
 export const MEMBERS_INSET = 6.5;
 const TAIL_COLLAPSED = 4.5;
 export const TAIL_EXPANDED = 30.25;
-export const GROUP_SPRING = spring({ response: 0.3, damping: 0.82 });
-export const TUCK_FADE_MS = 120;
 
 type GroupLayout = { offsets: number[]; width: number };
 
@@ -151,13 +148,13 @@ export function layoutDock(dock: StripDock | undefined): Dock | null {
   return { ids: dock.ids, left: -dockSpan(dock), geometry: dragGeometry(dock.ids.map((id) => ({ tabIds: dockTabs(dock, id), width: PINNED_CELL })), PINNED_SPACING) };
 }
 
-export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: number, measured: StripMeasures, dockLayout: Dock | null): StripLayout {
+export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: number, measured: StripMeasures, dockLayout: Dock | null, heldChip?: number): StripLayout {
   const dock = dockEntry(entries);
   const rows = entries.filter((e): e is StripGroupEntry | StripMember => e.kind !== "dock");
   const groupChip = (g: StripGroupEntry) => measured.groupChip(g.id) ?? 0;
   const folderChip = (m: StripMember) => measured.folderChip(m.id) ?? 0;
   const visible = rows.flatMap((e) => (e.kind !== "group" ? [e] : e.collapsed ? e.members.filter((m) => holds(m, activeId)) : e.members));
-  const chip = stripTabWidth({
+  const chip = heldChip ?? stripTabWidth({
     pageWidth,
     dockWidth: dockSpan(dock),
     groups: rows.flatMap((e) => (e.kind === "group" ? [{ chip: groupChip(e), expanded: !e.collapsed, shown: e.members.some((m) => holds(m, activeId)) }] : [])),

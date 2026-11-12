@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+const setTimeoutHoldingExit = globalThis.setTimeout;
+globalThis.setTimeout = (callback, ms, ...args) => {
+  const timer = setTimeoutHoldingExit(callback, ms, ...args);
+  return ms >= 1_000 ? timer.unref() : timer;
+};
+
 globalThis.__DEV__ = false;
 const { useBrowser } = await import("../browser/store.ts");
 const { reloadHistory, startHistory } = await import("./engineSync.ts");

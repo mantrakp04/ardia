@@ -35,7 +35,7 @@ jobs:
             site:
               - "infra/site/**"
               - "apps/site/**"
-              - "apps/demo/**"
+              - "packages/demo/**"
               - "apps/browser/src/**"
               - "packages/*/src/**"
               - "packages/*/package.json"
@@ -49,6 +49,8 @@ jobs:
             dashboard:
               - "infra/dashboard/**"
               - "apps/dashboard/**"
+              - "apps/site/src/data/telemetry.ts"
+              - "packages/core/src/anonymousIdentity.ts"
             telemetry-group:
               - "infra/telemetry/hexclave.deploy.ts"
             clickhouse:

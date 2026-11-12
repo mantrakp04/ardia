@@ -79,10 +79,16 @@ kernel void ardia_yuv_to_rgb(texture2d<float, access::sample> luma [[texture(0)]
 @synthesize vtOutput = _vtOutput;
 @synthesize scaler = _scaler;
 @synthesize rgb = _rgb;
+@synthesize processorQuarantined = _processorQuarantined;
 - (void)dealloc {
   if (@available(macOS 26.0, *)) {
-    if (_processor) {
-      [_processor endSession];
+    VTFrameProcessor* processor = _processor;
+    if (processor && _processorQuarantined) {
+      ardiacore::KeepQuarantinedProcessor(processor);
+    } else if (processor) {
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        [processor endSession];
+      });
     }
   }
   if (_paddedInput) {
@@ -169,7 +175,8 @@ ArdiaVideoUpscalerKit* BuildKit(ArdiaVideoUpscalerKit* previous,
     return nil;
   }
   if (plan.vt_factor > 0) {
-    if (previous.processor && previous.configuration.frameWidth == plan.vt_input.width() &&
+    if (previous.processor && !previous.processorQuarantined &&
+        previous.configuration.frameWidth == plan.vt_input.width() &&
         previous.configuration.frameHeight == plan.vt_input.height() &&
         previous.configuration.scaleFactor == plan.vt_factor) {
       kit.processor = previous.processor;
@@ -198,16 +205,13 @@ ArdiaVideoUpscalerKit* BuildKit(ArdiaVideoUpscalerKit* previous,
       if (output) {
         CVPixelBufferRelease(output);
       }
-      if (plan.vt_needs_pad) {
-        CVPixelBufferRef padded =
-            CreateBuffer(plan.vt_input.width(), plan.vt_input.height(),
-                         kit.configuration.sourcePixelBufferAttributes);
-        kit.paddedInput = padded;
-        if (padded) {
-          CVPixelBufferRelease(padded);
-        }
+      CVPixelBufferRef padded = CreateBuffer(plan.vt_input.width(), plan.vt_input.height(),
+                                             kit.configuration.sourcePixelBufferAttributes);
+      kit.paddedInput = padded;
+      if (padded) {
+        CVPixelBufferRelease(padded);
       }
-      if (!kit.vtOutput || (plan.vt_needs_pad && !kit.paddedInput)) {
+      if (!kit.vtOutput || !kit.paddedInput) {
         return nil;
       }
     }

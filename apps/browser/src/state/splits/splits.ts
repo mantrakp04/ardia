@@ -37,6 +37,15 @@ export type OpenPaneResult = { ok: true; tabId: string; splitId: string } | { ok
 
 export const MAX_SPLIT_PANES = 3;
 
+export function paneChunks(ids: string[]): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += MAX_SPLIT_PANES) {
+    const chunk = ids.slice(i, i + MAX_SPLIT_PANES);
+    if (chunk.length >= 2) out.push(chunk);
+  }
+  return out;
+}
+
 const flatIds = new WeakMap<SplitSlot[], string[]>();
 
 export const slotTabIds = (slot: SplitSlot): string[] => ("stack" in slot ? slot.stack : [slot.tabId]);
@@ -195,7 +204,14 @@ function withPane(existing: SplitView | undefined, anchorId: string, tabId: stri
     slots.splice(before ? k : k + 1, 0, { size: 0, tabId });
     return { ...existing, slots: evened(slots) };
   }
-  slots[k] = { size: slots[k]!.size, stack: before ? [tabId, anchorId] : [anchorId, tabId], stackSizes: [0.5, 0.5] };
+  const slot = slots[k]!;
+  if ("stack" in slot) {
+    if (slots.length > 1) return null;
+    const ids = [...slot.stack];
+    ids.splice(ids.indexOf(anchorId) + (before ? 0 : 1), 0, tabId);
+    return { ...existing, orientation: horizontal ? "horizontal" : "vertical", slots: evenSlots(ids) };
+  }
+  slots[k] = { size: slot.size, stack: before ? [tabId, anchorId] : [anchorId, tabId], stackSizes: [0.5, 0.5] };
   return { ...existing, slots };
 }
 

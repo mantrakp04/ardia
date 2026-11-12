@@ -9,6 +9,12 @@ public class FileDropModule: Module {
 
     View(FileDropView.self) {
       Events("onDropUpdate")
+      Prop("accepts") { (view: FileDropView, accepts: String?) in
+        view.accepts = accepts ?? "links"
+      }
+      Prop("enabled") { (view: FileDropView, enabled: Bool?) in
+        view.enabled = enabled ?? true
+      }
     }
 
     AsyncFunction("devDrag") { (windowId: String, action: String, x: Double, y: Double, payload: [String: Any]?) -> String in

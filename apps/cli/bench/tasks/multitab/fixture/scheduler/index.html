@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendar - Jordan Lee - Northwind</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">31</span> Northwind Calendar</div>
+  <button type="button" id="today" class="ghost">Today</button>
+  <div class="week-nav">
+    <button type="button" id="prev" class="icon" aria-label="Previous week">‹</button>
+    <button type="button" id="next" class="icon" aria-label="Next week">›</button>
+  </div>
+  <h1 id="range" class="range" aria-live="polite"></h1>
+  <div class="me" title="Jordan Lee (jordan@northwind.dev)">JL</div>
+</header>
+<div class="shell">
+  <div class="side">
+    <button type="button" id="create" class="create"><span aria-hidden="true">＋</span> New meeting</button>
+    <section aria-labelledby="mine-h" class="side-block">
+      <h2 id="mine-h">My calendars</h2>
+      <label class="cal"><input type="checkbox" checked disabled> <span class="swatch"></span> Jordan Lee</label>
+      <label class="cal"><input type="checkbox" checked disabled> <span class="swatch hol"></span> US holidays</label>
+    </section>
+    <p class="tz">Times shown in Pacific Time (PT)</p>
+  </div>
+  <main class="cal-main" aria-labelledby="range">
+    <div id="grid" class="grid" role="grid" aria-labelledby="range"></div>
+  </main>
+</div>
+
+<div id="details" class="details" role="dialog" aria-modal="false" aria-labelledby="details-title" hidden></div>
+
+<dialog id="editor" aria-labelledby="editor-title">
+  <form id="meeting-form" method="dialog" novalidate>
+    <header class="dlg-head">
+      <h2 id="editor-title">New meeting</h2>
+      <button type="button" class="icon close" id="cancel-x" aria-label="Close">×</button>
+    </header>
+    <div class="dlg-body">
+      <div id="form-error" class="form-error" role="alert" hidden></div>
+      <div class="field">
+        <label for="title">Title</label>
+        <input id="title" name="title" type="text" maxlength="200" autocomplete="off">
+        <p class="error" id="title-error" hidden></p>
+      </div>
+      <div class="row3">
+        <div class="field">
+          <label for="date">Date</label>
+          <input id="date" name="date" type="date">
+          <p class="error" id="date-error" hidden></p>
+        </div>
+        <div class="field">
+          <label for="start">Start time</label>
+          <select id="start" name="start"></select>
+          <p class="error" id="start-error" hidden></p>
+        </div>
+        <div class="field">
+          <label for="duration">Duration</label>
+          <select id="duration" name="duration">
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="45">45 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="90">1 hour 30 minutes</option>
+            <option value="120">2 hours</option>
+          </select>
+          <p class="error" id="duration-error" hidden></p>
+        </div>
+      </div>
+      <p class="when" id="when"></p>
+
+      <div class="field">
+        <label for="guest-input">Guests</label>
+        <p class="hint" id="guest-hint">Search people at Northwind, or type an email address to invite someone outside the company.</p>
+        <div class="combo">
+          <input id="guest-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="guest-options" aria-describedby="guest-hint" autocomplete="off" placeholder="Add guests">
+          <ul id="guest-options" class="options" role="listbox" aria-label="Suggestions" hidden></ul>
+        </div>
+        <p class="organizer">Organizer: Jordan Lee (you)</p>
+        <ul id="guests" class="guests" aria-label="Guests"></ul>
+        <p class="error" id="attendees-error" hidden></p>
+      </div>
+
+      <fieldset class="field rooms">
+        <legend>Room</legend>
+        <div class="room-filters">
+          <label><input type="checkbox" id="f-screen"> Video screen</label>
+          <label><input type="checkbox" id="f-free"> Available only</label>
+          <span class="room-count" id="room-count" aria-live="polite"></span>
+        </div>
+        <div id="room-list" class="room-list"></div>
+        <p class="error" id="room-error" hidden></p>
+      </fieldset>
+
+      <div class="field">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" maxlength="2000"></textarea>
+      </div>
+    </div>
+    <footer class="dlg-foot">
+      <span id="saving" class="saving" role="status" aria-live="polite"></span>
+      <button type="button" class="ghost" id="cancel">Cancel</button>
+      <button type="submit" class="primary" id="save">Save</button>
+    </footer>
+  </form>
+</dialog>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

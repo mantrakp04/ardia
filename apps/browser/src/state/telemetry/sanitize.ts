@@ -202,7 +202,6 @@ type NativeCrash = {
   exceptionType?: string;
   signal?: string;
   exceptionName?: string;
-  exceptionReason?: string;
   exceptionSubtype?: string;
   frames: NativeFrame[];
   exceptionFrames?: NativeFrame[];
@@ -215,13 +214,14 @@ export function nativeCrashExceptions(report: NativeCrash) {
   const name = report.exceptionName && EXCEPTION_NAME.test(report.exceptionName) ? report.exceptionName : null;
   const subtype = report.exceptionSubtype && SUBTYPE.test(report.exceptionSubtype) ? report.exceptionSubtype : null;
   const images = nativeImages(report.images);
-  const reason = scrubText(report.exceptionReason, 300) || null;
   const crash = { type: machType, value: signal ? `${machType} (${signal})` : machType, frames: nativeFrames(report.frames) };
-  if (!report.exceptionFrames?.length && !name && !reason) return { name, signal, reason, subtype, images, exceptions: [crash] };
+  if (!report.exceptionFrames?.length && !name) return { name, signal, subtype, images, exceptions: [crash] };
   const type = name ?? "NSException";
-  const thrown = { type, value: reason ?? `Uncaught ${type}`, frames: nativeFrames(report.exceptionFrames ?? []) };
-  return { name, signal, reason, subtype, images, exceptions: [thrown, crash] };
+  const thrown = { type, value: `Uncaught ${type}`, frames: nativeFrames(report.exceptionFrames ?? []) };
+  return { name, signal, subtype, images, exceptions: [thrown, crash] };
 }
+
+export const nativeCrashTermination = (namespace: string | undefined) => (namespace && SUBTYPE.test(namespace) ? namespace : null);
 
 type PropertyValue = string | number | boolean | null;
 

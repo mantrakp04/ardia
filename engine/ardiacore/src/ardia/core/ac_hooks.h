@@ -13,6 +13,7 @@
 #include "chrome/browser/file_system_access/file_system_access_permission_request_manager.h"
 #include "chrome/browser/ui/extensions/extension_popup_types.h"
 #include "components/permissions/permission_prompt.h"
+#include "content/public/browser/media_stream_request.h"
 #include "extensions/browser/extension_install_prompt_client.h"
 #include "ui/base/resource/resource_bundle.h"
 
@@ -126,6 +127,11 @@ extern bool (*g_ardia_device_chooser)(
     std::unique_ptr<permissions::ChooserController>* controller,
     base::ScopedClosureRunner* fullscreen_blocker,
     base::OnceClosure* close_closure);
+
+extern bool (*g_ardia_media_access_request)(
+    content::WebContents* web_contents,
+    const content::MediaStreamRequest& request,
+    content::MediaResponseCallback* callback);
 
 extern bool (*g_ardia_wants_cast_dialog)(content::WebContents* initiator);
 

@@ -7,6 +7,7 @@ import { engineProfile, isIncognitoProfile } from "../browser/model";
 import type { HistoryEntry } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";
 import { engineProfiles } from "../profiles/engineProfiles";
+import { onProfilesOpened, openedEngineProfiles } from "../profiles/profileLoading";
 import { migrateLegacyFile } from "../app/legacyFiles";
 
 const LEGACY_FILE = "history.json";
@@ -191,7 +192,7 @@ async function moveHistory(file: LegacyFile, now: number) {
 export function startHistory() {
   const events = onHistoryChanged(changed);
   const loadAll = (s: Pick<BrowserState, "profiles">) => {
-    for (const engine of engineProfiles(s)) if (!loaded.has(engine) && !loads.has(engine)) void load(engine);
+    for (const engine of openedEngineProfiles(s)) if (!loaded.has(engine) && !loads.has(engine)) void load(engine);
   };
   let moving = readDocument(LEGACY_FILE) !== null;
   let stopped = false;
@@ -212,14 +213,18 @@ export function startHistory() {
   const stop = useBrowser.subscribe((s, prev) => {
     if (s.profiles !== prev.profiles && !moving) loadAll(s);
   });
+  const opened = onProfilesOpened(() => {
+    if (!moving) loadAll(store());
+  });
   return () => {
     stopped = true;
     events.remove();
     stop();
+    opened();
     pending = [];
     loaded.clear();
     legacyMoved = false;
   };
 }
 
-export const reloadHistory = () => Promise.all(engineProfiles(store()).map(load));
+export const reloadHistory = () => Promise.all(openedEngineProfiles(store()).map(load));

@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useTab } from "../../state/browser/hooks";
 import { navigate } from "../../state/tabs/actions";
 import { replaceSplitPane } from "../../state/splits/actions";
 import { useSplitSuggestions } from "../../state/splits/hooks";
 import { tabLabel } from "../../state/browser/model";
-import { font, Panel, space, Symbol, useHover, weight } from "../ui";
-import { EMPTY_STATE_RADIUS, SPLIT_ROW_RADIUS, SPLIT_SHADOWS, splitColors } from "./tokens";
+import { Panel, SearchField, shadow, space, Symbol, Text, useHover } from "../ui";
+import { EMPTY_STATE_RADIUS, EMPTY_STATE_WIDTH, SPLIT_ROW_HEIGHT, SPLIT_ROW_RADIUS, splitColors } from "./tokens";
 import { Favicon } from "../favicon/Favicon";
 
 export function SplitEmptyState({ tabId, focused }: { tabId: string; focused: boolean }) {
@@ -25,32 +25,25 @@ export function SplitEmptyState({ tabId, focused }: { tabId: string; focused: bo
         fill={splitColors(theme.dark).emptyStateFill}
         radius={EMPTY_STATE_RADIUS}
         border={theme.ntpBarBorder}
-        shadow={SPLIT_SHADOWS.emptyState}
-        style={{ width: "100%", maxWidth: 420, paddingVertical: space.ml }}
+        shadow={shadow.card}
+        style={{ width: "100%", maxWidth: EMPTY_STATE_WIDTH, paddingVertical: space.ml }}
       >
-        <Text style={{ ...font.body, fontWeight: weight.semibold, color: theme.textPrimary, paddingHorizontal: space.xl, paddingTop: space.xs, paddingBottom: space.ml }}>
+        <Text weight="semibold" style={{ paddingHorizontal: space.xl, paddingTop: space.xs, paddingBottom: space.ml }}>
           Add a tab to this Split View
         </Text>
         {typing ? (
-          <View style={{ height: 36, marginHorizontal: space.s, paddingHorizontal: space.ml, borderRadius: SPLIT_ROW_RADIUS, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: theme.rowHover }}>
-            <Symbol name="magnifyingglass" size={13} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
-            <TextInput
+          <View style={{ height: SPLIT_ROW_HEIGHT, marginHorizontal: space.s, paddingHorizontal: space.ml, borderRadius: SPLIT_ROW_RADIUS, justifyContent: "center", backgroundColor: theme.rowHover }}>
+            <SearchField
+              look="bare"
               autoFocus
               value={text}
               onChangeText={setText}
               placeholder="Search or Ask a Question"
-              placeholderTextColor={theme.placeholder}
-              selectionColor={theme.selection}
-              enableFocusRing={false}
-              onSubmitEditing={go}
-              keyDownEvents={[{ key: "Escape" }]}
-              onKeyDown={(e) => {
-                if (e.nativeEvent.key === "Escape") {
-                  setText("");
-                  setTyping(false);
-                }
+              onSubmit={go}
+              onEscape={() => {
+                setText("");
+                setTyping(false);
               }}
-              style={{ flex: 1, ...font.title, color: theme.textPrimary, paddingVertical: 0 }}
             />
           </View>
         ) : (
@@ -80,20 +73,20 @@ function Row({ icon, label, detail, secondary, onPress }: { icon: React.ReactNod
         {({ pressed }) => (
           <View
             style={{
-              height: 36,
+              height: SPLIT_ROW_HEIGHT,
               marginHorizontal: space.s,
               paddingHorizontal: space.ml,
               borderRadius: SPLIT_ROW_RADIUS,
               flexDirection: "row",
               alignItems: "center",
-              gap: 9,
+              gap: space.m,
               backgroundColor: pressed ? theme.rowSelected : hovered ? theme.rowHover : undefined,
             }}
           >
             {icon}
-            <Text numberOfLines={1} style={{ flexShrink: 1, ...font.body, color: secondary ? theme.textSecondary : theme.textPrimary }}>
+            <Text numberOfLines={1} tone={secondary ? "textSecondary" : "textPrimary"} style={SHRINK}>
               {label}
-              {detail ? <Text style={{ color: theme.textTertiary }}>{`  ${detail}`}</Text> : null}
+              {detail ? <Text tone="textTertiary">{`  ${detail}`}</Text> : null}
             </Text>
           </View>
         )}
@@ -101,3 +94,5 @@ function Row({ icon, label, detail, secondary, onPress }: { icon: React.ReactNod
     </View>
   );
 }
+
+const SHRINK = { flexShrink: 1 } as const;

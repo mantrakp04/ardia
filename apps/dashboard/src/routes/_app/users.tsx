@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { compareLabel, rangeSentence } from "@/lib/compare";
 import { formatAgo, formatDate, formatExact, formatPercent } from "@/lib/format";
+import { UTC } from "@/lib/zone";
 import { THRESHOLDS } from "@/lib/thresholds";
 import type { SectionData } from "@/server/sections";
 
@@ -210,9 +211,9 @@ function ActiveStats({ a }: { a: Active }) {
         source="daily"
         label="Weekly active, counted"
         value={formatExact(a.wau.value)}
-        sub={full ? `vs ${formatExact(a.wau.previous)} last week` : `since ${formatDate(a.wau.since)} · not comparable with last week yet`}
+        sub={full ? `vs ${formatExact(a.wau.previous)} last week` : `since ${formatDate(a.wau.since, UTC)} · not comparable with last week yet`}
       />
-      <Stat source="daily" label="Monthly active, counted" value={formatExact(a.mau.value)} sub={`since ${formatDate(a.mau.since)}${full ? "" : " · rises as copies update"}`} />
+      <Stat source="daily" label="Monthly active, counted" value={formatExact(a.mau.value)} sub={`since ${formatDate(a.mau.since, UTC)}${full ? "" : " · rises as copies update"}`} />
     </>
   );
 }
@@ -233,7 +234,7 @@ function CoverageNote({ a }: { a: Active }) {
 }
 
 function Splits({ a }: { a: Active }) {
-  const day = a.splits.day ? formatDate(a.splits.day) : "yesterday";
+  const day = a.splits.day ? formatDate(a.splits.day, UTC) : "yesterday";
   const lists = [
     { key: "version", title: "Version", items: a.splits.version, dimension: "Version" },
     { key: "channel", title: "Channel", items: a.splits.channel, dimension: "Channel" },

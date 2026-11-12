@@ -13,7 +13,7 @@ diff --git a/components/sessions/core/tab_restore_service_helper.cc b/components
  
  namespace sessions {
  namespace {
-@@ -321,13 +326,37 @@
+@@ -323,13 +328,37 @@
    window->user_title = context->GetUserTitle();
    window->extra_data = context->GetExtraDataForWindow();
  
@@ -53,8 +53,8 @@ diff --git a/components/sessions/core/tab_restore_service_helper.cc b/components
      tab->browser_id = context->GetSessionID().id();
  
      if (tab->group.has_value() &&
-@@ -351,6 +380,11 @@
-     return;
+@@ -353,6 +382,11 @@
+     return std::nullopt;
    }
  
 +  window->selected_tab_index = kept_selected >= 0 ? kept_selected
@@ -64,8 +64,8 @@ diff --git a/components/sessions/core/tab_restore_service_helper.cc b/components
 +                                                  : 0;
    window->selected_tab_index = std::min(
        static_cast<int>(window->tabs.size() - 1), window->selected_tab_index);
-   AddEntry(std::move(window), true, true);
-@@ -1513,7 +1547,10 @@
+   const SessionID id = window->id;
+@@ -1526,7 +1560,10 @@
                                            LiveTabContext* context,
                                            LiveTab* live_tab) {
    tab->current_navigation_index = 0;

@@ -1,15 +1,13 @@
-import { WindowDragRegion, Surface, VisualEffect } from "../ui";
+import { Panel, WindowDragRegion, VisualEffect } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
-import { hex } from "../ui/theme";
-import { curve } from "../ui/motion";
-import { hairline } from "../ui/tokens";
+import { curve, springs } from "../ui/motion";
 import { onboardingCard, onboardingMotion } from "./tokens";
 import { useWindowId } from "../../state/browser/hooks";
 import { Intro } from "./Intro";
 import { dismissOnboarding, goToStep, useOnboarding } from "../../state/onboarding/onboarding";
 import { LayoutStep, TabsStep } from "./LayoutSteps";
-import { LookStep } from "./LookStep";
+import { DetailsStep, LookStep } from "./LookStep";
 import { SearchPrivacyStep } from "./PrivacyStep";
 import { SourceStep } from "./SourceStep";
 import { HomeStep } from "./HomeStep";
@@ -18,10 +16,10 @@ import { PinnedTabsStep } from "./PinnedTabsStep";
 import { SetupCodeOutro } from "./SetupCodeOutro";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { ToolTour } from "./tour/ToolTour";
-import { useOnboardingColors } from "./Parts";
+import { ONBOARDING_CARD, OnboardingCardContext, useOnboardingColors } from "./Parts";
 import { DevResetOnboarding } from "./DevResetOnboarding";
 
-const CARD = { width: 880, height: 560, margin: 40 };
+const FLOATING_MIN_HEIGHT = 620;
 
 export function OnboardingOverlay() {
   const windowId = useWindowId();
@@ -45,24 +43,27 @@ function Overlay({ session }: { session: number }) {
   const card = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(presence, { toValue: 1, duration: onboardingMotion.overlayIn, easing: curve.outQuad, useNativeDriver: true }).start();
+    Animated.timing(presence, { toValue: 1, duration: onboardingMotion.overlayIn, easing: curve.enter, useNativeDriver: true }).start();
   }, []);
 
   useEffect(() => {
     if (step === "intro") return card.setValue(0);
-    Animated.spring(card, { toValue: 1, friction: 9, tension: 60, useNativeDriver: true }).start();
+    Animated.spring(card, { toValue: 1, ...springs.smooth, useNativeDriver: true }).start();
   }, [step === "intro"]);
 
   useEffect(() => {
     if (!leaving) return;
     Animated.parallel([
-      Animated.timing(presence, { toValue: 0, duration: onboardingMotion.overlayOut, easing: curve.inCubic, useNativeDriver: true }),
-      Animated.timing(card, { toValue: 2, duration: onboardingMotion.overlayOut, easing: curve.inCubic, useNativeDriver: true }),
+      Animated.timing(presence, { toValue: 0, duration: onboardingMotion.overlayOut, easing: curve.exit, useNativeDriver: true }),
+      Animated.timing(card, { toValue: 2, duration: onboardingMotion.overlayOut, easing: curve.exit, useNativeDriver: true }),
     ]).start(({ finished }) => finished && dismissOnboarding(session));
   }, [leaving]);
 
-  const width = Math.min(CARD.width, Math.max(0, size.width - CARD.margin * 2));
-  const height = Math.min(CARD.height, Math.max(0, size.height - CARD.margin * 2));
+  const floating = size.width >= ONBOARDING_CARD.width + ONBOARDING_CARD.inset * 2 && size.height >= FLOATING_MIN_HEIGHT;
+  const inset = floating ? ONBOARDING_CARD.inset : 0;
+  const width = Math.min(ONBOARDING_CARD.width, Math.max(0, size.width - inset * 2));
+  const height = Math.min(ONBOARDING_CARD.height, Math.max(0, size.height - inset * 2));
+  const dragStrip = ONBOARDING_CARD.titleBarClearance - inset;
 
   return (
     <Animated.View
@@ -86,28 +87,22 @@ function Overlay({ session }: { session: number }) {
               ],
             }}
           >
-            <Surface
-              fill={hex(colors.card)}
-              cornerRadius={onboardingCard.radius}
-              borderColor={hex(colors.cardBorder)}
-              borderWidth={hairline.panel}
-              shadowColor={onboardingCard.shadow.color}
-              shadowOpacity={onboardingCard.shadow.opacity}
-              shadowRadius={onboardingCard.shadow.radius}
-              shadowOffset={onboardingCard.shadow.offset}
-              style={{ flex: 1, overflow: "hidden" }}
-            >
-              <View key={step} style={{ flex: 1 }}>
-                {step === "source" && <SourceStep />}
-                {step === "layout" && <LayoutStep />}
-                {step === "tabs" && <TabsStep />}
-                {step === "look" && <LookStep />}
-                {step === "searchPrivacy" && <SearchPrivacyStep />}
-                {step === "pins" && <PinnedTabsStep />}
-                {step === "home" && <HomeStep />}
-                {step === "outro" && (isWebDemo ? <SetupCodeOutro /> : <OutroStep />)}
-              </View>
-            </Surface>
+            <Panel fill={colors.card} radius={onboardingCard.radius} border={floating ? colors.cardBorder : null} shadow={floating ? onboardingCard.shadow : undefined} style={{ flex: 1, overflow: "hidden" }}>
+              <OnboardingCardContext.Provider value={{ width, height, inset }}>
+                <View key={step} style={{ flex: 1 }}>
+                  {step === "source" && <SourceStep />}
+                  {step === "layout" && <LayoutStep />}
+                  {step === "tabs" && <TabsStep />}
+                  {step === "look" && <LookStep />}
+                  {step === "details" && <DetailsStep />}
+                  {step === "searchPrivacy" && <SearchPrivacyStep />}
+                  {step === "pins" && <PinnedTabsStep />}
+                  {step === "home" && <HomeStep />}
+                  {step === "outro" && (isWebDemo ? <SetupCodeOutro /> : <OutroStep />)}
+                </View>
+              </OnboardingCardContext.Provider>
+            </Panel>
+            {dragStrip > 0 ? <WindowDragRegion style={{ position: "absolute", top: 0, left: 0, right: 0, height: dragStrip }} /> : null}
           </Animated.View>
         </View>
       )}

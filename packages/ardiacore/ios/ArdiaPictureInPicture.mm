@@ -118,7 +118,9 @@ bool Attach(ArdiaWebView *view, NSString *host) {
     controller.view = view;
     controller.host = host;
     [controller roundCorners];
+    JoinFullScreenSpaces(window);
     PreventActivation(window);
+    if (fresh) [view emit:@"pictureInPicture" payload:@{@"kind" : @"video", @"active" : @YES, @"fullScreenSpaces" : @(JoinsFullScreenSpaces(window)), @"leftApp" : @(view.leftAppInPictureInPicture)}];
     if (ardia_host::Background()) {
       window.alphaValue = 0;
       window.ignoresMouseEvents = YES;
@@ -149,6 +151,64 @@ NSString *DevShowAlpha(NSWindow *window, float alpha) {
   return set(connection(), (int)window.windowNumber, alpha) == 0 ? @"started" : @"refused";
 }
 
+void DevDescribeLayer(CALayer *layer, NSUInteger depth, NSMutableString *out) {
+  [out appendFormat:@"%@L %@ %@ frame %@ bounds %@ radius %.2f mask %d curve %@ border %.1f opacity %.2f scale %.1f hidden %d%@\n",
+                    [@"" stringByPaddingToLength:depth * 2 withString:@" " startingAtIndex:0], NSStringFromClass(layer.class),
+                    layer.name ?: @"", NSStringFromRect(layer.frame), NSStringFromRect(layer.bounds), layer.cornerRadius,
+                    layer.masksToBounds, layer.cornerCurve, layer.borderWidth, layer.opacity, layer.contentsScale, layer.hidden,
+                    layer.mask ? [NSString stringWithFormat:@" layerMask %@", NSStringFromRect(layer.mask.frame)] : @""];
+  for (CALayer *sublayer in layer.sublayers) DevDescribeLayer(sublayer, depth + 1, out);
+}
+
+void DevDescribeView(NSView *view, NSUInteger depth, NSMutableString *out) {
+  [out appendFormat:@"%@V %@ frame %@ bounds %@ layer %d flipped %d\n", [@"" stringByPaddingToLength:depth * 2 withString:@" " startingAtIndex:0],
+                    NSStringFromClass(view.class), NSStringFromRect(view.frame), NSStringFromRect(view.bounds), view.layer != nil,
+                    view.isFlipped];
+  for (NSView *subview in view.subviews) DevDescribeView(subview, depth + 1, out);
+}
+
+NSView *DevFindView(NSView *view, NSString *className) {
+  if ([NSStringFromClass(view.class) isEqual:className]) return view;
+  for (NSView *subview in view.subviews)
+    if (NSView *found = DevFindView(subview, className)) return found;
+  return nil;
+}
+
+NSString *DevFraming(ArdiaPiPController *controller) {
+  NSWindow *window = controller.window;
+  NSView *content = window.contentView;
+  NSView *compositor = DevFindView(content, @"ViewsCompositorSuperview");
+  NSDictionary *framing = @{
+    @"styleMask" : @(window.styleMask),
+    @"fullSizeContentView" : @((window.styleMask & NSWindowStyleMaskFullSizeContentView) != 0),
+    @"titled" : @((window.styleMask & NSWindowStyleMaskTitled) != 0),
+    @"window" : NSStringFromSize(window.frame.size),
+    @"contentRect" : NSStringFromRect([window contentRectForFrameRect:window.frame]),
+    @"content" : NSStringFromRect(content.frame),
+    @"compositor" : compositor ? NSStringFromRect([compositor convertRect:compositor.bounds toView:nil]) : @"",
+    @"overlay" : NSStringFromRect([controller.overlay convertRect:controller.overlay.bounds toView:nil]),
+    @"contentRadius" : @(content.layer.cornerRadius),
+    @"contentMasks" : @(content.layer.masksToBounds),
+    @"rimRadius" : @(controller.overlay.layer.cornerRadius),
+    @"rimWidth" : @(controller.overlay.layer.borderWidth),
+    @"radius" : @(controller.cornerRadius),
+    @"scale" : @(window.backingScaleFactor),
+  };
+  NSData *json = [NSJSONSerialization dataWithJSONObject:framing options:0 error:nil];
+  return json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : @"";
+}
+
+NSString *DevLayerTree(NSWindow *window) {
+  NSMutableString *out = [NSMutableString string];
+  [out appendFormat:@"window %@ frame %@ content %@ style %lu scale %.1f opaque %d shadow %d\n", NSStringFromClass(window.class),
+                    NSStringFromRect(window.frame), NSStringFromRect([window contentRectForFrameRect:window.frame]),
+                    (unsigned long)window.styleMask, window.backingScaleFactor, window.opaque, window.hasShadow];
+  NSView *frameView = window.contentView.superview ?: window.contentView;
+  DevDescribeView(frameView, 0, out);
+  if (frameView.layer) DevDescribeLayer(frameView.layer, 0, out);
+  return out;
+}
+
 }
 
 namespace ardia_pip {
@@ -168,6 +228,28 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
   look = ^{
     ArdiaWebView *strongView = weakView;
     if (!strongView || Attach(strongView, host) || ++tries >= 20) {
+      look = nil;
+      return;
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC), dispatch_get_main_queue(), look);
+  };
+  look();
+}
+
+void DocumentEntered(ArdiaWebView *view) {
+  __block int tries = 0;
+  __block void (^look)(void);
+  __weak ArdiaWebView *weakView = view;
+  look = ^{
+    ArdiaWebView *strongView = weakView;
+    NSWindow *found = nil;
+    for (NSWindow *window in NSApp.windows)
+      if (window.visible && IsChromeDocumentPictureInPicture(window) && IsChromeFloatingWindow(window)) found = window;
+    if (strongView && found) {
+      JoinFullScreenSpaces(found);
+      [strongView emit:@"pictureInPicture" payload:@{@"kind" : @"document", @"active" : @YES, @"fullScreenSpaces" : @(JoinsFullScreenSpaces(found)), @"leftApp" : @(strongView.leftAppInPictureInPicture)}];
+    }
+    if (!strongView || found || ++tries >= 20) {
       look = nil;
       return;
     }
@@ -198,13 +280,17 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
       @"alpha" : @(window.alphaValue),
       @"ignoresMouseEvents" : @(window.ignoresMouseEvents),
       @"level" : @(window.level),
+      @"subrole" : window.accessibilitySubrole ?: @"",
+      @"canHide" : @(window.canHide),
+      @"collectionBehavior" : @(window.collectionBehavior),
+      @"joinsFullScreenSpaces" : @(JoinsFullScreenSpaces(window)),
       @"styled" : @(controller != nil),
-      @"rounded" : @(content.cornerRadius == kCornerRadius && content.masksToBounds && !window.opaque),
+      @"rounded" : @(controller && content.cornerRadius == controller.cornerRadius && content.masksToBounds && !window.opaque),
+      @"cornerRadius" : @(content.cornerRadius),
       @"rim" : @(controller.overlay.layer.borderWidth),
       @"keepOnTop" : @(controller.keepOnTop),
       @"stashed" : @(controller.stashedEdge),
       @"key" : @(window.keyWindow),
-      @"controls" : controller.overlay.devControls ?: @[],
       @"host" : controller.host ?: @"",
       @"backToTab" : @(controller.view != nil),
       @"minSize" : NSStringFromSize(window.contentMinSize),
@@ -229,9 +315,13 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
   else if ([action hasPrefix:@"alpha:"]) return DevShowAlpha(controller.window, [action substringFromIndex:6].floatValue);
   else if ([action hasPrefix:@"mouse:"]) [controller devMouse:[[action substringFromIndex:6] componentsSeparatedByString:@":"]];
   else if ([action isEqual:@"stash"]) [controller stashAt:ArdiaPiPEdgeRight];
+  else if ([action isEqual:@"unstash"]) [controller unstash];
+  else if ([action isEqual:@"keepOnTop"]) controller.keepOnTop = !controller.keepOnTop;
   else if ([action isEqual:@"handle"]) [controller.overlay.handle setHovered:!controller.overlay.handle.hovered];
   else if ([action hasPrefix:@"swipe:"]) [controller devSwipe:[[action substringFromIndex:6] componentsSeparatedByString:@","]];
   else if ([action hasPrefix:@"drag:"]) [controller devDrag:[[action substringFromIndex:5] componentsSeparatedByString:@","]];
+  else if ([action isEqual:@"layers"]) return DevLayerTree(controller.window);
+  else if ([action isEqual:@"framing"]) return DevFraming(controller);
   else if ([action isEqual:@"throw"]) {
     NSData *json = [NSJSONSerialization dataWithJSONObject:[controller throwInfo] options:0 error:nil];
     return json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : @"";

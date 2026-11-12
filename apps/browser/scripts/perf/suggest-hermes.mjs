@@ -57,7 +57,6 @@ var bookmarks = [];
 var nodes = seed["bookmarks.json"].bookmarks.nodes;
 Object.keys(nodes).forEach(function (k) { var n = nodes[k]; if (n.kind === "url") bookmarks.push({ url: n.url, title: n.title, favicon: n.favicon }); });
 var source = { tabs: tabs, history: history, bookmarks: bookmarks };
-// One key of the command bar: the known-hosts check, the window's actions, the suggestions (see keystroke in micro-bench.mjs).
 var BEFORE = ${/reference/.test(impl)};
 var coreIndex = __require(${JSON.stringify(coreFile)});
 var knownHosts = __require(${JSON.stringify(knownHostsFile)}).knownHosts;

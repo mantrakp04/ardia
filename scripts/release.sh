@@ -115,9 +115,9 @@ fi
 if [ "$phase" = sign ]; then
   [ -n "$provisioning_profile" ] || die "--phase sign exports the ad hoc archive --phase build made: set RELEASE_PROVISIONING_PROFILE"
 elif [ -n "$framework_engine" ]; then
-  [ -n "${ARDIACORE_FRAMEWORK:-}" ] || die "ARDIACORE_FRAMEWORK_ENGINE names the engine tree a prebuilt ARDIACORE_FRAMEWORK was built from; set both or neither"
-  [ "$framework_engine" = "$(git -C "$root" rev-parse HEAD:engine)" ] \
-    || die "ARDIACORE_FRAMEWORK_ENGINE is $framework_engine but HEAD's engine tree is $(git -C "$root" rev-parse HEAD:engine): that framework wasn't built from this commit's engine"
+  [ -n "${ARDIACORE_FRAMEWORK:-}" ] || die "ARDIACORE_FRAMEWORK_ENGINE names the engine key (engine/engine-key.sh) a prebuilt ARDIACORE_FRAMEWORK was built from; set both or neither"
+  [ "$framework_engine" = "$("$root/engine/engine-key.sh")" ] \
+    || die "ARDIACORE_FRAMEWORK_ENGINE is $framework_engine but HEAD's engine key is $("$root/engine/engine-key.sh"): that framework wasn't built from this commit's engine"
 fi
 if [ "$phase" = all ] && [ -z "${ARDIACORE_FRAMEWORK:-}" ]; then
   "$root/scripts/lib/engine-fresh.sh" "$framework_src" "$chromium_src" || exit 1
@@ -125,12 +125,12 @@ fi
 
 engine_source=""
 if [ "$phase" != build ]; then
-  engine_tree="$(git -C "$root" rev-parse HEAD:engine)"
+  engine_tree="$("$root/engine/engine-key.sh")"
   engine_release="$(awk -v t="$engine_tree" '$1 == t { print $2; exit }' "$ardiacore/prebuilt-engines.tsv")"
   [ "$rc" = 1 ] || [ -n "$engine_release" ] \
-    || die "packages/ardiacore/prebuilt-engines.tsv lists no published engine for this engine tree (${engine_tree:0:12}): publish it with scripts/publish-engine.sh, commit the table line, then release"
+    || die "packages/ardiacore/prebuilt-engines.tsv lists no published engine for this engine key (${engine_tree:0:12}): publish it with scripts/publish-engine.sh, commit the table line, then release"
   case "$engine_release" in engine-*) engine_tag="$engine_release" ;; *) engine_tag="v$engine_release" ;; esac
-  [ -n "$engine_release" ] && LC_ALL=C grep -q -a -F helium.services.enabled "$framework_src/Versions/Current/Chromium Framework" \
+  [ -n "$engine_release" ] \
     && engine_source="$REPO_URL/releases/download/$engine_tag/ArdiaCore-${engine_tree:0:12}-source.tar.xz"
 
   identity_name="Developer ID Application"

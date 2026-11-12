@@ -1,4 +1,5 @@
-import { curve } from "../../ui/motion";
+import { curve, duration } from "../../ui/motion";
+import { ink, type ShadowLevel } from "../../ui/tokens";
 
 export const sceneMs = {
   tabs: 1200,
@@ -10,6 +11,7 @@ export const sceneMs = {
   quit: 1500,
   windows: 1400,
   appearance: 1200,
+  style: 1300,
   siteColor: 1300,
   switcher: 1300,
   typed: 1300,
@@ -19,10 +21,20 @@ export const sceneMs = {
 } as const;
 
 export const mockMotion = {
-  move: { duration: 340, easing: curve.outCubic },
-  fade: { duration: 380, easing: curve.outCubic },
-  focus: { duration: 220, easing: curve.outQuad },
+  move: { duration: duration.long, easing: curve.enter },
+  fade: { duration: duration.long, easing: curve.enter },
+  focus: { duration: duration.slow, easing: curve.enter },
 } as const;
+
+export const mockShadow = {
+  window: { color: ink.black, opacity: { dark: 0.55, light: 0.22 }, radius: 22, offset: [0, 10] },
+  lens: { color: ink.black, opacity: { dark: 0.5, light: 0.18 }, radius: 18, offset: [0, 6] },
+  banner: { color: ink.black, opacity: { dark: 0.5, light: 0.14 }, radius: 16, offset: [0, 4] },
+} satisfies Record<string, ShadowLevel>;
+
+export const mockArt = { blobRadius: 80 } as const;
+
+export const mockNtp = { barTop: 120, barMaxWidth: 520 } as const;
 
 export const tabTints = {
   notes: "#4E8A5B",
@@ -81,4 +93,17 @@ export const mockInk = {
     border: { dark: "#5A5130", light: "#E2D6A8" },
     label: { dark: "#B9A867", light: "#9C8A45" },
   },
+} as const;
+
+export const styleScene = {
+  dark: { skyTop: "#0F1A2C", skyBottom: "#34506E", sun: "#FFB03B", far: "#2F8C78", near: "#1D5E50", sea: "#2468B4", glint: "#7FB4F0" },
+  light: { skyTop: "#6EC1F2", skyBottom: "#F7CDB2", sun: "#FFB627", far: "#5DBF8C", near: "#2C9867", sea: "#2F95DB", glint: "#BDE6FF" },
+} as const;
+
+export const styleSceneMs = { sunLeg: 6500 } as const;
+
+export const styleStage = {
+  tiles: { top: 50, h: 84, gap: 14, count: 3, radius: 18, icon: 30 },
+  field: { top: 156, h: 52, radius: 16 },
+  buttons: { top: 232, size: 50, gap: 12 },
 } as const;

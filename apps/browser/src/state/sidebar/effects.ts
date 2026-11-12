@@ -6,9 +6,9 @@ import { startAutoCleanUp } from "../pins/autoCleanUp";
 import { useBrowser } from "../browser/store";
 import { changedIds } from "../browser/changes";
 import { isSilenced } from "../tabs/mute";
-import { dismissHover } from "../sidebar/hover";
-import { sidebarUi } from "../sidebar/sidebarUi";
-import { cancelSwitcher, commitSwitcher, moveSwitcher } from "../sidebar/switcher";
+import { dismissHover } from "./hover";
+import { sidebarUi } from "./sidebarUi";
+import { cancelSwitcher, commitSwitcher, moveSwitcher } from "./switcher";
 
 let started = false;
 

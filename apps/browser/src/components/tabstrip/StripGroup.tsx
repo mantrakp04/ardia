@@ -7,15 +7,15 @@ import { pressGroupClose, useGroupCloseControl } from "../../state/sidebar/close
 import { openGroupMenu } from "../../state/sidebar/menus";
 import { moveInGroup, tuckGroup, useHasTuckTarget } from "../../state/tabs/topStrip";
 import { groupTint, useSidebarTokens } from "../sidebar/tokens";
-import { Button, ContextMenuArea, useHover } from "../ui";
+import { Button, ContextMenuArea, Divider, useHover } from "../ui";
 import { useTheme } from "../ui/theme";
-import { font, weight, withAlpha } from "../ui/tokens";
+import { font, ink, weight, withAlpha } from "../ui/tokens";
 import { GroupMember, StripGroupIcon } from "./GroupMember";
 import { useOnto } from "./model";
 import type { StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
-import { dragGeometry, dropIndex, GROUP_MARGIN_LEFT, GROUP_MARGIN_RIGHT, GROUP_SPRING, groupLayout, holds, MEMBERS_INSET, memberInteractive, TAIL_EXPANDED, tabsOf, type DragGeometry } from "./stripGroups";
+import { dragGeometry, dropIndex, GROUP_MARGIN_LEFT, GROUP_MARGIN_RIGHT, groupLayout, holds, MEMBERS_INSET, memberInteractive, TAIL_EXPANDED, tabsOf, type DragGeometry } from "./stripGroups";
 import { OntoRing } from "./TabChip";
-import { CHIP_HAIRLINE, GAP, GROUP_CHIP_PAD, GROUP_TITLE_GAP, GROUP_TITLE_MAX, ITEM_HEIGHT, ITEM_TOP, MID, STRIP_COLORS, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
+import { CHIP_HAIRLINE, GAP, GROUP_CHIP_PAD, GROUP_DIVIDER_LENGTH, GROUP_SPRING, GROUP_TITLE_GAP, GROUP_TITLE_MAX, ITEM_HEIGHT, ITEM_TOP, MID, STRIP_COLORS, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
 
 export function StripGroup({
@@ -115,8 +115,8 @@ export function StripGroup({
           height: ITEM_HEIGHT,
           borderRadius: TAB_RADIUS,
           borderWidth: CHIP_HAIRLINE,
-          borderColor: bare ? "transparent" : theme.pinnedRestingStroke,
-          backgroundColor: tint ? withAlpha(tint, hovered ? 0.24 : 0.18) : hovered ? tokens.groupHeaderHover : bare ? "transparent" : tokens.groupFill,
+          borderColor: bare ? ink.clear : theme.pinnedRestingStroke,
+          backgroundColor: tint ? withAlpha(tint, hovered ? 0.24 : 0.18) : hovered ? tokens.groupHeaderHover : bare ? ink.clear : tokens.groupFill,
         }}
       />
       {onto && <OntoRing width={size} />}
@@ -141,8 +141,8 @@ export function StripGroup({
         />
       ))}
       <Animated.View pointerEvents={expanded ? "box-none" : "none"} mouseDownCanMoveWindow={false} style={{ position: "absolute", top: ITEM_TOP, height: ITEM_HEIGHT, left: tail, flexDirection: "row", alignItems: "center", opacity: fade }}>
-        <View style={{ width: 0.5, height: 15, backgroundColor: divider }} />
-        {groupClose && <Button variant="icon" icon={groupClose.icon} size={9} weight="semibold" box={24} radius={6} style={{ marginLeft: 1 }} onPress={() => pressGroupClose(entry.id)} tooltip={groupClose.tooltip} />}
+        <Divider vertical length={GROUP_DIVIDER_LENGTH} color={divider} />
+        {groupClose && <Button variant="icon" icon={groupClose.icon} size="m" glyph={font.badge.fontSize} weight="semibold" onPress={() => pressGroupClose(entry.id)} tooltip={groupClose.tooltip} />}
       </Animated.View>
       <View
         {...hoverProps}
@@ -158,7 +158,7 @@ export function StripGroup({
             style={{ height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: GROUP_CHIP_PAD.left, paddingRight: GROUP_CHIP_PAD.right }}
           >
             <StripGroupIcon icon={group.icon} tint={tint} />
-            <Text numberOfLines={1} style={{ marginLeft: GROUP_TITLE_GAP, maxWidth: GROUP_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: tint ?? (shown >= 0 ? theme.tabSelectedText : theme.textTab) }}>
+            <Text numberOfLines={1} style={{ marginLeft: GROUP_TITLE_GAP, maxWidth: GROUP_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: tint ?? (shown >= 0 ? theme.textPrimary : theme.textTab) }}>
               {group.name || `${group.tabIds.length} ${group.tabIds.length === 1 ? "Tab" : "Tabs"}`}
             </Text>
           </Pressable>

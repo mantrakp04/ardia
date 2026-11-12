@@ -8,8 +8,7 @@ import {
 import { displayHost } from "@ardia/core";
 import { showMenu } from "../../state/app/system";
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
-import { useTheme } from "../ui/theme";
+import { View } from "react-native";
 import { webviews } from "../../state/tabs/webviewHandles";
 import { currentEngineProfile } from "../../state/browser/current";
 import { useMuteState } from "../../state/tabs/hooks";
@@ -20,22 +19,25 @@ import { useSettings, useTab } from "../../state/browser/hooks";
 import { isIncognitoProfile, tabLabel } from "../../state/browser/model";
 import { ENGINE_NAMES, ENGINE_SYMBOLS, otherEngine } from "../../state/engines/engines";
 import { openPageIn, togglePageEngine } from "../../state/engines/actions";
-import { Box, MenuRow, MenuSeparator, PANEL, PanelHeader, Popover, PopoverValue, space, Toggle, usePopoverPresence } from "../ui";
+import { Box, Divider, MenuRow, MenuSeparator, PANEL, PanelHeader, Popover, PopoverValue, space, Toggle, usePopoverPresence } from "../ui";
 import { Favicon } from "../favicon/Favicon";
 import { patchPage, setPopover, usePage } from "../../state/tabs/pageState";
+import { dismissPopoverByPress } from "../../state/tabs/popoverDismiss";
 import { toggleCastPicker } from "../../state/media/cast";
 import { useMedia, usePictureInPicture } from "../../state/media/media";
 import { openSettings } from "../../state/settings/settingsWindows";
 import { copyPageUrl } from "../../state/site/selection";
 import { clearSiteDataAfterConfirm, setSiteBlocking, siteOrigin } from "../../state/site/reloadMenu";
 import { canShare, shareTab } from "../../state/site/share";
-import { ActionTile, gridColumns, MoreButton, SectionTitle, SettingRow, SITE_PANEL, TileRow } from "./SiteControlsParts";
+import { ActionTile, gridColumns, MoreButton, SettingRow, SITE_PANEL, TileRow } from "./SiteControlsParts";
+import { SectionLabel } from "../sidebar/SectionLabel";
 import { CertificateDetails, ConnectionChip, ConnectionRow } from "./SiteConnection";
 import { SiteExtensions } from "./SiteExtensions";
 import { TranslateRows } from "./TranslateControls";
 import { ZoomStepper } from "./ZoomControls";
 import { blockerLabel, choiceTitle, featuredPermissions, permissionValue, readSiteSettings, setSitePermission, sitePermissionsFor, type SitePermission } from "../../state/site/siteControls";
 import { isWebPageUrl } from "../../lib/url";
+import { ALL_UNREAD_TITLE, canChooseSiteUnread, isUnreadSiteHidden, setSiteUnreadShown, showUnreadCounts } from "../../state/tabs/unreadSites";
 
 type Expanded = "connection" | "more" | null;
 type Blocker = { enabled: boolean; allowed: boolean };
@@ -62,10 +64,11 @@ function SiteControlsPanel({
   onClosed: () => void;
 }) {
   const tab = useTab(tabId);
-  const theme = useTheme();
   const security = usePage(tabId, (p) => p.security);
   const blocked = usePage(tabId, (p) => p.blocked);
   const showFullUrl = useSettings((s) => s.showFullUrl);
+  const unreadCounts = useSettings((s) => s.showUnreadCounts);
+  const unreadHidden = useSettings((s) => isUnreadSiteHidden(s, tab?.url ?? ""));
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [featured, setFeatured] = useState<Set<SiteSettingType> | null>(null);
   const [blocker, setBlocker] = useState<Blocker | null>(null);
@@ -190,13 +193,13 @@ function SiteControlsPanel({
     ) : null,
   ].filter(Boolean);
 
-  const blockerValue = blockerLabel(pageEngine, blocker, blocked);
+  const blockerValue = blockerLabel(blocker, blocked);
   const shownPermissions = featured ? permissionList.filter((p) => featured.has(p.type)) : [];
   const otherPermissions = permissionList.filter((p) => !featured?.has(p.type));
   const value = (p: SitePermission) => (settings ? choiceTitle(p.type, permissionValue(p.type, settings, sound) ?? "ask") : "…");
 
   return (
-    <Popover width={SITE_PANEL.width} top={top} right={right} left={left} onDismiss={close} fitHeight closing={closing} onClosed={onClosed}>
+    <Popover width={SITE_PANEL.width} top={top} right={right} left={left} onDismiss={() => dismissPopoverByPress(tabId)} fitHeight glass closing={closing} onClosed={onClosed}>
       <View style={{ paddingTop: PANEL.inset }}>
         <TileRow>{tiles}</TileRow>
 
@@ -204,14 +207,14 @@ function SiteControlsPanel({
 
         {origin ? (
           <>
-            <SectionTitle title="Settings" tight />
+            <SectionLabel title="Settings" inset={PANEL.inset} top={SITE_PANEL.sectionTop} bottom={SITE_PANEL.sectionGap - (SITE_PANEL.settingHeight - SITE_PANEL.settingBadge) / 2} />
             <SettingRow
               icon="shield.lefthalf.filled"
               title="Block Ads & Trackers"
               value={blockerValue}
-              on={pageEngine !== "webkit" && !!blocker?.enabled && !blocker.allowed}
+              on={!!blocker?.enabled && !blocker.allowed}
               onPress={
-                !blocker || pageEngine === "webkit"
+                !blocker
                   ? undefined
                   : blocker.enabled
                     ? () => void toggleBlocker(blocker.allowed)
@@ -279,6 +282,17 @@ function SiteControlsPanel({
                 <MenuRow icon="trash" title="Clear Cookies and Site Data…" detail={cleared ?? undefined} onPress={() => void clearData()} />
               </>
             ) : null}
+            {origin && canChooseSiteUnread(tab) ? (
+              unreadCounts ? (
+                <MenuRow
+                  icon="app.badge"
+                  title="Show Unread Count"
+                  accessory={<Toggle look="panel" value={!unreadHidden} onChange={(v) => setSiteUnreadShown(url, v)} />}
+                />
+              ) : (
+                <MenuRow icon="app.badge" title={ALL_UNREAD_TITLE} detail="All sites" accessory={<Toggle look="panel" value={false} onChange={showUnreadCounts} />} />
+              )
+            ) : null}
             <MenuRow
               icon="text.alignleft"
               title="Show Full URL"
@@ -287,7 +301,7 @@ function SiteControlsPanel({
           </>
         ) : null}
 
-        <View style={{ height: StyleSheet.hairlineWidth, marginTop: origin ? space.m : space.lx, marginHorizontal: PANEL.inset, backgroundColor: theme.divider }} />
+        <Divider inset="xl" style={{ marginTop: origin ? space.m : space.xl }} />
         <Box row style={{ alignItems: "center", justifyContent: "space-between", paddingHorizontal: PANEL.inset, paddingTop: space.ml, paddingBottom: space.l }}>
           <ConnectionChip security={security} open={expanded === "connection"} onPress={() => toggle("connection")} />
           <MoreButton open={expanded === "more"} onPress={() => toggle("more")} />

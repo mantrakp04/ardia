@@ -1,9 +1,9 @@
 import { Animated, View } from "react-native";
-import { at, atRect, CHIP, CRUMB_X, FIELD, fill, type Geo, LIGHTS_Y, type Rect, ROW, rowY, SIDEBAR_ICONS, sideCard, STRIP_H, TOOLBAR_H, topCard } from "../geometry";
+import { at, atRect, CHIP, CRUMB_X, FIELD, fill, type Geo, LIGHTS_Y, type Rect, ROW, rowY, SIDEBAR_ICONS, sideCard, TOOLBAR_H, topCard } from "../geometry";
 import { NEW_TAB, tab, type Tab, TRIP } from "../content";
 import type { Look } from "../look";
 import { tracker } from "../timeline";
-import { Backdrop, Card, Crumb, Highlight, Lights, NavIcons, Rows, SidebarField, TabRow, Toolbar } from "../Kit";
+import { Backdrop, Card, Crumb, FieldPlate, Highlight, Lights, NavIcons, Rows, SidebarField, TabRow, Toolbar, TopTabPlate } from "../Kit";
 import { Page } from "../MockPages";
 import { sceneMs } from "../tokens";
 import type { Scene } from "../scene";
@@ -16,7 +16,7 @@ export const TabsSidebar: Scene = ({ g, look, p, opts }) => {
   const field = opts.addressInSidebar;
   return (
     <>
-      <Backdrop g={g} look={look} />
+      <Backdrop look={look} />
       <Lights g={g} y={field ? LIGHTS_Y.field : LIGHTS_Y.toolbar} />
       {field ? (
         <>
@@ -61,7 +61,7 @@ function TopChip({ g, look, t: tb, x, style }: { g: Geo; look: Look; t: Tab; x: 
 }
 
 function SelectedTopTab({ g, look, x, style }: { g: Geo; look: Look; x: number; style?: object }) {
-  return <Animated.View style={[at(g, x, 3, CHIP.w, STRIP_H - 3 + 1), { backgroundColor: look.card, borderTopLeftRadius: 10 * g.s, borderTopRightRadius: 10 * g.s }, style]} />;
+  return <TopTabPlate g={g} look={look} x={x} style={style} />;
 }
 
 export const TabsTop: Scene = ({ g, look, p }) => {
@@ -70,7 +70,7 @@ export const TabsTop: Scene = ({ g, look, p }) => {
   const step = CHIP.w + CHIP.gap;
   return (
     <>
-      <Backdrop g={g} look={look} />
+      <Backdrop look={look} />
       <Lights g={g} y={LIGHTS_Y.strip} x={20.75} />
       <Card g={g} look={look} rect={c}>
         <Toolbar g={g} look={look} w={c.w} t={tab(0)} crumb={false} icons={[21, 56, 92]} />
@@ -101,7 +101,7 @@ export function addressMove(toSidebar: boolean): Scene {
     const dy = bar.y - FIELD.y;
     return (
       <>
-        <Backdrop g={g} look={look} />
+        <Backdrop look={look} />
         <Lights g={g} style={{ transform: [{ translateY: lerp(0, (LIGHTS_Y.field - LIGHTS_Y.toolbar) * g.s) }] }} />
         <NavIcons g={g} color={look.t.icon} xs={SIDEBAR_ICONS} y={LIGHTS_Y.field} names={["sidebar.left", "chevron.left", "chevron.right"]} style={{ opacity: lerp(0, 1) }} />
         <Animated.View style={[fill, { transform: [{ translateY: lerp(0, (ROW.topWithField - ROW.top) * g.s) }] }]}>
@@ -113,12 +113,12 @@ export function addressMove(toSidebar: boolean): Scene {
             <Page g={g} look={look} top={TOOLBAR_H} />
           </Animated.View>
         </Card>
-        <Animated.View
+        <FieldPlate
+          g={g}
+          look={look}
           style={[
             atRect(g, FIELD),
             {
-              borderRadius: 10 * g.s,
-              backgroundColor: look.t.pinnedResting,
               opacity: lerp(0, 1),
               transform: [{ translateX: lerp((dx - (FIELD.w * (bar.w / FIELD.w - 1)) / 2 * -1) * g.s, 0) }, { translateY: lerp(dy * g.s, 0) }, { scaleX: lerp(bar.w / FIELD.w, 1) }],
             },

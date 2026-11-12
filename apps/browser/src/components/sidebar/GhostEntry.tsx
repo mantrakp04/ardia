@@ -1,21 +1,22 @@
 import { tabTitle } from "../../state/browser/model";
-import { Image, Text, View } from "react-native";
+import { Image, View } from "react-native";
 import { knownFaviconTheme, resolveFavicon } from "../../state/favicons/favicons";
-import { FadeLabel, font, radius, Symbol, weight, withAlpha } from "../ui";
+import { Divider, FadeLabel, font, radius, space, Symbol, Text, withAlpha } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import type { BrowserState } from "../../state/browser/store";
 import type { GroupColor } from "../../state/browser/types";
 import { groupLabel } from "../../state/pins/tabGrouping";
 import { splitRowPanes } from "../../state/splits/splits";
 import { isSilenced } from "../../state/tabs/mute";
-import { groupEntries, keptEntry } from "../../state/sidebar/entries";
-import { GROUP_BORDER, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS } from "./geometry";
+import { groupEntries, keptEntries } from "../../state/sidebar/entries";
+import { GROUP_BORDER, GROUP_INDENT, GROUP_INSET, GROUP_RADIUS, groupMembersPadBottom } from "./geometry";
 import { headGap } from "../../state/sidebar/geometry";
 import { pointerOnGroup, pointerOnRow } from "../../state/sidebar/hover";
 import { FaviconFallback, NewTabIcon } from "../favicon/Favicon";
 import { TabIcon } from "./TabIcon";
 import { iconSymbol } from "../../lib/customIcon";
-import { groupSurface, TABULAR_NUMS, useSidebarTokens } from "./tokens";
+import { groupBoxAtRest, groupSurface, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
+import { SidebarRowLabel } from "./SidebarRow";
 import { entryKey, parseEntry } from "../../state/sidebar/entryKey";
 
 type TabShot = { kind: "tab"; key: string; title: string; url: string; favicon?: string | null; icon?: string | null; profileId: string; uri: string | null; template: boolean; sound: "muted" | "playing" | null; hovered: boolean };
@@ -63,8 +64,7 @@ export function snapshotEntry(s: BrowserState, windowId: string, profileId: stri
   if (kind !== "group") return tabShot(s, id, pointerOnRow(id));
   const group = s.groups[id];
   if (!group) return null;
-  const entries = groupEntries(s, id);
-  const kept = group.collapsed ? keptEntry(s, windowId, profileId, entries) : null;
+  const members = group.collapsed ? keptEntries(s, windowId, profileId, id) : groupEntries(s, id);
   const first = s.tabs[group.tabIds[0] ?? ""];
   return {
     kind: "group",
@@ -74,7 +74,7 @@ export function snapshotEntry(s: BrowserState, windowId: string, profileId: stri
     icon: group.icon || first ? { url: first?.url ?? "", favicon: first?.favicon, icon: group.icon ?? first?.customIcon, profileId: first?.profileId } : null,
     collapsed: !!group.collapsed,
     hovered: pointerOnGroup(id),
-    members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => (parseEntry(e).kind === "tab" ? tabShot(s, parseEntry(e).id, false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
+    members: members.flatMap((e) => (parseEntry(e).kind === "tab" ? tabShot(s, parseEntry(e).id, false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
   };
 }
 
@@ -87,7 +87,7 @@ function ghostIcon(shot: TabShot, theme: ReturnType<typeof useTheme>) {
   const symbol = iconSymbol(shot.icon);
   if (symbol) return <Symbol name={symbol} size={13} weight="medium" color={theme.icon} style={{ width: 16, height: 16 }} />;
   if (shot.icon) return <TabIcon url={shot.url} icon={shot.icon} profileId={shot.profileId} />;
-  if (shot.uri) return <Image source={{ uri: shot.uri }} style={{ width: 16, height: 16, borderRadius: 3, tintColor: shot.template && !theme.dark ? theme.textPrimary : undefined }} />;
+  if (shot.uri) return <Image source={{ uri: shot.uri }} style={{ width: 16, height: 16, borderRadius: radius.hair, tintColor: shot.template && !theme.dark ? theme.textPrimary : undefined }} />;
   return shot.url ? <FaviconFallback url={shot.url} /> : <NewTabIcon />;
 }
 
@@ -98,18 +98,18 @@ function tabGhost(shot: TabShot, theme: ReturnType<typeof useTheme>, top = 0) {
       style={{
         marginTop: top,
         height: layout.rowHeight,
-        borderRadius: radius.card,
+        borderRadius: radius.chrome,
         flexDirection: "row",
         alignItems: "center",
-        paddingLeft: 9,
-        paddingRight: shot.hovered ? 6 : 28,
+        paddingLeft: TAB_ROW.contentLeft,
+        paddingRight: shot.hovered ? TAB_ROW.trailing : TAB_ROW.trailing + TAB_ROW.closeSlot,
         backgroundColor: shot.hovered ? theme.tabHover : undefined,
       }}
     >
       {ghostIcon(shot, theme)}
-      {shot.sound ? <Symbol name={shot.sound === "muted" ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18, height: 16, marginLeft: 6 }} /> : null}
-      <FadeLabel text={shot.title} fontSize={font.body.fontSize} color={theme.textTab} style={{ flex: 1, height: 18, marginLeft: 5 }} />
-      {shot.hovered ? <Symbol name="xmark" size={10} weight="semibold" color={theme.icon} style={{ width: 22, height: 22 }} /> : null}
+      {shot.sound ? <Symbol name={shot.sound === "muted" ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18, height: 16, marginLeft: space.s }} /> : null}
+      <SidebarRowLabel text={shot.title} color={theme.textTab} />
+      {shot.hovered ? <Symbol name="xmark" size={10} weight="semibold" color={theme.icon} style={{ width: TAB_ROW.closeSlot, height: TAB_ROW.closeSlot }} /> : null}
     </View>
   );
 }
@@ -117,13 +117,13 @@ function tabGhost(shot: TabShot, theme: ReturnType<typeof useTheme>, top = 0) {
 function SplitGhost({ shot }: { shot: SplitShot }) {
   const theme = useTheme();
   return (
-    <View style={{ height: layout.rowHeight, borderRadius: radius.card, flexDirection: "row", alignItems: "center", paddingHorizontal: 3 }}>
+    <View style={{ height: layout.rowHeight, borderRadius: radius.chrome, flexDirection: "row", alignItems: "center", paddingHorizontal: space.xs }}>
       {shot.panes.map((pane, i) => (
-        <View key={pane.key} style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 }}>
-          {i > 0 && <View style={{ width: 1, height: 16, backgroundColor: theme.divider, marginRight: 2 }} />}
-          <View style={{ flex: 1, minWidth: 0, height: layout.rowHeight - 6, flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
-            <TabIcon url={pane.url} favicon={pane.favicon} icon={pane.icon} profileId={pane.profileId} size={14} />
-            <FadeLabel text={pane.title} fontSize={font.small.fontSize} color={theme.textTab} style={{ flex: 1, height: 16, marginLeft: 5 }} />
+        <View key={pane.key} style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0, gap: space.xxs }}>
+          {i > 0 && <Divider vertical thick length={16} />}
+          <View style={{ flex: 1, minWidth: 0, height: layout.rowHeight - 6, flexDirection: "row", alignItems: "center", paddingLeft: space.s }}>
+            <TabIcon url={pane.url} favicon={pane.favicon} icon={pane.icon} profileId={pane.profileId} compact />
+            <FadeLabel text={pane.title} fontSize={font.small.fontSize} color={theme.textTab} style={{ flex: 1, height: 16, marginLeft: space.xs }} />
           </View>
         </View>
       ))}
@@ -131,27 +131,28 @@ function SplitGhost({ shot }: { shot: SplitShot }) {
   );
 }
 
+const MEASURE_LABEL = { opacity: 0, fontVariant: TABULAR_NUMS } as const;
+
 function GroupGhost({ shot }: { shot: GroupShot }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const { fill, stroke } = groupSurface(shot.color, tokens);
-  const pad = shot.members.length || !shot.collapsed ? GROUP_PAD : 0;
   return (
     <View style={{ paddingVertical: GROUP_BORDER }}>
-      {shot.hovered ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
-      <View style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 6 }}>
+      {shot.hovered || groupBoxAtRest(shot.color) ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
+      <View style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: TAB_ROW.contentLeft, paddingRight: TAB_ROW.trailing }}>
         {shot.icon ? <TabIcon url={shot.icon.url} favicon={shot.icon.favicon} icon={shot.icon.icon} profileId={shot.icon.profileId} /> : <View style={{ width: 16 }} />}
-        <View style={{ flexShrink: 1, height: 18, marginLeft: 5, paddingRight: 8, justifyContent: "center" }}>
-          <Text numberOfLines={1} style={{ opacity: 0, ...font.body, fontWeight: weight.medium, fontVariant: TABULAR_NUMS }}>
+        <View style={{ flexShrink: 1, height: TAB_ROW.titleHeight, marginLeft: TAB_ROW.titleGap, paddingRight: space.m, justifyContent: "center" }}>
+          <Text lines={1} weight="medium" style={MEASURE_LABEL}>
             {shot.label}
           </Text>
-          <FadeLabel text={shot.label} fontSize={font.body.fontSize} weight="medium" color={tokens.groupTitle} style={{ position: "absolute", left: 0, right: 0, top: 0, height: 18 }} />
+          <FadeLabel text={shot.label} fontSize={font.body.fontSize} weight="medium" color={tokens.groupTitle} style={{ position: "absolute", left: 0, right: 0, top: 0, height: TAB_ROW.titleHeight }} />
         </View>
         <View style={{ width: 10, height: 10, transform: [{ rotate: shot.collapsed ? "-90deg" : "0deg" }] }}>
           <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10, height: 10 }} />
         </View>
       </View>
-      <View style={{ gap: layout.rowGap, paddingTop: headGap(shot.members[0]?.key), paddingBottom: pad, paddingLeft: GROUP_INDENT }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
+      <View style={{ gap: layout.rowGap, paddingTop: headGap(shot.members[0]?.key), paddingBottom: groupMembersPadBottom(shot.members.length), paddingLeft: GROUP_INDENT, paddingRight: GROUP_INSET }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
     </View>
   );
 }

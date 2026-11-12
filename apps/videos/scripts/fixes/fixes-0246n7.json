@@ -1,0 +1,59 @@
+{
+  "id": "fixes-0246n7",
+  "segments": [
+    {
+      "scene": "n7zen",
+      "title": "Importing from Zen puts pinned tabs in the right profile",
+      "body": "A Zen profile with two workspaces: Home, and Work in its own container, each with a pin and an Essential. nightly.6 found no spaces and dropped all of it into Personal as tiles; now Home's pins land in Personal and Work's in a Work profile of its own.",
+      "cam": [0, 0, 1360, 860],
+      "cursor": false,
+      "lead": 1.0,
+      "tail": 19.6
+    },
+    {
+      "scene": "n7onboard",
+      "title": "Onboarding fits a small window",
+      "body": "All three steps in a 720 × 460 window. nightly.6 cut rows in half and hid the Default browser row; now every row fits, and the last step is one column.",
+      "cam": [0, 0, 720, 460],
+      "cursor": false,
+      "lead": 0.6,
+      "tail": 9.6
+    },
+    {
+      "scene": "n7helpask",
+      "title": "Help fix Ardia? stays out of the way",
+      "body": "A new tab on an install that hasn't answered the sharing question. nightly.6 put the card over the top-left of the page; now it waits in the bottom-left corner, away from the command bar.",
+      "cam": [0, 0, 1360, 860],
+      "lead": 1.4,
+      "tail": 5.6
+    },
+    {
+      "scene": "n7settingscli",
+      "title": "Settings search shows one result per place",
+      "body": "Search Settings for \"cli\". nightly.6 listed the ardia command twice, both leading to the same section; now it's one result.",
+      "cam": [0, 0, 820, 640],
+      "lead": 1.6,
+      "tail": 4.6
+    },
+    {
+      "scene": "n7checknow",
+      "title": "Check Now says Checking… while it checks",
+      "body": "Mid-check, against a local update feed. nightly.6 left Check Now looking idle; now it reads Checking… with a spinner until the answer comes.",
+      "note": "stills from the fix's own test",
+      "cam": [565, 330, 255, 100],
+      "cursor": false,
+      "lead": 0.5,
+      "tail": 3.5
+    },
+    {
+      "scene": "n7pip",
+      "title": "A Report a Problem recording shows Picture in Picture",
+      "body": "The recording a report attaches, pages included, with a video in Picture in Picture over the sidebar. Before the fix it was missing from every frame; now the mini player is drawn where it sits.",
+      "note": "the recordings made when the fix landed",
+      "cam": [0, 0, 960, 606],
+      "cursor": false,
+      "lead": 0.5,
+      "tail": 5.0
+    }
+  ]
+}

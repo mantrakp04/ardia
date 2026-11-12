@@ -3,7 +3,9 @@ if (!P) throw new Error("perf probe is off (no perf-probe file in the data folde
 const store = ac.store;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const S = () => store.getState();
-const windowId = () => S().ui.focusOrder[0];
+const windowId = () => S().ui.focusOrder?.[0] ?? S().ui.focusedWindowId;
+const isPinned = (tab) => !!(tab.pin ?? tab.pinned);
+const historyList = (view) => (Array.isArray(view) ? view : view.list);
 const activeId = () => {
   const s = S();
   const w = s.windows[windowId()];
@@ -68,7 +70,7 @@ const scenarios = {
     await sleep(200);
     S().openPanel(w);
     const id = `${w}:panel`;
-    if (!(await until(() => ac.omnibox.get(id), 3000))) throw new Error("omnibox driver missing");
+    if (!(await until(() => ac.omnibox.get(id), 10000))) throw new Error("omnibox driver missing");
     await sleep(500);
     const driver = ac.omnibox.get(id);
     P.reset();
@@ -87,7 +89,7 @@ const scenarios = {
   async switchTabs({ count = 12 } = {}) {
     const w = windowId();
     const s = S();
-    const view = s.windows[w].tabIds.filter((id) => s.tabs[id].profileId === s.windows[w].profileId && !s.tabs[id].pin);
+    const view = s.windows[w].tabIds.filter((id) => s.tabs[id].profileId === s.windows[w].profileId && !isPinned(s.tabs[id]));
     const ids = view.slice(30, 30 + count);
     const start = activeId();
     for (const id of ids) {
@@ -231,7 +233,7 @@ const scenarios = {
     await quiet();
     const s = S();
     const w = windowId();
-    const bg = s.windows[w].tabIds.find((id) => id !== activeId() && s.live[id] && !s.tabs[id].pin);
+    const bg = s.windows[w].tabIds.find((id) => id !== activeId() && s.live[id] && !isPinned(s.tabs[id]));
     P.reset();
     const steps = [];
     for (let i = 0; i < count; i++) {
@@ -312,10 +314,10 @@ const scenarios = {
     };
     const tabs = Object.values(s.tabs);
     return {
-      history: time({ version: 2, history: Object.fromEntries(Object.entries(s.history).map(([engine, view]) => [engine, view.list])) }),
+      history: time({ version: 2, history: Object.fromEntries(Object.entries(s.history).map(([engine, view]) => [engine, historyList(view)])) }),
       bookmarks: time({ version: 2, bookmarks: s.bookmarks }),
       session: time({ version: 2, profiles: s.profiles, settings: s.settings, windows: Object.values(s.windows), tabs, groups: Object.values(s.groups), closedTabs: s.closedTabs, closedWindows: s.closedWindows }),
-      counts: { tabs: tabs.length, history: Object.values(s.history).reduce((n, view) => n + view.list.length, 0), bookmarks: Object.keys(s.bookmarks.nodes).length },
+      counts: { tabs: tabs.length, history: Object.values(s.history).reduce((n, view) => n + historyList(view).length, 0), bookmarks: Object.keys(s.bookmarks.nodes).length },
     };
   },
 };
@@ -356,7 +358,7 @@ function renderScenarios() {
     },
     async tabSwitch({ count = 10, gapMs = 300 } = {}) {
       const s = S();
-      const ids = tabsInView().filter((id) => !s.tabs[id].pin).slice(0, count);
+      const ids = tabsInView().filter((id) => !isPinned(s.tabs[id])).slice(0, count);
       const start = activeId();
       await quiet(800);
       P.reset();
@@ -433,7 +435,7 @@ function renderScenarios() {
     async bgLoad({ origin } = {}) {
       await quiet(800);
       const s = S();
-      const id = tabsInView().find((t) => t !== activeId() && !s.tabs[t].pin && s.live[t]);
+      const id = tabsInView().find((t) => t !== activeId() && !isPinned(s.tabs[t]) && s.live[t]);
       if (!id) throw new Error("no loaded background tab");
       P.reset();
       S().navigate(id, `${origin}/heavy?run=bg-${Date.now()}`);
@@ -634,7 +636,7 @@ function censusScenarios() {
     async cenSwitch({ count = 10, gapMs = 300 } = {}) {
       const w = windowId();
       const s = S();
-      const ids = tabsInView().filter((id) => !s.tabs[id].pin).slice(0, count);
+      const ids = tabsInView().filter((id) => !isPinned(s.tabs[id])).slice(0, count);
       const start = activeId();
       await quiet(800);
       const click = sink();
@@ -672,7 +674,7 @@ function censusScenarios() {
       for (let r = 0; r < repeats; r++) {
         await quiet(800);
         const s = S();
-        const id = tabsInView().find((t) => t !== activeId() && !s.tabs[t].pin && s.live[t]);
+        const id = tabsInView().find((t) => t !== activeId() && !isPinned(s.tabs[t]) && s.live[t]);
         if (!id) throw new Error("no loaded background tab");
         await action(() => S().navigate(id, `${origin}/heavy?run=cenbg-${r}-${Date.now()}`), 3500, out);
       }

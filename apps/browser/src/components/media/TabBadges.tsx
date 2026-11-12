@@ -1,4 +1,4 @@
-import { Symbol } from "../ui";
+import { Dot, Symbol } from "../ui";
 import { memo } from "react";
 import { View } from "react-native";
 import { hex, useTheme } from "../ui/theme";
@@ -7,12 +7,16 @@ import { usePage } from "../../state/tabs/pageState";
 import { useSidebarTokens } from "../sidebar/tokens";
 import { useMedia } from "../../state/media/media";
 import { CAPTURE_DOT_RIM } from "./tokens";
+import { UnreadBadge } from "../unread/UnreadBadge";
+import { PeekMark } from "../peek/PeekMark";
 
-export const TabBadges = memo(function TabBadges({ tabId, size = 16, pip = true }: { tabId: string; size?: number; pip?: boolean }) {
+export const TabBadges = memo(function TabBadges({ tabId, size = 16, pip = true, unread = true }: { tabId: string; size?: number; pip?: boolean; unread?: boolean }) {
   return (
     <>
       {pip && <PipBadge tabId={tabId} size={size} />}
       <CaptureBadge tabId={tabId} size={size} />
+      {unread && <UnreadBadge tabId={tabId} iconSize={size} />}
+      <PeekMark tabId={tabId} size={size} />
     </>
   );
 });
@@ -24,11 +28,10 @@ function PipBadge({ tabId, size }: { tabId: string; size: number }) {
   if (!open) return null;
   const d = Math.round(size * 0.72);
   return (
-    <View
-      pointerEvents="none"
-      style={{ position: "absolute", right: -d / 3, top: -d / 3, width: d, height: d, borderRadius: d / 2, backgroundColor: tokens.badge, alignItems: "center", justifyContent: "center" }}
-    >
-      <Symbol name="pip.fill" size={d * 0.55} weight="bold" color={hex(theme.onPrimary)} style={{ width: d, height: d }} />
+    <View pointerEvents="none" style={{ position: "absolute", right: -d / 3, top: -d / 3 }}>
+      <Dot size={d} color={tokens.badge}>
+        <Symbol name="pip.fill" size={d * 0.55} weight="bold" color={hex(theme.onPrimary)} style={{ width: d, height: d }} />
+      </Dot>
     </View>
   );
 }
@@ -40,19 +43,17 @@ function CaptureBadge({ tabId, size }: { tabId: string; size: number }) {
   if (capture.screen) {
     const d = Math.round(size * 0.72);
     return (
-      <View
-        pointerEvents="none"
-        style={{ position: "absolute", right: -d / 3, bottom: -d / 3, width: d, height: d, borderRadius: d / 2, backgroundColor: theme.destructive, alignItems: "center", justifyContent: "center" }}
-      >
-        <Symbol name="rectangle.inset.filled" size={d * 0.5} weight="bold" color={ink.white} style={{ width: d, height: d }} />
+      <View pointerEvents="none" style={{ position: "absolute", right: -d / 3, bottom: -d / 3 }}>
+        <Dot size={d} color={theme.destructive}>
+          <Symbol name="rectangle.inset.filled" size={d * 0.5} weight="bold" color={ink.white} style={{ width: d, height: d }} />
+        </Dot>
       </View>
     );
   }
   const d = Math.max(6, Math.round(size * 0.44));
   return (
-    <View
-      pointerEvents="none"
-      style={{ position: "absolute", right: -d / 4, bottom: -d / 4, width: d, height: d, borderRadius: d / 2, backgroundColor: theme.destructive, borderWidth: 1, borderColor: CAPTURE_DOT_RIM }}
-    />
+    <View pointerEvents="none" style={{ position: "absolute", right: -d / 4, bottom: -d / 4 }}>
+      <Dot size={d} color={theme.destructive} ring={CAPTURE_DOT_RIM} />
+    </View>
   );
 }

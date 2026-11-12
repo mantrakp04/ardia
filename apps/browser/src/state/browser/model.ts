@@ -63,9 +63,13 @@ export function makeTab(windowId: string, profileId: string, url = "", snapshot?
     ...snapshot,
     page: url ? { kind: "loaded", nav: navigationTo(url) } : { kind: "idle" },
     createdAt: now,
-    lastActiveAt: now,
+    lastActiveAt: snapshot?.lastActiveAt ?? now,
+    ...(snapshot?.lastActiveAt ? { restoredAt: now } : {}),
   };
 }
+
+export const byRecentUse = (a: Pick<Tab, "unseen" | "lastActiveAt">, b: Pick<Tab, "unseen" | "lastActiveAt">) =>
+  Number(!!a.unseen) - Number(!!b.unseen) || b.lastActiveAt - a.lastActiveAt;
 
 export const snapshotTab = (t: Tab): TabSnapshot => ({
   url: t.url,
@@ -79,6 +83,7 @@ export const snapshotTab = (t: Tab): TabSnapshot => ({
   pinnedUrl: t.pinnedUrl,
   ...(t.engine ? { engine: t.engine } : {}),
   profileId: t.profileId,
+  lastActiveAt: t.lastActiveAt,
 });
 
 export const TILE_PIN: TabPin = { as: "tile" };
@@ -149,6 +154,18 @@ export function resolveWindowId(s: BrowserState, id?: string | null): string | u
 export function tabLayoutOf(s: BrowserState, windowId?: string | null): "sidebar" | "top" {
   const id = resolveWindowId(s, windowId);
   return (id && s.windows[id]!.tabLayout) || s.settings.tabLayout;
+}
+
+export function tabsShownIn(s: Pick<BrowserState, "windows" | "settings">, windowId?: string | null): boolean {
+  return !s.settings.autoHideTabs && !(windowId && s.windows[windowId]?.kind === "small");
+}
+
+export type SidebarSide = "left" | "right";
+
+export function sidebarSideOf(s: BrowserState, windowId?: string | null): SidebarSide {
+  const id = resolveWindowId(s, windowId);
+  if (id && s.windows[id]!.kind === "small") return "left";
+  return tabLayoutOf(s, windowId) === "sidebar" ? s.settings.sidebarSide : "left";
 }
 
 export function merge<T extends object>(obj: T, patch: Partial<T>): T {

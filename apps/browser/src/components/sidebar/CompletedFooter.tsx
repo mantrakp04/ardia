@@ -1,17 +1,23 @@
 import { useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { openLiveItem } from "../../state/live/engine";
 import { useLive } from "../../state/live/store";
 import type { CompletedItem } from "../../state/live/types";
-import { FadeLabel, font, radius, Symbol } from "../ui";
+import { space, Symbol, Text } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { useLiveColors } from "../live/tokens";
+import { Fold, useFold } from "./Fold";
 import { COMPLETION_GLYPH } from "./LiveItemRow";
-import { SIDEBAR_TYPE } from "./tokens";
+import { SidebarListRow, SidebarRowLabel } from "./SidebarRow";
+import { TAB_ROW } from "./tokens";
+
+const LABEL = { marginLeft: TAB_ROW.titleGap } as const;
+const DONE_ROW = { opacity: 0.75 } as const;
 
 const NONE: string[] = [];
 const NONE_COMPLETED: CompletedItem[] = [];
+const COMPLETED_ROW_HEIGHT = 28;
 
 export function useCompletedShown(folderId: string): CompletedItem[] {
   return useLive(
@@ -28,6 +34,7 @@ export function CompletedFooter({ folderId, windowId }: { folderId: string; wind
   const colors = useLiveColors();
   const shown = useCompletedShown(folderId);
   const [open, setOpen] = useState(false);
+  const fold = useFold(!open);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   if (!shown.length) return null;
   const enter = () => {
@@ -39,23 +46,32 @@ export function CompletedFooter({ folderId, windowId }: { folderId: string; wind
     hideTimer.current = setTimeout(() => setOpen(false), 250);
   };
   return (
-    <View onMouseEnter={enter} onMouseLeave={leave} style={{ gap: layout.rowGap }}>
-      <View style={{ height: 24, flexDirection: "row", alignItems: "center", paddingLeft: 9, borderRadius: radius.l, backgroundColor: open ? theme.rowHover : undefined }}>
+    <View onMouseEnter={enter} onMouseLeave={leave}>
+      <SidebarListRow height={24} fill={open ? theme.rowHover : undefined}>
         <Symbol name="checkmark.circle" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
-        <Text style={{ marginLeft: 5, ...font.small, color: theme.textSecondary }}>{shown.length} Completed</Text>
-      </View>
-      {open
-        ? shown.slice(0, 8).map((c) => (
-            <Pressable key={c.item.id} onPress={() => openLiveItem(windowId, folderId, c.item)}>
+        <Text size="small" tone="textSecondary" style={LABEL}>
+          {shown.length} Completed
+        </Text>
+      </SidebarListRow>
+      <Fold
+        fold={fold}
+        collapsed={!open}
+        entries={shown.slice(0, 8).map((c) => ({
+          key: c.item.id,
+          node: (
+            <Pressable onPress={() => openLiveItem(windowId, folderId, c.item)}>
               {({ pressed }) => (
-                <View style={{ height: 28, borderRadius: radius.l, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 8, backgroundColor: pressed ? theme.tabPressed : undefined, opacity: 0.75 }}>
+                <SidebarListRow height={COMPLETED_ROW_HEIGHT} padRight={space.m} fill={pressed ? theme.tabPressed : undefined} style={DONE_ROW}>
                   <Symbol name={COMPLETION_GLYPH[c.state].symbol} size={12} color={colors[COMPLETION_GLYPH[c.state].color]} style={{ width: 16, height: 16 }} />
-                  <FadeLabel text={c.item.title} fontSize={SIDEBAR_TYPE.compact} color={theme.textSecondary} style={{ flex: 1, height: 17, marginLeft: 5 }} />
-                </View>
+                  <SidebarRowLabel text={c.item.title} color={theme.textSecondary} compact />
+                </SidebarListRow>
               )}
             </Pressable>
-          ))
-        : null}
+          ),
+        }))}
+        rowHeight={COMPLETED_ROW_HEIGHT}
+        padTop={layout.rowGap}
+      />
     </View>
   );
 }

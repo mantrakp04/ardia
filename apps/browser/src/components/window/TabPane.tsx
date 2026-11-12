@@ -1,6 +1,5 @@
 import { memo, useEffect, useLayoutEffect } from "react";
 import { Animated, View } from "react-native";
-import { layout } from "../ui/theme";
 import { usePrewarm } from "../../state/tabs/prewarm";
 import { activate } from "../../state/tabs/actions";
 import { shallowEqual, useBrowserWhile, useStoreWhile, useTabValue } from "../../state/tabs/tabWatch";
@@ -14,6 +13,7 @@ import { patchPage, usePages } from "../../state/tabs/pageState";
 import { SplitEmptyState } from "../split/SplitEmptyState";
 import { NewTabPage } from "../ntp/NewTabPage";
 import { EmptyCard } from "./EmptyCard";
+import { NewTabDropArea } from "./NewTabDropArea";
 import { InternalPage } from "../pages";
 import { ShareBar } from "../media/ShareBar";
 import { Toolbar, ToolbarBackdrop } from "../toolbar/Toolbar";
@@ -26,6 +26,7 @@ import { withoutFragment } from "../../lib/url";
 import { paneBar, type CardChrome } from "./paneChrome";
 import { PageOverlays } from "./PageOverlays";
 import { useProfileTheme } from "./ThemeScope";
+import { useCardFrame } from "./cardFrame";
 
 const LINGERING_PANE = "ardia.lingeringPane";
 
@@ -94,8 +95,9 @@ export const TabPane = memo(function TabPane({
   const mode = useToolbarMode(tabId, windowId, hideBar);
   const bookmarksBar = bookmarksBarShown(barMode, own.exists ? own : undefined) && !fullscreen && !inSplit && !small;
   const barHeight = useBookmarksBarHeight();
+  const cardRadius = useCardFrame().radius;
   const doc = withoutFragment(own.url);
-  const motion = useToolbarMotion({ enabled: autoLayout, mode, height: frame.height, extra: bookmarksBar ? barHeight : 0, doc });
+  const motion = useToolbarMotion({ enabled: autoLayout, mode, extra: bookmarksBar ? barHeight : 0, doc });
   useEffect(() => {
     if (visible) revealToolbar(tabId);
   }, [visible]);
@@ -113,7 +115,7 @@ export const TabPane = memo(function TabPane({
       style={{
         position: "absolute",
         ...(fills ? { left: 0, top: 0, right: 0, bottom: 0 } : { left: frame.x, top: frame.y, width: frame.width, height: frame.height }),
-        borderRadius: fullscreen ? 0 : layout.cardRadius,
+        borderRadius: fullscreen ? 0 : cardRadius,
         overflow: "hidden",
         opacity: covered ? 0 : 1,
         backgroundColor: visible && !fullscreen && !seeThrough ? theme.card : undefined,
@@ -125,11 +127,15 @@ export const TabPane = memo(function TabPane({
       {!autoLayout && bookmarksBar && <BookmarksBar tabId={tabId} placeholder={!visible} />}
       <Animated.View style={autoLayout ? motion.groupStyle : { flex: 1 }}>
         {autoLayout && bookmarksBar && <BookmarksBar tabId={tabId} placeholder={!visible} />}
-        <View style={autoLayout ? { height: motion.pageHeight } : { flex: 1 }}>
+        <View style={{ flex: 1 }}>
           {visible && !fullscreen && <ShareBar tabId={tabId} />}
           <View style={{ flex: 1 }}>
             {(mounted || prewarmed) && <TabWebView tabId={tabId} visible={visible && !newTabShown && !isNewTab} warm={!!warm && !newTabShown && !isNewTab} />}
-            {visible && isNewTab && !small && (inSplit ? <SplitEmptyState tabId={tabId} focused={focused} /> : emptyCard ? <EmptyCard windowId={windowId} tabId={tabId} /> : <NewTabPage key={tabId} tabId={tabId} toolbar={toolbar} />)}
+            {visible && isNewTab && !small && (
+              <NewTabDropArea tabId={tabId} accepting={!covered && !lingering}>
+                {inSplit ? <SplitEmptyState tabId={tabId} focused={focused} /> : emptyCard ? <EmptyCard windowId={windowId} tabId={tabId} /> : <NewTabPage key={tabId} tabId={tabId} toolbar={toolbar} />}
+              </NewTabDropArea>
+            )}
             {visible && <InternalPage tabId={tabId} />}
             {visible && (
               <PageOverlays
@@ -138,7 +144,6 @@ export const TabPane = memo(function TabPane({
                 width={frame.width}
                 geometry={geometry}
                 toolbar={toolbar}
-                fullscreen={fullscreen}
                 newTabShown={newTabShown}
                 statusStyle={autoLayout ? motion.bottomStyle : undefined}
                 popovers={popovers}

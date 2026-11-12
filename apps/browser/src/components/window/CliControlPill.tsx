@@ -1,8 +1,12 @@
-import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { useEffect, useState } from "react";
+import { Animated, Image, StyleSheet, View, type ViewStyle } from "react-native";
 import { stopCliControl, useCliIndicator } from "../../state/app/cliControl";
+import { controlLine, controlLineText } from "../../state/app/cliCaller";
+import { fileIcon } from "../../state/app/system";
 import { useTheme } from "../ui/theme";
-import { font, Panel, space, Symbol, useHover, usePresence, weight } from "../ui";
-import { CLI_PILL_MOTION, SHADOWS } from "./tokens";
+import { Button, Dot, space, Symbol, Text, usePresence } from "../ui";
+import { Hud } from "./Hud";
+import { CLI_PILL_MOTION } from "./tokens";
 
 const PILL_HEIGHT = 32;
 const PILL_BOTTOM = 12;
@@ -10,6 +14,9 @@ const PILL_BOTTOM = 12;
 export function CliControlPill({ style }: { style?: Animated.WithAnimatedValue<ViewStyle> }) {
   const theme = useTheme();
   const shown = useCliIndicator((s) => s.shown);
+  const caller = useCliIndicator((s) => s.caller);
+  const icon = useAppIcon(caller?.app ?? null);
+  const line = controlLine(caller);
   const { shown: mounted, appear } = usePresence(shown || null, CLI_PILL_MOTION);
   if (!mounted) return null;
   return (
@@ -23,50 +30,54 @@ export function CliControlPill({ style }: { style?: Animated.WithAnimatedValue<V
             transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
           }}
         >
-          <Panel fill={theme.panel} radius={PILL_HEIGHT / 2} border={theme.panelBorder} shadow={SHADOWS.cliPill}>
-            <View
-              accessibilityRole="alert"
-              accessibilityLabel="The ardia command is controlling Ardia"
-              style={{ height: PILL_HEIGHT, flexDirection: "row", alignItems: "center", gap: space.m, paddingLeft: space.s, paddingRight: space.xs }}
-            >
-              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: theme.textPrimary, alignItems: "center", justifyContent: "center" }}>
-                <Symbol name="terminal.fill" size={9} weight="bold" color={theme.onPrimary} style={{ width: 14, height: 14 }} />
-              </View>
-              <Text numberOfLines={1} style={{ flexShrink: 1, ...font.small, color: theme.textSecondary }}>
-                <Text style={{ fontWeight: weight.semibold, color: theme.textPrimary }}>ardia</Text>
-                {" is controlling Ardia"}
+          <Hud shape="capsule" height={PILL_HEIGHT} accessibilityRole="alert" accessibilityLabel={controlLineText(line)}>
+            <View style={PILL_ROW}>
+              {icon ? (
+                <Image source={{ uri: icon }} style={APP_ICON} />
+              ) : (
+                <Dot size={TERMINAL_DOT} color={theme.textPrimary}>
+                  <Symbol name="terminal.fill" size={9} weight="bold" color={theme.onPrimary} style={TERMINAL_GLYPH} />
+                </Dot>
+              )}
+              <Text numberOfLines={1} size="small" tone="textSecondary" style={SHRINK}>
+                {line.lead}
+                <Text size="small" weight="semibold">
+                  {line.name}
+                </Text>
+                {line.rest}
               </Text>
-              <StopButton />
+              <Button variant="pill" tone="chip" title="Stop" onPress={stopCliControl} />
             </View>
-          </Panel>
+          </Hud>
         </Animated.View>
       </View>
     </Animated.View>
   );
 }
 
-function StopButton() {
-  const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
-  return (
-    <View {...hoverProps}>
-      <Pressable onPress={stopCliControl} accessibilityRole="button" accessibilityLabel="Stop">
-        {({ pressed }) => (
-          <View
-            style={{
-              height: PILL_HEIGHT - 8,
-              paddingHorizontal: space.ml,
-              borderRadius: (PILL_HEIGHT - 8) / 2,
-              justifyContent: "center",
-              backgroundColor: pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : theme.urlPill,
-            }}
-          >
-            <Text numberOfLines={1} style={{ ...font.small, fontWeight: weight.medium, color: theme.textPrimary }}>
-              Stop
-            </Text>
-          </View>
-        )}
-      </Pressable>
-    </View>
-  );
+const TERMINAL_DOT = 20;
+const APP_ICON = { width: TERMINAL_DOT, height: TERMINAL_DOT } as const;
+const TERMINAL_GLYPH = { width: 14, height: 14 } as const;
+const SHRINK = { flexShrink: 1 } as const;
+const PILL_ROW = { height: PILL_HEIGHT, flexDirection: "row", alignItems: "center", gap: space.m, paddingLeft: space.s, paddingRight: space.xs } as const;
+
+const appIcons = new Map<string, string | null>();
+
+function useAppIcon(app: string | null) {
+  const [icon, setIcon] = useState(() => (app ? (appIcons.get(app) ?? null) : null));
+  useEffect(() => {
+    if (!app) return setIcon(null);
+    if (appIcons.has(app)) return setIcon(appIcons.get(app) ?? null);
+    let live = true;
+    void fileIcon(app, TERMINAL_DOT)
+      .catch(() => null)
+      .then((uri) => {
+        appIcons.set(app, uri);
+        if (live) setIcon(uri);
+      });
+    return () => {
+      live = false;
+    };
+  }, [app]);
+  return icon;
 }

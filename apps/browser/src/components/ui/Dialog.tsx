@@ -2,8 +2,9 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, findNodeHandle, Pressable, StyleSheet, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
 import { curve, duration } from "./motion";
 import { Panel } from "./Panel";
+import { Text } from "./Text";
 import { useTheme } from "./theme";
-import { radius, shadow, space, type Space } from "./tokens";
+import { proseLineHeight, radius, shadow, sheetWidth, space, type SheetSize, type Space } from "./tokens";
 
 const CENTERED: StyleProp<ViewStyle> = [StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }];
 
@@ -18,7 +19,7 @@ export function Dialog({
   place,
   children,
 }: {
-  width: number;
+  width: SheetSize;
   pad?: Space;
   onDismiss?: () => void;
   onSubmit?: () => void;
@@ -29,11 +30,12 @@ export function Dialog({
   children: ReactNode;
 }) {
   const theme = useTheme();
+  const surfaceWidth = sheetWidth[width];
   const appear = useRef(new Animated.Value(animated ? 0 : 1)).current;
   const restore = useRef(restoreFocus);
   restore.current = restoreFocus;
   useEffect(() => {
-    if (animated) Animated.timing(appear, { toValue: 1, duration: duration.dialogAppear, easing: curve.outCubic, useNativeDriver: true }).start();
+    if (animated) Animated.timing(appear, { toValue: 1, duration: duration.base, easing: curve.enter, useNativeDriver: true }).start();
     return () => restore.current?.();
   }, []);
   const content = onSubmit ? (
@@ -46,11 +48,9 @@ export function Dialog({
   const padding = onSubmit ? undefined : space[pad];
   const surface = (
     <Panel
-      fill={theme.panel}
       radius={radius.sheet}
-      border={theme.panelBorder}
       shadow={shadow.dialog}
-      style={place ? { position: "absolute", ...place, width, padding } : { width, maxHeight, padding }}
+      style={place ? { position: "absolute", ...place, width: surfaceWidth, padding } : { width: surfaceWidth, maxHeight, padding }}
     >
       {content}
     </Panel>
@@ -102,10 +102,71 @@ function DialogKeys({ onDismiss, onSubmit, pad, children }: { onDismiss?: () => 
   );
 }
 
-export function Sheet({ width = 440, onClose, children }: { width?: number; onClose: () => void; children: ReactNode }) {
+export function Sheet({ size = "m", onClose, children }: { size?: SheetSize; onClose: () => void; children: ReactNode }) {
   return (
-    <Dialog width={width} maxHeight="90%" onDismiss={onClose}>
+    <Dialog width={size} maxHeight="90%" onDismiss={onClose}>
       {children}
     </Dialog>
+  );
+}
+
+const TITLE_ROW = { flexDirection: "row", alignItems: "center", gap: space.l } as const;
+const TITLE_TEXT = { flex: 1 } as const;
+const SUBTITLE = { lineHeight: proseLineHeight.small, marginTop: space.s } as const;
+
+export function DialogTitle({ icon, subtitle, children }: { icon?: ReactNode; subtitle?: ReactNode; children: ReactNode }) {
+  const title = (
+    <Text size="title" weight="semibold">
+      {children}
+    </Text>
+  );
+  const sub =
+    subtitle == null || subtitle === false ? null : typeof subtitle === "string" ? (
+      <Text size="small" tone="textSecondary" style={SUBTITLE}>
+        {subtitle}
+      </Text>
+    ) : (
+      subtitle
+    );
+  if (!icon)
+    return (
+      <View>
+        {title}
+        {sub}
+      </View>
+    );
+  return (
+    <View style={TITLE_ROW}>
+      {icon}
+      <View style={TITLE_TEXT}>
+        {title}
+        {sub}
+      </View>
+    </View>
+  );
+}
+
+const ACTIONS = { flexDirection: "row", alignItems: "center", gap: space.m, marginTop: space.xl } as const;
+const ACTIONS_GAP = { flex: 1 } as const;
+
+export function DialogActions({ leading, note, children }: { leading?: ReactNode; note?: ReactNode; children: ReactNode }) {
+  return (
+    <View style={ACTIONS}>
+      {leading}
+      {note == null || note === false ? (
+        <View style={ACTIONS_GAP} />
+      ) : (
+        <View style={ACTIONS_GAP}>
+          {typeof note === "string" ? (
+            <Text size="caption" tone="textSecondary">
+              {note}
+            </Text>
+          ) : (
+            note
+          )}
+        </View>
+      )}
+      {children}
+    </View>
   );
 }

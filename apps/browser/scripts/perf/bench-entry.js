@@ -1,6 +1,19 @@
 import "./bench-offline";
 import "../../index";
-import { answerWithSkew, nativeApiSkew } from "../../src/platform/nativeApi";
+import { requireNativeModule, requireOptionalNativeModule } from "expo-modules-core";
+import { nativeApiSkew } from "../../src/platform/nativeApi";
 
-if (nativeApiSkew) answerWithSkew(nativeApiSkew, "bench-cmd.js", "bench-result.json");
+function answerBenchWithSkew(message) {
+  const documents = requireOptionalNativeModule("ArdiaDocuments") ?? requireNativeModule("ArdiaShell");
+  const idOf = (source) => source?.match(/^\/\/ *(\S+)/)?.[1];
+  let lastId = idOf(documents.readDocument("bench-cmd.js")) ?? "";
+  setInterval(() => {
+    const id = idOf(documents.readDocument("bench-cmd.js"));
+    if (!id || id === lastId) return;
+    lastId = id;
+    documents.writeDocument("bench-result.json", JSON.stringify({ id, error: message }));
+  }, 250);
+}
+
+if (nativeApiSkew) answerBenchWithSkew(nativeApiSkew);
 else require("./bench-channel");

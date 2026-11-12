@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const { isPeekTab, otherSitePeekTabIds, peekSourceOf, peekTabId } = await import("./peek.ts");
-const { PRESETS } = await import("../onboarding/presets.ts");
 const { DEFAULT_SETTINGS, splitLinkModifierOf } = await import("../settings/settings.ts");
 const peekModifierOf = (settings) => settings.peekModifier;
 const { stripPlan } = await import("../tabs/liveTabs.ts");
@@ -219,7 +218,9 @@ test("the split link setting: ⌥⇧-click by default or ⌥-click, synced, neve
 test("links to other sites peek only in Top Apps, pinned rows and pinned groups, once the setting is on", () => {
   const { w, a, b, c } = windowWithTabs();
   const d = S().newTab(w, { url: "https://d.example/", background: true });
-  assert.equal(DEFAULT_SETTINGS.peekLinksToOtherSites, false);
+  assert.equal(DEFAULT_SETTINGS.peekLinksToOtherSites, true);
+  assert.equal(DEFAULT_SETTINGS.newTabLinksOpenIn, "peek");
+  S().updateSettings({ peekLinksToOtherSites: false });
   assert.ok(SYNCED_SETTINGS.includes("peekLinksToOtherSites"));
   S().togglePin(a);
   S().placeTabs([b], { pinned: true, row: true });
@@ -233,11 +234,6 @@ test("links to other sites peek only in Top Apps, pinned rows and pinned groups,
   assert.ok(!otherSitePeekTabIds(S()).includes(a));
   S().updateSettings({ peekLinksToOtherSites: false });
   assert.deepEqual(otherSitePeekTabIds(S()), []);
-});
-
-test("Arc and Zen setups peek links to other sites; every other setup leaves it off", () => {
-  for (const [preset, settings] of Object.entries(PRESETS))
-    assert.equal(settings.peekLinksToOtherSites, preset === "arc" || preset === "zen", preset);
 });
 
 test("another window taking a shared pin's page closes the peek opened from it", () => {
@@ -255,4 +251,139 @@ test("another window taking a shared pin's page closes the peek opened from it",
   assert.equal(S().peeks[a], undefined);
   assert.equal(S().peeks[b], undefined);
   assert.equal(S().tabs[id], undefined);
+});
+
+test("a clicked new-tab link peeks from a pinned tab when its destination, unwrapped, leaves the site", async () => {
+  const { newTabLinkRoute, leavesSite } = await import("./newTabLinkRoute.ts");
+  const { linkDestination } = await import("../../lib/linkWrappers.ts");
+  assert.equal(linkDestination("https://www.google.com/url?q=https%3A%2F%2Fdocs.example%2Fa%3Fb%3D1&sa=D"), "https://docs.example/a?b=1");
+  assert.equal(linkDestination("https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fx.example%2F&data=1"), "https://x.example/");
+  assert.equal(linkDestination("https://l.facebook.com/l.php?u=https%3A%2F%2Fy.example%2F&h=AT0"), "https://y.example/");
+  assert.equal(linkDestination("https://slack-redir.net/link?url=https%3A%2F%2Fz.example"), "https://z.example");
+  assert.equal(linkDestination("https://www.google.com/url?q=javascript:alert(1)"), "https://www.google.com/url?q=javascript:alert(1)");
+  assert.equal(linkDestination("https://www.google.com/search?q=https%3A%2F%2Fa.example"), "https://www.google.com/search?q=https%3A%2F%2Fa.example");
+  assert.ok(leavesSite("https://www.google.com/url?q=https://dest.example/", "https://mail.google.com/mail/u/0/"));
+  assert.ok(!leavesSite("https://www.google.com/url?q=https://mail.google.com/x", "https://mail.google.com/mail/u/0/"));
+  assert.ok(!leavesSite("https://example.com/a", "https://www.example.com/b"));
+
+  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+  const w = S().createWindow({ url: "https://mail.example/" });
+  const [pinned] = S().windows[w].tabIds;
+  S().pinTabs([pinned], true);
+  const regular = S().newTab(w, { url: "https://mail.example/" });
+  const away = "https://www.google.com/url?q=https%3A%2F%2Fother.example%2F";
+  S().updateSettings({ newTabLinksOpenIn: "tab", peekLinksToOtherSites: false });
+  assert.equal(newTabLinkRoute(S(), pinned, away), "tab");
+  S().updateSettings({ peekLinksToOtherSites: true });
+  assert.equal(newTabLinkRoute(S(), pinned, away), "otherSite");
+  assert.equal(newTabLinkRoute(S(), pinned, "https://mail.example/inbox"), "tab");
+  assert.equal(newTabLinkRoute(S(), regular, away), "tab");
+  S().updateSettings({ newTabLinksOpenIn: "peek" });
+  assert.equal(newTabLinkRoute(S(), regular, "https://mail.example/inbox"), "peek");
+  assert.equal(newTabLinkRoute(S(), regular, "about:blank"), "tab");
+  S().activate(pinned);
+  const peek = S().openPeek(pinned, "https://peek.example/");
+  assert.equal(newTabLinkRoute(S(), peek, away), "tab");
+  S().updateSettings({ newTabLinksOpenIn: "littleArdia" });
+  assert.equal(newTabLinkRoute(S(), regular, away), "littleArdia");
+  assert.equal(newTabLinkRoute(S(), pinned, away), "otherSite");
+  const small = S().createWindow({ kind: "small", url: "https://little.example/" });
+  assert.equal(newTabLinkRoute(S(), S().windows[small].tabIds[0], away), "tab");
+  S().updateSettings({ newTabLinksOpenIn: "tab", peekLinksToOtherSites: false });
+});
+
+test("out of the box a new-tab link peeks, a pinned tab's link to another site peeks, and the classic browser presets keep tabs", async () => {
+  const { newTabLinkRoute } = await import("./newTabLinkRoute.ts");
+  const { PRESETS } = await import("../onboarding/presets.ts");
+  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"], settings: DEFAULT_SETTINGS });
+  const w = S().createWindow({ url: "https://mail.example/" });
+  const [pinned] = S().windows[w].tabIds;
+  S().pinTabs([pinned], true);
+  const regular = S().newTab(w, { url: "https://mail.example/" });
+  assert.equal(newTabLinkRoute(S(), regular, "https://other.example/"), "peek");
+  assert.equal(newTabLinkRoute(S(), pinned, "https://other.example/"), "otherSite");
+  for (const preset of ["arc", "zen", "dia", "fresh"]) {
+    const settings = { ...DEFAULT_SETTINGS, ...PRESETS[preset] };
+    assert.equal(settings.peekLinksToOtherSites, true, preset);
+    assert.equal(settings.newTabLinksOpenIn, "peek", preset);
+  }
+  for (const preset of ["chrome", "firefox", "safari", "brave", "edge"]) {
+    const settings = { ...DEFAULT_SETTINGS, ...PRESETS[preset] };
+    assert.equal(settings.peekLinksToOtherSites, false, preset);
+    assert.equal(settings.newTabLinksOpenIn, "tab", preset);
+  }
+  for (const preset of ["arc", "zen", "dia"]) {
+    const afterChrome = { ...DEFAULT_SETTINGS, ...PRESETS.chrome, ...PRESETS[preset] };
+    assert.equal(afterChrome.peekLinksToOtherSites, true, preset);
+    assert.equal(afterChrome.newTabLinksOpenIn, "peek", preset);
+  }
+});
+
+test("a peek can adopt the page Chrome already opened for the link", () => {
+  const { w, a } = windowWithTabs();
+  const id = S().openPeek(a, "https://peek.example/", { x: 1, y: 2 }, { adoptId: "ardiacore:7" });
+  assert.equal(S().tabs[id].page.kind, "adopted");
+  assert.equal(S().tabs[id].page.adopt, "ardiacore:7");
+  assert.equal(peekTabId(S(), w), id);
+});
+
+test("a private window's new-tab links stay tabs whatever the setting", async () => {
+  const { newTabLinkRoute } = await import("./newTabLinkRoute.ts");
+  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+  const w = S().createWindow({ kind: "private", url: "https://mail.example/" });
+  const [tab] = S().windows[w].tabIds;
+  for (const choice of ["peek", "littleArdia"]) {
+    S().updateSettings({ newTabLinksOpenIn: choice });
+    assert.equal(newTabLinkRoute(S(), tab, "https://other.example/"), "tab", choice);
+  }
+  S().updateSettings({ newTabLinksOpenIn: "tab" });
+});
+
+test("a peek from a pinned tab becomes a tab only when its first settled page past any wrapper is the pinned site", async () => {
+  const { startPeeks } = await import("./actions.ts");
+  const { siteLanding } = await import("./newTabLinkRoute.ts");
+  startPeeks();
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+  const load = async (id, url) => {
+    S().updateTab(id, { url }, { isLoading: true });
+    await settle();
+    S().updateTab(id, { url }, { isLoading: false });
+    await settle();
+  };
+  const open = (url) => {
+    S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+    const w = S().createWindow({ url: "https://www.youtube.com/" });
+    const [pinned] = S().windows[w].tabIds;
+    S().pinTabs([pinned], true);
+    S().activate(pinned);
+    const id = S().openPeek(pinned, url, null, { landing: siteLanding("https://www.youtube.com/", "tab") });
+    return { w, id };
+  };
+  let { w, id } = open("https://www.youtube.com/redirect?q=https%3A%2F%2Fother.example%2F");
+  await settle();
+  assert.equal(peekTabId(S(), w), id, "the wrapper's own address on the pinned host doesn't promote it");
+  await load(id, "https://www.youtube.com/redirect?q=https%3A%2F%2Fother.example%2F");
+  assert.equal(peekTabId(S(), w), id, "nor does the wrapper page settling");
+  await load(id, "https://other.example/");
+  assert.equal(peekTabId(S(), w), id);
+  await load(id, "https://www.youtube.com/watch");
+  assert.equal(peekTabId(S(), w), id, "going back to the pinned site by hand keeps the peek");
+  ({ w, id } = open("https://bit.example/x"));
+  await load(id, "https://www.youtube.com/watch?v=1");
+  await settle();
+  assert.equal(peekTabId(S(), w), undefined, "a redirector landing on the pinned site becomes a tab");
+  assert.ok(S().windows[w].tabIds.includes(id));
+});
+
+test("Open as Tab keeps a pinned row that sits after a pinned group where it was", () => {
+  const { w, a, b, c } = windowWithTabs();
+  const group = S().groupTabs([b], { pinned: true, name: "Work" });
+  const member = S().groups[group].tabIds[0];
+  S().placeTabs([c], { pinned: true, row: true, beforeId: a });
+  const pinnedBefore = order(w).filter((id) => id === member || id === c);
+  assert.deepEqual(pinnedBefore, [member, c]);
+  const id = S().openPeek(a, "https://peek.example/");
+  S().peekToTab(w);
+  assert.ok(order(w).includes(id));
+  assert.deepEqual(order(w).filter((t) => t === member || t === c), pinnedBefore);
 });

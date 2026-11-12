@@ -10,6 +10,7 @@ import { activeTabId } from "../browser/model";
 import { peekTabId } from "../peek/peek";
 import { splitOf, splitTabIdsOf } from "../splits/splits";
 import { hostOf } from "@ardia/core";
+import { capture } from "../telemetry/client";
 import { isSleeping } from "../tabs/sleepingTabs";
 
 export type Session = NowPlaying & {
@@ -37,7 +38,8 @@ const PER_TAB = Object.keys(noMedia()) as (keyof Store)[];
 
 export const useMedia = create<Store>()(noMedia);
 
-export function setPictureInPictureState(tabId: string, { kind, active }: PictureInPictureState) {
+export function setPictureInPictureState(tabId: string, { kind, active, fullScreenSpaces, leftApp }: PictureInPictureState) {
+  if (active && fullScreenSpaces !== undefined) capture("pip_shown", { kind, full_screen_spaces: fullScreenSpaces, left_app: !!leftApp });
   useMedia.setState((s) => {
     if (active ? s.pipOpen[tabId] === kind : !s.pipOpen[tabId]) return s;
     const pipOpen = { ...s.pipOpen };
@@ -52,7 +54,6 @@ export function setPictureInPictureState(tabId: string, { kind, active }: Pictur
 export function setNowPlaying(tabId: string, state: NowPlaying | null) {
   useMedia.setState((s) => {
     const sessions = { ...s.sessions };
-    const dismissed = { ...s.dismissed };
     if (!state) {
       if (!sessions[tabId]) return s;
       delete sessions[tabId];
@@ -61,7 +62,8 @@ export function setNowPlaying(tabId: string, state: NowPlaying | null) {
     const before = sessions[tabId];
     const started = isControllablyPlaying(state) && !(before && isControllablyPlaying(before));
     sessions[tabId] = { ...state, playedAt: started ? Date.now() : (before?.playedAt ?? 0) };
-    if (started) delete dismissed[tabId];
+    if (!started || !s.dismissed[tabId]) return { sessions };
+    const { [tabId]: _, ...dismissed } = s.dismissed;
     return { sessions, dismissed };
   });
 }
@@ -149,6 +151,28 @@ export function resumeCommands(before: Session | undefined, after: NowPlaying | 
 export const hasTrackControls = (session: Session) => session.actions.includes("nexttrack") || session.actions.includes("previoustrack");
 
 export const SKIP_SECONDS = 15;
+
+export function skipBy(tabId: string, session: Session, seconds: number) {
+  const now = Date.now();
+  const position = Math.max(0, Math.min(session.duration ?? Infinity, positionOf(session, now) + seconds));
+  setNowPlaying(tabId, { ...session, position, timestamp: now });
+  mediaCommand(tabId, "seekBy", seconds);
+}
+
+export function seekTo(tabId: string, session: Session, seconds: number) {
+  setNowPlaying(tabId, { ...session, position: seconds, timestamp: Date.now() });
+  mediaCommand(tabId, "seekTo", seconds);
+}
+
+export function skipOrTrack(tabId: string, session: Session, direction: "back" | "ahead") {
+  if (hasTrackControls(session)) mediaCommand(tabId, direction === "back" ? "previous" : "next");
+  else skipBy(tabId, session, direction === "back" ? -SKIP_SECONDS : SKIP_SECONDS);
+}
+
+export const transportIcons = (session: Session) =>
+  hasTrackControls(session)
+    ? { back: "backward.end.fill", ahead: "forward.end.fill", backTip: "Play Previous Track", aheadTip: "Play Next Track" }
+    : { back: `gobackward.${SKIP_SECONDS}`, ahead: `goforward.${SKIP_SECONDS}`, backTip: `Skip back ${SKIP_SECONDS} seconds`, aheadTip: `Skip ahead ${SKIP_SECONDS} seconds` };
 
 export function isTabShown(s: BrowserState, tabId: string, profileId?: string): boolean {
   const windowId = s.tabs[tabId]?.windowId;

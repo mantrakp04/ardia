@@ -1,12 +1,14 @@
 import { Animated, View } from "react-native";
-import { at, CRUMB_X, FIELD, fill, type Geo, type Rect, ROW, rowY, sideCard } from "../geometry";
+import { CRUMB_X, FIELD, fill, type Geo, type Rect, ROW, rowY, sideCard } from "../geometry";
 import { BLANK, type Suggestion, tab } from "../content";
 import type { Look } from "../look";
 import { linear, tracker, type Tracker } from "../timeline";
-import { Highlight, Label, NewTabButton, Rows, TabRow } from "../Kit";
+import { Caret, Highlight, Label, NewTabButton, Rows, Selection, TabRow } from "../Kit";
 import { NewTabPage } from "../MockPages";
 import { InputRow, Panel, SuggestionRow } from "../Floating";
 import { sceneMs } from "../tokens";
+import { radius, space } from "../../../ui/tokens";
+import { BAR_TYPE, SUGGESTION } from "../../../omnibox/tokens";
 import type { Scene } from "../scene";
 import { centredFrame, CURRENT, Divider, drop, FRESH, grow, KeyPress, listTop, PANEL_H, SelectedUrl, Std, SuggestionList } from "./SceneParts";
 
@@ -14,18 +16,18 @@ export const CmdlField: Scene = ({ g, look, p, opts }) => {
   const t = tracker(p, sceneMs.commandBar);
   const c = sideCard(g);
   if (opts.addressInSidebar) {
-    const to: Rect = { x: FIELD.x, y: FIELD.y, w: FIELD.w + 137, h: 40 + 3 * 35 + 14 };
+    const to: Rect = { x: FIELD.x, y: FIELD.y, w: FIELD.w + 137, h: 40 + 3 * SUGGESTION.height + 14 };
     return (
       <>
         <Std g={g} look={look} opts={opts} />
-        <Panel g={g} look={look} rect={to} radius={12} style={grow(t, g, FIELD, to, 240)}>
+        <Panel g={g} look={look} rect={to} radius={radius.panel} style={grow(t, g, FIELD, to, 240)}>
           <InputRow g={g} look={look} height={40}>
             <SelectedUrl g={g} look={look} />
           </InputRow>
           <Divider g={g} look={look} />
           <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
         </Panel>
-        <KeyPress g={g} look={look} t={t} label="⌘L" />
+        <KeyPress g={g} t={t} label="⌘L" />
       </>
     );
   }
@@ -41,7 +43,7 @@ export const CmdlField: Scene = ({ g, look, p, opts }) => {
         <Divider g={g} look={look} />
         <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
       </Panel>
-      <KeyPress g={g} look={look} t={t} label="⌘L" />
+      <KeyPress g={g} t={t} label="⌘L" />
     </>
   );
 };
@@ -58,7 +60,7 @@ export const CmdlCentred: Scene = ({ g, look, p, opts }) => {
         <Divider g={g} look={look} />
         <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
       </Panel>
-      <KeyPress g={g} look={look} t={t} label="⌘L" />
+      <KeyPress g={g} t={t} label="⌘L" />
     </>
   );
 };
@@ -79,7 +81,7 @@ export const NewTabOpensPage: Scene = ({ g, look, p, opts }) => {
           <Rows g={g} look={look} n={4} top={top} newTab={false} />
           <TabRow g={g} look={look} t={BLANK} y={rowY(4, top)} selected style={{ opacity: t.in(300, 240), transform: [{ translateX: t([[300, -12 * g.s], [600, 0]]) }] }} />
           <NewTabButton g={g} look={look} y={rowY(4, top)} style={{ transform: [{ translateY: t([[300, 0], [600, ROW.pitch * g.s]]) }] }} />
-          <KeyPress g={g} look={look} t={t} label="⌘T" />
+          <KeyPress g={g} t={t} label="⌘T" />
         </>
       }
       card={
@@ -93,16 +95,15 @@ export const NewTabOpensPage: Scene = ({ g, look, p, opts }) => {
 
 function Typed({ g, look, t, text, at: ms, step, caretUntil }: { g: Geo; look: Look; t: Tracker; text: string; at: number; step: number; caretUntil: number }) {
   const caret = (from: number, to: number) => t([[from, 0], [from + 1, 1], [to, 1], [to + 1, 0]], linear);
-  const bar = { position: "absolute" as const, width: 1.2 * g.s, height: 17 * g.s, borderRadius: 0.6 * g.s, backgroundColor: look.t.accent };
   return (
     <>
-      <Animated.View style={[bar, { left: 0, opacity: caret(-1, ms) }]} />
+      <Caret g={g} look={look} style={{ position: "absolute", left: 0, opacity: caret(-1, ms) }} />
       {text.split("").map((ch, i) => (
         <Animated.View key={i} style={{ opacity: t.step(ms + i * step) }}>
-          <Label g={g} size={15} color={look.t.textPrimary}>
+          <Label g={g} size={BAR_TYPE.floatingField.fontSize} color={look.t.textPrimary}>
             {ch}
           </Label>
-          <Animated.View style={[bar, { right: -1.4 * g.s, top: 1 * g.s, opacity: caret(ms + i * step, i === text.length - 1 ? caretUntil : ms + (i + 1) * step) }]} />
+          <Caret g={g} look={look} style={{ position: "absolute", right: -1.4 * g.s, top: 1 * g.s, opacity: caret(ms + i * step, i === text.length - 1 ? caretUntil : ms + (i + 1) * step) }} />
         </Animated.View>
       ))}
     </>
@@ -116,15 +117,15 @@ export const NewTabOpensBar: Scene = ({ g, look, p, opts }) => {
       <Std g={g} look={look} opts={opts} />
       <Panel g={g} look={look} rect={centredFrame(g)} style={drop(t, g, 240)}>
         <InputRow g={g} look={look}>
-          <View style={{ width: 1.2 * g.s, height: 17 * g.s, borderRadius: 0.6 * g.s, backgroundColor: look.t.accent, marginRight: 2 * g.s }} />
-          <Label g={g} size={15} color={look.t.placeholder}>
+          <Caret g={g} look={look} style={{ marginRight: space.xxs * g.s }} />
+          <Label g={g} size={BAR_TYPE.floatingField.fontSize} color={look.t.placeholder}>
             Search or enter address
           </Label>
         </InputRow>
         <Divider g={g} look={look} />
         <SuggestionList g={g} look={look} t={t} rows={FRESH} ms={400} />
       </Panel>
-      <KeyPress g={g} look={look} t={t} label="⌘T" />
+      <KeyPress g={g} t={t} label="⌘T" />
     </>
   );
 };
@@ -182,19 +183,19 @@ export function typed(search: boolean): Scene {
     return (
       <>
         <Std g={g} look={look} opts={opts} />
-        <Panel g={g} look={look} rect={{ ...centredFrame(g), h: 52 + 2 * 35 + 14 }} style={drop(t, g, 0)}>
+        <Panel g={g} look={look} rect={{ ...centredFrame(g), h: 52 + 2 * SUGGESTION.height + 14 }} style={drop(t, g, 0)}>
           <InputRow g={g} look={look}>
             <Typed g={g} look={look} t={t} text={TYPED} at={TYPE_AT} step={TYPE_STEP} caretUntil={search ? sceneMs.typed : TYPED_DONE + 100} />
             {search ? null : (
-              <Animated.View style={{ opacity: t.step(TYPED_DONE + 100), backgroundColor: look.t.selection, borderRadius: 2 * g.s }}>
-                <Label g={g} size={15} color={look.t.textPrimary}>
+              <Selection g={g} look={look} style={{ opacity: t.step(TYPED_DONE + 100) }}>
+                <Label g={g} size={BAR_TYPE.floatingField.fontSize} color={look.t.textPrimary}>
                   .com
                 </Label>
-              </Animated.View>
+              </Selection>
             )}
           </InputRow>
           <Divider g={g} look={look} />
-          <View style={{ paddingHorizontal: 9 * g.s, paddingTop: 4 * g.s }}>
+          <View style={{ paddingHorizontal: SUGGESTION.listX * g.s, paddingTop: space.xs * g.s }}>
             {rows.map((s, i) => (
               <Animated.View key={i} style={{ opacity: t.in(TYPED_DONE + 140 + i * 60, 200) }}>
                 <SuggestionRow g={g} look={look} s={s} selected={i === 0} />

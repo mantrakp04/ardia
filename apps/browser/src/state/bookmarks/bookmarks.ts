@@ -272,16 +272,8 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
 
   removeBookmarks(ids) {
     const b = get().bookmarks;
-    const removable = [...new Set(ids)].filter((id) => b.nodes[id]?.parentId);
-    const selected = new Set(removable);
-    const tops = removable.filter((id) => {
-      let parentId = b.nodes[id]?.parentId ?? null;
-      for (let depth = 0; parentId && depth < MAX_DEPTH; depth++) {
-        if (selected.has(parentId)) return false;
-        parentId = b.nodes[parentId]?.parentId ?? null;
-      }
-      return true;
-    });
+    const removable = new Set(ids.filter((id) => b.nodes[id]?.parentId));
+    const tops = [...removable].filter((id) => !bookmarkAncestors(b, id).some((a) => removable.has(a.id)));
     const childIndexes = new Map<string, Map<string, number>>();
     const places = tops.map((id) => {
       const parentId = b.nodes[id]!.parentId!;
@@ -303,15 +295,28 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
     set((s) => {
       const next = { ...s.bookmarks.nodes };
       for (const n of nodes) next[n.id] = n;
-      for (const p of [...places].sort((a, b) => a.index - b.index)) {
-        const parent = next[p.parentId];
+      const byParent = new Map<string, RemovedBookmarks["places"]>();
+      for (const p of places) {
+        const list = byParent.get(p.parentId);
+        if (list) list.push(p);
+        else byParent.set(p.parentId, [p]);
+      }
+      for (const [parentId, list] of byParent) {
+        const parent = next[parentId];
         if (parent?.kind !== "folder") {
-          delete next[p.id];
+          for (const p of list) delete next[p.id];
           continue;
         }
-        const children = parent.children.filter((c) => c !== p.id);
-        children.splice(Math.min(p.index, children.length), 0, p.id);
-        next[p.parentId] = { ...parent, children };
+        const returning = new Set(list.map((p) => p.id));
+        const staying = parent.children.filter((c) => !returning.has(c));
+        const children: string[] = [];
+        let kept = 0;
+        for (const p of list.sort((a, b) => a.index - b.index)) {
+          while (children.length < p.index && kept < staying.length) children.push(staying[kept++]!);
+          children.push(p.id);
+        }
+        while (kept < staying.length) children.push(staying[kept++]!);
+        next[parentId] = { ...parent, children };
       }
       return { bookmarks: { ...s.bookmarks, nodes: next } };
     });

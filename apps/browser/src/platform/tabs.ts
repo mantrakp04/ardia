@@ -24,6 +24,7 @@ export {
   type PageSelection,
   type ScrollState,
   type ProtectedMediaRequest,
+  type AppBadge,
 } from "@ardia/ardiacore";
 
 const Tabs = nativeModule("ArdiaTabs");
@@ -34,8 +35,10 @@ export const claimLaunchTab = (tabId: string, url: string, profile: string) => T
 export const revealTab = (tabId: string) => Tabs.revealTab(tabId);
 export const dropTabReveals = (tabId: string) => Tabs.dropTabReveals(tabId);
 export const revealOffered = (adoptId: string, overTabId: string) => Tabs.revealOffered(adoptId, overTabId);
+export const discardOffered = (adoptId: string) => Tabs.discardOffered(adoptId);
 export const routeLinkTabs = (urls: string[]) => call("tabs.routeLinkTabs", { urls });
 
 export const onTabStripTransaction = (listener: (tx: TabStripTransaction) => void) => on("tabs.strips", listener);
 export const tabStrips = () => call("tabs.strips");
+export const reportPageCommits = (on: boolean) => call("tabs.reportCommits", { on });
 export const lastTabClosesWindow = () => call("tabs.lastTabPolicy").then((r) => r.closesWindow);

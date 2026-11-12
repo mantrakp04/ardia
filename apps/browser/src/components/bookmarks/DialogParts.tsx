@@ -1,31 +1,11 @@
 import { ScrollView } from "react-native";
-import { Box, space, Text } from "../ui";
+import { Box, space } from "../ui";
 import { FolderTree } from "./FolderTree";
-import { fieldLabel, folderPicker } from "./tokens";
+import { folderPicker } from "./tokens";
 
-export function FieldLabel({ text }: { text: string }) {
+export function FolderPicker({ profileId, selectedId, onSelect }: { profileId: string | null; selectedId: string | null; onSelect: (id: string) => void }) {
   return (
-    <Text size="footnote" tone="textSecondary" style={LABEL}>
-      {text}
-    </Text>
-  );
-}
-
-export function FolderPicker({
-  profileId,
-  selectedId,
-  onSelect,
-  height,
-  clip,
-}: {
-  profileId: string | null;
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  height: number;
-  clip?: boolean;
-}) {
-  return (
-    <Box radius="button" fill="field" border="fieldBorder" style={{ height, overflow: clip ? "hidden" : undefined }}>
+    <Box radius="tile" fill="field" border="fieldBorder" style={FRAME}>
       <ScrollView contentContainerStyle={CONTENT}>
         {profileId && <FolderTree profileId={profileId} selectedId={selectedId} onSelect={onSelect} rowHeight={folderPicker.row} />}
       </ScrollView>
@@ -33,5 +13,5 @@ export function FolderPicker({
   );
 }
 
-const LABEL = { marginTop: space.l, marginBottom: fieldLabel.gapBelow } as const;
+const FRAME = { height: folderPicker.height, overflow: "hidden" } as const;
 const CONTENT = { padding: space.xs } as const;

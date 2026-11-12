@@ -72,9 +72,8 @@ export async function showReloadMenu(tabId: string) {
   const origin = tab ? siteOrigin(tab.url) : null;
   if (!tab || !origin) return;
   const host = new URL(origin).hostname;
-  const webkit = tabEngine(useBrowser.getState(), tabId) === "webkit";
-  const [state, allowed] = webkit ? [null, false] : await Promise.all([getContentBlocker().catch(() => null), isContentBlockerAllowed(host).catch(() => false)]);
-  const blocker: ReloadMenuState["blocker"] = webkit || !state ? "unavailable" : !state.enabled ? "offInSettings" : allowed ? "off" : "on";
+  const [state, allowed] = await Promise.all([getContentBlocker().catch(() => null), isContentBlockerAllowed(host).catch(() => false)]);
+  const blocker: ReloadMenuState["blocker"] = !state ? "unavailable" : !state.enabled ? "offInSettings" : allowed ? "off" : "on";
   const choice = await showMenu(reloadMenuItems({ blocker }));
   if (choice === "blocking") {
     if (blocker === "offInSettings") return openSettings("privacy");

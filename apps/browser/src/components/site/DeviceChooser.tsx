@@ -1,57 +1,51 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { cancelChooser, chooseDevice, openChooserBluetoothSettings, rescanDevices, useDeviceChooser } from "../../state/site/deviceChoosers";
-import { Button, PANEL, Popover, Symbol, Text, useHover } from "../ui";
-import { IconTile, usePromptInputGuard } from "./PromptParts";
-import { noticeType, UNAVAILABLE_OPACITY, useSiteTokens } from "./tokens";
+import { ActivitySpinner, Box, Button, capsule, MenuRow, PANEL, Popover, POPOVER_WIDTH, Symbol, Text } from "../ui";
+import { usePromptInputGuard } from "./PromptParts";
+import { PromptBody } from "./Prompts";
+import { noticeType, UNAVAILABLE_OPACITY } from "./tokens";
+
+const SIGNAL_BAR = 2.5;
 
 function Signal({ level, color }: { level: number; color: string }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 1.5, height: 11 }}>
+    <Box row gap="xxs" style={{ alignItems: "flex-end", height: 11 }}>
       {[0, 1, 2, 3].map((i) => (
-        <View key={i} style={{ width: 2.5, height: 3 + i * 2.5, borderRadius: 1, backgroundColor: color, opacity: i < level ? 1 : 0.25 }} />
+        <View key={i} style={{ width: SIGNAL_BAR, height: 3 + i * SIGNAL_BAR, borderRadius: capsule(SIGNAL_BAR), backgroundColor: color, opacity: i < level ? 1 : 0.25 }} />
       ))}
-    </View>
+    </Box>
   );
 }
 
 function OptionRow({ name, detail, signal, selected, onSelect, onChoose }: { name: string; detail: string | null; signal: number; selected: boolean; onSelect(): void; onChoose(): void }) {
   const theme = useTheme();
-  const site = useSiteTokens();
-  const { hovered, hoverProps } = useHover();
   return (
-    <View {...hoverProps} onDoubleClick={onChoose}>
-      <Pressable onPress={onSelect}>
-        <View
-          style={{
-            height: PANEL.rowHeight,
-            borderRadius: PANEL.rowRadius,
-            paddingHorizontal: PANEL.rowPadding,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: PANEL.iconGap,
-            backgroundColor: selected ? site.optionSelected : hovered ? theme.rowHover : undefined,
-          }}
-        >
-          {signal >= 0 ? <Signal level={signal} color={theme.icon} /> : null}
-          <Text lines={1} style={{ flexShrink: 1 }}>
-            {name}
-          </Text>
-          {detail ? (
-            <Text size="footnote" tone="textSecondary">
-              {detail}
-            </Text>
-          ) : null}
-          <View style={{ flex: 1 }} />
-          {selected ? <Symbol name="checkmark" size={11} weight="semibold" color={theme.accent} style={{ width: 16, height: 16 }} /> : null}
-        </View>
-      </Pressable>
+    <View onDoubleClick={onChoose}>
+      <MenuRow
+        selected={selected}
+        leading={signal >= 0 ? <Signal level={signal} color={theme.icon} /> : undefined}
+        title={name}
+        onPress={onSelect}
+        accessory={
+          <>
+            {detail ? (
+              <Text size="caption" tone="textSecondary">
+                {detail}
+              </Text>
+            ) : null}
+            {selected ? <Symbol name="checkmark" size={11} weight="semibold" color={theme.accent} style={CHECK_GLYPH} /> : null}
+          </>
+        }
+      />
     </View>
   );
 }
 
-export const DEVICE_CHOOSER_WIDTH = 340;
+const CHECK_GLYPH = { width: 16, height: 16 } as const;
+
+export const DEVICE_CHOOSER_WIDTH = POPOVER_WIDTH.m;
 
 export function DeviceChooser({ tabId, left, top }: { tabId: string; left: number; top: number }) {
   const chooser = useDeviceChooser(tabId);
@@ -85,23 +79,25 @@ export function DeviceChooser({ tabId, left, top }: { tabId: string; left: numbe
   } else {
     body = (
       <>
-        <ScrollView style={{ maxHeight: 200, marginHorizontal: PANEL.rowInset - PANEL.inset }} contentContainerStyle={{ gap: 2 }}>
-          {chooser.options.map((o, i) => (
-            <OptionRow
-              key={`${i}:${o.name}`}
-              name={o.name}
-              detail={o.connected ? "Connected" : o.paired ? "Paired" : null}
-              signal={chooser.showSignal ? o.signal : -1}
-              selected={selected === i}
-              onSelect={() => setSelected(i)}
-              onChoose={() => choose(i)}
-            />
-          ))}
+        <ScrollView style={{ maxHeight: 200, marginHorizontal: -PANEL.inset }}>
+          <Box gap="xxs">
+            {chooser.options.map((o, i) => (
+              <OptionRow
+                key={`${i}:${o.name}`}
+                name={o.name}
+                detail={o.connected ? "Connected" : o.paired ? "Paired" : null}
+                signal={chooser.showSignal ? o.signal : -1}
+                selected={selected === i}
+                onSelect={() => setSelected(i)}
+                onChoose={() => choose(i)}
+              />
+            ))}
+          </Box>
         </ScrollView>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 7, minHeight: 22 }}>
+        <Box row gap="m" style={{ alignItems: "center", minHeight: 22 }}>
           {chooser.refreshing ? (
             <>
-              <ActivityIndicator size="small" style={{ transform: [{ scale: 0.6 }], width: 14, height: 14 }} />
+              <ActivitySpinner style={SPINNER} />
               <Text size="small" tone="textSecondary">
                 {chooser.scanningText}
               </Text>
@@ -113,10 +109,10 @@ export function DeviceChooser({ tabId, left, top }: { tabId: string; left: numbe
                   {chooser.noOptionsText}
                 </Text>
               ) : null}
-              {chooser.canRefresh ? <TextLink title="Scan Again" onPress={() => rescanDevices(chooser.id)} /> : null}
+              {chooser.canRefresh ? <Button variant="text" look="link" title="Scan Again" onPress={() => rescanDevices(chooser.id)} /> : null}
             </>
           )}
-        </View>
+        </Box>
       </>
     );
   }
@@ -128,50 +124,31 @@ export function DeviceChooser({ tabId, left, top }: { tabId: string; left: numbe
         enableFocusRing={false}
         keyDownEvents={[{ key: "Escape" }, { key: "Enter" }]}
         onKeyDown={(e) => (e.nativeEvent.key === "Escape" ? cancel() : valid && !blocked && choose())}
-        style={{ padding: PANEL.inset, gap: 10 }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
-          <IconTile icon={chooser.showSignal || scanning ? "dot.radiowaves.left.and.right" : "cable.connector"} />
-          <Text weight="semibold" style={{ flex: 1 }}>
-            {chooser.title}
-          </Text>
-        </View>
-        {body}
-        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+        <PromptBody icons={[chooser.showSignal || scanning ? "dot.radiowaves.left.and.right" : "cable.connector"]} title={chooser.title} detail={body}>
           <Button variant="pill" title={chooser.cancelLabel || "Cancel"} onPress={cancel} />
           <View pointerEvents={valid && !blocked ? "auto" : "none"} style={{ opacity: valid && !blocked ? 1 : UNAVAILABLE_OPACITY }}>
             <Button variant="pill" title={chooser.okLabel || "Connect"} primary onPress={() => choose()} />
           </View>
-        </View>
+        </PromptBody>
       </View>
     </Popover>
   );
 }
 
+const SPINNER = { width: 14, height: 14 } as const;
+
 function Notice({ icon, text, link, onLink }: { icon: string; text: string; link?: string; onLink?: () => void }) {
   const theme = useTheme();
   return (
-    <View style={{ flexDirection: "row", gap: 9, paddingVertical: 6 }}>
+    <Box row gap="m" padY="s">
       <Symbol name={icon} size={13} color={theme.textSecondary} style={{ width: 18, height: 18 }} />
-      <View style={{ flex: 1, gap: 4 }}>
+      <Box gap="xs" style={{ flex: 1 }}>
         <Text tone="textSecondary" style={noticeType}>
           {text}
         </Text>
-        {link && onLink ? <TextLink title={link} onPress={onLink} /> : null}
-      </View>
-    </View>
-  );
-}
-
-function TextLink({ title, onPress }: { title: string; onPress: () => void }) {
-  const { hovered, hoverProps } = useHover();
-  return (
-    <View {...hoverProps}>
-      <Pressable onPress={onPress}>
-        <Text size="small" weight="medium" tone="accent" style={{ textDecorationLine: hovered ? "underline" : "none" }}>
-          {title}
-        </Text>
-      </Pressable>
-    </View>
+        {link && onLink ? <Button variant="text" look="link" title={link} onPress={onLink} /> : null}
+      </Box>
+    </Box>
   );
 }

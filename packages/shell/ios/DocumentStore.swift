@@ -58,6 +58,17 @@ enum DocumentStore {
     queue.async { land(key, mine, attempt: 0) }
   }
 
+  static func whenSaved(_ name: String, done: @escaping Done) throws {
+    let key = try url(name).lastPathComponent
+    lock.lock()
+    guard staged[key] != nil else {
+      lock.unlock()
+      return done(nil)
+    }
+    staged[key]!.waiters.append(done)
+    lock.unlock()
+  }
+
   static func remove(_ name: String) throws {
     let url = try url(name)
     lock.lock()

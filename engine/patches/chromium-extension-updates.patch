@@ -1,12 +1,10 @@
 --- a/chrome/browser/extensions/updater/chrome_update_client_config.cc
 +++ b/chrome/browser/extensions/updater/chrome_update_client_config.cc
-@@ -224,7 +224,9 @@
+@@ -224,7 +224,7 @@
    if (url_override_.has_value()) {
      return {*url_override_};
    }
 -  return impl_.UpdateUrl();
-+  // Domain substitution cuts off the component updater's update.googleapis.com;
-+  // the Web Store's clients2.google.com (kept) answers the same protocol.
 +  return {GURL("https://clients2.google.com/service/update2/json")};
  }
  

@@ -1,6 +1,6 @@
 SPDX-License-Identifier: BSD-3-Clause
-Reverts the rlz/buildflags/buildflags.gni hunk of inox-patchset/disable-rlz.patch (as Helium 0.19.4 applies it),
-as Ardia's ungoogled build did: Widevine's CDM storage id (enable_cdm_storage_id) hashes RLZ's machine id on the
+Reverts the rlz/buildflags/buildflags.gni hunk of inox-patchset/disable-rlz.patch, which Helium applies, as Ardia's
+ungoogled build did: Widevine's CDM storage id (enable_cdm_storage_id) hashes RLZ's machine id on the
 Mac, so enable_rlz stays true and every user's storage ids and licences stay the same.
 
 --- a/rlz/buildflags/buildflags.gni

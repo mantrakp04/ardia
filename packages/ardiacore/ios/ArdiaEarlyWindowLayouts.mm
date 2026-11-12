@@ -19,7 +19,7 @@ using namespace ardia_early_window;
 
 namespace {
 
-constexpr int kLayoutVersion = 3;
+constexpr int kLayoutVersion = 4;
 
 constexpr CGFloat kMinPage = 100;
 
@@ -32,11 +32,15 @@ NSString *StateOf(ArdiaSavedSession *session, NSString *windowId) {
   NSDictionary *window = [session windowWithId:windowId];
   if (!window) return nil;
   NSMutableDictionary *state = [NSMutableDictionary dictionary];
-  for (NSString *key in @[ @"tabLayout", @"addressBar", @"sidebarWidth", @"bookmarksBar", @"appearance", @"hideToolbarWhileScrolling", @"showFullUrl" ])
+  for (NSString *key in @[ @"tabLayout", @"sidebarSide", @"addressBar", @"sidebarWidth", @"bookmarksBar", @"appearance", @"hideToolbarWhileScrolling", @"showFullUrl" ])
     if (settings[key]) state[[@"s." stringByAppendingString:key]] = settings[key];
   if ([settings[@"compactToolbar"] isEqual:@YES]) state[@"s.compactToolbar"] = @YES;
-  for (NSString *key in @[ @"sidebarOpen", @"tabLayout", @"profileId", @"incognito" ])
+  if ([settings[@"borderlessMode"] isEqual:@YES]) state[@"s.borderlessMode"] = @YES;
+  if ([settings[@"pageFrame"] isKindOfClass:NSNumber.class] && ![settings[@"pageFrame"] isEqual:@9]) state[@"s.pageFrame"] = settings[@"pageFrame"];
+  for (NSString *key in @[ @"tabLayout", @"profileId", @"incognito" ])
     if (window[key]) state[[@"w." stringByAppendingString:key]] = window[key];
+  NSNumber *autoHideTabs = [settings[@"autoHideTabs"] isKindOfClass:NSNumber.class] ? settings[@"autoHideTabs"] : nil;
+  if (id tabsShown = autoHideTabs ? (autoHideTabs.boolValue ? @NO : @YES) : window[@"sidebarOpen"]) state[@"w.sidebarOpen"] = tabsShown;
   NSData *data = [NSJSONSerialization dataWithJSONObject:state options:NSJSONWritingSortedKeys error:nil];
   return data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
 }
@@ -146,7 +150,8 @@ NSDictionary *WindowLayout(ArdiaWindowController *controller, ArdiaSavedSession 
     @"content" : ContentOf(session, controller.appWindowId) ?: @"",
   } mutableCopy];
   if (web.transferKey.length) layout[@"tab"] = web.transferKey;
-  if (NSValue *lights = ArdiaTrafficLightsCenter(window)) layout[@"lights"] = @[ @(lights.pointValue.x), @(lights.pointValue.y) ];
+  if (NSValue *lights = ArdiaTrafficLightsCenter(window))
+    layout[@"lights"] = @[ @(lights.pointValue.x), @(lights.pointValue.y), @(ArdiaTrafficLightsTrailing(window)) ];
   if (window.appearance.name) layout[@"appearance"] = window.appearance.name;
   if (NSColor *color = [web.pageBackgroundColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace])
     layout[@"pageColor"] = @[ @(color.redComponent), @(color.greenComponent), @(color.blueComponent), @(color.alphaComponent) ];
@@ -208,9 +213,8 @@ void RecordLayouts(ArdiaSavedSession *session, BOOL wait) {
       NSString *active = ActiveTabOf(session, windowId);
       if (active && [layout[@"tab"] isEqual:active] && CapturePicture(controller, windowId, layout)) layout[@"pictureContent"] = layout[@"content"];
       else DropPictureFile(windowId);
-    } else if ([gLayouts[windowId][@"pictureContent"] isKindOfClass:NSString.class]) {
+    } else if ([gLayouts[windowId][@"pictureContent"] isKindOfClass:NSString.class] && !gLayouts[windowId][@"glass"]) {
       layout[@"pictureContent"] = gLayouts[windowId][@"pictureContent"];
-      if (id glass = gLayouts[windowId][@"glass"]) layout[@"glass"] = glass;
     }
     gLayouts[windowId] = layout;
   }

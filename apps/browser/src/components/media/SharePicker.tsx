@@ -3,6 +3,9 @@ import {
   type DisplayMediaAudio,
   type DisplayMediaSource,
   answerDisplayMedia,
+  askForScreenRecording,
+  noteScreenRecordingMissing,
+  screenRecordingAllowed,
   shareableTabs,
   shareTab,
 } from "../../state/media/screenShare";
@@ -11,8 +14,8 @@ import { Symbol, Button, Checkbox, PANEL, PanelHeader, Popover, POPOVER_MARGIN, 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Image, Pressable, ScrollView, View, type TextStyle } from "react-native";
 import { useTheme } from "../ui/theme";
-import { radius, space } from "../ui/tokens";
-import { mediaType, useMediaTokens } from "./tokens";
+import { concentric, radius, space } from "../ui/tokens";
+import { useMediaTokens } from "./tokens";
 import { Favicon } from "../favicon/Favicon";
 import { useMedia } from "../../state/media/media";
 import { originForSecurityDisplay } from "../../lib/url";
@@ -38,6 +41,7 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
   const [selected, setSelected] = useState<string | null>(null);
   const [shareAudio, setShareAudio] = useState(AUDIO_SHARED_BY_DEFAULT);
   const [icons, setIcons] = useState<Record<number, string | null>>({});
+  const [screenAccess, setScreenAccess] = useState<boolean | null>(null);
   const list = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -45,12 +49,22 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
     setSources(request.sources);
     setSelected(null);
     setShareAudio(AUDIO_SHARED_BY_DEFAULT);
+    setScreenAccess(null);
     let live = true;
-    const t = setInterval(() => void getDisplayMediaSources().then((next) => live && setSources(next)), REFRESH_MS);
-    setTimeout(() => (list.current as unknown as { focus?: () => void } | null)?.focus?.(), 50);
+    void screenRecordingAllowed().then((allowed) => {
+      if (!live) return;
+      setScreenAccess(allowed);
+      if (!allowed) noteScreenRecordingMissing();
+    });
+    const t = setInterval(() => {
+      void getDisplayMediaSources().then((next) => live && setSources(next));
+      void screenRecordingAllowed().then((allowed) => live && setScreenAccess(allowed));
+    }, REFRESH_MS);
+    const focusList = setTimeout(() => (list.current as unknown as { focus?: () => void } | null)?.focus?.(), 50);
     return () => {
       live = false;
       clearInterval(t);
+      clearTimeout(focusList);
     };
   }, [request?.id]);
 
@@ -64,10 +78,11 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
 
   if (!request) return null;
   const tabs = shareableTabs(tabId);
-  const screens = sources.filter((s) => s.kind === "screen");
-  const windows = sources.filter((s) => s.kind === "window");
+  const screens = screenAccess ? sources.filter((s) => s.kind === "screen") : [];
+  const windows = screenAccess ? sources.filter((s) => s.kind === "window") : [];
   const isTab = (id: string | null) => !!id && id.startsWith(TAB) && tabs.some((t) => TAB + t.id === id);
-  const kindOf = (id: string | null): SourceKind | null => (isTab(id) ? "tab" : (sources.find((s) => s.id === id)?.kind ?? null));
+  const offered = [...screens, ...windows];
+  const kindOf = (id: string | null): SourceKind | null => (isTab(id) ? "tab" : (offered.find((s) => s.id === id)?.kind ?? null));
   const valid = !!kindOf(selected);
   const selectedKind = kindOf(selected);
   const audioFor = (kind: SourceKind | null) => !!kind && audioOffered(kind, request.audio) && shareAudio[kind];
@@ -87,9 +102,8 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
       <View style={{ paddingBottom: PANEL.inset }}>
         <PanelHeader
           large
-          iconSize={32}
           icon={
-            <View style={{ width: 32, height: 32, borderRadius: radius.l, alignItems: "center", justifyContent: "center", backgroundColor: tokens.iconTile }}>
+            <View style={{ width: 32, height: 32, borderRadius: radius.tile, alignItems: "center", justifyContent: "center", backgroundColor: tokens.iconTile }}>
               <Symbol name="rectangle.inset.filled.and.person.filled" size={15} color={theme.icon} style={{ width: 22, height: 22 }} />
             </View>
           }
@@ -101,7 +115,6 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
                 ? `${receiver} will see what you choose. Only tabs share their audio.`
                 : `${receiver} will see what you choose.`
           }
-          subtitleLines={2}
         />
 
         <ScrollView
@@ -151,7 +164,13 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
               ))}
             </>
           ) : null}
-          {!sources.length && !tabs.length ? <Text size="small" tone="textSecondary" style={EMPTY}>Nothing can be shared right now.</Text> : null}
+          {screenAccess === false ? (
+            <>
+              <SectionTitle title="Screens and Windows" />
+              <ScreenRecordingNeeded />
+            </>
+          ) : null}
+          {screenAccess !== false && !screens.length && !windows.length && !tabs.length ? <Text size="small" tone="textSecondary" style={EMPTY}>Nothing can be shared right now.</Text> : null}
         </ScrollView>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: PANEL.inset, marginTop: space.l }}>
@@ -174,6 +193,18 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
 }
 
 const EMPTY = { padding: space.l, textAlign: "center" } as const;
+const NOTICE = { paddingHorizontal: PANEL.rowPadding, paddingBottom: space.s, gap: space.m, alignItems: "flex-start" } as const;
+
+function ScreenRecordingNeeded() {
+  return (
+    <View style={NOTICE}>
+      <Text size="small" tone="textSecondary">
+        To share a window or your entire screen, turn on Ardia in System Settings › Privacy & Security › Screen Recording, then quit and reopen Ardia.
+      </Text>
+      <Button variant="pill" title="Open System Settings" onPress={() => void askForScreenRecording()} />
+    </View>
+  );
+}
 const SECTION_TITLE = { paddingHorizontal: PANEL.rowPadding, marginTop: space.s, marginBottom: space.s } as const;
 
 function SectionTitle({ title }: { title: string }) {
@@ -189,16 +220,16 @@ function ScreenTile({ source, width, selected, onSelect, onShare }: { source: Di
   const tokens = useMediaTokens();
   const { hovered, hoverProps } = useHover();
   const aspect = source.width && source.height ? source.height / source.width : 10 / 16;
-  const previewWidth = width - 16;
+  const previewWidth = width - 2 * space.m;
   return (
     <View {...hoverProps} onDoubleClick={onShare}>
       <Pressable onPress={onSelect}>
-        <View style={{ width, padding: space.m, borderRadius: radius.card, alignItems: "center", backgroundColor: selected ? tokens.pickerSelected : hovered ? theme.rowHover : undefined }}>
+        <View style={{ width, padding: space.m, borderRadius: radius.panel, alignItems: "center", backgroundColor: selected ? tokens.pickerSelected : hovered ? theme.rowHover : undefined }}>
           <View
             style={{
               width: previewWidth,
               height: Math.min(previewWidth * aspect, 80),
-              borderRadius: radius.m,
+              borderRadius: concentric(radius.panel, space.m),
               borderWidth: selected ? 2 : 1,
               borderColor: selected ? theme.accent : tokens.previewBorder,
               backgroundColor: tokens.previewFill,
@@ -212,7 +243,7 @@ function ScreenTile({ source, width, selected, onSelect, onShare }: { source: Di
             {source.name}
           </Text>
           {source.width ? (
-            <Text lines={1} tone="textTertiary" style={TILE_RESOLUTION}>
+            <Text lines={1} size="tiny" tone="textTertiary" style={TILE_RESOLUTION}>
               {source.width} × {source.height}
             </Text>
           ) : null}
@@ -223,7 +254,7 @@ function ScreenTile({ source, width, selected, onSelect, onShare }: { source: Di
 }
 
 const TILE_NAME = { marginTop: space.s } as const;
-const TILE_RESOLUTION: TextStyle = { ...mediaType.resolution, fontVariant: ["tabular-nums"] };
+const TILE_RESOLUTION: TextStyle = { fontVariant: ["tabular-nums"] };
 const ROW_TITLE = { flexShrink: 1 } as const;
 const ROW_DETAIL = { flexShrink: 2 } as const;
 

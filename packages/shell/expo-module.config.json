@@ -19,6 +19,7 @@
       "SurfaceModule",
       "VisualEffectModule",
       "GlassEffectModule",
+      "GlassGroupModule",
       "PopoverBubbleModule",
       "SystemModule",
       "FileDragModule",
@@ -26,6 +27,7 @@
       "AppModule",
       "UpdaterModule",
       "NotificationsModule",
+      "LocationModule",
       "ScriptingModule",
       "DevModule",
       "CalendarModule",
@@ -35,7 +37,12 @@
       "TranslateModule",
       "WindowProfileModule",
       "CliModule",
-      "UserScriptsModule"
+      "UserScriptsModule",
+      "ConfigModule",
+      "AutomationModule",
+      "SystemSignalsModule",
+      "ReportModule",
+      "TelemetryLocalModule"
     ]
   }
 }

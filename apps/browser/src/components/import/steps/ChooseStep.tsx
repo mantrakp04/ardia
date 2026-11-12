@@ -1,5 +1,6 @@
 import { View } from "react-native";
 import { Button, Checkbox, space, Text } from "../../ui";
+import { SectionHeader } from "../../settings/Form";
 import { APP, DIA_NOT_SHARED, KINDS, type ImportKind } from "../model";
 import { ErrorText, Note, Spacer, TargetPicker, Title } from "../Parts";
 import { BrowserRow } from "../Rows";
@@ -31,11 +32,9 @@ export function ChooseBody({ flow }: { flow: ImportFlow }) {
         </View>
       )}
       {source && !source.requiresExport && !source.needsFullDiskAccess && (
-        <View style={{ marginTop: space.xlx }}>
-          <Text size="small" weight="semibold" tone="textSecondary" style={{ marginBottom: space.m }}>
-            What to import
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.lx }}>
+        <View>
+          <SectionHeader title="What to import" />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xl }}>
             {shown.map((k) => (
               <Checkbox
                 key={k.kind}
@@ -46,7 +45,7 @@ export function ChooseBody({ flow }: { flow: ImportFlow }) {
             ))}
           </View>
           {appTabs && (
-            <Text size="small" tone="textSecondary" style={{ lineHeight: importType.smallLine, marginTop: space.ml }}>
+            <Text size="caption" tone="textSecondary" style={{ lineHeight: importType.smallLine, marginTop: space.ml }}>
               {`${APP} asks Dia for its open and pinned tabs, opening it in the background if it isn't running. ${DIA_NOT_SHARED}`}
             </Text>
           )}

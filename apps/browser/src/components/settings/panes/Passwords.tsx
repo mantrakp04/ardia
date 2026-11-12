@@ -10,16 +10,17 @@ import {
 } from "../../../state/site/passwords";
 import { orWarn } from "../../../lib/fallback";
 import { confirm, copyText, systemInfo } from "../../../state/app/system";
-import { Symbol, Button, font, SearchField, Sheet, TextField, Toggle, weight } from "../../ui";
-import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Box, Button, DialogActions, DialogTitle, SearchField, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
+import { useEffect, useRef, useState } from "react";
+import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { currentEngineProfile } from "../../../state/browser/current";
 import { plural } from "../../../state/browser/model";
 import { importPasswordsCsv, revealPassword, unlockPasswordsFor, usePasswordsUnlocked } from "../../../state/site/savedPasswords";
 import { hostLabel, matchesQuery } from "../../pages/PageLayout";
 import { Favicon } from "../../favicon/Favicon";
-import { Group, ProfilePicker, Row, SectionHeader, SheetActions, SheetTitle, useSettingsProfile } from "../Form";
+import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "../Form";
+import { settingsLayout } from "../tokens";
 import { passwordAutofill, setPasswordAutofillFor } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
@@ -55,7 +56,8 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
     try {
       const result = await importPasswordsCsv(profile);
       if (result === "cancelled") return;
-      setImportStatus(`Imported ${plural(result.saved, "password")}.`);
+      const skipped = result.skipped ? ` ${plural(result.skipped, "login")} couldn't be saved.` : "";
+      setImportStatus(`Imported ${plural(result.saved, "password")}.${skipped}`);
       load();
     } catch (e) {
       setImportStatus(`Couldn't import that file: ${(e as Error).message}`);
@@ -94,12 +96,16 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
       </Group>
 
       {!unlocked ? (
-        <View style={{ alignItems: "center", gap: 10, marginTop: 40 }}>
-          <Symbol name="lock.fill" size={26} color={theme.textTertiary} style={{ width: 36, height: 36 }} />
-          <Text style={{ ...font.title, fontWeight: weight.medium, color: theme.textPrimary }}>Passwords are locked</Text>
-          <Text style={{ ...font.small, color: theme.textSecondary }}>Unlock with Touch ID or your login password to see them.</Text>
-          <Button title="Unlock" kind="primary" onPress={() => void unlockPasswordsFor(profile)} style={{ marginTop: 6 }} />
-        </View>
+        <Box gap="ml" style={LOCKED}>
+          <Symbol name="lock.fill" size={26} color={theme.textTertiary} style={LOCK_ICON} />
+          <Text size="title" weight="medium">
+            Passwords are locked
+          </Text>
+          <Text size="small" tone="textSecondary">
+            Unlock with Touch ID or your login password to see them.
+          </Text>
+          <Button title="Unlock" kind="primary" onPress={() => void unlockPasswordsFor(profile)} />
+        </Box>
       ) : (
         <>
           <SectionHeader title={list ? plural(list.length, "Saved Password") : "Saved Passwords"} action={<SearchField value={query} onChangeText={setQuery} placeholder="Search" width={200} />} />
@@ -137,12 +143,20 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
 }
 
 function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: SavedPassword; onChanged: () => void }) {
-  const theme = useTheme();
   const [username, setUsername] = useState(saved.username);
   const [password, setPassword] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const open = useRef(true);
   const unlocked = usePasswordsUnlocked(profile);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+    };
+  }, []);
   useEffect(() => void revealPassword(profile, saved.origin, saved.username).then(setPassword), []);
   useEffect(() => {
     if (unlocked) return;
@@ -151,67 +165,82 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
   }, [unlocked]);
 
   const save = async () => {
-    await updatePassword(profile, saved.origin, saved.username, {
+    setError("");
+    setBusy(true);
+    const changed = await updatePassword(profile, saved.origin, saved.username, {
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
     }).catch(orWarn(false));
-    onChanged();
+    if (changed) onChanged();
+    if (!open.current) return;
+    setBusy(false);
+    if (!changed) return setError("Couldn't confirm that the change was saved. It may still appear in the list in a moment.");
     closeSettingsSheet();
   };
   const remove = async () => {
+    setBusy(true);
     const { confirmed } = await confirm({
       title: `Delete the password for ${hostLabel(saved.origin)}?`,
       message: "You won't be able to sign in with it automatically any more.",
       confirmTitle: "Delete",
       destructive: true,
     });
-    if (!confirmed) return;
+    if (!confirmed) return setBusy(false);
     await deletePassword(profile, saved.origin, saved.username).catch(orWarn(false));
     onChanged();
     closeSettingsSheet();
   };
 
   return (
-    <Sheet width={440} onClose={closeSettingsSheet}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Favicon url={saved.origin} size={22} />
-        <SheetTitle style={{ flex: 1 }}>{hostLabel(saved.origin)}</SheetTitle>
-      </View>
-      <View style={{ marginTop: 14 }}>
+    <Sheet onClose={closeSettingsSheet}>
+      <DialogTitle icon={<Favicon url={saved.origin} size={20} />}>{hostLabel(saved.origin)}</DialogTitle>
+      <View style={SHEET_BODY}>
         <Group>
           <Row title="Website" description={saved.origin} />
           <Row title="Username">
             {editing ? (
-              <TextField value={username} onChangeText={setUsername} style={{ width: 220 }} />
+              <TextField value={username} onChangeText={setUsername} width={220} />
             ) : (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Text selectable style={{ ...font.body, color: theme.textPrimary }}>
+              <Box row gap="xs" style={CENTER}>
+                <Text selectable>
                   {saved.username}
                 </Text>
-                <Button variant="icon" icon="doc.on.doc" size={11} box={24} radius={6} onPress={() => copyText(saved.username)} tooltip="Copy Username" />
-              </View>
+                <Button variant="icon" icon="doc.on.doc" size="m" onPress={() => copyText(saved.username)} tooltip="Copy Username" />
+              </Box>
             )}
           </Row>
           <Row title="Password">
             {editing ? (
-              <TextField value={password ?? ""} onChangeText={setPassword} secure={!revealed} style={{ width: 220 }} />
+              <TextField value={password ?? ""} onChangeText={setPassword} secure={!revealed} width={220} />
             ) : (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Text selectable style={{ ...font.body, color: theme.textPrimary, fontFamily: revealed ? "Menlo" : undefined }}>
+              <Box row gap="xs" style={CENTER}>
+                <Text selectable style={revealed ? MONO : undefined}>
                   {password === null ? "…" : revealed ? password : "•".repeat(Math.min(password.length, 12))}
                 </Text>
-                <Button variant="icon" icon={revealed ? "eye.slash" : "eye"} size={11} box={24} radius={6} onPress={() => setRevealed(!revealed)} tooltip={revealed ? "Hide" : "Show"} />
-                <Button variant="icon" icon="doc.on.doc" size={11} box={24} radius={6} onPress={() => password && copyText(password)} tooltip="Copy Password" />
-              </View>
+                <Button variant="icon" icon={revealed ? "eye.slash" : "eye"} size="m" onPress={() => setRevealed(!revealed)} tooltip={revealed ? "Hide" : "Show"} />
+                <Button variant="icon" icon="doc.on.doc" size="m" onPress={() => password && copyText(password)} tooltip="Copy Password" />
+              </Box>
             )}
           </Row>
         </Group>
+        {error ? (
+          <Text size="caption" tone="destructive" style={ERROR}>
+            {error}
+          </Text>
+        ) : null}
       </View>
-      <SheetActions destructive={<Button title="Delete" kind="destructive" onPress={() => void remove()} />}>
+      <DialogActions leading={<Button title="Delete" kind="destructive" disabled={busy} onPress={() => void remove()} />}>
         {editing ? (
           <>
-            <Button title="Cancel" onPress={() => setEditing(false)} />
-            <Button title="Save" kind="primary" disabled={!password} onPress={() => void save()} />
+            <Button
+              title="Cancel"
+              disabled={busy}
+              onPress={() => {
+                setError("");
+                setEditing(false);
+              }}
+            />
+            <Button title="Save" kind="primary" disabled={!password || busy} onPress={() => void save()} />
           </>
         ) : (
           <>
@@ -219,7 +248,14 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
             <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
           </>
         )}
-      </SheetActions>
+      </DialogActions>
     </Sheet>
   );
 }
+
+const LOCKED = { alignItems: "center", marginTop: settingsLayout.emptyTop } as const;
+const LOCK_ICON = { width: 36, height: 36 } as const;
+const SHEET_BODY = { marginTop: space.xl } as const;
+const ERROR = { marginTop: space.ml } as const;
+const CENTER = { alignItems: "center" } as const;
+const MONO = { fontFamily: "Menlo" } as const;

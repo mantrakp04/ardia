@@ -45,7 +45,7 @@ function incomingIndex(top: DragGeometry, point: [number, number] | null, start:
 export function IncomingGap({ open, width, origin }: { open: boolean; width: number; origin?: React.RefObject<View | null> }) {
   const room = useRef(new Animated.Value(open ? 1 : 0)).current;
   useEffect(() => {
-    Animated.timing(room, { toValue: open ? 1 : 0, duration: INCOMING_GAP_MS, easing: curve.outCubic, useNativeDriver: false }).start();
+    Animated.timing(room, { toValue: open ? 1 : 0, duration: INCOMING_GAP_MS, easing: curve.enter, useNativeDriver: false }).start();
   }, [open]);
   return (
     <Animated.View

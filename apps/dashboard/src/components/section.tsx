@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchSection } from "@/lib/api";
 import { parseRange, type RangeKey } from "@/lib/range";
+import { viewerZone } from "@/lib/zone";
 import { cn } from "@/lib/utils";
 import type { SectionData, SectionName } from "@/server/sections";
 
@@ -15,9 +16,10 @@ export function useRange(): RangeKey {
 export function useSection<N extends SectionName>(section: N, range?: RangeKey): UseQueryResult<SectionData<N>> {
   const current = useRange();
   const r = range ?? current;
+  const zone = viewerZone();
   return useQuery({
-    queryKey: ["section", section, r],
-    queryFn: ({ signal }) => fetchSection(section, r, signal),
+    queryKey: ["section", section, r, zone],
+    queryFn: ({ signal }) => fetchSection(section, r, zone, signal),
     staleTime: 60_000,
     gcTime: 10 * 60_000,
     placeholderData: keepPreviousData,
@@ -29,7 +31,7 @@ export function useSection<N extends SectionName>(section: N, range?: RangeKey):
 export function SectionError({ error, onRetry, className }: { error: unknown; onRetry: () => void; className?: string }) {
   const message = error instanceof Error ? error.message : String(error);
   return (
-    <div role="alert" className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-bad/25 bg-bad/[0.06] px-3 py-2.5 text-xs", className)}>
+    <div role="alert" className={cn("col-span-full flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-bad/25 bg-bad/[0.06] px-3 py-2.5 text-xs", className)}>
       <TriangleAlert className="size-3.5 shrink-0 text-bad" aria-hidden />
       <span className="min-w-0 flex-1 break-words text-foreground/80">Couldn't load this: {message}</span>
       <button
@@ -63,7 +65,7 @@ export function Loaded<T>({
       </div>
     );
   }
-  if (query.isError) return <SectionError error={query.error} onRetry={() => query.refetch()} className={className} />;
+  if (query.isError) return <SectionError error={query.error} onRetry={() => query.refetch()} />;
   return (
     <div className={className} aria-busy="true">
       {skeleton}

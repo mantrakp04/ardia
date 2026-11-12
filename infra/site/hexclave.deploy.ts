@@ -16,6 +16,7 @@ export const deploy = ({ secret, service }: any) => ({
         TELEMETRY_CLICKHOUSE_HOST: service(SERVICES.clickhouse).hostname(),
         TELEMETRY_OBJECTS_HOST: service(SERVICES.objects).hostname(),
         TELEMETRY_REPLAYS_READ_TOKEN: secret(SECRETS.replaysReadToken),
+        FEEDBACK_HOST: service(SERVICES.feedback).hostname(),
       },
     },
   },

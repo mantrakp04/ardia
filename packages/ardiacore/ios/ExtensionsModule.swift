@@ -57,5 +57,6 @@ public class ExtensionsModule: Module {
     "watchActions": EngineCall.passing("ac_extensions_watch_actions"),
     "syncState": EngineCall.passing("ac_extensions_sync_state"),
     "syncApply": EngineCall.passing("ac_extensions_sync_apply"),
+    "loadHealth": EngineCall.passing("ac_extensions_load_health"),
   ])
 }

@@ -9,22 +9,26 @@ import {
   hex,
   HoverSlot,
   layout,
-  liquidGlass,
   MenuSeparator,
+  menuRowFill,
   PANEL,
+  ProgressTrack,
   Text,
+  useGlass,
+  useGlassLook,
   useHover,
   usePopoverMotion,
   usePopoverMotionStyle,
   usePopoverPresence,
   useTheme,
+  type Theme,
 } from "../ui";
 import { fileIcon, openFile, revealFile } from "../../state/app/system";
 import { downloadMenu } from "../../state/downloads/downloadMenu";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { useDownloads, useSidebarOpen, useWindowId, useWindowUi } from "../../state/browser/hooks";
+import { useDownloads, useSidebarOpen, useSidebarSide, useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { clearDownloads, setDownloadsOpen } from "../../state/windows/actions";
 import { watchNewDownloads } from "../../state/windows/downloadWatch";
 import { useDownload } from "../../state/windows/hooks";
@@ -34,16 +38,19 @@ import { PROFILE_DOTS_HEIGHT } from "../profiles/ProfileDots";
 import { openInternalPage } from "../../state/pages/urls";
 import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { hairline, shadow } from "../ui/tokens";
-import { glassTint } from "../ui/Glass";
+import { panelGlassTint } from "../ui/Glass";
 import { DOWNLOADS_PANEL, type DownloadsPlacement } from "./downloadsPlacement";
 import { dangerWarning, downloadStatus } from "../../state/downloads/status";
 import { useDownloadView } from "./useDownloadView";
 import { FooterButton } from "./FooterButton";
 import { useDownloadsPlacement } from "./useDownloadsPlacement";
-import { DOWNLOADS_LIST as L, downloadsRowFill, FILE_ICON_GLYPH_SHARE, MAGNET, useDownloadsColors } from "./tokens";
+import { sameSize, useSettled, type Size } from "../ui/useSettled";
+import { DOWNLOADS_LIST as L, FILE_ICON_GLYPH_SHARE, MAGNET, useDownloadsColors } from "./tokens";
+
+const rowFill = (theme: Theme, hovered: boolean, pressed: boolean) => (hovered || pressed ? menuRowFill(theme, pressed) : undefined);
 
 const iconCache = new Map<string, string | null>();
-export const FileIcon = memo(function FileIcon({ path, size = 28 }: { path: string; size?: number }) {
+export const FileIcon = memo(function FileIcon({ path, size = L.fileIcon }: { path: string; size?: number }) {
   const theme = useTheme();
   const key = `${path}@${size}`;
   const [uri, setUri] = useState(() => iconCache.get(key) ?? null);
@@ -79,8 +86,9 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   const { ids, clearable } = shownList.current;
   const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const sidebarRight = useSidebarSide(windowId) === "right";
   const setOpen = (value: boolean) => setDownloadsOpen(windowId, value);
-  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2 });
+  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2, sidebarRight });
   const placed = p !== null;
   const appear = usePopoverMotion(closing, onClosed, placed);
 
@@ -113,11 +121,7 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
               {clearable && (
                 <Button
                   variant="text"
-                  plate="hover"
-                  height={L.clearHeight}
-                  pad="sm"
-                  weight="regular"
-                  tone="textSecondary"
+                  look="panel"
                   title="Clear"
                   onPress={() => {
                     setOpen(false);
@@ -131,7 +135,7 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
                 <Text tone="textSecondary">No downloads yet</Text>
               </View>
             ) : (
-              <ScrollView style={{ maxHeight: listMax }} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset }}>
+              <ScrollView style={{ maxHeight: listMax }} showsVerticalScrollIndicator={ids.length * L.row > listMax} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset }}>
                 {ids.map((id) => (
                   <DownloadRowItem key={id} id={id} windowId={windowId} />
                 ))}
@@ -156,6 +160,7 @@ function PanelBackground({ placement }: { placement: DownloadsPlacement }) {
   const theme = useTheme();
   const colors = useDownloadsColors();
   const level = shadow.popover;
+  const glass = useGlassLook();
   return (
     <PopoverBubble
       material="popover"
@@ -165,10 +170,10 @@ function PanelBackground({ placement }: { placement: DownloadsPlacement }) {
       arrowX={placement.arrowX}
       arrowWidth={DOWNLOADS_PANEL.arrowWidth}
       arrowHeight={DOWNLOADS_PANEL.arrowHeight}
-      glass={liquidGlass}
-      tint={liquidGlass ? glassTint(theme, theme.panel, "panel", "rest") : hex(colors.bubbleTint)}
+      glass={glass.panes}
+      tint={glass.panes ? panelGlassTint(theme, theme.panel, glass.tint) : hex(colors.bubbleTint)}
       edgeColor={hex(theme.popoverBorder)}
-      edgeWidth={liquidGlass ? 0 : hairline.panel}
+      edgeWidth={glass.panes ? 0 : hairline.panel}
       shadowOpacity={theme.dark ? level.opacity.dark : level.opacity.light}
       shadowRadius={level.radius}
       shadowOffsetY={level.offset[1]}
@@ -178,7 +183,7 @@ function PanelBackground({ placement }: { placement: DownloadsPlacement }) {
 }
 
 function RowButton({ icon, onPress, tooltip }: { icon: string; onPress: () => void; tooltip: string }) {
-  return <Button variant="icon" icon={icon} size={PANEL.iconSize} box={L.rowButton} radius={L.rowButtonRadius} onPress={onPress} tooltip={tooltip} />;
+  return <Button variant="icon" icon={icon} size="s" glyph={PANEL.iconSize} onPress={onPress} tooltip={tooltip} />;
 }
 
 const DownloadRowItem = memo(function DownloadRowItem({ id, windowId }: { id: string; windowId: string }) {
@@ -190,9 +195,9 @@ const DownloadRowItem = memo(function DownloadRowItem({ id, windowId }: { id: st
 
 function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
   const theme = useTheme();
-  const colors = useDownloadsColors();
   const { hovered, hoverProps } = useHover();
   const { exists, done, progress, blocked } = useDownloadView(d);
+  const glass = useGlass();
   return (
     <View {...hoverProps}>
       <MouseArea path={done ? d.path : null}>
@@ -207,10 +212,10 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                   paddingHorizontal: PANEL.rowPadding,
                   height: L.row,
                   borderRadius: PANEL.rowRadius,
-                  backgroundColor: liquidGlass ? undefined : downloadsRowFill(theme, hovered, pressed && done),
+                  backgroundColor: glass ? undefined : rowFill(theme, hovered, pressed && done),
                 }}
               >
-                <DownloadsRowGlass fill={downloadsRowFill(theme, hovered, pressed && done)} pressed={pressed && done} />
+                <DownloadsRowGlass fill={rowFill(theme, hovered, pressed && done)} pressed={pressed && done} />
                 <View style={{ opacity: exists ? 1 : L.missingOpacity }}>
                   <FileIcon path={d.path || d.filename} size={L.fileIcon} />
                 </View>
@@ -223,11 +228,7 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                     {d.filename || "Preparing…"}
                   </Text>
                   {d.state === "downloading" && !blocked ? (
-                    <View style={{ height: L.progressHeight, borderRadius: L.progressRadius, marginTop: L.progressAbove, marginBottom: L.progressBelow, backgroundColor: colors.progressTrack }}>
-                      <View
-                        style={{ width: `${Math.max(progress, L.progressMin) * 100}%`, height: L.progressHeight, borderRadius: L.progressRadius, backgroundColor: d.paused ? theme.textTertiary : theme.accent }}
-                      />
-                    </View>
+                    <ProgressTrack value={Math.max(progress, L.progressMin)} height={L.progressHeight} tone={d.paused ? "textTertiary" : "accent"} style={PROGRESS_GAP} />
                   ) : null}
                   <Text lines={1} size="caption" tone={blocked ? "destructive" : "textSecondary"} style={{ lineHeight: PANEL.subtitleLine }}>
                     {blocked ? dangerWarning(d, true) : downloadStatus(d, exists)}
@@ -235,8 +236,8 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                 </View>
                 {blocked ? (
                   <View style={{ flexDirection: "row", marginRight: -L.textButtonPad }}>
-                    <Button variant="text" plate="hover" height={L.clearHeight} pad="sm" weight="regular" tone="textSecondary" title="Keep" onPress={() => void keepDownload(d.id)} />
-                    <Button variant="text" plate="hover" height={L.clearHeight} pad="sm" title="Discard" onPress={() => void cancelDownload(d.id)} />
+                    <Button variant="text" look="panel" title="Keep" onPress={() => void keepDownload(d.id)} />
+                    <Button variant="text" look="panel" title="Discard" onPress={() => void cancelDownload(d.id)} />
                   </View>
                 ) : d.state === "downloading" ? (
                   <View style={{ flexDirection: "row", marginRight: -L.rowButtonBearing }}>
@@ -269,10 +270,12 @@ export function DownloadMagnet() {
   const sidebarOpen = useSidebarOpen();
   const sidebarWidth = useSidebarWidth(windowId);
   const topStrip = useTabLayout() === "top";
+  const right = useSidebarSide(windowId) === "right";
   const addressBar = useAddressBarInSidebar();
   const lightsY = useToolbarLightsCenter()[1];
   const [flight, setFlight] = useState<{ id: string; path: string } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const settleSize = useSettled((next: Size) => setSize((prev) => (sameSize(prev, next) ? prev : next)));
   const t = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -284,22 +287,25 @@ export function DownloadMagnet() {
   }, [windowId]);
 
   const sidebar = !topStrip && sidebarOpen ? sidebarWidth : 0;
-  const footer = { x: layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
+  const sidebarLeft = right ? size.width - sidebarWidth : 0;
+  const footer = { x: sidebarLeft + SIDEBAR_FOOTER_DOWNLOADS.left + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
   const target = topStrip
     ? { x: size.width - MAGNET.topStripTarget.right, y: MAGNET.topStripTarget.y }
     : addressBar
       ? footer
       : sidebarOpen
-        ? { x: sidebarWidth - MAGNET.sidebarTarget.right, y: lightsY }
-        : MAGNET.closedTarget;
-  const start = { x: sidebar + (size.width - sidebar) / 2, y: size.height * MAGNET.startShare };
+        ? { x: sidebarLeft + sidebarWidth - MAGNET.sidebarTarget.right, y: lightsY }
+        : right
+          ? { x: size.width - MAGNET.closedTarget.x, y: MAGNET.closedTarget.y }
+          : MAGNET.closedTarget;
+  const start = { x: (right ? 0 : sidebar) + (size.width - sidebar) / 2, y: size.height * MAGNET.startShare };
   const icon = MAGNET.icon;
   const steps = [0, 0.25, 0.5, 0.75, 1];
   const x = t.interpolate({ inputRange: steps, outputRange: steps.map((p) => start.x + (target.x - start.x) * p - icon / 2) });
   const y = t.interpolate({ inputRange: steps, outputRange: steps.map((p) => start.y + (target.y - start.y) * p - Math.sin(Math.PI * p) * MAGNET.arc - icon / 2) });
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={(e) => setSize(e.nativeEvent.layout)}>
+    <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={(e) => settleSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
       {flight && (
         <Animated.View
           style={{
@@ -320,6 +326,8 @@ export function DownloadMagnet() {
 }
 
 function DownloadsRowGlass({ fill, pressed }: { fill: string | undefined; pressed: boolean }) {
-  if (!liquidGlass || !fill) return null;
-  return <GlassFill fill={fill} radius={PANEL.rowRadius} state={pressed ? "rest" : "lit"} />;
+  if (!useGlass() || !fill) return null;
+  return <GlassFill radius={PANEL.rowRadius} state={pressed ? "pressed" : "lit"} />;
 }
+
+const PROGRESS_GAP = { marginTop: L.progressAbove, marginBottom: L.progressBelow } as const;

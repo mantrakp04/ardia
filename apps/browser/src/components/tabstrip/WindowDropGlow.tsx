@@ -14,7 +14,7 @@ export function WindowDropGlow({ place }: { place: DropGlowPlace }) {
   const over = useTabDrag((d) => d.phase !== "idle" && d.overWindow === windowId);
   const glow = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(glow, { toValue: over ? 1 : 0, duration: DROP_GLOW_MS, easing: curve.outQuad, useNativeDriver: true }).start();
+    Animated.timing(glow, { toValue: over ? 1 : 0, duration: DROP_GLOW_MS, easing: curve.enter, useNativeDriver: true }).start();
   }, [over]);
   return (
     <Animated.View

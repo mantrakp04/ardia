@@ -59,6 +59,7 @@ export type HydrateData = Partial<
     | "parkedPins"
     | "pinChoices"
     | "pinSync"
+    | "topAppsMerged"
     | "closedGroups"
     | "deletedGroups"
     | "cleanedTabs"
@@ -178,6 +179,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
       parkedPins: Object.fromEntries(Object.entries(data.parkedPins ?? {}).filter(([p]) => profiles[p])),
       pinChoices: Object.fromEntries(Object.entries(data.pinChoices ?? {}).filter(([p]) => profiles[p])),
       pinSync: Object.fromEntries(Object.entries(data.pinSync ?? {}).filter(([p]) => profiles[p])),
+      topAppsMerged: data.topAppsMerged ?? "",
       closedGroups: data.closedGroups ?? [],
       deletedGroups: keptDeletedGroups(data.deletedGroups ?? []),
       cleanedTabs: keptCleanedTabs((data.cleanedTabs ?? []).filter((c) => !isIncognitoProfile(c.tab.profileId))),

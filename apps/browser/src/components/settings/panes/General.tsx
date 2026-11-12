@@ -1,18 +1,20 @@
 import type { DownloadSettings } from "../../../state/downloads/actions";
 import { checkForUpdates, setLaunchAtLogin } from "../../../state/app/appSettings";
 import { pickFolder } from "../../../state/app/system";
-import { Symbol, Button, font, PopUp, Toggle } from "../../ui";
+import { ActivitySpinner, Button, PopUp, space, Symbol, Toggle } from "../../ui";
 import { useEffect } from "react";
-import { AppState, Text, View } from "react-native";
+import { AppState, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { updateSettings } from "../../../state/settings/actions";
 import { currentEngineProfile } from "../../../state/browser/current";
 import { useProfiles, useSettings } from "../../../state/browser/hooks";
 import { SHARING_COPY } from "../../../state/telemetry/copy";
 import { Anchor, Group, ProfilePicker, Row, SectionHeader, SettingToggle, useSettingsProfile } from "../Form";
-import { defaultBrowser, downloadSettings, loginItem, makeDefaultBrowser, setDownloadsFor, setUpdaterPrefs, updater } from "../../../state/settings/paneData";
+import { defaultBrowser, downloadSettings, followUpdater, loginItem, makeDefaultBrowser, setDownloadsFor, setUpdaterPrefs, updater } from "../../../state/settings/paneData";
+import { checkNowControl, switchCheckLine, updaterBusy } from "../../../state/settings/updateStatus";
 import { useResource } from "../../../state/settings/resources";
 import { openImport } from "../../../state/settings/settingsWindows";
+import { redoSetupFromSettings } from "../../../state/onboarding/redo";
 import { ExportBookmarksRow } from "./ExportBookmarksRow";
 import { SetupCodeRow } from "./SetupCodeRow";
 import { UI_LOCALE } from "../../../lib/uiLocale";
@@ -42,24 +44,15 @@ export function GeneralPane() {
         </Row>
         <SettingToggle anchor="general.warnBeforeQuitting" />
         <SettingToggle anchor="general.warnBeforeClosingWindow" />
-        <Row
-          anchor="general.openLinksFrom"
+        <SettingToggle
+          anchor="general.openLinksInLittleArdia"
           description={
             openLinksInLittleArdia
               ? `A link from Discord, Slack or Mail opens in Little Ardia, a small window of its own. ⌘O moves it into ${APP}; closing it throws it away.`
               : `A link from Discord, Slack or Mail opens as a new tab in the ${APP} window you used last.`
           }
-        >
-          <PopUp
-            value={openLinksInLittleArdia ? "small" : "tab"}
-            options={[
-              { value: "small", title: "Little Ardia" },
-              { value: "tab", title: "A new tab" },
-            ]}
-            onChange={(v) => updateSettings({ openLinksInLittleArdia: v === "small" })}
-            minWidth={190}
-          />
-        </Row>
+        />
+        <SettingToggle anchor="general.littleArdiaOpensNewTabLinks" />
       </Group>
 
       <SectionHeader title={`When quitting ${APP}:`} />
@@ -161,11 +154,17 @@ function UpdatesSection() {
     const sub = AppState.addEventListener("change", refresh);
     return () => sub.remove();
   }, []);
+  const busy = updaterBusy(state);
+  useEffect(() => {
+    if (busy) followUpdater();
+  }, [busy]);
   if (!state?.available) return null;
   const ready = state.configured;
   const lastCheck = state.lastCheck
     ? `Last checked ${new Date(state.lastCheck).toLocaleString(UI_LOCALE, { dateStyle: "medium", timeStyle: "short" })}.`
     : "Not checked yet.";
+  const status = switchCheckLine(state, APP) ?? lastCheck;
+  const checkNow = checkNowControl(state);
   return (
     <>
       <SectionHeader title="Updates" description={ready ? undefined : "Updates aren't set up for this build."} />
@@ -194,8 +193,11 @@ function UpdatesSection() {
             />
           </Row>
         )}
-        <Row anchor="general.checkNow" title={`${APP} ${state.displayVersion ?? state.version}`} description={ready ? lastCheck : undefined}>
-          <Button title="Check Now" disabled={ready && (!state.canCheck || state.sessionInProgress)} onPress={() => void checkForUpdates().finally(refresh)} />
+        <Row anchor="general.checkNow" title={`${APP} ${state.displayVersion ?? state.version}`} description={ready ? status : undefined}>
+          <View style={CHECK_NOW}>
+            {checkNow.checking ? <ActivitySpinner style={CHECK_SPINNER} /> : null}
+            <Button title={checkNow.title} disabled={checkNow.disabled} onPress={() => checkNow.pressable && void checkForUpdates().finally(() => followUpdater())} />
+          </View>
         </Row>
       </Group>
     </>
@@ -210,31 +212,24 @@ function DefaultBrowserBanner() {
     return () => sub.remove();
   }, []);
   return (
-    <Anchor
-      id="general.defaultBrowser"
-      radius={12}
-      style={{
-        marginTop: 20,
-        padding: 14,
-        borderRadius: 12,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        backgroundColor: theme.groupFill,
-        borderWidth: 1,
-        borderColor: theme.groupBorder,
-      }}
-    >
-      <Symbol
-        name={isDefault ? "checkmark.seal.fill" : "safari"}
-        size={20}
-        color={isDefault ? theme.success : theme.icon}
-        style={{ width: 28, height: 28 }}
-      />
-      <Text style={{ flex: 1, ...font.body, color: theme.textPrimary }}>
-        {isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}
-      </Text>
-      {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void makeDefaultBrowser()} />}
+    <Anchor id="general.defaultBrowser" shape="card" style={BANNER}>
+      <Group>
+        <Row
+          icon={<Symbol name={isDefault ? "checkmark.seal.fill" : "safari"} size={20} color={isDefault ? theme.success : theme.icon} style={BANNER_ICON} />}
+          title={isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}
+        >
+          {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void makeDefaultBrowser()} />}
+        </Row>
+        <Row anchor="general.redoSetup" icon={<Symbol name="sparkles" size={18} color={theme.icon} style={BANNER_ICON} />} description="Walk through import, look and layout again">
+          <Button title="Redo Setup…" onPress={redoSetupFromSettings} />
+        </Row>
+      </Group>
     </Anchor>
   );
 }
+
+const BANNER = { marginTop: space.xxl } as const;
+const BANNER_ICON = { width: 28, height: 28 } as const;
+
+const CHECK_NOW = { flexDirection: "row", alignItems: "center", gap: space.m } as const;
+const CHECK_SPINNER = { width: 14, height: 14 } as const;

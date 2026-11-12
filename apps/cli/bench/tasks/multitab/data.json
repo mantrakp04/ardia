@@ -1,0 +1,3805 @@
+{
+ "teams": [
+  {
+   "id": "payments",
+   "name": "Payments",
+   "about": "Checkout, invoicing, payouts and the partner payments API.",
+   "lead": "priya-raman",
+   "org": "Engineering",
+   "slack": "#team-payments"
+  },
+  {
+   "id": "partnerships",
+   "name": "Partnerships",
+   "about": "Integration partners, co-selling and the partner program.",
+   "lead": "dana-whitfield",
+   "org": "Business",
+   "slack": "#team-partnerships"
+  },
+  {
+   "id": "platform",
+   "name": "Platform",
+   "about": "Infrastructure, developer tooling and reliability.",
+   "lead": "elena-rossi",
+   "org": "Engineering",
+   "slack": "#team-platform"
+  },
+  {
+   "id": "growth",
+   "name": "Growth",
+   "about": "Acquisition, lifecycle marketing and pricing experiments.",
+   "lead": "nina-park",
+   "org": "Marketing",
+   "slack": "#team-growth"
+  },
+  {
+   "id": "design",
+   "name": "Design",
+   "about": "Product design, research and the design system.",
+   "lead": "jun-watanabe",
+   "org": "Product",
+   "slack": "#team-design"
+  },
+  {
+   "id": "data",
+   "name": "Data",
+   "about": "Analytics, data engineering and forecasting.",
+   "lead": "felix-wagner",
+   "org": "Engineering",
+   "slack": "#team-data"
+  },
+  {
+   "id": "mobile",
+   "name": "Mobile",
+   "about": "The iOS and Android apps.",
+   "lead": "tariq-ahmed",
+   "org": "Engineering",
+   "slack": "#team-mobile"
+  },
+  {
+   "id": "security",
+   "name": "Security",
+   "about": "Application security, compliance and vendor reviews.",
+   "lead": "grace-liu",
+   "org": "Engineering",
+   "slack": "#team-security"
+  },
+  {
+   "id": "people",
+   "name": "People Ops",
+   "about": "Recruiting, onboarding, benefits and workplace.",
+   "lead": "maria-santos",
+   "org": "Operations",
+   "slack": "#team-people"
+  },
+  {
+   "id": "finance",
+   "name": "Finance",
+   "about": "Accounting, payroll, procurement and FP&A.",
+   "lead": "owen-gallagher",
+   "org": "Operations",
+   "slack": "#team-finance"
+  },
+  {
+   "id": "sales",
+   "name": "Sales",
+   "about": "Mid-market and enterprise sales.",
+   "lead": "brooke-taylor",
+   "org": "Business",
+   "slack": "#team-sales"
+  },
+  {
+   "id": "support",
+   "name": "Customer Support",
+   "about": "Support, onboarding and customer education.",
+   "lead": "keisha-moore",
+   "org": "Business",
+   "slack": "#team-support"
+  }
+ ],
+ "people": [
+  {
+   "id": "priya-raman",
+   "name": "Priya Raman",
+   "title": "Engineering Manager, Payments",
+   "team": "payments",
+   "email": "priya.raman@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "elena-rossi",
+   "phone": "+1 (415) 555-8487",
+   "joined": "2025-06-02",
+   "hue": 240,
+   "pronouns": "she/her"
+  },
+  {
+   "id": "marcus-chen",
+   "name": "Marcus Chen",
+   "title": "Staff Software Engineer",
+   "team": "payments",
+   "email": "marcus.chen@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "priya-raman",
+   "phone": "+1 (415) 555-4536",
+   "joined": "2019-04-04",
+   "hue": 44
+  },
+  {
+   "id": "sofia-alvarez",
+   "name": "Sofia Alvarez",
+   "title": "Senior Software Engineer",
+   "team": "payments",
+   "email": "sofia.alvarez@northwind.dev",
+   "location": "New York",
+   "tz": "America/New_York",
+   "manager": "priya-raman",
+   "phone": "+1 (415) 555-3486",
+   "joined": "2023-01-04",
+   "hue": 126,
+   "pronouns": "she/her"
+  },
+  {
+   "id": "hana-kim",
+   "name": "Hana Kim",
+   "title": "Product Manager, Payments",
+   "team": "payments",
+   "email": "hana.kim@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "priya-raman",
+   "phone": "+1 (415) 555-7991",
+   "joined": "2026-09-13",
+   "hue": 5
+  },
+  {
+   "id": "alex-morgan",
+   "name": "Alex Morgan",
+   "title": "Software Engineer",
+   "team": "payments",
+   "email": "alex.morgan@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "priya-raman",
+   "phone": "+1 (415) 555-7775",
+   "joined": "2022-02-26",
+   "hue": 29,
+   "pronouns": "they/them"
+  },
+  {
+   "id": "omar-haddad",
+   "name": "Omar Haddad",
+   "title": "Software Engineer",
+   "team": "payments",
+   "email": "omar.haddad@northwind.dev",
+   "location": "Remote · Denver",
+   "tz": "America/Denver",
+   "manager": "priya-raman",
+   "phone": "+1 (415) 555-9809",
+   "joined": "2024-03-18",
+   "hue": 205
+  },
+  {
+   "id": "devon-brooks",
+   "name": "Devon Brooks",
+   "title": "Senior Software Engineer",
+   "team": "payments",
+   "email": "devon.brooks@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "priya-raman",
+   "phone": "+1 (415) 555-1446",
+   "joined": "2019-05-27",
+   "hue": 162,
+   "status": "On leave until Dec 4, 2026",
+   "about": "Parental leave from Oct 31 through Dec 4. For payouts questions, ask Marcus."
+  },
+  {
+   "id": "ravi-iyer",
+   "name": "Ravi Iyer",
+   "title": "Senior Software Engineer",
+   "team": "platform",
+   "email": "ravi.iyer@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "elena-rossi",
+   "phone": "+1 (415) 555-3871",
+   "joined": "2021-04-11",
+   "hue": 328,
+   "history": [
+    {
+     "team": "Platform",
+     "since": "2026-10-26"
+    },
+    {
+     "team": "Payments",
+     "since": "2023-04-03",
+     "until": "2026-10-23"
+    }
+   ]
+  },
+  {
+   "id": "dana-whitfield",
+   "name": "Dana Whitfield",
+   "title": "Head of Partnerships",
+   "team": "partnerships",
+   "email": "dana.whitfield@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "",
+   "phone": "+1 (415) 555-4310",
+   "joined": "2019-11-28",
+   "hue": 28
+  },
+  {
+   "id": "jordan-lee",
+   "name": "Jordan Lee",
+   "title": "Partner Manager",
+   "team": "partnerships",
+   "email": "jordan@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "dana-whitfield",
+   "phone": "+1 (415) 555-2989",
+   "joined": "2026-02-22",
+   "hue": 62
+  },
+  {
+   "id": "kofi-mensah",
+   "name": "Kofi Mensah",
+   "title": "Partner Solutions Engineer",
+   "team": "partnerships",
+   "email": "kofi.mensah@northwind.dev",
+   "location": "New York",
+   "tz": "America/New_York",
+   "manager": "dana-whitfield",
+   "phone": "+1 (415) 555-4242",
+   "joined": "2021-07-05",
+   "hue": 146
+  },
+  {
+   "id": "ines-duarte",
+   "name": "Inês Duarte",
+   "title": "Partner Marketing Manager",
+   "team": "partnerships",
+   "email": "ines.duarte@northwind.dev",
+   "location": "London",
+   "tz": "Europe/London",
+   "manager": "dana-whitfield",
+   "phone": "+1 (415) 555-3915",
+   "joined": "2023-04-16",
+   "hue": 44
+  },
+  {
+   "id": "elena-rossi",
+   "name": "Elena Rossi",
+   "title": "VP of Engineering",
+   "team": "platform",
+   "email": "elena.rossi@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "",
+   "phone": "+1 (415) 555-9016",
+   "joined": "2025-06-21",
+   "hue": 342
+  },
+  {
+   "id": "sam-oconnor",
+   "name": "Sam O’Connor",
+   "title": "Site Reliability Engineer",
+   "team": "platform",
+   "email": "sam.oconnor@northwind.dev",
+   "location": "Remote · Seattle",
+   "tz": "America/Los_Angeles",
+   "manager": "elena-rossi",
+   "phone": "+1 (415) 555-7220",
+   "joined": "2024-07-26",
+   "hue": 290
+  },
+  {
+   "id": "yuki-tanaka",
+   "name": "Yuki Tanaka",
+   "title": "Staff Software Engineer",
+   "team": "platform",
+   "email": "yuki.tanaka@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "elena-rossi",
+   "phone": "+1 (415) 555-6166",
+   "joined": "2024-01-26",
+   "hue": 100
+  },
+  {
+   "id": "ben-adeyemi",
+   "name": "Ben Adeyemi",
+   "title": "Software Engineer, Developer Tools",
+   "team": "platform",
+   "email": "ben.adeyemi@northwind.dev",
+   "location": "New York",
+   "tz": "America/New_York",
+   "manager": "elena-rossi",
+   "phone": "+1 (415) 555-4792",
+   "joined": "2026-01-09",
+   "hue": 205
+  },
+  {
+   "id": "carla-mendes",
+   "name": "Carla Mendes",
+   "title": "Engineering Manager, Platform",
+   "team": "platform",
+   "email": "carla.mendes@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "elena-rossi",
+   "phone": "+1 (415) 555-6214",
+   "joined": "2022-11-24",
+   "hue": 84
+  },
+  {
+   "id": "nina-park",
+   "name": "Nina Park",
+   "title": "Head of Growth",
+   "team": "growth",
+   "email": "nina.park@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "",
+   "phone": "+1 (415) 555-7155",
+   "joined": "2023-07-21",
+   "hue": 64
+  },
+  {
+   "id": "alexa-morgan",
+   "name": "Alexa Morgan",
+   "title": "Lifecycle Marketing Manager",
+   "team": "growth",
+   "email": "alexa.morgan@northwind.dev",
+   "location": "New York",
+   "tz": "America/New_York",
+   "manager": "nina-park",
+   "phone": "+1 (415) 555-7536",
+   "joined": "2025-01-05",
+   "hue": 201
+  },
+  {
+   "id": "leo-fischer",
+   "name": "Leo Fischer",
+   "title": "Growth Engineer",
+   "team": "growth",
+   "email": "leo.fischer@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "nina-park",
+   "phone": "+1 (415) 555-2861",
+   "joined": "2024-03-19",
+   "hue": 54
+  },
+  {
+   "id": "amara-obi",
+   "name": "Amara Obi",
+   "title": "Pricing Analyst",
+   "team": "growth",
+   "email": "amara.obi@northwind.dev",
+   "location": "Remote · Austin",
+   "tz": "America/Chicago",
+   "manager": "nina-park",
+   "phone": "+1 (415) 555-5564",
+   "joined": "2025-01-26",
+   "hue": 287
+  },
+  {
+   "id": "jun-watanabe",
+   "name": "Jun Watanabe",
+   "title": "Design Director",
+   "team": "design",
+   "email": "jun.watanabe@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "",
+   "phone": "+1 (415) 555-4435",
+   "joined": "2025-02-28",
+   "hue": 269
+  },
+  {
+   "id": "lena-okafor",
+   "name": "Lena Okafor",
+   "title": "Senior Product Designer",
+   "team": "design",
+   "email": "lena.okafor@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "jun-watanabe",
+   "phone": "+1 (415) 555-1429",
+   "joined": "2025-03-07",
+   "hue": 77,
+   "pronouns": "she/her"
+  },
+  {
+   "id": "theo-martin",
+   "name": "Théo Martin",
+   "title": "Product Designer",
+   "team": "design",
+   "email": "theo.martin@northwind.dev",
+   "location": "London",
+   "tz": "Europe/London",
+   "manager": "jun-watanabe",
+   "phone": "+1 (415) 555-8293",
+   "joined": "2020-09-05",
+   "hue": 284
+  },
+  {
+   "id": "rosa-delgado",
+   "name": "Rosa Delgado",
+   "title": "UX Researcher",
+   "team": "design",
+   "email": "rosa.delgado@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "jun-watanabe",
+   "phone": "+1 (415) 555-2321",
+   "joined": "2021-12-16",
+   "hue": 85
+  },
+  {
+   "id": "felix-wagner",
+   "name": "Felix Wagner",
+   "title": "Data Engineering Manager",
+   "team": "data",
+   "email": "felix.wagner@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "elena-rossi",
+   "phone": "+1 (415) 555-6934",
+   "joined": "2019-05-01",
+   "hue": 69
+  },
+  {
+   "id": "hannah-kim",
+   "name": "Hannah Kim",
+   "title": "Data Scientist",
+   "team": "data",
+   "email": "hannah.kim@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "felix-wagner",
+   "phone": "+1 (415) 555-4031",
+   "joined": "2022-12-12",
+   "hue": 33
+  },
+  {
+   "id": "diego-ramos",
+   "name": "Diego Ramos",
+   "title": "Analytics Engineer",
+   "team": "data",
+   "email": "diego.ramos@northwind.dev",
+   "location": "Remote · Denver",
+   "tz": "America/Denver",
+   "manager": "felix-wagner",
+   "phone": "+1 (415) 555-3727",
+   "joined": "2023-05-09",
+   "hue": 60
+  },
+  {
+   "id": "mei-chen",
+   "name": "Mei Chen",
+   "title": "Data Engineer",
+   "team": "data",
+   "email": "mei.chen@northwind.dev",
+   "location": "Remote · Seattle",
+   "tz": "America/Los_Angeles",
+   "manager": "felix-wagner",
+   "phone": "+1 (415) 555-6990",
+   "joined": "2022-05-28",
+   "hue": 219
+  },
+  {
+   "id": "tariq-ahmed",
+   "name": "Tariq Ahmed",
+   "title": "Engineering Manager, Mobile",
+   "team": "mobile",
+   "email": "tariq.ahmed@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "elena-rossi",
+   "phone": "+1 (415) 555-1093",
+   "joined": "2022-04-04",
+   "hue": 281
+  },
+  {
+   "id": "chloe-bernard",
+   "name": "Chloé Bernard",
+   "title": "iOS Engineer",
+   "team": "mobile",
+   "email": "chloe.bernard@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "tariq-ahmed",
+   "phone": "+1 (415) 555-8334",
+   "joined": "2025-01-16",
+   "hue": 117
+  },
+  {
+   "id": "victor-nguyen",
+   "name": "Victor Nguyen",
+   "title": "Android Engineer",
+   "team": "mobile",
+   "email": "victor.nguyen@northwind.dev",
+   "location": "Remote · Austin",
+   "tz": "America/Chicago",
+   "manager": "tariq-ahmed",
+   "phone": "+1 (415) 555-8550",
+   "joined": "2024-08-17",
+   "hue": 59
+  },
+  {
+   "id": "isla-mcdonald",
+   "name": "Isla McDonald",
+   "title": "Mobile QA Engineer",
+   "team": "mobile",
+   "email": "isla.mcdonald@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "tariq-ahmed",
+   "phone": "+1 (415) 555-9824",
+   "joined": "2019-08-22",
+   "hue": 157,
+   "status": "Out of office Nov 9 – Nov 10"
+  },
+  {
+   "id": "grace-liu",
+   "name": "Grace Liu",
+   "title": "Head of Security",
+   "team": "security",
+   "email": "grace.liu@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "elena-rossi",
+   "phone": "+1 (415) 555-3776",
+   "joined": "2023-08-17",
+   "hue": 225
+  },
+  {
+   "id": "noah-schmidt",
+   "name": "Noah Schmidt",
+   "title": "Security Engineer",
+   "team": "security",
+   "email": "noah.schmidt@northwind.dev",
+   "location": "New York",
+   "tz": "America/New_York",
+   "manager": "grace-liu",
+   "phone": "+1 (415) 555-5952",
+   "joined": "2021-11-23",
+   "hue": 87
+  },
+  {
+   "id": "fatima-zahra",
+   "name": "Fatima Zahra",
+   "title": "Compliance Manager",
+   "team": "security",
+   "email": "fatima.zahra@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "grace-liu",
+   "phone": "+1 (415) 555-9491",
+   "joined": "2021-08-21",
+   "hue": 230
+  },
+  {
+   "id": "maria-santos",
+   "name": "Maria Santos",
+   "title": "Head of People",
+   "team": "people",
+   "email": "maria.santos@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "",
+   "phone": "+1 (415) 555-1524",
+   "joined": "2024-10-12",
+   "hue": 115
+  },
+  {
+   "id": "kevin-walsh",
+   "name": "Kevin Walsh",
+   "title": "Recruiter",
+   "team": "people",
+   "email": "kevin.walsh@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "maria-santos",
+   "phone": "+1 (415) 555-1290",
+   "joined": "2019-03-24",
+   "hue": 299
+  },
+  {
+   "id": "aisha-bello",
+   "name": "Aisha Bello",
+   "title": "Workplace Manager",
+   "team": "people",
+   "email": "aisha.bello@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "maria-santos",
+   "phone": "+1 (415) 555-6694",
+   "joined": "2022-02-11",
+   "hue": 209
+  },
+  {
+   "id": "owen-gallagher",
+   "name": "Owen Gallagher",
+   "title": "Controller",
+   "team": "finance",
+   "email": "owen.gallagher@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "",
+   "phone": "+1 (415) 555-5007",
+   "joined": "2020-03-08",
+   "hue": 295
+  },
+  {
+   "id": "lucy-hart",
+   "name": "Lucy Hart",
+   "title": "Accountant",
+   "team": "finance",
+   "email": "lucy.hart@northwind.dev",
+   "location": "New York",
+   "tz": "America/New_York",
+   "manager": "owen-gallagher",
+   "phone": "+1 (415) 555-1744",
+   "joined": "2022-05-20",
+   "hue": 8
+  },
+  {
+   "id": "raj-patel",
+   "name": "Raj Patel",
+   "title": "Procurement Lead",
+   "team": "finance",
+   "email": "raj.patel@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "owen-gallagher",
+   "phone": "+1 (415) 555-4748",
+   "joined": "2025-12-16",
+   "hue": 91
+  },
+  {
+   "id": "brooke-taylor",
+   "name": "Brooke Taylor",
+   "title": "VP of Sales",
+   "team": "sales",
+   "email": "brooke.taylor@northwind.dev",
+   "location": "New York",
+   "tz": "America/New_York",
+   "manager": "",
+   "phone": "+1 (415) 555-2983",
+   "joined": "2022-07-10",
+   "hue": 272
+  },
+  {
+   "id": "marcus-cheng",
+   "name": "Marcus Cheng",
+   "title": "Account Executive",
+   "team": "sales",
+   "email": "marcus.cheng@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "brooke-taylor",
+   "phone": "+1 (415) 555-9465",
+   "joined": "2024-06-15",
+   "hue": 65
+  },
+  {
+   "id": "julia-novak",
+   "name": "Julia Novak",
+   "title": "Account Executive",
+   "team": "sales",
+   "email": "julia.novak@northwind.dev",
+   "location": "New York",
+   "tz": "America/New_York",
+   "manager": "brooke-taylor",
+   "phone": "+1 (415) 555-9543",
+   "joined": "2024-11-21",
+   "hue": 73
+  },
+  {
+   "id": "pete-okoro",
+   "name": "Pete Okoro",
+   "title": "Sales Engineer",
+   "team": "sales",
+   "email": "pete.okoro@northwind.dev",
+   "location": "Remote · Austin",
+   "tz": "America/Chicago",
+   "manager": "brooke-taylor",
+   "phone": "+1 (415) 555-4044",
+   "joined": "2020-04-17",
+   "hue": 18
+  },
+  {
+   "id": "sara-lindqvist",
+   "name": "Sara Lindqvist",
+   "title": "Sales Development Rep",
+   "team": "sales",
+   "email": "sara.lindqvist@northwind.dev",
+   "location": "New York",
+   "tz": "America/New_York",
+   "manager": "brooke-taylor",
+   "phone": "+1 (415) 555-4452",
+   "joined": "2026-02-07",
+   "hue": 299,
+   "status": "On leave until Nov 16, 2026"
+  },
+  {
+   "id": "keisha-moore",
+   "name": "Keisha Moore",
+   "title": "Head of Customer Support",
+   "team": "support",
+   "email": "keisha.moore@northwind.dev",
+   "location": "Remote · Denver",
+   "tz": "America/Denver",
+   "manager": "",
+   "phone": "+1 (415) 555-5826",
+   "joined": "2019-04-18",
+   "hue": 61
+  },
+  {
+   "id": "tom-baker",
+   "name": "Tom Baker",
+   "title": "Support Engineer",
+   "team": "support",
+   "email": "tom.baker@northwind.dev",
+   "location": "Remote · Denver",
+   "tz": "America/Denver",
+   "manager": "keisha-moore",
+   "phone": "+1 (415) 555-2287",
+   "joined": "2022-10-28",
+   "hue": 346
+  },
+  {
+   "id": "anika-roy",
+   "name": "Anika Roy",
+   "title": "Customer Onboarding Specialist",
+   "team": "support",
+   "email": "anika.roy@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "keisha-moore",
+   "phone": "+1 (415) 555-5516",
+   "joined": "2022-11-13",
+   "hue": 259
+  },
+  {
+   "id": "luis-ortega",
+   "name": "Luis Ortega",
+   "title": "Support Engineer",
+   "team": "support",
+   "email": "luis.ortega@northwind.dev",
+   "location": "Remote · Austin",
+   "tz": "America/Chicago",
+   "manager": "keisha-moore",
+   "phone": "+1 (415) 555-2395",
+   "joined": "2025-06-22",
+   "hue": 183
+  },
+  {
+   "id": "emma-lowe",
+   "name": "Emma Lowe",
+   "title": "Technical Writer",
+   "team": "support",
+   "email": "emma.lowe@northwind.dev",
+   "location": "Remote · Seattle",
+   "tz": "America/Los_Angeles",
+   "manager": "keisha-moore",
+   "phone": "+1 (415) 555-5242",
+   "joined": "2026-04-07",
+   "hue": 117
+  },
+  {
+   "id": "jake-harris",
+   "name": "Jake Harris",
+   "title": "Software Engineer",
+   "team": "platform",
+   "email": "jake.harris@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "carla-mendes",
+   "phone": "+1 (415) 555-2392",
+   "joined": "2023-02-01",
+   "hue": 203
+  },
+  {
+   "id": "priyanka-rao",
+   "name": "Priyanka Rao",
+   "title": "Software Engineer",
+   "team": "mobile",
+   "email": "priyanka.rao@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "tariq-ahmed",
+   "phone": "+1 (415) 555-6826",
+   "joined": "2024-06-16",
+   "hue": 356
+  },
+  {
+   "id": "daniel-sousa",
+   "name": "Daniel Sousa",
+   "title": "Senior Software Engineer",
+   "team": "platform",
+   "email": "daniel.sousa@northwind.dev",
+   "location": "London",
+   "tz": "Europe/London",
+   "manager": "carla-mendes",
+   "phone": "+1 (415) 555-5037",
+   "joined": "2024-08-19",
+   "hue": 31
+  },
+  {
+   "id": "olivia-grant",
+   "name": "Olivia Grant",
+   "title": "Brand Designer",
+   "team": "design",
+   "email": "olivia.grant@northwind.dev",
+   "location": "New York",
+   "tz": "America/New_York",
+   "manager": "jun-watanabe",
+   "phone": "+1 (415) 555-3199",
+   "joined": "2022-11-11",
+   "hue": 157
+  },
+  {
+   "id": "zoe-kowalski",
+   "name": "Zoe Kowalski",
+   "title": "Payroll Specialist",
+   "team": "finance",
+   "email": "zoe.kowalski@northwind.dev",
+   "location": "Remote · Denver",
+   "tz": "America/Denver",
+   "manager": "owen-gallagher",
+   "phone": "+1 (415) 555-2052",
+   "joined": "2019-01-24",
+   "hue": 150
+  },
+  {
+   "id": "henry-adams",
+   "name": "Henry Adams",
+   "title": "Enterprise Account Executive",
+   "team": "sales",
+   "email": "henry.adams@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "brooke-taylor",
+   "phone": "+1 (415) 555-3934",
+   "joined": "2022-04-10",
+   "hue": 283
+  },
+  {
+   "id": "lina-haddad",
+   "name": "Lina Haddad",
+   "title": "Content Marketing Manager",
+   "team": "growth",
+   "email": "lina.haddad@northwind.dev",
+   "location": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "manager": "nina-park",
+   "phone": "+1 (415) 555-7324",
+   "joined": "2019-07-19",
+   "hue": 195
+  },
+  {
+   "id": "mateo-silva",
+   "name": "Mateo Silva",
+   "title": "Security Analyst",
+   "team": "security",
+   "email": "mateo.silva@northwind.dev",
+   "location": "Remote · Austin",
+   "tz": "America/Chicago",
+   "manager": "grace-liu",
+   "phone": "+1 (415) 555-4763",
+   "joined": "2020-01-16",
+   "hue": 337
+  }
+ ],
+ "rooms": [
+  {
+   "id": "sutro",
+   "name": "Sutro",
+   "floor": 3,
+   "capacity": 2,
+   "equipment": [
+    "Phone"
+   ],
+   "building": "SF HQ · 500 Howard St"
+  },
+  {
+   "id": "fog-city",
+   "name": "Fog City",
+   "floor": 3,
+   "capacity": 4,
+   "equipment": [
+    "Video screen"
+   ],
+   "building": "SF HQ · 500 Howard St"
+  },
+  {
+   "id": "alcatraz",
+   "name": "Alcatraz",
+   "floor": 3,
+   "capacity": 6,
+   "equipment": [
+    "Video screen",
+    "Whiteboard"
+   ],
+   "building": "SF HQ · 500 Howard St"
+  },
+  {
+   "id": "haight",
+   "name": "Haight",
+   "floor": 3,
+   "capacity": 6,
+   "equipment": [
+    "Video screen",
+    "Camera"
+   ],
+   "building": "SF HQ · 500 Howard St"
+  },
+  {
+   "id": "dolores",
+   "name": "Dolores",
+   "floor": 3,
+   "capacity": 8,
+   "equipment": [
+    "Whiteboard"
+   ],
+   "building": "SF HQ · 500 Howard St"
+  },
+  {
+   "id": "embarcadero",
+   "name": "Embarcadero",
+   "floor": 4,
+   "capacity": 8,
+   "equipment": [
+    "Video screen",
+    "Camera",
+    "Whiteboard"
+   ],
+   "building": "SF HQ · 500 Howard St"
+  },
+  {
+   "id": "mission",
+   "name": "Mission",
+   "floor": 4,
+   "capacity": 10,
+   "equipment": [
+    "Video screen",
+    "Camera",
+    "Speakerphone"
+   ],
+   "building": "SF HQ · 500 Howard St"
+  },
+  {
+   "id": "presidio",
+   "name": "Presidio",
+   "floor": 4,
+   "capacity": 12,
+   "equipment": [
+    "Whiteboard",
+    "Speakerphone"
+   ],
+   "building": "SF HQ · 500 Howard St"
+  },
+  {
+   "id": "twin-peaks",
+   "name": "Twin Peaks",
+   "floor": 4,
+   "capacity": 14,
+   "equipment": [
+    "Video screen",
+    "Camera",
+    "Whiteboard"
+   ],
+   "building": "SF HQ · 500 Howard St"
+  },
+  {
+   "id": "commons",
+   "name": "The Commons",
+   "floor": 2,
+   "capacity": 40,
+   "equipment": [
+    "Video screen",
+    "Projector",
+    "Microphones"
+   ],
+   "building": "SF HQ · 500 Howard St"
+  }
+ ],
+ "room_bookings": [
+  {
+   "room": "embarcadero",
+   "date": "2026-11-11",
+   "start": "13:30",
+   "end": "15:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-11",
+   "start": "14:00",
+   "end": "16:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-11",
+   "start": "13:00",
+   "end": "15:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-11",
+   "start": "14:30",
+   "end": "15:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-11",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-11",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-11",
+   "start": "09:00",
+   "end": "10:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-11",
+   "start": "11:00",
+   "end": "12:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-11",
+   "start": "16:00",
+   "end": "17:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-11",
+   "start": "12:00",
+   "end": "12:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-02",
+   "start": "10:30",
+   "end": "11:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-02",
+   "start": "12:30",
+   "end": "14:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-02",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-02",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-02",
+   "start": "15:30",
+   "end": "16:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-02",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-02",
+   "start": "11:00",
+   "end": "12:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-02",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-02",
+   "start": "16:00",
+   "end": "17:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-02",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-02",
+   "start": "10:30",
+   "end": "11:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-02",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-02",
+   "start": "09:30",
+   "end": "11:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-02",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-02",
+   "start": "16:30",
+   "end": "17:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-02",
+   "start": "10:30",
+   "end": "12:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-02",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-02",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-02",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-02",
+   "start": "14:00",
+   "end": "14:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-02",
+   "start": "15:30",
+   "end": "16:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-02",
+   "start": "10:30",
+   "end": "12:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-02",
+   "start": "12:30",
+   "end": "14:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-02",
+   "start": "14:30",
+   "end": "15:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-02",
+   "start": "15:30",
+   "end": "16:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-02",
+   "start": "14:00",
+   "end": "15:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-02",
+   "start": "17:00",
+   "end": "17:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-03",
+   "start": "10:30",
+   "end": "11:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-03",
+   "start": "13:00",
+   "end": "14:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-03",
+   "start": "09:30",
+   "end": "11:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-03",
+   "start": "13:30",
+   "end": "15:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-03",
+   "start": "14:00",
+   "end": "15:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-03",
+   "start": "17:30",
+   "end": "18:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-03",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-03",
+   "start": "13:30",
+   "end": "14:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-03",
+   "start": "14:30",
+   "end": "15:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-03",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-03",
+   "start": "14:00",
+   "end": "14:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-03",
+   "start": "16:00",
+   "end": "16:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-03",
+   "start": "10:00",
+   "end": "11:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-03",
+   "start": "12:30",
+   "end": "13:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-03",
+   "start": "15:30",
+   "end": "16:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-03",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-03",
+   "start": "11:30",
+   "end": "12:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-03",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-04",
+   "start": "10:00",
+   "end": "10:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-04",
+   "start": "11:00",
+   "end": "11:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-04",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-04",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-04",
+   "start": "11:30",
+   "end": "13:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-04",
+   "start": "11:00",
+   "end": "11:30"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-04",
+   "start": "12:00",
+   "end": "13:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-04",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-04",
+   "start": "12:00",
+   "end": "12:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-04",
+   "start": "16:00",
+   "end": "16:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-04",
+   "start": "13:30",
+   "end": "15:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-04",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-04",
+   "start": "11:00",
+   "end": "11:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-04",
+   "start": "13:00",
+   "end": "14:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-04",
+   "start": "16:00",
+   "end": "17:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-04",
+   "start": "09:30",
+   "end": "10:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-04",
+   "start": "11:30",
+   "end": "13:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-04",
+   "start": "10:00",
+   "end": "11:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-05",
+   "start": "10:30",
+   "end": "11:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-05",
+   "start": "14:30",
+   "end": "16:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-05",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-05",
+   "start": "15:30",
+   "end": "16:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-05",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-05",
+   "start": "16:00",
+   "end": "16:30"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-05",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-05",
+   "start": "12:00",
+   "end": "13:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-05",
+   "start": "15:00",
+   "end": "15:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-05",
+   "start": "10:30",
+   "end": "11:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-05",
+   "start": "15:30",
+   "end": "17:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-05",
+   "start": "14:30",
+   "end": "15:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-05",
+   "start": "10:00",
+   "end": "10:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-05",
+   "start": "11:00",
+   "end": "11:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-05",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-05",
+   "start": "14:30",
+   "end": "16:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-05",
+   "start": "10:30",
+   "end": "12:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-05",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-05",
+   "start": "14:00",
+   "end": "15:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-05",
+   "start": "11:00",
+   "end": "11:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-05",
+   "start": "14:30",
+   "end": "15:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-06",
+   "start": "11:00",
+   "end": "11:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-06",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-06",
+   "start": "09:30",
+   "end": "10:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-06",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-06",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-06",
+   "start": "16:00",
+   "end": "17:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-06",
+   "start": "11:00",
+   "end": "12:30"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-06",
+   "start": "14:30",
+   "end": "15:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-06",
+   "start": "13:30",
+   "end": "15:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-06",
+   "start": "16:00",
+   "end": "17:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-06",
+   "start": "09:30",
+   "end": "10:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-06",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-06",
+   "start": "15:30",
+   "end": "16:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-06",
+   "start": "10:00",
+   "end": "10:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-06",
+   "start": "12:30",
+   "end": "13:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-06",
+   "start": "15:30",
+   "end": "17:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-06",
+   "start": "11:00",
+   "end": "11:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-06",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-06",
+   "start": "14:00",
+   "end": "15:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-06",
+   "start": "12:30",
+   "end": "13:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-06",
+   "start": "15:30",
+   "end": "16:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-09",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-09",
+   "start": "10:00",
+   "end": "10:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-09",
+   "start": "11:00",
+   "end": "12:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-09",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-09",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-09",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-09",
+   "start": "14:30",
+   "end": "16:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-09",
+   "start": "16:30",
+   "end": "17:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-09",
+   "start": "10:30",
+   "end": "11:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-09",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-09",
+   "start": "17:00",
+   "end": "17:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-09",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-09",
+   "start": "11:30",
+   "end": "12:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-09",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-09",
+   "start": "15:30",
+   "end": "17:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-09",
+   "start": "10:30",
+   "end": "11:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-09",
+   "start": "13:30",
+   "end": "14:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-09",
+   "start": "14:30",
+   "end": "15:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-09",
+   "start": "16:30",
+   "end": "17:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-09",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-09",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-09",
+   "start": "15:00",
+   "end": "16:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-09",
+   "start": "13:00",
+   "end": "14:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-09",
+   "start": "15:00",
+   "end": "15:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-09",
+   "start": "10:00",
+   "end": "11:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-09",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-09",
+   "start": "13:30",
+   "end": "14:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-10",
+   "start": "16:30",
+   "end": "17:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-10",
+   "start": "09:30",
+   "end": "11:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-10",
+   "start": "13:30",
+   "end": "14:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-10",
+   "start": "15:30",
+   "end": "16:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-10",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-10",
+   "start": "14:00",
+   "end": "15:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-10",
+   "start": "14:30",
+   "end": "16:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-10",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-10",
+   "start": "09:30",
+   "end": "10:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-10",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-10",
+   "start": "15:30",
+   "end": "16:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-10",
+   "start": "10:00",
+   "end": "10:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-10",
+   "start": "12:00",
+   "end": "12:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-10",
+   "start": "16:00",
+   "end": "17:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-10",
+   "start": "09:30",
+   "end": "11:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-10",
+   "start": "14:00",
+   "end": "14:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-10",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-10",
+   "start": "12:30",
+   "end": "13:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-10",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-10",
+   "start": "10:30",
+   "end": "11:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-10",
+   "start": "16:00",
+   "end": "17:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-12",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-12",
+   "start": "15:00",
+   "end": "15:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-12",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-12",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-12",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-12",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-12",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-12",
+   "start": "14:00",
+   "end": "14:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-12",
+   "start": "10:30",
+   "end": "11:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-12",
+   "start": "12:00",
+   "end": "12:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-12",
+   "start": "13:30",
+   "end": "14:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-12",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-12",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-12",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-12",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-12",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-12",
+   "start": "15:30",
+   "end": "16:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-12",
+   "start": "17:00",
+   "end": "17:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-12",
+   "start": "11:00",
+   "end": "11:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-12",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-12",
+   "start": "16:30",
+   "end": "17:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-12",
+   "start": "11:00",
+   "end": "11:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-12",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-12",
+   "start": "09:30",
+   "end": "10:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-12",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-12",
+   "start": "13:30",
+   "end": "14:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-13",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-13",
+   "start": "14:00",
+   "end": "15:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-13",
+   "start": "16:30",
+   "end": "17:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-13",
+   "start": "09:30",
+   "end": "11:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-13",
+   "start": "15:00",
+   "end": "15:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-13",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-13",
+   "start": "12:30",
+   "end": "13:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-13",
+   "start": "10:00",
+   "end": "11:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-13",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-13",
+   "start": "15:00",
+   "end": "15:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-13",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-13",
+   "start": "14:30",
+   "end": "15:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-13",
+   "start": "16:00",
+   "end": "17:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-13",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-13",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-13",
+   "start": "12:30",
+   "end": "14:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-13",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-13",
+   "start": "14:30",
+   "end": "15:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-13",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-13",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-13",
+   "start": "17:30",
+   "end": "18:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-16",
+   "start": "10:30",
+   "end": "12:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-16",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-16",
+   "start": "16:30",
+   "end": "17:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-16",
+   "start": "13:30",
+   "end": "15:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-16",
+   "start": "17:00",
+   "end": "17:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-16",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-16",
+   "start": "12:30",
+   "end": "14:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-16",
+   "start": "15:30",
+   "end": "16:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-16",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-16",
+   "start": "13:00",
+   "end": "14:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-16",
+   "start": "14:30",
+   "end": "15:30"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-16",
+   "start": "16:30",
+   "end": "17:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-16",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-16",
+   "start": "11:30",
+   "end": "12:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-16",
+   "start": "14:00",
+   "end": "14:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-16",
+   "start": "16:00",
+   "end": "17:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-16",
+   "start": "11:30",
+   "end": "12:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-16",
+   "start": "16:30",
+   "end": "17:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-16",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-16",
+   "start": "13:30",
+   "end": "15:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-16",
+   "start": "15:30",
+   "end": "16:30"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-16",
+   "start": "17:30",
+   "end": "18:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-16",
+   "start": "09:30",
+   "end": "10:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-16",
+   "start": "13:30",
+   "end": "14:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-16",
+   "start": "16:00",
+   "end": "16:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-16",
+   "start": "17:00",
+   "end": "17:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-16",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-16",
+   "start": "15:30",
+   "end": "17:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-16",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-16",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-16",
+   "start": "14:00",
+   "end": "14:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-16",
+   "start": "15:30",
+   "end": "16:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-16",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-17",
+   "start": "11:30",
+   "end": "12:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-17",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-17",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-17",
+   "start": "10:30",
+   "end": "11:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-17",
+   "start": "11:30",
+   "end": "12:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-17",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-17",
+   "start": "09:30",
+   "end": "10:30"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-17",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-17",
+   "start": "11:30",
+   "end": "12:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-17",
+   "start": "15:00",
+   "end": "15:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-17",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-17",
+   "start": "15:00",
+   "end": "16:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-17",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-17",
+   "start": "14:00",
+   "end": "15:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-17",
+   "start": "15:30",
+   "end": "17:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-17",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-17",
+   "start": "11:30",
+   "end": "12:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-17",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-17",
+   "start": "10:30",
+   "end": "11:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-17",
+   "start": "11:30",
+   "end": "12:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-17",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-17",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-17",
+   "start": "09:30",
+   "end": "11:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-17",
+   "start": "12:30",
+   "end": "13:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-17",
+   "start": "16:30",
+   "end": "17:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-18",
+   "start": "09:30",
+   "end": "10:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-18",
+   "start": "16:00",
+   "end": "17:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-18",
+   "start": "14:00",
+   "end": "14:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-18",
+   "start": "16:30",
+   "end": "17:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-18",
+   "start": "15:00",
+   "end": "16:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-18",
+   "start": "17:00",
+   "end": "17:30"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-18",
+   "start": "11:30",
+   "end": "12:30"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-18",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-18",
+   "start": "14:30",
+   "end": "16:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-18",
+   "start": "17:30",
+   "end": "18:00"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-18",
+   "start": "15:30",
+   "end": "16:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-18",
+   "start": "13:00",
+   "end": "14:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-18",
+   "start": "14:30",
+   "end": "16:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-18",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-18",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-18",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-18",
+   "start": "16:30",
+   "end": "17:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-18",
+   "start": "10:30",
+   "end": "12:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-18",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-18",
+   "start": "16:30",
+   "end": "17:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-19",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-19",
+   "start": "14:00",
+   "end": "15:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-19",
+   "start": "12:00",
+   "end": "13:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-19",
+   "start": "10:00",
+   "end": "11:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-19",
+   "start": "14:00",
+   "end": "15:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-19",
+   "start": "15:00",
+   "end": "16:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-19",
+   "start": "11:00",
+   "end": "11:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-19",
+   "start": "16:00",
+   "end": "16:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-19",
+   "start": "17:00",
+   "end": "17:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-19",
+   "start": "09:30",
+   "end": "10:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-19",
+   "start": "10:30",
+   "end": "12:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-19",
+   "start": "14:30",
+   "end": "15:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-19",
+   "start": "17:00",
+   "end": "18:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-19",
+   "start": "12:30",
+   "end": "14:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-19",
+   "start": "16:00",
+   "end": "16:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-19",
+   "start": "14:00",
+   "end": "14:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-19",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-19",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-19",
+   "start": "16:30",
+   "end": "17:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-19",
+   "start": "16:00",
+   "end": "16:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-20",
+   "start": "13:30",
+   "end": "14:30"
+  },
+  {
+   "room": "sutro",
+   "date": "2026-11-20",
+   "start": "16:00",
+   "end": "17:30"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-20",
+   "start": "13:30",
+   "end": "14:00"
+  },
+  {
+   "room": "fog-city",
+   "date": "2026-11-20",
+   "start": "15:30",
+   "end": "17:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-20",
+   "start": "09:30",
+   "end": "11:00"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-20",
+   "start": "13:00",
+   "end": "13:30"
+  },
+  {
+   "room": "alcatraz",
+   "date": "2026-11-20",
+   "start": "15:30",
+   "end": "16:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-20",
+   "start": "10:00",
+   "end": "11:00"
+  },
+  {
+   "room": "haight",
+   "date": "2026-11-20",
+   "start": "14:00",
+   "end": "14:30"
+  },
+  {
+   "room": "dolores",
+   "date": "2026-11-20",
+   "start": "12:30",
+   "end": "13:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-20",
+   "start": "12:00",
+   "end": "13:00"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-20",
+   "start": "14:00",
+   "end": "14:30"
+  },
+  {
+   "room": "embarcadero",
+   "date": "2026-11-20",
+   "start": "16:30",
+   "end": "17:00"
+  },
+  {
+   "room": "mission",
+   "date": "2026-11-20",
+   "start": "13:30",
+   "end": "14:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-20",
+   "start": "10:00",
+   "end": "10:30"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-20",
+   "start": "11:00",
+   "end": "12:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-20",
+   "start": "13:30",
+   "end": "14:00"
+  },
+  {
+   "room": "presidio",
+   "date": "2026-11-20",
+   "start": "16:00",
+   "end": "16:30"
+  },
+  {
+   "room": "twin-peaks",
+   "date": "2026-11-20",
+   "start": "10:30",
+   "end": "11:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-20",
+   "start": "10:30",
+   "end": "11:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-20",
+   "start": "12:00",
+   "end": "13:00"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-20",
+   "start": "15:00",
+   "end": "15:30"
+  },
+  {
+   "room": "commons",
+   "date": "2026-11-20",
+   "start": "16:00",
+   "end": "17:30"
+  }
+ ],
+ "meetings": [
+  {
+   "title": "Partnerships weekly",
+   "date": "2026-11-02",
+   "start": "10:00",
+   "duration": 45,
+   "attendees": [
+    "dana.whitfield@northwind.dev",
+    "kofi.mensah@northwind.dev",
+    "ines.duarte@northwind.dev"
+   ],
+   "room": "presidio",
+   "organizer": "dana.whitfield@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "1:1 Dana / Jordan",
+   "date": "2026-11-02",
+   "start": "15:30",
+   "duration": 30,
+   "attendees": [
+    "dana.whitfield@northwind.dev"
+   ],
+   "room": "",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Kontor contract review",
+   "date": "2026-11-03",
+   "start": "11:00",
+   "duration": 60,
+   "attendees": [
+    "dana.whitfield@northwind.dev",
+    "raj.patel@northwind.dev",
+    "fatima.zahra@northwind.dev"
+   ],
+   "room": "dolores",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Lunch & learn: partner API",
+   "date": "2026-11-03",
+   "start": "12:30",
+   "duration": 60,
+   "attendees": [
+    "kofi.mensah@northwind.dev",
+    "marcus.chen@northwind.dev"
+   ],
+   "room": "commons",
+   "organizer": "kofi.mensah@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Partner portal design review",
+   "date": "2026-11-04",
+   "start": "14:00",
+   "duration": 60,
+   "attendees": [
+    "lena.okafor@northwind.dev",
+    "theo.martin@northwind.dev",
+    "kofi.mensah@northwind.dev"
+   ],
+   "room": "alcatraz",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Pipeline review",
+   "date": "2026-11-05",
+   "start": "09:30",
+   "duration": 30,
+   "attendees": [
+    "dana.whitfield@northwind.dev",
+    "henry.adams@northwind.dev",
+    "julia.novak@northwind.dev"
+   ],
+   "room": "",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Payments × Partnerships sync",
+   "date": "2026-11-05",
+   "start": "13:00",
+   "duration": 30,
+   "attendees": [
+    "priya.raman@northwind.dev",
+    "hana.kim@northwind.dev"
+   ],
+   "room": "fog-city",
+   "organizer": "priya.raman@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Focus time",
+   "date": "2026-11-06",
+   "start": "13:00",
+   "duration": 120,
+   "attendees": [],
+   "room": "",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Partnerships weekly",
+   "date": "2026-11-09",
+   "start": "10:00",
+   "duration": 45,
+   "attendees": [
+    "dana.whitfield@northwind.dev",
+    "kofi.mensah@northwind.dev",
+    "ines.duarte@northwind.dev"
+   ],
+   "room": "presidio",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "1:1 Dana / Jordan",
+   "date": "2026-11-09",
+   "start": "15:30",
+   "duration": 30,
+   "attendees": [
+    "dana.whitfield@northwind.dev"
+   ],
+   "room": "",
+   "organizer": "dana.whitfield@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Brightline QBR prep",
+   "date": "2026-11-10",
+   "start": "11:00",
+   "duration": 60,
+   "attendees": [
+    "kofi.mensah@northwind.dev",
+    "henry.adams@northwind.dev"
+   ],
+   "room": "embarcadero",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Coffee with Kofi",
+   "date": "2026-11-11",
+   "start": "09:00",
+   "duration": 30,
+   "attendees": [
+    "kofi.mensah@northwind.dev"
+   ],
+   "room": "",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Partner pipeline sync",
+   "date": "2026-11-11",
+   "start": "15:30",
+   "duration": 30,
+   "attendees": [
+    "dana.whitfield@northwind.dev",
+    "brooke.taylor@northwind.dev"
+   ],
+   "room": "",
+   "organizer": "dana.whitfield@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Security vendor review",
+   "date": "2026-11-12",
+   "start": "10:00",
+   "duration": 45,
+   "attendees": [
+    "grace.liu@northwind.dev",
+    "noah.schmidt@northwind.dev"
+   ],
+   "room": "haight",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Pipeline review",
+   "date": "2026-11-12",
+   "start": "09:30",
+   "duration": 30,
+   "attendees": [
+    "dana.whitfield@northwind.dev",
+    "henry.adams@northwind.dev",
+    "julia.novak@northwind.dev"
+   ],
+   "room": "",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Team lunch",
+   "date": "2026-11-13",
+   "start": "12:00",
+   "duration": 90,
+   "attendees": [
+    "dana.whitfield@northwind.dev",
+    "kofi.mensah@northwind.dev",
+    "ines.duarte@northwind.dev"
+   ],
+   "room": "",
+   "organizer": "dana.whitfield@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Partnerships weekly",
+   "date": "2026-11-16",
+   "start": "10:00",
+   "duration": 45,
+   "attendees": [
+    "dana.whitfield@northwind.dev",
+    "kofi.mensah@northwind.dev",
+    "ines.duarte@northwind.dev"
+   ],
+   "room": "presidio",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  },
+  {
+   "title": "Q1 partner planning",
+   "date": "2026-11-18",
+   "start": "13:00",
+   "duration": 120,
+   "attendees": [
+    "dana.whitfield@northwind.dev",
+    "nina.park@northwind.dev",
+    "brooke.taylor@northwind.dev"
+   ],
+   "room": "twin-peaks",
+   "organizer": "jordan@northwind.dev",
+   "description": "",
+   "saved_at_ms": 0
+  }
+ ],
+ "emails": [
+  {
+   "id": "m04099",
+   "from": {
+    "name": "Slack",
+    "email": "feedback@slack.example"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-06T09:12:00",
+   "subject": "You have 14 unread messages in #team-partnerships",
+   "body": "Dana Whitfield: \"Reminder: QBR decks due Tuesday\" and 13 more.",
+   "unread": true,
+   "starred": false
+  },
+  {
+   "id": "m12018",
+   "from": {
+    "name": "GitHub",
+    "email": "notifications@github.example"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-06T08:58:00",
+   "subject": "[northwind/partner-api] Bump webhook retry ceiling (#1482)",
+   "body": "marcus-chen requested your review on: northwind/partner-api#1482 Bump webhook retry ceiling.\n\nThis raises the retry ceiling for partner webhooks from 8 to 12 attempts.",
+   "unread": true,
+   "starred": false
+  },
+  {
+   "id": "m19937",
+   "from": {
+    "name": "Lunch Club",
+    "email": "menu@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-06T08:30:00",
+   "subject": "Friday lunch: tacos",
+   "body": "Today's lunch on 2 is tacos from La Palma. Vegan options available. 12:00–1:30.",
+   "unread": true,
+   "starred": false
+  },
+  {
+   "id": "m27856",
+   "from": {
+    "name": "Linear",
+    "email": "notifications@linear.example"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-06T07:45:00",
+   "subject": "PART-311 Partner directory search is slow",
+   "body": "Kofi Mensah moved PART-311 \"Partner directory search is slow\" to In Progress.",
+   "unread": true,
+   "starred": false
+  },
+  {
+   "id": "m35775",
+   "from": {
+    "name": "The Partner Stack",
+    "email": "newsletter@partnerstack-weekly.example"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-06T06:00:00",
+   "subject": "This week: co-selling playbooks that actually work",
+   "body": "Five co-selling playbooks from teams that grew partner revenue 3x, plus: why your partner portal needs a status page.",
+   "unread": true,
+   "starred": false
+  },
+  {
+   "id": "m43694",
+   "from": {
+    "name": "Spendwise",
+    "email": "receipts@spendwise.example"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-05T19:22:00",
+   "subject": "Your October report was approved",
+   "body": "Owen Gallagher approved \"October 2026 – Jordan Lee\" ($1,284.10). Reimbursement will arrive with your next paycheck.",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m51613",
+   "from": {
+    "name": "Dana Whitfield",
+    "email": "dana.whitfield@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-05T18:40:00",
+   "subject": "Great work on Kontor",
+   "body": "Jordan, just wanted to say nice work getting Kontor signed. That's our biggest partner deal this half. Let's make the kickoff count.\n\nDana",
+   "unread": false,
+   "starred": true
+  },
+  {
+   "id": "m59532",
+   "from": {
+    "name": "Priya Raman",
+    "email": "priya.raman@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-05T16:12:00",
+   "subject": "Kontor kickoff next week",
+   "body": "Hi Jordan,\n\nNow that the Kontor contract is signed, could you set up the kickoff? Let's do Wednesday the 11th at 2:00 PM, 45 minutes.\n\nPlease invite everyone on the Payments team (skip anyone who's out that week) plus Lena from Kontor. Lena will be in SF that day and is joining in person; the rest of Kontor's team will dial in from Berlin, so we need a room with a video screen that fits all of us.\n\nCall it \"Kontor integration kickoff\".\n\nThanks!\nPriya",
+   "unread": false,
+   "starred": true
+  },
+  {
+   "id": "m67451",
+   "from": {
+    "name": "Kofi Mensah",
+    "email": "kofi.mensah@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-05T14:55:00",
+   "subject": "Brightline QBR deck",
+   "body": "Draft of the Brightline QBR deck is in the shared drive. Can you fill in the pipeline slide by Tuesday?\n\nKofi",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m75370",
+   "from": {
+    "name": "Hana Kim",
+    "email": "hana.kim@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-05T11:02:00",
+   "subject": "Kontor API questions",
+   "body": "Jordan, Kontor's team sent over a list of questions about refunds and payout timing. I'll draft answers before the kickoff so we can walk through them together. Anything you know they care about most?\n\nHana",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m83289",
+   "from": {
+    "name": "Calendar",
+    "email": "calendar@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-04T17:30:00",
+   "subject": "Accepted: Kontor contract review",
+   "body": "Raj Patel accepted your invitation to Kontor contract review.",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m91208",
+   "from": {
+    "name": "Sofia Alvarez",
+    "email": "sofia.alvarez@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-04T16:20:00",
+   "subject": "Re: Reconciliation report for partners",
+   "body": "Jordan, the partner reconciliation report is live in staging. Kontor would be the first partner to use it, so it might be worth a demo at the kickoff.\n\nSofia",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m99127",
+   "from": {
+    "name": "Kevin Walsh",
+    "email": "kevin.walsh@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-04T13:10:00",
+   "subject": "Interview loop: Partner Solutions Engineer",
+   "body": "Hi Jordan, you're on the loop for the Partner Solutions Engineer candidate on Monday at 1 PM. Scorecard link will be in the invite. Thanks for helping!\n\nKevin",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m07046",
+   "from": {
+    "name": "Northwind IT",
+    "email": "it@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-04T09:00:00",
+   "subject": "Scheduled maintenance: VPN, Saturday 6–8 AM",
+   "body": "The VPN will be unavailable Saturday Nov 7 from 6:00 to 8:00 AM PT for an upgrade. No action needed.",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m14965",
+   "from": {
+    "name": "Lena Vogt",
+    "email": "lena.vogt@kontor.io"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-04T08:47:00",
+   "subject": "Re: Kontor x Northwind – we're signed!",
+   "body": "Hi Jordan,\n\nWonderful news, and thank you for pushing this over the line. I'll be in San Francisco from Nov 10 to 12 for a conference, so I'd love to do the kickoff in person while I'm there. Jonas and Mira from our engineering team will join remotely from Berlin.\n\nLet me know what works for your payments folks.\n\nBest,\nLena\n\n--\nLena Vogt\nHead of Partnerships, Kontor GmbH\nlena.vogt@kontor.io · +49 30 5557 2210",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m22884",
+   "from": {
+    "name": "Alexa Morgan",
+    "email": "alexa.morgan@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-03T15:05:00",
+   "subject": "Partner spotlight newsletter",
+   "body": "Hi Jordan! We're planning a partner spotlight for the December newsletter. Could Kontor be the feature? I'd need a quote and a logo.\n\nAlexa",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m30803",
+   "from": {
+    "name": "Lena Okafor",
+    "email": "lena.okafor@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-03T11:31:00",
+   "subject": "Partner portal mocks, round 2",
+   "body": "Hi Jordan,\n\nRound 2 of the partner portal mocks is in Figma. Biggest change: partner onboarding is now a three-step checklist instead of a long form. Can you sanity-check the copy on the payout settings screen before Wednesday's review?\n\nLena",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m38722",
+   "from": {
+    "name": "Marcus Cheng",
+    "email": "marcus.cheng@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-03T10:12:00",
+   "subject": "Intro: Brightline's new procurement lead",
+   "body": "Jordan, Brightline has a new procurement lead (Sam Ortiz). Want me to set up an intro before the QBR?\n\nMarcus Cheng\nAccount Executive",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m46641",
+   "from": {
+    "name": "Calendar",
+    "email": "calendar@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-03T09:01:00",
+   "subject": "Invitation: Partner portal design review @ Wed Nov 4, 2pm",
+   "body": "Lena Okafor invited you to Partner portal design review. Wed Nov 4, 2:00 – 3:00 PM, Alcatraz.",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m54560",
+   "from": {
+    "name": "Omar Haddad",
+    "email": "omar.haddad@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-02T17:45:00",
+   "subject": "Payout webhooks for partners",
+   "body": "Hey Jordan, the payout.completed webhook now includes the partner's reference ID. Should make Kontor's reconciliation easier.\n\nOmar",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m62479",
+   "from": {
+    "name": "Grace Liu",
+    "email": "grace.liu@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-02T12:00:00",
+   "subject": "Vendor security review for Kontor",
+   "body": "Kontor's security questionnaire is approved. They're cleared for production data under the standard DPA.\n\nGrace",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m70398",
+   "from": {
+    "name": "Maria Santos",
+    "email": "maria.santos@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-02T10:30:00",
+   "subject": "Open enrollment closes Nov 20",
+   "body": "Reminder: benefits open enrollment closes Friday, November 20. Review your medical, dental and vision elections in the People portal.\n\nMaria",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m78317",
+   "from": {
+    "name": "Aisha Bello",
+    "email": "aisha.bello@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-02T08:15:00",
+   "subject": "Room updates on 3 and 4",
+   "body": "Hi all,\n\nA few changes from last week's room refresh:\n\n- Mission (4th floor) has a new video screen and camera.\n- Presidio's old screen has been removed; it's now a whiteboard room.\n- Haight on 3 is back from AV repair.\n\nBook rooms in Calendar as usual. Reply here if anything's broken.\n\nAisha, Workplace",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m86236",
+   "from": {
+    "name": "Okta",
+    "email": "noreply@okta.example"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-11-01T08:00:00",
+   "subject": "New sign-in to Northwind Labs",
+   "body": "A new sign-in to your Northwind Labs account was detected from Safari on macOS in San Francisco, CA. If this was you, no action is needed.",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m94155",
+   "from": {
+    "name": "Inksign",
+    "email": "no-reply@inksign.example"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-10-30T17:02:00",
+   "subject": "Completed: Kontor GmbH – Master Services Agreement",
+   "body": "All parties have signed \"Kontor GmbH – Master Services Agreement (Northwind Labs)\".\n\nSigners: Lena Vogt (Kontor GmbH), Dana Whitfield (Northwind Labs).\n\nDownload the completed document from your Inksign account.",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m02074",
+   "from": {
+    "name": "Devon Brooks",
+    "email": "devon.brooks@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-10-30T15:40:00",
+   "subject": "See you in December!",
+   "body": "Hi everyone,\n\nToday's my last day before parental leave. I'll be back on Dec 7. Marcus has the payouts roadmap and Sofia has the reconciliation project while I'm out.\n\nDevon",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m09993",
+   "from": {
+    "name": "Raj Patel",
+    "email": "raj.patel@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-10-29T14:30:00",
+   "subject": "PO for Kontor integration services",
+   "body": "PO-2026-0418 for Kontor integration services is approved. Finance will handle invoices going forward.\n\nRaj",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m17912",
+   "from": {
+    "name": "Airline",
+    "email": "itinerary@skyways.example"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-10-28T19:11:00",
+   "subject": "Your trip to New York, Nov 17",
+   "body": "Confirmation K7PQ2X. SFO → JFK, Tue Nov 17, 7:05 AM. Return Thu Nov 19, 6:30 PM.",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m25831",
+   "from": {
+    "name": "Inês Duarte",
+    "email": "ines.duarte@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-10-27T11:45:00",
+   "subject": "EMEA partner event shortlist",
+   "body": "Shortlist for the EMEA partner event in March: Lisbon, Amsterdam, Berlin. Kontor offered to co-host if we pick Berlin!\n\nInês",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m33750",
+   "from": {
+    "name": "Ravi Iyer",
+    "email": "ravi.iyer@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-10-26T09:05:00",
+   "subject": "New team, same Slack handle",
+   "body": "Hey Jordan,\n\nQuick heads-up: as of today I've moved from Payments over to Platform to work on the new event bus. Marcus is picking up the payouts work I had, so loop him in on partner questions from now on.\n\nThanks for all the partner escalations over the years :)\nRavi",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m41669",
+   "from": {
+    "name": "Elena Rossi",
+    "email": "elena.rossi@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-10-26T08:40:00",
+   "subject": "Org update: Ravi joins Platform",
+   "body": "Team, Ravi Iyer is moving from Payments to Platform starting today to lead the event bus work. Priya's team keeps payouts, with Marcus taking over Ravi's projects.\n\nElena",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m49588",
+   "from": {
+    "name": "Tom Baker",
+    "email": "tom.baker@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-10-23T16:00:00",
+   "subject": "Partner support tickets this week",
+   "body": "Partner tickets this week: 12 opened, 11 solved. Two were about webhook signatures; I've added a help article.\n\nTom",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m57507",
+   "from": {
+    "name": "Hannah Kim",
+    "email": "hannah.kim@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-10-22T13:25:00",
+   "subject": "Partner revenue dashboard",
+   "body": "Jordan, the partner revenue dashboard now breaks out revenue by partner tier. Let me know if Kontor should be tagged as Strategic.\n\nHannah",
+   "unread": false,
+   "starred": false
+  },
+  {
+   "id": "m65426",
+   "from": {
+    "name": "Priya Raman",
+    "email": "priya.raman@northwind.dev"
+   },
+   "to": {
+    "name": "Jordan Lee",
+    "email": "jordan@northwind.dev"
+   },
+   "date": "2026-10-09T10:20:00",
+   "subject": "Payments on-call rotation for Q4",
+   "body": "Hi all (cc Jordan for partner escalations),\n\nHere's the Q4 on-call rotation for Payments, one week each starting Oct 12: Marcus Chen, Sofia Alvarez, Ravi Iyer, Devon Brooks, Alex Morgan, Omar Haddad, and me.\n\nPartner escalations go to whoever is on call; the schedule is pinned in #team-payments.\n\nPriya",
+   "unread": false,
+   "starred": false
+  }
+ ]
+}

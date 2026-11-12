@@ -1,15 +1,12 @@
 import { CastMode, preferredCastMode, startCasting, stopCasting, type CastSink, closeCastPicker, useCast } from "../../state/media/cast";
 import { openExternalURL, showMenu } from "../../state/app/system";
-import { Symbol, Button, PANEL, PanelHeader, Popover, POPOVER_MARGIN, PopoverValue, Text, useHover } from "../ui";
+import { Symbol, Button, IconTile, PANEL, PanelHeader, Popover, POPOVER_MARGIN, POPOVER_WIDTH, PopoverValue, Text, useHover } from "../ui";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { useTheme } from "../ui/theme";
-import { ink, radius, space } from "../ui/tokens";
-import { mediaType, useMediaTokens } from "./tokens";
+import { ink, space } from "../ui/tokens";
+import { useMediaTokens } from "./tokens";
 
-const WIDTH = 340;
-const SINK_ROW_PAD_Y = 5;
-const MESSAGE_GAP = 5;
 const FLEX = { flex: 1 } as const;
 const UNDERLINE = { textDecorationLine: "underline" } as const;
 const NO_UNDERLINE = { textDecorationLine: "none" } as const;
@@ -25,7 +22,7 @@ export function CastPicker({ tabId, paneWidth }: { tabId: string; paneWidth: num
   const close = () => closeCastPicker(tabId);
   const available = dialog.sinks.filter((s) => s.state !== "unavailable");
   const canScreen = dialog.sinks.some((s) => s.modes & CastMode.screen);
-  const width = Math.min(WIDTH, paneWidth - 24);
+  const width = Math.min(POPOVER_WIDTH.m, paneWidth - 24);
   const cast = (sink: CastSink) => {
     const mode = screen && sink.modes & CastMode.screen ? CastMode.screen : preferredCastMode(sink.modes & ~CastMode.screen) || preferredCastMode(sink.modes);
     if (mode) void startCasting(dialog.id, sink.id, mode);
@@ -47,7 +44,7 @@ export function CastPicker({ tabId, paneWidth }: { tabId: string; paneWidth: num
             onLink={() => void openExternalURL("x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")}
           />
         ) : available.length ? (
-          <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset, gap: 2 }}>
+          <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset, gap: space.xxs }}>
             {available.map((sink) => (
               <SinkRow key={sink.id} sink={sink} onCast={() => cast(sink)} onStop={() => void stopCasting(dialog.id, sink.routeId)} />
             ))}
@@ -78,16 +75,14 @@ function SinkRow({ sink, onCast, onStop }: { sink: CastSink; onCast(): void; onS
   return (
     <View {...hoverProps}>
       <Pressable onPress={active || busy ? undefined : onCast}>
-        <View style={{ minHeight: 42, borderRadius: PANEL.rowRadius, flexDirection: "row", alignItems: "center", gap: PANEL.iconGap, paddingHorizontal: PANEL.rowPadding, paddingVertical: SINK_ROW_PAD_Y, backgroundColor: hovered && !active ? theme.rowHover : undefined }}>
-          <View style={{ width: 28, height: 28, borderRadius: radius.button, alignItems: "center", justifyContent: "center", backgroundColor: active ? theme.accent : tokens.iconTile }}>
-            <Symbol name={SINK_ICON[sink.icon] ?? "tv"} size={13} color={active ? ink.white : theme.icon} style={{ width: 20, height: 20 }} />
-          </View>
+        <View style={{ minHeight: 42, borderRadius: PANEL.rowRadius, flexDirection: "row", alignItems: "center", gap: PANEL.iconGap, paddingHorizontal: PANEL.rowPadding, paddingVertical: space.xs, backgroundColor: hovered && !active ? theme.rowHover : undefined }}>
+          <IconTile symbol={SINK_ICON[sink.icon] ?? "tv"} size="m" fill={active ? theme.accent : tokens.iconTile} glyph={active ? ink.white : theme.icon} />
           <View style={{ flex: 1 }}>
             <Text lines={1}>
               {sink.name}
             </Text>
             {sink.issue || sink.status ? (
-              <Text lines={1} size="footnote" tone={sink.issue ? "destructive" : "textSecondary"}>
+              <Text lines={1} size="caption" tone={sink.issue ? "destructive" : "textSecondary"}>
                 {sink.issue || sink.status}
               </Text>
             ) : null}
@@ -114,8 +109,8 @@ function SourceButton({ screen, onChange }: { screen: boolean; onChange: (screen
 function Message({ text, link, onLink }: { text: string; link: string; onLink: () => void }) {
   const { hovered, hoverProps } = useHover();
   return (
-    <View style={{ paddingHorizontal: PANEL.inset, paddingTop: space.xs, gap: MESSAGE_GAP }}>
-      <Text tone="textSecondary" style={mediaType.castMessage}>{text}</Text>
+    <View style={{ paddingHorizontal: PANEL.inset, paddingTop: space.xs, gap: space.xs }}>
+      <Text size="small" tone="textSecondary">{text}</Text>
       <View {...hoverProps}>
         <Pressable onPress={onLink}>
           <Text size="small" weight="medium" tone="accent" style={hovered ? UNDERLINE : NO_UNDERLINE}>{link}</Text>

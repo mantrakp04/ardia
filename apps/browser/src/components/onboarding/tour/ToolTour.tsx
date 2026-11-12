@@ -1,24 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
-import { useTheme } from "../../ui/theme";
-import { useWindowId } from "../../../state/browser/hooks";
+import { Animated, StyleSheet, View } from "react-native";
+import { useSidebarSide, useWindowId } from "../../../state/browser/hooks";
+import type { SidebarSide } from "../../../state/browser/model";
 import type { Rect } from "../../window/geometry";
-import { Button, Panel, Surface, useHover, usePresence } from "../../ui";
+import { Button, Panel, Surface, Text, usePresence } from "../../ui";
 import { useOnboardingColors } from "../Parts";
 import { locateAnchor } from "./anchors";
 import { endToolTour, openVideoTour, stepToolTour, useTour, videoTourUrl, type TourStop } from "../../../state/onboarding/tour";
-import { curve } from "../../ui/motion";
-import { font, radius, shadow, weight } from "../../ui/tokens";
+import { currentValue, curve, springs } from "../../ui/motion";
+import { proseLineHeight, radius, shadow, space } from "../../ui/tokens";
 import { onboardingMotion, onboardingType, tourRing } from "../tokens";
 
 const CARD_WIDTH = 296;
 const GAP = 14;
-const MARGIN = 12;
+const MARGIN = space.l;
 const SCRIM_REACH = 6000;
 
 const TOUR_PRESENCE = {
-  show: { duration: onboardingMotion.tourIn, easing: curve.outQuad },
-  hide: { duration: onboardingMotion.tourOut, easing: curve.inQuad },
+  show: { duration: onboardingMotion.tourIn, easing: curve.enter },
+  hide: { duration: onboardingMotion.tourOut, easing: curve.exit },
 };
 
 export function ToolTour() {
@@ -42,6 +42,7 @@ function Tour({ windowId }: { windowId: string }) {
   const stops = useTour((s) => s.stops);
   const index = useTour((s) => s.index);
   const stop = stops[Math.min(index, stops.length - 1)];
+  const side = useSidebarSide(windowId);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [target, setTarget] = useState<Rect | null>(null);
   const [cardHeight, setCardHeight] = useState(150);
@@ -65,7 +66,7 @@ function Tour({ windowId }: { windowId: string }) {
   }, [stop?.id, windowId]);
 
   const spot = spotlight(stop, target, size);
-  const cardAt = placeCard(stop, spot, size, cardHeight);
+  const cardAt = placeCard(stop, spot, size, cardHeight, side);
 
   useEffect(() => {
     if (!size.width || !stop) return;
@@ -78,7 +79,7 @@ function Tour({ windowId }: { windowId: string }) {
       card.y.setValue(cardTo.y);
       return;
     }
-    const spring = (v: Animated.Value, toValue: number) => Animated.spring(v, { toValue, friction: 10, tension: 70, useNativeDriver: false });
+    const spring = (v: Animated.Value, toValue: number) => Animated.spring(v, { toValue, ...springs.smooth, useNativeDriver: false });
     Animated.parallel([
       ...(Object.keys(to) as (keyof typeof to)[]).map((k) => spring(hole[k], to[k])),
       spring(card.x, cardTo.x),
@@ -122,17 +123,15 @@ function Tour({ windowId }: { windowId: string }) {
   );
 }
 
-const valueOf = (v: Animated.Value) => (v as unknown as { __getValue(): number }).__getValue();
-
 function Ring({ hole }: { hole: { x: Animated.Value; y: Animated.Value; w: Animated.Value; h: Animated.Value; r: Animated.Value } }) {
   const pulse = useRef(new Animated.Value(0)).current;
-  const [r, setR] = useState(() => valueOf(hole.r));
+  const [r, setR] = useState(() => currentValue(hole.r));
   useEffect(() => {
     const id = hole.r.addListener(({ value }) => setR(Math.max(0, value)));
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: onboardingMotion.tourPulse, easing: curve.inOutSine, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: onboardingMotion.tourPulse, easing: curve.inOutSine, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: onboardingMotion.tourPulse, easing: curve.pulse, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: onboardingMotion.tourPulse, easing: curve.pulse, useNativeDriver: true }),
       ]),
     );
     loop.start();
@@ -161,51 +160,25 @@ function Ring({ hole }: { hole: { x: Animated.Value; y: Animated.Value; w: Anima
 }
 
 function CoachMark({ stop, index, count, windowId }: { stop: TourStop; index: number; count: number; windowId: string }) {
-  const theme = useTheme();
   const last = index === count - 1;
   const video = last ? videoTourUrl() : null;
   return (
-    <Panel fill={theme.panel} radius={radius.sheet} border={theme.panelBorder} shadow={shadow.dialog}>
-      <View style={{ paddingHorizontal: 18, paddingTop: 15, paddingBottom: 14, gap: 7 }} accessibilityRole="none">
-        <Text style={{ ...onboardingType.coachCount, color: theme.textTertiary }}>
-          {`${index + 1} OF ${count}`}
+    <Panel radius={radius.sheet} shadow={shadow.dialog}>
+      <View style={{ paddingHorizontal: space.xl, paddingTop: space.xl, paddingBottom: space.xl, gap: space.m }} accessibilityRole="none">
+        <Text tone="textTertiary" style={onboardingType.coachCount}>{`${index + 1} OF ${count}`}</Text>
+        <Text style={onboardingType.coachTitle}>{stop.title}</Text>
+        <Text size="small" tone="textSecondary" style={{ lineHeight: proseLineHeight.small }}>
+          {stop.body}
         </Text>
-        <Text style={{ ...onboardingType.coachTitle, color: theme.textPrimary }}>{stop.title}</Text>
-        <Text style={{ ...onboardingType.bodyCompact, lineHeight: 18, color: theme.textSecondary }}>{stop.body}</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 7, gap: 6 }}>
-          {last ? null : <Button variant="text" plate="none" tone="textTertiary" hoverTone="textPrimary" padY="s" label="Skip Tour" title="Skip Tour" onPress={endToolTour} />}
+        <View style={{ flexDirection: "row", alignItems: "center", marginTop: space.m, gap: space.s }}>
+          {last ? null : <Button variant="text" look="link" tone="textTertiary" label="Skip Tour" title="Skip Tour" onPress={endToolTour} />}
           <View style={{ flex: 1 }} />
-          {video ? <PillButton title="Watch Video Tour" onPress={() => (endToolTour(), openVideoTour(windowId))} /> : null}
-          {index > 0 && !last ? <PillButton title="Back" onPress={() => stepToolTour(-1)} /> : null}
-          <PillButton title={last ? "Done" : "Next"} primary onPress={() => stepToolTour(1)} />
+          {video ? <Button variant="pill" title="Watch Video Tour" onPress={() => (endToolTour(), openVideoTour(windowId))} /> : null}
+          {index > 0 && !last ? <Button variant="pill" title="Back" onPress={() => stepToolTour(-1)} /> : null}
+          <Button variant="pill" title={last ? "Done" : "Next"} primary onPress={() => stepToolTour(1)} />
         </View>
       </View>
     </Panel>
-  );
-}
-
-function PillButton({ title, onPress, primary }: { title: string; onPress: () => void; primary?: boolean }) {
-  const colors = useOnboardingColors();
-  const { hovered, hoverProps } = useHover();
-  return (
-    <View {...hoverProps}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
-        {({ pressed }) => (
-          <View
-            style={{
-              height: 28,
-              borderRadius: 14,
-              paddingHorizontal: 13,
-              justifyContent: "center",
-              backgroundColor: primary ? (hovered ? colors.primaryHover : colors.primary) : hovered ? colors.buttonHover : colors.button,
-              transform: [{ scale: pressed ? 0.97 : 1 }],
-            }}
-          >
-            <Text style={{ ...font.small, fontWeight: weight.semibold, color: primary ? colors.primaryText : colors.buttonText }}>{title}</Text>
-          </View>
-        )}
-      </Pressable>
-    </View>
   );
 }
 
@@ -215,16 +188,21 @@ const sameRect = (a: Rect | null, b: Rect | null) =>
 function spotlight(stop: TourStop | undefined, target: Rect | null, size: { width: number; height: number }): Hole {
   if (!stop?.anchor || !target) return { x: size.width / 2, y: size.height / 2, width: 0, height: 0, radius: 0 };
   const pad = stop.pad ?? 4;
-  return { x: target.x - pad, y: target.y - pad, width: target.width + pad * 2, height: target.height + pad * 2, radius: (stop.radius ?? 8) + Math.max(0, pad) };
+  return { x: target.x - pad, y: target.y - pad, width: target.width + pad * 2, height: target.height + pad * 2, radius: (stop.radius ?? radius.tile) + Math.max(0, pad) };
 }
 
-function placeCard(stop: TourStop | undefined, spot: Hole, size: { width: number; height: number }, height: number) {
+function placeCard(stop: TourStop | undefined, spot: Hole, size: { width: number; height: number }, height: number, side: SidebarSide) {
   const clampX = (x: number) => Math.min(Math.max(x, MARGIN), Math.max(MARGIN, size.width - CARD_WIDTH - MARGIN));
   const clampY = (y: number) => Math.min(Math.max(y, MARGIN), Math.max(MARGIN, size.height - height - MARGIN));
   const centre = { x: clampX(size.width / 2 - CARD_WIDTH / 2), y: clampY(size.height * 0.62 - height / 2) };
   if (!stop?.anchor || !spot.width) return centre;
   switch (stop.placement) {
-    case "right": {
+    case "besideSidebar": {
+      if (side === "right") {
+        const x = spot.x - GAP - CARD_WIDTH;
+        if (x < MARGIN) return { x: clampX(spot.x + spot.width - CARD_WIDTH), y: clampY(spot.y + spot.height + GAP) };
+        return { x, y: clampY(spot.y + spot.height / 2 - 36) };
+      }
       const x = spot.x + spot.width + GAP;
       if (x + CARD_WIDTH > size.width - MARGIN) return { x: clampX(spot.x), y: clampY(spot.y + spot.height + GAP) };
       return { x, y: clampY(spot.y + spot.height / 2 - 36) };

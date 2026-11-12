@@ -16,7 +16,7 @@ export function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | n
       const top = scrollY.current ?? 0;
       const { viewport } = geometry.current;
       if (y - top < GLOW_ROOM) scroll.current?.scrollTo({ y: Math.max(0, y - GLOW_ROOM - SCROLL_EDGE.inset), animated: true });
-      else if (y + height - top > viewport - 8) scroll.current?.scrollTo({ y: y + height - viewport + 8, animated: true });
+      else if (y + height - top > viewport - GLOW_ROOM) scroll.current?.scrollTo({ y: y + height - viewport + GLOW_ROOM, animated: true });
     };
     const reveal = () => {
       frame = 0;

@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useBrowser, type BrowserState } from "../browser/store";
 import type { Tab } from "../browser/types";
+import { currentBasePalette, useBasePalette } from "../config/basePalette";
+import type { BasePalette } from "../../lib/themeFile";
 
 type Readable<S> = { getState(): S; subscribe(listener: (s: S, prev: S) => void): () => void };
 
 const subscribeOf = <S,>(store: Readable<S>): Readable<S>["subscribe"] => (store.subscribe as { unprobed?: Readable<S>["subscribe"] }).unprobed ?? store.subscribe;
+
+export const watchBrowser = (listener: (s: BrowserState, prev: BrowserState) => void): (() => void) => subscribeOf(useBrowser)(listener);
 
 const watchers = new Map<string, Set<() => void>>();
 let listening = false;
@@ -84,28 +88,49 @@ function watchLooks(listener: () => void): () => void {
     subscribeOf(useBrowser)((s, prev) => {
       if (s.profiles !== prev.profiles || s.ui.appDark !== prev.ui.appDark || s.settings !== prev.settings) for (const l of [...lookWatchers]) l();
     });
+    useBasePalette.subscribe((s, prev) => {
+      if (s.palette !== prev.palette) for (const l of [...lookWatchers]) l();
+    });
   }
   lookWatchers.add(listener);
   return () => lookWatchers.delete(listener);
 }
 
-type LookInputs = { profile: BrowserState["profiles"][string] | undefined; appDark: boolean; settings: BrowserState["settings"] };
+type LookInputs = { profile: BrowserState["profiles"][string] | undefined; appDark: boolean; settings: BrowserState["settings"]; palette: BasePalette | null };
 
-type Look<T> = (profile: LookInputs["profile"], appDark: boolean, settings: LookInputs["settings"]) => T;
+type Look<T> = (profile: LookInputs["profile"], appDark: boolean, settings: LookInputs["settings"], palette: BasePalette | null) => T;
 
 function lookSnapshot<T>(profileId: string, look: Look<T>): () => T {
   let seen: (LookInputs & { value: T }) | null = null;
   return () => {
     const s = useBrowser.getState();
     const profile = s.profiles[profileId];
-    if (seen && seen.profile === profile && seen.appDark === s.ui.appDark && seen.settings === s.settings) return seen.value;
-    seen = { profile, appDark: s.ui.appDark, settings: s.settings, value: look(profile, s.ui.appDark, s.settings) };
+    const palette = currentBasePalette();
+    if (seen && seen.profile === profile && seen.appDark === s.ui.appDark && seen.settings === s.settings && seen.palette === palette) return seen.value;
+    seen = { profile, appDark: s.ui.appDark, settings: s.settings, palette, value: look(profile, s.ui.appDark, s.settings, palette) };
     return seen.value;
   };
 }
 
 export function useLookValue<T>(profileId: string, look: Look<T>): T {
   const get = useMemo(() => lookSnapshot(profileId, look), [profileId]);
+  return useSyncExternalStore(watchLooks, get);
+}
+
+type Settings = BrowserState["settings"];
+
+function settingSnapshot<T>(select: (settings: Settings) => T): () => T {
+  let seen: { settings: Settings; value: T } | null = null;
+  return () => {
+    const settings = useBrowser.getState().settings;
+    if (seen && seen.settings === settings) return seen.value;
+    seen = { settings, value: select(settings) };
+    return seen.value;
+  };
+}
+
+export function useSettingValue<T>(select: (settings: Settings) => T): T {
+  const get = useMemo(() => settingSnapshot(select), [select]);
   return useSyncExternalStore(watchLooks, get);
 }
 

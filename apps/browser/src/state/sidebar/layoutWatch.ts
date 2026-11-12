@@ -3,6 +3,7 @@ import { sidebarEntries } from "./entries";
 import { shownPinnedEntries } from "./pinnedFold";
 import { rowIds, rowView } from "./sidebarUi";
 import { useBrowser } from "../browser/store";
+import { tabsShownIn } from "../browser/model";
 import { parseEntry } from "./entryKey";
 import { focusedWindowOf } from "../windows/ui";
 
@@ -38,7 +39,7 @@ function missingRows(): string[] {
   const missing: string[] = [];
   for (const windowId of s.windowOrder) {
     const w = s.windows[windowId];
-    if (!w || !w.sidebarOpen) continue;
+    if (!w || !tabsShownIn(s, windowId)) continue;
     const { tiles, pinned: all, list } = sidebarEntries(s, windowId, w.profileId);
     const pinned = shownPinnedEntries(s, windowId, w.profileId, all);
     const ids = [...tiles, ...[...pinned, ...list].map((e) => (parseEntry(e).kind === "split" ? e : parseEntry(e).id))];

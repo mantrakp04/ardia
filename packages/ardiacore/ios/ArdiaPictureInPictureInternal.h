@@ -13,6 +13,7 @@ struct Screen;
 - (void)_setPreventsActivation:(BOOL)prevents;
 - (BOOL)_preventsActivation;
 - (NSInteger)_resizeDirectionForMouseLocation:(NSPoint)location;
+- (BOOL)_isNonactivatingPanel;
 @end
 
 namespace ardia_pip {
@@ -20,9 +21,8 @@ namespace ardia_pip {
 constexpr CGFloat kPeek = 28;
 constexpr CGFloat kReturnMargin = 16;
 constexpr CGFloat kButtonMargin = 12, kButtonSize = 28;
-constexpr CGFloat kCornerRadius = 6;
+constexpr CFTimeInterval kCornerBendDuration = 0.2;
 constexpr CGFloat kRimAlpha = 0.17;
-constexpr CGFloat kGlassControlTintShare = 0.15, kGlassPanelTintShare = 0.85;
 
 }
 
@@ -39,8 +39,6 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 
 @interface ArdiaPiPOverlay : NSView
 @property (nonatomic, readonly) ArdiaPiPHandle *handle;
-- (void)presentArdiaPictureInPictureControls:(NSArray<NSDictionary<NSString *, id> *> *)controls;
-- (NSArray<NSDictionary<NSString *, id> *> *)devControls;
 @end
 
 @interface ArdiaPiPController : NSObject
@@ -53,6 +51,7 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 + (instancetype)forWindow:(NSWindow *)window;
 - (instancetype)initWithWindow:(NSWindow *)window;
 - (void)roundCorners;
+- (CGFloat)cornerRadius;
 - (void)backToTab;
 - (void)unstash;
 - (NSMenu *)menu;
@@ -84,6 +83,7 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
   NSDictionary *_lastRelease;
   NSDictionary *_lastSwipe;
   NSMutableDictionary *_lastThrow;
+  NSDictionary *_lastScreenFit;
   __weak NSScreen *_lastScreen;
   __weak NSScreen *_swipeHome;
   __weak NSScreen *_stashScreen;
@@ -92,6 +92,9 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 - (void)toggleKeepOnTop:(id)sender;
 - (void)backToTabFromMenu:(id)sender;
 - (void)windowMoved;
+- (void)fitCorners:(BOOL)animated;
+- (void)bendCornersTo:(CGFloat)radius animated:(BOOL)animated;
+- (void)screenChanged;
 - (NSScreen *)homeScreen;
 - (ArdiaPiPEdge)edgeBeyond;
 - (BOOL)throwFrom:(NSPoint)grab velocity:(NSPoint)velocity;
@@ -105,6 +108,12 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 - (void)moveBy:(ardia_pip_throw::Point)delta;
 - (void)swipeMoved:(NSEvent *)event;
 - (void)swipeEnded:(NSEvent *)event cancelled:(BOOL)cancelled;
+@end
+
+@interface ArdiaPiPController (Workspaces)
+@end
+
+@interface ArdiaPiPController (Placement)
 @end
 
 @interface ArdiaPiPController (Swipe)
@@ -129,13 +138,12 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 namespace ardia_pip {
 
 extern NSString *const kZoomDefault;
-API_AVAILABLE(macos(26.0)) NSGlassEffectView *NewGlass(BOOL clear);
-API_AVAILABLE(macos(26.0)) void PlaceGlass(NSGlassEffectView *glass, NSRect frame);
-API_AVAILABLE(macos(26.0)) void LightGlass(NSGlassEffectView *glass, NSColor *tint, BOOL lit);
 extern const void *const kZoomKey;
 BOOL IsChromeFloatingWindow(NSWindow *window);
 BOOL IsChromeVideoPictureInPicture(NSWindow *window);
 BOOL IsChromeDocumentPictureInPicture(NSWindow *window);
+BOOL JoinsFullScreenSpaces(NSWindow *window);
+void JoinFullScreenSpaces(NSWindow *window);
 NSScreen *ScreenFor(NSRect frame);
 void PreventActivation(NSWindow *window);
 BOOL PreventsActivation(NSWindow *window);

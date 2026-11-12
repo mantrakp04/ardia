@@ -20,6 +20,7 @@ using namespace ardia_host;
 @implementation ArdiaHostEngineDelegate
 
 - (void)engineDidStart {
+  ArdiaLaunchSequence.shared.engineStartedAt = NSDate.date.timeIntervalSince1970 * 1000;
   NSLog(@"[ardiacore] engine started (Chromium %@)", ArdiaCoreEngine.sharedEngine.chromiumVersion);
   ArdiaLaunchSequence.shared.engineRunning = YES;
   WatchReservedShortcuts();
@@ -31,6 +32,7 @@ using namespace ardia_host;
   ardia_host::LoadContentBlocker(@"");
   [ArdiaWebView installScrollZoom];
   [ArdiaWebView installSwitchPrewarm];
+  [ArdiaWebView removeSharedImages];
   [ArdiaServices watchDownloads:@""];
 
   NSBundle *bundle = [NSBundle bundleForClass:ArdiaHostEngineDelegate.class];
@@ -58,6 +60,7 @@ using namespace ardia_host;
 }
 
 - (void)launchApp {
+  ArdiaLaunchSequence.shared.reactNativeStartedAt = NSDate.date.timeIntervalSince1970 * 1000;
   NSArray<NSURL *> *launchURLs = gBootstrap.urls.copy;
   LinksArrived(launchURLs);
   gAppDelegate = gMakeDelegate();
@@ -80,9 +83,7 @@ using namespace ardia_host;
     if (launchURLs.count)
       [launch after:ArdiaLaunchAppKitDidFinish
                  do:^{
-                   dispatch_async(dispatch_get_main_queue(), ^{
-                     if ([gAppDelegate respondsToSelector:@selector(application:openURLs:)]) [gAppDelegate application:NSApp openURLs:launchURLs];
-                   });
+                   dispatch_async(dispatch_get_main_queue(), ^{ ReplayLaunchURLs(launchURLs); });
                  }];
     return;
   }
@@ -90,8 +91,7 @@ using namespace ardia_host;
   if ([gAppDelegate respondsToSelector:@selector(applicationDidFinishLaunching:)])
     [gAppDelegate applicationDidFinishLaunching:note];
   NSLog(@"[ardiacore] app delegate %@ launched", NSStringFromClass([gAppDelegate class]));
-  if (launchURLs.count && [gAppDelegate respondsToSelector:@selector(application:openURLs:)])
-    [gAppDelegate application:NSApp openURLs:launchURLs];
+  if (launchURLs.count) ReplayLaunchURLs(launchURLs);
 }
 
 - (void)engineWillShutDown {
@@ -193,7 +193,8 @@ using namespace ardia_host;
 
 - (ArdiaCoreWindow *)engineWindowForNewBrowserOfProfile:(ArdiaCoreProfile *)profile type:(NSString *)type {
   if (![type isEqualToString:@"normal"] && ![type isEqualToString:@"popup"]) return nil;
-  if ([type isEqualToString:@"normal"] && !profile.offTheRecord)
+  if ([type isEqualToString:@"popup"]) return ardia_host::PopupWindowForChromeBrowser(profile);
+  if (!profile.offTheRecord)
     if (ArdiaWindowController *made = [ArdiaWindowController chromeMadeWindowForProfile:profile]) return made.coreWindow;
   return [ArdiaWindowController strayWindowForProfile:profile].coreWindow;
 }

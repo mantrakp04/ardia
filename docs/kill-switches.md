@@ -37,7 +37,7 @@ another. Disclosed in Settings › What's Sent (“Even with sharing off”) and
 
 `ARDIA_SWITCHES="newTabPrewarm=off,lazySidebarRows=off"` sets a launch's values over everything else, in every build.
 `ArdiaLaunchConfig` parses it once; native code asks it (`switchOn:`, `experimentOn:`), JS through
-`platform/launchConfig.ts`, and the engine gets it as `--ardia-switches` (the GPU process too). A test instance has no
+`platform/launchConfig.ts`, and the engine's browser process gets it as `--ardia-switches`. A test instance has no
 updater, so it never fetches.
 
 ## The switches (see `SWITCHES` for owners and dates)
@@ -48,9 +48,10 @@ updater, so it never fetches.
 | `lazySidebarRows` | a launch mounts 64 rows per page and every profile page at once | no |
 | `updatePrewarm` | a staged update installs without the hidden first run, at quit or at once from Install and Relaunch (read natively: `UpdatePrewarm.swift`) | yes |
 | `launchTab` | session.json keeps no launch hint and a launch claims nothing: the restored page loads once its window's content mounts, and the early window stays off | no |
-| `focusedWindowFirst` | a launch opens every window at once, the focused one last | no |
+| `lazyProfiles` | a launch loads every profile and its extensions, as with Settings › Advanced › Load profiles when opened off (`state/profiles/profileLoading.ts`) | no |
 | `sidebarSlide` | hiding or showing the sidebar jumps instead of sliding (it stays mounted either way); with the address bar in the sidebar, a hidden sidebar's bar moves to a toolbar on the card and the peek is Dia's | yes |
 | `sidebarSlideLean` | every step of the slide lays the traffic lights out (AppKit then rewalks the window's views); read natively, once a launch: `ChromeWindows.swift` | no |
+| `serverWindowDrag` | the title-bar band stays Chromium's, so every window drag is our pointer-following loop (no macOS tiling or edge snapping), placed through AppKit's constrain with none of its re-fits held; read natively, once a launch: `ServerWindowDrag.swift`, `WindowMove.swift` | no |
 
 ## Experiments (off by default; `EXPERIMENTS`)
 
@@ -59,8 +60,7 @@ and a `removeBy` like the switches, don't count against the 8, and the site's sw
 
 | Experiment | On means |
 |---|---|
-| `beginFrameBridge` | while a shown tab waits for the display link's first callback, the GPU process sends up to 4 warm-up BeginFrames on the display's last vsync grid (`chromium-begin-frame-warm-up.patch`; engine, read in every process) |
-| `serverWindowDrag` | the window server moves the window from our drag areas at once instead of waiting for mouseDown on the main thread (`ServerWindowDrag.swift`); `serverWindowDragAllOpen` also leaves every view in the titlebar band open to moves |
+| `serverWindowDragAllOpen` | with `serverWindowDrag`, every view in the titlebar band is left open to window moves (`ServerWindowDrag.swift`) |
 | `webkitSignIn` | moving a Chromium page to WebKit first copies the cookies that page's own address gets (HttpOnly included, partitioned ones left out) into the profile's WebKit store, so a cookie sign-in (Netflix, Spotify…) comes along; at most 1.5 s, then the move goes ahead either way (`state/engines/engineSignIn.ts`, `WebKitCookieImport.swift`) |
 
 The environment-only switches of 2026-10-17 to 10-20 (`ARDIA_EARLY_WINDOW_FIRST`, `ARDIA_SCROLL_FULL_RATE`,

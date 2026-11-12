@@ -1,10 +1,9 @@
-import type { IconMenuItem } from "../../state/profiles/profileMenu";
-import { Text, View } from "react-native";
-import { ink, Symbol, weight } from "../ui";
+import { PixelRatio, Text } from "react-native";
+import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
-import { profileColors, profileSwitcher } from "./tokens";
-import { iconSymbol, symbolIcon } from "../../lib/customIcon";
+import { profileBadge, profileColors, profileSwitcher } from "./tokens";
+import { iconSymbol } from "../../lib/customIcon";
 
 export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "house.fill", title: "Home" },
@@ -27,24 +26,32 @@ export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "heart.fill", title: "Personal" },
   { name: "star.fill", title: "Favorites" },
   { name: "moon.stars.fill", title: "Evenings" },
+  { name: "person.fill", title: "Me" },
+  { name: "person.2.fill", title: "Family" },
+  { name: "building.2.fill", title: "Office" },
+  { name: "terminal.fill", title: "Terminal" },
+  { name: "server.rack", title: "Servers" },
+  { name: "flask.fill", title: "Lab" },
+  { name: "lightbulb.fill", title: "Ideas" },
+  { name: "sparkles", title: "Side Projects" },
+  { name: "newspaper.fill", title: "News" },
+  { name: "film.fill", title: "Movies" },
+  { name: "headphones", title: "Podcasts" },
+  { name: "sportscourt.fill", title: "Sports" },
+  { name: "bicycle", title: "Cycling" },
+  { name: "fork.knife", title: "Food" },
+  { name: "gift.fill", title: "Gifts" },
+  { name: "stethoscope", title: "Health" },
+  { name: "chart.line.uptrend.xyaxis", title: "Stocks" },
+  { name: "envelope.fill", title: "Mail" },
+  { name: "bubble.left.and.bubble.right.fill", title: "Chat" },
+  { name: "calendar", title: "Calendar" },
+  { name: "mountain.2.fill", title: "Outdoors" },
+  { name: "beach.umbrella.fill", title: "Holiday" },
+  { name: "lock.fill", title: "Private" },
+  { name: "flame.fill", title: "Hot" },
+  { name: "bolt.fill", title: "Energy" },
 ];
-
-const EMOJI = ["😀", "😎", "🤓", "🧑‍💻", "💼", "🏠", "🎓", "🎨", "🎮", "🎵", "📚", "✈️", "🌱", "🔥", "⭐️", "🚀", "🐶", "🐱", "🦊", "🍀"];
-
-export function iconMenuItems(current: string | null, noneTitle = "Initial"): IconMenuItem[] {
-  return [
-    { value: { icon: null }, title: noneTitle, checked: !current },
-    { separator: true },
-    ...PROFILE_SYMBOLS.map((s) => ({ value: { icon: symbolIcon(s.name) }, title: s.title, symbol: s.name, checked: current === symbolIcon(s.name) })),
-    { separator: true },
-    {
-      id: "emoji",
-      title: "Emoji",
-      checked: !!current && !iconSymbol(current),
-      children: EMOJI.map((e) => ({ value: { icon: e }, title: e, checked: current === e })),
-    },
-  ];
-}
 
 export const switcherCellWidth = (icon: string | null) => (icon ? profileSwitcher.iconCell : profileSwitcher.dotCell);
 
@@ -63,32 +70,35 @@ export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; 
         {icon}
       </Text>
     );
-  return <View style={{ width: dot * scale, height: dot * scale, borderRadius: (dot / 2) * scale, backgroundColor: color }} />;
+  return <Dot size={dot * scale} color={color} />;
 }
+
+const BADGE_EDGE_MIN = 22;
 
 export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "name" | "color" | "icon"> & Partial<Pick<Profile, "theme">>; size?: number }) {
   const swatch = profileAccent(profile);
   const symbol = iconSymbol(profile.icon);
+  const nudge = PixelRatio.roundToNearestPixel(size * profileBadge.nudge);
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: swatch,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: size >= 22 ? 0.5 : 0,
-        borderColor: profileColors.badgeEdge,
-      }}
-    >
+    <Dot size={size} color={swatch} ring={size >= BADGE_EDGE_MIN ? profileColors.badgeEdge : undefined} ringWidth={hairline.ring}>
       {symbol ? (
         <Symbol name={symbol} size={size * 0.5} weight="semibold" color={ink.white} style={{ width: size, height: size }} />
       ) : (
-        <Text style={{ fontSize: profile.icon ? size * 0.55 : size * 0.46, fontWeight: weight.semibold, color: ink.white }}>
+        <Text
+          numberOfLines={1}
+          style={{
+            width: size,
+            textAlign: "center",
+            fontSize: profile.icon ? size * 0.55 : size * profileBadge.initialScale,
+            letterSpacing: profile.icon ? 0 : size * profileBadge.initialTracking,
+            fontWeight: weight.semibold,
+            color: ink.white,
+            transform: [{ translateX: profile.icon ? nudge : 0 }, { translateY: nudge }],
+          }}
+        >
           {profile.icon ?? (profile.name.trim()[0] ?? "?").toUpperCase()}
         </Text>
       )}
-    </View>
+    </Dot>
   );
 }

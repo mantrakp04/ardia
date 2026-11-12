@@ -22,16 +22,18 @@ const rep = reporter(join(scratch, "tab-drag-test.log"), { name: "tab-drag-test"
 const tab = (id, windowId, pinned = false) => ({ id, windowId, pinned, lastActiveAt: id === "t1" ? 2 : 1 });
 const fixture = () => session({
   profiles: [{ id: "default", name: "Personal", color: "plum" }],
-  settings: { tabLayout: "top" },
+  settings: { tabLayout: "top", dragToGroupInTopStrip: true },
   windows: [
     { id: "w1", tabIds: ["p1", "p2", "t1", "t2", "t3", "t4"], activeTabIds: { default: "t1" }, frame: [80, 80, 1280, 800], createdAt: 1 },
     { id: "w2", tabIds: ["l1"], activeTabIds: { default: "l1" }, frame: [200, 120, 1100, 700], createdAt: 2 },
     { id: "w3", tabIds: ["g1", "g2", "x1"], activeTabIds: { default: "x1" }, frame: [140, 100, 1200, 760], createdAt: 3 },
     { id: "w5", tabIds: ["a1", "a2"], activeTabIds: { default: "a2" }, frame: [100, 60, 560, 420], createdAt: 5 },
     { id: "w6", tabIds: ["b1", "b2", "b3"], activeTabIds: { default: "b1" }, frame: [700, 60, 560, 420], createdAt: 6 },
+    { id: "w7", tabIds: ["c1", "c2", "c3"], activeTabIds: { default: "c3" }, frame: [160, 140, 1000, 600], createdAt: 7 },
   ],
   tabs: [tab("p1", "w1", true), tab("p2", "w1", true), tab("t1", "w1"), tab("t2", "w1"), tab("t3", "w1"), tab("t4", "w1"), tab("l1", "w2"),
-    tab("g1", "w3"), tab("g2", "w3"), tab("x1", "w3"), tab("a1", "w5"), tab("a2", "w5"), tab("b1", "w6"), tab("b2", "w6"), tab("b3", "w6")],
+    tab("g1", "w3"), tab("g2", "w3"), tab("x1", "w3"), tab("a1", "w5"), tab("a2", "w5"), tab("b1", "w6"), tab("b2", "w6"), tab("b3", "w6"),
+    tab("c1", "w7"), tab("c2", "w7"), tab("c3", "w7")],
   groups: [{ id: "grp", windowId: "w3", profileId: "default", name: "Group", icon: null, color: null, collapsed: false, pinned: false, tabIds: ["g1", "g2"], createdAt: 1 }],
 });
 
@@ -115,6 +117,54 @@ try {
     const iv = setInterval(() => preview().then((p) => seen.push(p)), 30);
     return act("${w}", "drag:${path}").then(() => settle(${ms})).then(() => { clearInterval(iv); return seen; });`);
 
+  await check("a click whose pointer drifts up to 9 pt opens the tab, and a 14 pt press doesn't", async () => {
+    const before = await order("w1");
+    const shownAfter = (path) => run(`return act("w1", "drag:${path.map((p) => p.join(",")).join(";")}").then(() => settle(1500)).then(() => st().windows.w1.activeTabIds.default);`);
+    assert.equal(await shownAfter([[mid(4), 21], [mid(4) + 6, 23]]), "t3");
+    assert.equal(await shownAfter([[mid(3), 21], [mid(3) - 9, 21]]), "t2");
+    assert.equal(await shownAfter([[mid(5), 21], [mid(5) + 14, 21]]), "t2", "a 14 pt press is a drag");
+    assert.deepEqual(await order("w1"), before);
+    await run(`st().activate("t1"); return settle(600);`);
+  });
+
+  await check("a tab's hover card sits under the strip, lets clicks through and follows the pointer to the next tab at once", async () => {
+    const shots = [join(data, "card-none.png"), join(data, "card-shown.png")];
+    const result = await run(`
+      const H = ac.stripHover;
+      const seen = [];
+      const t0 = performance.now();
+      const stop = H.useStripHover.subscribe((v) => seen.push([performance.now() - t0, v.hover && v.hover.tabId]));
+      const at = (x) => ac.shell.devSetPointer("w1", { x, y: 21 });
+      const hits = () => Promise.all([[${strip[4][0] + 20}, 60], [${strip[5][0] + 10}, 80], [${strip[4][1] - 10}, 110]].map(([x, y]) => act("w1", "hit:" + x + "," + y)));
+      const out = {};
+      return ac.shell.devSetPointer("w1", { x: 640, y: 400 }).then(() => settle(400)).then(hits).then((h) => (out.hitsBefore = h))
+        .then(() => ac.shell.devSnapshotWindow("w1", ${JSON.stringify(shots[0])}))
+        .then(() => { out.enter = performance.now() - t0; return at(${mid(4)}); }).then(() => settle(800))
+        .then(() => ac.shell.devSnapshotWindow("w1", ${JSON.stringify(shots[1])}))
+        .then(hits).then((h) => (out.hitsShown = h))
+        .then(() => { out.next = performance.now() - t0; return at(${mid(3)}); }).then(() => settle(120))
+        .then(() => at(${mid(5)})).then(() => settle(30))
+        .then(() => act("w1", "mouse:down:${mid(5)},21")).then(() => settle(70)).then(() => act("w1", "mouse:up:${mid(5)},21")).then(() => settle(500))
+        .then(() => { out.shown = st().windows.w1.activeTabIds.default; stop(); out.seen = seen; return ac.shell.devSetPointer("w1", null); })
+        .then(() => { st().activate("t1"); return settle(600); }).then(() => out);`);
+    const first = result.seen.find(([, id]) => id === "t3");
+    const next = result.seen.find(([, id]) => id === "t2");
+    assert.ok(first && first[0] - result.enter >= 450 && first[0] - result.enter < 800, `the card shows about 0.5 s after the pointer arrives: ${JSON.stringify(result)}`);
+    assert.ok(next && next[0] - result.next < 60, `the card moves to the next tab at once: ${JSON.stringify(result.seen)}`);
+    assert.deepEqual(result.hitsShown, result.hitsBefore, "the card takes no presses");
+    assert.equal(result.shown, "t4", "a click on the neighbouring tab while the card is up opens it");
+    const windowWidth = await run(`return st().windows.w1.frame[2];`);
+    const [none, shown] = shots.map(readPng);
+    const scale = Math.round(none.width / windowWidth);
+    let changed = 0;
+    for (let y = 0; y < 42 * scale; y++)
+      for (let x = strip[5][0] * scale; x < (strip[5][1] + 60) * scale; x++) {
+        const i = (y * none.width + x) * none.channels;
+        if (Math.abs(none.data[i] - shown.data[i]) + Math.abs(none.data[i + 1] - shown.data[i + 1]) + Math.abs(none.data[i + 2] - shown.data[i + 2]) > 6) changed++;
+      }
+    assert.equal(changed, 0, "nothing in the strip right of the hovered tab changes when its card shows");
+  });
+
   await check("a tab dragged along the strip reorders and doesn't move the window", async () => {
     const frame = await run(`return st().windows.w1.frame;`);
     const drags = await drag("w1", [[mid(2), 21], [mid(3), 21], [mid(4) + 75, 21]]);
@@ -143,7 +193,6 @@ try {
       const unsubscribe = ac.store.subscribe((s, p) => { if (s.windows !== p.windows) log.windows.push(performance.now() - t0); });
       const begin = ac.shell.dragPreview.begin;
       ac.shell.dragPreview.begin = (...a) => { log.picture.push(performance.now() - t0); return begin(...a); };
-      // The drag's own store says when it starts and ends (the drop's store update comes right after, in the same task).
       const stop = globalThis.acTabDrag.subscribe((d, was) => { if ((d.phase === "idle") !== (was.phase === "idle")) log.drag.push([d.phase !== "idle", performance.now() - t0]); });
       return act("w1", "drag:${path.map((p) => p.join(",")).join(";")}").then(() => settle(${path.length * 12 * 16 + 1200})).then(() => {
         stop(); unsubscribe(); tabs.call = send; ac.shell.dragPreview.begin = begin;
@@ -243,6 +292,24 @@ try {
     const at = (i) => Math.round((items[i][0] + items[i][1]) / 2);
     assert.equal(await drag("w3", [[Math.round(items[1][0] + 15), 21], [at(0), 21], [items[0][0] - 20, 21]]), 0, "window drags");
     assert.deepEqual(await run(`return [loose("w3"), st().groups.grp.tabIds];`), [["g2", "g1", "x1"], ["g2", "g1"]]);
+  });
+
+  await check("a tab let go on another tab's middle only reorders with Drag a tab onto another to group them off, and groups the two with it on", async () => {
+    const groupsIn = () => run(`return Object.values(st().groups).filter((g) => g.windowId === "w7").map((g) => g.tabIds);`);
+    const dropOnSecond = async () => {
+      const items = await run(`return tabItems("w7");`);
+      const at = (i) => Math.round((items[i][0] + items[i][1]) / 2);
+      return drag("w7", [[at(0), 21], [at(0) + 20, 21], [at(1) - 10, 21], [at(1), 21], [at(1), 21]]);
+    };
+    await run(`st().updateSettings({ dragToGroupInTopStrip: false }); return settle(400);`);
+    assert.equal(await dropOnSecond(), 0, "window drags");
+    assert.deepEqual(await groupsIn(), [], "setting off: no group");
+    assert.deepEqual(await tabsOf("w7"), ["c2", "c1", "c3"], "setting off: a reorder");
+    await run(`st().updateSettings({ dragToGroupInTopStrip: true }); return settle(400);`);
+    assert.equal(await dropOnSecond(), 0, "window drags");
+    const groups = await groupsIn();
+    assert.equal(groups.length, 1, `setting on: one group ${JSON.stringify(groups)}`);
+    assert.deepEqual([...groups[0]].sort(), ["c1", "c2"]);
   });
 
   await check("a tab dragged onto another window's tabs: the strip makes room at the pointer, and it lands there", async () => {
@@ -347,6 +414,12 @@ try {
     assert.deepEqual(await order("w1"), ["p2", "p1", fresh, "t1", "t3"]);
     const moved = await run(`return items("w1");`);
     const pane = Math.round(moved[3][0] + (moved[3][1] - moved[3][0]) * 0.75);
+    const left = Math.round(moved[3][0] + (moved[3][1] - moved[3][0]) * 0.25);
+    for (const [x, dy, id] of [[left, 8, "t1"], [pane, -7, "t3"], [left, 9, "t1"]]) {
+      await run(`st().activate(${JSON.stringify(fresh)}); return settle(500);`);
+      await run(`return act("w1", "drag:${x},${y};${x},${y + dy}").then(() => settle(1500));`);
+      assert.equal(await run(`return st().windows.w1.activeTabIds.default;`), id, `a split pane click drifting ${dy} pt opens ${id}`);
+    }
     await drag("w1", [[pane, y], [pane, -40], [pane + 40, -90]]);
     const state = await run(`return { windows: Object.keys(st().windows).map(loose), splits: Object.values(st().splits).map((v) => v.slots.flatMap((x) => x.stack ?? [x.tabId])) };`);
     assert.ok(state.windows.some((w) => w.length === 1 && w[0] === "t3"), JSON.stringify(state));
@@ -436,8 +509,8 @@ try {
   });
 
   await check("sidebar auto-hidden: a row dragged within the peeking sidebar reorders instead of splitting, and Esc cancels a drag", async () => {
-    const edge = (p) => run(`return ac.shell.devLeftEdgePointer("w1", ${JSON.stringify(p)}).then(() => settle(500)).then(() => !!globalThis.acLayout.peek.w1?.live);`);
-    await run(`for (const v of Object.values(st().splits)) st().separateSplit(v.id); if (st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900);`);
+    const edge = (p) => run(`return ac.shell.devSidebarEdgePointer("w1", ${JSON.stringify(p)}).then(() => settle(500)).then(() => !!globalThis.acLayout.peek.w1?.live);`);
+    await run(`for (const v of Object.values(st().splits)) st().separateSplit(v.id); if (!st().settings.autoHideTabs) st().toggleSidebar("w1"); return settle(900);`);
     try {
       await edge({ x: -4, y: 300 });
       assert.equal(await edge({ x: 120, y: 300 }), true, "the sidebar peeks");
@@ -463,7 +536,7 @@ try {
       assert.ok(cancelled.ended !== null && cancelled.ended < 150 + 16 * 12 * 7, `Esc ended the drag before the release: ${cancelled.ended}`);
       assert.equal(await edge({ x: 800, y: 400 }), false, "it hides once the pointer leaves");
     } finally {
-      await run(`return ac.shell.devLeftEdgePointer("w1", null).then(() => { if (!st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900); });`);
+      await run(`return ac.shell.devSidebarEdgePointer("w1", null).then(() => { if (st().settings.autoHideTabs) st().toggleSidebar("w1"); return settle(900); });`);
     }
   });
 
