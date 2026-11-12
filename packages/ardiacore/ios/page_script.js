@@ -363,8 +363,10 @@
     const r = eyeField.getBoundingClientRect();
     const cs = getComputedStyle(eyeField);
     const size = Math.min(24, Math.max(18, r.height - 8));
-    const inset = Math.max(4, Math.min(10, parseFloat(cs.paddingRight) || 4));
-    eyeHost.style.left = r.right - (parseFloat(cs.borderRightWidth) || 0) - inset - size + "px";
+    const rtl = cs.direction === "rtl";
+    const inset = Math.max(4, Math.min(10, parseFloat(rtl ? cs.paddingLeft : cs.paddingRight) || 4));
+    eyeHost.style.left =
+      (rtl ? r.left + (parseFloat(cs.borderLeftWidth) || 0) + inset : r.right - (parseFloat(cs.borderRightWidth) || 0) - inset - size) + "px";
     eyeHost.style.top = r.top + (r.height - size) / 2 + "px";
     eyeButton.style.width = eyeButton.style.height = size + "px";
     eyeButton.style.color = cs.color;
