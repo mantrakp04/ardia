@@ -471,6 +471,7 @@ class DeliveryIsNeverAssumed(unittest.TestCase):
 class MutationsCarryUnknownOutcomes(unittest.TestCase):
     def test_navigate_timeout_is_unknown(self):
         page = Page(SimpleNamespace(sessions={}), "T")
+        page.session_id = "S"
 
         async def timeout(method, params=None, session=None, timeout=30):
             raise CdpTimeout(method, timeout)
