@@ -59,35 +59,36 @@ export function OutroStep() {
           {redo ? null : <SecondaryButton title="Take the Tour" onPress={() => void finish(true)} />}
         </>
       }
-      footer={
-        <View style={{ gap: space.ml }}>
-          <OptionCard
-            control="check"
-            icon="stethoscope"
-            title={SHARING_COPY.toggle}
-            subtitle={SHARING_COPY.onboarding.row}
-            selected={share}
-            onHover={setReceipt}
-            onPress={() => setOnboardingExtras({ share: !share })}
-          />
-          <Text size="small" color={colors.rowSubtitle} style={NOTE}>
-            {SHARING_COPY.onboarding.note}
-          </Text>
-          {customizing ? null : <CustomizeMoreLink />}
-        </View>
-      }
       preview={receipt ? <Receipt on={share} /> : <Postcard lines={lines} />}
+      previewOptional
     >
-      <View style={{ gap: space.m }}>
-        {system && !system.isDefault ? (
-          <OptionRow
-            title="Default browser"
-            value={defaultChoice}
-            options={redo ? DEFAULT_CHOICES.filter((c) => c.value !== "trial") : DEFAULT_CHOICES}
-            onChange={(choice) => setOnboardingExtras({ setDefault: choice === "yes", trial: choice === "trial" })}
-          />
-        ) : null}
-        {system && !system.inDock ? <OptionRow title="Keep in the Dock" value={dock ? "yes" : "no"} options={DOCK_CHOICES} onChange={(v) => setOnboardingExtras({ dock: v === "yes" })} /> : null}
+      {system && (!system.isDefault || !system.inDock) ? (
+        <View style={{ gap: space.m }}>
+          {!system.isDefault ? (
+            <OptionRow
+              title="Default browser"
+              value={defaultChoice}
+              options={redo ? DEFAULT_CHOICES.filter((c) => c.value !== "trial") : DEFAULT_CHOICES}
+              onChange={(choice) => setOnboardingExtras({ setDefault: choice === "yes", trial: choice === "trial" })}
+            />
+          ) : null}
+          {!system.inDock ? <OptionRow title="Keep in the Dock" value={dock ? "yes" : "no"} options={DOCK_CHOICES} onChange={(v) => setOnboardingExtras({ dock: v === "yes" })} /> : null}
+        </View>
+      ) : null}
+      <View style={{ gap: space.ml }}>
+        <OptionCard
+          control="check"
+          icon="stethoscope"
+          title={SHARING_COPY.toggle}
+          subtitle={SHARING_COPY.onboarding.row}
+          selected={share}
+          onHover={setReceipt}
+          onPress={() => setOnboardingExtras({ share: !share })}
+        />
+        <Text size="small" color={colors.rowSubtitle} style={NOTE}>
+          {SHARING_COPY.onboarding.note}
+        </Text>
+        {customizing ? null : <CustomizeMoreLink />}
       </View>
     </StepLayout>
   );
