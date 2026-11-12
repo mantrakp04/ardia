@@ -16,9 +16,11 @@ export type RecordingResult = {
   cpuPercent: number;
   footprintStartMB: number;
   footprintPeakMB: number;
-  windows?: { kind: "pictureInPicture" | "documentPictureInPicture" | "chrome" | "app"; frames: number }[];
-  pinned?: boolean;
+  windows?: { kind: "pictureInPicture" | "chrome" | "app"; frames: number }[];
+  withheldWindows?: number;
+  maskedPages?: number;
   windowPictureMisses?: number;
+  webKitMediaWithheld?: number;
 };
 
 export type UploadReply = { status: number; body: string; error?: string | null };

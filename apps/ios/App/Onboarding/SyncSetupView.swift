@@ -1,3 +1,4 @@
+import ArdiaDesign
 import SwiftUI
 
 struct SyncSetupView: View {
@@ -18,7 +19,8 @@ struct SyncSetupView: View {
           Button("Close", role: .close) { dismiss() }
         }
       }
-      .navigationDestination(for: SettingsRoute.self) { $0.destination }
+      .lookBackdrop()
+      .navigationDestination(for: SettingsRoute.self) { $0.destination.lookBackdrop() }
     }
     .tint(Color.ardiaAccentText)
   }

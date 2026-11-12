@@ -26,7 +26,7 @@ struct SyncSettingsPage: View {
           .buttonStyle(.borderedProminent)
           .buttonBorderShape(.capsule)
           .controlSize(.large)
-          .tint(Palette.indigo)
+          .primaryActionColors()
           .padding(.top, Spacing.tight)
         }
       }
@@ -197,7 +197,7 @@ private struct SyncFeatureRow: View {
     HStack(alignment: .firstTextBaseline, spacing: Spacing.small) {
       Image(systemName: symbol)
         .font(.body.weight(.semibold))
-        .foregroundStyle(Palette.indigo)
+        .foregroundStyle(Palette.formAccent)
         .frame(width: symbolWidth)
         .accessibilityHidden(true)
       Text(title)

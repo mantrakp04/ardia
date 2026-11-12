@@ -39,7 +39,7 @@ struct OnboardingView: View {
   var body: some View {
     ZStack {
       if step == .welcome {
-        LaunchGradient()
+        ProfileBackdrop()
           .ignoresSafeArea()
           .transition(.opacity)
           .zIndex(0.5)

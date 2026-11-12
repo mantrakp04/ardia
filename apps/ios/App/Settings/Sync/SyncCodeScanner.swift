@@ -125,7 +125,7 @@ struct SyncCodeScannerSheet: View {
             if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
           }
           .buttonStyle(.glassProminent)
-          .tint(Palette.indigo)
+          .primaryActionColors()
         }
         Button("Enter Words Instead") {
           dismiss()

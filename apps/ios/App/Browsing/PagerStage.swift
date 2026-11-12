@@ -86,17 +86,18 @@ struct PagerSnapshot: View {
   var preloaded: UIImage?
 
   @Environment(AppModel.self) private var app
+  @Environment(\.profileLook) private var look
   @State private var image: CGImage?
 
   var body: some View {
     ZStack(alignment: .top) {
-      BrowsePalette.pageBackdrop
+      look.surface
       if let memory = app.browse.covers.image(for: tab.id) ?? app.deck.memoryImage(for: tab.id) ?? preloaded {
         Image(uiImage: memory).resizable().scaledToFill()
       } else if let image {
         Image(decorative: image, scale: 1).resizable().scaledToFill()
       } else {
-        PageLoadingPlaceholder(tab: tab)
+        PageLoadingPlaceholder(tab: tab, backdrop: look.surface)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
