@@ -39,6 +39,7 @@ struct ArdiaFrameHold {
   NSUInteger holdGeneration{};
   __weak ArdiaWebView *tookOverFrom;
   CFTimeInterval tookOverAt{};
+  BOOL untilPainted{};
 };
 
 struct ArdiaStandIn {
@@ -205,6 +206,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)schedulePainting;
 - (void)leaveScreen;
 - (void)beginFrameHoldIfCold;
+- (void)holdUnpaintedPageOver:(nullable ArdiaWebView *)outgoing;
 - (void)finishFrameHold;
 - (void)stopHolding;
 - (void)takeFocusFromLingeringPane;
@@ -228,10 +230,23 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)focusAfterLoad;
 @end
 
+typedef NS_ENUM(NSInteger, ArdiaPagePaint) {
+  ArdiaPagePaintDrawn,
+  ArdiaPagePaintLate,
+  ArdiaPagePaintNeverShown,
+};
+
+@interface ArdiaPagePaintWait : NSObject
++ (BOOL)awaits:(ArdiaCoreTab *)tab;
++ (void)keepUnderUntilPainted:(ArdiaCoreTab *)tab;
++ (void)tab:(ArdiaCoreTab *)tab paints:(void (^)(ArdiaPagePaint paint))then;
+@end
+
 @interface ArdiaWebView (RevealsInternal)
 + (void)dropRevealsInWindow:(NSWindow *)window except:(ArdiaWebView *)keep;
 - (BOOL)onlyShownInWindow;
-- (void)frontPage:(NSView *)page profile:(ArdiaCoreProfile *)profile;
+- (void)frontPageOf:(ArdiaCoreTab *)tab;
++ (nullable ArdiaWebView *)frontingPage:(NSView *)page;
 - (void)dropFront;
 - (void)revealAhead;
 - (void)endReveal;
@@ -293,6 +308,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 namespace ardia_web_view {
 
 constexpr CFTimeInterval kNeighbourPagesAwakeSeconds = 10;
+constexpr CFTimeInterval kPagePaintWaitSeconds = 0.5;
 
 bool TraceVisibility();
 NSHashTable<ArdiaWebView *> *LiveViews();

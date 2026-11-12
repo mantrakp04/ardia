@@ -98,6 +98,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   [self adoptIntoWindow];
   NSView *page = tab.view;
   ardia_host::StopPageSwapFade(tab);
+  ArdiaWebView *fronting = [ArdiaWebView frontingPage:page];
   if (page.superview != self) {
     if (!page.window || page.window != self.window) [page removeFromSuperview];
     [self addSubview:page];
@@ -105,6 +106,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   }
   if (NSView *devtools = tab.devToolsView) [self devToolsChanged:devtools];
   [self layoutPage];
+  [self holdUnpaintedPageOver:fronting];
   [self applyPainting];
   if (!shownEarly && (_life.creatingURL.length || tab.loading)) [self holdLittlePage];
   if (_muted) tab.muted = YES;

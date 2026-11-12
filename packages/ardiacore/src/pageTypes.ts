@@ -215,6 +215,7 @@ export type WebViewProps = ViewProps & {
   onExternalApp?: (request: ExternalAppRequest) => void;
   onPreferredSize?: (size: { width: number; height: number }) => void;
   onTransferRefused?: (fromWindowId: string) => void;
+  onNewTabPaint?: (painted: boolean, waitedMs: number) => void;
   onAppBadge?: (badge: AppBadge) => void;
 };
 

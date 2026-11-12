@@ -46,6 +46,7 @@ import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
 import { releaseTranslation, translateCrashContext } from "../../state/site/translate";
 import { notePagePress } from "../../state/telemetry/tabPresses";
 import { noteAutoPictureInPictureKept, notePageOverlay, noteReopenedPage, noteWebKitPageKeptHidden } from "../../state/telemetry/usage";
+import { noteNewTabPaint } from "../../state/telemetry/newTabPaints";
 import { isAdoptKind } from "../../state/tabs/adoptIds";
 import { STATUS_FLIP_BAND } from "./tokens";
 
@@ -261,6 +262,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       }}
       onWindowClose={() => !isQuitting() && closeTabNow(tabId)}
       onTransferRefused={(from) => returnRefusedMove(tabId, from)}
+      onNewTabPaint={noteNewTabPaint}
       onNotification={(notification) => showWebNotification(tabId, notification)}
       onCommand={({ command, text, modifiers, share, anchor }) => {
         if (command === "search") searchSelection(tabId, text, modifiers);

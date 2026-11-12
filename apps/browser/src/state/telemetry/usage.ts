@@ -20,6 +20,7 @@ import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
 import { takeAutoHideTabsChoices } from "./autoHideTabsChoices";
+import { takeNewTabPaints } from "./newTabPaints";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
 import { toolbarBounces } from "./toolbarBounces";
 
@@ -96,6 +97,7 @@ function emitCounts() {
       settings_search_keyboard_reveals: counts.settingsSearchKeyboardReveals,
       settings_search_click_reveals: counts.settingsSearchClickReveals,
       auto_pip_kept_visible: counts.autoPictureInPictureKept, auto_pip_stayed_on_app_switch: counts.autoPictureInPictureStayedOnAppSwitch,
+      ...takeNewTabPaints(),
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
@@ -110,9 +112,7 @@ export function noteImportedPins(made: { rows: number; splits: number }) {
 
 export const noteSplit = (count: "splitPaneCloses" | "splitViewCloses" | "barSplitOpens" | "barSplitFullTabs") => void counts[count]++;
 
-export function noteWindowCloseTabsKept(n: number) {
-  counts.windowCloseTabsKept += n;
-}
+export const noteWindowCloseTabsKept = (n: number) => void (counts.windowCloseTabsKept += n);
 
 export function noteSharePicked(kind: "tab" | "window" | "screen") {
   if (kind === "tab") counts.sharesPickedTab++;

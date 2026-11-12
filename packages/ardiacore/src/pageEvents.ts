@@ -69,6 +69,7 @@ type NativeEvents = {
   onExternalApp: ExternalAppRequest;
   onPreferredSize: { width: number; height: number };
   onTransferRefused: { from: string };
+  onNewTabPaint: { painted: boolean; ms: number };
   onAppBadge: AppBadge;
 };
 export type Handlers = keyof NativeEvents;
@@ -115,6 +116,7 @@ const PAGE_EVENTS = {
   onExternalApp: "externalApp",
   onPreferredSize: "preferredSize",
   onTransferRefused: "transferRefused",
+  onNewTabPaint: "newTabPaint",
   onAppBadge: "appBadge",
 } as const satisfies Record<Handlers, string>;
 export type PageEventName = (typeof PAGE_EVENTS)[Handlers];
@@ -161,6 +163,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onExternalApp: (e) => [e],
   onPreferredSize: (e) => [e],
   onTransferRefused: (e) => [e.from],
+  onNewTabPaint: (e) => [e.painted, e.ms],
   onAppBadge: (e) => [e],
 };
 

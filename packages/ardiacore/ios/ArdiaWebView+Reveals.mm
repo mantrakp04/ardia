@@ -80,7 +80,7 @@ static ArdiaWebView *ViewForKey(NSString *key) {
             page.superview.className, [ArdiaTabRegistry viewForTab:tab] != nil);
     if (!tab || tab.closed || !page || page.superview || [ArdiaTabRegistry viewForTab:tab]) return;
     ardia_host::StopPageSwapFade(tab);
-    [view frontPage:page profile:tab.profile];
+    [view frontPageOf:tab];
   });
 }
 
@@ -104,20 +104,37 @@ static ArdiaWebView *ViewForKey(NSString *key) {
   return YES;
 }
 
-- (void)frontPage:(NSView *)page profile:(ArdiaCoreProfile *)profile {
-  NSView *mine = _tab.view;
-  if (_reveal.frontedPage || _devtoolsView || !mine || mine.superview != self || mine.hidden || _tab.profile != profile || ![self onlyShownInWindow]) return;
+- (void)frontPageOf:(ArdiaCoreTab *)tab {
+  NSView *mine = _tab.view, *page = tab.view;
+  if (_reveal.frontedPage || _devtoolsView || !mine || mine.superview != self || mine.hidden || _tab.profile != tab.profile || ![self onlyShownInWindow]) return;
   page.frame = self.bounds;
   page.hidden = NO;
   [self addSubview:page positioned:NSWindowAbove relativeTo:mine];
+  [ArdiaPagePaintWait keepUnderUntilPainted:tab];
+  [self reportPaintOfFronted:tab];
   _reveal.frontedPage = page;
-  if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ fronts a new tab's page", _transferKey);
+  if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ fronts a new tab's page once it paints", _transferKey);
   const NSUInteger generation = ++_reveal.frontGeneration;
   __weak ArdiaWebView *weakSelf = self;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRevealBackstopSeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     ArdiaWebView *view = weakSelf;
     if (view && view->_reveal.frontGeneration == generation) [view dropFront];
   });
+}
+
+- (void)reportPaintOfFronted:(ArdiaCoreTab *)tab {
+  const CFTimeInterval fronted = CACurrentMediaTime();
+  __weak ArdiaWebView *weakSelf = self;
+  [ArdiaPagePaintWait tab:tab paints:^(ArdiaPagePaint paint) {
+    if (paint == ArdiaPagePaintNeverShown) return;
+    [weakSelf emit:@"newTabPaint" payload:@{@"painted" : @(paint == ArdiaPagePaintDrawn), @"ms" : @(round((CACurrentMediaTime() - fronted) * 1000))}];
+  }];
+}
+
++ (ArdiaWebView *)frontingPage:(NSView *)page {
+  for (ArdiaWebView *view in LiveViews().allObjects)
+    if (page && view->_reveal.frontedPage == page && page.superview == view) return view;
+  return nil;
 }
 
 - (void)dropFront {

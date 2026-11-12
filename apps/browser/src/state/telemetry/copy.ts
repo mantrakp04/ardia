@@ -59,6 +59,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times you switched Auto-hide tabs on or off on this Mac, how many windows had their tabs put back in line with that setting at launch, how often the hidden tab strip peeks out from the top edge, and how many times hidden tabs peeked out, from the side or the top, while the setting was off, summed up once an hour",
       "How many times the toolbar hid while you scrolled a page, and how many of those came less than a second after it had shown again, summed up once an hour. Never which page",
       "While a window is being resized, how many size changes its page area got and how many of them it laid out again, summed up once an hour",
+      "How many pages opened in a new tab by a link were kept behind the page you were on until they had drawn, how long that took in total, and how many were shown before they had drawn, summed up once an hour. Never which pages",
       "How many pinned tabs and split views an import from Arc brought over, summed up once an hour. Never which pages",
       "How many screen shares picked a tab, a window or a whole screen, how many times the share picker opened without Screen Recording permission, and how many times its Open System Settings button was pressed, summed up once an hour. Never which tab, window or screen",
       "How many automation rules waiting for approval had their notice held until the first window opened, summed up once an hour",

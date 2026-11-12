@@ -12,7 +12,8 @@ namespace {
 
 constexpr CFTimeInterval kLeaveScreenDelay = 0.1;
 constexpr CFTimeInterval kFirstFrameHoldSeconds = 0.25;
-constexpr CFTimeInterval kHolderBackstopSeconds = kFirstFrameHoldSeconds + 0.05;
+constexpr CFTimeInterval kHolderOutlastsHoldSeconds = 0.05;
+constexpr CFTimeInterval kHolderBackstopSeconds = kFirstFrameHoldSeconds + kHolderOutlastsHoldSeconds;
 constexpr CFTimeInterval kLingeringPaneSunkSeconds = 0.5;
 NSString *const kLingeringPane = @"ardia.lingeringPane";
 }
@@ -337,29 +338,47 @@ BOOL Above(NSView *a, NSView *b) {
          self.alphaValue > 0 && !self.isHiddenOrHasHiddenAncestor;
 }
 
+- (BOOL)canHoldFrame {
+  NSWindow *window = self.window;
+  return !_frameHold.awaiting && !_standalone && window && _tab.view.superview == self && (_visible || _reveal.active) &&
+         ![window.identifier isEqualToString:@"ardia.window.small"];
+}
+
 - (void)beginFrameHoldIfCold {
   NSView *page = _tab.view;
-  NSWindow *window = self.window;
-  if (_frameHold.awaiting || _standalone || !window || page.superview != self || !page.hidden || !(_visible || _reveal.active) ||
-      [window.identifier isEqualToString:@"ardia.window.small"])
-    return;
-  if (NSIsEmptyRect(InWindow(self))) return;
+  if (![self canHoldFrame] || !page.hidden || NSIsEmptyRect(InWindow(self))) return;
   ArdiaWebView *outgoing = nil;
   for (ArdiaWebView *other in LiveViews().allObjects)
     if ([other showsPageFor:self]) outgoing = other;
   NSView *lingering = outgoing || !_visible ? nil : LingeringPaneOver(self);
   NSView *widget = outgoing || lingering ? RenderWidgetIn(page) : nil;
   if (!widget.hidden) return;
+  [self holdFrameOver:outgoing untilPainted:NO];
+}
+
+- (void)holdUnpaintedPageOver:(ArdiaWebView *)outgoing {
+  if (outgoing && [self canHoldFrame] && [ArdiaPagePaintWait awaits:_tab]) [self holdFrameOver:outgoing untilPainted:YES];
+}
+
+- (void)holdFrameOver:(ArdiaWebView *)outgoing untilPainted:(BOOL)untilPainted {
   _frameHold.awaiting = YES;
+  _frameHold.untilPainted = untilPainted;
   _frameHold.tookOverFrom = outgoing;
   _frameHold.tookOverAt = CACurrentMediaTime();
-  _frameHold.mark = FrameMarkOf(widget);
+  _frameHold.mark = untilPainted ? nil : FrameMarkOf(RenderWidgetIn(_tab.view));
   const NSUInteger generation = ++_frameHold.generation;
   [AwaitingFrames() addObject:self];
   [ArdiaWebView watchFrames];
-  if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ waits for its first frame over %@", _transferKey, outgoing ? outgoing->_transferKey : @"a lingering pane");
+  if (TraceVisibility())
+    NSLog(@"[ardiacore-vis] %@ waits for its first %@ over %@", _transferKey, untilPainted ? @"paint" : @"frame", outgoing ? outgoing->_transferKey : @"a lingering pane");
   __weak ArdiaWebView *weakSelf = self;
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFirstFrameHoldSeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+  if (untilPainted)
+    [ArdiaPagePaintWait tab:_tab paints:^(ArdiaPagePaint paint) {
+      ArdiaWebView *view = weakSelf;
+      if (view && view->_frameHold.awaiting && view->_frameHold.generation == generation) [view frameShown:paint == ArdiaPagePaintDrawn];
+    }];
+  const CFTimeInterval longest = untilPainted ? kPagePaintWaitSeconds : kFirstFrameHoldSeconds;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(longest * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     ArdiaWebView *view = weakSelf;
     if (view && view->_frameHold.awaiting && view->_frameHold.generation == generation) [view frameShown:NO];
   });
@@ -384,6 +403,7 @@ BOOL Above(NSView *a, NSView *b) {
       [AwaitingFrames() removeObject:view];
       continue;
     }
+    if (view->_frameHold.untilPainted) continue;
     NSView *widget = RenderWidgetIn(view->_tab.view);
     if (!widget || ![FrameMarkOf(widget) isEqualToArray:view->_frameHold.mark]) [view frameShown:YES];
   }
@@ -402,6 +422,7 @@ BOOL Above(NSView *a, NSView *b) {
   [self dropStandIn];
   if (!_frameHold.awaiting) return;
   _frameHold.awaiting = NO;
+  _frameHold.untilPainted = NO;
   _frameHold.mark = nil;
   _frameHold.generation++;
   [AwaitingFrames() removeObject:self];
@@ -414,7 +435,7 @@ BOOL Above(NSView *a, NSView *b) {
 - (ArdiaWebView *)awaitedOver {
   if (!self.window) return nil;
   for (ArdiaWebView *other in AwaitingFrames().allObjects)
-    if (other->_frameHold.awaiting && [self sharesScreenWith:other]) return other;
+    if (other->_frameHold.awaiting && (other->_frameHold.tookOverFrom == self || [self sharesScreenWith:other])) return other;
   return nil;
 }
 
@@ -425,7 +446,8 @@ BOOL Above(NSView *a, NSView *b) {
   [awaited keepPaneBelow:self];
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ keeps its page up for %@", _transferKey, awaited->_transferKey);
   __weak ArdiaWebView *weakSelf = self;
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kHolderBackstopSeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+  const CFTimeInterval backstop = awaited->_frameHold.untilPainted ? kPagePaintWaitSeconds + kHolderOutlastsHoldSeconds : kHolderBackstopSeconds;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(backstop * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     ArdiaWebView *view = weakSelf;
     if (!view || !view->_frameHold.holding || view->_frameHold.holdGeneration != generation) return;
     WithoutActions(^{
