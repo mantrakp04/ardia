@@ -169,7 +169,9 @@ The fastest bug to fix is one with a screen recording. Include:
 
 - **Issue first.** Every PR closes an issue. Open one (or find the existing one) describing the bug or the request
   before you open the PR, then put `Closes #<issue>` in the PR description. A PR with no linked issue fails the
-  "Linked issue" check and won't be reviewed. Several PRs can point at the same issue.
+  "Linked issue" check and won't be reviewed. Several PRs can point at the same issue. GitHub links an issue
+  only for a PR into `main`; for a PR stacked on another PR's branch the check reads `Closes #<issue>` from the
+  description itself.
 - **Get vouched.** Maintainers vouch for contributors with [vouch](https://github.com/mitchellh/vouch). The list is
   `.github/VOUCHED.td`; collaborators and bots always count as vouched. Anyone can open a pull request: yours stays
   open with the `vouch:unvouched` label, and the iOS build and CodeRabbit's automatic review wait until a maintainer

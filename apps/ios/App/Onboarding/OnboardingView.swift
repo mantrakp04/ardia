@@ -14,7 +14,11 @@ enum OnboardingStep: Int, CaseIterable, Comparable {
   }
 
   var next: OnboardingStep? {
-    Self.allCases.first { $0 > self }
+    Self.allCases.first { $0 > self && $0.isOffered }
+  }
+
+  var isOffered: Bool {
+    self != .defaultBrowser || DefaultBrowserStatus.isOffered
   }
 
   static var launchStep: OnboardingStep {
