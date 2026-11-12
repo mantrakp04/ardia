@@ -236,7 +236,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   finishImport(signal, {
     counts: total,
     failures: [...failed].map(([kind, names]) => ({ kind, profiles: selected.length > 1 ? names : [] })),
-    notes: left,
+    notes: [...new Set(left)],
     extensions: { profileId: extensionsProfile, list: [...found.values()], opened: false },
   });
 }

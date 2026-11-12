@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { listSources } from "../../../../../packages/expo-windows/src/import/discovery.ts";
 import { bookmarksFromHtml, passwordsFromCsv } from "../../../../../packages/expo-windows/src/import/fileFormats.ts";
 import { importProfile, Unlocks } from "../../../../../packages/expo-windows/src/import/importer.ts";
 import { lz4Block } from "../../../../../packages/expo-windows/src/import/bytes.ts";
+import { pathFromFileUrl } from "../../../../../packages/expo-windows/src/import/host.ts";
 
-const fixtures = new URL("../../../../../packages/import/fixtures/", import.meta.url).pathname;
+const fixtures = fileURLToPath(new URL("../../../../../packages/import/fixtures/", import.meta.url));
 const support = join(fixtures, "home/Library/Application Support");
 const LOCAL = "C:\\Users\\tester\\AppData\\Local";
 const ROAMING = "C:\\Users\\tester\\AppData\\Roaming";
@@ -35,8 +37,10 @@ const cell = (value) => (value instanceof Uint8Array ? { blob: Buffer.from(value
 
 function fakeHost(secrets = {}) {
   const calls = [];
+  const open = new Map();
   return {
     calls,
+    open,
     localAppData: LOCAL,
     roamingAppData: ROAMING,
     async list(path) {
@@ -56,29 +60,48 @@ function fakeHost(secrets = {}) {
       return file && existsSync(file) ? readFileSync(file).toString("base64") : null;
     },
     async query(path, queries) {
+      const opened = await this.openSnapshot(path);
+      if (opened.failure) return opened;
+      try {
+        return await this.querySnapshot(opened.id, queries);
+      } finally {
+        this.closeSnapshot(opened.id);
+      }
+    },
+    async openSnapshot(path) {
+      calls.push(["openSnapshot"]);
       const file = onDisk(path);
       if (!file || !existsSync(file)) return { failure: "missing" };
       const scratch = mkdtempSync(join(tmpdir(), "ardia-import-test-"));
-      try {
-        copyFileSync(file, join(scratch, "db.sqlite"));
-        for (const suffix of ["-wal", "-journal"]) if (existsSync(file + suffix)) copyFileSync(file + suffix, join(scratch, `db.sqlite${suffix}`));
-        const db = new DatabaseSync(join(scratch, "db.sqlite"));
-        const results = queries.map(({ sql, args = [], limit }) => {
-          try {
-            const statement = db.prepare(sql);
-            statement.setReadBigInts(true);
-            const columns = statement.columns().map((c) => c.name);
-            const rows = statement.all(...args).slice(0, limit ?? Infinity).map((row) => columns.map((c) => cell(row[c])));
-            return { columns, rows };
-          } catch (error) {
-            return { error: String(error.message) };
-          }
-        });
-        db.close();
-        return { results };
-      } finally {
-        rmSync(scratch, { recursive: true, force: true });
-      }
+      copyFileSync(file, join(scratch, "db.sqlite"));
+      for (const suffix of ["-wal", "-journal"]) if (existsSync(file + suffix)) copyFileSync(file + suffix, join(scratch, `db.sqlite${suffix}`));
+      const id = `s${open.size + 1}-${Math.random()}`;
+      open.set(id, { db: new DatabaseSync(join(scratch, "db.sqlite")), scratch });
+      return { id };
+    },
+    async querySnapshot(id, queries) {
+      calls.push(["querySnapshot", queries.length]);
+      const held = open.get(id);
+      if (!held) return { failure: "closed" };
+      const results = queries.map(({ sql, args = [], limit }) => {
+        try {
+          const statement = held.db.prepare(sql);
+          statement.setReadBigInts(true);
+          const columns = statement.columns().map((c) => c.name);
+          const rows = statement.all(...args).slice(0, limit ?? Infinity).map((row) => columns.map((c) => cell(row[c])));
+          return { columns, rows };
+        } catch (error) {
+          return { error: String(error.message) };
+        }
+      });
+      return { results };
+    },
+    closeSnapshot(id) {
+      const held = open.get(id);
+      if (!held) return;
+      held.db.close();
+      rmSync(held.scratch, { recursive: true, force: true });
+      open.delete(id);
     },
     async unlock(browserId) {
       calls.push(["unlock", browserId]);
@@ -208,4 +231,37 @@ test("A bookmarks HTML file and a passwords CSV file parse as on the Mac", () =>
 test("LZ4 blocks decode literals and back references", () => {
   const block = Uint8Array.from([0x34, 0x61, 0x62, 0x63, 0x02, 0x00, 0x50, 0x61, 0x62, 0x63, 0x64, 0x65]);
   assert.equal(Buffer.from(lz4Block(block, 16)).toString(), "abcbcbcbcbcabcde");
+});
+
+test("History is read in pages from one snapshot, which is closed afterwards", async () => {
+  const host = fakeHost();
+  const chunks = [];
+  const result = await importProfile(host, new Unlocks(), "firefox", "Profiles/abcd1234.default-release", ["history"], { historyPage: 1, chunkSize: 3, streamHistory: true }, {
+    ...quiet,
+    history: (entries) => chunks.push(entries.length),
+  });
+  assert.equal(result.historyCount, 4);
+  assert.deepEqual(chunks, [3, 1]);
+  assert.equal(host.calls.filter(([c]) => c === "openSnapshot").length, 1);
+  assert.deepEqual(host.calls.filter(([c]) => c === "querySnapshot").map(([, n]) => n), [2, 1, 1, 1, 1]);
+  assert.equal(host.open.size, 0);
+});
+
+test("A picked file's address becomes its Windows path, network shares included", () => {
+  assert.equal(pathFromFileUrl("file:///C:/Users/t/My%20Bookmarks.html"), "C:\\Users\\t\\My Bookmarks.html");
+  assert.equal(pathFromFileUrl("file://server/share/passwords.csv"), "\\\\server\\share\\passwords.csv");
+  assert.equal(pathFromFileUrl("C:\\plain.csv"), "C:\\plain.csv");
+});
+
+test("A password file that fails beside one that read keeps its passwords and says why some stayed", async () => {
+  const items = [{ url: "https://a.example/", username: "u", password: "p" }];
+  const held = await importProfile(fakeHost({ logins: { items, undecryptable: 0, appBound: 0, failure: "inUse" } }), new Unlocks(), "chrome", "Default", ["passwords"], {}, quiet);
+  assert.deepEqual(held.failed, []);
+  assert.equal(held.credentials.length, 1);
+  assert.deepEqual(held.warnings.map((w) => [w.kind, w.code]), [["passwords", "locked"]]);
+  assert.match(held.warnings[0].message, /Google Chrome is holding one of its password files/);
+  const broken = await importProfile(fakeHost({ logins: { items, undecryptable: 0, appBound: 0, failure: "unreadable" } }), new Unlocks(), "chrome", "Default", ["passwords"], {}, quiet);
+  assert.deepEqual(broken.warnings.map((w) => w.code), ["skipped"]);
+  const none = await importProfile(fakeHost({ logins: { items: [], undecryptable: 0, appBound: 0, failure: "unreadable" } }), new Unlocks(), "chrome", "Default", ["passwords"], {}, quiet);
+  assert.deepEqual(none.failed, ["passwords"]);
 });

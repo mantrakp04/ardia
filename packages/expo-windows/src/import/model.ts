@@ -1,92 +1,38 @@
-export type ImportKind = "bookmarks" | "history" | "tabs" | "passwords" | "cookies" | "autofill" | "spaces" | "pinnedTabs" | "favorites";
+import type {
+  BookmarkNode,
+  BookmarkRole,
+  BrowserFamily,
+  BrowserProfile,
+  BrowserSource,
+  Credential,
+  ImportedFavicon,
+  ImportedHistoryEntry,
+  ImportedTab,
+  ImportedTabGroup,
+  ImportKind,
+  ImportProgress,
+  ImportResult,
+  ImportWarning,
+  WrittenCounts,
+} from "@ardia/import";
+
+export type { BookmarkNode, BookmarkRole, Credential, ImportedTab, ImportKind, WrittenCounts };
+
+export type Family = BrowserFamily;
+export type HistoryEntry = ImportedHistoryEntry;
+export type TabGroup = ImportedTabGroup;
+export type Favicon = ImportedFavicon;
+export type Warning = Extract<ImportWarning, { kind: ImportKind }>;
+export type WarningCode = Warning["code"];
+export type Profile = BrowserProfile;
+export type Source = BrowserSource;
+export type Result = ImportResult;
+export type Progress = ImportProgress;
+export type OpenTabs = { tabs: ImportedTab[]; groups: TabGroup[] };
 
 export const KIND_ORDER: ImportKind[] = ["bookmarks", "history", "tabs", "passwords", "cookies", "autofill", "spaces", "pinnedTabs", "favorites"];
 
-export type Family = "chromium" | "firefox" | "safari" | "arc";
-
-export type BookmarkNode = {
-  type: "folder" | "url";
-  title: string;
-  url?: string;
-  dateAdded?: number;
-  children?: BookmarkNode[];
-  role?: string;
-};
-
-export type HistoryEntry = { url: string; title: string; visits: number; lastVisit: number; typedCount?: number };
-
-export type ImportedTab = { url: string; title: string; pinned: boolean; groupId?: string; windowIndex: number; active: boolean; lastActive?: number };
-
-export type TabGroup = { id: string; title: string; color: string; collapsed: boolean };
-
-export type OpenTabs = { tabs: ImportedTab[]; groups: TabGroup[] };
-
-export type Credential = {
-  url: string;
-  username: string;
-  password: string;
-  realm?: string;
-  title?: string;
-  note?: string;
-  otpAuth?: string;
-  created?: number;
-  lastUsed?: number;
-  timesUsed?: number;
-};
-
-export type Favicon = { page: string; icon: string; png: string };
-
-export type WarningCode = "empty" | "undecryptable" | "skipped" | "locked" | "unreadable" | "unsupported" | "notRunning";
-
-export type Warning = { kind: ImportKind; code: WarningCode; message: string };
-
-export type Profile = {
-  id: string;
-  name: string;
-  path: string;
-  email?: string;
-  avatarPath?: string;
-  color?: string;
-  isDefault: boolean;
-  available: ImportKind[];
-  tabsNeedKey: boolean;
-};
-
-export type Source = {
-  id: string;
-  name: string;
-  family: Family;
-  requiresExport: boolean;
-  needsKeychain: boolean;
-  needsFullDiskAccess: boolean;
-  profiles: Profile[];
-  asksAppForTabs: boolean;
-};
-
-export type Result = {
-  browserId: string;
-  profileId: string;
-  profile?: { name: string; color?: string; avatarPath?: string };
-  bookmarks?: BookmarkNode;
-  history: HistoryEntry[];
-  historyCount: number;
-  tabs: ImportedTab[];
-  tabGroups: TabGroup[];
-  credentials: Credential[];
-  cookieCount: number;
-  addressCount: number;
-  cardCount: number;
-  vaultToken?: string;
-  spaces: never[];
-  favorites: ImportedTab[];
-  favicons: Favicon[];
-  failed: ImportKind[];
-  warnings: Warning[];
-};
-
-export type Progress = { kind: ImportKind; phase: "start" | "progress" | "end"; processed: number; total?: number };
-
-export type Options = { historyLimit?: number; historySince?: number; chunkSize?: number; streamHistory?: boolean };
+export type Options = { historyLimit?: number; historySince?: number; chunkSize?: number; streamHistory?: boolean; historyPage?: number };
 
 export type Observer = {
   progress(progress: Progress): void;

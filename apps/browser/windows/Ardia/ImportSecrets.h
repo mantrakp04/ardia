@@ -342,22 +342,30 @@ inline std::string Logins(std::string const &browser, std::vector<std::filesyste
   Counted counted;
   size_t items = 0;
   std::string failure;
+  auto note = [&failure](std::string const &what) {
+    if (failure.empty() || what == "inUse") failure = what;
+  };
   Wiped plain;
   for (auto const &file : files) {
     ImportFiles::Snapshot snapshot{file};
     if (!snapshot.Db()) {
-      if (failure.empty() || snapshot.Failure() == "inUse") failure = snapshot.Failure();
+      note(snapshot.Failure());
       continue;
     }
-    if (!ImportFiles::TableExists(snapshot.Db(), "logins")) continue;
+    ImportFiles::Table table = ImportFiles::TableIn(snapshot.Db(), "logins");
+    if (table == ImportFiles::Table::absent) continue;
     ImportFiles::Statement select{snapshot.Db(), "SELECT * FROM logins"};
-    if (!select) continue;
+    if (table == ImportFiles::Table::broken || !select) {
+      note("unreadable");
+      continue;
+    }
     sqlite3_stmt *row = select.Get();
     int columns[7] = {ImportFiles::ColumnIndex(row, "origin_url"), ImportFiles::ColumnIndex(row, "signon_realm"), ImportFiles::ColumnIndex(row, "username_value"),
                       ImportFiles::ColumnIndex(row, "date_created"), ImportFiles::ColumnIndex(row, "date_last_used"), ImportFiles::ColumnIndex(row, "times_used"),
                       ImportFiles::ColumnIndex(row, "blacklisted_by_user")};
     int value = ImportFiles::ColumnIndex(row, "password_value");
-    while (sqlite3_step(row) == SQLITE_ROW) {
+    int step = SQLITE_ROW;
+    while ((step = sqlite3_step(row)) == SQLITE_ROW) {
       if (ImportFiles::ColumnInt(row, columns[6]).value_or(0) != 0 || value < 0) continue;
       auto blob = static_cast<const uint8_t *>(sqlite3_column_blob(row, value));
       size_t size = static_cast<size_t>(sqlite3_column_bytes(row, value));
@@ -373,9 +381,10 @@ inline std::string Logins(std::string const &browser, std::vector<std::filesyste
       AppendLogin(out, row, plain.View(), columns);
       plain.Wipe();
     }
+    if (step != SQLITE_DONE) note("unreadable");
   }
   out.append("],").append(counted.Json());
-  if (!failure.empty() && items == 0) out.append(",\"failure\":").append(ImportFiles::JsonString(failure));
+  if (!failure.empty()) out.append(",\"failure\":").append(ImportFiles::JsonString(failure));
   out.push_back('}');
   return out;
 }
@@ -437,7 +446,7 @@ inline std::string Cookies(std::string const &browser, std::filesystem::path con
   if (key) SecureZeroMemory(key->data(), key->size());
   ImportFiles::Snapshot snapshot{file};
   if (!snapshot.Db()) return "{\"failure\":" + ImportFiles::JsonString(snapshot.Failure()) + "}";
-  if (!ImportFiles::TableExists(snapshot.Db(), "cookies")) return "{\"failure\":\"unreadable\"}";
+  if (ImportFiles::TableIn(snapshot.Db(), "cookies") != ImportFiles::Table::present) return "{\"failure\":\"unreadable\"}";
   int64_t version = 0;
   if (ImportFiles::TableExists(snapshot.Db(), "meta")) {
     ImportFiles::Statement meta{snapshot.Db(), "SELECT CAST(value AS INTEGER) FROM meta WHERE key='version'"};
@@ -458,7 +467,8 @@ inline std::string Cookies(std::string const &browser, std::filesystem::path con
   size_t count = 0;
   size_t inBatch = 0;
   Wiped plain;
-  while (sqlite3_step(row) == SQLITE_ROW) {
+  int step = SQLITE_ROW;
+  while ((step = sqlite3_step(row)) == SQLITE_ROW) {
     std::string host = ImportFiles::ColumnText(row, hostColumn);
     if (host.empty()) continue;
     bool persistent = ImportFiles::ColumnInt(row, persistentColumn).value_or(1) != 0;
@@ -507,6 +517,7 @@ inline std::string Cookies(std::string const &browser, std::filesystem::path con
     plain.Wipe();
     count++;
   }
+  if (step != SQLITE_DONE) return "{\"failure\":\"unreadable\"}";
   if (!entry->batches.empty()) CloseBatch(*entry->batches.back());
   std::string token = count ? Store::Shared().Keep(entry, started) : std::string{};
   if (count && token.empty()) return "{\"failure\":\"cancelled\"}";

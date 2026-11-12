@@ -3,7 +3,7 @@ import { emitNativeEvent } from "../events";
 import { findBrowser } from "./browsers";
 import { listSources } from "./discovery";
 import { bookmarksFromHtml, passwordsFromCsv } from "./fileFormats";
-import type { ImportHost } from "./host";
+import { pathFromFileUrl, type ImportHost } from "./host";
 import { importProfile, Unlocks } from "./importer";
 import { ImportFailure, type ImportKind, type Progress } from "./model";
 import { nativeImportHost } from "./nativeHost";
@@ -103,7 +103,7 @@ export function windowsImport(hostOf: () => ImportHost | null = nativeImportHost
       const dialogs = TurboModuleRegistry.get<Dialogs>("ArdiaDialogs");
       const [picked] = (await dialogs?.pickFiles()) ?? [];
       if (!picked) return null;
-      return picked.startsWith("file:") ? decodeURIComponent(picked.replace(/^file:\/\/\/?/, "")).replace(/\//g, "\\") : picked;
+      return pathFromFileUrl(picked);
     },
 
     importSafariExport: notOnWindows("Safari"),

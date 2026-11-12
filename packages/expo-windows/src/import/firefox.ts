@@ -1,6 +1,6 @@
 import { fromBase64, mozLz4, utf8 } from "./bytes";
 import { entries, join, rowsOf, type ImportHost } from "./host";
-import { folder, fromUnixMicros, ImportFailure, link, type BookmarkNode, type ImportedTab, type OpenTabs, type TabGroup } from "./model";
+import { folder, fromUnixMicros, ImportFailure, link, type BookmarkNode, type BookmarkRole, type ImportedTab, type OpenTabs, type TabGroup } from "./model";
 import { readRows } from "./sqlite";
 
 export type FirefoxProfile = { name: string; path: string; isDefault: boolean };
@@ -30,7 +30,7 @@ export function firefoxProfiles(ini: string): FirefoxProfile[] {
   return out.sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
 }
 
-const ROOTS: Record<string, { role: string; title: string }> = {
+const ROOTS: Record<string, { role: BookmarkRole; title: string }> = {
   toolbar_____: { role: "toolbar", title: "Bookmarks Toolbar" },
   menu________: { role: "menu", title: "Bookmarks Menu" },
   unfiled_____: { role: "other", title: "Other Bookmarks" },
@@ -54,7 +54,11 @@ export async function firefoxBookmarks(host: ImportHost, places: string): Promis
     const added = r.int("dateAdded");
     const row: PlaceRow = { id: r.int("id") ?? 0, type: r.int("type") ?? 0, parent: r.int("parent") ?? 0, title: r.text("title") ?? "", url: r.text("url"), added: fromUnixMicros(added), guid: r.text("guid") ?? "" };
     if (row.guid === "root________") rootId = row.id;
-    else children.set(row.parent, [...(children.get(row.parent) ?? []), row]);
+    else {
+      const siblings = children.get(row.parent);
+      if (siblings) siblings.push(row);
+      else children.set(row.parent, [row]);
+    }
   }
   if (rootId === undefined) throw new ImportFailure("unreadable", "places.sqlite has no bookmarks root");
   const build = (parent: number, depth: number): BookmarkNode[] =>

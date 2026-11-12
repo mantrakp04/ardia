@@ -81,12 +81,39 @@ export const checks: Check[] = [
       expectEqual(await native.readText(path, 1024), null, "readText of logins.json");
       expectEqual(await native.readBase64(path, 1024), null, "readBase64 of logins.json");
       expectEqual(await native.query(path, [{ sql: "SELECT 1" }]), { failure: "refused" }, "a query of logins.json");
+      expectEqual(await native.readText(`${path}.`, 1024), null, "readText of logins.json with a trailing dot");
+      expectEqual(await native.readText(join(dataFolder(), "LOGINS.JSON"), 1024), null, "readText of LOGINS.JSON");
+      expectEqual(await native.openSnapshot(path), { failure: "refused" }, "a snapshot of logins.json");
       documents().removeDocument("logins.json");
+      const sidecar = await written("Cookies-WAL", "x");
+      expectEqual(await native.readBase64(sidecar, 1024), null, "readBase64 of Cookies-WAL");
+      expectEqual(await native.query(sidecar, [{ sql: "SELECT 1" }]), { failure: "refused" }, "a query of Cookies-WAL");
+      documents().removeDocument("Cookies-WAL");
       const name = unique("attach.sqlite");
       const empty = await written(name, "");
       const answer = await native.query(empty, [{ sql: "ATTACH ? AS other", args: [empty] }]);
       expectTrue("results" in answer && !!answer.results[0]?.error, `ATTACH answered ${JSON.stringify(answer)}`);
       documents().removeDocument(name);
+    },
+  },
+  {
+    name: "import: a snapshot stays open for paged reads until closed, and a broken password file is reported",
+    async run() {
+      const native = host();
+      const name = unique("paged.sqlite");
+      const path = await written(name, "");
+      const opened = await native.openSnapshot(path);
+      expectTrue("id" in opened, `the snapshot failed: ${JSON.stringify(opened)}`);
+      const first = await native.querySnapshot(opened.id, [{ sql: "SELECT ? AS page", args: [1] }]);
+      const second = await native.querySnapshot(opened.id, [{ sql: "SELECT ? AS page", args: [2] }]);
+      expectEqual([first, second], [{ results: [{ columns: ["page"], rows: [[1]] }] }, { results: [{ columns: ["page"], rows: [[2]] }] }], "two pages from one snapshot");
+      native.closeSnapshot(opened.id);
+      expectEqual(await native.querySnapshot(opened.id, [{ sql: "SELECT 1" }]), { failure: "closed" }, "a closed snapshot");
+      const text = `${unique("not-a-database")}.sqlite`;
+      const broken = await written(text, "this is not a database, it only looks like a file with passwords");
+      expectEqual(await native.logins("self-check", [path, broken]), { items: [], undecryptable: 0, appBound: 0, failure: "unreadable" }, "logins with a broken file beside an empty one");
+      documents().removeDocument(name);
+      documents().removeDocument(text);
     },
   },
   {

@@ -366,7 +366,11 @@ that answers the same methods with the same result shapes, so the wizard (`compo
   `-journal` to `%TEMP%\ardia-import-<pid>-<random>` (leftovers over an hour old go at the next launch), opened with
   Windows' own `winsqlite3.dll` with ATTACH off, and only statements SQLite calls read-only run. The browsers' secret
   stores (`Cookies`, `cookies.sqlite`, `Login Data`, `Web Data`, `key4.db`, `logins.db`, `logins.json` and their
-  `-wal`/`-journal`) are refused to these generic reads, so their plain-text values can't reach JS through them. A file the browser holds open with no
+  `-wal`/`-journal`) are refused to these generic reads under any name Windows resolves to them (any case, a trailing
+  dot or space, a stream suffix, a short name: the check also reads the opened file's real name), so their plain-text
+  values can't reach JS through them. A sidecar that exists but can't be copied fails the snapshot rather than leaving
+  it without the latest writes. `openSnapshot`, `querySnapshot` and `closeSnapshot` keep one snapshot open across
+  calls (closed after 10 idle minutes otherwise), so history is read 5,000 rows a page instead of in one reply. A file the browser holds open with no
   sharing (Chrome does this to `Network\Cookies` and others while it runs) answers `inUse`, and that kind fails with
   "Quit <browser> and import again".
 - Discovery (`browsers.ts`, `discovery.ts`): Chrome, Edge, Arc, Firefox, Zen, Brave, Vivaldi, Opera, Opera GX, Chromium,

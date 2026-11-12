@@ -213,6 +213,37 @@ struct ImportModule {
     });
   }
 
+  REACT_METHOD(openSnapshot)
+  void openSnapshot(std::string path, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [path, promise]() noexcept {
+      try {
+        promise.Resolve(ImportFiles::OpenSnapshots::Shared().Open(std::filesystem::path{Paths::Wide(path)}));
+      } catch (...) {
+        promise.Reject("the database could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(querySnapshot)
+  void querySnapshot(std::string id, winrt::Microsoft::ReactNative::JSValue queries, Promise promise) noexcept {
+    auto shared = std::make_shared<winrt::Microsoft::ReactNative::JSValue>(std::move(queries));
+    ImportParts::OnAThread(promise, [id, shared, promise]() noexcept {
+      try {
+        promise.Resolve(ImportFiles::OpenSnapshots::Shared().Query(id, shared->AsArray()));
+      } catch (...) {
+        promise.Reject("the database could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(closeSnapshot)
+  void closeSnapshot(std::string id) noexcept {
+    try {
+      ImportFiles::OpenSnapshots::Shared().Close(id);
+    } catch (...) {
+    }
+  }
+
   REACT_METHOD(unlock)
   void unlock(std::string browserId, std::string localState, Promise promise) noexcept {
     ImportParts::OnAThread(promise, [browserId, localState, promise]() noexcept {

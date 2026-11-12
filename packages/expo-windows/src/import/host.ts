@@ -1,12 +1,13 @@
+import type { Credential, WrittenCounts } from "./model";
+
 export type Entry = { name: string; dir: boolean; size: number; modified: number };
 export type Cell = number | string | null | { blob: string };
 export type Query = { sql: string; args?: (string | number)[]; limit?: number };
 export type Rows = { columns: string[]; rows: Cell[][]; error?: string };
-export type SnapshotFailure = "missing" | "inUse" | "unreadable" | "noTemp" | "refused" | "cancelled";
+export type SnapshotFailure = "missing" | "inUse" | "unreadable" | "noTemp" | "refused" | "cancelled" | "closed";
 export type Secrets = { undecryptable: number; appBound: number; failure?: SnapshotFailure };
-export type LoginRow = { url: string; username: string; password: string; realm?: string; created?: number; lastUsed?: number; timesUsed?: number };
 export type CookieRead = Secrets & { count: number; dropped: number; token?: string };
-export type WrittenCookies = { cookies: number; cookiesRejected: number; cookiesExisting: number; addresses: number; cards: number; cookiesFailed?: 1; error?: string };
+export type Answer = { results: Rows[] } | { failure: SnapshotFailure };
 
 export type ImportHost = {
   localAppData: string;
@@ -14,14 +15,27 @@ export type ImportHost = {
   list(path: string): Promise<Entry[] | null | { denied: true }>;
   readText(path: string, largest: number): Promise<string | null>;
   readBase64(path: string, largest: number): Promise<string | null>;
-  query(path: string, queries: Query[]): Promise<{ results: Rows[] } | { failure: SnapshotFailure }>;
+  query(path: string, queries: Query[]): Promise<Answer>;
+  openSnapshot(path: string): Promise<{ id: string } | { failure: SnapshotFailure }>;
+  querySnapshot(id: string, queries: Query[]): Promise<Answer>;
+  closeSnapshot(id: string): void;
   unlock(browserId: string, localState: string): Promise<{ unlocked: boolean; appBound: boolean }>;
-  logins(browserId: string, files: string[]): Promise<Secrets & { items: LoginRow[] }>;
+  logins(browserId: string, files: string[]): Promise<Secrets & { items: Credential[] }>;
   cookies(browserId: string, file: string): Promise<CookieRead>;
-  writeCookies(token: string, profile: string): Promise<WrittenCookies>;
+  writeCookies(token: string, profile: string): Promise<WrittenCounts>;
   discard(token: string): void;
   forget(): void;
 };
+
+export function pathFromFileUrl(picked: string): string {
+  if (!picked.startsWith("file:")) return picked;
+  const decoded = decodeURIComponent(picked);
+  const local = /^file:\/\/\/([A-Za-z]:.*)$/.exec(decoded);
+  if (local) return local[1]!.replace(/\//g, "\\");
+  const network = /^file:\/\/([^/].*)$/.exec(decoded);
+  if (network) return `\\\\${network[1]!.replace(/\//g, "\\")}`;
+  return decoded.replace(/^file:\/*/, "").replace(/\//g, "\\");
+}
 
 export const join = (...parts: string[]) =>
   parts

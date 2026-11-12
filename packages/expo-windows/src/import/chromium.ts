@@ -9,15 +9,16 @@ import {
   link,
   toWebKit,
   type BookmarkNode,
+  type BookmarkRole,
   type Favicon,
   type HistoryEntry,
   type Observer,
   type Options,
   type Result,
 } from "./model";
-import { readRows } from "./sqlite";
+import { withSnapshot } from "./sqlite";
 
-const ROOTS: { key: string; role: string; title: string }[] = [
+const ROOTS: { key: string; role: BookmarkRole; title: string }[] = [
   { key: "bookmark_bar", role: "toolbar", title: "Bookmarks Bar" },
   { key: "other", role: "other", title: "Other Bookmarks" },
   { key: "synced", role: "mobile", title: "Mobile Bookmarks" },
@@ -69,6 +70,7 @@ export async function chromiumBookmarks(host: ImportHost, profile: string): Prom
   return result;
 }
 
+const HISTORY_PAGE = 5000;
 const WEB_ONLY = "(url LIKE 'http://%' OR url LIKE 'https://%')";
 
 export async function readHistory(
@@ -89,7 +91,7 @@ export async function readHistory(
       where += " AND last_visit_time >= ?";
       args.push(toWebKit(options.historySince));
     }
-    sql = `SELECT url, title, visit_count, last_visit_time AS last, typed_count AS typed FROM urls WHERE ${where} ORDER BY last_visit_time DESC`;
+    sql = `SELECT url, title, visit_count, last_visit_time AS last, typed_count AS typed FROM urls WHERE ${where} ORDER BY last_visit_time DESC, id DESC`;
   } else {
     table = "moz_places";
     let where = `hidden = 0 AND visit_count > 0 AND last_visit_date IS NOT NULL AND ${WEB_ONLY}`;
@@ -97,57 +99,60 @@ export async function readHistory(
       where += " AND last_visit_date >= ?";
       args.push(Math.round(options.historySince * 1000));
     }
-    sql = `SELECT url, title, visit_count, last_visit_date AS last, typed FROM moz_places WHERE ${where} ORDER BY last_visit_date DESC`;
+    sql = `SELECT url, title, visit_count, last_visit_date AS last, typed FROM moz_places WHERE ${where} ORDER BY last_visit_date DESC, id DESC`;
   }
-  const [tables, counted, rows] = await readRows(
-    host,
-    file,
-    [
+  return withSnapshot(host, file, browserName, async (read) => {
+    const [tables, counted] = await read([
       { sql: "SELECT name FROM sqlite_master WHERE type='table' AND name=?", args: [table] },
       { sql: `SELECT count(*) AS n FROM (${sql})`, args },
-      { sql, args, ...(options.historyLimit !== undefined ? { limit: options.historyLimit } : {}) },
-    ],
-    browserName,
-  );
-  if (!rowsOf(tables).length) throw new ImportFailure("unreadable", `${flavor === "chromium" ? "History" : "places.sqlite"} has no ${table} table`);
-  checkCancelled(observer);
-  const total = rowsOf(counted)[0]?.int("n") ?? 0;
-  const expected = options.historyLimit !== undefined ? Math.min(options.historyLimit, total) : total;
-  observer.progress({ kind: "history", phase: "start", processed: 0, total: expected });
-  const all: HistoryEntry[] = [];
-  const chunkSize = Math.max(1, options.chunkSize ?? 1000);
-  const stream = !!options.streamHistory && !!observer.history;
-  let chunk: HistoryEntry[] = [];
-  let count = 0;
-  for (const row of rowsOf(rows)) {
-    const url = row.text("url");
-    if (!url || !isWebUrl(url)) continue;
-    const time = row.int("last");
-    const typed = row.int("typed");
-    const entry: HistoryEntry = {
-      url,
-      title: row.text("title") ?? "",
-      visits: Math.max(1, row.int("visit_count") ?? 1),
-      lastVisit: (flavor === "chromium" ? fromWebKit(time) : fromUnixMicros(time)) ?? 0,
-      ...(typed !== undefined ? { typedCount: typed } : {}),
-    };
-    count += 1;
-    if (stream) {
-      chunk.push(entry);
-      if (chunk.length >= chunkSize) {
-        observer.history!(chunk);
-        chunk = [];
-        observer.progress({ kind: "history", phase: "progress", processed: count, total: expected });
-        checkCancelled(observer);
+    ]);
+    if (!rowsOf(tables).length) throw new ImportFailure("unreadable", `${flavor === "chromium" ? "History" : "places.sqlite"} has no ${table} table`);
+    checkCancelled(observer);
+    const total = rowsOf(counted)[0]?.int("n") ?? 0;
+    const expected = options.historyLimit !== undefined ? Math.min(options.historyLimit, total) : total;
+    observer.progress({ kind: "history", phase: "start", processed: 0, total: expected });
+    const all: HistoryEntry[] = [];
+    const chunkSize = Math.max(1, options.chunkSize ?? 1000);
+    const stream = !!options.streamHistory && !!observer.history;
+    let chunk: HistoryEntry[] = [];
+    let count = 0;
+    const pageSize = Math.max(1, options.historyPage ?? HISTORY_PAGE);
+    for (let offset = 0; offset < expected; offset += pageSize) {
+      const page = Math.min(pageSize, expected - offset);
+      const [rows] = await read([{ sql: `${sql} LIMIT ? OFFSET ?`, args: [...args, page, offset] }]);
+      checkCancelled(observer);
+      const pageRows = rowsOf(rows);
+      for (const row of pageRows) {
+        const url = row.text("url");
+        if (!url || !isWebUrl(url)) continue;
+        const time = row.int("last");
+        const typed = row.int("typed");
+        const entry: HistoryEntry = {
+          url,
+          title: row.text("title") ?? "",
+          visits: Math.max(1, row.int("visit_count") ?? 1),
+          lastVisit: (flavor === "chromium" ? fromWebKit(time) : fromUnixMicros(time)) ?? 0,
+          ...(typed !== undefined ? { typedCount: typed } : {}),
+        };
+        count += 1;
+        if (stream) {
+          chunk.push(entry);
+          if (chunk.length >= chunkSize) {
+            observer.history!(chunk);
+            chunk = [];
+            observer.progress({ kind: "history", phase: "progress", processed: count, total: expected });
+          }
+        } else {
+          all.push(entry);
+          if (count % chunkSize === 0) observer.progress({ kind: "history", phase: "progress", processed: count, total: expected });
+        }
       }
-    } else {
-      all.push(entry);
-      if (count % chunkSize === 0) observer.progress({ kind: "history", phase: "progress", processed: count, total: expected });
+      if (pageRows.length < page) break;
     }
-  }
-  if (stream && chunk.length) observer.history!(chunk);
-  observer.progress({ kind: "history", phase: "end", processed: count, total: count });
-  return { entries: all, count };
+    if (stream && chunk.length) observer.history!(chunk);
+    observer.progress({ kind: "history", phase: "end", processed: count, total: count });
+    return { entries: all, count };
+  });
 }
 
 const MAXIMUM_PAGES = 1000;

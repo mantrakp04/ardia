@@ -99,6 +99,13 @@ export async function importProfile(
         await unlocks.ensure(host, browser);
         const outcome = await host.logins(browser.id, files);
         if (outcome.failure && !outcome.items.length) throw snapshotFailure(outcome.failure, files[0]!, browser.name);
+        if (outcome.failure) {
+          const held = outcome.failure === "inUse";
+          const message = held
+            ? `${browser.name} is holding one of its password files, so some passwords stayed behind. Quit ${browser.name} and import again`
+            : "Some saved passwords couldn't be read";
+          result.warnings.push({ kind, code: held ? "locked" : "skipped", message });
+        }
         result.credentials = outcome.items;
         count = outcome.items.length;
         secretWarnings(result, kind, outcome, "password", browser);

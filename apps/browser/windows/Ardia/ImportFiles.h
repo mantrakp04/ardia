@@ -3,7 +3,11 @@
 #include <wincrypt.h>
 #include <winsqlite/winsqlite3.h>
 
+#include <chrono>
 #include <cmath>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -25,17 +29,35 @@ inline constexpr uint64_t kLargestFileBytes = 256ull << 20;
 inline constexpr size_t kLargestQueryRows = 2'000'000;
 inline constexpr char kSnapshotPrefix[] = "ardia-import-";
 
+inline std::wstring SecretStoreKey(std::wstring name) {
+  size_t stream = name.find(L':');
+  if (stream != std::wstring::npos) name.resize(stream);
+  CharLowerBuffW(name.data(), static_cast<DWORD>(name.size()));
+  while (!name.empty() && (name.back() == L'.' || name.back() == L' ')) name.pop_back();
+  for (const wchar_t *suffix : {L"-wal", L"-journal", L"-shm"}) {
+    std::wstring_view tail{suffix};
+    if (name.size() > tail.size() && name.compare(name.size() - tail.size(), tail.size(), tail) == 0) name.resize(name.size() - tail.size());
+  }
+  return name;
+}
+
+inline bool IsSecretName(std::wstring const &key) noexcept {
+  for (const wchar_t *secret : {L"cookies", L"cookies.sqlite", L"login data", L"login data for account", L"web data", L"key4.db", L"logins.db", L"logins.json"})
+    if (key == secret) return true;
+  return false;
+}
+
 inline bool IsSecretStore(std::filesystem::path const &path) noexcept {
   try {
-    std::wstring name = path.filename().wstring();
-    for (const wchar_t *suffix : {L"-wal", L"-journal", L"-shm"}) {
-      std::wstring_view tail{suffix};
-      if (name.size() > tail.size() && name.compare(name.size() - tail.size(), tail.size(), tail) == 0) name.resize(name.size() - tail.size());
-    }
-    CharLowerBuffW(name.data(), static_cast<DWORD>(name.size()));
-    for (const wchar_t *secret : {L"cookies", L"cookies.sqlite", L"login data", L"login data for account", L"web data", L"key4.db", L"logins.db", L"logins.json"})
-      if (name == secret) return true;
-    return false;
+    if (IsSecretName(SecretStoreKey(path.filename().wstring()))) return true;
+    HANDLE file = CreateFileW(path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    std::wstring real(32768, L'\0');
+    DWORD length = GetFinalPathNameByHandleW(file, real.data(), static_cast<DWORD>(real.size()), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    CloseHandle(file);
+    if (length == 0 || length >= real.size()) return true;
+    real.resize(length);
+    return IsSecretName(SecretStoreKey(std::filesystem::path{real}.filename().wstring()));
   } catch (...) {
     return true;
   }
@@ -212,8 +234,9 @@ class Snapshot {
     }
     for (const wchar_t *suffix : {L"-wal", L"-journal"}) {
       std::filesystem::path sibling{source.wstring() + suffix};
-      if (CopyShared(sibling, std::filesystem::path{copy.wstring() + suffix}) == CopyOutcome::inUse) {
-        m_failure = "inUse";
+      CopyOutcome copied = CopyShared(sibling, std::filesystem::path{copy.wstring() + suffix});
+      if (copied == CopyOutcome::inUse || copied == CopyOutcome::failed) {
+        m_failure = copied == CopyOutcome::inUse ? "inUse" : "unreadable";
         return;
       }
     }
@@ -285,11 +308,18 @@ inline std::optional<int64_t> ColumnInt(sqlite3_stmt *statement, int column) noe
   return sqlite3_column_int64(statement, column);
 }
 
-inline bool TableExists(sqlite3 *db, const char *table) noexcept {
+enum class Table { present, absent, broken };
+
+inline Table TableIn(sqlite3 *db, const char *table) noexcept {
   Statement found{db, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?"};
-  if (!found) return false;
+  if (!found) return Table::broken;
   sqlite3_bind_text(found.Get(), 1, table, -1, SQLITE_TRANSIENT);
-  return sqlite3_step(found.Get()) == SQLITE_ROW && sqlite3_column_int64(found.Get(), 0) > 0;
+  if (sqlite3_step(found.Get()) != SQLITE_ROW) return Table::broken;
+  return sqlite3_column_int64(found.Get(), 0) > 0 ? Table::present : Table::absent;
+}
+
+inline bool TableExists(sqlite3 *db, const char *table) noexcept {
+  return TableIn(db, table) == Table::present;
 }
 
 inline void BindArgument(sqlite3_stmt *statement, int index, winrt::Microsoft::ReactNative::JSValue const &value) {
@@ -375,20 +405,81 @@ inline void AppendQuery(std::string &out, sqlite3 *db, winrt::Microsoft::ReactNa
   out.push_back('}');
 }
 
-inline std::string QueryJson(std::filesystem::path const &database, winrt::Microsoft::ReactNative::JSValueArray const &queries) {
-  if (IsSecretStore(database)) return "{\"failure\":\"refused\"}";
-  Snapshot snapshot{database};
-  if (!snapshot.Db()) return "{\"failure\":" + JsonString(snapshot.Failure()) + "}";
+inline std::string ResultsJson(sqlite3 *db, winrt::Microsoft::ReactNative::JSValueArray const &queries) {
   std::string out = "{\"results\":[";
   bool first = true;
   for (auto const &query : queries) {
     if (!first) out.push_back(',');
     first = false;
-    AppendQuery(out, snapshot.Db(), query);
+    AppendQuery(out, db, query);
   }
   out.append("]}");
   return out;
 }
+
+inline std::string QueryJson(std::filesystem::path const &database, winrt::Microsoft::ReactNative::JSValueArray const &queries) {
+  if (IsSecretStore(database)) return "{\"failure\":\"refused\"}";
+  Snapshot snapshot{database};
+  if (!snapshot.Db()) return "{\"failure\":" + JsonString(snapshot.Failure()) + "}";
+  return ResultsJson(snapshot.Db(), queries);
+}
+
+class OpenSnapshots {
+ public:
+  static OpenSnapshots &Shared() noexcept {
+    static OpenSnapshots shared;
+    return shared;
+  }
+
+  std::string Open(std::filesystem::path const &database) {
+    if (IsSecretStore(database)) return "{\"failure\":\"refused\"}";
+    auto snapshot = std::make_shared<Snapshot>(database);
+    if (!snapshot->Db()) return "{\"failure\":" + JsonString(snapshot->Failure()) + "}";
+    std::lock_guard guard{m_lock};
+    Purge();
+    std::string id = "snapshot-" + std::to_string(++m_next);
+    m_open[id] = Held{snapshot, std::make_shared<std::mutex>(), std::chrono::steady_clock::now()};
+    return "{\"id\":" + JsonString(id) + "}";
+  }
+
+  std::string Query(std::string const &id, winrt::Microsoft::ReactNative::JSValueArray const &queries) {
+    Held held;
+    {
+      std::lock_guard guard{m_lock};
+      auto found = m_open.find(id);
+      if (found == m_open.end()) return "{\"failure\":\"closed\"}";
+      found->second.used = std::chrono::steady_clock::now();
+      held = found->second;
+    }
+    std::lock_guard busy{*held.busy};
+    return ResultsJson(held.snapshot->Db(), queries);
+  }
+
+  void Close(std::string const &id) {
+    std::shared_ptr<Snapshot> closing;
+    std::lock_guard guard{m_lock};
+    auto found = m_open.find(id);
+    if (found == m_open.end()) return;
+    closing = found->second.snapshot;
+    m_open.erase(found);
+  }
+
+ private:
+  struct Held {
+    std::shared_ptr<Snapshot> snapshot;
+    std::shared_ptr<std::mutex> busy;
+    std::chrono::steady_clock::time_point used;
+  };
+
+  void Purge() {
+    auto cutoff = std::chrono::steady_clock::now() - std::chrono::minutes(10);
+    for (auto it = m_open.begin(); it != m_open.end();) it = it->second.used < cutoff ? m_open.erase(it) : std::next(it);
+  }
+
+  std::mutex m_lock;
+  std::map<std::string, Held> m_open;
+  uint64_t m_next = 0;
+};
 
 }
 

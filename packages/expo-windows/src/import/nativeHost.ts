@@ -7,6 +7,9 @@ type Native = TurboModule & {
   readText(path: string, largest: number): Promise<string | null>;
   readBase64(path: string, largest: number): Promise<string | null>;
   query(path: string, queries: Query[]): Promise<string>;
+  openSnapshot(path: string): Promise<string>;
+  querySnapshot(id: string, queries: Query[]): Promise<string>;
+  closeSnapshot(id: string): void;
   unlock(browserId: string, localState: string): Promise<string>;
   logins(browserId: string, files: string[]): Promise<string>;
   cookies(browserId: string, file: string): Promise<string>;
@@ -30,6 +33,9 @@ export function nativeImportHost(): ImportHost | null {
     readText: (path, largest) => native.readText(path, largest),
     readBase64: (path, largest) => native.readBase64(path, largest),
     query: (path, queries) => parsed(native.query(path, queries)),
+    openSnapshot: (path) => parsed(native.openSnapshot(path)),
+    querySnapshot: (id, queries) => parsed(native.querySnapshot(id, queries)),
+    closeSnapshot: (id) => native.closeSnapshot(id),
     unlock: (browserId, localState) => parsed(native.unlock(browserId, localState)),
     logins: (browserId, files) => parsed(native.logins(browserId, files)),
     cookies: (browserId, file) => parsed(native.cookies(browserId, file)),
