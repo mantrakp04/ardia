@@ -95,8 +95,8 @@ export function StepLayout({
     <View style={{ flex: 1, flexDirection: "row" }} onLayout={onLayout}>
       <View style={{ width: COLUMN.width, paddingTop: COLUMN.top, paddingBottom: COLUMN.padding, paddingHorizontal: COLUMN.padding }}>{column}</View>
       <ChoiceCard {...paneCard} style={[pane, { flex: 1, margin: space.l, marginLeft: 0 }]}>
-        <Reveal delay={120} style={{ alignItems: "center", justifyContent: "center" }}>
-          {preview}
+        <Reveal delay={120} style={{ alignSelf: "stretch", flex: 1 }}>
+          <FittedPreview>{preview}</FittedPreview>
         </Reveal>
       </ChoiceCard>
     </View>

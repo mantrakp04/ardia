@@ -10,7 +10,7 @@ import { PostageStamp, PostcardPaper } from "../ntp/PostageStamp";
 import { customizeMore, finishOnboarding, QUESTION_ORDER, recordDefaultBrowserTrial, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
 import { SecondaryButton } from "./Buttons";
 import { OptionCard } from "./OptionCard";
-import { useOnboardingColors } from "./Parts";
+import { OptionRow, useOnboardingColors } from "./Parts";
 import { Receipt } from "./PrivacyStep";
 import { StepActions, StepLayout } from "./StepLayout";
 import { onboardingType } from "./tokens";
@@ -49,52 +49,63 @@ export function OutroStep() {
     }
   };
 
-  const defaultOn = !!system?.isDefault || setDefault;
+  const defaultChoice: DefaultChoice = setDefault ? "yes" : trial ? "trial" : "no";
   return (
     <StepLayout
-      title={redo ? "All set" : "Welcome to your new\nhome on the internet"}
-      subtitle="Everything else is set up for you. Change any of it later in Settings."
+      title="Last few choices"
+      subtitle="The rest is set up from what you picked. Change any of it later in Settings."
       actions={
         <>
           <StepActions icon="arrow.right" continueTitle={busy ? "Setting Up…" : redo ? "Done" : "Get Started"} disabled={!system || busy} onContinue={() => void finish(false)} />
           {redo ? null : <SecondaryButton title="Take the Tour" onPress={() => void finish(true)} />}
         </>
       }
-      footer={customizing ? null : <CustomizeMoreLink />}
+      footer={
+        <View style={{ gap: space.ml }}>
+          <OptionCard
+            control="check"
+            icon="stethoscope"
+            title={SHARING_COPY.toggle}
+            subtitle={SHARING_COPY.onboarding.row}
+            selected={share}
+            onHover={setReceipt}
+            onPress={() => setOnboardingExtras({ share: !share })}
+          />
+          <Text size="small" color={colors.rowSubtitle} style={NOTE}>
+            {SHARING_COPY.onboarding.note}
+          </Text>
+          {customizing ? null : <CustomizeMoreLink />}
+        </View>
+      }
       preview={receipt ? <Receipt on={share} /> : <Postcard lines={lines} />}
     >
       <View style={{ gap: space.m }}>
-        <OptionCard
-          control="check"
-          icon="globe"
-          title={system?.isDefault ? "Ardia is your default browser" : "Make Ardia your default browser"}
-          subtitle="Links from everywhere open here"
-          selected={defaultOn}
-          disabled={!system || system.isDefault}
-          onPress={() => setOnboardingExtras(defaultOn ? { setDefault: false } : { setDefault: true, trial: false })}
-        />
-        {system && !defaultOn && !redo ? (
-          <OptionCard control="check" icon="calendar" title="Try it for seven days" subtitle="We'll check in to make sure you love it." selected={trial} onPress={() => setOnboardingExtras({ trial: !trial })} />
+        {system && !system.isDefault ? (
+          <OptionRow
+            title="Default browser"
+            value={defaultChoice}
+            options={redo ? DEFAULT_CHOICES.filter((c) => c.value !== "trial") : DEFAULT_CHOICES}
+            onChange={(choice) => setOnboardingExtras({ setDefault: choice === "yes", trial: choice === "trial" })}
+          />
         ) : null}
-        {PLATFORM_FEATURES.dock && system && !system.inDock ? (
-          <OptionCard control="check" icon="dock.rectangle" title="Keep Ardia in the Dock" subtitle="Quick access whenever you need it" selected={dock} onPress={() => setOnboardingExtras({ dock: !dock })} />
-        ) : null}
-        <OptionCard
-          control="check"
-          icon="stethoscope"
-          title={SHARING_COPY.toggle}
-          subtitle={SHARING_COPY.onboarding.row}
-          selected={share}
-          onHover={setReceipt}
-          onPress={() => setOnboardingExtras({ share: !share })}
-        />
-        <Text size="small" color={colors.rowSubtitle} style={NOTE}>
-          {`Off unless you turn it on. ${SHARING_COPY.dailyCountShort}`}
-        </Text>
+        {PLATFORM_FEATURES.dock && system && !system.inDock ? <OptionRow title="Keep in the Dock" value={dock ? "yes" : "no"} options={DOCK_CHOICES} onChange={(v) => setOnboardingExtras({ dock: v === "yes" })} /> : null}
       </View>
     </StepLayout>
   );
 }
+
+type DefaultChoice = "yes" | "trial" | "no";
+
+const DEFAULT_CHOICES: { value: DefaultChoice; title: string }[] = [
+  { value: "yes", title: "Yes" },
+  { value: "trial", title: "Try for 7 days" },
+  { value: "no", title: "Not now" },
+];
+
+const DOCK_CHOICES: { value: "yes" | "no"; title: string }[] = [
+  { value: "yes", title: "Yes" },
+  { value: "no", title: "No" },
+];
 
 export function CustomizeMoreLink() {
   return (
@@ -158,4 +169,4 @@ const WELCOME_STAMP = { icon: 46, ring: 44, tilt: -12, ringAt: { right: 32, top:
 const CAPTION_LINE = { lineHeight: lineHeight.caption } as const;
 const PICKED_LINE = { flex: 1, lineHeight: lineHeight.caption } as const;
 const GREETING = { lineHeight: proseLineHeight.small } as const;
-const NOTE = { lineHeight: proseLineHeight.small, marginTop: space.xs } as const;
+const NOTE = { lineHeight: proseLineHeight.small } as const;
