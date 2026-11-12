@@ -58,6 +58,7 @@ enum PageViewDefinition {
         view.page.capturePicture(scale) { promise.resolve($0) }
       }.runOnQueue(.main)
       AsyncFunction("toggleCapture") { (view: V) -> Bool in view.toggleCapture() }.runOnQueue(.main)
+      AsyncFunction("captureFullPage") { (view: V) -> Bool in view.captureFullPage() }.runOnQueue(.main)
       AsyncFunction("saveCapture") { (view: V, folder: String, name: String) -> String? in
         view.saveCapture(folder: folder, name: name)
       }.runOnQueue(.main)

@@ -65,6 +65,7 @@ const DEFS: ActionDef[] = [
   { command: "copyUrl", keywords: ["copy link"], needs: page },
   { command: "copyUrlAsMarkdown", keywords: ["markdown link"], needs: page },
   { command: "capture", keywords: ["screenshot", "capture page", "snapshot"], needs: page },
+  { command: "captureFullPage", keywords: ["full page screenshot", "whole page", "long screenshot"], needs: page },
   { command: "findInPage", needs: page },
   {
     command: "bookmarkPage",

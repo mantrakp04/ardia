@@ -12,4 +12,8 @@ extension ArdiaWebView: PageTab {
   func copyCapturePicture(_ completion: @escaping (CGImage?, NSRect) -> Void) {
     copyPictureForCapture { picture, frame in completion(picture, frame) }
   }
+
+  func copyFullPage(_ completion: @escaping (Data?) -> Void) {
+    copyFullPagePicture { png in completion(png) }
+  }
 }

@@ -4,7 +4,7 @@ import { getDownloadSettings } from "../../platform/downloads";
 import { revealFile } from "../../platform/files";
 import { displayHostOf } from "../../lib/url";
 import { currentEngineProfile, currentTab } from "../browser/current";
-import { showToast } from "../app/toasts";
+import { hideKeyedToast, showToast } from "../app/toasts";
 import { noteCaptureEnded, noteCaptureSaved, noteCaptureStarted } from "../telemetry/captureCounts";
 
 const TOAST_KEY = "capture";
@@ -12,6 +12,15 @@ const TOAST_KEY = "capture";
 export async function toggleCapture(tabId: string) {
   const started = await webviews.get(tabId)?.toggleCapture();
   if (started) noteCaptureStarted();
+}
+
+export async function captureFullPage(tabId: string) {
+  const tab = currentTab(tabId);
+  if (!tab) return;
+  showToast(tab.windowId, "Capturing the full page…", undefined, { icon: "doc.viewfinder", key: TOAST_KEY, sticky: true });
+  const started = await webviews.get(tabId)?.captureFullPage();
+  if (started) noteCaptureStarted();
+  else hideKeyedToast(tab.windowId, TOAST_KEY);
 }
 
 export function captureEnded(tabId: string, result: CaptureResult) {

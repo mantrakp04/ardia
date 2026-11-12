@@ -23,6 +23,7 @@ p{margin:0}</style><div id=card><canvas id=pic width=160 height=120></canvas></d
 <script>const c=document.getElementById('pic').getContext('2d');c.fillStyle='rgb(0,0,220)';c.fillRect(0,0,160,120)</script>`;
 const page = `data:text/html,${encodeURIComponent(html)}`;
 const other = `data:text/html,${encodeURIComponent("<title>Other</title><p>other</p>")}`;
+const tall = `data:text/html,${encodeURIComponent("<title>Tall</title><style>html,body{margin:0}div{height:1000px}</style><div style='background:rgb(220,0,0)'></div><div style='background:rgb(0,160,0)'></div><div style='background:rgb(0,0,220)'></div>")}`;
 
 const instance = await launch(app, {
   data: dataDir,
@@ -35,6 +36,7 @@ const instance = await launch(app, {
     tabs: [
       { id: "a", url: page, title: "Capture" },
       { id: "b", url: other, title: "Other" },
+      { id: "c", url: tall, title: "Tall" },
     ],
     settings: { searchSuggestions: false, warnBeforeClosingLastTab: false, warnBeforeClosingWindow: false },
   }),
@@ -166,6 +168,16 @@ try {
     .then(() => { const t = audit.toast(); t && t.action && t.action.run(); return audit.until(() => audit.toast()?.title === "Capture saved", 5000); })
     .then(() => audit.toast());`);
   check("Save writes the capture to the downloads folder", saved?.title === "Capture saved" && /^Capture .+\.png$/.test(saved.message ?? ""), JSON.stringify(saved));
+
+  const full = await ac(`${S} S().activate("c");
+    return audit.until(() => S().tabs.c.title === "Tall" && ac.webviews.has("c"), 20000)
+      .then(() => audit.settle(800))
+      .then(() => ac.webviews.get("c").evaluate("post('result', JSON.stringify([document.documentElement.scrollWidth, document.documentElement.scrollHeight, innerHeight]))"))
+      .then((size) => { audit.clear(); return ac.shell.devMenuCommand("captureFullPage", null).then(() => audit.until(() => audit.toast()?.title === "Capture copied", 20000)).then(() => ({ size, toast: audit.toast() })); });`);
+  const shotE = readPasteboard();
+  const [pageWidth, pageHeight, shownHeight] = full.size ?? [];
+  check("Capture Full Page copies the whole page, past the window", full.toast?.title === "Capture copied" && shownHeight < pageHeight && shotE.width === pageWidth * scale && shotE.height === pageHeight * scale, `${shotE.width}×${shotE.height} for a ${pageWidth}×${pageHeight} page in a ${shownHeight} pt window`);
+  check("its middle and bottom are the page's (green, blue)", near(shotE.center, [0, 160, 0]) && near(shotE.corner, [0, 0, 220]), `${JSON.stringify(shotE.center)} ${JSON.stringify(shotE.corner)}`);
 } finally {
   await instance.quit();
 }

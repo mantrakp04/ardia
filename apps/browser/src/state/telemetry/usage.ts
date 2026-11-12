@@ -80,7 +80,7 @@ function emitCounts() {
       window_close_tabs_kept: counts.windowCloseTabsKept,
       sync_snapshots_written: snapshots.count,
       sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024), auto_pip_nothing_playing: autoPictureInPictureNothingPlaying, pip_back_to_tab: backToTab.chromium, pip_back_to_tab_webkit: backToTab.webkit,
-      captures_started: captures.started, captures_of_blocks: captures.elements, captures_of_areas: captures.areas, captures_cancelled: captures.cancelled, captures_failed: captures.failed, captures_saved: captures.saved,
+      captures_started: captures.started, captures_of_blocks: captures.elements, captures_of_areas: captures.areas, captures_of_pages: captures.pages, captures_cancelled: captures.cancelled, captures_failed: captures.failed, captures_saved: captures.saved,
       toolbar_scroll_hides: counts.toolbarScrollHides,
       toolbar_scroll_hide_bounces: counts.toolbarScrollHideBounces,
       card_resize_layouts: counts.cardResizeLayouts,

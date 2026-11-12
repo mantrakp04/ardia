@@ -59,6 +59,8 @@ extension WebKitTab: PageTab {
 
   func discard(unload: Bool) -> String { Self.unsupported }
 
+  func copyFullPage(_ completion: @escaping (Data?) -> Void) { completion(nil) }
+
   func copyCapturePicture(_ completion: @escaping (CGImage?, NSRect) -> Void) {
     guard let view = webView, window != nil, !view.isHidden else { return completion(nil, .zero) }
     let frame = view.frame

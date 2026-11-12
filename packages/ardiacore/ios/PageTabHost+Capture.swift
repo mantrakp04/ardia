@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import QuartzCore
 
 extension PageTabHost {
@@ -25,6 +26,25 @@ extension PageTabHost {
         }
         self.captureOverlay = overlay
         self.addSubview(overlay, positioned: .above, relativeTo: self.page)
+      }
+    }
+    return true
+  }
+
+  func captureFullPage() -> Bool {
+    guard window != nil, !isHiddenOrHasHiddenAncestor else { return false }
+    endCapture()
+    captureStartedAt = CACurrentMediaTime()
+    let backing = window?.backingScaleFactor ?? 2
+    page.copyFullPage { [weak self] png in
+      DispatchQueue.main.async {
+        guard let self else { return }
+        guard let png, let source = CGImageSourceCreateWithData(png as CFData, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+          let copied = CaptureOverlay.copyToPasteboard(image, points: NSSize(width: CGFloat(image.width) / backing, height: CGFloat(image.height) / backing))
+        else { return self.sendCaptureEnding("failed", kind: "page") }
+        self.capturedPNG = copied
+        self.sendCaptureEnding("copied", kind: "page", width: image.width, height: image.height)
       }
     }
     return true

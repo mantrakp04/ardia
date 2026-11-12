@@ -43,6 +43,7 @@ protocol PageTab: NSView {
   func navigationEntries(_ completion: @escaping ([[String: Any]]) -> Void)
   func capturePicture(_ scale: Double, completion: @escaping ([String: Any]?) -> Void)
   func copyCapturePicture(_ completion: @escaping (CGImage?, NSRect) -> Void)
+  func copyFullPage(_ completion: @escaping (Data?) -> Void)
   func downloadFavicon(_ url: String, completion: @escaping ([String: Any]?) -> Void)
   func downloadImage(_ url: String, maxPixels: Int, completion: @escaping ([String: Any]?) -> Void)
 
