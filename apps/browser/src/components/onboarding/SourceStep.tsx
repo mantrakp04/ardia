@@ -9,7 +9,7 @@ import { noteOnboardingImport } from "../../state/telemetry/usage";
 import { chooseSource, confirmAnswer, PRESET_NAMES, presetFor, skipStep, sourcePatch, useOnboarding, type BrowserSourceId } from "../../state/onboarding/onboarding";
 import { StepActions, StepLayout } from "./StepLayout";
 import { SecondaryButton } from "./Buttons";
-import { SectionLabel, SelectTile, Tag, useOnboardingColors } from "./Parts";
+import { SectionLabel, SelectTile, Tag, useOnboardingCard, useOnboardingColors } from "./Parts";
 import { ChoiceCard } from "./ChoiceCard";
 import { SetupCodeLink, SetupCodeStep } from "./SetupCodeStep";
 import { browserIcon } from "./browserIcons";
@@ -114,6 +114,7 @@ export function SourceStep() {
         ) : null
       }
       preview={<SourcePreview tile={chosen ?? null} fresh={source === "fresh"} found={found} />}
+      previewOptional
     >
       {found.length ? (
         <View style={{ gap: space.m }}>
@@ -140,14 +141,17 @@ function TileGrid({ tiles, selected, onPress, fresh }: { tiles: Tile[]; selected
   );
 }
 
+const SOURCE_TILE = { regular: { height: 68, icon: 30 }, compact: { height: 56, icon: 26 } } as const;
+
 function SourceTile({ title, icon, symbol, selected, onPress }: { title: string; icon: ImageSourcePropType | null; symbol: string; selected: boolean; onPress: () => void }) {
   const colors = useOnboardingColors();
   const ring = useImageRing(icon, selected);
+  const tile = useOnboardingCard().compact ? SOURCE_TILE.compact : SOURCE_TILE.regular;
   return (
-    <SelectTile title={title} height={68} selected={selected} role="radio" titlePad={space.xs} titleLines={1} ring={ring} onPress={onPress}>
+    <SelectTile title={title} height={tile.height} selected={selected} role="radio" titlePad={space.xs} titleLines={1} ring={ring} onPress={onPress}>
       {() =>
         icon ? (
-          <Image source={icon} style={{ width: 30, height: 30 }} />
+          <Image source={icon} style={{ width: tile.icon, height: tile.icon }} />
         ) : (
           <View style={{ margin: space.xxs }}>
             <IconTile symbol={symbol} size="s" fill={colors.iconContainer} glyph={colors.subtitle} />

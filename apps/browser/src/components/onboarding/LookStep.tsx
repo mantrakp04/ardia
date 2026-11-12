@@ -5,14 +5,14 @@ import { space } from "../ui/tokens";
 import { PROFILE_COLORS } from "../ui/theme";
 import { useWindowProfileValue } from "../../state/profiles/hooks";
 import type { Settings } from "../../state/settings/settings";
-import { ChoiceList, type ChoiceOption } from "./ChoiceList";
+import { ChoiceList, type ChoiceOption, type MockFocus } from "./ChoiceList";
 import { ThemePicker } from "../settings/ThemeEditor";
 import { MockPanel, StylePanel, useScreen } from "./Screen";
 import { liquidGlass, previewColor, previewLive, previewTheme, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
 import { keysOf } from "../../state/onboarding/questions";
 import { change, Page, useQuestion } from "./LayoutSteps";
 import { OptionCard } from "./OptionCard";
-import { OptionRow } from "./Parts";
+import { OptionRow, useOnboardingCard } from "./Parts";
 import { Slider } from "../settings/ThemeControls";
 import { Text } from "../ui";
 import { noteOnboardingStyle } from "../../state/telemetry/usage";
@@ -77,20 +77,27 @@ export function LookStep() {
       <ThemePicker windowId={windowId} size={32} gap={space.xs} onPreset={previewColor} onTheme={previewTheme} />
       <OptionRow title="Appearance" value={values.appearance} options={APPEARANCE_OPTIONS} onChange={(appearance) => change({ appearance }, true)} />
       {liquidGlass ? (
-        <View style={{ gap: space.ml }}>
-          <ChoiceList options={STYLE_CHOICES} value={values.interfaceStyle} onChange={(interfaceStyle) => change({ interfaceStyle }, true)} mock={focus} />
-          {values.interfaceStyle === "glass" ? (
-            <OptionCard
-              control="check"
-              title="Tint the glass with your color"
-              subtitle="Buttons and fields take on your theme color"
-              selected={values.glassTintWithTheme}
-              onPress={() => change({ glassTintWithTheme: !values.glassTintWithTheme }, true)}
-            />
-          ) : null}
-        </View>
+        <StyleChoices style={values.interfaceStyle} tint={values.glassTintWithTheme} mock={focus} />
       ) : null}
     </Page>
+  );
+}
+
+function StyleChoices({ style, tint, mock }: { style: Settings["interfaceStyle"]; tint: boolean; mock: MockFocus }) {
+  const { compact } = useOnboardingCard();
+  return (
+    <View style={{ gap: compact ? space.m : space.ml }}>
+      <ChoiceList options={STYLE_CHOICES} value={style} onChange={(interfaceStyle) => change({ interfaceStyle }, true)} mock={mock} />
+      {style === "glass" ? (
+        <OptionCard
+          control="check"
+          title="Tint the glass with your color"
+          subtitle={compact ? undefined : "Buttons and fields take on your theme color"}
+          selected={tint}
+          onPress={() => change({ glassTintWithTheme: !tint }, true)}
+        />
+      ) : null}
+    </View>
   );
 }
 
