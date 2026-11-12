@@ -157,6 +157,9 @@ Logic is written once. Only code that calls the OS is written per platform.
       than it is drawn, because React Native measures as if the platform turned around the centre by itself. So a
       hole cut for a surface that is growing in sits off by that much until the scale reaches 1 (a popover: under
       a tenth of its size, for 150 ms).
+    - A surface that fades in over a page shows the card through its hole for a frame or two first: the hole is
+      cut when the surface mounts, before its fade is visible, and the page, being a window above the UI, cannot
+      be faded over.
     - React Native for Windows resolves the half-size translate when the transform changes, not when the view's
       size changes: a view that is resized while it holds a scale or rotation keeps turning around its old centre
       until its transform changes again. An animation changes it every frame; a fixed rotation on a view that
