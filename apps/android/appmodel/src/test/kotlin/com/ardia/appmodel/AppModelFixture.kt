@@ -40,13 +40,20 @@ import org.robolectric.Shadows.shadowOf
 class FakePage(override val id: String, setup: PageSetup) : Page {
     override val isPrivate: Boolean = setup.isPrivate
     val mutableState = MutableStateFlow(PageState(url = setup.url, title = setup.title, isLive = true))
-    val mutableEvents = MutableSharedFlow<PageEvent>(extraBufferCapacity = 16)
+    val mutableEvents = MutableSharedFlow<PageEvent>(replay = 16, extraBufferCapacity = 16)
     val loads = ArrayList<String>()
     var reloads = 0
     var desktop = false
     var closed = false
     var savedState: ByteArray? = setup.savedState
     val restoredFrom: ByteArray? = setup.savedState
+
+    init {
+        val url = setup.url
+        if (url != null && setup.savedState == null && setup.firstVisit != com.ardia.browser.VisitKind.Restored) {
+            mutableEvents.tryEmit(PageEvent.Visited(url, setup.title, setup.firstVisit))
+        }
+    }
 
     override val state: StateFlow<PageState> = mutableState
     override val view: StateFlow<View?> = MutableStateFlow(null)
@@ -107,7 +114,7 @@ class FakePage(override val id: String, setup: PageSetup) : Page {
     }
 }
 
-class FakeEngine(val sitePreferences: SitePreferences) : PageEngine {
+class FakeEngine(val sitePreferences: SitePreferences, override val separatesPrivatePages: Boolean = true) : PageEngine {
     val pages = LinkedHashMap<String, FakePage>()
     val opened = ArrayList<String>()
     val closed = ArrayList<String>()
@@ -116,13 +123,14 @@ class FakeEngine(val sitePreferences: SitePreferences) : PageEngine {
 
     override val name: String = "Fake"
     override val isDevelopmentOnly: Boolean = true
-    override val separatesPrivatePages: Boolean = true
     override val livePageIds: List<String> get() = pages.keys.toList()
     override var filter: PageFilter? = null
+    override var privateFilter: PageFilter? = null
     override var isInspectable: Boolean = false
     override var onPrivateBrowsingEnded: (() -> Unit)? = null
 
     override fun open(id: String, setup: PageSetup): Page {
+        if (setup.isPrivate && !separatesPrivatePages && id !in pages) throw com.ardia.browser.PrivatePagesUnavailableException()
         opened += id
         return pages.getOrPut(id) { FakePage(id, setup) }
     }
@@ -164,6 +172,7 @@ class FakeSystem : SystemActions {
     var acceptsDownloads = true
 
     override val downloadOutcomes = outcomes
+    override val activeDownloads = MutableStateFlow<List<com.ardia.browser.DownloadProgress>>(emptyList())
 
     override fun copyText(text: String) {
         copies += text
@@ -172,6 +181,18 @@ class FakeSystem : SystemActions {
     override fun share(url: String, title: String) {
         shares += url
     }
+
+    val textShares = ArrayList<String>()
+
+    override fun shareText(text: String) {
+        textShares += text
+    }
+
+    var roleRequest: android.content.Intent? = null
+
+    override fun browserRoleRequest(): android.content.Intent? = roleRequest
+
+    override fun defaultAppsSettings(): android.content.Intent = android.content.Intent("settings.DEFAULT_APPS")
 
     override fun openExternal(url: String): Boolean {
         externals += url
@@ -190,14 +211,32 @@ class FakeSystem : SystemActions {
     override fun preferredLanguage(): String = "de"
 }
 
-class SilentCoreScript : CoreScript {
+open class SilentCoreScript : CoreScript {
     override fun call(function: String, arguments: List<String>): String = "null"
+}
+
+class RecordingCoreScript : SilentCoreScript(), AutoCloseable {
+    val calls: MutableList<Pair<String, List<String>>> = java.util.Collections.synchronizedList(ArrayList())
+
+    @Volatile
+    var closed = false
+
+    override fun call(function: String, arguments: List<String>): String {
+        calls += function to arguments
+        return "null"
+    }
+
+    override fun close() {
+        closed = true
+    }
 }
 
 class AppModelFixture(
     launch: LaunchArguments = LaunchArguments.none,
     demo: Boolean = false,
     openStore: (suspend (Context) -> BrowserStore)? = null,
+    private val separatesPrivatePages: Boolean = true,
+    val script: RecordingCoreScript = RecordingCoreScript(),
 ) {
     val context: Context = ApplicationProvider.getApplicationContext()
     val system = FakeSystem()
@@ -213,10 +252,10 @@ class AppModelFixture(
                 preferences = real.preferences,
                 blockingStore = real.blockingStore,
                 openStore = real.openStore,
-                makeEngine = { FakeEngine(it).also { made -> engine = made } },
+                makeEngine = { FakeEngine(it, separatesPrivatePages).also { made -> engine = made } },
                 makeSync = real.makeSync,
                 makeFilterLists = real.makeFilterLists,
-                coreScript = { SilentCoreScript() },
+                coreScript = { script },
                 omniboxDirectory = real.omniboxDirectory,
                 system = system,
             )
@@ -226,10 +265,10 @@ class AppModelFixture(
                 preferences = MemoryKeyValueStore(),
                 blockingStore = InMemoryBlockingStore(),
                 openStore = { openStore?.invoke(context) ?: BrowserStore.open(context, callbackDispatcher = Dispatchers.Main) },
-                makeEngine = { FakeEngine(it).also { made -> engine = made } },
+                makeEngine = { FakeEngine(it, separatesPrivatePages).also { made -> engine = made } },
                 makeSync = { SyncController.demo() },
                 makeFilterLists = { FilterLists.demo(scratch, it) },
-                coreScript = { SilentCoreScript() },
+                coreScript = { script },
                 omniboxDirectory = null,
                 system = system,
             )

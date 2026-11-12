@@ -42,7 +42,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -71,7 +70,7 @@ import com.ardia.design.LocalProfileLook
 import com.ardia.design.Palette
 import com.ardia.design.Spacing
 import com.ardia.design.SystemPalette
-import com.ardia.design.profileBackdrop
+import com.ardia.design.ProfileBackdrop
 import com.ardia.design.semibold
 import com.ardia.store.AutoArchiveInterval
 import com.ardia.store.BrowserTab
@@ -89,35 +88,13 @@ fun ArchiveView(model: AppModel, modifier: Modifier = Modifier) {
     val haptics = rememberHaptics()
     var query by rememberSaveable { mutableStateOf("") }
     var isConfirmingClear by remember { mutableStateOf(false) }
-    val trimmed = query.trim()
     LaunchedEffect(model) { model.loadArchive() }
     BackHandler {
         if (query.isNotEmpty()) query = "" else model.sheet = null
     }
-    Column(
-        modifier
-            .fillMaxSize()
-            .profileBackdrop(look, dark)
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-            .imePadding()
-            .testTag(ARCHIVE_TAG),
-    ) {
-        ArchiveTopBar(
-            interval = model.autoArchiveInterval,
-            canDelete = model.archive.isNotEmpty(),
-            done = { model.sheet = null },
-            choose = { model.autoArchiveInterval = it },
-            deleteAll = { isConfirmingClear = true },
-        )
-        ArchiveSearchField(query, onChange = { query = it })
-        val days = model.archive
-        Box(Modifier.fillMaxSize()) {
-            when {
-                days.isEmpty() -> if (model.archiveLoaded) ArchiveEmptyState(Modifier.align(Alignment.Center))
-                trimmed.isNotEmpty() -> ArchiveResults(model, trimmed, haptics)
-                else -> ArchiveDays(model, haptics)
-            }
-        }
+    Box(modifier.fillMaxSize().testTag(ARCHIVE_TAG)) {
+        ProfileBackdrop(Modifier.matchParentSize(), look = look)
+        ArchiveContent(model, query, onQuery = { query = it }, haptics, confirmClear = { isConfirmingClear = true })
     }
     if (isConfirmingClear) {
         AlertDialog(
@@ -133,6 +110,34 @@ fun ArchiveView(model: AppModel, modifier: Modifier = Modifier) {
             },
             dismissButton = { TextButton(onClick = { isConfirmingClear = false }) { Text(stringResource(R.string.tabs_cancel)) } },
         )
+    }
+}
+
+@Composable
+private fun ArchiveContent(model: AppModel, query: String, onQuery: (String) -> Unit, haptics: Haptics, confirmClear: () -> Unit) {
+    val trimmed = query.trim()
+    Column(
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+            .imePadding(),
+    ) {
+        ArchiveTopBar(
+            interval = model.autoArchiveInterval,
+            canDelete = model.archive.isNotEmpty(),
+            done = { model.sheet = null },
+            choose = { model.autoArchiveInterval = it },
+            deleteAll = confirmClear,
+        )
+        ArchiveSearchField(query, onChange = onQuery)
+        val days = model.archive
+        Box(Modifier.fillMaxSize()) {
+            when {
+                days.isEmpty() -> if (model.archiveLoaded) ArchiveEmptyState(Modifier.align(Alignment.Center))
+                trimmed.isNotEmpty() -> ArchiveResults(model, trimmed, haptics)
+                else -> ArchiveDays(model, haptics)
+            }
+        }
     }
 }
 
@@ -236,9 +241,10 @@ private fun ArchiveDays(model: AppModel, haptics: Haptics) {
 @Composable
 private fun ArchiveResults(model: AppModel, query: String, haptics: Haptics) {
     val revision = model.archive
-    val results by produceState<List<BrowserTab>?>(null, query, revision) {
+    var results by remember { mutableStateOf<List<BrowserTab>?>(null) }
+    LaunchedEffect(query, revision) {
         delay(SEARCH_DEBOUNCE_MILLIS)
-        value = runCatching { model.searchArchive(query) }.getOrDefault(emptyList())
+        results = runCatching { model.searchArchive(query) }.getOrDefault(emptyList())
     }
     val found = results ?: return
     if (found.isEmpty()) {

@@ -14,6 +14,7 @@ import com.ardia.appmodel.AppEnvironment
 import com.ardia.appmodel.AppModel
 import com.ardia.appmodel.LaunchArguments
 import com.ardia.browser.Page
+import com.ardia.browser.PageState
 import com.ardia.design.ArdiaTheme
 import com.ardia.store.NightShadeMode
 import com.ardia.store.TabOrigin
@@ -67,10 +68,14 @@ class BrowsingViewTest {
         server.page(path, html)
         val url = server.url(path)
         compose.runOnUiThread { model.openPage(url, TabOrigin.TYPED) }
-        compose.waitUntil(20_000) { onMain { model.currentPage?.state?.value?.url == url && model.currentPage?.state?.value?.isLoading == false } }
+        val title = Regex("<title>(.*?)</title>").find(html)?.groupValues?.get(1)
+        compose.waitUntil(20_000) { onMain { model.currentPage?.state?.value?.let { loaded(it, url, title) } == true } }
         compose.waitForIdle()
         return onMain { model.currentPage!! }
     }
+
+    private fun loaded(state: PageState, url: String, title: String?): Boolean =
+        state.isLive && state.url == url && !state.isLoading && (title == null || state.title == title)
 
     @Test
     fun theBarButtonsReachTheModel() {
@@ -150,7 +155,8 @@ class BrowsingViewTest {
         server.page("/second", "<title>Second</title><p>second</p>")
         val first = open("/first", "<title>First</title><a id='go' href='/second'>go</a>")
         compose.runOnUiThread { first.load(server.url("/second")) }
-        compose.waitUntil(20_000) { onMain { first.state.value.url == server.url("/second") && first.state.value.canGoBack && !first.state.value.isLoading } }
+        compose.waitUntil(20_000) { onMain { loaded(first.state.value, server.url("/second"), "Second") } }
+        assertTrue(onMain { first.state.value.canGoBack })
 
         compose.runOnUiThread {
             model.browse.isToolbarPresented = true

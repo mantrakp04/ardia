@@ -45,7 +45,10 @@ internal object DemoScenario {
                 delay((launch.browseStepGapSeconds * 1000).toLong())
             }
         }
-        launch.deckScript?.let { script -> app.scope.launch { DeckDemoScript.run(app, script) } }
+        launch.deckScript?.let { script ->
+            app.warmDemoSnapshots()
+            app.scope.launch { DeckDemoScript.run(app, script) }
+        }
     }
 
     const val DECK_OPEN_DELAY_MILLIS = 3_000L
@@ -103,7 +106,7 @@ internal object DeckDemoScript {
         val tabStore = app.tabStore ?: return
         when (parts.first()) {
             "wait" -> delay(((argument?.toDoubleOrNull() ?: 1.0) * 1000).toLong())
-            "warm" -> Unit
+            "warm" -> app.warmDemoSnapshots().join()
             "deck" -> {
                 app.deck.entrance = TabDeckModel.Entrance.Plain
                 app.surface = AppModel.Surface.TabSwitcher
@@ -133,6 +136,7 @@ internal object DeckDemoScript {
                 app.deck.command = TabDeckModel.Command(TabDeckModel.Command.Kind.ShowArchiveCard)
             }
             "incognito" -> {
+                if (!app.allowsIncognito()) return
                 for (url in listOf("https://en.wikipedia.org/wiki/Moon", "https://www.apple.com/")) tabStore.open(TabDestination.Url(url), isPrivate = true)
                 app.deck.entrance = TabDeckModel.Entrance.Plain
                 app.surface = AppModel.Surface.TabSwitcher
@@ -140,6 +144,7 @@ internal object DeckDemoScript {
             "lift" -> app.deck.command = TabDeckModel.Command(TabDeckModel.Command.Kind.Lift(argument?.toDoubleOrNull() ?: -120.0))
             "keep" -> app.deckOrder.dropLast(argument?.toIntOrNull() ?: 3).forEach { tabStore.close(it.id) }
             "private" -> {
+                if (!app.allowsIncognito()) return
                 val tab = tabStore.open(TabDestination.Url("https://en.wikipedia.org/wiki/Moon"), selecting = false, isPrivate = true)
                 tabStore.update(tab.id, title = "Moon - Wikipedia")
             }

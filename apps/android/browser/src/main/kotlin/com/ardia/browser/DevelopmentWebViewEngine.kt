@@ -20,6 +20,7 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import androidx.webkit.WebViewStartUpConfig
 import androidx.webkit.WebViewStartUpResult
+import androidx.webkit.WebStorageCompat
 import java.util.WeakHashMap
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
@@ -44,12 +45,20 @@ class DevelopmentWebViewEngine(
     private val grantedPermissions = HashSet<String>()
     private val privateGrantedPermissions = HashSet<String>()
     private var privateProfileName: String? = null
-    private var staleProfilesCleared = false
+
+    @Volatile
+    private var privateCookies: CookieManager? = null
+    private var profilesPrepared = false
     internal var privateSession = 0
         private set
 
     @Volatile
     override var filter: PageFilter? = null
+
+    @Volatile
+    override var privateFilter: PageFilter? = null
+
+    internal fun filterFor(isPrivate: Boolean): PageFilter? = if (isPrivate) privateFilter ?: filter else filter
 
     override var onPrivateBrowsingEnded: (() -> Unit)? = null
 
@@ -60,7 +69,27 @@ class DevelopmentWebViewEngine(
             WebView.setWebContentsDebuggingEnabled(value)
         }
 
-    override val separatesPrivatePages: Boolean by lazy { WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE) }
+    internal var multiProfileSupported: Boolean? = null
+
+    private val multiProfileFeature: Boolean by lazy { WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE) }
+
+    override val separatesPrivatePages: Boolean get() = multiProfileSupported ?: multiProfileFeature
+
+    var captureUploads: UploadLocation = UploadLocation("${appContext.packageName}.browsing.captures", "/captures/")
+
+    private val ownProviderAuthorities: Set<String> by lazy {
+        val manager = appContext.packageManager
+        val info = runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                manager.getPackageInfo(appContext.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(android.content.pm.PackageManager.GET_PROVIDERS.toLong()))
+            } else {
+                @Suppress("DEPRECATION")
+                manager.getPackageInfo(appContext.packageName, android.content.pm.PackageManager.GET_PROVIDERS)
+            }
+        }.getOrNull()
+        val declared = info?.providers.orEmpty().flatMap { it.authority.orEmpty().split(';') }.map { it.trim() }.filter { it.isNotEmpty() }
+        (declared + captureUploads.authority).toSet()
+    }
 
     internal val supportsDocumentStartScripts: Boolean by lazy { WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT) }
 
@@ -91,13 +120,16 @@ class DevelopmentWebViewEngine(
     }
 
     override fun open(id: String, setup: PageSetup): Page {
-        val page = roster.page(id) ?: WebViewPage(id, setup.isPrivate, this, setup, popup = null).also { roster.register(it, id) }
+        val existing = roster.page(id)
+        if (existing == null && setup.isPrivate && !separatesPrivatePages) throw PrivatePagesUnavailableException()
+        val page = existing ?: WebViewPage(id, setup.isPrivate, this, setup, popup = null).also { roster.register(it, id) }
         roster.activate(id)
         return page
     }
 
     override fun openPopup(id: String, popup: PopupRequest): Page {
         check(!popup.isClaimed) { "This popup already has a page" }
+        if (popup.isPrivate && !separatesPrivatePages) throw PrivatePagesUnavailableException()
         popup.isClaimed = true
         roster.page(id)?.let { close(id) }
         val page = WebViewPage(id, popup.isPrivate, this, PageSetup(url = popup.url, isPrivate = popup.isPrivate), popup)
@@ -150,6 +182,7 @@ class DevelopmentWebViewEngine(
     }
 
     override suspend fun clearWebsiteData(kinds: Set<WebsiteDataKind>) = withContext(Dispatchers.Main) {
+        prepareProfiles()
         if (WebsiteDataKind.Cache in kinds) {
             val live = roster.liveIds.mapNotNull { roster.page(it) }.firstOrNull { !it.isPrivate }?.webViewOrNull
             val webView = live ?: WebView(appContext)
@@ -171,19 +204,35 @@ class DevelopmentWebViewEngine(
 
     @SuppressLint("RequiresFeature")
     internal fun createWebView(isPrivate: Boolean): WebView {
+        if (isPrivate && !separatesPrivatePages) throw PrivatePagesUnavailableException()
+        prepareProfiles()
         val wrapper = MutableContextWrapper(hostActivity ?: appContext)
         contextWrappers[wrapper] = Unit
         val webView = WebView(wrapper)
-        if (isPrivate && separatesPrivatePages) WebViewCompat.setProfile(webView, privateProfile())
+        if (isPrivate) WebViewCompat.setProfile(webView, privateProfile())
         return webView
     }
 
-    internal fun cookieManager(isPrivate: Boolean): CookieManager {
-        val name = privateProfileName
-        if (isPrivate && name != null && separatesPrivatePages) {
-            return runCatching { ProfileStore.getInstance().getOrCreateProfile(name).cookieManager }.getOrElse { CookieManager.getInstance() }
+    override fun cookieHeader(url: String, isPrivate: Boolean): String? {
+        if (!BrowserUrl.isWeb(url)) return null
+        if (!isPrivate) return runCatching { CookieManager.getInstance().getCookie(url) }.getOrNull()
+        val cookies = privateCookies ?: return null
+        return runCatching { cookies.getCookie(url) }.getOrNull()
+    }
+
+    internal fun acceptsUpload(uri: String): Boolean = UploadCheck.accepts(uri, ownProviderAuthorities, captureUploads)
+
+    @SuppressLint("RequiresFeature")
+    private fun prepareProfiles() {
+        if (profilesPrepared) return
+        profilesPrepared = true
+        if (!multiProfileFeature) return
+        runCatching {
+            val store = ProfileStore.getInstance()
+            for (stale in store.allProfileNames.filter { it.startsWith(PRIVATE_PROFILE_PREFIX) }) {
+                runCatching { store.deleteProfile(stale) }
+            }
         }
-        return CookieManager.getInstance()
     }
 
     internal fun isOnline(): Boolean {
@@ -207,13 +256,8 @@ class DevelopmentWebViewEngine(
 
     private fun privateProfile(): String {
         privateProfileName?.let { return it }
-        val store = ProfileStore.getInstance()
-        if (!staleProfilesCleared) {
-            staleProfilesCleared = true
-            for (stale in store.allProfileNames.filter { it.startsWith(PRIVATE_PROFILE_PREFIX) }) runCatching { store.deleteProfile(stale) }
-        }
-        val name = PRIVATE_PROFILE_PREFIX + System.currentTimeMillis()
-        store.getOrCreateProfile(name)
+        val name = PRIVATE_PROFILE_PREFIX + java.util.UUID.randomUUID()
+        privateCookies = ProfileStore.getInstance().getOrCreateProfile(name).cookieManager
         privateProfileName = name
         return name
     }
@@ -223,22 +267,21 @@ class DevelopmentWebViewEngine(
         privateSession += 1
         val name = privateProfileName
         privateProfileName = null
+        privateCookies = null
         onPrivateBrowsingEnded?.invoke()
-        if (name == null || !separatesPrivatePages) return
-        runCatching {
-            val profile = ProfileStore.getInstance().getProfile(name) ?: return@runCatching
-            profile.cookieManager.removeAllCookies(null)
-            profile.webStorage.deleteAllData()
-            profile.geolocationPermissions.clearAll()
-        }
-        deleteProfileWhenFree(name, attempt = 0)
+        if (name == null || !multiProfileFeature) return
+        clearPrivateProfile(name)
     }
 
-    private fun deleteProfileWhenFree(name: String, attempt: Int) {
-        mainHandler.postDelayed({
-            val deleted = runCatching { ProfileStore.getInstance().deleteProfile(name) }.isSuccess
-            if (!deleted && attempt < 5) deleteProfileWhenFree(name, attempt + 1)
-        }, 500L * (attempt + 1))
+    @SuppressLint("RequiresFeature")
+    private fun clearPrivateProfile(name: String) {
+        val profile = runCatching { ProfileStore.getInstance().getProfile(name) }.getOrNull() ?: return
+        runCatching { profile.cookieManager.removeAllCookies { profile.cookieManager.flush() } }
+        runCatching { profile.webStorage.deleteAllData() }
+        runCatching { profile.geolocationPermissions.clearAll() }
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DELETE_BROWSING_DATA)) {
+            runCatching { WebStorageCompat.deleteBrowsingData(profile.webStorage) {} }
+        }
     }
 
     companion object {

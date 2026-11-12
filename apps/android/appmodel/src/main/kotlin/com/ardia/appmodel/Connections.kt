@@ -45,13 +45,27 @@ class StoreSitePreferences(private val preferences: BrowsingPreferences) : SiteP
     }
 }
 
-class BlockingPageFilter(private val blocker: () -> ContentBlocker?) : PageFilter {
+class BlockingPageFilter(private val isPrivate: Boolean, private val blocker: () -> ContentBlocker?) : PageFilter {
+    private var madeFor: ContentBlocker? = null
+    private var made: com.ardia.blocking.PageFilter? = null
+
+    private fun filter(): com.ardia.blocking.PageFilter? {
+        val current = blocker() ?: return null
+        synchronized(this) {
+            if (madeFor !== current) {
+                made = current.pageFilter(isPrivate)
+                madeFor = current
+            }
+            return made
+        }
+    }
+
     override fun blocks(requestUrl: String, pageUrl: String?, isMainFrame: Boolean): Boolean =
-        blocker()?.blocks(requestUrl, pageUrl, isMainFrame, type = null, isPrivate = true) ?: false
+        filter()?.blocks(requestUrl, pageUrl, isMainFrame) ?: false
 
-    override fun scriptsAtDocumentStart(pageUrl: String): List<String> = blocker()?.scriptsAtDocumentStart(pageUrl, isPrivate = true).orEmpty()
+    override fun scriptsAtDocumentStart(pageUrl: String): List<String> = filter()?.scriptsAtDocumentStart(pageUrl).orEmpty()
 
-    override fun scriptsAtDocumentEnd(pageUrl: String): List<String> = blocker()?.scriptsAtDocumentEnd(pageUrl, isPrivate = true).orEmpty()
+    override fun scriptsAtDocumentEnd(pageUrl: String): List<String> = filter()?.scriptsAtDocumentEnd(pageUrl).orEmpty()
 }
 
 class StoreSyncSource(private val source: SyncBrowsingSource) : LocalBrowsingSource {

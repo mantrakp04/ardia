@@ -17,6 +17,7 @@ import com.ardia.store.MemoryKeyValueStore
 import com.ardia.store.SharedPreferencesStore
 import com.ardia.sync.SyncController
 import java.io.File
+import kotlin.concurrent.thread
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
@@ -39,6 +40,14 @@ class AppEnvironment(
         const val BLOCKING_PREFERENCES = "ardia.blocking"
         const val BLOCKING_FOLDER = "Blocking"
         const val DEMO_BLOCKING_FOLDER = "DemoBlocking"
+
+        fun preloadPreferences(context: Context): Thread {
+            val app = context.applicationContext
+            return thread(name = "ArdiaPreferences", isDaemon = true) {
+                app.getSharedPreferences(BrowserStore.PREFERENCES_NAME, Context.MODE_PRIVATE).all
+                app.getSharedPreferences(BLOCKING_PREFERENCES, Context.MODE_PRIVATE).all
+            }
+        }
 
         fun forApp(context: Context, isDemo: Boolean): AppEnvironment {
             val app = context.applicationContext

@@ -46,11 +46,13 @@ internal class WebViewPageClient(private val page: WebViewPage) : WebViewClient(
         if (isMainFrame) {
             page.filterPageUrl = uri.toString()
             page.startDocumentRequests()
+            page.noteRequest(uri.scheme, uri.host)
         } else if (!page.sawInsecureContent && uri.scheme == "http" && BrowserUrl.isSecure(page.filterPageUrl)) {
             page.sawInsecureContent = true
             page.noteInsecureContent()
         }
-        val filter = page.engine.filter ?: return null
+        if (!isMainFrame) page.noteRequest(uri.scheme, uri.host)
+        val filter = page.engine.filterFor(page.isPrivate) ?: return null
         val requestUrl = uri.toString()
         val blocked = try {
             filter.blocks(requestUrl, if (isMainFrame) requestUrl else page.filterPageUrl, isMainFrame)
@@ -90,7 +92,7 @@ internal class WebViewPageClient(private val page: WebViewPage) : WebViewClient(
             realm = realm.ifEmpty { null },
             isProxy = false,
             failedBefore = key in page.answeredSignIns,
-            isSecure = BrowserUrl.isSecure(page.filterPageUrl),
+            isSecure = page.signInIsSecure(host),
         )
         page.ask(kind, host) { answer ->
             if (answer is PageRequest.Answer.Credential) {
@@ -217,7 +219,8 @@ internal class WebViewPageChromeClient(private val page: WebViewPage) : WebChrom
         val types = params.acceptTypes.flatMap { it.split(',') }.map { it.trim() }.filter { it.isNotEmpty() }
         val kind = PageRequest.Kind.FileChooser(types, params.mode == FileChooserParams.MODE_OPEN_MULTIPLE, params.isCaptureEnabled)
         page.ask(kind, page.currentHost()) { answer ->
-            callback.onReceiveValue((answer as? PageRequest.Answer.Files)?.uris?.toTypedArray())
+            val accepted = (answer as? PageRequest.Answer.Files)?.uris?.filter { page.engine.acceptsUpload(it.toString()) }
+            callback.onReceiveValue(accepted?.takeIf { it.isNotEmpty() }?.toTypedArray())
         }
         return true
     }

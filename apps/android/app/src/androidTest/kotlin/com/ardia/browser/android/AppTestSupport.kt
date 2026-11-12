@@ -1,16 +1,22 @@
 package com.ardia.browser.android
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.os.Looper
 import android.os.ParcelFileDescriptor
-import androidx.test.core.app.ActivityScenario
+import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import androidx.test.services.storage.TestStorage
 import com.ardia.appmodel.AppModel
 import com.ardia.appmodel.LaunchArguments
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.net.ServerSocket
 import java.net.Socket
@@ -18,30 +24,53 @@ import java.util.concurrent.Executors
 import org.junit.Assert.fail
 
 object AppTest {
+    const val TAG = "ArdiaTour"
+    const val READY_TIMEOUT_MILLIS = 120_000L
+    const val ACTIVITY_TIMEOUT_MILLIS = 60_000L
+    const val SETTLE_STEP_MILLIS = 400L
+
     val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     val context: Context get() = ApplicationProvider.getApplicationContext()
     val app: ArdiaApplication get() = ArdiaApplication.of(context)
 
     fun <T> onMain(work: () -> T): T {
+        if (Looper.myLooper() == Looper.getMainLooper()) return work()
         var result: Result<T>? = null
         instrumentation.runOnMainSync { result = runCatching(work) }
         return result!!.getOrThrow()
     }
 
-    fun waitUntil(what: String, timeoutMillis: Long = 20_000, condition: () -> Boolean) {
+    fun waitUntil(what: String, timeoutMillis: Long = 30_000, condition: () -> Boolean) {
         val end = System.currentTimeMillis() + timeoutMillis
         while (!onMain(condition)) {
             if (System.currentTimeMillis() > end) fail("$what was not reached within $timeoutMillis ms")
-            Thread.sleep(50)
+            Thread.sleep(100)
         }
     }
 
-    fun freshModel() = onMain { app.discardModel() }
+    val model: AppModel get() = app.existingModel ?: error("no app model yet")
 
-    val model: AppModel get() = onMain { app.existingModel } ?: error("no app model yet")
+    fun freshModel() {
+        finishAll()
+        onMain { app.discardModel() }
+    }
 
-    fun launch(arguments: Map<String, Any> = emptyMap(), demo: Boolean = true): ActivityScenario<MainActivity> {
-        val intent = Intent(context, MainActivity::class.java)
+    fun activities(stage: Stage): List<Activity> = onMain { ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(stage).toList() }
+
+    fun liveActivities(): List<Activity> = listOf(Stage.PRE_ON_CREATE, Stage.CREATED, Stage.STARTED, Stage.RESUMED, Stage.PAUSED, Stage.STOPPED, Stage.RESTARTED)
+        .flatMap(::activities)
+        .distinct()
+
+    fun finishAll() {
+        val live = liveActivities()
+        if (live.isEmpty()) return
+        onMain { live.forEach(Activity::finish) }
+        waitUntil("every test activity finishing", ACTIVITY_TIMEOUT_MILLIS) { liveActivities().none { it in live } }
+    }
+
+    fun launch(arguments: Map<String, Any> = emptyMap(), demo: Boolean = true): AppSession {
+        finishAll()
+        val intent = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         if (demo) intent.putExtra(LaunchArguments.ARDIA_DEMO, true)
         for ((key, value) in arguments) {
             when (value) {
@@ -51,9 +80,18 @@ object AppTest {
                 else -> intent.putExtra(key, value.toString())
             }
         }
-        val scenario = ActivityScenario.launch<MainActivity>(intent)
-        waitUntil("the app model's store") { app.existingModel?.isReady == true }
-        return scenario
+        context.startActivity(intent)
+        var activity: MainActivity? = null
+        waitUntil("MainActivity in front", ACTIVITY_TIMEOUT_MILLIS) {
+            activity = activities(Stage.RESUMED).filterIsInstance<MainActivity>().firstOrNull()
+            activity != null
+        }
+        waitUntil("the app model's store", READY_TIMEOUT_MILLIS) { app.existingModel?.isReady == true }
+        return AppSession(activity!!)
+    }
+
+    fun start(intent: Intent) {
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     fun shell(command: String): String {
@@ -68,27 +106,84 @@ object AppTest {
         instrumentation.waitForIdleSync()
     }
 
-    fun settledScreenshot(timeoutMillis: Long = 6_000, stableFrames: Int = 2): Bitmap {
+    fun tap(text: String, timeoutMillis: Long = 30_000) {
+        val end = System.currentTimeMillis() + timeoutMillis
+        while (true) {
+            val root = instrumentation.uiAutomation.rootInActiveWindow
+            val target = root?.findAccessibilityNodeInfosByText(text).orEmpty().firstNotNullOfOrNull(::clickable)
+            if (target != null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return
+            if (System.currentTimeMillis() > end) fail("nothing labelled \"$text\" could be tapped within $timeoutMillis ms")
+            Thread.sleep(250)
+        }
+    }
+
+    private fun clickable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var current: AccessibilityNodeInfo? = node
+        while (current != null) {
+            if (current.isClickable && current.isEnabled) return current
+            current = current.parent
+        }
+        return null
+    }
+
+    fun settledScreenshot(timeoutMillis: Long = 12_000, stableFrames: Int = 2): Bitmap {
         instrumentation.waitForIdleSync()
         val end = System.currentTimeMillis() + timeoutMillis
         var previous: Bitmap? = null
         var stable = 0
         while (true) {
-            val current = instrumentation.uiAutomation.takeScreenshot() ?: error("the screen could not be captured")
-            if (previous != null && current.sameAs(previous)) stable++ else stable = 0
-            previous?.recycle()
-            previous = current
-            if (stable >= stableFrames || System.currentTimeMillis() > end) return current
+            val current = instrumentation.uiAutomation.takeScreenshot()
+            if (current != null) {
+                if (previous != null && current.sameAs(previous)) stable++ else stable = 0
+                previous?.recycle()
+                previous = current
+            }
+            if ((previous != null && stable >= stableFrames) || System.currentTimeMillis() > end) {
+                return previous ?: error("the screen could not be captured")
+            }
             Thread.sleep(SETTLE_STEP_MILLIS)
             instrumentation.waitForIdleSync()
         }
     }
 
     fun save(bitmap: Bitmap, fileName: String) {
-        TestStorage().openOutputFile(fileName).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+        val bytes = java.io.ByteArrayOutputStream().use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            out.toByteArray()
+        }
+        val saved = ArrayList<String>()
+        val problems = ArrayList<String>()
+        additionalOutputDirectory()?.let { directory ->
+            runCatching {
+                directory.mkdirs()
+                File(directory, fileName).writeBytes(bytes)
+                saved.add(File(directory, fileName).path)
+            }.onFailure { problems.add("additionalTestOutputDir: $it") }
+        }
+        runCatching {
+            TestStorage().openOutputFile(fileName).use { it.write(bytes) }
+            saved.add("test storage $fileName")
+        }.onFailure { problems.add("test storage: $it") }
+        runCatching {
+            val directory = File(context.externalMediaDirs.first(), "screen-tour")
+            directory.mkdirs()
+            File(directory, fileName).writeBytes(bytes)
+            saved.add(File(directory, fileName).path)
+        }.onFailure { problems.add("media folder: $it") }
+        Log.i(TAG, "saved $fileName to ${saved.joinToString()}${if (problems.isEmpty()) "" else "; failed: ${problems.joinToString()}"}")
+        if (saved.isEmpty()) fail("$fileName could not be saved anywhere: ${problems.joinToString()}")
     }
 
-    const val SETTLE_STEP_MILLIS = 300L
+    fun additionalOutputDirectory(): File? {
+        context.externalMediaDirs
+        return InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")?.let(::File)
+    }
+}
+
+class AppSession(val activity: MainActivity) : AutoCloseable {
+    override fun close() {
+        AppTest.finishAll()
+    }
 }
 
 class TourServer : AutoCloseable {

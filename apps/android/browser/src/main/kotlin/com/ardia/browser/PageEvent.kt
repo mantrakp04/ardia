@@ -18,7 +18,6 @@ data class PageDownload(
     val contentLength: Long,
     val userAgent: String?,
     val contentDisposition: String?,
-    val cookies: String?,
     val referer: String?,
     val isPrivate: Boolean,
 )

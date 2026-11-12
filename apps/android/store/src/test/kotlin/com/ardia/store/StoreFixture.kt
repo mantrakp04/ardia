@@ -1,6 +1,7 @@
 package com.ardia.store
 
 import android.content.Context
+import android.database.sqlite.SQLiteFullException
 import androidx.test.core.app.ApplicationProvider
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
@@ -17,12 +18,26 @@ class TestClock(var now: Long) : StoreClock {
 const val HOUR_MS = 3_600_000L
 const val DAY_MS = 24 * HOUR_MS
 
+class FailingDatabase(context: Context, name: String? = null) : BrowserDatabase(context, name) {
+    @Volatile var failing = false
+    var failedCommits = 0
+
+    override fun <T> inTransaction(work: () -> T): T = super.inTransaction {
+        val result = work()
+        if (failing) {
+            failedCommits++
+            throw SQLiteFullException("disk full")
+        }
+        result
+    }
+}
+
 class StoreFixture(private val fileName: String? = null) {
     val context: Context = ApplicationProvider.getApplicationContext()
     val clock = TestClock(1_800_000_000_000L)
     val settings = MemoryKeyValueStore()
     val queue = StoreQueue(Dispatchers.Unconfined)
-    var database = BrowserDatabase(context, fileName)
+    var database = FailingDatabase(context, fileName)
         private set
     var store: TabStore = load()
         private set
@@ -34,11 +49,11 @@ class StoreFixture(private val fileName: String? = null) {
     fun relaunch(): TabStore {
         if (fileName != null) {
             database.close()
-            database = BrowserDatabase(context, fileName)
+            database = FailingDatabase(context, fileName)
         }
         store = load()
         return store
     }
 
-    private fun load(): TabStore = runBlocking { TabStore.load(database, settings, queue, clock, ZoneOffset.UTC, Dispatchers.Unconfined) }
+    private fun load(): TabStore = runBlocking { TabStore.load(database, settings, queue, clock, ZoneOffset.UTC, Dispatchers.Unconfined, retryDelayMillis = null) }
 }

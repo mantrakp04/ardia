@@ -62,8 +62,6 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.services.storage)
-    androidTestImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(libs.coroutines.test)
     androidTestUtil(libs.androidx.test.services)
-    debugImplementation(libs.compose.ui.test.manifest)
 }

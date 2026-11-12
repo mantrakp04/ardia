@@ -65,6 +65,7 @@ internal class WebViewPage(
     private var webView: WebView? = null
     internal val webViewOrNull: WebView? get() = webView
     private var savedBundle: Bundle? = setup.savedState?.let(PageStateBundles::read)
+    private var firstVisit: VisitKind? = setup.firstVisit
     private var pendingUrl: String? = null
     private var desktopSite = false
     private var crashReloads = 0
@@ -94,6 +95,7 @@ internal class WebViewPage(
     internal var sawInsecureContent = false
     private val blockedCount = AtomicInteger()
     private val blockedFlushPending = AtomicBoolean()
+    private val reachedSchemes = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     override val isLive: Boolean get() = webView != null
 
@@ -122,8 +124,9 @@ internal class WebViewPage(
             }
             pending != null -> navigate(web, pending, VisitKind.Typed)
             saved != null && restore(web, saved, url) -> Unit
-            url != null && BrowserUrl.scheme(url) != BrowserUrl.BROWSE_SCHEME -> navigate(web, url, VisitKind.Restored)
+            url != null && BrowserUrl.scheme(url) != BrowserUrl.BROWSE_SCHEME -> navigate(web, url, firstVisit ?: VisitKind.Restored)
         }
+        firstVisit = null
     }
 
     override fun discard() {
@@ -323,7 +326,7 @@ internal class WebViewPage(
             allowFileAccess = false
             allowContentAccess = false
             setGeolocationEnabled(true)
-            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             mediaPlaybackRequiresUserGesture = true
             if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
                 WebSettingsCompat.setAlgorithmicDarkeningAllowed(this, false)
@@ -435,7 +438,7 @@ internal class WebViewPage(
 
     @SuppressLint("RequiresFeature")
     private fun installFilterScripts(web: WebView, url: String): Boolean {
-        val filter = engine.filter
+        val filter = engine.filterFor(isPrivate)
         val start = filter?.scriptsAtDocumentStart(url).orEmpty()
         val end = filter?.scriptsAtDocumentEnd(url).orEmpty()
         if (start == installedStart && end == installedEnd) return false
@@ -536,6 +539,7 @@ internal class WebViewPage(
         failedUrl = null
         if (mutableState.value.failure != null) update { it.copy(failure = null) }
         if (kind != null) pendingVisit = kind
+        noteRequest(BrowserUrl.scheme(url), BrowserUrl.rawHost(url))
         prepareNavigation(web, url)
     }
 
@@ -588,9 +592,22 @@ internal class WebViewPage(
 
     internal fun startDocumentRequests() {
         sawInsecureContent = false
+        reachedSchemes.clear()
         blockedCount.set(0)
         scheduleBlockedFlush()
     }
+
+    internal fun noteRequest(scheme: String?, host: String?) {
+        val key = host?.lowercase() ?: return
+        val bit = when (scheme?.lowercase()) {
+            "https" -> REACHED_SECURELY
+            else -> REACHED_INSECURELY
+        }
+        reachedSchemes.merge(key, bit) { old, new -> old or new }
+    }
+
+    internal fun signInIsSecure(host: String): Boolean =
+        BrowserUrl.isSecure(filterPageUrl) && reachedSchemes[host.lowercase()] == REACHED_SECURELY
 
     internal fun countBlocked() {
         blockedCount.incrementAndGet()
@@ -667,7 +684,6 @@ internal class WebViewPage(
             .trim()
             .trim('.')
             .ifEmpty { engine.appContext.getString(R.string.download_fallback_name) }
-        val cookies = if (BrowserUrl.isWeb(url)) runCatching { engine.cookieManager(isPrivate).getCookie(url) }.getOrNull() else null
         mutableEvents.tryEmit(
             PageEvent.Download(
                 PageDownload(
@@ -677,7 +693,6 @@ internal class WebViewPage(
                     contentLength = contentLength,
                     userAgent = userAgent,
                     contentDisposition = contentDisposition,
-                    cookies = cookies,
                     referer = mutableState.value.url?.takeIf(BrowserUrl::isWeb),
                     isPrivate = isPrivate,
                 ),
@@ -767,6 +782,8 @@ internal class WebViewPage(
         private const val SAVED_STATE_LIMIT = 512 * 1024
         private const val CLIENT_REDIRECT_WINDOW_MILLIS = 1500L
         private const val BLOCKED_FLUSH_MILLIS = 250L
+        private const val REACHED_SECURELY = 1
+        private const val REACHED_INSECURELY = 2
 
         fun cleanTitle(title: String?, url: String?): String {
             val trimmed = title?.trim().orEmpty()

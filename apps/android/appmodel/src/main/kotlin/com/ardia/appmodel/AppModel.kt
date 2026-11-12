@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import com.ardia.blocking.BlockingSettings
 import com.ardia.blocking.BlockingSettingsState
 import com.ardia.blocking.ContentBlocker
@@ -24,8 +25,12 @@ import com.ardia.browser.PageEngine
 import com.ardia.browser.PageEvent
 import com.ardia.browser.PageSetup
 import com.ardia.browser.PageState
+import com.ardia.browser.PageTone
 import com.ardia.browser.PopupRequest
+import com.ardia.browser.PrivatePagesUnavailableException
+import com.ardia.browser.DownloadProgress
 import com.ardia.browser.SitePreferences
+import com.ardia.browser.VisitKind
 import com.ardia.browser.WebsiteDataKind
 import com.ardia.design.ArdiaSymbols
 import com.ardia.design.ProfileLook
@@ -120,7 +125,22 @@ class AppModel(
 
     var surface: Surface by mutableStateOf(Surface.Search)
     var sheet: Sheet? by mutableStateOf(null)
-    var isIncognito: Boolean by mutableStateOf(false)
+    private var incognitoState: Boolean by mutableStateOf(false)
+    var isIncognito: Boolean
+        get() = incognitoState
+        set(value) {
+            if (value && !allowsIncognito()) return
+            incognitoState = value
+        }
+    var supportsIncognito: Boolean by mutableStateOf(true)
+        private set
+
+    val isPrivateOnScreen: Boolean
+        get() = when (surface) {
+            Surface.Browsing -> tabs.selectedTab?.isPrivate == true || (browse.search != null && incognitoState)
+            Surface.TabSwitcher -> incognitoState || tabs.selectedTab?.isPrivate == true
+            Surface.Search -> browse.search != null && incognitoState
+        }
 
     var store: BrowserStore? by mutableStateOf(null)
         private set
@@ -146,6 +166,8 @@ class AppModel(
     var selectedProfile: SyncedProfile? by mutableStateOf(sync.selectedProfile.value)
         private set
     var recentQueries: List<String> by mutableStateOf(emptyList())
+        private set
+    var downloads: List<DownloadProgress> by mutableStateOf(emptyList())
         private set
     private var autoArchiveState: AutoArchiveInterval by mutableStateOf(AutoArchiveInterval.standard)
 
@@ -173,7 +195,7 @@ class AppModel(
     private val snapshotJobs = HashMap<String, Job>()
     private val pendingPageLoads = HashSet<String>()
     private val lastVisits = HashMap<String, Visit>()
-    private val openedThisSession = HashSet<String>()
+    private val freshTabs = HashMap<String, VisitKind>()
     private var isActive = false
     private var appliedSearchKey: Any? = null
 
@@ -189,10 +211,13 @@ class AppModel(
 
     val web: PageEngine
         get() = engine ?: environment.makeEngine(sitePreferences).also { made ->
-            made.filter = BlockingPageFilter { blockerForPages }
+            made.filter = BlockingPageFilter(isPrivate = false) { blockerForPages }
+            made.privateFilter = BlockingPageFilter(isPrivate = true) { blockerForPages }
             made.onPrivateBrowsingEnded = { endPrivateBrowsing() }
             hostActivity?.let(made::attach)
             engine = made
+            supportsIncognito = made.separatesPrivatePages
+            system.useEngine(made)
         }
 
     val look: ProfileLook get() = lookState.value
@@ -217,6 +242,14 @@ class AppModel(
         scope.cancel()
         sync.close()
         store?.close()
+        omnibox.close()
+    }
+
+    internal fun allowsIncognito(): Boolean {
+        val supported = web.separatesPrivatePages
+        supportsIncognito = supported
+        if (!supported) toasts.show(Toast(INCOGNITO_NEEDS_WEBVIEW, ArdiaSymbols.exclamationmarkTriangleFill))
+        return supported
     }
 
     private fun mirrorServices() {
@@ -260,6 +293,7 @@ class AppModel(
         sync.start()
         if (isActive) tabStore.appBecameActive()
         scope.launch { system.downloadOutcomes.collect(::announceDownload) }
+        scope.launch { system.activeDownloads.collect { downloads = it } }
         refreshRecents()
         val work = pendingStoreWork.toList()
         pendingStoreWork.clear()
@@ -443,8 +477,9 @@ class AppModel(
             web.open(id, PageSetup(url = tab.url, title = tab.title, isPrivate = tab.isPrivate))
             return
         }
-        if (id in openedThisSession) {
-            attachPage(id, web.open(id, PageSetup(url = tab.url, title = tab.title, isPrivate = tab.isPrivate)))
+        val fresh = freshTabs.remove(id)
+        if (fresh != null) {
+            openPageOrDrop(id, PageSetup.fresh(tab.url, fresh, title = tab.title, isPrivate = tab.isPrivate))
             return
         }
         if (!pendingPageLoads.add(id)) return
@@ -453,8 +488,27 @@ class AppModel(
             pendingPageLoads.remove(id)
             val current = tabStore.tab(id) ?: return@launch
             if (pages[id] != null || current.isArchived) return@launch
-            attachPage(id, web.open(id, PageSetup(url = current.url, title = current.title, isPrivate = current.isPrivate, savedState = saved)))
+            openPageOrDrop(id, PageSetup(url = current.url, title = current.title, isPrivate = current.isPrivate, savedState = saved))
         }
+    }
+
+    private fun openPageOrDrop(id: String, setup: PageSetup) {
+        val page = try {
+            web.open(id, setup)
+        } catch (refused: PrivatePagesUnavailableException) {
+            refusePrivatePage(id)
+            return
+        }
+        attachPage(id, page)
+    }
+
+    private fun refusePrivatePage(id: String) {
+        supportsIncognito = false
+        toasts.show(Toast(INCOGNITO_NEEDS_WEBVIEW, ArdiaSymbols.exclamationmarkTriangleFill))
+        incognitoState = false
+        val tabStore = tabStore ?: return
+        tabStore.close(id)
+        if (tabStore.selectedTab == null && surface == Surface.Browsing) surface = Surface.Search
     }
 
     private fun attachPage(id: String, page: Page) {
@@ -506,14 +560,27 @@ class AppModel(
     private fun openPopup(openerId: String, popup: PopupRequest) {
         val tabStore = tabStore ?: return
         val tab = tabStore.open(TabDestination.Url(popup.url ?: ABOUT_BLANK, TabOrigin.LINK), TabPlacement.After(openerId), isPrivate = popup.isPrivate)
-        openedThisSession.add(tab.id)
-        attachPage(tab.id, web.openPopup(tab.id, popup))
+        val page = try {
+            web.openPopup(tab.id, popup)
+        } catch (refused: PrivatePagesUnavailableException) {
+            refusePrivatePage(tab.id)
+            return
+        }
+        attachPage(tab.id, page)
         isIncognito = tab.isPrivate
         surface = Surface.Browsing
     }
 
+    fun cancelDownload(id: Long) {
+        system.cancelDownload(id)
+    }
+
     private fun startDownload(download: PageDownload) {
-        if (!system.enqueueDownload(download)) toasts.show(Toasts.downloadFailed(download.fileName))
+        if (system.enqueueDownload(download)) {
+            toasts.show(Toast(downloading(download.fileName), ArdiaSymbols.arrowDownCircleFill))
+        } else {
+            toasts.show(Toasts.downloadFailed(download.fileName))
+        }
     }
 
     fun captureSnapshot(id: String): Job = scope.launch {
@@ -553,7 +620,7 @@ class AppModel(
     private fun closePage(id: String, saving: Boolean) {
         val page = pages.remove(id)
         if (saving && page != null) tabStore?.saveInteractionState(id, page.saveState())
-        openedThisSession.remove(id)
+        freshTabs.remove(id)
         pageJobs.remove(id)?.cancel()
         snapshotJobs.remove(id)?.cancel()
         lastVisits.remove(id)
@@ -613,8 +680,8 @@ class AppModel(
         withStore { loaded ->
             isIncognito = loaded.tabs.isPrivate(id)
             loaded.tabs.select(id)
-            ensurePage(id)
             surface = Surface.Browsing
+            ensurePage(id)
         }
     }
 
@@ -630,6 +697,7 @@ class AppModel(
 
     fun newIncognitoTab() {
         val wasIncognito = isIncognito
+        if (!allowsIncognito()) return
         isIncognito = true
         browse.presentSearch(if (surface == Surface.Search) BrowseSession.SearchOrigin.Start else BrowseSession.SearchOrigin.Page, incognitoOnCancel = wasIncognito)
     }
@@ -716,7 +784,7 @@ class AppModel(
             }
             val tab = tabStore.open(TabDestination.Url(url, TabOrigin.SYNC))
             if (title.isNotEmpty()) tabStore.update(tab.id, title = title)
-            openedThisSession.add(tab.id)
+            freshTabs[tab.id] = VisitKind.Typed
             openTab(tab.id)
         }
     }
@@ -727,8 +795,9 @@ class AppModel(
     }
 
     fun restoreArchived(id: String) {
-        withStore { loaded ->
-            loaded.tabs.restore(id)
+        scope.launch {
+            val loaded = awaitReady()
+            if (!loaded.tabs.restore(id)) return@launch
             sheet = null
             openTab(id)
         }
@@ -771,13 +840,13 @@ class AppModel(
         scope.launch { system.copyText(runCatching { omnibox.cleanUrl(url) }.getOrDefault(url)) }
     }
 
-    fun makeSuggestionsModel(): SearchSuggestionsModel {
+    fun makeSuggestionsModel(): SearchSuggestionsModel = Snapshot.withoutReadObservation {
         val current = if (surface == Surface.Browsing) tabs.selectedTab else null
         refreshRecents()
-        return SearchSuggestionsModel(
+        SearchSuggestionsModel(
             source = omnibox,
             parent = scope,
-            tabs = tabStore,
+            tabs = { awaitReady().tabs },
             synced = if (syncState.isEnabled) SyncedData.browsing(syncSnapshot, selectedProfile?.syncId ?: syncState.selectedProfileId) else null,
             recentQueries = { recentQueries },
             fetchesNetworkSuggestions = browsing.searchSuggestions,
@@ -826,12 +895,12 @@ class AppModel(
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return
         val incognito = isIncognito
-        withStore { loaded -> finishOpening(loaded.tabs.open(TabDestination.Search(trimmed), isPrivate = incognito).id) }
+        withStore { loaded -> finishOpening(loaded.tabs.open(TabDestination.Search(trimmed), isPrivate = incognito).id, VisitKind.Typed) }
     }
 
     fun openPage(url: String, origin: TabOrigin) {
         val incognito = isIncognito
-        withStore { loaded -> finishOpening(loaded.tabs.open(TabDestination.Url(url, origin), isPrivate = incognito).id) }
+        withStore { loaded -> finishOpening(loaded.tabs.open(TabDestination.Url(url, origin), isPrivate = incognito).id, firstVisit(origin)) }
     }
 
     fun cancelSearch() {
@@ -845,12 +914,14 @@ class AppModel(
         }
     }
 
-    private fun finishOpening(id: String) {
-        openedThisSession.add(id)
-        ensurePage(id)
+    private fun finishOpening(id: String, kind: VisitKind) {
+        freshTabs[id] = kind
         browse.dismissSearch()
         surface = Surface.Browsing
+        ensurePage(id)
     }
+
+    private fun firstVisit(origin: TabOrigin): VisitKind = if (origin == TabOrigin.LINK) VisitKind.Link else VisitKind.Typed
 
     fun currentQuery(tab: BrowserTab): String = RecentSearches.query(tab.url) ?: tab.url
 
@@ -1028,12 +1099,25 @@ class AppModel(
     }
 
     fun openTabFromSystem(id: String): Boolean {
-        val tab = tab(id) ?: return false
-        if (tab.isPrivate) return false
+        val known = tab(id)
+        if (known?.isPrivate == true) return false
+        if (known == null) {
+            scope.launch { openTabFromSystemWhenFound(id) }
+            return true
+        }
         prepareForSystemEntry()
-        if (tab.isArchived) restoreArchived(id) else openTab(id)
+        if (known.isArchived) restoreArchived(id) else openTab(id)
         return true
     }
+
+    private suspend fun openTabFromSystemWhenFound(id: String) {
+        val loaded = awaitReady()
+        val tab = runCatching { loaded.tabs.findTab(id) }.getOrNull() ?: return
+        if (tab.isPrivate) return
+        prepareForSystemEntry()
+        if (tab.isArchived) restoreArchived(id) else openTab(id)
+    }
+
 
     fun showSearch() {
         browse.isToolbarPresented = false
@@ -1063,6 +1147,120 @@ class AppModel(
         browse.readerTabId = null
     }
 
+    val swipeOrder: List<BrowserTab>
+        get() {
+            val current = deckOrder
+            val frozen = browse.frozenOrder ?: return current
+            val byId = current.associateBy { it.id }
+            val frozenIds = frozen.toHashSet()
+            return frozen.mapNotNull { byId[it] } + current.filter { it.id !in frozenIds }
+        }
+
+    fun tone(tab: BrowserTab, themeColor: Int?, backgroundColor: Int?): PageTone = PageTone.resolve(
+        themeColor = themeColor,
+        backgroundColor = backgroundColor,
+        sampled = browse.tones[tab.id],
+        stored = PageColors.parseHex(tab.themeColorHex),
+    )
+
+    fun tone(tab: BrowserTab, state: PageState?): PageTone = tone(tab, state?.themeColor, state?.backgroundColor)
+
+    fun openLink(url: String, fromTabId: String, inBackground: Boolean) {
+        if (!PageUrl.isWeb(url)) return
+        withStore { loaded ->
+            val opener = loaded.tabs.tab(fromTabId)
+            val tab = loaded.tabs.open(
+                TabDestination.Url(url, TabOrigin.LINK),
+                TabPlacement.After(fromTabId),
+                selecting = !inBackground,
+                isPrivate = opener?.isPrivate ?: incognitoState,
+            )
+            freshTabs[tab.id] = VisitKind.Link
+            if (!inBackground) openTab(tab.id)
+        }
+    }
+
+    fun editQuery(tab: BrowserTab) {
+        browse.isToolbarPresented = false
+        browse.presentSearch(BrowseSession.SearchOrigin.Page, text = currentQuery(tab), selectsAll = true)
+    }
+
+    fun openSiteSettingsRoute(route: SettingsRoute) {
+        browse.isToolbarPresented = false
+        settings.pendingRoute = route
+        sheet = Sheet.Settings
+    }
+
+    fun copyText(text: String, confirmation: Toast? = null) {
+        system.copyText(text)
+        confirmation?.let(toasts::show)
+    }
+
+    fun copyLink(url: String) {
+        copyCleanLink(url)
+        toasts.show(Toasts.copiedUrlWithoutTrackers())
+    }
+
+    fun share(url: String, title: String) {
+        system.share(url, title)
+    }
+
+    fun shareText(text: String) {
+        system.shareText(text)
+    }
+
+    val mayFocusSearch: Boolean get() = !settings.isShowingOnboarding && !browse.isVoicePresented
+
+    fun openTrayIfWanted() {
+        if (!settings.autoOpensKeyboard || settings.isShowingOnboarding || browse.search != null || sheet != null) return
+        browse.presentSearch(BrowseSession.SearchOrigin.Home, incognitoOnCancel = isIncognito)
+    }
+
+    fun searchSwitchingMode(query: String) {
+        if (!switchMode()) return
+        openSearch(query)
+    }
+
+    fun openSwitchingMode(url: String) {
+        if (!switchMode()) return
+        openPage(url, TabOrigin.TYPED)
+    }
+
+    private fun switchMode(): Boolean {
+        val wanted = !isIncognito
+        isIncognito = wanted
+        if (isIncognito != wanted) return false
+        browse.dismissSearch()
+        return true
+    }
+
+    fun openFromSettings(url: String) {
+        if (!PageUrl.isWeb(url)) return
+        sheet = null
+        isIncognito = false
+        openPage(url, TabOrigin.LINK)
+    }
+
+    fun exportableTabUrls(): List<String> = tabs.openTabs.filter { !it.isPrivate && BrowserUrl.isSyncable(it.url) }.map { it.url }
+
+    fun showOnboardingFromSettings() {
+        sheet = null
+        settings.showOnboarding()
+    }
+
+    fun requestBrowserRole(launch: (Intent) -> Unit) {
+        defaultBrowser.willOpenSystemSettings()
+        launch(system.browserRoleRequest() ?: system.defaultAppsSettings())
+    }
+
+    fun browserRoleAnswered() {
+        defaultBrowser.sceneBecameActive()
+    }
+
+    fun warmDemoSnapshots(): Job = demoWarming ?: scope.launch { DemoSnapshotWarmer.warm(this@AppModel) }.also { demoWarming = it }
+
+    internal var demoWarming: Job? = null
+
     companion object {
         const val WARM_UP_DELAY_MILLIS = 300L
         const val SNAPSHOT_SETTLE_MILLIS = 700L
@@ -1075,11 +1273,21 @@ class AppModel(
         const val PINNED = "Pinned to Your Mac"
         const val COULD_NOT_PIN = "Couldn’t Pin to Your Mac"
         const val NO_APP_FOR_LINK = "No App Can Open This Link"
+        const val INCOGNITO_NEEDS_WEBVIEW = "Incognito needs a newer Android System WebView"
 
         @Volatile
         private var shared: AppModel? = null
 
+        fun resetShared() {
+            synchronized(this) {
+                shared?.close()
+                shared = null
+            }
+        }
+
         fun couldNotSend(deviceName: String) = "Couldn’t Send to $deviceName"
+
+        fun downloading(fileName: String) = if (fileName.isEmpty()) "Downloading" else "Downloading $fileName"
 
         fun translationUrl(url: String, language: String): String {
             fun encode(value: String) = URLEncoder.encode(value, "UTF-8")

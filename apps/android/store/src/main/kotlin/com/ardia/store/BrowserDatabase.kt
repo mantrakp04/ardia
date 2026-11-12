@@ -6,7 +6,7 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
-class BrowserDatabase(context: Context, name: String? = FILE_NAME) : AutoCloseable {
+open class BrowserDatabase(context: Context, name: String? = FILE_NAME) : AutoCloseable {
     private val helper = object : SQLiteOpenHelper(context, name, null, VERSION) {
         override fun onConfigure(db: SQLiteDatabase) {
             if (name != null) db.enableWriteAheadLogging()
@@ -24,6 +24,19 @@ class BrowserDatabase(context: Context, name: String? = FILE_NAME) : AutoCloseab
     override fun close() {
         helper.close()
     }
+
+    internal open fun <T> inTransaction(work: () -> T): T {
+        db.beginTransaction()
+        try {
+            val result = work()
+            db.setTransactionSuccessful()
+            return result
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    internal fun tab(id: String): BrowserTab? = tabs("SELECT $TAB_COLUMNS FROM tabs WHERE id = ?", arrayOf(id)).firstOrNull()
 
     internal fun openTabs(): List<BrowserTab> =
         tabs("SELECT $TAB_COLUMNS FROM tabs WHERE archivedAt IS NULL ORDER BY position", emptyArray())

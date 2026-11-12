@@ -1,6 +1,5 @@
 package com.ardia.store
 
-import android.os.Looper
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineDispatcher
@@ -14,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 data class TabsState(
     val openTabs: List<BrowserTab> = emptyList(),
@@ -36,6 +34,7 @@ data class TabsState(
 class TabStore internal constructor(
     private val database: BrowserDatabase,
     private val queue: StoreQueue,
+    private val writer: StoreWriter,
     val history: HistoryStore,
     private val settings: KeyValueStore,
     private val clock: StoreClock,
@@ -55,8 +54,7 @@ class TabStore internal constructor(
     private val undo = ArrayDeque<List<ClosedTab>>()
     private val knownArchived = HashMap<String, BrowserTab>()
     private val receivedKeys = HashSet(launch.receivedKeys)
-    private val pending = LinkedHashMap<String, BrowserTab?>()
-    private var flushScheduled = false
+    private val deleted = HashSet<String>()
     private var selected: String? = open.maxByOrNull { it.lastActive }?.id
     private var archived: MutableList<BrowserTab>? = null
     private var archivedCount = launch.archivedCount
@@ -74,6 +72,8 @@ class TabStore internal constructor(
     val state: StateFlow<TabsState> = _state.asStateFlow()
     val archive: StateFlow<List<ArchivedDay>> = _archive.asStateFlow()
     val archiveLoaded: StateFlow<Boolean> = _archiveLoaded.asStateFlow()
+    val writeFailure: StateFlow<Throwable?> get() = writer.failure
+    val hasUnsavedChanges: Boolean get() = writer.hasUnsavedChanges
 
     @Volatile var profileSyncId: String? = null
 
@@ -116,6 +116,17 @@ class TabStore internal constructor(
     fun isPrivate(id: String): Boolean = synchronized(lock) { privates.any { it.id == id } }
 
     fun tab(id: String): BrowserTab? = synchronized(lock) { find(id) }
+
+    suspend fun findTab(id: String): BrowserTab? {
+        synchronized(lock) {
+            find(id)?.let { return it }
+            if (id in deleted) return null
+        }
+        val stored = queue.run { database.tab(id) } ?: return null
+        return synchronized(lock) {
+            find(id) ?: stored.takeIf { id !in deleted }?.also { if (it.isArchived) knownArchived[id] = it }
+        }
+    }
 
     fun open(
         destination: TabDestination,
@@ -205,7 +216,13 @@ class TabStore internal constructor(
         reopened.mapNotNull(::find)
     }
 
-    fun restore(id: String): Boolean = synchronized(lock) {
+    suspend fun restore(id: String): Boolean {
+        val tab = findTab(id) ?: return false
+        if (!tab.isArchived) return false
+        return restoreKnown(id)
+    }
+
+    private fun restoreKnown(id: String): Boolean = synchronized(lock) {
         val archivedTab = knownArchived[id] ?: return false
         val tab = archivedTab.copy(archivedAt = null, position = position(TabPlacement.End), lastActive = clock.now())
         forgetArchived(id)
@@ -247,10 +264,10 @@ class TabStore internal constructor(
         undo.clear()
         undo.addAll(kept)
         ids.forEach(::forgetArchived)
-        ids.forEach { pending[it] = null }
-        scheduleFlush()
+        deleted.addAll(ids)
+        ids.forEach(writer::deleteTab)
         if (tabs.isNotEmpty()) notify { onTabsRemoved?.invoke(tabs) }
-        refreshArchivedCount()
+        writer.write(afterCommit = ::refreshArchivedCount) {}
         listingRevision++
         publish()
         localChanged()
@@ -258,7 +275,7 @@ class TabStore internal constructor(
 
     fun clearArchive(): Unit = synchronized(lock) {
         if (archivedCount == 0 && knownArchived.isEmpty()) return
-        pending.entries.removeAll { it.value?.isArchived == true }
+        deleted.addAll(knownArchived.keys)
         knownArchived.clear()
         archived?.clear()
         val kept = undo.map { group -> group.filter { closed -> open.any { it.id == closed.tab.id } } }.filter { it.isNotEmpty() }
@@ -268,10 +285,11 @@ class TabStore internal constructor(
         listingRevision++
         publish()
         localChanged()
-        queue.launch {
-            val removed = database.deleteArchivedTabs()
+        var removed: List<BrowserTab> = emptyList()
+        writer.write(afterCommit = {
+            synchronized(lock) { deleted.addAll(removed.map { it.id }) }
             if (removed.isNotEmpty()) notify { onTabsRemoved?.invoke(removed) }
-        }
+        }) { database -> removed = database.deleteArchivedTabs() }
     }
 
     fun loadArchive() {
@@ -283,11 +301,10 @@ class TabStore internal constructor(
             synchronized(lock) {
                 val fresh = rows.filter { row ->
                     val known = find(row.id)
-                    val deleting = pending.containsKey(row.id) && pending[row.id] == null
-                    (known == null || known.isArchived) && !deleting
+                    (known == null || known.isArchived) && row.id !in deleted
                 }
                 val merged = LinkedHashMap<String, BrowserTab>()
-                (archived.orEmpty() + fresh).sortedByDescending { it.archivedAt }.forEach { merged.putIfAbsent(it.id, knownArchived[it.id] ?: it) }
+                (archived.orEmpty() + knownArchived.values + fresh).filter { it.isArchived }.sortedByDescending { it.archivedAt }.forEach { merged.putIfAbsent(it.id, knownArchived[it.id] ?: it) }
                 archived = merged.values.toMutableList()
                 merged.values.forEach { knownArchived[it.id] = it }
                 _archiveLoaded.value = true
@@ -339,7 +356,7 @@ class TabStore internal constructor(
             return
         }
         if (find(id) == null) return
-        queue.launch { database.saveState(id, data) }
+        writer.write { database -> database.saveState(id, data) }
     }
 
     suspend fun interactionState(id: String): ByteArray? {
@@ -365,6 +382,7 @@ class TabStore internal constructor(
         selectedTabInternal()?.let { replace(it.copy(lastActive = clock.now())) }
         runAutoArchive()
         pruneExpired()
+        writer.retryNow()
         schedule?.cancel()
         schedule = scope.launch {
             while (isActive) {
@@ -379,6 +397,7 @@ class TabStore internal constructor(
         schedule?.cancel()
         schedule = null
         selectedTabInternal()?.let { replace(it.copy(lastActive = clock.now())) }
+        writer.retryNow()
         publish()
     }
 
@@ -421,9 +440,7 @@ class TabStore internal constructor(
                 publish()
             }
         }
-        val committed = queue.launch {}
-        if (Looper.myLooper() != Looper.getMainLooper()) runBlocking { committed.join() }
-        return true
+        return writer.commitBlocking()
     }
 
     fun clearLastReceived(): Unit = synchronized(lock) {
@@ -431,9 +448,7 @@ class TabStore internal constructor(
         publish()
     }
 
-    suspend fun flush() {
-        queue.flush()
-    }
+    suspend fun flush(): Boolean = writer.commit()
 
     internal fun backdate(id: String, lastActive: Long? = null, archivedAt: Long? = null): Unit = synchronized(lock) {
         val tab = find(id) ?: return
@@ -523,7 +538,7 @@ class TabStore internal constructor(
     }
 
     private fun rememberArchived(tabs: List<BrowserTab>): Unit = synchronized(lock) {
-        tabs.forEach { if (find(it.id) == null) knownArchived[it.id] = it }
+        tabs.forEach { if (find(it.id) == null && it.id !in deleted) knownArchived[it.id] = it }
     }
 
     private fun forgetArchived(id: String) {
@@ -588,20 +603,7 @@ class TabStore internal constructor(
 
     private fun persist(tab: BrowserTab) {
         if (tab.isPrivate) return
-        pending[tab.id] = tab
-        scheduleFlush()
-    }
-
-    private fun scheduleFlush() {
-        if (flushScheduled) return
-        flushScheduled = true
-        queue.launch {
-            val batch = synchronized(lock) {
-                flushScheduled = false
-                LinkedHashMap(pending).also { pending.clear() }
-            }
-            database.writeTabs(batch)
-        }
+        writer.putTab(tab)
     }
 
     private fun localChanged() {
@@ -655,10 +657,12 @@ class TabStore internal constructor(
             clock: StoreClock = StoreClock.system,
             zone: ZoneId = ZoneId.systemDefault(),
             callbackDispatcher: CoroutineDispatcher = Dispatchers.Main,
+            retryDelayMillis: Long? = StoreWriter.RETRY_DELAY_MILLIS,
         ): TabStore {
             val launch = queue.run { LaunchState(database.openTabs(), database.receivedKeys(), database.archivedCount(), database.maxVisitId()) }
-            val history = HistoryStore(database, queue, clock, launch.lastVisitId)
-            return TabStore(database, queue, history, settings, clock, zone, callbackDispatcher, launch).also {
+            val writer = StoreWriter(database, queue, retryDelayMillis)
+            val history = HistoryStore(database, queue, writer, clock, launch.lastVisitId)
+            return TabStore(database, queue, writer, history, settings, clock, zone, callbackDispatcher, launch).also {
                 synchronized(it.lock) { it.pruneExpired() }
             }
         }

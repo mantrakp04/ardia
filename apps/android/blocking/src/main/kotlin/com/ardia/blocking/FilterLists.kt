@@ -33,6 +33,8 @@ sealed class FilterListState {
     data class Failed(val message: String) : FilterListState()
 
     data object Offline : FilterListState()
+
+    data object TooLarge : FilterListState()
 }
 
 data class FilterListInfo(
@@ -52,7 +54,7 @@ data class FilterListInfo(
     val state: FilterListState,
 )
 
-data class MyFiltersResult(val ruleCount: Int, val skippedCount: Int)
+data class MyFiltersResult(val ruleCount: Int, val skippedCount: Int, val isTooLarge: Boolean = false)
 
 data class FilterListsState(
     val lists: List<FilterListInfo> = emptyList(),
@@ -76,6 +78,8 @@ sealed class FilterListError(val message: String) {
     data object AlreadyAdded : FilterListError("This list is already in your lists.")
 
     class Unreachable(reason: String) : FilterListError(reason)
+
+    data object TooLarge : FilterListError("This list is too large for Ardia to use.")
 
     data object NotAFilterList : FilterListError("This doesn’t look like a filter list. Check the address and try again.")
 }
@@ -113,6 +117,7 @@ class FilterLists(
     private val clock: () -> Long = System::currentTimeMillis,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val workDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    val budget: ListBudget = ListBudget(),
 ) {
     private val serial = Dispatchers.Default.limitedParallelism(1)
     private var selection: MutableSet<String>
@@ -229,7 +234,15 @@ class FilterLists(
         } catch (error: Exception) {
             throw FilterListException(FilterListError.Unreachable(DownloadMessages.forError(error)))
         }
-        val parsed = withContext(workDispatcher) { FilterParser.parse(fetched.text, id) }
+        val parsed = withContext(workDispatcher) {
+            try {
+                FilterParser.parse(fetched.text, id, budget.maxRulesPerList, budget.maxCharsPerList)
+            } catch (error: FilterListTooLargeException) {
+                null
+            } catch (error: OutOfMemoryError) {
+                null
+            }
+        } ?: throw FilterListException(FilterListError.TooLarge)
         if (parsed.convertedLines == 0) throw FilterListException(FilterListError.NotAFilterList)
         val title = title(fetched.text) ?: host
         runCatching { writeText(sourceFile(id), fetched.text) }
@@ -266,8 +279,8 @@ class FilterLists(
     suspend fun applyMyFilters(text: String): MyFiltersResult = withContext(serial) {
         myFilters = text
         store.setString(KEY_MINE, text)
-        val parsed = withContext(workDispatcher) { FilterParser.parse(text, MY_FILTERS_ID) }
-        myFiltersResult = MyFiltersResult(parsed.convertedLines, parsed.skippedLines)
+        val parsed = withContext(workDispatcher) { parseMine(text) }
+        myFiltersResult = parsed?.let { MyFiltersResult(it.convertedLines, it.skippedLines) } ?: MyFiltersResult(0, 0, isTooLarge = true)
         publish()
         rebuildOnSerial()
         myFiltersResult
@@ -296,8 +309,9 @@ class FilterLists(
         val started = System.nanoTime()
         val output = withContext(workDispatcher) { compile(ids, mine, previous) }
         lastBuildStats = BuildStats(output.reused, output.parsed, (System.nanoTime() - started) / 1_000_000)
-        output.lists.forEach { (id, list) -> loaded[id] = list }
-        output.mine?.let { myFiltersResult = MyFiltersResult(it.convertedLines, it.skippedLines) }
+        replaceLoaded(ids, output)
+        myFiltersResult = output.mine?.let { MyFiltersResult(it.convertedLines, it.skippedLines) } ?: MyFiltersResult(0, 0, output.mineTooLarge)
+        for (id in output.tooLarge) states[id] = FilterListState.TooLarge
         publishCompiled(ids, output.mine)
         publish()
     }
@@ -351,27 +365,39 @@ class FilterLists(
         val previous = HashMap(loaded)
         val output = withContext(workDispatcher) { compile(ids, mine, previous) }
         var counts = record.lists
+        replaceLoaded(ids, output)
         for ((id, list) in output.lists) {
-            loaded[id] = list
             val entry = counts[id] ?: FilterListRecord()
             counts = counts + (id to entry.copy(ruleCount = list.convertedLines, skipped = list.skippedLines))
         }
-        output.mine?.let { myFiltersResult = MyFiltersResult(it.convertedLines, it.skippedLines) }
-        if (output.mine == null) myFiltersResult = MyFiltersResult(0, 0)
-        record = record.copy(lists = counts, signature = if (output.failed.isEmpty()) signature else null, builtAt = clock())
+        myFiltersResult = output.mine?.let { MyFiltersResult(it.convertedLines, it.skippedLines) } ?: MyFiltersResult(0, 0, output.mineTooLarge)
+        val complete = output.failed.isEmpty() && output.tooLarge.isEmpty() && !output.mineTooLarge
+        record = record.copy(lists = counts, signature = if (complete) signature else null, builtAt = clock())
         saveRecord()
         for (id in ids) {
             states.remove(id)
-            if (id in output.failed) {
+            if (id in output.tooLarge) {
+                states[id] = FilterListState.TooLarge
+            } else if (id in output.failed) {
                 states[id] = FilterListState.Failed("Ardia couldn’t use this list’s rules. It keeps the last version that worked.")
             } else {
                 downloadStates[id]?.let { states[id] = it }
             }
         }
-        buildError = if (output.failed.isEmpty()) null else "Some lists couldn’t be applied. Ardia keeps the last version that worked."
+        buildError = when {
+            output.tooLarge.isNotEmpty() -> "Some lists are too large for Ardia to use. Ardia keeps the last version that worked."
+            output.failed.isNotEmpty() -> "Some lists couldn’t be applied. Ardia keeps the last version that worked."
+            else -> null
+        }
         lastBuildStats = BuildStats(output.reused, output.parsed, (System.nanoTime() - started) / 1_000_000)
         publishCompiled(ids, output.mine)
         publish()
+    }
+
+    private fun replaceLoaded(ids: List<String>, output: CompileOutput) {
+        val included = output.lists.map { it.first }.toSet()
+        for (id in ids) if (id !in included) loaded.remove(id)
+        output.lists.forEach { (id, list) -> loaded[id] = list }
     }
 
     private fun publishCompiled(ids: List<String>, mine: ParsedFilterList?) {
@@ -389,6 +415,8 @@ class FilterLists(
         val lists: List<Pair<String, ParsedFilterList>>,
         val mine: ParsedFilterList?,
         val failed: Set<String>,
+        val tooLarge: Set<String>,
+        val mineTooLarge: Boolean,
         val reused: Int,
         val parsed: Int,
     )
@@ -396,30 +424,57 @@ class FilterLists(
     private fun compile(ids: List<String>, mine: String, previous: Map<String, ParsedFilterList>): CompileOutput {
         val lists = ArrayList<Pair<String, ParsedFilterList>>()
         val failed = HashSet<String>()
+        val tooLarge = HashSet<String>()
         var reused = 0
         var parsedCount = 0
+        var rules = 0
+        var chars = 0L
         for (id in ids) {
+            val limit = budget.copy(
+                maxRulesPerList = minOf(budget.maxRulesPerList, budget.maxRulesTotal - rules),
+                maxCharsPerList = minOf(budget.maxCharsPerList, budget.maxCharsTotal - chars),
+            )
+            val keepPrevious = { previous[id]?.takeIf { it.ruleUnits <= limit.maxRulesPerList && it.textChars <= limit.maxCharsPerList } }
             val source = sourceFile(id)
             val size = source.length()
             val modified = source.lastModified()
-            val cached = CompiledListFile.read(compiledFile(id), size, modified)
-            if (cached != null) {
-                lists += id to cached
+            var list = if (limit.maxRulesPerList > 0) CompiledListFile.read(compiledFile(id), size, modified, limit) else null
+            if (list != null) {
                 reused++
-                continue
+            } else {
+                list = try {
+                    if (limit.maxRulesPerList <= 0) throw FilterListTooLargeException(id)
+                    val parsed = source.bufferedReader(Charsets.UTF_8).use { FilterParser.parse(it, id, limit.maxRulesPerList, limit.maxCharsPerList) }
+                    parsedCount++
+                    runCatching { CompiledListFile.write(compiledFile(id), parsed, size, modified) }
+                    parsed
+                } catch (error: FilterListTooLargeException) {
+                    tooLarge += id
+                    keepPrevious()
+                } catch (error: OutOfMemoryError) {
+                    tooLarge += id
+                    keepPrevious()
+                } catch (error: IOException) {
+                    failed += id
+                    keepPrevious()
+                }
             }
-            try {
-                val parsed = FilterParser.parse(source.readText(Charsets.UTF_8), id)
-                parsedCount++
-                runCatching { CompiledListFile.write(compiledFile(id), parsed, size, modified) }
-                lists += id to parsed
-            } catch (error: IOException) {
-                failed += id
-                previous[id]?.let { lists += id to it }
+            if (list != null) {
+                lists += id to list
+                rules += list.ruleUnits
+                chars += list.textChars
             }
         }
-        val owner = if (mine.isBlank()) null else FilterParser.parse(mine, MY_FILTERS_ID)
-        return CompileOutput(lists, owner, failed, reused, parsedCount)
+        val owner = if (mine.isBlank()) null else parseMine(mine)
+        return CompileOutput(lists, owner, failed, tooLarge, mineTooLarge = !mine.isBlank() && owner == null, reused, parsedCount)
+    }
+
+    private fun parseMine(text: String): ParsedFilterList? = try {
+        FilterParser.parse(text, MY_FILTERS_ID, budget.maxRulesPerList, budget.maxCharsPerList)
+    } catch (error: FilterListTooLargeException) {
+        null
+    } catch (error: OutOfMemoryError) {
+        null
     }
 
     private class Fetched(val text: String, val etag: String?, val lastModified: String?)
@@ -565,7 +620,7 @@ class FilterLists(
         const val KEY_SELECTION = "filters.selection"
         const val KEY_CUSTOM = "filters.custom"
         const val KEY_MINE = "filters.myFilters"
-        const val MAX_LIST_BYTES = 40_000_000
+        const val MAX_LIST_BYTES = 16_000_000
         private const val DAY_MILLIS = 86_400_000L
 
         private val offlineDownloader = object : FilterListDownloader {

@@ -11,11 +11,17 @@ data class PageSetup(
     val title: String = "",
     val isPrivate: Boolean = false,
     val savedState: ByteArray? = null,
+    val firstVisit: VisitKind = VisitKind.Restored,
 ) {
     override fun equals(other: Any?): Boolean = other is PageSetup && url == other.url && title == other.title &&
-        isPrivate == other.isPrivate && savedState.contentEquals(other.savedState)
+        isPrivate == other.isPrivate && savedState.contentEquals(other.savedState) && firstVisit == other.firstVisit
 
-    override fun hashCode(): Int = listOf(url, title, isPrivate, savedState?.contentHashCode()).hashCode()
+    override fun hashCode(): Int = listOf(url, title, isPrivate, savedState?.contentHashCode(), firstVisit).hashCode()
+
+    companion object {
+        fun fresh(url: String, kind: VisitKind, title: String = "", isPrivate: Boolean = false) =
+            PageSetup(url = url, title = title, isPrivate = isPrivate, firstVisit = kind)
+    }
 }
 
 interface Page : AutoCloseable {
@@ -75,6 +81,7 @@ interface PageEngine {
     val separatesPrivatePages: Boolean
     val livePageIds: List<String>
     var filter: PageFilter?
+    var privateFilter: PageFilter?
     var isInspectable: Boolean
     var onPrivateBrowsingEnded: (() -> Unit)?
 
@@ -97,4 +104,6 @@ interface PageEngine {
     fun warmUp()
 
     suspend fun clearWebsiteData(kinds: Set<WebsiteDataKind>)
+
+    fun cookieHeader(url: String, isPrivate: Boolean): String? = null
 }

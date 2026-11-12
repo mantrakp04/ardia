@@ -23,9 +23,22 @@ internal class RequestContext {
 
     var type = RequestType.UNKNOWN
     var categoryMask = 0
+    var globSteps = 0
     private var party = PARTY_UNCOMPUTED
     private val labels = IntArray(MAX_LABELS)
     val rawView = CharArrayView()
+    private val matcherPatterns = arrayOfNulls<java.util.regex.Pattern>(MATCHER_SLOTS)
+    private val matchers = arrayOfNulls<java.util.regex.Matcher>(MATCHER_SLOTS)
+
+    fun matcher(pattern: java.util.regex.Pattern, slot: Int): java.util.regex.Matcher {
+        val index = slot and (MATCHER_SLOTS - 1)
+        val cached = matchers[index]
+        if (cached != null && matcherPatterns[index] === pattern) return cached.reset(rawView)
+        val created = pattern.matcher(rawView)
+        matchers[index] = created
+        matcherPatterns[index] = pattern
+        return created
+    }
 
     fun loadRequest(url: String): Boolean {
         val count = url.length
@@ -41,7 +54,9 @@ internal class RequestContext {
             target[index] = if (char in 'A'..'Z') char + 32 else char
         }
         length = count
-        rawView.set(raw, count)
+        rawView.set(raw, minOf(count, MAX_REGEX_INPUT))
+        rawView.budget = REGEX_READS_PER_REQUEST
+        globSteps = GLOB_STEPS_PER_REQUEST
         party = PARTY_UNCOMPUTED
         val authority = authorityStart(target, count, requireWebScheme = true)
         if (authority < 0) return false
@@ -225,6 +240,7 @@ internal class RequestContext {
     class CharArrayView : CharSequence {
         private var chars = CharArray(0)
         private var count = 0
+        var budget = 0
 
         fun set(chars: CharArray, count: Int) {
             this.chars = chars
@@ -233,7 +249,10 @@ internal class RequestContext {
 
         override val length: Int get() = count
 
-        override fun get(index: Int): Char = chars[index]
+        override fun get(index: Int): Char {
+            if (--budget < 0) throw RegexBudgetExceeded
+            return chars[index]
+        }
 
         override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = String(chars, startIndex, endIndex - startIndex)
 
@@ -242,6 +261,10 @@ internal class RequestContext {
 
     companion object {
         const val MAX_LABELS = 64
+        private const val MATCHER_SLOTS = 256
+        const val MAX_REGEX_INPUT = 4_096
+        const val REGEX_READS_PER_REQUEST = 50_000
+        const val GLOB_STEPS_PER_REQUEST = 2_000_000
         const val PARTY_UNKNOWN = -1
         private const val PARTY_UNCOMPUTED = -2
 

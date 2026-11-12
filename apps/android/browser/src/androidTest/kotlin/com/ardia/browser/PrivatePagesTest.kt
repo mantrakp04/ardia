@@ -3,7 +3,9 @@ package com.ardia.browser
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
@@ -76,18 +78,47 @@ class PrivatePagesTest {
     }
 
     @Test
-    fun privateDownloadsCarryThePrivateCookies() {
+    fun privateDownloadsUseOnlyThePrivateCookieStore() {
         assumeTrue(onMain { harness.engine.separatesPrivatePages })
         server.route("/file") {
             TestServer.Response(body = "data", contentType = "application/octet-stream", headers = mapOf("Content-Disposition" to "attachment; filename=\"a.bin\""))
         }
+        val normal = harness.open("normal")
+        set(normal, "public")
         val hidden = harness.open("private", isPrivate = true)
         set(hidden, "mine")
         val download = harness.expectEvent<PageEvent.Download>(hidden)
         harness.load(hidden, "/file")
         val event = harness.result(download).download
         assertTrue(event.isPrivate)
-        assertEquals("jar=mine", event.cookies)
+        assertEquals("jar=mine", onMain { harness.engine.cookieHeader(server.url("/file"), isPrivate = true) })
+        assertEquals("jar=public", onMain { harness.engine.cookieHeader(server.url("/file"), isPrivate = false) })
+        val downloads = SystemDownloads(harness.context, harness.engine)
+        val outcome = DownloadHarness.run(downloads, event)
+        try {
+            assertTrue(outcome is DownloadOutcome.Finished)
+            val fileRequests = server.requests.filter { it.path == "/file" }
+            assertEquals("jar=mine", fileRequests.last().headers["cookie"])
+        } finally {
+            DownloadHarness.delete(harness.context, outcome)
+        }
+        onMain { harness.engine.close("private") }
+        assertEquals(null, onMain { harness.engine.cookieHeader(server.url("/file"), isPrivate = true) })
+    }
+
+    @Test
+    fun privatePagesAreRefusedWithoutSeparateWebsiteData() {
+        onMain { harness.engine.multiProfileSupported = false }
+        assertFalse(onMain { harness.engine.separatesPrivatePages })
+        try {
+            harness.open("private", isPrivate = true)
+            fail("A private page without separate website data must not open")
+        } catch (error: PrivatePagesUnavailableException) {
+            assertTrue(onMain { harness.engine.existing("private") } == null)
+        }
+        server.page("/normal", "<title>Normal</title>")
+        harness.awaitTitle(harness.open("normal", "/normal"), "Normal")
+        assertEquals(null, onMain { harness.engine.cookieHeader(server.url("/normal"), isPrivate = true) })
     }
 
     @Test

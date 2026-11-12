@@ -7,7 +7,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
+import com.ardia.browser.DownloadCookies
 import com.ardia.browser.DownloadOutcome
+import com.ardia.browser.DownloadProgress
+import com.ardia.browser.PageEngine
 import com.ardia.browser.PageDownload
 import com.ardia.browser.SystemDownloads
 import java.util.Locale
@@ -16,9 +20,21 @@ import kotlinx.coroutines.flow.Flow
 interface SystemActions {
     val downloadOutcomes: Flow<DownloadOutcome>
 
+    val activeDownloads: Flow<List<DownloadProgress>>
+
+    fun useEngine(engine: PageEngine) = Unit
+
+    fun cancelDownload(id: Long) = Unit
+
     fun copyText(text: String)
 
     fun share(url: String, title: String)
+
+    fun shareText(text: String)
+
+    fun browserRoleRequest(): Intent?
+
+    fun defaultAppsSettings(): Intent
 
     fun openExternal(url: String): Boolean
 
@@ -33,9 +49,19 @@ interface SystemActions {
 
 class AndroidSystemActions(context: Context) : SystemActions {
     private val app = context.applicationContext
-    private val downloads by lazy { SystemDownloads(app) }
+    @Volatile
+    private var engine: PageEngine? = null
+    private val downloads by lazy { SystemDownloads(app, DownloadCookies { url, isPrivate -> engine?.cookieHeader(url, isPrivate) }) }
 
     override val downloadOutcomes: Flow<DownloadOutcome> get() = downloads.outcomes
+
+    override val activeDownloads: Flow<List<DownloadProgress>> get() = downloads.active
+
+    override fun useEngine(engine: PageEngine) {
+        this.engine = engine
+    }
+
+    override fun cancelDownload(id: Long) = downloads.cancel(id)
 
     override fun copyText(text: String) {
         val clipboard = app.getSystemService(ClipboardManager::class.java) ?: return
@@ -49,6 +75,18 @@ class AndroidSystemActions(context: Context) : SystemActions {
             .putExtra(Intent.EXTRA_TITLE, title)
         start(Intent.createChooser(send, null))
     }
+
+    override fun shareText(text: String) {
+        start(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), null))
+    }
+
+    override fun browserRoleRequest(): Intent? {
+        val roles = app.getSystemService(RoleManager::class.java) ?: return null
+        if (!roles.isRoleAvailable(RoleManager.ROLE_BROWSER) || roles.isRoleHeld(RoleManager.ROLE_BROWSER)) return null
+        return roles.createRequestRoleIntent(RoleManager.ROLE_BROWSER)
+    }
+
+    override fun defaultAppsSettings(): Intent = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
 
     override fun openExternal(url: String): Boolean = start(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
 

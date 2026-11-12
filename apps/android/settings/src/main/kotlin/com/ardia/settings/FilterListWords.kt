@@ -38,6 +38,7 @@ object FilterListWords {
         FilterListState.Downloading -> FilterListFacts(resources.getString(R.string.lists_downloading), false)
         FilterListState.Compiling -> FilterListFacts(resources.getString(R.string.lists_compiling), false)
         is FilterListState.Failed -> FilterListFacts(resources.getString(R.string.lists_couldnt_update_row), true)
+        FilterListState.TooLarge -> FilterListFacts(resources.getString(R.string.lists_too_large_row), true)
         FilterListState.Offline -> FilterListFacts(resources.getString(R.string.lists_waiting, rules(resources, list.ruleCount)), false)
         FilterListState.Ready -> if (!list.isEnabled && list.updatedAt == null) {
             FilterListFacts(resources.getString(R.string.lists_downloads_when_on), false)
@@ -51,6 +52,7 @@ object FilterListWords {
             FilterListState.Downloading -> R.string.lists_downloading
             FilterListState.Compiling -> R.string.lists_compiling
             is FilterListState.Failed -> R.string.list_state_couldnt_update
+            FilterListState.TooLarge -> R.string.list_state_too_large
             FilterListState.Offline -> R.string.list_state_offline
             FilterListState.Ready -> if (list.isEnabled) R.string.list_state_on else R.string.list_state_off
         },

@@ -132,7 +132,14 @@ class ContentBlocker(
     private suspend fun install(compiled: CompiledFilters) = installLock.withLock {
         val latest = filterLists.compiled.value?.takeIf { it.revision > compiled.revision } ?: compiled
         if (latest.revision <= installedRevision) return@withLock
-        engine = withContext(workDispatcher) { FilterEngine.build(seeds + latest.sources) }
+        val next = withContext(workDispatcher) {
+            try {
+                FilterEngine.build(seeds + latest.sources)
+            } catch (error: OutOfMemoryError) {
+                null
+            }
+        }
+        if (next != null) engine = next
         installedRevision = latest.revision
     }
 

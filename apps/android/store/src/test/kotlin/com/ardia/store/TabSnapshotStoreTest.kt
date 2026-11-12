@@ -76,11 +76,26 @@ class TabSnapshotStoreTest {
         testScheduler.runCurrent()
         store.removeTabs(listOf(id))
         disk.release()
-        assertTrue(directory.list().orEmpty().any { it.endsWith(".jpg") })
+        assertTrue(directory.list().orEmpty().isEmpty())
         testScheduler.runCurrent()
         disk.release()
         assertNull(saving.await())
         assertNull(store.save(solid(Color.GRAY), id))
+        assertTrue(directory.list().orEmpty().isEmpty())
+    }
+
+    @Test
+    fun cancellingASaveWhoseTabWasDeletedStillLeavesNoImage() = runTest {
+        val disk = HeldDispatcher()
+        val store = TabSnapshotStore(directory, disk)
+        val id = BrowserTab.newId()
+        val saving = async { store.save(solid(Color.GRAY), id) }
+        testScheduler.runCurrent()
+        store.removeTabs(listOf(id))
+        disk.release()
+        saving.cancel()
+        testScheduler.runCurrent()
+        assertTrue(saving.isCancelled)
         assertTrue(directory.list().orEmpty().isEmpty())
     }
 

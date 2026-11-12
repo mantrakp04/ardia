@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 class SearchSuggestionsModel internal constructor(
     source: Omnibox,
     parent: CoroutineScope,
-    private val tabs: TabStore?,
+    private val tabs: suspend () -> TabStore,
     private val synced: SyncedBrowsing?,
     private val recentQueries: () -> List<String>,
     fetchesNetworkSuggestions: Boolean,
@@ -51,10 +51,10 @@ class SearchSuggestionsModel internal constructor(
 
     val rows: List<SearchSuggestion> get() = SearchSuggestions.rows(text, result, synced, recentQueries())
 
-    fun prepare(): Job? {
-        val tabs = tabs ?: return null
+    fun prepare(): Job = scope.launch {
+        val tabs = tabs()
         val open = tabs.openTabs.map { CandidateTab(it.id, it.url, it.title, it.faviconUrl) }
-        return omnibox.refreshCandidates(open, { limit -> tabs.history.summary(limit) }, synced)
+        omnibox.refreshCandidates(open, { limit -> tabs.history.summary(limit) }, synced).join()
     }
 
     fun update(newText: String) {

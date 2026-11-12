@@ -56,6 +56,8 @@ enum class NightShadeMode(val raw: String) {
     Always("always"),
 }
 
+class PrivatePagesUnavailableException : IllegalStateException("Private pages need separate website data, which this WebView cannot give")
+
 enum class WebsiteDataKind {
     Cache,
     CookiesAndSiteData,

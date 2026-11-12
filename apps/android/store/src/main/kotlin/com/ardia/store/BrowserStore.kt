@@ -5,6 +5,7 @@ import java.io.File
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 
 class BrowserStore private constructor(
@@ -18,9 +19,9 @@ class BrowserStore private constructor(
     val history: HistoryStore get() = tabs.history
     val syncSource: SyncBrowsingSource = SyncBrowsingSource(tabs)
 
-    suspend fun flush() {
-        tabs.flush()
-    }
+    val writeFailure: StateFlow<Throwable?> get() = tabs.writeFailure
+
+    suspend fun flush(): Boolean = tabs.flush()
 
     override fun close() {
         queue.close()

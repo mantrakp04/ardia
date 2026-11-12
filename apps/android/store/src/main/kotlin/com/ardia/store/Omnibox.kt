@@ -2,11 +2,13 @@ package com.ardia.store
 
 import java.io.File
 import java.util.concurrent.Executors
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -19,11 +21,17 @@ class Omnibox(
     private val scriptFactory: () -> CoreScript,
     private val http: OmniboxHttp = PrivateHttp(),
     directory: File? = null,
-    private val scriptDispatcher: CoroutineDispatcher = Executors.newSingleThreadExecutor { Thread(it, "ArdiaOmnibox") }.asCoroutineDispatcher(),
+    scriptDispatcher: CoroutineDispatcher? = null,
     private val workDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clock: StoreClock = StoreClock.system,
-) {
+) : AutoCloseable {
+    private val ownedThread = if (scriptDispatcher == null) Executors.newSingleThreadExecutor { Thread(it, "ArdiaOmnibox") }.asCoroutineDispatcher() else null
+    private val scriptDispatcher: CoroutineDispatcher = scriptDispatcher ?: ownedThread!!
+    private val closeLock = Any()
     private var loadedScript: CoreScript? = null
+
+    @Volatile var isClosed: Boolean = false
+        private set
     private val bangsFile = directory?.let { File(it, "bangs.txt") }
     private var bangEtag: String? = null
     private var bangsLoaded = false
@@ -152,11 +160,31 @@ class Omnibox(
         }
     }
 
-    private suspend fun call(function: String, vararg arguments: String): String? = withContext(scriptDispatcher) {
-        runCatching {
-            val script = loadedScript ?: scriptFactory().also { loadedScript = it }
-            script.call(function, arguments.toList())
-        }.getOrNull()
+    override fun close() {
+        synchronized(closeLock) {
+            if (isClosed) return
+            isClosed = true
+        }
+        runBlocking(scriptDispatcher) {
+            runCatching { (loadedScript as? AutoCloseable)?.close() }
+            loadedScript = null
+        }
+        ownedThread?.close()
+    }
+
+    private suspend fun call(function: String, vararg arguments: String): String? {
+        if (isClosed) return null
+        return try {
+            withContext(scriptDispatcher) {
+                if (isClosed) return@withContext null
+                runCatching {
+                    val script = loadedScript ?: scriptFactory().also { loadedScript = it }
+                    script.call(function, arguments.toList())
+                }.getOrNull()
+            }
+        } catch (error: CancellationException) {
+            if (isClosed) null else throw error
+        }
     }
 
     @Serializable

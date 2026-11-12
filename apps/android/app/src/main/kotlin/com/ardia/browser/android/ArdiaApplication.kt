@@ -21,6 +21,7 @@ class ArdiaApplication : Application(), SyncControllerOwner {
 
     override fun onCreate() {
         super.onCreate()
+        AppEnvironment.preloadPreferences(this)
         StartupTiming.applicationCreated()
     }
 

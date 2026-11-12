@@ -51,6 +51,41 @@ class AppModelDeviceTest {
     }
 
     @Test
+    fun aTypedUrlLoadedByTheRealEngineLandsInHistory() {
+        val server = java.net.ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"))
+        kotlin.concurrent.thread(isDaemon = true) {
+            while (!server.isClosed) {
+                val client = runCatching { server.accept() }.getOrNull() ?: break
+                kotlin.concurrent.thread(isDaemon = true) {
+                    client.use { socket ->
+                        val reader = socket.getInputStream().bufferedReader()
+                        while (reader.readLine()?.isNotEmpty() == true) Unit
+                        val body = "<html><head><title>Served Page</title></head><body>hello</body></html>".toByteArray()
+                        val head = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n"
+                        socket.getOutputStream().apply {
+                            write(head.toByteArray())
+                            write(body)
+                            flush()
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            val url = "http://127.0.0.1:${server.localPort}/typed"
+            onMain { app.openPage(url, TabOrigin.TYPED) }
+            waitFor { app.tabs.selectedTab?.title == "Served Page" }
+            val deadline = System.currentTimeMillis() + 20_000
+            while (runBlocking { app.awaitReady().history.recent() }.none { it.url == url }) {
+                if (System.currentTimeMillis() > deadline) fail("the typed URL never reached history")
+                Thread.sleep(100)
+            }
+        } finally {
+            server.close()
+        }
+    }
+
+    @Test
     fun aRealPageReportsItsTitleToTheTab() {
         onMain { app.openPage("data:text/html,<title>Device Title</title><p>hi", TabOrigin.TYPED) }
         waitFor { app.currentPage != null }

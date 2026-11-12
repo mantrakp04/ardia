@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.update
 class HistoryStore internal constructor(
     private val database: BrowserDatabase,
     private val queue: StoreQueue,
+    private val writer: StoreWriter,
     private val clock: StoreClock,
     lastVisitId: Long,
 ) {
@@ -22,7 +23,7 @@ class HistoryStore internal constructor(
     fun record(url: String, title: String, transition: VisitTransition, profileSyncId: String?, at: Long = clock.now()): Visit? {
         if (!BrowserUrl.isSyncable(url)) return null
         val visit = Visit(nextId.incrementAndGet(), url, title, at, profileSyncId, transition)
-        queue.launch { database.insertVisit(visit) }
+        writer.write { it.insertVisit(visit) }
         bump()
         return visit
     }
@@ -32,13 +33,13 @@ class HistoryStore internal constructor(
             url = url?.takeIf(BrowserUrl::isSyncable) ?: visit.url,
             title = title?.takeIf { it.isNotEmpty() } ?: visit.title,
         )
-        queue.launch { database.updateVisit(amended) }
+        writer.write { it.updateVisit(amended) }
         bump()
         return amended
     }
 
     fun clear(since: Long? = null) {
-        queue.launch { database.deleteVisits(since) }
+        writer.write { it.deleteVisits(since) }
         bump()
     }
 
@@ -48,12 +49,12 @@ class HistoryStore internal constructor(
 
     fun delete(ids: Set<Long>) {
         if (ids.isEmpty()) return
-        queue.launch { database.deleteVisitIds(ids) }
+        writer.write { it.deleteVisitIds(ids) }
         bump()
     }
 
     fun deleteAll(url: String) {
-        queue.launch { database.deleteVisits(url) }
+        writer.write { it.deleteVisits(url) }
         bump()
     }
 
@@ -86,14 +87,16 @@ class HistoryStore internal constructor(
 
     suspend fun removeVisits(urls: Set<String>, profileSyncId: String?) {
         if (urls.isEmpty()) return
-        queue.run { database.deleteVisits(urls, profileSyncId) }
+        writer.write { it.deleteVisits(urls, profileSyncId) }
         bump()
+        writer.commit()
     }
 
     suspend fun count(): Int = queue.run { database.visitCount() }
 
     internal fun pruneBefore(cutoff: Long) {
-        queue.launch { if (database.deleteVisitsBefore(cutoff) > 0) bump() }
+        var removed = 0
+        writer.write(afterCommit = { if (removed > 0) bump() }) { removed = it.deleteVisitsBefore(cutoff) }
     }
 
     private fun bump() {

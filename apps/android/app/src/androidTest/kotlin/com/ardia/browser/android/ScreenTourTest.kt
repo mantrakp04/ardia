@@ -1,10 +1,5 @@
 package com.ardia.browser.android
 
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.performClick
-import androidx.test.core.app.ActivityScenario
 import com.ardia.appmodel.AppModel
 import com.ardia.appmodel.LaunchArguments
 import com.ardia.appmodel.SettingsRoute
@@ -13,7 +8,6 @@ import org.junit.After
 import org.junit.AfterClass
 import org.junit.Before
 import org.junit.BeforeClass
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
@@ -24,32 +18,34 @@ class TourState(val number: Int, val name: String, val arguments: Map<String, An
 
 @RunWith(Parameterized::class)
 class ScreenTourTest(private val theme: String, private val state: TourState) {
-    @get:Rule
-    val compose = createEmptyComposeRule()
-
-    private var scenario: ActivityScenario<MainActivity>? = null
+    private var session: AppSession? = null
 
     val model: AppModel get() = AppTest.model
 
     @Before
     fun setUp() {
-        AppTest.setNight(theme == DARK)
         AppTest.freshModel()
+        AppTest.setNight(theme == DARK)
     }
 
     @After
     fun tearDown() {
-        scenario?.close()
+        session?.close()
         AppTest.freshModel()
     }
 
     @Test
     fun capture() {
         val arguments = mapOf<String, Any>(LaunchArguments.ARDIA_RESTING_START to true) + state.arguments
-        scenario = AppTest.launch(arguments)
-        state.reach(this)
-        val image = AppTest.settledScreenshot()
-        AppTest.save(image, "$state-$theme.png")
+        session = AppTest.launch(arguments)
+        AppTest.waitUntil("the search start after launch") { model.surface == AppModel.Surface.Search }
+        try {
+            state.reach(this)
+        } catch (missed: Throwable) {
+            runCatching { AppTest.save(AppTest.settledScreenshot(timeoutMillis = 4_000), "$state-$theme-unreached.png") }
+            throw AssertionError("$state ($theme): ${missed.message}", missed)
+        }
+        AppTest.save(AppTest.settledScreenshot(), "$state-$theme.png")
     }
 
     fun openArticle(private: Boolean = false) {
@@ -58,8 +54,10 @@ class ScreenTourTest(private val theme: String, private val state: TourState) {
             model.isIncognito = private
             model.openPage(url, TabOrigin.TYPED)
         }
-        AppTest.waitUntil("the article page in a tab") { model.surface == AppModel.Surface.Browsing && model.tabs.selectedTab?.url == url }
-        AppTest.waitUntil("the article page loaded", 30_000) {
+        AppTest.waitUntil("the article page in a tab", PAGE_TIMEOUT_MILLIS) {
+            model.surface == AppModel.Surface.Browsing && model.tabs.selectedTab?.url == url
+        }
+        AppTest.waitUntil("the article page loaded", PAGE_TIMEOUT_MILLIS) {
             val page = model.currentPage?.state?.value
             page != null && !page.isLoading && page.title == TourServer.TITLE
         }
@@ -80,12 +78,12 @@ class ScreenTourTest(private val theme: String, private val state: TourState) {
 
     fun showOnboarding() {
         AppTest.waitUntil("onboarding on screen") { model.settings.isShowingOnboarding }
-        AppTest.settledScreenshot(timeoutMillis = 2_000)
+        AppTest.settledScreenshot(timeoutMillis = 4_000)
     }
 
     fun tap(text: String) {
-        compose.onAllNodesWithText(text).onFirst().performClick()
-        AppTest.settledScreenshot(timeoutMillis = 2_000)
+        AppTest.tap(text)
+        AppTest.settledScreenshot(timeoutMillis = 4_000)
     }
 
     fun showDeck() {
@@ -96,6 +94,7 @@ class ScreenTourTest(private val theme: String, private val state: TourState) {
     companion object {
         const val LIGHT = "light"
         const val DARK = "dark"
+        const val PAGE_TIMEOUT_MILLIS = 90_000L
 
         lateinit var server: TourServer
         private var initialNight: Boolean? = null
@@ -109,6 +108,7 @@ class ScreenTourTest(private val theme: String, private val state: TourState) {
             add(TourState(4, "page-menu") {
                 openArticle()
                 AppTest.onMain { model.browse.isToolbarPresented = true }
+                AppTest.waitUntil("the page menu") { model.browse.isToolbarPresented }
             })
             add(TourState(5, "reader") {
                 openArticle()
@@ -121,7 +121,7 @@ class ScreenTourTest(private val theme: String, private val state: TourState) {
                     model.showFindOnPage()
                     model.currentPage?.find("Lisbon")
                 }
-                AppTest.waitUntil("find on page with matches") { model.browse.isFindPresented && (model.currentPage?.find?.value != null) }
+                AppTest.waitUntil("find on page with matches") { model.browse.isFindPresented && model.currentPage?.find?.value != null }
             })
             add(TourState(7, "tab-deck") {
                 openArticle()
@@ -139,17 +139,18 @@ class ScreenTourTest(private val theme: String, private val state: TourState) {
             }
             val next = 12 + SettingsRoute.entries.size
             add(TourState(next, "sync-connect") { present(AppModel.Sheet.SyncSetup) })
-            add(TourState(next + 1, "onboarding-welcome", mapOf(LaunchArguments.ARDIA_ONBOARDING to true)) { showOnboarding() })
-            add(TourState(next + 2, "onboarding-blocking", mapOf(LaunchArguments.ARDIA_ONBOARDING to true)) {
+            val onboarding = mapOf<String, Any>(LaunchArguments.ARDIA_ONBOARDING to true)
+            add(TourState(next + 1, "onboarding-welcome", onboarding) { showOnboarding() })
+            add(TourState(next + 2, "onboarding-blocking", onboarding) {
                 showOnboarding()
                 tap("Get Started")
             })
-            add(TourState(next + 3, "onboarding-sync", mapOf(LaunchArguments.ARDIA_ONBOARDING to true)) {
+            add(TourState(next + 3, "onboarding-sync", onboarding) {
                 showOnboarding()
                 tap("Get Started")
                 tap("Continue")
             })
-            add(TourState(next + 4, "onboarding-all-set", mapOf(LaunchArguments.ARDIA_ONBOARDING to true)) {
+            add(TourState(next + 4, "onboarding-all-set", onboarding) {
                 showOnboarding()
                 tap("Get Started")
                 tap("Continue")

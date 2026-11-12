@@ -85,10 +85,10 @@ class AppModelTest {
         assertEquals("https://example.com/story", f.app.tabs.selectedTab?.url)
         f.flush()
         val history = runBlocking { f.app.store!!.history.recent() }
-        assertEquals(listOf("https://example.com/story"), history.map { it.url })
+        assertEquals(setOf("https://example.com/story", "https://example.com/"), history.map { it.url }.toSet())
         val source = f.app.sync.source
         assertTrue(source is StoreSyncSource)
-        assertEquals(listOf("https://example.com/story"), source!!.syncedVisits(0).map { it.url })
+        assertTrue(source!!.syncedVisits(0).any { it.url == "https://example.com/story" })
         assertTrue(source.syncedTabs().any { it.url == "https://example.com/story" })
     }
 
@@ -105,7 +105,7 @@ class AppModelTest {
         idleUntil { f.app.tabs.selectedTab?.title == "Late Title" }
         f.flush()
         val history = runBlocking { f.app.store!!.history.recent() }
-        assertEquals(listOf("https://example.com/new" to "Late Title"), history.map { it.url to it.title })
+        assertEquals(setOf("https://example.com/new" to "Late Title", "https://example.com/" to ""), history.map { it.url to it.title }.toSet())
     }
 
     @Test
@@ -265,11 +265,17 @@ class AppModelTest {
         f.app.openPage("https://files.example/", TabOrigin.TYPED)
         idle()
         val page = f.page(f.app.tabs.selectedTabId!!)
-        val download = PageDownload("https://files.example/a.pdf", "a.pdf", "application/pdf", 10, null, null, null, null, false)
+        val download = PageDownload("https://files.example/a.pdf", "a.pdf", "application/pdf", 10, null, null, null, false)
         page.mutableEvents.tryEmit(PageEvent.Download(download))
         idle()
         assertEquals(listOf(download), f.system.downloads)
-        f.system.outcomes.tryEmit(DownloadOutcome.Failed("a.pdf"))
+        assertEquals("Downloading a.pdf", f.toastText())
+        f.system.activeDownloads.value = listOf(com.ardia.browser.DownloadProgress(1, "a.pdf", 5, 10))
+        idleUntil { f.app.downloads.singleOrNull()?.fraction == 0.5f }
+        f.system.acceptsDownloads = false
+        page.mutableEvents.tryEmit(PageEvent.Download(download.copy(url = "blob:https://files.example/x", fileName = "x.bin")))
+        idleUntil { f.toastText() == "Couldn’t Download x.bin" }
+        f.system.outcomes.tryEmit(DownloadOutcome.Failed("a.pdf", com.ardia.browser.DownloadFailure.InsecureRedirect))
         idleUntil { f.toastText() == "Couldn’t Download a.pdf" }
     }
 

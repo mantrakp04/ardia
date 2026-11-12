@@ -264,3 +264,46 @@ class OmniboxBridgeTest {
         assertEquals(local, OmniboxCandidates.merge(emptyList(), local, null).history)
     }
 }
+
+class ClosingCore : CoreScript, AutoCloseable {
+    val threads = ArrayList<String>()
+    var closes = 0
+
+    override fun call(function: String, arguments: List<String>): String {
+        threads.add(Thread.currentThread().name)
+        return "null"
+    }
+
+    override fun close() {
+        threads.add(Thread.currentThread().name)
+        closes++
+    }
+}
+
+class OmniboxCloseTest {
+    @Test
+    fun closeShutsTheScriptOnItsOwnThreadOnceAndLaterCallsAnswerEmpty() = kotlinx.coroutines.runBlocking {
+        val core = ClosingCore()
+        var created = 0
+        val omnibox = Omnibox({ created++; core })
+        omnibox.warmUp()
+        omnibox.close()
+        omnibox.close()
+        assertEquals(1, core.closes)
+        assertEquals(2, core.threads.size)
+        assertTrue(core.threads.all { it.startsWith("ArdiaOmnibox") })
+        assertTrue(omnibox.isClosed)
+        assertEquals(OmniboxResult("git", emptyList(), ""), omnibox.suggest("git"))
+        assertNull(omnibox.resolve("apple.com"))
+        assertEquals(1, created)
+    }
+
+    @Test
+    fun closingBeforeTheScriptExistsNeverCreatesIt() = kotlinx.coroutines.runBlocking {
+        var created = 0
+        val omnibox = Omnibox({ created++; ClosingCore() })
+        omnibox.close()
+        assertTrue(omnibox.engines().isEmpty())
+        assertEquals(0, created)
+    }
+}

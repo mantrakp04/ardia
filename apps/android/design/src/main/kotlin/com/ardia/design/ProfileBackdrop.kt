@@ -34,7 +34,7 @@ fun Modifier.profileBackdrop(look: ProfileLook, dark: Boolean, themed: Boolean =
     val diagonal = look.showsTheme(dark, themed)
     val softening = if (softened) ProfileBackdropStyle.softening.resolve(dark) else Color.Transparent
     val grainOpacity = ProfileBackdropStyle.grainOpacity(dark)
-    return clearAndSetSemantics {}.drawWithCache {
+    return drawWithCache {
         val gradient = if (diagonal) {
             Brush.linearGradient(colors, start = Offset.Zero, end = Offset(size.width, size.height))
         } else {
@@ -51,7 +51,7 @@ fun Modifier.profileBackdrop(look: ProfileLook, dark: Boolean, themed: Boolean =
 
 @Composable
 fun ProfileBackdrop(modifier: Modifier = Modifier, look: ProfileLook? = null, themed: Boolean = false, softened: Boolean = false) {
-    Box(modifier.profileBackdrop(look ?: LocalProfileLook.current, LocalArdiaDarkTheme.current, themed, softened))
+    Box(modifier.clearAndSetSemantics {}.profileBackdrop(look ?: LocalProfileLook.current, LocalArdiaDarkTheme.current, themed, softened))
 }
 
 @Composable

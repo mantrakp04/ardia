@@ -228,7 +228,7 @@ private fun SpacePage(model: AppModel, profile: SyncedProfile) {
         modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(
-            Modifier.fillMaxSize(),
+            Modifier.fillMaxSize().testTag(spacePageTag(profile.syncId)),
             contentPadding = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues(),
         ) {
             if (profile.pinned.tiles.isNotEmpty()) {
@@ -628,6 +628,8 @@ private fun shareLink(context: Context, title: String, url: String) {
 }
 
 const val SPACES_TAG = "tabs.spaces"
+
+fun spacePageTag(syncId: String): String = "tabs.spaces.page.$syncId"
 private const val COLLAPSED_LIMIT = 8
 private val INDENT = 20.dp
 private val TILE_MIN_WIDTH = 72.dp

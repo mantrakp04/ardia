@@ -240,3 +240,38 @@ object BackOrder {
         else -> null
     }
 }
+
+enum class VisualMedia { Images, Videos, ImagesAndVideos }
+
+object PickerChoice {
+    fun visualMedia(documentTypes: Array<String>): VisualMedia? {
+        if (documentTypes.isEmpty() || documentTypes.any { !it.startsWith("image/") && !it.startsWith("video/") }) return null
+        val images = documentTypes.any { it.startsWith("image/") }
+        val videos = documentTypes.any { it.startsWith("video/") }
+        return when {
+            images && videos -> VisualMedia.ImagesAndVideos
+            images -> VisualMedia.Images
+            else -> VisualMedia.Videos
+        }
+    }
+}
+
+data class PickedFile(val uri: String, val scheme: String?, val authority: String?, val isGranted: Boolean)
+
+object PickedFileRule {
+    const val CONTENT_SCHEME = "content"
+
+    fun isOwn(authority: String, ownAuthorities: Set<String>, packageName: String): Boolean =
+        ownAuthorities.any { it.equals(authority, ignoreCase = true) } ||
+            authority.equals(packageName, ignoreCase = true) || authority.startsWith("$packageName.", ignoreCase = true)
+
+    fun accepts(file: PickedFile, ownAuthorities: Set<String>, packageName: String, captureUri: String?): Boolean {
+        if (!file.scheme.equals(CONTENT_SCHEME, ignoreCase = true)) return false
+        val authority = file.authority?.takeIf { it.isNotEmpty() } ?: return false
+        if (isOwn(authority, ownAuthorities, packageName)) return captureUri != null && file.uri == captureUri
+        return file.isGranted
+    }
+
+    fun filter(files: List<PickedFile>, ownAuthorities: Set<String>, packageName: String, captureUri: String?): List<PickedFile> =
+        files.filter { accepts(it, ownAuthorities, packageName, captureUri) }
+}

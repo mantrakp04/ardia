@@ -33,6 +33,7 @@ enum class SkipReason {
     UNSUPPORTED_PATTERN,
     TOO_BROAD,
     NEVER_APPLIES,
+    UNSAFE_REGEX,
 }
 
 internal object Party {
@@ -83,6 +84,8 @@ class ParsedFilterList internal constructor(
     internal val elemhideAllows: List<String>,
     internal val genericHideAllows: List<String>,
     val skipped: Map<SkipReason, Int>,
+    internal val ruleUnits: Int = 0,
+    internal val textChars: Long = 0,
 ) {
     val networkRuleCount: Int get() = network.size
     val cosmeticRuleCount: Int get() = cosmetic.size
@@ -109,22 +112,37 @@ object FilterParser {
     )
     private const val HOST_STOPS = "^/*|?:$"
 
-    fun parse(text: String, id: String): ParsedFilterList {
-        val builder = ListBuilder(id)
+    private const val MAX_LINE_LENGTH = 16_384
+    private const val MAX_PATTERN_LENGTH = 2_048
+    private val defaultBudget = ListBudget()
+
+    fun parse(text: String, id: String, maxRules: Int = defaultBudget.maxRulesPerList, maxChars: Long = defaultBudget.maxCharsPerList): ParsedFilterList {
+        val builder = ListBuilder(id, maxRules, maxChars)
         var start = 0
         val length = text.length
         while (start <= length) {
             var end = text.indexOf('\n', start)
             if (end < 0) end = length
-            builder.line(text.substring(start, end))
+            builder.line(text, start, end)
             start = end + 1
         }
         return builder.build()
     }
 
-    private class ListBuilder(val id: String) {
+    fun parse(reader: java.io.BufferedReader, id: String, maxRules: Int = defaultBudget.maxRulesPerList, maxChars: Long = defaultBudget.maxCharsPerList): ParsedFilterList {
+        val builder = ListBuilder(id, maxRules, maxChars)
+        while (true) {
+            val line = reader.readLine() ?: break
+            builder.line(line, 0, line.length)
+        }
+        return builder.build()
+    }
+
+    private class ListBuilder(val id: String, val maxRules: Int, val maxChars: Long) {
         var converted = 0
         var skipped = 0
+        var units = 0
+        var chars = 0L
         val network = ArrayList<NetworkFilter>()
         val cosmetic = ArrayList<CosmeticFilter>()
         val badfilters = HashSet<String>()
@@ -140,8 +158,18 @@ object FilterParser {
             reasons[reason] = (reasons[reason] ?: 0) + 1
         }
 
-        fun line(raw: String) {
-            val line = raw.trim()
+        fun spend(textLength: Int) {
+            units++
+            chars += textLength
+            if (units > maxRules || chars > maxChars) throw FilterListTooLargeException(id)
+        }
+
+        fun line(text: String, start: Int, end: Int) {
+            if (end - start > MAX_LINE_LENGTH) {
+                if (text.substring(start, minOf(end, start + 64)).trim().let { it.isNotEmpty() && !it.startsWith("!") }) skip(SkipReason.UNSUPPORTED_PATTERN)
+                return
+            }
+            val line = text.substring(start, end).trim()
             if (line.isEmpty() || line.startsWith("!") || line.startsWith("[")) return
             if (line.startsWith("#") && !line.startsWith("##") && !line.startsWith("#@#") && !line.startsWith("#?#") && !line.startsWith("#$#")) return
             if (isIgnoredHostsLine(line)) return
@@ -149,6 +177,7 @@ object FilterParser {
                 converted++
                 val key = "||$host^"
                 if (seenNetwork.add(key)) {
+                    spend(key.length + host.length)
                     network += NetworkFilter(
                         key, false, false, false, Party.ANY, RequestType.SUBRESOURCES, Anchor.HOST, false, host, "^", false, emptyList(), emptyList(),
                     )
@@ -164,7 +193,10 @@ object FilterParser {
                             converted++
                             val rule = cosmeticResult.filter
                             val isGeneric = !rule.isException && rule.includeDomains.isEmpty() && rule.excludeDomains.isEmpty()
-                            if (!isGeneric || seenGeneric.add(rule.selector)) cosmetic += rule
+                            if (!isGeneric || seenGeneric.add(rule.selector)) {
+                                spend(rule.selector.length + rule.includeDomains.sumOf { it.length } + rule.excludeDomains.sumOf { it.length })
+                                cosmetic += rule
+                            }
                         }
                     }
                     return
@@ -174,14 +206,19 @@ object FilterParser {
                 is NetworkParse.Skip -> skip(result.reason)
                 is NetworkParse.Badfilter -> {
                     converted++
-                    badfilters += result.key
+                    if (badfilters.add(result.key)) spend(result.key.length)
                 }
                 is NetworkParse.Rule -> {
                     converted++
-                    if (seenNetwork.add(result.filter.key)) network += result.filter
+                    val filter = result.filter
+                    if (seenNetwork.add(filter.key)) {
+                        spend(filter.key.length + filter.pattern.length + (filter.host?.length ?: 0) + filter.includeDomains.sumOf { it.length } + filter.excludeDomains.sumOf { it.length })
+                        network += filter
+                    }
                 }
                 is NetworkParse.HostAllow -> {
                     converted++
+                    spend(result.host.length)
                     when (result.kind) {
                         HostAllowKind.DOCUMENT -> documentAllows += result.host
                         HostAllowKind.ELEMHIDE -> elemhideAllows += result.host
@@ -192,7 +229,7 @@ object FilterParser {
         }
 
         fun build() = ParsedFilterList(
-            id, converted, skipped, network, cosmetic, badfilters, documentAllows, elemhideAllows, genericHideAllows, reasons,
+            id, converted, skipped, network, cosmetic, badfilters, documentAllows, elemhideAllows, genericHideAllows, reasons, units, chars,
         )
     }
 
@@ -271,7 +308,8 @@ object FilterParser {
                 body = body.substring(0, dollar)
             }
         }
-        if (body.any { it == ' ' || it == '\t' || it == '$' }) return skip(SkipReason.UNSUPPORTED_PATTERN)
+        val isRegexBody = body.length > 2 && body.startsWith("/") && body.endsWith("/")
+        if (body.any { it == ' ' || it == '\t' || (it == '$' && !isRegexBody) }) return skip(SkipReason.UNSUPPORTED_PATTERN)
         if ("badfilter" in options) return NetworkParse.Badfilter(filterKey(isException, body, options.filter { it != "badfilter" }))
         val key = filterKey(isException, body, options)
 
@@ -343,6 +381,9 @@ object FilterParser {
         if (typeMask == 0) return skip(SkipReason.NEVER_APPLIES)
         if (typeMask and RequestType.POPUP.bit.inv() == 0) return skip(SkipReason.NEVER_APPLIES)
 
+        if (isRegexBody && !RegexSafety.isSafe(body.substring(1, body.length - 1))) {
+            return skip(SkipReason.UNSAFE_REGEX)
+        }
         val shape = patternShape(body, matchCase) ?: return skip(SkipReason.UNSUPPORTED_PATTERN)
         val unrestricted = shape.anchor == Anchor.NONE && !shape.isRegex && shape.pattern.isEmpty() && !shape.anchorEnd &&
             includeDomains.isEmpty() && (typeMask and RequestType.SUBRESOURCES) == RequestType.SUBRESOURCES
@@ -358,7 +399,7 @@ object FilterParser {
     private class Shape(val anchor: Int, val anchorEnd: Boolean, val host: String?, val pattern: String, val isRegex: Boolean)
 
     private fun patternShape(raw: String, matchCase: Boolean): Shape? {
-        if (raw.any { it.code >= 0x80 }) return null
+        if (raw.length > MAX_PATTERN_LENGTH || raw.any { it.code >= 0x80 }) return null
         if (raw.length > 2 && raw.startsWith("/") && raw.endsWith("/")) {
             val source = raw.substring(1, raw.length - 1)
             val flags = if (matchCase) 0 else Pattern.CASE_INSENSITIVE
@@ -400,7 +441,7 @@ object FilterParser {
         if (anchor == Anchor.NONE) while (rest.startsWith("*")) rest = rest.substring(1)
         if (!anchorEnd) while (rest.endsWith("*")) rest = rest.dropLast(1)
         if (host == null && anchor == Anchor.HOST && rest.isEmpty()) return null
-        return Shape(anchor, anchorEnd, host, rest, false)
+        return Shape(anchor, anchorEnd, host, if (rest == "^") "^" else rest, false)
     }
 
     private fun pureHost(body: String): String? {

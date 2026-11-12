@@ -100,6 +100,7 @@
     <string name="lists_downloading">Downloading…</string>
     <string name="lists_compiling">Compiling…</string>
     <string name="lists_couldnt_update_row">Couldn’t update</string>
+    <string name="lists_too_large_row">Too large for Ardia to use</string>
     <string name="lists_waiting">%1$s · Waiting for a connection</string>
     <string name="lists_downloads_when_on">Downloads when you turn it on</string>
     <string name="lists_shows_details">Shows the list’s details</string>
@@ -134,6 +135,7 @@
     <string name="list_removed">List Removed</string>
     <string name="list_fallback_title">Filter List</string>
     <string name="list_state_couldnt_update">Couldn’t Update</string>
+    <string name="list_state_too_large">Too Large</string>
     <string name="list_state_offline">Offline</string>
     <string name="list_state_on">On</string>
     <string name="list_state_off">Off</string>

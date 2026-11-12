@@ -114,7 +114,7 @@ class TabStoreTest {
     }
 
     @Test
-    fun archiveGroupsByDayNewestFirstAndRestoreSelects() {
+    fun archiveGroupsByDayNewestFirstAndRestoreSelects(): Unit = runBlocking {
         val fixture = StoreFixture()
         val store = fixture.store
         store.loadArchive()
@@ -209,7 +209,7 @@ class TabStoreTest {
         assertEquals(listOf<Byte>(1, 2, 3), store.interactionState(secret.id)?.toList())
         assertEquals(listOf("https://normal.example/"), store.syncedTabs().map { it.url })
         assertTrue(fixture.history.syncedVisits(start).isEmpty())
-        store.flush()
+        assertTrue(store.flush())
         assertEquals(1, fixture.database.tabCount())
         assertEquals(0, fixture.database.visitCount())
         assertNull(fixture.database.state(secret.id))

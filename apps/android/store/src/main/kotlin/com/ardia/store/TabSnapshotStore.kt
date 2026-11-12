@@ -24,13 +24,24 @@ class TabSnapshotStore(
         val name = fileName(tabId)
         if (tabId in deletedTabIds) return null
         val file = File(directory, name)
-        val written = withContext(ioDispatcher) { encode(image, file, directory) } ?: return null
+        val written = withContext(ioDispatcher) { encodeUnlessDeleted(image, file, tabId) } ?: return null
+        if (tabId in deletedTabIds) return null
+        cache.put(name, written)
         if (tabId in deletedTabIds) {
-            withContext(ioDispatcher) { file.delete() }
+            cache.remove(name)
             return null
         }
-        cache.put(name, written)
         return name
+    }
+
+    private fun encodeUnlessDeleted(image: Bitmap, file: File, tabId: String): Bitmap? {
+        if (tabId in deletedTabIds) return null
+        val written = encode(image, file, directory) ?: return null
+        if (tabId in deletedTabIds) {
+            file.delete()
+            return null
+        }
+        return written
     }
 
     fun keepInMemory(image: Bitmap, tabId: String): String {

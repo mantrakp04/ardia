@@ -2,8 +2,11 @@ package com.ardia.browsing
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Process
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -47,10 +50,37 @@ internal object CaptureFiles {
         val folder = File(context.cacheDir, "captures").apply { mkdirs() }
         folder.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > STALE_MILLIS }?.forEach { it.delete() }
         val file = File(folder, "${UUID.randomUUID()}.$extension")
-        return FileProvider.getUriForFile(context, "${context.packageName}.browsing.captures", file)
+        return FileProvider.getUriForFile(context, authority(context), file)
     }
 
     private const val STALE_MILLIS = 24L * 60 * 60 * 1000
+
+    fun authority(context: Context): String = "${context.packageName}.browsing.captures"
+}
+
+internal object PickedFiles {
+    @Suppress("DEPRECATION")
+    private fun ownAuthorities(context: Context): Set<String> {
+        val declared = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PROVIDERS).providers.orEmpty()
+                .flatMap { it.authority?.split(';').orEmpty() }
+        }.getOrDefault(emptyList())
+        return (declared + CaptureFiles.authority(context)).filter { it.isNotEmpty() }.toSet()
+    }
+
+    private fun isGranted(context: Context, uri: Uri): Boolean =
+        context.checkUriPermission(uri, Process.myPid(), Process.myUid(), Intent.FLAG_GRANT_READ_URI_PERMISSION) == PackageManager.PERMISSION_GRANTED
+
+    fun answer(context: Context, uris: List<Uri>, captureUri: Uri?): PageRequest.Answer {
+        val own = ownAuthorities(context)
+        val capture = captureUri?.toString()
+        val files = uris.map { uri ->
+            val isOwnCapture = capture != null && uri.toString() == capture
+            PickedFile(uri.toString(), uri.scheme, uri.authority, isGranted = !isOwnCapture && isGranted(context, uri))
+        }
+        val accepted = PickedFileRule.filter(files, own, context.packageName, capture).map { it.uri }.toHashSet()
+        return PageRequest.Answer.Files(uris.filter { it.toString() in accepted })
+    }
 }
 
 private fun Context.holds(permissions: Array<String>): Map<String, Boolean> =
@@ -153,6 +183,12 @@ private fun PermissionRequest(request: PageRequest, permission: SitePermission) 
 
 private enum class Capture { Photo, Video }
 
+private fun pickerType(media: VisualMedia): ActivityResultContracts.PickVisualMedia.VisualMediaType = when (media) {
+    VisualMedia.Images -> ActivityResultContracts.PickVisualMedia.ImageOnly
+    VisualMedia.Videos -> ActivityResultContracts.PickVisualMedia.VideoOnly
+    VisualMedia.ImagesAndVideos -> ActivityResultContracts.PickVisualMedia.ImageAndVideo
+}
+
 @Composable
 private fun FileChooserRequest(request: PageRequest, kind: PageRequest.Kind.FileChooser) {
     val context = LocalContext.current
@@ -160,20 +196,20 @@ private fun FileChooserRequest(request: PageRequest, kind: PageRequest.Kind.File
     var choosing by remember(request.id) { mutableStateOf(!plan.capturesDirectly && (plan.offersPhoto || plan.offersVideo)) }
     var captureUri by remember(request.id) { mutableStateOf<Uri?>(null) }
     var pendingCapture by remember(request.id) { mutableStateOf<Capture?>(null) }
-    val single = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        request.answer(if (uri == null) PageRequest.Answer.Dismissed else PageRequest.Answer.Files(listOf(uri)))
+    val visualMedia = remember(request.id) { PickerChoice.visualMedia(plan.documentTypes) }
+    fun answerPicked(uris: List<Uri>) {
+        request.answer(if (uris.isEmpty()) PageRequest.Answer.Dismissed else PickedFiles.answer(context, uris, captureUri = null))
     }
-    val multiple = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        request.answer(if (uris.isEmpty()) PageRequest.Answer.Dismissed else PageRequest.Answer.Files(uris))
-    }
-    val photo = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+    fun answerCaptured(saved: Boolean) {
         val uri = captureUri
-        request.answer(if (saved && uri != null) PageRequest.Answer.Files(listOf(uri)) else PageRequest.Answer.Dismissed)
+        request.answer(if (saved && uri != null) PickedFiles.answer(context, listOf(uri), captureUri = uri) else PageRequest.Answer.Dismissed)
     }
-    val video = rememberLauncherForActivityResult(ActivityResultContracts.CaptureVideo()) { saved ->
-        val uri = captureUri
-        request.answer(if (saved && uri != null) PageRequest.Answer.Files(listOf(uri)) else PageRequest.Answer.Dismissed)
-    }
+    val single = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> answerPicked(listOfNotNull(uri)) }
+    val multiple = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> answerPicked(uris) }
+    val singleMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> answerPicked(listOfNotNull(uri)) }
+    val multipleMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris -> answerPicked(uris) }
+    val photo = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture(), ::answerCaptured)
+    val video = rememberLauncherForActivityResult(ActivityResultContracts.CaptureVideo(), ::answerCaptured)
     fun startCapture(capture: Capture) {
         val uri = runCatching { CaptureFiles.create(context, if (capture == Capture.Photo) "jpg" else "mp4") }.getOrNull()
         if (uri == null) {
@@ -197,8 +233,15 @@ private fun FileChooserRequest(request: PageRequest, kind: PageRequest.Kind.File
         }
     }
     fun documents() {
-        runCatching { if (kind.allowsMultiple) multiple.launch(plan.documentTypes) else single.launch(plan.documentTypes) }
-            .onFailure { request.dismiss() }
+        runCatching {
+            val media = visualMedia?.let(::pickerType)
+            when {
+                media != null && kind.allowsMultiple -> multipleMedia.launch(PickVisualMediaRequest(media))
+                media != null -> singleMedia.launch(PickVisualMediaRequest(media))
+                kind.allowsMultiple -> multiple.launch(plan.documentTypes)
+                else -> single.launch(plan.documentTypes)
+            }
+        }.onFailure { request.dismiss() }
     }
     LaunchedEffect(request.id) {
         when {

@@ -17,6 +17,7 @@ internal class NetworkRule(
     val include: LongArray?,
     val exclude: LongArray?,
 ) {
+    private val regexSlot = if (regex != null) nextRegexSlot.getAndIncrement() else 0
     private val isHostOnly = host != null && !anchorEnd && pattern.size == 1 && pattern[0] == '^'
 
     fun applies(context: RequestContext): Boolean {
@@ -48,27 +49,34 @@ internal class NetworkRule(
     fun matchesAfterHost(context: RequestContext, hostEnd: Int): Boolean {
         if (isHostOnly) return true
         val chars = if (matchCase) context.raw else context.lower
-        return Glob.matches(pattern, chars, hostEnd, context.length, anchoredStart = true, anchoredEnd = anchorEnd)
+        return Glob.matches(pattern, chars, hostEnd, context.length, anchoredStart = true, anchoredEnd = anchorEnd, context = context)
     }
 
     fun matchesUrl(context: RequestContext): Boolean {
-        regex?.let { return it.matcher(context.rawView).find() }
+        regex?.let { compiled ->
+            if (context.rawView.budget <= 0) return false
+            return try {
+                context.matcher(compiled, regexSlot).find()
+            } catch (exceeded: RegexBudgetExceeded) {
+                false
+            }
+        }
         val chars = if (matchCase) context.raw else context.lower
         return when (anchor) {
-            Anchor.START -> Glob.matches(pattern, chars, 0, context.length, anchoredStart = true, anchoredEnd = anchorEnd)
+            Anchor.START -> Glob.matches(pattern, chars, 0, context.length, anchoredStart = true, anchoredEnd = anchorEnd, context = context)
             Anchor.HOST -> {
                 val lower = context.lower
                 var position = context.hostStart
                 val end = context.hostEnd
                 while (position < end) {
                     if (position == context.hostStart || lower[position - 1] == '.') {
-                        if (Glob.matches(pattern, chars, position, context.length, anchoredStart = true, anchoredEnd = anchorEnd)) return true
+                        if (Glob.matches(pattern, chars, position, context.length, anchoredStart = true, anchoredEnd = anchorEnd, context = context)) return true
                     }
                     position++
                 }
                 false
             }
-            else -> Glob.matches(pattern, chars, 0, context.length, anchoredStart = false, anchoredEnd = anchorEnd)
+            else -> Glob.matches(pattern, chars, 0, context.length, anchoredStart = false, anchoredEnd = anchorEnd, context = context)
         }
     }
 
@@ -99,6 +107,7 @@ internal class NetworkRule(
         )
 
         const val ALL_CATEGORIES = -1
+        private val nextRegexSlot = java.util.concurrent.atomic.AtomicInteger()
     }
 }
 
@@ -121,15 +130,22 @@ internal object DomainMatch {
 }
 
 internal object Glob {
-    fun matches(pattern: CharArray, text: CharArray, from: Int, to: Int, anchoredStart: Boolean, anchoredEnd: Boolean): Boolean {
+    fun matches(pattern: CharArray, text: CharArray, from: Int, to: Int, anchoredStart: Boolean, anchoredEnd: Boolean, context: RequestContext): Boolean {
+        val budget = context.globSteps
         val patternEnd = pattern.size
         var p = 0
         var s = from
         var starP = if (anchoredStart) -1 else 0
         var starS = from
+        var steps = budget
+        var result = false
         while (true) {
+            if (--steps < 0) break
             if (p == patternEnd) {
-                if (!anchoredEnd || s == to) return true
+                if (!anchoredEnd || s == to) {
+                    result = true
+                    break
+                }
             } else {
                 val char = pattern[p]
                 if (char == '*') {
@@ -150,12 +166,14 @@ internal object Glob {
                     continue
                 }
             }
-            if (starP < 0) return false
+            if (starP < 0) break
             starS++
-            if (starS > to) return false
+            if (starS > to) break
             s = starS
             p = starP
         }
+        context.globSteps = maxOf(steps, 0)
+        return result
     }
 
     fun isSeparator(char: Char): Boolean =
@@ -218,8 +236,19 @@ internal class RuleIndex private constructor(
         private val categories = ArrayList<Int>()
 
         fun add(filter: NetworkFilter, categoryBit: Int) {
+            if (filter.isRegex && !isUsableRegex(filter)) return
             filters += filter
             categories += categoryBit
+        }
+
+        private fun isUsableRegex(filter: NetworkFilter): Boolean {
+            if (!RegexSafety.isSafe(filter.pattern)) return false
+            return try {
+                Pattern.compile(filter.pattern)
+                true
+            } catch (error: java.util.regex.PatternSyntaxException) {
+                false
+            }
         }
 
         fun build(): RuleIndex {

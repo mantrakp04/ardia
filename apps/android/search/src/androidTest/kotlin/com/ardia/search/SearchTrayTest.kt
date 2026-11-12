@@ -104,12 +104,16 @@ class SearchTrayTest {
 
     @Test
     fun tappingASuggestionActivatesIt() {
+        val pancakes = onMain { model.tabs.openTabs.first { it.url.contains("pancakes") } }
+        val openCount = onMain { model.tabs.openTabs.size }
         field().performTextInput("pancakes")
-        waitForRow("Good Old-Fashioned Pancakes Recipe")
-        compose.onAllNodes(hasText("Good Old-Fashioned Pancakes Recipe", substring = true))[0].performClick()
+        val openTabRow = hasText(PANCAKES, substring = true) and hasText(SWITCH_TO_TAB)
+        compose.waitUntil(TIMEOUT) { compose.onAllNodes(openTabRow).fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodes(openTabRow)[0].performClick()
         compose.waitUntil(TIMEOUT) {
-            onMain { model.browse.search == null && model.surface == AppModel.Surface.Browsing && model.tabs.selectedTab?.url?.contains("pancakes") == true }
+            onMain { model.browse.search == null && model.surface == AppModel.Surface.Browsing && model.tabs.selectedTabId == pancakes.id }
         }
+        assertEquals(openCount, onMain { model.tabs.openTabs.size })
     }
 
     @Test
@@ -140,5 +144,7 @@ class SearchTrayTest {
     companion object {
         const val FIELD = "Search or Enter Address"
         const val TIMEOUT = 20_000L
+        const val PANCAKES = "Good Old-Fashioned Pancakes"
+        const val SWITCH_TO_TAB = "Switch to Tab"
     }
 }

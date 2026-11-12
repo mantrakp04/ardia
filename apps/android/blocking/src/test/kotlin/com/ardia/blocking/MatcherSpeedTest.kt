@@ -93,7 +93,14 @@ class MatcherSpeedTest {
             Triple(index, times[0] / 1000.0, times[times.size / 2] / 1000.0)
         }
         for ((index, best, middle) in perUrl.sortedByDescending { it.third }.take(6)) {
-            println("ArdiaBlockingTiming slowest url best=%.2fus median=%.2fus %s".format(best, middle, requests[index].first.take(90)))
+            request(engine, index)
+            val context = RequestContext.current()
+            val regexReads = RequestContext.REGEX_READS_PER_REQUEST - context.rawView.budget
+            val globSteps = RequestContext.GLOB_STEPS_PER_REQUEST - context.globSteps
+            println(
+                "ArdiaBlockingTiming slowest url best=%.2fus median=%.2fus regexReads=%d globSteps=%d %s"
+                    .format(best, middle, regexReads, globSteps, requests[index].first.take(90)),
+            )
         }
         val slowestBest = perUrl.maxOf { it.second }
         val css = engine.hiding("www.theguardian.com")!!

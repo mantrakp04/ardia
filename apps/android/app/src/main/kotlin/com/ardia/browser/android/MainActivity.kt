@@ -2,16 +2,21 @@ package com.ardia.browser.android
 
 import android.content.Intent
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.snapshotFlow
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.lifecycleScope
 import com.ardia.appmodel.AppModel
 import com.ardia.browser.android.system.ArdiaWidgets
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -31,6 +36,9 @@ class MainActivity : ComponentActivity() {
         lifecycle.addObserver(sceneObserver)
         StartupTiming.watchFirstFrame(window.decorView, createdAt)
         setContent { ArdiaRoot(model, createdAt) }
+        lifecycleScope.launch {
+            snapshotFlow { model.isPrivateOnScreen }.distinctUntilChanged().collect(::hideFromRecents)
+        }
         if (savedInstanceState == null) deliver(intent)
     }
 
@@ -69,6 +77,16 @@ class MainActivity : ComponentActivity() {
         lifecycle.removeObserver(sceneObserver)
         model.detach(this)
         super.onDestroy()
+    }
+
+    private fun hideFromRecents(hidden: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(!hidden)
+        } else if (hidden) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
     }
 
     private fun deliver(intent: Intent?) {
