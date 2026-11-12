@@ -54,7 +54,9 @@ contract the app, the CLI, the feedback service and the dashboard build against.
    `diagnostics` (object, ≤64 KB), `attachments` (list of `{ name, bytes, type }`).
    Answers `201 { id: "FB-XXXX", name, upload_token, upload_urls, expires_at }`.
 2. `PUT /api/feedback/<id>/files/<name>` with `Authorization: Bearer <upload_token>` for each attachment,
-   streamed to SeaweedFS at `feedback/<id>/<name>`. Caps: recording 100 MB, trace 50 MB, other files 10 MB.
+   streamed to SeaweedFS at `feedback/<id>/<name>`, on `ardia-feedback-objects` (a service of its own, defined
+   in `infra/feedback/hexclave.deploy.ts`, that the replays never write to). Caps: recording 100 MB, trace
+   50 MB, other files 10 MB.
    Names: `recording.mp4`, `trace.json.gz`, `local-events.jsonl.gz`, `crash-<n>.ips`, `attachment-<n>.<ext>`.
 3. `POST /api/feedback/<id>/complete` (Bearer): writes a `feedback_submitted` event (all fields above, the
    attachment list, `watch_until`, `issue_number`, `issue_url`) through the collector, with `distinct_id`
@@ -66,6 +68,17 @@ contract the app, the CLI, the feedback service and the dashboard build against.
   `enhancement` for idea, and nothing more for other.
 - Without `GITHUB_ISSUES_TOKEN` it skips the issue and still stores the report. Production runs that way for now. To turn issues on, create the Hexclave secret `FEEDBACK_GITHUB_ISSUES_TOKEN` (fine-grained, Issues read and write on `ardia-browser/ardia`), add `GITHUB_ISSUES_TOKEN: secret(SECRETS.feedbackGithubIssuesToken)` back to `infra/feedback/hexclave.deploy.ts`, create the `feedback` label, and redeploy with `infra/feedback/deploy.sh`.
 - Kept forever for now, like all telemetry.
+- Storage: `ardia-feedback-objects` has a 10 GB volume of 18 volumes of 512 MB (so the largest file, 100 MB, fits
+  and the volumes can't outgrow the disk), and no expiry. Reports were first kept on `ph-objects`, the
+  replays' SeaweedFS, and from 11-11 every report there got `502 upstream:storage` (`report_failed` with
+  `error_class` `storage`), none was sent. The replays, kept 30 days at a sample rate of 1, were about 19 GiB
+  of its 20 GB by then. Reports saved before the move (11-09 to 11-11) stay on `ph-objects` under
+  `buckets/feedback/`, and the dashboard still reads them there. A 502 `upstream:storage` in `report_failed`
+  or `failed (storage)` in the `ardia-feedback` log means the report store is refusing writes: look at the free
+  space of `ardia-feedback-objects`.
+- Deploying this is a manual step: `infra/feedback/deploy.sh` (CI has no job for it) creates the store and
+  points the server at it. Run it before the dashboard deploys (the dashboard points at the store's host), then
+  redeploy the dashboard so it reads from it.
 - `node infra/feedback/server.mjs --local <dir>` runs it with no ClickHouse, SeaweedFS or GitHub, writing
   to `<dir>`, for tests. The app reads `ARDIA_FEEDBACK_URL`, the CLI `ARDIA_FEEDBACK_URL` too.
 
@@ -135,5 +148,7 @@ uses exact secret patterns, never a cut at a keyword.
   and linked to the people affected.
 - CLI exceptions show on Errors and Health with the app's.
 - Attachments are read through the dashboard at `/files/feedback/<id>/<name>` (admin only), from SeaweedFS
-  `buckets/feedback/` on `REPLAYS_HOST`, or `FEEDBACK_FILES_URL` (+ `FEEDBACK_FILES_TOKEN`) when set.
+  `buckets/feedback/` on `FEEDBACK_OBJECTS_HOST` (`ardia-feedback-objects`), or `FEEDBACK_FILES_URL`
+  (+ `FEEDBACK_FILES_TOKEN`) when set. A file that isn't there is looked for next on `REPLAYS_HOST`, where
+  reports saved before the move are (`apps/dashboard/src/server/feedback-files.ts`).
   `DASHBOARD_FEEDBACK_FIXTURE=<json>` adds local synthetic reports in dev only.

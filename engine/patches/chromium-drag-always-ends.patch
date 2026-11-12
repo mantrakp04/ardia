@@ -1,0 +1,256 @@
+diff --git a/ui/base/cocoa/drag_permission.h b/ui/base/cocoa/drag_permission.h
+--- a/ui/base/cocoa/drag_permission.h
++++ b/ui/base/cocoa/drag_permission.h
+@@ -28,6 +28,9 @@
+ COMPONENT_EXPORT(UI_BASE)
+ bool IsDragSessionInitiationAllowed();
+ 
++COMPONENT_EXPORT(UI_BASE)
++void ArdiaRefuseDragSessionInitiation();
++
+ // Sets the state of whether a drag session is in progress.
+ COMPONENT_EXPORT(UI_BASE)
+ void SetDragSessionInProgress(bool in_progress);
+diff --git a/ui/base/cocoa/drag_permission.mm b/ui/base/cocoa/drag_permission.mm
+--- a/ui/base/cocoa/drag_permission.mm
++++ b/ui/base/cocoa/drag_permission.mm
+@@ -17,14 +17,20 @@
+ // to do so, and it is easy in this case.
+ bool gDragSessionIsInProgress;
+ 
++bool gArdiaDragSessionInitiationRefused;
++
+ }  // namespace
+ 
+ bool IsDragSessionInitiationAllowed() {
+   CHECK_EQ(NSRunLoop.currentRunLoop, NSRunLoop.mainRunLoop);
+-  return !gDragSessionIsInProgress &&
++  return !gArdiaDragSessionInitiationRefused && !gDragSessionIsInProgress &&
+          NSRunLoop.currentRunLoop.currentMode != NSEventTrackingRunLoopMode;
+ }
+ 
++void ArdiaRefuseDragSessionInitiation() {
++  gArdiaDragSessionInitiationRefused = true;
++}
++
+ void SetDragSessionInProgress(bool in_progress) {
+   CHECK_NE(gDragSessionIsInProgress, in_progress);
+   gDragSessionIsInProgress = in_progress;
+diff --git a/content/app_shim_remote_cocoa/web_contents_view_cocoa.mm b/content/app_shim_remote_cocoa/web_contents_view_cocoa.mm
+--- a/content/app_shim_remote_cocoa/web_contents_view_cocoa.mm
++++ b/content/app_shim_remote_cocoa/web_contents_view_cocoa.mm
+@@ -242,7 +242,11 @@
+                         image:(NSImage*)image
+                        offset:(NSPoint)offset
+                  isPrivileged:(BOOL)isPrivileged {
+-  if (!_host || !ui::IsDragSessionInitiationAllowed()) {
++  if (!_host) {
++    return;
++  }
++  if (!ui::IsDragSessionInitiationAllowed()) {
++    _host->EndDrag(NSDragOperationNone, gfx::PointF(), gfx::PointF());
+     return;
+   }
+ 
+diff --git a/content/browser/web_contents/web_contents_view_mac.h b/content/browser/web_contents/web_contents_view_mac.h
+--- a/content/browser/web_contents/web_contents_view_mac.h
++++ b/content/browser/web_contents/web_contents_view_mac.h
+@@ -219,6 +219,8 @@
+ 
+   // Tracks the RenderWidgetHost where the current drag started.
+   base::WeakPtr<content::RenderWidgetHostImpl> drag_source_start_rwh_;
++
++  void ArdiaEndRefusedDrag(RenderWidgetHostImpl* source_rwh);
+ 
+   // Our optional delegate.
+   std::unique_ptr<WebContentsViewDelegate> delegate_;
+diff --git a/content/browser/web_contents/web_contents_view_mac.mm b/content/browser/web_contents/web_contents_view_mac.mm
+--- a/content/browser/web_contents/web_contents_view_mac.mm
++++ b/content/browser/web_contents/web_contents_view_mac.mm
+@@ -42,6 +42,9 @@
+ #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
+ #include "mojo/public/cpp/bindings/pending_associated_remote.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
++#include "base/functional/callback_helpers.h"
++#include "ui/base/cocoa/drag_permission.h"
+ #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
+ #include "ui/display/display_util.h"
+ #include "ui/gfx/mac/coordinate_conversion.h"
+@@ -213,6 +216,16 @@
+ }
+ 
+ void WebContentsViewMac::DestroyBackForwardTransitionAnimationManager() {}
++
++void WebContentsViewMac::ArdiaEndRefusedDrag(RenderWidgetHostImpl* source_rwh) {
++  ++g_ardia_drags_ended[kArdiaDragEndNativeRefused];
++  web_contents_->SystemDragEnded(source_rwh);
++  if (source_rwh) {
++    source_rwh->DragSourceEndedAt(gfx::PointF(), gfx::PointF(),
++                                  ui::mojom::DragOperation::kNone,
++                                  base::DoNothing());
++  }
++}
+ 
+ void WebContentsViewMac::StartDragging(
+     RenderFrameHost& source_rfh,
+@@ -227,8 +240,15 @@
+   // Disallow reentrant drags. This uses the destination's state because
+   // the source frame might be destroyed during an active drag session.
+   if ([drag_dest_ didInitiateDrag] || drag_source_start_rwh_) {
++    if (drag_source_start_rwh_.get() != source_rwh) {
++      ArdiaEndRefusedDrag(source_rwh);
++    }
+     return;
+   }
++  if (!remote_ns_view_ && !ui::IsDragSessionInitiationAllowed()) {
++    ArdiaEndRefusedDrag(source_rwh);
++    return;
++  }
+   // A window move loop already owns the held mouse button; refuse to start a
+   // dragging session that would interfere with it.
+   if (remote_cocoa::CocoaWindowMoveLoop::IsActive()) {
+diff --git a/content/browser/renderer_host/render_widget_host_impl.cc b/content/browser/renderer_host/render_widget_host_impl.cc
+--- a/content/browser/renderer_host/render_widget_host_impl.cc
++++ b/content/browser/renderer_host/render_widget_host_impl.cc
+@@ -142,6 +142,7 @@
+ #include "third_party/blink/public/mojom/input/touch_event.mojom.h"
+ #include "third_party/perfetto/include/perfetto/tracing/track_event_args.h"
+ #include "ui/accessibility/platform/browser_accessibility_manager.h"
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
+ #include "ui/base/clipboard/clipboard_constants.h"
+ #include "ui/base/cursor/cursor.h"
+ #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
+@@ -3258,6 +3259,13 @@
+     if (intercepted) {
+       return;
+     }
++  }
++
++  if (event_info && event_info->trigger_from_debugger) {
++    ++g_ardia_drags_ended[kArdiaDragEndDebuggerUnowned];
++    DragSourceEndedAt(gfx::PointF(), gfx::PointF(),
++                      ui::mojom::DragOperation::kNone, base::DoNothing());
++    return;
+   }
+ 
+   RenderViewHostDelegateView* view = delegate_->GetDelegateView();
+diff --git a/content/browser/devtools/protocol/input_handler.h b/content/browser/devtools/protocol/input_handler.h
+--- a/content/browser/devtools/protocol/input_handler.h
++++ b/content/browser/devtools/protocol/input_handler.h
+@@ -194,6 +194,7 @@
+ 
+  private:
+   class InputInjector;
++  void ArdiaEndOwnedDrag();
+   class DragController {
+    public:
+     // `handler` must live as long as the drag controller.
+@@ -229,6 +230,7 @@
+         const blink::mojom::DragEventSourceInfo* event_info,
+         bool* intercepted);
+     friend void InputHandler::DragEnded();
++    friend void InputHandler::ArdiaEndOwnedDrag();
+ 
+     void EnsureDraggingEntered(RenderWidgetHostImpl& host,
+                                const blink::WebMouseEvent& event);
+@@ -367,6 +369,7 @@
+       scoped_ignore_input_events_;
+   bool intercept_drags_ = false;
+   std::optional<std::pair<const void*, int64_t>> ardia_press_;
++  base::WeakPtr<RenderWidgetHostImpl> ardia_drag_source_;
+   DragController drag_controller_;
+   const bool allow_file_access_;
+   const bool allow_sending_input_to_browser_ = false;
+diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browser/devtools/protocol/input_handler.cc
+--- a/content/browser/devtools/protocol/input_handler.cc
++++ b/content/browser/devtools/protocol/input_handler.cc
+@@ -65,6 +65,8 @@
+ 
+ bool (*g_ardia_devtools_may_input)(content::DevToolsAgentHostClient* root_client,
+                                    content::RenderFrameHost* frame) = nullptr;
++
++int g_ardia_drags_ended[kArdiaDragEndKinds] = {};
+ 
+ namespace content::protocol {
+ 
+@@ -1221,7 +1223,27 @@
+       allow_file_access_(allow_file_access),
+       allow_sending_input_to_browser_(allow_sending_input_to_browser) {}
+ 
+-InputHandler::~InputHandler() = default;
++InputHandler::~InputHandler() {
++  ArdiaEndOwnedDrag();
++}
++
++void InputHandler::ArdiaEndOwnedDrag() {
++  base::WeakPtr<RenderWidgetHostImpl> source = std::move(ardia_drag_source_);
++  ardia_drag_source_.reset();
++  std::unique_ptr<DragController::DragState> state =
++      std::move(drag_controller_.drag_state_);
++  drag_controller_.initial_state_ = nullptr;
++  if (!source) {
++    return;
++  }
++  ++g_ardia_drags_ended[kArdiaDragEndOwnerGone];
++  const gfx::PointF at = state ? state->pos : gfx::PointF();
++  if (state && state->host) {
++    state->host->DragTargetDragLeave(at, at);
++  }
++  source->DragSourceEndedAt(at, at, ui::mojom::DragOperation::kNone,
++                            base::DoNothing());
++}
+ 
+ // static
+ std::vector<InputHandler*> InputHandler::ForAgentHost(
+@@ -1688,12 +1710,18 @@
+     }
+   }
+   // Only allow when Input.setInterceptDrags is disabled.
++  RenderWidgetHostImpl* ardia_source = source_frame
++      ? RenderWidgetHostImpl::From(source_frame->GetRenderWidgetHost())
++      : nullptr;
+   if (!intercept_drags_) {
+     // If `last_mouse_move_` exists, then CDP is the currently handling mouse
+     // movement, so intercept dragging.
+     if (drag_controller_.initial_state_) {
+       drag_controller_.StartDragging(drop_data, drag_operations_mask);
+       *intercepted = true;
++      if (drag_controller_.drag_state_ && ardia_source) {
++        ardia_drag_source_ = ardia_source->GetWeakPtr();
++      }
+     }
+     return;
+   }
+@@ -1702,6 +1730,9 @@
+     return;
+   }
+   *intercepted = true;
++  if (ardia_source) {
++    ardia_drag_source_ = ardia_source->GetWeakPtr();
++  }
+ 
+   auto items =
+       std::make_unique<protocol::Array<protocol::Input::DragDataItem>>();
+@@ -1729,9 +1760,13 @@
+ void InputHandler::DragEnded() {
+   drag_controller_.drag_state_ = nullptr;
+   drag_controller_.initial_state_ = nullptr;
++  ardia_drag_source_.reset();
+ }
+ 
+ Response InputHandler::SetInterceptDrags(bool enabled) {
++  if (!enabled && intercept_drags_ && !drag_controller_.IsDragging()) {
++    ArdiaEndOwnedDrag();
++  }
+   intercept_drags_ = enabled;
+   return Response::Success();
+ }
+@@ -2428,6 +2463,7 @@
+ 
+ void InputHandler::ClearInputState() {
+   ardia_press_.reset();
++  ArdiaEndOwnedDrag();
+   while (!injectors_.empty())
+     (*injectors_.begin())->Cleanup();
+   // TODO(dgozman): cleanup touch callbacks as well?

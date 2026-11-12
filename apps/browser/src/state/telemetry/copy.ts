@@ -78,6 +78,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many Peek cards and Little Ardia windows you opened or closed with a trackpad pinch, summed up once an hour",
       "How many links from other apps opened as a tab or in Little Ardia, each with whether Settings › General › Open links from other apps in Little Ardia was on, summed up once an hour. Never which links or which app",
       "How many tab and group changes the ardia command made (counts only, never which tabs or groups), how many of its batches were refused or stopped, and how many times its control pill appeared",
+      "How many times Ardia ended a page drag that would otherwise have left the page ignoring clicks and typing: one the ardia command or a debugger started and left behind, or one macOS refused to start. Summed up once an hour, never which page",
       "Opening split view, switching profiles and opening the command bar, with where it opened: at the address, in the centre, in the centre because the address was out of sight, or for a new tab",
       "Opening Picture in Picture: video or page, whether its window can show over full-screen apps, and whether it opened while you were in another app because the video's window was out of sight",
       "After you let a site use your location: whether macOS gave Ardia location access, you said no in macOS's prompt, it was already off in System Settings, or the check failed, one event each time. Never which site or where you are",
@@ -115,7 +116,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     title: "The ardia command",
     items: [
       "Each command's name (like history or browse snapshot), its exit and error codes, and the names of the options it was given, never their values",
-      "How long it took, step by step (starting up, starting its helper, connecting to Ardia, finding the tab, the command itself, waiting for the page to settle), plus counts and sizes: browser calls, steps in a batch, the length of a page snapshot and of the output, how many requests an action sent, and whether the output was cut short, the input humanized, it gave up waiting for its helper or Ardia refused it a tab. Times, counts and yes or no only",
+      "How long it took, step by step (starting up, starting its helper, connecting to Ardia, finding the tab, the command itself, waiting for the page to settle), plus counts and sizes: browser calls, steps in a batch, how many coding agents the install gave the agent skill to or skipped, the length of a page snapshot and of the output, how many requests an action sent, and whether the output was cut short, the input humanized, it gave up waiting for its helper or Ardia refused it a tab. Times, counts and yes or no only",
       "Its version, macOS version, chip and Python version, with this Mac's install ID",
       "After a crash: the error's type (with its message only when it's one of Python's fixed ones, like “division by zero”), and the module, function and line number of each step in the stack trace",
       "Nothing from commands pointed at a test browser (--port, --ws), and nothing at all with DO_NOT_TRACK=1 or ARDIA_TELEMETRY=0 set",

@@ -24,6 +24,7 @@ import { takeTabSwitcherOpensInWebKit } from "./tabSwitcherOpens";
 import { noteAutoPictureInPictureNothingPlaying, takePictureInPictureCounts } from "./pictureInPictureCounts";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
 import { toolbarBounces } from "./toolbarBounces";
+import { takeStuckDragCounts } from "./stuckDrags";
 
 const HOUR_MS = 60 * 60_000;
 const FIRST_MEMORY_SAMPLE_MS = 10 * 60_000;
@@ -37,10 +38,10 @@ let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
 function emitCounts() {
-  const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit();
+  const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit(), stuckDrags = takeStuckDragCounts();
   const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab } = takePictureInPictureCounts();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
+  if (Object.values(counts).some(Boolean) || Object.values(stuckDrags).some(Boolean) || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -54,6 +55,7 @@ function emitCounts() {
       cli_pill_shows: counts.cliPillShows,
       loading_pill_shows: counts.loadingPillShows,
       loading_pill_long_shows: counts.loadingPillLongShows,
+      ...stuckDrags,
       popover_press_closes: counts.popoverPressCloses,
       popover_escape_closes: counts.popoverEscapeCloses,
       tab_switcher_opens: counts.tabSwitcherOpens,
@@ -163,10 +165,7 @@ export const noteTabSwitcherOpened = (closedLeftOut: number, unseenLast: number)
 
 export const noteApprovalNoticeDeferred = () => counts.approvalNoticesDeferred++;
 
-export function noteDockReopen(pastFloating: boolean) {
-  counts.dockReopens++;
-  if (pastFloating) counts.dockReopensPastFloating++;
-}
+export const noteDockReopen = (pastFloating: boolean) => void (counts.dockReopens++, pastFloating && counts.dockReopensPastFloating++);
 
 export function noteReopenedPage(canGoBack: boolean) {
   counts.reopenedPages++;
