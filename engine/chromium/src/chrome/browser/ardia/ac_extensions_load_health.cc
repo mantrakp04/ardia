@@ -1,5 +1,6 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -87,8 +88,12 @@ AC_PROFILE_CALL(ac_extensions_load_health) {
     if (!ardia::IsUserExtension(*extension)) {
       continue;
     }
+    std::set<std::string_view> buckets;
     for (const auto reason : prefs->GetDisableReasons(extension->id())) {
-      const std::string name(ardia::DisableReasonName(reason));
+      buckets.insert(ardia::DisableReasonName(reason));
+    }
+    for (const std::string_view bucket : buckets) {
+      const std::string name(bucket);
       disabled.Set(name, disabled.FindInt(name).value_or(0) + 1);
     }
   }

@@ -35,9 +35,8 @@ export function startExtensionsBridge() {
   const loadProfiles = (s: BrowserState) => {
     for (const id of s.windowOrder) {
       const profile = extensionProfile(s, id);
-      if (!watchActionsOf(profile)) continue;
-      void refreshExtensions(profile);
       if (!isPrivate(s, id)) reportExtensionsLoaded(profile);
+      if (watchActionsOf(profile)) void refreshExtensions(profile);
     }
   };
   loadProfiles(useBrowser.getState());
