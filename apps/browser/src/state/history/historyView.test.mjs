@@ -68,6 +68,22 @@ test("the view follows Chrome: a burst of visits, a retitle, a deletion, a clear
   stop();
 });
 
+test("a history of years, past 5,000 pages, is read whole, with its oldest page (an imported Arc history)", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const total = 5_200;
+  const now = Date.now();
+  const db = stub.chromeHistory("");
+  for (let i = 0; i < total; i++) db.set(`https://site${i}.example/`, { title: `Site ${i}`, visits: [now - i * 86_400_000] });
+  const stop = startHistory();
+  await reloadHistory();
+  const urls = historyOf(S(), "default").map((h) => h.url);
+  assert.equal(urls.length, total, "every page Chrome kept shows");
+  assert.equal(urls.at(-1), `https://site${total - 1}.example/`, "down to the oldest, more than 14 years back");
+  stop();
+});
+
 test("deleting half of a long history reads the selection a few times over, not once per URL kept", () => {
   S().hydrate({});
   stub.docs.clear();
