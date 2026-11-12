@@ -8,6 +8,8 @@ import type { BrowserWindow, FindState, Profile, Tab, TabGroup, TabLive } from "
 import { CLOSED_FIND, DEFAULT_WINDOW_UI } from "../windows/ui";
 import { downloadsIn } from "../downloads/downloadsSlice";
 import { focusedWindowOf } from "../windows/ui";
+import { ALL, useKeyed, watchLiveRecord, watchSettings, watchTabRecord, watchWindowRecord } from "./keyedWatch";
+import { useTabState } from "../tabs/tabStateWatch";
 
 export const WindowContext = createContext<string | null>(null);
 
@@ -17,8 +19,8 @@ export function useWindowId(): string {
 
 function useWindowField<T>(select: (w: BrowserWindow) => T, fallback: T): T {
   const id = useWindowId();
-  return useBrowser((s) => {
-    const w = s.windows[id];
+  return useKeyed(watchWindowRecord, id, () => {
+    const w = useBrowser.getState().windows[id];
     return w ? select(w) : fallback;
   });
 }
@@ -57,7 +59,7 @@ export function useActiveTab(): Tab | undefined {
 }
 
 export const useIsActiveTab = (tabId: string) =>
-  useBrowser((s) => {
+  useTabState(tabId, (s) => {
     const tab = s.tabs[tabId];
     return !!tab && activeTabId(s, tab.windowId, tab.profileId) === tabId;
   });
@@ -65,14 +67,14 @@ export const useIsActiveTab = (tabId: string) =>
 export function useTab(tabId: string | undefined): Tab | undefined;
 export function useTab<T>(tabId: string | undefined, select: (tab: Tab | undefined) => T): T;
 export function useTab<T>(tabId: string | undefined, select?: (tab: Tab | undefined) => T) {
-  return useBrowser((s) => {
-    const tab = tabId ? s.tabs[tabId] : undefined;
+  return useKeyed(watchTabRecord, tabId, () => {
+    const tab = tabId ? useBrowser.getState().tabs[tabId] : undefined;
     return select ? select(tab) : tab;
   });
 }
 
 export const useWindow = <T>(windowId: string | null | undefined, select: (w: BrowserWindow | undefined) => T): T =>
-  useBrowser((s) => select(windowId ? s.windows[windowId] : undefined));
+  useKeyed(watchWindowRecord, windowId, () => select(windowId ? useBrowser.getState().windows[windowId] : undefined));
 
 export const useProfile = <T>(profileId: string | null | undefined, select: (p: Profile | undefined) => T): T =>
   useBrowser((s) => select(profileId ? s.profiles[profileId] : undefined));
@@ -83,8 +85,8 @@ export const useGroup = <T>(groupId: string | null | undefined, select: (g: TabG
 export function useTabLive(tabId: string | undefined): TabLive;
 export function useTabLive<T>(tabId: string | undefined, select: (live: TabLive) => T): T;
 export function useTabLive<T>(tabId: string | undefined, select?: (live: TabLive) => T) {
-  return useBrowser((s) => {
-    const live = (tabId && s.live[tabId]) || IDLE_LIVE;
+  return useKeyed(watchLiveRecord, tabId, () => {
+    const live = (tabId && useBrowser.getState().live[tabId]) || IDLE_LIVE;
     return select ? select(live) : live;
   });
 }
@@ -96,7 +98,7 @@ export function useWindowUi() {
   return useBrowser((s) => s.windowUi[id] ?? DEFAULT_WINDOW_UI);
 }
 
-export const useSettings = <T>(select: (settings: Settings) => T): T => useBrowser((s) => select(s.settings));
+export const useSettings = <T>(select: (settings: Settings) => T): T => useKeyed(watchSettings, ALL, () => select(useBrowser.getState().settings));
 
 export const useChosenSettings = (): readonly string[] => useBrowser((s) => s.settingsMeta.chosen);
 

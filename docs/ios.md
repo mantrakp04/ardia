@@ -172,11 +172,13 @@ are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ar
   keeps the last answer and asks only on returning from the Settings button or after 100 days. A web link that
   arrives from another app also proves it. The simulator ignores the Settings deep link and opens Settings where it
   was left, so where the button lands is a real-phone check.
-- **Testers.** A processed build reaches the Internal group at once. For everyone else,
-  `gh workflow run ios-release.yml -f mode=public-link -f build=<number>` puts that build in the Public Testers group
-  (made with a public link the first time), sets its What to Test text from `Config/TestFlight-WhatToTest.txt`, submits it
-  for Beta App Review and prints the link. The link works once Apple approves the build; later builds of the same version
-  usually pass without a full review. To invite someone by email instead,
+- **Testers.** A processed build reaches the Internal group at once. An upload also sends it to everyone else: it
+  puts the build in the Public Testers group (made with a public link the first time), sets its What to Test text from
+  `Config/TestFlight-WhatToTest.txt`, submits it for Beta App Review and prints the link. The link stays the same for
+  every build and works once Apple approves one; later builds of the same version usually pass without a full review.
+  Apple has no setting that gives an external group every build, so each one is submitted. `-f public_testers=false`
+  keeps an upload to the Internal group, and `gh workflow run ios-release.yml -f mode=public-link -f build=<number>`
+  sends an earlier build. To invite someone by email instead,
   `gh workflow run ios-release.yml -f mode=add-tester -f email=<address>` adds them to Public Testers; TestFlight
   emails the invite once that group has an approved build.
 

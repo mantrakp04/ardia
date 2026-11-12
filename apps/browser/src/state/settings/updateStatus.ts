@@ -29,6 +29,17 @@ export function updaterBusy(state: UpdaterState | undefined): boolean {
   return state.sessionInProgress || phase === "waiting" || phase === "checking";
 }
 
+export type CheckNowControl = { title: string; checking: boolean; disabled: boolean; pressable: boolean };
+
+export function checkNowControl(state: UpdaterState | undefined): CheckNowControl {
+  const idle = { title: "Check Now", checking: false, disabled: false, pressable: true };
+  if (!state?.available || !state.configured) return idle;
+  const phase = state.switchCheck?.phase;
+  if (phase === "waiting" || phase === "checking") return { title: "Checking…", checking: true, disabled: false, pressable: true };
+  if (!state.canCheck && state.sessionInProgress) return { title: "Checking…", checking: true, disabled: false, pressable: false };
+  return state.canCheck ? idle : { ...idle, disabled: true, pressable: false };
+}
+
 export function switchCheckLine(state: UpdaterState | undefined, app: string): string | null {
   if (!state?.available || !state.switchCheck) return null;
   const { phase, channel, version } = state.switchCheck;

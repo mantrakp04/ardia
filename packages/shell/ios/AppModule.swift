@@ -69,6 +69,7 @@ public class AppModule: Module {
         "forceReleaseNotes": config.instanceFlag("releaseNotes"),
         "processStart": Self.processStart as Any,
         "bootTime": Self.bootTime as Any,
+        "launchMarks": ArdiaHost.launchMarks,
         "inApplicationsFolder": Self.inApplicationsFolder,
         "updatePrewarm": UserDefaults.standard.dictionary(forKey: UpdatePrewarm.lastRunKey) as Any,
       ]

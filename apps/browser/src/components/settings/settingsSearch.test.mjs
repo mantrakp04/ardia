@@ -8,7 +8,10 @@ const ids = (query) => search(SETTINGS_INDEX, query).map((h) => h.entry.id);
 const first = (query) => ids(query)[0];
 
 const TOP = [
-  ["cli", ["advanced.cliInstall", "advanced.cliControl"]],
+  ["cli", ["advanced.cliInstall"]],
+  ["shell", ["advanced.cliInstall"]],
+  ["devtools", ["advanced.cliControl"]],
+  ["remote debugging", ["advanced.cliControl"]],
   ["command line", ["advanced.cliInstall", "advanced.cliControl"]],
   ["terminal", ["advanced.cliInstall", "advanced.cliControl"]],
   ["ardia command", ["advanced.cliInstall"]],
@@ -103,10 +106,49 @@ test("real queries put the setting people mean first", () => {
 
 test("whole-word hits rank above word prefixes, and a loose keyword no longer wins", () => {
   const found = ids("cli");
-  assert.deepEqual(found.slice(0, 2).sort(), ["advanced.cliControl", "advanced.cliInstall"]);
+  assert.equal(found[0], "advanced.cliInstall");
   assert.ok(!found.includes("privacy.whatsSent"));
   const clickRows = found.filter((id) => /[Cc]lick/.test(SETTINGS.find((s) => s.id === id).title));
-  assert.ok(clickRows.every((id) => found.indexOf(id) > 1));
+  assert.ok(clickRows.length && clickRows.every((id) => found.indexOf(id) > 0));
+});
+
+const placeOf = (id) => {
+  const entry = SETTINGS.find((s) => s.id === id);
+  return `${entry.pane} › ${entry.section}`;
+};
+
+const COLLAPSED = [
+  ["cli", "advanced.cliInstall", ["advanced.cliControl"]],
+  ["terminal", "advanced.cliInstall", ["advanced.cliControl"]],
+  ["shell", "advanced.cliInstall", ["advanced.cliControl"]],
+  ["dark", "appearance.theme", ["appearance.adaptTextToColor", "appearance.spacesFollowAppearance"]],
+  ["telemetry", "privacy.whatsSent", ["privacy.shareDiagnostics"]],
+  ["downloads", "general.downloadsFolder", ["general.askWhereToSave", "general.downloadsAllProfiles"]],
+  ["import", "general.importBrowser", ["general.exportBookmarks", "general.setupCode"]],
+];
+
+test("results that land on the same place collapse into one", () => {
+  for (const [query, kept, folded] of COLLAPSED) {
+    const found = ids(query);
+    assert.ok(found.includes(kept), `${query}: ${kept} is shown`);
+    for (const id of folded) {
+      assert.equal(placeOf(id), placeOf(kept), `${query}: ${id} lands where ${kept} does`);
+      assert.ok(!found.includes(id), `${query}: ${id} folds into ${kept}`);
+    }
+  }
+  for (const query of ["cli", "terminal", "dark", "telemetry", "downloads", "import", "tabs", "glass", "sidebar", "hotkeys", "notification"]) {
+    const unnamed = search(SETTINGS_INDEX, query).filter((h) => !h.title.length && h.entry.paneTitle.toLowerCase() !== query);
+    const places = unnamed.map((h) => placeOf(h.entry.id));
+    assert.equal(new Set(places).size, places.length, `${query}: one result per place among rows matched without their title`);
+  }
+});
+
+test("rows named by the query stay apart even when they share a place", () => {
+  const tabs = search(SETTINGS_INDEX, "tabs").filter((h) => h.entry.section === "Tab layout");
+  assert.ok(tabs.length >= 2, "several Tab layout rows say tabs in their names");
+  assert.ok(tabs.every((h) => h.title.length));
+  assert.deepEqual(ids("command line").slice(0, 2).sort(), ["advanced.cliControl", "advanced.cliInstall"]);
+  assert.equal(first("devtools"), "advanced.cliControl");
 });
 
 test("a pane's name finds that pane's rows", () => {

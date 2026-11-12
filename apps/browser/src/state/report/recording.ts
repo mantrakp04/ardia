@@ -20,6 +20,9 @@ let lastResult: RecordingResult | null = null;
 
 export const lastRecordingStats = () => lastResult;
 
+export const recordedPictureInPicture = (result: RecordingResult | null) =>
+  !!result?.windows?.some((w) => (w.kind === "pictureInPicture" || w.kind === "documentPictureInPicture") && w.frames > 0);
+
 export function ensureDraftDir(): string {
   const dir = currentReport().draftDir;
   if (dir) return dir;
@@ -48,7 +51,8 @@ async function recordingStopped(result: RecordingResult | null) {
   if (!result) return patchReport({ recording: { phase: "failed", message: "The recording couldn't be saved." } });
   const thumbnail = `${ensureDraftDir()}/recording-${Date.now()}.png`;
   const made = await recordingThumbnail(result.path, thumbnail).catch(() => false);
-  patchReport({ recording: { phase: "ready", path: result.path, thumbnail: made ? thumbnail : null, seconds: result.seconds, bytes: result.bytes, includePages } });
+  const pictureInPicture = recordedPictureInPicture(result);
+  patchReport({ recording: { phase: "ready", path: result.path, thumbnail: made ? thumbnail : null, seconds: result.seconds, bytes: result.bytes, includePages, pictureInPicture } });
 }
 
 export async function startRecording() {

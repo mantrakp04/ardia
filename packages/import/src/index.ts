@@ -23,6 +23,8 @@ export type SpaceSummary = {
   pinnedCount: number;
   tabCount: number;
   theme?: string;
+  container?: number;
+  containerName?: string;
 };
 
 export type BrowserProfile = {
@@ -77,6 +79,7 @@ export type ImportedTab = {
   windowIndex: number;
   active: boolean;
   lastActive?: number;
+  container?: number;
 };
 
 export type ImportedTabGroup = { id: string; title: string; color: TabGroupColor | (string & {}); collapsed: boolean };
@@ -105,6 +108,7 @@ export type SpaceSuggestion = {
   pinned: BookmarkNode[];
   tabs: ImportedTab[];
   theme?: string;
+  container?: number;
 };
 
 export type ProfileSuggestion = { name: string; color?: string; avatarPath?: string };
@@ -132,6 +136,7 @@ export type ImportResult = {
   spaces: SpaceSuggestion[];
   favorites: ImportedTab[];
   favicons: ImportedFavicon[];
+  separateEssentials?: boolean;
   failed: ImportKind[];
   warnings: ImportWarning[];
 };

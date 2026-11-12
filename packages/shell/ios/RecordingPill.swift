@@ -77,6 +77,7 @@ final class RecordingPill {
   }
 
   var frame: NSRect { panel.frame }
+  var window: NSWindow { panel }
 
   func show() {
     place()
