@@ -1,4 +1,5 @@
 import { hostCall, onEngineTopic } from "./host";
+import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
 
 export type PageListener = (name: string, data: unknown) => void;
 export type PageRect = { x: number; y: number; width: number; height: number };
@@ -9,6 +10,7 @@ type Page = {
   key: string;
   windowId: string;
   started: { url: string; at: number };
+  opening: OpeningPage;
   ready: Promise<boolean>;
   listeners: Set<PageListener>;
   mounts: number;
@@ -31,12 +33,6 @@ export function onPagePress(listener: (windowId: string) => void): () => void {
   return () => void pressListeners.delete(listener);
 }
 
-const shaped = (name: string, data: unknown) => {
-  if (name !== "media") return data ?? {};
-  const media = (data ?? {}) as { audible?: unknown; playing?: unknown; muted?: unknown };
-  return { playing: media.playing === true || media.audible === true, muted: media.muted === true };
-};
-
 const quietly = (work: Promise<unknown>) => void work.catch(() => {});
 
 function listen() {
@@ -47,7 +43,7 @@ function listen() {
     const page = pages.get(event.key);
     if (!page) return;
     if (event.name === "pagePress") for (const pressed of [...pressListeners]) pressed(page.windowId);
-    const data = shaped(event.name, event.data);
+    const data = shapedPageEvent(page.opening, event.name, event.data);
     for (const listener of [...page.listeners]) listener(event.name, data);
   });
   onEngineTopic("tab.opened", (opened: OpenedTab) => {
@@ -94,7 +90,17 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
   listen();
   let page = pages.get(key);
   if (!page || page.closed) {
-    page = { key, windowId: from.windowId, started: { url: from.url ?? "", at: Date.now() }, ready: start(key, from), listeners: new Set(), mounts: 0, parked: false, closed: false };
+    page = {
+      key,
+      windowId: from.windowId,
+      started: { url: from.url ?? "", at: Date.now() },
+      opening: openingPage(from.url ?? "", !!offeredByEngine(from.adopt)),
+      ready: start(key, from),
+      listeners: new Set(),
+      mounts: 0,
+      parked: false,
+      closed: false,
+    };
     pages.set(key, page);
   } else if (page.windowId !== from.windowId) {
     page.windowId = from.windowId;
@@ -141,6 +147,7 @@ export function callPage<Result = unknown>(key: string, method: string, args: Re
   const page = pages.get(key);
   if (!page || page.closed) return Promise.resolve(null);
   if (method === "loadUrl" && args.url === page.started.url && Date.now() - page.started.at < SAME_LOAD_MS) return Promise.resolve(null);
+  if (method === "loadUrl") noteLoadAsked(page.opening, args.url);
   return page.ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));
 }
 
