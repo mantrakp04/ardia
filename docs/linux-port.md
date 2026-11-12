@@ -538,6 +538,10 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
     leaves through the sidebar's edge of the active window, the peek opens after 90 ms. If focus moves first
     (Hyprland's `follow_mouse` focusing the neighbouring window), it doesn't open. A peek that is already out stays out
     while the pointer is just past the edge, and closes when the window loses focus.
+  - A peek that is out also stays out when the pointer leaves through the top or bottom over its column, up to 24 px
+    past the window, as macOS's watcher allows while holding. On wlroots the pointer rests in the panel gap above the
+    window, and treating that exit as leaving made the strip flicker at the top corner. Leaving through the top corner
+    never reveals a hidden strip.
   - Switching the sidebar's side re-evaluates the last pointer position and drops a pending 90 ms settle.
   - The watch takes the shared arguments (window id, on, hold, right, whilePressed; whilePressed is ignored, see Known
     gaps) and reports the shared `sidebarEdge` window event, so the shared UI calls it directly.

@@ -53,6 +53,12 @@ class SidebarEdgeTests(unittest.TestCase):
     def test_a_peek_stays_out_while_the_pointer_is_just_past_the_sidebar_edge(self):
         self.run_case('peek-beside')
 
+    def test_a_peek_stays_out_when_the_pointer_leaves_through_the_top_or_bottom_of_its_column(self):
+        self.run_case('peek-top-bottom')
+
+    def test_leaving_through_the_top_corner_does_not_reveal_a_hidden_strip(self):
+        self.run_case('hidden-corner')
+
     def test_an_inactive_window_gets_no_reach_beyond_its_edge(self):
         self.run_case('inactive')
 

@@ -27,7 +27,7 @@ class SidebarEdgeWatch {
   std::optional<SidebarEdgeReport> Watch(double hold, SidebarSide side, bool active) {
     if (side != side_) {
       side_ = side;
-      beside_ = !known_ && Beside(x_, y_);
+      beside_ = !known_ && Beside(x_, y_, false);
       settling_ = false;
     }
     watching_ = true;
@@ -53,7 +53,7 @@ class SidebarEdgeWatch {
   std::optional<SidebarEdgeReport> Exited(double x, double y, double width, double height, bool active) {
     Place(x, y, width, height);
     known_ = false;
-    beside_ = Beside(x, y);
+    beside_ = Beside(x, y, over_);
     settling_ = false;
     if (!beside_ || !active) return Report(false);
     if (over_) return std::nullopt;
@@ -82,9 +82,16 @@ class SidebarEdgeWatch {
     return y >= 0 && y < height_ && inset >= -kReach && inset < std::max(hold_, kStrip);
   }
 
-  bool Beside(double x, double y) const {
+  bool InHoldBand(double inset) const { return inset >= -kReach && inset < std::max(hold_, kStrip); }
+
+  bool Beside(double x, double y, bool holding) const {
     const double inset = Inset(x);
-    return y >= 0 && y < height_ && inset < kLeaveReach && inset <= std::min(y, height_ - y);
+    if (y < 0 || y >= height_) {
+      const double past = y < 0 ? -y : y - height_ + 1;
+      return holding && past <= kReach && InHoldBand(inset);
+    }
+    if (inset <= std::min(y, height_ - y)) return inset < kLeaveReach;
+    return holding && InHoldBand(inset);
   }
 
   void Place(double x, double y, double width, double height) {
