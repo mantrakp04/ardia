@@ -109,6 +109,9 @@ export function startDevHarness() {
     get settingsSearch(): typeof import("../../state/settings/searchState") & typeof import("../settings/SettingsSearch") & typeof import("../settings/anchors") {
       return { ...require("../../state/settings/searchState"), ...require("../settings/SettingsSearch"), ...require("../settings/anchors") };
     },
+    get settingsData(): typeof import("../../state/settings/paneData") {
+      return require("../../state/settings/paneData");
+    },
     get settingsNav(): typeof import("../../state/settings/settingsWindows").useSettingsNav {
       return require("../../state/settings/settingsWindows").useSettingsNav;
     },

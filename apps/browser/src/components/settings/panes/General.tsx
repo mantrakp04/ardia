@@ -1,7 +1,7 @@
 import type { DownloadSettings } from "../../../state/downloads/actions";
 import { checkForUpdates, setLaunchAtLogin } from "../../../state/app/appSettings";
 import { pickFolder } from "../../../state/app/system";
-import { Button, PopUp, space, Symbol, Toggle } from "../../ui";
+import { ActivitySpinner, Button, PopUp, space, Symbol, Toggle } from "../../ui";
 import { useEffect } from "react";
 import { AppState, View } from "react-native";
 import { useTheme } from "../../ui/theme";
@@ -11,7 +11,7 @@ import { useProfiles, useSettings } from "../../../state/browser/hooks";
 import { SHARING_COPY } from "../../../state/telemetry/copy";
 import { Anchor, Group, ProfilePicker, Row, SectionHeader, SettingToggle, useSettingsProfile } from "../Form";
 import { defaultBrowser, downloadSettings, followUpdater, loginItem, makeDefaultBrowser, setDownloadsFor, setUpdaterPrefs, updater } from "../../../state/settings/paneData";
-import { switchCheckLine, updaterBusy } from "../../../state/settings/updateStatus";
+import { checkNowControl, switchCheckLine, updaterBusy } from "../../../state/settings/updateStatus";
 import { useResource } from "../../../state/settings/resources";
 import { openImport } from "../../../state/settings/settingsWindows";
 import { redoSetupFromSettings } from "../../../state/onboarding/redo";
@@ -165,6 +165,7 @@ function UpdatesSection() {
     ? `Last checked ${new Date(state.lastCheck).toLocaleString(UI_LOCALE, { dateStyle: "medium", timeStyle: "short" })}.`
     : "Not checked yet.";
   const status = switchCheckLine(state, APP) ?? lastCheck;
+  const checkNow = checkNowControl(state);
   return (
     <>
       <SectionHeader title="Updates" description={ready ? undefined : "Updates aren't set up for this build."} />
@@ -194,7 +195,10 @@ function UpdatesSection() {
           </Row>
         )}
         <Row anchor="general.checkNow" title={`${APP} ${state.displayVersion ?? state.version}`} description={ready ? status : undefined}>
-          <Button title="Check Now" disabled={ready && !state.canCheck} onPress={() => void checkForUpdates().finally(() => followUpdater())} />
+          <View style={CHECK_NOW}>
+            {checkNow.checking ? <ActivitySpinner style={CHECK_SPINNER} /> : null}
+            <Button title={checkNow.title} disabled={checkNow.disabled} onPress={() => checkNow.pressable && void checkForUpdates().finally(() => followUpdater())} />
+          </View>
         </Row>
       </Group>
     </>
@@ -227,3 +231,6 @@ function DefaultBrowserBanner() {
 
 const BANNER = { marginTop: space.xxl } as const;
 const BANNER_ICON = { width: 28, height: 28 } as const;
+
+const CHECK_NOW = { flexDirection: "row", alignItems: "center", gap: space.m } as const;
+const CHECK_SPINNER = { width: 14, height: 14 } as const;

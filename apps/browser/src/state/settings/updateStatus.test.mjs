@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { switchCheckLine, switchOutcome, updaterBusy } from "./updateStatus.ts";
+import { checkNowControl, switchCheckLine, switchOutcome, updaterBusy } from "./updateStatus.ts";
 
 const state = (switchCheck, extra = {}) => ({
   available: true,
@@ -50,4 +50,19 @@ test("each settled switch counts as offered, up to date or failed", () => {
   assert.equal(switchOutcome({ phase: "failed", channel: "stable" }), "failed");
   assert.equal(switchOutcome({ phase: "checking", channel: "stable" }), null);
   assert.equal(switchOutcome(null), null);
+});
+
+test("Check Now shows a check in progress as progress, never as a dimmed button", () => {
+  for (const phase of ["waiting", "checking"]) {
+    for (const canCheck of [true, false]) {
+      const control = checkNowControl(state({ phase, channel: "nightly" }, { canCheck, sessionInProgress: true }));
+      assert.deepEqual(control, { title: "Checking…", checking: true, disabled: false, pressable: true }, `${phase}, canCheck ${canCheck}`);
+    }
+  }
+  assert.deepEqual(checkNowControl(state(null, { canCheck: false, sessionInProgress: true })), { title: "Checking…", checking: true, disabled: false, pressable: false });
+  assert.deepEqual(checkNowControl(state({ phase: "found", channel: "nightly" }, { sessionInProgress: true })), { title: "Check Now", checking: false, disabled: false, pressable: true });
+  assert.deepEqual(checkNowControl(state({ phase: "upToDate", channel: "stable" })), { title: "Check Now", checking: false, disabled: false, pressable: true });
+  assert.equal(checkNowControl(state(null, { canCheck: false })).disabled, true);
+  assert.equal(checkNowControl(state(null, { configured: false, canCheck: false })).disabled, false);
+  assert.equal(checkNowControl({ available: false }).checking, false);
 });
