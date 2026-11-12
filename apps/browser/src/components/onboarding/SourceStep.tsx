@@ -15,63 +15,45 @@ import { SetupCodeLink, SetupCodeStep } from "./SetupCodeStep";
 import { browserIcon } from "./browserIcons";
 import { useImageRing } from "./GlassBacking";
 import { PLATFORM_TERMS } from "../../lib/platformTerms";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
+import { importModule } from "../../state/import/importApi";
+import { sourceTiles, type SourceCandidate, type SourceTile } from "./sourceTiles";
 
 const ICON = require("../../../assets/app-icon.png");
 
-type Candidate = { id: Exclude<BrowserSourceId, "fresh">; name: string; app: string; importId?: string; onlyWhenFound?: boolean };
+type Tile = SourceTile;
 
-const CANDIDATES: Candidate[][] = [
-  [{ id: "arc", name: "Arc", app: "/Applications/Arc.app" }],
-  [{ id: "dia", name: "Dia", app: "/Applications/Dia.app" }],
-  [{ id: "chrome", name: "Chrome", app: "/Applications/Google Chrome.app" }],
-  [
-    { id: "safari", name: "Safari", app: "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app" },
-    { id: "safari", name: "Safari", app: "/Applications/Safari.app" },
-  ],
-  [{ id: "firefox", name: "Firefox", app: "/Applications/Firefox.app" }],
-  [
-    { id: "zen", name: "Zen", app: "/Applications/Zen.app" },
-    { id: "zen", name: "Zen", app: "/Applications/Zen Browser.app" },
-    { id: "zen", name: "Zen Twilight", app: "/Applications/Zen Twilight.app" },
-  ],
-  [
-    { id: "brave", name: "Brave", app: "/Applications/Brave Browser.app" },
-    { id: "brave", name: "Brave Beta", app: "/Applications/Brave Browser Beta.app", importId: "braveBeta" },
-    { id: "brave", name: "Brave Nightly", app: "/Applications/Brave Browser Nightly.app", importId: "braveNightly" },
-    { id: "edge", name: "Edge", app: "/Applications/Microsoft Edge.app" },
-    { id: "edge", name: "Edge Beta", app: "/Applications/Microsoft Edge Beta.app", importId: "edgeBeta" },
-  ],
-  [{ id: "helium", name: "Helium", app: "/Applications/Helium.app", onlyWhenFound: true }],
-];
+const BY_APP_BUNDLE = PLATFORM_FEATURES.findsBrowsersBy === "appBundle";
 
-type Tile = { id: BrowserSourceId; name: string; app: string | null; icon: string | null; importId?: string };
+const detect = (isFound: (c: SourceCandidate) => boolean) => sourceTiles(isFound, PLATFORM_FEATURES);
 
-function detect(): Tile[] {
-  return CANDIDATES.flatMap((group): Tile[] => {
-    const found = group.find((c) => fileExists(c.app));
-    if (found) return [{ id: found.id, name: found.name, app: found.app, icon: null, importId: found.importId }];
-    if (group.every((c) => c.onlyWhenFound)) return [];
-    const names = [...new Set(group.filter((c) => !c.importId).map((c) => c.name))];
-    const families = names.filter((name) => !names.some((other) => other !== name && name.startsWith(`${other} `)));
-    return [{ id: group[0]!.id, name: families.join(" or "), app: null, icon: null }];
-  });
-}
+const detectByAppBundle = () => detect((c) => BY_APP_BUNDLE && fileExists(c.app));
 
 export function SourceStep() {
   const colors = useOnboardingColors();
   const source = useOnboarding((s) => s.source);
-  const [tiles, setTiles] = useState<Tile[]>(detect);
+  const [tiles, setTiles] = useState<Tile[]>(detectByAppBundle);
   const [importing, setImporting] = useState<BrowserSourceId | null>(null);
   const [pastingCode, setPastingCode] = useState(false);
 
   useEffect(() => {
+    if (!BY_APP_BUNDLE) {
+      void importModule()
+        .listBrowsers()
+        .then((list) => {
+          const ids = new Set(list.map((b) => b.id));
+          setTiles(detect((c) => ids.has(c.importId ?? c.id)));
+        })
+        .catch(() => {});
+      return;
+    }
     void Promise.all(tiles.map(async (t) => ({ ...t, icon: t.app ? ((await fileIcon(t.app, 64)) ?? null) : null }))).then(setTiles);
   }, []);
 
-  const found = tiles.filter((t) => t.app);
-  const others = tiles.filter((t) => !t.app);
+  const found = tiles.filter((t) => t.found);
+  const others = tiles.filter((t) => !t.found);
   const chosen = tiles.find((t) => t.id === source);
-  const canImport = !isWebDemo && !!chosen?.app;
+  const canImport = !isWebDemo && !!chosen?.found;
   const choose = (id: BrowserSourceId) => chooseSource(id);
 
   const startImport = () => {
@@ -166,7 +148,7 @@ function SourceTile({ title, icon, symbol, selected, onPress }: { title: string;
 function SourcePreview({ tile, fresh, found }: { tile: Tile | null; fresh: boolean; found: Tile[] }) {
   const colors = useOnboardingColors();
   const preset = presetFor(tile?.id ?? (fresh ? "fresh" : null));
-  const from = tile ? [tile] : fresh ? [] : found.filter((t) => t.app).slice(0, 6);
+  const from = tile ? [tile] : fresh ? [] : found.filter((t) => t.found).slice(0, 6);
   return (
     <View style={{ alignItems: "center", gap: space.xxxl }}>
       {from.length ? (

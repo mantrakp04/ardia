@@ -16,6 +16,7 @@ export * from "./live";
 export * from "./menus";
 export * from "./notifications";
 export * from "./location";
+export * from "./motion";
 export * from "./scripting";
 export * from "./system";
 export * from "./systemSignals";
