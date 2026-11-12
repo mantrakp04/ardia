@@ -227,7 +227,6 @@ function SecureOrigins({ origins }: { origins: string[] }) {
     <>
       <SectionHeader
         anchor="advanced.secureOrigins"
-        description={null}
         action={<Button title="Add Origin…" icon="plus" onPress={() => showSettingsSheet(<SecureOriginSheet />)} />}
       />
       <Group of="advanced.secureOrigins">

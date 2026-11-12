@@ -7,7 +7,15 @@ const DOC = "secure-origins.json";
 const store = () => useBrowser.getState();
 
 export function normalizeSecureOrigin(typed: string): string {
-  return typed.trim();
+  const trimmed = typed.trim();
+  if (trimmed.startsWith("*.")) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    if ((url.protocol === "http:" || url.protocol === "https:") && url.pathname === "/" && !url.search && !url.hash) {
+      return url.origin;
+    }
+  } catch {}
+  return trimmed;
 }
 
 export function isSecureOriginPattern(typed: string): boolean {
