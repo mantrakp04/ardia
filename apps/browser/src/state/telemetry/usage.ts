@@ -40,12 +40,10 @@ function emitCounts() {
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
   if (Object.values(counts).some(Boolean) || snapshots.count) {
     capture("usage_counts", {
-      tabs_opened: counts.tabs,
-      windows_opened: counts.windows,
+      tabs_opened: counts.tabs, windows_opened: counts.windows,
       capture_indicators_cleared: counts.captureIndicatorsCleared,
       full_screens_entered: counts.fullScreens,
-      sidebar_peeks: counts.sidebarPeeks,
-      sidebar_peek_bounces: counts.sidebarPeekBounces,
+      sidebar_peeks: counts.sidebarPeeks, sidebar_peek_bounces: counts.sidebarPeekBounces,
       cli_tab_edits: counts.cliTabEdits,
       cli_group_edits: counts.cliGroupEdits,
       cli_edit_failures: counts.cliEditFailures,
@@ -97,7 +95,8 @@ function emitCounts() {
       settings_search_keyboard_reveals: counts.settingsSearchKeyboardReveals, settings_search_click_reveals: counts.settingsSearchClickReveals, settings_searches: counts.settingsSearches, settings_searches_empty: counts.settingsSearchesEmpty, settings_search_top_picks: counts.settingsSearchTopPicks, settings_search_top3_picks: counts.settingsSearchTop3Picks, settings_search_lower_picks: counts.settingsSearchLowerPicks,
       auto_pip_kept_visible: counts.autoPictureInPictureKept, auto_pip_stayed_on_app_switch: counts.autoPictureInPictureStayedOnAppSwitch, selection_close_keys: counts.selectionCloseKeys, selection_close_key_tabs: counts.selectionCloseKeyTabs,
       onboarding_imports: counts.onboardingImports, onboarding_helium_imports: counts.onboardingHeliumImports, onboarding_glass_picks: counts.onboardingGlassPicks, onboarding_classic_picks: counts.onboardingClassicPicks, onboarding_tinted_glass_picks: counts.onboardingTintedGlassPicks, onboarding_steps_completed: counts.onboardingStepsCompleted, onboarding_steps_skipped: counts.onboardingStepsSkipped, onboarding_customize_more: counts.onboardingCustomizeMore, onboarding_redo_opened: counts.onboardingRedoOpened, onboarding_redo_completed: counts.onboardingRedoCompleted, onboarding_redo_cancelled: counts.onboardingRedoCancelled,
-      ...takeAnimationBursts(), update_channel_switches: counts.updateChannelSwitches, update_channel_switch_offers: counts.updateChannelSwitchOffers, update_channel_switch_up_to_date: counts.updateChannelSwitchUpToDate, update_channel_switch_check_failures: counts.updateChannelSwitchCheckFailures, period_minutes: Math.round((Date.now() - countsSince) / 60_000),
+      ...takeAnimationBursts(),
+      update_channel_switches: counts.updateChannelSwitches, update_channel_switch_offers: counts.updateChannelSwitchOffers, update_channel_switch_up_to_date: counts.updateChannelSwitchUpToDate, update_channel_switch_check_failures: counts.updateChannelSwitchCheckFailures, period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
   counts = { ...NO_COUNTS };
@@ -371,7 +370,8 @@ export function startUsage() {
   watchSync();
   watchTranslate();
   watchExtensions();
-  watchHoverLost(), watchAnimationBursts();
+  watchHoverLost();
+  watchAnimationBursts();
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);
