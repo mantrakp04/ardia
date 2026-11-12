@@ -230,7 +230,7 @@ async function status() {
   });
 
   await section("Tester groups", async () => {
-    const { rows } = await get(`/v1/apps/${app.id}/betaGroups`, { "fields[betaGroups]": "name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled" });
+    const { rows } = await get(`/v1/apps/${app.id}/betaGroups`, { "fields[betaGroups]": "name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled,publicLink" });
     if (rows.length === 0) console.log("none");
     for (const row of rows) {
       const group = row.attributes;
@@ -240,7 +240,7 @@ async function status() {
       const summary = Object.entries(states).map(([state, count]) => `${count} ${state}`).join(", ") || "none";
       console.log(
         `${group.name} ${group.isInternalGroup ? "internal" : "external"} allBuilds=${group.hasAccessToAllBuilds} ` +
-          `publicLink=${group.publicLinkEnabled} testers: ${summary}`,
+          `publicLink=${group.publicLinkEnabled ? group.publicLink : group.publicLinkEnabled} testers: ${summary}`,
       );
     }
   });
@@ -251,6 +251,25 @@ async function status() {
     });
     const detail = rows[0]?.attributes;
     console.log(detail ? `contact ${detail.contactEmail ? "set" : "missing"}, notes ${detail.notes ? "set" : "missing"}` : "none");
+  });
+
+  await section("Beta test info", async () => {
+    const { rows } = await get(`/v1/apps/${app.id}/betaAppLocalizations`, { limit: "50" });
+    if (rows.length === 0) console.log("none");
+    for (const row of rows) {
+      const info = row.attributes;
+      console.log(
+        `${info.locale}: description ${info.description ? `${info.description.length} chars` : "missing"}, ` +
+          `feedback email ${info.feedbackEmail ? "set" : "missing"}, privacy policy ${info.privacyPolicyUrl ?? "missing"}, ` +
+          `marketing ${info.marketingUrl ?? "missing"}`,
+      );
+    }
+  });
+
+  await section("Beta review submissions", async () => {
+    const { rows } = await get("/v1/betaAppReviewSubmissions", { "filter[build.app]": app.id, limit: "20" });
+    if (rows.length === 0) console.log("none");
+    for (const row of rows) console.log(`${row.attributes.betaReviewState} submitted ${day(row.attributes.submittedDate)}`);
   });
 }
 
