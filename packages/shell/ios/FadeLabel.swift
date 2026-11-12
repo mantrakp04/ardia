@@ -45,7 +45,8 @@ final class FadeLabel: ExpoView {
   }
 
   private func relayout() {
-    let fitting = field.fittingSize
+    let natural = field.intrinsicContentSize
+    let fitting = field.frame(forAlignmentRect: NSRect(origin: .zero, size: natural)).size
     field.frame = NSRect(x: 0, y: (bounds.height - fitting.height) / 2, width: max(bounds.width, fitting.width), height: fitting.height)
     field.wantsLayer = true
     guard bounds.width > 0, fitting.width > bounds.width + 0.5 else {

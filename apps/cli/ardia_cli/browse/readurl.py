@@ -177,12 +177,15 @@ def run(url: str, options: dict, global_options: dict):
     if options.get("require_md") and kind not in MARKDOWN_TYPES:
         raise BrowseError(f"{url} didn't answer with text/markdown (got {kind or 'nothing'})")
     content = text
+    title = ""
     if not options.get("raw") and kind == "text/html":
         extractor = TextExtractor()
         extractor.feed(text)
         content = extractor.text()
+        title = re.sub(r"\s+", " ", extractor.title).strip()
         source = "html-extract"
     content = post_process(content, options) if not options.get("raw") else content
     max_output = global_options.get("max_output")
     truncated = bool(max_output and len(content) > int(max_output))
-    return Result({"content": content, "contentType": kind, "finalUrl": final, "source": source, "truncated": truncated, "url": url}, content, page_content=True)
+    return Result({"content": content, "contentType": kind, "finalUrl": final, "source": source, "title": title, "truncated": truncated, "url": url},
+                  content, page_content=True)

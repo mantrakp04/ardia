@@ -4,8 +4,8 @@ Spike for the 2026-10-01 architecture review's recommendation 5 (in git history:
 run 2026-10-01 on the Chromium 154 tree we then built CEF from (`~/chromium-build`, branch 8037). It shipped: the app
 runs on ArdiaCore since 0.2.22, and CEF left the tree in 0.2.31. Today's architecture is in `docs/agent-brief.md`. The
 spike's host app and its acceptance run are gone (e360995a; read them with `git show e360995a^:spikes/ardiacore-host/<file>`):
-the app's acceptance run (`packages/ardiacore/scripts/acceptance.mjs`) covers the engine. Only its test extension,
-`spikes/ardiacore-host/fixtures/ext`, stays.
+the app's acceptance run (`packages/ardiacore/scripts/acceptance.mjs`) covers the engine. Only its test extension stays, now
+`packages/ardiacore/tests/fixtures/ext`.
 
 **Verdict: GO-WITH-CHANGES.** ArdiaCore works. Chrome's framework with a small layer of ours (about 3,200 lines)
 runs a plain AppKit app: two profiles in one window, popups that arrive as our own tabs with POST bodies intact,
@@ -30,7 +30,7 @@ The changes the plan needs:
 |---|---|
 | `engine/ardiacore/src/ardia/core/` | Our Chromium-side layer, copied into the tree as `//ardia/core` |
 | `engine/ardiacore/apply.sh` | Copies it in and adds the hooks (idempotent; `--check` reports drift) |
-| `spikes/ardiacore-host/` | A plain AppKit host app (`main.mm`), its build and signing (`build.sh`), and the acceptance run (`acceptance.mjs`) with an MV3 test extension |
+| `spikes/ardiacore-host/` (gone) | A plain AppKit host app (`main.mm`), its build and signing (`build.sh`), and the acceptance run (`acceptance.mjs`) with an MV3 test extension (now `packages/ardiacore/tests/fixtures/ext`) |
 
 How it fits together:
 - **The framework.** ArdiaCore is Chrome's own `//chrome:chrome_framework` (`Chromium Framework.framework`, built by

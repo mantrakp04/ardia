@@ -26,7 +26,7 @@ NSDictionary *SelectionState(NSDictionary *d) {
   return @{@"text" : text, @"rect" : @{@"x" : @(x), @"y" : @(y), @"width" : @(width), @"height" : @(height)}};
 }
 
-BOOL gDisplayMediaPicker = NO;
+BOOL gDisplayMediaPicker = YES;
 }
 
 static BOOL gSelectionPopover = YES;
@@ -96,6 +96,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 
 + (void)setDisplayMediaPicker:(BOOL)enabled {
   gDisplayMediaPicker = enabled;
+  ArdiaCoreEngine.pagesPickDisplayMedia = enabled;
 }
 
 + (void)setSelectionPopoverEnabled:(BOOL)enabled {
@@ -122,6 +123,8 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON(self)];
     AnswerHello(tab, _profile, frameId, main, verifiedOrigin);
     if (main && _littlePage.held) [self callFrame:frameId kind:@"firstPaint" json:@"{}"];
+  } else if ([kind isEqualToString:@"displayMediaHello"]) {
+    [self callFrame:frameId kind:@"config" json:gDisplayMediaPicker ? @"{\"displayMediaPicker\":true}" : @"{}"];
   } else if ([kind isEqualToString:@"firstPaint"] && main) {
     NSString *url = Text(dict, @"url", 8192);
     if (url.length && ![url hasPrefix:@"about:"] && SamePage(url, tab.url)) [self revealLittlePage:YES];
@@ -171,6 +174,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     if (!_reports.nowPlaying) _reports.nowPlaying = [ArdiaNowPlaying new];
     NSDictionary *state = [_reports.nowPlaying noteFrame:frameId page:dict main:main];
     [self emit:@"nowPlaying" payload:@{@"state" : state ?: NSNull.null}];
+    [self autoPictureInPictureInputsChanged];
   } else if ([kind isEqualToString:@"theme"]) {
     if (!main || !dict) return;
     NSString *color = [dict[@"color"] isKindOfClass:NSString.class] ? Text(dict, @"color", 64) : nil;
@@ -178,6 +182,15 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     _reports.theme = color;
     _reports.themeSource = source;
     [self queueNavigation];
+  } else if ([kind isEqualToString:@"appBadge"] && main && dict && VerifiedOrigin(verifiedOrigin)) {
+    double count;
+    const BOOL counted = Finite(dict, @"count", &count) && count >= 1;
+    [self emit:@"appBadge"
+        payload:@{
+          @"origin" : VerifiedOrigin(verifiedOrigin),
+          @"count" : counted ? @(floor(MIN(count, 1e9))) : NSNull.null,
+          @"flag" : @(!counted && Flag(dict, @"flag"))
+        }];
   } else if ([kind isEqualToString:@"pinch"] && main && dict) {
     double scale;
     if (!Finite(dict, @"scale", &scale) || scale <= 0) return;
@@ -262,6 +275,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 
 - (void)resetPageMedia {
   if ([_reports.nowPlaying reset]) [self emit:@"nowPlaying" payload:@{@"state" : NSNull.null}];
+  [self autoPictureInPictureInputsChanged];
 }
 
 - (void)resolveDisplayMedia:(NSString *)requestId sourceId:(NSString *)sourceId audio:(BOOL)shareAudio {

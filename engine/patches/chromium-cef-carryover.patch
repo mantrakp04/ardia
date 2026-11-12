@@ -54,7 +54,7 @@ Windows-only parts and comments:
    // If we're exiting, send out the APP_TERMINATING notification to allow other
 --- a/ui/events/keycodes/keyboard_code_conversion_mac.mm
 +++ b/ui/events/keycodes/keyboard_code_conversion_mac.mm
-@@ -892,7 +892,7 @@
+@@ -894,7 +894,7 @@
        return DomKeyFromKeyCode(event.keyCode);
      }
      default:
@@ -76,7 +76,7 @@ Windows-only parts and comments:
    static constexpr View::FocusBehavior kDefaultFocusBehavior =
 --- a/components/remote_cocoa/app_shim/native_widget_mac_nswindow.mm
 +++ b/components/remote_cocoa/app_shim/native_widget_mac_nswindow.mm
-@@ -776,6 +776,12 @@
+@@ -778,6 +778,12 @@
      // window, swallow the event to prevent the web contents from processing it
      // (and potentially triggering new dialogs).
      if (is_blocked_by_modal && child_modal_window) {
@@ -91,7 +91,7 @@ Windows-only parts and comments:
        }
 --- a/components/remote_cocoa/app_shim/native_widget_ns_window_bridge.h
 +++ b/components/remote_cocoa/app_shim/native_widget_ns_window_bridge.h
-@@ -388,6 +388,10 @@
+@@ -392,6 +392,10 @@
  
   private:
    friend class views::test::BridgedNativeWidgetTestApi;
@@ -104,7 +104,7 @@ Windows-only parts and comments:
    void OrderChildren();
 --- a/components/remote_cocoa/app_shim/native_widget_ns_window_bridge.mm
 +++ b/components/remote_cocoa/app_shim/native_widget_ns_window_bridge.mm
-@@ -1491,7 +1491,51 @@
+@@ -1528,9 +1528,54 @@
  }
  
  void NativeWidgetNSWindowBridge::OnWindowDidEndLiveResize() {
@@ -118,14 +118,14 @@ Windows-only parts and comments:
 +      base::BindOnce(
 +          &NativeWidgetNSWindowBridge::RestoreChildModalFocusAfterResize,
 +          weak_this));
-+}
+ }
 +
 +void NativeWidgetNSWindowBridge::RestoreChildModalFocusAfterResize() {
 +  if (!NSApp.active || NSApp.keyWindow != window_ || !window_.visible ||
 +      window_.inLiveResize) {
 +    return;
 +  }
-+
+ 
 +  auto* modal = this;
 +  while (true) {
 +    // Native sheets (including file dialogs) manage their own activation.
@@ -133,7 +133,8 @@ Windows-only parts and comments:
 +      return;
 +    }
 +    const auto& children = modal->child_windows_;
-+    auto it = std::find_if(children.rbegin(), children.rend(), [](auto* child) {
++    auto it = std::find_if(children.rbegin(), children.rend(),
++                           [](const auto& child) {
 +      return child->modal_type_ != ui::mojom::ModalType::kNone &&
 +             child->window_.visible;
 +    });
@@ -153,9 +154,11 @@ Windows-only parts and comments:
 +    NSWindow* modal_window = modal->window_;
 +    [modal_window makeKeyWindow];
 +  }
- }
- 
++}
++
  void NativeWidgetNSWindowBridge::OnVisibilityChanged() {
+   const bool window_visible = [window_ isVisible];
+   if (window_visible_ == window_visible)
 --- a/chrome/browser/chrome_resource_bundle_helper.cc
 +++ b/chrome/browser/chrome_resource_bundle_helper.cc
 @@ -61,8 +61,10 @@
@@ -217,7 +220,7 @@ Windows-only parts and comments:
  #endif  // CHROME_BROWSER_CHROME_RESOURCE_BUNDLE_HELPER_H_
 --- a/chrome/browser/extensions/BUILD.gn
 +++ b/chrome/browser/extensions/BUILD.gn
-@@ -3140,10 +3140,10 @@
+@@ -3227,10 +3227,10 @@
  
      if (!is_chromeos) {
        # Chrome OS doesn't use background mode or download bubbles.
@@ -234,7 +237,7 @@ Windows-only parts and comments:
      if (enable_background_mode) {
 --- a/chrome/browser/ui/tabs/tab_strip_api/tab_strip_model_impl/tab_strip_model_adapter_impl.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_api/tab_strip_model_impl/tab_strip_model_adapter_impl.cc
-@@ -15,6 +15,8 @@
+@@ -16,6 +16,8 @@
  #include "components/tab_groups/tab_group_visual_data.h"
  #include "components/tabs/public/split_tab_collection.h"
  #include "components/tabs/public/tab_collection.h"
@@ -243,7 +246,7 @@ Windows-only parts and comments:
  #include "components/tabs/public/tab_group.h"
  #include "components/tabs/public/tab_group_tab_collection.h"
  #include "components/tabs/public/tab_interface.h"
-@@ -70,7 +72,11 @@
+@@ -71,7 +73,11 @@
  const ui::ColorProvider& TabStripModelAdapterImpl::GetColorProvider() const {
    content::WebContents* active_contents =
        tab_strip_model_->GetActiveWebContents();

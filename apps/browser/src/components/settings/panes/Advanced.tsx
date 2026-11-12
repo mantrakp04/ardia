@@ -14,9 +14,9 @@ import { Favicon } from "../../favicon/Favicon";
 import { FormField, Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { engineVersion, widevine as widevineComponent } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
+import { AutomationRules } from "./AutomationRules";
 
 const REPOSITORY = "https://github.com/mantrakp04/ardia";
-const SOURCE_NOTICE = "Ardia is free software under the GNU General Public License v3, with no warranty.";
 
 const BATTERY_SAVER_DESCRIPTIONS: Record<BatterySaverWhen, string> = {
   lowBattery: "At 20% battery or less, or in Low Power Mode, busy background tabs pause and animations slow down.",
@@ -57,7 +57,6 @@ export function AdvancedPane() {
 
       <SectionHeader title="Performance" />
       <Group>
-        <SettingToggle anchor="advanced.loadProfilesWhenOpened" />
         <Row anchor="advanced.unloadProfilesAfter">
           <PopUp
             value={unloadProfilesAfter}
@@ -93,6 +92,7 @@ export function AdvancedPane() {
             minWidth={190}
           />
         </Row>
+        <SettingToggle anchor="advanced.loadProfilesWhenOpened" />
       </Group>
 
       <KeepActiveSites sites={keepActiveSites} />
@@ -108,6 +108,7 @@ export function AdvancedPane() {
       </Group>
 
       <CommandLineSection />
+      <AutomationRules />
 
       <SectionHeader title="Web engine" />
       <Group>
@@ -130,7 +131,7 @@ export function AdvancedPane() {
 
       <SectionHeader title="Source and licenses" />
       <Group>
-        <Row anchor="advanced.source" description={SOURCE_NOTICE}>
+        <Row anchor="advanced.source">
           <Button title="Show on GitHub" onPress={() => openUrls([`${REPOSITORY}/tree/v${systemInfo().appVersion}`])} />
         </Row>
         <Row anchor="advanced.licenses">

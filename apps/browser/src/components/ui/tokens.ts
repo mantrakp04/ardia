@@ -215,6 +215,8 @@ export type ColorRole = { [K in keyof ColorRoles]: ColorRoles[K] extends string 
 
 export const closeOnArt = { rest: "rgba(255,255,255,0.1)", hover: "rgba(255,255,255,0.2)", pressed: "rgba(255,255,255,0.3)", glyph: "#FFFFFF8C" } as const;
 
+export const arcSelectedFill = { dark: "rgba(255,255,255,0.24)", light: "rgba(255,255,255,0.8)" } as const;
+
 export type SiteToolbarRoles = {
   text: string;
   secondary: string;
@@ -386,7 +388,7 @@ export const pillHeight = { prompt: 28, m: 24, l: 30, xl: 36 } as const;
 
 export const stepperSize = { width: 24, height: 20 } as const;
 
-export const sheetWidth = { xs: 320, s: 420, m: 440, l: 480 } as const;
+export const sheetWidth = { xs: 320, s: 420, m: 440, l: 480, xl: 560 } as const;
 
 export type SheetSize = keyof typeof sheetWidth;
 

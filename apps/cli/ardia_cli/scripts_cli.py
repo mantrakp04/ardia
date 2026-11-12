@@ -2,6 +2,8 @@ import json
 import sys
 from pathlib import Path
 
+from ardia_cli.printable import complain, say
+
 SCRIPTS_DESCRIPTION = """\
 Write userscripts in TypeScript or JavaScript, test them against real pages, and install them so Ardia runs them.
 
@@ -136,17 +138,6 @@ def run(args, parser) -> int:
         return listing(args)
     parser.parse_args(["scripts", "--help"])
     return 0
-
-
-def say(text: str) -> None:
-    sys.stdout.write(text + "\n")
-    sys.stdout.flush()
-
-
-def complain(text: str) -> None:
-    sys.stdout.flush()
-    sys.stderr.write(text + "\n")
-    sys.stderr.flush()
 
 
 def new(args) -> int:

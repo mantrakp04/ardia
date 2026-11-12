@@ -6,6 +6,7 @@ import { storeAction, useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { isStacked, MAX_SPLIT_PANES, type OpenPaneOptions, splitOf, type SplitSide, splitTabIds, splitTabIdsOf } from "./splits";
 import type { AdoptId } from "../browser/types";
+import { noteSplit } from "../telemetry/usage";
 
 const store = () => useBrowser.getState();
 
@@ -53,6 +54,13 @@ export function closePane(tabId: string) {
   void closeTab(tabId);
 }
 
+export function closeSplitView(splitId: string) {
+  const split = store().splits[splitId];
+  if (!split) return;
+  noteSplit("splitViewCloses");
+  store().closeTabs(splitTabIds(split));
+}
+
 export async function showSplitMenu(tabId: string) {
   const s = store();
   const split = splitOf(s, tabId);
@@ -75,6 +83,7 @@ export async function showSplitMenu(tabId: string) {
     { id: "separate", title: "Separate All Tabs", symbol: "rectangle.split.3x1" },
     { separator: true },
     { id: "close", title: "Close Pane", symbol: "xmark" },
+    { id: "closeSplit", title: "Close Split View" },
   ];
   const choice = await showMenu(items);
   const st = store();
@@ -97,6 +106,8 @@ export async function showSplitMenu(tabId: string) {
       return st.separateSplit(split.id);
     case "close":
       return closePane(tabId);
+    case "closeSplit":
+      return closeSplitView(split.id);
   }
 }
 

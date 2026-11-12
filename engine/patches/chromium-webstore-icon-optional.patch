@@ -1,0 +1,55 @@
+A Web Store install no longer fails when the listing's icon can't be fetched or decoded. Chrome's
+WebstoreInstallHelper fetches the icon the store page names (lh3.googleusercontent.com) before it shows the
+install prompt, and any failure there (DNS, a filter or VPN that blocks the host, Local Network Access refusing an
+address it resolves to, an HTTP error, a decode error) ended the install with "Image decode failed" before the CRX
+was downloaded (#1135). The icon only decorates the prompt, so the install goes on with the default extension icon,
+which the prompt already falls back to for an empty bitmap, and the failure is logged.
+
+--- a/extensions/browser/webstore_install_helper.cc
++++ b/extensions/browser/webstore_install_helper.cc
+@@ -9,6 +9,7 @@
+ 
+ #include "base/functional/bind.h"
+ #include "base/json/json_reader.h"
++#include "base/logging.h"
+ #include "base/memory/ref_counted.h"
+ #include "base/types/expected.h"
+ #include "base/values.h"
+@@ -31,8 +32,6 @@
+ 
+ namespace {
+ 
+-constexpr char kImageDecodeError[] = "Image decode failed";
+-
+ class WebstoreInstallHelper : public base::RefCounted<WebstoreInstallHelper> {
+  public:
+   WebstoreInstallHelper(const std::string& id,
+@@ -145,19 +144,19 @@
+     content::GetUIThreadTaskRunner({})->DeleteSoon(FROM_HERE,
+                                                    std::move(icon_fetcher_));
+ 
+-    if (metadata.http_response_code ==
++    const bool icon_fetched =
++        metadata.http_response_code !=
+             image_fetcher::RequestMetadata::ResponseCode::
+-                RESPONSE_CODE_INVALID ||
+-        fetched_image.IsEmpty()) {
+-      std::move(callback_).Run(base::unexpected(WebstoreParseError{
+-          .error_code = WebstoreInstallHelperResultCode::kIconError,
+-          .error_message = kImageDecodeError,
+-      }));
+-      return;
++                RESPONSE_CODE_INVALID &&
++        !fetched_image.IsEmpty();
++    if (!icon_fetched) {
++      LOG(WARNING) << "Web Store icon for " << id_
++                   << " not fetched (HTTP " << metadata.http_response_code
++                   << "); installing with the default icon";
+     }
+ 
+     std::move(callback_).Run(WebstoreParsedData{
+-        .icon = fetched_image.AsBitmap(),
++        .icon = icon_fetched ? fetched_image.AsBitmap() : SkBitmap(),
+         .manifest = std::move(manifest_dict),
+     });
+   }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { mock, test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
 const { startPinHandoff } = await import("./pinHandoff.ts");
@@ -8,9 +8,18 @@ const { withLivePage } = await import("../tabs/livePage.ts");
 
 const S = () => useBrowser.getState();
 const tileOf = (w, url) => model.viewTabIds(S(), w).find((id) => !!S().tabs[id].pin && S().tabs[id].pinnedUrl === url);
+const settled = () => new Promise((r) => setImmediate(r));
+const advance = async (ms) => {
+  for (let t = 0; t < ms; t += 10) {
+    mock.timers.tick(10);
+    await settled();
+  }
+};
 const until = async (test, ms = 2000) => {
-  const end = Date.now() + ms;
-  while (!test() && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
+  for (let t = 0; !test() && t < ms; t += 10) {
+    mock.timers.tick(10);
+    await settled();
+  }
   return test();
 };
 
@@ -31,6 +40,7 @@ const page = (calls, slow = 0) => ({
   reload: () => calls.push("reload"),
 });
 
+mock.timers.enable({ apis: ["setTimeout"] });
 startPinHandoff();
 
 test("a handoff still capturing loses to anything the user does in that window meanwhile", async () => {
@@ -41,12 +51,12 @@ test("a handoff still capturing loses to anything the user does in that window m
   S().activate(copy);
   S().activate(regular);
   S().activate(regular);
-  await new Promise((r) => setTimeout(r, 400));
+  await advance(400);
   assert.equal(S().tabs[mail].windowId, a, "switching away and back cancels the pending move");
 
   S().activate(copy);
   S().openPanel(b);
-  await new Promise((r) => setTimeout(r, 400));
+  await advance(400);
   assert.equal(S().tabs[mail].windowId, a, "opening the command bar cancels it too");
   assert.equal(S().windowUi[b].panel.open, true, "and the command bar stays open");
 
@@ -84,11 +94,11 @@ test("Back on a frozen copy is dropped for good if its pull-back is cancelled, e
   webviewRef(mail)(page(calls, 80));
   void withLivePage(frozen, (p) => p.goBack());
   S().activate(other);
-  await new Promise((r) => setTimeout(r, 150));
+  await advance(150);
   S().activate(frozen);
   assert.ok(await until(() => S().tabs[mail].windowId === a), "the later selection brings the page over");
   webviewRef(mail)(page(calls));
-  await new Promise((r) => setTimeout(r, 400));
+  await advance(400);
   assert.deepEqual(calls, [], "the cancelled Back never runs");
   webviews.delete(mail);
 });

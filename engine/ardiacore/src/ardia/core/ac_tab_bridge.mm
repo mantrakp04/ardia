@@ -9,6 +9,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
+#include "chrome/browser/ui/recently_audible_helper.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/find_in_page/find_notification_details.h"
 #include "components/find_in_page/find_tab_helper.h"
@@ -328,7 +329,26 @@ void TabBridge::BlockedUrlAdded(int32_t popup_id, const GURL& url) {
                      weak_factory_.GetWeakPtr(), popup_id, popup));
 }
 
+void TabBridge::EnsureAudibleObserved() {
+  if (audible_subscription_) {
+    return;
+  }
+  if (auto* helper = RecentlyAudibleHelper::FromWebContents(web_contents())) {
+    audible_subscription_ = helper->RegisterRecentlyAudibleChangedCallback(
+        base::BindRepeating(&TabBridge::OnRecentlyAudibleChanged,
+                            base::Unretained(this)));
+  }
+}
+
+void TabBridge::OnRecentlyAudibleChanged(bool was_recently_audible) {
+  [tab_ notify:@selector(tabDidChangeAudio:)];
+}
+
 void TabBridge::OnAudioStateChanged(bool audible) {
+  if (audible_subscription_) {
+    return;
+  }
+  EnsureAudibleObserved();
   [tab_ notify:@selector(tabDidChangeAudio:)];
 }
 
@@ -337,6 +357,7 @@ void TabBridge::DidUpdateAudioMutingState(bool muted) {
 }
 
 void TabBridge::WebContentsDestroyed() {
+  audible_subscription_ = {};
   if (popups_) {
     popups_->manager()->RemoveObserver(this);
     popups_ = nullptr;

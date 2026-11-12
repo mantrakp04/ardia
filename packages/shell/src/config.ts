@@ -1,6 +1,8 @@
 import type { EventSubscription } from "expo-modules-core";
 
-export type ConfigFileRead = { status: "ok"; text: string } | { status: "missing" | "notFile" | "tooBig" | "unreadable"; text?: undefined };
+export type ConfigFileRead =
+  | { status: "ok"; text: string; stamp?: string }
+  | { status: "missing" | "notFile" | "tooBig" | "unreadable"; text?: undefined; stamp?: string };
 
 export type ConfigNative = {
   readFile(name: string): ConfigFileRead;

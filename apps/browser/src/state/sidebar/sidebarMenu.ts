@@ -1,10 +1,11 @@
 import { showMenu, type MenuItem } from "../../platform/menus";
-import { tabLayoutOf } from "../browser/model";
+import { tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchProfile } from "../browser/actions";
 import { requestCreateProfile } from "../profiles/createProfileRequest";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { menuShortcut } from "../commands/commandShortcuts";
 import { bookmarkAllTabs } from "../bookmarks/actions";
+import { bookmarksShown } from "../bookmarks/visibility";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { newGroupWithSelection } from "./actions";
 import { closeAllTabs } from "./clearTabs";
@@ -32,12 +33,12 @@ export function sidebarMenuItems(s: BrowserState, windowId: string): MenuItem[] 
       ...(canAddSharedFolder(w?.profileId) ? [{ id: "addShared", title: "Add Shared Folder…", symbol: "person.2" }] : []),
     ],
     [{ id: "newProfile", title: "New Profile…", symbol: "plus" }],
-    [{ id: "bookmarkAll", title: "Bookmark All Tabs…", symbol: "bookmark", ...menuShortcut("bookmarkAllTabs", s) }],
+    [bookmarksShown(s.settings) && { id: "bookmarkAll", title: "Bookmark All Tabs…", symbol: "bookmark", ...menuShortcut("bookmarkAllTabs", s) }],
     [
       ...pinnedFoldMenuItem(s, windowId),
       { id: "tabLayout", title: "Show Tabs in Sidebar", symbol: "sidebar.left", checked: inSidebar, ...menuShortcut("toggleTabLayout", s) },
       ...(inSidebar ? [{ id: "sidebarSide", title: "Sidebar on Right", symbol: "sidebar.right", checked: s.settings.sidebarSide === "right", ...menuShortcut("toggleSidebarSide", s) }] : []),
-      { id: "autoHide", title: "Auto-Hide Tabs", checked: !!w && !w.sidebarOpen, ...menuShortcut("toggleSidebar", s) },
+      { id: "autoHide", title: "Auto-Hide Tabs", checked: !!w && !tabsShownIn(s, windowId), ...menuShortcut("toggleSidebar", s) },
     ],
     [{ id: "closeAll", title: "Close All Tabs", symbol: "xmark", ...menuShortcut("closeAllTabs", s) }],
   );

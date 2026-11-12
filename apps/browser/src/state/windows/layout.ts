@@ -1,10 +1,13 @@
 import { create } from "zustand";
-import { sidebarSideOf, tabLayoutOf } from "../browser/model";
+import { sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
-import { ARC_LIGHTS_CENTER, lightsCenter, rightSidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
-import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
+import { ARC_LIGHTS_CENTER, lightsCenter, sidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
+import type { LightsPlace } from "../../platform/windows";
+import { DEFAULT_SIDEBAR_WIDTH, pageFrameInsetOf } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
+
+export { windowCornerRadius } from "../../platform/windows";
 
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
@@ -16,13 +19,9 @@ export function addressBarInSidebar(s: BrowserState, windowId: string): boolean 
   return (
     !!w &&
     s.settings.addressBar === "sidebar" &&
-    (w.sidebarOpen || switchOn("sidebarSlide")) &&
+    (tabsShownIn(s, windowId) || switchOn("sidebarSlide")) &&
     tabLayoutOf(s, w.id) === "sidebar"
   );
-}
-
-export function commandBarCentred(s: BrowserState, windowId: string): boolean {
-  return s.settings.commandBarPlacement === "centred" && !!s.windows[windowId] && s.windows[windowId]!.kind !== "small";
 }
 
 export function useAddressBarInSidebar(): boolean {
@@ -30,16 +29,37 @@ export function useAddressBarInSidebar(): boolean {
   return useBrowser((s) => addressBarInSidebar(s, windowId));
 }
 
-export function openingLightsCenter(s: BrowserState, windowId: string): [number, number] | null {
+export function openingLightsCenter(s: BrowserState, windowId: string): LightsPlace | null {
   const w = s.windows[windowId];
   if (!w) return null;
-  const open = w.sidebarOpen ?? true;
+  const open = tabsShownIn(s, windowId);
   if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
-  if (sidebarSideOf(s, w.id) === "right") return [...rightSidebarLightsCenter(addressBarInSidebar(s, w.id), s.settings.compactToolbar)];
-  return lightsCenter(open ? 0 : s.settings.sidebarWidth, 0, s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar));
+  const width = s.settings.sidebarWidth;
+  const frame = pageFrameInsetOf(s.settings.pageFrame, {
+    borderlessMode: s.settings.borderlessMode,
+    zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
+    fullScreen: !!w.fullScreen,
+    zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,
+    tabsHidden: s.settings.autoHideTabs,
+  });
+  const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, frame);
+  return sidebarLightsCenter(sidebarSideOf(s, w.id) === "right", width, open ? 0 : width, 0, base);
 }
 
-export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar));
+export function usePageFrameInset(): number {
+  const windowId = useWindowId();
+  return useBrowser((s) =>
+    pageFrameInsetOf(s.settings.pageFrame, {
+      borderlessMode: s.settings.borderlessMode,
+      zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
+      fullScreen: !!s.windows[windowId]?.fullScreen,
+      zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,
+      tabsHidden: s.settings.autoHideTabs,
+    }),
+  );
+}
+
+export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar), usePageFrameInset());
 
 type UrlAnchor = { left: number; top: number; width: number; sidebar?: { height: number } };
 

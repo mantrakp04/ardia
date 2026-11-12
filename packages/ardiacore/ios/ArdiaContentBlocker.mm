@@ -268,6 +268,10 @@ NSString *const kState =
      "  };"
      "})";
 
+void Publish(NSDictionary *change) {
+  [NSNotificationCenter.defaultCenter postNotificationName:@"ArdiaContentBlockerDidChange" object:nil userInfo:change];
+}
+
 void State(void (^completion)(NSDictionary *state)) {
   completion = [completion copy];
   if (!gDefaultSettled && ArdiaHost.isStarted) return WhenDefaultSettled(^{ State(completion); });
@@ -295,6 +299,10 @@ void State(void (^completion)(NSDictionary *state)) {
     for (NSString *host in [read[@"allowedHosts"] isKindOfClass:NSArray.class] ? read[@"allowedHosts"] : @[])
       if ([host isKindOfClass:NSString.class]) [allowed addObject:host];
     const BOOL on = [read[@"enabled"] boolValue];
+    NSMutableArray *chosen = [NSMutableArray array];
+    for (NSDictionary *l in lists)
+      if ([l[@"enabled"] boolValue]) [chosen addObject:l[@"id"]];
+    Publish(@{@"enabled" : @(on), @"lists" : chosen, @"allowedHosts" : allowed});
     completion(@{
       @"enabled" : @(on),
       @"version" : BundledVersion(),
@@ -315,6 +323,15 @@ void Changed(NSString *error, void (^completion)(NSString *error)) {
   FollowDefault(nil, ^(NSString *followError) {
     State(^(NSDictionary *state) { [ArdiaEvents emit:@"contentBlocker.changed" data:state[@"stats"]]; });
     completion(followError);
+  });
+}
+
+void ListsChanged(NSString *error, void (^completion)(NSString *error)) {
+  if (error) return completion(error);
+  completion(nil);
+  State(^(NSDictionary *state) { [ArdiaEvents emit:@"contentBlocker.changed" data:state[@"stats"]]; });
+  FollowDefault(nil, ^(NSString *followError) {
+    if (followError) NSLog(@"[blocker] the other profiles didn't take the list change: %@", followError);
   });
 }
 
@@ -345,6 +362,7 @@ void LoadContentBlocker(NSString *profile) {
                       "  return send({what: 'setWhitelist', whitelist: (on ? kept : kept.concat([offDirective])).join('\\n')});"
                       "}).then(() => send({what: 'userSettings', name: 'autoUpdate', value: %@}))";
   Call(kProfile, ScriptWith(script, @[ @(enabled), @(enabled) ]), ^(id, NSString *error) {
+    if (!error) Publish(@{@"enabled" : @(enabled)});
     Changed(error, completion);
   });
 }
@@ -357,7 +375,8 @@ void LoadContentBlocker(NSString *profile) {
                       "  return applyLists(on ? keep.concat([id]) : keep);"
                       "})";
   Call(kProfile, ScriptWith(script, @[ listId, @(enabled) ]), ^(id, NSString *error) {
-    Changed(error, completion);
+    if (!error) Publish(@{@"list" : listId, @"listEnabled" : @(enabled)});
+    ListsChanged(error, completion);
   });
 }
 
@@ -375,6 +394,7 @@ void LoadContentBlocker(NSString *profile) {
                       "  return send({what: 'setWhitelist', whitelist: (allowed ? kept.concat([host]) : kept).join('\\n')});"
                       "})";
   Call(kProfile, ScriptWith(script, @[ @(allowed), host.lowercaseString ]), ^(id, NSString *error) {
+    if (!error) Publish(@{@"host" : host.lowercaseString, @"allowed" : @(allowed)});
     Changed(error, completion);
   });
 }

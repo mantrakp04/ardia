@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
 const stub = await import("../../test-native/index.ts");
@@ -13,9 +13,10 @@ let forwarded = [];
 let handler = null;
 globalThis.ErrorUtils = { getGlobalHandler: () => (error, fatal) => forwarded.push([error, fatal]), setGlobalHandler: (h) => (handler = h) };
 
-const { startClient } = await import("./client.ts");
+const { setSharing, startClient } = await import("./client.ts");
 const { captureException, installErrorReporting } = await import("./errors.ts");
 installErrorReporting();
+after(() => setSharing(false, "settings"));
 
 const queuedEvents = () => JSON.parse(stub.docs.get("telemetry-queue.json")).events;
 
@@ -41,14 +42,17 @@ test("a fatal JS error reaches React Native's handler only once its report is on
   assert.ok(queuedEvents().some((e) => e.properties.$exception_values?.[0] === "fatal render error"));
 });
 
-test("a fatal JS error is forwarded anyway when the disk doesn't answer within a second", async () => {
+test("a fatal JS error is forwarded anyway when the disk doesn't answer within a second", async (t) => {
   forwarded = [];
   stub.heldSaves.on = true;
-  const started = Date.now();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   handler(new TypeError("disk stuck"), true);
-  await new Promise((resolve) => setTimeout(resolve, 1100));
+  t.mock.timers.tick(999);
+  await new Promise(setImmediate);
+  assert.equal(forwarded.length, 0);
+  t.mock.timers.tick(1);
+  await new Promise(setImmediate);
   assert.equal(forwarded.length, 1);
-  assert.ok(Date.now() - started < 1500);
   stub.heldSaves.on = false;
   stub.heldSaves.queue.splice(0);
 });

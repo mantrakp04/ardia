@@ -8,7 +8,8 @@ from pathlib import Path
 
 from ardia_cli import config_files as files
 from ardia_cli.config_files import ConfigError, Places
-from ardia_cli.schema_check import Problem, describe, did_you_mean, format_path, show, validate
+from ardia_cli.printable import complain, say
+from ardia_cli.schema_check import Problem, describe, did_you_mean, show, validate
 
 CONFIG_DESCRIPTION = """\
 Set Ardia up from ~/.config/ardia/config.json, dotfiles style. Ardia reads the file at launch and whenever it
@@ -115,17 +116,6 @@ def add_parsers(commands, formatter):
     tcheck.add_argument("target", nargs="?", metavar="NAME|FILE", help="a theme name or a path to a theme file")
     tcheck.add_argument("--json", action="store_true", help="print JSON")
     return config, theme
-
-
-def say(text: str) -> None:
-    sys.stdout.write(text + "\n")
-    sys.stdout.flush()
-
-
-def complain(text: str) -> None:
-    sys.stdout.flush()
-    sys.stderr.write(text + "\n")
-    sys.stderr.flush()
 
 
 def run_config(args, parser) -> int:

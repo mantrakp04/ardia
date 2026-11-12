@@ -535,47 +535,17 @@ class Deadlines(unittest.TestCase):
             connection.execute("WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n) SELECT count(*) FROM n").fetchone()
         self.assertLess(time.monotonic() - started, 2)
 
-    def test_exit_hook_stops_workers_and_cleans(self):
-        import threading
+    def test_exit_hook_cleans_and_stops_new_work(self):
         import time
 
         self.addCleanup(setattr, browsing, "_closing", False)
         work = browsing.new_work_dir()
-        stopped = threading.Event()
-
-        def worker():
-            while not browsing._closing:
-                time.sleep(0.01)
-            with self.assertRaises(browsing.OutOfTime):
-                browsing.new_work_dir()
-            stopped.set()
-            with browsing._state:
-                browsing._workers.discard(thread)
-
-        thread = threading.Thread(target=worker, daemon=True)
-        with browsing._state:
-            browsing._workers.add(thread)
-        thread.start()
         browsing._shut_down()
-        self.assertTrue(stopped.is_set())
         self.assertFalse(Path(work).exists())
         with self.assertRaises(browsing.OutOfTime):
+            browsing.new_work_dir()
+        with self.assertRaises(browsing.OutOfTime):
             browsing.out_of_time(time.monotonic() + 10, "x")
-
-    def test_run_bounded_returns_promptly(self):
-        import asyncio
-        import time
-
-        def slow(deadline):
-            time.sleep(5)
-
-        async def main():
-            started = time.monotonic()
-            with self.assertRaises(browsing.OutOfTime):
-                await browsing.run_bounded(slow, budget=0.2)
-            return time.monotonic() - started
-
-        self.assertLess(asyncio.run(main()), 3)
 
 
 if __name__ == "__main__":

@@ -93,6 +93,8 @@ public struct SpaceSummary: Codable, Equatable, Sendable {
   public var pinnedCount: Int
   public var tabCount: Int
   public var theme: String?
+  public var container: Int? = nil
+  public var containerName: String? = nil
 }
 
 public struct BrowserProfile: Codable, Equatable, Sendable {
@@ -330,9 +332,11 @@ public struct BrowserDiscovery {
       if has("cookies.sqlite") { kinds.append(.cookies) }
       var spaces: [SpaceSummary]?
       if def.sidebar == .zen, let sidebar = try? ZenSidebar.load(profile: dir, profileId: p.path), !sidebar.spaces.isEmpty {
+        let containers = ZenSidebar.containerNames(profile: dir)
         spaces = sidebar.spaces.map {
           SpaceSummary(id: $0.id, name: $0.name, color: $0.color, emoji: $0.emoji, icon: $0.icon,
-                       pinnedCount: $0.pinned.reduce(0) { $0 + $1.linkCount }, tabCount: $0.tabs.count, theme: nil)
+                       pinnedCount: $0.pinned.reduce(0) { $0 + $1.linkCount }, tabCount: $0.tabs.count, theme: nil,
+                       container: $0.container, containerName: $0.container.flatMap { containers[$0] })
         }
         kinds += [.spaces, .pinnedTabs]
         if !kinds.contains(.tabs) { kinds.append(.tabs) }

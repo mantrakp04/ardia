@@ -10,10 +10,11 @@ import { STATUS_MOTION, windowColors } from "./tokens";
 export function StatusBubble({ tabId, maxWidth }: { tabId: string; maxWidth: number }) {
   const colors = windowColors(useTheme().dark);
   const status = usePage(tabId, (p) => p.status);
+  const atTop = usePage(tabId, (p) => p.statusAtTop);
   const { shown, appear: opacity } = usePresence(status || null, STATUS_MOTION);
   if (!shown) return null;
   return (
-    <Animated.View pointerEvents="none" style={{ position: "absolute", left: space.s, bottom: space.s, maxWidth, opacity }}>
+    <Animated.View pointerEvents="none" style={{ position: "absolute", left: space.s, ...(atTop ? { top: space.s } : { bottom: space.s }), maxWidth, opacity }}>
       <Hud shape="tile" height={STATUS_HEIGHT}>
         <Text numberOfLines={1} ellipsizeMode="middle" size="small" color={colors.statusText}>
           {displayUrl(shown)}

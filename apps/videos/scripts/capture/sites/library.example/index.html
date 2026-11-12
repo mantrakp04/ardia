@@ -1,0 +1,138 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>The Shaded City</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--grn:#1f4d3b;--grn2:#2c6a52;--gold:#b98a2f;--ink:#1f1d1a;--soft:#55524c;--mute:#8a857c;--line:#e7e1d6;--bg:#fbf8f2}
+body{font-family:-apple-system,"Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14px}
+header{background:var(--grn);color:#fff}
+header .in{max-width:1200px;margin:0 auto;padding:0 28px;height:60px;display:flex;align-items:center;gap:12px}
+.mk{width:34px;height:34px;border-radius:6px;background:#f3ead6;display:grid;place-items:center}
+.nm{font:600 18px/1.1 Baskerville,"Baskerville Old Face",Georgia,serif;letter-spacing:.01em}
+.nm span{display:block;font:500 11px/1.4 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#b9d0c4}
+header nav{display:flex;gap:24px;margin-left:40px;font-size:13.5px;color:#d5e3dc;white-space:nowrap}
+header .acct{margin-left:auto;display:flex;align-items:center;gap:16px;font-size:13px;color:#d5e3dc;white-space:nowrap}
+header .acct b{width:30px;height:30px;border-radius:50%;background:#f3ead6;color:var(--grn);display:grid;place-items:center;font-size:12px}
+.sbar{background:#fff;border-bottom:1px solid var(--line)}
+.sbar .in{max-width:1200px;margin:0 auto;padding:12px 28px;display:flex;gap:10px;align-items:center}
+.sel{height:40px;padding:0 12px;border:1px solid var(--line);border-radius:8px 0 0 8px;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--soft);background:#f8f5ef;white-space:nowrap}
+.inp{flex:1;height:40px;border:1px solid var(--line);border-left:0;margin-left:-10px;display:flex;align-items:center;padding:0 14px;font-size:14px;color:var(--ink)}
+.go{height:40px;padding:0 18px;background:var(--grn);color:#fff;border-radius:0 8px 8px 0;margin-left:-10px;display:flex;align-items:center;font-weight:600;font-size:13.5px}
+.adv{font-size:13px;color:var(--grn2);margin-left:8px;white-space:nowrap}
+.crumb{max-width:1200px;margin:0 auto;padding:14px 28px 0;font-size:12.5px;color:var(--mute);display:flex;gap:6px}
+.crumb a{color:var(--grn2)}
+.crumb .r{margin-left:auto}
+.wrap{max-width:1200px;margin:0 auto;padding:14px 28px 40px;display:grid;grid-template-columns:244px 1fr 268px;gap:34px}
+.cover{width:244px;height:360px;border-radius:3px 7px 7px 3px;position:relative;overflow:hidden;box-shadow:0 1px 1px rgba(0,0,0,.1),0 14px 30px -8px rgba(30,40,20,.45)}
+.cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(.85) contrast(1.05)}
+.cover:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,26,18,.88) 0%,rgba(10,26,18,.55) 32%,rgba(10,26,18,.05) 52%,rgba(10,26,18,.35) 68%,rgba(10,26,18,.92) 100%);z-index:1}
+.cover:after{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;background:linear-gradient(90deg,rgba(0,0,0,.35),rgba(255,255,255,.12) 60%,rgba(0,0,0,0));z-index:2}
+.cover .t{position:absolute;z-index:3;left:20px;right:18px;top:24px;color:#f6efdf}
+.cover .t small{font:600 9px/1 -apple-system,sans-serif;letter-spacing:.32em;color:#e2c37c}
+.cover .t h2{text-shadow:0 2px 14px rgba(0,0,0,.45);font:400 40px/.95 Didot,"Bodoni 72",Baskerville,serif;letter-spacing:.005em;margin-top:10px}
+.cover .t h2 i{display:block;font-style:italic;font-size:44px}
+.cover .t p{font:italic 13px/1.3 Baskerville,Georgia,serif;margin-top:12px;color:#efe6d2;max-width:180px;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+.cover .cs{position:absolute;z-index:3;left:20px;right:30px;bottom:44px;font:italic 13.5px/1.3 Baskerville,Georgia,serif;color:#efe6d2}
+.cover .a{position:absolute;z-index:3;left:20px;right:18px;bottom:18px;display:flex;justify-content:space-between;align-items:flex-end;color:#f6efdf}
+.cover .a b{font:600 11.5px/1.2 -apple-system,sans-serif;letter-spacing:.22em;text-transform:uppercase}
+.cover .a span{width:22px;height:22px;border:1px solid #e2c37c;border-radius:50%;display:grid;place-items:center;font:10px Baskerville,serif;color:#e2c37c}
+.fmt{display:flex;gap:6px;margin-top:16px}
+.fmt span{flex:1;border:1px solid var(--line);border-radius:7px;padding:7px 0;text-align:center;font-size:12px;color:var(--soft);background:#fff}
+.fmt span.on{border-color:var(--grn);color:var(--grn);font-weight:600;box-shadow:inset 0 0 0 1px var(--grn)}
+.mini{margin-top:14px;font-size:12.5px;color:var(--soft);display:flex;flex-direction:column;gap:7px}
+.mini div{display:flex;align-items:center;gap:8px}
+.type{font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);display:flex;gap:8px;align-items:center}
+.type i{width:4px;height:4px;border-radius:50%;background:#cfc6b6}
+h1{font:400 40px/1.08 Baskerville,"Baskerville Old Face",Georgia,serif;margin:8px 0 2px;letter-spacing:-.005em}
+.subt{font:italic 19px/1.3 Baskerville,Georgia,serif;color:var(--soft)}
+.by{margin:12px 0 4px;font-size:14.5px}
+.by a{color:var(--grn2);font-weight:600}
+.pubd{font-size:13px;color:var(--mute)}
+.stars{display:flex;gap:10px;align-items:center;margin:12px 0 16px;font-size:12.5px;color:var(--mute)}
+.stars b{color:#c18d22;letter-spacing:1px;font-size:14px}
+.acts{display:flex;gap:9px;margin-bottom:20px}
+.btn{height:40px;padding:0 16px;border-radius:9px;border:1px solid var(--line);background:#fff;font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.btn.p{background:var(--grn);color:#fff;border-color:var(--grn);padding:0 22px}
+.btn svg{width:15px;height:15px}
+.box{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:18px}
+.box .h{display:flex;align-items:center;padding:11px 16px;border-bottom:1px solid var(--line)}
+.box .h h3{font:600 16px Baskerville,Georgia,serif}
+.box .h span{margin-left:auto;font-size:12.5px;color:var(--mute)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--mute);font-weight:600;padding:8px 16px;background:#fcfaf6;border-bottom:1px solid var(--line)}
+td{padding:10px 16px;border-bottom:1px solid #f1ece3;vertical-align:top}
+tr:last-child td{border:0}
+td code{font:12.5px ui-monospace,Menlo,monospace;color:var(--ink)}
+td small{display:block;color:var(--mute);font-size:12px;margin-top:2px}
+.st{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;white-space:nowrap}
+.st:before{content:"";width:8px;height:8px;border-radius:50%}
+.st.ok{color:#2c7a4b}.st.ok:before{background:#36a160}
+.st.res{color:#9a6a12}.st.res:before{background:#d9a32e}
+.st.out{color:#a2402f}.st.out:before{background:#d06048}
+.subj{display:flex;flex-wrap:wrap;gap:7px}
+.subj a{font-size:12.5px;padding:5px 10px;border-radius:15px;background:#eef3ef;color:var(--grn);text-decoration:none}
+.aside .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+.aside h4{font:600 11px -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin-bottom:10px}
+.call{font:600 16px/1.3 ui-monospace,Menlo,monospace;letter-spacing:.02em}
+.call small{display:block;font:12px -apple-system,sans-serif;color:var(--mute);margin-top:4px}
+.kv div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid #f1ece3;font-size:12.5px}
+.kv div:first-child{border:0}
+.kv span{color:var(--mute)}
+.more{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.bk{height:108px;border-radius:2px 4px 4px 2px;position:relative;overflow:hidden;box-shadow:0 6px 12px -6px rgba(0,0,0,.4)}
+.bk img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.bk div{position:absolute;inset:0;padding:8px 7px;color:#fff;font:600 10px/1.15 Baskerville,Georgia,serif;display:flex;flex-direction:column;justify-content:space-between}
+.bk div small{font:600 6.5px -apple-system,sans-serif;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.bk.a div{background:linear-gradient(180deg,rgba(120,40,20,.75),rgba(120,40,20,.2))}
+.bk.b div{background:linear-gradient(0deg,rgba(10,40,60,.8),rgba(10,40,60,.1))}
+.bk.c div{background:rgba(240,236,226,.78);color:#1f1d1a}
+.more p{font-size:11.5px;color:var(--soft);margin-top:6px;line-height:1.3}
+@media (max-width:1100px){.wrap{grid-template-columns:210px 1fr}.aside{display:none}.cover{width:210px;height:310px}.cover .t h2{font-size:34px}.cover .t h2 i{font-size:38px}header nav span:nth-child(n+4){display:none}}
+</style></head><body>
+<header><div class="in">
+<div class="mk"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#1f4d3b" stroke-width="1.7"><path d="M2 4.5c3-.8 5.5-.4 8 1.2 2.5-1.6 5-2 8-1.2v11c-3-.8-5.5-.4-8 1.2-2.5-1.6-5-2-8-1.2z"/><path d="M10 5.7v11"/></svg></div>
+<div class="nm">Alder State Libraries<span>Catalog</span></div>
+<nav><span>Search</span><span>Course reserves</span><span>Databases</span><span>Study rooms</span><span>Ask a librarian</span></nav>
+<div class="acct"><span>My lists</span><span>Loans (3)</span><b>NV</b></div>
+</div></header>
+<div class="sbar"><div class="in"><div class="sel">Everything ▾</div><div class="inp">urban street trees heat</div><div class="go">Search</div><span class="adv">Advanced search</span></div></div>
+<div class="crumb"><a>‹ Back to results</a><span>· Result 2 of 318</span><span class="r">Permalink · Print · Email</span></div>
+<div class="wrap">
+<div>
+<div class="cover"><img src="img/0.jpg" alt=""><div class="t"><small>A NATURAL HISTORY</small><h2>The<i>Shaded</i>City</h2></div><p class="cs">Trees, heat and the streets we will need</p><div class="a"><b>Rosa Achterberg</b><span>F</span></div></div>
+<div class="fmt"><span class="on">Book</span><span>eBook</span><span>Audio</span></div>
+<div class="mini"><div><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#2c6a52" stroke-width="1.6"><path d="M3 8.5l3 3 7-7"/></svg>On reserve for GEOG 341</div><div><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#2c6a52" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.4 1.5"/></svg>2-hour loan at Science Library</div></div>
+</div>
+<main>
+<div class="type">Book<i></i>2025<i></i>English<i></i>Print &amp; online</div>
+<h1>The Shaded City</h1>
+<div class="subt">Trees, Heat and the Streets We Will Need</div>
+<div class="by">by <a>Rosa Achterberg</a> · foreword by <a>Teodor Lindqvist</a></div>
+<div class="pubd">Fernway Press, Port Alder · 2025 · xii, 312 pages : illustrations, maps ; 23 cm</div>
+<div class="stars"><b>★★★★★</b>4.7 from 38 reader reviews · 6 copies · 2 holds</div>
+<div class="acts">
+<div class="btn p">Place hold</div>
+<div class="btn"><svg viewBox="0 0 16 16" fill="none" stroke="#1f1d1a" stroke-width="1.6"><rect x="2.5" y="2" width="11" height="12" rx="1.5"/><path d="M5 5.5h6M5 8h6M5 10.5h3.5"/></svg>Request chapter scan</div>
+<div class="btn"><svg viewBox="0 0 16 16" fill="none" stroke="#1f1d1a" stroke-width="1.6"><path d="M4 2h8v12l-4-3-4 3z"/></svg>Save</div>
+<div class="btn"><svg viewBox="0 0 16 16" fill="none" stroke="#1f1d1a" stroke-width="1.6"><path d="M4 4h4v4H4zM4 8c0 2-1 3-2 4M10 4h4v4h-4zM10 8c0 2-1 3-2 4"/></svg>Cite</div>
+</div>
+<div class="box"><div class="h"><h3>Availability</h3><span>Updated just now</span></div>
+<table><thead><tr><th>Location</th><th>Call number</th><th>Status</th></tr></thead><tbody>
+<tr><td>Science Library<small>Course reserves desk</small></td><td><code>QK477.2 .U7 A24 2025</code></td><td><span class="st res">On reserve · 2 h</span></td></tr>
+<tr><td>Main Library, Stacks<small>Level 3, east wing</small></td><td><code>QK477.2 .U7 A24 2025</code></td><td><span class="st ok">Available</span></td></tr>
+<tr><td>Main Library, Stacks<small>Copy 2</small></td><td><code>QK477.2 .U7 A24 2025 c.2</code></td><td><span class="st out">Due Nov 14</span></td></tr>
+<tr><td>Harrow Branch<small>New nonfiction</small></td><td><code>582.16 ACH</code></td><td><span class="st ok">Available</span></td></tr>
+</tbody></table></div>
+<div class="box" style="padding:13px 16px"><div style="font:600 16px Baskerville,Georgia,serif;margin-bottom:10px">Subjects</div><div class="subj"><a>Trees in cities</a><a>Urban heat island</a><a>Street trees — Planning</a><a>Urban forestry</a><a>Climatic changes — Social aspects</a><a>City planning — Environmental aspects</a></div></div>
+</main>
+<aside class="aside">
+<div class="card"><h4>Call number</h4><div class="call">QK477.2 .U7 A24 2025<small>Library of Alder classification · Main Library, Level 3</small></div></div>
+<div class="card kv"><h4>Details</h4><div><span>ISBN</span><b>978-1-90483-217-6</b></div><div><span>Edition</span><b>First edition</b></div><div><span>Pages</span><b>312</b></div><div><span>Series</span><b>Living Cities, 4</b></div><div><span>Notes</span><b>Bibliography p. 287–303</b></div></div>
+<div class="card"><h4>More like this</h4><div class="more">
+<div><div class="bk a"><img src="img/1.jpg" alt=""><div>Under the Lindens<small>H. Marsh</small></div></div><p>Under the Lindens</p></div>
+<div><div class="bk b"><img src="img/3.jpg" alt=""><div><small>Second ed.</small>Roofs, Light &amp; Air</div></div><p>Roofs, Light &amp; Air</p></div>
+<div><div class="bk c"><img src="img/2.jpg" alt=""><div>The Park Next Door<small>Odile Brant</small></div></div><p>The Park Next Door</p></div>
+</div></div>
+</aside>
+</div>
+</body></html>

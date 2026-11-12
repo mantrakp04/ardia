@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import ExpoModulesCore
 
 public class AppWindowsModule: Module {
@@ -26,6 +27,8 @@ public class AppWindowsModule: Module {
       self.lifetime.end()
     }
 
+    Function("windowCornerRadius") { () -> Double in Double(ArdiaChromeWindowHost.windowCornerRadius) }
+
     AsyncFunction("openWindow") { (id: String, options: OpenWindowOptions) in
       WindowManager.shared.open(id: id, options, focus: options.focus)
     }.runOnQueue(.main)
@@ -33,11 +36,11 @@ public class AppWindowsModule: Module {
     AsyncFunction("animateWindowClose") { (id: String, after: String?, promise: Promise) in
       WindowManager.shared.animateClose(id: id, after: after) { promise.resolve(nil) }
     }.runOnQueue(.main)
-    AsyncFunction("setTrafficLightsCenter") { (id: String, center: CGPoint?) in
-      WindowManager.shared.setTrafficLightsCenter(id: id, center: center)
+    AsyncFunction("setTrafficLightsCenter") { (id: String, center: CGPoint?, trailing: Bool) in
+      WindowManager.shared.setTrafficLightsCenter(id: id, center: center, trailing: trailing)
     }.runOnQueue(.main)
-    AsyncFunction("watchSidebarEdge") { (id: String, on: Bool, hold: Double, right: Bool) in
-      SidebarEdgeWatcher.shared.watch(id: id, on: on, hold: CGFloat(hold), right: right)
+    AsyncFunction("watchSidebarEdge") { (id: String, on: Bool, hold: Double, right: Bool, whilePressed: Bool) in
+      SidebarEdgeWatcher.shared.watch(id: id, on: on, hold: CGFloat(hold), right: right, whilePressed: whilePressed)
     }.runOnQueue(.main)
     AsyncFunction("focusWindow") { (id: String) in WindowManager.shared.focus(id: id) }.runOnQueue(.main)
     AsyncFunction("restoreFullScreen") { (ids: [String], focus: String?) in

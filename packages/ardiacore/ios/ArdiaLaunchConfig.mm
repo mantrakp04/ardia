@@ -13,6 +13,7 @@ NSString *const kSwitchesVariable = @"ARDIA_SWITCHES";
 NSString *const kTraceVariable = @"ARDIA_TRACE";
 NSString *const kTestVariable = @"ARDIA_TEST";
 NSString *const kPrewarmVariable = @"ARDIA_PREWARM";
+NSString *const kFeedbackURLVariable = @"ARDIA_FEEDBACK_URL";
 NSString *const kSwitchesCacheDocument = @"switches-cache.json";
 
 NSArray<NSString *> *InstanceKeys() {
@@ -30,7 +31,7 @@ NSArray<NSString *> *EngineTestKeys() {
   return @[
     @"keychain", @"keychainHiddenReads", @"keychainFail", @"safeStorageAnswer", @"reauth", @"bluetoothChooser",
     @"externalProtocolNoLaunch", @"externalProtocolApp", @"mediaRouteProvider", @"systemMediaPermission", @"applyProfileGate", @"contextMenu",
-    @"loginsDelay", @"loginsReleaseAfter",
+    @"loginsDelay", @"loginsReleaseAfter", @"cdpTabsVisible",
   ];
 }
 
@@ -38,7 +39,7 @@ NSArray<NSString *> *AppTestKeys() {
   return @[
     @"pipSelfTest", @"pipHover", @"fakeFullScreenMs", @"shadersKeyWindow", @"peekStrict", @"importSecret", @"importDiaBundleId", @"importDiaWindows",
     @"cliInstallScript", @"legacySource", @"legacyCrashAfter", @"bangsUrl", @"onboarding", @"whatsNew", @"telemetry",
-    @"liveMock", @"calendarFixture", @"appMenu", @"appDialog", @"loginsTimeout",
+    @"liveMock", @"calendarFixture", @"appMenu", @"appDialog", @"loginsTimeout", @"screenRecording", @"systemLocationPermission",
   ];
 }
 
@@ -206,6 +207,7 @@ BOOL SignedForDistribution() {
     const NSInteger port = Trimmed(environment[kRemoteDebuggingPortVariable] ?: @"").integerValue;
     _remoteDebuggingPort = port > 0 && port < 65536 ? @(port) : nil;
     _prewarm = Present(environment[kPrewarmVariable]) != nil;
+    _feedbackURL = Present(environment[kFeedbackURLVariable]);
     _instance = KeyedEntries(environment[kInstanceVariable], InstanceKeys(), kInstanceVariable);
     _switches = SwitchEntries(environment[kSwitchesVariable]);
     _requestedAreas = AreaEntries(environment[kTraceVariable]);
@@ -333,6 +335,7 @@ BOOL SignedForDistribution() {
     @"switches" : switches,
     @"trace" : [self.honouredAreas.allObjects sortedArrayUsingSelector:@selector(compare:)],
     @"test" : self.honouredTest,
+    @"feedbackURL" : _feedbackURL ?: NSNull.null,
   };
 }
 

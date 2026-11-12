@@ -45,6 +45,9 @@ export const ONTO_EDGE = MAX_CHIP / 4;
 export const PROFILE_ROOM = 140;
 export const DOWNLOADS_BOX = 34;
 export const CONTROLS_GAP = 2;
+export const STRIP_CARD_WIDTH = 264;
+export const STRIP_CARD_GAP = 4;
+export const STRIP_CARD_MARGIN = 8;
 
 export const LIFT_MS = duration.base;
 export const DROP_GLOW_MS = duration.base;

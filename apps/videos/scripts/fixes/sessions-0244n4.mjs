@@ -1,26 +1,10 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { session } from "../../../../scripts/lib/instance.mjs";
+import { DARK, TITLES, writeSession } from "./sessions-lib.mjs";
 
-const out = process.argv[2];
-const TITLES = {
-  moodwall: "moodwall — ideas for everything",
-  docpad: "Trip plan — Docpad",
-  lexicon: "meadow | Lexicon dictionary",
-  crumbs: "Crumbs — Brown butter oat cookies",
-  tunes: "Tunes",
-  cinema: "Cinema",
-};
-const T = (id, url, extra = {}) => ({ id, profileId: "default", url, title: url ? TITLES[new URL(url).hostname.split(".")[0]] : "", ...extra });
+const TITLES_HERE = { ...TITLES, tunes: "Tunes", cinema: "Cinema" };
+const T = (id, url, extra = {}) => ({ id, profileId: "default", url, title: url ? TITLES_HERE[new URL(url).hostname.split(".")[0]] : "", ...extra });
 
 function build(file, tabs, active, settings) {
-  const s = session({
-    profiles: [{ id: "default", name: "Personal", color: "plum", icon: "🪐" }],
-    windows: [{ id: "w1", frame: [80, 60, 1360, 860], profileId: "default", activeTabIds: { default: active } }],
-    tabs,
-  });
-  s.settings = { appearance: "dark", searchSuggestions: false, warnBeforeQuitting: false, sidebarWidth: 260, ...settings };
-  writeFileSync(join(out, file), JSON.stringify(s, null, 2));
+  writeSession(file, { tabs, active, settings: { ...DARK, ...settings } });
 }
 
 const TABS = [

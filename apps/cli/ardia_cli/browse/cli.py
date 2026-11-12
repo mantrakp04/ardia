@@ -15,7 +15,7 @@ VALUE_FLAGS = {
 }
 BOOL_FLAGS = {
     "--json", "--no-humanize", "--humanize", "--content-boundaries", "--annotate", "--no-auto-dialog", "--pin-tab", "--no-pin-tab",
-    "--debug", "--capture-console", "--show",
+    "--debug", "--capture-console", "--show", "--full", "--no-changes", "--no-text",
 }
 LAUNCH_ONLY = {
     "--headed": False, "--profile": True, "--executable-path": True, "--extension": True, "--args": True, "--user-agent": True,
@@ -32,7 +32,7 @@ LAUNCH_HINTS = {
     "--download-path": "pass the path to `ardia browse download <sel> <path>` instead",
 }
 VALUE_FLAGS -= set(LAUNCH_HINTS)
-COMMAND_OWNS = {"stream": {"--port"}, "screenshot": {"--annotate"}}
+COMMAND_OWNS = {"stream": {"--port"}, "screenshot": {"--annotate", "--full"}, "diff": {"--full"}}
 LOCAL_AUTH = {"save", "list", "show", "delete"}
 
 
@@ -95,11 +95,20 @@ def options_from(found: dict, env: dict) -> dict:
         humanize = False
     if found.get("humanize"):
         humanize = True
+    max_output = found.get("max_output") or env.get("AGENT_BROWSER_MAX_OUTPUT")
+    if max_output is not None:
+        try:
+            max_output = int(max_output)
+        except ValueError:
+            raise Usage(f"--max-output takes a number of characters, not {max_output}") from None
     options = {
         "json": found.get("json") or truthy(env.get("AGENT_BROWSER_JSON")),
         "humanize": humanize,
         "timeout_ms": env.get("AGENT_BROWSER_DEFAULT_TIMEOUT") or 25000,
-        "max_output": found.get("max_output") or env.get("AGENT_BROWSER_MAX_OUTPUT"),
+        "max_output": max_output,
+        "full": bool(found.get("full")),
+        "no_changes": bool(found.get("no_changes")),
+        "no_text": bool(found.get("no_text")),
         "content_boundaries": found.get("content_boundaries") or truthy(env.get("AGENT_BROWSER_CONTENT_BOUNDARIES")),
         "annotate": found.get("annotate") or truthy(env.get("AGENT_BROWSER_ANNOTATE")),
         "screenshot_dir": found.get("screenshot_dir"),
@@ -165,8 +174,10 @@ def print_result(result, as_json: bool, options: dict) -> int:
 
 
 def print_error(error: BrowseError, as_json: bool) -> int:
+    from ardia_cli import telemetry
     from ardia_cli.browse.daemon import render
 
+    telemetry.note_error_code(error.code)
     code, out, err = render({"json": as_json}, error=error)
     write(out, sys.stdout)
     write(err, sys.stderr)
@@ -248,9 +259,20 @@ def run_local(command: str, args: list[str], root: Path, options: dict, dir_fd_f
             data = plugins.call(root, positional[0], positional[1], payload)
             return Result(data if isinstance(data, dict) else {"result": data}, json.dumps(data, ensure_ascii=False, indent=2))
         raise Usage(f"Unknown plugin subcommand: {action}")
+    if command == "notes":
+        from ardia_cli import notes
+
+        request = notes.parse_args(args)
+        if request.text == "-":
+            request.text = read_stdin_text()
+        return notes.run_request(root, request, None)
     if command == "read":
-        parsed, positional = parse(args, readurl.FLAGS)
-        return readurl.run(positional[0], parsed, options)
+        from ardia_cli.browse import readpages
+
+        parsed, positional = parse(args, readpages.flags(), readpages.ALIASES)
+        if readpages.single_fetch(parsed, positional):
+            return readurl.run(positional[0], parsed, options)
+        return readpages.run_local(parsed, positional, read_stdin_urls(args), options)
     if command == "session":
         action = args[0] if args else None
         if action == "id":
@@ -269,15 +291,71 @@ def run_local(command: str, args: list[str], root: Path, options: dict, dir_fd_f
     return None
 
 
-def read_has_url(args: list[str]) -> bool:
-    from ardia_cli.browse import readurl
+def notes_need_page(args: list[str]) -> bool:
+    from ardia_cli import notes
+
+    try:
+        return notes.parse_args(args).site is None and notes.parse_args(args).action != "list"
+    except BrowseError:
+        return False
+
+
+def read_stdin_text() -> str:
+    from ardia_cli import notes
+
+    text = sys.stdin.read(notes.MAX_NOTE * 4 + 1)
+    if len(text) > notes.MAX_NOTE * 4:
+        raise Usage(f"stdin is over {notes.MAX_NOTE * 4} characters; notes hold at most {notes.MAX_NOTE // 1024} KB per site")
+    return text
+
+
+def read_args(args: list[str]):
+    from ardia_cli.browse import readpages
     from ardia_cli.browse.commands import parse
 
     try:
-        _, positional = parse(args, readurl.FLAGS)
+        return parse(args, readpages.flags(), readpages.ALIASES)
     except Usage:
-        return False
-    return bool(positional)
+        return None
+
+
+def read_runs_locally(args: list[str]) -> bool:
+    from ardia_cli.browse import readpages
+
+    parsed = read_args(args)
+    return parsed is not None and readpages.runs_locally(*parsed)
+
+
+def read_stdin_urls(args: list[str]) -> str | None:
+    from ardia_cli.browse import readpages
+
+    parsed = read_args(args)
+    if parsed is None or not readpages.reads_stdin(*parsed):
+        return None
+    return sys.stdin.read(readpages.MAX_STDIN)
+
+
+def script_source(args: list[str], cwd: str) -> str:
+    from ardia_cli.browse import script
+    from ardia_cli.browse.commands import parse
+
+    parsed, positional = parse(args, {"--timeout": "value", "--stdin": "bool"})
+    if len(positional) > 1:
+        raise Usage("Usage: ardia browse script [file.js] [--timeout 90s]; quote the script in a heredoc on stdin, or put it in a file")
+    if positional and positional[0] != "-":
+        path = Path(cwd, os.path.expanduser(positional[0]))
+        try:
+            with open(path, encoding="utf-8") as handle:
+                source = handle.read(script.MAX_SOURCE + 1)
+        except OSError as error:
+            raise Usage(f"Can't read {positional[0]}: {error.strerror or error}") from None
+    elif positional or parsed.get("stdin") or not sys.stdin.isatty():
+        source = sys.stdin.read(script.MAX_SOURCE + 1)
+    else:
+        raise Usage("ardia browse script reads the script from a file or stdin: ardia browse script <<'EOF' … EOF")
+    if len(source) > script.MAX_SOURCE:
+        raise Usage(f"The script is over {script.MAX_SOURCE // 1024} KB")
+    return source
 
 
 def main(argv: list[str]) -> int:
@@ -312,7 +390,7 @@ def run(argv: list[str]) -> int:
     as_json = bool(found.get("json") or truthy(env.get("AGENT_BROWSER_JSON")))
     if not rest or rest[0] in ("help", "--help", "-h"):
         topic = rest[1] if len(rest) > 1 else None
-        sys.stdout.write((helptext.COMMANDS.get(topic) or helptext.OVERVIEW) + "\n")
+        sys.stdout.write(helptext.command_help(topic) + "\n")
         return 0
     if rest[0] in ("--version", "-V"):
         from ardia_cli import __version__
@@ -320,7 +398,7 @@ def run(argv: list[str]) -> int:
         sys.stdout.write(f"ardia browse {__version__}\n")
         return 0
     if "--help" in rest[1:] or "-h" in rest[1:]:
-        sys.stdout.write((helptext.COMMANDS.get(rest[0]) or helptext.OVERVIEW) + "\n")
+        sys.stdout.write(helptext.command_help(rest[0]) + "\n")
         return 0
     try:
         options = options_from(found, env)
@@ -341,13 +419,20 @@ def run(argv: list[str]) -> int:
             return paths.browse_dir(root)
 
         local_auth = command == "auth" and (args[:1] or ["list"])[0] in LOCAL_AUTH
-        if local_auth or command == "plugin" or (command == "read" and read_has_url(args)) or (command == "session" and args[:1] in (["id"], ["list"])):
+        local_notes = command == "notes" and not notes_need_page(args)
+        if local_auth or local_notes or command == "plugin" or (command == "read" and read_runs_locally(args)) or (command == "session" and args[:1] in (["id"], ["list"])):
             result = run_local(command, args, root, options, dir_fd_factory, None)
             if result is not None:
                 return print_result(result, as_json, options)
         stdin = None
-        if (command in ("eval", "addinitscript") and "--stdin" in args) or (command == "batch" and not [a for a in args if not a.startswith("--")] and not sys.stdin.isatty()):
+        if command == "notes" and "-" in args:
+            stdin = read_stdin_text()
+        elif (command in ("eval", "addinitscript") and "--stdin" in args) or (command == "batch" and not [a for a in args if not a.startswith("--")] and not sys.stdin.isatty()):
             stdin = sys.stdin.read()
+        elif command == "read":
+            stdin = read_stdin_urls(args)
+        elif command == "script":
+            stdin = script_source(args, os.getcwd())
         if command == "close" and "--all" in args:
             return close_all(root, as_json, options)
         idle = found.get("idle_timeout") or env.get("AGENT_BROWSER_IDLE_TIMEOUT_MS")
@@ -362,7 +447,13 @@ def run(argv: list[str]) -> int:
         finally:
             os.close(dir_fd)
         env_subset = {name: value for name, value in env.items() if name.startswith("AGENT_BROWSER_")}
-        answer = client.request(sock, {"argv": rest, "options": options, "cwd": os.getcwd(), "env": env_subset, "stdin": stdin})
+        from ardia_cli import caller, telemetry
+
+        request = {
+            "argv": rest, "options": options, "cwd": os.getcwd(), "env": env_subset, "stdin": stdin, "telemetry": telemetry.shareable(env),
+            "caller": caller.current().wire(),
+        }
+        answer = client.request(sock, request)
     except BrowseError as error:
         return print_error(error, as_json)
     except endpoints.EndpointError as error:
@@ -374,6 +465,7 @@ def run(argv: list[str]) -> int:
     except KeyboardInterrupt:
         sys.stderr.write("✗ interrupted\n")
         return 130
+    telemetry.note_answer(answer)
     write(answer.get("out") or "", sys.stdout)
     write(answer.get("err") or "", sys.stderr)
     return int(answer.get("exit") or 0)

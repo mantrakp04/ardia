@@ -16,7 +16,7 @@ final class ZenTests: XCTestCase {
     XCTAssertEqual(zen.family, .firefox)
     XCTAssertEqual(zen.sidebar, .zen)
     XCTAssertFalse(zen.needsKeychain)
-    XCTAssertEqual(zen.profiles.map(\.name), ["Default (release)", "Legacy", "Recovered", "Plain"])
+    XCTAssertEqual(zen.profiles.map(\.name), ["Default (release)", "Legacy", "Recovered", "Plain", "Containers", "Places"])
     XCTAssertEqual(zen.profiles.filter(\.isDefault).map(\.id), [main])
 
     let first = zen.profiles[0]
@@ -35,6 +35,41 @@ final class ZenTests: XCTestCase {
     XCTAssertNil(zen.profiles[3].spaces)
     XCTAssertFalse(zen.profiles[3].available.contains(.spaces))
     XCTAssertTrue(zen.profiles[3].available.contains(.tabs))
+
+    let boxes = try XCTUnwrap(zen.profiles[4].spaces)
+    XCTAssertEqual(boxes.map(\.name), ["Home", "Work", "Bank", "Side"])
+    XCTAssertEqual(boxes.map(\.container), [nil, 2, 3, nil])
+    XCTAssertEqual(boxes.map(\.containerName), [nil, "Work", "Bank", nil])
+    XCTAssertEqual(zen.profiles[5].spaces?.map(\.name), ["Home", "Lab"])
+    XCTAssertEqual(zen.profiles[5].spaces?.map(\.container), [nil, 1])
+  }
+
+  func testContainersKeepTheirPinsAndEssentialsApart() throws {
+    let dir = profile("Profiles/cnt00000.Containers")
+    let sidebar = try ZenSidebar.load(profile: dir, profileId: "boxes")
+    XCTAssertEqual(sidebar.spaces.map(\.container), [nil, 2, 3, nil])
+    XCTAssertEqual(sidebar.spaces.map { titles($0.pinned) }, [["Home pin"], ["Work pin", "Projects[Project]"], ["Bank pin", "Lost pin"], ["Side pin"]])
+    XCTAssertEqual(sidebar.essentials.map(\.url), ["https://mail.example/", "https://mail.example/", "https://chat.example/", "https://ledger.example/"])
+    XCTAssertEqual(sidebar.essentials.map(\.container), [nil, 2, 2, 3])
+    XCTAssertTrue(sidebar.separateEssentials)
+    XCTAssertEqual(ZenSidebar.containerNames(profile: dir), [1: "Personal", 2: "Work", 3: "Bank"])
+  }
+
+  func testWorkspacesFromPlacesBeforeZenKeptThemInItsSession() throws {
+    let sidebar = try ZenSidebar.load(profile: profile("Profiles/plc00000.Places"), profileId: "places")
+    XCTAssertEqual(sidebar.spaces.map(\.name), ["Home", "Lab"])
+    XCTAssertEqual(sidebar.spaces.map(\.container), [nil, 1])
+    XCTAssertEqual(sidebar.spaces[0].emoji, "\u{1F3E0}")
+    XCTAssertEqual(sidebar.spaces[0].color, "#0080FF")
+    XCTAssertEqual(sidebar.spaces.map { titles($0.pinned) }, [["Home pin", "Reading[Read]"], ["Lab pin"]])
+    XCTAssertEqual(sidebar.essentials.map(\.container), [1])
+    XCTAssertFalse(sidebar.separateEssentials)
+
+    let result = try Importer(discovery: Fixtures.discovery())
+      .importData(browserId: "zen", profileId: "Profiles/plc00000.Places", kinds: [.spaces, .pinnedTabs, .favorites])
+    XCTAssertEqual(result.separateEssentials, false)
+    XCTAssertEqual(result.spaces.map(\.container), [nil, 1])
+    XCTAssertEqual(result.favorites.map(\.container), [1])
   }
 
   func testWorkspacesFoldersAndEssentials() throws {

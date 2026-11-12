@@ -31,7 +31,10 @@ the start unless noted. All clocks are epoch ms on the same Mac: JS's `Date.now(
 
 | Journey | Step | From → to |
 |---|---|---|
-| J1 launch (`perf_launch`, one per launch) | `js_ms` | process start → the bundle's first module runs (`state/telemetry/jsStart.ts`) |
+| J1 launch (`perf_launch`, one per launch) | `engine_ms` | process start → Chrome's engine is up (`engineDidStart`; from 0.2.46-nightly.7) |
+| | `early_window_ms` | → the early window ordered on screen (`TryEarlyWindow`; null when the launch didn't show one; from 0.2.46-nightly.7) |
+| | `rn_ms` | → React Native starts loading the bundle (`launchApp`, after the early window and its first commit; from 0.2.46-nightly.7). `js_ms - rn_ms` is the bundle load, `rn_ms - engine_ms` the early window |
+| | `js_ms` | → the bundle's first module runs (`state/telemetry/jsStart.ts`) |
 | | `commit_ms` | → the first window's first React commit |
 | | `launch_ms` | → the first window's root effect (**unchanged** since 0.2.x, so old data stays comparable) |
 | | `content_ms` | → that first commit on screen |
@@ -57,6 +60,8 @@ Each `perf_journeys` step goes as `<step>_p50`, `_p75`, `_p95`, `_max` and `_n` 
 summary). Counts: `j3_cold` (the page was hidden), `j3_warm` (it was still painting), `j3_load` (it had to load),
 `j3_other` (no page: New Tab), `j2_no_bar`, `j4_no_load` (not a page load: a ardia: page, a download),
 `j4_no_paint` (nothing painted within 30 s), `j4_replaced` (another navigation came first).
+Context: `tabs`, how many tabs were open when the summary went out (an exact count, from the first nightly after 0.2.46-nightly.6), so J2 and J3 can
+be split by tab count: they must not grow with it (#1330). Before it, join `perf_memory`'s tab count by copy.
 `perf_journeys` goes hourly and at quit, like `perf_omnibox`; `perf_launch` once its steps are in (≤ 30 s after the first
 window, or at quit), not at the first window as before.
 
@@ -104,7 +109,8 @@ new tab's bar, Enter, and ⌘L, an address, Enter. The `$`-context properties ar
   ~16 ms granularity.
 - **`fcp` is the page's own clock** (its time origin plus the entry's time); a page can't move it but can replace the
   observer before the script installs it: values more than 10 minutes off are dropped natively, outliers past 60 s in JS.
-- Builds before this change send `perf_launch` with `launch_ms` only, at the first window.
+- Builds before 0.2.28 send `perf_launch` with `launch_ms` only, at the first window.
+- Only the first window's root can start the launch. Before 0.2.45-nightly.1, a window opened after sharing was turned on (during onboarding, say) started it, timed from process start: those rows have no `launch_ms`, an empty `first_of_version` and minutes in the other fields. The dashboard drops them through its `first_of_version` filter; queries here require `properties['launch_ms'] != ''`.
 
 ## Queries (ClickHouse)
 
@@ -121,6 +127,7 @@ SELECT properties['$app_version'] AS version, count() AS launches,
   countIf(properties['cold'] = 'true') AS cold_launches
 FROM telemetry.events
 WHERE timestamp > now() - INTERVAL 30 DAY AND event = 'perf_launch' AND properties['$environment'] = 'production'
+  AND properties['launch_ms'] != ''
 GROUP BY version ORDER BY arrayMap(x -> toUInt32OrZero(x), splitByChar('.', version)) DESC
 ```
 
@@ -136,6 +143,7 @@ SELECT properties['$app_version'] AS version, properties['first_of_version'] AS 
   round(quantile(0.5)(toFloat64OrNull(properties['tab_paint_ms']))) AS paint_p50, round(quantile(0.75)(toFloat64OrNull(properties['tab_paint_ms']))) AS paint_p75
 FROM telemetry.events
 WHERE timestamp > now() - INTERVAL 30 DAY AND event = 'perf_launch' AND properties['$environment'] = 'production'
+  AND properties['launch_ms'] != ''
 GROUP BY version, first_of_version
 ORDER BY arrayMap(x -> toUInt32OrZero(x), splitByChar('.', version)) DESC, first_of_version DESC
 ```
@@ -160,6 +168,20 @@ FROM (
 )
 WHERE w > 0 AND ms IS NOT NULL
 GROUP BY version, step ORDER BY arrayMap(x -> toUInt32OrZero(x), splitByChar('.', version)) DESC, step
+```
+
+By tab count (J2 and J3 must stay flat across the bands, #1330):
+
+```sql
+SELECT properties['$app_version'] AS version,
+  multiIf(t <= 5, '0-5', t <= 20, '6-20', t <= 50, '21-50', '51+') AS tabs,
+  round(median(toFloat64OrNull(properties['j2_typeable_p50']))) AS j2_typeable,
+  round(median(toFloat64OrNull(properties['j3_frame_p50']))) AS j3_frame,
+  round(median(toFloat64OrNull(properties['j3_js_p50']))) AS j3_js, count() AS summaries
+FROM telemetry.events
+WHERE timestamp > now() - INTERVAL 30 DAY AND event = 'perf_journeys' AND properties['$environment'] = 'production'
+  AND (toUInt32OrNull(properties['tabs']) AS t) IS NOT NULL
+GROUP BY version, tabs ORDER BY version DESC, tabs
 ```
 
 Checked on 2026-10-14 against the same spread done with `arrayWithConstant` (`samples` and p50 equal for every

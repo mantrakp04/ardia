@@ -6,8 +6,14 @@
 #import "ardia/core/public/ArdiaCore.h"
 #include "base/memory/raw_ptr.h"
 
+class SkBitmap;
+
 namespace content {
 class WebContents;
+}
+
+namespace ardiacore {
+CGImageRef CreatePicture(const SkBitmap& bitmap);
 }
 
 @interface ArdiaCoreTab () {

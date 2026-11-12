@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
 const stub = await import("../../test-native/index.ts");
@@ -10,6 +10,7 @@ stub.docs.set("telemetry-queue.json", JSON.stringify({ version: 1, events: [kept
 globalThis.fetch = async () => ({ status: 200 });
 
 const client = await import("./client.ts");
+after(() => client.setSharing(false, "settings"));
 
 test("sharing saved without an install id reads as not sharing, so neither events nor logs are queued", () => {
   client.loadChoice();

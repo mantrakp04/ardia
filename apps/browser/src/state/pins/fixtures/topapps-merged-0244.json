@@ -1,0 +1,364 @@
+{
+ "profiles": {
+  "default": {
+   "id": "default",
+   "name": "Personal",
+   "color": "plum",
+   "icon": null,
+   "createdAt": 0
+  },
+  "p-mw5d0u9b6m3u-5": {
+   "id": "p-mw5d0u9b6m3u-5",
+   "name": "Work",
+   "color": "blue",
+   "icon": null,
+   "createdAt": 1793992850179,
+   "dataId": "default"
+  }
+ },
+ "profileOrder": [
+  "default",
+  "p-mw5d0u9b6m3u-5"
+ ],
+ "orphanedProfileData": [],
+ "settings": {
+  "warnBeforeQuitting": false,
+  "warnBeforeClosingWindow": true,
+  "restoreSession": true,
+  "searchEngine": "google",
+  "customSearchUrl": "",
+  "customSearchEngines": [],
+  "extensionSearchEngines": [],
+  "searchSuggestions": true,
+  "showSelectionSearch": true,
+  "commandBarPreference": "website",
+  "tabLayout": "sidebar",
+  "sidebarSide": "left",
+  "hideToolbarWhileScrolling": true,
+  "newTabPosition": "bottom",
+  "newTabButtonPosition": "bottom",
+  "newTabOpens": "page",
+  "warnBeforeClosingLastTab": true,
+  "undoReopensClosedTab": false,
+  "warnBeforeMovingTabsToProfile": true,
+  "shareTabsAcrossWindows": false,
+  "tabReorderHaptics": true,
+  "extendWebsiteColor": true,
+  "cmdClickCreatesTabGroup": true,
+  "optShiftClickOpensInGroup": true,
+  "peekModifier": "shift",
+  "peekLinksToOtherSites": false,
+  "splitLinkModifier": "altShift",
+  "autoGroupMeetingTabs": true,
+  "cleanUpInactiveTabsAfterMinutes": null,
+  "mutedSites": [],
+  "neverTranslateSites": {},
+  "autoPictureInPicture": true,
+  "commandScrollZoom": true,
+  "videoUpscaling": true,
+  "sidebarMediaControls": true,
+  "sidebarWidth": 190,
+  "showSidebarButton": true,
+  "showClearButton": true,
+  "balancedTopApps": false,
+  "showAdvancedSettings": false,
+  "selectedTabGlow": "full",
+  "interfaceStyle": "glass",
+  "glassTintWithTheme": false,
+  "glassTintAmount": 0.8,
+  "pageScrollBars": "system",
+  "fadeUnloadedTabs": false,
+  "warnBeforeClosingTabGroup": true,
+  "batterySaverWhen": "lowBattery",
+  "memorySaver": true,
+  "memorySaverMode": "balanced",
+  "keepActiveSites": [],
+  "extensionSidePanelWidth": 360,
+  "showFullUrl": false,
+  "allowJavaScriptFromAppleEvents": false,
+  "cliControl": false,
+  "bookmarksBar": "never",
+  "bookmarksBarSize": "default",
+  "hideBookmarksBarImport": false,
+  "appearance": "auto",
+  "addressBar": "toolbar",
+  "compactToolbar": false,
+  "commandBarPlacement": "field",
+  "spacesFollowAppearance": true,
+  "defaultProfileId": "default",
+  "profileSwitcherIcons": false,
+  "shortcuts": {},
+  "openLinksInLittleArdia": true,
+  "littleArdiaOpensNewTabLinks": false,
+  "littleArdiaSize": [
+   900,
+   640
+  ],
+  "pageEngine": "chromium",
+  "websiteEngines": {},
+  "protectedVideoInWebKit": true,
+  "launchActions": [],
+  "omniboxProviders": []
+ },
+ "settingsMeta": {
+  "chosen": [],
+  "inferred": []
+ },
+ "windows": [
+  {
+   "id": "w-mw5d0u9b6m3u-1",
+   "profileId": "p-mw5d0u9b6m3u-5",
+   "tabIds": [
+    "tab-mw5d0u9b6m3u-7",
+    "tab-mw5d0u9b6m3u-b",
+    "tab-mw5d0u9b6m3u-8",
+    "tab-mw5d0u9b6m3u-2",
+    "tab-mw5d0u9b6m3u-3",
+    "tab-mw5d0u9b6m3u-a",
+    "tab-mw5d0u9b6m3u-4",
+    "tab-mw5d0u9b6m3u-6",
+    "tab-mw5d0u9b6m3u-9"
+   ],
+   "activeTabIds": {
+    "default": "tab-mw5d0u9b6m3u-4",
+    "p-mw5d0u9b6m3u-5": "tab-mw5d0u9b6m3u-9"
+   },
+   "sidebarOpen": true,
+   "frame": null,
+   "createdAt": 1790812800000,
+   "incognito": false
+  }
+ ],
+ "windowOrder": [
+  "w-mw5d0u9b6m3u-1"
+ ],
+ "focusedWindowId": "w-mw5d0u9b6m3u-1",
+ "lastProfileId": "p-mw5d0u9b6m3u-5",
+ "launchTab": {
+  "id": "tab-mw5d0u9b6m3u-9",
+  "url": "https://work-doc.example/",
+  "profile": ""
+ },
+ "launchBackdrop": null,
+ "linkProfile": "",
+ "tabs": [
+  {
+   "id": "tab-mw5d0u9b6m3u-2",
+   "windowId": "w-mw5d0u9b6m3u-1",
+   "profileId": "default",
+   "url": "https://mail.example/",
+   "title": "",
+   "favicon": null,
+   "pin": {
+    "as": "tile"
+   },
+   "muted": false,
+   "zoom": 1,
+   "customTitle": null,
+   "customIcon": null,
+   "pinnedUrl": "https://mail.example/",
+   "openerId": null,
+   "page": {
+    "kind": "idle"
+   },
+   "createdAt": 1790812800000,
+   "lastActiveAt": 1790812800000
+  },
+  {
+   "id": "tab-mw5d0u9b6m3u-3",
+   "windowId": "w-mw5d0u9b6m3u-1",
+   "profileId": "default",
+   "url": "https://news.example/",
+   "title": "",
+   "favicon": null,
+   "pin": {
+    "as": "tile"
+   },
+   "muted": false,
+   "zoom": 1,
+   "customTitle": null,
+   "customIcon": null,
+   "pinnedUrl": "https://news.example/",
+   "openerId": null,
+   "page": {
+    "kind": "idle"
+   },
+   "createdAt": 1790812800000,
+   "lastActiveAt": 1790812800000
+  },
+  {
+   "id": "tab-mw5d0u9b6m3u-4",
+   "windowId": "w-mw5d0u9b6m3u-1",
+   "profileId": "default",
+   "url": "https://personal-reading.example/",
+   "title": "",
+   "favicon": null,
+   "pin": null,
+   "muted": false,
+   "zoom": 1,
+   "customTitle": null,
+   "customIcon": null,
+   "pinnedUrl": null,
+   "openerId": null,
+   "page": {
+    "kind": "idle"
+   },
+   "createdAt": 1790812800000,
+   "lastActiveAt": 1790812800000
+  },
+  {
+   "id": "tab-mw5d0u9b6m3u-6",
+   "windowId": "w-mw5d0u9b6m3u-1",
+   "profileId": "p-mw5d0u9b6m3u-5",
+   "url": "",
+   "title": "",
+   "favicon": null,
+   "pin": null,
+   "muted": false,
+   "zoom": 1,
+   "customTitle": null,
+   "customIcon": null,
+   "pinnedUrl": null,
+   "openerId": null,
+   "page": {
+    "kind": "idle"
+   },
+   "createdAt": 1790812800000,
+   "lastActiveAt": 1790812800000
+  },
+  {
+   "id": "tab-mw5d0u9b6m3u-7",
+   "windowId": "w-mw5d0u9b6m3u-1",
+   "profileId": "p-mw5d0u9b6m3u-5",
+   "url": "https://mail.example/",
+   "title": "",
+   "favicon": null,
+   "pin": {
+    "as": "tile"
+   },
+   "muted": false,
+   "zoom": 1,
+   "customTitle": null,
+   "customIcon": null,
+   "pinnedUrl": "https://mail.example/",
+   "openerId": null,
+   "page": {
+    "kind": "idle"
+   },
+   "createdAt": 1790812800000,
+   "lastActiveAt": 1790812800000,
+   "pinKey": "tab-mw5d0u9b6m3u-2"
+  },
+  {
+   "id": "tab-mw5d0u9b6m3u-8",
+   "windowId": "w-mw5d0u9b6m3u-1",
+   "profileId": "p-mw5d0u9b6m3u-5",
+   "url": "https://jira.example/",
+   "title": "",
+   "favicon": null,
+   "pin": {
+    "as": "tile"
+   },
+   "muted": false,
+   "zoom": 1,
+   "customTitle": null,
+   "customIcon": null,
+   "pinnedUrl": "https://jira.example/",
+   "openerId": null,
+   "page": {
+    "kind": "idle"
+   },
+   "createdAt": 1790812800000,
+   "lastActiveAt": 1790812800000
+  },
+  {
+   "id": "tab-mw5d0u9b6m3u-9",
+   "windowId": "w-mw5d0u9b6m3u-1",
+   "profileId": "p-mw5d0u9b6m3u-5",
+   "url": "https://work-doc.example/",
+   "title": "",
+   "favicon": null,
+   "pin": null,
+   "muted": false,
+   "zoom": 1,
+   "customTitle": null,
+   "customIcon": null,
+   "pinnedUrl": null,
+   "openerId": null,
+   "page": {
+    "kind": "idle"
+   },
+   "createdAt": 1790812800000,
+   "lastActiveAt": 1793992850181
+  },
+  {
+   "id": "tab-mw5d0u9b6m3u-a",
+   "windowId": "w-mw5d0u9b6m3u-1",
+   "profileId": "default",
+   "url": "https://jira.example/",
+   "title": "",
+   "favicon": null,
+   "pin": {
+    "as": "tile"
+   },
+   "muted": false,
+   "zoom": 1,
+   "customTitle": null,
+   "customIcon": null,
+   "pinnedUrl": "https://jira.example/",
+   "openerId": null,
+   "page": {
+    "kind": "asleep"
+   },
+   "createdAt": 1793992850182,
+   "lastActiveAt": 1793992850182,
+   "pinKey": "tab-mw5d0u9b6m3u-8"
+  },
+  {
+   "id": "tab-mw5d0u9b6m3u-b",
+   "windowId": "w-mw5d0u9b6m3u-1",
+   "profileId": "p-mw5d0u9b6m3u-5",
+   "url": "https://news.example/",
+   "title": "",
+   "favicon": null,
+   "pin": {
+    "as": "tile"
+   },
+   "muted": false,
+   "zoom": 1,
+   "customTitle": null,
+   "customIcon": null,
+   "pinnedUrl": "https://news.example/",
+   "openerId": null,
+   "page": {
+    "kind": "asleep"
+   },
+   "createdAt": 1793992850182,
+   "lastActiveAt": 1793992850182,
+   "pinKey": "tab-mw5d0u9b6m3u-3"
+  }
+ ],
+ "groups": [],
+ "splits": [],
+ "closedTabs": [],
+ "closedWindows": [],
+ "parkedPins": {},
+ "pinChoices": {
+  "default": {
+   "tab-mw5d0u9b6m3u-2": "0mw5d0uf6.0000.",
+   "place:tab-mw5d0u9b6m3u-2": "0mw5d0uf6.0001.",
+   "tab-mw5d0u9b6m3u-3": "0mw5d0uf6.0002.",
+   "place:tab-mw5d0u9b6m3u-3": "0mw5d0uf6.0003."
+  },
+  "p-mw5d0u9b6m3u-5": {
+   "tab-mw5d0u9b6m3u-8": "0mw5d0uf7.0002.",
+   "place:tab-mw5d0u9b6m3u-8": "0mw5d0uf7.0003."
+  }
+ },
+ "pinSync": {},
+ "topAppsMerged": "default,p-mw5d0u9b6m3u-5",
+ "closedGroups": [],
+ "deletedGroups": [],
+ "cleanedTabs": [],
+ "version": 9
+}

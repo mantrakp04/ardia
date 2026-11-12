@@ -63,6 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)revealTab:(NSString *)transferKey;
 + (void)dropTabReveals:(NSString *)transferKey;
 + (void)revealOffered:(NSString *)adoptId over:(NSString *)transferKey;
++ (BOOL)discardOffered:(NSString *)adoptId;
 @end
 
 @interface ArdiaWebView (Focus)
@@ -84,6 +85,17 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)setCommandScrollZoomEnabled:(BOOL)enabled NS_SWIFT_NAME(setCommandScrollZoomEnabled(_:));
 + (NSArray<NSNumber *> *)devScrollZoom:(NSArray<NSDictionary<NSString *, id> *> *)steps
                                browser:(int)browserId NS_SWIFT_NAME(devScrollZoom(_:browserId:));
+@end
+
+@interface ArdiaWebView (Recording)
+- (void)copyRecordingPicture:(void (^)(CGImageRef _Nullable picture))completion NS_SWIFT_NAME(copyRecordingPicture(_:));
+@property (nonatomic, readonly) BOOL recordingShowsPage;
++ (NSArray<NSWindow *> *)recordingPictureInPictureWindowsOfWindow:(NSWindow *)window NS_SWIFT_NAME(recordingPictureInPictureWindows(of:));
++ (BOOL)recordingWindowIsPrivate:(NSWindow *)window NS_SWIFT_NAME(recordingWindowIsPrivate(_:));
++ (CGFloat)recordingCornerRadiusOfWindow:(NSWindow *)window NS_SWIFT_NAME(recordingCornerRadius(of:));
++ (nullable NSView *)recordingControlsOfWindow:(NSWindow *)window NS_SWIFT_NAME(recordingControls(of:));
++ (void)copyRecordingPictureOfWindow:(NSWindow *)window
+                          completion:(void (^)(CGImageRef _Nullable picture))completion NS_SWIFT_NAME(copyRecordingPicture(of:_:));
 @end
 
 @interface ArdiaWebView (PageMessages)

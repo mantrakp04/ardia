@@ -21,6 +21,7 @@
 #include "components/blocked_content/popup_blocker_tab_helper.h"
 #include "components/blocked_content/url_list_manager.h"
 #include "base/auto_reset.h"
+#include "base/callback_list.h"
 #include "base/time/time.h"
 #include "components/zoom/zoom_observer.h"
 #include "components/web_modal/web_contents_modal_dialog_host.h"
@@ -84,6 +85,9 @@ class WindowHost : public TabStripModelObserver,
   static WindowHost* ForContents(content::WebContents* contents);
 
   Browser* BrowserFor(Profile* profile);
+  bool AdmitsTabsFor(Profile* profile) const;
+  static bool LetsTabsGo(BrowserWindowInterface* browser,
+                         content::WebContents* contents);
   Browser* ExistingBrowserFor(Profile* profile) const;
   std::vector<Browser*> browsers() const;
   void SetActiveProfile(Profile* profile);
@@ -103,6 +107,7 @@ class WindowHost : public TabStripModelObserver,
 
   void ConfirmCloseWithDownloads(int count, base::OnceCallback<void(bool)> callback);
   void NotifyCloseCancelled();
+  void NotifyCanTakeTabs();
   void QuitCancelled();
 
   [[nodiscard]] base::AutoReset<OpenOrigin> ScopedPendingOpen(OpenOrigin origin) {
@@ -154,6 +159,7 @@ class WindowHost : public TabStripModelObserver,
   std::unique_ptr<views::Widget> widget_;
   NSView* __strong host_view_;
   std::map<Profile*, raw_ptr<Browser>> browsers_;
+  std::map<const Browser*, base::CallbackListSubscription> close_cancelled_;
   raw_ptr<Profile> active_profile_ = nullptr;
   CloseState close_state_ = CloseState::kOpen;
   raw_ptr<Browser> asking_ = nullptr;
@@ -283,6 +289,7 @@ class TabBridge : public content::WebContentsObserver,
   void EnsureFindObserved();
   void EnsureZoomObserved();
   void EnsurePopupsObserved();
+  void EnsureAudibleObserved();
   [[nodiscard]] base::AutoReset<bool> HostFocuses() {
     return base::AutoReset<bool>(&host_focusing_, true);
   }
@@ -317,6 +324,8 @@ class TabBridge : public content::WebContentsObserver,
   bool temporary() const { return temporary_id_ != 0; }
   void set_made_ahead() { made_ahead_ = true; }
   bool made_ahead() const { return made_ahead_; }
+  int document_commits() const { return document_commits_; }
+  int document_http_status() const { return document_http_status_; }
   void ReportWillClose();
   const GURL& favicon_url() const { return favicon_url_; }
 
@@ -366,6 +375,8 @@ class TabBridge : public content::WebContentsObserver,
   friend class content::WebContentsUserData<TabBridge>;
   explicit TabBridge(content::WebContents* contents);
 
+  void OnRecentlyAudibleChanged(bool was_recently_audible);
+
   ArdiaCoreTab* __strong tab_;
   GURL favicon_url_;
   NSDictionary* __strong security_;
@@ -383,6 +394,8 @@ class TabBridge : public content::WebContentsObserver,
   int32_t temporary_id_ = 0;
   int32_t temporary_source_id_ = 0;
   bool made_ahead_ = false;
+  int document_commits_ = 0;
+  int document_http_status_ = 0;
   void NoteBlocked(const GURL& url);
   void ReportBlocked();
   void NoteBlockedByClient(const GURL& blocked_url, const GURL& url);
@@ -394,6 +407,7 @@ class TabBridge : public content::WebContentsObserver,
   NSDictionary* __strong popup_features_ = nil;
   bool observing_favicon_ = false;
   raw_ptr<find_in_page::FindTabHelper> find_helper_ = nullptr;
+  base::CallbackListSubscription audible_subscription_;
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
 

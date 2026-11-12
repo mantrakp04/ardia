@@ -7,11 +7,12 @@ import { activeTabId, inPinnedContainer, isIncognitoProfile, pinnedSectionTitle,
 import { awayFromPin, selectedTabIds } from "../pins/organize";
 import { groupOf } from "../pins/tabGrouping";
 import { splitOf, splitRowPanes } from "../splits/splits";
-import { openSplitPane } from "../splits/actions";
+import { closeSplitView, openSplitPane } from "../splits/actions";
 import type { Tab } from "../browser/types";
 import { bookmarkTabs, copyUrls, editPinnedPage, newGroupWithSelection, openIconPicker, startRename } from "./actions";
 import { isCalendarUrl } from "../live/meetings";
 import { bookmarkTab } from "../bookmarks/actions";
+import { bookmarksShown } from "../bookmarks/visibility";
 import { calendarMenuItem, dismissNowMenuItems, runCalendarMenu } from "./liveMenus";
 import { newFolderWithTab, removeFromFolder } from "./tileFolderUi";
 import { togglePageEngine } from "../engines/actions";
@@ -19,6 +20,9 @@ import { canSwitchEngine, ENGINE_NAMES, otherEngine, tabEngine } from "../engine
 import { bookmarkFolderItems, groupItems, hintWhen, profileItems, sections, windowItems, withAlternate, type Destination } from "./menuParts";
 import { openMultiMenu } from "./multiTabMenu";
 import { tileFolderOf } from "../pins/tileFolders";
+import { sendTabFromMenu, sendTabMenuItem } from "../sync/menu";
+import { pageUnread } from "../tabs/unread";
+import { ALL_UNREAD_TITLE, canChooseSiteUnread, isUnreadSiteHidden, showUnreadCounts, toggleSiteUnread, unreadSiteTitle } from "../tabs/unreadSites";
 
 const store = () => useBrowser.getState();
 
@@ -123,10 +127,19 @@ function muteItems(s: BrowserState, tab: Tab): MenuItem[] {
   return withAlternate(mute, { id: "muteSite", title: siteMuteTitle(state), symbol: muteSymbol(null) }, null);
 }
 
+function unreadItems(s: BrowserState, tab: Tab): MenuItem[] {
+  if (!canChooseSiteUnread(tab)) return [];
+  if (!s.settings.showUnreadCounts) return pageUnread(tab.id) ? [{ id: "allUnread", title: ALL_UNREAD_TITLE, symbol: "app.badge" }] : [];
+  const hidden = isUnreadSiteHidden(s.settings, tab.url);
+  if (!hidden && !pageUnread(tab.id)) return [];
+  return [{ id: "siteUnread", title: unreadSiteTitle(hidden), symbol: "app.badge" }];
+}
+
 function closeItems(f: Facts): MenuItem[] {
   if (f.housed) return [];
   return [
     { id: "close", title: "Close", symbol: "xmark", ...hintWhen(f.active, "closeTab") },
+    ...(f.split ? [{ id: "closeSplit", title: "Close Split View" }] : []),
     { id: "closeOthers", title: "Close Other Tabs", enabled: f.others.length > 0 },
     ...withAlternate(
       { id: "closeBelow", title: f.across ? "Close Tabs to the Right" : "Close Tabs Below", enabled: f.below.length > 0 },
@@ -136,28 +149,39 @@ function closeItems(f: Facts): MenuItem[] {
   ];
 }
 
+function sendItems(tab: Tab, f: Facts): MenuItem[] {
+  const send = f.incognito ? null : sendTabMenuItem(tab);
+  return send ? [send] : [];
+}
+
 export function tabMenuItems(s: BrowserState, windowId: string, tab: Tab, f: Facts = tabMenuFacts(s, windowId, tab)): TabMenuItem[] {
   return sections<TabMenuItem>(
     pinItems(s, tab, f),
     openItems(s, tab, f),
     calendarItems(tab),
     organiseItems(s, windowId, tab, f),
+    bookmarksShown(s.settings)
+      ? [
+          { id: "bookmark", title: "Add to Bookmarks…", symbol: "bookmark", enabled: !!tab.url, ...hintWhen(f.active, "bookmarkPage", s) },
+          { id: "bookmarkTo", title: "Add Bookmark to Folder", enabled: !!tab.url, children: bookmarkFolderItems(s, windowId) },
+        ]
+      : [],
     [
-      { id: "bookmark", title: "Add to Bookmarks…", symbol: "bookmark", enabled: !!tab.url, ...hintWhen(f.active, "bookmarkPage", s) },
-      { id: "bookmarkTo", title: "Add Bookmark to Folder", enabled: !!tab.url, children: bookmarkFolderItems(s, windowId) },
+      ...withAlternate(
+        { id: "copy", title: "Copy Link", symbol: "link", enabled: !!tab.url },
+        { id: "copyMd", title: "Copy Link as Markdown", symbol: "link", enabled: !!tab.url },
+        f.active ? ["copyUrl", "copyUrlAsMarkdown"] : null,
+        s,
+      ),
+      ...sendItems(tab, f),
     ],
-    withAlternate(
-      { id: "copy", title: "Copy Link", symbol: "link", enabled: !!tab.url },
-      { id: "copyMd", title: "Copy Link as Markdown", symbol: "link", enabled: !!tab.url },
-      f.active ? ["copyUrl", "copyUrlAsMarkdown"] : null,
-      s,
-    ),
     [
       { id: "rename", title: "Rename…", symbol: "pencil" },
       ...(tab.customTitle ? [{ id: "resetName", title: "Reset Name" }] : []),
       { id: "icon", title: "Change Icon…", symbol: "photo" },
       ...(tab.customIcon ? [{ id: "resetIcon", title: "Reset Icon" }] : []),
       ...muteItems(s, tab),
+      ...unreadItems(s, tab),
     ],
     closeItems(f),
   );
@@ -193,7 +217,7 @@ function runTabChoice(windowId: string, tab: Tab, f: Facts, choice: string | Des
   if (typeof choice !== "string") return sendTab(windowId, tab.id, choice);
   const s = store();
   const t = { kind: "tab" as const, id: tab.id };
-  if (runCalendarMenu(choice)) return;
+  if (runCalendarMenu(choice) || sendTabFromMenu(choice, tab)) return;
   if (choice === "backToPin") s.returnToPinnedUrl(tab.id);
   else if (choice === "replacePin") s.setPinnedUrl(tab.id);
   else if (choice === "editPin") void editPinnedPage(windowId, tab.id);
@@ -215,11 +239,14 @@ function runTabChoice(windowId: string, tab: Tab, f: Facts, choice: string | Des
   else if (choice === "unsplit") s.removeTabFromSplit(tab.id);
   else if (choice === "mute") toggleMute(tab.id);
   else if (choice === "muteSite") toggleSiteMute(tab.id);
+  else if (choice === "siteUnread") toggleSiteUnread(tab.id);
+  else if (choice === "allUnread") showUnreadCounts(true);
   else if (choice === "engine") void togglePageEngine(tab.id);
   else if (choice === "copy") copyUrls([tab.id], false);
   else if (choice === "copyMd") copyUrls([tab.id], true);
   else if (choice === "bookmark") bookmarkTab(windowId, tab.id);
   else if (choice === "close") void closeTab(tab.id);
+  else if (choice === "closeSplit" && f.split) closeSplitView(f.split.id);
   else if (choice === "closeOthers") s.closeTabs(f.others);
   else if (choice === "closeAbove") s.closeTabs(f.above);
   else if (choice === "closeBelow") s.closeTabs(f.below);

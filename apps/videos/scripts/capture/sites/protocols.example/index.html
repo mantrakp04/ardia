@@ -1,0 +1,118 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>PCR Protocol v3</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--co:#3046c5;--co2:#eef0fd;--ink:#141a2e;--soft:#4c5470;--mute:#8e95ab;--line:#e3e6ef;--mint:#0f9d76;--bg:#f7f8fb}
+body{font-family:-apple-system,"SF Pro Text",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:13.5px}
+header{background:#fff;border-bottom:1px solid var(--line)}
+header .in{max-width:1220px;margin:0 auto;padding:0 26px;height:54px;display:flex;align-items:center;gap:12px;white-space:nowrap}
+.lg{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;letter-spacing:-.01em}
+.lg i{width:28px;height:28px;border-radius:8px;background:var(--co);display:grid;place-items:center}
+.crumb{margin-left:18px;color:var(--mute);font-size:13px}.crumb b{color:var(--ink);font-weight:600}
+header .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{height:32px;padding:0 13px;border-radius:8px;border:1px solid var(--line);background:#fff;font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
+.btn.p{background:var(--co);border-color:var(--co);color:#fff}
+.av{width:30px;height:30px;border-radius:50%;background:#e8d5ff;color:#6b21a8;font-weight:700;font-size:11px;display:grid;place-items:center}
+.wrap{max-width:1220px;margin:0 auto;padding:18px 26px 40px}
+.head{display:grid;grid-template-columns:200px 1fr;gap:20px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:16px}
+.head .ph{height:132px;border-radius:10px;overflow:hidden}
+.head .ph img{width:100%;height:100%;object-fit:cover}
+.vrow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mute);margin-bottom:6px}
+.vsel{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;font-weight:600}
+.vsel span{padding:3px 9px;color:var(--soft)}.vsel span+span{border-left:1px solid var(--line)}
+.vsel .on{background:var(--co);color:#fff}
+.ok{color:var(--mint);font-weight:600}
+h1{font-size:22px;letter-spacing:-.02em;line-height:1.2}
+.head p{color:var(--soft);margin-top:5px;line-height:1.45;max-width:720px}
+.stats{display:flex;gap:22px;margin-top:10px;font-size:12.5px;color:var(--mute);white-space:nowrap}
+.stats b{color:var(--ink);font-size:14px;margin-right:3px}
+.cols{display:grid;grid-template-columns:1fr 300px;gap:16px}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;display:grid;grid-template-columns:44px 1fr;padding:12px 14px 12px 0}
+.step .num{display:flex;justify-content:center;padding-top:1px}
+.step .num i{width:24px;height:24px;border-radius:50%;background:var(--co2);color:var(--co);font-style:normal;font-weight:700;font-size:12px;display:grid;place-items:center}
+.step.done .num i{background:var(--mint);color:#fff}
+.step.cur{border-color:#b9c2f3;box-shadow:0 0 0 3px #eef0fd}
+.step.cur .num i{background:var(--co);color:#fff}
+.step h3{font-size:14px;display:flex;align-items:center;gap:8px}
+.step h3 .t{margin-left:auto;font-size:12px;font-weight:600;color:var(--soft);background:#f2f4f8;border-radius:12px;padding:3px 9px;display:flex;gap:5px;align-items:center;white-space:nowrap}
+.step h3 .t.run{background:#e7f7f1;color:var(--mint)}
+.step p{color:var(--soft);margin-top:4px;line-height:1.5}
+.step.done h3{color:var(--soft)}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px}
+th{text-align:left;font-size:11.5px;color:var(--mute);font-weight:600;padding:6px 10px;background:#f7f8fb;border-bottom:1px solid var(--line)}
+td{padding:6px 10px;border-bottom:1px solid #f0f2f6;font-variant-numeric:tabular-nums}
+td.n,th.n{text-align:right}
+tr.tot td{font-weight:700;border-bottom:0;background:#fafbfd}
+td code{font:12px ui-monospace,Menlo,monospace;color:var(--co)}
+.calc{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--soft)}
+.calc .in2{height:26px;padding:0 8px;border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;font-weight:600;color:var(--ink)}
+.cyc{margin-top:10px;background:#fafbfd;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.cyc svg{display:block;width:100%;height:auto}
+.side .box{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:14px}
+.side h4{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin-bottom:8px;font-weight:600}
+.ck{display:flex;align-items:center;gap:9px;padding:5px 0;font-size:13px}
+.ck i{width:16px;height:16px;border-radius:4px;border:1.5px solid #c9cfdd;flex:none}
+.ck i.y{background:var(--mint);border-color:var(--mint)}
+.ck.y{color:var(--mute)}
+.ck span{margin-left:auto;color:var(--mute);font-size:12px;text-decoration:none}
+.warnb{background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px 14px;font-size:12.5px;color:#9a3412;line-height:1.5}
+.warnb b{display:block;margin-bottom:2px}
+.cm{display:flex;gap:9px;font-size:12.5px;line-height:1.45;color:var(--soft)}
+.cm i{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;font-style:normal;font-weight:700;font-size:10px;color:#fff}
+.cm b{color:var(--ink)}
+@media (max-width:1100px){.cols{grid-template-columns:1fr 260px}.head{grid-template-columns:160px 1fr}}
+</style></head><body>
+<header><div class="in"><div class="lg"><i><svg width="14" height="16" viewBox="0 0 14 16" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 1.5h5M5.5 1.5v5L1.8 13a1.2 1.2 0 0 0 1 1.8h8.4a1.2 1.2 0 0 0 1-1.8L8.5 6.5v-5"/><path d="M3.5 10.5h7"/></svg></i>Benchnote</div>
+<div class="crumb">Halden Lab › Protocols › Molecular › <b>PCR Protocol v3</b></div>
+<div class="r"><div class="btn">Fork</div><div class="btn">Export PDF</div><div class="btn p"><svg width="10" height="12" viewBox="0 0 10 12"><path d="M1 1l8 5-8 5z" fill="#fff"/></svg>Run protocol</div><div class="av">PV</div></div></div></header>
+<div class="wrap">
+<section class="head"><div class="ph"><img src="img/0.jpg" alt=""></div>
+<div><div class="vrow"><div class="vsel"><span class="on">v3 · current</span><span>v2</span><span>v1</span></div><span class="ok">● Verified by 3 lab members</span><span>Updated Oct 30, 2026 by Priya Ventresca</span></div>
+<h1>PCR Protocol v3 · ITS amplification from ectomycorrhizal root tips</h1>
+<p>Amplifies the fungal ITS region from single root tips for Sanger or amplicon sequencing. v3 adds a 10% overage to the master mix and drops the annealing step to 55 °C after the October failures.</p>
+<div class="stats"><span><b>9</b>steps</span><span><b>3 h 20 m</b>hands-on 45 m</span><span><b>24</b>reactions</span><span><b>4</b>forks</span><span><b>212</b>runs</span></div></div></section>
+<div class="cols">
+<main>
+<div class="step done"><div class="num"><i>✓</i></div><div><h3>Clean the bench and thaw reagents on ice<span class="t">10 min</span></h3></div></div>
+<div class="step done"><div class="num"><i>✓</i></div><div><h3>Grind one root tip per tube in 20 µL dilution buffer<span class="t">15 min</span></h3></div></div>
+<div class="step cur"><div class="num"><i>3</i></div><div><h3>Prepare the master mix<span class="t run">⏱ 04:12 running</span></h3><p>Mix on ice in the order listed. Vortex briefly, spin down, then keep on ice until loading.</p>
+<table><thead><tr><th>Reagent</th><th class="n">Stock</th><th class="n">Final</th><th class="n">1 rxn (µL)</th><th class="n">× 26.4 (µL)</th></tr></thead><tbody>
+<tr><td>Nuclease-free water</td><td class="n">—</td><td class="n">—</td><td class="n">13.9</td><td class="n">366.96</td></tr>
+<tr><td>PCR buffer with MgCl₂</td><td class="n">10×</td><td class="n">1×</td><td class="n">2.5</td><td class="n">66.00</td></tr>
+<tr><td>dNTP mix</td><td class="n">10 mM</td><td class="n">0.2 mM</td><td class="n">0.5</td><td class="n">13.20</td></tr>
+<tr><td>Forward primer <code>ITS1F</code></td><td class="n">10 µM</td><td class="n">0.5 µM</td><td class="n">1.25</td><td class="n">33.00</td></tr>
+<tr><td>Reverse primer <code>ITS4</code></td><td class="n">10 µM</td><td class="n">0.5 µM</td><td class="n">1.25</td><td class="n">33.00</td></tr>
+<tr><td>Hot-start polymerase</td><td class="n">5 U/µL</td><td class="n">0.03 U/µL</td><td class="n">0.15</td><td class="n">3.96</td></tr>
+<tr><td>Template DNA (add last, per tube)</td><td class="n">—</td><td class="n">—</td><td class="n">1.0</td><td class="n">—</td></tr>
+<tr class="tot"><td>Total per reaction</td><td></td><td></td><td class="n">19.55 + 1.0</td><td class="n">516.12</td></tr>
+</tbody></table>
+<div class="calc">Reactions<span class="in2">24</span>+ overage<span class="in2">10%</span>= 26.4 × master mix</div></div></div>
+<div class="step"><div class="num"><i>4</i></div><div><h3>Run the thermocycler program “ITS-55”<span class="t">1 h 52 m</span></h3>
+<div class="cyc"><svg viewBox="0 0 640 112" font-family="-apple-system,sans-serif" font-size="10">
+<g stroke="#e3e6ef"><path d="M30 14H630M30 46H630M30 78H630"/></g>
+<g fill="#8e95ab" text-anchor="end"><text x="24" y="17">95°</text><text x="24" y="49">72°</text><text x="24" y="81">55°</text></g>
+<path d="M30 100 L50 14 H130 L140 14 L150 14 H214 L224 78 H286 L296 46 H366 L376 14 M370 14" fill="none" stroke="#3046c5" stroke-width="2.4" stroke-linejoin="round"/>
+<path d="M376 14 L386 78 H440 L450 46 H516 L526 46 H600 L612 100 H630" fill="none" stroke="#3046c5" stroke-width="2.4" stroke-linejoin="round" stroke-dasharray="0"/>
+<rect x="150" y="4" width="226" height="102" rx="8" fill="#3046c5" fill-opacity=".06" stroke="#3046c5" stroke-opacity=".35" stroke-dasharray="4 3"/>
+<text x="263" y="104" text-anchor="middle" fill="#3046c5" font-weight="700">× 35 cycles</text>
+<g fill="#141a2e" font-weight="600"><text x="90" y="30" text-anchor="middle">95° · 3 min</text><text x="182" y="30" text-anchor="middle">95° · 30 s</text><text x="255" y="72" text-anchor="middle">55° · 30 s</text><text x="331" y="40" text-anchor="middle">72° · 1 min</text><text x="560" y="40" text-anchor="middle">72° · 7 min</text><text x="618" y="94" text-anchor="end">4° hold</text></g>
+</svg></div></div></div>
+<div class="step"><div class="num"><i>5</i></div><div><h3>Check 5 µL on a 1.5% agarose gel<span class="t">40 min</span></h3></div></div>
+</main>
+<aside class="side">
+<div class="box"><h4>Materials · 6 of 9 ready</h4>
+<div class="ck y"><i class="y"></i>Root tips, stored at −20 °C<span>Box F-12</span></div>
+<div class="ck y"><i class="y"></i>PCR strip tubes, 0.2 mL<span>×4 strips</span></div>
+<div class="ck y"><i class="y"></i>ITS1F / ITS4 primers<span>Freezer B</span></div>
+<div class="ck y"><i class="y"></i>dNTP mix, 10 mM</div>
+<div class="ck y"><i class="y"></i>Hot-start polymerase</div>
+<div class="ck y"><i class="y"></i>PCR buffer 10×</div>
+<div class="ck"><i></i>Agarose, 1.5 g<span>Shelf 3</span></div>
+<div class="ck"><i></i>DNA ladder, 100 bp</div>
+<div class="ck"><i></i>Gel stain</div></div>
+<div class="warnb"><b>Before you start</b>Work in the pre-PCR hood only. Never bring amplified product into it. See Lab Wiki › Safety › Molecular.</div>
+<div class="box" style="margin-top:14px"><h4>Comments · 7</h4><div class="cm"><i style="background:#0f9d76">OL</i><div><b>Oskar L.</b> 55 °C annealing fixed the faint bands on the beech tips. Keep it. <span style="color:var(--mute)">· 2d</span></div></div></div>
+</aside>
+</div></div>
+</body></html>

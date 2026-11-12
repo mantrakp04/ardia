@@ -6,6 +6,10 @@ const current = (): LaunchConfig => (config ??= nativeModule("ArdiaApp").launchC
 
 export const configDirectory = (): string => current().configDirectory;
 
+export const isTestInstance = (): boolean => current().testInstance;
+
+export const feedbackURLOverride = (): string | null => current().feedbackURL ?? null;
+
 export const switchOverride = (name: string): boolean | undefined => current().switches[name];
 
 const testValue = (key: string): string | null => current().test[key] ?? null;

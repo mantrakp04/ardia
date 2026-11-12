@@ -8,5 +8,7 @@ app="$here/../../apps/dashboard"
 rsync -a --delete --exclude node_modules --exclude dist --exclude .output --exclude .tanstack --exclude src/routeTree.gen.ts "$app/" "$here/app/"
 mkdir -p "$here/site/src/data"
 cp "$here/../../apps/site/src/data/telemetry.ts" "$here/site/src/data/telemetry.ts"
+mkdir -p "$here/core"
+cp "$here/../../packages/core/src/anonymousIdentity.ts" "$here/core/anonymousIdentity.ts"
 cd "$here"
 hexclave_deploy

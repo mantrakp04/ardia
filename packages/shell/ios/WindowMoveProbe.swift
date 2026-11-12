@@ -46,6 +46,20 @@ enum WindowMoveProbe {
     RunLoop.main.add(timer, forMode: .common)
   }
 
+  static func replayAfterMove(_ window: NSWindow, _ rect: NSRect, keepTrace: Bool = false) -> [String: Any] {
+    typealias AfterMove = @convention(c) (NSWindow, Selector, NSRect) -> Void
+    let selector = NSSelectorFromString("_setFrameAfterMove:")
+    guard let method = class_getInstanceMethod(type(of: window), selector) else { return ["error": "no _setFrameAfterMove:"] }
+    let before = window.frame
+    if !keepTrace { WindowMove.afterMoveTrace = [] }
+    unsafeBitCast(method_getImplementation(method), to: AfterMove.self)(window, selector, rect)
+    let after = window.frame
+    return [
+      "before": [before.minX, before.minY, before.width, before.height], "after": [after.minX, after.minY, after.width, after.height],
+      "afterMoves": WindowMove.afterMoveTrace,
+    ]
+  }
+
   private static func installButtons() -> (() -> Void)? {
     let selector = #selector(getter: NSEvent.pressedMouseButtons)
     guard let method = class_getClassMethod(NSEvent.self, selector) else { return nil }
@@ -64,7 +78,7 @@ enum WindowMoveProbe {
 
   static func drag(
     _ window: NSWindow, x: CGFloat, top: CGFloat, count: Int, dx: CGFloat, dy: CGFloat, interval: TimeInterval,
-    done: @escaping ([String: Any]) -> Void
+    settle: TimeInterval = 0.2, keep: Bool = false, replayStale: Bool = false, done: @escaping ([String: Any]) -> Void
   ) {
     guard let frameView = window.contentView?.superview, let restoreButtons = installButtons() else { return done(["error": "no frame view"]) }
     let origin = window.frame.origin
@@ -73,6 +87,9 @@ enum WindowMoveProbe {
     let hit = frameView.hitTest(local).map { String(describing: type(of: $0)) } ?? "nil"
     let serverOwns = ServerWindowDrag.serverOwnsPress(window, at: local)
     var origins: [[Double]] = []
+    WindowMove.afterMoveTrace = []
+    let began = CACurrentMediaTime()
+    var releasedAt = 0.0
     var backSteps = 0
     var step = 0
     buttonsDown = true
@@ -88,13 +105,30 @@ enum WindowMoveProbe {
       timer.invalidate()
       buttonsDown = false
       if let up = mouse(.leftMouseUp, window, screen: at) { NSApp.postEvent(up, atStart: false) }
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      if replayStale, origins.count > 20 {
+        let stale = NSRect(origin: NSPoint(x: origins[origins.count - 20][0], y: origins[origins.count - 20][1]), size: window.frame.size)
+        RunLoop.main.perform(inModes: [.default]) {
+          _ = replayAfterMove(window, stale, keepTrace: true)
+          _ = replayAfterMove(window, window.frame, keepTrace: true)
+        }
+      }
+      let released = window.frame.origin
+      releasedAt = CACurrentMediaTime() - began
+      var after: [[Double]] = []
+      let sampler = Timer(timeInterval: 1.0 / 60, repeats: true) { _ in after.append([window.frame.minX, window.frame.minY]) }
+      RunLoop.main.add(sampler, forMode: .common)
+      DispatchQueue.main.asyncAfter(deadline: .now() + settle) {
+        sampler.invalidate()
         restoreButtons()
         let end = window.frame.origin
-        window.setFrameOrigin(origin)
+        let screen = window.screen.map { NSStringFromRect($0.frame) } ?? "nil"
+        if !keep { window.setFrameOrigin(origin) }
         done([
           "hit": hit, "serverOwnsPress": serverOwns, "moved": [end.x - origin.x, end.y - origin.y],
           "pointerTravel": [dx * CGFloat(count), dy * CGFloat(count)], "backSteps": backSteps, "samples": origins.count,
+          "start": [origin.x, origin.y], "released": [released.x, released.y], "end": [end.x, end.y], "screen": screen,
+          "afterRelease": after, "path": origins, "releasedAt": releasedAt,
+          "afterMoves": WindowMove.afterMoveTrace.map { entry in entry.merging(["t": ((entry["t"] as? Double) ?? 0) - began]) { $1 } },
         ])
       }
     }

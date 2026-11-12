@@ -67,6 +67,12 @@ NSString *OriginOf(NSString *extensionId) { return [NSString stringWithFormat:@"
 
 namespace ardia_content_blocker {
 
+bool IsHiddenPageWindow(NSWindow *window) {
+  for (ArdiaCoreWindow *pageWindow in PageWindows().allValues)
+    if (window && pageWindow.window == window) return true;
+  return false;
+}
+
 ArdiaContentBlockerPage *HiddenPage(NSString *key, NSString *profile, ArdiaCoreProfile *p, NSString *extensionId, NSString *file) {
   ArdiaContentBlockerPage *page = Pages()[key];
   if (page.tab.closed) [page fail:@"closed"];
@@ -93,6 +99,8 @@ constexpr int kAttempts = 40;
 constexpr double kRetryMs = 250;
 
 constexpr double kOpSeconds = 20;
+
+constexpr long long kReloadWaitMs = 4000;
 
 NSString *const kPrelude =
     @"let failing = %@;"
@@ -149,13 +157,20 @@ NSString *const kPrelude =
      "  : new Promise((resolve, reject) => chrome.storage.local[name](arg, (v) =>"
      "    chrome.runtime.lastError ? reject(new Error(chrome.runtime.lastError.message)) : resolve(v || {})));"
      "const local = {get: (k) => storageCall('get', k), set: (v) => storageCall('set', v), remove: (k) => storageCall('remove', k)};"
-     "const reloadLists = () => send({what: 'reloadAllFilters'}).then(() => local.remove('ardiaReloadPending'));"
-     "const applyLists = (toSelect) => local.set({ardiaReloadPending: true})"
-     "  .then(() => send({what: 'applyFilterListSelection', toSelect})).then(reloadLists);"
-     "const settlePending = () => local.get('ardiaReloadPending').then((b) => b.ardiaReloadPending ? reloadLists() : null);"
+     "const pendingReload = () => local.get('ardiaReloadPending').then((b) => b.ardiaReloadPending);"
+     "const reloadLists = () => pendingReload().then((asked) => send({what: 'reloadAllFilters'})"
+     "  .then(pendingReload)"
+     "  .then((now) => now === asked ? local.remove('ardiaReloadPending') : reloadLists()));"
+     "const reloadWait = () => new Promise((resolve) => setTimeout(resolve, Math.min(%@, Math.max(0, left() - 1000))));"
+     "const askReload = () => local.set({ardiaReloadPending: `${Date.now()}-${Math.random()}`});"
+     "const applyLists = (toSelect) => askReload()"
+     "  .then(() => send({what: 'applyFilterListSelection', toSelect}))"
+     "  .then(askReload)"
+     "  .then(() => Promise.race([reloadLists(), reloadWait()]));"
+     "const resumePendingReload = () => { pendingReload().then((asked) => asked ? reloadLists() : null).catch(() => {}); };"
      "Promise.resolve().then(() => { if (location.origin !== extensionOrigin) throw new Error(`not the extension page: ${location.href}`); })"
      ".then(() => withDeadline(ready(), 'uBlock Origin'))"
-     ".then(() => withDeadline(settlePending().then(() => (%@)), 'the call'))"
+     ".then(() => { resumePendingReload(); return withDeadline(Promise.resolve().then(() => (%@)), 'the call'); })"
      ".then((v) => post('result', JSON.stringify({value: v === undefined ? null : v})),"
      "(e) => post('result', JSON.stringify({error: String(e && e.message || e)})))";
 
@@ -219,7 +234,7 @@ void Attempt(ArdiaContentBlockerOp *op) {
   if (!page) return Finish(op, nil, @"not loaded");
   const double leftMs = MAX(0, (op.deadline - NSDate.timeIntervalSinceReferenceDate) * 1000);
   NSString *script = [NSString stringWithFormat:kPrelude, op.failNext ? @"true" : @"false", ScriptWith(@"%@", @[ kOffDirective ]),
-                                                ScriptWith(@"%@", @[ [@"chrome-extension://" stringByAppendingString:ExtensionId()] ]), @((long long)leftMs), op.expression];
+                                                ScriptWith(@"%@", @[ [@"chrome-extension://" stringByAppendingString:ExtensionId()] ]), @((long long)leftMs), @(kReloadWaitMs), op.expression];
   const NSUInteger attempt = ++op.attempt;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((leftMs + 2000) * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
     if (op.attempt == attempt && Queues()[profile].firstObject == op) [page fail:@"the call timed out"];

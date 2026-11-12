@@ -9,7 +9,7 @@ enum ConfigFolder {
   static var directory: String { LaunchConfig.shared.configDirectory }
 
   static func isWatchable(_ name: String) -> Bool {
-    name == "config.json" || isThemeFile(name)
+    name == "config.json" || name == "hooks.json" || isThemeFile(name)
   }
 
   private static func isThemeFile(_ name: String) -> Bool {
@@ -19,14 +19,20 @@ enum ConfigFolder {
   static func path(_ name: String) -> String { (directory as NSString).appendingPathComponent(name) }
 
   static func read(_ name: String) -> [String: Any] {
-    guard name == "config.json" || isThemeFile(name) else { return ["status": "unreadable"] }
-    return readRegularFile(path(name))
+    guard isWatchable(name) else { return ["status": "unreadable"] }
+    return readRegularFile(path(name), stamped: name == "hooks.json")
   }
 
-  static func readRegularFile(_ path: String) -> [String: Any] {
+  static func readRegularFile(_ path: String, stamped: Bool = false) -> [String: Any] {
     let fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
-    if fd < 0 { return ["status": errno == ENOENT || errno == ENOTDIR ? "missing" : "unreadable"] }
+    if fd < 0 {
+      let error = errno
+      var result: [String: Any] = ["status": error == ENOENT || error == ENOTDIR ? "missing" : "unreadable"]
+      if stamped && error == ENOENT { result["stamp"] = ArdiaHost.missingFileStamp }
+      return result
+    }
     defer { close(fd) }
+    let stamp = stamped ? ArdiaHost.fileStamp(ofDescriptor: fd) : nil
     var info = stat()
     guard fstat(fd, &info) == 0 else { return ["status": "unreadable"] }
     guard info.st_mode & S_IFMT == S_IFREG else { return ["status": "notFile"] }
@@ -44,7 +50,9 @@ enum ConfigFolder {
     }
     guard data.count <= readLimit else { return ["status": "tooBig"] }
     guard let text = String(data: data, encoding: .utf8) else { return ["status": "unreadable"] }
-    return ["status": "ok", "text": text]
+    var result: [String: Any] = ["status": "ok", "text": text]
+    if let stamp { result["stamp"] = stamp }
+    return result
   }
 
   static func folderExists() -> Bool {

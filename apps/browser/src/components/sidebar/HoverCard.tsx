@@ -9,25 +9,27 @@ import { returnToPinnedUrl } from "../../state/pins/actions";
 import { togglePin } from "../../state/tabs/actions";
 import { useHoverOrphaned, useIsShownTab } from "../../state/sidebar/hooks";
 import { useFolderPanel } from "../../state/sidebar/tileFolderUi";
-import { awayFromPin } from "../../state/pins/organize";
+import { awayTitle } from "../../state/pins/organize";
 import { openInSplit } from "../../state/splits/actions";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
 import { LiveItemCard } from "../live/LiveItemCard";
-import { useIsSleeping } from "../../state/tabs/tabLifecycle";
-import { FadeLabel, font, HoverCard as HoverPanel, space, Symbol, Text } from "../ui";
-import { lineHeight } from "../ui/tokens";
+import { HoverCard as HoverPanel, space, Text } from "../ui";
 import { ActionTile } from "../site/SiteControlsParts";
 import { SectionLabel } from "./SectionLabel";
 import { SidebarListRow, SidebarRowLabel } from "./SidebarRow";
 import { clickTab, toggleBookmarkInWindow } from "../../state/sidebar/actions";
+import { useBookmarksShown } from "../../state/bookmarks/hooks";
 import { GroupPanel } from "./GroupPanel";
 import { dismissHover, setHoverSpace } from "../../state/sidebar/hover";
 import { cardHoverProps } from "./hoverController";
 import { HoverCardFrameProvider, useHoverCardMotion, useHoverCardOrigin, useHoverCardPlacement } from "./hoverMotion";
-import { hoverCardAt } from "./hoverPlacement";
+import { hoverCardAt, sidebarEdgeOf } from "./hoverPlacement";
+import { usePeekSpan } from "../../state/windows/dockMotion";
+import { TabCardSummary } from "./TabCardSummary";
 import { useSidebarUi, type Anchor, type Hover } from "../../state/sidebar/sidebarUi";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { TabIcon } from "./TabIcon";
-import { HoverPlayer, usePlayerEdge, useShowsMiniPlayer } from "../media/HoverPlayer";
+import { HoverPlayer, useShowsMiniPlayer } from "../media/HoverPlayer";
 import { useMedia, usePictureInPicture } from "../../state/media/media";
 
 const WIDTH = 264;
@@ -44,9 +46,9 @@ export function HoverCard({ windowId, width, height }: { windowId: string; width
   const shown = drawn ?? target;
   const player = useShowsMiniPlayer(shown?.kind === "tab" ? shown.id : undefined);
   const side = useSidebarSide(windowId);
-  const frame = useMemo(() => ({ side, windowWidth: width }), [side, width]);
-  const edge = usePlayerEdge(windowId, shown?.anchor, frame);
-  useHoverCardPlacement(motion, shown ? hoverCardAt(shown.anchor, side, player ? edge : undefined) : null, { width, height });
+  const sidebarEdge = sidebarEdgeOf(side, width, useSidebarWidth(windowId), usePeekSpan(windowId));
+  const frame = useMemo(() => ({ side, windowWidth: width, sidebarEdge }), [side, width, sidebarEdge]);
+  useHoverCardPlacement(motion, shown ? hoverCardAt(shown.anchor, frame) : null, { width, height });
   if (!shown) return null;
   return (
     <HoverCardFrameProvider value={frame}>
@@ -76,34 +78,17 @@ function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode 
 }
 
 function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string; anchor: Anchor }) {
-  const theme = useTheme();
   const tab = useTab(tabId);
   const isActive = useIsShownTab(windowId, tabId);
   const bookmarked = useIsBookmarked(tab?.url ?? "");
+  const showBookmarks = useBookmarksShown();
   const video = useMedia((m) => !!m.sessions[tabId]?.hasVideo || !!m.pipOpen[tabId]);
   const [pip, togglePip] = usePictureInPicture(tabId);
-  const sleeping = useIsSleeping(tabId);
   if (!tab) return null;
-  const away = awayFromPin(tab);
+  const away = awayTitle(tab);
   return (
     <Card anchor={anchor}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
-        <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-        <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
-      </View>
-      {tab.url ? (
-        <Text lines={2} size="caption" tone="textSecondary" style={URL_LINE}>
-          {displayUrl(tab.url)}
-        </Text>
-      ) : null}
-      {sleeping ? (
-        <View accessible accessibilityLabel="Web content has been discarded" style={{ flexDirection: "row", alignItems: "center", gap: space.xs, marginTop: space.xs }}>
-          <Symbol name="moon.zzz" size={10} color={theme.textTertiary} style={{ width: 14, height: 14 }} />
-          <Text size="caption" tone="textTertiary">
-            This tab needs to reload
-          </Text>
-        </View>
-      ) : null}
+      <TabCardSummary tab={tab} />
       {away && tab.pinnedUrl ? (
         <Text lines={1} size="caption" tone="textTertiary" style={PINNED_LINE}>
           Pinned: {displayUrl(tab.pinnedUrl)}
@@ -111,10 +96,11 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
       ) : null}
       <View style={{ flexDirection: "row", gap: space.xs, marginTop: space.m }}>
         <ActionTile caption icon={tab.pin ? "pin.slash" : "pin"} label={tab.pin ? "Unpin" : "Pin"} onPress={() => togglePin(tabId)} />
-        {tab.url ? (
+        {tab.url && showBookmarks ? (
           <ActionTile caption
             icon={bookmarked ? "bookmark.fill" : "bookmark"}
-            label={bookmarked ? "Bookmarked" : "Bookmark"}
+            active={bookmarked}
+            label="Bookmark"
             onPress={() => toggleBookmarkInWindow(windowId, { url: tab.url, title: tabTitle(tab), favicon: tab.favicon })}
           />
         ) : null}
@@ -144,7 +130,6 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   );
 }
 
-const URL_LINE = { marginTop: space.xs, lineHeight: lineHeight.caption } as const;
 const PINNED_LINE = { marginTop: space.xxs } as const;
 const MORE_LINE = { marginTop: space.xs, marginLeft: space.xs } as const;
 

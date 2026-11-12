@@ -1,5 +1,5 @@
-import { forwardRef, useMemo, useRef, type ReactNode } from "react";
-import { Animated, PanResponder, Pressable, StyleSheet, View, type LayoutRectangle } from "react-native";
+import { forwardRef, memo, useMemo, useRef, type ReactNode } from "react";
+import { Animated, PanResponder, Pressable, StyleSheet, View } from "react-native";
 import { useBookmarkProfileId, useBookmarks, useSidebarEdge } from "../../state/bookmarks/hooks";
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import { barDragging, beginBookmarkDrag, endBookmarkDrag, moveBookmarkDrag, useBarDrag } from "../../state/bookmarks/barDrag";
@@ -53,20 +53,20 @@ export function useBookmarkDragResponder(
   }, deps);
 }
 
-export function BarItem({
+export const BarItem = memo(function BarItem({
   id,
   windowId,
   profileId,
   hidden,
   offset,
-  onLayout,
+  onWidth,
 }: {
   id: string;
   windowId: string;
   profileId: string;
   hidden: boolean;
   offset: number;
-  onLayout: (r: LayoutRectangle) => void;
+  onWidth: (id: string, width: number) => void;
 }) {
   const node = useBookmarks((b) => b.nodes[id]);
   const size = useBarSize();
@@ -95,7 +95,7 @@ export function BarItem({
       ref={view}
       collapsable={false}
       {...responder.panHandlers}
-      onLayout={(e) => onLayout(e.nativeEvent.layout)}
+      onLayout={(e) => onWidth(id, e.nativeEvent.layout.width)}
       onMouseEnter={folder ? () => !barDragging() && folderMenuOpen(windowId) && openMenu(false) : undefined}
       pointerEvents={hidden ? "none" : "auto"}
       style={{ opacity: hidden || dragging ? 0 : 1, marginRight: size.itemGap, transform: [{ translateX: shift }] }}
@@ -105,8 +105,8 @@ export function BarItem({
           <BarButton
             favicon={node.kind === "url" ? node : undefined}
             icon={folder ? "folder" : undefined}
-            title={node.title || (node.kind === "url" ? node.url : "")}
-            tooltip={node.kind === "url" ? `${node.title}\n${node.url}` : node.title}
+            title={node.title.trim()}
+            tooltip={node.kind === "url" && node.title.trim() ? `${node.title}\n${node.url}` : node.kind === "url" ? node.url : node.title}
             active={menuOpen}
             dropRing={dropInto}
             onPress={open}
@@ -115,7 +115,7 @@ export function BarItem({
       </ContextMenuArea>
     </Animated.View>
   );
-}
+});
 
 export const BarButton = forwardRef<View, {
   title?: string;
@@ -131,7 +131,7 @@ export const BarButton = forwardRef<View, {
   const size = useBarSize();
   return (
     <View ref={ref} collapsable={false} {...hoverProps} tooltip={tooltip}>
-      <Pressable accessibilityRole="button" accessibilityLabel={title ?? tooltip} onPress={(e) => onPress(e.nativeEvent as unknown as ClickMods)}>
+      <Pressable accessibilityRole="button" accessibilityLabel={title || tooltip} onPress={(e) => onPress(e.nativeEvent as unknown as ClickMods)}>
         {({ pressed }) => (
           <Chip size={size} width={width} padded={!!title} hovered={hovered || active || dropRing} pressed={pressed || !!active} dropRing={dropRing}>
             <ChipIcon size={size} favicon={favicon} icon={icon} />

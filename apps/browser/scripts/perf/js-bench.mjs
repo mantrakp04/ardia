@@ -52,10 +52,11 @@
 //     summary: { lines: { "<scenario>.<metric>": { median, min, max, n } }, detail: { <scenario>: top offenders } } }
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareApp } from "../../../../scripts/lib/app-copy.mjs";
 import { appEnv, binaryOf } from "../../../../scripts/lib/instance.mjs";
 import { writeSeed } from "./seed.mjs";
 
@@ -309,28 +310,13 @@ function smallSession(dataDir) {
   writeFileSync(file, JSON.stringify(session));
 }
 
-function resign(app, clone) {
-  const info = spawnSync("codesign", ["-dvv", app], { encoding: "utf8" }).stderr;
-  const identity = info.match(/^Authority=(.+)$/m)?.[1] ?? "-";
-  const entitlements = `${clone}.entitlements.plist`;
-  writeFileSync(entitlements, execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", app], { encoding: "utf8" }));
-  execFileSync("codesign", ["--force", "--sign", identity, "--timestamp=none", "--options", "runtime", "--entitlements", entitlements, clone], { stdio: "inherit" });
-}
-
 const ALL = ["startup", "persistence", "idle", "typing", "switchTabs", "openClose", "scroll", "pageLoad", "hover", "profileSwipe", "storeUpdate", "idleLate"];
 
 async function run() {
   const { app, bundle: jsbundle, label, runs = "5", port = "47817", out = defaultOut } = flags;
   if (!app || !jsbundle || !label) throw new Error("run needs --app, --bundle and --label");
   const scenarios = flags.scenarios ? flags.scenarios.split(",") : ALL;
-  const clone = join(out, "apps", label, "Ardia.app");
-  rmSync(dirname(clone), { recursive: true, force: true });
-  mkdirSync(dirname(clone), { recursive: true });
-  execFileSync("cp", ["-cR", app, clone]);
-  const swapped = join(clone, "Contents/Resources/main.jsbundle");
-  const same = readFileSync(jsbundle).equals(readFileSync(swapped));
-  cpSync(jsbundle, swapped);
-  if (!same) resign(app, clone);
+  const clone = prepareApp(app, join(out, "apps", label), { bundle: jsbundle });
   const version = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print CFBundleShortVersionString", join(clone, "Contents/Info.plist")], { encoding: "utf8" }).trim();
   const origin = `http://127.0.0.1:${port}`;
   const server = await startServer(Number(port));

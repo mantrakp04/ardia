@@ -32,6 +32,7 @@ function SeriesTooltip({
   payload,
   label,
   step,
+  zone,
   config,
   format,
   total,
@@ -40,6 +41,7 @@ function SeriesTooltip({
   payload?: TooltipRow[];
   label?: number | string;
   step: Step;
+  zone?: string;
   config: ChartConfig;
   format: (n: number) => string;
   total?: boolean;
@@ -49,7 +51,7 @@ function SeriesTooltip({
   const sum = rows.reduce((s, r) => s + (typeof r.value === "number" ? r.value : 0), 0);
   return (
     <div className="grid min-w-44 gap-1.5 rounded-lg border bg-popover/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
-      <div className="label-mono text-muted-foreground">{formatBucket(Number(label), step)}</div>
+      <div className="label-mono text-muted-foreground">{formatBucket(Number(label), step, zone)}</div>
       {rows.map((row) => {
         const key = String(row.dataKey);
         return (
@@ -116,6 +118,7 @@ export function TimeSeriesChart({
   buckets,
   series,
   step,
+  zone,
   height = 260,
   format = formatExact,
   area,
@@ -127,6 +130,7 @@ export function TimeSeriesChart({
   buckets: number[];
   series: ChartSeries[];
   step: Step;
+  zone?: string;
   height?: number;
   format?: (n: number) => string;
   area?: boolean;
@@ -145,13 +149,13 @@ export function TimeSeriesChart({
       <ChartContainer config={config} className="aspect-auto w-full" style={{ height }}>
         <Chart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} accessibilityLayer>
           <CartesianGrid vertical={false} stroke="var(--grid)" />
-          <XAxis dataKey="t" {...axisProps} minTickGap={28} tickMargin={8} tickFormatter={(v: number) => formatTick(v, step)} />
+          <XAxis dataKey="t" {...axisProps} minTickGap={28} tickMargin={8} tickFormatter={(v: number) => formatTick(v, step, zone)} />
           <YAxis {...axisProps} width={40} allowDecimals={false} tickFormatter={(v: number) => yFormat(v)} />
           {partial && buckets.length > 2 ? partialBucket(buckets) : null}
           {markerLines(markers)}
           <ChartTooltip
             cursor={{ stroke: "var(--axis)", strokeWidth: 1 }}
-            content={<SeriesTooltip step={step} config={config} format={format} />}
+            content={<SeriesTooltip step={step} zone={zone} config={config} format={format} />}
           />
           {series.map((s, i) =>
             filled ? (

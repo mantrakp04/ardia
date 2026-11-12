@@ -1,6 +1,7 @@
 import type { CommandAction } from "@ardia/core";
 import type { BrowserCommand } from "../../platform/commands";
 import { isBookmarked } from "../bookmarks/bookmarks";
+import { hidesBookmarkCommand } from "../bookmarks/visibility";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTab, bookmarkProfileId, isPinnedRow, pinnedSectionTitle } from "../browser/model";
 import { canTidyPins } from "../pins/tidyPins";
@@ -107,6 +108,7 @@ export function barActions(s: BrowserState, windowId: string): CommandAction[] {
     if (d.needs === "tab" && !tab) continue;
     if (d.needs === "profiles" && w?.kind === "private") continue;
     if (d.needs === "pins" && !canTidyPins(s, windowId)) continue;
+    if (hidesBookmarkCommand(s.settings, d.command)) continue;
     const id = actionId(d);
     const hint = shortcutHint(id, s);
     out.push({

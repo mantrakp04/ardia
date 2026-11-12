@@ -14,6 +14,8 @@ export { KeyCap } from "./KeyCap";
 export { ListRow, type ListRowState } from "./ListRow";
 export { MenuRow, menuRowFill, MenuSeparator } from "./Menu";
 export { Panel, type PanelProps, type PanelShadow } from "./Panel";
+export { PinchArea, pinchSettle } from "./PinchArea";
+export { pinchFollow, pinchScale, type PinchMotion } from "./pinch";
 export { ProgressTrack } from "./ProgressTrack";
 export { curve, duration, period, spring, springs, springSpec, usePresence, type Fade, type SpringSpec } from "./motion";
 export { reduceMotion, reduceMotionKnown } from "./reduceMotion";
@@ -24,7 +26,7 @@ export { Group, Row } from "./Row";
 export { Swatch } from "./Swatch";
 export { Toggle } from "./Switch";
 export { Text, type TextProps } from "./Text";
-export { hex, layout, PROFILE_COLORS, useFormColors, useTheme, type FormColors, type Theme } from "./theme";
+export { hex, layout, PROFILE_COLORS, useTheme, type Theme } from "./theme";
 export { capsule, colorRoles, concentric, display, emptyState, font, hairline, iconButton, ink, lineHeight, opacity, pillHeight, POPOVER_WIDTH, proseLineHeight, radius, shadow, sheetWidth, space, swatch, tabularNums, TOOLTIP, tracking, weight, withAlpha, type ColorRole, type IconButtonSize, type Radius, type ShadowLevel, type SheetSize, type Space, type TypeSize, type Weight } from "./tokens";
 export { Toast } from "./Toast";
 export { ToolbarRowContext, useToolbarRowContext } from "./toolbarRowContext";
@@ -44,6 +46,7 @@ export {
   OutsidePressArea,
   PopoverBubble,
   PowerUp,
+  ReportVideo,
   Surface,
   SwipeArea,
   Symbol,

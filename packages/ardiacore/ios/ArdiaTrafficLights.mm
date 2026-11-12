@@ -6,6 +6,7 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 
+#include <cmath>
 #include <initializer_list>
 
 using namespace ardia_window;
@@ -18,6 +19,24 @@ const void *kLightsCenterKey = &kLightsCenterKey;
 const void *kLightsShownKey = &kLightsShownKey;
 
 const void *kLightsMoveKey = &kLightsMoveKey;
+
+const void *kLightsTrailingKey = &kLightsTrailingKey;
+
+CGFloat WindowCornerRadius(NSWindow *window) {
+  static CGFloat radius = 19;
+  static dispatch_once_t onceToken;
+  if (window) dispatch_once(&onceToken, ^{
+    NSView *frame = window.contentView.superview;
+    SEL selector = NSSelectorFromString(@"roundedCornerRadius");
+    CGFloat measured = frame.layer.cornerRadius;
+    if ([frame respondsToSelector:selector]) {
+      float (*send)(id, SEL) = reinterpret_cast<float (*)(id, SEL)>(objc_msgSend);
+      measured = send(frame, selector);
+    }
+    if (std::isfinite(measured) && measured > 0) radius = measured;
+  });
+  return radius;
+}
 
 }
 
@@ -171,10 +190,8 @@ void InstallTrafficLightsOrigin(Class frameClass) {
         return ((NSPoint (*)(id, SEL))standard)(frameView, sel);
       NSButton *close = [window standardWindowButton:NSWindowCloseButton];
       const NSSize size = close ? close.frame.size : NSMakeSize(14, 14);
-      const CGFloat height = NSHeight(frameView.bounds);
-      if (NSValue *center = objc_getAssociatedObject(window, kLightsCenterKey))
-        return NSMakePoint(center.pointValue.x - size.width / 2, height - center.pointValue.y - size.height / 2);
-      return NSMakePoint(kTrafficLightInsetX, height - kTrafficLightTop - size.height);
+      const NSPoint center = LightsCenter(window, objc_getAssociatedObject(window, kLightsCenterKey), size);
+      return NSMakePoint(center.x - size.width / 2, NSHeight(frameView.bounds) - center.y - size.height / 2);
     };
   });
 }
@@ -316,8 +333,11 @@ NSArray<NSButton *> *TrafficLightButtons(NSWindow *window) {
   return buttons;
 }
 
-NSPoint LightsCenter(NSValue *center, NSSize size) {
-  return center ? center.pointValue : NSMakePoint(kTrafficLightInsetX + size.width / 2, kTrafficLightTop + size.height / 2);
+NSPoint LightsCenter(NSWindow *window, NSValue *center, NSSize size) {
+  if (!center) return NSMakePoint(kTrafficLightInsetX + size.width / 2, kTrafficLightTop + size.height / 2);
+  const NSPoint at = center.pointValue;
+  const BOOL trailing = objc_getAssociatedObject(window, kLightsTrailingKey) != nil;
+  return trailing ? NSMakePoint(NSWidth(window.frame) - at.x, at.y) : at;
 }
 
 void TranslateTrafficLights(NSWindow *window, CGFloat dx) {
@@ -366,7 +386,7 @@ bool MoveTrafficLights(NSWindow *window, NSValue *center) {
   for (NSButton *button in buttons)
     if (!button.layer) return false;
   const NSSize size = buttons[0].frame.size;
-  const NSPoint laidOut = LightsCenter(objc_getAssociatedObject(window, kLightsCenterKey), size), to = LightsCenter(center, size);
+  const NSPoint laidOut = LightsCenter(window, objc_getAssociatedObject(window, kLightsCenterKey), size), to = LightsCenter(window, center, size);
   if (to.y != laidOut.y) return false;
   TranslateTrafficLights(window, to.x - laidOut.x);
   if (to.x == laidOut.x) {
@@ -398,12 +418,15 @@ void ConfigureWindow(NSWindow *window) {
   window.releasedWhenClosed = NO;
   window.tabbingMode = NSWindowTabbingModeDisallowed;
   InsetTrafficLights(window);
-  WatchFullScreenLights(window);
-  SuppressFullScreenTitlebar(window);
+  WindowCornerRadius(window);
 }
 
 }
 
 NSValue *ArdiaTrafficLightsCenter(NSWindow *window) {
   return window ? objc_getAssociatedObject(window, kLightsCenterKey) : nil;
+}
+
+BOOL ArdiaTrafficLightsTrailing(NSWindow *window) {
+  return window && objc_getAssociatedObject(window, kLightsTrailingKey) != nil;
 }

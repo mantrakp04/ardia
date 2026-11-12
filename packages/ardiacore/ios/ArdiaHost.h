@@ -9,6 +9,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(class, readonly) NSDictionary<NSString *, id> *engineInfo;
 @property(class, readonly) NSArray<NSDictionary<NSString *, id> *> *chromeWindows;
 @property(class, readonly) NSArray<NSDictionary<NSString *, id> *> *displayMediaSources;
+@property(class, readonly) BOOL screenRecordingAllowed;
++ (BOOL)requestScreenRecording;
 + (void)resolveExternalApp:(NSString *)requestId open:(BOOL)open remember:(BOOL)remember NS_SWIFT_NAME(resolveExternalApp(_:open:remember:));
 + (void)deviceChooser:(int)chooserId select:(int)index NS_SWIFT_NAME(deviceChooser(_:select:));
 + (void)deviceChooser:(int)chooserId action:(NSString *)action NS_SWIFT_NAME(deviceChooser(_:action:));
@@ -32,11 +34,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property(class, readonly) BOOL isTracing;
 + (void)deleteProfileData:(NSString *)profile completion:(void (^)(NSArray<NSString *> *remaining))completion
     NS_SWIFT_NAME(deleteProfileData(_:completion:));
-+ (NSArray<NSString *> *)loadedProfileNames;
 + (NSString *)releaseProfile:(NSString *)profile;
+@property(class, readonly) NSArray<NSString *> *loadedProfiles;
 + (BOOL)stopCapture:(NSString *)tabId NS_SWIFT_NAME(stopCapture(tabId:));
 + (BOOL)showAutofillSuggestions:(NSString *)tabId passwords:(BOOL)passwords NS_SWIFT_NAME(showAutofillSuggestions(tabId:passwords:));
 + (int)chromeTabIdOfTab:(NSString *)tabId NS_SWIFT_NAME(chromeTabId(ofTab:));
++ (void)cliTabTargets:(NSArray<NSString *> *)tabIds completion:(void (^)(NSDictionary<NSString *, id> *targets))completion
+    NS_SWIFT_NAME(cliTabTargets(_:completion:));
 + (BOOL)isPrivateProfile:(NSString *)profile NS_SWIFT_NAME(isPrivateProfile(_:));
 @property(class, nullable, copy) void (^quitCancelledHandler)(void);
 + (void)menuShortcutsChanged;
@@ -51,6 +55,12 @@ NS_ASSUME_NONNULL_BEGIN
 + (int)runWithArgc:(int)argc
               argv:(char *_Nullable *_Nonnull)argv
           delegate:(id<NSApplicationDelegate> (^)(void))makeDelegate NS_SWIFT_NAME(run(argc:argv:delegate:));
++ (nullable NSDictionary<NSString *, id> *)senderOfOpenedURL:(NSString *)url NS_SWIFT_NAME(senderOfOpenedURL(_:));
+@property(class, readonly) BOOL holdsIncomingLinks;
+@property(class, readonly) NSDictionary<NSString *, NSNumber *> *launchMarks;
++ (void)setHoldIncomingLinks:(BOOL)hold hooksStamp:(nullable NSString *)hooksStamp NS_SWIFT_NAME(setHoldIncomingLinks(_:hooksStamp:));
++ (NSString *)fileStampOfDescriptor:(int)fd NS_SWIFT_NAME(fileStamp(ofDescriptor:));
+@property(class, readonly) NSString *missingFileStamp;
 
 @end
 

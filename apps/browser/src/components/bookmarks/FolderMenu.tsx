@@ -8,6 +8,7 @@ import { folderLinks } from "../../state/bookmarks/bookmarks";
 import { registerDropZone, useBarDrag } from "../../state/bookmarks/barDrag";
 import { roomOffsets, zoneHitAt } from "../../state/bookmarks/barDrop";
 import { closeFolderMenus, closeMenusAbove, openFolderMenu, useFolderMenus, type FolderMenuPanel, type MenuRect } from "../../state/bookmarks/folderMenus";
+import { menuRows, menuScrollStep } from "../../state/bookmarks/barFit";
 import { openAllItems, openAllModeOf } from "../../state/bookmarks/linkMenus";
 import { currentBookmarks } from "../../state/browser/current";
 import { openBarMenu } from "../../state/bookmarks/barMenus";
@@ -59,20 +60,22 @@ export function FolderMenu({ windowId, panel, layer, closing, onClosed }: { wind
   const place = placeMenu(panel, layer, size.menuWidth, height, size);
   const appear = usePopoverMotion(closing, onClosed, height !== null && contentHeight !== null);
   const motion = usePopoverMotionStyle(appear, "top left");
-  const frames = useRef(new Map<string, { y: number; height: number }>());
   const views = useRef(new Map<string, View>());
   const scrollY = useRef(0);
+  const row = size.menuRow;
+  const [scrollStep, setScrollStep] = useState(0);
+  const shownRange = menuRows(ids.length, scrollStep, place.maxHeight, row);
 
   const draggedHere = source?.kind === "bookmark" && ids.includes(source.id) ? source.id : null;
   const slotHere = spot && "slot" in spot && spot.zone === zone ? spot.slot - fromIndex : null;
   const offsets = source ? roomOffsets(ids, draggedHere, slotHere, size.menuRow) : ids.map(() => 0);
-  const lineY = slotHere === null ? null : menuLineY(ids, frames.current, offsets, draggedHere, slotHere, size.menuRow);
+  const lineY = slotHere === null ? null : menuLineY(ids, offsets, draggedHere, slotHere, row);
 
   const openChild = (id: string, sprung = false) =>
     void measureRect(views.current.get(id) ?? null).then((anchor) => anchor && openFolderMenu(windowId, { parentId: id, fromIndex: 0, anchor, level: level + 1 }, { sprung }));
 
-  const latest = useRef({ ids, place, closing, retained: panel.retained, openChild });
-  latest.current = { ids, place, closing, retained: panel.retained, openChild };
+  const latest = useRef({ ids, place, closing, retained: panel.retained, openChild, row });
+  latest.current = { ids, place, closing, retained: panel.retained, openChild, row };
   useEffect(
     () =>
       registerDropZone(zone, {
@@ -83,10 +86,7 @@ export function FolderMenu({ windowId, panel, layer, closing, onClosed }: { wind
           const r = L.place;
           if (L.closing || L.retained || x < r.x || x > r.x + r.width || y < r.y || y > r.y + (height ?? 0)) return undefined;
           const nodes = currentBookmarks().nodes;
-          const items = L.ids.flatMap((id) => {
-            const f = frames.current.get(id);
-            return f ? [{ id, start: f.y, size: f.height, folder: nodes[id]?.kind === "folder" }] : [];
-          });
+          const items = L.ids.map((id, i) => ({ id, start: rowTop(i, L.row), size: L.row, folder: nodes[id]?.kind === "folder" }));
           const hit = zoneHitAt(items, y - r.y + scrollY.current, draggedId && L.ids.includes(draggedId) ? draggedId : null);
           if ("into" in hit) return { spot: hit, springOpen: () => latest.current.openChild(hit.into, true) };
           return { spot: { parentId, slot: fromIndex + hit.slot, zone } };
@@ -108,23 +108,30 @@ export function FolderMenu({ windowId, panel, layer, closing, onClosed }: { wind
           contentContainerStyle={{ paddingVertical: PAD }}
           onContentSizeChange={(_, h) => setContentHeight(h)}
           scrollEventThrottle={16}
-          onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+          onScroll={(e) => {
+            scrollY.current = e.nativeEvent.contentOffset.y;
+            setScrollStep(menuScrollStep(scrollY.current, row));
+          }}
         >
-          {ids.map((id, i) => (
-            <FolderRow
-              key={id}
-              id={id}
-              windowId={windowId}
-              profileId={profileId}
-              panel={panel}
-              size={size}
-              offset={offsets[i] ?? 0}
-              open={childOpen === id}
-              onOpenChild={openChild}
-              onView={(v) => (v ? views.current.set(id, v) : views.current.delete(id))}
-              onFrame={(f) => frames.current.set(id, f)}
-            />
-          ))}
+          {shownRange.first > 0 && <View style={{ height: shownRange.first * row }} />}
+          {ids.slice(shownRange.first, shownRange.last).map((id, k) => {
+            const i = shownRange.first + k;
+            return (
+              <FolderRow
+                key={id}
+                id={id}
+                windowId={windowId}
+                profileId={profileId}
+                panel={panel}
+                size={size}
+                offset={offsets[i] ?? 0}
+                open={childOpen === id}
+                onOpenChild={openChild}
+                onView={(v) => (v ? views.current.set(id, v) : views.current.delete(id))}
+              />
+            );
+          })}
+          {shownRange.last < ids.length && <View style={{ height: (ids.length - shownRange.last) * row }} />}
           {ids.length === 0 && (
             <RowFrame size={size}>
               <Text size="body" tone="textTertiary">
@@ -171,16 +178,12 @@ export function FolderMenu({ windowId, panel, layer, closing, onClosed }: { wind
 const FOOTER_ROWS = 4;
 const HIDDEN = { opacity: 0 } as const;
 
-function menuLineY(ids: string[], frames: Map<string, { y: number; height: number }>, offsets: number[], dragged: string | null, slot: number, room: number): number {
-  for (let i = slot; i < ids.length; i++) {
-    const f = ids[i] === dragged ? undefined : frames.get(ids[i]!);
-    if (f) return f.y + offsets[i]! - room / 2;
-  }
-  for (let i = Math.min(slot, ids.length) - 1; i >= 0; i--) {
-    const f = ids[i] === dragged ? undefined : frames.get(ids[i]!);
-    if (f) return f.y + f.height + offsets[i]! + room / 2;
-  }
-  return PAD + room / 2;
+const rowTop = (index: number, row: number) => PAD + index * row;
+
+function menuLineY(ids: string[], offsets: number[], dragged: string | null, slot: number, row: number): number {
+  for (let i = slot; i < ids.length; i++) if (ids[i] !== dragged) return rowTop(i, row) + offsets[i]! - row / 2;
+  for (let i = Math.min(slot, ids.length) - 1; i >= 0; i--) if (ids[i] !== dragged) return rowTop(i, row) + row + offsets[i]! + row / 2;
+  return PAD + row / 2;
 }
 
 function MenuLine({ y }: { y: number | null }) {
@@ -248,7 +251,6 @@ function FolderRow({
   open,
   onOpenChild,
   onView,
-  onFrame,
 }: {
   id: string;
   windowId: string;
@@ -259,7 +261,6 @@ function FolderRow({
   open: boolean;
   onOpenChild: (id: string) => void;
   onView: (view: View | null) => void;
-  onFrame: (frame: { y: number; height: number }) => void;
 }) {
   const theme = useTheme();
   const node = useBookmarks((b) => b.nodes[id]);
@@ -297,7 +298,6 @@ function FolderRow({
       }}
       collapsable={false}
       {...responder.panHandlers}
-      onLayout={(e) => onFrame({ y: e.nativeEvent.layout.y, height: e.nativeEvent.layout.height })}
       onMouseEnter={enter}
       onMouseLeave={() => {
         setHovered(false);

@@ -86,10 +86,9 @@ enum CommandTable {
     case returnToPinnedUrl
     case tabSwitcher
     case share
-    case sendFeedback
+    case reportProblem
     case keyboardShortcuts
     case copyDiagnostics
-    case recordPerformanceIssue
     case toolTour
     case videoTour
     case releaseNotes
@@ -202,10 +201,9 @@ enum CommandTable {
     "tabSwitcher:forward": "Tab Switcher (forward)",
     "tabSwitcher:backward": "Tab Switcher (backward)",
     "share": "Share…",
-    "sendFeedback": "Send Feedback…",
+    "reportProblem": "Report a Problem…",
     "keyboardShortcuts": "Keyboard Shortcuts",
     "copyDiagnostics": "Copy Diagnostics",
-    "recordPerformanceIssue": "Record Performance Issue…",
     "toolTour": "Tool Tour",
     "videoTour": "Video Tour",
     "releaseNotes": "Release Notes",
@@ -264,8 +262,8 @@ enum CommandTable {
     "viewSource": [("u", [.option, .command])],
     "back": [("[", [.command]), ("\u{F702}", [.command])],
     "forward": [("]", [.command]), ("\u{F703}", [.command])],
-    "nextTab": [("]", [.shift, .command]), ("}", [.command]), ("\u{F703}", [.option, .command]), ("\u{F72D}", [.control]), ("\u{F701}", [.option, .command])],
-    "previousTab": [("[", [.shift, .command]), ("{", [.command]), ("\u{F702}", [.option, .command]), ("\u{F72C}", [.control]), ("\u{F700}", [.option, .command])],
+    "nextTab": [("]", [.shift, .command]), ("}", [.command]), ("\u{F72D}", [.control]), ("\u{F701}", [.option, .command])],
+    "previousTab": [("[", [.shift, .command]), ("{", [.command]), ("\u{F72C}", [.control]), ("\u{F700}", [.option, .command])],
     "selectTab:1": [("1", [.command])],
     "selectTab:2": [("2", [.command])],
     "selectTab:3": [("3", [.command])],
@@ -278,6 +276,8 @@ enum CommandTable {
     "togglePinnedRow": [("d", [.option, .shift, .command])],
     "bookmarkPage": [("d", [.command])],
     "downloads": [("j", [.shift, .command]), ("l", [.option, .command])],
+    "nextProfile": [("\u{F703}", [.option, .command])],
+    "previousProfile": [("\u{F702}", [.option, .command])],
     "openSettings": [(",", [.command])],
     "showHistory": [("y", [.command])],
     "clearBrowsingData": [("\u{8}", [.shift, .command])],
@@ -292,7 +292,7 @@ enum CommandTable {
     "tabSwitcher:forward": [("\u{9}", [.control])],
     "tabSwitcher:backward": [("\u{9}", [.control, .shift])],
     "share": [("s", [.option, .command])],
-    "sendFeedback": [("i", [.option, .shift, .command])],
+    "reportProblem": [("i", [.option, .shift, .command])],
     "openFile": [("o", [.command])],
     "emailPageLocation": [("i", [.shift, .command])],
     "printWithSystemDialog": [("p", [.option, .command])],

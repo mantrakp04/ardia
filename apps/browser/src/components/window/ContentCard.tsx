@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { startChromeTabs } from "../../state/tabs/chromeTabs";
 import { useIsSmallWindow, useSplitOf } from "../../state/windows/card";
 import { usePeeks } from "../../state/peek/hooks";
-import { useActiveTabId, useSettings, useSidebarSide, useWindowId } from "../../state/browser/hooks";
+import { useActiveTabId, useSettings, useWindowId } from "../../state/browser/hooks";
 import { useBookmarksBarHeight } from "../bookmarks/barSize";
 import { useBookmarksBarMode } from "../../state/bookmarks/hooks";
 import { POPOVER_MARGIN } from "../ui";
@@ -26,7 +26,10 @@ import { usePaneLayout } from "./usePaneLayout";
 import { cardChrome } from "./paneChrome";
 import { TabPane } from "./TabPane";
 import { BesidePeekPopovers, PeekPage } from "./PageOverlays";
+import { besidePeekSpan } from "./pageAnchors";
 import { splitTabIdsOf } from "../../state/splits/splits";
+import { sameSize, useSettled, type Size } from "../ui/useSettled";
+import { noteCardResizeLayout } from "../../state/telemetry/usage";
 
 export function ContentCard() {
   const windowId = useWindowId();
@@ -34,7 +37,6 @@ export function ContentCard() {
   const split = useSplitOf(activeId);
   const fullscreenTab = useFullscreenTab(windowId);
   const tabLayout = useTabLayout();
-  const lightsOnCard = useSidebarSide(windowId) === "right";
   const addressInSidebar = useAddressBarInSidebar();
   const small = useIsSmallWindow(windowId);
   const hideWhileScrolling = useSettings((st) => st.hideToolbarWhileScrolling);
@@ -65,7 +67,7 @@ export function ContentCard() {
   const geometryFor = (rect: Rect | undefined): ToolbarGeometry => {
     if (chrome.kind === "none") return NO_TOOLBAR;
     const leading = !!rect && rect.x === 0 && rect.y === 0;
-    return toolbarGeometry({ sidebarButton: leading && tabLayout === "sidebar" && showSidebarButton, lights: leading && lightsOnCard && !fullscreenTab });
+    return toolbarGeometry({ sidebarButton: leading && showSidebarButton });
   };
 
   const focusedRect = activeId ? panes[activeId] : undefined;
@@ -79,7 +81,7 @@ export function ContentCard() {
         width: focusedRect.width - g.urlLeft - urlFieldRight(!!split, extensionsWidth, toolbarRow),
       });
     return watchToolbarExtensionsWidth(windowId, place);
-  }, [origin, focusedRect?.x, focusedRect?.y, focusedRect?.width, tabLayout, chrome.kind, !!split, showSidebarButton, toolbarRow, lightsOnCard, !!fullscreenTab]);
+  }, [origin, focusedRect?.x, focusedRect?.y, focusedRect?.width, tabLayout, chrome.kind, !!split, showSidebarButton, toolbarRow]);
 
   useEffect(() => {
     if (origin && size.width > 0) setCardAnchor(windowId, { left: origin.x, top: origin.y, width: size.width, height: size.height });
@@ -87,9 +89,13 @@ export function ContentCard() {
 
   const settled = useRef<{ width: number; height: number } | null>(null);
   const measure = (width: number, height: number) => {
-    setSize({ width, height });
-    container.current?.measureInWindow((x, y) => setOrigin({ x, y }));
+    setSize((prev) => (sameSize(prev, { width, height }) ? prev : { width, height }));
+    container.current?.measureInWindow((x, y) => setOrigin((prev) => (prev && prev.x === x && prev.y === y ? prev : { x, y })));
   };
+  const settleMeasure = useSettled(({ width, height }: Size) => {
+    noteCardResizeLayout(true);
+    measure(width, height);
+  });
   useEffect(
     () =>
       whenDockStill(windowId, () => {
@@ -111,8 +117,16 @@ export function ContentCard() {
       style={{ flex: 1 }}
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
-        if (size.width > 0 && dockMoving(windowId) && !split) settled.current = { width, height };
-        else measure(width, height);
+        if (size.width > 0 && dockMoving(windowId) && !split) {
+          settleMeasure.cancel();
+          settled.current = { width, height };
+        } else if (size.width > 0 && !split && !peekId) {
+          noteCardResizeLayout(false);
+          settleMeasure({ width, height });
+        } else {
+          settleMeasure.cancel();
+          measure(width, height);
+        }
       }}
     >
       {size.width > 0 &&
@@ -155,9 +169,9 @@ export function ContentCard() {
       {size.width > 0 && popoversOverCard && origin && activeRect && peek !== undefined && (
         <BesidePeekPopovers
           tabId={popoversOverCard}
-          left={peek[0] === -Infinity ? Math.max(activeRect.x, peek[1] - origin.x) + POPOVER_MARGIN : Infinity}
+          windowId={windowId}
+          {...besidePeekSpan(peek, origin.x, size.width, activeRect)}
           top={activeRect.y + POPOVER_MARGIN}
-          room={peek[0] === -Infinity ? size.width : Math.min(size.width, peek[0] - origin.x)}
         />
       )}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}
@@ -168,7 +182,7 @@ export function ContentCard() {
           height={size.height}
           origin={origin}
           fullscreen={peekFullscreen}
-          page={(tabId, sourceId, width) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} fullscreen={peekFullscreen} />}
+          page={(tabId, sourceId, width) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} />}
         />
       )}
       <SplitToast windowId={windowId} />

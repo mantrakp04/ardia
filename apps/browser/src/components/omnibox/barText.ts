@@ -1,4 +1,4 @@
-import type { SearchScope } from "@ardia/core";
+import { displayUrl, type SearchScope, type Suggestion } from "@ardia/core";
 import type { BarSnapshot } from "../../state/omnibox/barState";
 
 export type Selection = { start: number; end: number };
@@ -39,6 +39,12 @@ export function initialBar(restored: BarSnapshot | null, initialText: string, no
   };
 }
 
+export function previewText(s: Suggestion | undefined): string | null {
+  if (s?.kind === "search") return s.query;
+  if (s?.kind === "page") return displayUrl(s.url);
+  return null;
+}
+
 const caret = (at: number): Selection => ({ start: at, end: at });
 
 export function barReducer(s: BarText, e: BarEvent): BarText {
@@ -52,7 +58,7 @@ export function barReducer(s: BarText, e: BarEvent): BarText {
     case "tabAccepted":
       return { ...s, typed: e.text, suppressCompletion: true, pendingSelection: caret(e.text.length) };
     case "calculated":
-      return { ...s, typed: e.text, suppressCompletion: true, pendingSelection: { start: 0, end: e.text.length } };
+      return { ...s, typed: e.text, suppressCompletion: true, selected: 0, pendingSelection: { start: 0, end: e.text.length } };
     case "completionDropped":
       return { ...s, suppressCompletion: true };
     case "enteredScope":

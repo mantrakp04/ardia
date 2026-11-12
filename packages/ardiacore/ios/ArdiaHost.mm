@@ -1,4 +1,5 @@
 #import "ArdiaHostInternal.h"
+#import "ArdiaLaunchConfig.h"
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaServices.h"
 #import "ArdiaNavigationDownloads.h"
@@ -139,10 +140,6 @@ static void (^gQuitCancelledHandler)(void);
   remove(p);
 }
 
-+ (NSArray<NSString *> *)loadedProfileNames {
-  return ardia_host::LoadedProfileNames();
-}
-
 + (NSString *)releaseProfile:(NSString *)profile {
   ArdiaCoreEngine *engine = ArdiaCoreEngine.sharedEngine;
   ArdiaCoreProfile *p = ardia_host::LoadedProfile(profile);
@@ -157,6 +154,10 @@ static void (^gQuitCancelledHandler)(void);
   }
   if (!p) return ProfileWaiters()[profile] ? @"busy" : @"released";
   return [engine releaseProfile:p];
+}
+
++ (NSArray<NSString *> *)loadedProfiles {
+  return ardia_host::LoadedDataProfileNames();
 }
 
 + (BOOL)stopCapture:(NSString *)tabId {
@@ -255,6 +256,44 @@ static void (^gQuitCancelledHandler)(void);
   return tab ? tab.tabId : -1;
 }
 
++ (void)cliTabTargets:(NSArray<NSString *> *)tabIds completion:(void (^)(NSDictionary<NSString *, id> *targets))completion {
+  static NSMutableDictionary<NSString *, NSString *> *lastTarget;
+  static NSMutableDictionary<NSString *, NSNumber *> *generations;
+  if (!lastTarget) {
+    lastTarget = [NSMutableDictionary dictionary];
+    generations = [NSMutableDictionary dictionary];
+  }
+  NSMutableDictionary<NSString *, id> *answer = [NSMutableDictionary dictionary];
+  void (^record)(NSString *, NSString *) = ^(NSString *tabId, NSString *targetId) {
+    if (targetId && ![lastTarget[tabId] isEqualToString:targetId]) {
+      lastTarget[tabId] = targetId;
+      generations[tabId] = @(generations[tabId].integerValue + 1);
+    }
+    answer[tabId] = @{@"targetId" : targetId ?: NSNull.null, @"pageGeneration" : generations[tabId] ?: @0};
+  };
+  dispatch_group_t pending = dispatch_group_create();
+  for (NSString *tabId in tabIds) {
+    ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
+    if (!tab || tab.closed || tab.discarded) {
+      record(tabId, nil);
+      continue;
+    }
+    dispatch_group_enter(pending);
+    [tab devToolsCall:@"Target.getTargetInfo"
+               params:@{}
+              timeout:1.0
+           completion:^(NSDictionary *result, NSString *error) {
+             id info = result[@"targetInfo"];
+             id targetId = [info isKindOfClass:NSDictionary.class] ? info[@"targetId"] : nil;
+             record(tabId, [targetId isKindOfClass:NSString.class] ? targetId : nil);
+             dispatch_group_leave(pending);
+           }];
+  }
+  dispatch_group_notify(pending, dispatch_get_main_queue(), ^{
+    completion(answer);
+  });
+}
+
 + (void)resolvePermission:(NSString *)requestId result:(NSString *)result remember:(BOOL)remember {
   [ArdiaCoreEngine resolvePermission:requestId result:result remember:remember];
 }
@@ -275,9 +314,8 @@ static void (^gQuitCancelledHandler)(void);
   }
   NSArray *windows = CFBridgingRelease(
       CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID));
-  const pid_t me = getpid();
   for (NSDictionary *w in windows) {
-    if ([w[(id)kCGWindowLayer] intValue] != 0 || [w[(id)kCGWindowOwnerPID] intValue] == me) continue;
+    if ([w[(id)kCGWindowLayer] intValue] != 0) continue;
     NSDictionary *bounds = w[(id)kCGWindowBounds];
     const CGFloat width = [bounds[@"Width"] doubleValue], height = [bounds[@"Height"] doubleValue];
     if (width < 50 || height < 50) continue;
@@ -294,6 +332,24 @@ static void (^gQuitCancelledHandler)(void);
     }];
   }
   return sources;
+}
+
++ (BOOL)screenRecordingAllowed {
+  NSString *answer = [ArdiaLaunchConfig.shared testValue:@"screenRecording"];
+  if (answer.length) return [answer isEqualToString:@"allowed"];
+  return CGPreflightScreenCaptureAccess();
+}
+
++ (BOOL)requestScreenRecording {
+  if (self.screenRecordingAllowed) return YES;
+  if (ArdiaLaunchConfig.shared.background) {
+    NSLog(@"[ardia] background mode: Screen Recording request not shown");
+    return NO;
+  }
+  if (CGRequestScreenCaptureAccess()) return YES;
+  [NSWorkspace.sharedWorkspace
+      openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"]];
+  return NO;
 }
 
 + (BOOL)isStarted {
@@ -318,6 +374,7 @@ static void (^gQuitCancelledHandler)(void);
     @"chromeWindows" : @(chromeWindows),
     @"keepAlive" : engine.keepAliveState ?: @"",
     @"lastUsedProfile" : engine.defaultProfile.name ?: @"",
+    @"focus" : ardia_host::FocusState(),
   };
 }
 

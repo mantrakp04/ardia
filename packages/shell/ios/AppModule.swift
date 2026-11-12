@@ -6,7 +6,7 @@ import ExpoModulesCore
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
-    Constant("apiVersion") { () -> Int in 42 }
+    Constant("apiVersion") { () -> Int in 57 }
 
     OnCreate {
       DispatchQueue.main.async { AppIcons.restore() }
@@ -69,12 +69,15 @@ public class AppModule: Module {
         "forceReleaseNotes": config.instanceFlag("releaseNotes"),
         "processStart": Self.processStart as Any,
         "bootTime": Self.bootTime as Any,
+        "launchMarks": ArdiaHost.launchMarks,
         "inApplicationsFolder": Self.inApplicationsFolder,
         "updatePrewarm": UserDefaults.standard.dictionary(forKey: UpdatePrewarm.lastRunKey) as Any,
       ]
     }
 
     AsyncFunction("crashReports") { (since: Double) -> [[String: Any]] in CrashReports.since(since) }
+    AsyncFunction("hardwareInfo") { () -> [String: Any] in DiagnosticsInfo.hardware() }
+    AsyncFunction("diagnosticsSample") { () -> [String: Any] in DiagnosticsInfo.sample() }
 
     AsyncFunction("openExternalURL") { (url: String) -> Bool in
       guard let target = URL(string: url), target.scheme != nil else { return false }

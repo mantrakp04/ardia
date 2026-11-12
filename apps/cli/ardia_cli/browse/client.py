@@ -75,15 +75,20 @@ def ensure_daemon(dir_fd: int, key: str, config: dict) -> socket.socket:
     sock = connect(dir_fd, f"{key}.sock")
     if sock is not None:
         return sock
+    from ardia_cli import telemetry
+
     process = spawn(dir_fd, key, config)
-    deadline = time.monotonic() + START_TIMEOUT
+    spawned = time.monotonic()
+    deadline = spawned + START_TIMEOUT
     while time.monotonic() < deadline:
         sock = connect(dir_fd, f"{key}.sock")
         if sock is not None:
+            telemetry.note_daemon_start(spawned)
             return sock
         if process.poll() is not None:
             sock = connect(dir_fd, f"{key}.sock")
             if sock is not None:
+                telemetry.note_daemon_start(spawned)
                 return sock
             if not paths.lock_held(f"{key}.lock", dir_fd):
                 raise Unreachable(f"the ardia browse daemon exited before it listened: {log_tail(dir_fd, key) or 'no output'}")
@@ -91,26 +96,56 @@ def ensure_daemon(dir_fd: int, key: str, config: dict) -> socket.socket:
     raise Unreachable("the ardia browse daemon didn't start in 15 s")
 
 
-def gone(payload: dict) -> BrowseError:
+def command_of(payload: dict) -> tuple[str, bool]:
     from ardia_cli.browse.commands import ALIASES, MUTATING
 
     argv = payload.get("argv") or [""]
     name = ALIASES.get(argv[0], argv[0])
-    if name in MUTATING:
+    return name, name in MUTATING
+
+
+def gone(payload: dict) -> BrowseError:
+    name, mutating = command_of(payload)
+    if mutating:
         return OutcomeUnknown(f"`{name}`", "the ardia browse daemon went away after it took the command (see the session log)")
     return Unreachable("the ardia browse daemon closed the connection without answering (it may have exited; see the session log)")
 
 
+def stalled(payload: dict, seconds: float) -> BrowseError:
+    from ardia_cli import telemetry
+
+    telemetry.note_count("daemon_answer_timed_out", True)
+    name, mutating = command_of(payload)
+    why = f"the ardia browse daemon didn't answer in {seconds:g} s (see the session log)"
+    if mutating:
+        return OutcomeUnknown(f"`{name}`", why)
+    return Unreachable(why)
+
+
 def request(sock: socket.socket, payload: dict) -> dict:
+    from ardia_cli.browse.limits import answer_deadline
+
+    seconds = answer_deadline(payload)
+    deadline = time.monotonic() + seconds
     with sock:
-        sock.sendall((json.dumps(payload, ensure_ascii=False) + "\n").encode())
+        sock.settimeout(seconds)
+        try:
+            sock.sendall((json.dumps(payload, ensure_ascii=False) + "\n").encode())
+        except TimeoutError:
+            raise Unreachable(f"the ardia browse daemon didn't take the command in {seconds:g} s (see the session log)") from None
         chunks = []
         size = 0
         while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise stalled(payload, seconds)
+            sock.settimeout(remaining)
             try:
                 chunk = sock.recv(1 << 20)
             except ConnectionResetError:
                 raise gone(payload) from None
+            except TimeoutError:
+                raise stalled(payload, seconds) from None
             if not chunk:
                 break
             chunks.append(chunk)

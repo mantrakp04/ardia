@@ -174,11 +174,39 @@ BOOL TracingPictureInPicture() {
   });
 }
 
+- (BOOL)playsForAutoPictureInPicture {
+  NSDictionary *np = _reports.nowPlaying.selected;
+  return _autoPictureInPicture && ([np[@"playbackState"] isEqual:@"playing"] || _reports.capturing);
+}
+
+- (BOOL)leftAppInPictureInPicture {
+  return !NSApp.isActive;
+}
+
++ (BOOL)playsForAutoPictureInPictureInWindow:(NSWindow *)window {
+  for (ArdiaWebView *view in LiveViews().allObjects)
+    if (view.window == window && view->_visible && view->_tab && view.playsForAutoPictureInPicture) return YES;
+  return NO;
+}
+
+- (void)autoPictureInPictureInputsChanged {
+  const BOOL plays = _tab && self.playsForAutoPictureInPicture;
+  if (plays == _reports.playedForAutoPictureInPicture) return;
+  _reports.playedForAutoPictureInPicture = plays;
+  if (!self.window) return;
+  [ArdiaWindowController reconsiderSightOf:self.window];
+  [self userSightChanged];
+}
+
+- (void)noteStayedOnAppSwitch {
+  if (!_tab || !_visible || _reports.inPictureInPicture || !self.seenByUser || !self.playsForAutoPictureInPicture) return;
+  [self traceAutoPictureInPicture:@"app: the user left Ardia, the window server still shows the tab"];
+  [self emit:@"autoPictureInPictureKept" payload:@{@"appSwitch" : @YES}];
+}
+
 - (void)updateAutoPictureInPicture {
   if (!_tab) return;
-  NSDictionary *np = _reports.nowPlaying.selected;
-  const BOOL playing = [np[@"playbackState"] isEqual:@"playing"] || _reports.capturing;
-  if (!_reports.seenByUser && _autoPictureInPicture && playing) {
+  if (!_reports.seenByUser && self.playsForAutoPictureInPicture) {
     [self traceAutoPictureInPicture:@"app: auto PiP left to Chrome"];
   } else if (_reports.seenByUser && (_reports.autoPictureInPictureActive || _reports.inPictureInPicture)) {
     _reports.autoPictureInPictureActive = NO;
@@ -203,6 +231,7 @@ BOOL TracingPictureInPicture() {
   }
   _reports.inPictureInPicture = [state[@"active"] boolValue];
   [self emit:@"pictureInPicture" payload:@{@"kind" : @"document", @"active" : @([state[@"active"] boolValue])}];
+  if (_reports.inPictureInPicture) ardia_pip::DocumentEntered(self);
 }
 
 - (void)tab:(ArdiaCoreTab *)tab requestsActivation:(NSString *)reason {

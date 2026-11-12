@@ -1,0 +1,7 @@
+inheritance: true
+reviews:
+  auto_review:
+    enabled: false
+    labels:
+      - "vouch:trusted"
+      - "run-ci"

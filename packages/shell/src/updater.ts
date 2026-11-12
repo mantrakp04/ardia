@@ -13,7 +13,14 @@ export type UpdaterState =
       displayVersion?: string;
       channel?: UpdateChannel;
       buildChannel?: UpdateChannel;
+      switchCheck?: SwitchCheck | null;
     };
+
+export type SwitchCheck = {
+  phase: "waiting" | "checking" | "found" | "upToDate" | "newerThanLatest" | "failed";
+  channel: UpdateChannel;
+  version?: string;
+};
 
 export type UpdateChannel = "stable" | "nightly";
 
