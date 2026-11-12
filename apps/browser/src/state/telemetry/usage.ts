@@ -197,8 +197,7 @@ export function noteCardResizeLayout(applied: boolean) {
 export function noteSidebarPeek(bounce: boolean, overFullscreenPage = false) {
   counts.sidebarPeeks++;
   if (bounce) counts.sidebarPeekBounces++;
-  if (overFullscreenPage) counts.fullscreenSidebarPeeks++;
-  else if (!useBrowser.getState().settings.autoHideTabs) counts.tabPeeksWithAutoHideOff++;
+  if (overFullscreenPage) counts.fullscreenSidebarPeeks++; else if (!useBrowser.getState().settings.autoHideTabs) counts.tabPeeksWithAutoHideOff++;
 }
 
 export const noteSettingsSearchReveal = (via: "keyboard" | "click", rank: number) => void (counts[via === "keyboard" ? "settingsSearchKeyboardReveals" : "settingsSearchClickReveals"]++, counts[rank === 0 ? "settingsSearchTopPicks" : rank < 3 ? "settingsSearchTop3Picks" : "settingsSearchLowerPicks"]++);
