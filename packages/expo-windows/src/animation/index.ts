@@ -4,7 +4,7 @@ import { aroundCentre } from "./pivot";
 type Config = { useNativeDriver?: boolean; iterations?: number };
 type Helper = { default: { shouldUseNativeDriver(config: Config): boolean } };
 type AnimatedValue = { __makeNative(platformConfig?: unknown): void };
-type ValueClass = { default: { prototype: AnimatedValue } };
+type NodeClass = { default: { prototype: AnimatedValue } };
 type Running = {
   __active: boolean;
   __isLooping?: boolean | null;
@@ -16,7 +16,8 @@ type AnimationClass = { default: { prototype: Running } };
 type StyleAttributes = { default: { transform: { process(transform: unknown): unknown } } };
 
 const helper: Helper = require("react-native/src/private/animated/NativeAnimatedHelper");
-const animatedValue: ValueClass = require("react-native/Libraries/Animated/nodes/AnimatedValue");
+const animatedValue: NodeClass = require("react-native/Libraries/Animated/nodes/AnimatedValue");
+const animatedColor: NodeClass = require("react-native/Libraries/Animated/nodes/AnimatedColor");
 const animation: AnimationClass = require("react-native/Libraries/Animated/animations/Animation");
 const styleAttributes: StyleAttributes = require("react-native/Libraries/Components/View/ReactNativeStyleAttributes");
 
@@ -28,11 +29,12 @@ export function installAnimation() {
   helper.default.shouldUseNativeDriver = repeatsNatively;
 
   let startingNatively = false;
-  const value = animatedValue.default.prototype;
-  const makeNative = value.__makeNative;
-  value.__makeNative = function (this: AnimatedValue, platformConfig?: unknown) {
-    if (startingNatively) makeNative.call(this, platformConfig);
-  };
+  for (const node of [animatedValue.default.prototype, animatedColor.default.prototype]) {
+    const makeNative = node.__makeNative;
+    node.__makeNative = function (this: AnimatedValue, platformConfig?: unknown) {
+      if (startingNatively) makeNative.call(this, platformConfig);
+    };
+  }
 
   const running = animation.default.prototype;
   const startNatively = running.__startAnimationIfNative;

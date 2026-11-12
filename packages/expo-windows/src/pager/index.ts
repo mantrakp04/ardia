@@ -1,10 +1,6 @@
 import { AccessibilityInfo } from "react-native";
-import { noteAnimation } from "../animation/motion";
+import { cancelFrame, noteAnimation, requestFrame } from "../animation/motion";
 import { PagerRegistry, type PagerSnapshot } from "./pager";
-
-type Timers = { requestAnimationFrame(frame: () => void): number; cancelAnimationFrame(id: number): void };
-
-const timers = globalThis as unknown as Timers;
 
 let reduceMotion = false;
 let watchingReduceMotion = false;
@@ -25,8 +21,8 @@ function watchReduceMotion() {
 
 export const pagers = new PagerRegistry({
   now: () => performance.now(),
-  requestFrame: (frame) => timers.requestAnimationFrame(frame),
-  cancelFrame: (id) => timers.cancelAnimationFrame(id),
+  requestFrame,
+  cancelFrame,
   reducedMotion: () => {
     watchReduceMotion();
     return reduceMotion;

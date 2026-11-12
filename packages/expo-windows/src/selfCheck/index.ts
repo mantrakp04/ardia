@@ -5,6 +5,7 @@ import { checks as fileDropChecks } from "./fileDrop";
 import { checks as focusChecks } from "./focus";
 import { checks as materialChecks } from "./materials";
 import { checks as menuChecks } from "./menus";
+import { checks as motionChecks } from "./motion";
 import { checks as pagerChecks } from "./pager";
 import { checks as shellChecks } from "./shell";
 import { checks as storageChecks } from "./storage";
@@ -13,7 +14,7 @@ import { checks as viewChecks } from "./views";
 import { checks as windowDragChecks } from "./windowDrag";
 import { checks as windowChecks } from "./windows";
 
-const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, pagerChecks, materialChecks, windowDragChecks, fileDropChecks, focusChecks, engineHostChecks];
+const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, materialChecks, windowDragChecks, fileDropChecks, focusChecks, engineHostChecks];
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 

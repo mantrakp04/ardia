@@ -144,6 +144,22 @@ Logic is written once. Only code that calls the OS is written per platform.
     scrolling, a peek, a popover that grows in. Endless loops do not count.
   - The launch log says `[ardia windows] motion <n> frames in <ms> ms, longest <ms> ms, <n> long` when a burst of
     animation ends: how many frames it got, the longest gap between two, and how many gaps were over 2.5 frames.
+    The same numbers go to telemetry, where sharing is on, as `animation_bursts` and `animation_long_frames` in the
+    hourly `usage_counts` (`platform/motion.windows.ts`, the `ArdiaMotion` module): a rising share of long frames
+    per burst is the sign that animations stutter in the field.
+  - What this costs and where it is not exact:
+    - An animation needs the UI thread: while the engine opens its first page (most of a second) a row's slide
+      stalls and then jumps. The Mac's native driver keeps going there.
+    - A value that an endless loop animates natively must not be animated any other way afterwards, and nothing
+      else may share its view's animated props: React Native refuses to mix the two drivers on one value.
+    - While a view is scaled, `measureInWindow` reports it half its size times (1 - scale) further right and down
+      than it is drawn, because React Native measures as if the platform turned around the centre by itself. So a
+      hole cut for a surface that is growing in sits off by that much until the scale reaches 1 (a popover: under
+      a tenth of its size, for 150 ms).
+    - React Native for Windows resolves the half-size translate when the transform changes, not when the view's
+      size changes: a view that is resized while it holds a scale or rotation keeps turning around its old centre
+      until its transform changes again. An animation changes it every frame; a fixed rotation on a view that
+      resizes would need its transform set again.
 - While the command panel sits beside the window buttons it keeps their 138 points free at the right
   (`trailingClearance` in `lib/windowChrome.ts`). Little Ardia's bar numbers for both systems are in
   `components/littleArdia/barLayout.ts`.
