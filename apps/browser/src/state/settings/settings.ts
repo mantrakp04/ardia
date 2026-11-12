@@ -112,6 +112,7 @@ export const SETTING_SPECS = {
   showAdvancedSettings: flag(false),
   selectedTabGlow: oneOf(["full", "soft", "off"], "full", SYNCED),
   interfaceStyle: oneOf(["glass", "classic"], "glass", SYNCED),
+  glassSidebar: flag(false, SYNCED),
   glassTintWithTheme: flag(false, SYNCED),
   glassTintAmount: fraction(0.8, SYNCED),
   pageScrollBars: oneOf(["system", "thin"], "system", SYNCED),

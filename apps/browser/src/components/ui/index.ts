@@ -6,7 +6,7 @@ export { Divider } from "./Divider";
 export { Dot } from "./Dot";
 export { EmptyState } from "./EmptyState";
 export { Checkbox, PopUp, SearchField, TextField, type Option } from "./Field";
-export { GlassFill, GlassLookContext, liquidGlass, useGlass, useGlassLook, type GlassLook } from "./Glass";
+export { GlassBackdrop, GlassFill, GlassLookContext, liquidGlass, useGlass, useGlassLook, type GlassLook } from "./Glass";
 export { HoverCard, type HoverCardProps } from "./HoverCard";
 export { HoverSlot } from "./HoverSlot";
 export { IconTile } from "./IconTile";

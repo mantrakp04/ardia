@@ -29,6 +29,12 @@ export const appearanceRows = {
           keywords: ["liquid glass", "glass", "classic", "flat", "translucent", "transparency", "glow", "frosted"],
           shown: (_, env) => !!env.glass,
         },
+        glassSidebar: {
+          title: "Liquid Glass floating sidebar",
+          description: "Show the page through Liquid Glass when the hidden sidebar slides over it. The docked sidebar keeps its window theme.",
+          keywords: ["translucent sidebar", "transparency", "blur", "liquid glass", "floating sidebar"],
+          shown: (_, env) => !!env.glass,
+        },
         glassTintWithTheme: {
           title: "Tint glass with the profile colour",
           description: "Off, the glass stays neutral grey whatever the profile's colour.",
