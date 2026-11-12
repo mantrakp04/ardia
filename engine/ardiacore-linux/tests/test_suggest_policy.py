@@ -20,17 +20,17 @@ class SuggestPolicyTests(unittest.TestCase):
 #include "ardia/linux/ac_linux_suggest_policy.h"
 int main() {
   using namespace ardia::linux_suggest_policy;
-  assert(RequestAllowed("https://suggestqueries.google.com/complete/search?client=firefox&q=linux%20parity"));
+  assert(RequestAllowed("https://www.google.com/complete/search?client=firefox&q=linux%20parity"));
   assert(RequestAllowed("https://duckduckgo.com/ac/?q=a&type=list"));
   assert(RequestAllowed("https://suggest.yandex.com/suggest-ff.cgi?part=%C3%A4"));
-  assert(!RequestAllowed("https://suggestqueries.google.com/complete/search"));
-  assert(!RequestAllowed("https://suggestqueries.google.com/complete/search?"));
-  assert(!RequestAllowed("https://suggestqueries.google.com/complete/searchx?q=a"));
-  assert(!RequestAllowed("https://suggestqueries.google.com/complete/search/x?q=a"));
-  assert(!RequestAllowed("https://suggestqueries.google.com.evil.example/complete/search?q=a"));
-  assert(!RequestAllowed("https://suggestqueries.google.com:444/complete/search?q=a"));
-  assert(!RequestAllowed("http://suggestqueries.google.com/complete/search?q=a"));
-  assert(!RequestAllowed("https://user@suggestqueries.google.com/complete/search?q=a"));
+  assert(!RequestAllowed("https://www.google.com/complete/search"));
+  assert(!RequestAllowed("https://www.google.com/complete/search?"));
+  assert(!RequestAllowed("https://www.google.com/complete/searchx?q=a"));
+  assert(!RequestAllowed("https://www.google.com/complete/search/x?q=a"));
+  assert(!RequestAllowed("https://www.google.com.evil.example/complete/search?q=a"));
+  assert(!RequestAllowed("https://www.google.com:444/complete/search?q=a"));
+  assert(!RequestAllowed("http://www.google.com/complete/search?q=a"));
+  assert(!RequestAllowed("https://user@www.google.com/complete/search?q=a"));
   assert(!RequestAllowed("https://duckduckgo.com/ac/../collect?q=a"));
   assert(!RequestAllowed("https://duckduckgo.com/ac/x?q=a"));
   assert(!RequestAllowed("https://www.google.com/search?q=a"));

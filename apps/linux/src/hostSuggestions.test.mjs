@@ -48,10 +48,10 @@ test("requests outside the built-in suggestion endpoints are refused before reac
   const fetch = hostSuggestFetch(host);
   for (const url of [
     "https://example.com/?q=a",
-    "https://suggestqueries.google.com/complete/search",
-    "https://suggestqueries.google.com/complete/searchx?q=a",
-    "https://suggestqueries.google.com.evil.example/complete/search?q=a",
-    "http://suggestqueries.google.com/complete/search?q=a",
+    "https://www.google.com/complete/search",
+    "https://www.google.com/complete/searchx?q=a",
+    "https://www.google.com.evil.example/complete/search?q=a",
+    "http://www.google.com/complete/search?q=a",
     "https://duckduckgo.com/ac/?q=a#x",
     "https://duckduckgo.com/ac/?q=a b",
     "https://extension.example/suggest?q=a",

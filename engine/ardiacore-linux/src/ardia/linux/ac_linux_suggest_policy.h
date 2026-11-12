@@ -11,7 +11,7 @@
 namespace ardia::linux_suggest_policy {
 
 inline constexpr std::string_view kEndpoints[] = {
-    "https://suggestqueries.google.com/complete/search",
+    "https://www.google.com/complete/search",
     "https://api.bing.com/osjson.aspx",
     "https://duckduckgo.com/ac/",
     "https://ac.ecosia.org/autocomplete",
