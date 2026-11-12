@@ -3,6 +3,7 @@ import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
 import { profileBadge, profileColors, profileSwitcher } from "./tokens";
+import { profileMark } from "../../lib/profileInitial";
 import { iconSymbol } from "../../lib/customIcon";
 
 export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
@@ -96,7 +97,7 @@ export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "n
             transform: [{ translateX: profile.icon ? nudge : 0 }, { translateY: nudge }],
           }}
         >
-          {profile.icon ?? (profile.name.trim()[0] ?? "?").toUpperCase()}
+          {profileMark(profile)}
         </Text>
       )}
     </Dot>

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { profileMark } from "../../lib/profileInitial";
 import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { switchProfile } from "../../state/browser/actions";
@@ -27,7 +28,7 @@ export function useProfileDotsShown() {
 
 export function ProfileDots({ windowId, width, besideDownloads }: { windowId: string; width: number; besideDownloads: boolean }) {
   const ids = useProfileOrder(useShallow((o) => o));
-  const saved = useProfileRecords(useShallow((profiles) => ids.map((id) => profiles[id]?.icon ?? null)));
+  const saved = useProfileRecords(useShallow((profiles) => ids.map((id) => profiles[id] ? profileMark(profiles[id]) : null)));
   const shown = useSettings((s) => s.profileSwitcherIcons);
   const icons = switcherIcons(saved, shown, width - 2 * (besideDownloads ? SIDE_ROOM_BESIDE_DOWNLOADS : SIDE_ROOM));
   const { pages, pager } = usePagerPages(windowId);
