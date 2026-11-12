@@ -698,10 +698,18 @@ await sleep(1000);
     [by, old] = [await reservedBy(optionC), await reservedBy(copyUrlKeys)];
   }
   check("Copy URL rebound to ⌥C: the Option-only keys are reserved and ⇧⌘C goes to the page", by === "ardia.command.copyUrl" && !old, `⌥C ${by || "page"}, ⇧⌘C ${old || "page"}`);
+  const url = await activeUrl();
+  await clipboard.set("before ⌥C");
   await swallowKeys();
-  const r = await press(optionC, { focus: "page", asKey: true, wait: 600, dry: true });
-  const seen = await pageKeys();
-  check("⌥C in a page that cancels every keydown: Copy URL fires and the page gets no keydown", (r.fired ?? []).some((f) => same(f, { command: "copyUrl" })) && seen === 0, `${describe(r)}, the page saw ${seen} keydown`);
+  // A real hardware key sent through AppKit (not dry): its own key-equivalent matching has to accept the Option mask, not a stand-in matcher.
+  const r = await press(optionC, { focus: "page", asKey: true, send: true, wait: 600 });
+  const seen = await pageKeys(), copied = await clipboard.get();
+  const harness = r.error ? `harness: ${r.error}; ` : r.lostEvents ? "harness: a key event never came back from the app's event queue; " : r.keyWindow !== true ? "harness not key: NSApp.keyWindow wasn't the pressed window; " : "";
+  check(
+    "⌥C sent through AppKit to a page that cancels every keydown: Copy URL copies the page's address and the page gets no keydown",
+    !harness && (r.fired ?? []).some((f) => same(f, { command: "copyUrl" })) && copied === url && seen === 0,
+    `${harness}${describe(r)}, clipboard ${JSON.stringify(copied)} (page ${JSON.stringify(url)}), the page saw ${seen} keydown`,
+  );
   await ac(`const { copyUrl, ...rest } = ac.store.getState().settings.shortcuts; ac.store.getState().updateSettings({ shortcuts: rest }); return 1;`);
   for (let i = 0; i < 30 && !(await reservedBy(copyUrlKeys)); i++) await sleep(100);
 }
