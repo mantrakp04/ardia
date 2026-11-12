@@ -7,6 +7,8 @@ import { BAR, BAR_TYPE } from "./tokens";
 
 type InputProps = ComponentProps<typeof TextInput>;
 
+const CENTRED_MIN_INPUT = 120;
+
 export function BarField({
   inputRef,
   variant,
@@ -29,13 +31,15 @@ export function BarField({
 } & Pick<InputProps, "value" | "onLayout" | "onChangeText" | "onSubmitEditing" | "onFocus" | "onBlur" | "keyDownEvents" | "onKeyDown">) {
   const theme = useTheme();
   const type = variant === "hero" ? BAR_TYPE.heroField : variant === "sidebar" || floating ? BAR_TYPE.floatingField : BAR_TYPE.panelField;
-  const [inset, setInset] = useState(BAR.panel.iconLeft + BAR.iconSlot + BAR.panel.gap);
+  const [frame, setFrame] = useState({ x: BAR.panel.iconLeft + BAR.iconSlot + BAR.panel.gap, room: Infinity });
+  const balance = centred ? Math.max(0, Math.min(frame.x - BAR.panel.right, frame.room - CENTRED_MIN_INPUT)) : 0;
   return (
     <TextInput
       ref={inputRef}
       {...events}
       onLayout={(e) => {
-        if (centred) setInset(e.nativeEvent.layout.x);
+        const { x, width } = e.nativeEvent.layout;
+        if (centred && (x !== frame.x || width + balance !== frame.room)) setFrame({ x, room: width + balance });
         events.onLayout?.(e);
       }}
       onSelectionChange={(e) => {
@@ -62,7 +66,7 @@ export function BarField({
         color: theme.textPrimary,
         paddingVertical: 0,
         marginTop: variant === "panel" ? BAR.panelFieldLift : 0,
-        ...(centred ? { textAlign: "center" as const, marginRight: Math.max(0, inset - BAR.panel.right) } : null),
+        ...(centred ? { textAlign: "center" as const, marginRight: balance } : null),
       }}
     />
   );

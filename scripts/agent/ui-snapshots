@@ -278,7 +278,7 @@ ac.pages.bookmarkDialog.setState({ open: null });
 s.setSelection(W, []);
 s.updateGroup("g1", { collapsed: false });
 for (const sp of Object.values(s.splits)) s.separateSplit(sp.id);
-s.updateSettings({ appearance: "dark", tabLayout: "sidebar", addressBar: "toolbar", bookmarksBar: "never", centredUrl: false, compactToolbar: false });
+s.updateSettings({ appearance: "dark", tabLayout: "sidebar", addressBar: "toolbar", bookmarksBar: "never", centredUrl: false, compactToolbar: false, customSearchEngines: [] });
 if (s.settings.autoHideTabs) s.toggleSidebar(W);
 s.activate("t3");
 s.updateProfile("default", { pinnedCollapsed: false });
@@ -307,6 +307,7 @@ const STATES = [
   main("dia-dark-centred-url-compact", `st().updateSettings({ centredUrl: true, compactToolbar: true }); st().activate("t1"); st().toggleSidebar(W);`),
   main("dia-light-centred-url", `st().updateSettings({ appearance: "light" }); st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W);`),
   main("dia-dark-centred-url-scope", `st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W); st().openPanel(W, ""); return settle(400).then(() => { const id = ac.omnibox.ids().find((i) => i.includes("panel") || i.includes(W)) || ac.omnibox.ids()[0]; const bar = ac.omnibox.get(id); bar.type("youtube"); return settle(400).then(() => { bar.key("Tab"); return settle(400).then(() => { bar.type("cats"); return settle(500); }); }); });`),
+  main("dia-dark-centred-url-long-scope", `st().updateSettings({ centredUrl: true, customSearchEngines: [{ id: "long", name: "An Extremely Long Custom Search Engine Name", keyword: "lng", url: "https://example.com/?q=%s" }] }); st().activate("t1"); st().toggleSidebar(W); st().createSplit(["t1", "t2"]); st().openPanel(W, ""); return settle(400).then(() => { const bar = ac.omnibox.get(ac.omnibox.ids()[0]); bar.type("lng"); return settle(400).then(() => { bar.key("Tab"); return settle(400).then(() => { bar.type("cats"); return settle(500); }); }); });`),
   main("dia-dark-centred-url-narrow-split", `st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W); st().createSplit(["t1", "t2", "r1"]);`),
   main("dia-dark-centred-url-command-bar", `st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W); st().openPanel(W, "https://example.com/notes");`),
   main("dia-dark-work-profile", `st().switchProfile(W, "work");`),
