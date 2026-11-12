@@ -98,6 +98,21 @@ export function SourceStep() {
           {isWebDemo ? null : <SetupCodeLink onPress={() => setPastingCode(true)} />}
         </>
       }
+      footer={
+        canImport && chosen ? (
+          <ChoiceCard radius={radius.panel} style={{ flexDirection: "row", alignItems: "center", gap: space.l, padding: space.l }}>
+            <View style={{ flex: 1, gap: space.xxs }}>
+              <Text weight="medium" color={colors.title}>
+                {importing === chosen.id ? `Importing from ${chosen.name}` : `Bring your stuff from ${chosen.name}`}
+              </Text>
+              <Text size="small" color={colors.rowSubtitle}>
+                {importing === chosen.id ? "It runs in its own window. Carry on here." : "Bookmarks, history, passwords and tabs."}
+              </Text>
+            </View>
+            {importing === chosen.id ? <Checkbox look="ring" size="m" value /> : <SecondaryButton title="Import…" filled onPress={startImport} />}
+          </ChoiceCard>
+        ) : null
+      }
       preview={<SourcePreview tile={chosen ?? null} fresh={source === "fresh"} found={found} />}
     >
       {found.length ? (
@@ -110,19 +125,6 @@ export function SourceStep() {
         <SectionLabel title={found.length ? "Others" : "Browsers"} />
         <TileGrid tiles={others} selected={source} onPress={choose} fresh />
       </View>
-      {canImport && chosen ? (
-        <ChoiceCard radius={radius.panel} style={{ flexDirection: "row", alignItems: "center", gap: space.l, padding: space.l }}>
-          <View style={{ flex: 1, gap: space.xxs }}>
-            <Text weight="medium" color={colors.title}>
-              {importing === chosen.id ? `Importing from ${chosen.name}` : `Bring your stuff from ${chosen.name}`}
-            </Text>
-            <Text size="small" color={colors.rowSubtitle}>
-              {importing === chosen.id ? "It runs in its own window. Carry on here." : "Bookmarks, history, passwords and tabs."}
-            </Text>
-          </View>
-          {importing === chosen.id ? <Checkbox look="ring" size="m" value /> : <SecondaryButton title="Import…" filled onPress={startImport} />}
-        </ChoiceCard>
-      ) : null}
     </StepLayout>
   );
 }
