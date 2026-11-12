@@ -40,6 +40,7 @@ const CHECKS = {
   "low-power": "Low Power Mode (acted): nothing",
   thermal: "serious thermal pressure (acted): nothing",
   "screen-share": "the tab sharing a tab, window or screen (acted): nothing",
+  "tab-share": "a real tab share (getDisplayMedia answered from the app's picker) from the tab playing: nothing while it runs, upscaled again once it stops",
   pip: "the video in Picture in Picture: nothing",
   "hdr-pq": "an HDR10 (PQ) clip: declined",
   "hdr-hlg": "an HLG clip: declined",
@@ -101,6 +102,9 @@ v.style.width = (q.get("w") || "1280") + "px";
 v.style.height = (q.get("h") || "720") + "px";
 v.style.objectFit = q.get("fit") || "contain";
 const src = q.get("src") || "clip_854x480.mp4";
+window.cap = "idle";
+window.share = () => { window.cap = "pending"; navigator.mediaDevices.getDisplayMedia({ video: true }).then((s) => { window.stream = s; window.cap = "live"; }, (e) => (window.cap = e.name)); return true; };
+window.unshare = () => { window.stream?.getTracks().forEach((t) => t.stop()); window.stream = null; window.cap = "idle"; return true; };
 window.frames_ = 0;
 const tick = () => { window.frames_++; v.requestVideoFrameCallback(tick); };
 v.requestVideoFrameCallback(tick);
@@ -324,6 +328,39 @@ await closedBy("occluded", q480, (v) => win(v.id, "fakeOcclusion:occluded"), (v)
 await closedBy("low-power", q480, () => engine("webView.setVideoUpscalingTestConditions", { lowPower: true }), () => engine("webView.setVideoUpscalingTestConditions"));
 await closedBy("thermal", q480, () => engine("webView.setVideoUpscalingTestConditions", { thermalPressure: true }), () => engine("webView.setVideoUpscalingTestConditions"));
 await closedBy("screen-share", q480, () => engine("webView.setVideoUpscalingTestConditions", { capturing: true }), () => engine("webView.setVideoUpscalingTestConditions"));
+
+// The same, with nothing acted: the tab playing the video shares another tab through getDisplayMedia, as Meet's presenter does,
+// so the engine's capture indicator and its observer are what close the gate, then open it again.
+await check("tab-share", async () => {
+  const capturing = async (v) => (await gate(v)).state.tabs.find((t) => t.url === v.url)?.capturing ?? null;
+  const target = await openVideo("src=clip_640x360.mp4&w=160&h=90");
+  const v = await warm(q480);
+  try {
+    const before = expectWork(await watch(), await gate(v));
+    if (await capturing(v)) throw new Error("the tab reports a share before one started");
+    await v.page.eval("window.share()", { userGesture: true });
+    let cap = "pending";
+    await until("the share going live", async () => {
+      cap = await v.page.eval("window.cap");
+      if (cap !== "pending") return true;
+      await evalApp(`return globalThis.acSharePicker.shareTab(${JSON.stringify(v.id)}, ${JSON.stringify(target.id)}, false)`);
+      return null;
+    });
+    if (cap !== "live") throw new Error(`getDisplayMedia: ${cap}`);
+    await until("the engine to report the share", async () => (await capturing(v)) === true || null, 8000);
+    await sleep(800);
+    const during = expectNothing(await watch(), await gate(v));
+    await v.page.eval("window.unshare()");
+    await until("the engine to report the share ended", async () => (await capturing(v)) === false || null, 8000);
+    await sleep(800);
+    const after = expectWork(await watch(), await gate(v));
+    return `before: ${before}; sharing: ${during}; after: ${after}`;
+  } finally {
+    await v.page.eval("window.unshare?.()").catch(() => null);
+    await closeTab(v.id);
+    await closeTab(target.id);
+  }
+});
 
 await check("pip", async () => {
   const v = await warm(q480);
