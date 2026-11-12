@@ -70,6 +70,7 @@ const MODULE_FALLBACKS: Record<string, Record<string, Fallback>> = {
     ...Object.fromEntries(["detect", "status", "supportedLanguages", "prepare", "open", "translate", "translateBlocks", "cancel"].map((method) => [method, refuse("Translation")])),
   },
   ArdiaInlineCompletion: { complete: refuse("Inline completion") },
+  ArdiaLocation: { locationPermission: answer("granted"), requestLocationPermission: answer("granted"), openLocationSettings: answer(undefined) },
   ArdiaDockSelection: { iconTheme: refuse("Icon themes"), iconAccent: linuxIconAccent },
   ArdiaReport: REPORT_FALLBACKS,
   ArdiaTelemetryLocal: TELEMETRY_LOCAL_FALLBACKS,
@@ -87,7 +88,7 @@ const MODULE_FALLBACKS: Record<string, Record<string, Fallback>> = {
   },
 };
 
-const DEVELOPER_MODULES = new Set(["ArdiaApp", "ArdiaMagnifyArea", "ArdiaFileDrop"]);
+const DEVELOPER_MODULES = new Set(["ArdiaApp", "ArdiaMagnifyArea", "ArdiaFileDrop", "ArdiaLocation"]);
 
 export function appModuleFallback(host: ArdiaHost, name: string, method: string): Fallback | undefined {
   if (hostSupports(`${name}.${method}`, host)) return undefined;

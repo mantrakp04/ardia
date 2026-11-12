@@ -92,6 +92,10 @@ export const LINUX_WORDING: readonly Wording[] = [
       ["Leaves this Mac only as the events above", "Leaves this computer only as the events above"],
       ["whether macOS and Ardia agree that Ardia is the app in front", "whether the system and Ardia agree that Ardia is the app in front"],
       ["window was still on a screen though macOS reported it covered", "window was still on a screen though the system reported it covered"],
+      [
+        "whether macOS gave Ardia location access, you said no in macOS's prompt, it was already off in System Settings, or the check failed, one event each time.",
+        "whether Ardia had location access (always, on Linux: the system has no app-wide location switch to ask) or the check failed, one event each time.",
+      ],
       ["and the copy kept on this Mac is deleted.", "and the copy kept on this computer is deleted."],
       [`title: "Kept on this Mac"`, `title: "Kept on this computer"`],
       ["Saves the local copy to your Downloads folder and shows it in Finder.", "Saves the local copy to your Downloads folder and shows it in your file manager."],

@@ -220,6 +220,9 @@ test("problem reports, the local telemetry copy and hardware details answer on L
   assert.deepEqual(await settle(resolve("ArdiaApp", "hardwareInfo")()), { code: "ERR_UNAVAILABLE" });
   assert.deepEqual(await settle(resolve("ArdiaApp", "diagnosticsSample")()), { answer: {} });
   assert.deepEqual(await settle(resolve("ArdiaDockSelection", "iconAccent")("https://example.com/favicon.ico")), { answer: null });
+  for (const method of ["locationPermission", "requestLocationPermission"]) assert.deepEqual(await settle(resolve("ArdiaLocation", method)()), { answer: "granted" }, method);
+  assert.deepEqual(await settle(resolve("ArdiaLocation", "openLocationSettings")()), { answer: undefined });
+  assert.deepEqual(await settle(resolve("ArdiaLocation", "devLocationRequests")()), { code: "ERR_UNAVAILABLE" });
 });
 
 test("every ArdiaShell method resolves to its Linux fallback while the native host doesn't advertise it", () => {
