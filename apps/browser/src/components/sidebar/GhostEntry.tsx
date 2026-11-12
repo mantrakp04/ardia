@@ -1,5 +1,7 @@
+import { memo, useMemo } from "react";
 import { tabTitle } from "../../state/browser/model";
-import { Image, View } from "react-native";
+import { Image, View, type Animated } from "react-native";
+import { useAnimatedStyle } from "./EntryMotion";
 import { knownFaviconTheme, resolveFavicon } from "../../state/favicons/favicons";
 import { Divider, FadeLabel, font, radius, space, Symbol, Text, withAlpha } from "../ui";
 import { layout, useTheme } from "../ui/theme";
@@ -155,4 +157,20 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
       <View style={{ gap: layout.rowGap, paddingTop: headGap(shot.members[0]?.key), paddingBottom: groupMembersPadBottom(shot.members.length), paddingLeft: GROUP_INDENT, paddingRight: GROUP_INSET }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
     </View>
   );
+}
+
+export const GhostSlot = memo(function GhostSlot({ snapshot, top, opacity }: { snapshot: EntrySnapshot; top: number; opacity: Animated.Value }) {
+  const style = useMemo(() => ({ opacity }), [opacity]);
+  const [fade, ref] = useAnimatedStyle(style);
+  const theme = useTheme();
+  return (
+    <View pointerEvents="none" {...fade} ref={ref} style={[{ height: 0, marginBottom: -layout.rowGap }, fade.style as object]}>
+      {ghostEntry(snapshot, theme, top)}
+    </View>
+  );
+});
+
+export function EntryGhost({ snapshot }: { snapshot: EntrySnapshot }) {
+  const theme = useTheme();
+  return <View pointerEvents="none">{ghostEntry(snapshot, theme, 0)}</View>;
 }
