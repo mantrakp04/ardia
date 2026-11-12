@@ -246,8 +246,25 @@ is plain Chromium.
   `chromium-win-relaunch-to-app.patch` gives that to `//ardia/win`, which sends the topic `relaunch` with the web and
   file addresses on it. The app treats them as links from another app (`onOpenURLs`: a Little Ardia window or a tab,
   as Settings says) and a launch with none as `reopen` (the last window comes forward).
+- A first launch opens the addresses it was started with, which is how a link from another app arrives when Ardia is
+  the default browser and isn't running: the engine starts with `--no-startup-window`, so Chromium opens none itself.
+  `ArdiaWindowsHost.launchArguments` reads the process's own command line (Chromium's `--single-argument` form, which
+  the default browser registration uses, as one argument), and `packages/expo-windows/src/launchLinks` keeps what is an
+  address by the relaunch's rule: switches never, http, https and file addresses, a file that exists by its full path,
+  an absolute path, a bare host as http; a bare word, `localhost:<port>` and other schemes are refused. They reach the
+  app as `onOpenURLs` once it listens (`emitWhenListened` in `events.ts` holds them until then; a relaunch's addresses
+  go the same way), after the session has restored, so they open as links from another app do on the Mac. The launch
+  log says `launch links: <n> held until the app listens` and `<n> sent to the app`; telemetry counts them as
+  `launch_command_line_links` in the hourly `usage_counts`.
 - A page that goes full screen takes its window full screen (`setPageFullScreen`, which puts the window back as it
   was when the page leaves), and nothing is cut out of the page while it is.
+- Split View is off on Windows (`PLATFORM_FEATURES.splitView`): the engine keeps one hosted Chromium window per app
+  window and profile and shows one tab in it, so a second pane had no page. Nothing makes a split (the splits slice
+  refuses, and a split that comes from the session, an import or a reopened window drops to its panes, which stay as
+  ordinary tabs), and its menu items, toolbar and hover buttons, shortcuts, command bar actions, ⌥ clicks and drop
+  zones are not offered; a link meant for a pane opens as a tab. The engine needs one hosted window per visible page:
+  `tab.show` placing a tab in its own borderless window owned by the app window, several shown at once, each with its
+  own bounds, corner radius and holes, and hiding only what the UI hides.
 - A tab restored from the last session, or duplicated, loads its address: the Windows engine keeps no saved page
   state yet, so only tabs the engine itself offered are adopted.
 - The Windows engine opens every tab on a real `about:blank` and names it as the committed page, where the Mac's tab
