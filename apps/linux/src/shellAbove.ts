@@ -1,4 +1,4 @@
-import { useLayoutEffect, type RefObject } from "react";
+import { createContext, useContext, useLayoutEffect, type RefObject } from "react";
 import { hostSupports, INPUT_REGIONS_METHOD, invokeHost, reportHostError, type ArdiaHost } from "./host.ts";
 import { createInputRegions, type InputRegionsRegistry, type RegionDeps, type RegionShape } from "./inputRegions.ts";
 import { createPageHoles, type PageHoles } from "./pageHoles.ts";
@@ -93,9 +93,12 @@ export function useInputRegion(ref: RefObject<Element | null>, shape: RegionShap
   }, [shape, gated]);
 }
 
+export const AbovePages = createContext(false);
+
 export function usePageHoleLayer(ref: RefObject<HTMLElement | null>) {
+  const abovePages = useContext(AbovePages);
   useLayoutEffect(() => {
     const element = ref.current;
-    return element && holes ? holes.addLayer(element) : undefined;
-  }, []);
+    return element && holes && !abovePages ? holes.addLayer(element) : undefined;
+  }, [abovePages]);
 }
