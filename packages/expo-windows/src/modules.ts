@@ -4,6 +4,7 @@ import { moduleDefaults } from "./defaults";
 import { engineAvailable } from "./engine/host";
 import { engineModules } from "./engine/modules";
 import { noteMissing } from "./missing";
+import { windowsUpdater } from "./updater";
 import { setWindowDark } from "./windowDark";
 
 type Listener = (payload: unknown) => void;
@@ -21,6 +22,8 @@ const around: Record<string, Record<string, (native: Call) => Call>> = {
     },
   },
 };
+
+const writtenInJs: Record<string, Record<string, unknown>> = { ArdiaUpdater: windowsUpdater };
 
 const inert = (module: string, key: string) => () => {
   noteMissing(`${module}.${key}`);
@@ -43,6 +46,8 @@ function moduleOnWindows(name: string): object {
         if (wrap && typeof fromNative === "function") return wrap(fromNative as Call);
         if (fromNative !== undefined) return fromNative;
         if (Object.hasOwn(constants, key)) return constants[key];
+        const inJs = writtenInJs[name];
+        if (inJs && Object.hasOwn(inJs, key)) return inJs[key];
         const withEngine = engineModules[name];
         if (withEngine && Object.hasOwn(withEngine, key) && engineAvailable()) return withEngine[key];
         if (Object.hasOwn(defaults, key)) {
@@ -64,5 +69,5 @@ export function requireNativeModule<Module = unknown>(name: string): Module {
 }
 
 export function requireOptionalNativeModule<Module = unknown>(name: string): Module | null {
-  return TurboModuleRegistry.get<TurboModule>(name) || moduleDefaults[name] || engineModules[name] ? (moduleOnWindows(name) as Module) : null;
+  return TurboModuleRegistry.get<TurboModule>(name) || moduleDefaults[name] || engineModules[name] || writtenInJs[name] ? (moduleOnWindows(name) as Module) : null;
 }

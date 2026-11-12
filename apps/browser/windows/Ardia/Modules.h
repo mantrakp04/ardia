@@ -16,6 +16,7 @@
 #include "SystemModule.h"
 #include "SystemSignalsModule.h"
 #include "TelemetryLocalModule.h"
+#include "UpdateModule.h"
 #include "VectorIconView.h"
 #include "WindowsHostModule.h"
 #include "WindowsModule.h"

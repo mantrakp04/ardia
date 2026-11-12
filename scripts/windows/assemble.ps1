@@ -1,7 +1,9 @@
 param(
   [Parameter(Mandatory = $true)][string]$App,
   [Parameter(Mandatory = $true)][string]$Engine,
-  [Parameter(Mandatory = $true)][string]$Out
+  [Parameter(Mandatory = $true)][string]$Out,
+  [string]$Version = "",
+  [int]$Build = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -65,6 +67,13 @@ foreach ($relative in (Get-RelativeFiles $appRoot)) {
 Move-Item -LiteralPath (Join-Path $outRoot $engineLauncher) -Destination (Join-Path $outRoot $launcher)
 & (Join-Path $PSScriptRoot "host-manifest.ps1") -From (Join-Path $appRoot $library) -To (Join-Path $outRoot $launcher)
 if ($LASTEXITCODE -ne 0) { throw "the launcher did not get the app's manifest entries" }
+
+if ($Build -gt 0) {
+  if (-not $Version) { $Version = & (Join-Path $PSScriptRoot "project-version.ps1") }
+  $identity = [ordered]@{ version = $Version; build = $Build } | ConvertTo-Json -Compress
+  [System.IO.File]::WriteAllText((Join-Path $outRoot "Ardia.build.json"), $identity, (New-Object System.Text.UTF8Encoding $false))
+  Write-Host "assemble: this is Ardia $Version, build $Build"
+}
 
 Write-Host "assemble: $($engineFiles.Count) engine files and $appCount app files in $outRoot"
 foreach ($relative in $clashes) { Write-Host "assemble: kept the engine's $relative; the app's differs" }

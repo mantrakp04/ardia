@@ -5,7 +5,7 @@ AppVersion={#Version}
 AppVerName=Ardia {#Version}
 AppPublisher=Ardia
 AppPublisherURL=https://ardia.dev
-AppSupportURL=https://github.com/mantrakp04/ardia/issues
+AppSupportURL=https://github.com/ardia-browser/ardia/issues
 DefaultDirName={localappdata}\Programs\Ardia
 DisableDirPage=yes
 DisableProgramGroupPage=yes
@@ -45,3 +45,10 @@ Name: "{autodesktop}\Ardia"; Filename: "{app}\Ardia.exe"; IconFilename: "{app}\A
 
 [Run]
 Filename: "{app}\Ardia.exe"; Description: "Open Ardia"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Ardia.exe"; Flags: nowait skipifnotsilent; Check: RelaunchAsked
+
+[Code]
+function RelaunchAsked: Boolean;
+begin
+  Result := ExpandConstant('{param:relaunch|0}') = '1';
+end;

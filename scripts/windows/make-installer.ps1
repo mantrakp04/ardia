@@ -15,13 +15,6 @@ $compiler = @{
 $allowed = @{ x64 = "x64compatible"; arm64 = "arm64" }
 $repository = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
-function Get-ProjectVersion {
-  $project = Join-Path $repository "apps\browser\macos\Ardia.xcodeproj\project.pbxproj"
-  $found = Select-String -LiteralPath $project -Pattern 'MARKETING_VERSION = "?([^";]+)"?;' | Select-Object -First 1
-  if (-not $found) { throw "no MARKETING_VERSION in $project" }
-  return $found.Matches[0].Groups[1].Value
-}
-
 function Find-Compiler([string]$installed) {
   $onPath = Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -First 1
   if ($onPath) { return $onPath.Source }
@@ -51,7 +44,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $Source "chrome.dll") -PathType Leaf
 $sourceRoot = (Resolve-Path -LiteralPath $Source).Path
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 $outRoot = (Resolve-Path -LiteralPath $Out).Path
-if (-not $Version) { $Version = Get-ProjectVersion }
+if (-not $Version) { $Version = & (Join-Path $PSScriptRoot "project-version.ps1") }
 $icon = Join-Path $repository "apps\browser\windows\Ardia\Ardia.ico"
 $script = Join-Path $PSScriptRoot "installer\Ardia.iss"
 

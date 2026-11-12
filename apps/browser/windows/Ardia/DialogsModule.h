@@ -318,7 +318,7 @@ inline DialogConfirmReply ShowConfirm(HWND owner, std::wstring const &title, std
     config.pszMainInstruction = title.c_str();
     config.pszContent = message.empty() ? nullptr : message.c_str();
     if (destructive) config.pszMainIcon = TD_WARNING_ICON;
-    config.cButtons = 2;
+    config.cButtons = cancelTitle.empty() ? 1 : 2;
     config.pButtons = buttons;
     config.nDefaultButton = ConfirmButtonId;
     if (suppression) config.pszVerificationText = suppression->c_str();

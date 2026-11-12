@@ -87,7 +87,7 @@ jobs:
       - name: Assemble with the engine
         if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
         shell: pwsh
-        run: scripts/windows/assemble.ps1 -App apps/browser/windows/x64/Release -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia"
+        run: scripts/windows/assemble.ps1 -App apps/browser/windows/x64/Release -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia" -Build ${{ github.run_number }}
       - name: Make the installer
         id: installer
         if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
@@ -216,7 +216,7 @@ jobs:
       - name: Assemble with the engine
         if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
         shell: pwsh
-        run: scripts/windows/assemble.ps1 -App apps/browser/windows/ARM64/Release -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia"
+        run: scripts/windows/assemble.ps1 -App apps/browser/windows/ARM64/Release -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia" -Build ${{ github.run_number }}
       - name: Make the installer
         id: installer
         if: ${{ !cancelled() && steps.engine.outcome == 'success' }}

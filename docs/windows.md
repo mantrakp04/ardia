@@ -197,6 +197,25 @@ is plain Chromium.
   and asks the engine for history, bookmarks and the downloads folder, logging every reply and event. It proves an
   engine build with no app.
 
+## Updates
+
+- The Windows alpha is the GitHub prerelease `windows-alpha`: `Ardia-Setup-x64.exe`, `Ardia-Setup-arm64.exe`, the
+  feed `windows-update.json` (version, build, and per CPU the installer's address, SHA-256 and size) and the
+  engine's source. `scripts/windows/publish-alpha.sh <run id>` publishes one green Windows workflow run there; the
+  feed goes up last.
+- A build knows what it is from `Ardia.build.json` beside `Ardia.exe` (`assemble.ps1 -Build`, the workflow's run
+  number). Only an installed build with that file updates: Settings › General › Updates shows "not set up" for a
+  folder build.
+- `packages/expo-windows/src/updater` is the app's `ArdiaUpdater` on Windows. It reads the feed, offers a higher
+  build for this CPU, downloads it, and asks before installing; with automatic downloads on it downloads first and
+  asks once. It checks 30 s after launch and every 6 hours, never in a hidden instance, and in an instance with its
+  own data folder only when `ARDIA_INSTANCE=updateFeed=<url>` names a feed (then installers must sit beside it).
+- The native half (`UpdateModule.h`, `ArdiaWindowsUpdate`) only fetches from the release's address, checks the
+  download's size and SHA-256 against the feed, and runs the installer from the Updates folder in the data folder
+  after hashing it again while holding it open. The installer runs silently, closes what is left of the app and
+  opens it again (`/relaunch=1`). Nothing is signed yet, so what stands behind an update is GitHub's HTTPS and the
+  release's write access.
+
 ## Checks
 
 - To build the app on a PC you need Visual Studio 2022 with the C++ desktop workload and the Windows SDK
@@ -254,5 +273,5 @@ The Mac's numbers are the targets for Windows, measured from the first engine bu
 5. C++ versions of what is still drawn flat or missing: shaders with Direct3D, import
    from Edge and Chrome, dragging files out of the app, swipe gestures.
 6. An installer exists (`scripts/windows/make-installer.ps1`, Inno Setup, per user, no admin prompt; CI builds
-   `Ardia-Setup-<cpu>.exe` and installs and uninstalls it). Left: signing it, and updates with WinSparkle on the
-   existing appcast, as a nightly first.
+   `Ardia-Setup-<cpu>.exe` and installs and uninstalls it), and the app updates itself from the Windows alpha
+   (Updates, below). Left: signing both.

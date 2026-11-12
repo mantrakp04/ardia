@@ -138,6 +138,7 @@
     <ClInclude Include="SystemModule.h" />
     <ClInclude Include="SystemSignalsModule.h" />
     <ClInclude Include="TelemetryLocalModule.h" />
+    <ClInclude Include="UpdateModule.h" />
     <ClInclude Include="Events.h" />
     <ClInclude Include="Host.h" />
     <ClInclude Include="Modules.h" />

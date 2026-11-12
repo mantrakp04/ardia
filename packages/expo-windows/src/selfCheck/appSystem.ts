@@ -137,6 +137,38 @@ export const checks: Check[] = [
     },
   },
   {
+    name: "ArdiaWindowsUpdate knows this build and refuses other addresses",
+    async run() {
+      const update = requireNativeModule<{
+        cpu?: unknown;
+        installed?: unknown;
+        buildFile?: unknown;
+        fetchText(url: string): Promise<string>;
+        download(url: string, sha256: string, bytes: number): Promise<string>;
+        install(path: string, sha256: string): Promise<boolean>;
+      }>("ArdiaWindowsUpdate");
+      expectTrue(update.cpu === "x64" || update.cpu === "arm64", `cpu is ${JSON.stringify(update.cpu)}`);
+      expectTrue(typeof update.installed === "boolean", `installed is ${JSON.stringify(update.installed)}`);
+      expectTrue(typeof update.buildFile === "string", `buildFile is ${JSON.stringify(update.buildFile)}`);
+      const published = "https://github.com/ardia-browser/ardia/releases/download/";
+      const refused = async (what: string, call: Promise<unknown>) => {
+        const outcome = await call.then(
+          () => "answered",
+          () => "refused",
+        );
+        expectTrue(outcome === "refused", `${what} was not refused`);
+      };
+      await refused("a feed from another site", update.fetchText("https://example.com/windows-update.json"));
+      await refused("a feed that climbs out of the releases", update.fetchText(`${published}../../../../other/repo/releases/download/x/windows-update.json`));
+      await refused("an installer from another site", update.download("https://example.com/Ardia-Setup.exe", "a".repeat(64), 10));
+      await refused("an installer with no SHA-256", update.download(`${published}windows-alpha/Ardia-Setup-x64.exe`, "", 10));
+      await refused("an installer with no size", update.download(`${published}windows-alpha/Ardia-Setup-x64.exe`, "a".repeat(64), 0));
+      const state = await requireNativeModule<{ updaterState(): Promise<{ available: boolean; configured?: boolean }> }>("ArdiaUpdater").updaterState();
+      expectTrue(state.available === true, "the updater says it is not built in");
+      expectTrue(state.configured === (update.installed === true && typeof update.buildFile === "string" && update.buildFile.length > 0), `configured is ${String(state.configured)}`);
+    },
+  },
+  {
     name: "ArdiaSystemSignals posts sleep and wake",
     async run() {
       const seen: string[] = [];

@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $entry = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{47A92F18-32B0-4548-A1EF-72C217FE1836}_is1"
 $folder = Join-Path $env:LOCALAPPDATA "Programs\Ardia"
 $shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Ardia.lnk"
-$shipped = @("Ardia.exe", "ArdiaApp.dll", "chrome.dll", "Ardia.ico", "unins000.exe")
+$shipped = @("Ardia.exe", "ArdiaApp.dll", "chrome.dll", "Ardia.ico", "Ardia.build.json", "unins000.exe")
 
 function Invoke-Quietly([string]$program, [string]$what) {
   $run = Start-Process -FilePath $program -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
