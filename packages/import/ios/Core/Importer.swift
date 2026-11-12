@@ -237,6 +237,7 @@ public final class Importer: @unchecked Sendable {
     }
     if let zen {
       result.favicons = zen.favicons(for: ChromiumFavicons.pages(of: result))
+      result.separateEssentials = zen.separateEssentials
     }
     return result
   }
