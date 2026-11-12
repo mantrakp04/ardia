@@ -129,6 +129,7 @@ function muteItems(s: BrowserState, tab: Tab): MenuItem[] {
 
 function unreadItems(s: BrowserState, tab: Tab): MenuItem[] {
   if (!canChooseSiteUnread(tab)) return [];
+  if (pinSection(tab) === "tile" && !s.settings.showTopAppBadges) return [];
   if (!s.settings.showUnreadCounts) return pageUnread(tab.id) ? [{ id: "allUnread", title: ALL_UNREAD_TITLE, symbol: "app.badge" }] : [];
   const hidden = isUnreadSiteHidden(s.settings, tab.url);
   if (!hidden && !pageUnread(tab.id)) return [];
