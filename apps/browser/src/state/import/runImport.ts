@@ -6,6 +6,7 @@ import { useBrowser } from "../browser/store";
 import { MAX_DRAFT_LINKS } from "../groups/draftGroups";
 import { createProfile } from "../profiles/actions";
 import { noteImportedSpaces } from "../telemetry/usage";
+import { noteImportRun } from "../telemetry/importRuns";
 import {
   applyResult,
   emptyCounts,
@@ -139,6 +140,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   const found = new Map<string, ImportedExtension>();
   const left: string[] = [];
   let extensionsProfile = "";
+  let secretsLeft = 0;
   const appTabs = fromApp.length ? readAppTabs() : null;
   if (source.family === "firefox" && requested.includes("passwords") && !api.isBrowserUnlocked(source.id)) {
     await api.unlockBrowser(source.id).catch(orWarn(undefined));
@@ -168,6 +170,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
     }
     for (const k of result.failed) failed.set(k, [...(failed.get(k) ?? []), profile.name]);
     for (const w of result.warnings) {
+      if (w.code === "undecryptable") secretsLeft += 1;
       if ((w.code === "undecryptable" || w.code === "skipped" || w.code === "locked") && !result.failed.includes(w.kind)) left.push(`${w.message}.`);
     }
     const refused = (k: ImportKind) => {
@@ -229,6 +232,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   }
   updateStatus(signal, (st) => Object.fromEntries(Object.entries(st).map(([k, v]) => [k, failed.has(k as ImportKind) ? "failed" : v === "failed" ? v : "done"])));
   api.forgetUnlockedKeys();
+  noteImportRun({ done: order.filter((k) => !failed.has(k)).length, failed: failed.size, secretsLeft });
   finishImport(signal, {
     counts: total,
     failures: [...failed].map(([kind, names]) => ({ kind, profiles: selected.length > 1 ? names : [] })),

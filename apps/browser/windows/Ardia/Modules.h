@@ -7,6 +7,7 @@
 #include "EngineHostModule.h"
 #include "FileDropModule.h"
 #include "FocusModule.h"
+#include "ImportModule.h"
 #include "KeychainModule.h"
 #include "MaterialViews.h"
 #include "MaterialsModule.h"

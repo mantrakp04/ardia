@@ -2,7 +2,8 @@
 
 Imports another browser's data into Ardia. The native code lives in `ios/`; `ios/Core/` is plain Swift with no
 Expo dependency, so `Package.swift` builds and tests it on its own. `src/index.ts` is the typed JS wrapper and the UI
-is `apps/browser/src/components/import/`. Every test reads fixtures. Never point anything at a real profile.
+is `apps/browser/src/components/import/`. Every test reads fixtures. Never point anything at a real profile. On Windows the
+same module is TypeScript in `packages/expo-windows/src/import` (`docs/windows.md`, Import from another browser).
 
 ## Which file reads what
 

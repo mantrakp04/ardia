@@ -4,6 +4,7 @@ import { addNativeListener, type EventSubscription } from "./events";
 import { moduleDefaults } from "./defaults";
 import { engineAvailable } from "./engine/host";
 import { engineModules } from "./engine/modules";
+import { windowsImport } from "./import";
 import { noteMissing } from "./missing";
 import { stampedSystemInfo, windowsUpdater } from "./updater";
 import { windowsSwipe } from "./pager";
@@ -34,7 +35,7 @@ const around: Record<string, Record<string, (native: Call) => Call>> = {
   },
 };
 
-const writtenInJs: Record<string, Record<string, unknown>> = { ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion };
+const writtenInJs: Record<string, Record<string, unknown>> = { ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion, ArdiaImport: windowsImport() };
 
 const inert = (module: string, key: string) => () => {
   noteMissing(`${module}.${key}`);

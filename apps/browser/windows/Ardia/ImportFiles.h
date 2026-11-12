@@ -1,0 +1,376 @@
+#pragma once
+
+#include <wincrypt.h>
+#include <winsqlite/winsqlite3.h>
+
+#include <cmath>
+#include <cstdint>
+#include <filesystem>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "DocumentsModule.h"
+#include "Paths.h"
+
+#pragma comment(lib, "crypt32.lib")
+#pragma comment(lib, "winsqlite3.lib")
+
+namespace Ardia {
+
+namespace ImportFiles {
+
+inline constexpr uint64_t kLargestFileBytes = 256ull << 20;
+inline constexpr size_t kLargestQueryRows = 2'000'000;
+inline constexpr char kSnapshotPrefix[] = "ardia-import-";
+
+inline void AppendJsonString(std::string &out, std::string_view text) {
+  out.push_back('"');
+  for (unsigned char c : text) {
+    switch (c) {
+      case '"': out.append("\\\""); break;
+      case '\\': out.append("\\\\"); break;
+      case '\n': out.append("\\n"); break;
+      case '\r': out.append("\\r"); break;
+      case '\t': out.append("\\t"); break;
+      default:
+        if (c < 0x20) {
+          char escaped[8];
+          snprintf(escaped, sizeof(escaped), "\\u%04x", c);
+          out.append(escaped);
+        } else {
+          out.push_back(static_cast<char>(c));
+        }
+    }
+  }
+  out.push_back('"');
+}
+
+inline std::string JsonString(std::string_view text) {
+  std::string out;
+  AppendJsonString(out, text);
+  return out;
+}
+
+inline void AppendNumber(std::string &out, double value) {
+  if (!std::isfinite(value)) {
+    out.append("null");
+    return;
+  }
+  if (value == std::floor(value) && std::fabs(value) < 9e15) {
+    out.append(std::to_string(static_cast<int64_t>(value)));
+    return;
+  }
+  char text[40];
+  snprintf(text, sizeof(text), "%.17g", value);
+  out.append(text);
+}
+
+inline std::string Base64(const uint8_t *data, size_t size) {
+  if (size == 0) return {};
+  DWORD length = 0;
+  DWORD flags = CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF;
+  if (size > 0x7fffffff || !CryptBinaryToStringA(data, static_cast<DWORD>(size), flags, nullptr, &length)) return {};
+  std::string out(length, '\0');
+  if (!CryptBinaryToStringA(data, static_cast<DWORD>(size), flags, out.data(), &length)) return {};
+  out.resize(length);
+  while (!out.empty() && out.back() == '\0') out.pop_back();
+  return out;
+}
+
+inline std::string TextOf(std::string bytes) {
+  if (bytes.size() >= 3 && static_cast<unsigned char>(bytes[0]) == 0xEF && static_cast<unsigned char>(bytes[1]) == 0xBB &&
+      static_cast<unsigned char>(bytes[2]) == 0xBF)
+    bytes.erase(0, 3);
+  if (Files::IsValidUtf8(bytes)) return bytes;
+  if (bytes.size() > static_cast<size_t>(INT32_MAX)) return {};
+  int count = MultiByteToWideChar(1252, 0, bytes.data(), static_cast<int>(bytes.size()), nullptr, 0);
+  std::wstring wide(static_cast<size_t>(count), L'\0');
+  MultiByteToWideChar(1252, 0, bytes.data(), static_cast<int>(bytes.size()), wide.data(), count);
+  return Paths::Utf8(wide);
+}
+
+inline std::optional<uint64_t> SizeOf(std::filesystem::path const &path) noexcept {
+  WIN32_FILE_ATTRIBUTE_DATA data{};
+  if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) return std::nullopt;
+  if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) return std::nullopt;
+  return (static_cast<uint64_t>(data.nFileSizeHigh) << 32) | data.nFileSizeLow;
+}
+
+inline std::optional<std::string> ReadBytes(std::filesystem::path const &path, uint64_t largest) noexcept {
+  auto size = SizeOf(path);
+  if (!size || *size > std::min(largest, kLargestFileBytes)) return std::nullopt;
+  return Files::ReadAll(path);
+}
+
+inline double UnixMilliseconds(FILETIME time) noexcept {
+  uint64_t ticks = (static_cast<uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
+  return static_cast<double>(ticks / 10000) - 11644473600000.0;
+}
+
+inline std::string ListJson(std::filesystem::path const &folder) {
+  WIN32_FIND_DATAW found{};
+  HANDLE search = FindFirstFileExW((folder / L"*").c_str(), FindExInfoBasic, &found, FindExSearchNameMatch, nullptr, 0);
+  if (search == INVALID_HANDLE_VALUE) {
+    DWORD error = GetLastError();
+    if (error == ERROR_ACCESS_DENIED) return "{\"denied\":true}";
+    return "null";
+  }
+  std::string out = "[";
+  bool first = true;
+  do {
+    std::wstring_view name{found.cFileName};
+    if (name == L"." || name == L"..") continue;
+    if (!first) out.push_back(',');
+    first = false;
+    bool directory = (found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    uint64_t size = (static_cast<uint64_t>(found.nFileSizeHigh) << 32) | found.nFileSizeLow;
+    out.append("{\"name\":");
+    AppendJsonString(out, Paths::Utf8(name));
+    out.append(directory ? ",\"dir\":true,\"size\":" : ",\"dir\":false,\"size\":");
+    AppendNumber(out, static_cast<double>(size));
+    out.append(",\"modified\":");
+    AppendNumber(out, UnixMilliseconds(found.ftLastWriteTime));
+    out.push_back('}');
+  } while (FindNextFileW(search, &found));
+  FindClose(search);
+  out.push_back(']');
+  return out;
+}
+
+enum class CopyOutcome { copied, missing, inUse, failed };
+
+inline CopyOutcome CopyShared(std::filesystem::path const &from, std::filesystem::path const &to) noexcept {
+  HANDLE source = Files::OpenForReading(from);
+  if (source == INVALID_HANDLE_VALUE) {
+    DWORD error = GetLastError();
+    if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) return CopyOutcome::missing;
+    if (error == ERROR_SHARING_VIOLATION || error == ERROR_LOCK_VIOLATION) return CopyOutcome::inUse;
+    return CopyOutcome::failed;
+  }
+  HANDLE target = CreateFileW(to.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY, nullptr);
+  if (target == INVALID_HANDLE_VALUE) {
+    CloseHandle(source);
+    return CopyOutcome::failed;
+  }
+  std::vector<char> buffer(256 * 1024);
+  CopyOutcome outcome = CopyOutcome::copied;
+  for (;;) {
+    DWORD got = 0;
+    if (!ReadFile(source, buffer.data(), static_cast<DWORD>(buffer.size()), &got, nullptr)) {
+      outcome = GetLastError() == ERROR_LOCK_VIOLATION ? CopyOutcome::inUse : CopyOutcome::failed;
+      break;
+    }
+    if (got == 0) break;
+    DWORD wrote = 0;
+    if (!WriteFile(target, buffer.data(), got, &wrote, nullptr) || wrote != got) {
+      outcome = CopyOutcome::failed;
+      break;
+    }
+  }
+  CloseHandle(source);
+  CloseHandle(target);
+  return outcome;
+}
+
+class Snapshot {
+ public:
+  explicit Snapshot(std::filesystem::path const &source) noexcept {
+    uint64_t random = 0;
+    BCryptGenRandom(nullptr, reinterpret_cast<PUCHAR>(&random), sizeof(random), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    wchar_t name[96]{};
+    swprintf_s(name, L"%hs%lu-%016llx", kSnapshotPrefix, GetCurrentProcessId(), static_cast<unsigned long long>(random));
+    std::error_code ignored;
+    m_folder = std::filesystem::temp_directory_path(ignored) / name;
+    if (!std::filesystem::create_directories(m_folder, ignored)) {
+      m_failure = "noTemp";
+      return;
+    }
+    std::filesystem::path copy = m_folder / L"db.sqlite";
+    CopyOutcome outcome = CopyShared(source, copy);
+    if (outcome != CopyOutcome::copied) {
+      m_failure = outcome == CopyOutcome::missing ? "missing" : outcome == CopyOutcome::inUse ? "inUse" : "unreadable";
+      return;
+    }
+    for (const wchar_t *suffix : {L"-wal", L"-journal"}) {
+      std::filesystem::path sibling{source.wstring() + suffix};
+      if (CopyShared(sibling, std::filesystem::path{copy.wstring() + suffix}) == CopyOutcome::inUse) {
+        m_failure = "inUse";
+        return;
+      }
+    }
+    std::string utf8 = Paths::Utf8(copy.wstring());
+    if (sqlite3_open_v2(utf8.c_str(), &m_db, SQLITE_OPEN_READWRITE, nullptr) != SQLITE_OK) {
+      sqlite3_close(m_db);
+      m_db = nullptr;
+      m_failure = "unreadable";
+      return;
+    }
+    sqlite3_busy_timeout(m_db, 2000);
+  }
+
+  ~Snapshot() noexcept {
+    if (m_db) sqlite3_close(m_db);
+    std::error_code ignored;
+    if (!m_folder.empty()) std::filesystem::remove_all(m_folder, ignored);
+  }
+
+  Snapshot(Snapshot const &) = delete;
+  Snapshot &operator=(Snapshot const &) = delete;
+
+  sqlite3 *Db() const noexcept { return m_db; }
+  std::string const &Failure() const noexcept { return m_failure; }
+
+ private:
+  std::filesystem::path m_folder;
+  sqlite3 *m_db = nullptr;
+  std::string m_failure;
+};
+
+class Statement {
+ public:
+  Statement(sqlite3 *db, std::string const &sql) noexcept {
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &m_statement, nullptr) != SQLITE_OK) m_statement = nullptr;
+  }
+  ~Statement() noexcept {
+    if (m_statement) sqlite3_finalize(m_statement);
+  }
+  Statement(Statement const &) = delete;
+  Statement &operator=(Statement const &) = delete;
+
+  sqlite3_stmt *Get() const noexcept { return m_statement; }
+  explicit operator bool() const noexcept { return m_statement != nullptr; }
+
+ private:
+  sqlite3_stmt *m_statement = nullptr;
+};
+
+inline int ColumnIndex(sqlite3_stmt *statement, std::string_view name) noexcept {
+  int count = sqlite3_column_count(statement);
+  for (int i = 0; i < count; i++) {
+    const char *column = sqlite3_column_name(statement, i);
+    if (column && name == column) return i;
+  }
+  return -1;
+}
+
+inline std::string ColumnText(sqlite3_stmt *statement, int column) {
+  if (column < 0 || sqlite3_column_type(statement, column) == SQLITE_NULL) return {};
+  const unsigned char *text = sqlite3_column_text(statement, column);
+  int size = sqlite3_column_bytes(statement, column);
+  return text ? std::string(reinterpret_cast<const char *>(text), static_cast<size_t>(size)) : std::string{};
+}
+
+inline std::optional<int64_t> ColumnInt(sqlite3_stmt *statement, int column) noexcept {
+  if (column < 0 || sqlite3_column_type(statement, column) == SQLITE_NULL) return std::nullopt;
+  return sqlite3_column_int64(statement, column);
+}
+
+inline bool TableExists(sqlite3 *db, const char *table) noexcept {
+  Statement found{db, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?"};
+  if (!found) return false;
+  sqlite3_bind_text(found.Get(), 1, table, -1, SQLITE_TRANSIENT);
+  return sqlite3_step(found.Get()) == SQLITE_ROW && sqlite3_column_int64(found.Get(), 0) > 0;
+}
+
+inline void BindArgument(sqlite3_stmt *statement, int index, winrt::Microsoft::ReactNative::JSValue const &value) {
+  using winrt::Microsoft::ReactNative::JSValueType;
+  switch (value.Type()) {
+    case JSValueType::Int64: sqlite3_bind_int64(statement, index, value.AsInt64()); break;
+    case JSValueType::Double: {
+      double number = value.AsDouble();
+      if (number == std::floor(number) && std::fabs(number) < 9.2e18) sqlite3_bind_int64(statement, index, static_cast<int64_t>(number));
+      else sqlite3_bind_double(statement, index, number);
+      break;
+    }
+    case JSValueType::String: sqlite3_bind_text(statement, index, value.AsString().c_str(), -1, SQLITE_TRANSIENT); break;
+    case JSValueType::Boolean: sqlite3_bind_int64(statement, index, value.AsBoolean() ? 1 : 0); break;
+    default: sqlite3_bind_null(statement, index); break;
+  }
+}
+
+inline void AppendQuery(std::string &out, sqlite3 *db, winrt::Microsoft::ReactNative::JSValue const &query) {
+  using winrt::Microsoft::ReactNative::JSValueType;
+  std::string sql = query["sql"].AsString();
+  Statement statement{db, sql};
+  if (!statement) {
+    out.append("{\"error\":");
+    AppendJsonString(out, sqlite3_errmsg(db));
+    out.push_back('}');
+    return;
+  }
+  if (!sqlite3_stmt_readonly(statement.Get())) {
+    out.append("{\"error\":\"only reads are allowed\"}");
+    return;
+  }
+  auto const &args = query["args"];
+  if (args.Type() == JSValueType::Array) {
+    int index = 1;
+    for (auto const &value : args.AsArray()) BindArgument(statement.Get(), index++, value);
+  }
+  size_t limit = kLargestQueryRows;
+  if (query["limit"].Type() == JSValueType::Int64 || query["limit"].Type() == JSValueType::Double) {
+    double asked = query["limit"].AsDouble();
+    if (asked >= 0 && asked < static_cast<double>(kLargestQueryRows)) limit = static_cast<size_t>(asked);
+  }
+  int columns = sqlite3_column_count(statement.Get());
+  out.append("{\"columns\":[");
+  for (int i = 0; i < columns; i++) {
+    if (i) out.push_back(',');
+    const char *name = sqlite3_column_name(statement.Get(), i);
+    AppendJsonString(out, name ? name : "");
+  }
+  out.append("],\"rows\":[");
+  size_t rows = 0;
+  int step = SQLITE_ROW;
+  while (rows < limit && (step = sqlite3_step(statement.Get())) == SQLITE_ROW) {
+    if (rows++) out.push_back(',');
+    out.push_back('[');
+    for (int i = 0; i < columns; i++) {
+      if (i) out.push_back(',');
+      switch (sqlite3_column_type(statement.Get(), i)) {
+        case SQLITE_INTEGER: AppendNumber(out, static_cast<double>(sqlite3_column_int64(statement.Get(), i))); break;
+        case SQLITE_FLOAT: AppendNumber(out, sqlite3_column_double(statement.Get(), i)); break;
+        case SQLITE_TEXT: {
+          std::string text = ColumnText(statement.Get(), i);
+          AppendJsonString(out, Files::IsValidUtf8(text) ? text : TextOf(text));
+          break;
+        }
+        case SQLITE_BLOB: {
+          auto blob = static_cast<const uint8_t *>(sqlite3_column_blob(statement.Get(), i));
+          out.append("{\"blob\":");
+          AppendJsonString(out, Base64(blob, static_cast<size_t>(sqlite3_column_bytes(statement.Get(), i))));
+          out.push_back('}');
+          break;
+        }
+        default: out.append("null"); break;
+      }
+    }
+    out.push_back(']');
+  }
+  out.push_back(']');
+  if (step != SQLITE_ROW && step != SQLITE_DONE) {
+    out.append(",\"error\":");
+    AppendJsonString(out, sqlite3_errmsg(db));
+  }
+  out.push_back('}');
+}
+
+inline std::string QueryJson(std::filesystem::path const &database, winrt::Microsoft::ReactNative::JSValueArray const &queries) {
+  Snapshot snapshot{database};
+  if (!snapshot.Db()) return "{\"failure\":" + JsonString(snapshot.Failure()) + "}";
+  std::string out = "{\"results\":[";
+  bool first = true;
+  for (auto const &query : queries) {
+    if (!first) out.push_back(',');
+    first = false;
+    AppendQuery(out, snapshot.Db(), query);
+  }
+  out.append("]}");
+  return out;
+}
+
+}
+
+}

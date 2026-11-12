@@ -99,7 +99,8 @@ Logic is written once. Only code that calls the OS is written per platform.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
   signals, the clipboard, the bang list, confirm, prompt and file dialogs, the command table with its shortcuts and
-  context menus, the Escape and tab switcher key captures, icons, file and link drops, and notifications.
+  context menus, the Escape and tab switcher key captures, icons, file and link drops, notifications, and the file, SQLite
+  and key primitives behind importing another browser's data (Import from another browser, below).
 - File and link drops: each browser window's top-level window and its child windows take OLE drops (`FileDropTarget.h`).
   Every `FileDropArea` reports its frame in the window to native as it mounts, lays out and changes, and again when a
   drag enters the window; native picks the innermost enabled area under the pointer, so the cursor shows copy or no
@@ -351,6 +352,52 @@ site settings, passwords and never-save sites, addresses, cards, running extensi
 cleared one by one through their `ac_*` calls, and each step that fails is named. The launch log says
 `profile folder removed|in use|partly removed: <folder>`.
 
+## Import from another browser
+
+The Mac's `ArdiaImport` (Swift, `packages/import`) has a Windows version in TypeScript, `packages/expo-windows/src/import`,
+that answers the same methods with the same result shapes, so the wizard (`components/import`) and
+`state/import/apply.ts` are the Mac's. Only the OS calls are native: `ArdiaWindowsImport` (`ImportModule.h`,
+`ImportFiles.h`, `ImportSecrets.h`).
+
+- Native primitives: the two data folders (`localAppData`, `roamingAppData`, or `<importSourceDir>\Local` and `\Roaming`
+  when `ARDIA_INSTANCE=importSourceDir=<dir>` is set in an instance with its own data folder), `list` a folder,
+  `readText` and `readBase64` a file up to a size, and `query` a SQLite file: it is copied with its `-wal` and
+  `-journal` to `%TEMP%\ardia-import-<pid>-<random>` (leftovers over an hour old go at the next launch), opened with
+  Windows' own `winsqlite3.dll`, and only statements SQLite calls read-only run. A file the browser holds open with no
+  sharing (Chrome does this to `Network\Cookies` and others while it runs) answers `inUse`, and that kind fails with
+  "Quit <browser> and import again".
+- Discovery (`browsers.ts`, `discovery.ts`): Chrome, Edge, Arc, Firefox, Zen, Brave, Vivaldi, Opera, Opera GX, Chromium,
+  and the Beta, Dev and Canary (`SxS`) channels of Chrome and Edge and Brave's Beta and Nightly, each from its own folder
+  under `%LOCALAPPDATA%` or `%APPDATA%` (Arc from its package's `LocalCache`). Chromium profiles come from `Local State`
+  and the `Default` and `Profile *` folders; Firefox and Zen profiles from `profiles.ini` (relative paths only).
+- What is read, per profile, with the Mac's readers ported: bookmarks (`Bookmarks`, `AccountBookmarks`; Firefox
+  `places.sqlite`), history (`History`; `places.sqlite`), open tabs (the newest cleartext `Sessions\Session_*` or
+  `Current Session`; Firefox and Zen `sessionstore-backups\recovery.jsonlz4` and the rest, LZ4 in TypeScript), favicons
+  for the imported tabs and bookmarks bar (`Favicons`), a bookmarks HTML file and a passwords CSV file (picked with
+  `ArdiaDialogs.pickFiles`).
+- Passwords and cookies (Chromium family): the key is `os_crypt.encrypted_key` in `Local State`, unwrapped with DPAPI
+  (`CryptUnprotectData`, no prompt: it is the same Windows user), and values are `v10` AES-256-GCM through BCrypt; a value
+  with no prefix is tried as plain DPAPI (Chrome before 80). Chrome's app-bound values (`v20`, `app_bound_encrypted_key`)
+  need Chrome's elevated service to unwrap, so they are counted and skipped, and the kind warns "N passwords use Google
+  Chrome's app-bound encryption, which only Google Chrome can read" (an `undecryptable` warning, as the Mac's). So the
+  wizard has no unlock step on Windows (`needsKeychain` is false), and the key is unwrapped the first time a kind needs it.
+- Secrets: the key stays native and is wiped by `forgetUnlockedKeys`. Passwords reach JS (`credentials`), as on the Mac,
+  because `savePassword` (`ac_passwords_add`) takes them from there. Cookie values never do: native decrypts them
+  straight into wiped buffers already in `ac_cookies_import`'s JSON, batches of 500, keeps them for 10 minutes under a
+  one-time token, and JS gets the count and the token. `writeImported` sends the batches to the engine one after another
+  and wipes each after its reply.
+- Not on Windows yet, each offered by no profile so the wizard doesn't show it: autofill (addresses and cards from
+  `Web Data`), Firefox and Zen passwords (NSS `key4.db`) and cookies (`cookies.sqlite`, plain text, so they need the
+  native vault too), Chromium's encrypted session files (`Sessions_Encrypted`), Arc's and Zen's spaces, pinned tabs and
+  favourites (`StorableSidebar.json`, `zen-sessions.jsonlz4`), extensions found in the profile, Safari, Dia's tabs. None
+  needs engine work: `ac_cookies_import`, `ac_autofill_import`, `ac_passwords_add`, `ac_history_import` and
+  `ac_favicons_set` are all in the Windows engine's call table.
+- Tests: `apps/browser/src/state/import/windowsImport.test.mjs` runs the TypeScript against `packages/import/fixtures`
+  with a stand-in for the native module (Node's own `node:sqlite`, the same snapshot copy). The self-check's import area
+  exercises every native method in the app. Telemetry: `import_runs`, `import_kinds_done`, `import_kinds_failed` and
+  `import_secrets_left` in the hourly `usage_counts` (`state/telemetry/importRuns.ts`, every platform): a rising share of
+  failed kinds or secrets left on Windows is the sign to look at.
+
 ## Updates
 
 - The Windows alpha is the GitHub prerelease `windows-alpha`: `Ardia-Setup-x64.exe`, `Ardia-Setup-arm64.exe`, the
@@ -430,8 +477,9 @@ The Mac's numbers are the targets for Windows, measured from the first engine bu
    permission, password and autofill prompts drawn by the app, popup windows in the app's own frame, picture in
    picture, the page script, full screen video inside the app's window, session restore of a tab's history.
 4. The Windows versions of the Mac-specific engine patches.
-5. C++ versions of what is still drawn flat or missing: shaders with Direct3D, import
-   from Edge and Chrome, dragging files out of the app, swipe gestures.
+5. C++ versions of what is still drawn flat or missing: shaders with Direct3D, dragging files out of the app, swipe
+   gestures. Import from another browser is done for bookmarks, history, open tabs, favicons, Chromium passwords and
+   cookies, and HTML and CSV files; what is left is listed under Import from another browser.
 6. An installer exists (`scripts/windows/make-installer.ps1`, Inno Setup, per user, no admin prompt; CI builds
    `Ardia-Setup-<cpu>.exe` and installs and uninstalls it), and the app updates itself from the Windows alpha
    (Updates, below). Left: signing both.
