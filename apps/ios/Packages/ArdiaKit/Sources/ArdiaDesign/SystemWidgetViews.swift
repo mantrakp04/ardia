@@ -10,7 +10,8 @@ public enum SystemWidgetSize: Sendable {
 
 public enum SystemPalette {
   public static let widgetAccent = Palette.formAccent
-  public static let capsuleOnGradient = Color.white.opacity(0.2)
+  public static let capsuleShadeOnGradient = 0.16
+  public static let capsuleOnGradient = Color.black.opacity(capsuleShadeOnGradient)
   public static let capsuleStrokeOnGradient = Color.white.opacity(0.28)
   public static let capsulePlain = Color.adaptive(light: .black.opacity(0.06), dark: .white.opacity(0.12))
   public static let rowPressed = Color.adaptive(light: .black.opacity(0.05), dark: .white.opacity(0.08))

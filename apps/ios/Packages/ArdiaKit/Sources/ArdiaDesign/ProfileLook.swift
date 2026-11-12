@@ -110,10 +110,10 @@ struct LookRGB: Equatable, Hashable, Sendable {
 
   func darkened(toContrastWithWhite minimum: Double) -> LookRGB {
     var stop = self
-    while stop.contrastWithWhite < minimum, stop.hsl.lightness > 0.02 {
+    while stop.snapped.contrastWithWhite < minimum, stop.hsl.lightness > 0.02 {
       stop = stop.lightened(by: -0.01)
     }
-    return stop
+    return stop.snapped
   }
 
   var greyed: LookRGB {
@@ -254,7 +254,7 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
   func coverStops() -> [LookRGB] {
     if theme.count >= 2 { return theme }
     return [tint.toned(saturation: 0.45, lightness: 0.24), tint.toned(saturation: 0.42, lightness: 0.38), tint, swatch]
-      .map { $0.darkened(toContrastWithWhite: WindowTint.coverContrast).snapped }
+      .map { $0.darkened(toContrastWithWhite: WindowTint.coverContrast) }
   }
 
   func deckBaseStops(dark: Bool) -> [LookRGB] {

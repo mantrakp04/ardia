@@ -64,7 +64,9 @@ struct ProfileLookTests {
       let cover = ProfileLook(preset: preset).coverStops()
       #expect(cover.count == 4)
       #expect(cover[0].hsl.lightness < cover[1].hsl.lightness, "\(preset)")
-      #expect(cover.allSatisfy { $0.contrastWithWhite >= 4.45 }, "\(preset)")
+      #expect(cover.allSatisfy { $0.contrastWithWhite >= 4.5 }, "\(preset)")
+      let underCapsule = cover.map { $0.mixed(with: LookRGB(hex: 0x000000), by: SystemPalette.capsuleShadeOnGradient) }
+      #expect(underCapsule.allSatisfy { $0.contrastWithWhite >= 4.5 }, "\(preset) capsule")
     }
     #expect(ProfileLook(colorName: "green", themeColors: ["#4F7CFF", "#9B6BFF"]).coverHexes == ["#4F7CFF", "#9B6BFF"])
   }
