@@ -1355,7 +1355,7 @@ index 7f1aeff436b8a51514254b72d1fb1fd1ee3b1553..dd2851fec59498902a78204041d994ed
  
  - (void)setNeedsLayout
 diff --git a/React/Views/RCTView.m b/React/Views/RCTView.m
-index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..7e39f1484d3fe407e3ddc0ef5e733540d4251006 100644
+index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..8554a54819424c7b724d8400125721ab3c4f78a0 100644
 --- a/React/Views/RCTView.m
 +++ b/React/Views/RCTView.m
 @@ -136,6 +136,24 @@ - (RCTPlatformView *)react_findClipView // [macOS]
@@ -1482,7 +1482,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..7e39f1484d3fe407e3ddc0ef5e733540
    if (_removeClippedSubviews) {
      [self updateClippedSubviews];
    } else {
-@@ -1196,10 +1199,18 @@ - (void)reactSetFrame:(CGRect)frame
+@@ -1196,11 +1199,33 @@ - (void)reactSetFrame:(CGRect)frame
    // be rendered as a stretchable image, we'll need to re-render.
    // TODO: detect up-front if re-rendering is necessary
    CGSize oldSize = self.bounds.size;
@@ -1498,10 +1498,25 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..7e39f1484d3fe407e3ddc0ef5e733540
 +    [RCTView ardia_markHoverDirty]; // [Ardia: hover follows layout. Ardia]
 +  }
 +#endif // macOS]
++}
++
++#if TARGET_OS_OSX
++// [Ardia: displayLayer is the only place that copies clipsToBounds to the layer, and nothing asked for one when
++// overflow changed. A view that stopped clipping at the same size (a group's rows once its fold animation ends)
++// kept masking its children, which cut the selected row's glow. Ardia]
++- (void)setClipsToBounds:(BOOL)clipsToBounds
++{
++  if (clipsToBounds == self.clipsToBounds) {
++    return;
++  }
++  [super setClipsToBounds:clipsToBounds];
++  [self.layer setNeedsDisplay];
  }
++#endif
  
  - (void)displayLayer:(CALayer *)layer
-@@ -1248,17 +1259,8 @@ - (void)displayLayer:(CALayer *)layer
+ {
+@@ -1248,17 +1273,8 @@ - (void)displayLayer:(CALayer *)layer
    RCTUIColor *backgroundColor = _backgroundColor;
  #endif // macOS]
  
@@ -1521,7 +1536,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..7e39f1484d3fe407e3ddc0ef5e733540
  
    if (useIOSBorderRendering) {
      layer.cornerRadius = cornerRadii.topLeftHorizontal;
-@@ -1514,6 +1516,20 @@ - (BOOL)acceptsFirstResponder
+@@ -1514,6 +1530,20 @@ - (BOOL)acceptsFirstResponder
  	return [self focusable] || [super acceptsFirstResponder];
  }
  
@@ -1542,7 +1557,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..7e39f1484d3fe407e3ddc0ef5e733540
  - (void)updateTrackingAreas
  {
    BOOL hasMouseHoverEvent = self.onMouseEnter || self.onMouseLeave;
-@@ -1522,20 +1538,200 @@ - (void)updateTrackingAreas
+@@ -1522,20 +1552,200 @@ - (void)updateTrackingAreas
    if (!wouldRecreateIdenticalTrackingArea) {
      if (_trackingArea) {
        [self removeTrackingArea:_trackingArea];
@@ -1571,19 +1586,19 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..7e39f1484d3fe407e3ddc0ef5e733540
 +      if (_hasMouseOver) {
 +        [RCTView ardia_markHoverDirty]; // [Ardia: hover follows layout: the resized view may have left the pointer. Ardia]
 +      }
-     }
-   }
- 
++    }
++  }
++
 +  // [Ardia: hover follows layout: the views the check looks at. Ardia]
 +  if (hasMouseHoverEvent) {
 +    if (ArdiaHoverViews == nil) {
 +      ArdiaHoverViews = [NSHashTable weakObjectsHashTable];
-+    }
+     }
 +    [ArdiaHoverViews addObject:self];
 +  } else {
 +    [ArdiaHoverViews removeObject:self];
-+  }
-+
+   }
+ 
    [super updateTrackingAreas];
  }
  
@@ -1744,7 +1759,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..7e39f1484d3fe407e3ddc0ef5e733540
  - (void)mouseEntered:(NSEvent *)event
  {
    _hasMouseOver = YES;
-@@ -1768,7 +1964,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
+@@ -1768,7 +1978,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
    static const char kRCTViewKeyboardEventEmittedKey = 0;
    NSNumber *emitted = objc_getAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey);
    BOOL alreadyEmitted = [emitted boolValue];
