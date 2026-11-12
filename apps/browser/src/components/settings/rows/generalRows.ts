@@ -107,9 +107,14 @@ export const generalRows = {
     {
       section: "Profile switcher",
       rows: {
+        nameAtTop: {
+          title: "Show profile name at the top",
+          description: "With the address bar in the sidebar, place the active profile name below the address bar instead of above the bottom switcher. Other layouts already show it at the top.",
+          keywords: ["profile", "name", "top", "sidebar", "position"],
+        },
         switcherIcons: {
           title: "Show profile icons instead of dots",
-          description: "As in Arc: the switcher at the bottom of the sidebar shows each profile's symbol or emoji, and a profile without one keeps its dot. Right-click the switcher to pick an icon.",
+          description: "As in Arc: the switcher at the bottom of the sidebar shows each profile's symbol or emoji, and a profile without one shows its initial. Right-click the switcher to pick an icon.",
           keywords: ["spaces", "space icons", "profile dots", "switcher", "emoji", "symbol", "sidebar footer", "arc"],
         },
       },

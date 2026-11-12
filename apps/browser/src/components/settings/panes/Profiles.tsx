@@ -39,6 +39,7 @@ function useSharedWith(profileId: string): string[] {
 export function ProfilesPane() {
   const profiles = useProfiles();
   const defaultId = useSettings((s) => s.defaultProfileId);
+  const nameAtTop = useSettings((s) => s.profileNameAtTop);
   const switcherIcons = useSettings((s) => s.profileSwitcherIcons);
   const shareable = useDataSharingProfileIds();
 
@@ -71,6 +72,9 @@ export function ProfilesPane() {
 
       <SectionHeader title="Profile switcher" />
       <Group>
+        <Row anchor="profiles.nameAtTop">
+          <Toggle value={nameAtTop} onChange={(profileNameAtTop) => updateSettings({ profileNameAtTop })} />
+        </Row>
         <Row anchor="profiles.switcherIcons">
           <Toggle value={switcherIcons} onChange={(profileSwitcherIcons) => updateSettings({ profileSwitcherIcons })} />
         </Row>
