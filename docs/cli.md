@@ -371,7 +371,7 @@ in the next command: a drag that was handed over but not confirmed dropped (a dr
 included) gets a `dragCancel`; a held button is released, while interception is still on, even when the cancel
 fails; and only then is interception turned off. Each of its CDP calls is bounded (2 s, plus up to 1.5 s for a
 late handover), instead of one deadline that could cut a release short and leave it running. Interception
-belongs to the CDP session, so it also ends when the session disconnects. If the token policy refuses
+belongs to the CDP session, so it also ends when the session disconnects, and a drag the session still holds then (the daemon killed, Stop pressed mid-drag) is ended by the engine, so the page doesn't stay deaf to clicks and keys (`chromium-drag-always-ends.patch`). If the token policy refuses
 `Input.setInterceptDrags` (an Ardia older than this engine), the command fails before any input with the gated message (`policy_refused`). Ardia hands a drag to a session only when the drag started from that session's own press (`docs/engine-build.md`, the control-token patch); sessions still share control of the tab, so one session's drag timing and payload aren't isolated from another session's. It reports
 what happened: `✓ Done (HTML5 drag and drop)`, `the target didn't accept the drop` (the page cancelled no `dragover`, so
 no `drop` event arrived) or `the page didn't start an HTML5 drag, so it was a plain mouse drag` (its `dragstart` was
