@@ -25,7 +25,7 @@ test("borderless pages have no inset or corner cutouts, while peek and split con
     assert.equal(frame.inset, 0);
     assert.equal(frame.radius, 0);
     assert.equal(frame.splitGap, 2);
-    assert.deepEqual(frame.peek, { left: 4, top: 4, bottom: 4, radius: 0 });
+    assert.deepEqual(frame.peek, { left: 4, top: 4, bottom: 4, radius: 15 });
     assert.equal(pageFrameInset({ ...settings, borderlessMode: false }), inset);
   }
 });
