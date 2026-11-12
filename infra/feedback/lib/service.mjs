@@ -13,6 +13,39 @@ const FILE_ROUTE = /^\/api\/feedback\/([^/]+)\/files\/([^/]+)$/;
 const COMPLETE_ROUTE = /^\/api\/feedback\/([^/]+)\/complete$/;
 const SERVICE_NAME = "ardia-feedback";
 const SERVICE_VERSION = "1.0.0";
+const RETRY_AFTER_SECONDS = 60;
+export const EVENT_RETRY_MS = [30_000, 120_000, 600_000, 1_800_000, 3_600_000, 3_600_000, 3_600_000, 3_600_000];
+
+export const UPSTREAM_MESSAGES = {
+  storage: "report storage is unavailable; try again in a minute",
+  collector: "the event collector is unavailable; try again in a minute",
+  issues: "GitHub is unavailable; try again in a minute",
+};
+
+export class BackendError extends Error {
+  constructor(backend, cause) {
+    super(`${backend}: ${cause?.message ?? cause}`, { cause });
+    this.backend = backend;
+  }
+}
+
+const passesThrough = (error) => error instanceof HttpError || error instanceof UploadSizeError || error instanceof BackendError;
+
+export function blame(backend, impl) {
+  if (!impl) return impl;
+  return Object.fromEntries(Object.entries(impl).map(([name, fn]) => [
+    name,
+    typeof fn !== "function" || name === "describe"
+      ? fn
+      : async (...args) => {
+        try {
+          return await fn(...args);
+        } catch (error) {
+          throw passesThrough(error) ? error : new BackendError(backend, error);
+        }
+      },
+  ]));
+}
 
 export const ISSUE_LABELS = { bug: ["feedback", "bug"], slow: ["feedback", "bug"], idea: ["feedback", "enhancement"], other: ["feedback"] };
 
@@ -91,7 +124,14 @@ export function feedbackEvent(report, { attachments, issue, completedAtMs }) {
   };
 }
 
-export function createService({ store, events, issues, secret, publicUrl, dashboardUrl, rateLimits = true, now = Date.now, log = console.log }) {
+const laterTimer = (fn, ms) => setTimeout(fn, ms).unref();
+
+export function createService({ store: rawStore, events: rawEvents, issues: rawIssues, secret, publicUrl, dashboardUrl, rateLimits = true, now = Date.now, log = console.log, later = laterTimer }) {
+  const store = blame("storage", rawStore);
+  const events = blame("collector", rawEvents);
+  const issues = blame("issues", rawIssues);
+  const opened = new Map();
+  const queuedEvents = new Set();
   const limits = {
     create: rateLimiter({ limit: 10, windowMs: 60 * 60 * 1000, now }),
     createGlobal: rateLimiter({ limit: 300, windowMs: 60 * 60 * 1000, now }),
@@ -180,25 +220,85 @@ export function createService({ store, events, issues, secret, publicUrl, dashbo
     sendJson(res, 200, { name, bytes: declared.bytes });
   }
 
+  async function markEventSent(id) {
+    const done = await store.readJson(id, "complete.json");
+    if (done) await store.writeJson(id, "complete.json", { ...done, event_sent: true });
+  }
+
+  function retryEvent(report, event, attempt = 0) {
+    if (attempt >= EVENT_RETRY_MS.length) {
+      queuedEvents.delete(report.id);
+      log(`[feedback] ${report.id} event gave up after ${attempt} retries (collector)`);
+      return;
+    }
+    queuedEvents.add(report.id);
+    later(async () => {
+      try {
+        await events.send(report.id, report.ingest, event);
+      } catch (error) {
+        log(`[feedback] ${report.id} event retry ${attempt + 1} failed (collector): ${error.cause?.message ?? error.message}`);
+        return retryEvent(report, event, attempt + 1);
+      }
+      queuedEvents.delete(report.id);
+      log(`[feedback] ${report.id} event sent on retry ${attempt + 1}`);
+      await markEventSent(report.id).catch((error) => log(`[feedback] ${report.id} event_sent not saved (storage): ${error.cause?.message ?? error.message}`));
+    }, EVENT_RETRY_MS[attempt]);
+  }
+
+  async function sendEvent(report, event) {
+    try {
+      await events.send(report.id, report.ingest, event);
+      return true;
+    } catch (error) {
+      log(`[feedback] ${report.id} event not sent (collector), will retry: ${error.cause?.message ?? error.message}`);
+      retryEvent(report, event);
+      return false;
+    }
+  }
+
+  async function openIssue(report) {
+    const saved = (await store.readJson(report.id, "issue.json")) ?? opened.get(report.id);
+    if (saved || !issues) return saved ?? null;
+    let issue;
+    try {
+      issue = await issues.create(report.id, issueFor(report, dashboardUrl));
+    } catch (error) {
+      log(`[feedback] ${report.id} issue not opened (issues): ${error.cause?.message ?? error.message}`);
+      return { number: null, url: null, error: String(error.cause?.message ?? error.message).slice(0, 200) };
+    }
+    opened.set(report.id, issue);
+    await store.writeJson(report.id, "issue.json", issue);
+    opened.delete(report.id);
+    return issue;
+  }
+
   async function finish(report) {
     const done = await store.readJson(report.id, "complete.json");
-    if (done) return { id: done.id, name: done.name, issue_url: done.issue_url };
-    const attachments = await Promise.all(report.attachments.map(async (a) => ({ ...a, received: (await store.fileSize(report.id, a.name)) === a.bytes })));
-    let issue = await store.readJson(report.id, "issue.json");
-    if (!issue && issues) {
-      try {
-        issue = await issues.create(report.id, issueFor(report, dashboardUrl));
-        await store.writeJson(report.id, "issue.json", issue);
-      } catch (error) {
-        log(`[feedback] ${report.id} issue not opened: ${error.message}`);
-        issue = { number: null, url: null, error: String(error.message).slice(0, 200) };
+    if (done) {
+      if (done.event_sent === false && !queuedEvents.has(report.id)) {
+        const issue = { number: done.issue_number ?? null, url: done.issue_url ?? null, error: done.issue_error ?? null };
+        const event = feedbackEvent(report, { attachments: done.attachments ?? [], issue, completedAtMs: Date.parse(done.completed_at) || now() });
+        if (await sendEvent(report, event)) await markEventSent(report.id);
       }
+      return { id: done.id, name: done.name, issue_url: done.issue_url };
     }
+    const attachments = await Promise.all(report.attachments.map(async (a) => ({ ...a, received: (await store.fileSize(report.id, a.name)) === a.bytes })));
+    const issue = await openIssue(report);
     const completedAt = now();
-    await events.send(report.id, report.ingest, feedbackEvent(report, { attachments, issue, completedAtMs: completedAt }));
+    const event = feedbackEvent(report, { attachments, issue, completedAtMs: completedAt });
     const answer = { id: report.id, name: anonymousIdentity(report.install_id).name, issue_url: issue?.url ?? null };
-    await store.writeJson(report.id, "complete.json", { ...answer, issue_number: issue?.number ?? null, completed_at: new Date(completedAt).toISOString(), attachments });
-    log(`[feedback] ${report.id} completed (${attachments.filter((a) => a.received).length}/${attachments.length} files${issue?.url ? `, ${issue.url}` : ""})`);
+    await store.writeJson(report.id, "complete.json", {
+      ...answer,
+      issue_number: issue?.number ?? null,
+      issue_error: issue?.error ?? null,
+      completed_at: new Date(completedAt).toISOString(),
+      attachments,
+      event_sent: false,
+    });
+    const sent = await sendEvent(report, event);
+    if (sent) await markEventSent(report.id);
+    const missing = [sent ? null : "event queued", issue?.error ? "no issue" : null].filter(Boolean);
+    log(`[feedback] ${report.id} completed (${attachments.filter((a) => a.received).length}/${attachments.length} files${issue?.url ? `, ${issue.url}` : ""}${missing.length ? `; ${missing.join(", ")}` : ""})`);
     return answer;
   }
 
@@ -237,11 +337,24 @@ export function createService({ store, events, issues, secret, publicUrl, dashbo
       throw new HttpError(404, "not_found", "no such route");
     } catch (error) {
       const known = error instanceof HttpError;
-      if (!known) log(`[feedback] ${req.method} ${path} failed: ${error.stack ?? error}`);
+      const backend = error instanceof BackendError ? error.backend : null;
+      if (!known) log(`[feedback] ${req.method} ${path} failed (${backend ?? "internal"}): ${(backend ? error.cause : error)?.stack ?? error}`);
       if (res.headersSent) return res.destroy();
       if (!req.complete) res.setHeader("Connection", "close");
-      sendJson(res, known ? error.status : 502, { error: known ? error.code : "upstream", message: known ? error.message : "storage or collector unavailable; try again" });
-      if (!req.complete && Number(req.headers["content-length"] ?? Infinity) <= 1024 * 1024) req.resume();
+      if (known) {
+        sendJson(res, error.status, { error: error.code, message: error.message });
+      } else if (backend) {
+        res.setHeader("Retry-After", String(RETRY_AFTER_SECONDS));
+        sendJson(res, 502, { error: `upstream:${backend}`, backend, retryable: true, message: UPSTREAM_MESSAGES[backend] });
+      } else {
+        sendJson(res, 500, { error: "internal", retryable: true, message: "the report service hit a bug; try again" });
+      }
+      drain(req);
     }
   };
 }
+
+function drain(req) {
+  if (!req.complete && Number(req.headers["content-length"] ?? Infinity) <= 1024 * 1024) req.resume();
+}
+

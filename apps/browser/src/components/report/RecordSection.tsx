@@ -7,8 +7,9 @@ import { discardRecording, startRecording } from "../../state/report/recording";
 import { ActivitySpinner, Box, Button, Checkbox, Dot, ink, radius, ReportVideo, space, Symbol, Text, useTheme } from "../ui";
 import { REPORT } from "./tokens";
 
+const RECORD_HINT = "Records this window and anything Ardia shows over it, like Picture in Picture. Reports with a recording get fixed first.";
 const PAGES_WARNING =
-  "Pages can show private things like email, messages or bank details. Only include them if nothing sensitive is on screen. Tab names always show. You'll watch it before it's sent.";
+  "Pages and Picture in Picture videos can show private things like email, messages or bank details. Only include them if nothing sensitive is on screen. Tab names always show. Protected videos, like most streaming services, stay black. You'll watch it before it's sent.";
 
 export function RecordSection() {
   const recording = useReport((s) => s.recording);
@@ -29,6 +30,7 @@ export function RecordSection() {
           seconds={recording.seconds}
           bytes={recording.bytes}
           pages={recording.includePages}
+          pictureInPicture={!!recording.pictureInPicture}
           watching={watching && !attachedOpen}
           onWatch={watch}
         />
@@ -41,7 +43,7 @@ export function RecordSection() {
         <Box row gap="l" style={CENTER_ROW}>
           <Button title="Record the problem" icon="record.circle" onPress={() => void startRecording()} />
           <Text size="small" tone={recording.phase === "failed" ? "destructive" : "textSecondary"} style={FLEX}>
-            {recording.phase === "failed" ? recording.message : "Reports with a recording get fixed first."}
+            {recording.phase === "failed" ? recording.message : RECORD_HINT}
           </Text>
         </Box>
       )}
@@ -57,6 +59,7 @@ function Recorded({
   seconds,
   bytes,
   pages,
+  pictureInPicture,
   watching,
   onWatch,
 }: {
@@ -65,6 +68,7 @@ function Recorded({
   seconds: number;
   bytes: number;
   pages: boolean;
+  pictureInPicture: boolean;
   watching: boolean;
   onWatch: (on: boolean) => void;
 }) {
@@ -85,7 +89,7 @@ function Recorded({
       />
     </Box>
   );
-  const summary = `Recording · ${formatDuration(seconds)} · ${pages ? "pages included" : "pages hidden"}`;
+  const summary = `Recording · ${formatDuration(seconds)} · ${pages ? "pages included" : "pages hidden"}${pictureInPicture ? " · with Picture in Picture" : ""}`;
   if (watching)
     return (
       <View style={{ gap: space.m }}>

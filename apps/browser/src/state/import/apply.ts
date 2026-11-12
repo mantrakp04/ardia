@@ -248,6 +248,12 @@ export function importArcSpace(profileId: string, space: SpaceSuggestion, favico
   return { tabs, bookmarks: 0, skipped };
 }
 
+export function importFavorites(profileId: string, tabs: ImportedTab[], favicons?: ImportedFavicon[]): number {
+  if (!tabs.length) return 0;
+  importFavicons(profileId, favicons, tabs.map((t) => t.url));
+  return importTabs(profileId, tabs.map((t) => ({ ...t, pinned: true })), null, "tiles");
+}
+
 export function importDiaProfile(profileId: string, profile: DiaTabsProfile, what: { pinned: boolean; open: boolean }, favicons?: ImportedFavicon[]): number {
   importFavicons(profileId, favicons, [...(what.pinned ? profile.pinned : []), ...(what.open ? profile.tabs : [])].map((t) => t.url));
   const have = openPages(useBrowser.getState(), profileId);

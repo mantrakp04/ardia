@@ -149,7 +149,7 @@ function Footer({ ready }: { ready: boolean }) {
             <ProgressTrack value={upload.phase === "creating" ? 0.02 : uploadFraction(upload)} tone="formAccent" />
           </View>
         ) : failed ? (
-          <Text size="small" tone="destructive">{`Couldn't send. ${failed.message} Your draft is kept.`}</Text>
+          <Text size="small" tone="destructive">{failed.message}</Text>
         ) : (
           <Text size="caption" tone="textSecondary">
             {FOOTER_NOTE}

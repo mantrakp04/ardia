@@ -18,6 +18,7 @@ export function OptionCard({
   disabled,
   onHover,
   preview,
+  dense,
 }: {
   title: string;
   subtitle?: string;
@@ -28,6 +29,7 @@ export function OptionCard({
   disabled?: boolean;
   onHover?: (hovered: boolean) => void;
   preview?: ReactNode;
+  dense?: boolean;
 }) {
   const colors = useOnboardingColors();
   const { hovered, hoverProps } = useHover();
@@ -110,9 +112,9 @@ export function OptionCard({
               flexDirection: "row",
               alignItems: "center",
               gap: space.l,
-              minHeight: RADIO_MIN_HEIGHT,
+              minHeight: dense ? undefined : RADIO_MIN_HEIGHT,
               paddingVertical: space.ml,
-              paddingHorizontal: space.xl,
+              paddingHorizontal: dense ? space.l : space.xl,
               transform: [{ scale: pressed ? 0.99 : 1 }],
             }}
           >

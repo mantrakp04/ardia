@@ -64,7 +64,7 @@ contract the app, the CLI, the feedback service and the dashboard build against.
   page address and diagnostics never go to GitHub. The form says so.
 - Issue labels follow the repo's rule: `feedback` on every report, plus `bug` for bug and slow,
   `enhancement` for idea, and nothing more for other.
-- Without `GITHUB_ISSUES_TOKEN` it skips the issue and still stores the report. Production runs that way for now. To turn issues on, create the Hexclave secret `FEEDBACK_GITHUB_ISSUES_TOKEN` (fine-grained, Issues read and write on `mantrakp04/ardia`), add `GITHUB_ISSUES_TOKEN: secret(SECRETS.feedbackGithubIssuesToken)` back to `infra/feedback/hexclave.deploy.ts`, create the `feedback` label, and redeploy with `infra/feedback/deploy.sh`.
+- Without `GITHUB_ISSUES_TOKEN` it skips the issue and still stores the report. Production runs that way for now. To turn issues on, create the Hexclave secret `FEEDBACK_GITHUB_ISSUES_TOKEN` (fine-grained, Issues read and write on `ardia-browser/ardia`), add `GITHUB_ISSUES_TOKEN: secret(SECRETS.feedbackGithubIssuesToken)` back to `infra/feedback/hexclave.deploy.ts`, create the `feedback` label, and redeploy with `infra/feedback/deploy.sh`.
 - Kept forever for now, like all telemetry.
 - `node infra/feedback/server.mjs --local <dir>` runs it with no ClickHouse, SeaweedFS or GitHub, writing
   to `<dir>`, for tests. The app reads `ARDIA_FEEDBACK_URL`, the CLI `ARDIA_FEEDBACK_URL` too.
@@ -86,8 +86,15 @@ ARDIA_FEEDBACK_URL=http://127.0.0.1:4319                          # in the app's
 - `upload_urls` is an object, attachment name → absolute URL to PUT. Every PUT must send exactly the declared
   `bytes` (else 400 or 413). The token lasts 24 hours and only works for its own report.
 - Errors are `{ error, message }`: 400 `invalid` (the message names the field), 401 `token_*`, 403 `bad_key`,
-  404, 409 `completed` (a PUT after complete), 413, 415 (not JSON), 429 `rate_limited`, 502 `upstream`
-  (storage or collector down; retry). Complete is idempotent: repeat it after a failure and it answers the same.
+  404, 409 `completed` (a PUT after complete), 413, 415 (not JSON), 429 `rate_limited`, 502 `upstream:<backend>`
+  (`upstream:storage`, `upstream:collector` or `upstream:issues`, with `backend`, `retryable: true` and
+  `Retry-After: 60`), 500 `internal` (a bug in the service). Every 5xx is logged as
+  `[feedback] <method> <path> failed (<backend or internal>): <stack>`, with the filer's or collector's own reason.
+  Complete is idempotent: repeat it after a failure and it answers the same.
+- Only storage is required. Complete answers success when GitHub fails (the report keeps `issue_error`, no
+  issue) and when the collector fails: `complete.json` keeps `event_sent: false`, the service retries the event
+  in the background (30 s, 2 min, 10 min, 30 min, then hourly, 8 tries), and a later complete of the same report
+  sends it if the service restarted meanwhile. Storage down answers `upstream:storage`, and the app retries.
 - What lands in `<dir>`: `feedback/<id>/report.json` (the report as stored), the uploaded files,
   `issue.md` (the would-be public issue, already scrubbed), `event.json` (the exact OTLP request the
   collector would get) and `complete.json`, plus every event appended to `events.jsonl`. `issue_url` is a
