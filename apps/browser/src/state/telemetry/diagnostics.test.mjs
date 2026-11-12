@@ -196,12 +196,12 @@ test("a lost-hover episode sends only its enums, flags and duration, capped per 
 });
 
 test("tab presses count clicks, drags turned into clicks, drags and presses that got no answer", async () => {
-  presses.notePressStarted();
+  presses.notePressStarted(true);
   presses.notePressEnded("click", "t1");
   presses.notePagePress("t1");
-  presses.notePressStarted();
+  presses.notePressStarted(true);
   presses.notePressEnded("dragClick", "t2");
-  presses.notePressStarted();
+  presses.notePressStarted(true);
   presses.notePressEnded("drag");
   presses.notePressStarted();
   presses.notePressStarted();
@@ -215,6 +215,9 @@ test("tab presses count clicks, drags turned into clicks, drags and presses that
   assert.equal(props.drag_clicks, 1);
   assert.equal(props.drags, 1);
   assert.equal(props.unanswered, 1);
+  assert.equal(props.down_switches, 3);
+  assert.equal(props.held_n, 2);
+  assert.ok(props.held_ms_p50 >= 0 && props.held_ms_p50 < 1000);
   assert.equal(props.page_click_n, 1);
   assert.ok(props.page_click_ms_p50 >= 0 && props.page_click_ms_p50 < 1000);
   presses.emitTabPresses();
@@ -236,7 +239,7 @@ test("turning sharing off forgets pending presses and samples, so they never go 
   presses.emitTabPresses();
   await client.saveQueueNow();
   assert.equal(events("tab_presses").length, 0);
-  assert.deepEqual(presses.devTabPresses(), { presses: 0, clicks: 0, drag_clicks: 0, drags: 0, unanswered: 0, pending: false, toPageClick: 0 });
+  assert.deepEqual(presses.devTabPresses(), { presses: 0, down_switches: 0, clicks: 0, drag_clicks: 0, drags: 0, unanswered: 0, pending: false, toPageClick: 0, held: 0 });
 });
 
 test("with sharing off no context is saved, and tab presses stay in the local copy, never queued", async () => {
