@@ -70,6 +70,7 @@ class TabState : public content::WebContentsObserver,
   std::string key_;
   bool closed_by_host_ = false;
   bool opened_blank_ = false;
+  bool left_by_download_ = false;
   bool navigation_pending_ = false;
   int http_status_ = 0;
   base::ScopedObservation<favicon::FaviconDriver,

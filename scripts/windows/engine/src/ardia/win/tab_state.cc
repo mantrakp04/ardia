@@ -93,9 +93,11 @@ void TabState::SendNavigation() {
     return;
   }
   content::NavigationController& controller = contents->GetController();
+  const bool no_page = left_by_download_ && !contents->IsLoading();
   base::DictValue data;
-  data.Set("url", contents->GetVisibleURL().spec());
-  data.Set("title", base::UTF16ToUTF8(contents->GetTitle()));
+  data.Set("url", no_page ? std::string() : contents->GetVisibleURL().spec());
+  data.Set("title",
+           no_page ? std::string() : base::UTF16ToUTF8(contents->GetTitle()));
   data.Set("canGoBack", controller.CanGoBack());
   data.Set("canGoForward", controller.CanGoForward());
   data.Set("isLoading", contents->ShouldShowLoadingUI());
@@ -125,6 +127,7 @@ void TabState::SendMedia() {
 
 void TabState::DidStartNavigation(content::NavigationHandle* handle) {
   if (handle->IsInPrimaryMainFrame()) {
+    left_by_download_ = false;
     NoteNavigation();
   }
 }
@@ -144,6 +147,8 @@ void TabState::DidFinishNavigation(content::NavigationHandle* handle) {
     data.Set("text", net::ErrorToShortString(handle->GetNetErrorCode()));
     Send("loadError", std::move(data));
   }
+  left_by_download_ = handle->IsDownload() &&
+                      CommittedPageURL(web_contents()).is_empty();
   NoteNavigation();
 }
 
