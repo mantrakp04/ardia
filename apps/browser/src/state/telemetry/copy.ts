@@ -79,6 +79,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many Peek cards and Little Ardia windows you opened or closed with a trackpad pinch, summed up once an hour",
       "How many links from other apps opened as a tab or in Little Ardia, each with whether Settings › General › Open links from other apps in Little Ardia was on, summed up once an hour. Never which links or which app",
       "How many tab and group changes the ardia command made (counts only, never which tabs or groups), how many of its batches were refused or stopped, and how many times its control pill appeared",
+      "When a paste is dropped or finds no text: the reason, the names of the types the clipboard offered, the class of the focused field, your keyboard layout and whether a new tab was still taking focus. Never what is on the clipboard",
       "How many times Ardia ended a page drag that would otherwise have left the page ignoring clicks and typing: one the ardia command or a debugger started and left behind, or one macOS refused to start. Summed up once an hour, never which page",
       "Opening split view, switching profiles and opening the command bar, with where it opened: at the address, in the centre, in the centre because the address was out of sight, or for a new tab",
       "Opening Picture in Picture: video or page, whether its window can show over full-screen apps, and whether it opened while you were in another app because the video's window was out of sight",
