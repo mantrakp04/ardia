@@ -102,7 +102,7 @@ struct ReportPictureClock: Equatable {
   let expiry: Double
   private(set) var generation = 0
   private(set) var requestedAt: Double?
-  private(set) var receivedAt: Double?
+  private(set) var capturedAt: Double?
   private(set) var misses = 0
 
   init(deadline: Double, expiry: Double) {
@@ -119,11 +119,13 @@ struct ReportPictureClock: Equatable {
   }
 
   mutating func receive(_ answered: Int, ok: Bool, now: Double) -> Bool {
-    guard answered == generation, requestedAt != nil else { return false }
+    guard answered == generation, let asked = requestedAt else { return false }
     requestedAt = nil
-    if ok { receivedAt = now } else { misses += 1 }
-    return ok
+    let inTime = ok && now - asked < deadline
+    capturedAt = inTime ? asked : nil
+    if !inTime { misses += 1 }
+    return inTime
   }
 
-  func fresh(now: Double) -> Bool { receivedAt.map { now - $0 <= expiry } ?? false }
+  func fresh(now: Double) -> Bool { capturedAt.map { now - $0 <= expiry } ?? false }
 }

@@ -9,8 +9,8 @@ import { REPORT } from "./tokens";
 
 const RECORD_HINT = "Records this window, its Picture in Picture and the menus and prompts it opens. Never your other windows. Reports with a recording get fixed first.";
 const PAGES_WARNING =
-  "Pages and Picture in Picture videos can show private things like email, messages or bank details. Only include them if nothing sensitive is on screen. Tab names always show. WebKit pages with audio or video, where streaming services play, stay black. You'll watch it before it's sent.";
-const PRIVATE_NOTE = "Pages always stay hidden when you record a private window. Tab names still show.";
+  "Pages and Picture in Picture videos can show private things like email, messages or bank details. Only include them if nothing sensitive is on screen. Tab names, addresses and what Ardia itself shows about a page, like suggestions and media controls, always show. WebKit pages with audio or video, where streaming services play, stay black. You'll watch it before it's sent.";
+const PRIVATE_NOTE = "Pages always stay hidden when you record a private window. Tab names and addresses still show.";
 
 export function RecordSection() {
   const recording = useReport((s) => s.recording);

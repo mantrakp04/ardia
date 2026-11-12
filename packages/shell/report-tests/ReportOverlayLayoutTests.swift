@@ -141,6 +141,32 @@ final class ReportPictureClockTests: XCTestCase {
     XCTAssertFalse(clock.fresh(now: 0.7))
   }
 
+  func testAPictureAgesFromWhenItWasAskedFor() {
+    var clock = ReportPictureClock(deadline: 1, expiry: 0.5)
+    let asked = clock.request(now: 0)!
+    XCTAssertTrue(clock.receive(asked, ok: true, now: 0.4))
+    XCTAssertTrue(clock.fresh(now: 0.45))
+    XCTAssertFalse(clock.fresh(now: 0.6))
+  }
+
+  func testAnAnswerPastItsDeadlineIsRefusedEvenWithNoRequestSince() {
+    var clock = ReportPictureClock(deadline: 1, expiry: 0.5)
+    let asked = clock.request(now: 0)!
+    XCTAssertFalse(clock.receive(asked, ok: true, now: 2))
+    XCTAssertFalse(clock.fresh(now: 2))
+    XCTAssertEqual(clock.misses, 1)
+  }
+
+  func testAFailedCopyDropsThePictureBeforeIt() {
+    var clock = ReportPictureClock(deadline: 1, expiry: 0.5)
+    let first = clock.request(now: 0)!
+    XCTAssertTrue(clock.receive(first, ok: true, now: 0.05))
+    XCTAssertTrue(clock.fresh(now: 0.1))
+    let second = clock.request(now: 0.1)!
+    XCTAssertFalse(clock.receive(second, ok: false, now: 0.2))
+    XCTAssertFalse(clock.fresh(now: 0.2))
+  }
+
   func testAnUnansweredRequestIsAbandonedAtItsDeadline() {
     var clock = ReportPictureClock(deadline: 1, expiry: 0.5)
     let first = clock.request(now: 0)!
