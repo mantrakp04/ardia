@@ -80,6 +80,10 @@ the pins into `pyproject.toml`).
   `pageGeneration`, bumped whenever that target changes (a slept tab reloading). The app asks each live tab through
   ArdiaCore's `devToolsCall` (`Target.getTargetInfo`, engine call `engine.cliTabTargets`); an older build leaves both
   out.
+- `ardia tabs --usage` lists each tab with its renderer's process id, CPU and memory, hottest first, and
+  `ardia tabs --pid N` names the tabs in a process, so a pid from `top -o power` leads to its tab (`workspace`'s
+  `usage`, `docs/automation.md` › Tabs and groups). Use counts come from the option names on the command event;
+  `error_code` `no_pid` means an engine that reports no process ids.
 - `ardia tabs`, `ardia groups` and `ardia apply` list and organize tabs and groups by id: open URLs into a window,
   profile, group or spot, move tabs between groups, windows and profiles without reloading, pin, mute, sleep, wake,
   close, rename and set icons; create, nest, reorder, pin, collapse, recolour, ungroup, close and delete groups; and

@@ -105,7 +105,7 @@ bookmark searches) and their fixed page title.
   subscription accepted and runs a decide request only when its `revision` matches one of them, so a request for an
   approved revision never runs an edited program.
 - `answer` `{"decide", "answer"}`: see Protocol.
-- `workspace` `{"window"?, "profile"?}` and `apply` `{"ops": [...]}`: see Tabs and groups.
+- `workspace` `{"window"?, "profile"?, "usage"?}` and `apply` `{"ops": [...]}`: see Tabs and groups.
 
 ### Tabs and groups
 
@@ -127,6 +127,15 @@ or null for the default), "color" (`neutral`, `none` or one of Chrome's nine), "
 "customTitle", "icon", "pin" (`tile`, `row` or null), "pinned" (also true in a pinned group), "folder", "group" (the
 innermost), "split", "active", "muted", "asleep", "index"}`; URLs and titles as in `windows` (internal pages
 redacted). Peek tabs, private windows and incognito profiles never appear. It doesn't show the pill.
+
+`workspace` `{"usage": true}` adds each tab's renderer process to its node: `"pid"` (the process id, as `top` and
+Activity Monitor show it), `"cpu"` (percent of one core, one decimal) and `"memory"` (bytes), each null for a tab with
+no process (asleep, or a page that isn't loaded). The numbers are Chrome's Task Manager's (`engine.tasks`,
+`ac_tasks_list`), per process, so tabs sharing a renderer show the same ones, and a frame in another process isn't
+counted. The task manager measures CPU between two of its 2 s refreshes and stops 15 s after the last read, so the
+first read in a while waits 2.2 s and reads again (`state/automation/workspaceUsage.ts`); later ones answer at once.
+`pid` is null on an engine whose `ac_tasks_list` has no `pid` field. Without `usage` the nodes have none of the three,
+and nothing is sampled.
 
 `apply` runs a batch of operations in order and shows the pill like `run`. Every operation is checked before the
 first runs: an unknown `op` or field (typos included), a wrong type, more than 500 operations or 100 URLs in one
@@ -427,8 +436,11 @@ checks the server's uid, and exits 2 with one line when Ardia isn't running, con
   sending is reported, never retried, with exit 2 and a line saying the command may or may not have run.
 - `ardia commands [--json]` lists command ids, titles and variants.
 - `ardia windows [--json]` prints the windows and their tabs.
-- `ardia tabs [--window ID] [--profile ID] [--flat] [--json]` prints the workspace (each window's spaces, Top Apps,
-  pinned section, groups nested); `ardia tabs open|move|pin|unpin|activate|mute|unmute|sleep|wake|close|rename|icon …`
+- `ardia tabs [--window ID] [--profile ID] [--flat] [--usage] [--pid N] [--json]` prints the workspace (each window's
+  spaces, Top Apps, pinned section, groups nested). `--usage` prints one tab per line with its process id, CPU and
+  memory, hottest first (`--json`: the tree, or the flat list with `--flat`, with `pid`, `cpu` and `memory` on each
+  tab); `--pid N` prints only the tabs in process N (`--json`: a flat list), and exits 1 when no tab runs there
+  (`no_tab`) or the app reports no process ids (`no_pid`). An app from before `usage` gets "update Ardia"; `ardia tabs open|move|pin|unpin|activate|mute|unmute|sleep|wake|close|rename|icon …`
   and `ardia groups [create|update|rename|move|ungroup|close|delete] …` each send one `apply` operation; `ardia groups`
   alone lists the groups. `ardia apply [FILE|-]` sends a batch (a JSON list or `{"ops": [...]}`). Exit 1 for a
   refusal, a bad request or a stopped batch (with how many operations ran), 2 when Ardia can't be reached or the
