@@ -23,9 +23,9 @@ export function LoadingPill({ tabId }: { tabId: string }) {
   useEffect(() => {
     if (!mounted) return;
     if (loading) {
-      const shownAt = Date.now();
       let current = true;
       notePageOverlay("loadingShown");
+      const long = setTimeout(() => notePageOverlay("loadingLong"), LOADING_PILL.longShowMs);
       cycle.current?.run.stop();
       scale.setValue(1);
       const grow = Animated.timing(sweep, { toValue: FULL, ...motion.sweep, useNativeDriver: true });
@@ -40,7 +40,7 @@ export function LoadingPill({ tabId }: { tabId: string }) {
       sweepOnce();
       return () => {
         current = false;
-        if (Date.now() - shownAt > LOADING_PILL.longShowMs) notePageOverlay("loadingLong");
+        clearTimeout(long);
       };
     }
     const shrink = Animated.parallel([
