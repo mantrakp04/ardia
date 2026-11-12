@@ -241,7 +241,7 @@ export function prepare<T extends Searchable>(entries: T[]): Prepared<T>[] {
 
 const FILLER = new Set(["a", "an", "and", "for", "in", "of", "on", "the", "to", "with"]);
 
-type Scored<T extends Searchable> = SearchHit<T> & { whole: boolean; strong: boolean; order: number; titleLength: number };
+type Scored<T extends Searchable> = SearchHit<T> & { whole: boolean; strong: boolean; order: number; titleLength: number; viaPane: boolean };
 
 const toSource = (f: Folded, ranges: SearchRange[]): SearchRange[] =>
   mergeRanges(ranges.map((r) => ({ start: f.source[r.start]!, end: f.source[r.end - 1]! + 1 })));
@@ -268,6 +268,7 @@ function scoreEntry<T extends Searchable>(p: Prepared<T>, tokens: string[], phra
   let whole = true;
   let strong = true;
   let anyWordStart = false;
+  let viaPane = false;
   for (const token of tokens) {
     let best: { value: number; field: Field; match: TokenMatch } | null = null;
     let tokenStrong = false;
@@ -297,6 +298,7 @@ function scoreEntry<T extends Searchable>(p: Prepared<T>, tokens: string[], phra
     total += best.value;
     counted++;
     const { field, match } = best;
+    if (field.role === "pane") viaPane = true;
     if (field.role === "title") titleRanges.push(...match.ranges);
     else if (field.role === "section") sectionRanges.push(...match.ranges);
     else if (field.role === "keyword" || field.role === "description") notes.set(field, [...(notes.get(field) ?? []), ...match.ranges]);
@@ -319,6 +321,7 @@ function scoreEntry<T extends Searchable>(p: Prepared<T>, tokens: string[], phra
     strong,
     order,
     titleLength: p.titleLength,
+    viaPane,
     title: toSource(p.fields[0]!.folded, titleRanges),
     section: toSource(sectionField.folded, sectionRanges),
     note: titleRanges.length || !noteField ? undefined : { text: noteField.folded.raw, ranges: toSource(noteField.folded, noteRanges!) },
@@ -337,8 +340,18 @@ export function search<T extends Searchable>(index: Prepared<T>[], query: string
   if (!hits.some((h) => h.strong)) hits = rank(true);
   hits.sort(compare);
   const topTier = hits[0]?.tier ?? 0;
-  return hits
-    .filter((h) => topTier < 2 || h.tier > 0)
+  const shown = hits.filter((h) => topTier < 2 || h.tier > 0);
+  const placeOf = (h: Scored<T>) => `${h.entry.pane}\u0000${h.entry.section}`;
+  const named = (h: Scored<T>) => h.title.length > 0 || h.viaPane;
+  const landed = new Set(shown.filter(named).map(placeOf));
+  return shown
+    .filter((h) => {
+      if (named(h)) return true;
+      const place = placeOf(h);
+      if (landed.has(place)) return false;
+      landed.add(place);
+      return true;
+    })
     .slice(0, limit)
     .map(({ entry, score, tier, title, section, note }) => ({ entry, score, tier, title, section, ...(note ? { note } : {}) }));
 }
