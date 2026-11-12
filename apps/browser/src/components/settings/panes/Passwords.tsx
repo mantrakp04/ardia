@@ -66,7 +66,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
 
   const exportCsv = async () => {
     const { status, path } = await exportPasswords(profile).catch(orWarn<{ status: PasswordExportStatus; path?: string }>({ status: "writeFailed" }));
-    const folder = path ? path.split("/").slice(-2, -1)[0] : "";
+    const folder = path ? path.split(/[\\/]/).slice(-2, -1)[0] : "";
     if (status === "succeeded") setExportStatus(`Saved to “${folder}”. Delete the file once you're done with it.`);
     else if (status === "writeFailed") setExportStatus("Couldn't write the file. Try another folder.");
     else if (status === "inProgress") setExportStatus("An export is already running.");

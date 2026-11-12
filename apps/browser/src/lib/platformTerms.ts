@@ -4,10 +4,11 @@ export type PlatformTerms = {
   fileManager: string;
   trash: string;
   dock: string;
+  lowPowerMode: string;
 };
 
 export type PlatformIds = { report: string; otel: string };
 
 export const PLATFORM_IDS: PlatformIds = { report: "macos", otel: "darwin" };
 
-export const PLATFORM_TERMS: PlatformTerms = { computer: "Mac", os: "macOS", fileManager: "Finder", trash: "Trash", dock: "Dock" };
+export const PLATFORM_TERMS: PlatformTerms = { computer: "Mac", os: "macOS", fileManager: "Finder", trash: "Trash", dock: "Dock", lowPowerMode: "Low Power Mode" };

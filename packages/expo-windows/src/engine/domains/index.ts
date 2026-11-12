@@ -2,7 +2,8 @@ import { moduleDefaults } from "../../defaults";
 import { addNativeListener, emitNativeEvent, type EventSubscription } from "../../events";
 import { noteMissing } from "../../missing";
 import { engineCallJson, hostCall, onEngineTopic, profileDataFolder, removeProfileFolder } from "../host";
-import { isFields, originalProfile, quietly, type Engine } from "./calling";
+import { isFields, originalProfile, quietly, type Desktop, type Engine } from "./calling";
+import { nativeDesktop } from "./desktop";
 import { watchDownloads } from "./downloads";
 import rows from "./forwarded.json";
 import { domainCall, domainFunctions, domainsOf, moduleNameOf, topicRouter, type DomainCall } from "./tables";
@@ -10,6 +11,7 @@ import { domainCall, domainFunctions, domainsOf, moduleNameOf, topicRouter, type
 const DOWNLOADS = "downloads";
 
 const profilesSeen = new Set([""]);
+let desktopMade: Desktop | undefined;
 let listening = false;
 let watchingDownloads = false;
 
@@ -28,6 +30,10 @@ const engine: Engine = {
   },
   profileDataFolder,
   removeProfileFolder,
+  get desktop() {
+    desktopMade ??= nativeDesktop();
+    return desktopMade;
+  },
   emit(name, data) {
     const domain = name.slice(0, name.indexOf("."));
     emitNativeEvent(moduleNameOf(domain), domain, { name, data });
