@@ -4,6 +4,7 @@ import type { PageEngine } from "../../state/engines/engines";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet } from "react-native";
 import { focus, switchToTab } from "../../state/browser/actions";
+import { notePictureInPictureBackToTab } from "../../state/telemetry/pictureInPictureCounts";
 import { noteFavicon } from "../../state/favicons/favicons";
 import { adoptIconPage, dropOutlivedFavicon, noteIconPage } from "../../state/favicons/iconPage";
 import { restoredThemeColor } from "../../state/windows/launchLook";
@@ -284,9 +285,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         noteDiscarded(tabId);
         noteUnreadPageEnded(tabId);
       }}
-      onActivateRequest={() => {
+      onActivateRequest={({ reason }) => {
         const t = tab();
         if (!t) return;
+        if (reason === "pictureInPicture") notePictureInPictureBackToTab(engine);
         switchToTab(tabId);
         focus(t.windowId);
       }}
