@@ -358,13 +358,17 @@
           return true;
     return false;
   };
+  const eyeInset = (padding) => Math.max(4, Math.min(10, parseFloat(padding) || 4));
+  const eyeLeft = (r, cs, size) =>
+    cs.direction === "rtl"
+      ? r.left + (parseFloat(cs.borderLeftWidth) || 0) + eyeInset(cs.paddingLeft)
+      : r.right - (parseFloat(cs.borderRightWidth) || 0) - eyeInset(cs.paddingRight) - size;
   const placeEye = () => {
     if (!eyeHost || !eyeField) return;
     const r = eyeField.getBoundingClientRect();
     const cs = getComputedStyle(eyeField);
     const size = Math.min(24, Math.max(18, r.height - 8));
-    const inset = Math.max(4, Math.min(10, parseFloat(cs.paddingRight) || 4));
-    eyeHost.style.left = r.right - (parseFloat(cs.borderRightWidth) || 0) - inset - size + "px";
+    eyeHost.style.left = eyeLeft(r, cs, size) + "px";
     eyeHost.style.top = r.top + (r.height - size) / 2 + "px";
     eyeButton.style.width = eyeButton.style.height = size + "px";
     eyeButton.style.color = cs.color;
@@ -406,9 +410,13 @@
       }
       eyeButton.title = revealedField ? "Hide password" : "Show password";
       el.focus();
-      try {
-        el.setSelectionRange(start, end);
-      } catch {}
+      const keepSelection = () => {
+        try {
+          if (document.activeElement === el) el.setSelectionRange(start, end);
+        } catch {}
+      };
+      keepSelection();
+      requestAnimationFrame(keepSelection);
     });
     eyeButton.title = "Show password";
     document.documentElement.appendChild(eyeHost);
