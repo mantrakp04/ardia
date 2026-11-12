@@ -142,7 +142,7 @@ NEVER_PAUSE = ("claude", "codex", "T3 Code", "/node_modules/.bin/", "cpu-cap")
 
 
 def memory_worker(cmd):
-    if any(n in cmd for n in NEVER_PAUSE):
+    if any(n in cmd for n in NEVER_PAUSE) or os.path.basename(cmd.split()[0]) in COORD | {"swift-build", "pod", "pnpm"}:
         return False
     return os.path.basename(cmd.split()[0]) in MEMORY_WORKERS or any(m in cmd for m in MEMORY_WORKER_PATHS)
 
