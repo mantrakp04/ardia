@@ -13,6 +13,7 @@ $launcher = "Ardia.exe"
 $engineLauncher = "chrome.exe"
 $library = "ArdiaApp.dll"
 $engineNotes = "RUN.txt"
+$appIcon = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "apps\browser\windows\Ardia\Ardia.ico"
 
 function Resolve-Folder([string]$path, [string]$what, [string]$marker) {
   if (-not (Test-Path -LiteralPath $path -PathType Container)) { throw "$what '$path' is not a folder" }
@@ -67,6 +68,8 @@ foreach ($relative in (Get-RelativeFiles $appRoot)) {
 Move-Item -LiteralPath (Join-Path $outRoot $engineLauncher) -Destination (Join-Path $outRoot $launcher)
 & (Join-Path $PSScriptRoot "host-manifest.ps1") -From (Join-Path $appRoot $library) -To (Join-Path $outRoot $launcher)
 if ($LASTEXITCODE -ne 0) { throw "the launcher did not get the app's manifest entries" }
+& (Join-Path $PSScriptRoot "launcher-identity.ps1") -Icon $appIcon -To (Join-Path $outRoot $launcher)
+if ($LASTEXITCODE -ne 0) { throw "the launcher did not get Ardia's icon and name" }
 
 if ($Build -gt 0) {
   if (-not $Version) { $Version = & (Join-Path $PSScriptRoot "project-version.ps1") }

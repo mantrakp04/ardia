@@ -18,6 +18,7 @@
 #include <winrt/Windows.Graphics.h>
 #include <winrt/Windows.UI.h>
 
+#include "AppIcon.h"
 #include "Events.h"
 #include "Host.h"
 #include "LaunchLog.h"
@@ -424,6 +425,7 @@ struct WindowManager {
   static void Configure(ManagedWindow &entry, OpenWindowRequest const &request) noexcept {
     try {
       entry.appWindow.Title(winrt::to_hstring(request.title.empty() ? std::string{"Ardia"} : request.title));
+      AppIcon::Apply(entry.hwnd, entry.id);
       auto presenter = entry.appWindow.Presenter().try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
       double scale = Scale(entry.hwnd);
       auto pixels = [scale](double points) noexcept { return static_cast<int32_t>(points * scale + 0.5); };

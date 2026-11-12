@@ -7,6 +7,7 @@ $ErrorActionPreference = "Stop"
 $entry = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{47A92F18-32B0-4548-A1EF-72C217FE1836}_is1"
 $folder = Join-Path $env:LOCALAPPDATA "Programs\Ardia"
 $shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Ardia.lnk"
+$appUserModelId = "Ardia.Browser"
 $shipped = @("Ardia.exe", "ArdiaApp.dll", "chrome.dll", "Ardia.ico", "Ardia.build.json", "unins000.exe")
 
 function Invoke-Quietly([string]$program, [string]$what) {
@@ -23,6 +24,16 @@ if ($missing.Count) { throw "the install in $folder lacks $($missing -join ', ')
 if (-not (Test-Path -LiteralPath $shortcut -PathType Leaf)) { throw "no Start Menu shortcut at $shortcut" }
 $installed = Get-ItemProperty -LiteralPath $entry
 if ($installed.DisplayName -ne "Ardia") { throw "the uninstall entry is named '$($installed.DisplayName)'" }
+$displayIcon = ($installed.DisplayIcon -split ",")[0].Trim('"')
+if (-not $displayIcon -or -not (Test-Path -LiteralPath $displayIcon -PathType Leaf)) { throw "the uninstall entry's icon '$($installed.DisplayIcon)' is not a file" }
+$link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
+$linkIcon = ($link.IconLocation -split ",")[0]
+if (-not $linkIcon -or -not (Test-Path -LiteralPath $linkIcon -PathType Leaf)) { throw "the Start Menu shortcut's icon '$($link.IconLocation)' is not a file" }
+$linkId = (New-Object -ComObject Shell.Application).NameSpace((Split-Path -Parent $shortcut)).ParseName((Split-Path -Leaf $shortcut)).ExtendedProperty("System.AppUserModel.ID")
+if ($linkId -ne $appUserModelId) { throw "the Start Menu shortcut's AppUserModelID is '$linkId', not ${appUserModelId}: the taskbar would not group the app's windows with it" }
+& (Join-Path $PSScriptRoot "launcher-identity.ps1") -Icon $displayIcon -To (Join-Path $folder "Ardia.exe") -Check
+if ($LASTEXITCODE -ne 0) { throw "the installed Ardia.exe does not carry Ardia's icon and name" }
+Write-Host "installer-check: the shortcut has Ardia's icon and AppUserModelID $linkId, the uninstall entry's icon is $displayIcon"
 $count = @(Get-ChildItem -LiteralPath $folder -Recurse -File).Count
 Write-Host "installer-check: installed Ardia $($installed.DisplayVersion), $count files in $folder"
 

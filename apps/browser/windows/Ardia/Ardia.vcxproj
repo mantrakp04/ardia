@@ -106,6 +106,7 @@
   </ItemDefinitionGroup>
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
+    <ClInclude Include="AppIcon.h" />
     <ClInclude Include="AppImage.h" />
     <ClInclude Include="AppModule.h" />
     <ClInclude Include="EngineApi.h" />
