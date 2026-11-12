@@ -255,12 +255,15 @@ test("the native bootstrap advertises every route list, and every shared perform
     ...[...host.matchAll(/capabilities\.Append\("(engine\.\w+)"\)/g)].map((match) => match[1]),
   ]);
   assert.equal(linuxCapabilities(fakeHost([...advertised]).host).taskManager, true);
-  const used = [...readFileSync(new URL("../../browser/src/platform/performance.ts", import.meta.url), "utf8").matchAll(/^export const \w+ = [^\n]*?\b(?:call|on)\("(engine\.\w+)"/gm)].map((match) => match[1]);
+  const uses = [...readFileSync(new URL("../../browser/src/platform/performance.ts", import.meta.url), "utf8").matchAll(/^export const \w+ = [^\n]*?\b(call|on)\("(engine\.\w+)"/gm)].map((match) => ({ kind: match[1], name: match[2] }));
+  const used = uses.map((use) => use.name);
   for (const call of ["engine.memorySaver", "engine.validateKeepActiveSite", "engine.tasks"]) assert.ok(used.includes(call), call);
   const gated = { "engine.beginTracing": "performanceRecording", "engine.endTracing": "performanceRecording", "engine.isTracing": "performanceRecording" };
+  const macOnlyEvents = new Set(["engine.hoverLost"]);
+  for (const name of macOnlyEvents) assert.deepEqual(uses.filter((use) => use.name === name).map((use) => use.kind), ["on"], `${name} is only listened to`);
   const none = linuxCapabilities(fakeHost().host);
   for (const call of used) {
-    if (advertised.has(call)) continue;
+    if (advertised.has(call) || macOnlyEvents.has(call)) continue;
     assert.ok(gated[call], `${call} is neither advertised by the Linux host nor gated`);
     assert.equal(none[gated[call]], false);
   }

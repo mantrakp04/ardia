@@ -90,6 +90,8 @@ export const LINUX_WORDING: readonly Wording[] = [
       ["whether it's the first launch since the Mac started", "whether it's the first launch since the computer started"],
       ["Its version, macOS version, chip and Python version, with this Mac's install ID", "Its version, operating system version, chip and Python version, with this computer's install ID"],
       ["Leaves this Mac only as the events above", "Leaves this computer only as the events above"],
+      ["whether macOS and Ardia agree that Ardia is the app in front", "whether the system and Ardia agree that Ardia is the app in front"],
+      ["window was still on a screen though macOS reported it covered", "window was still on a screen though the system reported it covered"],
       ["and the copy kept on this Mac is deleted.", "and the copy kept on this computer is deleted."],
       [`title: "Kept on this Mac"`, `title: "Kept on this computer"`],
       ["Saves the local copy to your Downloads folder and shows it in Finder.", "Saves the local copy to your Downloads folder and shows it in your file manager."],
