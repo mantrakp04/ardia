@@ -43,6 +43,11 @@ function fakeEngine(reply = () => "{}") {
       engine.missed.push(`${domain}.${verb}`);
       return "null";
     },
+    hosted: [],
+    host: async (verb, args = {}) => {
+      engine.hosted.push({ verb, args });
+      return {};
+    },
   };
   return engine;
 }
@@ -103,6 +108,19 @@ test("the forwarded topics and their event names are the Mac's", () => {
   const renamed = new Map([...between("NSString *AppEventOfTopic(", "\n}").matchAll(/isEqualToString:@"([^"]+)"\] \? @"([^"]+)"/g)].map((match) => [match[1], match[2]]));
   const topics = Object.fromEntries([...between("ForwardedTopics()", "];").matchAll(/@"([^"]+)"/g)].map((match) => [match[1], renamed.get(match[1]) ?? match[1]]));
   assert.deepEqual(rows.topics, topics);
+});
+
+test("releasing a profile asks the host to end that private session and answers null", async () => {
+  const engine = fakeEngine();
+  const profiles = calling(engine, "profiles");
+  assert.equal(await profiles("release", {}, "incognito:w1@work"), null);
+  assert.equal(await profiles("release", {}, "work"), null);
+  assert.deepEqual(engine.hosted, [
+    { verb: "profile.release", args: { profile: "incognito:w1@work" } },
+    { verb: "profile.release", args: { profile: "work" } },
+  ]);
+  assert.deepEqual(engine.calls, []);
+  assert.deepEqual(engine.missed, []);
 });
 
 test("a forwarded verb sends the profile and arguments unchanged and returns the engine's reply", async () => {

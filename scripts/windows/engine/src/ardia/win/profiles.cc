@@ -1,8 +1,10 @@
 #include "ardia/win/profiles.h"
 
 #include <optional>
+#include <string>
 #include <utility>
 
+#include "ardia/win/private_sessions.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
@@ -55,11 +57,13 @@ std::optional<std::string> UnescapedDirectory(std::string_view directory) {
   return name;
 }
 
-void Deliver(bool off_the_record,
+void Deliver(std::string name,
+             bool off_the_record,
              base::OnceCallback<void(Profile*)> callback,
              Profile* profile) {
   if (profile && off_the_record) {
-    profile = profile->GetPrimaryOTRProfile(true);
+    PrivateSessions::Get()->Open(name, profile, std::move(callback));
+    return;
   }
   std::move(callback).Run(profile);
 }
@@ -106,12 +110,14 @@ void WithProfile(std::string_view name,
   ProfileManager* manager = g_browser_process->profile_manager();
   base::FilePath path = ProfilePath(parsed);
   if (Profile* loaded = manager->GetProfileByPath(path)) {
-    Deliver(parsed.off_the_record, std::move(callback), loaded);
+    Deliver(std::string(name), parsed.off_the_record, std::move(callback),
+            loaded);
     return;
   }
   manager->CreateProfileAsync(
       path,
-      base::BindOnce(&Deliver, parsed.off_the_record, std::move(callback)));
+      base::BindOnce(&Deliver, std::string(name), parsed.off_the_record,
+                     std::move(callback)));
 }
 
 std::string NameOfProfilePath(const base::FilePath& path) {

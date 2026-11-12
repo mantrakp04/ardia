@@ -21,6 +21,10 @@ async function sameDataFolder(engine: Engine): Promise<boolean> {
 }
 
 export const profileCalls: Handlers = {
+  release: async (args, engine) => {
+    await engine.host("profile.release", { profile: args.profile });
+    return ok();
+  },
   clearBrowsingData: async (args, engine) => {
     const types = args.strings("types");
     const since = args.optionalDouble("since") ?? 0;

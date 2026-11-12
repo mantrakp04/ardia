@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "ardia/win/main.h"
+#include "ardia/win/private_sessions.h"
 #include "ardia/win/profiles.h"
 #include "ardia/win/tab_calls.h"
 #include "ardia/win/tab_events.h"
@@ -32,6 +33,7 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/unload_controller.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/navigation_controller.h"
@@ -235,6 +237,9 @@ void Host::Call(const std::string& verb,
     result = ListTabs();
   } else if (verb == "host.info") {
     result = Info();
+  } else if (verb == "profile.release") {
+    PrivateSessions::Get()->Release(Text(args, "profile"));
+    result = Ok();
   } else if (verb == "app.quit") {
     std::move(reply).Run(Ok());
     QuitApp();
@@ -252,6 +257,60 @@ bool Host::Keeps(const BrowserWindowInterface* browser) const {
     }
   }
   return false;
+}
+
+int Host::BrowsersOf(Profile* profile) const {
+  int count = 0;
+  GlobalBrowserCollection::GetInstance()->ForEach(
+      [&](BrowserWindowInterface* browser) {
+        count += browser->GetProfile() == profile;
+        return true;
+      });
+  return count;
+}
+
+int Host::CloseBrowsersOf(Profile* profile) {
+  std::vector<base::WeakPtr<BrowserWindowInterface>> found;
+  GlobalBrowserCollection::GetInstance()->ForEach(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->GetProfile() == profile) {
+          found.push_back(browser->GetWeakPtr());
+        }
+        return true;
+      });
+  for (const base::WeakPtr<BrowserWindowInterface>& weak : found) {
+    if (!weak) {
+      continue;
+    }
+    Browser* browser = static_cast<Browser*>(weak.get());
+    auto hosted = hosted_.find(browser);
+    if (hosted != hosted_.end()) {
+      Hide(browser, hosted->second);
+      hosted_.erase(hosted);
+    }
+    foreign_.erase(browser);
+    TabStripModel* model = browser->GetTabStripModel();
+    for (int index = 0; model && index < model->count(); ++index) {
+      content::WebContents* contents = model->GetWebContentsAt(index);
+      TabState* state = TabState::FromWebContents(contents);
+      if (!state) {
+        continue;
+      }
+      state->set_closed_by_host();
+      auto tab = tabs_.find(state->key());
+      if (tab != tabs_.end() && tab->second == contents) {
+        tabs_.erase(tab);
+      }
+    }
+    UnloadController::From(browser)->set_force_skip_warning_user_on_close(
+        true);
+    browser->GetWindow()->Close();
+  }
+  return static_cast<int>(found.size());
+}
+
+void Host::ForgetProfile(Profile* profile) {
+  profile_names_.erase(profile);
 }
 
 void Host::TabDestroyed(TabState* state) {
@@ -539,6 +598,7 @@ base::DictValue Host::Info() {
              base::WideToUTF8(g_browser_process->profile_manager()
                                   ->user_data_dir()
                                   .value()));
+  result.Set("privateSessions", PrivateSessions::Get()->LiveSessions());
   return result;
 }
 
@@ -552,6 +612,9 @@ base::DictValue Host::ListTabs() {
     tab.Set("url", contents->GetVisibleURL().spec());
     tab.Set("title", base::UTF16ToUTF8(contents->GetTitle()));
     tab.Set("loading", contents->IsLoading());
+    tab.Set("session",
+            PrivateSessions::Get()->SessionNumber(Profile::FromBrowserContext(
+                contents->GetBrowserContext())));
     Browser* browser = BrowserOf(contents);
     auto found = hosted_.find(browser);
     tab.Set("shown", found != hosted_.end() && found->second.shown == entry.first);

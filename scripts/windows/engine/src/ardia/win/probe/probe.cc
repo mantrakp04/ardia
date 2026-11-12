@@ -24,6 +24,8 @@ int g_step_ms = 4000;
 std::string g_first_url = "https://example.com/";
 std::string g_second_url = "https://www.wikipedia.org/";
 std::string g_download_url;
+std::string g_cookie_url;
+std::string g_slow_download_url;
 std::string g_files_dir;
 
 void Log(const char* what, const char* detail) {
@@ -106,6 +108,26 @@ std::string ShowArgs(const char* key) {
 std::string CreateArgs(const char* key, const std::string& url) {
   return std::string("{\"key\":\"") + key + "\",\"profile\":\"\",\"url\":\"" +
          url + "\"}";
+}
+
+std::string CreateIn(const char* key,
+                     const char* profile,
+                     const std::string& url) {
+  return std::string("{\"key\":\"") + key + "\",\"profile\":\"" + profile +
+         "\",\"url\":" + Quoted(url) + "}";
+}
+
+std::string KeyArgs(const char* key) {
+  return std::string("{\"key\":\"") + key + "\"}";
+}
+
+std::string ProfileArgs(const char* profile) {
+  return std::string("{\"profile\":\"") + profile + "\"}";
+}
+
+void ClosePrivate(const char* key, const char* profile) {
+  Call("reply close private", "tab.close", KeyArgs(key));
+  Call("reply release private", "profile.release", ProfileArgs(profile));
 }
 
 void Step() {
@@ -191,6 +213,71 @@ void Step() {
     case 6:
       Call("reply show one last", "tab.show", ShowArgs("one"));
       break;
+    case 7:
+      if (!g_cookie_url.empty()) {
+        Call("reply create normal cookie", "tab.create",
+             CreateIn("normal-cookie", "", g_cookie_url + "?set"));
+        Call("reply create private a", "tab.create",
+             CreateIn("private-a", "incognito:probe-a@", g_cookie_url + "?set"));
+      }
+      break;
+    case 8:
+      if (!g_cookie_url.empty()) {
+        Call("reply create private b", "tab.create",
+             CreateIn("private-b", "incognito:probe-b@", g_cookie_url));
+      }
+      break;
+    case 9:
+      if (!g_cookie_url.empty()) {
+        Call("reply sessions with a and b", "tabs.list", "{}");
+        ClosePrivate("private-a", "incognito:probe-a@");
+        ClosePrivate("private-b", "incognito:probe-b@");
+        Call("reply info after release", "host.info", "{}");
+      }
+      break;
+    case 10:
+      if (!g_cookie_url.empty()) {
+        Call("reply create private c", "tab.create",
+             CreateIn("private-c", "incognito:probe-c@", g_cookie_url));
+        Call("reply create normal read", "tab.create",
+             CreateIn("normal-read", "", g_cookie_url));
+        Call("reply reopen released a", "tab.create",
+             CreateIn("private-a-again", "incognito:probe-a@", g_cookie_url));
+      }
+      break;
+    case 11:
+      if (!g_cookie_url.empty()) {
+        Call("reply sessions with c", "tabs.list", "{}");
+        Call("reply info with c", "host.info", "{}");
+        ClosePrivate("private-c", "incognito:probe-c@");
+      }
+      if (!g_slow_download_url.empty()) {
+        Call("reply create private d", "tab.create",
+             CreateIn("private-d", "incognito:probe-d@", ""));
+      }
+      break;
+    case 12:
+      if (!g_slow_download_url.empty()) {
+        Call("reply load slow download", "tab.call",
+             LoadArgs("private-d", g_slow_download_url));
+      }
+      break;
+    case 13:
+      if (!g_slow_download_url.empty()) {
+        Call("reply info while downloading", "host.info", "{}");
+        ClosePrivate("private-d", "incognito:probe-d@");
+      }
+      break;
+    case 14:
+      if (!g_cookie_url.empty()) {
+        Call("reply create private e", "tab.create",
+             CreateIn("private-e", "incognito:probe-e@", g_cookie_url));
+      }
+      break;
+    case 15:
+      Call("reply sessions at the end", "tabs.list", "{}");
+      Call("reply info at the end", "host.info", "{}");
+      break;
     default:
       if (Environment("ARDIA_PROBE_STAY", "").empty()) {
         ::KillTimer(g_window, kStepTimer);
@@ -256,6 +343,8 @@ extern "C" __declspec(dllexport) int ArdiaAppStart(const ArdiaEngineApi* engine)
   g_first_url = Environment("ARDIA_PROBE_URL", g_first_url);
   g_second_url = Environment("ARDIA_PROBE_URL_2", g_second_url);
   g_download_url = Environment("ARDIA_PROBE_DOWNLOAD_URL", "");
+  g_cookie_url = Environment("ARDIA_PROBE_COOKIE_URL", "");
+  g_slow_download_url = Environment("ARDIA_PROBE_SLOW_DOWNLOAD_URL", "");
   g_files_dir = Environment("ARDIA_PROBE_DIR", Environment("TEMP", "C:"));
   g_step_ms = atoi(Environment("ARDIA_PROBE_STEP_MS", "4000").c_str());
   HINSTANCE instance = ::GetModuleHandleW(nullptr);

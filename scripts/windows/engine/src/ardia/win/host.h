@@ -47,6 +47,9 @@ class Host : public TabStripModelObserver,
             HWND window,
             Reply reply);
   bool Keeps(const BrowserWindowInterface* browser) const;
+  int BrowsersOf(Profile* profile) const;
+  int CloseBrowsersOf(Profile* profile);
+  void ForgetProfile(Profile* profile);
   void TabDestroyed(TabState* state);
   void ParentDestroying(HWND parent);
   void ParentMoved(HWND parent);

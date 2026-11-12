@@ -275,8 +275,20 @@ is plain Chromium.
   a page into a tab opened blank and goes Back, exports bookmarks to a Windows path, installs extensions from
   drive-letter and UNC paths that don't exist (the error must not be "an absolute path required"), asks for
   extension load health and a search suggestion, and with
-  `ARDIA_PROBE_DOWNLOAD_URL` loads a download into a blank tab and a tab with a page. It proves an engine build with
-  no app.
+  `ARDIA_PROBE_DOWNLOAD_URL` loads a download into a blank tab and a tab with a page. With `ARDIA_PROBE_COOKIE_URL`
+  (a page that sets a cookie on `?set` and shows its cookies in its title) it sets a cookie in a normal and a private
+  tab, opens a second private tab while the first is open, releases both and reads the cookie from a new private tab
+  and a normal one; with `ARDIA_PROBE_SLOW_DOWNLOAD_URL` it ends a private session while a download in it is running.
+  It proves an engine build with no app.
+- Private windows work as on the Mac. Each private window has its own name (`incognito:<window>@<profile>`); every
+  private window of a profile that is open at the same time shares that profile's one off-the-record profile, so
+  they share cookies and sign-ins. `profiles.release` (the host verb `profile.release`, sent when a private window
+  closes) drops the window's name, and when no name of that profile is left the session ends
+  (`private_sessions.cc`). The host closes every Chromium window of that off-the-record profile with its warnings
+  skipped, Chromium's `BrowserManagerService` hands the profile to `ProfileDestroyer` once its last window is
+  destroyed, and in-flight work (renderers, downloads) ends with it. A private window opened while the old session is
+  still ending waits until it is destroyed and gets a new, empty one; a released name never opens a tab again.
+  `tabs.list` gives each tab's session number (0 for a normal profile) and `host.info` the number of live sessions.
 
 ## Calls Windows still answers with a stand-in
 
@@ -312,7 +324,6 @@ is plain Chromium.
 | `permissions.resolveExternalApp`, `externalAppAllowances`, `removeExternalAppAllowance` | Engine | `ac_external_apps_*` is Mac-only (`ac_external_apps.mm`); Windows needs its own version. |
 | `permissions.devExternalLaunches` | Default | Mac test hook. |
 | `profiles.loaded` | Engine | The profiles the engine has loaded, plus the `profiles.loaded` event. Today the call fails and the app counts every profile as open, as with lazy loading off. |
-| `profiles.release` | Engine | Lets the engine unload a profile when its last tab closes. On Windows every private window of a profile shares Chromium's one off-the-record profile until Ardia quits (the engine ignores the name before `@`), so a new private window still has the last one's cookies. The engine has to make and destroy one off-the-record profile per private name. |
 | Profile folder names (no verb) | App | The engine names a profile's folder `Ardia ` plus its id, with lowercase letters, digits and `-` kept and every other byte written `_` and two lowercase hex digits (`profiles.cc`), so each name has its own folder even on a case-insensitive disk and Ardia's own ids (`p-<base36>-<base36>`) keep the folder they always had. `profiles.deleteData` still maps only ids of that shape and refuses the rest; it could map the escape too. |
 | `search.setEngineName` | Default | Names the search engine in the app's own page context menu; Windows shows Chromium's menu, which names Chromium's default engine. Needed again once the app draws that menu. |
 | `tabs.routeLinkTabs`, `stripCommand`, `strips`, `reportCommits` | Default | The Mac's Chromium tab strip; Windows hosts pages only, so the empty answers are right. |
