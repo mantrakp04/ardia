@@ -8,11 +8,13 @@ struct PageLoadingPlaceholder: View {
   let url: String
   let faviconURL: String?
   let themeColorHex: String?
+  let backdrop: Color
   var revealDelay: Duration?
 
   @State private var contentShown = false
 
-  init(tab: BrowserTab, revealDelay: Duration? = nil) {
+  init(tab: BrowserTab, backdrop: Color, revealDelay: Duration? = nil) {
+    self.backdrop = backdrop
     tabTitle = tab.title
     accessibilityTitle = TabText.title(for: tab)
     url = tab.url
@@ -45,7 +47,7 @@ struct PageLoadingPlaceholder: View {
     .opacity(revealDelay == nil || contentShown ? 1 : 0)
     .padding(.horizontal, Spacing.section)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(theme?.color ?? BrowsePalette.pageBackdrop)
+    .background(theme?.color ?? backdrop)
     .ignoresSafeArea()
     .accessibilityElement(children: .combine)
     .accessibilityLabel(Text("Loading \(accessibilityTitle)"))

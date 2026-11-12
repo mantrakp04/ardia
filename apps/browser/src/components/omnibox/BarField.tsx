@@ -1,18 +1,18 @@
 import type { SearchScope } from "@ardia/core";
 import type { ComponentProps, RefObject } from "react";
-import { TextInput } from "react-native";
+import { TextInput, type TextStyle } from "react-native";
 import { useTheme } from "../ui";
 import { PASTED_TYPES } from "./omniboxKeys";
-import { BAR, BAR_TYPE } from "./tokens";
+import { BAR } from "./tokens";
 
 type InputProps = ComponentProps<typeof TextInput>;
 
 export function BarField({
   inputRef,
   variant,
-  floating,
   scope,
   incognito,
+  textStyle,
   focusEcho,
   onSelection,
   ...events
@@ -21,12 +21,11 @@ export function BarField({
   focusEcho: RefObject<boolean>;
   onSelection(next: { start: number; end: number }): void;
   variant: "panel" | "hero" | "sidebar";
-  floating: boolean;
   scope: SearchScope | null;
   incognito: boolean;
+  textStyle: TextStyle;
 } & Pick<InputProps, "value" | "onLayout" | "onChangeText" | "onSubmitEditing" | "onFocus" | "onBlur" | "keyDownEvents" | "onKeyDown">) {
   const theme = useTheme();
-  const type = variant === "hero" ? BAR_TYPE.heroField : variant === "sidebar" || floating ? BAR_TYPE.floatingField : BAR_TYPE.panelField;
   return (
     <TextInput
       ref={inputRef}
@@ -51,7 +50,7 @@ export function BarField({
       enableFocusRing={false}
       style={{
         flex: 1,
-        ...type,
+        ...textStyle,
         color: theme.textPrimary,
         paddingVertical: 0,
         marginTop: variant === "panel" ? BAR.panelFieldLift : 0,

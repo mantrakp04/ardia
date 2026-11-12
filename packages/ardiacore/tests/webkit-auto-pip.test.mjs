@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { runInNewContext } from "node:vm";
 
 const path = (name) => fileURLToPath(new URL(name, import.meta.url));
 const sources = [
@@ -25,6 +26,37 @@ const webView = read("../ios/WebKitWebView.swift");
 const windowHostHeader = read("../ios/ArdiaChromeWindowHost.h");
 const windowHost = read("../ios/ArdiaChromeWindowHost.mm");
 const swiftc = process.env.SWIFTC || "swiftc";
+const pageScriptSwift = read("../ios/WebKitPageScript.swift");
+
+function pageWithVideos(videos) {
+  const noop = () => {};
+  const document = {
+    readyState: "complete",
+    addEventListener: noop,
+    removeEventListener: noop,
+    querySelectorAll: (selector) => (selector === "video" ? videos.slice() : []),
+    dispatchEvent: () => true,
+    pictureInPictureElement: null,
+    body: null,
+    documentElement: {},
+  };
+  const window = { document, addEventListener: noop, location: { protocol: "https:", origin: "https://example.test" }, navigator: {}, performance: { now: () => 0 }, setTimeout: noop };
+  window.window = window;
+  window.top = window;
+  const source = pageScriptSwift.slice(pageScriptSwift.indexOf('#"""') + 4, pageScriptSwift.indexOf('"""#'));
+  runInNewContext(source, window);
+  return window.__ardia;
+}
+
+function video(name, { paused, ended = false, width = 640, height = 360 }) {
+  const v = { name, paused, ended, clientWidth: width, clientHeight: height, webkitPresentationMode: "inline", entered: false };
+  v.webkitSupportsPresentationMode = (mode) => mode === "picture-in-picture";
+  v.webkitSetPresentationMode = (mode) => {
+    v.webkitPresentationMode = mode;
+    v.entered = mode === "picture-in-picture";
+  };
+  return v;
+}
 
 test("every source the checks read exists", () => {
   const missing = sources.filter((name) => !existsSync(path(name)));
@@ -46,7 +78,7 @@ test("WebKit tabs follow the user's sight of their window the way Chromium views
 });
 
 test("leaving opens picture in picture and returning closes it through the page's own player call", () => {
-  assert.match(sight, /case \.open: setPictureInPicture\(true\) \{ _ in \}/);
+  assert.match(sight, /case \.open: setPictureInPicture\(true, automatic: true\) \{ \[weak self\] answer in if answer == \.nothingPlaying \{ self\?\.emit\("autoPictureInPictureKept", \["reason": "nothingPlaying"\]\) \} \}/);
   assert.match(sight, /case \.close: setPictureInPicture\(false\) \{ _ in \}/);
   assert.match(sight, /autoPictureInPictureRule\.sight\(seen, enabled: autoPictureInPicture, playing: !playingFrames\.isEmpty \|\| activeCapture\)/);
 });
@@ -96,4 +128,43 @@ test("the leave and return rule opens once per leave and closes on return", (t) 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("automatic picture in picture leaves a paused video where it is", () => {
+  const paused = video("paused", { paused: true });
+  const ardia = pageWithVideos([paused]);
+  assert.equal(ardia.pictureInPicture(true, true), "nothingPlaying");
+  assert.equal(paused.entered, false);
+  assert.equal(pageWithVideos([]).pictureInPicture(true, true), "nothingPlaying");
+});
+
+test("a playing video the page can't pop out is a failure, not nothing playing", () => {
+  const stuck = { ...video("stuck", { paused: false }), webkitSupportsPresentationMode: undefined, webkitSetPresentationMode: undefined };
+  assert.equal(pageWithVideos([stuck]).pictureInPicture(true, true), false);
+  assert.equal(pageWithVideos([video("paused", { paused: true })]).pictureInPicture(true), true);
+  assert.equal(pageWithVideos([]).pictureInPicture(true), false);
+});
+
+test("automatic picture in picture takes the playing video, not the largest", () => {
+  const big = video("big", { paused: true, width: 1280, height: 720 });
+  const small = video("small", { paused: false });
+  const done = video("done", { paused: false, ended: true, width: 1920, height: 1080 });
+  const ardia = pageWithVideos([big, done, small]);
+  assert.equal(ardia.pictureInPicture(true, true), true);
+  assert.deepEqual([big.entered, done.entered, small.entered], [false, false, true]);
+});
+
+test("a picture in picture the user asks for still takes the largest video when none plays", () => {
+  const small = video("small", { paused: true });
+  const big = video("big", { paused: true, width: 1280, height: 720 });
+  const ardia = pageWithVideos([small, big]);
+  assert.equal(ardia.pictureInPicture(true), true);
+  assert.deepEqual([small.entered, big.entered], [false, true]);
+});
+
+test("the tab asks the page for an automatic picture in picture and a manual request stays manual", () => {
+  assert.match(tab, /func setPictureInPicture\(_ on: Bool, automatic: Bool = false, completion: @escaping \(PictureInPictureAnswer\) -> Void\)/);
+  assert.match(tab, /completion\(value as\? String == "nothingPlaying" \? \.nothingPlaying : \(value as\? NSNumber\)\?\.boolValue == true \? \.opened : \.failed\)/);
+  assert.match(tab, /window\.__ardia\.pictureInPicture\(\\\(on \? "true" : "false"\), \\\(automatic \? "true" : "false"\)\)/);
+  assert.match(pageTab, /setPictureInPicture\(true\) \{ completion\(\$0 == \.opened\) \}/);
 });

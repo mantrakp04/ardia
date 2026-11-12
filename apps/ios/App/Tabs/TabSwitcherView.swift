@@ -39,6 +39,7 @@ struct TabDeck: View {
   let geometry: TabsDeckGeometry
 
   @Environment(AppModel.self) private var app
+  @Environment(\.profileLook) private var look
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   @State private var order: [UUID] = []
@@ -82,7 +83,7 @@ struct TabDeck: View {
   var body: some View {
     let byID = tabsByID
     ZStack {
-      TabsBackdrop(tint: profileTint)
+      TabsBackdrop(look: look)
         .opacity(backdropOpacity)
         .contentShape(.rect)
         .gesture(deckDrag(for: nil))
@@ -208,12 +209,6 @@ struct TabDeck: View {
         .accessibilityAction(named: "Close Tab") { close(id, animated: false) }
       }
     }
-  }
-
-  private var profileTint: [Color]? {
-    guard app.sync.isEnabled, let theme = app.sync.selectedProfile?.theme else { return nil }
-    let colors = theme.colors.compactMap { Color(hexString: $0) }
-    return colors.count >= 2 ? colors : nil
   }
 
   private var backdropOpacity: Double {
@@ -682,7 +677,7 @@ struct DeckEmptyState: View {
       if showsArchive {
         Button("Open Archive", action: openArchive)
           .font(.subheadline.weight(.semibold))
-          .tint(Palette.indigo)
+          .tint(Palette.formAccent)
           .padding(.top, 6)
           .frame(minHeight: 44)
       }

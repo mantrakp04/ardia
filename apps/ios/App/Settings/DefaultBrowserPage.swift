@@ -9,7 +9,7 @@ struct DefaultBrowserPage: View {
         .padding(.top, Spacing.large)
         .padding(.bottom, Spacing.section)
     }
-    .background(Color(.systemGroupedBackground))
+    .background { ProfileBackdrop().ignoresSafeArea() }
     .navigationTitle("Default Browser")
     .navigationBarTitleDisplayMode(.inline)
   }
@@ -63,7 +63,7 @@ struct DefaultBrowserInstructions: View {
         }
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.roundedRectangle(radius: 14))
-        .tint(Palette.indigo)
+        .primaryActionColors()
 
         if let onLater {
           Button("Maybe Later", action: onLater)

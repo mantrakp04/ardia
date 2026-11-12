@@ -1,10 +1,5 @@
 import SwiftUI
 
-public extension Palette {
-  static let toast = Color(.displayP3, red: 0x2A / 255, green: 0x31 / 255, blue: 0xF5 / 255)
-  static let toastShadow = Color(.displayP3, red: 0x0E / 255, green: 0x16 / 255, blue: 0xE9 / 255)
-}
-
 public enum SettingsTile {
   public static let side: CGFloat = 29
 }
@@ -15,11 +10,11 @@ public enum SettingsTint {
   public static let orange = Color(hex: 0xFF901A)
   public static let yellow = Color(hex: 0xFFC829)
   public static let blue = Color(hex: 0x458AFF)
-  public static let deepBlue = Color(hex: 0x0C50FF)
+  public static let deepBlue = Color(hex: 0x007AFF)
   public static let purple = Color(hex: 0xB059EE)
   public static let green = Color(hex: 0x3EA82E)
 
-  public static let sync = Palette.indigo
+  public static let sync = blue
   public static let ads = red
   public static let trackers = yellow
   public static let cookies = orange
@@ -30,7 +25,7 @@ public enum SettingsTint {
   public static let nightShade = Color(hex: 0x5856D6)
   public static let appLinks = green
   public static let bottomBar = Color(hex: 0x30B0C7)
-  public static let defaultBrowser = Palette.indigo
+  public static let defaultBrowser = deepBlue
   public static let clearData = red
   public static let export = Color(hex: 0x0153FF)
   public static let onboarding = orange

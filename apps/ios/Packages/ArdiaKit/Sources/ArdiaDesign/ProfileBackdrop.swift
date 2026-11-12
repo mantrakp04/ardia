@@ -1,45 +1,42 @@
 import SwiftUI
 
-public struct LaunchGradient: View {
-  public var colors: [Color]
-  public var softened: Bool
+public struct ProfileBackdrop: View {
+  private let look: ProfileLook?
+  private let themed: Bool
+  private let softened: Bool
 
-  public init(colors: [Color] = Palette.launchGradient, softened: Bool = false) {
-    self.colors = colors.isEmpty ? Palette.launchGradient : colors
+  @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.profileLook) private var ambientLook
+
+  public init(look: ProfileLook? = nil, themed: Bool = false, softened: Bool = false) {
+    self.look = look
+    self.themed = themed
     self.softened = softened
   }
 
   public var body: some View {
-    let palette = Self.meshColors(from: colors)
-    MeshGradient(
-      width: 3,
-      height: 3,
-      points: [
-        [0, 0], [0.55, 0], [1, 0],
-        [0, 0.5], [0.62, 0.42], [1, 0.55],
-        [0, 1], [0.5, 1], [1, 1],
-      ],
-      colors: palette
+    let look = look ?? ambientLook
+    let dark = colorScheme == .dark
+    let showsTheme = look.showsTheme(dark: dark, themed: themed)
+    LinearGradient(
+      colors: look.backdropColors(dark: dark, themed: themed),
+      startPoint: showsTheme ? .topLeading : .top,
+      endPoint: showsTheme ? .bottomTrailing : .bottom
     )
     .overlay {
       if softened {
         Color.adaptive(light: .white.opacity(0.72), dark: .black.opacity(0.55))
       }
     }
-    .overlay { FilmGrain() }
+    .overlay { FilmGrain(opacity: dark ? 0.03 : 0.06) }
     .accessibilityHidden(true)
   }
+}
 
-  static func meshColors(from colors: [Color]) -> [Color] {
-    let deep = colors[0]
-    let violet = colors[min(1, colors.count - 1)]
-    let plum = colors[min(2, colors.count - 1)]
-    let pink = colors[colors.count - 1]
-    return [
-      deep, violet, plum,
-      violet, plum, pink,
-      plum, pink, pink,
-    ]
+public extension View {
+  func lookBackdrop() -> some View {
+    scrollContentBackground(.hidden)
+      .background { ProfileBackdrop().ignoresSafeArea() }
   }
 }
 
@@ -102,10 +99,10 @@ public extension Color {
   }
 }
 
-#Preview("Launch Gradient") {
-  LaunchGradient().ignoresSafeArea()
+#Preview("Backdrop") {
+  ProfileBackdrop().ignoresSafeArea()
 }
 
 #Preview("Softened") {
-  LaunchGradient(softened: true).ignoresSafeArea()
+  ProfileBackdrop(softened: true).ignoresSafeArea()
 }

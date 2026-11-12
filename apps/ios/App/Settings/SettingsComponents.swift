@@ -119,8 +119,18 @@ extension View {
   }
 
   func settingsChrome() -> some View {
-    scrollEdgeEffectStyle(.hard, for: .top)
-      .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+    modifier(SettingsChrome())
+  }
+}
+
+private struct SettingsChrome: ViewModifier {
+  @Environment(\.profileLook) private var look
+
+  func body(content: Content) -> some View {
+    content
+      .lookBackdrop()
+      .scrollEdgeEffectStyle(.hard, for: .top)
+      .toolbarBackground(look.surface, for: .navigationBar)
       .toolbarBackgroundVisibility(.visible, for: .navigationBar)
   }
 }
@@ -201,7 +211,7 @@ struct SetupStepRow<Content: View>: View {
   private var badgeFill: AnyShapeStyle {
     switch progress {
     case .done: AnyShapeStyle(Color.green)
-    case .current: AnyShapeStyle(Palette.indigo)
+    case .current: AnyShapeStyle(Palette.formAccent)
     case .upcoming: AnyShapeStyle(.fill.tertiary)
     }
   }
@@ -222,13 +232,8 @@ extension SetupStepRow.Progress {
 }
 
 extension Color {
-  static let ardiaAccentText = Color.adaptive(light: Palette.indigo, dark: Color(hex: 0x6F86FF))
-
-  static let ardiaTitle = Color(uiColor: UIColor { traits in
-    traits.userInterfaceStyle == .dark
-      ? UIColor(red: 0xC9 / 255, green: 0xD3 / 255, blue: 0xFB / 255, alpha: 1)
-      : UIColor(red: 0x29 / 255, green: 0x0A / 255, blue: 0x9E / 255, alpha: 1)
-  })
+  static let ardiaAccentText = Palette.formAccent
+  static let ardiaTitle = Color.primary
 }
 
 struct AppIconPreview: View {
