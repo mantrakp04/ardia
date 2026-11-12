@@ -209,7 +209,7 @@ async function status() {
   await section("Builds", async () => printBuilds(await listBuilds(app.id)));
 
   await section("Encryption declarations", async () => {
-    const { rows } = await get(`/v1/apps/${app.id}/appEncryptionDeclarations`, { limit: "50" });
+    const { rows } = await get("/v1/appEncryptionDeclarations", { "filter[app]": app.id, limit: "50" });
     if (rows.length === 0) console.log("none");
     for (const row of rows) {
       const declaration = row.attributes;
