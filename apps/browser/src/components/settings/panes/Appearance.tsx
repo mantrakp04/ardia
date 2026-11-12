@@ -65,6 +65,7 @@ const STYLES: { value: Settings["interfaceStyle"]; title: string }[] = [
 
 function InterfaceStylePicker() {
   const style = useSettings((s) => s.interfaceStyle);
+  const glassSidebar = useSettings((s) => s.glassSidebar);
   const tinted = useSettings((s) => s.glassTintWithTheme);
   const tintAmount = useSettings((s) => s.glassTintAmount);
   if (!liquidGlass) return null;
@@ -78,6 +79,9 @@ function InterfaceStylePicker() {
           ))}
         </Box>
         <Group>
+        <Row anchor="appearance.glassSidebar">
+          <Toggle value={glassSidebar} onChange={(v) => updateSettings({ glassSidebar: v })} />
+        </Row>
         <Row anchor="appearance.glassTintWithTheme">
           <Toggle value={tinted} onChange={(v) => updateSettings({ glassTintWithTheme: v })} />
         </Row>

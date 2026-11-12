@@ -2,9 +2,8 @@ import { onWindowEvent, watchSidebarEdge } from "../../state/windows/nativeWindo
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { switchOn } from "../../state/app/switches";
-import { useTheme } from "../ui/theme";
 import { spring, curve } from "../ui/motion";
-import { Panel, reduceMotion, WindowBackdrop, WindowDragRegion } from "../ui";
+import { reduceMotion, WindowDragRegion } from "../ui";
 import { useSidebarSide, useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
 import { useToolbarLightsCenter } from "../../state/windows/layout";
@@ -14,7 +13,7 @@ import { useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { peekHeld, watchHolds } from "../../state/app/transientUi";
 import { noteSidebarPeek } from "../../state/telemetry/usage";
 import { ProfileSwipe } from "./ProfileSwipe";
-import { ARC_HIDE_MS, DOCK_SPRING, SHADOWS } from "./tokens";
+import { ARC_HIDE_MS, DOCK_SPRING } from "./tokens";
 import {
   PEEK_EDGE_STRIP,
   dockMove,
@@ -45,6 +44,7 @@ import { useTabDrag } from "../../state/drag/tabDrag";
 import { usePeek } from "./usePeek";
 import { useSidebarLights, useTopStripLights } from "./useDockLights";
 import { useCardFrame } from "./cardFrame";
+import { SidebarMaterial } from "./SidebarMaterial";
 
 const SPRING = spring(DOCK_SPRING);
 
@@ -189,7 +189,6 @@ function SidebarDock({
   right: boolean;
   windowWidth: number;
 }) {
-  const theme = useTheme();
   const windowId = useWindowId();
   const moving = useDockMotion((m) => !!m.moving[windowId]);
   const edgeOver = useRef(false);
@@ -263,7 +262,6 @@ function SidebarDock({
   const panelOn = useRef(new Animated.Value(0)).current;
   useLayoutEffect(() => panelOn.setValue(peeking ? 1 : 0), [panelOn, peeking]);
   const bleed = peekBleed(peekAt.left);
-  const [panelHeight, setPanelHeight] = useState(0);
 
   return (
     <>
@@ -306,26 +304,8 @@ function SidebarDock({
             <Animated.View
               pointerEvents="none"
               style={{ position: "absolute", top: 0, bottom: 0, [edgeSide]: -bleed, [right ? "left" : "right"]: 0, opacity: panelOn }}
-              onLayout={(e) => setPanelHeight(e.nativeEvent.layout.height)}
             >
-              <Panel fill={theme.windowTint[0]} radius={peekAt.radius} shadow={SHADOWS.sidebarPeek} style={StyleSheet.absoluteFill} />
-              {peeking && (
-                <View style={[StyleSheet.absoluteFill, { borderRadius: peekAt.radius, overflow: "hidden" }]}>
-                  <WindowBackdrop
-                    vibrancy
-                    {...theme.backdrop}
-                    colors={theme.windowTint}
-                    grainOpacity={theme.grain}
-                    style={{
-                      position: "absolute",
-                      [edgeSide]: -peekAt.left,
-                      top: -peekAt.top,
-                      width: windowWidth + bleed,
-                      height: panelHeight + peekAt.top + peekAt.bottom,
-                    }}
-                  />
-                </View>
-              )}
+              <SidebarMaterial peeking={peeking} radius={peekAt.radius} left={peekAt.left} top={peekAt.top} bottom={peekAt.bottom} right={right} windowWidth={windowWidth} bleed={bleed} />
             </Animated.View>
           )}
           <View style={[{ flex: 1 }, peeking ? { borderRadius: peekAt.radius, overflow: "hidden" } : null]}>{sidebar}</View>

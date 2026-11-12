@@ -830,3 +830,7 @@ reproduced.
     ACFavicons, Move to Window, Alloy screen-sharing, import-Keychain and `Menus.swift` comments; the README (it still
     described WebKit). The `ArdiaSwipe.mm` responder-delegate comment went with Findings 3 (R1).
 14. No `TODO`/`FIXME`/`XXX` markers in the code paths audited.
+
+### Optional Liquid Glass floating sidebar
+
+Local candidate: Appearance › Interface Style › Liquid Glass floating sidebar (`glassSidebar`, off by default, synced and configurable) replaces only the floating sidebar material with native regular Liquid Glass on supported macOS. Docked sidebars keep their window treatment; older macOS keeps the existing backdrop. Uses Ardia’s existing glass wrapper without private material variants. Native appearance, page sampling, light/dark contrast, animation, and reduced-transparency accessibility still need macOS verification. Adoption uses the existing consent-gated daily `settings_snapshot.setting_glassSidebar` against `default_glassSidebar`; no new event.

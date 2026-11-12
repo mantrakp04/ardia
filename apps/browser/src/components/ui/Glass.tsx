@@ -91,3 +91,7 @@ export function GlassGroup({ style, children }: { style?: StyleProp<ViewStyle>; 
     </NativeGlassGroup>
   );
 }
+
+export function GlassBackdrop({ radius, tint, dark, style }: { radius: number; tint?: string; dark?: boolean; style?: StyleProp<ViewStyle> }) {
+  return <GlassEffect pointerEvents="none" glassStyle="regular" cornerRadius={radius} tint={tint} dark={dark} style={style} />;
+}
