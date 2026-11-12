@@ -66,7 +66,7 @@ export function windowsImport(hostOf: () => ImportHost | null = nativeImportHost
     async unlockBrowser(browserId: string): Promise<null> {
       const browser = findBrowser(browserId);
       if (!browser) throw failure("notFound", `Unknown browser ${browserId}`);
-      await unlocks.ensure(needHost(), browser).catch(rethrown);
+      await unlocks.ensure(needHost(), browser);
       return null;
     },
 

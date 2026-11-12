@@ -10,6 +10,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "ImportFiles.h"
@@ -239,10 +240,24 @@ struct Store {
     vault.clear();
   }
 
-  std::shared_ptr<VaultEntry> Take(std::string const &token) {
+  uint64_t Generation() {
     std::lock_guard guard{lock};
+    return generation;
+  }
+
+  void PurgeLocked() noexcept {
     auto cutoff = std::chrono::steady_clock::now() - kVaultLifetime;
     for (auto it = vault.begin(); it != vault.end();) it = it->second->kept < cutoff ? vault.erase(it) : std::next(it);
+  }
+
+  void Purge() noexcept {
+    std::lock_guard guard{lock};
+    PurgeLocked();
+  }
+
+  std::shared_ptr<VaultEntry> Take(std::string const &token) {
+    std::lock_guard guard{lock};
+    PurgeLocked();
     auto found = vault.find(token);
     if (found == vault.end()) return nullptr;
     auto entry = found->second;
@@ -250,7 +265,7 @@ struct Store {
     return entry;
   }
 
-  std::string Keep(std::shared_ptr<VaultEntry> entry) {
+  std::string Keep(std::shared_ptr<VaultEntry> entry, uint64_t started) {
     std::array<uint8_t, 16> random{};
     BCryptGenRandom(nullptr, random.data(), static_cast<ULONG>(random.size()), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     std::string token;
@@ -259,8 +274,19 @@ struct Store {
       snprintf(hex, sizeof(hex), "%02x", byte);
       token.append(hex);
     }
-    std::lock_guard guard{lock};
-    vault[token] = std::move(entry);
+    {
+      std::lock_guard guard{lock};
+      PurgeLocked();
+      if (generation != started) return {};
+      vault[token] = std::move(entry);
+    }
+    try {
+      std::thread([]() noexcept {
+        std::this_thread::sleep_for(kVaultLifetime + std::chrono::seconds(5));
+        Store::Shared().Purge();
+      }).detach();
+    } catch (...) {
+    }
     return token;
   }
 };
@@ -272,10 +298,13 @@ inline std::string Unlock(std::string const &browser, std::filesystem::path cons
     started = Store::Shared().generation;
   }
   LocalStateKey found = ReadLocalStateKey(localState);
-  bool unlocked = found.key.has_value();
-  if (unlocked) {
+  bool unlocked = false;
+  if (found.key) {
     std::lock_guard guard{Store::Shared().lock};
-    if (Store::Shared().generation == started) Store::Shared().keys[browser] = *found.key;
+    if (Store::Shared().generation == started) {
+      Store::Shared().keys[browser] = *found.key;
+      unlocked = true;
+    }
     SecureZeroMemory(found.key->data(), found.key->size());
   }
   return std::string{"{\"unlocked\":"} + (unlocked ? "true" : "false") + ",\"appBound\":" + (found.appBound ? "true" : "false") + "}";
@@ -402,6 +431,7 @@ inline void CloseBatch(Wiped &batch) {
 }
 
 inline std::string Cookies(std::string const &browser, std::filesystem::path const &file) {
+  uint64_t started = Store::Shared().Generation();
   auto key = Store::Shared().KeyFor(browser);
   std::unique_ptr<Gcm> gcm = key ? std::make_unique<Gcm>(*key) : nullptr;
   if (key) SecureZeroMemory(key->data(), key->size());
@@ -478,7 +508,8 @@ inline std::string Cookies(std::string const &browser, std::filesystem::path con
     count++;
   }
   if (!entry->batches.empty()) CloseBatch(*entry->batches.back());
-  std::string token = count ? Store::Shared().Keep(entry) : std::string{};
+  std::string token = count ? Store::Shared().Keep(entry, started) : std::string{};
+  if (count && token.empty()) return "{\"failure\":\"cancelled\"}";
   std::string out = "{\"count\":" + std::to_string(count) + "," + counted.Json() + ",\"dropped\":" + std::to_string(entry->dropped);
   if (!token.empty()) out.append(",\"token\":").append(ImportFiles::JsonString(token));
   out.push_back('}');

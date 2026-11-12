@@ -69,7 +69,23 @@ export const checks: Check[] = [
       expectEqual(answer.results[1]?.error, "only reads are allowed", "the write");
       expectEqual(await native.query(join(dataFolder(), unique("absent")), [{ sql: "SELECT 1" }]), { failure: "missing" }, "a missing database");
       expectEqual(await native.logins("self-check", [path]), { items: [], undecryptable: 0, appBound: 0 }, "logins from a database without them");
-      expectEqual(await native.cookies("self-check", path), { failure: "unreadable" }, "cookies from a database without them");
+      expectEqual<unknown>(await native.cookies("self-check", path), { failure: "unreadable" }, "cookies from a database without them");
+      documents().removeDocument(name);
+    },
+  },
+  {
+    name: "import: the browsers' secret stores are refused to the generic reads and ATTACH is off",
+    async run() {
+      const native = host();
+      const path = await written("logins.json", "{}");
+      expectEqual(await native.readText(path, 1024), null, "readText of logins.json");
+      expectEqual(await native.readBase64(path, 1024), null, "readBase64 of logins.json");
+      expectEqual(await native.query(path, [{ sql: "SELECT 1" }]), { failure: "refused" }, "a query of logins.json");
+      documents().removeDocument("logins.json");
+      const name = unique("attach.sqlite");
+      const empty = await written(name, "");
+      const answer = await native.query(empty, [{ sql: "ATTACH ? AS other", args: [empty] }]);
+      expectTrue("results" in answer && !!answer.results[0]?.error, `ATTACH answered ${JSON.stringify(answer)}`);
       documents().removeDocument(name);
     },
   },

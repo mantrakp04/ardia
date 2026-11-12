@@ -85,6 +85,14 @@ inline void Finish(std::unique_ptr<Writing> writing) noexcept {
 
 inline void Step(std::unique_ptr<Writing> writing) noexcept;
 
+inline void Continue(std::unique_ptr<Writing> writing) noexcept {
+  auto ui = writing->context;
+  auto held = std::make_shared<std::unique_ptr<Writing>>(std::move(writing));
+  RunOnUI(ui, [held]() noexcept {
+    if (*held) Step(std::move(*held));
+  });
+}
+
 inline void OnBatchReply(void *context, const char *json) noexcept {
   std::unique_ptr<Writing> writing{static_cast<Writing *>(context)};
   if (!writing) return;
@@ -92,7 +100,7 @@ inline void OnBatchReply(void *context, const char *json) noexcept {
     writing->entry->batches[writing->next]->Wipe();
     writing->next++;
     winrt::Windows::Data::Json::JsonObject reply{nullptr};
-    if (!json || !winrt::Windows::Data::Json::JsonObject::TryParse(winrt::to_hstring(json), reply)) {
+    if (!json || !winrt::Windows::Data::Json::JsonObject::TryParse(winrt::to_hstring(std::string_view{json}), reply)) {
       writing->error = "bad reply from the engine";
     } else if (reply.HasKey(L"error")) {
       writing->error = winrt::to_string(reply.GetNamedString(L"error", L"the engine refused the cookies"));
@@ -104,9 +112,7 @@ inline void OnBatchReply(void *context, const char *json) noexcept {
   } catch (...) {
     writing->error = "bad reply from the engine";
   }
-  auto context = writing->context;
-  Writing *raw = writing.release();
-  RunOnUI(context, [raw]() noexcept { Step(std::unique_ptr<Writing>{raw}); });
+  Continue(std::move(writing));
 }
 
 inline void Step(std::unique_ptr<Writing> writing) noexcept {
@@ -249,9 +255,7 @@ struct ImportModule {
     auto entry = ImportSecrets::Store::Shared().Take(token);
     if (!entry) return promise.Reject("Those cookies are no longer kept; import again");
     if (!m_context) return promise.Reject("the import has no app context");
-    auto writing = std::make_unique<ImportParts::Writing>(ImportParts::Writing{m_context, entry, profile, 0, 0, 0, 0, {}, promise});
-    ImportParts::Writing *raw = writing.release();
-    RunOnUI(m_context, [raw]() noexcept { ImportParts::Step(std::unique_ptr<ImportParts::Writing>{raw}); });
+    ImportParts::Continue(std::make_unique<ImportParts::Writing>(ImportParts::Writing{m_context, entry, profile, 0, 0, 0, 0, {}, promise}));
   }
 
   REACT_METHOD(discard)

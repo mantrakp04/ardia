@@ -10,11 +10,11 @@ import { snapshotFailure } from "./sqlite";
 export class Unlocks {
   private unlocked = new Set<string>();
 
-  async ensure(host: ImportHost, browser: Browser): Promise<void> {
-    if (!isChromiumBased(browser) || this.unlocked.has(browser.id)) return;
-    const answer = await host.unlock(browser.id, join(dataDirectory(host, browser), "Local State"));
-    if (!answer.unlocked) throw new ImportFailure("locked", `Windows didn't give Ardia ${browser.name}'s key`);
-    this.unlocked.add(browser.id);
+  async ensure(host: ImportHost, browser: Browser): Promise<boolean> {
+    if (!isChromiumBased(browser) || this.unlocked.has(browser.id)) return true;
+    const answer = await host.unlock(browser.id, join(dataDirectory(host, browser), "Local State")).catch(() => ({ unlocked: false }));
+    if (answer.unlocked) this.unlocked.add(browser.id);
+    return answer.unlocked;
   }
 
   forget(host: ImportHost) {
@@ -102,7 +102,7 @@ export async function importProfile(
         result.credentials = outcome.items;
         count = outcome.items.length;
         secretWarnings(result, kind, outcome, "password", browser);
-        if (!count && outcome.undecryptable + outcome.appBound > 0) throw new ImportFailure("locked", `The ${browser.name} key didn't decrypt any passwords`);
+        if (!count && outcome.undecryptable > 0) throw new ImportFailure("locked", `The ${browser.name} key didn't decrypt any passwords`);
       } else if (kind === "cookies" && chromium) {
         const file = await cookieFile(host, dir);
         await unlocks.ensure(host, browser);
@@ -112,7 +112,7 @@ export async function importProfile(
         if (outcome.token) result.vaultToken = outcome.token;
         count = outcome.count;
         secretWarnings(result, kind, outcome, "cookie", browser);
-        if (!count && outcome.undecryptable + outcome.appBound > 0) throw new ImportFailure("locked", `The ${browser.name} key didn't decrypt any cookies`);
+        if (!count && outcome.undecryptable > 0) throw new ImportFailure("locked", `The ${browser.name} key didn't decrypt any cookies`);
       } else {
         throw new ImportFailure("unsupported", `${browser.name} has no ${kind} to import on Windows`);
       }

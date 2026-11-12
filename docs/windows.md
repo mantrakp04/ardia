@@ -283,6 +283,7 @@ is plain Chromium.
 | Verb | Needs | What and why |
 | --- | --- | --- |
 | `autofill.settings`, `autofill.setSettings` | Engine | The Mac reads and writes the profile's `autofill.profile_enabled` and `autofill.credit_card_enabled` prefs; no `ac_*` call touches prefs. Today Settings › Autofill shows both toggles on and disabled. |
+| Import's cookie batches (no verb) | Engine | `//ardia/win`'s `engineCall` (`api.cc`) copies the arguments into a plain `std::string` that is freed without being wiped, so each `ac_cookies_import` batch the app wipes after the reply leaves one copy in freed engine memory. The Mac passes them with `callWithSecret`; Windows needs the same: a sensitive call that wipes its copy. |
 | `autofill.showSuggestions` | Engine | Shows Chromium's autofill popup in a tab: a `tab.call` method. |
 | `bookmarks.exportHtml` | Engine (in progress) | The Mac picks a file and calls `ac_bookmarks_export_html`, which refuses Windows paths in the current engine. Then a handler with `ArdiaDialogs`' save dialog. |
 | `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
@@ -363,7 +364,9 @@ that answers the same methods with the same result shapes, so the wizard (`compo
   when `ARDIA_INSTANCE=importSourceDir=<dir>` is set in an instance with its own data folder), `list` a folder,
   `readText` and `readBase64` a file up to a size, and `query` a SQLite file: it is copied with its `-wal` and
   `-journal` to `%TEMP%\ardia-import-<pid>-<random>` (leftovers over an hour old go at the next launch), opened with
-  Windows' own `winsqlite3.dll`, and only statements SQLite calls read-only run. A file the browser holds open with no
+  Windows' own `winsqlite3.dll` with ATTACH off, and only statements SQLite calls read-only run. The browsers' secret
+  stores (`Cookies`, `cookies.sqlite`, `Login Data`, `Web Data`, `key4.db`, `logins.db`, `logins.json` and their
+  `-wal`/`-journal`) are refused to these generic reads, so their plain-text values can't reach JS through them. A file the browser holds open with no
   sharing (Chrome does this to `Network\Cookies` and others while it runs) answers `inUse`, and that kind fails with
   "Quit <browser> and import again".
 - Discovery (`browsers.ts`, `discovery.ts`): Chrome, Edge, Arc, Firefox, Zen, Brave, Vivaldi, Opera, Opera GX, Chromium,
@@ -385,7 +388,8 @@ that answers the same methods with the same result shapes, so the wizard (`compo
   because `savePassword` (`ac_passwords_add`) takes them from there. Cookie values never do: native decrypts them
   straight into wiped buffers already in `ac_cookies_import`'s JSON, batches of 500, keeps them for 10 minutes under a
   one-time token, and JS gets the count and the token. `writeImported` sends the batches to the engine one after another
-  and wipes each after its reply.
+  and wipes each after its reply. A token is dropped after 10 minutes even if nothing asks again, and a vault
+  `forgetUnlockedKeys` cleared while a read was running stays empty.
 - Not on Windows yet, each offered by no profile so the wizard doesn't show it: autofill (addresses and cards from
   `Web Data`), Firefox and Zen passwords (NSS `key4.db`) and cookies (`cookies.sqlite`, plain text, so they need the
   native vault too), Chromium's encrypted session files (`Sessions_Encrypted`), Arc's and Zen's spaces, pinned tabs and

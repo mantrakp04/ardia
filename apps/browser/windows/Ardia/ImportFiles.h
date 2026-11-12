@@ -25,6 +25,22 @@ inline constexpr uint64_t kLargestFileBytes = 256ull << 20;
 inline constexpr size_t kLargestQueryRows = 2'000'000;
 inline constexpr char kSnapshotPrefix[] = "ardia-import-";
 
+inline bool IsSecretStore(std::filesystem::path const &path) noexcept {
+  try {
+    std::wstring name = path.filename().wstring();
+    for (const wchar_t *suffix : {L"-wal", L"-journal", L"-shm"}) {
+      std::wstring_view tail{suffix};
+      if (name.size() > tail.size() && name.compare(name.size() - tail.size(), tail.size(), tail) == 0) name.resize(name.size() - tail.size());
+    }
+    CharLowerBuffW(name.data(), static_cast<DWORD>(name.size()));
+    for (const wchar_t *secret : {L"cookies", L"cookies.sqlite", L"login data", L"login data for account", L"web data", L"key4.db", L"logins.db", L"logins.json"})
+      if (name == secret) return true;
+    return false;
+  } catch (...) {
+    return true;
+  }
+}
+
 inline void AppendJsonString(std::string &out, std::string_view text) {
   out.push_back('"');
   for (unsigned char c : text) {
@@ -99,6 +115,7 @@ inline std::optional<uint64_t> SizeOf(std::filesystem::path const &path) noexcep
 }
 
 inline std::optional<std::string> ReadBytes(std::filesystem::path const &path, uint64_t largest) noexcept {
+  if (IsSecretStore(path)) return std::nullopt;
   auto size = SizeOf(path);
   if (!size || *size > std::min(largest, kLargestFileBytes)) return std::nullopt;
   return Files::ReadAll(path);
@@ -208,6 +225,7 @@ class Snapshot {
       return;
     }
     sqlite3_busy_timeout(m_db, 2000);
+    sqlite3_limit(m_db, SQLITE_LIMIT_ATTACHED, 0);
   }
 
   ~Snapshot() noexcept {
@@ -358,6 +376,7 @@ inline void AppendQuery(std::string &out, sqlite3 *db, winrt::Microsoft::ReactNa
 }
 
 inline std::string QueryJson(std::filesystem::path const &database, winrt::Microsoft::ReactNative::JSValueArray const &queries) {
+  if (IsSecretStore(database)) return "{\"failure\":\"refused\"}";
   Snapshot snapshot{database};
   if (!snapshot.Db()) return "{\"failure\":" + JsonString(snapshot.Failure()) + "}";
   std::string out = "{\"results\":[";

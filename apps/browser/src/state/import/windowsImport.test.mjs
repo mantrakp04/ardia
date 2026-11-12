@@ -169,8 +169,21 @@ test("Cookies come back as a count and a token, and a browser holding the file i
   const held = await importProfile(fakeHost({ cookies: { failure: "inUse", count: 0, undecryptable: 0, appBound: 0, dropped: 0 } }), new Unlocks(), "chrome", "Default", ["cookies"], {}, quiet);
   assert.deepEqual(held.failed, ["cookies"]);
   assert.equal(held.warnings[0].code, "locked");
-  const refused = await importProfile(fakeHost({ unlocked: false }), new Unlocks(), "chrome", "Default", ["cookies"], {}, quiet);
+  const keyless = fakeHost({ unlocked: false, cookies: { count: 0, undecryptable: 3, appBound: 0, dropped: 0 } });
+  const unlocks = new Unlocks();
+  const refused = await importProfile(keyless, unlocks, "chrome", "Default", ["cookies"], {}, quiet);
   assert.deepEqual(refused.failed, ["cookies"]);
+  assert.equal(refused.warnings.at(-1).code, "locked");
+  await importProfile(keyless, unlocks, "chrome", "Default", ["cookies"], {}, quiet);
+  assert.equal(keyless.calls.filter(([c]) => c === "unlock").length, 2);
+  assert.equal(keyless.calls.filter(([c]) => c === "cookies").length, 2);
+});
+
+test("A kind whose values are all app-bound warns why instead of failing", async () => {
+  const result = await importProfile(fakeHost({ cookies: { count: 0, undecryptable: 0, appBound: 40, dropped: 0 } }), new Unlocks(), "chrome", "Default", ["cookies"], {}, quiet);
+  assert.deepEqual(result.failed, []);
+  assert.equal(result.cookieCount, 0);
+  assert.match(result.warnings[0].message, /40 cookies use Google Chrome's app-bound encryption/);
 });
 
 test("Kinds Windows can't read yet fail on their own and the rest still import", async () => {
