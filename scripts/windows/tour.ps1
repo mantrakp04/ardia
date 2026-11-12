@@ -1128,6 +1128,36 @@ function Invoke-MainTour {
   Invoke-ShortcutStop $session "profile-menu" "Profiles menu" "Ctrl+Shift+M" @(0x11, 0x10) 0x4D "openProfileMenu" "an openProfileMenu command in the log."
   Invoke-ShortcutStop $session "task-manager" "Task manager" "Shift+Escape" @(0x10) 0x1B "taskManager" "a taskManager command in the log."
 
+  Invoke-Stop $session "app-menu" "The menu button beside minimize" {
+    param($stop)
+    $stop.Expected = "a button named Menu at the window's top right; a click opens a menu that lists Settings and Check for Updates (the log lines 'menu showMenu asked' and 'menu pop-up menu shown')."
+    Focus-Window $session $session.Main $stop | Out-Null
+    Close-Menus $session
+    $client = Get-Client $session.Main
+    $hits = @(Find-Named $session.Main "Menu" | Where-Object { $client -and $_.X -gt $client.X + $client.Width - [int](200 * $client.Scale) -and $_.Y -lt $client.Y + [int](60 * $client.Scale) })
+    if (-not $hits.Count) {
+      $stop.Did = "Looked for a button named Menu at the top right with UI Automation and found none."
+      Save-Shot $stop $session.Main | Out-Null
+      Set-Seen $stop $false
+      return
+    }
+    $stop.Did = "Clicked the Menu button, found by UI Automation at $($hits[0].X), $($hits[0].Y)."
+    $mark = Get-LogCount $session
+    Send-Click $hits[0].X $hits[0].Y
+    $shown = Wait-Until $session { (Get-LinesSince $session $mark '^menu \d+ pop-up menu (shown|not shown)').Count -gt 0 } 2500
+    Start-Sleep -Milliseconds 400
+    Save-Shot $stop $session.Main | Out-Null
+    $asked = @(Get-LinesSince $session $mark '^menu \d+ showMenu asked')
+    $popped = @(Get-LinesSince $session $mark '^menu \d+ pop-up menu shown')
+    $stop.Facts.Add("showMenu asked: $(if ($asked.Count) { $asked[0] } else { 'none' })")
+    $stop.Facts.Add("pop-up shown: $(if ($popped.Count) { $popped[0] } else { 'none' })")
+    Set-Seen $stop ($shown -and $asked.Count -gt 0 -and $popped.Count -gt 0)
+    if ($popped.Count) {
+      Send-Escape
+      Wait-Until $session { (Get-LinesSince $session $mark '^menu \d+ pop-up menu (dismissed|chose|failed)').Count -gt 0 } 2000 | Out-Null
+    }
+  }
+
   Invoke-SettingsStops $session "" "" -Panes
 
   Invoke-Stop $session "little-ardia" "Little Ardia window" {

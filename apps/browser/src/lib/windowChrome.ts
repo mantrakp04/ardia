@@ -18,4 +18,6 @@ export function trailingClearance(top: number, margin: number, controlsBottom: n
 
 export const WINDOW_CONTROLS = { edge: 12, gap: 3, button: 30, regular: 30, small: 28, band: 26, strip: 18 } as const;
 
+export const BROWSER_WINDOW_BUTTONS = 4;
+
 export const windowControlsWidth = (count = 3) => count * WINDOW_CONTROLS.button + (count - 1) * WINDOW_CONTROLS.gap;

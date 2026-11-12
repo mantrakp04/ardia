@@ -9,14 +9,14 @@ test("the Mac reserves the traffic lights' 78 points at the leading top and noth
   for (const row of [0, 28, 41]) assert.equal(captionClearTop(9, row, 9), 9);
 });
 
-test("Windows reserves the caption buttons' 138 by 32 at the trailing top and nothing at the leading top", () => {
-  assert.deepEqual(windows, { leadingWidth: 0, trailingWidth: 138, titleBarHeight: 32 });
-  assert.equal(captionRoom(0, 0, windows), 138);
-  assert.equal(captionRoom(9, 9, windows), 129);
-  assert.equal(captionRoom(9, 31, windows), 129);
+test("Windows reserves the caption buttons' 171 by 32 at the trailing top and nothing at the leading top", () => {
+  assert.deepEqual(windows, { leadingWidth: 0, trailingWidth: 171, titleBarHeight: 32 });
+  assert.equal(captionRoom(0, 0, windows), 171);
+  assert.equal(captionRoom(9, 9, windows), 162);
+  assert.equal(captionRoom(9, 31, windows), 162);
   assert.equal(captionRoom(9, 32, windows), 0);
   assert.equal(captionRoom(9, 42, windows), 0);
-  assert.equal(captionRoom(138, 0, windows), 0);
+  assert.equal(captionRoom(171, 0, windows), 0);
   assert.equal(captionRoom(190, 0, windows), 0);
 });
 
