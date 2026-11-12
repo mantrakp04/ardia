@@ -2,7 +2,7 @@ import type { TabViewport } from "./hostTab";
 
 export type { TabViewport };
 
-type Bounds = { x: number; y: number; width: number; height: number };
+type Bounds = TabViewport["rect"];
 
 const EXTENSION_POPUP_DISMISS = '[data-testid="ardia-extension-popup-dismiss"]';
 const MOTION_EVENTS = ["transitionrun", "transitionend", "transitioncancel", "animationstart", "animationend", "animationcancel"] as const;
