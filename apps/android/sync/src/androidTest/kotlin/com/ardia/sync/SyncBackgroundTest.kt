@@ -53,7 +53,8 @@ class SyncBackgroundTest {
         val mac = FakeMac(sandbox.folder, entropy)
         mac.put("app", "dev:${mac.device}", """{"n":"MacBook Pro","k":"mac","f":["send"]}""")
         mac.put("app", "prof:${SyncEndToEndTest.PROFILE}", """{"n":"Personal","c":"blue","i":null,"d":true}""")
-        mac.sync(listOf("app"))
+        mac.put(SyncEndToEndTest.SCOPE, "tabs:${mac.device}", """{"n":"MacBook Pro","tabs":[{"u":"https://news.example/","t":"News"}]}""")
+        mac.sync(listOf("app", SyncEndToEndTest.SCOPE))
         val scheduler = RecordingWork()
         val controller = SyncController(
             makeDevice = { SyncService(sandbox.state, FileKeyStore(sandbox.keys), testAssets) },

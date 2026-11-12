@@ -473,7 +473,9 @@ class SyncEndToEndTest {
             val seqs = j.mac.logs(SCOPE, j.device).map { it.getInt("seq") }
             assertEquals((1..seqs.size).toList(), seqs)
             j.mac.sync(listOf(SCOPE))
-            assertTrue(j.mac.store(SCOPE).toString().contains("https://moved.example/"))
+            val store = j.mac.store(SCOPE)
+            val moved = store.keyList().filter { it.startsWith("bm:") }.map { store.getJSONObject(it) }.filter { it.optString("u") == "https://moved.example/" }
+            assertEquals(1, moved.size)
             val empty = java.io.File(j.sandbox.root, "Empty").apply { mkdirs() }
             assertEquals(ConnectResult.NoSyncData, j.service.changeFolder(SyncFolderPick.Folder(empty)))
             assertEquals("Ardia Sync", j.service.folderName)

@@ -111,9 +111,15 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           script: ./gradlew connectedDebugAndroidTest --continue
-      - if: failure()
+      - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: android-instrumented-test-reports
           path: apps/android/*/build/reports/androidTests
+          if-no-files-found: ignore
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: android-screen-tour
+          path: apps/android/app/build/outputs/connected_android_test_additional_output
           if-no-files-found: ignore
