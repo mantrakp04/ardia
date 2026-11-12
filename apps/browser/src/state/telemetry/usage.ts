@@ -12,7 +12,7 @@ import { utcDay } from "./daily";
 import { appInfo, percentile } from "./transport";
 import { reportNativeCrashes } from "./errors";
 import { emitJourneys, journeysEnding, startJourneys } from "./journeys";
-import { commandBarPlacementLabel, takeOmniboxLatency } from "./track";
+import { commandBarPlacementLabel, takeOmniboxLatency, takeSearchSuggests } from "./track";
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples, watchHoverLost } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
@@ -316,7 +316,7 @@ function emitOmniboxLatency() {
   const samples = takeOmniboxLatency().sort((a, b) => a - b);
   if (!samples.length) return;
   const at = (p: number) => percentile(samples, p);
-  capture("perf_omnibox", { samples: samples.length, p50_ms: at(0.5), p95_ms: at(0.95), max_ms: samples.at(-1)! });
+  capture("perf_omnibox", { ...takeSearchSuggests(), samples: samples.length, p50_ms: at(0.5), p95_ms: at(0.95), max_ms: samples.at(-1)! });
 }
 
 function snapshotSettings() {

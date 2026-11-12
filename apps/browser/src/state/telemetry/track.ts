@@ -54,6 +54,16 @@ export function sampleOmniboxLatency(ms: number) {
 
 export const takeOmniboxLatency = () => latency.splice(0);
 
+let suggests = { search_suggest_ok: 0, search_suggest_blocked: 0, search_suggest_failed: 0 };
+
+export const noteSearchSuggest = (outcome: "ok" | "blocked" | "failed") => void suggests[`search_suggest_${outcome}`]++;
+
+export const takeSearchSuggests = () => {
+  const taken = suggests;
+  suggests = { search_suggest_ok: 0, search_suggest_blocked: 0, search_suggest_failed: 0 };
+  return taken;
+};
+
 let firstWindowAt: number | null = null;
 
 export function markFirstWindow() {
