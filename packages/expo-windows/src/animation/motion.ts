@@ -1,9 +1,10 @@
+import type { MotionBurst, MotionNative } from "@ardia/shell";
+
 type Running = { __active: boolean };
 type Frame = (time: number) => void;
 type Follower = () => void;
 type Timers = { requestAnimationFrame(frame: Frame): number; cancelAnimationFrame(id: number): void };
 
-export type MotionBurst = { frames: number; milliseconds: number; longest: number; long: number };
 type BurstListener = (burst: MotionBurst) => void;
 
 export const FRAME_MS = 1000 / 60;
@@ -111,4 +112,4 @@ export function onMotionBurst(listen: BurstListener): () => void {
   return () => void burstListeners.delete(listen);
 }
 
-export const windowsMotion = { onBurst: onMotionBurst };
+export const windowsMotion: MotionNative = { onBurst: onMotionBurst };
