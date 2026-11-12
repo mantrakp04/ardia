@@ -37,7 +37,7 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 - **Issues first, then PRs.** Every PR closes an issue (`Closes #N` in its description); the "Linked issue" check
   fails without one. A PR that arrives without an issue gets one opened for it, then linked.
 - **Vouch gates outside PRs.** Every PR carries `vouch:trusted`, `vouch:unvouched` or `vouch:denounced`; a denounced
-  author's PRs and issues are closed. An unvouched PR stays open, but its iOS build and CodeRabbit's automatic review
+  author's PRs and issues are closed. An unvouched PR stays open, but its iOS and Windows builds and CodeRabbit's automatic review
   wait until a maintainer comments `vouch` (also `vouch @user`, `denounce @user <reason>`, `unvouch @user`) or adds
   the `run-ci` label; re-running all jobs of the skipped run starts the build alone. Agents manage the list and
   `run-ci` only when the owner asks. A new heavy PR workflow needs the `gate` job from `ios.yml` and an entry in
