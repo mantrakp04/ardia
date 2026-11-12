@@ -306,7 +306,8 @@ void TabEvents::DidFinishNavigation(content::NavigationHandle* handle) {
   if (handle->IsDownload()) {
     base::DictValue data;
     data.Set("url", handle->GetURL().spec());
-    data.Set("committedUrl", web_contents()->GetVisibleURL().spec());
+    data.Set("committedUrl",
+             TabState::CommittedPageURL(web_contents()).spec());
     data.Set("skipped", false);
     Send("downloadNavigation", std::move(data));
     if (!alive) {

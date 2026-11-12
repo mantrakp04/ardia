@@ -227,7 +227,8 @@ is plain Chromium.
   the topic `tab` with a key, a name and data (navigation, progress, favicon, find, zoom, security, media, pagePress,
   windowClose and more), and `tab.opened` for a tab Chromium made itself, with who opened it.
 - The `ac_*` calls of `engine/chromium` build on Windows from the same sources: `series_win.py` makes the Windows
-  build file from the Mac one, applies `ardia-layer-win.patch` (paths from UTF-8, a Mac-only string) and swaps in
+  build file from the Mac one, applies `ardia-layer-win.patch` (paths from UTF-8, a Mac-only string, and Windows absolute paths, a drive letter
+  or UNC, accepted where the Mac asks for a leading `/`: extension installs, bookmark and password exports) and swaps in
   Windows stand-ins for the two POSIX-only files (the `ardia` command's control file and the user scripts policy, both
   off). `engineCall` loads the profile the app names and calls the export by name. `engine/` is not touched.
 - In the app (`packages/expo-windows/src/engine`): `ArdiaWebView` is a view in TypeScript. It opens its tab on mount,
@@ -266,9 +267,16 @@ is plain Chromium.
   with it, launches it with the self-check (which then loads a page through the engine) and runs the tour's pages
   part. The release is a draft, so only the repository's own runs can fetch it; a fork's pull request skips those
   steps. A new engine build is a new release and a new `prebuilt.json`.
-- `//ardia/win:probe` is a library that stands in for the app: a plain window that opens two tabs, switches, navigates
-  and asks the engine for history, bookmarks and the downloads folder, logging every reply and event. It proves an
-  engine build with no app.
+- A tab opened with no address shows a committed `about:blank` until its first load, which replaces that entry, so
+  the first real page reports `canGoBack: false` and Back never leads to a blank page (the Mac's "ahead blank" rule).
+  `downloadNavigation`'s `committedUrl` is the tab's last committed page, empty while it has only that opening page.
+- `//ardia/win:probe` is a library that stands in for the app: a plain window that opens tabs, switches, navigates
+  and asks the engine for history, bookmarks and the downloads folder, logging every reply and event. It also loads
+  a page into a tab opened blank and goes Back, exports bookmarks to a Windows path, installs extensions from
+  drive-letter and UNC paths that don't exist (the error must not be "an absolute path required"), asks for
+  extension load health and a search suggestion, and with
+  `ARDIA_PROBE_DOWNLOAD_URL` loads a download into a blank tab and a tab with a page. It proves an engine build with
+  no app.
 
 ## Calls Windows still answers with a stand-in
 
@@ -305,7 +313,7 @@ is plain Chromium.
 | `permissions.devExternalLaunches` | Default | Mac test hook. |
 | `profiles.loaded` | Engine | The profiles the engine has loaded, plus the `profiles.loaded` event. Today the call fails and the app counts every profile as open, as with lazy loading off. |
 | `profiles.release` | Engine | Lets the engine unload a profile when its last tab closes. On Windows every private window of a profile shares Chromium's one off-the-record profile until Ardia quits (the engine ignores the name before `@`), so a new private window still has the last one's cookies. The engine has to make and destroy one off-the-record profile per private name. |
-| Profile folder names (no verb) | Engine | The engine names a profile's folder `Ardia ` plus its id with every byte outside `A-Z a-z 0-9 _ -` made `_`, and stops at a NUL, and NTFS ignores case, so `work.1` and `work_1`, or `Work` and `work`, share one folder. Ardia's own ids (`p-<base36>-<base36>`) never collide. `profiles.deleteData` therefore refuses, on purpose, every id it can't map exactly (below); the engine needs a one-to-one folder name (an escape or a hash) before those can be deleted. |
+| Profile folder names (no verb) | App | The engine names a profile's folder `Ardia ` plus its id, with lowercase letters, digits and `-` kept and every other byte written `_` and two lowercase hex digits (`profiles.cc`), so each name has its own folder even on a case-insensitive disk and Ardia's own ids (`p-<base36>-<base36>`) keep the folder they always had. `profiles.deleteData` still maps only ids of that shape and refuses the rest; it could map the escape too. |
 | `search.setEngineName` | Default | Names the search engine in the app's own page context menu; Windows shows Chromium's menu, which names Chromium's default engine. Needed again once the app draws that menu. |
 | `tabs.routeLinkTabs`, `stripCommand`, `strips`, `reportCommits` | Default | The Mac's Chromium tab strip; Windows hosts pages only, so the empty answers are right. |
 | `tabs.dev*` (10 verbs) | Default | Mac test hooks. |
@@ -313,13 +321,10 @@ is plain Chromium.
 | `webView.setVideoUpscaling`, `setVideoUpscalingTestConditions`, `videoUpscalingState` | Native and engine | The Mac upscales with MetalFX; Windows needs a Direct3D path. |
 | `windows.list`, `windows.dev` | Default | The Mac's Chromium window hosts. |
 
-`awaitingEngine` lists calls the Mac forwards to an `ac_*` call that the shipped Windows engine doesn't have yet; Windows
-answers them in TypeScript until a new engine build does, then they move to `forwarded`:
-
-- `search.suggest` and `search.stopSuggest` (`ac_search_suggest`, `ac_search_suggest_stop`): the app fetches the
-  suggestion address itself with `fetch` and stops it on request (`domains/suggest.ts`).
-- `extensions.loadHealth` (`ac_extensions_load_health`): answers that the Windows engine doesn't report extension load
-  health yet (`domains/extensions.ts`).
+`search.suggest`, `search.stopSuggest` and `extensions.loadHealth` are forwarded to the engine
+(`ac_search_suggest`, `ac_search_suggest_stop`, `ac_extensions_load_health`) since `windows-engine-20261112-2`. When the
+Mac forwards a call the shipped Windows engine lacks, `forwarded.json` lists it under `awaitingEngine` and Windows
+answers it in TypeScript until a new engine build has it; none waits now.
 
 Not in `forwarded.json` but also engine work: media next and previous track. The media controls send `mediaCommand`
 `next` or `previous` (`state/media/media.ts`), the Windows view passes it on as `tab.call`, and `MediaCommand` in

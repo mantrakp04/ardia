@@ -23,6 +23,8 @@ int g_step = 0;
 int g_step_ms = 4000;
 std::string g_first_url = "https://example.com/";
 std::string g_second_url = "https://www.wikipedia.org/";
+std::string g_download_url;
+std::string g_files_dir;
 
 void Log(const char* what, const char* detail) {
   if (!g_log) {
@@ -61,6 +63,33 @@ void EngineCall(const char* label, const char* name, const char* args) {
   g_engine->engineCall(name, "", args, &LogReply, const_cast<char*>(label));
 }
 
+std::string Quoted(const std::string& text) {
+  std::string quoted = "\"";
+  for (char c : text) {
+    if (c == '\\' || c == '"') {
+      quoted += '\\';
+    }
+    quoted += c;
+  }
+  return quoted + "\"";
+}
+
+std::string PathArgs(const std::string& path) {
+  return "{\"path\":" + Quoted(path) + "}";
+}
+
+void EngineCallWithPath(const char* label,
+                        const char* name,
+                        const std::string& path) {
+  EngineCall(label, name, PathArgs(path).c_str());
+}
+
+std::string LoadArgs(const char* key, const std::string& url) {
+  return std::string("{\"key\":\"") + key +
+         "\",\"method\":\"loadUrl\",\"url\":" + Quoted(url) +
+         ",\"userInitiated\":true}";
+}
+
 std::string ShowArgs(const char* key) {
   RECT client = {};
   ::GetClientRect(g_window, &client);
@@ -89,6 +118,11 @@ void Step() {
       Call("reply info", "host.info", "{}");
       Call("reply create one", "tab.create", CreateArgs("one", g_first_url));
       Call("reply show one", "tab.show", ShowArgs("one"));
+      Call("reply create blank", "tab.create", CreateArgs("blank", ""));
+      if (!g_download_url.empty()) {
+        Call("reply create download", "tab.create",
+             CreateArgs("download", ""));
+      }
       break;
     case 2:
       Call("reply list", "tabs.list", "{}");
@@ -101,17 +135,44 @@ void Step() {
       Call("reply load", "tab.call",
            "{\"key\":\"one\",\"method\":\"loadUrl\",\"url\":"
            "\"https://example.org/\",\"userInitiated\":true}");
+      Call("reply load blank", "tab.call", LoadArgs("blank", g_first_url));
+      if (!g_download_url.empty()) {
+        Call("reply load download", "tab.call",
+             LoadArgs("download", g_download_url));
+      }
       break;
     case 4:
       Call("reply back", "tab.call", "{\"key\":\"one\",\"method\":\"goBack\"}");
       Call("reply close two", "tab.close", "{\"key\":\"two\"}");
+      Call("reply back blank", "tab.call",
+           "{\"key\":\"blank\",\"method\":\"goBack\"}");
       break;
     case 5:
+      if (!g_download_url.empty()) {
+        Call("reply load download in one", "tab.call",
+             LoadArgs("one", g_download_url));
+      }
       EngineCall("reply history", "ac_history_query",
                  "{\"maxUrls\":10,\"maxVisits\":3}");
       EngineCall("reply bookmarks", "ac_bookmarks_tree", "{}");
       EngineCall("reply downloads", "ac_downloads_settings", "{}");
       EngineCall("reply unknown", "ac_no_such_call", "{}");
+      EngineCallWithPath("reply export bookmarks", "ac_bookmarks_export_html",
+                         g_files_dir + "\\probe-bookmarks.html");
+      EngineCallWithPath("reply export bookmarks relative",
+                         "ac_bookmarks_export_html", "probe-bookmarks.html");
+      EngineCallWithPath("reply install unpacked", "ac_extensions_install",
+                         g_files_dir + "\\no-such-extension");
+      EngineCallWithPath("reply install crx", "ac_extensions_install_crx",
+                         g_files_dir + "\\no-such-extension.crx");
+      EngineCallWithPath("reply install crx unc", "ac_extensions_install_crx",
+                         "\\\\localhost\\c$\\no-such-extension.crx");
+      EngineCallWithPath("reply export passwords relative",
+                         "ac_passwords_export", "probe-passwords.csv");
+      EngineCall("reply load health", "ac_extensions_load_health", "{}");
+      EngineCall("reply suggest", "ac_search_suggest",
+                 ("{\"id\":1,\"url\":" + Quoted(g_first_url) + "}").c_str());
+      EngineCall("reply suggest stop", "ac_search_suggest_stop", "{\"id\":2}");
       Call("reply list", "tabs.list", "{}");
       Call("reply hide one", "tab.show", "{\"key\":\"one\",\"visible\":false}");
       break;
@@ -182,6 +243,8 @@ extern "C" __declspec(dllexport) int ArdiaAppStart(const ArdiaEngineApi* engine)
   g_engine = engine;
   g_first_url = Environment("ARDIA_PROBE_URL", g_first_url);
   g_second_url = Environment("ARDIA_PROBE_URL_2", g_second_url);
+  g_download_url = Environment("ARDIA_PROBE_DOWNLOAD_URL", "");
+  g_files_dir = Environment("ARDIA_PROBE_DIR", Environment("TEMP", "C:"));
   g_step_ms = atoi(Environment("ARDIA_PROBE_STEP_MS", "4000").c_str());
   HINSTANCE instance = ::GetModuleHandleW(nullptr);
   WNDCLASSEXW window_class = {};
