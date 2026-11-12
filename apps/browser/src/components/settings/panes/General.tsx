@@ -10,7 +10,8 @@ import { currentEngineProfile } from "../../../state/browser/current";
 import { useProfiles, useSettings } from "../../../state/browser/hooks";
 import { SHARING_COPY } from "../../../state/telemetry/copy";
 import { Anchor, Group, ProfilePicker, Row, SectionHeader, SettingToggle, useSettingsProfile } from "../Form";
-import { defaultBrowser, downloadSettings, loginItem, makeDefaultBrowser, setDownloadsFor, setUpdaterPrefs, updater } from "../../../state/settings/paneData";
+import { defaultBrowser, downloadSettings, followUpdater, loginItem, makeDefaultBrowser, setDownloadsFor, setUpdaterPrefs, updater } from "../../../state/settings/paneData";
+import { switchCheckLine, updaterBusy } from "../../../state/settings/updateStatus";
 import { useResource } from "../../../state/settings/resources";
 import { openImport } from "../../../state/settings/settingsWindows";
 import { ExportBookmarksRow } from "./ExportBookmarksRow";
@@ -162,11 +163,16 @@ function UpdatesSection() {
     const sub = AppState.addEventListener("change", refresh);
     return () => sub.remove();
   }, []);
+  const busy = updaterBusy(state);
+  useEffect(() => {
+    if (busy) followUpdater();
+  }, [busy]);
   if (!state?.available) return null;
   const ready = state.configured;
   const lastCheck = state.lastCheck
     ? `Last checked ${new Date(state.lastCheck).toLocaleString(UI_LOCALE, { dateStyle: "medium", timeStyle: "short" })}.`
     : "Not checked yet.";
+  const status = switchCheckLine(state, APP) ?? lastCheck;
   return (
     <>
       <SectionHeader title="Updates" description={ready ? undefined : "Updates aren't set up for this build."} />
@@ -195,8 +201,8 @@ function UpdatesSection() {
             />
           </Row>
         )}
-        <Row anchor="general.checkNow" title={`${APP} ${state.displayVersion ?? state.version}`} description={ready ? lastCheck : undefined}>
-          <Button title="Check Now" disabled={ready && (!state.canCheck || state.sessionInProgress)} onPress={() => void checkForUpdates().finally(refresh)} />
+        <Row anchor="general.checkNow" title={`${APP} ${state.displayVersion ?? state.version}`} description={ready ? status : undefined}>
+          <Button title="Check Now" disabled={ready && !state.canCheck} onPress={() => void checkForUpdates().finally(() => followUpdater())} />
         </Row>
       </Group>
     </>
