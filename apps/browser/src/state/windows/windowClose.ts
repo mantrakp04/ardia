@@ -6,6 +6,7 @@ import { tabsLostWithWindow } from "../tabs/sharedWindowClose";
 import { isLastRegularWindow, isOpenRegularWindow, isSmall } from "./small";
 import { closeLittleArdia } from "../littleArdia/actions";
 import { closeWindowAnimated } from "./closeAnimated";
+import { isEmptyCardTab } from "../omnibox/newTabBarPolicy";
 
 const MIN_TABS = 2;
 
@@ -40,12 +41,12 @@ async function requestClose(windowId: string) {
   closeWindowAnimated(windowId, { keepsLastWindow: last });
 }
 
-const unpinnedTabIds = (windowId: string) => {
+export const unpinnedOpenTabIds = (windowId: string) => {
   const s = useBrowser.getState();
-  return (s.windows[windowId]?.tabIds ?? []).filter((id) => !inPinnedContainer(s, id));
+  return (s.windows[windowId]?.tabIds ?? []).filter((id) => !inPinnedContainer(s, id) && !isEmptyCardTab(s, s.tabs[id]));
 };
 
-export function closeWindowDialog(windowId: string, closing = unpinnedTabIds(windowId)) {
+export function closeWindowDialog(windowId: string, closing = unpinnedOpenTabIds(windowId)) {
   const s = useBrowser.getState();
   const w = s.windows[windowId]!;
   const tabs = (n: number) => plural(n, "tab");
