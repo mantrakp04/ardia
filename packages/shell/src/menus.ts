@@ -39,6 +39,7 @@ export type MenuState = {
   warnBeforeQuitting: boolean;
   warnBeforeClosingWindow?: boolean;
   undoReopensClosedTab?: boolean;
+  copiesSelectedTabsIn?: string | null;
   downloadsInProgress?: number;
   extensions?: { id: string; title: string; icon?: string | null; enabled: boolean }[];
   shortcuts?: Record<string, string[][]>;

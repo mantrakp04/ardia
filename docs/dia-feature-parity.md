@@ -275,7 +275,7 @@ string doesn't matter. Afterwards: `kill %1` for the server, quit the app, `rm -
 | Tabs keep running in background | ✓ | ✅ | |
 | Move tab to profile | ✓ | ✅ | with Dia's one-time data-loss warning; the page reloads in the new profile and moves to its Chrome window (ledger 11). A shared Top App moved to a profile that shares its data doesn't reload: the window pages to that profile and its copy takes the same live page (see Share data between profiles) |
 | Workspace / companion tab | ✓ (agent tasks) | ⏸ | an AI surface: the companion panel belongs to a Chat task |
-| Copy URLs of selected tabs / all links as Markdown | ✓ | ✅ | |
+| Copy URLs of selected tabs / all links as Markdown | ✓ | ✅ | With several tabs Shift- or ⌘-selected in the sidebar, ⇧⌘C and ⌥⇧⌘C copy every selected tab's link, one per line in sidebar order (Markdown as a `- ` list), tracker-stripped, and the Edit items read Copy N URLs. ⌘C also copies the links from the sidebar or a Chromium page without selected text; text fields, WebKit pages and native panels retain native Copy. A single tab, a peek and a tab named by a command (CLI, AppleScript) keep copying just that page (2026-11-12). Dashboard: `usage_counts.selection_copy_keys`, `selection_copy_key_tabs`, `selection_plain_copy_keys` |
 
 ## 3. Tab groups & live folders
 | Feature | Dia | Ardia | Gap |

@@ -120,9 +120,10 @@ export function newGroupWithSelection(windowId: string, ids = selectedTabIds(sto
 
 export function copyUrls(ids: string[], markdown: boolean) {
   const tabs = ids.map((id) => store().tabs[id]).filter((t): t is Tab => !!t?.url);
-  if (!tabs.length) return;
+  if (!tabs.length) return 0;
   const lines = tabs.map((t) => (markdown ? markdownLink(tabTitle(t), t.url) : cleanUrl(t.url)));
   copyText(markdown && lines.length > 1 ? lines.map((l) => `- ${l}`).join("\n") : lines.join("\n"));
+  return tabs.length;
 }
 
 export async function bookmarkTabs(windowId: string, ids: string[], folder: BookmarkFolderChoice) {

@@ -63,9 +63,11 @@ export const emitCommand = (event: CommandEvent) => shellEvents.emit("onCommand"
 export const emitOpenURLs = (urls: string[], pointer?: [number, number], source?: { bundleId: string | null; appName: string | null }) =>
   shellEvents.emit("onOpenURLs", { urls, pointer, source });
 
+export const clipboard = { copied: [] as string[] };
+
 const shell: Modules["ArdiaShell"] = {
   addListener: shellEvents.addListener,
-  copyText: () => {},
+  copyText: (text) => void clipboard.copied.push(text),
   readText: () => Promise.resolve(""),
   startDictation: () => {},
   fetchBangList: (etag) => (bangListServer.reply ? bangListServer.reply(etag) : unfaked("ArdiaShell", "fetchBangList")),

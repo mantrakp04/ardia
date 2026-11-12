@@ -34,6 +34,11 @@ export function selectedTabIds(s: BrowserState, windowId: string): string[] {
   return active ? [active] : [];
 }
 
+export function multiSelectedTabIds(s: BrowserState, windowId: string): string[] {
+  const ids = (s.selection[windowId]?.length ?? 0) > 1 ? selectedTabIds(s, windowId) : [];
+  return ids.length > 1 ? ids : [];
+}
+
 export const awayFromPin = (t: Pick<Tab, "url" | "pinnedUrl">) => !!t.pinnedUrl && !!t.url && !samePage(t.url, t.pinnedUrl);
 
 export type AwayTitle = { pinned: string | null; page: string };

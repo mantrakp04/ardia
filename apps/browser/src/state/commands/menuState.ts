@@ -10,6 +10,7 @@ import type { Bookmarks, BookmarkNode } from "../browser/types";
 import { isInternalTab } from "../pages/urls";
 import { muteState, muteTitle } from "../tabs/mute";
 import { sidebarMenuState } from "../sidebar/commands";
+import { multiSelectedTabIds } from "../pins/organize";
 import { LITTLE_ARDIA_DISABLED_COMMANDS, PAGE_COMMANDS, PAGE_COMMANDS_OFF_INTERNAL_PAGES, settingChecks, WINDOW_COMMANDS } from "../commands/commandCatalog";
 import { extensionMenu } from "../extensions/actions";
 import { menuBarBindings } from "./commandShortcuts";
@@ -106,6 +107,11 @@ export function menuState(s: BrowserState): MenuState {
   const sidebar = sidebarMenuState(s, windowId);
   disabled.push(...sidebar.disabled);
   Object.assign(titles, sidebar.titles);
+  const copied = windowId && !peek ? multiSelectedTabIds(s, windowId).filter((id) => s.tabs[id]?.url).length : 0;
+  if (copied) {
+    titles.copyUrl = `Copy ${copied} ${copied === 1 ? "URL" : "URLs"}`;
+    titles.copyUrlAsMarkdown = `${titles.copyUrl} as Markdown`;
+  }
   if (peek) {
     titles.openFile = "Open Peek as Tab";
     titles.closeTab = "Close Peek";
@@ -125,7 +131,7 @@ export function menuState(s: BrowserState): MenuState {
 
   return {
     checked,
-    disabled,
+    disabled: copied ? disabled.filter((c) => c !== "copyUrl" && c !== "copyUrlAsMarkdown") : disabled,
     titles,
     profiles: s.profileOrder.map((id) => ({ id, title: s.profiles[id]!.name, current: w?.profileId === id })),
     windows: w?.kind === "private" ? [] : regularWindows.filter((id) => id !== windowId).map((id) => ({ id, title: windowTitle(s, id) })),
@@ -136,6 +142,7 @@ export function menuState(s: BrowserState): MenuState {
     warnBeforeQuitting: s.settings.warnBeforeQuitting,
     warnBeforeClosingWindow: s.settings.warnBeforeClosingWindow,
     undoReopensClosedTab: s.settings.undoReopensClosedTab,
+    copiesSelectedTabsIn: copied ? windowId : null,
     downloadsInProgress: s.downloads.filter((d) => d.state === "downloading").length,
     shortcuts: menuBarBindings(s),
     extensions: extensionMenu(s, windowId) };
