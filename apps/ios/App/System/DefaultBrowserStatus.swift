@@ -32,6 +32,7 @@ final class DefaultBrowserStatus {
   }
 
   func receivedLinkFromSystem() {
+    guard Self.isOffered else { return }
     record(true)
   }
 
