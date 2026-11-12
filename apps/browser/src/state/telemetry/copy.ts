@@ -67,7 +67,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times ⌘T kept a New Tab bar that had opened on its own (in a new window or after closing the last tab) instead of closing it, summed up once an hour",
       "With address bar speed: how many search suggestion requests your search engine answered, refused as unusual traffic, or failed, summed up once an hour. Never what you typed or which engine",
       "How many times ⌥↩ in the command bar opened a split pane, and how many times the split was already full so it opened a background tab instead, summed up once an hour. Never which pages",
-      "How many imports you started from the onboarding step that asks where you're coming from, and how many of those were from Helium, summed up once an hour",
+      "How many imports you started from the onboarding step that asks where you're coming from, and how many of those were from Helium, and how many times onboarding's Glass or classic? step was answered with Liquid Glass, tinted glass or Classic, summed up once an hour",
       "How many times you closed one pane of a split view or a whole split view, and how many tabs moved to another open window instead of closing with the window you closed, summed up once an hour. Never which tabs",
       "How many tabs stayed listed under a collapsed tab group after you opened or switched to them or collapsed their group while they were selected, and how many clicks on a collapsed group's name hid them again, summed up once an hour. Never which tabs or groups",
       "How many times two sidebar animations started in the same moment and were run together, summed up once an hour",

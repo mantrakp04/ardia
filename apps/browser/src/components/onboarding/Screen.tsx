@@ -61,10 +61,6 @@ const HOVERED_STYLE: Partial<Record<PreviewId, Settings["interfaceStyle"]>> = { 
 export function StylePanel({ settings, focus }: { settings: Partial<Settings>; focus: PreviewId | null }) {
   const accent = useAccent();
   return (
-    <View style={{ alignItems: "center", justifyContent: "center" }}>
-      <View style={{ width: MOCK_SIZE.width, height: MOCK_SIZE.height, alignItems: "center", justifyContent: "center" }}>
-        <StylePreview settings={settings} accent={accent} hovered={(focus && HOVERED_STYLE[focus]) ?? null} />
-      </View>
-    </View>
+    <StylePreview settings={settings} accent={accent} hovered={(focus && HOVERED_STYLE[focus]) ?? null} />
   );
 }

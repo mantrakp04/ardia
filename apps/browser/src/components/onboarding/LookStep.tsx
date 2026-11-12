@@ -15,6 +15,7 @@ import { OptionCard } from "./OptionCard";
 import { OptionRow } from "./Parts";
 import { Slider } from "../settings/ThemeControls";
 import { Text } from "../ui";
+import { noteOnboardingStyle } from "../../state/telemetry/usage";
 import { PAGE_FRAME, pageFrameInset } from "../../lib/windowLayout";
 
 const LOOK_KEYS = keysOf("look");
@@ -89,6 +90,7 @@ export function LookStep() {
         patch={{ interfaceStyle: values.interfaceStyle, glassTintWithTheme: values.glassTintWithTheme, glassTintAmount: values.glassTintAmount }}
         picked={values.interfaceStyle === "classic" ? ["Classic style"] : values.glassTintWithTheme ? [`Glass tinted ${Math.round(values.glassTintAmount * 100)} %`] : []}
         preview={<StylePanel settings={mock} focus={focus.focus} />}
+        onConfirm={() => noteOnboardingStyle(values.interfaceStyle, values.glassTintWithTheme)}
       >
         <ChoiceList options={STYLE_CHOICES} value={values.interfaceStyle} onChange={(interfaceStyle) => change({ interfaceStyle }, true)} mock={focus} />
         {values.interfaceStyle === "glass" ? (

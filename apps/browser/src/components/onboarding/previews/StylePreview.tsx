@@ -1,32 +1,38 @@
-import { useEffect, useMemo, useRef } from "react";
-import { Animated, View } from "react-native";
-import { GlassLookContext, liquidGlass } from "../../ui/Glass";
-import { Panel } from "../../ui/Panel";
-import { ThemeContext, layout, useTheme } from "../../ui/theme";
-import { font, radius, space } from "../../ui/tokens";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Animated, StyleSheet, View } from "react-native";
+import { GlassFill, GlassLookContext, liquidGlass, type GlassState } from "../../ui/Glass";
+import { ThemeContext, useTheme } from "../../ui/theme";
+import { capsule, font, space } from "../../ui/tokens";
 import { curve } from "../../ui/motion";
-import { RestingTile } from "../../sidebar/TileFace";
-import { SidebarFieldFill } from "../../sidebar/SidebarField";
+import { mix } from "../../../lib/color";
 import { useBasePaletteValue } from "../../../state/config/hooks";
 import { DEFAULT_SETTINGS, type Settings } from "../../../state/settings/settings";
 import { windowCornerRadius } from "../../../state/windows/layout";
-import { NOTES, tab } from "./content";
+import { tab } from "./content";
 import { fill, type Geo } from "./geometry";
 import { Favicon, Glyph, Label, Lights, WindowFrame } from "./Kit";
 import { lookFor, pick, type Look } from "./look";
-import { mockInk } from "./tokens";
+import { mockInk, styleScene, styleSceneMs, styleStage } from "./tokens";
 
-export const STAGE = { width: 404, height: 282 } as const;
+export const STAGE = { width: 420, height: 380 } as const;
 const NATIVE: Geo = { s: 1, W: STAGE.width, H: STAGE.height };
-const SIDE = { x: 12, w: 196, lightsY: 20 } as const;
-const TILES = { top: 40, gap: space.s, count: 3 } as const;
-const TILE_W = (SIDE.w - TILES.gap * (TILES.count - 1)) / TILES.count;
-const FIELD_TOP = TILES.top + layout.pinnedHeight + space.l;
-const ROWS_TOP = FIELD_TOP + layout.rowHeight + space.l;
-const ROW_PITCH = 30;
-const BAR = { x: 222, y: 128, w: 170, radius: radius.sheet, rowH: 30 } as const;
-const PAN = { ms: 6000 } as const;
-const SUN = { size: 84, y: 34, from: -10, to: 330 } as const;
+const PAD = 22;
+const INNER_W = STAGE.width - PAD * 2;
+const { tiles: TILES, field: FIELD, buttons: BUTTONS } = styleStage;
+const TILE_W = (INNER_W - TILES.gap * (TILES.count - 1)) / TILES.count;
+const SUN = { size: 72, from: -90, to: STAGE.width + 18 } as const;
+const SUN_TOP = TILES.top + (TILES.h - SUN.size) / 2;
+const PILL_X = PAD + 3 * (BUTTONS.size + BUTTONS.gap);
+const ICONS = { favicon: 20, button: 17, buttonBox: 22, plus: 15, plusBox: 20 } as const;
+const SKY_BANDS = 12;
+const HILLS = { far: { left: 150, top: 196, size: 560 }, near: { left: -240, top: 262, size: 520 } } as const;
+const SEA_H = 62;
+const GLINT_H = 3;
+const GLINTS = [
+  { x: 40, y: 18, w: 90 },
+  { x: 190, y: 34, w: 140 },
+  { x: 300, y: 12, w: 70 },
+] as const;
 
 export type StyleChoice = { glass: boolean; tint: number };
 
@@ -36,107 +42,119 @@ export function styleChoiceOf(settings: Partial<Settings>, hovered: Settings["in
   return { glass: style === "glass", tint: tinted ? (settings.glassTintAmount ?? DEFAULT_SETTINGS.glassTintAmount) : 0 };
 }
 
-function usePan() {
-  const pan = useRef(new Animated.Value(0)).current;
+function useSunTravel() {
+  const travel = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const leg = (toValue: number) => Animated.timing(pan, { toValue, duration: PAN.ms, easing: curve.pulse, useNativeDriver: true, isInteraction: false });
+    const leg = (toValue: number) => Animated.timing(travel, { toValue, duration: styleSceneMs.sunLeg, easing: curve.pulse, useNativeDriver: true, isInteraction: false });
     const loop = Animated.loop(Animated.sequence([leg(1), leg(0)]));
     loop.start();
     return () => loop.stop();
-  }, [pan]);
-  return pan;
+  }, [travel]);
+  return travel;
 }
 
-function Landscape({ look }: { look: Look }) {
-  const pan = usePan();
-  const h = NOTES.hero;
-  const hill = (color: string, left: number, top: number, width: number) => (
-    <View style={{ position: "absolute", left, top, width, height: width, borderRadius: width / 2, backgroundColor: color }} />
+function Scene({ dark }: { dark: boolean }) {
+  const ink = dark ? styleScene.dark : styleScene.light;
+  const travel = useSunTravel();
+  const hill = (color: string, h: { left: number; top: number; size: number }) => (
+    <View style={{ position: "absolute", left: h.left, top: h.top, width: h.size, height: h.size, borderRadius: h.size / 2, backgroundColor: color }} />
   );
   return (
-    <View pointerEvents="none" style={[fill, { backgroundColor: pick(look, h.sky) }]}>
+    <View pointerEvents="none" style={[fill, { backgroundColor: ink.skyTop }]}>
+      {Array.from({ length: SKY_BANDS - 1 }, (_, i) => (
+        <View key={i} style={{ position: "absolute", left: 0, right: 0, top: ((i + 1) / SKY_BANDS) * (STAGE.height - SEA_H), bottom: 0, backgroundColor: mix(ink.skyTop, ink.skyBottom, (i + 1) / (SKY_BANDS - 1)) }} />
+      ))}
       <Animated.View
         style={{
           position: "absolute",
           left: 0,
-          top: SUN.y,
+          top: SUN_TOP,
           width: SUN.size,
           height: SUN.size,
           borderRadius: SUN.size / 2,
-          backgroundColor: pick(look, h.sun),
-          transform: [{ translateX: pan.interpolate({ inputRange: [0, 1], outputRange: [SUN.from, SUN.to] }) }],
+          backgroundColor: ink.sun,
+          transform: [{ translateX: travel.interpolate({ inputRange: [0, 1], outputRange: [SUN.from, SUN.to] }) }],
         }}
       />
-      {hill(pick(look, h.far), -160, 150, 420)}
-      {hill(pick(look, h.near), 150, 175, 460)}
-      <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 44, backgroundColor: pick(look, h.sea) }} />
+      {hill(ink.far, HILLS.far)}
+      {hill(ink.near, HILLS.near)}
+      <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: SEA_H, backgroundColor: ink.sea }}>
+        {GLINTS.map((g) => (
+          <View key={g.x} style={{ position: "absolute", left: g.x, top: g.y, width: g.w, height: GLINT_H, borderRadius: capsule(GLINT_H), backgroundColor: ink.glint }} />
+        ))}
+      </View>
     </View>
   );
 }
 
-function Sidebar() {
-  const t = useTheme();
+function Face({ glass, look, radius, state = "rest", children }: { glass: boolean; look: Look; radius: number; state?: GlassState; children?: ReactNode }) {
+  const t = look.t;
+  return (
+    <View style={[fill, { borderRadius: radius, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.s }]}>
+      {glass ? (
+        <GlassFill radius={radius} state={state} />
+      ) : (
+        <View pointerEvents="none" style={[fill, { borderRadius: radius, backgroundColor: look.card }]}>
+          <View style={[fill, { borderRadius: radius, borderWidth: StyleSheet.hairlineWidth, borderColor: t.pinnedRestingStroke, backgroundColor: state === "rest" ? t.pinnedResting : t.tabHover }]} />
+        </View>
+      )}
+      {children}
+    </View>
+  );
+}
+
+const at = (left: number, top: number, width: number, height: number) => ({ position: "absolute" as const, left, top, width, height });
+
+function Surfaces({ look, glass }: { look: Look; glass: boolean }) {
+  const t = look.t;
   return (
     <>
-      <Lights g={NATIVE} x={SIDE.x + 7} y={SIDE.lightsY} />
-      <View style={{ position: "absolute", left: SIDE.x, top: TILES.top, flexDirection: "row", gap: TILES.gap }}>
-        {Array.from({ length: TILES.count }, (_, i) => (
-          <RestingTile key={i} width={TILE_W} selected={false} hovered={i === 0} pressed={false}>
-            <Favicon g={NATIVE} t={tab(i + 1)} size={18} />
-          </RestingTile>
-        ))}
-      </View>
-      <View style={{ position: "absolute", left: SIDE.x, top: FIELD_TOP, width: SIDE.w, height: layout.rowHeight, flexDirection: "row", alignItems: "center", gap: space.s, paddingHorizontal: space.ml }}>
-        <SidebarFieldFill hovered={false} />
-        <Favicon g={NATIVE} t={tab(0)} size={14} />
-        <Label g={NATIVE} size={font.body.fontSize} color={t.textPrimary} weight="500">
-          {tab(0).host}
-        </Label>
-      </View>
-      {[4, 5].map((n, i) => (
-        <View key={n} style={{ position: "absolute", left: SIDE.x + space.ml, top: ROWS_TOP + i * ROW_PITCH, width: SIDE.w - space.ml * 2, flexDirection: "row", alignItems: "center", gap: space.s }}>
-          <Favicon g={NATIVE} t={tab(n)} size={14} />
-          <Label g={NATIVE} size={font.body.fontSize} color={t.textPrimary}>
-            {tab(n).title}
-          </Label>
+      <Lights g={NATIVE} x={PAD + 7} y={24} />
+      {Array.from({ length: TILES.count }, (_, i) => (
+        <View key={i} style={at(PAD + i * (TILE_W + TILES.gap), TILES.top, TILE_W, TILES.h)}>
+          <Face glass={glass} look={look} radius={TILES.radius} >
+            <Favicon g={NATIVE} t={tab(i + 1)} size={TILES.icon} />
+          </Face>
         </View>
       ))}
+      <View style={at(PAD, FIELD.top, INNER_W, FIELD.h)}>
+        <Face glass={glass} look={look} radius={FIELD.radius}>
+          <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: space.l }}>
+            <Favicon g={NATIVE} t={tab(0)} size={ICONS.favicon} />
+            <Label g={NATIVE} size={font.large.fontSize} color={t.textPrimary} weight="600">
+              {tab(0).host}
+            </Label>
+          </View>
+        </Face>
+      </View>
+      {(["chevron.left", "chevron.right", "arrow.clockwise"] as const).map((name, i) => (
+        <View key={name} style={at(PAD + i * (BUTTONS.size + BUTTONS.gap), BUTTONS.top, BUTTONS.size, BUTTONS.size)}>
+          <Face glass={glass} look={look} radius={capsule(BUTTONS.size)}>
+            <Glyph g={NATIVE} name={name} size={ICONS.button} color={t.textPrimary} weight="semibold" box={ICONS.buttonBox} />
+          </Face>
+        </View>
+      ))}
+      <View style={at(PILL_X, BUTTONS.top, STAGE.width - PAD - PILL_X, BUTTONS.size)}>
+        <Face glass={glass} look={look} radius={capsule(BUTTONS.size)}>
+          <Glyph g={NATIVE} name="plus" size={ICONS.plus} color={t.textPrimary} weight="semibold" box={ICONS.plusBox} />
+          <Label g={NATIVE} size={font.large.fontSize} color={t.textPrimary} weight="600">
+            New Tab
+          </Label>
+        </Face>
+      </View>
     </>
   );
 }
 
-function CommandBar() {
-  const t = useTheme();
-  const rows = [tab(2), tab(3)];
-  return (
-    <Panel glass radius={BAR.radius} style={{ position: "absolute", left: BAR.x, top: BAR.y, width: BAR.w, paddingVertical: space.s }}>
-      <View style={{ height: BAR.rowH, flexDirection: "row", alignItems: "center", gap: space.s, paddingHorizontal: space.ml }}>
-        <Glyph g={NATIVE} name="magnifyingglass" size={12} color={t.textSecondary} weight="medium" box={14} />
-        <Label g={NATIVE} size={font.body.fontSize} color={t.textSecondary}>
-          Search or go to…
-        </Label>
-      </View>
-      {rows.map((r) => (
-        <View key={r.title} style={{ height: BAR.rowH, flexDirection: "row", alignItems: "center", gap: space.s, paddingHorizontal: space.ml }}>
-          <Favicon g={NATIVE} t={r} size={14} />
-          <Label g={NATIVE} size={font.body.fontSize} color={t.textPrimary}>
-            {r.title}
-          </Label>
-        </View>
-      ))}
-    </Panel>
-  );
-}
-
 export function StyleStage({ look, choice }: { look: Look; choice: StyleChoice }) {
-  const glassLook = useMemo(() => ({ controls: liquidGlass && choice.glass, panes: liquidGlass && choice.glass, tint: choice.tint }), [choice.glass, choice.tint]);
+  const glass = liquidGlass && choice.glass;
+  const glassLook = useMemo(() => ({ controls: glass, panes: glass, tint: choice.tint }), [glass, choice.tint]);
   return (
     <ThemeContext.Provider value={look.t}>
       <GlassLookContext.Provider value={glassLook}>
         <View style={{ width: STAGE.width, height: STAGE.height, overflow: "hidden" }}>
-          <Landscape look={look} />
-          <Sidebar />
-          <CommandBar />
+          <Scene dark={look.dark} />
+          <Surfaces look={look} glass={glass} />
         </View>
       </GlassLookContext.Provider>
     </ThemeContext.Provider>
@@ -148,12 +166,9 @@ export function StylePreview({ settings, accent, hovered }: { settings: Partial<
   const appearance = settings.appearance ?? DEFAULT_SETTINGS.appearance;
   const dark = appearance === "dark" || (appearance === "auto" && systemDark);
   const look = lookFor(dark, accent, useBasePaletteValue());
-  const choice = styleChoiceOf(settings, hovered);
   return (
     <WindowFrame g={NATIVE} look={look} edge={pick(look, [mockInk.windowEdge.light, mockInk.windowEdge.dark])} cornerRadius={windowCornerRadius()} style={{ width: STAGE.width, height: STAGE.height }}>
-      <View style={fill}>
-        <StyleStage look={look} choice={choice} />
-      </View>
+      <StyleStage look={look} choice={styleChoiceOf(settings, hovered)} />
     </WindowFrame>
   );
 }
