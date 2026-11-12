@@ -39,6 +39,7 @@ const CHECKS = {
   occluded: "the window occluded: nothing",
   "low-power": "Low Power Mode (acted): nothing",
   thermal: "serious thermal pressure (acted): nothing",
+  "screen-share": "the tab sharing a tab, window or screen (acted): nothing",
   pip: "the video in Picture in Picture: nothing",
   "hdr-pq": "an HDR10 (PQ) clip: declined",
   "hdr-hlg": "an HLG clip: declined",
@@ -322,6 +323,7 @@ await closedBy("app-inactive", q480, (v) => win(v.id, "fakeAppActive:0"), (v) =>
 await closedBy("occluded", q480, (v) => win(v.id, "fakeOcclusion:occluded"), (v) => win(v.id, "fakeOcclusion:visible"));
 await closedBy("low-power", q480, () => engine("webView.setVideoUpscalingTestConditions", { lowPower: true }), () => engine("webView.setVideoUpscalingTestConditions"));
 await closedBy("thermal", q480, () => engine("webView.setVideoUpscalingTestConditions", { thermalPressure: true }), () => engine("webView.setVideoUpscalingTestConditions"));
+await closedBy("screen-share", q480, () => engine("webView.setVideoUpscalingTestConditions", { capturing: true }), () => engine("webView.setVideoUpscalingTestConditions"));
 
 await check("pip", async () => {
   const v = await warm(q480);

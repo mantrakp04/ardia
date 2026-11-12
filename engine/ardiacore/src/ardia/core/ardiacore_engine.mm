@@ -242,9 +242,11 @@ extern "C" __attribute__((visibility("default"))) int ArdiaCoreMain(
 + (void)setVideoUpscalingTestConditions:(NSDictionary<NSString*, NSNumber*>*)conditions {
   NSNumber* low_power = conditions[@"lowPower"];
   NSNumber* thermal = conditions[@"thermalPressure"];
+  NSNumber* capturing = conditions[@"capturing"];
   ardiacore::SetVideoUpscalingTestConditions(
       low_power ? std::optional<bool>(low_power.boolValue) : std::nullopt,
-      thermal ? std::optional<bool>(thermal.boolValue) : std::nullopt);
+      thermal ? std::optional<bool>(thermal.boolValue) : std::nullopt,
+      capturing ? std::optional<bool>(capturing.boolValue) : std::nullopt);
 }
 
 + (NSDictionary<NSString*, id>*)videoUpscalingState {

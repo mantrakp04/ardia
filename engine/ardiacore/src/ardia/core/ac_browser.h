@@ -218,6 +218,7 @@ void HostExtensionInstallFailed(content::WebContents* contents, const std::u16st
 void InstallRuleMatchedHook();
 
 void StartMediaCaptureObserver();
+bool IsCapturingScreen(content::WebContents* contents);
 
 void ConfirmQuitWithDownloads(int count, base::OnceCallback<void(bool)> callback);
 void NotifyWindowsQuitCancelled();

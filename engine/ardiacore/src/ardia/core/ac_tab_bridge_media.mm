@@ -5,6 +5,7 @@
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "content/public/browser/web_contents.h"
+#include "ardia/core/ac_video_upscaling.h"
 #import "ardia/core/ardiacore_internal.h"
 
 namespace ardiacore {
@@ -37,10 +38,13 @@ class MediaCaptureObserver : public MediaStreamCaptureIndicator::Observer {
     return @{
       @"camera" : @(indicator_->IsCapturingVideo(contents)),
       @"microphone" : @(indicator_->IsCapturingAudio(contents)),
-      @"screen" : @(indicator_->IsCapturingTab(contents) ||
-                    indicator_->IsCapturingWindow(contents) ||
-                    indicator_->IsCapturingDisplay(contents)),
+      @"screen" : @(CapturingScreen(contents)),
     };
+  }
+
+  bool CapturingScreen(content::WebContents* contents) const {
+    return indicator_->IsCapturingTab(contents) || indicator_->IsCapturingWindow(contents) ||
+           indicator_->IsCapturingDisplay(contents);
   }
 
  private:
@@ -48,6 +52,7 @@ class MediaCaptureObserver : public MediaStreamCaptureIndicator::Observer {
     if (contents) {
       TabBridge::GetOrCreate(contents)->MediaAccessChanged();
     }
+    VideoUpscalingInputsChanged();
   }
 
   scoped_refptr<MediaStreamCaptureIndicator> indicator_;
@@ -65,6 +70,10 @@ void StartMediaCaptureObserver() {
     CaptureObserver() = new MediaCaptureObserver(
         MediaCaptureDevicesDispatcher::GetInstance()->GetMediaStreamCaptureIndicator());
   }
+}
+
+bool IsCapturingScreen(content::WebContents* contents) {
+  return CaptureObserver() && contents && CaptureObserver()->CapturingScreen(contents);
 }
 
 void TabBridge::MediaAccessChanged() {

@@ -14,7 +14,8 @@ void StartVideoUpscaling();
 void SetVideoUpscalingEnabled(bool enabled);
 
 void SetVideoUpscalingTestConditions(std::optional<bool> low_power,
-                                     std::optional<bool> thermal_pressure);
+                                     std::optional<bool> thermal_pressure,
+                                     std::optional<bool> capturing);
 
 void VideoUpscalingInputsChanged();
 
