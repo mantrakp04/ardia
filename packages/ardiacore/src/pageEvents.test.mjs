@@ -14,12 +14,14 @@ const PAGE_EVENTS = collect([table], /^ {2}on[A-Za-z]+: "([A-Za-z]+)",$/gm);
 
 const chromiumView = files(/^ArdiaWebView.*\.mm$/).map(native);
 const chromiumEmitters = files(/\.mm$/).map(native);
+const hostEmitters = files(/^PageTabHost.*\.swift$/).map(native);
 const webKitTab = files(/^WebKitTab.*\.swift$/).map(native);
 const pageScript = native("page_script.js");
 const messageReceivers = ["ArdiaWebView+PageMessages.mm", "ArdiaWebView+Peek.mm"].map(native);
 
-test("the Chromium view emits every page event in PAGE_EVENTS, and nothing else", () => {
-  assert.deepEqual(sorted(collect(chromiumEmitters, /\bemit:@"([A-Za-z]+)"\s+payload:/g)), sorted(PAGE_EVENTS));
+test("the Chromium view and the page host emit every page event in PAGE_EVENTS, and nothing else", () => {
+  const emitted = [...collect(chromiumEmitters, /\bemit:@"([A-Za-z]+)"\s+payload:/g), ...collect(hostEmitters, /\bsend\("([A-Za-z]+)", payload:/g)];
+  assert.deepEqual(sorted(new Set(emitted)), sorted(PAGE_EVENTS));
 });
 
 test("the WebKit tab emits only page events in PAGE_EVENTS", () => {

@@ -25,6 +25,7 @@ export {
   type ScrollState,
   type ProtectedMediaRequest,
   type AppBadge,
+  type CaptureResult,
 } from "@ardia/ardiacore";
 
 const Tabs = nativeModule("ArdiaTabs");

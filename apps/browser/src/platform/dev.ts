@@ -1,4 +1,4 @@
-import { nativeModule, type Click, type ClickResult, type IntroMusicCues, type KeyPress, type KeyPressResult } from "@ardia/shell";
+import { nativeModule, type Click, type ClickResult, type IntroMusicCues, type KeyPress, type KeyPressResult, type PointerStep } from "@ardia/shell";
 
 const Dev = nativeModule("ArdiaDev");
 
@@ -19,4 +19,5 @@ export const devSidebarEdgeStats = (reset = false) => Dev.devSidebarEdgeStats(re
 export const devTypeKeys = (windowId: string, text: string, interval: number) => Dev.devTypeKeys(windowId, text, interval);
 export const devKeyEquivalent = (windowId: string, press: KeyPress): Promise<KeyPressResult> => Dev.devKeyEquivalent(windowId, press);
 export const devClick = (windowId: string, click: Click): Promise<ClickResult> => Dev.devClick(windowId, click);
+export const devPointer = (windowId: string, steps: PointerStep[]) => Dev.devPointer(windowId, steps);
 export const devMenuCommand = (command: string, arg: string | null = null) => Dev.devMenuCommand(command, arg);

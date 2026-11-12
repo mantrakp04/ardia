@@ -277,6 +277,43 @@ enum KeyEquivalents {
     return entry
   }
 
+  static func pointer(windowId: String, _ steps: [[String: Any]], _ done: @escaping ([String: Any]) -> Void) {
+    guard let window = WindowManager.shared.window(windowId), let content = window.contentView else {
+      return done(["error": "no window \(windowId)"])
+    }
+    guard let page = pageViews(in: window).first else { return done(["error": "no page in \(windowId)"]) }
+    let frame = page.convert(page.bounds, to: content)
+    let origin = NSPoint(x: frame.minX, y: content.isFlipped ? frame.minY : content.bounds.height - frame.maxY)
+    let restoreKeyWindow = standInKeyWindow(window)
+    let types: [String: NSEvent.EventType] = ["move": .mouseMoved, "down": .leftMouseDown, "drag": .leftMouseDragged, "up": .leftMouseUp]
+    var remaining = steps[...]
+    func next() {
+      guard let step = remaining.popFirst() else {
+        let responder = window.firstResponder.map { String(describing: type(of: $0)) } ?? "nil"
+        restoreKeyWindow()
+        return done(["firstResponder": responder])
+      }
+      let x = origin.x + (step["x"] as? Double ?? 0), y = origin.y + (step["y"] as? Double ?? 0)
+      let point = content.convert(SyntheticInput.contentPoint(x: x, top: y, in: content), to: nil)
+      guard let type = types[step["type"] as? String ?? ""],
+        let event = NSEvent.mouseEvent(
+          with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+          windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1,
+          pressure: type == .leftMouseDown || type == .leftMouseDragged ? 1 : 0)
+      else {
+        restoreKeyWindow()
+        return done(["error": "bad step \(step)"])
+      }
+      if type == .mouseMoved {
+        content.superview?.hitTest(content.superview?.convert(point, from: nil) ?? point)?.mouseMoved(with: event)
+      } else {
+        NSApp.sendEvent(event)
+      }
+      DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(step["wait"] as? Int ?? 30)) { next() }
+    }
+    next()
+  }
+
   private static func standInKeyWindow(_ window: NSWindow) -> () -> Void {
     let previous = NSApp.keyWindow
     window.makeKey()

@@ -224,6 +224,7 @@ const dev: Modules["ArdiaDev"] = {
   devTypeKeys: () => Promise.resolve([]),
   devKeyEquivalent: () => Promise.resolve({ handledBy: "none" }),
   devClick: () => Promise.resolve({}),
+  devPointer: () => Promise.resolve({}),
   devShortcutRecording: () => Promise.resolve(false),
   devReceiveURLsWhenDetached: () => {},
   devOpenURLDeliveries: async () => [],

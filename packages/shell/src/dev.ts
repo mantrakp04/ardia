@@ -28,6 +28,7 @@ export type KeyPressResult = {
   error?: string;
 };
 export type Click = { x: number; y: number; in?: "window" | "page"; label?: string; queued?: boolean; asKey?: boolean; wait?: number };
+export type PointerStep = { type: "move" | "down" | "drag" | "up"; x: number; y: number; wait?: number };
 export type ClickResult = { hit?: string; at?: number; firstResponder?: string; firstResponderOnClick?: string; firstResponderAfter?: string; error?: string };
 
 export type DevNative = {
@@ -44,6 +45,7 @@ export type DevNative = {
   devTypeKeys(windowId: string, text: string, interval: number): Promise<KeyTiming[]>;
   devKeyEquivalent(windowId: string, press: KeyPress): Promise<KeyPressResult>;
   devClick(windowId: string, click: Click): Promise<ClickResult>;
+  devPointer(windowId: string, steps: PointerStep[]): Promise<{ firstResponder?: string; error?: string }>;
   devShortcutRecording(): Promise<boolean>;
   devReceiveURLsWhenDetached(urls: string[], timeoutMs: number): void;
   devOpenURLDeliveries(): Promise<{ urls: string[]; pointer: [number, number]; source?: { bundleId: string | null; appName: string | null } }[]>;

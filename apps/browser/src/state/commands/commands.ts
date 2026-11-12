@@ -64,6 +64,7 @@ import { peekTabId } from "../peek/peek";
 import { expectFocus, findFocus } from "../focus/focusClaims";
 import { isWebPageUrl } from "../../lib/url";
 import { findStep, openFind } from "../find/actions";
+import { toggleCapture } from "../capture/actions";
 
 const newOrId = (arg: string) => (arg === "new" ? null : arg);
 
@@ -204,6 +205,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
       return page ? void copyPageUrl(page.id) : undefined;
     case "copyUrlAsMarkdown":
       return page ? copyText(markdownLink(page.customTitle || page.title, page.url)) : undefined;
+    case "capture":
+      return page ? void toggleCapture(page.id) : undefined;
     case "findInPage":
       if (page) expectFocus(windowId, findFocus(page.id));
       return page ? openFind(page.id, { replace: false }) : undefined;
