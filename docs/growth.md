@@ -163,7 +163,8 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   stores it as `ingest_key` (`app`, `cli`, `site` or `missing`). Reports from Report a Problem go through
   `/api/feedback` to `infra/feedback` (see `docs/feedback.md`), land in `telemetry.feedback`, and keep their
   files in SeaweedFS under `feedback/<id>/` with no expiry, on their own service (`ardia-feedback-objects`, 10 GB;
-  reports from 11-09 to 11-11 are still on `ph-objects`).
+  reports from 11-09 to 11-11 are still on `ph-objects`, and the report server reads through to it, through
+  `PREVIOUS_OBJECTS_HOST`, for a report that was started there and not finished before the move).
 - **Crash and diagnostics fields (opt-in, since 0.2.45-nightly.3):** every field is a count, a size, a
   duration, a fixed name or yes/no, in `properties` like everything else, so no schema change. Code:
   `apps/browser/src/state/telemetry/diagnostics.ts`, `errors.ts`, `tabPresses.ts`, `packages/shell/ios/CrashReports.swift`.

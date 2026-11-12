@@ -127,6 +127,20 @@ export function seaweedStore(host, port = 8888) {
   };
 }
 
+export function withPrevious(primary, previous) {
+  const startedElsewhere = async (id) => !(await primary.exists(id));
+  return {
+    ...primary,
+    describe: () => `${primary.describe()}, reports started before the move read from ${previous.describe()}`,
+    async readJson(id, name) {
+      return (await primary.readJson(id, name)) ?? ((await startedElsewhere(id)) ? previous.readJson(id, name) : null);
+    },
+    async fileSize(id, name) {
+      return (await primary.fileSize(id, name)) ?? ((await startedElsewhere(id)) ? previous.fileSize(id, name) : null);
+    },
+  };
+}
+
 export function otlpEvents(host, port = 4318) {
   return {
     describe: () => `OTLP ${host}:${port}`,

@@ -4,9 +4,10 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import { githubIssues, localEvents, localIssues, localStore, otlpEvents, seaweedStore } from "../lib/backends.mjs";
+import { githubIssues, localEvents, localIssues, localStore, otlpEvents, seaweedStore, withPrevious } from "../lib/backends.mjs";
 import { APP_INGEST_KEY, CLI_INGEST_KEY, SITE_INGEST_KEY, anonymousIdentity } from "../lib/core.mjs";
 import { createService } from "../lib/service.mjs";
+import { issueUploadToken } from "../lib/tokens.mjs";
 
 const INSTALL = "3f1c2a9e-8b7d-4c6e-9f0a-1b2c3d4e5f60";
 const SECRET = "x".repeat(40);
@@ -261,6 +262,108 @@ test("production backends: SeaweedFS, the collector and GitHub", async () => {
   assert.equal(posted.length, before + 1);
   assert.equal(JSON.parse(files.get(`/buckets/feedback/${third.id}/complete.json`)).event_sent, true);
   assert.equal(timers.length, 0);
+});
+
+function fakeFiler() {
+  const files = new Map();
+  const requests = [];
+  const handler = async (req, res) => {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    requests.push(`${req.method} ${req.url}`);
+    if (req.method === "PUT") {
+      files.set(req.url, Buffer.concat(chunks));
+      res.writeHead(201).end("{}");
+    } else if (req.method === "DELETE") {
+      files.delete(req.url);
+      res.writeHead(204).end();
+    } else if (!files.has(req.url)) res.writeHead(404).end();
+    else res.writeHead(200, { "Content-Length": files.get(req.url).length }).end(req.method === "HEAD" ? undefined : files.get(req.url));
+  };
+  return { files, requests, handler };
+}
+
+const afterTheMove = (next, previous) => withPrevious(seaweedStore("127.0.0.1", next.port), seaweedStore("127.0.0.1", previous.port));
+
+async function moveScenario() {
+  const oldFiler = fakeFiler();
+  const newFiler = fakeFiler();
+  const oldPort = await listen(oldFiler.handler);
+  const newPort = await listen(newFiler.handler);
+  const sent = [];
+  const events = { describe: () => "stub", send: async (id, ingest, body) => { sent.push(id); } };
+  const make = (store) => listen(createService({
+    store, events, issues: null, secret: SECRET, publicUrl: () => "https://ardia.example",
+    dashboardUrl: "https://dash.example", rateLimits: false, log: () => {}, later: () => {},
+  }));
+  const before = await make(seaweedStore("127.0.0.1", oldPort.port));
+  const after = await make(afterTheMove(newPort, oldPort));
+  return { oldFiler, newFiler, before, after, sent };
+}
+
+const complete = (url, id, token) => post(`${url}/api/feedback/${id}/complete`, "", { token, type: null });
+
+test("a report started before the move finishes on the new store without writing to the old one", async () => {
+  const { oldFiler, newFiler, before, after, sent } = await moveScenario();
+  const created = await (await post(`${before.url}/api/feedback`, report())).json();
+  const files = `/api/feedback/${created.id}/files/`;
+  assert.equal((await put(`${before.url}${files}crash-1.ips`, created.upload_token, "hello")).status, 200);
+  const oldWrites = oldFiler.requests.filter((r) => r.startsWith("PUT") || r.startsWith("DELETE")).length;
+
+  const up = await put(`${after.url}${files}recording.mp4`, created.upload_token, Buffer.alloc(2048, 7));
+  assert.equal(up.status, 200, await up.clone().text());
+  assert.deepEqual(await up.json(), { name: "recording.mp4", bytes: 2048 });
+  assert.ok(newFiler.files.has(`/buckets/feedback/${created.id}/recording.mp4`));
+
+  const done = await complete(after.url, created.id, created.upload_token);
+  assert.equal(done.status, 200, await done.clone().text());
+  const answer = await done.json();
+  assert.equal(answer.id, created.id);
+  const saved = JSON.parse(newFiler.files.get(`/buckets/feedback/${created.id}/complete.json`));
+  assert.deepEqual(saved.attachments.map((a) => [a.name, a.received]), [["recording.mp4", true], ["crash-1.ips", true]]);
+  assert.equal(oldFiler.files.has(`/buckets/feedback/${created.id}/complete.json`), false);
+  assert.equal(oldFiler.requests.filter((r) => r.startsWith("PUT") || r.startsWith("DELETE")).length, oldWrites);
+
+  const again = await complete(after.url, created.id, created.upload_token);
+  assert.deepEqual(await again.json(), answer);
+  assert.deepEqual(sent, [created.id]);
+  const late = await put(`${after.url}${files}crash-1.ips`, created.upload_token, "hello");
+  assert.equal(late.status, 409);
+});
+
+test("a report completed before the move answers a repeated complete from the old store", async () => {
+  const { oldFiler, newFiler, before, after, sent } = await moveScenario();
+  const created = await (await post(`${before.url}/api/feedback`, report({ attachments: [] }))).json();
+  const first = await (await complete(before.url, created.id, created.upload_token)).json();
+  assert.deepEqual(sent, [created.id]);
+  assert.ok(oldFiler.files.has(`/buckets/feedback/${created.id}/complete.json`));
+
+  const again = await complete(after.url, created.id, created.upload_token);
+  assert.equal(again.status, 200, await again.clone().text());
+  assert.deepEqual(await again.json(), first);
+  assert.deepEqual(sent, [created.id]);
+  assert.equal([...newFiler.files.keys()].some((k) => k.includes(created.id)), false);
+});
+
+test("a report started after the move never touches the old store", async () => {
+  const { oldFiler, newFiler, after } = await moveScenario();
+  const created = await (await post(`${after.url}/api/feedback`, report())).json();
+  const files = `/api/feedback/${created.id}/files/`;
+  assert.equal((await put(`${after.url}${files}crash-1.ips`, created.upload_token, "hello")).status, 200);
+  assert.equal((await put(`${after.url}${files}recording.mp4`, created.upload_token, Buffer.alloc(2048, 7))).status, 200);
+  assert.equal((await complete(after.url, created.id, created.upload_token)).status, 200);
+  assert.ok(newFiler.files.has(`/buckets/feedback/${created.id}/complete.json`));
+  assert.deepEqual(oldFiler.requests, []);
+});
+
+test("a report that is on neither store is still 404", async () => {
+  const { after, before } = await moveScenario();
+  const created = await (await post(`${before.url}/api/feedback`, report())).json();
+  const stranger = created.id.replace(/.$/, (c) => (c === "2" ? "3" : "2"));
+  const token = issueUploadToken(SECRET, stranger, Date.now() + 60_000);
+  const res = await put(`${after.url}/api/feedback/${stranger}/files/crash-1.ips`, token, "hello");
+  assert.equal(res.status, 404);
+  assert.equal((await res.json()).error, "not_found");
 });
 
 test("a report completed while the collector was down sends its event on the next complete after a restart", async () => {

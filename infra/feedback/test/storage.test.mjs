@@ -48,6 +48,11 @@ test("reports are stored on a service that replays are not written to", () => {
   }
 });
 
+test("reports started on the replay store can still be finished", () => {
+  assert.equal(feedbackEnv.PREVIOUS_OBJECTS_HOST, envOf("dashboard", "dashboard").REPLAYS_HOST);
+  assert.equal(feedbackEnv.PREVIOUS_OBJECTS_HOST, envOf("site", "site").TELEMETRY_OBJECTS_HOST);
+});
+
 test("the report store keeps reports without expiry and cannot outgrow its disk", () => {
   assert.ok(store, `no deployment group defines the report store ${storeName}`);
   const volumes = Object.values(store.persistentVolumes);

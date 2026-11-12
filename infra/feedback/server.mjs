@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { githubIssues, localEvents, localIssues, localStore, otlpEvents, seaweedStore } from "./lib/backends.mjs";
+import { githubIssues, localEvents, localIssues, localStore, otlpEvents, seaweedStore, withPrevious } from "./lib/backends.mjs";
 import { createService } from "./lib/service.mjs";
 
 const USAGE = `ardia feedback service
@@ -22,6 +22,7 @@ options:
 production env:
   FEEDBACK_UPLOAD_SECRET  HMAC key for upload tokens, at least 32 characters (required)
   OBJECTS_HOST            SeaweedFS filer host, port 8888 (required)
+  PREVIOUS_OBJECTS_HOST   filer host that held reports before OBJECTS_HOST did; reports started there can still finish
   COLLECTOR_HOST          OpenTelemetry collector host, port 4318 (required)
   GITHUB_ISSUES_TOKEN     token that can open issues; without it no issue is opened
   GITHUB_REPO             default ardia-browser/ardia
@@ -85,7 +86,9 @@ if (values.local !== undefined) {
   config = {
     mode: "production",
     host: values.host ?? "0.0.0.0",
-    store: seaweedStore(env.OBJECTS_HOST),
+    store: env.PREVIOUS_OBJECTS_HOST
+      ? withPrevious(seaweedStore(env.OBJECTS_HOST), seaweedStore(env.PREVIOUS_OBJECTS_HOST))
+      : seaweedStore(env.OBJECTS_HOST),
     events: otlpEvents(env.COLLECTOR_HOST),
     issues: env.GITHUB_ISSUES_TOKEN ? githubIssues(env.GITHUB_ISSUES_TOKEN, env.GITHUB_REPO || "ardia-browser/ardia") : null,
     secret,

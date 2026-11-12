@@ -12,6 +12,7 @@ export const deploy = ({ secret, service }: any) => ({
       dockerfilePath: "Dockerfile",
       env: {
         OBJECTS_HOST: service(SERVICES.feedbackObjects).hostname(),
+        PREVIOUS_OBJECTS_HOST: service(SERVICES.objects).hostname(),
         COLLECTOR_HOST: service(SERVICES.collector).hostname(),
         FEEDBACK_UPLOAD_SECRET: secret(SECRETS.feedbackUploadSecret),
         GITHUB_REPO: "ardia-browser/ardia",

@@ -73,7 +73,13 @@ contract the app, the CLI, the feedback service and the dashboard build against.
   replays' SeaweedFS, and from 11-11 every report there got `502 upstream:storage` (`report_failed` with
   `error_class` `storage`), none was sent. The replays, kept 30 days at a sample rate of 1, were about 19 GiB
   of its 20 GB by then. Reports saved before the move (11-09 to 11-11) stay on `ph-objects` under
-  `buckets/feedback/`, and the dashboard still reads them there. A 502 `upstream:storage` in `report_failed`
+  `buckets/feedback/`, and the dashboard still reads them there. A report that was started on `ph-objects`
+  and not finished when the server switched can still be finished: `PREVIOUS_OBJECTS_HOST` (the replays'
+  SeaweedFS) makes the store read through to it. Writes always go to `ardia-feedback-objects`; the old store
+  is read only for a report that has no `report.json` on the new one, so a report started after the move
+  never touches it. Remove it from `infra/feedback/hexclave.deploy.ts` (and its check in
+  `infra/feedback/test/storage.test.mjs`) once no report from before the move can still be open: upload
+  tokens expire. A 502 `upstream:storage` in `report_failed`
   or `failed (storage)` in the `ardia-feedback` log means the report store is refusing writes: look at the free
   space of `ardia-feedback-objects`.
 - Deploying this is a manual step: `infra/feedback/deploy.sh` (CI has no job for it) creates the store and

@@ -19,16 +19,14 @@ export const Route = createFileRoute("/files/feedback/$id/$name")({
         const { feedbackFilesBases, feedbackFilesHeaders } = await import("../../../../server/feedback-reports");
         const bases = feedbackFilesBases();
         if (!bases.length) return plain(503, "Feedback storage is not configured: set FEEDBACK_FILES_URL, FEEDBACK_OBJECTS_HOST or REPLAYS_HOST");
-        const range = request.headers.get("range");
+        const { fetchFeedbackFile } = await import("../../../../server/feedback-files");
         let upstream: Response | undefined;
         try {
-          for (const base of bases) {
-            upstream = await fetch(`${base}${encodeURIComponent(params.id)}/${encodeURIComponent(params.name)}`, {
-              headers: { ...feedbackFilesHeaders(), ...(range ? { Range: range } : {}) },
-              signal: AbortSignal.any([request.signal, AbortSignal.timeout(60_000)]),
-            });
-            if (upstream.status !== 404) break;
-          }
+          upstream = await fetchFeedbackFile(bases, params.id, params.name, {
+            headers: feedbackFilesHeaders(),
+            range: request.headers.get("range"),
+            signal: AbortSignal.any([request.signal, AbortSignal.timeout(60_000)]),
+          });
         } catch (error) {
           return plain(502, `Feedback storage unreachable (${(error as Error).message})`);
         }
