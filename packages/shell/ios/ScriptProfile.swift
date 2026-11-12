@@ -16,7 +16,9 @@ final class ScriptProfile: NSObject {
   @objc var orderedIndex: Int { (ShellScripting.state.profiles.firstIndex { $0.id == uniqueID } ?? -1) + 1 }
 
   @objc var appleScriptTabs: [ScriptTab] {
-    ShellScripting.orderedWindows.filter { $0.profileId == uniqueID }.flatMap { $0.tabs.map { ScriptTab(id: $0.id) } }
+    ShellScripting.orderedWindows.flatMap { window in
+      (window.profileId == uniqueID ? window.tabs : []) + window.otherProfileTabs.filter { $0.profileId == uniqueID }
+    }.map { ScriptTab(id: $0.id) }
   }
 
   @objc func handleFocusScriptCommand(_ command: NSScriptCommand) -> Any? {

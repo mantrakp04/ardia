@@ -1,5 +1,7 @@
 import type { EventSubscription } from "expo-modules-core";
 
+type ScriptTabState = { id: string; profileId: string; title: string; url: string; loading: boolean; pinned: boolean };
+
 export type ScriptState = {
   windows: {
     id: string;
@@ -7,7 +9,8 @@ export type ScriptState = {
     profileId: string;
     incognito: boolean;
     activeTabId: string | null;
-    tabs: { id: string; title: string; url: string; loading: boolean; pinned: boolean }[];
+    tabs: ScriptTabState[];
+    otherProfileTabs: ScriptTabState[];
   }[];
   profiles: { id: string; name: string }[];
 };

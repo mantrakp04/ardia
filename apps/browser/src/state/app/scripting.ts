@@ -16,17 +16,21 @@ function scriptState(s: BrowserState): ScriptState {
         profileId: w.profileId,
         incognito: w.kind === "private",
         activeTabId: activeTabId(s, id) ?? null,
-        tabs: viewTabIds(s, id).map((tabId) => {
-          const t = s.tabs[tabId]!;
-          return {
-            id: tabId,
-            title: t.customTitle || t.title,
-            url: t.url,
-            loading: !!s.live[tabId]?.isLoading,
-            pinned: !!t.pin };
-        }) };
+        tabs: viewTabIds(s, id).map((tabId) => scriptTab(s, tabId)),
+        otherProfileTabs: w.tabIds.filter((tabId) => s.tabs[tabId] && s.tabs[tabId].profileId !== w.profileId).map((tabId) => scriptTab(s, tabId)) };
     }),
     profiles: s.profileOrder.map((id) => ({ id, name: s.profiles[id]!.name })) };
+}
+
+function scriptTab(s: BrowserState, tabId: string) {
+  const t = s.tabs[tabId]!;
+  return {
+    id: tabId,
+    profileId: t.profileId,
+    title: t.customTitle || t.title,
+    url: t.url,
+    loading: !!s.live[tabId]?.isLoading,
+    pinned: !!t.pin };
 }
 
 export function startScripting() {
