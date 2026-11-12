@@ -9,7 +9,7 @@ import { isRegularWindow } from "../windows/small";
 import { isTopApp, sameTopApp, sharingChanged } from "./topApps";
 
 
-function shares(s: BrowserState, t: Tab | undefined): t is Tab {
+export function shares(s: BrowserState, t: Tab | undefined): t is Tab {
   return !!t && !isIncognitoProfile(t.profileId) && isRegularWindow(s.windows[t.windowId]) && (inPinnedContainer(s, t.id) || sharedListTab(s, t)) && !splitOf(s, t.id);
 }
 
