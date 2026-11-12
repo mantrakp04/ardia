@@ -1,6 +1,5 @@
 import type { Plugin } from "vite";
-
-type Wording = { file: string; replacements: [string, string][] };
+import type { Wording } from "./credentialWording";
 
 const UNAVAILABLE = "Ardia reads your calendars through Evolution Data Server, which isn't running in this session. Install GNOME Calendar or Evolution, add your accounts in GNOME Online Accounts, then try again.";
 const REFUSED = "Evolution Data Server refused to share your calendars with Ardia. If Ardia runs in a sandbox, let it reach Evolution Data Server on the session bus, then try again.";

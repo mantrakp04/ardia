@@ -1,7 +1,6 @@
 import type { Plugin } from "vite";
+import type { Wording } from "./credentialWording";
 import { hasMacModifiers, linuxShortcutText } from "./shortcutText";
-
-type Wording = { file: string; replacements: [string, string][] };
 
 export const LINUX_WORDING: readonly Wording[] = [
   {
