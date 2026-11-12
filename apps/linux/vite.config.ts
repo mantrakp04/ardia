@@ -21,7 +21,6 @@ const replacements = new Map([
   [here("../browser/src/components/site/SelectionPopover.tsx"), here("./src/SelectionPopover.tsx")],
   [here("../browser/src/components/window/PageOverlays.tsx"), here("./src/PageOverlays.tsx")],
   [here("../browser/src/components/downloads/Downloads.tsx"), here("./src/DownloadsPopover.tsx")],
-  [here("../browser/src/components/onboarding/HomeStep.tsx"), here("./src/LinuxHomeStep.tsx")],
   [here("../browser/src/state/settings/settingsWindows.ts"), here("./src/settingsWindows.ts")],
   [here("../browser/src/components/profiles/ProfileIndicator.tsx"), here("./src/ProfileIndicator.tsx")],
   [here("../browser/src/components/sidebar/AddressBar.tsx"), here("./src/SidebarAddressBar.tsx")],

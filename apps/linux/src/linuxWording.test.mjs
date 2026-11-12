@@ -8,7 +8,6 @@ import { CALENDAR_WORDING, calendarWording, rewordCalendar } from "../calendarWo
 import { SYNC_WORDING, rewordSync, syncWording } from "../syncWording.ts";
 import { unavailablePanes } from "./hostCapabilities.ts";
 import { linuxShortcutText } from "../shortcutText.ts";
-import { DEFAULT_BROWSER_ELSEWHERE, readOnboardingSystem } from "./onboardingSystem.ts";
 
 const shared = (path) => fileURLToPath(new URL(`../../browser/src/${path}`, import.meta.url));
 const read = (path) => readFileSync(shared(path), "utf8");
@@ -26,7 +25,7 @@ const MODULES = [
   { name: "credential", list: CREDENTIAL_WORDING, reword: rewordCredentials, plugin: credentialWording, pick: whole, macos: /\bMac\b|macOS|Keychain|Touch ID|Applications folder/, surfaces: ["components/settings/panes/Passwords.tsx", "components/settings/panes/Autofill.tsx"], probe: "components/settings/panes/Passwords.tsx" },
   { name: "sync", list: SYNC_WORDING, reword: rewordSync, plugin: syncWording, pick: whole, macos: /\bMacs?\b|iCloud Drive|iCloud Settings|in Finder|iPhone|Universal Clipboard|Keychain|x-apple\.|\bUsers\b/, surfaces: ["components/settings/panes/Sync.tsx", "components/settings/panes/SyncSheets.tsx"], probe: "components/settings/panes/Sync.tsx" },
   {
-    name: "linux", list: LINUX_WORDING, reword: rewordForLinux, plugin: linuxWording, pick: strings, macos: /\bMacs?\b|macOS|iCloud|Keychain|keychain/, probe: "components/onboarding/SourceStep.tsx",
+    name: "linux", list: LINUX_WORDING, reword: rewordForLinux, plugin: linuxWording, pick: strings, macos: /\bMacs?\b|macOS|iCloud|Keychain|keychain|Tahoe/, probe: "components/onboarding/SourceStep.tsx",
     surfaces: ["state/extensions/actions.ts", "components/onboarding/SourceStep.tsx", "components/onboarding/LookStep.tsx", "components/settings/panes/Appearance.tsx", "components/settings/panes/Privacy.tsx", "state/telemetry/copy.ts", "components/import/steps/ChooseStep.tsx", "components/import/steps/SafariStep.tsx", "state/import/runImport.ts", "components/onboarding/previews/MockWindow.tsx", "components/onboarding/previews/scenes/LookScenes.tsx", "components/settings/panes/ShareDiagnostics.tsx", "state/commands/appCommands.ts"],
   },
 ];
@@ -82,8 +81,9 @@ test("search rows describing reworded panes read as Linux too", () => {
   const rows = read("components/settings/rows/generalRows.ts");
   assert.match(section(rows, "  sync: [", "  tabs: ["), /\bMacs\b|icloud/);
   assert.doesNotMatch(section(general, "  sync: [", "  tabs: ["), /\bMacs?\b|icloud/i);
-  assert.match(section(rows, "pageScrollBars: {", "keywords"), /macOS/);
-  assert.doesNotMatch(section(general, "pageScrollBars: {", "keywords"), /macOS/);
+  const appearance = read("components/settings/rows/appearanceRows.ts");
+  assert.match(section(appearance, "pageScrollBars: {", "keywords"), /macOS/);
+  assert.doesNotMatch(section(linuxCopy("components/settings/rows/appearanceRows.ts"), "pageScrollBars: {", "keywords"), /macOS/);
   const privacy = read("components/settings/rows/privacyRows.ts");
   assert.match(section(privacy, "passwords: [", "extensions: ["), /Touch ID|keychain/);
   assert.doesNotMatch(section(linuxCopy("components/settings/rows/privacyRows.ts"), "passwords: [", "extensions: ["), /Touch ID|keychain|Keychain|\bMac\b/);
@@ -132,14 +132,5 @@ test("onboarding names no Mac, macOS or Dock on Linux, and the Engines pane is n
     .filter((path) => path !== "components/onboarding/HomeStep.tsx")
     .flatMap((path) => strings(linuxCopy(path)).filter((text) => words.test(text)).map((text) => `${path}: ${text}`));
   assert.deepEqual(leftover, []);
-  assert.doesNotMatch(DEFAULT_BROWSER_ELSEWHERE, words);
   assert.ok(unavailablePanes({ webkit: false }).has("engines"));
-});
-
-test("the default-browser step settles on Linux whether or not the desktop integrations exist", async () => {
-  const never = () => new Promise(() => {});
-  assert.deepEqual(await readOnboardingSystem({ defaultBrowser: false, launchAtLogin: false }, { isDefaultBrowser: never, launchAtLoginStatus: never }), { isDefault: false, loginEnabled: false });
-  const refused = () => Promise.reject(Object.assign(new Error("unavailable"), { code: "ERR_UNAVAILABLE" }));
-  assert.deepEqual(await readOnboardingSystem({ defaultBrowser: true, launchAtLogin: true }, { isDefaultBrowser: refused, launchAtLoginStatus: refused }), { isDefault: false, loginEnabled: false });
-  assert.deepEqual(await readOnboardingSystem({ defaultBrowser: true, launchAtLogin: true }, { isDefaultBrowser: async () => true, launchAtLoginStatus: async () => "enabled" }), { isDefault: true, loginEnabled: true });
 });

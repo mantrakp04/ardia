@@ -19,10 +19,11 @@ export const LINUX_WORDING: readonly Wording[] = [
   },
   {
     file: "components/onboarding/LookStep.tsx",
-    replacements: [
-      [`subtitle: "Light by day, dark by night, like your Mac"`, `subtitle: "Light or dark, following your desktop"`],
-      [`subtitle: "Buttons and panels catch the light, as in macOS Tahoe"`, `subtitle: "Buttons and panels catch the light"`],
-    ],
+    replacements: [[`subtitle: "Buttons and panels catch the light, as in Tahoe"`, `subtitle: "Buttons and panels catch the light"`]],
+  },
+  {
+    file: "components/onboarding/OutroStep.tsx",
+    replacements: [[`<OptionRow title="Keep in the Dock"`, `<OptionRow title="Keep in the taskbar"`]],
   },
   {
     file: "components/onboarding/previews/MockWindow.tsx",
@@ -40,6 +41,11 @@ export const LINUX_WORDING: readonly Wording[] = [
     file: "components/settings/rows/generalRows.ts",
     replacements: [
       ["description: `Asks before ${APP} quits with ⌘Q.`", "description: `Asks before ${APP} quits with Ctrl+Shift+Q.`"],
+    ],
+  },
+  {
+    file: "components/settings/rows/appearanceRows.ts",
+    replacements: [
       [
         `"Follow macOS uses System Settings › Appearance › Show scroll bars. Thin shows slim scroll bars over the page only while you scroll, even with a mouse."`,
         `"Follow system keeps the scroll bars your desktop shows. Thin shows slim scroll bars over the page only while you scroll, even with a mouse."`,
@@ -91,7 +97,7 @@ export const LINUX_WORDING: readonly Wording[] = [
       ["Its version, macOS version, chip and Python version, with this Mac's install ID", "Its version, operating system version, chip and Python version, with this computer's install ID"],
       ["Leaves this Mac only as the events above", "Leaves this computer only as the events above"],
       ["whether macOS and Ardia agree that Ardia is the app in front", "whether the system and Ardia agree that Ardia is the app in front"],
-      ["window was still on a screen though macOS reported it covered", "window was still on a screen though the system reported it covered"],
+      ["window was still on a screen, either though macOS reported it covered", "window was still on a screen, either though the system reported it covered"],
       [
         "whether macOS gave Ardia location access, you said no in macOS's prompt, it was already off in System Settings, or the check failed, one event each time.",
         "whether Ardia had location access (always, on Linux: the system has no app-wide location switch to ask) or the check failed, one event each time.",

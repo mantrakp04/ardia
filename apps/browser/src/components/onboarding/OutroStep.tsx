@@ -17,6 +17,8 @@ import { onboardingType } from "./tokens";
 
 type SystemState = { isDefault: boolean; inDock: boolean };
 
+const alreadySet = (probe: Promise<boolean>) => probe.catch(() => true);
+
 export function OutroStep() {
   const colors = useOnboardingColors();
   const picked = useOnboarding((s) => s.picked);
@@ -33,7 +35,7 @@ export function OutroStep() {
   const share = extras.share ?? isSharing();
 
   useEffect(() => {
-    void Promise.all([isDefaultBrowser(), isInDock()]).then(([isDefault, inDock]) => setSystem({ isDefault, inDock }));
+    void Promise.all([alreadySet(isDefaultBrowser()), alreadySet(isInDock())]).then(([isDefault, inDock]) => setSystem({ isDefault, inDock }));
   }, []);
 
   const finish = async (tour: boolean) => {
