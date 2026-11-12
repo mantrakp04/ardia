@@ -216,7 +216,6 @@ BOOL Above(NSView *a, NSView *b) {
 - (void)applyPainting {
   if (_frameHold.awaiting && !_visible && !_reveal.active) [self finishFrameHold];
   if (_visible) [self sinkLingeringPane];
-  if (_visible) [self takeFocusFromLingeringPane];
   [self beginFrameHoldIfCold];
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
@@ -227,6 +226,7 @@ BOOL Above(NSView *a, NSView *b) {
     AcceptDrops(sub, _visible);
   }
   [CATransaction commit];
+  if (_visible) [self takeFocusFromLingeringPane];
   if (TraceVisibility())
     NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d", _transferKey,
           _visible, _warm, _tab ? (int)_tab.tabId : -1, _tab.view.superview == self ? @"here" : @"elsewhere",

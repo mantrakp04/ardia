@@ -161,6 +161,8 @@ Launch with `scripts/agent/ac launch <app> --data <dir> [--instance K=V] [--test
   "responderChanges")` lists the first-responder changes since the last call with their stacks (who took a field's
   focus). `devWindow(n, "hoverProbe:responderNil:1")` resigns the first responder (`:0` only reads it), and
   `"hoverProbe:check:<x>,<y>,click"` runs the hover probe as a click there; `"hoverProbe"` lists the episodes it emitted.
+  `"hoverProbe:watch:1"` turns on the click and move watch in a hidden instance (`:0` turns it off), so a `devClick`
+  after `responderNil:1` goes through the same path as a user's click.
 - **Windows:** they stay behind every other app's windows: each window's level is set a band below normal (normal at
   CoreGraphics layer -1000000, floating at -999997…; `-level` answers the one asked for), so no ordering, activation
   attempt or AppKit reshuffle lifts one over the owner's, the app's own keep production's order, and Mission Control

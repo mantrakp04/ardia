@@ -529,6 +529,23 @@ for (const busy of [0, 120]) {
 }
 {
   await resetToPageField("", [0, 0]);
+  await devWindow("hoverProbe:watch:1");
+  const seen = Math.max(0, ...JSON.parse(await devWindow("hoverProbe")).emitted.map((e) => e.episode));
+  const cleared = await devWindow("hoverProbe:responderNil:1");
+  const click = await ac(`return ac.shell.devClick("w1", { in: "page", x: 60, y: 135, wait: 700 });`);
+  const after = await devWindow("hoverProbe:responderNil:0");
+  const state = JSON.parse(await devWindow("hoverProbe"));
+  await devWindow("hoverProbe:watch:0");
+  const fresh = state.emitted.filter((e) => e.episode > seen);
+  const pageOnClick = click.firstResponderOnClick === "RenderWidgetHostViewCocoa";
+  const healedOnce = fresh.length === 1 && fresh[0].reason === "responderLost" && fresh[0].trigger === "click" && fresh[0].healed === true && fresh[0].healWorked === true;
+  check("a real click on the page with no first responder leaves the page as first responder, through the click watch",
+    state.watching === true && cleared === "responder window, lost 1" && !click.error && /^responder (?!nil|window)\w+, lost 0$/.test(after) &&
+      (pageOnClick ? fresh.length === 0 : healedOnce),
+    `cleared "${cleared}", click ${JSON.stringify(click)}, after "${after}", episodes ${JSON.stringify(fresh)}`);
+}
+{
+  await resetToPageField("", [0, 0]);
   await clipboard.set("first");
   await cdp("?t3", "(window.slowShortcuts ??= addEventListener('keydown', (e) => { if (e.metaKey) { const t = performance.now(); while (performance.now() - t < 200); } }, true), true)");
   await postKeys([keyPress("f", 3), keyPress("v", 9), keyPress("q", 12, 300, [])]);

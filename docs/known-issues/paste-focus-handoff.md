@@ -21,7 +21,7 @@ The fix is `FocusHandoff` in packages/shell/ios/FocusHandoff.swift.
 
 The page that had focus gets it back, but only while its tab is still the one shown. A dropped action never goes anywhere else.
 
-**A key window never stays without a responder.** When the gate ends and the window's first responder is still nil or the window itself, the next UI pass focuses the page that is shown (`ArdiaWebView.focusVisiblePage`), so ⌘A and the arrow keys don't chime and hover keeps reaching the page. The same holds for the other places that resign the page: the lingering New Tab pane (`takeFocusFromLingeringPane`) refocuses the page it hands over to, and `lendPageToSuccessor` asks the holder to take focus back. The hover probe covers what is left: a click on the page while the key window has no responder makes the page under the pointer first responder (`responderLost` heal).
+**A key window never stays without a responder.** When the gate ends and the window's first responder is still nil or the window itself, the next UI pass focuses the page that is shown (`ArdiaWebView.focusVisiblePage`), so ⌘A and the arrow keys don't chime and hover keeps reaching the page. The same holds for the other places that resign the page: the lingering New Tab pane (`takeFocusFromLingeringPane`, run once `applyPainting` has unhidden the page, so the page can take the focus) refocuses the page it hands over to, and `lendPageToSuccessor` asks the holder to take focus back. The hover probe covers what is left: a click on the page while the key window has no responder makes the page under the pointer first responder (`responderLost` heal).
 
 **Acks from the page:** edit keys a page passes back are tagged with their window and its key epoch, and stale ones are dropped with a beep.
 
