@@ -23,6 +23,7 @@ import { engineProfile, isIncognitoProfile, ROW_PIN } from "../browser/model";
 import { openPages, pageKey, pinnedPages, tilePages } from "../tabs/pageKeys";
 import { withNewTab } from "../tabs/tabs";
 import type { ProfileColor } from "../browser/types";
+import { DEFAULT_PROFILE } from "../profiles/profiles";
 import { setProfileTheme } from "../profiles/themeActions";
 import { parseArcTheme } from "./arcTheme";
 import { newProfileLiveFolder } from "../live/engine";
@@ -33,7 +34,7 @@ import { focusedWindowOf } from "../windows/ui";
 import { originOfLogin } from "../site/savedPasswords";
 import { IDLE } from "../tabs/pageSession";
 
-export type { BrowserProfile, BrowserSource, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSummary } from "../../platform/importModule";
+export type { BrowserProfile, BrowserSource, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSuggestion, SpaceSummary } from "../../platform/importModule";
 
 export type ImportCounts = { bookmarks: number; history: number; tabs: number; passwords: number; cookies: number; addresses: number; cards: number };
 
@@ -318,6 +319,22 @@ export function defaultTarget(): string {
   const s = useBrowser.getState();
   const w = s.windows[focusedWindowOf(s) ?? ""];
   return w && w.kind !== "private" ? w.profileId : s.settings.defaultProfileId;
+}
+
+export function adoptSpaceIdentity(profileId: string, space: Pick<SpaceSuggestion, "name" | "color" | "emoji">): void {
+  const s = useBrowser.getState();
+  const profile = s.profiles[profileId];
+  const name = space.name.trim();
+  const untouched =
+    profileId === DEFAULT_PROFILE.id &&
+    profile?.name === DEFAULT_PROFILE.name &&
+    profile.color === DEFAULT_PROFILE.color &&
+    profile.icon == null &&
+    !profile.theme;
+  if (!profile || !untouched || !name || s.profileOrder.length !== 1) return;
+  s.updateProfile(profileId, { name, icon: space.emoji ?? null });
+  const color = profileColorFor(space.color);
+  if (color) s.setProfileLook(profileId, { color });
 }
 
 export function profileNamed(name: string): string | undefined {

@@ -5,6 +5,7 @@ import { plural } from "../browser/model";
 import { MAX_DRAFT_LINKS } from "../groups/draftGroups";
 import { createProfile } from "../profiles/actions";
 import {
+  adoptSpaceIdentity,
   applyResult,
   emptyCounts,
   importArcSpace,
@@ -17,6 +18,7 @@ import {
   type ImportedExtension,
   type ImportKind,
   type ImportResult,
+  type SpaceSuggestion,
 } from "./apply";
 import { diaProfilesFor } from "./diaTabs";
 import {
@@ -71,8 +73,19 @@ export function skipEncryptedData() {
   void runImport(kinds, true);
 }
 
-async function destination(target: string, index: number, name: string, color?: string, emoji?: string, shareWith?: string | null): Promise<string> {
-  if (index === 0) return target;
+async function destination(
+  target: string,
+  index: number,
+  name: string,
+  color?: string,
+  emoji?: string,
+  shareWith?: string | null,
+  adopts?: SpaceSuggestion,
+): Promise<string> {
+  if (index === 0) {
+    if (adopts) adoptSpaceIdentity(target, adopts);
+    return target;
+  }
   const clash = profileNamed(name);
   if (clash) {
     const { confirmed } = await confirm({
@@ -130,8 +143,8 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   const failed = new Map<ImportKind, string[]>();
   const add = (c: ImportCounts) => (Object.keys(total) as (keyof ImportCounts)[]).forEach((k) => (total[k] += c[k]));
   let destinationIndex = 0;
-  const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null) =>
-    destination(target, destinationIndex++, name, color, emoji, shareWith);
+  const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null, adopts?: SpaceSuggestion) =>
+    destination(target, destinationIndex++, name, color, emoji, shareWith, adopts);
   const found = new Map<string, ImportedExtension>();
   const left: string[] = [];
   let extensionsProfile = "";
@@ -162,6 +175,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       }
       continue;
     }
+    if (signal.aborted) return;
     for (const k of result.failed) failed.set(k, [...(failed.get(k) ?? []), profile.name]);
     for (const w of result.warnings) {
       if ((w.code === "undecryptable" || w.code === "skipped" || w.code === "locked") && !result.failed.includes(w.kind)) left.push(`${w.message}.`);
@@ -175,7 +189,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       let first: string | null = null;
       for (const space of result.spaces) {
         const name = space.name || "Space";
-        const dest = await nextDestination(name, space.color, space.emoji, first);
+        const dest = await nextDestination(name, space.color, space.emoji, first, space);
         first ??= dest;
         const r = importArcSpace(dest, space, result.favicons);
         add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
