@@ -10,23 +10,28 @@ from scheduler import Scheduler
 TASKS = ["calendar", "expenses", "research", "booking", "shop", "grid", "kanban", "multitab"]
 CONTENDERS = [{"id": "ardia-claude", "kind": "ardia"}, {"id": "ardia-codex", "kind": "ardia"},
               {"id": "aside-opus", "kind": "aside"}, {"id": "aside-sol", "kind": "aside"}]
+REALISM_TASKS = ["expenses", "kanban", "bulk"]
+REALISM_CONTENDERS = CONTENDERS + [{"id": f"{side}-{agent}", "kind": side}
+                                   for side in ("opencode", "browseruse") for agent in ("claude", "codex")]
 
 
-def plan_items(repeats=3):
+def plan_items(repeats=3, task_list=TASKS, contender_list=CONTENDERS):
     out = []
     for r in range(repeats):
-        tasks = TASKS[r:] + TASKS[:r]
-        contenders = CONTENDERS[r % 4:] + CONTENDERS[:r % 4]
+        k = r % len(contender_list)
+        tasks = task_list[r % len(task_list):] + task_list[:r % len(task_list)]
+        contenders = contender_list[k:] + contender_list[:k]
         for t in tasks:
             for c in contenders:
                 out.append({"round": r + 1, "task": t, "contender": c, "run_id": f"{t}--{c['id']}--r{r + 1}"})
     return out
 
 
-def simulate(seed, max_lanes=6, memory=None, retry_ids=(), rate_limit_ids=()):
+def simulate(seed, max_lanes=6, memory=None, retry_ids=(), rate_limit_ids=(), task_list=TASKS,
+             contender_list=CONTENDERS, pinned=()):
     rng = random.Random(seed)
-    items = plan_items()
-    s = Scheduler(items, max_lanes=max_lanes)
+    items = plan_items(task_list=task_list, contender_list=contender_list)
+    s = Scheduler(items, max_lanes=max_lanes, pinned_tasks=set(pinned))
     t, finishing, launching, log = 0.0, {}, {}, []
     retry_left = set(retry_ids) | set(rate_limit_ids)
     while not s.done() and t < 10 ** 6:
@@ -47,7 +52,7 @@ def simulate(seed, max_lanes=6, memory=None, retry_ids=(), rate_limit_ids=()):
         used = memory(t, len(s.running)) if memory else 50.0
         for item, lane, mode in s.decide(t, used):
             log.append(("start", t, item["run_id"], item["task"], lane.id, lane.group, mode, used,
-                        len(s.running), s.holding, s.blocked))
+                        len(s.running), s.holding, s.blocked, item["port_offset"]))
             if mode == "grow":
                 launching[item["run_id"]] = t + 15
             finishing[item["run_id"]] = t + rng.uniform(30, 400)
@@ -74,16 +79,48 @@ class SchedulerTest(unittest.TestCase):
             self.assertEqual(sorted(starts), sorted(it["run_id"] for it in items))
             self.assertTrue(s.done())
 
-    def test_no_two_runs_share_a_task_and_lanes_stay_capped(self):
+    def test_no_two_runs_share_a_task_server_and_lanes_stay_capped(self):
         for seed in range(20):
-            _, _, log = simulate(seed, max_lanes=6)
+            for max_lanes, tasks, contenders in ((6, TASKS, CONTENDERS), (12, REALISM_TASKS, REALISM_CONTENDERS)):
+                _, _, log = simulate(seed, max_lanes=max_lanes, task_list=tasks, contender_list=contenders)
+                for running in overlapping(log):
+                    slots = [(e[3], e[11]) for e in running]
+                    self.assertEqual(len(slots), len(set(slots)))
+                    self.assertLessEqual(len(running), max_lanes)
+                    self.assertLessEqual(sum(1 for e in running if e[5] == "aside"), 1)
+                    lanes = [e[4] for e in running]
+                    self.assertEqual(len(lanes), len(set(lanes)))
+
+    def test_lane_offsets_follow_the_lane_index(self):
+        _, _, log = simulate(2, max_lanes=12, task_list=REALISM_TASKS, contender_list=REALISM_CONTENDERS)
+        for e in (e for e in log if e[0] == "start"):
+            if e[5] == "aside":
+                self.assertEqual(e[11], 0)
+            else:
+                index = int(e[4].rsplit("@", 1)[1])
+                self.assertEqual(e[11], scheduler.LANE_PORT_STRIDE * (index + 1))
+
+    def test_one_task_runs_on_many_lanes_at_once(self):
+        peaks, per_task = [], []
+        for seed in range(10):
+            s, items, log = simulate(seed, max_lanes=12, task_list=REALISM_TASKS, contender_list=REALISM_CONTENDERS)
+            self.assertTrue(s.done())
+            self.assertEqual(sorted(e[2] for e in log if e[0] == "start"), sorted(it["run_id"] for it in items))
+            windows = overlapping(log)
+            peaks.append(max(len(w) for w in windows))
+            per_task.append(max(max(sum(1 for e in w if e[3] == t) for t in REALISM_TASKS) for w in windows))
+        self.assertGreater(max(peaks), 8)
+        self.assertLessEqual(max(peaks), 12)
+        self.assertGreater(max(per_task), 1)
+
+    def test_pinned_tasks_share_one_server(self):
+        for seed in range(10):
+            _, _, log = simulate(seed, max_lanes=12, task_list=REALISM_TASKS, contender_list=REALISM_CONTENDERS,
+                                 pinned=["expenses"])
+            for e in (e for e in log if e[0] == "start" and e[3] == "expenses"):
+                self.assertEqual(e[11], 0)
             for running in overlapping(log):
-                tasks = [e[3] for e in running]
-                self.assertEqual(len(tasks), len(set(tasks)))
-                self.assertLessEqual(len(running), 6)
-                self.assertLessEqual(sum(1 for e in running if e[5] == "aside"), 1)
-                lanes = [e[4] for e in running]
-                self.assertEqual(len(lanes), len(set(lanes)))
+                self.assertLessEqual(sum(1 for e in running if e[3] == "expenses"), 1)
 
     def test_each_cell_keeps_its_round_order(self):
         for seed in range(10):

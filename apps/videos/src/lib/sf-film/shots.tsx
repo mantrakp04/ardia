@@ -1,5 +1,5 @@
 import type { ComponentType, CSSProperties, ReactNode } from "react";
-import { Img, staticFile, useVideoConfig } from "remotion";
+import { Img, staticFile } from "remotion";
 import { useStudioObject } from "../studio-objects-v6";
 import { badgeCenter, CARD_H, ChatApp, chatState, LINKS, LinkCard, panelLayout, THREADS } from "./chat";
 import {

@@ -240,6 +240,7 @@ BOOL Above(NSView *a, NSView *b) {
   [changes setObject:@(change) forKey:tab];
   ArdiaWebView *view = [ArdiaTabRegistry viewForTab:tab];
   if (view.seenByUser) return [tab noteShownByHost:YES];
+  if (view.autoPictureInPicture) return [tab noteShownByHost:NO];
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
     if ([changes objectForKey:tab].unsignedIntegerValue != change) return;
     ArdiaWebView *now = [ArdiaTabRegistry viewForTab:tab];
@@ -263,6 +264,14 @@ BOOL Above(NSView *a, NSView *b) {
 - (void)userSightChanged {
   if (_tab) [ArdiaWebView noteShown:_tab];
   const BOOL seen = self.seenByUser;
+  const BOOL kept = seen && _visible && [ArdiaWindowController userSeesOnlyThroughWindowServer:self.window];
+  if (!kept) {
+    _reports.keptByWindowServer = NO;
+  } else if (!_reports.keptByWindowServer && self.playsForAutoPictureInPicture) {
+    _reports.keptByWindowServer = YES;
+    [self traceAutoPictureInPicture:@"app: the window server still shows the tab, AppKit's occlusion overruled"];
+    [self emit:@"autoPictureInPictureKept" payload:@{@"appSwitch" : @NO}];
+  }
   if (seen == _reports.seenByUser) return;
   _reports.seenByUser = seen;
   [self traceAutoPictureInPicture:seen ? @"app: the user sees the tab" : @"app: the user left the tab"];

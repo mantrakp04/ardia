@@ -1,5 +1,6 @@
 import type { BrowserState } from "../browser/store";
 import { ancestorIds } from "../groups/groups";
+import { withShownTab } from "../groups/shownTabs";
 import { inPinnedContainer } from "../browser/model";
 import { groupOf, pinnedChildGroup } from "../pins/tabGrouping";
 import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
@@ -53,7 +54,8 @@ export function joinedWithCurrent(s: BrowserState, ids: string[], openerId: stri
   if (!group || !joining.length) return s;
   const members = new Set([...group.tabIds, ...joining]);
   const tabIds = s.windows[group.windowId]!.tabIds.filter((id) => members.has(id));
-  return { ...s, groups: { ...s.groups, [group.id]: { ...group, tabIds } } };
+  const groups = joining.reduce(withShownTab, { ...s.groups, [group.id]: { ...group, tabIds } });
+  return { ...s, groups };
 }
 
 const listStart = (s: BrowserState, w: BrowserWindow, profileId: string) =>

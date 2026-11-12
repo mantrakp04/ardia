@@ -24,7 +24,7 @@ the file and its WAL before opening it.
 | Source | Files | What it reads |
 |---|---|---|
 | Discovery (which browsers and profiles exist) | `Discovery.swift` (`BrowserDefinition.all`: IDs, data paths, Keychain items; each release channel with its own data folder, like Brave Beta or Edge Canary, is its own source and shares the vendor's Keychain item), `AppIcons.swift` | Chromium `Local State`; Firefox `profiles.ini` (`Firefox.profiles`) |
-| Zen | Same as Firefox (`zen/profiles.ini`, family `firefox`, `sidebar: zen`), plus `ZenSidebar.swift` for spaces, pinnedTabs, tabs, favorites (Essentials) and session tab icons | `zen-sessions.jsonlz4`, then `zen-sessions-backup/clean.jsonlz4` and the newest `zen-sessions-*.jsonlz4`, then the Firefox session store (windows carry `spaces` and `folders`). Workspaces map to spaces the way Arc's do |
+| Zen | Same as Firefox (`zen/profiles.ini`, family `firefox`, `sidebar: zen`), plus `ZenSidebar.swift` for spaces, pinnedTabs, tabs, favorites (Essentials) and session tab icons | `zen-sessions.jsonlz4`, then `zen-sessions-backup/clean.jsonlz4` and the newest `zen-sessions-*.jsonlz4`, then the Firefox session store (windows carry `spaces` and `folders`; before Zen 1.18 the workspaces are only in `places.sqlite` `zen_workspaces`). Each space carries its `containerTabId` and each Essential its `userContextId`, `prefs.js` says whether Essentials are per container, and `containers.json` names the containers; JS (`state/import/sidebarPlan.ts`) gives each container its own profile |
 | Dia | Same as the Chromium family (`Dia/User Data`), except its open and pinned tabs, which come from Dia itself (next row; `asksAppForTabs` on the source) | Dia's sidebar (spaces, pinned tiles) is a SQLCipher `tabs.db` that isn't read |
 | Dia open and pinned tabs (part of the Dia import) | `DiaAppleEvents.swift` (`DiaTabsFetch`: opens Dia hidden and unactivated if it isn't running, asks it, quits it again; Apple Events under the `DiaAutomation` permission) → `DiaTabs.swift` (`DiaTabsImport.build`) | Each Dia window's tabs over AppleScript; needs Automation permission, and Dia already running is left running; their icons come from every Dia profile's `Favicons` (`Importer.favicons`). JS matches each Dia profile to the profile on disk with the same name (else the same position) and adds its tabs to that profile's destination (`state/import/diaTabs.ts`) |
 | Safari direct (needs Full Disk Access) | `SafariDirect.swift`, `SafariCookies.swift` | `~/Library/Safari/{Bookmarks.plist, History.db, LastSession.plist}`, `~/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies` |
@@ -48,12 +48,12 @@ Shared code: `Model.swift` (`ImportKind`, `ImportResult` and the other result ty
    engine with `ArdiaEngineBridge.callWithSecret` as `ac_cookies_import` and `ac_autofill_import`, in batches of 500
    (`engine/chromium/src/chrome/browser/ardia/ac_cookies.cc`, `ac_autofill.cc`).
 5. `apps/browser/src/components/import/ImportWindow.tsx` is the wizard: choose, then profiles, then unlock, then
-   progress, then done. `apply.ts` writes the JS-side kinds into the store (bookmarks, history, tabs, Arc spaces,
+   progress, then done. `apps/browser/src/state/import/apply.ts` writes the JS-side kinds into the store (bookmarks, history, tabs, Arc spaces,
    Dia profiles) and saves passwords with `savePassword` (`@ardia/ardiacore`). For cookies and autofill it calls
    `importNative`, which calls `writeImported`. Before any tab is made, the result's `favicons` for the pages that
    profile gets go to `adoptFavicons` (`apps/browser/src/state/favicons/favicons.ts`): into the sidebar's icon cache at once, and
    into the profile's Chrome favicon database with `ac_favicons_set`, so they survive a relaunch without a page load.
-   `module.ts` loads the package lazily.
+   `apps/browser/src/platform/importModule.ts` loads the package lazily.
 
 ## Secrets and the Keychain
 
@@ -122,7 +122,8 @@ sqlite3 CLI: it checkpoints the WAL the tests depend on.
    and throw `ImportError`. Then add its `(kind, family)` case in `Importer.importData`.
 4. Add a fixture: a `build_*` function in `fixtures/generate.py`, or a branch of an existing one. Run
    `pnpm --filter @ardia/import fixtures` and write a test in `tests/`.
-5. Apply it in the app. Add the kind to `KINDS` (and `ENCRYPTED` if it's encrypted) in `ImportWindow.tsx`, and write
-   it in `apply.ts`. A secret kind goes through `ImportWriter` and a new engine call instead.
+5. Apply it in the app. Add the kind to `IMPORT_KINDS` (and `ENCRYPTED_KINDS` if it's encrypted) in
+   `apps/browser/src/state/import/flow.ts`, its title and icon to `KIND_LOOK` in `components/import/model.ts`, and write
+   it in `state/import/apply.ts`. A secret kind goes through `ImportWriter` and a new engine call instead.
 6. Run `test`, `typecheck` and `pnpm -w typecheck`. For anything that reaches the engine, also run `scripts/e2e.mjs`
    against a fresh Debug build.

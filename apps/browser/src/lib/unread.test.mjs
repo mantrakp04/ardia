@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { unreadInTitle, unreadCount, faviconLooksBadged, faviconIsOrdinary, originOf, hostOfOrigin } = await import("./unread.ts");
+const { unreadInTitle, unreadCount, titleWithoutUnread, faviconLooksBadged, faviconIsOrdinary, originOf, hostOfOrigin } = await import("./unread.ts");
 
 const label = (title, host = "") => {
   const u = unreadInTitle(title, host);
@@ -106,4 +106,34 @@ test("origins compare scheme, host and port", () => {
   assert.equal(originOf("about:blank"), "");
   assert.equal(hostOfOrigin("https://app.slack.com"), "app.slack.com");
   assert.equal(hostOfOrigin("http://127.0.0.1:8080"), "127.0.0.1");
+});
+
+test("a count past 99 reads 99+, and a page's own plus stays", () => {
+  assert.deepEqual(unreadCount(99), { kind: "count", label: "99" });
+  assert.deepEqual(unreadCount(120), { kind: "count", label: "99+" });
+  assert.deepEqual(unreadCount(20, true), { kind: "count", label: "20+" });
+  assert.equal(label("(120) Notifications / LinkedIn"), "99+");
+  assert.equal(label("(1,204) Inbox"), "99+");
+});
+
+test("the title drops its leading count when the badge shows the same count", () => {
+  const strip = (title) => titleWithoutUnread(title, unreadInTitle(title));
+  assert.equal(strip("(3) Home / X"), "Home / X");
+  assert.equal(strip("[3] Mattermost"), "Mattermost");
+  assert.equal(strip("(120) Notifications / LinkedIn"), "Notifications / LinkedIn");
+  assert.equal(strip("(99+) Facebook"), "Facebook");
+  assert.equal(strip("(20+) Messenger"), "Messenger");
+  assert.equal(strip("(1,204) Inbox"), "Inbox");
+  assert.equal(strip("• Discord | #general"), "Discord | #general");
+});
+
+test("the title keeps its text when the badge says something else, or nothing", () => {
+  assert.equal(titleWithoutUnread("(3) Home / X", null), "(3) Home / X");
+  assert.equal(titleWithoutUnread("(3) Home / X", unreadCount(5)), "(3) Home / X");
+  assert.equal(titleWithoutUnread("(3) Home / X", { kind: "dot" }), "(3) Home / X");
+  assert.equal(titleWithoutUnread("• Discord", unreadCount(2)), "• Discord");
+  assert.equal(titleWithoutUnread("Inbox (3) - me@mail.example - Mail", unreadCount(3)), "Inbox (3) - me@mail.example - Mail");
+  assert.equal(titleWithoutUnread("(2021) Dune", unreadCount(2021)), "(2021) Dune");
+  assert.equal(titleWithoutUnread("(3)", unreadCount(3)), "(3)");
+  assert.equal(titleWithoutUnread("Home / X", unreadCount(3)), "Home / X");
 });

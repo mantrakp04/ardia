@@ -63,6 +63,8 @@ export function localStore(dir) {
   };
 }
 
+const filerProblem = async (res) => (await res.text().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 300);
+
 export function seaweedStore(host, port = 8888) {
   const path = (id, name) => `/buckets/feedback/${id}/${encodeURIComponent(name)}`;
   const call = (method, id, name, headers = {}, body) =>
@@ -78,12 +80,12 @@ export function seaweedStore(host, port = 8888) {
     async readJson(id, name) {
       const res = await call("GET", id, name);
       if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`seaweedfs GET ${name} ${res.status}`);
+      if (!res.ok) throw new Error(`seaweedfs GET ${name} ${res.status}: ${await filerProblem(res)}`);
       return res.json();
     },
     async writeJson(id, name, value) {
       const res = await call("PUT", id, name, { "Content-Type": "application/json" }, JSON.stringify(value));
-      if (!res.ok) throw new Error(`seaweedfs PUT ${name} ${res.status}`);
+      if (!res.ok) throw new Error(`seaweedfs PUT ${name} ${res.status}: ${await filerProblem(res)}`);
     },
     async putFile(id, name, input, bytes) {
       const upstream = request({
@@ -96,8 +98,13 @@ export function seaweedStore(host, port = 8888) {
       });
       const answered = new Promise((resolve, reject) => {
         upstream.on("response", (res) => {
-          res.resume();
-          res.on("end", () => (res.statusCode >= 200 && res.statusCode < 300 ? resolve() : reject(new Error(`seaweedfs PUT ${name} ${res.statusCode}`))));
+          const chunks = [];
+          res.on("data", (chunk) => chunks.length < 4 && chunks.push(chunk));
+          res.on("end", () => {
+            if (res.statusCode >= 200 && res.statusCode < 300) return resolve();
+            const problem = Buffer.concat(chunks).toString("utf8").replace(/\s+/g, " ").trim().slice(0, 300);
+            reject(new Error(`seaweedfs PUT ${name} ${res.statusCode}: ${problem}`));
+          });
         });
         upstream.on("timeout", () => upstream.destroy(new Error("seaweedfs PUT timed out")));
         upstream.on("error", reject);
@@ -130,7 +137,7 @@ export function otlpEvents(host, port = 4318) {
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(10_000),
       });
-      if (!res.ok) throw new Error(`collector ${res.status}`);
+      if (!res.ok) throw new Error(`collector ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
     },
   };
 }

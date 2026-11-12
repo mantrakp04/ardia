@@ -17,7 +17,8 @@
 # <version>/.leases/<pid>, live while that pid runs and started before the lease was written). Two runs never overlap:
 # each holds a flock on $ARDIA_CLI_HOME/.lock (lockf), which the kernel drops when the run exits.
 # The installed version is `basename "$(readlink "$ARDIA_CLI_HOME/current")"`. After switching to a new version it runs
-# `ardia skills refresh`, which rewrites the agent skill copies `ardia skills install` wrote, and ignores its result,
+# `ardia skills install --auto` (the skill for every coding agent found, never over a folder ardia didn't write or one
+# the user removed), then `ardia skills refresh`, which rewrites the agent skill copies `ardia skills install` wrote, and ignores its result,
 # then starts `ardia computer refresh` in the background, which updates /Applications/CuaDriver.app to the new pinned
 # cua-driver only when `ardia computer setup` put it there. --uninstall also removes $ARDIA_CLI_HOME/cua-driver and the
 # cua-driver link in the bin dir when it is ardia's, and leaves /Applications/CuaDriver.app.
@@ -93,13 +94,10 @@ else
 fi
 
 fetch() {
-  curl -fsSL --proto "$protocols" --proto-redir =https --retry 2 --connect-timeout 15 "$@"
+  curl -fsSL --proto "$protocols" --proto-redir =https --retry 2 --connect-timeout 15 --speed-limit 1024 --speed-time 60 --max-time 1800 "$@"
 }
 
 take_lock() {
-  if [ -d "$cli_home/.lock" ] && ! [ -L "$cli_home/.lock" ]; then
-    rm -rf "$cli_home/.lock" "$cli_home/.lock-takeover"
-  fi
   exec 9>>"$cli_home/.lock" || fail "couldn't open $cli_home/.lock"
   /usr/bin/lockf -s -t 120 9 || fail "another install is still running"
 }
@@ -311,6 +309,7 @@ for entry in "$cli_home"/*; do
 done
 
 link_bin
+ARDIA_CLI_HOME=$cli_home "$cli_home/current/bin/ardia" skills install --auto </dev/null >/dev/null 2>&1 9>&- || true
 ARDIA_CLI_HOME=$cli_home "$cli_home/current/bin/ardia" skills refresh </dev/null >/dev/null 2>&1 9>&- || true
 ARDIA_CLI_HOME=$cli_home nohup "$cli_home/current/bin/ardia" computer refresh </dev/null >/dev/null 2>&1 9>&- &
 

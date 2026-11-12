@@ -1,4 +1,5 @@
 import { windowFor, type RangeKey } from "../../lib/range";
+import { UTC } from "../../lib/zone";
 import { num, query, str } from "../clickhouse";
 import { THRESHOLDS } from "../../lib/thresholds";
 import { MAC, PHONE, SITE, CLICK_SITE_EVENTS, bucket, compareStart, isCurrent, isPrevious, since, prop } from "../sql";
@@ -31,17 +32,18 @@ const CLICK_EVENTS = [
   ["notify_clicked", "Notify me"],
   ["discord_clicked", "Discord"],
   ["send_to_mac_clicked", "Send to my Mac"],
+  ["testflight_clicked", "iPhone TestFlight"],
   ["demo_customize", "Demo: customize"],
   ["demo_setup_code_copied", "Demo: setup code copied"],
   ["bench_row_switched", "Bench row switched"],
 ] as const;
 
-export async function siteTraffic(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteTraffic(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const cur = isCurrent(w);
   const prev = isPrevious(w);
   const rows = await query(
-    `SELECT ${bucket(w.step)} AS b,
+    `SELECT ${bucket(w)} AS b,
        uniqIf(distinct_id, ${cur}), countIf(${cur}), uniqIf(distinct_id, ${MAC} AND ${cur}),
        uniqIf(distinct_id, ${cur}), countIf(${cur}), uniqIf(session_id, ${cur}), uniqIf(distinct_id, ${MAC} AND ${cur}), uniqIf(distinct_id, ${PHONE} AND ${cur}),
        uniqIf(distinct_id, ${prev}), countIf(${prev}), uniqIf(session_id, ${prev}), uniqIf(distinct_id, ${MAC} AND ${prev}), uniqIf(distinct_id, ${PHONE} AND ${prev})
@@ -64,8 +66,8 @@ export async function siteTraffic(range: RangeKey, signal?: AbortSignal) {
   };
 }
 
-export async function siteBreakdowns(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteBreakdowns(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const rows = await query(
     `SELECT dim, key, uniq(distinct_id) AS visitors, count() AS views
      FROM (
@@ -123,8 +125,8 @@ function safeDecode(text: string) {
   }
 }
 
-export async function siteClicks(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteClicks(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const cur = isCurrent(w);
   const prev = isPrevious(w);
   const events = CLICK_EVENTS.map(([e]) => `'${e}'`).join(", ");
@@ -161,8 +163,8 @@ export async function siteClicks(range: RangeKey, signal?: AbortSignal) {
 const MAX_SPOTS = 80;
 const FRICTION_KIND: Record<string, "Rage" | "Dead" | "Swipe"> = { $rageclick: "Rage", $dead_click: "Dead", $dead_swipe: "Swipe" };
 
-export async function siteFriction(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteFriction(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const cur = isCurrent(w);
   const prev = isPrevious(w);
   const from = since(compareStart(w));
@@ -177,7 +179,7 @@ export async function siteFriction(range: RangeKey, signal?: AbortSignal) {
          WHERE event IN (${CLICK_SITE_EVENTS}) AND ${from} AND ${SITE} AND session_id != ''
          GROUP BY session_id
        )
-       SELECT event AS kind, substring(properties['$el_text'], 1, 90) AS text, ${prop("$pathname")} AS path, ${bucket(w.step)} AS b,
+       SELECT event AS kind, substring(properties['$el_text'], 1, 90) AS text, ${prop("$pathname")} AS path, ${bucket(w)} AS b,
          countIf(${real} AND ${cur}), uniqIf(distinct_id, ${real} AND ${cur}),
          countIf(${explained} AND ${cur}),
          countIf(${real} AND ${prev}), uniqIf(distinct_id, ${real} AND ${prev}),
@@ -189,7 +191,7 @@ export async function siteFriction(range: RangeKey, signal?: AbortSignal) {
       signal,
     ),
     query(
-      `SELECT ${prop("$pathname")} AS path, ${bucket(w.step)} AS b, uniqIf(distinct_id, ${cur}), uniqIf(distinct_id, ${prev})
+      `SELECT ${prop("$pathname")} AS path, ${bucket(w)} AS b, uniqIf(distinct_id, ${cur}), uniqIf(distinct_id, ${prev})
        FROM telemetry.events
        WHERE event = '$pageview' AND ${from} AND ${SITE}
        GROUP BY GROUPING SETS ((path), (b), ())`,
@@ -256,8 +258,8 @@ function normalCdf(z: number) {
   return z > 0 ? 1 - p : p;
 }
 
-export async function siteExperiment(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteExperiment(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const rows = await query(
     `SELECT variant, count(), countIf(clicked_after), countIf(band_click)
      FROM (
@@ -286,8 +288,8 @@ export async function siteExperiment(range: RangeKey, signal?: AbortSignal) {
   return { variants, pValue };
 }
 
-export async function siteVitals(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteVitals(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const metric = (m: string) =>
     `quantileIf(0.75)(toFloat64OrZero(properties['$web_vitals_${m}_value']), properties['$web_vitals_${m}_value'] != ''), countIf(properties['$web_vitals_${m}_value'] != '')`;
   const rows = await query(

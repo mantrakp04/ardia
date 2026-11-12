@@ -25,7 +25,6 @@ const time = (fn, runs = 30) => {
 };
 const report = (name, value, unit = "ms") => console.log(`${name.padEnd(52)} ${typeof value === "number" ? value.toFixed(3) : value} ${unit}`);
 
-// One window with `count` tabs: every 10th pair a split, groups of 20 (one of `bigGroup` members), titled pages.
 function bigSession(count, bigGroup = 0) {
   const tabs = {};
   const ids = [];

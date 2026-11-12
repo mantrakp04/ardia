@@ -1,8 +1,18 @@
 # `ardia browse script` recipes
 
 A script is one call that does what would otherwise be a command per item. It runs in a blank background page of
-its own; every `page.*` call is an `ardia browse` command on this session, with the same tab, refs, rules and change
-reports. `ardia browse script --help` lists every call. Selectors are CSS, `@eN`, `text=…` or `xpath=…`.
+its own, outside the page it drives: there's no `document` or `window`. Every `page.*` call is an `ardia browse`
+command on this session, with the same tab, refs, rules and change reports. `ardia browse script --help` lists every
+call. Selectors are CSS, `@eN`, `text=…` or `xpath=…`.
+
+DOM code goes in `page.evaluate(fn, arg)` (or `page.eval`), which runs `fn` in the page like `ardia browse eval`.
+`fn` can't see the script's variables; pass what it needs as `arg`:
+
+```js
+const min = 100;
+return await page.evaluate((min) => [...document.querySelectorAll('tr')]
+  .filter((row) => Number(row.cells[2]?.textContent) > min).map((row) => row.cells[0].textContent), min);
+```
 
 Return only the fields you need: the return value prints as JSON and counts toward the output cap. It stops at
 `--timeout` (default 90s, at most 10m) and after any command whose outcome is unknown. A failed command throws
@@ -75,4 +85,4 @@ EOF
 
 `browse('tab', 'list')` runs any other command and returns `{text, data}`. `page.snapshot('-i -s main')` returns a
 snapshot to search for refs. `page.wait({ text: 'Saved' })` waits for text, a URL, a load state or a function.
-`page.evaluate(fn, arg)` runs in the page's own world, like `eval`.
+`page.dblclick(sel)`, `page.focus(sel)` and `page.keyboard(text)` cover cells and fields that only take typing.

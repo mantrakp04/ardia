@@ -42,6 +42,8 @@ public class ImportModule: Module {
     Name("ArdiaImport")
     Events("onImportEvent")
 
+    OnCreate { Self.work.async { SQLiteSnapshot.removeLeftovers() } }
+
     AsyncFunction("listBrowsers") { (promise: Promise) in
       self.run(promise) { try Self.json(self.importer.discovery.list()) }
     }

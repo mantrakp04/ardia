@@ -28,4 +28,12 @@ export function parseCliCaller(raw: unknown): CliCaller | null {
   return name ? { name, app: cleanApp(fields.app) } : null;
 }
 
-export const callerLabel = (caller: CliCaller | null) => caller?.name ?? CLI_CALLER_FALLBACK;
+export type ControlLine = { lead: string; name: string; rest: string };
+
+export function controlLine(caller: CliCaller | null): ControlLine {
+  const name = caller?.name ?? CLI_CALLER_FALLBACK;
+  if (name.toLowerCase() === CLI_CALLER_FALLBACK) return { lead: "The ", name: CLI_CALLER_FALLBACK, rest: " command is controlling Ardia" };
+  return { lead: "", name, rest: " is controlling Ardia" };
+}
+
+export const controlLineText = ({ lead, name, rest }: ControlLine) => `${lead}${name}${rest}`;

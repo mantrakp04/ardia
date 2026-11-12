@@ -37,7 +37,7 @@ another. Disclosed in Settings › What's Sent (“Even with sharing off”) and
 
 `ARDIA_SWITCHES="newTabPrewarm=off,lazySidebarRows=off"` sets a launch's values over everything else, in every build.
 `ArdiaLaunchConfig` parses it once; native code asks it (`switchOn:`, `experimentOn:`), JS through
-`platform/launchConfig.ts`, and the engine gets it as `--ardia-switches` (the GPU process too). A test instance has no
+`platform/launchConfig.ts`, and the engine's browser process gets it as `--ardia-switches`. A test instance has no
 updater, so it never fetches.
 
 ## The switches (see `SWITCHES` for owners and dates)
@@ -60,7 +60,6 @@ and a `removeBy` like the switches, don't count against the 8, and the site's sw
 
 | Experiment | On means |
 |---|---|
-| `beginFrameBridge` | while a shown tab waits for the display link's first callback, the GPU process sends up to 4 warm-up BeginFrames on the display's last vsync grid (`chromium-begin-frame-warm-up.patch`; engine, read in every process) |
 | `serverWindowDragAllOpen` | with `serverWindowDrag`, every view in the titlebar band is left open to window moves (`ServerWindowDrag.swift`) |
 | `webkitSignIn` | moving a Chromium page to WebKit first copies the cookies that page's own address gets (HttpOnly included, partitioned ones left out) into the profile's WebKit store, so a cookie sign-in (Netflix, Spotify…) comes along; at most 1.5 s, then the move goes ahead either way (`state/engines/engineSignIn.ts`, `WebKitCookieImport.swift`) |
 

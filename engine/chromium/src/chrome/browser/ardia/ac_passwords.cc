@@ -13,7 +13,6 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
@@ -261,6 +260,10 @@ void Settle(Session session, Reply reply, Check landed, int checks_left) {
           landed, checks_left));
 }
 
+std::u16string UTF16Of(const Secret& secret) {
+  return base::UTF8ToUTF16(secret.value());
+}
+
 Check Saved(std::string origin, std::string username, Secret password) {
   return base::BindRepeating(
       [](const std::string& origin, const std::string& username,
@@ -276,23 +279,18 @@ Check Saved(std::string origin, std::string username, Secret password) {
           if (!password.present()) {
             return true;
           }
-          std::optional<password_manager::CredentialUIEntry> credential =
-              delegate->GetCredentialFromId(entry.id);
+          auto credential = delegate->GetCredentialFromId(entry.id);
           if (!credential) {
             return false;
           }
-          std::string saved = base::UTF16ToUTF8(credential->password);
-          const bool same = saved == password.value();
-          Cleanse(saved);
-          Cleanse(credential->password);
+          std::u16string typed = UTF16Of(password);
+          const bool same = credential->password == typed;
+          Cleanse(typed);
+          credential->password.clear();
           return same;
         });
       },
       std::move(origin), std::move(username), std::move(password));
-}
-
-std::u16string UTF16Of(const Secret& secret) {
-  return base::UTF8ToUTF16(secret.value());
 }
 
 Check Gone(std::string origin, std::string username) {
@@ -384,7 +382,10 @@ AC_PROFILE_CALL(ac_passwords_reveal) {
                       }
                       base::DictValue result;
                       if (credential) {
-                        result.Set("password", credential->password);
+                        std::u16string plain = credential->password.value();
+                        credential->password.clear();
+                        result.Set("password", plain);
+                        ardia::Cleanse(plain);
                       } else {
                         result.Set("password", base::Value());
                       }

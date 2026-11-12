@@ -14,7 +14,11 @@
 #   4. engine/patches/series.py check (the patch series reproduces the tree; ~5 s, no writes outside a scratch
 #      dir; --no-series-check skips it while you're remaking a patch);
 #   5. autoninja -C out/Release_GN_arm64 <target…> in ~/chromium-build/chromium_git/chromium/src, with
-#      engine/patches/build/env.sh's environment (depot_tools on PATH, DEPOT_TOOLS_UPDATE=0).
+#      engine/patches/build/env.sh's environment (depot_tools on PATH, DEPOT_TOOLS_UPDATE=0), at most one local job
+#      per 2.5 GB of RAM (and per CPU) and twice that many steps in flight, through -local_jobs and SISO_LIMITS:
+#      siso's defaults let ~150 mojom generators (~225 MB each) run at once, which panicked a 32 GB Mac twice.
+#      PYTHONPATH also loads scripts/agent/python-worker-cap, so a Python step's multiprocessing pool (mojom_parser.py
+#      starts one worker per CPU in every step) gets 2 workers: 12 steps x 12 workers panicked it a third time.
 # Targets default to chrome_framework (ArdiaCore's framework; the app's next build stages it, so say so).
 # --wait is how long to wait for the lock (locked's default: 500 s). A real build can take far longer than the
 # Bash tool's 10 minutes: run this with run_in_background and act on the notification.
@@ -94,5 +98,13 @@ if [[ -n "$series_check" ]]; then
 fi
 step "source engine/patches/build/env.sh" source "$repo/engine/patches/build/env.sh"
 step "cd $src" cd "$src"
-step "autoninja -C $out ${targets[*]}" autoninja -C "$out" "${targets[@]}"
+memory_gb=$(( $(sysctl -n hw.memsize) / 1073741824 ))
+cpus=$(sysctl -n hw.ncpu)
+local_jobs=$(( memory_gb * 10 / 25 ))
+(( local_jobs > cpus )) && local_jobs=$cpus
+(( local_jobs < 2 )) && local_jobs=2
+export SISO_LIMITS="step=$(( local_jobs * 2 )),local=$local_jobs,remote=$local_jobs,startlocal=$local_jobs,fastlocal=$local_jobs"
+export PYTHONPATH="$repo/scripts/agent/python-worker-cap${PYTHONPATH:+:$PYTHONPATH}"
+echo "engine-build: $local_jobs local jobs, $(( local_jobs * 2 )) steps in flight (SISO_LIMITS=$SISO_LIMITS)" >&2
+step "autoninja -C $out ${targets[*]}" autoninja -C "$out" -local_jobs="$local_jobs" "${targets[@]}"
 echo "engine-build: built ${targets[*]} in $src/$out" >&2

@@ -266,7 +266,7 @@ function ConnectDeviceSheet() {
       <Box row gap="xl" style={[SECTION_TOP, { alignItems: "center" }]}>
         <View style={QR_BOX}>{qr ? <Image source={{ uri: qr }} style={QR} /> : <Button title="Show Code" onPress={() => void recoveryQrCode()?.then(setQr)} />}</View>
         <Text size="small" tone="textSecondary" style={QR_NOTE}>
-          Or scan this code with your iPhone’s camera to copy the words, then paste them on your other Mac with Universal Clipboard.
+          On your iPhone, open Ardia, tap Sync With Mac, and scan this code. For another Mac, you can also scan it with your iPhone’s camera and paste the words there with Universal Clipboard.
         </Text>
       </Box>
       {words ? (

@@ -106,6 +106,11 @@ test("WebKit's page script sends at most 16 distinct drm messages per frame", ()
   assert.equal(posted.length, 16);
 });
 
+test("WebKit's page script feeds the scroll detector the page's input the way page_script.js does", () => {
+  const wiring = (text) => between(text, "const direction = scrollDirection();", "const measureScroll = ");
+  assert.equal(wiring(webKitScript), wiring(pageScript));
+});
+
 test("WebKit's page script measures scrolling the way page_script.js does", () => {
   const measure = (text) =>
     between(text, "const target = scrollTarget;", "addEventListener(\"resize\"").replace(/\b(send|post)\("scroll"/, "report(\"scroll\"").replace(/\n?try \{|\n?\} catch \(e\) \{\}\n?\};|\n?\}\);/g, "");

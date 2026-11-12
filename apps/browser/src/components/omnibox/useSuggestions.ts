@@ -8,7 +8,7 @@ import {
   type SearchScope,
   type SuggestionResult,
 } from "@ardia/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { bookmarksByUrl } from "../../state/bookmarks/bookmarks";
 import { useMenuBarRevision } from "../../state/commands/commandShortcuts";
 import { useSettings } from "../../state/browser/hooks";
@@ -22,6 +22,7 @@ import { useBangs } from "../../state/omnibox/bangs";
 import { useBarExtensions } from "./extensions";
 import { historyHosts } from "../../state/omnibox/knownHosts";
 import { useProviderSections } from "./useProviderSections";
+import { browserSuggestFetch, remoteSuggestionsAllowed, suggestProfileKey } from "../../state/omnibox/suggestTransport";
 
 const NO_REMOTE: string[] = [];
 const EMPTY: SuggestionResult = { items: [], completion: "" };
@@ -97,20 +98,25 @@ export function useSuggestions({
   }, [source]);
 
   const [remote, setRemote] = useState<{ text: string; list: string[] }>({ text: "", list: [] });
-  const fetcher = useRef(createSuggestFetcher({ fetch: (url, init) => fetch(url, init) })).current;
+  const suggestProfile = suggestProfileKey(profileId);
+  const remoteAllowed = remoteSuggestionsAllowed(profileId);
+  const fetcher = useMemo(() => createSuggestFetcher({ fetch: browserSuggestFetch(suggestProfile) }), [suggestProfile]);
+  useEffect(() => {
+    setRemote({ text: "", list: [] });
+    return () => fetcher.cancel();
+  }, [fetcher]);
   const query = text.trim();
   const fromEngine = suggestEngine(scope, engines, engine);
   const bangs = useBangs(active && !scope && query.includes("!"));
   const bang = useMemo(() => (bangs ? findBang(query, bangs) : null), [bangs, query]);
   useEffect(() => {
     const q = query.replace(/^\?/, "").trim();
-    if (!active || !suggestionsOn || !q || bang || /^[a-z][a-z0-9+.-]*:\/\//i.test(q) || scope?.kind === "history" || scope?.kind === "provider") {
+    if (!active || !suggestionsOn || !remoteAllowed || !q || bang || /^[a-z][a-z0-9+.-]*:\/\//i.test(q) || scope?.kind === "history" || scope?.kind === "provider") {
       fetcher.cancel();
       return;
     }
     fetcher.request(fromEngine, q, (list) => setRemote({ text: query, list }));
-  }, [active, suggestionsOn, query, bang, fromEngine, scope, fetcher]);
-  useEffect(() => () => fetcher.cancel(), [fetcher]);
+  }, [active, suggestionsOn, remoteAllowed, query, bang, fromEngine, scope, fetcher]);
 
   const providers = useProviderSections({ text, active, scope, windowId, skip: !!bang });
 

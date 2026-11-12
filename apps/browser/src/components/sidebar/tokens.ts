@@ -84,6 +84,7 @@ export const HOVER_CARD_OUT_SPRING = { response: 0.2, damping: 0.6 } as const;
 export const TAB_ROW = { contentLeft: 9, trailing: 6, titleGap: 5, titleHeight: 18, compactTitleHeight: 17, closeSlot: 22 } as const;
 
 export const TILE_RIM = 1;
+export const TILE_STATUS = { pip: 8, speaker: 9.5, box: { width: 14, height: 12 }, inset: { x: 5, y: 4 } } as const;
 
 export const AWAY_TITLE = { slashAlpha: 0.45, slashGap: 4, pinnedMaxWidth: "45%" } as const;
 
@@ -94,6 +95,8 @@ export const SIDEBAR_TYPE = { compact: font.small.fontSize } as const;
 export function groupTint(color: GroupColor | null | undefined): string | null {
   return color && color !== "none" ? (GROUP_COLORS[color]?.hex ?? null) : null;
 }
+
+export const groupBoxAtRest = (color: GroupColor | null | undefined) => groupTint(color) !== null;
 
 export function groupSurface(color: GroupColor | null | undefined, tokens: SidebarTokens): { fill: string; stroke: string } {
   if (color === "none") return { fill: "transparent", stroke: "transparent" };

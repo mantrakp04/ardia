@@ -15,7 +15,7 @@ VALUE_FLAGS = {
 }
 BOOL_FLAGS = {
     "--json", "--no-humanize", "--humanize", "--content-boundaries", "--annotate", "--no-auto-dialog", "--pin-tab", "--no-pin-tab",
-    "--debug", "--capture-console", "--show", "--full", "--no-changes",
+    "--debug", "--capture-console", "--show", "--full", "--no-changes", "--no-text",
 }
 LAUNCH_ONLY = {
     "--headed": False, "--profile": True, "--executable-path": True, "--extension": True, "--args": True, "--user-agent": True,
@@ -108,6 +108,7 @@ def options_from(found: dict, env: dict) -> dict:
         "max_output": max_output,
         "full": bool(found.get("full")),
         "no_changes": bool(found.get("no_changes")),
+        "no_text": bool(found.get("no_text")),
         "content_boundaries": found.get("content_boundaries") or truthy(env.get("AGENT_BROWSER_CONTENT_BOUNDARIES")),
         "annotate": found.get("annotate") or truthy(env.get("AGENT_BROWSER_ANNOTATE")),
         "screenshot_dir": found.get("screenshot_dir"),
@@ -389,7 +390,7 @@ def run(argv: list[str]) -> int:
     as_json = bool(found.get("json") or truthy(env.get("AGENT_BROWSER_JSON")))
     if not rest or rest[0] in ("help", "--help", "-h"):
         topic = rest[1] if len(rest) > 1 else None
-        sys.stdout.write((helptext.COMMANDS.get(topic) or helptext.OVERVIEW) + "\n")
+        sys.stdout.write(helptext.command_help(topic) + "\n")
         return 0
     if rest[0] in ("--version", "-V"):
         from ardia_cli import __version__
@@ -397,7 +398,7 @@ def run(argv: list[str]) -> int:
         sys.stdout.write(f"ardia browse {__version__}\n")
         return 0
     if "--help" in rest[1:] or "-h" in rest[1:]:
-        sys.stdout.write((helptext.COMMANDS.get(rest[0]) or helptext.OVERVIEW) + "\n")
+        sys.stdout.write(helptext.command_help(rest[0]) + "\n")
         return 0
     try:
         options = options_from(found, env)

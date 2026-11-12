@@ -91,8 +91,9 @@ export function SettingsWindow() {
   const revealPane = reveal ? (findSetting(reveal.id)?.pane ?? null) : null;
   const showAdvanced = useSettings((s) => s.showAdvancedSettings);
   const revealedSections = useSettingsSearch((s) => s.revealedSections);
+  const previewSection = useSettingsSearch((s) => s.previewSection);
   const panes = PANES.filter(
-    (p) => showAdvanced || !ADVANCED_PANES.has(p.id) || nav.pane === p.id || revealedSections.some((k) => k.startsWith(settingsSectionKey(p.id, ""))),
+    (p) => showAdvanced || !ADVANCED_PANES.has(p.id) || nav.pane === p.id || [...revealedSections, previewSection ?? ""].some((k) => k.startsWith(settingsSectionKey(p.id, ""))),
   );
   const switched = useRef(key);
   useEffect(() => {

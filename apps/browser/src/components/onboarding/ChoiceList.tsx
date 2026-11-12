@@ -3,6 +3,7 @@ import { View } from "react-native";
 import type { PreviewId } from "./previews";
 import { space } from "../ui/tokens";
 import { OptionCard } from "./OptionCard";
+import { useOnboardingCard } from "./Parts";
 
 const REPLAY_GAP = 280;
 const REPLAY_LENGTH = 1700;
@@ -51,21 +52,24 @@ export function ChoiceList<T extends string | number | boolean | null>({
   onChange: (value: T) => void;
   mock: MockFocus;
 }) {
+  const dense = useOnboardingCard().compact;
   return (
-    <View style={{ gap: space.m }} accessibilityRole="radiogroup">
+    <View style={{ gap: space.m, flexDirection: dense ? "row" : "column" }} accessibilityRole="radiogroup">
       {options.map((o) => (
-        <OptionCard
-          key={String(o.value)}
-          control="radio"
-          title={o.title}
-          subtitle={o.subtitle}
-          selected={o.value === value}
-          onHover={(on) => mock.hover(o.preview, on)}
-          onPress={() => {
-            if (o.value !== value) onChange(o.value);
-            mock.replay(o.preview);
-          }}
-        />
+        <View key={String(o.value)} style={dense ? { flex: 1 } : null}>
+          <OptionCard
+            control="radio"
+            title={o.title}
+            subtitle={dense ? undefined : o.subtitle}
+            dense={dense}
+            selected={o.value === value}
+            onHover={(on) => mock.hover(o.preview, on)}
+            onPress={() => {
+              if (o.value !== value) onChange(o.value);
+              mock.replay(o.preview);
+            }}
+          />
+        </View>
       ))}
     </View>
   );

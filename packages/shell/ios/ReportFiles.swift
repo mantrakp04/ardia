@@ -7,7 +7,8 @@ enum ReportFiles {
   private static let chunk = 1 << 20
 
   static func draftDirectory() -> String {
-    let base = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("ArdiaReport", isDirectory: true)
+    let base = (try? DocumentStore.url("Report Drafts"))
+      ?? URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("ArdiaReport", isDirectory: true)
     let dir = base.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     return dir.path

@@ -1,11 +1,9 @@
 import json
-import sys
 
 from ardia_cli import browsing
-from ardia_cli.endpoint import data_root
-from ardia_cli.printable import shown
+from ardia_cli.endpoint import DATA_DIR_HELP, data_root
+from ardia_cli.printable import complain, say, shown
 
-DATA_DIR_HELP = "the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)"
 READS = """\
 Reads <data dir>/session.json and Chromium's History files, never cookies, passwords, Login Data or Web Data.
 Needs Ardia running with "Let the ardia command control Ardia" on. Incognito, guest and system profiles are skipped.
@@ -42,17 +40,6 @@ def add_parsers(commands, formatter):
     history.add_argument("--domains", action="store_true", help="one row per domain instead of per URL")
     history.add_argument("--json", action="store_true", help="print JSON")
     history.add_argument("--data-dir", metavar="DIR", help=DATA_DIR_HELP)
-
-
-def say(text: str) -> None:
-    sys.stdout.write(text + "\n")
-    sys.stdout.flush()
-
-
-def complain(text: str) -> None:
-    sys.stdout.flush()
-    sys.stderr.write(text + "\n")
-    sys.stderr.flush()
 
 
 def run(args) -> int:

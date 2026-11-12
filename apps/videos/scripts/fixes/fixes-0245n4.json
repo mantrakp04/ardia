@@ -1,5 +1,6 @@
 {
   "id": "fixes-0245n4",
+  "dropEvents": ["asked", "gone", "reopen"],
   "segments": [
     {
       "scene": "n4close",

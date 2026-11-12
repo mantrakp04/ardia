@@ -2,6 +2,7 @@ import { copyText } from "../../platform/clipboard";
 import { useBrowser } from "../browser/store";
 import { resolveWindowId, tabLayoutOf } from "../browser/model";
 import { useOnboarding } from "../onboarding/onboarding";
+import { adoptSetupChoices } from "../onboarding/setupCodeChoices";
 import { PINNABLE_SITES, pinSites } from "../onboarding/sites";
 import { choosePresetColor } from "../profiles/themeActions";
 import type { Settings } from "../settings/settings";
@@ -53,21 +54,6 @@ export function applySetupCodeInOnboarding(code: string): SetupCodeApplied {
   const { choices } = decoded;
   applyChoices(choices, useOnboarding.getState().windowId);
   const lines = describeSetupChoices(choices);
-  useOnboarding.setState((o) => {
-    const draft = { ...o.draft };
-    const baseline = { ...o.baseline };
-    for (const key of Object.keys(choices.settings)) {
-      delete draft[key as keyof Settings];
-      delete baseline[key as keyof Settings];
-    }
-    if (choices.color) delete baseline.color;
-    return {
-      preset: choices.preset ?? o.preset,
-      draft,
-      baseline,
-      extras: choices.pins ? { ...o.extras, pins: choices.pins } : o.extras,
-      picked: { ...o.picked, source: lines },
-    };
-  });
+  adoptSetupChoices(choices, lines);
   return { ok: true, lines };
 }

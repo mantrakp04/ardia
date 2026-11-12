@@ -2,7 +2,7 @@ import type { EventSubscription } from "expo-modules-core";
 import type { BangListReply } from "./documents";
 
 export type AppEvent =
-  | { type: "reopen" }
+  | { type: "reopen"; pastFloating: boolean }
   | { type: "willQuit" }
   | { type: "quitCancelled" }
   | { type: "appearance"; dark: boolean }

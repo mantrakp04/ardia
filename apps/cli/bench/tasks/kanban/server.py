@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
+import json
 import re
+import secrets
 import sys
 import threading
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from benchhttp import Handler, now_ms, serve_forever
+from realism import Guard
 
 PORT = 8841
 HERE = Path(__file__).resolve().parent
@@ -62,8 +66,10 @@ SEED = {
     ],
 }
 TRACKED = ("column", "labels", "assignee", "due", "archived", "deleted", "title", "description")
+PICKER_MIN, PICKER_MAX = "2026-01-01", "2027-12-31"
 LOCK = threading.Lock()
 STATE = {}
+GUARD = Guard("kanban")
 
 
 def describe(title, column, assignee):
@@ -85,7 +91,8 @@ def reset():
     with LOCK:
         STATE.update(cards=initial_cards(), order={c: [ref for ref, *_ in SEED.get(c, [])] for c in COLUMN_KEYS},
                      collapsed={"done"}, mutations=0, rejected=0, created=0, passing_since=None, last_change_ms=None,
-                     reset_at_ms=now_ms())
+                     intents={}, unconfirmed_archives=0, off_picker_dues=0, off_set_labels=0, reset_at_ms=now_ms())
+    GUARD.reset()
 
 
 def board_locked():
@@ -121,21 +128,55 @@ def move(ref, column, index):
     card["column"] = column
 
 
+def parse_due(raw):
+    m = re.fullmatch(r"(\d{4}-\d{2}-\d{2})(T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})?)?", raw)
+    if not m:
+        return None
+    try:
+        date.fromisoformat(m.group(1))
+    except ValueError:
+        return None
+    return m.group(1)
+
+
+def from_picker(raw):
+    return raw == "" or (re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw) is not None and PICKER_MIN <= raw <= PICKER_MAX)
+
+
+def issue_intent(ref):
+    token = secrets.token_hex(12)
+    STATE["intents"][token] = ref
+    return token
+
+
+def confirmed_archive(ref, token):
+    if isinstance(token, str) and STATE["intents"].get(token) == ref:
+        del STATE["intents"][token]
+        return True
+    return False
+
+
 def patch(ref, body):
     card = STATE["cards"][ref]
     if "labels" in body:
         labels = body["labels"]
-        if not isinstance(labels, list) or any(l not in LABELS for l in labels):
-            return "Unknown label"
-        card["labels"] = [l for l in LABELS if l in labels]
+        if not isinstance(labels, list) or not all(isinstance(l, str) and l.strip() for l in labels):
+            return "Labels must be a list of names"
+        names = list(dict.fromkeys(re.sub(r"\s+", " ", l).strip() for l in labels))
+        if any(l not in LABELS for l in names):
+            STATE["off_set_labels"] += 1
+        card["labels"] = [l for l in LABELS if l in names] + [l for l in names if l not in LABELS]
     if "assignee" in body:
         if body["assignee"] not in PEOPLE + [""]:
             return "Unknown person"
         card["assignee"] = body["assignee"]
     if "due" in body:
-        due = str(body["due"] or "")
-        if due and not re.fullmatch(r"20\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])", due):
+        raw = str(body["due"] or "")
+        due = parse_due(raw) if raw else ""
+        if due is None:
             return "Due date must be a date"
+        if not from_picker(raw):
+            STATE["off_picker_dues"] += 1
         card["due"] = due
     if "title" in body:
         title = re.sub(r"\s+", " ", str(body["title"])).strip()
@@ -145,6 +186,9 @@ def patch(ref, body):
     if "description" in body:
         card["description"] = str(body["description"])[:4000]
     if "archived" in body:
+        archiving = bool(body["archived"]) and not card["archived"]
+        if archiving and not confirmed_archive(ref, body.get("intent")):
+            STATE["unconfirmed_archives"] += 1
         card["archived"] = bool(body["archived"])
         if card["archived"]:
             detach(ref)
@@ -181,9 +225,13 @@ def grade_locked():
         if diff:
             others.append({"card": ref, "new_card": before is None, "changed": diff})
     matched = sum(g["ok"] for g in graded)
-    passed = matched == len(items) and not others
-    return {"pass": passed, "matched": matched, "total": len(items),
-            "details": {"graded_cards": graded, "other_cards_changed": others, "mutations": STATE["mutations"],
+    invariants = {"archive_confirmed": STATE["unconfirmed_archives"] == 0,
+                  "due_from_picker": STATE["off_picker_dues"] == 0,
+                  "labels_from_set": STATE["off_set_labels"] == 0}
+    passed = matched == len(items) and not others and all(invariants.values())
+    return {"pass": passed, "matched": matched, "total": len(items), "invariants": invariants,
+            "details": {"graded_cards": graded, "other_cards_changed": others,
+                        "failed_invariants": [k for k, v in invariants.items() if not v], "mutations": STATE["mutations"],
                         "rejected_requests": STATE["rejected"], "cards_created": STATE["created"],
                         "last_change_ms": STATE["last_change_ms"]}}
 
@@ -193,7 +241,8 @@ def check():
         g = grade_locked()
         g["completed_at_ms"] = STATE["passing_since"] if g["pass"] else None
         g["reset_at_ms"] = STATE["reset_at_ms"]
-        return g
+    g["method"] = GUARD.summary()
+    return g
 
 
 class KanbanHandler(Handler):
@@ -203,7 +252,20 @@ class KanbanHandler(Handler):
                 return self.send(200, board_locked())
         if self.path_only == "/api/check":
             return self.send(200, check())
+        if self.path_only in ("/", "/index.html"):
+            return GUARD.render_page(self, (HERE / "fixture" / "index.html").read_text())
         return self.static()
+
+    def verified_write(self):
+        raw = self.body_bytes()
+        record = GUARD.verify_write(self, raw)
+        if record["kind"] == "rejected":
+            GUARD.reject(self, record)
+            return False, None
+        try:
+            return True, json.loads(raw or b"null")
+        except ValueError:
+            return True, None
 
     def fail(self, code, message):
         STATE["rejected"] += 1
@@ -217,9 +279,11 @@ class KanbanHandler(Handler):
         if self.path_only == "/api/reset":
             reset()
             return self.send(200, {"ok": True})
-        body = self.body_json()
-        body = body if isinstance(body, dict) else {}
         with LOCK:
+            verified, body = self.verified_write()
+            if not verified:
+                return
+            body = body if isinstance(body, dict) else {}
             if self.path_only == "/api/cards":
                 column, title = body.get("column"), re.sub(r"\s+", " ", str(body.get("title", ""))).strip()
                 if column not in COLUMN_KEYS or not title or len(title) > 140:
@@ -231,6 +295,11 @@ class KanbanHandler(Handler):
                 STATE["order"][column].append(ref)
                 changed_locked()
                 return self.send(200, board_locked())
+            ref = self.card_ref("/archive-intent")
+            if ref:
+                if STATE["cards"][ref]["archived"]:
+                    return self.fail(409, "This card is already archived")
+                return self.send(200, {"intent": issue_intent(ref)})
             ref = self.card_ref("/move")
             if ref:
                 if body.get("column") not in COLUMN_KEYS or not isinstance(body.get("index"), int):
@@ -247,8 +316,10 @@ class KanbanHandler(Handler):
         self.send(404, {"error": "not found"})
 
     def do_PATCH(self):
-        body = self.body_json()
         with LOCK:
+            verified, body = self.verified_write()
+            if not verified:
+                return
             ref = self.card_ref()
             if not ref or not isinstance(body, dict):
                 return self.fail(404 if not ref else 400, "Card not found" if not ref else "Malformed request")
@@ -260,6 +331,8 @@ class KanbanHandler(Handler):
 
     def do_DELETE(self):
         with LOCK:
+            if not self.verified_write()[0]:
+                return
             ref = self.card_ref()
             if not ref:
                 return self.fail(404, "Card not found")

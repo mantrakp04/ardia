@@ -105,5 +105,3 @@ export const computerUse = {
   charts: MODELS.map(chartOf),
   source: `${REPO}/tree/main/apps/cli/bench`,
 };
-
-export const showComputerUse: boolean = import.meta.env.DEV || import.meta.env.COMPUTER_USE_PUBLISHED;

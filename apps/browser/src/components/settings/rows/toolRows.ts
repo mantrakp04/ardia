@@ -51,8 +51,8 @@ export const toolRows = {
     {
       section: "Meeting alerts",
       rows: {
-        nextAlert: { title: "Show next meeting alert", keywords: ["reminder", "notification", "join"] },
-        alertCondition: { advanced: true, title: "Show alerts", description: "With Always, alerts also appear in Notification Center while you're in another app.", keywords: ["notifications"] },
+        nextAlert: { title: "Show next meeting alert", keywords: ["reminder", "join", "popup"] },
+        alertCondition: { advanced: true, title: "Show alerts", description: "With Always, alerts also appear in Notification Center while you're in another app.", keywords: ["system alerts", "banner"] },
       },
     },
     {
@@ -63,9 +63,9 @@ export const toolRows = {
           advanced: true,
           title: "Show time to next meeting",
           description: "A countdown badge on the pinned calendar tab before a meeting, and a red Now while it runs. Right-click the tab to hide Now for that meeting.",
-          keywords: ["countdown", "badge", "now", "dismiss"],
+          keywords: ["countdown", "now", "dismiss"],
         },
-        countdownLead: { advanced: true, title: "Start countdown", description: "How long before a meeting the badge appears.", keywords: ["countdown", "badge", "minutes", "lead time", "next meeting"] },
+        countdownLead: { advanced: true, title: "Start countdown", description: "How long before a meeting the badge appears.", keywords: ["countdown", "minutes", "lead time", "next meeting"] },
       },
     },
     {
@@ -194,8 +194,8 @@ export const toolRows = {
     {
       section: "Command line",
       rows: {
-        cliControl: { advanced: true, title: "Let the ardia command control Ardia", keywords: ["cli", "terminal", "devtools", "automation", "remote debugging"] },
-        cliInstall: { advanced: true, title: "The ardia command", keywords: ["cli", "terminal", "install"] },
+        cliControl: { advanced: true, title: "Let the ardia command control Ardia", keywords: ["cli", "command line", "terminal", "shell", "devtools", "automation", "remote debugging"] },
+        cliInstall: { advanced: true, title: "The ardia command", keywords: ["cli", "command line", "terminal", "shell", "install"] },
       },
     },
     {
@@ -219,7 +219,7 @@ export const toolRows = {
     {
       section: "Source and licenses",
       rows: {
-        source: { advanced: true, title: "Source code", description: "Ardia is open source under the Apache License 2.0.", keywords: ["github", "open source"] },
+        source: { advanced: true, title: "Source code", description: "Ardia is free software under the GNU General Public License v3, with no warranty.", keywords: ["github", "open source", "gpl", "license"] },
         licenses: { advanced: true, title: "Licenses", description: "Every open-source part of the engine, with its copyright and license.", keywords: ["credits", "legal"] },
       },
     },

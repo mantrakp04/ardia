@@ -8,13 +8,17 @@ public struct SharedFolderDirectory {
   static let maxManifestBytes = 1024 * 1024
   static let placeholderSuffix = ".icloud"
 
+  public static let coordination = SyncCoordination(timeout: 20)
+
   public let root: URL
   private let rootReal: String
+  private let coordination: SyncCoordination?
   private let fileManager = FileManager.default
 
-  public init(root: URL) {
+  public init(root: URL, coordination: SyncCoordination? = SharedFolderDirectory.coordination) {
     self.root = root.standardizedFileURL
     self.rootReal = Self.realPath(self.root.path) ?? self.root.path
+    self.coordination = coordination
   }
 
   public func read() -> [String: Any] {
@@ -35,7 +39,13 @@ public struct SharedFolderDirectory {
     guard Self.isDirectoryFollowing(root.path) else { throw Self.failure("The folder “\(root.lastPathComponent)” is missing.") }
     var conflicts: [String] = []
     for op in ops {
-      if let conflict = try apply(op) {
+      let conflict: String?
+      do {
+        conflict = try apply(op)
+      } catch is SyncCoordination.TimedOut {
+        throw Self.failure("The folder “\(root.lastPathComponent)” didn’t answer in time.")
+      }
+      if let conflict {
         conflicts.append(conflict)
         break
       }
@@ -287,20 +297,15 @@ public struct SharedFolderDirectory {
   private func move(_ from: URL, to: URL) throws -> Bool {
     guard Self.kind(of: from.path) != .missing else { return true }
     guard Self.kind(of: to.path) == .missing else { return false }
-    var coordinationError: NSError?
-    var bodyError: Error?
     var moved = false
-    NSFileCoordinator(filePresenter: nil).coordinate(
-      writingItemAt: from, options: .forMoving, writingItemAt: to, options: .forReplacing, error: &coordinationError
-    ) { source, destination in
+    try SyncCoordination.move(coordination, from, to: to) { source, destination in
       guard Self.kind(of: destination.path) == .missing else { return }
       if renamex_np(source.path, destination.path, UInt32(RENAME_EXCL)) == 0 {
         moved = true
       } else if errno != EEXIST {
-        bodyError = NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
       }
     }
-    if let error = coordinationError ?? bodyError { throw error }
     return moved
   }
 
@@ -348,22 +353,11 @@ public struct SharedFolderDirectory {
   }
 
   private func coordinate(writing url: URL, options: NSFileCoordinator.WritingOptions, _ body: (URL) throws -> Void) throws {
-    var coordinationError: NSError?
-    var bodyError: Error?
-    NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: url, options: options, error: &coordinationError) { url in
-      do { try body(url) } catch { bodyError = error }
-    }
-    if let error = coordinationError ?? bodyError { throw error }
+    try SyncCoordination.write(coordination, url, options: options, body)
   }
 
   private func coordinate<T>(reading url: URL, _ body: (URL) throws -> T) throws -> T {
-    var coordinationError: NSError?
-    var result: Result<T, Error> = .failure(CocoaError(.fileReadUnknown))
-    NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: [.withoutChanges], error: &coordinationError) { url in
-      result = Result { try body(url) }
-    }
-    if let coordinationError { throw coordinationError }
-    return try result.get()
+    try SyncCoordination.read(coordination, url, options: [.withoutChanges], body)
   }
 
   static func failure(_ message: String) -> NSError {

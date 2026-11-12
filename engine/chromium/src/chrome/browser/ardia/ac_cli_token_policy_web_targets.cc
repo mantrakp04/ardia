@@ -53,7 +53,7 @@ bool IsWebProcess(content::RenderProcessHost* process) {
   if (!process) {
     return false;
   }
-  const int id = process->GetDeprecatedID();
+  const content::ChildProcessId id = process->GetID();
   if (content::ChildProcessSecurityPolicy::GetInstance()->HasWebUIBindings(
           id)) {
     return false;

@@ -10,7 +10,7 @@ final class SQLiteSnapshot {
     guard fm.fileExists(atPath: source.path) else {
       throw ImportError.notFound("\(source.lastPathComponent) not found")
     }
-    tempDir = fm.temporaryDirectory.appendingPathComponent("ardia-import-\(UUID().uuidString)", isDirectory: true)
+    tempDir = fm.temporaryDirectory.appendingPathComponent("\(Self.prefix)\(getpid())-\(UUID().uuidString)", isDirectory: true)
     try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
     let copy = tempDir.appendingPathComponent("db.sqlite")
     do {
@@ -44,6 +44,28 @@ final class SQLiteSnapshot {
   deinit {
     sqlite3_close(db)
     try? FileManager.default.removeItem(at: tempDir)
+  }
+
+  static let prefix = "ardia-import-"
+  static let leftoverAge: TimeInterval = 3600
+
+  static func removeLeftovers(in folder: URL = FileManager.default.temporaryDirectory, now: Date = Date()) {
+    let fm = FileManager.default
+    for name in (try? fm.contentsOfDirectory(atPath: folder.path)) ?? [] where isLeftover(name, in: folder, now: now) {
+      try? fm.removeItem(at: folder.appendingPathComponent(name, isDirectory: true))
+    }
+  }
+
+  static func isLeftover(_ name: String, in folder: URL, now: Date) -> Bool {
+    guard name.hasPrefix(prefix) else { return false }
+    let rest = name.dropFirst(prefix.count)
+    if UUID(uuidString: String(rest)) != nil {
+      let modified = (try? FileManager.default.attributesOfItem(atPath: folder.appendingPathComponent(name).path))?[.modificationDate] as? Date
+      return modified.map { now.timeIntervalSince($0) > leftoverAge } ?? false
+    }
+    let parts = rest.split(separator: "-", maxSplits: 1)
+    guard parts.count == 2, UUID(uuidString: String(parts[1])) != nil, let pid = pid_t(parts[0]), pid > 0 else { return false }
+    return pid != getpid() && kill(pid, 0) != 0 && errno == ESRCH
   }
 
   func tableExists(_ name: String) -> Bool {
@@ -132,5 +154,19 @@ final class SQLiteSnapshot {
     }
 
     func has(_ name: String) -> Bool { index(name) != nil }
+  }
+}
+
+public final class SQLiteSnapshots {
+  private var open: [String: SQLiteSnapshot] = [:]
+
+  public init() {}
+
+  func snapshot(copying source: URL) throws -> SQLiteSnapshot {
+    let key = source.standardizedFileURL.path
+    if let db = open[key] { return db }
+    let db = try SQLiteSnapshot(copying: source)
+    open[key] = db
+    return db
   }
 }

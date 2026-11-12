@@ -31,10 +31,18 @@ export type SystemCalendarEvent = {
   attendees: CalendarParticipant[];
 };
 
+export type CalendarAccessRequest = {
+  granted: boolean;
+  status: CalendarAuthorization;
+  error: string | null;
+  responsible: "self" | "other" | "unknown";
+  ms: number;
+};
+
 export type CalendarNative = {
   addListener(name: "onCalendarChanged", listener: () => void): EventSubscription;
   authorizationStatus(): CalendarAuthorization;
-  requestAccess(): Promise<boolean>;
+  requestAccess(): Promise<CalendarAccessRequest>;
   calendars(): Promise<SystemCalendar[]>;
   events(start: number, end: number, calendarIds: string[]): Promise<SystemCalendarEvent[]>;
 };

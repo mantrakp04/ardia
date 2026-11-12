@@ -1,0 +1,12 @@
+Thanks for testing Ardia for iPhone. It needs iOS 27.
+
+Things to try:
+- Search from the start screen and open a few pages.
+- Swipe the bottom bar to switch tabs. Open the tab deck and flick a card up to close it.
+- The page menu (the chevron): Reader, Find on Page, Night Shade, Page Zoom.
+- Settings > Color: pick a color and check that the whole app follows it, in light and dark.
+- If you use Ardia on a Mac: on the Mac, Settings > Sync > Connect Another Device shows a code. Scan it here, pick the Ardia Sync folder in iCloud Drive, and check that tabs show up on both.
+
+Known limit: Ardia can't be set as the default browser yet.
+
+Send feedback with a screenshot from TestFlight, or shake the phone while the app is open.

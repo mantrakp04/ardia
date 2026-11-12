@@ -1,6 +1,6 @@
 import type { Settings } from "../settings/settings";
 
-export type BrowserSourceId = "arc" | "dia" | "chrome" | "safari" | "firefox" | "zen" | "brave" | "edge" | "fresh";
+export type BrowserSourceId = "arc" | "dia" | "chrome" | "safari" | "firefox" | "zen" | "brave" | "edge" | "helium" | "fresh";
 
 export type Preset = BrowserSourceId;
 
@@ -13,6 +13,7 @@ export const PRESET_NAMES: Record<Preset, string> = {
   zen: "Zen",
   brave: "Brave",
   edge: "Edge",
+  helium: "Helium",
   fresh: "Ardia",
 };
 
@@ -39,6 +40,7 @@ const CLASSIC_TABS: Partial<Settings> = {
   openLinksInLittleArdia: false,
   profileSwitcherIcons: false,
   peekLinksToOtherSites: false,
+  newTabLinksOpenIn: "tab",
 };
 
 export const PRESETS: Record<Preset, Partial<Settings>> = {
@@ -64,7 +66,8 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     commandBarPreference: "website",
     openLinksInLittleArdia: true,
     profileSwitcherIcons: false,
-    peekLinksToOtherSites: false,
+    peekLinksToOtherSites: true,
+    newTabLinksOpenIn: "peek",
   },
   arc: {
     tabLayout: "sidebar",
@@ -89,6 +92,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     openLinksInLittleArdia: true,
     profileSwitcherIcons: true,
     peekLinksToOtherSites: true,
+    newTabLinksOpenIn: "peek",
   },
   zen: {
     tabLayout: "sidebar",
@@ -113,13 +117,15 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     openLinksInLittleArdia: false,
     profileSwitcherIcons: true,
     peekLinksToOtherSites: true,
+    newTabLinksOpenIn: "peek",
   },
   chrome: CLASSIC_TABS,
   firefox: CLASSIC_TABS,
   safari: { ...CLASSIC_TABS, extendWebsiteColor: true, bookmarksBar: "never" },
   brave: { ...CLASSIC_TABS, searchEngine: "brave" },
   edge: { ...CLASSIC_TABS, searchEngine: "bing" },
-  fresh: { addressBar: "sidebar", commandBarPlacement: "centred", newTabPosition: "nextToCurrent", newTabButtonPosition: "bottom", profileSwitcherIcons: false, peekLinksToOtherSites: false },
+  helium: CLASSIC_TABS,
+  fresh: { addressBar: "sidebar", commandBarPlacement: "centred", newTabPosition: "nextToCurrent", newTabButtonPosition: "bottom", profileSwitcherIcons: false },
 };
 
 export const setsUpLikeBrowser = (source: BrowserSourceId | null): source is Exclude<BrowserSourceId, "fresh"> => !!source && source !== "fresh";

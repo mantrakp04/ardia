@@ -154,6 +154,29 @@ export function draftProblems(draft: ReportDraft): DraftProblem[] {
 
 export const canSend = (draft: ReportDraft) => draftProblems(draft).length === 0;
 
+export type DraftField = "title" | "description" | "contact";
+
+const PROBLEM_FIELD: Record<DraftProblem, DraftField> = {
+  title: "title",
+  titleTooLong: "title",
+  description: "description",
+  descriptionTooLong: "description",
+  contactTooLong: "contact",
+};
+
+const PROBLEM_HINT: Record<DraftProblem, string> = {
+  title: "Add a title to send",
+  titleTooLong: `Shorten the title to ${TITLE_MAX} characters`,
+  description: "Say what happened to send",
+  descriptionTooLong: `Shorten this to ${DESCRIPTION_MAX.toLocaleString("en-US")} characters`,
+  contactTooLong: `Shorten this to ${CONTACT_MAX} characters`,
+};
+
+export function fieldProblem(problems: DraftProblem[], field: DraftField): { problem: DraftProblem; hint: string } | null {
+  const problem = problems.find((p) => PROBLEM_FIELD[p] === field);
+  return problem ? { problem, hint: PROBLEM_HINT[problem] } : null;
+}
+
 export type ReportFile = { name: string; path: string; bytes: number; type: string };
 
 export type PayloadContext = {

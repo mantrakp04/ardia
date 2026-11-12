@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Sets up the release sign job's signing material on a GitHub macOS runner. The workflow removes it in its own
-# always() step ("Remove signing"), so nothing the job writes can change what removes the keys.
-#
-#   .github/release/signing.sh setup     a temporary keychain with the Developer ID identity, the provisioning profile,
-#                                        the notary key and the Sparkle key in $RUNNER_TEMP; exports only their paths to
-#                                        $GITHUB_ENV (RELEASE_PROVISIONING_PROFILE, SPARKLE_KEY_FILE, NOTARY_KEY); the
-#                                        step that signs passes NOTARY_KEY_ID and NOTARY_ISSUER itself
-#
-# Reads MACOS_CERTIFICATE_P12, MACOS_CERTIFICATE_PASSWORD, MACOS_PROVISIONING_PROFILE, SPARKLE_ED_PRIVATE_KEY and,
-# when all three are set, NOTARY_KEY_P8, NOTARY_KEY_ID, NOTARY_ISSUER from the environment. Without the notary key it
-# exports ALLOW_UNNOTARIZED=1 when ALLOW_MISSING_NOTARY=1 (a dry run), and fails otherwise.
 set -euo pipefail
 
 secrets="${RUNNER_TEMP:?}/release-signing"

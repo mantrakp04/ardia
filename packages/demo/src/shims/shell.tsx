@@ -87,6 +87,7 @@ provideNativeModule("ArdiaDialogs", {
     window.prompt(options.message ? `${options.title}\n\n${options.message}` : options.title, options.value ?? ""),
 });
 provideNativeModule("ArdiaAppWindows", {
+  windowCornerRadius: () => 19,
   windowIds: async () => [] as string[],
   windowFrame: async (_id: string): Promise<[number, number, number, number] | null> => null,
   setTrafficLightsCenter: async (windowId: string, next: [number, number] | null, trailing: boolean) => setTrafficLightsCenter(windowId, next, trailing),

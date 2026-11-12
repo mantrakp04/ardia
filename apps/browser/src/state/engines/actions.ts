@@ -22,6 +22,7 @@ const store = () => useBrowser.getState();
 const declinedSites = new Set<string>();
 const movingTabs = new Set<string>();
 const siteMoves = new Map<string, number>();
+const siteWatches = new Map<string, () => void>();
 const SITE_MOVE_SPACING_MS = 10_000;
 const hostLabel = (site: string) => new URL(site).hostname.replace(/^www\./, "");
 
@@ -146,11 +147,17 @@ async function moveForProtectedVideo(tabId: string, site: string) {
     key,
     action: { title: "Move Back", run: () => void (stillThere() && openPageIn(tabId, "chromium", { rule: "chromium" })) },
   });
+  siteWatches.get(tabId)?.();
   const unwatchSite = useBrowser.subscribe((s, prev) => {
     if (s.tabs[tabId] === prev.tabs[tabId] || stillThere()) return;
-    unwatchSite();
+    stopWatch();
     hideKeyedToast(t.windowId, key);
   });
+  const stopWatch = () => {
+    unwatchSite();
+    if (siteWatches.get(tabId) === stopWatch) siteWatches.delete(tabId);
+  };
+  siteWatches.set(tabId, stopWatch);
 }
 
 export function followSiteChoice(tabId: string, engine: PageEngine, url: string, previousUrl: string) {
@@ -164,6 +171,7 @@ export function followSiteChoice(tabId: string, engine: PageEngine, url: string,
   const now = Date.now();
   if (now - (siteMoves.get(tabId) ?? 0) < SITE_MOVE_SPACING_MS) return;
   siteMoves.set(tabId, now);
+  watchClosedTabs();
   void openPageIn(tabId, chosen, { checkWork: false }).then((moved) => {
     if (moved && canSwitchEngine(previousUrl)) patchPage(tabId, { engineBack: { engine, url: previousUrl } });
   });
@@ -186,6 +194,7 @@ function watchClosedTabs() {
       visitedTabs.delete(id);
       visits.close(id);
     }
+    for (const id of siteMoves.keys()) if (!s.tabs[id]) siteMoves.delete(id);
   });
 }
 
