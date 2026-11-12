@@ -52,7 +52,8 @@ export function signupStore({ base, headers = {}, fetch: send = fetch, maxObject
       seen += entries.length;
       objects.push(...listedObjects(entries));
       const next = typeof page.LastFileName === "string" ? page.LastFileName : "";
-      if (page.ShouldDisplayLoadMore !== true || !entries.length || !next || next === after) return { objects, capped: false };
+      if (page.ShouldDisplayLoadMore !== true) return { objects, capped: false };
+      if (!entries.length || !next || next === after) throw new Error("TestFlight storage says there are more posts but gives no way to read on");
       if (seen >= maxObjects) return { objects, capped: true };
       after = next;
     }

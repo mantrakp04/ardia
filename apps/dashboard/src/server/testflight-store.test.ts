@@ -8,7 +8,9 @@ const signup = (email: string, website = "") => JSON.stringify({ v: 1, email, we
 
 type Stored = { body: string; readStatus?: number; deleteStatus?: number; hangs?: boolean };
 
-function filer(objects: Map<string, Stored>) {
+type Stall = "no-cursor" | "same-cursor" | "empty-page";
+
+function filer(objects: Map<string, Stored>, stall?: Stall) {
   const calls = { list: 0, read: 0, delete: 0 };
   const send = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -19,6 +21,15 @@ function filer(objects: Map<string, Stored>) {
       const after = url.searchParams.get("lastFileName") ?? "";
       const names = [...objects.keys()].sort().filter((n) => n > after);
       const page = names.slice(0, limit);
+      const more = names.length > page.length;
+      if (stall && more && after) return Response.json({ Entries: [], LastFileName: after, ShouldDisplayLoadMore: true });
+      if (stall && more) {
+        return Response.json({
+          Entries: stall === "empty-page" ? [] : page.map((n) => ({ FullPath: `/buckets/testflight/${n}`, Mtime: new Date(1_800_000_000_000).toISOString(), FileSize: Buffer.byteLength(objects.get(n)!.body) })),
+          LastFileName: stall === "no-cursor" ? "" : stall === "same-cursor" ? after : page.at(-1),
+          ShouldDisplayLoadMore: true,
+        });
+      }
       return Response.json({
         Entries: page.map((n, i) => ({ FullPath: `/buckets/testflight/${n}`, Mtime: new Date(1_800_000_000_000 + i).toISOString(), FileSize: Buffer.byteLength(objects.get(n)!.body) })),
         LastFileName: page.at(-1) ?? "",
@@ -43,8 +54,8 @@ function filer(objects: Map<string, Stored>) {
   return { send, calls };
 }
 
-const store = (objects: Map<string, Stored>, options: { maxObjects?: number; deadlineMs?: number } = {}) => {
-  const fake = filer(objects);
+const store = (objects: Map<string, Stored>, options: { maxObjects?: number; deadlineMs?: number } = {}, stall?: Stall) => {
+  const fake = filer(objects, stall);
   return { ...signupStore({ base: BASE, fetch: fake.send, ...options }), calls: fake.calls };
 };
 
@@ -137,4 +148,17 @@ test("clearing junk that fills the read limit brings the people behind it into r
   assert.deepEqual(await signups.clearJunk(), { found: 1000, removed: 1000, failed: 0, complete: false });
   const reached = await signups.scan();
   assert.deepEqual([reached.signups.length, reached.capped, reached.complete], [5, false, true]);
+});
+
+test("a listing that promises more but can't be read on fails the read instead of passing for the whole list", async () => {
+  for (const stall of ["no-cursor", "same-cursor", "empty-page"] as const) {
+    const objects = new Map<string, Stored>([[name(0), { body: signup("alice@example.com") }]]);
+    for (let i = 1; i < 1000; i++) objects.set(name(i), { body: signup(`user${i}@example.com`) });
+    objects.set(name(1000), { body: signup("alice@example.com") });
+    const signups = store(objects, {}, stall);
+    await assert.rejects(signups.scan(), /no way to read on/, stall);
+    await assert.rejects(signups.remove("alice@example.com"), /no way to read on/, stall);
+    await assert.rejects(signups.clearJunk(), /no way to read on/, stall);
+    assert.equal(objects.size, 1001, stall);
+  }
 });
