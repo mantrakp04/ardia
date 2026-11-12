@@ -3507,42 +3507,66 @@ try {
       const r = await engine("windows.dev", { window: n, action: `fakeAppActive:${on ? 1 : 0}` });
       if (r !== (on ? "1" : "0")) throw new Error(`fakeAppActive: ${JSON.stringify(r)}`);
     };
-    const pipEvents = async (tabId) => (await eventsOf(tabId)).filter((x) => x.name === "pictureInPicture");
+    const win = (action) => engine("windows.dev", { window: n, action });
+    const mark = async (tabId) => (await eventsOf(tabId)).at(-1)?.t ?? 0;
+    const pipSince = async (tabId, since) => (await eventsOf(tabId)).filter((x) => x.name === "pictureInPicture" && x.t > since);
     const visibility = async (t) => (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value;
     const tab = await openTab(`${secureBase}/video?auto&file`, "Video");
+    const poppedOut = (tabId, since, what, fresh = false) => until(what, async () => {
+      const e = (await pipSince(tabId, since)).find((x) => x.payload.kind === "video" && x.payload.active && (!fresh || x.payload.fullScreenSpaces !== undefined));
+      return e ?? null;
+    }, 8000);
+    const closed = (tabId, what) => until(what, async () => {
+      const e = await lastEvent(tabId, "pictureInPicture");
+      return e && e.payload.kind === "video" && !e.payload.active ? e : null;
+    }, 8000);
     try {
+      await win("fakeOcclusion:visible");
+      await win("fakeWindowServer:shows");
       const t = await startVideo(tab.id, true);
       await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
       await until("onNowPlaying with video", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
       await sleep(300);
+      const quick = await mark(tab.id);
       await appActive(false);
       await sleep(100);
       await appActive(true);
       await sleep(800);
-      await until("no PiP left open after a quick app switch", async () => {
-        const e = await lastEvent(tab.id, "pictureInPicture");
-        return !e || !e.payload.active ? true : null;
-      }, 8000);
+      if ((await pipSince(tab.id, quick)).length) throw new Error("a quick app switch with the window showing popped the video out");
+      const stayedFrom = await mark(tab.id);
       await appActive(false);
-      const out = await until("auto PiP on leaving the app", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active && p.fullScreenSpaces !== undefined), 8000);
-      if (out.payload.leftApp !== true) throw new Error(`pip_shown left_app: ${JSON.stringify(out.payload)}`);
+      await sleep(2500);
+      if ((await pipSince(tab.id, stayedFrom)).length) throw new Error("switching apps with the window still showing popped the video out");
+      const stayedVisibility = await visibility(t);
+      const coverAt = await mark(tab.id);
+      await win("fakeWindowServer:hides");
+      const covered = await poppedOut(tab.id, coverAt, "auto PiP once the front app covered the window", true);
+      if (covered.payload.leftApp !== true) throw new Error(`pip_shown left_app (covered while away): ${JSON.stringify(covered.payload)}`);
       const away = await visibility(t);
+      await win("fakeWindowServer:shows");
+      const uncovered = await closed(tab.id, "auto PiP ended once the front app moved off the window");
+      const recoverAt = await mark(tab.id);
+      await win("fakeWindowServer:hides");
+      await poppedOut(tab.id, recoverAt, "auto PiP once covered again");
       await appActive(true);
-      const back = await until("auto PiP ended on coming back", async () => {
-        const e = await lastEvent(tab.id, "pictureInPicture");
-        return e && e.payload.kind === "video" && !e.payload.active ? e : null;
-      }, 8000);
+      const back = await closed(tab.id, "auto PiP ended on coming back");
+      const coveredFrom = await mark(tab.id);
+      await appActive(false);
+      const atSwitch = await poppedOut(tab.id, coveredFrom, "auto PiP on leaving the app with the window covered");
+      await appActive(true);
+      await closed(tab.id, "auto PiP ended on coming back (covered at the switch)");
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').pause()" });
       await until("onNowPlaying paused", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.playbackState === "paused"), 5000);
-      const paused = (await pipEvents(tab.id)).length;
+      const paused = await mark(tab.id);
       await appActive(false);
-      await sleep(1500);
-      const pausedPopped = (await pipEvents(tab.id)).length !== paused;
+      await sleep(2500);
+      const pausedPopped = (await pipSince(tab.id, paused)).length > 0;
       await appActive(true);
-      if (pausedPopped) throw new Error("a paused video popped out on leaving the app");
-      return { out: out.payload, back: back.payload, visibilityWhileAway: away };
+      if (pausedPopped) throw new Error("a paused video popped out on leaving the app with its window covered");
+      return { stayedVisibility, covered: covered.payload, away, uncovered: uncovered.payload, back: back.payload, atSwitch: atSwitch.payload };
     } finally {
       await appActive(true).catch(() => null);
+      for (const action of ["fakeWindowServer:hides", "fakeOcclusion:off"]) await win(action).catch(() => null);
       await closeTab(tab.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     }
