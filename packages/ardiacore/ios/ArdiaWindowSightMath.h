@@ -44,6 +44,10 @@ inline double VisibleArea(const Rect &window, const std::vector<Rect> &covers, c
 
 constexpr double kMinimumVisibleArea = 1;
 
+constexpr int kNormalWindowLayer = 0;
+
+inline bool CountsAsCover(int layer, double alpha) { return layer == kNormalWindowLayer && alpha >= 1; }
+
 inline bool PartlyVisible(const Rect &window, const std::vector<Rect> &covers, const std::vector<Rect> &displays) {
   return VisibleArea(window, covers, displays) >= kMinimumVisibleArea;
 }

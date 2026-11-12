@@ -55,6 +55,14 @@ int main() {
   CHECK(!PartlyVisible({0, 0, 0, 100}, {}, both));
   CHECK(std::fabs(VisibleArea({0, 0, 100, 100}, {{50, 0, 100, 100}}, both) - 5000) < 1e-9);
 
+  CHECK(CountsAsCover(0, 1));
+  CHECK(!CountsAsCover(0, 0.97));
+  CHECK(!CountsAsCover(0, 0.5));
+  CHECK(!CountsAsCover(3, 1));
+  CHECK(!CountsAsCover(25, 1));
+  CHECK(!CountsAsCover(1000, 1));
+  CHECK(!CountsAsCover(-1, 1));
+
   Random random{0x1236};
   for (int round = 0; round < 3000; round++) {
     const Rect w{random.uniform(-200, 3000), random.uniform(-300, 900), random.uniform(50, 1500), random.uniform(50, 1000)};
