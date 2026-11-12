@@ -1557,7 +1557,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..8554a54819424c7b724d8400125721ab
  - (void)updateTrackingAreas
  {
    BOOL hasMouseHoverEvent = self.onMouseEnter || self.onMouseLeave;
-@@ -1522,20 +1552,200 @@ - (void)updateTrackingAreas
+@@ -1522,20 +1552,203 @@ - (void)updateTrackingAreas
    if (!wouldRecreateIdenticalTrackingArea) {
      if (_trackingArea) {
        [self removeTrackingArea:_trackingArea];
@@ -1616,9 +1616,12 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..8554a54819424c7b724d8400125721ab
 +  ArdiaHoverDirty = YES;
 +  if (!ArdiaHoverInstalled) {
 +    ArdiaHoverInstalled = YES;
-+    [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp | NSEventMaskOtherMouseUp
++    NSEventMask hoverEvents = NSEventMaskLeftMouseDragged | NSEventMaskRightMouseDragged | NSEventMaskOtherMouseDragged |
++                              NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp | NSEventMaskOtherMouseUp;
++    [NSEvent addLocalMonitorForEventsMatchingMask:hoverEvents
 +                                          handler:^NSEvent *(NSEvent *event) {
-+                                            if (ArdiaHoverHeld) {
++                                            if (event.type == NSEventTypeLeftMouseDragged || event.type == NSEventTypeRightMouseDragged ||
++                                                event.type == NSEventTypeOtherMouseDragged || ArdiaHoverHeld) {
 +                                              [RCTView ardia_markHoverDirty];
 +                                            }
 +                                            return event;
