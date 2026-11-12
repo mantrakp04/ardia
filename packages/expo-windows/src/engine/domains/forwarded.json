@@ -17,6 +17,7 @@
       "cliControlStatus": "ac_cli_control"
     },
     "extensions": {
+      "loadHealth": "ac_extensions_load_health",
       "watchActions": "ac_extensions_watch_actions",
       "syncState": "ac_extensions_sync_state",
       "syncApply": "ac_extensions_sync_apply"
@@ -32,17 +33,12 @@
       "deleteUrls": "ac_history_delete_urls",
       "watch": "ac_history_watch"
     },
-    "tabs": {
-      "lastTabPolicy": "ac_tabs_last_tab_policy"
-    }
-  },
-  "awaitingEngine": {
-    "extensions": {
-      "loadHealth": "ac_extensions_load_health"
-    },
     "search": {
       "suggest": "ac_search_suggest",
       "stopSuggest": "ac_search_suggest_stop"
+    },
+    "tabs": {
+      "lastTabPolicy": "ac_tabs_last_tab_policy"
     }
   },
   "missing": {

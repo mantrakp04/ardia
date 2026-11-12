@@ -169,6 +169,10 @@ void Step() {
                          "\\\\localhost\\c$\\no-such-extension.crx");
       EngineCallWithPath("reply export passwords relative",
                          "ac_passwords_export", "probe-passwords.csv");
+      EngineCall("reply load health", "ac_extensions_load_health", "{}");
+      EngineCall("reply suggest", "ac_search_suggest",
+                 ("{\"id\":1,\"url\":" + Quoted(g_first_url) + "}").c_str());
+      EngineCall("reply suggest stop", "ac_search_suggest_stop", "{\"id\":2}");
       Call("reply list", "tabs.list", "{}");
       Call("reply hide one", "tab.show", "{\"key\":\"one\",\"visible\":false}");
       break;

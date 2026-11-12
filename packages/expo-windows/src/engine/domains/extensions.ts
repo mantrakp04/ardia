@@ -34,9 +34,6 @@ async function run(engine: Engine, name: string, args: Args, sent: Fields, event
 }
 
 export const extensionCalls: Handlers = {
-  loadHealth: async () => {
-    throw callError("ERR_ENGINE", "The Windows engine doesn't report extension load health yet");
-  },
   list: async (args, engine) => {
     const { extensions } = await served(engine, "ac_extensions_list", originalProfile(args.profile));
     if (!Array.isArray(extensions)) throw callError("ERR_ENGINE", "Unexpected extension list");
