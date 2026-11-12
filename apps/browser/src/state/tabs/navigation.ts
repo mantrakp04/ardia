@@ -12,6 +12,8 @@ import { internalPageOf, tabDestination } from "../pages/urls";
 import { pageOf, patchPage, usePage } from "./pageState";
 import { historyOf } from "../history/history";
 import { adoptedPage, IDLE } from "./pageSession";
+import { isPeekTab } from "../peek/peek";
+import { dismissPeek } from "../peek/actions";
 
 const store = () => useBrowser.getState();
 
@@ -21,7 +23,7 @@ export function backClosesTab(s: BrowserState, tabId: string): boolean {
   const opener = s.tabs[tab.openerId];
   if (!opener || opener.windowId !== tab.windowId || opener.profileId !== tab.profileId) return false;
   if (inPinnedContainer(s, tabId)) return false;
-  return s.peeks[tab.windowId]?.tabId !== tabId;
+  return true;
 }
 
 export function canGoBack(tabId: string, live: Pick<TabLive, "canGoBack">): boolean {
@@ -51,7 +53,8 @@ export function goBack(tabId: string): void {
   if (pageOf(tabId).backToNewTab) return showNewTab(tabId);
   if (backClosesTab(store(), tabId)) {
     noteBackCloseToOpener();
-    store().closeTab(tabId);
+    if (isPeekTab(store(), tabId)) dismissPeek(store().tabs[tabId]!.windowId);
+    else store().closeTab(tabId);
   }
 }
 
