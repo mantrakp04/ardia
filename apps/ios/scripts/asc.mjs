@@ -9,7 +9,8 @@ const HELP = `App Store Connect, for the iPhone app's TestFlight builds.
   node apps/ios/scripts/asc.mjs next-build
   node apps/ios/scripts/asc.mjs wait --build <number> [--timeout <seconds>]
   node apps/ios/scripts/asc.mjs certificates --save <file>
-  node apps/ios/scripts/asc.mjs certificates --revoke-new-since <file>
+  node apps/ios/scripts/asc.mjs certificates --new-since <file>
+  node apps/ios/scripts/asc.mjs certificates --create <request.csr> --out <file.cer>
 
 Reads the API key from ASC_KEY (path to AuthKey_<id>.p8), ASC_KEY_ID and ASC_ISSUER.
 status lists what the key can see: the app record, the App IDs and their capabilities,
@@ -17,8 +18,9 @@ registered devices, certificates, profiles, builds and tester groups. A section 
 has no access to prints "forbidden". next-build prints the build number after the highest
 one uploaded. wait blocks until a build finishes processing, and stops with Apple's reasons
 when the delivery was refused. certificates --save records
-the team's certificate ids; --revoke-new-since revokes the development certificates made
-since then, which is what an archive on a fresh CI machine leaves behind.`;
+the team's certificate ids; --new-since fails when a development certificate was made since
+then, which means the archive didn't sign with the stored one. --create makes a development
+certificate from a signing request and writes it to --out.`;
 
 const BUNDLE_PREFIX = "com.ardia.browser.ios";
 const DEVELOPMENT_CERTIFICATES = new Set(["DEVELOPMENT", "IOS_DEVELOPMENT"]);
@@ -62,10 +64,15 @@ async function fail(response) {
   throw new ApiError(response.status, detail);
 }
 
-async function remove(path) {
+async function post(path, body) {
   bearer ??= token();
-  const response = await fetch(new URL(path, API), { method: "DELETE", headers: { Authorization: `Bearer ${bearer}` } });
+  const response = await fetch(new URL(path, API), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!response.ok) await fail(response);
+  return response.status === 204 ? null : (await response.json()).data;
 }
 
 async function get(path, params = {}) {
@@ -310,36 +317,58 @@ async function wait(args) {
   process.exit(124);
 }
 
+async function uploadedBuildNumbers(appId) {
+  try {
+    const { rows } = await get(`/v1/apps/${appId}/buildUploads`, { limit: "200" });
+    return rows.map((row) => row.attributes?.cfBundleVersion);
+  } catch (error) {
+    if (error instanceof ApiError) return [];
+    throw error;
+  }
+}
+
 async function nextBuild() {
   const app = await requireApp();
-  const numbers = (await listBuilds(app.id)).map((build) => Number(build.build)).filter(Number.isInteger);
-  console.log(Math.max(0, ...numbers) + 1);
+  const seen = [...(await listBuilds(app.id)).map((build) => build.build), ...(await uploadedBuildNumbers(app.id))];
+  console.log(Math.max(0, ...seen.map(Number).filter(Number.isInteger)) + 1);
+}
+
+async function createCertificate(requestPath, out) {
+  const made = await post("/v1/certificates", {
+    data: { type: "certificates", attributes: { certificateType: "DEVELOPMENT", csrContent: readFileSync(requestPath, "utf8") } },
+  });
+  writeFileSync(out, Buffer.from(made.attributes.certificateContent, "base64"));
+  console.log(`created a ${made.attributes.certificateType} certificate, expires ${day(made.attributes.expirationDate)}`);
 }
 
 async function certificates(args) {
+  const create = option(args, "--create");
+  if (create) {
+    const out = option(args, "--out");
+    if (!out) {
+      console.error("asc: certificates --create needs --out <file.cer>");
+      process.exit(64);
+    }
+    await createCertificate(create, out);
+    return;
+  }
   const { rows } = await get("/v1/certificates", { "fields[certificates]": "certificateType,expirationDate", limit: "200" });
   const save = option(args, "--save");
-  const since = option(args, "--revoke-new-since");
+  const since = option(args, "--new-since");
   if (save) {
     writeFileSync(save, JSON.stringify(rows.map((row) => row.id)));
     console.log(`${rows.length} certificates recorded`);
     return;
   }
   if (!since) {
-    console.error("asc: certificates needs --save <file> or --revoke-new-since <file>");
+    console.error("asc: certificates needs --save, --new-since or --create");
     process.exit(64);
   }
   const before = new Set(JSON.parse(readFileSync(since, "utf8")));
   const made = rows.filter((row) => !before.has(row.id));
-  for (const row of made) {
-    if (!DEVELOPMENT_CERTIFICATES.has(row.attributes.certificateType)) {
-      console.log(`kept new ${row.attributes.certificateType} certificate`);
-      continue;
-    }
-    await remove(`/v1/certificates/${row.id}`);
-    console.log(`revoked new ${row.attributes.certificateType} certificate`);
-  }
+  for (const row of made) console.log(`new ${row.attributes.certificateType} certificate, expires ${day(row.attributes.expirationDate)}`);
   if (made.length === 0) console.log("no new certificates");
+  if (made.some((row) => DEVELOPMENT_CERTIFICATES.has(row.attributes.certificateType))) process.exit(1);
 }
 
 const [command, ...args] = process.argv.slice(2);
