@@ -134,7 +134,7 @@ struct ReceivedBadge: View {
     Label("From Your Mac", systemImage: "macbook")
       .font(.caption2.weight(.semibold))
       .labelStyle(.titleAndIcon)
-      .foregroundStyle(.white)
+      .foregroundStyle(Palette.onPrimaryAction)
       .padding(.horizontal, 8)
       .padding(.vertical, 4)
       .background(TabsPalette.receivedBadge, in: .capsule)

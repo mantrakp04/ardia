@@ -14,6 +14,7 @@ struct ArchiveView: View {
   var body: some View {
     NavigationStack {
       content
+        .lookBackdrop()
         .navigationTitle("Archive")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search Archive")

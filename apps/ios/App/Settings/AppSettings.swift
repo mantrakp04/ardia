@@ -8,6 +8,7 @@ final class AppSettings {
     static let collapsesBottomBar = "settings.collapseBottomBar"
     static let autoOpensKeyboard = "settings.autoOpenKeyboard"
     static let finishedOnboarding = "settings.finishedOnboarding"
+    static let colorChoice = "settings.color"
   }
 
   static let demoSuite = "ardia.demo.settings"
@@ -26,6 +27,10 @@ final class AppSettings {
     didSet { defaults.set(hasFinishedOnboarding, forKey: Key.finishedOnboarding) }
   }
 
+  var colorChoice: String? {
+    didSet { defaults.set(colorChoice, forKey: Key.colorChoice) }
+  }
+
   var isShowingOnboarding = false
   var pendingRoute: SettingsRoute?
 
@@ -34,6 +39,7 @@ final class AppSettings {
     collapsesBottomBar = defaults.object(forKey: Key.collapsesBottomBar) as? Bool ?? false
     autoOpensKeyboard = defaults.object(forKey: Key.autoOpensKeyboard) as? Bool ?? true
     hasFinishedOnboarding = finishedOnboarding ?? defaults.bool(forKey: Key.finishedOnboarding)
+    colorChoice = defaults.string(forKey: Key.colorChoice)
     isShowingOnboarding = !hasFinishedOnboarding
   }
 
@@ -47,6 +53,9 @@ final class AppSettings {
       finishedOnboarding: !arguments.contains("-ArdiaOnboarding")
     )
     if arguments.contains("-ArdiaRestingStart") { settings.autoOpensKeyboard = false }
+    if let index = arguments.firstIndex(of: "-ArdiaColor"), arguments.indices.contains(index + 1) {
+      settings.colorChoice = arguments[index + 1]
+    }
     return settings
   }
 

@@ -34,7 +34,7 @@ struct SearchEnginePage: View {
                 if engine.id == app.preferences.searchEngineID {
                   Image(systemName: "checkmark")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(Palette.indigo)
+                    .foregroundStyle(Palette.formAccent)
                     .accessibilityHidden(true)
                 }
               }

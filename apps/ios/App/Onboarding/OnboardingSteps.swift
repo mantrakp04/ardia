@@ -92,7 +92,8 @@ private struct LinkBubbleIllustration: View {
   var body: some View {
     HStack(alignment: .bottom, spacing: Spacing.small) {
       VStack(alignment: .leading, spacing: 0) {
-        LaunchGradient()
+        Rectangle()
+          .fill(ProfileLook.plum.swatchColor.gradient)
           .frame(height: 64)
         VStack(alignment: .leading, spacing: 2) {
           Text("The best tapas in Lisbon")

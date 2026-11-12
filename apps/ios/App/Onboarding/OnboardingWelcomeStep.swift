@@ -24,7 +24,7 @@ struct OnboardingWelcomeStep: View {
       AppIconPreview(side: 104)
         .padding(5)
         .background(.white, in: .rect(cornerRadius: 104 * 0.225 + 5, style: .continuous))
-        .shadow(color: Palette.gradientDeep.opacity(0.35), radius: 24, y: 12)
+        .shadow(color: .black.opacity(0.18), radius: 24, y: 12)
         .rotationEffect(.degrees(hasAppeared || reduceMotion ? -6 : -18))
         .scaleEffect(hasAppeared || reduceMotion ? 1 : 0.7)
         .opacity(hasAppeared ? 1 : 0)
@@ -38,10 +38,10 @@ struct OnboardingWelcomeStep: View {
         Text("Get what you want twice as fast.")
           .font(.title3.weight(.medium))
           .fixedSize(horizontal: false, vertical: true)
-          .foregroundStyle(.white.opacity(0.8))
+          .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
       }
-      .foregroundStyle(.white)
+      .foregroundStyle(.primary)
       .padding(.horizontal, Spacing.section)
       .opacity(hasAppeared ? 1 : 0)
       .offset(y: hasAppeared || reduceMotion ? 0 : 16)
@@ -49,12 +49,11 @@ struct OnboardingWelcomeStep: View {
       Button(action: onContinue) {
         Text("Get Started")
           .font(.body.weight(.semibold))
-          .foregroundStyle(Palette.indigo)
           .frame(maxWidth: .infinity, minHeight: 50)
       }
       .buttonStyle(.borderedProminent)
       .buttonBorderShape(.roundedRectangle(radius: 14))
-      .tint(.white)
+      .primaryActionColors()
       .padding(.horizontal, Spacing.medium + 4)
       .padding(.bottom, Spacing.small)
       .opacity(hasAppeared ? 1 : 0)
@@ -69,7 +68,7 @@ struct OnboardingWelcomeStep: View {
 
 #Preview("Welcome") {
   ZStack {
-    LaunchGradient().ignoresSafeArea()
+    ProfileBackdrop().ignoresSafeArea()
     OnboardingWelcomeStep(onContinue: {})
   }
 }

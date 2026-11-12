@@ -7,6 +7,7 @@ struct BrowsingView: View {
   var isFront = true
 
   @Environment(AppModel.self) private var app
+  @Environment(\.profileLook) private var look
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Namespace private var omnibox
@@ -20,7 +21,7 @@ struct BrowsingView: View {
     @Bindable var browse = app.browse
     let tab = app.tabs.selectedTab
     ZStack(alignment: .bottom) {
-      BrowsePalette.pageBackdrop.ignoresSafeArea()
+      look.surface.ignoresSafeArea()
       if let tab {
         pageLayer(tab)
           .overlay(alignment: .top) { statusStrip(tab) }
@@ -150,7 +151,7 @@ struct BrowsingView: View {
         onTone: { id, tone in browse.setTone(tone, for: id) }
       )
       if MotionDemo.loadFreeze != nil {
-        PageLoadingPlaceholder(tab: tab, revealDelay: Motion.placeholderDelay)
+        PageLoadingPlaceholder(tab: tab, backdrop: look.surface, revealDelay: Motion.placeholderDelay)
       }
       if let failure = page?.failure, let page {
         PageFailureView(failure: failure) { page.reload() }

@@ -58,6 +58,7 @@ struct RootView: View {
     .onChange(of: app.sync.selectedProfileId) { _, _ in app.applySyncedSearch() }
     .onChange(of: app.sync.isEnabled) { _, _ in app.applySyncedSearch() }
     .onChange(of: app.sync.lastSynced) { _, _ in app.drainSystemInbox(sendsOnly: true) }
+    .environment(\.profileLook, app.look)
   }
 }
 

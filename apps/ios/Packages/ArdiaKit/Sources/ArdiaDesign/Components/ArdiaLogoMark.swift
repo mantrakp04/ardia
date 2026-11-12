@@ -159,5 +159,5 @@ public struct FidgetLogo: View {
     FidgetLogo().frame(width: 140, height: 120)
   }
   .padding(40)
-  .background(LaunchGradient())
+  .background(ProfileBackdrop())
 }

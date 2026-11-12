@@ -14,12 +14,12 @@ struct SearchWidgetConfiguration: WidgetConfigurationIntent {
 nonisolated struct SearchEntry: TimelineEntry {
   var date: Date
   var showsBackground: Bool
-  var gradient: [String]
+  var look: ProfileLook
 }
 
 nonisolated struct SearchProvider: AppIntentTimelineProvider {
   func placeholder(in context: Context) -> SearchEntry {
-    SearchEntry(date: .now, showsBackground: true, gradient: [])
+    SearchEntry(date: .now, showsBackground: true, look: .plum)
   }
 
   func snapshot(for configuration: SearchWidgetConfiguration, in context: Context) async -> SearchEntry {
@@ -35,7 +35,7 @@ nonisolated struct SearchProvider: AppIntentTimelineProvider {
     return SearchEntry(
       date: .now,
       showsBackground: configuration.showBackground,
-      gradient: snapshot.gradient
+      look: snapshot.look
     )
   }
 }
@@ -60,28 +60,24 @@ struct SearchWidgetView: View {
       size: family == .systemSmall ? .small : .medium,
       showsBackground: entry.showsBackground
     )
+    .environment(\.profileLook, entry.look)
     .widgetURL(SystemLink.search(query: nil).url)
     .containerBackground(for: .widget) {
-      SearchWidgetBackground(showsBackground: entry.showsBackground, colors: colors)
+      SearchWidgetBackground(showsBackground: entry.showsBackground, look: entry.look)
     }
-  }
-
-  private var colors: [Color] {
-    let parsed = entry.gradient.compactMap(Color.init(hexString:))
-    return parsed.count >= 2 ? parsed : Palette.launchGradient
   }
 }
 
 #Preview("Small", as: .systemSmall) {
   SearchWidget()
 } timeline: {
-  SearchEntry(date: .now, showsBackground: true, gradient: [])
-  SearchEntry(date: .now, showsBackground: false, gradient: [])
+  SearchEntry(date: .now, showsBackground: true, look: .plum)
+  SearchEntry(date: .now, showsBackground: false, look: .plum)
 }
 
 #Preview("Medium", as: .systemMedium) {
   SearchWidget()
 } timeline: {
-  SearchEntry(date: .now, showsBackground: true, gradient: [])
-  SearchEntry(date: .now, showsBackground: false, gradient: [])
+  SearchEntry(date: .now, showsBackground: true, look: .plum)
+  SearchEntry(date: .now, showsBackground: false, look: .plum)
 }

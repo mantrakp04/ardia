@@ -30,7 +30,7 @@ export const markedEngine = (marks: number): PageEngine | null =>
   marks & ENGINE_MARKS.webkit ? "webkit" : marks & ENGINE_MARKS.chromium ? "chromium" : null;
 
 export const useIconMarks = (tabId: string | undefined, given: number | undefined): number =>
-  useKeyed(watchTabState, given === undefined ? null : tabId, () => given ?? (tabId ? iconMarks(useBrowser.getState(), tabId) : 0));
+  useKeyed(watchTabState, given === undefined ? tabId : null, () => given ?? (tabId ? iconMarks(useBrowser.getState(), tabId) : 0));
 
 export function rowFlags(s: BrowserState, windowId: string, tabId: string): number {
   const tab = s.tabs[tabId];

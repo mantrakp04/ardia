@@ -57,7 +57,7 @@ struct OnboardingBackdrop: View {
   var body: some View {
     ZStack {
       Color(.systemBackground)
-      LaunchGradient(softened: true)
+      ProfileBackdrop(softened: true)
         .mask {
           LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black.opacity(0.6), location: 0.45), .init(color: .clear, location: 0.8)], startPoint: .top, endPoint: .bottom)
         }
@@ -84,7 +84,7 @@ struct OnboardingPrimaryButton: View {
     }
     .buttonStyle(.borderedProminent)
     .buttonBorderShape(.roundedRectangle(radius: 14))
-    .tint(Palette.indigo)
+    .primaryActionColors()
   }
 }
 
