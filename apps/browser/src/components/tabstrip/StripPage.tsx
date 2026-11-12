@@ -75,7 +75,9 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   };
   useEffect(noteSpill, [current, cut, spare]);
   const lastTabIds = useRef<string[]>([]);
-  lastTabIds.current = top.slots.at(-1)?.tabIds ?? [];
+  const lastEntry = parsed.filter((e) => e.kind !== "dock").at(-1);
+  const lastMember = lastEntry?.kind === "group" && !lastEntry.collapsed ? lastEntry.members.at(-1) : undefined;
+  lastTabIds.current = lastMember ? tabsOf(lastMember) : (top.slots.at(-1)?.tabIds ?? []);
   const latestSpan = useRef(spanOf);
   latestSpan.current = spanOf;
   const revealed = useRef(activeId);
