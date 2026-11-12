@@ -134,6 +134,9 @@ export const SETTING_SPECS = {
   addressBar: oneOf(["toolbar", "sidebar"], "toolbar", SYNCED),
   compactToolbar: flag(false, SYNCED),
   pageFrame: shaped<number>(PAGE_FRAME.default, validPageFrame, { type: "integer", minimum: PAGE_FRAME.min, maximum: PAGE_FRAME.max }, SYNCED),
+  borderlessMode: flag(false, SYNCED),
+  pageFrameZeroInFullScreen: flag(false, SYNCED),
+  pageFrameZeroWhenTabsHidden: flag(false, SYNCED),
   commandBarPlacement: oneOf(["field", "centred"], "field", SYNCED),
   commandBarStart: shaped<CommandBarStart>({}, isCommandBarStart, COMMAND_BAR_START_SCHEMA),
   spacesFollowAppearance: flag(true),
@@ -225,13 +228,23 @@ function validateCustomEngine(settings: Settings, input: EngineInput, ignoreId?:
   return validateEngine(input, searchEngines(settings), ignoreId);
 }
 
+function withPageFrameDependencies(settings: Settings, patch: Partial<Settings>): Partial<Settings> {
+  const next = { ...settings, ...patch };
+  if (next.pageFrameZeroInFullScreen && !next.pageFrameZeroWhenTabsHidden && !("pageFrameZeroWhenTabsHidden" in patch)) {
+    return { ...patch, pageFrameZeroWhenTabsHidden: true };
+  }
+  return patch;
+}
+
 export function choose(s: Pick<BrowserState, "settings" | "settingsMeta">, patch: Partial<Settings>): Pick<BrowserState, "settings" | "settingsMeta"> {
   const { chosen, inferred } = s.settingsMeta;
   if (patch.autoHideTabs !== undefined && patch.autoHideTabs !== s.settings.autoHideTabs) noteAutoHideTabsChosen();
+  patch = withPageFrameDependencies(s.settings, patch);
+  const next = { ...s.settings, ...patch };
   const added = Object.keys(patch).filter((k) => !chosen.includes(k));
   const left = inferred.filter((k) => !(k in patch));
   const settingsMeta = added.length || left.length !== inferred.length ? { chosen: added.length ? [...chosen, ...added] : chosen, inferred: left } : s.settingsMeta;
-  return { settings: { ...s.settings, ...patch }, settingsMeta };
+  return { settings: next, settingsMeta };
 }
 
 export function sessionWithSettingsMeta(doc: SavedObject): SavedObject {
@@ -294,7 +307,10 @@ export const createSettingsSlice: StateCreator<BrowserState, [], [], SettingsSli
   settings: DEFAULT_SETTINGS,
   settingsMeta: NO_SETTINGS_META,
   updateSettings(patch, { fromSync = false } = {}) {
-    set((s) => (fromSync ? { settings: { ...s.settings, ...patch } } : choose(s, withLinkKeysApart(s.settings, patch))));
+    set((s) => {
+      if (fromSync) return { settings: { ...s.settings, ...withPageFrameDependencies(s.settings, patch) } };
+      return choose(s, withLinkKeysApart(s.settings, patch));
+    });
   },
 
   setSearchEngine(id) {

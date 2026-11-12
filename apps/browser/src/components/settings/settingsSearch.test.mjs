@@ -8,6 +8,7 @@ const ids = (query) => search(SETTINGS_INDEX, query).map((h) => h.entry.id);
 const first = (query) => ids(query)[0];
 
 test("synonyms find the setting they stand for", () => {
+  assert.equal(first("borderless mode"), "appearance.borderlessMode");
   assert.equal(first("cookies"), "privacy.blockCookieBanners");
   assert.equal(first("dark"), "appearance.theme");
   assert.equal(first("dark mode"), "appearance.theme");
@@ -122,6 +123,9 @@ test("a row its pane doesn't draw is left out of search, by the same rule the pa
   assert.deepEqual([...classic], ["tabs.dragToGroupInTopStrip", "appearance.glassTintWithTheme", "appearance.glassTintAmount"]);
   assert.ok(unshown({ memorySaver: false }, { top: false }).has("advanced.memorySaverMode"));
   assert.ok(unshown({ pageEngine: "webkit" }, { top: false }).has("engines.protectedVideo"));
+  const borderless = unshown({ borderlessMode: true }, { top: false });
+  assert.ok(borderless.has("appearance.pageFrame"));
+  assert.ok(!borderless.has("appearance.borderlessMode"));
 });
 
 const SHOWN_BY_LOADED_DATA = ["General.tsx: general.downloadsAllProfiles", "General.tsx: general.updateChannel"];

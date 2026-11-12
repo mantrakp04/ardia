@@ -63,7 +63,7 @@ export const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
     { id: "switcher", keys: ["profileSwitcherIcons"], askedWithPreset: true },
     { id: "appearance", keys: ["appearance"] },
     { id: "style", keys: ["interfaceStyle", "glassTintWithTheme", "glassTintAmount"], askedWithPreset: true },
-    { id: "frame", keys: ["pageFrame"], askedWithPreset: true },
+    { id: "frame", keys: ["pageFrame", "borderlessMode"], askedWithPreset: true },
     { id: "siteColor", keys: ["extendWebsiteColor"] },
     { id: "lookMore", keys: ["hideToolbarWhileScrolling", "bookmarksBar"] },
   ],
