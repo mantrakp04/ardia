@@ -6,6 +6,7 @@ final class WindowProfileView: ExpoView {
   var profile = ""
   var neighbours: [String] = []
   var selection = ""
+  let onSwapped = EventDispatcher()
   private var applied: (profile: String, neighbours: [String], selection: String)?
   private var observer: CFRunLoopObserver?
 
@@ -28,7 +29,11 @@ final class WindowProfileView: ExpoView {
 
   private func apply() {
     guard let window else { return }
-    if applied?.profile != profile { ArdiaChromeWindowHost.showProfile(profile, in: window) }
+    if applied?.profile != profile {
+      ArdiaChromeWindowHost.showProfile(profile, in: window, report: { [weak self] profileLoaded, activeMs, swapMs, heldTimedOut in
+        self?.onSwapped(["profileLoaded": profileLoaded, "activeMs": activeMs, "swapMs": swapMs, "heldTimedOut": heldTimedOut])
+      })
+    }
     if let applied, applied.profile != profile || applied.selection != selection {
       ArdiaWebView.wakeNeighbourPages(in: window)
     }

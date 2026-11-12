@@ -14,6 +14,7 @@ constexpr CFTimeInterval kLeaveScreenDelay = 0.1;
 constexpr CFTimeInterval kFirstFrameHoldSeconds = 0.25;
 constexpr CFTimeInterval kHolderBackstopSeconds = kFirstFrameHoldSeconds + 0.05;
 constexpr CFTimeInterval kLingeringPaneSunkSeconds = 0.5;
+constexpr CFTimeInterval kSwapReportSeconds = 10;
 NSString *const kLingeringPane = @"ardia.lingeringPane";
 }
 
@@ -231,6 +232,19 @@ BOOL Above(NSView *a, NSView *b) {
     NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d", _transferKey,
           _visible, _warm, _tab ? (int)_tab.tabId : -1, _tab.view.superview == self ? @"here" : @"elsewhere",
           (long)self.window.windowNumber, _tab.view.isHiddenOrHasHiddenAncestor);
+  if (_swapReport && _visible && shown && !_frameHold.awaiting && _tab.view.superview == self) [self finishSwapReport:NO];
+}
+
+- (void)reportSwapShown:(void (^)(BOOL))report {
+  _swapReport = [report copy];
+  _swapReportAt = CACurrentMediaTime();
+  [self schedulePainting];
+}
+
+- (void)finishSwapReport:(BOOL)heldTimedOut {
+  void (^report)(BOOL) = _swapReport;
+  _swapReport = nil;
+  if (report && CACurrentMediaTime() - _swapReportAt <= kSwapReportSeconds) report(heldTimedOut);
 }
 
 + (void)noteShown:(ArdiaCoreTab *)tab {
@@ -392,6 +406,7 @@ BOOL Above(NSView *a, NSView *b) {
 - (void)frameShown:(BOOL)drawn {
   if (!_frameHold.awaiting) return;
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ first frame %@", _transferKey, drawn ? @"drawn" : @"late, shown anyway");
+  if (_visible) [self finishSwapReport:!drawn];
   WithoutActions(^{
     [self finishFrameHold];
     [self applyPainting];

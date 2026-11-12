@@ -30,6 +30,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)closeWindow:(NSWindow *)window;
 
 + (void)showProfile:(NSString *)profile inWindow:(NSWindow *)window;
++ (void)showProfile:(NSString *)profile
+           inWindow:(NSWindow *)window
+             report:(nullable void (^)(BOOL profileLoaded, double activeMs, double swapMs, BOOL heldTimedOut))report;
 + (void)prepareProfiles:(NSArray<NSString *> *)profiles forWindow:(NSWindow *)window;
 @property(class, nonatomic, copy, nullable) void (^swappedHandler)(NSWindow *from, NSWindow *to);
 
