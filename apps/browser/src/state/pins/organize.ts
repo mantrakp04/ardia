@@ -9,6 +9,7 @@ import { placing, type TabPlacement } from "./placing";
 import { pinnedGroupMembers } from "../browser/structure";
 import { samePage } from "../../lib/url";
 import { pinHome } from "./pinHomes";
+import { splitOf, splitRowPanes } from "../splits/splits";
 
 export type OrganizeSlice = {
   selection: Record<string, string[]>;
@@ -36,7 +37,11 @@ export function selectedTabIds(s: BrowserState, windowId: string): string[] {
 
 export function multiSelectedTabIds(s: BrowserState, windowId: string): string[] {
   const ids = (s.selection[windowId]?.length ?? 0) > 1 ? selectedTabIds(s, windowId) : [];
-  return ids.length > 1 ? ids : [];
+  if (ids.length < 2) return [];
+  return [...new Set(ids.flatMap((id) => {
+    const panes = splitRowPanes(s, splitOf(s, id));
+    return panes.includes(id) ? panes.filter((pane) => ids.includes(pane)) : [id];
+  }))];
 }
 
 export const awayFromPin = (t: Pick<Tab, "url" | "pinnedUrl">) => !!t.pinnedUrl && !!t.url && !samePage(t.url, t.pinnedUrl);

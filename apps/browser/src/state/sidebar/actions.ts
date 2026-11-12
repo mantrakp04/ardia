@@ -8,12 +8,14 @@ import { focusHeroBar } from "../omnibox/barState";
 import { ancestorIds } from "../groups/groups";
 import { activeTabId, bookmarkProfileId, inPinnedContainer, pinSection, tabLayoutOf, tabsShownIn, tabTitle, viewTabIds } from "../browser/model";
 import type { ClickMods } from "../drag/drops";
-import { selectedTabIds } from "../pins/organize";
+import { multiSelectedTabIds, selectedTabIds } from "../pins/organize";
 import { groupLabel, groupOf } from "../pins/tabGrouping";
 import type { Tab } from "../browser/types";
 import type { BookmarkFolderChoice } from "./menuParts";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./sidebarUi";
+import { showToast } from "../app/toasts";
+import { noteSelectionCopiedByKey } from "../telemetry/usage";
 
 const store = () => useBrowser.getState();
 
@@ -124,6 +126,15 @@ export function copyUrls(ids: string[], markdown: boolean) {
   const lines = tabs.map((t) => (markdown ? markdownLink(tabTitle(t), t.url) : cleanUrl(t.url)));
   copyText(markdown && lines.length > 1 ? lines.map((l) => `- ${l}`).join("\n") : lines.join("\n"));
   return tabs.length;
+}
+
+export function copySelectedUrls(windowId: string, markdown: boolean, plainCopy: boolean): boolean {
+  const ids = multiSelectedTabIds(store(), windowId);
+  const copied = ids.length ? copyUrls(ids, markdown) : 0;
+  if (!copied) return false;
+  showToast(windowId, `Copied ${copied} ${copied === 1 ? "URL" : "URLs"}${markdown ? " as Markdown" : ""}`, undefined, { icon: "link" });
+  noteSelectionCopiedByKey(copied, plainCopy);
+  return true;
 }
 
 export async function bookmarkTabs(windowId: string, ids: string[], folder: BookmarkFolderChoice) {

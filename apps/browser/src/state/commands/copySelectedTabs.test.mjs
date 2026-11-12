@@ -129,3 +129,26 @@ test("an open peek copies its page instead of the sidebar selection", () => {
   runCommand({ command: "copyUrl", arg: null, windowId: w });
   assert.equal(copied(), "https://peek.example/");
 });
+
+test("a stale native Copy event keeps the clipboard when the selection is cleared", () => {
+  fresh();
+  const { w, ids: [a, b, c] } = windowWith("a", "b", "c");
+  S().setSelection(w, [a, b]);
+  const published = menuState(S()).copiesSelectedTabsIn;
+  S().clickTab(w, c);
+  runCommand({ command: "copyUrl", arg: "selectedTabs", windowId: published });
+  assert.deepEqual(clipboard.copied, []);
+});
+
+test("URL and Markdown copy follow flipped split panes in a group", () => {
+  fresh();
+  const { w, ids: [a, b, c] } = windowWith("a", "b", "c");
+  const split = S().createSplit([a, b]);
+  S().groupTabs([a, b, c], { pinned: true });
+  S().flipSplit(split);
+  S().setSelection(w, [c, a, b]);
+  runCommand({ command: "copyUrl", arg: null, windowId: w });
+  assert.equal(copied(), "https://b.com/\nhttps://a.com/\nhttps://c.com/");
+  runCommand({ command: "copyUrlAsMarkdown", arg: null, windowId: w });
+  assert.equal(copied(), "- [B](https://b.com/)\n- [A](https://a.com/)\n- [C](https://c.com/)");
+});
