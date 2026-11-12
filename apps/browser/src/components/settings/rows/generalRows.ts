@@ -163,7 +163,7 @@ export const generalRows = {
         },
         showUnreadCounts: {
           title: "Show unread counts on tabs",
-          description: "A notification badge with the unread count or dot a site like Gmail or Slack puts in its title, on its tab, pinned tile and Top App. Off by default. Once on, hide it for one site: right-click its tab and choose Hide Unread Count, or use Site Controls.",
+          description: "A notification badge with the unread count or dot a site like Gmail or Slack puts in its title, at the end of its tab. Top Apps stay clean. Off by default. Once on, hide it for one site: right-click its tab and choose Hide Unread Count, or use Site Controls.",
           keywords: ["unread", "badge", "badges", "bubble", "bubbles", "count", "notification", "notifications", "notis", "dot", "red", "gmail", "inbox", "messages", "arc"],
         },
         fadeUnloadedTabs: {

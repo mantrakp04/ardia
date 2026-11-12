@@ -50,7 +50,7 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
       )}
       <View pointerEvents="none">
         <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-        <TabBadges tabId={tab.id} pip={false} />
+        <TabBadges tabId={tab.id} />
       </View>
     </View>
   );
