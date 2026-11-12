@@ -1,5 +1,6 @@
 {
   "id": "fixes-0243n5",
+  "dropEvents": ["asked", "gone"],
   "segments": [
     {
       "scene": "lasttab",

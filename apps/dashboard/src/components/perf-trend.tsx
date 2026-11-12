@@ -15,6 +15,7 @@ import { formatBucket, formatExact, formatTick } from "@/lib/format";
 import { getPerformanceTrend, type PerformanceTrend, type TrendFamily, type TrendSeries } from "@/lib/performance-trends";
 import type { RangeKey, Step } from "@/lib/range";
 import { THRESHOLDS } from "@/lib/thresholds";
+import { viewerZone, zoneLabel } from "@/lib/zone";
 import { cn } from "@/lib/utils";
 
 export type Quantiles = { count: number; p50: number; p90: number; p99: number };
@@ -50,8 +51,8 @@ const fewSamples = (n: number) => n > 0 && n < THRESHOLDS.minPerfSamples;
 
 export function useTrend(family: TrendFamily, range: RangeKey, enabled: boolean): UseQueryResult<PerformanceTrend> {
   return useQuery({
-    queryKey: ["performance-trend", family, range],
-    queryFn: ({ signal }) => getPerformanceTrend({ data: { family, range }, signal }),
+    queryKey: ["performance-trend", family, range, viewerZone()],
+    queryFn: ({ signal }) => getPerformanceTrend({ data: { family, range, zone: viewerZone() }, signal }),
     enabled,
     staleTime: 60_000,
     gcTime: 10 * 60_000,
@@ -207,7 +208,7 @@ function TrendPreview({ spec, name, trend, range }: { spec: TrendSpec; name?: st
       )}
       {data && series && at !== null ? (
         <div className="grid gap-0.5 text-xs">
-          <span className="text-muted-foreground">{scrub === null && at === data.buckets.length - 1 ? `${formatBucket(data.buckets[at]!, data.step)}, so far` : formatBucket(data.buckets[at]!, data.step)}</span>
+          <span className="text-muted-foreground">{scrub === null && at === data.buckets.length - 1 ? `${formatBucket(data.buckets[at]!, data.step, data.zone)}, so far` : formatBucket(data.buckets[at]!, data.step, data.zone)}</span>
           <BucketReadout series={series} index={at} spec={spec} />
         </div>
       ) : null}
@@ -336,7 +337,7 @@ function TrendSheetBody({ spec }: { spec: TrendSpec }) {
       <SheetHeader className="gap-1 border-b px-5 pt-5 pb-4">
         <SheetTitle className="pr-8 text-lg tracking-[-0.01em]">{title}</SheetTitle>
         <SheetDescription className="text-xs">
-          {spec.context} · {rangeSentence(range)}, {data?.step === "hour" || range === "24h" ? "hourly" : "daily"} (UTC)
+          {spec.context} · {rangeSentence(range)}, {data?.step === "hour" || range === "24h" ? "hourly" : "daily"} ({zoneLabel(viewerZone())})
         </SheetDescription>
         {spec.options.length > 1 ? (
           <ToggleGroup
@@ -467,7 +468,7 @@ function TrendTooltip({ active, payload, step, spec }: { active?: boolean; paylo
   if (!row) return null;
   return (
     <div className="grid min-w-40 gap-1.5 rounded-lg border bg-popover/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
-      <div className="label-mono text-muted-foreground">{formatBucket(row.t, step)}</div>
+      <div className="label-mono text-muted-foreground">{formatBucket(row.t, step, viewerZone())}</div>
       {row.n && !spec.counts
         ? LEGEND_ORDER.map((key) => (
             <div key={key} className="flex items-center gap-2">
@@ -498,7 +499,7 @@ function QuantileChart({ buckets, series, step, spec, scale, height }: { buckets
     <ChartContainer config={config} className="aspect-auto w-full" style={{ height }}>
       <LineChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} accessibilityLayer>
         <CartesianGrid vertical={false} stroke="var(--grid)" />
-        <XAxis dataKey="t" {...axisProps} minTickGap={28} tickMargin={8} tickFormatter={(v: number) => formatTick(v, step)} />
+        <XAxis dataKey="t" {...axisProps} minTickGap={28} tickMargin={8} tickFormatter={(v: number) => formatTick(v, step, viewerZone())} />
         <YAxis
           {...axisProps}
           width={Y_WIDTH}
@@ -537,7 +538,7 @@ function CountChart({ buckets, series, step, color, height, compact }: { buckets
     <ChartContainer config={config} className="aspect-auto w-full" style={{ height }}>
       <BarChart data={rows} margin={{ top: compact ? 2 : 8, right: 8, bottom: 0, left: 0 }} barCategoryGap={buckets.length > 40 ? 1 : 2} accessibilityLayer>
         {!compact ? <CartesianGrid vertical={false} stroke="var(--grid)" /> : null}
-        <XAxis dataKey="t" {...axisProps} hide={compact} minTickGap={28} tickMargin={8} tickFormatter={(v: number) => formatTick(v, step)} />
+        <XAxis dataKey="t" {...axisProps} hide={compact} minTickGap={28} tickMargin={8} tickFormatter={(v: number) => formatTick(v, step, viewerZone())} />
         <YAxis {...axisProps} width={Y_WIDTH} allowDecimals={false} tickCount={compact ? 2 : 5} tickFormatter={(v: number) => formatExact(v)} />
         <ChartTooltip cursor={{ fill: "var(--foreground)", fillOpacity: 0.05 }} content={<TrendTooltip step={step} spec={countSpec} />} />
         <Bar dataKey="n" fill="var(--color-n)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
@@ -563,7 +564,7 @@ function TrendTable({ buckets, series, step, spec }: { buckets: number[]; series
             const n = series.count[i] ?? 0;
             return (
               <TableRow key={buckets[i]} className={cn(fewSamples(n) && "text-muted-foreground")}>
-                <TableCell className="whitespace-nowrap">{formatBucket(buckets[i]!, step)}</TableCell>
+                <TableCell className="whitespace-nowrap">{formatBucket(buckets[i]!, step, viewerZone())}</TableCell>
                 <TableCell className="text-right tnum">{formatExact(n)}</TableCell>
                 {!spec.counts
                   ? LEGEND_ORDER.map((key) => (

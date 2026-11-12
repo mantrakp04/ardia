@@ -7,6 +7,7 @@ import {
   type PermissionResult,
 } from "../../platform/permissions";
 import { ensureNotificationPermission } from "./webNotifications";
+import { ensureLocationPermission } from "./locationAccess";
 import { useBrowser } from "../browser/store";
 import { patchPage, pageOf, usePages } from "../tabs/pageState";
 import { startDeviceChoosers } from "./deviceChoosers";
@@ -78,6 +79,9 @@ export function answerPermission(tabId: string, requestId: string, result: Permi
   void resolvePermission(request.id, result, result !== "dismiss");
   if (result === "accept" && request.permissions.includes("notifications")) {
     void ensureNotificationPermission(useBrowser.getState().tabs[tabId]?.windowId);
+  }
+  if (result === "accept" && request.permissions.includes("location")) {
+    void ensureLocationPermission(useBrowser.getState().tabs[tabId]?.windowId);
   }
   next(tabId);
 }

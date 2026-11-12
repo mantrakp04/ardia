@@ -23,7 +23,7 @@ const LEFT = 60;
 const RIGHT = 980;
 const RELEASE = "0.2.44-nightly.1";
 const BEFORE_VERSION = "0.2.43";
-const FOOTAGE = "footage/0244n1";
+const FOOTAGE = "footage/fixes-0244n1";
 const SOURCE_SIZE: Record<string, [number, number]> = {
   settings: [1640, 1280],
   dia: [2560, 1600],

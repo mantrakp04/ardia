@@ -3,7 +3,6 @@ import collections
 import hashlib
 import json
 import os
-import plistlib
 import signal
 import subprocess
 import sys
@@ -1033,9 +1032,9 @@ class AgentPaths:
 
 
 def agent_paths() -> AgentPaths:
-    home = Path.home()
-    cli_home = os.environ.get("ARDIA_CLI_HOME") or str(home / "Library" / "Application Support" / "Ardia" / "CLI")
-    return AgentPaths(home, Path(cli_home).expanduser())
+    from ardia_cli import usage
+
+    return AgentPaths(Path.home(), usage.cli_home())
 
 
 def agent_plist(paths: AgentPaths, path_env: str | None) -> dict:

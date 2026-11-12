@@ -15,7 +15,7 @@ All of them are in `apps/browser/scripts/perf/`.
 | `acmark.m` | native | Injected into the bench's copy of the app: marks when a window's React content commits, and (`AC_BENCH_KEYLOG=1`) every key down the app's event loop sees. |
 | `acframes.m`, `frames-phase.mjs`, `frames-phase.test.mjs` | native | The frame rig (`native-bench.mjs --only frames`, `framecounts`): `acframes.m` is injected like `acmark.m` and records display-link ticks, main- and JS-thread run-loop busy time and layout counters; `frames-phase.mjs` drives the interactions and reads them; the test checks the window arithmetic. Rows: [What the frame rows measure](#what-the-frame-rows-measure). |
 | `scroll-frames.mjs` | native | Scroll smoothness on local pages that follow the scroll in script, rAF, canvas, scroll-driven animations, a smooth-scroll library and an inner scroller: real trackpad (phases and momentum, at 120, 90 or 60 events/s), wheel and key scrolls into a hidden instance (`acperf postscroll`, CDP keys), read from Chrome's trace. Rows: compositor draws, main frames, stale draws (a draw with no new main frame since the one before: script-placed content shows the old scroll position), rAF rate and gaps, per app. Its header has the details. |
-| `tab-actions.mjs`, `actabs.m` | native | Tab actions from the AppKit event to the last paint, on a session that looks like a real one (60 tabs, 2 profiles, pinned tiles and rows, groups, audible and loading tabs, 2 windows): sidebar click, ⌃Tab, ⌘1–9, ⌘T, ⌘-click, ⌘W, the row's ✕, pin and unpin, ⌃⇧PgDn. Sides (a bundle each, `--side-env` for extra environment) alternate launch by launch. Each action is split into event → store, React's commit, layout, the UI blocks on the main thread and AppKit's display + Core Animation commit, plus the shown page's frame, with React renders and commits per action. `actabs.m` is injected like `acmark.m`: it posts the key, mouse and menu events in-process and times every UI-manager flush to its Core Animation commit. |
+| `tab-actions.mjs`, `actabs.m` | native | Tab actions from the AppKit event to the last paint, on a session that looks like a real one (60 tabs, 2 profiles, pinned tiles and rows, groups, audible and loading tabs, 2 windows): sidebar click, ⌃Tab, ⌘1–9, ⌘T, ⌘-click, ⌘W, the row's ✕, pin and unpin, ⌃⇧PgDn. `--extra-tabs N` adds N plain tabs to it, the many-tab session: J2 (⌘T) and J3 (⌃Tab) must cost the same at 0 and 100 extra (#1330). Sides (a bundle each, `--side-env` for extra environment) alternate launch by launch. Each action is split into event → store, React's commit, layout, the UI blocks on the main thread and AppKit's display + Core Animation commit, plus the shown page's frame, with React renders and commits per action. `actabs.m` is injected like `acmark.m`: it posts the key, mouse and menu events in-process and times every UI-manager flush to its Core Animation commit. |
 | `launch-trace.mjs` | native | Where the engine's start goes, two sides compared: Chrome's startup traces (`native-bench.mjs --only launch --trace-startup <categories>`), milestones from the process's creation (ChromeMain, BrowserMain, each process's first event) and the browser main thread's slices by name. |
 | `acsample.c`, `launch-samples.mjs` | native | The stretch the trace doesn't cover (ChromeMain → BrowserMain, ~100 ms): `acsample.c`, injected with `--env DYLD_INSERT_LIBRARIES`, samples the main thread every ~1 ms from before `main`; `launch-samples.mjs` symbolizes the samples against the unstripped framework (`dist/<v>/symbols`) and compares the functions in a window of two sides. How to run: its header. It found 0.2.31's +20 ms: the platform policy loader waiting on `/usr/bin/profiles`. |
 | `bench-entry.js`, `bench-channel.js`, `bench-offline.js` | native | The JS entry of the bench bundle: the app's `index.js` plus the command channel (`ac.journeys()` is the field timing's own view). `bench-offline.js` answers every non-local `fetch` itself when the data folder holds a `bench-offline` file, so nothing is uploaded while sharing is on. |
@@ -27,7 +27,12 @@ All of them are in `apps/browser/scripts/perf/`.
 | `micro-bench.mjs` | Node | Store-side work that grows with a profile (sidebar entries, group names, omnibox) in Node. No app needed. Its `counts` and `instr` cases feed the ratchet. |
 | `suggest-instr.mjs`, `suggest-hermes.mjs`, `bar-actions.json` | Node, Hermes | One command-bar keystroke on the seed profile (typing `github.com/net` and `react native perf`: site check, the bar's 46 actions, suggestions). `micro-bench.mjs suggest-keys` prints ops and time per key (`SUGGEST_BEFORE=1` runs the code as it was before the J2 hill-climb: the frozen spec `packages/core/src/suggest.reference.ts`); `suggest-instr.mjs` the instructions retired per round; `suggest-hermes.mjs` the same keys in the app's Hermes (the app's babel transform, the `hermes` CLI from Pods), per key, run under the perflab lock. `packages/core/src/suggest.property.test.ts` and `fuzzy.property.test.ts` hold the live code to the frozen spec on random profiles and typing sequences. |
 | `ratchet.mjs`, `ratchet.json` | ratchet | Ceilings on counts that can only go down, and the commands that check, lower and rebuild them. |
-| `ratchet-app.js`, `ops.mjs`, `ratchet-proof.mjs` | ratchet | The `launch` scenario the ratchet adds to js-bench, the builtin-call counter micro-bench uses, and the before/after proof that counts track wall-clock. |
+| `ratchet-app.js`, `ops.mjs` | ratchet | The `launch` scenario the ratchet adds to js-bench, and the builtin-call counter micro-bench uses. |
+
+Every bench that runs a copy of the app (js-bench, render-bench, census, native-bench, tab-actions) makes it with
+`prepareApp` in `scripts/lib/app-copy.mjs`: an APFS clone with the bundle swapped in, re-signed with the original's identity
+and entitlements only when something changed (the bundle, or the dyld and library-validation entitlements the injected
+`.m` tools need), and never from `/Applications`.
 
 The app side of the JS benches is `apps/browser/src/state/app/perfProbe.ts`. It only turns on in an isolated instance
 whose data folder holds a `perf-probe` file.
@@ -247,8 +252,9 @@ and `xctrace` counters need root or Instruments and weren't tried.
 
 ### Do the counts track wall-clock?
 
-`ratchet-proof.mjs` runs one workload on two revisions of the source, exported with `git archive` (nothing is checked
-out), and prints the exact builtin calls and the median wall-clock side by side. The pair is `f3417151^` and `f3417151`,
+`ratchet-proof.mjs` (deleted 2026-11-09; `git show 3737e1b79:apps/browser/scripts/perf/ratchet-proof.mjs`) ran one workload
+on two revisions of the source, exported with `git archive` (nothing is checked out), and printed the exact builtin calls
+and the median wall-clock side by side. The pair is `f3417151^` and `f3417151`,
 the commit "Strip and sidebar entries look tabs' groups and splits up by index", which stopped `sidebarEntries` from
 searching every split for every tab on a title change:
 
@@ -262,8 +268,7 @@ the 3.1 → 0.16 ms line is one run on a calmer machine. The calls are the same 
 
 Both fall, by more on the bigger window, as a quadratic-to-linear fix predicts, and the time falls further than the
 calls because a call isn't weighted by what it costs (the old code's calls were array scans). **Proven:** builtin calls
-for Node store work: a fix that cut the work cut the count by 68% to 92% and the time by 62% to 99% in every run, and
-`ratchet-proof.mjs` repeats it. **Not proven:** the app-side counts (commits, renders, host updates) against
+for Node store work: a fix that cut the work cut the count by 68% to 92% and the time by 62% to 99% in every run. **Not proven:** the app-side counts (commits, renders, host updates) against
 milliseconds. They are the same kind of count and `render-bench.mjs` times each component's renders, but no fix since the
 probe existed has been timed by the native bench with the machine quiet enough to see it; the first one should be added
 here with its before and after. Until then a drop in a React count is a drop in work, and a rise is a regression only in
@@ -312,7 +317,7 @@ a special case, cache or deferral that saves under 0.5 ms an action isn't worth 
 | `a3c9eff4` mounted set | +4 −1 | ~n²/2 string compares per switch | keep (simpler than before) |
 | `33e88e6f` page progress out of the store | +84 −13 (incl. preload hunks swept in) | 2 fewer store updates per load | keep |
 | `099fc058`, `cbfeb1ab`, `9b7eab76` narrower reads, memo leaves | +71 −51 | renders 414 → 134 per page load; 45 → 25 per key | keep (unproven family) |
-| `7184f7e8`, `e261559a` deferred sidebar rows | +146 −90 | first commit mounts 2757 → 1150 | keep; `scripts/layout-shift-test.mjs` holds the no-shift rule |
+| `7184f7e8`, `e261559a` deferred sidebar rows | +146 −90 | first commit mounts 2757 → 1150 | keep; `apps/browser/scripts/layout-shift-test.mjs` holds the no-shift rule |
 | `d7e6372a`, `bdee6047` legacy-file launch work | +69 −10 | 400 ms of bundle evaluation, but only on a launch with an old history.json / bookmarks.json | see below |
 | `be2ca8f7` update prewarm | +94 | 130–190 ms on an update's first launch | keep |
 | `9947002f` field timing listener only when sharing | +9 −2 | µs per store update | keep (also correct: off means off) |
@@ -382,7 +387,6 @@ What it does not see: the render server and the GPU. A frame the main thread del
 offscreen pass for a shadow or blur) is not counted; the layout and mount counters and the code are where those are
 looked for. Over-budget counts are noisy; the layout, mount and React counts repeat to the digit, which is why
 `frames-ratchet.json` holds ceilings for those only (`node apps/browser/scripts/perf/frames-phase.mjs check <results.json>`).
-Results and the fix list: [frames.md](frames.md).
 
 **cpu-cap.** `scripts/agent/cpu-cap` puts our processes on background QoS (efficiency cores) and pauses the busiest while
 the Mac is over its cap. Timings from a run it touched are not a user's: the table has a row that counts the runs under

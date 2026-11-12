@@ -62,6 +62,20 @@ test("Send needs a title and a description, spaces alone don't count", () => {
   assert.deepEqual(form.draftProblems(draft({ title: "x".repeat(68) })), ["titleTooLong"]);
 });
 
+test("each missing or too-long field gets its own hint, and filled ones get none", () => {
+  const titleOnly = form.draftProblems(draft({ description: "" }));
+  assert.equal(form.fieldProblem(titleOnly, "title"), null);
+  assert.deepEqual(form.fieldProblem(titleOnly, "description"), { problem: "description", hint: "Say what happened to send" });
+  const empty = form.draftProblems(draft({ title: "", description: "" }));
+  assert.equal(form.fieldProblem(empty, "title").hint, "Add a title to send");
+  assert.equal(form.fieldProblem(empty, "description").problem, "description");
+  assert.equal(form.fieldProblem(empty, "contact"), null);
+  assert.equal(form.fieldProblem(form.draftProblems(draft({ title: "x".repeat(68) })), "title").hint, "Shorten the title to 67 characters");
+  assert.equal(form.fieldProblem(form.draftProblems(draft({ description: "x".repeat(4001) })), "description").hint, "Shorten this to 4,000 characters");
+  assert.equal(form.fieldProblem(form.draftProblems(draft({ contact: "x".repeat(201) })), "contact").problem, "contactTooLong");
+  assert.deepEqual(form.draftProblems(draft()), []);
+});
+
 test("the payload follows the contract and leaves out what isn't ticked", () => {
   const payload = form.buildPayload(draft({ title: "  Tabs flicker  ", contact: "" }), context());
   assert.deepEqual(Object.keys(payload).sort(), [

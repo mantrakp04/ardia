@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Ardia's changes to the Chromium tree, in the order `series` gives.
 
-  series.py apply [--phase chromium]             apply to the tree; skips what is already applied
+  series.py apply                                apply to the tree; skips what is already applied
   series.py check [--keep DIR]                   apply the whole series to a scratch copy of the base and
                                                  compare the result with the tree, byte for byte
-  series.py capture-base [--phase chromium]      record the files the series touches as they are now (run
+  series.py capture-base                         record the files the series touches as they are now (run
                                                  just before applying the series to a fresh or rebased tree)
   series.py materialize --until NAME DIR         the touched files as the series leaves them after NAME (to
                                                  remake a patch: edit there, diff against --until the line above)
@@ -155,10 +155,6 @@ def is_applied(step, tree):
         run(["patch", "-p1", "--dry-run", "-R", "-s", "-f", "-i", step.patch], cwd).returncode == 0
 
 
-def phase_of(step):
-    return "chromium"
-
-
 def touched(steps):
     out = []
     for step in steps:
@@ -204,8 +200,6 @@ def cmd_files(args):
 
 def cmd_apply(args):
     for step in read_series():
-        if args.phase and phase_of(step) != args.phase:
-            continue
         if step.kind != "layer" and is_applied(step, SRC):
             print(f"already applied {step.name}")
             continue
@@ -217,7 +211,7 @@ def cmd_apply(args):
 
 
 def cmd_capture_base(args):
-    steps = [s for s in read_series() if not args.phase or phase_of(s) == args.phase]
+    steps = read_series()
     created = set().union(*(s.created() for s in steps))
     count = 0
     for path, is_dir in touched(steps):
@@ -303,12 +297,6 @@ def tree_differs(cmp):
     return any(tree_differs(sub) for sub in cmp.subdirs.values())
 
 
-def holds_lock_for(path):
-    if pathguard.reaches(path):
-        return pathguard.real_lock_held()
-    return pathguard.chromium_lock_held()
-
-
 def real_chromium_build():
     return pathguard.real_chromium_build()
 
@@ -351,13 +339,11 @@ def refuse_live_base_for_scratch_tree():
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
-    p = sub.add_parser("apply")
-    p.add_argument("--phase", choices=["chromium"])
+    sub.add_parser("apply")
     p = sub.add_parser("check")
     p.add_argument("--keep", metavar="DIR", help="scratch directory to keep")
     p.add_argument("-v", "--verbose", action="store_true")
     p = sub.add_parser("capture-base")
-    p.add_argument("--phase", choices=["chromium"])
     p.add_argument("--force", action="store_true", help="replace files already captured")
     p = sub.add_parser("materialize")
     p.add_argument("--until", required=True)

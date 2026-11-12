@@ -31,7 +31,7 @@ const OG_ALT =
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={canonical} />
+    {!noindex && <link rel="canonical" href={canonical} />}
     <meta name="theme-color" content={colour("Paper").toLowerCase()} />
     <meta name="color-scheme" content="light" />
     <link rel="icon" href={`${base}/favicon.ico`} sizes="48x48" />

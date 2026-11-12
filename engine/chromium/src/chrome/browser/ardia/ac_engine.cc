@@ -269,10 +269,6 @@ void Emit(std::string_view topic, Profile* profile, base::DictValue payload) {
 
 }
 
-extern "C" AC_ENGINE_EXPORT int ac_engine_abi_version() {
-  return AC_ENGINE_ABI_VERSION;
-}
-
 extern "C" AC_ENGINE_EXPORT void ac_engine_set_event_sink(
     ac_engine_event_t sink,
     void* context) {

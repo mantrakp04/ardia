@@ -20,6 +20,10 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
 
 @implementation ArdiaChromeWindowHost
 
++ (CGFloat)windowCornerRadius {
+  return WindowCornerRadius(nil);
+}
+
 + (NSWindow *)makeWindowForProfile:(NSString *)profile {
   if (!ArdiaHost.isStarted) return nil;
   ArdiaCoreWindow *coreWindow = [[ArdiaCoreWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1360, 860)];
@@ -134,6 +138,10 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
 
 + (BOOL)windowFullScreenIsForPage:(NSWindow *)window {
   return [objc_getAssociatedObject(window, kWindowFullScreenKey) enteredForPage];
+}
+
++ (BOOL)userSeesWindow:(NSWindow *)window {
+  return [ArdiaWindowController userSees:window];
 }
 
 + (void)setShouldCloseHandler:(BOOL (^)(NSWindow *))handler {

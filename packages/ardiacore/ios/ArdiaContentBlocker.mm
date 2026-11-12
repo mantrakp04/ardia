@@ -326,6 +326,15 @@ void Changed(NSString *error, void (^completion)(NSString *error)) {
   });
 }
 
+void ListsChanged(NSString *error, void (^completion)(NSString *error)) {
+  if (error) return completion(error);
+  completion(nil);
+  State(^(NSDictionary *state) { [ArdiaEvents emit:@"contentBlocker.changed" data:state[@"stats"]]; });
+  FollowDefault(nil, ^(NSString *followError) {
+    if (followError) NSLog(@"[blocker] the other profiles didn't take the list change: %@", followError);
+  });
+}
+
 }
 
 namespace ardia_host {
@@ -367,7 +376,7 @@ void LoadContentBlocker(NSString *profile) {
                       "})";
   Call(kProfile, ScriptWith(script, @[ listId, @(enabled) ]), ^(id, NSString *error) {
     if (!error) Publish(@{@"list" : listId, @"listEnabled" : @(enabled)});
-    Changed(error, completion);
+    ListsChanged(error, completion);
   });
 }
 

@@ -15,6 +15,34 @@ test("dragging a tab onto another in the top tab strip groups them only once tur
   assert.equal(DEFAULT_SETTINGS.dragToGroupInTopStrip, false);
 });
 
+test("page frame zero options and borderless mode are off by default and synced", () => {
+  for (const key of ["borderlessMode", "pageFrameZeroInFullScreen", "pageFrameZeroWhenTabsHidden"]) {
+    assert.equal(DEFAULT_SETTINGS[key], false, key);
+    assert.ok(SETTING_SPECS[key].synced, key);
+    assert.ok(SYNCED_SETTINGS.includes(key), key);
+    assert.equal(parseSettings({ [key]: true })[key], true, key);
+    assert.equal(parseSettings({ [key]: "yes" })[key], false, key);
+  }
+});
+
+test("turning on Zero in full screen also turns on Zero in full screen when tabs are hidden", async () => {
+  const { choose } = await import("./settings.ts");
+  const base = { settings: { ...DEFAULT_SETTINGS }, settingsMeta: { chosen: [], inferred: [] } };
+  const onlyFs = choose(base, { pageFrameZeroInFullScreen: true });
+  assert.equal(onlyFs.settings.pageFrameZeroInFullScreen, true);
+  assert.equal(onlyFs.settings.pageFrameZeroWhenTabsHidden, true);
+  const offFs = choose({ ...base, settings: onlyFs.settings, settingsMeta: onlyFs.settingsMeta }, { pageFrameZeroInFullScreen: false });
+  assert.equal(offFs.settings.pageFrameZeroInFullScreen, false);
+  assert.equal(offFs.settings.pageFrameZeroWhenTabsHidden, true);
+});
+
+test("sync also turns on the dependent page-frame flag", () => {
+  S().hydrate({ settings: {} });
+  settingsAdapter.apply(new Map([["set:pageFrameZeroInFullScreen", { v: true }]]), ["set:pageFrameZeroInFullScreen"]);
+  assert.equal(S().settings.pageFrameZeroInFullScreen, true);
+  assert.equal(S().settings.pageFrameZeroWhenTabsHidden, true);
+});
+
 test("a saved value of the wrong kind reads as the default, and the rest is kept", () => {
   const settings = parseSettings({
     tabLayout: "diagonal",

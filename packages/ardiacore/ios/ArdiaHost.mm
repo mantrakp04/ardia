@@ -1,4 +1,5 @@
 #import "ArdiaHostInternal.h"
+#import "ArdiaLaunchConfig.h"
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaServices.h"
 #import "ArdiaNavigationDownloads.h"
@@ -312,9 +313,8 @@ static void (^gQuitCancelledHandler)(void);
   }
   NSArray *windows = CFBridgingRelease(
       CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID));
-  const pid_t me = getpid();
   for (NSDictionary *w in windows) {
-    if ([w[(id)kCGWindowLayer] intValue] != 0 || [w[(id)kCGWindowOwnerPID] intValue] == me) continue;
+    if ([w[(id)kCGWindowLayer] intValue] != 0) continue;
     NSDictionary *bounds = w[(id)kCGWindowBounds];
     const CGFloat width = [bounds[@"Width"] doubleValue], height = [bounds[@"Height"] doubleValue];
     if (width < 50 || height < 50) continue;
@@ -331,6 +331,24 @@ static void (^gQuitCancelledHandler)(void);
     }];
   }
   return sources;
+}
+
++ (BOOL)screenRecordingAllowed {
+  NSString *answer = [ArdiaLaunchConfig.shared testValue:@"screenRecording"];
+  if (answer.length) return [answer isEqualToString:@"allowed"];
+  return CGPreflightScreenCaptureAccess();
+}
+
++ (BOOL)requestScreenRecording {
+  if (self.screenRecordingAllowed) return YES;
+  if (ArdiaLaunchConfig.shared.background) {
+    NSLog(@"[ardia] background mode: Screen Recording request not shown");
+    return NO;
+  }
+  if (CGRequestScreenCaptureAccess()) return YES;
+  [NSWorkspace.sharedWorkspace
+      openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"]];
+  return NO;
 }
 
 + (BOOL)isStarted {

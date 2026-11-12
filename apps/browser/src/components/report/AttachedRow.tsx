@@ -1,8 +1,8 @@
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { setAttach, setAttachedOpen, setPreview } from "../../state/report/actions";
 import type { AttachmentKey } from "../../state/report/form";
 import { useReport, useReportShallow } from "../../state/report/hooks";
-import { Box, Button, Checkbox, Panel, radius, shadow, space, Symbol, Text, useHover, useTheme } from "../ui";
+import { Box, Button, Checkbox, Divider, space, Symbol, Text, useHover, useTheme } from "../ui";
 
 const shortAddress = (url: string) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/[?#].*$/, "");
 
@@ -27,34 +27,36 @@ export function useAttachedRows() {
 export function AttachedRow() {
   const theme = useTheme();
   const open = useReport((s) => s.attachedOpen);
-  const { summary } = useAttachedRows();
+  const { rows, summary } = useAttachedRows();
   const { hovered, hoverProps } = useHover();
   return (
-    <View {...hoverProps}>
-      <Pressable onPress={() => setAttachedOpen(!open)} accessibilityRole="button" accessibilityLabel={`Attached: ${summary}. Preview`}>
-        <Box row gap="m" padX="l" fill={hovered || open ? "rowHover" : "groupFill"} border="groupBorder" radius="panel" style={ROW}>
-          <Symbol name="paperclip" size={12} color={theme.textSecondary} style={GLYPH} />
-          <Text tone="textSecondary">Attached</Text>
-          <Text numberOfLines={1} style={FLEX}>
-            {summary}
-          </Text>
-          <Text weight="medium" tone="formAccent">
-            Preview
-          </Text>
-          <Symbol name={open ? "chevron.up" : "chevron.down"} size={10} weight="semibold" color={theme.textSecondary} style={GLYPH} />
-        </Box>
-      </Pressable>
-    </View>
+    <Box fill="groupFill" border="groupBorder" radius="panel" style={CLIP}>
+      <View {...hoverProps}>
+        <Pressable onPress={() => setAttachedOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`Attached: ${summary}. Preview`}>
+          <Box row gap="m" padX="l" fill={hovered ? "rowHover" : undefined} style={ROW}>
+            <Symbol name="paperclip" size={12} color={theme.textSecondary} style={GLYPH} />
+            <Text tone="textSecondary">Attached</Text>
+            <Text numberOfLines={1} style={FLEX}>
+              {summary}
+            </Text>
+            <Text weight="medium" tone="formAccent">
+              Preview
+            </Text>
+            <Symbol name={open ? "chevron.up" : "chevron.down"} size={10} weight="semibold" color={theme.textSecondary} style={GLYPH} />
+          </Box>
+        </Pressable>
+      </View>
+      {open ? <AttachedList rows={rows} /> : null}
+    </Box>
   );
 }
 
-export function AttachedPopover({ bottom }: { bottom: number }) {
-  const { rows } = useAttachedRows();
+function AttachedList({ rows }: { rows: ReturnType<typeof useAttachedRows>["rows"] }) {
   return (
     <>
-      <Pressable style={StyleSheet.absoluteFill} onPress={() => setAttachedOpen(false)} accessibilityLabel="Close attachments" />
-      <Panel radius={radius.panel} shadow={shadow.popover} style={{ position: "absolute", left: space.xxl, right: space.xxl, bottom, padding: space.l }}>
-        <Text size="small" weight="semibold" tone="textSecondary" style={{ marginBottom: space.s }}>
+      <Divider />
+      <View style={LIST}>
+        <Text size="small" weight="semibold" tone="textSecondary" style={{ marginBottom: space.xs }}>
           Sent with this report
         </Text>
         {rows.map((row) => (
@@ -71,13 +73,15 @@ export function AttachedPopover({ bottom }: { bottom: number }) {
         <View style={{ marginTop: space.s, alignSelf: "flex-start" }}>
           <Button variant="text" look="link" pad="none" title="Preview everything that's sent" onPress={() => setPreview(true)} />
         </View>
-      </Panel>
+      </View>
     </>
   );
 }
 
 const FLEX = { flex: 1 } as const;
 const ROW = { height: 34, alignItems: "center" } as const;
+const CLIP = { overflow: "hidden" } as const;
+const LIST = { paddingHorizontal: space.l, paddingTop: space.m, paddingBottom: space.m } as const;
 const ITEM = { height: 26, alignItems: "center" } as const;
 const DETAIL = { flex: 1, textAlign: "right" } as const;
 const GLYPH = { width: 14, height: 14 } as const;

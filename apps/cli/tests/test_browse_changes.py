@@ -223,13 +223,16 @@ class ChangesReport(unittest.TestCase):
         text = changes.render(changes.diff(view([]), view(rows)))
         self.assertEqual(text.splitlines()[1:], [f"+ {item['line']}" for item in rows])
 
-    def test_a_run_of_links_with_children_folds_them_and_counts_disabled(self):
+    def test_a_run_of_links_with_children_lists_enabled_ones_and_counts_disabled(self):
         rows = []
         for index in range(1, 13):
             rows.append(row(f"e{index * 2}", f'button "Seat {index}A"', name=f"Seat {index}A", attrs=["disabled"] if index % 2 else []))
             rows.append(row(f"e{index * 2 + 1}", f'heading "Row {index}"', level=1, role="heading", name=f"Row {index}"))
         text = changes.render(changes.diff(view([]), view(rows)))
-        self.assertEqual(text.splitlines()[1:3], ["+ 12 buttons (Seat 1A … Seat 12A; e2…e24; 6 disabled)", changes.RUN_HINT])
+        self.assertEqual(text.splitlines()[1:9], [f'+ button "Seat {index}A"' for index in range(2, 13, 2)]
+                         + ["+ 6 disabled buttons (Seat 1A … Seat 11A)", changes.RUN_HINT])
+        folded = [row(f"e{index}", f'button "Seat {index}A"', name=f"Seat {index}A") for index in range(1, 13)]
+        self.assertIn("+ 12 buttons (Seat 1A … Seat 12A; e1…e12)", changes.render(changes.diff(view([]), view(folded))))
         eleven = changes.render(changes.diff(view([]), view(rows[:22])))
         self.assertIn('+ button "Seat 11A"', eleven)
 

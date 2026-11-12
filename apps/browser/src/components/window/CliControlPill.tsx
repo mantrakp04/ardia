@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Animated, Image, StyleSheet, View, type ViewStyle } from "react-native";
 import { stopCliControl, useCliIndicator } from "../../state/app/cliControl";
-import { callerLabel } from "../../state/app/cliCaller";
+import { controlLine, controlLineText } from "../../state/app/cliCaller";
 import { fileIcon } from "../../state/app/system";
 import { useTheme } from "../ui/theme";
 import { Button, Dot, space, Symbol, Text, usePresence } from "../ui";
@@ -16,6 +16,7 @@ export function CliControlPill({ style }: { style?: Animated.WithAnimatedValue<V
   const shown = useCliIndicator((s) => s.shown);
   const caller = useCliIndicator((s) => s.caller);
   const icon = useAppIcon(caller?.app ?? null);
+  const line = controlLine(caller);
   const { shown: mounted, appear } = usePresence(shown || null, CLI_PILL_MOTION);
   if (!mounted) return null;
   return (
@@ -29,7 +30,7 @@ export function CliControlPill({ style }: { style?: Animated.WithAnimatedValue<V
             transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
           }}
         >
-          <Hud shape="capsule" height={PILL_HEIGHT} accessibilityRole="alert" accessibilityLabel={`${callerLabel(caller)} is controlling Ardia`}>
+          <Hud shape="capsule" height={PILL_HEIGHT} accessibilityRole="alert" accessibilityLabel={controlLineText(line)}>
             <View style={PILL_ROW}>
               {icon ? (
                 <Image source={{ uri: icon }} style={APP_ICON} />
@@ -39,10 +40,11 @@ export function CliControlPill({ style }: { style?: Animated.WithAnimatedValue<V
                 </Dot>
               )}
               <Text numberOfLines={1} size="small" tone="textSecondary" style={SHRINK}>
+                {line.lead}
                 <Text size="small" weight="semibold">
-                  {callerLabel(caller)}
+                  {line.name}
                 </Text>
-                {" is controlling Ardia"}
+                {line.rest}
               </Text>
               <Button variant="pill" tone="chip" title="Stop" onPress={stopCliControl} />
             </View>

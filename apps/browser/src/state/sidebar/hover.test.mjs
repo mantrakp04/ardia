@@ -4,6 +4,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const { registerRow, setSidebarUi, sidebarUi } = await import("./sidebarUi.ts");
 const hover = await import("./hover.ts");
 const { cardReach } = await import("./hoverAim.ts");
+const { setDockMoving, setPeekLeaving } = await import("../windows/dockMotion.ts");
 
 const W = "w";
 const HEIGHT = 800;
@@ -265,4 +266,26 @@ test("the command panel over the rows takes their highlight", () => {
   hover.watchCovered(W, refresh, false);
   hover.setRowsCovered(W, false);
   assert.equal(refreshed, 1, "a row that's no longer pointed isn't told");
+});
+
+test("a sidebar sliding away or docking raises no card, and a card asked for just before it slides never lands", async (t) => {
+  fresh(t);
+  for (const slide of [(on) => setPeekLeaving(W, on), (on) => setDockMoving(W, on)]) {
+    hover.dismissHover();
+    slide(true);
+    enter("a");
+    t.mock.timers.tick(1000);
+    await settle();
+    assert.equal(shown(), null, "entered while sliding");
+    slide(false);
+    hover.rowLeft(W, row("a"), at(200, ROWS.a + 10), true);
+    t.mock.timers.tick(1000);
+    enter("b");
+    t.mock.timers.tick(499);
+    slide(true);
+    t.mock.timers.tick(1);
+    await settle();
+    assert.equal(shown(), null, "timer ran out while sliding");
+    slide(false);
+  }
 });

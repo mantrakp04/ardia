@@ -139,6 +139,7 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
   const recorded = key !== s.topAppsMerged ? { ...s, topAppsMerged: key } : s;
   const onlyRecorded = recorded === s ? null : recorded;
   if (!key) return onlyRecorded;
+  if (!onlyRecorded && s.parkedPins === prev.parkedPins && (writingFromSync() || !pinsMayDiffer(s, prev))) return null;
   const circles = topAppCircles(s);
   const merged = s.topAppsMerged.split("|").map((k) => new Set(k.split(",")));
   const joining = new Set(circles.filter((c) => !merged.some((m) => c.every((id) => m.has(id)))).map(circleKey));

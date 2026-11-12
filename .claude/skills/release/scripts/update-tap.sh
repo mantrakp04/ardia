@@ -7,7 +7,7 @@ dry=0
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(git -C "$here" rev-parse --show-toplevel)"
 . "$root/scripts/lib/releases.sh"
-tap="mantrakp04/homebrew-tap"
+tap="ardia-browser/homebrew-tap"
 dist="${RELEASE_DIST:-$root/dist/$version}"
 die() { echo "error: $*" >&2; exit 1; }
 

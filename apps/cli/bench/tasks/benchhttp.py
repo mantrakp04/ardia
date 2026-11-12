@@ -1,4 +1,6 @@
 import json
+import os
+import re
 import signal
 import sys
 import threading
@@ -8,6 +10,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 HOST = "127.0.0.1"
+PORT_OFFSET = int(os.environ.get("BENCH_PORT_OFFSET") or 0)
+REWRITTEN_TYPES = ("text/", "application/json", "application/javascript", "image/svg+xml")
 STATIC_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
@@ -22,9 +26,28 @@ def now_ms():
     return int(time.time() * 1000)
 
 
+def port_pattern(ports, as_bytes=False):
+    alternatives = "|".join(str(p) for p in sorted(set(ports), reverse=True))
+    pattern = rf"(?<![\w.-])(127\.0\.0\.1|localhost):({alternatives})(?!\d)"
+    return re.compile(pattern.encode() if as_bytes else pattern)
+
+
+def rewrite_ports(value, ports, offset):
+    if not offset or not ports:
+        return value
+    if isinstance(value, bytes):
+        return port_pattern(ports, True).sub(lambda m: m.group(1) + b":" + str(int(m.group(2)) + offset).encode(), value)
+    return port_pattern(ports).sub(lambda m: f"{m.group(1)}:{int(m.group(2)) + offset}", value)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "benchhttp/1"
     root = None
+    base_ports = ()
+    port_offset = 0
+
+    def offset_ports(self, value):
+        return rewrite_ports(value, self.base_ports, self.port_offset)
 
     def log_message(self, fmt, *args):
         if getattr(self.server, "verbose", False):
@@ -45,12 +68,14 @@ class Handler(BaseHTTPRequestHandler):
             data = json.dumps(body).encode()
         else:
             data = str(body).encode()
+        if ctype.startswith(REWRITTEN_TYPES):
+            data = self.offset_ports(data)
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         for k, v in (headers or {}).items():
-            self.send_header(k, v)
+            self.send_header(k, self.offset_ports(str(v)))
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(data)
@@ -60,7 +85,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def redirect(self, location):
         self.send_response(303)
-        self.send_header("Location", location)
+        self.send_header("Location", self.offset_ports(location))
         self.send_header("Content-Length", "0")
         self.end_headers()
 
@@ -92,14 +117,15 @@ class Handler(BaseHTTPRequestHandler):
 
 def serve_forever(servers, banner, verbose=False):
     started = []
+    base_ports = tuple(port for port, _, _ in servers)
     for port, handler, root in servers:
-        cls = type(handler.__name__, (handler,), {"root": root})
-        srv = ThreadingHTTPServer((HOST, port), cls)
+        cls = type(handler.__name__, (handler,), {"root": root, "base_ports": base_ports, "port_offset": PORT_OFFSET})
+        srv = ThreadingHTTPServer((HOST, port + PORT_OFFSET), cls)
         srv.daemon_threads = True
         srv.verbose = verbose
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         started.append(srv)
-    print(banner, flush=True)
+    print(rewrite_ports(banner, base_ports, PORT_OFFSET), flush=True)
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())

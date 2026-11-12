@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 
 struct DocumentRewriter {
@@ -54,3 +55,4 @@ struct DocumentRewriter {
     return (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) != nil
   }
 }
+#endif

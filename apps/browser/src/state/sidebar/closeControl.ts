@@ -56,3 +56,8 @@ export function pressTabClose(tabId: string) {
   if (intent.kind === "unload") s.closeTabs(intent.ids);
   else middleClickTab(tabId);
 }
+
+export function pressPaneClose(tabId: string, pullOut: boolean) {
+  if (pullOut) useBrowser.getState().removeTabFromSplit(tabId);
+  else pressTabClose(tabId);
+}

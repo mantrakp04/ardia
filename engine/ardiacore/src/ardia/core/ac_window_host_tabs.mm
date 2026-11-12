@@ -4,15 +4,12 @@
 
 #include "base/auto_reset.h"
 #include "base/functional/bind.h"
-#include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/tab_list/tab_removed_reason.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/passwords/passwords_model_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/unload_controller.h"
-#include "components/password_manager/core/browser/password_form.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "ardia/core/ac_autofill_trigger.h"
@@ -22,7 +19,6 @@
 #include "ardia/core/ac_password_prompt.h"
 #include "ardia/core/ac_video_upscaling.h"
 #import "ardia/core/ardiacore_internal.h"
-#include "url/origin.h"
 
 namespace ardiacore {
 
@@ -145,23 +141,7 @@ bool WindowHost::OfferPasswordSave(content::WebContents* contents) {
     PasswordConfirmationShown(contents);
     return true;
   }
-  if (![delegate respondsToSelector:@selector
-                 (window:passwordSavePromptForTab:username:origin:)]) {
-    return false;
-  }
-  base::WeakPtr<PasswordsModelDelegate> model =
-      PasswordsModelDelegateFromWebContents(contents);
-  if (!model ||
-      model->GetState() != password_manager::ui::PENDING_PASSWORD_STATE) {
-    return false;
-  }
-  const password_manager::PasswordForm& form = model->GetPendingPassword();
-  [delegate window:owner
-      passwordSavePromptForTab:TabBridge::GetOrCreate(contents)->tab()
-                      username:base::SysUTF16ToNSString(form.username_value)
-                        origin:base::SysUTF8ToNSString(
-                                   model->GetOrigin().Serialize())];
-  return true;
+  return false;
 }
 
 void WindowHost::FullscreenChanged(content::WebContents* contents,

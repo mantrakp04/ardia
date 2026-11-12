@@ -38,6 +38,7 @@ export function emitJourneys(final = false) {
     props[`${step}_n`] = list.length;
   }
   for (const [what, n] of counts) props[what] = n;
+  props.tabs = Object.keys(useBrowser.getState().tabs).length;
   samples.clear();
   counts.clear();
   if (on && isSharing()) capture("perf_journeys", props);
@@ -240,12 +241,15 @@ function sendLaunch(l: Launch, content: number | null, paints: number[]) {
   const s = useBrowser.getState();
   let history = 0;
   for (const view of Object.values(s.history)) history += view.list.length;
-  const { bootTime, appBuild, updatePrewarm } = appInfo();
+  const { bootTime, appBuild, updatePrewarm, launchMarks } = appInfo();
   const { lastLaunchAt, lastQuitAt, firstOfVersion } = previousLaunch;
   const prewarm = firstOfVersion && updatePrewarm?.build === appBuild ? updatePrewarm : null;
   const ms = (at: number | null | undefined) => (at == null || !(at - l.t0 >= 0 && at - l.t0 < 10 * MINUTE) ? null : Math.round(at - l.t0));
   capture("perf_launch", {
     launch_ms: ms(l.firstWindow),
+    engine_ms: ms(launchMarks?.engineStarted),
+    early_window_ms: ms(launchMarks?.earlyWindowShown),
+    rn_ms: ms(launchMarks?.reactNativeStarted),
     js_ms: ms(jsStartedAt),
     commit_ms: ms(l.commit),
     content_ms: ms(content),

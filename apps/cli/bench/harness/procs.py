@@ -80,6 +80,14 @@ def kill_group(proc, grace=10):
             continue
 
 
+def kill_on_failure(proc, wait):
+    try:
+        return wait()
+    except BaseException:
+        kill_group(proc, grace=3)
+        raise
+
+
 def front_pid():
     asn = sh(["lsappinfo", "front"]).stdout.strip()
     if not asn or "NULL" in asn:

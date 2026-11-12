@@ -120,6 +120,23 @@ exactly so) endpoints, for fixtures; other builds refuse them.
 hand the input to the extension (`OnInputEntered`) instead of opening a checked URL, which this design avoids, so it
 stays off until that's decided.
 
+### The command bar's start
+
+`settings.commandBarStart` sets what a new tab's command bar (⌘T, with New Tab opening the command bar) lists before
+you type. It has no Settings row: plugins (github.com/mantrakp04/ardia-plugins) and people write it here.
+
+```json
+"commandBarStart": { "openTabs": { "hidePinned": true, "hideTopApps": true, "limit": 5 } }
+```
+
+- `openTabs.hidePinned` leaves out pinned tabs (the sidebar's pinned rows), `openTabs.hideTopApps` leaves out Top Apps
+  (the tiles). Typing still finds every open tab.
+- `openTabs.limit` (0–20, default 8) is how many open tabs it lists; 0 lists none.
+- Any other key, or a value of the wrong type, makes the whole setting invalid. `{}` is Ardia's default.
+- Code: `state/omnibox/commandBarStart.ts`, used by `useOpenTabsStart` (`components/omnibox/dropdownStart.ts`).
+  Telemetry: `settings_snapshot` carries `setting_commandBarStart_hidePinned`, `_hideTopApps` and `_limit` with their
+  defaults.
+
 ### The file wins
 
 `config.json` is read-only to the app. Ardia never writes it, so there is nothing to race with.

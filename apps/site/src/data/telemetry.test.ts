@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { AUTO_EVENTS, REPLAY_BODY_LIMIT_MB, REPLAY_MAX_CHUNK_BYTES, REPLAY_SEQ_DIGITS, REPLAY_SESSION, SITE_EVENTS } from "./telemetry.ts";
 
 const site = new URL("../../", import.meta.url);
 const sources = execFileSync("git", ["ls-files", "src"], { cwd: site, encoding: "utf8" })
   .split("\n")
-  .filter((file) => /\.(astro|ts)$/.test(file) && !file.endsWith(".test.ts"))
+  .filter((file) => /\.(astro|ts)$/.test(file) && !file.endsWith(".test.ts") && existsSync(new URL(file, site)))
   .map((file) => readFileSync(new URL(file, site), "utf8"))
   .join("\n");
 const sent = new Set([...sources.matchAll(/data-track="(\w+)"|capture\(\s*"(\$?\w+)"/g)].map((m) => m[1] ?? m[2]));

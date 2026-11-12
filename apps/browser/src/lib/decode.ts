@@ -7,5 +7,4 @@ export const isStringList = (v: unknown): v is string[] => Array.isArray(v) && v
 
 export const stringOr = <T,>(v: unknown, fallback: T): string | T => (isString(v) ? v : fallback);
 export const numberOr = <T,>(v: unknown, fallback: T): number | T => (isNumber(v) ? v : fallback);
-export const fieldsOr = <T,>(v: unknown, fallback: T): Fields | T => (isFields(v) ? v : fallback);
 export const listOf = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);

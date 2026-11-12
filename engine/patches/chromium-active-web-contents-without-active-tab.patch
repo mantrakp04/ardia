@@ -1,0 +1,16 @@
+--- a/chrome/browser/extensions/extension_tab_util.cc
++++ b/chrome/browser/extensions/extension_tab_util.cc
+@@ -1041,9 +1041,10 @@
+         if (browser_profile == profile ||
+             browser_profile == incognito_profile) {
+           TabListInterface* tab_list = TabListInterface::From(browser);
+-          if (tab_list) {
+-            content::WebContents* tab_contents =
+-                tab_list->GetActiveTab()->GetContents();
++          tabs::TabInterface* active_tab =
++              tab_list ? tab_list->GetActiveTab() : nullptr;
++          if (active_tab) {
++            content::WebContents* tab_contents = active_tab->GetContents();
+             CHECK(tab_contents);
+             active_contents.push_back(tab_contents);
+           }

@@ -16,6 +16,31 @@ def tokens_total(rec):
     return t.get("total") if isinstance(t, dict) else None
 
 
+def counts(values):
+    out = {}
+    for v in values:
+        out[v] = out.get(v, 0) + 1
+    return out
+
+
+def method_labels(runs):
+    labels = [r["method"].get("label") for r in runs if isinstance(r.get("method"), dict)]
+    return counts(str(label) for label in labels) if labels else None
+
+
+def rejected_writes(runs):
+    found = [r["method"].get("rejected") for r in runs if isinstance(r.get("method"), dict)]
+    found = [n for n in found if isinstance(n, int) and not isinstance(n, bool)]
+    return sum(found) if found else None
+
+
+def invariant_failures(runs):
+    checked = [r["invariants"] for r in runs if isinstance(r.get("invariants"), dict)]
+    if not checked:
+        return None
+    return counts(name for inv in checked for name, ok in inv.items() if ok is False)
+
+
 def cell(runs):
     passed = [r for r in runs if r.get("pass")]
     valid = [r for r in runs if not r.get("harness_error")]
@@ -31,6 +56,9 @@ def cell(runs):
         "harness_errors": len(runs) - len(valid),
         "frontmost_during_run": [r.get("frontmost_during_run") for r in valid if "frontmost_during_run" in r] or None,
         "screenshot_timeouts": [r.get("screenshot_timeouts") for r in valid if "screenshot_timeouts" in r] or None,
+        "method_labels": method_labels(valid),
+        "rejected_writes": rejected_writes(valid),
+        "invariant_failures": invariant_failures(valid),
         "run_ids": [r["run_id"] for r in runs],
     }
 
@@ -111,6 +139,9 @@ def build(results_dir):
             "median_time_s": "median wall time of the agent, all runs",
             "median_time_to_correct_s": "median seconds from agent start to the checker's completed_at_ms, passing runs",
             "median_tokens": "median total tokens (input incl. cached + output)",
+            "method_labels": "runs per write method the checker saw (ui, ui_scripted, no_event, public_api, mixed, none); null when no run's check reports it",
+            "rejected_writes": "writes the task server rejected (bad session, CSRF, nonce or signature), summed over runs",
+            "invariant_failures": "runs per invariant that came back false; {} when every reported invariant held",
             "median_commands": "median shell commands (Ardia side), browse MCP calls plus shell commands (OpenCode side), or agent steps (Aside)",
         },
     }

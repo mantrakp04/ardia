@@ -118,6 +118,7 @@ public final class Importer: @unchecked Sendable {
       }
     }
 
+    let snapshots = SQLiteSnapshots()
     let ordered = ImportKind.allCases.filter(kinds.contains)
     for kind in ordered {
       try cancellation.check()
@@ -130,13 +131,13 @@ public final class Importer: @unchecked Sendable {
           result.bookmarks = try ChromiumBookmarks.load(profile: dir)
           count = result.bookmarks?.linkCount ?? 0
         case (.bookmarks, .firefox):
-          result.bookmarks = try Firefox.bookmarks(places: dir.appendingPathComponent("places.sqlite"), cancellation: cancellation)
+          result.bookmarks = try Firefox.bookmarks(places: dir.appendingPathComponent("places.sqlite"), cancellation: cancellation, snapshots: snapshots)
           count = result.bookmarks?.linkCount ?? 0
 
         case (.history, .chromium), (.history, .arc), (.history, .firefox):
           let flavor: HistoryReader.Flavor = def.family == .firefox ? .firefox : .chromium
           let file = dir.appendingPathComponent(def.family == .firefox ? "places.sqlite" : "History")
-          let (entries, total) = try HistoryReader.read(file, flavor: flavor, options: options, observer: observer, cancellation: cancellation)
+          let (entries, total) = try HistoryReader.read(file, flavor: flavor, options: options, observer: observer, cancellation: cancellation, snapshots: snapshots)
           result.history = entries
           result.historyCount = total
           count = total
@@ -236,6 +237,7 @@ public final class Importer: @unchecked Sendable {
     }
     if let zen {
       result.favicons = zen.favicons(for: ChromiumFavicons.pages(of: result))
+      result.separateEssentials = zen.separateEssentials
     }
     return result
   }
