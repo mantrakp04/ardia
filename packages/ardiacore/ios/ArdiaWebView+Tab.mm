@@ -358,7 +358,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
 }
 
 - (void)tabDidChangeDiscarded:(ArdiaCoreTab *)tab {
-  if (tab.discarded) [self emit:@"discarded" payload:@{@"url" : tab.url ?: @""}];
+  if (tab.discarded) [self emit:@"discarded" payload:@{@"url" : tab.url ?: @"", @"reason" : tab.discardReason ?: @""}];
   else [self emit:@"ready" payload:@{}];
 }
 

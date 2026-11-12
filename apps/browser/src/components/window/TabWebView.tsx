@@ -275,7 +275,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onScroll={(state) => noteScroll(tabId, state)}
       onProtectedMedia={(request) => offerWebKit(tabId, request)}
       onNotificationClose={closeWebNotification}
-      onDiscarded={(url) => {
+      onDiscarded={(url, reason) => {
         releaseTranslation(tabId);
         pending.current = url;
         fromNewTab.current = false;
@@ -283,7 +283,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         patchPage(tabId, { backToNewTab: false, status: "" });
         updateLive(tabId, { isLoading: false, canGoBack: false, canGoForward: false, playingAudio: false });
         setPageProgress(tabId, 0);
-        noteDiscarded(tabId);
+        noteDiscarded(tabId, reason);
         noteUnreadPageEnded(tabId);
       }}
       onActivateRequest={({ reason }) => {
