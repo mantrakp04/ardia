@@ -163,7 +163,7 @@ function Test-MovedBy([string]$Log, $Counts, [string]$What, [string]$Expected) {
 }
 
 function Get-GrabPoint($Client) {
-  return [pscustomobject]@{ X = $Client.X + $Client.Width - [int](124 * $Client.Scale); Y = $Client.Y + [int](30 * $Client.Scale) }
+  return [pscustomobject]@{ X = $Client.X + $Client.Width - [int](157 * $Client.Scale); Y = $Client.Y + [int](30 * $Client.Scale) }
 }
 
 function Get-WindowButton($Client, [int]$FromRight) {
