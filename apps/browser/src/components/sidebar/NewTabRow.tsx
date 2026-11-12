@@ -6,6 +6,7 @@ import { HoverSlot } from "../ui/HoverSlot";
 import { newTab } from "../../state/tabs/actions";
 import { useCleanedCount } from "../../state/sidebar/hooks";
 import { openNewTabInSplit } from "../../state/splits/actions";
+import { splitViewAvailable } from "../../state/splits/splits";
 import { openOverflowMenu, openSidebarMenu } from "../../state/sidebar/menus";
 import { toggleNewTabBar } from "../../state/omnibox/newTabBar";
 import { modifiersOf } from "../../lib/keys";
@@ -52,7 +53,7 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void openSidebarMenu(windowId)}>
         <Pressable
           onPress={(e) => {
-            if (modifiersOf(e).altKey) openNewTabInSplit(windowId);
+            if (modifiersOf(e).altKey && splitViewAvailable) openNewTabInSplit(windowId);
             else toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true });
           }}
         >

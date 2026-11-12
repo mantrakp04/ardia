@@ -5,6 +5,7 @@ export type PlatformFeatures = {
   memoryPressure: boolean;
   escapeClosesDownloads: boolean;
   dictation: boolean;
+  splitView: boolean;
 };
 
-export const PLATFORM_FEATURES: PlatformFeatures = { dock: true, appIcon: true, menuBar: true, memoryPressure: true, escapeClosesDownloads: false, dictation: true };
+export const PLATFORM_FEATURES: PlatformFeatures = { dock: true, appIcon: true, menuBar: true, memoryPressure: true, escapeClosesDownloads: false, dictation: true, splitView: true };

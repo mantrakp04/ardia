@@ -2,6 +2,7 @@ import { APP, type SettingSection, type SettingsEnv } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
 import { keyText } from "../../../state/commands/keyText";
 import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
+import { splitViewAvailable } from "../../../state/splits/splits";
 
 const inSidebar = (_: unknown, env: SettingsEnv) => !env.top;
 
@@ -244,6 +245,7 @@ export const generalRows = {
           keywords: ["peek", "preview", "shift click", "option click", "arc"],
         },
         splitLinkModifier: {
+          shown: () => splitViewAvailable,
           advanced: true,
           title: "Open a link in split view with",
           description: `Opens the link in a pane beside the page. ${keyText("⌥⌘")}-click splits too, and so does ${keyText("⌥⇧")}-click when ${keyText("⌥")}-click is chosen. A link that downloads still downloads.`,
