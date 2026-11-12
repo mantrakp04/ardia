@@ -55,7 +55,7 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
   const pageWidth = Math.max(0, width - left - right);
   const flare = floating ? 0 : FLARE;
   const clipRight = Math.max(right - flare, controls + 8);
-  const [spills, setSpills] = useState(false);
+  const [spill, setSpill] = useState(0);
 
   useEffect(() => {
     if (floating || hidden) return;
@@ -67,9 +67,9 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
     <FloatingStrip.Provider value={floating}>
       <StripDropArea style={{ height: TOP_STRIP_HEIGHT }}>
         <WindowDragRegion style={StyleSheet.absoluteFill} />
-        <EdgeFade trailing={spills ? STRIP_EDGE_FADE : 0} style={{ position: "absolute", left: left - flare, right: clipRight, top: 0, bottom: 0, overflow: "hidden" }}>
+        <EdgeFade trailing={Math.min(spill, STRIP_EDGE_FADE)} style={{ position: "absolute", left: left - flare, right: clipRight, top: 0, bottom: 0, overflow: "hidden" }}>
           {pages.map((page) => (
-            <StripPage key={page.id} profileId={page.id} slot={page.slot} pageWidth={pageWidth} current={page.id === current} resting={!!page.resting} cut={clipRight - (right - flare)} onSpill={setSpills} />
+            <StripPage key={page.id} profileId={page.id} slot={page.slot} pageWidth={pageWidth} current={page.id === current} resting={!!page.resting} cut={clipRight - (right - flare)} onSpill={setSpill} />
           ))}
         </EdgeFade>
         <View mouseDownCanMoveWindow={false} style={{ position: "absolute", right: 8, top: MID - 17, flexDirection: "row", alignItems: "center", gap: CONTROLS_GAP }}>

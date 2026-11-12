@@ -23,7 +23,7 @@ type Hold = { chip: number; end: number };
 
 const stripEnd = ({ slots, lefts }: DragGeometry) => (slots.length ? lefts.at(-1)! + slots.at(-1)!.width : 0);
 
-export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, current, resting, cut, onSpill }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean; cut: number; onSpill: (spills: boolean) => void }) {
+export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, current, resting, cut, onSpill }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean; cut: number; onSpill: (spill: number) => void }) {
   const windowId = useWindowId();
   const flare = useContext(FloatingStrip) ? 0 : FLARE;
   const pageStyle = usePageStyle(windowId, slot, pageWidth + flare * 2);
@@ -64,16 +64,17 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const scrolled = useRef(0);
   const viewport = useRef(pageWidth + flare * 2);
   const [atStart, setAtStart] = useState(true);
-  const contentWidth = useRef(0);
-  const noteSpill = () => {
-    if (current) onSpill(contentWidth.current - flare - spare - scrolled.current > viewport.current - cut + 0.5);
-  };
-  useEffect(noteSpill, [current, cut, spare]);
   const inset = atStart ? flare : 0;
   const spanOf = (tabId: string): [number, number] | null => {
     const span = spanInStrip(tabId);
     return span && [inset + span[0], span[1]];
   };
+  const lastSpan = spanOf(top.slots.at(-1)?.tabIds.at(-1) ?? "");
+  const tabsEnd = lastSpan ? lastSpan[0] + lastSpan[1] : 0;
+  const noteSpill = () => {
+    if (current) onSpill(Math.max(0, Math.round(tabsEnd - scrolled.current - (viewport.current - cut))));
+  };
+  useEffect(noteSpill, [current, cut, tabsEnd]);
   const latestSpan = useRef(spanOf);
   latestSpan.current = spanOf;
   const revealed = useRef(activeId);
@@ -109,10 +110,6 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                 scrollEventThrottle={16}
                 onLayout={(e) => {
                   viewport.current = e.nativeEvent.layout.width;
-                  noteSpill();
-                }}
-                onContentSizeChange={(width) => {
-                  contentWidth.current = width;
                   noteSpill();
                 }}
                 onScroll={(e) => {
