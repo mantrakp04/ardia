@@ -36,7 +36,7 @@ void Requests() {
   assert(PrivateWindowRoute("extensions.list", false) == PrivateRoute::kOriginal);
   assert(PrivateWindowRoute("extensions.list", true) == PrivateRoute::kEnding);
   for (const char* refused : {"extensions.uninstall", "extensions.setEnabled", "extensions.install",
-                              "extensions.configure", "extensions.resolveInstallPrompt", "extensions.syncApply",
+                              "extensions.configure", "extensions.resolveInstallPrompt", "extensions.syncApply", "extensions.loadHealth",
                               "extensions.inspectUnpacked", "extensions.chooseFolder", "search.engines", ""}) {
     assert(PrivateWindowRoute(refused, false) == PrivateRoute::kRefused);
     assert(PrivateWindowRoute(refused, true) == PrivateRoute::kRefused);
@@ -66,6 +66,8 @@ void Requests() {
   assert(ValidateRequest("extensions.sidePanelUrl", Dict().Set("tabId", "t").Set("extensionId", kId)).empty());
   assert(!ValidateRequest("extensions.sidePanelUrl", Dict().Set("tabId", "t")).empty());
   assert(ValidateRequest("extensions.chooseFolder", Dict()).empty());
+  assert(ValidateRequest("extensions.loadHealth", Dict()).empty());
+  assert(!ValidateRequest("extensions.loadHealth", Dict().Set("profile", "Default")).empty());
   assert(ValidateRequest("extensions.syncApply", Dict().Set("anything", base::Value(1))).empty());
   assert(!ValidateRequest("extensions.forwardAnything", Dict()).empty());
   assert(!ValidateRequest("extensions.executeScript", Dict()).empty());

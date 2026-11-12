@@ -155,7 +155,7 @@ bool ReloadsExtensionFolder(std::string_view name, const base::DictValue& input)
 
 std::string ValidateRequest(std::string_view name, const base::DictValue& input) {
   if (name == "extensions.list" || name == "extensions.watchActions" || name == "extensions.chooseFolder" ||
-      name == "extensions.syncState" || name == "search.engines") {
+      name == "extensions.syncState" || name == "extensions.loadHealth" || name == "search.engines") {
     return input.size() == 0 ? "" : "This call takes no arguments";
   }
   if (name == "extensions.install" || name == "extensions.installCrx" || name == "extensions.inspectUnpacked") {

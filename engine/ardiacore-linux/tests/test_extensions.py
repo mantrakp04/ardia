@@ -35,7 +35,7 @@ using namespace ardiacore::linux_contract;
 int main() {
   for (auto name : {"extensions.list", "extensions.install", "extensions.installCrx", "extensions.setEnabled",
                     "extensions.uninstall", "extensions.reload", "extensions.configure", "extensions.watchActions",
-                    "extensions.syncState", "extensions.syncApply", "search.engines"}) assert(FindRoute(name));
+                    "extensions.syncState", "extensions.syncApply", "extensions.loadHealth", "search.engines"}) assert(FindRoute(name));
   for (auto name : {"extensions.actionStates", "extensions.sidePanelUrl", "extensions.inspectUnpacked",
                     "extensions.chooseFolder", "extensions.resolveInstallPrompt"}) assert(!FindRoute(name));
   assert(EventName("extensions.action") == "extensions.action" && EventName("extensions.sync") == "extensions.sync");
