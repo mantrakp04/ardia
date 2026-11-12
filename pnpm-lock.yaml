@@ -183,6 +183,9 @@ importers:
 
   packages/expo-windows:
     dependencies:
+      '@ardia/ardiacore':
+        specifier: workspace:*
+        version: link:../ardiacore
       '@ardia/import':
         specifier: workspace:*
         version: link:../import
