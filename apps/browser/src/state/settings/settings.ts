@@ -88,6 +88,7 @@ export const SETTING_SPECS = {
   shareTabsAcrossWindows: flag(false),
   tabReorderHaptics: flag(true, SYNCED),
   extendWebsiteColor: flag(true, SYNCED),
+  extendWebsiteColorToSidebar: flag(false, SYNCED),
   cmdClickCreatesTabGroup: flag(true, SYNCED),
   optShiftClickOpensInGroup: flag(true, SYNCED),
   dragToGroupInTopStrip: flag(false, SYNCED),

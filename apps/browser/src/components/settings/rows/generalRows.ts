@@ -202,6 +202,12 @@ export const generalRows = {
         warnBeforeClosingLastTab: { advanced: true, title: "Warn before closing last tab in a Profile", keywords: ["confirm", "close tab"] },
         tabReorderHaptics: { advanced: true, title: "Haptic feedback when reordering tabs", keywords: ["trackpad", "vibration", "drag"] },
         extendWebsiteColor: { title: "Extend website color into tab bar", keywords: ["theme color", "tint", "colour"] },
+        extendWebsiteColorToSidebar: {
+          title: "Extend website color into the sidebar",
+          description: "The sidebar and the frame around the page take the page's colour too, so the window reads as one piece. With tabs on top, the whole strip takes it.",
+          keywords: ["theme color", "colour", "window colour", "frame", "adaptive", "follow page"],
+          shown: (s) => s.extendWebsiteColor,
+        },
         sidebarMediaControls: {
           advanced: true,
           title: "Show media controls in the sidebar",

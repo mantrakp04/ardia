@@ -5,6 +5,8 @@ import { switchOn } from "../../state/app/switches";
 import { useTheme } from "../ui/theme";
 import { spring, curve } from "../ui/motion";
 import { Panel, reduceMotion, WindowBackdrop, WindowDragRegion } from "../ui";
+import { useSiteGround } from "../ui/siteGround";
+import { SiteGroundFill } from "./SiteGround";
 import { useSidebarSide, useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
 import { useToolbarLightsCenter } from "../../state/windows/layout";
@@ -190,6 +192,7 @@ function SidebarDock({
   windowWidth: number;
 }) {
   const theme = useTheme();
+  const siteGround = useSiteGround();
   const windowId = useWindowId();
   const moving = useDockMotion((m) => !!m.moving[windowId]);
   const edgeOver = useRef(false);
@@ -308,7 +311,7 @@ function SidebarDock({
               style={{ position: "absolute", top: 0, bottom: 0, [edgeSide]: -bleed, [right ? "left" : "right"]: 0, opacity: panelOn }}
               onLayout={(e) => setPanelHeight(e.nativeEvent.layout.height)}
             >
-              <Panel fill={theme.windowTint[0]} radius={peekAt.radius} shadow={SHADOWS.sidebarPeek} style={StyleSheet.absoluteFill} />
+              <Panel fill={siteGround ?? theme.windowTint[0]} radius={peekAt.radius} shadow={SHADOWS.sidebarPeek} style={StyleSheet.absoluteFill} />
               {peeking && (
                 <View style={[StyleSheet.absoluteFill, { borderRadius: peekAt.radius, overflow: "hidden" }]}>
                   <WindowBackdrop
@@ -324,6 +327,7 @@ function SidebarDock({
                       height: panelHeight + peekAt.top + peekAt.bottom,
                     }}
                   />
+                  <SiteGroundFill />
                 </View>
               )}
             </Animated.View>

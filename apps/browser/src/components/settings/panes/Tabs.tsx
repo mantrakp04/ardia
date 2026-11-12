@@ -139,6 +139,7 @@ export function TabsPane() {
         <SettingToggle anchor="tabs.warnBeforeClosingLastTab" />
         <SettingToggle anchor="tabs.tabReorderHaptics" />
         <SettingToggle anchor="tabs.extendWebsiteColor" />
+        <SettingToggle anchor="tabs.extendWebsiteColorToSidebar" />
         <SettingToggle anchor="tabs.sidebarMediaControls" />
         <SettingToggle anchor="tabs.autoPictureInPicture" />
         <SettingToggle anchor="tabs.videoUpscaling" />
