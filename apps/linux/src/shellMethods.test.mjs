@@ -226,7 +226,7 @@ test("problem reports, the local telemetry copy and hardware details answer on L
 });
 
 test("every ArdiaShell method resolves to its Linux fallback while the native host doesn't advertise it", () => {
-  assert.equal(resolveHostModule(olderEngine("ArdiaShell.watchLeftEdge"), "ArdiaShell", "watchSidebarEdge"), linuxShellMethod("watchSidebarEdge"));
+  assert.equal(resolveHostModule(olderEngine("ArdiaShell.watchSidebarEdge"), "ArdiaShell", "watchSidebarEdge"), linuxShellMethod("watchSidebarEdge"));
   for (const name of ["setDragEscapeCapture", "saveKeyResponder", "raiseView", "animateWindowClose", "dragPreviewBegin"]) {
     assert.equal(resolveHostModule(olderEngine(`ArdiaShell.${name}`), "ArdiaShell", name), linuxShellMethod(name), name);
   }
@@ -243,16 +243,19 @@ test("reading the clipboard answers empty text on Linux until the native host ad
 test("a method the native host advertises wins over the Linux answer", async () => {
   const host = linuxHost();
   const calls = [];
-  host.bootstrap.capabilities.push("ArdiaShell.watchLeftEdge", "ArdiaApp.postNotification");
+  assert.ok(host.bootstrap.capabilities.includes("ArdiaShell.watchSidebarEdge"));
+  assert.ok(!host.bootstrap.capabilities.includes("ArdiaShell.watchLeftEdge"));
+  host.bootstrap.capabilities.push("ArdiaApp.postNotification");
   host.invoke = async (method, args) => { calls.push([method, args]); return "n1"; };
-  await resolveHostModule(host, "ArdiaShell", "watchSidebarEdge")("main", true, 256.5);
+  await resolveHostModule(host, "ArdiaShell", "watchSidebarEdge")("main", true, 256.5, true, false);
   assert.equal(await resolveHostModule(host, "ArdiaApp", "postNotification")({ title: "x" }), "n1");
-  assert.deepEqual(calls, [["ArdiaShell.watchLeftEdge", { args: ["main", true, 256.5] }], ["ArdiaApp.postNotification", { args: [{ title: "x" }] }]]);
+  assert.deepEqual(calls, [["ArdiaShell.watchSidebarEdge", { args: ["main", true, 256.5, true, false] }], ["ArdiaApp.postNotification", { args: [{ title: "x" }] }]]);
 });
 
-test("the native left-edge watcher reports as the shared sidebarEdge event, and other window events pass through untouched", () => {
-  const payload = { type: "sidebarEdge", id: "main", over: true, point: [4, 300] };
-  assert.deepEqual(sidebarEdgeEvent("ArdiaShell", "onWindowEvent", payload), { ...payload, type: "sidebarEdge" });
+test("the native sidebar-edge watcher reports the shared sidebarEdge event, an older engine's leftEdge event is renamed to it, and other window events pass through untouched", () => {
+  const payload = { type: "sidebarEdge", id: "main", over: true, point: [1916, 300] };
+  assert.equal(sidebarEdgeEvent("ArdiaShell", "onWindowEvent", payload), payload);
+  assert.deepEqual(sidebarEdgeEvent("ArdiaShell", "onWindowEvent", { ...payload, type: "leftEdge" }), payload);
   const frame = { type: "frame", id: "main", frame: [0, 0, 1, 1] };
   assert.equal(sidebarEdgeEvent("ArdiaShell", "onWindowEvent", frame), frame);
   assert.equal(sidebarEdgeEvent("ArdiaApp", "onWindowEvent", payload), payload);
@@ -337,7 +340,7 @@ function shellEvents(event) {
 test("an engine without the native watcher still watches the sidebar's edge from the shell, and a peek's hold keeps it over while the pointer is in the hold", async () => {
   const dom = installDom();
   const events = shellEvents("onWindowEvent");
-  const watch = resolveHostModule(olderEngine("ArdiaShell.watchLeftEdge"), "ArdiaShell", "watchSidebarEdge");
+  const watch = resolveHostModule(olderEngine("ArdiaShell.watchSidebarEdge"), "ArdiaShell", "watchSidebarEdge");
   const move = (clientX) => dom.fire("pointermove", { clientX, clientY: 300, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false });
   await watch("main", true, 0);
   assert.deepEqual(events.seen.at(-1), { type: "sidebarEdge", id: "main", over: false, point: [-1, -1] });
@@ -356,6 +359,31 @@ test("an engine without the native watcher still watches the sidebar's edge from
   await watch("main", false);
   const reported = events.seen.length;
   move(4);
+  move(1910);
+  assert.equal(events.seen.length, reported);
+  events.remove();
+});
+
+test("an engine with only the native left-edge watcher keeps it for a left sidebar and watches a right sidebar from the shell", async () => {
+  const dom = installDom();
+  const events = shellEvents("onWindowEvent");
+  const host = olderEngine("ArdiaShell.watchSidebarEdge");
+  host.bootstrap.capabilities.push("ArdiaShell.watchLeftEdge");
+  const calls = [];
+  host.invoke = async (method, args) => { calls.push([method, args]); };
+  const watch = resolveHostModule(host, "ArdiaShell", "watchSidebarEdge");
+  const move = (clientX) => dom.fire("pointermove", { clientX, clientY: 300, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false });
+  await watch("main", true, 256.5);
+  await watch("main", true, 230, true);
+  move(1910);
+  assert.deepEqual(events.seen.at(-1), { type: "sidebarEdge", id: "main", over: true, point: [1910, 300] });
+  await watch("main", false);
+  assert.deepEqual(calls, [
+    ["ArdiaShell.watchLeftEdge", { args: ["main", true, 256.5] }],
+    ["ArdiaShell.watchLeftEdge", { args: ["main", false, 230] }],
+    ["ArdiaShell.watchLeftEdge", { args: ["main", false, 0] }],
+  ]);
+  const reported = events.seen.length;
   move(1910);
   assert.equal(events.seen.length, reported);
   events.remove();
