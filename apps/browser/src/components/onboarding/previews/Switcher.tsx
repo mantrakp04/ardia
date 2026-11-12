@@ -6,7 +6,7 @@ import type { Styles } from "./Kit";
 import type { Look } from "./look";
 import { symbolIcon } from "../../../lib/customIcon";
 
-export const MOCK_SPACES: readonly (string | null)[] = [symbolIcon("globe.americas.fill"), "🔥", null];
+export const MOCK_SPACES: readonly (string | null)[] = [symbolIcon("globe.americas.fill"), "🔥", "P"];
 
 export type SwitcherLevel = number | Animated.AnimatedInterpolation<number>;
 

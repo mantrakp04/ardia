@@ -58,3 +58,24 @@ test("picking an icon from the switcher turns icons on, and clearing one leaves 
   assert.equal(S().profiles.work.icon, null);
   assert.equal(S().settings.profileSwitcherIcons, true);
 });
+
+test("profile name position is reversible and survives settings parsing", () => {
+  S().hydrate({});
+  assert.equal(S().settings.profileNameAtTop, false);
+  S().updateSettings({ profileNameAtTop: true });
+  const settings = { ...S().settings };
+  S().hydrate({ settings });
+  assert.equal(S().settings.profileNameAtTop, true);
+  S().updateSettings({ profileNameAtTop: false });
+  assert.equal(S().settings.profileNameAtTop, false);
+});
+
+test("profile icon size defaults to medium and retains all size choices", () => {
+  S().hydrate({});
+  assert.equal(S().settings.profileIconSize, "medium");
+  for (const profileIconSize of ["small", "large", "medium"]) {
+    S().updateSettings({ profileIconSize });
+    S().hydrate({ settings: { ...S().settings } });
+    assert.equal(S().settings.profileIconSize, profileIconSize);
+  }
+});

@@ -3,14 +3,16 @@ import { Pressable, View } from "react-native";
 import { profileNameColor, useTheme } from "../ui/theme";
 import { useIsIncognito, useProfiles, useWindowId, useWindowProfile } from "../../state/browser/hooks";
 import { setMeasuredWidth, useMeasuredWidth } from "../../state/windows/measuredWidths";
-import { ContextMenuArea, radius, Symbol, Text, useHover } from "../ui";
+import { ContextMenuArea, radius, space, Symbol, Text, useHover } from "../ui";
 import { openProfileItemMenu } from "./profileMenu";
 import { openProfileMenu } from "../../state/browser/actions";
 
-const PAD = 9;
+import { iconSymbol } from "../../lib/customIcon";
+import { profileMark } from "../../lib/profileInitial";
+import { SwitcherMark } from "./ProfileIcons";
+import { profileIndicatorLayout } from "./profileIndicatorLayout";
+
 const HEIGHT = 34;
-const MIN_CUT_NAME = 52;
-const ICON_WIDTH = 32;
 export const PROFILE_INDICATOR_X = 84;
 
 function useIndicator(room: number) {
@@ -20,26 +22,23 @@ function useIndicator(room: number) {
   const profile = useWindowProfile();
   const title = incognito ? "Incognito" : profile.name;
   const textWidth = useMeasuredWidth(`profile-name|${title}`);
-  const shown = (incognito || profiles.length >= 2) && room >= ICON_WIDTH;
-  const nameRoom = room - 2 * PAD;
-  const showName = !!textWidth && (textWidth <= nameRoom || nameRoom >= MIN_CUT_NAME);
-  const width = !shown ? 0 : showName ? Math.min(room, textWidth + 2 * PAD) : ICON_WIDTH;
+  const { shown, pad, width } = profileIndicatorLayout(room, textWidth, incognito || profiles.length >= 2);
   const color = incognito ? theme.textPrimary : profileNameColor(profile, theme.dark);
-  return { incognito, title, textWidth, shown, showName, width, color, profileId: profile.id };
+  return { incognito, title, textWidth, shown, pad, width, color, profileId: profile.id, mark: profileMark(profile) };
 }
 
 export const useProfileIndicatorWidth = (room: number) => useIndicator(room).width;
 
-export function ProfileIndicator({ room }: { room: number }) {
+export function ProfileIndicator({ room, expanded = false, sidebarRow = false }: { room: number; expanded?: boolean; sidebarRow?: boolean }) {
   const theme = useTheme();
   const windowId = useWindowId();
   const { hovered, hoverProps } = useHover();
-  const { incognito, title, textWidth, shown, showName, width, color, profileId } = useIndicator(room);
+  const { incognito, title, textWidth, shown, pad, width, color, profileId, mark } = useIndicator(room);
   const indicator = useRef<View>(null);
   if (!shown) return null;
 
   return (
-    <View {...hoverProps} ref={indicator} tooltip={incognito ? undefined : "Switch between profiles"}>
+    <View {...hoverProps} ref={indicator} tooltip={incognito ? undefined : title}>
       <View pointerEvents="none" style={{ position: "absolute", width: 1000, height: 0, overflow: "hidden", opacity: 0 }}>
         <Text
           numberOfLines={1}
@@ -51,27 +50,32 @@ export function ProfileIndicator({ room }: { room: number }) {
         </Text>
       </View>
       <ContextMenuArea onContextMenu={() => !incognito && void openProfileItemMenu(profileId, "sidebar", windowId, indicator.current)}>
-        <Pressable onPress={() => !incognito && void openProfileMenu(windowId)} disabled={incognito}>
+        <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={() => !incognito && void openProfileMenu(windowId)} disabled={incognito}>
           {({ pressed }) => (
             <View
               style={{
                 height: HEIGHT,
-                width,
+                width: expanded ? room : width,
                 borderRadius: radius.chrome,
                 flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
-                paddingHorizontal: showName ? PAD : 0,
+                justifyContent: sidebarRow ? "flex-start" : "center",
+                paddingHorizontal: sidebarRow ? space.m : pad,
+                gap: sidebarRow ? space.m : 0,
                 backgroundColor: incognito ? undefined : pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
               }}
             >
-              {showName ? (
-                <Text numberOfLines={1} ellipsizeMode="tail" weight="semibold" style={{ flexShrink: 1, color }}>
+              {sidebarRow ? iconSymbol(mark) ? (
+                <View style={{ width: 16, alignItems: "center", justifyContent: "center" }}><SwitcherMark icon={mark} color={color} scale={0.875} /></View>
+              ) : (
+                <Text numberOfLines={1} weight="semibold" style={{ width: 16, textAlign: "center", color }}>{mark}</Text>
+              ) : null}
+              {textWidth ? (
+                <Text numberOfLines={1} ellipsizeMode="tail" weight="semibold" style={{ flexShrink: 1, flexGrow: sidebarRow ? 1 : 0, color }}>
                   {title}
                 </Text>
-              ) : textWidth ? (
-                <Symbol name="person.fill" size={14} weight="semibold" color={color} style={{ width: 16, height: 16 }} />
               ) : null}
+              {sidebarRow && !incognito ? <Symbol name="chevron.down" size={10} color={theme.textSecondary} style={{ transform: [{ translateY: -1 }] }} /> : null}
             </View>
           )}
         </Pressable>

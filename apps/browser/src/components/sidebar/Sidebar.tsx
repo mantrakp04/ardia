@@ -3,13 +3,13 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
 import { TintInk } from "../ui/TintInk";
-import { useSettings, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
+import { useIsIncognito, useSettings, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { useHasDownloads, useNoTiles } from "../../state/sidebar/hooks";
 import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
 import { DownloadsButton } from "../downloads/DownloadsButton";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "../profiles/ProfileIndicator";
 import { usePagerPages } from "../../state/windows/profilePager";
-import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "../profiles/ProfileDots";
+import { PROFILE_DOTS_HEIGHT, PROFILE_NAME_HEIGHT, ProfileDots, useProfileDotsShown } from "../profiles/ProfileDots";
 import { SidebarAddressRow, SidebarHeaderTools } from "./AddressBar";
 import { DragGhost } from "./DragGhost";
 import { DragProvider } from "./DragProvider";
@@ -42,11 +42,14 @@ export function Sidebar({ width }: { width: number }) {
   const geometry = useRef<SidebarGeometry>({ viewport: 0, regions: { pinnedGroups: 0, list: 0 }, newTabAtTop: false, tilesFixed: true });
   const addressBar = useAddressBarInSidebar();
   const lightsY = useToolbarLightsCenter()[1];
-  const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : layout.sidebarHeader;
-  const hasDownloads = useHasDownloads(windowId);
+  const nameAtTop = useSettings((s) => s.profileNameAtTop);
   const dots = useProfileDotsShown();
+  const incognito = useIsIncognito();
+  const topName = addressBar && nameAtTop && (dots || incognito);
+  const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD + (topName ? PROFILE_NAME_HEIGHT + 6 : 0) : layout.sidebarHeader;
+  const hasDownloads = useHasDownloads(windowId);
   const footerDownloads = addressBar && hasDownloads;
-  const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
+  const footer = (dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0) + (dots && addressBar && !topName ? PROFILE_NAME_HEIGHT : 0);
   const nothingPinned = useNoTiles(windowId, current);
   const rowLook = useSidebarRowLookSource();
 
@@ -112,7 +115,7 @@ export function Sidebar({ width }: { width: number }) {
               {footer ? (
                 <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
                   <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
-                  {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
+                  {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} showName={addressBar && !topName} /> : null}
                   {footerDownloads ? (
                     <View style={{ position: "absolute", left: SIDEBAR_FOOTER_DOWNLOADS.left, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                       <DownloadsButton windowId={windowId} />
@@ -129,6 +132,11 @@ export function Sidebar({ width }: { width: number }) {
                   <>
                     <SidebarHeaderTools width={width} />
                     <SidebarAddressRow width={width} />
+                    {topName ? (
+                      <View style={{ position: "absolute", top: SIDEBAR_HEADER_WITH_FIELD + 6, left: layout.sidebarInset }}>
+                        <ProfileIndicator room={width - 2 * layout.sidebarInset} expanded sidebarRow />
+                      </View>
+                    ) : null}
                   </>
                 ) : (
                   <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>

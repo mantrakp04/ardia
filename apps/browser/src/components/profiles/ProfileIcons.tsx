@@ -2,7 +2,8 @@ import { PixelRatio, Text } from "react-native";
 import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
-import { profileBadge, profileColors, profileSwitcher } from "./tokens";
+import { profileBadge, profileColors, profileSwitcher, profileIconSizes, type ProfileIconSize } from "./tokens";
+import { profileMark } from "../../lib/profileInitial";
 import { iconSymbol } from "../../lib/customIcon";
 
 export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
@@ -53,20 +54,16 @@ export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "bolt.fill", title: "Energy" },
 ];
 
-export const switcherCellWidth = (icon: string | null) => (icon ? profileSwitcher.iconCell : profileSwitcher.dotCell);
-
-export function switcherIcons(icons: (string | null)[], shown: boolean, room: number): (string | null)[] {
-  const fits = icons.reduce((width, icon) => width + switcherCellWidth(icon), 0) <= room;
-  return shown && fits ? icons : icons.map(() => null);
-}
+export const switcherCellWidth = (icon: string | null, size: ProfileIconSize = "medium") => (icon ? profileIconSizes[size].cell : profileSwitcher.dotCell);
 
 export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; color: string; scale?: number }) {
-  const { iconCell, icon: size, dot } = profileSwitcher;
+  const { icon: size, dot } = profileSwitcher;
+  const box = size * 1.25 * scale;
   const symbol = iconSymbol(icon);
-  if (symbol) return <Symbol name={symbol} size={size * scale} weight="semibold" color={color} style={{ width: iconCell * scale, height: iconCell * scale }} />;
+  if (symbol) return <Symbol name={symbol} size={size * scale} weight="semibold" color={color} style={{ width: box, height: box }} />;
   if (icon)
     return (
-      <Text numberOfLines={1} style={{ width: iconCell * scale, fontSize: size * scale, lineHeight: iconCell * scale, textAlign: "center", color }}>
+      <Text numberOfLines={1} style={{ width: box, height: box, fontSize: size * scale, lineHeight: box, textAlign: "center", color }}>
         {icon}
       </Text>
     );
@@ -96,7 +93,7 @@ export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "n
             transform: [{ translateX: profile.icon ? nudge : 0 }, { translateY: nudge }],
           }}
         >
-          {profile.icon ?? (profile.name.trim()[0] ?? "?").toUpperCase()}
+          {profileMark(profile)}
         </Text>
       )}
     </Dot>
