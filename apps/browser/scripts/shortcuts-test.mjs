@@ -298,6 +298,7 @@ function recordFocus(focusName) {
 const results = new Map(shortcuts.map(([name]) => [name, {}]));
 let failures = 0;
 await showPage("t3");
+if (!(await menuLive())) throw new Error("the window's menu isn't ready for shortcut checks");
 const onlyFocuses = process.env.SHORTCUTS_FOCUSES?.split(",").filter(Boolean);
 for (const [focusName, focus] of Object.entries(focuses)) {
   if (onlyFocuses && !onlyFocuses.includes(focusName)) continue;
@@ -337,7 +338,7 @@ const real = async (label, key, focus, expectUrl) => {
 };
 const sidebar = { focus: "window" };
 const page = { focus: "page", asKey: true, wait: 800, settle: 500 };
-const menuLive = async () => {
+async function menuLive() {
   await ac(`ac.store.getState().setFocusedWindow("w1"); return 1;`);
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
@@ -346,7 +347,7 @@ const menuLive = async () => {
     await sleep(100);
   }
   return false;
-};
+}
 check("the window's menu is live before the real presses", await menuLive(), "Select Tab 1 stayed disabled: the menu state has no focused window");
 await real("⌘1 in the sidebar", cmd("1", 18), sidebar, "pin1");
 await real("⌘2 in the sidebar", cmd("2", 19), sidebar, "pin2");
