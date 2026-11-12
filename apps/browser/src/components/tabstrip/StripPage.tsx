@@ -69,12 +69,13 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     const span = spanInStrip(tabId);
     return span && [inset + span[0], span[1]];
   };
-  const lastSpan = spanOf(top.slots.at(-1)?.tabIds.at(-1) ?? "");
-  const tabsEnd = lastSpan ? lastSpan[0] + lastSpan[1] : 0;
+  const contentWidth = useRef(0);
   const noteSpill = () => {
-    if (current) onSpill(Math.max(0, Math.round(tabsEnd - scrolled.current - (viewport.current - cut))));
+    if (current) onSpill(Math.max(0, Math.round(contentWidth.current - flare - spare - scrolled.current - (viewport.current - cut))));
   };
-  useEffect(noteSpill, [current, cut, tabsEnd]);
+  useEffect(noteSpill, [current, cut, spare]);
+  const lastTabIds = useRef<string[]>([]);
+  lastTabIds.current = top.slots.at(-1)?.tabIds ?? [];
   const latestSpan = useRef(spanOf);
   latestSpan.current = spanOf;
   const revealed = useRef(activeId);
@@ -83,6 +84,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     revealed.current = activeId;
     if (!current || !activeId || tabDragging()) return;
     const frame = requestAnimationFrame(() => {
+      if (lastTabIds.current.includes(activeId)) return scroll.current?.scrollToEnd({ animated: true });
       const span = latestSpan.current(activeId);
       const x = span && revealOffset(span[0], span[1], scrolled.current, viewport.current, flare + GAP);
       if (x !== null) scroll.current?.scrollTo({ x, animated: true });
@@ -110,6 +112,10 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                 scrollEventThrottle={16}
                 onLayout={(e) => {
                   viewport.current = e.nativeEvent.layout.width;
+                  noteSpill();
+                }}
+                onContentSizeChange={(width) => {
+                  contentWidth.current = width;
                   noteSpill();
                 }}
                 onScroll={(e) => {
