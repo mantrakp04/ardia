@@ -7,7 +7,7 @@ import { useWindowId } from "../../state/browser/hooks";
 import { Intro } from "./Intro";
 import { dismissOnboarding, goToStep, useOnboarding } from "../../state/onboarding/onboarding";
 import { LayoutStep, TabsStep } from "./LayoutSteps";
-import { LookStep } from "./LookStep";
+import { DetailsStep, LookStep } from "./LookStep";
 import { SearchPrivacyStep } from "./PrivacyStep";
 import { SourceStep } from "./SourceStep";
 import { HomeStep } from "./HomeStep";
@@ -90,6 +90,7 @@ function Overlay({ session }: { session: number }) {
                 {step === "layout" && <LayoutStep />}
                 {step === "tabs" && <TabsStep />}
                 {step === "look" && <LookStep />}
+                {step === "details" && <DetailsStep />}
                 {step === "searchPrivacy" && <SearchPrivacyStep />}
                 {step === "pins" && <PinnedTabsStep />}
                 {step === "home" && <HomeStep />}

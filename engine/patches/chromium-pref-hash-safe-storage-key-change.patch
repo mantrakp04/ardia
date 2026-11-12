@@ -1,0 +1,77 @@
+A profile keeps its extensions and protected settings when the Safe Storage key changes. Chrome protects tracked
+preferences (every installed extension's entry in extensions.settings, developer mode, pinned tabs, startup pages)
+with two hashes: a legacy HMAC from a seed and the machine id, and an encrypted hash made with the Safe Storage key.
+Once a preference has an encrypted hash, only that hash counts, so a profile whose hashes were encrypted with an
+earlier key (an item recreated before chromium-safe-storage-no-silent-reset.patch, Start Over with a New Key, a
+profile copied from another keychain) had every extension removed from extensions.settings and developer mode
+turned off at its next load (FB-5GA3: Default, the profile loaded at startup, lost its extensions while the others
+kept theirs). Now an encrypted hash that doesn't verify falls back to that preference's HMAC: if the HMAC holds, the
+value is unchanged and Chrome stores a new encrypted hash with the current key; if it doesn't, the value resets as
+before. Any failed encrypted hash falls back, not only one that can't be decrypted, because macOS's AES-128-CBC
+with a wrong key (and Chrome's empty-key retry) sometimes decrypts to garbage with valid padding. This trusts
+nothing Chrome doesn't already trust: a preference with no encrypted hash is checked by its HMAC alone, so removing
+the encrypted hashes passes the same check, and kDisallowLegacyPrefMacFallback still turns every HMAC fallback off.
+
+--- a/services/preferences/tracked/pref_hash_store_impl.cc
++++ b/services/preferences/tracked/pref_hash_store_impl.cc
+@@ -60,6 +60,11 @@
+   }
+ 
+   return std::string();
++}
++
++bool LegacyMacFallbackAllowed() {
++  return !base::FeatureList::IsEnabled(
++      tracked::kDisallowLegacyPrefMacFallback);
+ }
+ 
+ void MaybeReportWeakHash(ValidationResult validation_result,
+@@ -447,6 +452,12 @@
+         return ValueState::UNCHANGED_ENCRYPTED;
+       }
+       MaybeReportWeakHash(result, reporting_id);
++      if (stored_hmac.has_value() && LegacyMacFallbackAllowed() &&
++          outer_->pref_hash_calculator_.ValidateHmac(path, value,
++                                                     *stored_hmac) ==
++              ValidationResult::VALID_HMAC) {
++        return ValueState::UNCHANGED_VIA_HMAC_FALLBACK;
++      }
+       return value ? ValueState::CHANGED_ENCRYPTED
+                    : ValueState::CLEARED_ENCRYPTED;
+     }
+@@ -608,6 +619,7 @@
+       // --- Priority 1: Check split encrypted hashes ---
+       std::map<std::string, std::string> current_encrypted =
+           split_encrypted_hashes;
++      bool healed_by_hmac = false;
+       if (initial_split_value) {
+         for (const auto [key, value] : *initial_split_value) {
+           auto it = current_encrypted.find(key);
+@@ -620,7 +632,16 @@
+                     keyed_path, &value, it->second, encryptor_.get());
+             if (validation_result != ValidationResult::VALID_ENCRYPTED) {
+               MaybeReportWeakHash(validation_result, reporting_id);
+-              invalid_keys->push_back(key);
++              const auto hmac = split_hmacs.find(key);
++              if (has_hmacs && hmac != split_hmacs.end() &&
++                  LegacyMacFallbackAllowed() &&
++                  outer_->pref_hash_calculator_.ValidateHmac(
++                      keyed_path, &value, hmac->second) ==
++                      ValidationResult::VALID_HMAC) {
++                healed_by_hmac = true;
++              } else {
++                invalid_keys->push_back(key);
++              }
+             }
+             current_encrypted.erase(it);
+           }
+@@ -631,7 +652,8 @@
+       }
+ 
+       if (invalid_keys->empty()) {
+-        return ValueState::UNCHANGED_ENCRYPTED;
++        return healed_by_hmac ? ValueState::UNCHANGED_VIA_HMAC_FALLBACK
++                              : ValueState::UNCHANGED_ENCRYPTED;
+       }
+       return is_initial_value_empty ? ValueState::CLEARED_ENCRYPTED
+                                     : ValueState::CHANGED_ENCRYPTED;

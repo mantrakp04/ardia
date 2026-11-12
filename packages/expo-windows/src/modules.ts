@@ -14,9 +14,15 @@ type Call = (...values: unknown[]) => unknown;
 
 const modules = new Map<string, object>();
 
+const RELEASE_NOTES_PAGE = "https://ardia.dev/release-notes";
+
 const around: Record<string, Record<string, (native: Call) => Call>> = {
   ArdiaApp: {
-    systemInfo: (native) => () => stampedSystemInfo(native()),
+    systemInfo: (native) => () => {
+      const info = stampedSystemInfo(native());
+      if (typeof info !== "object" || info === null) return info;
+      return { releaseNotesURL: RELEASE_NOTES_PAGE, ...info };
+    },
   },
   ArdiaAppWindows: {
     openWindow: (native) => (id, options) => {

@@ -1,6 +1,6 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import type { ConfirmOptions, UpdateChannel, UpdaterNative, UpdaterState } from "@ardia/shell";
-import { folderOf, megabytes, offered, readBuild, readManifest, type BuildIdentity } from "./manifest";
+import { failureText, folderOf, megabytes, offered, readBuild, readManifest, type BuildIdentity } from "./manifest";
 
 const PUBLISHED_UNDER = "https://github.com/ardia-browser/ardia/releases/download/";
 const FEED = `${PUBLISHED_UNDER}windows-alpha/windows-update.json`;
@@ -80,7 +80,7 @@ function checksByItself() {
 
 const ask = async (options: ConfirmOptions) => (await dialogs()?.confirm(options))?.confirmed === true;
 const tell = (title: string, message: string) => ask({ title, message, confirmTitle: "OK", cancelTitle: "" });
-const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const reason = (error: unknown) => failureText(error);
 
 async function check(asked: boolean) {
   const current = identity();

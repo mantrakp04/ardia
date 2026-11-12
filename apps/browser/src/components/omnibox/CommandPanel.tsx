@@ -4,7 +4,8 @@ import { Animated, StyleSheet, View, type LayoutChangeEvent } from "react-native
 import { hex, useTheme } from "../ui/theme";
 import { useSidebarSide, useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { closePanel } from "../../state/windows/actions";
-import { useActiveTabIdWhile, useCommandBarCentred, useTabHasUrlWhile } from "../../state/omnibox/hooks";
+import { useActiveTabIdWhile, useTabHasUrlWhile } from "../../state/omnibox/hooks";
+import { isCentred } from "../../state/omnibox/barPlacement";
 import { usePage } from "../../state/tabs/pageState";
 import { dismissHover, setRowsCovered } from "../../state/sidebar/hover";
 import { useCardAnchors, useUrlAnchors, useWindowControlsBottom } from "../../state/windows/layout";
@@ -42,7 +43,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const hasField = useTabHasUrlWhile(activeId, panel.open);
   const insecure = usePage(activeId, (p) => !!insecureLevel(p));
   const anchor = useUrlAnchors((s) => (panel.open ? s[windowId] : undefined));
-  const centred = useCommandBarCentred(windowId, panel.open && !panel.newTab);
+  const centred = panel.open && !panel.newTab && isCentred(panel.placement);
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
   const toolbarRow = useToolbarRow();
   const controlsBottom = useWindowControlsBottom();

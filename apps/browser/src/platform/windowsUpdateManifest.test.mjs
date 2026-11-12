@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { folderOf, megabytes, offered, readBuild, readManifest } from "../../../../packages/expo-windows/src/updater/manifest.ts";
+import { failureText, folderOf, megabytes, offered, readBuild, readManifest } from "../../../../packages/expo-windows/src/updater/manifest.ts";
 
 const under = "https://github.com/ardia-browser/ardia/releases/download/";
 const sha = "a".repeat(64);
@@ -64,6 +64,13 @@ test("a test feed's installers must sit in the feed's own folder", () => {
   const local = { url: "http://10.0.2.2:18770/feed/Ardia-Setup-arm64.exe", sha256: sha, bytes: 10 };
   assert.ok(readManifest(manifest({ arm64: local }), folderOf(feed)).installers.arm64);
   assert.equal(readManifest(manifest({ arm64: installer("Ardia-Setup-arm64.exe") }), folderOf(feed)).installers.arm64, undefined);
+});
+
+test("a failed check is told in words, whatever shape the failure has", () => {
+  assert.equal(failureText(new Error("the server answered 404")), "the server answered 404");
+  assert.equal(failureText({ message: "the server answered 404", code: "EUNSPECIFIED" }), "the server answered 404");
+  assert.equal(failureText("no answer"), "no answer");
+  for (const odd of [{}, { message: 5 }, null, undefined, 7, ""]) assert.equal(failureText(odd), "the check failed");
 });
 
 test("sizes are shown in whole megabytes, never zero", () => {

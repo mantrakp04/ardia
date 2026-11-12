@@ -240,6 +240,14 @@ is plain Chromium.
 | `webView.setVideoUpscaling`, `setVideoUpscalingTestConditions`, `videoUpscalingState` | Native and engine | The Mac upscales with MetalFX; Windows needs a Direct3D path. |
 | `windows.list`, `windows.dev` | Default | The Mac's Chromium window hosts. |
 
+`awaitingEngine` lists calls the Mac forwards to an `ac_*` call that the shipped Windows engine doesn't have yet; Windows
+answers them in TypeScript until a new engine build does, then they move to `forwarded`:
+
+- `search.suggest` and `search.stopSuggest` (`ac_search_suggest`, `ac_search_suggest_stop`): the app fetches the
+  suggestion address itself with `fetch` and stops it on request (`domains/suggest.ts`).
+- `extensions.loadHealth` (`ac_extensions_load_health`): answers that the Windows engine doesn't report extension load
+  health yet (`domains/extensions.ts`).
+
 Not in `forwarded.json` but also engine work: media next and previous track. The media controls send `mediaCommand`
 `next` or `previous` (`state/media/media.ts`), the Windows view passes it on as `tab.call`, and `MediaCommand` in
 `tab_calls.cc` runs a page script that has no case for either, so nothing happens. The Mac calls the page's own
