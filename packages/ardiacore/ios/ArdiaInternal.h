@@ -36,6 +36,7 @@ ArdiaCoreTab *_Nullable TabWithAppTabId(NSString *_Nullable tabId);
 void HoldUntilHosted(ArdiaCoreTab *tab, NSString *event, NSDictionary *payload);
 void ReleaseHeldEvents(ArdiaCoreTab *tab);
 void DropHeldEvent(NSString *event, NSString *eventId);
+void StopPageSwapFade(ArdiaCoreTab *tab);
 
 NSString *AppDisposition(NSString *chromeDisposition);
 

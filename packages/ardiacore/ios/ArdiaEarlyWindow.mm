@@ -324,6 +324,7 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
     if (!s.cover || s.tab || ![s.key isEqualToString:key]) continue;
     NSView *page = tab.view;
     if (!page) return;
+    ardia_host::StopPageSwapFade(tab);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     [page removeFromSuperview];
