@@ -21,6 +21,7 @@
 #include <winrt/Microsoft.Windows.AppNotifications.h>
 #include <winrt/Microsoft.Windows.AppNotifications.Builder.h>
 
+#include "AppIcon.h"
 #include "Events.h"
 #include "Host.h"
 #include "LaunchLog.h"
@@ -326,7 +327,7 @@ struct NotificationHub {
         } catch (...) {
         }
       });
-      manager.Register();
+      RegisterWithAppIdentity(manager);
       SetCenter(std::make_shared<AppNotificationsCenter>(!background), "appNotifications");
       LaunchLog::Write(L"info", background ? L"notifications: registered with Windows App SDK app notifications; a background instance logs toasts instead of showing them"
                                            : L"notifications: registered with Windows App SDK app notifications; toasts are on");
@@ -338,6 +339,20 @@ struct NotificationHub {
       return;
     }
     ReadColdStart();
+  }
+
+  static void RegisterWithAppIdentity(winrt::Microsoft::Windows::AppNotifications::AppNotificationManager const &manager) {
+    if (std::optional<std::wstring> icon = AppIcon::NotificationIconPath()) {
+      try {
+        manager.Register(AppIcon::kDisplayName, winrt::Windows::Foundation::Uri{*icon});
+        LaunchLog::Write(L"info", L"notifications: registered as Ardia with Ardia's icon");
+        return;
+      } catch (winrt::hresult_error const &error) {
+        LaunchLog::Write(L"warning", std::wstring(L"notifications: registering with Ardia's name and icon failed, 0x").append(HexCode(error.code())).append(L": ").append(error.message()));
+      }
+    }
+    manager.Register();
+    LaunchLog::Write(L"warning", L"notifications: registered with the name and icon Windows found for the process");
   }
 
   std::shared_ptr<ToastCenter> Center() noexcept {

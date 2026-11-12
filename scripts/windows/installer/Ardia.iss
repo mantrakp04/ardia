@@ -40,8 +40,8 @@ Type: files; Name: "{app}\debug.log"
 Type: dirifempty; Name: "{app}"
 
 [Icons]
-Name: "{autoprograms}\Ardia"; Filename: "{app}\Ardia.exe"; IconFilename: "{app}\Ardia.ico"
-Name: "{autodesktop}\Ardia"; Filename: "{app}\Ardia.exe"; IconFilename: "{app}\Ardia.ico"; Tasks: desktopicon
+Name: "{autoprograms}\Ardia"; Filename: "{app}\Ardia.exe"; IconFilename: "{app}\Ardia.ico"; AppUserModelID: "Ardia.Browser"
+Name: "{autodesktop}\Ardia"; Filename: "{app}\Ardia.exe"; IconFilename: "{app}\Ardia.ico"; AppUserModelID: "Ardia.Browser"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Ardia.exe"; Description: "Open Ardia"; Flags: nowait postinstall skipifsilent

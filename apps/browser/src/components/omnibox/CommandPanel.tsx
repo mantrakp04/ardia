@@ -19,7 +19,6 @@ import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { compactLift, urlFieldOf } from "../../lib/toolbarRow";
 import { radius, shadow, space } from "../ui/tokens";
-import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { trailingClearance } from "../../lib/windowChrome";
 
 const RIGHT_OF_URL = 40;
@@ -144,7 +143,7 @@ function CentredBar({ windowId, tabId, target, card }: { windowId: string; tabId
 }
 
 function Grow({
-  from: requestedFrom,
+  from,
   frame,
   openHeight,
   radius,
@@ -158,7 +157,6 @@ function Grow({
   surface: Omit<ComponentProps<typeof Surface>, "style">;
   children: ReactNode;
 }) {
-  const from = PLATFORM_FEATURES.panelGrowsFromField ? requestedFrom : null;
   const fade = !!from && !!reduceMotion();
   const [progress] = useState(() => new Animated.Value(from ? 0 : 1));
   const start = useRef(fade ? null : from);

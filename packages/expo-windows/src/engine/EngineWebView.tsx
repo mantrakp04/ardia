@@ -1,5 +1,6 @@
 import { createElement, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef, type ComponentType } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
+import { followMotion } from "../animation/motion";
 import { noteMissing } from "../missing";
 import { requireNativeModule } from "../modules";
 import { coversIn, onCoversChange, pageRadiusIn } from "./covers";
@@ -117,6 +118,8 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
   }, [key, windowId]);
 
   useEffect(() => onCoversChange((changed) => changed === windowId && place()), [windowId, place]);
+
+  useEffect(() => followMotion(place), [place]);
 
   useEffect(() => {
     const first = latest.current;
