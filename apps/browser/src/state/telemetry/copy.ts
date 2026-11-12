@@ -83,6 +83,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "After you let a site use your location: whether macOS gave Ardia location access, you said no in macOS's prompt, it was already off in System Settings, or the check failed, one event each time. Never which site or where you are",
       "How many times automatic Picture in Picture held back because a playing tab's window was still on a screen, either though macOS reported it covered or when you switched to another app, summed up once an hour",
       "How many times automatic Picture in Picture held back in a WebKit tab because no video was playing at the moment you left it, summed up once an hour",
+      "How many times you went back to a video's tab from its Picture in Picture window, for Chromium and WebKit tabs separately, summed up once an hour",
       "How often a site panel (Site Controls, Zoom, blocked pop-ups) is closed by a click outside it or by Esc, how often the ⌃Tab switcher opens and how often it opens over a WebKit page, how many closed pinned tabs it left out and how many tabs opened in the background and not yet viewed it listed last, summed up once an hour",
       "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",

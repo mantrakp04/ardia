@@ -21,7 +21,7 @@ import { splitTabIds } from "../splits/splits";
 import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
 import { takeAutoHideTabsChoices } from "./autoHideTabsChoices";
 import { takeTabSwitcherOpensInWebKit } from "./tabSwitcherOpens";
-import { noteAutoPictureInPictureNothingPlaying, takeAutoPictureInPictureNothingPlaying } from "./autoPictureInPictureNothingPlaying";
+import { noteAutoPictureInPictureNothingPlaying, takePictureInPictureCounts } from "./pictureInPictureCounts";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
 import { toolbarBounces } from "./toolbarBounces";
 
@@ -38,9 +38,9 @@ let countsSince = Date.now();
 
 function emitCounts() {
   const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit();
-  const autoPictureInPictureNothingPlaying = takeAutoPictureInPictureNothingPlaying();
+  const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab } = takePictureInPictureCounts();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying) {
+  if (Object.values(counts).some(Boolean) || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -78,7 +78,7 @@ function emitCounts() {
       split_view_closes: counts.splitViewCloses,
       window_close_tabs_kept: counts.windowCloseTabsKept,
       sync_snapshots_written: snapshots.count,
-      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024), auto_pip_nothing_playing: autoPictureInPictureNothingPlaying,
+      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024), auto_pip_nothing_playing: autoPictureInPictureNothingPlaying, pip_back_to_tab: backToTab.chromium, pip_back_to_tab_webkit: backToTab.webkit,
       toolbar_scroll_hides: counts.toolbarScrollHides,
       toolbar_scroll_hide_bounces: counts.toolbarScrollHideBounces,
       card_resize_layouts: counts.cardResizeLayouts,
