@@ -42,8 +42,9 @@ let counts = { ...NO_COUNTS }, countsSince = Date.now();
 function emitCounts() {
   const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit(), stuckDrags = takeStuckDragCounts(), urlCopies = takeUrlCopyCounts(), tabSleeps = takeTabSleepCounts();
   const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab } = takePictureInPictureCounts();
+  const loadingPill = takeLoadingPillCounts();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || Object.values(tabSleeps).some(Boolean) || Object.values(stuckDrags).some(Boolean) || urlCopies.url_copies || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
+  if (Object.values(counts).some(Boolean) || Object.values(loadingPill).some(Boolean) || Object.values(tabSleeps).some(Boolean) || Object.values(stuckDrags).some(Boolean) || urlCopies.url_copies || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -98,7 +99,7 @@ function emitCounts() {
       new_tab_notices_shown: counts.newTabNoticesShown,
       new_tab_notice_presses: counts.newTabNoticePresses,
       status_bubble_top_shows: counts.statusBubbleTopShows,
-      ...takeLoadingPillCounts(),
+      ...loadingPill,
       new_tab_bar_keeps: counts.newTabBarKeeps, bar_split_opens: counts.barSplitOpens, bar_split_full_tabs: counts.barSplitFullTabs,
       dock_reopens: counts.dockReopens, dock_reopens_past_floating: counts.dockReopensPastFloating, webkit_pages_kept_hidden: counts.webKitPagesKeptHidden,
       settings_search_keyboard_reveals: counts.settingsSearchKeyboardReveals, settings_search_click_reveals: counts.settingsSearchClickReveals, settings_searches: counts.settingsSearches, settings_searches_empty: counts.settingsSearchesEmpty, settings_search_top_picks: counts.settingsSearchTopPicks, settings_search_top3_picks: counts.settingsSearchTop3Picks, settings_search_lower_picks: counts.settingsSearchLowerPicks,
