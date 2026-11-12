@@ -5,7 +5,13 @@ type Config = { useNativeDriver?: boolean; iterations?: number };
 type Helper = { default: { shouldUseNativeDriver(config: Config): boolean } };
 type AnimatedValue = { __makeNative(platformConfig?: unknown): void };
 type ValueClass = { default: { prototype: AnimatedValue } };
-type Running = { __active: boolean; __isLooping?: boolean | null; start(...args: unknown[]): void; __startAnimationIfNative(value: AnimatedValue): boolean };
+type Running = {
+  __active: boolean;
+  __isLooping?: boolean | null;
+  start(...args: unknown[]): void;
+  __startAnimationIfNative(value: AnimatedValue): boolean;
+  __notifyAnimationEnd(result: unknown): void;
+};
 type AnimationClass = { default: { prototype: Running } };
 type StyleAttributes = { default: { transform: { process(transform: unknown): unknown } } };
 
@@ -39,6 +45,11 @@ export function installAnimation() {
     } finally {
       startingNatively = false;
     }
+  };
+  const notifyEnd = running.__notifyAnimationEnd;
+  running.__notifyAnimationEnd = function (this: Running, result: unknown) {
+    forgetAnimation(this);
+    notifyEnd.call(this, result);
   };
   const start = running.start;
   running.start = function (this: Running, ...args: unknown[]) {

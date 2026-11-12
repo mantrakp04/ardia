@@ -62,6 +62,12 @@ public static class ArdiaTour {
   [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
   [DllImport("user32.dll")] public static extern uint MapVirtualKeyW(uint code, uint mapType);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] private static extern bool SystemParametersInfoW(uint action, uint parameter, out int value, uint change);
+
+  public static bool AnimationsOn() {
+    int on;
+    return !SystemParametersInfoW(0x1042, 0, out on, 0) || on != 0;
+  }
 
   public static string TitleOf(IntPtr window) {
     StringBuilder text = new StringBuilder(512);
@@ -1445,11 +1451,13 @@ function Get-Motion($Session, [int]$Mark) {
   })
 }
 
-function Invoke-MotionStop($Session, [string]$Slug, [string]$Title, [string]$Keys, [byte[]]$Modifiers, [byte]$Key, [string]$Command, [int]$AtLeastMs) {
+function Invoke-MotionStop($Session, [string]$Slug, [string]$Title, [string]$Keys, [byte[]]$Modifiers, [byte]$Key, [string]$Command, [int]$AtLeastMs, [switch]$JumpsWithAnimationsOff) {
   Invoke-Stop $Session $Slug $Title {
     param($stop)
     $stop.Did = "Pressed $Keys."
+    $jumps = $JumpsWithAnimationsOff -and -not [ArdiaTour]::AnimationsOn()
     $stop.Expected = "the launch log reports animation frames for at least $AtLeastMs ms, at 30 a second or more."
+    if ($jumps) { $stop.Expected = "no slide: Windows' animation effects are off here, and this one follows that setting." }
     Focus-Window $Session $Session.Main $stop | Out-Null
     Close-Menus $Session
     $mark = Get-LogCount $Session
@@ -1460,9 +1468,10 @@ function Invoke-MotionStop($Session, [string]$Slug, [string]$Title, [string]$Key
     $bursts = @(Get-Motion $Session $mark)
     Save-Shot $stop $Session.Main | Out-Null
     $stop.Facts.Add("command $Command logged: $commanded")
+    $stop.Facts.Add("Windows' animation effects are on: $([ArdiaTour]::AnimationsOn())")
     if (-not $bursts.Count) {
       $stop.Facts.Add("no animation frames were logged")
-      Set-Seen $stop $false
+      Set-Seen $stop ($commanded -and $jumps)
       return
     }
     foreach ($burst in $bursts) {
@@ -1471,15 +1480,15 @@ function Invoke-MotionStop($Session, [string]$Slug, [string]$Title, [string]$Key
     }
     $longest = $bursts | Sort-Object Milliseconds -Descending | Select-Object -First 1
     $smooth = $longest.Frames * 1000 / [Math]::Max(1, $longest.Milliseconds) -ge 30
-    Set-Seen $stop ($commanded -and $longest.Milliseconds -ge $AtLeastMs -and $smooth)
+    Set-Seen $stop ($commanded -and ($jumps -or ($longest.Milliseconds -ge $AtLeastMs -and $smooth)))
   } | Out-Null
 }
 
 function Invoke-MotionTour {
   $session = Start-Ardia "motion" -Onboarded
   if (Test-Usable $session) {
-    Invoke-MotionStop $session "motion-sidebar-hides" "The sidebar slides away" "Ctrl+S" @(0x11) 0x53 "toggleSidebar" 150
-    Invoke-MotionStop $session "motion-sidebar-shows" "The sidebar slides back" "Ctrl+S" @(0x11) 0x53 "toggleSidebar" 150
+    Invoke-MotionStop $session "motion-sidebar-hides" "The sidebar slides away" "Ctrl+S" @(0x11) 0x53 "toggleSidebar" 150 -JumpsWithAnimationsOff
+    Invoke-MotionStop $session "motion-sidebar-shows" "The sidebar slides back" "Ctrl+S" @(0x11) 0x53 "toggleSidebar" 150 -JumpsWithAnimationsOff
     Invoke-MotionStop $session "motion-new-tab" "A new tab's row slides in" "Ctrl+T" @(0x11) 0x54 "newTab" 80
   }
   Stop-Ardia $session
