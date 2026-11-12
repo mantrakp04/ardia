@@ -328,6 +328,7 @@
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Ardia-macOS/Pods-Ardia-macOS-resources.sh",
 				"${PODS_ROOT}/../../../../packages/ardiacore/ios/page_script.js",
+				"${PODS_ROOT}/../../../../packages/ardiacore/ios/capture_target.js",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ArdiaShaders/ArdiaMeadow.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
@@ -341,6 +342,7 @@
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/page_script.js",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/capture_target.js",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ArdiaMeadow.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",

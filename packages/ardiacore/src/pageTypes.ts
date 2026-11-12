@@ -21,7 +21,7 @@ export type NavigationState = {
 export type AppBadge = { origin: string; count: number | null; flag: boolean };
 export type CaptureResult = {
   outcome: "copied" | "cancelled" | "failed";
-  kind?: "area";
+  kind?: "element" | "area";
   width: number;
   height: number;
   ms: number;
