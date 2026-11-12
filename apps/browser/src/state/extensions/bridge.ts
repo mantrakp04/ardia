@@ -3,6 +3,7 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { shownPageId } from "../peek/peek";
 import { startActionStates, watchActionsOf } from "./actionWatch";
 import { startExtensionSearchEngines } from "./searchEngines";
+import { reportExtensionsLoaded } from "./loadHealth";
 import { watchExtensionInstallFailures } from "./crxDrop";
 import { onSyncedExtensionChange } from "../sync/extensions";
 import { openRequestedTab } from "./tabsRequests";
@@ -15,6 +16,7 @@ import {
   closeSidePanel,
   extensionProfile,
   findExtension,
+  isPrivate,
   openSidePanel,
   refreshExtensions,
   refreshExtensionsAfterChange,
@@ -33,7 +35,9 @@ export function startExtensionsBridge() {
   const loadProfiles = (s: BrowserState) => {
     for (const id of s.windowOrder) {
       const profile = extensionProfile(s, id);
-      if (watchActionsOf(profile)) void refreshExtensions(profile);
+      if (!watchActionsOf(profile)) continue;
+      void refreshExtensions(profile);
+      if (!isPrivate(s, id)) reportExtensionsLoaded(profile);
     }
   };
   loadProfiles(useBrowser.getState());

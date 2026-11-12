@@ -57,6 +57,7 @@ chromium chromium-branding.patch
 # their saved passwords and cookies. It must survive any re-sync (plain Chromium for ArdiaCore, a version bump), unchanged.
 chromium chromium-safe-storage-name.patch
 chromium chromium-safe-storage-no-silent-reset.patch
+chromium chromium-pref-hash-safe-storage-key-change.patch
 chromium chromium-password-bubble-hook.patch
 chromium chromium-password-generation-local.patch
 chromium chromium-password-string-erase.patch

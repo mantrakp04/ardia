@@ -26,6 +26,7 @@ source_set("ardia") {
     "ac_engine.h",
     "ac_extension_actions.cc",
     "ac_extensions.cc",
+    "ac_extensions_load_health.cc",
     "ac_extensions_sync.cc",
     "ac_extensions_sync_apply.cc",
     "ac_extensions_sync_approval.cc",
