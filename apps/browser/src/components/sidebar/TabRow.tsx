@@ -115,14 +115,14 @@ export const TabRow = memo(function TabRow({
                   ) : (
                     <View>
                       <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
-                      <TabBadges tabId={tab.id} pip={false} unread={false} />
+                      <TabBadges tabId={tab.id} />
                     </View>
                   )}
                 </Pressable>
               ) : (
                 <>
                   <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
-                  <TabBadges tabId={tab.id} pip={false} unread={false} />
+                  <TabBadges tabId={tab.id} />
                 </>
               )}
             </View>
