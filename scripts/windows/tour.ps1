@@ -1456,7 +1456,7 @@ function Invoke-MotionStop($Session, [string]$Slug, [string]$Title, [string]$Key
     param($stop)
     $stop.Did = "Pressed $Keys."
     $jumps = $JumpsWithAnimationsOff -and -not [ArdiaTour]::AnimationsOn()
-    $stop.Expected = "the launch log reports animation frames for at least $AtLeastMs ms, at 30 a second or more."
+    $stop.Expected = "the launch log reports animation frames for at least $AtLeastMs ms, at 30 a second or more apart from its one longest gap."
     if ($jumps) { $stop.Expected = "no slide: Windows' animation effects are off here, and this one follows that setting." }
     Focus-Window $Session $Session.Main $stop | Out-Null
     Close-Menus $Session
@@ -1479,7 +1479,7 @@ function Invoke-MotionStop($Session, [string]$Slug, [string]$Title, [string]$Key
       $stop.Facts.Add("$($burst.Frames) frames in $($burst.Milliseconds) ms ($rate a second), longest gap $($burst.Longest) ms, $($burst.Long) long gaps")
     }
     $longest = $bursts | Sort-Object Milliseconds -Descending | Select-Object -First 1
-    $smooth = $longest.Frames * 1000 / [Math]::Max(1, $longest.Milliseconds) -ge 30
+    $smooth = ($longest.Frames - 1) * 1000 / [Math]::Max(1, $longest.Milliseconds - $longest.Longest) -ge 30
     Set-Seen $stop ($commanded -and ($jumps -or ($longest.Milliseconds -ge $AtLeastMs -and $smooth)))
   } | Out-Null
 }
