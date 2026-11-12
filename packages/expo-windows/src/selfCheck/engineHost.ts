@@ -34,9 +34,9 @@ const system = () => requireNativeModule<{ fileExists(path: string): boolean }>(
 const launchData = () => requireNativeModule<{ launchConfig(): { dataDirectory?: unknown } }>("ArdiaApp").launchConfig().dataDirectory;
 const domain = (name: string) => requireNativeModule<DomainModule>(name);
 
-const NEVER_LOADED = "selfCheckNeverLoaded";
-const LOADED = "selfCheckLoaded";
-const STUCK = "selfCheckStuck";
+const NEVER_LOADED = "self-check-never-loaded";
+const LOADED = "self-check-loaded";
+const STUCK = "self-check-stuck";
 const SEEDED_ZOOM_HOST = "selfcheck.example";
 
 const comparable = (path: unknown) => String(path).replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
@@ -108,6 +108,8 @@ const withoutEngine: Check[] = [
       expectEqual(await engineHost().removeProfileFolder("Ardia x"), "refused", "a profile folder with no Chromium data beside it");
       expectEqual(await engineHost().removeProfileFolder("..\\System32"), "refused", "a name that leaves the folder");
       expectEqual(await engineHost().removeProfileFolder("Ardia x (removing)"), "refused", "a name the engine never makes");
+      expectEqual(await engineHost().removeProfileFolder("Ardia Work"), "refused", "a name Ardia never makes");
+      expectEqual(await engineHost().removeProfileFolder(`Ardia ${"a".repeat(239)}`), "refused", "a name with no room for the removal suffix");
     },
   },
 ];

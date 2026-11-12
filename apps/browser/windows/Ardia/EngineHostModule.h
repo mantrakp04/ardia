@@ -69,15 +69,16 @@ inline void Remove(EventRoute *route) noexcept {
 }
 
 constexpr std::string_view ProfileFolderPrefix = "Ardia ";
-constexpr size_t LongestProfileFolder = 200;
 constexpr wchar_t StagedSuffix[] = L" (removing)";
+constexpr size_t LongestPathComponent = 255;
+constexpr size_t LongestProfileFolder = LongestPathComponent - (sizeof(StagedSuffix) / sizeof(wchar_t) - 1);
 
 inline bool IsProfileFolderName(std::string_view folder) noexcept {
   if (folder.size() <= ProfileFolderPrefix.size() || folder.size() > LongestProfileFolder) return false;
   if (folder.substr(0, ProfileFolderPrefix.size()) != ProfileFolderPrefix) return false;
   for (char c : folder.substr(ProfileFolderPrefix.size())) {
-    bool safe = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_';
-    if (!safe) return false;
+    bool made = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-';
+    if (!made) return false;
   }
   return true;
 }

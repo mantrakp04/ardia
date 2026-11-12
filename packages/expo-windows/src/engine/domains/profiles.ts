@@ -1,36 +1,16 @@
-import { isPrivateProfile, ok, served, type Engine, type Handlers } from "./calling";
+import { ok, served, type Engine, type Handlers } from "./calling";
 import { deleteOriginalProfileData } from "./originalProfile";
 
 const FOLDER_PREFIX = "Ardia ";
-const SAFE = /^[A-Za-z0-9_-]$/;
+const LONGEST_ID = 238;
+const ARDIA_ID = new RegExp(`^[a-z0-9-]{1,${LONGEST_ID}}$`);
 const EVERY_KIND = ["history", "siteData", "cache", "downloads", "formData", "siteSettings"];
 const GONE = new Set(["removed", "absent"]);
 const OFF_THE_RECORD = "@";
+const END_OF_NAME = "\u0000";
+const NOT_ARDIAS = "data (the profile's id isn't one Ardia makes)";
 
-const isHighSurrogate = (unit: number) => unit >= 0xd800 && unit <= 0xdbff;
-const isLowSurrogate = (unit: number) => unit >= 0xdc00 && unit <= 0xdfff;
-
-function utf8Length(unit: number) {
-  if (unit < 0x80) return 1;
-  return unit < 0x800 ? 2 : 3;
-}
-
-export function profileFolder(profile: string): string | null {
-  let folder = FOLDER_PREFIX;
-  for (let i = 0; i < profile.length; i++) {
-    const unit = profile.charCodeAt(i);
-    if (isLowSurrogate(unit)) return null;
-    if (isHighSurrogate(unit)) {
-      if (!isLowSurrogate(profile.charCodeAt(i + 1))) return null;
-      folder += "____";
-      i++;
-      continue;
-    }
-    const char = profile[i]!;
-    folder += utf8Length(unit) === 1 && SAFE.test(char) ? char : "_".repeat(utf8Length(unit));
-  }
-  return folder;
-}
+export const profileFolder = (profile: string): string | null => (ARDIA_ID.test(profile) ? FOLDER_PREFIX + profile : null);
 
 const comparable = (path: string) => path.replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
 
@@ -50,10 +30,11 @@ export const profileCalls: Handlers = {
   },
   deleteData: async (args, engine) => {
     const { profile } = args;
-    if (isPrivateProfile(profile) || profile.includes(OFF_THE_RECORD)) return ok({ remaining: [] });
+    if (profile.includes(END_OF_NAME)) return ok({ remaining: [NOT_ARDIAS] });
+    if (profile.includes(OFF_THE_RECORD)) return ok({ remaining: [] });
     if (!profile) return ok({ remaining: await deleteOriginalProfileData(engine) });
     const folder = profileFolder(profile);
-    if (!folder) return ok({ remaining: ["data (the profile's id isn't valid text)"] });
+    if (!folder) return ok({ remaining: [NOT_ARDIAS] });
     if (!(await sameDataFolder(engine))) return ok({ remaining: ["data (Chromium keeps it in another folder)"] });
     const outcome = await engine.removeProfileFolder(folder);
     if (GONE.has(outcome)) return ok({ remaining: [] });

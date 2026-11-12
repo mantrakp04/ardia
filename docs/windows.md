@@ -232,6 +232,7 @@ is plain Chromium.
 | `permissions.devExternalLaunches` | Default | Mac test hook. |
 | `profiles.loaded` | Engine | The profiles the engine has loaded, plus the `profiles.loaded` event. Today the call fails and the app counts every profile as open, as with lazy loading off. |
 | `profiles.release` | Engine | Lets the engine unload a profile when its last tab closes. On Windows every private window of a profile shares Chromium's one off-the-record profile until Ardia quits (the engine ignores the name before `@`), so a new private window still has the last one's cookies. The engine has to make and destroy one off-the-record profile per private name. |
+| Profile folder names (no verb) | Engine | The engine names a profile's folder `Ardia ` plus its id with every byte outside `A-Z a-z 0-9 _ -` made `_`, and stops at a NUL, and NTFS ignores case, so `work.1` and `work_1`, or `Work` and `work`, share one folder. Ardia's own ids (`p-<base36>-<base36>`) never collide. `profiles.deleteData` therefore refuses, on purpose, every id it can't map exactly (below); the engine needs a one-to-one folder name (an escape or a hash) before those can be deleted. |
 | `search.setEngineName` | Default | Names the search engine in the app's own page context menu; Windows shows Chromium's menu, which names Chromium's default engine. Needed again once the app draws that menu. |
 | `tabs.routeLinkTabs`, `stripCommand`, `strips`, `reportCommits` | Default | The Mac's Chromium tab strip; Windows hosts pages only, so the empty answers are right. |
 | `tabs.dev*` (10 verbs) | Default | Mac test hooks. |
@@ -254,14 +255,18 @@ it), and `profiles.deleteData`.
 
 Deleting a profile's data: native (`ArdiaEngineHost.removeProfileFolder`) works out Chromium's data folder itself, as
 the engine does (`<ARDIA_DATA_DIR>\Chromium` in an instance with its own data folder, `%LOCALAPPDATA%\Ardia\User Data`
-otherwise), and acts only where that folder holds `Local State` and agrees with `host.info`'s `userDataDir`. The
-profile's folder is `Ardia ` and its id's UTF-8 bytes, each byte outside `A-Z a-z 0-9 _ -` made `_`, as the engine names
-it; an id that isn't valid text is refused. Native renames the folder to `<folder> (removing)` first, which fails while
-the engine holds a file in it, so a loaded profile's folder is never half removed: its browsing data is cleared through
-`ac_browsing_data_clear` instead and the folder goes at the next launch. A `(removing)` folder left by an earlier try is
-cleared first, and while it stays the answer is that files are left, never that the folder is gone. The original
-profile's folder is never removed: as on the Mac (`ProfileData.swift`), its browsing data, form data and site
-settings, passwords and never-save sites, addresses, cards, running extensions, site settings and zoom levels are
+otherwise), and acts only where that folder holds `Local State` and agrees with `host.info`'s `userDataDir`. A profile
+is deleted by its folder only when its id is one Ardia makes: lowercase `a-z`, `0-9` and `-`, at most 238 characters,
+so that `Ardia <id> (removing)` fits one 255-character NTFS name. Its folder is then exactly `Ardia <id>`. Any other id
+(hand-edited state, a sync from something else, a bug) could share its folder with another profile, so on purpose
+nothing is renamed, removed or cleared for it: the answer says the id isn't one Ardia makes, its data stays, and the
+app logs that it couldn't delete it. A name with `@` is a private session to the engine and has no folder; a name with
+a NUL is refused, since the engine reads it only up to the NUL. Native renames the folder to `<folder> (removing)` first,
+which fails while the engine holds a file in it, so a loaded profile's folder is never half removed: its browsing data
+is cleared through `ac_browsing_data_clear` instead and the folder goes at the next launch. A `(removing)` folder left by
+an earlier try is cleared first, and while it stays the answer is that files are left, never that the folder is gone.
+The original profile's folder is never removed: as on the Mac (`ProfileData.swift`), its browsing data, form data and
+site settings, passwords and never-save sites, addresses, cards, running extensions, site settings and zoom levels are
 cleared one by one through their `ac_*` calls, and each step that fails is named. The launch log says
 `profile folder removed|in use|partly removed: <folder>`.
 
