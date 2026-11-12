@@ -15,18 +15,18 @@ struct ToastView: View {
         .multilineTextAlignment(.leading)
         .lineLimit(3)
     }
-    .foregroundStyle(.white)
+    .foregroundStyle(.primary)
     .padding(.horizontal, Spacing.page)
     .padding(.vertical, 11)
     .frame(minHeight: 44)
     .background {
       Capsule(style: .continuous)
-        .fill(Palette.toast.gradient)
+        .fill(Palette.toast)
         .overlay {
           Capsule(style: .continuous)
-            .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
+            .strokeBorder(Palette.panelBorder, lineWidth: 0.5)
         }
-        .shadow(color: Palette.toastShadow.opacity(0.32), radius: 14, y: 6)
+        .shadow(color: Palette.toastShadow, radius: 14, y: 6)
     }
     .contentShape(Capsule())
     .accessibilityElement(children: .combine)

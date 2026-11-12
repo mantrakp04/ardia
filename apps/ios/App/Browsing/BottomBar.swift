@@ -98,6 +98,8 @@ struct BarBacking: View {
   let tone: ToneColor?
   var solid = false
 
+  @Environment(\.profileLook) private var look
+
   var body: some View {
     ZStack {
       if let tone {
@@ -109,7 +111,12 @@ struct BarBacking: View {
         }
         (tone.isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.025))
       } else {
-        Rectangle().fill(solid ? AnyShapeStyle(Color(.secondarySystemBackground)) : AnyShapeStyle(.bar))
+        if solid {
+          look.surface
+        } else {
+          Rectangle().fill(.bar)
+          look.surface.opacity(BrowseLayout.sheetTintShare)
+        }
       }
     }
     .animation(Motion.barTone, value: tone)

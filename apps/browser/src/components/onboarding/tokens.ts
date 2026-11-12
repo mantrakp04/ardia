@@ -110,10 +110,13 @@ export const onboardingMotion = {
   swatch: duration.base,
 } as const;
 
+const COMPACT_TITLE_LINE = 28;
+
 export const onboardingType = {
   wordmark: { ...display.wordmark, fontWeight: "200" },
   tagline: { ...font.large, fontWeight: "300" },
   stepTitle: { ...display.large, lineHeight: lineHeight.display, fontWeight: "300" },
+  stepTitleCompact: { ...display.title, lineHeight: COMPACT_TITLE_LINE, fontWeight: "300" },
   stepSubtitle: { ...font.body, lineHeight: proseLineHeight.body },
   bodyCompact: font.small,
   postcardHello: { ...display.title, fontWeight: "300", fontStyle: "italic" },

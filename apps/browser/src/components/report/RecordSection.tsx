@@ -2,19 +2,22 @@ import { useState } from "react";
 import { Image, View } from "react-native";
 import { setAttachedOpen, setIncludePages, setTrace } from "../../state/report/actions";
 import { formatBytes, formatDuration, TRACE_MAX_SECONDS } from "../../state/report/form";
-import { useReport, useReportShallow } from "../../state/report/hooks";
+import { useReport, useReportShallow, useReportWindowIsPrivate } from "../../state/report/hooks";
 import { discardRecording, startRecording } from "../../state/report/recording";
 import { ActivitySpinner, Box, Button, Checkbox, Dot, ink, radius, ReportVideo, space, Symbol, Text, useTheme } from "../ui";
 import { REPORT } from "./tokens";
 
+const RECORD_HINT = "Records this window, its Picture in Picture and the menus and prompts it opens. Never your other windows. Reports with a recording get fixed first.";
 const PAGES_WARNING =
-  "Pages can show private things like email, messages or bank details. Only include them if nothing sensitive is on screen. Tab names always show. You'll watch it before it's sent.";
+  "Pages and Picture in Picture videos can show private things like email, messages or bank details. Only include them if nothing sensitive is on screen. Tab names, addresses and what Ardia itself shows about a page, like suggestions and media controls, always show. WebKit pages with audio or video, where streaming services play, stay black. You'll watch it before it's sent.";
+const PRIVATE_NOTE = "Pages always stay hidden when you record a private window. Tab names and addresses still show.";
 
 export function RecordSection() {
   const recording = useReport((s) => s.recording);
   const { includePages, kind, trace } = useReportShallow((s) => ({ includePages: s.draft.includePages, kind: s.draft.kind, trace: s.draft.trace }));
   const [watching, setWatching] = useState(false);
   const attachedOpen = useReport((s) => s.attachedOpen);
+  const privateWindow = useReportWindowIsPrivate();
   const watch = (on: boolean) => {
     if (on) setAttachedOpen(false);
     setWatching(on);
@@ -29,6 +32,7 @@ export function RecordSection() {
           seconds={recording.seconds}
           bytes={recording.bytes}
           pages={recording.includePages}
+          pictureInPicture={!!recording.pictureInPicture}
           watching={watching && !attachedOpen}
           onWatch={watch}
         />
@@ -41,12 +45,12 @@ export function RecordSection() {
         <Box row gap="l" style={CENTER_ROW}>
           <Button title="Record the problem" icon="record.circle" onPress={() => void startRecording()} />
           <Text size="small" tone={recording.phase === "failed" ? "destructive" : "textSecondary"} style={FLEX}>
-            {recording.phase === "failed" ? recording.message : "Reports with a recording get fixed first."}
+            {recording.phase === "failed" ? recording.message : RECORD_HINT}
           </Text>
         </Box>
       )}
       {kind === "slow" ? <TraceRow on={trace} locked={recorded} /> : null}
-      <PagesChoice on={includePages} locked={recorded} />
+      <PagesChoice on={includePages && !privateWindow} locked={recorded} privateWindow={privateWindow} />
     </Box>
   );
 }
@@ -57,6 +61,7 @@ function Recorded({
   seconds,
   bytes,
   pages,
+  pictureInPicture,
   watching,
   onWatch,
 }: {
@@ -65,6 +70,7 @@ function Recorded({
   seconds: number;
   bytes: number;
   pages: boolean;
+  pictureInPicture: boolean;
   watching: boolean;
   onWatch: (on: boolean) => void;
 }) {
@@ -85,7 +91,7 @@ function Recorded({
       />
     </Box>
   );
-  const summary = `Recording · ${formatDuration(seconds)} · ${pages ? "pages included" : "pages hidden"}`;
+  const summary = `Recording · ${formatDuration(seconds)} · ${pages ? "pages included" : "pages hidden"}${pictureInPicture ? " · with Picture in Picture" : ""}`;
   if (watching)
     return (
       <View style={{ gap: space.m }}>
@@ -144,14 +150,18 @@ function TraceRow({ on, locked }: { on: boolean; locked: boolean }) {
   );
 }
 
-function PagesChoice({ on, locked }: { on: boolean; locked: boolean }) {
+function PagesChoice({ on, locked, privateWindow }: { on: boolean; locked: boolean; privateWindow: boolean }) {
   const theme = useTheme();
   return (
     <Box row gap="m" style={TOP_ROW}>
-      <Checkbox value={on} onChange={setIncludePages} disabled={locked} />
+      <Checkbox value={on} onChange={setIncludePages} disabled={locked || privateWindow} />
       <View style={FLEX}>
         <Text tone={locked ? "textSecondary" : "textPrimary"}>Include web pages</Text>
-        {locked ? (
+        {privateWindow ? (
+          <Text size="small" tone="textSecondary" style={{ marginTop: space.xxs }}>
+            {PRIVATE_NOTE}
+          </Text>
+        ) : locked ? (
           <Box row gap="xs" style={CENTER_ROW}>
             <Symbol name="lock" size={10} color={theme.textTertiary} style={LOCK} />
             <Text size="small" tone="textSecondary">

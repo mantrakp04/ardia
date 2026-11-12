@@ -320,7 +320,8 @@ async function wait(args) {
   let last = "";
   while (Date.now() < deadline) {
     const [found] = await listBuilds(app.id, build);
-    const state = found ? found.processing : "not listed yet";
+    const awaitsTesterState = found?.processing === "VALID" && found.internal === "?";
+    const state = !found ? "not listed yet" : awaitsTesterState ? "VALID, not ready for testers yet" : found.processing;
     if (!found) {
       const refusal = await deliveryRefusal(app.id, build);
       if (refusal) {
@@ -330,7 +331,7 @@ async function wait(args) {
     }
     if (state !== last) console.log(`build ${build}: ${state}`);
     last = state;
-    if (found && found.processing !== "PROCESSING") {
+    if (found && found.processing !== "PROCESSING" && !awaitsTesterState) {
       printBuilds([found]);
       process.exit(found.processing === "VALID" ? 0 : 1);
     }
@@ -392,6 +393,18 @@ async function certificates(args) {
   for (const row of made) console.log(`new ${row.attributes.certificateType} certificate, expires ${day(row.attributes.expirationDate)}`);
   if (made.length === 0) console.log("no new certificates");
   if (made.some((row) => DEVELOPMENT_CERTIFICATES.has(row.attributes.certificateType))) process.exit(1);
+}
+
+async function onceListed(action) {
+  const deadline = Date.now() + 180000;
+  for (;;) {
+    try {
+      return await action();
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 404 || Date.now() > deadline) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+    }
+  }
 }
 
 async function unlessAlready(action, done) {
@@ -456,7 +469,7 @@ async function publicLink(args) {
   }
 
   await unlessAlready(
-    () => post(`/v1/betaGroups/${group.id}/relationships/builds`, { data: [{ type: "builds", id: build.id }] }),
+    () => onceListed(() => post(`/v1/betaGroups/${group.id}/relationships/builds`, { data: [{ type: "builds", id: build.id }] })),
     "build already in the group",
   );
   await unlessAlready(

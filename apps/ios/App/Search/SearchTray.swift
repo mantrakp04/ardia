@@ -13,6 +13,7 @@ struct SearchTray<Drag: Gesture>: View {
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.profileLook) private var look
   @State private var model: SearchSuggestionsModel?
   @State private var text = ""
   @State private var highlightedID: String?
@@ -80,7 +81,7 @@ struct SearchTray<Drag: Gesture>: View {
 
   private var panelTint: Color {
     if isIncognito { return BrowsePalette.incognitoSheet }
-    return reduceTransparency ? BrowsePalette.sheetOpaque : BrowsePalette.sheet
+    return reduceTransparency ? look.surface : look.surface.opacity(BrowseLayout.sheetTintShare)
   }
 
   private var field: some View {

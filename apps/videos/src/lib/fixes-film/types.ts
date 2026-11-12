@@ -15,6 +15,7 @@ export interface Overlay {
   y: number;
   w: number;
   h: number;
+  until?: number;
 }
 
 export interface Note {

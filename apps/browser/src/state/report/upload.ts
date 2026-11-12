@@ -2,9 +2,13 @@ import type { ReportFile } from "./form";
 
 export type FailedStage = "create" | "upload" | "complete";
 
+export type FailureClass = "offline" | "storage" | "server" | "rate_limited" | "expired" | "rejected";
+
+export const RETRY_DELAYS_MS = [2_000, 8_000] as const;
+
 export type Created = { id: string; name: string | null; token: string; uploadUrls: Record<string, string>; uploaded: string[] };
 
-export type Sent = { id: string; name: string | null; issueUrl: string | null; issueNumber: number | null; uploadMs: number; bytes: number };
+export type Sent = { id: string; name: string | null; issueUrl: string | null; issueNumber: number | null; uploadMs: number; bytes: number; retries: number };
 
 export type UploadState =
   | { phase: "idle" }
@@ -12,7 +16,7 @@ export type UploadState =
   | { phase: "uploading"; created: Created; file: string; sent: number; total: number }
   | { phase: "completing"; created: Created }
   | { phase: "sent"; sent: Sent }
-  | { phase: "failed"; stage: FailedStage; message: string; created: Created | null };
+  | { phase: "failed"; stage: FailedStage; message: string; created: Created | null; errorClass: FailureClass; status: number; attempts: number };
 
 export type JsonReply = { status: number; json: unknown };
 
@@ -21,6 +25,7 @@ export type UploadDeps = {
   putFile(id: string, url: string, headers: Record<string, string>, file: ReportFile): Promise<number>;
   onProgress(handler: (id: string, sent: number) => void): () => void;
   now(): number;
+  sleep(ms: number): Promise<void>;
 };
 
 export type Endpoint = { url: string; key: string; keyHeader: string };
@@ -62,13 +67,45 @@ export function issueNumberOf(url: string | null): number | null {
   return match ? Number(match[1]) : null;
 }
 
-const failure = (stage: FailedStage, message: string, created: Created | null): UploadState => ({ phase: "failed", stage, message, created });
+export function failureClass(status: number, json: unknown): FailureClass {
+  const error = text(object(json).error) ?? "";
+  if (status === 0) return "offline";
+  if (status === 429) return "rate_limited";
+  if (status === 401 && error.startsWith("token_")) return "expired";
+  if (status >= 400 && status < 500) return "rejected";
+  if (error === "upstream" || error === "upstream:storage") return "storage";
+  return "server";
+}
 
-const statusMessage = (status: number, json: unknown) => {
-  const error = text(object(json).error) ?? text(object(json).message);
-  if (status === 0) return "Couldn't reach Ardia. Check your connection and try again.";
-  return error ? `The server said: ${error}` : `The server answered ${status}.`;
+export const isRetryable = (errorClass: FailureClass) => errorClass === "offline" || errorClass === "storage" || errorClass === "server";
+
+const sentence = (value: string) => (/[.!?]$/.test(value) ? value : `${value}.`);
+
+export function failureMessage(errorClass: FailureClass, status: number, json: unknown): string {
+  switch (errorClass) {
+    case "offline":
+      return "Couldn't reach Ardia's report server. Check your connection; your draft is kept.";
+    case "storage":
+      return "Ardia's report server couldn't store this right now. Your draft is kept; try again in a minute.";
+    case "server":
+      return "Ardia's report server ran into a problem. Your draft is kept; try again in a minute.";
+    case "rate_limited":
+      return "Ardia's report server has had too many reports from your network. Your draft is kept; try again in an hour.";
+    case "expired":
+      return "This report waited too long to finish sending. Your draft is kept; Try Again sends it fresh.";
+    case "rejected": {
+      const reason = text(object(json).message) ?? text(object(json).error);
+      return sentence(`Ardia's report server couldn't accept this report (${reason ?? `error ${status}`}). Your draft is kept`);
+    }
+  }
+}
+
+const failure = (stage: FailedStage, reply: JsonReply, attempts: number, created: Created | null): UploadState => {
+  const errorClass = failureClass(reply.status, reply.json);
+  return { phase: "failed", stage, message: failureMessage(errorClass, reply.status, reply.json), created, errorClass, status: reply.status, attempts };
 };
+
+const succeeded = (status: number) => status >= 200 && status < 300;
 
 export async function sendReport(
   deps: UploadDeps,
@@ -82,20 +119,26 @@ export async function sendReport(
   const started = deps.now();
   const total = files.reduce((sum, f) => sum + Math.max(0, f.bytes), 0);
   const finish = (state: UploadState) => (onState(state), state);
+  let retries = 0;
+  const withRetries = async (call: () => Promise<JsonReply>) => {
+    for (let attempts = 1; ; attempts++) {
+      const reply = await call().catch((): JsonReply => ({ status: 0, json: null }));
+      const delay = RETRY_DELAYS_MS[attempts - 1];
+      if (succeeded(reply.status) || delay === undefined || isCancelled() || !isRetryable(failureClass(reply.status, reply.json))) return { reply, attempts };
+      retries += 1;
+      await deps.sleep(delay);
+      if (isCancelled()) return { reply, attempts };
+    }
+  };
   let created = resume;
   if (!created) {
     onState({ phase: "creating" });
-    let reply: JsonReply;
-    try {
-      reply = await deps.postJson(endpoint.url, payload, { [endpoint.keyHeader]: endpoint.key });
-    } catch {
-      reply = { status: 0, json: null };
-    }
+    const { reply, attempts } = await withRetries(() => deps.postJson(endpoint.url, payload, { [endpoint.keyHeader]: endpoint.key }));
     if (isCancelled()) return finish({ phase: "idle" });
     const answer = object(reply.json);
     const id = text(answer.id);
     const token = text(answer.upload_token);
-    if (reply.status < 200 || reply.status >= 300 || !id || (files.length > 0 && !token)) return finish(failure("create", statusMessage(reply.status, reply.json), null));
+    if (!succeeded(reply.status) || !id || (files.length > 0 && !token)) return finish(failure("create", reply, attempts, null));
     created = { id, name: text(answer.name), token: token ?? "", uploadUrls: uploadUrlsFrom(reply.json, endpoint.url, id, files), uploaded: [] };
   }
   const auth = { Authorization: `Bearer ${created.token}`, [endpoint.keyHeader]: endpoint.key };
@@ -103,28 +146,26 @@ export async function sendReport(
   for (const file of files) {
     if (created.uploaded.includes(file.name)) continue;
     const at = { phase: "uploading" as const, created, file: file.name, sent: done, total };
-    onState(at);
-    const stop = deps.onProgress((id, sent) => id === file.name && onState({ ...at, sent: done + Math.min(sent, file.bytes) }));
-    let status = 0;
-    try {
-      status = await deps.putFile(file.name, created.uploadUrls[file.name] ?? reportPath(endpoint.url, created.id, `files/${file.name}`), auth, file);
-    } finally {
-      stop();
-    }
+    const url = created.uploadUrls[file.name] ?? reportPath(endpoint.url, created.id, `files/${file.name}`);
+    const { reply, attempts } = await withRetries(async () => {
+      onState(at);
+      const stop = deps.onProgress((id, sent) => id === file.name && onState({ ...at, sent: done + Math.min(sent, file.bytes) }));
+      try {
+        return { status: await deps.putFile(file.name, url, auth, file), json: null };
+      } finally {
+        stop();
+      }
+    });
     if (isCancelled()) return finish({ phase: "idle" });
-    if (status < 200 || status >= 300) return finish(failure("upload", statusMessage(status, null), created));
+    if (!succeeded(reply.status)) return finish(failure("upload", reply, attempts, created));
     done += file.bytes;
     created = { ...created, uploaded: [...created.uploaded, file.name] };
   }
   onState({ phase: "completing", created });
-  let reply: JsonReply;
-  try {
-    reply = await deps.postJson(reportPath(endpoint.url, created.id, "complete"), {}, auth);
-  } catch {
-    reply = { status: 0, json: null };
-  }
+  const completeUrl = reportPath(endpoint.url, created.id, "complete");
+  const { reply, attempts } = await withRetries(() => deps.postJson(completeUrl, {}, auth));
   if (isCancelled()) return finish({ phase: "idle" });
-  if (reply.status < 200 || reply.status >= 300) return finish(failure("complete", statusMessage(reply.status, reply.json), created));
+  if (!succeeded(reply.status)) return finish(failure("complete", reply, attempts, created));
   const answer = object(reply.json);
   const issueUrl = text(answer.issue_url);
   return finish({
@@ -136,6 +177,7 @@ export async function sendReport(
       issueNumber: typeof answer.issue_number === "number" ? answer.issue_number : issueNumberOf(issueUrl),
       uploadMs: deps.now() - started,
       bytes: total,
+      retries,
     },
   });
 }

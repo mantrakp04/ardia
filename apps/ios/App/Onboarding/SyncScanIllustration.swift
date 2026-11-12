@@ -39,7 +39,7 @@ private struct MacWindowSketch: View {
       .padding(10)
       .frame(width: 84, alignment: .leading)
       .frame(maxHeight: .infinity, alignment: .top)
-      .background(LaunchGradient(softened: true).opacity(0.9))
+      .background(ProfileBackdrop())
 
       ZStack {
         Color(.systemBackground)
@@ -56,7 +56,7 @@ private struct MacWindowSketch: View {
       RoundedRectangle(cornerRadius: 12, style: .continuous)
         .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
     }
-    .shadow(color: Palette.gradientDeep.opacity(0.18), radius: 18, y: 8)
+    .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
   }
 }
 
@@ -69,7 +69,7 @@ private struct PhoneSketch: View {
         .fill(Color(white: 0.08))
       ZStack {
         if connected {
-          LaunchGradient()
+          Rectangle().fill(ProfileLook.plum.swatchColor.gradient)
         } else {
           Color(white: 0.22)
         }
@@ -131,11 +131,11 @@ private struct SketchTab {
   var width: CGFloat
 
   static let all: [SketchTab] = [
-    SketchTab(color: Palette.indigo, width: 44),
-    SketchTab(color: Palette.gradientPink, width: 36),
-    SketchTab(color: Color(hex: 0xFF9F0A), width: 48),
-    SketchTab(color: Color(hex: 0x34C759), width: 30),
-    SketchTab(color: Palette.gradientPlum, width: 40),
+    SketchTab(color: ProfileLook(preset: .blue).swatchColor, width: 44),
+    SketchTab(color: ProfileLook(preset: .pink).swatchColor, width: 36),
+    SketchTab(color: ProfileLook(preset: .orange).swatchColor, width: 48),
+    SketchTab(color: ProfileLook(preset: .green).swatchColor, width: 30),
+    SketchTab(color: ProfileLook(preset: .purple).swatchColor, width: 40),
   ]
 }
 
