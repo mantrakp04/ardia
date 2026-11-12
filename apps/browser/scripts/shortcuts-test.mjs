@@ -635,6 +635,47 @@ for (const where of ["the find field", "the page"]) {
   const after = await ac(`const s = ac.store.getState(), w = s.windows.w1, a = w.activeTabIds[w.profileId]; return { active: a, find: !!s.find[a]?.open };`);
   check("Esc closes only the find bar", after.active === "t3" && !after.find, JSON.stringify(after));
 }
+{
+  const urls = (...tabs) => tabs.map((t) => `${pages}/?${t}`).join("\n");
+  const shift = ["command", "shift"];
+  const copyCase = async (label, { setup, keys, expected, toast, teardown }) => {
+    await resetToPageField("", [0, 0]);
+    await clipboard.set("copy-sentinel");
+    await ac(`ac.toasts.setState({ toasts: {} }); return 1;`);
+    await setup?.();
+    await ac(`ac.store.getState().setSelection("w1", ["t1", "t2", "t4"]); return 1;`);
+    await keys();
+    await sleep(600);
+    const copied = await clipboard.get();
+    const shown = await ac(`const t = ac.toasts.getState().toasts.w1; return t ? t.title : null;`);
+    await teardown?.();
+    check(label, copied === expected && (toast === undefined || shown === toast), `clipboard ${JSON.stringify(copied)}, toast ${shown}`);
+  };
+  await copyCase("⇧⌘C with three sidebar tabs selected and the page focused copies all three URLs", {
+    keys: () => postKeys([keyPress("C", 8, 0, shift)]), expected: urls("t1", "t2", "t4"), toast: "Copied URLs",
+  });
+  await copyCase("⇧⌘C with three sidebar tabs selected and the sidebar focused copies all three URLs", {
+    keys: () => press(cmd("C", 8, "shift"), sidebar), expected: urls("t1", "t2", "t4"), toast: "Copied URLs",
+  });
+  await copyCase("⌥⇧⌘C with three sidebar tabs selected copies them as a Markdown list", {
+    keys: () => postKeys([keyPress("C", 8, 0, [...shift, "option"])]),
+    expected: ["t1", "t2", "t4"].map((t) => `- [${t}](${pages}/?${t})`).join("\n"), toast: "Copied URLs as Markdown",
+  });
+  await copyCase("⇧⌘C with the command bar focused copies the sidebar selection", {
+    setup: async () => (await post("l", 37), await sleep(500)),
+    keys: () => postKeys([keyPress("C", 8, 0, shift)]), expected: urls("t1", "t2", "t4"), toast: "Copied URLs",
+    teardown: () => post("\u001b", 53, []),
+  });
+  await copyCase("⇧⌘C with a peek open copies the peeked page, not the selection", {
+    setup: async () => (await ac(`ac.store.getState().openPeek("t3", "${pages}/?peeked"); return 1;`), await sleep(1500)),
+    keys: () => postKeys([keyPress("C", 8, 0, shift)]), expected: `${pages}/?peeked`,
+    teardown: () => ac(`ac.peek.dismissPeek("w1"); return 1;`),
+  });
+  await copyCase("plain ⌘C with tabs selected leaves the clipboard alone, as in Dia", {
+    keys: () => press(cmd("c", 8), sidebar), expected: "copy-sentinel",
+  });
+  await ac(`ac.store.getState().setSelection("w1", []); return 1;`);
+}
 const FLAGS = { command: 0x100000, shift: 0x20000, control: 0x40000, option: 0x80000, function: 0x800000 };
 const w1Native = await ac(`const f = ac.store.getState().windows.w1.frame;
   return ac.engine.call("windows.list").then((ws) => ws.filter((w) => w.hasRoot).find((w) => {

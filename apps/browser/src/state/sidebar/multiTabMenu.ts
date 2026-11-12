@@ -3,7 +3,7 @@ import { moveTabsToProfile, switchToTab } from "../browser/actions";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { inPinnedContainer, isIncognitoProfile, isPinnedRow, pinnedSectionTitle, pinSection, viewTabIds } from "../browser/model";
 import { groupOf } from "../pins/tabGrouping";
-import { bookmarkTabs, copyUrls, newGroupWithSelection } from "./actions";
+import { bookmarkTabs, copyUrlsWithToast, newGroupWithSelection } from "./actions";
 import { bookmarksShown } from "../bookmarks/visibility";
 import { bookmarkFolderItems, groupItems, hintWhen, profileItems, sections, windowItems, withAlternate, type Destination } from "./menuParts";
 
@@ -81,8 +81,8 @@ export async function openMultiMenu(windowId: string, shown: string[]) {
   else if (choice === "duplicate") ids.forEach((id) => store().duplicateTab(id));
   else if (choice === "newGroup") newGroupWithSelection(windowId, ids);
   else if (choice === "ungroup") s.removeTabsFromGroup(ids);
-  else if (choice === "copy") copyUrls(ids, false);
-  else if (choice === "copyMd") copyUrls(ids, true);
+  else if (choice === "copy") copyUrlsWithToast(windowId, ids, false);
+  else if (choice === "copyMd") copyUrlsWithToast(windowId, ids, true);
   else if (choice === "bar") void bookmarkTabs(windowId, ids, { kind: "folder", parentId: undefined });
   else if (choice === "close") s.closeTabs(ids);
   else if (choice === "closeOthers") s.closeTabs(here(f.others));

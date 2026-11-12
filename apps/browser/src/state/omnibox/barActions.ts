@@ -9,6 +9,7 @@ import { commandBarTitle, commandSymbol } from "../commands/commandCatalog";
 import { menuBarRevision, shortcutHint } from "../commands/commandShortcuts";
 import type { Tab } from "../browser/types";
 import { organizeActions } from "./organizeActions";
+import { selectionToCopy } from "../sidebar/commands";
 import { muteState, muteTitle, siteMuteTitle } from "../tabs/mute";
 
 type Context = { s: BrowserState; windowId: string; tab: Tab | undefined };
@@ -19,7 +20,7 @@ type ActionDef = {
   title?: (c: Context) => string;
   icon?: string;
   keywords?: string[];
-  needs?: "page" | "tab" | "profiles" | "pins";
+  needs?: "page" | "tab" | "profiles" | "pins" | "copy";
 };
 
 const page = "page" as const;
@@ -62,8 +63,8 @@ const DEFS: ActionDef[] = [
     keywords: ["mute site", "unmute site", "silence site"],
     needs: page,
   },
-  { command: "copyUrl", keywords: ["copy link"], needs: page },
-  { command: "copyUrlAsMarkdown", keywords: ["markdown link"], needs: page },
+  { command: "copyUrl", keywords: ["copy link"], needs: "copy" },
+  { command: "copyUrlAsMarkdown", keywords: ["markdown link"], needs: "copy" },
   { command: "findInPage", needs: page },
   {
     command: "bookmarkPage",
@@ -105,6 +106,7 @@ export function barActions(s: BrowserState, windowId: string): CommandAction[] {
   const out: CommandAction[] = [];
   for (const d of DEFS) {
     if (d.needs === "page" && !tab?.url) continue;
+    if (d.needs === "copy" && !tab?.url && !selectionToCopy(s, windowId).length) continue;
     if (d.needs === "tab" && !tab) continue;
     if (d.needs === "profiles" && w?.kind === "private") continue;
     if (d.needs === "pins" && !canTidy(s, windowId)) continue;
