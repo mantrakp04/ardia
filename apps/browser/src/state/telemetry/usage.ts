@@ -20,6 +20,7 @@ import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
 import { takeAutoHideTabsChoices } from "./autoHideTabsChoices";
+import { noteAutoPictureInPictureNothingPlaying, takeAutoPictureInPictureNothingPlaying } from "./autoPictureInPictureNothingPlaying";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
 import { toolbarBounces } from "./toolbarBounces";
 
@@ -36,8 +37,9 @@ let countsSince = Date.now();
 
 function emitCounts() {
   const snapshots = takeSnapshotWrites();
+  const autoPictureInPictureNothingPlaying = takeAutoPictureInPictureNothingPlaying();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || snapshots.count) {
+  if (Object.values(counts).some(Boolean) || snapshots.count || autoPictureInPictureNothingPlaying) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -74,7 +76,7 @@ function emitCounts() {
       split_view_closes: counts.splitViewCloses,
       window_close_tabs_kept: counts.windowCloseTabsKept,
       sync_snapshots_written: snapshots.count,
-      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024),
+      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024), auto_pip_nothing_playing: autoPictureInPictureNothingPlaying,
       toolbar_scroll_hides: counts.toolbarScrollHides,
       toolbar_scroll_hide_bounces: counts.toolbarScrollHideBounces,
       card_resize_layouts: counts.cardResizeLayouts,
@@ -121,19 +123,17 @@ export function noteSharePicked(kind: "tab" | "window" | "screen") {
 }
 
 export const noteScreenRecordingMissing = () => counts.screenRecordingMissing++;
-
 export const noteScreenRecordingAsked = () => counts.screenRecordingAsked++;
 
 export const noteWebKitPageKeptHidden = () => counts.webKitPagesKeptHidden++;
 
-export const noteAutoPictureInPictureKept = (appSwitch: boolean) => counts[appSwitch ? "autoPictureInPictureStayedOnAppSwitch" : "autoPictureInPictureKept"]++;
+export const noteAutoPictureInPictureKept = (reason: "onScreen" | "appSwitch" | "nothingPlaying") => reason === "nothingPlaying" ? noteAutoPictureInPictureNothingPlaying() : counts[reason === "appSwitch" ? "autoPictureInPictureStayedOnAppSwitch" : "autoPictureInPictureKept"]++;
 
 export const noteExtensionInstallPrompt = () => counts.extensionInstallPrompts++;
 
 export const notePrivateWindowExtensionOpen = () => counts.privateWindowExtensionOpens++;
 
 export const noteContentBlockerUnavailable = () => counts.contentBlockerUnavailable++;
-
 export const noteContentBlockerWriteFailure = () => counts.contentBlockerWriteFailures++;
 
 export const noteCaptureIndicatorCleared = () => counts.captureIndicatorsCleared++;
