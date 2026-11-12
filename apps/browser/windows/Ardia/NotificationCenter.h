@@ -342,7 +342,7 @@ struct NotificationHub {
   }
 
   static void RegisterWithAppIdentity(winrt::Microsoft::Windows::AppNotifications::AppNotificationManager const &manager) {
-    if (std::optional<std::wstring> icon = AppIcon::NotificationIconUrl()) {
+    if (std::optional<std::wstring> icon = AppIcon::NotificationIconPath()) {
       try {
         manager.Register(AppIcon::kDisplayName, winrt::Windows::Foundation::Uri{*icon});
         LaunchLog::Write(L"info", L"notifications: registered as Ardia with Ardia's icon");

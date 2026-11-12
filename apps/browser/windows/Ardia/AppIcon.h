@@ -1,6 +1,5 @@
 #pragma once
 
-#include <shlwapi.h>
 #include <shobjidl_core.h>
 #include <wincodec.h>
 
@@ -16,7 +15,6 @@
 
 #pragma comment(lib, "windowscodecs.lib")
 #pragma comment(lib, "shell32.lib")
-#pragma comment(lib, "shlwapi.lib")
 
 namespace Ardia {
 
@@ -58,17 +56,14 @@ struct AppIcon {
     LaunchLog::Write(L"info", std::wstring(L"app icon: set on ").append(Paths::Wide(id)).append(L" at ").append(std::to_wstring(bigPixels)).append(L" and ").append(std::to_wstring(smallPixels)).append(L" px"));
   }
 
-  static std::optional<std::wstring> NotificationIconUrl() noexcept {
+  static std::optional<std::wstring> NotificationIconPath() noexcept {
     std::filesystem::path png = Paths::DataDirectory() / L"Ardia.png";
     std::error_code ignored;
     std::filesystem::path library = AppImage::Path();
     bool current = std::filesystem::exists(png, ignored) && std::filesystem::file_size(png, ignored) > 0 &&
                    std::filesystem::last_write_time(png, ignored) >= std::filesystem::last_write_time(library, ignored);
     if (!current && !WritePng(png, 256)) return std::nullopt;
-    wchar_t url[4096]{};
-    DWORD size = static_cast<DWORD>(std::size(url));
-    if (FAILED(UrlCreateFromPathW(png.c_str(), url, &size, 0))) return std::nullopt;
-    return std::wstring(url);
+    return png.wstring();
   }
 
   static bool WritePng(std::filesystem::path const &path, UINT pixels) noexcept {
