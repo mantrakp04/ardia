@@ -523,22 +523,30 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
 - **Wayland focus.** Activation uses `xdg_activation_v1` and the compositor may refuse it (Hyprland may mark the
   window urgent instead). A Wayland client can't refuse focus when it maps, so `ARDIA_BACKGROUND=1` keeps focus only on
   X11.
-- **Left-edge sidebar peek** (#368). With the sidebar hidden, the native host watches the left edge itself
-  (`ArdiaShell.watchLeftEdge`, `ac_linux_left_edge.h`), the way macOS's `LeftEdgeWatcher` does. Before this the shell
-  watched its own DOM. The native page covers everything from the card's 9 px inset, and the frame's resize border
+- **Sidebar-edge peek** (#368). With the sidebar hidden, the native host watches the sidebar's edge itself
+  (`ArdiaShell.watchSidebarEdge`, `ac_linux_sidebar_edge.h`), the way macOS's `SidebarEdgeWatcher` does: the left edge,
+  or the right edge when Settings › Tabs › Sidebar position is Right. Before this the shell watched its own DOM. The native page covers everything from the card's 9 px inset, and the frame's resize border
   never reaches the shell, so only window x 4–10 revealed the sidebar on X11. No fast move ever revealed it (0 of
   15), and moving into the sliding panel re-hid it in 2 of 3 runs, because the pointer reached the page before the
   panel's cut-out did. A handler at the window's Aura root now sees every pointer event, over the page and the frame
   too.
-  - The zone is 8 px from the client's left edge, plus anything of the window left of it (the resize border), up to
-    24 px.
+  - The zone is 8 px from the client's edge, plus anything of the window beyond it (the resize border), up to
+    24 px. The right edge mirrors the left pixel for pixel.
   - While the peek is out, the pointer counts as over anywhere in its column, 5 + sidebar width + 24 px wide, over the
     page too. Dismissal keeps the shared 120 ms delay.
   - Wayland has no global pointer, so the 24 pt reach macOS gives outside the window becomes this: when the pointer
-    leaves through the left edge of the active window, the peek opens after 90 ms. If focus moves first (Hyprland's
-    `follow_mouse` focusing the window on the left), it doesn't open. A peek that is already out stays out while the
-    pointer is just past the edge, and closes when the window loses focus.
-  - Engines without the capability keep the shell-side watcher (`shims/web/motion/sidebarEdge.ts`).
+    leaves through the sidebar's edge of the active window, the peek opens after 90 ms. If focus moves first
+    (Hyprland's `follow_mouse` focusing the neighbouring window), it doesn't open. A peek that is already out stays out
+    while the pointer is just past the edge, and closes when the window loses focus.
+  - Switching the sidebar's side re-evaluates the last pointer position and drops a pending 90 ms settle.
+  - The watch takes the shared arguments (window id, on, hold, right, whilePressed; whilePressed is ignored, see Known
+    gaps) and reports the shared `sidebarEdge` window event, so the shared UI calls it directly.
+  - Older engines: one with only `ArdiaShell.watchLeftEdge` keeps the native watcher for a left sidebar and the
+    shell-side watcher (`shims/web/motion/sidebarEdge.ts`) for a right one; its `leftEdge` events are renamed to
+    `sidebarEdge`. An engine with neither uses the shell-side watcher on both sides.
+- **Window controls with the sidebar on the right.** They ride the sidebar, as on macOS: `setTrafficLightsCenter`'s
+  `trailing` flag measures the first button's center from the window's right edge, and the Linux buttons are placed
+  from that edge with CSS (`shims/web/windowChrome.tsx`), so a resize moves them with no round trip.
 - **Fullscreen restore.** A window saved fullscreen comes back fullscreen. On Wayland the saved output's name is kept
   in the profile pref `browser.app_window_placement.ArdiaLinuxWindowOutputs`. When exactly one display carries that
   name, the window goes fullscreen there.
@@ -1007,6 +1015,19 @@ It works as on the Mac ([cli.md](cli.md), [automation.md](automation.md)); what 
 
 Newest first. Each entry names the upstream commit `linux-support` was rebased onto and what the Linux side needed.
 
+- **2026-11-12, still upstream 42c6291: the sidebar-edge watch** (no rebase). jreyes138 reported on #622 that with
+  Auto-hide tabs on and Sidebar position set to Right, the strip could never be revealed: the engine advertised only
+  `ArdiaShell.watchLeftEdge`, so the shell turned the native watcher off for a right sidebar and fell back to its DOM
+  watcher, which never sees pointer samples over the native page. The left-edge watch became a sidebar-edge watch
+  with a side (`ac_linux_sidebar_edge.h`, `ArdiaShell.watchSidebarEdge`, the shared `sidebarEdge` event); see Windows,
+  focus and input › Sidebar-edge peek. The window controls now follow `setTrafficLightsCenter`'s `trailing` flag. The
+  engine key moved from `756f755c2bf0` to `f9a19cc5aa34`. Verified with the C++ fixture on both sides, the host tests,
+  and on the built engine in a headless Sway with a virtual pointer (the real Aura root path): the right strip, the
+  hold column over the page and leaving the column behave as on the left, and the left side is unchanged. That harness
+  can't exercise the Wayland leave-and-settle path on either side (no flick revealed the left sidebar on the previous
+  engine either), so the 90 ms settle on the right is covered by the fixture only. Telemetry: `sidebar_peeks` now also
+  counts right-side peeks on Linux.
+
 - **2026-11-12, upstream 42c6291** (77 commits after 39bd206). Three conflicts: `engine/patches/series` (upstream's new
   `chromium-pref-hash-safe-storage-key-change.patch` stays shared, beside the two Mac-only Safe Storage patches; it
   touches only `services/preferences` and applies to the Linux tree unchanged), the shared source list in the ardia
@@ -1069,9 +1090,6 @@ These were open at the time of the PR.
   Enter in a new tab's address bar did nothing (Fedora 44, wlroots). Linux replaces the module with
   `apps/linux/src/fieldTiming.ts`, which reports no timing data (`lastInput` is `[0, 0]`, `drain` is empty), so the
   field journeys send no samples from Linux. UI only; the engine key is unchanged.
-- **Auto-hide tabs with the sidebar on the right.** The strip can't be revealed, because the engine only provides
-  `watchLeftEdge`, and the window controls stay anchored on the left. It needs an engine-side right-edge watcher and is
-  deferred.
 - **Unread counts on older profiles.** Linux runs no session migrations, so a profile saved before this sync keeps
   Show unread counts on; upstream's session version 11 turns an untouched setting off. New profiles start with it off.
 - **Default browser in onboarding.** The last onboarding step leaves out the default browser row on Linux, which has no
@@ -1091,7 +1109,7 @@ These were open at the time of the PR.
   - crash reports;
   - sending problem reports (the shell CSP blocks it); the 7-day local copy (`ArdiaTelemetryLocal` keeps nothing, so
     Settings › Privacy hides View My Data) and hardware details (`ArdiaApp.hardwareInfo`);
-  - the sidebar edge's `whilePressed`: the native left-edge watcher still peeks during any pressed drag;
+  - the sidebar edge's `whilePressed`: the native edge watcher still peeks during any pressed drag;
   - `engine.cliTabTargets`, so `windows` from the control socket has no DevTools target ids;
   - Ardia's own desktop notifications (sites' web notifications use Chromium's Linux notifications);
   - the share sheet;
