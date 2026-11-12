@@ -79,7 +79,14 @@ the pins into `pyproject.toml`).
   `targetId`, the DevTools page target `ardia browse` attaches to (null when the tab's page isn't loaded), and
   `pageGeneration`, bumped whenever that target changes (a slept tab reloading). The app asks each live tab through
   ArdiaCore's `devToolsCall` (`Target.getTargetInfo`, engine call `engine.cliTabTargets`); an older build leaves both
-  out.
+  out. A tab a page opened whose first page is still loading isn't asked and has a null `targetId` until that page
+  commits: the DevTools attach counts as a touch of its blank initial document, after which Chrome and the tab show
+  about:blank instead of the pending address (`awaitsFirstDocument`; `packages/ardiacore/scripts/pending-address-check.mjs
+  <Debug app>` checks it).
+- `ardia tabs --usage` lists each tab with its renderer's process id, CPU and memory, hottest first, and
+  `ardia tabs --pid N` names the tabs in a process, so a pid from `top -o power` leads to its tab (`workspace`'s
+  `usage`, `docs/automation.md` › Tabs and groups). Use counts come from the option names on the command event;
+  `error_code` `no_pid` means an engine that reports no process ids.
 - `ardia tabs`, `ardia groups` and `ardia apply` list and organize tabs and groups by id: open URLs into a window,
   profile, group or spot, move tabs between groups, windows and profiles without reloading, pin, mute, sleep, wake,
   close, rename and set icons; create, nest, reorder, pin, collapse, recolour, ungroup, close and delete groups; and
@@ -291,7 +298,7 @@ random offset inside the box; a click whose point is covered fails with
 `covered by <tag#id.class>`, and one outside the laid-out viewport with `outside_viewport` (the point and the viewport
 size). A tab with no size yet (0×0, seen on a loaded hidden test instance) is waited for up to 2 s, then given a
 1280×800 device metrics override for that command, cleared afterwards and never over the session's own `set viewport`;
-where Emulation is gated (the token path) it fails with `no_viewport`.
+where the policy refuses it (the token path, on a tab the command didn't open) it fails with `no_viewport`.
 
 `fill` on a `date`, `time`, `datetime-local`, `month`, `week`, `color` or `range` input doesn't type (typing
 `2026-11-09` into the segmented date field stored `0009-02-06`, and a time field stayed empty). As Playwright's
@@ -682,7 +689,7 @@ only change needed.
 | --- | --- |
 | `cookies get\|set\|clear`, `cookies set --curl` | `Network.getCookies`, `Network.setCookie`, `Network.clearBrowserCookies` |
 | `state save\|load` | `Network.getAllCookies`, `Network.setCookies` |
-| `set viewport\|device\|geo\|media` | `Emulation.setDeviceMetricsOverride`, `Emulation.setTouchEmulationEnabled`, `Emulation.setUserAgentOverride`, `Emulation.setGeolocationOverride`, `Emulation.setEmulatedMedia` |
+| `set device\|geo\|media` | `Emulation.setTouchEmulationEnabled`, `Emulation.setUserAgentOverride`, `Emulation.setGeolocationOverride`, `Emulation.setEmulatedMedia` |
 | `set offline`, `set headers` | `Network.emulateNetworkConditions`, `Network.setExtraHTTPHeaders` |
 | `set credentials`, `network route\|unroute` | `Fetch.enable` (and `Fetch.fulfillRequest`, `failRequest`, `continueRequest`) |
 | `upload` | `DOM.setFileInputFiles` |
@@ -707,7 +714,22 @@ The policy also refuses some uses of methods it allows (`ac_cli_token_policy.cc`
 | `without flatten` | `Target.attachToTarget`, `setAutoAttach` | The command always sends `flatten`, so this is a bug in it |
 | `to that URL`, `in another browser context` | `Target.createTarget`, `Page.navigate` | Only http, https, data and about:blank pages, in the user's own profile |
 | `in that execution context`, `on that object` | `Runtime.*`, `DOM.*` | A context or object the connection didn't make |
+| `on a tab the ardia command didn't open`, `with that option` | `Emulation.setDeviceMetricsOverride`, `clearDeviceMetricsOverride` | The viewport override is for tabs the command opened (below), with a width, height, scale and `mobile` only |
 | `in a named world`, `as a stream`, `with the command line API`, `without a button`, `with those editing commands` | `Page.addScriptToEvaluateOnNewDocument`, `Page.printToPDF`, `Runtime.evaluate`, `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` | That option isn't allowed |
+
+`set viewport <w> <h> [scale]` works on the token path, for responsive checks, on a tab the command opened. The
+policy allows `Emulation.setDeviceMetricsOverride` and `clearDeviceMetricsOverride` only on a session attached to a
+target that a token connection made with `Target.createTarget` (`open`, `tab new`, a reader or script tab). The
+engine keeps those target ids for the whole process, learned from each `createTarget` reply, so a daemon that
+reconnects after its idle disconnect still owns its tabs; an id goes when its target is destroyed. Any other tab,
+the user's included, is refused (`on a tab the ardia command didn't open`), also when the session picked it with
+`tab <id>`; a session that only borrowed the user's tab is refused by the command first (`borrowed_tab`). Only
+`width`, `height`, `deviceScaleFactor` and `mobile` pass (`with that option` otherwise). Nothing clears the override
+by hand: it belongs to the DevTools session, so Chrome drops it when the session detaches (`close`, the daemon
+exiting, Stop, control turned off, the tab closing), and the `emulation` lease keeps the daemon connected while it's
+on. `set device` still fails, before changing anything, on `Emulation.setTouchEmulationEnabled`. The 1280×800
+override a click gives a tab with no size (Input) works on those tabs too. Telemetry: `viewport_set` on the
+command event; watch `error_code` `policy_refused` on `set`.
 
 A refused `Target.attachToTarget` also says what Ardia's own tab list has for that page (`ardia windows`): the tab and
 its address, or that no tab holds it. The command used to print the off-the-list sentence for every refusal, which hid

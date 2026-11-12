@@ -1,14 +1,12 @@
 import { Animated, Easing } from "react-native";
+import type { MotionBurst, MotionNative } from "@ardia/shell";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
-
-type Burst = { frames: number; milliseconds: number; longest: number; long: number };
-type Motion = { onBurst(listen: (burst: Burst) => void): () => void };
 
 const FADE_MS = 200;
 const BURST_LIMIT_MS = 3000;
 
-const motion = () => requireNativeModule<Motion>("ArdiaMotion");
+const motion = () => requireNativeModule<MotionNative>("ArdiaMotion");
 
 export const checks: Check[] = [
   {
@@ -18,7 +16,7 @@ export const checks: Check[] = [
       const seen: number[] = [];
       const listening = value.addListener(({ value: at }) => void seen.push(at));
       let stop = () => {};
-      const reported = new Promise<Burst | null>((resolve) => {
+      const reported = new Promise<MotionBurst | null>((resolve) => {
         const timer = setTimeout(() => resolve(null), BURST_LIMIT_MS);
         stop = motion().onBurst((burst) => {
           clearTimeout(timer);

@@ -1,6 +1,7 @@
 #ifndef ARDIA_WIN_TAB_STATE_H_
 #define ARDIA_WIN_TAB_STATE_H_
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -29,7 +30,7 @@ class TabState : public content::WebContentsObserver,
   const std::string& key() const { return key_; }
   bool closed_by_host() const { return closed_by_host_; }
   void set_closed_by_host() { closed_by_host_ = true; }
-  void set_opened_blank() { opened_blank_ = true; }
+  void WatchOpeningBlank(int64_t navigation_id);
   bool OnlyShowedOpeningBlank() const;
   static GURL CommittedPageURL(content::WebContents* contents);
 
@@ -69,7 +70,10 @@ class TabState : public content::WebContentsObserver,
 
   std::string key_;
   bool closed_by_host_ = false;
-  bool opened_blank_ = false;
+  bool IsOpeningBlank(const content::NavigationEntry* entry) const;
+
+  int64_t opening_navigation_id_ = 0;
+  int opening_entry_id_ = 0;
   bool left_by_download_ = false;
   bool navigation_pending_ = false;
   int http_status_ = 0;

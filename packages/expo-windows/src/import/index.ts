@@ -1,15 +1,16 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
+import type { DialogsNative } from "@ardia/shell";
 import { emitNativeEvent } from "../events";
 import { findBrowser } from "./browsers";
 import { listSources } from "./discovery";
 import { bookmarksFromHtml, passwordsFromCsv } from "./fileFormats";
 import { pathFromFileUrl, type ImportHost } from "./host";
 import { importProfile, Unlocks } from "./importer";
-import { ImportFailure, type ImportKind, type Progress } from "./model";
+import { ImportFailure, type ImportKind, type Options, type Progress } from "./model";
 import { nativeImportHost } from "./nativeHost";
 
-type NativeOptions = { historyLimit?: number; historySince?: number; chunkSize?: number; streamHistory?: boolean };
-type Dialogs = TurboModule & { pickFiles(): Promise<string[]> };
+type NativeOptions = Omit<Options, "historyPage">;
+type Dialogs = TurboModule & Pick<DialogsNative, "pickFiles">;
 
 const LARGEST_FILE_BYTES = 64 << 20;
 const NO_WRITE = { cookies: 0, cookiesRejected: 0, cookiesExisting: 0, addresses: 0, cards: 0 };

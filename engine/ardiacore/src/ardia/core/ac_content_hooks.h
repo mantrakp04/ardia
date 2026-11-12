@@ -52,6 +52,7 @@ enum ArdiaDragEnd {
   kArdiaDragEndOwnerGone,
   kArdiaDragEndDebuggerUnowned,
   kArdiaDragEndNativeRefused,
+  kArdiaDragEndSourceGone,
   kArdiaDragEndKinds,
 };
 
