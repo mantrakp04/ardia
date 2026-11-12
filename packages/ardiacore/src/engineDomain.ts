@@ -83,7 +83,10 @@ export type HoverLostEpisode = {
 
 export type CliTabTarget = { targetId: string | null; pageGeneration: number };
 
-export type CliControlStatus =
+export type CliDragsEnded = { ownerGone: number; debuggerUnowned: number; nativeRefused: number };
+
+export type CliControlStatus = { dragsEnded?: CliDragsEnded } & (
   | { state: "external" }
   | ({ state: "off" | "starting" } & CliServer)
-  | ({ state: "on"; port: number } & CliServer);
+  | ({ state: "on"; port: number } & CliServer)
+);

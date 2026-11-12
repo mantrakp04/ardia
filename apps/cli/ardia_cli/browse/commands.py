@@ -133,7 +133,9 @@ async def wait_for_load(page, loader: str | None, timeout: float, until: str = "
         if event in ("load", "DOMContentLoaded"):
             try:
                 state = await page.call("() => document.readyState", frame=main, read=True)
-            except BrowseError:
+            except BrowseError as error:
+                if error.code == "tab_detached":
+                    raise
                 return False
             frame_loader = page.loader(main)
             if loader is not None and frame_loader != loader:

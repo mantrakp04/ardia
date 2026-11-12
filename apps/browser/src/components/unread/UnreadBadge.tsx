@@ -52,9 +52,11 @@ function UnreadPill({ label, place, ink }: { label: string; place: keyof typeof 
   );
 }
 
-export const UnreadCount = memo(function UnreadCount({ unread, ink }: { unread: Unread | null; ink?: string }) {
+export const UnreadCount = memo(function UnreadCount({ unread, ink, onDrawn }: { unread: Unread | null; ink?: string; onDrawn?: (drawn: boolean) => void }) {
   const colors = useInkColors(ink);
   const { drawn, motion } = useShownUnread(unread);
+  const isDrawn = !!drawn;
+  useEffect(() => onDrawn?.(isDrawn), [isDrawn, onDrawn]);
   if (!drawn) return null;
   return (
     <Animated.View pointerEvents="none" style={[{ marginLeft: UNREAD_INLINE_GAP }, motion]}>

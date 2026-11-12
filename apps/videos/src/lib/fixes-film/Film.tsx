@@ -220,7 +220,7 @@ export function fixesFilm({ id, release, before, channel, segments }: FixesFilm)
         >
           {after ? "After" : "Before"}
         </div>
-        <div style={{ ...label, fontSize: 18 }}>{after ? (version ?? release) : before}</div>
+        <div style={{ ...label, fontSize: 18 }}>{version ?? (after ? release : before)}</div>
       </div>
     );
   }
@@ -230,7 +230,7 @@ export function fixesFilm({ id, release, before, channel, segments }: FixesFilm)
     return (
       <>
         <Keycap events={clip.events} t={t} right={place.left + place.w} top={place.top - 10} />
-        <SideLabel after={after} version={seg.afterVersion} style={{ position: "absolute", left: place.left, top: place.top - 46 }} />
+        <SideLabel after={after} version={after ? seg.afterVersion : seg.beforeVersion} style={{ position: "absolute", left: place.left, top: place.top - 46 }} />
         <div style={panelStyle(place)}>
           <Footage clip={clip} seg={seg} play={play} symbols={symbols} />
         </div>
@@ -259,7 +259,7 @@ export function fixesFilm({ id, release, before, channel, segments }: FixesFilm)
     return (
       <AbsoluteFill style={{ justifyContent: "center", paddingLeft: 140, opacity: out }}>
         <div style={{ display: "flex", gap: 28, alignItems: "center", ...rise(0) }}>
-          <div style={{ ...label, fontSize: 24, color: color.ink }}>Before {before}</div>
+          <div style={{ ...label, fontSize: 24, color: color.ink }}>Before {seg.beforeVersion ?? before}</div>
           <div style={{ ...label, fontSize: 24, color: color.ink2 }}>→</div>
           <div style={{ ...label, fontSize: 24, color: color.blue }}>After {seg.afterVersion ?? release}</div>
         </div>

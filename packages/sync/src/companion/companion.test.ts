@@ -712,6 +712,27 @@ test("bookmarks added on the iPhone land after the last of Other Bookmarks, and 
   assert.equal(phone.state().bookmarks.length, 0);
 });
 
+test("pinning a page that already has a bookmark adds nothing, whether a Mac or the iPhone made it", async () => {
+  const { folder, mac, phone } = await joined();
+  await phone.cycle();
+  const urlBookmarks = () => [...mac.store[s1]!.values()].filter((v) => (v as { u?: unknown })?.u === "https://tromso.example/").length;
+  const existing = (result: ReturnType<typeof companionAddBookmark>) => "existing" in result && result.existing;
+  const first = companionAddBookmark({ profile: P1, key: "77777777-7777-4777-8777-777777777777", u: "https://tromso.example/", t: "Tromsø", at: folder.now });
+  const again = companionAddBookmark({ profile: P1, key: "88888888-8888-4888-8888-888888888888", u: "https://tromso.example/", t: "Tromsø", at: folder.now });
+  assert.deepEqual([existing(first), existing(again)], [false, true]);
+  await phone.cycle();
+  const afterCycle = companionAddBookmark({ profile: P1, key: "99999999-9999-4999-8999-999999999999", u: "https://tromso.example/", t: "Tromsø", at: folder.now });
+  assert.equal(existing(afterCycle), true);
+  const shared = companionAddBookmark({ profile: P3, key: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", u: "https://tromso.example/", t: "Tromsø", at: folder.now });
+  assert.equal(existing(shared), true);
+  const fromMac = companionAddBookmark({ profile: P1, key: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", u: "https://wiki.example/", t: "Wiki", at: folder.now });
+  assert.equal(existing(fromMac), true);
+  await phone.cycle();
+  await mac.sync();
+  assert.equal(urlBookmarks(), 1);
+  assert.equal([...mac.store[s1]!.values()].filter((v) => (v as { u?: unknown })?.u === "https://wiki.example/").length, 1);
+});
+
 test("stopping removes the iPhone's device and tabs from the Mac's view", async () => {
   const { folder, mac, phone } = await joined();
   phone.tabs = [{ u: "https://phone.example/", t: "Phone", at: START }];

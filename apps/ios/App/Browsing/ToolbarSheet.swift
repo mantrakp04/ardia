@@ -123,9 +123,12 @@ struct ToolbarSheet: View {
   }
 
   private var pinButton: some View {
-    capsuleButton("star", label: "Pin to Mac", enabled: isWebPage && tab?.isPrivate == false) {
+    let isPinned = tab.map(app.isPinnedToMac) ?? false
+    return capsuleButton(isPinned ? "star.fill" : "star", label: isPinned ? "Pinned to Mac" : "Pin to Mac", enabled: isWebPage && tab?.isPrivate == false) {
       app.pinCurrentToMac()
     }
+    .contentTransition(.symbolEffect(.replace))
+    .sensoryFeedback(.success, trigger: isPinned) { _, pinned in pinned }
   }
 
   @ViewBuilder
