@@ -47,6 +47,7 @@ export const TileFace = memo(function TileFace({ tabId, badge, ...state }: FaceS
         fill={tileTheme.theme.kind === "template" ? tileTheme.theme.fill : undefined}
         stroke={tileTheme.theme.kind === "template" ? tileTheme.theme.stroke : undefined}
         cornerRadius={tileRadius}
+        iconSize={m.icon}
         strokeWidth={SELECTION_STROKE}
         dark={theme.dark}
         style={{ width, height: m.tile.height, alignItems: "center", justifyContent: "center" }}
