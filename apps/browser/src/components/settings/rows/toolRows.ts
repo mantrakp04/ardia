@@ -214,6 +214,12 @@ export const toolRows = {
       rows: {
         chromium: { advanced: true, title: "Chromium", keywords: ["engine", "version", "ardiacore"] },
         widevine: { advanced: true, title: "Widevine (protected video)", keywords: ["drm", "netflix", "disney", "spotify"] },
+        secureOrigins: {
+          advanced: true,
+          title: "Insecure origins treated as secure",
+          description: "HTTP origins where powerful APIs like the Clipboard API work. Quit and reopen Ardia after you change the list.",
+          keywords: ["secure context", "clipboard", "http", "insecure", "code-server", "devbox", "localhost", "unsafely-treat-insecure-origin-as-secure"],
+        },
       },
     },
     {

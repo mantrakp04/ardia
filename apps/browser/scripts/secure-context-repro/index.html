@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Secure context probe</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font: 15px/1.45 ui-sans-serif, system-ui, sans-serif;
+      }
+      body {
+        margin: 32px;
+        max-width: 40rem;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 12px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+        padding: 6px 0;
+        border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+      }
+      .k {
+        min-width: 11rem;
+        opacity: 0.65;
+      }
+      .ok {
+        color: #1a7f37;
+      }
+      .bad {
+        color: #cf222e;
+      }
+      button {
+        margin-top: 16px;
+        margin-right: 8px;
+        padding: 8px 12px;
+        font: inherit;
+      }
+      pre {
+        margin-top: 16px;
+        padding: 12px;
+        border-radius: 8px;
+        background: color-mix(in srgb, CanvasText 6%, transparent);
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Secure context probe</h1>
+    <p>Open this over your Mac’s <strong>LAN IP</strong> (the URL from the serve script), not localhost — localhost is already a secure context.</p>
+    <div id="rows"></div>
+    <button type="button" id="copy">Try clipboard write</button>
+    <button type="button" id="refresh">Refresh</button>
+    <pre id="log"></pre>
+    <script>
+      const rows = document.getElementById("rows");
+      const log = document.getElementById("log");
+      function line(key, value, ok) {
+        const div = document.createElement("div");
+        div.className = "row";
+        div.innerHTML = `<span class="k">${key}</span><span class="${ok ? "ok" : "bad"}">${value}</span>`;
+        rows.appendChild(div);
+      }
+      async function permission(name) {
+        try {
+          if (!navigator.permissions?.query) return "unsupported";
+          const r = await navigator.permissions.query({ name });
+          return r.state;
+        } catch (e) {
+          return String(e && e.name ? e.name : e);
+        }
+      }
+      async function paint() {
+        rows.replaceChildren();
+        const secure = window.isSecureContext === true;
+        const clipboard = typeof navigator.clipboard?.writeText === "function";
+        const read = await permission("clipboard-read");
+        const write = await permission("clipboard-write");
+        line("location", location.href, true);
+        line("isSecureContext", String(window.isSecureContext), secure);
+        line("navigator.clipboard", clipboard ? "object" : String(typeof navigator.clipboard), clipboard);
+        line("clipboard-read", read, read === "granted" || read === "prompt");
+        line("clipboard-write", write, write === "granted" || write === "prompt");
+        log.textContent = secure && clipboard
+          ? "Expected WITH the exception: secure context + clipboard API present."
+          : "Expected WITHOUT the exception on this host: insecure, clipboard missing.";
+      }
+      document.getElementById("refresh").onclick = () => void paint();
+      document.getElementById("copy").onclick = async () => {
+        try {
+          await navigator.clipboard.writeText("ardia-secure-context-probe");
+          log.textContent = "clipboard.writeText succeeded";
+        } catch (e) {
+          log.textContent = "clipboard.writeText failed: " + (e && e.message ? e.message : e);
+        }
+      };
+      void paint();
+    </script>
+  </body>
+</html>
