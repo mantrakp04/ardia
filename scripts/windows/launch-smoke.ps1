@@ -447,6 +447,13 @@ elseif (-not (Select-String -Path $browserLog -Pattern "\[ardia windows\] first 
 $env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
 $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
 $env:ARDIA_BACKGROUND = "1"
+$decoy = Join-Path $env:ARDIA_DATA_DIR "decoy"
+New-Item -ItemType Directory -Force -Path (Join-Path $decoy "Ardia selfCheckDecoy") | Out-Null
+Set-Content -Path (Join-Path $decoy "Local State") -Value "{}"
+Set-Content -Path (Join-Path $decoy "Ardia selfCheckDecoy\keep.txt") -Value "keep"
+$leftover = Join-Path $env:ARDIA_DATA_DIR "Chromium\Ardia selfCheckStuck (removing)"
+New-Item -ItemType Directory -Force -Path $leftover | Out-Null
+$held = [System.IO.File]::Open((Join-Path $leftover "held.txt"), [System.IO.FileMode]::Create, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
 $check = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$checkLog`"" -PassThru
 try {
   if (-not $check.WaitForExit($SelfCheckSeconds * 1000)) { $failures += "the self-check did not finish within $SelfCheckSeconds s" }
@@ -457,6 +464,7 @@ try {
     Stop-Process -Id $check.Id -Force
     $check.WaitForExit(10000) | Out-Null
   }
+  $held.Dispose()
 }
 
 if (Test-Path $checkLog) {

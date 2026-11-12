@@ -32,6 +32,7 @@ const windows = () => requireNativeModule<Pick<WindowsNative, "windowIds">>("Ard
 const system = () => requireNativeModule<{ fileExists(path: string): boolean }>("ArdiaSystem");
 const domain = (name: string) => requireNativeModule<DomainModule>(name);
 
+const launchData = () => requireNativeModule<{ launchConfig(): { dataDirectory?: unknown } }>("ArdiaApp").launchConfig().dataDirectory;
 const NEVER_LOADED = "selfCheckNeverLoaded";
 const LOADED = "selfCheckLoaded";
 const ONE_PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -188,6 +189,20 @@ const withEngine: Check[] = [
       expectTrue(Array.isArray(remaining) && remaining.length === 1, `deleteData of a loaded profile left ${JSON.stringify(remaining)}`);
       expectTrue(system().fileExists(folder), `${folder} went away while the engine held it`);
       expectEqual(await removeProfileFolder(await userDataDir(), profileFolder(LOADED)), "inUse", "removing the held folder");
+    },
+  },
+  {
+    name: "engine: a folder outside Chromium's data is never removed",
+    async run() {
+      const decoy = `${String(launchData())}\\decoy`;
+      expectEqual(await engineHost().removeProfileFolder(decoy, "Ardia selfCheckDecoy"), "refused", "removing a profile folder from another app's folder");
+      expectTrue(system().fileExists(`${decoy}\\Ardia selfCheckDecoy\\keep.txt`), "the decoy's file is gone");
+    },
+  },
+  {
+    name: "engine: an earlier removal that is still left is reported, not taken as done",
+    async run() {
+      expectEqual(await engineHost().removeProfileFolder(await userDataDir(), "Ardia selfCheckStuck"), "partial", "removing a profile whose earlier removal is held open");
     },
   },
   {
