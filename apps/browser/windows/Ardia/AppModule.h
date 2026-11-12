@@ -3,6 +3,7 @@
 #include <winver.h>
 #include <psapi.h>
 #include <shellscalingapi.h>
+#include <d3d11.h>
 #include <intrin.h>
 
 #include <algorithm>
@@ -25,6 +26,7 @@
 
 #pragma comment(lib, "version.lib")
 #pragma comment(lib, "shcore.lib")
+#pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "user32.lib")
@@ -427,15 +429,55 @@ inline uint64_t PhysicalMemory() noexcept {
   return GlobalMemoryStatusEx(&memory) ? memory.ullTotalPhys : 0;
 }
 
+struct DecodedOnTheGpu {
+  bool av1 = false;
+  bool vp9 = false;
+  bool hevc = false;
+  bool h264 = false;
+};
+
+inline constexpr GUID kDecodesH264{0x1b81be68, 0xa0c7, 0x11d3, {0xb9, 0x84, 0x00, 0xc0, 0x4f, 0x2e, 0x73, 0xc5}};
+inline constexpr GUID kDecodesHevcMain{0x5b11d51b, 0x2f4c, 0x4452, {0xbc, 0xc3, 0x09, 0xf2, 0xa1, 0x16, 0x0c, 0xc0}};
+inline constexpr GUID kDecodesVp9Profile0{0x463707f8, 0xa1d0, 0x4585, {0x87, 0x6d, 0x83, 0xaa, 0x6d, 0x60, 0xb8, 0x9e}};
+inline constexpr GUID kDecodesAv1Profile0{0xb8be4ccb, 0xcf53, 0x46ba, {0x8d, 0x59, 0xd6, 0xb8, 0xa6, 0xda, 0x5d, 0x2a}};
+
+inline DecodedOnTheGpu ProbeGpuDecoding() noexcept {
+  DecodedOnTheGpu decoded;
+  winrt::com_ptr<ID3D11Device> device;
+  if (FAILED(D3D11CreateDevice(
+          nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_VIDEO_SUPPORT, nullptr, 0, D3D11_SDK_VERSION, device.put(), nullptr,
+          nullptr)) ||
+      !device)
+    return decoded;
+  winrt::com_ptr<ID3D11VideoDevice> video;
+  if (FAILED(device->QueryInterface(IID_PPV_ARGS(video.put()))) || !video) return decoded;
+  UINT profiles = video->GetVideoDecoderProfileCount();
+  for (UINT index = 0; index < profiles; index++) {
+    GUID profile{};
+    if (FAILED(video->GetVideoDecoderProfile(index, &profile))) continue;
+    if (IsEqualGUID(profile, kDecodesAv1Profile0)) decoded.av1 = true;
+    if (IsEqualGUID(profile, kDecodesVp9Profile0)) decoded.vp9 = true;
+    if (IsEqualGUID(profile, kDecodesHevcMain)) decoded.hevc = true;
+    if (IsEqualGUID(profile, kDecodesH264)) decoded.h264 = true;
+  }
+  return decoded;
+}
+
+inline DecodedOnTheGpu const &GpuDecoding() noexcept {
+  static const DecodedOnTheGpu decoded = ProbeGpuDecoding();
+  return decoded;
+}
+
 inline winrt::Microsoft::ReactNative::JSValue Hardware() noexcept {
   using winrt::Microsoft::ReactNative::JSValue;
   using winrt::Microsoft::ReactNative::JSValueObject;
   MonitorTally monitors = Monitors();
   JSValueObject decode;
-  decode["av1"] = JSValue{false};
-  decode["vp9"] = JSValue{false};
-  decode["hevc"] = JSValue{false};
-  decode["h264"] = JSValue{false};
+  DecodedOnTheGpu const &decoded = GpuDecoding();
+  decode["av1"] = JSValue{decoded.av1};
+  decode["vp9"] = JSValue{decoded.vp9};
+  decode["hevc"] = JSValue{decoded.hevc};
+  decode["h264"] = JSValue{decoded.h264};
   JSValueObject info;
   info["chip"] = JSValue{ProcessorName()};
   std::string gpu = PrimaryGpuName();
@@ -571,7 +613,11 @@ struct AppModule {
 
   REACT_METHOD(hardwareInfo)
   void hardwareInfo(winrt::Microsoft::ReactNative::ReactPromise<winrt::Microsoft::ReactNative::JSValue> promise) noexcept {
-    promise.Resolve(AppDiagnostics::Hardware());
+    try {
+      std::thread([promise]() noexcept { promise.Resolve(AppDiagnostics::Hardware()); }).detach();
+    } catch (...) {
+      promise.Resolve(AppDiagnostics::Hardware());
+    }
   }
 
   REACT_METHOD(diagnosticsSample)

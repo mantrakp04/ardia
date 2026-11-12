@@ -1,4 +1,5 @@
 import { createElement, isValidElement, type ComponentType } from "react";
+import { renderOnStage } from "./stage";
 import { flatStops, mixOklab, parseColor, sampleStops } from "../views/color";
 import { viewsDrawnInJs } from "../views/index";
 import { expectEqual, expectTrue, type Check } from "./check";
@@ -50,6 +51,14 @@ export const checks: Check[] = [
           const element = createElement(component as ComponentType<Record<string, unknown>>, props);
           expectTrue(isValidElement(element), `${name} made no element`);
         }
+      }
+    },
+  },
+  {
+    name: "views drawn in JS render in a window without throwing",
+    async run() {
+      for (const [name, component] of viewsDrawnInJs) {
+        await renderOnStage(createElement(component as ComponentType<Record<string, unknown>>, MINIMAL_PROPS[name] ?? {}), name);
       }
     },
   },

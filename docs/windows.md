@@ -199,6 +199,10 @@ is plain Chromium.
 
 ## Checks
 
+- To build the app on a PC you need Visual Studio 2022 with the C++ desktop workload and the Windows SDK
+  **10.0.26100.0**, the version `Ardia.vcxproj` names; with another SDK the build stops before compiling. The
+  GitHub runners have it. Then `pnpm install` and, in `apps/browser`,
+  `npx react-native run-windows --release --arch x64 --no-launch --no-deploy --no-packager`.
 - `.github/workflows/windows.yml` builds the x64 app on a Windows runner and runs `scripts/windows/launch-smoke.ps1`,
   which launches it three times and uploads each launch's log: a first launch (onboarding) and a launch with
   onboarding done (the browser window), each with a screenshot when the runner allows a capture, then a hidden
@@ -219,7 +223,9 @@ is plain Chromium.
   panel used to be cut off, and under the buttons).
 - The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the
-  launch fails if any check does. A new native method gets a check there.
+  launch fails if any check does. A new native method gets a check there. It also renders every view drawn in JS
+  in the window (`selfCheck/stage.tsx`), writes `config.json` and waits for the watcher's `onChange`
+  (`ARDIA_CONFIG_DIR` points the config folder at the data folder for that), and moves a file to the Recycle Bin.
 - `platform/windowsModules.test.mjs` fails when the app imports something from `expo-modules-core` that
   `packages/expo-windows` doesn't export.
 - Nobody can compile Windows code on the Mac: CI is the compiler. The Windows VM on shiv covers behaviour by hand,

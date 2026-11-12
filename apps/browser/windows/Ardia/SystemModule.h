@@ -91,15 +91,39 @@ inline bool Reveal(std::wstring const &path) noexcept {
   return SUCCEEDED(opened);
 }
 
-inline bool Recycle(std::wstring const &path, bool background) noexcept {
+struct RecycleOrRefuse : winrt::implements<RecycleOrRefuse, ::IFileOperationProgressSink> {
+  IFACEMETHODIMP StartOperations() noexcept override { return S_OK; }
+  IFACEMETHODIMP FinishOperations(HRESULT) noexcept override { return S_OK; }
+  IFACEMETHODIMP PreRenameItem(DWORD, IShellItem *, LPCWSTR) noexcept override { return S_OK; }
+  IFACEMETHODIMP PostRenameItem(DWORD, IShellItem *, LPCWSTR, HRESULT, IShellItem *) noexcept override { return S_OK; }
+  IFACEMETHODIMP PreMoveItem(DWORD, IShellItem *, IShellItem *, LPCWSTR) noexcept override { return S_OK; }
+  IFACEMETHODIMP PostMoveItem(DWORD, IShellItem *, IShellItem *, LPCWSTR, HRESULT, IShellItem *) noexcept override { return S_OK; }
+  IFACEMETHODIMP PreCopyItem(DWORD, IShellItem *, IShellItem *, LPCWSTR) noexcept override { return S_OK; }
+  IFACEMETHODIMP PostCopyItem(DWORD, IShellItem *, IShellItem *, LPCWSTR, HRESULT, IShellItem *) noexcept override { return S_OK; }
+  IFACEMETHODIMP PreDeleteItem(DWORD flags, IShellItem *) noexcept override { return (flags & TSF_DELETE_RECYCLE_IF_POSSIBLE) ? S_OK : E_ABORT; }
+  IFACEMETHODIMP PostDeleteItem(DWORD, IShellItem *, HRESULT, IShellItem *) noexcept override { return S_OK; }
+  IFACEMETHODIMP PreNewItem(DWORD, IShellItem *, LPCWSTR) noexcept override { return S_OK; }
+  IFACEMETHODIMP PostNewItem(DWORD, IShellItem *, LPCWSTR, LPCWSTR, DWORD, HRESULT, IShellItem *) noexcept override { return S_OK; }
+  IFACEMETHODIMP UpdateProgress(UINT, UINT) noexcept override { return S_OK; }
+  IFACEMETHODIMP ResetTimer() noexcept override { return S_OK; }
+  IFACEMETHODIMP PauseTimer() noexcept override { return S_OK; }
+  IFACEMETHODIMP ResumeTimer() noexcept override { return S_OK; }
+};
+
+inline bool Recycle(std::wstring const &path) noexcept {
   winrt::com_ptr<IFileOperation> operation;
   if (FAILED(CoCreateInstance(CLSID_FileOperation, nullptr, CLSCTX_ALL, IID_PPV_ARGS(operation.put())))) return false;
   DWORD flags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMMKDIR | FOFX_RECYCLEONDELETE | FOFX_EARLYFAILURE;
-  if (!background) flags |= FOF_WANTNUKEWARNING;
   if (FAILED(operation->SetOperationFlags(flags))) return false;
   winrt::com_ptr<IShellItem> item;
   if (FAILED(SHCreateItemFromParsingName(path.c_str(), nullptr, IID_PPV_ARGS(item.put())))) return false;
-  if (FAILED(operation->DeleteItem(item.get(), nullptr))) return false;
+  winrt::com_ptr<::IFileOperationProgressSink> recycleOrRefuse;
+  try {
+    recycleOrRefuse = winrt::make_self<RecycleOrRefuse>().as<::IFileOperationProgressSink>();
+  } catch (...) {
+    return false;
+  }
+  if (FAILED(operation->DeleteItem(item.get(), recycleOrRefuse.get()))) return false;
   if (FAILED(operation->PerformOperations())) return false;
   BOOL aborted = FALSE;
   operation->GetAnyOperationsAborted(&aborted);
@@ -284,8 +308,7 @@ struct SystemModule {
   void moveToTrash(std::string path, winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
     std::wstring target = SystemShell::NativePath(path);
     if (!SystemShell::Exists(target)) return promise.Resolve(false);
-    bool background = AppLaunch::Background();
-    if (!AppShell::RunOnShellThread([target, background, promise]() noexcept { promise.Resolve(SystemShell::Recycle(target, background)); }))
+    if (!AppShell::RunOnShellThread([target, promise]() noexcept { promise.Resolve(SystemShell::Recycle(target)); }))
       promise.Resolve(false);
   }
 

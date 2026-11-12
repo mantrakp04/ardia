@@ -33,7 +33,7 @@ const engineDomains = Object.fromEntries(
 
 export const moduleDefaults: Record<string, Record<string, unknown>> = {
   ...engineDomains,
-  ArdiaApp: { launchEnvironment: () => null },
+  ArdiaApp: { launchEnvironment: () => null, windowsApiVersion: 0 },
   ArdiaCalendar: { authorizationStatus: () => "notDetermined" },
   ArdiaCli: { installedVersion: () => null },
   ArdiaGlassEffect: { isLiquidGlass: () => false },

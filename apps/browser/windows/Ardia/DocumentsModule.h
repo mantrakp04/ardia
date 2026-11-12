@@ -27,15 +27,17 @@ class SerialQueue {
  public:
   using Task = std::function<void()>;
 
-  void Async(Task task) noexcept { AsyncAfter(std::chrono::milliseconds(0), std::move(task)); }
+  bool Async(Task task) noexcept { return AsyncAfter(std::chrono::milliseconds(0), std::move(task)); }
 
-  void AsyncAfter(std::chrono::milliseconds delay, Task task) noexcept {
+  bool AsyncAfter(std::chrono::milliseconds delay, Task task) noexcept {
     try {
       std::lock_guard<std::mutex> guard(m_mutex);
       StartIfNeeded();
       m_tasks.emplace(std::chrono::steady_clock::now() + delay, std::move(task));
       m_wake.notify_one();
+      return true;
     } catch (...) {
+      return false;
     }
   }
 

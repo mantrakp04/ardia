@@ -27,11 +27,11 @@ class CredentialStore {
       PCREDENTIALW first = nullptr;
       if (!CredReadW(base.c_str(), CRED_TYPE_GENERIC, 0, &first)) return std::nullopt;
       std::string secret = Blob(first);
-      size_t chunks = ChunkCount(first);
+      Layout stored = LayoutOf(first);
       CredFree(first);
-      for (size_t index = 1; index < chunks; index++) {
+      for (size_t index = 1; index < stored.chunks; index++) {
         PCREDENTIALW part = nullptr;
-        if (!CredReadW(ChunkTarget(base, index).c_str(), CRED_TYPE_GENERIC, 0, &part)) return std::nullopt;
+        if (!CredReadW(ChunkTarget(base, stored.generation, index).c_str(), CRED_TYPE_GENERIC, 0, &part)) return std::nullopt;
         secret += Blob(part);
         CredFree(part);
       }
@@ -46,15 +46,21 @@ class CredentialStore {
     try {
       std::wstring base = Target(account);
       std::wstring user = Paths::Wide(account).substr(0, 256);
-      size_t previous = ExistingChunks(base);
-      size_t chunks = std::max<size_t>(1, (secret.size() + ChunkSize - 1) / ChunkSize);
-      if (chunks > MaxChunks) return false;
-      for (size_t index = chunks; index-- > 1;) {
-        if (!WritePart(ChunkTarget(base, index), user, std::string_view(secret).substr(index * ChunkSize, ChunkSize), L"")) return false;
+      Layout previous = ExistingLayout(base);
+      Layout next{std::max<size_t>(1, (secret.size() + ChunkSize - 1) / ChunkSize), previous.generation == 1 ? size_t{2} : size_t{1}};
+      if (next.chunks > MaxChunks) return false;
+      for (size_t index = 1; index < next.chunks; index++) {
+        if (WritePart(ChunkTarget(base, next.generation, index), user, std::string_view(secret).substr(index * ChunkSize, ChunkSize), L"")) continue;
+        DeleteParts(base, Layout{index, next.generation});
+        return false;
       }
-      std::wstring comment = L"Ardia " + std::to_wstring(chunks);
-      if (!WritePart(base, user, std::string_view(secret).substr(0, ChunkSize), comment)) return false;
-      for (size_t index = chunks; index < previous; index++) CredDeleteW(ChunkTarget(base, index).c_str(), CRED_TYPE_GENERIC, 0);
+      std::wstring comment = L"Ardia g" + std::to_wstring(next.generation) + L" " + std::to_wstring(next.chunks);
+      if (!WritePart(base, user, std::string_view(secret).substr(0, ChunkSize), comment)) {
+        DeleteParts(base, next);
+        return false;
+      }
+      SweepPartsExcept(base, next.generation);
+      DeletePartsFrom(base, next.generation, next.chunks);
       return true;
     } catch (...) {
       return false;
@@ -65,10 +71,9 @@ class CredentialStore {
     std::lock_guard<std::mutex> guard(Lock());
     try {
       std::wstring base = Target(account);
-      size_t chunks = ExistingChunks(base);
       bool removed = true;
       if (!CredDeleteW(base.c_str(), CRED_TYPE_GENERIC, 0) && GetLastError() != ERROR_NOT_FOUND) removed = false;
-      for (size_t index = 1; index < chunks; index++) CredDeleteW(ChunkTarget(base, index).c_str(), CRED_TYPE_GENERIC, 0);
+      SweepPartsExcept(base, NoGeneration);
       return removed;
     } catch (...) {
       return false;
@@ -78,6 +83,7 @@ class CredentialStore {
  private:
   static constexpr size_t ChunkSize = CRED_MAX_CREDENTIAL_BLOB_SIZE;
   static constexpr size_t MaxChunks = 64;
+  static constexpr size_t NoGeneration = 3;
 
   static std::mutex &Lock() noexcept {
     static std::mutex *lock = new std::mutex();
@@ -100,7 +106,48 @@ class CredentialStore {
 
   static std::wstring Target(std::string const &account) { return Prefix() + Paths::Wide(account); }
 
-  static std::wstring ChunkTarget(std::wstring const &base, size_t index) { return base + L"#" + std::to_wstring(index); }
+  struct Layout {
+    size_t chunks = 0;
+    size_t generation = 0;
+  };
+
+  static std::wstring ChunkTarget(std::wstring const &base, size_t generation, size_t index) {
+    if (generation == 0) return base + L"#" + std::to_wstring(index);
+    return base + L"#g" + std::to_wstring(generation) + L"#" + std::to_wstring(index);
+  }
+
+  static void DeleteParts(std::wstring const &base, Layout layout) noexcept {
+    try {
+      for (size_t index = 1; index < layout.chunks; index++) CredDeleteW(ChunkTarget(base, layout.generation, index).c_str(), CRED_TYPE_GENERIC, 0);
+    } catch (...) {
+    }
+  }
+
+  static void DeletePartsFrom(std::wstring const &base, size_t generation, size_t first) noexcept {
+    try {
+      for (size_t index = first; index < MaxChunks; index++) {
+        if (!CredDeleteW(ChunkTarget(base, generation, index).c_str(), CRED_TYPE_GENERIC, 0)) break;
+      }
+    } catch (...) {
+    }
+  }
+
+  static void SweepPartsExcept(std::wstring const &base, size_t kept) noexcept {
+    for (size_t generation = 0; generation <= 2; generation++) {
+      if (generation != kept) DeletePartsFrom(base, generation, 1);
+    }
+  }
+
+  static size_t GenerationOf(PCREDENTIALW credential) noexcept {
+    if (!credential || !credential->Comment) return 0;
+    std::wstring_view comment(credential->Comment);
+    size_t marker = comment.find(L" g");
+    if (marker == std::wstring_view::npos || marker + 3 >= comment.size() || comment[marker + 3] != L' ') return 0;
+    wchar_t digit = comment[marker + 2];
+    return digit == L'1' ? 1 : digit == L'2' ? 2 : 0;
+  }
+
+  static Layout LayoutOf(PCREDENTIALW credential) noexcept { return Layout{ChunkCount(credential), GenerationOf(credential)}; }
 
   static std::string Blob(PCREDENTIALW credential) {
     if (!credential || !credential->CredentialBlob || credential->CredentialBlobSize == 0) return {};
@@ -121,12 +168,12 @@ class CredentialStore {
     return count == 0 ? 1 : count;
   }
 
-  static size_t ExistingChunks(std::wstring const &base) noexcept {
+  static Layout ExistingLayout(std::wstring const &base) noexcept {
     PCREDENTIALW existing = nullptr;
-    if (!CredReadW(base.c_str(), CRED_TYPE_GENERIC, 0, &existing)) return 0;
-    size_t count = ChunkCount(existing);
+    if (!CredReadW(base.c_str(), CRED_TYPE_GENERIC, 0, &existing)) return Layout{};
+    Layout layout = LayoutOf(existing);
     CredFree(existing);
-    return count;
+    return layout;
   }
 
   static bool WritePart(std::wstring const &target, std::wstring const &user, std::string_view bytes, std::wstring const &comment) noexcept {
@@ -167,11 +214,12 @@ struct KeychainModule {
 
   template <class TWork, class TFallback>
   static void Run(TWork &&work, TFallback &&fallback) noexcept {
+    bool queued = false;
     try {
-      Queue().Async(std::forward<TWork>(work));
+      queued = Queue().Async(std::forward<TWork>(work));
     } catch (...) {
-      fallback();
     }
+    if (!queued) fallback();
   }
 };
 

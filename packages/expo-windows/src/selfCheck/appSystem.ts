@@ -1,10 +1,23 @@
-import type { AppNative, SystemNative, SystemSignalsNative } from "@ardia/shell";
+import type { AppNative, DocumentsNative, SystemNative, SystemSignalsNative } from "@ardia/shell";
 import { requireNativeModule } from "../modules";
 import { expectTrue, type Check } from "./check";
 
 const app = () => requireNativeModule<AppNative & { windowsApiVersion?: number }>("ArdiaApp");
 const system = () => requireNativeModule<SystemNative>("ArdiaSystem");
 const signals = () => requireNativeModule<SystemSignalsNative>("ArdiaSystemSignals");
+const documents = () => requireNativeModule<DocumentsNative>("ArdiaDocuments");
+
+const FILE_SETTLE_MS = 5000;
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function untilFileExists(path: string, wanted: boolean) {
+  const deadline = Date.now() + FILE_SETTLE_MS;
+  while (Date.now() < deadline) {
+    if ((await system().fileExists(path)) === wanted) return true;
+    await pause(100);
+  }
+  return false;
+}
 
 const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
@@ -110,6 +123,17 @@ export const checks: Check[] = [
       expectTrue((await system().moveToTrash(missing)) === false, "moveToTrash of a missing file is not false");
       expectTrue((await system().revealFile(dataDirectory())) === true, "revealFile of the data directory is not true in the background");
       expectTrue((await system().setAsDefaultBrowser()) === false, "setAsDefaultBrowser is not false");
+    },
+  },
+  {
+    name: "ArdiaSystem moves a file to the Recycle Bin",
+    async run() {
+      const name = `self-check-trash-${Date.now().toString(36)}.txt`;
+      const path = `${dataDirectory()}\\${name}`;
+      documents().writeDocument(name, "self check");
+      expectTrue(await untilFileExists(path, true), `${name} was never written`);
+      expectTrue((await system().moveToTrash(path)) === true, "moveToTrash of a file in the data folder is not true");
+      expectTrue(await untilFileExists(path, false), `${name} is still there after moveToTrash`);
     },
   },
   {

@@ -113,6 +113,22 @@ export const checks: Check[] = [
     },
   },
   {
+    name: "storage: a change to config.json reaches onChange",
+    async run() {
+      const folder = config();
+      await within(folder.watch(["config.json"]), "watch");
+      let heard = () => {};
+      const changed = new Promise<void>((resolve) => (heard = resolve));
+      const subscription = folder.addListener("onChange", () => heard());
+      try {
+        documents().writeDocument("config.json", `{${" ".repeat(1 + (Date.now() % 7))}}`);
+        await within(changed, "onChange after config.json was written (the self-check needs ARDIA_CONFIG_DIR set to the data folder)");
+      } finally {
+        subscription.remove();
+      }
+    },
+  },
+  {
     name: "storage: a keychain secret is set, read, replaced and deleted",
     async run() {
       const account = unique("self-check-account");

@@ -13,6 +13,7 @@
 
 #include <commctrl.h>
 #include <dwmapi.h>
+#include <shellscalingapi.h>
 #include <winrt/Microsoft.UI.Input.h>
 #include <winrt/Windows.Graphics.h>
 #include <winrt/Windows.UI.h>
@@ -23,6 +24,7 @@
 #include "Paths.h"
 
 #pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "shcore.lib")
 
 namespace Ardia {
 
@@ -105,6 +107,21 @@ struct WindowManager {
   static double Scale(HWND hwnd) noexcept {
     UINT dpi = hwnd ? GetDpiForWindow(hwnd) : 0;
     return dpi ? dpi / static_cast<double>(USER_DEFAULT_SCREEN_DPI) : 1.0;
+  }
+
+  static double ScaleOfMonitor(HMONITOR monitor, double fallback) noexcept {
+    UINT dpiX = 0;
+    UINT dpiY = 0;
+    if (!monitor || FAILED(GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY)) || dpiX == 0) return fallback;
+    return dpiX / static_cast<double>(USER_DEFAULT_SCREEN_DPI);
+  }
+
+  static double PositionScale() noexcept {
+    return ScaleOfMonitor(MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY), 1.0);
+  }
+
+  static double ScaleAt(int32_t x, int32_t y, double fallback) noexcept {
+    return ScaleOfMonitor(MonitorFromPoint(POINT{x, y}, MONITOR_DEFAULTTONEAREST), fallback);
   }
 
   static bool Background() noexcept {
@@ -395,9 +412,10 @@ struct WindowManager {
   static std::array<double, 4> FrameOf(ManagedWindow const &entry) noexcept {
     try {
       double scale = Scale(entry.hwnd);
+      double placed = PositionScale();
       auto position = entry.appWindow.Position();
       auto size = entry.appWindow.Size();
-      return {position.X / scale, position.Y / scale, size.Width / scale, size.Height / scale};
+      return {position.X / placed, position.Y / placed, size.Width / scale, size.Height / scale};
     } catch (...) {
       return {0, 0, 0, 0};
     }
@@ -438,12 +456,15 @@ struct WindowManager {
       auto pixels = [scale](double points) noexcept { return static_cast<int32_t>(points * scale + 0.5); };
       if (request.frame && (*request.frame)[2] > 0 && (*request.frame)[3] > 0) {
         auto const &frame = *request.frame;
-        entry.appWindow.MoveAndResize({pixels(frame[0]), pixels(frame[1]), pixels(frame[2]), pixels(frame[3])});
+        double placed = PositionScale();
+        int32_t x = static_cast<int32_t>(std::lround(frame[0] * placed));
+        int32_t y = static_cast<int32_t>(std::lround(frame[1] * placed));
+        auto sized = [](double points, double by) noexcept { return static_cast<int32_t>(points * by + 0.5); };
+        double there = ScaleAt(x, y, scale);
+        there = ScaleAt(x + sized(frame[2], there) / 2, y + sized(frame[3], there) / 2, there);
+        entry.appWindow.MoveAndResize({x, y, sized(frame[2], there), sized(frame[3], there)});
         double landed = Scale(entry.hwnd);
-        if (landed != scale) {
-          auto onLanded = [landed](double points) noexcept { return static_cast<int32_t>(points * landed + 0.5); };
-          entry.appWindow.MoveAndResize({onLanded(frame[0]), onLanded(frame[1]), onLanded(frame[2]), onLanded(frame[3])});
-        }
+        if (landed != there) entry.appWindow.MoveAndResize({x, y, sized(frame[2], landed), sized(frame[3], landed)});
         KeepOnADisplay(entry);
         return;
       }

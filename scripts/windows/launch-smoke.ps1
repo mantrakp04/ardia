@@ -445,6 +445,7 @@ elseif (Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " -Qui
 elseif (-not (Select-String -Path $browserLog -Pattern "\[ardia windows\] first window" -Quiet)) { $failures += "the browser window never rendered with onboarding done" }
 
 $env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
+$env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
 $env:ARDIA_BACKGROUND = "1"
 $check = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$checkLog`"" -PassThru
 try {
