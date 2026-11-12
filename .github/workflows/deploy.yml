@@ -50,6 +50,7 @@ jobs:
               - "infra/dashboard/**"
               - "apps/dashboard/**"
               - "apps/site/src/data/telemetry.ts"
+              - "apps/site/src/data/betaEmail.ts"
               - "packages/core/src/anonymousIdentity.ts"
             telemetry-group:
               - "infra/telemetry/hexclave.deploy.ts"

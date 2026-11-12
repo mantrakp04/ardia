@@ -1,6 +1,9 @@
+import { emailKey, normalizedEmail } from "../../../site/src/data/betaEmail.ts";
+
+export { emailKey, normalizedEmail };
+
 export const SIGNUP_OBJECT = /^[0-9a-f]{32}\.json$/;
 export const MAX_SIGNUP_BYTES = 1024;
-export const MAX_EMAIL_LENGTH = 254;
 
 export const JUNK_REASONS = ["empty", "too-large", "not-json", "not-object", "no-email", "bad-email", "honeypot"] as const;
 export type JunkReason = (typeof JUNK_REASONS)[number];
@@ -10,24 +13,7 @@ export type ListedObject = { name: string; size: number; mtime: number };
 export type ReadObject = ListedObject & { body?: string | null };
 
 export type Signup = { email: string; key: string; at: number; objects: string[] };
-export type SignupList = { signups: Signup[]; junk: JunkCounts; unreadable: number; scanned: number };
-
-const FORBIDDEN_IN_EMAIL = /[\s\p{Cc}\p{Cf}]/u;
-
-export function normalizedEmail(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const email = raw.trim();
-  if (!email || email.length > MAX_EMAIL_LENGTH || FORBIDDEN_IN_EMAIL.test(email)) return null;
-  const parts = email.split("@");
-  if (parts.length !== 2) return null;
-  const [local, domain] = parts as [string, string];
-  if (local.length < 1 || local.length > 64) return null;
-  const labels = domain.split(".");
-  if (labels.length < 2 || labels.some((label) => !label)) return null;
-  return email;
-}
-
-export const emailKey = (email: string) => email.trim().toLowerCase();
+export type SignupList = { signups: Signup[]; junk: JunkCounts; junkObjects: string[]; unreadable: number; scanned: number };
 
 export function objectName(fullPath: unknown): string | null {
   if (typeof fullPath !== "string") return null;
@@ -76,6 +62,7 @@ export const emptyJunk = (): JunkCounts => Object.fromEntries(JUNK_REASONS.map((
 
 export function buildSignupList(objects: ReadObject[]): SignupList {
   const junk = emptyJunk();
+  const junkObjects: string[] = [];
   let unreadable = 0;
   let scanned = 0;
   const byKey = new Map<string, Signup>();
@@ -85,6 +72,7 @@ export function buildSignupList(objects: ReadObject[]): SignupList {
     const tooBig = sizeJunk(object);
     if (tooBig) {
       junk[tooBig]++;
+      junkObjects.push(object.name);
       continue;
     }
     if (object.body === null || object.body === undefined) {
@@ -94,6 +82,7 @@ export function buildSignupList(objects: ReadObject[]): SignupList {
     const result = new TextEncoder().encode(object.body).length > MAX_SIGNUP_BYTES ? { junk: "too-large" as const } : classifyBody(object.body);
     if ("junk" in result) {
       junk[result.junk]++;
+      junkObjects.push(object.name);
       continue;
     }
     const key = emailKey(result.email);
@@ -102,5 +91,5 @@ export function buildSignupList(objects: ReadObject[]): SignupList {
     else byKey.set(key, { email: result.email, key, at: object.mtime, objects: [object.name] });
   }
   const signups = [...byKey.values()].sort((a, b) => b.at - a.at || a.key.localeCompare(b.key));
-  return { signups, junk, unreadable, scanned };
+  return { signups, junk, junkObjects, unreadable, scanned };
 }

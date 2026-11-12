@@ -8,7 +8,7 @@ import { Loaded, StatsSkeleton, TableSkeleton } from "@/components/section";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatAgo, formatDateTime, formatExact } from "@/lib/format";
-import { getTestflightSignups, removeTestflightSignup } from "@/lib/testflight-api";
+import { clearTestflightJunk, getTestflightSignups, removeTestflightSignup } from "@/lib/testflight-api";
 import { cn } from "@/lib/utils";
 import type { TestflightList, TestflightSignup } from "@/server/testflight";
 import type { JunkReason } from "@/server/testflight-signups";
@@ -102,7 +102,7 @@ function SignupView({ data, refreshing, onRefresh, refreshError }: { data: Ready
         <Stat label="Junk dropped" value={formatExact(junkTotal)} sub="bots and broken posts" />
       </Card>
 
-      {data.capped ? <Notice>Only the first {formatExact(data.maxObjects)} stored posts were read, so the list may be missing people.</Notice> : null}
+      {data.capped ? <Notice>Only the first {formatExact(data.maxObjects)} stored posts were read, so the list may be missing people.{junkTotal ? " Clear the junk below to read further." : ""}</Notice> : null}
       {data.unreadable ? <Notice>{formatExact(data.unreadable)} {data.unreadable === 1 ? "post" : "posts"} couldn't be read{data.timedOut ? " in time" : ""}. Refresh to try again.</Notice> : null}
       {refreshError ? <Notice>Couldn't refresh: {refreshError.message}</Notice> : null}
 
@@ -167,9 +167,9 @@ function SignupTable({ signups }: { signups: TestflightSignup[] }) {
     if (remove.isError) return { bad: true, text: `Couldn't remove: ${remove.error.message}` };
     const r = remove.data;
     if (!r) return null;
-    if (!r.found) return { bad: false, text: "That email was already gone." };
+    if (!r.found) return r.complete ? { bad: false, text: "That email was already gone." } : { bad: true, text: `Couldn't find ${remove.variables}, because the stored posts couldn't all be read. Refresh and try again.` };
     if (r.failed) return { bad: true, text: `Removed ${r.removed} of ${r.removed + r.failed} stored posts. Try again for the rest.` };
-    if (r.unreadable) return { bad: true, text: `Removed ${remove.variables}. ${formatExact(r.unreadable)} ${r.unreadable === 1 ? "post" : "posts"} couldn't be read, so refresh to check no copy is left.` };
+    if (!r.complete) return { bad: true, text: `Removed the posts found for ${remove.variables}, but the stored posts couldn't all be read, so a copy may be left. Refresh and check.` };
     return { bad: false, text: `Removed ${remove.variables}.` };
   }, [remove.data, remove.error, remove.isError, remove.variables]);
 
@@ -232,11 +232,28 @@ function SignupTable({ signups }: { signups: TestflightSignup[] }) {
 }
 
 function JunkDetails({ data, total }: { data: Ready; total: number }) {
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const clear = useMutation({
+    mutationFn: () => clearTestflightJunk(),
+    onSettled: () => {
+      setConfirming(false);
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+  });
+  const outcome = useMemo(() => {
+    if (clear.isError) return { bad: true, text: `Couldn't clear the junk: ${clear.error.message}` };
+    const r = clear.data;
+    if (!r) return null;
+    if (r.failed) return { bad: true, text: `Cleared ${formatExact(r.removed)} of ${formatExact(r.found)} junk posts. Clear again for the rest.` };
+    if (!r.complete) return { bad: true, text: `Cleared ${formatExact(r.removed)} junk posts. The stored posts couldn't all be read, so more may be left. Refresh and clear again.` };
+    return { bad: false, text: `Cleared ${formatExact(r.removed)} junk posts.` };
+  }, [clear.data, clear.error, clear.isError]);
   const rows = (Object.keys(JUNK_LABEL) as JunkReason[]).filter((reason) => data.junk[reason] > 0);
   return (
     <details className="rounded-xl border bg-card px-4 py-3 text-sm">
       <summary className="cursor-pointer text-muted-foreground">Junk dropped · {formatExact(total)}</summary>
-      <p className="mt-2 text-xs text-muted-foreground">Posts that never reach the list. They stay in storage.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Posts that never reach the list. They stay in storage until you clear them.</p>
       <ul className="mt-3 grid max-w-md gap-1.5">
         {rows.map((reason) => (
           <li key={reason} className="flex justify-between gap-4 text-xs">
@@ -246,6 +263,24 @@ function JunkDetails({ data, total }: { data: Ready; total: number }) {
         ))}
       </ul>
       <p className="mt-3 text-xs text-muted-foreground">{formatExact(data.scanned)} stored posts read in all.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {confirming ? (
+          <>
+            <Button variant="destructive" size="xs" disabled={clear.isPending} onClick={() => clear.mutate()}>
+              {clear.isPending ? "Clearing…" : `Delete ${formatExact(total)} junk posts`}
+            </Button>
+            <Button variant="ghost" size="xs" disabled={clear.isPending} onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" size="xs" onClick={() => setConfirming(true)}>
+            <Trash2 aria-hidden />
+            Clear junk
+          </Button>
+        )}
+      </div>
+      {outcome ? <p role="status" className={cn("mt-2 text-xs", outcome.bad ? "text-bad" : "text-muted-foreground")}>{outcome.text}</p> : null}
     </details>
   );
 }

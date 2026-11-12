@@ -21,3 +21,10 @@ export const removeTestflightSignup = createServerFn({ method: "POST" })
     const { removeTestflightSignup: remove } = await import("../server/testflight");
     return remove(data.email);
   });
+
+export const clearTestflightJunk = createServerFn({ method: "POST" })
+  .middleware([requireAllowed])
+  .handler(async () => {
+    const { clearTestflightJunk: clear } = await import("../server/testflight");
+    return clear();
+  });

@@ -1,6 +1,7 @@
 import { createGunzip } from "node:zlib";
 import { windowFor, type RangeKey } from "../lib/range";
 import { num, query, str } from "./clickhouse";
+import { readCapped, TooLarge } from "./capped-read";
 import { serverEnv } from "./env";
 import type { ReplayCondition, ReplayMatch, ReplaySort } from "../lib/replay-query";
 import { buildReplayList, buildReplayOptions, CUSTOMIZE_EVENT, DOWNLOAD_EVENT, REPLAY_PAGE_SIZE } from "./replay-sql";
@@ -99,31 +100,6 @@ const MAX_CHUNK_COMPRESSED = 4 * 1024 * 1024;
 const MAX_CHUNK_DECOMPRESSED = 32 * 1024 * 1024;
 const MAX_SESSION_BYTES = 150 * 1024 * 1024;
 const MAX_SESSION_EVENTS = 400_000;
-
-export class TooLarge extends Error {}
-
-export async function readCapped(res: Response, cap: number): Promise<Buffer> {
-  const declared = Number(res.headers.get("content-length") ?? NaN);
-  if (Number.isFinite(declared) && declared > cap) {
-    await res.body?.cancel();
-    throw new TooLarge();
-  }
-  if (!res.body) return Buffer.alloc(0);
-  const reader = res.body.getReader();
-  const parts: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > cap) {
-      await reader.cancel();
-      throw new TooLarge();
-    }
-    parts.push(value);
-  }
-  return Buffer.concat(parts);
-}
 
 function gunzipCapped(input: Buffer, cap: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {

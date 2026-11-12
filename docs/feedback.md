@@ -133,7 +133,11 @@ uses exact secret patterns, never a cut at a keyword.
 - `/testflight` (admin only): the iPhone beta waitlist from ardia.dev. nginx stores each post as
   `buckets/testflight/<request id>.json`; the page reads them all (up to 20 000, one GET each, cached 60 s),
   drops junk (bad or missing email, filled `website` honeypot, empty, over 1 KB, not a JSON object), folds the
-  same email ignoring case and spaces, and dates each person by their first post's modification time. Copy
-  emails puts the list on the clipboard one per line for App Store Connect; Remove deletes every post behind
-  that email, re-read on the server. Storage is `TESTFLIGHT_SIGNUPS_URL` (+ `TESTFLIGHT_SIGNUPS_TOKEN`) when
-  set, else `buckets/testflight/` next to the replays (`REPLAYS_URL` or `REPLAYS_HOST`, with `REPLAYS_TOKEN`).
+  same email ignoring case and spaces, and dates each person by their first post's modification time. The form
+  and the reader judge an address with one rule (`apps/site/src/data/betaEmail.ts`), so the form never accepts
+  what the reader drops. Copy emails puts the list on the clipboard one per line for App Store Connect; Remove
+  deletes every post behind that email, re-read on the server, and says "removed" or "already gone" only when
+  that read was complete (not cut at the limit, not timed out, nothing unreadable). Junk stays in storage and
+  counts toward the 20 000 until Clear junk (under Junk dropped) deletes it, which brings posts past the limit
+  into reach. Storage is `TESTFLIGHT_SIGNUPS_URL` (+ `TESTFLIGHT_SIGNUPS_TOKEN`) when set, else
+  `buckets/testflight/` next to the replays (`REPLAYS_URL` or `REPLAYS_HOST`, with `REPLAYS_TOKEN`).

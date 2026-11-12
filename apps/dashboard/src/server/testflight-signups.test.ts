@@ -1,18 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildSignupList, classifyBody, listedObjects, normalizedEmail, type ReadObject } from "./testflight-signups.ts";
+import { buildSignupList, classifyBody, listedObjects, type ReadObject } from "./testflight-signups.ts";
 
 const name = (n: number) => `${n.toString(16).padStart(32, "0")}.json`;
 const body = (email: unknown, extra: Record<string, unknown> = { website: "" }) => JSON.stringify({ v: 1, email, ...extra });
 const object = (n: number, mtime: number, text: string | null | undefined, size = text ? new TextEncoder().encode(text).length : 0): ReadObject => ({ name: name(n), mtime, size, body: text });
-
-test("emails pass only when they look like one address", () => {
-  for (const ok of ["a@b.co", "  Someone@Example.com ", "first.last+tag@mail.example.org", `${"x".repeat(64)}@example.com`]) assert.ok(normalizedEmail(ok), ok);
-  assert.equal(normalizedEmail("  Someone@Example.com "), "Someone@Example.com");
-  for (const bad of ["", "   ", "plain", "a@b", "a@@b.co", "a@b@c.co", "@b.co", "a@.co", "a@b..co", "a@b.co.", "a b@c.co", "a@b.co\u0000", "a\t@b.co", "a​@b.co", `${"x".repeat(65)}@example.com`, `a@${"b".repeat(250)}.co`, 42, null, {}]) {
-    assert.equal(normalizedEmail(bad), null, JSON.stringify(bad));
-  }
-});
 
 test("bodies are sorted into a signup or one junk reason", () => {
   assert.deepEqual(classifyBody(body("a@b.co")), { email: "a@b.co" });
@@ -64,6 +56,7 @@ test("objects are judged by name and listed size before their body", () => {
   assert.equal(list.junk["too-large"], 2);
   assert.equal(list.unreadable, 1);
   assert.deepEqual(list.signups.map((s) => s.email), ["ok@example.com"]);
+  assert.deepEqual(list.junkObjects, [name(1), name(2), name(3)]);
 });
 
 test("junk is counted per reason and newest signups come first", () => {
@@ -79,6 +72,7 @@ test("junk is counted per reason and newest signups come first", () => {
   ]);
   assert.deepEqual(list.signups.map((s) => s.email), ["new@example.com", "mid@example.com", "old@example.com"]);
   assert.deepEqual(list.junk, { empty: 0, "too-large": 0, "not-json": 1, "not-object": 1, "no-email": 1, "bad-email": 1, honeypot: 1 });
+  assert.deepEqual(list.junkObjects, [name(4), name(5), name(6), name(7), name(8)]);
 });
 
 test("filer listings keep only signup objects with their size and modification time", () => {

@@ -1,4 +1,5 @@
 import { capture } from "./telemetry";
+import { normalizedEmail } from "../data/betaEmail";
 import { base } from "../data/site";
 import { INGEST_KEY_HEADER, SITE_INGEST_KEY } from "../../../../packages/core/src/ingestKeys";
 
@@ -6,7 +7,6 @@ type Result = "ok" | "invalid" | "rate_limited" | "error";
 
 const SIGNUP_PATH = `${base}/api/testflight`;
 const TIMEOUT_MS = 10_000;
-const EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 
 const MESSAGES: Record<Exclude<Result, "ok">, string> = {
   invalid: "That doesn’t look like an email.",
@@ -76,8 +76,8 @@ function wire(root: HTMLElement) {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (busy) return;
-    const email = input.value.trim();
-    if (!EMAIL.test(email) || email.length > 254) {
+    const email = normalizedEmail(input.value);
+    if (!email) {
       capture("iphone_signup", { result: "invalid" });
       showError(MESSAGES.invalid);
       input.focus();
