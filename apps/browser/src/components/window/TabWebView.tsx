@@ -45,7 +45,7 @@ import { noteCommit } from "../../state/automation/automationEvents";
 import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading, noteUnreadPageEnded } from "../../state/tabs/unread";
 import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
 import { releaseTranslation, translateCrashContext } from "../../state/site/translate";
-import { notePagePress } from "../../state/telemetry/tabPresses";
+import { notePagePress, notePagePressRefused } from "../../state/telemetry/tabPresses";
 import { noteAutoPictureInPictureKept, notePageOverlay, noteReopenedPage, noteWebKitPageKeptHidden } from "../../state/telemetry/usage";
 import { isAdoptKind } from "../../state/tabs/adoptIds";
 import { firstPagePending, isBlankAddress, noteFirstPagePending, reportedAddress } from "../../state/tabs/pendingAddress";
@@ -257,7 +257,8 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onAutofillPrompt={(prompt, id) => showAutofillPrompt(tabId, prompt, id)}
       onExternalApp={(externalApp) => patchPage(tabId, { externalApp })}
       onPageFocus={() => activateFocusedPane(tabId)}
-      onPagePress={() => {
+      onPagePress={(refused) => {
+        if (refused) return notePagePressRefused();
         notePagePress(tabId);
         activateFocusedPane(tabId);
       }}
