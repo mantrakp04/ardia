@@ -8,8 +8,6 @@ const { littleArdiaBarLayout } = await import("../../components/littleArdia/barL
 const { SMALL_FIELD_HEIGHT, SMALL_BAR_BUTTON } = await import("../../components/littleArdia/tokens.ts");
 const { trailingClearance, WINDOW_CONTROLS, windowControlsWidth } = await import("../../lib/windowChrome.ts");
 const { syncCaptionRegions } = await import("./captionRegions.ts");
-const macFeatures = (await import("../../lib/platformFeatures.ts")).PLATFORM_FEATURES;
-const windowsFeatures = (await import("../../lib/platformFeatures.windows.ts")).PLATFORM_FEATURES;
 
 const SETTINGS = { tabLayout: "sidebar", sidebarSide: "left", addressBar: "toolbar", compactToolbar: false, hideToolbarWhileScrolling: false, autoHideTabs: false };
 function state(settings = {}, window = {}, extra = {}) {
@@ -212,9 +210,4 @@ test("the command panel keeps the Mac's 16 pt right margin and clears the window
   assert.equal(trailingClearance(45.2, 16, 45.2, windows), 16);
   assert.equal(trailingClearance(60, 16, 45.2, windows), 16);
   assert.equal(trailingClearance(5, 16, 0, windows), 16);
-});
-
-test("the command panel grows from its field on the Mac and opens in place on Windows", () => {
-  assert.equal(macFeatures.panelGrowsFromField, true);
-  assert.equal(windowsFeatures.panelGrowsFromField, false);
 });

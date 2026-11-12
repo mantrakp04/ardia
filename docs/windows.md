@@ -85,6 +85,16 @@ Logic is written once. Only code that calls the OS is written per platform.
     polls the pointer every 40 ms while a window is watched and logs `sidebar edge over|away <id>`.
   - The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
     without a reply; a no cancels the quit.
+  - Windows fade as on the Mac (`WindowFade.h`), fade only with no grow. A window opened with `animated` (and every
+    Little Ardia window) stays transparent until its React root has content or for 0.6 s, then fades in over 0.25 s
+    (Little Ardia 0.20 s); `animateWindowClose` fades it out from where it is over 0.18 s (0.15 s), hides it and then
+    resolves. With `after` naming a new window it waits for that window to appear plus 0.20 s and hides at once. The
+    fade makes the app window and every visible window it owns (the page windows) layered for its length and puts
+    their styles back at the end; on the way out they ignore clicks, and pages still shown after the hide stay
+    transparent until the engine hides them (at most 2 s). A minimized, full screen or not yet shown window, or
+    Windows' "Animation effects" off, shows and hides at once. The launch log says `window <id> fades in over <ms> ms
+    with <n> page windows`, `window <id> shown`, `window <id> fades out over <ms> ms`, `window <id> hidden` and
+    `window <id> hidden at once: <reason>`.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
   signals, the clipboard, the bang list, confirm, prompt and file dialogs, the command table with its shortcuts and
@@ -116,12 +126,27 @@ Logic is written once. Only code that calls the OS is written per platform.
   and its own shortcut still runs. The launch log says `keys escape capture on|off` and
   `keys escape sent to the open popover or drag`. The Mac's Downloads popover does not close on Escape yet
   (`PLATFORM_FEATURES.escapeClosesDownloads` is off there).
-- The command panel opens in place on Windows instead of growing out of its field
-  (`PLATFORM_FEATURES.panelGrowsFromField`): React Native for Windows scales a view around its top-left corner, not
-  its centre, so the grow's first frame landed 68 points left of Little Ardia's field and above the window, and the
-  panel stayed there, cut off 24 points down. While the panel sits beside the window buttons it keeps their 138
-  points free at the right (`trailingClearance` in `lib/windowChrome.ts`). Little Ardia's bar numbers for both
-  systems are in `components/littleArdia/barLayout.ts`.
+- Animations run in JavaScript on Windows (`packages/expo-windows/src/animation`). React Native for Windows' native
+  animation driver adds what it animates to the view's own style instead of replacing it, turns a scale around the
+  top-left corner, never reports where an animation ended, and drops scroll and gesture events, so anything but a
+  plain fade started doubled, ended in the wrong place or did not move. `installAnimation` therefore answers
+  `useNativeDriver: true` with the JS driver, which sets the view's real props every frame, as the sidebar's slide
+  always did. The exceptions are endless loops of one animation (the loading and refresh spinners), which stay native
+  and cost the JS thread nothing.
+  - Frames are paced: React Native's `requestAnimationFrame` is a zero timeout here, so an animation would step as
+    fast as the threads allow. `motion.ts` runs every frame callback of a turn together, 60 times a second.
+  - A scale, rotation or skew turns around the view's centre, as on the Mac: React Native for Windows applies a
+    transform from the top-left corner, so `pivot.ts` wraps any transform that is not at rest in a half-size translate
+    there and back. `transformOrigin` then means what it means on the Mac, and the command panel grows out of its
+    field as it does there.
+  - While an animation runs, every shown page and every surface over a page is measured again each frame
+    (`followMotion`), so the page window and the holes cut in it follow what moves: the toolbar that hides while
+    scrolling, a peek, a popover that grows in. Endless loops do not count.
+  - The launch log says `[ardia windows] motion <n> frames in <ms> ms, longest <ms> ms, <n> long` when a burst of
+    animation ends: how many frames it got, the longest gap between two, and how many gaps were over 2.5 frames.
+- While the command panel sits beside the window buttons it keeps their 138 points free at the right
+  (`trailingClearance` in `lib/windowChrome.ts`). Little Ardia's bar numbers for both systems are in
+  `components/littleArdia/barLayout.ts`.
 - Icons are the web demo's set (`packages/demo/src/shims/web/symbols`), resolved in TypeScript and drawn natively as
   Direct2D geometry in Composition shapes.
 - Materials are native views (`MaterialViews.h`, the `ArdiaMaterials` module in `MaterialsModule.h`), each with the old

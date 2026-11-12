@@ -1,0 +1,49 @@
+import { installFramePacing, noteAnimation } from "./motion";
+import { aroundCentre } from "./pivot";
+
+type Config = { useNativeDriver?: boolean; iterations?: number };
+type Helper = { default: { shouldUseNativeDriver(config: Config): boolean } };
+type AnimatedValue = { __makeNative(platformConfig?: unknown): void };
+type ValueClass = { default: { prototype: AnimatedValue } };
+type Running = { __active: boolean; __isLooping?: boolean | null; start(...args: unknown[]): void; __startAnimationIfNative(value: AnimatedValue): boolean };
+type AnimationClass = { default: { prototype: Running } };
+type StyleAttributes = { default: { transform: { process(transform: unknown): unknown } } };
+
+const helper: Helper = require("react-native/src/private/animated/NativeAnimatedHelper");
+const animatedValue: ValueClass = require("react-native/Libraries/Animated/nodes/AnimatedValue");
+const animation: AnimationClass = require("react-native/Libraries/Animated/animations/Animation");
+const styleAttributes: StyleAttributes = require("react-native/Libraries/Components/View/ReactNativeStyleAttributes");
+
+const repeatsNatively = (config: Config) => config.useNativeDriver === true && typeof config.iterations === "number";
+
+export function installAnimation() {
+  installFramePacing();
+
+  helper.default.shouldUseNativeDriver = repeatsNatively;
+
+  let startingNatively = false;
+  const value = animatedValue.default.prototype;
+  const makeNative = value.__makeNative;
+  value.__makeNative = function (this: AnimatedValue, platformConfig?: unknown) {
+    if (startingNatively) makeNative.call(this, platformConfig);
+  };
+
+  const running = animation.default.prototype;
+  const startNatively = running.__startAnimationIfNative;
+  running.__startAnimationIfNative = function (this: Running, target: AnimatedValue) {
+    startingNatively = true;
+    try {
+      return startNatively.call(this, target);
+    } finally {
+      startingNatively = false;
+    }
+  };
+  const start = running.start;
+  running.start = function (this: Running, ...args: unknown[]) {
+    start.apply(this, args);
+    if (this.__isLooping !== true) noteAnimation(this);
+  };
+
+  const process = styleAttributes.default.transform.process;
+  styleAttributes.default.transform = { process: (transform) => aroundCentre(process(transform)) };
+}
