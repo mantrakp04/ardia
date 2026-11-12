@@ -9,7 +9,7 @@ DURATIONS = frozenset({
     "settle_ms", "cdp_ms_total",
 })
 COUNTS = frozenset({"cdp_calls", "snapshot_nodes", "snapshot_chars", "output_chars", "network_writes_count", "batch_steps",
-                    "read_rows", "read_pages"})
+                    "read_rows", "read_pages", "skills_installed", "skills_skipped"})
 READ_FLAGS = frozenset({"read_scrolled", "read_matched", "read_virtualized_grid"})
 ACT_FLAGS = frozenset({"waited_for_enabled", "fill_picked_option", "fill_inserted_text", "drag_side_given", "drag_list_position"})
 ACT_COUNTS = frozenset({"cell_edits"})

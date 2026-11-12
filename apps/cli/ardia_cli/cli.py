@@ -35,6 +35,9 @@ Next to each one it installs cua-driver's own skill (cua-driver, for computer us
 ardia computer), pinned to the bundled driver; --no-cua skips it. A cua-driver skill that ardia didn't install, from
 cua's own installer for one, is left alone.
 
+Installing or updating the CLI runs `ardia skills install --auto`: the skill goes to every coding agent found here
+(Claude Code, Codex, Cursor, opencode; general when none is), never over a folder ardia didn't write, and not again where
+the user removed it.
 Ardia remembers where it installed the skill, and each CLI update rewrites those copies (ardia skills refresh).
 """
 SHARED_VALUE_FLAGS = frozenset({"--port", "--ws", "--data-dir", "--timeout"})
@@ -187,6 +190,7 @@ def build_parser():
     install.add_argument("--project", action="store_true", help="install into the current directory's project folders")
     install.add_argument("--no-cua", action="store_true", help="don't install cua-driver's computer-use skill next to it")
     install.add_argument("--replace", action="store_true", help="replace an ardia folder that ardia didn't install (only that folder)")
+    install.add_argument("--auto", action="store_true", help="install for every coding agent found on this Mac (or general when none is), skipping folders ardia didn't write and copies the user removed")
     skill_commands.add_parser("refresh", help="rewrite every copy of the skill installed before with this CLI's version")
 
     from ardia_cli import scripts_cli
@@ -294,6 +298,8 @@ def run(argv: list[str]) -> int:
 
         if args.skills_command == "refresh":
             return skills.refresh()
+        if args.auto:
+            return skills.install_detected(not args.no_cua)
         return skills.install(args.target or ["general"], args.project, not args.no_cua, args.replace)
     if args.command == "scripts":
         from ardia_cli import scripts_cli
