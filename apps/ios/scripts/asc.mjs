@@ -11,6 +11,7 @@ const HELP = `App Store Connect, for the iPhone app's TestFlight builds.
   node apps/ios/scripts/asc.mjs certificates --save <file>
   node apps/ios/scripts/asc.mjs certificates --new-since <file>
   node apps/ios/scripts/asc.mjs certificates --create <request.csr> --out <file.cer>
+  node apps/ios/scripts/asc.mjs public-link --build <number> [--what-to-test <file>] [--privacy-policy <url>]
 
 Reads the API key from ASC_KEY (path to AuthKey_<id>.p8), ASC_KEY_ID and ASC_ISSUER.
 status lists what the key can see: the app record, the App IDs and their capabilities,
@@ -20,10 +21,13 @@ one uploaded. wait blocks until a build finishes processing, and stops with Appl
 when the delivery was refused. certificates --save records
 the team's certificate ids; --new-since fails when a development certificate was made since
 then, which means the archive didn't sign with the stored one. --create makes a development
-certificate from a signing request and writes it to --out.`;
+certificate from a signing request and writes it to --out. public-link puts a build in the
+external tester group (made with a public link if it doesn't exist), sets its What to Test
+text, submits it for Beta App Review and prints the link.`;
 
 const BUNDLE_PREFIX = "com.ardia.browser.ios";
 const DEVELOPMENT_CERTIFICATES = new Set(["DEVELOPMENT", "IOS_DEVELOPMENT"]);
+const PUBLIC_GROUP = "Public Testers";
 const API = "https://api.appstoreconnect.apple.com";
 
 function base64url(input) {
@@ -64,16 +68,19 @@ async function fail(response) {
   throw new ApiError(response.status, detail);
 }
 
-async function post(path, body) {
+async function send(method, path, body) {
   bearer ??= token();
   const response = await fetch(new URL(path, API), {
-    method: "POST",
+    method,
     headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!response.ok) await fail(response);
   return response.status === 204 ? null : (await response.json()).data;
 }
+
+const post = (path, body) => send("POST", path, body);
+const patch = (path, body) => send("PATCH", path, body);
 
 async function get(path, params = {}) {
   bearer ??= token();
@@ -265,12 +272,6 @@ async function status() {
       );
     }
   });
-
-  await section("Beta review submissions", async () => {
-    const { rows } = await get("/v1/betaAppReviewSubmissions", { "filter[build.app]": app.id, limit: "20" });
-    if (rows.length === 0) console.log("none");
-    for (const row of rows) console.log(`${row.attributes.betaReviewState} submitted ${day(row.attributes.submittedDate)}`);
-  });
 }
 
 function option(args, name) {
@@ -390,8 +391,83 @@ async function certificates(args) {
   if (made.some((row) => DEVELOPMENT_CERTIFICATES.has(row.attributes.certificateType))) process.exit(1);
 }
 
+async function unlessAlready(action, done) {
+  try {
+    await action();
+  } catch (error) {
+    if (!(error instanceof ApiError) || ![409, 422].includes(error.status)) throw error;
+    console.log(`${done}: ${error.message}`);
+  }
+}
+
+async function publicLink(args) {
+  const number = option(args, "--build");
+  if (!number) {
+    console.error("asc: public-link needs --build <number>");
+    process.exit(64);
+  }
+  const app = await requireApp();
+  const { rows: found } = await get("/v1/builds", { "filter[app]": app.id, "filter[version]": number, "fields[builds]": "version,processingState" });
+  const build = found[0];
+  if (!build || build.attributes.processingState !== "VALID") {
+    console.error(`asc: build ${number} is ${build ? build.attributes.processingState : "not on App Store Connect"}`);
+    process.exit(1);
+  }
+
+  const policy = option(args, "--privacy-policy");
+  if (policy) {
+    const { rows } = await get(`/v1/apps/${app.id}/betaAppLocalizations`, { limit: "50" });
+    for (const row of rows.filter((row) => row.attributes.privacyPolicyUrl !== policy)) {
+      await patch(`/v1/betaAppLocalizations/${row.id}`, { data: { type: "betaAppLocalizations", id: row.id, attributes: { privacyPolicyUrl: policy } } });
+      console.log(`privacy policy set for ${row.attributes.locale}`);
+    }
+  }
+
+  const notesPath = option(args, "--what-to-test");
+  if (notesPath) {
+    const whatsNew = readFileSync(notesPath, "utf8").trim();
+    const { rows } = await get(`/v1/builds/${build.id}/betaBuildLocalizations`, { limit: "50" });
+    if (rows.length === 0) {
+      await post("/v1/betaBuildLocalizations", {
+        data: { type: "betaBuildLocalizations", attributes: { locale: "en-US", whatsNew }, relationships: { build: { data: { type: "builds", id: build.id } } } },
+      });
+    }
+    for (const row of rows) {
+      await patch(`/v1/betaBuildLocalizations/${row.id}`, { data: { type: "betaBuildLocalizations", id: row.id, attributes: { whatsNew } } });
+    }
+    console.log("What to Test set");
+  }
+
+  const fields = { "fields[betaGroups]": "name,isInternalGroup,publicLinkEnabled,publicLink" };
+  const { rows: groups } = await get(`/v1/apps/${app.id}/betaGroups`, fields);
+  let group = groups.find((row) => !row.attributes.isInternalGroup && row.attributes.name === PUBLIC_GROUP);
+  if (!group) {
+    group = await post("/v1/betaGroups", {
+      data: {
+        type: "betaGroups",
+        attributes: { name: PUBLIC_GROUP, publicLinkEnabled: true, publicLinkLimitEnabled: false, feedbackEnabled: true },
+        relationships: { app: { data: { type: "apps", id: app.id } } },
+      },
+    });
+    console.log(`created the ${PUBLIC_GROUP} group`);
+  }
+
+  await unlessAlready(
+    () => post(`/v1/betaGroups/${group.id}/relationships/builds`, { data: [{ type: "builds", id: build.id }] }),
+    "build already in the group",
+  );
+  await unlessAlready(
+    () => post("/v1/betaAppReviewSubmissions", { data: { type: "betaAppReviewSubmissions", relationships: { build: { data: { type: "builds", id: build.id } } } } }),
+    "not submitted",
+  );
+
+  const { rows: after } = await get(`/v1/betaGroups/${group.id}`, fields);
+  printBuilds(await listBuilds(app.id, number));
+  console.log(`public link: ${after[0].attributes.publicLink ?? "none yet"}`);
+}
+
 const [command, ...args] = process.argv.slice(2);
-const commands = { status, builds, wait, certificates, "next-build": nextBuild };
+const commands = { status, builds, wait, certificates, "next-build": nextBuild, "public-link": publicLink };
 if (!command || command === "-h" || command === "--help" || !commands[command]) {
   console.log(HELP);
   process.exit(command && commands[command] === undefined && command !== "-h" && command !== "--help" ? 64 : 0);
