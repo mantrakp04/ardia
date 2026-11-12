@@ -21,6 +21,7 @@ import com.ardia.appmodel.AppModel
 import com.ardia.appmodel.BrowseSession
 import com.ardia.appmodel.LaunchArguments
 import com.ardia.design.ArdiaTheme
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -45,6 +46,7 @@ class SearchTrayTest {
             model.settings.autoOpensKeyboard = false
         }
         compose.waitUntil(TIMEOUT) { onMain { model.isReady } }
+        runBlocking { model.omnibox.warmUp() }
         compose.setContent {
             ArdiaTheme {
                 SearchTrayHost(model)

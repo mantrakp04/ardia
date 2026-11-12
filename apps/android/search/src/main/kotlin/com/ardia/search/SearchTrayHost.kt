@@ -21,7 +21,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -55,7 +54,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SearchTrayHost(model: AppModel, modifier: Modifier = Modifier) {
-    val scope = rememberCoroutineScope()
+    val scope = rememberMainScope()
     val density = LocalDensity.current
     val reduceMotion = LocalReduceMotion.current
     val drag = rememberTrayDragState()

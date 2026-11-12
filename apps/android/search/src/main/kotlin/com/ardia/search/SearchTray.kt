@@ -29,7 +29,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -209,7 +208,7 @@ private fun TrayPanel(
     modifier: Modifier,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val scope = rememberMainScope()
     val field = remember { CompletingFieldState(request.initialText, request.selectsAll) }
     val scrub = remember { ScrubState() }
     val controller = remember { TrayController(model, context, scope, field, presentation, scrub) }
@@ -229,7 +228,8 @@ private fun TrayPanel(
         suggestions.omnibox.result.collect { result -> field.offer(result.completion) }
     }
     LaunchedEffect(Unit) {
-        paste = withContext(Dispatchers.Default) { runCatching { ClipboardOffers.peek(context) }.getOrNull() }
+        val offer = withContext(Dispatchers.Default) { runCatching { ClipboardOffers.peek(context) }.getOrNull() }
+        withContext(Dispatchers.Main.immediate) { paste = offer }
     }
     val mayFocus = model.mayFocusSearch
     LaunchedEffect(mayFocus) {

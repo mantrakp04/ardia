@@ -44,7 +44,6 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -86,7 +85,9 @@ import com.ardia.design.medium
 import com.ardia.design.rememberFrostedBackdrop
 import com.ardia.design.semibold
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Stable
 class LevelHistory(val size: Int = BARS) {
@@ -111,7 +112,7 @@ class LevelHistory(val size: Int = BARS) {
 @Composable
 fun VoiceSearchView(model: AppModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val scope = rememberMainScope()
     val pending = remember { arrayOfNulls<CompletableDeferred<Boolean>>(1) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         pending[0]?.complete(granted)
@@ -141,7 +142,7 @@ fun VoiceSearchView(model: AppModel, modifier: Modifier = Modifier) {
     }
     val levels = remember { LevelHistory() }
 
-    LaunchedEffect(dictation) { dictation.start() }
+    LaunchedEffect(dictation) { withContext(Dispatchers.Main.immediate) { dictation.start() } }
     LaunchedEffect(dictation) { snapshotFlow { dictation.level }.collect(levels::push) }
     DisposableEffect(dictation) { onDispose { dictation.stop() } }
 
