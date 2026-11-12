@@ -14,11 +14,11 @@ function tabData(s: BrowserState, tabId: string) {
   return { windowId: t.windowId, tabId, profile: t.profileId, ...shownPage(t) };
 }
 
-function peekData(s: BrowserState, windowId: string) {
-  const peek = s.peeks[windowId]!;
+function peekData(s: BrowserState, sourceId: string) {
+  const peek = s.peeks[sourceId]!;
   const t = s.tabs[peek.tabId];
-  if (!t || !eligibleKind(s, windowId) || isIncognitoProfile(t.profileId)) return null;
-  return { windowId, tabId: peek.tabId, profile: t.profileId, sourceTabId: peek.sourceId, ...shownPage(t) };
+  if (!t || !eligibleKind(s, t.windowId) || isIncognitoProfile(t.profileId)) return null;
+  return { windowId: t.windowId, tabId: peek.tabId, profile: t.profileId, sourceTabId: peek.sourceId, ...shownPage(t) };
 }
 
 const splitTabs = (s: BrowserState, id: string) => s.splits[id]!.slots.flatMap((slot) => ("tabId" in slot ? [slot.tabId] : slot.stack));

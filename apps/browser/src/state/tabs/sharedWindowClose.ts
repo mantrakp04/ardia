@@ -7,6 +7,7 @@ import { isRegularWindow } from "../windows/small";
 import { withNavigationAt } from "./pageSession";
 import { sharedListTab, sharesTabs } from "./tabShare";
 import type { BrowserWindow, Tab } from "../browser/types";
+import { isPeekTab } from "../peek/peek";
 
 type KeepsTabs = (w: BrowserWindow | undefined) => boolean;
 
@@ -36,7 +37,7 @@ export function tabsHandedOver(s: BrowserState, windowId: string, keepsTabs: Kee
   for (const o of Object.values(s.windows)) if (o.id !== windowId && keepsTabs(o)) for (const p of profilesOf(s, o)) held.add(p);
   return w.tabIds.filter((id) => {
     const t = s.tabs[id];
-    return !!t && !held.has(t.profileId) && !!t.url && !t.liveItem && !inPinnedContainer(s, id) && s.peeks[windowId]?.tabId !== id;
+    return !!t && !held.has(t.profileId) && !!t.url && !t.liveItem && !inPinnedContainer(s, id) && !isPeekTab(s, id);
   });
 }
 

@@ -444,7 +444,7 @@ test("an explicit tab target runs before Peek and the command panel, and a missi
   S().openPanel(w, "");
   assert.deepEqual(call("run", { command: "closeTab", tab: background }, conn).result, { ok: true });
   assert.equal(S().tabs[background], undefined);
-  assert.equal(S().peeks[w]?.tabId, peek);
+  assert.equal(S().peeks[shown]?.tabId, peek);
   assert.equal(S().windowUi[w].panel.open, true);
   assert.equal(call("run", { command: "closeTab", tab: background }, conn).error.code, "no_window");
   assert.equal(call("run", { command: "closeTab", tab: peek }, conn).error.code, "no_window");

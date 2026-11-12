@@ -22,7 +22,7 @@ test("closing a Peek through either call ends the Peek and records nothing", () 
     const peek = S().openPeek(a, "https://peek.example/", { x: 0, y: 0 });
     const closed = S().closedTabs.length;
     close(peek);
-    assert.equal(S().peeks[w], undefined);
+    assert.equal(S().peeks[a], undefined);
     assert.equal(S().tabs[peek], undefined);
     assert.ok(S().tabs[a]);
     assert.equal(S().closedTabs.length, closed);

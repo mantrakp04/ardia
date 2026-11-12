@@ -7,7 +7,7 @@ import { engineProfile } from "../browser/model";
 import { forgetOpeners, switchKeepsOpeners } from "./openers";
 import { groupOf, withGroup } from "../pins/tabGrouping";
 import { placing } from "../pins/placing";
-import { isPeekTab, withoutPeek } from "../peek/peek";
+import { isPeekTab, peekTabId, withoutPeek } from "../peek/peek";
 import { settleMovedPins } from "../pins/pinMirror";
 import { splitOf, splitTabIdsOf } from "../splits/splits";
 import { activated, apply, removeTabs } from "./tabs";
@@ -279,7 +279,7 @@ function show(s: BrowserState, key: string): BrowserState {
   const w = s.windows[tab.windowId];
   if (!w || w.profileId !== tab.profileId) return s;
   const shown = w.activeTabIds[tab.profileId];
-  if (shown === key || (shown && splitTabIdsOf(splitOf(s, shown))?.includes(key))) return s.peeks[w.id] ? withoutPeek(s, w.id) : s;
+  if (shown === key || (shown && splitTabIdsOf(splitOf(s, shown))?.includes(key))) return withoutPeek(s, shown);
   let next = apply(s, activated(s, key));
   if (shown && !switchKeepsOpeners(s, shown, key)) next = forgetOpeners(next, w.id);
   return next;
@@ -297,7 +297,7 @@ export function stripPlan(s: BrowserState, strip: StripState): StripPlan | null 
   const keys = w.tabIds.filter((id) => inStrip.has(id));
   const pinned = keys.filter((id) => s.tabs[id]!.pin);
   const profiles = [w.profileId, ...new Set(keys.map((id) => s.tabs[id]!.profileId))];
-  const peek = s.peeks[windowId]?.tabId;
+  const peek = peekTabId(s, windowId);
   const active = peek && strip.tabs.some((t) => t.key === peek) ? peek : (profiles.map((p) => w.activeTabIds[p]).find((id) => !!id && inStrip.has(id)) ?? null);
   return { keys: [...pinned, ...keys.filter((id) => !s.tabs[id]!.pin)], pinned: pinned.length, active };
 }

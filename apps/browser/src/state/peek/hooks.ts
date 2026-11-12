@@ -1,16 +1,27 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { watchBrowser } from "../tabs/tabWatch";
-import { peekOpenedFrom, shownPageId } from "./peek";
+import { peekOpenedFrom, shownPageId, shownPeek, type Peek } from "./peek";
 import { MAX_SPLIT_PANES, splitOf, splitTabIdsOf } from "../splits/splits";
 
 export const usePeeks = <T>(select: (peeks: BrowserState["peeks"]) => T): T => useBrowser((s) => select(s.peeks));
+
+export function useWindowPeeks(windowId: string): Peek[] {
+  return useBrowser(
+    useShallow((s) =>
+      Object.values(s.peeks)
+        .filter((peek) => s.tabs[peek.tabId]?.windowId === windowId)
+        .sort((a, b) => (a.tabId < b.tabId ? -1 : 1)),
+    ),
+  );
+}
 
 export const useShownPageId = (windowId: string) => useBrowser((s) => shownPageId(s, windowId));
 
 export const usePeekSplitFull = (windowId: string) =>
   useBrowser((s) => {
-    const source = s.peeks[windowId]?.sourceId;
+    const source = shownPeek(s, windowId)?.sourceId;
     return (splitTabIdsOf(splitOf(s, source))?.length ?? 0) >= MAX_SPLIT_PANES;
   });
 

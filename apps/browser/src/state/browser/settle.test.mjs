@@ -37,7 +37,7 @@ function settledProblems(s) {
     if (areas.size > 1) problems.push(`profile ${p}'s pinned areas differ: ${[...areas].join(" ≠ ")}`);
   }
   for (const t of Object.values(s.tabs)) {
-    if (!s.windows[t.windowId]?.tabIds.includes(t.id) && s.peeks[t.windowId]?.tabId !== t.id) problems.push(`${t.id} isn't in its window`);
+    if (!s.windows[t.windowId]?.tabIds.includes(t.id) && !Object.values(s.peeks).some((p) => p.tabId === t.id)) problems.push(`${t.id} isn't in its window`);
     if (t.page.holderId) {
       const h = s.tabs[t.page.holderId];
       if (!h || !hasPage(h) || h.page.holderId || h.profileId !== t.profileId || model.pinKeyOf(h) !== model.pinKeyOf(t)) problems.push(`${t.id} is frozen on a holder that can't hold it`);
@@ -51,7 +51,7 @@ function settledProblems(s) {
     const parent = g.parentId ? s.groups[g.parentId] : undefined;
     if (parent && !g.tabIds.every((id) => parent.tabIds.includes(id))) problems.push(`group ${g.name} isn't inside ${parent.name}`);
   }
-  for (const [w, peek] of Object.entries(s.peeks)) if (model.activeTabId(s, w) !== peek.sourceId) problems.push(`window ${w}'s peek outlived its source`);
+  for (const [source, peek] of Object.entries(s.peeks)) if (s.tabs[source]?.windowId !== s.tabs[peek.tabId]?.windowId) problems.push(`${source}'s peek outlived its source`);
   return problems;
 }
 
@@ -123,21 +123,21 @@ test("a folder dissolving before mirroring: unpinning in the other window dissol
   assert.deepEqual(area(a), ["tile:m"]);
 });
 
-test("a peek closing before mirroring: switching tab and pinning in one batch closes the peek and mirrors the pin", () => {
+test("a peek hiding before mirroring: switching tab and pinning in one batch hides the peek and mirrors the pin", () => {
   const { a, b } = pinnedPair();
   const m = tileOf(a, "m");
   S().activate(m);
   const peek = S().openPeek(m, "https://peek.com/");
   const q = S().newTab(a, { url: "https://q.com/", background: true });
   const heard = [];
-  const off = useBrowser.subscribe((s) => heard.push(`${!!s.peeks[a]}:${area(b).join(" ")}`));
+  const off = useBrowser.subscribe((s) => heard.push(`${model.activeTabId(s, a) === m}:${area(b).join(" ")}`));
   storeTransaction(() => {
     S().activate(q);
     S().pinTabs([q], true);
   });
   off();
   assert.deepEqual(heard, ["false:tile:m tile:d tile:q"]);
-  assert.equal(S().tabs[peek], undefined);
+  assert.equal(S().peeks[m]?.tabId, peek);
   assert.deepEqual(area(a), area(b));
 });
 

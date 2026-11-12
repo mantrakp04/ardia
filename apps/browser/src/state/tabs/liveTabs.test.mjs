@@ -644,7 +644,7 @@ test("Chrome selecting a Peek's source dismisses the Peek instead of bouncing ba
   assert.equal(chromeShown(win.strip), "p");
   chrome.activate(a);
   await settle(win);
-  assert.equal(S().peeks[win.w], undefined);
+  assert.equal(S().peeks[a], undefined);
   assert.equal(S().tabs[peek], undefined);
   assert.equal(shown(win.w), "a");
   assert.equal(chromeShown(win.strip), "a");
