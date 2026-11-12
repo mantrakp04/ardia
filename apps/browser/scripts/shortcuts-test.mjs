@@ -433,6 +433,17 @@ const clipboard = {
 };
 const busyJsOnce = (ms) => ac(`const off = ac.store.subscribe(() => { off(); const t = Date.now(); while (Date.now() - t < ${ms}); }); return 1;`);
 const fieldInAx = async (text) => (await devWindow("ax")).split("\n").some((l) => /AXTextField|AXTextArea/.test(l) && l.includes(text));
+const barFieldText = async () => {
+  let pageDepth = -1;
+  for (const line of (await devWindow("ax")).split("\n")) {
+    const text = line.trimStart(), depth = line.length - text.length;
+    if (depth <= pageDepth) pageDepth = -1;
+    if (pageDepth >= 0) continue;
+    if (/^AXWebArea\b/.test(text)) pageDepth = depth;
+    else if (/^AXTextField\b/.test(text)) return text.replace(/^AXTextField:? ?/, "");
+  }
+  return "";
+};
 const pageField = (expr) => cdp("?t3", `(f => ${expr})(document.getElementById('f'))`);
 await devWindow("fakeActiveClicks");
 const resetToPageField = async (value, selection) => {
@@ -525,7 +536,7 @@ for (const busy of [0, 120]) {
     const typed = [["q", 12], ["w", 13], ["e", 14], ["r", 15]].map(([k, code], i) => keyPress(k, code, i ? 15 : gap, []));
     await postKeys([keyPress("l", 37), ...typed]);
     await sleep(1200);
-    const bar = (await devWindow("ax")).split("\n").find((l) => /AXTextField/.test(l))?.trim().replace(/^AXTextField:? ?/, "") ?? "";
+    const bar = await barFieldText();
     const inPage = await pageField("f.value");
     const beforeGate = gap === 0 && bar === "wer" && inPage === "q";
     check(`⌘L then typing at +${gap} ms${busy ? `, JS busy ${busy} ms` : ""}: the letters land in the bar, in order`, (bar === "qwer" && inPage === "") || beforeGate,
@@ -537,7 +548,7 @@ for (const busy of [0, 120]) {
   await clipboard.set("ordered");
   await postKeys([keyPress("l", 37), keyPress("v", 9), keyPress("q", 12, 0, [])]);
   await sleep(1200);
-  const bar = (await devWindow("ax")).split("\n").find((l) => /AXTextField/.test(l))?.trim().replace(/^AXTextField:? ?/, "") ?? "";
+  const bar = await barFieldText();
   const inPage = await pageField("f.value");
   check("⌘L ⌘V q back to back: the paste lands in the bar and keeps its place before q", (bar === "orderedq" && inPage === "") || (bar === "ordered" && inPage === "q"),
     `bar "${bar}", page "${inPage}"`);
