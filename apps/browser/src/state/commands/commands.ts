@@ -48,6 +48,7 @@ import { copyPageUrl, jumpToSelection } from "../site/selection";
 import { shareTab } from "../site/share";
 import { groupOf } from "../pins/tabGrouping";
 import { selectedTabIds } from "../pins/organize";
+import { noteSelectionClosedByKey } from "../telemetry/usage";
 import { isSmall, mainWindowFor, newWindowProfile, originalProfile } from "../windows/small";
 import {
   closeLittleArdia,
@@ -174,6 +175,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
         if (ids.length > 1) {
           s.closeTabs(ids);
           s.setSelection(windowId, []);
+          noteSelectionClosedByKey(ids.length);
           return;
         }
       }

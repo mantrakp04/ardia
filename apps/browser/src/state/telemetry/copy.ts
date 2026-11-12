@@ -89,6 +89,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many full copies sync wrote to your sync folder and their total size, summed up once an hour. Never what's in them",
       "Opening Report a Problem, and when Send was pressed before the report was ready, which field held it back (title, description or contact) and the report's kind. Never what you wrote",
       "Once a day, your on/off, pick-one and number settings (like light or dark, glass or classic, borderless mode, how much tint, and whether text adjusts to your colour), which app icon you picked, each with its default, how many of your profiles use a custom colour, and how many sites you hid unread counts for. Never addresses, names, colours, search engines or anything you typed",
+      "How many times ⌘W closed several selected sidebar tabs at once and how many tabs that closed, summed up once an hour. Never which tabs",
       "Bringing your last window back from the Dock or at launch: how many tabs came back and how long it was closed, in rough ranges, and whether a pinned tab was showing",
     ],
   },

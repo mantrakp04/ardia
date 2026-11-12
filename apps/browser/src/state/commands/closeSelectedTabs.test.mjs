@@ -55,3 +55,17 @@ test("⌘W dismisses the command bar before closing a multi-selection", () => {
   assert.ok(S().tabs[b]);
   assert.ok(S().tabs[c]);
 });
+
+test("⌘W on a selection with a pinned tab unloads the pinned tab and closes the rest", () => {
+  const { w, ids: [a, b, c, d] } = windowWith("a", "b", "c", "d");
+  S().pinTabs([b], true);
+  S().activate(c);
+  S().setSelection(w, [b, c, d]);
+  assert.equal(menuState(S()).titles.closeTab, "Close 3 Tabs");
+  runCommand({ command: "closeTab", arg: null, windowId: w });
+  assert.ok(S().tabs[a]);
+  assert.ok(S().tabs[b]?.pin, "the pinned tab stays in the sidebar");
+  assert.notEqual(S().tabs[b]?.page.kind, "loaded");
+  assert.equal(S().tabs[c], undefined);
+  assert.equal(S().tabs[d], undefined);
+});
