@@ -6,7 +6,6 @@ import SwiftUI
 struct SearchHomeView: View {
   @Environment(AppModel.self) private var app
   @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.profileLook) private var look
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
@@ -86,9 +85,9 @@ struct SearchHomeView: View {
   @ViewBuilder
   private var backdrop: some View {
     if app.isIncognito {
-      LaunchGradient(colors: BrowsePalette.incognitoGradient)
+      ProfileBackdrop(look: .incognito)
     } else {
-      LaunchGradient(colors: look.launchColors(dark: colorScheme == .dark))
+      ProfileBackdrop(themed: true)
     }
   }
 }

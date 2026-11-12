@@ -3,6 +3,7 @@ import ArdiaSync
 
 extension AppModel {
   var look: ProfileLook {
-    sync.isEnabled ? ProfileLook(profile: sync.selectedProfile) : .plum
+    if let preset = settings.colorChoice.flatMap(ProfileLook.Preset.init(rawValue:)) { return ProfileLook(preset: preset) }
+    return sync.isEnabled ? ProfileLook(profile: sync.selectedProfile) : .plum
   }
 }

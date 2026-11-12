@@ -10,9 +10,9 @@ public enum SystemWidgetSize: Sendable {
 
 public enum SystemPalette {
   public static let widgetAccent = Palette.formAccent
-  public static let capsuleShadeOnGradient = 0.16
-  public static let capsuleOnGradient = Color.black.opacity(capsuleShadeOnGradient)
-  public static let capsuleStrokeOnGradient = Color.white.opacity(0.28)
+  public static let inkOnLightBackdrop = Color(hex: 0x0E0F10, opacity: 0.9)
+  public static let capsuleShareOnBackdrop = 0.08
+  public static let capsuleStrokeShareOnBackdrop = 0.12
   public static let capsulePlain = Color.adaptive(light: .black.opacity(0.06), dark: .white.opacity(0.12))
   public static let rowPressed = Color.adaptive(light: .black.opacity(0.05), dark: .white.opacity(0.08))
 }
@@ -31,25 +31,31 @@ public struct SearchWidgetContent: View {
   public var showsBackground: Bool
 
   @Environment(\.widgetRenderingMode) private var renderingMode
+  @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.profileLook) private var look
 
   public init(size: SystemWidgetSize, showsBackground: Bool) {
     self.size = size
     self.showsBackground = showsBackground
   }
 
-  private var onGradient: Bool { showsBackground && renderingMode == .fullColor }
+  private var onBackdrop: Bool { showsBackground && renderingMode == .fullColor }
+
+  private var ink: Color {
+    look.inkIsLight(dark: colorScheme == .dark, themed: true) ? .white : SystemPalette.inkOnLightBackdrop
+  }
 
   public var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       HStack(alignment: .top) {
         ArdiaLogoMark()
           .frame(width: SystemWidgetLayout.markSmall.width, height: SystemWidgetLayout.markSmall.height)
-          .shadow(color: .black.opacity(onGradient ? 0.2 : 0.08), radius: 6, y: 3)
+          .shadow(color: .black.opacity(onBackdrop ? 0.12 : 0.08), radius: 6, y: 3)
         Spacer(minLength: 0)
         if size != .small {
           Text("Ardia")
             .font(.system(.subheadline, design: .rounded, weight: .bold))
-            .foregroundStyle(onGradient ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(SystemPalette.widgetAccent))
+            .foregroundStyle(onBackdrop ? AnyShapeStyle(ink.opacity(0.85)) : AnyShapeStyle(SystemPalette.widgetAccent))
             .widgetAccentable()
         }
       }
@@ -79,13 +85,13 @@ public struct SearchWidgetContent: View {
         .minimumScaleFactor(0.8)
       Spacer(minLength: 0)
     }
-    .foregroundStyle(onGradient ? AnyShapeStyle(.white) : AnyShapeStyle(SystemPalette.widgetAccent))
+    .foregroundStyle(onBackdrop ? AnyShapeStyle(ink) : AnyShapeStyle(SystemPalette.widgetAccent))
     .padding(.horizontal, 14)
     .frame(height: SystemWidgetLayout.capsuleHeight)
     .frame(maxWidth: .infinity)
     .background(capsuleFill, in: .capsule)
     .overlay {
-      if onGradient { Capsule().strokeBorder(SystemPalette.capsuleStrokeOnGradient, lineWidth: 0.5) }
+      if onBackdrop { Capsule().strokeBorder(ink.opacity(SystemPalette.capsuleStrokeShareOnBackdrop), lineWidth: 0.5) }
     }
     .widgetAccentable()
     .accessibilityElement(children: .ignore)
@@ -95,33 +101,33 @@ public struct SearchWidgetContent: View {
   private func roundButton(symbol: String, label: LocalizedStringKey) -> some View {
     Image(systemName: symbol)
       .font(.system(size: 17, weight: .semibold))
-      .foregroundStyle(onGradient ? AnyShapeStyle(.white) : AnyShapeStyle(SystemPalette.widgetAccent))
+      .foregroundStyle(onBackdrop ? AnyShapeStyle(ink) : AnyShapeStyle(SystemPalette.widgetAccent))
       .frame(width: SystemWidgetLayout.roundButton, height: SystemWidgetLayout.roundButton)
       .background(capsuleFill, in: .circle)
       .overlay {
-        if onGradient { Circle().strokeBorder(SystemPalette.capsuleStrokeOnGradient, lineWidth: 0.5) }
+        if onBackdrop { Circle().strokeBorder(ink.opacity(SystemPalette.capsuleStrokeShareOnBackdrop), lineWidth: 0.5) }
       }
       .widgetAccentable()
       .accessibilityLabel(Text(label))
   }
 
   private var capsuleFill: some ShapeStyle {
-    onGradient ? AnyShapeStyle(SystemPalette.capsuleOnGradient) : AnyShapeStyle(SystemPalette.capsulePlain)
+    onBackdrop ? AnyShapeStyle(ink.opacity(SystemPalette.capsuleShareOnBackdrop)) : AnyShapeStyle(SystemPalette.capsulePlain)
   }
 }
 
 public struct SearchWidgetBackground: View {
   public var showsBackground: Bool
-  public var colors: [Color]
+  public var look: ProfileLook
 
-  public init(showsBackground: Bool, colors: [Color] = Palette.launchGradient) {
+  public init(showsBackground: Bool, look: ProfileLook = .plum) {
     self.showsBackground = showsBackground
-    self.colors = colors
+    self.look = look
   }
 
   public var body: some View {
     if showsBackground {
-      LaunchGradient(colors: colors)
+      ProfileBackdrop(look: look, themed: true)
     } else {
       Color.adaptive(light: .white, dark: Color(hex: 0x1C1C1E))
     }

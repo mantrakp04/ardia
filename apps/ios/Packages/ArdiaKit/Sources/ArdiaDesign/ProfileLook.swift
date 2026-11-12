@@ -106,14 +106,10 @@ struct LookRGB: Equatable, Hashable, Sendable {
     return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
   }
 
-  var contrastWithWhite: Double { 1.05 / (luminance + 0.05) }
-
-  func darkened(toContrastWithWhite minimum: Double) -> LookRGB {
-    var stop = self
-    while stop.snapped.contrastWithWhite < minimum, stop.hsl.lightness > 0.02 {
-      stop = stop.lightened(by: -0.01)
-    }
-    return stop.snapped
+  func contrast(with other: LookRGB) -> Double {
+    let lighter = max(luminance, other.luminance)
+    let darker = min(luminance, other.luminance)
+    return (lighter + 0.05) / (darker + 0.05)
   }
 
   var greyed: LookRGB {
@@ -155,7 +151,6 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
     static let inactiveLight = LookRGB(red: 235 / 255, green: 231 / 255, blue: 230 / 255)
     static let inactiveDark = LookRGB(red: 40.7 / 255, green: 33.1 / 255, blue: 31.8 / 255)
     static let incognito: UInt32 = 0x3A3A3C
-    static let coverContrast = 4.5
   }
 
   let swatch: LookRGB
@@ -164,6 +159,7 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
   let isNeutral: Bool
   let theme: [LookRGB]
   let darkTheme: [LookRGB]?
+  let isAlwaysDark: Bool
 
   public static let plum = ProfileLook(preset: .plum)
 
@@ -173,16 +169,18 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
     action: LookRGB(hex: WindowTint.incognito),
     isNeutral: true,
     theme: [],
-    darkTheme: nil
+    darkTheme: nil,
+    isAlwaysDark: true
   )
 
-  init(swatch: LookRGB, tint: LookRGB, action: LookRGB, isNeutral: Bool, theme: [LookRGB], darkTheme: [LookRGB]?) {
+  init(swatch: LookRGB, tint: LookRGB, action: LookRGB, isNeutral: Bool, theme: [LookRGB], darkTheme: [LookRGB]?, isAlwaysDark: Bool = false) {
     self.swatch = swatch
     self.tint = tint
     self.action = action
     self.isNeutral = isNeutral
     self.theme = theme
     self.darkTheme = darkTheme
+    self.isAlwaysDark = isAlwaysDark
   }
 
   public init(preset: Preset) {
@@ -225,7 +223,9 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
     LookRGB(hue: swatch.hsl.hue, saturation: grey ? 0 : WindowTint.hueSaturation, lightness: WindowTint.hueLightness).snapped
   }
 
-  public var hasTheme: Bool { !theme.isEmpty }
+  public var preset: Preset? {
+    Preset.allCases.first { ProfileLook(preset: $0) == self }
+  }
 
   public var swatchColor: Color { swatch.color }
 
@@ -241,20 +241,19 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
     return [tint, tint.lightened(by: WindowTint.lightness)].map { under.mixed(with: $0, by: alpha).snapped }
   }
 
-  func launchStops(dark: Bool) -> [LookRGB] {
-    let stops = themeStops(dark: dark)
-    if stops.count >= 2 { return stops }
-    if dark {
-      let window = windowTintStops(dark: true)
-      return [window[0].mixed(with: LookRGB(hex: 0x000000), by: 0.3), window[0], window[0].mixed(with: window[1], by: 0.5), window[1]]
-    }
-    return [tint.toned(saturation: 0.42, lightness: 0.4), tint, swatch, action]
+  public func showsTheme(dark: Bool, themed: Bool) -> Bool {
+    themed && themeStops(dark: dark).count >= 2
   }
 
-  func coverStops() -> [LookRGB] {
-    if theme.count >= 2 { return theme }
-    return [tint.toned(saturation: 0.45, lightness: 0.24), tint.toned(saturation: 0.42, lightness: 0.38), tint, swatch]
-      .map { $0.darkened(toContrastWithWhite: WindowTint.coverContrast) }
+  func backdropStops(dark: Bool, themed: Bool) -> [LookRGB] {
+    showsTheme(dark: dark, themed: themed) ? themeStops(dark: dark) : windowTintStops(dark: dark || isAlwaysDark)
+  }
+
+  public func inkIsLight(dark: Bool, themed: Bool) -> Bool {
+    let stops = backdropStops(dark: dark, themed: themed)
+    let onWhite = stops.map { $0.contrast(with: LookRGB(hex: 0xFFFFFF)) }.min() ?? 1
+    let onBlack = stops.map { $0.contrast(with: LookRGB(hex: 0x000000)) }.min() ?? 1
+    return onWhite >= onBlack
   }
 
   func deckBaseStops(dark: Bool) -> [LookRGB] {
@@ -286,10 +285,7 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
   }
 
   public func windowTint(dark: Bool) -> [Color] { windowTintStops(dark: dark).map(\.color) }
-  public func launchColors(dark: Bool) -> [Color] { launchStops(dark: dark).map(\.color) }
-  public func launchHexes(dark: Bool) -> [String] { launchStops(dark: dark).map(\.hexString) }
-  public var coverColors: [Color] { coverStops().map(\.color) }
-  public var coverHexes: [String] { coverStops().map(\.hexString) }
+  public func backdropColors(dark: Bool, themed: Bool) -> [Color] { backdropStops(dark: dark, themed: themed).map(\.color) }
   public func deckBase(dark: Bool) -> [Color] { deckBaseStops(dark: dark).map(\.color) }
   public func deckBlobs(dark: Bool) -> [Color] { deckBlobStops(dark: dark).map(\.color) }
 }

@@ -5,14 +5,11 @@ public enum Palette {
   public static let formAccent = Color.adaptive(light: Color(hex: 0x007AFF), dark: Color(hex: 0x0A84FF))
   public static let primaryAction = Color.adaptive(light: Color(hex: 0x0F182C), dark: Color(hex: 0xDCCBD8))
   public static let onPrimaryAction = Color.adaptive(light: .white, dark: .black)
-  public static let ink = Color(hex: 0x0F182C)
   public static let success = Color.adaptive(light: Color(hex: 0x34C759), dark: Color(hex: 0x30D158))
   public static let panel = Color.adaptive(light: .white, dark: Color(hex: 0x2A2A2A))
   public static let panelBorder = Color.adaptive(light: .black.opacity(0.1), dark: .white.opacity(0.1))
   public static let toast = Color.adaptive(light: .white.opacity(0.92), dark: Color(hex: 0x2C2A2B, opacity: 0.9))
   public static let toastShadow = Color.adaptive(light: .black.opacity(0.18), dark: .black.opacity(0.5))
-
-  public static let launchGradient: [Color] = ProfileLook.plum.coverColors
 }
 
 public enum Spacing {

@@ -39,7 +39,7 @@ private struct MacWindowSketch: View {
       .padding(10)
       .frame(width: 84, alignment: .leading)
       .frame(maxHeight: .infinity, alignment: .top)
-      .background(LaunchGradient(softened: true).opacity(0.9))
+      .background(ProfileBackdrop())
 
       ZStack {
         Color(.systemBackground)
@@ -69,7 +69,7 @@ private struct PhoneSketch: View {
         .fill(Color(white: 0.08))
       ZStack {
         if connected {
-          LaunchGradient()
+          Rectangle().fill(ProfileLook.plum.swatchColor.gradient)
         } else {
           Color(white: 0.22)
         }

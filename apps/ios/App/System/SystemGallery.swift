@@ -89,13 +89,13 @@
       let snapshot = WidgetExporter.snapshot(for: app)
       return VStack(spacing: Spacing.medium) {
         tile(.medium) { MacTabsWidgetContent(snapshot: snapshot, size: .medium, store: app.systemStore) } background: {
-          LaunchGradient(softened: true)
+          ProfileBackdrop(softened: true)
         }
         tile(.large) { MacTabsWidgetContent(snapshot: snapshot, size: .large, store: app.systemStore) } background: {
-          LaunchGradient(softened: true)
+          ProfileBackdrop(softened: true)
         }
         tile(.medium) { MacTabsWidgetContent(snapshot: .empty, size: .medium, store: nil) } background: {
-          LaunchGradient(softened: true)
+          ProfileBackdrop(softened: true)
         }
       }
     }

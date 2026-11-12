@@ -40,7 +40,6 @@ public enum BrowsePalette {
   public static let fieldFill = Color.adaptive(light: .black.opacity(0.06), dark: .white.opacity(0.12))
   public static let fieldStroke = Color.adaptive(light: .black.opacity(0.06), dark: .white.opacity(0.08))
   public static let searchAccent = Palette.formAccent
-  public static let incognitoGradient: [Color] = ProfileLook.incognito.launchColors(dark: true)
   public static let rowIcon = Color.adaptive(light: .black.opacity(0.42), dark: .white.opacity(0.5))
   public static let incognitoSheet = Color(hex: 0x151517)
   public static let incognitoField = Color.white.opacity(0.12)

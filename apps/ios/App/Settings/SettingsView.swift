@@ -114,6 +114,10 @@ private struct SettingsRootList: View {
         .listSectionSpacing(Spacing.small)
 
         Section {
+          ColorChoiceRows()
+        }
+
+        Section {
           NavigationLink(value: SettingsRoute.siteSettings) {
             SettingsRowLabel("Site Settings", systemImage: "globe", tint: SettingsTint.neutral)
           }

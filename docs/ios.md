@@ -79,15 +79,17 @@ Arc Search's shape, measured from its App Store screenshots, preview videos and 
 sizes, copy), on Apple's controls, in the Mac's colours:
 
 - **Colours.** `ProfileLook` (`ArdiaDesign`) is the Mac's profile look: its nine profile colours with their swatches
-  (plum is the default, as on the Mac), the Mac's window tint for each (`windowTint`, the same sums as
-  `lib/windowTint.ts`, checked against the Mac's values in `ProfileLookTests`), and the gradients drawn from them.
-  With sync on, the selected profile's colour or custom theme sets it (`AppModel.look`, in the environment as
-  `profileLook`); otherwise it is plum. `Palette` holds the Mac's colour roles from `components/ui/tokens.ts`:
-  `primaryAction` and `onPrimaryAction` for the main button, `formAccent` for links, checkmarks and the caret,
-  `accent` for the loading line, `toast`, `panel`, `success`. The cover gradient under white text (onboarding, the
-  search widget) is darkened until white reads at 4.5:1. A new colour is a role there or a value derived from the
-  look, never a literal in a view.
-- **Start.** The app opens on a search sheet over a grainy gradient in the profile's colour (a synced profile's Mac
+  (plum is the default, as on the Mac) and the Mac's window tint for each (`windowTint`, the same sums as
+  `lib/windowTint.ts`, checked against the Mac's values in `ProfileLookTests`). Settings › Color picks one of the nine,
+  as the Mac's theme editor does; with sync on, Match My Mac (the default) follows the selected profile's colour or
+  custom theme instead (`AppModel.look`, in the environment as `profileLook`, and in the widget snapshot).
+  `ProfileBackdrop` draws it: the window tint top to bottom, pale in light and deep in dark, with the Mac's faint
+  grain, and never white text on a bright gradient. Text on it takes the ink that reads (`inkIsLight`). `Palette`
+  holds the Mac's colour roles from `components/ui/tokens.ts`: `primaryAction` and `onPrimaryAction` for the main
+  button, `formAccent` for links, checkmarks and the caret, `accent` for the loading line, `toast`, `panel`,
+  `success`. A new colour is a role there or a value derived from the look, never a literal in a view. Incognito is
+  the Mac's eyeglasses on its neutral dark tint.
+- **Start.** The app opens on a search sheet over the profile's window tint (a synced profile's Mac
   theme replaces it), keyboard up. Suggestions come from the Mac's own omnibox code: open tabs, local and synced
   history, bookmarks, the Mac's tabs, network suggestions, bangs and the calculator. Dragging along the rows scrubs
   them.
@@ -113,7 +115,8 @@ and never touches real data. Captures can be driven without touch:
 `-BrowseQuery <text>`, `-BrowseSurface browsing`, `-BrowseTab <n>`, `-BrowseToolbar`, `-BrowseReader`,
 `-BrowseIncognito`, `-BrowseDelay <s>`, `-ArdiaDeck <script>`, `-ArdiaOnboarding YES`,
 `-ArdiaOpenSheet archive|spaces`, `-BrowsePlus` (taps the plus after twice the delay),
-`-BrowseOverlay <text>` (the search tray over the page), and `-ArdiaRestingStart` (the start screen without the tray).
+`-BrowseOverlay <text>` (the search tray over the page), `-ArdiaRestingStart` (the start screen without the tray),
+and `-ArdiaColor <name>` (the colour picked in Settings).
 Motion captures: `-BrowsePagerFreeze <fraction>` holds a tab swipe part way (negative swipes toward the
 previous tab), `-BrowsePagerScript` plays a scripted swipe (cancel, edge, commit, interrupted commit), and
 `-BrowseLoadFreeze <progress>` holds a page load with its loading line and placeholder.

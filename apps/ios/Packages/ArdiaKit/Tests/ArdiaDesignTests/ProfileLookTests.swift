@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import ArdiaDesign
 
@@ -42,33 +43,56 @@ struct ProfileLookTests {
     #expect(ProfileLook(colorName: "#4691C3").swatch == LookRGB(hex: 0x4691C3))
   }
 
-  @Test func `a Mac theme replaces the start gradient`() {
+  @Test func `the backdrop is the Mac's window tint, and a Mac theme replaces it where themes show`() {
+    for dark in [false, true] {
+      #expect(ProfileLook.plum.backdropStops(dark: dark, themed: true) == ProfileLook.plum.windowTintStops(dark: dark))
+    }
     let themed = ProfileLook(colorName: "green", themeColors: ["#4F7CFF", "#9B6BFF"], darkThemeColors: ["#1E2A5A", "#3A2466"])
-    #expect(themed.launchHexes(dark: false) == ["#4F7CFF", "#9B6BFF"])
-    #expect(themed.launchHexes(dark: true) == ["#1E2A5A", "#3A2466"])
+    #expect(themed.backdropStops(dark: false, themed: true).map(\.hexString) == ["#4F7CFF", "#9B6BFF"])
+    #expect(themed.backdropStops(dark: true, themed: true).map(\.hexString) == ["#1E2A5A", "#3A2466"])
+    #expect(themed.backdropStops(dark: false, themed: false) == themed.windowTintStops(dark: false))
     let lightOnly = ProfileLook(colorName: "green", themeColors: ["#4F7CFF", "#9B6BFF"])
-    #expect(lightOnly.launchHexes(dark: true) == ["#4F7CFF", "#9B6BFF"])
-  }
-
-  @Test func `a profile color without a theme draws its own start gradient`() {
-    let plum = ProfileLook.plum.launchHexes(dark: false)
-    #expect(plum.count == 4)
-    #expect(plum.suffix(3) == ["#B25B6B", "#C07A98", "#DD899B"])
-    #expect(ProfileLook(colorName: "blue").launchHexes(dark: false) != plum)
-    #expect(ProfileLook(colorName: "blue", themeColors: ["#4F7CFF"]).launchHexes(dark: false).count == 4)
+    #expect(lightOnly.backdropStops(dark: true, themed: true).map(\.hexString) == ["#4F7CFF", "#9B6BFF"])
+    let oneColor = ProfileLook(colorName: "blue", themeColors: ["#4F7CFF"])
+    #expect(oneColor.backdropStops(dark: false, themed: true) == oneColor.windowTintStops(dark: false))
     #expect(ProfileLook(colorName: "blue", themeColors: ["nope"]) == ProfileLook(preset: .blue))
   }
 
-  @Test func `the cover gradient under white text is the theme, or a deep run of the profile color`() {
+  @Test func `incognito is dark in both appearances`() {
+    #expect(ProfileLook.incognito.backdropStops(dark: false, themed: true) == ProfileLook.incognito.windowTintStops(dark: true))
+    #expect(ProfileLook.incognito.inkIsLight(dark: false, themed: true))
+  }
+
+  @Test func `text on the backdrop takes the ink that reads on it`() {
     for preset in ProfileLook.Preset.allCases {
-      let cover = ProfileLook(preset: preset).coverStops()
-      #expect(cover.count == 4)
-      #expect(cover[0].hsl.lightness < cover[1].hsl.lightness, "\(preset)")
-      #expect(cover.allSatisfy { $0.contrastWithWhite >= 4.5 }, "\(preset)")
-      let underCapsule = cover.map { $0.mixed(with: LookRGB(hex: 0x000000), by: SystemPalette.capsuleShadeOnGradient) }
-      #expect(underCapsule.allSatisfy { $0.contrastWithWhite >= 4.5 }, "\(preset) capsule")
+      let look = ProfileLook(preset: preset)
+      #expect(!look.inkIsLight(dark: false, themed: true), "\(preset) light")
+      #expect(look.inkIsLight(dark: true, themed: true), "\(preset) dark")
     }
-    #expect(ProfileLook(colorName: "green", themeColors: ["#4F7CFF", "#9B6BFF"]).coverHexes == ["#4F7CFF", "#9B6BFF"])
+    let deepTheme = ProfileLook(colorName: "blue", themeColors: ["#1E2A5A", "#3A2466"])
+    #expect(deepTheme.inkIsLight(dark: false, themed: true))
+    #expect(!deepTheme.inkIsLight(dark: false, themed: false))
+    let paleTheme = ProfileLook(colorName: "blue", themeColors: ["#F4E9D8", "#E9F4D8"])
+    #expect(!paleTheme.inkIsLight(dark: true, themed: true))
+  }
+
+  @Test func `a look knows which of the Mac's colors it is`() {
+    for preset in ProfileLook.Preset.allCases {
+      #expect(ProfileLook(preset: preset).preset == preset)
+      #expect(ProfileLook(colorName: preset.rawValue).preset == preset)
+    }
+    #expect(ProfileLook(colorName: "green", themeColors: ["#4F7CFF", "#9B6BFF"]).preset == nil)
+  }
+
+  @Test func `a widget snapshot carries the look, and one saved before it did is plum`() throws {
+    let chosen = SystemSnapshot(color: "green")
+    #expect(chosen.look == ProfileLook(preset: .green))
+    let themed = SystemSnapshot(isSyncEnabled: true, gradient: ["#4F7CFF", "#9B6BFF"], darkGradient: ["#1E2A5A", "#3A2466"], color: "green")
+    #expect(themed.look == ProfileLook(colorName: "green", themeColors: ["#4F7CFF", "#9B6BFF"], darkThemeColors: ["#1E2A5A", "#3A2466"]))
+    let roundTrip = try JSONDecoder().decode(SystemSnapshot.self, from: JSONEncoder().encode(themed))
+    #expect(roundTrip == themed)
+    let earlier = Data(#"{"version":1,"isSyncEnabled":false,"macTabs":[],"sendTargets":[],"gradient":[]}"#.utf8)
+    #expect(try JSONDecoder().decode(SystemSnapshot.self, from: earlier).look == .plum)
   }
 
   @Test func `the deck backdrop follows the profile color`() {
