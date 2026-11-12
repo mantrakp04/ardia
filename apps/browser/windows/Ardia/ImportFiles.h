@@ -213,6 +213,44 @@ inline CopyOutcome CopyShared(std::filesystem::path const &from, std::filesystem
   return outcome;
 }
 
+inline constexpr int kCopyAttempts = 3;
+
+struct FileStamp {
+  bool present = false;
+  int64_t size = 0;
+  int64_t written = 0;
+  int64_t changed = 0;
+  bool operator==(FileStamp const &other) const noexcept {
+    return present == other.present && size == other.size && written == other.written && changed == other.changed;
+  }
+};
+
+inline FileStamp StampOf(std::filesystem::path const &path) noexcept {
+  FileStamp stamp;
+  HANDLE file = CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return stamp;
+  FILE_BASIC_INFO basic{};
+  LARGE_INTEGER size{};
+  if (GetFileInformationByHandleEx(file, FileBasicInfo, &basic, sizeof(basic)) && GetFileSizeEx(file, &size)) {
+    stamp.present = true;
+    stamp.size = size.QuadPart;
+    stamp.written = basic.LastWriteTime.QuadPart;
+    stamp.changed = basic.ChangeTime.QuadPart;
+  }
+  CloseHandle(file);
+  return stamp;
+}
+
+struct FileStamps {
+  FileStamp main;
+  FileStamp wal;
+  bool operator==(FileStamps const &other) const noexcept { return main == other.main && wal == other.wal; }
+};
+
+inline FileStamps StampsOf(std::filesystem::path const &source) noexcept {
+  return FileStamps{StampOf(source), StampOf(std::filesystem::path{source.wstring() + L"-wal"})};
+}
+
 class Snapshot {
  public:
   explicit Snapshot(std::filesystem::path const &source) noexcept {
@@ -227,18 +265,16 @@ class Snapshot {
       return;
     }
     std::filesystem::path copy = m_folder / L"db.sqlite";
-    CopyOutcome outcome = CopyShared(source, copy);
-    if (outcome != CopyOutcome::copied) {
-      m_failure = outcome == CopyOutcome::missing ? "missing" : outcome == CopyOutcome::inUse ? "inUse" : "unreadable";
-      return;
-    }
-    for (const wchar_t *suffix : {L"-wal", L"-journal"}) {
-      std::filesystem::path sibling{source.wstring() + suffix};
-      CopyOutcome copied = CopyShared(sibling, std::filesystem::path{copy.wstring() + suffix});
-      if (copied == CopyOutcome::inUse || copied == CopyOutcome::failed) {
-        m_failure = copied == CopyOutcome::inUse ? "inUse" : "unreadable";
+    for (int attempt = 1;; attempt++) {
+      if (CopyAll(source, copy)) break;
+      if (!m_failure.empty()) return;
+      std::error_code removed;
+      for (const wchar_t *suffix : {L"", L"-wal", L"-journal"}) std::filesystem::remove(std::filesystem::path{copy.wstring() + suffix}, removed);
+      if (attempt == kCopyAttempts) {
+        m_failure = "inUse";
         return;
       }
+      Sleep(150);
     }
     std::string utf8 = Paths::Utf8(copy.wstring());
     if (sqlite3_open_v2(utf8.c_str(), &m_db, SQLITE_OPEN_READWRITE, nullptr) != SQLITE_OK) {
@@ -262,6 +298,26 @@ class Snapshot {
 
   sqlite3 *Db() const noexcept { return m_db; }
   std::string const &Failure() const noexcept { return m_failure; }
+
+ private:
+  bool CopyAll(std::filesystem::path const &source, std::filesystem::path const &copy) noexcept {
+    FileStamps before = StampsOf(source);
+    CopyOutcome outcome = CopyShared(source, copy);
+    if (outcome != CopyOutcome::copied) {
+      m_failure = outcome == CopyOutcome::missing ? "missing" : outcome == CopyOutcome::inUse ? "inUse" : "unreadable";
+      return false;
+    }
+    for (const wchar_t *suffix : {L"-wal", L"-journal"}) {
+      CopyOutcome copied = CopyShared(std::filesystem::path{source.wstring() + suffix}, std::filesystem::path{copy.wstring() + suffix});
+      if (copied == CopyOutcome::inUse || copied == CopyOutcome::failed) {
+        m_failure = copied == CopyOutcome::inUse ? "inUse" : "unreadable";
+        return false;
+      }
+    }
+    return StampsOf(source) == before;
+  }
+
+ public:
 
  private:
   std::filesystem::path m_folder;

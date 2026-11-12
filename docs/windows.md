@@ -391,7 +391,8 @@ that answers the same methods with the same result shapes, so the wizard (`compo
   `-wal`/`-journal`) are refused to these generic reads under any name Windows resolves to them (any case, a trailing
   dot or space, a stream suffix, a short name: the check also reads the opened file's real name), so their plain-text
   values can't reach JS through them. A sidecar that exists but can't be copied fails the snapshot rather than leaving
-  it without the latest writes. `openSnapshot`, `querySnapshot` and `closeSnapshot` keep one snapshot open across
+  it without the latest writes, and a copy during which the database or its WAL changed (a checkpoint, a write) is
+  taken again, up to three times, then reported as in use. `openSnapshot`, `querySnapshot` and `closeSnapshot` keep one snapshot open across
   calls (closed after 10 idle minutes otherwise), so history is read 5,000 rows a page instead of in one reply. A file the browser holds open with no
   sharing (Chrome does this to `Network\Cookies` and others while it runs) answers `inUse`, and that kind fails with
   "Quit <browser> and import again".
