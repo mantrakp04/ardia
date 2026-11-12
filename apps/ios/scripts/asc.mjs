@@ -226,8 +226,13 @@ async function status() {
     if (rows.length === 0) console.log("none");
     for (const row of rows) {
       const group = row.attributes;
+      const { rows: testers } = await get(`/v1/betaGroups/${row.id}/betaTesters`, { "fields[betaTesters]": "state", limit: "200" });
+      const states = {};
+      for (const tester of testers) states[tester.attributes.state ?? "?"] = (states[tester.attributes.state ?? "?"] ?? 0) + 1;
+      const summary = Object.entries(states).map(([state, count]) => `${count} ${state}`).join(", ") || "none";
       console.log(
-        `${group.name} ${group.isInternalGroup ? "internal" : "external"} allBuilds=${group.hasAccessToAllBuilds} publicLink=${group.publicLinkEnabled}`,
+        `${group.name} ${group.isInternalGroup ? "internal" : "external"} allBuilds=${group.hasAccessToAllBuilds} ` +
+          `publicLink=${group.publicLinkEnabled} testers: ${summary}`,
       );
     }
   });
