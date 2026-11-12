@@ -67,11 +67,7 @@ export function Omnibox({
   const currentUrl = useTab(tabId, (t) => (opensTab ? "" : (t?.url ?? "")));
   const hero = variant === "hero";
   const dropdown = variant === "sidebar";
-  const fieldTextStyle = hero
-    ? BAR_TYPE.heroField
-    : variant === "sidebar" || floating
-      ? BAR_TYPE.floatingField
-      : BAR_TYPE.panelField;
+  const fieldTextStyle = hero ? BAR_TYPE.heroField : dropdown || floating ? BAR_TYPE.floatingField : BAR_TYPE.panelField;
 
   const noneSelected = opensTab ? -1 : 0;
   const bar = useBarText(hero, tabId, initialText, noneSelected);
