@@ -287,6 +287,122 @@ class Refresh(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual((copy / "SKILL.md").read_text(encoding="utf-8"), self.current_skill())
 
+    def hermes_env(self, value):
+        patch = mock.patch.dict(os.environ)
+        patch.start()
+        self.addCleanup(patch.stop)
+        if value is None:
+            os.environ.pop("HERMES_HOME", None)
+        else:
+            os.environ["HERMES_HOME"] = value
+
+    def test_hermes_destination_defaults_to_the_home_folder(self):
+        self.hermes_env(None)
+        self.assertEqual(skills.destination("hermes", False), self.home / ".hermes/skills/ardia")
+        self.assertEqual(skills.destination("hermes", True), self.project / ".hermes/skills/ardia")
+
+    def test_hermes_destination_uses_a_nonempty_hermes_home(self):
+        custom = self.root / "custom-hermes"
+        self.hermes_env(str(custom))
+        self.assertEqual(skills.destination("hermes", False), custom / "skills/ardia")
+        self.assertEqual(skills.destination("hermes", True), self.project / ".hermes/skills/ardia")
+        self.hermes_env("")
+        self.assertEqual(skills.destination("hermes", False), self.home / ".hermes/skills/ardia")
+
+    def test_hermes_destination_expands_environment_references(self):
+        self.hermes_env("$HOME/custom-hermes")
+        self.assertEqual(skills.destination("hermes", False), self.home / "custom-hermes/skills/ardia")
+        self.hermes_env("${HOME}/custom-hermes")
+        self.assertEqual(skills.destination("hermes", False), self.home / "custom-hermes/skills/ardia")
+
+    def test_hermes_destination_strips_whitespace(self):
+        self.hermes_env(" \t ")
+        self.assertEqual(skills.destination("hermes", False), self.home / ".hermes/skills/ardia")
+        custom = self.root / "custom-hermes"
+        self.hermes_env(f"  {custom}  ")
+        self.assertEqual(skills.destination("hermes", False), custom / "skills/ardia")
+
+    def test_hermes_destination_expands_the_user_home(self):
+        self.hermes_env("~/custom-hermes")
+        self.assertEqual(skills.destination("hermes", False), self.home / "custom-hermes/skills/ardia")
+
+    def test_hermes_install_writes_to_the_default_home(self):
+        self.hermes_env(None)
+        status, out = quiet(skills.install, ["hermes"], False, False)
+        folder = self.home / ".hermes/skills/ardia"
+        self.assertEqual(status, 0, out)
+        self.assertTrue((folder / skills.MARKER).is_file())
+        self.assertEqual((folder / "SKILL.md").read_text(encoding="utf-8"), self.current_skill())
+        recorded = json.loads((self.cli_home / "skills.json").read_text())["folders"]
+        self.assertEqual(recorded, [str(folder)])
+
+    def test_hermes_install_writes_beneath_hermes_home(self):
+        custom = self.root / "custom-hermes"
+        self.hermes_env(str(custom))
+        status, out = quiet(skills.install, ["hermes"], False, False)
+        self.assertEqual(status, 0, out)
+        self.assertTrue((custom / "skills/ardia" / skills.MARKER).is_file())
+        self.assertFalse((self.home / ".hermes").exists())
+
+    def test_hermes_project_install_ignores_hermes_home(self):
+        self.hermes_env(str(self.root / "custom-hermes"))
+        status, out = quiet(skills.install, ["hermes"], True, False)
+        folder = self.project / ".hermes/skills/ardia"
+        self.assertEqual(status, 0, out)
+        self.assertTrue((folder / skills.MARKER).is_file())
+
+    def test_hermes_refresh_rewrites_a_marked_copy(self):
+        self.hermes_env(None)
+        quiet(skills.install, ["hermes"], False, False)
+        folder = self.home / ".hermes/skills/ardia"
+        self.make_stale(folder)
+        status, out = quiet(skills.refresh)
+        self.assertEqual(status, 0, out)
+        self.assertEqual((folder / "SKILL.md").read_text(encoding="utf-8"), self.current_skill())
+        self.assertFalse((folder / "references/gone.md").exists())
+        self.assertIn(f"refreshed {folder}", out)
+
+    def test_hermes_refresh_follows_hermes_home(self):
+        custom = self.root / "custom-hermes"
+        folder = custom / "skills/ardia"
+        self.hermes_env(str(custom))
+        quiet(skills.install, ["hermes"], False, False)
+        self.make_stale(folder)
+        status, out = quiet(skills.refresh)
+        self.assertEqual(status, 0, out)
+        self.assertEqual((folder / "SKILL.md").read_text(encoding="utf-8"), self.current_skill())
+
+    def test_hermes_install_refuses_and_refresh_skips_a_foreign_copy(self):
+        self.hermes_env(None)
+        folder = self.home / ".hermes/skills/ardia"
+        self.foreign_ardia(folder)
+        status, out = quiet(skills.install, ["hermes"], False, False)
+        self.assertEqual(status, 1)
+        self.assertIn("isn't a copy ardia installed", out)
+        self.assertTrue((folder / "sentinel.txt").exists())
+        status, out = quiet(skills.refresh)
+        self.assertEqual(status, 0)
+        self.assertIn(f"skipped {folder}", out)
+        self.assertIn("someone else's", (folder / "SKILL.md").read_text(encoding="utf-8"))
+
+    def test_hermes_refresh_never_discovers_an_unrelated_profile(self):
+        self.hermes_env(None)
+        quiet(skills.install, ["hermes"], False, False)
+        unrelated = self.home / ".hermes/profiles/other/skills/ardia"
+        shutil.copytree(self.home / ".hermes/skills/ardia", unrelated)
+        (unrelated / "SKILL.md").write_text("---\nname: ardia\n---\nstale\n", encoding="utf-8")
+        status, out = quiet(skills.refresh)
+        self.assertEqual(status, 0, out)
+        self.assertIn("stale", (unrelated / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertNotIn(str(unrelated), out)
+        recorded = json.loads((self.cli_home / "skills.json").read_text())["folders"]
+        self.assertNotIn(str(unrelated), recorded)
+
+    def test_skills_help_lists_hermes(self):
+        self.assertIn("hermes", skills.TARGETS)
+        self.assertIn("hermes", cli.SKILLS_DESCRIPTION)
+        self.assertIn(".hermes/skills", cli.SKILLS_DESCRIPTION)
+
 
 class Contents(unittest.TestCase):
     def test_frontmatter_and_links(self):

@@ -48,12 +48,13 @@ the pins into `pyproject.toml`).
 - `ardia notes [get|set|append|list|rm] [SITE] [TEXT|-]` keeps plain-text notes per site for the user's own agent
   (see Site notes). It hands its arguments to `ardia_cli/notes.py` (`main(argv)`), which runs them as
   `ardia browse notes …`, with the shared options given before `notes` put first.
-- `ardia skills install --target general|codex|claude-code|cursor|opencode [--target …] [--project]` installs the
+- `ardia skills install --target general|codex|claude-code|cursor|opencode|hermes [--target …] [--project]` installs the
   agent skill (`ardia_cli/skill`: a `SKILL.md` of about 5K characters with the fast paths (read, batch, select,
   script, notes), plus `references/troubleshooting.md`, `script.md`, `userscripts.md`, `config.md`, `automation.md`
   and `daily-reports.md` read only when a task needs them) into `~/.agents/skills` (general, codex),
-  `~/.claude/skills`, `~/.cursor/skills` or `~/.config/opencode/skills`; with `--project`, into `./.agents/skills`,
-  `./.claude/skills`, `./.cursor/skills` or `./.opencode/skills`. It writes each file it ships in place (temp file,
+  `~/.claude/skills`, `~/.cursor/skills`, `~/.config/opencode/skills` or `~/.hermes/skills` (hermes; under
+  `$HERMES_HOME/skills` when `HERMES_HOME` is set); with `--project`, into `./.agents/skills`,
+  `./.claude/skills`, `./.cursor/skills`, `./.opencode/skills` or `./.hermes/skills`. It writes each file it ships in place (temp file,
   then rename, so a linked file is replaced, never written through) plus a `.ardia-skill` marker (vendor, version and
   the files it wrote), removes only files an earlier marker listed that it no longer ships, and leaves every other
   file alone. A folder counts as ours only when it isn't a link and its marker is a plain file naming vendor

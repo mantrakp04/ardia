@@ -61,6 +61,29 @@ class Naming(unittest.TestCase):
         found = caller.from_chain([Process(5, 1, "/usr/bin/python3", ("python3", "-c", "claude"))])
         self.assertEqual(found, Caller("ardia"))
 
+    def test_hermes_launcher_and_interpreted_invocations(self):
+        cases = {
+            ("/Users/me/.local/bin/hermes", ("hermes",)): "Hermes",
+            ("/Users/me/.local/bin/hermes", ()): "Hermes",
+            ("/usr/bin/python3", ("python3", "/Users/me/.local/bin/hermes")): "Hermes",
+            ("/usr/bin/python3", ("python3", "/Users/me/hermes-agent/hermes_cli/main.py")): "Hermes",
+        }
+        for (path, argv), name in cases.items():
+            self.assertEqual(caller.from_chain([Process(5, 1, path, argv)]).name, name, (path, argv))
+
+    def test_hermes_lookalikes_are_not_agents(self):
+        cases = [
+            ("/usr/bin/python3", ("python3", "-c", "hermes_cli/main.py")),
+            ("/usr/bin/python3", ("python3", "-c", "import hermes_cli.main")),
+            ("/usr/bin/python3", ("python3", "/Users/me/other/main.py")),
+            ("/usr/bin/python3", ("python3", "/Users/me/hermes_cli/other.py")),
+            ("/usr/bin/python3", ("python3", "/Users/me/hermes/main.py")),
+            ("/Users/me/.local/bin/hermes-agent", ("hermes-agent",)),
+            ("/Users/me/.local/bin/my-hermes", ("my-hermes",)),
+        ]
+        for path, argv in cases:
+            self.assertEqual(caller.from_chain([Process(5, 1, path, argv)]), Caller("ardia"), (path, argv))
+
     def test_the_outermost_app_bundle_names_the_caller(self):
         app = self.bundle("Visual Studio Code.app", CFBundleName="Code")
         helper = app / "Contents" / "Frameworks" / "Code Helper (Plugin).app" / "Contents" / "MacOS" / "Code Helper (Plugin)"
