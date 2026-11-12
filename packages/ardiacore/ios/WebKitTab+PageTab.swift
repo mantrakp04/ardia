@@ -33,7 +33,7 @@ extension WebKitTab: PageTab {
   }
 
   func requestPictureInPicture(clickAt: Double, control: Int, _ completion: @escaping (Bool) -> Void) {
-    setPictureInPicture(true, completion: completion)
+    setPictureInPicture(true) { completion($0 == .opened) }
   }
 
   func takeControlPress(clickAt: Double, control: Int) -> Bool { true }
