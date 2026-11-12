@@ -59,6 +59,35 @@ test("the report store keeps reports without expiry and cannot outgrow its disk"
   assert.ok(volumeMax * volumeMb <= volumes[0].sizeGb * 1024, `${volumeMax} volumes of ${volumeMb} MB do not fit on ${volumes[0].sizeGb} GB`);
 });
 
+const { REPLAY_SAMPLE_RATE, REPLAY_MAX_CHUNK_BYTES } = await import("../../../apps/site/src/data/telemetry.ts");
+const replayStore = groups.telemetry.services[SERVICES.objects];
+const MB = 1024 ** 2;
+const PEAK_DAY_BYTES_AT_FULL_RATE = 4_450_000_000;
+const VOLUMES_GROWN_AT_ONCE = 7;
+const DISK_SHARE_FOR_VOLUMES = 0.75;
+
+const flag = (command, name) => Number(new RegExp(`-${name.replace(".", "\\.")}=(\\d+)`).exec(command)?.[1]);
+
+test("the replay store cannot outgrow its disk", () => {
+  const volumes = Object.values(replayStore.persistentVolumes);
+  assert.equal(volumes.length, 1, "the replay store has one volume");
+  const volumeMax = flag(replayStore.startCommand, "volume.max");
+  const volumeMb = flag(replayStore.startCommand, "master.volumeSizeLimitMB");
+  assert.ok(volumeMax > 0 && volumeMb > 0, "the volume count and size limit are set");
+  assert.ok(volumeMax * volumeMb <= volumes[0].sizeGb * 1024 * DISK_SHARE_FOR_VOLUMES, `${volumeMax} volumes of ${volumeMb} MB leave less than a quarter of ${volumes[0].sizeGb} GB free`);
+  assert.ok(REPLAY_MAX_CHUNK_BYTES < volumeMb * MB, "a replay chunk fits in a volume");
+});
+
+test("30 days of replays at the sample rate fit in the replay store's volumes", () => {
+  const volumeMax = flag(replayStore.startCommand, "volume.max");
+  const volumeMb = flag(replayStore.startCommand, "master.volumeSizeLimitMB");
+  const keptDays = Number(/-ttl=(\d+)d/.exec(replayStore.startCommand)?.[1]);
+  assert.equal(keptDays, 30, "replays are kept 30 days");
+  const neededBytes = keptDays * PEAK_DAY_BYTES_AT_FULL_RATE * REPLAY_SAMPLE_RATE + VOLUMES_GROWN_AT_ONCE * volumeMb * MB;
+  const capacityBytes = volumeMax * volumeMb * MB;
+  assert.ok(neededBytes <= capacityBytes, `${keptDays} days at sample rate ${REPLAY_SAMPLE_RATE} need ${Math.round(neededBytes / MB)} MB of ${Math.round(capacityBytes / MB)} MB`);
+});
+
 test("the dashboard reads attachments from the store the report server writes to", () => {
   assert.equal(envOf("dashboard", "dashboard").FEEDBACK_OBJECTS_HOST, feedbackEnv.OBJECTS_HOST);
 });

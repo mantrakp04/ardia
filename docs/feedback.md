@@ -72,7 +72,7 @@ contract the app, the CLI, the feedback service and the dashboard build against.
   and the volumes can't outgrow the disk), and no expiry. Reports were first kept on `ph-objects`, the
   replays' SeaweedFS, and from 11-11 every report there got `502 upstream:storage` (`report_failed` with
   `error_class` `storage`), none was sent. The replays, kept 30 days at a sample rate of 1, were about 19 GiB
-  of its 20 GB by then. Reports saved before the move (11-09 to 11-11) stay on `ph-objects` under
+  of its 20 GB by then (the replay store's size rule is in `docs/growth.md`). Reports saved before the move (11-09 to 11-11) stay on `ph-objects` under
   `buckets/feedback/`, and the dashboard still reads them there. A 502 `upstream:storage` in `report_failed`
   or `failed (storage)` in the `ardia-feedback` log means the report store is refusing writes: look at the free
   space of `ardia-feedback-objects`.
