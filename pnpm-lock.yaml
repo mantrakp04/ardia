@@ -183,6 +183,9 @@ importers:
 
   packages/expo-windows:
     dependencies:
+      '@ardia/import':
+        specifier: workspace:*
+        version: link:../import
       '@ardia/shell':
         specifier: workspace:*
         version: link:../shell
