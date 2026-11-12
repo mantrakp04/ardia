@@ -100,8 +100,8 @@ struct OpenTabIntent: OpenIntent {
 }
 
 struct OpenMacTabsIntent: AppIntent {
-  static let title: LocalizedStringResource = "Open My Mac’s Tabs"
-  static let description = IntentDescription("Shows the tabs, pinned tabs and Spaces from Ardia on your Mac.")
+  static let title: LocalizedStringResource = "Open Synced Tabs"
+  static let description = IntentDescription("Shows the tabs, pinned tabs and Spaces synced from Ardia on your computer.")
   static let supportedModes: IntentModes = .foreground
 
   @Dependency var app: AppModel
@@ -151,10 +151,10 @@ struct ArdiaShortcuts: AppShortcutsProvider {
     AppShortcut(
       intent: OpenMacTabsIntent(),
       phrases: [
-        "Show my Mac’s tabs in \(.applicationName)",
-        "Open my Mac’s tabs in \(.applicationName)",
+        "Show my synced tabs in \(.applicationName)",
+        "Open my synced tabs in \(.applicationName)",
       ],
-      shortTitle: "My Mac’s Tabs",
+      shortTitle: "Synced Tabs",
       systemImageName: "laptopcomputer"
     )
     AppShortcut(

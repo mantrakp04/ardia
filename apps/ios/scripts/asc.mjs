@@ -1,19 +1,27 @@
 #!/usr/bin/env node
 import { createPrivateKey, sign } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const HELP = `App Store Connect, for the iPhone app's TestFlight builds.
 
   node apps/ios/scripts/asc.mjs status
   node apps/ios/scripts/asc.mjs builds [--build <number>]
+  node apps/ios/scripts/asc.mjs next-build
   node apps/ios/scripts/asc.mjs wait --build <number> [--timeout <seconds>]
+  node apps/ios/scripts/asc.mjs certificates --save <file>
+  node apps/ios/scripts/asc.mjs certificates --revoke-new-since <file>
 
 Reads the API key from ASC_KEY (path to AuthKey_<id>.p8), ASC_KEY_ID and ASC_ISSUER.
 status lists what the key can see: the app record, the App IDs and their capabilities,
 registered devices, certificates, profiles, builds and tester groups. A section the key
-has no access to prints "forbidden". wait blocks until a build finishes processing.`;
+has no access to prints "forbidden". next-build prints the build number after the highest
+one uploaded. wait blocks until a build finishes processing, and stops with Apple's reasons
+when the delivery was refused. certificates --save records
+the team's certificate ids; --revoke-new-since revokes the development certificates made
+since then, which is what an archive on a fresh CI machine leaves behind.`;
 
-const BUNDLE_PREFIX = "com.ardia.ios";
+const BUNDLE_PREFIX = "com.ardia.browser.ios";
+const DEVELOPMENT_CERTIFICATES = new Set(["DEVELOPMENT", "IOS_DEVELOPMENT"]);
 const API = "https://api.appstoreconnect.apple.com";
 
 function base64url(input) {
@@ -45,6 +53,21 @@ class ApiError extends Error {
 
 let bearer;
 
+async function fail(response) {
+  const text = await response.text();
+  let detail = text.slice(0, 200);
+  try {
+    detail = JSON.parse(text).errors.map((error) => error.detail ?? error.title).join("; ");
+  } catch {}
+  throw new ApiError(response.status, detail);
+}
+
+async function remove(path) {
+  bearer ??= token();
+  const response = await fetch(new URL(path, API), { method: "DELETE", headers: { Authorization: `Bearer ${bearer}` } });
+  if (!response.ok) await fail(response);
+}
+
 async function get(path, params = {}) {
   bearer ??= token();
   const url = new URL(path, API);
@@ -54,15 +77,8 @@ async function get(path, params = {}) {
   let next = url.toString();
   while (next) {
     const response = await fetch(next, { headers: { Authorization: `Bearer ${bearer}` } });
-    const text = await response.text();
-    if (!response.ok) {
-      let detail = text.slice(0, 200);
-      try {
-        detail = JSON.parse(text).errors.map((error) => error.detail ?? error.title).join("; ");
-      } catch {}
-      throw new ApiError(response.status, detail);
-    }
-    const page = JSON.parse(text);
+    if (!response.ok) await fail(response);
+    const page = await response.json();
     rows.push(...(Array.isArray(page.data) ? page.data : [page.data]));
     included.push(...(page.included ?? []));
     next = page.links?.next ?? null;
@@ -102,7 +118,7 @@ async function listBuilds(appId, build) {
     "filter[app]": appId,
     sort: "-uploadedDate",
     limit: "20",
-    "fields[builds]": "version,uploadedDate,processingState,expired,usesNonExemptEncryption,minOsVersion",
+    "fields[builds]": "version,uploadedDate,processingState,expired,usesNonExemptEncryption,minOsVersion,preReleaseVersion,buildBetaDetail",
     include: "preReleaseVersion,buildBetaDetail",
     "fields[preReleaseVersions]": "version",
     "fields[buildBetaDetails]": "internalBuildState,externalBuildState",
@@ -193,13 +209,31 @@ async function status() {
 
   await section("Builds", async () => printBuilds(await listBuilds(app.id)));
 
+  await section("Encryption declarations", async () => {
+    const { rows } = await get("/v1/appEncryptionDeclarations", { "filter[app]": app.id, limit: "50" });
+    if (rows.length === 0) console.log("none");
+    for (const row of rows) {
+      const declaration = row.attributes;
+      console.log(
+        `code ${declaration.codeValue ?? "none"} state=${declaration.appEncryptionDeclarationState} exempt=${declaration.exempt} ` +
+          `proprietary=${declaration.containsProprietaryCryptography} thirdParty=${declaration.containsThirdPartyCryptography} ` +
+          `france=${declaration.availableOnFrenchStore} created ${day(declaration.createdDate)}`,
+      );
+    }
+  });
+
   await section("Tester groups", async () => {
     const { rows } = await get(`/v1/apps/${app.id}/betaGroups`, { "fields[betaGroups]": "name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled" });
     if (rows.length === 0) console.log("none");
     for (const row of rows) {
       const group = row.attributes;
+      const { rows: testers } = await get(`/v1/betaGroups/${row.id}/betaTesters`, { "fields[betaTesters]": "state", limit: "200" });
+      const states = {};
+      for (const tester of testers) states[tester.attributes.state ?? "?"] = (states[tester.attributes.state ?? "?"] ?? 0) + 1;
+      const summary = Object.entries(states).map(([state, count]) => `${count} ${state}`).join(", ") || "none";
       console.log(
-        `${group.name} ${group.isInternalGroup ? "internal" : "external"} allBuilds=${group.hasAccessToAllBuilds} publicLink=${group.publicLinkEnabled}`,
+        `${group.name} ${group.isInternalGroup ? "internal" : "external"} allBuilds=${group.hasAccessToAllBuilds} ` +
+          `publicLink=${group.publicLinkEnabled} testers: ${summary}`,
       );
     }
   });
@@ -232,6 +266,19 @@ async function builds(args) {
   printBuilds(await listBuilds(app.id, option(args, "--build")));
 }
 
+async function deliveryRefusal(appId, build) {
+  try {
+    const { rows } = await get(`/v1/apps/${appId}/buildUploads`, { "filter[cfBundleVersion]": build, limit: "10" });
+    const failed = rows.find((row) => row.attributes?.state?.state === "FAILED");
+    if (!failed) return null;
+    const errors = failed.attributes.state.errors ?? [];
+    return errors.map((error) => `${error.code ?? ""} ${error.description ?? ""}`.trim()).join("\n") || "no reason given";
+  } catch (error) {
+    if (error instanceof ApiError) return null;
+    throw error;
+  }
+}
+
 async function wait(args) {
   const build = option(args, "--build");
   if (!build) {
@@ -244,6 +291,13 @@ async function wait(args) {
   while (Date.now() < deadline) {
     const [found] = await listBuilds(app.id, build);
     const state = found ? found.processing : "not listed yet";
+    if (!found) {
+      const refusal = await deliveryRefusal(app.id, build);
+      if (refusal) {
+        console.error(`asc: App Store Connect refused build ${build}:\n${refusal}`);
+        process.exit(1);
+      }
+    }
     if (state !== last) console.log(`build ${build}: ${state}`);
     last = state;
     if (found && found.processing !== "PROCESSING") {
@@ -256,8 +310,40 @@ async function wait(args) {
   process.exit(124);
 }
 
+async function nextBuild() {
+  const app = await requireApp();
+  const numbers = (await listBuilds(app.id)).map((build) => Number(build.build)).filter(Number.isInteger);
+  console.log(Math.max(0, ...numbers) + 1);
+}
+
+async function certificates(args) {
+  const { rows } = await get("/v1/certificates", { "fields[certificates]": "certificateType,expirationDate", limit: "200" });
+  const save = option(args, "--save");
+  const since = option(args, "--revoke-new-since");
+  if (save) {
+    writeFileSync(save, JSON.stringify(rows.map((row) => row.id)));
+    console.log(`${rows.length} certificates recorded`);
+    return;
+  }
+  if (!since) {
+    console.error("asc: certificates needs --save <file> or --revoke-new-since <file>");
+    process.exit(64);
+  }
+  const before = new Set(JSON.parse(readFileSync(since, "utf8")));
+  const made = rows.filter((row) => !before.has(row.id));
+  for (const row of made) {
+    if (!DEVELOPMENT_CERTIFICATES.has(row.attributes.certificateType)) {
+      console.log(`kept new ${row.attributes.certificateType} certificate`);
+      continue;
+    }
+    await remove(`/v1/certificates/${row.id}`);
+    console.log(`revoked new ${row.attributes.certificateType} certificate`);
+  }
+  if (made.length === 0) console.log("no new certificates");
+}
+
 const [command, ...args] = process.argv.slice(2);
-const commands = { status, builds, wait };
+const commands = { status, builds, wait, certificates, "next-build": nextBuild };
 if (!command || command === "-h" || command === "--help" || !commands[command]) {
   console.log(HELP);
   process.exit(command && commands[command] === undefined && command !== "-h" && command !== "--help" ? 64 : 0);

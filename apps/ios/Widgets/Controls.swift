@@ -30,7 +30,7 @@ nonisolated struct IncognitoControlIntent: ArdiaControlIntent {
 
 struct SearchControl: ControlWidget {
   var body: some ControlWidgetConfiguration {
-    StaticControlConfiguration(kind: "com.ardia.ios.control.search") {
+    StaticControlConfiguration(kind: "com.ardia.browser.ios.control.search") {
       ControlWidgetButton(action: SearchControlIntent()) {
         Label("Search", systemImage: "magnifyingglass")
       }
@@ -42,7 +42,7 @@ struct SearchControl: ControlWidget {
 
 struct VoiceSearchControl: ControlWidget {
   var body: some ControlWidgetConfiguration {
-    StaticControlConfiguration(kind: "com.ardia.ios.control.voice") {
+    StaticControlConfiguration(kind: "com.ardia.browser.ios.control.voice") {
       ControlWidgetButton(action: VoiceSearchControlIntent()) {
         Label("Voice Search", systemImage: "mic.fill")
       }
@@ -54,7 +54,7 @@ struct VoiceSearchControl: ControlWidget {
 
 struct IncognitoTabControl: ControlWidget {
   var body: some ControlWidgetConfiguration {
-    StaticControlConfiguration(kind: "com.ardia.ios.control.incognito") {
+    StaticControlConfiguration(kind: "com.ardia.browser.ios.control.incognito") {
       ControlWidgetButton(action: IncognitoControlIntent()) {
         Label("Incognito Tab", systemImage: "eyes")
       }

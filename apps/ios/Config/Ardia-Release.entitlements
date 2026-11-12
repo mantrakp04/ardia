@@ -6,7 +6,7 @@
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.ardia.ios</string>
+		<string>group.com.ardia.browser.ios</string>
 	</array>
 </dict>
 </plist>

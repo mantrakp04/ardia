@@ -21,6 +21,7 @@ apps/ios/
     Sources/ArdiaBrowser       tabs, history, archive, SwiftData models, WebKit, content blocking, omnibox
     Sources/ArdiaDesign        design tokens and shared SwiftUI components
   scripts/bundle-shared.mjs    bundles packages/sync and packages/core for JavaScriptCore
+  scripts/asc.mjs              App Store Connect client for the TestFlight release
 ```
 
 Targets: iOS 27, iPhone only, Swift 6 with strict concurrency. The app target defaults to MainActor isolation.
@@ -70,7 +71,7 @@ the folder or the Mac's format changes, and a Mac that has never heard of the iP
   `set:customSearchUrl`, `set:customSearchEngines`), and per profile the other devices' tabs, pinned tabs and groups,
   bookmarks and history.
 - **Cycle.** On launch, on returning to the foreground, every 15 s while in the foreground, 3 s after a local
-  change, on pull to refresh, and in background app refresh (`com.ardia.ios.sync`).
+  change, on pull to refresh, and in background app refresh (`com.ardia.browser.ios.sync`).
 
 ## What the app does
 
@@ -92,7 +93,8 @@ sizes, copy), on Apple's controls:
 - **System.** Widgets (search, the Mac's tabs, Lock Screen), Control Center controls, App Intents and Siri phrases,
   a share extension and an Open in Ardia action, Spotlight for open and archived tabs, Handoff of the current page,
   Home Screen quick actions, and http/https link handling. The default-browser entitlement is in
-  `Config/Ardia-Release.entitlements` for Release builds only, since it needs Apple's approval.
+  `Config/Ardia-Release.entitlements`, which a release build uses only once Apple has granted it (Releasing to
+  TestFlight, below).
 
 ## Demo mode and launch arguments
 
@@ -128,9 +130,33 @@ A real iPhone and a real Mac on the same iCloud account: scan the code, pick the
 bookmarks and sent tabs go both ways; a relaunch and a reboot keep the folder bookmark; background refresh runs.
 The simulator can't sign in to iCloud Drive.
 
-Export compliance: sync encrypts with AES-GCM and HKDF from CryptoKit, so `ITSAppUsesNonExemptEncryption` is
-true. On the first App Store Connect upload, answer that the app uses standard encryption algorithms (mass market,
-no licence); availability in France may ask for a French encryption declaration.
+Export compliance: the app's only encryption is Apple's own (CryptoKit's AES-GCM, HKDF and HMAC for sync, and
+HTTPS), with no cryptography of its own and none from a third party, which Apple counts as exempt. So
+`ITSAppUsesNonExemptEncryption` is false, a build needs no compliance code, and App Store Connect asks nothing per
+build. Adding a cryptography library, or an algorithm implemented in the app, changes that answer.
+
+## Releasing to TestFlight
+
+The app record in App Store Connect is "Ardia", bundle id `com.ardia.browser.ios`, team `U5L5T3NGVV`; its extensions
+are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ardia.browser.ios`.
+
+- **In CI.** Run the iOS Release workflow (`.github/workflows/ios-release.yml`) from `main`:
+  `gh workflow run ios-release.yml -f mode=upload`. It archives the Release build, signs it with Xcode's automatic
+  signing and uploads it, all through the App Store Connect API key the Mac release notarizes with
+  (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`), then waits until App Store Connect has processed the build.
+  `mode=status` lists what App Store Connect holds (the app record, App IDs, certificates, builds, tester groups) and
+  builds nothing; `mode=dry-run` stops at the signed .ipa. The build number is the one after the highest uploaded,
+  unless you pass `build`. The archive makes a development certificate on the runner; the run revokes it at the end.
+- **On a Mac.** `scripts/release-ios.sh <build number>` does the same with the account Xcode is signed in to, or with
+  `ASC_KEY`, `ASC_KEY_ID` and `ASC_ISSUER`. `node apps/ios/scripts/asc.mjs` is the App Store Connect client behind
+  both (`--help` lists its commands).
+- **Version.** `MARKETING_VERSION` in `project.yml` (then `xcodegen generate`), 1.0 for the alpha; the build number is
+  never committed.
+- **Default browser.** `com.apple.developer.web-browser` is in `Config/Ardia-Release.entitlements`, and Apple grants
+  it per App ID on request. Until it is granted, release builds sign with `Config/Ardia.entitlements` and iOS doesn't
+  offer Ardia as the default browser. Once granted, pass `default_browser=true` (`--default-browser`).
+- **Testers.** A processed build reaches the internal testers at once. External testers need Beta App Review: a beta
+  description, a feedback email and a privacy policy URL in App Store Connect.
 
 ## Agent notes
 
