@@ -31,7 +31,7 @@ const SITE_COLOR_CHOICES: ChoiceOption<boolean>[] = [
   { value: false, preview: "sitecolor-off", title: "Keep my theme color", subtitle: "The same color on every site" },
 ];
 const STYLE_CHOICES: ChoiceOption<Settings["interfaceStyle"]>[] = [
-  { value: "glass", preview: "style-glass", title: "Liquid Glass", subtitle: "Buttons and panels catch the light, as in macOS Tahoe" },
+  { value: "glass", preview: "style-glass", title: "Liquid Glass", subtitle: "Buttons and panels catch the light, as in Tahoe" },
   { value: "classic", preview: "style-classic", title: "Classic", subtitle: "Flat and quiet, as in Dia" },
 ];
 const SWITCHER_CHOICES: ChoiceOption<boolean>[] = [
@@ -62,8 +62,8 @@ export function LookStep() {
     previewLive(liquidGlass ? { appearance: values.appearance, interfaceStyle: values.interfaceStyle } : { appearance: values.appearance });
   }, []);
   const name = customTheme ? "Custom" : color ? PROFILE_COLORS[color]?.name : null;
-  const glass = liquidGlass ? { interfaceStyle: values.interfaceStyle, glassTintWithTheme: values.glassTintWithTheme, glassTintAmount: values.glassTintAmount } : {};
-  const styleLine = !liquidGlass ? [] : values.interfaceStyle === "classic" ? ["Classic style"] : values.glassTintWithTheme ? [`Glass tinted ${Math.round(values.glassTintAmount * 100)} %`] : [];
+  const glass = liquidGlass ? { interfaceStyle: values.interfaceStyle, glassTintWithTheme: values.glassTintWithTheme } : {};
+  const styleLine = !liquidGlass ? [] : values.interfaceStyle === "classic" ? ["Classic style"] : values.glassTintWithTheme ? ["Tinted glass"] : [];
   return (
     <Page
       id="look"
@@ -87,9 +87,6 @@ export function LookStep() {
               selected={values.glassTintWithTheme}
               onPress={() => change({ glassTintWithTheme: !values.glassTintWithTheme }, true)}
             />
-          ) : null}
-          {values.interfaceStyle === "glass" && values.glassTintWithTheme ? (
-            <Slider stacked label="Tint amount" value={values.glassTintAmount} onChange={(v) => change({ glassTintAmount: Math.round(v * 100) / 100 }, true)} />
           ) : null}
         </View>
       ) : null}

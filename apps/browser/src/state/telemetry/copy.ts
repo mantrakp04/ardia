@@ -20,6 +20,7 @@ export const SHARING_COPY = {
   onboarding: {
     title: "Help us fix what breaks",
     row: "Crashes, errors, feature counts and speed. Never your sites, typing or tabs.",
+    note: "Off unless you turn it on. Either way, Ardia sends one anonymous “opened today” count a day, with no ID.",
     subtitle:
       "Off unless you turn it on; change it any time in Settings › Privacy & Security. Either way, Ardia sends one anonymous “opened today” count a day, with its version and macOS version and no persistent ID.",
   },
