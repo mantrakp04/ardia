@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const { activeTabId } = await import("../browser/model.ts");
-const { dispositionFor, openFromBar } = await import("./openFromBar.ts");
+const { barSplitsFrom, dispositionFor, openFromBar } = await import("./openFromBar.ts");
+const { setOpeningGate } = await import("../tabs/openingGate.ts");
 const { splitOf, splitTabIds } = await import("../splits/splits.ts");
 await import("../../test-native/index.ts");
 
@@ -54,4 +55,41 @@ test("⌥↩ into a full split opens a background tab instead of dropping the UR
   assert.notEqual(activeTabId(S(), w), added[0], "closing the active last pane does not jump to the overflow tab");
   assert.ok([a, b].includes(activeTabId(S(), w)), "focus stays on a remaining split pane");
   assert.ok(splitOf(S(), a));
+});
+
+test("⌥↩ asks the opening gate: a rewrite opens the new URL in the pane, a cancel opens nothing", async () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com/" });
+  const a = S().windows[w].tabIds[0];
+  const asked = [];
+  setOpeningGate((url, context) => {
+    asked.push(context.via);
+    if (url.includes("blocked")) return { cancel: true };
+    return Promise.resolve({ url: "https://rewritten.example/" });
+  });
+  try {
+    const before = S().windows[w].tabIds.length;
+    openFromBar("https://blocked.example/", a, "split");
+    assert.equal(S().windows[w].tabIds.length, before);
+    assert.equal(splitOf(S(), a), undefined);
+    openFromBar("https://b.com/", a, "split");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(
+      splitTabIds(splitOf(S(), a)).map((id) => S().tabs[id].url),
+      ["https://a.com/", "https://rewritten.example/"],
+    );
+    assert.deepEqual(asked, ["newTab", "newTab"]);
+  } finally {
+    setOpeningGate(null);
+  }
+});
+
+test("⌥↩ splits only from a tab showing a page", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com/" });
+  const a = S().windows[w].tabIds[0];
+  const blank = S().newTab(w, {});
+  assert.equal(barSplitsFrom(a), true);
+  assert.equal(barSplitsFrom(blank), false);
+  assert.equal(barSplitsFrom("missing"), false);
 });
