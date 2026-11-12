@@ -274,6 +274,9 @@ BOOL Above(NSView *a, NSView *b) {
   }
   if (seen == _reports.seenByUser) return;
   _reports.seenByUser = seen;
+  if (_reports.autoPictureInPictureActive || _reports.inPictureInPicture || self.playsForAutoPictureInPicture) {
+    [self notePictureInPictureSight:seen ? @"sight seen" : @"sight left"];
+  }
   [self traceAutoPictureInPicture:seen ? @"app: the user sees the tab" : @"app: the user left the tab"];
   [self updateAutoPictureInPicture];
 }

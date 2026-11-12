@@ -40,9 +40,9 @@ let counts = { ...NO_COUNTS }, countsSince = Date.now();
 
 function emitCounts() {
   const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit(), stuckDrags = takeStuckDragCounts(), urlCopies = takeUrlCopyCounts(), tabSleeps = takeTabSleepCounts();
-  const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab } = takePictureInPictureCounts();
+  const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab, closed: pictureInPictureClosed } = takePictureInPictureCounts();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || Object.values(tabSleeps).some(Boolean) || Object.values(stuckDrags).some(Boolean) || urlCopies.url_copies || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
+  if (Object.values(counts).some(Boolean) || Object.values(tabSleeps).some(Boolean) || Object.values(stuckDrags).some(Boolean) || urlCopies.url_copies || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit || Object.values(pictureInPictureClosed).some((by) => by.auto || by.manual)) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -80,7 +80,7 @@ function emitCounts() {
       split_view_closes: counts.splitViewCloses,
       window_close_tabs_kept: counts.windowCloseTabsKept,
       sync_snapshots_written: snapshots.count,
-      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024), auto_pip_nothing_playing: autoPictureInPictureNothingPlaying, pip_back_to_tab: backToTab.chromium, pip_back_to_tab_webkit: backToTab.webkit,
+      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024), auto_pip_nothing_playing: autoPictureInPictureNothingPlaying, pip_back_to_tab: backToTab.chromium, pip_back_to_tab_webkit: backToTab.webkit, pip_closed_auto_by_app: pictureInPictureClosed.app.auto, pip_closed_auto_by_chrome: pictureInPictureClosed.chrome.auto, pip_closed_manual_by_app: pictureInPictureClosed.app.manual, pip_closed_manual_by_chrome: pictureInPictureClosed.chrome.manual,
       toolbar_scroll_hides: counts.toolbarScrollHides,
       toolbar_scroll_hide_bounces: counts.toolbarScrollHideBounces,
       card_resize_layouts: counts.cardResizeLayouts,

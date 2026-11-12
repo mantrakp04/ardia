@@ -106,6 +106,15 @@ BOOL TracingPictureInPicture() {
 
 @implementation ArdiaWebView (PictureInPicture)
 
+- (void)notePictureInPictureSight:(NSString *)what {
+  ardia_host::NoteFocusChange(
+      [NSString stringWithFormat:@"pip %@ seenByUser=%d seenNow=%d visible=%d appActive=%d key=%d autoActive=%d inPip=%d", what,
+                                 _reports.seenByUser, self.seenByUser, _visible, NSApp.isActive,
+                                 self.window.isKeyWindow, _reports.autoPictureInPictureActive,
+                                 _reports.inPictureInPicture],
+      self.window);
+}
+
 - (void)traceManualPictureInPicture:(NSString *)what {
   if (TracingPictureInPicture()) [_tab tracePictureInPicture:[@"app: manual PiP " stringByAppendingString:what] withInputs:NO];
 }
@@ -209,6 +218,7 @@ BOOL TracingPictureInPicture() {
   if (!_reports.seenByUser && self.playsForAutoPictureInPicture) {
     [self traceAutoPictureInPicture:@"app: auto PiP left to Chrome"];
   } else if (_reports.seenByUser && (_reports.autoPictureInPictureActive || _reports.inPictureInPicture)) {
+    [self notePictureInPictureSight:@"exit requested"];
     _reports.autoPictureInPictureActive = NO;
     [self exitPictureInPicture];
   }
@@ -223,7 +233,12 @@ BOOL TracingPictureInPicture() {
     const BOOL active = [state[@"active"] boolValue];
     if (!active && !_reports.inPictureInPicture) return;
     _reports.inPictureInPicture = active;
-    [self emit:@"pictureInPicture" payload:@{@"kind" : @"video", @"active" : @(active)}];
+    NSMutableDictionary *payload = [@{@"kind" : @"video", @"active" : @(active)} mutableCopy];
+    if (!active && state[@"closedBy"]) {
+      payload[@"closedBy"] = state[@"closedBy"];
+      payload[@"auto"] = @([state[@"auto"] boolValue]);
+    }
+    [self emit:@"pictureInPicture" payload:payload];
     if (!active) return;
     ardia_pip::WatchZoom();
     ardia_pip::VideoEntered(self, [NSURL URLWithString:tab.url ?: @""].host ?: @"");

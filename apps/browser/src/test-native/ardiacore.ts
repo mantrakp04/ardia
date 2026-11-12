@@ -38,6 +38,7 @@ const testGlobals = globalThis as {
   acTestCliActive?: (tabId: string | null) => Promise<CliControlStatus> | undefined;
   acTestCliTargets?: (tabId: string) => CliTabTarget | undefined;
   acTestTasks?: () => EngineTask[];
+  acTestEngineInfo?: () => CallResult<"engine.info">;
   acTestUserScripts?: { engine: ExtensionEngine };
   acTestSuggest?: (args: { url: string; id: number; profile: string }) => CallResult<"search.suggest"> | undefined;
 };
@@ -308,6 +309,11 @@ const fakeModules = {
     {
       components: () => [],
       tasks: () => testGlobals.acTestTasks?.() ?? [],
+      info: () => {
+        const info = testGlobals.acTestEngineInfo?.();
+        if (!info) throw Object.assign(new Error("engine.info has no test fake yet"), { code: "ERR_UNKNOWN_CALL" });
+        return info;
+      },
       beginTracing: () => false,
       endTracing: () => null,
       isTracing: () => false,
