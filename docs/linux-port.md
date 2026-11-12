@@ -1003,6 +1003,18 @@ It works as on the Mac ([cli.md](cli.md), [automation.md](automation.md)); what 
 - **Private downloads.** These always ask where to save, as Chrome's incognito does. They reach only their own window
   and are never kept.
 
+## Upstream syncs
+
+Newest first. Each entry names the upstream commit `linux-support` was rebased onto and what the Linux side needed.
+
+- **2026-11-11, upstream 39bd206** (78 commits after e2c7577). The rebase applied without conflicts and the engine key
+  stayed `e3f26f7253b3`, so engine `engine-e3f26f7253b3` still matches. The Linux symbol set gained `pip`, which the
+  tab row now draws for a tab in Picture in Picture, and `paperclip`, which Report a Problem used before. The new
+  `ArdiaLocation` module answers `granted` on Linux, which has no app-wide location switch, so allowing a site's
+  location never shows the macOS System Settings dialog. Upstream's Dock-reopen, hover-lost and macOS auto-PiP
+  telemetry never fire on Linux; What's Sent says "the system" where those lines named macOS. The link status bubble
+  stays at the bottom (see Known gaps).
+
 ## Known gaps
 
 These were open at the time of the PR.
@@ -1045,6 +1057,9 @@ These were open at the time of the PR.
 - **Auto-hide tabs with the sidebar on the right.** The strip can't be revealed, because the engine only provides
   `watchLeftEdge`, and the window controls stay anchored on the left. It needs an engine-side right-edge watcher and is
   deferred.
+- **Link status bubble.** Upstream moves it to the top of the page while the pointer is near the bottom edge, from the
+  `fromBottom` the macOS page sends with each status. The Linux engine sends only the text, so the bubble stays at the
+  bottom. It needs the engine to report the pointer's distance from the page's bottom edge.
 - **Small UI bugs.**
   - A sidebar hover card stays open when the pointer moves straight from the sidebar into the page.
   - In the top-strip layout, the sidebar peek isn't cut out of the page.
