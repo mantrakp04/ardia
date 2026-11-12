@@ -15,6 +15,7 @@ import type { AdoptId } from "../browser/types";
 import { linkGate, type LinkGateResult, type LinkRouteChoice, type LinkSourceInfo } from "./linkGate";
 import { externalLinkOpen, type ExternalLinkOpen } from "./externalLinkOpen";
 import { noteExternalLink } from "../telemetry/usage";
+import { noteLittleArdiaEscapeClose, type EscapePressedIn } from "../telemetry/littleArdiaEscapes";
 
 const store = () => useBrowser.getState();
 
@@ -174,9 +175,21 @@ export function closeLittleArdia(windowId: string) {
   if (isSmall(store(), windowId)) closeWindowAnimated(windowId);
 }
 
-export function closeLittleArdiaOnEscape(tabId: string) {
+export function closeLittleArdiaOnEscape(tabId: string, pressedIn: EscapePressedIn = "page") {
   const s = store();
   const tab = s.tabs[tabId];
-  if (!tab || !isSmall(s, tab.windowId) || s.find[tabId]?.open || s.windowUi[tab.windowId]?.panel.open) return;
+  if (!tab || !isSmall(s, tab.windowId) || isWindowClosing(tab.windowId) || s.find[tabId]?.open || s.windowUi[tab.windowId]?.panel.open) return;
+  noteLittleArdiaEscapeClose(pressedIn);
   closeLittleArdia(tab.windowId);
+}
+
+export function closeBlankLittleArdiaOnEscape(windowId: string): boolean {
+  const s = store();
+  if (!isSmall(s, windowId) || isWindowClosing(windowId)) return false;
+  const tabId = activeTabId(s, windowId);
+  const tab = tabId ? s.tabs[tabId] : undefined;
+  if (tab && (tab.url || navigationOf(tab))) return false;
+  noteLittleArdiaEscapeClose("blankBar");
+  closeLittleArdia(windowId);
+  return true;
 }
