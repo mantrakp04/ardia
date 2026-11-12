@@ -171,7 +171,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
     for (const k of result.failed) failed.set(k, [...(failed.get(k) ?? []), profile.name]);
     for (const w of result.warnings) {
       if (w.code === "undecryptable") secretsLeft += 1;
-      if ((w.code === "undecryptable" || w.code === "skipped" || w.code === "locked") && !result.failed.includes(w.kind)) left.push(`${w.message}.`);
+      if (w.code === "locked" || ((w.code === "undecryptable" || w.code === "skipped") && !result.failed.includes(w.kind))) left.push(`${w.message}.`);
     }
     const refused = (k: ImportKind) => {
       const names = failed.get(k) ?? [];
