@@ -23,13 +23,20 @@ const ART = {
 type Light = keyof (typeof ART)["light"];
 const LIGHTS: Light[] = ["close", "minimize", "zoom"];
 
-let center: [number, number] | null = DEFAULT_CENTER;
+export type TrafficLightsPlace = { center: readonly [number, number]; trailing: boolean };
+
+let place: TrafficLightsPlace = { center: DEFAULT_CENTER, trailing: false };
 const watchers = new Set<() => void>();
 
-export function setTrafficLightsCenter(_windowId: string, next: [number, number] | null) {
-  center = next ?? DEFAULT_CENTER;
+export function setTrafficLightsCenter(_windowId: string, next: readonly [number, number] | null, trailing = false) {
+  place = next ? { center: [next[0], next[1]], trailing } : { center: DEFAULT_CENTER, trailing: false };
   for (const watcher of watchers) watcher();
   return Promise.resolve();
+}
+
+export function trafficLightPosition({ center, trailing }: TrafficLightsPlace, index: number) {
+  const top = center[1] - DIAMETER / 2;
+  return trailing ? { right: center[0] - index * SPACING - DIAMETER / 2, top } : { left: center[0] + index * SPACING - DIAMETER / 2, top };
 }
 
 export function TrafficLight({ name, theme }: { name: Light; theme: keyof typeof ART }) {
@@ -55,21 +62,19 @@ export function TrafficLight({ name, theme }: { name: Light; theme: keyof typeof
   );
 }
 
-export function useTrafficLightsCenter() {
-  return useSyncExternalStore(
-    (watch) => (watchers.add(watch), () => void watchers.delete(watch)),
-    () => center,
-  );
+export const trafficLightsPlace = () => place;
+
+export function useTrafficLightsPlace() {
+  return useSyncExternalStore((watch) => (watchers.add(watch), () => void watchers.delete(watch)), trafficLightsPlace);
 }
 
 export function TrafficLights() {
-  const at = useTrafficLightsCenter();
+  const at = useTrafficLightsPlace();
   const theme = useBrowser((s) => (s.ui.appDark ? "dark" : "light"));
-  if (!at) return null;
   return (
-    <div aria-hidden style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 1000 }}>
+    <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1000 }}>
       {LIGHTS.map((name, i) => (
-        <div key={name} style={{ position: "absolute", left: at[0] + i * SPACING - DIAMETER / 2, top: at[1] - DIAMETER / 2 }}>
+        <div key={name} style={{ position: "absolute", ...trafficLightPosition(at, i) }}>
           <TrafficLight name={name} theme={theme} />
         </div>
       ))}

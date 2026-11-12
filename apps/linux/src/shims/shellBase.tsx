@@ -101,7 +101,7 @@ const shellLocals: Record<string, unknown> = {
   setAppearance,
   isDarkAppearance,
   windowIds,
-  setTrafficLightsCenter: async (id: string, center: [number, number] | null) => setTrafficLightsCenter(id, center),
+  setTrafficLightsCenter: async (id: string, center: [number, number] | null, trailing = false) => setTrafficLightsCenter(id, center, trailing),
 };
 provideNativeModuleProvider((module, method) => module === "ArdiaShell" && Object.hasOwn(shellLocals, method) ? shellLocals[method] : undefined);
 
