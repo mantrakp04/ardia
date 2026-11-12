@@ -23,7 +23,7 @@ type Hold = { chip: number; end: number };
 
 const stripEnd = ({ slots, lefts }: DragGeometry) => (slots.length ? lefts.at(-1)! + slots.at(-1)!.width : 0);
 
-export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, current, resting }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean }) {
+export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, current, resting, cut, onSpill }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean; cut: number; onSpill: (spill: number) => void }) {
   const windowId = useWindowId();
   const flare = useContext(FloatingStrip) ? 0 : FLARE;
   const pageStyle = usePageStyle(windowId, slot, pageWidth + flare * 2);
@@ -69,6 +69,15 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     const span = spanInStrip(tabId);
     return span && [inset + span[0], span[1]];
   };
+  const contentWidth = useRef(0);
+  const noteSpill = () => {
+    if (current) onSpill(Math.max(0, Math.round(contentWidth.current - flare - spare - scrolled.current - (viewport.current - cut))));
+  };
+  useEffect(noteSpill, [current, cut, spare]);
+  const lastTabIds = useRef<string[]>([]);
+  const lastEntry = parsed.filter((e) => e.kind !== "dock").at(-1);
+  const lastMember = lastEntry?.kind === "group" && !lastEntry.collapsed ? lastEntry.members.at(-1) : undefined;
+  lastTabIds.current = lastMember ? tabsOf(lastMember) : (top.slots.at(-1)?.tabIds ?? []);
   const latestSpan = useRef(spanOf);
   latestSpan.current = spanOf;
   const revealed = useRef(activeId);
@@ -77,6 +86,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     revealed.current = activeId;
     if (!current || !activeId || tabDragging()) return;
     const frame = requestAnimationFrame(() => {
+      if (lastTabIds.current.includes(activeId)) return scroll.current?.scrollToEnd({ animated: true });
       const span = latestSpan.current(activeId);
       const x = span && revealOffset(span[0], span[1], scrolled.current, viewport.current, flare + GAP);
       if (x !== null) scroll.current?.scrollTo({ x, animated: true });
@@ -102,11 +112,19 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 scrollEventThrottle={16}
-                onLayout={(e) => void (viewport.current = e.nativeEvent.layout.width)}
+                onLayout={(e) => {
+                  viewport.current = e.nativeEvent.layout.width;
+                  noteSpill();
+                }}
+                onContentSizeChange={(width) => {
+                  contentWidth.current = width;
+                  noteSpill();
+                }}
                 onScroll={(e) => {
                   if (Math.abs(e.nativeEvent.contentOffset.x - scrolled.current) >= 1) dismissStripHoverIn(windowId);
                   scrolled.current = e.nativeEvent.contentOffset.x;
                   setAtStart(scrolled.current < 0.5);
+                  noteSpill();
                 }}
                 style={{ flex: 1, marginLeft: flare - inset }}
                 contentContainerStyle={{ alignItems: "flex-start", gap: GAP, paddingLeft: inset, paddingRight: flare }}

@@ -2,6 +2,7 @@ export {
   ActivitySpinner,
   ContextMenuArea,
   DockSelection,
+  EdgeFade,
   FadeLabel,
   FileDropArea,
   MagnifyArea,
