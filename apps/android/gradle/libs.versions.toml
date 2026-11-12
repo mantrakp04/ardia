@@ -21,6 +21,11 @@ work = "2.10.5"
 coroutines = "1.10.2"
 robolectric = "4.17"
 webkit = "1.18.0"
+camerax = "1.6.0"
+zxing = "3.5.4"
+glance = "1.2.0"
+splashscreen = "1.2.0"
+androidxTestServices = "1.6.0"
 
 [libraries]
 hermes-android = { module = "com.facebook.hermes:hermes-android", version.ref = "hermes" }
@@ -42,6 +47,17 @@ coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-androi
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
+camerax-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
+camerax-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+camerax-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+camerax-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
+splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }
+androidx-test-services-storage = { module = "androidx.test.services:storage", version.ref = "androidxTestServices" }
+androidx-test-services = { module = "androidx.test.services:test-services", version.ref = "androidxTestServices" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
