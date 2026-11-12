@@ -63,7 +63,7 @@ const usesPageA = [
   "private-windows-create", "extension-private-window", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
   "settings-services", "download-navigation", "page-events", "page-background", "external-app-answer",
   "external-app-from-extension",
-  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "auto-picture-in-picture-app-switch", "picture-in-picture-opt-out", "pip-window", "page-focus",
+  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "auto-picture-in-picture-app-switch", "picture-in-picture-opt-out", "pip-window", "pip-framing", "page-focus",
   "fullscreen-tab-switch", "fullscreen-native", "fullscreen-system-title-bar", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
   "fullscreen-pip", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
   "permission-prompt", "popup-blocked", "move-tab-slow-mount", "move-last-tab-slow-mount",
@@ -3723,6 +3723,120 @@ try {
         close: { activations: closed.activations, raised: closed.raised.length },
         backToTab: { activations: back.activations, activateRequests: backRequests },
       };
+    } finally {
+      await closeTab(tab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("pip-framing", async () => {
+    const tab = await openTab(`${base}/video?framing`, "Video");
+    try {
+      await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
+      await startVideo(tab.id, false);
+      await pipByHand(tab.id);
+      const shown = await until("the styled PiP window", async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null, 5000);
+      const pipAct = (action) => engine("tabs.devPictureInPictureAction", { action });
+      const captureWindow = (windowNumber, png) =>
+        execFileSync("/usr/bin/python3", ["-I", "-c", [
+          "import ctypes, ctypes.util, sys",
+          "cg = ctypes.cdll.LoadLibrary(ctypes.util.find_library('CoreGraphics'))",
+          "cf = ctypes.cdll.LoadLibrary(ctypes.util.find_library('CoreFoundation'))",
+          "io = ctypes.cdll.LoadLibrary('/System/Library/Frameworks/ImageIO.framework/ImageIO')",
+          "class R(ctypes.Structure): _fields_ = [(n, ctypes.c_double) for n in 'xywh']",
+          "cg.CGWindowListCreateImage.restype = ctypes.c_void_p",
+          "cg.CGWindowListCreateImage.argtypes = [R, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]",
+          "image = cg.CGWindowListCreateImage(R(float('inf'), float('inf'), 0, 0), 8, int(sys.argv[1]), 1 | 8)",
+          "image or sys.exit('no image')",
+          "path = sys.argv[2].encode()",
+          "cf.CFURLCreateFromFileSystemRepresentation.restype = cf.CFStringCreateWithCString.restype = ctypes.c_void_p",
+          "cf.CFURLCreateFromFileSystemRepresentation.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_long, ctypes.c_bool]",
+          "cf.CFStringCreateWithCString.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint32]",
+          "io.CGImageDestinationCreateWithURL.restype = ctypes.c_void_p",
+          "io.CGImageDestinationCreateWithURL.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p]",
+          "io.CGImageDestinationAddImage.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]",
+          "io.CGImageDestinationFinalize.argtypes = [ctypes.c_void_p]",
+          "url = cf.CFURLCreateFromFileSystemRepresentation(None, path, len(path), False)",
+          "dest = io.CGImageDestinationCreateWithURL(url, cf.CFStringCreateWithCString(None, b'public.png', 0x08000100), 1, None)",
+          "io.CGImageDestinationAddImage(dest, image, None)",
+          "io.CGImageDestinationFinalize(dest) or sys.exit('not written')",
+        ].join("\n"), String(windowNumber), png], { timeout: 20000 });
+      const pixels = (png, scale) => {
+        const [w, h] = execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0", png], { encoding: "utf8" }).trim().split(",").map(Number);
+        const raw = execFileSync("ffmpeg", ["-loglevel", "error", "-i", png, "-f", "rawvideo", "-pix_fmt", "rgba", "-"], { maxBuffer: 1 << 28 });
+        const at = (x, y) => raw.subarray((y * w + x) * 4, (y * w + x) * 4 + 4);
+        const luma = ([r, g, b, a]) => ((0.2126 * r + 0.7152 * g + 0.0722 * b) * a) / 255;
+        const centre = at(40 * scale, h >> 1);
+        const video = luma(centre);
+        const lit = (x, y) => luma(at(x, y)) >= video * 0.6;
+        const run = (step) => {
+          let i = 0;
+          while (i < Math.min(w, h) / 2 && !lit(...step(i))) i++;
+          return i;
+        };
+        const mx = w >> 1, my = h >> 1;
+        return {
+          size: [w, h],
+          shown: centre[3] === 255 && video > 0,
+          band: { left: run((i) => [i, my]), right: run((i) => [w - 1 - i, my]), top: run((i) => [mx, i]), bottom: run((i) => [mx, h - 1 - i]) },
+          radii: Object.fromEntries(
+            [["topLeft", 0, 0], ["topRight", 1, 0], ["bottomLeft", 0, 1], ["bottomRight", 1, 1]].map(([corner, right, bottom]) => {
+              const box = 16 * scale;
+              let clear = 0;
+              for (let j = 0; j < box; j++)
+                for (let i = 0; i < box; i++) clear += 1 - at(right ? w - 1 - i : i, bottom ? h - 1 - j : j)[3] / 255;
+              return [corner, +(Math.sqrt(clear / (1 - Math.PI / 4)) / scale).toFixed(2)];
+            }),
+          ),
+        };
+      };
+      const framing = async (state) => {
+        await sleep(600);
+        const f = JSON.parse(await pipAct("framing"));
+        await pipAct(`snapshot:framing-${state}`);
+        await pipAct("alpha:1");
+        let seen;
+        try {
+          seen = await until(`the ${state} PiP window's video in a capture`, async () => {
+            const png = join(scratch, `pip-framing-${state}.png`);
+            captureWindow(shown.window, png);
+            const shot = pixels(png, f.scale);
+            return shot.shown ? shot : null;
+          }, 25000);
+        } finally {
+          await pipAct("alpha:0");
+        }
+        const px = f.scale;
+        const radii = seen.radii;
+        log(`${state}: ${JSON.stringify({ ...f, pixels: seen, radii })}`);
+        const whole = `{{0, 0}, ${f.window}}`;
+        const [ww, wh] = f.window.match(/[\d.]+/g).map(Number);
+        const wrong = [];
+        if (seen.size[0] !== ww * px || seen.size[1] !== wh * px) wrong.push(`captured ${seen.size} for a ${f.window} window at ${px}x`);
+        for (const key of ["content", "compositor", "overlay"]) if (f[key] !== whole) wrong.push(`${key} ${f[key]} instead of ${whole}`);
+        if (!f.contentMasks || f.contentRadius !== f.radius || f.rimRadius !== f.radius || f.rimWidth !== 1)
+          wrong.push(`corners: content ${f.contentRadius} (masks ${f.contentMasks}), rim ${f.rimRadius}/${f.rimWidth}, expected ${f.radius}`);
+        const bands = Object.entries(seen.band).filter(([, n]) => n > 1);
+        if (bands.length) wrong.push(`a dark band between the window's edge and the video: ${bands.map(([k, n]) => `${k} ${n / px} pt`).join(", ")}`);
+        const off = Object.entries(radii).filter(([, r]) => Math.abs(r - f.radius) > 0.5);
+        if (off.length) wrong.push(`corners aren't ${f.radius} pt: ${off.map(([k, r]) => `${k} ${r}`).join(", ")}`);
+        if (wrong.length) throw new Error(`${state}: ${wrong.join("; ")}`);
+        return { window: f.window, styleMask: f.styleMask, scale: px, band: seen.band, radii };
+      };
+      const rest = await framing("rest");
+      await pipAct("mouse:moved:40,100");
+      const hovered = await framing("hovered");
+      await pipAct("mouse:moved:-50,-50");
+      writeFileSync(join(scratch, "pip-layers.txt"), await pipAct("layers"));
+      const [x, y] = shown.frame.match(/-?[\d.]+/g).map(Number);
+      await pipAct(`frame:{{${x - 144}, ${y}}, {480, 270}}`);
+      const resized = await framing("resized");
+      await pipAct("stash");
+      await sleep(800);
+      await pipAct("unstash");
+      await sleep(800);
+      const restored = await framing("restored");
+      return { rest, hovered, resized, restored };
     } finally {
       await closeTab(tab.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
