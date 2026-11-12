@@ -128,6 +128,18 @@ test("back is not offered on a tab opened by hand beside the current one, once i
   assert.equal(shown(w), b);
 });
 
+test("back on a Peek expanded into a tab closes it and shows the tab it was opened from", () => {
+  const { w, a } = windowWith("a");
+  const peek = S().openPeek(a, "https://peek.example/");
+  const promoted = S().peekToTab(w);
+  assert.equal(promoted, peek);
+  assert.equal(S().tabs[peek].fromLink, true, "expanding a Peek keeps that a link opened it");
+  assert.equal(canGoBack(peek, live(peek)), true);
+  goBack(peek);
+  assert.equal(S().tabs[peek], undefined, "the tab closed");
+  assert.equal(shown(w), a, "the tab it was opened from is shown");
+});
+
 test("back does nothing once the opener is gone", () => {
   const { w, a } = windowWith("a");
   const b = S().newTab(w, { url: "https://b.com/", openerId: a, background: false });

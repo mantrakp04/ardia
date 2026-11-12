@@ -119,6 +119,7 @@ export const createPeekSlice: StateCreator<BrowserState, [], [], PeekSlice> = (s
     if (activate) s = forgetOpeners(s, windowId);
     const loaded = hasNavigatedPage(tab);
     const moved = { ...tab, openerId: s.tabs[peek.sourceId] ? peek.sourceId : null, page: loaded ? renavigated(tab, navigationTo(tab.url)) : tab.page, lastActiveAt: Date.now() };
+    if (moved.openerId) moved.fromLink = true;
     const tabs = { ...s.tabs, [tab.id]: moved };
     const w = s.windows[windowId]!;
     const tabIds = [...w.tabIds];
