@@ -9,6 +9,7 @@ import { placing, type TabPlacement } from "./placing";
 import { pinnedGroupMembers } from "../browser/structure";
 import { samePage } from "../../lib/url";
 import { pinHome } from "./pinHomes";
+import { isTopApp } from "./topApps";
 
 export type OrganizeSlice = {
   selection: Record<string, string[]>;
@@ -85,6 +86,8 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
 
   clickTab(windowId, tabId, mods = {}) {
     const s = get();
+    const topApp = mods.metaKey && !mods.altKey && s.tabs[tabId];
+    if (topApp && isTopApp(topApp)) return void s.newTab(windowId, { url: topApp.pinnedUrl || topApp.url, profileId: topApp.profileId, background: !mods.shiftKey });
     const intoGroup = !!mods.altKey && !!mods.shiftKey && !mods.metaKey && s.settings.optShiftClickOpensInGroup;
     const picked = intoGroup ? null : clickedSelection(s, windowId, tabId, mods);
     if (intoGroup) openInActiveGroup(s, windowId, tabId);
