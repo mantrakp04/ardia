@@ -52,3 +52,13 @@ test("nothing is listed twice", () => {
   const doomed = plan({ caches, openPulls: [], newestOnly: ["turbo-", "turbo-"] });
   assert.deepEqual(doomed.map((item) => item.id).sort(), [1, 2]);
 });
+
+test("each branch keeps its own newest cache, since main cannot restore a branch's", () => {
+  const caches = [
+    cache(1, "xcode-cas-release-27A-2026-11-aaa", MAIN, "2026-11-01T00:00:00Z"),
+    cache(2, "xcode-cas-release-27A-2026-11-bbb", MAIN, "2026-11-02T00:00:00Z"),
+    cache(3, "xcode-cas-release-27A-2026-11-ccc", "refs/heads/release-dry-run", "2026-11-05T00:00:00Z"),
+  ];
+  const doomed = plan({ caches, openPulls: [], newestOnly: ["xcode-cas-release-"] });
+  assert.deepEqual(doomed.map((item) => item.id), [1]);
+});

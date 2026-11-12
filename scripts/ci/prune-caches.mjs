@@ -4,7 +4,8 @@ import { pathToFileURL } from "node:url";
 
 const HELP = `Frees GitHub Actions cache space, which is capped at 10 GB a repository.
 Deletes the caches of pull requests that are no longer open, and for each --newest-only
-key prefix every cache but the newest one.
+key prefix every cache but the newest one of each branch, since a branch cannot restore
+another branch's cache.
 
   scripts/ci/prune-caches.mjs [--dry-run] [--repo <owner/name>] [--newest-only <key prefix>]...
 
@@ -25,10 +26,14 @@ export function plan({ caches, openPulls, newestOnly }) {
     if (number !== null && !open.has(number)) doomed.set(cache.id, { ...cache, why: `pull request #${number} is closed` });
   }
   for (const prefix of newestOnly) {
-    const family = caches
+    const newestFirst = caches
       .filter((cache) => cache.key.startsWith(prefix) && !doomed.has(cache.id))
       .sort((one, other) => other.createdAt.localeCompare(one.createdAt) || other.id - one.id);
-    for (const cache of family.slice(1)) doomed.set(cache.id, { ...cache, why: `a newer ${prefix} cache exists` });
+    const refsWithANewerCache = new Set();
+    for (const cache of newestFirst) {
+      if (refsWithANewerCache.has(cache.ref)) doomed.set(cache.id, { ...cache, why: `${cache.ref} has a newer ${prefix} cache` });
+      refsWithANewerCache.add(cache.ref);
+    }
   }
   return [...doomed.values()];
 }

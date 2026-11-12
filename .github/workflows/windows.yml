@@ -138,6 +138,8 @@ jobs:
           if ($compilers.Count -ne 1) { throw "expected one Hermes compiler under $packages, found $($compilers.Count)" }
           New-Item -ItemType Directory -Force -Path (Split-Path -Parent $env:HERMES) | Out-Null
           Copy-Item -LiteralPath $compilers[0].FullName -Destination $env:HERMES
+          $digest = (Get-FileHash -LiteralPath "$env:APP/Bundle/index.windows.bundle" -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "build: index.windows.bundle has SHA-256 $digest"
       - name: Save the built app
         if: steps.built.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
