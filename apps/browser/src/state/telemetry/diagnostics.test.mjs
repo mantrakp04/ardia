@@ -207,9 +207,17 @@ test("tab presses count clicks, drags turned into clicks, drags and presses that
   presses.notePressStarted();
   presses.notePressEnded("click", "t3");
   presses.notePagePress("t4");
+  stub.pressesWithoutRelease.count = 2;
+  stub.pressRepeated.earlier = { landedOn: "RCTView<Surface", ms: 600 };
+  await presses.noteRowPress(true);
+  stub.pressRepeated.earlier = { landedOn: "RCTView<Surface", ms: 20 };
+  await presses.noteRowPress(true);
+  stub.pressRepeated.earlier = null;
   presses.emitTabPresses();
   await client.saveQueueNow();
   const props = events("tab_presses").at(-1).properties;
+  assert.deepEqual([props.repeat_presses, props.repeat_on_new_tab, props.repeat_gap_ms_p50, props.repeat_landed_on], [1, 1, 600, "RCTView<Surface"]);
+  assert.equal(props.lost_releases, 2);
   assert.equal(props.presses, 5);
   assert.equal(props.clicks, 2);
   assert.equal(props.drag_clicks, 1);
@@ -223,6 +231,11 @@ test("tab presses count clicks, drags turned into clicks, drags and presses that
   presses.emitTabPresses();
   await client.saveQueueNow();
   assert.equal(events("tab_presses").length, 1);
+  stub.pressesWithoutRelease.count = 3;
+  presses.emitTabPresses();
+  await client.saveQueueNow();
+  assert.equal(events("tab_presses").length, 2);
+  assert.deepEqual([events("tab_presses").at(-1).properties.lost_releases, events("tab_presses").at(-1).properties.presses], [1, 0]);
 });
 
 test("turning sharing off forgets pending presses and samples, so they never go out under the next install id", async () => {
