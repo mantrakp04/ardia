@@ -243,6 +243,15 @@ test("every measured key survives the telemetry property cleaner unchanged", () 
   assert.ok(measured < Object.keys(SETTING_SPECS).length);
 });
 
+test("the settings snapshot reports borderless mode and its default without changing the saved frame", () => {
+  const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, borderlessMode: true, pageFrame: 6 });
+  assert.equal(snap.setting_borderlessMode, "true");
+  assert.equal(snap.default_borderlessMode, "false");
+  assert.equal(snap.setting_pageFrame, "6");
+  assert.equal(snap.default_pageFrame, "9");
+  assert.deepEqual(cleanProperties(snap), snap);
+});
+
 test("the snapshot says whether text adjusts to the colour, and how many profiles have a custom colour, never which", () => {
   const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, adaptTextToColor: false });
   assert.equal(snap.setting_adaptTextToColor, "false");

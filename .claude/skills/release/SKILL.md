@@ -380,14 +380,14 @@ A release without `--phased` goes to everyone at once, as before.
 
 ### 5c. Homebrew tap
 
-https://github.com/mantrakp04/homebrew-tap holds `Casks/ardia.rb` (stable) and `Casks/ardia@nightly.rb`, so
-`brew install mantrakp04/tap/ardia` installs the latest DMG. `update-tap.sh <version>` clones the tap into a temp dir,
+https://github.com/ardia-browser/homebrew-tap holds `Casks/ardia.rb` (stable) and `Casks/ardia@nightly.rb`, so
+`brew install ardia-browser/tap/ardia` installs the latest DMG. `update-tap.sh <version>` clones the tap into a temp dir,
 sets the matching cask's `version` and `sha256` (GitHub's digest of the published DMG, checked against
 `dist/<version>/`), and pushes; `--dry-run` prints the diff instead. It refuses a version older than the cask's and
 does nothing when the cask is already there. `publish.sh` runs it for both channels (in CI only with the
 `HOMEBREW_TAP_TOKEN` secret; otherwise run it yourself after the workflow). The casks have `auto_updates true`: Sparkle updates installed copies and `brew upgrade`
 skips them, so a late tap push only delays new installs. Lint after a cask edit by hand (never `brew install` it: that
-writes `/Applications/Ardia.app`): `brew audit --cask --online mantrakp04/tap/ardia` and `brew style mantrakp04/tap`.
+writes `/Applications/Ardia.app`): `brew audit --cask --online ardia-browser/tap/ardia` and `brew style ardia-browser/tap`.
 
 ## 6. Deploy the site
 

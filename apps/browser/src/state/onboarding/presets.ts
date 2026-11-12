@@ -1,6 +1,6 @@
 import type { Settings } from "../settings/settings";
 
-export type BrowserSourceId = "arc" | "dia" | "chrome" | "safari" | "firefox" | "zen" | "brave" | "edge" | "fresh";
+export type BrowserSourceId = "arc" | "dia" | "chrome" | "safari" | "firefox" | "zen" | "brave" | "edge" | "helium" | "fresh";
 
 export type Preset = BrowserSourceId;
 
@@ -13,6 +13,7 @@ export const PRESET_NAMES: Record<Preset, string> = {
   zen: "Zen",
   brave: "Brave",
   edge: "Edge",
+  helium: "Helium",
   fresh: "Ardia",
 };
 
@@ -123,6 +124,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
   safari: { ...CLASSIC_TABS, extendWebsiteColor: true, bookmarksBar: "never" },
   brave: { ...CLASSIC_TABS, searchEngine: "brave" },
   edge: { ...CLASSIC_TABS, searchEngine: "bing" },
+  helium: CLASSIC_TABS,
   fresh: { addressBar: "sidebar", commandBarPlacement: "centred", newTabPosition: "nextToCurrent", newTabButtonPosition: "bottom", profileSwitcherIcons: false },
 };
 

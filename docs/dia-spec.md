@@ -93,7 +93,11 @@ Measured materials (our own non-activating panels over solid backdrops; sRGB; ac
   `apps/browser/src/lib/windowLayout.ts`. Radius stays 10.
 - The frame is a setting (issue #66, 2026-11-07): `pageFrame`, 0–12 pt, default `CARD_INSET` (9), so the default look
   is the one above. Settings › Appearance › Page Frame and onboarding's "How much frame?" (`pageFrameOf` in
-  `windowLayout.ts`, `components/window/cardFrame.ts`). The inset applies at the window's edges, below the top strip's
+  `windowLayout.ts`, `components/window/cardFrame.ts`). A `borderlessMode` switch (off by default, synced) overrides the
+  effective inset to 0 and leaves `pageFrame` saved. Issue #999 adds two off-by-default synced flags
+  (`pageFrameZeroInFullScreen`, `pageFrameZeroWhenTabsHidden`): the first drops the effective inset to 0 in macOS full
+  screen; the second only when full screen and Auto-Hide Tabs are both on (`pageFrameInsetOf`); borderless wins over both.
+  Otherwise the slider still applies. The inset applies at the window's edges, below the top strip's
   sides, in Little Ardia below its bar, and to the peek panel's top, bottom and side (its side is `min(5, frame)`);
   split panes and the extension side panel sit `max(frame, 2)` apart, so two panes still read as two edge to edge.
   Docked beside the sidebar the card starts at the sidebar's edge for any frame up to 9 (the sidebar's rows keep their

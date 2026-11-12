@@ -52,6 +52,7 @@ export const watchExtensionActions = (profile: string) => call("extensions.watch
 export const resolveExtensionInstallPrompt = (requestId: string, accepted: boolean) => call("extensions.resolveInstallPrompt", { requestId, accepted });
 export const extensionSidePanelUrl = (tabId: string, extensionId: string) => call("extensions.sidePanelUrl", { tabId, extensionId });
 export const extensionsSyncState = (profile: string) => call("extensions.syncState", { profile });
+export const extensionsLoadHealth = (profile: string) => call("extensions.loadHealth", { profile });
 export const applyExtensionsSync = (profile: string, apply: ExtensionsSyncApply) => call("extensions.syncApply", { ...apply, profile });
 
 export const onExtensionsChanged = (listener: (e: ExtensionsChange) => void) => on("extensions.changed", listener);

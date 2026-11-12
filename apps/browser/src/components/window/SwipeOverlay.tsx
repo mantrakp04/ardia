@@ -8,9 +8,9 @@ import { spring as springOf, springSpec, type SpringSpec } from "../ui/motion";
 import { SHADOWS, SWIPE_CONFIRMED_WASH, SWIPE_MOTION, SWIPE_PILL_SPRING, windowColors } from "./tokens";
 import { useTab } from "../../state/browser/hooks";
 import { Favicon, NewTabIcon } from "../favicon/Favicon";
-import { underButton, HistoryPopover } from "./HistoryPopover";
+import { HISTORY_MENU_WIDTH, underButton, HistoryPopover } from "./HistoryPopover";
 import { goBack, goForward, goToHistoryItem, historyFavicons, historyItems, openHistoryMenu, useHistoryAvailability, useHistoryMenu, type HistoryItem } from "../../state/tabs/navigation";
-import type { ToolbarGeometry } from "./geometry";
+import { historyMenuLeft, type PageAnchor } from "./pageAnchors";
 import {
   CAPSULE_INSET,
   CAPSULE_SIZE,
@@ -38,11 +38,12 @@ function spring(value: Animated.Value, toValue: number, spec: SpringSpec, native
 const rowsAboveSelected = (count: number, selected: number) => count - 1 - selected;
 const listTop = (height: number, count: number, selected: number) => height / 2 - ROW / 2 - LIST_PAD - rowsAboveSelected(count, selected) * ROW;
 
-export function NavigationOverlays({ tabId, windowId, geometry, historyMenu }: { tabId: string; windowId: string; geometry: ToolbarGeometry; historyMenu: boolean }) {
+export function NavigationOverlays({ tabId, windowId, anchor, paneWidth, historyMenu }: { tabId: string; windowId: string; anchor: PageAnchor; paneWidth: number; historyMenu: boolean }) {
+  const historyLeft = (direction: -1 | 1) => historyMenuLeft(anchor, underButton(direction < 0 ? anchor.toolbar?.back ?? 0 : anchor.toolbar?.forward ?? 0), paneWidth, HISTORY_MENU_WIDTH);
   return (
     <>
       <SwipeOverlay tabId={tabId} />
-      {historyMenu && <HistoryPopover tabId={tabId} windowId={windowId} top={POPOVER_MARGIN} left={(direction) => underButton(direction < 0 ? geometry.back : geometry.forward)} />}
+      {historyMenu && <HistoryPopover tabId={tabId} windowId={windowId} top={POPOVER_MARGIN} left={historyLeft} />}
     </>
   );
 }

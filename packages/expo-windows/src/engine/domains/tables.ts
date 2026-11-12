@@ -9,6 +9,7 @@ import { siteCalls } from "./sites";
 
 export type Rows = {
   forwarded: Record<string, Record<string, string>>;
+  awaitingEngine?: Record<string, Record<string, string>>;
   missing: Record<string, string[]>;
   topics: Record<string, string>;
 };

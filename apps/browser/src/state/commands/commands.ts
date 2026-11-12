@@ -29,7 +29,8 @@ import { focusSettingsSearch } from "../settings/searchState";
 import { closePanelToHeroBar, focusHeroBar } from "../omnibox/barState";
 import { closeNewTabBar, isEmptyCardTab, showNewTabBar, toggleNewTabBar } from "../omnibox/newTabBar";
 import { NEW_TAB_BAR_POLICY } from "../omnibox/newTabBarPolicy";
-import { addressBarInSidebar, commandBarCentred } from "../windows/layout";
+import { addressBarInSidebar } from "../windows/layout";
+import { commandKeyPlacement } from "../omnibox/barPlacement";
 import { addFolderToSidebar, restoreArcFolders } from "../bookmarks/bookmarkGroups";
 import { withLivePage } from "../tabs/livePage";
 import { webviews } from "../../platform/webviews";
@@ -47,6 +48,8 @@ import { requestAutofill } from "../site/autofill";
 import { copyPageUrl, jumpToSelection } from "../site/selection";
 import { shareTab } from "../site/share";
 import { groupOf } from "../pins/tabGrouping";
+import { selectedTabIds } from "../pins/organize";
+import { noteSelectionClosedByKey } from "../telemetry/usage";
 import { isSmall, mainWindowFor, newWindowProfile, originalProfile } from "../windows/small";
 import {
   closeLittleArdia,
@@ -154,12 +157,14 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
       return s.reopenClosed(windowId);
     case "restoreClosed":
       return arg ? s.restoreClosed(arg, windowId) : undefined;
-    case "focusCommandBar":
-      if (page) return s.openPanel(windowId, page.url);
+    case "focusCommandBar": {
+      const placement = commandKeyPlacement(s, windowId);
+      if (page) return s.openPanel(windowId, page.url, undefined, placement);
       if (isEmptyCardTab(s, tab) && showNewTabBar(windowId)) return;
-      if (tab && addressBarInSidebar(s, windowId) && !commandBarCentred(s, windowId)) return s.openPanel(windowId, "");
-      if (!focusHeroBar(windowId, tabId)) return tab ? s.openPanel(windowId, "") : undefined;
+      if (tab && addressBarInSidebar(s, windowId) && placement === "field") return s.openPanel(windowId, "", undefined, placement);
+      if (!focusHeroBar(windowId, tabId)) return tab ? s.openPanel(windowId, "", undefined, placement) : undefined;
       return ui?.panel.open ? s.closePanel(windowId) : undefined;
+    }
     case "closeTab":
       if (targeted) return void closeTab(targeted);
       if (ui?.panel.newTab) {
@@ -168,6 +173,15 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
         return void closeTab(tabId);
       }
       if (ui?.panel.open) return tabId ? closePanelToHeroBar(windowId, tabId, "closeKey") : s.closePanel(windowId);
+      if ((s.selection[windowId]?.length ?? 0) > 1) {
+        const ids = selectedTabIds(s, windowId);
+        if (ids.length > 1) {
+          s.closeTabs(ids);
+          s.setSelection(windowId, []);
+          noteSelectionClosedByKey(ids.length);
+          return;
+        }
+      }
       return tabId ? void closeTab(tabId) : undefined;
     case "print":
       return void web?.print();
