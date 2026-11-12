@@ -110,7 +110,7 @@ enum SpaceTone {
         return colors.map { $0.mix(with: toward, by: themeAmount) }
       }
     }
-    let base = SpaceColors.color(named: profile?.color) ?? Palette.indigo
+    let base = ProfileLook(profile: profile).swatchColor
     return [base.mix(with: toward, by: amount), base.mix(with: toward, by: amount + (isDark ? 0.06 : -0.04))]
   }
 }
@@ -460,7 +460,7 @@ private struct SpacesUnavailable: View {
       Button(isOff ? "Sync With Mac" : "Sync Settings", action: action)
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.capsule)
-        .tint(Palette.indigo)
+        .primaryActionColors()
     }
   }
 }
@@ -478,7 +478,7 @@ enum SpaceColors {
     case "teal": return .teal
     case "cyan": return .cyan
     case "blue": return .blue
-    case "indigo": return Palette.indigo
+    case "indigo": return .indigo
     case "purple", "violet": return .purple
     case "pink": return .pink
     case "brown": return .brown

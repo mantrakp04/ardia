@@ -21,6 +21,8 @@ import { splitTabIds } from "../splits/splits";
 import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
 import { takeAutoHideTabsChoices } from "./autoHideTabsChoices";
 import { takeAnimationBursts, watchAnimationBursts } from "./animationBursts";
+import { takeTabSwitcherOpensInWebKit } from "./tabSwitcherOpens";
+import { noteAutoPictureInPictureNothingPlaying, takePictureInPictureCounts } from "./pictureInPictureCounts";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
 import { toolbarBounces } from "./toolbarBounces";
 
@@ -36,9 +38,10 @@ let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
 function emitCounts() {
-  const snapshots = takeSnapshotWrites();
+  const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit();
+  const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab } = takePictureInPictureCounts();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || snapshots.count) {
+  if (Object.values(counts).some(Boolean) || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
     capture("usage_counts", {
       tabs_opened: counts.tabs, windows_opened: counts.windows,
       capture_indicators_cleared: counts.captureIndicatorsCleared,
@@ -51,6 +54,7 @@ function emitCounts() {
       popover_press_closes: counts.popoverPressCloses,
       popover_escape_closes: counts.popoverEscapeCloses,
       tab_switcher_opens: counts.tabSwitcherOpens,
+      tab_switcher_opens_in_webkit: switcherOpensInWebKit,
       tab_switcher_closed_left_out: counts.tabSwitcherClosedLeftOut,
       tab_switcher_unseen_last: counts.tabSwitcherUnseenLast,
       approval_notices_deferred: counts.approvalNoticesDeferred,
@@ -73,7 +77,7 @@ function emitCounts() {
       split_view_closes: counts.splitViewCloses,
       window_close_tabs_kept: counts.windowCloseTabsKept,
       sync_snapshots_written: snapshots.count,
-      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024),
+      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024), auto_pip_nothing_playing: autoPictureInPictureNothingPlaying, pip_back_to_tab: backToTab.chromium, pip_back_to_tab_webkit: backToTab.webkit,
       toolbar_scroll_hides: counts.toolbarScrollHides,
       toolbar_scroll_hide_bounces: counts.toolbarScrollHideBounces,
       card_resize_layouts: counts.cardResizeLayouts,
@@ -122,12 +126,11 @@ export const noteSelectionClosedByKey = (tabs: number) => void ((counts.selectio
 export const noteSharePicked = (kind: "tab" | "window" | "screen") => void counts[kind === "tab" ? "sharesPickedTab" : kind === "window" ? "sharesPickedWindow" : "sharesPickedScreen"]++;
 
 export const noteScreenRecordingMissing = () => counts.screenRecordingMissing++;
-
 export const noteScreenRecordingAsked = () => counts.screenRecordingAsked++;
 
 export const noteWebKitPageKeptHidden = () => counts.webKitPagesKeptHidden++;
 
-export const noteAutoPictureInPictureKept = (appSwitch: boolean) => counts[appSwitch ? "autoPictureInPictureStayedOnAppSwitch" : "autoPictureInPictureKept"]++;
+export const noteAutoPictureInPictureKept = (reason: "onScreen" | "appSwitch" | "nothingPlaying") => reason === "nothingPlaying" ? noteAutoPictureInPictureNothingPlaying() : counts[reason === "appSwitch" ? "autoPictureInPictureStayedOnAppSwitch" : "autoPictureInPictureKept"]++;
 
 export const noteExtensionInstallPrompt = () => counts.extensionInstallPrompts++;
 
@@ -154,11 +157,8 @@ export const notePopoverClosed = (by: "press" | "escape") => void counts[by === 
 
 export const noteUpdateChannelSwitch = (outcome: "offered" | "upToDate" | "failed" | null) => void (counts.updateChannelSwitches++, outcome && counts[outcome === "offered" ? "updateChannelSwitchOffers" : outcome === "upToDate" ? "updateChannelSwitchUpToDate" : "updateChannelSwitchCheckFailures"]++);
 
-export function noteTabSwitcherOpened(closedLeftOut: number, unseenLast: number) {
-  counts.tabSwitcherOpens++;
-  counts.tabSwitcherClosedLeftOut += closedLeftOut;
-  counts.tabSwitcherUnseenLast += unseenLast;
-}
+export const noteTabSwitcherOpened = (closedLeftOut: number, unseenLast: number) =>
+  void (counts.tabSwitcherOpens++, (counts.tabSwitcherClosedLeftOut += closedLeftOut), (counts.tabSwitcherUnseenLast += unseenLast));
 
 export const noteApprovalNoticeDeferred = () => counts.approvalNoticesDeferred++;
 

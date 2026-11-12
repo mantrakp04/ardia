@@ -132,13 +132,28 @@ public struct SystemSnapshot: Codable, Equatable, Sendable {
   public var macTabs: [SystemDeviceTabs]
   public var sendTargets: [SystemDevice]
   public var gradient: [String]
+  public var darkGradient: [String]?
+  public var color: String?
 
-  public init(isSyncEnabled: Bool = false, macTabs: [SystemDeviceTabs] = [], sendTargets: [SystemDevice] = [], gradient: [String] = []) {
+  public init(
+    isSyncEnabled: Bool = false,
+    macTabs: [SystemDeviceTabs] = [],
+    sendTargets: [SystemDevice] = [],
+    gradient: [String] = [],
+    darkGradient: [String]? = nil,
+    color: String? = nil
+  ) {
     version = Self.currentVersion
     self.isSyncEnabled = isSyncEnabled
     self.macTabs = macTabs
     self.sendTargets = sendTargets
     self.gradient = gradient
+    self.darkGradient = darkGradient
+    self.color = color
+  }
+
+  public var look: ProfileLook {
+    ProfileLook(colorName: color, themeColors: gradient, darkThemeColors: darkGradient)
   }
 
   public static let empty = SystemSnapshot()
