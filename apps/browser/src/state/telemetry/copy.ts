@@ -54,6 +54,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     title: "Usage",
     items: [
       "Launches, updates, and whether the last session ended cleanly",
+      "Counts of download progress updates, download record changes and download-history saves, and the total size of those saves, summed up once an hour. Never file names, paths or addresses",
       "When you turn sharing on from the New Tab question: where it was shown and on how many New Tab pages it was shown first",
       "At launch: the chip and graphics chip names, how much memory the Mac has, how many displays and their scale, and whether the Mac decodes AV1, VP9, HEVC and H.264 video in hardware",
       "How many tab presses switched tabs as the button went down, opened a tab, became a drag or got no answer, how long the button was held after a switch, and how soon after opening a tab its page was clicked, summed up once an hour. Never where you clicked",

@@ -11,6 +11,7 @@ import { closedWindowEntry, MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { isPeekTab } from "../peek/peek";
 import type { BrowserWindow, ClosedWindow, ParkedPins, SplitView, Tab } from "../browser/types";
 import { downloadSession } from "../downloads/downloadsSlice";
+import { noteDownloadWork } from "../downloads/work";
 import { parseSaved, versionedJson, unchanged, type Migrations, type SavedObject } from "../../lib/savedDocument";
 import { sessionWithCleanUpMinutes } from "../settings/cleanUpAfter";
 import { parseSettingsMeta, sessionWithNewTabLinksInLittleArdia, sessionWithSettingsMeta, sessionWithUnreadCountsOffByDefault } from "../settings/settings";
@@ -317,7 +318,12 @@ export function startPersistence(overrides: LaunchOverrides = {}) {
     const s = useBrowser.getState();
     for (const doc of DOCS.filter((d) => dirty.has(d))) {
       const json = doc.json(s);
-      if (lastJson.get(doc.name) === json || write(doc.name, json)) {
+      const unchanged = lastJson.get(doc.name) === json;
+      if (unchanged || write(doc.name, json)) {
+        if (!unchanged && doc.name === "downloads.json") {
+          noteDownloadWork("downloadHistoryWrites");
+          noteDownloadWork("downloadHistoryBytes", json.length);
+        }
         lastJson.set(doc.name, json);
         dirty.delete(doc);
       }

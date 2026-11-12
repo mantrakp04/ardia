@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { useDownloads, useTab } from "../../state/browser/hooks";
+import { useDownload } from "../../state/downloads/hooks";
 import { clearDownloads, removeDownload } from "../../state/windows/actions";
 import { openUrl } from "../../state/bookmarks/actions";
 import { FileIcon } from "../downloads/Downloads";
@@ -52,7 +53,8 @@ const CARD_TEXT = { flex: 1, gap: downloadCard.textGap } as const;
 const ROW_BUTTONS = { flexDirection: "row", gap: space.m } as const;
 const PROGRESS = { marginTop: downloadCard.progressTop } as const;
 
-function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
+function DownloadCard({ d: saved, windowId }: { d: Download; windowId: string }) {
+  const d = useDownload(saved.id) ?? saved;
   const { hovered, hoverProps } = useHover();
   const { exists, done, progress, blocked } = useDownloadView(d);
   return (

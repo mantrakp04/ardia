@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { docs, removedStagings, stagingRemovals } from "../../test-native/index.ts";
-import { loadSession } from "./persist.ts";
+import { flushPersistence, loadSession, startPersistence } from "./persist.ts";
+import { useBrowser } from "../browser/store.ts";
 
 const paused = {
   id: "wk-download-1",
@@ -57,5 +58,34 @@ test("a version 1 or 2 document drops the staging id and destination it kept bes
     assert.equal(left.staging, "/d/.ardia-download-1");
     assert.ok(!("stagingId" in left) && !("destination" in left) && !("destination" in done));
     stagingRemovals.ok = true;
+  }
+});
+
+test("download progress leaves history unchanged while lifecycle changes and the final size survive a relaunch", () => {
+  docs.clear();
+  const stop = startPersistence();
+  useBrowser.getState().createWindow({ url: "about:blank" });
+  const update = (patch) => {
+    useBrowser.getState().upsertDownload({ ...paused, state: "downloading", paused: false, ...patch });
+    flushPersistence();
+    return docs.get("downloads.json");
+  };
+  try {
+    const initial = update({ received: 0, speed: 0 });
+    for (const received of [10, 50, 100]) {
+      assert.equal(update({ received, total: 200, speed: received * 2 }), initial, "progress alone must not rewrite history");
+    }
+    for (const patch of [{ paused: true }, { dangerous: true }, { path: "/d/renamed", filename: "renamed" }]) {
+      const saved = JSON.parse(update(patch)).downloads[0];
+      for (const [key, value] of Object.entries(patch)) assert.equal(saved[key], value);
+    }
+    update({ state: "finished", path: "/d/done", staging: null, total: 0, received: 12345, speed: 0 });
+    const restored = loadSession().downloads[0];
+    assert.equal(restored.state, "finished");
+    assert.equal(restored.path, "/d/done");
+    assert.equal(restored.received, 12345);
+    assert.equal(restored.total, 0);
+  } finally {
+    stop();
   }
 });

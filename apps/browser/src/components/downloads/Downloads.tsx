@@ -31,7 +31,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useDownloads, useSidebarOpen, useSidebarSide, useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { clearDownloads, setDownloadsOpen } from "../../state/windows/actions";
 import { watchNewDownloads } from "../../state/windows/downloadWatch";
-import { useDownload } from "../../state/windows/hooks";
+import { useDownload } from "../../state/downloads/hooks";
 import { useAddressBarInSidebar, useTabLayout, useToolbarLightsCenter } from "../../state/windows/layout";
 import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
 import { PROFILE_DOTS_HEIGHT } from "../profiles/ProfileDots";

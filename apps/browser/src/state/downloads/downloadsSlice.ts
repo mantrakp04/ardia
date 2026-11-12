@@ -1,9 +1,12 @@
 import type { StateCreator } from "zustand";
+import { shallow } from "zustand/shallow";
 import type { Download } from "../../platform/downloads";
 import type { BrowserWindow } from "../browser/types";
 import type { BrowserState } from "../browser/store";
 import { engineProfile, isIncognitoProfile, privateSession } from "../browser/model";
 import { focusedWindowOf, patchWindowUi } from "../windows/ui";
+import { retainDownloadProgress, updateDownloadProgress } from "./progress";
+import { noteDownloadWork } from "./work";
 
 export type DownloadsSlice = {
   downloads: Download[];
@@ -40,18 +43,26 @@ export const createDownloadsSlice: StateCreator<BrowserState, [], [], DownloadsS
 
   upsertDownload(d) {
     set((s) => {
-      const exists = s.downloads.some((x) => x.id === d.id);
+      const previous = s.downloads.find((x) => x.id === d.id);
       if (!d.path && (d.state === "downloading" || d.state === "cancelled")) {
-        return exists && d.state === "cancelled" ? { downloads: s.downloads.filter((x) => x.id !== d.id) } : {};
+        if (!previous || d.state !== "cancelled") return s;
+        const downloads = s.downloads.filter((x) => x.id !== d.id);
+        retainDownloadProgress(downloads);
+        return { downloads };
       }
       const session = downloadSession(s, d);
-      if (!exists && session !== null && (!sessionOpen(s, session) || endedPrivateDownloads.has(d.id))) {
+      if (!previous && session !== null && (!sessionOpen(s, session) || endedPrivateDownloads.has(d.id))) {
         endedPrivateDownloads.add(d.id);
-        return {};
+        return s;
       }
-      const downloads = exists ? s.downloads.map((x) => (x.id === d.id ? d : x)) : [d, ...s.downloads].slice(0, MAX_DOWNLOADS);
+      updateDownloadProgress(d);
+      const record = d.state === "downloading" ? { ...d, received: 0, total: 0, speed: 0 } : d;
+      if (previous && shallow(previous, record)) return s;
+      const downloads = previous ? s.downloads.map((x) => (x.id === d.id ? record : x)) : [record, ...s.downloads].slice(0, MAX_DOWNLOADS);
+      retainDownloadProgress(downloads);
+      noteDownloadWork("downloadRecordUpdates");
       const focused = focusedWindowOf(s);
-      const open = !exists && focused && downloadVisibleIn(s, d, s.windows[focused]);
+      const open = !previous && focused && downloadVisibleIn(s, d, s.windows[focused]);
       return { downloads, ...(open ? patchWindowUi(s, focused, { downloadsOpen: true }) : {}) };
     });
   },
@@ -70,6 +81,11 @@ export const createDownloadsSlice: StateCreator<BrowserState, [], [], DownloadsS
     const session = privateSession(get(), profile);
     const gone = (d: Download) => (session !== null ? downloadSession(get(), d) === session : d.profile === profile);
     if (session !== null) for (const d of get().downloads) if (gone(d)) endedPrivateDownloads.add(d.id);
-    set((s) => (s.downloads.some(gone) ? { downloads: s.downloads.filter((d) => !gone(d)) } : {}));
+    set((s) => {
+      if (!s.downloads.some(gone)) return s;
+      const downloads = s.downloads.filter((d) => !gone(d));
+      retainDownloadProgress(downloads);
+      return { downloads };
+    });
   },
 });
