@@ -89,6 +89,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface ArdiaWebView (Recording)
 - (void)copyRecordingPicture:(void (^)(CGImageRef _Nullable picture))completion NS_SWIFT_NAME(copyRecordingPicture(_:));
++ (NSString *)recordingKindOfWindow:(NSWindow *)window NS_SWIFT_NAME(recordingKind(of:));
++ (CGFloat)recordingCornerRadiusOfWindow:(NSWindow *)window NS_SWIFT_NAME(recordingCornerRadius(of:));
++ (nullable NSView *)recordingControlsOfWindow:(NSWindow *)window NS_SWIFT_NAME(recordingControls(of:));
++ (void)copyRecordingPictureOfWindow:(NSWindow *)window
+                          completion:(void (^)(CGImageRef _Nullable picture))completion NS_SWIFT_NAME(copyRecordingPicture(of:_:));
 @end
 
 @interface ArdiaWebView (PageMessages)

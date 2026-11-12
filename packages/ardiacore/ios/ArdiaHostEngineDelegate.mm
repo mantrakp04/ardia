@@ -20,6 +20,7 @@ using namespace ardia_host;
 @implementation ArdiaHostEngineDelegate
 
 - (void)engineDidStart {
+  ArdiaLaunchSequence.shared.engineStartedAt = NSDate.date.timeIntervalSince1970 * 1000;
   NSLog(@"[ardiacore] engine started (Chromium %@)", ArdiaCoreEngine.sharedEngine.chromiumVersion);
   ArdiaLaunchSequence.shared.engineRunning = YES;
   WatchReservedShortcuts();
@@ -59,6 +60,7 @@ using namespace ardia_host;
 }
 
 - (void)launchApp {
+  ArdiaLaunchSequence.shared.reactNativeStartedAt = NSDate.date.timeIntervalSince1970 * 1000;
   NSArray<NSURL *> *launchURLs = gBootstrap.urls.copy;
   LinksArrived(launchURLs);
   gAppDelegate = gMakeDelegate();

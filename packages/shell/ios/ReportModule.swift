@@ -132,6 +132,7 @@ public class ReportModule: Module {
       self?.send(["type": "tick", "seconds": seconds])
     }
     recorder.onLimit = { [weak self] in _ = self?.stopRecording() }
+    recorder.excludedWindows = { [weak pill] in pill.map { [$0.window] } ?? [] }
     guard recorder.start() else { return false }
     self.recorder = recorder
     self.pill = pill

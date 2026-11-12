@@ -1052,6 +1052,7 @@ __define("packages/core/src/engines.ts", function (exports, __require) {
   __export(exports, "searchUrl", () => searchUrl);
   __export(exports, "suggestRequestUrl", () => suggestRequestUrl);
   __export(exports, "engineHost", () => engineHost);
+  __export(exports, "suggestReplyJson", () => suggestReplyJson);
   __export(exports, "parseSuggestions", () => parseSuggestions);
   __export(exports, "validateEngine", () => validateEngine);
   __export(exports, "makeCustomEngine", () => makeCustomEngine);
@@ -1086,7 +1087,7 @@ const BUILT_IN_ENGINES                          = [
     name: "Google",
     keyword: "google.com",
     url: "https://www.google.com/search?q=%s",
-    suggestUrl: "https://suggestqueries.google.com/complete/search?client=firefox&ie=utf-8&oe=utf-8&q=%s",
+    suggestUrl: "https://www.google.com/complete/search?client=chrome&q=%s",
   },
   { id: "bing", name: "Bing", keyword: "bing.com", url: "https://www.bing.com/search?q=%s", suggestUrl: "https://api.bing.com/osjson.aspx?query=%s" },
   {
@@ -1178,9 +1179,17 @@ const suggestRequestUrl = (engine              , query        ) =>
 
 const engineHost = (engine                           ) => hostOf(engine.url.replace(/%s/g, "q"));
 
+const NOT_QUERIES = new Set(["NAVIGATION", "PERSONALIZED_NAVIGATION", "CALCULATOR"]);
+
+const suggestReplyJson = (text        )          => JSON.parse(text.replace(/^\)\]\}'\s*/, ""));
+
 function parseSuggestions(body         )           {
   if (!Array.isArray(body) || !Array.isArray(body[1])) return [];
-  return (body[1]             ).filter((s)              => typeof s === "string" && s.trim() !== "").map((s) => s.trim());
+  const extras = body[4]                                                  ;
+  const types = Array.isArray(extras?.["google:suggesttype"]) ? (extras["google:suggesttype"]             ) : [];
+  return (body[1]             )
+    .filter((s, i)              => typeof s === "string" && s.trim() !== "" && !NOT_QUERIES.has(String(types[i])))
+    .map((s) => s.trim());
 }
 
                                                                          
@@ -3235,7 +3244,7 @@ class TopList {
 });
 __define("packages/core/src/suggestFetcher.ts", function (exports, __require) {
   __export(exports, "createSuggestFetcher", () => createSuggestFetcher);
-const { parseSuggestions, suggestRequestUrl } = __require("packages/core/src/engines.ts");
+const { parseSuggestions, suggestReplyJson, suggestRequestUrl } = __require("packages/core/src/engines.ts");
 
                                                               
                                                                                                
@@ -3293,7 +3302,7 @@ function createSuggestFetcher({
           .then(async (res) => {
             if (!res.ok) return [];
             try {
-              return parseSuggestions(JSON.parse(await res.text()));
+              return parseSuggestions(suggestReplyJson(await res.text()));
             } catch {
               return [];
             }

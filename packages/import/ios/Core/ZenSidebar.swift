@@ -4,6 +4,7 @@ public struct ZenSidebar: Equatable {
   public var spaces: [SpaceSuggestion] = []
   public var essentials: [ImportedTab] = []
   public var favicons: [ImportedFavicon] = []
+  public var separateEssentials = true
 
   public func favicons(for pages: [String]) -> [ImportedFavicon] {
     let wanted = Set(pages)
@@ -29,20 +30,74 @@ public struct ZenSidebar: Equatable {
   public static func load(profile: URL, profileId: String, cancellation: Cancellation = .init()) throws -> ZenSidebar {
     let files = sessionFiles(profile: profile)
     guard !files.isEmpty else { throw ImportError.notFound("No Zen session in this profile") }
+    let separate = separateEssentials(profile: profile)
     var failure: Error?
     var parsed = false
-    for file in files {
-      try cancellation.check()
-      do {
-        let sidebar = try parse(Firefox.decompressMozLz4(Data(contentsOf: file)), profileId: profileId)
-        parsed = true
-        if !sidebar.spaces.isEmpty { return sidebar }
-      } catch {
-        failure = failure ?? error
+    var storedSpaces: [[String: Any]]?
+    for pass in 0..<2 {
+      for file in files {
+        try cancellation.check()
+        do {
+          var sidebar = try parse(Firefox.decompressMozLz4(Data(contentsOf: file)), profileId: profileId, storedSpaces: storedSpaces ?? [])
+          parsed = true
+          sidebar.separateEssentials = separate
+          if !sidebar.spaces.isEmpty { return sidebar }
+        } catch {
+          failure = failure ?? error
+        }
       }
+      guard pass == 0 else { break }
+      storedSpaces = placesWorkspaces(profile: profile)
+      if storedSpaces?.isEmpty ?? true { break }
     }
     if !parsed, let failure { throw failure }
-    return ZenSidebar()
+    return ZenSidebar(separateEssentials: separate)
+  }
+
+  public static func separateEssentials(profile: URL) -> Bool {
+    guard let prefs = try? String(contentsOf: profile.appendingPathComponent("prefs.js"), encoding: .utf8) else { return true }
+    let key = "\"zen.workspaces.separate-essentials\""
+    for line in prefs.split(whereSeparator: \.isNewline) where line.hasPrefix("user_pref(") && line.contains(key) {
+      return !line.replacingOccurrences(of: " ", with: "").contains("\(key),false)")
+    }
+    return true
+  }
+
+  static let defaultContainerNames = [
+    "user-context-personal": "Personal", "user-context-work": "Work",
+    "user-context-banking": "Banking", "user-context-shopping": "Shopping",
+  ]
+
+  public static func containerNames(profile: URL) -> [Int: String] {
+    guard let data = try? Data(contentsOf: profile.appendingPathComponent("containers.json")),
+          let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+    var names: [Int: String] = [:]
+    for identity in objects(top["identities"]) where identity["public"] as? Bool != false {
+      guard let id = (identity["userContextId"] as? NSNumber)?.intValue,
+            let name = text(identity["name"]) ?? text(identity["l10nId"]).flatMap({ defaultContainerNames[$0] })
+              ?? text(identity["l10nID"]).flatMap({ defaultContainerNames[$0] }) else { continue }
+      names[id] = name
+    }
+    return names
+  }
+
+  static func placesWorkspaces(profile: URL) -> [[String: Any]] {
+    let places = profile.appendingPathComponent("places.sqlite")
+    guard FileManager.default.fileExists(atPath: places.path),
+          let db = try? SQLiteSnapshot(copying: places), db.tableExists("zen_workspaces") else { return [] }
+    var rows: [(position: Int64, created: Int64, space: [String: Any])] = []
+    try? db.query("SELECT * FROM zen_workspaces") { r in
+      guard let uuid = r.text("uuid") else { return true }
+      var space: [String: Any] = ["uuid": uuid, "containerTabId": Int(r.int("container_id") ?? 0)]
+      if let name = r.text("name") { space["name"] = name }
+      if let icon = r.text("icon") { space["icon"] = icon }
+      if let colors = r.text("theme_colors"), let parsed = try? JSONSerialization.jsonObject(with: Data(colors.utf8)) {
+        space["theme"] = ["gradientColors": parsed]
+      }
+      rows.append((r.int("position") ?? Int64.max, r.int("created_at") ?? 0, space))
+      return true
+    }
+    return rows.sorted { ($0.position, $0.created) < ($1.position, $1.created) }.map(\.space)
   }
 
   struct Folder {
@@ -57,7 +112,7 @@ public struct ZenSidebar: Equatable {
 
   typealias Entry = (key: String?, node: BookmarkNode)
 
-  public static func parse(_ json: Data, profileId: String) throws -> ZenSidebar {
+  public static func parse(_ json: Data, profileId: String, storedSpaces: [[String: Any]] = []) throws -> ZenSidebar {
     guard let top = try? JSONSerialization.jsonObject(with: json) as? [String: Any] else {
       throw ImportError.unreadable("Zen's session store is malformed")
     }
@@ -66,8 +121,8 @@ public struct ZenSidebar: Equatable {
     }
 
     var out = ZenSidebar()
-    for window in windows {
-      for space in objects(window["spaces"]) {
+    let declared = windows.flatMap { objects($0["spaces"]) }
+    for space in declared.isEmpty ? storedSpaces : declared {
         guard let id = text(space["uuid"]), !out.spaces.contains(where: { $0.id == id }) else { continue }
         let colors = gradient(space["theme"])
         out.spaces.append(SpaceSuggestion(
@@ -79,9 +134,9 @@ public struct ZenSidebar: Equatable {
           icon: nil,
           profileId: profileId,
           pinned: [],
-          tabs: []
+          tabs: [],
+          container: container(space["containerTabId"])
         ))
-      }
     }
     guard !out.spaces.isEmpty else { return out }
 
@@ -97,8 +152,10 @@ public struct ZenSidebar: Equatable {
       }
     }
 
-    func spaceIndex(_ id: String?) -> Int {
-      id.flatMap { id in out.spaces.firstIndex { $0.id == id } } ?? 0
+    func spaceIndex(_ id: String?, container tabContainer: Int? = nil) -> Int {
+      id.flatMap { id in out.spaces.firstIndex { $0.id == id } }
+        ?? tabContainer.flatMap { c in out.spaces.firstIndex { $0.container == c } }
+        ?? 0
     }
 
     var seenTabs = Set<String>()
@@ -113,14 +170,15 @@ public struct ZenSidebar: Equatable {
         if tab["zenIsEmpty"] as? Bool == true || tab["zenIsGlance"] as? Bool == true || text(tab["zenLiveFolderItemId"]) != nil {
           continue
         }
-        let syncId = text(tab["zenSyncId"])
+        let syncId = text(tab["zenSyncId"]) ?? text(tab["zenPinnedId"])
         if let syncId, !seenTabs.insert(syncId).inserted { continue }
-        let essential = tab["zenEssential"] as? Bool == true
+        let essential = flag(tab["zenEssential"])
         let pinned = essential || tab["pinned"] as? Bool == true
         guard let page = page(tab, pinned: pinned), let url = text(page["url"]) else { continue }
         let title = page["title"] as? String ?? ""
         let label = text(tab["zenStaticLabel"])
         let workspace = text(tab["zenWorkspace"])
+        let tabContainer = container(tab["userContextId"])
         if !iconPages.contains(url), let png = png(pinned ? (tab["_zenPinnedInitialState"] as? [String: Any])?["image"] ?? tab["image"] : tab["image"]),
            let origin = URL(string: url), let scheme = origin.scheme, let host = origin.host, URL.isWebURL(url) {
           iconPages.insert(url)
@@ -129,8 +187,8 @@ public struct ZenSidebar: Equatable {
         }
 
         if essential {
-          if essentialPages.insert(url).inserted {
-            out.essentials.append(ImportedTab(url: url, title: title, pinned: true, customTitle: label))
+          if essentialPages.insert("\(tabContainer ?? 0) \(url)").inserted {
+            out.essentials.append(ImportedTab(url: url, title: title, pinned: true, customTitle: label, container: tabContainer))
           }
         } else if pinned {
           var link = BookmarkNode.link(label ?? title, url)
@@ -139,10 +197,10 @@ public struct ZenSidebar: Equatable {
             folderPins[group, default: []].append((syncId, link))
             if let workspace, folderSpace[group] == nil { folderSpace[group] = workspace }
           } else {
-            rootPins[spaceIndex(workspace), default: []].append((syncId, link))
+            rootPins[spaceIndex(workspace, container: tabContainer), default: []].append((syncId, link))
           }
         } else {
-          out.spaces[spaceIndex(workspace)].tabs.append(ImportedTab(
+          out.spaces[spaceIndex(workspace, container: tabContainer)].tabs.append(ImportedTab(
             url: url, title: title, customTitle: label,
             lastActive: (tab["lastAccessed"] as? NSNumber)?.doubleValue
           ))
@@ -229,6 +287,15 @@ public struct ZenSidebar: Equatable {
       }
       return nil
     }
+  }
+
+  static func flag(_ any: Any?) -> Bool {
+    any as? Bool == true || any as? String == "true"
+  }
+
+  static func container(_ any: Any?) -> Int? {
+    guard let id = (any as? NSNumber)?.intValue ?? (any as? String).flatMap({ Int($0) }), id > 0 else { return nil }
+    return id
   }
 
   static func objects(_ any: Any?) -> [[String: Any]] {
