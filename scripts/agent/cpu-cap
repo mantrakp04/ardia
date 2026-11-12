@@ -13,10 +13,11 @@ Codex runs started from here. The owner's apps (/Applications/Ardia.app, Claude,
   - While total CPU is over --cap, the busiest processes of ours are paused (SIGSTOP), busiest first.
   - Once total CPU is under --resume, they are resumed (SIGCONT), one per tick.
   - Memory, the Mac's used share (anonymous + wired + compressor - purgeable, from vm_stat): while it is over
-    --mem-cap, our largest processes (by resident memory, build workers such as siso's python3 included) are paused,
-    up to 4 a tick, and they don't take turns; once it is under --mem-resume they are resumed, one per tick. Over
-    --mem-kill, our largest process is killed (SIGKILL) each tick, so a runaway build fails instead of the kernel
-    panicking (twice on 2026-11-11). Coordinators (siso, ninja, xcodebuild, lockf...) are never paused or killed.
+    --mem-cap, our largest workers (compilers, linkers, siso's python3, ffmpeg, hidden test instances and tools under
+    ~/ardia-scratch or apps/browser/build-*) are paused, 2 a tick, so they stop growing; each gets a turn after
+    --max-pause seconds, and they are resumed one per tick under --mem-resume. Over --mem-kill, our largest worker
+    is killed (SIGKILL) each tick, so a runaway build fails instead of the kernel panicking (twice on 2026-11-11).
+    Agents (claude, codex, T3), coordinators (siso, ninja, xcodebuild, lockf) and the owner's apps are never touched.
   - --memory-only: just the memory cap; no CPU cap and no background QoS (the owner's default since 2026-11-11).
   - On exit (any signal) everything paused is resumed.
 Agents: a paused build or instance just runs slower; give waits their deadlines as usual.
@@ -46,7 +47,7 @@ ap.add_argument("--cap", type=float, default=70)
 ap.add_argument("--resume", type=float, default=60)
 ap.add_argument("--every", type=float, default=3)
 ap.add_argument("--mem-cap", type=float, default=75)
-ap.add_argument("--mem-resume", type=float, default=70)
+ap.add_argument("--mem-resume", type=float, default=72)
 ap.add_argument("--mem-kill", type=float, default=90)
 ap.add_argument("--memory-only", action="store_true", help="only the memory cap: no CPU cap, no background QoS")
 ap.add_argument("--max-pause", type=float, default=60, help="seconds; a job paused this long gets a turn (no starvation)")
@@ -100,11 +101,23 @@ def resident(pids):
     return sizes
 
 
+MEMORY_WORKERS = {"clang", "clang++", "clang-cl", "python3", "python3.11", "Python", "ld", "ld64.lld", "lld", "rustc",
+                  "swift-frontend", "swiftc", "hermesc", "ffmpeg", "dsymutil", "llvm-strip"}
+MEMORY_WORKER_PATHS = ("/ardia-scratch/", "/apps/browser/build-", "/private/tmp/ac-")
+NEVER_PAUSE = ("claude", "codex", "T3 Code", "/node_modules/.bin/", "cpu-cap")
+
+
+def memory_worker(cmd):
+    if any(n in cmd for n in NEVER_PAUSE):
+        return False
+    return os.path.basename(cmd.split()[0]) in MEMORY_WORKERS or any(m in cmd for m in MEMORY_WORKER_PATHS)
+
+
 def memory_tick(procs):
+    now = time.time()
     mem_paused[:] = [p for p in mem_paused if alive(p)]
     mem = memory_used()
-    candidates = {pid: cmd for pid, (_, _, cmd, _) in procs.items()
-                  if os.path.basename(cmd.split()[0]) not in COORD}
+    candidates = {pid: cmd for pid, (_, _, cmd, _) in procs.items() if memory_worker(cmd)}
     if mem > a.mem_kill:
         sizes = resident(list(candidates))
         if sizes:
@@ -114,19 +127,30 @@ def memory_tick(procs):
                 log(f"mem {mem:.0f}%: killed {pid} ({sizes[pid] >> 20} MB) {candidates[pid][:90]}")
             except ProcessLookupError:
                 pass
+    for pid in [p for p in mem_paused if now - paused_at.get(p, now) > a.max_pause and mem < a.mem_kill]:
+        try:
+            os.kill(pid, signal.SIGCONT)
+            log(f"mem {mem:.0f}%: turn, resumed {pid} after {now - paused_at[pid]:.0f}s")
+        except ProcessLookupError:
+            pass
+        mem_paused.remove(pid)
+        paused_at.pop(pid, None)
+        turn_until[pid] = now + a.max_pause / 2
     if mem > a.mem_cap:
-        sizes = resident([p for p in candidates if p not in mem_paused])
-        for pid in sorted(sizes, key=sizes.get, reverse=True)[:4]:
-            if sizes[pid] < 64 << 20:
+        sizes = resident([p for p in candidates if p not in mem_paused and turn_until.get(p, 0) <= now])
+        for pid in sorted(sizes, key=sizes.get, reverse=True)[:2]:
+            if sizes[pid] < 128 << 20:
                 break
             try:
                 os.kill(pid, signal.SIGSTOP)
             except ProcessLookupError:
                 continue
             mem_paused.append(pid)
+            paused_at[pid] = now
             log(f"mem {mem:.0f}%: paused {pid} ({sizes[pid] >> 20} MB) {candidates[pid][:90]}")
     elif mem < a.mem_resume and mem_paused:
         pid = mem_paused.pop(0)
+        paused_at.pop(pid, None)
         try:
             os.kill(pid, signal.SIGCONT)
             log(f"mem {mem:.0f}%: resumed {pid}")
@@ -195,7 +219,7 @@ def resume_all(*_):
             os.kill(pid, signal.SIGCONT)
         except ProcessLookupError:
             pass
-    log(f"exit: resumed {len(paused)}")
+    log(f"exit: resumed {len(paused) + len(mem_paused)}")
     sys.exit(0)
 
 
