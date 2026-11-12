@@ -8,6 +8,7 @@ import { updateSettings } from "../../../state/settings/actions";
 import { openInternalPage } from "../../../state/pages/urls";
 import type { BatterySaverWhen } from "../../../state/settings/settings";
 import { keepSiteActive, stopKeepingSiteActive, type MemorySaverMode } from "../../../state/tabs/memorySaver";
+import { addSecureOrigin, removeSecureOrigin } from "../../../state/settings/secureOrigins";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { Button, DialogActions, DialogTitle, lineHeight, PopUp, Sheet, space, Text, TextField, Toggle } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
@@ -36,6 +37,7 @@ export function AdvancedPane() {
   const memorySaverMode = useSettings((s) => s.memorySaverMode);
   const batterySaverWhen = useSettings((s) => s.batterySaverWhen);
   const keepActiveSites = useSettings((s) => s.keepActiveSites);
+  const secureOrigins = useSettings((s) => s.secureOrigins);
   const warnBeforeMovingTabs = useSettings((s) => s.warnBeforeMovingTabsToProfile);
   const [info] = useResource(engineVersion);
   const [widevine] = useResource(widevineComponent);
@@ -113,6 +115,8 @@ export function AdvancedPane() {
           }
         />
       </Group>
+
+      <SecureOrigins origins={secureOrigins} />
 
       <SectionHeader title="Source and licenses" />
       <Group>
@@ -213,6 +217,69 @@ function KeepActiveSiteSheet() {
       <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title="Add" kind="primary" disabled={saving || !site.trim()} onPress={() => void add()} />
+      </DialogActions>
+    </Sheet>
+  );
+}
+
+function SecureOrigins({ origins }: { origins: string[] }) {
+  return (
+    <>
+      <SectionHeader
+        anchor="advanced.secureOrigins"
+        action={<Button title="Add Origin…" icon="plus" onPress={() => showSettingsSheet(<SecureOriginSheet />)} />}
+      />
+      <Group of="advanced.secureOrigins">
+        {origins.length === 0 ? (
+          <Row title="No origins added" />
+        ) : (
+          [...origins]
+            .sort((a, b) => a.localeCompare(b))
+            .map((origin) => (
+              <Row key={origin} icon={<Favicon url={origin.startsWith("*.") ? `https://${origin.slice(2)}` : origin} />} title={origin}>
+                <Button variant="icon" icon="trash" size="m" onPress={() => removeSecureOrigin(origin)} tooltip="Remove" />
+              </Row>
+            ))
+        )}
+      </Group>
+    </>
+  );
+}
+
+function SecureOriginSheet() {
+  const [origin, setOrigin] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const add = async () => {
+    setSaving(true);
+    const problem = await addSecureOrigin(origin);
+    setSaving(false);
+    if (problem) return setError(problem);
+    closeSettingsSheet();
+  };
+  return (
+    <Sheet onClose={closeSettingsSheet}>
+      <DialogTitle subtitle="HTTP origins where the Clipboard API and other powerful features work. Quit and reopen Ardia after adding one.">
+        Add Origin
+      </DialogTitle>
+      <FormField label="Origin">
+        <TextField
+          value={origin}
+          onChangeText={setOrigin}
+          placeholder="http://192.168.1.10:8080"
+          onSubmit={() => void add()}
+          onEscape={closeSettingsSheet}
+          autoFocus
+        />
+      </FormField>
+      {error && (
+        <Text size="caption" tone="destructive" style={ERROR}>
+          {error}
+        </Text>
+      )}
+      <DialogActions>
+        <Button title="Cancel" onPress={closeSettingsSheet} />
+        <Button title="Add" kind="primary" disabled={saving || !origin.trim()} onPress={() => void add()} />
       </DialogActions>
     </Sheet>
   );

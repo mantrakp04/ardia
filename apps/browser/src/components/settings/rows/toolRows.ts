@@ -217,6 +217,17 @@ export const toolRows = {
       },
     },
     {
+      section: "Insecure origins treated as secure",
+      rows: {
+        secureOrigins: {
+          advanced: true,
+          title: "Insecure origins treated as secure",
+          description: "HTTP origins where powerful APIs like the Clipboard API work. Quit and reopen Ardia after you change the list.",
+          keywords: ["secure context", "clipboard", "http", "insecure", "code-server", "devbox", "localhost", "unsafely-treat-insecure-origin-as-secure", "web engine"],
+        },
+      },
+    },
+    {
       section: "Source and licenses",
       rows: {
         source: { advanced: true, title: "Source code", description: "Ardia is free software under the GNU General Public License v3, with no warranty.", keywords: ["github", "open source", "gpl", "license"] },
