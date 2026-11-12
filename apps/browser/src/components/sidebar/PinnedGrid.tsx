@@ -3,8 +3,8 @@ import { Animated, View } from "react-native";
 import { radius, Symbol } from "../ui";
 import { GlassGroup, useGlass } from "../ui/Glass";
 import { layout, useTheme } from "../ui/theme";
-import { useAddressBarInSidebar } from "../../state/windows/layout";
-import { listTopGap } from "./geometry";
+import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
+import { firstRowTopOf, listTopGap } from "./geometry";
 import { useIsActiveTab, useSettings, useTab, useWindowId } from "../../state/browser/hooks";
 import { useIsSelected } from "../../state/pins/hooks";
 import { NextMeetingBadge } from "../live/NextMeetingBadge";
@@ -93,6 +93,7 @@ export function PinSlotZone() {
   const theme = useTheme();
   const controller = useDragController();
   const active = useDropPins();
+  const firstRowTop = firstRowTopOf(false, useToolbarLightsCenter()[1]);
   const gap = controller?.items.get(tailKey("tiles"))?.gap;
   const opacity = gap ? gap.interpolate({ inputRange: [0, PIN_SLOT], outputRange: [0, 1], extrapolate: "clamp" }) : active ? 1 : 0;
   return (
@@ -108,7 +109,7 @@ export function PinSlotZone() {
           left: layout.sidebarInset,
           right: layout.sidebarInset,
           top: 0,
-          height: active ? layout.pinnedTop + layout.pinnedHeight : layout.pinnedTop - layout.rowGap,
+          height: active ? firstRowTop + layout.pinnedHeight : firstRowTop - layout.rowGap,
         }}
       />
       <Animated.View
@@ -117,7 +118,7 @@ export function PinSlotZone() {
           position: "absolute",
           left: layout.sidebarInset,
           right: layout.sidebarInset,
-          top: layout.pinnedTop,
+          top: firstRowTop,
           height: layout.pinnedHeight,
           opacity,
           borderRadius: radius.chrome,

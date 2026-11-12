@@ -104,7 +104,10 @@ Measured materials (our own non-activating panels over solid backdrops; sRGB; ac
   9 pt), and `frame - 9` past it above that. The corner radius scales with the frame, `10 × min(1, frame / 9)` rounded
   to half points (0 edge to edge, where the window's own corner rounds the page), and the peek's is
   `min(12, radius + frame - its side)`, so its corners still cover the card's. The traffic lights stay 21 pt below the
-  card's top (y = frame + 21; the compact toolbar lifts them as before). Below an 8 pt frame the sidebar's peek strip
+  card's top (y = frame + 21; the compact toolbar lifts them as before). The sidebar's header and its first row rise by
+  the same lift (`sidebarHeaderOf`, `firstRowTopOf` in `components/sidebar/geometry.ts`; issue #1364), so the first tab or
+  Top Apps tile stays 24 pt below the lights; with the address bar in the sidebar the lights are fixed and so is the
+  header. Below an 8 pt frame the sidebar's peek strip
   would lie over the page, so the native edge watch takes the 8 pt band instead and clicks there reach the page.
   Measured in a hidden instance (2x snapshots): card at 0/5/9/12 is 0/5/9/12 pt from the window's edges (docked: x 190,
   190, 190, 193), corner radius 0 / 5.5 / 10 / 10 pt.
