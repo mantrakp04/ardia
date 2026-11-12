@@ -257,7 +257,7 @@ test("the engine domain shapes what the Mac shapes", async () => {
 
 const ONE_PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
-function hostedEngine(removal, reply) {
+function hostedEngine(removal, reply, { nativeFolder = "c:/ardia/user data/" } = {}) {
   const engine = fakeEngine(reply);
   engine.hosted = [];
   engine.removed = [];
@@ -265,8 +265,9 @@ function hostedEngine(removal, reply) {
     engine.hosted.push(verb);
     return { chromium: "157.0.1.2", userDataDir: "C:\\Ardia\\User Data" };
   };
-  engine.removeProfileFolder = async (root, folder) => {
-    engine.removed.push([root, folder]);
+  engine.profileDataFolder = () => nativeFolder;
+  engine.removeProfileFolder = async (...given) => {
+    engine.removed.push(given);
     return removal;
   };
   return engine;
@@ -275,7 +276,7 @@ function hostedEngine(removal, reply) {
 test("deleting a profile's data removes its folder, or clears its data and waits while the engine holds it", async () => {
   const gone = hostedEngine("removed");
   assert.deepEqual(await calling(gone, "profiles")("deleteData", {}, "work.1"), { remaining: [] });
-  assert.deepEqual(gone.removed, [["C:\\Ardia\\User Data", "Ardia work_1"]]);
+  assert.deepEqual(gone.removed, [["Ardia work_1"]]);
   assert.deepEqual(gone.calls, []);
 
   const absent = hostedEngine("absent");
@@ -292,8 +293,16 @@ test("deleting a profile's data removes its folder, or clears its data and waits
 
   const quiet = hostedEngine("removed");
   assert.deepEqual(await calling(quiet, "profiles")("deleteData", {}, "incognito2@work"), { remaining: [] });
-  assert.deepEqual(await calling(quiet, "profiles")("deleteData", {}, ""), { remaining: ["data"] });
+  assert.deepEqual(await calling(quiet, "profiles")("deleteData", {}, "tab@work"), { remaining: [] });
   assert.deepEqual(quiet.removed, []);
+});
+
+test("a profile's folder is removed only where native and the engine agree Chromium keeps its data", async () => {
+  for (const nativeFolder of ["D:\\Elsewhere\\User Data", null]) {
+    const engine = hostedEngine("removed", undefined, { nativeFolder });
+    assert.equal((await calling(engine, "profiles")("deleteData", {}, "work")).remaining.length, 1);
+    assert.deepEqual(engine.removed, []);
+  }
 });
 
 test("engine.info answers from the engine host in the Mac's shape", async () => {
@@ -321,4 +330,102 @@ test("favicons.fetch answers the icon Chromium stored for that address, with its
   assert.equal(await favicons("fetch", { url: "file:///C:/icon.png" }), null);
   assert.equal(await favicons("fetch", { url }, "incognito1@work"), null);
   assert.equal(engine.calls.length, 1);
+});
+
+test("a profile's folder is named from its id's UTF-8 bytes, as the engine names it", async () => {
+  const folderFor = async (profile) => {
+    const engine = hostedEngine("absent");
+    await calling(engine, "profiles")("deleteData", {}, profile);
+    return engine.removed.map(([folder]) => folder);
+  };
+  assert.deepEqual(await folderFor("é"), ["Ardia __"]);
+  assert.deepEqual(await folderFor("café-1"), ["Ardia caf__-1"]);
+  assert.deepEqual(await folderFor("😀"), ["Ardia ____"]);
+  assert.deepEqual(await folderFor("work 1"), ["Ardia work_1"]);
+  assert.deepEqual(await folderFor("_"), ["Ardia _"]);
+  const lone = hostedEngine("removed");
+  const { remaining } = await calling(lone, "profiles")("deleteData", {}, "a\ud800b");
+  assert.equal(remaining.length, 1);
+  assert.deepEqual(lone.removed, []);
+});
+
+const ORIGINAL_STEPS = ["history, cookies and cache", "autocomplete entries", "passwords", "addresses", "cards", "extensions", "site settings", "zoom levels"];
+
+function originalProfileEngine({ failing = null } = {}) {
+  const state = {
+    passwords: [{ origin: "https://a.example", username: "u" }],
+    exceptions: ["https://b.example"],
+    addresses: [{ id: "a1" }],
+    cards: [{ id: "c1" }],
+    extensions: [
+      { id: "e1", enabled: true, mayModify: true },
+      { id: "e2", enabled: true, mayModify: false },
+      { id: "e3", enabled: false, mayModify: true },
+    ],
+    origins: ["https://c.example"],
+    levels: { "d.example": 1 },
+  };
+  const engine = hostedEngine("removed", (name, profile, args) => {
+    if (name === failing) return '{"error":"refused"}';
+    switch (name) {
+      case "ac_browsing_data_clear":
+        return '{"ok":true}';
+      case "ac_passwords_list":
+        return JSON.stringify({ passwords: state.passwords });
+      case "ac_passwords_remove":
+        state.passwords = state.passwords.filter((p) => p.origin !== args.origin || p.username !== args.username);
+        return '{"ok":true}';
+      case "ac_passwords_exceptions":
+        return JSON.stringify({ origins: state.exceptions });
+      case "ac_passwords_allow":
+        state.exceptions = state.exceptions.filter((o) => o !== args.origin);
+        return '{"ok":true}';
+      case "ac_autofill_addresses":
+        return JSON.stringify({ addresses: state.addresses });
+      case "ac_autofill_cards":
+        return JSON.stringify({ cards: state.cards });
+      case "ac_autofill_remove":
+        state.addresses = state.addresses.filter((a) => a.id !== args.id);
+        state.cards = state.cards.filter((c) => c.id !== args.id);
+        return '{"ok":true}';
+      case "ac_extensions_list":
+        return JSON.stringify({ extensions: state.extensions });
+      case "ac_extensions_set_enabled":
+        state.extensions = state.extensions.map((e) => (e.id === args.id ? { ...e, enabled: args.enabled } : e));
+        return '{"ok":true}';
+      case "ac_site_settings_origins":
+        return JSON.stringify({ origins: state.origins });
+      case "ac_site_settings_reset":
+        state.origins = state.origins.filter((o) => o !== args.origin);
+        return '{"ok":true}';
+      case "ac_zoom_list":
+        return JSON.stringify({ levels: state.levels });
+      case "ac_zoom_set":
+        if (args.level === 0) delete state.levels[args.host];
+        return '{"ok":true}';
+      default:
+        return "{}";
+    }
+  });
+  return { engine, state };
+}
+
+test("deleting the original profile's data clears it step by step, as the Mac does", async () => {
+  const { engine, state } = originalProfileEngine();
+  assert.deepEqual(await calling(engine, "profiles")("deleteData", {}, ""), { remaining: [] });
+  assert.deepEqual(engine.removed, []);
+  assert.ok(engine.calls.every((c) => c.profile === ""));
+  const clears = engine.calls.filter((c) => c.name === "ac_browsing_data_clear").map((c) => c.args.types);
+  assert.deepEqual(clears, [["history", "siteData", "cache", "downloads"], ["formData", "siteSettings"]]);
+  assert.deepEqual(state, { passwords: [], exceptions: [], addresses: [], cards: [], extensions: [{ id: "e1", enabled: false, mayModify: true }, { id: "e2", enabled: true, mayModify: false }, { id: "e3", enabled: false, mayModify: true }], origins: [], levels: {} });
+  assert.deepEqual(engine.calls.find((c) => c.name === "ac_zoom_set").args, { host: "d.example", level: 0 });
+});
+
+test("deleting the original profile's data names each step that failed", async () => {
+  const { engine } = originalProfileEngine({ failing: "ac_site_settings_origins" });
+  assert.deepEqual(await calling(engine, "profiles")("deleteData", {}, ""), { remaining: ["site settings"] });
+  const stuck = originalProfileEngine({ failing: "ac_passwords_remove" });
+  assert.deepEqual(await calling(stuck.engine, "profiles")("deleteData", {}, ""), { remaining: ["passwords"] });
+  const nothing = originalProfileEngine({ failing: "ac_browsing_data_clear" });
+  assert.deepEqual((await calling(nothing.engine, "profiles")("deleteData", {}, "")).remaining, ORIGINAL_STEPS.slice(0, 2));
 });

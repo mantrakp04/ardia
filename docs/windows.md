@@ -250,10 +250,19 @@ session with track actions, and the mini player shows skip by 15 seconds where t
 
 Answered in TypeScript on Windows since this list was made: `engine.info` (from `host.info`), `favicons.fetch` (the
 icon Chromium stored for that address, from `ac_favicons_get`, asked again after 0.4 and 1.5 s while Chromium writes
-it), and `profiles.deleteData`. Deleting a profile's data asks `host.info` for Chromium's data folder and has native
-(`ArdiaEngineHost.removeProfileFolder`) remove `Ardia <name>` there: it renames the folder first, which fails while
-the engine holds a file in it, so a loaded profile's folder is never half removed. Then its browsing data is cleared
-through `ac_browsing_data_clear` instead, and the folder goes at the next launch. The launch log says
+it), and `profiles.deleteData`.
+
+Deleting a profile's data: native (`ArdiaEngineHost.removeProfileFolder`) works out Chromium's data folder itself, as
+the engine does (`<ARDIA_DATA_DIR>\Chromium` in an instance with its own data folder, `%LOCALAPPDATA%\Ardia\User Data`
+otherwise), and acts only where that folder holds `Local State` and agrees with `host.info`'s `userDataDir`. The
+profile's folder is `Ardia ` and its id's UTF-8 bytes, each byte outside `A-Z a-z 0-9 _ -` made `_`, as the engine names
+it; an id that isn't valid text is refused. Native renames the folder to `<folder> (removing)` first, which fails while
+the engine holds a file in it, so a loaded profile's folder is never half removed: its browsing data is cleared through
+`ac_browsing_data_clear` instead and the folder goes at the next launch. A `(removing)` folder left by an earlier try is
+cleared first, and while it stays the answer is that files are left, never that the folder is gone. The original
+profile's folder is never removed: as on the Mac (`ProfileData.swift`), its browsing data, form data and site
+settings, passwords and never-save sites, addresses, cards, running extensions, site settings and zoom levels are
+cleared one by one through their `ac_*` calls, and each step that fails is named. The launch log says
 `profile folder removed|in use|partly removed: <folder>`.
 
 ## Updates

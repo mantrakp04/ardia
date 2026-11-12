@@ -1,6 +1,6 @@
 import type { WindowsNative } from "@ardia/shell";
 import { TurboModuleRegistry, type TurboModule } from "react-native";
-import { engineAvailable, engineCallJson, hostCall, onEngineTopic, removeProfileFolder } from "../engine/host";
+import { engineAvailable, engineCallJson, hostCall, onEngineTopic, profileDataFolder, removeProfileFolder } from "../engine/host";
 import { pngImage } from "../engine/domains/favicons";
 import { profileFolder } from "../engine/domains/profiles";
 import { requireNativeModule } from "../modules";
@@ -8,7 +8,8 @@ import { expectEqual, expectTrue, type Check } from "./check";
 
 type EngineHost = TurboModule & {
   available(): boolean;
-  removeProfileFolder(userDataDir: string, folder: string): Promise<string>;
+  profileDataFolder(): string;
+  removeProfileFolder(folder: string): Promise<string>;
   hostCall(verb: string, argsJson: string, windowId: string): Promise<string>;
   engineCall(name: string, profileDir: string, argsJson: string): Promise<string>;
 };
@@ -30,11 +31,21 @@ const engineHost = () => {
 
 const windows = () => requireNativeModule<Pick<WindowsNative, "windowIds">>("ArdiaAppWindows");
 const system = () => requireNativeModule<{ fileExists(path: string): boolean }>("ArdiaSystem");
+const launchData = () => requireNativeModule<{ launchConfig(): { dataDirectory?: unknown } }>("ArdiaApp").launchConfig().dataDirectory;
 const domain = (name: string) => requireNativeModule<DomainModule>(name);
 
-const launchData = () => requireNativeModule<{ launchConfig(): { dataDirectory?: unknown } }>("ArdiaApp").launchConfig().dataDirectory;
 const NEVER_LOADED = "selfCheckNeverLoaded";
 const LOADED = "selfCheckLoaded";
+const STUCK = "selfCheckStuck";
+const SEEDED_ZOOM_HOST = "selfcheck.example";
+
+const comparable = (path: unknown) => String(path).replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+
+const folderOf = (profile: string) => {
+  const folder = profileFolder(profile);
+  expectTrue(folder, `${profile} has no folder name`);
+  return folder;
+};
 const ONE_PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
 const userDataDir = async () => {
@@ -91,10 +102,12 @@ const withoutEngine: Check[] = [
     },
   },
   {
-    name: "engine host: removing a folder that is not a profile's is refused",
+    name: "engine host: profiles live in the instance's own Chromium folder, and nothing is removed while it has none",
     async run() {
-      expectEqual(await engineHost().removeProfileFolder("C:\\Windows", "Ardia x"), "refused", "a folder outside Chromium's data");
-      expectEqual(await engineHost().removeProfileFolder("C:\\Windows", "..\\System32"), "refused", "a name that leaves the folder");
+      expectEqual(comparable(engineHost().profileDataFolder()), comparable(`${String(launchData())}\\Chromium`), "profileDataFolder()");
+      expectEqual(await engineHost().removeProfileFolder("Ardia x"), "refused", "a profile folder with no Chromium data beside it");
+      expectEqual(await engineHost().removeProfileFolder("..\\System32"), "refused", "a name that leaves the folder");
+      expectEqual(await engineHost().removeProfileFolder("Ardia x (removing)"), "refused", "a name the engine never makes");
     },
   },
 ];
@@ -171,9 +184,15 @@ const withEngine: Check[] = [
     },
   },
   {
+    name: "engine: native and the engine agree where Chromium keeps profiles",
+    async run() {
+      expectEqual(comparable(profileDataFolder()), comparable(await userDataDir()), "profileDataFolder() against host.info");
+    },
+  },
+  {
     name: "engine: deleting a profile the engine never loaded leaves no folder behind",
     async run() {
-      const folder = `${await userDataDir()}\\${profileFolder(NEVER_LOADED)}`;
+      const folder = `${await userDataDir()}\\${folderOf(NEVER_LOADED)}`;
       expectEqual(await deleteData(NEVER_LOADED), { remaining: [] }, "deleteData of a profile never loaded");
       expectEqual(system().fileExists(folder), false, `${folder} exists`);
     },
@@ -183,33 +202,37 @@ const withEngine: Check[] = [
     async run() {
       const loaded = JSON.parse(await engineCallJson("ac_bookmarks_tree", LOADED, "{}")) as { error?: unknown };
       expectEqual(loaded.error, undefined, "loading the profile");
-      const folder = `${await userDataDir()}\\${profileFolder(LOADED)}`;
+      const folder = `${await userDataDir()}\\${folderOf(LOADED)}`;
       expectTrue(system().fileExists(folder), `${folder} was not made`);
       const { remaining } = await deleteData(LOADED);
       expectTrue(Array.isArray(remaining) && remaining.length === 1, `deleteData of a loaded profile left ${JSON.stringify(remaining)}`);
       expectTrue(system().fileExists(folder), `${folder} went away while the engine held it`);
-      expectEqual(await removeProfileFolder(await userDataDir(), profileFolder(LOADED)), "inUse", "removing the held folder");
-    },
-  },
-  {
-    name: "engine: a folder outside Chromium's data is never removed",
-    async run() {
-      const decoy = `${String(launchData())}\\decoy`;
-      expectEqual(await engineHost().removeProfileFolder(decoy, "Ardia selfCheckDecoy"), "refused", "removing a profile folder from another app's folder");
-      expectTrue(system().fileExists(`${decoy}\\Ardia selfCheckDecoy\\keep.txt`), "the decoy's file is gone");
+      expectEqual(await removeProfileFolder(folderOf(LOADED)), "inUse", "removing the held folder");
     },
   },
   {
     name: "engine: an earlier removal that is still left is reported, not taken as done",
     async run() {
-      expectEqual(await engineHost().removeProfileFolder(await userDataDir(), "Ardia selfCheckStuck"), "partial", "removing a profile whose earlier removal is held open");
+      const leftover = `${await userDataDir()}\\${folderOf(STUCK)} (removing)`;
+      expectTrue(system().fileExists(leftover), `the launch left no held ${leftover}`);
+      expectEqual(await removeProfileFolder(folderOf(STUCK)), "partial", "removing a profile whose earlier removal is held open");
+      expectEqual((await deleteData(STUCK)).remaining, ["files (partial)"], "what deleteData reports");
     },
   },
   {
-    name: "engine: deleting a private or the original profile's data answers as on the Mac",
+    name: "engine: deleting a private profile's data answers as on the Mac",
     async run() {
       expectEqual(await deleteData(`incognito1@${LOADED}`), { remaining: [] }, "a private profile");
-      expectEqual(await deleteData(""), { remaining: ["data"] }, "the original profile");
+    },
+  },
+  {
+    name: "engine: deleting the original profile's data clears it step by step",
+    async run() {
+      const seeded = JSON.parse(await engineCallJson("ac_zoom_set", "", JSON.stringify({ host: SEEDED_ZOOM_HOST, level: 1 }))) as { error?: unknown };
+      expectEqual(seeded.error, undefined, "seeding a zoom level");
+      expectEqual(await deleteData(""), { remaining: [] }, "deleting the original profile's data");
+      const zooms = JSON.parse(await engineCallJson("ac_zoom_list", "", "{}")) as { levels?: Record<string, unknown> };
+      expectEqual(Object.keys(zooms.levels ?? {}), [], "zoom levels left");
     },
   },
   {

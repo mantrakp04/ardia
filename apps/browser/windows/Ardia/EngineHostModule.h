@@ -92,15 +92,36 @@ inline bool Gone(std::filesystem::path const &path) noexcept {
   return !std::filesystem::exists(path, error) && !error;
 }
 
-inline std::string RemoveProfileFolder(std::string const &userDataDir, std::string const &folder) noexcept {
+inline std::wstring WithoutTrailingSeparators(std::wstring path) {
+  while (!path.empty() && (path.back() == L'\\' || path.back() == L'/')) path.pop_back();
+  return path;
+}
+
+inline std::filesystem::path ProfileDataRoot() noexcept {
+  try {
+    std::wstring scratch = WithoutTrailingSeparators(Paths::Environment(L"ARDIA_DATA_DIR"));
+    if (!scratch.empty()) return std::filesystem::path{scratch} / L"Chromium";
+    std::wstring localAppData = WithoutTrailingSeparators(Paths::Environment(L"LOCALAPPDATA"));
+    if (localAppData.empty()) return {};
+    return std::filesystem::path{localAppData} / L"Ardia" / L"User Data";
+  } catch (...) {
+    return {};
+  }
+}
+
+inline std::string RemoveProfileFolder(std::string const &folder) noexcept {
   try {
     if (!IsProfileFolderName(folder)) return "refused";
-    std::filesystem::path root{Paths::Wide(userDataDir)};
-    if (!IsChromiumDataFolder(root)) return "refused";
+    std::filesystem::path root = ProfileDataRoot();
+    if (root.empty() || !IsChromiumDataFolder(root)) return "refused";
     std::filesystem::path target = root / Paths::Wide(folder);
     std::filesystem::path staged = root / (Paths::Wide(folder) + StagedSuffix);
     std::error_code error;
-    if (std::filesystem::exists(staged, error)) std::filesystem::remove_all(staged, error);
+    if (!Gone(staged)) std::filesystem::remove_all(staged, error);
+    if (!Gone(staged)) {
+      LaunchLog::Write(L"engine", L"profile folder partly removed: " + Paths::Wide(folder) + L" (an earlier removal is left)");
+      return "partial";
+    }
     if (Gone(target)) return "absent";
     if (!MoveFileExW(target.c_str(), staged.c_str(), 0)) {
       DWORD moveError = GetLastError();
@@ -108,7 +129,7 @@ inline std::string RemoveProfileFolder(std::string const &userDataDir, std::stri
       return "inUse";
     }
     std::filesystem::remove_all(staged, error);
-    if (!Gone(staged)) {
+    if (!Gone(staged) || !Gone(target)) {
       LaunchLog::Write(L"engine", L"profile folder partly removed: " + Paths::Wide(folder));
       return "partial";
     }
@@ -118,7 +139,6 @@ inline std::string RemoveProfileFolder(std::string const &userDataDir, std::stri
     return "failed";
   }
 }
-
 }
 
 REACT_MODULE(EngineHostModule, L"ArdiaEngineHost")
@@ -166,11 +186,20 @@ struct EngineHostModule {
     });
   }
 
-  REACT_METHOD(removeProfileFolder)
-  void removeProfileFolder(std::string userDataDir, std::string folder, Reply reply) noexcept {
+  REACT_SYNC_METHOD(profileDataFolder)
+  std::string profileDataFolder() noexcept {
     try {
-      std::thread([userDataDir = std::move(userDataDir), folder = std::move(folder), reply]() noexcept {
-        reply.Resolve(EngineHostParts::RemoveProfileFolder(userDataDir, folder));
+      return Paths::Utf8(EngineHostParts::ProfileDataRoot().wstring());
+    } catch (...) {
+      return {};
+    }
+  }
+
+  REACT_METHOD(removeProfileFolder)
+  void removeProfileFolder(std::string folder, Reply reply) noexcept {
+    try {
+      std::thread([folder = std::move(folder), reply]() noexcept {
+        reply.Resolve(EngineHostParts::RemoveProfileFolder(folder));
       }).detach();
     } catch (...) {
       reply.Resolve(std::string{"failed"});
