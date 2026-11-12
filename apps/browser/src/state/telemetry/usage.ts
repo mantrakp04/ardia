@@ -16,7 +16,6 @@ import { commandBarPlacementLabel, takeOmniboxLatency, takeSearchSuggests } from
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples, watchHoverLost } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
-import { watchPasteRefused } from "./pasteRefused";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
@@ -383,7 +382,6 @@ export function startUsage() {
       sessionEnding();
     } else if (e.type === "quitCancelled") startContextSamples();
   });
-  watchPasteRefused();
 }
 
 export function sessionEnding() {

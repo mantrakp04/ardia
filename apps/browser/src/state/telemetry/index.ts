@@ -15,6 +15,7 @@ import { checkWatch, startWatch, stopWatch, watchStatus } from "./watch";
 import { startWatchNotice } from "./watchNotice";
 import { reportIdentity, resetAnonymousId, telemetryIdentity } from "./identity";
 import { diagnosticsText } from "./diagnosticsSnapshot";
+import { watchPasteRefused } from "./pasteRefused";
 
 export { installErrorReporting };
 export { telemetryIdentity, reportIdentity, resetAnonymousId, type ReportIdentity, type TelemetryIdentity } from "./identity";
@@ -24,6 +25,7 @@ export { diagnosticsSnapshot, type DiagnosticsSnapshot } from "./diagnosticsSnap
 
 export function startTelemetry() {
   startUsage();
+  watchPasteRefused();
   startWatchNotice();
   startDaily(onboardingCompletedAt() !== null);
   if (__DEV__) {
