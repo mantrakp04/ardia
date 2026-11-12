@@ -12,6 +12,7 @@
       "DocumentsModule",
       "SymbolModule",
       "FadeLabelModule",
+      "EdgeFadeModule",
       "ActivitySpinnerModule",
       "ContextMenuAreaModule",
       "OutsidePressAreaModule",

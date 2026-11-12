@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { downloadsOpenIn } from "../../state/browser/current";
 import { useWindowFullScreen, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
@@ -8,7 +8,7 @@ import { useWindowUiOf } from "../../state/windows/hooks";
 import { usePagerPages } from "../../state/windows/profilePager";
 import { DownloadsButton } from "../downloads/DownloadsButton";
 import { ProfileIndicator, useProfileIndicatorWidth } from "../profiles/ProfileIndicator";
-import { Panel, shadow, WindowDragRegion } from "../ui";
+import { EdgeFade, Panel, shadow, WindowDragRegion } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { TintInk } from "../ui/TintInk";
 import { radius } from "../ui/tokens";
@@ -35,6 +35,7 @@ import {
   PEEK_PAD,
   PEEK_TOP,
   PROFILE_ROOM,
+  STRIP_EDGE_FADE,
   TAB_RADIUS,
   TOP_STRIP_HEIGHT,
 } from "./tokens";
@@ -53,6 +54,8 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
   const right = Math.max(84, controls + 8 + 6);
   const pageWidth = Math.max(0, width - left - right);
   const flare = floating ? 0 : FLARE;
+  const clipRight = Math.max(right - flare, controls + 8);
+  const [spills, setSpills] = useState(false);
 
   useEffect(() => {
     if (floating || hidden) return;
@@ -64,11 +67,11 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
     <FloatingStrip.Provider value={floating}>
       <StripDropArea style={{ height: TOP_STRIP_HEIGHT }}>
         <WindowDragRegion style={StyleSheet.absoluteFill} />
-        <View style={{ position: "absolute", left: left - flare, right: Math.max(right - flare, controls + 8), top: 0, bottom: 0, overflow: "hidden" }}>
+        <EdgeFade trailing={spills ? STRIP_EDGE_FADE : 0} style={{ position: "absolute", left: left - flare, right: clipRight, top: 0, bottom: 0, overflow: "hidden" }}>
           {pages.map((page) => (
-            <StripPage key={page.id} profileId={page.id} slot={page.slot} pageWidth={pageWidth} current={page.id === current} resting={!!page.resting} />
+            <StripPage key={page.id} profileId={page.id} slot={page.slot} pageWidth={pageWidth} current={page.id === current} resting={!!page.resting} cut={clipRight - (right - flare)} onSpill={setSpills} />
           ))}
-        </View>
+        </EdgeFade>
         <View mouseDownCanMoveWindow={false} style={{ position: "absolute", right: 8, top: MID - 17, flexDirection: "row", alignItems: "center", gap: CONTROLS_GAP }}>
           <TintInk>
             <ProfileIndicator room={PROFILE_ROOM} />

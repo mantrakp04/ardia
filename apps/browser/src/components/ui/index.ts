@@ -37,6 +37,7 @@ export {
   ContextMenuArea,
   DIA_SPECTRUM,
   DockSelection,
+  EdgeFade,
   FadeLabel,
   FileDropArea,
   MagnifyArea,

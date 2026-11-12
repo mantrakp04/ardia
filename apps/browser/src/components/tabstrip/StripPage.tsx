@@ -23,7 +23,7 @@ type Hold = { chip: number; end: number };
 
 const stripEnd = ({ slots, lefts }: DragGeometry) => (slots.length ? lefts.at(-1)! + slots.at(-1)!.width : 0);
 
-export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, current, resting }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean }) {
+export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, current, resting, cut, onSpill }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean; cut: number; onSpill: (spills: boolean) => void }) {
   const windowId = useWindowId();
   const flare = useContext(FloatingStrip) ? 0 : FLARE;
   const pageStyle = usePageStyle(windowId, slot, pageWidth + flare * 2);
@@ -64,6 +64,11 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const scrolled = useRef(0);
   const viewport = useRef(pageWidth + flare * 2);
   const [atStart, setAtStart] = useState(true);
+  const contentWidth = useRef(0);
+  const noteSpill = () => {
+    if (current) onSpill(contentWidth.current - flare - spare - scrolled.current > viewport.current - cut + 0.5);
+  };
+  useEffect(noteSpill, [current, cut, spare]);
   const inset = atStart ? flare : 0;
   const spanOf = (tabId: string): [number, number] | null => {
     const span = spanInStrip(tabId);
@@ -102,11 +107,19 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 scrollEventThrottle={16}
-                onLayout={(e) => void (viewport.current = e.nativeEvent.layout.width)}
+                onLayout={(e) => {
+                  viewport.current = e.nativeEvent.layout.width;
+                  noteSpill();
+                }}
+                onContentSizeChange={(width) => {
+                  contentWidth.current = width;
+                  noteSpill();
+                }}
                 onScroll={(e) => {
                   if (Math.abs(e.nativeEvent.contentOffset.x - scrolled.current) >= 1) dismissStripHoverIn(windowId);
                   scrolled.current = e.nativeEvent.contentOffset.x;
                   setAtStart(scrolled.current < 0.5);
+                  noteSpill();
                 }}
                 style={{ flex: 1, marginLeft: flare - inset }}
                 contentContainerStyle={{ alignItems: "flex-start", gap: GAP, paddingLeft: inset, paddingRight: flare }}
