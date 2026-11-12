@@ -14,11 +14,13 @@ import java.io.FileNotFoundException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class TestDocumentsProvider : DocumentsProvider() {
     companion object {
         const val AUTHORITY = "com.ardia.sync.test.documents"
         const val ROOT = "root"
+        const val PIPE_COMMIT_DELAY_MS = 100L
 
         @Volatile
         var base: File? = null
@@ -30,11 +32,23 @@ class TestDocumentsProvider : DocumentsProvider() {
         @Volatile
         var hang = CountDownLatch(0)
 
+        @Volatile
+        var pipeWrites = false
+
+        @Volatile
+        var damage: (ByteArray) -> ByteArray = { it }
+        val damageNext = AtomicInteger(0)
+        val pipeCommits = AtomicInteger(0)
+
         val treeUri: Uri get() = DocumentsContract.buildTreeDocumentUri(AUTHORITY, ROOT)
 
         fun reset(folder: File) {
             base = folder
             pending.clear()
+            pipeWrites = false
+            damage = { it }
+            damageNext.set(0)
+            pipeCommits.set(0)
             hangListingsOf = null
             hang.countDown()
         }
@@ -96,7 +110,20 @@ class TestDocumentsProvider : DocumentsProvider() {
     override fun openDocument(documentId: String, mode: String, signal: CancellationSignal?): ParcelFileDescriptor {
         val target = file(documentId)
         if (!target.isFile) throw FileNotFoundException(documentId)
+        if (pipeWrites && 'w' in mode) return commitAfterEndOfFile(target)
         return ParcelFileDescriptor.open(target, ParcelFileDescriptor.parseMode(mode))
+    }
+
+    private fun commitAfterEndOfFile(target: File): ParcelFileDescriptor {
+        val (readSide, writeSide) = ParcelFileDescriptor.createReliablePipe()
+        Thread {
+            val received = ParcelFileDescriptor.AutoCloseInputStream(readSide).use { it.readBytes() }
+            Thread.sleep(PIPE_COMMIT_DELAY_MS)
+            val damaged = damageNext.getAndUpdate { maxOf(0, it - 1) } > 0
+            target.writeBytes(if (damaged) damage(received) else received)
+            pipeCommits.incrementAndGet()
+        }.start()
+        return writeSide
     }
 
     override fun createDocument(parentDocumentId: String, mimeType: String, displayName: String): String {

@@ -27,6 +27,11 @@ class FakeDocumentTree(var clock: Long = 1_800_000_000_000L) : DocumentTree, Coo
     var failWrites = false
     var timeOutListings = false
     var duringWrite: ((String) -> Unit)? = null
+    var keeps: (ByteArray) -> ByteArray = { it }
+    var renameKeeps: (ByteArray) -> ByteArray = { it }
+    var unreadableReads = 0
+    var lateReads = 0
+    var reads = 0
     override var timedOut = false
 
     override val rootId: String = "root"
@@ -79,6 +84,7 @@ class FakeDocumentTree(var clock: Long = 1_800_000_000_000L) : DocumentTree, Coo
     override fun rename(id: String, name: String): DocumentEntry {
         val node = node(id)
         node.name = name + renameSuffix
+        node.bytes = renameKeeps(node.bytes)
         return entry(id)
     }
 
@@ -93,14 +99,26 @@ class FakeDocumentTree(var clock: Long = 1_800_000_000_000L) : DocumentTree, Coo
         doomed.forEach { nodes.remove(it) }
     }
 
-    override fun read(id: String): ByteArray = node(id).bytes
+    override fun read(id: String): ByteArray {
+        reads++
+        val node = node(id)
+        if (unreadableReads > 0) {
+            unreadableReads--
+            throw IOException("not readable yet")
+        }
+        if (lateReads > 0) {
+            lateReads--
+            return ByteArray(0)
+        }
+        return node.bytes
+    }
 
     override fun write(id: String, bytes: ByteArray) {
         val node = node(id)
         node.bytes = bytes.copyOf(bytes.size / 2)
         duringWrite?.invoke(id)
         if (failWrites) throw IOException("disk full")
-        node.bytes = bytes
+        node.bytes = keeps(bytes)
         node.modified = clock
     }
 
@@ -117,7 +135,80 @@ class DocumentTreeStorageTest {
 
     private fun syncFolder(tree: FakeDocumentTree) = tree.add(tree.rootId, "Ardia Sync", directory = true)
 
-    private fun storage(tree: FakeDocumentTree, subfolder: String? = "Ardia Sync") = DocumentTreeStorage(tree, subfolder, subfolder ?: "Picked") { tree.clock }
+    private val pauses = ArrayList<Long>()
+
+    private fun storage(tree: FakeDocumentTree, subfolder: String? = "Ardia Sync") =
+        DocumentTreeStorage(tree, subfolder, subfolder ?: "Picked", now = { tree.clock }, pause = { pauses += it })
+
+    private fun scopeNames(tree: FakeDocumentTree) = tree.namesIn(tree.path("Ardia Sync", keys.chainTag, keys.scopeTag("app"))!!)
+
+    private fun writeFails(vault: SyncVault): String {
+        try {
+            vault.write("app", "{\"batch\":7}".toByteArray())
+        } catch (expected: IOException) {
+            return expected.message ?: ""
+        }
+        fail("the write should fail")
+        return ""
+    }
+
+    @Test
+    fun aWriteTheFolderLostOrCutShortFailsAndLeavesNothingBehind() {
+        val damage = mapOf<String, (ByteArray) -> ByteArray>("lost" to { ByteArray(0) }, "truncated" to { it.copyOf(it.size / 2) }, "changed" to { it.copyOf().also { b -> b[0] = (b[0] + 1).toByte() } })
+        for (renames in listOf(true, false)) {
+            for ((name, keep) in damage) {
+                val tree = FakeDocumentTree()
+                tree.renames = renames
+                syncFolder(tree)
+                val vault = SyncVault(storage(tree), keys)
+                vault.createChain()
+                tree.keeps = keep
+                writeFails(vault)
+                assertEquals("$name, renames $renames", emptyList<String>(), scopeNames(tree))
+                tree.keeps = { it }
+                val id = vault.write("app", "{\"batch\":7}".toByteArray())
+                assertEquals(listOf("$id.nns"), scopeNames(tree))
+                assertEquals("{\"batch\":7}", String(SyncVault(storage(tree), keys).read("app", emptySet()).files.single().payload))
+            }
+        }
+    }
+
+    @Test
+    fun aRenameThatDamagesTheFileFailsAndRemovesItFromItsRealName() {
+        val tree = FakeDocumentTree()
+        syncFolder(tree)
+        val vault = SyncVault(storage(tree), keys)
+        vault.createChain()
+        tree.renameKeeps = { it.copyOf(it.size - 1) }
+        writeFails(vault)
+        assertEquals(emptyList<String>(), scopeNames(tree))
+    }
+
+    @Test
+    fun aFileThatCantBeReadBackFailsTheWrite() {
+        val tree = FakeDocumentTree()
+        syncFolder(tree)
+        val vault = SyncVault(storage(tree), keys)
+        vault.createChain()
+        tree.unreadableReads = DocumentTreeStorage.PROOF_WAITS_MS.size + 1
+        writeFails(vault)
+        assertEquals(emptyList<String>(), scopeNames(tree))
+        assertEquals(DocumentTreeStorage.PROOF_WAITS_MS, pauses)
+    }
+
+    @Test
+    fun aProviderThatCommitsAfterTheDescriptorClosesIsGivenAMomentAndThenProven() {
+        val tree = FakeDocumentTree()
+        syncFolder(tree)
+        val vault = SyncVault(storage(tree), keys)
+        vault.createChain()
+        tree.lateReads = 2
+        tree.reads = 0
+        val id = vault.write("app", "{\"late\":1}".toByteArray())
+        assertEquals(listOf("$id.nns"), scopeNames(tree))
+        assertEquals(DocumentTreeStorage.PROOF_WAITS_MS.take(2), pauses)
+        assertEquals(4, tree.reads)
+    }
 
     @Test
     fun aPickedParentFindsTheSyncFolderAndPrefersTheOneHoldingChains() {

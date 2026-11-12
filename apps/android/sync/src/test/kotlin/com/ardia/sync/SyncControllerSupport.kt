@@ -62,6 +62,7 @@ class FakeDevice(var enabledOnStart: Boolean = true) : SyncDevice {
     var nextPhase: SyncPhase = SyncPhase.Updated
     var pendingReceived = listOf<ReceivedTab>()
     var cancelledCoordination = 0
+    var startsNeedingFolder = false
     var syncedSnapshot = SyncSnapshot.empty
     private var dirty = false
 
@@ -95,7 +96,13 @@ class FakeDevice(var enabledOnStart: Boolean = true) : SyncDevice {
 
     override fun start() {
         record("start")
-        if (enabledOnStart) turnOn()
+        if (startsNeedingFolder) {
+            isEnabled = true
+            isRunning = false
+            phase = SyncPhase.NeedsFolderAccess
+        } else if (enabledOnStart) {
+            turnOn()
+        }
     }
 
     override fun becameActive() = record("active")
@@ -138,6 +145,7 @@ class FakeDevice(var enabledOnStart: Boolean = true) : SyncDevice {
 
     override fun changeFolder(pick: SyncFolderPick): ConnectResult {
         record("changeFolder")
+        if (connectResult == ConnectResult.Connected) turnOn()
         return connectResult
     }
 

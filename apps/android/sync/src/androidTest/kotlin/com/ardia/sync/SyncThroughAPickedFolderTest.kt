@@ -126,6 +126,67 @@ class SyncThroughAPickedFolderTest {
         }
     }
 
+    private class Damage(val label: String, val relaunch: Boolean, val keep: (ByteArray) -> ByteArray)
+
+    @Test
+    fun aWriteAPipeBackedProviderLostOrCutShortFailsTheCycleKeepsTheBatchAndPublishesItNextTime() {
+        val cases = listOf(
+            Damage("lost", relaunch = false) { ByteArray(0) },
+            Damage("truncated", relaunch = false) { it.copyOf(it.size / 2) },
+            Damage("lost before a relaunch", relaunch = true) { ByteArray(0) },
+            Damage("truncated before a relaunch", relaunch = true) { it.copyOf(it.size / 2) },
+        )
+        for (case in cases) {
+            val drive = Drive(Sandbox())
+            TestDocumentsProvider.pipeWrites = true
+            val entropy = RecoveryPhrase.generateEntropy()
+            val mac = seededMac(drive.folder, entropy)
+            try {
+                val source = FakeSource()
+                var phone = service(drive.sandbox, source, TrustingTreeAccess(resolver))
+                assertEquals(case.label, ConnectResult.Connected, phone.connect(RecoveryPhrase.words(entropy).joinToString(" "), SyncFolderPick.Tree(TestDocumentsProvider.treeUri.toString())))
+                phone.syncNow()
+                assertEquals(case.label, SyncPhase.Updated, phone.phase)
+                assertTrue(case.label, TestDocumentsProvider.pipeCommits.get() > 0)
+                val me = phone.snapshot.devices.first { it.isCurrent }.id
+                val url = "https://kept.example/${case.label.replace(' ', '-')}"
+
+                TestDocumentsProvider.damage = case.keep
+                TestDocumentsProvider.damageNext.set(1)
+                assertTrue(case.label, phone.addBookmark(url, "Kept"))
+                phone.syncNow()
+                assertEquals(case.label, SyncPhase.Stalled(SyncService.STALLED_MESSAGE), phone.phase)
+                assertEquals(case.label, 0, TestDocumentsProvider.damageNext.get())
+                mac.sync(listOf(scope))
+                assertEquals(case.label, 0, kept(mac, url))
+                assertTrue(case.label, mac.vault.read(scope, emptySet()).damaged.isEmpty())
+                assertTrue(case.label, drive.folder.walkTopDown().none { DocumentTreeStorage.isStaging(it.name) })
+
+                if (case.relaunch) {
+                    phone.close()
+                    phone = service(drive.sandbox, source, TrustingTreeAccess(resolver))
+                    phone.start()
+                }
+                phone.syncNow()
+                assertEquals(case.label, SyncPhase.Updated, phone.phase)
+                mac.sync(listOf(scope))
+                assertEquals(case.label, 1, kept(mac, url))
+                val seqs = mac.logs(scope, me).map { it.getInt("seq") }
+                assertEquals(case.label, (1..seqs.size).toList(), seqs)
+                phone.stopSyncing()
+            } finally {
+                mac.close()
+                TestDocumentsProvider.reset(drive.root)
+                drive.sandbox.remove()
+            }
+        }
+    }
+
+    private fun kept(mac: FakeMac, url: String): Int {
+        val store = mac.store(scope)
+        return store.keyList().filter { it.startsWith("bm:") }.count { store.getJSONObject(it).optString("u") == url }
+    }
+
     @Test
     fun aFolderThatNeverAnswersEndsTheCycleAsOfflineAndTheNextCycleRecovers() {
         val drive = Drive(Sandbox())

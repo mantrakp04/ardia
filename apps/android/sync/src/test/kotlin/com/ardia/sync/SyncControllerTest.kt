@@ -184,6 +184,76 @@ class SyncControllerTest {
     }
 
     @Test
+    fun choosingTheFolderAgainResumesTheForegroundLoopLikeJoining() {
+        val h = Harness()
+        h.device.startsNeedingFolder = true
+        h.controller.start()
+        h.controller.appForegrounded()
+        assertEquals(SyncPhase.NeedsFolderAccess, h.controller.state.value.phase)
+        assertEquals("Choose Your Sync Folder Again", h.controller.state.value.words.rowSubtitle.text)
+        h.timers.advance(60_000)
+        assertEquals(0, h.device.syncs)
+        assertEquals(ConnectResult.Connected, runBlocking { h.controller.changeFolder(SyncFolderPick.Tree("content://tree")) })
+        assertEquals(1, h.device.syncs)
+        assertEquals(SyncPhase.Updated, h.controller.state.value.phase)
+        h.timers.advance(14_999)
+        assertEquals(1, h.device.syncs)
+        h.timers.advance(1)
+        assertEquals(2, h.device.syncs)
+        h.timers.advance(45_000)
+        assertEquals(5, h.device.syncs)
+        h.controller.appBackgrounded()
+        h.timers.advance(60_000)
+        assertEquals(5, h.device.syncs)
+    }
+
+    @Test
+    fun choosingTheFolderAgainInTheBackgroundSyncsOnceAndTheLoopWaitsForTheForeground() {
+        val h = Harness()
+        h.device.startsNeedingFolder = true
+        h.controller.start()
+        h.controller.appForegrounded()
+        h.controller.appBackgrounded()
+        assertEquals(ConnectResult.Connected, runBlocking { h.controller.changeFolder(SyncFolderPick.Tree("content://tree")) })
+        assertEquals(1, h.device.syncs)
+        h.timers.advance(60_000)
+        assertEquals(1, h.device.syncs)
+        h.controller.appForegrounded()
+        assertEquals(2, h.device.syncs)
+        h.timers.advance(15_000)
+        assertEquals(3, h.device.syncs)
+    }
+
+    @Test
+    fun aFolderThatDoesNotMatchStartsNoLoop() {
+        val h = Harness()
+        h.device.startsNeedingFolder = true
+        h.controller.start()
+        h.controller.appForegrounded()
+        h.device.connectResult = ConnectResult.Mismatch
+        assertEquals(ConnectResult.Mismatch, runBlocking { h.controller.changeFolder(SyncFolderPick.Tree("content://other")) })
+        h.timers.advance(60_000)
+        assertEquals(0, h.device.syncs)
+        assertEquals(SyncPhase.NeedsFolderAccess, h.controller.state.value.phase)
+    }
+
+    @Test
+    fun aForegroundThatEndsBeforeItsWorkRunsStartsNoLoop() {
+        val timers = ManualTimers()
+        val device = FakeDevice()
+        val queued = ArrayList<Runnable>()
+        val controller = SyncController(device, timers, RecordingScheduler(), java.util.concurrent.Executor { queued += it })
+        controller.start()
+        controller.appForegrounded()
+        controller.appBackgrounded()
+        while (queued.isNotEmpty()) queued.removeAt(0).run()
+        val after = device.syncs
+        timers.advance(60_000)
+        while (queued.isNotEmpty()) queued.removeAt(0).run()
+        assertEquals(after, device.syncs)
+    }
+
+    @Test
     fun stoppingEndsTheLoopTheDebounceAndBackgroundWork() {
         val h = launched()
         h.controller.localDidChange()

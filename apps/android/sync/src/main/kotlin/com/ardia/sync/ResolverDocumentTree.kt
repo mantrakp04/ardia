@@ -9,6 +9,9 @@ import android.os.OperationCanceledException
 import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
@@ -85,19 +88,34 @@ class ResolverDocumentTree(
 
     override fun write(id: String, bytes: ByteArray) {
         timed { signal ->
-            val descriptor = resolver.openFileDescriptor(document(id), "w", signal) ?: throw FileNotFoundException(id)
-            descriptor.use { open ->
-                FileOutputStream(open.fileDescriptor).let { stream ->
-                    stream.write(bytes)
-                    stream.flush()
-                    try {
-                        open.fileDescriptor.sync()
-                    } catch (pipe: SyncFailedException) {
-                    }
+            val descriptor = resolver.openFileDescriptor(document(id), "wt", signal) ?: throw FileNotFoundException(id)
+            var failure: Throwable? = null
+            try {
+                val stream = FileOutputStream(descriptor.fileDescriptor)
+                stream.write(bytes)
+                stream.flush()
+                try {
+                    descriptor.fileDescriptor.sync()
+                } catch (unsynced: SyncFailedException) {
+                    if (!isPipeOrSocket(descriptor)) throw unsynced
                 }
-                open.checkError()
+            } catch (error: Throwable) {
+                failure = error
             }
+            try {
+                descriptor.close()
+            } catch (error: IOException) {
+                failure?.addSuppressed(error) ?: run { failure = error }
+            }
+            failure?.let { throw it }
         }
+    }
+
+    private fun isPipeOrSocket(descriptor: ParcelFileDescriptor): Boolean = try {
+        val mode = Os.fstat(descriptor.fileDescriptor).st_mode
+        OsConstants.S_ISFIFO(mode) || OsConstants.S_ISSOCK(mode)
+    } catch (error: ErrnoException) {
+        false
     }
 
     fun hasPersistedAccess(): Boolean =

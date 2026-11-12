@@ -38,6 +38,7 @@ class DocumentTreeStorage(
     val subfolder: String?,
     override val name: String,
     private val now: () -> Long = System::currentTimeMillis,
+    private val pause: (Long) -> Unit = Thread::sleep,
 ) : SyncStorage, CoordinatedStorage {
     private val coordination = tree as? CoordinatedStorage
     private val directories = HashMap<List<String>, String>()
@@ -118,6 +119,7 @@ class DocumentTreeStorage(
         try {
             if (staging.canRename) {
                 tree.write(staging.id, bytes)
+                prove(staging.id, bytes)
                 placed = tree.rename(staging.id, wanted)
             }
         } finally {
@@ -126,9 +128,15 @@ class DocumentTreeStorage(
         val landed = placed
         if (landed == null) {
             writeInPlace(parent, wanted, bytes)
-        } else if (landed.name != wanted) {
-            runCatching { tree.delete(landed.id) }
-            throw IOException("the folder named the file ${landed.name}")
+            return@fresh
+        }
+        var proven = false
+        try {
+            if (landed.name != wanted) throw IOException("the folder named the file ${landed.name}")
+            prove(landed.id, bytes)
+            proven = true
+        } finally {
+            if (!proven) runCatching { tree.delete(landed.id) }
         }
     }
 
@@ -154,14 +162,35 @@ class DocumentTreeStorage(
             runCatching { tree.delete(direct.id) }
             throw IOException("the folder named the file ${direct.name}")
         }
-        var written = false
+        var proven = false
         try {
             tree.write(direct.id, bytes)
-            written = true
+            prove(direct.id, bytes)
+            proven = true
         } finally {
-            if (!written) runCatching { tree.delete(direct.id) }
+            if (!proven) runCatching { tree.delete(direct.id) }
         }
     }
+
+    private fun prove(id: String, bytes: ByteArray) {
+        var attempt = 0
+        while (true) {
+            val stored = try {
+                tree.read(id)
+            } catch (timedOut: SyncStorageTimedOut) {
+                throw timedOut
+            } catch (unreadable: IOException) {
+                null
+            }
+            if (stored != null && stored.contentEquals(bytes)) return
+            if (attempt >= PROOF_WAITS_MS.size) {
+                throw UnprovenWrite(if (stored == null) "the folder couldn’t read back a file it was given" else "the folder kept ${stored.size} of ${bytes.size} bytes")
+            }
+            pause(PROOF_WAITS_MS[attempt++])
+        }
+    }
+
+    class UnprovenWrite(message: String) : IOException(message)
 
     private fun directoryId(path: List<String>): String? {
         directories[path]?.let { return it }
@@ -221,6 +250,7 @@ class DocumentTreeStorage(
     companion object {
         const val STAGING_SUFFIX = ".ardia-partial"
         const val STALE_STAGING_MS = 15L * 60_000
+        val PROOF_WAITS_MS = listOf(100L, 250L, 500L, 1_000L, 2_000L)
 
         fun isStaging(name: String): Boolean = name.startsWith(".") && name.endsWith(STAGING_SUFFIX)
 

@@ -85,6 +85,9 @@ class SyncController(
     private var closed = false
 
     @Volatile
+    private var inForeground = false
+
+    @Volatile
     private var ready: SyncDevice? = null
     private var made: SyncDevice? = null
     private val announced = HashSet<String>()
@@ -137,18 +140,24 @@ class SyncController(
         requestCycle()
     }
 
-    fun appForegrounded() = submit {
+    fun appForegrounded() {
+        inForeground = true
+        submit(::resumeInForeground)
+    }
+
+    private fun resumeInForeground() {
         val current = device
         current.becameActive()
         publish()
         updateBackground()
-        if (!current.isDemo && current.isEnabled && current.isRunning) {
+        if (inForeground && !current.isDemo && current.isEnabled && current.isRunning) {
             startLoop()
             requestCycle()
         }
     }
 
     fun appBackgrounded() {
+        inForeground = false
         stopLoop()
         val editWaiting = cancelDebounce()
         submit {
@@ -186,7 +195,10 @@ class SyncController(
     suspend fun changeFolder(pick: SyncFolderPick): ConnectResult = onSyncThread { current ->
         val result = current.changeFolder(pick)
         publish()
-        if (result == ConnectResult.Connected) requestCycle()
+        if (result == ConnectResult.Connected && !current.isDemo && current.isEnabled && current.isRunning) {
+            if (inForeground) startLoop()
+            requestCycle()
+        }
         result
     }
 
