@@ -141,12 +141,18 @@ The app record in App Store Connect is "Ardia", bundle id `com.ardia.browser.ios
 are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ardia.browser.ios`.
 
 - **In CI.** Run the iOS Release workflow (`.github/workflows/ios-release.yml`) from `main`:
-  `gh workflow run ios-release.yml -f mode=upload`. It archives the Release build, signs it with Xcode's automatic
-  signing and uploads it, all through the App Store Connect API key the Mac release notarizes with
-  (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`), then waits until App Store Connect has processed the build.
-  `mode=status` lists what App Store Connect holds (the app record, App IDs, certificates, builds, tester groups) and
-  builds nothing; `mode=dry-run` stops at the signed .ipa. The build number is the one after the highest uploaded,
-  unless you pass `build`. The archive makes a development certificate on the runner; the run revokes it at the end.
+  `gh workflow run ios-release.yml -f mode=upload`. It archives the Release build, signs it and uploads it through the
+  App Store Connect API key the Mac release notarizes with (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`), then
+  waits until App Store Connect has processed the build. `mode=status` lists what App Store Connect holds (the app
+  record, App IDs, certificates, builds, tester groups, beta test info) and builds nothing; `mode=dry-run` stops at the
+  signed .ipa. The build number is the one after the highest uploaded, refused uploads included, unless you pass `build`.
+- **CI's certificate.** The archive signs with one development certificate kept in the `IOS_DEVELOPMENT_P12` and
+  `IOS_DEVELOPMENT_P12_PASSWORD` secrets ("Apple Development: Created via API", expires 12 Nov 2027), so a run makes and
+  revokes nothing on the team; a revoked certificate mails the account holder. To renew it: make a key and a signing
+  request (`openssl req -new -newkey rsa:2048 -nodes -keyout key.pem -out request.csr -subj "/CN=Ardia CI"`), run
+  `mode=certificate` with `signing_request` set to the request's base64, download the `ios-development-certificate`
+  artifact, pack it with the key into a .p12 with macOS's `/usr/bin/openssl`, and set both secrets. Distribution signing
+  is Apple's cloud-managed certificate and needs nothing stored.
 - **On a Mac.** `scripts/release-ios.sh <build number>` does the same with the account Xcode is signed in to, or with
   `ASC_KEY`, `ASC_KEY_ID` and `ASC_ISSUER`. `node apps/ios/scripts/asc.mjs` is the App Store Connect client behind
   both (`--help` lists its commands).
@@ -155,8 +161,11 @@ are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ar
 - **Default browser.** `com.apple.developer.web-browser` is in `Config/Ardia-Release.entitlements`, and Apple grants
   it per App ID on request. Until it is granted, release builds sign with `Config/Ardia.entitlements` and iOS doesn't
   offer Ardia as the default browser. Once granted, pass `default_browser=true` (`--default-browser`).
-- **Testers.** A processed build reaches the internal testers at once. External testers need Beta App Review: a beta
-  description, a feedback email and a privacy policy URL in App Store Connect.
+- **Testers.** A processed build reaches the Internal group at once. For everyone else,
+  `gh workflow run ios-release.yml -f mode=public-link -f build=<number>` puts that build in the Public Testers group
+  (made with a public link the first time), sets its What to Test text from `Config/TestFlight-WhatToTest.txt`, submits it
+  for Beta App Review and prints the link. The link works once Apple approves the build; later builds of the same version
+  usually pass without a full review.
 
 ## Agent notes
 
