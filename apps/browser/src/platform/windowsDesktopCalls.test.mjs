@@ -120,6 +120,8 @@ test("a manifest's icon can't reach outside its folder", () => {
   assert.equal(insideFolder("/icons//a.png"), "icons/a.png");
   const kept = `{"a": "${"/".repeat(2)} kept", `;
   assert.equal(withoutComments(`${kept}${BLOCK_NOTE} "b": [1, 2,],}`), `${kept} "b": [1, 2]}`);
+  assert.equal(withoutComments('{"name": "Tools,]", "short": "a,}", "list": ["x,]", ], }'), '{"name": "Tools,]", "short": "a,}", "list": ["x,]" ] }');
+  assert.equal(withoutComments('{"q": "say \\",]", }'), '{"q": "say \\",]" }');
 });
 
 test("the SHA-256 the extension id uses matches Node's", () => {

@@ -1,3 +1,4 @@
+import type { SystemState } from "@ardia/ardiacore";
 import { ok, type Desktop, type Engine, type Handler, type PowerReading } from "./calling";
 import { desktopOf } from "./exports";
 
@@ -5,17 +6,9 @@ export const POWER_POLL_MS = 20_000;
 const MEMORY_WARNING_LOAD = 85;
 const MEMORY_CRITICAL_LOAD = 95;
 
-export type SystemStateShape = {
-  onBattery: boolean;
-  batteryLevel: number | null;
-  lowPowerMode: boolean;
-  memoryPressure: "normal" | "warning" | "critical";
-  physicalMemory: number;
-};
-
 const number = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
-export function systemStateOf(reading: PowerReading | null): SystemStateShape {
+export function systemStateOf(reading: PowerReading | null): SystemState {
   const percent = number(reading?.batteryPercent);
   const load = number(reading?.memoryLoad) ?? 0;
   return {
@@ -29,7 +22,7 @@ export function systemStateOf(reading: PowerReading | null): SystemStateShape {
 
 const watched = new WeakSet<Desktop>();
 
-function watchPower(engine: Engine, desktop: Desktop, first: SystemStateShape) {
+function watchPower(engine: Engine, desktop: Desktop, first: SystemState) {
   if (watched.has(desktop)) return;
   watched.add(desktop);
   let last = JSON.stringify(first);

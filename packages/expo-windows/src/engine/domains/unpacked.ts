@@ -16,6 +16,28 @@ const IMAGE_TYPES: Record<string, string> = {
   bmp: "image/bmp",
 };
 
+function withoutTrailingCommas(text: string): string {
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!;
+    if (inString) {
+      out += c;
+      if (c === "\\") out += text[++i] ?? "";
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    if (c === ",") {
+      let next = i + 1;
+      while (next < text.length && /\s/.test(text[next]!)) next++;
+      if (text[next] === "}" || text[next] === "]") continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
 export function withoutComments(text: string): string {
   let out = "";
   let inString = false;
@@ -39,7 +61,7 @@ export function withoutComments(text: string): string {
       i++;
     } else out += c;
   }
-  return out.replace(/,(\s*[}\]])/g, "$1");
+  return withoutTrailingCommas(out);
 }
 
 function parsed(text: string | null): Fields | undefined {
