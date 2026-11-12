@@ -36,6 +36,7 @@ final class AppModel {
   let toasts = ToastCenter()
   let settings = AppSettings.launch()
   let deck: TabDeckModel
+  let defaultBrowser: DefaultBrowserStatus
 
   var surface: Surface = .search
   var sheet: Sheet?
@@ -64,6 +65,7 @@ final class AppModel {
     preferences = BrowsingPreferences(defaults: defaults)
     web = WebEngine(tabs: tabs, blocker: blocker, preferences: preferences)
     deck = TabDeckModel(defaults: defaults)
+    defaultBrowser = DefaultBrowserStatus(defaults: defaults, asksSystem: !isDemo)
     sync = isDemo ? .demo : SyncService()
     omnibox = Omnibox()
     connectServices()
