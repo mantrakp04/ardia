@@ -120,10 +120,23 @@ inline std::wstring ErrorText(DWORD code) noexcept {
   return text;
 }
 
+inline HANDLE OpenForReading(std::filesystem::path const &path) noexcept {
+  constexpr int kAttemptsWhileHeldElsewhere = 10;
+  constexpr DWORD kPauseBetweenAttemptsMs = 50;
+  for (int attempt = 1;; attempt++) {
+    HANDLE file = CreateFileW(
+        path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (file != INVALID_HANDLE_VALUE) return file;
+    DWORD error = GetLastError();
+    bool heldElsewhere = error == ERROR_SHARING_VIOLATION || error == ERROR_LOCK_VIOLATION;
+    if (!heldElsewhere || attempt == kAttemptsWhileHeldElsewhere) return file;
+    Sleep(kPauseBetweenAttemptsMs);
+  }
+}
+
 inline std::optional<std::string> ReadAll(std::filesystem::path const &path) noexcept {
-  HANDLE file = CreateFileW(
-      path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
-      nullptr);
+  HANDLE file = OpenForReading(path);
   if (file == INVALID_HANDLE_VALUE) return std::nullopt;
   std::optional<std::string> result;
   LARGE_INTEGER size{};

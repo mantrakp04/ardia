@@ -1,6 +1,7 @@
 import type { SearchScope } from "@ardia/core";
 import { memo, type ReactNode, type RefObject } from "react";
 import { View } from "react-native";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { Button, capsule, ContextMenuArea, ink, useHover, useTheme } from "../ui";
 import { GlassFill, useGlass } from "../ui/Glass";
 import { GoButton } from "./GoButton";
@@ -87,7 +88,7 @@ export function BottomRow({ hero, addChip, onDictate, label, enabled, onGo }: { 
     >
       {addChip}
       <View style={{ flex: 1 }} />
-      <DictateButton onPress={onDictate} />
+      {PLATFORM_FEATURES.dictation ? <DictateButton onPress={onDictate} /> : null}
       <GoButton label={label} enabled={enabled} onPress={onGo} />
     </View>
   );

@@ -16,7 +16,7 @@ type RunProps = { text: string; textStyle: TextStyle; left: number; width?: numb
 const Run = memo(function Run({ text, textStyle, left, width, opacity, onTextLayout }: RunProps) {
   const line = (
     <View style={[runRow, { left: width === undefined ? 0 : -left }]}>
-      <Text numberOfLines={1} ellipsizeMode="clip" allowFontScaling={false} style={textStyle} onLayout={onTextLayout}>
+      <Text accessible={false} numberOfLines={1} ellipsizeMode="clip" allowFontScaling={false} style={textStyle} onLayout={onTextLayout}>
         {text}
       </Text>
     </View>
@@ -55,7 +55,7 @@ export const FadeLabel = forwardRef<View, AnyProps>(function FadeLabel({ text, f
     }
   }
   return (
-    <View {...rest} ref={ref} onLayout={measureBox} pointerEvents="none" style={[frame, style as ViewStyle]}>
+    <View accessible accessibilityRole="text" accessibilityLabel={label} {...rest} ref={ref} onLayout={measureBox} pointerEvents="none" style={[frame, style as ViewStyle]}>
       {runs}
     </View>
   );

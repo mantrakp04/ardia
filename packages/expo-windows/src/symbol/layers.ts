@@ -147,7 +147,7 @@ export function bodyElements(body: string): BodyElement[] {
   const elements: BodyElement[] = [];
   for (const [, tag, attributeText] of body.matchAll(/<([a-zA-Z]+)\b([^>]*?)\/?>/g)) {
     const attributes: Record<string, string> = {};
-    for (const [, key, value] of (attributeText ?? "").matchAll(/([a-zA-Z-]+)\s*=\s*"([^"]*)"/g)) attributes[key!] = value!;
+    for (const [, key, value] of (attributeText ?? "").matchAll(/([a-zA-Z][a-zA-Z0-9-]*)\s*=\s*"([^"]*)"/g)) attributes[key!] = value!;
     const d = pathData(tag!, attributes);
     if (d) elements.push({ d, transform: parseTransform(attributes.transform), attributes });
   }

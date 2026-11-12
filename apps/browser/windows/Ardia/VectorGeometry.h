@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "LaunchLog.h"
 #include "VectorPath.h"
 
 #pragma comment(lib, "d2d1.lib")
@@ -368,6 +369,7 @@ inline std::shared_ptr<Symbol> BuildSymbol(std::vector<LayerSpec> const &layers)
       shape.path = winrt::Microsoft::UI::Composition::CompositionPath(winrt::make<GeometrySource>(shape.geometry.get()));
       drawable.push_back(std::move(shape));
     } catch (...) {
+      LaunchLog::Write(L"warning", L"an icon shape could not be built and was left out");
     }
   }
   symbol->shapes = std::move(drawable);
