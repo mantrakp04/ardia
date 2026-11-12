@@ -51,6 +51,7 @@ struct ProfileLookTests {
     #expect(themed.backdropStops(dark: false, themed: true).map(\.hexString) == ["#4F7CFF", "#9B6BFF"])
     #expect(themed.backdropStops(dark: true, themed: true).map(\.hexString) == ["#1E2A5A", "#3A2466"])
     #expect(themed.backdropStops(dark: false, themed: false) == themed.windowTintStops(dark: false))
+    #expect(themed.backdropStops(dark: true, themed: false) == themed.windowTintStops(dark: true))
     let lightOnly = ProfileLook(colorName: "green", themeColors: ["#4F7CFF", "#9B6BFF"])
     #expect(lightOnly.backdropStops(dark: true, themed: true).map(\.hexString) == ["#4F7CFF", "#9B6BFF"])
     let oneColor = ProfileLook(colorName: "blue", themeColors: ["#4F7CFF"])

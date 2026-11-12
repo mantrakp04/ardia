@@ -67,7 +67,7 @@ struct ToolbarSheet: View {
     .tint(Palette.formAccent)
     .presentationDetents([.height(max(contentHeight - bottomInset, 200))])
     .presentationCornerRadius(MenuLayout.sheetRadius)
-    .presentationBackground(Color(.systemGroupedBackground))
+    .presentationBackground { ProfileBackdrop() }
     .presentationDragIndicator(.hidden)
     .sensoryFeedback(.success, trigger: copies)
     .alert("Translate with Google?", isPresented: $confirmsTranslation) {

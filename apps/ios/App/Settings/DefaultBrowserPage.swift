@@ -9,7 +9,7 @@ struct DefaultBrowserPage: View {
         .padding(.top, Spacing.large)
         .padding(.bottom, Spacing.section)
     }
-    .background(Color(.systemGroupedBackground))
+    .background { ProfileBackdrop().ignoresSafeArea() }
     .navigationTitle("Default Browser")
     .navigationBarTitleDisplayMode(.inline)
   }

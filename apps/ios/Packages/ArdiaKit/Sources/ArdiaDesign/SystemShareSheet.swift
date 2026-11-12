@@ -132,7 +132,7 @@
       .frame(maxWidth: .infinity)
       .background {
         UnevenRoundedRectangle(topLeadingRadius: Radius.sheet, topTrailingRadius: Radius.sheet, style: .continuous)
-          .fill(SharePalette.background)
+          .fill(model.snapshot.look.surface)
           .ignoresSafeArea(edges: .bottom)
       }
       .padding(.top, Spacing.section * 2)
@@ -248,7 +248,6 @@
   }
 
   enum SharePalette {
-    static let background = Color.adaptive(light: Color(hex: 0xF2F2F7), dark: Color(hex: 0x1C1C1E))
     static let group = Color.adaptive(light: .white, dark: Color(hex: 0x2C2C2E))
     static let scrim = Color.black.opacity(0.32)
     static let tile = Palette.formAccent

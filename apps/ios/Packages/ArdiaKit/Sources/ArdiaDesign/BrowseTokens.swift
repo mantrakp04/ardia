@@ -16,16 +16,6 @@ public extension Color {
       light
     #endif
   }
-
-  init(p3Hex hex: UInt32, opacity: Double = 1) {
-    self.init(
-      .displayP3,
-      red: Double((hex >> 16) & 0xFF) / 255,
-      green: Double((hex >> 8) & 0xFF) / 255,
-      blue: Double(hex & 0xFF) / 255,
-      opacity: opacity
-    )
-  }
 }
 
 public enum BrowsePalette {
@@ -35,8 +25,6 @@ public enum BrowsePalette {
   public static let popover = Palette.panel
   public static let loadingBorder = Palette.accent
   public static let findError = Color(hex: 0xC93333)
-  public static let sheet = Color.adaptive(light: Color(hex: 0xFCFCFC, opacity: 0.86), dark: Color(hex: 0x1E1E1E, opacity: 0.72))
-  public static let sheetOpaque = Color.adaptive(light: Color(hex: 0xFCFCFC), dark: Color(hex: 0x1E1E1E))
   public static let fieldFill = Color.adaptive(light: .black.opacity(0.06), dark: .white.opacity(0.12))
   public static let fieldStroke = Color.adaptive(light: .black.opacity(0.06), dark: .white.opacity(0.08))
   public static let searchAccent = Palette.formAccent
@@ -44,12 +32,12 @@ public enum BrowsePalette {
   public static let incognitoSheet = Color(hex: 0x151517)
   public static let incognitoField = Color.white.opacity(0.12)
   public static let incognitoCaption = Color.white.opacity(0.55)
-  public static let pageBackdrop = Color.adaptive(light: Color(p3Hex: 0xF3F6F6), dark: Color(p3Hex: 0x242424))
   public static let toolbarTile = Color.adaptive(light: .black.opacity(0.05), dark: .white.opacity(0.08))
 }
 
 public enum BrowseLayout {
   public static let sheetTopRadius: CGFloat = 40
+  public static let sheetTintShare: Double = 0.8
   public static let searchFieldHeight: CGFloat = 47.5
   public static let searchFieldInset: CGFloat = 15
   public static let suggestionPitch: CGFloat = 58.5

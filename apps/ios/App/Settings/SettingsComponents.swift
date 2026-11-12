@@ -119,8 +119,18 @@ extension View {
   }
 
   func settingsChrome() -> some View {
-    scrollEdgeEffectStyle(.hard, for: .top)
-      .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+    modifier(SettingsChrome())
+  }
+}
+
+private struct SettingsChrome: ViewModifier {
+  @Environment(\.profileLook) private var look
+
+  func body(content: Content) -> some View {
+    content
+      .lookBackdrop()
+      .scrollEdgeEffectStyle(.hard, for: .top)
+      .toolbarBackground(look.surface, for: .navigationBar)
       .toolbarBackgroundVisibility(.visible, for: .navigationBar)
   }
 }

@@ -229,6 +229,14 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
 
   public var swatchColor: Color { swatch.color }
 
+  public var surface: Color { surface(at: 0) }
+
+  public var surfaceLow: Color { surface(at: 1) }
+
+  private func surface(at index: Int) -> Color {
+    Color.adaptive(light: backdropStops(dark: false, themed: false)[index].color, dark: backdropStops(dark: true, themed: false)[index].color)
+  }
+
   func themeStops(dark: Bool) -> [LookRGB] {
     dark ? (darkTheme ?? theme) : theme
   }

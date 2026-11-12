@@ -84,7 +84,10 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   as the Mac's theme editor does; with sync on, Match My Mac (the default) follows the selected profile's colour or
   custom theme instead (`AppModel.look`, in the environment as `profileLook`, and in the widget snapshot).
   `ProfileBackdrop` draws it: the window tint top to bottom, pale in light and deep in dark, with the Mac's faint
-  grain, and never white text on a bright gradient. Text on it takes the ink that reads (`inkIsLight`). `Palette`
+  grain, and never white text on a bright gradient. Text on it takes the ink that reads (`inkIsLight`). The same
+  tint is behind everything in the app, not only the start screen: Settings and its pages, the Archive, the page
+  menu, the search tray, the bar and the page behind a loading site (`lookBackdrop()`, `look.surface`), with the
+  system's white or dark cells on top, as the Mac's cards sit on its window. `Palette`
   holds the Mac's colour roles from `components/ui/tokens.ts`: `primaryAction` and `onPrimaryAction` for the main
   button, `formAccent` for links, checkmarks and the caret, `accent` for the loading line, `toast`, `panel`,
   `success`. A new colour is a role there or a value derived from the look, never a literal in a view. Incognito is
