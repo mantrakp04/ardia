@@ -265,6 +265,40 @@ try {
   check("a click right after a scroll takes the block now under the pointer", afterScroll?.title === "Capture copied" && shotA2.width === 200 * scale && near(shotA2.center, [0, 0, 220]), `${shotA2.width}×${shotA2.height} ${JSON.stringify(shotA2.center)}`);
   if (!afterScroll) await ac(`return audit.key(53, "\\u001b").then(() => audit.settle(300));`);
 
+  const full = await ac(`${S} S().activate("c");
+    return audit.until(() => S().tabs.c.title === "Tall" && ac.webviews.has("c"), 20000)
+      .then(() => audit.settle(800))
+      .then(() => ac.webviews.get("c").evaluate("post('result', JSON.stringify([document.documentElement.scrollWidth, document.documentElement.scrollHeight, innerHeight]))"))
+      .then((size) => { audit.clear(); return ac.shell.devMenuCommand("captureFullPage", null).then(() => audit.until(() => audit.toast()?.title === "Capture copied", 20000)).then(() => ({ size, toast: audit.toast() })); });`);
+  const shotE = readPasteboard();
+  const [pageWidth, pageHeight, shownHeight] = full.size ?? [];
+  check("Capture Full Page copies the whole page, past the window", full.toast?.title === "Capture copied" && shownHeight < pageHeight && shotE.width === pageWidth * scale && shotE.height === pageHeight * scale, `${shotE.width}×${shotE.height} for a ${pageWidth}×${pageHeight} page in a ${shownHeight} pt window`);
+  check("its middle and bottom are the page's (green, blue)", near(shotE.center, [0, 160, 0]) && near(shotE.corner, [0, 0, 220]), `${JSON.stringify(shotE.center)} ${JSON.stringify(shotE.corner)}`);
+
+  const lingering = await ac(`return audit.settle(5500).then(() => audit.toast());`);
+  check("the full-page result toast closes by itself", lingering === null, JSON.stringify(lingering));
+
+  const restarted = await ac(`${S} S().activate("c");
+    const seen = [];
+    const stop = ac.toasts.subscribe((t) => seen.push([performance.now(), t.toasts.w1 ? t.toasts.w1.title : null]));
+    return audit.settle(300)
+      .then(() => { audit.clear(); return ac.shell.devMenuCommand("captureFullPage", null); })
+      .then(() => ac.shell.devMenuCommand("captureFullPage", null))
+      .then(() => audit.until(() => audit.toast()?.title === "Capture copied", 20000))
+      .then(() => { stop(); const done = seen.findIndex((e) => e[1] === "Capture copied"); const gaps = seen.slice(0, done).filter((e, i, all) => e[1] === null && (all[i + 1] ? all[i + 1][0] : seen[done][0]) - e[0] > 30); return { gaps: gaps.length, titles: seen.map((e) => e[1]) }; });`);
+  check("running Capture Full Page again while it works keeps its progress until the result", restarted.gaps === 0 && restarted.titles.includes("Capture copied"), JSON.stringify(restarted));
+
+  const beforeSuperseded = readPasteboard().count;
+  const superseded = await ac(`${S} S().activate("c");
+    return audit.settle(300)
+      .then(() => { audit.clear(); return ac.shell.devMenuCommand("captureFullPage", null); })
+      .then(() => ac.shell.devMenuCommand("capture", null))
+      .then(() => audit.settle(400))
+      .then(() => audit.key(53, "\\u001b"))
+      .then(() => audit.settle(1500))
+      .then(() => audit.toast());`);
+  check("starting Capture… while a full page is coming replaces it, and its progress goes away", superseded === null && readPasteboard().count === beforeSuperseded, JSON.stringify(superseded));
+
   const orphan = await ac(`${S} S().activate("b");
     return audit.until(() => ac.webviews.has("b"), 10000)
       .then(() => audit.settle(600))
@@ -273,6 +307,13 @@ try {
       .then(() => { const t = audit.toast(); S().closeTab("b"); return audit.settle(600).then(() => { if (t && t.action) t.action.run(); return audit.until(() => audit.toast()?.title === "Capture saved", 5000); }); })
       .then(() => audit.toast());`);
   check("Save still writes the capture after its tab closes", orphan?.title === "Capture saved", JSON.stringify(orphan));
+
+  const closedDuring = await ac(`${S} S().activate("c");
+    return audit.settle(300)
+      .then(() => { audit.clear(); return ac.shell.devMenuCommand("captureFullPage", null); })
+      .then(() => { S().closeTab("c"); return audit.settle(1500); })
+      .then(() => audit.toast());`);
+  check("closing the tab during a full page clears its progress", !closedDuring || closedDuring.title !== "Capturing the full page…", JSON.stringify(closedDuring));
 } finally {
   await instance.quit();
 }

@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import QuartzCore
 
 extension PageTabHost {
@@ -8,6 +9,7 @@ extension PageTabHost {
       return false
     }
     guard window != nil, !isHiddenOrHasHiddenAncestor, page.superview === self else { return false }
+    dropFullPage()
     captureStarting = true
     captureAttempt += 1
     captureStartedAt = CACurrentMediaTime()
@@ -30,6 +32,35 @@ extension PageTabHost {
       }
     }
     return true
+  }
+
+  func captureFullPage() -> Bool {
+    guard window != nil, !isHiddenOrHasHiddenAncestor else { return false }
+    endCapture()
+    dropFullPage()
+    captureAttempt += 1
+    let attempt = captureAttempt
+    fullPageAttempt = attempt
+    captureStartedAt = CACurrentMediaTime()
+    let backing = window?.backingScaleFactor ?? 2
+    page.copyFullPage { [weak self] png in
+      DispatchQueue.main.async {
+        guard let self, self.fullPageAttempt == attempt else { return }
+        self.fullPageAttempt = nil
+        guard let png, let source = CGImageSourceCreateWithData(png as CFData, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+          let copied = CaptureClipboard.copy(image, points: NSSize(width: CGFloat(image.width) / backing, height: CGFloat(image.height) / backing))
+        else { return self.sendCaptureEnding("failed", kind: "page") }
+        self.sendCaptureEnding("copied", kind: "page", width: image.width, height: image.height, capture: CaptureClipboard.keep(copied))
+      }
+    }
+    return true
+  }
+
+  private func dropFullPage() {
+    guard fullPageAttempt != nil else { return }
+    fullPageAttempt = nil
+    sendCaptureEnding("cancelled", kind: "page")
   }
 
   func endCapture() {

@@ -14,4 +14,8 @@ extension ArdiaWebView: PageTab {
   }
 
   var captureArea: NSView? { pageViewForCapture() }
+
+  func copyFullPage(_ completion: @escaping (Data?) -> Void) {
+    copyFullPagePicture { png in completion(png) }
+  }
 }

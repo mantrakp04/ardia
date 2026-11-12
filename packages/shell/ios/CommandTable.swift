@@ -17,6 +17,7 @@ enum CommandTable {
     case copyUrl
     case copyUrlAsMarkdown
     case capture
+    case captureFullPage
     case findInPage
     case findNext
     case findPrevious
@@ -127,6 +128,7 @@ enum CommandTable {
     "copyUrl": "Copy URL",
     "copyUrlAsMarkdown": "Copy URL as Markdown",
     "capture": "Capture…",
+    "captureFullPage": "Capture Full Page",
     "findInPage": "Find…",
     "findNext": "Find Next",
     "findPrevious": "Find Previous",

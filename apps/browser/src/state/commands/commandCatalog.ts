@@ -40,6 +40,7 @@ export const COMMANDS = {
   copyUrl: { title: "Copy URL", symbol: "link", keys: ["⇧⌘C"], ...pageInLittleArdia, onInternalPages: true },
   copyUrlAsMarkdown: { title: "Copy URL as Markdown", symbol: "link", keys: ["⌥⇧⌘C"], ...pageInLittleArdia, onInternalPages: true },
   capture: { title: "Capture…", barTitle: "Capture Part of Page", symbol: "camera.viewfinder", keys: ["⇧⌘2"], ...pageInLittleArdia },
+  captureFullPage: { title: "Capture Full Page", symbol: "doc.viewfinder", ...pageInLittleArdia },
   findInPage: { title: "Find…", barTitle: "Find in Page", symbol: "text.magnifyingglass", keys: ["⌘F"], ...pageInLittleArdia },
   findNext: { title: "Find Next", keys: ["⌘G"], ...pageInLittleArdia },
   findPrevious: { title: "Find Previous", keys: ["⇧⌘G"], ...pageInLittleArdia },

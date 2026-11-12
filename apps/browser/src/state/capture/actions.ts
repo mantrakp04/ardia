@@ -5,7 +5,8 @@ import { revealFile } from "../../platform/files";
 import { saveCaptureImage } from "../../platform/capture";
 import { displayHostOf } from "../../lib/url";
 import { currentEngineProfile, currentTab } from "../browser/current";
-import { showToast } from "../app/toasts";
+import { hideKeyedToast, showToast, useToasts } from "../app/toasts";
+import { useBrowser } from "../browser/store";
 import { noteCaptureEnded, noteCaptureSaved, noteCaptureStarted } from "../telemetry/captureCounts";
 
 const TOAST_KEY = "capture";
@@ -15,10 +16,42 @@ export async function toggleCapture(tabId: string) {
   if (started) noteCaptureStarted();
 }
 
+const fullPageProgress = new Map<string, { windowId: string; pending: number }>();
+let watchingTabs = false;
+
+export async function captureFullPage(tabId: string) {
+  const tab = currentTab(tabId);
+  if (!tab) return;
+  showToast(tab.windowId, "Capturing the full page…", undefined, { icon: "doc.viewfinder", key: TOAST_KEY, sticky: true });
+  fullPageProgress.set(tabId, { windowId: tab.windowId, pending: (fullPageProgress.get(tabId)?.pending ?? 0) + 1 });
+  watchClosedTabs();
+  const started = await webviews.get(tabId)?.captureFullPage();
+  if (started) noteCaptureStarted();
+  else endFullPageProgress(tabId);
+}
+
+function endFullPageProgress(tabId: string, every = false) {
+  const progress = fullPageProgress.get(tabId);
+  if (!progress) return;
+  if (!every && progress.pending > 1) return void (progress.pending -= 1);
+  fullPageProgress.delete(tabId);
+  if (useToasts.getState().toasts[progress.windowId]?.sticky) hideKeyedToast(progress.windowId, TOAST_KEY);
+}
+
+function watchClosedTabs() {
+  if (watchingTabs) return;
+  watchingTabs = true;
+  useBrowser.subscribe((s, prev) => {
+    if (s.tabs === prev.tabs || !fullPageProgress.size) return;
+    for (const tabId of [...fullPageProgress.keys()]) if (!s.tabs[tabId]) endFullPageProgress(tabId, true);
+  });
+}
+
 type CaptureToSave = { capture: number; windowId: string; profileId: string; url: string };
 
 export function captureEnded(tabId: string, result: CaptureResult) {
   noteCaptureEnded(result);
+  if (result.kind === "page") endFullPageProgress(tabId);
   const tab = currentTab(tabId);
   if (!tab) return;
   if (result.outcome === "failed") return showToast(tab.windowId, "Couldn't capture the page", undefined, { icon: "exclamationmark.triangle", key: TOAST_KEY });

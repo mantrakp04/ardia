@@ -58,6 +58,7 @@ enum PageViewDefinition {
         view.page.capturePicture(scale) { promise.resolve($0) }
       }.runOnQueue(.main)
       AsyncFunction("toggleCapture") { (view: V) -> Bool in view.toggleCapture() }.runOnQueue(.main)
+      AsyncFunction("captureFullPage") { (view: V) -> Bool in view.captureFullPage() }.runOnQueue(.main)
       AsyncFunction("downloadFavicon") { (view: V, url: String, promise: Promise) in
         view.page.downloadFavicon(url) { promise.resolve($0) }
       }.runOnQueue(.main)
