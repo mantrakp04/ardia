@@ -3,7 +3,6 @@ import { TurboModuleRegistry } from "react-native";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type AppEvent = { type: string; dark?: boolean };
 type Shell = ShellNativeModules["ArdiaShell"];
 type Dialogs = ShellNativeModules["ArdiaDialogs"];
 type Notifications = ShellNativeModules["ArdiaNotifications"] & { notificationCenterPath(): string };

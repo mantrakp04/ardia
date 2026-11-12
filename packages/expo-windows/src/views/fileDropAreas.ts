@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import type { View } from "react-native";
+import type { DropUpdate, DroppedItem, FileDropAreaProps } from "@ardia/shell";
 import { requireNativeModule } from "../modules";
 
-export type DropAccepts = "links" | "linksAndText" | "extensionPackages";
-export type DroppedItem = { kind: "file"; url: string } | { kind: "url"; url: string } | { kind: "text"; text: string };
-export type DropPhase = "enter" | "move" | "exit" | "drop";
-export type DropUpdate = { phase: DropPhase; x: number; y: number; count: number; items: DroppedItem[] };
+export type { DropUpdate, DroppedItem };
+export type DropAccepts = NonNullable<FileDropAreaProps["accepts"]>;
+export type DropPhase = DropUpdate["phase"];
 export type WindowDrop = DropUpdate & { windowId: string; area: string; windowX: number; windowY: number };
 export type WindowDrag = { windowId: string; phase: "enter" | "exit" };
 export type DropAreaFrame = { windowId: string; area: string; depth: number; x: number; y: number; width: number; height: number; accepts: DropAccepts; enabled: boolean };

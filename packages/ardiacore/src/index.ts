@@ -1,6 +1,6 @@
 export * from "./WebView";
 export * from "./pageTypes";
-export type { PageEventName } from "./pageEvents";
+export type { PageEvent, PageEventName } from "./pageEvents";
 export * from "./downloads";
 export * from "./permissions";
 export * from "./engineDomain";
