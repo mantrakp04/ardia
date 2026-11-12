@@ -1,16 +1,13 @@
 import { createElement } from "react";
 import { AccessibilityInfo } from "react-native";
+import type { SwipeModule } from "@ardia/ardiacore";
 import { requireNativeModule } from "../modules";
-import type { PagerSnapshot, PagerStateEvent } from "../pager/pager";
+import type { PagerStateEvent } from "../pager/pager";
 import { viewOnWindows } from "../views/registry";
 import { expectEqual, expectTrue, type Check } from "./check";
 import { holdOnStage } from "./stage";
 
-type Swipe = {
-  switchPager(key: string, index: number, order?: readonly string[]): Promise<boolean>;
-  stepPager(key: string, delta: number, wrap: boolean, order?: readonly string[]): Promise<boolean>;
-  pagerState(key: string): PagerSnapshot | null;
-};
+type Swipe = Pick<SwipeModule, "switchPager" | "stepPager" | "pagerState">;
 
 const swipe = () => requireNativeModule<Swipe>("ArdiaSwipe");
 const settled = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
