@@ -30,6 +30,10 @@ export const isUnreadShown = (settings: UnreadSiteSettings, url: string): boolea
 
 export const unreadSiteTitle = (hidden: boolean) => (hidden ? "Show Unread Count" : "Hide Unread Count");
 
+export const ALL_UNREAD_TITLE = "Show Unread Counts";
+
+export const showUnreadCounts = (shown: boolean) => useBrowser.getState().updateSettings({ showUnreadCounts: shown });
+
 export const canChooseSiteUnread = (tab: Pick<Tab, "url" | "profileId">) => !!tab.url && !!hostOf(tab.url) && !isIncognitoProfile(tab.profileId);
 
 export function setSiteUnreadShown(url: string, shown: boolean) {

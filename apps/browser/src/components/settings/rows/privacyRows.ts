@@ -22,8 +22,8 @@ export const privacyRows = {
       rows: {
         sitePermissions: {
           title: "Site permissions",
-          description: "Pop-ups, camera, location and other permissions you've set for sites.",
-          keywords: ["camera", "microphone", "location", "notifications", "popups", "cookies", "javascript", "clear site data", "website settings"],
+          description: "Pop-ups, camera, location, notifications and other permissions you've set for sites.",
+          keywords: ["camera", "microphone", "location", "popups", "cookies", "javascript", "clear site data", "website settings"],
         },
       },
     },
