@@ -130,6 +130,9 @@ Logic is written once. Only code that calls the OS is written per platform.
   bubbles blur what is under them inside the window with a Composition backdrop brush (Gaussian blur, saturation and a
   tint). Window and theme gradients are Composition linear gradients at their real angle. Windows 10, a background
   instance and any failure keep the flat colours; the launch log says once which path each one took.
+- Shadows of the views drawn in TypeScript (`Surface`, popover bubbles) are rounded rings drawn behind the fill
+  (`src/views/shadowLayers.ts`), fading like a Gaussian blur of the edge: React Native for Windows casts a view's shadow
+  from its rectangle whatever its corner radius, which left grey square corners behind the new tab's command bar.
 - The Windows native API has its own version: `WINDOWS_NATIVE_API_VERSION` in `platform/nativeApi.ts` and
   `windowsApiVersion` in `AppModule.h`. Bump both when the Windows native surface changes. A Mac bump doesn't
   touch it.
@@ -239,7 +242,8 @@ is plain Chromium.
   read. Among them: Downloads and Search Tabs must close on Escape (the caption regions go away while one is open and
   come back, and for Downloads the log shows the native Escape capture taking the key), and Little Ardia's command
   panel must be drawn whole below its field, with the window buttons on the bare bar (screen brightness where the
-  panel used to be cut off, and under the buttons).
+  panel used to be cut off, and under the buttons). In Settings › Appearance it clicks the Light tile's picture, found by UI Automation,
+  and then Automatic's, and each must change `appearance` in `session.json`.
 - The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the
   launch fails if any check does. A new native method gets a check there. It also renders every view drawn in JS

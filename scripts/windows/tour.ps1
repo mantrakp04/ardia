@@ -952,6 +952,67 @@ function Find-SettingsWindow($Session) {
   return @($others | Select-Object -First 1)
 }
 
+function Read-Appearance($Session) {
+  $path = Join-Path $Session.Data "session.json"
+  for ($attempt = 0; $attempt -lt 3; $attempt++) {
+    try {
+      if (-not (Test-Path -LiteralPath $path)) { return "auto" }
+      $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete)
+      try {
+        $document = [System.IO.StreamReader]::new($stream).ReadToEnd() | ConvertFrom-Json
+      } finally {
+        $stream.Dispose()
+      }
+      if ($document.settings -and $document.settings.PSObject.Properties.Name -contains "appearance") { return [string]$document.settings.appearance }
+      return "auto"
+    } catch {
+      Start-Sleep -Milliseconds 150
+    }
+  }
+  return "unreadable"
+}
+
+function Find-PictureTile([IntPtr]$Window, [string]$Name) {
+  $hits = @(Find-Named $Window $Name | Sort-Object -Property Height -Descending)
+  if (-not $hits.Count) { return $null }
+  $client = Get-Client $Window
+  $scale = if ($client) { $client.Scale } else { 1 }
+  $tile = $hits[0]
+  if ($tile.Height -ge 80 * $scale) {
+    return [pscustomobject]@{ X = $tile.X; Y = [int]($tile.Top + $tile.Height * 0.35); How = "the '$Name' tile found by UI Automation ($($tile.Width) by $($tile.Height)), on its picture" }
+  }
+  return [pscustomobject]@{ X = $tile.X; Y = [int]($tile.Y - 58 * $scale); How = "the picture above the '$Name' label found by UI Automation" }
+}
+
+function Invoke-PictureTileStop($Session) {
+  Invoke-Stop $Session "settings-picture-tile" "Settings window, Appearance: a click on a picture tile" {
+    param($stop)
+    $stop.Expected = "a click on the Light tile's picture saves appearance 'light' in session.json, and a click on Automatic's picture saves 'auto' again."
+    Focus-Window $Session $script:SettingsWindow $stop | Out-Null
+    $before = Read-Appearance $Session
+    $stop.Facts.Add("appearance before: $before")
+    $results = @()
+    foreach ($choice in @(@{ Name = "Light"; Value = "light" }, @{ Name = "Automatic"; Value = "auto" })) {
+      $point = Find-PictureTile $script:SettingsWindow $choice.Name
+      if (-not $point) {
+        $stop.Facts.Add("UI Automation found nothing named '$($choice.Name)'")
+        $results += $false
+        continue
+      }
+      Send-Click $point.X $point.Y
+      $saved = Wait-Until $Session { (Read-Appearance $Session) -eq $choice.Value } 3000
+      $stop.Facts.Add("clicked $($point.How) at $($point.X), $($point.Y): appearance is now $(Read-Appearance $Session)")
+      $results += $saved
+      Start-Sleep -Milliseconds 600
+    }
+    $stop.Did = "Clicked the Light tile, then the Automatic tile, in Settings > Appearance."
+    Save-Shot $stop $script:SettingsWindow | Out-Null
+    $worked = $results.Count -eq 2 -and -not ($results -contains $false)
+    if (-not $worked) { Write-Host "::error::a click on a Settings picture tile did not change the setting: $($stop.Facts -join '; ')" }
+    Set-Seen $stop $worked
+  } | Out-Null
+}
+
 function Invoke-SettingsStops($Session, [string]$Suffix, [string]$Label, [switch]$Panes) {
   Invoke-Stop $Session "settings-general$Suffix" "Settings window, General$Label" {
     param($stop)
@@ -1003,6 +1064,7 @@ function Invoke-SettingsStops($Session, [string]$Suffix, [string]$Label, [switch
         $after = Save-Shot $stop $script:SettingsWindow
         if ($null -ne $after.Changed) { Set-Seen $stop ($after.Changed -gt 5) }
       } | Out-Null
+      if ($pane.Slug -eq "settings-appearance") { Invoke-PictureTileStop $Session }
     }
   }
   Invoke-Stop $Session "settings-closed$Suffix" "Settings window closed$Label" {
