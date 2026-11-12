@@ -3,7 +3,7 @@ import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { isAlive, launch, reporter, session, sleep } from "../../../scripts/lib/instance.mjs";
+import { devtools, isAlive, launch, reporter, session, sleep } from "../../../scripts/lib/instance.mjs";
 
 const [appArg, port] = process.argv.slice(2);
 const appPath = appArg && resolve(appArg);
@@ -17,9 +17,13 @@ const data = join(scratch, "data");
 const rep = reporter(join(scratch, "shortcuts-test.log"), { name: "shortcuts-test" });
 
 const server = createServer((req, res) => {
+  if (req.url === "/shortcuts.js") {
+    res.writeHead(200, { "content-type": "text/javascript" });
+    return res.end("function shortcutFixture() {\n  return 42;\n}\n");
+  }
   const name = new URL(req.url, "http://x").search.slice(1) || "page";
   res.writeHead(200, { "content-type": "text/html" });
-  res.end(`<!doctype html><title>${name}</title><body style="font:20px system-ui"><h1>${name}</h1><input id=f value="hello field" style="position:fixed;left:20px;top:120px;width:300px;height:30px">${name === "wk" ? `<input id=g style="position:fixed;left:20px;top:170px;width:300px;height:30px">` : ""}`);
+  res.end(`<!doctype html><title>${name}</title><body style="font:20px system-ui"><h1>${name}</h1><input id=f value="hello field" style="position:fixed;left:20px;top:120px;width:300px;height:30px">${name === "wk" ? `<input id=g style="position:fixed;left:20px;top:170px;width:300px;height:30px">` : ""}<script src="/shortcuts.js"></script>`);
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const pages = `http://127.0.0.1:${server.address().port}`;
@@ -231,6 +235,27 @@ async function showPage(name) {
     await sleep(250);
   }
 }
+async function devToolsPanel(panel) {
+  const target = (await app.targets()).find((t) => t.url.startsWith("devtools://"));
+  if (!target) throw new Error("no DevTools target");
+  const tools = await devtools(target);
+  try {
+    await tools.eval(`(async () => {
+      const UI = await import("./ui/legacy/legacy.js");
+      await UI.ViewManager.ViewManager.instance().showView(${JSON.stringify(panel)});
+      if (${JSON.stringify(panel)} === "sources") {
+        const Common = await import("./core/common/common.js");
+        const Workspace = await import("./models/workspace/workspace.js");
+        const source = Workspace.Workspace.WorkspaceImpl.instance().uiSourceCodeForURL(${JSON.stringify(`${pages}/shortcuts.js`)});
+        if (!source) throw new Error("shortcut fixture is missing from Sources");
+        await Common.Revealer.reveal(source.uiLocation(1, 0));
+      }
+      return true;
+    })()`);
+  } finally {
+    tools.close();
+  }
+}
 const focuses = {
   sidebar: { press: { focus: "window" } },
   page: { press: { focus: "page", asKey: true, wait: 800 }, before: () => cdp("?t3", "document.activeElement.blur(), true") },
@@ -245,6 +270,8 @@ const focuses = {
   },
   devTools: {
     press: { focus: "devtools", asKey: true, wait: 800 },
+    before: (name) => name === "⌥⌘B" ? devToolsPanel("sources") : undefined,
+    after: (name) => name === "⌥⌘B" ? devToolsPanel("elements") : undefined,
     setup: async () => {
       await ac(`ac.runCommand({ command: "devTools", arg: null, windowId: "w1" });`);
       await sleep(3000);
@@ -281,8 +308,9 @@ for (const [focusName, focus] of Object.entries(focuses)) {
       (only === "not-field" && (focusName === "field" || focusName === "commandBar" || focusName === "devTools")) ||
       (only === "page-field" && (focusName === "field" || focusName === "devTools")) ||
       ((only === "devtools-own" || devToolsOwn.has(name)) && focusName === "devTools");
-    await focus.before?.();
+    await focus.before?.(name);
     const r = await press(key, { ...focus.press, dry: true });
+    await focus.after?.(name);
     const result = verdict(r, inField ? null : expect);
     if (result === "FAIL") failures++;
     results.get(name)[focusName] = { result, detail: describe(r), responder: r.firstResponder };
