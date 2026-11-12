@@ -1,5 +1,6 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode, type Ref } from "react";
 import type { LayoutChangeEvent } from "react-native";
+import { followMotion } from "../animation/motion";
 import { setCover } from "./covers";
 import { engineAvailable } from "./host";
 import { WindowIdContext } from "./windowId";
@@ -42,7 +43,9 @@ export function usePageCover<Node>(forwarded: Ref<Node> | undefined, onLayout: u
   useEffect(() => {
     if (!live) return;
     const timers = SETTLE_MS.map((delay) => setTimeout(measure, delay));
+    const unfollow = followMotion(measure);
     return () => {
+      unfollow();
       timers.forEach(clearTimeout);
       setCover(windowId, id, null);
     };

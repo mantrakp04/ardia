@@ -3,7 +3,7 @@ import { sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
 import { ARC_LIGHTS_CENTER, lightsCenter, sidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import type { LightsPlace } from "../../platform/windows";
-import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
+import { DEFAULT_SIDEBAR_WIDTH, pageFrameInsetOf } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
 import { useSettingValue } from "../tabs/tabWatch";
@@ -29,10 +29,6 @@ export function addressBarInSidebar(s: BrowserState, windowId: string): boolean 
   );
 }
 
-export function commandBarCentred(s: BrowserState, windowId: string): boolean {
-  return s.settings.commandBarPlacement === "centred" && !!s.windows[windowId] && s.windows[windowId]!.kind !== "small";
-}
-
 export function useAddressBarInSidebar(): boolean {
   const windowId = useWindowId();
   return useBrowser((s) => addressBarInSidebar(s, windowId));
@@ -44,13 +40,29 @@ export function openingLightsCenter(s: BrowserState, windowId: string): LightsPl
   const open = tabsShownIn(s, windowId);
   if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
   const width = s.settings.sidebarWidth;
-  const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, s.settings.pageFrame);
+  const frame = pageFrameInsetOf(s.settings.pageFrame, {
+    borderlessMode: s.settings.borderlessMode,
+    zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
+    fullScreen: !!w.fullScreen,
+    zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,
+    tabsHidden: s.settings.autoHideTabs,
+  });
+  const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, frame);
   return sidebarLightsCenter(sidebarSideOf(s, w.id) === "right", width, open ? 0 : width, 0, base);
 }
 
-const pageFrameSetting = (settings: BrowserState["settings"]) => settings.pageFrame;
-
-export const usePageFrameInset = (): number => useSettingValue(pageFrameSetting);
+export function usePageFrameInset(): number {
+  const windowId = useWindowId();
+  return useBrowser((s) =>
+    pageFrameInsetOf(s.settings.pageFrame, {
+      borderlessMode: s.settings.borderlessMode,
+      zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
+      fullScreen: !!s.windows[windowId]?.fullScreen,
+      zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,
+      tabsHidden: s.settings.autoHideTabs,
+    }),
+  );
+}
 
 function cardReachesCaption(s: BrowserState, windowId: string, chrome: WindowChrome): boolean {
   const w = s.windows[windowId];

@@ -179,9 +179,11 @@ test("production backends: SeaweedFS, the collector and GitHub", async () => {
     else res.writeHead(200, { "Content-Length": files.get(req.url).length }).end(req.method === "HEAD" ? undefined : files.get(req.url));
   });
   const posted = [];
+  let collectorUp = true;
   const collector = await listen(async (req, res) => {
     const chunks = [];
     for await (const c of req) chunks.push(c);
+    if (!collectorUp) return res.writeHead(503).end("collector down");
     posted.push({ url: req.url, ingest: req.headers["x-ardia-ingest"], body: JSON.parse(Buffer.concat(chunks)) });
     res.writeHead(200, { "Content-Type": "application/json" }).end("{}");
   });
@@ -194,10 +196,12 @@ test("production backends: SeaweedFS, the collector and GitHub", async () => {
     if (!githubUp) return res.writeHead(503).end("down");
     res.writeHead(201, { "Content-Type": "application/json" }).end(JSON.stringify({ number: 42, html_url: "https://github.com/o/r/issues/42" }));
   });
+  const timers = [];
+  const logs = [];
   const handle = createService({
     store: seaweedStore("127.0.0.1", filer.port), events: otlpEvents("127.0.0.1", collector.port),
     issues: githubIssues("tok", "o/r", github.url), secret: SECRET, publicUrl: () => "https://ardia.example",
-    dashboardUrl: "https://dash.example", rateLimits: false, log: () => {},
+    dashboardUrl: "https://dash.example", rateLimits: false, log: (l) => logs.push(l), later: (fn, ms) => timers.push({ fn, ms }),
   });
   const { url } = await listen(handle);
 
@@ -231,13 +235,90 @@ test("production backends: SeaweedFS, the collector and GitHub", async () => {
   const quietAttrs = Object.fromEntries(posted[1].body.resourceLogs[0].scopeLogs[0].logRecords[0].attributes.map((a) => [a.key, Object.values(a.value)[0]]));
   assert.match(quietAttrs.issue_error, /github 503/);
 
-  collector.server.close();
+  collectorUp = false;
   const third = await (await post(`${url}/api/feedback`, report({ attachments: [] }))).json();
   githubUp = true;
-  const failed = await post(`${url}/api/feedback/${third.id}/complete`, "", { token: third.upload_token, type: null });
-  assert.equal(failed.status, 502);
+  const kept = await post(`${url}/api/feedback/${third.id}/complete`, "", { token: third.upload_token, type: null });
+  assert.equal(kept.status, 200);
+  const keptAnswer = await kept.json();
+  assert.equal(keptAnswer.id, third.id);
+  assert.equal(keptAnswer.issue_url, "https://github.com/o/r/issues/42");
+  const pending = JSON.parse(files.get(`/buckets/feedback/${third.id}/complete.json`));
+  assert.equal(pending.event_sent, false);
+  assert.ok(logs.some((l) => l.includes(`${third.id} event not sent (collector)`) && l.includes("collector 503")));
   const issuesBefore = issuesSeen.length;
-  const retried = await post(`${url}/api/feedback/${third.id}/complete`, "", { token: third.upload_token, type: null });
-  assert.equal(retried.status, 502);
+  const again = await post(`${url}/api/feedback/${third.id}/complete`, "", { token: third.upload_token, type: null });
+  assert.deepEqual(await again.json(), keptAnswer);
   assert.equal(issuesSeen.length, issuesBefore);
+  assert.equal(timers.length, 1);
+  assert.equal(timers[0].ms, 30_000);
+  await timers.shift().fn();
+  assert.equal(timers.length, 1);
+  assert.equal(timers[0].ms, 120_000);
+  collectorUp = true;
+  const before = posted.length;
+  await timers.shift().fn();
+  assert.equal(posted.length, before + 1);
+  assert.equal(JSON.parse(files.get(`/buckets/feedback/${third.id}/complete.json`)).event_sent, true);
+  assert.equal(timers.length, 0);
+});
+
+test("a report completed while the collector was down sends its event on the next complete after a restart", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "ardia-feedback-test-"));
+  dirs.push(dir);
+  let up = false;
+  const sent = [];
+  const flaky = { describe: () => "flaky", send: async (id, ingest, body) => { if (!up) throw new Error("collector 503"); sent.push(body); } };
+  const make = () => createService({
+    store: localStore(dir), events: flaky, issues: null, secret: SECRET, publicUrl: (req) => `http://${req.headers.host}`,
+    dashboardUrl: "https://dash.example", rateLimits: false, log: () => {}, later: () => {},
+  });
+  const first = await listen(make());
+  const created = await (await post(`${first.url}/api/feedback`, report({ attachments: [] }))).json();
+  assert.equal((await post(`${first.url}/api/feedback/${created.id}/complete`, "", { token: created.upload_token, type: null })).status, 200);
+  assert.equal(JSON.parse(await readFile(join(dir, "feedback", created.id, "complete.json"), "utf8")).event_sent, false);
+  up = true;
+  const second = await listen(make());
+  assert.equal((await post(`${second.url}/api/feedback/${created.id}/complete`, "", { token: created.upload_token, type: null })).status, 200);
+  assert.equal(sent.length, 1);
+  assert.equal(JSON.parse(await readFile(join(dir, "feedback", created.id, "complete.json"), "utf8")).event_sent, true);
+});
+
+test("storage that refuses writes answers 502 upstream:storage, retryable, and logs the filer's reason", async () => {
+  const filer = await listen(async (req, res) => {
+    for await (const _ of req);
+    if (req.method === "HEAD" || req.method === "GET") return res.writeHead(404).end();
+    res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "failed to find writable volumes for collection:feedback: No writable volumes and no free volumes left" }));
+  });
+  const logs = [];
+  const handle = createService({
+    store: seaweedStore("127.0.0.1", filer.port), events: { describe: () => "none", send: async () => {} }, issues: null, secret: SECRET,
+    publicUrl: () => "https://ardia.example", dashboardUrl: "https://dash.example", rateLimits: false, log: (l) => logs.push(l),
+  });
+  const { url } = await listen(handle);
+  const res = await post(`${url}/api/feedback`, report());
+  assert.equal(res.status, 502);
+  assert.equal(res.headers.get("retry-after"), "60");
+  assert.deepEqual(await res.json(), { error: "upstream:storage", backend: "storage", retryable: true, message: "report storage is unavailable; try again in a minute" });
+  assert.ok(logs.some((l) => l.startsWith("[feedback] POST /api/feedback failed (storage):") && l.includes("No writable volumes")));
+});
+
+test("unreachable storage is blamed on storage, and a bug in the service answers 500 internal", async () => {
+  const closed = await listen(() => {});
+  const port = closed.port;
+  closed.server.close();
+  const logs = [];
+  const { url } = await listen(createService({
+    store: seaweedStore("127.0.0.1", port), events: { describe: () => "none", send: async () => {} }, issues: null, secret: SECRET,
+    publicUrl: () => "https://ardia.example", dashboardUrl: "https://dash.example", rateLimits: false, log: (l) => logs.push(l),
+  }));
+  const down = await post(`${url}/api/feedback`, report());
+  assert.equal(down.status, 502);
+  assert.equal((await down.json()).error, "upstream:storage");
+
+  const broken = await localService({ publicUrl: () => { throw new TypeError("boom"); } });
+  const bug = await post(`${broken.url}/api/feedback`, report());
+  assert.equal(bug.status, 500);
+  assert.equal((await bug.json()).error, "internal");
+  assert.ok(broken.logs.some((l) => l.includes("failed (internal): TypeError: boom")));
 });

@@ -4,7 +4,9 @@ import { StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-
 import { parseColor, rgbaString } from "./color";
 import { bubblePath, NativeMaterialBlur, nativeBlur } from "./nativeMaterials";
 import { useAppDark as useDark } from "./appearance";
-import { colorOrUndefined, dropShadow, finite, useFirstWindow, type AnyProps } from "./shared";
+import { RoundedShadow } from "./RoundedShadow";
+import { shadowSpec } from "./shadowLayers";
+import { colorOrUndefined, finite, useFirstWindow, type AnyProps } from "./shared";
 
 type Tone = { light: string; dark: string };
 
@@ -186,8 +188,9 @@ export const PopoverBubble = forwardRef<View, AnyProps>(function PopoverBubble(
     borderRadius: radius,
     backgroundColor: blur ? undefined : fill,
     ...(edgeTint && stroke > 0 ? { borderWidth: stroke, borderColor: edgeTint } : null),
-    ...(blur ? null : dropShadow("#000000", bubbleShadowOpacity, bubbleShadowRadius, 0, bubbleShadowOffsetY)),
   };
+  const shadow = blur ? null : shadowSpec("#000000", bubbleShadowOpacity, bubbleShadowRadius, 0, bubbleShadowOffsetY);
+  const bodyEdges = { top: edge === "top" ? lift : 0, left: 0, right: 0, bottom: edge === "bottom" ? lift : 0 };
   const showsArrow = edge !== "none" && half > 0 && lift > 0 && size.width >= 2 * (radius + half);
   const center = Math.min(Math.max(finite(arrowX, 0), radius + half), size.width - radius - half);
   const cover = usePageCover(ref, measure, radius);
@@ -206,8 +209,9 @@ export const PopoverBubble = forwardRef<View, AnyProps>(function PopoverBubble(
               style={StyleSheet.absoluteFill}
             />
           ) : null}
+          {shadow ? <RoundedShadow spec={shadow} cornerRadius={radius} around={bodyEdges} /> : null}
           <View style={body} />
-          {tintColor ? <View style={[body, { backgroundColor: tintColor, borderWidth: 0, shadowOpacity: 0 }]} /> : null}
+          {tintColor ? <View style={[body, { backgroundColor: tintColor, borderWidth: 0 }]} /> : null}
           {showsArrow ? <Arrow edge={edge} center={center} width={half * 2} height={lift} fill={blur ? CLEAR : fill} tint={tintColor} edgeColor={edgeTint} edgeWidth={stroke} /> : null}
         </>
       ) : null}

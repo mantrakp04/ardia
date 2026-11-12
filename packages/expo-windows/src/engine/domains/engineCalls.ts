@@ -1,8 +1,23 @@
 import { isFields, ok, originalProfile, passed, served, type Handlers } from "./calling";
+import { suggestCalls } from "./suggest";
 
 const NO_ACTIVE_TAB = -1;
 
+const text = (value: unknown) => (typeof value === "string" ? value : "");
+
 export const engineCalls: Handlers = {
+  info: async (_args, engine) => {
+    const host = await engine.host("host.info");
+    return ok({
+      pid: 0,
+      dataDirectory: text(host.userDataDir),
+      engine: "ardiacore",
+      chromiumVersion: text(host.chromium),
+      liveBrowsers: 0,
+      popupWindows: 0,
+      chromeWindows: 0,
+    });
+  },
   components: async (_args, engine) => {
     const { components } = await served(engine, "ac_components_list", "");
     return ok(Array.isArray(components) ? components : []);
@@ -20,6 +35,7 @@ export const engineCalls: Handlers = {
 };
 
 export const searchCalls: Handlers = {
+  ...suggestCalls(),
   engines: async (args, engine) => {
     const { engines } = await served(engine, "ac_search_engines_list", originalProfile(args.profile));
     return ok({ list: { engines: engines ?? [] } });

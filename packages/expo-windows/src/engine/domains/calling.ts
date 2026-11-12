@@ -2,6 +2,9 @@ export type Fields = Record<string, unknown>;
 
 export type Engine = {
   call(name: string, profile: string, argsJson: string): Promise<string>;
+  host(verb: string, args?: Fields): Promise<Fields>;
+  profileDataFolder(): string | null;
+  removeProfileFolder(folder: string): Promise<string>;
   emit(name: string, data: unknown): void;
   missing(domain: string, verb: string, profile: string, argsJson: string): Promise<string>;
 };

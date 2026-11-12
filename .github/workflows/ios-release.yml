@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: status lists what App Store Connect holds; dry-run builds and signs; upload sends the build to TestFlight; public-link submits a build for Beta App Review and prints the link to share; add-tester invites an email to the Public Testers group; certificate makes the development certificate CI signs with
+        description: status lists what App Store Connect holds; dry-run builds and signs; upload sends the build to TestFlight and to public testers; public-link submits a build for Beta App Review and prints the link to share; add-tester invites an email to the Public Testers group; certificate makes the development certificate CI signs with
         type: choice
         options: [status, dry-run, upload, public-link, add-tester, certificate]
         default: status
@@ -16,6 +16,10 @@ on:
         description: Sign with the default-browser entitlement (only once Apple has granted it)
         type: boolean
         default: false
+      public_testers:
+        description: upload mode only, also put the build in the Public Testers group and submit it for Beta App Review
+        type: boolean
+        default: true
       signing_request:
         description: certificate mode only, the base64 of a certificate signing request
         type: string
@@ -216,6 +220,14 @@ jobs:
         env:
           BUILD: ${{ steps.plan.outputs.build }}
         run: node apps/ios/scripts/asc.mjs wait --build "$BUILD" --timeout 2400 | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: inputs.mode == 'upload' && inputs.public_testers
+        name: Send the build to public testers
+        env:
+          BUILD: ${{ steps.plan.outputs.build }}
+        run: |
+          set -euo pipefail
+          node apps/ios/scripts/asc.mjs public-link --build "$BUILD" \
+            --what-to-test apps/ios/Config/TestFlight-WhatToTest.txt --privacy-policy https://ardia.dev/privacy | tee -a "$GITHUB_STEP_SUMMARY"
       - if: always()
         name: No certificate was made
         run: |

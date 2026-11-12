@@ -21,6 +21,7 @@ const EXPECTED = [
   "ArdiaThemeSwatch",
   "ArdiaDockSelection",
   "ArdiaWindowProfile",
+  "ArdiaSwipe",
 ];
 
 const MINIMAL_PROPS: Record<string, Record<string, unknown>> = {

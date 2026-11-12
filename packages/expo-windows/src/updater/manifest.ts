@@ -50,6 +50,15 @@ export function offered(manifest: UpdateManifest, cpu: string, current: number):
   return (cpu === "x64" || cpu === "arm64" ? manifest.installers[cpu] : undefined) ?? null;
 }
 
+export function failureText(error: unknown): string {
+  if (typeof error === "string" && error) return error;
+  if (typeof error === "object" && error !== null) {
+    const { message } = error as { message?: unknown };
+    if (typeof message === "string" && message) return message;
+  }
+  return "the check failed";
+}
+
 export const folderOf = (address: string) => address.slice(0, address.lastIndexOf("/") + 1);
 
 export const megabytes = (bytes: number) => Math.max(1, Math.round(bytes / (1024 * 1024)));

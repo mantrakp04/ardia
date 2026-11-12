@@ -26,7 +26,7 @@ export function PictureChoice({
   const icon = size === "icon";
   return (
     <View {...hoverProps} style={icon ? { width: pictureChoice.iconWidth } : { flex: 1 }}>
-      <Pressable onPress={onPress} tooltip={tooltip}>
+      <Pressable onPress={onPress} tooltip={tooltip} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
         <Box gap="m" style={{ alignItems: "center" }}>
           <SelectableCard
             selected={selected}

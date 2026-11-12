@@ -85,6 +85,40 @@ struct OpenDialogScope {
   OpenDialogScope &operator=(OpenDialogScope const &) = delete;
 };
 
+inline bool IsPageWindow(HWND window) noexcept {
+  wchar_t name[64]{};
+  GetClassNameW(window, name, 64);
+  return std::wstring_view{name}.starts_with(L"Chrome_WidgetWin_");
+}
+
+struct HeldPageWindows {
+  explicit HeldPageWindows(HWND owner) noexcept : m_owner(owner) {
+    if (!owner) return;
+    EnumWindows(&HeldPageWindows::Collect, reinterpret_cast<LPARAM>(this));
+    for (HWND page : m_pages) EnableWindow(page, FALSE);
+  }
+  ~HeldPageWindows() noexcept {
+    for (HWND page : m_pages)
+      if (IsWindow(page) && GetWindow(page, GW_OWNER) == m_owner) EnableWindow(page, TRUE);
+  }
+  HeldPageWindows(HeldPageWindows const &) = delete;
+  HeldPageWindows &operator=(HeldPageWindows const &) = delete;
+
+  size_t Count() const noexcept { return m_pages.size(); }
+
+ private:
+  static BOOL CALLBACK Collect(HWND window, LPARAM self) noexcept {
+    auto *held = reinterpret_cast<HeldPageWindows *>(self);
+    DWORD process = 0;
+    GetWindowThreadProcessId(window, &process);
+    if (process == GetCurrentProcessId() && GetWindow(window, GW_OWNER) == held->m_owner && IsWindowEnabled(window) && IsPageWindow(window)) held->m_pages.push_back(window);
+    return TRUE;
+  }
+
+  HWND m_owner;
+  std::vector<HWND> m_pages;
+};
+
 inline bool Background() noexcept {
   return Paths::Environment(L"ARDIA_BACKGROUND") == L"1";
 }
@@ -221,6 +255,14 @@ inline void Log(std::string const &what) noexcept {
   }
 }
 
+struct ModalOverWindow {
+  ModalOverWindow(HWND owner, std::string_view kind) noexcept : pages(owner) {
+    if (pages.Count()) LaunchLog::Write(L"info", Paths::Wide(std::string{kind} + " holds " + std::to_string(pages.Count()) + " page window(s) until it closes"));
+  }
+  OpenDialogScope open;
+  HeldPageWindows pages;
+};
+
 inline std::vector<std::wstring> TakePicks() noexcept {
   std::filesystem::path path = Paths::DataDirectory() / L"file-chooser.txt";
   std::optional<std::string> text = ReadWholeFile(path);
@@ -306,7 +348,7 @@ constexpr int ConfirmButtonId = 1001;
 
 inline DialogConfirmReply ShowConfirm(HWND owner, std::wstring const &title, std::wstring const &message, std::wstring const &confirmTitle, std::wstring const &cancelTitle, bool destructive, std::optional<std::wstring> const &suppression) noexcept {
   DialogConfirmReply reply;
-  OpenDialogScope open;
+  ModalOverWindow modal(owner, "confirm");
   if (TaskDialogIndirectFunction taskDialog = ResolveTaskDialog()) {
     TASKDIALOG_BUTTON buttons[2] = {{ConfirmButtonId, confirmTitle.c_str()}, {IDCANCEL, cancelTitle.c_str()}};
     TASKDIALOGCONFIG config{};
@@ -419,7 +461,7 @@ struct DialogTemplateBuilder {
 };
 
 inline std::optional<std::wstring> ShowPrompt(HWND owner, PromptState &state) noexcept {
-  OpenDialogScope open;
+  ModalOverWindow modal(owner, "prompt");
   constexpr short width = 240;
   constexpr short margin = 7;
   constexpr short inner = width - margin * 2;
@@ -481,7 +523,7 @@ inline std::wstring ItemPath(IShellItem *item) noexcept {
 inline std::vector<std::wstring> ShowOpenFiles(HWND owner) noexcept {
   std::vector<std::wstring> picked;
   ComApartment apartment;
-  OpenDialogScope open;
+  ModalOverWindow modal(owner, "file picker");
   winrt::com_ptr<IFileOpenDialog> dialog;
   if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IFileOpenDialog), dialog.put_void())) || !dialog) return picked;
   FILEOPENDIALOGOPTIONS options = 0;
@@ -504,7 +546,7 @@ inline std::vector<std::wstring> ShowOpenFiles(HWND owner) noexcept {
 
 inline std::optional<std::wstring> ShowOpenFolder(HWND owner, std::optional<std::wstring> const &current, std::optional<std::wstring> const &prompt) noexcept {
   ComApartment apartment;
-  OpenDialogScope open;
+  ModalOverWindow modal(owner, "folder picker");
   winrt::com_ptr<IFileOpenDialog> dialog;
   if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IFileOpenDialog), dialog.put_void())) || !dialog) return std::nullopt;
   FILEOPENDIALOGOPTIONS options = 0;

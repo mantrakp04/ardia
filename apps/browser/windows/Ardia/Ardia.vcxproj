@@ -106,6 +106,7 @@
   </ItemDefinitionGroup>
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
+    <ClInclude Include="AppIcon.h" />
     <ClInclude Include="AppImage.h" />
     <ClInclude Include="AppModule.h" />
     <ClInclude Include="EngineApi.h" />
@@ -144,6 +145,7 @@
     <ClInclude Include="Modules.h" />
     <ClInclude Include="Paths.h" />
     <ClInclude Include="PointerLatch.h" />
+    <ClInclude Include="WindowFade.h" />
     <ClInclude Include="WindowManager.h" />
     <ClInclude Include="WindowsModule.h" />
     <ClInclude Include="AutolinkedNativeModules.g.h" />

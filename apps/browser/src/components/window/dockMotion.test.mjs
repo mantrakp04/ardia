@@ -105,7 +105,7 @@ test("the sidebar's rows sit 9 pt from the window's edge and 9 pt from the card 
 
 test("the card radius follows the native window radius minus the frame, and the toolbar's lights stay 21 pt into the card", () => {
   assert.equal(dm.cardFrameOf(9).radius, 10);
-  assert.equal(dm.cardFrameOf(0).radius, 19);
+  assert.equal(dm.cardFrameOf(0).radius, 0, "edge to edge: square corners; the window rounds the page");
   assert.equal(dm.cardFrameOf(12).radius, 7);
   assert.equal(dm.cardFrameOf(4).radius, 15);
   assert.equal(pageFrameOf(18, 19, dm.PEEK_RADIUS).radius, 2);

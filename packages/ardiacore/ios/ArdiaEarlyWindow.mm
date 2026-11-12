@@ -32,6 +32,7 @@ constexpr double kUntakenAfterContentSeconds = 2;
 constexpr double kDefaultPageFrame = 9, kMaxPageFrame = 12;
 
 double PageFrameOf(NSDictionary *settings) {
+  if ([settings[@"borderlessMode"] isEqual:@YES]) return 0;
   id saved = settings[@"pageFrame"];
   if (![saved isKindOfClass:NSNumber.class]) return kDefaultPageFrame;
   const double frame = [saved doubleValue];
@@ -243,7 +244,8 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   }
   if (gLittleLayout) {
     NSArray<NSNumber *> *cardInsets = layout[@"card"];
-    gLittleLayout[@"radius"] = @(MAX(ArdiaChromeWindowHost.windowCornerRadius - cardInsets.firstObject.doubleValue, 2));
+    const double inset = cardInsets.firstObject.doubleValue;
+    gLittleLayout[@"radius"] = @(inset == 0 ? 0 : MAX(ArdiaChromeWindowHost.windowCornerRadius - inset, 2));
   }
   controller.appWindowId = windowId;
   [window setFrame:rect display:NO];
@@ -350,11 +352,9 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   NSDictionary *main = windowId.length && [gLayouts[windowId] isKindOfClass:NSDictionary.class] ? gLayouts[windowId] : @{};
   const double pageFrame = PageFrameOf(settings);
   NSNumber *cardInset = @(pageFrame);
-  const CGFloat radius = MAX(ArdiaChromeWindowHost.windowCornerRadius - pageFrame, 2);
   NSMutableDictionary *layout = [@{
     @"page" : @[ cardInset, @38, cardInset, cardInset ],
     @"card" : @[ cardInset, @38, cardInset, cardInset ],
-    @"radius" : @(radius),
     @"curve" : [main[@"curve"] isKindOfClass:NSString.class] ? main[@"curve"] : kCACornerCurveCircular,
     @"lights" : @[ @20, @19 ],
   } mutableCopy];

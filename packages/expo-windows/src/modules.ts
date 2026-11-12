@@ -1,10 +1,12 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
+import { windowsMotion } from "./animation/motion";
 import { addNativeListener, type EventSubscription } from "./events";
 import { moduleDefaults } from "./defaults";
 import { engineAvailable } from "./engine/host";
 import { engineModules } from "./engine/modules";
 import { noteMissing } from "./missing";
-import { windowsUpdater } from "./updater";
+import { stampedSystemInfo, windowsUpdater } from "./updater";
+import { windowsSwipe } from "./pager";
 import { setWindowDark } from "./windowDark";
 
 type Listener = (payload: unknown) => void;
@@ -14,7 +16,16 @@ type Call = (...values: unknown[]) => unknown;
 
 const modules = new Map<string, object>();
 
+const RELEASE_NOTES_PAGE = "https://ardia.dev/release-notes";
+
 const around: Record<string, Record<string, (native: Call) => Call>> = {
+  ArdiaApp: {
+    systemInfo: (native) => () => {
+      const info = stampedSystemInfo(native());
+      if (typeof info !== "object" || info === null) return info;
+      return { releaseNotesURL: RELEASE_NOTES_PAGE, ...info };
+    },
+  },
   ArdiaAppWindows: {
     openWindow: (native) => (id, options) => {
       setWindowDark(String(id), !!(options as { incognito?: unknown } | null)?.incognito);
@@ -23,7 +34,7 @@ const around: Record<string, Record<string, (native: Call) => Call>> = {
   },
 };
 
-const writtenInJs: Record<string, Record<string, unknown>> = { ArdiaUpdater: windowsUpdater };
+const writtenInJs: Record<string, Record<string, unknown>> = { ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion };
 
 const inert = (module: string, key: string) => () => {
   noteMissing(`${module}.${key}`);

@@ -49,6 +49,7 @@ public static class ArdiaInput {
   [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window, out Rect rect);
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+  [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
   [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool GetSystemFlag(uint action, uint unused, ref int value, uint flags);
   [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool SetSystemFlag(uint action, uint value, IntPtr pointerValue, uint flags);
 }
@@ -381,6 +382,23 @@ function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
   return $notes
 }
 
+function Test-WindowIcon([System.Diagnostics.Process]$Process, [string]$Log) {
+  $notes = @()
+  $Process.Refresh()
+  $handle = $Process.MainWindowHandle
+  if ($handle -eq [IntPtr]::Zero) { return @("the browser window has no handle to ask for its icon") }
+  foreach ($size in @(@{ Name = "big"; Kind = 1 }, @{ Name = "small"; Kind = 0 })) {
+    $icon = [IntPtr]::Zero
+    $answered = [ArdiaInput]::SendMessageTimeout($handle, 0x007F, [IntPtr]$size.Kind, [IntPtr]::Zero, 0x0002, 2000, [ref]$icon)
+    if ($answered -eq [IntPtr]::Zero) { $notes += "the browser window did not answer WM_GETICON for its $($size.Name) icon" }
+    elseif ($icon -eq [IntPtr]::Zero) { $notes += "the browser window has no $($size.Name) icon (WM_GETICON gave none)" }
+    else { Write-Host "Icon: the browser window's $($size.Name) icon is 0x$($icon.ToString('x'))." }
+  }
+  if (-not (Select-String -Path $Log -Pattern "app icon: AppUserModelID is Ardia\.Browser" -Quiet)) { $notes += "the launch log does not say the process took the AppUserModelID Ardia.Browser" }
+  if (-not (Select-String -Path $Log -Pattern "app icon: set on " -Quiet)) { $notes += "the launch log does not say a window got Ardia's icon" }
+  return $notes
+}
+
 function New-DataDirectory([string]$Name) {
   $directory = Join-Path $Out $Name
   Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $directory
@@ -425,6 +443,7 @@ try {
     $working = [Math]::Round((Get-Process -Id $browser.Id).WorkingSet64 / 1MB)
     $private = [Math]::Round((Get-Process -Id $browser.Id).PrivateMemorySize64 / 1MB)
     Write-Host "Memory with the browser window open: $working MB working set, $private MB private."
+    Test-WindowIcon $browser $browserLog | ForEach-Object { $failures += $_ }
     if (-not $NoInput) {
       $inputNotes = Test-Input $browser $browserLog
       $inputNotes | ForEach-Object { $failures += $_ }
@@ -447,15 +466,25 @@ elseif (-not (Select-String -Path $browserLog -Pattern "\[ardia windows\] first 
 $env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
 $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
 $env:ARDIA_BACKGROUND = "1"
-$check = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$checkLog`"" -PassThru
+$leftover = Join-Path $env:ARDIA_DATA_DIR "Chromium\Ardia self-check-stuck (removing)"
+$held = $null
+$check = $null
 try {
+  New-Item -ItemType Directory -Force -Path $leftover | Out-Null
+  $held = [System.IO.File]::Open((Join-Path $leftover "held.txt"), [System.IO.FileMode]::Create, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+  $check = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$checkLog`"" -PassThru
   if (-not $check.WaitForExit($SelfCheckSeconds * 1000)) { $failures += "the self-check did not finish within $SelfCheckSeconds s" }
   elseif ($check.ExitCode -ne 0) { $failures += "the self-check launch exited with code $($check.ExitCode)" }
 } finally {
-  if (-not $check.HasExited) {
-    Save-Screenshot (Join-Path $Out "self-check-stuck.png")
-    Stop-Process -Id $check.Id -Force
-    $check.WaitForExit(10000) | Out-Null
+  try {
+    if ($check -and -not $check.HasExited) {
+      Save-Screenshot (Join-Path $Out "self-check-stuck.png")
+      Stop-Process -Id $check.Id -Force
+      $check.WaitForExit(10000) | Out-Null
+    }
+  } finally {
+    if ($held) { $held.Dispose() }
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $leftover
   }
 }
 

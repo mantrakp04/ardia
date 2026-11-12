@@ -16,7 +16,7 @@ import { createBangSubmitter, mayBeBang } from "../../state/omnibox/bangs";
 import { traceOmnibox, useOmniboxDriver } from "./devDriver";
 import { claimFocusTag, commandBarFocus, heroBarFocus } from "../../state/focus/focusClaims";
 import { registerHeroBar, saveNtpQuery, type BarDismissal, type BarSnapshot } from "../../state/omnibox/barState";
-import { openFromBar, otherOpenTabs, switchFromBar, type Disposition } from "../../state/omnibox/openFromBar";
+import { barSplitsFrom, openFromBar, otherOpenTabs, switchFromBar, type Disposition } from "../../state/omnibox/openFromBar";
 import { openFromNewTabBar } from "../../state/omnibox/newTabBar";
 import type { NewTabTarget } from "../../state/browser/types";
 import { showFieldMenu } from "../../state/omnibox/paste";
@@ -142,10 +142,11 @@ export function Omnibox({
     return hero ? reset() : onDone?.();
   };
 
-  const go = (url: string, disposition: Disposition = "current") => {
+  const go = (url: string, asked: Disposition = "current") => {
     bangEnter.cancel();
     if (!url) return;
-    if (opensTab && disposition !== "newWindow") return openFromNewTabBar(windowId, opensTab, url);
+    const disposition = asked === "split" && !barSplitsFrom(tabId) ? (opensTab ? "newTab" : "current") : asked;
+    if (opensTab && disposition !== "newWindow" && disposition !== "split") return openFromNewTabBar(windowId, opensTab, url);
     if (disposition === "current") journeyNavigate(tabId);
     openFromBar(url, tabId, disposition);
     if (disposition !== "current") dismiss();

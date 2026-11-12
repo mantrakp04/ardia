@@ -1,6 +1,7 @@
 import { capture, isSharing } from "./client";
 import { appInfo } from "./transport";
 import { launchFirstWindow } from "./journeys";
+import type { PanelState } from "../browser/types";
 
 export type SuggestionType = "history" | "bookmark" | "tab" | "url" | "search" | "calc" | "action" | "create" | "extension" | "provider" | "typed";
 
@@ -23,6 +24,15 @@ function suggestionType(s: SuggestionLike): SuggestionType {
   }
 }
 
+export type CommandBarPlacementLabel = "field" | "centred" | "centred_no_field" | "new_tab";
+
+export function commandBarPlacementLabel(panel: Pick<PanelState, "newTab" | "placement">): CommandBarPlacementLabel {
+  if (panel.newTab) return "new_tab";
+  if (panel.placement === "centred") return "centred";
+  if (panel.placement === "centredNoField") return "centred_no_field";
+  return "field";
+}
+
 export const trackSuggestionChosen = (s: SuggestionLike) => capture("suggestion_chosen", { type: suggestionType(s) });
 
 export type CalendarConnectReport = { before: string; after: string; responsible: string; errored: boolean; settingsOpened: boolean; ms: number };
@@ -43,6 +53,16 @@ export function sampleOmniboxLatency(ms: number) {
 }
 
 export const takeOmniboxLatency = () => latency.splice(0);
+
+let suggests = { search_suggest_ok: 0, search_suggest_blocked: 0, search_suggest_failed: 0 };
+
+export const noteSearchSuggest = (outcome: "ok" | "blocked" | "failed") => void suggests[`search_suggest_${outcome}`]++;
+
+export const takeSearchSuggests = () => {
+  const taken = suggests;
+  suggests = { search_suggest_ok: 0, search_suggest_blocked: 0, search_suggest_failed: 0 };
+  return taken;
+};
 
 let firstWindowAt: number | null = null;
 

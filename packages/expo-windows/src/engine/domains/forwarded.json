@@ -36,13 +36,21 @@
       "lastTabPolicy": "ac_tabs_last_tab_policy"
     }
   },
+  "awaitingEngine": {
+    "extensions": {
+      "loadHealth": "ac_extensions_load_health"
+    },
+    "search": {
+      "suggest": "ac_search_suggest",
+      "stopSuggest": "ac_search_suggest_stop"
+    }
+  },
   "missing": {
     "autofill": ["settings", "setSettings", "showSuggestions"],
     "bookmarks": ["exportHtml"],
     "contentBlocker": ["state", "setEnabled", "setListEnabled", "isAllowed", "setAllowed", "devFailNextMessage", "devDelayNextLoad"],
-    "engine": ["info", "beginTracing", "endTracing", "isTracing", "systemState", "cliTabTargets"],
+    "engine": ["beginTracing", "endTracing", "isTracing", "systemState", "cliTabTargets"],
     "extensions": ["inspectUnpacked", "chooseFolder", "resolveInstallPrompt", "actionStates", "sidePanelUrl"],
-    "favicons": ["fetch"],
     "media": [
       "displayMediaSources",
       "screenRecordingAllowed",
@@ -64,7 +72,7 @@
     ],
     "passwords": ["export", "autofillEnabled", "setAutofillEnabled"],
     "permissions": ["resolve", "resolveExternalApp", "externalAppAllowances", "removeExternalAppAllowance", "devExternalLaunches"],
-    "profiles": ["loaded", "release", "deleteData"],
+    "profiles": ["loaded", "release"],
     "search": ["setEngineName"],
     "tabs": [
       "routeLinkTabs",

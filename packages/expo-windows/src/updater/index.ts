@@ -1,6 +1,6 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import type { ConfirmOptions, UpdateChannel, UpdaterNative, UpdaterState } from "@ardia/shell";
-import { folderOf, megabytes, offered, readBuild, readManifest, type BuildIdentity } from "./manifest";
+import { failureText, folderOf, megabytes, offered, readBuild, readManifest, type BuildIdentity } from "./manifest";
 
 const PUBLISHED_UNDER = "https://github.com/ardia-browser/ardia/releases/download/";
 const FEED = `${PUBLISHED_UNDER}windows-alpha/windows-update.json`;
@@ -35,6 +35,12 @@ let firstCheck: ReturnType<typeof setTimeout> | undefined;
 function identity(): BuildIdentity | null {
   if (identityRead === undefined) identityRead = typeof constants().buildFile === "string" ? readBuild(constants().buildFile as string) : null;
   return identityRead;
+}
+
+export function stampedSystemInfo(info: unknown): unknown {
+  const stamped = identity();
+  if (!stamped || typeof info !== "object" || info === null) return info;
+  return { ...info, appVersion: stamped.version, appBuild: String(stamped.build) };
 }
 
 const feedOverride = () => (typeof constants().feedOverride === "string" ? (constants().feedOverride as string) : "");
@@ -74,7 +80,7 @@ function checksByItself() {
 
 const ask = async (options: ConfirmOptions) => (await dialogs()?.confirm(options))?.confirmed === true;
 const tell = (title: string, message: string) => ask({ title, message, confirmTitle: "OK", cancelTitle: "" });
-const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const reason = (error: unknown) => failureText(error);
 
 async function check(asked: boolean) {
   const current = identity();

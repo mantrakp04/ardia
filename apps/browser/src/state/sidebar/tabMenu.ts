@@ -22,7 +22,7 @@ import { openMultiMenu } from "./multiTabMenu";
 import { tileFolderOf } from "../pins/tileFolders";
 import { sendTabFromMenu, sendTabMenuItem } from "../sync/menu";
 import { pageUnread } from "../tabs/unread";
-import { canChooseSiteUnread, isUnreadSiteHidden, toggleSiteUnread, unreadSiteTitle } from "../tabs/unreadSites";
+import { ALL_UNREAD_TITLE, canChooseSiteUnread, isUnreadSiteHidden, showUnreadCounts, toggleSiteUnread, unreadSiteTitle } from "../tabs/unreadSites";
 
 const store = () => useBrowser.getState();
 
@@ -128,7 +128,8 @@ function muteItems(s: BrowserState, tab: Tab): MenuItem[] {
 }
 
 function unreadItems(s: BrowserState, tab: Tab): MenuItem[] {
-  if (!s.settings.showUnreadCounts || !canChooseSiteUnread(tab)) return [];
+  if (!canChooseSiteUnread(tab)) return [];
+  if (!s.settings.showUnreadCounts) return pageUnread(tab.id) ? [{ id: "allUnread", title: ALL_UNREAD_TITLE, symbol: "app.badge" }] : [];
   const hidden = isUnreadSiteHidden(s.settings, tab.url);
   if (!hidden && !pageUnread(tab.id)) return [];
   return [{ id: "siteUnread", title: unreadSiteTitle(hidden), symbol: "app.badge" }];
@@ -239,6 +240,7 @@ function runTabChoice(windowId: string, tab: Tab, f: Facts, choice: string | Des
   else if (choice === "mute") toggleMute(tab.id);
   else if (choice === "muteSite") toggleSiteMute(tab.id);
   else if (choice === "siteUnread") toggleSiteUnread(tab.id);
+  else if (choice === "allUnread") showUnreadCounts(true);
   else if (choice === "engine") void togglePageEngine(tab.id);
   else if (choice === "copy") copyUrls([tab.id], false);
   else if (choice === "copyMd") copyUrls([tab.id], true);

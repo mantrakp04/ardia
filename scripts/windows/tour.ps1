@@ -62,6 +62,12 @@ public static class ArdiaTour {
   [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
   [DllImport("user32.dll")] public static extern uint MapVirtualKeyW(uint code, uint mapType);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] private static extern bool SystemParametersInfoW(uint action, uint parameter, out int value, uint change);
+
+  public static bool AnimationsOn() {
+    int on;
+    return !SystemParametersInfoW(0x1042, 0, out on, 0) || on != 0;
+  }
 
   public static string TitleOf(IntPtr window) {
     StringBuilder text = new StringBuilder(512);
@@ -952,6 +958,67 @@ function Find-SettingsWindow($Session) {
   return @($others | Select-Object -First 1)
 }
 
+function Read-Appearance($Session) {
+  $path = Join-Path $Session.Data "session.json"
+  for ($attempt = 0; $attempt -lt 3; $attempt++) {
+    try {
+      if (-not (Test-Path -LiteralPath $path)) { return "auto" }
+      $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete)
+      try {
+        $document = [System.IO.StreamReader]::new($stream).ReadToEnd() | ConvertFrom-Json
+      } finally {
+        $stream.Dispose()
+      }
+      if ($document.settings -and $document.settings.PSObject.Properties.Name -contains "appearance") { return [string]$document.settings.appearance }
+      return "auto"
+    } catch {
+      Start-Sleep -Milliseconds 150
+    }
+  }
+  return "unreadable"
+}
+
+function Find-PictureTile([IntPtr]$Window, [string]$Name) {
+  $hits = @(Find-Named $Window $Name | Sort-Object -Property Height -Descending)
+  if (-not $hits.Count) { return $null }
+  $client = Get-Client $Window
+  $scale = if ($client) { $client.Scale } else { 1 }
+  $tile = $hits[0]
+  if ($tile.Height -ge 80 * $scale) {
+    return [pscustomobject]@{ X = $tile.X; Y = [int]($tile.Top + $tile.Height * 0.35); How = "the '$Name' tile found by UI Automation ($($tile.Width) by $($tile.Height)), on its picture" }
+  }
+  return [pscustomobject]@{ X = $tile.X; Y = [int]($tile.Y - 58 * $scale); How = "the picture above the '$Name' label found by UI Automation" }
+}
+
+function Invoke-PictureTileStop($Session) {
+  Invoke-Stop $Session "settings-picture-tile" "Settings window, Appearance: a click on a picture tile" {
+    param($stop)
+    $stop.Expected = "a click on the Light tile's picture saves appearance 'light' in session.json, and a click on Automatic's picture saves 'auto' again."
+    Focus-Window $Session $script:SettingsWindow $stop | Out-Null
+    $before = Read-Appearance $Session
+    $stop.Facts.Add("appearance before: $before")
+    $results = @()
+    foreach ($choice in @(@{ Name = "Light"; Value = "light" }, @{ Name = "Automatic"; Value = "auto" })) {
+      $point = Find-PictureTile $script:SettingsWindow $choice.Name
+      if (-not $point) {
+        $stop.Facts.Add("UI Automation found nothing named '$($choice.Name)'")
+        $results += $false
+        continue
+      }
+      Send-Click $point.X $point.Y
+      $saved = Wait-Until $Session { (Read-Appearance $Session) -eq $choice.Value } 3000
+      $stop.Facts.Add("clicked $($point.How) at $($point.X), $($point.Y): appearance is now $(Read-Appearance $Session)")
+      $results += $saved
+      Start-Sleep -Milliseconds 600
+    }
+    $stop.Did = "Clicked the Light tile, then the Automatic tile, in Settings > Appearance."
+    Save-Shot $stop $script:SettingsWindow | Out-Null
+    $worked = $results.Count -eq 2 -and -not ($results -contains $false)
+    if (-not $worked) { Write-Host "::error::a click on a Settings picture tile did not change the setting: $($stop.Facts -join '; ')" }
+    Set-Seen $stop $worked
+  } | Out-Null
+}
+
 function Invoke-SettingsStops($Session, [string]$Suffix, [string]$Label, [switch]$Panes) {
   Invoke-Stop $Session "settings-general$Suffix" "Settings window, General$Label" {
     param($stop)
@@ -1003,6 +1070,7 @@ function Invoke-SettingsStops($Session, [string]$Suffix, [string]$Label, [switch
         $after = Save-Shot $stop $script:SettingsWindow
         if ($null -ne $after.Changed) { Set-Seen $stop ($after.Changed -gt 5) }
       } | Out-Null
+      if ($pane.Slug -eq "settings-appearance") { Invoke-PictureTileStop $Session }
     }
   }
   Invoke-Stop $Session "settings-closed$Suffix" "Settings window closed$Label" {
@@ -1437,6 +1505,57 @@ function Invoke-DarkTour {
   Stop-Ardia $session
 }
 
+function Get-Motion($Session, [int]$Mark) {
+  return @(Get-LinesSince $Session $Mark "\[ardia windows\] motion \d+ frames in \d+ ms" | ForEach-Object {
+    if ($_ -match "motion (\d+) frames in (\d+) ms, longest (\d+) ms, (\d+) long") {
+      [pscustomobject]@{ Frames = [int]$Matches[1]; Milliseconds = [int]$Matches[2]; Longest = [int]$Matches[3]; Long = [int]$Matches[4] }
+    }
+  })
+}
+
+function Invoke-MotionStop($Session, [string]$Slug, [string]$Title, [string]$Keys, [byte[]]$Modifiers, [byte]$Key, [string]$Command, [int]$AtLeastMs, [switch]$JumpsWithAnimationsOff) {
+  Invoke-Stop $Session $Slug $Title {
+    param($stop)
+    $stop.Did = "Pressed $Keys."
+    $jumps = $JumpsWithAnimationsOff -and -not [ArdiaTour]::AnimationsOn()
+    $stop.Expected = "the launch log reports animation frames for at least $AtLeastMs ms, at 30 a second or more apart from its one longest gap."
+    if ($jumps) { $stop.Expected = "no slide: Windows' animation effects are off here, and this one follows that setting." }
+    Focus-Window $Session $Session.Main $stop | Out-Null
+    Close-Menus $Session
+    $mark = Get-LogCount $Session
+    Send-Chord $Modifiers $Key
+    $commanded = Wait-Command $Session $mark $Command
+    Wait-Until $Session { (Get-Motion $Session $mark).Count -gt 0 } 3000 | Out-Null
+    Start-Sleep -Milliseconds 700
+    $bursts = @(Get-Motion $Session $mark)
+    Save-Shot $stop $Session.Main | Out-Null
+    $stop.Facts.Add("command $Command logged: $commanded")
+    $stop.Facts.Add("Windows' animation effects are on: $([ArdiaTour]::AnimationsOn())")
+    if (-not $bursts.Count) {
+      $stop.Facts.Add("no animation frames were logged")
+      Set-Seen $stop ($commanded -and $jumps)
+      return
+    }
+    foreach ($burst in $bursts) {
+      $rate = [Math]::Round($burst.Frames * 1000 / [Math]::Max(1, $burst.Milliseconds))
+      $stop.Facts.Add("$($burst.Frames) frames in $($burst.Milliseconds) ms ($rate a second), longest gap $($burst.Longest) ms, $($burst.Long) long gaps")
+    }
+    $longest = $bursts | Sort-Object Milliseconds -Descending | Select-Object -First 1
+    $smooth = ($longest.Frames - 1) * 1000 / [Math]::Max(1, $longest.Milliseconds - $longest.Longest) -ge 30
+    Set-Seen $stop ($commanded -and ($jumps -or ($longest.Milliseconds -ge $AtLeastMs -and $smooth)))
+  } | Out-Null
+}
+
+function Invoke-MotionTour {
+  $session = Start-Ardia "motion" -Onboarded
+  if (Test-Usable $session) {
+    Invoke-MotionStop $session "motion-sidebar-hides" "The sidebar slides away" "Ctrl+S" @(0x11) 0x53 "toggleSidebar" 150 -JumpsWithAnimationsOff
+    Invoke-MotionStop $session "motion-sidebar-shows" "The sidebar slides back" "Ctrl+S" @(0x11) 0x53 "toggleSidebar" 150 -JumpsWithAnimationsOff
+    Invoke-MotionStop $session "motion-new-tab" "A new tab's row slides in" "Ctrl+T" @(0x11) 0x54 "newTab" 80
+  }
+  Stop-Ardia $session
+}
+
 $script:SettingsWindow = [IntPtr]::Zero
 
 if (-not (Test-Path -LiteralPath $App)) {
@@ -1452,7 +1571,8 @@ $tours = @(
   @{ Name = "browser"; Run = { Invoke-MainTour } },
   @{ Name = "top tabs"; Run = { Invoke-LayoutTour "top-tabs" @{ tabLayout = "top" } "Tabs in a top strip" "the window buttons sit at the end of the strip, and the gap beside them is a caption region." } },
   @{ Name = "sidebar on the right"; Run = { Invoke-LayoutTour "sidebar-right" @{ sidebarSide = "right" } "Sidebar on the right" "the window buttons sit in the sidebar's header, and the gap beside them is a caption region." } },
-  @{ Name = "dark"; Run = { Invoke-DarkTour } }
+  @{ Name = "dark"; Run = { Invoke-DarkTour } },
+  @{ Name = "motion"; Run = { Invoke-MotionTour } }
 )
 
 if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $App) "chrome.dll")) {
