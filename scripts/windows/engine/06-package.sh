@@ -26,7 +26,7 @@ python3 -c 'import sys; open(sys.argv[2], "w").write(open(sys.argv[1]).read().re
   "$src/infra/archive_config/$config" "$work/archive_config.json"
 cd "$src"
 gn desc "$out" //chrome:chrome runtime_deps > "$work/runtime_deps.txt"
-python3 "$(dirname "$0")/package_win.py" --src "$src" --out "$out" --config "$work/archive_config.json" \
+python3 "$AC_WIN_BUILD_DIR/package_win.py" --src "$src" --out "$out" --config "$work/archive_config.json" \
   --runtime-deps "$work/runtime_deps.txt" --work "$work" --zip "$package_dir/$name.zip" --cpu "$WIN_CPU" \
   --chromium "$CHROMIUM_VERSION" --helium "$HELIUM_TAG"
 cd "$package_dir"

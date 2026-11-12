@@ -28,5 +28,5 @@ if [ -d src/.git ]; then
   git -C src -c advice.detachedHead=false checkout -q -f "refs/tags/$CHROMIUM_VERSION"
 fi
 timeout 7200 gclient sync --no-history --nohooks --reset --force -D -j 16 --ignore-dep-type=cipd < /dev/null
-timeout 3600 cipd ensure -log-level warning -root "$CB/chromium_git/chromium" -ensure-file "$(dirname "$0")/cipd.ensure" < /dev/null
+timeout 3600 cipd ensure -log-level warning -root "$CB/chromium_git/chromium" -ensure-file "$AC_WIN_BUILD_DIR/cipd.ensure" < /dev/null
 gclient runhooks < /dev/null
