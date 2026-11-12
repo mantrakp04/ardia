@@ -16,7 +16,7 @@ ACT_COUNTS = frozenset({"cell_edits"})
 CHANGE_FLAGS = frozenset({"change_text", "change_run_choices", "open_report", "open_moved_tab", "snapshot_disabled_folded", "names_clipped"})
 CHANGE_COUNTS = frozenset({"change_text_chars"})
 FLAGS = frozenset({"daemon_spawned", "reconnected_after_idle", "output_truncated", "humanize", "unsettled", "daemon_answer_timed_out",
-                   "followed_redrawn_ref", "script_eval_alias", "script_page_world_hint", "attach_refused"})
+                   "followed_redrawn_ref", "script_eval_alias", "script_page_world_hint", "attach_refused", "viewport_set"})
 MAIN_PHASE = {"snapshot": "snapshot_build_ms", "eval": "eval_ms"}
 OUTPUT_MARKERS = ("\n[output capped at ", "\n[truncated ", "\n[pages cut to fit ", " not shown. Narrow it instead: ")
 
