@@ -60,6 +60,8 @@ Each `perf_journeys` step goes as `<step>_p50`, `_p75`, `_p95`, `_max` and `_n` 
 summary). Counts: `j3_cold` (the page was hidden), `j3_warm` (it was still painting), `j3_load` (it had to load),
 `j3_other` (no page: New Tab), `j2_no_bar`, `j4_no_load` (not a page load: a ardia: page, a download),
 `j4_no_paint` (nothing painted within 30 s), `j4_replaced` (another navigation came first).
+Context: `tabs`, how many tabs were open when the summary went out (an exact count, from the first nightly after 0.2.46-nightly.6), so J2 and J3 can
+be split by tab count: they must not grow with it (#1330). Before it, join `perf_memory`'s tab count by copy.
 `perf_journeys` goes hourly and at quit, like `perf_omnibox`; `perf_launch` once its steps are in (≤ 30 s after the first
 window, or at quit), not at the first window as before.
 
@@ -166,6 +168,20 @@ FROM (
 )
 WHERE w > 0 AND ms IS NOT NULL
 GROUP BY version, step ORDER BY arrayMap(x -> toUInt32OrZero(x), splitByChar('.', version)) DESC, step
+```
+
+By tab count (J2 and J3 must stay flat across the bands, #1330):
+
+```sql
+SELECT properties['$app_version'] AS version,
+  multiIf(t <= 5, '0-5', t <= 20, '6-20', t <= 50, '21-50', '51+') AS tabs,
+  round(median(toFloat64OrNull(properties['j2_typeable_p50']))) AS j2_typeable,
+  round(median(toFloat64OrNull(properties['j3_frame_p50']))) AS j3_frame,
+  round(median(toFloat64OrNull(properties['j3_js_p50']))) AS j3_js, count() AS summaries
+FROM telemetry.events
+WHERE timestamp > now() - INTERVAL 30 DAY AND event = 'perf_journeys' AND properties['$environment'] = 'production'
+  AND (toUInt32OrNull(properties['tabs']) AS t) IS NOT NULL
+GROUP BY version, tabs ORDER BY version DESC, tabs
 ```
 
 Checked on 2026-10-14 against the same spread done with `arrayWithConstant` (`samples` and p50 equal for every

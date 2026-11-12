@@ -38,6 +38,7 @@ export function emitJourneys(final = false) {
     props[`${step}_n`] = list.length;
   }
   for (const [what, n] of counts) props[what] = n;
+  props.tabs = Object.keys(useBrowser.getState().tabs).length;
   samples.clear();
   counts.clear();
   if (on && isSharing()) capture("perf_journeys", props);
