@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 import { View } from "react-native";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
+import { openDownloadsButtonMenu } from "../../state/downloads/downloadsButtonMenu";
 import { toggleDownloadsOpen } from "../../state/windows/actions";
 import { useWindowUiOf } from "../../state/windows/hooks";
 import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
-import { Button } from "../ui";
+import { Button, ContextMenuArea } from "../ui";
 import { anchorInside, type Rect } from "./downloadsPlacement";
 import { DOWNLOADS_BUTTON } from "./tokens";
 
@@ -42,14 +43,17 @@ export function DownloadsButton({ windowId }: { windowId: string }) {
   }, [windowId]);
   return (
     <View ref={view} collapsable={false}>
-      <Button variant="icon"
-        icon="arrow.down.circle"
-        glyph={DOWNLOADS_BUTTON.icon}
-        hit={DOWNLOADS_HIT}
-        active={open}
-        tooltip={open ? undefined : withShortcut("Downloads", hint)}
-        onPress={() => toggleDownloadsOpen(windowId)}
-      />
+      <ContextMenuArea onContextMenu={() => void openDownloadsButtonMenu(windowId)}>
+        <Button
+          variant="icon"
+          icon="arrow.down.circle"
+          glyph={DOWNLOADS_BUTTON.icon}
+          hit={DOWNLOADS_HIT}
+          active={open}
+          tooltip={open ? undefined : withShortcut("Downloads", hint)}
+          onPress={() => toggleDownloadsOpen(windowId)}
+        />
+      </ContextMenuArea>
     </View>
   );
 }
