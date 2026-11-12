@@ -126,7 +126,7 @@ struct SyncConnectPage: View {
     Group {
       Button("Scan Code", systemImage: "qrcode.viewfinder") { isScanning = true }
         .buttonStyle(.borderedProminent)
-        .tint(Palette.indigo)
+        .primaryActionColors()
       Button("Enter Words", systemImage: "character.cursor.ibeam") { isEnteringWords = true }
         .buttonStyle(.bordered)
     }

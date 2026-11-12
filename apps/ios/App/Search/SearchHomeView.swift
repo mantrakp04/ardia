@@ -85,18 +85,10 @@ struct SearchHomeView: View {
   @ViewBuilder
   private var backdrop: some View {
     if app.isIncognito {
-      LaunchGradient(colors: BrowsePalette.incognitoGradient)
+      ProfileBackdrop(look: .incognito)
     } else {
-      LaunchGradient(colors: themeColors)
+      ProfileBackdrop(themed: true)
     }
-  }
-
-  private var themeColors: [Color] {
-    let fallback = colorScheme == .dark ? BrowsePalette.launchGradientDark : BrowsePalette.launchGradientLight
-    guard app.sync.isEnabled, let theme = app.sync.selectedProfile?.theme else { return fallback }
-    let source = colorScheme == .dark ? (theme.darkColors ?? theme.colors) : theme.colors
-    let colors = source.compactMap(Color.init(hexString:))
-    return colors.count >= 2 ? colors : fallback
   }
 }
 

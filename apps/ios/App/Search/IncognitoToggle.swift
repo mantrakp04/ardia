@@ -14,7 +14,8 @@ struct IncognitoToggle: View {
             .foregroundStyle(.white.opacity(0.75))
             .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .trailing)))
         }
-        IncognitoEyes(isOpen: !isOn)
+        Image(systemName: "eyeglasses")
+          .font(.system(size: 17, weight: .semibold))
           .frame(width: 22)
           .foregroundStyle(isOn ? Color.white.opacity(0.85) : BrowsePalette.foregroundTertiary)
       }

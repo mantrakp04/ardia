@@ -42,7 +42,7 @@ struct MacTabsWidgetView: View {
   var body: some View {
     MacTabsWidgetContent(snapshot: entry.snapshot, size: family == .systemLarge ? .large : .medium, store: SystemStore.shared)
       .containerBackground(for: .widget) {
-        LaunchGradient(softened: true)
+        ProfileBackdrop(look: entry.snapshot.look, softened: true)
       }
   }
 }
