@@ -4,8 +4,8 @@ import { Dot, Text } from "../ui";
 import { useTheme } from "../ui/theme";
 import { capsule, tabularNums } from "../ui/tokens";
 import { isHexColor, isLight } from "../../lib/color";
-import type { Unread } from "../../state/tabs/unread";
-import { UNREAD_DOT, UNREAD_INLINE_GAP, UNREAD_PILL, unreadColors, unreadMotion } from "./tokens";
+import { useTabUnread, type Unread } from "../../state/tabs/unread";
+import { UNREAD_DOT, UNREAD_INLINE_GAP, UNREAD_PILL, UNREAD_TILE, unreadColors, unreadMotion } from "./tokens";
 
 function useShownUnread(unread: Unread | null) {
   const label = unread ? (unread.kind === "dot" ? "" : unread.label) : null;
@@ -29,22 +29,23 @@ const useInkColors = (ink?: string) => {
   return unreadColors(ink && isHexColor(ink) ? isLight(ink) : dark);
 };
 
-function UnreadPill({ label, ink }: { label: string; ink?: string }) {
+function UnreadPill({ label, place, ink }: { label: string; place: keyof typeof UNREAD_PILL; ink?: string }) {
   const colors = useInkColors(ink);
+  const pill = UNREAD_PILL[place];
   return (
     <View
       pointerEvents="none"
       style={{
-        height: UNREAD_PILL.height,
-        minWidth: UNREAD_PILL.height,
-        borderRadius: capsule(UNREAD_PILL.height),
-        paddingHorizontal: UNREAD_PILL.padX,
+        height: pill.height,
+        minWidth: pill.height,
+        borderRadius: capsule(pill.height),
+        paddingHorizontal: pill.padX,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: colors.rowFill,
+        backgroundColor: place === "tile" ? colors.tileFill : colors.rowFill,
       }}
     >
-      <Text numberOfLines={1} style={{ ...UNREAD_PILL.type, lineHeight: UNREAD_PILL.line, fontWeight: UNREAD_PILL.weight, color: colors.rowInk, ...tabularNums }}>
+      <Text numberOfLines={1} style={{ ...pill.type, lineHeight: pill.line, fontWeight: pill.weight, color: colors.rowInk, ...tabularNums }}>
         {label}
       </Text>
     </View>
@@ -57,7 +58,19 @@ export const UnreadCount = memo(function UnreadCount({ unread, ink }: { unread: 
   if (!drawn) return null;
   return (
     <Animated.View pointerEvents="none" style={[{ marginLeft: UNREAD_INLINE_GAP }, motion]}>
-      {drawn.kind === "dot" ? <Dot size={UNREAD_DOT} color={colors.rowDot} /> : <UnreadPill label={drawn.label} ink={ink} />}
+      {drawn.kind === "dot" ? <Dot size={UNREAD_DOT} color={colors.rowDot} /> : <UnreadPill label={drawn.label} place="row" ink={ink} />}
+    </Animated.View>
+  );
+});
+
+export const TileUnread = memo(function TileUnread({ tabId }: { tabId: string }) {
+  const colors = useInkColors();
+  const { drawn, motion } = useShownUnread(useTabUnread(tabId));
+  if (!drawn) return null;
+  const inset = drawn.kind === "dot" ? UNREAD_TILE.dotInset : UNREAD_TILE.inset;
+  return (
+    <Animated.View pointerEvents="none" style={[{ position: "absolute", top: inset, right: inset }, motion]}>
+      {drawn.kind === "dot" ? <Dot size={UNREAD_DOT} color={colors.rowDot} /> : <UnreadPill label={drawn.label} place="tile" />}
     </Animated.View>
   );
 });

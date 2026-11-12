@@ -8,6 +8,7 @@ import { listTopGap } from "./geometry";
 import { useIsActiveTab, useSettings, useTab, useWindowId } from "../../state/browser/hooks";
 import { useIsSelected } from "../../state/pins/hooks";
 import { NextMeetingBadge } from "../live/NextMeetingBadge";
+import { TileStatus } from "./TileStatus";
 import { returnShownTabToPinnedUrl } from "../../state/sidebar/actions";
 import { cellKey, PIN_SLOT, tailKey } from "./dragModel";
 import { useDragController, useDragging, useDragItem, useDropPins, useFolderTarget, usePinnedCount, usePinSlots } from "./DragProvider";
@@ -148,7 +149,15 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
   const target = useFolderTarget(entryKey("tab", tabId));
   const position = useSlotPosition(x, y, width, sliding, dragging);
   const glass = useGlass();
-  const overlays = useMemo(() => <NextMeetingBadge tabId={tabId} />, [tabId]);
+  const overlays = useMemo(
+    () => (
+      <>
+        <NextMeetingBadge tabId={tabId} />
+        <TileStatus tabId={tabId} />
+      </>
+    ),
+    [tabId],
+  );
   if (!tab) return null;
 
   return (
