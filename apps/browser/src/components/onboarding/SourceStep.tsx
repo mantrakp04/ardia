@@ -5,6 +5,7 @@ import { Checkbox, IconTile, Symbol, Text } from "../ui";
 import { radius, space } from "../ui/tokens";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { openImport } from "../../state/settings/settingsWindows";
+import { noteOnboardingImport } from "../../state/telemetry/usage";
 import { chooseSource, confirmAnswer, PRESET_NAMES, presetFor, presetPatch, skipStep, useOnboarding, type BrowserSourceId } from "../../state/onboarding/onboarding";
 import { StepActions, StepLayout } from "./StepLayout";
 import { SecondaryButton } from "./Buttons";
@@ -16,7 +17,7 @@ import { useImageRing } from "./GlassBacking";
 
 const ICON = require("../../../assets/app-icon.png");
 
-type Candidate = { id: Exclude<BrowserSourceId, "fresh">; name: string; app: string; importId?: string };
+type Candidate = { id: Exclude<BrowserSourceId, "fresh">; name: string; app: string; importId?: string; onlyWhenFound?: boolean };
 
 const CANDIDATES: Candidate[][] = [
   [{ id: "arc", name: "Arc", app: "/Applications/Arc.app" }],
@@ -39,17 +40,19 @@ const CANDIDATES: Candidate[][] = [
     { id: "edge", name: "Edge", app: "/Applications/Microsoft Edge.app" },
     { id: "edge", name: "Edge Beta", app: "/Applications/Microsoft Edge Beta.app", importId: "edgeBeta" },
   ],
+  [{ id: "helium", name: "Helium", app: "/Applications/Helium.app", onlyWhenFound: true }],
 ];
 
 type Tile = { id: BrowserSourceId; name: string; app: string | null; icon: string | null; importId?: string };
 
 function detect(): Tile[] {
-  return CANDIDATES.map((group) => {
+  return CANDIDATES.flatMap((group): Tile[] => {
     const found = group.find((c) => fileExists(c.app));
-    if (found) return { id: found.id, name: found.name, app: found.app, icon: null, importId: found.importId };
+    if (found) return [{ id: found.id, name: found.name, app: found.app, icon: null, importId: found.importId }];
+    if (group.every((c) => c.onlyWhenFound)) return [];
     const names = [...new Set(group.filter((c) => !c.importId).map((c) => c.name))];
     const families = names.filter((name) => !names.some((other) => other !== name && name.startsWith(`${other} `)));
-    return { id: group[0]!.id, name: families.join(" or "), app: null, icon: null };
+    return [{ id: group[0]!.id, name: families.join(" or "), app: null, icon: null }];
   });
 }
 
@@ -73,6 +76,7 @@ export function SourceStep() {
   const startImport = () => {
     if (!chosen) return;
     openImport(chosen.importId ?? chosen.id);
+    noteOnboardingImport(chosen.id);
     setImporting(chosen.id);
   };
 
