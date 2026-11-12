@@ -233,6 +233,13 @@ is plain Chromium.
   was when the page leaves), and nothing is cut out of the page while it is.
 - A tab restored from the last session, or duplicated, loads its address: the Windows engine keeps no saved page
   state yet, so only tabs the engine itself offered are adopted.
+- The Windows engine opens every tab on a real `about:blank` and names it as the committed page, where the Mac's tab
+  starts on Chrome's initial document. `engine/pageEvents.ts` gives the UI the Mac's events: until a tab commits a
+  page of its own, its `navigation` events say `committedInitial`, with no address and no title for that blank page,
+  and a navigation that turns into a download reports no committed page. So a download started from a new tab puts
+  the tab back on the empty New Tab (or closes a tab a link opened) instead of leaving a blank page on the
+  download's address, which the session then saved and downloaded again at every launch. A tab asked for
+  `about:blank` by address, and one the engine opened itself, keep their blank page.
 - Chromium's own UI still shows where the app has none on Windows yet: the page's right-click menu, JavaScript
   dialogs, the status bubble for a hovered link, and popup windows a page opens.
 - CI takes its engine from a GitHub release: `scripts/windows/engine/prebuilt.json` names the release and each
