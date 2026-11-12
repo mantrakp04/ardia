@@ -117,7 +117,7 @@ async function listBuilds(appId, build) {
     "filter[app]": appId,
     sort: "-uploadedDate",
     limit: "20",
-    "fields[builds]": "version,uploadedDate,processingState,expired,usesNonExemptEncryption,minOsVersion",
+    "fields[builds]": "version,uploadedDate,processingState,expired,usesNonExemptEncryption,minOsVersion,preReleaseVersion,buildBetaDetail",
     include: "preReleaseVersion,buildBetaDetail",
     "fields[preReleaseVersions]": "version",
     "fields[buildBetaDetails]": "internalBuildState,externalBuildState",
@@ -207,6 +207,19 @@ async function status() {
   if (!app) return;
 
   await section("Builds", async () => printBuilds(await listBuilds(app.id)));
+
+  await section("Encryption declarations", async () => {
+    const { rows } = await get(`/v1/apps/${app.id}/appEncryptionDeclarations`, { limit: "50" });
+    if (rows.length === 0) console.log("none");
+    for (const row of rows) {
+      const declaration = row.attributes;
+      console.log(
+        `code ${declaration.codeValue ?? "none"} state=${declaration.appEncryptionDeclarationState} exempt=${declaration.exempt} ` +
+          `proprietary=${declaration.containsProprietaryCryptography} thirdParty=${declaration.containsThirdPartyCryptography} ` +
+          `france=${declaration.availableOnFrenchStore} created ${day(declaration.createdDate)}`,
+      );
+    }
+  });
 
   await section("Tester groups", async () => {
     const { rows } = await get(`/v1/apps/${app.id}/betaGroups`, { "fields[betaGroups]": "name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled" });
