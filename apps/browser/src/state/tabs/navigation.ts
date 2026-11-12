@@ -4,7 +4,7 @@ import { livePageId, withLivePage } from "./livePage";
 import { webviews } from "../../platform/webviews";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { changedIds } from "../browser/changes";
-import { inPinnedContainer } from "../browser/model";
+import { activeTabId, inPinnedContainer } from "../browser/model";
 import { noteBackCloseToOpener } from "../telemetry/usage";
 import { useTabLive } from "../browser/hooks";
 import type { TabLive } from "../browser/types";
@@ -20,6 +20,7 @@ const store = () => useBrowser.getState();
 export function backClosesTab(s: BrowserState, tabId: string): boolean {
   const tab = s.tabs[tabId];
   if (!tab?.openerId) return false;
+  if (!tab.fromLink && !isPeekTab(s, tabId)) return false;
   const opener = s.tabs[tab.openerId];
   if (!opener || opener.windowId !== tab.windowId || opener.profileId !== tab.profileId) return false;
   if (inPinnedContainer(s, tabId)) return false;
@@ -54,7 +55,13 @@ export function goBack(tabId: string): void {
   if (backClosesTab(store(), tabId)) {
     noteBackCloseToOpener();
     if (isPeekTab(store(), tabId)) dismissPeek(store().tabs[tabId]!.windowId);
-    else store().closeTab(tabId);
+    else {
+      const tab = store().tabs[tabId]!;
+      const openerId = tab.openerId!;
+      const wasShown = activeTabId(store(), tab.windowId) === tabId;
+      store().closeTab(tabId);
+      if (wasShown && store().tabs[openerId]) store().activate(openerId);
+    }
   }
 }
 

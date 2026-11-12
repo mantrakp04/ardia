@@ -102,6 +102,32 @@ test("back on a Peek opened from a pinned tab ends the Peek and leaves the pin a
   assert.ok(S().tabs[a], "the pinned tab stays");
 });
 
+test("back on the first of two links opened behind returns to the opener, not to the other link", () => {
+  const { w, a } = windowWith("a");
+  const b = S().newTab(w, { url: "https://b.com/", openerId: a, background: true });
+  const c = S().newTab(w, { url: "https://c.com/", openerId: a, background: true });
+  S().activate(b);
+  assert.equal(canGoBack(b, live(b)), true);
+  goBack(b);
+  assert.equal(S().tabs[b], undefined, "the tab closed");
+  assert.equal(shown(w), a, "the opener is shown, not the sibling link");
+  assert.ok(S().tabs[c], "the other link stays open");
+});
+
+test("back is not offered on a tab opened by hand beside the current one, once it has a page", () => {
+  const { w, a } = windowWith("a");
+  S().updateSettings({ newTabPosition: "nextToCurrent" });
+  const b = S().newTab(w, { newTabCommand: true });
+  assert.equal(S().tabs[b].openerId, a, "placement still records the tab it sits beside, for ordinary close");
+  assert.equal(S().tabs[b].fromLink, undefined, "but a placement hint is not a link opening");
+  S().navigate(b, "https://typed.example/");
+  assert.equal(live(b).canGoBack, false);
+  assert.equal(canGoBack(b, live(b)), false, "back stays off: the page is the first one this tab has shown");
+  goBack(b);
+  assert.ok(S().tabs[b], "the tab stays");
+  assert.equal(shown(w), b);
+});
+
 test("back does nothing once the opener is gone", () => {
   const { w, a } = windowWith("a");
   const b = S().newTab(w, { url: "https://b.com/", openerId: a, background: false });
