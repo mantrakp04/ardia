@@ -82,6 +82,7 @@ struct ArdiaPageReports {
   BOOL seenByUser{YES};
   BOOL inPictureInPicture{};
   BOOL autoPictureInPictureActive{};
+  BOOL leftAppInPictureInPicture{};
 };
 
 struct ArdiaCommits {
@@ -257,6 +258,9 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)traceAutoPictureInPicture:(NSString *)what;
 - (void)awaitPictureInPicture:(int)tries completion:(void (^)(BOOL))completion;
 - (void)updateAutoPictureInPicture;
+- (BOOL)leftAppInPictureInPicture;
+- (BOOL)playsForAutoPictureInPicture;
+- (void)leaveAppInPictureInPicture:(BOOL)leaving;
 @end
 
 @interface ArdiaWebView (NavigationInternal)
@@ -319,6 +323,7 @@ NSString *PeekConfigJSON(ArdiaWebView *view);
 NSDictionary *_Nullable RecentClickPoint(ArdiaWebView *view);
 
 void InstallControlPressMonitor();
+void WatchAppActivationForPictureInPicture();
 BOOL TracingPictureInPicture();
 
 }

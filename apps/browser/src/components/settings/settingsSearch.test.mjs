@@ -133,3 +133,24 @@ test("panes leave showing and hiding an anchored row to the row's own rule", () 
   );
   assert.deepEqual(wrapped, SHOWN_BY_LOADED_DATA);
 });
+
+test("a one-letter query matches setting names, not sections or pane names", () => {
+  const titleWords = (id) => SETTINGS_INDEX.find((p) => p.entry.id === id).entry.title.toLowerCase().split(/[^a-z0-9]+/);
+  for (const q of ["c", "t", "p"]) {
+    const found = ids(q);
+    assert.ok(found.length, q);
+    for (const id of found) {
+      const entry = SETTINGS_INDEX.find((p) => p.entry.id === id).entry;
+      assert.ok(titleWords(id).some((w) => w.startsWith(q)) || (entry.keywords ?? []).some((k) => k.toLowerCase().split(/[^a-z0-9]+/).some((w) => w.startsWith(q))), `${q}: ${id}`);
+    }
+  }
+});
+
+test("arrowing through results scrolls only as far as the selected row needs", async () => {
+  const { scrollToShow } = await import("./searchResultLayout.ts");
+  assert.equal(scrollToShow(300, 0, 400, false), 0);
+  assert.equal(scrollToShow(500, 0, 400, false), 152);
+  assert.equal(scrollToShow(100, 200, 400, false), 70);
+  assert.equal(scrollToShow(260, 200, 400, false), 200);
+  assert.equal(scrollToShow(260, 200, 400, true), 0);
+});

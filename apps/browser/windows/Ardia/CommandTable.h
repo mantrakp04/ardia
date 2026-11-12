@@ -130,8 +130,8 @@ inline constexpr CommandRow kCommandRows[] = {
 
     {"back", "Go Back", "Tabs", "cmd+[|cmd+left", "ctrl+[|alt+left"},
     {"forward", "Go Forward", "Tabs", "cmd+]|cmd+right", "ctrl+]|alt+right"},
-    {"nextTab", "Next Tab", "Tabs", "shift+cmd+]|cmd+}|option+cmd+right|ctrl+pagedown|option+cmd+down", "ctrl+shift+]|ctrl+}|none|ctrl+pagedown|none"},
-    {"previousTab", "Previous Tab", "Tabs", "shift+cmd+[|cmd+{|option+cmd+left|ctrl+pageup|option+cmd+up", "ctrl+shift+[|ctrl+{|none|ctrl+pageup|none"},
+    {"nextTab", "Next Tab", "Tabs", "shift+cmd+]|cmd+}|ctrl+pagedown|option+cmd+down", "ctrl+shift+]|ctrl+}|ctrl+pagedown|none"},
+    {"previousTab", "Previous Tab", "Tabs", "shift+cmd+[|cmd+{|ctrl+pageup|option+cmd+up", "ctrl+shift+[|ctrl+{|ctrl+pageup|none"},
     {"moveTabDown", "Move Tab Down", "Tabs", "ctrl+shift+pagedown", "ctrl+shift+pagedown", RowHidden},
     {"moveTabUp", "Move Tab Up", "Tabs", "ctrl+shift+pageup", "ctrl+shift+pageup", RowHidden},
     {"searchTabs", "Search Tabs" ARDIA_ELLIPSIS, "Tabs", "shift+cmd+a", "ctrl+shift+a"},
@@ -179,8 +179,8 @@ inline constexpr CommandRow kCommandRows[] = {
     {"taskManager", "Task Manager", "Window", "", "shift+escape"},
     {"mergeAllWindows", "Merge All Windows", "Window", "", ""},
     {"", "", "Window > Profiles", "", "", 0, Expansion::SwitchProfiles},
-    {"nextProfile", "Next Profile", "Window > Profiles", "", ""},
-    {"previousProfile", "Previous Profile", "Window > Profiles", "", ""},
+    {"nextProfile", "Next Profile", "Window > Profiles", "option+cmd+right", "none"},
+    {"previousProfile", "Previous Profile", "Window > Profiles", "option+cmd+left", "none"},
     {"newProfile", "New Profile" ARDIA_ELLIPSIS, "Window > Profiles", "", ""},
     {"openProfileMenu", "Show Profiles Menu", "Window", "shift+cmd+m", "ctrl+shift+m", RowHidden},
 

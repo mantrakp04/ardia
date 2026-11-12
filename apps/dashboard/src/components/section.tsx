@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchSection } from "@/lib/api";
 import { parseRange, type RangeKey } from "@/lib/range";
+import { viewerZone } from "@/lib/zone";
 import { cn } from "@/lib/utils";
 import type { SectionData, SectionName } from "@/server/sections";
 
@@ -15,9 +16,10 @@ export function useRange(): RangeKey {
 export function useSection<N extends SectionName>(section: N, range?: RangeKey): UseQueryResult<SectionData<N>> {
   const current = useRange();
   const r = range ?? current;
+  const zone = viewerZone();
   return useQuery({
-    queryKey: ["section", section, r],
-    queryFn: ({ signal }) => fetchSection(section, r, signal),
+    queryKey: ["section", section, r, zone],
+    queryFn: ({ signal }) => fetchSection(section, r, zone, signal),
     staleTime: 60_000,
     gcTime: 10 * 60_000,
     placeholderData: keepPreviousData,

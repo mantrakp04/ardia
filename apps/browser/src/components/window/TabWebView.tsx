@@ -45,8 +45,9 @@ import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading,
 import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
 import { releaseTranslation, translateCrashContext } from "../../state/site/translate";
 import { notePagePress } from "../../state/telemetry/tabPresses";
-import { noteReopenedPage } from "../../state/telemetry/usage";
+import { notePageOverlay, noteReopenedPage, noteWebKitPageKeptHidden } from "../../state/telemetry/usage";
 import { isAdoptKind } from "../../state/tabs/adoptIds";
+import { STATUS_FLIP_BAND } from "./tokens";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -107,6 +108,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       forgetUnreadIfGone(tabId);
     };
   }, []);
+  const waitsOffScreen = engine === "webkit" && warm && !visible;
+  useEffect(() => {
+    if (waitsOffScreen) noteWebKitPageKeptHidden();
+  }, [waitsOffScreen]);
   const mountedProfile = useRef(profileId);
   useLayoutEffect(
     () => () => {
@@ -224,7 +229,11 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onPictureInPicture={(state) => setPictureInPictureState(tabId, state)}
       onDisplayMediaRequest={(request) => requestDisplayMedia(tabId, request)}
       onOpenWindow={onOpenWindow}
-      onStatus={(status) => patchPage(tabId, { status })}
+      onStatus={(status, fromBottom) => {
+        const statusAtTop = !!status && fromBottom !== null && fromBottom < STATUS_FLIP_BAND;
+        if (statusAtTop) notePageOverlay("statusAtTop");
+        patchPage(tabId, status ? { status, statusAtTop } : { status });
+      }}
       onCrashed={(crashed) => {
         if (!isQuitting()) {
           pageEnded(tabId);

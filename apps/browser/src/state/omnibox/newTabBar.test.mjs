@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
-const { closeNewTabBar, openFromNewTabBar, toggleNewTabBar } = await import("./newTabBar.ts");
+const { closeNewTabBar, openFromNewTabBar, showOnceOverEmptyCard, toggleNewTabBar } = await import("./newTabBar.ts");
 const { togglePinnedRows, forgetListSpots } = await import("../sidebar/movePinned.ts");
 
 const S = () => useBrowser.getState();
@@ -105,6 +105,23 @@ test("closing the last tab leaves an empty window whose pick fills it; ⌘W ther
   const again = model.activeTabId(S(), w);
   S().closeTab(again);
   assert.equal(S().windows[w], undefined);
+});
+
+test("⌘T right after the bar opened on its own over an empty window keeps it; the next ⌘T closes it", () => {
+  reset("commandBar");
+  const { w, ids: [a] } = windowWith("a");
+  S().closeTab(a);
+  const empty = model.activeTabId(S(), w);
+  showOnceOverEmptyCard(w, empty);
+  assert.deepEqual(panel(w).newTab, { kind: "into", tabId: empty }, "the bar shows over the empty window");
+  assert.equal(toggleNewTabBar(w), true);
+  assert.deepEqual(panel(w).newTab, { kind: "into", tabId: empty }, "⌘T keeps it");
+  toggleNewTabBar(w);
+  assert.equal(panel(w).open, false, "⌘T again closes it");
+  toggleNewTabBar(w);
+  assert.equal(panel(w).open, true);
+  toggleNewTabBar(w);
+  assert.equal(panel(w).open, false, "a bar ⌘T opened closes on the next ⌘T");
 });
 
 test("Move to Pinned: a tab goes to the pinned rows and back to where it was, in its group", () => {

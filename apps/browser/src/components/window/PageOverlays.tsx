@@ -3,6 +3,7 @@ import { Animated, StyleSheet, type ViewStyle } from "react-native";
 import { ENGINE_OFFER_WIDTH, EngineOfferPrompt } from "../site/EnginePrompt";
 import { useTabValue } from "../../state/tabs/tabWatch";
 import { CliControlPill } from "./CliControlPill";
+import { NewTabNotice } from "./NewTabNotice";
 import { FindBar } from "../find/FindBar";
 import { POPOVER_MARGIN } from "../ui";
 import { NO_TOOLBAR, type ToolbarGeometry } from "./geometry";
@@ -59,6 +60,7 @@ export function PageOverlays({
       {!newTabShown && <PermissionPrompt tabId={tabId} left={fitLeft(geometry.urlLeft, width, PERMISSION_PROMPT_WIDTH)} top={POPOVER_MARGIN} />}
       <PasswordPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
       <AutofillPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
+      <NewTabNotice windowId={windowId} tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
       {!newTabShown && <ExternalAppPrompt tabId={tabId} left={fitLeft(geometry.urlLeft, width, EXTERNAL_APP_WIDTH)} top={POPOVER_MARGIN} />}
       {!newTabShown && <EngineOfferPrompt tabId={tabId} left={fitLeft(geometry.urlLeft, width, ENGINE_OFFER_WIDTH)} top={POPOVER_MARGIN} />}
       {popovers && <SiteControls tabId={tabId} open={popover === "siteControls"} {...popoverSide} top={POPOVER_MARGIN} />}

@@ -51,7 +51,6 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
       </View>
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void openSidebarMenu(windowId)}>
         <Pressable
-          style={{ flex: 1 }}
           onPress={(e) => {
             if (modifiersOf(e).altKey) openNewTabInSplit(windowId);
             else toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true });

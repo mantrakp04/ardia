@@ -84,6 +84,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   const BOOL shownEarly = [ArdiaEarlyWindow holdsPage:tab];
   [LiveViews() addObject:self];
   InstallControlPressMonitor();
+  WatchAppActivationForPictureInPicture();
   _tab = tab;
   _life.attached();
   tab.delegate = self;
@@ -172,6 +173,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   const BOOL seen = _reports.seenByUser;
   _reports = stash ? stash->reports : ArdiaPageReports{};
   if (!stash) _reports.seenByUser = seen;
+  _reports.leftAppInPictureInPicture = NO;
 }
 
 - (void)placeTab {

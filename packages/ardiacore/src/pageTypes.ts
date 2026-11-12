@@ -110,7 +110,7 @@ export type WebNotification = {
   isMainFrame: boolean;
 };
 
-export type PictureInPictureState = { kind: "video" | "document"; active: boolean; fullScreenSpaces?: boolean };
+export type PictureInPictureState = { kind: "video" | "document"; active: boolean; fullScreenSpaces?: boolean; leftApp?: boolean };
 export type ControlPress = { clickAt: number; control: number };
 export type ActivateRequest = { reason: "pictureInPicture" };
 export type DisplayMediaSource = {
@@ -186,7 +186,7 @@ export type WebViewProps = ViewProps & {
   onPopupBlocked?: (popup: BlockedPopup) => void;
   onFindResult?: (result: FindResult) => void;
   onFullscreen?: (fullscreen: boolean) => void;
-  onStatus?: (text: string) => void;
+  onStatus?: (text: string, fromBottom: number | null) => void;
   onCrashed?: (info: CrashInfo) => void;
   onUnresponsive?: () => void;
   onResponsive?: () => void;

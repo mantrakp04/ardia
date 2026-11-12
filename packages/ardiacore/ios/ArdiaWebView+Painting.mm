@@ -240,6 +240,7 @@ BOOL Above(NSView *a, NSView *b) {
   [changes setObject:@(change) forKey:tab];
   ArdiaWebView *view = [ArdiaTabRegistry viewForTab:tab];
   if (view.seenByUser) return [tab noteShownByHost:YES];
+  if (view.autoPictureInPicture) return [tab noteShownByHost:NO];
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
     if ([changes objectForKey:tab].unsignedIntegerValue != change) return;
     ArdiaWebView *now = [ArdiaTabRegistry viewForTab:tab];
@@ -257,7 +258,7 @@ BOOL Above(NSView *a, NSView *b) {
 }
 
 - (BOOL)seenByUser {
-  return _visible && [ArdiaWindowController userSees:self.window];
+  return _visible && !_reports.leftAppInPictureInPicture && [ArdiaWindowController userSees:self.window];
 }
 
 - (void)userSightChanged {

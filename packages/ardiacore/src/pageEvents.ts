@@ -40,7 +40,7 @@ type NativeEvents = {
   onPopupBlocked: BlockedPopup;
   onFindResult: FindResult;
   onFullscreen: { fullscreen: boolean };
-  onStatus: { text: string };
+  onStatus: { text: string; fromBottom?: number };
   onCrashed: CrashInfo;
   onUnresponsive: object;
   onResponsive: object;
@@ -130,7 +130,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onPopupBlocked: (e) => [{ ...e, url: toAppUrl(e.url) }],
   onFindResult: (e) => [e],
   onFullscreen: (e) => [e.fullscreen],
-  onStatus: (e) => [e.text],
+  onStatus: (e) => [e.text, typeof e.fromBottom === "number" ? e.fromBottom : null],
   onCrashed: (e) => [e],
   onUnresponsive: () => [],
   onResponsive: () => [],

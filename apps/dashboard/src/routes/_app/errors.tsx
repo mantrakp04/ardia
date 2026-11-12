@@ -70,6 +70,7 @@ function ErrorsPage() {
                 .filter((s) => s.key !== "cli" || s.values.some((v) => v > 0))
                 .map((s) => ({ ...s, source: s.key === "app" || s.key === "cli" ? ("app" as const) : ("site" as const), color: s.key === "app" ? "var(--chart-3)" : s.key === "cli" ? "var(--chart-5)" : s.key === "site" ? "var(--chart-2)" : "var(--chart-other)" }))}
               step={d.window.step}
+              zone={d.window.zone}
               height={200}
               area={false}
             />

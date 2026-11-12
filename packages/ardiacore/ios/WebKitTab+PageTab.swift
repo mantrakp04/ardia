@@ -7,11 +7,11 @@ extension WebKitTab: PageTab {
   var temporary: Bool { get { false } set {} }
   var temporarySource: String? { get { nil } set {} }
   var extensionHost: String? { get { nil } set {} }
+  var warm: Bool { get { false } set {} }
   var neighbour: Bool { get { false } set {} }
   var pageColor: String? { get { nil } set {} }
   var contentsBackgroundColor: NSColor? { get { nil } set {} }
   var shownURL: String? { get { nil } set {} }
-  var autoPictureInPicture: Bool { get { false } set {} }
   var frozen: Bool { get { false } set {} }
   var mediaCaptureSourceId: String? { nil }
 

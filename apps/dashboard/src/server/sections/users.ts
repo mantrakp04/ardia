@@ -267,7 +267,7 @@ export async function usersVersions(range: RangeKey, signal?: AbortSignal) {
 export async function usersOptedIn(range: RangeKey, signal?: AbortSignal) {
   const w = windowFor(range);
   const rows = await query(
-    `SELECT ${bucket(w.step)} AS b, uniq(distinct_id), uniqIf(distinct_id, ${isCurrent(w)}), uniqIf(distinct_id, ${isPrevious(w)})
+    `SELECT ${bucket(w)} AS b, uniq(distinct_id), uniqIf(distinct_id, ${isCurrent(w)}), uniqIf(distinct_id, ${isPrevious(w)})
      FROM telemetry.events
      WHERE ${APP} AND ${since(compareStart(w))}
      GROUP BY GROUPING SETS ((b), ())`,
