@@ -245,7 +245,9 @@ class ControlServer {
                    .Set("debuggerUnowned",
                         g_ardia_drags_ended[kArdiaDragEndDebuggerUnowned])
                    .Set("nativeRefused",
-                        g_ardia_drags_ended[kArdiaDragEndNativeRefused]));
+                        g_ardia_drags_ended[kArdiaDragEndNativeRefused])
+                   .Set("sourceGone",
+                        g_ardia_drags_ended[kArdiaDragEndSourceGone]));
     if (ardiacore::TestFlag("nativeDragRefused")) {
       status.Set("nativeDragsRefused", true);
     }

@@ -9,7 +9,10 @@ Checks, in one hidden instance launched with --test nativeDragRefused, that a pa
 a drag nobody ends: one a DevTools session took and left behind (dropped mid-drag, with and without
 Input.setInterceptDrags), one DevTools input started that no session took, and one macOS refused to start. Also: a
 DevTools drag between a page and a cross-site iframe ends in the frame it started in, a session that only holds a
-press never owns another session's drag, and a navigation during a drag's first update doesn't crash the browser.
+press never owns another session's drag, a late answer for a finished drag (a cancelled drag's move, a drop whose
+session went away) touches nothing, a drag that entered a frame leaves it when it is cancelled or abandoned, a drag
+whose source frame was destroyed ends no other widget's drag, and a navigation during a drag's first update doesn't
+crash the browser.
 No macOS drag session is ever begun: the last check runs only once the engine reports that it refuses them.`;
 const [appArg, scratchArg] = process.argv.slice(2);
 if (!appArg || appArg === "-h" || appArg === "--help") {
@@ -24,10 +27,12 @@ const PAGE = `<!doctype html><title>Drag end check</title>
 <div id="drag" draggable="true">drag me</div><div id="pad">pad</div>FRAME
 <script>
 window.counts = { mousedown: 0, mouseup: 0, keydown: 0, dragstart: 0, dragend: 0 };
-window.frameCounts = { mousedown: 0, dragstart: 0, dragend: 0 };
+window.frameCounts = { mousedown: 0, dragstart: 0, dragend: 0, dragenter: 0, dragleave: 0, drop: 0 };
 window.lastPress = null;
 for (const name of Object.keys(counts)) addEventListener(name, () => { counts[name]++; }, true);
 addEventListener("mousedown", (e) => { lastPress = [e.clientX, e.clientY]; }, true);
+window.lastOver = null;
+addEventListener("dragover", (e) => { lastOver = [e.clientX, e.clientY]; }, true);
 addEventListener("message", (e) => { if (e.data in frameCounts) frameCounts[e.data]++; });
 const busyMs = Number(new URLSearchParams(location.search).get("busy"));
 drag.addEventListener("dragstart", (e) => {
@@ -39,7 +44,18 @@ const FRAME = `<!doctype html><title>Drag end check frame</title>
 <style>body{margin:0;background:#dfd}#inner{position:absolute;left:10px;top:10px;width:150px;height:40px;background:#f84}</style>
 <div id="inner" draggable="true">drag me too</div>
 <script>
-for (const name of ["mousedown", "dragstart", "dragend"]) addEventListener(name, () => parent.postMessage(name, "*"), true);
+for (const name of ["mousedown", "dragstart", "dragend", "dragenter", "dragleave", "drop"]) addEventListener(name, () => parent.postMessage(name, "*"), true);
+addEventListener("dragover", (e) => e.preventDefault());
+let busyOnEnter = 0;
+addEventListener("message", (e) => {
+  busyOnEnter = Number(e.data.busyOnEnter || 0);
+  for (const end = performance.now() + Number(e.data.busy || 0); performance.now() < end; );
+});
+addEventListener("dragenter", () => {
+  const ms = busyOnEnter;
+  busyOnEnter = 0;
+  for (const end = performance.now() + ms; performance.now() < end; );
+});
 inner.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", "y"));
 </script>`;
 const server = createServer((req, res) => {
@@ -198,6 +214,114 @@ try {
         `handed over ${!!data}, dragend in the page ${endedInPage}, ended as abandoned +${(afterEnded.ownerGone ?? 0) - (before.ended.ownerGone ?? 0)}, ${input.detail}`);
       driver.close();
       await sleep(300);
+    }
+
+    const busyFrame = (ms) => evaluate(watcher, `document.getElementById("frame").contentWindow.postMessage({ busy: ${ms} }, "*")`).then(() => sleep(150));
+    const pressAndDrag = async (s, points) => {
+      await mouse(s, "mousePressed", 100, 70);
+      for (const [x, y] of points) await mouse(s, "mouseMoved", x, y).catch(() => null);
+    };
+
+    {
+      const frameBefore = await frames();
+      driver = await session();
+      await pressAndDrag(driver, [[104, 74], [120, 90], [160, 200]]);
+      await evaluate(watcher, `document.getElementById("frame").contentWindow.postMessage({ busyOnEnter: 2500 }, "*")`);
+      await sleep(150);
+      const woke = Date.now() + 2500;
+      const lateMove = mouse(driver, "mouseMoved", 240, 520).then(() => ({ how: "answered", early: woke - Date.now() }), () => ({ how: "refused", early: woke - Date.now() }));
+      await sleep(200);
+      await driver.send("Input.cancelDragging").catch(() => null);
+      await mouse(driver, "mouseReleased", 200, 300).catch(() => null);
+      before = await counts();
+      await pressAndDrag(driver, [[104, 74], [120, 90], [160, 200]]);
+      const second = await dragStarts(before.dragstart);
+      await sleep(300);
+      const overBefore = await evaluate(watcher, "lastOver");
+      await sleep(Math.max(0, woke - Date.now()) + 1200);
+      const entered = (await frames()).dragenter - frameBefore.dragenter;
+      const heldEnds = (await counts()).dragend - before.dragend;
+      const over = await evaluate(watcher, "lastOver");
+      const stayed = !!over && !!overBefore && over[0] === overBefore[0] && over[1] === overBefore[1];
+      await mouse(driver, "mouseReleased", 200, 300).catch(() => null);
+      const finished = await settled(counts, "dragend", before.dragend);
+      const late = await lateMove;
+      check("a cancelled drag's unanswered move is refused, not replayed as a mouse event into the drag started after it",
+        second && late.how === "refused" && entered <= 1 && stayed && heldEnds === 0 && finished,
+        `second drag started ${second}, it was over ${overBefore} before the late update and ${over} after, frame dragenter +${entered}, dragend while held +${heldEnds}, the cancelled drag's move was ${late.how} once the frame answered, dragend at the release ${finished}`);
+      driver.close();
+      await sleep(300);
+    }
+
+    {
+      before = { ...(await counts()), frame: await frames() };
+      driver = await session();
+      let handed = null;
+      driver.on("Input.dragIntercepted", (event) => { handed = event.data; });
+      await driver.send("Input.setInterceptDrags", { enabled: true });
+      await pressAndDrag(driver, [[104, 74], [120, 90], [160, 200]]);
+      const data = await until("the drag handed over", async () => handed, 3000).catch(() => null);
+      await busyFrame(2500);
+      const woke = Date.now() + 2500;
+      if (data) void driver.send("Input.dispatchDragEvent", { type: "drop", x: 240, y: 520, data }, { timeout: 8000 }).catch(() => null);
+      await sleep(300);
+      driver.close();
+      const abandoned = await settled(counts, "dragend", before.dragend);
+      const next = await session();
+      const held = await counts();
+      await pressAndDrag(next, [[104, 74], [120, 90], [160, 200]]);
+      const second = await dragStarts(held.dragstart);
+      await sleep(Math.max(0, woke - Date.now()) + 1200);
+      const heldEnds = (await counts()).dragend - held.dragend;
+      const lateDrops = (await frames()).drop - before.frame.drop;
+      await mouse(next, "mouseReleased", 200, 300).catch(() => null);
+      const finished = await settled(counts, "dragend", held.dragend);
+      next.close();
+      check("a drop whose session went away before the destination answered is not delivered, and doesn't end the next drag",
+        !!data && abandoned && second && heldEnds === 0 && lateDrops === 0 && finished,
+        `handed over ${!!data}, ended at the detach ${abandoned}, second drag started ${second}, dragend while held +${heldEnds}, late drops in the frame +${lateDrops}, dragend at the release ${finished}`);
+      await sleep(300);
+    }
+
+    for (const finish of ["dragCancel", "detach"]) {
+      before = { ...(await counts()), frame: await frames() };
+      driver = await session();
+      let handed = null;
+      driver.on("Input.dragIntercepted", (event) => { handed = event.data; });
+      await driver.send("Input.setInterceptDrags", { enabled: true });
+      await pressAndDrag(driver, [[104, 74], [120, 90], [160, 200]]);
+      const data = await until("the drag handed over", async () => handed, 3000).catch(() => null);
+      if (data) await driver.send("Input.dispatchDragEvent", { type: "dragEnter", x: 240, y: 520, data }).catch(() => null);
+      const enteredFrame = await settled(frames, "dragenter", before.frame.dragenter);
+      if (finish === "dragCancel") {
+        if (data) await driver.send("Input.dispatchDragEvent", { type: "dragCancel", x: 240, y: 520, data }).catch(() => null);
+        await mouse(driver, "mouseReleased", 240, 520).catch(() => null);
+        await driver.send("Input.setInterceptDrags", { enabled: false });
+      }
+      driver.close();
+      const left = await settled(frames, "dragleave", before.frame.dragleave);
+      const endedInPage = await settled(counts, "dragend", before.dragend);
+      check(`a handed-over drag that entered a cross-site frame and ended with ${finish === "detach" ? "its session going away" : "Input.dispatchDragEvent dragCancel"} leaves the frame`,
+        !!data && enteredFrame && left && endedInPage, `handed over ${!!data}, dragenter in the frame ${enteredFrame}, dragleave in the frame ${left}, dragend in the page ${endedInPage}`);
+      await sleep(300);
+    }
+
+    {
+      const frameBefore = await frames();
+      const endedBefore = await ended();
+      driver = await session();
+      await mouse(driver, "mousePressed", 90, 430);
+      for (const [x, y] of [[94, 434], [110, 440], [160, 380], [200, 300]]) await mouse(driver, "mouseMoved", x, y).catch(() => null);
+      const started = await settled(frames, "dragstart", frameBefore.dragstart);
+      await evaluate(watcher, `document.getElementById("frame").remove()`);
+      await until("the frame gone", async () => !(await app.targets()).some((t) => t.type === "iframe" && t.url.includes("/frame")), 5000).catch(() => null);
+      const released = await mouse(driver, "mouseReleased", 200, 300).then(() => "answered", (e) => `failed (${e.message.slice(0, 60)})`);
+      await sleep(400);
+      const sourceGone = ((await ended()).sourceGone ?? 0) - (endedBefore.sourceGone ?? 0);
+      driver.close();
+      input = await takesInput();
+      check("a drag whose source frame was destroyed finishes without telling another widget its drag ended",
+        started && sourceGone === 1 && input.ok, `dragstart in the frame ${started}, the release ${released}, finished without a source +${sourceGone}, ${input.detail}`);
     }
   }
 
