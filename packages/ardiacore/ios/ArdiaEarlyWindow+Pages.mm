@@ -1,6 +1,7 @@
 #import "ArdiaEarlyWindowInternal.h"
 #import "ArdiaChromeWindowHost.h"
 #import "ArdiaEngineBridge.h"
+#import "ArdiaFieldTiming.h"
 #import "ArdiaTabParking.h"
 #import "ArdiaWebViewInternal.h"
 
@@ -124,12 +125,95 @@ BOOL ReleaseFocusFrom(NSView *page) {
 
 namespace {
 
-void PlaceVeil(ArdiaCoreTab *tab, ArdiaEarlyVeil *veil) {
+NSHashTable<NSView *> *KnownWidgets() {
+  static NSHashTable *widgets = [NSHashTable weakObjectsHashTable];
+  return widgets;
+}
+
+NSArray<NSView *> *WidgetsIn(NSView *page) {
+  static Class widgetClass = NSClassFromString(@"RenderWidgetHostViewCocoa");
+  NSMutableArray<NSView *> *widgets = [NSMutableArray array];
+  if (!page || !widgetClass) return widgets;
+  NSMutableArray<NSView *> *queue = [NSMutableArray arrayWithObject:page];
+  while (queue.count) {
+    NSView *view = queue.firstObject;
+    [queue removeObjectAtIndex:0];
+    if ([view isKindOfClass:widgetClass]) [widgets addObject:view];
+    else [queue addObjectsFromArray:view.subviews];
+  }
+  return widgets;
+}
+
+CALayer *RemoteFrameOf(NSView *widget) {
+  static Class remoteFrameClass = NSClassFromString(@"CALayerHost");
+  if (!remoteFrameClass) return nil;
+  for (CALayer *tree in widget.layer.sublayers)
+    for (CALayer *content in tree.sublayers)
+      if ([content isKindOfClass:remoteFrameClass]) return content;
+  return nil;
+}
+
+uint32_t ContextOf(CALayer *remoteFrame) {
+  id context = [remoteFrame valueForKey:@"contextId"];
+  return [context isKindOfClass:NSNumber.class] ? [context unsignedIntValue] : 0;
+}
+
+NSView *NewlyShownWidget(NSView *page) {
+  NSArray<NSView *> *widgets = WidgetsIn(page);
+  NSArray<NSView *> *shown = [widgets filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"hidden == NO"]];
+  NSView *fresh = shown.count == 1 && ![KnownWidgets() containsObject:shown[0]] ? shown[0] : nil;
+  for (NSView *widget in widgets) [KnownWidgets() addObject:widget];
+  return fresh;
+}
+
+BOOL HoldsOldFrame(NSView *incoming) {
+  const uint32_t context = ContextOf(RemoteFrameOf(incoming));
+  if (!context) return NO;
+  for (NSView *sibling in incoming.superview.subviews)
+    if (sibling != incoming && sibling.hidden && ContextOf(RemoteFrameOf(sibling)) == context) return YES;
+  return NO;
+}
+
+NSView *WidgetHoldingOldFrame(ArdiaCoreTab *tab) {
+  NSView *incoming = NewlyShownWidget(tab.view);
+  return incoming && HoldsOldFrame(incoming) ? incoming : nil;
+}
+
+void MatchGeometry(CALayer *copy, CALayer *original) {
+  copy.anchorPoint = original.anchorPoint;
+  copy.bounds = original.bounds;
+  copy.position = original.position;
+  copy.transform = original.transform;
+  copy.geometryFlipped = original.geometryFlipped;
+}
+
+CALayer *PictureOfFrameIn(NSView *widget, NSView *veilView) {
+  CALayer *frame = RemoteFrameOf(widget);
+  const uint32_t context = ContextOf(frame);
+  if (!context) return nil;
+  CALayer *frameCopy = [[frame.class alloc] init];
+  MatchGeometry(frameCopy, frame);
+  [frameCopy setValue:@(context) forKey:@"contextId"];
+  if (ContextOf(frameCopy) != context) return nil;
+  CALayer *treeCopy = [CALayer layer];
+  MatchGeometry(treeCopy, frame.superlayer);
+  [treeCopy addSublayer:frameCopy];
+  CALayer *picture = [CALayer layer];
+  picture.frame = [veilView convertRect:widget.bounds fromView:widget];
+  picture.geometryFlipped = widget.layer.geometryFlipped;
+  picture.backgroundColor = widget.layer.backgroundColor;
+  picture.masksToBounds = YES;
+  [picture addSublayer:treeCopy];
+  return picture;
+}
+
+void PlaceVeil(ArdiaCoreTab *tab, ArdiaEarlyVeil *veil, NSView *oldFrameWidget) {
   NSView *page = tab.view, *host = page.superview;
   if (!host || host == veil.view.superview) return;
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
-  if (!veil.view) {
+  const BOOL fresh = !veil.view;
+  if (fresh) {
     veil.view = [[NSView alloc] initWithFrame:host.bounds];
     veil.view.wantsLayer = YES;
     veil.view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
@@ -138,8 +222,27 @@ void PlaceVeil(ArdiaCoreTab *tab, ArdiaEarlyVeil *veil) {
   veil.view.layer.backgroundColor = (fill ?: NSColor.windowBackgroundColor).CGColor;
   veil.view.frame = host.bounds;
   [host addSubview:veil.view positioned:NSWindowAbove relativeTo:page];
+  if (CALayer *picture = fresh && oldFrameWidget ? PictureOfFrameIn(oldFrameWidget, veil.view) : nil) {
+    [veil.view.layer addSublayer:picture];
+    veil.oldPagePicture = picture;
+  }
   [CATransaction commit];
   if (ReleaseFocusFrom(page)) veil.restoreFocus = YES;
+}
+
+void CountCommitVeil(ArdiaCoreTab *tab) {
+  ArdiaEarlyVeil *veil = [Veils() objectForKey:tab];
+  if (veil.view.superview) ArdiaFieldCount(veil.oldPagePicture ? @"veil_held" : @"veil_plain");
+}
+
+void DropOldPagePicture(ArdiaEarlyVeil *veil) {
+  CALayer *picture = veil.oldPagePicture;
+  if (!picture) return;
+  veil.oldPagePicture = nil;
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  [picture removeFromSuperlayer];
+  [CATransaction commit];
 }
 
 void Unveil(ArdiaCoreTab *tab) {
@@ -183,7 +286,7 @@ void WatchVeil(ArdiaCoreTab *tab, ArdiaEarlyVeil *veil, double after) {
 
 namespace ardia_early_window {
 
-void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement) {
+void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement, NSView *oldFrameWidget) {
   if (!tab || tab.closed) return;
   ArdiaEarlyVeil *veil = [Veils() objectForKey:tab];
   if (!veil) {
@@ -193,7 +296,7 @@ void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement) {
     [Veils() setObject:veil forKey:tab];
   }
   if (!veil.inputBlock) veil.inputBlock = inputBlock ?: [tab suppressInput];
-  PlaceVeil(tab, veil);
+  PlaceVeil(tab, veil, oldFrameWidget);
   Reconcile(tab);
 }
 
@@ -204,7 +307,7 @@ void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement) {
 + (void)pageMoved:(ArdiaCoreTab *)tab {
   if (!tab) return;
   if (ArdiaEarlyVeil *veil = [Veils() objectForKey:tab]) {
-    PlaceVeil(tab, veil);
+    PlaceVeil(tab, veil, nil);
     Reconcile(tab);
   }
   for (ArdiaEarlyShown *s in [Shown() copy]) {
@@ -226,7 +329,8 @@ void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement) {
 + (void)page:(ArdiaCoreTab *)tab shownURL:(NSString *)url {
   if (!tab) return;
   ArdiaEarlyVeil *veil = [Veils() objectForKey:tab];
-  if (veil && ![veil.lastShown ?: @"" isEqualToString:url ?: @""]) {
+  const BOOL barChangedUnderVeil = veil && ![veil.lastShown ?: @"" isEqualToString:url ?: @""];
+  if (barChangedUnderVeil) {
     veil.lastShown = url;
     veil.changedAt = CACurrentMediaTime();
     ArdiaPageEmits *emits = EmitsOf(tab);
@@ -249,12 +353,13 @@ void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement) {
   const BOOL matches = ShownMatches(url, tab);
   if (veiled) {
     if (matches) Unveil(tab);
+    else if (barChangedUnderVeil) DropOldPagePicture(veil);
     return;
   }
   if (!url.length) return;
   if (!matches) {
     [Watched() removeObject:tab];
-    return CarryShield(tab, nil, url);
+    return CarryShield(tab, nil, url, nil);
   }
   if (!tab.loading) [Watched() removeObject:tab];
 }
@@ -267,12 +372,14 @@ void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement) {
   [emits.current removeAllObjects];
   emits.firstEmitAt = 0;
   if (NSString *visible = tab.url; visible.length) [emits.current addObject:visible];
+  NSView *oldFrameWidget = WidgetHoldingOldFrame(tab);
   if (ArdiaEarlyVeil *veil = [Veils() objectForKey:tab]) {
     veil.armedShown = nil;
     return Reconcile(tab);
   }
   if (!url.length || ShownMatches(url, tab)) return;
-  CarryShield(tab, nil, url);
+  CarryShield(tab, nil, url, oldFrameWidget);
+  CountCommitVeil(tab);
 }
 
 + (void)page:(ArdiaCoreTab *)tab emitted:(NSString *)url {

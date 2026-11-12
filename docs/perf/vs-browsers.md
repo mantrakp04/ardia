@@ -120,6 +120,29 @@ full white. A second navigation within 100 ms of the first, while the first new 
 the root colour (5 of 8 rounds, mostly one or two frames): that page never drew, and Chrome's fallback hand-off then
 points at its empty surface.
 
+Update (2026-11-08): the "lighter frames" and the double-click flashes were one more thing, a 0.25 s Core Animation
+fade. On 0.2.45-nightly.3, same fixtures, 12 of 20 clicks and 9 of 12 double clicks (the second 60 ms after the first)
+showed the new page fading in over a root background colour (the old page's, or once it arrived the new one's). A trace with the recording showed the GPU process
+drawing the new page twice, within 10 ms of the commit, and nothing more while the screen kept changing for another
+170 ms. A probe on `-[CALayer addAnimation:forKey:]` found the animation: a `sublayers` `CATransition` (fade, default
+duration) on the `WebContentsViewCocoa`'s layer, added when the old `RenderWidgetHostViewCocoa` leaves it in
+`~RenderWidgetHostNSViewBridge`'s delayed `removeFromSuperview`. Chromium gives that view a plain `CALayer`, which keeps
+Core Animation's default actions; in Chrome the page is drawn by the window's compositor, so the same fade has nothing
+visible to cross-fade. ArdiaCore sets the layer's `sublayers` action to none on every page view it hosts
+(`StopPageSwapFade`): 0 of 20 clicks and 0 of 12 double clicks, with no fade added to any page view's layer.
+
+Update (2026-11-11): a cross-site click (localhost → 127.0.0.1, dark body over a green or red root) still showed one
+fully white frame, on 6 to 15 of 20 clicks a run, before and after the fade fix. It wasn't the
+engine: with the page's layers scaled to 80 % over magenta by a probe, the white frame still covered the whole page area.
+It was the page veil, the opaque view ArdiaCore puts over a newly committed page from another origin until React shows
+that origin in the bar (about 18 ms). The veil predates the kept frame, so it covered the old page, which was still on
+screen, with its white fill. Hiding the veil in the probe gave 0 of 40. Now the veil shows the old page's frame, the
+one Chromium hands to the new view at the commit (`PictureOfFrameIn`, `ArdiaEarlyWindow+Pages.mm`), when the page
+view shown by this commit is new and a hidden older view shows the same frame; any other commit gets the plain veil as
+before. Three runs of 20 clicks interleaved with the build before, both on the same JS: 0, 0, 0 against 12, 14, 6 clicks
+with a white frame. Same-site clicks, reload, back and forward, a tab switch and a popup showed none on either build.
+`perf_journeys` counts both kinds (`veil_held`, `veil_plain`).
+
 **New tab (+26 ms).** In Chrome, `Target.createTarget` adds a tab that is already in its window. In Ardia the
 WebContents is made and starts loading in Chrome's strip, but it is only shown once the JS adopts it and React mounts
 its view. Until then it is hidden, so its first paint waits for the mount. Same cause as the switch: the page isn't

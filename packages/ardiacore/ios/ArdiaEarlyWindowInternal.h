@@ -30,6 +30,7 @@
 @property(nonatomic, strong) NSView *view;
 @property(nonatomic, strong) id inputBlock;
 @property(nonatomic) BOOL restoreFocus;
+@property(nonatomic, strong) CALayer *oldPagePicture;
 @property(nonatomic, copy) NSString *lastShown;
 @property(nonatomic) CFTimeInterval changedAt;
 @property(nonatomic) NSUInteger armedGeneration;
@@ -72,7 +73,7 @@ void LoadLayouts();
 void Record(BOOL wait);
 BOOL ShowsLaunchOrigin(ArdiaCoreTab *tab, NSString *launchURL);
 BOOL ReleaseFocusFrom(NSView *page);
-void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement);
+void CarryShield(ArdiaCoreTab *tab, id inputBlock, NSString *shownAtPlacement, NSView *oldFrameWidget);
 void DropCover(ArdiaEarlyShown *s);
 void ClearRootFill(ArdiaEarlyShown *s, NSView *root);
 void DropPictures(ArdiaEarlyShown *s);

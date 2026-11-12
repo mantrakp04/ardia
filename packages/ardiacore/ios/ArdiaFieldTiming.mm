@@ -26,6 +26,7 @@ std::atomic<double> gLastInputAt{0};
 std::atomic<int> gLastInputKind{0};
 os_unfair_lock gLock = OS_UNFAIR_LOCK_INIT;
 NSMutableArray<NSArray *> *gMarks;
+NSMutableDictionary<NSString *, NSNumber *> *gCounts;
 id gInputMonitor;
 
 double EventTime(NSEvent *event) {
@@ -51,6 +52,7 @@ void SetEnabled(bool enabled) {
   if (enabled) return;
   os_unfair_lock_lock(&gLock);
   [gMarks removeAllObjects];
+  [gCounts removeAllObjects];
   os_unfair_lock_unlock(&gLock);
 }
 
@@ -71,6 +73,16 @@ void ArdiaFieldMark(NSString *key, NSString *kind, double at) {
   if (!gMarks) gMarks = [NSMutableArray array];
   if (gMarks.count >= kMaxMarks) [gMarks removeObjectAtIndex:0];
   [gMarks addObject:mark];
+  os_unfair_lock_unlock(&gLock);
+}
+
+void ArdiaFieldCount(NSString *what) {
+  if (!what.length) return;
+  os_unfair_lock_lock(&gLock);
+  if (gEnabled) {
+    if (!gCounts) gCounts = [NSMutableDictionary dictionary];
+    gCounts[what] = @(gCounts[what].integerValue + 1);
+  }
   os_unfair_lock_unlock(&gLock);
 }
 
@@ -132,6 +144,14 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(drain) {
   [gMarks removeAllObjects];
   os_unfair_lock_unlock(&gLock);
   return marks;
+}
+
+RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(drainCounts) {
+  os_unfair_lock_lock(&gLock);
+  NSDictionary *counts = gCounts.copy ?: @{};
+  [gCounts removeAllObjects];
+  os_unfair_lock_unlock(&gLock);
+  return counts;
 }
 
 @end

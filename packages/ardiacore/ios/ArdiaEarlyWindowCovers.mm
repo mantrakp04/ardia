@@ -49,7 +49,7 @@ void DropCover(ArdiaEarlyShown *s) {
   if (s.shielded || s.expectedURL) {
     NSView *host = tab.view.superview;
     NSString *shown = [host isKindOfClass:ArdiaWebView.class] ? ((ArdiaWebView *)host).shownURL : nil;
-    CarryShield(tab, inputBlock, shown.length ? shown : (s.expectedURL ?: gLaunchURL));
+    CarryShield(tab, inputBlock, shown.length ? shown : (s.expectedURL ?: gLaunchURL), nil);
   }
   else if (tab && !tab.closed && [tab.view.superview isKindOfClass:ArdiaWebView.class]) {
     [Watched() addObject:tab];

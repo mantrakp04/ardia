@@ -96,6 +96,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     items: [
       "Time to the first window, profile switch time, and command bar speed (a sample of keystrokes)",
       "How long launches, new tabs, tab switches and page loads take, step by step: times and counts only, summed up once an hour",
+      "How often a page from another site waited under a cover until the address bar showed its site, and whether that cover showed the page before it or a plain fill: counts only, summed up once an hour",
       "At launch, in rough ranges: how many tabs and windows came back, how much history there is, and whether it's the first launch since the Mac started",
       "Memory use and the number of tabs, once an hour",
     ],
