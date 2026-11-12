@@ -101,7 +101,7 @@ function Bar({ windowId }: { windowId: string }) {
     room,
     chevron: bookmarksBar.overflowWidth,
     gap: size.itemGap,
-    minWidth: Math.min(size.favicon, size.iconBox),
+    minWidth: size.item,
   });
   const mounted = children.slice(0, fit.mounted);
   const visible = mounted.slice(0, fit.shown);
