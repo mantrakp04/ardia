@@ -36,9 +36,9 @@ function preventsInline(typed: string, shown: string, next: string, edit: EditCo
     const lo = Math.min(edit.before.start, edit.before.end);
     const hi = Math.max(edit.before.start, edit.before.end);
     if (hi <= old.length) {
-      if (next.length < old.length && edit.after.start <= lo) return true;
       const inserted = next.length - (old.length - (hi - lo));
-      if (inserted >= 0 && next.startsWith(old.slice(0, lo)) && next.endsWith(old.slice(hi))) return length(next.slice(lo, lo + inserted)) > 1;
+      if (inserted > 0 && next.startsWith(old.slice(0, lo)) && next.endsWith(old.slice(hi))) return length(next.slice(lo, lo + inserted)) > 1;
+      if (next.length < old.length && edit.after.start <= lo) return true;
     }
   }
   if (next.length > typed.length && next.startsWith(typed)) return length(next.slice(typed.length)) > 1;
