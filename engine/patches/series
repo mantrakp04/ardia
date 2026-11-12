@@ -72,6 +72,7 @@ chromium chromium-desktop-capture-window-audio.patch
 chromium chromium-video-super-resolution.patch
 chromium chromium-keep-old-frame-on-swap.patch
 chromium chromium-freeze-spares-live-connections.patch
+chromium chromium-memory-saver-pinned-tabs.patch
 chromium chromium-temporary-tab-restore-hook.patch
 chromium chromium-hosted-browsers-no-session-service.patch
 chromium chromium-auto-pip-global-switch.patch

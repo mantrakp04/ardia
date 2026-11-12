@@ -273,7 +273,7 @@ static void (^gQuitCancelledHandler)(void);
   dispatch_group_t pending = dispatch_group_create();
   for (NSString *tabId in tabIds) {
     ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
-    if (!tab || tab.closed || tab.discarded) {
+    if (!tab || tab.closed || tab.discarded || [ArdiaTabRegistry viewForTab:tab].awaitsFirstDocument) {
       record(tabId, nil);
       continue;
     }

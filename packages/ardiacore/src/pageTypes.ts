@@ -210,7 +210,7 @@ export type WebViewProps = ViewProps & {
   onScroll?: (state: ScrollState) => void;
   onProtectedMedia?: (request: ProtectedMediaRequest) => void;
   onReady?: () => void;
-  onDiscarded?: (url: string) => void;
+  onDiscarded?: (url: string, reason: DiscardReason | null) => void;
   onPasswordPrompt?: (prompt: PasswordPrompt) => void;
   onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;
   onExternalApp?: (request: ExternalAppRequest) => void;
@@ -267,3 +267,4 @@ export type WebViewHandle = {
 };
 
 export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported";
+export type DiscardReason = "external" | "urgent" | "proactive" | "suggested" | "frozen";
