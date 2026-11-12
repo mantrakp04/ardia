@@ -1,5 +1,7 @@
 # ArdiaCore parity: the app's engine API on ArdiaCore
 
+History: the CEF → ArdiaCore cutover ledger (2026-10-01 to 0.2.31); how to run the acceptance checks today is in `docs/testing.md` › "ArdiaCore acceptance".
+
 **The owner chose a full cutover (2026-10-01):** the next release ships ArdiaCore only, and CEF's native side leaves
 the repo. The JS API (once `packages/cef/src`, now `packages/ardiacore/src`, imported as `@ardia/ardiacore`) doesn't
 change: `packages/ardiacore` registers the same Expo modules and view names (`ArdiaCEF`, `ArdiaExtensions`,
@@ -23,13 +25,13 @@ The switch shipped in 0.2.22; this was the list it shipped against, kept for the
    extension; the ArdiaCore build found and read every one (21/21) without `ARDIA_DATA_DIR`. Left for the owner:
    the real login keychain's item, which no hidden run reads (both binaries name it "Ardia Safe Storage", and
    smoke.sh checks the build satisfies 0.2.21's designated requirement, which the item's access trusts).
-   Going back works too (`rollback.sh`): 0.2.21 → the RC → 0.2.21 on the same folder keeps everything from both
+   Going back works too (`carryover.sh --back`): 0.2.21 → the RC → 0.2.21 on the same folder keeps everything from both
    sessions (tabs, passwords, bookmarks, history, zoom, the extension's setting, persistent cookies, localStorage),
    with no crash and no profile reset (the same Chrome version, so no newer-profile handling; Local State,
    Preferences and Sessions intact). Only session cookies don't come back, because 0.2.21 drops them at every launch.
 3. ~~**Session cookies**~~ done: ArdiaCore keeps them across launches (09fe90cc), and keeps 0.2.21's at the switch
    (`carryover.sh`). 0.2.21 itself drops session cookies at every launch (its own restart loses them; measured with
-   `rollback.sh`), so this is a gain over CEF, not parity.
+   `carryover.sh --back`), so this is a gain over CEF, not parity.
 4. ~~**The content blocker blocks nothing** in a production build~~: not a bug. uBlock Origin Lite runs in its
    optimal mode on ArdiaCore and answers ad scripts with its stand-ins (`adsbygoogle.js` → its no-op copy, a 307 to the
    extension's web-accessible resource), so a fetch or a `<script>` "loads" without the request leaving the browser;
@@ -60,7 +62,7 @@ The switch shipped in 0.2.22; this was the list it shipped against, kept for the
    without one (`extension-installed-bubble`).
    Open: after another profile's window opened and closed, "Share this tab instead" answers false (`tab-capture`).
 7. ~~**Smoke parity**~~ done: background-mode context-menu log, the autofill dropdown's selection, the PiP self-test
-   (`ARDIA_PIP_SELFTEST`) and the passkey dialog closing when its page navigates; the release smoke test passes
+   (`ARDIA_TEST` `pipSelfTest`) and the passkey dialog closing when its page navigates; the release smoke test passes
    21/21 on ArdiaCore (e8ece135, 2109af22, 2047812f).
 8. **Chrome's own UI says "Chromium"** (bubbles, dialogs, error pages); CEF renamed it. *Engine helper.*
 9. **Checks that need the owner** (an unlocked screen, prompts): the page composited under the RN views; menus,
@@ -92,7 +94,7 @@ Statuses:
 | `ArdiaExtensions` (10 functions, 3 events) | 8 | 5 | 0 | 0 |
 | `ArdiaChromeUI` (15 functions, 4 events) | 9 | 10 | 0 | 0 |
 | `ArdiaSwipe` (7 functions, a view with 3 events) | 11 | 0 | 0 | 0 |
-| Window hosting (`ACChromeWindowHost`, used by `packages/shell`) (13) | 13 | 0 | 0 | 0 |
+| Window hosting (`ArdiaChromeWindowHost`, used by `packages/shell`) (13) | 13 | 0 | 0 | 0 |
 | **Total (201)** | **156 (78%)** | **44** | **1** | **0** |
 
 Nothing is **missing** and every signature matches `packages/cef`'s (checked by diffing the Swift module
@@ -104,37 +106,7 @@ needs.
 
 ## How to build and check it
 
-```bash
-# Engine (once, and after engine/ changes): both apply.sh, then autoninja, under the chromium lock
-#   scripts/agent/engine-build --as <you>   (docs/engine-build.md)
-# App: apps/browser/macos (the only app project; pod install there after adding native files).
-scripts/agent/build-app --as <you>     # into apps/browser/build-<you>; --help
-# Acceptance, hidden (open -g -n, ARDIA_BACKGROUND=1, a scratch data dir); METRO_PORT is a Metro for this checkout.
-METRO_PORT=8081 node packages/ardiacore/scripts/acceptance.mjs apps/browser/build-<you>/Build/Products/Debug/Ardia.app <scratch dir> [check…]
-```
-
-The app (bundle id `com.ardia.browser`, Apple Development signing with the hardened runtime in
-Debug; `scripts/release.sh` signs releases with Developer ID). A Debug build refuses to start without
-`ARDIA_DATA_DIR` (it never falls back to a real profile). A test run hands it its Metro in `ARDIA_JS_LOCATION`
-(that launch's argument domain, never written); never `defaults write com.ardia.browser`, the installed app's. Its build stages a copy of the engine framework
-(`packages/ardiacore/scripts/stage-framework.sh`, under the chromium lock, into `ARDIACORE_STAGE_DIR`), links that, and
-`embed.sh` signs the embedded copy with the build's identity.
-
-Test hygiene the run keeps (each was a real failure):
-- Metro is reached through a proxy that refuses its websockets (`/hot`, `/message`), so another session's edits
-  never reload the app mid-run.
-- Every file the app is asked to read lives in the scratch dir: the checkout is under `~/Documents`, and an ad hoc
-  build reading it raises macOS's folder-access prompt and blocks the main thread on it (the extension fixture is
-  copied).
-- Permissions use MIDI and notifications (no macOS prompt behind them), external apps a scheme no app handles;
-  never location or `mailto:`. Camera and microphone only on a copy of the app without the device entitlements
-  (ad hoc, hardened runtime: macOS refuses the devices without asking) and Chrome's fake devices: every hidden
-  instance gets `--use-fake-device-for-media-stream` (ArdiaCoreHost), and with it the engine keeps the microphone on a
-  fake input (`ac_fake_media.mm`), since the fake list's "default" input is the Mac's real one to the audio service and
-  a stream on it raised macOS's microphone dialog on the owner's screen (2026-10-01).
-- A check that needs a page on screen (permission prompts, choosers, context menus) shows it first: Chrome holds
-  those for hidden tabs. Checks that need "no user activation" reload the page first (CDP's `userGesture` leaves
-  one behind).
+Moved to `docs/testing.md` › "ArdiaCore acceptance".
 
 ## Acceptance (hidden instance)
 
@@ -199,7 +171,7 @@ Test hygiene the run keeps (each was a real failure):
 the panes the app shows, Chrome's selected tab and active Browser (an extension that records `tabs.onActivated` and
 reads `chrome.windows`), and native focus (the key window, and the requests to make one key,
 `makeKeyAndOrderFront: on ArdiaCoreWindow #<number>` in `activation.log`). A test instance is never really active: it fakes
-only that it reads as active (`ArdiaCoreActivation.mm`; `devWindow(n, "fakeAppActive:0")` is the user in another app), and
+only that it reads as active (`ArdiaActivation.mm`; `devWindow(n, "fakeAppActive:0")` is the user in another app), and
 AppKit's key window follows as in an active app, so Chrome's views hear key changes as in production. Its fixtures are HTTPS (a certificate made per
 run; this instance only gets `--ignore-certificate-errors`), since Chrome's automatic Picture in Picture acts only on
 https and file pages; the call is a fake conference (fake camera, a Media Session `enterpictureinpicture` handler that
@@ -230,7 +202,7 @@ and sent only when changed, progress at most 10 times a second, a held report fl
 |---|---|---|
 | `url`, `profile`, `visible`, `warm` | done | `""` is Chrome's Default profile, `<id>` is `Profile <id>`, `incognito…` the default profile's OTR profile. `visible` and `warm` change the page once the app's batch of view updates is done (a run-loop observer before Core Animation's commit), the pages leaving first; a page leaving the screen goes transparent and stays visible to Chrome for 100 ms. Hiding Chrome's view at once blanked the old page (or left a few tiles) for a frame before the app's switch reached the screen, on most switches away from a web page (rec1522: 13 in 20 switches on the RC, 2 now, each a single frame: the incoming page a frame late, or a tile; `windowing-test.mjs`) |
 | `adoptId` | done | `ardiacore:<id>` (a tab Chrome made for a page), `tab:<id>` (one Chrome made on its own: an extension's tabs.create/windows.create), `restore:<tab id>` (Chrome's TabRestoreService entry carrying the tab's id, bound while the tab lives and stamped on each new navigation, so a close Chrome records first keeps it: `ac_tab_restore_tag`/`_take`, `-[ArdiaCoreWindow restoreTab:…]`), `clone:<tab id>` (`duplicateTab:`). A restore in flight is cancelled by a close |
-| `transferKey` | done | A tab moving between windows is parked or taken from the old view and moves into the new window's Browser (`adoptTab:`); it is also the tab's key in strip transactions. A window closing while one of its tabs is on its way out (its last tab dropped onto another window) hands the tab to a hidden window first (`keepTransfersOfWindow:`). A parked page has no deadline: it waits until the tab's next view takes it, or the app releases it (`releaseTransfer`: the tab closed, slept, went to an app page or another profile; lib/tabPages.ts) and it closes at once (`closeNow`) |
+| `transferKey` | done | A tab moving between windows is parked or taken from the old view and moves into the new window's Browser (`adoptTab:`); it is also the tab's key in strip transactions. A window closing while one of its tabs is on its way out (its last tab dropped onto another window) hands the tab to a hidden window first (`keepTransfersOfWindow:`). A parked page has no deadline: it waits until the tab's next view takes it, or the app releases it (`releaseTransfer`: the tab closed, slept, went to an app page or another profile; state/tabs/tabPages.ts) and it closes at once (`closeNow`) |
 | `standalone`, `extensionHost` | partial | Extension popups and side panels (`extensionHost` "popup" or "sidePanel", which implies `standalone`): Chrome's own `ExtensionViewHost`, bound to the window's Browser for the page's profile (`-[ArdiaCoreWindow openExtensionView:profile:kind:]`, `ac_extension_view.mm`), so `chrome.windows`' current window and the active tab are the window's; in no strip. Chrome closing it (`window.close()`, Esc, the extension unloaded, its renderer gone) reaches the app as `onWindowClose`; it closes with its window too. A `standalone` view without `extensionHost` is a tab in a hidden per-profile window (an older engine). Needs a visual check |
 | `pageBackgroundColor`, `autoPictureInPicture` | partial | Wired (`setPageBackgroundColor:`, auto PiP from the page script's video state); both need a visible window to check |
 
@@ -276,7 +248,7 @@ The app closes a tab by unmounting its WebView; ArdiaCore closes it at once with
 entry for it however it closes (`chromium-temporary-tab-restore-hook.patch`); `temporarySource` (the tab it was opened
 over, `-[ArdiaCoreTab setTemporarySource:]`) is the tab a closed window's entry selects when the temporary one was selected.
 
-## `ArdiaCEF` module (`packages/ardiacore/src/native.ts`, `module.ts`)
+## `ArdiaCEF` module (`packages/ardiacore/src/engine/call.ts` and one type file per call domain)
 
 | Function / event | Status | Note |
 |---|---|---|
@@ -314,7 +286,7 @@ over, `-[ArdiaCoreTab setTemporarySource:]`) is the tab a closed window's entry 
 | `onChanged` | partial | Fires on install/uninstall; not asserted on its own |
 | `onTabs` | partial | Only for a tab Chrome makes when no app window can take it; the usual path is `tab:<id>` (proven) |
 
-## `ArdiaChromeUI` (`packages/ardiacore/src/chromeUI.ts`)
+## Chrome UI: device choosers, Cast, side panels, capture and autofill suggestions (`media.*`, `extensions.*` and `autofill.*` calls, bound in `apps/browser/src/platform/{permissions,media,extensions,autofill}.ts`)
 
 | Function / event | Status | Note |
 |---|---|---|
@@ -329,10 +301,16 @@ over, `-[ArdiaCoreTab setTemporarySource:]`) is the tab a closed window's entry 
 
 ## `ArdiaSwipe` (`packages/ardiacore/src/swipe.tsx`)
 
-**done**: the same sources as CEF's (`ACSwipe.mm`, `SwipeModule.swift`, linked into `packages/ardiacore/ios`). Profile
-paging on ArdiaCore is a change of the window's active profile, never a window swap.
+**done**: the same sources as CEF's (`ArdiaSwipe.mm`, `SwipeModule.swift`, linked into `packages/ardiacore/ios`). Profile
+paging on ArdiaCore is a change of the window's active profile, never a window swap. The page's scroll and
+overscroll acks come from ArdiaCore's own `ChromeRenderWidgetHostViewMacDelegate` subclass (`ac_page_view.mm`, made by
+`ACViewDelegate::GetDelegateForHost` for every page view but child popup widgets, which get none, as in Chrome), through
+`ArdiaCorePageView`: `isPageView:`, `setScrollObserver:` (`ackedScroll:consumed:` for the first gesture-scroll begin and
+update, `overscrolledAllowingHorizontal:`), `takeSwipes:` (from then on Chrome's history swiper never sees that view's
+scroll-wheel events; a view without ArdiaCore's delegate can't be taken), `takesSwipes:` and `isEditingText:`. The window
+layer adds `+[ArdiaCoreWindow contentViewClass]` and `isChromeFramelessWindow:`.
 
-## Window hosting (`ACChromeWindowHost`, looked up by `packages/shell/ios/ChromeWindows.swift`)
+## Window hosting (`ArdiaChromeWindowHost`, called by `packages/shell/ios/ChromeWindows.swift`)
 
 All 12 **done**: `makeWindowForProfile:` (one `ArdiaCoreWindow` per app window, styled as the app's),
 `embedRootView:inWindow:`, `rootViewOfWindow:`, `removeRootViewOfWindow:`, `showProfile:inWindow:` (the traffic
@@ -344,7 +322,7 @@ lights are placed again after every switch), `prepareProfiles:forWindow:`, `setT
 
 | Item | Status | Note |
 |---|---|---|
-| RN app in Chromium's loop | done | `ArdiaCoreHost` runs `ChromeMain`; React Native starts on the loop's first idle (React Native's debug `ReentrancyCheck` trapped when it started inside Chrome's startup burst). The app delegate gets each launch callback once: when that idle comes before AppKit finished launching, AppKit sends them (sending them twice made a second React Native factory, two JS runtimes), and a cold launch's URLs follow |
+| RN app in Chromium's loop | done | `ArdiaHost` runs `ChromeMain`; React Native starts on the loop's first idle (React Native's debug `ReentrancyCheck` trapped when it started inside Chrome's startup burst). The app delegate gets each launch callback once: when that idle comes before AppKit finished launching, AppKit sends them (sending them twice made a second React Native factory, two JS runtimes), and a cold launch's URLs follow |
 | Popups and Chrome-made tabs as the app's tabs | done | |
 | Two profiles in one window | done | |
 | Background test instances | done | `ARDIA_BACKGROUND=1`: activation guards, panels answered from `file-chooser.txt`, context menus reported |
@@ -377,21 +355,22 @@ renderer client (`ACContentRendererClient`) and a mojo interface (`engine/ardiac
 
 Plain Chromium code over Chrome's services (`engine/chromium/src/chrome/browser/ardia`, rules in
 `public/ac_engine.h`), linked into ArdiaCore's framework (and, until the cutover, CEF's). The app calls them through
-`dlsym` on the framework (`ArdiaCoreEngineBridge`/`ArdiaCoreServices`). All of them are wired:
+`dlsym` on the framework (`ArdiaEngineBridge`/`ArdiaServices`). All of them are wired:
 
 | Export | JS functions (`packages/ardiacore/src`) |
 |---|---|
-| `ac_engine_abi_version`, `ac_engine_set_event_sink` | `engineCall`, `onEngineEvent` |
+| `ac_engine_set_event_sink` | `onEngineEvent` |
 | `ac_passwords_*` (list, unlock, reveal, add, update, remove, exceptions, allow, export) | the password functions |
+| `ac_passwords_logins` | none: native only. `ArdiaSync.readPasswords` reads every saved login with its password (both stores, profile store first, blocklisted and empty ones left out; ArdiaSync keeps the first of any two with the same realm and username, compared as Swift strings, so canonically equivalent ones count as one) through `ArdiaEngineBridge.callForSecretReply`, which parses the reply from bytes it then wipes and settles once (the reply, or nil at its deadline); the engine builds the JSON in one reserved buffer and cleanses it after the reply. Any store error, Chrome skipping undecryptable passwords (`SkipUndecryptablePasswords`) or the process-bound backing answers an error, so sync never sees part of a list |
 | `ac_autofill_*` | the address and card functions |
 | `ac_extensions_*`, `ac_search_engines_list` | `ArdiaExtensions` |
 | `ac_zoom_list`, `ac_zoom_set` | `getZoomLevels`, `setZoom` |
 | `ac_browsing_data_clear` | `clearBrowsingData`, the default profile's `deleteProfileData` |
-| `ac_downloads_*` (list, cancel, pause, resume, keep, remove; events `downloads.changed`/`removed`) | `onDownload` and the download functions |
+| `ac_downloads_list`, `ac_downloads_command` (`cancel`, `pause`, `resume`, `keep`, `remove`; events `downloads.changed`/`removed`) | `onDownload` and the download functions |
 | `ac_site_settings_*`, `ac_site_data_clear` | the site-settings functions, both `clearSiteData`s |
 | `ac_external_apps_allowances`, `_remove` | `getExternalAppAllowances`, `removeExternalAppAllowance` |
 | `ac_tasks_list`, `ac_components_list` | `listTasks` (memory telemetry, the dev harness), `components` |
-| `ac_task_manager_open`, `ac_battery_saver` | `openTaskManager` (Chrome's Views Task Manager), `setBatterySaver` (Chrome's battery saver mode pref) |
+| `ac_task_manager_open`, `ac_battery_saver`, `ac_memory_saver` | `openTaskManager` (Chrome's Views Task Manager), `setBatterySaver` (Chrome's battery saver mode pref), `setMemorySaver` (Chrome's Memory Saver state and aggressiveness in local state, and the "Always keep these sites active" list, `performance_tuning.tab_discarding.exceptions_with_time`, written to every regular profile loaded now or later; `{ validate }` checks a site as Chrome's settings page does, `url_matcher::util::FilterToComponents`) |
 | `ac_history_*`, `ac_favicons_*`, `ac_bookmarks_*` | `history.ts`, `favicons.ts`, `bookmarks.ts` (through `engineCall`) |
 | `ac_tab_restore_tag`, `_take`, `_load` | native: the WebView's attach (and close) and `restore:` |
 | `ac_tabs_watch`, `ac_tabs_group` | tab groups in strip transactions |

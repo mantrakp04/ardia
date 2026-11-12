@@ -1,22 +1,26 @@
-import type { Suggestion } from "@ardia/core";
+import { tabTitle } from "../../state/browser/model";
+import { recentTabSuggestions, type Suggestion } from "@ardia/core";
 import { useMemo } from "react";
-import { useBrowser } from "../../store/browser";
-import type { HistoryEntry } from "../../store/types";
+import { useSettings, useTab, useWindow } from "../../state/browser/hooks";
+import { useProfileHistory } from "../../state/history/hooks";
+import { usePeeks } from "../../state/peek/hooks";
+import { useTabs } from "../../state/tabs/hooks";
+import { openTabsByUse } from "../../state/tabs/tabShare";
+import { withoutFragment } from "../../lib/url";
+import { commandBarTabLimit, keepsOpenTab } from "../../state/omnibox/commandBarStart";
 
-const NO_HISTORY: HistoryEntry[] = [];
 const RECENT = 4;
-const pageKey = (url: string) => url.replace(/#.*$/, "");
 
 export function useDropdownStart(enabled: boolean, tabId: string, profileId: string): Suggestion[] {
-  const url = useBrowser((s) => (enabled ? (s.tabs[tabId]?.url ?? "") : ""));
-  const title = useBrowser((s) => (enabled ? (s.tabs[tabId]?.title ?? "") : ""));
-  const favicon = useBrowser((s) => (enabled ? (s.tabs[tabId]?.favicon ?? null) : null));
-  const history = useBrowser((s) => (enabled ? (s.history[profileId] ?? NO_HISTORY) : NO_HISTORY));
+  const url = useTab(tabId, (t) => (enabled ? (t?.url ?? "") : ""));
+  const title = useTab(tabId, (t) => (enabled ? (t?.title ?? "") : ""));
+  const favicon = useTab(tabId, (t) => (enabled ? (t?.favicon ?? null) : null));
+  const history = useProfileHistory(enabled ? profileId : null);
   const recent = useMemo(() => {
-    const seen = new Set(url ? [pageKey(url)] : []);
+    const seen = new Set(url ? [withoutFragment(url)] : []);
     const out: Suggestion[] = [];
     for (const h of [...history].sort((a, b) => b.lastVisit - a.lastVisit)) {
-      const key = pageKey(h.url);
+      const key = withoutFragment(h.url);
       if (seen.has(key)) continue;
       seen.add(key);
       out.push({ kind: "page", url: h.url, title: h.title, favicon: h.favicon, visited: true });
@@ -25,4 +29,23 @@ export function useDropdownStart(enabled: boolean, tabId: string, profileId: str
     return out;
   }, [history, url]);
   return useMemo(() => (url ? [{ kind: "page" as const, url, title, favicon }, ...recent] : recent), [url, title, favicon, recent]);
+}
+
+const NO_TABS: Suggestion[] = [];
+
+export function useOpenTabsStart(enabled: boolean, windowId: string, profileId: string): Suggestion[] {
+  const tabs = useTabs((all) => (enabled ? all : null));
+  const peeks = usePeeks((all) => (enabled ? all : null));
+  const shared = useSettings((st) => !!st.shareTabsAcrossWindows);
+  const start = useSettings((st) => st.commandBarStart);
+  const active = useWindow(windowId, (w) => (enabled ? w?.activeTabIds[profileId] : undefined));
+  return useMemo(() => {
+    if (!tabs || !peeks) return NO_TABS;
+    const limit = commandBarTabLimit(start);
+    if (limit === 0) return NO_TABS;
+    const rows = openTabsByUse(tabs, peeks, { profileId, windowId, shared })
+      .filter(({ tab: t }) => keepsOpenTab(start, t.pin))
+      .map(({ tab: t, lastActiveAt }) => ({ id: t.id, url: t.url, title: tabTitle(t), favicon: t.favicon, lastActiveAt }));
+    return recentTabSuggestions(rows, { exclude: active, limit });
+  }, [tabs, peeks, active, profileId, shared, windowId, start]);
 }

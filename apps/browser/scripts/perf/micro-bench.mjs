@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-const { useBrowser } = await import("../../src/store/browser.ts");
-const { sidebarEntries, groupEntries } = await import("../../src/components/sidebar/entries.ts");
-const { groupLabel } = await import("../../src/store/organize.ts");
-const strip = await import("../../src/components/layout/stripGroups.ts");
-await import("../../src/test-native-stub.mjs");
+const { useBrowser } = await import("../../src/state/browser/store.ts");
+const { sidebarEntries, groupEntries } = await import("../../src/state/sidebar/entries.ts");
+const { groupLabel } = await import("../../src/state/pins/tabGrouping.ts");
+const strip = await import("../../src/state/tabs/topStrip.ts");
+await import("../../src/test-native/index.ts");
 const core = await import("../../../../packages/core/src/index.ts");
 const { buildSeed } = await import("./seed.mjs");
-const { knownHosts } = await import("../../src/components/omnibox/knownHosts.ts");
+const { knownHosts } = await import("../../src/state/omnibox/knownHosts.ts");
 const { readFileSync } = await import("node:fs");
 const { countOps } = await import("./ops.mjs");
 
@@ -25,7 +25,6 @@ const time = (fn, runs = 30) => {
 };
 const report = (name, value, unit = "ms") => console.log(`${name.padEnd(52)} ${typeof value === "number" ? value.toFixed(3) : value} ${unit}`);
 
-// One window with `count` tabs: every 10th pair a split, groups of 20 (one of `bigGroup` members), titled pages.
 function bigSession(count, bigGroup = 0) {
   const tabs = {};
   const ids = [];
@@ -35,7 +34,7 @@ function bigSession(count, bigGroup = 0) {
     const host = ["github.com", "x.com", "news.ycombinator.com", "en.wikipedia.org"][i % 4];
     tabs[id] = {
       id, windowId: "w", profileId: "default", url: `https://${host}/page/${i}`, title: `Page ${i} - ${host.split(".")[0]}`,
-      favicon: null, pinned: false, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: null, openerId: null,
+      favicon: null, pin: null, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: null, page: { kind: "idle" }, openerId: null,
       createdAt: t0 + i, lastActiveAt: t0 + i,
     };
     ids.push(id);
@@ -50,11 +49,11 @@ function bigSession(count, bigGroup = 0) {
     groups[`g${g}`] = { id: `g${g}`, windowId: "w", profileId: "default", name: "", icon: null, color: null, collapsed: g % 2 === 0, pinned: false, tabIds: ids.slice(at, at + 20), createdAt: t0 };
   }
   const splits = {};
-  for (let i = 0; i + 1 < count; i += 10) splits[`s${i}`] = { id: `s${i}`, windowId: "w", tabIds: [ids[i], ids[i + 1]], orientation: "horizontal", sizes: [0.5, 0.5] };
+  for (let i = 0; i + 1 < count; i += 10) splits[`s${i}`] = { id: `s${i}`, windowId: "w", orientation: "horizontal", slots: [{ size: 0.5, tabId: ids[i] }, { size: 0.5, tabId: ids[i + 1] }] };
   S().hydrate({
     profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } },
     profileOrder: ["default"],
-    windows: { w: { id: "w", profileId: "default", incognito: false, tabIds: ids, activeTabIds: { default: ids[5] }, sidebarOpen: true, frame: null, createdAt: t0 } },
+    windows: { w: { id: "w", profileId: "default", kind: "main", tabIds: ids, activeTabIds: { default: ids[5] }, sidebarOpen: true, frame: null, createdAt: t0 } },
     windowOrder: ["w"],
     tabs,
     groups,
@@ -78,16 +77,16 @@ function seedSource() {
 }
 const historyHostsBefore = new WeakMap();
 function hostsFor(source) {
-  const state = (source.state ??= { tabs: Object.fromEntries(source.tabs.map((t) => [t.id, t])), history: { default: source.history } });
+  const state = (source.state ??= { tabs: Object.fromEntries(source.tabs.map((t) => [t.id, t])), profiles: {}, history: { "": { list: source.history, floor: -Infinity, ready: true } } });
   if (!BEFORE) return knownHosts(state, "default");
   let hosts = [];
   for (const t of Object.values(state.tabs)) if (t.profileId === "default" && t.url) hosts.push(core.hostOf(t.url));
-  let past = historyHostsBefore.get(state.history.default);
+  let past = historyHostsBefore.get(source.history);
   if (!past) {
     const seen = new Set();
-    for (const h of state.history.default) seen.add(core.hostOf(h.url));
+    for (const h of source.history) seen.add(core.hostOf(h.url));
     seen.delete("");
-    historyHostsBefore.set(state.history.default, (past = [...seen]));
+    historyHostsBefore.set(source.history, (past = [...seen]));
   }
   return hosts.concat(past);
 }

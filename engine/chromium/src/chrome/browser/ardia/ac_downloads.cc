@@ -1,25 +1,30 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include "chrome/browser/ardia/ac_downloads.h"
-
-#include <stdlib.h>
+#include "chrome/browser/ardia/ac_engine.h"
 
 #include <algorithm>
+#include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "ardia/core/ac_launch_switches.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/json/values_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/browser/download/download_crx_util.h"
+#include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/common/pref_names.h"
@@ -70,13 +75,14 @@ bool IsOffTheRecord(DownloadItem* item) {
 }
 
 void UseTestDownloadsDir(Profile* profile) {
-  const char* dir = getenv("ARDIA_DOWNLOADS_DIR");
-  if (!dir || !*dir) {
+  const std::optional<std::string> dir =
+      ardiacore::InstanceValue("downloads-dir");
+  if (!dir || dir->empty()) {
     return;
   }
   profile->GetPrefs()->SetDefaultPrefValue(
       prefs::kDownloadDefaultDirectory,
-      base::FilePathToValue(base::FilePath(dir)));
+      base::FilePathToValue(base::FilePath(*dir)));
 }
 
 base::DictValue Describe(DownloadItem* item) {
@@ -107,7 +113,12 @@ base::DictValue Describe(DownloadItem* item) {
                         : base::Value(download::DownloadInterruptReasonToString(
                               item->GetLastReason())))
       .Set("offTheRecord", IsOffTheRecord(item))
-      .Set("startTime", item->GetStartTime().InMillisecondsFSinceUnixEpoch());
+      .Set("startTime", item->GetStartTime().InMillisecondsFSinceUnixEpoch())
+      .Set("sha256", item->GetState() == DownloadItem::COMPLETE &&
+                             !item->GetHash().empty()
+                         ? base::Value(base::ToLowerASCII(
+                               base::HexEncode(item->GetHash())))
+                         : base::Value());
 }
 
 class DownloadsState;
@@ -314,14 +325,82 @@ DownloadItem* DownloadFor(Call& call) {
   return item;
 }
 
+using CommandEntry =
+    std::pair<std::string_view, void (*)(DownloadItem*, Reply)>;
+
+constexpr CommandEntry kCommands[] = {
+    {"cancel",
+     [](DownloadItem* item, Reply reply) {
+       item->Cancel(true);
+       reply.Ok();
+     }},
+    {"pause",
+     [](DownloadItem* item, Reply reply) {
+       item->Pause();
+       reply.Ok();
+     }},
+    {"resume",
+     [](DownloadItem* item, Reply reply) {
+       if (!item->CanResume()) {
+         return reply.Error("can't resume");
+       }
+       item->Resume(true);
+       reply.Ok();
+     }},
+    {"keep",
+     [](DownloadItem* item, Reply reply) {
+       if (item->IsInsecure()) {
+         item->ValidateInsecureDownload();
+       } else if (item->IsDangerous()) {
+         item->ValidateDangerousDownload();
+       }
+       reply.Ok();
+     }},
+    {"remove",
+     [](DownloadItem* item, Reply reply) {
+       if (!item->IsDone()) {
+         return reply.Error("download in progress");
+       }
+       item->Remove();
+       reply.Ok();
+     }},
+};
+
+base::DictValue DownloadSettings(Profile* profile) {
+  DownloadPrefs* prefs = DownloadPrefs::FromBrowserContext(profile);
+  return base::DictValue()
+      .Set("folder", prefs->DownloadPath().value())
+      .Set("askWhereToSave", prefs->PromptForDownload())
+      .Set("managed", prefs->IsDownloadPathManaged());
+}
+
 }
 }
 
-AC_ENGINE_CALL(ac_downloads_list) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
+AC_PROFILE_CALL(ac_downloads_settings) {
+  call.TakeReply().Send(ardia::DownloadSettings(call.profile()));
+}
+
+AC_PROFILE_CALL(ac_downloads_set_settings) {
+  DownloadPrefs* download_prefs =
+      DownloadPrefs::FromBrowserContext(call.profile());
+  if (download_prefs->IsDownloadPathManaged()) {
+    return call.TakeReply().Error("downloads are set by policy");
   }
+  if (const std::string* folder = call.args().FindString("folder")) {
+    const base::FilePath path(*folder);
+    if (!path.IsAbsolute()) {
+      return call.TakeReply().Error("the folder must be an absolute path");
+    }
+    download_prefs->SetDownloadPath(path);
+  }
+  if (std::optional<bool> ask = call.args().FindBool("askWhereToSave")) {
+    call.profile()->GetPrefs()->SetBoolean(prefs::kPromptForDownload, *ask);
+  }
+  call.TakeReply().Send(ardia::DownloadSettings(call.profile()));
+}
+
+AC_PROFILE_CALL(ac_downloads_list) {
   base::ListValue downloads;
   for (download::DownloadItem* item :
        ardia::StateFor<ardia::DownloadsState>(call.profile()).All()) {
@@ -331,67 +410,14 @@ AC_ENGINE_CALL(ac_downloads_list) {
       base::DictValue().Set("downloads", std::move(downloads)));
 }
 
-AC_ENGINE_CALL(ac_downloads_cancel) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
+AC_PROFILE_CALL(ac_downloads_command) {
+  const std::string command = call.String("command");
+  const auto* entry = std::ranges::find(ardia::kCommands, command,
+                                        &ardia::CommandEntry::first);
+  if (entry == std::end(ardia::kCommands)) {
+    return call.TakeReply().Error("unknown command");
   }
   if (download::DownloadItem* item = ardia::DownloadFor(call)) {
-    item->Cancel(true);
-    call.TakeReply().Ok();
-  }
-}
-
-AC_ENGINE_CALL(ac_downloads_pause) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
-  if (download::DownloadItem* item = ardia::DownloadFor(call)) {
-    item->Pause();
-    call.TakeReply().Ok();
-  }
-}
-
-AC_ENGINE_CALL(ac_downloads_resume) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
-  if (download::DownloadItem* item = ardia::DownloadFor(call)) {
-    if (!item->CanResume()) {
-      return call.TakeReply().Error("can't resume");
-    }
-    item->Resume(true);
-    call.TakeReply().Ok();
-  }
-}
-
-AC_ENGINE_CALL(ac_downloads_keep) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
-  if (download::DownloadItem* item = ardia::DownloadFor(call)) {
-    if (item->IsInsecure()) {
-      item->ValidateInsecureDownload();
-    } else if (item->IsDangerous()) {
-      item->ValidateDangerousDownload();
-    }
-    call.TakeReply().Ok();
-  }
-}
-
-AC_ENGINE_CALL(ac_downloads_remove) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
-  if (download::DownloadItem* item = ardia::DownloadFor(call)) {
-    if (!item->IsDone()) {
-      return call.TakeReply().Error("download in progress");
-    }
-    item->Remove();
-    call.TakeReply().Ok();
+    entry->second(item, call.TakeReply());
   }
 }

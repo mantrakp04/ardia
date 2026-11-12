@@ -9,8 +9,8 @@ Pod::Spec.new do |s|
   s.source         = { git: '' }
   s.static_framework = true
   s.dependency 'ExpoModulesCore'
-  s.dependency 'ArdiaImport'
-  s.frameworks     = 'AppKit', 'CoreImage', 'CryptoKit', 'Security'
-  s.source_files   = 'SyncModule.swift', 'Core/**/*.swift'
+  s.dependency 'ArdiaCore'
+  s.frameworks     = 'AppKit', 'CoreImage', 'CoreServices', 'CryptoKit', 'Security'
+  s.source_files   = 'SyncModule.swift', 'SharedFoldersModule.swift', 'SharedFolderWatcher.swift', 'Core/**/*.swift'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
 end

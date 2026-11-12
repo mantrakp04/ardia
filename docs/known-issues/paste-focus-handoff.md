@@ -3,7 +3,7 @@
 A browser command like ⌘T runs on the JS thread, so for 30–150 ms after the shortcut the old responder still has AppKit's focus. Before the fix, a ⌘V pressed in that window landed in the old page, even when that page was a now-hidden tab. The user then had to press ⌘V again ("sometimes I need to hit ⌘V twice").
 
 ## Fixed: ⌘T, ⌘L and ⌘F pressed while a page or docked DevTools is focused
-The fix is `FocusHandoff` in packages/shell/ios/Windows.swift.
+The fix is `FocusHandoff` in packages/shell/ios/FocusHandoff.swift.
 
 **How a handoff runs**
 - The command resigns the page's RenderWidgetHostViewCocoa synchronously.

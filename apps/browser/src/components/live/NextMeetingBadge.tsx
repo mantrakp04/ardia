@@ -1,23 +1,22 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Animated, Text, View } from "react-native";
-import { useTheme } from "../../lib/theme";
-import { useCalendar, useNow } from "../../live/calendar";
-import { badgeText, isCalendarUrl } from "../../live/meetings";
-import { useLive } from "../../live/store";
-import { useBrowser } from "../../store/browser";
+import { Animated } from "react-native";
+import { Badge, useTheme } from "../ui";
+import { useCalendar, useNow } from "../../state/live/calendar";
+import { badgeText, isCalendarUrl } from "../../state/live/meetings";
+import { useLive } from "../../state/live/store";
+import { useTab } from "../../state/browser/hooks";
 import { useSidebarTokens } from "../sidebar/tokens";
-import { useLiveColors } from "./colors";
+import { liveMotion, useLiveColors } from "./tokens";
 
 export const NextMeetingBadge = memo(function NextMeetingBadge({ tabId }: { tabId: string }) {
-  const pinnedUrl = useBrowser((s) => {
-    const t = s.tabs[tabId];
-    return t?.pinned ? (t.pinnedUrl ?? t.url) : null;
-  });
+  const pinnedUrl = useTab(tabId, (t) => (t?.pin ? (t.pinnedUrl ?? t.url) : null));
   const calendar = pinnedUrl !== null && isCalendarUrl(pinnedUrl);
   const on = useLive((s) => s.calendar.showTimeToNext);
+  const lead = useLive((s) => s.calendar.countdownLead);
+  const dismissed = useLive((s) => s.dismissedNow);
   const events = useCalendar((s) => s.events);
   const now = useNow(15_000, calendar && on);
-  const text = calendar && on ? badgeText(events, now) : null;
+  const text = calendar && on ? badgeText(events, now, lead, dismissed) : null;
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const colors = useLiveColors();
@@ -25,7 +24,7 @@ export const NextMeetingBadge = memo(function NextMeetingBadge({ tabId }: { tabI
   const [label, setLabel] = useState(text);
   useEffect(() => {
     if (text) setLabel(text);
-    Animated.spring(shown, { toValue: text ? 1 : 0, speed: 16, bounciness: text ? 10 : 0, useNativeDriver: true }).start(({ finished }) => {
+    Animated.spring(shown, { toValue: text ? 1 : 0, ...(text ? liveMotion.badgeSpring : liveMotion.badgeHideSpring), useNativeDriver: true }).start(({ finished }) => {
       if (finished && !text) setLabel(null);
     });
   }, [text]);
@@ -44,21 +43,8 @@ export const NextMeetingBadge = memo(function NextMeetingBadge({ tabId }: { tabI
         transform: [{ scale: shown.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }],
       }}
     >
-      <View
-        style={{
-          height: 14,
-          minWidth: 22,
-          paddingHorizontal: 4,
-          borderRadius: 7,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: live ? colors.now : tokens.badge,
-          borderWidth: 1,
-          borderColor: theme.dark ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.8)",
-        }}
-      >
-        <Text style={{ fontSize: 9, fontWeight: "700", fontVariant: ["tabular-nums"], color: live ? "#FFFFFF" : tokens.badgeGlyph }}>{label}</Text>
-      </View>
+      {live ? <Badge text={label ?? ""} size="s" tone="now" ring={colors.badgeRing} /> : <Badge text={label ?? ""} size="s" fill={tokens.badge} color={theme.onPrimary} ring={colors.badgeRing} />}
     </Animated.View>
   );
 });
+

@@ -1,3 +1,7 @@
+import { useEffect, useRef, useState } from "react";
+import { View } from "react-native";
+import { UI_LOCALE } from "../../../lib/uiLocale";
+import { showSettingsSheet } from "../../../state/settings/sheet";
 import {
   addFilterList,
   getContentBlocker,
@@ -9,12 +13,9 @@ import {
   updateFilterList,
   type ContentBlockerState,
   type CustomFilterList,
-} from "@ardia/ardiacore";
-import { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { Button, Checkbox, Group, Row, SectionHeader, Sheet, TextField, useFormColors } from "../controls";
-import { showSettingsSheet } from "../sheet";
+} from "../../../state/site/siteSettings";
+import { Button, Checkbox, DialogActions, DialogTitle, Sheet, space, Text, TextField } from "../../ui";
+import { Group, Row, SectionHeader } from "../Form";
 
 type Status = { kind: "busy" | "error" | "done"; text: string } | null;
 
@@ -22,9 +23,9 @@ const LIST_URL = /^https?:\/\/[^\s/?#]+\S*$/i;
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^.*ERR_CONTENT_BLOCKER[^:]*:\s*/, "");
 
-const filtersText = (n: number) => `${n.toLocaleString()} ${n === 1 ? "filter" : "filters"}`;
+const filtersText = (n: number) => `${n.toLocaleString(UI_LOCALE)} ${n === 1 ? "filter" : "filters"}`;
 
-const rulesText = (n: number) => `${n.toLocaleString()} ${n === 1 ? "rule" : "rules"}`;
+const rulesText = (n: number) => `${n.toLocaleString(UI_LOCALE)} ${n === 1 ? "rule" : "rules"}`;
 
 function agoText(ms: number, now = Date.now()) {
   const minutes = Math.floor(Math.max(0, now - ms) / 60000);
@@ -44,9 +45,15 @@ function listUrlProblem(url: string, lists: CustomFilterList[]) {
 
 const displayTitle = (l: CustomFilterList) => l.title || l.id.replace(/^https?:\/\//, "");
 
+const ADD_ROW = { paddingHorizontal: space.l, paddingVertical: space.m } as const;
+const ADD_FIELDS = { flexDirection: "row", alignItems: "center", gap: space.m } as const;
+const GROW = { flex: 1 } as const;
+const STATUS_LINE = { marginTop: space.s } as const;
+const DETAIL_LINE = { marginTop: space.xxs } as const;
+const EDITOR = { marginTop: space.l } as const;
+const EDITOR_HEIGHT = 260;
+
 export function CustomFiltersSection({ blocker, refresh, back }: { blocker: ContentBlockerState | null; refresh: () => void; back: () => void }) {
-  const theme = useTheme();
-  const colors = useFormColors();
   const [url, setUrl] = useState("");
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState<Record<string, string>>({});
@@ -89,7 +96,7 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
     }
   };
 
-  const act = async (l: CustomFilterList, what: string, run: () => Promise<void>) => {
+  const act = async (l: CustomFilterList, what: string, run: () => Promise<unknown>) => {
     if (actingRef.current.has(l.id)) return;
     actingRef.current.add(l.id);
     setBusy((b) => ({ ...b, [l.id]: what }));
@@ -109,17 +116,26 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
     const error =
       listErrors[l.id] ||
       (l.enabled && !l.downloaded ? l.error || "Not downloaded yet." : l.enabled && l.error ? "The last update failed. Its filters from before still apply." : "");
-    if (busy[l.id]) return <Text style={{ fontSize: 11.5, marginTop: 2, color: theme.textSecondary }}>{busy[l.id]}</Text>;
+    if (busy[l.id])
+      return (
+        <Text size="small" tone="textSecondary" style={DETAIL_LINE}>
+          {busy[l.id]}
+        </Text>
+      );
     const parts = [l.enabled ? filtersText(l.filters) : "Off", l.updatedAt ? `Updated ${agoText(l.updatedAt)}` : ""].filter(Boolean);
     return (
       <View>
-        <Text numberOfLines={1} style={{ fontSize: 11.5, marginTop: 2, color: theme.textSecondary }}>
+        <Text size="small" tone="textSecondary" lines={1} style={DETAIL_LINE}>
           {parts.join(" · ")}
         </Text>
-        <Text numberOfLines={1} selectable style={{ fontSize: 11, marginTop: 1, color: theme.textTertiary }}>
+        <Text size="caption" tone="textTertiary" lines={1} selectable>
           {l.id}
         </Text>
-        {error ? <Text style={{ fontSize: 11.5, marginTop: 2, color: colors.destructive }}>{error}</Text> : null}
+        {error ? (
+          <Text size="small" tone="destructive" style={DETAIL_LINE}>
+            {error}
+          </Text>
+        ) : null}
       </View>
     );
   };
@@ -150,8 +166,8 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
             <Button title="Remove" disabled={!!busy[l.id]} onPress={() => void act(l, "Removing…", () => removeFilterList(l.id))} />
           </Row>
         ))}
-        <View style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={ADD_ROW}>
+          <View style={ADD_FIELDS}>
             <TextField
               value={url}
               onChangeText={(text) => {
@@ -160,19 +176,12 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
               }}
               placeholder="https://example.com/filters.txt"
               onSubmit={() => void add()}
-              style={{ flex: 1 }}
+              style={GROW}
             />
             <Button title="Add List" kind="primary" disabled={!blocker || adding || !url.trim()} onPress={() => void add()} />
           </View>
           {status ? (
-            <Text
-              style={{
-                fontSize: 11.5,
-                marginTop: 6,
-                lineHeight: 15,
-                color: status.kind === "error" ? colors.destructive : theme.textSecondary,
-              }}
-            >
+            <Text size="small" tone={status.kind === "error" ? "destructive" : "textSecondary"} style={STATUS_LINE}>
               {status.text}
             </Text>
           ) : null}
@@ -188,8 +197,6 @@ export function CustomFiltersSection({ blocker, refresh, back }: { blocker: Cont
 }
 
 function MyFiltersSheet({ onSaved, back }: { onSaved: () => void; back: () => void }) {
-  const theme = useTheme();
-  const colors = useFormColors();
   const [text, setText] = useState<string | null>(null);
   const [saved, setSaved] = useState("");
   const [status, setStatus] = useState<Status>(null);
@@ -233,48 +240,34 @@ function MyFiltersSheet({ onSaved, back }: { onSaved: () => void; back: () => vo
 
   const dirty = text !== null && text !== saved;
   return (
-    <Sheet width={560} onClose={close}>
-      <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>My Filters</Text>
-      <Text style={{ fontSize: 12, marginTop: 4, lineHeight: 16, color: theme.textSecondary }}>
-        {"One rule per line, in uBlock Origin's syntax. To hide something on one site: x.com##[role=\"menuitem\"]:has-text(Send via Chat)"}
-      </Text>
-      <View
-        style={{
-          marginTop: 12,
-          height: 260,
-          borderRadius: 7,
-          padding: 8,
-          backgroundColor: colors.field,
-          borderWidth: StyleSheet.hairlineWidth * 2,
-          borderColor: status?.kind === "error" ? colors.destructive : colors.fieldBorder,
+    <Sheet size="xl" onClose={close}>
+      <DialogTitle subtitle={"One rule per line, in uBlock Origin's syntax. To hide something on one site: x.com##[role=\"menuitem\"]:has-text(Send via Chat)"}>My Filters</DialogTitle>
+      <TextField
+        value={text ?? ""}
+        editable={text !== null && status?.kind !== "busy"}
+        onChangeText={(t) => {
+          setText(t);
+          if (status?.kind !== "busy") setStatus(null);
         }}
+        multiline
+        mono
+        autoFocus
+        invalid={status?.kind === "error"}
+        height={EDITOR_HEIGHT}
+        placeholder={"youtube.com##ytd-reel-shelf-renderer\n||ads.example.com^"}
+        style={EDITOR}
+      />
+      <DialogActions
+        note={
+          <Text size="small" tone={status?.kind === "error" ? "destructive" : "textSecondary"}>
+            {status?.text ?? ""}
+          </Text>
+        }
       >
-        <TextInput
-          value={text ?? ""}
-          editable={text !== null && status?.kind !== "busy"}
-          onChangeText={(t) => {
-            setText(t);
-            if (status?.kind !== "busy") setStatus(null);
-          }}
-          multiline
-          autoFocus
-          placeholder={"youtube.com##ytd-reel-shelf-renderer\n||ads.example.com^"}
-          placeholderTextColor={theme.textTertiary}
-          selectionColor={theme.selection}
-          enableFocusRing={false}
-          autoCorrect={false}
-          spellCheck={false}
-          style={{ flex: 1, fontSize: 12, lineHeight: 17, color: theme.textPrimary, fontFamily: "Menlo" }}
-        />
-      </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }}>
-        <Text style={{ flex: 1, fontSize: 11.5, lineHeight: 15, color: status?.kind === "error" ? colors.destructive : theme.textSecondary }}>
-          {status?.text ?? ""}
-        </Text>
         {text === null && status?.kind === "error" ? <Button title="Try Again" onPress={load} /> : null}
         <Button title={dirty ? "Cancel" : "Done"} disabled={status?.kind === "busy"} onPress={close} />
         <Button title="Save" kind="primary" disabled={!dirty || status?.kind === "busy"} onPress={() => void save()} />
-      </View>
+      </DialogActions>
     </Sheet>
   );
 }

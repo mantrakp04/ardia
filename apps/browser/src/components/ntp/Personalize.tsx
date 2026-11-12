@@ -1,25 +1,24 @@
-import { Surface, Symbol } from "@ardia/shell";
+import { devRegister } from "../dev/devRegister";
 import { useEffect, useRef } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
-import { create } from "zustand";
-import { hex, useTheme } from "../../lib/theme";
-import { PERSONALIZE_COPY, TabLayoutPicker, ThemeColorPicker } from "../onboarding/personalize";
-import { useHover } from "../primitives";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { PERSONALIZE_COPY, TabLayoutPicker } from "../onboarding/Personalize";
+import { ThemePicker } from "../settings/ThemeEditor";
+import { useWindowProfileValue } from "../../state/profiles/hooks";
+import { Box, capsule, Panel, proseLineHeight, shadow, space, Symbol, Text, useHover, useTheme } from "../ui";
+import { PERSONALIZE_PANEL } from "./tokens";
+import { closePersonalizePanelOf, setPersonalizePanel as setOpen, usePersonalizePanel } from "../../state/pages/personalizePanel";
 
-const INSET = 16;
+const INSET = space.xl;
 const BUTTON = 30;
 const GLYPH_DROP = 1.5;
-
-const usePanel = create<{ windowId: string | null }>(() => ({ windowId: null }));
-const setOpen = (windowId: string | null) => usePanel.setState({ windowId });
+const PANEL_WIDTH = 352;
+const EDITING_PANEL_WIDTH = 432;
 
 export function PersonalizeButton({ windowId }: { windowId: string }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
-  const open = usePanel((s) => s.windowId === windowId);
-  useEffect(() => () => {
-    if (usePanel.getState().windowId === windowId) setOpen(null);
-  }, [windowId]);
+  const open = usePersonalizePanel((s) => s.windowId === windowId);
+  useEffect(() => () => closePersonalizePanelOf(windowId), [windowId]);
   return (
     <>
       {open ? <PersonalizePanel windowId={windowId} onClose={() => setOpen(null)} /> : null}
@@ -30,7 +29,7 @@ export function PersonalizeButton({ windowId }: { windowId: string }) {
               style={{
                 width: BUTTON,
                 height: BUTTON,
-                borderRadius: BUTTON / 2,
+                borderRadius: capsule(BUTTON),
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: pressed ? theme.toolbarPressed : hovered || open ? theme.toolbarHover : undefined,
@@ -46,10 +45,10 @@ export function PersonalizeButton({ windowId }: { windowId: string }) {
 }
 
 function PersonalizePanel({ windowId, onClose }: { windowId: string; onClose: () => void }) {
-  const theme = useTheme();
   const t = useRef(new Animated.Value(0)).current;
+  const editing = useWindowProfileValue(windowId, (p) => !!p?.theme);
   useEffect(() => {
-    Animated.spring(t, { toValue: 1, friction: 9, tension: 90, useNativeDriver: true }).start();
+    Animated.spring(t, { toValue: 1, ...PERSONALIZE_PANEL.spring, useNativeDriver: true }).start();
   }, []);
   return (
     <>
@@ -58,37 +57,36 @@ function PersonalizePanel({ windowId, onClose }: { windowId: string; onClose: ()
         style={{
           position: "absolute",
           right: INSET,
-          bottom: INSET + BUTTON + 8,
-          width: 352,
+          bottom: INSET + BUTTON + space.m,
+          width: editing ? EDITING_PANEL_WIDTH : PANEL_WIDTH,
           opacity: t.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: "clamp" }),
           transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }, { scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }],
         }}
       >
-        <Surface
-          fill={hex(theme.panel)}
-          cornerRadius={16}
-          borderColor={hex(theme.panelBorder)}
-          borderWidth={0.5}
-          shadowColor="#000000"
-          shadowOpacity={theme.panelShadowOpacity}
-          shadowRadius={24}
-          shadowOffset={[0, 10]}
-        >
-          <View style={{ padding: 18, gap: 16 }}>
-            <View style={{ gap: 4 }}>
-              <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>{PERSONALIZE_COPY.title}</Text>
-              <Text style={{ fontSize: 12, lineHeight: 17, color: theme.textSecondary }}>{PERSONALIZE_COPY.subtitle}</Text>
-            </View>
-            <ThemeColorPicker windowId={windowId} size={28} />
-            <View style={{ gap: 8 }}>
-              <Text style={{ fontSize: 12, color: theme.textSecondary }}>{PERSONALIZE_COPY.layouts}</Text>
+        <Panel radius={PERSONALIZE_PANEL.radius} shadow={shadow.dialog}>
+          <Box pad="xl" gap="xl">
+            <Box gap="xs">
+              <Text size="title" weight="semibold">
+                {PERSONALIZE_COPY.title}
+              </Text>
+              <Text size="small" tone="textSecondary" style={SUBTITLE}>
+                {PERSONALIZE_COPY.subtitle}
+              </Text>
+            </Box>
+            <ThemePicker windowId={windowId} size={28} gap={space.xs} />
+            <Box gap="m">
+              <Text size="small" tone="textSecondary">
+                {PERSONALIZE_COPY.layouts}
+              </Text>
               <TabLayoutPicker windowId={windowId} />
-            </View>
-          </View>
-        </Surface>
+            </Box>
+          </Box>
+        </Panel>
       </Animated.View>
     </>
   );
 }
 
-if (__DEV__) (globalThis as { acPersonalize?: unknown }).acPersonalize = { open: setOpen };
+const SUBTITLE = { lineHeight: proseLineHeight.small } as const;
+
+devRegister("acPersonalize", "open", setOpen);

@@ -1,18 +1,22 @@
-import { FadeLabel, Surface } from "@ardia/shell";
+import { tabTitle } from "../../state/browser/model";
 import { useEffect } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { displayUrl } from "@ardia/core";
-import { hex, useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { tabTitle } from "./actions";
-import { useSidebarUi } from "./state";
-import { commitSwitcher, hoverSwitcherRow, leaveSwitcherRow } from "./switcher";
+import { concentric, FadeLabel, font, hairline, Panel, radius, space } from "../ui";
+import { SectionLabel } from "./SectionLabel";
+import { useTheme } from "../ui/theme";
+import { useTab } from "../../state/browser/hooks";
+import { useSidebarUi } from "../../state/sidebar/sidebarUi";
+import { commitSwitcher, hoverSwitcherRow, leaveSwitcherRow } from "../../state/sidebar/switcher";
 import { TabIcon } from "./TabIcon";
-import { useSidebarTokens } from "./tokens";
+import { SIDEBAR_SHADOW, useSidebarTokens } from "./tokens";
 
 const WIDTH = 400;
 const ROW = 40;
 const MAX_ROWS = 9;
+const SWITCHER_RADIUS = radius.sheet;
+const SWITCHER_PAD = space.m;
+const ROW_RADIUS = concentric(SWITCHER_RADIUS, SWITCHER_PAD);
 
 export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId: string; windowWidth: number; windowHeight: number }) {
   const theme = useTheme();
@@ -23,28 +27,24 @@ export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId:
   const shown = switcher.ids.slice(start, start + MAX_ROWS);
   const height = shown.length * ROW + 16 + 26;
   return (
-    <Surface
-      fill={hex(theme.panel)}
-      cornerRadius={16}
-      borderColor={hex(theme.panelBorder)}
-      borderWidth={0.5}
-      shadowColor="#000000"
-      shadowOpacity={theme.panelShadowOpacity}
-      shadowRadius={28}
-      shadowOffset={[0, 12]}
-      style={{ position: "absolute", left: (windowWidth - WIDTH) / 2, top: Math.max(40, (windowHeight - height) / 2 - 40), width: WIDTH, padding: 8 }}
+    <Panel
+      fill={theme.panel}
+      radius={SWITCHER_RADIUS}
+      border={theme.panelBorder}
+      shadow={SIDEBAR_SHADOW.tabSwitcher}
+      style={{ position: "absolute", left: (windowWidth - WIDTH) / 2, top: Math.max(40, (windowHeight - height) / 2 - 40), width: WIDTH, padding: SWITCHER_PAD }}
     >
-      <Text style={{ fontSize: 11, fontWeight: "600", color: theme.textTertiary, paddingHorizontal: 8, paddingBottom: 6, paddingTop: 2 }}>Recent Tabs</Text>
+      <SectionLabel title="Recent Tabs" inset={space.m} top={space.xxs} bottom={space.s} />
       {shown.map((id, i) => (
         <SwitcherRow key={id} tabId={id} focused={start + i === switcher.index} index={start + i} focusFill={tokens.switcherFocus} outline={tokens.switcherOutline} />
       ))}
-    </Surface>
+    </Panel>
   );
 }
 
 function SwitcherRow({ tabId, focused, index, focusFill, outline }: { tabId: string; focused: boolean; index: number; focusFill: string; outline: string }) {
   const theme = useTheme();
-  const tab = useBrowser((s) => s.tabs[tabId]);
+  const tab = useTab(tabId);
   useEffect(() => () => leaveSwitcherRow(index), [index]);
   if (!tab) return null;
   return (
@@ -54,20 +54,20 @@ function SwitcherRow({ tabId, focused, index, focusFill, outline }: { tabId: str
         onMouseLeave={() => leaveSwitcherRow(index)}
         style={{
           height: ROW,
-          borderRadius: 10,
+          borderRadius: ROW_RADIUS,
           flexDirection: "row",
           alignItems: "center",
-          paddingHorizontal: 10,
-          gap: 10,
+          paddingHorizontal: space.ml,
+          gap: space.ml,
           backgroundColor: focused ? focusFill : undefined,
-          borderWidth: focused ? 0.5 : 0,
+          borderWidth: focused ? hairline.ring : 0,
           borderColor: outline,
         }}
       >
         <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={18} profileId={tab.profileId} />
         <View style={{ flex: 1 }}>
-          <FadeLabel text={tabTitle(tab)} fontSize={13} weight={focused ? "medium" : "regular"} color={theme.textPrimary} style={{ height: 17 }} />
-          {tab.url ? <FadeLabel text={displayUrl(tab.url)} fontSize={11} color={theme.textSecondary} style={{ height: 14 }} /> : null}
+          <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight={focused ? "medium" : "regular"} color={theme.textPrimary} style={{ height: 17 }} />
+          {tab.url ? <FadeLabel text={displayUrl(tab.url)} fontSize={font.caption.fontSize} color={theme.textSecondary} style={{ height: 14 }} /> : null}
         </View>
       </View>
     </Pressable>

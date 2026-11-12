@@ -1,5 +1,5 @@
 import { requireOptionalNativeModule } from "expo-modules-core";
-import type { Listing, Transport } from "./scope.ts";
+import type { Listing, Transport } from "./scopeState.ts";
 
 export type FolderInfo = {
   path: string;
@@ -20,7 +20,7 @@ export type PhraseResult =
   | { error: "mismatch" }
   | { error: "keychain" };
 
-export type SavedLogin = { origin: string; url: string; username: string; password: string; created: number };
+export type SealedLogin = { origin: string; username: string; sealed: string; created: number };
 
 type SyncNative = {
   folderInfo(path: string | null): Promise<FolderInfo>;
@@ -39,15 +39,16 @@ type SyncNative = {
   deleteChain(folder: string): Promise<void>;
   sealLocal(text: string): Promise<string>;
   openLocal(sealed: string): Promise<string | null>;
-  recoveryWords(): Promise<string[]>;
+  recoveryWords(): Promise<string[] | null>;
   qrCode(): Promise<string | null>;
   recoveryKitPreview(width: number): Promise<string | null>;
   saveRecoveryKit(format: "pdf" | "text"): Promise<string | null>;
-  copyRecoveryKit(): Promise<void>;
-  shareRecoveryKit(): Promise<void>;
-  copyRecoveryPhrase(): Promise<void>;
+  copyRecoveryKit(): Promise<boolean | null>;
+  shareRecoveryKit(): Promise<boolean | null>;
+  copyRecoveryPhrase(): Promise<boolean | null>;
   revealFolder(path: string): Promise<void>;
-  readPasswords(engineProfile: string): Promise<SavedLogin[] | null>;
+  readPasswords(engineProfile: string): Promise<SealedLogin[] | null>;
+  savePassword(engineProfile: string, origin: string, username: string, sealed: string, replacing: boolean): Promise<boolean>;
 };
 
 export const SyncNative = requireOptionalNativeModule<SyncNative>("ArdiaSync");

@@ -20,10 +20,13 @@ Common filters. They are not SQL macros: paste the expression in place of the na
 -- the site, production only (the history has localhost too)
 SITE  = (source IN ('ardia-site', 'netnyahoo-site', 'posthog-cloud') AND properties['$lib'] IN ('web', 'ardia-web', 'netnyahoo-web')
          AND properties['$host'] IN ('ardia.dev', 'www.ardia.dev', 'netnyahoo.com', 'www.netnyahoo.com'))
+-- the Mac app's always-on anonymous daily count (one row per copy per UTC day, a fresh random distinct_id each time)
+DAILY = (event = 'daily_active' AND source = 'ardia-app' AND properties['$lib'] = 'ardia-daily' AND properties['$environment'] = 'production')
 -- the Mac app's opted-in telemetry
 APP   = (source IN ('ardia-app', 'netnyahoo-app', 'posthog-cloud') AND properties['$lib'] IN ('ardia-telemetry', 'netnyahoo-telemetry'))
-MAC   = (properties['$os'] = 'Mac OS X' AND properties['$device_type'] = 'Desktop')
-PHONE = (properties['$device_type'] IN ('Mobile', 'Tablet'))
+-- the device the page acted on (Device.astro), with the user-agent rule for events from before 2026-10-29
+MAC   = if(properties['ardia_device'] = '', properties['$os'] = 'Mac OS X' AND properties['$device_type'] = 'Desktop', properties['ardia_device'] = 'mac')
+PHONE = if(properties['ardia_device'] = '', properties['$device_type'] IN ('Mobile', 'Tablet'), properties['ardia_device'] = 'phone')
 ```
 
 ## Site
@@ -73,10 +76,10 @@ WHERE SITE AND event = '$dead_click' AND timestamp > now() - INTERVAL 24 HOUR GR
 ## Phones: Send to my Mac
 
 ```sql
--- Panel funnel: taps, then how the link got out (outcome: shared|copied|blocked|failed; fallback: copied|selected|email)
-SELECT event, properties['outcome'] AS outcome, properties['action'] AS action, uniqExact(distinct_id)
-FROM telemetry.events WHERE SITE AND event IN ('send_to_mac_clicked', 'send_to_mac_fallback')
-  AND timestamp > now() - INTERVAL 24 HOUR GROUP BY event, outcome, action ORDER BY event, 4 DESC;
+-- Panel funnel: taps, then how the link got out (outcome: shared|copied|blocked|cancelled|error)
+SELECT properties['method'] AS method, properties['outcome'] AS outcome, uniqExact(distinct_id)
+FROM telemetry.events WHERE SITE AND event = 'send_to_mac_clicked'
+  AND timestamp > now() - INTERVAL 24 HOUR GROUP BY method, outcome ORDER BY 3 DESC;
 
 -- Macs that opened a sent link
 SELECT uniqExact(distinct_id) FROM telemetry.events WHERE SITE AND event = 'mac_link_visit';
@@ -99,6 +102,27 @@ FROM exposures GROUP BY variant;
 ## App and installs
 
 ```sql
+-- Active users from the daily count. No ID: each copy sends one row per UTC day, flagged `first` (first ever),
+-- `weekly` (first in its ISO week) and `monthly` (first in its calendar month), so counting rows gives
+-- DAU, and counting flagged rows gives calendar-week WAU, calendar-month MAU and new installs.
+SELECT toDate(timestamp) AS day, count() AS dau, countIf(properties['first'] = 'true') AS new_installs
+FROM telemetry.events WHERE DAILY AND timestamp > now() - INTERVAL 30 DAY GROUP BY day ORDER BY day;
+
+SELECT toMonday(timestamp) AS week, countIf(properties['weekly'] = 'true') AS wau
+FROM telemetry.events WHERE DAILY AND timestamp > now() - INTERVAL 12 WEEK GROUP BY week ORDER BY week;
+
+SELECT toStartOfMonth(timestamp) AS month, countIf(properties['monthly'] = 'true') AS mau
+FROM telemetry.events WHERE DAILY GROUP BY month ORDER BY month;
+
+-- Only 0.2.41-nightly.3 and later send it, so until the older versions are gone these count part of the users.
+-- The report estimates the rest per day from update_check on older versions (checks ÷ 3 to checks) and prints
+-- the coverage; while it rises, a week-over-week or month-over-month change is the rollout, not growth.
+
+-- DAU split by version, channel, macOS or chip (yesterday, a full day)
+SELECT properties['$app_version'] AS version, properties['channel'] AS channel, properties['os_major'] AS macos,
+       properties['arch'] AS arch, count()
+FROM telemetry.events WHERE DAILY AND toDate(timestamp) = yesterday() GROUP BY version, channel, macos, arch ORDER BY 5 DESC;
+
 -- First launches and checks per version (also: node scripts/update-checks.mjs)
 SELECT properties['version'] AS v, countIf(properties['first'] = 'true') AS first_launches, count() AS checks
 FROM telemetry.events WHERE event = 'update_check' AND match(v, '^[0-9]+\\.[0-9]+\\.[0-9]+$')

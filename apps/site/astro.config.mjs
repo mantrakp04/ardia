@@ -1,22 +1,45 @@
 import { defineConfig } from "astro/config";
-import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { constants, gzipSync } from "node:zlib";
 
 function demo() {
-  let base = "/";
+  const demoDir = fileURLToPath(new URL("../../packages/demo/", import.meta.url));
+  const demoVite = () => import(pathToFileURL(createRequire(join(demoDir, "package.json")).resolve("vite")).href);
+  const demoConfig = (demoBase) => ({ configFile: join(demoDir, "vite.config.ts"), root: demoDir, base: demoBase, clearScreen: false });
+  let demoBase = "/demo/";
+  let demoServer;
   return {
     name: "ardia:demo",
     hooks: {
       "astro:config:done": ({ config }) => {
-        base = config.base.endsWith("/") ? config.base : `${config.base}/`;
+        demoBase = `${config.base.replace(/\/?$/, "/")}demo/`;
       },
-      "astro:build:done": ({ dir, logger }) => {
+      "astro:server:setup": async ({ server, logger }) => {
+        const { createServer } = await demoVite();
+        demoServer = await createServer({
+          ...demoConfig(demoBase),
+          logLevel: "warn",
+          server: { middlewareMode: true, hmr: { server: server.httpServer, path: "__demo_hmr" } },
+        });
+        const bare = demoBase.slice(0, -1);
+        server.middlewares.use((req, res, next) => {
+          const path = req.url?.split("?")[0];
+          if (path === bare || path?.startsWith(demoBase)) demoServer.middlewares(req, res, next);
+          else next();
+        });
+        logger.info(`demo served from ${demoBase}`);
+      },
+      "astro:server:done": async () => {
+        await demoServer?.close();
+        demoServer = undefined;
+      },
+      "astro:build:done": async ({ dir, logger }) => {
+        const { build } = await demoVite();
         const outDir = fileURLToPath(new URL("demo/", dir));
-        const demoDir = fileURLToPath(new URL("../demo/", import.meta.url));
-        execFileSync("pnpm", ["-C", demoDir, "exec", "vite", "build", "--base", `${base}demo/`, "--outDir", outDir, "--emptyOutDir", "--logLevel", "warn"], { stdio: "inherit" });
+        await build({ ...demoConfig(demoBase), logLevel: "warn", build: { outDir, emptyOutDir: true } });
         logger.info(`built the demo into ${outDir}`);
       },
     },
@@ -50,7 +73,6 @@ function dist() {
 
 export default defineConfig({
   site: process.env.SITE_URL ?? "https://ardia.dev",
-  base: process.env.SITE_BASE ?? "/",
   output: "static",
   trailingSlash: "ignore",
   build: { inlineStylesheets: "always", assets: "_assets" },

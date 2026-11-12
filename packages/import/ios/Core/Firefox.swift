@@ -36,8 +36,8 @@ public enum Firefox {
     "mobile______": ("mobile", "Mobile Bookmarks"),
   ]
 
-  public static func bookmarks(places: URL, cancellation: Cancellation = .init()) throws -> BookmarkNode {
-    let db = try SQLiteSnapshot(copying: places)
+  public static func bookmarks(places: URL, cancellation: Cancellation = .init(), snapshots: SQLiteSnapshots = .init()) throws -> BookmarkNode {
+    let db = try snapshots.snapshot(copying: places)
     guard db.tableExists("moz_bookmarks") else { throw ImportError.unreadable("places.sqlite has no bookmarks") }
     struct Row { var id: Int64; var type: Int64; var parent: Int64; var title: String; var url: String?; var added: Double?; var guid: String }
     var children: [Int64: [Row]] = [:]
@@ -217,12 +217,12 @@ public enum Firefox {
     var tabs: [ImportedTab] = []
     var groups: [ImportedTabGroup] = []
     for (w, window) in windows.enumerated() {
-      let selected = (window["selected"] as? Int ?? 1) - 1
+      let selected = (window["selected"] as? Int).map { $0 > 0 ? $0 - 1 : -1 } ?? 0
       for (position, tab) in (window["tabs"] as? [[String: Any]] ?? []).enumerated() {
         if tab["hidden"] as? Bool == true { continue }
         let entries = tab["entries"] as? [[String: Any]] ?? []
         guard !entries.isEmpty else { continue }
-        let index = min(max((tab["index"] as? Int ?? entries.count) - 1, 0), entries.count - 1)
+        let index = entryIndex(tab["index"], count: entries.count)
         guard let url = entries[index]["url"] as? String, !url.isEmpty else { continue }
         tabs.append(ImportedTab(url: url, title: entries[index]["title"] as? String ?? "",
                                 pinned: tab["pinned"] as? Bool ?? false, groupId: tab["groupId"] as? String,
@@ -236,6 +236,10 @@ public enum Firefox {
       }
     }
     return OpenTabs(tabs: tabs, groups: groups)
+  }
+
+  static func entryIndex(_ oneBased: Any?, count: Int) -> Int {
+    min(max(oneBased as? Int ?? count, 1), count) - 1
   }
 
   public static func loadSession(profile: URL) throws -> OpenTabs {

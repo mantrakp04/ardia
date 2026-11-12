@@ -11,10 +11,14 @@
 //   --keep     leave the instance running at the end (and reuse the one this scratch dir already keeps)
 //   --attach   run against the instance a --keep run left in <scratch dir>: no boot, seconds per check
 //   SKIP=a,b   leave checks out; VERBOSE=1 prints the log as it goes; METRO_PORT (default 8081)
+//   ARDIA_TRACE=visibility,pip and ARDIA_INSTANCE=allowOcclusion,chromiumSwitches=… pass on to the instance
 //
 // Output: one line per check (PASS/FAIL, ms); a failure adds its first lines; the rest (evidence, state at a failure,
 // diagnostics) goes to <scratch dir>/data/acceptance.log, results to <scratch dir>/results.json. It never takes focus
 // and never touches a real profile: the data dir is <scratch dir>/data, wiped first (not when attaching).
+// Its instance keeps Chrome's audio (ARDIA_INSTANCE allowAudio) so Chrome reports audible tabs, and sends it to a fake output
+// (--disable-audio-output): nothing reaches the speakers. The fixtures play at -60 dBFS (Chrome's audible threshold is
+// -72); the automatic Picture in Picture checks need ffmpeg for their clip (made once into <scratch dir>/media).
 //
 // Sections (// MARK:): Fixtures (the HTTP/HTTPS fixture server, extensions, a CRX) · The app (launch, evalApp, cdp)
 // · Helpers · Checks (in run order: windows and tabs, pages, choosers and Cast, capture, restore, extensions, content
@@ -26,10 +30,14 @@
 //   until(what, fn, ms)            polls fn until truthy (200 ms), else throws with the last value
 //   state()                        the main window: { windowId, profileId, tabs: [{ id, url, title, loading, … }], active }
 //   targets() · pageTarget(urlPart) · pageFor(tabId, urlPart) · cdp(target, method, params) · closeFromPage(target)
-//   cef(call) · exts(call)         ArdiaCEF / ArdiaExtensions module calls
-//   browserOf(tabId) · eventsOf(tabId) · lastEvent(tabId, name, test) · live(tabId) · pipWindows()
+//   engine(name, args, ms)         ac.engine.call(name, args); rejects with the engine's error
+//   engineOrError(name, args, ms)  the same, but a failure resolves { error } (the old password, autofill, extension shape)
+//   secret(module, fn, …args)      ArdiaPasswords / ArdiaAutofill calls that carry a secret; a failure resolves { error }
+//   browserOf(tabId) (the tab's engine browser, to tell a reload apart) · eventsOf(tabId) · lastEvent(tabId, name, test) · live(tabId) · pipWindows()
 //   openTab(url, title, background) · closeTab(id) · shownAndMounted(id) · freshTab(url) · backToA() · startVideo(tabId, audio)
-//   launch(log, env, args, opts) · appUp(log)   (re)start the app on the run's data dir; `exited` is set once it's gone
+//   closeDownloads()               closes the Downloads popover a new download opens (its backdrop takes the next click)
+//   pipByHand(tabId)               Site Controls › Picture in Picture, clicked as the user does (manual PiP needs the click)
+//   launch(log, test, args, opts) · appUp(log)   (re)start the app on the run's data dir; `exited` is set once it's gone
 //   onScreenWindows() · firstPixel(png) · writePopupExtension(opts) · fixtureCrx()
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -39,6 +47,7 @@ import { basename, join, resolve } from "node:path";
 import { X509Certificate, createHash, createSign, generateKeyPairSync } from "node:crypto";
 import { crc32, deflateSync, inflateSync } from "node:zlib";
 import { attach as attachInstance, launch as launchInstance, onScreenWindows as windowsOf, reporter, sleep } from "../../../scripts/lib/instance.mjs";
+import { instanceEntries } from "../../../scripts/lib/launchEnv.mjs";
 
 // MARK: What each check needs
 
@@ -47,17 +56,23 @@ const usesPageA = [
   "cmd-click", "evaluate", "tab-strips", "tab-switch", "status-text", "load-error", "chrome-strings",
   "context-menu-search", "duplicate-and-reopen", "device-chooser", "bluetooth-chooser",
   "bluetooth-settings", "cast-dialog", "cast-routes", "theme-commit", "user-selection",
-  "password-prompt", "screen-share-picker", "tab-capture", "share-instead-two-captures",
-  "restore-after-close", "discard-outcomes", "capture-picture", "unresponsive", "permission-dismissed",
+  "password-prompt", "screen-share-picker", "tab-capture", "share-instead-two-captures", "blank-frame-share", "pip-share-without-click",
+  "restore-after-close", "discard-outcomes", "memory-saver", "capture-picture", "unresponsive", "permission-dismissed",
   "save-page", "activate-request", "extension-popup-and-panel", "scroll-zoom", "print-preview",
   "extension-prompts", "traffic-lights-after-profile-switch", "extension-configure",
-  "private-windows-create", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
+  "private-windows-create", "extension-private-window", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
   "settings-services", "download-navigation", "page-events", "page-background", "external-app-answer",
-  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "pip-window", "page-focus",
-  "fullscreen-tab-switch", "fullscreen-native", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
+  "external-app-from-extension",
+  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "auto-picture-in-picture-app-switch", "picture-in-picture-opt-out", "pip-window", "pip-framing", "report-recording-pip", "report-recording-guard", "report-recording-webkit-media", "page-focus",
+  "fullscreen-tab-switch", "fullscreen-native", "fullscreen-system-title-bar", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
   "fullscreen-pip", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
   "permission-prompt", "popup-blocked", "move-tab-slow-mount", "move-last-tab-slow-mount",
   "move-tab-closed-while-parked", "move-tab-to-window", "title-bar-close", "last-used-profile",
+  "webkit-tab", "webkit-move-tab", "webkit-zoom", "webkit-now-playing", "webkit-scroll", "webkit-js-reload",
+  "window-close-before-reveal", "window-close-during-exit", "window-close-while-full-screen-restore-waits",
+  "webkit-clearing-keeps-zoom", "webkit-private-session-ends-mid-transfer", "webkit-now-playing-frames",
+  "page-view-calls", "tab-close-then-load", "tab-close-before-create", "tab-load-before-attach", "tab-create-interrupted-by-move", "tab-close-while-lent",
+  "page-reports-follow-the-tab",
 ];
 const needs = {
   ...Object.fromEntries([...usesPageA, "task-manager", "internal-pages-not-history", "second-profile"].map((name) => [name, ["open-url"]])),
@@ -65,13 +80,14 @@ const needs = {
   "tab-keys-from-page": ["open-url", "target-blank"],
   "window-close": ["window-open"],
   "site-data-clear": ["open-url"],
-  "frozen": ["open-url", "cmd-click"],
   "discard": ["open-url", "cmd-click"],
   "duplicate-and-reopen": ["open-url", "navigate-back-forward-reload"],
   "context-menu-activation-log": ["context-menu-search"],
   "title-bar-close": ["open-url", "move-tab-to-window"],
   "context-menu-incognito": ["context-menu-log"],
+  "context-menu-split": ["context-menu-log"],
   "relaunch-profile": ["last-used-profile", "quit"],
+  "profile-data-retried-at-launch": ["profile-data-deletion-fails", "quit"],
 };
 function checkIndex() {
   let section = "Checks";
@@ -125,6 +141,21 @@ if (flag("--list")) listChecks();
 const attaching = argv[0] === "--attach";
 if (attaching) argv.shift();
 const keep = flag("--keep") || attaching;
+const audioOutputOf = (browserPid) => {
+  const utilities = execFileSync("ps", ["-A", "-ww", "-o", "ppid=,command="], { encoding: "utf8" }).split("\n")
+    .filter((line) => line.trim().split(/\s+/)[0] === String(browserPid) && line.includes("--type=utility"));
+  if (!utilities.length) return null;
+  return utilities.some((line) => line.includes(" --disable-audio-output")) ? "fake" : "speakers";
+};
+const settledAudioOutput = async (browserPid) => {
+  for (const deadline = Date.now() + 15000; Date.now() < deadline; await sleep(200)) {
+    const output = audioOutputOf(browserPid);
+    if (output) return output;
+  }
+  return null;
+};
+const unproven = (output) => (output === "speakers" ? "plays sound through this Mac's speakers (started without --disable-audio-output)"
+  : "showed no Chrome helper within 15 s, so its audio output is unknown");
 let kept = null;
 if (attaching || keep) {
   try {
@@ -135,7 +166,12 @@ if (attaching || keep) {
       process.exit(66);
     }
   }
-  if (kept && !attaching && kept.app !== resolve(argv[0])) {
+  const keptOutput = kept && (attaching || kept.app === resolve(argv[0])) ? await settledAudioOutput(kept.pid) : null;
+  if (kept && attaching && keptOutput !== "fake") {
+    console.error(`--attach: pid ${kept.pid} ${unproven(keptOutput)}; quit it (scripts/agent/ac quit ${join(resolve(argv[0]), "data")}) and start a new run`);
+    process.exit(65);
+  }
+  if (kept && !attaching && (kept.app !== resolve(argv[0]) || keptOutput !== "fake")) {
     await kept.quit();
     kept = null;
   }
@@ -151,7 +187,7 @@ const scratch = resolve(scratchArg);
 const data = join(scratch, "data");
 let port;
 const downloadsDir = join(scratch, "downloads");
-const lightsLog = join(scratch, "traffic-lights.log");
+const lightsLog = join(data, "traffic-lights.log");
 if (!kept) {
   rmSync(lightsLog, { force: true });
   rmSync(data, { recursive: true, force: true });
@@ -169,11 +205,24 @@ const stamp = () => new Date().toISOString().slice(11, 23);
 
 const adServed = [];
 const served = new Map();
+const referers = new Map();
 const siteDataDomain = "ardia-sitedata.com";
 const siteDataSecureHosts = [`s.${siteDataDomain}`, "embed.ardia-thirdparty.com", "top.ardia-elsewhere.com"];
+let clipBytes = null;
+const fixtureClip = () => {
+  const path = join(scratch, "media", "clip.webm");
+  if (!existsSync(path)) {
+    mkdirSync(join(scratch, "media"), { recursive: true });
+    execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30",
+      "-f", "lavfi", "-i", "aevalsrc=0.001*sin(2*PI*440*t):s=48000", "-t", "30", "-c:v", "libvpx", "-b:v", "200k", "-c:a", "libopus",
+      "-shortest", path], { stdio: "ignore" });
+  }
+  return (clipBytes ??= readFileSync(path));
+};
 const server = createServer((req, res) => {
   if (!req.headers.host?.startsWith("127.0.0.1")) adServed.push(`${req.headers.host}${req.url}`);
   served.set(req.url, (served.get(req.url) ?? 0) + 1);
+  referers.set(req.url, req.headers.referer ?? "");
   const url = new URL(req.url, "http://x");
   const page = (title, body, extra = "") =>
     `<!doctype html><html><head><title>${title}</title><link rel="icon" href="/icon.png">${extra}</head><body>${body}</body></html>`;
@@ -220,17 +269,22 @@ const server = createServer((req, res) => {
     res.writeHead(200, { "content-type": "application/x-chrome-extension" });
     return res.end(fixtureCrx());
   }
+  if (url.pathname === "/clip.webm") {
+    const clip = fixtureClip();
+    res.writeHead(200, { "content-type": "video/webm", "content-length": String(clip.length) });
+    return res.end(clip);
+  }
   if (url.pathname === "/tone.wav") {
     const rate = 8000, n = rate;
     const wav = Buffer.alloc(44 + n * 2);
     wav.write("RIFF", 0); wav.writeUInt32LE(36 + n * 2, 4); wav.write("WAVEfmt ", 8); wav.writeUInt32LE(16, 16);
     wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(rate, 24); wav.writeUInt32LE(rate * 2, 28);
     wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write("data", 36); wav.writeUInt32LE(n * 2, 40);
-    for (let i = 0; i < n; i++) wav.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / rate) * 3000), 44 + i * 2);
+    for (let i = 0; i < n; i++) wav.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / rate) * 33), 44 + i * 2);
     res.writeHead(200, { "content-type": "audio/wav", "content-length": String(wav.length) });
     return res.end(wav);
   }
-  res.writeHead(200, { "content-type": "text/html" });
+  res.writeHead(200, { "content-type": "text/html", ...(url.pathname === "/fresh" ? { "cache-control": "no-store" } : {}) });
   if (url.pathname === "/cam")
     return res.end(page("Cam", "cam", `<script>
       window.__asks = []; window.__streams = [];
@@ -261,6 +315,11 @@ const server = createServer((req, res) => {
   }
   if (url.pathname === "/login") return res.end(page("Login", `<form action="/b" method="get"><input name="u" id="u" autocomplete="username"><input type="password" name="p" id="p" autocomplete="current-password"><button id="go">Sign in</button></form>`));
   if (url.pathname === "/text") return res.end(page("Text", `<p id="t" style="font: 20px sans-serif; margin: 40px">Hello selection world, select me please</p>`));
+  if (url.pathname === "/drag")
+    return res.end(page("Drag", `<div id="card" draggable="true" style="position: absolute; left: 40px; top: 40px; width: 180px; height: 60px; background: #ccd">card</div>
+      <div id="clicker" style="position: absolute; left: 300px; top: 40px; width: 120px; height: 60px; background: #dcc">click</div>
+      <script>window.__events = []; for (const t of ["mousedown", "click", "dragstart", "dragend"]) addEventListener(t, (e) => __events.push([t, e.target.id || "", e.clientX, e.clientY]), true);
+      card.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", "card"));</script>`));
   if (url.pathname === "/capture-target") return res.end(page("Capture Target", "the tab that tab capture picks"));
   if (url.pathname === "/solid")
     return res.end(page(url.searchParams.get("t") ?? "Solid", "", `<style>html, body { margin: 0; height: 100%; background: #${url.searchParams.get("c") ?? "808080"} }</style>`));
@@ -275,23 +334,65 @@ const server = createServer((req, res) => {
         return Array.from(g.getImageData(bitmap.width >> 1, bitmap.height >> 1, 1, 1).data.slice(0, 3));
       };
     </script>`));
+  if (url.pathname === "/blank-share")
+    return res.end(page("Blank Share", `<iframe id="blank"></iframe><iframe id="srcdoc" srcdoc="<p>srcdoc</p>"></iframe>`, `<script>
+      window.__share = {};
+      window.__streams = [];
+      window.share = (kind) => {
+        window.__share[kind] = "pending";
+        document.getElementById(kind).contentWindow.navigator.mediaDevices.getDisplayMedia({ video: true })
+          .then((s) => { window.__streams.push(s); window.__share[kind] = "live"; }, (e) => (window.__share[kind] = e.name));
+        return true;
+      };
+    </script>`));
+  if (url.pathname === "/pip-share")
+    return res.end(page("PiP Share", "pip share", `<script>
+      window.openPip = async () => { window.__pip = await documentPictureInPicture.requestWindow({ width: 320, height: 180 }); return "ok"; };
+      window.pipShare = () => {
+        window.__pipShare = "pending";
+        window.__pip.navigator.mediaDevices.getDisplayMedia({ video: true })
+          .then((s) => { s.getTracks().forEach((t) => t.stop()); window.__pipShare = "live"; }, (e) => (window.__pipShare = e.name));
+        return true;
+      };
+    </script>`));
   if (url.pathname === "/media") return res.end(page("Media", `<audio id="tone" src="/tone.wav" loop></audio>`));
+  if (url.pathname === "/fresh") return res.end(page("Fresh", "fresh"));
+  if (url.pathname === "/np-frames") return res.end(page("NP frames", `<audio id="tone" src="/tone.wav" loop></audio><iframe src="/np-child"></iframe>`));
+  if (url.pathname === "/np-child") return res.end(page("NP child", `<audio id="tone" src="/tone.wav" loop></audio>`));
+  if (url.pathname === "/tall") return res.end(page("Tall", `<div style="height: 8000px; background: linear-gradient(#fff, #ccc)">tall</div>`));
   if (url.pathname === "/form")
     return res.end(page("Form", `<form action="/form" method="get" autocomplete="on"><input id="c" name="city" autocomplete="on" style="font-size: 20px; margin: 80px; width: 300px"><button id="b">go</button></form>`));
+  if (url.pathname === "/marker") {
+    const [a, b] = url.search.includes("other") ? ["#8000ff", "#ff8000"] : ["#ff00ff", "#00ffff"];
+    return res.end(page("Marker", "", `<style>html, body { margin: 0; height: 100%; background: repeating-conic-gradient(${a} 0 25%, ${b} 0 50%) 0 0 / 192px 192px }</style>`));
+  }
   if (url.pathname === "/video")
     return res.end(page("Video", `<video id="v" playsinline style="width: 320px; height: 180px"></video><script>
       const c = document.createElement("canvas"); c.width = 320; c.height = 180;
       const g = c.getContext("2d"); let n = 0;
-      setInterval(() => { g.fillStyle = "hsl(" + ((n++ * 7) % 360) + ", 70%, 50%)"; g.fillRect(0, 0, 320, 180); }, 33);
+      const marker = location.search.includes("marker");
+      setInterval(() => {
+        n++;
+        if (!marker) { g.fillStyle = "hsl(" + ((n * 7) % 360) + ", 70%, 50%)"; g.fillRect(0, 0, 320, 180); return; }
+        const off = (n * 2) % 80;
+        for (let y = 0; y < 4; y++) for (let x = -2; x < 9; x++) { g.fillStyle = (x + y) % 2 ? "#0000ff" : "#ffff00"; g.fillRect(x * 40 + off, y * 45, 40, 45); }
+      }, 33);
       window.start = (audio) => {
+        if (location.search.includes("file")) {
+          const clip = document.getElementById("v");
+          clip.src = "/clip.webm";
+          clip.loop = true;
+          return clip.play().then(() => "ok", (e) => e.name);
+        }
         const stream = c.captureStream(30);
         if (audio) {
-          const ac = new AudioContext(), osc = ac.createOscillator(), out = ac.createMediaStreamDestination();
-          osc.connect(out); osc.start(); stream.addTrack(out.stream.getAudioTracks()[0]);
+          const ac = new AudioContext(), osc = ac.createOscillator(), quiet = new GainNode(ac, { gain: 0.001 }), out = ac.createMediaStreamDestination();
+          osc.connect(quiet).connect(out); osc.start(); stream.addTrack(out.stream.getAudioTracks()[0]);
         }
         const v = document.getElementById("v"); v.srcObject = stream;
         return v.play().then(() => "ok", (e) => e.name);
       };
+      if (location.search.includes("optout")) document.getElementById("v").disablePictureInPicture = true;
       if (location.search.includes("docpip"))
         navigator.mediaSession.setActionHandler("enterpictureinpicture", async () => {
           const w = await documentPictureInPicture.requestWindow({ width: 320, height: 180 });
@@ -353,30 +454,37 @@ const tlsCert = readFileSync(join(tlsDir, "cert.pem"));
 const tlsServer = createHttpsServer({ key: readFileSync(join(tlsDir, "key.pem")), cert: tlsCert }, (req, res) => server.emit("request", req, res));
 await listen(tlsServer, kept?.meta.https ?? 0);
 const secureBase = `https://127.0.0.1:${tlsServer.address().port}`;
+const webkitServer = createServer((req, res) => server.emit("request", req, res));
+await listen(webkitServer, kept?.meta.webkit ?? 0);
+const webkitBase = `http://127.0.0.1:${webkitServer.address().port}`;
 const tlsSpki = createHash("sha256").update(new X509Certificate(tlsCert).publicKey.export({ type: "spki", format: "der" })).digest("base64");
 
 // MARK: The app
 
 let exe, stdout, pid, child, launchedAt, exited = null;
 let instance = null;
-process.env.ARDIA_CHROMIUM_SWITCHES = `--ardia-test-media-route-provider --disable-media-route-providers-for-test --ardia-test-bluetooth-chooser ${process.env.ARDIA_CHROMIUM_SWITCHES ?? ""}`.trim();
-process.env.ARDIA_CHROMIUM_SWITCHES += ` --host-resolver-rules=${["ib.adnxs.com", "securepubads.g.doubleclick.net", "pagead2.googlesyndication.com", "adpage.test"]
+const runner = { instance: instanceEntries(process.env.ARDIA_INSTANCE), trace: (process.env.ARDIA_TRACE ?? "").split(",").filter(Boolean) };
+let chromeSwitches = `--disable-media-route-providers-for-test ${runner.instance.chromiumSwitches ?? ""}`.trim();
+chromeSwitches += ` --host-resolver-rules=${["ib.adnxs.com", "securepubads.g.doubleclick.net", "pagead2.googlesyndication.com", "adpage.test"]
   .map((host) => `MAP ${host} 127.0.0.1:${server.address().port}`).concat([`one.${siteDataDomain}`, `two.${siteDataDomain}`, ...siteDataSecureHosts].map((host) => `MAP ${host} 127.0.0.1:${tlsServer.address().port}`)).join(", ")}`;
-process.env.ARDIA_CHROMIUM_SWITCHES += ` --apps-gallery-update-url=${base}/webstore/crx`;
-process.env.ARDIA_CHROMIUM_SWITCHES += ` --ignore-certificate-errors-spki-list=${tlsSpki}`;
-async function launch(logName = "app.out.log", env = {}, args = [], opts = {}) {
+chromeSwitches += ` --apps-gallery-update-url=${base}/webstore/crx`;
+chromeSwitches += ` --ignore-certificate-errors-spki-list=${tlsSpki}`;
+chromeSwitches += " --disable-audio-output";
+async function launch(logName = "app.out.log", test = {}, args = [], opts = {}) {
   instance = await launchInstance(opts.app ?? app, {
     data, log: join(scratch, logName), args, ready: false,
-    env: {
-      ARDIA_TEST_REAUTH: "granted", ARDIA_DOWNLOADS_DIR: downloadsDir,
-      ...Object.fromEntries(["ARDIA_ALLOW_OCCLUSION", "ARDIA_TRACE_VISIBILITY", "ARDIA_TRACE_PIP"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])),
-      ARDIA_TRAFFIC_LIGHTS_LOG: lightsLog,
-      ...env,
-    },
-    switches: `--auto-select-tab-capture-source-by-title=Capture Target --ardia-test-external-protocol-no-launch ${process.env.ARDIA_CHROMIUM_SWITCHES ?? ""} ${opts.switches ?? ""}`.trim(),
-    meta: { http: server.address().port, https: tlsServer.address().port },
+    instance: { downloadsDir, allowAudio: true, ...(runner.instance.allowOcclusion ? { allowOcclusion: true } : {}) },
+    test: { reauth: "granted", mediaRouteProvider: true, bluetoothChooser: true, externalProtocolNoLaunch: true, ...test },
+    trace: [...new Set(["trafficLights", ...runner.trace.filter((area) => ["visibility", "pip"].includes(area))])],
+    switches: `--auto-select-tab-capture-source-by-title=Capture Target ${chromeSwitches} ${opts.switches ?? ""}`.trim(),
+    meta: { http: server.address().port, https: tlsServer.address().port, webkit: webkitServer.address().port },
   });
   adopt(instance);
+  const output = await settledAudioOutput(pid);
+  if (output !== "fake") {
+    await instance.quit();
+    throw new Error(`pid ${pid} ${unproven(output)}: quit before any check plays sound`);
+  }
 }
 function adopt(i) {
   instance = i;
@@ -454,10 +562,13 @@ function firstPixel(base64) {
 
 const pageTarget = async (urlPart) => (await targets()).find((t) => t.type === "page" && t.url.includes(urlPart));
 const closeFromPage = (target) => cdp(target, "Runtime.evaluate", { expression: "setTimeout(() => window.close()); true" });
-const cef = (call) => evalApp(`return globalThis.expo.modules.ArdiaCEF.${call}`);
-const exts = (call) => evalApp(`return globalThis.expo.modules.ArdiaExtensions.${call}`);
+const engine = (name, args = {}, ms) => evalApp(`return ac.engine.call(${JSON.stringify(name)}, ${JSON.stringify(args)})`, ms);
+const engineOrError = (name, args = {}, ms) =>
+  evalApp(`return ac.engine.call(${JSON.stringify(name)}, ${JSON.stringify(args)}).catch((e) => ({ error: e.message }))`, ms);
+const secret = (module, fn, ...args) =>
+  evalApp(`return globalThis.expo.modules.${module}.${fn}(${args.map((a) => JSON.stringify(a)).join(", ")}).then(JSON.parse).catch((e) => ({ error: e.message }))`);
 const extPath = join(scratch, "fixture-ext");
-cpSync(resolve(new URL(".", import.meta.url).pathname, "../../../spikes/ardiacore-host/fixtures/ext"), extPath, { recursive: true });
+cpSync(resolve(new URL(".", import.meta.url).pathname, "../tests/fixtures/ext"), extPath, { recursive: true });
 const extPopupPath = join(scratch, "fixture-ext-popup");
 function writePopupExtension({ welcome = false } = {}) {
   rmSync(extPopupPath, { recursive: true, force: true });
@@ -521,7 +632,7 @@ function fixtureCrx() {
   return (crxCache = Buffer.concat([prefix, header, zip]));
 }
 const onScreenWindows = () => windowsOf(pid);
-const browserOf = (tabId) => evalApp(`return ac.pageState.getState().browsers ? Object.entries(ac.pageState.getState().browsers).find(([, t]) => t === "${tabId}")?.[0] ?? null : null`);
+const browserOf = async (tabId) => (await engine("tabs.devBrowserId", { tabId })) || null;
 async function pageFor(tabId, urlPart) {
   const candidates = (await targets()).filter((t) => t.type === "page" && t.url.includes(urlPart));
   if (candidates.length <= 1) return candidates[0];
@@ -537,12 +648,11 @@ let mainWindow = null;
 let first;
 let personal = null;
 const eventsOf = async (tabId) => {
-  const browser = await browserOf(tabId);
-  return browser ? evalApp(`return globalThis.expo.modules.ArdiaCEF.devEvents(${browser})`) : [];
+  return (await browserOf(tabId)) ? engine("tabs.devEvents", { tabId }) : [];
 };
 const state = () =>
-  evalApp(`const s = ac.store.getState(); const w = s.windows[${JSON.stringify(mainWindow)}] ?? Object.values(s.windows).filter((w) => !w.incognito && w.kind !== "small").sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))[0];
-    return { windowId: w?.id, profileId: w?.profileId, tabs: (w?.tabIds ?? []).map((id) => ({ id, url: s.tabs[id]?.url, title: s.tabs[id]?.title, favicon: s.tabs[id]?.favicon?.slice(0, 40), adoptId: s.tabs[id]?.adoptId, profileId: s.tabs[id]?.profileId, loading: s.live[id]?.isLoading, back: s.live[id]?.canGoBack, fwd: s.live[id]?.canGoForward })), active: w ? w.activeTabIds[w.profileId] : null, windows: Object.keys(s.windows).length, profiles: s.profileOrder };`);
+  evalApp(`const s = ac.store.getState(); const w = s.windows[${JSON.stringify(mainWindow)}] ?? Object.values(s.windows).filter((w) => w.kind === "main").sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))[0];
+    return { windowId: w?.id, profileId: w?.profileId, tabs: (w?.tabIds ?? []).map((id) => ({ id, url: s.tabs[id]?.url, title: s.tabs[id]?.title, favicon: s.tabs[id]?.favicon?.slice(0, 40), adoptId: s.tabs[id]?.page.adopt, profileId: s.tabs[id]?.profileId, loading: s.live[id]?.isLoading, back: s.live[id]?.canGoBack, fwd: s.live[id]?.canGoForward })), active: w ? w.activeTabIds[w.profileId] : null, windows: Object.keys(s.windows).length, profiles: s.profileOrder };`);
 
 // MARK: Helpers
 
@@ -574,13 +684,22 @@ const backToA = async () => {
 };
 const lastEvent = async (tabId, name, test = () => true) => (await eventsOf(tabId)).findLast((x) => x.name === name && test(x.payload ?? {})) ?? null;
 const live = (tabId) => evalApp(`return ac.store.getState().live["${tabId}"] ?? null`);
-const pipWindows = () => cef(`devPictureInPicture()`).catch(() => null);
+const pipWindows = () => engine("tabs.devPictureInPicture").catch(() => null);
 const startVideo = async (tabId, audio) => {
-  const t = await pageFor(tabId, `${base}/video`);
+  const t = await pageFor(tabId, "/video");
   const r = await cdp(t, "Runtime.evaluate", { expression: `start(${audio})`, awaitPromise: true, userGesture: true, returnByValue: true });
   if (r.result?.value !== "ok") throw new Error(`the video didn't play: ${JSON.stringify(r.result ?? r)}`);
   await until("the video's first frames", async () => (await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').videoWidth", returnByValue: true })).result?.value > 0, 8000);
   return t;
+};
+const closeDownloads = () => evalApp(`ac.store.getState().setDownloadsOpen(${JSON.stringify(mainWindow)}, false); return true`).catch(() => null);
+const pipByHand = async (tabId) => {
+  await closeDownloads();
+  await evalApp(`ac.pageState.setState((s) => ({ popover: { ...s.popover, ${JSON.stringify(tabId)}: "siteControls" } })); return true`);
+  return until("a click on Site Controls › Picture in Picture", async () => {
+    const click = await evalApp(`return ac.shell.devClick(${JSON.stringify(mainWindow)}, { label: "Picture in Picture", queued: true, wait: 300 })`);
+    return click?.error ? null : click;
+  }, 5000);
 };
 const stopApp = async () => {
   if (!exited) await instance.quit();
@@ -591,7 +710,7 @@ const appUp = async (logName) => {
   if (exited) await launch(logName);
   await until("the app", async () => {
     try {
-      return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+      return await engine("engine.info", {}, 3000);
     } catch (e) {
       if (exited) throw e;
       return null;
@@ -641,7 +760,7 @@ async function check(name, fn) {
   if ((process.env.SKIP ?? "").split(",").includes(name)) return;
   if (recovered.has(name)) return;
   currentCheck = name;
-  if (process.env.ARDIA_TRACE_VISIBILITY) log(`  [check ${stamp()}] ${name}`);
+  if (runner.trace.includes("visibility")) log(`  [check ${stamp()}] ${name}`);
   let failure = null;
   const started = Date.now();
   await report.check(name, async () => {
@@ -676,7 +795,7 @@ try {
   await check("boot", async () => {
     const info = await until("the dev harness", async () => {
       try {
-        return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+        return await engine("engine.info", {}, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
@@ -704,11 +823,11 @@ try {
     const personalTab = await evalApp(`return ac.store.getState().newTab(${JSON.stringify(home)}, { url: "${base}/cookie?personal" })`);
     await shows(home, "Cookie");
     const steps = [];
-    const p1 = await open({ incognito: true, url: `${base}/cookie?private1` });
+    const p1 = await open({ kind: "private", url: `${base}/cookie?private1` });
     await shows(p1, "Cookie");
     if ((await cookie("/cookie?private1")).includes("personal")) throw new Error("a private window sees Personal's cookie");
     await close(p1);
-    const p2 = await open({ incognito: true, url: `${base}/b?private2` });
+    const p2 = await open({ kind: "private", url: `${base}/b?private2` });
     await shows(p2, "Page B");
     steps.push("private, reopened at once");
     if ((await cookie("/b?private2")).includes("personal")) throw new Error("the reopened private window sees Personal's cookie");
@@ -719,13 +838,13 @@ try {
     steps.push("private, a tab after its last tab closed");
     await close(p2);
     await sleep(2500);
-    const p4 = await open({ incognito: true, url: `${base}/d?private4` });
+    const p4 = await open({ kind: "private", url: `${base}/d?private4` });
     await shows(p4, "Page D");
     steps.push("private, reopened later");
     if ((await cookie("/d?private4")).includes("personal")) throw new Error("a later private window sees Personal's cookie");
     let last = p4;
     for (let round = 0; round < 4; round++) {
-      const next = await evalApp(`const s = ac.store.getState(); s.closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ incognito: true, url: "${base}/e?churn${round}" })`);
+      const next = await evalApp(`const s = ac.store.getState(); s.closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ kind: "private", url: "${base}/e?churn${round}" })`);
       await shows(next, "Page E");
       await sleep(round % 2 ? 200 : 1500);
       await evalApp(`ac.store.getState().newTab(${JSON.stringify(next)}, { url: "${base}/b?churn${round}" }); return true`);
@@ -769,27 +888,26 @@ try {
     first = s.t;
     const t = await pageTarget(`${base}/a`);
     if (!t) throw new Error("no CDP target for A");
-    if (process.env.ARDIA_TRACE_VISIBILITY) watchVisibility(t);
+    if (runner.trace.includes("visibility")) watchVisibility(t);
     return { tab: s.t.id, title: s.t.title, active: s.s.active === s.t.id };
   });
 
   await check("visibility", async () => {
     const t = await pageFor(first.id, `${base}/a`);
     const vis = (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState + '/' + document.hasFocus()", returnByValue: true })).result.value;
-    const windows = (await evalApp(`return globalThis.expo.modules.ArdiaCEF.chromeWindows()`)).map((w) => ({ visible: w.visible, alpha: w.alpha, key: w.key, frame: w.frame }));
+    const windows = (await engine("windows.list")).map((w) => ({ visible: w.visible, alpha: w.alpha, key: w.key, frame: w.frame }));
     return { page: vis, windows };
   });
 
   await check("occlusion", async () => {
-    const allow = !!process.env.ARDIA_ALLOW_OCCLUSION;
+    const allow = !!runner.instance.allowOcclusion;
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     await until("A shown", async () => (await state()).active === first.id);
     const t = await pageFor(first.id, `${base}/a`);
     const vis = async () => (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value;
-    const browser = await browserOf(first.id);
-    const windowNumber = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindowNumber(${browser})`);
-    const chromeSees = async () => (await evalApp(`return globalThis.expo.modules.ArdiaCEF.chromeWindows()`)).find((x) => x.window === windowNumber);
-    await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindow(${windowNumber}, "cover")`);
+    const windowNumber = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const chromeSees = async () => (await engine("windows.list")).find((x) => x.window === windowNumber);
+    await engine("windows.dev", { window: windowNumber, action: "cover" });
     let samples = [], escape = null, w = null;
     try {
       w = await until("macOS to see the window occluded", async () => {
@@ -809,7 +927,7 @@ try {
           (await eventsOf(first.id)).filter((x) => x.name === "command" && x.payload?.command === "escape").length > before ? true : null, 5000);
       }
     } finally {
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindow(${windowNumber}, "uncover")`);
+      await engine("windows.dev", { window: windowNumber, action: "uncover" });
     }
     const back = await until("visible again", async () => ((await vis()) === "visible" ? "visible" : null), 10000);
     const expected = allow ? "hidden" : "visible";
@@ -890,7 +1008,7 @@ try {
   });
 
   await check("tab-strips", async () => {
-    const tx = await evalApp(`return globalThis.expo.modules.ArdiaCEF.tabStrips()`);
+    const tx = await engine("tabs.strips");
     const s = await state();
     const strip = tx.strips.find((x) => x.tabs.some((t) => t.key === first.id));
     if (!strip) throw new Error(`no strip names ${first.id}: ${JSON.stringify(tx)}`);
@@ -993,7 +1111,7 @@ try {
   });
 
   await check("context-menu-search", async () => {
-    await evalApp(`return globalThis.expo.modules.ArdiaCEF.setSearchEngineName("Acceptance").then(() => true)`);
+    await engine("search.setEngineName", { name: "Acceptance" }).then(() => true);
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     await until("A shown", async () => (await state()).active === first.id);
     await sleep(300);
@@ -1027,7 +1145,7 @@ try {
       const vis = (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState + '/' + document.hasFocus()", returnByValue: true })).result.value;
       throw new Error(`no context menu reported (page ${vis}); events: ${JSON.stringify((await eventsOf(first.id)).slice(-6).map((x) => x.name))}`);
     }
-    const selection = !!(await eventsOf(first.id)).findLast((x) => x.name === "pageMessage" && x.payload?.kind === "selection");
+    const selection = !!(await eventsOf(first.id)).findLast((x) => x.name === "selection");
     const labels = e.payload.items.filter((i) => !i.separator).map((i) => i.label);
     const search = labels.filter((l) => /^Search .* for /.test(l));
     if (!search.some((l) => l.startsWith("Search Acceptance for “to B”"))) throw new Error(`no app search item: ${JSON.stringify(labels)}`);
@@ -1086,32 +1204,31 @@ try {
     return { chooser: { id: chooser.id, title: chooser.title, options: chooser.options?.length }, page: result };
   });
 
-  const chromeUI = (call) => evalApp(`return globalThis.expo.modules.ArdiaChromeUI.${call}`);
   const chooserOf = (tabId) => evalApp(`return globalThis.acDeviceChoosers?.useChoosers.getState().byTab["${tabId}"] ?? null`);
   const bluetoothChooser = async (unauthorized) => {
-    if (!(await chromeUI(`devShowBluetoothChooser(${await browserOf(first.id)}, ${unauthorized})`))) throw new Error("devShowBluetoothChooser said no (switch off?)");
+    if (!(await engine("media.devShowBluetoothChooser", { tabId: first.id, unauthorized }))) throw new Error("devShowBluetoothChooser said no (switch off?)");
     return until("the app's Bluetooth chooser", async () => {
       const c = await chooserOf(first.id);
       return c && (unauthorized ? c.unauthorized : c.options?.length) ? c : null;
     }, 10000);
   };
-  const chooserEvents = () => chromeUI(`devChooserEvents()`);
+  const chooserEvents = () => engine("media.devChooserEvents");
   const chooserGone = () => until("the sheet gone", async () => !(await chooserOf(first.id)), 5000);
 
   await check("bluetooth-chooser", async () => {
     await evalApp(`globalThis.__acChooser = []; globalThis.__acChooserSub?.remove();
-      globalThis.__acChooserSub = globalThis.expo.modules.ArdiaChromeUI.addListener("onDeviceChooser", (e) => globalThis.__acChooser.push(e)); return true`);
+      globalThis.__acChooserSub = ac.engine.on("media.deviceChooser", (e) => globalThis.__acChooser.push(e)); return true`);
     try {
       const before = (await chooserEvents()).length;
       const chooser = await bluetoothChooser(false);
       const sent = (await evalApp(`return globalThis.__acChooser`)).length;
-      await chromeUI(`refreshDeviceChooser(${chooser.id}).then(() => true)`);
+      await engine("media.refreshDeviceChooser", { id: chooser.id }).then(() => true);
       const rescan = await until("Chrome's rescan", async () => (await chooserEvents()).slice(before).find((e) => e.event === "rescan") ?? null, 5000);
       const refreshed = await until("the list sent again", async () => {
         const list = await evalApp(`return globalThis.__acChooser`);
         return list.slice(sent).find((c) => c.open && c.options?.length && !c.refreshing) ?? null;
       }, 5000);
-      await chromeUI(`selectDevice(${chooser.id}, 0).then(() => true)`);
+      await engine("media.selectDevice", { id: chooser.id, index: 0 }).then(() => true);
       const selected = await until("the pick answered", async () => (await chooserEvents()).slice(before).find((e) => e.event === "selected") ?? null, 5000);
       await chooserGone();
       if (selected.device !== "ac-test-device") throw new Error(`picked ${selected.device}`);
@@ -1119,25 +1236,25 @@ try {
     } finally {
       await evalApp(`globalThis.__acChooserSub?.remove(); return true`).catch(() => null);
       const c = await chooserOf(first.id).catch(() => null);
-      if (c) await chromeUI(`cancelDeviceChooser(${c.id}).then(() => true)`).catch(() => null);
+      if (c) await engine("media.cancelDeviceChooser", { id: c.id }).then(() => true).catch(() => null);
     }
   });
 
   await check("bluetooth-settings", async () => {
-    const launches = () => evalApp(`return globalThis.expo.modules.ArdiaCEF.devExternalLaunches()`);
+    const launches = () => engine("permissions.devExternalLaunches");
     const isSettings = (x) => /Privacy_Bluetooth/.test(x.url ?? "");
     const t = await pageFor(first.id, `${base}/a`);
     try {
       const before = (await launches()).filter(isSettings).length;
       const events = (await chooserEvents()).length;
       const bt = await bluetoothChooser(true);
-      await chromeUI(`openBluetoothSettings(${bt.id}).then(() => true)`);
+      await engine("media.openBluetoothSettings", { id: bt.id }).then(() => true);
       const recorded = await until("the Bluetooth settings pane recorded", async () => {
         const list = (await launches()).filter(isSettings);
         return list.length > before ? list.at(-1) : null;
       }, 5000);
       if ((await chooserOf(first.id))?.id !== bt.id) throw new Error("the chooser closed on openBluetoothSettings");
-      await chromeUI(`cancelDeviceChooser(${bt.id}).then(() => true)`);
+      await engine("media.cancelDeviceChooser", { id: bt.id }).then(() => true);
       await chooserGone();
       const cancelled = await until("the cancel answered", async () => (await chooserEvents()).slice(events).find((e) => e.event === "cancelled") ?? null, 5000);
       await cdp(t, "Runtime.evaluate", {
@@ -1145,27 +1262,26 @@ try {
         userGesture: true,
       });
       const usb = await until("the WebUSB chooser", () => chooserOf(first.id), 10000);
-      await chromeUI(`openBluetoothSettings(${usb.id}).then(() => true)`);
+      await engine("media.openBluetoothSettings", { id: usb.id }).then(() => true);
       await sleep(500);
       const after = (await launches()).filter(isSettings).length;
       if (after !== before + 1) throw new Error(`the WebUSB chooser recorded ${after - before - 1} settings pane(s)`);
       if ((await chooserOf(first.id))?.id !== usb.id) throw new Error("the WebUSB chooser closed on openBluetoothSettings");
-      await chromeUI(`cancelDeviceChooser(${usb.id}).then(() => true)`);
+      await engine("media.cancelDeviceChooser", { id: usb.id }).then(() => true);
       await chooserGone();
       return { unauthorized: bt.unauthorized, recorded: recorded.url, cancelled: !!cancelled, webUSB: "ignored" };
     } finally {
       const c = await chooserOf(first.id).catch(() => null);
-      if (c) await chromeUI(`cancelDeviceChooser(${c.id}).then(() => true)`).catch(() => null);
+      if (c) await engine("media.cancelDeviceChooser", { id: c.id }).then(() => true).catch(() => null);
     }
   });
 
   await check("cast-dialog", async () => {
-    const browser = await browserOf(first.id);
-    const shown = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.showCastDialog(${browser})`);
+    const shown = await engine("media.showCastDialog", { tabId: first.id });
     if (!shown) throw new Error("showCastDialog said no (media router off?)");
     const dialog = await until("the app's Cast dialog", async () => evalApp(`return globalThis.acCast?.useCast.getState().dialogs["${first.id}"] ?? null`), 10000);
     const routes = await evalApp(`return globalThis.acCast.useCast.getState().routes`);
-    await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.closeCastDialog(${dialog.id}).then(() => true)`);
+    await engine("media.closeCastDialog", { id: dialog.id }).then(() => true);
     await until("the dialog closed", async () => !(await evalApp(`return globalThis.acCast.useCast.getState().dialogs["${first.id}"] ?? null`)), 5000);
     return { header: dialog.header, sinks: dialog.sinks?.length ?? 0, routeProfiles: Object.keys(routes ?? {}) };
   });
@@ -1175,7 +1291,7 @@ try {
     const routesNow = () => evalApp(`return Object.values(globalThis.acCast.useCast.getState().routes).flat()`);
     const dialogNow = () => evalApp(`return globalThis.acCast.useCast.getState().dialogs["${first.id}"] ?? null`);
     const openDialog = async () => {
-      if (!(await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.showCastDialog(${browser})`))) throw new Error("showCastDialog said no");
+      if (!(await engine("media.showCastDialog", { tabId: first.id }))) throw new Error("showCastDialog said no");
       return until("the test sink in the app's dialog", async () => {
         const d = await dialogNow();
         const sink = d?.sinks?.find((s) => s.name === "Ardia Test Sink" && s.state === "available");
@@ -1183,7 +1299,7 @@ try {
       }, 10000).catch(async (e) => { throw new Error(`${e.message}; dialog ${JSON.stringify(await dialogNow())}`); });
     };
     const casting = async (dialogId, sink) => {
-      await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.startCasting(${dialogId}, ${JSON.stringify(sink.id)}, 2).then(() => true)`);
+      await engine("media.startCasting", { id: dialogId, sink: sink.id, mode: 2 }).then(() => true);
       return until("the route in onCastRoutes", async () => (await routesNow()).find((r) => r.sink === sink.id) ?? null, 10000);
     };
     try {
@@ -1195,13 +1311,13 @@ try {
         const s = d?.sinks?.find((x) => x.id === sink.id);
         return s?.routeId === route.id && s.state === "connected" ? { dialog: d, sink: s } : null;
       }, 10000);
-      await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.stopCasting(${dialog.id}, ${JSON.stringify(route.id)}).then(() => true)`);
+      await engine("media.stopCasting", { id: dialog.id, route: route.id }).then(() => true);
       await until("the route gone after stopCasting", async () => !(await routesNow()).some((r) => r.id === route.id), 10000);
       const second = await casting(dialog.id, sink);
-      await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.closeCastDialog(${dialog.id}).then(() => true)`);
+      await engine("media.closeCastDialog", { id: dialog.id }).then(() => true);
       await until("the dialog closed", async () => !(await dialogNow()), 5000);
       if (!(await routesNow()).some((r) => r.id === second.id)) throw new Error("closing the dialog ended the route");
-      await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.terminateCastRoute(${JSON.stringify(second.id)}).then(() => true)`);
+      await engine("media.terminateCastRoute", { route: second.id }).then(() => true);
       await until("the route gone after terminateCastRoute", async () => !(await routesNow()).some((r) => r.id === second.id), 10000);
       return {
         sink: { name: sink.name, modes: sink.modes },
@@ -1211,9 +1327,9 @@ try {
       };
     } finally {
       const d = await dialogNow().catch(() => null);
-      if (d) await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.closeCastDialog(${d.id}).then(() => true)`).catch(() => null);
+      if (d) await engine("media.closeCastDialog", { id: d.id }).then(() => true).catch(() => null);
       for (const r of await routesNow().catch(() => []))
-        await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.terminateCastRoute(${JSON.stringify(r.id)}).then(() => true)`).catch(() => null);
+        await engine("media.terminateCastRoute", { route: r.id }).then(() => true).catch(() => null);
     }
   });
 
@@ -1266,9 +1382,9 @@ try {
       for (let k = 1; k <= 8; k++)
         await cdp(t, "Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + 2 + ((box.width - 10) * k) / 8, y, button: "left", buttons: 1 });
       await cdp(t, "Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x + box.width - 8, y, button: "left", buttons: 0, clickCount: 1 });
-      const e = await until("onPageMessage selection", async () =>
-        (await eventsOf(first.id)).findLast((x) => x.name === "pageMessage" && x.payload?.kind === "selection" && x.payload?.data), 6000);
-      return { text: String(JSON.stringify(e.payload.data)).slice(0, 80) };
+      const e = await until("onSelection", async () =>
+        (await eventsOf(first.id)).findLast((x) => x.name === "selection" && x.payload?.selection), 6000);
+      return { text: String(JSON.stringify(e.payload.selection)).slice(0, 80) };
     } finally {
       await backToA();
     }
@@ -1294,7 +1410,7 @@ try {
         throw new Error(`prompt ${JSON.stringify(p)}`);
       await evalApp(`return ac.webviews.get("${first.id}").resolvePasswordPrompt("save")`);
       const saved = await until("the saved login", async () => {
-        const list = await evalApp(`return globalThis.expo.modules.ArdiaCEF.listPasswords("")`);
+        const list = await engineOrError("passwords.list", { profile: "" });
         return list.passwords?.find((x) => x.username === "nnformuser") ?? null;
       }, 10000);
       const seen = (await eventsOf(first.id)).filter((x) => x.name === "passwordPrompt").length;
@@ -1316,10 +1432,10 @@ try {
         throw new Error(`update prompt ${JSON.stringify(u.payload)}`);
       await evalApp(`return ac.webviews.get("${first.id}").resolvePasswordPrompt("update", { password: "edited-s3cret" })`);
       const edited = await until("the edited password", async () => {
-        const r = await cef(`getPassword("", ${JSON.stringify(saved.origin)}, "nnformuser")`);
+        const r = await engineOrError("passwords.reveal", { profile: "", origin: saved.origin, username: "nnformuser" });
         return r?.password === "edited-s3cret" ? r : null;
       }, 10000);
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.deletePassword("", ${JSON.stringify(saved.origin)}, "nnformuser")`);
+      await engineOrError("passwords.remove", { profile: "", origin: saved.origin, username: "nnformuser" });
       return { prompt: { state: p.state, passwordLength: p.passwordLength, usernames: p.usernames }, update: u.payload.state, edited: !!edited, origin: saved.origin };
     } finally {
       await backToA();
@@ -1332,7 +1448,7 @@ try {
     const target = await openTab(`${base}/capture-target?picker`, "Capture Target", true);
     const t = await pageFor(first.id, `${base}/a`);
     try {
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.setDisplayMediaPicker(true).then(() => true)`);
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
       await evalApp(`return ac.webviews.get("${first.id}").reload()`);
       await until("A loaded", async () => (await state()).tabs.find((x) => x.id === first.id && x.title === "Page A" && !x.loading), 10000);
       await sleep(500);
@@ -1360,7 +1476,7 @@ try {
   await check("tab-capture", async () => {
     const target = await openTab(`${base}/capture-target`, "Capture Target", true);
     const other = await openTab(`${base}/d?share-instead`, "Page D", true);
-    await evalApp(`return globalThis.expo.modules.ArdiaCEF.setDisplayMediaPicker(false).then(() => true)`);
+    await engine("webView.setDisplayMediaPicker", { enabled: false }).then(() => true);
     await evalApp(`return ac.webviews.get("${first.id}").reload()`);
     await until("A loaded", async () => (await state()).tabs.find((x) => x.id === first.id && x.title === "Page A" && !x.loading), 10000);
     await sleep(500);
@@ -1383,23 +1499,23 @@ try {
         return null;
       }, 8000);
       const sourceId = await evalApp(`return ac.webviews.get("${target.id}")?.mediaCaptureSourceId() ?? null`);
-      const capturer = await browserOf(first.id);
-      const instead = await browserOf(other.id);
-      const changed = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.changeCaptureSource(${capturer}, ${instead})`);
-      if (changed !== true) throw new Error(`changeCaptureSource answered ${changed} (Chrome's last-used profile: ${(await cef(`engineInfo()`)).lastUsedProfile})`);
+      const capturer = first.id;
+      const instead = other.id;
+      const changed = await engine("media.changeCaptureSource", { capturer, target: instead });
+      if (changed !== true) throw new Error(`changeCaptureSource answered ${changed} (Chrome's last-used profile: ${(await engine("engine.info")).lastUsedProfile})`);
       await sleep(1000);
-      const stopped = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.stopCapture(${capturer})`);
+      const stopped = await engine("media.stopCapture", { tabId: capturer });
       const ended = await until("the track ended", async () =>
         (await cdp(t, "Runtime.evaluate", { expression: "window.__cap", returnByValue: true })).result.value === "ended" ? true : null, 8000);
-      const windowNumber = await cef(`devWindowNumber(${capturer})`);
+      const windowNumber = await engine("tabs.devWindowNumber", { tabId: capturer });
       const picker = await until("the picker closed", async () => {
-        const children = JSON.parse(await cef(`devWindow(${windowNumber}, "children")`));
+        const children = JSON.parse(await engine("windows.dev", { window: windowNumber, action: "children" }));
         return children.some((c) => c.visible && c.title.startsWith("Choose what to share")) ? null : "closed";
       }, 5000);
       return { live, access, sourceId: sourceId ? String(sourceId).slice(0, 40) : null, changed, stopped, ended, picker };
     } finally {
       await cdp(t, "Runtime.evaluate", { expression: "window.__stream?.getTracks().forEach((x) => x.stop())" }).catch(() => null);
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.setDisplayMediaPicker(true).then(() => true)`);
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
       await closeTab(target.id);
       await closeTab(other.id);
       await evalApp(`return ac.webviews.get("${first.id}").reload()`);
@@ -1407,11 +1523,74 @@ try {
     }
   });
 
+  await check("blank-frame-share", async () => {
+    const target = await openTab(`${base}/capture-target?blank`, "Capture Target", true);
+    const tab = await openTab(`${base}/blank-share`, "Blank Share");
+    let t = null;
+    try {
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
+      t = await pageFor(tab.id, "/blank-share");
+      const value = async (expression) => (await cdp(t, "Runtime.evaluate", { expression, returnByValue: true })).result.value;
+      await until("the srcdoc frame", async () => (await value("document.getElementById('srcdoc').contentDocument?.body?.textContent === 'srcdoc'")) || null, 5000);
+      const asks = async () => (await eventsOf(tab.id)).filter((x) => x.name === "displayMediaRequest").length;
+      const results = {};
+      for (const kind of ["blank", "srcdoc"]) {
+        await until(`no click active before ${kind}`, async () => (await value("navigator.userActivation.isActive")) === false || null, 8000);
+        const asked = await asks();
+        await cdp(t, "Runtime.evaluate", { expression: `share(${JSON.stringify(kind)})` });
+        const unclicked = await until(`${kind} without a click`, async () => {
+          const v = await value(`window.__share[${JSON.stringify(kind)}]`);
+          return v !== "pending" ? v : null;
+        }, 5000);
+        if (unclicked !== "InvalidStateError" || (await asks()) !== asked) throw new Error(`${kind} without a click: ${unclicked}, picker asks ${(await asks()) - asked}`);
+        await cdp(t, "Runtime.evaluate", { expression: `share(${JSON.stringify(kind)})`, userGesture: true });
+        await until(`Ardia's picker for ${kind}`, async () => ((await asks()) > asked ? true : null), 10000);
+        const source = await evalApp(`return ac.webviews.get("${target.id}").mediaCaptureSourceId()`);
+        if (!source) throw new Error("no capture source id for the target tab");
+        await evalApp(`globalThis.acSharePicker.answerDisplayMedia("${tab.id}", ${JSON.stringify(source)}); return true`);
+        const clicked = await until(`${kind} live`, async () => {
+          const v = await value(`window.__share[${JSON.stringify(kind)}]`);
+          if (v !== "pending" && v !== "live") throw new Error(`${kind} with a click: ${v}`);
+          return v === "live" ? v : null;
+        }, 15000);
+        results[kind] = { unclicked, clicked };
+      }
+      return results;
+    } finally {
+      if (t) await cdp(t, "Runtime.evaluate", { expression: "window.__streams.forEach((s) => s.getTracks().forEach((x) => x.stop())); true" }).catch(() => null);
+      await closeTab(tab.id);
+      await closeTab(target.id);
+    }
+  });
+
+  await check("pip-share-without-click", async () => {
+    const tab = await openTab(`${base}/pip-share`, "PiP Share");
+    try {
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
+      const t = await pageFor(tab.id, "/pip-share");
+      const value = async (expression) => (await cdp(t, "Runtime.evaluate", { expression, returnByValue: true })).result.value;
+      const opened = (await cdp(t, "Runtime.evaluate", { expression: "openPip()", awaitPromise: true, userGesture: true, returnByValue: true })).result.value;
+      if (opened !== "ok") throw new Error(`requestWindow: ${opened}`);
+      await sleep(5500);
+      await until("the click expired", async () => (await value("navigator.userActivation.isActive")) === false || null, 5000);
+      await cdp(t, "Runtime.evaluate", { expression: "pipShare()" });
+      const result = await until("the PiP window's request answered", async () => {
+        const v = await value("window.__pipShare");
+        return v !== "pending" ? v : null;
+      }, 5000);
+      if (result !== "InvalidStateError") throw new Error(`getDisplayMedia in the PiP window without a click: ${result}`);
+      return { opened, result };
+    } finally {
+      await evalApp(`return ac.webviews.get("${tab.id}").exitPictureInPicture()`).catch(() => null);
+      await closeTab(tab.id);
+    }
+  });
+
   await check("share-instead-two-captures", async () => {
     const opened = [];
     const pages = {};
     try {
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.setDisplayMediaPicker(true).then(() => true)`);
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
       for (const [c, t] of [["ff0000", "Red"], ["00ff00", "Green"], ["0000ff", "Blue"]]) opened.push(await openTab(`${base}/solid?c=${c}&t=${t}`, t, true));
       for (const t of ["CallA", "CallB"]) opened.push(await openTab(`${base}/capturer?t=${t}`, t, true));
       const [red, green, blue, callA, callB] = opened;
@@ -1452,7 +1631,7 @@ try {
       await until("blue shown", async () => (await state()).active === blue.id);
       const changed = hooks.bar
         ? await evalApp(`return globalThis.acShareBar.shareInstead("${callB.id}", "${blue.id}")`)
-        : await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.changeCaptureSource(${await browserOf(callB.id)}, ${await browserOf(blue.id)})`);
+        : await engine("media.changeCaptureSource", { capturer: callB.id, target: blue.id });
       if (changed !== true) throw new Error(`share instead answered ${JSON.stringify(changed)}`);
       let after = null;
       try {
@@ -1483,7 +1662,7 @@ try {
   // MARK: Tab lifecycle
 
   await check("restore-after-close", async () => {
-    const shell = "globalThis.expo.modules.ArdiaShell";
+    const shell = "globalThis.expo.modules.ArdiaDialogs";
     const s = (expr) => evalApp(`const s = ac.store.getState(); return ${expr}`);
     const toB = async (tabId, tag) => {
       await until(`A?${tag} loaded`, async () => (await s(`s.tabs["${tabId}"]?.title === "Page A" && !s.live["${tabId}"]?.isLoading && !!ac.webviews.get("${tabId}")`)) || null, 15000);
@@ -1493,7 +1672,7 @@ try {
     const backReachesA = async (tabId, tag) => {
       await evalApp(`ac.actions.switchToTab("${tabId}"); return true`);
       await until(`the reopened B?${tag}`, async () => (await s(`s.tabs["${tabId}"]?.title === "Page B" && !s.live["${tabId}"]?.isLoading && !!ac.webviews.get("${tabId}")`)) || null, 15000);
-      const canGoBack = await s(`!!s.live["${tabId}"]?.canGoBack`);
+      const canGoBack = await until(`Back on the reopened B?${tag}`, async () => (await s(`!!s.live["${tabId}"]?.canGoBack`)) || null, 5000).catch(() => false);
       if (!canGoBack) return { canGoBack };
       await evalApp(`return ac.webviews.get("${tabId}").goBack()`);
       const a = await until(`Back to A?${tag}`, async () => (await s(`s.tabs["${tabId}"]?.title === "Page A" && s.tabs["${tabId}"]?.url`)) || null, 10000).catch(() => null);
@@ -1516,8 +1695,8 @@ try {
       }
     };
     const closeButton = async (tabId) => {
-      const number = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindowNumber(${await browserOf(tabId)})`);
-      return evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindow(${number}, "close-button")`);
+      const number = await engine("tabs.devWindowNumber", { tabId: tabId });
+      return engine("windows.dev", { window: number, action: "close-button" });
     };
     const warn = await s(`s.settings.warnBeforeClosingWindow`);
     const results = {};
@@ -1550,7 +1729,7 @@ try {
           await closeTab(again);
         }
       };
-      const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+      const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
       if (installed?.error) throw new Error(installed.error);
       try {
         const worker = await until("the extension's worker", async () =>
@@ -1563,7 +1742,7 @@ try {
           if (!r.result.value) throw new Error(`chrome.tabs.remove: ${JSON.stringify(r)}`);
         });
       } finally {
-        await exts(`uninstall("${installed.id}", "")`);
+        await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
       }
       results.windowClose = await (async () => {
         const opener = await pageFor(first.id, `${base}/a`);
@@ -1594,8 +1773,7 @@ try {
 
   await check("discard-outcomes", async () => {
     const tab = await openTab(`${base}/d?discard`, "Page D", true);
-    const browser = await browserOf(tab.id);
-    const renderer = async () => (await evalApp(`return globalThis.expo.modules.ArdiaCEF.listTasks()`)).some((t) => t.browserIds?.includes(Number(browser)));
+    const renderer = async () => (await engine("engine.tasks")).some((t) => t.tabIds?.includes(tab.id));
     const flags = () => evalApp(`const l = globalThis.acLifecycle.state(); return { sleeping: !!l.discarded["${tab.id}"], loaded: l.loaded.includes("${tab.id}") }`);
     const raw = (opts = "") => evalApp(`return ac.webviews.get("${tab.id}").discard(${opts})`);
     try {
@@ -1603,16 +1781,9 @@ try {
       if (!(await renderer())) throw new Error("no renderer before the discard");
       out.unload = await raw("{ unload: true }");
       out.afterUnload = { renderer: await renderer(), ...(await flags()) };
-      out.slept = await evalApp(`return globalThis.acLifecycle.sleepTab("${tab.id}")`);
+      out.slept = await raw();
       out.afterSleep = { renderer: await until("the renderer gone", async () => ((await renderer()) ? null : "gone"), 5000).catch(() => "still there"), ...(await flags()) };
       out.again = await raw();
-      const other = await openTab(`${base}/e?refused`, "Page E", true);
-      try {
-        out.refusedSlept = await evalApp(`const h = ac.webviews.get("${other.id}"); h.discard = () => Promise.resolve("refused"); return globalThis.acLifecycle.sleepTab("${other.id}")`);
-        out.refusedFlags = await evalApp(`return !!globalThis.acLifecycle.state().discarded["${other.id}"]`);
-      } finally {
-        await closeTab(other.id);
-      }
       await evalApp(`ac.actions.switchToTab("${tab.id}"); return true`);
       out.woke = await until("awake", async () => {
         const f = await flags();
@@ -1620,15 +1791,37 @@ try {
       }, 10000).catch(async () => ({ renderer: await renderer(), ...(await flags()) }));
       const problems = [];
       if (out.unload !== "unsupported" || !out.afterUnload.renderer || out.afterUnload.sleeping) problems.push(`unload: ${JSON.stringify([out.unload, out.afterUnload])}`);
-      if (out.slept !== true || out.afterSleep.renderer !== "gone" || !out.afterSleep.sleeping) problems.push(`discard: ${JSON.stringify([out.slept, out.afterSleep])}`);
+      if (out.slept !== "discarded" || out.afterSleep.renderer !== "gone" || !out.afterSleep.sleeping) problems.push(`discard: ${JSON.stringify([out.slept, out.afterSleep])}`);
       if (out.again !== "already") problems.push(`again: ${JSON.stringify(out.again)}`);
-      if (out.refusedSlept !== false || out.refusedFlags) problems.push(`refused: ${JSON.stringify([out.refusedSlept, out.refusedFlags])}`);
       if (out.woke.sleeping || !out.woke.renderer || !out.woke.loaded) problems.push(`wake: ${JSON.stringify(out.woke)}`);
       if (problems.length) throw new Error(problems.join("; "));
       return out;
     } finally {
       await closeTab(tab.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`).catch(() => null);
+    }
+  });
+
+  await check("memory-saver", async () => {
+    const saved = await evalApp(`const s = ac.store.getState().settings; return { memorySaver: s.memorySaver, memorySaverMode: s.memorySaverMode, keepActiveSites: s.keepActiveSites }`);
+    const read = () => engine("engine.memorySaver", {});
+    const set = (patch) => evalApp(`ac.store.getState().updateSettings(${JSON.stringify(patch)}); return true`);
+    try {
+      const out = { launch: await read() };
+      await set({ memorySaver: false });
+      out.off = await until("Memory Saver off", async () => { const r = await read(); return r.state === "off" && !r.active ? r : null; }, 5000);
+      await set({ memorySaver: true, memorySaverMode: "maximum", keepActiveSites: ["127.0.0.1/Editor?Doc=AbC", "[*.]example.com"] });
+      out.on = await until("Memory Saver on", async () => { const r = await read(); return r.state === "on" && r.active && r.aggressiveness === "maximum" && r.sites.length === 2 ? r : null; }, 5000);
+      out.valid = await engine("engine.validateKeepActiveSite", { site: "music.youtube.com" });
+      out.invalid = await engine("engine.validateKeepActiveSite", { site: "" });
+      const problems = [];
+      if (out.launch.state !== (saved.memorySaver === false ? "off" : "on")) problems.push(`launch: ${JSON.stringify(out.launch)}`);
+      if (!out.on.sites.includes("127.0.0.1/Editor?Doc=AbC")) problems.push(`sites: ${JSON.stringify(out.on.sites)}`);
+      if (!out.valid.valid || out.invalid.valid) problems.push(`validate: ${JSON.stringify([out.valid, out.invalid])}`);
+      if (problems.length) throw new Error(problems.join("; "));
+      return out;
+    } finally {
+      await set(saved).catch(() => null);
     }
   });
 
@@ -1653,10 +1846,14 @@ try {
       const busyNow = "-";
       const hung = await until("onUnresponsive", async () => (await eventsOf(busy.id)).find((x) => x.name === "unresponsive"), 35000)
         .catch(async (e) => { throw new Error(`${e.message}; page ${busyNow}; key ${JSON.stringify(sent)}; events ${JSON.stringify((await eventsOf(busy.id)).map((x) => x.name).slice(-8))}; active ${(await state()).active === busy.id}`); });
+      const shown = await until("Page Unresponsive shown", async () => evalApp(`return ac.pageState.getState().pages["${busy.id}"]?.unresponsive === true`), 5000)
+        .catch(() => { throw new Error("the native unresponsive event never reached the tab's page state"); });
       await evalApp(`return ac.webviews.get("${busy.id}").resolveUnresponsive(false)`);
       const back = await until("onResponsive", async () => (await eventsOf(busy.id)).find((x) => x.name === "responsive"), 45000)
         .catch(async (e) => { throw new Error(`${e.message}; events ${JSON.stringify((await eventsOf(busy.id)).map((x) => x.name).slice(-10))}`); });
-      return { unresponsive: !!hung, responsive: !!back };
+      const cleared = await until("Page Unresponsive cleared", async () => evalApp(`return ac.pageState.getState().pages["${busy.id}"]?.unresponsive === false`), 5000)
+        .catch(() => { throw new Error("the responsive event never cleared the tab's page state"); });
+      return { unresponsive: !!hung, shown, responsive: !!back, cleared };
     } finally {
       await closeTab(busy.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
@@ -1664,7 +1861,7 @@ try {
   });
 
   await check("permission-dismissed", async () => {
-    await evalApp(`globalThis.__acDismissed = []; globalThis.__acDismissSub?.remove(); globalThis.__acDismissSub = globalThis.expo.modules.ArdiaCEF.addListener("onPermissionDismissed", (e) => globalThis.__acDismissed.push(e)); return true`);
+    await evalApp(`globalThis.__acDismissed = []; globalThis.__acDismissSub?.remove(); globalThis.__acDismissSub = ac.engine.on("permissions.dismissed", (e) => globalThis.__acDismissed.push(e)); return true`);
     const asker = await openTab(`${base}/c?asker`, "Page C");
     try {
       const t = await pageFor(asker.id, `${base}/c?asker`);
@@ -1684,46 +1881,43 @@ try {
 
   await check("task-manager", async () => {
     const tab = await openTab(`${base}/c?tasks`, "Page C", true);
-    const call = (args) => evalApp(`return globalThis.expo.modules.ArdiaCEF.engineCall("ac_task_manager_open", "", ${JSON.stringify(args)})`).then(JSON.parse);
+    const call = (args) => engineOrError("engine.openTaskManager", { profile: "", ...args });
     try {
-      const browser = Number(await browserOf(tab.id));
       const task = await until("the tab's task", async () => {
-        const tasks = await evalApp(`return globalThis.expo.modules.ArdiaCEF.listTasks()`);
-        return tasks.find((x) => (x.browserIds ?? []).includes(browser)) ?? null;
+        const tasks = await engine("engine.tasks");
+        return tasks.find((x) => (x.tabIds ?? []).includes(tab.id)) ?? null;
       }, 10000);
       const opened = await call(null);
       if (!opened.ok) throw new Error(`ac_task_manager_open: ${JSON.stringify(opened)}`);
       return { task: task.title ?? task.id, opened: true };
     } finally {
-      await call(JSON.stringify({ hide: true })).catch(() => null);
+      await call({ hide: true }).catch(() => null);
       await closeTab(tab.id);
     }
   });
 
   await check("module-events", async () => {
     await evalApp(`globalThis.__acEvents = []; globalThis.__acSubs?.forEach((x) => x.remove());
-      globalThis.__acSubs = [globalThis.expo.modules.ArdiaCEF.addListener("onContentBlocker", (e) => globalThis.__acEvents.push(["blocker", e])),
-        globalThis.expo.modules.ArdiaExtensions.addListener("onChanged", (e) => globalThis.__acEvents.push(["extensions", e]))]; return true`);
+      globalThis.__acSubs = [ac.engine.on("contentBlocker.changed", (e) => globalThis.__acEvents.push(["blocker", e])),
+        ac.engine.on("extensions.changed", (e) => globalThis.__acEvents.push(["extensions", e]))]; return true`);
     try {
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.setContentBlockerEnabled(false)`);
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.setContentBlockerEnabled(true)`);
-      const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
-      const configured = await exts(`configure("${installed.id}", "", { incognito: true })`);
+      await engine("contentBlocker.setEnabled", { enabled: false });
+      await engine("contentBlocker.setEnabled", { enabled: true });
+      const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
+      const configured = await engineOrError("extensions.configure", { profile: "", id: installed.id, options: { incognito: true } });
       if (configured?.error) throw new Error(`configure: ${configured.error}`);
-      await exts(`uninstall("${installed.id}", "")`);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
       const events = await until("both events", async () => {
         const list = await evalApp(`return globalThis.__acEvents`);
         return list.some((x) => x[0] === "blocker") && list.filter((x) => x[0] === "extensions").length >= 2 ? list : null;
       }, 15000).catch(async (e) => { throw new Error(`${e.message}; got ${JSON.stringify(await evalApp(`return globalThis.__acEvents`)).slice(0, 300)}`); });
-      const sources = await evalApp(`return globalThis.expo.modules.ArdiaCEF.displayMediaSources()`);
+      const sources = await engine("media.displayMediaSources");
       if (!sources.some((x) => x.kind === "screen")) throw new Error("no screen among the display media sources");
       return { blocker: events.filter((x) => x[0] === "blocker").length, extensions: events.filter((x) => x[0] === "extensions").map((x) => x[1].event), configured: true, sources: sources.length };
     } finally {
       await evalApp(`globalThis.__acSubs?.forEach((x) => x.remove()); return true`);
     }
   });
-
-  const closeDownloads = () => evalApp(`ac.store.getState().setDownloadsOpen(${JSON.stringify(mainWindow)}, false); return true`).catch(() => null);
 
   await check("save-page", async () => {
     const file = join(scratch, "saved-page.html");
@@ -1760,7 +1954,7 @@ try {
   });
 
   await check("private-release", async () => {
-    const a = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${base}/cookie?private1" })`);
+    const a = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${base}/cookie?private1" })`);
     await until("the private cookie set", async () => {
       const tabs = await evalApp(`const s = ac.store.getState(); return (s.windows["${a}"]?.tabIds ?? []).map((i) => s.tabs[i]?.title)`);
       return tabs.includes("Cookie") ? true : null;
@@ -1768,7 +1962,7 @@ try {
     await sleep(500);
     await evalApp(`ac.store.getState().closeWindow("${a}"); return true`);
     await sleep(2000);
-    const b = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${base}/b?private2" })`);
+    const b = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${base}/b?private2" })`);
     try {
       await until("the second private window's page", async () => {
         const tabs = await evalApp(`const s = ac.store.getState(); return (s.windows["${b}"]?.tabIds ?? []).map((i) => s.tabs[i]?.title)`);
@@ -1785,13 +1979,13 @@ try {
 
   await check("private-churn", async () => {
     const titles = (w) => evalApp(`const s = ac.store.getState(); return (s.windows[${JSON.stringify(w)}]?.tabIds ?? []).map((i) => s.tabs[i]?.title)`);
-    let last = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${base}/e?churn-start" })`);
+    let last = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${base}/e?churn-start" })`);
     const waits = [];
     try {
       await until("the first private page", async () => ((await titles(last)).includes("Page E") ? true : null), 15000);
       for (let round = 0; round < 50; round++) {
         const started = Date.now();
-        const next = await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ incognito: true, url: "${base}/e?churn${round}" })`);
+        const next = await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ kind: "private", url: "${base}/e?churn${round}" })`);
         last = next;
         await until(`round ${round}: a live tab`, async () => ((await titles(next)).includes("Page E") ? true : null), 15000);
         waits.push(Date.now() - started);
@@ -1802,7 +1996,7 @@ try {
         }
       }
       for (let round = 0; round < 10; round++)
-        last = await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ incognito: true, url: "${base}/e?burst${round}" })`);
+        last = await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ kind: "private", url: "${base}/e?burst${round}" })`);
       await until("the burst's last window: a live tab", async () => ((await titles(last)).includes("Page E") ? true : null), 15000);
       await sleep(1500);
       if (!(await titles(last)).includes("Page E")) throw new Error(`the burst's last tab went: ${JSON.stringify(await titles(last))}`);
@@ -1816,16 +2010,16 @@ try {
   // MARK: Chrome services and extensions
 
   await check("extension-popup-and-panel", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
-    const windowsBefore = (await cef(`chromeWindows()`)).length;
+    const windowsBefore = (await engine("windows.list")).length;
     try {
       await evalApp(`return ac.extensions.refreshExtensions("").then(() => true)`);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
       await evalApp(`const lists = ac.extensions.useExtensions.getState().lists; const ext = Object.values(lists).flat().find((x) => x.id === "${installed.id}");
         return ac.extensions.activateExtension(${JSON.stringify(mainWindow)}, ext, { x: 100, y: 40, width: 20, height: 20 }).then(() => !!ac.extensions.useExtensions.getState().popup)`);
       const popupTarget = await until("the popup page", async () => (await targets()).find((t) => t.type === "page" && t.url.includes(`${installed.id}/popup.html`)), 10000);
-      const strips = await cef(`tabStrips()`);
+      const strips = await engine("tabs.strips");
       const inStrip = strips.strips.some((st) => st.tabs.some((x) => x.key == null));
       const popupVisible = (await cdp(popupTarget, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value;
       const pageSize = async (t) => (await cdp(t, "Runtime.evaluate", { expression: "[innerWidth, innerHeight]", returnByValue: true })).result.value;
@@ -1847,20 +2041,20 @@ try {
       await evalApp(`return ac.extensions.openSidePanel(${JSON.stringify(mainWindow)}, "${installed.id}").then(() => !!ac.extensions.useExtensions.getState().sidePanels[${JSON.stringify(mainWindow)}])`);
       const panelTarget = await until("the side panel page", async () => (await targets()).find((t) => t.type === "page" && t.url.includes(`${installed.id}/panel.html`)), 10000);
       const panelVisible = (await cdp(panelTarget, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value;
-      const stripsWithPanel = await cef(`tabStrips()`);
+      const stripsWithPanel = await engine("tabs.strips");
       const panelInStrip = stripsWithPanel.strips.some((st) => st.tabs.length !== strips.strips.find((x) => x.strip === st.strip)?.tabs.length);
       await evalApp(`ac.extensions.closeSidePanel(${JSON.stringify(mainWindow)}); return true`);
       await until("the panel gone", async () => !(await targets()).some((t) => t.url.includes(`${installed.id}/panel.html`)), 8000);
       const windowsAfter = await until("the standalone window closed", async () => {
-        const n = (await cef(`chromeWindows()`)).length;
+        const n = (await engine("windows.list")).length;
         return n <= windowsBefore ? n : null;
-      }, 8000).catch(async () => (await cef(`chromeWindows()`)).length);
+      }, 8000).catch(async () => (await engine("windows.list")).length);
       if (inStrip || panelInStrip) throw new Error("a standalone WebView's tab is in the window's strip");
       if (popupVisible !== "visible" || panelVisible !== "visible") throw new Error(`popup ${popupVisible}, panel ${panelVisible}`);
       return { popup: popupVisible, panel: panelVisible, popupSize: `${grown.join("x")} → ${shrunk.join("x")}`, openPopup: opened, windowsBefore, windowsAfter };
     } finally {
       await evalApp(`ac.extensions.closeExtensionPopup(); ac.extensions.closeSidePanel(${JSON.stringify(mainWindow)}); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
     }
   });
 
@@ -1872,8 +2066,7 @@ try {
       await evalApp(`return ac.webviews.get("${first.id}").zoomStep(0)`);
       await until("zoom 100%", async () => ((await zoom()) === 1 ? true : null), 5000);
     };
-    const browser = await browserOf(first.id);
-    const scroll = (steps) => evalApp(`return globalThis.expo.modules.ArdiaCEF.devScrollZoom(${JSON.stringify(steps)}, ${browser})`);
+    const scroll = (steps) => engine("tabs.devScrollZoom", { steps, tabId: first.id });
     const gesture = (trackpad) => [
       { phase: "mayBegin", dy: 0, trackpad }, { phase: "began", dy: 12, trackpad },
       ...Array.from({ length: 4 }, () => ({ phase: "changed", dy: 40, trackpad })),
@@ -1883,6 +2076,8 @@ try {
     const trackpad = await scroll(gesture(true));
     await sleep(800);
     const afterTrackpad = await zoom();
+    await scroll([{ phase: "command" }]);
+    await sleep(400);
     const wheel = await scroll([{ phase: "wheel", dy: 1 }, { phase: "wheel", dy: 1 }]);
     const afterWheel = await until("zoomed", async () => { const z = await zoom(); return z > 1 ? z : null; }, 5000)
       .catch(async (e) => {
@@ -1890,6 +2085,7 @@ try {
         const ui = await evalApp(`return ac.store.getState().windowUi[${JSON.stringify(mainWindow)}] ?? null`).catch(() => null);
         throw new Error(`${e.message}; trackpad ${JSON.stringify(trackpad)} wheel ${JSON.stringify(wheel)} zoom ${await zoom()} why ${JSON.stringify(why)} ui ${JSON.stringify(ui)} events ${JSON.stringify((await eventsOf(first.id)).filter((x) => x.name === "zoom").slice(-2))}`);
       });
+    await scroll([{ phase: "commandUp" }]);
     await reset();
     if (trackpad.some(Boolean) || afterTrackpad !== 1) throw new Error(`a trackpad ⌘-scroll zoomed: ${JSON.stringify(trackpad)} → ${afterTrackpad}`);
     if (!wheel.some(Boolean)) throw new Error(`the wheel didn't zoom: ${JSON.stringify(wheel)}`);
@@ -1907,7 +2103,7 @@ try {
   });
 
   await check("extension-prompts", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     try {
       await evalApp(`return ac.extensions.refreshExtensions("").then(() => true)`);
@@ -1920,7 +2116,7 @@ try {
       await cdp(popup, "Runtime.evaluate", { expression: "window.__perm = 'pending'; chrome.permissions.request({ permissions: ['bookmarks'] }).then((g) => (window.__perm = String(g)), (e) => (window.__perm = String(e))); true", userGesture: true });
       const request = await until("the app's install dialog", async () => evalApp(`return ac.extensions.useExtensions.getState().install ?? null`), 10000);
       const requestId = request.requestId ?? request.prompt?.requestId ?? request.request?.requestId;
-      await exts(`resolveInstallPrompt(${JSON.stringify(requestId)}, true)`);
+      await engine("extensions.resolveInstallPrompt", { requestId, accepted: true });
       const granted = await until("the page's answer", async () => {
         const v = (await cdp(popup, "Runtime.evaluate", { expression: "window.__perm", returnByValue: true })).result.value;
         return v !== "pending" ? v : null;
@@ -1942,7 +2138,7 @@ try {
       return { prompt: request.type ?? request.prompt?.type ?? Object.keys(request), granted, panel: !!panel, shown };
     } finally {
       await evalApp(`ac.extensions.closeExtensionPopup(); ac.extensions.closeSidePanel(${JSON.stringify(mainWindow)}); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
     }
   });
 
@@ -1957,9 +2153,8 @@ try {
 
   await check("traffic-lights-after-profile-switch", async () => {
     const s = await state();
-    const browser = await browserOf(first.id);
-    const windowNumber = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindowNumber(${browser})`);
-    const lights = () => evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindow(${windowNumber}, "lights")`);
+    const windowNumber = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const lights = () => engine("windows.dev", { window: windowNumber, action: "lights" });
     const before = await lights();
     const id = await evalApp(`return ac.store.getState().createProfile({ name: "Lights" })`);
     await evalApp(`ac.actions.switchProfile("${s.windowId}", "${id}"); return true`);
@@ -1977,67 +2172,67 @@ try {
 
   await check("passwords", async () => {
     const origin = "https://example.test";
-    const saved = await cef(`savePassword("", "${origin}", "nnuser", "s3cret")`);
+    const saved = await secret("ArdiaPasswords", "save", "", origin, "nnuser", "s3cret");
     if (saved?.error) throw new Error(saved.error);
     const list = await until("the saved login", async () => {
-      const r = await cef(`listPasswords("")`);
+      const r = await engineOrError("passwords.list", { profile: "" });
       return r.passwords?.find((p) => p.username === "nnuser") ? r : null;
     });
-    const revealed = await cef(`getPassword("", "${origin}", "nnuser")`);
-    await cef(`deletePassword("", "${origin}", "nnuser")`);
-    const after = await cef(`listPasswords("")`);
+    const revealed = await engineOrError("passwords.reveal", { profile: "", origin, username: "nnuser" });
+    await engineOrError("passwords.remove", { profile: "", origin, username: "nnuser" });
+    const after = await engineOrError("passwords.list", { profile: "" });
     if (after.passwords?.some((p) => p.username === "nnuser")) throw new Error("not deleted");
-    const autofill = await cef(`getPasswordAutofill("")`);
-    await cef(`setPasswordAutofill("", false)`);
-    const off = await cef(`getPasswordAutofill("")`);
-    await cef(`setPasswordAutofill("", true)`);
+    const autofill = await engine("passwords.autofillEnabled", { profile: "" });
+    await engine("passwords.setAutofillEnabled", { profile: "", enabled: false });
+    const off = await engine("passwords.autofillEnabled", { profile: "" });
+    await engine("passwords.setAutofillEnabled", { profile: "", enabled: true });
     return { listed: list.passwords.length, revealed: revealed?.password ?? revealed, autofill, off };
   });
 
   await check("autofill", async () => {
-    const saved = await cef(`saveAddress("", { fullName: "The mascot", city: "Tel Aviv", country: "IL" })`);
+    const saved = await engineOrError("autofill.saveAddress", { profile: "", address: { fullName: "The mascot", city: "Tel Aviv", country: "IL" } });
     if (saved?.error) throw new Error(saved.error);
     const list = await until("the address", async () => {
-      const r = await cef(`listAddresses("")`);
+      const r = await engineOrError("autofill.addresses", { profile: "" });
       return r.addresses?.length ? r : null;
     });
     const id = list.addresses[0].id;
-    await cef(`deleteAutofillEntry("", "${id}")`);
-    const settings = await cef(`getAutofillSettings("")`);
+    await engineOrError("autofill.remove", { profile: "", id });
+    const settings = await engine("autofill.settings", { profile: "" });
     return { addresses: list.addresses.length, first: list.addresses[0].fullName ?? list.addresses[0].name, settings };
   });
 
   await check("zoom-levels", async () => {
-    await cef(`setZoom("", "zoom.test", 1.5)`);
+    await engine("sites.setZoom", { profile: "", host: "zoom.test", zoom: 1.5 });
     const levels = await until("the zoom level", async () => {
-      const l = await cef(`getZoomLevels("")`);
+      const l = await engine("sites.zoomLevels", { profile: "" });
       return l["zoom.test"] ? l : null;
     });
-    await cef(`setZoom("", "zoom.test", 1)`);
+    await engine("sites.setZoom", { profile: "", host: "zoom.test", zoom: 1 });
     return { levels };
   });
 
   await check("extensions", async () => {
-    const inspected = await exts(`inspectUnpacked(${JSON.stringify(extPath)})`);
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const inspected = await engineOrError("extensions.inspectUnpacked", { path: extPath });
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     const list = await until("the extension listed", async () => {
-      const r = await exts(`list("")`);
+      const r = await engineOrError("extensions.list", { profile: "" });
       return r.extensions?.find((e) => e.id === installed.id) ? r : null;
     });
-    await exts(`setEnabled("${installed.id}", "", false)`);
-    await exts(`uninstall("${installed.id}", "")`);
-    const engines = await exts(`searchEngineList("")`);
+    await engineOrError("extensions.setEnabled", { profile: "", id: installed.id, enabled: false });
+    await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
+    const engines = await engineOrError("search.engines", { profile: "" });
     return { id: installed.id, name: inspected.name, listed: list.extensions.length, engines: !!engines.list };
   });
 
   await check("extension-configure", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     const id = installed.id;
-    const info = async () => (await exts(`list("")`)).extensions?.find((e) => e.id === id) ?? null;
+    const info = async () => (await engineOrError("extensions.list", { profile: "" })).extensions?.find((e) => e.id === id) ?? null;
     const configure = async (options) => {
-      const r = await exts(`configure("${id}", "", ${JSON.stringify(options)})`);
+      const r = await engineOrError("extensions.configure", { profile: "", id, options });
       if (r?.error) throw new Error(`configure ${JSON.stringify(options)}: ${r.error}`);
     };
     const scriptRan = async (tag) => {
@@ -2056,7 +2251,7 @@ try {
       }
     };
     await evalApp(`globalThis.__acCfg = []; globalThis.__acCfgSub?.remove();
-      globalThis.__acCfgSub = globalThis.expo.modules.ArdiaExtensions.addListener("onChanged", (e) => globalThis.__acCfg.push(e)); return true`);
+      globalThis.__acCfgSub = ac.engine.on("extensions.changed", (e) => globalThis.__acCfg.push(e)); return true`);
     try {
       const before = await until("the extension listed", info);
       if (!before.siteAccess) throw new Error("the fixture has no site access to change");
@@ -2094,13 +2289,13 @@ try {
       };
     } finally {
       await evalApp(`globalThis.__acCfgSub?.remove(); return true`).catch(() => null);
-      await exts(`uninstall("${id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id }).catch(() => null);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`).catch(() => null);
     }
   });
 
   await check("chrome-windows-create", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     const worker = await until("the extension's worker", async () => {
       for (const t of (await targets()).filter((t) => t.type === "service_worker" && t.url.includes(installed.id))) {
@@ -2116,26 +2311,26 @@ try {
     });
     log("  chrome.windows.create:", JSON.stringify(made.result?.value ?? made.exceptionDetails?.exception?.description ?? made));
     const tab = await until("the window's tab in the app", async () => {
-      const tabs = await evalApp(`const s = ac.store.getState(); return Object.values(s.tabs).map((t) => ({ id: t.id, url: t.url, adoptId: t.adoptId, windowId: t.windowId }))`);
+      const tabs = await evalApp(`const s = ac.store.getState(); return Object.values(s.tabs).map((t) => ({ id: t.id, url: t.url, adoptId: t.page.adopt, windowId: t.windowId }))`);
       return tabs.find((t) => t.url?.includes("e?window")) ?? null;
     }, 15000);
     try {
       if (tab.windowId === mainWindow) throw new Error("the window's tab landed in the run's window, not a new one");
       const created = JSON.parse(made.result?.value ?? "{}");
-      const strip = await until("the new window's strip", async () => (await cef(`tabStrips()`)).strips.find((st) => st.appWindow === tab.windowId && st.tabs.length) ?? null, 10000);
+      const strip = await until("the new window's strip", async () => (await engine("tabs.strips")).strips.find((st) => st.appWindow === tab.windowId && st.tabs.length) ?? null, 10000);
       if (strip.strip !== created.id) throw new Error(`chrome.windows.create answered window ${created.id}, the app shows ${strip.strip}`);
       return { tab: tab.id, adoptId: tab.adoptId ?? null, window: tab.windowId, chromeWindow: created.id };
     } finally {
       if (tab.windowId !== mainWindow) await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(tab.windowId)}); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id }).catch(() => null);
     }
   });
 
   await check("private-windows-create", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
-    await exts(`configure("${installed.id}", "", { incognito: true })`);
-    const privateTabs = () => evalApp(`const s = ac.store.getState(); return Object.values(s.tabs).map((t) => ({ id: t.id, url: t.url, title: t.title, windowId: t.windowId, incognito: !!s.windows[t.windowId]?.incognito, adoptId: t.adoptId }))`);
+    await engineOrError("extensions.configure", { profile: "", id: installed.id, options: { incognito: true } });
+    const privateTabs = () => evalApp(`const s = ac.store.getState(); return Object.values(s.tabs).map((t) => ({ id: t.id, url: t.url, title: t.title, windowId: t.windowId, incognito: s.windows[t.windowId]?.kind === "private", adoptId: t.page.adopt }))`);
     const opened = [];
     try {
       const worker = await until("the extension's worker", async () => {
@@ -2167,30 +2362,70 @@ try {
       return { first: { window: lone.tab.windowId, adoptId: lone.tab.adoptId ?? null, cookie: cookie || "(none)" }, second: { sameWindow: true } };
     } finally {
       for (const w of new Set(opened)) await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(w)}); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id }).catch(() => null);
       await backToA().catch(() => null);
     }
   });
 
   const withPopupExtension = async (options, fn) => {
     writePopupExtension(options);
-    const installed = await exts(`install(${JSON.stringify(extPopupPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPopupPath });
     if (installed?.error) throw new Error(installed.error);
     try {
       await evalApp(`return ac.extensions.refreshExtensions("").then(() => true)`);
       return await fn(installed.id);
     } finally {
       await evalApp(`ac.extensions.closeExtensionPopup(); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id }).catch(() => null);
     }
   };
-  const mainStrip = async () => (await cef(`tabStrips()`)).strips.find((st) => st.appWindow === mainWindow && st.profile === "");
+  const mainStrip = async () => (await engine("tabs.strips")).strips.find((st) => st.appWindow === mainWindow && st.profile === "");
+
+  await check("extension-private-window", async () => {
+    return withPopupExtension({}, async (id) => {
+      const priv = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${base}/b?private-ext" })`);
+      const shown = () => evalApp(`return ac.extensions.currentWindowExtensions(${JSON.stringify(priv)}).map((x) => x.id)`);
+      const tabsOf = (w) => evalApp(`const s = ac.store.getState(); return (s.windows[${JSON.stringify(w)}]?.tabIds ?? []).map((t) => s.tabs[t].url)`);
+      try {
+        await until("the private page", () => pageTarget("b?private-ext"), 15000);
+        if ((await shown()).includes(id)) throw new Error("the private window shows an extension that isn't allowed in incognito");
+        const configured = await engineOrError("extensions.configure", { profile: "", id, options: { incognito: true } });
+        if (configured?.error) throw new Error(`configure: ${configured.error}`);
+        await evalApp(`return ac.extensions.refreshExtensions("").then(() => true)`);
+        if (!(await shown()).includes(id)) throw new Error(`allowed in incognito, and the private window still leaves it out: ${JSON.stringify(await shown())}`);
+        await evalApp(`const ext = ac.extensions.currentWindowExtensions(${JSON.stringify(priv)}).find((x) => x.id === "${id}");
+          return ac.extensions.activateExtension(${JSON.stringify(priv)}, ext, { x: 100, y: 40, width: 20, height: 20 }).then(() => true)`);
+        const popupTarget = await until("the popup page", () => pageTarget(`${id}/popup.html`), 10000);
+        const popup = JSON.parse((await cdp(popupTarget, "Runtime.evaluate", {
+          expression: `chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => JSON.stringify({ split: chrome.extension.inIncognitoContext, visible: document.visibilityState, tab: tabs[0] && { url: tabs[0].url, incognito: tabs[0].incognito } }))`,
+          awaitPromise: true, returnByValue: true,
+        })).result.value);
+        if (popup.visible !== "visible" || popup.split || !popup.tab?.incognito || !popup.tab.url?.includes("b?private-ext"))
+          throw new Error(`the popup of a spanning extension in a private window: ${JSON.stringify(popup)}`);
+        await evalApp(`ac.extensions.closeExtensionPopup(); return true`);
+        await until("the popup gone", async () => !(await pageTarget(`${id}/popup.html`)), 8000);
+        await evalApp(`const ext = ac.extensions.currentWindowExtensions(${JSON.stringify(priv)}).find((x) => x.id === "${id}"); ac.extensions.openOptions(${JSON.stringify(priv)}, ext); return true`);
+        const optionsTitle = await until("the options page loaded", async () => {
+          const options = await pageTarget(`${id}/options.html`);
+          return options ? (await cdp(options, "Runtime.evaluate", { expression: "document.title", returnByValue: true })).result.value || null : null;
+        }, 10000);
+        const [inPrivate, inMain] = [await tabsOf(priv), await tabsOf(mainWindow)];
+        if (optionsTitle !== "Popup fixture options" || inPrivate.some((u) => u?.includes(id)) || !inMain.some((u) => u?.includes(`${id}/options.html`)))
+          throw new Error(`a spanning extension's options: "${optionsTitle}", private ${JSON.stringify(inPrivate)}, regular ${JSON.stringify(inMain)}`);
+        return { popup, options: "regular window" };
+      } finally {
+        await evalApp(`const s = ac.store.getState(); for (const t of Object.values(s.tabs)) if (t.url?.includes("${id}/options.html")) s.closeTab(t.id); s.closeWindow(${JSON.stringify(priv)}); return true`).catch(() => null);
+        await until("the closed tabs out of Chrome's strips", async () => !(await engine("tabs.strips")).strips.some((st) => st.tabs.some((x) => x.key == null)), 8000).catch(() => null);
+        await backToA().catch(() => null);
+      }
+    });
+  });
 
   await check("extension-popup-window", async () => {
     return withPopupExtension({}, async (id) => {
       const tab = await freshTab(`${base}/b?under-popup`);
       try {
-        const windowsBefore = (await cef(`chromeWindows()`)).length;
+        const windowsBefore = (await engine("windows.list")).length;
         const opened = await evalApp(`const ext = Object.values(ac.extensions.useExtensions.getState().lists).flat().find((x) => x.id === "${id}");
           return ac.extensions.activateExtension(${JSON.stringify(mainWindow)}, ext, { x: 100, y: 40, width: 20, height: 20 }).then(() => !!ac.extensions.useExtensions.getState().popup)`);
         if (!opened) throw new Error("no popup in the app");
@@ -2205,9 +2440,9 @@ try {
         if (seen.window !== strip?.strip) throw new Error(`the popup's current window is ${seen.window}, the app's is ${strip?.strip}`);
         if (seen.tabs.length !== 1 || seen.tabs[0] !== `${base}/b?under-popup`) throw new Error(`the popup's active tab: ${JSON.stringify(seen.tabs)}`);
         if (seen.popups !== 1) throw new Error(`chrome.extension.getViews({ type: "popup" }): ${seen.popups}`);
-        const strips = await cef(`tabStrips()`);
+        const strips = await engine("tabs.strips");
         if (strips.strips.some((st) => st.tabs.some((x) => x.key == null))) throw new Error("the popup is a tab in a strip");
-        const windowsWith = (await cef(`chromeWindows()`)).length;
+        const windowsWith = (await engine("windows.list")).length;
         if (windowsWith !== windowsBefore) throw new Error(`windows ${windowsBefore} → ${windowsWith} with the popup open`);
         for (const type of ["rawKeyDown", "keyUp"])
           await cdp(popup, "Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 53 }).catch(() => null);
@@ -2221,7 +2456,7 @@ try {
   });
 
   await check("extension-windows-hidden", async () => {
-    const appWindows = async () => (await cef(`chromeWindows()`)).map((w) => w.window);
+    const appWindows = async () => (await engine("windows.list")).map((w) => w.window);
     const before = new Set([...onScreenWindows(), ...(await appWindows())]);
     return withPopupExtension({ welcome: true }, async (id) => {
       const opened = [];
@@ -2240,7 +2475,7 @@ try {
           return null;
         }, 15000);
         const listed = JSON.parse((await cdp(worker, "Runtime.evaluate", { expression: "chrome.windows.getAll().then((ws) => JSON.stringify(ws.map((w) => w.id)))", awaitPromise: true, returnByValue: true })).result.value);
-        const strips = new Set((await cef(`tabStrips()`)).strips.map((st) => st.strip));
+        const strips = new Set((await engine("tabs.strips")).strips.map((st) => st.strip));
         const hidden = listed.filter((w) => !strips.has(w));
         if (hidden.length) throw new Error(`chrome.windows.getAll lists windows the app doesn't show: ${JSON.stringify(hidden)} (app's: ${JSON.stringify([...strips])})`);
         await cdp(worker, "Runtime.evaluate", { expression: "chrome.runtime.openOptionsPage().then(() => true)", awaitPromise: true });
@@ -2311,29 +2546,29 @@ try {
     const profile = await evalApp(`return ac.store.getState().createProfile({ name: "Installs" })`);
     const opened = [];
     const bubbleIn = async (windowId) => {
-      for (const w of await cef(`chromeWindows()`)) {
-        const children = JSON.parse(await cef(`devWindow(${w.window}, "children")`));
+      for (const w of await engine("windows.list")) {
+        const children = JSON.parse(await engine("windows.dev", { window: w.window, action: "children" }));
         if (children.some((c) => /has been added/.test(c.title))) return w.window;
       }
       return null;
     };
     const profileWindow = async (path) => {
-      const before = new Set((await cef(`chromeWindows()`)).map((w) => w.window));
+      const before = new Set((await engine("windows.list")).map((w) => w.window));
       const id = await evalApp(`return ac.actions.openWindow({ profileId: ${JSON.stringify(profile)}, url: "${base}${path}" })`);
       opened.push(id);
       await until(`${path} shown`, () => pageTarget(path));
-      const native = await until("its window", async () => (await cef(`chromeWindows()`)).find((w) => !before.has(w.window))?.window ?? null);
+      const native = await until("its window", async () => (await engine("windows.list")).find((w) => !before.has(w.window))?.window ?? null);
       return { id, native };
     };
     const install = async (closeFirst) => {
       await evalApp(`ac.extensions.cancelInstall(); globalThis.__acCrx = null;
-        globalThis.expo.modules.ArdiaExtensions.installCrx(${JSON.stringify(crxPath)}, ${JSON.stringify(profile)}).then((r) => (globalThis.__acCrx = r)); return true`);
+        ac.engine.call("extensions.installCrx", ${JSON.stringify({ profile, path: crxPath })}).then((r) => (globalThis.__acCrx = r), (e) => (globalThis.__acCrx = { error: e.message })); return true`);
       const prompt = await until("the install prompt", async () => {
         const p = await evalApp(`return ac.extensions.useExtensions.getState().install?.prompt ?? null`);
         return p?.name === "ArdiaCore crx fixture" ? p : null;
       }, 15000);
       if (closeFirst) await closeFirst();
-      await exts(`resolveInstallPrompt(${JSON.stringify(prompt.requestId)}, true)`);
+      await engine("extensions.resolveInstallPrompt", { requestId: prompt.requestId, accepted: true });
       const result = await until("the install", () => evalApp(`return globalThis.__acCrx`), 15000);
       if (!result.id) throw new Error(`install: ${JSON.stringify(result)}`);
       return result.id;
@@ -2346,13 +2581,13 @@ try {
       if (shown !== first.native) throw new Error(`the bubble is in window ${shown}, not the profile's ${first.native}`);
       await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(first.id)}); return true`);
       await sleep(1500);
-      await exts(`uninstall("${id}", ${JSON.stringify(profile)})`);
-      const before = new Set([...onScreenWindows(), ...(await cef(`chromeWindows()`)).map((w) => w.window)]);
+      await engineOrError("extensions.uninstall", { profile, id });
+      const before = new Set([...onScreenWindows(), ...(await engine("windows.list")).map((w) => w.window)]);
       const second = await profileWindow("/c?installs-2");
       id = await install(async () => {
         await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(second.id)}); return true`);
-        await until("the profile's window closed", async () => !(await cef(`chromeWindows()`)).some((w) => w.window === second.native && w.visible), 8000)
-          .catch(async (e) => { throw new Error(`${e.message}; windows ${JSON.stringify(await cef(`chromeWindows()`))}; app ${JSON.stringify(await evalApp(`return ac.store.getState().windowOrder`))}`); });
+        await until("the profile's window closed", async () => !(await engine("windows.list")).some((w) => w.window === second.native && w.visible), 8000)
+          .catch(async (e) => { throw new Error(`${e.message}; windows ${JSON.stringify(await engine("windows.list"))}; app ${JSON.stringify(await evalApp(`return ac.store.getState().windowOrder`))}`); });
       });
       await sleep(2000);
       const early = await bubbleIn();
@@ -2366,7 +2601,7 @@ try {
     } finally {
       await evalApp(`ac.extensions.cancelInstall(); return true`).catch(() => null);
       for (const w of opened) await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(w)}); return true`).catch(() => null);
-      if (id) await exts(`uninstall("${id}", ${JSON.stringify(profile)})`).catch(() => null);
+      if (id) await engineOrError("extensions.uninstall", { profile, id }).catch(() => null);
     }
   });
 
@@ -2403,24 +2638,24 @@ try {
 
   await check("content-blocker", async () => {
     const state = await until("the blocker's state", async () => {
-      const s = await cef(`getContentBlocker()`);
+      const s = await engine("contentBlocker.state").catch(() => null);
       return s?.stats?.ready ? s : null;
     }, 30000);
     const enabledLists = state.lists.filter((l) => l.enabled).length;
     if (state.lists.length < 20 || enabledLists < 5 || !(state.stats.networkFilters > 20000))
       throw new Error(`uBlock Origin has no bundled lists on a fresh profile: ${state.lists.length} lists, ${enabledLists} on, ${state.stats.networkFilters} network filters`);
-    await cef(`setContentBlockerAllowed("allowed.test", true)`);
-    const allowed = await cef(`isContentBlockerAllowed("allowed.test")`);
-    await cef(`setContentBlockerAllowed("allowed.test", false)`);
+    await engine("contentBlocker.setAllowed", { host: "allowed.test", allowed: true });
+    const allowed = await engine("contentBlocker.isAllowed", { host: "allowed.test" });
+    await engine("contentBlocker.setAllowed", { host: "allowed.test", allowed: false });
     return { enabled: state.enabled, lists: state.lists.length, on: enabledLists, networkFilters: state.stats.networkFilters, version: state.version, allowed };
   });
 
   await check("content-blocker-fails-closed", async () => {
-    const enabled = async () => (await cef(`getContentBlocker()`)).lists.filter((l) => l.enabled).map((l) => l.id).sort();
+    const enabled = async () => (await engine("contentBlocker.state")).lists.filter((l) => l.enabled).map((l) => l.id).sort();
     const before = await enabled();
-    const off = (await cef(`getContentBlocker()`)).lists.find((l) => !l.enabled);
-    await cef(`devContentBlockerFailNextMessage()`);
-    const error = await evalApp(`return globalThis.expo.modules.ArdiaCEF.setFilterListEnabled(${JSON.stringify(off.id)}, true).then(() => null, (e) => e.message)`);
+    const off = (await engine("contentBlocker.state")).lists.find((l) => !l.enabled);
+    await engine("contentBlocker.devFailNextMessage");
+    const error = await evalApp(`return ac.engine.call("contentBlocker.setListEnabled", ${JSON.stringify({ id: off.id, enabled: true })}).then(() => null, (e) => e.message)`);
     const after = await enabled();
     if (!error) throw new Error("the failed change reported no error");
     if (JSON.stringify(after) !== JSON.stringify(before)) throw new Error(`the lists changed: ${before} → ${after}`);
@@ -2430,7 +2665,7 @@ try {
   const adsServedFor = (tag) => adServed.filter((s) => !s.startsWith("adpage.test") && s.endsWith(`?${tag}`));
 
   const contentBlockerRounds = async (profileId) => {
-    await until("the blocker's state", async () => ((await cef(`getContentBlocker()`))?.stats?.ready ? true : null), 30000);
+    await until("the blocker's state", async () => ((await engine("contentBlocker.state").catch(() => null))?.stats?.ready ? true : null), 30000);
     const origin = `http://adpage.test:${server.address().port}`;
     const page = `${origin}/adpage`;
     const tag0 = profileId ? profileId : "personal";
@@ -2468,9 +2703,9 @@ try {
       };
       const stopped = (r) => !r.adnxs.reached && !r.gpt.reached && r.adnxs.fetch === "failed" && !r.adsbygoogle.reached && r.adsbygoogle.script === "stand-in";
       const blocked = await round("blocked");
-      await cef(`setContentBlockerAllowed("adpage.test", true)`);
+      await engine("contentBlocker.setAllowed", { host: "adpage.test", allowed: true });
       const allowed = await round("allowed");
-      await cef(`setContentBlockerAllowed("adpage.test", false)`);
+      await engine("contentBlocker.setAllowed", { host: "adpage.test", allowed: false });
       const again = await round("again");
       if (!stopped(blocked)) throw new Error(`not blocked: ${JSON.stringify(blocked)}`);
       if (!allowed.adnxs.reached || !allowed.gpt.reached || !allowed.adsbygoogle.reached) throw new Error(`allowing the site let nothing through: ${JSON.stringify(allowed)}`);
@@ -2494,7 +2729,7 @@ try {
 
   await check("content-blocker-held", async () => {
     const delay = 1500;
-    await cef(`devContentBlockerDelayNextLoad(${delay})`);
+    await engine("contentBlocker.devDelayNextLoad", { ms: delay });
     const id = await evalApp(`return ac.store.getState().createProfile({ name: "Held" })`);
     const tag = `held-${Date.now()}`;
     const started = Date.now();
@@ -2518,7 +2753,7 @@ try {
     const out = [];
     for (const step of ["first", "after-release"]) {
       const tag = `private-${step}-${Date.now()}`;
-      const w = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${origin}/adfirst?${tag}" })`);
+      const w = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${origin}/adfirst?${tag}" })`);
       try {
         await until(`the ${step} private page`, () => evalApp(`const s = ac.store.getState(); const id = s.windows[${JSON.stringify(w)}]?.tabIds[0];
           return id && s.tabs[id]?.title === "Ad first" && !s.live[id]?.isLoading ? true : null`), 20000);
@@ -2543,7 +2778,7 @@ try {
     const found = {};
     let pages = 0;
     for (const profile of profiles) {
-      const r = JSON.parse(await cef(`engineCall("ac_history_query", ${JSON.stringify(profile)}, ${JSON.stringify(JSON.stringify({ maxUrls: 1000, maxVisits: 1 }))})`));
+      const r = await engineOrError("history.query", { profile, maxUrls: 1000, maxVisits: 1 });
       const urls = (r.entries ?? []).map((e) => e.u ?? "");
       pages += urls.filter((u) => u.startsWith("http")).length;
       const internal = urls.filter((u) => u.startsWith("chrome-extension://") && !userOpened(u));
@@ -2601,7 +2836,7 @@ try {
   await check("popup-window", async () => {
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     const opener = await pageFor(first.id, `${base}/a`);
-    const popups = async () => (await cef(`engineInfo()`)).popupWindows;
+    const popups = async () => (await engine("engine.info")).popupWindows;
     const before = await popups();
     await cdp(opener, "Runtime.evaluate", { expression: `window.__msg = null; addEventListener("message", (e) => (window.__msg = e.data)); window.open("${base}/popup-page", "pop", "width=480,height=360"); true`, userGesture: true });
     const t = await until("the popup's page", () => pageTarget("/popup-page"));
@@ -2640,14 +2875,14 @@ try {
 
   await check("site-settings", async () => {
     const origin = "https://settings.test";
-    await cef(`setSiteSetting("", "${origin}", "popups", "allow")`);
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin, type: "popups", value: "allow" });
     const settings = await until("the setting", async () => {
-      const s = await cef(`getSiteSettings("", "${origin}")`);
+      const s = await engine("sites.settings", { profile: "", engine: "chromium", origin });
       return s?.popups?.value === "allow" ? s : null;
     });
-    const origins = await cef(`getSiteSettingsOrigins("")`);
-    await cef(`resetSiteSettings("", "${origin}")`);
-    const cleared = await cef(`clearSiteData("", "${origin}")`);
+    const origins = await engine("sites.origins", { profile: "" });
+    await engine("sites.reset", { profile: "", origin });
+    const cleared = await engine("sites.clearData", { profile: "", engine: "chromium", origin });
     return { popups: settings.popups, origins: origins.length, cleared };
   });
 
@@ -2683,7 +2918,7 @@ try {
         await closeTab(tab.id);
       }
     };
-    await cef(`setSiteSetting("", "${secure}", "notifications", "allow")`);
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin: secure, type: "notifications", value: "allow" });
     const persistTab = await openTab(`${secure}/site-data`, "Site data", true);
     try {
       const t = await until("the secure page", () => pageTarget(`${secure}/site-data`));
@@ -2701,15 +2936,15 @@ try {
     for (const k of ["embeddedOnSite", "siteEmbeddedElsewhere"])
       if (before[k]?.cookie !== "chips=1" || before[k]?.ls !== "yes") throw new Error(`the fixture's partitioned data: ${JSON.stringify(before)}`);
     if (before.persisted !== true) throw new Error(`persistent storage wasn't granted: ${JSON.stringify(before)}`);
-    const cleared = await cef(`clearSiteData("", "${one}")`);
+    const cleared = await engine("sites.clearData", { profile: "", engine: "chromium", origin: one });
     const after = {
       one: await read(`${one}/site-data`), two: await read(`${two}/site-data`),
       embeddedOnSite: await readFrame(secure, `${thirdParty}/frame-probe`),
       siteEmbeddedElsewhere: await readFrame(elsewhere, `${secure}/frame-probe`),
       persisted: await persisted(),
-      notifications: (await cef(`getSiteSettings("", "${secure}")`))?.notifications?.value,
+      notifications: (await engine("sites.settings", { profile: "", engine: "chromium", origin: secure }))?.notifications?.value,
     };
-    await cef(`resetSiteSettings("", "${secure}")`);
+    await engine("sites.reset", { profile: "", origin: secure });
     const wrong = [];
     if (after.one !== " | null" || after.two !== " | null") wrong.push("the site's own cookies or storage");
     if (after.embeddedOnSite?.cookie !== "" || after.embeddedOnSite?.ls !== null) wrong.push("a third party's data stored under the site");
@@ -2723,38 +2958,57 @@ try {
 
   await check("passwords-more", async () => {
     const origin = "https://more.test";
-    await cef(`savePassword("", "${origin}", "olduser", "pw1")`);
-    const updated = await cef(`updatePassword("", "${origin}", "olduser", "newuser", "pw2")`);
+    await secret("ArdiaPasswords", "save", "", origin, "olduser", "pw1");
+    const updated = await secret("ArdiaPasswords", "update", "", origin, "olduser", "newuser", "pw2");
     if (updated?.error) throw new Error(`update: ${updated.error}`);
     const revealed = await until("the edited login", async () => {
-      const r = await cef(`getPassword("", "${origin}", "newuser")`);
+      const r = await engineOrError("passwords.reveal", { profile: "", origin, username: "newuser" });
       return r?.password === "pw2" ? r : null;
     });
-    const unlocked = await cef(`unlockPasswords("")`);
-    const never = await cef(`getNeverSavePasswordOrigins("")`);
-    const allowed = await cef(`allowSavingPasswords("", "https://never.test")`);
+    const unlocked = await engineOrError("passwords.unlock", { profile: "" });
+    const never = await engineOrError("passwords.neverSaveOrigins", { profile: "" });
+    const allowed = await engineOrError("passwords.allowSaving", { profile: "", origin: "https://never.test" });
     const file = join(scratch, "passwords.csv");
     writeFileSync(join(data, "file-chooser.txt"), file + "\n");
-    const exported = await cef(`exportPasswords("")`);
+    const exported = await engineOrError("passwords.export", { profile: "" });
     const written = await until("the export file", async () => existsSync(file) && readFileSync(file, "utf8").includes("newuser"), 10000);
-    await cef(`deletePassword("", "${origin}", "newuser")`);
+    await engineOrError("passwords.remove", { profile: "", origin, username: "newuser" });
     return { updated: revealed.password, unlocked, never: never?.origins?.length ?? never, allowed, exported: exported?.status ?? exported, written };
   });
 
+  await check("passwords-save-again", async () => {
+    const origin = `https://again-${process.pid}-${Date.now().toString(36)}.test`;
+    try {
+      const first = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
+      if (first?.error) throw new Error(`first save: ${first.error}`);
+      const again = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
+      if (again?.error) throw new Error(`saving the same login again: ${again.error}`);
+      const other = await secret("ArdiaPasswords", "save", "", origin, "user", "pw2");
+      if (other?.error !== "Could not save the password (invalid, or already saved)") throw new Error(`saving another password for it: ${JSON.stringify(other)}`);
+      const revealed = await until("the first password", async () => {
+        const r = await engineOrError("passwords.reveal", { profile: "", origin, username: "user" });
+        return r?.password === "pw1" ? r : null;
+      });
+      return { again: "saved", other: other.error, password: revealed.password };
+    } finally {
+      await engineOrError("passwords.remove", { profile: "", origin, username: "user" });
+    }
+  });
+
   await check("autofill-cards", async () => {
-    const saved = await cef(`saveCard("", { name: "Acceptance Test", expMonth: 12, expYear: 2031 }, "4111111111111111")`);
+    const saved = await secret("ArdiaAutofill", "saveCard", "", { name: "Acceptance Test", expMonth: 12, expYear: 2031 }, "4111111111111111");
     if (saved?.error) throw new Error(`save: ${saved.error}`);
     const card = await until("the card listed", async () => {
-      const r = await cef(`listCards("")`);
+      const r = await engineOrError("autofill.cards", { profile: "" });
       return r?.cards?.find((c) => c.id === saved.id) ?? null;
     });
-    const number = await cef(`revealCardNumber("", "${saved.id}")`);
+    const number = await engineOrError("autofill.cardNumber", { profile: "", id: saved.id });
     if (number?.number !== "4111111111111111") throw new Error(`reveal: ${JSON.stringify(number)}`);
-    await cef(`deleteAutofillEntry("", "${saved.id}")`);
-    await until("the card gone", async () => !(await cef(`listCards("")`))?.cards?.some((c) => c.id === saved.id));
-    await cef(`setAutofillSettings("", null, false)`);
-    const off = await cef(`getAutofillSettings("")`);
-    await cef(`setAutofillSettings("", null, true)`);
+    await engineOrError("autofill.remove", { profile: "", id: saved.id });
+    await until("the card gone", async () => !(await engineOrError("autofill.cards", { profile: "" }))?.cards?.some((c) => c.id === saved.id));
+    await engine("autofill.setSettings", { profile: "", cards: false });
+    const off = await engine("autofill.settings", { profile: "" });
+    await engine("autofill.setSettings", { profile: "", cards: true });
     if (off.cards !== false) throw new Error(`cards setting: ${JSON.stringify(off)}`);
     return { card: { last4: card.lastFour ?? card.last4 ?? null, name: card.name }, revealed: true, cardsOff: true };
   });
@@ -2767,8 +3021,8 @@ try {
     const closed = async (id) => (await prompts()).some((x) => x.payload.closed && x.payload.id === id);
     const appPrompt = () => evalApp(`return ac.pageState.getState().pages[${JSON.stringify(first.id)}]?.autofillPrompt ?? null`);
     const answer = (id, action) => evalApp(`return ac.webviews.get(${JSON.stringify(first.id)}).resolveAutofillPrompt(${id}, ${JSON.stringify(action)})`);
-    const addresses = async (profile = "") => (await cef(`listAddresses(${JSON.stringify(profile)})`))?.addresses ?? [];
-    const cards = async (profile = "") => (await cef(`listCards(${JSON.stringify(profile)})`))?.cards ?? [];
+    const addresses = async (profile = "") => (await engineOrError("autofill.addresses", { profile }))?.addresses ?? [];
+    const cards = async (profile = "") => (await engineOrError("autofill.cards", { profile }))?.cards ?? [];
     const sendForm = async (path, title, values) => {
       await evalApp(`ac.store.getState().navigate(${JSON.stringify(first.id)}, ${JSON.stringify(secureBase + path)}, { userInitiated: true }); return true`);
       await until(title, async () => (await state()).tabs.find((x) => x.id === first.id && x.title === title && x.url?.endsWith(path) && !x.loading), 15000);
@@ -2857,8 +3111,8 @@ try {
         card: { title: cardOffer.title, lines: cardOffer.lines, saved: savedCard.last4, declined: true },
       };
     } finally {
-      for (const a of await addresses().catch(() => [])) await cef(`deleteAutofillEntry("", ${JSON.stringify(a.id)})`).catch(() => null);
-      for (const c of await cards().catch(() => [])) await cef(`deleteAutofillEntry("", ${JSON.stringify(c.id)})`).catch(() => null);
+      for (const a of await addresses().catch(() => [])) await engineOrError("autofill.remove", { profile: "", id: a.id }).catch(() => null);
+      for (const c of await cards().catch(() => [])) await engineOrError("autofill.remove", { profile: "", id: c.id }).catch(() => null);
       if (other) await closeTab(other.id).catch(() => null);
       if (profileB) await evalApp(`ac.store.getState().deleteProfile(${JSON.stringify(profileB)}); return true`).catch(() => null);
       await backToA();
@@ -2866,24 +3120,24 @@ try {
   });
 
   await check("settings-services", async () => {
-    await evalApp(`return globalThis.expo.modules.ArdiaCEF.clearBrowsingData("", ["cache", "history"], null)`, 90000);
-    await cef(`setSiteSetting("", "https://reset.test", "sound", "block")`);
-    await cef(`resetSiteSettings("", "https://reset.test")`);
+    await engine("profiles.clearBrowsingData", { profile: "", types: ["cache", "history"], since: null }, 90000);
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin: "https://reset.test", type: "sound", value: "block" });
+    await engine("sites.reset", { profile: "", origin: "https://reset.test" });
     const reset = await until("the site reset", async () => {
-      const r = await cef(`getSiteSettings("", "https://reset.test")`);
+      const r = await engine("sites.settings", { profile: "", engine: "chromium", origin: "https://reset.test" });
       return r?.sound?.isDefault ? r.sound : null;
     });
-    const before = await cef(`getContentBlocker()`);
-    await cef(`setContentBlockerEnabled(false)`);
-    const off = await until("the blocker off", async () => ((await cef(`getContentBlocker()`)).enabled === false ? true : null), 15000);
-    await cef(`setContentBlockerEnabled(true)`);
-    await until("the blocker on", async () => ((await cef(`getContentBlocker()`)).enabled === true ? true : null), 15000);
+    const before = await engine("contentBlocker.state");
+    await engine("contentBlocker.setEnabled", { enabled: false });
+    const off = await until("the blocker off", async () => ((await engine("contentBlocker.state")).enabled === false ? true : null), 15000);
+    await engine("contentBlocker.setEnabled", { enabled: true });
+    await until("the blocker on", async () => ((await engine("contentBlocker.state")).enabled === true ? true : null), 15000);
     const list = before.lists.find((l) => !l.enabled) ?? before.lists[0];
-    await cef(`setFilterListEnabled(${JSON.stringify(list.id)}, ${!list.enabled})`);
+    await engine("contentBlocker.setListEnabled", { id: list.id, enabled: !list.enabled });
     const toggled = await until("the list toggled", async () =>
-      (await cef(`getContentBlocker()`)).lists.find((l) => l.id === list.id)?.enabled === !list.enabled ? true : null, 20000);
-    await cef(`setFilterListEnabled(${JSON.stringify(list.id)}, ${list.enabled})`);
-    await cef(`removeExternalAppAllowance("", "https://none.test", "ardiacore-no-such-app")`);
+      (await engine("contentBlocker.state")).lists.find((l) => l.id === list.id)?.enabled === !list.enabled ? true : null, 20000);
+    await engine("contentBlocker.setListEnabled", { id: list.id, enabled: list.enabled });
+    await engine("permissions.removeExternalAppAllowance", { profile: "", origin: "https://none.test", scheme: "ardiacore-no-such-app" });
     const siteData = await evalApp(`return ac.webviews.get("${first.id}")?.clearSiteData() ?? null`);
     if (!siteData || siteData.error) throw new Error(`clearSiteData: ${JSON.stringify(siteData)}`);
     return { reset: reset.value, blockerOff: off, list: list.id, toggled, siteData };
@@ -2895,11 +3149,11 @@ try {
       .then((l) => l.find((x) => x.filename?.includes("ardiacore-slow")) ?? null);
     try {
       const d = await until("the slow download running", async () => { const x = await find(); return x?.state === "downloading" && !x.paused && x.received > 0 ? x : null; }, 15000);
-      await cef(`pauseDownload("${d.id}")`);
+      await engine("downloads.pause", { id: d.id });
       await until("paused", async () => ((await find())?.paused ? true : null), 8000);
-      await cef(`resumeDownload("${d.id}")`);
+      await engine("downloads.resume", { id: d.id });
       await until("running again", async () => { const x = await find(); return x?.state === "downloading" && !x.paused ? true : null; }, 8000);
-      await cef(`cancelDownload("${d.id}")`);
+      await engine("downloads.cancel", { id: d.id });
       const last = await until("cancelled", async () => { const x = await find(); return x?.state === "cancelled" ? x : null; }, 8000);
       return { id: d.id, state: last.state };
     } finally {
@@ -2909,40 +3163,45 @@ try {
 
   await check("tasks-components", async () => {
     const tasks = await until("tasks", async () => {
-      const t = await cef(`listTasks()`);
+      const t = await engine("engine.tasks");
       return t.length ? t : null;
     });
-    const components = await cef(`components()`);
-    const allowances = await cef(`getExternalAppAllowances("")`);
-    return { tasks: tasks.length, browserTasks: tasks.filter((t) => t.browserIds.length).length, components: components.length, allowances: allowances.length };
+    const components = await engine("engine.components");
+    const allowances = await engine("permissions.externalAppAllowances", { profile: "" });
+    return { tasks: tasks.length, browserTasks: tasks.filter((t) => t.tabIds.length).length, components: components.length, allowances: allowances.length };
   });
 
   await check("download-navigation", async () => {
     await evalApp(`ac.store.getState().navigate("${first.id}", "${base}/file.bin?nav", { userInitiated: true }); return true`);
     const e = await until("onDownloadNavigation", async () => (await eventsOf(first.id)).find((x) => x.name === "downloadNavigation"), 15000);
+    await until("the download listed", () => evalApp(`return ac.store.getState().downloads.some((d) => d.url?.endsWith("/file.bin?nav")) || null`), 10000);
+    await closeDownloads();
     return e.payload;
   });
 
   await check("tracing", async () => {
-    const started = await cef(`beginTracing()`);
-    const during = await cef(`isTracing()`);
-    const path = await cef(`endTracing(false)`);
-    const after = await cef(`isTracing()`);
+    const started = await engine("engine.beginTracing");
+    const during = await engine("engine.isTracing");
+    const path = await engine("engine.endTracing", { keep: false });
+    const after = await engine("engine.isTracing");
     if (!started || !during || after) throw new Error(`tracing ${started} ${during} ${after}`);
     return { started, during, after, path };
   });
 
   await check("delete-profile-data", async () => {
     const folder = join(data, "Chromium", "Profile scratch-delete");
-    await cef(`listPasswords("scratch-delete")`);
+    await engineOrError("passwords.list", { profile: "scratch-delete" });
     await until("the profile loaded", async () => existsSync(folder), 10000);
-    const result = await cef(`deleteProfileData("scratch-delete")`);
+    await engine("webKit.devTouchStore", { profile: "scratch-delete" });
+    if (!(await engine("webKit.devStoreExists", { profile: "scratch-delete" }))) throw new Error("the profile's WebKit store wasn't made");
+    const result = await engine("profiles.deleteData", { profile: "scratch-delete" });
     if (result.remaining.length) throw new Error(`remaining ${JSON.stringify(result)}`);
+    if (await engine("webKit.devStoreExists", { profile: "scratch-delete" })) throw new Error("the profile's WebKit store is still on disk");
     const gone = await until("the folder gone", async () => !existsSync(folder), 15000).catch(() => false);
     if (!gone) throw new Error("the profile's folder is still there");
     await sleep(3000);
     if (existsSync(folder)) throw new Error("the profile's folder came back");
-    const shown = (await cef(`chromeWindows()`)).filter((w) => w.visible || w.alpha >= 0).map((w) => w.profile);
+    const shown = (await engine("windows.list")).filter((w) => w.visible || w.alpha >= 0).map((w) => w.profile);
     return { ...result, folderGone: true, windowProfiles: shown };
   });
 
@@ -2964,7 +3223,7 @@ try {
         const profile = await evalApp(`const s = ac.store.getState(); return s.windows["${s.windowId}"]?.profileId ?? null`);
         const pt = await pageFor(first.id, `${base}/a`);
         const vis = (await cdp(pt, "Runtime.evaluate", { expression: "document.visibilityState + '/' + document.hasFocus()", returnByValue: true })).result.value;
-        const tx = await evalApp(`return globalThis.expo.modules.ArdiaCEF.tabStrips()`);
+        const tx = await engine("tabs.strips");
         const chromeActive = tx.strips.map((st) => st.tabs.find((x) => x.active)?.key ?? null);
         throw new Error(`${e.message}; key: ${JSON.stringify(sent)}; window profile: ${profile}; active: ${(await state()).active}; Chrome's active: ${JSON.stringify(chromeActive)}; page ${vis}`);
       });
@@ -3039,29 +3298,29 @@ try {
     };
     const decline = async (request) => {
       await evalApp(`ac.pageState.setState((s) => ({ pages: { ...s.pages, "${first.id}": { ...s.pages["${first.id}"], externalApp: null } } }));
-        return globalThis.expo.modules.ArdiaCEF.resolveExternalApp(${JSON.stringify(request.id)}, false, true).then(() => true)`);
+        return ac.engine.call("permissions.resolveExternalApp", ${JSON.stringify({ id: request.id, open: false, remember: true })}).then(() => true)`);
       await sleep(1500);
     };
     const firstAsk = await ask(1);
     if (!firstAsk.app || !firstAsk.appPath?.endsWith("Shortcuts.app")) throw new Error(`no app found: ${JSON.stringify({ ...firstAsk, icon: !!firstAsk.icon })}`);
     if (!firstAsk.remember) throw new Error("no \"always allow\" offered for a trustworthy origin");
     await decline(firstAsk);
-    const allowances = await cef(`getExternalAppAllowances("")`);
+    const allowances = await engine("permissions.externalAppAllowances", { profile: "" });
     if (JSON.stringify(allowances).includes("shortcuts")) throw new Error(`Chrome recorded an allowance: ${JSON.stringify(allowances)}`);
     const again = await ask(2);
     if (again.id === firstAsk.id) throw new Error("the second link reused the first request");
     await decline(again);
     const third = await ask(3);
     await evalApp(`ac.pageState.setState((s) => ({ pages: { ...s.pages, "${first.id}": { ...s.pages["${first.id}"], externalApp: null } } }));
-      return globalThis.expo.modules.ArdiaCEF.resolveExternalApp(${JSON.stringify(third.id)}, true, true).then(() => true)`);
+      return ac.engine.call("permissions.resolveExternalApp", ${JSON.stringify({ id: third.id, open: true, remember: true })}).then(() => true)`);
     const launch = await until("the recorded launch", async () =>
-      (await cef(`devExternalLaunches()`)).find((l) => l.url?.includes("ardiacore-acceptance-3")) ?? null, 8000);
+      (await engine("permissions.devExternalLaunches")).find((l) => l.url?.includes("ardiacore-acceptance-3")) ?? null, 8000);
     const remembered = await until("Chrome's allowance", async () => {
-      const list = await cef(`getExternalAppAllowances("")`);
+      const list = await engine("permissions.externalAppAllowances", { profile: "" });
       return list.find((a) => a.scheme === "shortcuts") ?? null;
     }, 8000);
-    await cef(`removeExternalAppAllowance("", ${JSON.stringify(remembered.origin)}, "shortcuts")`);
-    const after = await cef(`getExternalAppAllowances("")`);
+    await engine("permissions.removeExternalAppAllowance", { profile: "", origin: remembered.origin, scheme: "shortcuts" });
+    const after = await engine("permissions.externalAppAllowances", { profile: "" });
     if (after.some((a) => a.scheme === "shortcuts")) throw new Error(`the allowance stayed: ${JSON.stringify(after)}`);
     if (!wasRunning && running()) throw new Error("Shortcuts was launched");
     return { app: firstAsk.app, origin: firstAsk.origin, remember: firstAsk.remember, icon: !!firstAsk.icon,
@@ -3069,8 +3328,30 @@ try {
       removed: true, launched: false };
   });
 
+  await check("external-app-from-extension", async () => {
+    await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    await until("A shown", async () => (await state()).active === first.id);
+    return withPopupExtension({}, async (id) => {
+      const worker = await until("the extension's worker", async () =>
+        (await targets()).find((t) => t.type === "service_worker" && t.url.includes(`${id}/worker.js`)) ?? null, 10000);
+      await evalApp(`ac.pageState.setState((s) => ({ pages: { ...s.pages, "${first.id}": { ...s.pages["${first.id}"], externalApp: null } } })); return true`);
+      const url = "shortcuts://ardiacore-acceptance-extension?file=Clipped%20page&clipboard";
+      const expression = `chrome.tabs.query({ url: "${base}/a*" }).then(([tab]) => { chrome.tabs.update(tab.id, { url: ${JSON.stringify(url)} }); return "sent"; }, (e) => e.message)`;
+      const sent = (await cdp(worker, "Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true })).result.value;
+      if (sent !== "sent") throw new Error(`chrome.tabs.update(): ${sent}`);
+      const request = await until("the prompt", async () => evalApp(`return ac.pageState.getState().pages["${first.id}"]?.externalApp ?? null`), 10000);
+      if (request.origin !== `chrome-extension://${id}`) throw new Error(`the prompt names ${request.origin}`);
+      await evalApp(`ac.pageState.setState((s) => ({ pages: { ...s.pages, "${first.id}": { ...s.pages["${first.id}"], externalApp: null } } }));
+        return ac.engine.call("permissions.resolveExternalApp", ${JSON.stringify({ id: request.id, open: true, remember: false })}).then(() => true)`);
+      const launch = await until("the recorded launch", async () =>
+        (await engine("permissions.devExternalLaunches")).find((l) => l.url === url) ?? null, 8000)
+        .catch(() => { throw new Error("Open on an extension's link launched nothing"); });
+      return { origin: request.origin, app: request.app, launched: launch.url };
+    });
+  });
+
   await check("notifications", async () => {
-    await cef(`setSiteSetting("", "${base}", "notifications", "allow")`);
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin: base, type: "notifications", value: "allow" });
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     const t = await pageFor(first.id, `${base}/a`);
     await cdp(t, "Runtime.evaluate", {
@@ -3085,7 +3366,7 @@ try {
     }, 8000);
     await cdp(t, "Runtime.evaluate", { expression: "window.__n2 = new Notification('Second'); setTimeout(() => window.__n2.close(), 300); true", userGesture: true });
     const closed = await until("onNotificationClose", async () => (await eventsOf(first.id)).find((x) => x.name === "notificationClose"), 8000);
-    await cef(`setSiteSetting("", "${base}", "notifications", "default")`);
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin: base, type: "notifications", value: "default" });
     return { title: e.payload.title, body: e.payload.body, clicked, closed: !!closed };
   });
 
@@ -3110,9 +3391,9 @@ try {
     if (!media) throw new Error("no onMedia while playing");
     return { title: playing.payload.state.title, artist: playing.payload.state.artist, mediaEvents: media };
     } finally {
-      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
       await evalApp(`ac.store.getState().navigate("${first.id}", "${base}/a", { userInitiated: true }); return true`);
       await until("A again", async () => (await state()).tabs.find((t) => t.id === first.id && t.title === "Page A" && !t.loading));
+      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
     }
   });
 
@@ -3132,6 +3413,13 @@ try {
         return e?.payload.playing && e.payload.muted ? e : null;
       }, 8000);
       await until("live.playingAudio", async () => (await live(first.id))?.playingAudio === true, 5000);
+      const blipFrom = (await eventsOf(first.id)).at(-1)?.t ?? 0;
+      const stopsSince = async (t) => (await eventsOf(first.id)).filter((x) => x.t > t && x.name === "media" && !x.payload?.playing).length;
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').pause(); true" });
+      await new Promise((r) => setTimeout(r, 700));
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').play(); true", userGesture: true });
+      await new Promise((r) => setTimeout(r, 500));
+      if (await stopsSince(blipFrom)) throw new Error("a 0.7 s pause reported the tab as silent");
       const pausedAt = Date.now();
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').pause(); true" });
       const off = await until("onMedia stopped", async () => {
@@ -3139,6 +3427,7 @@ try {
         return e && !e.payload.playing ? e : null;
       }, 8000);
       const stoppedAfterMs = Date.now() - pausedAt;
+      if (stoppedAfterMs < 1500) throw new Error(`the speaker went off ${stoppedAfterMs} ms after the sound stopped, not after Chrome's 2 s hold`);
       await until("live.playingAudio off", async () => (await live(first.id))?.playingAudio === false, 5000);
       await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`);
       const unmuted = await until("onMedia unmuted", async () => {
@@ -3147,8 +3436,8 @@ try {
       }, 5000);
       return { muted: mutedEvent.payload, playing: on.payload, stopped: off.payload, stoppedAfterMs, unmuted: unmuted.payload };
     } finally {
-      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
       await backToA();
+      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
     }
   });
 
@@ -3157,18 +3446,18 @@ try {
     try {
       await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
       const t = await startVideo(tab.id, false);
-      const requested = await evalApp(`return ac.webviews.get("${tab.id}").requestPictureInPicture()`);
-      if (requested !== true) throw new Error(`requestPictureInPicture answered ${requested}`);
+      const click = await pipByHand(tab.id);
       const on = await until("onPictureInPicture video", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000);
       const element = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
       const video = await until("Chrome's PiP window, styled", async () => (await pipWindows())?.find((w) => w.video && w.styled) ?? null, 5000)
         .catch(async (e) => { throw new Error(`${e.message}: ${JSON.stringify(await pipWindows())}`); });
-      if (!video.rounded || !video.keepOnTop || video.rim !== 1 || video.level < 3 || video.host !== "127.0.0.1" || !video.backToTab)
+      if (!video.rounded || !video.keepOnTop || video.rim !== 1 || video.level < 3 || video.host !== "127.0.0.1" || !video.backToTab ||
+          video.subrole !== "AXSystemFloatingWindow")
         throw new Error(`not styled as on CEF: ${JSON.stringify(video)}`);
       await sleep(800);
       const videoShown = (await pipWindows())?.find((w) => w.window === video.window) ?? video;
       if (videoShown.alpha !== 0 || !videoShown.ignoresMouseEvents) throw new Error(`a hidden run's PiP window shows: ${JSON.stringify(videoShown)}`);
-      const menu = await cef(`devPictureInPictureAction("menu")`);
+      const menu = await engine("tabs.devPictureInPictureAction", { action: "menu" });
       await evalApp(`return ac.webviews.get("${tab.id}").exitPictureInPicture()`);
       const off = await until("onPictureInPicture video off", async () => {
         const e = await lastEvent(tab.id, "pictureInPicture");
@@ -3190,7 +3479,7 @@ try {
         const e = await lastEvent(tab.id, "pictureInPicture");
         return e && e.payload.kind === "document" && !e.payload.active ? e : null;
       }, 5000);
-      return { requested, on: on.payload, element, window: { frame: video.frame, level: video.level, alpha: video.alpha }, menu, off: off.payload,
+      return { clickAt: click.at, on: on.payload, element, window: { frame: video.frame, level: video.level, alpha: video.alpha }, menu, off: off.payload,
         docOn: docOn.payload, docWindow: { title: docWindow.title, alpha: docWindow.alpha }, docOff: docOff.payload };
     } finally {
       await closeTab(tab.id);
@@ -3199,10 +3488,9 @@ try {
 
   await check("auto-picture-in-picture", async () => {
     const results = {};
-    for (const [path, kind] of [["/video?auto", "video"], ["/video?docpip", "document"]]) {
-      const tab = await openTab(`${base}${path}`, "Video");
+    for (const [path, kind] of [["/video?auto&file", "video"], ["/video?docpip", "document"]]) {
+      const tab = await openTab(`${secureBase}${path}`, "Video");
       try {
-        await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
         await startVideo(tab.id, true);
         await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
         await until("onNowPlaying with video", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
@@ -3223,6 +3511,130 @@ try {
     return results;
   });
 
+  await check("auto-picture-in-picture-app-switch", async () => {
+    const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const appActive = async (on) => {
+      const r = await engine("windows.dev", { window: n, action: `fakeAppActive:${on ? 1 : 0}` });
+      if (r !== (on ? "1" : "0")) throw new Error(`fakeAppActive: ${JSON.stringify(r)}`);
+    };
+    const win = (action) => engine("windows.dev", { window: n, action });
+    const mark = async (tabId) => (await eventsOf(tabId)).at(-1)?.t ?? 0;
+    const pipSince = async (tabId, since) => (await eventsOf(tabId)).filter((x) => x.name === "pictureInPicture" && x.t > since);
+    const visibility = async (t) => (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value;
+    const tab = await openTab(`${secureBase}/video?auto&file`, "Video");
+    const poppedOut = (tabId, since, what, fresh = false) => until(what, async () => {
+      const e = (await pipSince(tabId, since)).find((x) => x.payload.kind === "video" && x.payload.active && (!fresh || x.payload.fullScreenSpaces !== undefined));
+      return e ?? null;
+    }, 8000);
+    const closed = (tabId, what) => until(what, async () => {
+      const e = await lastEvent(tabId, "pictureInPicture");
+      return e && e.payload.kind === "video" && !e.payload.active ? e : null;
+    }, 8000);
+    try {
+      await win("fakeOcclusion:visible");
+      await win("fakeWindowServer:shows");
+      const t = await startVideo(tab.id, true);
+      await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
+      await until("onNowPlaying with video", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
+      await sleep(300);
+      const quick = await mark(tab.id);
+      await appActive(false);
+      await sleep(100);
+      await appActive(true);
+      await sleep(800);
+      if ((await pipSince(tab.id, quick)).length) throw new Error("a quick app switch with the window showing popped the video out");
+      const stayedFrom = await mark(tab.id);
+      await appActive(false);
+      await sleep(2500);
+      if ((await pipSince(tab.id, stayedFrom)).length) throw new Error("switching apps with the window still showing popped the video out");
+      const stayedVisibility = await visibility(t);
+      const coverAt = await mark(tab.id);
+      await win("fakeWindowServer:hides");
+      const covered = await poppedOut(tab.id, coverAt, "auto PiP once the front app covered the window", true);
+      if (covered.payload.leftApp !== true) throw new Error(`pip_shown left_app (covered while away): ${JSON.stringify(covered.payload)}`);
+      const away = await visibility(t);
+      await win("fakeWindowServer:shows");
+      const uncovered = await closed(tab.id, "auto PiP ended once the front app moved off the window");
+      const recoverAt = await mark(tab.id);
+      await win("fakeWindowServer:hides");
+      await poppedOut(tab.id, recoverAt, "auto PiP once covered again");
+      await appActive(true);
+      const back = await closed(tab.id, "auto PiP ended on coming back");
+      const coveredFrom = await mark(tab.id);
+      await appActive(false);
+      const atSwitch = await poppedOut(tab.id, coveredFrom, "auto PiP on leaving the app with the window covered");
+      await appActive(true);
+      await closed(tab.id, "auto PiP ended on coming back (covered at the switch)");
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').pause()" });
+      await until("onNowPlaying paused", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.playbackState === "paused"), 5000);
+      const paused = await mark(tab.id);
+      await appActive(false);
+      await sleep(2500);
+      const pausedPopped = (await pipSince(tab.id, paused)).length > 0;
+      await appActive(true);
+      if (pausedPopped) throw new Error("a paused video popped out on leaving the app with its window covered");
+      return { stayedVisibility, covered: covered.payload, away, uncovered: uncovered.payload, back: back.payload, atSwitch: atSwitch.payload };
+    } finally {
+      await appActive(true).catch(() => null);
+      for (const action of ["fakeWindowServer:hides", "fakeOcclusion:off"]) await win(action).catch(() => null);
+      await closeTab(tab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("picture-in-picture-opt-out", async () => {
+    const optedOut = (t) => cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').disablePictureInPicture", returnByValue: true }).then((r) => r.result.value);
+    const manualTab = await openTab(`${base}/video?optout`, "Video");
+    let manual;
+    try {
+      await evalApp(`return ac.webviews.get("${manualTab.id}").setMuted(true)`);
+      const t = await startVideo(manualTab.id, false);
+      const own = (await cdp(t, "Runtime.evaluate", {
+        expression: "document.getElementById('v').requestPictureInPicture().then(() => 'entered', (e) => e.name)",
+        awaitPromise: true, userGesture: true, returnByValue: true,
+      })).result.value;
+      if (own !== "InvalidStateError") throw new Error(`the page's own requestPictureInPicture wasn't refused: ${own}`);
+      await pipByHand(manualTab.id);
+      const on = await until("manual PiP of a disablePictureInPicture video", async () => lastEvent(manualTab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000);
+      const element = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
+      if (element !== "v" || (await optedOut(t)) !== true) throw new Error(`in PiP: element ${element}, disablePictureInPicture ${await optedOut(t)}`);
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').disablePictureInPicture = true; true" });
+      await sleep(700);
+      const afterRewrite = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
+      if (afterRewrite !== "v") throw new Error("the page writing disablePictureInPicture again closed PiP");
+      await evalApp(`return ac.webviews.get("${manualTab.id}").exitPictureInPicture()`);
+      await until("manual PiP off", async () => {
+        const e = await lastEvent(manualTab.id, "pictureInPicture");
+        return e && e.payload.kind === "video" && !e.payload.active ? e : null;
+      }, 5000);
+      manual = { pageOwnRequest: own, on: on.payload, element };
+    } finally {
+      await closeTab(manualTab.id);
+    }
+    const autoTab = await openTab(`${secureBase}/video?auto&file&optout`, "Video");
+    let auto;
+    try {
+      const t = await startVideo(autoTab.id, true);
+      await until("live.playingAudio", async () => (await live(autoTab.id))?.playingAudio === true, 8000);
+      await until("onNowPlaying with video", async () => lastEvent(autoTab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
+      await sleep(300);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+      const out = await until("auto PiP of a disablePictureInPicture video", async () => lastEvent(autoTab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 8000);
+      const kept = await optedOut(t);
+      await evalApp(`ac.actions.switchToTab("${autoTab.id}"); return true`);
+      const back = await until("auto PiP ended", async () => {
+        const e = await lastEvent(autoTab.id, "pictureInPicture");
+        return e && e.payload.kind === "video" && !e.payload.active ? e : null;
+      }, 8000);
+      if (kept !== true) throw new Error(`auto PiP changed the page's disablePictureInPicture: ${kept}`);
+      auto = { out: out.payload, back: back.payload };
+    } finally {
+      await closeTab(autoTab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+    return { manual, auto };
+  });
+
   await check("pip-window", async () => {
     const tab = await openTab(`${base}/video?window`, "Video");
     const selftest = join(data, "pip-selftest.json"), button = join(data, "pip-button-selftest.json");
@@ -3232,19 +3644,19 @@ try {
       await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
       const t = await startVideo(tab.id, false);
       const open = async () => {
-        if ((await evalApp(`return ac.webviews.get("${tab.id}").requestPictureInPicture()`)) !== true) throw new Error("requestPictureInPicture failed");
+        await pipByHand(tab.id);
         await until("the styled PiP window", async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null, 5000);
       };
       await open();
-      if ((await cef(`devPictureInPictureAction("selftest")`)) !== "started") throw new Error("no self-test");
+      if ((await engine("tabs.devPictureInPictureAction", { action: "selftest" })) !== "started") throw new Error("no self-test");
       const result = await until("the PiP self-test", async () => (existsSync(selftest) ? JSON.parse(readFileSync(selftest, "utf8")) : null), 20000);
       const failed = result.steps.filter((x) => !x.pass);
       if (failed.length) throw new Error(`self-test steps failed: ${JSON.stringify(failed)}`);
       const activate = await lastEvent(tab.id, "activateRequest", (p) => p.reason === "pictureInPicture");
       if (!activate) throw new Error("Back to Tab sent no onActivateRequest");
       await until("PiP closed by Back to Tab", async () => lastEvent(tab.id, "pictureInPicture", (p) => !p.active), 5000);
-      const n = await cef(`devWindowNumber(${await browserOf(first.id)})`);
-      const appActive = (on) => cef(`devWindow(${n}, "fakeAppActive:${on ? 1 : 0}")`);
+      const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+      const appActive = (on) => engine("windows.dev", { window: n, action: `fakeAppActive:${on ? 1 : 0}` });
       const logLines = () => (existsSync(join(data, "activation.log")) ? readFileSync(join(data, "activation.log"), "utf8").split("\n") : []);
       const clickButton = async (name) => {
         await sleep(500);
@@ -3253,7 +3665,7 @@ try {
         if ((await appActive(false)) !== "0") throw new Error("no app-active seam");
         const from = logLines().length;
         try {
-          if ((await cef(`devPictureInPictureAction("${name}")`)) !== "started") throw new Error("no button self-test");
+          if ((await engine("tabs.devPictureInPictureAction", { action: name })) !== "started") throw new Error("no button self-test");
           const clicked = await until(`the ${name} click`, async () => (existsSync(button) ? JSON.parse(readFileSync(button, "utf8")) : null), 10000);
           await sleep(300);
           const raised = logLines().slice(from).filter((l) => /^\S+ \S+ \S+ (makeKey|orderFront)/.test(l) && !l.includes("NativeWidgetMacFramelessNSWindow"));
@@ -3275,7 +3687,46 @@ try {
       const backRequests = (await eventsOf(tab.id)).filter((x) => x.name === "activateRequest").length - requests;
       if (!back.closed || !back.preventsActivation || back.activations !== 1 || backRequests !== 1)
         throw new Error(`Chrome's Back to Tab: ${JSON.stringify({ back, backRequests })}`);
+      await sleep(500);
+      const reducesMotion = (() => {
+        try {
+          return execFileSync("defaults", ["read", "com.apple.universalaccess", "reduceMotion"], { encoding: "utf8" }).trim() === "1";
+        } catch {
+          return false;
+        }
+      })();
+      const corners = reducesMotion ? { skipped: "Reduce Motion is on, so the PiP doesn't fling" } : {};
+      if (!reducesMotion) {
+        await open();
+        const pipAct = (action) => engine("tabs.devPictureInPictureAction", { action });
+        const shown = async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null;
+        const rect = (s) => s.match(/-?[\d.]+/g).map(Number);
+        const [vx, vy, vw, vh] = rect((await shown()).visibleFrame), [, , pw, ph] = rect((await shown()).frame);
+        const spot = { bottomRight: [vx + vw - 10 - pw, vy + 10], topLeft: [vx + 10, vy + vh - 10 - ph] };
+        const landed = (corner) => until(`the PiP at rest ${corner}`, async () => {
+          const w = await shown();
+          const [x, y] = rect(w.frame);
+          return Math.abs(x - spot[corner][0]) < 1 && Math.abs(y - spot[corner][1]) < 1 && w.cornerRadius === 9 ? w : null;
+        }, 5000);
+        await pipAct(`frame:{{${Math.round(vx + (vw - pw) / 2)}, ${Math.round(vy + (vh - ph) / 2)}}, {${pw}, ${ph}}}`);
+        await sleep(400);
+        await pipAct("swipe:240,-160,8");
+        await landed("bottomRight");
+        for (const [kind, gesture] of [["swipe", "swipe:-400,300,8"], ["drag", "drag:-400,300,6,8"]]) {
+          await pipAct(gesture);
+          await landed("topLeft");
+          const info = await pipAct("throw");
+          const flight = (typeof info === "string" ? JSON.parse(info) : info).lastThrow;
+          const radii = flight.frames.slice(0, -1).map((f) => f[3]);
+          if (flight.corner !== "topLeft" || !radii.length || radii.some((r) => r !== 6))
+            throw new Error(`a ${kind} thrown out of a corner isn't 6 pt in flight: ${JSON.stringify({ corner: flight.corner, radii })}`);
+          corners[kind] = { frames: radii.length, flightRadius: [Math.min(...radii), Math.max(...radii)] };
+          await pipAct("swipe:400,-300,8");
+          await landed("bottomRight");
+        }
+      }
       return {
+        corners,
         steps: result.steps.map((x) => x.step),
         closeButton: closed.point,
         playing: [before.time.toFixed(1), after.time.toFixed(1)],
@@ -3284,6 +3735,478 @@ try {
       };
     } finally {
       await closeTab(tab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("pip-framing", async () => {
+    const tab = await openTab(`${base}/video?framing`, "Video");
+    try {
+      await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
+      await startVideo(tab.id, false);
+      await pipByHand(tab.id);
+      const shown = await until("the styled PiP window", async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null, 5000);
+      const pipAct = (action) => engine("tabs.devPictureInPictureAction", { action });
+      const captureWindow = (windowNumber, png) =>
+        execFileSync("/usr/bin/python3", ["-I", "-c", [
+          "import ctypes, ctypes.util, sys",
+          "cg = ctypes.cdll.LoadLibrary(ctypes.util.find_library('CoreGraphics'))",
+          "cf = ctypes.cdll.LoadLibrary(ctypes.util.find_library('CoreFoundation'))",
+          "io = ctypes.cdll.LoadLibrary('/System/Library/Frameworks/ImageIO.framework/ImageIO')",
+          "class R(ctypes.Structure): _fields_ = [(n, ctypes.c_double) for n in 'xywh']",
+          "cg.CGWindowListCreateImage.restype = ctypes.c_void_p",
+          "cg.CGWindowListCreateImage.argtypes = [R, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]",
+          "image = cg.CGWindowListCreateImage(R(float('inf'), float('inf'), 0, 0), 8, int(sys.argv[1]), 1 | 8)",
+          "image or sys.exit('no image')",
+          "path = sys.argv[2].encode()",
+          "cf.CFURLCreateFromFileSystemRepresentation.restype = cf.CFStringCreateWithCString.restype = ctypes.c_void_p",
+          "cf.CFURLCreateFromFileSystemRepresentation.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_long, ctypes.c_bool]",
+          "cf.CFStringCreateWithCString.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint32]",
+          "io.CGImageDestinationCreateWithURL.restype = ctypes.c_void_p",
+          "io.CGImageDestinationCreateWithURL.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p]",
+          "io.CGImageDestinationAddImage.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]",
+          "io.CGImageDestinationFinalize.argtypes = [ctypes.c_void_p]",
+          "url = cf.CFURLCreateFromFileSystemRepresentation(None, path, len(path), False)",
+          "dest = io.CGImageDestinationCreateWithURL(url, cf.CFStringCreateWithCString(None, b'public.png', 0x08000100), 1, None)",
+          "io.CGImageDestinationAddImage(dest, image, None)",
+          "io.CGImageDestinationFinalize(dest) or sys.exit('not written')",
+        ].join("\n"), String(windowNumber), png], { timeout: 20000 });
+      const pixels = (png, scale) => {
+        const [w, h] = execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0", png], { encoding: "utf8" }).trim().split(",").map(Number);
+        const raw = execFileSync("ffmpeg", ["-loglevel", "error", "-i", png, "-f", "rawvideo", "-pix_fmt", "rgba", "-"], { maxBuffer: 1 << 28 });
+        const at = (x, y) => raw.subarray((y * w + x) * 4, (y * w + x) * 4 + 4);
+        const luma = ([r, g, b, a]) => ((0.2126 * r + 0.7152 * g + 0.0722 * b) * a) / 255;
+        const centre = at(40 * scale, h >> 1);
+        const video = luma(centre);
+        const lit = (x, y) => luma(at(x, y)) >= video * 0.6;
+        const run = (step) => {
+          let i = 0;
+          while (i < Math.min(w, h) / 2 && !lit(...step(i))) i++;
+          return i;
+        };
+        const mx = w >> 1, my = h >> 1;
+        return {
+          size: [w, h],
+          shown: centre[3] === 255 && video > 0,
+          band: { left: run((i) => [i, my]), right: run((i) => [w - 1 - i, my]), top: run((i) => [mx, i]), bottom: run((i) => [mx, h - 1 - i]) },
+          radii: Object.fromEntries(
+            [["topLeft", 0, 0], ["topRight", 1, 0], ["bottomLeft", 0, 1], ["bottomRight", 1, 1]].map(([corner, right, bottom]) => {
+              const box = 16 * scale;
+              let clear = 0;
+              for (let j = 0; j < box; j++)
+                for (let i = 0; i < box; i++) clear += 1 - at(right ? w - 1 - i : i, bottom ? h - 1 - j : j)[3] / 255;
+              return [corner, +(Math.sqrt(clear / (1 - Math.PI / 4)) / scale).toFixed(2)];
+            }),
+          ),
+        };
+      };
+      const framing = async (state) => {
+        await sleep(600);
+        const f = JSON.parse(await pipAct("framing"));
+        await pipAct(`snapshot:framing-${state}`);
+        await pipAct("alpha:1");
+        let seen;
+        try {
+          seen = await until(`the ${state} PiP window's video in a capture`, async () => {
+            const png = join(scratch, `pip-framing-${state}.png`);
+            captureWindow(shown.window, png);
+            const shot = pixels(png, f.scale);
+            return shot.shown ? shot : null;
+          }, 25000);
+        } finally {
+          await pipAct("alpha:0");
+        }
+        const px = f.scale;
+        const radii = seen.radii;
+        log(`${state}: ${JSON.stringify({ ...f, pixels: seen, radii })}`);
+        const whole = `{{0, 0}, ${f.window}}`;
+        const [ww, wh] = f.window.match(/[\d.]+/g).map(Number);
+        const wrong = [];
+        if (seen.size[0] !== ww * px || seen.size[1] !== wh * px) wrong.push(`captured ${seen.size} for a ${f.window} window at ${px}x`);
+        for (const key of ["content", "compositor", "overlay"]) if (f[key] !== whole) wrong.push(`${key} ${f[key]} instead of ${whole}`);
+        if (!f.contentMasks || f.contentRadius !== f.radius || f.rimRadius !== f.radius || f.rimWidth !== 1)
+          wrong.push(`corners: content ${f.contentRadius} (masks ${f.contentMasks}), rim ${f.rimRadius}/${f.rimWidth}, expected ${f.radius}`);
+        const bands = Object.entries(seen.band).filter(([, n]) => n > 1);
+        if (bands.length) wrong.push(`a dark band between the window's edge and the video: ${bands.map(([k, n]) => `${k} ${n / px} pt`).join(", ")}`);
+        const off = Object.entries(radii).filter(([, r]) => Math.abs(r - f.radius) > 0.5);
+        if (off.length) wrong.push(`corners aren't ${f.radius} pt: ${off.map(([k, r]) => `${k} ${r}`).join(", ")}`);
+        if (wrong.length) throw new Error(`${state}: ${wrong.join("; ")}`);
+        return { window: f.window, styleMask: f.styleMask, scale: px, band: seen.band, radii };
+      };
+      const rest = await framing("rest");
+      await pipAct("mouse:moved:40,100");
+      const hovered = await framing("hovered");
+      await pipAct("mouse:moved:-50,-50");
+      writeFileSync(join(scratch, "pip-layers.txt"), await pipAct("layers"));
+      const [x, y] = shown.frame.match(/-?[\d.]+/g).map(Number);
+      await pipAct(`frame:{{${x - 144}, ${y}}, {480, 270}}`);
+      const resized = await framing("resized");
+      await pipAct("stash");
+      await sleep(800);
+      await pipAct("unstash");
+      await sleep(800);
+      const restored = await framing("restored");
+      return { rest, hovered, resized, restored };
+    } finally {
+      await closeTab(tab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("report-recording-pip", async () => {
+    const tab = await openTab(`${base}/video?report`, "Video");
+    const out = join(scratch, "report-recording-pip");
+    mkdirSync(out, { recursive: true });
+    const nums = (s) => s.match(/-?[\d.]+/g).map(Number);
+    const pipAct = (action) => engine("tabs.devPictureInPictureAction", { action });
+    const shown = async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null;
+    const report = (body) => evalApp(`const r = ac.report; ${body}`);
+    try {
+      await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
+      const t = await startVideo(tab.id, false);
+      await pipByHand(tab.id);
+      await until("the styled PiP window", shown, 5000);
+      const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+      const win = JSON.parse(await engine("windows.dev", { window: n, action: "winfo" }));
+      const [wx, wy, ww, wh] = nums(win.frame);
+      const [, , pw, ph] = nums((await shown()).frame);
+      await pipAct(`frame:{{${wx + 24}, ${wy + 24}}, {${pw}, ${ph}}}`);
+      await sleep(600);
+      const placed = await shown();
+      const [px, py] = nums(placed.frame);
+      const playback = async () => (await cdp(t, "Runtime.evaluate", { expression: "({ paused: v.paused, time: v.currentTime, pip: !!document.pictureInPictureElement })", returnByValue: true })).result.value;
+      const pipEvents = async () => (await eventsOf(tab.id)).filter((x) => x.name === "pictureInPicture").length;
+      const pixels = (png) => {
+        const [w, h] = execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0", png], { encoding: "utf8" }).trim().split(",").map(Number);
+        const raw = execFileSync("ffmpeg", ["-loglevel", "error", "-i", png, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { maxBuffer: 1 << 28 });
+        const region = (x0, y0, x1, y1) => {
+          let luma = 0, chroma = 0, count = 0;
+          for (let y = Math.max(0, Math.round(y0)); y < Math.min(h, Math.round(y1)); y += 2)
+            for (let x = Math.max(0, Math.round(x0)); x < Math.min(w, Math.round(x1)); x += 2) {
+              const i = (y * w + x) * 3, r = raw[i], g = raw[i + 1], b = raw[i + 2];
+              luma += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+              chroma += Math.max(r, g, b) - Math.min(r, g, b);
+              count++;
+            }
+          return { luma: +(luma / count).toFixed(1), chroma: +(chroma / count).toFixed(1) };
+        };
+        return { size: [w, h], region };
+      };
+      const record = async (includePages) => {
+        const label = includePages ? "pages-included" : "pages-hidden";
+        const eventsBefore = await pipEvents();
+        const before = await playback();
+        await pipAct("alpha:1");
+        let during, stopped;
+        try {
+          const phase = await report(`r.openReport(${JSON.stringify(mainWindow)}); r.setIncludePages(${includePages}); return r.startRecording().then(() => r.currentReport().recording.phase)`);
+          if (phase !== "recording") throw new Error(`${label}: the recording didn't start (${phase})`);
+          await sleep(2500);
+          during = await shown();
+          stopped = await report(`return r.stopRecording().then(() => true)`);
+        } finally {
+          await pipAct("alpha:0");
+        }
+        const done = await until(`the ${label} recording saved`, () => report(`const s = r.currentReport().recording; return s.phase === "ready" ? { path: s.path, seconds: s.seconds, bytes: s.bytes, stats: r.lastRecordingStats() } : s.phase === "failed" ? { failed: s.message } : null`), 15000);
+        if (done.failed) throw new Error(`${label}: ${done.failed}`);
+        const after = await shown();
+        const playing = await playback();
+        const mp4 = join(out, `${label}.mp4`);
+        cpSync(done.path, mp4);
+        const png = join(out, `${label}.png`);
+        execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-ss", "1.5", "-i", mp4, "-frames:v", "1", png]);
+        await report(`r.discardRecording(); return r.closeReport().then(() => true)`);
+        const shot = pixels(png);
+        const s = shot.size[0] / ww;
+        const top = (wy + wh - (py + ph)) * s, left = (px - wx) * s;
+        const inset = 0.2;
+        const sidebarPart = [left + 12 * s, left + 56 * s];
+        const pip = shot.region(left + pw * s * inset, top + ph * s * inset, left + pw * s * (1 - inset), top + ph * s * (1 - inset));
+        const overSidebar = shot.region(sidebarPart[0], top + ph * s * inset, sidebarPart[1], top + ph * s * (1 - inset));
+        const above = shot.region(sidebarPart[0], top - 60 * s, sidebarPart[1], top - 20 * s);
+        return {
+          label, stopped, png, mp4, seconds: done.seconds, bytes: done.bytes, frameCount: done.stats?.frames, windows: done.stats?.windows ?? null,
+          misses: done.stats?.windowPictureMisses, pip, overSidebar, above, pipEvents: (await pipEvents()) - eventsBefore,
+          frames: { placed: placed.frame, during: during?.frame ?? null, after: after?.frame ?? null, stashed: [during?.stashed, after?.stashed] },
+          playback: { before, after: playing },
+        };
+      };
+      const hidden = await record(false);
+      const included = await record(true);
+      const outside = [wx + ww - 40, wy + 40];
+      await pipAct(`frame:{{${outside[0]}, ${outside[1]}}, {${pw}, ${ph}}}`);
+      await sleep(600);
+      await pipAct("alpha:1");
+      let pinned;
+      try {
+        await report(`r.openReport(${JSON.stringify(mainWindow)}); r.setIncludePages(true); return r.startRecording().then(() => true)`);
+        await sleep(1500);
+        await report(`return r.stopRecording().then(() => true)`);
+        pinned = await until("the pinned recording saved", () => report(`const s = r.currentReport().recording; return s.phase === "ready" ? { path: s.path, pip: !!s.pictureInPicture, stats: r.lastRecordingStats() } : s.phase === "failed" ? { failed: s.message } : null`), 15000);
+        if (!pinned.failed) cpSync(pinned.path, join(out, "pinned.mp4"));
+        await report(`r.discardRecording(); return r.closeReport().then(() => true)`);
+      } finally {
+        await pipAct("alpha:0");
+      }
+      log(`report-recording-pip: ${JSON.stringify({ hidden, included, pinned })}`);
+      const wrong = [];
+      for (const r of [hidden, included]) {
+        if (r.frames.during !== r.frames.placed || r.frames.after !== r.frames.placed || r.frames.stashed.some(Boolean))
+          wrong.push(`${r.label}: recording moved, hid or stashed the PiP ${JSON.stringify(r.frames)}`);
+        if (r.pipEvents) wrong.push(`${r.label}: ${r.pipEvents} PiP events while recording`);
+        if (r.playback.after.paused || !r.playback.after.pip || r.playback.after.time <= r.playback.before.time)
+          wrong.push(`${r.label}: playback changed ${JSON.stringify(r.playback)}`);
+        if (!r.windows?.some((w) => w.kind === "pictureInPicture")) wrong.push(`${r.label}: the PiP window isn't in the recording's windows (${JSON.stringify(r.windows)})`);
+      }
+      if (!(hidden.overSidebar.luma < 12 && hidden.pip.chroma < 15 && hidden.above.luma - hidden.overSidebar.luma > 15))
+        wrong.push(`pages hidden: the PiP isn't drawn as a hidden video over the sidebar (pip ${JSON.stringify(hidden.overSidebar)}, sidebar ${JSON.stringify(hidden.above)})`);
+      if (!(included.pip.chroma > 60)) wrong.push(`pages included: the PiP's video isn't in the frames (pip ${JSON.stringify(included.pip)}, sidebar ${JSON.stringify(included.above)})`);
+      if (pinned.failed || pinned.pip) wrong.push(`a PiP beside the window is drawn into the recording: ${JSON.stringify({ failed: pinned.failed, pip: pinned.pip, windows: pinned.stats?.windows })}`);
+      if (wrong.length) throw new Error(wrong.join("; "));
+      return { pinned: pinned.stats?.windows, hidden: { pip: hidden.overSidebar, sidebar: hidden.above, windows: hidden.windows }, included: { pip: included.pip, sidebar: included.above, windows: included.windows, misses: included.misses }, out };
+    } finally {
+      await report(`r.discardRecording(); return r.closeReport().then(() => true)`).catch(() => null);
+      await closeTab(tab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("report-recording-guard", async () => {
+    const out = join(scratch, "report-recording-guard");
+    rmSync(out, { recursive: true, force: true });
+    mkdirSync(out, { recursive: true });
+    const nums = (text) => text.match(/-?[\d.]+/g).map(Number);
+    const pipAct = (action) => engine("tabs.devPictureInPictureAction", { action });
+    const report = (body) => evalApp(`const r = ac.report; ${body}`);
+    const dev = (fn, ...args) => evalApp(`const m = globalThis.expo.modules.ArdiaReport; return m.${fn} ? m.${fn}(${args.map((a) => JSON.stringify(a)).join(", ")}) : null`);
+    const dragPreview = (fn, ...args) => evalApp(`return globalThis.expo.modules.ArdiaAppWindows.${fn}(${args.map((a) => JSON.stringify(a)).join(", ")})`);
+    const styled = async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null;
+    const MARKERS = { page: [300, 180], video: [240, 60], other: [270, 30] };
+    const HUE_TOLERANCE = 10, MIN_SATURATION = 0.55, MIN_VALUE = 0.3, MIN_PIXELS = 40;
+    const markerFrames = (mp4) => {
+      const [fw, fh] = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", mp4], { encoding: "utf8" }).trim().split(",").map(Number);
+      const w = fw >> 1, h = fh >> 1;
+      const raw = execFileSync("ffmpeg", ["-loglevel", "error", "-i", mp4, "-fps_mode", "passthrough", "-vf", `scale=${w}:${h}:flags=neighbor`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { maxBuffer: 2 ** 32 });
+      const size = w * h * 3, frames = [];
+      const hueOf = (r, g, b) => {
+        const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+        if (max < MIN_VALUE * 255 || d < MIN_SATURATION * max) return -1;
+        const hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        return (hue * 60 + 360) % 360;
+      };
+      const near = (hue, target) => hue >= 0 && Math.min(Math.abs(hue - target), 360 - Math.abs(hue - target)) <= HUE_TOLERANCE;
+      for (let f = 0; f + size <= raw.length; f += size) {
+        const counts = Object.fromEntries(Object.keys(MARKERS).map((k) => [k, [0, 0]]));
+        const box = Object.fromEntries(Object.keys(MARKERS).map((k) => [k, [w, h, -1, -1]]));
+        for (let y = 0; y < h; y++)
+          for (let x = 0; x < w; x++) {
+            const i = f + (y * w + x) * 3, hue = hueOf(raw[i], raw[i + 1], raw[i + 2]);
+            if (hue < 0) continue;
+            for (const [name, pair] of Object.entries(MARKERS))
+              for (let c = 0; c < 2; c++)
+                if (near(hue, pair[c])) {
+                  counts[name][c]++;
+                  if (c === 0) continue;
+                  const bb = box[name];
+                  bb[0] = Math.min(bb[0], x), bb[1] = Math.min(bb[1], y), bb[2] = Math.max(bb[2], x), bb[3] = Math.max(bb[3], y);
+                }
+          }
+        const hits = Object.fromEntries(Object.entries(counts).map(([k, [a, b]]) => [k, a >= MIN_PIXELS && b >= MIN_PIXELS ? { a, b, box: box[k] } : null]));
+        frames.push(hits);
+      }
+      return { size: [w, h], frames };
+    };
+    const summary = (frames, name) => {
+      const at = frames.map((f, i) => (f[name] ? i : -1)).filter((i) => i >= 0);
+      return { frames: at.length, first: at[0] ?? null, last: at.at(-1) ?? null };
+    };
+    const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const winfo = async () => JSON.parse(await engine("windows.dev", { window: n, action: "winfo" }));
+    const original = nums((await winfo()).frame);
+    const marker = await openTab(`${base}/marker?page`, "Marker");
+    const video = await openTab(`${base}/video?report&marker`, "Video");
+    const opened = [];
+    let canPlace = false;
+    try {
+      await evalApp(`return ac.webviews.get("${video.id}").setMuted(true)`);
+      await startVideo(video.id, false);
+      await pipByHand(video.id);
+      await until("the styled PiP window", styled, 5000);
+      await evalApp(`ac.actions.switchToTab("${marker.id}"); return true`);
+      await until("the marker tab shown", async () => (await state()).active === marker.id);
+      await sleep(600);
+      const screen = nums((await styled()).visibleFrame);
+      canPlace = (await dev("devPlaceWindow", mainWindow, [screen[0] + screen[2] - 1000, screen[1] + 80, 1000, 680])) === true;
+      await sleep(500);
+      const [wx, wy, ww, wh] = nums((await winfo()).frame);
+      const [, , pw, ph] = nums((await styled()).frame);
+      const page = await until("the page's rectangle", async () => (await dev("devRecordingPages", mainWindow))?.find((p) => p.source === "engine") ?? null, 5000).catch(() => null);
+      const pageRect = page ? page.rect : [260, 50, ww - 280, wh - 70];
+      const opens = async (command, kind, url, frame) => {
+        const before = new Set(await evalApp(`return Object.keys(ac.store.getState().windows)`));
+        await evalApp(`ac.runCommand({ command: ${JSON.stringify(command)}, arg: null, windowId: null }); return true`);
+        const id = await until(`a ${kind} window`, () => evalApp(`return Object.values(ac.store.getState().windows).find((w) => w.kind === ${JSON.stringify(kind)} && !${JSON.stringify([...before])}.includes(w.id))?.id ?? null`), 15000);
+        opened.push(id);
+        const tabId = await until("its tab", () => evalApp(`const w = ac.store.getState().windows["${id}"]; return w?.activeTabIds[w.profileId] ?? w?.tabIds[0] ?? null`));
+        await evalApp(`ac.store.getState().navigate("${tabId}", ${JSON.stringify(url)}, { userInitiated: true }); return true`);
+        await until(`the marker in the ${kind} window`, () => evalApp(`return ac.store.getState().tabs["${tabId}"]?.title === "Marker"`), 15000);
+        if (frame) await dev("devPlaceWindow", id, frame);
+        return id;
+      };
+      const closeWindow = async (id) => {
+        await evalApp(`return globalThis.expo.modules.ArdiaAppWindows.closeWindow(${JSON.stringify(id)})`).catch(() => null);
+        await until(`window ${id} closed`, () => evalApp(`return !ac.store.getState().windows["${id}"]`), 10000).catch(() => null);
+      };
+      const choreography = async (label) => {
+        const steps = [];
+        const step = (name) => steps.push({ name, at: Date.now() });
+        await sleep(500);
+        step("pip appears over the page");
+        await pipAct(`frame:{{${Math.round(wx + pageRect[0] + 40)}, ${Math.round(wy + 60)}}, {${pw}, ${ph}}}`);
+        await pipAct("alpha:1");
+        await sleep(800);
+        step("pip moves");
+        await pipAct(`frame:{{${Math.round(wx + pageRect[0] + 200)}, ${Math.round(wy + 140)}}, {${pw}, ${ph}}}`);
+        await sleep(800);
+        step("private window appears over the window");
+        const priv = await opens("newIncognitoWindow", "private", `${base}/marker?other`, [wx + 40, wy + 40, 700, 500]);
+        await sleep(900);
+        step("private window moves");
+        await dev("devPlaceWindow", priv, [wx + 120, wy + 90, 700, 500]);
+        await sleep(700);
+        step("private window closes");
+        await closeWindow(priv);
+        opened.splice(opened.indexOf(priv), 1);
+        await sleep(500);
+        step("Little Ardia appears over the window");
+        const small = await opens("newLittleArdia", "small", `${base}/marker?other`, [wx + 60, wy + 60, 520, 420]);
+        await sleep(900);
+        step("Little Ardia closes");
+        await closeWindow(small);
+        opened.splice(opened.indexOf(small), 1);
+        await sleep(400);
+        step("a dragged tab's preview appears and moves");
+        const picture = await evalApp(`return ac.webviews.get("${marker.id}").capturePicture(0.35)`);
+        await dragPreview("dragPreviewBegin", mainWindow, [12, 120, 200, 32], [100, 136]);
+        if (picture) await dragPreview("dragPreviewPage", picture.data, picture.frame);
+        await dragPreview("dragPreviewUpdate", "card", [Math.round(ww / 2), Math.round(wh / 2)]);
+        await sleep(800);
+        await dragPreview("dragPreviewUpdate", "card", [Math.round(ww / 2) + 120, Math.round(wh / 2) - 60]);
+        await sleep(700);
+        await dragPreview("dragPreviewCancel");
+        await sleep(400);
+        step("pip leaves");
+        await pipAct("alpha:0");
+        await sleep(400);
+        log(`report-recording-guard ${label} steps: ${JSON.stringify(steps.map((s) => s.name))}`);
+        return steps;
+      };
+      const record = async (label, includePages, during) => {
+        const phase = await report(`r.openReport(${JSON.stringify(mainWindow)}); r.setIncludePages(${includePages}); return r.startRecording().then(() => r.currentReport().recording.phase)`);
+        if (phase !== "recording") throw new Error(`${label}: the recording didn't start (${phase})`);
+        try {
+          await during();
+        } finally {
+          await report(`return r.stopRecording().then(() => true)`);
+        }
+        const done = await until(`the ${label} recording saved`, () => report(`const s = r.currentReport().recording; return s.phase === "ready" ? { path: s.path, stats: r.lastRecordingStats() } : s.phase === "failed" ? { failed: s.message } : null`), 20000);
+        if (done.failed) throw new Error(`${label}: ${done.failed}`);
+        const mp4 = join(out, `${label}.mp4`);
+        cpSync(done.path, mp4);
+        await report(`r.discardRecording(); return r.closeReport().then(() => true)`);
+        const decoded = markerFrames(mp4);
+        const result = {
+          label, mp4, decodedFrames: decoded.frames.length, size: decoded.size,
+          page: summary(decoded.frames, "page"), video: summary(decoded.frames, "video"), other: summary(decoded.frames, "other"),
+          videoBoxes: decoded.frames.map((f, i) => f.video && { frame: i, box: f.video.box }).filter(Boolean),
+          stats: { frames: done.stats?.frames, windows: done.stats?.windows, withheld: done.stats?.withheldWindows, misses: done.stats?.windowPictureMisses, renderMsP95: done.stats?.renderMsP95 },
+        };
+        log(`report-recording-guard ${label}: ${JSON.stringify({ ...result, videoBoxes: result.videoBoxes.slice(0, 3) })}`);
+        return result;
+      };
+      const hidden = await record("pages-hidden", false, () => choreography("pages-hidden"));
+      const included = await record("pages-included", true, () => choreography("pages-included"));
+      const s = included.size[0] / ww;
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+      await until("Page A shown", async () => (await state()).active === first.id);
+      const stashed = await record("stashed", true, async () => {
+        await pipAct(`frame:{{${Math.round(wx + ww - pw - 30)}, ${Math.round(wy + 100)}}, {${pw}, ${ph}}}`);
+        await pipAct("alpha:1");
+        await sleep(600);
+        await pipAct("stash");
+        await sleep(1800);
+        await pipAct("alpha:0");
+      });
+      await pipAct("unstash");
+      await sleep(800);
+      let offWindow = null;
+      if (canPlace) {
+        await dev("devPlaceWindow", mainWindow, [screen[0] + screen[2] - 900, screen[1] + 80, 900, 600]);
+        await sleep(400);
+      }
+      const [ox] = nums((await winfo()).frame);
+      if (ox - screen[0] >= pw + 20) {
+        offWindow = await record("off-window", true, async () => {
+          await pipAct(`frame:{{${Math.round(screen[0] + 10)}, ${Math.round(screen[1] + 100)}}, {${pw}, ${ph}}}`);
+          await pipAct("alpha:1");
+          await sleep(1500);
+          await pipAct("alpha:0");
+        });
+      }
+      await closeTab(video.id);
+      await until("the video PiP closed", async () => !(await styled()), 8000);
+      const docTab = await openTab(`${secureBase}/video?docpip&marker`, "Video");
+      let documentPip;
+      try {
+        await startVideo(docTab.id, true);
+        await until("live.playingAudio", async () => (await live(docTab.id))?.playingAudio === true, 8000);
+        await until("onNowPlaying with video", async () => lastEvent(docTab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
+        await sleep(300);
+        documentPip = await record("document-pip", false, async () => {
+          await evalApp(`ac.actions.switchToTab("${marker.id}"); return true`);
+          await until("auto PiP (document)", async () => lastEvent(docTab.id, "pictureInPicture", (p) => p.kind === "document" && p.active), 8000);
+          const doc = await until("the document PiP window", async () => (await pipWindows())?.find((w) => w.document) ?? null, 8000);
+          await dev("devWindowServerAlpha", doc.window, 1);
+          await sleep(1500);
+          await dev("devWindowServerAlpha", doc.window, 0);
+        });
+      } finally {
+        await closeTab(docTab.id);
+      }
+      const wrong = [];
+      for (const name of ["page", "video", "other"])
+        if (documentPip[name].frames) wrong.push(`document PiP, pages hidden: ${name} marker pixels in ${documentPip[name].frames} frames`);
+      for (const name of ["page", "video", "other"])
+        if (hidden[name].frames) wrong.push(`pages hidden: ${name} marker pixels in ${hidden[name].frames} of ${hidden.decodedFrames} frames (first ${hidden[name].first})`);
+      for (const r of [hidden, included, documentPip]) {
+        const foreign = (r.stats.windows ?? []).filter((w) => w.kind !== "pictureInPicture" && w.frames > 0);
+        if (foreign.length) wrong.push(`${r.label}: windows that aren't the recorded window's own were drawn: ${JSON.stringify(foreign)}`);
+      }
+      if (included.other.frames) wrong.push(`pages included: another window's page in ${included.other.frames} frames (first ${included.other.first})`);
+      if (!included.page.frames) wrong.push("pages included: the recorded window's own page never shows");
+      if (!included.video.frames) wrong.push("pages included: the recorded window's own PiP video never shows");
+      const edge = (34 * s) | 0;
+      const settled = Math.floor(stashed.decodedFrames * 0.6);
+      const deep = stashed.videoBoxes.filter((b) => b.frame >= settled && b.box[0] < stashed.size[0] - edge);
+      if (deep.length) wrong.push(`stashed: the PiP video drawn away from the screen edge in ${deep.length} settled frames (left edge at ${deep[0].box[0]} px of ${stashed.size[0]})`);
+      if (offWindow?.video.frames) wrong.push(`off the window: the PiP video drawn in ${offWindow.video.frames} frames`);
+      if (wrong.length) throw new Error(wrong.join("; "));
+      return {
+        hidden: { frames: hidden.decodedFrames, windows: hidden.stats.windows, withheld: hidden.stats.withheld },
+        included: { frames: included.decodedFrames, page: included.page.frames, video: included.video.frames, withheld: included.stats.withheld, misses: included.stats.misses },
+        stashed: { video: stashed.video.frames, edgePx: edge, settledBoxes: stashed.videoBoxes.filter((b) => b.frame >= settled).slice(0, 2) },
+        offWindow: offWindow ? { frames: offWindow.decodedFrames, video: offWindow.video.frames } : "skipped: no room beside the window",
+        documentPip: { frames: documentPip.decodedFrames, windows: documentPip.stats.windows },
+        out,
+      };
+    } finally {
+      await report(`r.discardRecording(); return r.closeReport().then(() => true)`).catch(() => null);
+      await dragPreview("dragPreviewCancel").catch(() => null);
+      for (const id of opened) await evalApp(`return globalThis.expo.modules.ArdiaAppWindows.closeWindow(${JSON.stringify(id)})`).catch(() => null);
+      await pipAct("alpha:0").catch(() => null);
+      if (canPlace) await dev("devPlaceWindow", mainWindow, original).catch(() => null);
+      await closeTab(video.id);
+      await closeTab(marker.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     }
   });
@@ -3303,7 +4226,7 @@ try {
       await evalApp(`return ac.webviews.get("${first.id}").focus()`);
       await sleep(600);
       if ((await state()).active !== first.id) throw new Error("the app's focus() switched tabs");
-      const took = await cef(`devFocusPage(${await browserOf(other.id)})`);
+      const took = await engine("tabs.devFocusPage", { tabId: other.id });
       const focus = await until("onPageFocus", async () => {
         const all = (await eventsOf(other.id)).filter((x) => x.name === "focus");
         return all.length > before + fromApp ? all.at(-1) : null;
@@ -3319,11 +4242,50 @@ try {
     }
   });
 
+  await check("page-drag", async () => {
+    const tab = await freshTab(`${base}/drag`);
+    try {
+      const target = await until("the page", () => pageTarget("/drag"));
+      const n = await engine("tabs.devWindowNumber", { tabId: tab });
+      const act = (action) => engine("windows.dev", { window: n, action });
+      const events = async () => (await cdp(target, "Runtime.evaluate", { expression: "window.__events", returnByValue: true })).result.value ?? [];
+      const press = async ([x, y]) => {
+        await act(`mouse:down:${x},${y}`);
+        await sleep(80);
+        await act(`mouse:up:${x},${y}`);
+      };
+      await act("fakeActiveClicks");
+      let spot = null;
+      for (const [x, y] of [[700, 420], [600, 500], [900, 300]])
+        if (!spot && (await act(`hit:${x},${y}`)).startsWith("RenderWidgetHostViewCocoa")) spot = [x, y];
+      if (!spot) throw new Error("no window point over the page");
+      await press(spot);
+      const down = await until("the calibration press", async () => (await events()).find((e) => e[0] === "mousedown"), 4000);
+      const at = (x, y) => [Math.round(x + spot[0] - down[2]), Math.round(y + spot[1] - down[3])];
+      const [x, y] = at(130, 70);
+      await act(`mouse:down:${x},${y}`);
+      for (let i = 1; i <= 12; i++) {
+        await act(`mouse:dragged:${x + i * 20},${y + i * 10}`);
+        await sleep(30);
+      }
+      await until("dragstart", async () => (await events()).some((e) => e[0] === "dragstart"), 5000);
+      await act(`mouse:up:${x + 240},${y + 120}`);
+      await until("dragend: the drag the page started reached AppKit and ended", async () => (await events()).some((e) => e[0] === "dragend"), 8000);
+      const clickerClicks = async () => (await events()).filter((e) => e[0] === "click" && e[1] === "clicker").length;
+      const clicksBefore = await clickerClicks();
+      await press(at(360, 70));
+      await until("a new click on the page after the drag", async () => (await clickerClicks()) > clicksBefore, 4000);
+      return { spot, events: (await events()).map((e) => `${e[0]}:${e[1]}`) };
+    } finally {
+      await closeTab(tab).catch(() => null);
+    }
+  });
+
   // MARK: Page full screen
   const fsFlag = (tabId) => evalApp(`return !!ac.pageState.getState().pages[${JSON.stringify(tabId)}]?.fullscreen`);
   const fsWindow = async (tabId, action = "fullScreen") => {
-    const n = await cef(`devWindowNumber(${await browserOf(tabId)})`);
-    const out = await cef(`devWindow(${n}, ${JSON.stringify(action)})`);
+    const n = await engine("tabs.devWindowNumber", { tabId: tabId });
+    const out = await engine("windows.dev", { window: n, action });
     try {
       return JSON.parse(out);
     } catch {
@@ -3414,17 +4376,17 @@ try {
       out.midTransition = { during: mid.pageFullScreen, after: await settled("the window out after the transition", (w) => !w.fullScreen && !w.pageFullScreen?.entered) };
       if (!mid.pageFullScreen?.transitioning) throw new Error(`the transition had ended before the page left: ${JSON.stringify(mid)}`);
       await fsEnter(tab.id, t);
-      const n = await cef(`devWindowNumber(${await browserOf(tab.id)})`);
+      const n = await engine("tabs.devWindowNumber", { tabId: tab.id });
       const closing = await until("the window's transition started", async () => {
-        const w = JSON.parse(await cef(`devWindow(${n}, "fullScreen")`)).pageFullScreen;
+        const w = JSON.parse(await engine("windows.dev", { window: n, action: "fullScreen" })).pageFullScreen;
         return w?.transitioning ? w : null;
-      }, 2000).catch(async () => JSON.parse(await cef(`devWindow(${n}, "fullScreen")`)).pageFullScreen);
+      }, 2000).catch(async () => JSON.parse(await engine("windows.dev", { window: n, action: "fullScreen" })).pageFullScreen);
       if (!closing?.transitioning) throw new Error(`the transition had ended before the close: ${JSON.stringify(closing)}`);
       await closeTab(tab.id);
       out.closedMidTransition = await until("the window out after its tab closed mid-transition", async () => {
-        const w = JSON.parse(await cef(`devWindow(${n}, "fullScreen")`));
+        const w = JSON.parse(await engine("windows.dev", { window: n, action: "fullScreen" }));
         return !w.fullScreen && !w.pageFullScreen?.transitioning && w.pageFullScreen?.page == null ? w : null;
-      }, 6000).catch(async (e) => { throw new Error(`${e.message}; closing the tab mid-transition left ${await cef(`devWindow(${n}, "fullScreen")`)}`); });
+      }, 6000).catch(async (e) => { throw new Error(`${e.message}; closing the tab mid-transition left ${await engine("windows.dev", { window: n, action: "fullScreen" })}`); });
       const slow = await openTab(`${base}/b?fs-slow`, "Page B");
       try {
         const st = await pageFor(slow.id, "/b?fs-slow");
@@ -3468,7 +4430,40 @@ try {
       out.actedToggles = log;
       return out;
     } finally {
-      await cef(`devWindow(${await cef(`devWindowNumber(${await browserOf(first.id)})`)}, "fakeFullScreenMs:0")`).catch(() => null);
+      await engine("windows.dev", { window: await engine("tabs.devWindowNumber", { tabId: first.id }), action: "fakeFullScreenMs:0" }).catch(() => null);
+      await closeTab(tab.id).catch(() => null);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("fullscreen-system-title-bar", async () => {
+    const tab = await openTab(`${base}/b?fs-title-bar`, "Page B");
+    const n = await engine("tabs.devWindowNumber", { tabId: tab.id });
+    const win = (action) => engine("windows.dev", { window: n, action });
+    const windowId = await evalApp(`return ac.store.getState().tabs[${JSON.stringify(tab.id)}]?.windowId ?? null`);
+    const appFullScreen = () => evalApp(`return !!ac.store.getState().windows[${JSON.stringify(windowId)}]?.fullScreen`);
+    try {
+      const windowed = await win("lights");
+      if (await appFullScreen()) throw new Error("the app thinks a windowed window is full screen");
+      await fsWindow(tab.id, "fakeFullScreen:1");
+      await until("the window in full screen", async () => {
+        const w = await fsWindow(tab.id);
+        return w.fullScreen && !w.pageFullScreen?.transitioning ? w : null;
+      }, 6000);
+      await until("the app told the window is full screen, so the sidebar's button moves to the edge", async () => ((await appFullScreen()) ? true : null), 3000);
+      const own = await win("hit:20,20");
+      if (own.includes("ArdiaFullScreenLights")) throw new Error(`our own full-screen lights are back: ${own}`);
+      await fsWindow(tab.id, "fakeFullScreen:0");
+      await until("the window out of full screen", async () => {
+        const w = await fsWindow(tab.id);
+        return !w.fullScreen && !w.pageFullScreen?.transitioning ? w : null;
+      }, 6000);
+      await until("the app told the window left full screen", async () => (!(await appFullScreen()) ? true : null), 3000);
+      const after = await win("lights");
+      if (after !== windowed) throw new Error(`windowed lights ${windowed} → ${after}`);
+      return { windowedLights: after };
+    } finally {
+      if ((await fsWindow(tab.id).catch(() => null))?.fullScreen) await fsWindow(tab.id, "fakeFullScreen:0").catch(() => null);
       await closeTab(tab.id).catch(() => null);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     }
@@ -3476,7 +4471,7 @@ try {
 
   await check("fullscreen-transition-picture", async () => {
     const tab = await openTab(`${base}/fs-layout`, "FS layout");
-    const act = async (action) => cef(`devWindow(${await cef(`devWindowNumber(${await browserOf(tab.id)})`)}, ${JSON.stringify(action)})`);
+    const act = async (action) => engine("windows.dev", { window: await engine("tabs.devWindowNumber", { tabId: tab.id }), action });
     try {
       const t = await pageFor(tab.id, "/fs-layout");
       const key = async () => {
@@ -3644,8 +4639,8 @@ try {
   });
 
   await check("fullscreen-pip", async () => {
-    const n = await cef(`devWindowNumber(${await browserOf(first.id)})`);
-    const win = (action) => cef(`devWindow(${n}, ${JSON.stringify(action)})`);
+    const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const win = (action) => engine("windows.dev", { window: n, action });
     const pressF = async (t) => {
       for (const type of ["keyDown", "keyUp"])
         await cdp(t, "Input.dispatchKeyEvent", { type, key: "f", code: "KeyF", text: type === "keyDown" ? "f" : undefined, windowsVirtualKeyCode: 70, nativeVirtualKeyCode: 3 });
@@ -3656,10 +4651,9 @@ try {
     try {
       await win("fakeOcclusion:visible");
       await win("fakeFullScreenMs:700");
-      for (const [path, name] of [["/video?fkey", "plain"], ["/video?fkey&handlers", "handlers"]]) {
-        const tab = await openTab(`${base}${path}`, "Video");
+      for (const [path, name] of [["/video?fkey&file", "plain"], ["/video?fkey&handlers", "handlers"]]) {
+        const tab = await openTab(`${secureBase}${path}`, "Video");
         try {
-          await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
           const t = await startVideo(tab.id, true);
           await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
           await until("onNowPlaying playing", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
@@ -3703,7 +4697,7 @@ try {
               ["tab", () => evalApp(`ac.actions.switchToTab("${first.id}"); return true`), () => evalApp(`ac.actions.switchToTab("${tab.id}"); return true`)],
               ["window", () => win("fakeOcclusion:occluded"), () => win("fakeOcclusion:visible")],
             ]) {
-              if ((await evalApp(`return ac.webviews.get("${tab.id}").requestPictureInPicture()`)) !== true) throw new Error("requestPictureInPicture failed");
+              await pipByHand(tab.id);
               const opened = await until("PiP opened by hand", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000);
               await leave();
               await sleep(800);
@@ -3774,11 +4768,10 @@ try {
       await cdp(t, "Runtime.evaluate", { expression: "const c = document.getElementById('c'); c.value = ''; c.blur(); c.focus(); 1", userGesture: true });
       await sleep(400);
       count = await shownCount();
-      const browser = await browserOf(first.id);
-      const shown = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.showAutofillSuggestions(${browser}, false)`);
+      const shown = await engine("autofill.showSuggestions", { tabId: first.id, passwords: false });
       const command = await until("the dropdown from showAutofillSuggestions", async () => shownSince(count, "Springfield"), 6000)
         .catch((e) => { throw new Error(`${e.message}; showAutofillSuggestions answered ${shown}`); });
-      await cef(`savePassword("", ${JSON.stringify(base)}, "nnfill", "fill-s3cret")`);
+      await secret("ArdiaPasswords", "save", "", base, "nnfill", "fill-s3cret");
       t = await go("/login?fill", "Login");
       await evalApp(`return ac.webviews.get("${first.id}").focus()`);
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('u').focus(); 1", userGesture: true });
@@ -3789,14 +4782,14 @@ try {
       await evalApp(`ac.runCommand({ command: "autofill", arg: "passwords", windowId: ${JSON.stringify(mainWindow)} }); return true`);
       const passwords = await until("the saved passwords", async () => shownSince(count, "nnfill"), 6000)
         .catch(async (e) => {
-          const direct = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.showAutofillSuggestions(${browser}, true)`);
+          const direct = await engine("autofill.showSuggestions", { tabId: first.id, passwords: true });
           await sleep(1500);
-          throw new Error(`${e.message}; direct ${direct}; saved ${JSON.stringify(await cef(`listPasswords("")`)).slice(0, 300)}; shown ${JSON.stringify((await eventsOf(first.id)).filter((x) => x.name === "autofillSuggestions").map((x) => x.payload))}`);
+          throw new Error(`${e.message}; direct ${direct}; saved ${JSON.stringify(await engineOrError("passwords.list", { profile: "" })).slice(0, 300)}; shown ${JSON.stringify((await eventsOf(first.id)).filter((x) => x.name === "autofillSuggestions").map((x) => x.payload))}`);
         });
       const labels = (e) => e.payload.items.map((i) => `${i.label} (${i.type})`);
       return { click: labels(clicked), picked, command: labels(command), shown, passwords: labels(passwords) };
     } finally {
-      await cef(`deletePassword("", ${JSON.stringify(base)}, "nnfill")`).catch(() => null);
+      await engineOrError("passwords.remove", { profile: "", origin: base, username: "nnfill" }).catch(() => null);
       await backToA();
     }
   });
@@ -3804,7 +4797,7 @@ try {
   await check("images", async () => {
     const image = await evalApp(`return ac.webviews.get("${first.id}").downloadImage("${base}/icon.png", 64)`);
     const favicon = await evalApp(`return ac.webviews.get("${first.id}").downloadFavicon("${base}/icon.png")`);
-    const fetched = await cef(`fetchFavicon("${base}/icon.png", "")`);
+    const fetched = await engine("favicons.fetch", { profile: "", url: `${base}/icon.png` });
     const isData = (r) => JSON.stringify(r ?? null).includes("data:image/png");
     if (!isData(image) || !isData(favicon) || !isData(fetched)) throw new Error(`not data URLs: ${JSON.stringify({ image, favicon, fetched }).slice(0, 300)}`);
     return { image: true, favicon: true, fetched: true };
@@ -3867,14 +4860,14 @@ try {
     const favBase = `http://nnfav.localhost:${icons.address().port}`;
     const fetchIcon = async (url, profile = "") => {
       const started = Date.now();
-      const r = await evalApp(`return globalThis.expo.modules.ArdiaCEF.fetchFavicon(${JSON.stringify(url)}, ${JSON.stringify(profile)})`, 60000);
+      const r = await evalApp(`return ac.engine.call("favicons.fetch", ${JSON.stringify({ profile, url })}).catch(() => null)`, 60000);
       return { uri: typeof r?.uri === "string" ? r.uri.slice(0, 22) : null, width: r?.width ?? null, ms: Date.now() - started };
     };
     const ok = (r) => r.uri === "data:image/png;base64,";
     let privateWindow = null;
     try {
       await evalApp(`const h = (globalThis.acFaviconHang = { started: Date.now() });
-        globalThis.expo.modules.ArdiaCEF.fetchFavicon(${JSON.stringify(`${favBase}/hang`)}, "").then((r) => { h.uri = r?.uri ?? null; h.ms = Date.now() - h.started; }, () => { h.uri = null; h.ms = Date.now() - h.started; });
+        ac.engine.call("favicons.fetch", ${JSON.stringify({ profile: "", url: `${favBase}/hang` })}).then((r) => { h.uri = r?.uri ?? null; h.ms = Date.now() - h.started; }, () => { h.uri = null; h.ms = Date.now() - h.started; });
         return true`);
       const cookieTab = await openTab(`${favBase}/set-cookie`, "Favicon Cookie");
       const cookie = (await cdp(await pageFor(cookieTab.id, "/set-cookie"), "Runtime.evaluate", { expression: "document.cookie", returnByValue: true })).result.value;
@@ -3912,14 +4905,14 @@ try {
       const remote = `${ok(remoteFetch) ? "ok" : "null"}${reachable ? "" : " (not reachable from this script)"}`;
       const noWindow = await fetchIcon(`${favBase}/icon.png?no-private-window`, "incognito:nnfav@");
       if (noWindow.uri !== null) throw new Error("a fetch made a private profile");
-      privateWindow = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${favBase}/icon.png?private-page" })`);
+      privateWindow = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${favBase}/icon.png?private-page" })`);
       const privateProfile = await until("the private window's engine profile", async () =>
-        (await evalApp(`return globalThis.expo.modules.ArdiaCEF.tabStrips()`)).strips.find((st) => st.appWindow === privateWindow)?.profile ?? null, 10000);
+        (await engine("tabs.strips")).strips.find((st) => st.appWindow === privateWindow)?.profile ?? null, 10000);
       if (!privateProfile.startsWith("incognito:")) throw new Error(`the private window's engine profile: ${JSON.stringify(privateProfile)}`);
       await until("the private page", () => (seen.some((s) => s.path === "/icon.png?private-page") ? true : null), 10000);
       const privately = await fetchIcon(`${favBase}/icon.png?private`, privateProfile);
       if (!ok(privately)) throw new Error(`the private window's fetch failed: ${JSON.stringify(privately)}`);
-      const stored = JSON.parse(await cef(`engineCall("ac_favicons_set", ${JSON.stringify(privateProfile)}, ${JSON.stringify(JSON.stringify({ page: `${favBase}/private-page`, icon: `${favBase}/icon.png?private`, png: "AA==" }))})`).catch((e) => JSON.stringify({ refused: String(e) })));
+      const stored = await engineOrError("favicons.set", { profile: privateProfile, page: `${favBase}/private-page`, icon: `${favBase}/icon.png?private`, png: "AA==" }).catch((e) => ({ refused: String(e) }));
       if (!stored?.error) throw new Error(`a private profile wrote Chrome's favicon store: ${JSON.stringify(stored)}`);
       const timedOut = await until("the hung request's end", () => evalApp(`const h = globalThis.acFaviconHang; return h.ms ? { uri: h.uri ? h.uri.slice(0, 22) : null, ms: h.ms } : null`), 50000);
       if (timedOut.uri !== null || timedOut.ms < 25000 || timedOut.ms > 50000) throw new Error(`the hung request: ${JSON.stringify(timedOut)}`);
@@ -3933,19 +4926,18 @@ try {
   });
 
   await check("extension-surfaces", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
-    const browser = await browserOf(first.id);
-    const states = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.actionStates(${browser}, ["${installed.id}"])`);
+    const states = await engine("extensions.actionStates", { tabId: first.id, ids: [installed.id] });
     if (!states?.[installed.id]) throw new Error(`no action state: ${JSON.stringify(states)}`);
-    const panel = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.sidePanelURL(${browser}, "${installed.id}")`);
-    const reloaded = await exts(`reload("${installed.id}", "")`);
+    const panel = await engine("extensions.sidePanelUrl", { tabId: first.id, extensionId: installed.id });
+    const reloaded = await engineOrError("extensions.reload", { profile: "", id: installed.id });
     if (reloaded?.error) throw new Error(`reload: ${reloaded.error}`);
     await sleep(1000);
     await evalApp(`ac.store.getState().navigate("${first.id}", "${base}/blocking", { userInitiated: true }); return true`);
     const blocked = await until("onContentBlocked", async () =>
       (await eventsOf(first.id)).findLast((x) => x.name === "contentBlocked" && x.payload?.count >= 2), 10000).catch(() => null);
-    await exts(`uninstall("${installed.id}", "")`);
+    await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
     await evalApp(`ac.store.getState().navigate("${first.id}", "${base}/a", { userInitiated: true }); return true`);
     await until("A again", async () => (await state()).tabs.find((t) => t.id === first.id && t.title === "Page A" && !t.loading));
     if (!blocked) throw new Error("no onContentBlocked count for the extension's blocked images");
@@ -3953,20 +4945,23 @@ try {
   });
 
   await check("frozen", async () => {
-    const s = await state();
-    const other = s.tabs.find((x) => x.id !== first.id && x.id !== s.active && x.url?.startsWith(`${base}/d`));
-    if (!other) throw new Error("no background tab");
-    const t = await pageTarget(`${base}/d`);
-    await cdp(t, "Runtime.evaluate", { expression: "window.__life = []; document.addEventListener('freeze', () => __life.push('freeze')); document.addEventListener('resume', () => __life.push('resume')); true" });
-    await evalApp(`return ac.webviews.get("${other.id}")?.setFrozen(true)`);
-    await sleep(1500);
-    await evalApp(`return ac.webviews.get("${other.id}")?.setFrozen(false)`);
-    const life = await until("freeze and resume", async () => {
-      const r = await cdp(t, "Runtime.evaluate", { expression: "JSON.stringify(window.__life)", returnByValue: true });
-      const l = JSON.parse(r.result.value ?? "[]");
-      return l.includes("freeze") && l.includes("resume") ? l : null;
-    }, 8000);
-    return { life };
+    const other = await openTab(`${base}/d?frozen`, "Page D", true);
+    try {
+      const t = await pageFor(other.id, `${base}/d?frozen`);
+      await until("the page hidden", async () => (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value === "hidden" || null, 8000);
+      await cdp(t, "Runtime.evaluate", { expression: "window.__life = []; document.addEventListener('freeze', () => __life.push('freeze')); document.addEventListener('resume', () => __life.push('resume')); true" });
+      await evalApp(`return ac.webviews.get("${other.id}")?.setFrozen(true)`);
+      await sleep(1500);
+      await evalApp(`return ac.webviews.get("${other.id}")?.setFrozen(false)`);
+      const life = await until("freeze and resume", async () => {
+        const r = await cdp(t, "Runtime.evaluate", { expression: "JSON.stringify(window.__life)", returnByValue: true });
+        const l = JSON.parse(r.result.value ?? "[]");
+        return l.includes("freeze") && l.includes("resume") ? l : null;
+      }, 8000);
+      return { life };
+    } finally {
+      await closeTab(other.id);
+    }
   });
 
   await check("discard", async () => {
@@ -3989,7 +4984,7 @@ try {
       userGesture: true,
     });
     const request = await until("the prompt", async () => evalApp(`return ac.pageState.getState().pages["${first.id}"]?.permission ?? null`), 10000);
-    await cef(`resolvePermission("${request.id}", "deny", false)`);
+    await engine("permissions.resolve", { id: request.id, result: "deny", remember: false });
     const answer = await until("the page's answer", async () => {
       const r = await cdp(t, "Runtime.evaluate", { expression: "String(window.__geo)", returnByValue: true });
       return r.result.value !== "undefined" ? r.result.value : null;
@@ -4026,7 +5021,7 @@ try {
     const cookieA = (await cdp(a, "Runtime.evaluate", { expression: "document.cookie", returnByValue: true })).result.value;
     const cookieB = (await cdp(b, "Runtime.evaluate", { expression: "document.cookie", returnByValue: true })).result.value;
     if (cookieA.includes("who=B")) throw new Error("profile A sees B's cookie");
-    const windows = await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`);
+    const windows = await engine("engine.info");
     await evalApp(`ac.actions.switchProfile("${s.windowId}", "${s.profileId}"); return true`);
     return { profile: id, tab: tb.id, cookieB, cookieA, chromeWindows: windows.chromeWindows };
   });
@@ -4041,7 +5036,7 @@ try {
     return { before, after };
   });
   await check("incognito-window", async () => {
-    const id = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${base}/b?private" })`);
+    const id = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${base}/b?private" })`);
     const t = await until("a private tab", async () => {
       const tabs = await evalApp(`const s = ac.store.getState(); return (s.windows["${id}"]?.tabIds ?? []).map((i) => ({ url: s.tabs[i]?.url, title: s.tabs[i]?.title, profile: s.tabs[i]?.profileId }))`);
       return tabs.find((x) => x.title === "Page B") ?? null;
@@ -4147,21 +5142,585 @@ try {
     const t2 = await pageTarget(`${base}/a`);
     const kept = (await cdp(t2, "Runtime.evaluate", { expression: "String(window.__kept)", returnByValue: true })).result.value;
     if (kept !== "42") throw new Error(`the page reloaded or went: ${kept}`);
-    const tx = await evalApp(`return globalThis.expo.modules.ArdiaCEF.tabStrips()`);
-    const browser = await browserOf(first.id);
-    const windowNumber = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindowNumber(${browser})`);
-    const holding = tx.strips.find((x) => x.tabs.some((tab) => tab.browser === Number(browser)));
+    const tx = await engine("tabs.strips");
+    const windowNumber = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const holding = tx.strips.find((x) => x.tabs.some((tab) => tab.key === first.id));
     if (!holding || holding.window !== windowNumber) throw new Error(`the tab's strip is window ${holding?.window}, its view is in ${windowNumber}`);
     return { windowId, kept, strip: holding.strip, window: holding.window };
+  });
+
+  // MARK: Page view lifecycle
+
+  const toFirst = () => evalApp(`ac.actions.switchToTab(${JSON.stringify(first.id)}); return true`).catch(() => null);
+  const chromeTabKeys = async () => (await engine("tabs.strips")).strips.flatMap((st) => st.tabs.map((t) => t.key));
+  const reopenClosed = async (tag, then) => {
+    const tab = await openTab(`${base}/c?${tag}`, "Page C");
+    await sleep(800);
+    const entry = await evalApp(`ac.store.getState().closeTab(${JSON.stringify(tab.id)}); return ac.store.getState().closedTabs.find((c) => c.tabId === ${JSON.stringify(tab.id)})?.id ?? null`);
+    if (!entry) throw new Error(`no closed entry for ${tag}`);
+    await sleep(800);
+    return evalApp(`const s = ac.store.getState(); const before = new Set(Object.keys(s.tabs));
+      s.restoreClosed(${JSON.stringify(entry)}, ${JSON.stringify(mainWindow)});
+      const id = Object.keys(ac.store.getState().tabs).find((t) => !before.has(t)); ac.store.getState().activate(id); ${then}; return id`);
+  };
+
+  const pagePhase = (id) => engine("tabs.devPagePhase", { tabId: id });
+
+  await check("tab-close-then-load", async () => {
+    const id = await freshTab(`${base}/c?close-then-load`);
+    try {
+      if (!(await engine("tabs.devClosePage", { tabId: id }))) throw new Error("no page view to close");
+      await evalApp(`return ac.webviews.get(${JSON.stringify(id)})?.loadUrl(${JSON.stringify(`${base}/d?after-close`)}, true)`);
+      await sleep(2000);
+      const phase = await pagePhase(id);
+      const keys = (await chromeTabKeys()).filter((k) => k === id).length;
+      if (phase !== "closing" || keys) throw new Error(`a load after close brought the page back: ${JSON.stringify({ phase, keys })}`);
+      return { phase };
+    } finally {
+      await closeTab(id).catch(() => null);
+      await toFirst();
+    }
+  });
+
+  await check("tab-close-before-create", async () => {
+    const leaked = [];
+    for (const delay of [0, 20, 60, 120]) {
+      const id = await reopenClosed(`close-before-${delay}`, `setTimeout(() => ac.store.getState().closeTab(id), ${delay})`);
+      await sleep(2500);
+      if ((await chromeTabKeys()).includes(id)) leaked.push({ delay, id });
+    }
+    await toFirst();
+    if (leaked.length) throw new Error(`a tab closed while its page was being made kept a Chrome tab: ${JSON.stringify(leaked)}`);
+    return { delays: [0, 20, 60, 120] };
+  });
+
+  await check("tab-load-before-attach", async () => {
+    const id = await reopenClosed("load-before", `ac.store.getState().navigate(id, ${JSON.stringify(`${base}/d?pending`)}, { userInitiated: true })`);
+    try {
+      const loaded = await until("the load asked for before the page existed", async () => (await state()).tabs.find((t) => t.id === id && t.title === "Page D" && !t.loading), 15000)
+        .catch(async (e) => { throw new Error(`${e.message}; tab ${JSON.stringify(await evalApp(`const s = ac.store.getState(); const t = s.tabs[${JSON.stringify(id)}]; return { url: t?.url, title: t?.title, page: t?.page }`))}; pages ${JSON.stringify((await targets()).filter((t) => t.url.includes("/c?load-before") || t.url.includes("/d?pending")).map((t) => t.url))}`); });
+      const keys = (await chromeTabKeys()).filter((k) => k === id).length;
+      if (keys !== 1) throw new Error(`the tab has ${keys} Chrome tabs`);
+      return { url: loaded.url };
+    } finally {
+      await closeTab(id);
+      await toFirst();
+    }
+  });
+
+  await check("tab-create-interrupted-by-move", async () => {
+    const id = await reopenClosed("create-moved", `ac.store.getState().moveTabsToWindow([id], null)`);
+    try {
+      const windowId = await until("the tab in its new window", () => evalApp(`const s = ac.store.getState(); const w = s.tabs[${JSON.stringify(id)}]?.windowId; return w && w !== ${JSON.stringify(mainWindow)} && ac.webviews.get(${JSON.stringify(id)}) ? w : null`), 15000);
+      await until("its page", async () => evalApp(`const s = ac.store.getState(); return s.tabs[${JSON.stringify(id)}]?.title === "Page C" && !s.live[${JSON.stringify(id)}]?.isLoading || null`), 15000);
+      await sleep(1500);
+      const keys = (await chromeTabKeys()).filter((k) => k === id).length;
+      if (keys !== 1) throw new Error(`the moved tab has ${keys} Chrome tabs`);
+      return { windowId };
+    } finally {
+      await closeWindowOf(id).catch(() => null);
+      await closeTab(id).catch(() => null);
+      await toFirst();
+    }
+  });
+
+  await check("tab-close-while-lent", async () => {
+    const a = await openTab(`${base}/a?lender`, "Page A");
+    const b = await openTab(`${base}/b?holder`, "Page B");
+    try {
+      await evalApp(`ac.actions.switchToTab(${JSON.stringify(a.id)}); return true`);
+      await until("A shown", async () => (await state()).active === a.id);
+      await sleep(500);
+      await evalApp(`ac.actions.switchToTab(${JSON.stringify(b.id)}); ac.store.getState().closeTab(${JSON.stringify(a.id)}); return true`);
+      await until("A's Chrome tab gone", async () => !(await chromeTabKeys()).includes(a.id) || null, 5000);
+      await until("B shown with its page", async () => (await state()).active === b.id && (await evalApp(`return !!ac.webviews.get(${JSON.stringify(b.id)})`)) || null, 5000);
+      const t = await pageFor(b.id, "/b?holder");
+      const title = (await cdp(t, "Runtime.evaluate", { expression: "document.title", returnByValue: true })).result.value;
+      return { title };
+    } finally {
+      await closeTab(a.id).catch(() => null);
+      await closeTab(b.id).catch(() => null);
+      await toFirst();
+    }
+  });
+
+  await check("page-reports-follow-the-tab", async () => withPopupExtension({}, async () => {
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin: base, type: "notifications", value: "allow" });
+    const blocked = (id) => evalApp(`return ac.pageState.getState().pages[${JSON.stringify(id)}]?.blocked ?? 0`);
+    const theme = (id) => evalApp(`return ac.store.getState().live[${JSON.stringify(id)}]?.themeColor ?? null`);
+    const ads = await freshTab(`${base}/ac-ads?reports`);
+    const red = (await openTab(`${base}/red-header?reports`, "Red header")).id;
+    let windowId = null;
+    try {
+      await until("the ad page's count", async () => (await blocked(ads)) === 2 || null, 8000);
+      await until("the red header's colour", async () => (await theme(red)) === "#C80000" || null, 5000);
+      const redPage = await pageFor(red, "/red-header?reports");
+      await cdp(redPage, "Runtime.evaluate", { expression: "window.__clicked = false; const n = new Notification('Reports', { tag: 'reports' }); n.onclick = () => (window.__clicked = true); true", userGesture: true });
+      const note = await until("the notification", async () => (await eventsOf(red)).findLast((x) => x.name === "notification"), 8000);
+      windowId = await evalApp(`return ac.store.getState().moveTabsToWindow([${JSON.stringify(ads)}, ${JSON.stringify(red)}], null)`);
+      await until("both tabs in the new window", () => evalApp(`const s = ac.store.getState(); return [${JSON.stringify(ads)}, ${JSON.stringify(red)}].every((id) => s.tabs[id]?.windowId === ${JSON.stringify(windowId)} && ac.webviews.get(id)) || null`), 10000);
+      await sleep(1000);
+      const adsPage = await pageFor(ads, "/ac-ads?reports");
+      await cdp(adsPage, "Runtime.evaluate", { expression: "document.body.appendChild(Object.assign(new Image(), { src: '/nnblock-again.png' })); true" });
+      const count = await until("the count carried on", async () => { const n = await blocked(ads); return n >= 3 ? n : null; }, 8000)
+        .catch(async (e) => { throw new Error(`${e.message}; count ${await blocked(ads)}`); });
+      if (count !== 3) throw new Error(`the moved page's count is ${count}, not 3`);
+      if ((await theme(red)) !== "#C80000") throw new Error(`the moved page's colour is ${await theme(red)}`);
+      await evalApp(`return ac.webviews.get(${JSON.stringify(red)}).notificationAction(${JSON.stringify(note.payload.id)}, "click")`);
+      const movedRed = await pageFor(red, "/red-header?reports");
+      await until("the click reaching the moved page", async () => (await cdp(movedRed, "Runtime.evaluate", { expression: "window.__clicked", returnByValue: true })).result.value === true || null, 8000);
+      return { count, notification: note.payload.id };
+    } finally {
+      await engine("sites.setSetting", { profile: "", engine: "chromium", origin: base, type: "notifications", value: "default" });
+      if (windowId) await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(windowId)}); return true`).catch(() => null);
+      await closeTab(ads).catch(() => null);
+      await closeTab(red).catch(() => null);
+      await toFirst();
+    }
+  }));
+
+  // MARK: Window lifetime
+
+  const q = JSON.stringify;
+  const windowsNative = "globalThis.expo.modules.ArdiaAppWindows";
+  const shellCall = (fn, ...args) => evalApp(`return ${windowsNative}.${fn}(${args.map((a) => q(a)).join(", ")})`);
+  const nativeWindowIds = () => shellCall("windowIds");
+  const storeWindow = (id) => evalApp(`return ac.store.getState().windows[${q(id)}] ?? null`);
+  const newWindow = () => evalApp(`return ac.store.getState().createWindow({})`);
+  const shownWindow = async () => {
+    const id = await newWindow();
+    await until("the new window on screen", async () => (await nativeWindowIds()).includes(id) || null, 10000);
+    await sleep(1200);
+    return id;
+  };
+  const dropWindow = (id) => evalApp(`if (ac.store.getState().windows[${q(id)}]) ac.store.getState().closeWindow(${q(id)}); return true`);
+  const backToMain = () => evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+
+  await check("window-close-before-reveal", async () => {
+    const id = await evalApp(`const s = ac.store.getState(); const id = s.createWindow({});
+      setTimeout(() => ${windowsNative}.closeWindow(id), 30); return id`);
+    try {
+      await sleep(2500);
+      const ids = await nativeWindowIds();
+      if (ids.includes(id)) throw new Error(`a window closed before its content showed came back: ${q(ids)}`);
+      const s = await state();
+      if (!s.windowId) throw new Error("the main window went with it");
+      return { closed: id, windows: ids.length };
+    } finally {
+      await dropWindow(id);
+      await backToMain();
+    }
+  });
+
+  await check("window-close-during-exit", async () => {
+    const id = await shownWindow();
+    try {
+      const outcome = await evalApp(`const m = ${windowsNative};
+        const done = m.animateWindowClose(${q(id)}, null).then(() => "done");
+        setTimeout(() => m.closeWindow(${q(id)}), 40);
+        return Promise.race([done, new Promise((r) => setTimeout(() => r("hung"), 3000))])`);
+      if (outcome !== "done") throw new Error(`the exit animation's caller never heard back: ${outcome}`);
+      await sleep(500);
+      if ((await nativeWindowIds()).includes(id)) throw new Error("the window outlived its close");
+      return { outcome };
+    } finally {
+      await dropWindow(id);
+      await backToMain();
+    }
+  });
+
+  await check("window-close-while-full-screen-restore-waits", async () => {
+    const waited = await evalApp(`const s = ac.store.getState(); const id = s.createWindow({}); const m = ${windowsNative};
+      m.restoreFullScreen([id], null); setTimeout(() => m.closeWindow(id), 30); return id`);
+    let next = null;
+    try {
+      await sleep(2500);
+      if ((await nativeWindowIds()).includes(waited)) throw new Error("the window full screen restore waited on came back");
+      next = await shownWindow();
+      await shellCall("restoreFullScreen", [next], null);
+      const entered = await until("the next window in full screen", async () => (await storeWindow(next))?.fullScreen || null, 8000);
+      return { waited, next, entered: !!entered };
+    } finally {
+      await dropWindow(waited);
+      if (next) await dropWindow(next);
+      await backToMain();
+    }
+  });
+
+  // MARK: WebKit tabs
+
+  const useWebKit = () =>
+    evalApp(`const s = ac.store.getState(); s.updateSettings({ websiteEngines: { ...s.settings.websiteEngines, ${q(webkitBase)}: "webkit" } }); return true`);
+  const pageValue = (id, expr) =>
+    evalApp(`return ac.webviews.get(${q(id)})?.evaluate(${q(`post("result", JSON.stringify(${expr}))`)}) ?? null`);
+  const inPage = (id, code) => evalApp(`ac.webviews.get(${q(id)})?.executeJavaScript(${q(code)}); return true`);
+  const chromiumBrowser = (id) => engine("tabs.devBrowserId", { tabId: id }).catch(() => null);
+  const loadedAs = (id, title) =>
+    evalApp(`const s = ac.store.getState(); return s.tabs[${q(id)}]?.title === ${q(title)} && !s.live[${q(id)}]?.isLoading ? true : null`);
+  const webkitTab = async (path, title, windowId = mainWindow) => {
+    await useWebKit();
+    const id = await evalApp(`return ac.store.getState().newTab(${q(windowId)}, { url: ${q(webkitBase + path)} })`);
+    await shownAndMounted(id);
+    await until(`${path} in WebKit`, () => loadedAs(id, title), 15000);
+    if ((await chromiumBrowser(id)) || (await targets()).some((t) => t.url.startsWith(webkitBase + path))) throw new Error(`${path} opened in Chromium`);
+    return id;
+  };
+  const markPage = async (id, mark) => {
+    await inPage(id, `document.documentElement.dataset.mark = ${q(mark)}`);
+    await until("the page mark", async () => (await pageValue(id, "document.documentElement.dataset.mark ?? null")) === mark, 5000);
+  };
+  const pageMark = (id) => pageValue(id, `document.documentElement.dataset.mark ?? "gone"`);
+
+  await check("webkit-tab", async () => {
+    const id = await webkitTab("/a?wk", "Page A");
+    try {
+      await until("its favicon", async () => (await state()).tabs.find((t) => t.id === id)?.favicon || null, 10000);
+      await evalApp(`ac.store.getState().navigate(${q(id)}, "${webkitBase}/b?wk", { userInitiated: true }); return true`);
+      await until("B in WebKit", async () => (await loadedAs(id, "Page B")) && (await live(id))?.canGoBack, 15000);
+      await evalApp(`return ac.webviews.get(${q(id)}).goBack()`);
+      await until("back to A", async () => (await loadedAs(id, "Page A")) && (await live(id))?.canGoForward, 15000);
+      await markPage(id, "before-reload");
+      await evalApp(`return ac.webviews.get(${q(id)}).reload()`);
+      await until("the reload", async () => (await pageMark(id)) === "gone", 10000);
+      const before = (await state()).tabs.find((t) => t.id === id);
+      await evalApp(`return ac.webviews.get(${q(id)}).zoomStep(1)`);
+      const zoom = await until("a zoom step", () => evalApp(`const z = ac.store.getState().tabs[${q(id)}]?.zoom; return z > 1 ? z : null`), 5000);
+      await evalApp(`return ac.webviews.get(${q(id)}).zoomStep(0)`);
+      await until("zoom reset", () => evalApp(`return ac.store.getState().tabs[${q(id)}]?.zoom === 1 || null`), 5000);
+      const entries = await evalApp(`return ac.webviews.get(${q(id)}).navigationEntries()`);
+      return { favicon: !!before.favicon, zoom, entries: entries?.length };
+    } finally {
+      await closeTab(id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-move-tab", async () => {
+    const id = await webkitTab("/c?wk-move", "Page C");
+    try {
+      await markPage(id, "moved");
+      const windowId = await evalApp(`return ac.store.getState().moveTabsToWindow([${q(id)}], null)`);
+      await until("the tab's view in the new window", () => evalApp(`return !!ac.webviews.get(${q(id)}) && ac.store.getState().tabs[${q(id)}]?.windowId === ${q(windowId)}`), 10000);
+      await sleep(800);
+      const mark = await pageMark(id);
+      if (mark !== "moved") throw new Error(`the WebKit page reloaded or went on the move: ${mark}`);
+      return { windowId, mark };
+    } finally {
+      await closeWindowOf(id).catch(() => null);
+      await closeTab(id).catch(() => null);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-zoom", async () => {
+    const a = await webkitTab("/a?wk-zoom", "Page A");
+    let b = null;
+    try {
+      await evalApp(`return ac.webviews.get(${q(a)}).zoomStep(1)`);
+      const zoom = await until("A zoomed", () => evalApp(`const z = ac.store.getState().tabs[${q(a)}]?.zoom; return z > 1 ? z : null`), 5000);
+      b = await webkitTab("/b?wk-zoom", "Page B");
+      const shared = await until("B on the same host takes it", () => evalApp(`const z = ac.store.getState().tabs[${q(b)}]?.zoom; return z === ${zoom} ? z : null`), 5000);
+      await evalApp(`return ac.webviews.get(${q(b)}).zoomStep(0)`);
+      await until("zoom reset", () => evalApp(`return ac.store.getState().tabs[${q(b)}]?.zoom === 1 || null`), 5000);
+      return { zoom, shared };
+    } finally {
+      await closeTab(a);
+      if (b) await closeTab(b);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-site-permissions", async () => {
+    const origin = webkitBase;
+    const read = () => engine("sites.settings", { engine: "webkit", profile: "", origin });
+    const fresh = await read();
+    if (fresh.camera?.value !== "ask" || !fresh.camera?.isDefault) throw new Error(`a fresh origin isn't Ask: ${q(fresh)}`);
+    await engine("sites.setSetting", { engine: "webkit", profile: "", origin, type: "camera", value: "allow" });
+    await engine("sites.setSetting", { engine: "webkit", profile: "", origin, type: "microphone", value: "block" });
+    const set = await read();
+    if (set.camera?.value !== "allow" || set.microphone?.value !== "block") throw new Error(`not remembered: ${q(set)}`);
+    await engine("sites.clearData", { engine: "webkit", profile: "", origin: `${origin}/` }).catch(() => null);
+    const afterSiteClear = await read();
+    await engine("profiles.clearBrowsingData", { profile: "", types: ["siteData"], since: Date.now() - 30000 });
+    const afterBroadClear = await read();
+    await engine("sites.setSetting", { engine: "webkit", profile: "", origin, type: "camera", value: "ask" });
+    await engine("sites.setSetting", { engine: "webkit", profile: "", origin, type: "microphone", value: "ask" });
+    if (afterSiteClear.camera?.value !== "allow") throw new Error(`clearing one site's data dropped its permissions: ${q(afterSiteClear)}`);
+    if (afterBroadClear.camera?.value !== "ask") throw new Error(`clearing all site data kept its permissions: ${q(afterBroadClear)}`);
+    return { set, afterSiteClear: afterSiteClear.camera.value, afterBroadClear: afterBroadClear.camera.value };
+  });
+
+  const session = (id) => evalApp(`return ac.media.getState().sessions[${q(id)}] ?? null`);
+
+  await check("webkit-now-playing", async () => {
+    const id = await webkitTab("/media?wk", "Media");
+    try {
+      await evalApp(`return ac.webviews.get(${q(id)}).setMuted(true)`);
+      await inPage(id, "navigator.mediaSession.metadata = new MediaMetadata({ title: 'NN Tone', artist: 'Acceptance' }); document.getElementById('tone').play()");
+      const playing = await until("now playing", async () => {
+        const s = await session(id);
+        return s?.title === "NN Tone" && s.playbackState === "playing" ? s : null;
+      }, 10000);
+      await evalApp(`return ac.webviews.get(${q(id)}).mediaCommand("pause")`);
+      await until("paused by the app", async () => (await pageValue(id, "document.getElementById('tone').paused")) === true, 8000);
+      await evalApp(`return ac.webviews.get(${q(id)}).mediaCommand("seekTo", 0.5)`);
+      const at = await until("the seek", async () => {
+        const t = await pageValue(id, "document.getElementById('tone').currentTime");
+        return Math.abs(t - 0.5) < 0.05 ? t : null;
+      }, 5000);
+      await evalApp(`ac.store.getState().navigate(${q(id)}, "${webkitBase}/b?wk-np", { userInitiated: true }); return true`);
+      await until("B", () => loadedAs(id, "Page B"), 10000);
+      await until("the session gone with the page", async () => !(await session(id)), 8000);
+      return { title: playing.title, artist: playing.artist, seekedTo: at };
+    } finally {
+      await closeTab(id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-now-playing-frames", async () => {
+    const id = await webkitTab("/np-frames", "NP frames");
+    const child = (expr) => pageValue(id, `(() => { const d = document.querySelector("iframe").contentDocument; return ${expr}; })()`);
+    try {
+      await evalApp(`return ac.webviews.get(${q(id)}).setMuted(true)`);
+      await until("the child frame", async () => (await child(`!!d.getElementById("tone")`)) === true, 8000);
+      await inPage(id, `document.getElementById("tone").play()`);
+      await until("the main frame playing", async () => (await pageValue(id, `document.getElementById("tone").currentTime > 0`)) === true, 8000);
+      await inPage(id, `document.getElementById("tone").pause()`);
+      await until("the main frame's paused session", async () => (await session(id))?.playbackState === "paused" || null, 8000);
+      await inPage(id, `const f = document.querySelector("iframe").contentWindow;
+        f.navigator.mediaSession.metadata = new f.MediaMetadata({ title: "C".repeat(5000), artist: "Frame" });
+        f.navigator.mediaSession.playbackState = "playing";
+        f.navigator.mediaSession.setActionHandler("pause", () => { f.document.documentElement.dataset.paused = "by-handler"; f.document.getElementById("tone").pause(); });
+        f.document.getElementById("tone").addEventListener("seeked", (e) => { f.document.documentElement.dataset.seeked = String(Math.round(e.target.currentTime * 100)); });
+        f.document.getElementById("tone").play();`);
+      const picked = await until("the child frame's session", async () => {
+        const s = await session(id);
+        return s?.artist === "Frame" ? s : null;
+      }, 10000).catch(async (e) => {
+        const s = await session(id);
+        throw new Error(`${e.message}; session ${q(s && { title: s.title?.slice(0, 20), artist: s.artist, state: s.playbackState, controllable: s.controllable })}`);
+      });
+      if (picked.title.length > 1024) throw new Error(`an oversized title came through: ${picked.title.length} characters`);
+      await inPage(id, `const f = document.querySelector("iframe").contentWindow;
+        f.document.dispatchEvent(new f.CustomEvent("ardia:media-session", { detail: JSON.stringify({ actions: ["pause", 5, "x".repeat(200)], position: { position: "x" } }) }));`);
+      await sleep(400);
+      const forged = await session(id);
+      if (!forged || forged.actions.some((a) => typeof a !== "string" || a.length > 64)) throw new Error(`forged actions came through: ${q(forged?.actions)}`);
+      const seeked = (at) => until(`the child's own seek to ${at}`, async () => (await child(`d.documentElement.dataset.seeked ?? null`)) === String(Math.round(at * 100)) || null, 8000)
+        .catch(async (e) => {
+          const s = await session(id);
+          throw new Error(`${e.message}; child seeked ${await child(`d.documentElement.dataset.seeked ?? null`)}; session ${q(s && { artist: s.artist, state: s.playbackState })}`);
+        });
+      await evalApp(`return ac.webviews.get(${q(id)}).mediaCommand("seekTo", 0.25)`);
+      await seeked(0.25);
+      const windowId = await evalApp(`return ac.store.getState().moveTabsToWindow([${q(id)}], null)`);
+      await until("the tab in its new window", () => evalApp(`return !!ac.webviews.get(${q(id)}) && ac.store.getState().tabs[${q(id)}]?.windowId === ${q(windowId)}`), 10000);
+      await sleep(800);
+      await evalApp(`return ac.webviews.get(${q(id)}).mediaCommand("seekTo", 0.5)`);
+      await seeked(0.5);
+      await evalApp(`return ac.webviews.get(${q(id)}).mediaCommand("pause")`);
+      await until("the pause routed to the child's own handler", async () =>
+        (await child(`d.documentElement.dataset.paused ?? null`)) === "by-handler" && (await child(`d.getElementById("tone").paused`)) === true, 8000);
+      return { title: picked.title.length, actions: forged.actions };
+    } finally {
+      await closeWindowOf(id).catch(() => null);
+      await closeTab(id).catch(() => null);
+      await backToMain();
+    }
+  });
+
+  await check("report-recording-webkit-media", async () => {
+    const id = await webkitTab("/marker?page", "Marker");
+    const report = (body) => evalApp(`const r = ac.report; ${body}`);
+    const pagePixels = (mp4) => {
+      const [fw, fh] = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", mp4], { encoding: "utf8" }).trim().split(",").map(Number);
+      const w = fw >> 1, h = fh >> 1, size = w * h * 3;
+      const raw = execFileSync("ffmpeg", ["-loglevel", "error", "-i", mp4, "-fps_mode", "passthrough", "-vf", `scale=${w}:${h}:flags=neighbor`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { maxBuffer: 2 ** 32 });
+      const counts = [];
+      for (let f = 0; f + size <= raw.length; f += size) {
+        let magenta = 0, cyan = 0;
+        for (let i = f; i < f + size; i += 3) {
+          const r = raw[i], g = raw[i + 1], b = raw[i + 2];
+          if (r > 180 && g < 90 && b > 180) magenta++;
+          else if (r < 90 && g > 180 && b > 180) cyan++;
+        }
+        counts.push(magenta >= 40 && cyan >= 40);
+      }
+      return { frames: counts.length, shown: counts.filter(Boolean).length };
+    };
+    const record = async (label) => {
+      await report(`r.openReport(${q(mainWindow)}); r.setIncludePages(true); return r.startRecording().then(() => true)`);
+      await sleep(2000);
+      await report(`return r.stopRecording().then(() => true)`);
+      const done = await until(`the ${label} recording`, () => report(`const s = r.currentReport().recording; return s.phase === "ready" ? { path: s.path, stats: r.lastRecordingStats() } : s.phase === "failed" ? { failed: s.message } : null`), 15000);
+      if (done.failed) throw new Error(`${label}: ${done.failed}`);
+      const mp4 = join(scratch, `report-webkit-${label}.mp4`);
+      cpSync(done.path, mp4);
+      await report(`r.discardRecording(); return r.closeReport().then(() => true)`);
+      return { ...pagePixels(mp4), withheld: done.stats?.webKitMediaWithheld ?? null };
+    };
+    try {
+      const quiet = await record("no-media");
+      await evalApp(`return ac.webviews.get(${q(id)}).setMuted(true)`);
+      await inPage(id, `const a = document.createElement("audio"); a.id = "tone"; a.src = "/tone.wav"; a.loop = true; document.body.append(a); a.play()`);
+      await until("the WebKit page playing", async () => (await pageValue(id, `document.getElementById("tone")?.currentTime > 0`)) === true, 8000);
+      const playing = await record("playing");
+      const wrong = [];
+      if (!quiet.shown) wrong.push(`a WebKit page without media never shows with pages included (${JSON.stringify(quiet)})`);
+      if (playing.shown) wrong.push(`a WebKit page playing media shows in ${playing.shown} of ${playing.frames} frames`);
+      if (wrong.length) throw new Error(wrong.join("; "));
+      return { quiet, playing };
+    } finally {
+      await report(`r.discardRecording(); return r.closeReport().then(() => true)`).catch(() => null);
+      await closeTab(id).catch(() => null);
+      await backToMain();
+    }
+  });
+
+  await check("webkit-scroll", async () => {
+    const id = await webkitTab("/tall", "Tall");
+    const down = () => evalApp(`return !!ac.toolbarAutoHide.useToolbarAutoHide.getState().scrolledDown[${q(id)}]`);
+    const scroll = (code) => inPage(id, `dispatchEvent(new WheelEvent("wheel", { deltaY: 1 })); ${code}`);
+    try {
+      await scroll("scrollBy(0, 600)");
+      await until("scrolled down", async () => (await down()) || null, 5000).catch(async (e) => {
+        const frames = await evalApp(`return ac.webviews.get(${q(id)}).evaluate(${q(`requestAnimationFrame(() => post("result", "true")); setTimeout(() => post("result", "false"), 1500)`)})`);
+        throw new Error(`${e.message}; animation frames run: ${frames}; scrollY ${await pageValue(id, "scrollY")}`);
+      });
+      await sleep(400);
+      await scroll("scrollBy(0, -200)");
+      await until("scrolled up", async () => !(await down()) || null, 5000);
+      await scroll("scrollBy(0, 600)");
+      await until("down again", async () => (await down()) || null, 5000);
+      await scroll("scrollTo(0, 0)");
+      await until("at the top", async () => !(await down()) || null, 5000);
+      return { ok: true };
+    } finally {
+      await closeTab(id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-clearing-keeps-zoom", async () => {
+    const a = await webkitTab("/a?wk-clear", "Page A");
+    const origin = webkitBase;
+    try {
+      await evalApp(`return ac.webviews.get(${q(a)}).zoomStep(1)`);
+      const zoom = await until("A zoomed", () => evalApp(`const z = ac.store.getState().tabs[${q(a)}]?.zoom; return z > 1 ? z : null`), 5000);
+      await engine("sites.setSetting", { engine: "webkit", profile: "", origin, type: "camera", value: "allow" });
+      await engine("sites.clearData", { engine: "webkit", profile: "", origin: `${origin}/` });
+      if ((await engine("sites.settings", { engine: "webkit", profile: "", origin })).camera?.value !== "allow") throw new Error("one site's data clear dropped its permission");
+      await engine("profiles.clearBrowsingData", { profile: "", types: ["siteData"], since: Date.now() - 30000 });
+      if ((await engine("sites.settings", { engine: "webkit", profile: "", origin })).camera?.value !== "ask") throw new Error("clearing site data kept the permission");
+      const b = await webkitTab("/b?wk-clear", "Page B");
+      try {
+        const kept = await until("zoom kept through the clear", () => evalApp(`const z = ac.store.getState().tabs[${q(b)}]?.zoom; return z === ${zoom} ? z : null`), 5000);
+        await evalApp(`return ac.webviews.get(${q(b)}).zoomStep(0)`);
+        return { zoom, kept };
+      } finally {
+        await closeTab(b);
+      }
+    } finally {
+      await closeTab(a);
+      await backToMain();
+    }
+  });
+
+  await check("webkit-private-session-ends-mid-transfer", async () => {
+    await useWebKit();
+    const windowId = await evalApp(`return ac.actions.openWindow({ kind: "private", url: ${q(`${webkitBase}/c?wk-private`)} })`);
+    try {
+      const id = await until("the private WebKit tab", () => evalApp(`const s = ac.store.getState(); const id = s.windows[${q(windowId)}]?.tabIds[0];
+        return id && s.tabs[id]?.title === "Page C" && !s.live[id]?.isLoading ? id : null`), 15000);
+      if (await chromiumBrowser(id)) throw new Error("the private tab opened in Chromium");
+      await evalApp(`globalThis.expo.modules.ArdiaTabs.prepareTransfer(${q(id)}); return true`);
+      await engine("webKit.endPrivateSession", { session: "" });
+      await sleep(500);
+      const parked = await engine("webKit.devParkedTransfers");
+      await evalApp(`globalThis.expo.modules.ArdiaTabs.releaseTransfer(${q(id)}); return true`);
+      if (parked.includes(id)) throw new Error("the ended session's page stayed parked for the transfer");
+      return { tab: id, parked };
+    } finally {
+      await dropWindow(windowId);
+      await backToMain();
+    }
+  });
+
+  await check("page-view-calls", async () => {
+    const raw = (id, module, view, fn, ...args) => evalApp(`const tag = ac.webviews.get(${q(id)}).nativeTag();
+      return globalThis.expo.modules.${module}.ViewPrototypes.${module}_${view}.${fn}.call({ nativeTag: tag }, ...${q(args)})`);
+    const exercise = async (id, module, view, path) => {
+      const call = (fn, ...args) => raw(id, module, view, fn, ...args).catch((e) => ({ error: String(e?.message ?? e).slice(0, 160) }));
+      const out = {};
+      out.loadUrl = await call("loadUrl", path);
+      await until(`${view} on Page B`, () => loadedAs(id, "Page B"), 15000);
+      for (const [fn, args] of [
+        ["evaluate", [`post("result", JSON.stringify(document.title))`]], ["navigationEntries", []], ["capturePicture", [0.25]],
+        ["downloadFavicon", [`${base}/icon.png`]], ["downloadImage", [`${base}/icon.png`, 64]], ["getSecurityInfo", []],
+        ["pageCookies", [[`${base}/`]]], ["clearSiteData", []], ["mediaCommand", ["pause"]], ["requestPictureInPicture", [null, null]],
+        ["takeControlPress", []], ["exitPictureInPicture", []], ["openBlockedPopup", ["no-such-popup"]], ["executeExtensionAction", ["no-such-extension"]],
+        ["mediaCaptureSourceId", []], ["resolveDisplayMedia", ["no-such-request", null, false]], ["notificationAction", ["no-such-note", "click"]],
+        ["resolveUnresponsive", [false]], ["showDevTools", []], ["setFrozen", [false]], ["discard", []],
+      ]) out[fn] = await call(fn, ...args);
+      return out;
+    };
+    const chromium = await freshTab(`${base}/a?view-calls`);
+    let webkit = null;
+    try {
+      const c = await exercise(chromium, "ArdiaWebView", "ChromiumTabView", `${base}/b?view-calls`);
+      webkit = await webkitTab("/a?view-calls", "Page A");
+      const w = await exercise(webkit, "ArdiaWebKit", "WebKitTabView", `${webkitBase}/b?view-calls`);
+      const errors = [...Object.entries(c).map(([k, v]) => ["chromium", k, v]), ...Object.entries(w).map(([k, v]) => ["webkit", k, v])].filter(([, , v]) => v && v.error);
+      if (errors.length) throw new Error(`calls that didn't complete: ${q(errors)}`);
+      const expect = (what, ok) => { if (!ok) throw new Error(`${what}: ${q({ chromium: c, webkit: w }).slice(0, 1500)}`); };
+      expect("evaluate answers on both", JSON.parse(c.evaluate) === "Page B" && JSON.parse(w.evaluate) === "Page B");
+      expect("history entries on both", Array.isArray(c.navigationEntries) && c.navigationEntries.length >= 2 && Array.isArray(w.navigationEntries) && w.navigationEntries.length >= 2);
+      expect("security info on both", typeof c.getSecurityInfo?.level === "string" && typeof w.getSecurityInfo?.level === "string");
+      expect("Chromium's own answers", typeof c.mediaCaptureSourceId === "string" && c.discard !== "unsupported" && typeof c.takeControlPress === "boolean");
+      expect("WebKit's unsupported answers", w.discard === "unsupported" && w.takeControlPress === true && w.executeExtensionAction == null &&
+        w.mediaCaptureSourceId == null && Array.isArray(w.pageCookies) && w.pageCookies.length === 0);
+      expect("site data cleared on both", typeof c.clearSiteData === "object" && typeof w.clearSiteData === "object");
+      return { chromium: Object.keys(c).length, webkit: Object.keys(w).length, discard: c.discard };
+    } finally {
+      await closeTab(chromium).catch(() => null);
+      if (webkit) await closeTab(webkit).catch(() => null);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-js-reload", async () => {
+    const id = await webkitTab("/d?wk-reload", "Page D");
+    try {
+      await markPage(id, "before-js-reload");
+      await until("the tab saved", () => existsSync(join(data, "session.json")) && readFileSync(join(data, "session.json"), "utf8").includes(id), 10000);
+      await evalApp(`setTimeout(() => { try { globalThis.nativeModuleProxy.DevSettings.reload(); } catch {} }, 50); return true`);
+      await sleep(1500);
+      await until("the reloaded app", async () => {
+        try {
+          return await evalApp(`return Object.keys(ac.store.getState().windows).length > 0 && !!ac.webviews.get(${q(id)})`, 3000);
+        } catch (e) {
+          if (exited) throw e;
+          return null;
+        }
+      }, 60000);
+      await sleep(1000);
+      const mark = await pageMark(id);
+      if (mark !== "before-js-reload") throw new Error(`the WebKit page reloaded or went with JS: ${mark}`);
+      return { mark };
+    } finally {
+      mainWindow = (await state()).windowId ?? mainWindow;
+      await closeTab(id).catch(() => null);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`).catch(() => null);
+    }
   });
 
   // MARK: Startup and engine
 
   await check("title-bar-close", async () => {
     const ids = await evalApp(`return ac.shell.windowIds()`);
-    const browser = await browserOf(first.id);
-    const windowNumber = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindowNumber(${browser})`);
-    const clicked = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindow(${windowNumber}, "close-button")`);
+    const windowNumber = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const clicked = await engine("windows.dev", { window: windowNumber, action: "close-button" });
     const after = await until("one window fewer", async () => {
       const now = await evalApp(`return ac.shell.windowIds()`);
       return now.length < ids.length ? now : null;
@@ -4203,7 +5762,7 @@ try {
     const manifest = JSON.parse(readFileSync(join(ext, "manifest.json"), "utf8"));
     manifest.permissions = [...manifest.permissions, "nativeMessaging"];
     writeFileSync(join(ext, "manifest.json"), JSON.stringify(manifest, null, 2));
-    const installed = await exts(`install(${JSON.stringify(ext)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: ext });
     if (installed?.error) throw new Error(installed.error);
     const host = join(scratch, "echo-host.sh");
     writeFileSync(host, "#!/bin/sh\nexec cat\n", { mode: 0o755 });
@@ -4227,24 +5786,15 @@ try {
       return { hosts: expected, echoed };
     } finally {
       rmSync(hostManifest, { force: true });
-      await exts(`uninstall("${installed.id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id }).catch(() => null);
     }
   });
 
   await check("startup-accept-language", async () => {
-    const system = JSON.parse(execFileSync("osascript", ["-l", "JavaScript", "-e",
-      `ObjC.import("Foundation"); const out = []; const all = $.NSLocale.preferredLanguages;
-       for (let i = 0; i < all.count; i++) { const l = $.NSLocale.localeWithLocaleIdentifier(all.objectAtIndex(i));
-         out.push([ObjC.unwrap(l.languageCode), ObjC.unwrap(l.regionCode) ?? null, ObjC.unwrap(l.scriptCode) ?? null]); }
-       JSON.stringify(out)`]).toString());
-    const expected = [];
-    for (let [language, region, script] of system) {
-      if (!language) continue;
-      if (language === "zh" && !region) region = script === "Hant" ? "TW" : "CN";
-      for (const tag of region ? [`${language}-${region}`, language] : [language]) if (!expected.includes(tag)) expected.push(tag);
-    }
-    const reduced = expected.slice(0, 1);
-    const reducedHeader = reduced[0].includes("-") ? [reduced[0], reduced[0].split("-")[0]] : reduced;
+    const uiLocale = JSON.parse(execFileSync("osascript", ["-l", "JavaScript", "-e",
+      `ObjC.import("Foundation"); const bundle = $.NSBundle.bundleWithPath(${JSON.stringify(app)});
+       JSON.stringify(ObjC.unwrap($.NSBundle.preferredLocalizationsFromArrayForPreferences(bundle.localizations, $.NSLocale.preferredLanguages).objectAtIndex(0)))`]).toString())
+      .replace("_", "-").replace(/^en$/, "en-US");
     let header = null;
     const echo = createServer((req, res) => {
       header = req.headers["accept-language"] ?? "";
@@ -4257,9 +5807,12 @@ try {
       const t = await pageFor(tab.id, "/languages");
       const languages = (await cdp(t, "Runtime.evaluate", { expression: "navigator.languages", returnByValue: true })).result.value;
       const sent = (header ?? "").split(",").map((s) => s.split(";")[0].trim()).filter(Boolean);
-      if (JSON.stringify(languages) !== JSON.stringify(reduced)) throw new Error(`navigator.languages ${JSON.stringify(languages)}, expected ${JSON.stringify(reduced)} (Helium's reduced Accept-Language: the first of ${JSON.stringify(expected)})`);
-      if (JSON.stringify(sent) !== JSON.stringify(reducedHeader)) throw new Error(`Accept-Language "${header}", expected ${JSON.stringify(reducedHeader)} (Helium's reduced Accept-Language: the first of ${JSON.stringify(expected)})`);
-      return { system: expected, languages, header };
+      const primary = (tag) => tag.split("-")[0];
+      const seeded = ["af", "ur"].includes(primary(uiLocale)) ? "en" : primary(uiLocale);
+      if (languages.length !== 1 || primary(languages[0]) !== seeded) throw new Error(`navigator.languages ${JSON.stringify(languages)}, expected one ${seeded} tag (a new profile's languages come from the UI locale ${uiLocale}'s IDS_ACCEPT_LANGUAGES, reduced as Helium does)`);
+      const reducedHeader = languages[0].includes("-") ? [languages[0], primary(languages[0])] : languages;
+      if (JSON.stringify(sent) !== JSON.stringify(reducedHeader)) throw new Error(`Accept-Language "${header}", expected ${JSON.stringify(reducedHeader)} (Helium's reduced Accept-Language)`);
+      return { uiLocale, languages, header };
     } finally {
       await closeTab(tab.id);
       echo.close();
@@ -4267,10 +5820,9 @@ try {
   });
 
   await check("engine-call-guard", async () => {
-    const parse = async (call) => JSON.parse(await cef(call));
-    const privateHistory = await parse(`engineCall("ac_history_query", "incognito-check", null)`);
-    const notAllowed = await parse(`engineCall("ac_passwords_list", "", null)`);
-    const history = await parse(`engineCall("ac_history_query", "", ${JSON.stringify(JSON.stringify({ maxUrls: 5, maxVisits: 1 }))})`);
+    const privateHistory = await engineOrError("history.query", { profile: "incognito-check" });
+    const notAllowed = await engineOrError("ac_passwords_list", { profile: "" });
+    const history = await engineOrError("history.query", { profile: "", maxUrls: 5, maxVisits: 1 });
     if (!privateHistory.error || !notAllowed.error || history.error) throw new Error(JSON.stringify({ privateHistory, notAllowed, history }));
     return { privateHistory: privateHistory.error, notAllowed: notAllowed.error, historyEntries: history.entries?.length };
   });
@@ -4315,18 +5867,20 @@ try {
 
   await check("delete-original-profile-data", async () => {
     const origin = "https://original.test";
-    await cef(`savePassword("", "${origin}", "nnoriginal", "s3cret")`);
-    await cef(`saveAddress("", { fullName: "Original Mascot", city: "Haifa", country: "IL" })`);
-    await cef(`setZoom("", "original.test", 1.5)`);
-    await cef(`setSiteSetting("", "${origin}", "popups", "allow")`);
+    await secret("ArdiaPasswords", "save", "", origin, "nnoriginal", "s3cret");
+    await engineOrError("autofill.saveAddress", { profile: "", address: { fullName: "Original Mascot", city: "Haifa", country: "IL" } });
+    await engine("sites.setZoom", { profile: "", host: "original.test", zoom: 1.5 });
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin, type: "popups", value: "allow" });
+    await engine("webKit.devTouchStore", { profile: "" });
     await until("the data saved", async () => {
-      const p = await cef(`listPasswords("")`), a = await cef(`listAddresses("")`), z = await cef(`getZoomLevels("")`), o = await cef(`getSiteSettingsOrigins("")`);
+      const p = await engineOrError("passwords.list", { profile: "" }), a = await engineOrError("autofill.addresses", { profile: "" }), z = await engine("sites.zoomLevels", { profile: "" }), o = await engine("sites.origins", { profile: "" });
       return p.passwords?.length && a.addresses?.length && z["original.test"] && o.length ? true : null;
     });
-    const result = await evalApp(`return globalThis.expo.modules.ArdiaCEF.deleteProfileData("")`, 60000);
-    const p = await cef(`listPasswords("")`), a = await cef(`listAddresses("")`), z = await cef(`getZoomLevels("")`), o = await cef(`getSiteSettingsOrigins("")`);
+    const result = await engine("profiles.deleteData", { profile: "" }, 60000);
+    const p = await engineOrError("passwords.list", { profile: "" }), a = await engineOrError("autofill.addresses", { profile: "" }), z = await engine("sites.zoomLevels", { profile: "" }), o = await engine("sites.origins", { profile: "" });
     const left = { passwords: p.passwords?.length, addresses: a.addresses?.length, zoom: Object.keys(z).length, origins: o.length };
-    if (result?.remaining?.length || Object.values(left).some(Boolean)) throw new Error(JSON.stringify({ result, left }));
+    const webKitStore = await engine("webKit.devStoreExists", { profile: "" });
+    if (result?.remaining?.length || webKitStore || Object.values(left).some(Boolean)) throw new Error(JSON.stringify({ result, left, webKitStore }));
     return { remaining: result.remaining, left };
   });
 
@@ -4346,6 +5900,22 @@ try {
     await until("Play's cookie page", async () => (await state()).tabs.find((x) => x.profileId === play && x.url?.includes("cookie?play") && !x.loading), 10000);
     await sleep(1000);
     return { personal, play };
+  });
+
+  let heldProfile = null;
+  const orphans = () => evalApp(`return ac.store.getState().orphanedProfileData`);
+
+  await check("profile-data-deletion-fails", async () => {
+    const id = await evalApp(`return ac.store.getState().createProfile({ name: "Held" })`);
+    await engine("webKit.devTouchStore", { profile: id });
+    await engine("webKit.devHoldStore", { profile: id });
+    await evalApp(`ac.store.getState().deleteProfile("${id}"); return true`);
+    const log = join(data, "dev-console.log");
+    await until("the cleanup gave up", async () => existsSync(log) && readFileSync(log, "utf8").includes(`Couldn't delete profile data (${id}): WebKit data`), 20000);
+    if (!(await orphans()).includes(id)) throw new Error("a failed deletion left the cleanup list");
+    if (!(await engine("webKit.devStoreExists", { profile: id }))) throw new Error("the held store was removed");
+    heldProfile = id;
+    return { profile: id };
   });
 
   await check("quit", async () => {
@@ -4372,12 +5942,31 @@ try {
     return { exitedAfterMs: Date.now() - started, sessionSaved: saved, faults: ours.filter((f) => f.startsWith("ExcUserFault_")) };
   });
 
+  await check("profile-data-retried-at-launch", async () => {
+    if (!heldProfile) throw new Error("profile-data-deletion-fails didn't run");
+    const file = join(data, "session.json");
+    const saved = JSON.parse(readFileSync(file, "utf8"));
+    if (!saved.orphanedProfileData.includes(heldProfile)) throw new Error(`the failed deletion wasn't saved: ${JSON.stringify(saved.orphanedProfileData)}`);
+    writeFileSync(file, JSON.stringify({ ...saved, orphanedProfileData: [...saved.orphanedProfileData, ""] }));
+    await appUp("app-profile-data-retry.out.log");
+    await engine("webKit.devTouchStore", { profile: "" });
+    if ((await orphans()).includes("")) throw new Error("the live original profile came back as orphaned data");
+    await until("the retried deletion", async () => !(await orphans()).includes(heldProfile) && !(await engine("webKit.devStoreExists", { profile: heldProfile })), 20000);
+    await evalApp(`ac.store.setState((s) => ({ orphanedProfileData: [...s.orphanedProfileData, ""] })); return true`);
+    await until("the live profile left the cleanup list", async () => !(await orphans()).includes(""), 10000);
+    await sleep(5000);
+    const kept = await engine("webKit.devTouchStore", { profile: "" });
+    if (!kept) throw new Error("the live original profile's WebKit data was deleted");
+    await stopApp();
+    return { retried: heldProfile, kept };
+  });
+
   await check("relaunch-profile", async () => {
     if (!personal) throw new Error("last-used-profile didn't run");
     await launch("app2.out.log");
     await until("the relaunched app", async () => {
       try {
-        return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+        return await engine("engine.info", {}, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
@@ -4392,7 +5981,7 @@ try {
     await until("a Personal page", async () => (await state()).tabs.find((x) => !before.has(x.id) && x.title === "Page B" && !x.loading), 15000);
     const t = await pageTarget(`${base}/b?personal-again`);
     const cookie = (await cdp(t, "Runtime.evaluate", { expression: "document.cookie", returnByValue: true })).result.value;
-    const info = await evalApp(`return globalThis.expo.modules.ArdiaCEF.chromeWindows()`);
+    const info = await engine("windows.list");
     await stopApp();
     if (!cookie.includes("who=personal") || cookie.includes("who=play")) throw new Error(`Personal's page sees "${cookie}"`);
     return { cookie, windows: info.map((w) => w.profile) };
@@ -4462,7 +6051,7 @@ try {
     await until("the restored page loaded", () => loaded(tab.id), 20000);
     const loadedAfterMs = Date.now() - relaunched;
     if (beforeQuit.length) throw new Error(`ads went out before the quit: ${JSON.stringify(beforeQuit)}`);
-    await until("the blocker's state", async () => ((await cef(`getContentBlocker()`))?.stats?.ready ? true : null), 30000);
+    await until("the blocker's state", async () => ((await engine("contentBlocker.state").catch(() => null))?.stats?.ready ? true : null), 30000);
     const racedAtLaunch = adsServedFor(tag).length;
     if (!(await evalApp(`return !!ac.webviews.get(${JSON.stringify(tab.id)})`))) throw new Error("the restored tab has no page view");
     const again = `${tag}-ready`;
@@ -4476,6 +6065,26 @@ try {
     const afterReady = adsServedFor(again);
     if (afterReady.length) throw new Error(`ads went out once uBlock Origin was ready: ${JSON.stringify(afterReady)}`);
     return { restored: tab.url, loadedAfterMs, racedAtLaunch, nextDocuments: documents };
+  });
+
+  await check("launch-tab-relaunch", async () => {
+    const windowId = await appUp("app-launch-tab.out.log");
+    const path = `/fresh?launch-tab-${Date.now()}`;
+    const id = await evalApp(`const s = ac.store.getState(); const id = s.newTab(${JSON.stringify(windowId)}, { url: "${base}${path}" }); ac.store.getState().activate(id); return id`);
+    await until("the launch tab's page", async () => (await state()).tabs.find((t) => t.id === id && t.title === "Fresh" && !t.loading), 15000);
+    await until("it saved as the launch tab", async () => JSON.parse(savedSession() || "{}").launchTab?.id === id || null, 10000);
+    await sleep(1000);
+    await pressQuit(windowId);
+    await until("the quit", async () => exited, 30000);
+    const layout = JSON.parse(readFileSync(join(data, "launch-layout.json"), "utf8"));
+    if (layout.version !== 4 || !layout.windows?.[windowId]) throw new Error(`no launch layout for the window: ${JSON.stringify(Object.keys(layout.windows ?? {}))}`);
+    const before = served.get(path) ?? 0;
+    await appUp("app-launch-tab-2.out.log");
+    const tab = await until("the launch tab restored", async () => (await state()).tabs.find((t) => t.id === id && t.title === "Fresh" && !t.loading), 20000);
+    await sleep(1500);
+    const loads = (served.get(path) ?? 0) - before;
+    if (loads !== 1) throw new Error(`the launch tab's page loaded ${loads} times after the relaunch`);
+    return { tab: tab.id, loads, layoutWindows: Object.keys(layout.windows).length };
   });
 
   await check("closed-tabs-own-lists", async () => {
@@ -4519,7 +6128,7 @@ try {
   await check("js-reload-keeps-pages", async () => {
     const windowId = await appUp("app-js-reload.out.log");
     const path = `/b?kept-${Date.now()}`;
-    const visits = async () => JSON.parse(await cef(`engineCall("ac_history_query", "", "{}")`)).entries.filter((e) => e.u === `${base}${path}`).map((e) => e.v.length);
+    const visits = async () => (await engineOrError("history.query", { profile: "" })).entries.filter((e) => e.u === `${base}${path}`).map((e) => e.v.length);
     const id = await evalApp(`return ac.store.getState().newTab(${JSON.stringify(windowId)}, { url: "${base}${path}" })`);
     await until("the page", async () => (await state()).tabs.find((t) => t.id === id && t.title === "Page B" && !t.loading), 15000);
     await until("its visit", async () => (await visits()).length || null);
@@ -4528,7 +6137,7 @@ try {
     await sleep(1500);
     await until("the reloaded app", async () => {
       try {
-        return await evalApp(`const s = ac.store.getState(); return Object.keys(s.windows).length > 0 && !!s.historyReady.default && !!ac.webviews.get(${JSON.stringify(id)})`, 3000);
+        return await evalApp(`const s = ac.store.getState(); return Object.keys(s.windows).length > 0 && !!ac.history.historyViewOf(s, "default")?.ready && !!ac.webviews.get(${JSON.stringify(id)})`, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
@@ -4539,6 +6148,58 @@ try {
     if (out.loads !== 1 || JSON.stringify(out.visits) !== "[1]" || out.url !== `${base}${path}`) throw new Error(`after the reload: ${JSON.stringify(out)}`);
     return out;
   });
+  await check("open-url-across-reload", async () => {
+    await appUp("app-url-reload.out.log");
+    const path = `/a?across-reload-${Date.now()}`;
+    await evalApp(`globalThis.expo.modules.ArdiaDev.devReceiveURLsWhenDetached(["${base}${path}"], 20000);
+      setTimeout(() => { try { globalThis.nativeModuleProxy.DevSettings.reload(); } catch {} }, 50); return true`);
+    await sleep(1500);
+    const delivery = await until("the URL handed over", async () => {
+      try {
+        const d = await evalApp(`return globalThis.expo.modules.ArdiaDev.devURLDelivery()`, 3000);
+        return d?.state === "received" || d?.state === "neverDetached" ? d : null;
+      } catch (e) {
+        if (exited) throw e;
+        return null;
+      }
+    }, 60000);
+    if (delivery.state !== "received" || delivery.attachedAfter) throw new Error(`the open-URL sink outlived the reload: ${JSON.stringify(delivery)}`);
+    const opened = () => evalApp(`return Object.values(ac.store.getState().tabs).filter((t) => JSON.stringify(t).includes(${JSON.stringify(path)})).length`);
+    await until("its tab", async () => (await opened()) || null, 30000);
+    await sleep(2000);
+    const tabs = await opened();
+    if (tabs !== 1 || served.get(path) !== 1) throw new Error(`delivered ${tabs} times, loaded ${served.get(path)} times`);
+    return { waitedMs: Math.round(delivery.waitedMs), tabs, loads: served.get(path) };
+  });
+  await check("drag-preview-across-reload", async () => {
+    const windowId = await appUp("app-drag-reload.out.log");
+    const preview = () => evalApp(`return globalThis.expo.modules.ArdiaDev.devDragPreviewState()`);
+    const edges = async () => (await evalApp(`return ac.shell.devSidebarEdgeStats(false)`)).watched;
+    const edgesBefore = await edges();
+    await evalApp(`const d = ac.shell.dragPreview; d.begin(${JSON.stringify(windowId)}, [40, 40, 160, 28], [20, 14]);
+      d.placeholder("Reload probe", null); d.update("pill", [300, 300]); ac.shell.watchSidebarEdge(${JSON.stringify(windowId)}, true); return true`);
+    const shown = await until("the preview", async () => {
+      const p = await preview();
+      return p.visible ? p : null;
+    }, 5000);
+    const edgesWatched = await edges();
+    await evalApp(`setTimeout(() => { try { globalThis.nativeModuleProxy.DevSettings.reload(); } catch {} }, 50); return true`);
+    await sleep(1500);
+    await until("the reloaded app", async () => {
+      try {
+        return await evalApp(`return Object.keys(ac.store.getState().windows).length > 0`, 3000);
+      } catch (e) {
+        if (exited) throw e;
+        return null;
+      }
+    }, 60000);
+    await sleep(1000);
+    const after = await preview();
+    if (after.visible || after.shape !== "hidden") throw new Error(`the preview outlived the reload: ${JSON.stringify(after)}`);
+    return { shown: shown.shape, after: { visible: after.visible, shape: after.shape }, edges: { before: edgesBefore, watched: edgesWatched, afterReload: await edges() } };
+  });
+
+
 
   await check("quit-js-stall", async () => {
     const windowId = await appUp("app-quit-stall.out.log");
@@ -4574,17 +6235,17 @@ try {
     if (exited) await launch("app3.out.log");
     await until("the app", async () => {
       try {
-        return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+        return await engine("engine.info", {}, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
       }
     }, 90000);
     const windowId = await until("a window", async () => (await state()).windowId, 30000);
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     await evalApp(`globalThis.__acTabs = []; globalThis.__acTabsSub?.remove();
-      globalThis.__acTabsSub = globalThis.expo.modules.ArdiaExtensions.addListener("onTabs", (e) => globalThis.__acTabs.push(e)); return true`);
+      globalThis.__acTabsSub = ac.engine.on("extensions.tabs", (e) => globalThis.__acTabs.push(e)); return true`);
     try {
       const worker = await until("the extension's worker", async () => {
         for (const t of (await targets()).filter((t) => t.type === "service_worker" && t.url.includes(installed.id))) {
@@ -4618,7 +6279,7 @@ try {
         return s.active === tabs[0]?.id && tabs[0].title === "Page E" && !tabs[0].loading ? { s, tabs } : null;
       };
       const { s: after, tabs: appTabs } = await until("the extension's tab shown as an app tab", shownTab, 10000)
-        .catch(async (e) => { throw new Error(`${e.message}; tabs.create: ${created}; strips ${JSON.stringify(await cef(`tabStrips()`))}`); });
+        .catch(async (e) => { throw new Error(`${e.message}; tabs.create: ${created}; strips ${JSON.stringify(await engine("tabs.strips"))}`); });
       await sleep(1500);
       const opened = appTabs[0];
       const chromeTab = JSON.parse((await cdp(worker, "Runtime.evaluate", {
@@ -4627,7 +6288,7 @@ try {
         awaitPromise: true,
         returnByValue: true,
       })).result.value);
-      const strips = (await cef(`tabStrips()`)).strips.filter((st) => st.appWindow === windowId);
+      const strips = (await engine("tabs.strips")).strips.filter((st) => st.appWindow === windowId);
       const strip = strips.find((st) => st.tabs.some((t) => t.key === opened.id));
       const out = {
         appTabs: (await state()).tabs.filter((t) => t.url?.includes("e?empty-window")).length,
@@ -4661,7 +6322,7 @@ try {
         noWindow: { tabsCreate: noWindow, onTabs: noWindowEvent } };
     } finally {
       await evalApp(`globalThis.__acTabsSub?.remove(); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id }).catch(() => null);
     }
   });
 
@@ -4670,6 +6331,8 @@ try {
     if (!w) throw new Error("no window to work in");
     await sleep(1000);
     const W = JSON.stringify(w);
+    const [centerX, centerY] = await evalApp(`return ac.windowLayout.openingLightsCenter(ac.store.getState(), ${W})`);
+    const dockedClose = `close=(${(centerX - 7).toFixed(1)},${(centerY - 7).toFixed(1)}) `;
     const logLength = () => (existsSync(lightsLog) ? readFileSync(lightsLog, "utf8").length : 0);
     const from = logLength();
     const run = async (body, settle = 500) => {
@@ -4696,17 +6359,19 @@ try {
     const linesOf = (a, b) => log.slice(a, b).split("\n").filter(Boolean);
     const sample = (line) => line.match(/ -> (.*?) \| /)?.[1] ?? line;
     const rest = (a, b) => linesOf(a, b).filter((line) => line.includes(" layout -> ")).slice(-1);
-    const docked = [...linesOf(from, hiding), ...rest(showing, shown), ...linesOf(shown)];
+    const window = (line) => line.match(/window=(\d+)/)?.[1];
+    const placed = new Set(linesOf(0, from).map(window));
+    const onceSettled = (line) => placed.has(window(line)) || (line.includes(" layout -> ") && !!placed.add(window(line)));
+    const docked = [...linesOf(from, hiding), ...rest(showing, shown), ...linesOf(shown)].filter(onceSettled);
     const away = [...rest(hiding, hidden), ...linesOf(hidden, showing)];
     if (!away.length || !rest(showing, shown).length) throw new Error(`no settled layout logged for the sidebar's slides`);
     const lines = [...docked, ...away];
     const healthy = (line) => sample(line).endsWith(" hidden=0 alpha=1.00") && !/ _NSTheme\w*Widget set/.test(line);
-    const bad = docked.filter((line) => !sample(line).startsWith("close=(18.0,20.0) ") || !healthy(line));
+    const bad = docked.filter((line) => !sample(line).startsWith(dockedClose) || !healthy(line));
     const out = (line) => {
       const xs = [...sample(line).matchAll(/=\((-?[\d.]+),(-?[\d.]+)\)/g)].map((m) => [Number(m[1]), Number(m[2])]);
-      return xs.length === 3 && xs.every(([x, y]) => x + 14 <= 0 && y === 20);
+      return xs.length === 3 && xs.every(([x, y]) => x + 14 <= 0 && y === centerY - 7);
     };
-    const window = (line) => line.match(/window=(\d+)/)?.[1];
     const badAway = away.filter((line) => window(line) === window(docked[0] ?? "") && (!out(line) || !healthy(line)));
     const moved = [];
     for (const [phase, set] of [["docked", docked], ["hidden", away]]) {
@@ -4714,7 +6379,7 @@ try {
       for (const line of set) places.set(window(line), (places.get(window(line)) ?? new Set()).add(sample(line)));
       for (const [win, at] of places) if (at.size > 1) moved.push({ phase, window: win, places: [...at] });
     }
-    if (!lines.some((line) => line.includes(" layout -> "))) throw new Error("no layout pass logged (is ARDIA_TRAFFIC_LIGHTS_LOG set?)");
+    if (!lines.some((line) => line.includes(" layout -> "))) throw new Error("no layout pass logged (is ARDIA_TRACE trafficLights set?)");
     if (bad.length || badAway.length || moved.length)
       throw new Error(`traffic lights left their spot: ${JSON.stringify({ moved, bad: bad.slice(0, 6), badAway: badAway.slice(0, 6) })}`);
     return { samples: lines.length, hiddenSamples: away.length, layoutPasses: lines.filter((line) => line.includes(" layout -> ")).length };
@@ -4725,7 +6390,7 @@ try {
     await launch("app-args.out.log", {}, ["-NSAppSleepDisabled", "YES", "-ApplePersistenceIgnoreState", "YES"]);
     await until("the relaunched app", async () => {
       try {
-        return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+        return await engine("engine.info", {}, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
@@ -4740,13 +6405,13 @@ try {
   });
 
   await check("context-menu-log", async () => {
-    const menuLog = join(scratch, "context-menu.json");
+    const menuLog = join(data, "context-menu.json");
     rmSync(menuLog, { force: true });
     await stopApp();
-    await launch("app4.out.log", { ARDIA_CONTEXT_MENU_LOG: menuLog });
+    await launch("app4.out.log", { contextMenu: true });
     await until("the relaunched app", async () => {
       try {
-        return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+        return await engine("engine.info", {}, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
@@ -4779,7 +6444,7 @@ try {
   });
 
   await check("context-menu-incognito", async () => {
-    const menuLog = join(scratch, "context-menu.json");
+    const menuLog = join(data, "context-menu.json");
     const tab = await until("A", async () => (await state()).tabs.find((t) => t.url?.endsWith("/a?menu") && !t.loading));
     await evalApp(`ac.actions.switchToTab("${tab.id}"); return true`);
     const t = await pageFor(tab.id, "/a?menu");
@@ -4793,7 +6458,7 @@ try {
     await cdp(t, "Input.dispatchMouseEvent", { type: "mouseReleased", ...at });
     const newTabs = () => evalApp(`const s = ac.store.getState(), before = new Set(${JSON.stringify(tabsBefore)});
       return Object.values(s.tabs).filter((t) => !before.has(t.id)).map((t) => ({ id: t.id, url: t.url, title: t.title, windowId: t.windowId,
-        incognito: !!s.windows[t.windowId]?.incognito, newWindow: !${JSON.stringify(windowsBefore)}.includes(t.windowId) }))`);
+        incognito: s.windows[t.windowId]?.kind === "private", newWindow: !${JSON.stringify(windowsBefore)}.includes(t.windowId) }))`);
     const landed = await until("the link's page in the app", async () => (await newTabs()).find((t) => t.url?.endsWith("/b") && t.title === "Page B") ?? null, 15000)
       .catch(async (e) => { throw new Error(`${e.message}; new tabs ${JSON.stringify(await newTabs())}`); });
     await sleep(500);
@@ -4801,6 +6466,43 @@ try {
     if (!landed.incognito || !landed.newWindow || all.some((x) => !x.incognito)) throw new Error(`Open Link in Incognito Window: ${JSON.stringify(all)}`);
     await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(landed.windowId)}); return true`);
     return landed;
+  });
+
+  await check("context-menu-split", async () => {
+    const menuLog = join(data, "context-menu.json");
+    const tab = await until("A", async () => (await state()).tabs.find((t) => t.url?.endsWith("/a?menu") && !t.loading));
+    await evalApp(`ac.actions.switchToTab("${tab.id}"); return true`);
+    await sleep(500);
+    const t = await pageFor(tab.id, "/a?menu");
+    const tabsBefore = await evalApp(`return Object.keys(ac.store.getState().tabs)`);
+    const groupsBefore = await evalApp(`return Object.keys(ac.store.getState().groups)`);
+    const result = () => evalApp(`const s = ac.store.getState(), before = new Set(${JSON.stringify(tabsBefore)}), groupsBefore = new Set(${JSON.stringify(groupsBefore)});
+      const opened = Object.values(s.tabs).filter((t) => !before.has(t.id)).map((t) => ({ id: t.id, url: t.url, windowId: t.windowId }));
+      const found = Object.values(s.splits).find((v) => v.slots.flatMap((x) => x.stack ?? [x.tabId]).includes(${JSON.stringify(tab.id)}));
+      const split = found ? { tabIds: found.slots.flatMap((x) => x.stack ?? [x.tabId]) } : null;
+      return { opened, split, newGroups: Object.keys(s.groups).filter((g) => !groupsBefore.has(g)) }`);
+    const openInSplit = async (path) => {
+      const box = JSON.parse((await cdp(t, "Runtime.evaluate", { expression: `(() => { const a = document.getElementById('next'); a.setAttribute('href', ${JSON.stringify(path)}); return JSON.stringify(a.getBoundingClientRect()); })()`, returnByValue: true })).result.value);
+      const at = { x: box.x + 3, y: box.y + box.height / 2, button: "right", clickCount: 1 };
+      writeFileSync(`${menuLog}.pick`, "Open Link in Split View\t0\n");
+      await cdp(t, "Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x, y: at.y });
+      await cdp(t, "Input.dispatchMouseEvent", { type: "mousePressed", ...at });
+      await cdp(t, "Input.dispatchMouseEvent", { type: "mouseReleased", ...at });
+      await until(`the tab for ${path}`, async () => (await result()).opened.some((x) => x.url?.endsWith(path)), 15000)
+        .catch(async (e) => { throw new Error(`${e.message}; ${JSON.stringify(await result())}`); });
+      await sleep(1500);
+      return { r: await result(), requests: served.get(path) ?? 0, referer: referers.get(path) };
+    };
+    const first = await openInSplit("/b?split-1");
+    const b = first.r.opened.find((x) => x.url?.endsWith("/b?split-1"));
+    if (first.r.opened.length !== 1 || first.r.split?.tabIds.join() !== [tab.id, b.id].join() || first.r.newGroups.length || first.requests !== 1 || !first.referer?.endsWith("/a?menu"))
+      throw new Error(`Open Link in Split View: ${JSON.stringify(first)}`);
+    const second = await openInSplit("/b?split-2");
+    const c = second.r.opened.find((x) => x.url?.endsWith("/b?split-2"));
+    if (second.r.opened.length !== 2 || second.r.split?.tabIds.join() !== [tab.id, c.id].join() || second.r.newGroups.length || second.requests !== 1 || !second.referer?.endsWith("/a?menu"))
+      throw new Error(`Open Link in Split View from a split page: ${JSON.stringify(second)}`);
+    await evalApp(`ac.store.getState().closeTabs(${JSON.stringify([b.id, c.id])}); return true`);
+    return { split: second.r.split.tabIds, kept: b.id, requests: [first.requests, second.requests], referer: second.referer };
   });
   // MARK: Camera and microphone (the 0.2.21 crash: Allow on a camera + microphone prompt aborted the app)
   const mediaChecks = ["camera-mic-allow", "permission-answer-once", "permission-element-allow"];
@@ -4817,10 +6519,10 @@ try {
       const signed = execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", mediaApp], { stdio: ["ignore", "pipe", "ignore"] }).toString();
       if (/device\.(camera|audio-input)/.test(signed)) throw new Error("the media copy kept a device entitlement");
       await stopApp();
-      await launch("app-media.out.log", {}, [], { app: mediaApp, switches: "--ardia-test-system-media-permission=ask" });
+      await launch("app-media.out.log", { systemMediaPermission: "ask" }, [], { app: mediaApp });
       await until("the media copy", async () => {
         try {
-          return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+          return await engine("engine.info", {}, 3000);
         } catch (e) {
           if (exited) throw e;
           return null;
@@ -4884,8 +6586,8 @@ try {
         await media.js(tab.target, `ask({ audio: true, video: true })`);
         const request = await until("the prompt", () => media.prompt(tab.id), 10000);
         await evalApp(`ac.permissions.answerPermission("${tab.id}", "${request.id}", "accept"); ac.permissions.answerPermission("${tab.id}", "${request.id}", "accept"); return true`);
-        await cef(`resolvePermission("${request.id}", "accept", true)`);
-        await cef(`resolvePermission("${request.id}", "deny", true)`);
+        await engine("permissions.resolve", { id: request.id, result: "accept", remember: true }).catch(() => null);
+        await engine("permissions.resolve", { id: request.id, result: "deny", remember: true }).catch(() => null);
         const answer = await media.answered(tab.target);
         if (answer.state !== "ok" || answer.audio?.[0] !== "live" || answer.video?.[0] !== "live") throw new Error(`getUserMedia: ${JSON.stringify(answer)}`);
         await media.js(tab.target, `navigator.requestMIDIAccess({ sysex: true }).then(() => (window.__midi = "granted"), (e) => (window.__midi = e.name)); true`);

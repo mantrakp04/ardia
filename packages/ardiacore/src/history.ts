@@ -1,4 +1,4 @@
-import { engineCall, onEngineEvent } from "./engine";
+import { call, on } from "./engine/call";
 
 export type EngineHistoryEntry = { url: string; title: string; visits: number; visitTimes: number[] };
 
@@ -7,10 +7,17 @@ export type HistoryChange =
   | { kind: "modified"; profile: string; rows: { url: string; title: string; visits: number }[] }
   | { kind: "deleted"; profile: string; all: boolean; urls: string[] };
 
-type Row = { u: string; t: string; n: number };
+export type HistoryWireRow = { u: string; t: string; n: number };
+
+type HistoryWireChange =
+  | ({ kind: "visit"; at: number } & HistoryWireRow)
+  | { kind: "modified"; rows: HistoryWireRow[] }
+  | { kind: "deleted"; all: boolean; urls: string[] };
+
+export type HistoryChangedBatch = { profile: string; kind: "batch"; changes: HistoryWireChange[] };
 
 export async function queryHistory(profile: string, maxUrls = 5000, maxVisits = 50): Promise<EngineHistoryEntry[]> {
-  const { entries } = await engineCall<{ entries: (Row & { v: number[] })[] }>("ac_history_query", profile, { maxUrls, maxVisits });
+  const { entries } = await call("history.query", { profile, maxUrls, maxVisits });
   return entries.map((e) => ({ url: e.u, title: e.t, visits: e.n, visitTimes: e.v }));
 }
 
@@ -21,7 +28,7 @@ export function addHistoryVisits(profile: string, pages: { url: string; title: s
   const run = (adding.get(profile) ?? Promise.resolve())
     .catch(() => {})
     .then(() =>
-      engineCall<{ added: number }>("ac_history_add", profile, { pages: pages.map((p) => ({ u: p.url, t: p.title, v: p.visitTimes })), toleranceMs }),
+      call("history.add", { profile, pages: pages.map((p) => ({ u: p.url, t: p.title, v: p.visitTimes })), toleranceMs }),
     )
     .then((r) => r.added);
   adding.set(profile, run);
@@ -30,25 +37,22 @@ export function addHistoryVisits(profile: string, pages: { url: string; title: s
 
 export const importHistoryRows = (profile: string, rows: { url: string; title: string; visits: number; lastVisit: number }[]) =>
   rows.length
-    ? engineCall("ac_history_import", profile, { rows: rows.map((r) => ({ u: r.url, t: r.title, n: r.visits, l: r.lastVisit })) })
+    ? call("history.import", { profile, rows: rows.map((r) => ({ u: r.url, t: r.title, n: r.visits, l: r.lastVisit })) })
     : Promise.resolve();
 
 export const deleteHistoryUrls = (profile: string, urls: string[]) =>
-  urls.length ? engineCall("ac_history_delete_urls", profile, { urls }) : Promise.resolve();
+  urls.length ? call("history.deleteUrls", { profile, urls }) : Promise.resolve();
 
-export const watchHistory = (profile: string) => engineCall("ac_history_watch", profile);
+export const watchHistory = (profile: string) => call("history.watch", { profile });
 
-type RawChange = Record<string, unknown>;
+const historyChange = (profile: string, c: HistoryWireChange): HistoryChange =>
+  c.kind === "visit"
+    ? { kind: "visit", profile, url: c.u, title: c.t, visits: c.n, at: c.at }
+    : c.kind === "modified"
+      ? { kind: "modified", profile, rows: c.rows.map((r) => ({ url: r.u, title: r.t, visits: r.n })) }
+      : { kind: "deleted", profile, all: c.all, urls: c.urls };
 
 export const onHistoryChanged = (listener: (change: HistoryChange) => void) =>
-  onEngineEvent("history.changed", (p) => {
-    const profile = p.profile;
-    const one = (c: RawChange) => {
-      if (c.kind === "visit") listener({ kind: "visit", profile, url: c.u as string, title: c.t as string, visits: c.n as number, at: c.at as number });
-      else if (c.kind === "modified")
-        listener({ kind: "modified", profile, rows: (c.rows as Row[]).map((r) => ({ url: r.u, title: r.t, visits: r.n })) });
-      else if (c.kind === "deleted") listener({ kind: "deleted", profile, all: !!c.all, urls: (c.urls as string[]) ?? [] });
-    };
-    if (p.kind === "batch") for (const c of (p.changes as RawChange[]) ?? []) one(c);
-    else one(p);
+  on("history.changed", ({ profile, changes }) => {
+    for (const c of changes) listener(historyChange(profile, c));
   });

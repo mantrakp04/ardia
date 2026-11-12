@@ -249,6 +249,49 @@ for slot, path in slots.items():
     (folder / "Contents.json").write_text(IMAGESET)
 print("plate marks")
 
+import json  # noqa: E402
+
+ICON = Path("apps/browser/macos/Ardia-macOS/AppIcon.icon")
+
+
+def icon_layers(tile):
+    rgb = np.array(tile.convert("RGB")).astype(np.float32) / 255
+    fill = np.median(rgb[20:120, 300:700].reshape(-1, 3), axis=0)
+    lift = np.where(rgb > fill, (rgb - fill) / np.maximum(1 - fill, 1e-6), (fill - rgb) / np.maximum(fill, 1e-6))
+    alpha = np.clip((lift.max(-1) - 0.05) / 0.95, 0, 1)
+    colour = np.where(alpha[..., None] > 0, np.clip(fill + (rgb - fill) / np.maximum(alpha, 1e-6)[..., None], 0, 1), 0)
+    blobs, _ = nd.label(alpha > 0.5)
+    sizes = np.bincount(blobs.ravel())
+    sizes[0] = 0
+    art = np.isin(blobs, np.nonzero(sizes > 2000)[0])
+    alpha = np.where(nd.binary_dilation(art, iterations=4), alpha, 0)
+    inside = nd.binary_erosion(nd.binary_fill_holes(art), iterations=3)
+    alpha = np.where(inside, 1.0, alpha)
+    colour = np.where(inside[..., None], rgb, colour)
+    h, s, v = np.moveaxis(hsvlib.rgb_to_hsv(colour), -1, 0)
+    sun = nd.median_filter((h > 0.06) & (h < 0.18) & (s > 0.35) & (v > 0.5), 9)
+    front = nd.median_filter((h > 0.34) & ~sun, 9)
+    parts = np.where(sun, SUN, np.where(front, FRONT, BACK))
+    parts = parts[tuple(nd.distance_transform_edt(alpha <= 0.5, return_distances=False, return_indices=True))]
+    cut = {part: np.where(parts == part, alpha, 0) for part in (BACK, FRONT, SUN)}
+    return fill, {part: layer(np.where(a[..., None] > 0, colour, 0), a) for part, a in cut.items()}
+
+
+icon_fill, icon_parts = icon_layers(square)
+(ICON / "Assets").mkdir(parents=True, exist_ok=True)
+groups = []
+for part, name in ((SUN, "sun"), (FRONT, "front"), (BACK, "back")):
+    icon_parts[part].save(ICON / "Assets" / f"{name}.png", optimize=True)
+    groups.append({"layers": [{"glass": False, "image-name": f"{name}.png", "name": name}],
+                   "shadow": {"kind": "neutral", "opacity": 0.5}, "specular": False,
+                   "translucency": {"enabled": False, "value": 0.5}})
+(ICON / "icon.json").write_text(json.dumps({
+    "fill": {"solid": "srgb:" + ",".join(f"{c:.5f}" for c in icon_fill) + ",1.00000"},
+    "groups": groups,
+    "supported-platforms": {"squares": ["macOS"]},
+}, indent=2) + "\n")
+print("app icon (Icon Composer)")
+
 import base64, io, subprocess, tempfile  # noqa: E401, E402
 
 ENGINE = Path("engine/chromium/src")

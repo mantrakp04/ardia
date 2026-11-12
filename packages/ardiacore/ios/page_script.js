@@ -1,14 +1,27 @@
 (function (post) {
   "use strict";
-  if (!/^(https?|file):$/.test(location.protocol)) return () => {};
+  const web = /^(https?|file):$/.test(location.protocol);
+  const sameOriginChild = location.protocol === "about:" && window !== window.top && /^https?:\/\//.test(self.origin);
+  if (!web && !sameOriginChild) return () => {};
   const isTop = window === window.top;
   const handlers = Object.create(null);
   const { stringify: toJSON, parse: fromJSON } = JSON;
   const apply = Reflect.apply;
+  const asNative = (native, call) => {
+    const { getPrototypeOf: protoOf, setPrototypeOf: setProtoOf } = Reflect;
+    const disguised = new Proxy(native, {
+      apply: (target, self, args) => call(target, self, args),
+      setPrototypeOf(target, next) {
+        for (let link = next; link !== null; link = protoOf(link))
+          if (link === disguised || link === target) throw new TypeError("Cyclic __proto__ value");
+        return setProtoOf(target, next);
+      },
+    });
+    return disguised;
+  };
   const { keys, setPrototypeOf } = Object;
   const { isArray } = Array;
   const { isFinite } = Number;
-  const startsWith = String.prototype.startsWith;
   const plain = (value, depth) => {
     if (value === null || typeof value === "string" || typeof value === "boolean") return value;
     if (typeof value === "number") return isFinite(value) ? value : null;
@@ -43,18 +56,82 @@
     };
   };
 
+  const displayRequests = new Map();
+  let displaySeq = 0;
+  let displayMediaShim = null;
+  let nativeGetDisplayMedia = null;
+  const restoreDisplayMedia = () => {
+    const devices = navigator.mediaDevices;
+    const proto = devices && Object.getPrototypeOf(devices);
+    if (!proto || !displayMediaShim || proto.getDisplayMedia !== displayMediaShim) return;
+    proto.getDisplayMedia = nativeGetDisplayMedia;
+    displayMediaShim = null;
+  };
+  const installDisplayMedia = () => {
+    const devices = navigator.mediaDevices;
+    const proto = devices && Object.getPrototypeOf(devices);
+    if (!proto || !proto.getDisplayMedia || displayMediaShim) return;
+    nativeGetDisplayMedia = proto.getDisplayMedia;
+    const getUserMedia = proto.getUserMedia;
+    const activation = navigator.userActivation;
+    const activationProto = activation && Object.getPrototypeOf(activation);
+    const activationState = activationProto && Object.getOwnPropertyDescriptor(activationProto, "isActive");
+    const isActive = activationState && activationState.get;
+    const policy = document.featurePolicy;
+    const allowsFeature = policy && policy.allowsFeature;
+    const nativeRejects = (self, options) =>
+      self !== devices ||
+      (options !== undefined && options !== null && typeof options !== "object" && typeof options !== "function") ||
+      (policy && allowsFeature && !apply(allowsFeature, policy, ["display-capture"]));
+    displayMediaShim = asNative(nativeGetDisplayMedia, (target, self, args) => {
+      const constraints = args[0];
+      if (nativeRejects(self, constraints)) return apply(target, self, args);
+      if (activation && isActive && !apply(isActive, activation, []))
+        return Promise.reject(new DOMException("getDisplayMedia() requires transient activation (user gesture).", "InvalidStateError"));
+      return new Promise((resolve, reject) => {
+        const id = ++displaySeq;
+        const options = constraints || {};
+        displayRequests.set(id, { self, resolve, reject, constraints: options });
+        const windowAudio = options.windowAudio === "exclude" || options.windowAudio === "window" ? options.windowAudio : "system";
+        send("displayMedia", { id, audio: !!options.audio, systemAudio: options.systemAudio !== "exclude", windowAudio });
+      });
+    });
+    proto.getDisplayMedia = displayMediaShim;
+    handlers.displayMedia = ({ id, sourceId, audio }) => {
+      const request = displayRequests.get(id);
+      if (!request) return;
+      displayRequests.delete(id);
+      if (!sourceId) {
+        request.reject(new DOMException("Permission denied", "NotAllowedError"));
+        return;
+      }
+      const video = request.constraints.video;
+      const frameRate = (video && video.frameRate && (video.frameRate.max || video.frameRate.ideal || video.frameRate)) || 30;
+      apply(getUserMedia, request.self, [
+        {
+          audio: audio === true ? { mandatory: { chromeMediaSource: "desktop" } } : false,
+          video: { mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId, maxWidth: 3840, maxHeight: 2160, maxFrameRate: +frameRate || 30 } },
+        },
+      ]).then(request.resolve, request.reject);
+    };
+  };
+  installDisplayMedia();
+
+  const receive = (kind, json) => {
+    const handler = handlers[kind];
+    if (handler) guard(handler)(fromJSON(json));
+  };
+  if (!web) {
+    const configureDisplayMedia = (config) => (config.displayMediaPicker ? installDisplayMedia() : restoreDisplayMedia());
+    handlers.config = configureDisplayMedia;
+    send("displayMediaHello", {});
+    return receive;
+  }
+
   const frame = Math.random().toString(36).slice(2);
   const tracked = new WeakSet();
   let active = null;
-  let lastPlaying = null;
   const heard = new WeakSet();
-  const audible = (m) => !m.paused && !m.ended && !m.muted && m.volume > 0 && m.readyState > 2 && heard.has(m);
-  const reportAudible = () => {
-    const playing = [...document.querySelectorAll("video,audio")].some(audible) || (active && audible(active)) || webAudible();
-    if (playing === lastPlaying) return;
-    lastPlaying = playing;
-    send("media", { frame, playing });
-  };
 
   const session = navigator.mediaSession;
   const actions = new Map();
@@ -71,10 +148,9 @@
     if (decodedAudio(m)) {
       heard.add(m);
       listening.delete(m);
-      reportAudible();
       return reportNowPlaying();
     }
-    if (tries >= LISTEN_TRIES) return;
+    if (tries >= LISTEN_TRIES) return listening.delete(m);
     setTimeout(guard(() => listenFor(m, tries + 1)), 500);
   };
   const noteHeard = (m) => {
@@ -138,6 +214,8 @@
     send("nowPlaying", state && { ...state, timestamp: Date.now() });
   }, 100);
   let blockAutoplay = false;
+  let pipTrace = false;
+  let pipHandlerSet = null;
   const playingMedia = new Set();
   const onMediaEvent = (e) => {
     const m = e.target;
@@ -153,7 +231,6 @@
       watchRemoval(m);
     }
     noteHeard(m);
-    reportAudible();
     if (e.type !== "volumechange") reportNowPlaying();
   };
   const watched = new WeakSet();
@@ -162,79 +239,28 @@
     watched.add(m);
     m.addEventListener("pause", () => {
       if (m.isConnected || tracked.has(m)) return;
-      reportAudible();
       reportNowPlaying();
     });
   };
-  document.addEventListener("enterpictureinpicture", (e) => send("pip", { active: true, kind: "video" }), true);
-  document.addEventListener("leavepictureinpicture", (e) => send("pip", { active: false, kind: "video" }), true);
   const mediaEvents = ["play", "playing", "pause", "ended", "volumechange", "emptied", "seeked", "ratechange", "loadedmetadata"];
   for (const e of mediaEvents) document.addEventListener(e, onMediaEvent, true);
+  const detachedMediaWatchers = [];
   const play = HTMLMediaElement.prototype.play;
-  HTMLMediaElement.prototype.play = function () {
-    if (!tracked.has(this) && !this.isConnected) {
-      tracked.add(this);
-      for (const e of mediaEvents) this.addEventListener(e, onMediaEvent);
+  const pausedState = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "paused").get;
+  const connectedState = Object.getOwnPropertyDescriptor(Node.prototype, "isConnected").get;
+  HTMLMediaElement.prototype.play = asNative(play, (target, self, args) => {
+    let media = false;
+    try {
+      apply(pausedState, self, []);
+      media = true;
+    } catch (e) {}
+    if (media && !tracked.has(self) && !apply(connectedState, self, [])) {
+      tracked.add(self);
+      for (const e of mediaEvents) self.addEventListener(e, onMediaEvent);
+      for (const watch of detachedMediaWatchers) guard(watch)(self);
     }
-    return play.apply(this, arguments);
-  };
-  const QUIET_MS = 3000;
-  const audioContexts = new Set();
-  const taps = new WeakMap();
-  const samples = new Float32Array(256);
-  const AUDIO_POLL_MS = 500;
-  const SILENT_AUDIO_POLL_MS = 2000;
-  const SILENT_AFTER_MS = 10000;
-  let webAudioUntil = 0;
-  let audioPoll = 0;
-  let audioPollActiveSince = 0;
-  let fixedAudioPoll = false;
-  function webAudible() {
-    return Date.now() < webAudioUntil;
-  }
-  const nextAudioPollMs = () =>
-    fixedAudioPoll || Date.now() - Math.max(webAudioUntil - QUIET_MS, audioPollActiveSince) < SILENT_AFTER_MS ? AUDIO_POLL_MS : SILENT_AUDIO_POLL_MS;
-  const pollWebAudio = guard(() => {
-    clearTimeout(audioPoll);
-    audioPoll = 0;
-    let running = false;
-    for (const ctx of audioContexts) {
-      if (ctx.state === "closed") audioContexts.delete(ctx);
-      if (ctx.state !== "running") continue;
-      running = true;
-      taps.get(ctx).getFloatTimeDomainData(samples);
-      let peak = 0;
-      for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
-      if (peak > 1e-4) webAudioUntil = Date.now() + QUIET_MS;
-    }
-    if (running || webAudible()) audioPoll = setTimeout(pollWebAudio, nextAudioPollMs());
-    reportAudible();
+    return apply(target, self, args);
   });
-  const pollAudio = () => {
-    if (audioPoll) return;
-    audioPollActiveSince = Date.now();
-    audioPoll = setTimeout(pollWebAudio, AUDIO_POLL_MS);
-  };
-  if (window.AudioNode && window.AudioDestinationNode && window.AudioContext) {
-    const connect = AudioNode.prototype.connect;
-    AudioNode.prototype.connect = function (target, output) {
-      const result = connect.apply(this, arguments);
-      guard(() => {
-        const ctx = target instanceof AudioDestinationNode ? target.context : null;
-        if (!(ctx instanceof AudioContext)) return;
-        if (!taps.has(ctx)) {
-          const tap = ctx.createAnalyser();
-          tap.fftSize = samples.length;
-          taps.set(ctx, tap);
-          audioContexts.add(ctx);
-          ctx.addEventListener("statechange", () => (ctx.state === "running" ? pollAudio() : pollWebAudio()));
-        }
-        connect.call(this, taps.get(ctx), output || 0);
-        pollAudio();
-      })();
-      return result;
-    };
-  }
 
   const proto = session && Object.getPrototypeOf(session);
   if (proto) {
@@ -253,7 +279,10 @@
     wrapSetter("playbackState");
     const setActionHandler = proto.setActionHandler;
     proto.setActionHandler = function (action, handler) {
-      if (action === "enterpictureinpicture") send("pipTrace", { event: "setActionHandler", action, set: !!handler });
+      if (action === "enterpictureinpicture") {
+        pipHandlerSet = !!handler;
+        if (pipTrace) send("pipTrace", { event: "setActionHandler", action, set: pipHandlerSet });
+      }
       const result = setActionHandler.apply(this, arguments);
       if (handler) actions.set(action, handler);
       else actions.delete(action);
@@ -267,8 +296,9 @@
       return setPositionState.apply(this, arguments);
     };
   }
+  const playableMedia = (all) => all.find((m) => m.currentSrc || m.srcObject || m.src || m.querySelector("source[src]")) || null;
   handlers.media = ({ action, seconds }) => {
-    const el = pickMedia();
+    const el = pickMedia() || playableMedia([...document.querySelectorAll("video,audio")]);
     const call = (name, details) => {
       const h = actions.get(name);
       if (!h) return false;
@@ -430,9 +460,11 @@
   addEventListener("resize", () => eyeField && requestAnimationFrame(placeEye));
   addEventListener("pagehide", conceal);
 
+  let pageNotification = null;
   const installNotifications = () => {
     const NativeNotification = window.Notification;
-    if (!NativeNotification || NativeNotification.__ac) return !!NativeNotification;
+    if (!NativeNotification || NativeNotification === pageNotification) return !!NativeNotification;
+    const pageNotifications = new WeakSet();
     const live = new Map();
     let seq = 0;
     const show = (title, options, fire) => {
@@ -458,9 +490,9 @@
     };
     class PageNotification extends EventTarget {
       constructor(title, options) {
-        if (!new.target) throw new TypeError("Failed to construct 'Notification': Please use the 'new' operator.");
         if (arguments.length < 1) throw new TypeError("Failed to construct 'Notification': 1 argument required, but only 0 present.");
         super();
+        pageNotifications.add(this);
         options = options || {};
         const fields = { title: String(title), body: String(options.body ?? ""), tag: String(options.tag ?? ""),
           icon: String(options.icon ?? ""), data: options.data ?? null, silent: !!options.silent,
@@ -485,27 +517,46 @@
         Object.defineProperty(this, "_id", { value: id });
         setTimeout(() => this._fire("show"), 0);
       }
-      close() {
-        if (!this._id || !live.has(this._id)) return;
-        live.delete(this._id);
-        send("notificationClose", { id: this._id });
-        setTimeout(() => this._fire("close"), 0);
-      }
-      static get permission() { return NativeNotification.permission; }
-      static requestPermission(callback) { return NativeNotification.requestPermission(callback); }
-      static get maxActions() { return NativeNotification.maxActions || 0; }
+    }
+    const closeNotification = (n) => {
+      if (!n._id || !live.has(n._id)) return;
+      live.delete(n._id);
+      send("notificationClose", { id: n._id });
+      setTimeout(() => n._fire("close"), 0);
+    };
+    const nativeClose = NativeNotification.prototype.close;
+    Object.defineProperty(PageNotification.prototype, "close", {
+      value: asNative(nativeClose, (target, self, args) => (pageNotifications.has(self) ? closeNotification(self) : apply(target, self, args))),
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+    for (const key of ["permission", "maxActions", "requestPermission"]) {
+      const native = Object.getOwnPropertyDescriptor(NativeNotification, key);
+      if (native) Object.defineProperty(PageNotification, key, native);
     }
     Object.defineProperty(PageNotification, "name", { value: "Notification" });
-    Object.defineProperty(PageNotification, "__ac", { value: true });
-    window.Notification = PageNotification;
+    Object.defineProperty(PageNotification, "length", { value: 1 });
+    pageNotification = asNative(PageNotification, () => {
+      throw new TypeError("Failed to construct 'Notification': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+    });
+    Object.defineProperty(PageNotification.prototype, "constructor", { value: pageNotification, writable: true, configurable: true });
+    window.Notification = pageNotification;
     const Registration = window.ServiceWorkerRegistration;
-    if (Registration && Registration.prototype.showNotification) {
-      Registration.prototype.showNotification = function (title, options) {
-        if (NativeNotification.permission !== "granted")
-          return Promise.reject(new TypeError("No notification permission has been granted for this origin."));
-        show(title, options);
+    const nativeShow = Registration && Registration.prototype.showNotification;
+    const activeWorker = nativeShow && Object.getOwnPropertyDescriptor(Registration.prototype, "active");
+    if (nativeShow && activeWorker && activeWorker.get) {
+      Registration.prototype.showNotification = asNative(nativeShow, (target, self, args) => {
+        let worker = null;
+        try {
+          worker = apply(activeWorker.get, self, []);
+        } catch (e) {
+          return apply(target, self, args);
+        }
+        if (!worker || args.length < 1 || NativeNotification.permission !== "granted") return apply(target, self, args);
+        show(args[0], args[1]);
         return Promise.resolve();
-      };
+      });
     }
     handlers.notification = ({ id, action }) => {
       const n = live.get(id);
@@ -522,53 +573,74 @@
   };
   if (!installNotifications()) queueMicrotask(() => installNotifications() || setTimeout(installNotifications, 0));
 
-  const displayRequests = new Map();
-  let displaySeq = 0;
-  const installDisplayMedia = () => {
-    const devices = navigator.mediaDevices;
-    const proto = devices && Object.getPrototypeOf(devices);
-    if (!proto || !proto.getDisplayMedia || proto.getDisplayMedia.__ac) return;
-    const getUserMedia = proto.getUserMedia;
-    const activation = navigator.userActivation;
-    const activationProto = activation && Object.getPrototypeOf(activation);
-    const activationState = activationProto && Object.getOwnPropertyDescriptor(activationProto, "isActive");
-    const isActive = activationState && activationState.get;
-    const policy = document.featurePolicy;
-    const allowsFeature = policy && policy.allowsFeature;
-    const getDisplayMedia = function getDisplayMedia(constraints) {
-      if (policy && allowsFeature && !apply(allowsFeature, policy, ["display-capture"]))
-        return Promise.reject(new DOMException('Access to the feature "display-capture" is disallowed by permissions policy.', "NotAllowedError"));
-      if (activation && isActive && !apply(isActive, activation, []))
-        return Promise.reject(new DOMException("getDisplayMedia() requires transient activation (user gesture).", "InvalidStateError"));
-      const self = this;
-      return new Promise((resolve, reject) => {
-        const id = ++displaySeq;
-        displayRequests.set(id, { self, resolve, reject, constraints: constraints || {} });
-        send("displayMedia", { id, audio: !!(constraints && constraints.audio) });
-      });
+  if (isTop && window.isSecureContext && window.Navigator) {
+    const navigatorProto = window.Navigator.prototype;
+    const PromiseType = Promise;
+    const { reject: promiseReject, resolve: promiseResolve } = Promise;
+    const promiseThen = Promise.prototype.then;
+    const { trunc } = Math;
+    const MAX_BADGE = 9007199254740991;
+    const badgeCount = (contents) => {
+      if (contents === undefined) return null;
+      const n = trunc(+contents);
+      if (!isFinite(n)) throw new TypeError("Failed to execute 'setAppBadge' on 'Navigator': Value is not of type 'unsigned long long'.");
+      if (n < 0 || n > MAX_BADGE) throw new TypeError("Failed to execute 'setAppBadge' on 'Navigator': Value is outside the 'unsigned long long' value range.");
+      return n === 0 ? 0 : n;
     };
-    Object.defineProperty(getDisplayMedia, "__ac", { value: true });
-    proto.getDisplayMedia = getDisplayMedia;
-    handlers.displayMedia = ({ id, sourceId }) => {
-      const request = displayRequests.get(id);
-      if (!request) return;
-      displayRequests.delete(id);
-      if (!sourceId) {
-        request.reject(new DOMException("Permission denied", "NotAllowedError"));
-        return;
+    const ignore = () => {};
+    const BADGE_GAP_MS = 250;
+    const clock = Date.now;
+    let shownBadge;
+    let nextBadge;
+    let sentAt = -Infinity;
+    let queued = false;
+    const sendBadge = () => {
+      queued = false;
+      if (nextBadge === shownBadge) return;
+      shownBadge = nextBadge;
+      sentAt = clock();
+      send("appBadge", nextBadge === null ? { flag: true } : { count: nextBadge });
+    };
+    const noteBadge = (count) => {
+      nextBadge = count;
+      if (queued) return;
+      const wait = sentAt + BADGE_GAP_MS - clock();
+      if (wait <= 0) return sendBadge();
+      queued = true;
+      setTimeout(guard(sendBadge), wait);
+    };
+    const afterChrome = (result, count) => {
+      if (result && typeof result === "object") guard(() => apply(promiseThen, result, [() => noteBadge(count), ignore]))();
+      return result;
+    };
+    const install = (name, native, run) =>
+      typeof native === "function"
+        ? (navigatorProto[name] = asNative(native, (target, self, args) => (self === navigator ? run(target, self, args) : apply(target, self, args))))
+        : Object.defineProperty(navigatorProto, name, {
+            value: {
+              [name]() {
+                if (this !== navigator) return apply(promiseReject, PromiseType, [new TypeError("Illegal invocation")]);
+                return run(null, this, arguments);
+              },
+            }[name],
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
+    install("setAppBadge", navigatorProto.setAppBadge, (target, self, args) => {
+      let count;
+      try {
+        count = badgeCount(args[0]);
+      } catch (e) {
+        return apply(promiseReject, PromiseType, [e]);
       }
-      const video = request.constraints.video;
-      const frameRate = (video && video.frameRate && (video.frameRate.max || video.frameRate.ideal || video.frameRate)) || 30;
-      const tabAudio = !!request.constraints.audio && apply(startsWith, sourceId, ["web-contents-media-stream://"]);
-      apply(getUserMedia, request.self, [
-        {
-          audio: tabAudio ? { mandatory: { chromeMediaSource: "desktop" } } : false,
-          video: { mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId, maxWidth: 3840, maxHeight: 2160, maxFrameRate: +frameRate || 30 } },
-        },
-      ]).then(request.resolve, request.reject);
-    };
-  };
-
+      if (!target) return afterChrome(apply(promiseResolve, PromiseType, []), count);
+      return afterChrome(apply(target, self, count === null ? [] : [count]), count);
+    });
+    install("clearAppBadge", navigatorProto.clearAppBadge, (target, self) =>
+      afterChrome(target ? apply(target, self, []) : apply(promiseResolve, PromiseType, []), 0),
+    );
+  }
   const PO = window.PerformanceObserver;
   const disconnect = PO && PO.prototype.disconnect;
   const { addEventListener: listen, removeEventListener: unlisten } = EventTarget.prototype;
@@ -602,6 +674,24 @@
     apply(listen, document, ["visibilitychange", state.onVisibility]);
   };
   handlers.fieldTiming = (message) => setFieldTiming(!!(message && message.on));
+  let firstPaintObserver = null;
+  handlers.firstPaint = () => {
+    if (!isTop || firstPaintObserver) return;
+    const painted = () => send("firstPaint", { url: location.href });
+    try {
+      firstPaintObserver = new PO((list) => {
+        for (const e of list.getEntries())
+          if (e.name === "first-contentful-paint") {
+            apply(disconnect, firstPaintObserver, []);
+            return painted();
+          }
+      });
+      firstPaintObserver.observe({ type: "paint", buffered: true });
+    } catch (e) {
+      firstPaintObserver = true;
+      onReady(() => apply(raf, window, [painted]));
+    }
+  };
   handlers.wakeFrames = () => apply(raf, window, [() => {}]);
 
   const pauseUnasked = (media, activated) => {
@@ -616,10 +706,14 @@
   };
 
   let peekKey = null;
+  let splitKey = null;
   let peekTrace = false;
+  let peekOtherSites = false;
   handlers.peekConfig = (config) => {
     peekKey = config && (config.modifier === "alt" || config.modifier === "shift") ? config.modifier : null;
+    splitKey = config && (config.split === "alt" || config.split === "altShift") ? config.split : null;
     peekTrace = !!(config && config.trace);
+    peekOtherSites = !!(config && config.otherSites === true);
   };
   try {
     const getter = (proto, name) => {
@@ -643,14 +737,22 @@
     const getAttributeNS = Element.prototype.getAttributeNS;
     const test = RegExp.prototype.test;
     const includes = Array.prototype.includes;
+    const sliceText = String.prototype.slice;
     const { hypot } = Math;
     const URLCtor = URL;
     const SVG = "http://www.w3.org/2000/svg";
     const PRESS_SLOP = 5;
+    const MAX_SITE_PEEK_URL = 8192;
     const namespace = getter(Element.prototype, "namespaceURI");
     const timeStamp = getter(Event.prototype, "timeStamp");
     const persisted = getter(PageTransitionEvent.prototype, "persisted");
     const pageOrigin = location.origin;
+    const pageHost = location.hostname;
+    const pageIsWeb = apply(test, /^https?:$/, [location.protocol]);
+    const hostnameOf = getter(URL.prototype, "hostname");
+    const querySelector = Document.prototype.querySelector;
+    const selectionOf = Document.prototype.getSelection;
+    const collapsed = getter(Selection.prototype, "isCollapsed");
     const now = () => apply(dateNow, Date, []);
     const linkUrl = (el) => {
       const name = localName(el);
@@ -688,20 +790,53 @@
     const peekable = (hit) =>
       !!hit && !!hit.url && !apply(hasAttribute, hit.link, ["download"]) && apply(test, /^https?:/i, [hit.url]) && !inEditable(hit.path);
     const keys = (e) => ({ alt: altKey(e), shift: shiftKey(e), meta: metaKey(e), ctrl: ctrlKey(e) });
-    const chosen = (e) => {
-      if (metaKey(e) || ctrlKey(e)) return false;
-      if (peekKey === "alt") return altKey(e) && !shiftKey(e);
-      if (peekKey === "shift") return shiftKey(e) && !altKey(e);
-      return false;
+    const keyOf = (e) => {
+      if (ctrlKey(e)) return null;
+      if (metaKey(e)) return altKey(e) && !shiftKey(e) ? "altMeta" : null;
+      if (altKey(e)) return shiftKey(e) ? "altShift" : "alt";
+      return shiftKey(e) ? "shift" : null;
     };
-    const trace = (what, data) => peekTrace && send("peekTrace", { what, key: peekKey, ...data });
+    const chosen = (e) => {
+      const key = keyOf(e);
+      if (!key) return null;
+      if (key === peekKey) return key;
+      if (!splitKey) return null;
+      if (key === "altShift" || key === "altMeta") return key;
+      return key === "alt" && splitKey === "alt" ? key : null;
+    };
+    const anyKey = () => !!(peekKey || splitKey || peekOtherSites);
+    const trace = (what, data) => peekTrace && send("peekTrace", { what, key: peekKey, split: splitKey, otherSites: peekOtherSites, ...data });
+    const plainPress = (e) => !altKey(e) && !shiftKey(e) && !metaKey(e) && !ctrlKey(e);
+    const siteKey = (e) => (peekOtherSites && isTop && pageIsWeb && plainPress(e) ? "site" : null);
+    const withoutWww = (host) => (apply(test, /^www\./i, [host]) ? apply(sliceText, host, [4]) : host);
+    const targetOf = (link) => {
+      const own = apply(getAttribute, link, ["target"]);
+      if (own !== null) return own;
+      const base = apply(querySelector, document, ["base[target]"]);
+      return base ? apply(getAttribute, base, ["target"]) || "" : "";
+    };
+    const replacesPage = (link) => apply(test, /^(_self|_top|_parent)?$/i, [targetOf(link)]);
+    const otherSite = (url) => withoutWww(hostnameOf(new URLCtor(url))) !== withoutWww(pageHost);
+    const selecting = () => {
+      const selection = apply(selectionOf, document, []);
+      return !!selection && !collapsed(selection);
+    };
     let press = null;
     let peeked = null;
+    let siteClick = null;
     let sent = null;
     handlers.peekRefused = (refusal) => {
       const gesture = sent;
-      if (!gesture || !refusal || !refusal.download || refusal.url !== gesture.url || now() - gesture.at > 60000) return;
+      if (!gesture || !refusal || !(refusal.download || refusal.follow) || refusal.url !== gesture.url || now() - gesture.at > 60000) return;
       sent = null;
+      if (refusal.follow) {
+        trace("native refused, following the link as the click would have", { url: gesture.url, reason: refusal.reason });
+        if (namespace(gesture.link) === XHTML) return apply(clickElement, gesture.link, []);
+        const follow = apply(createElement, document, ["a"]);
+        apply(setAttribute, follow, ["href", gesture.url]);
+        apply(setAttribute, follow, ["target", "_self"]);
+        return apply(clickElement, follow, []);
+      }
       trace("native refused, downloading as the click would have", { url: gesture.url, reason: refusal.reason });
       const a = apply(createElement, document, ["a"]);
       apply(setAttribute, a, ["href", gesture.url]);
@@ -713,11 +848,12 @@
       guard((e) => {
         press = null;
         peeked = null;
+        siteClick = null;
         if (!e.isTrusted || button(e) !== 0) return;
         const hit = linkAt(e);
         if (!peekable(hit)) return;
         press = { link: hit.link, url: hit.url, x: clientX(e), y: clientY(e) };
-        if (!peekKey) trace("no key chosen yet", { url: hit.url, ...keys(e) });
+        if (!anyKey()) trace("no key chosen yet", { url: hit.url, ...keys(e) });
       }),
       true,
     );
@@ -726,17 +862,23 @@
       guard((e) => {
         const pressed = press;
         press = null;
-        if (!pressed || !peekKey || !e.isTrusted || button(e) !== 0) return;
-        if (!chosen(e)) return trace("other keys", { url: pressed.url, ...keys(e) });
+        if (!pressed || !anyKey() || !e.isTrusted || button(e) !== 0) return;
+        const key = chosen(e) || siteKey(e);
+        if (!key) return trace("other keys", { url: pressed.url, ...keys(e) });
         const hit = linkAt(e);
         const moved = hypot(clientX(e) - pressed.x, clientY(e) - pressed.y);
         if (!hit || hit.link !== pressed.link) return trace("released off the link", { url: pressed.url, moved });
         if (!peekable(hit)) return trace("the link changed during the press", { url: hit.url, moved });
         if (moved > PRESS_SLOP) return trace("moved too far", { url: hit.url, moved });
+        if (key === "site") {
+          if (selecting()) return trace("the click belongs to a selection", { url: hit.url });
+          siteClick = { link: hit.link, stamp: timeStamp(e) };
+          return;
+        }
         peeked = { link: hit.link, stamp: timeStamp(e) };
-        sent = { url: hit.url, at: now() };
+        sent = { url: hit.url, at: now(), link: hit.link };
         const scale = ratio(window);
-        send("peek", { url: hit.url, key: peekKey, origin: pageOrigin, x: clientX(e) * scale, y: clientY(e) * scale, moved });
+        send("peek", { url: hit.url, key, origin: pageOrigin, x: clientX(e) * scale, y: clientY(e) * scale, moved });
       }),
       true,
     );
@@ -751,32 +893,302 @@
       }),
       true,
     );
+    const defaultPrevented = getter(Event.prototype, "defaultPrevented");
+    const scheduleTimeout = window.setTimeout;
+    const carriesUrl = (url) => apply(test, /[?&][^=&#]*=(https?(:|%3A)(\/\/|%2F%2F))/i, [url]);
+    const peekSiteLink = (e, link) => {
+      if (defaultPrevented(e)) return trace("the page handled the click", {});
+      const url = linkUrl(link);
+      if (!peekable({ link, url, path: [] })) return trace("the link changed during the click", { url });
+      if (url.length > MAX_SITE_PEEK_URL) return trace("the link is too long to hand over", { length: url.length });
+      if (!otherSite(url) && !carriesUrl(url)) return trace("the link stays on this site", { url });
+      apply(preventDefault, e, []);
+      sent = { url, at: now(), link };
+      const scale = ratio(window);
+      send("peek", { url, key: "site", origin: pageOrigin, x: clientX(e) * scale, y: clientY(e) * scale, moved: 0 });
+    };
+    const noteNewTabLink = (e, link) => {
+      if (defaultPrevented(e) || replacesPage(link)) return;
+      const url = linkUrl(link);
+      if (url && apply(test, /^https?:/i, [url])) send("newTabLink", { url });
+    };
+    addEventListener(
+      "click",
+      guard((e) => {
+        const site = siteClick;
+        siteClick = null;
+        if (!e.isTrusted || button(e) !== 0 || altKey(e) || shiftKey(e) || metaKey(e) || ctrlKey(e)) return;
+        const hit = linkAt(e);
+        if (!peekable(hit)) return;
+        const path = apply(composedPath, e, []);
+        const forSite = !!site && timeStamp(e) === site.stamp && apply(includes, path, [site.link]);
+        const link = forSite ? site.link : hit.link;
+        let decided = false;
+        const decide = guard((ev) => {
+          if (ev !== e || decided) return;
+          decided = true;
+          if (forSite && replacesPage(link)) return peekSiteLink(e, link);
+          noteNewTabLink(e, link);
+        });
+        apply(listen, window, ["click", decide]);
+        apply(scheduleTimeout, window, [
+          guard(() => {
+            apply(unlisten, window, ["click", decide]);
+            if (decided) return;
+            decided = true;
+            if (forSite && replacesPage(link)) return trace("the click never reached the window", {});
+            noteNewTabLink(e, link);
+          }),
+          0,
+        ]);
+      }),
+      true,
+    );
+    const userActivationOf = window.Navigator && Object.getOwnPropertyDescriptor(Navigator.prototype, "userActivation");
+    const activeOf = window.UserActivation && Object.getOwnPropertyDescriptor(UserActivation.prototype, "isActive");
+    const openDescriptor = Object.getOwnPropertyDescriptor(window, "open");
+    if (userActivationOf && activeOf && openDescriptor && typeof openDescriptor.value === "function") {
+      const activated = () => {
+        const activation = apply(userActivationOf.get, navigator, []);
+        return !!activation && !!apply(activeOf.get, activation, []);
+      };
+      const openedByUser = (args) => {
+        if (!args.length || args[0] === undefined || args[0] === null || !activated()) return;
+        const raw = `${args[0]}`;
+        if (!raw) return;
+        const url = new URLCtor(raw, baseURI(document)).href;
+        if (apply(test, /^https?:/i, [url])) send("newTabLink", { url });
+      };
+      const open = asNative(openDescriptor.value, (target, self, args) => {
+        guard(openedByUser)(args);
+        return apply(target, self, args);
+      });
+      Object.defineProperty(window, "open", { ...openDescriptor, value: open });
+    }
     addEventListener("pageshow", guard((e) => e.isTrusted && persisted(e) && send("peekHello", {})));
     addEventListener("pagehide", guard((e) => e.isTrusted && send("peekGone", {})));
   } catch (e) {}
 
+  try {
+    const NavigatorType = window.Navigator;
+    const requestAccess = NavigatorType && NavigatorType.prototype.requestMediaKeySystemAccess;
+    if (typeof requestAccess === "function") {
+      const protectedSystem = /^com\.(widevine\.alpha|microsoft\.playready|apple\.fps)/;
+      const { test } = RegExp.prototype;
+      const then = Promise.prototype.then;
+      const GRACE_MS = 5000;
+      const KEYS_GRACE_MS = 2000;
+      const MEDIA_ERR_DECODE = 3;
+      let drmSent = false;
+      let refused = "";
+      const attempted = new Set();
+      const grantedOnActivation = new WeakSet();
+      const needsProtectedPlayback = (keySystem) => {
+        if (drmSent) return;
+        drmSent = true;
+        send("drm", { keySystem });
+      };
+      const progressed = (m) => m.readyState >= 2 && m.currentTime > 0;
+      const anyProgressed = () => [...attempted, ...document.querySelectorAll("video, audio")].some(progressed);
+      const after = (ms, fn) => setTimeout(guard(fn), ms);
+      const stalled = (m) => !m.paused && !m.ended && !progressed(m);
+      const judgeAttempt = (m) =>
+        after(GRACE_MS, () => {
+          if (refused && stalled(m)) needsProtectedPlayback(refused);
+        });
+      const onAttempt = (m) => {
+        if (attempted.size >= 16) attempted.delete(attempted.values().next().value);
+        attempted.add(m);
+        judgeAttempt(m);
+      };
+      const onNeedsKey = (m) =>
+        after(KEYS_GRACE_MS, () => {
+          if (!m.mediaKeys && !progressed(m)) needsProtectedPlayback(refused);
+        });
+      const onDrmMediaEvent = (e) => {
+        const m = e.target;
+        if (drmSent || !(m instanceof HTMLMediaElement)) return;
+        if (e.type === "play") onAttempt(m);
+        else if (e.type === "encrypted" || e.type === "waitingforkey") onNeedsKey(m);
+        else if (e.type === "error" && refused && m.error && m.error.code === MEDIA_ERR_DECODE) needsProtectedPlayback(refused);
+      };
+      const drmMediaEvents = ["play", "encrypted", "waitingforkey", "error"];
+      for (const type of drmMediaEvents) document.addEventListener(type, guard(onDrmMediaEvent), true);
+      detachedMediaWatchers.push((m) => {
+        for (const type of drmMediaEvents) m.addEventListener(type, guard(onDrmMediaEvent));
+      });
+      const onRefused = (keySystem, activated) => {
+        if (drmSent) return;
+        if (!refused) refused = keySystem;
+        for (const m of attempted) if (stalled(m)) judgeAttempt(m);
+        if (activated)
+          after(GRACE_MS, () => {
+            if (!anyProgressed()) needsProtectedPlayback(keySystem);
+          });
+      };
+      const wrapped = asNative(requestAccess, (target, self, args) => {
+        const result = apply(target, self, args);
+        const keySystem = args[0];
+        if (!drmSent && typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
+          const activated = !!(navigator.userActivation && navigator.userActivation.isActive);
+          const remember = guard((access) => activated && access && typeof access === "object" && grantedOnActivation.add(access));
+          apply(then, result, [remember, () => onRefused(keySystem, activated)]);
+        }
+        return result;
+      });
+      Object.defineProperty(NavigatorType.prototype, "requestMediaKeySystemAccess", {
+        ...Object.getOwnPropertyDescriptor(NavigatorType.prototype, "requestMediaKeySystemAccess"),
+        value: wrapped,
+      });
+      const AccessType = window.MediaKeySystemAccess;
+      const createKeys = AccessType && AccessType.prototype.createMediaKeys;
+      const keySystemOf = AccessType && Object.getOwnPropertyDescriptor(AccessType.prototype, "keySystem");
+      if (typeof createKeys === "function" && keySystemOf && typeof keySystemOf.get === "function") {
+        const keySystemFrom = guard((access) => apply(keySystemOf.get, access, []));
+        const wrappedCreate = asNative(createKeys, (target, self, args) => {
+          const result = apply(target, self, args);
+          if (!drmSent) {
+            const keySystem = keySystemFrom(self);
+            if (typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
+              const activated = !!(navigator.userActivation && navigator.userActivation.isActive) || grantedOnActivation.has(self);
+              apply(then, result, [null, () => onRefused(keySystem, activated)]);
+            }
+          }
+          return result;
+        });
+        Object.defineProperty(AccessType.prototype, "createMediaKeys", {
+          ...Object.getOwnPropertyDescriptor(AccessType.prototype, "createMediaKeys"),
+          value: wrappedCreate,
+        });
+      }
+    }
+  } catch (e) {}
+
+  try {
+    const getterOf = (proto, name) => {
+      const get = Object.getOwnPropertyDescriptor(proto, name).get;
+      return (o) => apply(get, o, []);
+    };
+    const withCommand = getterOf(MouseEvent.prototype, "metaKey");
+    const cancelable = getterOf(Event.prototype, "cancelable");
+    const prevented = getterOf(Event.prototype, "defaultPrevented");
+    const deltaY = getterOf(WheelEvent.prototype, "deltaY");
+    const cancel = Event.prototype.preventDefault;
+    const listen = EventTarget.prototype.addEventListener;
+    const unlisten = EventTarget.prototype.removeEventListener;
+    const blocking = { passive: false };
+    let armed = false;
+    const disarm = () => {
+      if (!armed) return;
+      armed = false;
+      apply(unlisten, window, ["wheel", onCommandWheel, blocking]);
+    };
+    const onCommandWheel = guard((e) => {
+      if (!withCommand(e)) return disarm();
+      const handled = prevented(e) || !cancelable(e);
+      if (!handled) apply(cancel, e, []);
+      send("commandWheel", { handled, dy: deltaY(e) });
+    });
+    handlers.commandWheel = (message) => {
+      if (!(message && message.armed)) return disarm();
+      if (armed) return;
+      armed = true;
+      apply(listen, window, ["wheel", onCommandWheel, blocking]);
+    };
+  } catch (e) {}
+
   handlers.config = (config) => {
-    handlers.peekConfig({ modifier: config.peek, trace: config.peekTrace });
+    handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace, otherSites: config.peekOtherSites });
     blockAutoplay = !!config.blockAutoplay;
+    pipTrace = !!config.pipTrace;
+    if (pipTrace && pipHandlerSet !== null)
+      send("pipTrace", { event: "setActionHandler", action: "enterpictureinpicture", set: pipHandlerSet });
     if (blockAutoplay)
       pauseUnasked([...playingMedia, ...document.querySelectorAll("video, audio")], !!(navigator.userActivation && navigator.userActivation.hasBeenActive));
     if (config.displayMediaPicker) installDisplayMedia();
+    else restoreDisplayMedia();
     if (config.fieldTiming) setFieldTiming(true);
-    if (config.fixedAudioPoll) fixedAudioPoll = true;
-    if (config.broadThemeObserver) broadThemeObserver = true;
+    if (typeof config.selectionPopover === "boolean" && handlers.selectionPopover) handlers.selectionPopover(config.selectionPopover);
   };
   send("hello", { top: isTop, url: location.href });
 
-  const receive = (kind, json) => {
-    const handler = handlers[kind];
-    if (handler) guard(handler)(fromJSON(json));
-  };
   if (!isTop) return receive;
 
   const parse = (css) => {
-    const m = css && css.match(/[\d.]+/g);
-    if (!m || m.length < 3) return null;
-    return { r: +m[0], g: +m[1], b: +m[2], a: m[3] === undefined ? 1 : +m[3] };
+    if (!css) return null;
+    if (/^rgba?\(/.test(css)) {
+      const m = css.match(/[\d.]+/g);
+      if (!m || m.length < 3) return null;
+      return { r: +m[0], g: +m[1], b: +m[2], a: m[3] === undefined ? 1 : +m[3] };
+    }
+    const m = css.match(/^(?:color\(([\w-]+)|(lab|lch|oklab|oklch)\()\s*([^/)]*?)\s*(?:\/\s*([\d.]+%?)\s*)?\)$/);
+    const toLinearSrgb = m && LINEAR_SRGB_FROM[m[1] ?? m[2]];
+    if (!toLinearSrgb) return null;
+    const channels = m[3].split(/\s+/).map((token) => (token === "none" ? 0 : parseFloat(token)));
+    if (channels.length < 3 || channels.some((n) => !Number.isFinite(n))) return null;
+    const [r, g, b] = toLinearSrgb(channels).map((v) => Math.min(255, Math.max(0, srgbFromLinear(v) * 255)));
+    const alpha = m[4] === undefined ? 1 : parseFloat(m[4]) / (m[4].endsWith("%") ? 100 : 1);
+    return { r, g, b, a: Math.min(1, Math.max(0, alpha)) };
+  };
+  const srgbFromLinear = (v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+  const linearFromSrgb = (v) => {
+    const magnitude = Math.abs(v);
+    return Math.sign(v) * (magnitude <= 0.04045 ? magnitude / 12.92 : ((magnitude + 0.055) / 1.055) ** 2.4);
+  };
+  const multiply = (matrix, [x, y, z]) => matrix.map(([a, b, c]) => a * x + b * y + c * z);
+  const XYZ_D65_TO_LINEAR_SRGB = [
+    [3.2409699419045226, -1.537383177570094, -0.4986107602930034],
+    [-0.9692436362808796, 1.8759675015077202, 0.04155505740717559],
+    [0.05563007969699366, -0.20397695888897652, 1.0569715142428786],
+  ];
+  const XYZ_D50_TO_D65 = [
+    [0.955473421488075, -0.02309845494876471, 0.06325924320057072],
+    [-0.0283697093338637, 1.0099953980813041, 0.021041441191917323],
+    [0.012314014864481998, -0.020507649298898964, 1.330365926242124],
+  ];
+  const LINEAR_P3_TO_XYZ_D65 = [
+    [0.4865709486482162, 0.26566769316909306, 0.1982172852343625],
+    [0.2289745640697488, 0.6917385218365064, 0.079286914093745],
+    [0, 0.04511338185890264, 1.043944368900976],
+  ];
+  const D50_WHITE = [0.3457 / 0.3585, 1, (1 - 0.3457 - 0.3585) / 0.3585];
+  const LAB_EPSILON = 216 / 24389;
+  const LAB_KAPPA = 24389 / 27;
+  const labToLinearSrgb = ([l, a, b]) => {
+    const fy = (l + 16) / 116;
+    const fx = fy + a / 500;
+    const fz = fy - b / 200;
+    const xyzD50 = [
+      fx ** 3 > LAB_EPSILON ? fx ** 3 : (116 * fx - 16) / LAB_KAPPA,
+      l > LAB_KAPPA * LAB_EPSILON ? fy ** 3 : l / LAB_KAPPA,
+      fz ** 3 > LAB_EPSILON ? fz ** 3 : (116 * fz - 16) / LAB_KAPPA,
+    ].map((v, i) => v * D50_WHITE[i]);
+    return multiply(XYZ_D65_TO_LINEAR_SRGB, multiply(XYZ_D50_TO_D65, xyzD50));
+  };
+  const oklabToLinearSrgb = ([l, a, b]) => {
+    const lms = [
+      l + 0.3963377774 * a + 0.2158037573 * b,
+      l - 0.1055613458 * a - 0.0638541728 * b,
+      l - 0.0894841775 * a - 1.291485548 * b,
+    ].map((v) => v ** 3);
+    return multiply(
+      [
+        [4.0767416621, -3.3077115913, 0.2309699292],
+        [-1.2684380046, 2.6097574011, -0.3413193965],
+        [-0.0041960863, -0.7034186147, 1.707614701],
+      ],
+      lms,
+    );
+  };
+  const fromPolar = ([l, chroma, hue]) => [l, chroma * Math.cos((hue * Math.PI) / 180), chroma * Math.sin((hue * Math.PI) / 180)];
+  const LINEAR_SRGB_FROM = {
+    srgb: (channels) => channels.slice(0, 3).map(linearFromSrgb),
+    "srgb-linear": (channels) => channels.slice(0, 3),
+    "display-p3": (channels) => multiply(XYZ_D65_TO_LINEAR_SRGB, multiply(LINEAR_P3_TO_XYZ_D65, channels.slice(0, 3).map(linearFromSrgb))),
+    lab: labToLinearSrgb,
+    lch: (channels) => labToLinearSrgb(fromPolar(channels)),
+    oklab: oklabToLinearSrgb,
+    oklch: (channels) => oklabToLinearSrgb(fromPolar(channels)),
   };
   const hex = (c) => "#" + [c.r, c.g, c.b].map((n) => Math.round(n).toString(16).padStart(2, "0")).join("").toUpperCase();
   const normalize = (value) => {
@@ -843,18 +1255,37 @@
     }
     return null;
   };
+  const fromHex = (value) => {
+    const n = parseInt(value.slice(1, 7), 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: 1 };
+  };
+  const relativeLuminance = (c) => {
+    const linear = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b);
+  };
+  const clearlyLight = (c) => relativeLuminance(c) >= 0.5;
+  const takesLightInk = (c) => {
+    const l = relativeLuminance(c) + 0.05;
+    return 1.05 / l >= l / 0.05;
+  };
   let lastTheme;
   let metaCache;
+  let lightMetaOnDarkPage = false;
   const cachedMetaColor = () => (metaCache === undefined ? (metaCache = metaColor(scheduleTheme)) : metaCache);
   const reportTheme = guard(() => {
     if (!document.documentElement) return;
-    let color = cachedMetaColor();
-    let source = color ? "meta" : null;
-    if (!color && document.body) {
+    const meta = cachedMetaColor();
+    let color = meta;
+    let source = meta ? "meta" : null;
+    lightMetaOnDarkPage = false;
+    if (document.body && (!meta || clearlyLight(fromHex(meta)))) {
       const page = pageBackground();
       const header = headerColor(page);
-      color = hex(header || page);
-      source = header ? "header" : "background";
+      lightMetaOnDarkPage = !!meta && takesLightInk(page);
+      if (!meta || (lightMetaOnDarkPage && (!header || takesLightInk(header)))) {
+        color = hex(header || page);
+        source = header ? "header" : "background";
+      }
     }
     const key = color + source;
     if (key === lastTheme) return;
@@ -862,9 +1293,7 @@
     send("theme", { color, source });
   });
   let themeQueued = false;
-  let broadThemeObserver = false;
   const themeTouched = (records) => {
-    if (broadThemeObserver) return true;
     for (const r of records) {
       if (r.type === "childList") {
         for (const n of r.addedNodes) if (n.nodeName === "META") return true;
@@ -911,7 +1340,7 @@
   let scrollSettle = 0;
   let scrollSettled = false;
   const sampleScroll = guard((settled) => {
-    if (!document.documentElement || cachedMetaColor()) return;
+    if (!document.documentElement || (cachedMetaColor() && !lightMetaOnDarkPage)) return;
     const past = window.scrollY > 4;
     const now = performance.now();
     if (!settled && past === scrolledPastTop && now - scrollSampledAt < 150) return;
@@ -932,7 +1361,7 @@
     );
   };
   const scrollTheme = () => {
-    if (metaCache) return;
+    if (metaCache && !lightMetaOnDarkPage) return;
     apply(clearTimer, window, [scrollSettle]);
     scrollSettle = after(() => {
       scrollSettled = true;
@@ -978,28 +1407,44 @@
     selectionShown = true;
     send("selection", { text: text.slice(0, 2000), rect: { x: r.left, y: r.top, width: r.width, height: r.height } });
   });
-  document.addEventListener(
-    "mousedown",
-    (e) => {
-      selecting = e.button === 0;
-      hideSelection();
-    },
-    true,
-  );
-  document.addEventListener(
-    "mouseup",
-    (e) => {
-      if (e.button !== 0 || !selecting) return;
+  const selectionListeners = [
+    [
+      document,
+      "mousedown",
+      (e) => {
+        selecting = e.button === 0;
+        hideSelection();
+      },
+      true,
+    ],
+    [
+      document,
+      "mouseup",
+      (e) => {
+        if (e.button !== 0 || !selecting) return;
+        selecting = false;
+        setTimeout(reportSelection, 0);
+      },
+      true,
+    ],
+    [document, "selectionchange", () => selectionShown && !selecting && getSelection().isCollapsed && hideSelection(), false],
+    [document, "keydown", (e) => e.metaKey || /^(Shift|Meta|Alt|Control)$/.test(e.key) || hideSelection(), true],
+    [window, "scroll", hideSelection, { passive: true, capture: true }],
+    [window, "resize", hideSelection, false],
+    [window, "pagehide", hideSelection, false],
+  ];
+  let selectionListening = false;
+  handlers.selectionPopover = (on) => {
+    if (!on === !selectionListening) return;
+    selectionListening = !!on;
+    if (!on) {
       selecting = false;
-      setTimeout(reportSelection, 0);
-    },
-    true,
-  );
-  document.addEventListener("selectionchange", () => selectionShown && !selecting && getSelection().isCollapsed && hideSelection());
-  document.addEventListener("keydown", (e) => e.metaKey || /^(Shift|Meta|Alt|Control)$/.test(e.key) || hideSelection(), true);
-  addEventListener("scroll", hideSelection, { passive: true, capture: true });
-  addEventListener("resize", hideSelection);
-  addEventListener("pagehide", hideSelection);
+      hideSelection();
+    }
+    for (const [target, type, listener, options] of selectionListeners)
+      on ? target.addEventListener(type, listener, options) : target.removeEventListener(type, listener, options);
+  };
+  handlers.selectionPopover(true);
 
   if (isTop) try {
     const DRAG_MIN = 40;
@@ -1050,7 +1495,7 @@
 
   const scrollDirection = () => {
     const DOWN = 24, UP = 12, MIN_RANGE = 120, SETTLE = 300, GESTURE = 300;
-    let anchor = 0, last = 0, lastAt = -1e9, settleUntil = -1e9, budget = 0, height = 0, sent = null, gestureSent = false;
+    let anchor = 0, last = 0, lastAt = -1e9, settleUntil = -1e9, budget = 0, height = 0, sent = null, gestureSent = false, heading = 0;
     const resized = (viewport, now) => {
       if (now >= settleUntil) budget = 0;
       if (height && viewport !== height) {
@@ -1063,6 +1508,16 @@
       resized,
       rebase(y) {
         anchor = last = y;
+      },
+      wheeled(deltaX, deltaY, pinch) {
+        if (pinch || !deltaY) {
+          if (pinch || deltaX) heading = 0;
+          return;
+        }
+        heading = deltaY > 0 ? 1 : -1;
+      },
+      undirected() {
+        heading = 0;
       },
       scrolled(y, range, viewport, now, user) {
         resized(viewport, now);
@@ -1080,7 +1535,7 @@
         }
         let state = null;
         if (y <= 2) state = "top";
-        else if (!user) anchor = y;
+        else if (!user || moved * heading < 0) anchor = y;
         else if (y - anchor >= DOWN) {
           if (range >= MIN_RANGE) state = "down";
           else anchor = y;
@@ -1102,8 +1557,20 @@
     inputAt = performance.now();
     if (!scroller && document.scrollingElement) direction.rebase((scroller = document.scrollingElement).scrollTop);
   };
-  for (const type of ["wheel", "keydown", "mousedown", "touchstart"]) addEventListener(type, noteInput, { passive: true, capture: true });
-  addEventListener("mousemove", (e) => e.buttons && noteInput(), { passive: true, capture: true });
+  const noteUndirectedInput = () => {
+    direction.undirected();
+    noteInput();
+  };
+  addEventListener(
+    "wheel",
+    (e) => {
+      direction.wheeled(e.deltaX, e.deltaY, e.ctrlKey);
+      noteInput();
+    },
+    { passive: true, capture: true },
+  );
+  for (const type of ["keydown", "mousedown", "touchstart"]) addEventListener(type, noteUndirectedInput, { passive: true, capture: true });
+  addEventListener("mousemove", (e) => e.buttons && noteUndirectedInput(), { passive: true, capture: true });
   const measureScroll = guard(() => {
     const target = scrollTarget;
     scrollTarget = null;

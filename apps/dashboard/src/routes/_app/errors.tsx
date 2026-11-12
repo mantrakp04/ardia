@@ -6,6 +6,7 @@ import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { PersonInline } from "@/components/person";
 import { ChartSkeleton, Loaded, StatsSkeleton, TableSkeleton, useRange, useSection } from "@/components/section";
 import type { SectionData } from "@/server/sections";
 import { rangeSentence } from "@/lib/compare";
@@ -35,7 +36,7 @@ function ErrorsPage() {
     <>
       <PageHeader
         title="Errors"
-        description={`${rangeSentence(range)}. Exceptions from the site (always on, anonymous) and the app (opt-in only), grouped by type and message. Known noise (extensions, in-app browsers, network drops) is hidden unless you ask for it.`}
+        description={`${rangeSentence(range)}. Exceptions from the site (always on, anonymous), the app and the CLI (opt-in only; failed CLI commands count too), grouped by type and message. Known noise (extensions, in-app browsers, network drops) is hidden unless you ask for it.`}
       >
         <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-1.5">
           <input id="show-noise" type="checkbox" checked={showNoise} onChange={(e) => setShowNoise(e.target.checked)} className="size-3.5 accent-[var(--primary)]" />
@@ -48,8 +49,9 @@ function ErrorsPage() {
       <Card className="px-4 py-4 shadow-none sm:px-5">
         <Loaded query={exceptions} skeleton={<div className="grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4"><StatsSkeleton count={4} /></div>}>
           {() => (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-5">
               <Stat source="app" label="App exceptions" value={formatExact(sum(real.filter((g) => g.where === "app"), (g) => g.count))} sub={`${real.filter((g) => g.where === "app").length} groups`} />
+              <Stat source="app" label="CLI errors" value={formatExact(sum(real.filter((g) => g.where === "cli"), (g) => g.count))} sub={`${real.filter((g) => g.where === "cli").length} groups, exceptions and failed commands`} />
               <Stat source="site" label="Site exceptions" value={formatExact(sum(real.filter((g) => g.where === "site"), (g) => g.count))} sub={`${real.filter((g) => g.where === "site").length} groups`} />
               <Stat source={["site", "app"]} label="New groups" value={formatExact(real.filter((g) => g.firstSeen >= w.start).length)} sub="first seen in the range" />
               <Stat source="site" label="Noise" value={formatExact(sum(noise, (g) => g.count))} sub={`${noise.length} groups, not ours`} />
@@ -65,8 +67,10 @@ function ErrorsPage() {
               buckets={d.window.buckets}
               series={d.series
                 .filter((s) => showNoise || s.key !== "noise")
-                .map((s) => ({ ...s, source: s.key === "app" ? ("app" as const) : ("site" as const), color: s.key === "app" ? "var(--chart-3)" : s.key === "site" ? "var(--chart-2)" : "var(--chart-other)" }))}
+                .filter((s) => s.key !== "cli" || s.values.some((v) => v > 0))
+                .map((s) => ({ ...s, source: s.key === "app" || s.key === "cli" ? ("app" as const) : ("site" as const), color: s.key === "app" ? "var(--chart-3)" : s.key === "cli" ? "var(--chart-5)" : s.key === "site" ? "var(--chart-2)" : "var(--chart-other)" }))}
               step={d.window.step}
+              zone={d.window.zone}
               height={200}
               area={false}
             />
@@ -90,7 +94,7 @@ function ErrorsPage() {
                   sort: (g) => g.where,
                   cell: (g) => (
                     <span className="flex flex-wrap items-center gap-1">
-                      <Badge variant="outline" className={cn("h-5 px-1.5 text-[10.5px]", g.where === "app" ? "border-chart-3/40" : "border-chart-2/40")}>
+                      <Badge variant="outline" className={cn("h-5 px-1.5 text-[10.5px]", g.where === "app" ? "border-chart-3/40" : g.where === "cli" ? "border-chart-5/40" : "border-chart-2/40")}>
                         {g.where}
                       </Badge>
                       {g.noise ? (
@@ -157,6 +161,7 @@ function ErrorsPage() {
           )}
         </Loaded>
       </Panel>
+
     </>
   );
 }
@@ -192,6 +197,7 @@ function GroupDetail({ group }: { group: Group }) {
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-muted-foreground">
               <span className="text-foreground">{formatDateTime(o.at)}</span>
               {o.version ? <span className="font-mono">{o.version}</span> : null}
+              {o.person && group.where !== "site" ? <PersonInline id={o.person} /> : null}
               {o.platform ? <span>{o.platform}</span> : null}
               {o.level ? <span>{o.level}</span> : null}
               {o.crashSignal ? <span className="font-mono">{o.crashSignal}</span> : null}

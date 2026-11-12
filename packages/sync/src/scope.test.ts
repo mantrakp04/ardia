@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Clock } from "./hlc.ts";
-import { compact, emptyScope, restoreJournal, syncScope, type Adapter, type Listing, type LogFile, type ScopeOptions, type ScopeState, type Transport } from "./scope.ts";
+import { compact, restoreJournal, syncScope } from "./scope.ts";
+import { emptyScope, type Adapter, type Listing, type LogFile, type ScopeOptions, type ScopeState, type Transport } from "./scopeState.ts";
 
 type Entry = { payload: string; hiddenFrom: Set<string>; partialFor: Set<string>; at: number };
 class Folder {
@@ -48,6 +49,7 @@ class Device {
   clock: Clock;
   offset = 0;
   onRead?: () => void;
+  afterRead?: () => Promise<void>;
   failWrite?: "before" | "after";
   readonly id: string;
   readonly folder: Folder;
@@ -95,6 +97,7 @@ class Device {
       read: async (scope, known) => {
         const listing = await base.read(scope, known);
         this.onRead?.();
+        await this.afterRead?.();
         return listing;
       },
     };
@@ -321,7 +324,7 @@ test("an old snapshot put back after its tombstones were collected doesn't bring
   assert.equal(b.store.has("x:secret"), false, "B");
   const c = new Device("devC", folder, opts);
   const entries = [...folder.scope("s")];
-  folder.scopes.set("s", new Map([...entries.filter(([id]) => id !== oldId), [oldId, folder.scope("s").get(oldId)!]]));
+  folder.scopes.set("s", new Map([...entries.filter(([id]) => id !== oldId), [oldId, { ...old, hiddenFrom: new Set<string>(), partialFor: new Set<string>() }]]));
   await c.sync();
   assert.equal(c.store.has("x:secret"), false, "C");
   assert.deepEqual(snapshot(c), snapshot(a));
@@ -483,4 +486,124 @@ test("an item chosen again with the same value while its deletion is pulled is k
   await syncAll([b, a]);
   assert.equal(b.store.get("x:pin"), "same", "B keeps what it chose");
   assert.equal(a.store.get("x:pin"), "same", "and A takes it back");
+});
+
+test("an apply held while quitting leaves what it pulled unapplied, and a joining scope still joining", async () => {
+  const folder = new Folder();
+  const a = new Device("a", folder);
+  a.settings.set("set:theme", "dark");
+  a.store.set("x:1", "one");
+  await syncAll([a]);
+  let quitting = true;
+  const b = new Device("b", folder, { holdApply: () => quitting });
+  b.state.awaitRemote = true;
+  b.settings.set("set:theme", "light");
+  await b.sync();
+  assert.equal(b.store.size, 0, "nothing is applied");
+  assert.deepEqual([...b.state.unapplied].sort(), ["set:theme", "x:1"]);
+  assert.equal(b.state.joined, false, "and the scope hasn't joined, so its defaults still wait");
+  quitting = false;
+  await b.sync();
+  assert.equal(b.store.get("x:1"), "one");
+  assert.equal(b.settings.get("set:theme"), "dark", "joining takes the synced setting");
+  assert.equal(b.state.joined, true);
+});
+
+test("steady browsing doesn't rewrite a large snapshot every few minutes", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder, { pruneGrace: 60 * 60_000 });
+  for (let i = 0; i < 3000; i++) a.store.set(`x:h${i}`, { t: `https://example.com/page/${i}`, n: 3, vt: Array.from({ length: 20 }, (_, j) => 1_790_000_000_000 + i * 1000 + j) });
+  await a.sync();
+  let snapshots = 0;
+  let snapshotBytes = 0;
+  let logBytes = 0;
+  const seen = new Set(folder.scope("s").keys());
+  for (let step = 0; step < 8 * 240; step++) {
+    folder.now += 15_000;
+    a.store.set(`x:h${step % 3000}`, { t: `https://example.com/page/${step % 3000}`, n: 4 + step, vt: [folder.now] });
+    await a.sync();
+    for (const [id, e] of folder.scope("s")) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if (e.payload.includes('"kind":"snapshot"')) {
+        snapshots++;
+        snapshotBytes += e.payload.length;
+      } else logBytes += e.payload.length;
+    }
+  }
+  assert.ok(snapshots <= 6, `${snapshots} snapshots, ${snapshotBytes} bytes for ${logBytes} bytes of changes`);
+  assert.ok(folder.fileCount() <= 600, `${folder.fileCount()} files left`);
+});
+
+test("an idle Mac writes nothing and still clears the files its snapshot covers", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder, { pruneGrace: 60 * 60_000 });
+  let compactions = 0;
+  for (let step = 0; step < 60; step++) {
+    folder.now += 15_000;
+    a.store.set(`x:${step}`, step);
+    if ((await a.sync()).compacted) compactions++;
+  }
+  folder.now += 10 * 60_000;
+  if ((await a.sync()).compacted) compactions++;
+  assert.equal(compactions, 1);
+  const written = folder.counter;
+  for (let step = 0; step < 24 * 60; step++) {
+    folder.now += 60_000;
+    assert.equal((await a.sync()).compacted, false);
+  }
+  assert.equal(folder.counter, written);
+  assert.equal(folder.fileCount(), 20);
+});
+
+function barrier(count: number) {
+  let arrived = 0;
+  let release!: () => void;
+  const all = new Promise<void>((resolve) => (release = resolve));
+  return async () => {
+    if (++arrived === count) release();
+    await all;
+  };
+}
+
+async function concurrently(devices: Device[]) {
+  const gate = barrier(devices.length);
+  for (const d of devices) d.afterRead = gate;
+  const results = await Promise.all(devices.map((d) => d.sync()));
+  for (const d of devices) delete d.afterRead;
+  return results;
+}
+
+test("Macs compacting and pruning at the same moment never empty the folder, with equal snapshot vectors", async () => {
+  const folder = new Folder();
+  const hour = 60 * 60_000;
+  const opts: ScopeOptions = { pruneGrace: hour };
+  const [a, b] = ["devA", "devB"].map((id) => new Device(id, folder, opts)) as [Device, Device];
+  const snapshots = () => [...folder.scope("s").values()].filter((e) => e.payload.includes('"kind":"snapshot"')).map((e) => JSON.parse(e.payload) as { device: string; vv: Record<string, number> });
+  let n = 0;
+  for (let round = 0; round < 2; round++) {
+    opts.compactAfterFiles = 1000;
+    for (let i = 0; i < 41; i++) {
+      folder.now += 1000;
+      for (const d of [a, b]) {
+        d.store.set(`x:${d.id}-${n++}`, n);
+        await d.sync();
+      }
+    }
+    delete opts.compactAfterFiles;
+    folder.now += 11 * 60_000;
+    assert.deepEqual((await concurrently([a, b])).map((r) => r.compacted), [true, true], `round ${round}`);
+    const fresh = snapshots().filter((f) => f.vv.devA === 41 * (round + 1));
+    assert.equal(fresh.length, 2, `round ${round}`);
+    assert.deepEqual(fresh[0]!.vv, fresh[1]!.vv);
+    folder.now += hour + 60_000;
+    assert.deepEqual((await concurrently([a, b])).map((r) => r.compacted), [false, false], `round ${round}`);
+    assert.ok(snapshots().length >= 2, `round ${round}: ${snapshots().length} snapshots left`);
+    for (let i = 0; i < 3; i++) await concurrently([a, b]);
+    const c = new Device(`devC${round}`, folder, opts);
+    await c.sync();
+    assert.equal(c.store.size, n, `round ${round}`);
+    assert.deepEqual(snapshot(c), snapshot(a));
+    assert.deepEqual(snapshot(c), snapshot(b));
+  }
 });

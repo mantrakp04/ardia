@@ -21,7 +21,7 @@ if (flags.help || (!positionals[0] && !flags.attach)) {
   process.exit(flags.help ? 0 : 2);
 }
 
-const PANES = (flags.panes ?? "general,profiles,sync,tabs,appearance,privacy,passwords,autofill,extensions,search,shortcuts,liveFolders,calendar,advanced").split(",");
+const PANES = (flags.panes ?? "general,profiles,sync,tabs,appearance,privacy,passwords,autofill,extensions,search,engines,shortcuts,liveFolders,calendar,advanced").split(",");
 const SETTLE_MS = 1200;
 
 const scratch = flags.attach ? null : mkdtempSync(join(tmpdir(), "ac-settings-shift-"));
@@ -120,7 +120,7 @@ return wait(400)
   .then(() => until(() => s.useSettingsSearch.getState().query === ${JSON.stringify(query)}, 2000))
   .then((typed) => {
     if (!typed) throw new Error("typing didn't reach the search field: " + JSON.stringify(s.useSettingsSearch.getState().query));
-    const results = s.settingsResults(${JSON.stringify(query)}).map((e) => e.id);
+    const results = s.settingsResults(${JSON.stringify(query)}, new Set()).map((h) => h.entry.id);
     if (results[${downs}] !== ${JSON.stringify(id)}) throw new Error("result ${downs + 1} is " + results[${downs}] + ", not ${id}");
     const press = (key, keyCode) => ac.shell.devKeyEquivalent("settings", { key, keyCode, modifiers: [], send: true, asKey: true, wait: 30 });
     const downs = Array.from({ length: ${downs} }).reduce((p) => p.then(() => press("\\uF701", 125)), Promise.resolve());
@@ -150,10 +150,9 @@ try {
   const ac = (body) => app.eval(body, { timeout: 60000 });
 
   await ac(`
-    const cef = globalThis.expo.modules.ArdiaCEF;
     return Promise.all([
-      cef.setZoom("", "example.com", 1.25),
-      cef.setSiteSetting("", "https://example.com", "notifications", "block"),
+      ac.engine.call("sites.setZoom", { profile: "", host: "example.com", zoom: 1.25 }),
+      ac.engine.call("sites.setSetting", { profile: "", engine: "chromium", origin: "https://example.com", type: "notifications", value: "block" }),
     ]).then(() => true, (e) => String(e));
   `);
 
@@ -169,7 +168,7 @@ try {
     from = pane;
   }
 
-  for (const [query, id, downs] of [["cookies", "privacy.blockCookieBanners", 0], ["dark", "appearance.theme", 0], ["licenses", "advanced.licenses", 0], ["password", "passwords.offerToSave", 1]]) {
+  for (const [query, id, downs] of [["cookies", "privacy.blockCookieBanners", 0], ["dark", "appearance.theme", 0], ["licenses", "advanced.licenses", 0], ["password", "passwords.importPasswords", 1]]) {
     await rep.check(`search "${query}"${downs ? ` ↓×${downs}` : ""} opens ${id}`, async () => {
       const out = await ac(SEARCH(query, id, downs));
       const [, y, , h] = out.frame;

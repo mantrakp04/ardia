@@ -13,5 +13,5 @@ if (enabled) {
   startReplay();
 }
 
-export { capture } from "./core";
+export { capture, type Props } from "./core";
 export { getFeatureFlag } from "./flags";

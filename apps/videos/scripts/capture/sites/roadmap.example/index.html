@@ -1,0 +1,112 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Q4 Launch Roadmap</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#111827;--soft:#4b5563;--mute:#9ca3af;--line:#e5e7eb;--blue:#3b6cf6;--bg:#f6f7f9}
+body{font-family:-apple-system,"SF Pro Text","Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:13px;display:grid;grid-template-columns:216px 1fr;min-height:100vh}
+.nav{background:#fff;border-right:1px solid var(--line);padding:12px 10px;display:flex;flex-direction:column;gap:2px}
+.ws{display:flex;align-items:center;gap:9px;padding:6px 8px 14px}
+.ws i{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#ffb347,#ff7a45);display:grid;place-items:center;color:#fff;font:800 13px/1 "Avenir Next",sans-serif;font-style:normal}
+.ws b{font-size:13.5px}.ws span{margin-left:auto;color:var(--mute)}
+.nav .it{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:7px;color:var(--soft);font-weight:500}
+.nav .it svg{width:15px;height:15px;flex:none}
+.nav .it.on{background:#eef2ff;color:var(--blue);font-weight:600}
+.nav .it em{margin-left:auto;font-style:normal;font-size:11px;color:var(--mute)}
+.nav h6{font-size:11px;font-weight:600;color:var(--mute);padding:14px 8px 6px;letter-spacing:.02em}
+.nav .dot{width:8px;height:8px;border-radius:3px;flex:none}
+.main{min-width:0;display:flex;flex-direction:column}
+.bar{height:52px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 20px;white-space:nowrap}
+.bar .crumb{color:var(--mute)}.bar .crumb b{color:var(--ink);font-weight:600}
+.bar .star{color:#f59e0b;font-size:14px}
+.views{display:flex;gap:2px;background:#f3f4f6;border-radius:8px;padding:2px;margin-left:16px}
+.views span{padding:5px 10px;border-radius:6px;color:var(--soft);font-weight:500}
+.views .on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.bar .r{margin-left:auto;display:flex;align-items:center;gap:10px}
+.avs{display:flex}.avs i{width:26px;height:26px;border-radius:50%;border:2px solid #fff;margin-left:-6px;display:grid;place-items:center;font:700 10px -apple-system,sans-serif;color:#fff;font-style:normal}
+.btn{height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--line);background:#fff;font-weight:600;display:flex;align-items:center;gap:6px}
+.btn.p{background:var(--blue);border-color:var(--blue);color:#fff}
+.tl{background:#fff;border-bottom:1px solid var(--line);padding:12px 20px 14px}
+.tl .h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.tl h1{font-size:17px;letter-spacing:-.01em}
+.tl .h span{color:var(--mute)}
+.tl .h .chip{margin-left:auto;font-size:11.5px;font-weight:600;color:#047857;background:#d1fae5;border-radius:12px;padding:3px 9px}
+.months{display:grid;grid-template-columns:repeat(3,1fr);font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.months span{padding-left:6px}
+.track{position:relative;height:58px;margin-top:4px;background:repeating-linear-gradient(90deg,transparent 0 calc(33.333% - 1px),var(--line) calc(33.333% - 1px) 33.333%)}
+.seg{position:absolute;height:16px;border-radius:5px;font-size:10.5px;font-weight:600;color:#fff;padding:0 7px;display:flex;align-items:center;white-space:nowrap;overflow:hidden}
+.ms{position:absolute;top:-2px;bottom:-2px;width:2px;background:#ef4444}
+.ms b{position:absolute;bottom:-1px;left:6px;background:#fff;padding:0 3px;font-size:10.5px;color:#ef4444;white-space:nowrap}
+.today{position:absolute;top:0;bottom:-2px;width:2px;background:var(--blue)}
+.today:before{content:"Today";position:absolute;bottom:0;left:5px;background:#fff;padding:0 3px;font-size:9.5px;font-weight:700;color:var(--blue)}
+.board{flex:1;display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:14px;padding:16px 20px;align-items:start;overflow:hidden}
+.col h3{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;padding:0 4px 10px}
+.col h3 i{width:9px;height:9px;border-radius:50%}
+.col h3 em{font-style:normal;color:var(--mute);font-weight:500}
+.col h3 span{margin-left:auto;color:var(--mute);font-size:15px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(17,24,39,.04)}
+.card.drag{transform:rotate(-1.6deg);box-shadow:0 14px 28px -10px rgba(17,24,39,.35);border-color:#c7d2fe}
+.lbs{display:flex;gap:5px;margin-bottom:7px;flex-wrap:wrap}
+.lb{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:4px}
+.card b{display:block;font-size:13px;line-height:1.35;font-weight:600}
+.card .ft{display:flex;align-items:center;gap:10px;margin-top:10px;color:var(--mute);font-size:11.5px}
+.card .ft .av{margin-left:auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 9px -apple-system,sans-serif;color:#fff}
+.card .pb{height:4px;border-radius:2px;background:#f3f4f6;margin-top:9px;overflow:hidden}
+.card .pb i{display:block;height:100%;border-radius:2px;background:var(--blue)}
+.card .img{height:72px;border-radius:7px;margin:-2px 0 9px;background:linear-gradient(135deg,#fff1e6,#ffd7c2);position:relative;overflow:hidden}
+.card .img:before{content:"";position:absolute;left:50%;top:10px;width:46px;height:84px;margin-left:-23px;border-radius:9px;background:#fff;box-shadow:0 4px 10px rgba(255,122,69,.3)}
+.card .img:after{content:"";position:absolute;left:50%;top:22px;width:26px;height:26px;margin-left:-13px;border-radius:50%;border:4px solid #ff7a45;border-right-color:#ffe1d2}
+.add{color:var(--mute);padding:6px 6px;font-weight:500}
+.due{color:#dc2626;font-weight:600}
+@media (max-width:1100px){body{grid-template-columns:1fr}.nav{display:none}.board{grid-template-columns:repeat(4,minmax(200px,1fr))}}
+</style></head><body>
+<aside class="nav">
+<div class="ws"><i>L</i><b>Lumo</b><span>▾</span></div>
+<div class="it"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v10H2zM2 6h12"/></svg>Inbox<em>4</em></div>
+<div class="it"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M5.5 8.2l1.8 1.8 3.4-3.6"/></svg>My tasks<em>9</em></div>
+<div class="it on"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2.5" width="3.4" height="11" rx="1"/><rect x="6.3" y="2.5" width="3.4" height="7" rx="1"/><rect x="10.6" y="2.5" width="3.4" height="9" rx="1"/></svg>Roadmaps</div>
+<div class="it"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h7l3 3v9H3z"/></svg>Docs</div>
+<h6>TEAMS</h6>
+<div class="it"><span class="dot" style="background:#ff7a45"></span>Launch</div>
+<div class="it"><span class="dot" style="background:#3b6cf6"></span>iOS &amp; Android</div>
+<div class="it"><span class="dot" style="background:#10b981"></span>Growth</div>
+<div class="it"><span class="dot" style="background:#a855f7"></span>Design</div>
+<h6>PINNED</h6>
+<div class="it">Beta feedback triage</div><div class="it">Press &amp; launch plan</div><div class="it">v2.0 release notes</div>
+</aside>
+<div class="main">
+<div class="bar"><span class="crumb">Launch › Roadmaps › <b>Q4 Launch Roadmap</b></span><span class="star">★</span>
+<div class="views"><span class="on">Board</span><span>Timeline</span><span>List</span><span>Calendar</span></div>
+<div class="r"><div class="avs"><i style="background:#ff7a45">MO</i><i style="background:#3b6cf6">DK</i><i style="background:#10b981">PS</i><i style="background:#a855f7">JL</i><i style="background:#6b7280">+3</i></div><div class="btn">Filter</div><div class="btn">Share</div><div class="btn p">+ New</div></div></div>
+<div class="tl">
+<div class="h"><h1>Q4 Launch Roadmap</h1><span>Lumo 2.0 public launch · Oct 1 – Dec 31</span><span class="chip">On track · 64%</span></div>
+<div class="months"><span>October</span><span>November</span><span>December</span></div>
+<div class="track">
+<div class="seg" style="left:1%;width:31%;top:4px;background:#a855f7">Design freeze</div>
+<div class="seg" style="left:12%;width:40%;top:24px;background:#3b6cf6">Beta 2 · iOS &amp; Android</div>
+<div class="seg" style="left:34%;width:26%;top:4px;background:#10b981">Waitlist + referrals</div>
+<div class="seg" style="left:53%;width:22%;top:24px;background:#ff7a45">Press kit &amp; launch PR</div>
+<div class="seg" style="left:77%;width:21%;top:4px;background:#64748b">Holiday streak challenge</div>
+<div class="ms" style="left:52%"><b>Launch · Nov 18</b></div>
+<div class="today" style="left:36%"></div>
+</div></div>
+<div class="board">
+<div class="col"><h3><i style="background:#9ca3af"></i>Backlog <em>12</em><span>+</span></h3>
+<div class="card"><div class="lbs"><span class="lb" style="background:#f3e8ff;color:#7e22ce">Design</span></div><b>Dark mode for streak calendar</b><div class="ft"><span>Dec 2</span><span>3 pts</span><span class="av" style="background:#a855f7">JL</span></div></div>
+<div class="card"><div class="lbs"><span class="lb" style="background:#dcfce7;color:#15803d">Growth</span></div><b>Referral reward: 1 free month for 3 invites</b><div class="ft"><span>💬 6</span><span class="av" style="background:#10b981">PS</span></div></div>
+<div class="card"><div class="lbs"><span class="lb" style="background:#e0e7ff;color:#3730a3">Android</span></div><b>Widget: today's habits on the home screen</b><div class="ft"><span>Dec 9</span><span class="av" style="background:#3b6cf6">DK</span></div></div>
+<div class="add">+ Add card</div></div>
+<div class="col"><h3><i style="background:#3b6cf6"></i>In progress <em>5</em><span>+</span></h3>
+<div class="card drag"><div class="img"></div><div class="lbs"><span class="lb" style="background:#ffedd5;color:#c2410c">Launch</span><span class="lb" style="background:#f3e8ff;color:#7e22ce">Design</span></div><b>Onboarding: 4 screens, habit picker first</b><div class="pb"><i style="width:70%"></i></div><div class="ft"><span class="due">Due Oct 24</span><span>☑ 7/10</span><span class="av" style="background:#ff7a45">MO</span></div></div>
+<div class="card"><div class="lbs"><span class="lb" style="background:#e0e7ff;color:#3730a3">iOS</span></div><b>Reminder scheduling survives time-zone change</b><div class="pb"><i style="width:40%"></i></div><div class="ft"><span>Oct 28</span><span>💬 3</span><span class="av" style="background:#3b6cf6">DK</span></div></div>
+<div class="card"><div class="lbs"><span class="lb" style="background:#dcfce7;color:#15803d">Growth</span></div><b>Beta signups dashboard for the launch room</b><div class="ft"><span>Oct 21</span><span class="av" style="background:#10b981">PS</span></div></div></div>
+<div class="col"><h3><i style="background:#f59e0b"></i>In review <em>3</em><span>+</span></h3>
+<div class="card"><div class="lbs"><span class="lb" style="background:#ffedd5;color:#c2410c">Launch</span></div><b>Press kit: logos, screenshots, boilerplate</b><div class="pb"><i style="width:90%;background:#f59e0b"></i></div><div class="ft"><span>Oct 20</span><span>💬 11</span><span class="av" style="background:#ff7a45">MO</span></div></div>
+<div class="card"><div class="lbs"><span class="lb" style="background:#ffedd5;color:#c2410c">Launch</span></div><b>Changelog for v2.0, written for humans</b><div class="ft"><span>Oct 23</span><span class="av" style="background:#a855f7">JL</span></div></div>
+<div class="card"><div class="lbs"><span class="lb" style="background:#fee2e2;color:#b91c1c">Bug</span><span class="lb" style="background:#e0e7ff;color:#3730a3">iOS</span></div><b>Streak resets at midnight on Daylight Saving day</b><div class="ft"><span>P1</span><span class="av" style="background:#3b6cf6">DK</span></div></div></div>
+<div class="col"><h3><i style="background:#10b981"></i>Shipped <em>21</em><span>+</span></h3>
+<div class="card"><div class="lbs"><span class="lb" style="background:#f1f5f9;color:#475569">v2.0-beta.3</span></div><b>Habit stacks: chain habits after a cue</b><div class="ft"><span>✓ Oct 11</span><span class="av" style="background:#a855f7">JL</span></div></div>
+<div class="card"><div class="lbs"><span class="lb" style="background:#f1f5f9;color:#475569">v2.0-beta.2</span></div><b>Weekly review screen</b><div class="ft"><span>✓ Oct 4</span><span class="av" style="background:#ff7a45">MO</span></div></div>
+<div class="card"><div class="lbs"><span class="lb" style="background:#dcfce7;color:#15803d">Growth</span></div><b>Waitlist landing page</b><div class="ft"><span>✓ Oct 2</span><span class="av" style="background:#10b981">PS</span></div></div></div>
+</div></div>
+</body></html>

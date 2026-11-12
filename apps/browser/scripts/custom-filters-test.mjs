@@ -114,9 +114,21 @@ const rowOf = (id) => find((f) => nameOf(f) === "Row" && f.key === id, section()
 const sheet = () => named("MyFiltersSheet");
 `;
 
+const BLOCKER = `const blocker = {
+  getContentBlocker: () => ac.engine.call("contentBlocker.state"),
+  setContentBlockerEnabled: (enabled) => ac.engine.call("contentBlocker.setEnabled", { enabled }),
+  setFilterListEnabled: (id, enabled) => ac.engine.call("contentBlocker.setListEnabled", { id, enabled }),
+  addFilterList: (url) => ac.engine.call("contentBlocker.addList", { url }),
+  removeFilterList: (id) => ac.engine.call("contentBlocker.removeList", { id }),
+  updateFilterList: (id) => ac.engine.call("contentBlocker.updateList", { id }),
+  getUserFilters: () => ac.engine.call("contentBlocker.userFilters"),
+  setUserFilters: (text) => ac.engine.call("contentBlocker.setUserFilters", { text }),
+  devContentBlockerFailNextMessage: () => ac.engine.call("contentBlocker.devFailNextMessage"),
+};`;
+
 let inst;
 const ui = (body, timeout = 20000) => inst.eval(`${UI}\n${body}`, { timeout });
-const cef = (call, timeout = 90000) => inst.eval(`return globalThis.expo.modules.ArdiaCEF.${call}`, { timeout });
+const cef = (call, timeout = 90000) => inst.eval(`${BLOCKER}\nreturn blocker.${call}`, { timeout });
 const until = async (what, test, ms = 30000) => {
   const end = Date.now() + ms;
   let last;
@@ -139,21 +151,22 @@ const dump = async (name) => writeFileSync(join(out, `${name}.json`), JSON.strin
 const withNativeGate = async (method, run) => {
   await ui(`
     if (globalThis.__customFiltersGate) throw new Error("a native gate is already installed");
-    const module = globalThis.expo.modules.ArdiaCEF;
-    const original = module[${JSON.stringify(method)}];
+    const module = globalThis.expo.modules.ArdiaContentBlocker;
+    const original = module.call;
     let release;
     const ready = new Promise((resolve) => { release = resolve; });
     const probe = { calls: [], pending: [], original };
     probe.release = () => { clearTimeout(probe.timer); release(); };
     probe.timer = setTimeout(probe.release, 30000);
     const wrapped = (...args) => {
+      if (args[0] !== ${JSON.stringify(method)}) return original.apply(module, args);
       probe.calls.push(args);
       const pending = ready.then(() => original.apply(module, args));
       probe.pending.push(pending);
       return pending;
     };
-    module[${JSON.stringify(method)}] = wrapped;
-    if (module[${JSON.stringify(method)}] !== wrapped) {
+    module.call = wrapped;
+    if (module.call !== wrapped) {
       probe.release();
       throw new Error("cannot gate native method " + ${JSON.stringify(method)});
     }
@@ -167,7 +180,7 @@ const withNativeGate = async (method, run) => {
       const probe = globalThis.__customFiltersGate;
       probe.release();
       return Promise.allSettled(probe.pending).then(() => {
-        globalThis.expo.modules.ArdiaCEF[${JSON.stringify(method)}] = probe.original;
+        globalThis.expo.modules.ArdiaContentBlocker.call = probe.original;
         delete globalThis.__customFiltersGate;
         return true;
       });
@@ -300,7 +313,7 @@ try {
   await rep.check("add-list", async () => {
     await typeUrl(LIST);
     await until("the add field's value", () => ui(`return named("TextField", section()).memoizedProps.value === ${JSON.stringify(LIST)}`));
-    const calls = await withNativeGate("addFilterList", async () => {
+    const calls = await withNativeGate("addList", async () => {
       await ui(`
         const submit = named("TextField", section()).memoizedProps.onSubmit;
         const add = button("Add List", section());

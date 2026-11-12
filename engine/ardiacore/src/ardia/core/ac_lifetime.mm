@@ -4,7 +4,6 @@
 #include <CoreServices/CoreServices.h>
 #import <objc/runtime.h>
 
-#include <stdlib.h>
 #include <string.h>
 
 #include <utility>
@@ -40,6 +39,7 @@
 #include <vector>
 #include "ardia/core/ac_browser.h"
 #include "ardia/core/ac_main_delegate.h"
+#include "ardia/core/ac_launch_switches.h"
 
 namespace ardiacore {
 
@@ -48,11 +48,6 @@ namespace {
 enum class QuitPhase { kNone, kAskingHost, kAskingDownloads, kClosing, kCancelling, kExiting };
 QuitPhase g_phase = QuitPhase::kNone;
 int g_quit_generation = 0;
-
-LifetimeCallbacks& Callbacks() {
-  static base::NoDestructor<LifetimeCallbacks> callbacks;
-  return *callbacks;
-}
 
 base::CallbackListSubscription& ClosingAllBrowsersSubscription() {
   static base::NoDestructor<base::CallbackListSubscription> subscription;
@@ -70,9 +65,7 @@ void QuitCancelled() {
       FROM_HERE, base::BindOnce([] {
         g_phase = QuitPhase::kNone;
         NotifyWindowsQuitCancelled();
-        if (Callbacks().quit_cancelled) {
-          Callbacks().quit_cancelled.Run();
-        }
+        HostQuitCancelled();
       }));
 }
 
@@ -114,10 +107,6 @@ void Terminate() {
 
 bool IsQuitting() {
   return g_phase != QuitPhase::kNone;
-}
-
-void SetLifetimeCallbacks(LifetimeCallbacks callbacks) {
-  Callbacks() = std::move(callbacks);
 }
 
 void QuitEngine() {
@@ -330,8 +319,7 @@ void StartLifetimeObservers() {
   const bool zeroable = strchr("vcCsSiIlLqQBfd@#:", *type) != nullptr;
   LOG(ERROR) << "[ardiacore] AppController stand-in has no -"
              << sel_getName(selector) << " (returns " << type << ")";
-  const char* background = getenv("ARDIA_BACKGROUND");
-  CHECK(zeroable && !(background && !strcmp(background, "1")))
+  CHECK(zeroable && !ardiacore::BackgroundInstance())
       << "AppController stand-in: implement -" << sel_getName(selector);
   if (const NSUInteger length = signature.methodReturnLength) {
     std::vector<char> zero(length, 0);

@@ -1,6 +1,6 @@
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
-import { AppWindow, Bug, Download, Gauge, Globe, LogOut, MonitorPlay, RefreshCw } from "lucide-react";
+import { Bug, Filter, Gauge, Globe, HeartPulse, Inbox, LogOut, MessageSquareWarning, MonitorPlay, RefreshCw, Settings2, Siren, TrendingDown, UserRound, Users } from "lucide-react";
 import { GithubMark } from "@/components/github-mark";
 import type { ReactNode } from "react";
 import {
@@ -26,13 +26,20 @@ import { RANGES, RANGE_LABEL, parseRange, type RangeKey } from "@/lib/range";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/", label: "Overview", icon: Gauge },
+  { to: "/", label: "Needs attention", icon: Siren },
+  { to: "/users", label: "Users", icon: Users },
+  { to: "/people", label: "People", icon: UserRound },
+  { to: "/funnels", label: "Funnels", icon: Filter },
+  { to: "/health", label: "Health", icon: HeartPulse },
+  { to: "/performance", label: "Performance", icon: Gauge },
+  { to: "/settings", label: "Settings", icon: Settings2 },
   { to: "/site", label: "Site", icon: Globe },
   { to: "/replays", label: "Replays", icon: MonitorPlay },
-  { to: "/installs", label: "Installs & updates", icon: Download },
-  { to: "/app", label: "App", icon: AppWindow },
   { to: "/errors", label: "Errors", icon: Bug },
+  { to: "/regressions", label: "Regressions", icon: TrendingDown },
+  { to: "/feedback", label: "Feedback", icon: MessageSquareWarning },
   { to: "/github", label: "GitHub", icon: GithubMark },
+  { to: "/triage", label: "Triage", icon: Inbox },
 ] as const;
 
 const SHORT: Record<RangeKey, string> = { "24h": "24h", "7d": "7d", "30d": "30d", "90d": "90d", all: "All" };
@@ -126,7 +133,7 @@ export function ShellSkeleton() {
           <img src="/app-icon.png" alt="" className="size-8 rounded-[9px]" width={32} height={32} />
           <Skeleton className="h-4 w-20" />
         </div>
-        {Array.from({ length: 6 }, (_, i) => (
+        {Array.from({ length: NAV.length }, (_, i) => (
           <Skeleton key={i} className="h-8 rounded-lg" />
         ))}
       </div>

@@ -1,0 +1,5 @@
+export default {
+  session: "session-long.json",
+  setup: `const gid = st().groupTabs(["t8", "t9", "t10", "t11", "t12", "t13", "t14", "t15", "t16", "t17"], { pinned: false, name: "Recipes" }); globalThis.__gid = gid; st().activate("t3"); return sleep(800).then(() => { st().updateGroup(gid, { collapsed: true }); return sleep(1500); }).then(() => ac.sidebarRows.measureRow(W, gid)).then((anchor) => { globalThis.__anchor = anchor; return done({ gid, anchor }); });`,
+  act: `hover = SIDE === "after"; const a = globalThis.__anchor; const rowY = a.y + a.height / 2; return at(620, 520).then(() => sleep(300)).then(() => move(90, rowY, 800)).then(() => { mark("go"); ac.sidebarRows.setSidebarUi({ hover: { windowId: W, kind: "group", id: globalThis.__gid, anchor: a } }); return sleep(1300); }).then(() => move(330, rowY + 60, 600)).then(() => sleep(500)).then(() => typeText("tah", 160)).then(() => sleep(2200)).then(() => ac.shell.devSetPointer(W, null)).then(() => done({ ui: ac.sidebarRows.sidebarUi() }));`,
+};

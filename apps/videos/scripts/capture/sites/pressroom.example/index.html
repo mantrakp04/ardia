@@ -1,0 +1,102 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Lumo Press Kit</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--coral:#ff6b3d;--coral2:#ffe3d6;--cream:#fff8f2;--ink:#2a1a12;--soft:#6b5a50;--mute:#a39286;--line:#f0e2d6}
+body{font-family:"Avenir Next",-apple-system,sans-serif;color:var(--ink);background:var(--cream);-webkit-font-smoothing:antialiased;font-size:14px}
+nav{max-width:1180px;margin:0 auto;padding:18px 32px;display:flex;align-items:center;gap:30px;white-space:nowrap}
+.lg{display:flex;align-items:center;gap:9px;font:700 22px/1 "Avenir Next",sans-serif;letter-spacing:-.02em}
+.mark{width:30px;height:30px;border-radius:50%;background:var(--coral);position:relative}
+.mark:after{content:"";position:absolute;inset:7px;border-radius:50%;border:3.5px solid #fff;border-left-color:transparent;transform:rotate(-30deg)}
+nav .links{display:flex;gap:26px;font-weight:500;color:var(--soft)}
+nav .links .on{color:var(--ink)}
+nav .cta{margin-left:auto;height:38px;padding:0 18px;border-radius:19px;background:var(--ink);color:#fff;font-weight:600;display:flex;align-items:center}
+.hero{max-width:1180px;margin:0 auto;padding:14px 32px 20px;display:flex;align-items:flex-end;gap:24px}
+.hero small{font-weight:700;font-size:12px;letter-spacing:.14em;color:var(--coral)}
+.hero h1{font:700 46px/1.02 "Avenir Next",sans-serif;letter-spacing:-.035em;margin-top:8px}
+.hero p{color:var(--soft);font-size:16px;margin-top:8px;max-width:560px;line-height:1.45}
+.hero .dl{margin-left:auto;display:flex;gap:10px}
+.b{height:44px;padding:0 20px;border-radius:22px;font-weight:600;display:flex;align-items:center;gap:8px;white-space:nowrap;border:1.5px solid var(--line);background:#fff}
+.b.p{background:var(--coral);border-color:var(--coral);color:#fff;box-shadow:0 8px 18px -8px rgba(255,107,61,.8)}
+.grid{max-width:1180px;margin:0 auto;padding:6px 32px 40px;display:grid;grid-template-columns:1.25fr 1fr;gap:18px}
+.box{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px}
+.box h2{font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);display:flex;justify-content:space-between;margin-bottom:12px}
+.box h2 span{text-transform:none;letter-spacing:0;color:var(--coral);font-weight:600}
+.logos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tile{height:104px;border-radius:14px;display:grid;place-items:center;position:relative}
+.tile em{position:absolute;left:10px;bottom:8px;font-style:normal;font-size:10.5px;font-weight:600;opacity:.6}
+.tile .lg{font-size:24px}
+.tile.c2 .lg{color:#fff}.tile.c2 .mark{background:#fff}.tile.c2 .mark:after{border-color:var(--coral);border-left-color:transparent}
+.tile.c3 .lg{color:#fff}
+.shots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;justify-items:center}
+.phone{width:100%;max-width:168px;height:320px;border-radius:28px;background:#1d1410;padding:7px;box-shadow:0 18px 30px -18px rgba(42,26,18,.6)}
+.scr{height:100%;border-radius:22px;overflow:hidden;position:relative;font-family:ui-rounded,-apple-system,sans-serif}
+.scr .st{display:flex;justify-content:space-between;padding:8px 14px 0;font-size:9px;font-weight:700}
+.s1{background:var(--cream)}
+.s1 h4{font-size:15px;padding:12px 14px 2px}
+.s1 p{font-size:9.5px;color:var(--soft);padding:0 14px}
+.ring{width:96px;height:96px;margin:14px auto 10px;border-radius:50%;background:conic-gradient(var(--coral) 0 78%,#ffe3d6 78% 100%);display:grid;place-items:center}
+.ring div{width:74px;height:74px;border-radius:50%;background:var(--cream);display:grid;place-items:center;text-align:center;font-weight:800;font-size:20px;line-height:1}
+.ring div small{display:block;font-size:8px;color:var(--mute);font-weight:600}
+.hb{margin:0 10px 6px;background:#fff;border-radius:10px;padding:7px 9px;display:flex;align-items:center;gap:7px;font-size:10px;font-weight:600}
+.hb i{width:16px;height:16px;border-radius:5px;flex:none}
+.hb .ck{margin-left:auto;width:15px;height:15px;border-radius:50%;border:1.5px solid #e3d3c6}
+.hb .ck.y{background:var(--coral);border-color:var(--coral)}
+.s2{background:#2a1a12;color:#fff}
+.s2 h4{font-size:14px;padding:12px 14px 8px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;padding:0 12px}
+.cal i{height:17px;border-radius:4px;background:#45332a}
+.cal i.d1{background:#ff6b3d}.cal i.d2{background:#ff9a73}.cal i.d3{background:#7a4a35}
+.s2 .big{padding:14px 14px 0;font-size:28px;font-weight:800}
+.s2 .big small{display:block;font-size:9.5px;font-weight:600;color:#c8b2a4}
+.s3{background:linear-gradient(180deg,#ffd7c4,#fff8f2 60%)}
+.s3 h4{font-size:14px;padding:16px 14px 4px;text-align:center}
+.s3 p{font-size:9.5px;color:var(--soft);text-align:center;padding:0 16px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;padding:14px 10px}
+.chips span{font-size:9.5px;font-weight:600;background:#fff;border-radius:10px;padding:5px 8px}
+.chips span.on{background:var(--coral);color:#fff}
+.s3 .go{position:absolute;left:12px;right:12px;bottom:14px;height:30px;border-radius:15px;background:var(--ink);color:#fff;font-size:10.5px;font-weight:700;display:grid;place-items:center}
+.boiler p{font-size:14.5px;line-height:1.6;color:#3c2b22}
+.boiler .cp{margin-top:12px;display:flex;gap:8px}
+.boiler .cp span{height:32px;padding:0 12px;border-radius:16px;background:var(--coral2);color:#c2410c;font-weight:600;font-size:12.5px;display:flex;align-items:center}
+.photo{height:150px;border-radius:14px;overflow:hidden;margin-bottom:14px;position:relative}
+.photo img{width:100%;height:100%;object-fit:cover}
+.photo span{position:absolute;left:10px;bottom:10px;background:rgba(255,255,255,.9);border-radius:10px;padding:4px 9px;font-size:11.5px;font-weight:600}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.facts div{background:var(--cream);border-radius:12px;padding:10px 12px}
+.facts span{font-size:11.5px;color:var(--mute);font-weight:600}
+.facts b{display:block;font-size:17px;margin-top:2px}
+.contact{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.contact i{width:36px;height:36px;border-radius:50%;background:#ffd2bf;color:#c2410c;display:grid;place-items:center;font-style:normal;font-weight:700;font-size:13px}
+.contact b{display:block;font-size:13.5px}.contact span{font-size:12.5px;color:var(--soft)}
+@media (max-width:1100px){.grid{grid-template-columns:1fr 1fr}.phone{height:270px}.hero h1{font-size:40px}}
+</style></head><body>
+<nav><div class="lg"><span class="mark"></span>lumo</div><div class="links"><span>Product</span><span>Pricing</span><span>Journal</span><span class="on">Press</span></div><div class="cta">Join the beta</div></nav>
+<section class="hero"><div><small>PRESS KIT · UPDATED OCT 20, 2026</small><h1>Lumo, for the press</h1><p>Logos, screenshots and the facts about Lumo 2.0, the habit tracker that counts the days you show up, not the days you miss.</p></div>
+<div class="dl"><div class="b">Brand guidelines</div><div class="b p"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8"><path d="M8 2v8m-3.5-3.5L8 10l3.5-3.5M3 13h10"/></svg>Download kit · 24 MB</div></div></section>
+<div class="grid">
+<div>
+<div class="box" style="margin-bottom:18px"><h2>Logo<span>SVG · PNG · EPS</span></h2><div class="logos">
+<div class="tile" style="background:var(--cream);border:1px solid var(--line)"><div class="lg"><span class="mark"></span>lumo</div><em>Primary</em></div>
+<div class="tile c2" style="background:var(--coral)"><div class="lg"><span class="mark"></span>lumo</div><em style="color:#fff">On coral</em></div>
+<div class="tile c3" style="background:var(--ink)"><div class="lg"><span class="mark"></span>lumo</div><em style="color:#fff">On dark</em></div>
+</div></div>
+<div class="box"><h2>Screenshots<span>iPhone · 6 files</span></h2><div class="shots">
+<div class="phone"><div class="scr s1"><div class="st"><span>9:41</span><span>●●● ▮</span></div><h4>Good morning, Ana</h4><p>Thursday · 4 of 5 habits left</p><div class="ring"><div>23<small>DAY STREAK</small></div></div>
+<div class="hb"><i style="background:#ffd2bf"></i>Morning walk<span class="ck y"></span></div><div class="hb"><i style="background:#d6ecff"></i>Read 10 pages<span class="ck"></span></div><div class="hb"><i style="background:#dff5e3"></i>Water plants<span class="ck"></span></div></div></div>
+<div class="phone"><div class="scr s2"><div class="st"><span>9:41</span><span>●●● ▮</span></div><h4>October</h4><div class="cal" id="cal"></div><div class="big">87%<small>of days you showed up this month</small></div><div class="hb" style="background:#3a2a22;color:#fff;margin-top:12px"><i style="background:#ff6b3d"></i>Best day: Thursday</div><div class="hb" style="background:#3a2a22;color:#fff"><i style="background:#ff9a73"></i>Longest run: 11 days</div></div></div>
+<div class="phone"><div class="scr s3"><div class="st"><span>9:41</span><span>●●● ▮</span></div><h4>Pick three to start</h4><p>Small is the point. You can add more later.</p><div class="chips"><span class="on">Walk</span><span>Stretch</span><span class="on">Read</span><span>Journal</span><span>No phone in bed</span><span class="on">Water</span><span>Meditate</span><span>Call a friend</span></div><div class="go">Continue</div></div></div>
+</div></div>
+</div>
+<div>
+<div class="box boiler" style="margin-bottom:18px"><h2>Boilerplate<span>87 words</span></h2><p>Lumo is a habit tracker for people who have quit habit trackers. Instead of punishing a missed day, Lumo counts the days you showed up and helps you start again tomorrow. Lumo 2.0 adds habit stacks, a weekly review and gentle reminders that follow you across time zones. Built by a team of seven in Port Alder, Lumo is free to start, with Lumo Plus at $3 a month. It launches publicly on iPhone and Android on November 18, 2026.</p><div class="cp"><span>Copy text</span><span>Short version</span></div></div>
+<div class="box"><div class="photo"><img src="img/0.jpg" alt=""><span>Lifestyle · 8 photos</span></div>
+<div class="facts"><div><span>Launch</span><b>Nov 18, 2026</b></div><div><span>Beta users</span><b>12,480</b></div><div><span>Founded</span><b>2024</b></div><div><span>Team</span><b>7 people</b></div></div>
+<div class="contact"><i>MO</i><div><b>Mira Osei · Press</b><span>press@lumo.example · replies within a day</span></div></div></div>
+</div>
+</div>
+<script>
+const c=document.getElementById("cal");const p="111211311211111321111211111".split("").map(k=>"d"+k);let h="";for(let i=0;i<28;i++){const k=p[i]||"";h+=`<i class="${i<27?k:""}"></i>`}c.innerHTML=h;
+</script>
+</body></html>

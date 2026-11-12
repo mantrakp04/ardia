@@ -1,0 +1,56 @@
+--- a/components/os_crypt/async/common/encryptor.cc
++++ b/components/os_crypt/async/common/encryptor.cc
+@@ -20,6 +20,7 @@
+ #include "crypto/aead.h"
+ #include "crypto/aes_cbc.h"
+ #include "crypto/random.h"
++#include "crypto/secure_util.h"
+ #include "mojo/public/cpp/bindings/default_construct_tag.h"
+ #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+ 
+@@ -40,6 +41,12 @@
+     ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+ };
+ 
++template <typename Buffer>
++void WipeWithCapacity(Buffer& buffer) {
++  buffer.resize(buffer.capacity());
++  crypto::SecureZeroBuffer(base::as_writable_byte_span(buffer));
++}
++
+ }  // namespace
+ 
+ Encryptor::Key::Key(base::span<const uint8_t> key,
+@@ -213,8 +220,11 @@
+   if (!decrypted.has_value()) {
+     return false;
+   }
++  absl::Cleanup wipe_decrypted = [&decrypted] {
++    WipeWithCapacity(*decrypted);
++  };
+ 
+-  *plaintext = std::string(decrypted->begin(), decrypted->end());
++  plaintext->assign(decrypted->begin(), decrypted->end());
+ 
+   return true;
+ }
+@@ -262,6 +272,11 @@
+         auto ciphertext = data.subspan(provider.size());
+         // The Key does the raw decrypt.
+         auto plaintext = key->Decrypt(ciphertext);
++        absl::Cleanup wipe_plaintext = [&plaintext] {
++          if (plaintext) {
++            WipeWithCapacity(*plaintext);
++          }
++        };
+         if (plaintext) {
+           if (flags) {
+             flags->should_reencrypt = provider != provider_for_encryption_;
+@@ -295,6 +310,7 @@
+                                 std::u16string* plaintext,
+                                 DecryptFlags* flags) const {
+   std::string utf8;
++  absl::Cleanup wipe_utf8 = [&utf8] { WipeWithCapacity(utf8); };
+   if (!DecryptString(ciphertext, &utf8, flags)) {
+     return false;
+   }

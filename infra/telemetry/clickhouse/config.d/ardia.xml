@@ -13,6 +13,12 @@
             <path>/data/ch/access/</path>
         </local_directory>
     </user_directories>
+    <access_control_improvements>
+        <table_engines_require_grant>true</table_engines_require_grant>
+    </access_control_improvements>
+    <remote_url_allow_hosts>
+        <host>outbound-disabled.invalid</host>
+    </remote_url_allow_hosts>
 
     <mark_cache_size>268435456</mark_cache_size>
     <uncompressed_cache_size>0</uncompressed_cache_size>

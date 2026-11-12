@@ -31,7 +31,7 @@
 //
 // Window states: visible launches run every browser as if in view whatever covers it (Ardia's background mode with
 // its forced visibility; Helium and Dia with --disable-backgrounding-occluded-windows), hidden launches let occlusion
-// act (ARDIA_ALLOW_OCCLUSION=1; no switch) and minimize the window through CDP. All get --mute-audio.
+// act (ARDIA_INSTANCE allowOcclusion; no switch) and minimize the window through CDP. All get --mute-audio.
 // Metrics per process, summed per kind: CPU time, idle + interrupt wakeups, ri_energy_nj (macOS's per-process energy
 // estimate), ri_billed_energy, and GPU time from the AGX user clients the process created.
 import { execFileSync, spawn, spawnSync } from "node:child_process";
@@ -41,6 +41,7 @@ import { loadavg } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { appEnv, launchVariables, mergeLaunchEnv } from "../../../../scripts/lib/instance.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../../../..");
@@ -431,11 +432,12 @@ class Instance {
   env() {
     const env = { HOME: this.home, CFFIXED_USER_HOME: this.home };
     if (isArdia(this.name)) {
-      Object.assign(env, { ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: join(this.home, "data"), ARDIA_REMOTE_DEBUGGING_PORT: String(port), ARDIA_UPDATE_FEED_URL: `http://127.0.0.1:${opt["page-port"]}/appcast.xml` });
-      if (this.mode === "hidden") env.ARDIA_ALLOW_OCCLUSION = "1";
+      const instance = { updateFeed: `http://127.0.0.1:${opt["page-port"]}/appcast.xml`, ...(this.mode === "hidden" ? { allowOcclusion: true } : {}) };
+      Object.assign(env, { ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: join(this.home, "data"), ARDIA_REMOTE_DEBUGGING_PORT: String(port), ...launchVariables({ instance }) });
     }
-    for (const e of perName(opt.env, this.name)) env[e.slice(0, e.indexOf("="))] = e.slice(e.indexOf("=") + 1);
-    return env;
+    const extra = perName(opt.env, this.name).map((e) => ({ [e.slice(0, e.indexOf("="))]: e.slice(e.indexOf("=") + 1) }));
+    const merged = mergeLaunchEnv(env, ...extra);
+    return isArdia(this.name) ? appEnv(this.app, merged) : merged;
   }
   args() {
     const extra = perName(opt.args, this.name);

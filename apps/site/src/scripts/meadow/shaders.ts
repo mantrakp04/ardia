@@ -8,6 +8,7 @@ import {
   TERRAIN_SLOPE,
   TERRAIN_WIDTH,
 } from "./layout";
+import { MOB_CONTACTS } from "./mobs";
 
 const linear = (hex: string) => {
   const value = parseInt(hex.slice(1), 16);
@@ -108,6 +109,19 @@ float meadowHeight(vec2 p) {
   return near + far * (6.0 + 8.0 * valueNoise(p * 0.004 + 3.0) + 2.5 * valueNoise(p * 0.018 + 1.3));
 }
 
+float bakedHeight(sampler2D heightTex, vec2 uv) {
+  ivec2 size = textureSize(heightTex, 0);
+  vec2 st = uv * vec2(size) - 0.5;
+  ivec2 base = ivec2(floor(st));
+  vec2 f = fract(st);
+  ivec2 top = size - 1;
+  float a = decodeHeight(texelFetch(heightTex, clamp(base, ivec2(0), top), 0));
+  float b = decodeHeight(texelFetch(heightTex, clamp(base + ivec2(1, 0), ivec2(0), top), 0));
+  float c = decodeHeight(texelFetch(heightTex, clamp(base + ivec2(0, 1), ivec2(0), top), 0));
+  float d = decodeHeight(texelFetch(heightTex, clamp(base + ivec2(1, 1), ivec2(0), top), 0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
 vec3 skyGradient(float h) {
   vec3 col = mix(uSkyHorizon, uSkyLow, smoothstep(0.0, 0.16, h));
   col = mix(col, uSkyMid, smoothstep(0.12, 0.55, h));
@@ -169,6 +183,8 @@ vec3 encodeColor(vec3 c) {
   c = mix(c, shoulder, step(0.8, c));
   return pow(max(c, 0.0), vec3(1.0 / 2.2));
 }
+
+const float CREATURE_REGION = 0.62;
 
 vec4 encodeFlow(vec2 dir, float strokeScale, float region) {
   float angle = atan(dir.y, dir.x);
@@ -365,22 +381,9 @@ uniform float uHillScale;
 out vec2 vUv;
 out vec3 vWorld;
 
-float heightBilinear(vec2 uv) {
-  ivec2 size = textureSize(uHeightTex, 0);
-  vec2 st = uv * vec2(size) - 0.5;
-  ivec2 base = ivec2(floor(st));
-  vec2 f = fract(st);
-  ivec2 top = size - 1;
-  float a = decodeHeight(texelFetch(uHeightTex, clamp(base, ivec2(0), top), 0));
-  float b = decodeHeight(texelFetch(uHeightTex, clamp(base + ivec2(1, 0), ivec2(0), top), 0));
-  float c = decodeHeight(texelFetch(uHeightTex, clamp(base + ivec2(0, 1), ivec2(0), top), 0));
-  float d = decodeHeight(texelFetch(uHeightTex, clamp(base + ivec2(1, 1), ivec2(0), top), 0));
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
-
 void main() {
   vec2 p = terrainWorld(aUv);
-  float h = p.y < 60.0 ? meadowHeight(p) : mix(meadowHeight(p), heightBilinear(aUv), uHillScale);
+  float h = p.y < 60.0 ? meadowHeight(p) : mix(meadowHeight(p), bakedHeight(uHeightTex, aUv), uHillScale);
   vWorld = vec3(p.x, h, p.y);
   vUv = aUv;
   gl_Position = uViewProj * vec4(vWorld, 1.0);
@@ -530,6 +533,9 @@ uniform vec2 uWindDir;
 uniform float uPixelAngle;
 uniform sampler2D uBrushTex;
 uniform sampler2D uHorizonTex;
+uniform vec4 uMobs[${MOB_CONTACTS}];
+uniform int uMobCount;
+uniform vec2 uMobShadow;
 out vec3 vWorld;
 out vec3 vNormal;
 out vec3 vTint;
@@ -539,6 +545,7 @@ out float vSide;
 out float vBrushed;
 out float vGlow;
 out float vFlower;
+out float vShade;
 
 const float SEGMENTS = ${float(GRASS_SEGMENTS)};
 
@@ -562,6 +569,26 @@ void main() {
   float height = mix(0.22, 0.6, h3) * mix(0.6, 1.2, clump) * mix(0.75, 1.12, meadowPatch);
   height = mix(height, 0.42 + 0.16 * h3, flower);
   height *= mix(1.0, 0.4, smoothstep(uGrassArea.y * 0.55, uGrassArea.y, z));
+  float trample = 0.0;
+  float shade = 0.0;
+  vec2 away = vec2(0.0);
+  for (int i = 0; i < ${MOB_CONTACTS}; i++) {
+    if (i >= uMobCount) break;
+    vec4 mob = uMobs[i];
+    vec2 d = root - mob.xy;
+    vec2 reach = d / mob.z;
+    reach.y *= d.y < 0.0 ? 0.42 : 1.0;
+    float inside = 1.0 - dot(reach, reach);
+    if (inside > 0.0) {
+      inside *= inside * mob.w;
+      trample = max(trample, inside);
+      away += d / max(length(d), 1e-3) * inside;
+    }
+    vec2 footprint = (d - uMobShadow * mob.z) / (mob.z * 0.8);
+    shade = max(shade, (1.0 - min(dot(footprint, footprint), 1.0)) * mob.w);
+  }
+  height *= 1.0 - 0.75 * trample;
+  vShade = shade;
   float pixelWorld = z * uPixelAngle;
   float width = max(mix(0.01, 0.02, h4) * mix(1.3, 0.9, clump), pixelWorld * 1.6);
 
@@ -575,7 +602,7 @@ void main() {
   vec2 bendVec = facingDir * mix(0.08, 0.42, h1) * (1.0 - flower * 0.7) + uWindDir * windBend;
   vec3 brushSample = texture(uBrushTex, vec2(cell.x, depthT)).xyz;
   vec2 brush = brushSample.xy;
-  bendVec += brush * (1.0 + flower * 0.4);
+  bendVec += brush * (1.0 + flower * 0.4) + away * 0.9;
   vBrushed = clamp(length(brush) / 1.1, 0.0, 1.0);
   vGlow = brushSample.z * mix(0.12, 1.0, step(0.58, h3) * (0.6 + 0.4 * h5)) * (1.0 - smoothstep(10.0, 30.0, z));
   float bend = length(bendVec);
@@ -630,6 +657,7 @@ in float vSide;
 in float vBrushed;
 in float vGlow;
 in float vFlower;
+in float vShade;
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outFlow;
 
@@ -643,7 +671,7 @@ void main() {
   albedo = mix(albedo, ${rgb("#b4b26e")}, smoothstep(0.65, 1.0, s) * 0.3 * (1.0 - petals));
   albedo = mix(albedo, ${rgb("#0c3d2b")} * 1.6, uNight * 0.6 * (1.0 - petals));
   albedo = mix(albedo, ${rgb("#22200f")}, vBrushed * 0.6 * (1.0 - petals) * (1.0 - uNight));
-  float ao = mix(0.28, 1.0, smoothstep(0.0, 0.8, s)) * (1.0 - vBrushed * 0.82 * (1.0 - s * 0.25));
+  float ao = mix(0.28, 1.0, smoothstep(0.0, 0.8, s)) * (1.0 - vBrushed * 0.82 * (1.0 - s * 0.25)) * (1.0 - vShade * 0.5 * (1.0 - s * 0.5));
   float wrap = max(dot(n, L) * 0.5 + 0.5, 0.0);
   float backlight = pow(max(dot(-V, L), 0.0), 8.0);
   float edge = smoothstep(0.35, 1.0, abs(vSide));
@@ -658,6 +686,118 @@ void main() {
   outColor = vec4(encodeColor(col), 1.0);
   vec2 along = vec2(dFdx(vAlong), dFdy(vAlong));
   outFlow = encodeFlow(length(along) > 1e-6 ? along : vec2(0.0, 1.0), mix(0.32, 0.18, petals), 1.0);
+}
+`;
+
+
+const MOB_VS = `${HEADER}${COMMON}
+layout(location = 0) in vec3 aCorner;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec4 aRoot;
+layout(location = 3) in vec4 aPivot;
+layout(location = 4) in vec4 aOffset;
+layout(location = 5) in vec4 aSize;
+layout(location = 6) in vec4 aColor;
+layout(location = 7) in vec4 aExtra;
+uniform mat4 uViewProj;
+uniform sampler2D uHorizonTex;
+uniform sampler2D uHeightTex;
+uniform float uHillScale;
+uniform float uPx;
+out vec3 vWorld;
+out vec3 vNormal;
+out vec3 vColor;
+out vec3 vLocal;
+out vec2 vStroke;
+out float vFade;
+out float vGlow;
+out float vFlash;
+out float vSeed;
+out float vLit;
+out float vGround;
+
+mat3 turnY(float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c);
+}
+
+mat3 turnX(float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c);
+}
+
+mat3 turnZ(float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0);
+}
+
+void main() {
+  vec3 local = aOffset.xyz + aCorner * aSize.xyz;
+  mat3 part = turnY(aRoot.z) * turnY(aPivot.w) * turnX(aOffset.w) * turnZ(aSize.w);
+  vec3 model = turnY(aRoot.z) * aPivot.xyz + part * local;
+  float meadow = meadowHeight(aRoot.xy);
+  float ground = aRoot.y < 60.0 ? meadow : mix(meadow, bakedHeight(uHeightTex, terrainUv(aRoot.xy)), uHillScale);
+  vec3 world = vec3(aRoot.x, ground - 0.02 + aRoot.w, aRoot.y) + model * uPx;
+  vec3 size = aSize.xyz;
+  vec3 major = size.x >= size.y && size.x >= size.z ? vec3(1.0, 0.0, 0.0) : size.y >= size.z ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, 1.0);
+  vec4 clip = uViewProj * vec4(world, 1.0);
+  vec4 ahead = uViewProj * vec4(world + part * major * 0.05, 1.0);
+  vStroke = (ahead.xy / ahead.w - clip.xy / clip.w) * uTargetSize;
+  vNormal = part * aNormal;
+  vWorld = world;
+  vLocal = local;
+  vColor = aColor.rgb;
+  vFade = aColor.a;
+  vGlow = aExtra.x;
+  vSeed = aExtra.y;
+  vFlash = aExtra.z;
+  vGround = model.y * uPx;
+  vLit = smoothstep(-0.014, 0.014, uKeyElev - shadowHorizon(texture(uHorizonTex, terrainUv(aRoot.xy))));
+  gl_Position = clip;
+}
+`;
+
+const MOB_FS = `${HEADER}${COMMON}
+in vec3 vWorld;
+in vec3 vNormal;
+in vec3 vColor;
+in vec3 vLocal;
+in vec2 vStroke;
+in float vFade;
+in float vGlow;
+in float vFlash;
+in float vSeed;
+in float vLit;
+in float vGround;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outFlow;
+
+void main() {
+  float dissolve = valueNoise(gl_FragCoord.xy * 0.21 + vSeed * 3.1) * 0.5 + 0.5;
+  if (dissolve > vFade * 1.12 - 0.06) discard;
+  vec3 n = normalize(vNormal);
+  vec3 L = uKeyDir;
+  vec3 V = normalize(uCamPos - vWorld);
+  float texel = hash12(floor(vLocal.xy * 0.5) + floor(vLocal.z * 0.5) * 7.31 + vSeed);
+  vec3 albedo = vColor * (0.9 + 0.2 * texel);
+  albedo = mix(albedo, vec3(1.0), vFlash);
+  albedo = mix(albedo, albedo * ${rgb("#8fa3d4")}, uNight * 0.45);
+  float ao = mix(0.5, 1.0, smoothstep(0.0, 0.5, vGround));
+  float wrap = max((dot(n, L) + 0.6) / 1.6, 0.0);
+  vec3 skyLight = skyBase(normalize(vec3(n.x * 0.6, max(n.y, 0.0) + 0.45, n.z * 0.6)));
+  vec3 bounce = ${rgb("#b7b56a")} * (1.0 - max(n.y, 0.0)) * (1.0 - uNight * 0.7);
+  vec3 col = albedo * ((skyLight * 0.75 + bounce * 0.35) * uAmbient * ao + uKeyColor * wrap * vLit * 0.62 * ao);
+  float rim = pow(1.0 - max(dot(n, V), 0.0), 2.0) * pow(max(dot(-V, L), 0.0), 2.0);
+  col += uKeyColor * rim * vLit * 0.12;
+  col *= mix(1.0, 1.35, uNight);
+  col += vColor * vGlow * mix(0.5, 1.8, uNight);
+  col = mix(atmosphere(col, vWorld), col, smoothstep(150.0, 900.0, vWorld.z) * 0.6 * (1.0 - uNight * 0.5));
+  col = mix(mistPaint(), col, smoothstep(0.0, 0.75, vFade));
+  outColor = vec4(encodeColor(col), 1.0);
+  outFlow = encodeFlow(length(vStroke) > 1e-4 ? vStroke : vec2(0.0, 1.0), 0.08, CREATURE_REGION);
 }
 `;
 
@@ -714,13 +854,55 @@ void main() {
 }
 `;
 
-const FINAL_FS = `${HEADER}${COMMON}
-uniform sampler2D uPaint;
+const STROKE_CELLS = `
 uniform sampler2D uFlow;
-uniform sampler2D uSmear;
-uniform sampler2D uHorizonTex;
 uniform vec2 uResolution;
 uniform float uDpr;
+
+vec2 hash22(vec2 p) {
+  return vec2(hash12(p), hash12(p + 19.19));
+}
+
+vec2 strokeCenter(vec2 id, float cellSize) {
+  return (id + hash22(id)) * cellSize;
+}
+
+vec4 strokeShape(vec2 id, vec2 center, out vec2 along) {
+  vec2 jitter = hash22(id);
+  vec4 flow = texture(uFlow, center / uResolution);
+  vec2 orientation = flow.xy * 2.0 - 1.0;
+  float angle = 0.5 * atan(orientation.y, orientation.x) + (jitter.x - 0.5) * 0.28;
+  along = vec2(cos(angle), sin(angle));
+  float size = mix(0.4, 1.0, flow.z);
+  float halfLength = mix(11.0, 27.0, size) * uDpr * (0.85 + jitter.y * 0.3);
+  float halfWidth = mix(3.4, 7.5, size) * uDpr * (0.85 + jitter.x * 0.3);
+  return vec4(halfLength, halfWidth, flow.a, hash12(id + 7.13));
+}
+`;
+
+const CELL_FS = `${HEADER}${COMMON}${STROKE_CELLS}
+uniform vec2 uCellOrigin;
+layout(location = 0) out vec4 outShape;
+layout(location = 1) out vec4 outStroke;
+
+void main() {
+  vec2 id = floor(gl_FragCoord.xy) + uCellOrigin;
+  vec2 center = strokeCenter(id, 16.0 * uDpr);
+  vec2 along;
+  outStroke = strokeShape(id, center, along);
+  outShape = vec4(center, along);
+}
+`;
+
+const FINAL_FS = `${HEADER}${COMMON}${STROKE_CELLS}
+uniform sampler2D uPaint;
+uniform sampler2D uSmear;
+uniform sampler2D uHorizonTex;
+uniform highp sampler2D uCellShape;
+uniform highp sampler2D uCellStroke;
+uniform bool uCellTable;
+uniform vec2 uCellOrigin;
+uniform ivec2 uCellCount;
 uniform vec3 uLight;
 uniform vec3 uSpecColor;
 uniform vec2 uSunPx;
@@ -730,17 +912,12 @@ uniform float uRelief;
 in vec2 vUv;
 out vec4 outColor;
 
-
-vec2 hash22(vec2 p) {
-  return vec2(hash12(p), hash12(p + 19.19));
-}
-
-
 void main() {
   vec2 pixel = gl_FragCoord.xy;
   vec2 smear = texture(uSmear, pixel / uResolution).xy;
   float regionAtPixel = texture(uFlow, pixel / uResolution).a;
   vec2 painted = pixel - smear * uResolution * mix(0.35, 1.0, regionAtPixel);
+  float creatureAtPixel = step(abs(regionAtPixel - CREATURE_REGION), 0.04);
   vec2 uv = painted / uResolution;
   vec3 base = texture(uPaint, uv).rgb;
 
@@ -756,27 +933,35 @@ void main() {
   for (int j = -2; j <= 2; j++) {
     for (int i = -2; i <= 2; i++) {
       vec2 id = cell + vec2(float(i), float(j));
-      vec2 jitter = hash22(id);
-      vec2 center = (id + jitter) * cellSize;
+      ivec2 slot = ivec2(id - uCellOrigin);
+      bool cached = uCellTable && all(greaterThanEqual(slot, ivec2(0))) && all(lessThan(slot, uCellCount));
+      vec2 center;
+      vec2 along;
+      vec4 shape;
+      if (cached) {
+        shape = texelFetch(uCellShape, slot, 0);
+        center = shape.xy;
+      } else {
+        center = strokeCenter(id, cellSize);
+      }
       vec2 d = painted - center;
       if (dot(d, d) > reach2) continue;
-      vec4 flow = texture(uFlow, center / uResolution);
-      vec2 orientation = flow.xy * 2.0 - 1.0;
-      float angle = 0.5 * atan(orientation.y, orientation.x) + (jitter.x - 0.5) * 0.28;
-      vec2 along = vec2(cos(angle), sin(angle));
-      float size = mix(0.4, 1.0, flow.z);
-      float halfLength = mix(11.0, 27.0, size) * uDpr * (0.85 + jitter.y * 0.3);
-      float halfWidth = mix(3.4, 7.5, size) * uDpr * (0.85 + jitter.x * 0.3);
-      float a = dot(d, along) / halfLength;
-      float b = dot(d, vec2(-along.y, along.x)) / (halfWidth * (1.0 - 0.35 * smoothstep(0.1, 1.0, a)));
-      if (pow(abs(a), 2.6) + b * b < 1.0) {
-        float order = hash12(id + 7.13);
-        if (order > bestOrder) {
-          bestOrder = order;
+      vec4 stroke;
+      if (cached) {
+        along = shape.zw;
+        stroke = texelFetch(uCellStroke, slot, 0);
+      } else {
+        stroke = strokeShape(id, center, along);
+      }
+      float a = dot(d, along) / stroke.x;
+      float b = dot(d, vec2(-along.y, along.x)) / (stroke.y * (1.0 - 0.35 * smoothstep(0.1, 1.0, a)));
+      if (pow(abs(a), 2.6) + b * b < 1.0 && step(abs(stroke.z - CREATURE_REGION), 0.04) >= creatureAtPixel) {
+        if (stroke.w > bestOrder) {
+          bestOrder = stroke.w;
           bestLocal = vec2(a, b);
           bestCenter = center;
-          bestSeed = jitter.y;
-          bestRegion = flow.a;
+          bestSeed = hash12(id + 19.19);
+          bestRegion = stroke.z;
         }
       }
     }
@@ -814,6 +999,26 @@ void main() {
 
   color += (hash12(pixel + fract(uTime * 3.7) * 97.0) - 0.5) / 255.0;
   outColor = vec4(color, 1.0);
+}
+`;
+
+const PROBE_FS = `${HEADER}
+uniform sampler2D uSource;
+uniform vec2 uHalfSize;
+uniform vec2 uProbeSize;
+out vec4 outColor;
+
+vec4 halfTexel(vec2 cell) {
+  return texture(uSource, (clamp(cell, vec2(0.0), uHalfSize - 1.0) + 0.5) / uHalfSize);
+}
+
+void main() {
+  vec2 st = gl_FragCoord.xy / uProbeSize * uHalfSize - 0.5;
+  vec2 cell = floor(st);
+  vec2 f = st - cell;
+  vec4 bottom = mix(halfTexel(cell), halfTexel(cell + vec2(1.0, 0.0)), f.x);
+  vec4 top = mix(halfTexel(cell + vec2(0.0, 1.0)), halfTexel(cell + vec2(1.0, 1.0)), f.x);
+  outColor = mix(bottom, top, f.y);
 }
 `;
 
@@ -866,6 +1071,10 @@ export const SHADERS = {
   grassFs: GRASS_FS,
   paintFs: PAINT_FS,
   finalFs: FINAL_FS,
+  cellFs: CELL_FS,
+  probeFs: PROBE_FS,
   particleVs: PARTICLE_VS,
   particleFs: PARTICLE_FS,
+  mobVs: MOB_VS,
+  mobFs: MOB_FS,
 };

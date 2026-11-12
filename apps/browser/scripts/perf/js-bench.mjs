@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // JS/React benchmark for Ardia on a production (Hermes) bundle: what each interaction costs the JS thread
 // (React commits and renders, store updates, native→JS tasks, timers, document writes), counted by the opt-in probe
-// in src/lib/perfProbe.ts. Gate recipe and the other benches: docs/perf/README.md.
+// in src/state/app/perfProbe.ts. Gate recipe and the other benches: docs/perf/README.md.
 //
 //   node js-bench.mjs bundle <outDir> [--profiling 1]
 //       Builds the production JS bundle of the current tree (metro, --dev false) and compiles it with
@@ -32,7 +32,7 @@
 //   node js-bench.mjs summary <report.json>
 //       Recomputes a report's summary from its raw results (older reports pick up new lines) and prints it.
 //
-// The app side is the opt-in probe in src/lib/perfProbe.ts, on only when the data folder holds a
+// The app side is the opt-in probe in src/state/app/perfProbe.ts, on only when the data folder holds a
 // `perf-probe` file (the seed writes one).
 //
 // Report (<out>/<label>.json):
@@ -52,10 +52,11 @@
 //     summary: { lines: { "<scenario>.<metric>": { median, min, max, n } }, detail: { <scenario>: top offenders } } }
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareApp } from "../../../../scripts/lib/app-copy.mjs";
 import { appEnv, binaryOf } from "../../../../scripts/lib/instance.mjs";
 import { writeSeed } from "./seed.mjs";
 
@@ -309,28 +310,13 @@ function smallSession(dataDir) {
   writeFileSync(file, JSON.stringify(session));
 }
 
-function resign(app, clone) {
-  const info = spawnSync("codesign", ["-dvv", app], { encoding: "utf8" }).stderr;
-  const identity = info.match(/^Authority=(.+)$/m)?.[1] ?? "-";
-  const entitlements = `${clone}.entitlements.plist`;
-  writeFileSync(entitlements, execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", app], { encoding: "utf8" }));
-  execFileSync("codesign", ["--force", "--sign", identity, "--timestamp=none", "--options", "runtime", "--entitlements", entitlements, clone], { stdio: "inherit" });
-}
-
 const ALL = ["startup", "persistence", "idle", "typing", "switchTabs", "openClose", "scroll", "pageLoad", "hover", "profileSwipe", "storeUpdate", "idleLate"];
 
 async function run() {
   const { app, bundle: jsbundle, label, runs = "5", port = "47817", out = defaultOut } = flags;
   if (!app || !jsbundle || !label) throw new Error("run needs --app, --bundle and --label");
   const scenarios = flags.scenarios ? flags.scenarios.split(",") : ALL;
-  const clone = join(out, "apps", label, "Ardia.app");
-  rmSync(dirname(clone), { recursive: true, force: true });
-  mkdirSync(dirname(clone), { recursive: true });
-  execFileSync("cp", ["-cR", app, clone]);
-  const swapped = join(clone, "Contents/Resources/main.jsbundle");
-  const same = readFileSync(jsbundle).equals(readFileSync(swapped));
-  cpSync(jsbundle, swapped);
-  if (!same) resign(app, clone);
+  const clone = prepareApp(app, join(out, "apps", label), { bundle: jsbundle });
   const version = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print CFBundleShortVersionString", join(clone, "Contents/Info.plist")], { encoding: "utf8" }).trim();
   const origin = `http://127.0.0.1:${port}`;
   const server = await startServer(Number(port));
@@ -392,6 +378,9 @@ const top = (counter, n = 6) =>
     .map(([k, v]) => `${k} ${Math.round(v)}`)
     .join(", ");
 
+export const isHarnessTimer = (name) => name.includes("pollDevEval") || name === "setInterval:anonymous";
+const harnessMs = (stats) => sum(Object.fromEntries(Object.entries(stats.timerMs ?? {}).filter(([k]) => isHarnessTimer(k))));
+
 function statLine(stats) {
   return {
     commits: stats.commits,
@@ -401,7 +390,7 @@ function statLine(stats) {
     storeUpdates: stats.storeUpdates?.browser ?? 0,
     listenerMs: sum(stats.listenerMs),
     listenerCalls: sum(stats.listenerCalls),
-    taskMs: sum(stats.taskMs),
+    taskMs: sum(stats.taskMs) - harnessMs(stats),
     tasks: sum(stats.tasks),
     writes: sum(stats.writes),
     writeKB: sum(stats.writeBytes) / 1024,
@@ -439,7 +428,7 @@ function summarize(results, bundleSize) {
   add("persist.sessionStringifyMs", (r) => r.persistence.session.ms);
   add("persist.bookmarksStringifyMs", (r) => r.persistence.bookmarks.ms);
   statKeys("idle10s", (r) => r.idle.stats);
-  add("idle10s.timerCallbacks", (r) => sum(Object.fromEntries(Object.entries(r.idle.stats.timers).filter(([k]) => !k.includes("pollDevEval")))));
+  add("idle10s.timerCallbacks", (r) => sum(Object.fromEntries(Object.entries(r.idle.stats.timers).filter(([k]) => !isHarnessTimer(k)))));
   add("typing.keyMedianMs", (r) => median(r.typing.keys));
   add("typing.keyP95Ms", (r) => pct(r.typing.keys, 0.95));
   add("typing.keyMaxMs", (r) => Math.max(...r.typing.keys));
@@ -465,7 +454,7 @@ function summarize(results, bundleSize) {
   add("storeUpdate.medianMs", (r) => median(r.storeUpdate.steps));
   add("storeUpdate.p95Ms", (r) => pct(r.storeUpdate.steps, 0.95));
   statKeys("idleLate10s", (r) => r.idleLate.stats);
-  add("idleLate10s.timerCallbacks", (r) => sum(Object.fromEntries(Object.entries(r.idleLate.stats.timers).filter(([k]) => !k.includes("pollDevEval")))));
+  add("idleLate10s.timerCallbacks", (r) => sum(Object.fromEntries(Object.entries(r.idleLate.stats.timers).filter(([k]) => !isHarnessTimer(k)))));
   add("save.msPerCall", (r) => {
     const all = [r.idle, r.switchTabs, r.pageLoad?.runs?.at(-1), r.typing].filter(Boolean).map((x) => x.stats);
     const ms = all.reduce((a, st) => a + (st.timerMs["setTimeout:save"] ?? 0), 0);

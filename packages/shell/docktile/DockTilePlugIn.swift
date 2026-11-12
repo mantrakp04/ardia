@@ -1,12 +1,14 @@
 import AppKit
 
-@objc(ACDockTilePlugIn)
-final class ACDockTilePlugIn: NSObject, NSDockTilePlugIn {
+@objc(ArdiaDockTilePlugIn)
+final class ArdiaDockTilePlugIn: NSObject, NSDockTilePlugIn {
   private var dockTile: NSDockTile?
   private var observer: NSObjectProtocol?
+  private var styleWatcher: IconStyleWatcher?
+  private var saved = "default"
 
   private lazy var app: Bundle? = {
-    let url = Bundle(for: ACDockTilePlugIn.self).bundleURL
+    let url = Bundle(for: ArdiaDockTilePlugIn.self).bundleURL
       .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     return Bundle(url: url)
   }()
@@ -16,6 +18,7 @@ final class ACDockTilePlugIn: NSObject, NSDockTilePlugIn {
   func setDockTile(_ dockTile: NSDockTile?) {
     if let observer { DistributedNotificationCenter.default().removeObserver(observer) }
     observer = nil
+    styleWatcher = nil
     self.dockTile = dockTile
     guard dockTile != nil, let app, let bundleId = app.bundleIdentifier else { return }
 
@@ -26,14 +29,18 @@ final class ACDockTilePlugIn: NSObject, NSDockTilePlugIn {
     ) { [weak self] note in
       guard let self, let id = note.userInfo?["icon"] as? String else { return }
       UserDefaults.standard.set(id, forKey: self.cacheKey)
-      self.show(id)
+      self.saved = id
+      self.show()
     }
-    let saved = CFPreferencesCopyAppValue(AppIcons.defaultsKey as CFString, bundleId as CFString) as? String
-    show(saved ?? UserDefaults.standard.string(forKey: cacheKey) ?? "default")
+    let stored = CFPreferencesCopyAppValue(AppIcons.defaultsKey as CFString, bundleId as CFString) as? String
+    saved = stored ?? UserDefaults.standard.string(forKey: cacheKey) ?? "default"
+    styleWatcher = IconStyleWatcher { [weak self] in self?.show() }
+    show()
   }
 
-  private func show(_ id: String) {
+  private func show() {
     guard let dockTile else { return }
+    let id = IconStyle.shown(saved: saved, theme: IconStyle.systemTheme)
     if id == "default" || !AppIcons.variants.contains(where: { $0.id == id }) {
       dockTile.contentView = nil
     } else if let image = AppIcons.image(id, size: 512) {

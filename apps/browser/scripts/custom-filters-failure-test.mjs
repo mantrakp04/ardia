@@ -40,7 +40,18 @@ const until = async (what, test, ms = 90000) => {
   }
   throw new Error(`timed out waiting for ${what}`);
 };
-const call = (body) => inst.eval(`return globalThis.expo.modules.ArdiaCEF.${body}`, { timeout: 200000 });
+const BLOCKER = `const blocker = {
+  getContentBlocker: () => ac.engine.call("contentBlocker.state"),
+  setContentBlockerEnabled: (enabled) => ac.engine.call("contentBlocker.setEnabled", { enabled }),
+  setFilterListEnabled: (id, enabled) => ac.engine.call("contentBlocker.setListEnabled", { id, enabled }),
+  addFilterList: (url) => ac.engine.call("contentBlocker.addList", { url }),
+  removeFilterList: (id) => ac.engine.call("contentBlocker.removeList", { id }),
+  updateFilterList: (id) => ac.engine.call("contentBlocker.updateList", { id }),
+  getUserFilters: () => ac.engine.call("contentBlocker.userFilters"),
+  setUserFilters: (text) => ac.engine.call("contentBlocker.setUserFilters", { text }),
+  devContentBlockerFailNextMessage: () => ac.engine.call("contentBlocker.devFailNextMessage"),
+};`;
+const call = (body) => inst.eval(`${BLOCKER}\nreturn blocker.${body}`, { timeout: 200000 });
 const outcome = (body) => call(`${body}.then(() => null, (e) => e.message)`);
 const connect = async (target) => {
   const page = await devtools(target);

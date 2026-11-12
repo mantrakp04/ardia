@@ -193,23 +193,21 @@ hook(["  // Ardia: ArdiaCore's Browsers have no BrowserView, so no pinned tab to
 PY
 
 hook "$src/chrome/browser/ui/webui/settings/settings_clear_browsing_data_handler.cc" "ClearBrowsingDataHandler" <<'PY'
-old = """    CHECK(browser_element);
+old = """  CHECK(browser_element);
+  ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(browser_element,
+                                                                event_type);
+}"""
+new = """  // Ardia: ArdiaCore's Browsers have no BrowserView element.
+  CHECK(browser_element || g_ardia_viewless_browsers);
+  if (browser_element) {
     ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
-        browser_element,
-        browsing_data_important_sites_util::kClearBrowsingDataHistoryEventId);
-  }"""
-new = """    // Ardia: ArdiaCore's Browsers have no BrowserView element.
-    CHECK(browser_element || g_ardia_viewless_browsers);
-    if (browser_element) {
-      ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
-          browser_element,
-          browsing_data_important_sites_util::kClearBrowsingDataHistoryEventId);
-    }
-  }"""
+        browser_element, event_type);
+  }
+}"""
 def edit(s):
     assert s.count(old) == 1
     return s.replace(old, new)
-hook(["    // Ardia: ArdiaCore's Browsers have no BrowserView element.\n"], edit, HOOKS)
+hook(["  // Ardia: ArdiaCore's Browsers have no BrowserView element.\n"], edit, HOOKS)
 PY
 
 hook "$src/chrome/browser/ui/browser.cc" "Browser window creation" <<'PY'
@@ -299,19 +297,23 @@ reps = [
 #endif
 """),
 ]
-start1 = "  crash_reporter::InitializeCrashKeys();\n"
+crash_keys = "  crash_reporter::InitializeCrashKeys();\n"
+crash_keys_gated = "  if (!g_ardia_embedder) {\n    crash_reporter::InitializeCrashKeys();\n  }\n"
+start1 = "#if BUILDFLAG(IS_POSIX)\n  ChromeCrashReporterClient::Create();\n"
 end1 = "#endif  // !defined(BUILDING_CHROME_RENDERER)\n"
 start2 = "#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_MAC)\n  // Zygote needs to call InitCrashReporter() in RunZygote().\n"
 end2 = "  crash_keys::SetCrashKeysFromCommandLine(command_line);\n"
 def edit(s):
-    assert s.count(decl_at) == 1 and s.count(start1) == 1 and s.count(start2) == 1 and s.count(end2) == 1
-    s = s.replace(decl_at, decl + decl_at)
+    assert s.count(decl_at) == 1 and s.count(crash_keys) == 1 and s.count(start1) == 1
+    assert s.count(start2) == 1 and s.count(end2) == 1
+    s = s.replace(decl_at, decl + decl_at).replace(crash_keys, crash_keys_gated)
     for old, new in reps:
         assert s.count(old) == 1, old
         s = s.replace(old, new)
     s = gate(s, start1, end1, "has no crash reporter, and sets up its data dir itself.")
     return gate(s, start2, end2, "has no crash reporter.")
 hook(["bool g_ardia_embedder = false;\n",
+      "    crash_reporter::InitializeCrashKeys();\n",
       "      g_ardia_resource_bundle_delegate,  // Ardia: ArdiaCore\n",
       "            locale, g_ardia_resource_bundle_delegate,  // Ardia: ArdiaCore\n",
       "  bool record = !g_ardia_embedder;\n",
@@ -523,10 +525,10 @@ bool (*g_ardia_external_protocol_dialog)(
     content::WeakDocumentPtr initiator_document,
     const std::u16string& program_name) = nullptr;
 """
-old = """  DCHECK(web_contents);
+old = """  CHECK(web_contents, base::NotFatalUntil::M161);
   if (delegate) {
     delegate->RunExternalProtocolDialog(url, web_contents, page_transition,"""
-new = """  DCHECK(web_contents);
+new = """  CHECK(web_contents, base::NotFatalUntil::M161);
   // Ardia: ArdiaCore
   if (!delegate && g_ardia_external_protocol_dialog &&
       g_ardia_external_protocol_dialog(url, web_contents, initiating_origin,
@@ -1428,10 +1430,8 @@ PY
 
 hook "$src/device/bluetooth/bluetooth_adapter_mac.h" "the Bluetooth adapter polls on demand" <<'PY'
 old = """  void PollAdapter();
-  void OnBackgroundPollComplete(AdapterState state);
 """
 new = """  void PollAdapter();
-  void OnBackgroundPollComplete(AdapterState state);
   void PollAdapterOnDemand();
   void OnLowEnergyCentralManagerStateUpdated() override;
 
@@ -1463,13 +1463,14 @@ edits = [
   }
 """),
     ("""void BluetoothAdapterMac::PollAdapter() {
-  base::ThreadPool::PostTaskAndReplyWithResult(
+  const bool was_present = IsPresent();
 """, """void BluetoothAdapterMac::PollAdapter() {
   poll_pending_ = true;
   poll_dirty_ = false;
-  base::ThreadPool::PostTaskAndReplyWithResult(
+  const bool was_present = IsPresent();
 """),
     ("""  RemoveTimedOutDevices();
+  AddPairedDevices();
 
   ui_task_runner_->PostDelayedTask(
       FROM_HERE,
@@ -1477,6 +1478,7 @@ edits = [
                      weak_ptr_factory_.GetWeakPtr()),
       base::Milliseconds(kPollIntervalMs));
 """, """  RemoveTimedOutDevices();
+  AddPairedDevices();
 
   if (g_ardia_bluetooth_poll_on_demand && !IsDiscovering()) {
     poll_pending_ = false;
@@ -1492,7 +1494,7 @@ edits = [
         base::Milliseconds(kPollIntervalMs));
   }
 """),
-    ("""void BluetoothAdapterMac::OnConnectedDeviceStateRetrieved(
+    ("""void BluetoothAdapterMac::ClassicDeviceAdded(
 """, """void BluetoothAdapterMac::PollAdapterOnDemand() {
   if (poll_pending_) {
     return;
@@ -1523,7 +1525,17 @@ void BluetoothAdapterMac::OnLowEnergyCentralManagerStateUpdated() {
   PollAdapterOnDemand();
 }
 
-void BluetoothAdapterMac::OnConnectedDeviceStateRetrieved(
+void BluetoothAdapterMac::ClassicDeviceAdded(
+"""),
+    ("""  for (auto& observer : observers_)
+    observer.AdapterDiscoveringChanged(this, true);
+  DCHECK(callback);
+""", """  for (auto& observer : observers_)
+    observer.AdapterDiscoveringChanged(this, true);
+  if (g_ardia_bluetooth_poll_on_demand) {
+    PollAdapterOnDemand();
+  }
+  DCHECK(callback);
 """),
 ]
 def edit(s):
@@ -1539,7 +1551,8 @@ hook(["bool g_ardia_bluetooth_poll_on_demand = false;\n",
       "  if (g_ardia_bluetooth_poll_on_demand && !IsDiscovering()) {\n",
       "void BluetoothAdapterMac::PollAdapterOnDemand() {\n",
       "void BluetoothAdapterMac::OnLowEnergyCentralManagerStateUpdated() {\n",
-      "    poll_dirty_ = true;\n"], edit)
+      "    poll_dirty_ = true;\n",
+      "  if (g_ardia_bluetooth_poll_on_demand) {\n    PollAdapterOnDemand();\n  }\n  DCHECK(callback);\n"], edit)
 PY
 
 hook "$src/chrome/browser/extensions/extension_action_storage_manager.cc" "restored browser action defaults notify" <<'PY'

@@ -47,13 +47,13 @@ enum ImportWriter {
   static let autofillBatch = 500
 
   @MainActor
-  static func write(_ entry: ImportVault.Entry, profile: String, kinds: Set<String>) async -> String {
+  static func write(_ entry: ImportVault.Entry, profile: String, kinds: Set<ImportKind>) async -> String {
     var out: [String: Int] = ["cookies": 0, "cookiesRejected": 0, "cookiesExisting": 0, "addresses": 0, "cards": 0]
     var error: String?
     func add(_ key: String, _ reply: [String: Any], _ field: String) {
       out[key, default: 0] += (reply[field] as? NSNumber)?.intValue ?? 0
     }
-    if kinds.contains("cookies"), !entry.cookies.isEmpty {
+    if kinds.contains(.cookies), !entry.cookies.isEmpty {
       let wire = CookieWire.batches(entry.cookies, size: cookieBatch)
       out["cookiesRejected"] = wire.dropped
       for batch in wire.batches {
@@ -69,7 +69,7 @@ enum ImportWriter {
       }
       wire.batches.forEach { $0.wipe() }
     }
-    if kinds.contains("autofill") {
+    if kinds.contains(.autofill) {
       var start = 0
       while start < max(entry.addresses.count, entry.cards.count) {
         let addresses = Array(entry.addresses[min(start, entry.addresses.count)..<min(start + autofillBatch, entry.addresses.count)])
@@ -96,7 +96,7 @@ enum ImportWriter {
     let data = args.withUnsafeBytes { NSMutableData(bytes: $0.baseAddress, length: $0.count) }
     args.wipe()
     let json: String = await withCheckedContinuation { done in
-      ArdiaCoreEngineBridge.callWithSecret(name, profile: profile, args: data) { done.resume(returning: $0) }
+      ArdiaEngineBridge.callWithSecret(name, profile: profile, args: data) { done.resume(returning: $0) }
     }
     let parsed = try? JSONSerialization.jsonObject(with: Data(json.utf8))
     return parsed as? [String: Any] ?? ["error": "bad reply from the engine"]

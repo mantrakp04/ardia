@@ -1,52 +1,33 @@
-import { cancelShortcutRecording, recordShortcut, Symbol, type MenuShortcut } from "@ardia/shell";
+import {
+  cancelShortcutRecording,
+  recordShortcut,
+  type MenuShortcut,
+  resolvedShortcuts,
+  useMenuBarRevision,
+} from "../../../state/commands/commandShortcuts";
+import { Box, Button, EmptyState, KeyCap, PopUp, SearchField, space, Symbol, Text, Toggle, useHover } from "../../ui";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { openUrls } from "../../../lib/actions";
-import { IconButton, useHover } from "../../primitives";
+import { Pressable, View } from "react-native";
+import { useTheme } from "../../ui/theme";
+import { useSettings } from "../../../state/browser/hooks";
+import { useProfileOrder } from "../../../state/profiles/hooks";
+import { setShortcutOverride, updateSettings } from "../../../state/settings/actions";
+import { openUrls } from "../../../state/browser/actions";
+import { Anchor, Group, PaneIntro, Row, SectionHeader } from "../Form";
 import { matchesQuery } from "../../pages/PageLayout";
-import { Anchor, Button, Group, PopUp, Row, SearchField, SectionHeader, useFormColors } from "../controls";
-import { shortcutItems } from "../paneData";
-import { useResource } from "../resources";
+import { shortcutItems } from "../../../state/settings/paneData";
+import { useResource } from "../../../state/settings/resources";
+import { formatShortcut, sameShortcut, type Shortcut } from "../../../state/commands/shortcuts";
 
-type Combo = { key: string; modifiers: string[] };
 type Filter = "all" | "customized" | "conflicts";
 
-const MOD_ORDER = ["control", "option", "shift", "command", "function"];
-const MOD_GLYPH: Record<string, string> = { control: "⌃", option: "⌥", shift: "⇧", command: "⌘", function: "🌐" };
-const KEY_NAMES: Record<string, string> = {
-  "\t": "⇥",
-  "\r": "↩",
-  "\u0003": "⌤",
-  "\u0008": "⌫",
-  "\u007f": "⌫",
-  "": "⌦",
-  "\u001b": "⎋",
-  " ": "Space",
-  "": "↑",
-  "": "↓",
-  "": "←",
-  "": "→",
-  "": "↖",
-  "": "↘",
-  "": "⇞",
-  "": "⇟",
-};
-
-function formatShortcut({ key, modifiers }: Combo): string {
-  if (!key) return "";
-  const mods = MOD_ORDER.filter((m) => modifiers.includes(m)).map((m) => MOD_GLYPH[m]).join("");
-  const code = key.charCodeAt(0);
-  const name = KEY_NAMES[key] ?? (code >= 0xf704 && code <= 0xf717 ? `F${code - 0xf703}` : key.toUpperCase());
-  return mods + name;
-}
-
-const comboId = (c: Combo) => (c.key ? `${[...c.modifiers].sort().join("+")}+${c.key.toLowerCase()}` : "");
+const NO_SHORTCUT: Shortcut = { key: "", modifiers: [] };
 
 export function ShortcutsPane() {
-  const theme = useTheme();
-  const overrides = useBrowser((s) => s.settings.shortcuts);
+  const overrides = useSettings((s) => s.shortcuts);
+  const profileOrder = useProfileOrder();
+  const menuBar = useMenuBarRevision();
+  const undoReopensClosedTab = useSettings((s) => s.undoReopensClosedTab);
   const [loaded] = useResource(shortcutItems);
   const items = loaded ?? null;
   const [query, setQuery] = useState("");
@@ -55,42 +36,19 @@ export function ShortcutsPane() {
 
   useEffect(() => () => void cancelShortcutRecording(), []);
 
-  const effective = (item: MenuShortcut): Combo => {
-    const o = overrides[item.id];
-    return o ? { key: o[0] ?? "", modifiers: o.slice(1) } : { key: item.defaultKey, modifiers: item.defaultModifiers };
-  };
+  const resolved = useMemo(() => resolvedShortcuts({ settings: { shortcuts: overrides }, profileOrder }), [items, overrides, profileOrder, menuBar]);
+  const byId = useMemo(() => new Map((items ?? []).map((item) => [item.id, item])), [items]);
+  const effective = (item: MenuShortcut): Shortcut => resolved.bindings.get(item.id)?.[0] ?? NO_SHORTCUT;
+  const conflictsOf = (item: MenuShortcut) => resolved.conflictsOf(item.id).flatMap((id) => byId.get(id) ?? []);
 
-  const combosOf = useMemo(() => {
-    const taken = new Set(Object.values(overrides).map((o) => comboId({ key: o[0] ?? "", modifiers: o.slice(1) })));
-    return (item: MenuShortcut) => {
-      const aliases = overrides[item.id] ? [] : (item.aliases ?? []).map((a) => comboId({ key: a[0] ?? "", modifiers: a.slice(1) }));
-      return [...new Set([comboId(effective(item)), ...aliases.filter((id) => !taken.has(id))])].filter(Boolean);
-    };
-  }, [overrides]);
-
-  const conflicts = useMemo(() => {
-    const byCombo = new Map<string, MenuShortcut[]>();
-    for (const item of items ?? []) for (const id of combosOf(item)) byCombo.set(id, [...(byCombo.get(id) ?? []), item]);
-    return byCombo;
-  }, [items, combosOf]);
-  const conflictsOf = (item: MenuShortcut) => [
-    ...new Set(combosOf(item).flatMap((id) => conflicts.get(id) ?? []).filter((x) => x.id !== item.id)),
-  ];
-
-  const setShortcut = (id: string, combo: Combo | null) => {
-    const next = { ...useBrowser.getState().settings.shortcuts };
-    if (combo) next[id] = [combo.key, ...combo.modifiers];
-    else delete next[id];
-    useBrowser.getState().updateSettings({ shortcuts: next });
-  };
 
   const record = async (item: MenuShortcut) => {
     setRecording(item.id);
     const combo = await recordShortcut();
     setRecording(null);
     if (!combo) return;
-    const isDefault = combo.key === item.defaultKey && comboId(combo) === comboId({ key: item.defaultKey, modifiers: item.defaultModifiers });
-    setShortcut(item.id, isDefault ? null : combo);
+    const isDefault = sameShortcut(combo, resolved.defaultsOf(item.id)[0] ?? NO_SHORTCUT);
+    setShortcutOverride(item.id, isDefault ? null : combo);
   };
 
   const shown = (items ?? []).filter((item) => {
@@ -104,25 +62,34 @@ export function ShortcutsPane() {
 
   return (
     <View>
-      <Text style={{ marginTop: 20, fontSize: 12.5, lineHeight: 17, color: theme.textSecondary }}>
-        Perform common actions in Ardia faster and from anywhere. Select an action to customize its keyboard shortcut.
-      </Text>
-      <Anchor id="shortcuts.actions" radius={8} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }}>
-        <SearchField value={query} onChangeText={setQuery} placeholder="Search actions" style={{ flex: 1 }} />
-        <PopUp
-          value={filter}
-          options={[
-            { value: "all", title: "All Shortcuts" },
-            { value: "customized", title: "Customized Shortcuts" },
-            { value: "conflicts", title: "Conflicting Shortcuts" },
-          ]}
-          onChange={setFilter}
-          minWidth={170}
-        />
-        <Button title="Reset All Shortcuts" disabled={!customizedCount} onPress={() => useBrowser.getState().updateSettings({ shortcuts: {} })} />
-      </Anchor>
+      <Box gap="xl">
+        <PaneIntro>Perform common actions in Ardia faster and from anywhere. Select an action to customize its keyboard shortcut.</PaneIntro>
+        <Group>
+          <Row anchor="shortcuts.undoReopensClosedTab">
+            <Toggle value={undoReopensClosedTab} onChange={(v) => updateSettings({ undoReopensClosedTab: v })} />
+          </Row>
+        </Group>
+        <Anchor id="shortcuts.actions" shape="row" style={TOOLBAR}>
+          <View style={FILL}>
+            <SearchField value={query} onChangeText={setQuery} placeholder="Search actions" />
+          </View>
+          <PopUp
+            value={filter}
+            options={[
+              { value: "all", title: "All Shortcuts" },
+              { value: "customized", title: "Customized Shortcuts" },
+              { value: "conflicts", title: "Conflicting Shortcuts" },
+            ]}
+            onChange={setFilter}
+            minWidth={170}
+          />
+          <Button title="Reset All Shortcuts" disabled={!customizedCount} onPress={() => updateSettings({ shortcuts: {} })} />
+        </Anchor>
+      </Box>
       {items !== null && shown.length === 0 && (
-        <Text style={{ marginTop: 30, textAlign: "center", fontSize: 13, color: theme.textTertiary }}>No matching actions</Text>
+        <View style={NO_MATCH}>
+          <EmptyState symbol="magnifyingglass" title="No matching actions" />
+        </View>
       )}
       {menus.map((menu) => (
         <View key={menu}>
@@ -138,7 +105,7 @@ export function ShortcutsPane() {
                     title={item.title}
                     description={
                       others.length ? (
-                        <Text style={{ fontSize: 11.5, marginTop: 2, color: "#FF9F0A" }}>
+                        <Text size="caption" tone="warning" style={CONFLICT}>
                           {`${others.length === 1 ? "This shortcut conflicts with another shortcut:" : "This shortcut conflicts with other shortcuts:"} ${others.map((o) => o.title).join(", ")}`}
                         </Text>
                       ) : item.path.length > 1 ? (
@@ -147,14 +114,14 @@ export function ShortcutsPane() {
                     }
                   >
                     {overrides[item.id] && (
-                      <IconButton icon="arrow.uturn.backward" size={11} box={24} radius={6} onPress={() => setShortcut(item.id, null)} tooltip="Reset to Default" />
+                      <Button variant="icon" icon="arrow.uturn.backward" size="m" onPress={() => setShortcutOverride(item.id, null)} tooltip="Reset to Default" />
                     )}
                     <ShortcutField
                       combo={effective(item)}
                       remappable={item.remappable}
                       recording={recording === item.id}
                       onRecord={() => void record(item)}
-                      onClear={() => setShortcut(item.id, item.defaultKey ? { key: "", modifiers: [] } : null)}
+                      onClear={() => setShortcutOverride(item.id, resolved.defaultsOf(item.id).length ? NO_SHORTCUT : null)}
                     />
                   </Row>
                 );
@@ -183,51 +150,40 @@ function ShortcutField({
   onRecord,
   onClear,
 }: {
-  combo: Combo;
+  combo: Shortcut;
   remappable: boolean;
   recording: boolean;
   onRecord: () => void;
   onClear: () => void;
 }) {
   const theme = useTheme();
-  const colors = useFormColors();
   const { hovered, hoverProps } = useHover();
   const text = recording ? "Type Shortcut" : formatShortcut(combo);
   if (!remappable) {
     return (
-      <View style={{ minWidth: 110, alignItems: "flex-end" }} tooltip="(not remappable)">
-        <Text style={{ fontSize: 13, color: theme.textTertiary }}>{text || "—"}</Text>
+      <View style={FIXED_KEYS} tooltip="(not remappable)">
+        <Text tone="textTertiary">{text || "—"}</Text>
       </View>
     );
   }
   return (
-    <View {...hoverProps}>
+    <View {...hoverProps} style={KEY_FIELD}>
       <Pressable onPress={onRecord}>
-        <View
-          style={{
-            minWidth: 110,
-            height: 24,
-            paddingHorizontal: 8,
-            borderRadius: 6,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            backgroundColor: recording ? `${colors.accent}33` : hovered ? colors.controlHover : colors.control,
-            borderWidth: recording ? 1.5 : 1,
-            borderColor: recording ? colors.accent : colors.controlBorder,
-          }}
-        >
-          <Text style={{ flex: 1, textAlign: "center", fontSize: 13, color: recording ? colors.accent : text ? theme.textPrimary : theme.textTertiary }}>
-            {text || "None"}
-          </Text>
-          {hovered && !recording && combo.key ? (
-            <Pressable onPress={onClear} tooltip="Remove Shortcut">
-              <Symbol name="xmark.circle.fill" size={11} color={theme.textTertiary} style={{ width: 14, height: 14 }} />
-            </Pressable>
-          ) : null}
-        </View>
+        <KeyCap keys={[text || "None"]} editing={recording} empty={!text} hovered={hovered} />
       </Pressable>
+      {hovered && !recording && combo.key ? (
+        <Pressable onPress={onClear} tooltip="Remove Shortcut" style={CLEAR}>
+          <Symbol name="xmark.circle.fill" size={11} color={theme.textTertiary} style={{ width: 14, height: 14 }} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
+
+const TOOLBAR = { flexDirection: "row", alignItems: "center", gap: space.m } as const;
+const FILL = { flex: 1 } as const;
+const NO_MATCH = { marginTop: space.huge } as const;
+const CONFLICT = { marginTop: space.xxs } as const;
+const FIXED_KEYS = { minWidth: 110, alignItems: "flex-end" } as const;
+const KEY_FIELD = { minWidth: 110, justifyContent: "center" } as const;
+const CLEAR = { position: "absolute", right: space.xs } as const;

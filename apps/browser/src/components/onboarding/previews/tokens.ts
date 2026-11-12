@@ -1,0 +1,109 @@
+import { curve, duration } from "../../ui/motion";
+import { ink, type ShadowLevel } from "../../ui/tokens";
+
+export const sceneMs = {
+  tabs: 1200,
+  address: 1100,
+  commandBar: 1200,
+  newTab: 1300,
+  newTabPosition: 1100,
+  tidy: 1500,
+  quit: 1500,
+  windows: 1400,
+  appearance: 1200,
+  style: 1300,
+  siteColor: 1300,
+  switcher: 1300,
+  typed: 1300,
+  block: 1300,
+  links: 1500,
+  autoBadge: 900,
+} as const;
+
+export const mockMotion = {
+  move: { duration: duration.long, easing: curve.enter },
+  fade: { duration: duration.long, easing: curve.enter },
+  focus: { duration: duration.slow, easing: curve.enter },
+} as const;
+
+export const mockShadow = {
+  window: { color: ink.black, opacity: { dark: 0.55, light: 0.22 }, radius: 22, offset: [0, 10] },
+  lens: { color: ink.black, opacity: { dark: 0.5, light: 0.18 }, radius: 18, offset: [0, 6] },
+  banner: { color: ink.black, opacity: { dark: 0.5, light: 0.14 }, radius: 16, offset: [0, 4] },
+} satisfies Record<string, ShadowLevel>;
+
+export const mockArt = { blobRadius: 80 } as const;
+
+export const mockNtp = { barTop: 120, barMaxWidth: 520 } as const;
+
+export const tabTints = {
+  notes: "#4E8A5B",
+  mail: "#3A7BEA",
+  maps: "#E8664A",
+  docs: "#7C6BD6",
+  music: "#E0457B",
+  cooking: "#E3A21A",
+  github: "#24292F",
+  newTab: "#8E8E93",
+  blank: "#A1A1A6",
+} as const;
+
+export const articleTints = {
+  notes: {
+    band: ["#E6EEE3", "#1E2722"],
+    sky: ["#CFE2EC", "#2A3946"],
+    sun: ["#F6D58C", "#CDAE63"],
+    far: ["#A8C8A2", "#3E5A45"],
+    near: ["#7DAA83", "#2F4839"],
+    sea: ["#9CC3D4", "#2D4A59"],
+  },
+  trip: {
+    band: ["#E5ECF6", "#1C2330"],
+    sky: ["#F4D9C2", "#4A3439"],
+    sun: ["#F2A86A", "#C77F4B"],
+    far: ["#E7B9A0", "#5B4044"],
+    near: ["#C98F7A", "#43303A"],
+    sea: ["#B7CFE0", "#2C3E52"],
+  },
+} as const;
+
+export const mockPage = {
+  dark: { page: "#161718", ink: "#ECECEE", inkDim: "rgba(236,236,238,0.62)", inkFaint: "rgba(236,236,238,0.4)" },
+  light: { page: "#FFFFFF", ink: "#1D1D1F", inkDim: "rgba(29,29,31,0.62)", inkFaint: "rgba(29,29,31,0.42)" },
+} as const;
+
+export const mockInk = {
+  lightsRim: "rgba(0,0,0,0.14)",
+  glyphOnTint: "#FFFFFF",
+  cursorRim: "#FFFFFF",
+  cursor: "#111111",
+  moon: "#C7CCE6",
+  sun: "#E3A21A",
+  pressFlash: "rgba(0,0,0,0.12)",
+  windowEdge: { dark: "#FFFFFF2E", light: "#0000002A" },
+  appWindowEdge: { dark: "#FFFFFF26", light: "#0000001F" },
+  frameEdge: { dark: "#FFFFFF33", light: "#00000026" },
+  desktop: { light: ["#D9DCE4", "#C4C9D6"], dark: ["#1C1D22", "#2B2D35"] },
+  chat: { dark: "#1E1E1E", light: "#FFFFFF" },
+  bubbleMine: "#2F7BF6",
+  bubbleMineText: "#FFFFFF",
+  bubble: { dark: "#3A3A3C", light: "#E9E9EB" },
+  ad: {
+    fill: { light: "#F6F1DE", dark: "#2A2719" },
+    border: { dark: "#5A5130", light: "#E2D6A8" },
+    label: { dark: "#B9A867", light: "#9C8A45" },
+  },
+} as const;
+
+export const styleScene = {
+  dark: { skyTop: "#0F1A2C", skyBottom: "#34506E", sun: "#FFB03B", far: "#2F8C78", near: "#1D5E50", sea: "#2468B4", glint: "#7FB4F0" },
+  light: { skyTop: "#6EC1F2", skyBottom: "#F7CDB2", sun: "#FFB627", far: "#5DBF8C", near: "#2C9867", sea: "#2F95DB", glint: "#BDE6FF" },
+} as const;
+
+export const styleSceneMs = { sunLeg: 6500 } as const;
+
+export const styleStage = {
+  tiles: { top: 50, h: 84, gap: 14, count: 3, radius: 18, icon: 30 },
+  field: { top: 156, h: 52, radius: 16 },
+  buttons: { top: 232, size: 50, gap: 12 },
+} as const;

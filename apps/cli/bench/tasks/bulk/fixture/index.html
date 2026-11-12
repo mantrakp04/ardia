@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orders · Harbor &amp; Pine · Storefront admin</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="logo" aria-hidden="true">H</span><span class="store-name">Harbor &amp; Pine</span></a>
+  <div class="top-search" aria-hidden="true"><span>⌕</span><span>Search the admin</span><kbd>⌘K</kbd></div>
+  <div class="me"><span class="avatar" aria-hidden="true">DW</span> Dana Whitfield</div>
+</header>
+<div class="shell">
+  <nav class="side" aria-label="Admin">
+    <a href="/" aria-current="page"><span class="ico" aria-hidden="true">▤</span>Orders<span class="count" id="nav-count"></span></a>
+    <a href="/settings"><span class="ico" aria-hidden="true">⚙</span>Settings</a>
+    <div class="side-foot">
+      <a href="/developers"><span class="ico" aria-hidden="true">{ }</span>Developers</a>
+    </div>
+  </nav>
+  <main class="main">
+    <div class="page">
+      <div class="page-head">
+        <h1>Orders</h1>
+        <div class="actions"><button class="btn" type="button" id="refresh">Refresh</button></div>
+      </div>
+      <section class="card" aria-label="Orders">
+        <div class="toolbar">
+          <label class="search"><span aria-hidden="true">⌕</span><span class="sr">Search orders</span><input id="q" type="search" placeholder="Search by order, customer, email, note or tag" autocomplete="off"></label>
+          <label class="filter-label" for="f-status">Status</label>
+          <select class="select" id="f-status">
+            <option value="">All statuses</option>
+            <option value="processing">Processing</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+            <option value="archived">Archived</option>
+          </select>
+          <label class="filter-label" for="f-channel">Sales channel</label>
+          <select class="select" id="f-channel">
+            <option value="">All channels</option>
+            <option value="online_store">Online store</option>
+            <option value="legacy_store">Legacy store</option>
+            <option value="pos">Point of Sale</option>
+            <option value="wholesale">Wholesale</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="orders">
+            <thead>
+              <tr><th scope="col">Order</th><th scope="col">Date</th><th scope="col">Customer</th><th scope="col">Channel</th><th scope="col" class="right">Total</th><th scope="col">Status</th><th scope="col">Delivered</th><th scope="col">Tags</th></tr>
+            </thead>
+            <tbody id="rows"><tr><td colspan="8" class="empty">Loading orders…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="pager">
+          <span id="range" class="muted" role="status" aria-live="polite"></span>
+          <div class="pager-btns">
+            <button class="btn" type="button" id="prev" aria-label="Previous page">‹ Previous</button>
+            <span class="pageinfo" id="pageinfo"></span>
+            <button class="btn" type="button" id="next" aria-label="Next page">Next ›</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<dialog id="order" aria-labelledby="o-name">
+  <form method="dialog" id="o-form">
+    <div class="dlg-head">
+      <div>
+        <h2 id="o-name"></h2>
+        <div class="meta" id="o-meta"></div>
+      </div>
+      <span id="o-badge"></span>
+      <button type="button" class="x" id="o-close" aria-label="Close">✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="stack">
+        <section class="card card-pad">
+          <h3>Items</h3>
+          <table class="items"><tbody id="o-items"></tbody></table>
+          <div class="totals"><span>Total</span><span id="o-total"></span></div>
+        </section>
+        <section class="card card-pad">
+          <h3>Timeline</h3>
+          <ul class="timeline" id="o-timeline"></ul>
+        </section>
+        <section class="card card-pad">
+          <h3>Notes</h3>
+          <p id="o-note" class="muted" style="margin:0"></p>
+        </section>
+      </div>
+      <div class="stack">
+        <section class="card card-pad">
+          <h3>Customer</h3>
+          <div id="o-customer"></div>
+          <div id="o-email" class="muted"></div>
+        </section>
+        <section class="card card-pad">
+          <label class="field-label" for="o-status">Status</label>
+          <select class="select status-select" id="o-status">
+            <option value="processing">Processing</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+            <option value="archived">Archived</option>
+          </select>
+        </section>
+        <section class="card card-pad">
+          <label class="field-label" for="o-tag-input">Tags</label>
+          <div class="tag-box" id="o-tags"><input id="o-tag-input" type="text" placeholder="Add a tag" autocomplete="off" aria-describedby="o-tag-help"></div>
+          <p class="field-help" id="o-tag-help">Press Enter or comma to add a tag.</p>
+        </section>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <span class="err" id="o-error" role="alert"></span>
+      <button type="button" class="btn" id="o-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="o-save" disabled>Save</button>
+    </div>
+  </form>
+</dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -29,7 +29,7 @@ public enum SafariDirect {
     var out = SafariExport()
     var history: [HistoryEntry] = []
 
-    func step(_ code: String, _ body: () throws -> Void) {
+    func step(_ code: ImportWarning.Code, _ body: () throws -> Void) {
       do { try body() } catch let error as ImportError where error == .cancelled {
       } catch let error as ImportError {
         out.warnings.append(ImportWarning(nil, code, error.description))
@@ -39,19 +39,19 @@ public enum SafariDirect {
     }
 
     try cancellation.check()
-    step("unreadableBookmarks") {
+    step(.unreadableBookmarks) {
       out.bookmarks = try bookmarks(dir.appendingPathComponent("Bookmarks.plist"))
     }
     try cancellation.check()
-    step("unreadableHistory") {
+    step(.unreadableHistory) {
       history = try readHistory(dir.appendingPathComponent("History.db"), cancellation: cancellation)
     }
     try cancellation.check()
-    step("unreadableTabs") {
+    step(.unreadableTabs) {
       out.tabs = tabs(dir.appendingPathComponent("LastSession.plist"))
     }
     try cancellation.check()
-    step("unreadableCookies") {
+    step(.unreadableCookies) {
       out.cookies = try SafariCookies.load(home: home, cancellation: cancellation)
     }
     out.profiles = [SafariExport.Profile(name: nil, history: history, extensions: [])]

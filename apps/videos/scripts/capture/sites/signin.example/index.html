@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Docpad · Sign in</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}body{font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif;color:#1d1d1f;overflow:hidden}</style>
+<style>
+body{background:#f5f6f8;display:flex;align-items:center;justify-content:center}
+.box{width:420px;background:#fff;border-radius:16px;padding:40px 38px;box-shadow:0 12px 40px rgba(20,30,60,.12);text-align:center}
+.logo{font-size:30px;font-weight:800;color:#2b59c3}h1{font-size:22px;margin:18px 0 26px;font-weight:650}
+button{width:100%;height:46px;border-radius:10px;border:1px solid #d6dae2;background:#fff;font:600 16px -apple-system,sans-serif;display:flex;align-items:center;justify-content:center;gap:12px;cursor:pointer}
+.g{width:20px;height:20px;border-radius:50%;background:conic-gradient(#ea4335 0 25%,#fbbc05 0 50%,#34a853 0 75%,#4285f4 0)}
+p{margin-top:18px;color:#8a90a0;font-size:14px}
+</style></head><body>
+<div class="box"><div class="logo">docpad</div><h1>Sign in to your workspace</h1>
+<button id="go"><span class="g"></span>Continue with Accounts</button><p>We'll open a window to sign you in.</p></div>
+<script>
+document.getElementById("go").addEventListener("click", () => window.open("/popup.html", "auth", "left=" + (screenX + 560) + ",top=" + (screenY + 150) + ",width=440,height=560"));
+</script>
+</body></html>

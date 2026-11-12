@@ -1,0 +1,20 @@
+{
+  "browser": {
+    "enabled_labs_experiments": []
+  },
+  "profile": {
+    "info_cache": {
+      "Default": {
+        "name": "Beta tester"
+      },
+      "Profile 1": {
+        "name": "Encrypted only"
+      }
+    },
+    "last_used": "Default",
+    "profiles_order": [
+      "Default",
+      "Profile 1"
+    ]
+  }
+}

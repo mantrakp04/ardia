@@ -1,0 +1,21 @@
+A DevTools session that never used the FindInPage domain no longer ends the tab's find session when it detaches.
+Chromium 156's new FindInPageHandler::Disable() runs at every detach and called StopFinding(CLEAR_SELECTION) on the
+WebContents whenever it had a FindRequestManager, which it has after any find-in-page: the renderer ran "Unselect",
+so a selection a script had set in a focused field was gone (selectionStart/End 0,0, no caret) the moment any
+session detached. ArdiaCore's own sessions (tab snapshots, cookie reads) detach on their own, so after ⌘F every such call did
+this. Disable() now stops only a find this handler started (FindFirst sets query_); FindInPage.stop is unchanged.
+
+diff --git a/content/browser/devtools/protocol/find_in_page_handler.cc b/content/browser/devtools/protocol/find_in_page_handler.cc
+--- a/content/browser/devtools/protocol/find_in_page_handler.cc
++++ b/content/browser/devtools/protocol/find_in_page_handler.cc
+@@ -59,7 +59,9 @@
+ 
+ Response FindInPageHandler::Disable() {
+   ResolvePendingCallback(Response::ServerError("Target is being disposed"));
+-  StopFindingInternal();
++  if (!query_.empty()) {
++    StopFindingInternal();
++  }
+   return Response::Success();
+ }
+ 

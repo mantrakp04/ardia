@@ -74,7 +74,7 @@
    // first responder for the key NSWindow, NativeWidgetMacNSWindowHost's
 --- a/chrome/browser/ui/browser.cc
 +++ b/chrome/browser/ui/browser.cc
-@@ -609,7 +609,18 @@
+@@ -614,7 +614,18 @@ void Browser::OnTabStripModelChanged(TabStripModel* tab_strip_model,
    OnActiveTabChanged(change, selection);
  }
  
@@ -90,9 +90,9 @@
 +      !UnloadController::From(this)->is_attempting_to_close_browser()) {
 +    return;
 +  }
-   // Note: even though the tab strip is empty, the call to Close() may not
-   // result in closing this Browser. This can happen in the case of closing
-   // the last Browser with ongoing downloads.
+   // A touch tab drag session may still be delivering OS touch events to this
+   // window's native widget. Destroying it mid-gesture would strand the drag, so
+   // let TabDragController take ownership of closing this browser once the drag
 --- a/chrome/browser/ui/unload_controller.cc
 +++ b/chrome/browser/ui/unload_controller.cc
 @@ -3,6 +3,7 @@
@@ -103,16 +103,16 @@
  
  #include <algorithm>
  
-@@ -578,6 +579,12 @@
+@@ -632,6 +633,12 @@ void UnloadController::OnTabStripModelChanged(
  }
  
  void UnloadController::TabStripEmpty() {
 +  // Ardia: see Browser::TabStripEmpty. The window stays open for new tabs.
-+  if (!is_attempting_to_close_browser_ &&
++  if (!is_attempting_to_close_browser() &&
 +      g_ardia_keeps_window_without_tabs &&
 +      g_ardia_keeps_window_without_tabs(browser_.get())) {
 +    return;
 +  }
-   // Set is_attempting_to_close_browser_ here, so that extensions, etc, do not
-   // attempt to add tabs to the browser before it closes.
-   is_attempting_to_close_browser_ = true;
+   // Set state_ here, so that extensions, etc, do not attempt to add tabs to the
+   // browser before it closes.
+   if (state_ == State::kIdle) {

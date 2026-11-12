@@ -1,55 +1,81 @@
+import { useRef, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { switchProfile } from "../../lib/actions";
-import { useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { useIsIncognito } from "../../store/hooks";
-import { usePagerPages, type PagerPage } from "../layout/profilePager";
-import { useHover } from "../primitives";
+import { switchProfile } from "../../state/browser/actions";
+import { noteSwitcherPress } from "../../state/telemetry/switcherPresses";
+import { layout, useTheme } from "../ui/theme";
+import { useIsIncognito, useProfile, useSettings } from "../../state/browser/hooks";
+import { useProfileOrder, useProfileRecords } from "../../state/profiles/hooks";
+import { useNativePagerPosition, usePagerPages, type PagerPage } from "../../state/windows/profilePager";
+import { ContextMenuArea, useHover } from "../ui";
+import { TooltipAbove } from "../ui/TooltipAbove";
+import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
+import { switcherCellWidth, switcherIcons, SwitcherMark } from "./ProfileIcons";
+import { openProfileItemMenu } from "./profileMenu";
+import { profileSwitcher } from "./tokens";
 
-export const PROFILE_DOTS_HEIGHT = 41;
-const CELL = 12;
-const DOT = 6;
-const BAND = 28;
-const SELECTED = 0.85;
-const HOVERED = 0.4;
-const IDLE = 0.2;
+export const PROFILE_DOTS_HEIGHT = profileSwitcher.height;
+const { band: BAND, dotTooltipLift } = profileSwitcher;
+const SIDE_ROOM = layout.sidebarInset;
+const SIDE_ROOM_BESIDE_DOWNLOADS = SIDEBAR_FOOTER_DOWNLOADS.left + SIDEBAR_FOOTER_DOWNLOADS.size + 4;
 
 export function useProfileDotsShown() {
   const incognito = useIsIncognito();
-  const count = useBrowser((s) => s.profileOrder.length);
+  const count = useProfileOrder((o) => o.length);
   return !incognito && count > 1;
 }
 
-export function ProfileDots({ windowId }: { windowId: string }) {
-  const ids = useBrowser(useShallow((s) => s.profileOrder));
+export function ProfileDots({ windowId, width, besideDownloads }: { windowId: string; width: number; besideDownloads: boolean }) {
+  const ids = useProfileOrder(useShallow((o) => o));
+  const saved = useProfileRecords(useShallow((profiles) => ids.map((id) => profiles[id]?.icon ?? null)));
+  const shown = useSettings((s) => s.profileSwitcherIcons);
+  const icons = switcherIcons(saved, shown, width - 2 * (besideDownloads ? SIDE_ROOM_BESIDE_DOWNLOADS : SIDE_ROOM));
   const { pages, pager } = usePagerPages(windowId);
   return (
     <View style={{ height: PROFILE_DOTS_HEIGHT, alignItems: "center" }}>
       <View style={{ marginTop: (PROFILE_DOTS_HEIGHT - 3 - BAND) / 2, height: BAND, flexDirection: "row" }}>
-        {ids.map((id) => (
-          <Dot key={id} id={id} windowId={windowId} page={pages.find((p) => p.id === id)} pos={pager.pos} />
+        {ids.map((id, i) => (
+          <Dot key={id} id={id} windowId={windowId} icon={icons[i] ?? null} page={pages.find((p) => p.id === id)} pos={pager.pos} />
         ))}
       </View>
     </View>
   );
 }
 
-function Dot({ id, windowId, page, pos }: { id: string; windowId: string; page: PagerPage | undefined; pos: Animated.Value }) {
+function Dot({ id, windowId, icon, page, pos }: { id: string; windowId: string; icon: string | null; page: PagerPage | undefined; pos: Animated.Value }) {
   const theme = useTheme();
-  const name = useBrowser((s) => s.profiles[id]?.name ?? "");
+  useNativePagerPosition(windowId);
+  const name = useProfile(id, (p) => p?.name ?? "");
   const { hovered, hoverProps } = useHover();
-  const rest = hovered ? HOVERED : IDLE;
+  const [pressed, setPressed] = useState(false);
+  if (pressed && !hovered) setPressed(false);
+  const levels = icon ? profileSwitcher.icons : profileSwitcher.dots;
+  const rest = hovered ? levels.hovered : levels.idle;
   const opacity = page
-    ? pos.interpolate({ inputRange: [page.slot - 1, page.slot, page.slot + 1], outputRange: [rest, SELECTED, rest], extrapolate: "clamp" })
+    ? pos.interpolate({ inputRange: [page.slot - 1, page.slot, page.slot + 1], outputRange: [rest, levels.selected, rest], extrapolate: "clamp" })
     : rest;
+  const cell = switcherCellWidth(icon);
+  const mark = useRef<View>(null);
   return (
-    <View {...hoverProps} tooltip={name}>
-      <Pressable accessibilityRole="button" accessibilityLabel={name} onPress={() => switchProfile(windowId, id, true)}>
-        <View style={{ width: CELL, height: BAND, alignItems: "center", justifyContent: "center" }}>
-          <Animated.View style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: theme.dark ? "#FFFFFF" : "#000000", opacity }} />
-        </View>
-      </Pressable>
+    <View {...hoverProps} ref={mark}>
+      <TooltipAbove text={name} active={hovered && !pressed} centerX={cell / 2} bottom={BAND / 2 + dotTooltipLift} />
+      <ContextMenuArea onContextMenu={() => void openProfileItemMenu(id, "sidebar", windowId, mark.current)}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={name}
+          onPress={() => {
+            setPressed(true);
+            noteSwitcherPress(windowId, id, !!icon);
+            switchProfile(windowId, id, true);
+          }}
+        >
+          <View style={{ width: cell, height: BAND, alignItems: "center", justifyContent: "center" }}>
+            <Animated.View style={{ opacity }}>
+              <SwitcherMark icon={icon} color={theme.mark} />
+            </Animated.View>
+          </View>
+        </Pressable>
+      </ContextMenuArea>
     </View>
   );
 }

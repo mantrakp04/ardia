@@ -1,28 +1,30 @@
-import {
-  checkForUpdates,
-  setAsDefaultBrowser,
-  setAutomaticUpdateChecks,
-  setAutomaticUpdateDownloads,
-  setLaunchAtLogin,
-  setUpdateChannel,
-  Symbol,
-  type UpdateChannel,
-} from "@ardia/shell";
+import type { DownloadSettings } from "../../../state/downloads/actions";
+import { checkForUpdates, setLaunchAtLogin } from "../../../state/app/appSettings";
+import { pickFolder } from "../../../state/app/system";
+import { ActivitySpinner, Button, PopUp, space, Symbol, Toggle } from "../../ui";
 import { useEffect } from "react";
-import { AppState, Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { SHARING_COPY } from "../../../telemetry/copy";
-import { Anchor, Button, Group, PopUp, Row, SectionHeader, Toggle, useFormColors } from "../controls";
-import { defaultBrowser, loginItem, updater } from "../paneData";
-import { store, useResource } from "../resources";
-import { openImport } from "../windows";
+import { AppState, View } from "react-native";
+import { useTheme } from "../../ui/theme";
+import { updateSettings } from "../../../state/settings/actions";
+import { currentEngineProfile } from "../../../state/browser/current";
+import { useProfiles, useSettings } from "../../../state/browser/hooks";
+import { SHARING_COPY } from "../../../state/telemetry/copy";
+import { Anchor, Group, ProfilePicker, Row, SectionHeader, SettingToggle, useSettingsProfile } from "../Form";
+import { defaultBrowser, downloadSettings, followUpdater, loginItem, makeDefaultBrowser, setDownloadsFor, setUpdaterPrefs, updater } from "../../../state/settings/paneData";
+import { checkNowControl, switchCheckLine, updaterBusy } from "../../../state/settings/updateStatus";
+import { useResource } from "../../../state/settings/resources";
+import { openImport } from "../../../state/settings/settingsWindows";
+import { redoSetupFromSettings } from "../../../state/onboarding/redo";
+import { ExportBookmarksRow } from "./ExportBookmarksRow";
+import { SetupCodeRow } from "./SetupCodeRow";
+import { UI_LOCALE } from "../../../lib/uiLocale";
 
 const APP = "Ardia";
 
 export function GeneralPane() {
-  const settings = useBrowser((s) => s.settings);
-  const update = useBrowser((s) => s.updateSettings);
+  const openLinksInLittleArdia = useSettings((s) => s.openLinksInLittleArdia);
+  const restoreSession = useSettings((s) => s.restoreSession);
+  const commandBarPreference = useSettings((s) => s.commandBarPreference);
   const [loginStatus = "notRegistered", refreshLogin] = useResource(loginItem);
 
   return (
@@ -40,42 +42,29 @@ export function GeneralPane() {
             onChange={(on) => void setLaunchAtLogin(on).catch(() => {}).finally(refreshLogin)}
           />
         </Row>
-        <Row anchor="general.warnBeforeQuitting">
-          <Toggle value={settings.warnBeforeQuitting} onChange={(v) => update({ warnBeforeQuitting: v })} />
-        </Row>
-        <Row anchor="general.warnBeforeClosingWindow">
-          <Toggle value={settings.warnBeforeClosingWindow} onChange={(v) => update({ warnBeforeClosingWindow: v })} />
-        </Row>
-        <Row
-          anchor="general.openLinksFrom"
+        <SettingToggle anchor="general.warnBeforeQuitting" />
+        <SettingToggle anchor="general.warnBeforeClosingWindow" />
+        <SettingToggle
+          anchor="general.openLinksInLittleArdia"
           description={
-            settings.openLinksInLittleArdia
+            openLinksInLittleArdia
               ? `A link from Discord, Slack or Mail opens in Little Ardia, a small window of its own. ⌘O moves it into ${APP}; closing it throws it away.`
               : `A link from Discord, Slack or Mail opens as a new tab in the ${APP} window you used last.`
           }
-        >
-          <PopUp
-            value={settings.openLinksInLittleArdia ? "small" : "tab"}
-            options={[
-              { value: "small", title: "Little Ardia" },
-              { value: "tab", title: "A new tab" },
-            ]}
-            onChange={(v) => update({ openLinksInLittleArdia: v === "small" })}
-            minWidth={190}
-          />
-        </Row>
+        />
+        <SettingToggle anchor="general.littleArdiaOpensNewTabLinks" />
       </Group>
 
       <SectionHeader title={`When quitting ${APP}:`} />
       <Group>
         <Row anchor="general.windowsAndTabs">
           <PopUp
-            value={settings.restoreSession ? "keep" : "close"}
+            value={restoreSession ? "keep" : "close"}
             options={[
               { value: "keep", title: "Preserve tabs and windows" },
               { value: "close", title: "Start fresh" },
             ]}
-            onChange={(v) => update({ restoreSession: v === "keep" })}
+            onChange={(v) => updateSettings({ restoreSession: v === "keep" })}
             minWidth={190}
           />
         </Row>
@@ -85,26 +74,76 @@ export function GeneralPane() {
       <Group>
         <Row anchor="general.commandBarPreference">
           <PopUp
-            value={settings.commandBarPreference}
+            value={commandBarPreference}
             options={[
               { value: "website", title: "Use Website First" },
               { value: "search", title: "Prefer Search Engine" },
             ]}
-            onChange={(v) => update({ commandBarPreference: v })}
+            onChange={(v) => updateSettings({ commandBarPreference: v })}
             minWidth={190}
           />
         </Row>
       </Group>
 
+      <DownloadsSection />
+
       <UpdatesSection />
 
-      <SectionHeader title="Import" />
+      <SectionHeader title="Import and Export" />
       <Group>
         <Row anchor="general.importBrowser">
           <Button title="Import…" onPress={openImport} />
         </Row>
+        <ExportBookmarksRow />
+        <SetupCodeRow />
       </Group>
     </View>
+  );
+}
+
+const homeRelative = (path: string) => path.replace(/^\/Users\/[^/]+(?=\/|$)/, "~");
+
+function DownloadsSection() {
+  const profiles = useProfiles();
+  const [profileId, setProfileId] = useSettingsProfile();
+  const profile = currentEngineProfile(profileId);
+  const [current] = useResource(downloadSettings, profile);
+  const others = [...new Set(profiles.map((p) => currentEngineProfile(p.id)))].filter((p) => p !== profile);
+  const apply = (patch: Partial<Pick<DownloadSettings, "folder" | "askWhereToSave">>, targets = [profile]) => void setDownloadsFor(patch, targets);
+  const change = async () => {
+    if (!current) return;
+    const folder = await pickFolder(current.folder, "Use Folder");
+    if (folder) apply({ folder });
+  };
+
+  return (
+    <>
+      <SectionHeader
+        title="Downloads"
+        description={profiles.length > 1 ? "Each profile saves to its own folder." : undefined}
+        action={<ProfilePicker value={profileId} onChange={setProfileId} />}
+      />
+      <Group>
+        <Row
+          anchor="general.downloadsFolder"
+          description={current ? (current.managed ? `${homeRelative(current.folder)}, set by your organization.` : homeRelative(current.folder)) : undefined}
+        >
+          <Button title="Change…" disabled={!current || current.managed} onPress={() => void change()} />
+        </Row>
+        <Row anchor="general.askWhereToSave">
+          <Toggle value={current?.askWhereToSave ?? false} disabled={!current || current.managed} onChange={(v) => apply({ askWhereToSave: v })} />
+        </Row>
+        {others.length > 0 && (
+          <Row anchor="general.downloadsAllProfiles">
+            <Button
+              title="Use for All Profiles"
+              disabled={!current || current.managed}
+              onPress={() => current && apply({ folder: current.folder, askWhereToSave: current.askWhereToSave }, others)}
+            />
+          </Row>
+        )}
+      </Group>
+    </>
   );
 }
 
@@ -115,29 +154,29 @@ function UpdatesSection() {
     const sub = AppState.addEventListener("change", refresh);
     return () => sub.remove();
   }, []);
+  const busy = updaterBusy(state);
+  useEffect(() => {
+    if (busy) followUpdater();
+  }, [busy]);
   if (!state?.available) return null;
   const ready = state.configured;
-  const set = (patch: { automaticChecks?: boolean; automaticDownloads?: boolean; channel?: UpdateChannel }) => {
-    store(updater, [], { ...state, ...patch });
-    if (patch.automaticChecks !== undefined) void setAutomaticUpdateChecks(patch.automaticChecks).finally(refresh);
-    if (patch.automaticDownloads !== undefined) void setAutomaticUpdateDownloads(patch.automaticDownloads).finally(refresh);
-    if (patch.channel !== undefined) void setUpdateChannel(patch.channel).finally(refresh);
-  };
   const lastCheck = state.lastCheck
-    ? `Last checked ${new Date(state.lastCheck).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`
+    ? `Last checked ${new Date(state.lastCheck).toLocaleString(UI_LOCALE, { dateStyle: "medium", timeStyle: "short" })}.`
     : "Not checked yet.";
+  const status = switchCheckLine(state, APP) ?? lastCheck;
+  const checkNow = checkNowControl(state);
   return (
     <>
       <SectionHeader title="Updates" description={ready ? undefined : "Updates aren't set up for this build."} />
       <Group>
         <Row anchor="general.updateChecks" description={`${SHARING_COPY.updateChecks} ${SHARING_COPY.switchFile}`}>
-          <Toggle value={ready && state.automaticChecks} disabled={!ready} onChange={(v) => set({ automaticChecks: v })} />
+          <Toggle value={ready && state.automaticChecks} disabled={!ready} onChange={(v) => setUpdaterPrefs({ automaticChecks: v })} />
         </Row>
         <Row anchor="general.autoUpdate">
           <Toggle
             value={ready && state.automaticChecks && state.automaticDownloads}
             disabled={!ready || !state.automaticChecks}
-            onChange={(v) => set({ automaticDownloads: v })}
+            onChange={(v) => setUpdaterPrefs({ automaticDownloads: v })}
           />
         </Row>
         {state.channel && (
@@ -149,13 +188,16 @@ function UpdatesSection() {
                 { value: "nightly", title: "Nightly" },
               ]}
               disabled={!ready}
-              onChange={(channel) => set({ channel })}
+              onChange={(channel) => setUpdaterPrefs({ channel })}
               minWidth={190}
             />
           </Row>
         )}
-        <Row anchor="general.checkNow" title={`${APP} ${state.displayVersion ?? state.version}`} description={ready ? lastCheck : undefined}>
-          <Button title="Check Now" disabled={ready && (!state.canCheck || state.sessionInProgress)} onPress={() => void checkForUpdates().finally(refresh)} />
+        <Row anchor="general.checkNow" title={`${APP} ${state.displayVersion ?? state.version}`} description={ready ? status : undefined}>
+          <View style={CHECK_NOW}>
+            {checkNow.checking ? <ActivitySpinner style={CHECK_SPINNER} /> : null}
+            <Button title={checkNow.title} disabled={checkNow.disabled} onPress={() => checkNow.pressable && void checkForUpdates().finally(() => followUpdater())} />
+          </View>
         </Row>
       </Group>
     </>
@@ -164,38 +206,30 @@ function UpdatesSection() {
 
 function DefaultBrowserBanner() {
   const theme = useTheme();
-  const colors = useFormColors();
   const [isDefault, reload] = useResource(defaultBrowser);
   useEffect(() => {
     const sub = AppState.addEventListener("change", () => void reload());
     return () => sub.remove();
   }, []);
   return (
-    <Anchor
-      id="general.defaultBrowser"
-      radius={12}
-      style={{
-        marginTop: 20,
-        padding: 14,
-        borderRadius: 12,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        backgroundColor: colors.group,
-        borderWidth: 1,
-        borderColor: colors.groupBorder,
-      }}
-    >
-      <Symbol
-        name={isDefault ? "checkmark.seal.fill" : "safari"}
-        size={20}
-        color={isDefault ? "#34C759" : theme.icon}
-        style={{ width: 28, height: 28 }}
-      />
-      <Text style={{ flex: 1, fontSize: 13, color: theme.textPrimary }}>
-        {isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}
-      </Text>
-      {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void setAsDefaultBrowser().then((v) => store(defaultBrowser, [], v))} />}
+    <Anchor id="general.defaultBrowser" shape="card" style={BANNER}>
+      <Group>
+        <Row
+          icon={<Symbol name={isDefault ? "checkmark.seal.fill" : "safari"} size={20} color={isDefault ? theme.success : theme.icon} style={BANNER_ICON} />}
+          title={isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}
+        >
+          {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void makeDefaultBrowser()} />}
+        </Row>
+        <Row anchor="general.redoSetup" icon={<Symbol name="sparkles" size={18} color={theme.icon} style={BANNER_ICON} />} description="Walk through import, look and layout again">
+          <Button title="Redo Setup…" onPress={redoSetupFromSettings} />
+        </Row>
+      </Group>
     </Anchor>
   );
 }
+
+const BANNER = { marginTop: space.xxl } as const;
+const BANNER_ICON = { width: 28, height: 28 } as const;
+
+const CHECK_NOW = { flexDirection: "row", alignItems: "center", gap: space.m } as const;
+const CHECK_SPINNER = { width: 14, height: 14 } as const;

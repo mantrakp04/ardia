@@ -3,15 +3,16 @@
 #import <AppKit/AppKit.h>
 #include <os/log.h>
 
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
-#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.h"
 #include "chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.h"
 #include "chrome/browser/ui/tab_contents/chrome_web_contents_view_delegate.h"
@@ -22,13 +23,21 @@
 #include "ui/base/data_transfer_policy/data_transfer_endpoint.h"
 #include "chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/grit/generated_resources.h"
 #include "content/public/browser/context_menu_params.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/drop_data.h"
 #include "ardia/core/ac_browser.h"
+#include "ardia/core/ac_context_menu_share.h"
+#include "ardia/core/ac_extension_drop.h"
+#include "ardia/core/ac_launch_switches.h"
+#import "ardia/core/ac_page_view.h"
 #import "ardia/core/ardiacore_internal.h"
 #include "ui/events/event_constants.h"
+#include "ui/base/page_transition_types.h"
+#include "ui/base/window_open_disposition.h"
 
 namespace ardiacore {
 
@@ -36,14 +45,12 @@ namespace {
 
 constexpr int kHostFirst = IDC_CONTENT_CONTEXT_CUSTOM_FIRST + 900;
 constexpr int kHostLast = IDC_CONTENT_CONTEXT_CUSTOM_FIRST + 999;
+constexpr int kShareFirst = IDC_CONTENT_CONTEXT_CUSTOM_FIRST + 890;
+constexpr int kShareLast = IDC_CONTENT_CONTEXT_CUSTOM_FIRST + 899;
+constexpr int kOpenLinkInProfileItems = 100;
 
 ArdiaCoreTab* TabOf(content::WebContents* contents) {
-  BrowserWindowInterface* browser =
-      contents ? GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents)
-               : nullptr;
-  return browser && WindowHost::ForBrowser(browser)
-             ? TabBridge::GetOrCreate(contents)->tab()
-             : nil;
+  return WindowHost::ForContents(contents) ? TabBridge::GetOrCreate(contents)->tab() : nil;
 }
 
 NSArray* DescribeMenu(ui::MenuModel* model) {
@@ -112,6 +119,39 @@ class ACContextMenu : public RenderViewContextMenuMacCocoa {
   void Show() override {
     if (!ShowThroughHost()) {
       RenderViewContextMenuMacCocoa::Show();
+    }
+  }
+
+  void ArrangeLikeDia() {
+    for (size_t i = menu_model_.GetItemCount(); i-- > 0;) {
+      const int command = menu_model_.GetCommandIdAt(i);
+      if (command == IDC_CONTENT_CONTEXT_OPENLINKINPROFILE ||
+          (command >= IDC_OPEN_LINK_IN_PROFILE_FIRST &&
+           command < IDC_OPEN_LINK_IN_PROFILE_FIRST + kOpenLinkInProfileItems)) {
+        menu_model_.RemoveItemAt(i);
+      }
+    }
+    const std::optional<size_t> save =
+        menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_SAVELINKAS);
+    const std::optional<size_t> copy =
+        menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_COPYLINKLOCATION);
+    if (save && copy && *save > *copy) {
+      menu_model_.RemoveItemAt(*save);
+      menu_model_.InsertItemWithStringIdAt(*copy, IDC_CONTENT_CONTEXT_SAVELINKAS,
+                                           IDS_CONTENT_CONTEXT_SAVELINKAS);
+    }
+    const std::optional<size_t> reload = menu_model_.GetIndexOfCommandId(IDC_RELOAD);
+    if (!reload) {
+      return;
+    }
+    if (!menu_model_.GetIndexOfCommandId(IDC_BACK)) {
+      menu_model_.InsertItemWithStringIdAt(
+          menu_model_.GetIndexOfCommandId(IDC_FORWARD).value_or(*reload), IDC_BACK,
+          IDS_CONTENT_CONTEXT_BACK);
+    }
+    if (!menu_model_.GetIndexOfCommandId(IDC_FORWARD)) {
+      menu_model_.InsertItemWithStringIdAt(*menu_model_.GetIndexOfCommandId(IDC_BACK) + 1,
+                                           IDC_FORWARD, IDS_CONTENT_CONTEXT_FORWARD);
     }
   }
 
@@ -184,15 +224,54 @@ class ACContextMenu : public RenderViewContextMenuMacCocoa {
     }
   }
 
+  void AddShareItems() {
+    ArdiaCoreTab* tab = TabOf(source_web_contents_);
+    if (![tab.delegate respondsToSelector:@selector(tab:shareFromContextMenu:)]) {
+      return;
+    }
+    shares_ = ContextMenuSharesFor(params());
+    for (size_t i = 0; i < shares_.size(); ++i) {
+      size_t at = menu_model_.GetItemCount();
+      for (int neighbour : ContextMenuShareNeighbours(shares_[i])) {
+        if (std::optional<size_t> index = menu_model_.GetIndexOfCommandId(neighbour)) {
+          at = *index + 1;
+          while (at < menu_model_.GetItemCount() &&
+                 menu_model_.GetTypeAt(at) != ui::MenuModel::TYPE_SEPARATOR) {
+            ++at;
+          }
+          break;
+        }
+      }
+      menu_model_.InsertItemAt(at, kShareFirst + static_cast<int>(i),
+                               ContextMenuShareTitle(shares_[i], shares_.size() == 1));
+    }
+  }
+
  protected:
   bool IsCommandIdEnabled(int command_id) const override {
     if (command_id >= kHostFirst && command_id <= kHostLast) {
+      return true;
+    }
+    if (command_id >= kShareFirst && command_id <= kShareLast) {
       return true;
     }
     return RenderViewContextMenuMacCocoa::IsCommandIdEnabled(command_id);
   }
 
   void ExecuteCommand(int command_id, int event_flags) override {
+    if (command_id == IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW && TabOf(source_web_contents_)) {
+      OpenURLWithExtraHeaders(params_.link_url, params_.frame_url, params_.frame_origin,
+                              WindowOpenDisposition::NEW_SPLIT_VIEW, ui::PAGE_TRANSITION_LINK,
+                              std::string(), true, base::DoNothing());
+      return;
+    }
+    if (command_id >= kShareFirst && command_id <= kShareLast) {
+      const size_t share = command_id - kShareFirst;
+      if (share < shares_.size() && GetRenderFrameHost()) {
+        ShareFromContextMenu(*GetRenderFrameHost(), params(), shares_[share]);
+      }
+      return;
+    }
     const size_t index = command_id - kHostFirst;
     if (command_id < kHostFirst || command_id > kHostLast ||
         index >= host_items_.size()) {
@@ -215,8 +294,7 @@ class ACContextMenu : public RenderViewContextMenuMacCocoa {
 
  private:
   bool ShowThroughHost() {
-    static const bool to_host =
-        getenv("ARDIA_BACKGROUND") || getenv("ARDIA_CONTEXT_MENU_LOG");
+    static const bool to_host = BackgroundInstance() || TestFlag("contextMenu");
     if (!to_host) {
       return false;
     }
@@ -250,7 +328,7 @@ class ACContextMenu : public RenderViewContextMenuMacCocoa {
     ui::MenuModel* owner = nullptr;
     size_t index = 0;
     const bool found = command && FindPicked(model, path, command.intValue, &owner, &index);
-    if (command && getenv("ARDIA_CONTEXT_MENU_LOG")) {
+    if (command && TestFlag("contextMenu")) {
       const std::string where =
           !found            ? "not found"
           : owner == model ? "top level"
@@ -258,14 +336,17 @@ class ACContextMenu : public RenderViewContextMenuMacCocoa {
       os_log(OS_LOG_DEFAULT, "[ardiacore-menu] pick %d: %{public}s", command.intValue,
              where.c_str());
     }
-    MenuClosed(model);
-    if (weak && found && owner->IsEnabledAt(index)) {
+    if (found && owner->IsEnabledAt(index)) {
       owner->ActivatedAt(index, flags.intValue);
+    }
+    if (weak) {
+      MenuClosed(model);
     }
     return true;
   }
 
   std::vector<std::string> host_items_;
+  std::vector<ContextMenuShare> shares_;
   base::WeakPtrFactory<ACContextMenu> weak_factory_{this};
 };
 
@@ -273,6 +354,12 @@ class ACViewDelegate : public ChromeWebContentsViewDelegateViewsMac {
  public:
   explicit ACViewDelegate(content::WebContents* contents)
       : ChromeWebContentsViewDelegateViewsMac(contents), contents_(contents) {}
+
+  NSObject<RenderWidgetHostViewMacDelegate>* GetDelegateForHost(
+      content::RenderWidgetHost* render_widget_host,
+      bool is_popup) override {
+    return is_popup ? nil : CreatePageViewDelegate(render_widget_host);
+  }
 
   std::unique_ptr<RenderViewContextMenuBase> BuildMenu(
       content::RenderFrameHost& render_frame_host,
@@ -286,9 +373,21 @@ class ACViewDelegate : public ChromeWebContentsViewDelegateViewsMac {
         render_frame_host, params, paste_enabled_, paste_and_match_style_enabled_,
         view->GetNativeView().GetNativeNSView());
     menu->Init();
+    menu->ArrangeLikeDia();
     menu->RemoveViewlessItems();
     menu->AddHostItems();
+    menu->AddShareItems();
     return menu;
+  }
+
+  void OnPerformingDrop(const content::DropData& drop_data,
+                        DropCompletionCallback callback) override {
+    if (TabOf(contents_) && InstallDroppedExtensions(contents_, drop_data)) {
+      std::move(callback).Run(std::nullopt);
+      return;
+    }
+    ChromeWebContentsViewDelegateViewsMac::OnPerformingDrop(drop_data,
+                                                            std::move(callback));
   }
 
   void BuildMenuAsync(

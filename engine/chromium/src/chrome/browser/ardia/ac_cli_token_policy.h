@@ -5,7 +5,7 @@
 
 #include <memory>
 
-#include "ardia/core/ac_content_hooks.h"  // nogncheck
+#include "ardia/core/ac_content_hooks.h"
 
 namespace content {
 class DevToolsAgentHost;
@@ -24,6 +24,8 @@ bool TokenClientMayAttach(content::DevToolsAgentHostClient* root_client,
 
 bool TokenClientMayInput(content::DevToolsAgentHostClient* root_client,
                          content::RenderFrameHost* frame);
+
+bool IsTokenClient(content::DevToolsAgentHostClient* root_client);
 
 }
 

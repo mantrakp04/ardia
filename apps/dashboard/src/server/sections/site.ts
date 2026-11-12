@@ -1,6 +1,8 @@
 import { windowFor, type RangeKey } from "../../lib/range";
+import { UTC } from "../../lib/zone";
 import { num, query, str } from "../clickhouse";
-import { MAC, PHONE, SITE, bucket, compareStart, isCurrent, isPrevious, since, prop } from "../sql";
+import { THRESHOLDS } from "../../lib/thresholds";
+import { MAC, PHONE, SITE, CLICK_SITE_EVENTS, bucket, compareStart, isCurrent, isPrevious, since, prop } from "../sql";
 import { fill, windowInfo } from "../series";
 
 const COUNTRY = new Intl.DisplayNames(["en"], { type: "region" });
@@ -30,19 +32,17 @@ const CLICK_EVENTS = [
   ["notify_clicked", "Notify me"],
   ["discord_clicked", "Discord"],
   ["send_to_mac_clicked", "Send to my Mac"],
-  ["$rageclick", "Rage clicks"],
-  ["$dead_click", "Dead clicks"],
-  ["$dead_swipe", "Dead swipes"],
+  ["demo_customize", "Demo: customize"],
+  ["demo_setup_code_copied", "Demo: setup code copied"],
+  ["bench_row_switched", "Bench row switched"],
 ] as const;
 
-const EXTRA_EVENTS = ["send_to_mac_fallback", "mac_link_visit"];
-
-export async function siteTraffic(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteTraffic(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const cur = isCurrent(w);
   const prev = isPrevious(w);
   const rows = await query(
-    `SELECT ${bucket(w.step)} AS b,
+    `SELECT ${bucket(w)} AS b,
        uniqIf(distinct_id, ${cur}), countIf(${cur}), uniqIf(distinct_id, ${MAC} AND ${cur}),
        uniqIf(distinct_id, ${cur}), countIf(${cur}), uniqIf(session_id, ${cur}), uniqIf(distinct_id, ${MAC} AND ${cur}), uniqIf(distinct_id, ${PHONE} AND ${cur}),
        uniqIf(distinct_id, ${prev}), countIf(${prev}), uniqIf(session_id, ${prev}), uniqIf(distinct_id, ${MAC} AND ${prev}), uniqIf(distinct_id, ${PHONE} AND ${prev})
@@ -65,8 +65,8 @@ export async function siteTraffic(range: RangeKey, signal?: AbortSignal) {
   };
 }
 
-export async function siteBreakdowns(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteBreakdowns(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const rows = await query(
     `SELECT dim, key, uniq(distinct_id) AS visitors, count() AS views
      FROM (
@@ -87,7 +87,7 @@ export async function siteBreakdowns(range: RangeKey, signal?: AbortSignal) {
        WHERE event = '$pageview' AND ${since(w.start)} AND ${SITE}
      )
      GROUP BY dim, key
-     ORDER BY dim, visitors DESC
+     ORDER BY dim, visitors DESC, views DESC, key
      LIMIT 40 BY dim`,
     signal,
   );
@@ -111,6 +111,11 @@ export async function siteBreakdowns(range: RangeKey, signal?: AbortSignal) {
   };
 }
 
+function elementLabel(text: string) {
+  const styled = /^\.([\w-]+)\s*\{/.exec(text);
+  return styled ? `.${styled[1]} (no text)` : text.trim();
+}
+
 function safeDecode(text: string) {
   try {
     return decodeURIComponent(text);
@@ -119,38 +124,31 @@ function safeDecode(text: string) {
   }
 }
 
-export async function siteClicks(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteClicks(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const cur = isCurrent(w);
   const prev = isPrevious(w);
-  const events = [...CLICK_EVENTS.map(([e]) => e), ...EXTRA_EVENTS].map((e) => `'${e}'`).join(", ");
+  const events = CLICK_EVENTS.map(([e]) => `'${e}'`).join(", ");
   const rows = await query(
-    `SELECT kind, key, countIf(${cur}) AS n, uniqIf(distinct_id, ${cur}) AS people, countIf(${prev}), uniqIf(distinct_id, ${prev}), max(toUnixTimestamp64Milli(timestamp))
+    `SELECT kind, key, countIf(${cur}) AS n, uniqIf(distinct_id, ${cur}) AS people, countIf(${prev}), uniqIf(distinct_id, ${prev})
      FROM (
-       SELECT distinct_id, timestamp,
-         arrayJoin(multiIf(
-           event = 'download_clicked', [('event', event), ('location', properties['location']), ('funnel', if(${MAC}, 'mac-clicked', 'other-clicked'))],
-           event = 'send_to_mac_clicked', [('event', event), ('send', concat(event, '|', properties['outcome']))],
-           event IN ('send_to_mac_fallback', 'mac_link_visit'), [('send', concat(event, '|', properties['action']))],
-           event IN ('$rageclick', '$dead_click'), [('event', event), ('dead', concat(event, '\\t', substring(properties['$el_text'], 1, 160), '\\t', ${prop("$pathname")}))],
-           [('event', event)]
-         )) AS pair,
-         pair.1 AS kind, pair.2 AS key
+       SELECT distinct_id, timestamp, 'event' AS kind, event AS key
        FROM telemetry.events
        WHERE event IN (${events}) AND ${since(compareStart(w))} AND ${SITE}
+       UNION ALL
+       SELECT distinct_id, timestamp, 'location' AS kind, properties['location'] AS key
+       FROM telemetry.events
+       WHERE event = 'download_clicked' AND ${since(compareStart(w))} AND ${SITE}
      )
      GROUP BY kind, key
-     ORDER BY kind, n DESC
+     ORDER BY kind, n DESC, key
      LIMIT 60 BY kind`,
     signal,
   );
   const hasPrev = w.prevStart !== null;
   const of = (kind: string) => rows.filter((r) => str(r[0]) === kind);
   const byEvent = new Map(of("event").map((r) => [str(r[1]), r.map(num)]));
-  const macClicked = num(of("funnel").find((r) => str(r[1]) === "mac-clicked")?.[3]);
   return {
-    macClicked,
-    clickersAll: byEvent.get("download_clicked")?.[3] ?? 0,
     locations: of("location")
       .filter((r) => num(r[2]) > 0)
       .map((r) => ({ key: str(r[1]) || "unknown", label: str(r[1]) || "Unknown", value: num(r[3]), secondary: num(r[2]) })),
@@ -158,18 +156,97 @@ export async function siteClicks(range: RangeKey, signal?: AbortSignal) {
       const r = byEvent.get(event) ?? [];
       return { key: event, label, count: r[2] ?? 0, people: r[3] ?? 0, previousCount: hasPrev ? (r[4] ?? 0) : null, previousPeople: hasPrev ? (r[5] ?? 0) : null };
     }),
-    deadClicks: of("dead")
-      .filter((r) => num(r[2]) > 0)
-      .map((r) => {
-        const [event = "", text = "", path = ""] = str(r[1]).split("\t");
-        return { kind: event === "$rageclick" ? "Rage" : "Dead", text, path, count: num(r[2]), people: num(r[3]), lastSeen: num(r[6]) };
-      }),
-    sendToMac: of("send")
-      .filter((r) => num(r[2]) > 0)
-      .map((r) => {
-        const [event = "", detail = ""] = str(r[1]).split("|");
-        return { event, outcome: event === "send_to_mac_clicked" ? detail : "", action: event === "send_to_mac_fallback" ? detail : "", count: num(r[2]), people: num(r[3]) };
-      }),
+  };
+}
+
+const MAX_SPOTS = 80;
+const FRICTION_KIND: Record<string, "Rage" | "Dead" | "Swipe"> = { $rageclick: "Rage", $dead_click: "Dead", $dead_swipe: "Swipe" };
+
+export async function siteFriction(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
+  const cur = isCurrent(w);
+  const prev = isPrevious(w);
+  const from = since(compareStart(w));
+  const ms = "toUnixTimestamp64Milli(timestamp)";
+  const explained = `arrayExists(x -> abs(x - ${ms}) < ${THRESHOLDS.frictionWindowMs}, t.ts)`;
+  const real = `NOT ${explained}`;
+  const [groups, visitors] = await Promise.all([
+    query(
+      `WITH tracked AS (
+         SELECT session_id, groupArray(toUnixTimestamp64Milli(timestamp)) AS ts
+         FROM telemetry.events
+         WHERE event IN (${CLICK_SITE_EVENTS}) AND ${from} AND ${SITE} AND session_id != ''
+         GROUP BY session_id
+       )
+       SELECT event AS kind, substring(properties['$el_text'], 1, 90) AS text, ${prop("$pathname")} AS path, ${bucket(w)} AS b,
+         countIf(${real} AND ${cur}), uniqIf(distinct_id, ${real} AND ${cur}),
+         countIf(${explained} AND ${cur}),
+         countIf(${real} AND ${prev}), uniqIf(distinct_id, ${real} AND ${prev}),
+         max(${ms}), argMaxIf(f.session_id, timestamp, ${real} AND f.session_id != '')
+       FROM telemetry.events AS f
+       LEFT JOIN tracked AS t ON t.session_id = f.session_id
+       WHERE event IN ('$rageclick', '$dead_click', '$dead_swipe') AND ${from} AND ${SITE}
+       GROUP BY GROUPING SETS ((kind, text, path), (b), ())`,
+      signal,
+    ),
+    query(
+      `SELECT ${prop("$pathname")} AS path, ${bucket(w)} AS b, uniqIf(distinct_id, ${cur}), uniqIf(distinct_id, ${prev})
+       FROM telemetry.events
+       WHERE event = '$pageview' AND ${from} AND ${SITE}
+       GROUP BY GROUPING SETS ((path), (b), ())`,
+      signal,
+    ),
+  ]);
+  const byPath = new Map(visitors.filter((r) => str(r[0]) !== "" && num(r[1]) === 0).map((r) => [str(r[0]), { cur: num(r[2]), prev: num(r[3]) }]));
+  const total = visitors.find((r) => str(r[0]) === "" && num(r[1]) === 0);
+  const visitorsByBucket = visitors.filter((r) => str(r[0]) === "" && num(r[1]) !== 0);
+  const groupRows = groups.filter((r) => str(r[0]) !== "");
+  const bucketRows = groups.filter((r) => str(r[0]) === "" && num(r[3]) !== 0);
+  const overall = groups.find((r) => str(r[0]) === "" && num(r[3]) === 0);
+  const hasPrev = w.prevStart !== null;
+  const series = w.buckets.map((b) => {
+    const f = bucketRows.find((r) => num(r[3]) === b);
+    const v = visitorsByBucket.find((r) => num(r[1]) === b);
+    const people = v ? num(v[2]) : 0;
+    return people ? (100 * (f ? num(f[5]) : 0)) / people : 0;
+  });
+  const spots = groupRows
+    .map((r) => {
+      const path = str(r[2]);
+      const pageVisitors = byPath.get(path);
+      const people = num(r[5]);
+      const previousPeople = hasPrev ? num(r[8]) : null;
+      return {
+        kind: FRICTION_KIND[str(r[0])] ?? "Dead",
+        text: elementLabel(str(r[1])),
+        path,
+        count: num(r[4]),
+        people,
+        explained: num(r[6]),
+        previousCount: hasPrev ? num(r[7]) : null,
+        previousPeople,
+        pageVisitors: pageVisitors?.cur ?? 0,
+        previousPageVisitors: hasPrev ? (pageVisitors?.prev ?? 0) : null,
+        rate: pageVisitors?.cur ? (100 * people) / pageVisitors.cur : null,
+        previousRate: hasPrev && pageVisitors?.prev ? (100 * (previousPeople ?? 0)) / pageVisitors.prev : null,
+        lastSeen: num(r[9]),
+        session: str(r[10]),
+      };
+    })
+    .filter((s) => s.count > 0 || s.explained > 0)
+    .sort((a, b) => b.people - a.people || b.count - a.count);
+  const shown = spots.filter((s) => s.count > 0).slice(0, MAX_SPOTS);
+  return {
+    window: windowInfo(w),
+    visitors: total ? num(total[2]) : 0,
+    previousVisitors: hasPrev && total ? num(total[3]) : null,
+    people: overall ? num(overall[5]) : 0,
+    previousPeople: hasPrev && overall ? num(overall[8]) : null,
+    explained: spots.reduce((s, x) => s + x.explained, 0),
+    events: spots.reduce((s, x) => s + x.count, 0),
+    series,
+    spots: shown,
+    hidden: spots.length - shown.length,
   };
 }
 
@@ -180,8 +257,8 @@ function normalCdf(z: number) {
   return z > 0 ? 1 - p : p;
 }
 
-export async function siteExperiment(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteExperiment(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const rows = await query(
     `SELECT variant, count(), countIf(clicked_after), countIf(band_click)
      FROM (
@@ -210,8 +287,8 @@ export async function siteExperiment(range: RangeKey, signal?: AbortSignal) {
   return { variants, pValue };
 }
 
-export async function siteVitals(range: RangeKey, signal?: AbortSignal) {
-  const w = windowFor(range);
+export async function siteVitals(range: RangeKey, signal?: AbortSignal, zone = UTC) {
+  const w = windowFor(range, zone);
   const metric = (m: string) =>
     `quantileIf(0.75)(toFloat64OrZero(properties['$web_vitals_${m}_value']), properties['$web_vitals_${m}_value'] != ''), countIf(properties['$web_vitals_${m}_value'] != '')`;
   const rows = await query(

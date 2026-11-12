@@ -10,13 +10,9 @@ public struct ArcSidebar: Equatable {
           let containers = sidebar["containers"] as? [Any] else {
       throw ImportError.unreadable("StorableSidebar.json is not an Arc sidebar")
     }
-    guard let box = containers.compactMap({ $0 as? [String: Any] })
-      .first(where: { $0["spaces"] != nil || $0["items"] != nil }) else { return ArcSidebar() }
+    guard let box = mainContainer(containers) else { return ArcSidebar() }
 
-    var items: [String: [String: Any]] = [:]
-    for item in objects(box["items"]) {
-      if let id = item["id"] as? String { items[id] = item }
-    }
+    let items = Items(objects(box["items"]))
 
     var out = ArcSidebar()
     var untitled = 0
@@ -25,8 +21,8 @@ public struct ArcSidebar: Equatable {
       let profile = profileDirectory(space["profile"]) ?? "Default"
       let roots = containerIDs(space)
       var seen = Set<String>()
-      let pinned = roots["pinned"].map { tree(of: $0, items: items, seen: &seen) } ?? []
-      let today = roots["unpinned"].map { flatTabs(of: $0, items: items, seen: &seen, pinned: false) } ?? []
+      let pinned = (roots["pinned"] ?? []).flatMap { tree(of: $0, items: items, seen: &seen) }
+      let today = (roots["unpinned"] ?? []).flatMap { flatTabs(of: $0, items: items, seen: &seen, pinned: false) }
       let info = space["customInfo"] as? [String: Any]
       let icon = info?["iconType"] as? [String: Any]
       let name: String
@@ -54,7 +50,7 @@ public struct ArcSidebar: Equatable {
     for (descriptor, container) in pairs(box["topAppsContainerIDs"]) {
       guard let profile = profileDirectory(descriptor), let container = container as? String else { continue }
       var seen = Set<String>()
-      let tabs = flatTabs(of: container, items: items, seen: &seen, pinned: true)
+      let tabs = flatTabs(of: container, items: items, seen: &seen, pinned: true, splits: false)
       if !tabs.isEmpty { out.favorites[profile, default: []] += tabs }
     }
     return out
@@ -120,6 +116,24 @@ public struct ArcSidebar: Equatable {
     return String(data: data, encoding: .utf8)
   }
 
+  static func mainContainer(_ containers: [Any]) -> [String: Any]? {
+    let boxes = containers.map { $0 as? [String: Any] ?? [:] }
+    let holdsSidebar = { (i: Int) in boxes[i]["spaces"] != nil || boxes[i]["items"] != nil }
+    let after = { (i: Int, marker: String) in i > 0 && boxes[i - 1][marker] != nil }
+    let index = boxes.indices.first { holdsSidebar($0) && after($0, "global") }
+      ?? boxes.indices.first { holdsSidebar($0) && !after($0, "littleBrowser") }
+    return index.map { boxes[$0] }
+  }
+
+  static func liveFolderRole(_ list: Any?) -> String? {
+    guard let live = (list as? [String: Any])?["automaticLiveFolderData"],
+          JSONSerialization.isValidJSONObject([live]),
+          let data = try? JSONSerialization.data(withJSONObject: [live]),
+          let text = String(data: data, encoding: .utf8)?.lowercased() else { return nil }
+    if text.contains("bitbucket") { return "liveBitbucketPullRequests" }
+    return text.contains("github") ? "liveGitHubPullRequests" : nil
+  }
+
   static func objects(_ any: Any?) -> [[String: Any]] {
     (any as? [Any] ?? []).compactMap { $0 as? [String: Any] }
   }
@@ -137,14 +151,17 @@ public struct ArcSidebar: Equatable {
     return dir
   }
 
-  static func containerIDs(_ space: [String: Any]) -> [String: String] {
-    var out: [String: String] = [:]
+  static func containerIDs(_ space: [String: Any]) -> [String: [String]] {
+    var out: [String: [String]] = [:]
+    func add(_ key: String, _ id: String) {
+      if !(out[key] ?? []).contains(id) { out[key, default: []].append(id) }
+    }
     for (label, value) in pairs(space["newContainerIDs"]) {
       guard let id = value as? String else { continue }
-      if let d = label as? [String: Any], let key = d.keys.first { out[key] = out[key] ?? id }
+      if let d = label as? [String: Any], let key = d.keys.first { add(key, id) }
     }
     for (label, value) in pairs(space["containerIDs"]) {
-      if let key = label as? String, let id = value as? String { out[key] = out[key] ?? id }
+      if let key = label as? String, let id = value as? String { add(key, id) }
     }
     return out
   }
@@ -161,10 +178,44 @@ public struct ArcSidebar: Equatable {
                        customTitle: customTitle(item), lastActive: last)
   }
 
-  static func tree(of containerID: String, items: [String: [String: Any]], seen: inout Set<String>, depth: Int = 0) -> [BookmarkNode] {
-    guard depth < 64, let container = items[containerID], seen.insert(containerID).inserted else { return [] }
+  struct Items {
+    var byId: [String: [String: Any]] = [:]
+    var adopted: [String: [String]] = [:]
+
+    init(_ list: [[String: Any]]) {
+      var order: [String] = []
+      for item in list {
+        guard let id = item["id"] as? String else { continue }
+        if byId[id] == nil { order.append(id) }
+        byId[id] = item
+      }
+      for id in order {
+        guard let parent = byId[id]?["parentID"] as? String, parent != id, byId[parent] != nil else { continue }
+        adopted[parent, default: []].append(id)
+      }
+    }
+
+    subscript(id: String) -> [String: Any]? { byId[id] }
+
+    func listed(_ id: String) -> [String] {
+      (byId[id]?["childrenIds"] as? [String] ?? []).filter { byId[$0] != nil }
+    }
+
+    func children(_ id: String) -> [String] {
+      let listed = listed(id)
+      let known = Set(listed)
+      return listed + (adopted[id] ?? []).filter { !known.contains($0) }
+    }
+  }
+
+  static func isSplit(_ item: [String: Any]) -> Bool {
+    (item["data"] as? [String: Any])?["splitView"] != nil
+  }
+
+  static func tree(of containerID: String, items: Items, seen: inout Set<String>, depth: Int = 0) -> [BookmarkNode] {
+    guard depth < 64, items[containerID] != nil, seen.insert(containerID).inserted else { return [] }
     var out: [BookmarkNode] = []
-    for id in container["childrenIds"] as? [String] ?? [] {
+    for id in items.children(containerID) {
       guard let item = items[id] else { continue }
       let data = item["data"] as? [String: Any] ?? [:]
       if let t = tab(item, pinned: true) {
@@ -172,25 +223,39 @@ public struct ArcSidebar: Equatable {
         var link = BookmarkNode.link(t.customTitle ?? t.title, t.url)
         if t.customTitle != nil { link.pageTitle = t.title }
         out.append(link)
+      } else if let role = liveFolderRole(data["list"]) {
+        guard seen.insert(id).inserted else { continue }
+        out.append(.folder(customTitle(item) ?? "Pull Requests", [], role: role))
       } else if data["list"] != nil {
         let kids = tree(of: id, items: items, seen: &seen, depth: depth + 1)
         out.append(.folder(customTitle(item) ?? "Folder", kids))
-      } else if data["splitView"] != nil {
-        out += tree(of: id, items: items, seen: &seen, depth: depth + 1)
+      } else if isSplit(item) {
+        let panes = tree(of: id, items: items, seen: &seen, depth: depth + 1)
+        if panes.count >= 2, panes.allSatisfy({ $0.type == .url }) {
+          out.append(.folder(customTitle(item) ?? "", panes, role: splitRole))
+        } else {
+          out += panes
+        }
       }
     }
     return out
   }
 
-  static func flatTabs(of containerID: String, items: [String: [String: Any]], seen: inout Set<String>, pinned: Bool, depth: Int = 0) -> [ImportedTab] {
-    guard depth < 64, let container = items[containerID], seen.insert(containerID).inserted else { return [] }
+  static let splitRole = "split"
+
+  static func flatTabs(of containerID: String, items: Items, seen: inout Set<String>, pinned: Bool, splits: Bool = true, depth: Int = 0) -> [ImportedTab] {
+    guard depth < 64, items[containerID] != nil, seen.insert(containerID).inserted else { return [] }
     var out: [ImportedTab] = []
-    for id in container["childrenIds"] as? [String] ?? [] {
+    for id in items.listed(containerID) {
       guard let item = items[id] else { continue }
       if let t = tab(item, pinned: pinned) {
         if seen.insert(id).inserted { out.append(t) }
       } else {
-        out += flatTabs(of: id, items: items, seen: &seen, pinned: pinned, depth: depth + 1)
+        var inner = flatTabs(of: id, items: items, seen: &seen, pinned: pinned, splits: splits, depth: depth + 1)
+        if splits, isSplit(item), inner.count >= 2, inner.allSatisfy({ $0.splitId == nil }) {
+          for i in inner.indices { inner[i].splitId = id }
+        }
+        out += inner
       }
     }
     return out

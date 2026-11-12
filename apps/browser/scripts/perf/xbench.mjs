@@ -6,7 +6,7 @@
 //
 //   node apps/browser/scripts/perf/xbench.mjs run    --out <dir> [options]   measure (resumable: done items are skipped)
 //   node apps/browser/scripts/perf/xbench.mjs check  --out <dir> [options]   one quick look per browser, nothing kept
-//   node apps/browser/scripts/perf/xbench.mjs report --out <dir> [--json <file>] [--md <file>]
+//   node apps/browser/scripts/perf/xbench.mjs report --out <dir> [--json <file>] [--md <file>] [--rivals-from <bench.json>]
 //   node apps/browser/scripts/perf/xbench.mjs clean  --out <dir>             quit leftovers, unregister the copies, delete runs
 //   node apps/browser/scripts/perf/xbench.mjs signin --browsers dia --base dia=<home>   open the browser on that HOME, in
 //                        view, for the owner to sign in by hand; returns when they quit it (or at --deadline)
@@ -30,7 +30,7 @@
 //                          moment input comes. off: run now, with the Mac in use (competitors' windows show on screen)
 //     --away <secs>        idle time that counts as away (default 600)
 //     --window <x,y>       the windows' top-left corner (default 40,80)
-//     --env <name>=K=V     repeatable: extra environment for one browser's instances (ardia=ARDIA_CHROMIUM_SWITCHES=…)
+//     --env <name>=K=V     repeatable: extra environment for one browser's instances (ardia=ARDIA_INSTANCE=chromiumSwitches=…)
 //     --launch-tab on|off  Ardia's template session names its active tab as launchTab, as a user's session written
 //                          with that kill switch on does (default on)
 //     --allow-focus        record a browser making itself the active app instead of stopping (only for an A/B the
@@ -40,6 +40,11 @@
 //     --dmg <name>=<file|url>  repeatable: the download whose size the size row reports
 //     --version-label <name>=<text>  report: show this instead of the app's version (a dev build, say)
 //     --json <file>, --md <file>  report: where the results JSON and the markdown table go (default <out>/bench.json, stdout)
+//     --rivals-from <file> report: measure only some browsers (--browsers ardia) and take every other browser's rows from
+//                          this bench.json, each keeping its own version and measured date. Refuses when the machine's
+//                          model or chip, or the harness revision, differ from the file's; warns (never fails) when a kept
+//                          rival is over 60 days old or the copy in /Applications is a new major or minor version
+//     --force              report: merge with --rivals-from despite a different machine or harness (recorded as forced)
 //
 // What every instance gets: its own copy of a template profile (made once per browser by one launch that opens the
 // test page, settles 90 s and quits), HOME and CFFIXED_USER_HOME pointed into it (nothing reaches the real
@@ -67,6 +72,8 @@ import { cpus, loadavg, totalmem } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { appEnv, launchVariables, mergeLaunchEnv } from "../../../../scripts/lib/instance.mjs";
+import { mergeRivals, rivalWarnings, RivalsRefused } from "./xbench-rivals.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../../../..");
@@ -95,6 +102,8 @@ const { values: opt, positionals } = parseArgs({
     dmg: { type: "string", multiple: true, default: [] },
     json: { type: "string" },
     md: { type: "string" },
+    "rivals-from": { type: "string" },
+    force: { type: "boolean" },
     help: { type: "boolean", short: "h" },
   },
 });
@@ -116,6 +125,7 @@ const out = resolve(opt.out);
 const port = +opt.port;
 const WIN = { x: +opt.window.split(",")[0], y: +opt.window.split(",")[1], w: 1280, h: 800 };
 const SETTLE_TEMPLATE_MS = 90_000;
+const HARNESS = 1;
 
 const BROWSERS = {
   ardia: { name: "Ardia", bundle: "ardia/Ardia.app", hidden: true },
@@ -462,11 +472,13 @@ class Instance {
   env() {
     const env = { HOME: this.home, CFFIXED_USER_HOME: this.home };
     if (isArdia(this.name)) {
-      Object.assign(env, { ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: join(this.home, "data"), ARDIA_REMOTE_DEBUGGING_PORT: String(port), ARDIA_UPDATE_FEED_URL: `${base()}/appcast.xml` });
+      Object.assign(env, { ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: join(this.home, "data"), ARDIA_REMOTE_DEBUGGING_PORT: String(port),
+        ...launchVariables({ instance: { updateFeed: `${base()}/appcast.xml` } }) });
     }
-    for (const e of opt.env.filter((e) => e.startsWith(`${this.name}=`)).map((e) => e.slice(this.name.length + 1)))
-      env[e.slice(0, e.indexOf("="))] = e.slice(e.indexOf("=") + 1);
-    return env;
+    const extra = opt.env.filter((e) => e.startsWith(`${this.name}=`)).map((e) => e.slice(this.name.length + 1))
+      .map((e) => ({ [e.slice(0, e.indexOf("="))]: e.slice(e.indexOf("=") + 1) }));
+    const merged = mergeLaunchEnv(env, ...extra);
+    return isArdia(this.name) ? appEnv(this.app, merged) : merged;
   }
   args() {
     const shared = ["--no-first-run", "--no-default-browser-check", "--password-store=basic", "--disable-backgrounding-occluded-windows", "--mute-audio"];
@@ -1078,6 +1090,7 @@ function report(names) {
   const result = {
     date: new Date().toISOString().slice(0, 10),
     machine: machine(),
+    harness: HARNESS,
     browsers,
     rows,
     method: "docs/perf/vs-browsers.md",
@@ -1252,7 +1265,27 @@ if (command === "report") {
     row.browsers = Object.fromEntries(Object.entries(row.browsers).map(([n, b]) => [keyOf(n), b]));
     row.best = row.best && keyOf(row.best);
   }
-  writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
+  let written = json;
+  if (opt["rivals-from"]) {
+    const stored = JSON.parse(readFileSync(resolve(opt["rivals-from"]), "utf8"));
+    try {
+      written = mergeRivals(json, stored, { force: opt.force });
+    } catch (e) {
+      if (!(e instanceof RivalsRefused)) throw e;
+      log(e.message);
+      process.exit(65);
+    }
+    if (written.forced) log(`merged with --force despite: ${written.forced.join("; ")}`);
+    if (written.machine.macOS !== stored.machine?.macOS) log(`note: macOS was ${stored.machine?.macOS} for the stored rivals, ${written.machine.macOS} now`);
+    for (const [key, b] of Object.entries(written.browsers)) log(`${b.name} ${b.version}: measured ${b.measured}${key in json.browsers ? " (this run)" : " (kept)"}`);
+    const installed = Object.fromEntries(Object.keys(written.browsers).filter((k) => !(k in json.browsers) && spec(k))
+      .map((k) => [k, join("/Applications", basename(spec(k).bundle), "Contents/Info.plist")]).filter(([, plist]) => existsSync(plist))
+      .map(([k, plist]) => [k, spawnSync("plutil", ["-extract", "CFBundleShortVersionString", "raw", plist], { encoding: "utf8" }).stdout.trim()]));
+    const warnings = rivalWarnings(written, { installed });
+    for (const w of warnings) log(`full rerun due: ${w}`);
+    if (!warnings.length) log("stored rivals are current: no full rerun due");
+  }
+  writeFileSync(file, JSON.stringify(written, null, 2) + "\n");
   if (opt.md) writeFileSync(resolve(opt.md), md);
   else console.log(md);
   log(`wrote ${file}`);

@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "render": "scripts/deliver.sh",
-    "studio": "remotion studio"
+    "studio": "remotion studio",
+    "test": "node --no-warnings --test scripts/beats.test.mts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.529",

@@ -1,0 +1,33 @@
+{
+  "id": "fixes-0244n3",
+  "dropEvents": ["menu", "submenu"],
+  "segments": [
+    {
+      "scene": "sidebarfield",
+      "title": "One search box on a New Tab page",
+      "body": "Address bar in the sidebar, ⌘L set to open the command bar in the centre. Click the sidebar's empty field on a New Tab page and type: the letters now land in the page's own box. 0.2.44-nightly.2 opened the centred bar on top of it, two search boxes stacked.",
+      "layout": "side",
+      "cam": [0, 10, 1150, 500],
+      "lead": 1.5,
+      "tail": 4.4
+    },
+    {
+      "scene": "profileicon",
+      "title": "A real emoji picker",
+      "body": "Change… on a profile's icon now opens a picker: search all emoji, browse categories or SF Symbols, current icon highlighted. 0.2.44-nightly.2 had a menu of 20 symbols and 20 emoji, drawn here from Ardia's log: a hidden test window can't show menus.",
+      "layout": "side",
+      "cam": [0, 0, 820, 640],
+      "lead": 1.6,
+      "tail": 6.0
+    },
+    {
+      "scene": "profilename",
+      "title": "Names save when you click away",
+      "body": "Rename a profile, then click somewhere else. Ardia now saves the name, and the list shows it. 0.2.44-nightly.2 saved it only on Return, so going back to the list lost the new name.",
+      "layout": "side",
+      "cam": [0, 0, 820, 640],
+      "lead": 2.7,
+      "tail": 8.2
+    }
+  ]
+}

@@ -1,13 +1,20 @@
-import { setAppearance, setAppIcon, Symbol, type AppIcon } from "@ardia/shell";
-import { Image, Pressable, Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { tabLayoutOf } from "../../../store/model";
-import type { Settings } from "../../../store/settings";
-import { useHover } from "../../primitives";
-import { SectionHeader, useFormColors } from "../controls";
-import { APP_ICON_SIZE, appIconChoices } from "../paneData";
-import { store, useResource } from "../resources";
+import type { AppIcon } from "../../../state/app/appSettings";
+import { Box, GlassFill, liquidGlass, PopUp, radius, space, Text, Toggle } from "../../ui";
+import { Image, View } from "react-native";
+import { useTheme } from "../../ui/theme";
+import { useSettings, useTabLayout } from "../../../state/browser/hooks";
+import { updateSettings } from "../../../state/settings/actions";
+import type { Settings } from "../../../state/settings/settings";
+import { Group, Row, SectionHeader } from "../Form";
+import { MiniWindow } from "../MiniWindow";
+import { PictureChoice } from "../PictureChoice";
+import { AmountSlider } from "../ThemeControls";
+import { PAGE_FRAME } from "../../../lib/windowLayout";
+import { BookmarksBarSection } from "./BookmarksBarSection";
+import { modePreview, stylePreview } from "../tokens";
+import { useSettingsColors } from "../useSettingsColors";
+import { APP_ICON_SIZE, appIconChoices, chooseAppIcon } from "../../../state/settings/paneData";
+import { useResource } from "../../../state/settings/resources";
 
 const MODES: { value: Settings["appearance"]; title: string; description: string }[] = [
   { value: "auto", title: "Automatic", description: "Follow the system appearance setting" },
@@ -16,29 +23,105 @@ const MODES: { value: Settings["appearance"]; title: string; description: string
 ];
 
 export function AppearancePane() {
-  const appearance = useBrowser((s) => s.settings.appearance);
-  const choose = (mode: Settings["appearance"]) => {
-    useBrowser.getState().updateSettings({ appearance: mode });
-    void setAppearance(mode);
-  };
+  const appearance = useSettings((s) => s.appearance);
+  const spacesFollow = useSettings((s) => s.spacesFollowAppearance);
+  const adaptText = useSettings((s) => s.adaptTextToColor);
+  const choose = (mode: Settings["appearance"]) => updateSettings({ appearance: mode });
   return (
     <View>
-      <SectionHeader anchor="appearance.theme" description="Also in View › Appearance. Incognito windows are always dark." />
-      <View style={{ flexDirection: "row", gap: 14 }}>
-        {MODES.map((m) => (
-          <ModeChoice key={m.value} mode={m.value} title={m.title} description={m.description} selected={appearance === m.value} onPress={() => choose(m.value)} />
-        ))}
-      </View>
+      <SectionHeader anchor="appearance.theme" />
+      <Box gap="xl">
+        <Box row gap="xl">
+          {MODES.map((m) => (
+            <ModeChoice key={m.value} mode={m.value} title={m.title} description={m.description} selected={appearance === m.value} onPress={() => choose(m.value)} />
+          ))}
+        </Box>
+        <Group>
+          <Row anchor="appearance.spacesFollowAppearance">
+            <Toggle value={spacesFollow} onChange={(v) => updateSettings({ spacesFollowAppearance: v })} />
+          </Row>
+          <Row anchor="appearance.adaptTextToColor">
+            <Toggle value={adaptText} onChange={(v) => updateSettings({ adaptTextToColor: v })} />
+          </Row>
+        </Group>
+      </Box>
+      <InterfaceStylePicker />
       <AddressBarPicker />
+      <PageFramePicker />
+      <BookmarksBarSection />
+      <SelectedTabGlowPicker />
+      <ScrollBarsPicker />
       <AppIconPicker />
     </View>
   );
 }
 
+const TINT_SLIDER_WIDTH = 160;
+
+const STYLES: { value: Settings["interfaceStyle"]; title: string }[] = [
+  { value: "glass", title: "Glass" },
+  { value: "classic", title: "Classic" },
+];
+
+function InterfaceStylePicker() {
+  const style = useSettings((s) => s.interfaceStyle);
+  const tinted = useSettings((s) => s.glassTintWithTheme);
+  const tintAmount = useSettings((s) => s.glassTintAmount);
+  if (!liquidGlass) return null;
+  return (
+    <>
+      <SectionHeader anchor="appearance.interfaceStyle" />
+      <Box gap="xl">
+        <Box row gap="xl">
+          {STYLES.map((s) => (
+            <StyleChoice key={s.value} value={s.value} title={s.title} selected={style === s.value} onPress={() => updateSettings({ interfaceStyle: s.value })} />
+          ))}
+        </Box>
+        <Group>
+        <Row anchor="appearance.glassTintWithTheme">
+          <Toggle value={tinted} onChange={(v) => updateSettings({ glassTintWithTheme: v })} />
+        </Row>
+        {tinted ? (
+          <Row anchor="appearance.glassTintAmount">
+            <View style={{ width: TINT_SLIDER_WIDTH }}>
+              <AmountSlider value={tintAmount} tooltip={`${Math.round(tintAmount * 100)} %`} onChange={(v) => updateSettings({ glassTintAmount: Math.round(v * 100) / 100 })} />
+            </View>
+          </Row>
+        ) : null}
+        </Group>
+      </Box>
+    </>
+  );
+}
+
+function StyleChoice({ value, title, selected, onPress }: { value: Settings["interfaceStyle"]; title: string; selected: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  const look = stylePreview[theme.dark ? "dark" : "light"];
+  const glass = value === "glass";
+  return (
+    <PictureChoice title={title} selected={selected} onPress={onPress} size="m">
+      <MiniWindow layout="none" look={{ window: look.backdrop, bar: look.tile, page: look.tile }}>
+        <Box row gap="m" pad="xs" style={STYLE_TILES}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={[STYLE_TILE, glass ? null : { backgroundColor: look.tile, borderWidth: 1, borderColor: look.tileStroke }]}>
+              {glass ? <GlassFill radius={radius.tile} state={i === 0 ? "active" : "rest"} /> : null}
+            </View>
+          ))}
+        </Box>
+      </MiniWindow>
+    </PictureChoice>
+  );
+}
+
+const STYLE_TILES = { flex: 1 } as const;
+const STYLE_TILE = { flex: 1, alignSelf: "flex-start", height: 30, borderRadius: radius.tile } as const;
+
 function AddressBarPicker() {
-  const addressBar = useBrowser((s) => s.settings.addressBar);
-  const topTabs = useBrowser((s) => tabLayoutOf(s) === "top");
-  const choose = (value: Settings["addressBar"]) => useBrowser.getState().updateSettings({ addressBar: value });
+  const addressBar = useSettings((s) => s.addressBar);
+  const placement = useSettings((s) => s.commandBarPlacement);
+  const compactToolbar = useSettings((s) => s.compactToolbar);
+  const topTabs = useTabLayout() === "top";
+  const choose = (value: Settings["addressBar"]) => updateSettings({ addressBar: value });
   return (
     <>
       <SectionHeader
@@ -49,56 +132,131 @@ function AddressBarPicker() {
             : "In the sidebar, the page gets the toolbar’s height. While the sidebar is hidden, the address bar is in the toolbar. Also in View › Show Address Bar in Sidebar."
         }
       />
-      <View style={{ flexDirection: "row", gap: 14 }}>
-        <AddressBarChoice value="toolbar" title="In the toolbar" selected={addressBar !== "sidebar"} onPress={() => choose("toolbar")} />
-        <AddressBarChoice value="sidebar" title="In the sidebar" selected={addressBar === "sidebar"} onPress={() => choose("sidebar")} />
-      </View>
+      <Box gap="xl">
+        <Box row gap="xl">
+          <AddressBarChoice value="toolbar" title="In the toolbar" selected={addressBar !== "sidebar"} onPress={() => choose("toolbar")} />
+          <AddressBarChoice value="sidebar" title="In the sidebar" selected={addressBar === "sidebar"} onPress={() => choose("sidebar")} />
+        </Box>
+        <Group>
+        <Row anchor="appearance.commandBarPlacement">
+          <PopUp
+            value={placement}
+            options={[
+              { value: "field", title: "At the address" },
+              { value: "centred", title: "In the centre" },
+            ]}
+            onChange={(v) => updateSettings({ commandBarPlacement: v })}
+            minWidth={160}
+          />
+        </Row>
+        <Row anchor="appearance.compactToolbar">
+          <Toggle value={compactToolbar} onChange={(v) => updateSettings({ compactToolbar: v })} />
+        </Row>
+        </Group>
+      </Box>
+    </>
+  );
+}
+
+const FRAME_SLIDER_WIDTH = 160;
+const FRAME_VALUE_WIDTH = 36;
+const FRAME_CONTROL = { alignItems: "center" } as const;
+
+function PageFramePicker() {
+  const frame = useSettings((s) => s.pageFrame);
+  const borderless = useSettings((s) => s.borderlessMode);
+  const zeroInFullScreen = useSettings((s) => s.pageFrameZeroInFullScreen);
+  const zeroWhenTabsHidden = useSettings((s) => s.pageFrameZeroWhenTabsHidden);
+  return (
+    <>
+      <SectionHeader title="Page Frame" />
+      <Group>
+        <Row anchor="appearance.borderlessMode">
+          <Toggle value={borderless} accessibilityLabel="Borderless mode" onChange={(on) => updateSettings({ borderlessMode: on })} />
+        </Row>
+        <Row anchor="appearance.pageFrame">
+          <Box row gap="m" style={FRAME_CONTROL}>
+            <View style={{ width: FRAME_SLIDER_WIDTH }}>
+              <AmountSlider value={frame / PAGE_FRAME.max} tooltip={`${frame} pt`} onChange={(v) => updateSettings({ pageFrame: Math.round(v * PAGE_FRAME.max) })} />
+            </View>
+            <Text size="small" tone="textSecondary" style={{ width: FRAME_VALUE_WIDTH, textAlign: "right" }}>
+              {frame === 0 ? "None" : `${frame} pt`}
+            </Text>
+          </Box>
+        </Row>
+        <Row anchor="appearance.pageFrameZeroInFullScreen">
+          <Toggle
+            value={zeroInFullScreen}
+            disabled={borderless}
+            accessibilityLabel="Zero in full screen"
+            onChange={(on) => updateSettings(on ? { pageFrameZeroInFullScreen: true, pageFrameZeroWhenTabsHidden: true } : { pageFrameZeroInFullScreen: false })}
+          />
+        </Row>
+        <Row anchor="appearance.pageFrameZeroWhenTabsHidden">
+          <Toggle
+            value={zeroInFullScreen || zeroWhenTabsHidden}
+            disabled={borderless || zeroInFullScreen}
+            accessibilityLabel="Zero in full screen when tabs are hidden"
+            onChange={(on) => updateSettings({ pageFrameZeroWhenTabsHidden: on })}
+          />
+        </Row>
+      </Group>
+    </>
+  );
+}
+
+function SelectedTabGlowPicker() {
+  const glow = useSettings((s) => s.selectedTabGlow);
+  return (
+    <>
+      <SectionHeader title="Selected Tab" />
+      <Group>
+        <Row anchor="appearance.selectedTabGlow">
+          <PopUp
+            value={glow}
+            options={[
+              { value: "full", title: "Full" },
+              { value: "soft", title: "Soft" },
+              { value: "off", title: "Off" },
+            ]}
+            onChange={(v) => updateSettings({ selectedTabGlow: v })}
+            minWidth={120}
+          />
+        </Row>
+      </Group>
+    </>
+  );
+}
+
+function ScrollBarsPicker() {
+  const scrollBars = useSettings((s) => s.pageScrollBars);
+  return (
+    <>
+      <SectionHeader title="Scroll Bars" />
+      <Group>
+        <Row anchor="appearance.pageScrollBars">
+          <PopUp
+            value={scrollBars}
+            options={[
+              { value: "system", title: "Follow macOS" },
+              { value: "thin", title: "Thin" },
+            ]}
+            onChange={(v) => updateSettings({ pageScrollBars: v })}
+            minWidth={140}
+          />
+        </Row>
+      </Group>
     </>
   );
 }
 
 function AddressBarChoice({ value, title, selected, onPress }: { value: Settings["addressBar"]; title: string; selected: boolean; onPress: () => void }) {
   const theme = useTheme();
-  const colors = useFormColors();
-  const bar = theme.dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.16)";
-  const field = theme.dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.08)";
-  const page = theme.dark ? "rgba(255,255,255,0.08)" : "#FFFFFF";
-  const sidebar = value === "sidebar";
+  const look = useSettingsColors();
   return (
-    <Pressable onPress={onPress} style={{ flex: 1, alignItems: "center", gap: 7 }}>
-      <View
-        style={{
-          width: "100%",
-          height: 84,
-          borderRadius: 9,
-          padding: 6,
-          flexDirection: "row",
-          gap: 5,
-          borderWidth: selected ? 2.5 : 1,
-          borderColor: selected ? colors.accent : colors.groupBorder,
-          backgroundColor: theme.dark ? "#2A2A2C" : "#E9E9EB",
-        }}
-      >
-        <View style={{ width: "28%", gap: 3, paddingTop: sidebar ? 3 : 8 }}>
-          {sidebar && <View style={{ height: 8, borderRadius: 3, marginBottom: 2, backgroundColor: field, borderWidth: 1, borderColor: colors.accent }} />}
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={{ height: 5, borderRadius: 2.5, backgroundColor: bar }} />
-          ))}
-        </View>
-        <View style={{ flex: 1, borderRadius: 4, backgroundColor: page, overflow: "hidden" }}>
-          {!sidebar && (
-            <View style={{ height: 13, flexDirection: "row", alignItems: "center", paddingHorizontal: 5, gap: 5, borderBottomWidth: 1, borderBottomColor: field }}>
-              <View style={{ width: 14, height: 4, borderRadius: 2, backgroundColor: bar }} />
-              <View style={{ flex: 1, height: 7, borderRadius: 2.5, backgroundColor: field, borderWidth: 1, borderColor: colors.accent }} />
-            </View>
-          )}
-        </View>
-      </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-        {selected && <Symbol name="checkmark.circle.fill" size={12} color={colors.accent} style={{ width: 14, height: 14 }} />}
-        <Text style={{ fontSize: 12, color: selected ? theme.textPrimary : theme.textSecondary }}>{title}</Text>
-      </View>
-    </Pressable>
+    <PictureChoice title={title} selected={selected} onPress={onPress} size="m">
+      <MiniWindow layout="side" field={value === "sidebar" ? "side" : "toolbar"} look={{ window: look.miniWindow, bar: look.miniBar, field: look.miniField, page: look.miniPage, accent: theme.formAccent }} />
+    </PictureChoice>
   );
 }
 
@@ -107,51 +265,26 @@ function AppIconPicker() {
   const icons = choices?.icons ?? [];
   const current = choices?.current ?? null;
   if (icons.length < 2) return null;
-  const choose = (id: string) => {
-    store(appIconChoices, [], { icons, current: id });
-    void setAppIcon(id);
-  };
   return (
     <>
-      <SectionHeader anchor="appearance.appIcon" description="Shown in the Dock and the app switcher. The Dock keeps it after you quit." />
-      <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 10 }}>
+      <SectionHeader anchor="appearance.appIcon" />
+      <View style={ICON_GRID}>
         {icons.map((icon) => (
-          <IconChoice key={icon.id} icon={icon} selected={icon.id === current} onPress={() => choose(icon.id)} />
+          <IconChoice key={icon.id} icon={icon} selected={icon.id === current} onPress={() => chooseAppIcon(icon.id)} />
         ))}
       </View>
     </>
   );
 }
 
-const ICON_SIZE = APP_ICON_SIZE;
+const ICON_GRID = { flexDirection: "row", flexWrap: "wrap", columnGap: space.s, rowGap: space.ml } as const;
+const ICON_IMAGE = { width: APP_ICON_SIZE, height: APP_ICON_SIZE } as const;
 
 function IconChoice({ icon, selected, onPress }: { icon: AppIcon; selected: boolean; onPress: () => void }) {
-  const theme = useTheme();
-  const colors = useFormColors();
-  const { hovered, hoverProps } = useHover();
   return (
-    <Pressable onPress={onPress} {...hoverProps} style={{ width: 72, alignItems: "center", gap: 5 }} tooltip={icon.name}>
-      <View
-        style={{
-          width: 70,
-          height: 70,
-          borderRadius: 16,
-          alignItems: "center",
-          justifyContent: "center",
-          borderWidth: 2.5,
-          borderColor: selected ? colors.accent : "transparent",
-          backgroundColor: hovered && !selected ? colors.selected : "transparent",
-        }}
-      >
-        {icon.preview ? <Image source={{ uri: icon.preview }} style={{ width: ICON_SIZE, height: ICON_SIZE }} /> : null}
-      </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-        {selected && <Symbol name="checkmark.circle.fill" size={11} color={colors.accent} style={{ width: 13, height: 13 }} />}
-        <Text numberOfLines={1} style={{ fontSize: 12, color: selected ? theme.textPrimary : theme.textSecondary }}>
-          {icon.name}
-        </Text>
-      </View>
-    </Pressable>
+    <PictureChoice title={icon.name} selected={selected} onPress={onPress} tooltip={icon.name} size="icon">
+      {icon.preview ? <Image source={{ uri: icon.preview }} style={ICON_IMAGE} /> : null}
+    </PictureChoice>
   );
 }
 
@@ -168,44 +301,20 @@ function ModeChoice({
   selected: boolean;
   onPress: () => void;
 }) {
-  const theme = useTheme();
-  const colors = useFormColors();
-  const window = (dark: boolean) => (
-    <View style={{ flex: 1, backgroundColor: dark ? "#2B2226" : "#EDE6EA", padding: 6, flexDirection: "row", gap: 5 }}>
-      <View style={{ width: "24%", gap: 3, paddingTop: 8 }}>
-        {[0, 1, 2].map((i) => (
-          <View key={i} style={{ height: 5, borderRadius: 2.5, backgroundColor: dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.12)" }} />
-        ))}
-      </View>
-      <View style={{ flex: 1, borderRadius: 4, backgroundColor: dark ? "#1A1618" : "#FFFFFF" }} />
-    </View>
-  );
+  const window = (dark: boolean) => {
+    const look = modePreview[dark ? "dark" : "light"];
+    return <MiniWindow layout="side" look={{ window: look.window, bar: look.line, page: look.page }} />;
+  };
   return (
-    <Pressable onPress={onPress} style={{ flex: 1, alignItems: "center", gap: 7 }} tooltip={description}>
-      <View
-        style={{
-          width: "100%",
-          height: 84,
-          borderRadius: 9,
-          overflow: "hidden",
-          flexDirection: "row",
-          borderWidth: selected ? 2.5 : 1,
-          borderColor: selected ? colors.accent : colors.groupBorder,
-        }}
-      >
-        {mode === "auto" ? (
-          <>
-            {window(false)}
-            {window(true)}
-          </>
-        ) : (
-          window(mode === "dark")
-        )}
-      </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-        {selected && <Symbol name="checkmark.circle.fill" size={12} color={colors.accent} style={{ width: 14, height: 14 }} />}
-        <Text style={{ fontSize: 12, color: selected ? theme.textPrimary : theme.textSecondary }}>{title}</Text>
-      </View>
-    </Pressable>
+    <PictureChoice title={title} selected={selected} onPress={onPress} tooltip={description} size="m">
+      {mode === "auto" ? (
+        <>
+          {window(false)}
+          {window(true)}
+        </>
+      ) : (
+        window(mode === "dark")
+      )}
+    </PictureChoice>
   );
 }

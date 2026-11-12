@@ -1,13 +1,15 @@
-import { CastMode, preferredCastMode, startCasting, stopCasting, type CastSink } from "@ardia/ardiacore";
-import { openExternalURL, showMenu, Symbol } from "@ardia/shell";
+import { CastMode, preferredCastMode, startCasting, stopCasting, type CastSink, closeCastPicker, useCast } from "../../state/media/cast";
+import { openExternalURL, showMenu } from "../../state/app/system";
+import { Symbol, Button, IconTile, PANEL, PanelHeader, Popover, POPOVER_MARGIN, POPOVER_WIDTH, PopoverValue, Text, useHover } from "../ui";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { useTheme } from "../../lib/theme";
-import { PANEL, PanelHeader, Popover, POPOVER_MARGIN, PopoverValue, PromptButton } from "../layout/controls";
-import { useHover } from "../primitives";
-import { closeCastPicker, useCast } from "./cast";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { useTheme } from "../ui/theme";
+import { ink, space } from "../ui/tokens";
+import { useMediaTokens } from "./tokens";
 
-const WIDTH = 340;
+const FLEX = { flex: 1 } as const;
+const UNDERLINE = { textDecorationLine: "underline" } as const;
+const NO_UNDERLINE = { textDecorationLine: "none" } as const;
 
 const SINK_ICON: Record<number, string> = { 0: "tv", 1: "hifispeaker.2", 2: "hifispeaker", 6: "display", 7: "tv" };
 
@@ -20,7 +22,7 @@ export function CastPicker({ tabId, paneWidth }: { tabId: string; paneWidth: num
   const close = () => closeCastPicker(tabId);
   const available = dialog.sinks.filter((s) => s.state !== "unavailable");
   const canScreen = dialog.sinks.some((s) => s.modes & CastMode.screen);
-  const width = Math.min(WIDTH, paneWidth - 24);
+  const width = Math.min(POPOVER_WIDTH.m, paneWidth - 24);
   const cast = (sink: CastSink) => {
     const mode = screen && sink.modes & CastMode.screen ? CastMode.screen : preferredCastMode(sink.modes & ~CastMode.screen) || preferredCastMode(sink.modes);
     if (mode) void startCasting(dialog.id, sink.id, mode);
@@ -42,22 +44,22 @@ export function CastPicker({ tabId, paneWidth }: { tabId: string; paneWidth: num
             onLink={() => void openExternalURL("x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")}
           />
         ) : available.length ? (
-          <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset, gap: 2 }}>
+          <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset, gap: space.xxs }}>
             {available.map((sink) => (
               <SinkRow key={sink.id} sink={sink} onCast={() => cast(sink)} onStop={() => void stopCasting(dialog.id, sink.routeId)} />
             ))}
           </ScrollView>
         ) : (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: PANEL.inset, paddingTop: 4, paddingBottom: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: PANEL.inset, paddingTop: space.xs, paddingBottom: space.xs }}>
             <ActivityIndicator size="small" style={{ transform: [{ scale: 0.6 }], width: 14, height: 14 }} />
-            <Text style={{ flex: 1, fontSize: 12, color: theme.textSecondary }}>
+            <Text size="small" tone="textSecondary" style={FLEX}>
               Looking for devices… Cast devices need to be on the same Wi‑Fi network as this Mac.
             </Text>
           </View>
         )}
 
-        <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: PANEL.inset, marginTop: 10 }}>
-          <PromptButton title="Done" onPress={close} />
+        <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: PANEL.inset, marginTop: space.ml }}>
+          <Button variant="pill" title="Done" onPress={close} />
         </View>
       </View>
     </Popover>
@@ -66,28 +68,27 @@ export function CastPicker({ tabId, paneWidth }: { tabId: string; paneWidth: num
 
 function SinkRow({ sink, onCast, onStop }: { sink: CastSink; onCast(): void; onStop(): void }) {
   const theme = useTheme();
+  const tokens = useMediaTokens();
   const { hovered, hoverProps } = useHover();
   const active = sink.state === "connected" && !!sink.routeId;
   const busy = sink.state === "connecting" || sink.state === "disconnecting";
   return (
     <View {...hoverProps}>
       <Pressable onPress={active || busy ? undefined : onCast}>
-        <View style={{ minHeight: 42, borderRadius: PANEL.rowRadius, flexDirection: "row", alignItems: "center", gap: PANEL.iconGap, paddingHorizontal: PANEL.rowPadding, paddingVertical: 5, backgroundColor: hovered && !active ? theme.rowHover : undefined }}>
-          <View style={{ width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: active ? theme.accent : theme.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)" }}>
-            <Symbol name={SINK_ICON[sink.icon] ?? "tv"} size={13} color={active ? "#FFFFFF" : theme.icon} style={{ width: 20, height: 20 }} />
-          </View>
+        <View style={{ minHeight: 42, borderRadius: PANEL.rowRadius, flexDirection: "row", alignItems: "center", gap: PANEL.iconGap, paddingHorizontal: PANEL.rowPadding, paddingVertical: space.xs, backgroundColor: hovered && !active ? theme.rowHover : undefined }}>
+          <IconTile symbol={SINK_ICON[sink.icon] ?? "tv"} size="m" fill={active ? theme.accent : tokens.iconTile} glyph={active ? ink.white : theme.icon} />
           <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ fontSize: 13, color: theme.textPrimary }}>
+            <Text lines={1}>
               {sink.name}
             </Text>
             {sink.issue || sink.status ? (
-              <Text numberOfLines={1} style={{ fontSize: 11.5, color: sink.issue ? "#FF453A" : theme.textSecondary }}>
+              <Text lines={1} size="caption" tone={sink.issue ? "destructive" : "textSecondary"}>
                 {sink.issue || sink.status}
               </Text>
             ) : null}
           </View>
           {busy ? <ActivityIndicator size="small" style={{ transform: [{ scale: 0.6 }], width: 16, height: 16 }} /> : null}
-          {active ? <PromptButton title="Stop" onPress={onStop} /> : null}
+          {active ? <Button variant="pill" title="Stop" onPress={onStop} /> : null}
         </View>
       </Pressable>
     </View>
@@ -106,14 +107,13 @@ function SourceButton({ screen, onChange }: { screen: boolean; onChange: (screen
 }
 
 function Message({ text, link, onLink }: { text: string; link: string; onLink: () => void }) {
-  const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
-    <View style={{ paddingHorizontal: PANEL.inset, paddingTop: 4, gap: 5 }}>
-      <Text style={{ fontSize: 12.5, color: theme.textSecondary }}>{text}</Text>
+    <View style={{ paddingHorizontal: PANEL.inset, paddingTop: space.xs, gap: space.xs }}>
+      <Text size="small" tone="textSecondary">{text}</Text>
       <View {...hoverProps}>
         <Pressable onPress={onLink}>
-          <Text style={{ fontSize: 12, fontWeight: "500", color: theme.accent, textDecorationLine: hovered ? "underline" : "none" }}>{link}</Text>
+          <Text size="small" weight="medium" tone="accent" style={hovered ? UNDERLINE : NO_UNDERLINE}>{link}</Text>
         </Pressable>
       </View>
     </View>

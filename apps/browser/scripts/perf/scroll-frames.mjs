@@ -6,7 +6,7 @@
 //   node apps/browser/scripts/perf/scroll-frames.mjs --out <dir> --arm <label>=<app>[,K=V...] [--arm ...] [options]
 //
 //     --arm <label>=<app>[,K=V][,battery]
-//                        repeatable: an app and extra environment for it (ARDIA_MAIN_FRAME_THROTTLE=off, ...); battery
+//                        repeatable: an app and extra environment for it (ARDIA_SWITCHES=…, ...); battery
 //                        turns Chrome's Battery Saver on, as Ardia does on battery or in Low Power Mode, and needs a copy
 //                        with the bench channel (native-bench.mjs --only prepare)
 //     --reps <n>         gestures per case (default 3)
@@ -195,7 +195,7 @@ async function benchCommand(data, body, timeout = 20000) {
   throw new Error("the bench channel never answered: battery arms need a copy from native-bench.mjs --only prepare");
 }
 const batterySaver = (data, mode) =>
-  benchCommand(data, `return globalThis.expo.modules.ArdiaCEF.engineCall("ac_battery_saver", "", ${JSON.stringify(JSON.stringify(mode ? { mode } : {}))}).then(JSON.parse);`);
+  benchCommand(data, `return globalThis.expo.modules.ArdiaEngine.call("batterySaver", "", ${JSON.stringify(JSON.stringify(mode ? { mode } : {}))}).then(JSON.parse).catch((e) => ({ error: e.message }));`);
 
 async function keys(d) {
   const press = (key, code, autoRepeat, type) => d.send("Input.dispatchKeyEvent", { type, key, code: key, windowsVirtualKeyCode: code, autoRepeat });

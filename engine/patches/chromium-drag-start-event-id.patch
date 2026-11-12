@@ -1,0 +1,250 @@
+diff --git a/third_party/blink/public/mojom/drag/drag.mojom b/third_party/blink/public/mojom/drag/drag.mojom
+--- a/third_party/blink/public/mojom/drag/drag.mojom
++++ b/third_party/blink/public/mojom/drag/drag.mojom
+@@ -116,4 +116,6 @@
+ struct DragEventSourceInfo {
+   gfx.mojom.Point location;
+   ui.mojom.DragEventSource source;
++  int64 press_event_id = -1;
++  bool trigger_from_debugger = false;
+ };
+diff --git a/third_party/blink/renderer/platform/widget/widget_base_client.h b/third_party/blink/renderer/platform/widget/widget_base_client.h
+--- a/third_party/blink/renderer/platform/widget/widget_base_client.h
++++ b/third_party/blink/renderer/platform/widget/widget_base_client.h
+@@ -136,6 +136,7 @@
+   virtual void WillHandleGestureEvent(const WebGestureEvent& event,
+                                       bool* suppress) = 0;
+   virtual void WillHandleMouseEvent(const WebMouseEvent& event) = 0;
++  virtual int64_t ExchangeCurrentInputEventId(int64_t trace_id) { return -1; }
+   virtual void ObserveGestureEventAndResult(
+       const WebGestureEvent& gesture_event,
+       const gfx::Vector2dF& unused_delta,
+diff --git a/third_party/blink/renderer/platform/widget/frame_widget.h b/third_party/blink/renderer/platform/widget/frame_widget.h
+--- a/third_party/blink/renderer/platform/widget/frame_widget.h
++++ b/third_party/blink/renderer/platform/widget/frame_widget.h
+@@ -67,6 +67,8 @@
+ class PLATFORM_EXPORT FrameWidget {
+  public:
+   virtual ~FrameWidget();
++
++  virtual int64_t CurrentInputEventId() const { return -1; }
+ 
+   // Returns the compositors's AnimationHost for the widget.
+   virtual cc::AnimationHost* AnimationHost() const = 0;
+diff --git a/third_party/blink/renderer/platform/widget/input/widget_base_input_handler.cc b/third_party/blink/renderer/platform/widget/input/widget_base_input_handler.cc
+--- a/third_party/blink/renderer/platform/widget/input/widget_base_input_handler.cc
++++ b/third_party/blink/renderer/platform/widget/input/widget_base_input_handler.cc
+@@ -34,6 +34,8 @@
+ #include "third_party/blink/renderer/platform/widget/widget_base_client.h"
+ #include "third_party/blink/renderer/platform/wtf/vector.h"
+ #include "ui/latency/latency_info.h"
++#include "base/functional/bind.h"
++#include "base/functional/callback_helpers.h"
+ 
+ #if BUILDFLAG(IS_ANDROID)
+ #include <android/keycodes.h>
+@@ -252,6 +254,15 @@
+                "WidgetBaseInputHandler::OnHandleInputEvent", "event",
+                WebInputEvent::GetName(input_event.GetType()));
+   int64_t trace_id = coalesced_event.latency_info().trace_id();
++  const int64_t outer_input_event_id =
++      widget_->client()->ExchangeCurrentInputEventId(trace_id);
++  base::ScopedClosureRunner restore_input_event_id(base::BindOnce(
++      [](base::WeakPtr<WidgetBaseInputHandler> handler, int64_t id) {
++        if (handler) {
++          handler->widget_->client()->ExchangeCurrentInputEventId(id);
++        }
++      },
++      weak_self, outer_input_event_id));
+   TRACE_EVENT("input,benchmark,latencyInfo", "LatencyInfo.Flow",
+               [&](perfetto::EventContext ctx) {
+                 base::TaskAnnotator::EmitTaskTimingDetails(ctx);
+diff --git a/third_party/blink/renderer/core/frame/web_frame_widget_impl.h b/third_party/blink/renderer/core/frame/web_frame_widget_impl.h
+--- a/third_party/blink/renderer/core/frame/web_frame_widget_impl.h
++++ b/third_party/blink/renderer/core/frame/web_frame_widget_impl.h
+@@ -921,6 +921,8 @@
+   void WillHandleGestureEvent(const WebGestureEvent& event,
+                               bool* suppress) override;
+   void WillHandleMouseEvent(const WebMouseEvent& event) override;
++  int64_t ExchangeCurrentInputEventId(int64_t trace_id) override;
++  int64_t CurrentInputEventId() const override;
+   void ObserveGestureEventAndResult(
+       const WebGestureEvent& gesture_event,
+       const gfx::Vector2dF& unused_delta,
+@@ -1219,6 +1221,7 @@
+   // being handled. If the current event results in starting a drag/drop
+   // session, this info is sent to the browser along with other drag/drop info.
+   mojom::blink::DragEventSourceInfo possible_drag_event_info_;
++  int64_t current_input_event_id_ = -1;
+ 
+   // Base functionality all widgets have. This is a member as to avoid
+   // complicated inheritance structures.
+diff --git a/third_party/blink/renderer/core/frame/web_frame_widget_impl.cc b/third_party/blink/renderer/core/frame/web_frame_widget_impl.cc
+--- a/third_party/blink/renderer/core/frame/web_frame_widget_impl.cc
++++ b/third_party/blink/renderer/core/frame/web_frame_widget_impl.cc
+@@ -142,7 +142,9 @@
+ #include "third_party/blink/renderer/core/loader/interactive_detector.h"
+ #include "third_party/blink/renderer/core/page/context_menu_controller.h"
+ #include "third_party/blink/renderer/core/page/drag_actions.h"
++#include "third_party/blink/renderer/core/page/drag_controller.h"
+ #include "third_party/blink/renderer/core/page/drag_data.h"
++#include "third_party/blink/renderer/core/page/drag_state.h"
+ #include "third_party/blink/renderer/core/page/focus_controller.h"
+ #include "third_party/blink/renderer/core/page/link_highlight.h"
+ #include "third_party/blink/renderer/core/page/page.h"
+@@ -1479,9 +1481,18 @@
+   gfx::Rect drag_obj_rect_in_dips =
+       gfx::Rect(widget_base_->BlinkSpaceToFlooredDIPs(drag_obj_rect.origin()),
+                 widget_base_->BlinkSpaceToFlooredDIPs(drag_obj_rect.size()));
++  mojom::blink::DragEventSourceInfoPtr event_info =
++      possible_drag_event_info_.Clone();
++  if (Page* page = source_frame->GetPage()) {
++    DragState& drag_state = page->GetDragController().GetDragState();
++    event_info->press_event_id = drag_state.press_event_id;
++    event_info->trigger_from_debugger = drag_state.trigger_from_debugger;
++    drag_state.press_event_id = -1;
++    drag_state.trigger_from_debugger = false;
++  }
+   source_frame->GetLocalFrameHostRemote().StartDragging(
+       drag_data, operations_allowed, drag_image, offset_in_dips,
+-      drag_obj_rect_in_dips, possible_drag_event_info_.Clone());
++      drag_obj_rect_in_dips, std::move(event_info));
+ }
+ 
+ void WebFrameWidgetImpl::DragTargetDragEnterOrOver(
+@@ -3317,6 +3328,14 @@
+     }
+     *suppress = true;
+   }
++}
++
++int64_t WebFrameWidgetImpl::ExchangeCurrentInputEventId(int64_t trace_id) {
++  return std::exchange(current_input_event_id_, trace_id);
++}
++
++int64_t WebFrameWidgetImpl::CurrentInputEventId() const {
++  return current_input_event_id_;
+ }
+ 
+ void WebFrameWidgetImpl::WillHandleMouseEvent(const WebMouseEvent& event) {
+diff --git a/third_party/blink/renderer/core/page/drag_state.h b/third_party/blink/renderer/core/page/drag_state.h
+--- a/third_party/blink/renderer/core/page/drag_state.h
++++ b/third_party/blink/renderer/core/page/drag_state.h
+@@ -26,6 +26,8 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_PAGE_DRAG_STATE_H_
+ #define THIRD_PARTY_BLINK_RENDERER_CORE_PAGE_DRAG_STATE_H_
+ 
++#include <cstdint>
++
+ #include "third_party/blink/renderer/core/page/drag_actions.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+ 
+@@ -45,6 +47,8 @@
+   DragSourceAction drag_type_;
+   // Used on only the source side of dragging.
+   Member<DataTransfer> drag_data_transfer_;
++  int64_t press_event_id = -1;
++  bool trigger_from_debugger = false;
+ 
+   void Trace(Visitor* visitor) const {
+     visitor->Trace(drag_src_);
+diff --git a/third_party/blink/renderer/core/input/mouse_event_manager.h b/third_party/blink/renderer/core/input/mouse_event_manager.h
+--- a/third_party/blink/renderer/core/input/mouse_event_manager.h
++++ b/third_party/blink/renderer/core/input/mouse_event_manager.h
+@@ -257,6 +257,7 @@
+   gfx::Point mouse_down_pos_;
+   base::TimeTicks mouse_down_timestamp_;
+   WebMouseEvent mouse_down_;
++  int64_t mouse_down_event_id_ = -1;
+ 
+   PhysicalOffset drag_start_pos_in_root_frame_;
+   // This indicates that whether we should update the hover at each begin
+diff --git a/third_party/blink/renderer/core/input/mouse_event_manager.cc b/third_party/blink/renderer/core/input/mouse_event_manager.cc
+--- a/third_party/blink/renderer/core/input/mouse_event_manager.cc
++++ b/third_party/blink/renderer/core/input/mouse_event_manager.cc
+@@ -28,6 +28,7 @@
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/local_frame_view.h"
++#include "third_party/blink/renderer/platform/widget/frame_widget.h"
+ #include "third_party/blink/renderer/core/frame/settings.h"
+ #include "third_party/blink/renderer/core/html/forms/html_label_element.h"
+ #include "third_party/blink/renderer/core/html/forms/html_select_element.h"
+@@ -56,6 +57,11 @@
+ namespace blink {
+ 
+ namespace {
++
++int64_t CurrentInputEventId(LocalFrame& frame) {
++  FrameWidget* widget = frame.GetWidgetForLocalRoot();
++  return widget ? widget->CurrentInputEventId() : -1;
++}
+ 
+ void UpdateMouseMovementXY(const WebMouseEvent& mouse_event,
+                            const gfx::PointF* last_position,
+@@ -145,6 +151,7 @@
+   mouse_down_pos_ = gfx::Point();
+   mouse_down_timestamp_ = base::TimeTicks();
+   mouse_down_ = WebMouseEvent();
++  mouse_down_event_id_ = -1;
+   svg_pan_ = false;
+   drag_start_pos_in_root_frame_ = PhysicalOffset();
+   hover_state_dirty_ = false;
+@@ -702,6 +709,7 @@
+ }
+ 
+   mouse_down_ = event.Event();
++  mouse_down_event_id_ = CurrentInputEventId(*frame_);
+ 
+   if (frame_->GetDocument()->IsSVGDocument() &&
+       frame_->GetDocument()->AccessSVGExtensions().ZoomAndPanEnabled()) {
+@@ -794,6 +802,7 @@
+                     modifiers | WebInputEvent::Modifiers::kLeftButtonDown |
+                         WebInputEvent::Modifiers::kIsCompatibilityEventForTouch,
+                     base::TimeTicks::Now());
++  mouse_down_event_id_ = CurrentInputEventId(*frame_);
+ 
+   WebMouseEvent mouse_drag_event(
+       WebInputEvent::Type::kMouseMove, gesture_event,
+@@ -1038,6 +1047,9 @@
+   ClearDragDataTransfer();
+ 
+   GetDragState().drag_data_transfer_ = CreateDraggingDataTransfer();
++  GetDragState().press_event_id = mouse_down_event_id_;
++  GetDragState().trigger_from_debugger =
++      (event.Event().GetModifiers() & WebInputEvent::kFromDebugger) != 0;
+ 
+   DragController& drag_controller = frame_->GetPage()->GetDragController();
+   if (!frame_->View() ||
+diff --git a/content/browser/web_contents/web_contents_view_aura_unittest.cc b/content/browser/web_contents/web_contents_view_aura_unittest.cc
+--- a/content/browser/web_contents/web_contents_view_aura_unittest.cc
++++ b/content/browser/web_contents/web_contents_view_aura_unittest.cc
+@@ -1311,7 +1311,7 @@
+       blink::mojom::DragEventSourceInfo(
+           {view_bounds_on_screen.x() + view_bounds_on_screen.width() + 1,
+            view_bounds_on_screen.y() + 1},
+-          ui::mojom::DragEventSource::kMouse));
++          ui::mojom::DragEventSource::kMouse, -1, false));
+ 
+   ui::OSExchangeData* exchange_data = drag_drop_client.GetDragDropData();
+   EXPECT_TRUE(exchange_data);
+@@ -1350,7 +1350,8 @@
+                       blink::DragOperationsMask::kDragOperationNone,
+                       gfx::ImageSkia(), gfx::Vector2d(), gfx::Rect(),
+                       blink::mojom::DragEventSourceInfo(
+-                          spoofed, ui::mojom::DragEventSource::kTouch));
++                          spoofed, ui::mojom::DragEventSource::kTouch, -1,
++                          false));
+ 
+   EXPECT_TRUE(drag_drop_client.GetDragDropData());
+   EXPECT_EQ(ui::mojom::DragEventSource::kTouch, drag_drop_client.last_source());
+@@ -1783,7 +1784,8 @@
+                       blink::DragOperationsMask::kDragOperationCopy,
+                       gfx::ImageSkia(), gfx::Vector2d(), gfx::Rect(),
+                       blink::mojom::DragEventSourceInfo(
+-                          gfx::Point(), ui::mojom::DragEventSource::kMouse));
++                          gfx::Point(), ui::mojom::DragEventSource::kMouse, -1,
++                          false));
+ 
+   EXPECT_FALSE(drag_drop_client.GetDragDropData());
+   EXPECT_FALSE(view->drag_security_info_.did_initiate());

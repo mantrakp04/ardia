@@ -1,6 +1,6 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include "chrome/browser/ardia/ac_tabs.h"
+#include "chrome/browser/ardia/ac_engine.h"
 
 #include <algorithm>
 #include <map>
@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "base/command_line.h"
 #include "base/no_destructor.h"
 #include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
@@ -195,20 +196,12 @@ class StripWatcher : public BrowserCollectionObserver,
 }
 }
 
-AC_ENGINE_CALL(ac_tabs_watch) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_tabs_watch) {
   ardia::StripWatcher::Get().Start();
   call.TakeReply().Ok();
 }
 
-AC_ENGINE_CALL(ac_tabs_group) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_tabs_group) {
   ardia::Reply out = call.TakeReply();
   const std::optional<int> window = call.args().FindInt("window");
   BrowserWindowInterface* browser =
@@ -268,4 +261,10 @@ AC_ENGINE_CALL(ac_tabs_group) {
     model->ChangeTabGroupVisuals(*group, visuals);
   }
   out.Send(base::DictValue().Set("group", group->ToString()));
+}
+
+AC_ARGS_CALL(ac_tabs_last_tab_policy) {
+  call.TakeReply().Send(base::DictValue().Set(
+      "closesWindow", base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+                          "close-window-with-last-tab") != "never"));
 }

@@ -1,87 +1,93 @@
-import { cleanUrl } from "@ardia/core";
-import { ContextMenuArea, copyText, MouseArea, showMenu, Symbol, type MenuItem } from "@ardia/shell";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useTheme } from "../../lib/theme";
-import { addFolderToSidebar, makesGroup, restorableArcHolder, restoreArcFolders } from "../../lib/bookmarkGroups";
-import { bookmarkAncestors, folderChildren, folderLinks, type RemovedBookmarks } from "../../store/bookmarks";
-import { useBrowser } from "../../store/browser";
-import { plural } from "../../store/model";
-import type { BookmarkNode } from "../../store/types";
-import { openFolder, openUrl } from "../bookmarks/actions";
-import { editBookmark } from "../bookmarks/edit";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, ScrollView, View } from "react-native";
+import { folderChildren, type RemovedBookmarks } from "../../state/bookmarks/bookmarks";
+import { useTab } from "../../state/browser/hooks";
+import { currentBookmarks } from "../../state/browser/current";
+import { useBookmarkRoots, useBookmarks } from "../../state/bookmarks/hooks";
+import { plural } from "../../state/browser/model";
+import type { BookmarkNode, Bookmarks } from "../../state/browser/types";
+import { moveBookmark, openFolder, removeBookmarks, restoreBookmarks } from "../../state/bookmarks/actions";
+import { clickSelection, NO_SELECTION, rowWindow, selectAll, selectedInOrder, type ListSelection } from "../../state/bookmarks/bookmarkList";
 import { FolderTree } from "../bookmarks/FolderTree";
-import { Favicon, IconButton, useHover } from "../primitives";
-import { Button, useFormColors } from "../settings/controls";
-import { openImport } from "../settings/windows";
+import { Box, Button, Divider, EmptyState, radius, space, Text, Toast, useTheme } from "../ui";
+import { openOrganizeMenu } from "../../state/bookmarks/bookmarkMenus";
+import { BookmarkRow } from "./BookmarkRow";
 import { DropTargets } from "./dropTargets";
-import { EmptyState, hostLabel, matchesQuery, PageHeader } from "./PageLayout";
+import { matchesQuery, PageHeader } from "./PageLayout";
+import { bookmarkList, pagesColors, undoToast } from "./tokens";
 
-const ROW = 36;
 
 type Target = { kind: "folder"; id: string } | { kind: "row"; id: string; index: number; folder: boolean };
 type Drop = { into: string } | { parentId: string; index: number };
 
 export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: string }) {
   const theme = useTheme();
-  const colors = useFormColors();
-  const windowId = useBrowser((s) => s.tabs[tabId]?.windowId ?? "");
-  const roots = useBrowser((s) => s.bookmarks.roots[profileId]);
+  const colors = pagesColors(theme);
+  const windowId = useTab(tabId, (t) => t?.windowId ?? "");
+  const roots = useBookmarkRoots(profileId);
   const [folderId, setFolderId] = useState<string | null>(roots?.bar ?? null);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selection, setSelection] = useState<ListSelection>(NO_SELECTION);
   const [undo, setUndo] = useState<{ removed: RemovedBookmarks; count: number } | null>(null);
+  const [undoClosing, setUndoClosing] = useState(false);
   const [drop, setDrop] = useState<Drop | null>(null);
-  const anchor = useRef<string | null>(null);
   const targets = useMemo(() => new DropTargets<Target>(), []);
 
-  const folderExists = useBrowser((s) => !!folderId && s.bookmarks.nodes[folderId]?.kind === "folder");
+  const folderExists = useBookmarks((b) => !!folderId && b.nodes[folderId]?.kind === "folder");
   useEffect(() => {
     if (!folderExists && roots) setFolderId(roots.bar);
   }, [folderExists, roots]);
-  useEffect(() => setSelected([]), [folderId, query]);
+  useEffect(() => setSelection(NO_SELECTION), [folderId, query]);
 
-  const folderTitle = useBrowser((s) => (folderId ? (s.bookmarks.nodes[folderId]?.title ?? "") : ""));
-  const listKey = useBrowser((s) => {
+  const folderTitle = useBookmarks((b) => (folderId ? (b.nodes[folderId]?.title ?? "") : ""));
+  const listKey = useBookmarks((b) => {
     if (query.trim() && roots) {
-      const all = [...folderLinksAndFolders(s.bookmarks, roots.bar), ...folderLinksAndFolders(s.bookmarks, roots.other)];
+      const all = [...folderLinksAndFolders(b, roots.bar), ...folderLinksAndFolders(b, roots.other)];
       return all
         .filter((n) => matchesQuery(query, n.title, n.kind === "url" ? n.url : ""))
         .map((n) => n.id)
         .join(",");
     }
-    const folder = folderId ? s.bookmarks.nodes[folderId] : undefined;
+    const folder = folderId ? b.nodes[folderId] : undefined;
     return folder?.kind === "folder" ? folder.children.join(",") : "";
   });
   const ids = useMemo(() => (listKey ? listKey.split(",") : []), [listKey]);
   const searching = !!query.trim();
+  const selected = useMemo(() => selectedInOrder(ids, selection), [ids, selection]);
 
+  const list = useRef<View>(null);
   const select = (id: string, e: { metaKey?: boolean; shiftKey?: boolean }) => {
-    if (e.shiftKey && anchor.current && ids.includes(anchor.current)) {
-      const [a, b] = [ids.indexOf(anchor.current), ids.indexOf(id)].sort((x, y) => x - y);
-      setSelected(ids.slice(a!, b! + 1));
-      return;
-    }
-    anchor.current = id;
-    if (e.metaKey) setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-    else setSelected([id]);
+    setSelection((current) => clickSelection(ids, current, id, e));
+    list.current?.focus();
   };
 
-  const remove = (list: string[]) => {
-    if (!list.length) return;
-    const removed = useBrowser.getState().removeBookmarks(list);
-    setSelected([]);
+  const remove = (doomed: string[]) => {
+    if (!doomed.length) return;
+    const removed = removeBookmarks(doomed);
+    setSelection(NO_SELECTION);
     setUndo({ removed, count: removed.places.length });
+    setUndoClosing(false);
   };
+  const undoRemove = () => {
+    if (!undo) return;
+    restoreBookmarks(undo.removed);
+    setUndo(null);
+  };
+
+  const [viewport, setViewport] = useState(800);
+  const [scrollY, setScrollY] = useState(0);
+  const onListLayout = useCallback((e: LayoutChangeEvent) => setViewport(Math.max(bookmarkList.row, Math.round(e.nativeEvent.layout.height))), []);
+  const onListScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => setScrollY(e.nativeEvent.contentOffset.y), []);
+  const shown = rowWindow(ids.length, bookmarkList.row, scrollY, viewport);
   useEffect(() => {
     if (!undo) return;
-    const timer = setTimeout(() => setUndo(null), 8000);
+    const timer = setTimeout(() => setUndoClosing(true), undoToast.visibleMs);
     return () => clearTimeout(timer);
   }, [undo]);
 
   const dragging = useRef<string[]>([]);
   const onDragStart = (id: string) => {
-    dragging.current = selected.includes(id) ? ids.filter((x) => selected.includes(x)) : [id];
+    dragging.current = selection.selected.has(id) ? selected : [id];
     targets.measure();
   };
   const dropFor = (x: number, y: number): Drop | null => {
@@ -101,47 +107,33 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
     const target = dropFor(x, y);
     setDrop(null);
     if (!target) return;
-    const s = useBrowser.getState();
     const moving = dragging.current;
-    if ("into" in target) return moving.forEach((id) => s.moveBookmark(id, target.into));
+    if ("into" in target) return moving.forEach((id) => moveBookmark(id, target.into));
     let index = target.index;
     for (const id of moving) {
       const from = ids.indexOf(id);
       if (from >= 0 && from < target.index) index--;
     }
-    moving.forEach((id, i) => useBrowser.getState().moveBookmark(id, target.parentId, index + i));
-  };
-
-  const addMenu = async () => {
-    const choice = await showMenu([
-      { id: "bookmark", title: "Add New Bookmark…" },
-      { id: "folder", title: "Add New Folder…" },
-      { separator: true },
-      { id: "import", title: "Import Bookmarks…" },
-    ]);
-    const parentId = folderId ?? undefined;
-    if (choice === "bookmark") editBookmark(null, windowId, { profileId, parentId });
-    if (choice === "folder") editBookmark(null, windowId, { profileId, parentId, folder: true });
-    if (choice === "import") openImport();
+    moving.forEach((id, i) => moveBookmark(id, target.parentId, index + i));
   };
 
   const actions =
     selected.length > 0 ? (
       <>
-        <Text style={{ fontSize: 12, color: theme.textSecondary }}>{`${selected.length} selected`}</Text>
+        <Text size="small" tone="textSecondary">{`${selected.length} selected`}</Text>
         <Button title="Delete" kind="primary" onPress={() => remove(selected)} />
       </>
     ) : (
-      <IconButton icon="ellipsis.circle" size={15} box={30} radius={7} onPress={() => void addMenu()} tooltip="Organize" />
+      <Button variant="icon" icon="ellipsis.circle" onPress={() => void openOrganizeMenu(windowId, profileId, folderId)} tooltip="Organize" />
     );
 
   const indicator = drop && "index" in drop ? drop.index : null;
 
   return (
     <View style={{ flex: 1 }}>
-      <PageHeader title="Bookmarks" query={query} onQuery={setQuery} placeholder="Search bookmarks" actions={actions} />
-      <View style={{ flex: 1, flexDirection: "row", paddingHorizontal: 16, paddingBottom: 16, gap: 16 }}>
-        <ScrollView style={{ width: 230, flexGrow: 0 }} contentContainerStyle={{ paddingVertical: 4 }}>
+      <PageHeader title="Bookmarks" query={query} onQuery={setQuery} actions={actions} />
+      <View style={BODY}>
+        <ScrollView style={TREE} contentContainerStyle={TREE_CONTENT}>
           <FolderTree
             profileId={profileId}
             selectedId={searching ? null : folderId}
@@ -149,271 +141,109 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
               setQuery("");
               setFolderId(id);
             }}
-            rowHeight={28}
+            rowHeight={bookmarkList.treeRow}
             wrapRow={(id, row) => (
               <View
                 ref={targets.ref(`tree:${id}`, { kind: "folder", id })}
-                style={{ borderRadius: 6, backgroundColor: drop && "into" in drop && drop.into === id ? `${colors.accent}40` : undefined }}
+                style={{ borderRadius: radius.control, backgroundColor: drop && "into" in drop && drop.into === id ? colors.dropTarget : undefined }}
               >
                 {row}
               </View>
             )}
           />
         </ScrollView>
-        <View
-          style={{
-            flex: 1,
-            borderRadius: 12,
-            backgroundColor: colors.group,
-            borderWidth: StyleSheet.hairlineWidth * 2,
-            borderColor: colors.groupBorder,
-            overflow: "hidden",
-          }}
-        >
-          <View style={{ height: 40, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, gap: 8 }}>
-            <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, fontWeight: "600", color: theme.textPrimary }}>
+        <Box radius="panel" fill="groupFill" border="groupBorder" style={LIST_CARD}>
+          <Box row padX="xl" gap="m" style={LIST_HEADER}>
+            <Text lines={1} weight="semibold" style={LIST_TITLE}>
               {searching ? `Results for “${query.trim()}”` : folderTitle}
             </Text>
             {!searching && folderId && (
               <Button title="Open All" onPress={() => void openFolder(folderId, windowId)} disabled={!ids.length} />
             )}
-          </View>
-          <View style={{ height: StyleSheet.hairlineWidth * 2, backgroundColor: colors.separator }} />
+          </Box>
+          <Divider thick />
           {ids.length === 0 ? (
             <EmptyState
-              icon={<Symbol name={searching ? "magnifyingglass" : "bookmark"} size={26} color={theme.textTertiary} style={{ width: 36, height: 36 }} />}
+              symbol={searching ? "magnifyingglass" : "bookmark"}
               title={searching ? "No search results found" : "This folder is empty"}
             />
           ) : (
-            <ScrollView
+            <View
+              ref={list}
               focusable
               enableFocusRing={false}
-              keyDownEvents={[{ key: "Backspace" }, { key: "Delete" }, { key: "a", metaKey: true }]}
+              keyDownEvents={LIST_KEYS}
               onKeyDown={(e) => {
-                const key = e.nativeEvent.key;
+                const { key, metaKey } = e.nativeEvent;
                 if (key === "Backspace" || key === "Delete") remove(selected);
-                if (key === "a") setSelected(ids);
+                else if (key === "a" && metaKey) setSelection(selectAll(ids));
               }}
-              contentContainerStyle={{ padding: 6 }}
+              style={LIST_KEYS_VIEW}
             >
-              {ids.map((id, index) => (
-                <View key={id}>
-                  {indicator === index && <DropLine color={colors.accent} />}
-                  <BookmarkRow
-                    id={id}
-                    windowId={windowId}
-                    profileId={profileId}
-                    showPath={searching}
-                    selected={selected.includes(id)}
-                    highlighted={!!drop && "into" in drop && drop.into === id}
-                    targetRef={targets.ref(`row:${id}`, { kind: "row", id, index, folder: useBrowser.getState().bookmarks.nodes[id]?.kind === "folder" })}
-                    onSelect={(e) => select(id, e)}
-                    onOpenFolder={(folder = id) => {
-                      setQuery("");
-                      setFolderId(folder);
-                    }}
-                    onDelete={() => remove(selected.includes(id) ? selected : [id])}
-                    onDragStart={() => onDragStart(id)}
-                    onDragMove={onDragMove}
-                    onDragEnd={onDragEnd}
-                  />
+              <ScrollView onLayout={onListLayout} onScroll={onListScroll} scrollEventThrottle={16} contentContainerStyle={LIST_CONTENT}>
+                <View style={{ height: ids.length * bookmarkList.row }}>
+                  {ids.slice(shown.first, shown.end).map((id, offset) => {
+                    const index = shown.first + offset;
+                    return (
+                      <BookmarkRow
+                        key={id}
+                        id={id}
+                        top={index * bookmarkList.row}
+                        windowId={windowId}
+                        profileId={profileId}
+                        showPath={searching}
+                        selected={selection.selected.has(id)}
+                        highlighted={!!drop && "into" in drop && drop.into === id}
+                        targetRef={targets.ref(`row:${id}`, { kind: "row", id, index, folder: currentBookmarks().nodes[id]?.kind === "folder" })}
+                        onSelect={(e) => select(id, e)}
+                        onOpenFolder={(folder = id) => {
+                          setQuery("");
+                          setFolderId(folder);
+                        }}
+                        onDelete={() => remove(selection.selected.has(id) ? selected : [id])}
+                        menuSelection={() => selected}
+                        onDragStart={() => onDragStart(id)}
+                        onDragMove={onDragMove}
+                        onDragEnd={onDragEnd}
+                      />
+                    );
+                  })}
+                  {indicator !== null && <DropLine top={indicator * bookmarkList.row} color={theme.formAccent} />}
                 </View>
-              ))}
-              {indicator === ids.length && <DropLine color={colors.accent} />}
-            </ScrollView>
+              </ScrollView>
+            </View>
           )}
-        </View>
+        </Box>
       </View>
       {undo && (
-        <UndoToast
-          message={`${plural(undo.count, "item")} deleted`}
-          onUndo={() => {
-            useBrowser.getState().restoreBookmarks(undo.removed);
-            setUndo(null);
-          }}
+        <Toast
+          title={`${plural(undo.count, "item")} deleted`}
+          action="Undo"
+          onAction={undoRemove}
+          closing={undoClosing}
+          onClosed={() => setUndo(null)}
         />
       )}
     </View>
   );
 }
 
-function folderLinksAndFolders(b: ReturnType<typeof useBrowser.getState>["bookmarks"], folderId: string): BookmarkNode[] {
+function folderLinksAndFolders(b: Bookmarks, folderId: string): BookmarkNode[] {
   return folderChildren(b, folderId).flatMap((n) => (n.kind === "folder" ? [n, ...folderLinksAndFolders(b, n.id)] : [n]));
 }
 
-function DropLine({ color }: { color: string }) {
-  return <View style={{ height: 2, marginHorizontal: 8, marginVertical: -1, borderRadius: 1, backgroundColor: color, zIndex: 5 }} />;
+function DropLine({ top, color }: { top: number; color: string }) {
+  return <View style={[DROP_LINE, { top: top - bookmarkList.dropLine / 2, backgroundColor: color }]} />;
 }
 
-function BookmarkRow({
-  id,
-  windowId,
-  profileId,
-  showPath,
-  selected,
-  highlighted,
-  targetRef,
-  onSelect,
-  onOpenFolder,
-  onDelete,
-  onDragStart,
-  onDragMove,
-  onDragEnd,
-}: {
-  id: string;
-  windowId: string;
-  profileId: string;
-  showPath: boolean;
-  selected: boolean;
-  highlighted: boolean;
-  targetRef: (v: View | null) => void;
-  onSelect: (e: { metaKey?: boolean; shiftKey?: boolean }) => void;
-  onOpenFolder: (folder?: string) => void;
-  onDelete: () => void;
-  onDragStart: () => void;
-  onDragMove: (x: number, y: number) => void;
-  onDragEnd: (x: number, y: number) => void;
-}) {
-  const theme = useTheme();
-  const colors = useFormColors();
-  const node = useBrowser((s) => s.bookmarks.nodes[id]);
-  const path = useBrowser((s) => (showPath ? bookmarkAncestors(s.bookmarks, id).map((a) => a.title).reverse().join(" › ") : ""));
-  const { hovered, hoverProps } = useHover();
-  const dy = useRef(new Animated.Value(0)).current;
-  const [dragging, setDragging] = useState(false);
-  const handlers = useRef({ onDragStart, onDragMove, onDragEnd });
-  handlers.current = { onDragStart, onDragMove, onDragEnd };
-  const responder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4 || Math.abs(g.dx) > 8,
-        onPanResponderGrant: () => {
-          setDragging(true);
-          handlers.current.onDragStart();
-        },
-        onPanResponderMove: (_, g) => {
-          dy.setValue(g.dy);
-          handlers.current.onDragMove(g.moveX, g.moveY);
-        },
-        onPanResponderRelease: (_, g) => {
-          dy.setValue(0);
-          setDragging(false);
-          handlers.current.onDragEnd(g.moveX, g.moveY);
-        },
-        onPanResponderTerminate: () => {
-          dy.setValue(0);
-          setDragging(false);
-          handlers.current.onDragEnd(-1, -1);
-        },
-      }),
-    [],
-  );
-  if (!node) return null;
+const LIST_KEYS = [{ key: "Backspace" }, { key: "Delete" }, { key: "a", metaKey: true }];
 
-  const open = (mode: Parameters<typeof openUrl>[2]) => node.kind === "url" && openUrl(node.url, windowId, mode);
-  const menu = async () => {
-    if (!selected) onSelect({});
-    const items: MenuItem[] =
-      node.kind === "url"
-        ? [
-            { id: "tab", title: "Open in New Tab" },
-            { id: "window", title: "Open in New Window" },
-            { id: "incognito", title: "Open in Incognito Window" },
-            { id: "split", title: "Open in Split View" },
-            { separator: true },
-            { id: "edit", title: "Edit…" },
-            { id: "copy", title: "Copy Link" },
-          ]
-        : [
-            { id: "openAll", title: `Open All (${folderLinks(useBrowser.getState().bookmarks, node.id).length})` },
-            { id: "openAllWindow", title: "Open All in New Window" },
-            { id: "addGroup", title: "Add to Sidebar as Group", enabled: makesGroup(useBrowser.getState(), node.id) },
-            ...(restorableArcHolder(useBrowser.getState(), node.id) ? [{ id: "restoreArc", title: "Restore Arc Folders as Groups" }] : []),
-            { separator: true },
-            { id: "edit", title: "Rename…" },
-          ];
-    if (showPath) items.push({ id: "show", title: "Show in Folder" });
-    items.push({ separator: true }, { id: "delete", title: "Delete" });
-    const choice = await showMenu(items);
-    if (choice === "tab") open("foreground");
-    if (choice === "window") open("window");
-    if (choice === "incognito") open("incognito");
-    if (choice === "split") open("split");
-    if (choice === "copy" && node.kind === "url") copyText(cleanUrl(node.url));
-    if (choice === "edit") editBookmark(node.id, windowId, { profileId });
-    if (choice === "openAll") void openFolder(node.id, windowId);
-    if (choice === "openAllWindow") void openFolder(node.id, windowId, "window");
-    if (choice === "addGroup") addFolderToSidebar(node.id, windowId);
-    if (choice === "restoreArc") restoreArcFolders(node.id, windowId);
-    if (choice === "show" && node.parentId) onOpenFolder(node.parentId);
-    if (choice === "delete") onDelete();
-  };
-
-  return (
-    <Animated.View
-      ref={targetRef as never}
-      {...responder.panHandlers}
-      {...hoverProps}
-      style={{ zIndex: dragging ? 10 : 0, opacity: dragging ? 0.85 : 1, transform: [{ translateY: dy }] }}
-    >
-      <ContextMenuArea onContextMenu={() => void menu()}>
-        <MouseArea onMiddleClick={() => open("background")}>
-          <Pressable onPress={(e) => onSelect(e.nativeEvent as unknown as { metaKey?: boolean; shiftKey?: boolean })}>
-            <View
-              onDoubleClick={() => (node.kind === "folder" ? onOpenFolder() : void open("current"))}
-              style={{
-                height: ROW,
-                borderRadius: 7,
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 10,
-                gap: 10,
-                backgroundColor: selected ? `${colors.accent}${theme.dark ? "59" : "33"}` : highlighted ? `${colors.accent}40` : hovered ? theme.rowHover : undefined,
-              }}
-            >
-              {node.kind === "url" ? (
-                <Favicon url={node.url} favicon={node.favicon} profileId={profileId} />
-              ) : (
-                <Symbol name="folder" size={14} color={theme.icon} style={{ width: 16, height: 16 }} />
-              )}
-              <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 13, color: theme.textPrimary }}>
-                {node.title || (node.kind === "url" ? node.url : "")}
-              </Text>
-              <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, color: theme.textTertiary }}>
-                {showPath ? path : node.kind === "url" ? hostLabel(node.url) : plural(node.children.length, "item")}
-              </Text>
-              <View style={{ opacity: hovered ? 1 : 0 }}>
-                <IconButton icon="ellipsis" size={13} box={24} radius={6} onPress={() => void menu()} tooltip="More actions" />
-              </View>
-            </View>
-          </Pressable>
-        </MouseArea>
-      </ContextMenuArea>
-    </Animated.View>
-  );
-}
-
-function UndoToast({ message, onUndo }: { message: string; onUndo: () => void }) {
-  const theme = useTheme();
-  return (
-    <View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 24, alignItems: "center" }}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 14,
-          paddingLeft: 16,
-          paddingRight: 8,
-          height: 38,
-          borderRadius: 10,
-          backgroundColor: theme.dark ? "#3A3A3C" : "#2C2C2E",
-        }}
-      >
-        <Text style={{ fontSize: 13, color: "#FFFFFF" }}>{message}</Text>
-        <Pressable onPress={onUndo} style={{ paddingHorizontal: 10, height: 26, borderRadius: 6, justifyContent: "center" }}>
-          <Text style={{ fontSize: 13, fontWeight: "600", color: "#64A8FF" }}>Undo</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
+const BODY = { flex: 1, flexDirection: "row", paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.xl } as const;
+const TREE = { width: bookmarkList.treeWidth, flexGrow: 0 } as const;
+const TREE_CONTENT = { paddingVertical: space.xs } as const;
+const LIST_CARD = { flex: 1, overflow: "hidden" } as const;
+const LIST_HEADER = { height: bookmarkList.headerHeight, alignItems: "center" } as const;
+const LIST_TITLE = { flex: 1 } as const;
+const LIST_KEYS_VIEW = { flex: 1 } as const;
+const LIST_CONTENT = { padding: space.s } as const;
+const DROP_LINE = { position: "absolute", left: space.m, right: space.m, height: bookmarkList.dropLine, borderRadius: bookmarkList.dropLineRadius, zIndex: 5 } as const;

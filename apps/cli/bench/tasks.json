@@ -1,0 +1,260 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "calendar",
+      "title": "Calendar: five events",
+      "server": {
+        "command": [
+          "python3",
+          "-I",
+          "tasks/calendar/server.py"
+        ],
+        "ports": [
+          8791
+        ]
+      },
+      "start_url": "http://127.0.0.1:8791/",
+      "extra_urls": [],
+      "preopen_extra": false,
+      "reset": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8791/api/reset"
+      },
+      "check": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8791/api/check"
+      },
+      "deadline_s": 480,
+      "prompt": "In the Calendar web app open in the current tab, add these events to my Board calendar: Pipeline review Mon Nov 9 10–11 AM, Design partner call Tue Nov 10 2–3 PM, Board prep Wed Nov 11 9–10:30 AM, Q3 deck review Thu Nov 12 4–5 PM, Investor update Fri Nov 13 11 AM–12 PM."
+    },
+    {
+      "id": "expenses",
+      "title": "Expense report from receipts",
+      "server": {
+        "command": [
+          "python3",
+          "-I",
+          "tasks/expenses/server.py"
+        ],
+        "ports": [
+          8792,
+          8793,
+          8794
+        ]
+      },
+      "start_url": "http://127.0.0.1:8792/",
+      "extra_urls": [
+        "http://127.0.0.1:8793/"
+      ],
+      "preopen_extra": false,
+      "reset": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8793/api/reset"
+      },
+      "check": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8793/api/check"
+      },
+      "deadline_s": 900,
+      "prompt": "In the Mail app (this tab), find every receipt for purchases I made in October 2026 and use them to finish my October expense report draft in the Expenses app at http://127.0.0.1:8793/. One line per purchase: merchant, purchase date, category, and amount in USD (for foreign currency, use the conversion rate Finance emailed). Leave out anything that was refunded. Fix anything wrong in the draft, order the lines by date with the oldest first, then submit the report."
+    },
+    {
+      "id": "research",
+      "title": "Docs research: vendor integration review",
+      "server": {
+        "command": [
+          "python3",
+          "-I",
+          "tasks/research/server.py"
+        ],
+        "ports": [
+          8801,
+          8802
+        ]
+      },
+      "start_url": "http://127.0.0.1:8801/v3/",
+      "extra_urls": [
+        "http://127.0.0.1:8802/"
+      ],
+      "preopen_extra": false,
+      "reset": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8802/api/reset"
+      },
+      "check": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8802/api/check"
+      },
+      "deadline_s": 600,
+      "prompt": "Security needs an integration review on file for Halyard, the event-streaming API we're adopting. Using Halyard's docs (open in this tab), fill in and submit the integration review form at http://127.0.0.1:8802/. We're integrating against API v3. Use current values: the Team plan's API rate limit per minute, the maximum webhook payload size, how Halyard signs webhook requests, how long audit logs are kept on the Enterprise plan, and the sunset date of the v2 endpoint GET /v2/streams/{stream_id}/offsets, which we still call."
+    },
+    {
+      "id": "booking",
+      "title": "Flight booking: two seats together",
+      "server": {
+        "command": [
+          "python3",
+          "-I",
+          "tasks/booking/server.py"
+        ],
+        "ports": [
+          8811
+        ]
+      },
+      "start_url": "http://127.0.0.1:8811/",
+      "extra_urls": [],
+      "preopen_extra": false,
+      "reset": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8811/api/reset"
+      },
+      "check": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8811/api/check"
+      },
+      "deadline_s": 600,
+      "prompt": "On the Alder Air site open in this tab, book me and my friend Sam Okafor on the earliest nonstop from SFO to Seattle on Thursday, Dec 3 that leaves after 9 AM, Main fare. We want two seats next to each other, one of them at the window, and no extra seat fees. My name on my ID is Jordan Avery Lee, born March 14, 1991. Sam has no middle name on his ID and was born July 2, 1990. Use jordan@northwind.dev and my mobile, (415) 555-0198, as the contact. Pay with my saved card and confirm the booking."
+    },
+    {
+      "id": "shop",
+      "title": "Shop: cheapest qualifying docks with a promo code",
+      "server": {
+        "command": [
+          "python3",
+          "-I",
+          "tasks/shop/server.py"
+        ],
+        "ports": [
+          8821
+        ]
+      },
+      "start_url": "http://127.0.0.1:8821/",
+      "extra_urls": [],
+      "preopen_extra": false,
+      "reset": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8821/api/reset"
+      },
+      "check": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8821/api/check"
+      },
+      "deadline_s": 480,
+      "prompt": "On the Kestrel Supply store open in this tab, order 3 of the cheapest USB-C dock that can drive two 4K monitors at 60 Hz at the same time and charges a laptop at 100 W or more. Use the best promo code available. Ship them to my office: Jordan Lee, Northwind Labs, 548 Market St, Suite 1200, San Francisco, CA 94104, phone (415) 555-0198. They need to arrive by Wednesday, Nov 11, so pick the cheapest delivery option that gets there by then. Pay with my saved card and place the order."
+    },
+    {
+      "id": "grid",
+      "title": "Inventory grid: reorder levels and a new row",
+      "server": {
+        "command": [
+          "python3",
+          "-I",
+          "tasks/grid/server.py"
+        ],
+        "ports": [
+          8831
+        ]
+      },
+      "start_url": "http://127.0.0.1:8831/",
+      "extra_urls": [],
+      "preopen_extra": false,
+      "reset": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8831/api/reset"
+      },
+      "check": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8831/api/check"
+      },
+      "deadline_s": 480,
+      "prompt": "In the Stockroom inventory open in this tab: for the Reno warehouse's Fasteners, set the reorder level of the four items with the lowest on-hand count to 250 units. Also add a new Reno row: SKU FAS-31275, item \"Hex nut, 3/8-16, zinc, box of 100\", category Fasteners, bin C-07-3, 600 on hand, reorder level 200, unit price $18.40, status Active, supplier Cobalt Fastening. Then save the changes."
+    },
+    {
+      "id": "kanban",
+      "title": "Sprint board: moves, labels, archive",
+      "server": {
+        "command": [
+          "python3",
+          "-I",
+          "tasks/kanban/server.py"
+        ],
+        "ports": [
+          8841
+        ]
+      },
+      "start_url": "http://127.0.0.1:8841/",
+      "extra_urls": [],
+      "preopen_extra": false,
+      "reset": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8841/api/reset"
+      },
+      "check": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8841/api/check"
+      },
+      "deadline_s": 480,
+      "prompt": "On the Sprint 46 board open in this tab: move \"Offline queue for edits made while signed out\" to the top of In review, move the Android duplicate push notifications card to Done, and move \"Settings: remember the last-used export format\" to To do. On \"Search ignores accents in contact names\", add the Needs QA label, remove Blocked, and set the due date to Thursday, November 12, 2026. Then archive the SQLite WAL mode spike."
+    },
+    {
+      "id": "multitab",
+      "title": "Schedule a kickoff across inbox, directory and calendar",
+      "server": {
+        "command": [
+          "python3",
+          "-I",
+          "tasks/multitab/server.py"
+        ],
+        "ports": [
+          8851,
+          8852,
+          8853
+        ]
+      },
+      "start_url": "http://127.0.0.1:8851/",
+      "extra_urls": [
+        "http://127.0.0.1:8852/",
+        "http://127.0.0.1:8853/"
+      ],
+      "preopen_extra": false,
+      "reset": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8853/api/reset"
+      },
+      "check": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8853/api/check"
+      },
+      "deadline_s": 600,
+      "prompt": "Priya emailed me asking to set up the Kontor kickoff. Read her email in my inbox (this tab) and create the meeting exactly as she asked in our calendar at http://127.0.0.1:8853/. Our company directory is at http://127.0.0.1:8852/."
+    },
+    {
+      "id": "bulk",
+      "title": "Storefront admin: tag and archive legacy orders",
+      "server": {
+        "command": [
+          "python3",
+          "-I",
+          "tasks/bulk/server.py"
+        ],
+        "ports": [
+          8861
+        ]
+      },
+      "start_url": "http://127.0.0.1:8861/",
+      "extra_urls": [],
+      "preopen_extra": false,
+      "reset": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8861/api/reset"
+      },
+      "check": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8861/api/check"
+      },
+      "deadline_s": 600,
+      "prompt": "The migration off our old storefront is done. In Storefront admin (this tab), tag every order that came from the legacy store with `migrated`, and archive the legacy orders that were delivered before October 1, 2026. Don't change any other orders."
+    }
+  ]
+}

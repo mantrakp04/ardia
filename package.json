@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@11.1.3",
   "engines": {
-    "node": ">=22.13"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "turbo run dev --filter=@ardia/browser",
@@ -12,11 +12,11 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "shaders:check": "turbo run shaders:check",
-    "test": "turbo run test && node --no-warnings --test extras/raycast-ardia/src/scripts.test.ts"
+    "test": "turbo run test && node --no-warnings --test extras/raycast-ardia/src/scripts.test.ts \"scripts/**/*.test.mjs\" \"apps/site/src/**/*.test.ts\""
   },
   "devDependencies": {
     "turbo": "^2.11.3",
     "typescript": "~5.9.2"
   },
-  "license": "Apache-2.0"
+  "license": "SEE LICENSE IN NOTICE"
 }

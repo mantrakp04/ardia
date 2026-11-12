@@ -1,17 +1,25 @@
-import { Surface, VisualEffect, WindowDragRegion } from "@ardia/shell";
+import { Panel, WindowDragRegion, VisualEffect } from "../ui";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, View } from "react-native";
-import { hex } from "../../lib/theme";
-import { useWindowId } from "../../store/hooks";
+import { Animated, StyleSheet, View } from "react-native";
+import { curve, springs } from "../ui/motion";
+import { onboardingCard, onboardingMotion } from "./tokens";
+import { useWindowId } from "../../state/browser/hooks";
 import { Intro } from "./Intro";
-import { dismissOnboarding, useOnboarding } from "./state";
-import { DefaultBrowserStep, ImportStep, OutroStep, PersonalizeStep, PinnedTabsStep } from "./steps";
-import { CliStep } from "./cliStep";
-import { PrivacyStep } from "./privacyStep";
+import { dismissOnboarding, goToStep, useOnboarding } from "../../state/onboarding/onboarding";
+import { LayoutStep, TabsStep } from "./LayoutSteps";
+import { DetailsStep, LookStep } from "./LookStep";
+import { SearchPrivacyStep } from "./PrivacyStep";
+import { SourceStep } from "./SourceStep";
+import { HomeStep } from "./HomeStep";
+import { OutroStep } from "./OutroStep";
+import { PinnedTabsStep } from "./PinnedTabsStep";
+import { SetupCodeOutro } from "./SetupCodeOutro";
+import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { ToolTour } from "./tour/ToolTour";
-import { useOnboardingColors } from "./ui";
+import { ONBOARDING_CARD, OnboardingCardContext, useOnboardingColors } from "./Parts";
+import { DevResetOnboarding } from "./DevResetOnboarding";
 
-const CARD = { width: 880, height: 560, margin: 40 };
+const FLOATING_MIN_HEIGHT = 620;
 
 export function OnboardingOverlay() {
   const windowId = useWindowId();
@@ -21,6 +29,7 @@ export function OnboardingOverlay() {
     <>
       {active ? <Overlay key={session} session={session} /> : null}
       <ToolTour />
+      {__DEV__ ? <DevResetOnboarding /> : null}
     </>
   );
 }
@@ -34,24 +43,27 @@ function Overlay({ session }: { session: number }) {
   const card = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(presence, { toValue: 1, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    Animated.timing(presence, { toValue: 1, duration: onboardingMotion.overlayIn, easing: curve.enter, useNativeDriver: true }).start();
   }, []);
 
   useEffect(() => {
     if (step === "intro") return card.setValue(0);
-    Animated.spring(card, { toValue: 1, friction: 9, tension: 60, useNativeDriver: true }).start();
+    Animated.spring(card, { toValue: 1, ...springs.smooth, useNativeDriver: true }).start();
   }, [step === "intro"]);
 
   useEffect(() => {
     if (!leaving) return;
     Animated.parallel([
-      Animated.timing(presence, { toValue: 0, duration: 420, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(card, { toValue: 2, duration: 420, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(presence, { toValue: 0, duration: onboardingMotion.overlayOut, easing: curve.exit, useNativeDriver: true }),
+      Animated.timing(card, { toValue: 2, duration: onboardingMotion.overlayOut, easing: curve.exit, useNativeDriver: true }),
     ]).start(({ finished }) => finished && dismissOnboarding(session));
   }, [leaving]);
 
-  const width = Math.min(CARD.width, Math.max(0, size.width - CARD.margin * 2));
-  const height = Math.min(CARD.height, Math.max(0, size.height - CARD.margin * 2));
+  const floating = size.width >= ONBOARDING_CARD.width + ONBOARDING_CARD.inset * 2 && size.height >= FLOATING_MIN_HEIGHT;
+  const inset = floating ? ONBOARDING_CARD.inset : 0;
+  const width = Math.min(ONBOARDING_CARD.width, Math.max(0, size.width - inset * 2));
+  const height = Math.min(ONBOARDING_CARD.height, Math.max(0, size.height - inset * 2));
+  const dragStrip = ONBOARDING_CARD.titleBarClearance - inset;
 
   return (
     <Animated.View
@@ -75,31 +87,26 @@ function Overlay({ session }: { session: number }) {
               ],
             }}
           >
-            <Surface
-              fill={hex(colors.card)}
-              cornerRadius={20}
-              borderColor={hex(colors.cardBorder)}
-              borderWidth={0.5}
-              shadowColor="#000000"
-              shadowOpacity={0.28}
-              shadowRadius={40}
-              shadowOffset={[0, 18]}
-              style={{ flex: 1, overflow: "hidden" }}
-            >
-              <View key={step} style={{ flex: 1 }}>
-                {step === "defaultBrowser" && <DefaultBrowserStep />}
-                {step === "personalize" && <PersonalizeStep />}
-                {step === "import" && <ImportStep />}
-                {step === "pinnedTabs" && <PinnedTabsStep />}
-                {step === "privacy" && <PrivacyStep />}
-                {step === "cli" && <CliStep />}
-                {step === "outro" && <OutroStep />}
-              </View>
-            </Surface>
+            <Panel fill={colors.card} radius={onboardingCard.radius} border={floating ? colors.cardBorder : null} shadow={floating ? onboardingCard.shadow : undefined} style={{ flex: 1, overflow: "hidden" }}>
+              <OnboardingCardContext.Provider value={{ width, height, inset }}>
+                <View key={step} style={{ flex: 1 }}>
+                  {step === "source" && <SourceStep />}
+                  {step === "layout" && <LayoutStep />}
+                  {step === "tabs" && <TabsStep />}
+                  {step === "look" && <LookStep />}
+                  {step === "details" && <DetailsStep />}
+                  {step === "searchPrivacy" && <SearchPrivacyStep />}
+                  {step === "pins" && <PinnedTabsStep />}
+                  {step === "home" && <HomeStep />}
+                  {step === "outro" && (isWebDemo ? <SetupCodeOutro /> : <OutroStep />)}
+                </View>
+              </OnboardingCardContext.Provider>
+            </Panel>
+            {dragStrip > 0 ? <WindowDragRegion style={{ position: "absolute", top: 0, left: 0, right: 0, height: dragStrip }} /> : null}
           </Animated.View>
         </View>
       )}
-      {step === "intro" && <Intro onDone={() => useOnboarding.getState().go("defaultBrowser")} />}
+      {step === "intro" && <Intro onDone={() => goToStep("source")} />}
     </Animated.View>
   );
 }

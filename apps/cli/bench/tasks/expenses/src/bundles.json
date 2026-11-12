@@ -1,0 +1,5 @@
+{
+  "fixture/expenses/app.js": "src/expenses/app.js",
+  "fixture/expenses/category-picker.js": "src/expenses/category-picker.js",
+  "fixture/mail/app.js": "src/mail/app.js"
+}

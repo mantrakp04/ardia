@@ -1,15 +1,17 @@
-import type { InstalledExtension } from "@ardia/ardiacore";
-import { showMenu } from "@ardia/shell";
+import type { InstalledExtension } from "../../state/extensions/store";
+import { chooseFromMenu } from "../../state/app/menuChoice";
 import { useRef } from "react";
 import type { View } from "react-native";
-import { activateExtension, openManageExtensions, openPinDialog, openWebStore, showExtensionMenu, useWindowExtensions, type Anchor } from "../extensions/state";
-import { ExtensionTile, SectionTitle, TileGrid } from "./SiteControlsParts";
+import { activateExtension, EXTENSION_LIST_ITEMS, openWebStore, runExtensionListChoice, showExtensionMenu, useWindowExtensions, type Anchor } from "../../state/extensions/actions";
+import { ExtensionTile, SITE_PANEL, TileGrid } from "./SiteControlsParts";
+import { SectionLabel } from "../sidebar/SectionLabel";
+import { PANEL } from "../ui";
 
 export function SiteExtensions({ windowId, tabId, columns, onClose }: { windowId: string; tabId: string; columns: number; onClose: () => void }) {
   const extensions = useWindowExtensions(windowId);
   return (
     <>
-      <SectionTitle title="Extensions" />
+      <SectionLabel title="Extensions" inset={PANEL.inset} top={SITE_PANEL.sectionTop} bottom={SITE_PANEL.sectionGap} />
       <TileGrid columns={columns}>
         {extensions.map((ext) => (
           <ExtensionGridTile key={ext.id} ext={ext} windowId={windowId} tabId={tabId} onClose={onClose} />
@@ -52,14 +54,8 @@ function ExtensionGridTile({ ext, windowId, tabId, onClose }: { ext: InstalledEx
 }
 
 async function addMenu(windowId: string, onClose: () => void) {
-  const choice = await showMenu([
-    { id: "add", title: "Add Extension…", symbol: "plus" },
-    { id: "pin", title: "Pin Extensions…", symbol: "pin" },
-    { id: "manage", title: "Manage Extensions…", symbol: "puzzlepiece.extension" },
-  ]);
+  const choice = await chooseFromMenu(EXTENSION_LIST_ITEMS);
   if (!choice) return;
   onClose();
-  if (choice === "add") openWebStore(windowId);
-  if (choice === "pin") openPinDialog(windowId);
-  if (choice === "manage") openManageExtensions();
+  runExtensionListChoice(choice, windowId);
 }

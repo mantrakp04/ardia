@@ -1,46 +1,61 @@
-import { ContextMenuArea, Symbol } from "@ardia/shell";
 import { Children, forwardRef, type ReactNode } from "react";
-import { Image, Pressable, Text, View, type AccessibilityActionEvent, type GestureResponderEvent } from "react-native";
-import { useTheme, type Theme } from "../../lib/theme";
-import { PANEL } from "../layout/controls";
-import { useHover } from "../primitives";
+import { Image, Pressable, View, type AccessibilityActionEvent, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
+import { useTheme } from "../ui/theme";
+import { capsule, ContextMenuArea, Dot, GlassFill, hairline, menuRowFill, opacity, PANEL, radius, space, Symbol, Text, useGlass, useHover } from "../ui";
+import { useSiteTokens } from "./tokens";
 
 export const SITE_PANEL = {
   width: 288,
-  gap: 8,
+  gap: space.m,
   actionHeight: 40,
+  captionHeight: 44,
   extensionHeight: 36,
-  tileRadius: 8,
-  sectionTop: 14,
-  sectionGap: 8,
+  sectionTop: space.xl,
+  sectionGap: space.m,
   settingHeight: 42,
   settingBadge: 26,
   footerControl: 26,
 } as const;
 
-export function tileFill(theme: Theme, pressed: boolean, hovered: boolean) {
-  const alpha = pressed ? 0.16 : hovered ? 0.11 : 0.07;
-  return theme.dark ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha * 0.75})`;
-}
+export type TileShape = "tile" | "row" | "capsule";
 
-export const tileStroke = (theme: Theme) => (theme.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)");
-
-export function SectionTitle({ title, tight }: { title: string; tight?: boolean }) {
+export function Tile({
+  shape,
+  height,
+  hovered,
+  pressed,
+  open = false,
+  quiet = false,
+  stroke = false,
+  style,
+  children,
+}: {
+  shape: TileShape;
+  height: number;
+  hovered: boolean;
+  pressed: boolean;
+  open?: boolean;
+  quiet?: boolean;
+  stroke?: boolean;
+  style?: StyleProp<ViewStyle>;
+  children: ReactNode;
+}) {
   const theme = useTheme();
+  const site = useSiteTokens();
+  const glass = useGlass();
+  const lit = pressed || open;
+  const fill = shape === "row" || quiet ? (lit || hovered ? menuRowFill(theme, lit) : undefined) : lit ? site.tilePressed : hovered ? site.tileHover : site.tile;
+  const corner = shape === "tile" ? radius.tile : shape === "row" ? PANEL.rowRadius : capsule(height);
   return (
-    <Text
-      style={{
-        marginTop: SITE_PANEL.sectionTop,
-        marginBottom: tight ? SITE_PANEL.sectionGap - (SITE_PANEL.settingHeight - SITE_PANEL.settingBadge) / 2 : SITE_PANEL.sectionGap,
-        marginHorizontal: PANEL.inset,
-        fontSize: 12,
-        lineHeight: 15,
-        fontWeight: "600",
-        color: theme.textSecondary,
-      }}
+    <View
+      style={[
+        { height, borderRadius: corner, backgroundColor: glass ? undefined : fill, borderWidth: stroke && !glass ? hairline.ring : 0, borderColor: stroke ? site.tileStroke : undefined },
+        style,
+      ]}
     >
-      {title}
-    </Text>
+      {glass && fill ? <GlassFill radius={corner} state={lit ? "pressed" : hovered ? "lit" : "rest"} /> : null}
+      {children}
+    </View>
   );
 }
 
@@ -70,41 +85,46 @@ export function TileRow({ children }: { children: ReactNode }) {
 }
 
 const ACTIVATE = [{ name: "activate" }];
+const CENTERED = { alignItems: "center", justifyContent: "center" } as const;
+const CAPTIONED = { alignItems: "center", justifyContent: "center", gap: space.xs } as const;
 
-export const ActionTile = forwardRef<View, { icon: string; label: string; active?: boolean; onPress: (press: GestureResponderEvent | AccessibilityActionEvent) => void }>(function ActionTile(
-  { icon, label, active, onPress },
-  ref,
-) {
+export const ActionTile = forwardRef<
+  View,
+  { icon: string; label: string; active?: boolean; caption?: boolean; onPress: (press: GestureResponderEvent | AccessibilityActionEvent) => void }
+>(function ActionTile({ icon, label, active, caption = false, onPress }, ref) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
-    <View ref={ref} collapsable={false} tooltip={label} accessibilityLabel={label} style={{ flex: 1 }} {...hoverProps}>
+    <View ref={ref} collapsable={false} tooltip={caption ? undefined : label} accessibilityLabel={label} style={{ flex: 1 }} {...hoverProps}>
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={label}
+        accessibilityState={active === undefined ? undefined : { selected: active }}
         accessibilityActions={ACTIVATE}
         onAccessibilityAction={(event) => event.nativeEvent.actionName === "activate" && onPress(event)}
       >
         {({ pressed }) => (
-          <View
-            style={{
-              height: SITE_PANEL.actionHeight,
-              borderRadius: SITE_PANEL.tileRadius,
-              borderWidth: 0.5,
-              borderColor: tileStroke(theme),
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: tileFill(theme, pressed, hovered),
-            }}
-          >
-            <Symbol name={icon} size={15} color={active ? theme.accent : theme.icon} style={{ width: 22, height: 22 }} />
-          </View>
+          <Tile shape="tile" height={caption ? SITE_PANEL.captionHeight : SITE_PANEL.actionHeight} hovered={hovered} pressed={pressed} stroke style={caption ? CAPTIONED : CENTERED}>
+            {caption ? (
+              <>
+                <Symbol name={icon} size={13} color={active ? theme.accent : theme.icon} style={CAPTION_GLYPH} />
+                <Text lines={1} size="tiny" tone="textSecondary">
+                  {label}
+                </Text>
+              </>
+            ) : (
+              <Symbol name={icon} size={15} color={active ? theme.accent : theme.icon} style={ACTION_GLYPH} />
+            )}
+          </Tile>
         )}
       </Pressable>
     </View>
   );
 });
+
+const ACTION_GLYPH = { width: 22, height: 22 } as const;
+const CAPTION_GLYPH = { width: 18, height: 16 } as const;
 
 export const ExtensionTile = forwardRef<
   View,
@@ -115,23 +135,15 @@ export const ExtensionTile = forwardRef<
   const button = (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={name}>
       {({ pressed }) => (
-        <View
-          style={{
-            height: SITE_PANEL.extensionHeight,
-            borderRadius: SITE_PANEL.tileRadius,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: tileFill(theme, pressed, hovered),
-          }}
-        >
+        <Tile shape="tile" height={SITE_PANEL.extensionHeight} hovered={hovered} pressed={pressed} style={CENTERED}>
           {icon ? (
             <View pointerEvents="none">
-              <Image source={{ uri: icon }} style={{ width: 18, height: 18, opacity: dimmed ? 0.45 : 1 }} />
+              <Image source={{ uri: icon }} style={{ width: 18, height: 18, opacity: dimmed ? opacity.disabled : 1 }} />
             </View>
           ) : (
             <Symbol name={symbol} size={14} color={theme.icon} style={{ width: 20, height: 20 }} />
           )}
-        </View>
+        </Tile>
       )}
     </Pressable>
   );
@@ -141,6 +153,8 @@ export const ExtensionTile = forwardRef<
     </View>
   );
 });
+
+const SETTING_ROW = { marginHorizontal: PANEL.rowInset, paddingHorizontal: PANEL.rowPadding, flexDirection: "row", alignItems: "center", gap: PANEL.iconGap } as const;
 
 export function SettingRow({
   icon,
@@ -156,41 +170,22 @@ export function SettingRow({
   onPress?: () => void;
 }) {
   const theme = useTheme();
+  const site = useSiteTokens();
   const { hovered, hoverProps } = useHover();
   const content = (pressed: boolean) => (
-    <View
-      style={{
-        height: SITE_PANEL.settingHeight,
-        marginHorizontal: PANEL.rowInset,
-        paddingHorizontal: PANEL.rowPadding,
-        borderRadius: PANEL.rowRadius,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: PANEL.iconGap,
-        backgroundColor: onPress && (pressed || hovered) ? (theme.dark ? `rgba(255,255,255,${pressed ? 0.12 : 0.07})` : `rgba(0,0,0,${pressed ? 0.1 : 0.06})`) : undefined,
-      }}
-    >
-      <View
-        style={{
-          width: SITE_PANEL.settingBadge,
-          height: SITE_PANEL.settingBadge,
-          borderRadius: SITE_PANEL.settingBadge / 2,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: on ? theme.accent : tileFill(theme, false, true),
-        }}
-      >
-        <Symbol name={icon} size={12} weight="medium" color={on ? "#FFFFFF" : theme.icon} style={{ width: 18, height: 18 }} />
-      </View>
+    <Tile shape="row" height={SITE_PANEL.settingHeight} hovered={!!onPress && hovered} pressed={!!onPress && pressed} style={SETTING_ROW}>
+      <Dot size={SITE_PANEL.settingBadge} color={on ? theme.accent : site.tileHover}>
+        <Symbol name={icon} size={12} weight="medium" color={on ? theme.onAccent : theme.icon} style={{ width: 18, height: 18 }} />
+      </Dot>
       <View style={{ flex: 1 }}>
-        <Text numberOfLines={1} style={{ fontSize: PANEL.titleSize, lineHeight: PANEL.titleLine, fontWeight: "500", color: theme.textPrimary }}>
+        <Text lines={1} weight="medium" style={{ fontSize: PANEL.titleSize, lineHeight: PANEL.titleLine }}>
           {title}
         </Text>
-        <Text numberOfLines={1} style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: theme.textSecondary }}>
+        <Text lines={1} tone="textSecondary" style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine }}>
           {value}
         </Text>
       </View>
-    </View>
+    </Tile>
   );
   if (!onPress) return <View {...hoverProps}>{content(false)}</View>;
   return (
@@ -202,35 +197,46 @@ export function SettingRow({
   );
 }
 
-export function FooterChip({ icon, title, color, open, onPress }: { icon: string; title: string; color?: string; open: boolean; onPress?: () => void }) {
+export function ChipButton({
+  icon,
+  title,
+  color,
+  open = false,
+  quiet = false,
+  tooltip,
+  label,
+  onPress,
+}: {
+  icon: string;
+  title: string;
+  color?: string;
+  open?: boolean;
+  quiet?: boolean;
+  tooltip?: string;
+  label?: string;
+  onPress?: (press: GestureResponderEvent) => void;
+}) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
-    <View {...hoverProps} tooltip={onPress ? (open ? "Hide Connection Details" : "Connection Details") : undefined}>
-      <Pressable onPress={onPress} disabled={!onPress} accessibilityRole="button" accessibilityLabel={title}>
+    <View {...hoverProps} tooltip={tooltip}>
+      <Pressable onPress={onPress} disabled={!onPress} accessibilityRole="button" accessibilityLabel={label ?? title}>
         {({ pressed }) => (
-          <View
-            style={{
-              height: SITE_PANEL.footerControl,
-              paddingLeft: 7,
-              paddingRight: 9,
-              borderRadius: 7,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 4,
-              backgroundColor: tileFill(theme, pressed || open, !!onPress && hovered),
-            }}
-          >
-            <Symbol name={icon} size={11} weight="medium" color={color ?? theme.icon} style={{ width: 14, height: 16 }} />
-            <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: color ?? theme.textPrimary }}>
+          <Tile shape="tile" quiet={quiet} height={SITE_PANEL.footerControl} hovered={!!onPress && hovered} pressed={pressed} open={open} style={CHIP}>
+            <Symbol name={icon} size={quiet ? 12 : 11} weight="medium" color={color ?? theme.icon} style={quiet ? QUIET_GLYPH : CHIP_GLYPH} />
+            <Text lines={1} size={quiet ? "body" : "small"} weight="medium" color={color}>
               {title}
             </Text>
-          </View>
+          </Tile>
         )}
       </Pressable>
     </View>
   );
 }
+
+const CHIP = { paddingHorizontal: space.m, flexDirection: "row", alignItems: "center", gap: space.xs } as const;
+const CHIP_GLYPH = { width: 14, height: 16 } as const;
+const QUIET_GLYPH = { width: 16, height: 16 } as const;
 
 export function MoreButton({ open, onPress }: { open: boolean; onPress: () => void }) {
   const theme = useTheme();
@@ -240,20 +246,13 @@ export function MoreButton({ open, onPress }: { open: boolean; onPress: () => vo
     <View {...hoverProps} tooltip={label}>
       <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
         {({ pressed }) => (
-          <View
-            style={{
-              width: SITE_PANEL.footerControl,
-              height: SITE_PANEL.footerControl,
-              borderRadius: SITE_PANEL.footerControl / 2,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: tileFill(theme, pressed || open, hovered),
-            }}
-          >
+          <Tile shape="capsule" height={SITE_PANEL.footerControl} hovered={hovered} pressed={pressed} open={open} style={MORE}>
             <Symbol name="ellipsis" size={12} weight="semibold" color={theme.icon} style={{ width: 18, height: 18 }} />
-          </View>
+          </Tile>
         )}
       </Pressable>
     </View>
   );
 }
+
+const MORE = { width: SITE_PANEL.footerControl, alignItems: "center", justifyContent: "center" } as const;

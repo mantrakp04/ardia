@@ -1,39 +1,25 @@
-type Option = { value: string; label: string; hint?: string; disabled?: boolean };
-type Control =
-  | { kind: "choice"; id: string; label: string; value: string; options: Option[] }
-  | { kind: "action"; id: string; label: string; hint: string; on?: boolean };
-type Outbound = { type: "ardia-demo:ready" } | { type: "ardia-demo:engaged" } | { type: "ardia-demo:controls"; controls: Control[] };
+import { capture } from "./telemetry";
+
+type CustomizeState = { active: boolean; code: string | null };
+type Outbound =
+  | { type: "ardia-demo:ready" }
+  | { type: "ardia-demo:engaged" }
+  | { type: "ardia-demo:download" }
+  | ({ type: "ardia-demo:customize-state" } & CustomizeState);
+type CopiedVia = "panel" | "outro";
 
 const DESKTOP_LOGICAL_WIDTH = 1100;
 const PHONE_LOGICAL_WIDTH = 640;
 const PHONE_BOX_WIDTH = 400;
 const DESKTOP_BOX_WIDTH = 860;
-const REVEAL_FALLBACK_MS = 1500;
 const NUDGE_DELAY_MS = 900;
 const FAR_SCREENS = 1;
 
 const root = document.querySelector<HTMLElement>("[data-demo]");
 const stage = root?.querySelector<HTMLElement>("[data-demo-stage]");
+const frame = stage?.querySelector<HTMLIFrameElement>(".demo-frame");
 const poster = root?.querySelector<HTMLElement>("[data-demo-poster]");
 const bar = document.querySelector<HTMLElement>("[data-demo-controls]");
-const tilt = root?.closest<HTMLElement>("[data-settle]");
-const settles = matchMedia("(prefers-reduced-motion: no-preference)");
-
-function afterSettling(el: HTMLElement | null | undefined, run: () => void) {
-  if (!el || !settles.matches) return run();
-  const wait = () => {
-    const moving = el.getAnimations().filter((a) => a.playState === "running");
-    if (!moving.length) return run();
-    void Promise.allSettled(moving.map((a) => a.finished)).then(run);
-  };
-  if (el.classList.contains("in")) return wait();
-  const watch = new MutationObserver(() => {
-    if (!el.classList.contains("in")) return;
-    watch.disconnect();
-    requestAnimationFrame(wait);
-  });
-  watch.observe(el, { attributes: true, attributeFilter: ["class"] });
-}
 
 function minLogicalWidth(boxWidth: number) {
   const t = Math.min(1, Math.max(0, (boxWidth - PHONE_BOX_WIDTH) / (DESKTOP_BOX_WIDTH - PHONE_BOX_WIDTH)));
@@ -51,84 +37,70 @@ function fit(frame: HTMLIFrameElement, box: HTMLElement) {
   box.style.setProperty("--demo-scale", String(scale));
 }
 
-function title(label: string, hint?: string) {
-  return hint ? `${label} (${hint})` : label;
-}
+function wireCustomize(frame: HTMLIFrameElement, panel: HTMLElement) {
+  const button = panel.querySelector<HTMLButtonElement>("[data-demo-customize]");
+  const label = panel.querySelector<HTMLElement>("[data-demo-customize-label]");
+  const box = panel.querySelector<HTMLElement>("[data-demo-code]");
+  const value = panel.querySelector<HTMLElement>("[data-demo-code-value]");
+  const get = panel.querySelector<HTMLAnchorElement>("[data-download]");
+  const getLabel = get?.querySelector<HTMLElement>("[data-download-label]");
+  const line = panel.querySelector<HTMLElement>("[data-demo-code-line]");
+  const lineBeforeCopy = line?.textContent ?? "";
+  let code: string | null = null;
+  let clickVia: CopiedVia = "panel";
 
-function button(control: Control, option?: Option) {
-  const el = document.createElement("button");
-  el.type = "button";
-  el.className = "demo-control";
-  el.dataset.track = "demo_control";
-  el.dataset.trackControl = control.id;
-  if (option) {
-    el.setAttribute("role", "radio");
-    el.dataset.value = option.value;
-    el.dataset.trackValue = option.value;
-    el.textContent = option.label;
-    el.title = title(`${control.label}: ${option.label}`, option.hint);
-  } else if (control.kind === "action") {
-    el.textContent = control.label;
-    el.title = title(control.label, control.hint);
-  }
-  el.addEventListener("mousedown", (e) => e.preventDefault());
-  return el;
-}
+  const markCopied = (via: CopiedVia) => {
+    if (value) value.hidden = true;
+    if (getLabel) getLabel.textContent = "Copied. Downloading…";
+    if (line) line.textContent = "When Ardia opens, paste the code on its first screen. Already past it? Settings › General.";
+    capture("demo_setup_code_copied", { via });
+  };
 
-function renderControls(frame: HTMLIFrameElement, controls: Control[], target: HTMLElement) {
-  const shape = JSON.stringify(controls.map((c) => [c.id, c.kind === "choice" ? c.options.map((o) => o.value + o.label) : c.label]));
-  if (target.dataset.shape !== shape) {
-    target.dataset.shape = shape;
-    target.replaceChildren();
-    let actions: HTMLElement | null = null;
-    for (const control of controls) {
-      if (control.kind === "action") {
-        if (!actions) {
-          actions = document.createElement("div");
-          actions.className = "demo-group";
-          target.append(actions);
-        }
-        const el = button(control);
-        el.addEventListener("click", () => {
-          root?.setAttribute("data-engaged", "");
-          if (control.id === "command" || control.id === "newTab") frame.focus();
-          frame.contentWindow?.postMessage({ type: "ardia-demo:control", id: control.id }, "*");
-        });
-        actions.append(el);
-        continue;
-      }
-      const group = document.createElement("div");
-      group.className = "demo-group";
-      group.setAttribute("role", "radiogroup");
-      group.setAttribute("aria-label", control.label);
-      const label = document.createElement("span");
-      label.className = "label demo-label";
-      label.textContent = control.label;
-      group.append(label);
-      for (const option of control.options) {
-        const el = button(control, option);
-        el.addEventListener("click", () => {
-          root?.setAttribute("data-engaged", "");
-          frame.contentWindow?.postMessage({ type: "ardia-demo:control", id: control.id, value: option.value }, "*");
-        });
-        group.append(el);
-      }
-      target.append(group);
+  button?.addEventListener("mousedown", (e) => e.preventDefault());
+  button?.addEventListener("click", () => {
+    root?.setAttribute("data-engaged", "");
+    frame.focus();
+    frame.contentWindow?.postMessage({ type: "ardia-demo:customize" }, location.origin);
+  });
+  get?.addEventListener("click", () => {
+    const via = clickVia;
+    clickVia = "panel";
+    if (!code) return;
+    const selectByHand = () => {
+      if (!value) return;
+      value.hidden = false;
+      getSelection()?.selectAllChildren(value);
+    };
+    if (navigator.clipboard) void navigator.clipboard.writeText(code).then(() => markCopied(via), selectByHand);
+    else selectByHand();
+  });
+
+  const downloadFromDemo = () => {
+    if (!get || !code) return;
+    clickVia = "outro";
+    get.click();
+  };
+
+  const showState = (state: CustomizeState) => {
+    if (button) button.disabled = state.active;
+    if (label) label.textContent = state.active ? "Customizing…" : state.code ? "Customize again" : "Customize it";
+    if (!state.code || state.code === code) return;
+    const first = code === null;
+    code = state.code;
+    if (value) {
+      value.textContent = code;
+      value.hidden = true;
     }
-  }
-  const buttons = [...target.querySelectorAll<HTMLButtonElement>("button")];
-  for (const control of controls) {
-    const mine = buttons.filter((b) => b.dataset.trackControl === control.id);
-    if (control.kind === "action") {
-      for (const b of mine) b.setAttribute("aria-pressed", String(!!control.on));
-      continue;
+    if (box) box.hidden = false;
+    if (line) {
+      line.textContent = lineBeforeCopy;
+      line.hidden = false;
     }
-    for (const b of mine) {
-      const option = control.options.find((o) => o.value === b.dataset.value);
-      b.setAttribute("aria-checked", String(control.value === b.dataset.value));
-      b.disabled = !!option?.disabled;
-    }
-  }
+    if (getLabel) getLabel.textContent = "Download & copy code";
+    capture("demo_setup_code_shown", { again: !first });
+  };
+
+  return { showState, downloadFromDemo };
 }
 
 function watchForNudge(frame: HTMLIFrameElement, box: HTMLElement) {
@@ -139,7 +111,7 @@ function watchForNudge(frame: HTMLIFrameElement, box: HTMLElement) {
       if (!entries.some((e) => e.isIntersecting)) return;
       timer = setTimeout(() => {
         seen.disconnect();
-        if (root?.dataset.engaged === undefined) frame.contentWindow?.postMessage({ type: "ardia-demo:nudge" }, "*");
+        if (root?.dataset.engaged === undefined) frame.contentWindow?.postMessage({ type: "ardia-demo:nudge" }, location.origin);
       }, NUDGE_DELAY_MS);
     },
     { threshold: 0.6 },
@@ -148,85 +120,37 @@ function watchForNudge(frame: HTMLIFrameElement, box: HTMLElement) {
 }
 
 function restWhileFar(box: HTMLElement) {
-  let top = 0;
-  let bottom = 0;
-  const update = () => {
-    const margin = innerHeight * FAR_SCREENS;
-    const far = bottom < scrollY - margin || top > scrollY + innerHeight + margin;
-    if (far !== box.hasAttribute("data-far")) box.toggleAttribute("data-far", far);
-  };
-  const measure = () => {
-    const rect = box.getBoundingClientRect();
-    top = rect.top + scrollY;
-    bottom = rect.bottom + scrollY;
-    update();
-  };
-  addEventListener("scroll", update, { passive: true });
-  addEventListener("resize", measure, { passive: true });
-  new ResizeObserver(measure).observe(document.body);
+  new IntersectionObserver(
+    (entries) => {
+      const far = !entries[entries.length - 1].isIntersecting;
+      if (far !== box.hasAttribute("data-far")) box.toggleAttribute("data-far", far);
+    },
+    { rootMargin: `${FAR_SCREENS * 100}% 0px` },
+  ).observe(box);
 }
 
-function mount(box: HTMLElement, src: string) {
-  const frame = document.createElement("iframe");
-  frame.src = src;
-  frame.title = "Ardia, live: try the sidebar, split view and the command bar";
-  frame.className = "demo-frame";
-  box.append(frame);
+function start(root: HTMLElement, box: HTMLElement, frame: HTMLIFrameElement) {
   fit(frame, box);
   new ResizeObserver(() => fit(frame, box)).observe(box);
   restWhileFar(box);
 
-  let ready = false;
-  let loaded = false;
-  let revealing = false;
-  const reveal = () => {
-    if (revealing) return;
-    revealing = true;
-    afterSettling(tilt, show);
-  };
-  const show = () => {
-    if (!root || root.dataset.live === "") return;
+  const customize = bar ? wireCustomize(frame, bar) : null;
+  const goLive = () => {
+    if (root.dataset.live === "") return;
     root.dataset.live = "";
     poster?.setAttribute("inert", "");
     if (bar) bar.hidden = false;
     document.querySelector("[data-band-lead]")?.replaceChildren("That was a demo. ");
     watchForNudge(frame, box);
   };
-  frame.addEventListener("load", () => {
-    loaded = true;
-    if (ready) reveal();
-  });
   addEventListener("message", (event: MessageEvent<Outbound>) => {
-    if (event.source !== frame.contentWindow || !event.data || typeof event.data !== "object") return;
-    if (event.data.type === "ardia-demo:ready") {
-      ready = true;
-      if (loaded) reveal();
-      else setTimeout(reveal, REVEAL_FALLBACK_MS);
-    }
-    if (event.data.type === "ardia-demo:engaged") root?.setAttribute("data-engaged", "");
-    if (event.data.type === "ardia-demo:controls" && bar) renderControls(frame, event.data.controls, bar);
+    if (event.source !== frame.contentWindow || event.origin !== location.origin || !event.data || typeof event.data !== "object") return;
+    if (event.data.type === "ardia-demo:ready") goLive();
+    if (event.data.type === "ardia-demo:engaged") root.setAttribute("data-engaged", "");
+    if (event.data.type === "ardia-demo:customize-state") customize?.showState(event.data);
+    if (event.data.type === "ardia-demo:download") customize?.downloadFromDemo();
   });
+  frame.contentWindow?.postMessage({ type: "ardia-demo:hello" }, location.origin);
 }
 
-function start() {
-  if (!root || !stage || root.dataset.mounted === "") return;
-  root.dataset.mounted = "";
-  const src = root.dataset.demoSrc!;
-  const near = new IntersectionObserver(
-    (entries) => {
-      if (!entries.some((e) => e.isIntersecting)) return;
-      near.disconnect();
-      mount(stage, src);
-    },
-    { rootMargin: "100% 0px" },
-  );
-  near.observe(root);
-}
-
-function afterLoad(run: () => void) {
-  const idle = () => ("requestIdleCallback" in window ? requestIdleCallback(run, { timeout: 2000 }) : setTimeout(run, 200));
-  if (document.readyState === "complete") idle();
-  else addEventListener("load", idle, { once: true });
-}
-
-afterLoad(start);
+if (root && stage && frame) start(root, stage, frame);

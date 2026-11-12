@@ -1,0 +1,14 @@
+import type { BrowserState } from "../browser/store";
+import { focusedWindowOf } from "./ui";
+
+type WindowOpen = { id: string; focus: boolean; behind?: string };
+
+export function windowOpens(s: Pick<BrowserState, "windows" | "windowOrder" | "ui">, ids: string[], launching: boolean): WindowOpen[] {
+  const last = focusedWindowOf(s);
+  const focused = last && s.windows[last] ? last : null;
+  const wanted = new Set(ids);
+  const order = s.windowOrder.filter((id) => wanted.has(id) && id !== focused);
+  if (!focused || !wanted.has(focused)) return order.map((id) => ({ id, focus: false }));
+  if (!launching) return [...order.map((id) => ({ id, focus: false })), { id: focused, focus: true }];
+  return [{ id: focused, focus: true }, ...order.map((id) => ({ id, focus: false, behind: focused }))];
+}

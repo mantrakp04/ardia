@@ -23,28 +23,62 @@ public enum ChromiumSessions {
   static let markerCommand: UInt8 = 255
   static let groupColors = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"]
 
-  public static func latestFile(profile: URL) -> URL? {
+  struct SessionFile {
+    var url: URL
+    var encrypted: Bool
+  }
+
+  static func sessionFiles(profile: URL) -> [SessionFile] {
     let fm = FileManager.default
-    var candidates: [(stamp: Int64, url: URL)] = []
-    for dir in ["Sessions", "Sessions_Encrypted"] {
+    var candidates: [(stamp: Int64, file: SessionFile)] = []
+    for (dir, encrypted) in [("Sessions", false), ("Sessions_Encrypted", true)] {
       let folder = profile.appendingPathComponent(dir)
       for name in (try? fm.contentsOfDirectory(atPath: folder.path)) ?? [] where name.hasPrefix("Session_") {
         if let stamp = Int64(name.dropFirst("Session_".count)) {
-          candidates.append((stamp, folder.appendingPathComponent(name)))
+          candidates.append((stamp, SessionFile(url: folder.appendingPathComponent(name), encrypted: encrypted)))
         }
       }
     }
-    if let newest = candidates.max(by: { $0.stamp < $1.stamp }) { return newest.url }
-    for legacy in ["Current Session", "Last Session"] {
-      let url = profile.appendingPathComponent(legacy)
-      if fm.fileExists(atPath: url.path) { return url }
+    if !candidates.isEmpty {
+      return candidates.sorted { ($0.stamp, $0.file.encrypted ? 0 : 1) > ($1.stamp, $1.file.encrypted ? 0 : 1) }.map(\.file)
     }
-    return nil
+    return ["Current Session", "Last Session"].map { profile.appendingPathComponent($0) }
+      .filter { fm.fileExists(atPath: $0.path) }
+      .map { SessionFile(url: $0, encrypted: false) }
+  }
+
+  public static func latestFile(profile: URL) -> URL? { sessionFiles(profile: profile).first?.url }
+
+  public static func needsKey(profile: URL) -> Bool {
+    let files = sessionFiles(profile: profile)
+    guard files.contains(where: \.encrypted) else { return false }
+    return !files.contains { !$0.encrypted && isComplete(cleartext: $0.url) }
+  }
+
+  static func isComplete(cleartext url: URL) -> Bool {
+    guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return false }
+    var reader = ByteReader(data)
+    guard reader.u32() == signature, let version = reader.u32() else { return false }
+    if version == 1 { return true }
+    guard version == 3 else { return false }
+    while let size = reader.u16(), size >= 1, let body = reader.bytes(Int(size)) {
+      if size == 1, body[body.startIndex] == markerCommand { return true }
+    }
+    return false
   }
 
   public static func load(profile: URL, key: Data?) throws -> OpenTabs {
-    guard let file = latestFile(profile: profile) else { throw ImportError.notFound("No session file in this profile") }
-    return try parse(Data(contentsOf: file), key: key)
+    let files = sessionFiles(profile: profile)
+    guard !files.isEmpty else { throw ImportError.notFound("No session file in this profile") }
+    var firstError: Error?
+    for file in files where key != nil || !file.encrypted {
+      do {
+        return try parse(Data(contentsOf: file.url), key: key)
+      } catch {
+        firstError = firstError ?? error
+      }
+    }
+    throw firstError ?? ImportError.locked("This session file is encrypted; unlock the browser first")
   }
 
   public static func parse(_ data: Data, key: Data?) throws -> OpenTabs {
@@ -53,14 +87,17 @@ public enum ChromiumSessions {
       throw ImportError.unreadable("Not a Chromium session file")
     }
     var state = State()
+    var sawMarker = false
     switch version {
     case 1, 3:
       while let size = reader.u16(), size >= 1, let body = reader.bytes(Int(size)) {
-        state.apply(id: body[body.startIndex], payload: body.dropFirst())
+        let id = body[body.startIndex]
+        if id == markerCommand, size == 1 { sawMarker = true }
+        state.apply(id: id, payload: body.dropFirst())
       }
+      guard version == 1 || sawMarker else { throw ImportError.unreadable("This session file is incomplete") }
     case 5:
       guard let key else { throw ImportError.locked("This session file is encrypted; unlock the browser first") }
-      var sawMarker = false
       while let size = reader.u32(), let blob = reader.bytes(Int(size)) {
         guard let plain = ChromiumCrypto.decryptData(Data(blob), key: key), let id = plain.first else { break }
         if id == markerCommand, plain.count == 1 { sawMarker = true }
@@ -187,7 +224,7 @@ public enum ChromiumSessions {
           let nav = i < tab.navigations.endIndex ? tab.navigations[i] : tab.navigations[tab.navigations.endIndex - 1]
           guard !nav.url.isEmpty else { continue }
           if let g = tab.group { usedGroups.insert(g) }
-          out.append(ImportedTab(url: nav.url, title: nav.title, pinned: tab.pinned, groupId: tab.group,
+          out.append(ImportedTab(url: ChromiumSessions.withoutContainerPrefix(nav.url), title: nav.title, pinned: tab.pinned, groupId: tab.group,
                                  windowIndex: windowIndex, active: position == selected, lastActive: tab.lastActive))
         }
       }
@@ -196,6 +233,13 @@ public enum ChromiumSessions {
       }
       return OpenTabs(tabs: out, groups: groupList)
     }
+  }
+
+  static func withoutContainerPrefix(_ url: String) -> String {
+    guard url.hasPrefix("containers+"), let colon = url.firstIndex(of: ":") else { return url }
+    let inner = url[url.index(after: colon)...]
+    guard let scheme = inner.firstIndex(of: ":"), scheme > inner.startIndex else { return url }
+    return String(inner)
   }
 
   static func groupId(_ high: UInt64, _ low: UInt64) -> String {

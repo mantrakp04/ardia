@@ -2,9 +2,12 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "ardia",
   "title": "Ardia",
-  "description": "Search and switch your open Ardia tabs",
+  "description": "Search and switch Ardia's tabs and profiles, and open new tabs and windows",
   "icon": "icon.png",
   "author": "mantrakp04",
+  "contributors": [
+    "ridemountainpig"
+  ],
   "platforms": [
     "macOS"
   ],
@@ -19,6 +22,50 @@
       "subtitle": "Ardia",
       "description": "Search your open tabs in Ardia and switch to one",
       "mode": "view"
+    },
+    {
+      "name": "search-profiles",
+      "title": "Search Profiles",
+      "subtitle": "Ardia",
+      "description": "Search your Ardia profiles and show one in the front window or a new one",
+      "mode": "view"
+    },
+    {
+      "name": "new-tab",
+      "title": "New Tab",
+      "subtitle": "Ardia",
+      "description": "Open a new tab in Ardia's front window, with a URL or a search read as its command bar reads it",
+      "mode": "no-view",
+      "arguments": [
+        {
+          "name": "query",
+          "placeholder": "URL or search",
+          "type": "text",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "new-window",
+      "title": "New Window",
+      "subtitle": "Ardia",
+      "description": "Open a new Ardia window in the profile you name, or in the default profile",
+      "mode": "no-view",
+      "arguments": [
+        {
+          "name": "profile",
+          "placeholder": "Profile",
+          "type": "text",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "new-incognito-window",
+      "title": "New Incognito Window",
+      "subtitle": "Ardia",
+      "description": "Open a new incognito window in Ardia",
+      "mode": "no-view"
     }
   ],
   "dependencies": {

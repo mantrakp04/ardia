@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Busy | Fixture Shop</title></head>
+<body>
+<main><h1>Busy page</h1><p id="ticks">0</p></main>
+<script>
+let ticks = 0;
+const timer = setInterval(() => {
+  ticks += 1;
+  document.getElementById("ticks").textContent = "tick ".repeat(ticks);
+  if (ticks > 40) clearInterval(timer);
+}, 100);
+</script>
+</body></html>

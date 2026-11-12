@@ -61,6 +61,7 @@ public struct DiaTabsResult: Codable, Equatable, Sendable {
   public var windowCount: Int
   public var skipped: Int
   public var duplicates: Int
+  public var favicons: [ImportedFavicon] = []
 }
 
 public enum DiaTabsImport {

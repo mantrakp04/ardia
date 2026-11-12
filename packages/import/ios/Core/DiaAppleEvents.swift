@@ -165,7 +165,7 @@ public enum DiaAutomation {
     switch code {
     case noErr: .granted
     case OSStatus(errAEEventWouldRequireUserConsent): .notDetermined
-    case OSStatus(procNotFound): .notRunning
+    case OSStatus(procNotFound), OSStatus(connectionInvalid): .notRunning
     default: .denied
     }
   }
@@ -181,6 +181,123 @@ public enum DiaAutomation {
     default:
       .unreadable("Dia couldn't list its tabs (error \(code))")
     }
+  }
+}
+
+public protocol DiaApp {
+  var isRunning: Bool { get }
+  func launchHidden() throws
+  func consent() -> DiaAutomation.Status
+  func quitIfInBackground()
+}
+
+public enum DiaTabsFetch {
+  static let oneAtATime = NSLock()
+
+  public static func read(app: DiaApp, source: DiaScriptingSource, launchGrace: TimeInterval = 20,
+                          poll: TimeInterval = 0.5) throws -> DiaTabsResult {
+    oneAtATime.lock()
+    defer { oneAtATime.unlock() }
+    guard !app.isRunning else { return try readRunning(app: app, source: source) }
+    try app.launchHidden()
+    defer { app.quitIfInBackground() }
+    let deadline = Date().addingTimeInterval(launchGrace)
+    var lastError: Error = ImportError.notRunning("Dia didn't open")
+    while true {
+      do {
+        let result = try readRunning(app: app, source: source)
+        if result.windowCount > 0 || Date() >= deadline { return result }
+      } catch let error as ImportError {
+        if case .locked = error { throw error }
+        lastError = error
+        if Date() >= deadline { throw lastError }
+      }
+      Thread.sleep(forTimeInterval: poll)
+    }
+  }
+
+  static func readRunning(app: DiaApp, source: DiaScriptingSource) throws -> DiaTabsResult {
+    switch app.consent() {
+    case .granted: return try DiaTabsImport.read(from: source)
+    case .denied, .notDetermined: throw ImportError.locked("macOS didn't allow Ardia to read Dia's tabs")
+    case .notRunning: throw ImportError.notRunning("Dia isn't running")
+    case .notInstalled: throw ImportError.notFound("Dia isn't installed")
+    }
+  }
+}
+
+public final class WorkspaceDiaApp: DiaApp, @unchecked Sendable {
+  public let bundleIdentifier: String
+  private let consentCheck: (() -> DiaAutomation.Status)?
+  private var launched: NSRunningApplication?
+
+  public init(bundleIdentifier: String = DiaAutomation.bundleIdentifier, consent: (() -> DiaAutomation.Status)? = nil) {
+    self.bundleIdentifier = bundleIdentifier
+    consentCheck = consent
+  }
+
+  public var isRunning: Bool { DiaAutomation.isRunning(bundleIdentifier) }
+
+  public func consent() -> DiaAutomation.Status {
+    guard isRunning else { return DiaAutomation.isInstalled(bundleIdentifier) ? .notRunning : .notInstalled }
+    return consentCheck?() ?? DiaAutomation.status(bundleIdentifier, ask: true)
+  }
+
+  public func launchHidden() throws {
+    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
+      throw ImportError.notFound("Dia isn't installed")
+    }
+    let config = NSWorkspace.OpenConfiguration()
+    config.activates = false
+    config.hides = true
+    config.addsToRecentItems = false
+    let requested = Date()
+    let done = DispatchSemaphore(value: 0)
+    let state = NSLock()
+    var gaveUp = false
+    var opened: NSRunningApplication?
+    NSWorkspace.shared.openApplication(at: url, configuration: config) { app, _ in
+      let late = state.withLock {
+        opened = app
+        return gaveUp
+      }
+      if late, let app, Self.startedBy(requested, app) { app.terminate() }
+      done.signal()
+    }
+    let answered = done.wait(timeout: .now() + 20) == .success
+    let app = state.withLock {
+      gaveUp = !answered
+      return opened
+    }
+    guard answered, let app else { throw ImportError.notRunning("Dia didn't open") }
+    if Self.startedBy(requested, app) { launched = app }
+  }
+
+  static func startedBy(_ requested: Date, _ app: NSRunningApplication) -> Bool {
+    guard let launchDate = app.launchDate else { return false }
+    return launchDate >= requested.addingTimeInterval(-1)
+  }
+
+  public func quitIfInBackground() {
+    guard let app = launched, !app.isTerminated else { return }
+    launched = nil
+    DispatchQueue.main.sync {
+      guard !app.isActive else { return }
+      app.terminate()
+    }
+  }
+}
+
+public struct DiaFixtureWindows: DiaScriptingSource {
+  public var url: URL
+
+  public init(url: URL) { self.url = url }
+
+  public func windows() throws -> [DiaScript.Window] {
+    guard let data = try? Data(contentsOf: url), let windows = try? JSONDecoder().decode([DiaScript.Window].self, from: data) else {
+      throw ImportError.unreadable("Dia couldn't list its tabs")
+    }
+    return windows
   }
 }
 
