@@ -41,7 +41,7 @@ struct SearchTrayHost: View {
       let progress = TrayDrag.progress(offset: dragOffset, travel: trayHeight + lift)
       ZStack(alignment: .bottom) {
         if let shown {
-          dim
+          dim(over: shown)
             .opacity(isUp ? 1 - progress : 0)
             .allowsHitTesting(isUp && !isClosing)
             .ignoresSafeArea()
@@ -91,9 +91,9 @@ struct SearchTrayHost: View {
     .accessibilityHidden(true)
   }
 
-  private var dim: some View {
+  private func dim(over request: BrowseSession.SearchRequest) -> some View {
     Color.black
-      .opacity(app.surface == .search ? 0.001 : BrowseLayout.trayDim)
+      .opacity(request.origin == .page ? BrowseLayout.trayDim : 0.001)
       .contentShape(.rect)
       .onTapGesture { app.cancelSearch() }
       .accessibilityLabel("Close Search")

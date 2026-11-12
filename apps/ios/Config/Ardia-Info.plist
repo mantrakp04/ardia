@@ -6,6 +6,8 @@
 	<array>
 		<string>com.ardia.browser.ios.sync</string>
 	</array>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

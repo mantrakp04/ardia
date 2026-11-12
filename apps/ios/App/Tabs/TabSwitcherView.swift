@@ -277,7 +277,7 @@ struct TabDeck: View {
       positionProgress = 0
       Task { @MainActor in
         withAnimation(TabsMotion.openScale) { scaleProgress = 1 }
-        withAnimation(TabsMotion.openPosition) {
+        withAnimation(TabsMotion.openPosition, completionCriteria: .removed) {
           positionProgress = 1
         } completion: {
           phase = .settled
@@ -347,7 +347,7 @@ struct TabDeck: View {
       await app.primeCover(for: id)
       if case .closing(id) = phase { app.beginOpening(id) }
     }
-    withAnimation(TabsMotion.expand) {
+    withAnimation(TabsMotion.expand, completionCriteria: .removed) {
       scaleProgress = 0
       positionProgress = 0
     } completion: {
