@@ -20,6 +20,7 @@ import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
 import { takeAutoHideTabsChoices } from "./autoHideTabsChoices";
+import { takeTabSwitcherOpensInWebKit } from "./tabSwitcherOpens";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
 import { toolbarBounces } from "./toolbarBounces";
 
@@ -35,9 +36,9 @@ let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
 function emitCounts() {
-  const snapshots = takeSnapshotWrites();
+  const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || snapshots.count) {
+  if (Object.values(counts).some(Boolean) || snapshots.count || switcherOpensInWebKit) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -52,6 +53,7 @@ function emitCounts() {
       popover_press_closes: counts.popoverPressCloses,
       popover_escape_closes: counts.popoverEscapeCloses,
       tab_switcher_opens: counts.tabSwitcherOpens,
+      tab_switcher_opens_in_webkit: switcherOpensInWebKit,
       tab_switcher_closed_left_out: counts.tabSwitcherClosedLeftOut,
       tab_switcher_unseen_last: counts.tabSwitcherUnseenLast,
       approval_notices_deferred: counts.approvalNoticesDeferred,
@@ -152,11 +154,8 @@ export const notePopoverClosed = (by: "press" | "escape") => void counts[by === 
 
 export const noteUpdateChannelSwitch = (outcome: "offered" | "upToDate" | "failed" | null) => void (counts.updateChannelSwitches++, outcome && counts[outcome === "offered" ? "updateChannelSwitchOffers" : outcome === "upToDate" ? "updateChannelSwitchUpToDate" : "updateChannelSwitchCheckFailures"]++);
 
-export function noteTabSwitcherOpened(closedLeftOut: number, unseenLast: number) {
-  counts.tabSwitcherOpens++;
-  counts.tabSwitcherClosedLeftOut += closedLeftOut;
-  counts.tabSwitcherUnseenLast += unseenLast;
-}
+export const noteTabSwitcherOpened = (closedLeftOut: number, unseenLast: number) =>
+  void (counts.tabSwitcherOpens++, (counts.tabSwitcherClosedLeftOut += closedLeftOut), (counts.tabSwitcherUnseenLast += unseenLast));
 
 export const noteApprovalNoticeDeferred = () => counts.approvalNoticesDeferred++;
 
