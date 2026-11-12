@@ -28,8 +28,9 @@ function shapedMedia(data: unknown) {
 
 function shapedNavigation(page: OpeningPage, fields: Fields): Fields {
   if (typeof fields.committedUrl !== "string" || !isBlank(fields.committedUrl)) page.committed = true;
-  if (page.committed || page.blank === "asked") return fields;
+  if (page.committed) return fields;
   const leftByDownload = page.downloaded && fields.isLoading === false;
+  if (page.blank === "asked") return leftByDownload && fields.url === "" ? { ...fields, url: BLANK, title: BLANK } : fields;
   if (page.blank === "engine") return leftByDownload ? { ...fields, url: "", title: "" } : fields;
   return {
     ...fields,
@@ -41,8 +42,9 @@ function shapedNavigation(page: OpeningPage, fields: Fields): Fields {
 }
 
 function shapedDownload(page: OpeningPage, fields: Fields): Fields {
-  if (page.committed || page.blank === "asked") return fields;
+  if (page.committed) return fields;
   page.downloaded = true;
+  if (page.blank === "asked") return fields.committedUrl === "" ? { ...fields, committedUrl: BLANK } : fields;
   return { ...fields, committedUrl: "" };
 }
 

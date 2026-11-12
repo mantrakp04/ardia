@@ -82,8 +82,28 @@ test("a tab the engine opened keeps its own blank document, and closes on a down
 test("a download from about:blank asked for by address keeps about:blank", () => {
   const page = openingPage("about:blank", false);
   shaped(page, "navigation", navigation("about:blank", "about:blank", false));
+  assert.equal(shaped(page, "downloadNavigation", { url: ZIP, committedUrl: "", skipped: false }).committedUrl, "about:blank");
+  const after = shaped(page, "navigation", navigation("", "about:blank", false, ""));
+  assert.deepEqual([after.url, after.title, after.committedInitial], ["about:blank", "about:blank", undefined]);
+});
+
+test("a download from about:blank asked for by address keeps about:blank from an engine that already says so", () => {
+  const page = openingPage("about:blank", false);
+  shaped(page, "navigation", navigation("about:blank", "about:blank", false));
   assert.equal(shaped(page, "downloadNavigation", { url: ZIP, committedUrl: "about:blank", skipped: false }).committedUrl, "about:blank");
   assert.equal(shaped(page, "navigation", navigation("about:blank", "about:blank", false)).url, "about:blank");
+});
+
+test("a tab opened blank and then asked for about:blank keeps about:blank after a download", () => {
+  const page = openingPage("", false);
+  shaped(page, "navigation", navigation("about:blank", "about:blank", false));
+  noteLoadAsked(page, "about:blank");
+  shaped(page, "navigation", navigation("about:blank", "about:blank", false));
+  assert.equal(shaped(page, "downloadNavigation", { url: ZIP, committedUrl: "", skipped: false }).committedUrl, "about:blank");
+  const loading = shaped(page, "navigation", navigation(ZIP, "about:blank", true));
+  assert.equal(loading.url, ZIP);
+  const after = shaped(page, "navigation", navigation("", "about:blank", false, ""));
+  assert.deepEqual([after.url, after.title], ["about:blank", "about:blank"]);
 });
 
 test("a navigation event without a committed address is passed through, and media keeps its shape", () => {

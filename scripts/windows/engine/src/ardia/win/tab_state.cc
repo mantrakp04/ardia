@@ -45,21 +45,34 @@ int TabState::IdOf(content::WebContents* contents) {
   return sessions::SessionTabHelper::IdForTab(contents).id();
 }
 
-bool TabState::OnlyShowedOpeningBlank() const {
-  if (!opened_blank_) {
-    return false;
-  }
+void TabState::WatchOpeningBlank(int64_t navigation_id) {
+  opening_navigation_id_ = navigation_id;
   content::NavigationController& controller = web_contents()->GetController();
   content::NavigationEntry* committed = controller.GetLastCommittedEntry();
-  return controller.GetEntryCount() == 1 && committed &&
-         !committed->IsInitialEntry() && committed->GetURL().IsAboutBlank();
+  if (!navigation_id && controller.GetEntryCount() == 1 && committed &&
+      !committed->IsInitialEntry() && committed->GetURL().IsAboutBlank()) {
+    opening_entry_id_ = committed->GetUniqueID();
+  }
+}
+
+bool TabState::IsOpeningBlank(const content::NavigationEntry* entry) const {
+  return entry && opening_entry_id_ && entry->GetUniqueID() == opening_entry_id_;
+}
+
+bool TabState::OnlyShowedOpeningBlank() const {
+  content::NavigationController& controller = web_contents()->GetController();
+  return controller.GetEntryCount() == 1 &&
+         IsOpeningBlank(controller.GetLastCommittedEntry());
 }
 
 GURL TabState::CommittedPageURL(content::WebContents* contents) {
-  content::NavigationController& controller = contents->GetController();
-  content::NavigationEntry* committed = controller.GetLastCommittedEntry();
-  if (!committed || committed->IsInitialEntry() ||
-      (controller.GetEntryCount() == 1 && committed->GetURL().IsAboutBlank())) {
+  content::NavigationEntry* committed =
+      contents->GetController().GetLastCommittedEntry();
+  if (!committed || committed->IsInitialEntry()) {
+    return GURL();
+  }
+  TabState* state = TabState::FromWebContents(contents);
+  if (state && state->IsOpeningBlank(committed)) {
     return GURL();
   }
   return committed->GetURL();
@@ -139,6 +152,14 @@ void TabState::DidFinishNavigation(content::NavigationHandle* handle) {
   if (handle->HasCommitted() && !handle->IsSameDocument()) {
     const net::HttpResponseHeaders* headers = handle->GetResponseHeaders();
     http_status_ = headers ? headers->response_code() : 0;
+  }
+  if (opening_navigation_id_ &&
+      handle->GetNavigationId() == opening_navigation_id_) {
+    content::NavigationEntry* entry = handle->GetNavigationEntry();
+    if (handle->HasCommitted() && entry && entry->GetURL().IsAboutBlank()) {
+      opening_entry_id_ = entry->GetUniqueID();
+    }
+    opening_navigation_id_ = 0;
   }
   if (handle->HasCommitted() && handle->IsErrorPage()) {
     base::DictValue data;
