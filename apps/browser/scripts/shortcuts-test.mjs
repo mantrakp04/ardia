@@ -416,6 +416,20 @@ const resetToPageField = async (value, selection) => {
   await pageField(`(f.value = ${JSON.stringify(value)}, f.focus(), f.setSelectionRange(${selection[0]}, ${selection[1]}), true)`);
   await sleep(100);
 };
+await resetToPageField("", [0, 0]);
+await ac(`ac.store.getState().setSelection("w1", ["t1", "t2", "t3"]); return 1;`);
+await cdp("?t3", `document.activeElement.blur(); const r = document.createRange(); r.selectNodeContents(document.querySelector("h1"));
+  getSelection().removeAllRanges(); getSelection().addRange(r); true;`);
+await clipboard.set("selected-tabs-sentinel");
+await press(cmd("c", 8), { ...page, send: true });
+check("⌘C copies selected page text with several tabs selected", (await clipboard.get()) === "t3", "page Copy was intercepted");
+const selectedUrls = ["t1", "t2", "t3"].map((id) => `${pages}/?${id}`).join("\n");
+for (const [label, key] of [["⌘C", cmd("c", 8)], ["⇧⌘C", cmd("C", 8, "shift")]]) {
+  await clipboard.set("selected-tabs-sentinel");
+  await press(key, { ...sidebar, asKey: true, send: true, wait: 400 });
+  check(`${label} copies every selected sidebar URL`, (await clipboard.get()) === selectedUrls, "selected URLs were not copied");
+}
+await ac(`ac.store.getState().setSelection("w1", []); return 1;`);
 const sidebarOpen = () => ac(`return !ac.store.getState().settings.autoHideTabs;`);
 for (const [label, presses, toggles] of [
   ["one ⌘S in a page's text field stays with the page", [keyPress("s", 1)], 0],

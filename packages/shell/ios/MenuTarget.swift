@@ -48,7 +48,7 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
   private static var windowCopyingSelectedTabs: String? {
     guard let windowId = MenuState.current.copiesSelectedTabsIn, windowId == WindowManager.shared.keyWindowId,
       WindowManager.shared.keyWindowKind != .settings, let window = WindowManager.shared.keyBrowserWindow,
-      window === NSApp.keyWindow, !MainMenu.editsText(window.firstResponder)
+      window === NSApp.keyWindow, !MainMenu.editsText(window.firstResponder), !FocusHandoff.isPage(window.firstResponder)
     else { return nil }
     var view = window.firstResponder as? NSView
     while let current = view {
