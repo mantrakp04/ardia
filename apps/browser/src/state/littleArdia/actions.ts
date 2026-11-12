@@ -9,11 +9,12 @@ import { profileAccentOf } from "../profiles/looks";
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { isSmall, lastActiveProfile, mainWindowFor } from "../windows/small";
-import { isWebPageUrl } from "../../lib/url";
 import { navigationOf } from "../tabs/pageSession";
 import { asAdoptId } from "../tabs/adoptIds";
 import type { AdoptId } from "../browser/types";
 import { linkGate, type LinkGateResult, type LinkRouteChoice, type LinkSourceInfo } from "./linkGate";
+import { externalLinkOpen, type ExternalLinkOpen } from "./externalLinkOpen";
+import { noteExternalLink } from "../telemetry/usage";
 
 const store = () => useBrowser.getState();
 
@@ -52,13 +53,21 @@ export function openExternalUrls(given: string[], pointer?: [number, number], so
 function openRoutedUrl(url: string, route: LinkRouteChoice, pointer?: [number, number]) {
   const profileId = route.profileId ?? lastActiveProfile(store());
   if (route.windowId && store().windows[route.windowId]) {
+    noteExternalLink("tab", store().settings.openLinksInLittleArdia);
     store().newTab(route.windowId, { url, profileId, gated: true });
     return focus(route.windowId);
   }
-  const open = route.open ?? (store().settings.openLinksInLittleArdia && isWebPageUrl(url) ? "littleArdia" : "tab");
+  const open = decideExternal([url], route.open);
   if (open === "littleArdia") return void openLittleArdia(url, profileId, undefined, pointer);
   if (open === "window") return focus(openWindow({ url, profileId }));
   openLinksInMainWindow([url], profileId, [undefined], true);
+}
+
+function decideExternal(urls: string[], ruled: ExternalLinkOpen | null = null): ExternalLinkOpen {
+  const on = store().settings.openLinksInLittleArdia;
+  const open = externalLinkOpen(on, urls, ruled);
+  noteExternalLink(open === "littleArdia" ? "littleArdia" : "tab", on);
+  return open;
 }
 
 function openUndecided(urls: string[], pointer?: [number, number], gated = false) {
@@ -84,7 +93,7 @@ function openRoutedUrls(urls: string[], route: LinkRoute, pointer?: [number, num
 function openUrlsFromApps(urls: string[], routed: RoutedLinks, pointer?: [number, number], gated = false) {
   const [url] = urls;
   const profileId = routed.profileId ?? lastActiveProfile(store());
-  if (store().settings.openLinksInLittleArdia && urls.length === 1 && url && isWebPageUrl(url)) return void openLittleArdia(url, profileId, asAdoptId(routed.adoptIds[0]), pointer);
+  if (decideExternal(urls) === "littleArdia" && url) return void openLittleArdia(url, profileId, asAdoptId(routed.adoptIds[0]), pointer);
   openLinksInMainWindow(urls, profileId, routed.adoptIds, gated);
 }
 
