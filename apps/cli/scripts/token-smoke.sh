@@ -53,6 +53,10 @@ check "ardia browse open <url> opens a tab over the token connection" $ok "$(hea
 again="$(browse read --json)"
 [ "$(field success <<<"$again")" = true ] && ok=1 || ok=0
 check "ardia browse read reads the session's tab" $ok "$(head -c 300 <<<"$again")"
+browse set viewport 390 844 >/dev/null
+sized="$(browse eval "innerWidth + 'x' + innerHeight" --json)"
+[ "$(field data.result <<<"$sized")" = 390x844 ] && ok=1 || ok=0
+check "ardia browse set viewport sizes a tab the command opened" $ok "$(head -c 300 <<<"$sized")"
 refused="$(browse cookies --json)"
 [ "$(field code <<<"$refused")" = policy_refused ] && [ "$(field data.method <<<"$refused")" = Network.getCookies ] && ok=1 || ok=0
 check "a method off the policy's list is refused by name" $ok "$(head -c 300 <<<"$refused")"
