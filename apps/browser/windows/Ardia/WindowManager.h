@@ -173,7 +173,7 @@ struct WindowManager {
       ApplyInputRegions(entry);
 
       bool activate = request.focus && !Background();
-      bool entrance = request.animated || entry.kind == "small";
+      bool entrance = request.animated || entry.kind != "browser";
       bool fades = entrance && WindowMotion::SystemAnimates();
       HWND hwnd = entry.hwnd;
       auto appWindow = entry.appWindow;

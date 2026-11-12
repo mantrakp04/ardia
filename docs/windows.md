@@ -85,9 +85,10 @@ Logic is written once. Only code that calls the OS is written per platform.
     polls the pointer every 40 ms while a window is watched and logs `sidebar edge over|away <id>`.
   - The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
     without a reply; a no cancels the quit.
-  - Windows fade as on the Mac (`WindowFade.h`), fade only with no grow. A window opened with `animated` (and every
-    Little Ardia window) stays transparent until its React root has content or for 0.6 s, then fades in over 0.25 s
-    (Little Ardia 0.20 s); `animateWindowClose` fades it out from where it is over 0.18 s (0.15 s), hides it and then
+  - Windows fade as on the Mac (`WindowFade.h`), fade only with no grow. A window opened with `animated`, and every
+    window that is not a browser window (Little Ardia, Settings, Import: the Mac's system animates those open),
+    stays transparent until its React root has content or for 0.6 s, then fades in over 0.25 s (Little Ardia
+    0.20 s); `animateWindowClose` fades it out from where it is over 0.18 s (0.15 s), hides it and then
     resolves. With `after` naming a new window it waits for that window to appear plus 0.20 s and hides at once. The
     fade makes the app window and every visible window it owns (the page windows) layered for its length and puts
     their styles back at the end; on the way out they ignore clicks, and pages still shown after the hide stay
