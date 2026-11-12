@@ -838,3 +838,5 @@ Profile identification: the active profile header keeps an ellipsized name in na
 Local profile-switcher preview: selected identities have a highlighted target; address-bar-in-sidebar layout includes a persistent clickable active-name row above the switcher. Full names remain available through native hover tooltips. Icon mode uses 16 pt marks in 34 pt targets and scrolls overflow instead of changing to dots.
 
 The local profile preview exposes “Show profile name at the top” in Settings → Profiles. With a sidebar address bar, this moves the active name into a dedicated row below the address field and removes its footer row. Turning it off restores the footer name; other layouts retain their existing header name.
+
+The local preview offers Small / Medium / Large profile icon sizes under Settings → Profiles. Medium preserves the current 16pt glyph and 38pt pitch; Small uses 12pt glyphs at 28pt pitch and Large 20pt at 46pt pitch. All retain 34pt-high click targets and horizontal overflow reveal.

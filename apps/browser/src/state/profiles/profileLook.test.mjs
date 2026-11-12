@@ -69,3 +69,13 @@ test("profile name position is reversible and survives settings parsing", () => 
   S().updateSettings({ profileNameAtTop: false });
   assert.equal(S().settings.profileNameAtTop, false);
 });
+
+test("profile icon size defaults to medium and retains all size choices", () => {
+  S().hydrate({});
+  assert.equal(S().settings.profileIconSize, "medium");
+  for (const profileIconSize of ["small", "large", "medium"]) {
+    S().updateSettings({ profileIconSize });
+    S().hydrate({ settings: { ...S().settings } });
+    assert.equal(S().settings.profileIconSize, profileIconSize);
+  }
+});

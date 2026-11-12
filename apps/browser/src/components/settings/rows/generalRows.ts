@@ -107,6 +107,11 @@ export const generalRows = {
     {
       section: "Profile switcher",
       rows: {
+        iconSize: {
+          title: "Profile icon size",
+          description: "Resize bottom sidebar icons and their spacing. Small fits more profiles; overflow scrolls horizontally. Applies when profile icons are enabled.",
+          keywords: ["profile", "size", "small", "large", "compact", "sidebar", "icons"],
+        },
         nameAtTop: {
           title: "Show profile name at the top",
           description: "With the address bar in the sidebar, place the active profile name below the address bar instead of above the bottom switcher. Other layouts already show it at the top.",

@@ -2,7 +2,7 @@ import { PixelRatio, Text } from "react-native";
 import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
-import { profileBadge, profileColors, profileSwitcher } from "./tokens";
+import { profileBadge, profileColors, profileSwitcher, profileIconSizes, type ProfileIconSize } from "./tokens";
 import { profileMark } from "../../lib/profileInitial";
 import { iconSymbol } from "../../lib/customIcon";
 
@@ -54,7 +54,7 @@ export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "bolt.fill", title: "Energy" },
 ];
 
-export const switcherCellWidth = (icon: string | null) => (icon ? profileSwitcher.iconCell : profileSwitcher.dotCell);
+export const switcherCellWidth = (icon: string | null, size: ProfileIconSize = "medium") => (icon ? profileIconSizes[size].cell : profileSwitcher.dotCell);
 
 export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; color: string; scale?: number }) {
   const { icon: size, dot } = profileSwitcher;

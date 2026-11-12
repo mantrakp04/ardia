@@ -40,6 +40,7 @@ export function ProfilesPane() {
   const profiles = useProfiles();
   const defaultId = useSettings((s) => s.defaultProfileId);
   const nameAtTop = useSettings((s) => s.profileNameAtTop);
+  const iconSize = useSettings((s) => s.profileIconSize);
   const switcherIcons = useSettings((s) => s.profileSwitcherIcons);
   const shareable = useDataSharingProfileIds();
 
@@ -72,6 +73,9 @@ export function ProfilesPane() {
 
       <SectionHeader title="Profile switcher" />
       <Group>
+        <Row anchor="profiles.iconSize">
+          <PopUp value={iconSize} options={[{ value: "small", title: "Small" }, { value: "medium", title: "Medium (default)" }, { value: "large", title: "Large" }]} onChange={(profileIconSize) => updateSettings({ profileIconSize })} minWidth={160} />
+        </Row>
         <Row anchor="profiles.nameAtTop">
           <Toggle value={nameAtTop} onChange={(profileNameAtTop) => updateSettings({ profileNameAtTop })} />
         </Row>

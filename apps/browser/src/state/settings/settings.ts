@@ -144,6 +144,7 @@ export const SETTING_SPECS = {
   defaultProfileId: text(DEFAULT_PROFILE_ID),
   profileSwitcherIcons: flag(false, SYNCED),
   profileNameAtTop: flag(false, SYNCED),
+  profileIconSize: oneOf(["small", "medium", "large"], "medium", SYNCED),
   shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST), SYNCED),
   openLinksInLittleArdia: flag(true),
   littleArdiaOpensNewTabLinks: flag(true, SYNCED),

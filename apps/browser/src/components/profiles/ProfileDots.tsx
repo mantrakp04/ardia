@@ -12,7 +12,7 @@ import { ContextMenuArea, radius, useHover } from "../ui";
 import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
 import { switcherCellWidth, SwitcherMark } from "./ProfileIcons";
 import { openProfileItemMenu } from "./profileMenu";
-import { profileSwitcher } from "./tokens";
+import { profileSwitcher, profileIconSizes, type ProfileIconSize } from "./tokens";
 import { ProfileIndicator } from "./ProfileIndicator";
 import { switcherScrollOffset } from "./profileSwitcherLayout";
 
@@ -31,16 +31,17 @@ export function useProfileDotsShown() {
 export function ProfileDots({ windowId, width, besideDownloads, showName = false }: { windowId: string; width: number; besideDownloads: boolean; showName?: boolean }) {
   const ids = useProfileOrder(useShallow((o) => o));
   const saved = useProfileRecords(useShallow((profiles) => ids.map((id) => profiles[id] ? profileMark(profiles[id]) : null)));
+  const iconSize = useSettings((s) => s.profileIconSize);
   const shown = useSettings((s) => s.profileSwitcherIcons);
   const icons = shown ? saved : saved.map(() => null);
   const room = Math.max(0, width - 2 * (besideDownloads ? SIDE_ROOM_BESIDE_DOWNLOADS : SIDE_ROOM));
-  const contentWidth = icons.reduce((sum, icon) => sum + switcherCellWidth(icon), 0);
+  const contentWidth = icons.reduce((sum, icon) => sum + switcherCellWidth(icon, iconSize), 0);
   const active = useWindowProfileId();
   const scroll = useRef<ScrollView>(null);
   const revealActive = useCallback(() => {
     const index = ids.indexOf(active);
-    scroll.current?.scrollTo({ x: switcherScrollOffset(icons.map(switcherCellWidth), index, room), animated: false });
-  }, [active, ids.join("|"), shown, room, contentWidth]);
+    scroll.current?.scrollTo({ x: switcherScrollOffset(icons.map((icon) => switcherCellWidth(icon, iconSize)), index, room), animated: false });
+  }, [active, ids.join("|"), shown, iconSize, room, contentWidth]);
   useEffect(revealActive, [revealActive]);
   const { pages, pager } = usePagerPages(windowId);
   return (
@@ -48,14 +49,14 @@ export function ProfileDots({ windowId, width, besideDownloads, showName = false
       {showName ? <ProfileIndicator room={width - 2 * SIDE_ROOM} expanded /> : null}
       <ScrollView ref={scroll} onContentSizeChange={revealActive} horizontal showsHorizontalScrollIndicator={false} style={{ width: room, marginTop: (PROFILE_DOTS_HEIGHT - 3 - BAND) / 2, height: BAND, flexGrow: 0, overflow: "hidden" }} contentContainerStyle={{ minWidth: room, justifyContent: "center", alignItems: "center", flexDirection: "row" }}>
         {ids.map((id, i) => (
-          <Dot key={id} id={id} windowId={windowId} icon={icons[i] ?? null} page={pages.find((p) => p.id === id)} pos={pager.pos} selected={active === id} />
+          <Dot key={id} iconSize={iconSize} id={id} windowId={windowId} icon={icons[i] ?? null} page={pages.find((p) => p.id === id)} pos={pager.pos} selected={active === id} />
         ))}
       </ScrollView>
     </View>
   );
 }
 
-function Dot({ id, windowId, icon, page, pos, selected }: { selected: boolean; id: string; windowId: string; icon: string | null; page: PagerPage | undefined; pos: Animated.Value }) {
+function Dot({ iconSize, id, windowId, icon, page, pos, selected }: { iconSize: ProfileIconSize; selected: boolean; id: string; windowId: string; icon: string | null; page: PagerPage | undefined; pos: Animated.Value }) {
   const theme = useTheme();
   useNativePagerPosition(windowId);
   const name = useProfile(id, (p) => p?.name ?? "");
@@ -67,7 +68,7 @@ function Dot({ id, windowId, icon, page, pos, selected }: { selected: boolean; i
   const opacity = page
     ? pos.interpolate({ inputRange: [page.slot - 1, page.slot, page.slot + 1], outputRange: [rest, levels.selected, rest], extrapolate: "clamp" })
     : rest;
-  const cell = switcherCellWidth(icon);
+  const cell = switcherCellWidth(icon, iconSize);
   const mark = useRef<View>(null);
   return (
     <View {...hoverProps} ref={mark} tooltip={name}>
@@ -82,9 +83,9 @@ function Dot({ id, windowId, icon, page, pos, selected }: { selected: boolean; i
             switchProfile(windowId, id, true);
           }}
         >
-          <View style={{ width: icon ? BAND : cell, marginHorizontal: icon ? (cell - BAND) / 2 : 0, height: BAND, alignItems: "center", justifyContent: "center", borderRadius: radius.chrome, backgroundColor: icon && selected ? theme.tabPressed : undefined }}>
+          <View style={{ width: icon ? cell - profileSwitcher.iconGap : cell, marginHorizontal: icon ? profileSwitcher.iconGap / 2 : 0, height: BAND, alignItems: "center", justifyContent: "center", borderRadius: radius.chrome, backgroundColor: icon && selected ? theme.tabPressed : undefined }}>
             <Animated.View style={{ opacity }}>
-              <SwitcherMark icon={icon} color={theme.mark} />
+              <SwitcherMark icon={icon} color={theme.mark} scale={icon ? profileIconSizes[iconSize].scale : 1} />
             </Animated.View>
           </View>
         </Pressable>
