@@ -24,6 +24,7 @@ import { takeAutoHideTabsChoices } from "./autoHideTabsChoices";
 import { takeTabSwitcherOpensInWebKit } from "./tabSwitcherOpens";
 import { takeTabSleepCounts } from "./tabSleepCounts";
 import { noteAutoPictureInPictureNothingPlaying, takePictureInPictureCounts } from "./pictureInPictureCounts";
+import { takeCaptureCounts } from "./captureCounts";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
 import { toolbarBounces } from "./toolbarBounces";
 import { takeStuckDragCounts } from "./stuckDrags";
@@ -45,9 +46,9 @@ let counts = { ...NO_COUNTS }, countsSince = Date.now();
 
 function emitCounts() {
   const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit(), stuckDrags = takeStuckDragCounts(), urlCopies = takeUrlCopyCounts(), tabSleeps = takeTabSleepCounts(), syncCodes = takeSyncCodeCounts(), escapeCloses = takeLittleArdiaEscapeCloses(), liveCompletedTabsClosed = takeLiveCompletedTabsClosed(), liveHides = takeLiveHideCounts(), tidyTabs = takeTidyTabsCounts();
-  const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab } = takePictureInPictureCounts();
+  const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab } = takePictureInPictureCounts(), captures = takeCaptureCounts();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || Object.values(tabSleeps).some(Boolean) || Object.values(syncCodes).some(Boolean) || Object.values(stuckDrags).some(Boolean) || Object.values(escapeCloses).some(Boolean) || Object.values(liveHides).some(Boolean) || Object.values(tidyTabs).some(Boolean) || urlCopies.url_copies || liveCompletedTabsClosed || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
+  if (Object.values(counts).some(Boolean) || Object.values(tabSleeps).some(Boolean) || Object.values(syncCodes).some(Boolean) || Object.values(stuckDrags).some(Boolean) || Object.values(escapeCloses).some(Boolean) || Object.values(liveHides).some(Boolean) || Object.values(tidyTabs).some(Boolean) || urlCopies.url_copies || liveCompletedTabsClosed || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit || Object.values(captures).some(Boolean)) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -55,7 +56,7 @@ function emitCounts() {
       sidebar_peeks: counts.sidebarPeeks,
       sidebar_peek_bounces: counts.sidebarPeekBounces,
       cli_tab_edits: counts.cliTabEdits, cli_group_edits: counts.cliGroupEdits, cli_edit_failures: counts.cliEditFailures, cli_pill_shows: counts.cliPillShows,
-      ...stuckDrags, ...urlCopies, ...tabSleeps, ...syncCodes, ...liveHides, ...tidyTabs, live_completed_tabs_closed: liveCompletedTabsClosed,
+      ...stuckDrags, ...urlCopies, ...tabSleeps, ...syncCodes, ...captures, ...liveHides, ...tidyTabs, live_completed_tabs_closed: liveCompletedTabsClosed,
       popover_press_closes: counts.popoverPressCloses,
       popover_escape_closes: counts.popoverEscapeCloses,
       tab_switcher_opens: counts.tabSwitcherOpens,

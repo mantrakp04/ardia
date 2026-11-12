@@ -267,6 +267,10 @@ public class DevModule: Module {
       KeyEquivalents.click(windowId: windowId, click) { promise.resolve($0) }
     }.runOnQueue(.main)
 
+    AsyncFunction("devPointer") { (windowId: String, steps: [[String: Any]], promise: Promise) in
+      KeyEquivalents.pointer(windowId: windowId, steps) { promise.resolve($0) }
+    }.runOnQueue(.main)
+
     AsyncFunction("devRunAppleScript") { (source: String, promise: Promise) in
       Self.scriptQueue.async {
         var error: NSDictionary?
