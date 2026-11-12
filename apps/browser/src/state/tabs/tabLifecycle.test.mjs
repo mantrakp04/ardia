@@ -82,6 +82,30 @@ test("a tab Chrome discarded shows as sleeping until it's ready again or gone", 
   assert.deepEqual(lifecycle.useLifecycle.getState().discarded, {});
 });
 
+test("a pinned tab Memory Saver's timer put to sleep is counted; a tab put to sleep by hand, under memory pressure or unpinned is not", async () => {
+  const { takeTabSleepCounts } = await import("../telemetry/tabSleepCounts.ts");
+  const takePinnedTabsSleptByMemorySaver = () => takeTabSleepCounts().pinned_tabs_slept_by_memory_saver;
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com/" });
+  const tile = S().newTab(w, { url: "https://tile.com/", background: true });
+  const row = S().newTab(w, { url: "https://row.com/", background: true });
+  const plain = S().newTab(w, { url: "https://plain.com/", background: true });
+  S().updateTab(tile, { pin: { as: "tile" } });
+  S().updateTab(row, { pin: { as: "row" } });
+  takePinnedTabsSleptByMemorySaver();
+  lifecycle.noteDiscarded(tile, "proactive");
+  lifecycle.noteDiscarded(row, "proactive");
+  lifecycle.noteDiscarded(plain, "proactive");
+  assert.equal(takePinnedTabsSleptByMemorySaver(), 2);
+  assert.equal(lifecycle.useLifecycle.getState().discarded[tile], true);
+  lifecycle.noteDiscarded(tile, "external");
+  lifecycle.noteDiscarded(tile, "urgent");
+  lifecycle.noteDiscarded(tile, null);
+  lifecycle.noteDiscarded(tile);
+  assert.equal(takePinnedTabsSleptByMemorySaver(), 0);
+  for (const id of [tile, row, plain]) lifecycle.noteGone(id);
+});
+
 test("Battery Saver turns on at 20% battery or lower, in Low Power Mode, or whenever unplugged when asked to", () => {
   const sys = (onBattery, batteryLevel, lowPowerMode = false) => ({ onBattery, batteryLevel, lowPowerMode, memoryPressure: "normal", physicalMemory: 16 * 2 ** 30 });
   const wanted = (when, state) => lifecycle.batterySaverWanted(when, state).on;

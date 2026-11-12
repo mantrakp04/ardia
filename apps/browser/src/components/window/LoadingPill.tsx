@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, View } from "react-native";
 import { useTabLive } from "../../state/browser/hooks";
-import { notePageOverlay } from "../../state/telemetry/usage";
+import { noteLoadingPillLong, noteLoadingPillShown } from "../../state/telemetry/loadingPill";
 import { capsule, reduceMotion, useTheme } from "../ui";
 import { Hud } from "./Hud";
 import { LOADING_PILL } from "./tokens";
@@ -24,8 +24,8 @@ export function LoadingPill({ tabId }: { tabId: string }) {
     if (!mounted) return;
     if (loading) {
       let current = true;
-      notePageOverlay("loadingShown");
-      const long = setTimeout(() => notePageOverlay("loadingLong"), LOADING_PILL.longShowMs);
+      noteLoadingPillShown();
+      const long = setTimeout(noteLoadingPillLong, LOADING_PILL.longShowMs);
       cycle.current?.run.stop();
       scale.setValue(1);
       const grow = Animated.timing(sweep, { toValue: FULL, ...motion.sweep, useNativeDriver: true });

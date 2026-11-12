@@ -8,6 +8,7 @@ import type {
   BlockedPopup,
   ContentBlockedState,
   CrashInfo,
+  DiscardReason,
   DisplayMediaRequest,
   DownloadNavigation,
   FindResult,
@@ -63,7 +64,7 @@ type NativeEvents = {
   onScroll: { state: ScrollState };
   onProtectedMedia: ProtectedMediaRequest;
   onReady: object;
-  onDiscarded: { url: string };
+  onDiscarded: { url: string; reason?: DiscardReason | "" };
   onPasswordPrompt: PasswordPrompt;
   onAutofillPrompt: AutofillPrompt | { id: number; closed: true };
   onExternalApp: ExternalAppRequest;
@@ -155,7 +156,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onScroll: (e) => [e.state],
   onProtectedMedia: (e) => [e],
   onReady: () => [],
-  onDiscarded: (e) => [toAppUrl(e.url)],
+  onDiscarded: (e) => [toAppUrl(e.url), e.reason || null],
   onPasswordPrompt: (e) => [e],
   onAutofillPrompt: (e) => ("closed" in e ? [null, e.id] : [e, e.id]),
   onExternalApp: (e) => [e],
