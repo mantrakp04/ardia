@@ -6,7 +6,7 @@ import { knownFaviconTheme, resolveFavicon } from "../../state/favicons/favicons
 import { Divider, FadeLabel, font, radius, space, Symbol, Text, withAlpha } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import type { BrowserState } from "../../state/browser/store";
-import type { GroupColor } from "../../state/browser/types";
+import type { GroupColor, Tab } from "../../state/browser/types";
 import { groupLabel } from "../../state/pins/tabGrouping";
 import { splitRowPanes } from "../../state/splits/splits";
 import { isSilenced } from "../../state/tabs/mute";
@@ -35,24 +35,27 @@ type GroupShot = {
 };
 export type EntrySnapshot = TabShot | SplitShot | GroupShot;
 
-function tabShot(s: BrowserState, tabId: string, hovered: boolean): TabShot | null {
-  const tab = s.tabs[tabId];
-  if (!tab) return null;
+export function tabShotOf(tab: Tab, sound: TabShot["sound"] = null, hovered = false): TabShot {
   const uri = tab.customIcon ? null : (resolveFavicon(tab.url, tab.favicon, tab.profileId)?.uri ?? null);
   const shape = uri ? knownFaviconTheme(uri) : null;
   return {
     uri,
     template: shape?.kind === "template" && !!shape.stroke,
     kind: "tab",
-    key: entryKey("tab", tabId),
+    key: entryKey("tab", tab.id),
     title: tabTitle(tab),
     url: tab.url,
     favicon: tab.favicon,
     icon: tab.customIcon,
     profileId: tab.profileId,
-    sound: isSilenced(s, tab) ? "muted" : s.live[tabId]?.playingAudio ? "playing" : null,
+    sound,
     hovered,
   };
+}
+
+function tabShot(s: BrowserState, tabId: string, hovered: boolean): TabShot | null {
+  const tab = s.tabs[tabId];
+  return tab ? tabShotOf(tab, isSilenced(s, tab) ? "muted" : s.live[tabId]?.playingAudio ? "playing" : null, hovered) : null;
 }
 
 function splitShot(s: BrowserState, splitId: string): SplitShot {

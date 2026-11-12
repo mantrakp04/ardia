@@ -1,10 +1,11 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useRef } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { errorText, manualRefresh, statusText } from "../../state/live/engine";
 import { folderRows, type FolderRow } from "../../state/live/rows";
 import { liveFolderIcon } from "../../state/live/sources";
 import { updateFolder, useLive } from "../../state/live/store";
 import type { LiveItem } from "../../state/live/types";
+import type { Tab } from "../../state/browser/types";
 import { usePageProfileId, useTab } from "../../state/browser/hooks";
 import { useLiveActiveTab, useLiveStrays } from "../../state/sidebar/hooks";
 import { openSettings } from "../../state/settings/settingsWindows";
@@ -26,6 +27,7 @@ import { SidebarRowLabel, SidebarRowSurface } from "./SidebarRow";
 import { MoreRow, NoteRow, SectionTitle, StackRow } from "./LiveFolderRows";
 import { LiveItemRow } from "./LiveItemRow";
 import { CompletedFooter, useCompletedShown } from "./CompletedFooter";
+import { EntryGhost, tabShotOf } from "./GhostEntry";
 import { entryKey } from "../../state/sidebar/entryKey";
 
 const PAD = LIVE_FOLDER_PAD;
@@ -48,6 +50,10 @@ export const LiveFolderBlock = memo(function LiveFolderBlock({ folderId, windowI
   const strays = useLiveStrays(windowId, profileId, folderId, itemIds, hiddenIds);
   const activeTab = useLiveActiveTab(windowId, profileId, folderId, itemIds, hiddenIds);
   const activeItem = useTab(activeTab ?? undefined, (t) => t?.liveItem?.itemId ?? null);
+  const keptStray = useTab(collapsed && activeTab && strays.includes(activeTab) ? activeTab : undefined);
+  const strayShown = useRef<Tab | null>(null);
+  const strayLeft = strayShown.current;
+  strayShown.current = keptStray ?? null;
   const completed = useCompletedShown(folderId).length > 0;
   const fold = useFold(collapsed);
   const foldedHeight = () => GROUP_BORDER * 2 + layout.rowHeight + (activeTab ? layout.rowHeight + PAD : 0);
@@ -71,7 +77,14 @@ export const LiveFolderBlock = memo(function LiveFolderBlock({ folderId, windowI
         <View ref={headerRef} {...handle} style={{ marginHorizontal: -PAD }}>
           <FolderHeader folderId={folderId} windowId={windowId} collapsed={collapsed} />
         </View>
-        <Fold fold={fold} collapsed={collapsed} entries={entries} keep={keep} padBottom={PAD} />
+        <Fold
+          fold={fold}
+          collapsed={collapsed}
+          entries={entries}
+          keep={keep}
+          padBottom={PAD}
+          farewell={(key) => (strayLeft && key === `stray:${strayLeft.id}` ? { node: <EntryGhost snapshot={tabShotOf(strayLeft)} />, height: layout.rowHeight } : null)}
+        />
       </View>
     </Animated.View>
   );
