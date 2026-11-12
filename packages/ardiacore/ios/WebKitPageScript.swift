@@ -274,6 +274,12 @@ enum WebKitPageScript {
     );
     for (const type of ["keydown", "mousedown", "touchstart"]) addEventListener(type, noteUndirectedInput, { passive: true, capture: true });
     addEventListener("mousemove", (e) => e.buttons && noteUndirectedInput(), { passive: true, capture: true });
+    const snapOf = (el) => {
+      const snap = el && getComputedStyle(el).scrollSnapType;
+      return !!snap && /\by\b|\bblock\b|\bboth\b/.test(snap) && /\bmandatory\b/.test(snap);
+    };
+    let scrollerSnap = false;
+    let snapCheckedAt = -1e9;
     const measureScroll = () => {
       try {
         const target = scrollTarget;
@@ -281,8 +287,17 @@ enum WebKitPageScript {
         const doc = document.scrollingElement || document.documentElement;
         const el = target === document || target === doc ? doc : target;
         if (!el || !doc || (el !== doc && (el.clientHeight < innerHeight * 0.5 || el.clientWidth < innerWidth * 0.5))) return;
-        if (el !== scroller) direction.rebase((scroller = el).scrollTop);
         const now = performance.now();
+        if (el !== scroller || now - snapCheckedAt > 250) {
+          const wasSnap = scrollerSnap;
+          scrollerSnap = snapOf(el) || (el === doc && (snapOf(document.documentElement) || snapOf(document.body)));
+          snapCheckedAt = now;
+          if (el !== scroller || (wasSnap && !scrollerSnap)) {
+            scroller = el;
+            if (!scrollerSnap) direction.rebase(el.scrollTop);
+          }
+        }
+        if (scrollerSnap) return;
         const state = direction.scrolled(el.scrollTop, el.scrollHeight - el.clientHeight, innerHeight, now, now - inputAt < 1000);
         if (state) post("scroll", { state });
       } catch (e) {}
