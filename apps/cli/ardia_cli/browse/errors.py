@@ -40,6 +40,8 @@ REFUSAL_HINTS = {
     "to that target": NOT_A_WEB_TAB,
     "on that target": NOT_A_WEB_TAB,
     "to that URL": "only http, https, data and about:blank pages can be opened",
+    "on a tab the ardia command didn't open": "the viewport can be set only on a tab this command opened: `ardia browse open <url>`, then set it there",
+    "with that option": "only a width, a height, a scale and mobile can be set",
 }
 
 
