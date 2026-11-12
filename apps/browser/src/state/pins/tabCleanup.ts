@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
-import { activeTabId, inPinnedContainer, isIncognitoProfile, pinSection, viewTabIds, without } from "../browser/model";
+import { activeTabId, byRecentUse, inPinnedContainer, isIncognitoProfile, pinSection, viewTabIds, without } from "../browser/model";
 import { hasPage, isAsleep } from "../tabs/pageSession";
 import { holderOf } from "./pinShare";
 import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
@@ -168,7 +168,7 @@ export function abandonedNewTabs(s: BrowserState, windowId: string): string[] {
 
 export function recentTabIds(s: BrowserState, windowId: string, now = Date.now(), staleAfterMs = CLEAN_UP_AFTER_MS): string[] {
   const open = viewTabIds(s, windowId).map((id) => s.tabs[id]!).filter((t) => !isAsleep(t));
-  const sorted = open.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+  const sorted = open.sort(byRecentUse);
   return sorted.filter((t, i) => i < 2 || now - t.lastActiveAt < staleAfterMs).map((t) => t.id);
 }
 

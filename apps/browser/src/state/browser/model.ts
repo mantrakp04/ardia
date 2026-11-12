@@ -68,6 +68,9 @@ export function makeTab(windowId: string, profileId: string, url = "", snapshot?
   };
 }
 
+export const byRecentUse = (a: Pick<Tab, "unseen" | "lastActiveAt">, b: Pick<Tab, "unseen" | "lastActiveAt">) =>
+  Number(!!a.unseen) - Number(!!b.unseen) || b.lastActiveAt - a.lastActiveAt;
+
 export const snapshotTab = (t: Tab): TabSnapshot => ({
   url: t.url,
   title: t.title,

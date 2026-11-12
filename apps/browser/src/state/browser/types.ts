@@ -59,6 +59,7 @@ export type Tab = {
   createdAt: number;
   lastActiveAt: number;
   restoredAt?: number;
+  unseen?: true;
 };
 
 export type AdoptKind = "restore" | "clone" | "tab" | "ardiacore" | "webkit" | "link";
