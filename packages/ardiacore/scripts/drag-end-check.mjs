@@ -7,7 +7,9 @@ import { devtools, launch, sleep } from "../../../scripts/lib/instance.mjs";
 const usage = `usage: drag-end-check.mjs <Debug Ardia.app> [scratch dir]
 Checks, in one hidden instance launched with --test nativeDragRefused, that a page keeps taking clicks and keys after
 a drag nobody ends: one a DevTools session took and left behind (dropped mid-drag, with and without
-Input.setInterceptDrags), one DevTools input started that no session took, and one macOS refused to start.
+Input.setInterceptDrags), one DevTools input started that no session took, and one macOS refused to start. Also: a
+DevTools drag between a page and a cross-site iframe ends in the frame it started in, a session that only holds a
+press never owns another session's drag, and a navigation during a drag's first update doesn't crash the browser.
 No macOS drag session is ever begun: the last check runs only once the engine reports that it refuses them.`;
 const [appArg, scratchArg] = process.argv.slice(2);
 if (!appArg || appArg === "-h" || appArg === "--help") {
@@ -18,18 +20,39 @@ const scratch = resolve(scratchArg ?? join(process.env.TMPDIR ?? "/tmp", `ac-dra
 rmSync(scratch, { recursive: true, force: true });
 
 const PAGE = `<!doctype html><title>Drag end check</title>
-<style>body{margin:0;height:4000px}#drag{position:absolute;left:40px;top:40px;width:200px;height:60px;background:#48f}#pad{position:absolute;left:40px;top:200px;width:400px;height:200px;background:#eee}</style>
-<div id="drag" draggable="true">drag me</div><div id="pad">pad</div>
+<style>body{margin:0;height:4000px}#drag{position:absolute;left:40px;top:40px;width:200px;height:60px;background:#48f}#pad{position:absolute;left:40px;top:200px;width:400px;height:160px;background:#eee}#frame{position:absolute;left:40px;top:400px;width:400px;height:200px;border:0}</style>
+<div id="drag" draggable="true">drag me</div><div id="pad">pad</div>FRAME
 <script>
 window.counts = { mousedown: 0, mouseup: 0, keydown: 0, dragstart: 0, dragend: 0 };
+window.frameCounts = { mousedown: 0, dragstart: 0, dragend: 0 };
 window.lastPress = null;
 for (const name of Object.keys(counts)) addEventListener(name, () => { counts[name]++; }, true);
 addEventListener("mousedown", (e) => { lastPress = [e.clientX, e.clientY]; }, true);
-drag.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", "x"));
+addEventListener("message", (e) => { if (e.data in frameCounts) frameCounts[e.data]++; });
+const busyMs = Number(new URLSearchParams(location.search).get("busy"));
+drag.addEventListener("dragstart", (e) => {
+  e.dataTransfer.setData("text/plain", "x");
+  if (busyMs) setTimeout(() => { for (const end = performance.now() + busyMs; performance.now() < end; ); }, 0);
+});
 </script>`;
-const server = createServer((req, res) => res.setHeader("content-type", "text/html").end(PAGE));
+const FRAME = `<!doctype html><title>Drag end check frame</title>
+<style>body{margin:0;background:#dfd}#inner{position:absolute;left:10px;top:10px;width:150px;height:40px;background:#f84}</style>
+<div id="inner" draggable="true">drag me too</div>
+<script>
+for (const name of ["mousedown", "dragstart", "dragend"]) addEventListener(name, () => parent.postMessage(name, "*"), true);
+inner.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", "y"));
+</script>`;
+const server = createServer((req, res) => {
+  const port = server.address().port;
+  const path = new URL(req.url, "http://x").pathname;
+  res.setHeader("content-type", "text/html");
+  if (path === "/frame") return res.end(FRAME);
+  if (path === "/other") return res.end(PAGE.replace("FRAME", ""));
+  res.end(PAGE.replace("FRAME", `<iframe id="frame" src="http://localhost:${port}/frame"></iframe>`));
+});
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const pageUrl = `http://127.0.0.1:${server.address().port}/drag-end-check`;
+const otherSiteUrl = `http://localhost:${server.address().port}/other`;
 
 let failed = 0;
 const check = (name, ok, detail = "") => {
@@ -116,6 +139,90 @@ try {
       started && unowned && input.ok, `dragstart ${started}, ended by the engine ${unowned}, ${input.detail}`);
   }
 
+  {
+    const frames = () => evaluate(watcher, "({ ...frameCounts })");
+    const settled = async (read, key, from) => until(key, async () => ((await read())[key] > from ? true : null), 3000).then(() => true, () => false);
+    await until("the cross-site frame", async () => (await app.targets()).some((t) => t.type === "iframe" && t.url.includes("/frame")));
+    let before = { ...(await counts()), ended: await ended() };
+    let driver = await session();
+    await mouse(driver, "mousePressed", 100, 70);
+    for (const [x, y] of [[104, 74], [120, 90], [160, 300], [240, 520]]) await mouse(driver, "mouseMoved", x, y).catch(() => null);
+    const startedInPage = await dragStarts(before.dragstart);
+    await mouse(driver, "mouseReleased", 240, 520).catch(() => null);
+    const endedInPage = await settled(counts, "dragend", before.dragend);
+    let input = await takesInput();
+    check("a DevTools drag from the page dropped on a cross-site frame ends in the page, which takes input again",
+      startedInPage && endedInPage && input.ok, `dragstart ${startedInPage}, dragend in the page ${endedInPage}, ${input.detail}`);
+    driver.close();
+    await sleep(300);
+
+    const frameBefore = await frames();
+    driver = await session();
+    await mouse(driver, "mousePressed", 90, 430);
+    for (const [x, y] of [[94, 434], [110, 440], [160, 380], [200, 300]]) await mouse(driver, "mouseMoved", x, y).catch(() => null);
+    const startedInFrame = await settled(frames, "dragstart", frameBefore.dragstart);
+    await mouse(driver, "mouseReleased", 200, 300).catch(() => null);
+    const endedInFrame = await settled(frames, "dragend", frameBefore.dragend);
+    const pressesBefore = (await frames()).mousedown;
+    await mouse(driver, "mousePressed", 340, 550).catch(() => null);
+    await mouse(driver, "mouseReleased", 340, 550).catch(() => null);
+    const frameTakesInput = await settled(frames, "mousedown", pressesBefore);
+    check("a DevTools drag from a cross-site frame dropped on the page ends in the frame, which takes input again",
+      startedInFrame && endedInFrame && frameTakesInput, `dragstart ${startedInFrame}, dragend in the frame ${endedInFrame}, frame mousedown ${frameTakesInput}`);
+    driver.close();
+    await sleep(300);
+    input = await takesInput();
+    check("the page still takes input after both", input.ok, input.detail);
+
+    for (const finish of ["drop", "dragCancel"]) {
+      before = { ...(await counts()), ended: await ended() };
+      driver = await session();
+      let handed = null;
+      driver.on("Input.dragIntercepted", (event) => { handed = event.data; });
+      await driver.send("Input.setInterceptDrags", { enabled: true });
+      await mouse(driver, "mousePressed", 100, 70);
+      for (const [x, y] of [[104, 74], [120, 90], [160, 200]]) await mouse(driver, "mouseMoved", x, y).catch(() => null);
+      const data = await until("the drag handed over", async () => handed, 3000).catch(() => null);
+      if (data) {
+        const at = { x: 240, y: 520, data };
+        if (finish === "drop") await driver.send("Input.dispatchDragEvent", { type: "dragEnter", ...at }).catch(() => null);
+        await driver.send("Input.dispatchDragEvent", { type: finish, ...at }).catch(() => null);
+      }
+      await mouse(driver, "mouseReleased", 240, 520).catch(() => null);
+      const endedInPage = await settled(counts, "dragend", before.dragend);
+      await driver.send("Input.setInterceptDrags", { enabled: false });
+      const afterEnded = await ended();
+      input = await takesInput();
+      check(`a handed-over drag from the page finished with Input.dispatchDragEvent ${finish} over a cross-site frame ends in the page`,
+        !!data && endedInPage && input.ok && (afterEnded.ownerGone ?? 0) === (before.ended.ownerGone ?? 0),
+        `handed over ${!!data}, dragend in the page ${endedInPage}, ended as abandoned +${(afterEnded.ownerGone ?? 0) - (before.ended.ownerGone ?? 0)}, ${input.detail}`);
+      driver.close();
+      await sleep(300);
+    }
+  }
+
+  {
+    const holder = await session();
+    await mouse(holder, "mousePressed", 300, 320);
+    await mouse(holder, "mouseMoved", 310, 326);
+    const before = { ...(await counts()), ended: await ended() };
+    const dragger = await session();
+    await mouse(dragger, "mousePressed", 100, 70);
+    for (const [x, y] of [[104, 74], [120, 90], [160, 200], [200, 300]]) await mouse(dragger, "mouseMoved", x, y).catch(() => null);
+    const started = await dragStarts(before.dragstart);
+    holder.close();
+    await sleep(700);
+    const during = { ...(await counts()), ended: await ended() };
+    const untouched = during.dragend === before.dragend && (during.ended.ownerGone ?? 0) === (before.ended.ownerGone ?? 0);
+    await mouse(dragger, "mouseReleased", 200, 300).catch(() => null);
+    const finished = await until("dragend", async () => ((await counts()).dragend > before.dragend ? true : null), 3000).then(() => true, () => false);
+    dragger.close();
+    const input = await takesInput();
+    check("a session that only holds a press doesn't own another session's drag: closing it leaves that drag alone",
+      started && untouched && finished && input.ok,
+      `dragstart ${started}, dragend while held +${during.dragend - before.dragend}, ended by the engine +${(during.ended.ownerGone ?? 0) - (before.ended.ownerGone ?? 0)}, dragend at the release ${finished}, ${input.detail}`);
+  }
+
   const refuses = (await status()).nativeDragsRefused === true;
   check("the engine reports that it refuses macOS drag sessions (--test nativeDragRefused)", refuses);
   if (refuses) {
@@ -139,6 +246,25 @@ try {
       started && refused && input.ok, `dragstart ${started}, ended by the engine ${refused}, ${input.detail}`);
   }
   watcher.close();
+
+  {
+    await browser.send("Target.createTarget", { url: `${pageUrl}?busy=3000` });
+    const busy = await until("the busy page", async () => (await app.targets()).find((t) => t.type === "page" && t.url.includes("busy=3000")));
+    const driver = await devtools(busy);
+    await until("the busy page visible", async () => (await driver.send("Runtime.evaluate", { expression: "document.visibilityState === 'visible' && !!window.counts", returnByValue: true })).result.value);
+    await sleep(1500);
+    const endedBefore = (await ended()).ownerGone ?? 0;
+    await mouse(driver, "mousePressed", 100, 70);
+    for (const [x, y] of [[104, 74], [120, 90]]) void mouse(driver, "mouseMoved", x, y).catch(() => null);
+    await sleep(500);
+    void driver.send("Page.navigate", { url: otherSiteUrl }, { timeout: 15000 }).catch(() => null);
+    await sleep(5000);
+    const alive = app.alive;
+    const answers = alive && (await status().then((s) => !!s.dragsEnded, () => false));
+    check("a navigation to another site while a DevTools drag's first update is unanswered doesn't crash the browser", alive && answers,
+      alive ? `the browser is running, drags it ended +${((await ended()).ownerGone ?? 0) - endedBefore}, now at ${(await app.targets()).find((t) => t.id === busy.id)?.url}` : "the browser process is gone");
+    driver.close();
+  }
 } catch (e) {
   check("ran to the end", false, e.message);
 } finally {
