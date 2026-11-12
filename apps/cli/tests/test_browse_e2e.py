@@ -14,6 +14,7 @@ CLI = Path(__file__).resolve().parents[1]
 REPO = CLI.parents[1]
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "browse"
 APP = os.environ.get("ARDIA_BROWSE_E2E_APP")
+JS_LOCATION = os.environ.get("ARDIA_BROWSE_E2E_JS")
 SCRATCH = Path(os.environ.get("ARDIA_BROWSE_E2E_DIR", str(Path.home() / "ardia-scratch" / "browse-impl" / "e2e")))
 
 
@@ -579,6 +580,42 @@ class BrowseEndToEnd(unittest.TestCase):
 
 
 
+REFUSALS = """
+import asyncio, json, sys
+from ardia_cli import endpoint
+from ardia_cli.browse.connection import Browser
+from ardia_cli.browse.errors import Gated
+
+
+async def refused(browser, method, params):
+    try:
+        await browser.send(method, params)
+    except Gated as error:
+        return {"reason": error.reason, "message": error.message}
+    return None
+
+
+async def main(data_dir):
+    browser = Browser(endpoint.resolve(data_dir=data_dir), lambda *event: None)
+    await browser.open()
+    try:
+        attach = {"targetId": (await browser.send("Target.createTarget", {"url": "about:blank", "background": True}))["targetId"], "flatten": True}
+        attached = bool((await browser.send("Target.attachToTarget", attach)).get("sessionId"))
+        await browser.send("Target.closeTarget", {"targetId": attach["targetId"]})
+        gone = None
+        for _ in range(100):
+            gone = await refused(browser, "Target.attachToTarget", attach)
+            if gone:
+                break
+            await asyncio.sleep(0.1)
+        print(json.dumps({"attached": attached, "gone": gone, "unlisted": await refused(browser, "Network.getCookies", {})}))
+    finally:
+        await browser.close()
+
+
+asyncio.run(main(sys.argv[1]))
+"""
+
 SESSION_JS = (
     "import('./scripts/lib/instance.mjs').then(({ session }) => {"
     " const fs = require('fs'); const dir = process.argv[1];"
@@ -601,8 +638,9 @@ class BrowseTokenPath(unittest.TestCase):
         cls.http_port = free_port()
         cls.server = subprocess.Popen([sys.executable, "-I", "-c", SERVE, str(cls.http_port)], cwd=FIXTURES, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         log = str(cls.data / "app.out.log")
-        subprocess.run(["open", "-g", "-n", "--env", "ARDIA_BACKGROUND=1", "--env", f"ARDIA_DATA_DIR={cls.data}", "--stdout", log, "--stderr", log, APP],
-                       check=True, timeout=30)
+        metro = ["--env", f"ARDIA_INSTANCE=jsLocation={JS_LOCATION}"] if JS_LOCATION else []
+        subprocess.run(["open", "-g", "-n", "--env", "ARDIA_BACKGROUND=1", "--env", f"ARDIA_DATA_DIR={cls.data}", *metro,
+                        "--stdout", log, "--stderr", log, APP], check=True, timeout=30)
         control = cls.data / "Chromium" / "ArdiaControl.json"
         cls.pid = None
         try:
@@ -666,6 +704,28 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual(shot.read_bytes()[:4], b"\x89PNG")
         self.assertNotIn("about:blank", self.browse("tab").stdout)
         self.assertIn("never prints it", self.browse("get", "cdp-url", check=False).stderr)
+
+    def test_read_opens_and_reads_a_url_over_the_token_policy(self):
+        read = json.loads(self.browse("read", self.url("login.html"), "--json", session="token-read").stdout)
+        self.assertTrue(read["success"], read)
+        page = read["data"]["pages"][0]
+        self.assertEqual((page["source"], page["title"], page["status"]), ("browser", "Fixture Login", 200))
+        self.assertNotIn("about:blank", self.browse("tab", "list", session="token-read").stdout)
+        opened = json.loads(self.browse("open", self.url("login.html"), "--json", session="token-read").stdout)
+        self.assertTrue(opened["success"], opened)
+        self.assertTrue(json.loads(self.browse("read", "--json", session="token-read").stdout)["success"])
+
+    def test_a_refusal_carries_the_engines_reason(self):
+        done = subprocess.run([sys.executable, "-c", REFUSALS, str(self.data)], capture_output=True, text=True, timeout=60,
+                              env=dict(os.environ, PYTHONPATH=str(CLI)))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        said = json.loads(done.stdout)
+        self.assertTrue(said["attached"])
+        self.assertEqual(said["gone"]["reason"], "to that target")
+        self.assertIn("Ardia allows for the ardia command, but not to that target", said["gone"]["message"])
+        self.assertIn("Target.attachToTarget to that target isn't allowed for the ardia command", said["gone"]["message"])
+        self.assertEqual(said["unlisted"]["reason"], "")
+        self.assertIn("It works once the engine's token policy allows it", said["unlisted"]["message"])
 
     def test_probe_over_the_token_policy(self):
         session = "token-probe"
@@ -768,7 +828,7 @@ class BrowseTokenPath(unittest.TestCase):
             self.assertIn(f"needs {method}", done.stderr)
             self.assertIn("isn't allowed for the ardia command", done.stderr)
         data = json.loads(self.browse("cookies", "--json", session=session, check=False).stdout)
-        self.assertEqual((data["success"], data["code"], data["data"]["method"]), (False, "policy_refused", "Network.getCookies"))
+        self.assertEqual((data["success"], data["code"], data["data"]), (False, "policy_refused", {"method": "Network.getCookies", "reason": ""}))
 
 
 if __name__ == "__main__":

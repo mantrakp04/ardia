@@ -15,7 +15,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ardia_cli import automation_cli, browsing, browsing_cli, cli, endpoint
+from ardia_cli import automation_cli, browsing, cli, endpoint
 
 SCRATCH = Path.home() / "ardia-scratch"
 ENV_NAMES = ("ARDIA_PORT", "ARDIA_WS", "ARDIA_CDP_URL", "ARDIA_DATA_DIR", "AGENT_BROWSER_CDP")
@@ -198,14 +198,6 @@ class Notes(unittest.TestCase):
         self.assertEqual(status, 7)
         self.assertEqual(seen["argv"], ["--data-dir", "/d", "add", "--json", "hi"])
 
-    def test_missing_module_leaves_the_rest_working(self):
-        with clean_env(), mock.patch.dict(sys.modules, {"ardia_cli.notes": None}):
-            status, _, err = run_cli("notes", "list")
-            self.assertEqual(status, 1)
-            self.assertIn("ardia notes isn't in this build", err)
-            self.assertEqual(run_cli("--help")[0], 0)
-
-    @unittest.skipUnless(importlib.util.find_spec("ardia_cli.notes"), "ardia_cli/notes.py isn't there yet")
     def test_real_module_answers_help(self):
         with clean_env():
             status, _, _ = run_cli("notes", "--help")

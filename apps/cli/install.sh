@@ -93,13 +93,10 @@ else
 fi
 
 fetch() {
-  curl -fsSL --proto "$protocols" --proto-redir =https --retry 2 --connect-timeout 15 "$@"
+  curl -fsSL --proto "$protocols" --proto-redir =https --retry 2 --connect-timeout 15 --speed-limit 1024 --speed-time 60 --max-time 1800 "$@"
 }
 
 take_lock() {
-  if [ -d "$cli_home/.lock" ] && ! [ -L "$cli_home/.lock" ]; then
-    rm -rf "$cli_home/.lock" "$cli_home/.lock-takeover"
-  fi
   exec 9>>"$cli_home/.lock" || fail "couldn't open $cli_home/.lock"
   /usr/bin/lockf -s -t 120 9 || fail "another install is still running"
 }

@@ -137,5 +137,3 @@ export function stopResponders() {
     notifyServed();
   }
 }
-
-export const pendingDecisionCount = () => pending.size;

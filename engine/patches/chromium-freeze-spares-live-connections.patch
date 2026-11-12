@@ -1,0 +1,139 @@
+Infinite tab freezing (Helium turns InfiniteTabsFreezing on) never freezes a page that holds a live connection: a
+WebSocket, WebTransport or WebRTC connection, or a direct socket with a request outstanding, sticky features
+included (content::ArdiaFrameHasLiveConnection, from the frame's back/forward cache features). Chrome's freeze drops
+a page's WebSocket (DisconnectWebSocketOnBFCache acts on any freeze), so a chat or mail tab left in the background
+would lose its connection at every freeze. Every other freezing rule, and the unfreeze interval, is Chrome's.
+
+diff --git a/components/performance_manager/freezing/freezing_policy.cc b/components/performance_manager/freezing/freezing_policy.cc
+--- a/components/performance_manager/freezing/freezing_policy.cc
++++ b/components/performance_manager/freezing/freezing_policy.cc
+@@ -31,6 +31,9 @@
+ #include "components/performance_manager/public/resource_attribution/origin_in_browsing_instance_context.h"
+ #include "components/performance_manager/public/resource_attribution/resource_contexts.h"
+ #include "components/performance_manager/public/resource_attribution/resource_types.h"
++#include "content/public/browser/ardia_live_connection.h"
++#include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/web_contents.h"
+ #include "content/public/common/url_constants.h"
+ #include "services/metrics/public/cpp/metrics_utils.h"
+ #include "services/metrics/public/cpp/ukm_builders.h"
+@@ -105,6 +108,19 @@
+       ->IsCapturingDisplay();
+ }
+ 
++bool ArdiaPageHasLiveConnection(const PageNode* page_node) {
++  base::WeakPtr<content::WebContents> contents = page_node->GetWebContents();
++  if (!contents) {
++    return false;
++  }
++  bool live = false;
++  contents->GetPrimaryMainFrame()->ForEachRenderFrameHost(
++      [&live](content::RenderFrameHost* frame) {
++        live = live || content::ArdiaFrameHasLiveConnection(frame);
++      });
++  return live;
++}
++
+ }  // namespace
+ 
+ struct FreezingPolicy::PageFreezingState
+@@ -462,6 +478,7 @@
+   bool eligible_for_freezing_on_battery_saver = false;
+   bool is_in_periodic_unfreeze = false;
+   bool all_pages_have_freeze_vote = true;
++  bool has_live_connection = false;
+ 
+   const double high_cpu_proportion = features::kFreezingHighCPUProportion.Get();
+ 
+@@ -476,6 +493,8 @@
+       all_pages_have_freeze_vote = false;
+     }
+ 
++    has_live_connection =
++        has_live_connection || ArdiaPageHasLiveConnection(visited_page);
+     if (is_periodic_unfreezing_active &&
+         page_freezing_state.IsInUnfreezePeriod(now)) {
+       is_in_periodic_unfreeze = true;
+@@ -506,7 +525,7 @@
+   } else if (is_freezing_enabled_by_user_ &&
+              can_freeze_per_type_tracker.CanFreeze(
+                  FreezingType::kInfiniteTabs) &&
+-             !is_in_periodic_unfreeze &&
++             !is_in_periodic_unfreeze && !has_live_connection &&
+              base::FeatureList::IsEnabled(features::kInfiniteTabsFreezing)) {
+     should_be_frozen = true;
+   } else if (is_freezing_enabled_by_user_ &&
+--- a/content/browser/BUILD.gn
++++ b/content/browser/BUILD.gn
+@@ -1618,6 +1618,7 @@
+     "reduce_accept_language/reduce_accept_language_throttle.cc",
+     "reduce_accept_language/reduce_accept_language_throttle.h",
+     "renderer_host/agent_scheduling_group_host.cc",
++    "renderer_host/ardia_live_connection.cc",
+     "renderer_host/agent_scheduling_group_host.h",
+     "renderer_host/agent_scheduling_group_host_factory.h",
+     "renderer_host/ancestor_throttle.cc",
+--- a/content/public/browser/BUILD.gn
++++ b/content/public/browser/BUILD.gn
+@@ -32,6 +32,7 @@
+     "allow_service_worker_result.cc",
+     "allow_service_worker_result.h",
+     "anchor_element_preconnect_delegate.h",
++    "ardia_live_connection.h",
+     "attribution_data_model.cc",
+     "attribution_data_model.h",
+     "auction_result.h",
+--- /dev/null
++++ b/content/browser/renderer_host/ardia_live_connection.cc
+@@ -0,0 +1,29 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "content/public/browser/ardia_live_connection.h"
++
++#include "content/browser/renderer_host/render_frame_host_impl.h"
++#include "third_party/blink/public/common/scheduler/web_scheduler_tracked_feature.h"
++
++namespace content {
++
++bool ArdiaFrameHasLiveConnection(RenderFrameHost* render_frame_host) {
++  using Feature = blink::scheduler::WebSchedulerTrackedFeature;
++  const auto features =
++      static_cast<RenderFrameHostImpl*>(render_frame_host)
++          ->GetBackForwardCacheDisablingFeatures();
++  for (Feature feature :
++       {Feature::kWebSocket, Feature::kWebSocketSticky, Feature::kWebTransport,
++        Feature::kWebTransportSticky, Feature::kWebRTC,
++        Feature::kWebRTCSticky,
++        Feature::kOutstandingNetworkRequestDirectSocket}) {
++    if (features.Has(feature)) {
++      return true;
++    }
++  }
++  return false;
++}
++
++}
+--- /dev/null
++++ b/content/public/browser/ardia_live_connection.h
+@@ -0,0 +1,19 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CONTENT_PUBLIC_BROWSER_ARDIA_LIVE_CONNECTION_H_
++#define CONTENT_PUBLIC_BROWSER_ARDIA_LIVE_CONNECTION_H_
++
++#include "content/common/content_export.h"
++
++namespace content {
++
++class RenderFrameHost;
++
++CONTENT_EXPORT bool ArdiaFrameHasLiveConnection(
++    RenderFrameHost* render_frame_host);
++
++}
++
++#endif

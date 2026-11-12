@@ -95,6 +95,8 @@ export function groupTint(color: GroupColor | null | undefined): string | null {
   return color && color !== "none" ? (GROUP_COLORS[color]?.hex ?? null) : null;
 }
 
+export const groupBoxAtRest = (color: GroupColor | null | undefined) => groupTint(color) !== null;
+
 export function groupSurface(color: GroupColor | null | undefined, tokens: SidebarTokens): { fill: string; stroke: string } {
   if (color === "none") return { fill: "transparent", stroke: "transparent" };
   const tint = groupTint(color);

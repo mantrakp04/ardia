@@ -9,9 +9,9 @@ import { groupLabel } from "../pins/tabGrouping";
 import { canTidyPins } from "../pins/tidyPins";
 import { folderIn } from "../pins/tileFolders";
 import { useStoreWhile } from "../tabs/tabWatch";
-import { splitOf, splitRowPanes } from "../splits/splits";
+import { splitRowPanes } from "../splits/splits";
 import { downloadsIn } from "../downloads/downloadsSlice";
-import { groupEntries, keptEntry, sidebarEntries } from "./entries";
+import { groupEntries, keptEntries, showsExtraTabs, sidebarEntries } from "./entries";
 import { groupTabIds } from "./groupPanelRows";
 import { capture, type Capture } from "./listCapture";
 import { pinnedCollapsed, pinnedKept } from "./pinnedFold";
@@ -22,8 +22,6 @@ export function useSidebarWidth(windowId: string): number {
   const dragging = useSidebarUi((u) => u.dragWidth[windowId]);
   return dragging ?? saved;
 }
-
-export const useIsInSplit = (tabId: string) => useBrowser((s) => !!splitOf(s, tabId));
 
 export const useDragGhostLabel = (folderName: string | undefined, groupId: string | undefined, tab: Tab | undefined) =>
   useBrowser((s) => folderName ?? (groupId && s.groups[groupId] ? groupLabel(s, s.groups[groupId]!) : tab ? tabTitle(tab) : ""));
@@ -51,7 +49,9 @@ export const useCapturedSidebarEntries = (windowId: string, profileId: string, c
     return capture(captured, s, entries.list, entries);
   });
 
-export const useKeptEntry = (windowId: string, profileId: string, entries: string[]) => useBrowser((s) => keptEntry(s, windowId, profileId, entries));
+export const useKeptEntries = (windowId: string, profileId: string, groupId: string) => useBrowser(useShallow((s) => keptEntries(s, windowId, profileId, groupId)));
+
+export const useShowsExtraTabs = (windowId: string, profileId: string, groupId: string) => useBrowser((s) => showsExtraTabs(s, windowId, profileId, groupId));
 
 export const usePinnedCollapsed = (profileId: string) => useBrowser((s) => pinnedCollapsed(s, profileId));
 

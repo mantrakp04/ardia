@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import Security
 
@@ -40,3 +41,4 @@ struct KeychainAccessGroups: AccessGroupMover {
     return (moved, failure)
   }
 }
+#endif

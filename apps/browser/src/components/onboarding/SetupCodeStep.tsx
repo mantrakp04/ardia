@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { TextInput, View } from "react-native";
 import { Button, Text } from "../ui";
-import { goToStep } from "../../state/onboarding/onboarding";
+import { customizeMore, goToStep } from "../../state/onboarding/onboarding";
 import { applySetupCodeInOnboarding } from "../../state/presets/actions";
 import { SETUP_CODE_PREFIX } from "../../state/presets/setupCode";
 import { StepLayout } from "./StepLayout";
@@ -44,8 +44,8 @@ export function SetupCodeStep({ onBack }: { onBack: () => void }) {
         subtitle="Ardia now looks the way you made it on ardia.dev. Search and privacy are still yours to choose, so those come next."
         actions={
           <>
-            <PrimaryButton title="Continue" icon="arrow.right" onPress={() => goToStep("searchPrivacy")} />
-            <SecondaryButton title="Review Each Step" onPress={() => goToStep("layout")} />
+            <PrimaryButton title="Continue" icon="arrow.right" onPress={() => goToStep("outro")} />
+            <SecondaryButton title="Review Each Step" onPress={customizeMore} />
           </>
         }
         preview={<SetupLines heading="From your code:" lines={applied} />}

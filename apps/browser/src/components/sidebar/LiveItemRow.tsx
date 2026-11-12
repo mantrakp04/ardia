@@ -80,7 +80,7 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
                       accessibilityLabel="Back to Pinned URL"
                     >
                       {resetting ? (
-                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
                       ) : (
                         <ItemIcon item={item} completion={completion} colors={colors} />
                       )}
@@ -92,7 +92,7 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
                 <SidebarRowLabel
                   text={resetting ? "Back to Pinned URL" : item.title}
                   weight={unread ? "medium" : undefined}
-                  color={active ? theme.tabSelectedText : completion ? theme.textSecondary : theme.textTab}
+                  color={active ? theme.rowSelectedText : completion ? theme.textSecondary : theme.textTab}
                 />
                 {inStack && item.pr?.stack ? <PositionChip position={item.pr.stack.position} /> : null}
                 <HoverSlot

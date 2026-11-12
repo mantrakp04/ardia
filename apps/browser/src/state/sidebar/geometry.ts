@@ -1,10 +1,10 @@
-import { SIDEBAR_GROUP, SIDEBAR_ROW } from "../../lib/sidebarMetrics";
+import { GROUP_MEMBERS_PAD_BOTTOM, SIDEBAR_GROUP, SIDEBAR_ROW } from "../../lib/sidebarMetrics";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { live } from "../live/store";
 import { ancestorIds } from "../groups/groups";
 import { groupOf } from "../pins/tabGrouping";
 import { splitOf } from "../splits/splits";
-import { groupEntries, holdsTab, keptEntry, sidebarEntries } from "./entries";
+import { groupEntries, holdsTab, keptEntries, sidebarEntries } from "./entries";
 import { shownPinnedEntries } from "./pinnedFold";
 import { entryId, entryKey } from "./entryKey";
 import { pinSection } from "../browser/model";
@@ -17,11 +17,13 @@ export type Section = "pinnedGroups" | "list";
 
 export const headGap = (first: string | null | undefined): number => (first && entryId(first, "group") !== null ? GAP : 0);
 
+function stackHeight(s: BrowserState, windowId: string, profileId: string, entries: string[]): number {
+  return entries.length ? headGap(entries[0]) + entriesHeight(s, windowId, profileId, entries) + GROUP_MEMBERS_PAD_BOTTOM : 0;
+}
+
 function membersHeight(s: BrowserState, windowId: string, profileId: string, groupId: string): number {
-  const entries = groupEntries(s, groupId);
-  if (!s.groups[groupId]?.collapsed) return entries.length ? headGap(entries[0]) + entriesHeight(s, windowId, profileId, entries) : 0;
-  const kept = keptEntry(s, windowId, profileId, entries);
-  return kept ? headGap(kept) + entryHeight(s, windowId, profileId, kept) : 0;
+  const collapsed = !!s.groups[groupId]?.collapsed;
+  return stackHeight(s, windowId, profileId, collapsed ? keptEntries(s, windowId, profileId, groupId) : groupEntries(s, groupId));
 }
 
 export function entryHeight(s: BrowserState, windowId: string, profileId: string, entry: string): number {
@@ -71,8 +73,8 @@ export function rowSpan(
         const members = groupEntries(s, id);
         const header = top + GROUP_BORDER;
         if (!s.groups[id]!.collapsed) return within(members, header + ROW + headGap(members[0]));
-        const kept = keptEntry(s, windowId, profileId, members);
-        return kept && holdsTab(s, kept, tabId) ? within([kept], header + ROW + headGap(kept)) : header;
+        const kept = keptEntries(s, windowId, profileId, id);
+        return within(kept, header + ROW + headGap(kept[0])) ?? header;
       }
       top += entryHeight(s, windowId, profileId, entry) + GAP;
     }
@@ -92,8 +94,7 @@ export const firstPaintEntriesNow = (windowId: string, profileId: string, entrie
 
 export function foldedGroupHeight(windowId: string, profileId: string, groupId: string): number {
   const s = useBrowser.getState();
-  const kept = keptEntry(s, windowId, profileId, groupEntries(s, groupId));
-  return GROUP_BORDER * 2 + ROW + (kept ? headGap(kept) + entryHeight(s, windowId, profileId, kept) : 0);
+  return GROUP_BORDER * 2 + ROW + stackHeight(s, windowId, profileId, keptEntries(s, windowId, profileId, groupId));
 }
 
 export const usePendingEntriesHeight = (windowId: string, profileId: string, entries: string[], from: number, growing: boolean): number =>

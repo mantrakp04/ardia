@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repo = process.env.ARDIA_REPO ?? join(process.env.HOME, "Documents/netnyahoo");
+const repo = process.env.ARDIA_REPO ?? join(here, "../../../..");
 const { appEnv, attach, binaryOf, binaryPids, launch, launchVariables, mergeLaunchEnv, processInfo, sleep } = await import(join(repo, "scripts/lib/instance.mjs"));
 
 const scratch = process.env.FIXES_SCRATCH ?? join(process.env.HOME, "ardia-scratch/video-fixes");
@@ -98,7 +98,7 @@ async function shoot(scene, name, side) {
   const empty = join(scratch, "import-empty");
   mkdirSync(empty, { recursive: true });
   const options = {
-    data, js, probe, port, onboarded: true, files: { "telemetry.json": { sharing: false, decidedAt: 1, askDoneAt: 1 } }, session: JSON.parse(readFileSync(sessionFile, "utf8")),
+    data, js, probe, port, onboarded: true, files: { "telemetry.json": { sharing: false, decidedAt: 1, askDoneAt: 1 }, ...(scene.files ?? {}) }, session: JSON.parse(readFileSync(sessionFile, "utf8")),
     switches: [`--host-resolver-rules=MAP *.example 127.0.0.1:${sitesPort}`, ...(scene.switches ?? [])],
     instance: { importSourceDir: empty, importSafariHome: empty, downloadsDir: downloads, ...(scene.instance ?? {}) },
     env: { ...(injected ? { DYLD_INSERT_LIBRARIES: injected } : {}), ...(scene.env ?? {}) },

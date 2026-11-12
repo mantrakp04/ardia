@@ -4,23 +4,23 @@ moved tab was closed by its CloseAllTabs; into one whose delete is scheduled, st
 gone from GlobalBrowserCollection, TabListBridge::MoveTabToWindow hit CHECK(target_window): "No window with id".
 Out of a window that is closing, a ClosePage already sent still acked into Close once the tab had moved, so the
 tab closed in the window it moved to: "Tabs can't move out of a window that is closing.", checked in
-WindowsCreateFunction::ValidateTab before windows.create makes its window.
+tabs_util::ValidateTabForMove, so before windows.create makes its window.
 
---- a/chrome/browser/extensions/api/tabs/tabs_api.cc
-+++ b/chrome/browser/extensions/api/tabs/tabs_api.cc
-@@ -37,6 +37,9 @@
+--- a/chrome/browser/extensions/api/tabs/tabs_util.cc
++++ b/chrome/browser/extensions/api/tabs/tabs_util.cc
+@@ -16,6 +16,9 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/tab_list/tab_list_interface.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
- #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
- #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 +#if !BUILDFLAG(IS_ANDROID)
 +#include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
 +#endif
- #include "chrome/browser/ui/incognito_allowed_url.h"
- #include "chrome/browser/ui/navigator/browser_navigator.h"
- #include "chrome/browser/ui/navigator/browser_navigator_params.h"
-@@ -437,6 +440,20 @@
-   return set_window_bounds;
- }
+ #include "components/tab_groups/tab_group_id.h"
+ #include "components/tabs/public/tab_interface.h"
+ #include "extensions/browser/api/constants.h"
+@@ -35,6 +38,20 @@
+     "The tab of an Isolated Web App cannot be moved.";
+ #endif
  
 +constexpr char kTabInClosingWindowError[] =
 +    "Tabs can't move out of a window that is closing.";
@@ -36,10 +36,20 @@ WindowsCreateFunction::ValidateTab before windows.create makes its window.
 +#endif
 +}
 +
- // Moves the given tab to the `target_browser`. On success, returns the new
- // index of the tab in the target tabstrip. On failure, returns -1. Assumes that
- // the caller has already checked whether the target window is different from
-@@ -475,6 +492,13 @@
+ // Returns the tab group ID for the tab at `index`. Returns nullopt if the index
+ // is out of range, the tab is not found, or the tab is not part of a group.
+ std::optional<tab_groups::TabGroupId> GetTabGroupForTab(
+@@ -83,6 +100,9 @@
+     return base::unexpected(
+         ExtensionTabUtil::kCanOnlyMoveTabsWithinNormalWindowsError);
+   }
++  if (IsClosingWindow(source_window->GetBrowserWindowInterface())) {
++    return base::unexpected(kTabInClosingWindowError);
++  }
+ #if !BUILDFLAG(IS_ANDROID)
+   BrowserWindowInterface* source_browser = source_window->GetBrowser();
+   CHECK(source_browser);
+@@ -145,6 +165,13 @@
      return -1;
    }
  
@@ -53,13 +63,3 @@ WindowsCreateFunction::ValidateTab before windows.create makes its window.
    TabListInterface* target_tab_list =
        ExtensionTabUtil::GetEditableTabList(*target_browser);
    CHECK(target_tab_list);
-@@ -1464,6 +1488,9 @@
-     return base::unexpected(
-         ExtensionTabUtil::kCanOnlyMoveTabsWithinNormalWindowsError);
-   }
-+  if (IsClosingWindow(source_window->GetBrowserWindowInterface())) {
-+    return base::unexpected(kTabInClosingWindowError);
-+  }
- #if !BUILDFLAG(IS_ANDROID)
-   BrowserWindowInterface* source_browser = source_window->GetBrowser();
-   CHECK(source_browser);

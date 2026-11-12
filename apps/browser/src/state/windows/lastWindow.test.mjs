@@ -86,7 +86,7 @@ test("the Dock brings the last window back as it was: frame, sidebar, tabs in or
   assert.equal(onlyWindow(), id);
   const back = S().windows[id];
   assert.deepEqual(back.frame, FRAME);
-  assert.equal(back.sidebarOpen, false);
+  assert.equal(S().settings.autoHideTabs, true);
   assert.equal(back.profileId, "default");
   assert.deepEqual(pinnedUrls(id), before.pinned, "pins back, not doubled");
   assert.deepEqual(listUrls(id), before.list, "tabs in the same order");
@@ -232,7 +232,7 @@ test("a window with only pinned tabs in another profile comes back in that profi
   assert.equal(onlyWindow(), id);
   assert.equal(S().windows[id].profileId, work);
   assert.deepEqual(S().windows[id].frame, FRAME);
-  assert.equal(S().windows[id].sidebarOpen, false);
+  assert.equal(S().settings.autoHideTabs, true);
   assert.deepEqual(pinnedUrls(id), ["https://w-mail.com", "https://w-cal.com"]);
   assert.equal(shownUrl(id), "https://w-cal.com");
   assert.equal(S().closedWindows.some((c) => c.tabs.length === 0), false, "the pins-only entry is used up");

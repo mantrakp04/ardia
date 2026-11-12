@@ -106,8 +106,8 @@ export const BarItem = memo(function BarItem({
           <BarButton
             favicon={node.kind === "url" ? node : undefined}
             icon={folder ? "folder" : undefined}
-            title={node.title || (node.kind === "url" && showUntitledUrls ? node.url : "")}
-            tooltip={node.kind === "url" ? (node.title ? `${node.title}\n${node.url}` : node.url) : node.title}
+            title={node.title.trim() || (node.kind === "url" && showUntitledUrls ? node.url : "")}
+            tooltip={node.kind === "url" && node.title.trim() ? `${node.title}\n${node.url}` : node.kind === "url" ? node.url : node.title}
             active={menuOpen}
             dropRing={dropInto}
             onPress={open}

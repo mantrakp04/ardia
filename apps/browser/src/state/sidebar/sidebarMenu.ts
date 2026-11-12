@@ -1,5 +1,5 @@
 import { showMenu, type MenuItem } from "../../platform/menus";
-import { tabLayoutOf } from "../browser/model";
+import { tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchProfile } from "../browser/actions";
 import { requestCreateProfile } from "../profiles/createProfileRequest";
 import { useBrowser, type BrowserState } from "../browser/store";
@@ -38,7 +38,7 @@ export function sidebarMenuItems(s: BrowserState, windowId: string): MenuItem[] 
       ...pinnedFoldMenuItem(s, windowId),
       { id: "tabLayout", title: "Show Tabs in Sidebar", symbol: "sidebar.left", checked: inSidebar, ...menuShortcut("toggleTabLayout", s) },
       ...(inSidebar ? [{ id: "sidebarSide", title: "Sidebar on Right", symbol: "sidebar.right", checked: s.settings.sidebarSide === "right", ...menuShortcut("toggleSidebarSide", s) }] : []),
-      { id: "autoHide", title: "Auto-Hide Tabs", checked: !!w && !w.sidebarOpen, ...menuShortcut("toggleSidebar", s) },
+      { id: "autoHide", title: "Auto-Hide Tabs", checked: !!w && !tabsShownIn(s, windowId), ...menuShortcut("toggleSidebar", s) },
     ],
     [{ id: "closeAll", title: "Close All Tabs", symbol: "xmark", ...menuShortcut("closeAllTabs", s) }],
   );

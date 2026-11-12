@@ -1,6 +1,6 @@
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser, type BrowserState } from "../browser/store";
-import { engineProfile } from "../browser/model";
+import { engineProfile, tabsShownIn } from "../browser/model";
 import { focusedWindowOf } from "./ui";
 
 export const useWindowUiOf = <T>(windowId: string, select: (ui: BrowserState["windowUi"][string] | undefined) => T): T =>
@@ -23,7 +23,7 @@ export const useSidebarDockState = (windowId: string) =>
     useShallow(
       (s) =>
         [
-          s.windows[windowId]?.sidebarOpen ?? true,
+          tabsShownIn(s, windowId),
           s.settings.sidebarWidth,
           s.settings.addressBar === "sidebar",
         ] as const,

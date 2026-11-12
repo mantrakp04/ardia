@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { StyleSheet, View, type StyleProp, type ViewProps, type ViewStyle } from "react-native";
-import { GlassFill, useGlass } from "../ui";
+import { GlassFill, ink, useGlass } from "../ui";
 import { useTheme } from "../ui/theme";
 import { onboardingColorsOf } from "./tokens";
 
@@ -49,7 +49,7 @@ export function ChoiceCard({
       style={[
         {
           borderRadius: radius,
-          backgroundColor: glass ? "transparent" : surface,
+          backgroundColor: glass ? ink.clear : surface,
           borderWidth,
           borderColor,
           borderStyle: dashed ? "dashed" : undefined,

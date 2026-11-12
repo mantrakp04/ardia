@@ -22,7 +22,7 @@ export function FrozenPage({ windowId, tabId, top }: { windowId: string; tabId: 
       }}
       style={[StyleSheet.absoluteFill, { top }]}
     >
-      {uri && <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" onLoad={() => notePainted(windowId)} />}
+      {uri && <Image testID="ardia.pagePicture" source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" onLoad={() => notePainted(windowId)} />}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: windowColors(theme.dark).frozenWash }]} />
     </Pressable>
   );

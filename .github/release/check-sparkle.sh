@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Checks that a release's appcast item signs its zip with the key the app trusts (SUPublicEDKey), so a Sparkle key
-# from the CI secret that doesn't match the app fails here instead of on every update.
-#
-#   .github/release/check-sparkle.sh <dist dir> <version>
 set -euo pipefail
 
 dist="${1:?usage: check-sparkle.sh <dist> <version>}"

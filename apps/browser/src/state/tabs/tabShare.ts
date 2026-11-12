@@ -5,7 +5,7 @@ import { familyKeyOf, IDLE_LIVE, inPinnedContainer, newId, pinKeyOf } from "../b
 import { frozenOn, hasOwnOrSharedPage, hasPage, holderOfPage, IDLE, isAsleep, wakeOf, withNavigationAt, withWake } from "./pageSession";
 import { chainOf, copyOf, hasDuplicates, keyField, profilesOf, sectionOf, signature, treeOrder, union } from "../pins/pinMirror";
 import { removeTabs, withNewTab } from "./tabs";
-import type { BrowserWindow, Tab, TabGroup } from "../browser/types";
+import type { Tab, TabGroup } from "../browser/types";
 import { pinnedGroupMembers } from "../browser/structure";
 import { isRegularWindow } from "../windows/small";
 import { splitTabIds, withPaneIds } from "../splits/splits";
@@ -132,7 +132,7 @@ function conformList(input: BrowserState, windowId: string, profileId: string, s
     const same = (byKey.get(key) ?? []).filter((m) => !used.has(m.id));
     const t = same.find(hasPage) ?? same[0];
     if (!t) {
-      const copy = { ...copyOf(src, windowId, false), page: IDLE, lastActiveAt: src.lastActiveAt };
+      const copy = { ...copyOf(src, windowId, false), page: IDLE, lastActiveAt: src.lastActiveAt, ...(src.restoredAt ? { restoredAt: src.restoredAt } : {}) };
       tabs[copy.id] = copy;
       live[copy.id] = IDLE_LIVE;
       used.add(copy.id);
@@ -312,31 +312,25 @@ export function unshareTabs(s: BrowserState, prev: BrowserState): BrowserState |
   return gone.length ? removeTabs(next, gone, false) : next;
 }
 
-type KeepsTabs = (w: BrowserWindow | undefined) => boolean;
-
-export function sharedElsewhere(s: BrowserState, t: Tab, keepsTabs: KeepsTabs = isRegularWindow): boolean {
-  if (!sharedListTab(s, t)) return false;
-  const key = pinKeyOf(t);
-  return Object.values(s.tabs).some((x) => x.id !== t.id && x.windowId !== t.windowId && x.profileId === t.profileId && pinKeyOf(x) === key && keepsTabs(s.windows[x.windowId]));
-}
-
-export function tabsClosedWithWindow(s: BrowserState, windowId: string, keepsTabs: KeepsTabs = isRegularWindow): Tab[] {
-  return (s.windows[windowId]?.tabIds ?? []).map((id) => s.tabs[id]).filter((t): t is Tab => !!t && !inPinnedContainer(s, t.id) && !sharedElsewhere(s, t, keepsTabs));
-}
-
-export function sharedLastUsed(s: BrowserState): Map<string, number> | null {
+function sharedLatest(s: BrowserState, at: (t: Tab) => number): Map<string, number> | null {
   if (!sharesTabs(s)) return null;
   const member = listMember(s);
   const out = new Map<string, number>();
   for (const t of Object.values(s.tabs)) {
     if (!isRegularWindow(s.windows[t.windowId]) || !member(t)) continue;
     const key = familyKeyOf(t);
-    out.set(key, Math.max(out.get(key) ?? 0, t.lastActiveAt));
+    out.set(key, Math.max(out.get(key) ?? 0, at(t)));
   }
   return out;
 }
 
+export const sharedLastUsed = (s: BrowserState) => sharedLatest(s, (t) => t.lastActiveAt);
+
+export const sharedRestoredAt = (s: BrowserState) => sharedLatest(s, (t) => t.restoredAt ?? 0);
+
 export const lastUsedOf = (used: Map<string, number> | null, t: Tab) => used?.get(familyKeyOf(t)) ?? t.lastActiveAt;
+
+export const restoredAtOf = (restored: Map<string, number> | null, t: Tab) => restored?.get(familyKeyOf(t)) ?? t.restoredAt ?? 0;
 
 export function sharedTabsIn(tabs: Record<string, Tab>, windowId: string): { elsewhere(t: Tab): boolean; lastUsed(t: Tab): number } {
   const here = new Set<string>();

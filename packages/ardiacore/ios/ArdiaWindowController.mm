@@ -56,12 +56,25 @@ void HandOffTab(ArdiaCoreTab *tab) {
   BOOL _showInactive;
   BOOL _announced;
   __weak ArdiaCoreTab *_chromeActive;
+  id _willCloseObserver;
 }
 
 + (BOOL)userSees:(NSWindow *)window {
   ArdiaWindowController *controller = [self forNSWindow:window];
   if (!controller || controller.stray || controller.standalone) return YES;
   return [[ArdiaWindowFullScreen ofWindow:controller.coreWindow create:YES] seen];
+}
+
++ (void)reconsiderSightOf:(NSWindow *)window {
+  ArdiaWindowController *controller = [self forNSWindow:window];
+  if (!controller || controller.stray || controller.standalone) return;
+  [[ArdiaWindowFullScreen ofWindow:controller.coreWindow create:YES] reconsiderSight];
+}
+
++ (BOOL)userSeesOnlyThroughWindowServer:(NSWindow *)window {
+  ArdiaWindowController *controller = [self forNSWindow:window];
+  if (!controller || controller.stray || controller.standalone) return NO;
+  return [[ArdiaWindowFullScreen ofWindow:controller.coreWindow create:YES] seenOnlyByWindowServer];
 }
 
 + (instancetype)strayWindowForProfile:(ArdiaCoreProfile *)profile {
@@ -217,14 +230,18 @@ NSMapTable<ArdiaCoreProfile *, ArdiaWindowController *> *StandaloneWindows() {
     _coreWindow = coreWindow;
     coreWindow.delegate = self;
     __weak ArdiaWindowController *weakSelf = self;
-    [NSNotificationCenter.defaultCenter addObserverForName:NSWindowWillCloseNotification
-                                                    object:coreWindow.window
-                                                     queue:nil
-                                                usingBlock:^(NSNotification *) {
-                                                  if (ArdiaWindowController *c = weakSelf) [ArdiaTabStrip windowClosed:c];
-                                                }];
+    _willCloseObserver = [NSNotificationCenter.defaultCenter addObserverForName:NSWindowWillCloseNotification
+                                                                         object:coreWindow.window
+                                                                          queue:nil
+                                                                     usingBlock:^(NSNotification *) {
+                                                                       if (ArdiaWindowController *c = weakSelf) [ArdiaTabStrip windowClosed:c];
+                                                                     }];
   }
   return self;
+}
+
+- (void)dealloc {
+  if (_willCloseObserver) [NSNotificationCenter.defaultCenter removeObserver:_willCloseObserver];
 }
 
 - (ArdiaWebView *)viewFor:(ArdiaCoreTab *)tab {
@@ -352,7 +369,7 @@ NSMapTable<ArdiaCoreProfile *, ArdiaWindowController *> *StandaloneWindows() {
 }
 
 - (BOOL)window:(ArdiaCoreWindow *)window preHandleKeyEvent:(NSEvent *)event {
-  return (IsReservedKey(event) || IsSecondSidebarKeyPress(event)) && [NSApp.mainMenu performKeyEquivalent:event];
+  return ArdiaPerformReservedKey(event);
 }
 
 - (BOOL)window:(ArdiaCoreWindow *)window handleKeyEvent:(NSEvent *)event {

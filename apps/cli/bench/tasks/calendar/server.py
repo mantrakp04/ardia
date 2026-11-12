@@ -42,7 +42,7 @@ def check():
         "extra": len([k for k in have if k not in want]),
         "completed_at_ms": max(e["saved_at_ms"] for e in got) if passed else None,
         "reset_at_ms": reset_at,
-        "details": {"total_events": len(have), "missing": sorted(want - set(have)),
+        "details": {"total_events": len(have), "missing": len(want - set(have)),
                     "extra": [k for k in have if k not in want], "events": got},
     }
 

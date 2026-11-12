@@ -126,7 +126,7 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   OTLP logs (no traces or metrics).
 - **Format:** each event is an OTLP log record. The body and the `event` attribute are the event name, plus
   `uuid`, `distinct_id`, `$session_id` (site) and every property, under PostHog's names. Senders:
-  `apps/site/src/scripts/telemetry/` and `apps/browser/src/telemetry/`. The collector
+  `apps/site/src/scripts/telemetry/` and `apps/browser/src/state/telemetry/`. The collector
   (`infra/telemetry/collector/config.yaml`) turns the visitor's address into `$geoip_country_code`/`_name` and
   `$geoip_continent_code` with DB-IP's IP to City Lite database (CC BY 4.0, a pinned monthly file checked by
   hash; `collector/fetch-geoip.mjs` falls back to the byte-identical npm mirror `dbip-city-lite` once DB-IP drops
@@ -191,9 +191,11 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     `session_min`, `gone_this_session`, `memory_pressure`). At most 30 per session. GPU and utility process exits aren't
     visible to the app yet (their crash reports are, through `helper_crash`).
   - `tab_presses` (hourly and at quit, when there were any): `presses` on sidebar rows, pinned tiles and top-strip
-    chips, `clicks` (the press opened the tab), `drag_clicks` (it became a drag and was rescued as a click),
-    `drags`, `unanswered` (a press that got neither before the next one), `page_click_ms_p50`/`_p75`/`page_click_n`
-    (from opening a tab with a press to the first press in its page, within 60 s).
+    chips, `down_switches` (the press switched to the tab on mouse down), `clicks` (the press opened the tab),
+    `drag_clicks` (it became a drag and was rescued as a click), `drags`, `unanswered` (a press that got neither before
+    the next one), `held_ms_p50`/`_p75`/`held_n` (how long the button was held after a mouse-down switch: the wait a
+    switch on release would have added), `page_click_ms_p50`/`_p75`/`page_click_n` (from opening a tab with a press
+    to the first press in its page, within 60 s).
   - `settings_snapshot` adds `setting_app_icon` / `default_app_icon`.
   - The context is saved in `telemetry.json` (`context`) every 10 minutes and 3 s after launch while sharing is on
     (the last 12 samples also stay in memory), and cleared when sharing is turned off or a profile is deleted. It's

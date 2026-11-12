@@ -10,9 +10,7 @@ import {
   visitorOnSql,
   type SiteEvent,
 } from "../../../site/src/data/telemetry.ts";
-import type { Step, Window } from "../lib/range";
-
-const TYPED_COLUMNS_LIVE = true;
+import type { Window } from "../lib/range";
 
 const TYPED_COLUMNS: Record<string, string> = {
   $lib: "lib",
@@ -27,7 +25,7 @@ const TYPED_COLUMNS: Record<string, string> = {
   $geoip_country_code: "country",
 };
 
-export const prop = (key: string) => (TYPED_COLUMNS_LIVE && TYPED_COLUMNS[key] ? TYPED_COLUMNS[key] : `properties['${key}']`);
+export const prop = (key: string) => TYPED_COLUMNS[key] ?? `properties['${key}']`;
 
 const sqlList = (values: readonly string[]) => values.map((v) => `'${v}'`).join(", ");
 
@@ -37,6 +35,7 @@ export const APP_EVENTS = [
   "app_launched",
   "app_session_ended",
   "app_updated",
+  "calendar_connect",
   "command_bar_opened",
   "extension_installed",
   "page_process_gone",
@@ -51,6 +50,7 @@ export const APP_EVENTS = [
   "suggestion_chosen",
   "sync_toggled",
   "tab_presses",
+  "translate_finished",
   "translate_used",
   "usage_counts",
 ];
@@ -69,8 +69,8 @@ export const isCurrent = (w: Window) => `(timestamp >= ${at(w.start)})`;
 export const isPrevious = (w: Window) =>
   w.prevStart === null ? "0" : `(timestamp >= ${at(w.prevStart)} AND timestamp < ${at(w.start)})`;
 
-export const bucket = (step: Step) =>
-  step === "hour" ? "toUnixTimestamp(toStartOfHour(timestamp)) * 1000" : "toUnixTimestamp(toStartOfDay(timestamp)) * 1000";
+export const bucket = (w: Pick<Window, "step" | "zone">) =>
+  `toUnixTimestamp(${w.step === "hour" ? "toStartOfHour" : "toStartOfDay"}(timestamp, '${w.zone}')) * 1000`;
 
 export const dayBucket = "toUnixTimestamp(toStartOfDay(timestamp)) * 1000";
 

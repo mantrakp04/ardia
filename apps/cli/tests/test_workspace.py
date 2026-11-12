@@ -1,12 +1,13 @@
 import io
 import json
+import re
 import sys
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ardia_cli import telemetry
+from ardia_cli import telemetry, workspace_cli
 from tests.test_automation import Base
 
 TREE = {
@@ -116,6 +117,23 @@ class Workspace(Base):
         status, _, _ = self.run_cli("tabs", "move", "t", "--top", "--group", "g")
         self.assertEqual(status, 2)
         self.assertEqual(self.sent(server), [])
+
+    def test_colors_are_the_ones_the_sidebar_draws(self):
+        core = (Path(__file__).resolve().parents[3] / "packages/core/src/tabGroups.ts").read_text()
+        tints = tuple(re.findall(r'"(\w+)"', re.search(r"TAB_GROUP_COLORS = \[([^\]]*)\]", core).group(1)))
+        self.assertEqual(workspace_cli.TINTS, tints)
+        self.assertEqual(workspace_cli.COLORS, ("neutral", "none", *tints))
+        server = self.serve_ops()
+        for color in workspace_cli.COLORS:
+            status, _, err = self.run_cli("groups", "create", "tab-1", "--color", color)
+            self.assertEqual(status, 0, (color, err))
+            self.assertEqual(self.sent(server)[-1], [{"op": "group.create", "tabs": ["tab-1"], "color": color}])
+        sent = len(self.sent(server))
+        for color in ("magenta", "Purple", "#9B6CF0"):
+            status, _, err = self.run_cli("groups", "create", "tab-1", "--color", color)
+            self.assertEqual(status, 2, color)
+            self.assertIn("invalid choice", err)
+        self.assertEqual(len(self.sent(server)), sent)
 
     def test_failures_and_partial_batches_exit_1(self):
         partial = {"result": {"ok": False, "applied": 1, "results": [{"op": "tab.mute", "tabs": ["tab-1"]}], "error": {"index": 1, "code": "no_window", "message": "Operation 1 (tab.move): There's no tab x the ardia command can use."}, "tabs": [], "groups": [], "windows": []}}

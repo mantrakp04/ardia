@@ -1,0 +1,673 @@
+{
+ "sidebarSyncState": {
+  "items": [],
+  "spaceModels": []
+ },
+ "sidebar": {
+  "containers": [
+   {
+    "global": {}
+   },
+   {
+    "spaces": [
+     "S-HOME",
+     {
+      "id": "S-HOME",
+      "title": "Home",
+      "profile": {
+       "default": true
+      },
+      "containerIDs": [
+       "unpinned",
+       "H-TODAY",
+       "pinned",
+       "H-PIN"
+      ],
+      "newContainerIDs": [
+       {
+        "unpinned": {
+         "_0": {
+          "shared": {}
+         }
+        }
+       },
+       "H-TODAY",
+       {
+        "pinned": {}
+       },
+       "H-PIN"
+      ],
+      "customInfo": {
+       "iconType": {
+        "emoji_v2": "🏡"
+       }
+      }
+     },
+     "S-WORK",
+     {
+      "id": "S-WORK",
+      "title": "Work",
+      "profile": {
+       "default": true
+      },
+      "containerIDs": [
+       "pinned",
+       "W-PIN-OLD",
+       "unpinned",
+       "W-TODAY"
+      ],
+      "newContainerIDs": [
+       {
+        "pinned": {}
+       },
+       "W-PIN",
+       {
+        "unpinned": {
+         "_0": {
+          "shared": {}
+         }
+        }
+       },
+       "W-TODAY"
+      ],
+      "customInfo": {
+       "iconType": {
+        "icon": "briefcase"
+       }
+      }
+     }
+    ],
+    "items": [
+     "H-PIN",
+     {
+      "id": "H-PIN",
+      "parentID": null,
+      "childrenIds": [
+       "H-T1",
+       "H-SV1",
+       "H-F1",
+       "H-T2"
+      ],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "S-HOME"
+         }
+        }
+       }
+      }
+     },
+     "H-T1",
+     {
+      "id": "H-T1",
+      "parentID": "H-PIN",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://mail.example/",
+        "savedTitle": "Mail",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-SV1",
+     {
+      "id": "H-SV1",
+      "parentID": "H-PIN",
+      "childrenIds": [
+       "H-SV1-A",
+       "H-SV1-B"
+      ],
+      "title": "Docs pair",
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "splitView": {
+        "layout": "horizontal"
+       }
+      }
+     },
+     "H-SV1-A",
+     {
+      "id": "H-SV1-A",
+      "parentID": "H-SV1",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://docs.example/a",
+        "savedTitle": "Doc A",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-SV1-B",
+     {
+      "id": "H-SV1-B",
+      "parentID": "H-SV1",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://mail.example/",
+        "savedTitle": "Mail again",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-F1",
+     {
+      "id": "H-F1",
+      "parentID": "H-PIN",
+      "childrenIds": [
+       "H-F1-T",
+       "H-F1-SV"
+      ],
+      "title": "Projects",
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "list": {}
+      }
+     },
+     "H-F1-T",
+     {
+      "id": "H-F1-T",
+      "parentID": "H-F1",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://project.example/",
+        "savedTitle": "Project",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-F1-SV",
+     {
+      "id": "H-F1-SV",
+      "parentID": "H-F1",
+      "childrenIds": [
+       "H-F1-SV-A",
+       "H-F1-SV-B"
+      ],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "splitView": {
+        "layout": "horizontal"
+       }
+      }
+     },
+     "H-F1-SV-A",
+     {
+      "id": "H-F1-SV-A",
+      "parentID": "H-F1-SV",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://spec.example/",
+        "savedTitle": "Spec",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-F1-SV-B",
+     {
+      "id": "H-F1-SV-B",
+      "parentID": "H-F1-SV",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://figma.example/",
+        "savedTitle": "Figma",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-T2",
+     {
+      "id": "H-T2",
+      "parentID": "H-PIN",
+      "childrenIds": [],
+      "title": "Cal",
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://calendar.example/",
+        "savedTitle": "Calendar",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-ORPHAN",
+     {
+      "id": "H-ORPHAN",
+      "parentID": "H-PIN",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://orphan.example/",
+        "savedTitle": "Pinned, missing from childrenIds",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-TODAY",
+     {
+      "id": "H-TODAY",
+      "parentID": null,
+      "childrenIds": [
+       "H-U1",
+       "H-USV"
+      ],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "S-HOME"
+         }
+        }
+       }
+      }
+     },
+     "H-U1",
+     {
+      "id": "H-U1",
+      "parentID": "H-TODAY",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://news.example/",
+        "savedTitle": "News",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-USV",
+     {
+      "id": "H-USV",
+      "parentID": "H-TODAY",
+      "childrenIds": [
+       "H-USV-A",
+       "H-USV-B",
+       "H-USV-C"
+      ],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "splitView": {
+        "layout": "horizontal"
+       }
+      }
+     },
+     "H-USV-A",
+     {
+      "id": "H-USV-A",
+      "parentID": "H-USV",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://one.example/",
+        "savedTitle": "One",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-USV-B",
+     {
+      "id": "H-USV-B",
+      "parentID": "H-USV",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://two.example/",
+        "savedTitle": "Two",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-USV-C",
+     {
+      "id": "H-USV-C",
+      "parentID": "H-USV",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://three.example/",
+        "savedTitle": "Three",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "H-ARCHIVED",
+     {
+      "id": "H-ARCHIVED",
+      "parentID": "H-TODAY",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://archived.example/",
+        "savedTitle": "Archived today tab",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "W-PIN",
+     {
+      "id": "W-PIN",
+      "parentID": null,
+      "childrenIds": [
+       "W-T1",
+       "W-SV4"
+      ],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "S-WORK"
+         }
+        }
+       }
+      }
+     },
+     "W-T1",
+     {
+      "id": "W-T1",
+      "parentID": "W-PIN",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://jira.example/",
+        "savedTitle": "Board",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "W-SV4",
+     {
+      "id": "W-SV4",
+      "parentID": "W-PIN",
+      "childrenIds": [
+       "W-SV4-A",
+       "W-SV4-B",
+       "W-SV4-C",
+       "W-SV4-D"
+      ],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "splitView": {
+        "layout": "horizontal"
+       }
+      }
+     },
+     "W-SV4-A",
+     {
+      "id": "W-SV4-A",
+      "parentID": "W-SV4",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://a.example/",
+        "savedTitle": "A",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "W-SV4-B",
+     {
+      "id": "W-SV4-B",
+      "parentID": "W-SV4",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://b.example/",
+        "savedTitle": "B",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "W-SV4-C",
+     {
+      "id": "W-SV4-C",
+      "parentID": "W-SV4",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://c.example/",
+        "savedTitle": "C",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "W-SV4-D",
+     {
+      "id": "W-SV4-D",
+      "parentID": "W-SV4",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://d.example/",
+        "savedTitle": "D",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "W-PIN-OLD",
+     {
+      "id": "W-PIN-OLD",
+      "parentID": null,
+      "childrenIds": [
+       "W-T2"
+      ],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "S-WORK"
+         }
+        }
+       }
+      }
+     },
+     "W-T2",
+     {
+      "id": "W-T2",
+      "parentID": "W-PIN-OLD",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://wiki.example/",
+        "savedTitle": "Wiki",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "W-TODAY",
+     {
+      "id": "W-TODAY",
+      "parentID": null,
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "S-WORK"
+         }
+        }
+       }
+      }
+     },
+     "FAV",
+     {
+      "id": "FAV",
+      "parentID": null,
+      "childrenIds": [
+       "FAV-T",
+       "FAV-SV"
+      ],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "topApps": {
+          "_0": {
+           "default": true
+          }
+         }
+        }
+       }
+      }
+     },
+     "FAV-T",
+     {
+      "id": "FAV-T",
+      "parentID": "FAV",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://music.example/",
+        "savedTitle": "Music",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "FAV-SV",
+     {
+      "id": "FAV-SV",
+      "parentID": "FAV",
+      "childrenIds": [
+       "FAV-SV-A",
+       "FAV-SV-B"
+      ],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "splitView": {
+        "layout": "horizontal"
+       }
+      }
+     },
+     "FAV-SV-A",
+     {
+      "id": "FAV-SV-A",
+      "parentID": "FAV-SV",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://chat.example/",
+        "savedTitle": "Chat",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     },
+     "FAV-SV-B",
+     {
+      "id": "FAV-SV-B",
+      "parentID": "FAV-SV",
+      "childrenIds": [],
+      "title": null,
+      "isUnread": false,
+      "createdAt": 700000000,
+      "data": {
+       "tab": {
+        "savedURL": "https://video.example/",
+        "savedTitle": "Video",
+        "timeLastActiveAt": 700000100
+       }
+      }
+     }
+    ],
+    "topAppsContainerIDs": [
+     {
+      "default": true
+     },
+     "FAV"
+    ]
+   }
+  ]
+ },
+ "version": 1
+}

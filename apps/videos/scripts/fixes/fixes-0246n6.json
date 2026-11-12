@@ -1,0 +1,237 @@
+{
+  "id": "fixes-0246n6",
+  "segments": [
+    {
+      "scene": "n6onboard",
+      "title": "Onboarding is three steps",
+      "body": "Starting fresh on each build. nightly.5 walks through eight steps; nightly.6 asks where you're coming from, how it should look and a last few choices, and sets the rest from the browser you picked. Sped up: 3.7× on the left, 2.2× on the right.",
+      "cam": [
+        0,
+        0,
+        880,
+        562
+      ],
+      "cursor": false,
+      "reuse": {
+        "src": "onboarding-shorter-redo-before-after.mp4",
+        "crop": "880:562:240:150",
+        "before": {
+          "parts": [
+            [
+              0.2,
+              16.9,
+              3.7
+            ]
+          ]
+        },
+        "after": {
+          "parts": [
+            [
+              16.5,
+              26.4,
+              2.2
+            ]
+          ]
+        }
+      },
+      "lead": 0,
+      "tail": 4.5
+    },
+    {
+      "scene": "n6glass",
+      "title": "Glass or classic? shows the difference",
+      "body": "The look step in onboarding, Liquid Glass and then Classic. nightly.5 drew the same preview for both; nightly.6 shows what each one looks like.",
+      "cam": [
+        0,
+        0,
+        1280,
+        740
+      ],
+      "cursor": false,
+      "reuse": {
+        "src": "onboarding-glass-classic-before-after.mp4",
+        "crop": "1280:740:0:120",
+        "before": {
+          "parts": [
+            [
+              0.5,
+              5.0,
+              1
+            ]
+          ]
+        },
+        "after": {
+          "parts": [
+            [
+              16.5,
+              21.0,
+              1
+            ]
+          ]
+        }
+      },
+      "lead": 0,
+      "tail": 4.5
+    },
+    {
+      "scene": "n6mousedown",
+      "title": "A tab switches on mouse down",
+      "body": "Press and hold on Crumbs. nightly.5 waits for the button to come back up; nightly.6 switches the moment it goes down, as Chrome, Safari and Arc do.",
+      "cam": [
+        0,
+        0,
+        960,
+        600
+      ],
+      "lights": "left",
+      "lead": 1.8,
+      "tail": 3.0
+    },
+    {
+      "scene": "n6inline",
+      "title": "Clicking the address edits it in place",
+      "body": "Command bar set to open in the centre, then a click on the address and a few letters. nightly.5 jumps to the middle of the page; nightly.6 edits the field where it is, with suggestions dropping down from it. ⌘L still uses the centre.",
+      "cam": [
+        0,
+        0,
+        1360,
+        560
+      ],
+      "lights": "left",
+      "lead": 1.2,
+      "tail": 3.6
+    },
+    {
+      "scene": "n6unread",
+      "title": "Unread counts you can read",
+      "body": "Unread counts switched on in Settings › Tabs. nightly.5 shows a small red badge and keeps \"(3)\" in the title; nightly.6 draws a calm pill with larger digits and shows the count once. They're now off until you turn them on.",
+      "cam": [
+        0,
+        0,
+        560,
+        300
+      ],
+      "cursor": false,
+      "lights": "left",
+      "lead": 1.0,
+      "tail": 3.0
+    },
+    {
+      "scene": "n6cmdw",
+      "title": "⌘W closes every selected tab",
+      "body": "Click Lexicon, ⇧-click The Daily Ledger, press ⌘W. nightly.5 closes one tab; nightly.6 closes all three.",
+      "cam": [
+        0,
+        0,
+        900,
+        560
+      ],
+      "lights": "left",
+      "lead": 3.6,
+      "tail": 2.4
+    },
+    {
+      "scene": "n6altenter",
+      "title": "⌥↩ opens the address in Split View",
+      "body": "⌘L, type an address, press ⌥↩. nightly.5 opens it as an ordinary tab; nightly.6 opens it in a split beside the page you're on.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "cursor": false,
+      "lights": "left",
+      "lead": 2.6,
+      "tail": 2.8
+    },
+    {
+      "scene": "n6newtab",
+      "title": "The New Tab row lets go",
+      "body": "Open a page from the sidebar's New Tab row, then move the pointer to the page. nightly.5 leaves the row looking highlighted; nightly.6 clears it.",
+      "cam": [
+        0,
+        0,
+        560,
+        360
+      ],
+      "cursor": false,
+      "reuse": {
+        "src": "newtab-row-highlight-before-after.mp4",
+        "before": {
+          "crop": "560:360:0:60",
+          "parts": [
+            [
+              7.0,
+              11.5,
+              1
+            ]
+          ]
+        },
+        "after": {
+          "crop": "560:360:800:60",
+          "parts": [
+            [
+              7.0,
+              11.5,
+              1
+            ]
+          ]
+        }
+      },
+      "lead": 0,
+      "tail": 4.5
+    },
+    {
+      "scene": "n6siteright",
+      "title": "Site Controls opens next to its button",
+      "body": "Sidebar on the right, address in the sidebar, a click on the site button. nightly.5 opens Site Controls at the far side of the window; nightly.6 opens it beside the button.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "lights": "right",
+      "lead": 1.4,
+      "tail": 2.8
+    },
+    {
+      "scene": "n6search",
+      "title": "Settings search finds \"cli\"",
+      "body": "Type \"cli\" in Settings. nightly.5 lists every setting with \"click\" in it; nightly.6 leads with the ardia command, highlights the match and follows your selection.",
+      "cam": [
+        0,
+        0,
+        960,
+        590
+      ],
+      "cursor": false,
+      "reuse": {
+        "src": "settings-search-before-after.mp4",
+        "before": {
+          "crop": "960:590:0:50",
+          "parts": [
+            [
+              0,
+              3.5,
+              1
+            ]
+          ]
+        },
+        "after": {
+          "crop": "960:590:960:50",
+          "parts": [
+            [
+              0,
+              3.5,
+              1
+            ]
+          ]
+        }
+      },
+      "lead": 0,
+      "tail": 3.5
+    }
+  ]
+}

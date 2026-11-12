@@ -5,6 +5,7 @@ import { readDocument, removeDocument } from "../../platform/documents";
 import { useEffect } from "react";
 import { create } from "zustand";
 import { batchStoreUpdates, useBrowser, type BrowserState } from "../browser/store";
+import { ALL, useKeyed, watchAppDark } from "../browser/keyedWatch";
 import { engineProfile, isIncognitoProfile } from "../browser/model";
 import { DEFAULT_PROFILE_ID } from "../settings/settings";
 import { webviews } from "../../platform/webviews";
@@ -244,7 +245,7 @@ export function resolveFavicon(url: string, src?: string | null, profileId?: str
   return null;
 }
 
-export const useAppearanceDark = () => useBrowser((s) => s.ui.appDark);
+export const useAppearanceDark = () => useKeyed(watchAppDark, ALL, () => useBrowser.getState().ui.appDark);
 
 function answered(url: string, profileId?: string): boolean {
   const { profiles } = useFavicons.getState();

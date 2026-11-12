@@ -115,10 +115,6 @@ def normalize_url(url: str) -> str:
     return "https://" + url
 
 
-async def text_of(page, expression: str):
-    return await page.call(f"() => ({expression})", frame=page.main_frame, read=True)
-
-
 async def page_title(page) -> str:
     try:
         return await page.call("() => document.title", frame=page.main_frame, read=True) or ""
@@ -178,8 +174,8 @@ async def new_tab(ctx: Ctx, url: str | None, label: str | None = None, window: b
         params["newWindow"] = True
     try:
         result = await state.browser.send("Target.createTarget", params)
-    except Gated:
-        raise BrowseError("Ardia's policy refused to open a tab for the ardia command") from None
+    except Gated as error:
+        raise BrowseError(f"Ardia's policy refused to open a tab for the ardia command ({error.refusal})") from None
     target_id = result["targetId"]
     state.opened.add(target_id)
     state.registry.note_opened(state.instance, target_id)
@@ -279,7 +275,7 @@ async def current_or_new(ctx: Ctx):
 
 def note_own_tab(state, page, borrowed: str):
     notice = (f"→ Opened in its own background tab [{state.tab_id(page.target_id)}], since this session uses your tab "
-              f"[{state.tab_id(borrowed)}] and won't navigate it")
+              f"[{state.tab_id(borrowed)}] and won't navigate it; `tab {state.tab_id(borrowed)}` goes back")
     state.extras["notice"] = "\n".join(part for part in (state.extras.get("notice"), notice) if part)
 
 
@@ -308,18 +304,22 @@ async def cmd_open(ctx: Ctx, argv):
     url = normalize_url(args[0]) if args else None
     show = wants_show(ctx, options)
     borrowed = state.extras.get("attached") if state.current and state.current == state.extras.get("attached") else None
-    background = None
-    if state.current and state.current in state.target_infos and not borrowed:
-        page = await state.page()
-        await apply_open_options(ctx, page)
-        if url:
-            await navigate(ctx, page, url)
-        if show:
-            await show_tab(ctx, page)
+    came_from = "about:blank"
+    reporting = bool(url) and not ctx.options.get("no_changes") and state.extras.get("top_command") != "script"
+    fresh_tab = not (state.current and state.current in state.target_infos and not borrowed)
+    if fresh_tab:
+        page = await new_tab(ctx, None if reporting else url, options.get("label"), show=show and not reporting)
     else:
-        page = await new_tab(ctx, url, options.get("label"), show=show)
-        if not show:
-            background = await page.takes_input()
+        page = await state.page()
+        came_from = page.url
+        await apply_open_options(ctx, page)
+    if reporting:
+        await changes.settled(page, lambda: navigate(ctx, page, url))
+    elif url and not fresh_tab:
+        await navigate(ctx, page, url)
+    if show and (reporting or not fresh_tab):
+        await show_tab(ctx, page)
+    background = await page.takes_input() if fresh_tab and not show else None
     await page.refresh_frames()
     title = await page_title(page)
     data = {"url": page.url, "title": title}
@@ -327,10 +327,24 @@ async def cmd_open(ctx: Ctx, argv):
     if background is not None:
         tab = state.tab_id(page.target_id)
         data.update({"tabId": tab, "background": True, "takesInput": background})
+        if borrowed:
+            from ardia_cli import command_metrics
+
+            left = state.tab_id(borrowed)
+            data["left"] = left
+            command_metrics.flag("open_moved_tab", True)
+            where = (f"→ [{tab}] is this session's tab now, a background tab of its own, since this session uses your tab [{left}] "
+                     f"and won't navigate it; `tab {left}` goes back")
+        else:
+            where = f"→ Opened in its own background tab [{tab}]"
         if borrowed or not background:
-            where = f"→ Opened in its own background tab [{tab}]" + (f", since this session uses your tab [{state.tab_id(borrowed)}]" if borrowed else "")
             text += f"\n{where}; " + ("it takes input without being shown" if background else f"this Ardia doesn't deliver input there. use: ardia browse tab {tab} --show (or open <url> --show)")
-    return Result(data, text)
+    result = Result(data, text)
+    if reporting:
+        report = await changes.arrival(ctx, page, came_from)
+        if report is not None:
+            changes.attach(result, report)
+    return result
 
 
 @command("back", "forward")
@@ -529,9 +543,14 @@ async def cmd_fill(ctx: Ctx, argv):
     return changes.attach(result, report)
 
 
-def filled_result(key: str, selector: str, retargeted: bool, text: str, stored: str | None) -> Result:
+def filled_result(key: str, selector: str, retargeted: bool, text: str, stored: str | dict | None) -> Result:
     if stored is None:
         return typed_result(key, selector, retargeted)
+    if isinstance(stored, dict):
+        now = stored["value"]
+        shown = "(couldn't read it back)" if now is None else now or "empty"
+        return Result({key: selector, "cell": stored["cell"], "value": now, "was": stored["was"]},
+                      f'✓ Done\n~ gridcell "{stored["cell"]}": {shown} (was {stored["was"] or "empty"})')
     note = "✓ Done" if stored == text else f"✓ Done (the field holds {stored or 'nothing'})"
     return Result({key: selector, "value": stored}, note)
 
@@ -635,25 +654,42 @@ async def field_name(page, element, selector: str) -> str:
 
 @command("drag")
 async def cmd_drag(ctx: Ctx, argv):
-    options, args = parse(argv, {"--no-humanize": "bool"})
-    need(args, 2, "drag <source> <target>")
+    from ardia_cli import command_metrics
+
+    options, args = parse(argv, {"--no-humanize": "bool", "--before": "bool", "--after": "bool"})
+    need(args, 2, "drag <source> <target> [--before|--after]")
+    if options.get("before") and options.get("after"):
+        raise Usage("drag takes --before or --after, not both")
+    side = "before" if options.get("before") else "after" if options.get("after") else None
+    if side:
+        command_metrics.flag("drag_side_given", True)
     page, source = await resolve(ctx, args[0])
     target_page, target = await resolve(ctx, args[1])
     if target_page is not page:
         raise BrowseError("Both ends of a drag must be in the same tab")
-    outcome, report = await changes.observe(ctx, page, lambda: actions.drag(page, source, target, ctx.humanize and not options.get("no_humanize")))
+    listed = await actions.list_before(page, source, target)
+    outcome, report = await changes.observe(ctx, page, lambda: actions.drag(page, source, target, ctx.humanize and not options.get("no_humanize"), side))
+    if listed:
+        position = await actions.list_after(page, source.frame, listed)
+        if position:
+            outcome["position"] = position
     return changes.attach(Result({"dragged": args[0], "to": args[1], **outcome}, drag_text(outcome)), report)
 
 
 def drag_text(outcome: dict) -> str:
     if not outcome.get("html5"):
-        return "✓ Done"
-    if not outcome.get("started"):
+        text = "✓ Done"
+    elif not outcome.get("started"):
         text = "✓ Done (the page didn't start an HTML5 drag, so it was a plain mouse drag)"
     elif outcome.get("dropped") is False:
         text = "✓ Done (HTML5 drag; the target didn't accept the drop, so the page got no drop event)"
     else:
         text = "✓ Done (HTML5 drag and drop)"
+    position = outcome.get("position")
+    if position and position["to"] != position["from"]:
+        text += f"\nmoved to {position['to']} of {position['count']} (was {position['from']})"
+    elif position:
+        text += f"\nthe order didn't change: still {position['to']} of {position['count']}"
     if outcome.get("interceptionLeftOn"):
         text += "\n  Ardia didn't confirm drag interception was turned off; it ends when this session disconnects (30 s idle)"
     return text
@@ -672,8 +708,8 @@ async def cmd_upload(ctx: Ctx, argv):
     async def run():
         try:
             await page.send("DOM.setFileInputFiles", {"files": files, "backendNodeId": element.backend_id})
-        except Gated:
-            raise Gated("DOM.setFileInputFiles", "upload") from None
+        except Gated as error:
+            raise error.during("upload") from None
 
     _, report = await changes.observe(ctx, page, run)
     return changes.attach(Result({"uploaded": files}), report)
@@ -1049,7 +1085,11 @@ def role_candidates(nodes: list, role: str, name: str | None, exact: bool) -> tu
             of_role.append((node, " ".join(str((node.get("name") or {}).get("value") or "").split())))
     if name is None:
         return of_role, "role"
-    target = plain(name)
+    target = plain(name.removesuffix("…"))
+    if name.endswith("…"):
+        starting = [item for item in of_role if plain(item[1]).startswith(target)]
+        if starting:
+            return starting, "partial"
     same = [item for item in of_role if (item[1] == " ".join(name.split()) if exact else plain(item[1]) == target)]
     if same or exact:
         return same, "exact"
@@ -1072,7 +1112,7 @@ async def find_role(ctx, page, frame, role, name, exact):
     if not resolved:
         close = list(dict.fromkeys(node_name for _, node_name in role_candidates(nodes, role, None, False)[0] if node_name))[:MAX_CANDIDATES]
         named = f' named "{name}"' if name is not None else ""
-        hint = f"; the {shown}s here are: " + ", ".join(f'"{text}"' for text in close) if close and name is not None else ""
+        hint = f"; the {shown}s here are: " + ", ".join(f'"{snapshot.shown_name(text)}"' for text in close) if close and name is not None else ""
         raise BrowseError(f"No {shown}{named} on this page{hint}", data={"candidates": close}, code="not_found")
     listed = []
     for element, node_name in resolved[:MAX_CANDIDATES]:
@@ -1080,7 +1120,7 @@ async def find_role(ctx, page, frame, role, name, exact):
     more = f" (and {len(found) - MAX_CANDIDATES} more)" if len(found) > MAX_CANDIDATES else ""
     kind = "are named exactly" if how == "exact" else "have names containing"
     fix = "Use one of their refs" if how == "exact" else "Use a ref, or the full name"
-    lines = "\n".join(f'  {shown} "{item["name"]}" [ref={item["ref"][1:]}]' for item in listed)
+    lines = "\n".join(f'  {shown} "{snapshot.shown_name(item["name"])}" [ref={item["ref"][1:]}]' for item in listed)
     raise BrowseError(
         f'{len(found)} {shown}s {kind} "{name}"{more}, so nothing was clicked. {fix}:\n{lines}',
         data={"candidates": listed}, code="ambiguous",
@@ -1296,7 +1336,7 @@ async def cmd_cookies(ctx: Ctx, argv):
                 raise BrowseError("The browser refused that cookie")
             return Result({"set": args[1]})
     except Gated as error:
-        raise Gated(error.method, f"cookies {action}") from None
+        raise error.during(f"cookies {action}") from None
     raise Usage(f"Unknown cookies operation: {action} (get, set, clear)")
 
 
@@ -1388,7 +1428,7 @@ async def cmd_set(ctx: Ctx, argv):
             ctx.state.leases.add("emulation")
             return Result({"features": features})
     except Gated as error:
-        raise Gated(error.method, f"set {setting}", error.data.get("detail") if error.data else None) from None
+        raise error.during(f"set {setting}", error.data.get("detail") if error.data else None) from None
     raise Usage(f"Unknown setting: {setting}")
 
 
@@ -1420,7 +1460,7 @@ async def cmd_state(ctx: Ctx, argv):
                         await page.call("(k, v) => ardiaBrowse.storage('local', 'set', k, v)", item["name"], item["value"], frame=page.main_frame)
             return Result({"path": args[1]}, f"✓ State loaded from {args[1]}")
     except Gated as error:
-        raise Gated(error.method, f"state {args[0]}") from None
+        raise error.during(f"state {args[0]}") from None
     raise Usage("Usage: ardia browse state save|load <path>")
 
 
@@ -1431,8 +1471,8 @@ async def wait_download(ctx: Ctx, trigger, destination: str | None, timeout: flo
     folder = os.path.dirname(destination) if destination else tempfile.mkdtemp(prefix="ardia-browse-download-")
     try:
         await ctx.state.browser.send("Browser.setDownloadBehavior", {"behavior": "allowAndName", "downloadPath": folder, "eventsEnabled": True})
-    except Gated:
-        raise Gated("Browser.setDownloadBehavior", "download" if trigger else "wait --download") from None
+    except Gated as error:
+        raise error.during("download" if trigger else "wait --download") from None
     done = asyncio.get_running_loop().create_future()
     seen = {}
 
@@ -1482,7 +1522,7 @@ async def cmd_highlight(ctx: Ctx, argv):
         await page.send("Overlay.highlightNode", {"backendNodeId": element.backend_id, "highlightConfig": {
             "contentColor": {"r": 111, "g": 168, "b": 220, "a": 0.66}, "borderColor": {"r": 255, "g": 0, "b": 0, "a": 1}, "showInfo": True}})
     except Gated as error:
-        raise Gated(error.method, "highlight") from None
+        raise error.during("highlight") from None
     return Result({"highlighted": args[0]})
 
 
@@ -1512,7 +1552,7 @@ async def cmd_clipboard(ctx: Ctx, argv):
             return Result({"written": True})
     except Gated as error:
         detail = f"the {action} editing command" if action in ("copy", "paste") else None
-        raise Gated(error.method, f"clipboard {action}", detail) from None
+        raise error.during(f"clipboard {action}", detail) from None
     raise Usage(f"Unknown clipboard operation: {action}")
 
 
@@ -1548,6 +1588,8 @@ async def cmd_read(ctx: Ctx, argv):
     from ardia_cli.browse import readpages, readurl
 
     options, args = parse(argv, readpages.flags(), readpages.ALIASES)
+    if readpages.scrolls(options):
+        return await readpages.run_scroll(ctx, options, args)
     if readpages.single_fetch(options, args):
         return await asyncio.to_thread(readurl.run, args[0], options, ctx.options)
     if readpages.wants_pages(options, args):
@@ -1564,6 +1606,7 @@ async def cmd_read(ctx: Ctx, argv):
     else:
         content = await page.call("() => ardiaBrowse.readable()", frame=frame, read=True)
     content = readurl.post_process(content, options)
+    readpages.note_virtualized(content)
     return Result({"content": content, "contentType": "text/html", "finalUrl": page.url, "source": "active-tab-html", "truncated": False, "url": page.url},
                   content, page_content=True)
 
@@ -1774,7 +1817,7 @@ def note_reading(state, name: str, argv: list[str], result) -> None:
         streak.update(pages=0, arrived=False)
 
 
-LINE_OPTIONS = {"full": "full", "max_output": "max_output", "no_changes": "no_changes", "humanize": "humanize", "show": "show",
+LINE_OPTIONS = {"full": "full", "max_output": "max_output", "no_changes": "no_changes", "no_text": "no_text", "humanize": "humanize", "show": "show",
                 "annotate": "annotate", "capture_console": "capture_console"}
 
 

@@ -154,6 +154,13 @@ python3 scripts/capture/sf-composite.py <scene>…                    # every .c
 
 To recreate the mix, run `python3 scripts/music/shared-folders.py --check`. It writes `shared-folders-16x9.wav`, `shared-folders-9x16.wav` and `shared-folders-16x9-novo.wav` to `public/music/shared-folders/`.
 
+## Release films
+
+Every release's before-and-after film (`fixes-<id>`) is `src/lib/fixes-film/Film.tsx` fed with data: the composition's
+`index.tsx` names the release, the build before it and the channel, and `segments.json` holds the clips.
+`scripts/fixes` films and builds that data (`run.mjs`, `gen.py <id>`, `sessions-lib.mjs`); the release skill's
+step 6b has the steps. `pnpm test` checks that the two scored films' beat grids in `plan.ts` match their `cuts.json`.
+
 ## Recreating the media (not in git)
 
 `public/footage`, `public/music`, `public/fonts`, `public/brand` and `.capture` are gitignored. To rebuild them:

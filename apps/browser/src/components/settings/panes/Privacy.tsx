@@ -27,7 +27,8 @@ import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../stat
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { updateSettings } from "../../../state/settings/actions";
-import { categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
+import { blockerAvailable, categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
+import { noteContentBlockerUnavailable, noteContentBlockerWriteFailure } from "../../../state/telemetry/usage";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 import { UI_LOCALE } from "../../../lib/uiLocale";
 
@@ -42,18 +43,45 @@ const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId 
 
 const filtersText = (n: number) => `${n.toLocaleString(UI_LOCALE)} ${n === 1 ? "filter" : "filters"}`;
 
-function useContentBlocker() {
+const UNAVAILABLE_RETRY_MS = 3000;
+
+function useContentBlocker({ countOutages = false } = {}) {
   const [state, reload] = useResource(contentBlocker);
   const refresh = () => void reload();
   useEffect(() => {
     const sub = onContentBlockerChange(refresh);
     return () => sub.remove();
   }, []);
-  return [state ?? null, refresh] as const;
+  const unavailable = !!state && !blockerAvailable(state);
+  useEffect(() => {
+    if (!unavailable) return;
+    if (countOutages) noteContentBlockerUnavailable();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const retry = () => {
+      timer = setTimeout(() => void reload().finally(() => !stopped && retry()), UNAVAILABLE_RETRY_MS);
+    };
+    retry();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [unavailable]);
+  return [blockerAvailable(state ?? null) ? state! : null, refresh, unavailable] as const;
+}
+
+async function writeBlocker(write: () => Promise<unknown>, refresh: () => void) {
+  try {
+    await write();
+  } catch {
+    noteContentBlockerWriteFailure();
+  } finally {
+    refresh();
+  }
 }
 
 export function PrivacyPane() {
-  const [blocker, refresh] = useContentBlocker();
+  const [blocker, refresh, unavailable] = useContentBlocker({ countOutages: true });
   const commandScrollZoom = useSettings((s) => s.commandScrollZoom);
 
   const toggleCategory = async (c: FilterListCategory, on: boolean) => {
@@ -66,11 +94,7 @@ export function PrivacyPane() {
       });
       if (!confirmed) return refresh();
     }
-    try {
-      await setBlockingCategory(blocker, c, on);
-    } finally {
-      refresh();
-    }
+    await writeBlocker(() => setBlockingCategory(blocker, c, on), refresh);
   };
 
   return (
@@ -85,6 +109,11 @@ export function PrivacyPane() {
         <Row anchor="privacy.filterLists">
           <Button title="Advanced…" disabled={!blocker} onPress={() => showSettingsSheet(<FilterListsSheet />)} />
         </Row>
+        {unavailable && (
+          <Row title="uBlock Origin isn't answering" description="Its settings show here once it responds. Pages keep the blocking they had.">
+            <Button title="Try Again" onPress={refresh} />
+          </Row>
+        )}
       </Group>
 
       {!!blocker?.allowedHosts.length && (
@@ -130,11 +159,7 @@ function FilterListsSheet() {
   const [blocker, refresh] = useContentBlocker();
   const toggle = async (l: FilterList, on: boolean) => {
     if (!blocker) return;
-    try {
-      await setFilterList(blocker, l.id, on);
-    } finally {
-      refresh();
-    }
+    await writeBlocker(() => setFilterList(blocker, l.id, on), refresh);
   };
   return (
     <Sheet size="l" onClose={closeSettingsSheet}>

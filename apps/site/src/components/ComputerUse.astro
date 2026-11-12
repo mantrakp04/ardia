@@ -87,30 +87,32 @@ const runsText = (passes: number, runs: number) => (passes === runs ? `all ${run
                 ))}
               </div>
             </div>
-            <table class="visually-hidden">
-              <caption>
-                {c.title}, {c.agent}: median per task, lower is better
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Task</th>
-                  {c.series.map((s) => (
-                    <th scope="col">{s.name}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {cu.tasks.map((task, ti) => (
+            <div class="visually-hidden">
+              <table>
+                <caption>
+                  {c.title}, {c.agent}: median per task, lower is better
+                </caption>
+                <thead>
                   <tr>
-                    <th scope="row">{task}</th>
-                    {c.series.map((s) => {
-                      const b = s.bars[ti];
-                      return <td>{b ? `${b.text}, ${runsText(b.passes, b.runs)}` : "not run"}</td>;
-                    })}
+                    <th scope="col">Task</th>
+                    {c.series.map((s) => (
+                      <th scope="col">{s.name}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {cu.tasks.map((task, ti) => (
+                    <tr>
+                      <th scope="row">{task}</th>
+                      {c.series.map((s) => {
+                        const b = s.bars[ti];
+                        return <td>{b ? `${b.text}, ${runsText(b.passes, b.runs)}` : "not run"}</td>;
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </li>
         ))
       }
