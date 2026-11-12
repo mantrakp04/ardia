@@ -79,7 +79,10 @@ the pins into `pyproject.toml`).
   `targetId`, the DevTools page target `ardia browse` attaches to (null when the tab's page isn't loaded), and
   `pageGeneration`, bumped whenever that target changes (a slept tab reloading). The app asks each live tab through
   ArdiaCore's `devToolsCall` (`Target.getTargetInfo`, engine call `engine.cliTabTargets`); an older build leaves both
-  out.
+  out. A tab a page opened whose first page is still loading isn't asked and has a null `targetId` until that page
+  commits: the DevTools attach counts as a touch of its blank initial document, after which Chrome and the tab show
+  about:blank instead of the pending address (`awaitsFirstDocument`; `packages/ardiacore/scripts/pending-address-check.mjs
+  <Debug app>` checks it).
 - `ardia tabs --usage` lists each tab with its renderer's process id, CPU and memory, hottest first, and
   `ardia tabs --pid N` names the tabs in a process, so a pid from `top -o power` leads to its tab (`workspace`'s
   `usage`, `docs/automation.md` › Tabs and groups). Use counts come from the option names on the command event;
