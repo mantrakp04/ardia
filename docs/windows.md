@@ -165,7 +165,8 @@ is plain Chromium.
   the topic `tab` with a key, a name and data (navigation, progress, favicon, find, zoom, security, media, pagePress,
   windowClose and more), and `tab.opened` for a tab Chromium made itself, with who opened it.
 - The `ac_*` calls of `engine/chromium` build on Windows from the same sources: `series_win.py` makes the Windows
-  build file from the Mac one, applies `ardia-layer-win.patch` (paths from UTF-8, a Mac-only string) and swaps in
+  build file from the Mac one, applies `ardia-layer-win.patch` (paths from UTF-8, a Mac-only string, and Windows absolute paths, a drive letter
+  or UNC, accepted where the Mac asks for a leading `/`: extension installs, bookmark and password exports) and swaps in
   Windows stand-ins for the two POSIX-only files (the `ardia` command's control file and the user scripts policy, both
   off). `engineCall` loads the profile the app names and calls the export by name. `engine/` is not touched.
 - In the app (`packages/expo-windows/src/engine`): `ArdiaWebView` is a view in TypeScript. It opens its tab on mount,
@@ -193,9 +194,15 @@ is plain Chromium.
   with it, launches it with the self-check (which then loads a page through the engine) and runs the tour's pages
   part. The release is a draft, so only the repository's own runs can fetch it; a fork's pull request skips those
   steps. A new engine build is a new release and a new `prebuilt.json`.
-- `//ardia/win:probe` is a library that stands in for the app: a plain window that opens two tabs, switches, navigates
-  and asks the engine for history, bookmarks and the downloads folder, logging every reply and event. It proves an
-  engine build with no app.
+- A tab opened with no address shows a committed `about:blank` until its first load, which replaces that entry, so
+  the first real page reports `canGoBack: false` and Back never leads to a blank page (the Mac's "ahead blank" rule).
+  `downloadNavigation`'s `committedUrl` is the tab's last committed page, empty while it has only that opening page.
+- `//ardia/win:probe` is a library that stands in for the app: a plain window that opens tabs, switches, navigates
+  and asks the engine for history, bookmarks and the downloads folder, logging every reply and event. It also loads
+  a page into a tab opened blank and goes Back, exports bookmarks to a Windows path, installs extensions from
+  drive-letter and UNC paths that don't exist (the error must not be "an absolute path required"), and with
+  `ARDIA_PROBE_DOWNLOAD_URL` loads a download into a blank tab and a tab with a page. It proves an engine build with
+  no app.
 
 ## Updates
 

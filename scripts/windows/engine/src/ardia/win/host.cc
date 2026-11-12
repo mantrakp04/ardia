@@ -349,7 +349,11 @@ void Host::CreateTabInProfile(std::string key,
     return;
   }
   tabs_[key] = contents;
-  TabState::Bind(contents, key)->NoteNavigation();
+  TabState* state = TabState::Bind(contents, key);
+  if (url.empty()) {
+    state->set_opened_blank();
+  }
+  state->NoteNavigation();
   TabEvents::Attach(contents);
   base::DictValue result;
   result.Set("tab", TabState::IdOf(contents));
@@ -484,6 +488,10 @@ std::optional<base::DictValue> Host::CallTab(content::WebContents* contents,
                                         ui::PAGE_TRANSITION_FROM_ADDRESS_BAR)
             : ui::PAGE_TRANSITION_AUTO_TOPLEVEL;
     params.has_user_gesture = user_initiated;
+    TabState* state = TabState::FromWebContents(contents);
+    if (state && state->OnlyShowedOpeningBlank()) {
+      params.should_replace_current_entry = true;
+    }
     controller.LoadURLWithParams(params);
   } else if (method == "goBack") {
     if (controller.CanGoBack()) {

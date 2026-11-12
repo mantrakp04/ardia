@@ -15,6 +15,15 @@
                      [](std::string id, base::WeakPtr<PersonalDataManager> pdm,
 --- a/ac_bookmarks.cc
 +++ b/ac_bookmarks.cc
+@@ -476,7 +476,7 @@
+     return call.TakeReply().Error("no bookmarks");
+   }
+   const std::string path = call.String("path");
+-  if (path.empty() || path[0] != '/') {
++  if (!base::FilePath::FromUTF8Unsafe(path).IsAbsolute()) {
+     return call.TakeReply().Error("an absolute path required");
+   }
+   ardia::WhenLoaded::Run(
 @@ -497,6 +497,6 @@
                      },
                      std::move(reply)));
@@ -86,6 +95,15 @@
      }
 --- a/ac_extensions.cc
 +++ b/ac_extensions.cc
+@@ -316,7 +316,7 @@
+ 
+ AC_PROFILE_CALL(ac_extensions_install) {
+   const std::string path = call.String("path");
+-  if (path.empty() || path[0] != '/') {
++  if (!base::FilePath::FromUTF8Unsafe(path).IsAbsolute()) {
+     return call.TakeReply().Error("an absolute path required");
+   }
+   Profile* profile = call.profile();
 @@ -325,7 +325,7 @@
      return call.TakeReply().Error(
          "Extension installation is blocked by policy.");
@@ -95,6 +113,15 @@
    const bool scripts = ardia::NamesScriptsFolder(load_path);
    base::ScopedClosureRunner scripts_install;
    if (scripts) {
+@@ -375,7 +375,7 @@
+ 
+ AC_PROFILE_CALL(ac_extensions_install_crx) {
+   const std::string path = call.String("path");
+-  if (path.empty() || path[0] != '/') {
++  if (!base::FilePath::FromUTF8Unsafe(path).IsAbsolute()) {
+     return call.TakeReply().Error("an absolute path required");
+   }
+   Profile* profile = call.profile();
 @@ -403,7 +403,7 @@
                                           : installer->expected_id()));
        },
@@ -106,6 +133,15 @@
  AC_PROFILE_CALL(ac_extensions_set_enabled) {
 --- a/ac_passwords.cc
 +++ b/ac_passwords.cc
+@@ -571,7 +571,7 @@
+     return;
+   }
+   const std::string path = call.String("path");
+-  if (path.empty() || path[0] != '/') {
++  if (!base::FilePath::FromUTF8Unsafe(path).IsAbsolute()) {
+     return call.TakeReply().Error("an absolute path required");
+   }
+   ardia::WithList(
 @@ -590,7 +590,7 @@
                              base::DictValue().Set("status", "reauthFailed"));
                        }

@@ -13,6 +13,7 @@
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/net_errors.h"
@@ -42,6 +43,26 @@ TabState* TabState::Bind(content::WebContents* contents, std::string key) {
 
 int TabState::IdOf(content::WebContents* contents) {
   return sessions::SessionTabHelper::IdForTab(contents).id();
+}
+
+bool TabState::OnlyShowedOpeningBlank() const {
+  if (!opened_blank_) {
+    return false;
+  }
+  content::NavigationController& controller = web_contents()->GetController();
+  content::NavigationEntry* committed = controller.GetLastCommittedEntry();
+  return controller.GetEntryCount() == 1 && committed &&
+         !committed->IsInitialEntry() && committed->GetURL().IsAboutBlank();
+}
+
+GURL TabState::CommittedPageURL(content::WebContents* contents) {
+  content::NavigationController& controller = contents->GetController();
+  content::NavigationEntry* committed = controller.GetLastCommittedEntry();
+  if (!committed || committed->IsInitialEntry() ||
+      (controller.GetEntryCount() == 1 && committed->GetURL().IsAboutBlank())) {
+    return GURL();
+  }
+  return committed->GetURL();
 }
 
 void TabState::Send(std::string_view name, base::DictValue data) {
