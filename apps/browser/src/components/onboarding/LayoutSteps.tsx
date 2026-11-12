@@ -49,7 +49,7 @@ export function Page({
   );
 }
 
-export function useQuestion(step: "layout" | "tabs" | "look") {
+export function useQuestion(step: "layout" | "tabs" | "look" | "details") {
   const sub = useOnboarding((s) => s.sub);
   const id = useQuestions(step)[sub]?.id;
   return { id, focus: useMockFocus(id) };

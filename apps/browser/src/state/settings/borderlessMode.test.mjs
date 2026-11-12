@@ -65,8 +65,8 @@ test("new windows place their traffic lights on the borderless toolbar immediate
 
 test("onboarding keeps the mode until a frame choice replaces it, then confirms both settings together", () => {
   useBrowser.getState().hydrate({ settings: { pageFrame: 6, borderlessMode: true } });
-  useOnboarding.setState({ step: "look", sub: QUESTIONS.look.findIndex((q) => q.id === "frame"), draft: {}, baseline: {}, windowId: null });
-  const keys = QUESTIONS.look.find((q) => q.id === "frame").keys;
+  useOnboarding.setState({ step: "details", sub: QUESTIONS.details.findIndex((q) => q.id === "frame"), draft: {}, baseline: {}, windowId: null });
+  const keys = QUESTIONS.details.find((q) => q.id === "frame").keys;
   const unchanged = resolveDraft(keys, {}, "fresh", useBrowser.getState().settings, []);
   assert.deepEqual(unchanged, { pageFrame: 6, borderlessMode: true });
   assert.equal(pageFrameInset(unchanged), 0);

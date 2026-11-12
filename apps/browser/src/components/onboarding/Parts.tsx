@@ -3,8 +3,8 @@ import { Animated, Image, Pressable, View, type StyleProp, type ViewStyle } from
 import { useTheme } from "../ui/theme";
 import { IconRing } from "./GlassBacking";
 import type { TileTheme } from "../../state/favicons/tileTheme";
-import { Checkbox, Dot, Text, useHover } from "../ui";
-import { activeSteps, useOnboarding, type OnboardingStep } from "../../state/onboarding/onboarding";
+import { Button, Checkbox, Dot, Text, useHover } from "../ui";
+import { activeSteps, cancelOnboarding, useOnboarding, type OnboardingStep } from "../../state/onboarding/onboarding";
 import { useQuestions } from "../../state/onboarding/questions";
 import { curve } from "../ui/motion";
 import { capsule, concentric, ink, radius, space, tracking } from "../ui/tokens";
@@ -51,6 +51,8 @@ export function StepProgress() {
   const colors = useOnboardingColors();
   const step = useOnboarding((s) => s.step);
   const sub = useOnboarding((s) => s.sub);
+  const redo = useOnboarding((s) => s.redo);
+  useOnboarding((s) => s.customizing);
   const count = useQuestions(step).length;
   const steps: OnboardingStep[] = activeSteps().filter((s) => s !== "intro");
   const index = steps.indexOf(step);
@@ -62,6 +64,11 @@ export function StepProgress() {
         {count > 1 ? (
           <View accessibilityLabel={`Question ${sub + 1} of ${count}`}>
             <StepDots count={count} index={sub} shape="dot" />
+          </View>
+        ) : null}
+        {redo ? (
+          <View mouseDownCanMoveWindow={false} style={{ marginLeft: "auto" }}>
+            <Button variant="text" look="link" tone="textSecondary" title="Cancel" label="Cancel setup and keep your settings" onPress={cancelOnboarding} />
           </View>
         ) : null}
       </View>

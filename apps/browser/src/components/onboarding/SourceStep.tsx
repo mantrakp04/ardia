@@ -6,7 +6,7 @@ import { radius, space } from "../ui/tokens";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { openImport } from "../../state/settings/settingsWindows";
 import { noteOnboardingImport } from "../../state/telemetry/usage";
-import { chooseSource, confirmAnswer, PRESET_NAMES, presetFor, presetPatch, skipStep, useOnboarding, type BrowserSourceId } from "../../state/onboarding/onboarding";
+import { chooseSource, confirmAnswer, PRESET_NAMES, presetFor, skipStep, sourcePatch, useOnboarding, type BrowserSourceId } from "../../state/onboarding/onboarding";
 import { StepActions, StepLayout } from "./StepLayout";
 import { SecondaryButton } from "./Buttons";
 import { SectionLabel, SelectTile, Tag, useOnboardingColors } from "./Parts";
@@ -80,7 +80,7 @@ export function SourceStep() {
     setImporting(chosen.id);
   };
 
-  const done = () => confirmAnswer("source", presetPatch(source), chosen ? [`Coming from ${chosen.name}`] : source === "fresh" ? ["Starting fresh"] : []);
+  const done = () => confirmAnswer("source", sourcePatch(), chosen ? [`Coming from ${chosen.name}`] : source === "fresh" ? ["Starting fresh"] : []);
 
   if (pastingCode) return <SetupCodeStep onBack={() => setPastingCode(false)} />;
 
