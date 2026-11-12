@@ -1,5 +1,5 @@
 import type { SearchScope } from "@ardia/core";
-import type { ComponentProps, RefObject } from "react";
+import { useState, type ComponentProps, type RefObject } from "react";
 import { TextInput } from "react-native";
 import { useTheme } from "../ui";
 import { PASTED_TYPES } from "./omniboxKeys";
@@ -7,10 +7,13 @@ import { BAR, BAR_TYPE } from "./tokens";
 
 type InputProps = ComponentProps<typeof TextInput>;
 
+const CENTRED_MIN_INPUT = 120;
+
 export function BarField({
   inputRef,
   variant,
   floating,
+  centred = false,
   scope,
   incognito,
   focusEcho,
@@ -22,15 +25,23 @@ export function BarField({
   onSelection(next: { start: number; end: number }): void;
   variant: "panel" | "hero" | "sidebar";
   floating: boolean;
+  centred?: boolean;
   scope: SearchScope | null;
   incognito: boolean;
 } & Pick<InputProps, "value" | "onLayout" | "onChangeText" | "onSubmitEditing" | "onFocus" | "onBlur" | "keyDownEvents" | "onKeyDown">) {
   const theme = useTheme();
   const type = variant === "hero" ? BAR_TYPE.heroField : variant === "sidebar" || floating ? BAR_TYPE.floatingField : BAR_TYPE.panelField;
+  const [frame, setFrame] = useState({ x: BAR.panel.iconLeft + BAR.iconSlot + BAR.panel.gap, room: Infinity });
+  const balance = centred ? Math.max(0, Math.min(frame.x - BAR.panel.right, frame.room - CENTRED_MIN_INPUT)) : 0;
   return (
     <TextInput
       ref={inputRef}
       {...events}
+      onLayout={(e) => {
+        const { x, width } = e.nativeEvent.layout;
+        if (centred && (x !== frame.x || width + balance !== frame.room)) setFrame({ x, room: width + balance });
+        events.onLayout?.(e);
+      }}
       onSelectionChange={(e) => {
         const next = e.nativeEvent.selection;
         const length = events.value?.length ?? 0;
@@ -55,6 +66,7 @@ export function BarField({
         color: theme.textPrimary,
         paddingVertical: 0,
         marginTop: variant === "panel" ? BAR.panelFieldLift : 0,
+        ...(centred ? { textAlign: "center" as const, marginRight: balance } : null),
       }}
     />
   );
