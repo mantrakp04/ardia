@@ -328,7 +328,7 @@ jobs:
         run: |
           export RELEASE_DIST="$GITHUB_WORKSPACE/dist/$VERSION"
           if [ -n "$TAP_TOKEN" ]; then
-            git config --global url."https://x-access-token:$TAP_TOKEN@github.com/mantrakp04/homebrew-tap".insteadOf https://github.com/mantrakp04/homebrew-tap
+            git config --global url."https://x-access-token:$TAP_TOKEN@github.com/ardia-browser/homebrew-tap".insteadOf https://github.com/ardia-browser/homebrew-tap
             git config --global user.name "github-actions[bot]"
             git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           else

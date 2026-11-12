@@ -12,7 +12,8 @@ Codex runs started from here. The owner's apps (/Applications/Ardia.app, Claude,
     timings stand for what users get; those can still be paused.
   - While total CPU is over --cap, the busiest processes of ours are paused (SIGSTOP), busiest first.
   - Once total CPU is under --resume, they are resumed (SIGCONT), one per tick.
-  - Memory, the Mac's used share (anonymous + wired + compressor - purgeable, from vm_stat): while it is over
+  - Memory, the Mac's used share (100 minus macOS's own free percentage from memory_pressure -Q, which leaves
+    out what macOS can reclaim; vm_stat's anonymous + wired + compressor read ~20 points higher): while it is over
     --mem-cap, our largest workers (compilers, linkers, siso's python3, ffmpeg, hidden test instances and tools under
     ~/ardia-scratch or apps/browser/build-*) are paused, 2 a tick, so they stop growing; each gets a turn after
     --max-pause seconds while memory is under --mem-cap, and they are resumed one per tick under --mem-resume.
@@ -82,13 +83,9 @@ def total_cpu():
 
 
 def memory_used():
-    out = subprocess.run(["vm_stat"], capture_output=True, text=True).stdout
-    page = int(re.search(r"page size of (\d+)", out).group(1))
-    pages = {k.strip(): int(v.strip().rstrip(".")) for k, v in re.findall(r"^([^:\n]+):\s+(\d+)\.?$", out, re.M)}
-    used = (pages.get("Anonymous pages", 0) + pages.get("Pages wired down", 0)
-            + pages.get("Pages occupied by compressor", 0) - pages.get("Pages purgeable", 0)) * page
-    total = int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True).stdout)
-    return used * 100 / total
+    out = subprocess.run(["memory_pressure", "-Q"], capture_output=True, text=True).stdout
+    m = re.search(r"free percentage:\s*(\d+)%", out)
+    return 100.0 - float(m.group(1)) if m else 0.0
 
 
 def footprints():
@@ -142,7 +139,7 @@ NEVER_PAUSE = ("claude", "codex", "T3 Code", "/node_modules/.bin/", "cpu-cap")
 
 
 def memory_worker(cmd):
-    if any(n in cmd for n in NEVER_PAUSE):
+    if any(n in cmd for n in NEVER_PAUSE) or os.path.basename(cmd.split()[0]) in COORD | {"swift-build", "pod", "pnpm"}:
         return False
     return os.path.basename(cmd.split()[0]) in MEMORY_WORKERS or any(m in cmd for m in MEMORY_WORKER_PATHS)
 

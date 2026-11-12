@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from "react";
-import { ScrollView, View, type LayoutChangeEvent } from "react-native";
+import { Animated, ScrollView, View, type LayoutChangeEvent } from "react-native";
 import { ChoiceCard } from "./ChoiceCard";
 import { activeSteps, previousStep, useOnboarding } from "../../state/onboarding/onboarding";
 import { BackButton, PrimaryButton, SecondaryButton } from "./Buttons";
 import { CONTENT_WIDTH } from "./tokens";
 import { Reveal, StepProgress, StepTitle, Tag, useOnboardingColors } from "./Parts";
 import { radius, space } from "../ui/tokens";
+import { curve, duration } from "../ui/motion";
+import { ScrollEdgeLine } from "../sidebar/ScrollEdge";
 
 const COLUMN = { width: CONTENT_WIDTH + space.xxxl * 2, padding: space.xxxl, top: 34 };
 
@@ -18,6 +20,7 @@ export function StepLayout({
   pageKey,
   children,
   actions,
+  footer,
   preview,
 }: {
   title: string;
@@ -26,9 +29,11 @@ export function StepLayout({
   pageKey?: string | number;
   children?: ReactNode;
   actions: ReactNode;
+  footer?: ReactNode;
   preview: ReactNode;
 }) {
   const colors = useOnboardingColors();
+  const more = useMoreBelow();
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const narrow = !!size && size.width < NARROW.below;
   const onLayout = (e: LayoutChangeEvent) => {
@@ -55,9 +60,19 @@ export function StepLayout({
       <Reveal>
         <StepProgress />
       </Reveal>
-      <ScrollView key={pageKey} style={{ flex: 1, marginTop: space.xxl }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        key={pageKey}
+        style={{ flex: 1, marginTop: space.xxl }}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onLayout={(e) => more.measure({ viewport: e.nativeEvent.layout.height })}
+        onContentSizeChange={(_, height) => more.measure({ content: height })}
+        onScroll={(e) => more.measure({ offset: e.nativeEvent.contentOffset.y })}
+      >
         {body}
       </ScrollView>
+      <ScrollEdgeLine opacity={more.opacity} />
+      {footer ? <Reveal style={{ paddingTop: space.l }}>{footer}</Reveal> : null}
       <Reveal delay={240} style={{ flexDirection: "row", alignItems: "center", gap: space.ml, paddingTop: space.xl }}>
         {actions}
       </Reveal>
@@ -86,6 +101,25 @@ export function StepLayout({
       </ChoiceCard>
     </View>
   );
+}
+
+function useMoreBelow() {
+  const [more] = useState(() => {
+    const opacity = new Animated.Value(0);
+    const at = { viewport: 0, content: 0, offset: 0 };
+    let shown = false;
+    return {
+      opacity,
+      measure(next: Partial<typeof at>) {
+        Object.assign(at, next);
+        const below = at.viewport > 0 && at.offset + at.viewport < at.content - 1;
+        if (below === shown) return;
+        shown = below;
+        Animated.timing(opacity, { toValue: below ? 1 : 0, duration: duration.fast, easing: curve.fade, useNativeDriver: true }).start();
+      },
+    };
+  });
+  return more;
 }
 
 function FittedPreview({ children }: { children: ReactNode }) {
