@@ -49,9 +49,8 @@
     "autofill": ["settings", "setSettings", "showSuggestions"],
     "bookmarks": ["exportHtml"],
     "contentBlocker": ["state", "setEnabled", "setListEnabled", "isAllowed", "setAllowed", "devFailNextMessage", "devDelayNextLoad"],
-    "engine": ["info", "beginTracing", "endTracing", "isTracing", "systemState", "cliTabTargets"],
+    "engine": ["beginTracing", "endTracing", "isTracing", "systemState", "cliTabTargets"],
     "extensions": ["inspectUnpacked", "chooseFolder", "resolveInstallPrompt", "actionStates", "sidePanelUrl"],
-    "favicons": ["fetch"],
     "media": [
       "displayMediaSources",
       "screenRecordingAllowed",
@@ -73,7 +72,7 @@
     ],
     "passwords": ["export", "autofillEnabled", "setAutofillEnabled"],
     "permissions": ["resolve", "resolveExternalApp", "externalAppAllowances", "removeExternalAppAllowance", "devExternalLaunches"],
-    "profiles": ["loaded", "release", "deleteData"],
+    "profiles": ["loaded", "release"],
     "search": ["setEngineName"],
     "tabs": [
       "routeLinkTabs",

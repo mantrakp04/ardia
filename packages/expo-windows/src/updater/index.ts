@@ -37,6 +37,12 @@ function identity(): BuildIdentity | null {
   return identityRead;
 }
 
+export function stampedSystemInfo(info: unknown): unknown {
+  const stamped = identity();
+  if (!stamped || typeof info !== "object" || info === null) return info;
+  return { ...info, appVersion: stamped.version, appBuild: String(stamped.build) };
+}
+
 const feedOverride = () => (typeof constants().feedOverride === "string" ? (constants().feedOverride as string) : "");
 const feed = () => feedOverride() || FEED;
 const publishedUnder = () => (feedOverride() ? folderOf(feedOverride()) : PUBLISHED_UNDER);

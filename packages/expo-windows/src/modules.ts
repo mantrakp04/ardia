@@ -5,8 +5,8 @@ import { moduleDefaults } from "./defaults";
 import { engineAvailable } from "./engine/host";
 import { engineModules } from "./engine/modules";
 import { noteMissing } from "./missing";
+import { stampedSystemInfo, windowsUpdater } from "./updater";
 import { windowsSwipe } from "./pager";
-import { windowsUpdater } from "./updater";
 import { setWindowDark } from "./windowDark";
 
 type Listener = (payload: unknown) => void;
@@ -21,7 +21,7 @@ const RELEASE_NOTES_PAGE = "https://ardia.dev/release-notes";
 const around: Record<string, Record<string, (native: Call) => Call>> = {
   ArdiaApp: {
     systemInfo: (native) => () => {
-      const info = native();
+      const info = stampedSystemInfo(native());
       if (typeof info !== "object" || info === null) return info;
       return { releaseNotesURL: RELEASE_NOTES_PAGE, ...info };
     },

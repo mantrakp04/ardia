@@ -1,5 +1,7 @@
 import type { AppNative, DocumentsNative, SystemNative, SystemSignalsNative } from "@ardia/shell";
+import { TurboModuleRegistry, type TurboModule } from "react-native";
 import { requireNativeModule } from "../modules";
+import { readBuild } from "../updater/manifest";
 import { expectTrue, type Check } from "./check";
 
 const app = () => requireNativeModule<AppNative & { windowsApiVersion?: number }>("ArdiaApp");
@@ -18,6 +20,13 @@ async function untilFileExists(path: string, wanted: boolean) {
   }
   return false;
 }
+
+const ARCHES = ["x64", "arm64"];
+
+const buildFile = () => {
+  const constants = TurboModuleRegistry.get<TurboModule>("ArdiaWindowsUpdate")?.getConstants?.() as { buildFile?: unknown } | undefined;
+  return typeof constants?.buildFile === "string" ? readBuild(constants.buildFile) : null;
+};
 
 const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
@@ -55,6 +64,18 @@ export const checks: Check[] = [
       expectTrue(isNumber(info.processStart) && info.processStart <= now && info.processStart > now - 3_600_000, `processStart is ${JSON.stringify(info.processStart)}, now ${now}`);
       expectTrue(isNumber(info.bootTime) && info.bootTime <= info.processStart, `bootTime is ${JSON.stringify(info.bootTime)}, processStart ${info.processStart}`);
       expectTrue(Number.isInteger(app().windowsApiVersion) && (app().windowsApiVersion as number) >= 1, `windowsApiVersion is ${JSON.stringify(app().windowsApiVersion)}`);
+    },
+  },
+  {
+    name: "ArdiaApp.systemInfo names this build, its CPU and Windows for telemetry",
+    run() {
+      const info = app().systemInfo();
+      expectTrue(ARCHES.includes(info.arch), `arch is ${JSON.stringify(info.arch)}`);
+      expectTrue(/^\d+\.\d+\.\d+$/.test(info.osVersion), `osVersion is ${JSON.stringify(info.osVersion)}`);
+      const stamped = buildFile();
+      if (!stamped) return;
+      expectTrue(info.appVersion === stamped.version, `appVersion is ${JSON.stringify(info.appVersion)}, Ardia.build.json says ${stamped.version}`);
+      expectTrue(info.appBuild === String(stamped.build), `appBuild is ${JSON.stringify(info.appBuild)}, Ardia.build.json says ${stamped.build}`);
     },
   },
   {
