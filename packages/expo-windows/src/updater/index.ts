@@ -1,5 +1,5 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
-import type { ConfirmOptions, UpdateChannel, UpdaterNative, UpdaterState } from "@ardia/shell";
+import type { AppNative, ConfirmOptions, DialogsNative, DocumentsNative, UpdateChannel, UpdaterNative, UpdaterState } from "@ardia/shell";
 import { failureText, folderOf, megabytes, offered, readBuild, readManifest, type BuildIdentity } from "./manifest";
 
 const PUBLISHED_UNDER = "https://github.com/ardia-browser/ardia/releases/download/";
@@ -14,16 +14,17 @@ type UpdateNative = TurboModule & {
   install(path: string, sha256: string): Promise<boolean>;
 };
 type UpdateConstants = { cpu?: unknown; installed?: unknown; buildFile?: unknown; feedOverride?: unknown };
-type Dialogs = TurboModule & { confirm(options: ConfirmOptions): Promise<{ confirmed: boolean }> };
-type Documents = TurboModule & { readDocument(name: string): string | null; writeDocument(name: string, contents: string): void };
-type Windows = TurboModule & { quit(): Promise<void> };
+type Dialogs = TurboModule & Pick<DialogsNative, "confirm">;
+type Documents = TurboModule & Pick<DocumentsNative, "readDocument" | "writeDocument">;
+type App = TurboModule & Partial<Pick<AppNative, "launchConfig">>;
+type AppWindowsOnWindows = TurboModule & { quit(): Promise<void> };
 type Preferences = { automaticChecks: boolean; automaticDownloads: boolean; lastCheck: number | null };
 
 const native = () => TurboModuleRegistry.get<UpdateNative>("ArdiaWindowsUpdate");
 const constants = (): UpdateConstants => (native()?.getConstants?.() ?? {}) as UpdateConstants;
 const dialogs = () => TurboModuleRegistry.get<Dialogs>("ArdiaDialogs");
 const documents = () => TurboModuleRegistry.get<Documents>("ArdiaDocuments");
-const launch = () => (TurboModuleRegistry.get<TurboModule>("ArdiaApp") as (TurboModule & { launchConfig?(): { background?: boolean; isolated?: boolean } }) | null)?.launchConfig?.();
+const launch = () => TurboModuleRegistry.get<App>("ArdiaApp")?.launchConfig?.();
 
 let identityRead: BuildIdentity | null | undefined;
 let preferencesRead: Preferences | undefined;
@@ -125,7 +126,7 @@ async function check(asked: boolean) {
     }
     if (await update.install(path, installer.sha256)) {
       console.info(`[ardia windows] update ${manifest.build} is installing`);
-      await TurboModuleRegistry.get<Windows>("ArdiaAppWindows")?.quit();
+      await TurboModuleRegistry.get<AppWindowsOnWindows>("ArdiaAppWindows")?.quit();
     }
   } catch (error) {
     console.info(`[ardia windows] update check failed: ${reason(error)}`);

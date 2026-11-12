@@ -29,6 +29,9 @@ class TabState : public content::WebContentsObserver,
   const std::string& key() const { return key_; }
   bool closed_by_host() const { return closed_by_host_; }
   void set_closed_by_host() { closed_by_host_ = true; }
+  void set_opened_blank() { opened_blank_ = true; }
+  bool OnlyShowedOpeningBlank() const;
+  static GURL CommittedPageURL(content::WebContents* contents);
 
   void Send(std::string_view name, base::DictValue data);
   void NoteNavigation();
@@ -66,6 +69,8 @@ class TabState : public content::WebContentsObserver,
 
   std::string key_;
   bool closed_by_host_ = false;
+  bool opened_blank_ = false;
+  bool left_by_download_ = false;
   bool navigation_pending_ = false;
   int http_status_ = 0;
   base::ScopedObservation<favicon::FaviconDriver,

@@ -99,6 +99,7 @@ export const SETTING_SPECS = {
   cleanUpInactiveTabsAfterMinutes: shaped<number | null>(null, (v) => v === null || isWidth(v), { type: ["number", "null"], exclusiveMinimum: 0 }, SYNCED),
   mutedSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   showUnreadCounts: flag(false, SYNCED),
+  showTopAppBadges: flag(false, SYNCED),
   unreadHiddenSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST)),
   autoPictureInPicture: flag(true, SYNCED),

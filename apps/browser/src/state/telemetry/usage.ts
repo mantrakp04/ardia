@@ -20,7 +20,7 @@ import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
 import { takeAutoHideTabsChoices } from "./autoHideTabsChoices";
-import { takeHourlyExtras, watchAnimationBursts } from "./hourlyExtras";
+import { takeHourlyExtras, watchPlatformCounts } from "./hourlyExtras";
 import { takeTabSwitcherOpensInWebKit } from "./tabSwitcherOpens";
 import { noteAutoPictureInPictureNothingPlaying, takePictureInPictureCounts } from "./pictureInPictureCounts";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
@@ -371,7 +371,7 @@ export function startUsage() {
   watchTranslate();
   watchExtensions();
   watchHoverLost();
-  watchAnimationBursts();
+  watchPlatformCounts();
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);

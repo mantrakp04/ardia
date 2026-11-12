@@ -84,6 +84,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many tabs stayed listed under a collapsed tab group after you opened or switched to them or collapsed their group while they were selected, and how many clicks on a collapsed group's name hid them again, summed up once an hour. Never which tabs or groups",
       "How many times two sidebar animations started in the same moment and were run together, summed up once an hour",
       "On Windows, how many animations ran and how many of their frames came late, summed up once an hour",
+      "On Windows, how many links Ardia opened that it was started with while it wasn't running, summed up once an hour. Never which links or which app",
       "How many imports from another browser finished, how many kinds of data (bookmarks, history, passwords and so on) came over or failed, and how many times some passwords or cookies were left behind because they couldn't be decrypted, summed up once an hour. Never which browser, pages, names or passwords",
       "How many times a page open in WebKit was kept out of sight while it waited, ready, to be switched to: the open tab of a neighbouring profile, or the tab that takes over while you drag one away. Summed up once an hour, never which page",
       "How many Peek cards and Little Ardia windows you opened or closed with a trackpad pinch, summed up once an hour",
@@ -127,7 +128,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     title: "The ardia command",
     items: [
       "Each command's name (like history or browse snapshot), its exit and error codes, and the names of the options it was given, never their values",
-      "How long it took, step by step (starting up, starting its helper, connecting to Ardia, finding the tab, the command itself, waiting for the page to settle), plus counts and sizes: browser calls, steps in a batch, the length of a page snapshot and of the output, how many requests an action sent, and whether the output was cut short, the input humanized, it gave up waiting for its helper or Ardia refused it a tab. Times, counts and yes or no only",
+      "How long it took, step by step (starting up, starting its helper, connecting to Ardia, finding the tab, the command itself, waiting for the page to settle), plus counts and sizes: browser calls, steps in a batch, how many coding agents the install gave the agent skill to or skipped, the length of a page snapshot and of the output, how many requests an action sent, and whether the output was cut short, the input humanized, it gave up waiting for its helper or Ardia refused it a tab. Times, counts and yes or no only",
       `Its version, ${PLATFORM_TERMS.os} version, chip and Python version, with this ${PLATFORM_TERMS.computer}'s install ID`,
       "After a crash: the error's type (with its message only when it's one of Python's fixed ones, like “division by zero”), and the module, function and line number of each step in the stack trace",
       "Nothing from commands pointed at a test browser (--port, --ws), and nothing at all with DO_NOT_TRACK=1 or ARDIA_TELEMETRY=0 set",

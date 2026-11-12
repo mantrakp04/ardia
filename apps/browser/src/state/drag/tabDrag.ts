@@ -7,7 +7,7 @@ import { webviews } from "../../platform/webviews";
 import { useBrowser } from "../browser/store";
 import type { Frame } from "../browser/types";
 import { tabTitle } from "../browser/model";
-import { splitOf, type SplitSide, splitTabIdsOf } from "../splits/splits";
+import { splitOf, type SplitSide, splitTabIdsOf, splitViewAvailable } from "../splits/splits";
 import { dropTabIntoSplit } from "../splits/actions";
 import { dropTabsOutside, screenPoint, windowUnder } from "./windowDrop";
 import { dropTabsOnBar, followTabDragOnBar } from "../bookmarks/barDrag";
@@ -168,7 +168,8 @@ function takePicture({ session, windowId, tabId }: TabDragging, { chip, grab }: 
   });
 }
 
-export function setDropTarget(target: DropTarget | null) {
+export function setDropTarget(offered: DropTarget | null) {
+  const target = splitViewAvailable ? offered : null;
   const d = tabDragState();
   if (!d || (d.target?.tabId === target?.tabId && d.target?.side === target?.side)) return;
   useTabDrag.setState({ target });
@@ -197,7 +198,7 @@ export function endTabDrag(): boolean {
   const [x, y] = session.pointer;
   const resolveInsert = overWindow && overPoint ? insertResolvers.get(overWindow) : undefined;
   const insertBefore = resolveInsert && overPoint ? resolveInsert(overPoint) : drag.insert?.windowId === overWindow ? drag.insert?.beforeId : undefined;
-  const target = resolveTarget ? resolveTarget(x, y, drag.target, outside) : drag.target;
+  const target = !splitViewAvailable ? null : resolveTarget ? resolveTarget(x, y, drag.target, outside) : drag.target;
   const onPage = !outside && !!(drag.lifted ?? drag.onPage);
   useTabDrag.setState(IDLE, true);
   const shown = previewShown;

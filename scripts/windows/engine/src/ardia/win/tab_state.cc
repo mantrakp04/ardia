@@ -13,6 +13,7 @@
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/net_errors.h"
@@ -44,6 +45,26 @@ int TabState::IdOf(content::WebContents* contents) {
   return sessions::SessionTabHelper::IdForTab(contents).id();
 }
 
+bool TabState::OnlyShowedOpeningBlank() const {
+  if (!opened_blank_) {
+    return false;
+  }
+  content::NavigationController& controller = web_contents()->GetController();
+  content::NavigationEntry* committed = controller.GetLastCommittedEntry();
+  return controller.GetEntryCount() == 1 && committed &&
+         !committed->IsInitialEntry() && committed->GetURL().IsAboutBlank();
+}
+
+GURL TabState::CommittedPageURL(content::WebContents* contents) {
+  content::NavigationController& controller = contents->GetController();
+  content::NavigationEntry* committed = controller.GetLastCommittedEntry();
+  if (!committed || committed->IsInitialEntry() ||
+      (controller.GetEntryCount() == 1 && committed->GetURL().IsAboutBlank())) {
+    return GURL();
+  }
+  return committed->GetURL();
+}
+
 void TabState::Send(std::string_view name, base::DictValue data) {
   if (key_.empty()) {
     return;
@@ -72,9 +93,11 @@ void TabState::SendNavigation() {
     return;
   }
   content::NavigationController& controller = contents->GetController();
+  const bool no_page = left_by_download_ && !contents->IsLoading();
   base::DictValue data;
-  data.Set("url", contents->GetVisibleURL().spec());
-  data.Set("title", base::UTF16ToUTF8(contents->GetTitle()));
+  data.Set("url", no_page ? std::string() : contents->GetVisibleURL().spec());
+  data.Set("title",
+           no_page ? std::string() : base::UTF16ToUTF8(contents->GetTitle()));
   data.Set("canGoBack", controller.CanGoBack());
   data.Set("canGoForward", controller.CanGoForward());
   data.Set("isLoading", contents->ShouldShowLoadingUI());
@@ -104,6 +127,7 @@ void TabState::SendMedia() {
 
 void TabState::DidStartNavigation(content::NavigationHandle* handle) {
   if (handle->IsInPrimaryMainFrame()) {
+    left_by_download_ = false;
     NoteNavigation();
   }
 }
@@ -123,6 +147,8 @@ void TabState::DidFinishNavigation(content::NavigationHandle* handle) {
     data.Set("text", net::ErrorToShortString(handle->GetNetErrorCode()));
     Send("loadError", std::move(data));
   }
+  left_by_download_ = handle->IsDownload() &&
+                      CommittedPageURL(web_contents()).is_empty();
   NoteNavigation();
 }
 

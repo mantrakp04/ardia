@@ -3,6 +3,7 @@ import { useBrowser } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
 import type { Tab } from "../browser/types";
 import { openSplitPane } from "../splits/actions";
+import { splitViewAvailable } from "../splits/splits";
 import { gateOpening, settleOpening } from "../tabs/openingGate";
 import { noteSplit } from "../telemetry/usage";
 import { originalProfile } from "../windows/small";
@@ -35,7 +36,7 @@ export function openFromBar(url: string, tabId: string, disposition: Disposition
   openWindow(w?.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { profileId: tab.profileId, url });
 }
 
-export const barSplitsFrom = (tabId: string) => !!useBrowser.getState().tabs[tabId]?.url;
+export const barSplitsFrom = (tabId: string) => splitViewAvailable && !!useBrowser.getState().tabs[tabId]?.url;
 
 function openBesideOrBehind(tabId: string, url: string) {
   const s = useBrowser.getState();

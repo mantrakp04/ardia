@@ -3,7 +3,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { domainCall, domainFunctions, domainsOf, reproduced, topicRouter } from "../../../../packages/expo-windows/src/engine/domains/tables.ts";
 import { watchDownloads } from "../../../../packages/expo-windows/src/engine/domains/downloads.ts";
-import { suggestCalls } from "../../../../packages/expo-windows/src/engine/domains/suggest.ts";
 import { readArgs } from "../../../../packages/expo-windows/src/engine/domains/calling.ts";
 
 const repo = new URL("../../../../", import.meta.url);
@@ -448,26 +447,4 @@ test("deleting the original profile's data names each step that failed", async (
   assert.deepEqual(await calling(stuck.engine, "profiles")("deleteData", {}, ""), { remaining: ["passwords"] });
   const nothing = originalProfileEngine({ failing: "ac_browsing_data_clear" });
   assert.deepEqual((await calling(nothing.engine, "profiles")("deleteData", {}, "")).remaining, ORIGINAL_STEPS.slice(0, 2));
-});
-
-test("search suggestions are fetched by the app until the Windows engine does it, and a stopped one says so", async () => {
-  const asked = [];
-  let release;
-  const held = new Promise((resolve) => (release = resolve));
-  const calls = suggestCalls(async (url, { signal }) => {
-    asked.push(url);
-    if (url.endsWith("slow")) await held;
-    if (signal.aborted) throw new Error("aborted");
-    return { status: url.endsWith("blocked") ? 429 : 200, text: async () => (url.endsWith("blocked") ? "" : '["q",["q1"]]') };
-  });
-  const args = (fields) => readArgs("", JSON.stringify(fields));
-  assert.deepEqual(JSON.parse(await calls.suggest(args({ url: "https://www.google.com/complete/search?q=q", id: 1 }))), { status: 200, body: '["q",["q1"]]' });
-  assert.deepEqual(JSON.parse(await calls.suggest(args({ url: "https://example.com/blocked", id: 2 }))), { status: 429, body: "" });
-  const slow = calls.suggest(args({ url: "https://example.com/slow", id: 3 }));
-  await calls.stopSuggest(args({ id: 3 }));
-  release();
-  assert.deepEqual(JSON.parse(await slow), { stopped: true });
-  await calls.stopSuggest(args({ id: 99 }));
-  await assert.rejects(calls.suggest(args({ url: "file:///etc/passwd", id: 4 })), /web address/);
-  assert.deepEqual(asked, ["https://www.google.com/complete/search?q=q", "https://example.com/blocked", "https://example.com/slow"]);
 });

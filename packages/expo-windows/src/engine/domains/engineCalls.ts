@@ -1,5 +1,4 @@
 import { isFields, ok, originalProfile, passed, served, type Handlers } from "./calling";
-import { suggestCalls } from "./suggest";
 
 const NO_ACTIVE_TAB = -1;
 
@@ -35,7 +34,6 @@ export const engineCalls: Handlers = {
 };
 
 export const searchCalls: Handlers = {
-  ...suggestCalls(),
   engines: async (args, engine) => {
     const { engines } = await served(engine, "ac_search_engines_list", originalProfile(args.profile));
     return ok({ list: { engines: engines ?? [] } });

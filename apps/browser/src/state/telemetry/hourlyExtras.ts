@@ -1,6 +1,6 @@
-import { takeAnimationBursts, watchAnimationBursts } from "./animationBursts";
 import { takeImportRuns } from "./importRuns";
+import { takePlatformCounts, watchPlatformCounts } from "./platformCounts";
 
-export { watchAnimationBursts };
+export { watchPlatformCounts };
 
-export const takeHourlyExtras = () => ({ ...takeAnimationBursts(), ...takeImportRuns() });
+export const takeHourlyExtras = () => ({ ...takePlatformCounts(), ...takeImportRuns() });

@@ -102,6 +102,20 @@ test("with counts off, a badged tab's menu offers Show Unread Counts, which turn
   assert.equal(label(c), "7");
 });
 
+test("a Top App's menu offers unread choices only while Top Apps show tab status, since its tile has no count otherwise", () => {
+  const { w, a, b } = setup();
+  S().pinTabs([a], true);
+  S().pinTabs([b], true, true);
+  assert.equal(S().settings.showTopAppBadges, false);
+  assert.equal(unreadItem(w, a), null);
+  assert.equal(unreadItem(w, b), "Hide Unread Count", "a pinned row keeps its count, so it keeps the choice");
+  S().updateSettings({ showTopAppBadges: true });
+  assert.equal(unreadItem(w, a), "Hide Unread Count");
+  S().updateSettings({ showTopAppBadges: false, showUnreadCounts: false });
+  assert.equal(unreadItem(w, a), null);
+  assert.equal(unreadItem(w, b), "Show Unread Counts");
+});
+
 test("a private window's tab menu doesn't offer it, so no private host is saved", () => {
   S().hydrate({});
   const w = S().createWindow({ kind: "private", url: "https://mail.example/" });

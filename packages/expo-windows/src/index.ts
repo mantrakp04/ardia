@@ -1,6 +1,7 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import { installAnimation } from "./animation";
 import { watchRelaunches } from "./engine/relaunch";
+import { openLaunchLinks } from "./launchLinks";
 import { requireNativeModule } from "./modules";
 import { runSelfCheck } from "./selfCheck";
 import { startUpdateChecks } from "./updater";
@@ -24,6 +25,7 @@ const SELF_CHECK_AFTER_MS = 4000;
 installAnimation();
 installWindowRoot();
 watchRelaunches();
+openLaunchLinks();
 startUpdateChecks();
 
 const windowsHost = () => TurboModuleRegistry.getEnforcing<WindowsHost>("ArdiaWindowsHost");

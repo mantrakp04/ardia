@@ -2,6 +2,7 @@ import { APP, type SettingSection, type SettingsEnv } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
 import { keyText } from "../../../state/commands/keyText";
 import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
+import { splitViewAvailable } from "../../../state/splits/splits";
 
 const inSidebar = (_: unknown, env: SettingsEnv) => !env.top;
 
@@ -165,8 +166,13 @@ export const generalRows = {
         },
         showUnreadCounts: {
           title: "Show unread counts on tabs",
-          description: "A notification badge with the unread count or dot a site like Gmail or Slack puts in its title, on its tab, pinned tile and Top App. Off by default. Once on, hide it for one site: right-click its tab and choose Hide Unread Count, or use Site Controls.",
+          description: "A notification badge with the unread count or dot a site like Gmail or Slack puts in its title, at the end of its tab. Off by default. Once on, hide it for one site: right-click its tab and choose Hide Unread Count, or use Site Controls.",
           keywords: ["unread", "badge", "badges", "bubble", "bubbles", "count", "notification", "notifications", "notis", "dot", "red", "gmail", "inbox", "messages", "arc"],
+        },
+        showTopAppBadges: {
+          title: "Show tab status on Top Apps",
+          description: "A Top App's tile shows a speaker while its tab plays or is muted, a mark while it is in Picture in Picture, and its unread count when unread counts are on. Off, as in Dia, a tile shows only the site's icon.",
+          keywords: ["pinned tiles", "favorites", "badges", "indicators", "unread count", "speaker", "audio", "muted", "playing", "clean", "dia"],
         },
         fadeUnloadedTabs: {
           advanced: true,
@@ -244,6 +250,7 @@ export const generalRows = {
           keywords: ["peek", "preview", "shift click", "option click", "arc"],
         },
         splitLinkModifier: {
+          shown: () => splitViewAvailable,
           advanced: true,
           title: "Open a link in split view with",
           description: `Opens the link in a pane beside the page. ${keyText("⌥⌘")}-click splits too, and so does ${keyText("⌥⇧")}-click when ${keyText("⌥")}-click is chosen. A link that downloads still downloads.`,

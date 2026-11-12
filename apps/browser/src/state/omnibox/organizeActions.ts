@@ -2,7 +2,7 @@ import type { CommandAction } from "@ardia/core";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTab, isIncognitoProfile, viewTabIds } from "../browser/model";
 import { hiddenEmptyCard } from "../omnibox/newTabBarPolicy";
-import { isStacked, MAX_SPLIT_PANES, splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
+import { isStacked, MAX_SPLIT_PANES, splitOf, splitTabIds, splitTabIdsOf, splitViewAvailable } from "../splits/splits";
 import type { SplitView, Tab } from "../browser/types";
 
 export type OrganizeContext = { s: BrowserState; windowId: string; tab: Tab; split: SplitView | undefined };
@@ -131,7 +131,7 @@ function contextFor(s: BrowserState, windowId: string): OrganizeContext | null {
 export function organizeActions(s: BrowserState, windowId: string): CommandAction[] {
   const c = contextFor(s, windowId);
   if (!c) return [];
-  const out: CommandAction[] = DEFS.filter((d) => d.shows(c)).map((d) => ({
+  const out: CommandAction[] = DEFS.filter((d) => (splitViewAvailable || !d.id.startsWith("split:")) && d.shows(c)).map((d) => ({
     id: d.id,
     title: typeof d.title === "string" ? d.title : d.title(c),
     icon: d.icon,

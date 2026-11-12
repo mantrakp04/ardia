@@ -18,6 +18,7 @@ import { toggleBookmarkOfTab } from "../../state/bookmarks/actions";
 import { useBookmarksShown } from "../../state/bookmarks/hooks";
 import { copyPageUrl } from "../../state/site/selection";
 import { closePane, openSplitPane, showSplitMenu } from "../../state/splits/actions";
+import { splitViewAvailable } from "../../state/splits/splits";
 import { useEasedColor, type ToolbarPalette } from "../ui/toolbarColors";
 import { useSitePalette } from "./useSitePalette";
 import { setToolbarExtensionsWidth } from "../../state/windows/layout";
@@ -213,7 +214,7 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
         {hovered && (
           <>
             <PageButton tab={tab} palette={palette} windowId={windowId} />
-            {!inSplit && (
+            {!inSplit && splitViewAvailable && (
               <Button variant="icon" toolbar
                 palette={palette}
                 icon="rectangle.split.2x1"

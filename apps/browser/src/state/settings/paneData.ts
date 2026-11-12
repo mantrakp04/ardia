@@ -24,6 +24,7 @@ import { getPasswordAutofill, setPasswordAutofill } from "../../platform/passwor
 import { orWarn } from "../../lib/fallback";
 import { menuShortcuts } from "../../platform/commands";
 import { setMenuBarShortcuts } from "../commands/commandShortcuts";
+import { UNAVAILABLE_COMMANDS } from "../commands/commandCatalog";
 import { currentSettings } from "../browser/current";
 import { engineProfile } from "../browser/model";
 import { currentSyncFolder, folderInfo } from "../sync/engine";
@@ -56,7 +57,7 @@ export const downloadSettings = resource("downloadSettings", (profile: string) =
 export const extensionList = resource("extensions", (profile: string) => refreshExtensions(profile));
 export const shortcutItems = resource("menuShortcuts", () =>
   menuShortcuts().then(
-    (items) => (setMenuBarShortcuts(items), items),
+    (items) => (setMenuBarShortcuts(items), items.filter((item) => !UNAVAILABLE_COMMANDS.has(item.id))),
     () => [],
   ),
 );

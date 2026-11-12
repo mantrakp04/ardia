@@ -138,7 +138,8 @@ strictly with `git apply` and else with `patch`'s fuzz. It records a failure and
 The layers:
 
 - `engine/chromium/apply.sh` runs as is. Its `chrome/browser/ardia` (the `ac_*` C API) then builds on Windows from a
-  copy `series_win.py layer` makes: the Mac sources with `ardia-layer-win.patch`, Windows stand-ins for the two
+  copy `series_win.py layer` makes: the Mac sources with `ardia-layer-win.patch` (UTF-8 paths, and Windows absolute
+  paths accepted where the Mac checks for a leading `/`), Windows stand-ins for the two
   POSIX-only files, and a build file generated from the Mac one. The Ardia logos it replaces are OS-neutral and give
   the Windows build its branding.
 - `series_win.py layer` also copies `//ardia/win` into the tree, with `EngineApi.h` from the app and a generated table
