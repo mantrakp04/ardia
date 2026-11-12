@@ -1,8 +1,8 @@
 import { moduleDefaults } from "../../defaults";
 import { addNativeListener, emitNativeEvent, type EventSubscription } from "../../events";
 import { noteMissing } from "../../missing";
-import { engineCallJson, onEngineTopic } from "../host";
-import { originalProfile, quietly, type Engine } from "./calling";
+import { engineCallJson, hostCall, onEngineTopic, removeProfileFolder } from "../host";
+import { isFields, originalProfile, quietly, type Engine } from "./calling";
 import { watchDownloads } from "./downloads";
 import rows from "./forwarded.json";
 import { domainCall, domainFunctions, domainsOf, moduleNameOf, topicRouter, type DomainCall } from "./tables";
@@ -22,6 +22,11 @@ const engine: Engine = {
     }
     return engineCallJson(name, profile, argsJson);
   },
+  async host(verb, args = {}) {
+    const reply = await hostCall<unknown>(verb, args);
+    return isFields(reply) ? reply : {};
+  },
+  removeProfileFolder,
   emit(name, data) {
     const domain = name.slice(0, name.indexOf("."));
     emitNativeEvent(moduleNameOf(domain), domain, { name, data });

@@ -254,3 +254,71 @@ test("the engine domain shapes what the Mac shapes", async () => {
     { name: "ac_search_engines_list", profile: "work", args: {} },
   ]);
 });
+
+const ONE_PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+function hostedEngine(removal, reply) {
+  const engine = fakeEngine(reply);
+  engine.hosted = [];
+  engine.removed = [];
+  engine.host = async (verb) => {
+    engine.hosted.push(verb);
+    return { chromium: "157.0.1.2", userDataDir: "C:\\Ardia\\User Data" };
+  };
+  engine.removeProfileFolder = async (root, folder) => {
+    engine.removed.push([root, folder]);
+    return removal;
+  };
+  return engine;
+}
+
+test("deleting a profile's data removes its folder, or clears its data and waits while the engine holds it", async () => {
+  const gone = hostedEngine("removed");
+  assert.deepEqual(await calling(gone, "profiles")("deleteData", {}, "work.1"), { remaining: [] });
+  assert.deepEqual(gone.removed, [["C:\\Ardia\\User Data", "Ardia work_1"]]);
+  assert.deepEqual(gone.calls, []);
+
+  const absent = hostedEngine("absent");
+  assert.deepEqual(await calling(absent, "profiles")("deleteData", {}, "never"), { remaining: [] });
+
+  const held = hostedEngine("inUse", () => '{"ok":true}');
+  const { remaining } = await calling(held, "profiles")("deleteData", {}, "work");
+  assert.equal(remaining.length, 1);
+  assert.deepEqual(held.calls, [{ name: "ac_browsing_data_clear", profile: "work", args: { types: ["history", "siteData", "cache", "downloads", "formData", "siteSettings"], since: 0 } }]);
+
+  const old = hostedEngine("unsupported");
+  assert.equal((await calling(old, "profiles")("deleteData", {}, "work")).remaining.length, 1);
+  assert.deepEqual(old.calls, []);
+
+  const quiet = hostedEngine("removed");
+  assert.deepEqual(await calling(quiet, "profiles")("deleteData", {}, "incognito2@work"), { remaining: [] });
+  assert.deepEqual(await calling(quiet, "profiles")("deleteData", {}, ""), { remaining: ["data"] });
+  assert.deepEqual(quiet.removed, []);
+});
+
+test("engine.info answers from the engine host in the Mac's shape", async () => {
+  const engine = hostedEngine("removed");
+  assert.deepEqual(await calling(engine, "engine")("info"), {
+    pid: 0,
+    dataDirectory: "C:\\Ardia\\User Data",
+    engine: "ardiacore",
+    chromiumVersion: "157.0.1.2",
+    liveBrowsers: 0,
+    popupWindows: 0,
+    chromeWindows: 0,
+  });
+  assert.deepEqual(engine.hosted, ["host.info"]);
+});
+
+test("favicons.fetch answers the icon Chromium stored for that address, with its size", async () => {
+  const url = "https://a.example/favicon.ico";
+  const engine = fakeEngine(() => JSON.stringify({ pages: {}, icons: { [url]: { png: ONE_PIXEL_PNG } } }));
+  const favicons = calling(engine, "favicons");
+  assert.deepEqual(await favicons("fetch", { url }, "work"), { uri: `data:image/png;base64,${ONE_PIXEL_PNG}`, width: 1, height: 1 });
+  assert.deepEqual(engine.calls, [{ name: "ac_favicons_get", profile: "work", args: { pages: [], icons: [url], size: 64 } }]);
+  assert.deepEqual(await favicons("fetch", { url: `data:image/png;base64,${ONE_PIXEL_PNG}` }), { uri: `data:image/png;base64,${ONE_PIXEL_PNG}`, width: 1, height: 1 });
+  assert.equal(await favicons("fetch", { url: "data:image/png;base64,bm90IGEgcG5nIGF0IGFsbCwganVzdCB0ZXh0IGhlcmU=" }), null);
+  assert.equal(await favicons("fetch", { url: "file:///C:/icon.png" }), null);
+  assert.equal(await favicons("fetch", { url }, "incognito1@work"), null);
+  assert.equal(engine.calls.length, 1);
+});

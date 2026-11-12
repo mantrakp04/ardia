@@ -197,6 +197,65 @@ is plain Chromium.
   and asks the engine for history, bookmarks and the downloads folder, logging every reply and event. It proves an
   engine build with no app.
 
+## Calls Windows still answers with a stand-in
+
+`forwarded.json` lists, per domain, the Mac's verbs that Windows has no handler for (`missing`). Each falls back to
+`defaults.ts` or `null` and logs its name once. What each one needs:
+
+- **Default**: the stand-in is the right answer on Windows, or the verb is a Mac test hook.
+- **Native**: C++ in `apps/browser/windows`, no engine build.
+- **Engine**: a new or changed `ac_*` call, host verb or `tab.call` method in a Windows engine build.
+
+| Verb | Needs | What and why |
+| --- | --- | --- |
+| `autofill.settings`, `autofill.setSettings` | Engine | The Mac reads and writes the profile's `autofill.profile_enabled` and `autofill.credit_card_enabled` prefs; no `ac_*` call touches prefs. Today Settings › Autofill shows both toggles on and disabled. |
+| `autofill.showSuggestions` | Engine | Shows Chromium's autofill popup in a tab: a `tab.call` method. |
+| `bookmarks.exportHtml` | Engine (in progress) | The Mac picks a file and calls `ac_bookmarks_export_html`, which refuses Windows paths in the current engine. Then a handler with `ArdiaDialogs`' save dialog. |
+| `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
+| `contentBlocker.devFailNextMessage`, `devDelayNextLoad` | Default | Mac test hooks. |
+| `engine.beginTracing`, `endTracing`, `isTracing` | Engine | Chromium's tracing controller for Report a Problem. |
+| `engine.systemState` | Native | The Mac's thermal, power and low-power snapshot; Windows has power status and battery saver to report. |
+| `engine.cliTabTargets` | Default | The `ardia` command's control is off on Windows (the engine swaps its control file for a stand-in). |
+| `extensions.inspectUnpacked` | Native | Reads an unpacked extension's `manifest.json` and icon from the folder picked. |
+| `extensions.chooseFolder` | Native, then TypeScript | `ArdiaDialogs.pickFolder` can answer it, but only once `inspectUnpacked` exists and the engine takes Windows paths for `ac_extensions_install`; alone it would show an empty install sheet. |
+| `extensions.resolveInstallPrompt` | Engine | Answers the Web Store's install prompt, which the engine doesn't send to the app on Windows yet. |
+| `extensions.actionStates`, `extensions.sidePanelUrl` | Engine | An extension's toolbar state and side panel for a tab. |
+| `media.displayMediaSources`, `screenRecordingAllowed`, `requestScreenRecording` | Engine | The app's own screen share picker; Chromium's picker shows today. |
+| `media.selectDevice`, `cancelDeviceChooser`, `refreshDeviceChooser`, `openBluetoothSettings` | Engine | The Bluetooth, USB, serial and HID choosers drawn by the app; Chromium's own show today. |
+| `media.showCastDialog`, `startCasting`, `stopCasting`, `closeCastDialog`, `watchCastRoutes`, `terminateCastRoute` | Engine | Casting. |
+| `media.changeCaptureSource`, `media.stopCapture` | Engine | A tab's camera, microphone or screen capture. |
+| `media.devShowBluetoothChooser`, `media.devChooserEvents` | Default | Mac test hooks. |
+| `passwords.export` | Engine (in progress) | Same Windows path refusal as bookmark export. |
+| `passwords.autofillEnabled`, `passwords.setAutofillEnabled` | Engine | The profile's `credentials_enable_service` pref, as for autofill. Today Settings › Passwords' offer-to-save toggle reads off and changes nothing. |
+| `permissions.resolve` | Engine | Permission prompts drawn by the app; Chromium's own prompt shows today. |
+| `permissions.resolveExternalApp`, `externalAppAllowances`, `removeExternalAppAllowance` | Engine | `ac_external_apps_*` is Mac-only (`ac_external_apps.mm`); Windows needs its own version. |
+| `permissions.devExternalLaunches` | Default | Mac test hook. |
+| `profiles.loaded` | Engine | The profiles the engine has loaded, plus the `profiles.loaded` event. Today the call fails and the app counts every profile as open, as with lazy loading off. |
+| `profiles.release` | Engine | Lets the engine unload a profile when its last tab closes. On Windows every private window of a profile shares Chromium's one off-the-record profile until Ardia quits (the engine ignores the name before `@`), so a new private window still has the last one's cookies. The engine has to make and destroy one off-the-record profile per private name. |
+| `search.setEngineName` | Default | Names the search engine in the app's own page context menu; Windows shows Chromium's menu, which names Chromium's default engine. Needed again once the app draws that menu. |
+| `tabs.routeLinkTabs`, `stripCommand`, `strips`, `reportCommits` | Default | The Mac's Chromium tab strip; Windows hosts pages only, so the empty answers are right. |
+| `tabs.dev*` (10 verbs) | Default | Mac test hooks. |
+| `webView.setDisplayMediaPicker`, `setPeekModifier`, `setSplitLinkModifier`, `setPeekOtherSiteTabs`, `setSelectionPopover`, `setCommandScrollZoom`, `setLittleArdiaOpensNewTabLinks`, `setAutoPictureInPicture` | Engine | Settings for the page script and the Mac's page input hooks, which Windows doesn't have yet. |
+| `webView.setVideoUpscaling`, `setVideoUpscalingTestConditions`, `videoUpscalingState` | Native and engine | The Mac upscales with MetalFX; Windows needs a Direct3D path. |
+| `windows.list`, `windows.dev` | Default | The Mac's Chromium window hosts. |
+
+Not in `forwarded.json` but also engine work: media next and previous track. The media controls send `mediaCommand`
+`next` or `previous` (`state/media/media.ts`), the Windows view passes it on as `tab.call`, and `MediaCommand` in
+`tab_calls.cc` runs a page script that has no case for either, so nothing happens. The Mac calls the page's own
+`nexttrack` and `previoustrack` handlers through its page script. The engine needs to call
+`content::MediaSession::Get(contents)->NextTrack()` and `PreviousTrack()` there, and to send a `nowPlaying` tab event
+(title, artist, album, artwork, playback state, position, duration, rate, video or not, and the actions the page set
+handlers for, from a `MediaSessionObserver`): Windows sends only `media` (audible, muted), so the app never builds a
+session with track actions, and the mini player shows skip by 15 seconds where the Mac shows the track buttons.
+
+Answered in TypeScript on Windows since this list was made: `engine.info` (from `host.info`), `favicons.fetch` (the
+icon Chromium stored for that address, from `ac_favicons_get`, asked again after 0.4 and 1.5 s while Chromium writes
+it), and `profiles.deleteData`. Deleting a profile's data asks `host.info` for Chromium's data folder and has native
+(`ArdiaEngineHost.removeProfileFolder`) remove `Ardia <name>` there: it renames the folder first, which fails while
+the engine holds a file in it, so a loaded profile's folder is never half removed. Then its browsing data is cleared
+through `ac_browsing_data_clear` instead, and the folder goes at the next launch. The launch log says
+`profile folder removed|in use|partly removed: <folder>`.
+
 ## Updates
 
 - The Windows alpha is the GitHub prerelease `windows-alpha`: `Ardia-Setup-x64.exe`, `Ardia-Setup-arm64.exe`, the
@@ -204,7 +263,8 @@ is plain Chromium.
   engine's source. `scripts/windows/publish-alpha.sh <run id>` publishes one green Windows workflow run there; the
   feed goes up last.
 - A build knows what it is from `Ardia.build.json` beside `Ardia.exe` (`assemble.ps1 -Build`, the workflow's run
-  number). Only an installed build with that file updates: Settings › General › Updates shows "not set up" for a
+  number). `ArdiaApp.systemInfo` takes its version and build from that file, since the library has no version
+  resource, so telemetry, About and problem reports name the build; a folder build without it says 0.0.0, build 0. Only an installed build with that file updates: Settings › General › Updates shows "not set up" for a
   folder build.
 - `packages/expo-windows/src/updater` is the app's `ArdiaUpdater` on Windows. It reads the feed, offers a higher
   build for this CPU, downloads it, and asks before installing; with automatic downloads on it downloads first and

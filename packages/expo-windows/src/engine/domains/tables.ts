@@ -3,6 +3,7 @@ import { BadArgs, callError, isFields, passed, readArgs, type Engine, type Field
 import { downloadCalls, downloadChanged } from "./downloads";
 import { engineCalls, searchCalls } from "./engineCalls";
 import { extensionCalls } from "./extensions";
+import { faviconCalls } from "./favicons";
 import { passwordCalls, savePassword, updatePassword } from "./passwords";
 import { profileCalls } from "./profiles";
 import { siteCalls } from "./sites";
@@ -20,6 +21,7 @@ export const reproduced: Record<string, Handlers> = {
   downloads: downloadCalls,
   engine: engineCalls,
   extensions: extensionCalls,
+  favicons: faviconCalls,
   passwords: passwordCalls,
   profiles: profileCalls,
   search: searchCalls,

@@ -1,11 +1,14 @@
 import type { WindowsNative } from "@ardia/shell";
 import { TurboModuleRegistry, type TurboModule } from "react-native";
-import { engineAvailable, engineCallJson, hostCall, onEngineTopic } from "../engine/host";
+import { engineAvailable, engineCallJson, hostCall, onEngineTopic, removeProfileFolder } from "../engine/host";
+import { pngImage } from "../engine/domains/favicons";
+import { profileFolder } from "../engine/domains/profiles";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
 type EngineHost = TurboModule & {
   available(): boolean;
+  removeProfileFolder(userDataDir: string, folder: string): Promise<string>;
   hostCall(verb: string, argsJson: string, windowId: string): Promise<string>;
   engineCall(name: string, profileDir: string, argsJson: string): Promise<string>;
 };
@@ -26,6 +29,20 @@ const engineHost = () => {
 };
 
 const windows = () => requireNativeModule<Pick<WindowsNative, "windowIds">>("ArdiaAppWindows");
+const system = () => requireNativeModule<{ fileExists(path: string): boolean }>("ArdiaSystem");
+const domain = (name: string) => requireNativeModule<DomainModule>(name);
+
+const NEVER_LOADED = "selfCheckNeverLoaded";
+const LOADED = "selfCheckLoaded";
+const ONE_PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+const userDataDir = async () => {
+  const { userDataDir: folder } = await hostCall<{ userDataDir?: unknown }>("host.info");
+  expectTrue(typeof folder === "string" && folder.length > 0, "host.info has no user data folder");
+  return folder;
+};
+
+const deleteData = async (profile: string) => JSON.parse(await domain("ArdiaProfiles").call("deleteData", profile, JSON.stringify({ profile }))) as { remaining?: unknown };
 
 const expectNoEngine = (reply: unknown, what: string) => {
   expectEqual(typeof reply, "string", `the type of ${what}'s reply`);
@@ -70,6 +87,13 @@ const withoutEngine: Check[] = [
     name: "engine host: an engine call with no engine answers that there is none",
     async run() {
       expectNoEngine(await engineHost().engineCall("ping", "", "{}"), "engineCall");
+    },
+  },
+  {
+    name: "engine host: removing a folder that is not a profile's is refused",
+    async run() {
+      expectEqual(await engineHost().removeProfileFolder("C:\\Windows", "Ardia x"), "refused", "a folder outside Chromium's data");
+      expectEqual(await engineHost().removeProfileFolder("C:\\Windows", "..\\System32"), "refused", "a name that leaves the folder");
     },
   },
 ];
@@ -135,6 +159,52 @@ const withEngine: Check[] = [
         () => true,
       );
       expectTrue(refused, "a data type the engine does not know was not refused");
+    },
+  },
+  {
+    name: "engine: engine.info answers from the host with its Chromium version and data folder",
+    async run() {
+      const host = await hostCall<{ chromium?: unknown; userDataDir?: unknown }>("host.info");
+      const info = JSON.parse(await domain("ArdiaEngine").call("info", "", "{}")) as { chromiumVersion?: unknown; dataDirectory?: unknown; engine?: unknown };
+      expectEqual({ chromiumVersion: info.chromiumVersion, dataDirectory: info.dataDirectory, engine: info.engine }, { chromiumVersion: host.chromium, dataDirectory: host.userDataDir, engine: "ardiacore" }, "engine.info");
+    },
+  },
+  {
+    name: "engine: deleting a profile the engine never loaded leaves no folder behind",
+    async run() {
+      const folder = `${await userDataDir()}\\${profileFolder(NEVER_LOADED)}`;
+      expectEqual(await deleteData(NEVER_LOADED), { remaining: [] }, "deleteData of a profile never loaded");
+      expectEqual(system().fileExists(folder), false, `${folder} exists`);
+    },
+  },
+  {
+    name: "engine: deleting a loaded profile clears its data and keeps the folder until the engine lets go",
+    async run() {
+      const loaded = JSON.parse(await engineCallJson("ac_bookmarks_tree", LOADED, "{}")) as { error?: unknown };
+      expectEqual(loaded.error, undefined, "loading the profile");
+      const folder = `${await userDataDir()}\\${profileFolder(LOADED)}`;
+      expectTrue(system().fileExists(folder), `${folder} was not made`);
+      const { remaining } = await deleteData(LOADED);
+      expectTrue(Array.isArray(remaining) && remaining.length === 1, `deleteData of a loaded profile left ${JSON.stringify(remaining)}`);
+      expectTrue(system().fileExists(folder), `${folder} went away while the engine held it`);
+      expectEqual(await removeProfileFolder(await userDataDir(), profileFolder(LOADED)), "inUse", "removing the held folder");
+    },
+  },
+  {
+    name: "engine: deleting a private or the original profile's data answers as on the Mac",
+    async run() {
+      expectEqual(await deleteData(`incognito1@${LOADED}`), { remaining: [] }, "a private profile");
+      expectEqual(await deleteData(""), { remaining: ["data"] }, "the original profile");
+    },
+  },
+  {
+    name: "engine: favicons.fetch answers a PNG with its size",
+    async run() {
+      const favicons = domain("ArdiaFavicons");
+      const image = JSON.parse(await favicons.call("fetch", "", JSON.stringify({ url: `data:image/png;base64,${ONE_PIXEL_PNG}` })));
+      expectEqual(image, pngImage(ONE_PIXEL_PNG), "a PNG data address");
+      expectEqual(image?.width, 1, "its width");
+      expectEqual(JSON.parse(await favicons.call("fetch", "", JSON.stringify({ url: "file:///C:/icon.png" }))), null, "a file address");
     },
   },
   {

@@ -5,6 +5,7 @@ type EngineHost = TurboModule & {
   available(): boolean;
   hostCall(verb: string, argsJson: string, windowId: string): Promise<string>;
   engineCall(name: string, profile: string, argsJson: string): Promise<string>;
+  removeProfileFolder?(userDataDir: string, folder: string): Promise<string>;
 };
 
 type EngineEvent = { topic?: unknown; json?: unknown };
@@ -55,6 +56,17 @@ export async function engineCallJson(name: string, profile: string, argsJson: st
   const engine = host();
   if (!engine) throw new EngineError("no engine");
   return engine.engineCall(name, profile, argsJson);
+}
+
+export type ProfileFolderRemoval = "removed" | "absent" | "inUse" | "partial" | "refused" | "failed" | "unsupported";
+
+const REMOVALS: readonly ProfileFolderRemoval[] = ["removed", "absent", "inUse", "partial", "refused", "failed"];
+
+export async function removeProfileFolder(userDataDir: string, folder: string): Promise<ProfileFolderRemoval> {
+  const engine = host();
+  if (typeof engine?.removeProfileFolder !== "function") return "unsupported";
+  const outcome = await engine.removeProfileFolder(userDataDir, folder);
+  return REMOVALS.find((known) => known === outcome) ?? "failed";
 }
 
 function deliver(event: EngineEvent) {

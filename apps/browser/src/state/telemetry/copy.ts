@@ -92,6 +92,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "When a page's first translation pass ends: how long it took, how long until the first text changed, how many passages it translated, how many styled passages had to be translated piece by piece because the answer didn't map back onto their parts, and whether it finished, stopped or failed. Never the page or its text",
       "How many extension install prompts appeared and how many times an extension's toolbar button was used in a private window, summed up once an hour. Never which extension",
       "How many times Settings found the content blocker not answering and how many content-blocking changes failed, summed up once an hour. Never which sites or lists",
+      `How many deleted profiles had their browsing data removed from this ${PLATFORM_TERMS.computer} and how many removals had to wait or failed, summed up once an hour. Never which profile`,
       "Pressing Connect Calendar: Ardia's calendar permission before and after (not asked yet, allowed, add-only, denied or restricted), whether macOS returned an error, whether Ardia or the app that opened it was asked, whether System Settings opened, and how long it took. Never your calendars or events",
       "How many full copies sync wrote to your sync folder and their total size, summed up once an hour. Never what's in them",
       "Opening Report a Problem, and when Send was pressed before the report was ready, which field held it back (title, description or contact) and the report's kind. Never what you wrote",

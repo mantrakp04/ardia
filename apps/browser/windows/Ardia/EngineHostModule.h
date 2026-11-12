@@ -1,7 +1,10 @@
 #pragma once
 
+#include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <thread>
 #include <utility>
 
 #include "NativeModules.h"
@@ -10,6 +13,7 @@
 #include "Events.h"
 #include "Host.h"
 #include "LaunchLog.h"
+#include "Paths.h"
 #include "WindowManager.h"
 
 namespace Ardia {
@@ -64,6 +68,57 @@ inline void Remove(EventRoute *route) noexcept {
   delete route;
 }
 
+constexpr std::string_view ProfileFolderPrefix = "Ardia ";
+constexpr size_t LongestProfileFolder = 200;
+constexpr wchar_t StagedSuffix[] = L" (removing)";
+
+inline bool IsProfileFolderName(std::string_view folder) noexcept {
+  if (folder.size() <= ProfileFolderPrefix.size() || folder.size() > LongestProfileFolder) return false;
+  if (folder.substr(0, ProfileFolderPrefix.size()) != ProfileFolderPrefix) return false;
+  for (char c : folder.substr(ProfileFolderPrefix.size())) {
+    bool safe = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_';
+    if (!safe) return false;
+  }
+  return true;
+}
+
+inline bool IsChromiumDataFolder(std::filesystem::path const &folder) noexcept {
+  std::error_code error;
+  return folder.is_absolute() && std::filesystem::is_directory(folder, error) && std::filesystem::is_regular_file(folder / L"Local State", error);
+}
+
+inline bool Gone(std::filesystem::path const &path) noexcept {
+  std::error_code error;
+  return !std::filesystem::exists(path, error) && !error;
+}
+
+inline std::string RemoveProfileFolder(std::string const &userDataDir, std::string const &folder) noexcept {
+  try {
+    if (!IsProfileFolderName(folder)) return "refused";
+    std::filesystem::path root{Paths::Wide(userDataDir)};
+    if (!IsChromiumDataFolder(root)) return "refused";
+    std::filesystem::path target = root / Paths::Wide(folder);
+    std::filesystem::path staged = root / (Paths::Wide(folder) + StagedSuffix);
+    std::error_code error;
+    if (std::filesystem::exists(staged, error)) std::filesystem::remove_all(staged, error);
+    if (Gone(target)) return "absent";
+    if (!MoveFileExW(target.c_str(), staged.c_str(), 0)) {
+      DWORD moveError = GetLastError();
+      LaunchLog::Write(L"engine", L"profile folder in use, not removed: " + Paths::Wide(folder) + L" (" + std::to_wstring(moveError) + L")");
+      return "inUse";
+    }
+    std::filesystem::remove_all(staged, error);
+    if (!Gone(staged)) {
+      LaunchLog::Write(L"engine", L"profile folder partly removed: " + Paths::Wide(folder));
+      return "partial";
+    }
+    LaunchLog::Write(L"engine", L"profile folder removed: " + Paths::Wide(folder));
+    return "removed";
+  } catch (...) {
+    return "failed";
+  }
+}
+
 }
 
 REACT_MODULE(EngineHostModule, L"ArdiaEngineHost")
@@ -109,6 +164,17 @@ struct EngineHostModule {
       HWND window = windowId.empty() ? nullptr : WindowManager::Shared().Hwnd(windowId);
       engine->hostCall(verb.c_str(), argsJson.c_str(), reinterpret_cast<uint64_t>(window), &EngineHostParts::OnReply, new Reply(reply));
     });
+  }
+
+  REACT_METHOD(removeProfileFolder)
+  void removeProfileFolder(std::string userDataDir, std::string folder, Reply reply) noexcept {
+    try {
+      std::thread([userDataDir = std::move(userDataDir), folder = std::move(folder), reply]() noexcept {
+        reply.Resolve(EngineHostParts::RemoveProfileFolder(userDataDir, folder));
+      }).detach();
+    } catch (...) {
+      reply.Resolve(std::string{"failed"});
+    }
   }
 
   REACT_METHOD(engineCall)

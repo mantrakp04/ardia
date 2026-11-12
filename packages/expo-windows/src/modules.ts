@@ -4,7 +4,7 @@ import { moduleDefaults } from "./defaults";
 import { engineAvailable } from "./engine/host";
 import { engineModules } from "./engine/modules";
 import { noteMissing } from "./missing";
-import { windowsUpdater } from "./updater";
+import { stampedSystemInfo, windowsUpdater } from "./updater";
 import { setWindowDark } from "./windowDark";
 
 type Listener = (payload: unknown) => void;
@@ -15,6 +15,9 @@ type Call = (...values: unknown[]) => unknown;
 const modules = new Map<string, object>();
 
 const around: Record<string, Record<string, (native: Call) => Call>> = {
+  ArdiaApp: {
+    systemInfo: (native) => () => stampedSystemInfo(native()),
+  },
   ArdiaAppWindows: {
     openWindow: (native) => (id, options) => {
       setWindowDark(String(id), !!(options as { incognito?: unknown } | null)?.incognito);
