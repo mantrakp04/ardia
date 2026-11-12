@@ -202,6 +202,15 @@ std::string TokenClient::Refusal(const std::string& method,
     if (params.Find("transferMode") && (!mode || *mode != "ReturnAsBase64")) {
       return "as a stream";
     }
+  } else if (method == "Emulation.setDeviceMetricsOverride" ||
+             method == "Emulation.clearDeviceMetricsOverride") {
+    auto target = targets_.find(session);
+    if (target == targets_.end() || !IsCreatedTarget(target->second)) {
+      return "on a tab the ardia command didn't open";
+    }
+    if (!MetricsOverrideAllowed(params)) {
+      return "with that option";
+    }
   } else if (method == "Runtime.evaluate") {
     if (params.FindBool("includeCommandLineAPI").value_or(false)) {
       return "with the command line API";

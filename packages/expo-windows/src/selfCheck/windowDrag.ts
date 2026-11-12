@@ -1,16 +1,12 @@
+import type { CaptionRegion, WindowControlsNative } from "@ardia/shell";
 import { requireNativeModule } from "../modules";
 import { hostPath, pressThroughTitleBand, type HostFiber } from "../windowDragRegion";
 import { expectEqual, expectTrue, type Check } from "./check";
 
 type Regions = { rootTag: number; scale: number; nonClient: boolean; kind: string; titleBand: string; maximized: boolean; titleBarHeight: number; caption: number[][]; passthrough: number[][] };
 
-type CaptionRegion = [left: number, top: number, rightInset: number, height: number];
-
-type WindowDragging = {
+type WindowDragging = WindowControlsNative & {
   windowIds(): Promise<string[]>;
-  setCaptionRegions(id: string, regions: CaptionRegion[]): Promise<void>;
-  minimizeWindow(id: string): Promise<void>;
-  toggleMaximizeWindow(id: string): Promise<void>;
   watchSidebarEdge(id: string, on: boolean, hold: number, right: boolean, whilePressed: boolean): Promise<void>;
   debugDragRegions(id: string): Promise<Regions | null>;
   debugSidebarEdgeWatch(): Promise<EdgeWatch | null>;

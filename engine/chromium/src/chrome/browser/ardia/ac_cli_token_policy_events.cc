@@ -115,6 +115,18 @@ void StripSecrets(base::Value& value) {
   }
 }
 
+void ForgetDestroyedTarget(const std::string& message) {
+  std::optional<base::Value> parsed =
+      base::JSONReader::Read(message, base::JSON_PARSE_RFC);
+  const base::DictValue* params =
+      parsed && parsed->is_dict() ? parsed->GetDict().FindDict("params")
+                                  : nullptr;
+  if (const std::string* target_id =
+          params ? params->FindString("targetId") : nullptr) {
+    ForgetCreatedTarget(*target_id);
+  }
+}
+
 }
 
 bool TokenClient::FilterEvent(std::string& message) {
@@ -144,6 +156,10 @@ bool TokenClient::FilterEvent(std::string& message) {
         method == "Page.frameScheduledNavigation" ||
         method == "Page.frameStartedNavigating") {
       return FilterPageEvent(message);
+    }
+    if (method == "Target.targetDestroyed") {
+      ForgetDestroyedTarget(message);
+      return true;
     }
     if (method == "Inspector.targetCrashed" || method == "Inspector.detached") {
       ForgetSessionOf(message);
@@ -230,6 +246,12 @@ bool TokenClient::FilterResponse(int id,
       message = ErrorReply(id, session, kRefused,
                            "ardia: Target.getTargetInfo on that target "
                            "isn't allowed for the ardia command");
+    }
+    return true;
+  }
+  if (method == "Target.createTarget") {
+    if (const std::string* target_id = result->FindString("targetId")) {
+      NoteCreatedTarget(*target_id);
     }
     return true;
   }
