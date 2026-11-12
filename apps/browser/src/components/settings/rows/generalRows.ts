@@ -9,6 +9,11 @@ export const generalRows = {
       section: "General",
       rows: {
         defaultBrowser: { title: "Default browser", description: `Make ${APP} your default browser.`, keywords: ["default", "set as default", "links"] },
+        redoSetup: {
+          title: `Set up ${APP} again`,
+          description: "Walk through import, look and layout again, starting from your current settings.",
+          keywords: ["onboarding", "setup", "redo", "welcome", "start over", "walkthrough", "first run"],
+        },
         openAtLogin: { title: `Open ${APP} at login`, keywords: ["startup", "launch", "login items", "boot"] },
         warnBeforeQuitting: { advanced: true, title: "Warn before quitting", description: `Asks before ${APP} quits with ⌘Q.`, keywords: ["quit", "confirm", "cmd q"] },
         warnBeforeClosingWindow: {

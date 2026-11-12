@@ -14,6 +14,7 @@ import { defaultBrowser, downloadSettings, followUpdater, loginItem, makeDefault
 import { switchCheckLine, updaterBusy } from "../../../state/settings/updateStatus";
 import { useResource } from "../../../state/settings/resources";
 import { openImport } from "../../../state/settings/settingsWindows";
+import { redoSetupFromSettings } from "../../../state/onboarding/redo";
 import { ExportBookmarksRow } from "./ExportBookmarksRow";
 import { SetupCodeRow } from "./SetupCodeRow";
 import { UI_LOCALE } from "../../../lib/uiLocale";
@@ -224,6 +225,9 @@ function DefaultBrowserBanner() {
           title={isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}
         >
           {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void makeDefaultBrowser()} />}
+        </Row>
+        <Row anchor="general.redoSetup" icon={<Symbol name="sparkles" size={18} color={theme.icon} style={BANNER_ICON} />} description="Walk through import, look and layout again">
+          <Button title="Redo Setup…" onPress={redoSetupFromSettings} />
         </Row>
       </Group>
     </Anchor>
