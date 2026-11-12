@@ -4,6 +4,7 @@ import { activeTabId, viewTabIds } from "../browser/model";
 import type { Tab } from "../browser/types";
 import { openSplitPane } from "../splits/actions";
 import { gateOpening, settleOpening } from "../tabs/openingGate";
+import { noteSplit } from "../telemetry/usage";
 import { originalProfile } from "../windows/small";
 
 export type Disposition = "current" | "newTab" | "newWindow" | "split";
@@ -42,6 +43,7 @@ function openBesideOrBehind(tabId: string, url: string) {
   if (!tab) return;
   const beside = openSplitPane(tab.windowId, { anchorTabId: tabId, url, side: "right" });
   if (!beside) s.newTab(tab.windowId, { url, profileId: tab.profileId, background: true, gated: true });
+  noteSplit(beside ? "barSplitOpens" : "barSplitFullTabs");
 }
 
 export function switchFromBar(targetTabId: string, url: string, barTabId: string, disposition: Disposition) {

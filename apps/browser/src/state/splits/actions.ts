@@ -6,7 +6,7 @@ import { storeAction, useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { isStacked, MAX_SPLIT_PANES, type OpenPaneOptions, splitOf, type SplitSide, splitTabIds, splitTabIdsOf } from "./splits";
 import type { AdoptId } from "../browser/types";
-import { noteSplitClosed } from "../telemetry/usage";
+import { noteSplit } from "../telemetry/usage";
 
 const store = () => useBrowser.getState();
 
@@ -57,7 +57,7 @@ export function closePane(tabId: string) {
 export function closeSplitView(splitId: string) {
   const split = store().splits[splitId];
   if (!split) return;
-  noteSplitClosed(true);
+  noteSplit("splitViewCloses");
   store().closeTabs(splitTabIds(split));
 }
 
