@@ -76,7 +76,7 @@ describe("harness against a stock Chromium", { skip: available ? false : `${CHRO
 
   it("answers the mapped suggestion host and blocks every other host", async () => {
     const query = "harness";
-    const page = await open(`https://${SUGGEST_HOST}/complete/search?client=firefox&q=${query}`);
+    const page = await open(`https://${SUGGEST_HOST}/complete/search?client=chrome&q=${query}`);
     const body = JSON.parse(await evaluate(page.session, "document.body.innerText"));
     assert.deepEqual(body, [query, suggestionsFor(query)]);
     assert.equal((await lastState(page.states)).securityState, "secure");

@@ -7,7 +7,7 @@ import { LIVE_HOSTS } from "./liveServices.mjs";
 
 const run = promisify(execFile);
 
-export const TRUSTED_HOSTS = ["secure.ardia.test", "mixed.ardia.test", "suggestqueries.google.com", ...LIVE_HOSTS];
+export const TRUSTED_HOSTS = ["secure.ardia.test", "mixed.ardia.test", "www.google.com", ...LIVE_HOSTS];
 export const UNTRUSTED_HOSTS = ["badcert.ardia.test"];
 
 const openssl = (dir, args) => run("openssl", args, { cwd: dir, timeout: 30000 });

@@ -6,7 +6,7 @@ import { TRUSTED_HOSTS, UNTRUSTED_HOSTS } from "./tls.mjs";
 import { createLiveServices, LIVE_HOSTS } from "./liveServices.mjs";
 
 const PIXEL_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
-export const SUGGEST_HOST = "suggestqueries.google.com";
+export const SUGGEST_HOST = "www.google.com";
 export const FIND_WORD = "needle";
 
 const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);

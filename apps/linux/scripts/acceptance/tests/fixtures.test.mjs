@@ -60,7 +60,7 @@ describe("fixture servers and certificates", () => {
   });
 
   it("answers suggestions in the Firefox JSON shape and logs headers", async () => {
-    const reply = await get(`https://${SUGGEST_HOST}:${fixtures.ports.https}/complete/search?client=firefox&q=abc`, { ca: tls.ca, host: SUGGEST_HOST });
+    const reply = await get(`https://${SUGGEST_HOST}:${fixtures.ports.https}/complete/search?client=chrome&q=abc`, { ca: tls.ca, host: SUGGEST_HOST });
     assert.deepEqual(JSON.parse(reply.body.toString()), ["abc", suggestionsFor("abc")]);
     assert.equal(fixtures.suggestRequests().at(-1).query.q, "abc");
   });
