@@ -9,7 +9,10 @@ const HELP = `App Store Connect, for the iPhone app's TestFlight builds.
   node apps/ios/scripts/asc.mjs next-build
   node apps/ios/scripts/asc.mjs wait --build <number> [--timeout <seconds>]
   node apps/ios/scripts/asc.mjs certificates --save <file>
-  node apps/ios/scripts/asc.mjs certificates --revoke-new-since <file>
+  node apps/ios/scripts/asc.mjs certificates --new-since <file>
+  node apps/ios/scripts/asc.mjs certificates --create <request.csr> --out <file.cer>
+  node apps/ios/scripts/asc.mjs public-link --build <number> [--what-to-test <file>] [--privacy-policy <url>]
+  node apps/ios/scripts/asc.mjs add-tester --email <address> [--group <name>]
 
 Reads the API key from ASC_KEY (path to AuthKey_<id>.p8), ASC_KEY_ID and ASC_ISSUER.
 status lists what the key can see: the app record, the App IDs and their capabilities,
@@ -17,11 +20,17 @@ registered devices, certificates, profiles, builds and tester groups. A section 
 has no access to prints "forbidden". next-build prints the build number after the highest
 one uploaded. wait blocks until a build finishes processing, and stops with Apple's reasons
 when the delivery was refused. certificates --save records
-the team's certificate ids; --revoke-new-since revokes the development certificates made
-since then, which is what an archive on a fresh CI machine leaves behind.`;
+the team's certificate ids; --new-since fails when a development certificate was made since
+then, which means the archive didn't sign with the stored one. --create makes a development
+certificate from a signing request and writes it to --out. public-link puts a build in the
+external tester group (made with a public link if it doesn't exist), sets its What to Test
+text, submits it for Beta App Review and prints the link. add-tester invites an email address
+to an external tester group (Public Testers unless --group names another); TestFlight emails
+the invite once the group has an approved build.`;
 
 const BUNDLE_PREFIX = "com.ardia.browser.ios";
 const DEVELOPMENT_CERTIFICATES = new Set(["DEVELOPMENT", "IOS_DEVELOPMENT"]);
+const PUBLIC_GROUP = "Public Testers";
 const API = "https://api.appstoreconnect.apple.com";
 
 function base64url(input) {
@@ -62,11 +71,19 @@ async function fail(response) {
   throw new ApiError(response.status, detail);
 }
 
-async function remove(path) {
+async function send(method, path, body) {
   bearer ??= token();
-  const response = await fetch(new URL(path, API), { method: "DELETE", headers: { Authorization: `Bearer ${bearer}` } });
+  const response = await fetch(new URL(path, API), {
+    method,
+    headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!response.ok) await fail(response);
+  return response.status === 204 ? null : (await response.json()).data;
 }
+
+const post = (path, body) => send("POST", path, body);
+const patch = (path, body) => send("PATCH", path, body);
 
 async function get(path, params = {}) {
   bearer ??= token();
@@ -223,7 +240,7 @@ async function status() {
   });
 
   await section("Tester groups", async () => {
-    const { rows } = await get(`/v1/apps/${app.id}/betaGroups`, { "fields[betaGroups]": "name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled" });
+    const { rows } = await get(`/v1/apps/${app.id}/betaGroups`, { "fields[betaGroups]": "name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled,publicLink" });
     if (rows.length === 0) console.log("none");
     for (const row of rows) {
       const group = row.attributes;
@@ -233,7 +250,7 @@ async function status() {
       const summary = Object.entries(states).map(([state, count]) => `${count} ${state}`).join(", ") || "none";
       console.log(
         `${group.name} ${group.isInternalGroup ? "internal" : "external"} allBuilds=${group.hasAccessToAllBuilds} ` +
-          `publicLink=${group.publicLinkEnabled} testers: ${summary}`,
+          `publicLink=${group.publicLinkEnabled ? group.publicLink : group.publicLinkEnabled} testers: ${summary}`,
       );
     }
   });
@@ -244,6 +261,19 @@ async function status() {
     });
     const detail = rows[0]?.attributes;
     console.log(detail ? `contact ${detail.contactEmail ? "set" : "missing"}, notes ${detail.notes ? "set" : "missing"}` : "none");
+  });
+
+  await section("Beta test info", async () => {
+    const { rows } = await get(`/v1/apps/${app.id}/betaAppLocalizations`, { limit: "50" });
+    if (rows.length === 0) console.log("none");
+    for (const row of rows) {
+      const info = row.attributes;
+      console.log(
+        `${info.locale}: description ${info.description ? `${info.description.length} chars` : "missing"}, ` +
+          `feedback email ${info.feedbackEmail ? "set" : "missing"}, privacy policy ${info.privacyPolicyUrl ?? "missing"}, ` +
+          `marketing ${info.marketingUrl ?? "missing"}`,
+      );
+    }
   });
 }
 
@@ -310,40 +340,168 @@ async function wait(args) {
   process.exit(124);
 }
 
+async function uploadedBuildNumbers(appId) {
+  try {
+    const { rows } = await get(`/v1/apps/${appId}/buildUploads`, { limit: "200" });
+    return rows.map((row) => row.attributes?.cfBundleVersion);
+  } catch (error) {
+    if (error instanceof ApiError) return [];
+    throw error;
+  }
+}
+
 async function nextBuild() {
   const app = await requireApp();
-  const numbers = (await listBuilds(app.id)).map((build) => Number(build.build)).filter(Number.isInteger);
-  console.log(Math.max(0, ...numbers) + 1);
+  const seen = [...(await listBuilds(app.id)).map((build) => build.build), ...(await uploadedBuildNumbers(app.id))];
+  console.log(Math.max(0, ...seen.map(Number).filter(Number.isInteger)) + 1);
+}
+
+async function createCertificate(requestPath, out) {
+  const made = await post("/v1/certificates", {
+    data: { type: "certificates", attributes: { certificateType: "DEVELOPMENT", csrContent: readFileSync(requestPath, "utf8") } },
+  });
+  writeFileSync(out, Buffer.from(made.attributes.certificateContent, "base64"));
+  console.log(`created a ${made.attributes.certificateType} certificate, expires ${day(made.attributes.expirationDate)}`);
 }
 
 async function certificates(args) {
+  const create = option(args, "--create");
+  if (create) {
+    const out = option(args, "--out");
+    if (!out) {
+      console.error("asc: certificates --create needs --out <file.cer>");
+      process.exit(64);
+    }
+    await createCertificate(create, out);
+    return;
+  }
   const { rows } = await get("/v1/certificates", { "fields[certificates]": "certificateType,expirationDate", limit: "200" });
   const save = option(args, "--save");
-  const since = option(args, "--revoke-new-since");
+  const since = option(args, "--new-since");
   if (save) {
     writeFileSync(save, JSON.stringify(rows.map((row) => row.id)));
     console.log(`${rows.length} certificates recorded`);
     return;
   }
   if (!since) {
-    console.error("asc: certificates needs --save <file> or --revoke-new-since <file>");
+    console.error("asc: certificates needs --save, --new-since or --create");
     process.exit(64);
   }
   const before = new Set(JSON.parse(readFileSync(since, "utf8")));
   const made = rows.filter((row) => !before.has(row.id));
-  for (const row of made) {
-    if (!DEVELOPMENT_CERTIFICATES.has(row.attributes.certificateType)) {
-      console.log(`kept new ${row.attributes.certificateType} certificate`);
-      continue;
-    }
-    await remove(`/v1/certificates/${row.id}`);
-    console.log(`revoked new ${row.attributes.certificateType} certificate`);
-  }
+  for (const row of made) console.log(`new ${row.attributes.certificateType} certificate, expires ${day(row.attributes.expirationDate)}`);
   if (made.length === 0) console.log("no new certificates");
+  if (made.some((row) => DEVELOPMENT_CERTIFICATES.has(row.attributes.certificateType))) process.exit(1);
+}
+
+async function unlessAlready(action, done) {
+  try {
+    await action();
+  } catch (error) {
+    if (!(error instanceof ApiError) || ![409, 422].includes(error.status)) throw error;
+    console.log(`${done}: ${error.message}`);
+  }
+}
+
+async function publicLink(args) {
+  const number = option(args, "--build");
+  if (!number) {
+    console.error("asc: public-link needs --build <number>");
+    process.exit(64);
+  }
+  const app = await requireApp();
+  const { rows: found } = await get("/v1/builds", { "filter[app]": app.id, "filter[version]": number, "fields[builds]": "version,processingState" });
+  const build = found[0];
+  if (!build || build.attributes.processingState !== "VALID") {
+    console.error(`asc: build ${number} is ${build ? build.attributes.processingState : "not on App Store Connect"}`);
+    process.exit(1);
+  }
+
+  const policy = option(args, "--privacy-policy");
+  if (policy) {
+    const { rows } = await get(`/v1/apps/${app.id}/betaAppLocalizations`, { limit: "50" });
+    for (const row of rows.filter((row) => row.attributes.privacyPolicyUrl !== policy)) {
+      await patch(`/v1/betaAppLocalizations/${row.id}`, { data: { type: "betaAppLocalizations", id: row.id, attributes: { privacyPolicyUrl: policy } } });
+      console.log(`privacy policy set for ${row.attributes.locale}`);
+    }
+  }
+
+  const notesPath = option(args, "--what-to-test");
+  if (notesPath) {
+    const whatsNew = readFileSync(notesPath, "utf8").trim();
+    const { rows } = await get(`/v1/builds/${build.id}/betaBuildLocalizations`, { limit: "50" });
+    if (rows.length === 0) {
+      await post("/v1/betaBuildLocalizations", {
+        data: { type: "betaBuildLocalizations", attributes: { locale: "en-US", whatsNew }, relationships: { build: { data: { type: "builds", id: build.id } } } },
+      });
+    }
+    for (const row of rows) {
+      await patch(`/v1/betaBuildLocalizations/${row.id}`, { data: { type: "betaBuildLocalizations", id: row.id, attributes: { whatsNew } } });
+    }
+    console.log("What to Test set");
+  }
+
+  const fields = { "fields[betaGroups]": "name,isInternalGroup,publicLinkEnabled,publicLink" };
+  const { rows: groups } = await get(`/v1/apps/${app.id}/betaGroups`, fields);
+  let group = groups.find((row) => !row.attributes.isInternalGroup && row.attributes.name === PUBLIC_GROUP);
+  if (!group) {
+    group = await post("/v1/betaGroups", {
+      data: {
+        type: "betaGroups",
+        attributes: { name: PUBLIC_GROUP, publicLinkEnabled: true, publicLinkLimitEnabled: false, feedbackEnabled: true },
+        relationships: { app: { data: { type: "apps", id: app.id } } },
+      },
+    });
+    console.log(`created the ${PUBLIC_GROUP} group`);
+  }
+
+  await unlessAlready(
+    () => post(`/v1/betaGroups/${group.id}/relationships/builds`, { data: [{ type: "builds", id: build.id }] }),
+    "build already in the group",
+  );
+  await unlessAlready(
+    () => post("/v1/betaAppReviewSubmissions", { data: { type: "betaAppReviewSubmissions", relationships: { build: { data: { type: "builds", id: build.id } } } } }),
+    "not submitted",
+  );
+
+  const { rows: after } = await get(`/v1/betaGroups/${group.id}`, fields);
+  printBuilds(await listBuilds(app.id, number));
+  console.log(`public link: ${after[0].attributes.publicLink ?? "none yet"}`);
+}
+
+async function addTester(args) {
+  const email = option(args, "--email")?.trim().toLowerCase();
+  const groupName = option(args, "--group") ?? PUBLIC_GROUP;
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    console.error("asc: add-tester needs --email <address>");
+    process.exit(64);
+  }
+  const app = await requireApp();
+  const { rows: groups } = await get(`/v1/apps/${app.id}/betaGroups`, { "fields[betaGroups]": "name,isInternalGroup" });
+  const group = groups.find((row) => !row.attributes.isInternalGroup && row.attributes.name === groupName);
+  if (!group) {
+    console.error(`asc: no external group named ${groupName}; run public-link first`);
+    process.exit(1);
+  }
+  const { rows: existing } = await get("/v1/betaTesters", { "filter[email]": email, "fields[betaTesters]": "state", limit: "10" });
+  if (existing.length === 0) {
+    await post("/v1/betaTesters", {
+      data: { type: "betaTesters", attributes: { email }, relationships: { betaGroups: { data: [{ type: "betaGroups", id: group.id }] } } },
+    });
+    console.log(`tester invited to ${groupName}`);
+  } else {
+    await unlessAlready(
+      () => post(`/v1/betaGroups/${group.id}/relationships/betaTesters`, { data: [{ type: "betaTesters", id: existing[0].id }] }),
+      "tester already in the group",
+    );
+    console.log(`tester (${existing[0].attributes.state ?? "?"}) is in ${groupName}`);
+  }
+  const { rows: testers } = await get(`/v1/betaGroups/${group.id}/betaTesters`, { "fields[betaTesters]": "state", limit: "200" });
+  console.log(`${groupName} now has ${testers.length} testers`);
 }
 
 const [command, ...args] = process.argv.slice(2);
-const commands = { status, builds, wait, certificates, "next-build": nextBuild };
+const commands = { status, builds, wait, certificates, "next-build": nextBuild, "public-link": publicLink, "add-tester": addTester };
 if (!command || command === "-h" || command === "--help" || !commands[command]) {
   console.log(HELP);
   process.exit(command && commands[command] === undefined && command !== "-h" && command !== "--help" ? 64 : 0);

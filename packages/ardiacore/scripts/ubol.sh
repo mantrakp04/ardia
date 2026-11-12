@@ -4,8 +4,8 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 vendor="$(cd "$here/.." && pwd)/vendor"
 
-UBOL_VERSION="2026.1103.1743"
-UBOL_SHA256="7be53009c38dd47726ce26b3fa02e93ac93e77ac5d276543e855997650128a9c"
+UBOL_VERSION="2026.1110.1816"
+UBOL_SHA256="3b8188b557a932bec578eebeb8d8b312ae1108e48b0978da25eef488711a9e32"
 ubol="$vendor/ubol-webkit"
 stamp="$UBOL_VERSION-$(shasum -a 256 "$here/ubol-webkit.py" | cut -c1-16)"
 installed() { [ -f "$ubol/.version" ] && [ "$(cat "$ubol/.version")" = "$stamp" ]; }

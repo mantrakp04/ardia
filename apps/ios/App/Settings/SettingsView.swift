@@ -117,8 +117,10 @@ private struct SettingsRootList: View {
           NavigationLink(value: SettingsRoute.siteSettings) {
             SettingsRowLabel("Site Settings", systemImage: "globe", tint: SettingsTint.neutral)
           }
-          NavigationLink(value: SettingsRoute.defaultBrowser) {
-            SettingsRowLabel("Default Browser", systemImage: "safari.fill", tint: SettingsTint.defaultBrowser)
+          if DefaultBrowserStatus.isOffered {
+            NavigationLink(value: SettingsRoute.defaultBrowser) {
+              SettingsRowLabel("Default Browser", systemImage: "safari.fill", tint: SettingsTint.defaultBrowser)
+            }
           }
         }
 

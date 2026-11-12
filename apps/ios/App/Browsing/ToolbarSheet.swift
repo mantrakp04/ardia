@@ -40,7 +40,7 @@ struct ToolbarSheet: View {
           }
           group {
             blockingRow(page)
-            if !app.isDefaultBrowser {
+            if !app.defaultBrowser.isDefault {
               row("safari", "Open in Default Browser") {
                 app.openInDefaultBrowser(page)
                 dismiss()

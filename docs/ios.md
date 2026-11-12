@@ -92,9 +92,9 @@ sizes, copy), on Apple's controls:
   converted on device, and a reject-all script for consent platforms; off per site from the page menu.
 - **System.** Widgets (search, the Mac's tabs, Lock Screen), Control Center controls, App Intents and Siri phrases,
   a share extension and an Open in Ardia action, Spotlight for open and archived tabs, Handoff of the current page,
-  Home Screen quick actions, and http/https link handling. The default-browser entitlement is in
-  `Config/Ardia-Release.entitlements`, which a release build uses only once Apple has granted it (Releasing to
-  TestFlight, below).
+  Home Screen quick actions, and http/https link handling. Being the default browser waits on an entitlement Apple
+  grants on request (Releasing to TestFlight, below); until a build carries it, onboarding and Settings leave the
+  default browser steps out.
 
 ## Demo mode and launch arguments
 
@@ -141,22 +141,46 @@ The app record in App Store Connect is "Ardia", bundle id `com.ardia.browser.ios
 are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ardia.browser.ios`.
 
 - **In CI.** Run the iOS Release workflow (`.github/workflows/ios-release.yml`) from `main`:
-  `gh workflow run ios-release.yml -f mode=upload`. It archives the Release build, signs it with Xcode's automatic
-  signing and uploads it, all through the App Store Connect API key the Mac release notarizes with
-  (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`), then waits until App Store Connect has processed the build.
-  `mode=status` lists what App Store Connect holds (the app record, App IDs, certificates, builds, tester groups) and
-  builds nothing; `mode=dry-run` stops at the signed .ipa. The build number is the one after the highest uploaded,
-  unless you pass `build`. The archive makes a development certificate on the runner; the run revokes it at the end.
+  `gh workflow run ios-release.yml -f mode=upload`. It archives the Release build, signs it and uploads it through the
+  App Store Connect API key the Mac release notarizes with (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`), then
+  waits until App Store Connect has processed the build. `mode=status` lists what App Store Connect holds (the app
+  record, App IDs, certificates, builds, tester groups, beta test info) and builds nothing; `mode=dry-run` stops at the
+  signed .ipa. The build number is the one after the highest uploaded, refused uploads included, unless you pass `build`.
+- **CI's certificate.** The archive signs with one development certificate kept in the `IOS_DEVELOPMENT_P12` and
+  `IOS_DEVELOPMENT_P12_PASSWORD` secrets ("Apple Development: Created via API", expires 12 Nov 2027), so a run makes and
+  revokes nothing on the team; a revoked certificate mails the account holder. To renew it: make a key and a signing
+  request (`openssl req -new -newkey rsa:2048 -nodes -keyout key.pem -out request.csr -subj "/CN=Ardia CI"`), run
+  `mode=certificate` with `signing_request` set to the request's base64, download the `ios-development-certificate`
+  artifact, pack it with the key into a .p12 with macOS's `/usr/bin/openssl`, and set both secrets. Distribution signing
+  is Apple's cloud-managed certificate and needs nothing stored.
 - **On a Mac.** `scripts/release-ios.sh <build number>` does the same with the account Xcode is signed in to, or with
   `ASC_KEY`, `ASC_KEY_ID` and `ASC_ISSUER`. `node apps/ios/scripts/asc.mjs` is the App Store Connect client behind
   both (`--help` lists its commands).
 - **Version.** `MARKETING_VERSION` in `project.yml` (then `xcodegen generate`), 1.0 for the alpha; the build number is
   never committed.
-- **Default browser.** `com.apple.developer.web-browser` is in `Config/Ardia-Release.entitlements`, and Apple grants
-  it per App ID on request. Until it is granted, release builds sign with `Config/Ardia.entitlements` and iOS doesn't
-  offer Ardia as the default browser. Once granted, pass `default_browser=true` (`--default-browser`).
-- **Testers.** A processed build reaches the internal testers at once. External testers need Beta App Review: a beta
-  description, a feedback email and a privacy policy URL in App Store Connect.
+- **Default browser.** iOS lists an app under Settings, Apps, Default Apps, Browser App only when it is signed with
+  `com.apple.developer.web-browser`, and Apple grants that per App ID on request: the account holder fills in
+  https://developer.apple.com/contact/request/default-browser-entitlement/ for `com.ardia.browser.ios`. One build
+  setting, `ARDIA_DEFAULT_BROWSER` (`NO` in `project.yml`), decides both halves: `YES` signs with
+  `Config/Ardia-DefaultBrowser.entitlements` and sets `ArdiaDefaultBrowser` in Info.plist, which turns on the
+  onboarding step and the Settings row; `NO` signs with `Config/Ardia.entitlements` and hides them, so the app never
+  sends anyone to a list it isn't on. Until Apple grants it, signing with `YES` fails ("requires approval from
+  Apple"). Once granted, pass `default_browser=true` (`--default-browser`), then make `YES` the default. The release
+  script checks that the Info.plist value and the signed entitlement agree. The simulator needs no grant:
+  `xcodebuild ... ARDIA_DEFAULT_BROWSER=YES` there exercises the whole flow.
+- **Am I the default.** iOS answers `UIApplication.isDefault(.webBrowser)` four times a year, so `DefaultBrowserStatus`
+  keeps the last answer and asks only on returning from the Settings button or after 100 days. A web link that
+  arrives from another app also proves it. The simulator ignores the Settings deep link and opens Settings where it
+  was left, so where the button lands is a real-phone check.
+- **Testers.** A processed build reaches the Internal group at once. An upload also sends it to everyone else: it
+  puts the build in the Public Testers group (made with a public link the first time), sets its What to Test text from
+  `Config/TestFlight-WhatToTest.txt`, submits it for Beta App Review and prints the link. The link stays the same for
+  every build and works once Apple approves one; later builds of the same version usually pass without a full review.
+  Apple has no setting that gives an external group every build, so each one is submitted. `-f public_testers=false`
+  keeps an upload to the Internal group, and `gh workflow run ios-release.yml -f mode=public-link -f build=<number>`
+  sends an earlier build. To invite someone by email instead,
+  `gh workflow run ios-release.yml -f mode=add-tester -f email=<address>` adds them to Public Testers; TestFlight
+  emails the invite once that group has an approved build.
 
 ## Agent notes
 

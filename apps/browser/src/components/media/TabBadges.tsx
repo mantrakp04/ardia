@@ -15,7 +15,7 @@ export const TabBadges = memo(function TabBadges({ tabId, size = 16, pip = true,
     <>
       {pip && <PipBadge tabId={tabId} size={size} />}
       <CaptureBadge tabId={tabId} size={size} />
-      {unread && <UnreadBadge tabId={tabId} />}
+      {unread && <UnreadBadge tabId={tabId} iconSize={size} />}
       <PeekMark tabId={tabId} size={size} />
     </>
   );

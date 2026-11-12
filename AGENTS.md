@@ -62,7 +62,10 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
   Never use plain `open`. Background mode logs context menus and file panels instead of showing them.
   Keep test data in a scratch dir, not in `~/Documents`.
 - **Dia is a read-only reference.** You may take screenshots and read its app bundle; never click or type
-  in it, and never read its user data or any browser's real profile.
+  in it.
+- **The owner's real browser data is fair game for debugging.** Read the owner's Ardia, Dia and other browser
+  profiles when they help reproduce a bug. Copy what you need into a scratch dir and point a hidden instance's
+  `ARDIA_DATA_DIR` at the copy; never write to the live profile or open it in a running app.
 - **No AI features.** This is the owner's decision. Dia's AI rows in `docs/dia-feature-parity.md`
   stay ⏸.
 

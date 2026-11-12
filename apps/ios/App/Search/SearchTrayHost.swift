@@ -39,17 +39,19 @@ struct SearchTrayHost: View {
       let lift = heldLift ?? liveLift
       let maxHeight = maxHeight(in: proxy, lift: lift)
       let progress = TrayDrag.progress(offset: dragOffset, travel: trayHeight + lift)
+      let restingDrop = isUp || reduceMotion ? 0 : maxHeight + BrowseLayout.sheetTopRadius
       ZStack(alignment: .bottom) {
         if let shown {
-          dim
+          dim(over: shown)
             .opacity(isUp ? 1 - progress : 0)
+            .animation(reduceMotion ? Motion.surfaceFade : Motion.trayDim, value: isUp)
             .allowsHitTesting(isUp && !isClosing)
             .ignoresSafeArea()
           SearchTray(request: shown, isFocused: $isFocused, maxHeight: maxHeight, dismissDrag: dismissDrag(lift: liveLift))
             .id(presentation)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { trayHeight = $0 }
-            .offset(y: safeBottom - lift + dragOffset)
-            .opacity(isUp ? 1 : 0)
+            .offset(y: safeBottom - lift + dragOffset + restingDrop)
+            .opacity(isUp || !reduceMotion ? 1 : 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .allowsHitTesting(!isClosing)
             .accessibilityAddTraits(.isModal)
@@ -91,9 +93,9 @@ struct SearchTrayHost: View {
     .accessibilityHidden(true)
   }
 
-  private var dim: some View {
+  private func dim(over request: BrowseSession.SearchRequest) -> some View {
     Color.black
-      .opacity(app.surface == .search ? 0.001 : BrowseLayout.trayDim)
+      .opacity(request.origin == .page ? BrowseLayout.trayDim : 0.001)
       .contentShape(.rect)
       .onTapGesture { app.cancelSearch() }
       .accessibilityLabel("Close Search")

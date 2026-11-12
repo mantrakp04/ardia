@@ -26,6 +26,7 @@ import { usePaneLayout } from "./usePaneLayout";
 import { cardChrome } from "./paneChrome";
 import { TabPane } from "./TabPane";
 import { BesidePeekPopovers, PeekPage } from "./PageOverlays";
+import { besidePeekSpan } from "./pageAnchors";
 import { splitTabIdsOf } from "../../state/splits/splits";
 import { sameSize, useSettled, type Size } from "../ui/useSettled";
 import { noteCardResizeLayout } from "../../state/telemetry/usage";
@@ -169,9 +170,8 @@ export function ContentCard() {
         <BesidePeekPopovers
           tabId={popoversOverCard}
           windowId={windowId}
-          left={peek[0] === -Infinity ? Math.max(activeRect.x, peek[1] - origin.x) + POPOVER_MARGIN : Infinity}
+          {...besidePeekSpan(peek, origin.x, size.width, activeRect)}
           top={activeRect.y + POPOVER_MARGIN}
-          room={peek[0] === -Infinity ? size.width : Math.min(size.width, peek[0] - origin.x)}
         />
       )}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}

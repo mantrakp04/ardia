@@ -7,7 +7,7 @@ export type Recording =
   | { phase: "starting" }
   | { phase: "recording"; seconds: number; includePages: boolean }
   | { phase: "saving"; includePages: boolean }
-  | { phase: "ready"; path: string; thumbnail: string | null; seconds: number; bytes: number; includePages: boolean }
+  | { phase: "ready"; path: string; thumbnail: string | null; seconds: number; bytes: number; includePages: boolean; pictureInPicture?: boolean; withheldWindows?: number }
   | { phase: "failed"; message: string };
 
 export type Trace = { phase: "none" } | { phase: "tracing" } | { phase: "saving" } | { phase: "ready"; path: string; bytes: number; seconds: number } | { phase: "failed" };

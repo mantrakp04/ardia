@@ -39,7 +39,7 @@ NSArray<NSString *> *AppTestKeys() {
   return @[
     @"pipSelfTest", @"pipHover", @"fakeFullScreenMs", @"shadersKeyWindow", @"peekStrict", @"importSecret", @"importDiaBundleId", @"importDiaWindows",
     @"cliInstallScript", @"legacySource", @"legacyCrashAfter", @"bangsUrl", @"onboarding", @"whatsNew", @"telemetry",
-    @"liveMock", @"calendarFixture", @"appMenu", @"appDialog", @"loginsTimeout", @"screenRecording",
+    @"liveMock", @"calendarFixture", @"appMenu", @"appDialog", @"loginsTimeout", @"screenRecording", @"systemLocationPermission",
   ];
 }
 

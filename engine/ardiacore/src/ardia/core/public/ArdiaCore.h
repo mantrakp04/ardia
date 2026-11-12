@@ -207,6 +207,11 @@ ARDIACORE_EXPORT
 @property(nonatomic) BOOL internal;
 @end
 
+@interface ArdiaCoreWindow (Picture)
++ (void)copyPictureOfChromeWindow:(NSWindow*)window
+                       completion:(void (^)(CGImageRef _Nullable picture))completion;
+@end
+
 @protocol ArdiaCoreTabDelegate <NSObject>
 @optional
 - (void)tabDidChangeTitle:(ArdiaCoreTab*)tab;

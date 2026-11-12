@@ -311,3 +311,102 @@ test("a session.json with the right version but broken lists loads what is whole
   assert.deepEqual(S().closedWindows, []);
   stub.docs.delete("session.json");
 });
+
+test("reopening a closed window: its tabs keep when they were last used, the shown one is used now", () => {
+  reset();
+  const { w } = windowWith("a", "b", "c", "d");
+  const [a, b, c, d] = model.viewTabIds(S(), w);
+  S().groupTabs([a, b, c], { pinned: false, name: "Work" });
+  for (const id of [b, a, c, d]) select(id);
+  const before = Object.fromEntries([a, b, c].map((id) => [S().tabs[id].url, S().tabs[id].lastActiveAt]));
+  S().createWindow();
+  S().closeWindow(w);
+  const open = new Set(S().windowOrder);
+  at(() => S().reopenClosedWindow());
+  const n = S().windowOrder.find((id) => !open.has(id));
+  const g = Object.values(S().groups).find((x) => x.windowId === n && x.name === "Work");
+  assert.deepEqual(Object.fromEntries(g.tabIds.map((id) => [S().tabs[id].url, S().tabs[id].lastActiveAt])), before);
+  assert.ok(S().tabs[active(n)].lastActiveAt > Math.max(...Object.values(before)), "the shown tab is used now");
+});
+
+test("quit and relaunch right after Restore All: the restored tab still counts as used when it came back", async () => {
+  const { cleanUpCandidates } = await import("../pins/tabCleanup.ts");
+  stub.docs.clear();
+  reset();
+  const stop = startPersistence();
+  const { w, ids: [, b] } = windowWith("a", "b", "c", "d");
+  const usedAt = Date.now() - 2 * 60 * 60_000;
+  S().updateTab(b, { lastActiveAt: usedAt });
+  S().cleanUpTabs(w, { inactiveForMs: 30 * 60_000 });
+  assert.ok(!S().tabs[b], "cleaned up");
+  S().restoreCleaned();
+  flushPersistence();
+  stop();
+  S().hydrate(loadSession());
+  const n = S().windowOrder[0];
+  const back = model.viewTabIds(S(), n).find((id) => S().tabs[id].url === "https://b.com");
+  assert.equal(S().tabs[back].lastActiveAt, usedAt);
+  assert.deepEqual(cleanUpCandidates(S(), n, 30 * 60_000), []);
+});
+
+test("quit and relaunch after the window closed: a pinned group's tabs keep when they were last used", () => {
+  stub.docs.clear();
+  reset();
+  const stop = startPersistence();
+  const { w } = windowWith("a", "b", "c", "d");
+  const [a, b, c, d] = model.viewTabIds(S(), w);
+  const g = S().groupTabs([a, b, c], { name: "Work" });
+  for (const id of [b, a, c, d]) select(id);
+  const used = (groupId) => S().groups[groupId].tabIds.map((id) => [S().tabs[id].url, S().tabs[id].lastActiveAt]);
+  const before = used(g);
+  S().closeWindow(w);
+  flushPersistence();
+  stop();
+  S().hydrate(loadSession());
+  const n = at(() => S().createWindow());
+  assert.deepEqual(used(Object.values(S().groups).find((x) => x.windowId === n && x.name === "Work").id), before);
+});
+
+test("Start fresh gives an ended meeting group a full cleanup interval after restoring its pins", async () => {
+  const { groupCall, tick } = await import("../live/meetingGroups.ts");
+  const { flushLive, useLive } = await import("../live/store.ts");
+  stub.docs.clear();
+  reset();
+  useLive.setState({ meetingGroups: {} });
+  const realNow = Date.now;
+  const endedAt = 1_800_000_000_000;
+  let now = endedAt;
+  Date.now = () => now;
+  const stop = startPersistence();
+  try {
+    const w = S().createWindow({ url: "https://meet.google.com/abc-defg-hij" });
+    const call = active(w);
+    const group = groupCall(call, { title: "Past meeting", occurrence: "past", start: endedAt - 60_000, end: endedAt });
+    S().updateGroup(group, { pinned: true });
+    S().newTab(w, { url: "https://elsewhere.example" });
+    tick(S(), now);
+    S().updateSettings({ restoreSession: false });
+    flushPersistence();
+    flushLive();
+    stop();
+    const savedMeetings = JSON.parse(stub.docs.get("live.json")).meetingGroups;
+    now += 31 * 60_000;
+    S().hydrate(loadSession());
+    useLive.setState({ meetingGroups: savedMeetings });
+    S().createWindow();
+    assert.equal(S().tabs[call].lastActiveAt, endedAt);
+    assert.equal(S().tabs[call].restoredAt, now);
+    tick(S(), now);
+    assert.ok(S().groups[group], "restoring an old meeting does not immediately close it");
+    tick(S(), now + 30 * 60_000 - 1);
+    assert.ok(S().groups[group], "the restored group gets the full idle interval");
+    tick(S(), now + 30 * 60_000);
+    assert.equal(S().groups[group], undefined);
+    assert.ok(S().closedGroups.some((g) => g.group.id === group));
+  } finally {
+    stop();
+    Date.now = realNow;
+    useLive.setState({ meetingGroups: {} });
+    flushLive();
+  }
+});

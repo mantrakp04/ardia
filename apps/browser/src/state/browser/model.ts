@@ -63,9 +63,13 @@ export function makeTab(windowId: string, profileId: string, url = "", snapshot?
     ...snapshot,
     page: url ? { kind: "loaded", nav: navigationTo(url) } : { kind: "idle" },
     createdAt: now,
-    lastActiveAt: now,
+    lastActiveAt: snapshot?.lastActiveAt ?? now,
+    ...(snapshot?.lastActiveAt ? { restoredAt: now } : {}),
   };
 }
+
+export const byRecentUse = (a: Pick<Tab, "unseen" | "lastActiveAt">, b: Pick<Tab, "unseen" | "lastActiveAt">) =>
+  Number(!!a.unseen) - Number(!!b.unseen) || b.lastActiveAt - a.lastActiveAt;
 
 export const snapshotTab = (t: Tab): TabSnapshot => ({
   url: t.url,
@@ -79,6 +83,7 @@ export const snapshotTab = (t: Tab): TabSnapshot => ({
   pinnedUrl: t.pinnedUrl,
   ...(t.engine ? { engine: t.engine } : {}),
   profileId: t.profileId,
+  lastActiveAt: t.lastActiveAt,
 });
 
 export const TILE_PIN: TabPin = { as: "tile" };

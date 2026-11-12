@@ -77,6 +77,9 @@ public enum BrowseLayout {
 
 public extension Motion {
   static let searchRise = Animation.spring(response: 0.39, dampingFraction: 1)
+  static let surfaceSwap = Animation.easeOut(duration: 0.3)
+  static let surfaceFade = Animation.easeOut(duration: 0.2)
+  static let trayDim = Animation.easeInOut(duration: 0.3)
   static let trayDismiss = Animation.spring(response: 0.32, dampingFraction: 1)
   static let traySettle = Animation.spring(response: 0.34, dampingFraction: 0.86)
   static let resultsIn = Animation.easeOut(duration: 0.14)

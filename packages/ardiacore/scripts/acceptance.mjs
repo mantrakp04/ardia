@@ -63,7 +63,7 @@ const usesPageA = [
   "private-windows-create", "extension-private-window", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
   "settings-services", "download-navigation", "page-events", "page-background", "external-app-answer",
   "external-app-from-extension",
-  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "auto-picture-in-picture-app-switch", "picture-in-picture-opt-out", "pip-window", "page-focus",
+  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "auto-picture-in-picture-app-switch", "picture-in-picture-opt-out", "pip-window", "pip-framing", "report-recording-pip", "report-recording-guard", "report-recording-webkit-media", "page-focus",
   "fullscreen-tab-switch", "fullscreen-native", "fullscreen-system-title-bar", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
   "fullscreen-pip", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
   "permission-prompt", "popup-blocked", "move-tab-slow-mount", "move-last-tab-slow-mount",
@@ -362,11 +362,21 @@ const server = createServer((req, res) => {
   if (url.pathname === "/tall") return res.end(page("Tall", `<div style="height: 8000px; background: linear-gradient(#fff, #ccc)">tall</div>`));
   if (url.pathname === "/form")
     return res.end(page("Form", `<form action="/form" method="get" autocomplete="on"><input id="c" name="city" autocomplete="on" style="font-size: 20px; margin: 80px; width: 300px"><button id="b">go</button></form>`));
+  if (url.pathname === "/marker") {
+    const [a, b] = url.search.includes("other") ? ["#8000ff", "#ff8000"] : ["#ff00ff", "#00ffff"];
+    return res.end(page("Marker", "", `<style>html, body { margin: 0; height: 100%; background: repeating-conic-gradient(${a} 0 25%, ${b} 0 50%) 0 0 / 192px 192px }</style>`));
+  }
   if (url.pathname === "/video")
     return res.end(page("Video", `<video id="v" playsinline style="width: 320px; height: 180px"></video><script>
       const c = document.createElement("canvas"); c.width = 320; c.height = 180;
       const g = c.getContext("2d"); let n = 0;
-      setInterval(() => { g.fillStyle = "hsl(" + ((n++ * 7) % 360) + ", 70%, 50%)"; g.fillRect(0, 0, 320, 180); }, 33);
+      const marker = location.search.includes("marker");
+      setInterval(() => {
+        n++;
+        if (!marker) { g.fillStyle = "hsl(" + ((n * 7) % 360) + ", 70%, 50%)"; g.fillRect(0, 0, 320, 180); return; }
+        const off = (n * 2) % 80;
+        for (let y = 0; y < 4; y++) for (let x = -2; x < 9; x++) { g.fillStyle = (x + y) % 2 ? "#0000ff" : "#ffff00"; g.fillRect(x * 40 + off, y * 45, 40, 45); }
+      }, 33);
       window.start = (audio) => {
         if (location.search.includes("file")) {
           const clip = document.getElementById("v");
@@ -3507,42 +3517,66 @@ try {
       const r = await engine("windows.dev", { window: n, action: `fakeAppActive:${on ? 1 : 0}` });
       if (r !== (on ? "1" : "0")) throw new Error(`fakeAppActive: ${JSON.stringify(r)}`);
     };
-    const pipEvents = async (tabId) => (await eventsOf(tabId)).filter((x) => x.name === "pictureInPicture");
+    const win = (action) => engine("windows.dev", { window: n, action });
+    const mark = async (tabId) => (await eventsOf(tabId)).at(-1)?.t ?? 0;
+    const pipSince = async (tabId, since) => (await eventsOf(tabId)).filter((x) => x.name === "pictureInPicture" && x.t > since);
     const visibility = async (t) => (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value;
     const tab = await openTab(`${secureBase}/video?auto&file`, "Video");
+    const poppedOut = (tabId, since, what, fresh = false) => until(what, async () => {
+      const e = (await pipSince(tabId, since)).find((x) => x.payload.kind === "video" && x.payload.active && (!fresh || x.payload.fullScreenSpaces !== undefined));
+      return e ?? null;
+    }, 8000);
+    const closed = (tabId, what) => until(what, async () => {
+      const e = await lastEvent(tabId, "pictureInPicture");
+      return e && e.payload.kind === "video" && !e.payload.active ? e : null;
+    }, 8000);
     try {
+      await win("fakeOcclusion:visible");
+      await win("fakeWindowServer:shows");
       const t = await startVideo(tab.id, true);
       await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
       await until("onNowPlaying with video", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
       await sleep(300);
+      const quick = await mark(tab.id);
       await appActive(false);
       await sleep(100);
       await appActive(true);
       await sleep(800);
-      await until("no PiP left open after a quick app switch", async () => {
-        const e = await lastEvent(tab.id, "pictureInPicture");
-        return !e || !e.payload.active ? true : null;
-      }, 8000);
+      if ((await pipSince(tab.id, quick)).length) throw new Error("a quick app switch with the window showing popped the video out");
+      const stayedFrom = await mark(tab.id);
       await appActive(false);
-      const out = await until("auto PiP on leaving the app", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active && p.fullScreenSpaces !== undefined), 8000);
-      if (out.payload.leftApp !== true) throw new Error(`pip_shown left_app: ${JSON.stringify(out.payload)}`);
+      await sleep(2500);
+      if ((await pipSince(tab.id, stayedFrom)).length) throw new Error("switching apps with the window still showing popped the video out");
+      const stayedVisibility = await visibility(t);
+      const coverAt = await mark(tab.id);
+      await win("fakeWindowServer:hides");
+      const covered = await poppedOut(tab.id, coverAt, "auto PiP once the front app covered the window", true);
+      if (covered.payload.leftApp !== true) throw new Error(`pip_shown left_app (covered while away): ${JSON.stringify(covered.payload)}`);
       const away = await visibility(t);
+      await win("fakeWindowServer:shows");
+      const uncovered = await closed(tab.id, "auto PiP ended once the front app moved off the window");
+      const recoverAt = await mark(tab.id);
+      await win("fakeWindowServer:hides");
+      await poppedOut(tab.id, recoverAt, "auto PiP once covered again");
       await appActive(true);
-      const back = await until("auto PiP ended on coming back", async () => {
-        const e = await lastEvent(tab.id, "pictureInPicture");
-        return e && e.payload.kind === "video" && !e.payload.active ? e : null;
-      }, 8000);
+      const back = await closed(tab.id, "auto PiP ended on coming back");
+      const coveredFrom = await mark(tab.id);
+      await appActive(false);
+      const atSwitch = await poppedOut(tab.id, coveredFrom, "auto PiP on leaving the app with the window covered");
+      await appActive(true);
+      await closed(tab.id, "auto PiP ended on coming back (covered at the switch)");
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').pause()" });
       await until("onNowPlaying paused", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.playbackState === "paused"), 5000);
-      const paused = (await pipEvents(tab.id)).length;
+      const paused = await mark(tab.id);
       await appActive(false);
-      await sleep(1500);
-      const pausedPopped = (await pipEvents(tab.id)).length !== paused;
+      await sleep(2500);
+      const pausedPopped = (await pipSince(tab.id, paused)).length > 0;
       await appActive(true);
-      if (pausedPopped) throw new Error("a paused video popped out on leaving the app");
-      return { out: out.payload, back: back.payload, visibilityWhileAway: away };
+      if (pausedPopped) throw new Error("a paused video popped out on leaving the app with its window covered");
+      return { stayedVisibility, covered: covered.payload, away, uncovered: uncovered.payload, back: back.payload, atSwitch: atSwitch.payload };
     } finally {
       await appActive(true).catch(() => null);
+      for (const action of ["fakeWindowServer:hides", "fakeOcclusion:off"]) await win(action).catch(() => null);
       await closeTab(tab.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     }
@@ -3701,6 +3735,478 @@ try {
       };
     } finally {
       await closeTab(tab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("pip-framing", async () => {
+    const tab = await openTab(`${base}/video?framing`, "Video");
+    try {
+      await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
+      await startVideo(tab.id, false);
+      await pipByHand(tab.id);
+      const shown = await until("the styled PiP window", async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null, 5000);
+      const pipAct = (action) => engine("tabs.devPictureInPictureAction", { action });
+      const captureWindow = (windowNumber, png) =>
+        execFileSync("/usr/bin/python3", ["-I", "-c", [
+          "import ctypes, ctypes.util, sys",
+          "cg = ctypes.cdll.LoadLibrary(ctypes.util.find_library('CoreGraphics'))",
+          "cf = ctypes.cdll.LoadLibrary(ctypes.util.find_library('CoreFoundation'))",
+          "io = ctypes.cdll.LoadLibrary('/System/Library/Frameworks/ImageIO.framework/ImageIO')",
+          "class R(ctypes.Structure): _fields_ = [(n, ctypes.c_double) for n in 'xywh']",
+          "cg.CGWindowListCreateImage.restype = ctypes.c_void_p",
+          "cg.CGWindowListCreateImage.argtypes = [R, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]",
+          "image = cg.CGWindowListCreateImage(R(float('inf'), float('inf'), 0, 0), 8, int(sys.argv[1]), 1 | 8)",
+          "image or sys.exit('no image')",
+          "path = sys.argv[2].encode()",
+          "cf.CFURLCreateFromFileSystemRepresentation.restype = cf.CFStringCreateWithCString.restype = ctypes.c_void_p",
+          "cf.CFURLCreateFromFileSystemRepresentation.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_long, ctypes.c_bool]",
+          "cf.CFStringCreateWithCString.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint32]",
+          "io.CGImageDestinationCreateWithURL.restype = ctypes.c_void_p",
+          "io.CGImageDestinationCreateWithURL.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p]",
+          "io.CGImageDestinationAddImage.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]",
+          "io.CGImageDestinationFinalize.argtypes = [ctypes.c_void_p]",
+          "url = cf.CFURLCreateFromFileSystemRepresentation(None, path, len(path), False)",
+          "dest = io.CGImageDestinationCreateWithURL(url, cf.CFStringCreateWithCString(None, b'public.png', 0x08000100), 1, None)",
+          "io.CGImageDestinationAddImage(dest, image, None)",
+          "io.CGImageDestinationFinalize(dest) or sys.exit('not written')",
+        ].join("\n"), String(windowNumber), png], { timeout: 20000 });
+      const pixels = (png, scale) => {
+        const [w, h] = execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0", png], { encoding: "utf8" }).trim().split(",").map(Number);
+        const raw = execFileSync("ffmpeg", ["-loglevel", "error", "-i", png, "-f", "rawvideo", "-pix_fmt", "rgba", "-"], { maxBuffer: 1 << 28 });
+        const at = (x, y) => raw.subarray((y * w + x) * 4, (y * w + x) * 4 + 4);
+        const luma = ([r, g, b, a]) => ((0.2126 * r + 0.7152 * g + 0.0722 * b) * a) / 255;
+        const centre = at(40 * scale, h >> 1);
+        const video = luma(centre);
+        const lit = (x, y) => luma(at(x, y)) >= video * 0.6;
+        const run = (step) => {
+          let i = 0;
+          while (i < Math.min(w, h) / 2 && !lit(...step(i))) i++;
+          return i;
+        };
+        const mx = w >> 1, my = h >> 1;
+        return {
+          size: [w, h],
+          shown: centre[3] === 255 && video > 0,
+          band: { left: run((i) => [i, my]), right: run((i) => [w - 1 - i, my]), top: run((i) => [mx, i]), bottom: run((i) => [mx, h - 1 - i]) },
+          radii: Object.fromEntries(
+            [["topLeft", 0, 0], ["topRight", 1, 0], ["bottomLeft", 0, 1], ["bottomRight", 1, 1]].map(([corner, right, bottom]) => {
+              const box = 16 * scale;
+              let clear = 0;
+              for (let j = 0; j < box; j++)
+                for (let i = 0; i < box; i++) clear += 1 - at(right ? w - 1 - i : i, bottom ? h - 1 - j : j)[3] / 255;
+              return [corner, +(Math.sqrt(clear / (1 - Math.PI / 4)) / scale).toFixed(2)];
+            }),
+          ),
+        };
+      };
+      const framing = async (state) => {
+        await sleep(600);
+        const f = JSON.parse(await pipAct("framing"));
+        await pipAct(`snapshot:framing-${state}`);
+        await pipAct("alpha:1");
+        let seen;
+        try {
+          seen = await until(`the ${state} PiP window's video in a capture`, async () => {
+            const png = join(scratch, `pip-framing-${state}.png`);
+            captureWindow(shown.window, png);
+            const shot = pixels(png, f.scale);
+            return shot.shown ? shot : null;
+          }, 25000);
+        } finally {
+          await pipAct("alpha:0");
+        }
+        const px = f.scale;
+        const radii = seen.radii;
+        log(`${state}: ${JSON.stringify({ ...f, pixels: seen, radii })}`);
+        const whole = `{{0, 0}, ${f.window}}`;
+        const [ww, wh] = f.window.match(/[\d.]+/g).map(Number);
+        const wrong = [];
+        if (seen.size[0] !== ww * px || seen.size[1] !== wh * px) wrong.push(`captured ${seen.size} for a ${f.window} window at ${px}x`);
+        for (const key of ["content", "compositor", "overlay"]) if (f[key] !== whole) wrong.push(`${key} ${f[key]} instead of ${whole}`);
+        if (!f.contentMasks || f.contentRadius !== f.radius || f.rimRadius !== f.radius || f.rimWidth !== 1)
+          wrong.push(`corners: content ${f.contentRadius} (masks ${f.contentMasks}), rim ${f.rimRadius}/${f.rimWidth}, expected ${f.radius}`);
+        const bands = Object.entries(seen.band).filter(([, n]) => n > 1);
+        if (bands.length) wrong.push(`a dark band between the window's edge and the video: ${bands.map(([k, n]) => `${k} ${n / px} pt`).join(", ")}`);
+        const off = Object.entries(radii).filter(([, r]) => Math.abs(r - f.radius) > 0.5);
+        if (off.length) wrong.push(`corners aren't ${f.radius} pt: ${off.map(([k, r]) => `${k} ${r}`).join(", ")}`);
+        if (wrong.length) throw new Error(`${state}: ${wrong.join("; ")}`);
+        return { window: f.window, styleMask: f.styleMask, scale: px, band: seen.band, radii };
+      };
+      const rest = await framing("rest");
+      await pipAct("mouse:moved:40,100");
+      const hovered = await framing("hovered");
+      await pipAct("mouse:moved:-50,-50");
+      writeFileSync(join(scratch, "pip-layers.txt"), await pipAct("layers"));
+      const [x, y] = shown.frame.match(/-?[\d.]+/g).map(Number);
+      await pipAct(`frame:{{${x - 144}, ${y}}, {480, 270}}`);
+      const resized = await framing("resized");
+      await pipAct("stash");
+      await sleep(800);
+      await pipAct("unstash");
+      await sleep(800);
+      const restored = await framing("restored");
+      return { rest, hovered, resized, restored };
+    } finally {
+      await closeTab(tab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("report-recording-pip", async () => {
+    const tab = await openTab(`${base}/video?report`, "Video");
+    const out = join(scratch, "report-recording-pip");
+    mkdirSync(out, { recursive: true });
+    const nums = (s) => s.match(/-?[\d.]+/g).map(Number);
+    const pipAct = (action) => engine("tabs.devPictureInPictureAction", { action });
+    const shown = async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null;
+    const report = (body) => evalApp(`const r = ac.report; ${body}`);
+    try {
+      await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
+      const t = await startVideo(tab.id, false);
+      await pipByHand(tab.id);
+      await until("the styled PiP window", shown, 5000);
+      const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+      const win = JSON.parse(await engine("windows.dev", { window: n, action: "winfo" }));
+      const [wx, wy, ww, wh] = nums(win.frame);
+      const [, , pw, ph] = nums((await shown()).frame);
+      await pipAct(`frame:{{${wx + 24}, ${wy + 24}}, {${pw}, ${ph}}}`);
+      await sleep(600);
+      const placed = await shown();
+      const [px, py] = nums(placed.frame);
+      const playback = async () => (await cdp(t, "Runtime.evaluate", { expression: "({ paused: v.paused, time: v.currentTime, pip: !!document.pictureInPictureElement })", returnByValue: true })).result.value;
+      const pipEvents = async () => (await eventsOf(tab.id)).filter((x) => x.name === "pictureInPicture").length;
+      const pixels = (png) => {
+        const [w, h] = execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0", png], { encoding: "utf8" }).trim().split(",").map(Number);
+        const raw = execFileSync("ffmpeg", ["-loglevel", "error", "-i", png, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { maxBuffer: 1 << 28 });
+        const region = (x0, y0, x1, y1) => {
+          let luma = 0, chroma = 0, count = 0;
+          for (let y = Math.max(0, Math.round(y0)); y < Math.min(h, Math.round(y1)); y += 2)
+            for (let x = Math.max(0, Math.round(x0)); x < Math.min(w, Math.round(x1)); x += 2) {
+              const i = (y * w + x) * 3, r = raw[i], g = raw[i + 1], b = raw[i + 2];
+              luma += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+              chroma += Math.max(r, g, b) - Math.min(r, g, b);
+              count++;
+            }
+          return { luma: +(luma / count).toFixed(1), chroma: +(chroma / count).toFixed(1) };
+        };
+        return { size: [w, h], region };
+      };
+      const record = async (includePages) => {
+        const label = includePages ? "pages-included" : "pages-hidden";
+        const eventsBefore = await pipEvents();
+        const before = await playback();
+        await pipAct("alpha:1");
+        let during, stopped;
+        try {
+          const phase = await report(`r.openReport(${JSON.stringify(mainWindow)}); r.setIncludePages(${includePages}); return r.startRecording().then(() => r.currentReport().recording.phase)`);
+          if (phase !== "recording") throw new Error(`${label}: the recording didn't start (${phase})`);
+          await sleep(2500);
+          during = await shown();
+          stopped = await report(`return r.stopRecording().then(() => true)`);
+        } finally {
+          await pipAct("alpha:0");
+        }
+        const done = await until(`the ${label} recording saved`, () => report(`const s = r.currentReport().recording; return s.phase === "ready" ? { path: s.path, seconds: s.seconds, bytes: s.bytes, stats: r.lastRecordingStats() } : s.phase === "failed" ? { failed: s.message } : null`), 15000);
+        if (done.failed) throw new Error(`${label}: ${done.failed}`);
+        const after = await shown();
+        const playing = await playback();
+        const mp4 = join(out, `${label}.mp4`);
+        cpSync(done.path, mp4);
+        const png = join(out, `${label}.png`);
+        execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-ss", "1.5", "-i", mp4, "-frames:v", "1", png]);
+        await report(`r.discardRecording(); return r.closeReport().then(() => true)`);
+        const shot = pixels(png);
+        const s = shot.size[0] / ww;
+        const top = (wy + wh - (py + ph)) * s, left = (px - wx) * s;
+        const inset = 0.2;
+        const sidebarPart = [left + 12 * s, left + 56 * s];
+        const pip = shot.region(left + pw * s * inset, top + ph * s * inset, left + pw * s * (1 - inset), top + ph * s * (1 - inset));
+        const overSidebar = shot.region(sidebarPart[0], top + ph * s * inset, sidebarPart[1], top + ph * s * (1 - inset));
+        const above = shot.region(sidebarPart[0], top - 60 * s, sidebarPart[1], top - 20 * s);
+        return {
+          label, stopped, png, mp4, seconds: done.seconds, bytes: done.bytes, frameCount: done.stats?.frames, windows: done.stats?.windows ?? null,
+          misses: done.stats?.windowPictureMisses, pip, overSidebar, above, pipEvents: (await pipEvents()) - eventsBefore,
+          frames: { placed: placed.frame, during: during?.frame ?? null, after: after?.frame ?? null, stashed: [during?.stashed, after?.stashed] },
+          playback: { before, after: playing },
+        };
+      };
+      const hidden = await record(false);
+      const included = await record(true);
+      const outside = [wx + ww - 40, wy + 40];
+      await pipAct(`frame:{{${outside[0]}, ${outside[1]}}, {${pw}, ${ph}}}`);
+      await sleep(600);
+      await pipAct("alpha:1");
+      let pinned;
+      try {
+        await report(`r.openReport(${JSON.stringify(mainWindow)}); r.setIncludePages(true); return r.startRecording().then(() => true)`);
+        await sleep(1500);
+        await report(`return r.stopRecording().then(() => true)`);
+        pinned = await until("the pinned recording saved", () => report(`const s = r.currentReport().recording; return s.phase === "ready" ? { path: s.path, pip: !!s.pictureInPicture, stats: r.lastRecordingStats() } : s.phase === "failed" ? { failed: s.message } : null`), 15000);
+        if (!pinned.failed) cpSync(pinned.path, join(out, "pinned.mp4"));
+        await report(`r.discardRecording(); return r.closeReport().then(() => true)`);
+      } finally {
+        await pipAct("alpha:0");
+      }
+      log(`report-recording-pip: ${JSON.stringify({ hidden, included, pinned })}`);
+      const wrong = [];
+      for (const r of [hidden, included]) {
+        if (r.frames.during !== r.frames.placed || r.frames.after !== r.frames.placed || r.frames.stashed.some(Boolean))
+          wrong.push(`${r.label}: recording moved, hid or stashed the PiP ${JSON.stringify(r.frames)}`);
+        if (r.pipEvents) wrong.push(`${r.label}: ${r.pipEvents} PiP events while recording`);
+        if (r.playback.after.paused || !r.playback.after.pip || r.playback.after.time <= r.playback.before.time)
+          wrong.push(`${r.label}: playback changed ${JSON.stringify(r.playback)}`);
+        if (!r.windows?.some((w) => w.kind === "pictureInPicture")) wrong.push(`${r.label}: the PiP window isn't in the recording's windows (${JSON.stringify(r.windows)})`);
+      }
+      if (!(hidden.overSidebar.luma < 12 && hidden.pip.chroma < 15 && hidden.above.luma - hidden.overSidebar.luma > 15))
+        wrong.push(`pages hidden: the PiP isn't drawn as a hidden video over the sidebar (pip ${JSON.stringify(hidden.overSidebar)}, sidebar ${JSON.stringify(hidden.above)})`);
+      if (!(included.pip.chroma > 60)) wrong.push(`pages included: the PiP's video isn't in the frames (pip ${JSON.stringify(included.pip)}, sidebar ${JSON.stringify(included.above)})`);
+      if (pinned.failed || pinned.pip) wrong.push(`a PiP beside the window is drawn into the recording: ${JSON.stringify({ failed: pinned.failed, pip: pinned.pip, windows: pinned.stats?.windows })}`);
+      if (wrong.length) throw new Error(wrong.join("; "));
+      return { pinned: pinned.stats?.windows, hidden: { pip: hidden.overSidebar, sidebar: hidden.above, windows: hidden.windows }, included: { pip: included.pip, sidebar: included.above, windows: included.windows, misses: included.misses }, out };
+    } finally {
+      await report(`r.discardRecording(); return r.closeReport().then(() => true)`).catch(() => null);
+      await closeTab(tab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("report-recording-guard", async () => {
+    const out = join(scratch, "report-recording-guard");
+    rmSync(out, { recursive: true, force: true });
+    mkdirSync(out, { recursive: true });
+    const nums = (text) => text.match(/-?[\d.]+/g).map(Number);
+    const pipAct = (action) => engine("tabs.devPictureInPictureAction", { action });
+    const report = (body) => evalApp(`const r = ac.report; ${body}`);
+    const dev = (fn, ...args) => evalApp(`const m = globalThis.expo.modules.ArdiaReport; return m.${fn} ? m.${fn}(${args.map((a) => JSON.stringify(a)).join(", ")}) : null`);
+    const dragPreview = (fn, ...args) => evalApp(`return globalThis.expo.modules.ArdiaAppWindows.${fn}(${args.map((a) => JSON.stringify(a)).join(", ")})`);
+    const styled = async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null;
+    const MARKERS = { page: [300, 180], video: [240, 60], other: [270, 30] };
+    const HUE_TOLERANCE = 10, MIN_SATURATION = 0.55, MIN_VALUE = 0.3, MIN_PIXELS = 40;
+    const markerFrames = (mp4) => {
+      const [fw, fh] = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", mp4], { encoding: "utf8" }).trim().split(",").map(Number);
+      const w = fw >> 1, h = fh >> 1;
+      const raw = execFileSync("ffmpeg", ["-loglevel", "error", "-i", mp4, "-fps_mode", "passthrough", "-vf", `scale=${w}:${h}:flags=neighbor`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { maxBuffer: 2 ** 32 });
+      const size = w * h * 3, frames = [];
+      const hueOf = (r, g, b) => {
+        const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+        if (max < MIN_VALUE * 255 || d < MIN_SATURATION * max) return -1;
+        const hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        return (hue * 60 + 360) % 360;
+      };
+      const near = (hue, target) => hue >= 0 && Math.min(Math.abs(hue - target), 360 - Math.abs(hue - target)) <= HUE_TOLERANCE;
+      for (let f = 0; f + size <= raw.length; f += size) {
+        const counts = Object.fromEntries(Object.keys(MARKERS).map((k) => [k, [0, 0]]));
+        const box = Object.fromEntries(Object.keys(MARKERS).map((k) => [k, [w, h, -1, -1]]));
+        for (let y = 0; y < h; y++)
+          for (let x = 0; x < w; x++) {
+            const i = f + (y * w + x) * 3, hue = hueOf(raw[i], raw[i + 1], raw[i + 2]);
+            if (hue < 0) continue;
+            for (const [name, pair] of Object.entries(MARKERS))
+              for (let c = 0; c < 2; c++)
+                if (near(hue, pair[c])) {
+                  counts[name][c]++;
+                  if (c === 0) continue;
+                  const bb = box[name];
+                  bb[0] = Math.min(bb[0], x), bb[1] = Math.min(bb[1], y), bb[2] = Math.max(bb[2], x), bb[3] = Math.max(bb[3], y);
+                }
+          }
+        const hits = Object.fromEntries(Object.entries(counts).map(([k, [a, b]]) => [k, a >= MIN_PIXELS && b >= MIN_PIXELS ? { a, b, box: box[k] } : null]));
+        frames.push(hits);
+      }
+      return { size: [w, h], frames };
+    };
+    const summary = (frames, name) => {
+      const at = frames.map((f, i) => (f[name] ? i : -1)).filter((i) => i >= 0);
+      return { frames: at.length, first: at[0] ?? null, last: at.at(-1) ?? null };
+    };
+    const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const winfo = async () => JSON.parse(await engine("windows.dev", { window: n, action: "winfo" }));
+    const original = nums((await winfo()).frame);
+    const marker = await openTab(`${base}/marker?page`, "Marker");
+    const video = await openTab(`${base}/video?report&marker`, "Video");
+    const opened = [];
+    let canPlace = false;
+    try {
+      await evalApp(`return ac.webviews.get("${video.id}").setMuted(true)`);
+      await startVideo(video.id, false);
+      await pipByHand(video.id);
+      await until("the styled PiP window", styled, 5000);
+      await evalApp(`ac.actions.switchToTab("${marker.id}"); return true`);
+      await until("the marker tab shown", async () => (await state()).active === marker.id);
+      await sleep(600);
+      const screen = nums((await styled()).visibleFrame);
+      canPlace = (await dev("devPlaceWindow", mainWindow, [screen[0] + screen[2] - 1000, screen[1] + 80, 1000, 680])) === true;
+      await sleep(500);
+      const [wx, wy, ww, wh] = nums((await winfo()).frame);
+      const [, , pw, ph] = nums((await styled()).frame);
+      const page = await until("the page's rectangle", async () => (await dev("devRecordingPages", mainWindow))?.find((p) => p.source === "engine") ?? null, 5000).catch(() => null);
+      const pageRect = page ? page.rect : [260, 50, ww - 280, wh - 70];
+      const opens = async (command, kind, url, frame) => {
+        const before = new Set(await evalApp(`return Object.keys(ac.store.getState().windows)`));
+        await evalApp(`ac.runCommand({ command: ${JSON.stringify(command)}, arg: null, windowId: null }); return true`);
+        const id = await until(`a ${kind} window`, () => evalApp(`return Object.values(ac.store.getState().windows).find((w) => w.kind === ${JSON.stringify(kind)} && !${JSON.stringify([...before])}.includes(w.id))?.id ?? null`), 15000);
+        opened.push(id);
+        const tabId = await until("its tab", () => evalApp(`const w = ac.store.getState().windows["${id}"]; return w?.activeTabIds[w.profileId] ?? w?.tabIds[0] ?? null`));
+        await evalApp(`ac.store.getState().navigate("${tabId}", ${JSON.stringify(url)}, { userInitiated: true }); return true`);
+        await until(`the marker in the ${kind} window`, () => evalApp(`return ac.store.getState().tabs["${tabId}"]?.title === "Marker"`), 15000);
+        if (frame) await dev("devPlaceWindow", id, frame);
+        return id;
+      };
+      const closeWindow = async (id) => {
+        await evalApp(`return globalThis.expo.modules.ArdiaAppWindows.closeWindow(${JSON.stringify(id)})`).catch(() => null);
+        await until(`window ${id} closed`, () => evalApp(`return !ac.store.getState().windows["${id}"]`), 10000).catch(() => null);
+      };
+      const choreography = async (label) => {
+        const steps = [];
+        const step = (name) => steps.push({ name, at: Date.now() });
+        await sleep(500);
+        step("pip appears over the page");
+        await pipAct(`frame:{{${Math.round(wx + pageRect[0] + 40)}, ${Math.round(wy + 60)}}, {${pw}, ${ph}}}`);
+        await pipAct("alpha:1");
+        await sleep(800);
+        step("pip moves");
+        await pipAct(`frame:{{${Math.round(wx + pageRect[0] + 200)}, ${Math.round(wy + 140)}}, {${pw}, ${ph}}}`);
+        await sleep(800);
+        step("private window appears over the window");
+        const priv = await opens("newIncognitoWindow", "private", `${base}/marker?other`, [wx + 40, wy + 40, 700, 500]);
+        await sleep(900);
+        step("private window moves");
+        await dev("devPlaceWindow", priv, [wx + 120, wy + 90, 700, 500]);
+        await sleep(700);
+        step("private window closes");
+        await closeWindow(priv);
+        opened.splice(opened.indexOf(priv), 1);
+        await sleep(500);
+        step("Little Ardia appears over the window");
+        const small = await opens("newLittleArdia", "small", `${base}/marker?other`, [wx + 60, wy + 60, 520, 420]);
+        await sleep(900);
+        step("Little Ardia closes");
+        await closeWindow(small);
+        opened.splice(opened.indexOf(small), 1);
+        await sleep(400);
+        step("a dragged tab's preview appears and moves");
+        const picture = await evalApp(`return ac.webviews.get("${marker.id}").capturePicture(0.35)`);
+        await dragPreview("dragPreviewBegin", mainWindow, [12, 120, 200, 32], [100, 136]);
+        if (picture) await dragPreview("dragPreviewPage", picture.data, picture.frame);
+        await dragPreview("dragPreviewUpdate", "card", [Math.round(ww / 2), Math.round(wh / 2)]);
+        await sleep(800);
+        await dragPreview("dragPreviewUpdate", "card", [Math.round(ww / 2) + 120, Math.round(wh / 2) - 60]);
+        await sleep(700);
+        await dragPreview("dragPreviewCancel");
+        await sleep(400);
+        step("pip leaves");
+        await pipAct("alpha:0");
+        await sleep(400);
+        log(`report-recording-guard ${label} steps: ${JSON.stringify(steps.map((s) => s.name))}`);
+        return steps;
+      };
+      const record = async (label, includePages, during) => {
+        const phase = await report(`r.openReport(${JSON.stringify(mainWindow)}); r.setIncludePages(${includePages}); return r.startRecording().then(() => r.currentReport().recording.phase)`);
+        if (phase !== "recording") throw new Error(`${label}: the recording didn't start (${phase})`);
+        try {
+          await during();
+        } finally {
+          await report(`return r.stopRecording().then(() => true)`);
+        }
+        const done = await until(`the ${label} recording saved`, () => report(`const s = r.currentReport().recording; return s.phase === "ready" ? { path: s.path, stats: r.lastRecordingStats() } : s.phase === "failed" ? { failed: s.message } : null`), 20000);
+        if (done.failed) throw new Error(`${label}: ${done.failed}`);
+        const mp4 = join(out, `${label}.mp4`);
+        cpSync(done.path, mp4);
+        await report(`r.discardRecording(); return r.closeReport().then(() => true)`);
+        const decoded = markerFrames(mp4);
+        const result = {
+          label, mp4, decodedFrames: decoded.frames.length, size: decoded.size,
+          page: summary(decoded.frames, "page"), video: summary(decoded.frames, "video"), other: summary(decoded.frames, "other"),
+          videoBoxes: decoded.frames.map((f, i) => f.video && { frame: i, box: f.video.box }).filter(Boolean),
+          stats: { frames: done.stats?.frames, windows: done.stats?.windows, withheld: done.stats?.withheldWindows, misses: done.stats?.windowPictureMisses, renderMsP95: done.stats?.renderMsP95 },
+        };
+        log(`report-recording-guard ${label}: ${JSON.stringify({ ...result, videoBoxes: result.videoBoxes.slice(0, 3) })}`);
+        return result;
+      };
+      const hidden = await record("pages-hidden", false, () => choreography("pages-hidden"));
+      const included = await record("pages-included", true, () => choreography("pages-included"));
+      const s = included.size[0] / ww;
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+      await until("Page A shown", async () => (await state()).active === first.id);
+      const stashed = await record("stashed", true, async () => {
+        await pipAct(`frame:{{${Math.round(wx + ww - pw - 30)}, ${Math.round(wy + 100)}}, {${pw}, ${ph}}}`);
+        await pipAct("alpha:1");
+        await sleep(600);
+        await pipAct("stash");
+        await sleep(1800);
+        await pipAct("alpha:0");
+      });
+      await pipAct("unstash");
+      await sleep(800);
+      let offWindow = null;
+      if (canPlace) {
+        await dev("devPlaceWindow", mainWindow, [screen[0] + screen[2] - 900, screen[1] + 80, 900, 600]);
+        await sleep(400);
+      }
+      const [ox] = nums((await winfo()).frame);
+      if (ox - screen[0] >= pw + 20) {
+        offWindow = await record("off-window", true, async () => {
+          await pipAct(`frame:{{${Math.round(screen[0] + 10)}, ${Math.round(screen[1] + 100)}}, {${pw}, ${ph}}}`);
+          await pipAct("alpha:1");
+          await sleep(1500);
+          await pipAct("alpha:0");
+        });
+      }
+      await closeTab(video.id);
+      await until("the video PiP closed", async () => !(await styled()), 8000);
+      const docTab = await openTab(`${secureBase}/video?docpip&marker`, "Video");
+      let documentPip;
+      try {
+        await startVideo(docTab.id, true);
+        await until("live.playingAudio", async () => (await live(docTab.id))?.playingAudio === true, 8000);
+        await until("onNowPlaying with video", async () => lastEvent(docTab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
+        await sleep(300);
+        documentPip = await record("document-pip", false, async () => {
+          await evalApp(`ac.actions.switchToTab("${marker.id}"); return true`);
+          await until("auto PiP (document)", async () => lastEvent(docTab.id, "pictureInPicture", (p) => p.kind === "document" && p.active), 8000);
+          const doc = await until("the document PiP window", async () => (await pipWindows())?.find((w) => w.document) ?? null, 8000);
+          await dev("devWindowServerAlpha", doc.window, 1);
+          await sleep(1500);
+          await dev("devWindowServerAlpha", doc.window, 0);
+        });
+      } finally {
+        await closeTab(docTab.id);
+      }
+      const wrong = [];
+      for (const name of ["page", "video", "other"])
+        if (documentPip[name].frames) wrong.push(`document PiP, pages hidden: ${name} marker pixels in ${documentPip[name].frames} frames`);
+      for (const name of ["page", "video", "other"])
+        if (hidden[name].frames) wrong.push(`pages hidden: ${name} marker pixels in ${hidden[name].frames} of ${hidden.decodedFrames} frames (first ${hidden[name].first})`);
+      for (const r of [hidden, included, documentPip]) {
+        const foreign = (r.stats.windows ?? []).filter((w) => w.kind !== "pictureInPicture" && w.frames > 0);
+        if (foreign.length) wrong.push(`${r.label}: windows that aren't the recorded window's own were drawn: ${JSON.stringify(foreign)}`);
+      }
+      if (included.other.frames) wrong.push(`pages included: another window's page in ${included.other.frames} frames (first ${included.other.first})`);
+      if (!included.page.frames) wrong.push("pages included: the recorded window's own page never shows");
+      if (!included.video.frames) wrong.push("pages included: the recorded window's own PiP video never shows");
+      const edge = (34 * s) | 0;
+      const settled = Math.floor(stashed.decodedFrames * 0.6);
+      const deep = stashed.videoBoxes.filter((b) => b.frame >= settled && b.box[0] < stashed.size[0] - edge);
+      if (deep.length) wrong.push(`stashed: the PiP video drawn away from the screen edge in ${deep.length} settled frames (left edge at ${deep[0].box[0]} px of ${stashed.size[0]})`);
+      if (offWindow?.video.frames) wrong.push(`off the window: the PiP video drawn in ${offWindow.video.frames} frames`);
+      if (wrong.length) throw new Error(wrong.join("; "));
+      return {
+        hidden: { frames: hidden.decodedFrames, windows: hidden.stats.windows, withheld: hidden.stats.withheld },
+        included: { frames: included.decodedFrames, page: included.page.frames, video: included.video.frames, withheld: included.stats.withheld, misses: included.stats.misses },
+        stashed: { video: stashed.video.frames, edgePx: edge, settledBoxes: stashed.videoBoxes.filter((b) => b.frame >= settled).slice(0, 2) },
+        offWindow: offWindow ? { frames: offWindow.decodedFrames, video: offWindow.video.frames } : "skipped: no room beside the window",
+        documentPip: { frames: documentPip.decodedFrames, windows: documentPip.stats.windows },
+        out,
+      };
+    } finally {
+      await report(`r.discardRecording(); return r.closeReport().then(() => true)`).catch(() => null);
+      await dragPreview("dragPreviewCancel").catch(() => null);
+      for (const id of opened) await evalApp(`return globalThis.expo.modules.ArdiaAppWindows.closeWindow(${JSON.stringify(id)})`).catch(() => null);
+      await pipAct("alpha:0").catch(() => null);
+      if (canPlace) await dev("devPlaceWindow", mainWindow, original).catch(() => null);
+      await closeTab(video.id);
+      await closeTab(marker.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     }
   });
@@ -5024,6 +5530,54 @@ try {
     }
   });
 
+  await check("report-recording-webkit-media", async () => {
+    const id = await webkitTab("/marker?page", "Marker");
+    const report = (body) => evalApp(`const r = ac.report; ${body}`);
+    const pagePixels = (mp4) => {
+      const [fw, fh] = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", mp4], { encoding: "utf8" }).trim().split(",").map(Number);
+      const w = fw >> 1, h = fh >> 1, size = w * h * 3;
+      const raw = execFileSync("ffmpeg", ["-loglevel", "error", "-i", mp4, "-fps_mode", "passthrough", "-vf", `scale=${w}:${h}:flags=neighbor`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { maxBuffer: 2 ** 32 });
+      const counts = [];
+      for (let f = 0; f + size <= raw.length; f += size) {
+        let magenta = 0, cyan = 0;
+        for (let i = f; i < f + size; i += 3) {
+          const r = raw[i], g = raw[i + 1], b = raw[i + 2];
+          if (r > 180 && g < 90 && b > 180) magenta++;
+          else if (r < 90 && g > 180 && b > 180) cyan++;
+        }
+        counts.push(magenta >= 40 && cyan >= 40);
+      }
+      return { frames: counts.length, shown: counts.filter(Boolean).length };
+    };
+    const record = async (label) => {
+      await report(`r.openReport(${q(mainWindow)}); r.setIncludePages(true); return r.startRecording().then(() => true)`);
+      await sleep(2000);
+      await report(`return r.stopRecording().then(() => true)`);
+      const done = await until(`the ${label} recording`, () => report(`const s = r.currentReport().recording; return s.phase === "ready" ? { path: s.path, stats: r.lastRecordingStats() } : s.phase === "failed" ? { failed: s.message } : null`), 15000);
+      if (done.failed) throw new Error(`${label}: ${done.failed}`);
+      const mp4 = join(scratch, `report-webkit-${label}.mp4`);
+      cpSync(done.path, mp4);
+      await report(`r.discardRecording(); return r.closeReport().then(() => true)`);
+      return { ...pagePixels(mp4), withheld: done.stats?.webKitMediaWithheld ?? null };
+    };
+    try {
+      const quiet = await record("no-media");
+      await evalApp(`return ac.webviews.get(${q(id)}).setMuted(true)`);
+      await inPage(id, `const a = document.createElement("audio"); a.id = "tone"; a.src = "/tone.wav"; a.loop = true; document.body.append(a); a.play()`);
+      await until("the WebKit page playing", async () => (await pageValue(id, `document.getElementById("tone")?.currentTime > 0`)) === true, 8000);
+      const playing = await record("playing");
+      const wrong = [];
+      if (!quiet.shown) wrong.push(`a WebKit page without media never shows with pages included (${JSON.stringify(quiet)})`);
+      if (playing.shown) wrong.push(`a WebKit page playing media shows in ${playing.shown} of ${playing.frames} frames`);
+      if (wrong.length) throw new Error(wrong.join("; "));
+      return { quiet, playing };
+    } finally {
+      await report(`r.discardRecording(); return r.closeReport().then(() => true)`).catch(() => null);
+      await closeTab(id).catch(() => null);
+      await backToMain();
+    }
+  });
+
   await check("webkit-scroll", async () => {
     const id = await webkitTab("/tall", "Tall");
     const down = () => evalApp(`return !!ac.toolbarAutoHide.useToolbarAutoHide.getState().scrolledDown[${q(id)}]`);
@@ -5523,7 +6077,7 @@ try {
     await pressQuit(windowId);
     await until("the quit", async () => exited, 30000);
     const layout = JSON.parse(readFileSync(join(data, "launch-layout.json"), "utf8"));
-    if (layout.version !== 3 || !layout.windows?.[windowId]) throw new Error(`no launch layout for the window: ${JSON.stringify(Object.keys(layout.windows ?? {}))}`);
+    if (layout.version !== 4 || !layout.windows?.[windowId]) throw new Error(`no launch layout for the window: ${JSON.stringify(Object.keys(layout.windows ?? {}))}`);
     const before = served.get(path) ?? 0;
     await appUp("app-launch-tab-2.out.log");
     const tab = await until("the launch tab restored", async () => (await state()).tabs.find((t) => t.id === id && t.title === "Fresh" && !t.loading), 20000);

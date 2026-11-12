@@ -1355,7 +1355,7 @@ index 7f1aeff436b8a51514254b72d1fb1fd1ee3b1553..dd2851fec59498902a78204041d994ed
  
  - (void)setNeedsLayout
 diff --git a/React/Views/RCTView.m b/React/Views/RCTView.m
-index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..fd28e7cb7011e21857793a5bf1142b44f5202690 100644
+index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..8554a54819424c7b724d8400125721ab3c4f78a0 100644
 --- a/React/Views/RCTView.m
 +++ b/React/Views/RCTView.m
 @@ -136,6 +136,24 @@ - (RCTPlatformView *)react_findClipView // [macOS]
@@ -1557,7 +1557,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..fd28e7cb7011e21857793a5bf1142b44
  - (void)updateTrackingAreas
  {
    BOOL hasMouseHoverEvent = self.onMouseEnter || self.onMouseLeave;
-@@ -1522,6 +1552,13 @@ - (void)updateTrackingAreas
+@@ -1522,20 +1552,200 @@ - (void)updateTrackingAreas
    if (!wouldRecreateIdenticalTrackingArea) {
      if (_trackingArea) {
        [self removeTrackingArea:_trackingArea];
@@ -1565,26 +1565,40 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..fd28e7cb7011e21857793a5bf1142b44
 +      // counted the removed area as "identical" and never added one again: no mouseEntered/mouseExited from then on
 +      // (the sidebar's peek panel stayed out after its first peek). Ardia]
 +      _trackingArea = nil;
-+      // [Ardia: and what it knew: a view that is under the pointer when it loses its area never hears it leave, and
-+      // its next scroll (viewBoundsChanged:) would send a leave for it. Ardia]
-+      _hasMouseOver = NO;
++      // [Ardia: and what it knew, once its handlers are gone: a view that is under the pointer when it loses its
++      // handlers never hears it leave, and its next scroll (viewBoundsChanged:) would send a leave for it. A view that
++      // keeps its handlers keeps it: its area is only being resized, and forgetting it there meant a hovered view whose
++      // size changed under the pointer (the sidebar's New Tab row as a new tab slides in) never got its leave and
++      // stayed highlighted. Ardia]
++      if (!hasMouseHoverEvent) {
++        _hasMouseOver = NO;
++      }
      }
  
      if (hasMouseHoverEvent) {
-@@ -1533,9 +1570,173 @@ - (void)updateTrackingAreas
-     }
-   }
- 
++      NSTrackingAreaOptions options = NSTrackingActiveAlways | NSTrackingMouseEnteredAndExited | (_hasMouseOver ? NSTrackingAssumeInside : 0);
+       _trackingArea = [[NSTrackingArea alloc] initWithRect:self.bounds
+-                                                   options:NSTrackingActiveAlways|NSTrackingMouseEnteredAndExited
++                                                   options:options
+                                                      owner:self
+                                                   userInfo:nil];
+       [self addTrackingArea:_trackingArea];
++      if (_hasMouseOver) {
++        [RCTView ardia_markHoverDirty]; // [Ardia: hover follows layout: the resized view may have left the pointer. Ardia]
++      }
++    }
++  }
++
 +  // [Ardia: hover follows layout: the views the check looks at. Ardia]
 +  if (hasMouseHoverEvent) {
 +    if (ArdiaHoverViews == nil) {
 +      ArdiaHoverViews = [NSHashTable weakObjectsHashTable];
-+    }
+     }
 +    [ArdiaHoverViews addObject:self];
 +  } else {
 +    [ArdiaHoverViews removeObject:self];
-+  }
-+
+   }
+ 
    [super updateTrackingAreas];
  }
  
@@ -1745,7 +1759,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..fd28e7cb7011e21857793a5bf1142b44
  - (void)mouseEntered:(NSEvent *)event
  {
    _hasMouseOver = YES;
-@@ -1768,7 +1969,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
+@@ -1768,7 +1978,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
    static const char kRCTViewKeyboardEventEmittedKey = 0;
    NSNumber *emitted = objc_getAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey);
    BOOL alreadyEmitted = [emitted boolValue];

@@ -316,6 +316,7 @@ The only variables the app and engine read, through `ArdiaLaunchConfig` (`packag
 | | `applyProfileGate` | Applies the real-profile switch gate on the mock keychain too |
 | | `screenRecording=allowed\|denied` | What the share sheet is told about macOS Screen Recording permission (Chrome still checks the real one); background mode never asks macOS for it |
 | | `contextMenu` | Context menus dump to `<data dir>/context-menu.json` and take their pick from `….pick` |
+| | `systemLocationPermission=ask\|denied\|granted` | The app's macOS location access (`ArdiaLocation`): `ask` is not determined and a request answers Allow. A background instance never asks macOS and reads as not determined without it |
 | | `appMenu` · `appDialog` | The app's own menus (`showMenu`) dump to `<data dir>/menu.json` and take their pick from `….pick` · `confirm` and `prompt` dump to `dialog.json` and take their answer from `….pick` |
 | | `pipSelfTest=close\|backToTab\|hover\|style` · `pipHover=close\|back` | PiP self-tests on the first PiP window (background mode), results in the data dir |
 | | `fakeFullScreenMs=<ms>` | Length of the acted-out full-screen transition |
