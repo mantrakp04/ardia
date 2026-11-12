@@ -146,6 +146,13 @@ export const generalRows = {
           keywords: ["right", "left", "side", "position", "flip", "mirror", "sidebar on the right", "right sidebar", "arc"],
           shown: inSidebar,
         },
+        sidebarScale: {
+          title: "Size of tabs in the sidebar",
+          description:
+            "Makes the tabs, Top Apps, groups and folders in the sidebar smaller or larger, with their text and icons, from 80% to 120%. Pages keep their own zoom. The window buttons, the address bar and the profile switcher keep their size.",
+          keywords: ["scale", "smaller", "larger", "bigger", "compact", "dense", "density", "tab height", "row height", "sidebar size", "ui scale", "interface scale", "percent", "%"],
+          shown: inSidebar,
+        },
         hideToolbarWhileScrolling: {
           title: "Hide toolbar while scrolling",
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back. Your tabs stay put: hiding them is Auto-hide tabs.",

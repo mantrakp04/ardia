@@ -8,7 +8,7 @@ import { SLIDE } from "../tabstrip/tokens";
 import { ContextMenuArea, HoverCard as HoverPanel, OutsidePressArea, space, useHover } from "../ui";
 import { SectionLabel } from "./SectionLabel";
 import { SidebarListRow, SidebarRowLabel } from "./SidebarRow";
-import { TAB_ROW } from "./tokens";
+import { useSidebarScale } from "./scale";
 import { clickTab } from "../../state/sidebar/actions";
 import { useDragController, useDragItem, useFolderAway } from "./DragProvider";
 import { openTabMenu } from "../../state/sidebar/menus";
@@ -28,6 +28,7 @@ export function FolderPanel({ windowId }: { windowId: string }) {
 
 function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId: string; anchor: { x: number; y: number; width: number; height: number } }) {
   const controller = useDragController();
+  const m = useSidebarScale();
   const members = useTileFolderMembers(windowId, folderId);
   const label = useTileFolderLabel(windowId, folderId);
   const away = useFolderAway();
@@ -74,9 +75,16 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
       <OutsidePressArea onOutsidePress={closeFolderPanelOnPress}>
         <HoverPanel width={root.w - layout.sidebarInset * 2} pad="s">
           <ContextMenuArea onContextMenu={() => void openTileFolderMenu(windowId, folderId)}>
-            <SectionLabel title={`${label} · ${plural(members.length, "tab")}`} inset={space.s} top={space.xxs} bottom={space.s} />
+            <SectionLabel
+              title={`${label} · ${plural(members.length, "tab")}`}
+              inset={m.space.s}
+              top={m.space.xxs}
+              bottom={m.space.s}
+              fontSize={m.font.caption}
+              lineHeight={m.lineHeight.caption}
+            />
           </ContextMenuArea>
-          <View style={{ gap: layout.rowGap }}>
+          <View style={{ gap: m.rowGap }}>
             {members.map((id) => (
               <MemberRow key={id} tabId={id} windowId={windowId} />
             ))}
@@ -90,6 +98,7 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
 
 function MemberRow({ tabId, windowId }: { tabId: string; windowId: string }) {
   const theme = useTheme();
+  const m = useSidebarScale();
   const tab = useTab(tabId);
   const active = useIsActiveTab(tabId);
   const { hovered, hoverProps } = useHover();
@@ -106,8 +115,8 @@ function MemberRow({ tabId, windowId }: { tabId: string; windowId: string }) {
             }}
           >
             {({ pressed }) => (
-              <SidebarListRow height={layout.rowHeight} padRight={TAB_ROW.contentLeft} fill={pressed ? theme.tabPressed : active ? theme.pinnedSelectedFill : hovered ? theme.tabHover : undefined}>
-                <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+              <SidebarListRow height={m.rowHeight} padRight={m.tabRow.contentLeft} fill={pressed ? theme.tabPressed : active ? theme.pinnedSelectedFill : hovered ? theme.tabHover : undefined}>
+                <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={m.icon} />
                 <SidebarRowLabel text={tabTitle(tab)} color={active ? theme.textPrimary : theme.textTab} />
               </SidebarListRow>
             )}

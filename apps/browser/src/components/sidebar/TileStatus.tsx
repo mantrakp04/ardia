@@ -6,7 +6,7 @@ import { useSettings, useTabLive } from "../../state/browser/hooks";
 import { useMedia } from "../../state/media/media";
 import { useMuteState } from "../../state/tabs/hooks";
 import { TileUnread } from "../unread/UnreadBadge";
-import { TILE_STATUS } from "./tokens";
+import { useSidebarScale } from "./scale";
 
 export const TileStatus = memo(function TileStatus({ tabId }: { tabId: string }) {
   return useSettings((s) => s.showTopAppBadges) ? <TileMarks tabId={tabId} /> : null;
@@ -17,7 +17,7 @@ function TileMarks({ tabId }: { tabId: string }) {
   const pip = useMedia((m) => !!m.pipOpen[tabId]);
   const playing = useTabLive(tabId, (l) => l.playingAudio);
   const mute = useMuteState(tabId);
-  const { pip: pipSize, speaker, box, inset } = TILE_STATUS;
+  const { pip: pipSize, speaker, box, inset } = useSidebarScale().tileStatus;
   return (
     <>
       {pip ? (

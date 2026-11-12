@@ -16,6 +16,7 @@ import { DragScope, useDragController, useDragging, usePinnedCount } from "./Dra
 import { openSidebarMenu } from "../../state/sidebar/menus";
 import { PinnedGrid } from "./PinnedGrid";
 import { pinGridHeight } from "./pinZone";
+import { useSidebarScale } from "./scale";
 import { SCROLL_EDGE, ScrollEdgeLine, useScrollEdge } from "./ScrollEdge";
 import { listTopGap } from "./geometry";
 import { startsOffScreen } from "../../state/sidebar/geometry";
@@ -27,6 +28,7 @@ import { NewTabRow } from "./NewTabRow";
 const NONE: string[] = [];
 type PageGeometry = { scrollY: number; viewport: number; regions: SidebarGeometry["regions"] };
 const LIST_PAD = GLOW_ROOM + SCROLL_EDGE.inset;
+const INLINE_NEW_TAB_ROOM = 24;
 
 type PageProps = {
   profileId: string;
@@ -45,6 +47,7 @@ type PageProps = {
 
 export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, width, current, resting, dockAbove, height, rows, geometry, onScrollView, onScrollY }: PageProps) {
   const windowId = useWindowId();
+  const m = useSidebarScale();
   const topGap = listTopGap(useAddressBarInSidebar());
   const pageStyle = usePageStyle(windowId, slot, width);
   const sharedTiles = useSharedTilesStyle(windowId, slot, width, paging);
@@ -64,7 +67,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
   const previewed = usePinnedCount(tiles);
   const dockRoom = height ? (height - playerHeight) * DOCK_SHARE - topGap - SCROLL_EDGE.gap - SCROLL_EDGE.line : Infinity;
   const balanced = useSettings((st) => st.balancedTopApps);
-  const gridHeight = (count: number) => pinGridHeight(count, innerWidth, layout.pinnedHeight, balanced);
+  const gridHeight = (count: number) => pinGridHeight(count, innerWidth, m.tile, balanced);
   const fits = tilesFitDock({ tiles: tiles.length, gridHeight, dockRoom });
   const fixedBeforeDrag = useRef(true);
   useLayoutEffect(() => {
@@ -179,7 +182,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
                             regions={page.regions}
                             onListHeight={reportList}
                           />
-                          <ContextMenuArea style={{ flexGrow: 1, minHeight: inlineNewTab ? 24 : 0 }} onContextMenu={() => void openSidebarMenu(windowId)}>
+                          <ContextMenuArea style={{ flexGrow: 1, minHeight: inlineNewTab ? m.px(INLINE_NEW_TAB_ROOM) : 0 }} onContextMenu={() => void openSidebarMenu(windowId)}>
                             <WindowDragRegion style={{ flex: 1 }} titleBarDoubleClick={false} onRegionDoubleClick={() => toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true })} />
                           </ContextMenuArea>
                         </Animated.ScrollView>
@@ -191,7 +194,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
                       </View>
                     ) : null}
                     {docked ? (
-                      <View style={{ paddingHorizontal: layout.sidebarInset, paddingTop: layout.rowGap, paddingBottom: DOCKED_BOTTOM }}>
+                      <View style={{ paddingHorizontal: layout.sidebarInset, paddingTop: m.rowGap, paddingBottom: DOCKED_BOTTOM }}>
                         <NewTabRow windowId={windowId} />
                       </View>
                     ) : null}

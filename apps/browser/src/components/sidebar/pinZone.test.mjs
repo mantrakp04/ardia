@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 const { overPins, pinGrid, pinGridHeight, pinSlot, PIN_ZONE_HYSTERESIS } = await import("./pinZone.ts");
+const BASE_METRICS_MODULE = await import("../../lib/sidebarMetrics.ts");
+const { BASE_SIDEBAR_METRICS } = BASE_METRICS_MODULE;
 
-const TILE = 41;
+const TILE = BASE_SIDEBAR_METRICS.tile;
 const grid = { x: 6, y: 54, w: 178 };
 
 test("the grid lays out the count it will have after the drop", () => {
@@ -71,7 +73,7 @@ test("the slot under the pointer is the tile's index after the drop", () => {
 });
 
 test("a sideways drag below the tiles stays on the same row's slots", () => {
-  const slots = [30, 60, 95, 120, 155].map((x) => pinSlot(grid, 3, TILE, x, 54 + TILE + 10));
+  const slots = [30, 60, 95, 120, 155].map((x) => pinSlot(grid, 3, TILE, x, 54 + TILE.height + 10));
   assert.deepEqual(slots, [0, 0, 1, 1, 2]);
 });
 
@@ -98,4 +100,33 @@ test("the grid's height is its row count after the drop", () => {
   assert.equal(pinGridHeight(2, 178, TILE), 41);
   assert.equal(pinGridHeight(0, 178, TILE), 41);
   assert.equal(pinGridHeight(7, 178, TILE), 135);
+});
+
+test("a smaller sidebar fits more, shorter Top Apps across; a larger one fewer, taller", () => {
+  const { sidebarMetrics } = BASE_METRICS_MODULE;
+  const small = sidebarMetrics(80).tile;
+  const large = sidebarMetrics(120).tile;
+  assert.equal(pinGrid(6, 178).columns, 3);
+  assert.equal(pinGrid(6, 178, false, small).columns, 4);
+  assert.equal(pinGrid(6, 178, false, large).columns, 2);
+  assert.equal(pinGridHeight(3, 178, small), 33);
+  assert.equal(pinGridHeight(2, 178, large), 49);
+  assert.equal(pinGridHeight(3, 178, large), large.height * 2 + large.gap);
+  assert.equal(pinGridHeight(6, 178, small), small.height * 2 + small.gap);
+});
+
+test("at every size, the middle of each laid-out tile hits its own slot", () => {
+  const { SIDEBAR_SCALES, sidebarMetrics } = BASE_METRICS_MODULE;
+  for (const percent of SIDEBAR_SCALES) {
+    const tile = sidebarMetrics(percent).tile;
+    for (const balanced of [false, true]) {
+      const count = 7;
+      const { columns, width } = pinGrid(count, grid.w, balanced, tile);
+      for (let slot = 0; slot < count; slot++) {
+        const x = grid.x + (slot % columns) * (width + tile.gap) + width / 2;
+        const y = grid.y + Math.floor(slot / columns) * tile.slot + tile.height / 2;
+        assert.equal(pinSlot(grid, count, tile, x, y, balanced), slot, `${percent}% ${balanced ? "balanced" : "packed"} slot ${slot}`);
+      }
+    }
+  }
 });

@@ -34,11 +34,11 @@ export function useMeetingCountdown(groupId: string) {
   };
 }
 
-export function MeetingTimeLabel({ label, urgent }: { label: string; urgent: boolean }) {
+export function MeetingTimeLabel({ label, urgent, fontSize, gap = space.xs }: { label: string; urgent: boolean; fontSize?: number; gap?: number }) {
   const theme = useTheme();
   const colors = useLiveColors();
   return (
-    <Text size="caption" weight="semibold" style={{ fontVariant: TABULAR, color: urgent ? colors.now : theme.textSecondary, marginRight: space.xs }}>
+    <Text size="caption" weight="semibold" style={{ fontVariant: TABULAR, fontSize, color: urgent ? colors.now : theme.textSecondary, marginRight: gap }}>
       {label}
     </Text>
   );

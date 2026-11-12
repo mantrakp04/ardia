@@ -1,9 +1,9 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, View } from "react-native";
 import { curve } from "../ui/motion";
-import { layout } from "../ui/theme";
 import { FoldedAway } from "./hoverController";
 import { SIDEBAR_MOTION } from "./tokens";
+import { useSidebarScale } from "./scale";
 
 const FOLD_MS = SIDEBAR_MOTION.fold;
 const FOLD_EASING = curve.enter;
@@ -62,11 +62,11 @@ export function Fold({
   footer?: ReactNode;
 }) {
   const { open, moving } = fold;
-  const gap = layout.rowGap;
+  const gap = useSidebarScale().rowGap;
   const parentAway = useContext(FoldedAway);
   const measuring = rowHeight === undefined;
   const [measured, setMeasured] = useState<Record<string, number>>({});
-  const styles = useRef(new Map<number, object>()).current;
+  const styles = useRef(new Map<string, object>()).current;
   const kept = new Set([keep ?? []].flat().filter((key) => entries.some((e) => e.key === key)));
   const folding = kept.size > 0 && (collapsed || moving);
   const state = useRef({ moving, folding, kept });
@@ -75,7 +75,8 @@ export function Fold({
   const rows = entries.filter((e) => !e.ghost);
   const total = rows.reduce((sum, e) => sum + heightOf(e.key), 0) + gap * Math.max(0, rows.length - 1) + padTop + padBottom;
   const foldingStyle = (height: number) => {
-    let style = styles.get(height);
+    const key = `${height}:${gap}`;
+    let style = styles.get(key);
     if (!style) {
       style = {
         height: open.interpolate({ inputRange: [0, 1], outputRange: [0, height] }),
@@ -83,7 +84,7 @@ export function Fold({
         opacity: open,
         overflow: "hidden",
       };
-      styles.set(height, style);
+      styles.set(key, style);
     }
     return style;
   };
