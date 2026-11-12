@@ -155,6 +155,12 @@ Logic is written once. Only code that calls the OS is written per platform.
   bubbles blur what is under them inside the window with a Composition backdrop brush (Gaussian blur, saturation and a
   tint). Window and theme gradients are Composition linear gradients at their real angle. Windows 10, a background
   instance and any failure keep the flat colours; the launch log says once which path each one took.
+- Switching profiles slides the sidebar's pages and crossfades the tint as on the Mac. The Mac's native pager
+  (`Pager.swift`) has a TypeScript version in `packages/expo-windows/src/pager`: the `ArdiaSwipe` view and module with
+  the same events (`onPagerPosition` every frame, `onPagerState` on select and settle), sequence numbers and spring
+  (critically damped, a quarter-second period), stepped on the app's 60 Hz frames. With Windows' animations off it
+  lands at once. Swipe gestures (two-finger scroll, the rubber band, haptics) have no input on Windows yet, so only
+  clicks, shortcuts and outside switches page.
 - The Windows native API has its own version: `WINDOWS_NATIVE_API_VERSION` in `platform/nativeApi.ts` and
   `windowsApiVersion` in `AppModule.h`. Bump both when the Windows native surface changes. A Mac bump doesn't
   touch it.
