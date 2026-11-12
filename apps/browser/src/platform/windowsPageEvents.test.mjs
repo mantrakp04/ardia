@@ -27,10 +27,30 @@ test("a download from a tab with no page yet says nothing was committed, so the 
   assert.deepEqual([after.url, after.title, after.isLoading], ["", "", false]);
 });
 
-test("a download whose address is still the visible one also says nothing was committed", () => {
+test("a download typed into a tab that opens on it leaves no page, though the engine still shows its address", () => {
+  const page = openingPage(ZIP, false);
+  const loading = shaped(page, "navigation", navigation(ZIP, "", true, ""));
+  assert.deepEqual([loading.url, loading.isLoading], [ZIP, true]);
+  assert.equal(shaped(page, "downloadNavigation", { url: ZIP, committedUrl: ZIP, skipped: false }).committedUrl, "");
+  const after = shaped(page, "navigation", navigation(ZIP, "", false, ""));
+  assert.deepEqual([after.url, after.title, after.isLoading, after.committedInitial], ["", "", false, true]);
+});
+
+test("after such a download the next address typed into the tab shows while it loads, and its page stays", () => {
   const page = openingPage(ZIP, false);
   shaped(page, "navigation", navigation(ZIP, "", true, ""));
-  assert.equal(shaped(page, "downloadNavigation", { url: ZIP, committedUrl: ZIP, skipped: false }).committedUrl, "");
+  shaped(page, "downloadNavigation", { url: ZIP, committedUrl: ZIP, skipped: false });
+  shaped(page, "navigation", navigation(ZIP, "", false, ""));
+  noteLoadAsked(page, PAGE);
+  assert.equal(shaped(page, "navigation", navigation(PAGE, "", true, "")).url, PAGE);
+  assert.equal(shaped(page, "navigation", navigation(PAGE, "", false, "")).url, PAGE);
+  assert.equal(shaped(page, "navigation", navigation(PAGE, PAGE, false, "links")).url, PAGE);
+});
+
+test("a load that stops without a download keeps its address", () => {
+  const page = openingPage(PAGE, false);
+  shaped(page, "navigation", navigation(PAGE, "", true, ""));
+  assert.equal(shaped(page, "navigation", navigation(PAGE, "", false, "")).url, PAGE);
 });
 
 test("a download from a loaded page keeps that page", () => {
@@ -56,6 +76,14 @@ test("a tab the engine opened keeps its own blank document, and closes on a down
   const blank = shaped(page, "navigation", navigation("about:blank", "about:blank", false));
   assert.deepEqual([blank.url, blank.committedInitial], ["about:blank", undefined]);
   assert.equal(shaped(page, "downloadNavigation", { url: ZIP, committedUrl: "about:blank", skipped: false }).committedUrl, "");
+  assert.equal(shaped(page, "navigation", navigation(ZIP, "about:blank", false)).url, "");
+});
+
+test("a download from about:blank asked for by address keeps about:blank", () => {
+  const page = openingPage("about:blank", false);
+  shaped(page, "navigation", navigation("about:blank", "about:blank", false));
+  assert.equal(shaped(page, "downloadNavigation", { url: ZIP, committedUrl: "about:blank", skipped: false }).committedUrl, "about:blank");
+  assert.equal(shaped(page, "navigation", navigation("about:blank", "about:blank", false)).url, "about:blank");
 });
 
 test("a navigation event without a committed address is passed through, and media keeps its shape", () => {
