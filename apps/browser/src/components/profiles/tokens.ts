@@ -10,11 +10,11 @@ export const SHARE_ROW_HEIGHT = 32;
 
 export const profileSwitcher = {
   height: 41,
-  band: 28,
+  band: 34,
   dotCell: 12,
   dot: 6,
-  iconCell: 26,
-  icon: 11,
+  iconCell: 34,
+  icon: 16,
   dotTooltipLift: 18.25,
   dots: { selected: 0.85, hovered: 0.4, idle: 0.2 },
   icons: { selected: 1, hovered: 0.7, idle: 0.42 },

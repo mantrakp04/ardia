@@ -9,7 +9,7 @@ import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/wind
 import { DownloadsButton } from "../downloads/DownloadsButton";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "../profiles/ProfileIndicator";
 import { usePagerPages } from "../../state/windows/profilePager";
-import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "../profiles/ProfileDots";
+import { PROFILE_DOTS_HEIGHT, PROFILE_NAME_HEIGHT, ProfileDots, useProfileDotsShown } from "../profiles/ProfileDots";
 import { SidebarAddressRow, SidebarHeaderTools } from "./AddressBar";
 import { DragGhost } from "./DragGhost";
 import { DragProvider } from "./DragProvider";
@@ -46,7 +46,7 @@ export function Sidebar({ width }: { width: number }) {
   const hasDownloads = useHasDownloads(windowId);
   const dots = useProfileDotsShown();
   const footerDownloads = addressBar && hasDownloads;
-  const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
+  const footer = (dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0) + (dots && addressBar ? PROFILE_NAME_HEIGHT : 0);
   const nothingPinned = useNoTiles(windowId, current);
   const rowLook = useSidebarRowLookSource();
 
@@ -112,7 +112,7 @@ export function Sidebar({ width }: { width: number }) {
               {footer ? (
                 <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
                   <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
-                  {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
+                  {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} showName={addressBar} /> : null}
                   {footerDownloads ? (
                     <View style={{ position: "absolute", left: SIDEBAR_FOOTER_DOWNLOADS.left, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                       <DownloadsButton windowId={windowId} />

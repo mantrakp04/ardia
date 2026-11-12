@@ -26,7 +26,7 @@ function useIndicator(room: number) {
 
 export const useProfileIndicatorWidth = (room: number) => useIndicator(room).width;
 
-export function ProfileIndicator({ room }: { room: number }) {
+export function ProfileIndicator({ room, expanded = false }: { room: number; expanded?: boolean }) {
   const theme = useTheme();
   const windowId = useWindowId();
   const { hovered, hoverProps } = useHover();
@@ -52,7 +52,7 @@ export function ProfileIndicator({ room }: { room: number }) {
             <View
               style={{
                 height: HEIGHT,
-                width,
+                width: expanded ? room : width,
                 borderRadius: radius.chrome,
                 flexDirection: "row",
                 alignItems: "center",
