@@ -35,6 +35,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
@@ -335,13 +336,17 @@ void Host::CreateTabInProfile(std::string key,
     return;
   }
   content::WebContents* contents = nullptr;
+  int64_t opening_navigation_id = 0;
   {
     base::AutoReset<bool> creating(&creating_tab_, true);
     NavigateParams params(browser, GURL(url.empty() ? "about:blank" : url),
                           ui::PAGE_TRANSITION_TYPED);
     params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
     params.window_action = NavigateParams::WindowAction::kNoAction;
-    Navigate(&params);
+    base::WeakPtr<content::NavigationHandle> opening = Navigate(&params);
+    if (opening) {
+      opening_navigation_id = opening->GetNavigationId();
+    }
     contents = params.navigated_or_inserted_contents;
   }
   if (!contents) {
@@ -351,7 +356,7 @@ void Host::CreateTabInProfile(std::string key,
   tabs_[key] = contents;
   TabState* state = TabState::Bind(contents, key);
   if (url.empty()) {
-    state->set_opened_blank();
+    state->WatchOpeningBlank(opening_navigation_id);
   }
   state->NoteNavigation();
   TabEvents::Attach(contents);

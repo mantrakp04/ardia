@@ -122,6 +122,10 @@ void Step() {
       if (!g_download_url.empty()) {
         Call("reply create download", "tab.create",
              CreateArgs("download", ""));
+        Call("reply create asked", "tab.create",
+             CreateArgs("asked", "about:blank"));
+        Call("reply create blank asked", "tab.create",
+             CreateArgs("blank-asked", ""));
       }
       break;
     case 2:
@@ -139,6 +143,8 @@ void Step() {
       if (!g_download_url.empty()) {
         Call("reply load download", "tab.call",
              LoadArgs("download", g_download_url));
+        Call("reply load blank asked", "tab.call",
+             LoadArgs("blank-asked", "about:blank"));
       }
       break;
     case 4:
@@ -146,6 +152,12 @@ void Step() {
       Call("reply close two", "tab.close", "{\"key\":\"two\"}");
       Call("reply back blank", "tab.call",
            "{\"key\":\"blank\",\"method\":\"goBack\"}");
+      if (!g_download_url.empty()) {
+        Call("reply load download in asked", "tab.call",
+             LoadArgs("asked", g_download_url));
+        Call("reply load download in blank asked", "tab.call",
+             LoadArgs("blank-asked", g_download_url));
+      }
       break;
     case 5:
       if (!g_download_url.empty()) {
