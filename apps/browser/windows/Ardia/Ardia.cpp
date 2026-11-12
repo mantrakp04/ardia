@@ -6,6 +6,7 @@
 
 #include <type_traits>
 
+#include "AppIcon.h"
 #include "AppImage.h"
 #include "CrashLog.h"
 #include "EngineApi.h"
@@ -100,6 +101,7 @@ static int Prepare(const ArdiaEngineApi *engine) {
   Ardia::Host::Current() = host;
   host->engine = engine;
   host->queue = winrt::Microsoft::UI::Dispatching::DispatcherQueueController::CreateOnCurrentThread();
+  Ardia::AppIcon::ClaimAppUserModelId();
   Ardia::NotificationParts::NotificationHub::Shared().Install();
 
   auto settings{host->reactHost.InstanceSettings()};

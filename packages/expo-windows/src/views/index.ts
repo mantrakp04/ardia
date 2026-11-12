@@ -6,6 +6,7 @@ import { FadeLabel } from "./FadeLabel";
 import { ContextMenuArea, FileDrop, MagnifyArea, MouseArea, OutsidePressArea, WindowProfile } from "./inputAreas";
 import { GlassEffect, GlassGroup, PopoverBubble, VisualEffect } from "./materials";
 import { Surface } from "./Surface";
+import { SwipeArea } from "../pager/SwipeArea";
 
 export { OutsidePressRoot } from "./inputAreas";
 
@@ -26,4 +27,5 @@ export const viewsDrawnInJs = new Map<string, ComponentType<any>>([
   ["ArdiaThemeSwatch", ThemeSwatch],
   ["ArdiaDockSelection", DockSelection],
   ["ArdiaWindowProfile", WindowProfile],
+  ["ArdiaSwipe", SwipeArea],
 ]);
