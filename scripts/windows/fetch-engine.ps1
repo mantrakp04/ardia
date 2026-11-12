@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory = $true)][ValidateSet("x64", "arm64")][string]$Cpu,
   [Parameter(Mandatory = $true)][string]$Out,
-  [string]$Repository = "mantrakp04/ardia"
+  [string]$Repository = "ardia-browser/ardia"
 )
 
 $ErrorActionPreference = "Stop"
