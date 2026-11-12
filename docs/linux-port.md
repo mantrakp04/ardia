@@ -1007,6 +1007,21 @@ It works as on the Mac ([cli.md](cli.md), [automation.md](automation.md)); what 
 
 Newest first. Each entry names the upstream commit `linux-support` was rebased onto and what the Linux side needed.
 
+- **2026-11-12, upstream 42c6291** (77 commits after 39bd206). Three conflicts: `engine/patches/series` (upstream's new
+  `chromium-pref-hash-safe-storage-key-change.patch` stays shared, beside the two Mac-only Safe Storage patches; it
+  touches only `services/preferences` and applies to the Linux tree unchanged), the shared source list in the ardia
+  `BUILD.gn` (gains `ac_extensions_load_health.cc` and `ac_search_suggest.cc`, which build on Linux), and the Linux
+  telemetry hunks in the onboarding and new-tab ask files that upstream rewrote. The engine key moved from
+  `e3f26f7253b3` to `756f755c2bf0`. Linux changes:
+  - `extensions.loadHealth` is routed to `ac_extensions_load_health`, so `extensions_loaded` reports from Linux.
+  - Google suggestions moved to `www.google.com/complete/search?client=chrome`; the native allowlist
+    (`ac_linux_suggest_policy.h`) and the F10 fixture follow it. Linux keeps its own `ArdiaSearch.suggest` (no cookies,
+    the endpoint allowlist) rather than upstream's `search.suggest`, which sends the profile's cookies to any URL. The
+    Linux fetcher counts `search_suggest_ok` and `search_suggest_failed`; `search_suggest_blocked` stays 0.
+  - Onboarding is three steps, and the default browser and Dock questions moved to the last one. Its probes refuse on
+    Linux, which left Get Started disabled; a failed probe now leaves its row out. `LinuxHomeStep`, which replaced the
+    old home step's first screen with a Linux default-browser question, is gone: that screen is now the links question.
+  - Wording follows the scroll bar row to `appearanceRows.ts` and the new LookStep and What's Sent lines.
 - **2026-11-11, upstream 39bd206** (78 commits after e2c7577). The rebase applied without conflicts and the engine key
   stayed `e3f26f7253b3`, so engine `engine-e3f26f7253b3` still matches. The Linux symbol set gained `pip`, which the
   tab row now draws for a tab in Picture in Picture, and `paperclip`, which Report a Problem used before. The new
@@ -1057,6 +1072,10 @@ These were open at the time of the PR.
 - **Auto-hide tabs with the sidebar on the right.** The strip can't be revealed, because the engine only provides
   `watchLeftEdge`, and the window controls stay anchored on the left. It needs an engine-side right-edge watcher and is
   deferred.
+- **Unread counts on older profiles.** Linux runs no session migrations, so a profile saved before this sync keeps
+  Show unread counts on; upstream's session version 11 turns an untouched setting off. New profiles start with it off.
+- **Default browser in onboarding.** The last onboarding step leaves out the default browser row on Linux, which has no
+  default-browser backend, and no longer says where to set it (the desktop's default applications settings).
 - **Link status bubble.** Upstream moves it to the top of the page while the pointer is near the bottom edge, from the
   `fromBottom` the macOS page sends with each status. The Linux engine sends only the text, so the bubble stays at the
   bottom. It needs the engine to report the pointer's distance from the page's bottom edge.
