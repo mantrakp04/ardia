@@ -72,6 +72,21 @@ test("every action wakes each tab whose row state it changed", () => {
   watch.stop();
 });
 
+test("closing the tab a pending duplicate copies its engine from wakes the duplicate", () => {
+  const { w, ids } = session(3);
+  const [source, copy, other] = ids;
+  S().updateSettings({ websiteEngines: { "https://a.com": "webkit" } });
+  const adopted = (adopt) => ({ url: "https://a.com/", engine: undefined, page: { kind: "adopted", adopt, nav: null } });
+  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [source]: { ...s.tabs[source], ...adopted("ardiacore:123") }, [copy]: { ...s.tabs[copy], ...adopted(`clone:${source}`) } } }));
+  S().activate(other);
+  const watch = watching(w);
+  const before = rowFlags(S(), w, copy);
+  const woken = watch.run("close the source", () => S().closeTab(source));
+  assert.notEqual(rowFlags(S(), w, copy), before);
+  assert.ok(woken.has(copy));
+  watch.stop();
+});
+
 test("a switch and a new tab wake the tabs they touch, not every tab", () => {
   for (const count of [10, 120]) {
     const { w, ids } = session(count);

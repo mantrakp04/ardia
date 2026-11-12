@@ -15,7 +15,7 @@ const openerEngine = (t: Tab | undefined) => (t?.engine && (t.url || navigationO
 function reachesOtherTabs(s: BrowserState, prev: BrowserState, id: string): boolean {
   const tab = s.tabs[id];
   const was = prev.tabs[id];
-  if (openerEngine(tab) !== openerEngine(was) || shares(s, tab) || shares(prev, was)) return true;
+  if (!tab || openerEngine(tab) !== openerEngine(was) || shares(s, tab) || shares(prev, was)) return true;
   return tabEngine(s, id) !== tabEngine(prev, id);
 }
 
