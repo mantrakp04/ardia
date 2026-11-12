@@ -2,6 +2,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import type { AppBadge } from "../../platform/tabs";
 import { faviconIsOrdinary, faviconLooksBadged, hostOfOrigin, originOf, unreadCount, unreadInTitle, UNREAD_DOT, type Unread } from "../../lib/unread";
 import { useBrowser } from "../browser/store";
+import { ALL, useKeyed, watchSettings } from "../browser/keyedWatch";
 import type { Tab } from "../browser/types";
 import { hasOwnOrSharedPage, holderOfPage } from "./pageSession";
 import { useTabValue } from "./tabWatch";
@@ -115,6 +116,6 @@ export function useTabUnread(tabId: string): Unread | null {
   const source = side.source;
   const [subscribe, read] = useMemo(() => (source ? [(l: () => void) => watchSignals(source, l), () => signalsOf(source)] : [idle, () => NO_SIGNALS]), [source]);
   const page = useSyncExternalStore(subscribe, read);
-  const shown = useBrowser((s) => isUnreadShown(s.settings, side.origin));
+  const shown = useKeyed(watchSettings, ALL, () => isUnreadShown(useBrowser.getState().settings, side.origin));
   return shown ? unreadFrom(side, page) : null;
 }
