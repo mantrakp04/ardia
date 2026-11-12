@@ -1,9 +1,11 @@
 import { diagnosticsSample, hardwareInfo, type HardwareInfo } from "../../platform/app";
 import { onHoverLost, systemState, type HoverLostEpisode } from "../../platform/performance";
+import { cliControlStatus } from "../../platform/cli";
 import { withDeadline } from "../../lib/deadline";
 import { useBrowser } from "../browser/store";
 import { capture, isSharing, saveContext, useTelemetry } from "./client";
 import type { SavedContext } from "./savedContext";
+import { noteDragsEnded } from "./stuckDrags";
 import { appInfo } from "./transport";
 
 const CONTEXT_EVERY_MS = 10 * 60_000;
@@ -44,6 +46,7 @@ export const noteAppMemory = (totalMb: number) => (appMemoryMb = totalMb);
 
 export async function recordContext(): Promise<SavedContext | null> {
   if (!isSharing()) return null;
+  void cliControlStatus().then((status) => noteDragsEnded(status.dragsEnded), () => {});
   const [sample, pressure] = await Promise.all([diagnosticsSample().catch(() => ({ footprintMB: undefined, freeDiskGB: undefined })), memoryPressure()]);
   const now = Date.now();
   const context: SavedContext = {

@@ -607,7 +607,12 @@ struct CardMenu: View {
         }
       }
       if !tab.isPrivate, app.sync.isEnabled {
-        Button("Pin to Mac", systemImage: "star") { app.pinToMac(tab) }
+        if app.isPinnedToMac(tab) {
+          Button("Pinned to Mac", systemImage: "star.fill") {}
+            .disabled(true)
+        } else {
+          Button("Pin to Mac", systemImage: "star") { app.pinToMac(tab) }
+        }
       }
       Divider()
     }

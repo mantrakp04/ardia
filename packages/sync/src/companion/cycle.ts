@@ -13,9 +13,11 @@ import {
   SEND_LIFETIME_MS,
   DAY_MS,
   type LocalTab,
+  type BookmarkValue,
   type LocalVisit,
   type SendRecord,
 } from "./adapters.ts";
+import { fromLegacyUrl } from "./legacy.ts";
 import { buildView, dataOwner, defaultProfileId, liveProfiles, type View } from "./view.ts";
 import { host, loaded, save, viewIsNew, type CompanionState } from "./state.ts";
 
@@ -286,14 +288,27 @@ export function companionAcknowledge(input: { items: { profile: string; key: str
   return { saved: save(true) };
 }
 
+function hasBookmarkFor(c: CompanionState, scope: string, url: string) {
+  const removing = new Set(c.bookmarks.filter((o) => o.scope === scope && o.op === "remove").map((o) => `bm:${o.key}`));
+  if (c.bookmarks.some((o) => o.scope === scope && o.op === "add" && o.value.u === url)) return true;
+  const state = c.scopes[scope];
+  if (!state) return false;
+  for (const [key, value] of visible(state, "bm:")) {
+    const bookmark = value as BookmarkValue | null;
+    if (!removing.has(key) && bookmark?.k === "u" && typeof bookmark.u === "string" && fromLegacyUrl(bookmark.u) === url) return true;
+  }
+  return false;
+}
+
 export function companionAddBookmark(input: { profile: string; key: string; u: string; t: string; at: number }) {
   const c = loaded();
   if (!isLive(input.profile)) return refused;
   const scope = scopeFor(input.profile);
+  if (hasBookmarkFor(c, scope, input.u)) return { saved: true, existing: true };
   if (!c.bookmarks.some((o) => o.scope === scope && o.key === input.key)) {
     c.bookmarks.push({ scope, op: "add", key: input.key, value: { k: "u", p: "other", t: input.t, u: input.u, a: input.at } });
   }
-  return { saved: save(true) };
+  return { saved: save(true), existing: false };
 }
 
 export function companionRemoveBookmark(input: { profile: string; key: string }) {

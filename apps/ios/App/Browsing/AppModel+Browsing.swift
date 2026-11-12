@@ -40,7 +40,7 @@ extension AppModel {
       })
       return
     }
-    pinToMac(tab)
+    pinToMac(tab, inPageMenu: true)
   }
 
   func setNightShade(_ on: Bool, for page: WebTab) {

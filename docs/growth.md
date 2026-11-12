@@ -121,7 +121,9 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
 ```
 
 - **Where it runs:** `infra/telemetry/hexclave.deploy.ts` (ClickHouse, OpenTelemetry Collector, SeaweedFS; all
-  private, images pinned by digest) and the routes in `infra/site/nginx.conf`. Only nginx is public. It limits
+  private, images pinned by digest) and the routes in `infra/site/nginx.conf`. The SeaweedFS there (`ph-objects`)
+  holds replays only; Report a Problem's files are on `ardia-feedback-objects` (`infra/feedback/hexclave.deploy.ts`),
+  so a full replay disk can't refuse a report. Only nginx is public. It limits
   bodies (512 KB events, 2 MB replay chunks), rates per visitor (20/s events, 5/s replays), and only accepts
   OTLP logs (no traces or metrics).
 - **Format:** each event is an OTLP log record. The body and the `event` attribute are the event name, plus
@@ -160,7 +162,8 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   `infra/site/nginx.conf`. nginx refuses an unknown key with 403 and passes the surface to the collector, which
   stores it as `ingest_key` (`app`, `cli`, `site` or `missing`). Reports from Report a Problem go through
   `/api/feedback` to `infra/feedback` (see `docs/feedback.md`), land in `telemetry.feedback`, and keep their
-  files in SeaweedFS under `feedback/<id>/` with no expiry.
+  files in SeaweedFS under `feedback/<id>/` with no expiry, on their own service (`ardia-feedback-objects`, 10 GB;
+  reports from 11-09 to 11-11 are still on `ph-objects`).
 - **Crash and diagnostics fields (opt-in, since 0.2.45-nightly.3):** every field is a count, a size, a
   duration, a fixed name or yes/no, in `properties` like everything else, so no schema change. Code:
   `apps/browser/src/state/telemetry/diagnostics.ts`, `errors.ts`, `tabPresses.ts`, `packages/shell/ios/CrashReports.swift`.
@@ -212,7 +215,8 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
 - **Leftover disks:** a trial self-hosted analytics stack (30 Sep) left two detached Hexclave volumes in the
   deployment group "posthog": `pgdata` (10 GB, service ph-db) and `redpanda` (5 GB, ph-kafka). Hexclave has no
   API to delete a volume; ask Hexclave support to remove them. The group, `ph-clickhouse` and `ph-objects`
-  keep their names because renaming them would detach their volumes.
+  keep their names because renaming them would detach their volumes. `ph-objects` is the replays' store and
+  stays that way; the reports' is `ardia-feedback-objects`.
 
 ### Parity: what PostHog did, what does it now
 

@@ -96,6 +96,12 @@ Test hygiene the run keeps (each was a real failure):
   those for hidden tabs. Checks that need "no user activation" reload the page first (CDP's `userGesture` leaves
   one behind).
 
+`node packages/ardiacore/scripts/drag-end-check.mjs <Debug app> [scratch dir]` checks that a page keeps taking clicks and keys
+after a drag nobody ends (`chromium-drag-always-ends.patch`, `docs/engine-build.md`): a DevTools session that took a drag and went
+away, a drag DevTools input started that no session took, and a drag macOS refuses to start. It launches its own hidden
+instance with `--test nativeDragRefused`, so no macOS drag session, which would follow the owner's pointer, is ever begun;
+never drag from a page with the harness's real mouse events in an instance without that key.
+
 ## Test instances
 
 Launch with `scripts/agent/ac launch <app> --data <dir> [--instance K=V] [--test K[=V]] [--trace AREA] [--switch S]…`
