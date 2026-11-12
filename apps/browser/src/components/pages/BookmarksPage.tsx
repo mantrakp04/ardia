@@ -13,7 +13,7 @@ import { Box, Button, Divider, EmptyState, radius, space, Text, Toast, useTheme 
 import { openOrganizeMenu } from "../../state/bookmarks/bookmarkMenus";
 import { BookmarkRow } from "./BookmarkRow";
 import { DropTargets } from "./dropTargets";
-import { matchesQuery, PageHeader } from "./PageLayout";
+import { PageHeader, queryWords, searchText } from "./PageLayout";
 import { bookmarkList, pagesColors, undoToast } from "./tokens";
 
 
@@ -32,6 +32,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
   const [undoClosing, setUndoClosing] = useState(false);
   const [drop, setDrop] = useState<Drop | null>(null);
   const targets = useMemo(() => new DropTargets<Target>(), []);
+  const searchWords = useMemo(() => queryWords(query), [query]);
 
   const folderExists = useBookmarks((b) => !!folderId && b.nodes[folderId]?.kind === "folder");
   useEffect(() => {
@@ -43,10 +44,12 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
   const listKey = useBookmarks((b) => {
     if (query.trim() && roots) {
       const all = [...folderLinksAndFolders(b, roots.bar), ...folderLinksAndFolders(b, roots.other)];
-      return all
-        .filter((n) => matchesQuery(query, n.title, n.kind === "url" ? n.url : ""))
-        .map((n) => n.id)
-        .join(",");
+      const matching: string[] = [];
+      for (const node of all) {
+        const hay = searchText(node.title, node.kind === "url" ? node.url : "");
+        if (searchWords.every((word) => hay.includes(word))) matching.push(node.id);
+      }
+      return matching.join(",");
     }
     const folder = folderId ? b.nodes[folderId] : undefined;
     return folder?.kind === "folder" ? folder.children.join(",") : "";

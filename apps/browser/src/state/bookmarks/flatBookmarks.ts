@@ -163,8 +163,6 @@ export function bookmarkOps(from: Flat, to: Flat, engine: string): BookmarkOp[] 
   const kids = new Map([...from.children].map(([id, c]) => [id, new OrderList(c)]));
   const ops: BookmarkOp[] = [];
 
-  // Move retained children out of deleted folders before removing those folders.
-  // Their final parent might be newly created; stage those through the other root.
   const rescued: string[] = [];
   for (const [id, node] of to.nodes) {
     const oldParent = parentOf.get(id);
@@ -193,8 +191,6 @@ export function bookmarkOps(from: Flat, to: Flat, engine: string): BookmarkOp[] 
     parentOf.set(id, parent);
   }
 
-  // Remove whole deleted subtrees before calculating destination indexes. Otherwise
-  // each surviving sibling after a deletion looks like a separate move.
   const removedRoots: string[] = [];
   const removed = new Set<string>();
   for (const [id, node] of from.nodes) {
@@ -219,8 +215,6 @@ export function bookmarkOps(from: Flat, to: Flat, engine: string): BookmarkOp[] 
     }
   }
 
-  // Simulate cross-folder moves as removals now, then emit each move when its
-  // destination is visited. This lets source siblings retain their existing order.
   const detached = new Set<string>();
   const detachByParent = new Map<string, Set<string>>();
   for (const [id, node] of from.nodes) {

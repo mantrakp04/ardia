@@ -2733,7 +2733,7 @@ function buildSuggestions(raw        , source                  , options        
   const noInline = preventInline || (oneWord && raw.length !== query.length && /\s$/.test(raw));
   const completes = websiteFirst && !scope && oneWord && !noInline;
   const from = narrowing(pool, q, tokens);
-  const pages = from ? from.pages : pool.list;
+  const pages = from ? from.pages : /^[a-z0-9]$/.test(q) ? pool.initials?.get(q) ?? [] : pool.list;
   const again = from !== null && from.q === q;
   const parsed = parseQuery(q, tokens);
   const matched              = again ? from.pages : [];
@@ -2903,9 +2903,9 @@ const { logVisits, pageText, pageTexts } = __require("packages/core/src/pageText
   
 
                                                                                      
-                                                        
+                                                                                                   
 
-                                                                                                                           
+                                                                                                        
                 
                      
                                  
@@ -2924,7 +2924,7 @@ const SLICE_CHECK = 64;
 
 function baseFor(bookmarks                        )               {
   let base = bases.get(bookmarks);
-  if (!base) bases.set(bookmarks, (base = { list: [], byKey: new Map(), keys: new Set(), cursor: 0, done: false }));
+  if (!base) bases.set(bookmarks, (base = { list: [], byKey: new Map(), cursor: 0, done: false }));
   return base;
 }
 
@@ -2936,7 +2936,6 @@ function advance(b         , bookmarks                        , deadline        
   while (!base.done && base.cursor < bookmarks.length) {
     const row = bookmarks[base.cursor++] ;
     const text = pageText(row);
-    base.keys.add(text.key);
     if (!base.byKey.has(text.key)) {
       const c            = { url: row.url, title: row.title, favicon: row.favicon, visits: 0, lastVisit: 0, logVisits: 0, bookmarked: true, text };
       base.list.push(c);
@@ -2949,7 +2948,7 @@ function advance(b         , bookmarks                        , deadline        
     const h = b.history[b.historyCursor++] ;
     const text = pageText(h);
     if (!b.byKey.has(text.key)) {
-      const bookmarked = base.keys.has(text.key);
+      const bookmarked = base.byKey.has(text.key);
       let c = historyCandidates.get(h);
       if (!c || c.bookmarked !== bookmarked) {
         c = { url: h.url, title: h.title, favicon: h.favicon, visits: h.visits, lastVisit: h.lastVisit, logVisits: logVisits(h.visits), bookmarked, text };
@@ -2969,6 +2968,7 @@ function advance(b         , bookmarks                        , deadline        
   b.pool = {
     list: b.list,
     byKey: { get: (key) => history.get(key) ?? base.byKey.get(key), has: (key) => history.has(key) || base.byKey.has(key) },
+    initials: null,
   };
   return true;
 }
@@ -2984,7 +2984,31 @@ function builderFor(history                       , bookmarks                   
 function poolFor(history                       , bookmarks                        )       {
   const b = builderFor(history, bookmarks);
   advance(b, bookmarks, Infinity);
+  indexInitials(b.pool );
   return b.pool ;
+}
+
+function indexInitials(pool      )                           {
+  if (pool.initials) return pool.initials;
+  const initials = new Map                     ();
+  for (const candidate of pool.list) {
+    const shown = candidate.text.shownLower;
+    const title = candidate.text.titleLower;
+    const chars = new Set        ();
+    if (/^[a-z0-9]/.test(shown)) chars.add(shown[0] );
+    if (/^[a-z0-9]/.test(title)) chars.add(title[0] );
+    for (let i = 1; i < shown.length; i++) {
+      if (shown[i - 1] === "." || shown[i - 1] === "/") chars.add(shown[i] );
+    }
+    for (const word of candidate.text.titleWords.split(" ")) if (word) chars.add(word[0] );
+    for (const char of chars) {
+      const rows = initials.get(char);
+      if (rows) rows.push(candidate);
+      else initials.set(char, [candidate]);
+    }
+  }
+  pool.initials = initials;
+  return initials;
 }
 
 function prepareSuggestions(source                  , deadline        )          {
@@ -2999,7 +3023,9 @@ function prepareSuggestions(source                  , deadline        )         
       if (++n % SLICE_CHECK === 0 && Date.now() > deadline) return false;
     }
   }
-  return advance(b, bookmarks, deadline);
+  const ready = advance(b, bookmarks, deadline);
+  if (ready) indexInitials(b.pool );
+  return ready;
 }
 
                                                                                                                                   
