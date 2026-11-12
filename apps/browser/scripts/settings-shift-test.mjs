@@ -124,10 +124,10 @@ return wait(400)
     if (results[${downs}] !== ${JSON.stringify(id)}) throw new Error("result ${downs + 1} is " + results[${downs}] + ", not ${id}");
     const press = (key, keyCode) => ac.shell.devKeyEquivalent("settings", { key, keyCode, modifiers: [], send: true, asKey: true, wait: 30 });
     const downs = Array.from({ length: ${downs} }).reduce((p) => p.then(() => press("\\uF701", 125)), Promise.resolve());
-    const asked = Date.now();
+    let asked = 0;
     return downs
-      .then(() => press("\\r", 36))
-      .then(() => until(() => (s.useSettingsSearch.getState().flash?.at ?? 0) >= asked, 3000))
+      .then(() => ((asked = Date.now()), press("\\r", 36)))
+      .then(() => until(() => { const state = s.useSettingsSearch.getState(); return !state.previewing && (state.flash?.at ?? 0) >= asked; }, 3000))
       .then(() => results);
   })
   .then((results) => {

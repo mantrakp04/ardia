@@ -107,7 +107,8 @@ export function NoteBubble({ note, t, cam, k }: { note: Note; t: number; cam: Ca
 
 export function OverlayWindow({ overlay, clip, cam, k, play, rate }: { overlay: Overlay; clip: Clip; cam: Cam; k: number; play: number; rate: number }) {
   const from = HOLD_IN + Math.round((Math.max(0, overlay.t - clip.inS) / rate) * FPS);
-  const shown = HOLD_IN + play - from;
+  const end = overlay.until === undefined ? HOLD_IN + play : Math.min(HOLD_IN + play, HOLD_IN + Math.round((Math.max(0, overlay.until - clip.inS) / rate) * FPS));
+  const shown = end - from;
   if (shown <= 0) return null;
   const video = <OffthreadVideo src={staticFile(overlay.file)} trimBefore={Math.round(Math.max(0, clip.inS - overlay.t) * FPS)} muted playbackRate={rate} style={{ width: "100%", height: "100%" }} />;
   const frame: CSSProperties = {
@@ -125,11 +126,13 @@ export function OverlayWindow({ overlay, clip, cam, k, play, rate }: { overlay: 
       <Sequence from={from} durationInFrames={shown} layout="none">
         <div style={frame}>{video}</div>
       </Sequence>
-      <Sequence from={from + shown} layout="none">
-        <div style={frame}>
-          <Freeze frame={shown - 1}>{video}</Freeze>
-        </div>
-      </Sequence>
+      {overlay.until === undefined ? (
+        <Sequence from={from + shown} layout="none">
+          <div style={frame}>
+            <Freeze frame={shown - 1}>{video}</Freeze>
+          </div>
+        </Sequence>
+      ) : null}
     </>
   );
 }

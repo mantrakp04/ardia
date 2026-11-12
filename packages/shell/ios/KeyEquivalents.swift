@@ -42,33 +42,79 @@ enum KeyEquivalents {
         Self.press(windowId: windowId, next, done)
       }
     }
-    guard let event = SyntheticInput.key(.keyDown, in: window, characters: characters, ignoringModifiers: key, modifiers: mods, keyCode: keyCode)
-    else { return done(["error": "no event for \(key)"]) }
+    let viaAppKit = press["send"] as? Bool == true
+    let built = viaAppKit
+      ? SyntheticInput.hardwareKey(.keyDown, in: window, keyCode: keyCode, modifiers: mods)
+      : SyntheticInput.key(.keyDown, in: window, characters: characters, ignoringModifiers: key, modifiers: mods, keyCode: keyCode)
+    guard let event = built else { return done(["error": "no event for \(key)"]) }
+    if viaAppKit, event.window !== window {
+      return done(["error": "the key event for \(key) is aimed at window \(event.windowNumber), not the pressed window \(window.windowNumber)"])
+    }
+    if viaAppKit, let typed = event.charactersIgnoringModifiers, typed.lowercased() != key.lowercased() {
+      let codes = { (text: String) in text.unicodeScalars.map { String(format: "U+%04X", $0.value) }.joined(separator: " ") }
+      return done(["error": "keyCode \(keyCode) types \(codes(typed)) on this keyboard layout, not \(codes(key))"])
+    }
+    NSApp.postEvent(event, atStart: true)
+    guard let current = NSApp.nextEvent(matching: .keyDown, until: .distantPast, inMode: .default, dequeue: true) else {
+      return done(["error": "the key event never came back from the app's event queue"])
+    }
     let restoreKeyWindow = press["asKey"] as? Bool == true ? standInKeyWindow(window) : nil
     let dry = press["dry"] as? Bool == true
-    let throughAppKit = press["send"] as? Bool == true && !dry
+    let throughAppKit = viaAppKit && !dry
     if !throughAppKit { begin(dry: dry) }
     fired = []
     matched = []
-    NSApp.postEvent(event, atStart: true)
-    let current = NSApp.nextEvent(matching: .keyDown, until: .distantPast, inMode: .default, dequeue: true) ?? event
-    var result: [String: Any] = ["firstResponder": window.firstResponder.map { String(describing: type(of: $0)) } ?? "nil"]
-    if press["send"] as? Bool == true {
+    var result: [String: Any] = [
+      "firstResponder": window.firstResponder.map { String(describing: type(of: $0)) } ?? "nil", "keyWindow": NSApp.keyWindow === window,
+    ]
+    var lostEvents = 0, misaimedEvents = 0
+    var wait = press["wait"] as? Int ?? 250
+    if viaAppKit {
       NSApp.sendEvent(current)
       let keyEvent = { (type: NSEvent.EventType, repeated: Bool) in
-        SyntheticInput.key(type, in: window, characters: characters, ignoringModifiers: key, modifiers: mods, keyCode: keyCode, isARepeat: repeated)
+        SyntheticInput.hardwareKey(type, in: window, keyCode: keyCode, modifiers: mods, isARepeat: repeated)
+      }
+      let dispatch = { (built: NSEvent?) in
+        guard let event = built, event.window === window else {
+          if built == nil { lostEvents += 1 } else { misaimedEvents += 1 }
+          return
+        }
+        NSApp.postEvent(event, atStart: true)
+        if let queued = NSApp.nextEvent(matching: NSEvent.EventTypeMask(type: event.type), until: .distantPast, inMode: .default, dequeue: true) {
+          NSApp.sendEvent(queued)
+        } else {
+          lostEvents += 1
+        }
+      }
+      let stillHeld: NSEvent.ModifierFlags? =
+        (press["release"] as? [String]).map { ModifierName.flags(named: $0) } ?? (press["release"] as? Bool == true ? [] : nil)
+      let releaseModifiers = {
+        guard let stillHeld else { return }
+        dispatch(SyntheticInput.hardwareKey(.flagsChanged, in: window, keyCode: 59, modifiers: stillHeld))
       }
       let repeats = press["repeats"] as? Int ?? 0
       let every = press["repeatEvery"] as? Int ?? 50
       if repeats > 0 {
+        wait = max(wait, repeats * every + 150)
         for index in 1...repeats {
           DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(index * every)) {
-            keyEvent(.keyDown, true).map { NSApp.sendEvent($0) }
-            if index == repeats { keyEvent(.keyUp, false).map { NSApp.sendEvent($0) } }
+            dispatch(keyEvent(.keyDown, true))
+            if index == repeats {
+              dispatch(keyEvent(.keyUp, false))
+              releaseModifiers()
+            }
           }
         }
       } else {
-        keyEvent(.keyUp, false).map { NSApp.sendEvent($0) }
+        dispatch(keyEvent(.keyUp, false))
+        releaseModifiers()
+      }
+      if let again = press["again"] as? Int, repeats == 0 {
+        wait = max(wait, again + 150)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(again)) {
+          dispatch(keyEvent(.keyDown, false))
+          dispatch(keyEvent(.keyUp, false))
+        }
       }
       result["handledBy"] = "sent"
     } else if !window.isKeyWindow, let page = window.firstResponder, String(describing: type(of: page)) == "RenderWidgetHostViewCocoa" {
@@ -87,8 +133,10 @@ enum KeyEquivalents {
       result["handledBy"] = "none"
     }
     note("dispatched \(result["handledBy"] ?? "")")
-    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(press["wait"] as? Int ?? 250)) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(wait)) {
       result["firstResponderAfter"] = window.firstResponder.map { String(describing: type(of: $0)) } ?? "nil"
+      result["lostEvents"] = lostEvents
+      if misaimedEvents > 0 { result["error"] = "\(misaimedEvents) key events weren't aimed at the pressed window \(window.windowNumber), so they weren't sent" }
       restoreKeyWindow?()
       if !throughAppKit { end(dry: dry) }
       result["fired"] = fired
@@ -165,7 +213,7 @@ enum KeyEquivalents {
         guard let (item, parent) = menuItem(for: event) else { return false }
         parent.update()
         matched.append(describe(item).merging(["enabled": item.isEnabled]) { a, _ in a })
-        guard item.isEnabled else { return false }
+        guard item.isEnabled else { return true }
         parent.performActionForItem(at: parent.index(of: item))
         return true
       }
