@@ -2,6 +2,7 @@
 
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <shlwapi.h>
 #include <wincodec.h>
 
 #include <filesystem>
@@ -19,6 +20,7 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "uuid.lib")
 
 namespace Ardia {
@@ -82,8 +84,16 @@ inline LSTATUS SetLaunchAtLogin(bool enabled) noexcept {
       HKEY_CURRENT_USER, RunKey, LaunchAtLoginValue, REG_SZ, command.c_str(), static_cast<DWORD>((command.size() + 1) * sizeof(wchar_t)));
 }
 
+inline std::optional<std::wstring> ResolvedProgId(std::wstring const &scheme) noexcept {
+  wchar_t progId[256]{};
+  DWORD length = static_cast<DWORD>(std::size(progId));
+  if (FAILED(AssocQueryStringW(ASSOCF_IS_PROTOCOL, ASSOCSTR_PROGID, scheme.c_str(), nullptr, progId, &length)) || !progId[0]) return std::nullopt;
+  return std::wstring{progId};
+}
+
 inline std::optional<std::wstring> ChosenProgId(std::wstring const &scheme) noexcept {
-  for (wchar_t const *choice : {L"\\UserChoiceLatest", L"\\UserChoice"}) {
+  if (std::optional<std::wstring> resolved = ResolvedProgId(scheme)) return resolved;
+  for (wchar_t const *choice : {L"\\UserChoiceLatest\\ProgId", L"\\UserChoiceLatest", L"\\UserChoice"}) {
     std::wstring key = UrlAssociationsKey + scheme + choice;
     std::optional<std::wstring> progId = RegistryString(HKEY_CURRENT_USER, key.c_str(), L"ProgId");
     if (progId && !progId->empty()) return progId;

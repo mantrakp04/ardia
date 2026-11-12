@@ -266,7 +266,9 @@ is plain Chromium.
 - Windows 10 and 11 don't let an app make itself the default browser. `setAsDefaultBrowser` opens Default apps
   (Ardia's own page, `ms-settings:defaultapps?registeredAppUser=Ardia`, on Windows 11 when this Ardia.exe is the one
   registered; the general page otherwise) and answers false. `isDefaultBrowser` is true when the user's choice for
-  http and https (`UserChoiceLatest`, else `UserChoice`) is `ArdiaHTM` and that ProgID opens this Ardia.exe;
+  http and https is `ArdiaHTM` and that ProgID opens this Ardia.exe. The choice is what the shell resolves
+  (`AssocQueryString`), then the registry: Windows 11 builds since 2025 write it to `UserChoiceLatest\ProgId` and
+  leave the old `UserChoice` on the previous browser, so reading `UserChoice` alone says Edge after the user chose Ardia;
   `ArdiaSystem.defaultBrowserState` returns the parts. Settings › General reads it again whenever an Ardia window
   becomes active (React Native for Windows' AppState never changes in this app). With `PLATFORM_FEATURES.setsDefaultBrowser`
   off, onboarding's row says "Yes, in Windows Settings", Settings' button says "Choose in Windows Settings…", the
