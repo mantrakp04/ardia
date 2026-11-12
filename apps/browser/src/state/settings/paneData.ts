@@ -8,7 +8,6 @@ import {
   isDefaultBrowser,
   launchAtLoginStatus,
   setAppIcon,
-  setAsDefaultBrowser,
   setAutomaticUpdateChecks,
   setAutomaticUpdateDownloads,
   setUpdateChannel,
@@ -16,6 +15,7 @@ import {
   type UpdateChannel,
   type UpdaterState,
 } from "../../platform/app";
+import { setAsDefaultBrowser } from "../app/appSettings";
 import { getAutofillSettings, listAddresses, listCards, setAutofillSettings, type SavedAddress, type SavedCard } from "../../platform/autofill";
 import { getContentBlocker } from "../../platform/contentBlocker";
 import { getDownloadSettings, setDownloadSettings, type DownloadSettings } from "../../platform/downloads";
