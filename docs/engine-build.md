@@ -539,7 +539,7 @@ Helium host; `helium-check-build.py` fails a build whose binary or paks name one
 
 **Privacy defaults we inherit.** Where Helium's defaults differ from our ungoogled build's, Helium's win: Secure DNS is
 Chromium's automatic mode (ungoogled's `doh-changes` isn't applied; Helium's `dns-providers` adds providers to the
-upgrade table), WebRTC uses `default_public_interface_only` (`webrtc-default-handling-policy`), FedCM is on, and EV
+upgrade table; Settings › Privacy › Secure DNS changes it through `ac_secure_dns`), WebRTC uses `default_public_interface_only` (`webrtc-default-handling-policy`), FedCM is on, and EV
 certificates show as in Chrome (ungoogled's `disable-fedcm-by-default` and `Remove-EV-certificates` aren't applied).
 Helium also adds fingerprinting noise (canvas, audio, hardware concurrency), reduced Accept-Language headers, a Global
 Privacy Control pref (off by default) and flags for ECH and QUIC v2, and turns `InfiniteTabsFreezing` on by default.

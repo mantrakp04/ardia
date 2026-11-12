@@ -48,6 +48,24 @@ export type BatterySaverMode = "on" | "off" | "default";
 
 export type BatterySaverState = { state: number; active: boolean };
 
+export type SecureDnsMode = "off" | "automatic" | "secure";
+
+export type SecureDnsProvider = { id: string; name: string; templates: string; privacyPolicy: string };
+
+export type SecureDnsState = {
+  prefMode: string;
+  prefTemplates: string;
+  effectiveMode: SecureDnsMode;
+  effectiveTemplates: string;
+  policy: boolean;
+  override: "none" | "managed" | "parentalControls";
+  providers: SecureDnsProvider[];
+};
+
+export type SecureDnsProbe =
+  | { cancelled: true }
+  | { valid: boolean; ok: boolean; result: "correct" | "incorrect" | "failing" | "unreachable" | "unknown" | "timeout" | "invalid" };
+
 export type MemorySaverMode = "moderate" | "balanced" | "maximum";
 
 export type MemorySaverRequest = { state?: "on" | "off"; aggressiveness?: MemorySaverMode; sites?: string[] };

@@ -34,6 +34,8 @@ public class EngineModule: Module {
     "validateKeepActiveSite": { args, reply in
       EngineCall.passing("ac_memory_saver", profile: args.profile, args: ["validate": try args.text("site")], reply: reply)
     },
+    "secureDns": EngineCall.passing("ac_secure_dns"),
+    "probeSecureDns": EngineCall.passing("ac_secure_dns_probe"),
     "trimMemory": EngineCall.passing("ac_memory_trim"),
     "openTaskManager": EngineCall.passing("ac_task_manager_open"),
     "cliControlStatus": EngineCall.passing("ac_cli_control"),
