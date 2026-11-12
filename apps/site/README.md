@@ -81,6 +81,15 @@ Visitors are sorted before the first paint (`src/components/Device.astro`): phon
 line, and only Macs evaluate the `download-band` experiment (`src/components/Showcase.astro`). On localhost,
 `?nndevice=phone|mac|other` and `?nnflag=band|control` force them. The experiment log is `docs/growth.md`.
 
+## iPhone beta list
+
+`/iphone` takes an email for the iPhone app's TestFlight invite (`src/scripts/iphone-signup.ts`). It posts
+`{"v":1,"email","website"}` (`website` is a honeypot field) to `/api/testflight` with the site's ingest key, and nginx
+alone writes the body to SeaweedFS as `testflight/<request id>.json`; the dashboard's TestFlight page reads the list.
+The email never reaches telemetry: replays mask the field and block the confirmation line that repeats it
+(`data-private-block`), autocapture leaves out text inside `data-private`, and `iphone_signup` carries only `result`
+(`ok`, `invalid`, `rate_limited`, `error`).
+
 Only ardia.dev reports. `pnpm dev`, `pnpm preview` and any other host stay silent unless you opt in from
 the console with `localStorage.setItem("ac:telemetry", "dev")`, and then
 events go to the same paths on that host and carry `environment: development`. Remove the item when you're done.

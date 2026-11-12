@@ -100,9 +100,9 @@ const MAX_CHUNK_DECOMPRESSED = 32 * 1024 * 1024;
 const MAX_SESSION_BYTES = 150 * 1024 * 1024;
 const MAX_SESSION_EVENTS = 400_000;
 
-class TooLarge extends Error {}
+export class TooLarge extends Error {}
 
-async function readCapped(res: Response, cap: number): Promise<Buffer> {
+export async function readCapped(res: Response, cap: number): Promise<Buffer> {
   const declared = Number(res.headers.get("content-length") ?? NaN);
   if (Number.isFinite(declared) && declared > cap) {
     await res.body?.cancel();

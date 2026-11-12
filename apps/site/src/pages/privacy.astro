@@ -17,6 +17,7 @@ import { pagePath } from "../data/site";
     <li>Crash reports and usage stats are <strong>off unless you turn them on</strong>, and never include the sites you visit, what you type or what you search.</li>
     <li>The app sends one anonymous “opened today” count a day, and checks for updates.</li>
     <li>This website counts its visitors on our own servers. No ad networks, no data brokers.</li>
+    <li>If you ask for an iPhone beta invite, we keep the email you give us, for that invite only.</li>
     <li>We don't sell, rent or trade personal information. To anyone. Ever.</li>
   </ul>
 
@@ -69,6 +70,13 @@ import { pagePath } from "../data/site";
     to reset it.
   </p>
   <p>We don't use advertising cookies, and no ad network or social media tracker runs on the site.</p>
+  <h3>The iPhone beta list</h3>
+  <p>
+    If you ask for an invite to the iPhone beta on <a class="link" href={pagePath("iphone")}>ardia.dev/iphone</a>, we store the
+    email you type on our own servers and use it for one thing: inviting you through Apple's TestFlight. That means the address
+    goes to Apple, who sends the invite under its own privacy policy. There's no mailing list and no newsletter. Write to
+    {LEGAL.contact} and we'll delete it.
+  </p>
 
   <h2>Other people's services</h2>
   <p>
@@ -91,16 +99,18 @@ import { pagePath } from "../data/site";
 
   <h2>Who we share it with</h2>
   <p>
-    We keep this data on servers we run ourselves and don't hand it to third parties, except where the law makes us (a valid
+    We keep this data on servers we run ourselves and don't hand it to third parties, with one exception: if you ask for an
+    iPhone beta invite, your email goes to Apple so TestFlight can send it. Beyond that, only where the law makes us (a valid
     court order, for example), to protect the safety or rights of people or the project, or to a successor if the project
-    changes hands, who'd be bound by this policy. Because what we hold is anonymous, there's usually nothing that points to
-    you.
+    changes hands, who'd be bound by this policy. Apart from the beta list, what we hold is anonymous, so there's usually
+    nothing that points to you.
   </p>
 
   <h2>How long we keep it</h2>
   <p>
     Website recordings: 30 days. Error logs: about 90 days. Anonymous usage and speed stats: as long as they're useful for
-    spotting trends. Emails you send us: as long as we need them to help you.
+    spotting trends. Emails you send us: as long as we need them to help you. Emails on the iPhone beta list: until the beta
+    ends or you ask us to delete yours.
   </p>
 
   <h2>Your choices and rights</h2>
@@ -108,13 +118,14 @@ import { pagePath } from "../data/site";
     <li>Turn crash reports and usage stats off in Settings › Privacy & Security.</li>
     <li>Turn off update checks in Settings.</li>
     <li>Clear this site's data in your browser to drop its visitor ID.</li>
+    <li>Ask us to take your email off the iPhone beta list.</li>
     <li>Delete everything Ardia stored on your Mac by deleting the app and its data.</li>
   </ul>
   <p>
     Depending on where you live (for example the EU, UK or California), you may have the right to see, correct, delete or
     move personal data about you, or object to how it's used. Write to {LEGAL.contact}. Since we deliberately don't collect
-    names, emails or accounts, we may be unable to match anonymous data to you, and we'll tell you if that's the case. You
-    may also complain to your local data protection authority.
+    names, emails or accounts (the iPhone beta list aside), we may be unable to match anonymous data to you, and we'll tell
+    you if that's the case. You may also complain to your local data protection authority.
   </p>
 
   <h2>Security</h2>

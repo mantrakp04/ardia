@@ -130,3 +130,10 @@ uses exact secret patterns, never a cut at a keyword.
 - Attachments are read through the dashboard at `/files/feedback/<id>/<name>` (admin only), from SeaweedFS
   `buckets/feedback/` on `REPLAYS_HOST`, or `FEEDBACK_FILES_URL` (+ `FEEDBACK_FILES_TOKEN`) when set.
   `DASHBOARD_FEEDBACK_FIXTURE=<json>` adds local synthetic reports in dev only.
+- `/testflight` (admin only): the iPhone beta waitlist from ardia.dev. nginx stores each post as
+  `buckets/testflight/<request id>.json`; the page reads them all (up to 20 000, one GET each, cached 60 s),
+  drops junk (bad or missing email, filled `website` honeypot, empty, over 1 KB, not a JSON object), folds the
+  same email ignoring case and spaces, and dates each person by their first post's modification time. Copy
+  emails puts the list on the clipboard one per line for App Store Connect; Remove deletes every post behind
+  that email, re-read on the server. Storage is `TESTFLIGHT_SIGNUPS_URL` (+ `TESTFLIGHT_SIGNUPS_TOKEN`) when
+  set, else `buckets/testflight/` next to the replays (`REPLAYS_URL` or `REPLAYS_HOST`, with `REPLAYS_TOKEN`).

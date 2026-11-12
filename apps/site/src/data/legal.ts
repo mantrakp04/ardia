@@ -1,5 +1,5 @@
 export const LEGAL = {
-  updated: "October 30, 2026",
+  updated: "November 12, 2026",
   operator: "Mantra Patel",
   contact: "mantrakp@gmail.com",
   minimumAge: 13,

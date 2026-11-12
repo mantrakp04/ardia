@@ -13,6 +13,7 @@ export const GET: APIRoute = async ({ site }) => {
     [PAGES.home, newest],
     [PAGES.try, undefined],
     [PAGES.arc, undefined],
+    [PAGES.iphone, undefined],
     [PAGES.benchmarks, bench && !bench.sample ? bench.measured : undefined],
     [PAGES.notes, newestNote],
     ...stable.map((r): [string, string] => [releasePath(r.version), isoDate(r.date)]),

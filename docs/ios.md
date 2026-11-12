@@ -166,6 +166,11 @@ are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ar
   (made with a public link the first time), sets its What to Test text from `Config/TestFlight-WhatToTest.txt`, submits it
   for Beta App Review and prints the link. The link works once Apple approves the build; later builds of the same version
   usually pass without a full review.
+- **Invites by email.** People can also ask for an invite at ardia.dev/iphone (`apps/site/src/pages/iphone.astro`): the
+  site's nginx stores each request as is, one JSON object per request in the object store's `testflight` bucket
+  (`infra/site/nginx.conf`, `/api/testflight`), and the dashboard's TestFlight page reads the list, dropping junk and
+  duplicates. Invite them from App Store Connect; the privacy policy promises the email is used for that invite only and
+  deleted on request or when the beta ends.
 
 ## Agent notes
 

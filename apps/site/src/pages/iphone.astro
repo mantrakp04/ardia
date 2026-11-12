@@ -1,0 +1,331 @@
+---
+import { Picture } from "astro:assets";
+import { base, homeUrl, pagePath, PAGES } from "../data/site";
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import { breadcrumbs } from "../data/jsonLd";
+import hills from "../assets/paint/hills.png";
+
+const home = homeUrl(Astro.site);
+const url = new URL(PAGES.iphone, home).href;
+const title = "Ardia for iPhone · join the TestFlight beta";
+const description =
+  "Ardia for iPhone is in TestFlight. Leave an email for an invite: your Mac’s tabs, bookmarks and history on your phone, with ads and trackers blocked.";
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: title,
+    description,
+    url,
+    isPartOf: { "@type": "WebSite", name: "Ardia", url: home },
+    about: {
+      "@type": "MobileApplication",
+      name: "Ardia for iPhone",
+      applicationCategory: "BrowserApplication",
+      operatingSystem: "iOS 27 or later",
+    },
+  },
+  breadcrumbs(home, ["Ardia for iPhone", url]),
+];
+---
+
+<Base title={title} description={description} jsonLd={jsonLd}>
+  <Header home={`${base}/`} />
+  <main>
+    <section class="intro" aria-labelledby="iphone-title">
+      <div class="wrap intro-grid">
+        <div class="pitch">
+          <p class="label kicker">iPhone · TestFlight beta</p>
+          <h1 class="poster" id="iphone-title">Ardia, pocket size.</h1>
+          <p class="lede">Ardia for iPhone is in TestFlight. Leave an email and the invite comes from Apple when a seat opens.</p>
+
+          <div class="signup" data-signup>
+            <form class="signup-form" method="post" novalidate data-signup-form>
+              <label class="label field-label" for="tf-email">Your email</label>
+              <div class="row">
+                <input
+                  class="field"
+                  id="tf-email"
+                  name="email"
+                  type="email"
+                  inputmode="email"
+                  autocomplete="email"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  enterkeyhint="send"
+                  maxlength="254"
+                  placeholder="you@example.com"
+                  required
+                  aria-describedby="tf-error tf-fine"
+                  data-signup-email
+                />
+                <button class="btn sun-btn submit" type="submit" data-signup-submit><span data-signup-label>Ask for an invite</span></button>
+              </div>
+              <p class="error" id="tf-error" role="alert" data-signup-error></p>
+              <div class="trap" aria-hidden="true">
+                <label for="tf-website">Website</label>
+                <input id="tf-website" name="website" type="text" tabindex="-1" autocomplete="off" data-signup-website />
+              </div>
+              <p class="fine" id="tf-fine">
+                TestFlight invites go to an email address, so this is the one place we ask for one. It’s used for the invite and nothing
+                else. <a class="link" href={pagePath("privacy")}>Privacy policy</a>.
+              </p>
+            </form>
+
+            <div class="done" hidden data-signup-done>
+              <h2 class="poster" tabindex="-1" data-signup-done-heading>You’re on the list.</h2>
+              <p>
+                The invite comes from Apple’s TestFlight, sent to <span class="sent-to" data-private data-private-block data-signup-sent-to
+                ></span>. It needs an iPhone on iOS 27.
+              </p>
+              <button class="again link" type="button" data-signup-again>Use a different email</button>
+            </div>
+
+            <noscript><p class="fine">The invite form needs JavaScript, which is off in this browser.</p></noscript>
+          </div>
+        </div>
+        <Picture
+          class="field-art"
+          src={hills}
+          alt=""
+          formats={["avif"]}
+          fallbackFormat="webp"
+          widths={[420, 640, hills.width]}
+          sizes="460px"
+          loading="eager"
+        />
+      </div>
+    </section>
+
+    <section class="what paint edge" aria-labelledby="what-title">
+      <div class="wrap">
+        <p class="label kicker">What’s in the beta</p>
+        <h2 class="poster" id="what-title">Your tabs came too.</h2>
+        <div class="cols">
+          <div class="col">
+            <h3>Synced with your Mac</h3>
+            <p>
+              It joins your Mac’s end-to-end encrypted sync, so your tabs, pinned tabs, bookmarks and history are on the phone, and the
+              phone’s tabs are on the Mac.
+            </p>
+          </div>
+          <div class="col">
+            <h3>All page, no URL bar</h3>
+            <p>The page runs edge to edge over one frosted bar at the bottom. Swipe the bar to switch tabs, swipe anywhere to go back.</p>
+          </div>
+          <div class="col">
+            <h3>Junk stays out</h3>
+            <p>Ads, trackers and cookie banners are blocked out of the box. And there’s no account to make, here or in the app.</p>
+          </div>
+        </div>
+        <p class="label req">iPhone only · iOS 27 or later · early beta, expect wet paint</p>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .intro {
+    padding: clamp(36px, 5vw, 80px) 0 clamp(56px, 7vw, 112px);
+  }
+  .intro-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.62fr);
+    gap: var(--gutter);
+    align-items: end;
+  }
+  .intro h1 {
+    font-size: clamp(3rem, 0.9rem + 8.6vw, 10rem);
+    line-height: 0.82;
+    margin-left: -0.04em;
+  }
+  .lede {
+    margin-top: clamp(20px, 2.4vw, 32px);
+    max-width: 28em;
+    font-size: var(--t-lede);
+    color: var(--ink-2);
+  }
+  .signup {
+    margin-top: clamp(28px, 3.4vw, 44px);
+    max-width: 36rem;
+  }
+  :global(:root:not(.js)) .signup-form,
+  .signup-form[hidden],
+  .done[hidden] {
+    display: none;
+  }
+  .signup-form {
+    position: relative;
+  }
+  .field-label {
+    display: block;
+    color: var(--ink-2);
+    margin-bottom: 8px;
+  }
+  .row {
+    display: flex;
+    gap: 10px;
+  }
+  .field {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 56px;
+    padding: 0 16px;
+    border: 1.5px solid var(--ink);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--paper) 55%, #fff);
+    color: var(--ink);
+    font: inherit;
+    font-size: 1.0625rem;
+    transition:
+      border-color 160ms,
+      box-shadow 160ms;
+  }
+  .field::placeholder {
+    color: var(--ink-3);
+    opacity: 1;
+  }
+  .field:focus-visible {
+    outline: none;
+    border-color: var(--forest);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--forest) 30%, transparent);
+  }
+  .field[aria-invalid="true"] {
+    border-color: var(--stamp);
+  }
+  .field[aria-invalid="true"]:focus-visible {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--stamp) 28%, transparent);
+  }
+  .submit {
+    flex: none;
+    justify-content: center;
+    cursor: pointer;
+    border: 0;
+  }
+  .submit:disabled {
+    cursor: progress;
+    opacity: 0.72;
+  }
+  .submit:focus-visible,
+  .again:focus-visible,
+  .done h2:focus-visible {
+    outline: 2px solid var(--forest);
+    outline-offset: 3px;
+  }
+  .error {
+    margin-top: 10px;
+    font-weight: 560;
+    color: color-mix(in srgb, var(--stamp) 78%, var(--ink));
+  }
+  .error:empty {
+    margin: 0;
+  }
+  .trap {
+    position: absolute;
+    left: -10000px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+  .fine {
+    margin-top: 14px;
+    max-width: 32em;
+    font-size: var(--t-small);
+    color: var(--ink-3);
+  }
+  .fine .link {
+    color: var(--ink-2);
+  }
+  .done {
+    padding: 22px 0 4px;
+    border-top: 2px solid var(--ink);
+  }
+  .done h2 {
+    font-size: var(--t-h3);
+    line-height: 0.9;
+  }
+  .done p {
+    margin-top: 12px;
+    max-width: 30em;
+    color: var(--ink-2);
+  }
+  .sent-to {
+    color: var(--ink);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .again {
+    margin-top: 6px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+  .intro :global(.field-art) {
+    width: 100%;
+    height: auto;
+    filter: saturate(0.8) drop-shadow(0 20px 26px rgb(32 63 50 / 0.18));
+  }
+  .what {
+    --bg: var(--noon);
+    --wash: linear-gradient(180deg, #e9ead8 0%, var(--noon) 40%, var(--golden) 100%);
+    padding: clamp(64px, 8vw, 120px) 0 var(--section);
+  }
+  .what h2 {
+    font-size: var(--t-h2);
+    max-width: 12em;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(24px, 3vw, 48px);
+    margin-top: clamp(36px, 4vw, 64px);
+    border-top: 2px solid var(--ink);
+    padding-top: 24px;
+  }
+  .col h3 {
+    font-weight: 620;
+    font-stretch: 104%;
+    font-size: 1.25rem;
+    line-height: 1.25;
+    letter-spacing: -0.018em;
+  }
+  .col p {
+    margin-top: 10px;
+    color: var(--ink-2);
+  }
+  .req {
+    margin-top: clamp(32px, 4vw, 56px);
+    color: var(--ink-2);
+  }
+  @media (max-width: 820px) {
+    .intro-grid {
+      grid-template-columns: 1fr;
+    }
+    .intro :global(.field-art) {
+      display: none;
+    }
+    .cols {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 560px) {
+    .row {
+      flex-direction: column;
+    }
+    .submit {
+      width: 100%;
+    }
+  }
+</style>
+
+<script>
+  import "../scripts/iphone-signup";
+</script>

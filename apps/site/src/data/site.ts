@@ -5,6 +5,7 @@ export const PAGES = {
   home: "",
   try: "try/",
   arc: "arc/",
+  iphone: "iphone/",
   benchmarks: "benchmarks/",
   notes: "release-notes/",
   press: "press/",

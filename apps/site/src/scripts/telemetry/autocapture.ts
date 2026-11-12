@@ -16,10 +16,24 @@ function ownText(el: Element): string {
   return sensitive(text) ? "" : text;
 }
 
+const TEXT_SCAN_LIMIT = 8192;
+const keepsTextOut = (el: Element) => el.matches(PRIVATE) || FIELD.test(el.tagName.toLowerCase()) || (el as HTMLElement).isContentEditable;
+
+function publicText(root: Element): string {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) =>
+      node.nodeType === Node.ELEMENT_NODE && keepsTextOut(node as Element) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  });
+  let text = "";
+  for (let node = walker.nextNode(); node && text.length < TEXT_SCAN_LIMIT; node = walker.nextNode())
+    if (node.nodeType === Node.TEXT_NODE) text += node.textContent ?? "";
+  return text;
+}
+
 function elementText(el: Element): string {
   const own = ownText(el);
   if (own || el.closest(PRIVATE)) return own;
-  const all = clean(el.textContent ?? "").slice(0, 255);
+  const all = clean(publicText(el)).slice(0, 255);
   return sensitive(all) ? "" : all;
 }
 

@@ -31,6 +31,7 @@ export const SITE_EVENTS = [
   "send_to_mac_clicked",
   "mac_link_visit",
   "non_mac_visit",
+  "iphone_signup",
 ] as const;
 export type SiteEvent = (typeof SITE_EVENTS)[number];
 

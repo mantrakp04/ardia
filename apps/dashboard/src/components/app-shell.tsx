@@ -1,6 +1,6 @@
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
-import { Bug, Filter, Gauge, Globe, HeartPulse, Inbox, LogOut, MessageSquareWarning, MonitorPlay, RefreshCw, Settings2, Siren, TrendingDown, UserRound, Users } from "lucide-react";
+import { Bug, Filter, Gauge, Globe, HeartPulse, Inbox, LogOut, MessageSquareWarning, MonitorPlay, RefreshCw, Settings2, Siren, Smartphone, TrendingDown, UserRound, Users } from "lucide-react";
 import { GithubMark } from "@/components/github-mark";
 import type { ReactNode } from "react";
 import {
@@ -38,6 +38,7 @@ const NAV = [
   { to: "/errors", label: "Errors", icon: Bug },
   { to: "/regressions", label: "Regressions", icon: TrendingDown },
   { to: "/feedback", label: "Feedback", icon: MessageSquareWarning },
+  { to: "/testflight", label: "TestFlight", icon: Smartphone },
   { to: "/github", label: "GitHub", icon: GithubMark },
   { to: "/triage", label: "Triage", icon: Inbox },
 ] as const;
