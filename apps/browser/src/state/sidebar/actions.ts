@@ -11,6 +11,8 @@ import type { ClickMods } from "../drag/drops";
 import { selectedTabIds } from "../pins/organize";
 import { groupLabel, groupOf } from "../pins/tabGrouping";
 import type { Tab } from "../browser/types";
+import { awaitsFirstPage } from "../tabs/pendingAddress";
+import { noteUrlCopied } from "../telemetry/urlCopies";
 import type { BookmarkFolderChoice } from "./menuParts";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./sidebarUi";
@@ -123,6 +125,7 @@ export function copyUrls(ids: string[], markdown: boolean) {
   if (!tabs.length) return;
   const lines = tabs.map((t) => (markdown ? markdownLink(tabTitle(t), t.url) : cleanUrl(t.url)));
   copyText(markdown && lines.length > 1 ? lines.map((l) => `- ${l}`).join("\n") : lines.join("\n"));
+  for (const t of tabs) noteUrlCopied(awaitsFirstPage(t.id));
 }
 
 export async function bookmarkTabs(windowId: string, ids: string[], folder: BookmarkFolderChoice) {
