@@ -147,4 +147,29 @@ final class ChromiumChannelTests: XCTestCase {
     XCTAssertEqual(ChromiumSessions.withoutContainerPrefix("https://a.example/"), "https://a.example/")
     XCTAssertEqual(ChromiumSessions.withoutContainerPrefix("containers+abc:nothing"), "containers+abc:nothing")
   }
+
+  func testHeliumIsFoundAndUnlocksWithItsOwnStorageKeyItem() throws {
+    let source = try XCTUnwrap(Fixtures.discovery().list().first { $0.id == "helium" })
+    XCTAssertEqual(source.name, "Helium")
+    XCTAssertEqual(source.keychainService, "Helium Storage Key")
+    XCTAssertTrue(source.needsKeychain)
+    XCTAssertEqual(source.profiles.map(\.id), ["Default"])
+    XCTAssertEqual(source.profiles[0].path, Fixtures.support("net.imput.helium/Default").path)
+
+    let importer = Importer(discovery: Fixtures.discovery())
+    var asked: [String] = []
+    try importer.unlock(browserId: "helium") { service, account in
+      asked.append("\(service)|\(account)")
+      return Fixtures.chromiumSecret
+    }
+    XCTAssertEqual(asked, ["Helium Storage Key|Helium"])
+
+    let result = try importer.importData(browserId: "helium", profileId: "Default",
+                                         kinds: [.bookmarks, .history, .passwords, .tabs])
+    XCTAssertEqual(result.failed, [])
+    XCTAssertEqual(result.bookmarks?.linkCount, 2)
+    XCTAssertEqual(result.historyCount, 2)
+    XCTAssertEqual(result.credentials.map(\.password), ["helium-pass"])
+    XCTAssertEqual(result.tabs.map(\.url), ["https://helium.example/"])
+  }
 }

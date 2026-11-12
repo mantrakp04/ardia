@@ -276,7 +276,13 @@ NSString *PNGDataURL(NSImage *image) {
 }
 
 - (void)tab:(ArdiaCoreTab *)tab didChangeStatusText:(NSString *)text {
-  [self emit:@"status" payload:@{@"text" : text ?: @""}];
+  NSMutableDictionary *payload = [NSMutableDictionary dictionaryWithObject:text ?: @"" forKey:@"text"];
+  NSWindow *window = self.window;
+  if (window && text.length) {
+    const NSPoint local = [self convertPoint:[window convertPointFromScreen:NSEvent.mouseLocation] fromView:nil];
+    if (NSPointInRect(local, self.bounds)) payload[@"fromBottom"] = @(self.isFlipped ? NSMaxY(self.bounds) - local.y : local.y - NSMinY(self.bounds));
+  }
+  [self emit:@"status" payload:payload];
 }
 
 - (void)openBlockedPopup:(NSString *)popupId always:(BOOL)always {

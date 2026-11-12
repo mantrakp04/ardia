@@ -9,8 +9,6 @@ extern "C" {
 
 #define AC_ENGINE_EXPORT __attribute__((visibility("default")))
 
-#define AC_ENGINE_ABI_VERSION 2
-
 typedef void (*ac_engine_reply_t)(void* context, const char* json);
 typedef void (*ac_engine_call_t)(const char* profile_dir,
                                  const char* args_json,
@@ -20,7 +18,6 @@ typedef void (*ac_engine_event_t)(void* context,
                                   const char* topic,
                                   const char* json);
 
-typedef int (*ac_engine_abi_version_t)(void);
 typedef void (*ac_engine_set_event_sink_t)(ac_engine_event_t sink,
                                            void* context);
 

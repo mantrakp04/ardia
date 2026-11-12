@@ -1,4 +1,4 @@
-import { parseSuggestions, suggestRequestUrl, type SearchEngine } from "./engines.ts";
+import { parseSuggestions, suggestReplyJson, suggestRequestUrl, type SearchEngine } from "./engines.ts";
 
 type FetchResponse = { ok: boolean; text(): Promise<string> };
 export type FetchLike = (url: string, init: { signal: AbortSignal }) => Promise<FetchResponse>;
@@ -56,7 +56,7 @@ export function createSuggestFetcher({
           .then(async (res) => {
             if (!res.ok) return [];
             try {
-              return parseSuggestions(JSON.parse(await res.text()));
+              return parseSuggestions(suggestReplyJson(await res.text()));
             } catch {
               return [];
             }

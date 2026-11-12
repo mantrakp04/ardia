@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Animated, View } from "react-native";
-import { at, fill, type Geo, hairline, sideCard, TOOLBAR_H } from "../geometry";
+import { at, type Geo, hairline, sideCard, TOOLBAR_H } from "../geometry";
 import { type Look, pick } from "../look";
 import { tracker } from "../timeline";
 import { Glyph, Label, MockSurface } from "../Kit";

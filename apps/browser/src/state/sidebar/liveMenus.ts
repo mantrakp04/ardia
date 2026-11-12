@@ -12,7 +12,7 @@ import { dismissNowBadge, hideItems, live, markRead, markUnread, setRepoHidden, 
 import type { LiveItem, LiveSourceId } from "../live/types";
 import { useBrowser } from "../browser/store";
 import { openSettings } from "../settings/settingsWindows";
-import { openIconPicker } from "../sidebar/actions";
+import { openIconPicker } from "./actions";
 import { moveLiveFolder, pinnedSequence } from "./pinnedOrder";
 import { entryKey } from "./entryKey";
 import { activeTabId } from "../browser/model";

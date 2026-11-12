@@ -1,8 +1,9 @@
 import { StyleSheet, View } from "react-native";
-import { useTab } from "../../state/browser/hooks";
+import { useSettings, useTab } from "../../state/browser/hooks";
 import { useTileTheme } from "../../state/favicons/tileTheme";
 import { TabBadges } from "../media/TabBadges";
 import { TabIcon } from "../sidebar/TabIcon";
+import { TileUnread } from "../unread/UnreadBadge";
 import { DockSelection } from "../ui";
 import { GlassFill, useGlass } from "../ui/Glass";
 import { useTheme } from "../ui/theme";
@@ -13,6 +14,7 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
   const glass = useGlass();
+  const badges = useSettings((st) => st.showTopAppBadges);
   if (!tab) return null;
   const glassRing = active && glass;
   const face = { position: "absolute", left: PINNED_FACE_INSET, right: PINNED_FACE_INSET, top: PINNED_FACE_INSET, bottom: PINNED_FACE_INSET } as const;
@@ -50,8 +52,9 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
       )}
       <View pointerEvents="none">
         <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-        <TabBadges tabId={tab.id} pip={false} />
+        <TabBadges tabId={tab.id} />
       </View>
+      {badges ? <TileUnread tabId={tab.id} /> : null}
     </View>
   );
 }

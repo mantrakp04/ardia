@@ -97,7 +97,7 @@ export const TabPane = memo(function TabPane({
   const barHeight = useBookmarksBarHeight();
   const cardRadius = useCardFrame().radius;
   const doc = withoutFragment(own.url);
-  const motion = useToolbarMotion({ enabled: autoLayout, mode, height: frame.height, extra: bookmarksBar ? barHeight : 0, doc });
+  const motion = useToolbarMotion({ enabled: autoLayout, mode, extra: bookmarksBar ? barHeight : 0, doc });
   useEffect(() => {
     if (visible) revealToolbar(tabId);
   }, [visible]);
@@ -127,7 +127,7 @@ export const TabPane = memo(function TabPane({
       {!autoLayout && bookmarksBar && <BookmarksBar tabId={tabId} placeholder={!visible} />}
       <Animated.View style={autoLayout ? motion.groupStyle : { flex: 1 }}>
         {autoLayout && bookmarksBar && <BookmarksBar tabId={tabId} placeholder={!visible} />}
-        <View style={autoLayout ? { height: motion.pageHeight } : { flex: 1 }}>
+        <View style={{ flex: 1 }}>
           {visible && !fullscreen && <ShareBar tabId={tabId} />}
           <View style={{ flex: 1 }}>
             {(mounted || prewarmed) && <TabWebView tabId={tabId} visible={visible && !newTabShown && !isNewTab} warm={!!warm && !newTabShown && !isNewTab} />}
@@ -144,7 +144,6 @@ export const TabPane = memo(function TabPane({
                 width={frame.width}
                 geometry={geometry}
                 toolbar={toolbar}
-                fullscreen={fullscreen}
                 newTabShown={newTabShown}
                 statusStyle={autoLayout ? motion.bottomStyle : undefined}
                 popovers={popovers}

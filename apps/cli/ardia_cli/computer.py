@@ -35,6 +35,8 @@ LOCK_TIMEOUT_S = 120
 APPLICATIONS = Path("/Applications")
 LSREGISTER = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
 SERVER_NAME = "cua-driver"
+COPY_TIMEOUT = 300
+REGISTER_TIMEOUT = 60
 SKILL_NAME = "cua-driver"
 DRIVER_NOTICES = ("LICENSE", "THIRD_PARTY_NOTICES.md")
 OTHER_PLATFORM_DOCS = frozenset({"LINUX.md", "WINDOWS.md"})
@@ -453,11 +455,17 @@ def recover(env=None) -> bool:
 
 
 def copy_app(source: Path, dest: Path) -> None:
-    subprocess.run(["/usr/bin/ditto", str(source), str(dest)], stdin=subprocess.DEVNULL, check=True, capture_output=True)
+    try:
+        subprocess.run(["/usr/bin/ditto", str(source), str(dest)], stdin=subprocess.DEVNULL, check=True, capture_output=True, timeout=COPY_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        raise Refused(f"copying {APP_NAME} to {dest} took over {COPY_TIMEOUT} s") from None
 
 
 def register_app(app: Path) -> None:
-    subprocess.run([LSREGISTER, "-f", str(app)], stdin=subprocess.DEVNULL, check=False, capture_output=True)
+    try:
+        subprocess.run([LSREGISTER, "-f", str(app)], stdin=subprocess.DEVNULL, check=False, capture_output=True, timeout=REGISTER_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 def run_driver_quietly(binary: Path, *args: str) -> int:

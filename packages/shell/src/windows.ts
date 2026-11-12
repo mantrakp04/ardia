@@ -28,6 +28,7 @@ export type OpenWindowOptions = {
 export type DragPreviewShape = "hidden" | "pill" | "card";
 
 export type WindowsNative = {
+  windowCornerRadius(): number;
   addListener(name: "onWindowEvent", listener: (e: WindowEvent) => void): EventSubscription;
   openWindow(id: string, options: OpenWindowOptions): Promise<void>;
   closeWindow(id: string): Promise<void>;

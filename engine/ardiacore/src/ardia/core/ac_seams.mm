@@ -26,6 +26,8 @@
 #include "ardia/core/ac_extension_shortcuts.h"
 #include "ardia/core/ac_extension_view.h"
 #include "ardia/core/ac_installed_bubble.h"
+#include "ardia/core/ac_launch_switches.h"
+#include "ui/base/cocoa/drag_permission.h"
 #import "ardia/core/ardiacore_api_internal.h"
 #import "ardia/core/ardiacore_internal.h"
 
@@ -172,6 +174,9 @@ void InstallChromeHooks() {
   g_ardia_omits_from_session_service = &OmitsFromSessionService;
   g_ardia_viewless_browsers = true;
   ardia::InstallCliVisibleTabs();
+  if (TestFlag("nativeDragRefused")) {
+    ui::ArdiaRefuseDragSessionInitiation();
+  }
 }
 
 }

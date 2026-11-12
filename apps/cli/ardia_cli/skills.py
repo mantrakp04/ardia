@@ -215,8 +215,9 @@ def companion_line(folder: Path) -> tuple[str, int]:
 
 
 def record_path() -> Path:
-    cli_home = os.environ.get("ARDIA_CLI_HOME") or str(Path.home() / "Library" / "Application Support" / "Ardia" / "CLI")
-    return Path(cli_home).expanduser() / "skills.json"
+    from ardia_cli import usage
+
+    return usage.cli_home() / "skills.json"
 
 
 def recorded_folders() -> list[Path]:
@@ -263,6 +264,39 @@ def install(targets: list[str], project: bool, computer_use: bool = True, replac
     if installed:
         save_record(recorded_folders() + installed)
     return status
+
+
+AGENT_HOMES = {
+    "claude-code": ".claude",
+    "codex": ".codex",
+    "cursor": ".cursor",
+    "opencode": ".config/opencode",
+}
+
+
+def detected_targets() -> list[str]:
+    found = [target for target, home in AGENT_HOMES.items() if (Path.home() / home).is_dir()]
+    return found or ["general"]
+
+
+def install_detected(computer_use: bool = True) -> int:
+    recorded = set(recorded_folders())
+    targets = []
+    for target in detected_targets():
+        folder = destination(target, False).absolute()
+        exists = folder.is_symlink() or folder.exists()
+        if not exists and folder in recorded:
+            print(f"{target}: skipped {folder}: removed after an earlier install")
+            continue
+        if exists and owned_files(folder) is None:
+            print(f"{target}: skipped {folder}: not installed by ardia")
+            continue
+        targets.append(target)
+    from ardia_cli import telemetry
+
+    telemetry.note_count("skills_installed", len(targets))
+    telemetry.note_count("skills_skipped", len(detected_targets()) - len(targets))
+    return install(targets, False, computer_use) if targets else 0
 
 
 def refresh() -> int:

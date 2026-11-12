@@ -34,7 +34,7 @@ async def create(state, owned: list[str]) -> str:
         except BaseException as error:
             give_back(state, slot)
             if isinstance(error, Gated):
-                raise BrowseError("Ardia's policy refused to open a tab for the ardia command") from None
+                raise BrowseError(f"Ardia's policy refused to open a tab for the ardia command ({error.refusal})") from None
             raise
         target_id = result["targetId"]
         try:

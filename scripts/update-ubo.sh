@@ -8,7 +8,7 @@ current="$(sed -n 's/^UBO_VERSION="\(.*\)"$/\1/p' "$pin")"
 [ -n "$current" ] || { echo "error: no UBO_VERSION in $pin" >&2; exit 1; }
 
 release="$(curl -fsSL --retry 3 -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$repo/releases/latest")"
-read -r latest url digest < <(python3 -c '
+read -r latest url digest < <(python3 -I -c '
 import json, sys
 r = json.load(sys.stdin)
 zips = [a for a in r["assets"] if a["name"] == "uBlock0_%s.chromium.zip" % r["tag_name"]]
@@ -41,7 +41,7 @@ echo "Downloading $url"
 curl -fL --retry 3 -o "$zip.part" "$url"
 sha="$(shasum -a 256 "$zip.part" | cut -d' ' -f1)"
 [ "$sha" = "$digest" ] || { rm -f "$zip.part"; echo "error: $url has SHA-256 $sha, GitHub says $digest" >&2; exit 1; }
-unzip -p "$zip.part" uBlock0.chromium/manifest.json | python3 -c '
+unzip -p "$zip.part" uBlock0.chromium/manifest.json | python3 -I -c '
 import json, sys
 m = json.load(sys.stdin)
 want = sys.argv[1]
@@ -57,6 +57,6 @@ old_pin="$(cat "$pin")"
 restore_pin() { printf '%s\n' "$old_pin" > "$pin"; echo "error: uBO $latest didn't install; the pin stays at $current" >&2; exit 1; }
 sed -i '' "s/^UBO_VERSION=\".*\"$/UBO_VERSION=\"$latest\"/; s/^UBO_SHA256=\".*\"$/UBO_SHA256=\"$sha\"/" "$pin"
 "$root/packages/ardiacore/scripts/ubo.sh" || restore_pin
-[ "$(cut -d- -f1 "$ubo/.version")" = "$latest" ] || { echo "error: vendor/ubo didn't install $latest" >&2; exit 1; }
+[ "$(cut -d- -f1 "$ubo/.version")" = "$latest" ] || restore_pin
 echo "uBO $current -> $latest (sha256 $sha)"
 echo "Commit it: git add packages/ardiacore/scripts/ubo.sh && git commit -m \"Content blocker: uBlock Origin $latest\""

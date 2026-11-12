@@ -537,6 +537,26 @@ class Setup(Sandbox):
         self.assertEqual((self.home / "bin" / "cua-driver").read_text(), "theirs\n")
 
 
+class StuckTools(unittest.TestCase):
+    def stuck(self, command, **kwargs):
+        self.timeouts.append(kwargs.get("timeout"))
+        raise subprocess.TimeoutExpired(command, kwargs.get("timeout"))
+
+    def setUp(self):
+        self.timeouts = []
+
+    def test_a_stuck_copy_is_refused(self):
+        with mock.patch.object(computer.subprocess, "run", self.stuck), self.assertRaises(computer.Refused) as caught:
+            computer.copy_app(Path("/tmp/a"), Path("/tmp/b"))
+        self.assertIn(f"took over {computer.COPY_TIMEOUT} s", str(caught.exception))
+        self.assertEqual(self.timeouts, [computer.COPY_TIMEOUT])
+
+    def test_a_stuck_registration_is_skipped(self):
+        with mock.patch.object(computer.subprocess, "run", self.stuck):
+            computer.register_app(Path("/tmp/a"))
+        self.assertEqual(self.timeouts, [computer.REGISTER_TIMEOUT])
+
+
 class Launcher(Sandbox):
     def test_the_shim_never_captures_an_ardia_found_on_path(self):
         impostor = self.root / "evil" / "ardia"

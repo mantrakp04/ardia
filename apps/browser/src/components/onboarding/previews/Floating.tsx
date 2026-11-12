@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Animated, Text, View, type ViewStyle } from "react-native";
 import { KeyCap } from "../../ui/KeyCap";
-import { capsule, font, radius as radii, shadow, space } from "../../ui/tokens";
+import { capsule, font, ink, radius as radii, shadow, space } from "../../ui/tokens";
 import { SUGGESTION } from "../../omnibox/tokens";
 import type { Suggestion } from "./content";
 import { at, atRect, fill, type Geo, type Rect } from "./geometry";
@@ -31,7 +31,7 @@ export function SuggestionRow({ g, look, s, selected, style }: { g: Geo; look: L
           flexDirection: "row",
           alignItems: "center",
           gap: SUGGESTION.gap * g.s,
-          backgroundColor: selected ? look.t.commandBarSelected : "transparent",
+          backgroundColor: selected ? look.t.commandBarSelected : ink.clear,
         },
         style as ViewStyle,
       ]}

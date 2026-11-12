@@ -7,6 +7,7 @@ import plistlib
 import shutil
 import signal
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -229,11 +230,6 @@ class Base(unittest.TestCase):
             except SystemExit as exit:
                 status = exit.code
         return status, out.getvalue(), err.getvalue()
-
-    def interrupt_after(self, seconds):
-        timer = threading.Timer(seconds, os.kill, (os.getpid(), signal.SIGINT))
-        timer.start()
-        self.addCleanup(timer.cancel)
 
 
 class Discovery(Base):
@@ -1034,6 +1030,17 @@ class LaunchAgent(Base):
         self.assertEqual(status, 1)
         self.assertIn("Input/output error", err)
         self.assertEqual([c[0] for c in self.calls], ["bootout", "bootstrap", "bootstrap", "bootstrap"])
+
+    def test_a_stuck_launchctl_is_one_line(self):
+        def stuck(arguments):
+            raise subprocess.TimeoutExpired(["/bin/launchctl", *arguments], 20)
+
+        for verb in ("install", "uninstall"):
+            with self.subTest(verb=verb), self.installed_env(), mock.patch.object(hooks, "launchctl", side_effect=stuck):
+                status, _, err = self.run_cli("hooks", verb)
+            self.assertEqual(status, 1)
+            self.assertEqual(err.strip().splitlines()[-1], f"ardia hooks {verb}: launchctl didn't answer in 20 s; try again, or check launchctl print gui/{os.getuid()}/dev.ardia.hooks")
+            self.assertNotIn("Traceback", err)
 
     def test_list_reports_hooks(self):
         config = self.data / "config"

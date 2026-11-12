@@ -1,0 +1,33 @@
+{
+  "id": "fixes-0246n2",
+  "segments": [
+    {
+      "scene": "reopenback",
+      "title": "A window you just closed comes back with Back",
+      "body": "Two pages deep in a doc that, like most web apps, saves as it unloads. Close the window with ⇧⌘W and bring it straight back with ⇧⌘T. nightly.1 was still closing it for four seconds, so the reopened tab had no history and Back did nothing; now Back goes to the page before.",
+      "cam": [0, 0, 1120, 720],
+      "zoom": { "cam": [0, 0, 560, 360], "from": 3.3, "to": 4.1 },
+      "lead": 2.5,
+      "tail": 5.0
+    },
+    {
+      "scene": "splitstack",
+      "title": "A third pane keeps both stacked tabs",
+      "body": "A split of Trip plan stacked over The Daily Ledger. Add Lexicon as a pane below Trip plan: nightly.1 dropped The Daily Ledger out of the split; now all three share it.",
+      "cam": [0, 0, 1360, 860],
+      "cursor": false,
+      "lead": 1.4,
+      "tail": 3.4
+    },
+    {
+      "scene": "peekorder",
+      "title": "Opening a Peek as a tab leaves pinned tabs alone",
+      "body": "A pinned Trip group with The Daily Ledger pinned after it. A link opens in a Peek, then Open as Tab: nightly.1 moved The Daily Ledger above the group; now the pinned order stays put.",
+      "cam": [0, 0, 1360, 860],
+      "zoom": { "cam": [0, 10, 520, 329], "from": 2.0, "to": 2.8 },
+      "cursor": false,
+      "lead": 3.0,
+      "tail": 3.2
+    }
+  ]
+}

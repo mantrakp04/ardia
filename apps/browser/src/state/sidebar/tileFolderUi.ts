@@ -4,8 +4,8 @@ import { create } from "zustand";
 import { useBrowser } from "../browser/store";
 import { activeTabId, plural } from "../browser/model";
 import { dissolveTileFolder, folderIn, folderLabel, folderMembers, leaveTileFolder, newTileFolder, renameTileFolder } from "../pins/tileFolders";
-import { dismissHover } from "../sidebar/hover";
-import { measureRow } from "../sidebar/sidebarUi";
+import { dismissHover } from "./hover";
+import { measureRow } from "./sidebarUi";
 
 type Open = { windowId: string; folderId: string; anchor: { x: number; y: number; width: number; height: number } };
 

@@ -10,6 +10,7 @@ const BUNDLED: Partial<Record<BrowserSourceId, ImageSourcePropType>> = {
   zen: require("../../../assets/browsers/zen.png"),
   brave: require("../../../assets/browsers/brave.png"),
   edge: require("../../../assets/browsers/edge.png"),
+  helium: require("../../../assets/browsers/helium.png"),
 };
 
 export const browserIcon = (id: BrowserSourceId, installedIcon: string | null): ImageSourcePropType | null =>

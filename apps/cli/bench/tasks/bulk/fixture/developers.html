@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin API reference · Storefront admin</title>
+<link rel="stylesheet" href="/docs.css">
+</head>
+<body>
+<header class="d-top">
+  <a class="d-brand" href="/developers"><span class="d-logo" aria-hidden="true">H</span>Storefront admin <span class="d-pill">API reference</span></a>
+  <span class="d-version">Version 2026-10</span>
+  <a class="d-back" href="/">Back to admin</a>
+</header>
+<div class="d-shell">
+  <nav class="d-nav" aria-label="API reference">
+    <p class="d-group">Getting started</p>
+    <a href="#introduction">Introduction</a>
+    <a href="#authentication">Authentication</a>
+    <a href="#errors">Errors</a>
+    <a href="#rate-limits">Rate limits</a>
+    <a href="#pagination">Pagination</a>
+    <p class="d-group">Orders</p>
+    <a href="#order-object">The order object</a>
+    <a href="#list-orders">List orders</a>
+    <a href="#retrieve-order">Retrieve an order</a>
+    <a href="#update-order">Update an order</a>
+    <a href="#batch-update">Batch update orders</a>
+  </nav>
+  <main class="d-main">
+    <section class="d-sec" id="introduction">
+      <div class="d-prose">
+        <h1>Admin API reference</h1>
+        <p>The Admin API lets you read and update your store's data from your own scripts and tools. It's organised around REST: predictable resource URLs, JSON request and response bodies, standard HTTP verbs and status codes.</p>
+        <p>Every timestamp is an ISO 8601 string in your store's time zone, <code>America/New_York</code>, with its UTC offset, for example <code>2026-09-30T22:30:00-04:00</code>.</p>
+      </div>
+      <div class="d-code">
+        <div class="d-codehead">Base URL</div>
+        <pre>http://127.0.0.1:8861/v1</pre>
+      </div>
+    </section>
+
+    <section class="d-sec" id="authentication">
+      <div class="d-prose">
+        <h2>Authentication</h2>
+        <p>Authenticate with a personal access token. Find yours in the admin under <a href="/settings/developer">Settings › Developer</a>. Send it in the <code>Authorization</code> header on every request:</p>
+        <p><code>Authorization: Bearer &lt;token&gt;</code></p>
+        <p>Tokens carry your account's access, so keep them out of shared code. Requests without a valid token get <code>401 unauthorized</code>. The API doesn't use cookies or CSRF tokens.</p>
+      </div>
+      <div class="d-code">
+        <div class="d-codehead">Authenticated request</div>
+        <pre>curl http://127.0.0.1:8861/v1/orders?limit=1 \
+  -H "Authorization: Bearer $TOKEN"</pre>
+      </div>
+    </section>
+
+    <section class="d-sec" id="errors">
+      <div class="d-prose">
+        <h2>Errors</h2>
+        <p>Failed requests return a non-2xx status and an <code>error</code> object with a machine-readable <code>code</code>, a human-readable <code>message</code> and, when one parameter is at fault, <code>param</code>.</p>
+        <table class="d-table">
+          <thead><tr><th>Status</th><th>code</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>400</td><td><code>bad_request</code></td><td>The body isn't a JSON object, or a cursor is malformed.</td></tr>
+            <tr><td>401</td><td><code>unauthorized</code></td><td>The token is missing or invalid.</td></tr>
+            <tr><td>404</td><td><code>not_found</code></td><td>No order has that id, or the URL doesn't exist.</td></tr>
+            <tr><td>405</td><td><code>method_not_allowed</code></td><td>The endpoint doesn't support that HTTP method.</td></tr>
+            <tr><td>422</td><td><code>validation_failed</code></td><td>A parameter is unknown or has an invalid value. Nothing was changed.</td></tr>
+            <tr><td>429</td><td><code>rate_limited</code></td><td>Too many requests. See <a href="#rate-limits">Rate limits</a>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="d-code">
+        <div class="d-codehead">Error response</div>
+        <pre>HTTP/1.1 422 Unprocessable Entity
+
+{
+  "error": {
+    "code": "validation_failed",
+    "message": "status must be one of processing, shipped, delivered, archived",
+    "param": "status"
+  }
+}</pre>
+      </div>
+    </section>
+
+    <section class="d-sec" id="rate-limits">
+      <div class="d-prose">
+        <h2>Rate limits</h2>
+        <p>Each token can make <strong>10 requests per second</strong>, with bursts of up to 10. A batch request counts as one request, however many operations it holds.</p>
+        <p>Over the limit, the API answers <code>429 rate_limited</code> with a <code>Retry-After</code> header giving the number of seconds to wait. Every response carries <code>X-RateLimit-Limit</code> and <code>X-RateLimit-Remaining</code>.</p>
+      </div>
+      <div class="d-code">
+        <div class="d-codehead">429 response</div>
+        <pre>HTTP/1.1 429 Too Many Requests
+Retry-After: 1
+X-RateLimit-Limit: 10
+X-RateLimit-Remaining: 0
+
+{
+  "error": {
+    "code": "rate_limited",
+    "message": "Too many requests. Limit is 10 per second; retry after 1 s."
+  }
+}</pre>
+      </div>
+    </section>
+
+    <section class="d-sec" id="pagination">
+      <div class="d-prose">
+        <h2>Pagination</h2>
+        <p>List endpoints return orders newest first, in pages. Set <code>limit</code> (1 to 100, default 50). When <code>has_more</code> is true, pass the response's <code>next_cursor</code> as <code>cursor</code>, with the same filters, to get the next page. Keep going until <code>has_more</code> is false.</p>
+        <p>Cursors point after the last order you received, so updating orders while you page through a list doesn't make you skip any.</p>
+      </div>
+      <div class="d-code">
+        <div class="d-codehead">List response</div>
+        <pre>{
+  "object": "list",
+  "data": [ { "object": "order", "id": 5981204, ... } ],
+  "has_more": true,
+  "next_cursor": "YWZ0ZXI6NTk4MTIwNA"
+}</pre>
+      </div>
+    </section>
+
+    <section class="d-sec" id="order-object">
+      <div class="d-prose">
+        <h2>The order object</h2>
+        <table class="d-table">
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>id</code></td><td>integer</td><td>Unique identifier. Use it in URLs.</td></tr>
+            <tr><td><code>name</code></td><td>string</td><td>The order number customers see, like <code>#1042</code>.</td></tr>
+            <tr><td><code>created_at</code></td><td>timestamp</td><td>When the order was placed.</td></tr>
+            <tr><td><code>channel</code></td><td>enum</td><td>The sales channel the order came from: <code>online_store</code>, <code>legacy_store</code>, <code>pos</code> (Point of Sale) or <code>wholesale</code>.</td></tr>
+            <tr><td><code>status</code></td><td>enum</td><td><code>processing</code>, <code>shipped</code>, <code>delivered</code> or <code>archived</code>.</td></tr>
+            <tr><td><code>shipped_at</code></td><td>timestamp or null</td><td>When the order shipped.</td></tr>
+            <tr><td><code>delivered_at</code></td><td>timestamp or null</td><td>When the carrier, or the till for Point of Sale, confirmed delivery. Kept when the order is archived.</td></tr>
+            <tr><td><code>archived_at</code></td><td>timestamp or null</td><td>When the order was archived.</td></tr>
+            <tr><td><code>customer</code></td><td>object</td><td><code>name</code> and <code>email</code> (null for walk-in sales).</td></tr>
+            <tr><td><code>line_items</code></td><td>array</td><td>Each with <code>title</code>, <code>quantity</code> and unit <code>price</code>.</td></tr>
+            <tr><td><code>total</code></td><td>string</td><td>Order total as a decimal string, in <code>currency</code>.</td></tr>
+            <tr><td><code>tags</code></td><td>array of strings</td><td>Up to 20 tags. Each is 1 to 40 letters, numbers, spaces, <code>-</code>, <code>_</code> or <code>.</code>. Tags are unique, ignoring case.</td></tr>
+            <tr><td><code>note</code></td><td>string</td><td>The order note.</td></tr>
+            <tr><td><code>updated_at</code></td><td>timestamp</td><td>When the order last changed.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="d-code">
+        <div class="d-codehead">The order object</div>
+        <pre>{
+  "object": "order",
+  "id": 5410337,
+  "name": "#1118",
+  "created_at": "2026-09-24T13:02:00-04:00",
+  "channel": "online_store",
+  "status": "delivered",
+  "shipped_at": "2026-09-25T09:40:00-04:00",
+  "delivered_at": "2026-09-28T15:17:00-04:00",
+  "archived_at": null,
+  "customer": {
+    "name": "Iris Delaney",
+    "email": "iris.delaney@fastmail.com"
+  },
+  "line_items": [
+    { "title": "Walnut serving board",
+      "quantity": 1, "price": "68.00" }
+  ],
+  "total": "68.00",
+  "currency": "USD",
+  "tags": ["gift"],
+  "note": "",
+  "updated_at": "2026-09-28T15:17:00-04:00"
+}</pre>
+      </div>
+    </section>
+
+    <section class="d-sec" id="list-orders">
+      <div class="d-prose">
+        <h2 class="d-endpoint"><span class="d-verb get">GET</span> /v1/orders</h2>
+        <p>Lists orders, newest first. Filters combine with AND.</p>
+        <table class="d-table">
+          <thead><tr><th>Parameter</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>status</code></td><td>One status, or several separated by commas.</td></tr>
+            <tr><td><code>channel</code></td><td>One channel, or several separated by commas.</td></tr>
+            <tr><td><code>tag</code></td><td>Only orders with this tag (ignoring case).</td></tr>
+            <tr><td><code>q</code></td><td>Full-text search over order number, customer name and email, note and tags.</td></tr>
+            <tr><td><code>created_at_min</code>, <code>created_at_max</code></td><td>Only orders placed at or after <code>_min</code> and before <code>_max</code>.</td></tr>
+            <tr><td><code>delivered_at_min</code>, <code>delivered_at_max</code></td><td>Only orders delivered at or after <code>_min</code> and before <code>_max</code>. Orders that haven't been delivered never match.</td></tr>
+            <tr><td><code>limit</code></td><td>Page size, 1 to 100. Default 50.</td></tr>
+            <tr><td><code>cursor</code></td><td>The <code>next_cursor</code> from the previous page.</td></tr>
+          </tbody>
+        </table>
+        <p>Time filters take a timestamp or a date. A date means midnight at the start of that day in the store's time zone, so <code>delivered_at_max=2026-09-01</code> matches orders delivered up to the end of August 31.</p>
+      </div>
+      <div class="d-code">
+        <div class="d-codehead">Request</div>
+        <pre>curl -G http://127.0.0.1:8861/v1/orders \
+  -H "Authorization: Bearer $TOKEN" \
+  -d status=shipped \
+  -d channel=wholesale \
+  -d limit=100</pre>
+      </div>
+    </section>
+
+    <section class="d-sec" id="retrieve-order">
+      <div class="d-prose">
+        <h2 class="d-endpoint"><span class="d-verb get">GET</span> /v1/orders/{id}</h2>
+        <p>Retrieves one order by its <code>id</code>.</p>
+      </div>
+      <div class="d-code">
+        <div class="d-codehead">Request</div>
+        <pre>curl http://127.0.0.1:8861/v1/orders/5410337 \
+  -H "Authorization: Bearer $TOKEN"</pre>
+      </div>
+    </section>
+
+    <section class="d-sec" id="update-order">
+      <div class="d-prose">
+        <h2 class="d-endpoint"><span class="d-verb patch">PATCH</span> /v1/orders/{id}</h2>
+        <p>Updates an order. Send only the fields you want to change; it returns the updated order.</p>
+        <table class="d-table">
+          <thead><tr><th>Field</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>tags_add</code></td><td>Tags to add. The order keeps its other tags; tags it already has are left as they are.</td></tr>
+            <tr><td><code>tags_remove</code></td><td>Tags to remove, ignoring case.</td></tr>
+            <tr><td><code>tags</code></td><td>Replaces the whole tag list. Can't be combined with <code>tags_add</code> or <code>tags_remove</code>.</td></tr>
+            <tr><td><code>status</code></td><td><code>processing</code>, <code>shipped</code>, <code>delivered</code> or <code>archived</code>. Archiving sets <code>archived_at</code> and keeps the shipping and delivery dates. Moving an order back to <code>processing</code> clears them.</td></tr>
+          </tbody>
+        </table>
+        <p>An update is all or nothing: if any field is invalid you get <code>422</code> and the order doesn't change.</p>
+      </div>
+      <div class="d-code">
+        <div class="d-codehead">Request</div>
+        <pre>curl -X PATCH http://127.0.0.1:8861/v1/orders/5410337 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"tags_add": ["reviewed"], "status": "archived"}'</pre>
+      </div>
+    </section>
+
+    <section class="d-sec" id="batch-update">
+      <div class="d-prose">
+        <h2 class="d-endpoint"><span class="d-verb post">POST</span> /v1/orders/batch</h2>
+        <p>Applies up to <strong>50</strong> updates in one request. Each operation is an <code>id</code> plus the same fields as <a href="#update-order">Update an order</a>.</p>
+        <p>Operations are applied in order and independently: one that fails doesn't stop the others. The response has one result per operation, in the same order, each with its own <code>status</code> and either the updated <code>order</code> or an <code>error</code>. Check every result.</p>
+      </div>
+      <div class="d-code">
+        <div class="d-codehead">Request</div>
+        <pre>curl -X POST http://127.0.0.1:8861/v1/orders/batch \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"operations": [
+        {"id": 5410337, "tags_add": ["reviewed"]},
+        {"id": 5410498, "status": "shipped"}
+      ]}'</pre>
+        <div class="d-codehead">Response</div>
+        <pre>{
+  "object": "batch",
+  "results": [
+    { "id": 5410337, "status": 200, "order": { ... } },
+    { "id": 5410498, "status": 404, "error": {
+        "code": "not_found",
+        "message": "No order with id 5410498" } }
+  ]
+}</pre>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

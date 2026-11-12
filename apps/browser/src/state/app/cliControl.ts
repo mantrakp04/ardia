@@ -21,6 +21,8 @@ import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { errorText } from "../../lib/errors";
 import { focusedWindowOf } from "../windows/ui";
+import { noteCliPillShown } from "../telemetry/usage";
+import { noteDragsEnded } from "../telemetry/stuckDrags";
 import type { CliCaller } from "./cliCaller";
 
 const DOC = "ardia-cli.json";
@@ -81,6 +83,7 @@ let hiddenStep = 0;
 
 function showIndicator(shown: boolean) {
   if (!shown) hiddenStep = ++indicatorStep;
+  else noteCliPillShown();
   const caller = shown && callerStep < hiddenStep ? null : useCliIndicator.getState().caller;
   useCliIndicator.setState({ shown, caller });
 }
@@ -174,7 +177,7 @@ function pushActiveTab() {
   const active = shownReadyTab(useBrowser.getState());
   if (active === sentActive) return;
   sentActive = active;
-  void setCliActiveTab(active).catch(() => {});
+  void setCliActiveTab(active).then((status) => noteDragsEnded(status.dragsEnded), () => {});
 }
 
 export function noteTabReady(tabId: string) {
@@ -201,6 +204,7 @@ export function startCliControl() {
   let inFlight = 0;
   let newest = 0;
   const apply = (server: CliControlStatus, mayReconcile: boolean) => {
+    noteDragsEnded(server.dragsEnded);
     const generation = server.state === "external" ? newest : server.generation;
     if (generation < newest) return;
     newest = generation;

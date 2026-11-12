@@ -4,8 +4,8 @@ The Helium Authors).
 
 Helium's onboarding page (chrome://setup, helium-onboarding) isn't built: the build doesn't fetch helium-onboarding,
 and Ardia has its own onboarding and always starts Chrome with --no-first-run, so Helium's services consent the page
-would set stays off. Its WebUI target, resources, strings, chrome://chrome-urls entry and first-run opener are gone (the branding patch drops its
-pak and its WebUI registration). chrome://credits keeps Helium's GPL-3.0 entry, with its licence text now in
+would set stays off. Its WebUI target, resources, pak, strings, chrome://chrome-urls entry and first-run opener are gone (the branding
+patch drops its WebUI registration). chrome://credits keeps Helium's GPL-3.0 entry, with its licence text now in
 third_party/helium/LICENSE (it pointed into helium-onboarding), and leaves out Instrument Sans, the onboarding page's
 font, which isn't shipped.
 
@@ -29,7 +29,7 @@ font, which isn't shipped.
 -components/helium_onboarding/helium_onboarding_strings.grdp
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -3553,7 +3553,6 @@
+@@ -5458,7 +5458,6 @@
      "//chrome/browser/ui/webui/user_education_internals:mojo_bindings",
      "//chrome/browser/web_applications/mojom:mojom_web_apps_enum",
      "//chrome/common/request_header_integrity:buildflags",
@@ -39,7 +39,7 @@ font, which isn't shipped.
      "//components/webui/chrome_urls/mojom:mojo_bindings",
 --- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
 +++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-@@ -66,7 +66,6 @@
+@@ -64,7 +64,6 @@
  #include "chrome/common/pref_names.h"
  #include "chrome/common/webui_url_constants.h"
  #include "components/custom_handlers/protocol_handler_registry.h"
@@ -47,7 +47,7 @@ font, which isn't shipped.
  #include "components/prefs/pref_service.h"
  #include "components/sessions/core/serialized_navigation_entry.h"
  #include "components/sessions/core/serialized_user_agent_override.h"
-@@ -657,15 +656,6 @@
+@@ -666,15 +665,6 @@
        provider.GetCommandLineTabs(*command_line_, cur_dir_, profile_);
    LaunchResult launch_result =
        tabs.empty() ? LaunchResult::kNormally : LaunchResult::kWithGivenUrls;
@@ -65,7 +65,7 @@ font, which isn't shipped.
                              is_incognito_or_guest || is_post_crash_launch)) {
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -50,7 +50,6 @@
+@@ -44,7 +44,6 @@
      ":gcm_internals_ui",
      ":net_export_ui",
      ":ntp_tiles_internals_ui",
@@ -73,7 +73,7 @@ font, which isn't shipped.
      ":signin_internals_ui",
      ":webui",
      "//chrome/browser/actor/ui:actor_overlay",
-@@ -652,36 +651,6 @@
+@@ -692,36 +691,6 @@
    }
  }
  
@@ -115,24 +115,29 @@ font, which isn't shipped.
 @@ -47,7 +47,6 @@
  #include "chrome/browser/ui/webui/notebooks_internals/notebooks_internals_ui_config.h"
  #include "chrome/browser/ui/webui/ntp_tiles_internals_ui.h"
- #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
+ #include "chrome/browser/ui/webui/omnibox_internals/omnibox_internals_ui.h"
 -#include "chrome/browser/ui/webui/onboarding/onboarding_page_ui.h"
  #include "chrome/browser/ui/webui/policy/policy_ui.h"
  #include "chrome/browser/ui/webui/predictors/predictors_ui.h"
  #include "chrome/browser/ui/webui/regional_capabilities_internals/regional_capabilities_internals_ui.h"
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
-@@ -480,7 +480,6 @@
+@@ -481,12 +481,10 @@
+       sources += [
+         "$root_gen_dir/chrome/default_browser_modal_resources.pak",
+         "$root_gen_dir/chrome/profile_picker_resources.pak",
+-        "$root_gen_dir/components/helium_onboarding/resources/helium_onboarding_generated.pak",
+       ]
+       deps += [
          "//chrome/browser/resources/default_browser/default_browser_modal:resources",
          "//chrome/browser/resources/intro:resources",
          "//chrome/browser/resources/signin/profile_picker:resources",
 -        "//components/helium_onboarding:generated_resources",
        ]
      }
- 
 --- a/chrome/common/webui_url_constants.cc
 +++ b/chrome/common/webui_url_constants.cc
-@@ -174,7 +174,6 @@
+@@ -173,7 +173,6 @@
        kChromeUIPrefsInternalsHost,
        kChromeUIProfileInternalsHost,
        content::kChromeUIQuotaInternalsHost,

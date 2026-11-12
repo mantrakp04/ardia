@@ -1,0 +1,252 @@
+name: iOS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: status lists what App Store Connect holds; dry-run builds and signs; upload sends the build to TestFlight and to public testers; public-link submits a build for Beta App Review and prints the link to share; add-tester invites an email to the Public Testers group; certificate makes the development certificate CI signs with
+        type: choice
+        options: [status, dry-run, upload, public-link, add-tester, certificate]
+        default: status
+      build:
+        description: Build number (empty takes the one after the highest uploaded)
+        type: string
+        default: ""
+      default_browser:
+        description: Sign with the default-browser entitlement (only once Apple has granted it)
+        type: boolean
+        default: false
+      public_testers:
+        description: upload mode only, also put the build in the Public Testers group and submit it for Beta App Review
+        type: boolean
+        default: true
+      signing_request:
+        description: certificate mode only, the base64 of a certificate signing request
+        type: string
+        default: ""
+      email:
+        description: add-tester mode only, the tester's email address
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    if: inputs.mode == 'status'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: App Store Connect
+        env:
+          ASC_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/AuthKey.p8"
+          (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
+          trap 'rm -f "$key"' EXIT
+          ASC_KEY="$key" node apps/ios/scripts/asc.mjs status | tee -a "$GITHUB_STEP_SUMMARY"
+
+  public-link:
+    if: inputs.mode == 'public-link'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: Public test link
+        env:
+          ASC_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+          BUILD: ${{ inputs.build }}
+        run: |
+          set -euo pipefail
+          [ -n "$BUILD" ] || { echo "::error::public-link mode needs build"; exit 1; }
+          key="$RUNNER_TEMP/AuthKey.p8"
+          (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
+          trap 'rm -f "$key"' EXIT
+          ASC_KEY="$key" node apps/ios/scripts/asc.mjs public-link --build "$BUILD" \
+            --what-to-test apps/ios/Config/TestFlight-WhatToTest.txt --privacy-policy https://ardia.dev/privacy | tee -a "$GITHUB_STEP_SUMMARY"
+
+  add-tester:
+    if: inputs.mode == 'add-tester'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: Invite tester
+        env:
+          ASC_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+          EMAIL: ${{ inputs.email }}
+        run: |
+          set -euo pipefail
+          [ -n "$EMAIL" ] || { echo "::error::add-tester mode needs email"; exit 1; }
+          echo "::add-mask::$EMAIL"
+          key="$RUNNER_TEMP/AuthKey.p8"
+          (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
+          trap 'rm -f "$key"' EXIT
+          ASC_KEY="$key" node apps/ios/scripts/asc.mjs add-tester --email "$EMAIL" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  certificate:
+    if: inputs.mode == 'certificate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: Make the development certificate
+        env:
+          ASC_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+          SIGNING_REQUEST: ${{ inputs.signing_request }}
+        run: |
+          set -euo pipefail
+          [ -n "$SIGNING_REQUEST" ] || { echo "::error::certificate mode needs signing_request"; exit 1; }
+          key="$RUNNER_TEMP/AuthKey.p8"
+          (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
+          trap 'rm -f "$key"' EXIT
+          printf '%s' "$SIGNING_REQUEST" | base64 -d > "$RUNNER_TEMP/request.csr"
+          mkdir -p "$RUNNER_TEMP/certificate"
+          ASC_KEY="$key" node apps/ios/scripts/asc.mjs certificates --create "$RUNNER_TEMP/request.csr" --out "$RUNNER_TEMP/certificate/development.cer"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ios-development-certificate
+          path: ${{ runner.temp }}/certificate/development.cer
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    if: inputs.mode == 'dry-run' || inputs.mode == 'upload'
+    runs-on: xcode-27
+    timeout-minutes: 120
+    concurrency:
+      group: ios-release
+      cancel-in-progress: false
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      ASC_KEY: ${{ github.workspace }}/.ci/asc/AuthKey.p8
+      ASC_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+      ASC_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+      OUT: ${{ github.workspace }}/.ci/ios-release
+      MODE: ${{ inputs.mode }}
+      BUILD_INPUT: ${{ inputs.build }}
+      DEFAULT_BROWSER: ${{ inputs.default_browser }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: Toolchain
+        run: xcodebuild -version
+      - name: App Store Connect key
+        env:
+          ASC_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$ASC_KEY")" && chmod 700 "$(dirname "$ASC_KEY")"
+          (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -D > "$ASC_KEY")
+          grep -q 'BEGIN PRIVATE KEY' "$ASC_KEY" || { echo "::error::NOTARY_KEY_P8 isn't a base64 .p8 key"; exit 1; }
+          node apps/ios/scripts/asc.mjs certificates --save "$(dirname "$ASC_KEY")/certificates.json"
+      - name: Development certificate
+        env:
+          IOS_DEVELOPMENT_P12: ${{ secrets.IOS_DEVELOPMENT_P12 }}
+          IOS_DEVELOPMENT_P12_PASSWORD: ${{ secrets.IOS_DEVELOPMENT_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [ -n "$IOS_DEVELOPMENT_P12" ] && [ -n "$IOS_DEVELOPMENT_P12_PASSWORD" ] || { echo "::error::missing secrets IOS_DEVELOPMENT_P12 and IOS_DEVELOPMENT_P12_PASSWORD (docs/ios.md)"; exit 1; }
+          secrets="$(dirname "$ASC_KEY")"
+          keychain="$secrets/signing.keychain-db"
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          (umask 077 && printf '%s' "$IOS_DEVELOPMENT_P12" | base64 -D > "$secrets/development.p12")
+          security import "$secrets/development.p12" -k "$keychain" -f pkcs12 -P "$IOS_DEVELOPMENT_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+          rm -f "$secrets/development.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+          others="$(security list-keychains -d user | tr -d '"' | grep -v "^ *$keychain$" | xargs)"
+          read -r -a others_list <<<"$others"
+          security list-keychains -d user -s "$keychain" ${others_list[@]+"${others_list[@]}"}
+          security find-identity -v -p codesigning "$keychain" | grep -q 'Apple Development: ' \
+            || { echo "::error::the stored certificate isn't a valid Apple Development identity: $(security find-identity -v -p codesigning "$keychain" | tail -1)"; exit 1; }
+      - id: plan
+        name: Build number
+        run: |
+          set -euo pipefail
+          build="$BUILD_INPUT"
+          [ -n "$build" ] || build="$(node apps/ios/scripts/asc.mjs next-build)"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "### Ardia for iPhone, build $build ($MODE)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive, sign${{ inputs.mode == 'upload' && ', upload' || '' }}
+        env:
+          BUILD: ${{ steps.plan.outputs.build }}
+        run: |
+          set -euo pipefail
+          args=("$BUILD" --out "$OUT")
+          [ "$MODE" = upload ] || args+=(--no-upload)
+          [ "$DEFAULT_BROWSER" != true ] || args+=(--default-browser)
+          scripts/release-ios.sh "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: inputs.mode == 'upload'
+        name: Wait for App Store Connect to process the build
+        env:
+          BUILD: ${{ steps.plan.outputs.build }}
+        run: node apps/ios/scripts/asc.mjs wait --build "$BUILD" --timeout 2400 | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: inputs.mode == 'upload' && inputs.public_testers
+        name: Send the build to public testers
+        env:
+          BUILD: ${{ steps.plan.outputs.build }}
+        run: |
+          set -euo pipefail
+          node apps/ios/scripts/asc.mjs public-link --build "$BUILD" \
+            --what-to-test apps/ios/Config/TestFlight-WhatToTest.txt --privacy-policy https://ardia.dev/privacy | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        name: No certificate was made
+        run: |
+          snapshot="$(dirname "$ASC_KEY")/certificates.json"
+          [ ! -f "$snapshot" ] || node apps/ios/scripts/asc.mjs certificates --new-since "$snapshot" \
+            || echo "::error::this run made a development certificate instead of signing with the stored one; it is still on the team"
+      - if: always()
+        name: Remove the key
+        run: |
+          keychain="$(dirname "$ASC_KEY")/signing.keychain-db"
+          if [ -f "$keychain" ]; then security delete-keychain "$keychain" || true; fi
+          rm -rf "$(dirname "$ASC_KEY")"
+          [ ! -e "$ASC_KEY" ] || { echo "::error::couldn't remove the App Store Connect key"; exit 1; }
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ios-release-logs
+          path: |
+            ${{ github.workspace }}/.ci/ios-release/*.log
+            ${{ github.workspace }}/.ci/ios-release/export/*.plist
+          if-no-files-found: ignore
+          retention-days: 14

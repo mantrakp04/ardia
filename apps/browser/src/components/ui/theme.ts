@@ -2,16 +2,18 @@ import { createContext, useContext } from "react";
 import { opaqueThemeTint, PRESET_BACKDROP, resolveTheme, requestedDarkFor, shownLook, themeAccent, themeBackdrop, themePalette, type LookSource, type ProfileColor, type ProfileLookFields, type ProfileTheme } from "../../lib/profileLook";
 import type { ThemeBackdropProps } from "@ardia/core";
 import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../lib/windowTint";
-import { isRgbFunction, mix, parseColor, rgbToHsl, toHex } from "../../lib/color";
+import { isRgbFunction, luminance, mix, over, parseColor, rgbToHsl, toHex } from "../../lib/color";
 import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
-import { colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
+import { arcSelectedFill, colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
 import type { BasePalette } from "../../lib/themeFile";
 import { visibleSelection } from "../../lib/selectionContrast";
 
 export { PROFILE_COLORS } from "./tokens";
 
 export type Theme = ColorRoles & {
+  rowSelectedText: string;
+  adaptiveInk: boolean;
   profileColor: ProfileColor | "incognito";
   backdrop: BackdropTint & ThemeBackdropProps;
   windowTint: [string, string];
@@ -49,12 +51,48 @@ export function profileNameColor(profile: ProfileLookFields, dark: boolean): str
   return dark ? mix(base, ink.white, 0.6) : mix(base, ink.black, 0.4);
 }
 
-function visibleSelectionRoles(base: ColorRoles, windowTint: readonly string[]): Pick<ColorRoles, "tabSelected" | "pinnedSelectedFill"> {
-  const flipped = base.dark ? ink.white : ink.black;
+const MIN_INK_CONTRAST = 3;
+
+function contrast(text: string, row: string): number {
+  const [a, b] = [luminance(text), luminance(row)];
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+export function inkOn(rows: readonly string[], dark: boolean): string {
+  const worst = (text: string) => Math.min(...rows.map((row) => contrast(text, row)));
+  const [own, other] = dark ? [ink.white, ink.black] : [ink.black, ink.white];
+  return worst(own) >= MIN_INK_CONTRAST || worst(other) <= worst(own) ? own : other;
+}
+
+function arcSelectionRoles(base: ColorRoles, windowTint: readonly string[], adaptiveInk: boolean): Pick<Theme, "tabSelected" | "pinnedSelectedFill" | "rowSelectedText" | "tabSelectedText"> {
+  const tabSelected = base.dark ? arcSelectedFill.dark : visibleSelection(arcSelectedFill.light, ink.black, windowTint);
+  const inkOver = (fill: string) => (adaptiveInk ? inkOn(windowTint.map((tint) => over(fill, tint)), base.dark) : base.tabSelectedText);
   return {
-    tabSelected: visibleSelection(base.tabSelected, flipped, windowTint),
-    pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, flipped, windowTint),
+    tabSelected,
+    pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, base.dark ? ink.white : ink.black, windowTint),
+    rowSelectedText: inkOver(tabSelected),
+    tabSelectedText: inkOver(base.card),
   };
+}
+
+const tintThemes = new WeakMap<Theme, Theme>();
+const windowThemes = new WeakMap<Theme, Theme>();
+
+export function tintTheme(theme: Theme): Theme {
+  if (!theme.adaptiveInk) return theme;
+  let tint = tintThemes.get(theme);
+  if (!tint) {
+    const keepsOwnInk = inkOn(theme.windowTint, theme.dark) === (theme.dark ? ink.white : ink.black);
+    const other = theme.dark ? theme.palettes.light : theme.palettes.dark;
+    tint = keepsOwnInk ? theme : { ...theme, ...other, tabSelected: theme.tabSelected, pinnedSelectedFill: theme.pinnedSelectedFill, rowSelectedText: theme.rowSelectedText };
+    tintThemes.set(theme, tint);
+    if (tint !== theme) windowThemes.set(tint, theme);
+  }
+  return tint;
+}
+
+export function surfaceTheme(theme: Theme): Theme {
+  return windowThemes.get(theme) ?? theme;
 }
 
 export function themeFor(key: string, palette?: BasePalette | null): Theme {
@@ -68,6 +106,8 @@ export function themeFor(key: string, palette?: BasePalette | null): Theme {
     const backdrop = backdropTint(spec ? (spec.tint ?? tintForHue(spec.swatch, !spec.palette)) : INCOGNITO_TINT, !spec?.palette);
     theme = {
       ...base,
+      rowSelectedText: base.tabSelectedText,
+      adaptiveInk: false,
       profileColor: color,
       backdrop: { ...backdrop, ...PRESET_BACKDROP },
       windowTint: opaqueTint(backdrop, base.dark),
@@ -99,8 +139,8 @@ export function nearestPreset(hexColor: string): ProfileColor {
   return best;
 }
 
-function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean, source: LookSource, base: BasePalette | null | undefined): Theme {
-  const key = `${color}:${requestedDarkFor(custom, appDark, source) ? "dark" : "light"}:${source}`;
+function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean, source: LookSource, base: BasePalette | null | undefined, adaptiveInk: boolean): Theme {
+  const key = `${color}:${requestedDarkFor(custom, appDark, source) ? "dark" : "light"}:${source}:${adaptiveInk ? "adaptive" : "mode"}`;
   const layer = layerOf(base);
   let byKey = layer.custom.get(custom);
   if (!byKey) layer.custom.set(custom, (byKey = new Map()));
@@ -113,7 +153,8 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
     const windowTint = opaqueThemeTint(look, dark);
     theme = {
       ...preset,
-      ...visibleSelectionRoles(dark ? preset.palettes.dark : preset.palettes.light, windowTint),
+      ...arcSelectionRoles(dark ? preset.palettes.dark : preset.palettes.light, windowTint, adaptiveInk),
+      adaptiveInk,
       profileColor: nearestPreset(accent),
       backdrop: {
         ...backdropTint(accent, false),
@@ -130,9 +171,9 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
   return theme;
 }
 
-export function profileTheme(profile: ProfileLookFields | undefined, appDark: boolean, source: LookSource = "own", palette?: BasePalette | null): Theme {
+export function profileTheme(profile: ProfileLookFields | undefined, appDark: boolean, source: LookSource = "own", palette?: BasePalette | null, adaptTextToColor = true): Theme {
   const color = profile?.color ?? "plum";
-  if (profile?.theme) return customTheme(profile.theme, color, appDark, source, palette);
+  if (profile?.theme) return customTheme(profile.theme, color, appDark, source, palette, adaptTextToColor);
   return themeFor(`${color}:${appDark ? "dark" : "light"}`, palette);
 }
 
@@ -141,8 +182,8 @@ export function profileAccent(profile: ProfileLookFields | undefined): string {
   return (PROFILE_COLORS[profile?.color ?? "plum"] ?? PROFILE_COLORS.plum).swatch;
 }
 
-export function scopedTheme(incognito: boolean, profile: ProfileLookFields | undefined, appDark: boolean, source: LookSource, palette?: BasePalette | null): Theme {
-  return incognito ? themeFor("incognito", palette) : profileTheme(profile, appDark, source, palette);
+export function scopedTheme(incognito: boolean, profile: ProfileLookFields | undefined, appDark: boolean, source: LookSource, palette?: BasePalette | null, adaptTextToColor = true): Theme {
+  return incognito ? themeFor("incognito", palette) : profileTheme(profile, appDark, source, palette, adaptTextToColor);
 }
 
 export function shadowOpacityOf(level: Omit<ShadowLevel, "opacity"> & { opacity: ShadowLevel["opacity"] | number }, theme: Theme): number {
@@ -189,46 +230,3 @@ export const layout = {
   breadcrumbX: 153,
   trafficLightsWidth: 78,
 } as const;
-
-export type FormColors = {
-  group: string;
-  groupBorder: string;
-  separator: string;
-  control: string;
-  controlHover: string;
-  controlPressed: string;
-  controlBorder: string;
-  field: string;
-  fieldBorder: string;
-  switchOff: string;
-  accent: string;
-  destructive: string;
-  selected: string;
-  flash: string;
-};
-
-const formColorsOf = (roles: ColorRoles): FormColors => ({
-  group: roles.groupFill,
-  groupBorder: roles.groupBorder,
-  separator: roles.divider,
-  control: roles.control,
-  controlHover: roles.controlHover,
-  controlPressed: roles.controlPressed,
-  controlBorder: roles.controlBorder,
-  field: roles.field,
-  fieldBorder: roles.fieldBorder,
-  switchOff: roles.switchOff,
-  accent: roles.formAccent,
-  destructive: roles.destructive,
-  selected: roles.rowHover,
-  flash: roles.searchFlash,
-});
-
-const formColors = new WeakMap<Theme, FormColors>();
-
-export function useFormColors(): FormColors {
-  const theme = useTheme();
-  let colors = formColors.get(theme);
-  if (!colors) formColors.set(theme, (colors = formColorsOf(theme)));
-  return colors;
-}

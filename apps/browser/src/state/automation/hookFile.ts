@@ -1,7 +1,7 @@
 import { isFields, type Fields } from "../../lib/decode";
 import { parseMatchPattern, type MatchSpec } from "../../lib/matchPattern";
 import { sha256 } from "../../lib/sha256";
-import { DECIDE_EVENTS, MIN_IDLE_SECONDS, TAB_IDLE_EVENTS, USER_IDLE_EVENTS, isAutomationEvent, isDecideEvent, type DecideEvent } from "./eventNames";
+import { MIN_IDLE_SECONDS, TAB_IDLE_EVENTS, USER_IDLE_EVENTS, isAutomationEvent, isDecideEvent, type DecideEvent } from "./eventNames";
 
 export const HOOKS_FILE = "hooks.json";
 export const MAX_HOOKS = 200;
@@ -268,5 +268,3 @@ export function parseHooksText(text: string): HooksRead {
   }
   return parseHooksDocument(doc);
 }
-
-export const decideEvents = DECIDE_EVENTS;

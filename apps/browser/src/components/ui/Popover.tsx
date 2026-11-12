@@ -4,7 +4,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { Button } from "./Button";
 import { PANEL_CLOSE_GLYPH, PANEL_CLOSE_SIZE } from "./ButtonKinds";
 import { curve, duration } from "./motion";
-import { useTheme } from "./theme";
+import { surfaceTheme, ThemeContext, useTheme } from "./theme";
 import { concentric, font as typeScale, lineHeight, POPOVER_WIDTH, radius, shadow, space, weight } from "./tokens";
 import { useHover } from "./useHover";
 import { Panel, type PanelProps } from "./Panel";
@@ -128,20 +128,24 @@ export function Popover({
 }
 
 export function PopoverSurface({ children, glass = false, ...props }: Omit<PanelProps, "fill" | "radius" | "border" | "borderWidth" | "shadow" | "glass"> & { glass?: boolean }) {
-  const theme = useTheme();
+  const theme = surfaceTheme(useTheme());
   const paneGlass = useGlass("panes");
   if (glass && paneGlass)
     return (
-      <Panel {...props} glass fill={theme.panel} radius={PANEL.radius}>
-        {children}
-      </Panel>
+      <ThemeContext.Provider value={theme}>
+        <Panel {...props} glass fill={theme.panel} radius={PANEL.radius}>
+          {children}
+        </Panel>
+      </ThemeContext.Provider>
     );
   return (
-    <Panel {...props} fill={theme.popoverFill} radius={PANEL.radius} border={theme.popoverBorder} shadow={shadow.popover}>
-      <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
-      <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.popoverTint }} />
-      {children}
-    </Panel>
+    <ThemeContext.Provider value={theme}>
+      <Panel {...props} fill={theme.popoverFill} radius={PANEL.radius} border={theme.popoverBorder} shadow={shadow.popover}>
+        <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
+        <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.popoverTint }} />
+        {children}
+      </Panel>
+    </ThemeContext.Provider>
   );
 }
 

@@ -30,9 +30,11 @@ hdiutil create -volname Ardia -srcfolder "$staging" -format UDRW -ov "$dmg_rw" >
 rm -rf "$staging"
 hdiutil attach "$dmg_rw" -nobrowse -noautoopen -noverify -mountpoint "$dmg_mnt" >/dev/null
 SetFile -a C "$dmg_mnt" || { hdiutil detach "$dmg_mnt" -force >/dev/null; die "couldn't flag the volume's icon"; }
+dmg_mounted() { mount | grep -qF " on $(cd "$dmg_mnt" && pwd -P) ("; }
 for attempt in 1 2 3 4 5; do
-  hdiutil detach "$dmg_mnt" >/dev/null 2>&1 && break
-  [ "$attempt" = 5 ] && { hdiutil detach "$dmg_mnt" -force >/dev/null || die "couldn't eject $dmg_mnt"; }
+  hdiutil detach "$dmg_mnt" >/dev/null 2>&1
+  dmg_mounted || break
+  [ "$attempt" = 5 ] && { hdiutil detach "$dmg_mnt" -force >/dev/null 2>&1; dmg_mounted && die "couldn't eject $dmg_mnt"; }
   sleep 2
 done
 dmg_chunks=(-imagekey udif-chunk-size=8192)

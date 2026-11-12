@@ -1,12 +1,24 @@
-import { Box, EmptyState, ListRow, SearchField, space, Symbol, Text } from "../ui";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, View, type TextInput } from "react-native";
+import { EmptyState, ListRow, SearchField, space, Text } from "../ui";
+import { useEffect, useRef } from "react";
+import { ScrollView, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type TextInput } from "react-native";
 import { useTheme } from "../ui/theme";
-import { groupByPane, search } from "./searchMatch";
-import { currentSettingsSearch, moveSettingsSelection, revealSetting, selectSettingsResult, setSettingsQuery, useSettingsSearch } from "../../state/settings/searchState";
-import { PANES, SETTINGS_INDEX, type SettingEntry } from "./settingsIndex";
+import { search, snippetAround, splitByRanges, type SearchHit, type SearchRange } from "./searchMatch";
+import {
+  currentSettingsSearch,
+  moveSettingsSelection,
+  noteSettingsSearchEmpty,
+  previewSetting,
+  revealSetting,
+  selectSettingsResult,
+  setSettingsQuery,
+  useSettingsSearch,
+} from "../../state/settings/searchState";
+import { SETTINGS_INDEX, type SettingEntry } from "./settingsIndex";
 import { useUnshownSettings } from "./Form";
 import { settingsInk } from "./tokens";
+import { PREVIEW_DELAY_MS, RESULT_GAP, RESULT_MIN_HEIGHT, RESULTS_BOTTOM, RESULTS_TOP, scrollToShow } from "./searchResultLayout";
+
+export type SettingsHit = SearchHit<SettingEntry>;
 
 export function SettingsSearchField() {
   const query = useSettingsSearch((s) => s.query);
@@ -21,23 +33,22 @@ export function SettingsSearchField() {
   return (
     <View style={FIELD}>
       <SearchField
-      inputRef={input}
-      value={query}
-      onChangeText={(text) => {
-        setSettingsQuery(text);
-        selectSettingsResult(0);
-      }}
-      placeholder="Search"
-      onSubmit={() => {
-        const { query, selected } = currentSettingsSearch();
-        const hit = settingsResults(query, unshown)[selected];
-        if (hit) revealSetting(hit);
-      }}
-      onArrow={(step) => {
-        const count = settingsResults(currentSettingsSearch().query, unshown).length;
-        if (!count) return;
-        moveSettingsSelection(step, count);
-      }}
+        inputRef={input}
+        value={query}
+        onChangeText={setSettingsQuery}
+        placeholder="Search"
+        onSubmit={() => {
+          const { query, selected } = currentSettingsSearch();
+          const hit = settingsResults(query, unshown)[selected];
+          if (hit) revealSetting(hit.entry, "keyboard", selected);
+        }}
+        onArrow={(step) => {
+          const count = settingsResults(currentSettingsSearch().query, unshown).length;
+          if (count) moveSettingsSelection(step, count);
+        }}
+        onEscape={() => {
+          if (currentSettingsSearch().query) setSettingsQuery("");
+        }}
       />
     </View>
   );
@@ -45,79 +56,122 @@ export function SettingsSearchField() {
 
 const FIELD = { marginHorizontal: space.ml, marginBottom: space.ml } as const;
 
-let cached: { query: string; unshown: ReadonlySet<string>; results: SettingEntry[] } = { query: "", unshown: new Set(), results: [] };
+let cached: { query: string; unshown: ReadonlySet<string>; results: SettingsHit[] } = { query: "", unshown: new Set(), results: [] };
 
-export function settingsResults(query: string, unshown: ReadonlySet<string>): SettingEntry[] {
+export function settingsResults(query: string, unshown: ReadonlySet<string>): SettingsHit[] {
   if (cached.query !== query || cached.unshown !== unshown) {
-    const hits = search(SETTINGS_INDEX.filter((p) => !unshown.has(p.entry.id)), query);
-    cached = { query, unshown, results: groupByPane(hits).flatMap((g) => g.hits.map((h) => h.entry)) };
+    cached = { query, unshown, results: search(SETTINGS_INDEX.filter((p) => !unshown.has(p.entry.id)), query) };
   }
   return cached.results;
 }
 
 export function SettingsSearchResults({ query }: { query: string }) {
-  const theme = useTheme();
   const selected = useSettingsSearch((s) => s.selected);
+  const keyboardMove = useSettingsSearch((s) => s.keyboardMove);
   const results = settingsResults(query, useUnshownSettings());
-  const groups = useMemo(() => {
-    const out: { pane: (typeof PANES)[number]; rows: { entry: SettingEntry; index: number }[] }[] = [];
-    results.forEach((entry, index) => {
-      const last = out.at(-1);
-      if (last?.pane.id === entry.pane) last.rows.push({ entry, index });
-      else out.push({ pane: PANES.find((p) => p.id === entry.pane)!, rows: [{ entry, index }] });
-    });
-    return out;
-  }, [results]);
   const scroller = useRef<ScrollView>(null);
-  const [rowTops] = useState(() => new Map<number, number>());
+  const viewport = useRef({ offset: 0, height: 0 });
+  const rows = useRef<{ top: number; height: number }[]>([]);
+  const target = results[selected]?.entry;
+
   useEffect(() => {
-    const top = rowTops.get(selected);
-    if (top !== undefined) scroller.current?.scrollTo({ y: Math.max(0, top - 60), animated: false });
-  }, [selected]);
+    viewport.current.offset = 0;
+    scroller.current?.scrollTo({ y: 0, animated: false });
+    if (!results.length && query.trim().length >= 2) noteSettingsSearchEmpty();
+  }, [results]);
+
+  useEffect(() => {
+    if (!target) return;
+    const timer = setTimeout(() => previewSetting(target), PREVIEW_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [target]);
+
+  useEffect(() => {
+    if (!keyboardMove) return;
+    const row = rows.current[selected];
+    if (!row) return;
+    const { offset, height } = viewport.current;
+    const next = scrollToShow(row.top, row.height, offset, height, selected === 0);
+    if (next === offset) return;
+    viewport.current.offset = next;
+    scroller.current?.scrollTo({ y: next, animated: false });
+  }, [keyboardMove]);
 
   if (!results.length) {
-    return <EmptyState symbol="magnifyingglass" title="No Results" subtitle={`Nothing matches “${query.trim()}”.`} />;
+    return <EmptyState symbol="magnifyingglass" title="No Results" subtitle={`Nothing matches “${query.trim()}”. Try a setting's name or a shorter word, like “dark” or “downloads”.`} />;
   }
   return (
-    <ScrollView ref={scroller} contentContainerStyle={RESULTS}>
-      {groups.map((group) => (
-        <View key={group.pane.id} onLayout={(e) => group.rows.forEach((r, i) => rowTops.set(r.index, e.nativeEvent.layout.y + GROUP_HEADER + i * RESULT_HEIGHT))}>
-          <Box row gap="s" padX="m" style={GROUP_TITLE}>
-            <Symbol name={group.pane.icon} size={11} color={theme.textTertiary} style={GROUP_ICON} />
-            <Text size="caption" weight="semibold" tone="textTertiary" lines={1}>
-              {group.pane.title}
-            </Text>
-          </Box>
-          {group.rows.map(({ entry, index }) => (
-            <ResultRow key={entry.id} entry={entry} selected={index === selected} onHover={() => selectSettingsResult(index)} />
-          ))}
+    <ScrollView
+      ref={scroller}
+      contentContainerStyle={RESULTS}
+      scrollEventThrottle={16}
+      onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => (viewport.current.offset = e.nativeEvent.contentOffset.y)}
+      onLayout={(e: LayoutChangeEvent) => (viewport.current.height = e.nativeEvent.layout.height)}
+    >
+      {results.map((hit, index) => (
+        <View key={hit.entry.id} style={ROW_GAP} onLayout={(e) => void (rows.current[index] = { top: e.nativeEvent.layout.y, height: e.nativeEvent.layout.height })}>
+          <ResultRow hit={hit} selected={index === selected} rank={index} />
         </View>
       ))}
     </ScrollView>
   );
 }
 
-const RESULT_HEIGHT = 40;
-const GROUP_HEADER = 26;
-const RESULTS = { paddingHorizontal: space.ml, paddingBottom: space.l } as const;
-const GROUP_TITLE = { height: GROUP_HEADER, alignItems: "center", marginTop: space.xs } as const;
-const GROUP_ICON = { width: 16, height: 16 } as const;
+const RESULTS = { paddingHorizontal: space.ml, paddingTop: RESULTS_TOP, paddingBottom: RESULTS_BOTTOM } as const;
+const ROW_GAP = { marginBottom: RESULT_GAP } as const;
 
-function ResultRow({ entry, selected, onHover }: { entry: SettingEntry; selected: boolean; onHover: () => void }) {
+function ResultRow({ hit, selected, rank }: { hit: SettingsHit; selected: boolean; rank: number }) {
   const theme = useTheme();
-  const detail = entry.section !== entry.title ? entry.section : entry.paneTitle;
+  const { entry } = hit;
+  const primary = selected ? theme.onAccent : theme.textPrimary;
+  const secondary = selected ? settingsInk.onAccentSecondary : theme.textSecondary;
+  const showSection = entry.section !== entry.title && entry.section !== entry.paneTitle;
+  const keyword = hit.note && entry.keywords?.includes(hit.note.text);
+  const note = hit.note ? snippetAround(hit.note.text, hit.note.ranges) : null;
   return (
-    <ListRow height={RESULT_HEIGHT} selected={selected} selectedTone="accent" onHover={(hovered) => hovered && onHover()} onPress={() => revealSetting(entry)}>
+    <ListRow
+      selected={selected}
+      selectedTone="accent"
+      onPress={() => {
+        selectSettingsResult(rank);
+        revealSetting(entry, "click", rank);
+      }}
+    >
       <View style={RESULT_TEXT}>
-        <Text lines={1} tone={selected ? "onAccent" : "textPrimary"}>
-          {entry.title}
+        <Text lines={3} color={primary}>
+          <Marked text={entry.title} ranges={hit.title} color={primary} />
         </Text>
-        <Text size="caption" lines={1} color={selected ? settingsInk.onAccentSecondary : theme.textSecondary}>
-          {detail}
+        <Text size="caption" lines={2} color={secondary}>
+          {entry.paneTitle}
+          {showSection ? " › " : ""}
+          {showSection ? <Marked text={entry.section} ranges={hit.section} color={secondary} /> : null}
         </Text>
+        {note ? (
+          <Text size="caption" lines={2} color={secondary}>
+            {keyword ? "Also called “" : ""}
+            <Marked text={note.text} ranges={note.ranges} color={secondary} />
+            {keyword ? "”" : ""}
+          </Text>
+        ) : null}
       </View>
     </ListRow>
   );
 }
 
-const RESULT_TEXT = { flex: 1 } as const;
+function Marked({ text, ranges, color }: { text: string; ranges: SearchRange[]; color: string }) {
+  return (
+    <>
+      {splitByRanges(text, ranges).map((part, i) =>
+        part.highlighted ? (
+          <Text key={i} weight="bold" color={color}>
+            {part.text}
+          </Text>
+        ) : (
+          part.text
+        ),
+      )}
+    </>
+  );
+}
+
+const RESULT_TEXT = { flex: 1, minHeight: RESULT_MIN_HEIGHT, justifyContent: "center", paddingVertical: space.xs } as const;
