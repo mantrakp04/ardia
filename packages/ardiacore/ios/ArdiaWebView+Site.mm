@@ -20,7 +20,7 @@ using namespace ardia_runtime;
 }
 
 - (void)pageCookies:(NSArray<NSString *> *)urls completion:(void (^)(NSArray<NSDictionary<NSString *, id> *> *))completion {
-  if (!_tab || _tab.closed || !urls.count) return completion(nil);
+  if (!_tab || _tab.closed || !urls.count || self.awaitsFirstDocument) return completion(nil);
   __block BOOL answered = NO;
   void (^answer)(NSArray *) = ^(NSArray *cookies) {
     if (answered) return;

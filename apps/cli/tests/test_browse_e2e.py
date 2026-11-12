@@ -220,7 +220,7 @@ class BrowseEndToEnd(unittest.TestCase):
         session = "dnd"
         self.browse("open", self.url("dnd.html"), "--show", session=session)
         dragged = self.browse("drag", "#alpha", "#charlie", session=session).stdout
-        self.assertTrue(dragged.startswith("✓ Done (HTML5 drag and drop)\nchanges:"), dragged)
+        self.assertTrue(dragged.startswith("✓ Done (HTML5 drag and drop)\nmoved to 3 of 4 (was 1)\nchanges:"), dragged)
         state = self.drag_report(session)
         self.assertEqual(state["order"], ["bravo", "charlie", "alpha", "delta"])
         self.assertEqual(state["log"], ["dragstart:alpha", "drop:alpha>charlie", "dragend:alpha:move"])

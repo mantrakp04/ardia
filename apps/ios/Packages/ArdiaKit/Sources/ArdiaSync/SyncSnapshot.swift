@@ -237,6 +237,12 @@ public struct BookmarkItem: Codable, Equatable, Hashable, Identifiable, Sendable
   }
 }
 
+extension [BookmarkItem] {
+  public func containsPage(_ url: String) -> Bool {
+    contains { $0.url == url || ($0.children?.containsPage(url) ?? false) }
+  }
+}
+
 public struct HistoryItem: Codable, Equatable, Hashable, Identifiable, Sendable {
   public var url: String
   public var title: String

@@ -72,6 +72,8 @@ command: it gives the reason (`data.reason`) and, for a tab, what Ardia has ther
   tabs too; `tab close` refuses theirs, and `close` leaves open a tab another live session uses.
 - `tN` ids are the same in every session and never move to another tab. `tab tab-…` takes the ids `ardia windows`
   prints.
+- `tab_detached`: Ardia took the tab away mid-command (it closed, crashed or went to sleep). Run the command again;
+  a multi-page `read` already retries that page in a new tab.
 - `--session name` (or `AGENT_BROWSER_SESSION`) gives its own tabs, refs and captures; cookies and logins are the
   user's in every session. Use one session per task.
 
