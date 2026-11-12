@@ -25,6 +25,7 @@ import { SidebarOverlays } from "./components/sidebar/Overlays";
 import { ReportSheetHost } from "./components/report/ReportSheet";
 import { profileAccent, profileTheme, useTheme } from "./components/ui/theme";
 import { ThemeScope } from "./components/window/ThemeScope";
+import { SiteGroundFill, SiteGroundScope } from "./components/window/SiteGround";
 import { useBrowser } from "./state/browser/store";
 import { useWindowId, WindowContext } from "./state/browser/hooks";
 import { provideProfileLooks } from "./state/profiles/looks";
@@ -51,7 +52,15 @@ function BrowserWindowRoot({ windowId }: { windowId?: string }) {
   if (!id || !exists) return null;
   return (
     <WindowContext.Provider value={id}>
-      <ThemeScope>{small ? <LittleArdiaWindow /> : <BrowserWindow />}</ThemeScope>
+      <ThemeScope>
+        {small ? (
+          <LittleArdiaWindow />
+        ) : (
+          <SiteGroundScope>
+            <BrowserWindow />
+          </SiteGroundScope>
+        )}
+      </ThemeScope>
     </WindowContext.Provider>
   );
 }
@@ -79,6 +88,7 @@ function BrowserWindow() {
       <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
       <WindowProfile />
       <ProfileTint />
+      <SiteGroundFill />
       <DockedLayout
         fullscreen={fullscreen}
         topTabs={topTabs}

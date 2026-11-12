@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 import { opaqueThemeTint, PRESET_BACKDROP, resolveTheme, requestedDarkFor, shownLook, themeAccent, themeBackdrop, themePalette, type LookSource, type ProfileColor, type ProfileLookFields, type ProfileTheme } from "../../lib/profileLook";
 import type { ThemeBackdropProps } from "@ardia/core";
 import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../lib/windowTint";
-import { isRgbFunction, luminance, mix, over, parseColor, rgbToHsl, toHex } from "../../lib/color";
+import { isLight, isRgbFunction, luminance, mix, over, parseColor, rgbToHsl, toHex } from "../../lib/color";
 import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
 import { arcSelectedFill, colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
@@ -92,7 +92,26 @@ export function tintTheme(theme: Theme): Theme {
 }
 
 export function surfaceTheme(theme: Theme): Theme {
-  return windowThemes.get(theme) ?? theme;
+  const under = windowThemes.get(theme);
+  return under ? surfaceTheme(under) : theme;
+}
+
+const siteGroundThemes = new WeakMap<Theme, Map<string, Theme>>();
+
+export function siteGroundTheme(theme: Theme, siteColor: string | null): Theme {
+  if (!siteColor) return theme;
+  const ground = siteColor.slice(0, 7).toLowerCase();
+  let byGround = siteGroundThemes.get(theme);
+  if (!byGround) siteGroundThemes.set(theme, (byGround = new Map()));
+  let onSite = byGround.get(ground);
+  if (!onSite) {
+    const base = isLight(ground) ? theme.palettes.light : theme.palettes.dark;
+    const windowTint: [string, string] = [ground, ground];
+    onSite = { ...theme, ...base, ...arcSelectionRoles(base, windowTint, true), adaptiveInk: true, windowTint };
+    byGround.set(ground, onSite);
+    windowThemes.set(onSite, theme);
+  }
+  return onSite;
 }
 
 export function themeFor(key: string, palette?: BasePalette | null): Theme {
