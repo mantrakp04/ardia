@@ -47,14 +47,14 @@ struct AppIcon {
     if (dpi == 0) dpi = USER_DEFAULT_SCREEN_DPI;
     int bigPixels = GetSystemMetricsForDpi(SM_CXICON, dpi);
     int smallPixels = GetSystemMetricsForDpi(SM_CXSMICON, dpi);
-    HICON big = Sized(bigPixels);
-    HICON small = Sized(smallPixels);
-    if (!big || !small) {
+    HICON largeIcon = Sized(bigPixels);
+    HICON smallIcon = Sized(smallPixels);
+    if (!largeIcon || !smallIcon) {
       LaunchLog::Write(L"warning", std::wstring(L"app icon: no icon for ").append(Paths::Wide(id)).append(L", resource ").append(std::to_wstring(IDI_ICON1)).append(L" did not load"));
       return;
     }
-    SendMessageW(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(big));
-    SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(small));
+    SendMessageW(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(largeIcon));
+    SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
     LaunchLog::Write(L"info", std::wstring(L"app icon: set on ").append(Paths::Wide(id)).append(L" at ").append(std::to_wstring(bigPixels)).append(L" and ").append(std::to_wstring(smallPixels)).append(L" px"));
   }
 
