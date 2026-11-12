@@ -58,6 +58,8 @@ export type Tab = {
   engine?: PageEngine;
   createdAt: number;
   lastActiveAt: number;
+  restoredAt?: number;
+  unseen?: true;
 };
 
 export type AdoptKind = "restore" | "clone" | "tab" | "ardiacore" | "webkit" | "link";
@@ -138,7 +140,7 @@ export type TabSnapshot = Pick<
   Tab,
   "url" | "title" | "favicon" | "pin" | "muted" | "zoom" | "customTitle" | "customIcon" | "profileId"
 > &
-  Partial<Pick<Tab, "pinnedUrl" | "engine">>;
+  Partial<Pick<Tab, "pinnedUrl" | "engine" | "lastActiveAt">>;
 
 export type ClosedTab = {
   kind: "tab";

@@ -38,6 +38,7 @@ struct OnboardingView: View {
         LaunchGradient()
           .ignoresSafeArea()
           .transition(.opacity)
+          .zIndex(0.5)
       } else {
         OnboardingBackdrop()
           .transition(.opacity)
@@ -52,8 +53,9 @@ struct OnboardingView: View {
         case .allSet: OnboardingAllSetStep(onFinish: finish)
         }
       }
-      .id(step)
       .transition(stepTransition)
+      .zIndex(1)
+      .id(step)
     }
     .sensoryFeedback(.selection, trigger: advances)
     .onAppear(perform: Self.dismissKeyboard)

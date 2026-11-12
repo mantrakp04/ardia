@@ -52,6 +52,7 @@ type NativeEvents = {
   onNotification: WebNotification;
   onNotificationClose: { id: string };
   onPictureInPicture: PictureInPictureState;
+  onAutoPictureInPictureKept: object;
   onActivateRequest: ActivateRequest;
   onDisplayMediaRequest: DisplayMediaRequest;
   onWindowClose: object;
@@ -97,6 +98,7 @@ const PAGE_EVENTS = {
   onNotification: "notification",
   onNotificationClose: "notificationClose",
   onPictureInPicture: "pictureInPicture",
+  onAutoPictureInPictureKept: "autoPictureInPictureKept",
   onActivateRequest: "activateRequest",
   onDisplayMediaRequest: "displayMediaRequest",
   onWindowClose: "windowClose",
@@ -142,6 +144,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onNotification: (e) => [e],
   onNotificationClose: (e) => [e.id],
   onPictureInPicture: (e) => [e],
+  onAutoPictureInPictureKept: () => [],
   onActivateRequest: (e) => [e],
   onDisplayMediaRequest: (e) => [e],
   onWindowClose: () => [],

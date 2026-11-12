@@ -83,6 +83,7 @@ struct ArdiaPageReports {
   BOOL inPictureInPicture{};
   BOOL autoPictureInPictureActive{};
   BOOL leftAppInPictureInPicture{};
+  BOOL keptByWindowServer{};
 };
 
 struct ArdiaCommits {

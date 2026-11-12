@@ -291,7 +291,7 @@ struct BrowsingView: View {
       animation = .interpolatingSpring(Motion.pagerSettle, initialVelocity: abs(distance) > 0.5 ? Double(releaseVelocity / distance) : 0)
       pager.settle = PagerModel.Settle(from: from, to: destination, velocity: releaseVelocity, start: CACurrentMediaTime())
     }
-    withAnimation(animation) {
+    withAnimation(animation, completionCriteria: .removed) {
       pager.offset = destination
     } completion: {
       guard pager.generation == generation, !pager.isTracking else { return }

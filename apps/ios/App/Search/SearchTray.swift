@@ -25,6 +25,7 @@ struct SearchTray<Drag: Gesture>: View {
   @State private var naturalRowsHeight: CGFloat = 0
   @State private var isSubmitting = false
   @ScaledMetric(relativeTo: .title3) private var fieldHeight = BrowseLayout.searchFieldHeight
+  @ScaledMetric(relativeTo: .title3) private var placeholderSize: CGFloat = 20
 
   private var isIncognito: Bool { app.isIncognito }
   private var rowsBudget: CGFloat { max(maxHeight - headerHeight, 0) }
@@ -95,6 +96,17 @@ struct SearchTray<Drag: Gesture>: View {
       )
       .frame(maxWidth: .infinity)
       .frame(height: fieldHeight)
+      .overlay(alignment: .leading) {
+        if text.isEmpty, !isFocused {
+          Text("Search...")
+            .font(.system(size: placeholderSize))
+            .foregroundStyle(isIncognito ? Color.white.opacity(0.45) : BrowsePalette.foregroundTertiary)
+            .lineLimit(1)
+            .padding(.leading, CompletingTextField.horizontalInset)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+      }
       .layoutPriority(1)
       fieldAccessories
         .fixedSize()

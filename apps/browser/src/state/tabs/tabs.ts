@@ -1,7 +1,7 @@
 import type { BrowserState } from "../browser/store";
 import { leaveGroups } from "../groups/groups";
 import { withShownTab } from "../groups/shownTabs";
-import { IDLE_LIVE, inPinnedContainer, makeTab, navigationTo, TILE_PIN, viewTabIds, without } from "../browser/model";
+import { byRecentUse, IDLE_LIVE, inPinnedContainer, makeTab, navigationTo, TILE_PIN, viewTabIds, without } from "../browser/model";
 import { forgetOpeners, insertionIndex, openerSuccessor } from "./openers";
 import { onUrlChange, pruneSelection } from "../pins/organize";
 import { isClosedPin } from "../pins/tabCleanup";
@@ -92,7 +92,8 @@ export function activated(s: BrowserState, id: string, shareLivePins = true): Pa
   const holder = lazy && shareLivePins ? holderOf(s, id) : undefined;
   const frozen = lazy && (!!holder || tab.page.kind === "frozen");
   const share = holder ? { page: frozenOn(tab, holder.id), url: holder.url, title: holder.title, favicon: holder.favicon, muted: holder.muted } : {};
-  const nextTab: Tab = { ...tab, lastActiveAt: Date.now(), ...(frozen ? share : lazy ? { page: wokenPage(tab) } : {}) };
+  const { unseen: _, ...seen } = tab;
+  const nextTab: Tab = { ...seen, lastActiveAt: Date.now(), ...(frozen ? share : lazy ? { page: wokenPage(tab) } : {}) };
   const window: BrowserWindow = {
     ...w,
     profileId: w.kind === "private" ? w.profileId : tab.profileId,
@@ -247,7 +248,7 @@ function lastRegularTab(s: BrowserState, w: BrowserWindow, id: string, closing: 
   const candidates = w.tabIds.filter((t) => !closing.has(t) && s.tabs[t]?.profileId === profileId && !inPinnedContainer(s, t));
   const panes = splitTabIdsOf(splitOf(s, id))?.filter((t) => candidates.includes(t)) ?? [];
   const pool = panes.length ? panes : candidates;
-  return pool.reduce<string | undefined>((best, t) => (!best || s.tabs[t]!.lastActiveAt > s.tabs[best]!.lastActiveAt ? t : best), undefined);
+  return pool.reduce<string | undefined>((best, t) => (!best || byRecentUse(s.tabs[t]!, s.tabs[best]!) < 0 ? t : best), undefined);
 }
 
 function lastLivePinnedTab(s: BrowserState, w: BrowserWindow, id: string, closing: Set<string>): string | undefined {
@@ -256,7 +257,7 @@ function lastLivePinnedTab(s: BrowserState, w: BrowserWindow, id: string, closin
     const tab = s.tabs[t];
     return !closing.has(t) && tab?.profileId === profileId && inPinnedContainer(s, t) && hasPage(tab);
   });
-  return live.reduce<string | undefined>((best, t) => (!best || s.tabs[t]!.lastActiveAt > s.tabs[best]!.lastActiveAt ? t : best), undefined);
+  return live.reduce<string | undefined>((best, t) => (!best || byRecentUse(s.tabs[t]!, s.tabs[best]!) < 0 ? t : best), undefined);
 }
 
 export function withNewTab(s: BrowserState, windowId: string, o: NewTabOptions = {}): [BrowserState, string] {
@@ -268,6 +269,7 @@ export function withNewTab(s: BrowserState, windowId: string, o: NewTabOptions =
   const tab = makeTab(windowId, profileId, url, { ...o.snapshot, pin: o.pinned === false ? null : (o.snapshot?.pin ?? (o.pinned ? TILE_PIN : null)) });
   if (tab.page.kind === "loaded" && !o.snapshot) tab.page = loadedPage(navigationTo(url, !o.replaced));
   tab.openerId = o.openerId ?? null;
+  if (o.background) tab.unseen = true;
   tab.pinnedUrl = tab.pin ? pinHome({ pinnedUrl: tab.pinnedUrl, url }, true) : tab.pinnedUrl || null;
   if (o.adoptId) tab.page = adoptedPage(o.adoptId);
   else if (o.wakeAdoptId) tab.page = { kind: "idle", wake: o.wakeAdoptId };

@@ -23,10 +23,13 @@ struct TabCardContent: View {
           .resizable()
           .scaledToFit()
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+          .transition(.opacity)
       } else {
         placeholder
+          .transition(.opacity)
       }
     }
+    .animation(TabsMotion.fade, value: stored != nil)
     .clipped()
     .task(id: tab.snapshotFileName) {
       guard memoryImage == nil, let name = tab.snapshotFileName else { return }

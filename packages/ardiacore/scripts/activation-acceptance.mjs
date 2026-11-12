@@ -314,6 +314,74 @@ try {
     }
   });
 
+  await check("call-window-still-on-screen", async () => {
+    const call = await joinedCall();
+    const n = await engine("tabs.devWindowNumber", { tabId: call.tab });
+    const win = (action) => engine("windows.dev", { window: n, action });
+    const out = {};
+    try {
+      await win("fakeOcclusion:visible");
+      await sleep(600);
+      const base = (await pipState(call.t)).pip;
+      await win("fakeWindowServer:shows");
+      await win("fakeOcclusion:occluded");
+      await sleep(3000);
+      const kept = await pipState(call.t);
+      if (kept.pip !== base || kept.open) throw new Error(`AppKit said covered while the window server showed the window, and the call popped out: ${JSON.stringify(kept)}`);
+      out.kept = true;
+      await win("fakeWindowServer:hides");
+      await until("the call popped out once really covered", async () => {
+        const p = await pipState(call.t);
+        return p.pip > base && p.open ? p : null;
+      }, 8000);
+      out.coveredPopsOut = true;
+      await win("fakeOcclusion:visible");
+      await until("closed with the window back", async () => !(await pipState(call.t)).open, 8000);
+      return out;
+    } finally {
+      for (const action of ["fakeWindowServer:hides", "fakeOcclusion:off"]) await win(action).catch(() => null);
+      await closeTab(call.tab);
+    }
+  });
+
+  await check("call-window-uncovered-while-appkit-occluded", async () => {
+    const call = await joinedCall();
+    const n = await engine("tabs.devWindowNumber", { tabId: call.tab });
+    const win = (action) => engine("windows.dev", { window: n, action });
+    const out = {};
+    try {
+      await win("fakeOcclusion:visible");
+      await sleep(600);
+      const base = (await pipState(call.t)).pip;
+      await win("fakeWindowServer:shows");
+      await win("fakeOcclusion:occluded");
+      await sleep(2500);
+      if ((await pipState(call.t)).pip !== base) throw new Error("popped out while the window server showed the window");
+      await win("fakeWindowServer:hides");
+      await until("the call popped out once really covered", async () => {
+        const p = await pipState(call.t);
+        return p.pip > base && p.open ? p : null;
+      }, 8000);
+      out.coveredPopsOut = true;
+      await sleep(2500);
+      await win("fakeWindowServer:shows");
+      await until("closed once uncovered, AppKit still saying occluded", async () => !(await pipState(call.t)).open, 8000);
+      out.uncoveredCloses = true;
+      for (let round = 0; round < 2; round++) {
+        await win("fakeWindowServer:hides");
+        await until(`popped out again (round ${round})`, async () => (await pipState(call.t)).open || null, 8000);
+        await win("fakeWindowServer:shows");
+        await until(`closed again (round ${round})`, async () => !(await pipState(call.t)).open, 8000);
+      }
+      out.rounds = 2;
+      return out;
+    } finally {
+      for (const action of ["fakeWindowServer:hides", "fakeOcclusion:visible", "fakeOcclusion:off"]) await win(action).catch(() => null);
+      await until("closed after the check", async () => !(await pipState(call.t)).open, 8000).catch(() => null);
+      await closeTab(call.tab);
+    }
+  });
+
   await check("internal-page-and-space", async () => {
     const call = await joinedCall();
     const steps = {};
