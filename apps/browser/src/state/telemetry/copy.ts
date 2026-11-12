@@ -84,6 +84,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many tabs stayed listed under a collapsed tab group after you opened or switched to them or collapsed their group while they were selected, and how many clicks on a collapsed group's name hid them again, summed up once an hour. Never which tabs or groups",
       "How many times two sidebar animations started in the same moment and were run together, summed up once an hour",
       "On Windows, how many animations ran and how many of their frames came late, summed up once an hour",
+      "On Windows, how many links Ardia opened that it was started with while it wasn't running, summed up once an hour. Never which links or which app",
       "How many times a page open in WebKit was kept out of sight while it waited, ready, to be switched to: the open tab of a neighbouring profile, or the tab that takes over while you drag one away. Summed up once an hour, never which page",
       "How many Peek cards and Little Ardia windows you opened or closed with a trackpad pinch, summed up once an hour",
       "How many links from other apps opened as a tab or in Little Ardia, each with whether Settings › General › Open links from other apps in Little Ardia was on, summed up once an hour. Never which links or which app",
