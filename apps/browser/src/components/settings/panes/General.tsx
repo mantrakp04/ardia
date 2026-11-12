@@ -45,24 +45,14 @@ export function GeneralPane() {
         </Row>
         <SettingToggle anchor="general.warnBeforeQuitting" />
         <SettingToggle anchor="general.warnBeforeClosingWindow" />
-        <Row
-          anchor="general.openLinksFrom"
+        <SettingToggle
+          anchor="general.openLinksInLittleArdia"
           description={
             openLinksInLittleArdia
               ? `A link from Discord, Slack or Mail opens in Little Ardia, a small window of its own. ${keyText("⌘O")} moves it into ${APP}; closing it throws it away.`
               : `A link from Discord, Slack or Mail opens as a new tab in the ${APP} window you used last.`
           }
-        >
-          <PopUp
-            value={openLinksInLittleArdia ? "small" : "tab"}
-            options={[
-              { value: "small", title: "Little Ardia" },
-              { value: "tab", title: "A new tab" },
-            ]}
-            onChange={(v) => updateSettings({ openLinksInLittleArdia: v === "small" })}
-            minWidth={190}
-          />
-        </Row>
+        />
         <SettingToggle anchor="general.littleArdiaOpensNewTabLinks" />
       </Group>
 
