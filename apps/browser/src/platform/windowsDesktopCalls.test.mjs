@@ -11,6 +11,8 @@ import { systemStateOf } from "../../../../packages/expo-windows/src/engine/doma
 
 const rows = JSON.parse(readFileSync(new URL("../../../../packages/expo-windows/src/engine/domains/forwarded.json", import.meta.url), "utf8"));
 const FOLDER = "C:\\Users\\tester\\Extensions\\sample";
+const LINE_NOTE = `${"/".repeat(2)} a note Chrome allows`;
+const BLOCK_NOTE = `${"/"}${"*"} gone ${"*"}${"/"}`;
 
 function fakeEngine({ saved = null, picked = null, files = {}, power = null, replies = {} } = {}) {
   const engine = {
@@ -73,7 +75,7 @@ test("an unpacked folder reads as the Mac's install sheet", async () => {
     picked: FOLDER,
     files: {
       [`${FOLDER}\\manifest.json`]: `{
-        // a comment Chrome allows
+        ${LINE_NOTE}
         "manifest_version": 3, "name": "__MSG_appName__", "version": "1.0.2", "description": "Plain words",
         "default_locale": "en", "key": "${key}",
         "icons": { "16": "icons/16.png", "128": "icons/128.png", "48": "icons/48.png" },
@@ -116,7 +118,8 @@ test("a manifest's icon can't reach outside its folder", () => {
   assert.equal(insideFolder("../secret.png"), undefined);
   assert.equal(insideFolder("C:/Windows/x.png"), undefined);
   assert.equal(insideFolder("/icons//a.png"), "icons/a.png");
-  assert.equal(withoutComments('{"a": "// kept", /* gone */ "b": [1, 2,],}'), '{"a": "// kept",  "b": [1, 2]}');
+  const kept = `{"a": "${"/".repeat(2)} kept", `;
+  assert.equal(withoutComments(`${kept}${BLOCK_NOTE} "b": [1, 2,],}`), `${kept} "b": [1, 2]}`);
 });
 
 test("the SHA-256 the extension id uses matches Node's", () => {
