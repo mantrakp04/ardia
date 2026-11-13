@@ -68,21 +68,24 @@ function contains(node: HTMLElement, p: PointerSample) {
   return r.width > 0 && r.height > 0 && p.clientX >= r.left && p.clientX < r.right && p.clientY >= r.top && p.clientY < r.bottom;
 }
 
+function settle(t: Tracked, p: PointerSample | null) {
+  const node = t.node();
+  if (!node) return;
+  const inside = !!p && contains(node, p);
+  if (inside === t.inside) return;
+  t.inside = inside;
+  const handler = inside ? t.enter() : t.leave();
+  if (handler) handler(macEvent(node, p ?? OUTSIDE));
+}
+
 function updateTracked(p: PointerSample | null) {
-  for (const t of [...tracked]) {
-    const node = t.node();
-    if (!node) continue;
-    const inside = !!p && contains(node, p);
-    if (inside === t.inside) continue;
-    t.inside = inside;
-    const handler = inside ? t.enter() : t.leave();
-    if (handler) handler(macEvent(node, p ?? OUTSIDE));
-  }
+  for (const t of [...tracked]) settle(t, p);
 }
 
 function track(entry: Tracked) {
   tracked.add(entry);
   stopTracking ??= watchPointer(updateTracked);
+  settle(entry, currentPointer());
   return () => {
     tracked.delete(entry);
     if (tracked.size || !stopTracking) return;
@@ -126,11 +129,7 @@ function useMacBehaviour(props: MacProps) {
 
   useEffect(() => {
     if (!geometric) return;
-    const entry: Tracked = { node: () => node.current, enter: () => latest.current.onMouseEnter, leave: () => latest.current.onMouseLeave, inside: false };
-    const el = node.current;
-    const p = currentPointer();
-    if (el && p) entry.inside = contains(el, p);
-    return track(entry);
+    return track({ node: () => node.current, enter: () => latest.current.onMouseEnter, leave: () => latest.current.onMouseLeave, inside: false });
   }, [geometric]);
 
   const domHover = geometric
