@@ -6,6 +6,7 @@ import type { LightsPlace } from "../../platform/windows";
 import { DEFAULT_SIDEBAR_WIDTH, pageFrameInsetOf } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
+import { noteSidebarFieldMoved } from "../telemetry/sidebarFieldMoves";
 
 export { windowCornerRadius } from "../../platform/windows";
 
@@ -68,6 +69,7 @@ export const useUrlAnchors = create<Record<string, UrlAnchor>>()(() => ({}));
 export function setUrlAnchor(windowId: string, anchor: UrlAnchor) {
   const current = useUrlAnchors.getState()[windowId];
   if (current && current.left === anchor.left && current.top === anchor.top && current.width === anchor.width && current.sidebar?.height === anchor.sidebar?.height) return;
+  if (current?.sidebar && anchor.sidebar && current.left !== anchor.left) noteSidebarFieldMoved();
   useUrlAnchors.setState({ [windowId]: anchor });
 }
 
