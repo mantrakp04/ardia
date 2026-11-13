@@ -59,6 +59,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
   const list = limit === undefined ? all : all.slice(0, limit);
   const pending = usePendingEntriesHeight(windowId, profileId, all, mountedRows, growing);
   const showClear = useSettings((s) => s.showClearButton);
+  const showLine = useSettings((s) => s.showPinnedDivider);
   const clearable = showClear && !offScreen && all.length > 0;
   const tidyTabs = useSettings((s) => s.tidyTabs);
   const tidy = useOffersTidyTabs(windowId, profileId, offScreen || !tidyTabs);
@@ -106,6 +107,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
             lift={underDockedTiles && !pinnedSection && !isIncognitoProfile(profileId) ? DOCKED_TILES_GAP : 0}
             clear={clearable}
             tidy={tidy}
+            line={showLine}
             pinned={pinnedSection ? { collapsed, open: pinnedFold.open } : null}
           />
         ) : null}

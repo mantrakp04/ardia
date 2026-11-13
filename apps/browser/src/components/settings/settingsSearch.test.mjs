@@ -61,6 +61,8 @@ const TOP = [
   ["crash reports", ["privacy.shareDiagnostics"]],
   ["upscal", ["tabs.videoUpscaling"]],
   ["upscaling", ["tabs.videoUpscaling"]],
+  ["dashed line", ["tabs.showPinnedDivider"]],
+  ["pinned divider", ["tabs.showPinnedDivider"]],
   ["unread", ["tabs.showUnreadCounts"]],
   ["notification", ["tabs.showUnreadCounts"]],
   ["notifications", ["tabs.showUnreadCounts"]],

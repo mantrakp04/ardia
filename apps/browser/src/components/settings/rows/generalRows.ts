@@ -166,6 +166,13 @@ export const generalRows = {
           keywords: ["tidy", "broom", "organize tabs", "group by site", "clean up", "arc max"],
           shown: inSidebar,
         },
+        showPinnedDivider: {
+          advanced: true,
+          title: "Show the dashed divider",
+          description: "The dashed line between your pinned tabs and your tabs. Off, only the line goes: Tidy and Clear still appear when you point there.",
+          keywords: ["dashed line", "separator", "line", "clean sidebar", "minimal"],
+          shown: inSidebar,
+        },
         balancedTopApps: {
           advanced: true,
           title: "Grow Top Apps as the sidebar widens",
