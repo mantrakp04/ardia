@@ -642,6 +642,9 @@ SESSION_JS = (
 )
 
 
+viewport_over_token = unittest.skip("set viewport is gated over the token connection until a page is proven never to be shown at an emulated size")
+
+
 @unittest.skipUnless(APP, "set ARDIA_BROWSE_E2E_APP to a built Ardia.app (never /Applications) to run the end-to-end test")
 class BrowseTokenPath(unittest.TestCase):
     @classmethod
@@ -844,6 +847,7 @@ class BrowseTokenPath(unittest.TestCase):
     def size(self, session):
         return self.browse("eval", "innerWidth + 'x' + innerHeight", session=session).stdout.strip().strip('"')
 
+    @viewport_over_token
     def test_a_viewport_is_set_only_on_a_tab_the_command_opened_and_ends_with_its_session(self):
         owner, watcher, visitor = "token-viewport", "token-viewport-watcher", "token-viewport-visitor"
         self.users_tab_shown("#users-viewport")
@@ -897,6 +901,7 @@ class BrowseTokenPath(unittest.TestCase):
 
     SEEN = (False, {"method": "Emulation.setDeviceMetricsOverride", "reason": "on a tab the user can see"})
 
+    @viewport_over_token
     def test_a_hidden_tabs_screenshot_has_the_emulated_size(self):
         session = "token-shot"
         self.users_tab_shown("#users-shot")
@@ -907,6 +912,7 @@ class BrowseTokenPath(unittest.TestCase):
         width, height = (int.from_bytes(shot.read_bytes()[at:at + 4], "big") for at in (16, 20))
         self.assertEqual((width, height), (390, 844))
 
+    @viewport_over_token
     def test_a_tab_that_comes_into_view_gets_its_size_back_for_good(self):
         users = self.users_tab_shown("#users-view")
         for session, mark, show in (("token-seen-select", "#selected", lambda tab: self.control("tabs", "activate", tab)),
@@ -924,6 +930,7 @@ class BrowseTokenPath(unittest.TestCase):
             self.assertEqual(self.size(session), before)
             self.control("tabs", "close", self.app_tab(mark)["id"])
 
+    @viewport_over_token
     def test_a_tab_opened_in_view_never_takes_a_viewport(self):
         session = "token-open-shown"
         self.users_tab_shown("#users-open")
@@ -932,6 +939,7 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual(self.refused_viewport(session), self.SEEN)
         self.assertEqual(self.size(session), before)
 
+    @viewport_over_token
     @unittest.skipUnless(JS_LOCATION, "the split is made through the dev harness, which only a Debug build has")
     def test_a_tab_in_a_split_pane_is_in_view(self):
         session = "token-split"
@@ -987,18 +995,21 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual(self.page_columns(shots[1]), (True, True), "the page is up at its own size")
         return tab
 
+    @viewport_over_token
     @unittest.skipUnless(JS_LOCATION, "the reveal is driven and pictured through the dev harness, which only a Debug build has")
     def test_a_tab_revealed_ahead_of_react_is_never_drawn_at_the_emulated_size(self):
         self.users_tab_shown("#users-reveal")
         tab = self.shown_while("token-reveal", "#revealed", lambda tab: f"globalThis.expo.modules.ArdiaTabs.revealTab({json.dumps(tab)})")
         self.control("tabs", "close", tab)
 
+    @viewport_over_token
     @unittest.skipUnless(JS_LOCATION, "the switch is driven and pictured through the dev harness, which only a Debug build has")
     def test_a_tab_the_user_switches_to_is_never_drawn_at_the_emulated_size(self):
         self.users_tab_shown("#users-switch")
         tab = self.shown_while("token-switch", "#switched", lambda tab: f"ac.store.getState().activate({json.dumps(tab)})")
         self.control("tabs", "close", tab)
 
+    @viewport_over_token
     def test_a_tab_created_in_front_never_takes_a_viewport(self):
         session = "token-front"
         self.users_tab_shown("#users-front")
@@ -1015,6 +1026,7 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual(self.size(session), before)
         self.control("tabs", "close", self.app_tab("#front")["id"])
 
+    @viewport_over_token
     def test_a_peek_is_not_the_commands_tab(self):
         session = "token-peek"
         users = self.users_tab_shown("#users-peek")
@@ -1033,6 +1045,7 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual(said["data"], {"method": "Emulation.setDeviceMetricsOverride", "reason": "on a tab the ardia command didn't open"})
         self.assertEqual(self.size(session), before)
 
+    @viewport_over_token
     def test_a_renderer_crash_under_an_override_doesnt_keep_the_size(self):
         owner, watcher, after = "token-crash", "token-crash-watcher", "token-crash-after"
         self.users_tab_shown("#users-crash")
@@ -1055,6 +1068,7 @@ class BrowseTokenPath(unittest.TestCase):
         session = "token-gated"
         self.browse("open", self.url("login.html"), session=session)
         for args, method in ((["cookies"], "Network.getCookies"), (["network", "route", "*", "--abort"], "Fetch.enable"),
+                             (["set", "viewport", "800", "600"], "Emulation.setDeviceMetricsOverride"),
                              (["set", "geo", "1", "2"], "Emulation.setGeolocationOverride"), (["trace", "start"], "Tracing.start"),
                              (["upload", "#email", str(FIXTURES / "login.html")], "DOM.setFileInputFiles")):
             done = self.browse(*args, session=session, check=False)

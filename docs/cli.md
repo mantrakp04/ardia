@@ -298,7 +298,7 @@ random offset inside the box; a click whose point is covered fails with
 `covered by <tag#id.class>`, and one outside the laid-out viewport with `outside_viewport` (the point and the viewport
 size). A tab with no size yet (0×0, seen on a loaded hidden test instance) is waited for up to 2 s, then given a
 1280×800 device metrics override for that command, cleared afterwards and never over the session's own `set viewport`;
-where the policy refuses it (the token path, on a tab the command didn't open) it fails with `no_viewport`.
+where Emulation is gated (the token path) it fails with `no_viewport`.
 
 `fill` on a `date`, `time`, `datetime-local`, `month`, `week`, `color` or `range` input doesn't type (typing
 `2026-11-09` into the segmented date field stored `0009-02-06`, and a time field stayed empty). As Playwright's
@@ -689,7 +689,7 @@ only change needed.
 | --- | --- |
 | `cookies get\|set\|clear`, `cookies set --curl` | `Network.getCookies`, `Network.setCookie`, `Network.clearBrowserCookies` |
 | `state save\|load` | `Network.getAllCookies`, `Network.setCookies` |
-| `set device\|geo\|media` | `Emulation.setTouchEmulationEnabled`, `Emulation.setUserAgentOverride`, `Emulation.setGeolocationOverride`, `Emulation.setEmulatedMedia` |
+| `set viewport\|device\|geo\|media` | `Emulation.setDeviceMetricsOverride`, `Emulation.setTouchEmulationEnabled`, `Emulation.setUserAgentOverride`, `Emulation.setGeolocationOverride`, `Emulation.setEmulatedMedia` |
 | `set offline`, `set headers` | `Network.emulateNetworkConditions`, `Network.setExtraHTTPHeaders` |
 | `set credentials`, `network route\|unroute` | `Fetch.enable` (and `Fetch.fulfillRequest`, `failRequest`, `continueRequest`) |
 | `upload` | `DOM.setFileInputFiles` |
@@ -717,8 +717,16 @@ The policy also refuses some uses of methods it allows (`ac_cli_token_policy.cc`
 | `on a tab the ardia command didn't open`, `on a tab the user can see`, `with that option` | `Emulation.setDeviceMetricsOverride`, `clearDeviceMetricsOverride` | The viewport override is for tabs the command opened (below), with a width, height, scale and `mobile` only |
 | `in a named world`, `as a stream`, `with the command line API`, `without a button`, `with those editing commands` | `Page.addScriptToEvaluateOnNewDocument`, `Page.printToPDF`, `Runtime.evaluate`, `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` | That option isn't allowed |
 
-`set viewport <w> <h> [scale]` works on the token path, for responsive checks, on a tab the command opened. The
-policy allows `Emulation.setDeviceMetricsOverride` and `clearDeviceMetricsOverride` only on a session attached to a
+`set viewport` is gated on the token path, as in 0.2.45: `Emulation.setDeviceMetricsOverride` and
+`clearDeviceMetricsOverride` are off the policy's list (`AllowedMethods`). They were on it from ce0e35bff to
+4aff6b021, and what the engine and the app need for it stays in the tree, unused until the methods are listed again;
+the rest of this section describes that. It isn't enough yet, which is why the methods are off: when the wait for
+the restored frame times out (250 ms) or its callback fails, the hold ends and the stale emulated frame shows; the
+callback it waits on confirms a frame was submitted to the display compositor, not that it is on screen; and the
+hold is asked for only when clearing changes the native view's size, so a hidden emulated tab laid out into a pane
+or window of another size before the report, or an override of the page's own size, gets none. Two hosts attach
+pages without reporting them (`ArdiaEarlyWindow`, `ArdiaPopupWindow`). With the methods listed, the policy allows
+`Emulation.setDeviceMetricsOverride` and `clearDeviceMetricsOverride` only on a session attached to a
 target that a token connection made with `Target.createTarget` (`open`, `tab new`, a reader or script tab) and that
 isn't shown to the user. The engine keeps those tabs for the whole process (`ac_cli_owned_tabs.cc`), learned from
 each `createTarget` reply, so a daemon that reconnects after its idle disconnect still owns its tabs; one goes when
