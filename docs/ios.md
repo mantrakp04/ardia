@@ -201,7 +201,9 @@ are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ar
   every build and works once Apple approves one; later builds of the same version usually pass without a full review.
   Apple has no setting that gives an external group every build, so each one is submitted. `-f public_testers=false`
   keeps an upload to the Internal group, and `gh workflow run ios-release.yml -f mode=public-link -f build=<number>`
-  sends an earlier build. To invite someone by email instead,
+  sends an earlier build. Only one build of a version can wait in Beta App Review, so a newer one is refused until
+  the older one is through. `-f mode=expire -f build=<number>` ends testing of an older build for good, so nobody
+  installs it again; Apple can't undo it and the script refuses the newest build. To invite someone by email instead,
   `gh workflow run ios-release.yml -f mode=add-tester -f email=<address>` adds them to Public Testers; TestFlight
   emails the invite once that group has an approved build.
 
