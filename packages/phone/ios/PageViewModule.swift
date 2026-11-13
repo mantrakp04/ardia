@@ -10,6 +10,12 @@ struct PageSetupRecord: Record {
   @Field var savedState: String? = nil
 }
 
+struct SnapshotOptionsRecord: Record {
+  @Field var maxWidth: Int? = nil
+  @Field var quality: Int? = nil
+  @Field var coveredInsets: [Double]? = nil
+}
+
 struct RequestAnswerRecord: Record {
   @Field var type: String = ""
   @Field var text: String? = nil
@@ -160,8 +166,24 @@ public final class PageViewModule: Module {
       }
     }.runOnQueue(.main)
 
-    AsyncFunction("snapshot") { (pageID: String, maxWidth: Int?, quality: Int?, promise: Promise) in
-      Self.main(promise) { try await PhonePages.shared.snapshot(pageID, maxWidth: maxWidth, quality: quality) }
+    AsyncFunction("snapshot") { (pageID: String, options: SnapshotOptionsRecord, promise: Promise) in
+      Self.main(promise) { try await PhonePages.shared.snapshot(pageID, maxWidth: options.maxWidth, quality: options.quality) }
+    }.runOnQueue(.main)
+
+    AsyncFunction("loadHtml") { (pageID: String, html: String, baseURL: String) in
+      try MainActor.assumeIsolated { try PhonePages.shared.loadHTML(pageID, html: html, baseURL: baseURL) }
+    }.runOnQueue(.main)
+
+    AsyncFunction("scrollPosition") { (pageID: String) -> [String: Any]? in
+      MainActor.assumeIsolated { PhonePages.shared.scrollPosition(pageID) }
+    }.runOnQueue(.main)
+
+    AsyncFunction("discardBackgroundPages") { (keeping: String?) in
+      MainActor.assumeIsolated { PhonePages.shared.discardBackgroundPages(keeping: keeping) }
+    }.runOnQueue(.main)
+
+    AsyncFunction("livePageIds") { () -> [String] in
+      MainActor.assumeIsolated { PhonePages.shared.livePageIDs }
     }.runOnQueue(.main)
 
     AsyncFunction("deleteSnapshots") { (pageID: String) in
@@ -188,7 +210,7 @@ public final class PageViewModule: Module {
     }.runOnQueue(.main)
 
     AsyncFunction("exitFullscreen") { (pageID: String) in
-      MainActor.assumeIsolated { PhonePages.shared.page(pageID)?.webView?.closeAllMediaPresentations() }
+      MainActor.assumeIsolated { PhonePages.shared.page(pageID)?.webView?.closeAllMediaPresentations(completionHandler: nil) }
     }.runOnQueue(.main)
 
     AsyncFunction("endPrivateSession") {

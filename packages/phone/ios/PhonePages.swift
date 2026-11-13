@@ -74,6 +74,30 @@ final class PhonePages {
 
   var pageIDList: [String] { Array(tabIDs.keys) }
 
+  var livePageIDs: [String] { tabIDs.filter { engine.existingWebTab($0.value)?.isLive == true }.map(\.key) }
+
+  func discardBackgroundPages(keeping: String?) {
+    if let keeping, let tabID = tabIDs[keeping] { engine.tabs.select(tabID) }
+    engine.discardBackgroundTabs()
+  }
+
+  func loadHTML(_ pageID: String, html: String, baseURL: String) throws {
+    guard let base = URL(string: baseURL), ["http", "https"].contains(base.scheme?.lowercased() ?? "") else {
+      throw PagePayloads.badArgs("baseUrl must be an http or https address")
+    }
+    guard let page = activate(pageID), let webView = page.webView else { throw PagePayloads.error("ERR_NO_PAGE", "No page is open with id \(pageID)") }
+    webView.loadHTMLString(html, baseURL: base)
+  }
+
+  func scrollPosition(_ pageID: String) -> [String: Any]? {
+    guard let scrollView = page(pageID)?.webView?.scrollView else { return nil }
+    return [
+      "y": Double(scrollView.contentOffset.y + scrollView.adjustedContentInset.top),
+      "viewportHeight": Double(scrollView.bounds.height),
+      "contentHeight": Double(scrollView.contentSize.height),
+    ]
+  }
+
   func page(_ pageID: String) -> WebTab? {
     tabIDs[pageID].flatMap(engine.existingWebTab)
   }
@@ -534,7 +558,7 @@ enum PageSnapshots {
       let target = folder.appending(path: "\(stem)-\(stamp).jpg")
       guard (try? data.write(to: target, options: .atomic)) != nil else { return nil }
       for old in older(in: folder, stem: stem) where old != target { try? manager.removeItem(at: old) }
-      return ["path": target.path(percentEncoded: false), "uri": target.absoluteString, "width": width, "height": height]
+      return ["path": target.path(percentEncoded: false), "uri": target.absoluteString, "width": width, "height": height, "route": "draw"]
     }.value
   }
 
