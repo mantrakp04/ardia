@@ -179,11 +179,15 @@ export function SettingRow({
   const theme = useTheme();
   const site = useSiteTokens();
   const { hovered, hoverProps } = useHover();
+  const iconPress = usePressScaleMotion(!!onPress, buttonMotion.iconPressScale);
+  const iconScaleStyle = iconPress.scale ? { transform: [{ scale: iconPress.scale }] } : undefined;
   const content = (pressed: boolean) => (
     <Tile shape="row" height={SITE_PANEL.settingHeight} hovered={!!onPress && hovered} pressed={!!onPress && pressed} style={SETTING_ROW}>
-      <Dot size={SITE_PANEL.settingBadge} color={on ? theme.accent : site.tileHover}>
-        <Symbol name={icon} size={12} weight="medium" color={on ? theme.onAccent : theme.icon} style={{ width: 18, height: 18 }} />
-      </Dot>
+      <Animated.View pointerEvents="none" style={iconScaleStyle}>
+        <Dot size={SITE_PANEL.settingBadge} color={on ? theme.accent : site.tileHover}>
+          <Symbol name={icon} size={12} weight="medium" color={on ? theme.onAccent : theme.icon} style={{ width: 18, height: 18 }} />
+        </Dot>
+      </Animated.View>
       <View style={{ flex: 1 }}>
         <Text lines={1} weight="medium" style={{ fontSize: PANEL.titleSize, lineHeight: PANEL.titleLine }}>
           {title}
@@ -197,7 +201,7 @@ export function SettingRow({
   if (!onPress) return <View {...hoverProps}>{content(false)}</View>;
   return (
     <View {...hoverProps}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${title}: ${value}`}>
+      <Pressable onPress={onPress} onPressIn={iconPress.onPressIn} onPressOut={iconPress.onPressOut} accessibilityRole="button" accessibilityLabel={`${title}: ${value}`}>
         {({ pressed }) => content(pressed)}
       </Pressable>
     </View>

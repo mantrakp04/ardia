@@ -82,8 +82,10 @@ export const TabRow = memo(function TabRow({
   const unread = useTabUnread(tabId);
   const [unreadDrawn, setUnreadDrawn] = useState(false);
   const showsUnread = !!unread || unreadDrawn;
+  const resettable = !!tab && (isPinnedRow(tab) || !tab.pin) && awayFromPin(tab);
+  const pinActionMotion = usePressScaleMotion(resettable, buttonMotion.iconPressScale);
+  const pinActionScale = pinActionMotion.scale ? { transform: [{ scale: pinActionMotion.scale }] } : undefined;
   if (!tab) return null;
-  const resettable = (isPinnedRow(tab) || !tab.pin) && awayFromPin(tab);
   const resetting = resettable && backToPin.hovered && !renaming;
   const title = resetting ? "Back to Pinned URL" : tab.customTitle ? tabTitle(tab) : titleWithoutUnread(tabTitle(tab), unread);
   const away = resettable && !resetting ? awayTitle(tab) : null;
@@ -110,17 +112,24 @@ export const TabRow = memo(function TabRow({
           >
             <View {...backToPin.hoverProps}>
               {resettable ? (
-                <Pressable onPress={() => returnToPinnedUrl(tab.id)} tooltip={withShortcut("Back to Pinned URL", backToPinHint)}>
-                  {resetting ? (
-                    <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
-                      <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
-                    </View>
-                  ) : (
-                    <View>
-                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
-                      <TabBadges tabId={tab.id} />
-                    </View>
-                  )}
+                <Pressable
+                  onPress={() => returnToPinnedUrl(tab.id)}
+                  onPressIn={pinActionMotion.onPressIn}
+                  onPressOut={pinActionMotion.onPressOut}
+                  tooltip={withShortcut("Back to Pinned URL", backToPinHint)}
+                >
+                  <Animated.View pointerEvents="none" style={pinActionScale}>
+                    {resetting ? (
+                      <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
+                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                      </View>
+                    ) : (
+                      <View>
+                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
+                        <TabBadges tabId={tab.id} />
+                      </View>
+                    )}
+                  </Animated.View>
                 </Pressable>
               ) : (
                 <>

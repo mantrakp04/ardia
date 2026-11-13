@@ -1,4 +1,4 @@
-import { Pressable, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { hideStack, showAllIn, toggleStack, useLive } from "../../state/live/store";
 import type { FolderRow } from "../../state/live/rows";
 import { Badge, Button, space, Symbol, Text, useHover } from "../ui";
@@ -80,6 +80,7 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
   const fold = useFold(collapsed);
   const { hovered, hoverProps } = useHover();
   const tabOpen = useStackTabOpen(folderId, stack.id);
+  const chevronRotation = fold.open.interpolate({ inputRange: [0, 1], outputRange: ["-90deg", "0deg"] });
   const hide = () => {
     hideStack(folderId, stack.id);
     noteLiveStackHide();
@@ -104,7 +105,9 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
             >
               <Badge text={stack.items.length} size="m" />
             </HoverSlot>
-            <Symbol name={collapsed ? "chevron.right" : "chevron.down"} size={9} weight="semibold" color={theme.textSecondary} style={{ width: 12, height: 12 }} />
+            <Animated.View style={{ width: 12, height: 12, transform: [{ rotate: chevronRotation }] }}>
+              <Symbol name="chevron.down" size={9} weight="semibold" color={theme.textSecondary} style={{ width: 12, height: 12 }} />
+            </Animated.View>
           </SidebarListRow>
         </Pressable>
       </View>
