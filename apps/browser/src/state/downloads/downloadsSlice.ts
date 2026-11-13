@@ -33,11 +33,11 @@ const sessionOpen = (s: Pick<BrowserState, "windows" | "profiles">, session: str
   Object.values(s.windows).some((w) => w.kind === "private" && privateSession(s, w.profileId) === session);
 const endedPrivateDownloads = new Set<string>();
 
-export function withoutRepeats<Row extends Pick<Download, "url" | "path">>(downloads: readonly Row[]): Row[] {
+export function withoutRepeats<Row extends Pick<Download, "url" | "path" | "profile" | "startTime">>(downloads: readonly Row[]): Row[] {
   const seen = new Set<string>();
   return downloads.filter((d) => {
-    if (!d.path) return true;
-    const key = `${d.url}\n${d.path}`;
+    if (!d.path || d.startTime === undefined) return true;
+    const key = `${d.profile ?? ""}\n${d.url}\n${d.path}\n${d.startTime}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

@@ -50,14 +50,16 @@ test("downloads panel opens and closes are counted by cause and reset once taken
   assert.equal(Object.values(takeDownloadsPanelCounts()).reduce((a, b) => a + b, 0), 0);
 });
 
-test("a download saved twice by the old launch replay is restored once; different files and rows without a file stay", () => {
-  const file = { url: "http://localhost/fx-small.zip", path: "C:\\Users\\t\\Downloads\\fx-small.zip" };
+test("a download saved twice by the old launch replay is restored once; other profiles, other start times and rows without a file stay", () => {
+  const file = { url: "http://localhost/fx-small.zip", path: "C:\\Users\\t\\Downloads\\fx-small.zip", profile: "", startTime: 1794559632850.6 };
   const rows = [
     { id: "guid", ...file },
     { id: "saved-0", ...file },
-    { id: "other", url: file.url, path: "C:\\Users\\t\\Downloads\\fx-small (1).zip" },
-    { id: "cancelled-a", url: file.url, path: "" },
-    { id: "cancelled-b", url: file.url, path: "" },
+    { id: "other-profile", ...file, profile: "Ardia p-2" },
+    { id: "replaced-later", ...file, startTime: file.startTime + 60_000 },
+    { id: "no-start-a", url: file.url, path: file.path, profile: "" },
+    { id: "no-start-b", url: file.url, path: file.path, profile: "" },
+    { id: "cancelled", url: file.url, path: "", profile: "", startTime: file.startTime },
   ];
-  assert.deepEqual(withoutRepeats(rows).map((d) => d.id), ["guid", "other", "cancelled-a", "cancelled-b"]);
+  assert.deepEqual(withoutRepeats(rows).map((d) => d.id), ["guid", "other-profile", "replaced-later", "no-start-a", "no-start-b", "cancelled"]);
 });
