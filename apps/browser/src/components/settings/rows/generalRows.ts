@@ -31,6 +31,11 @@ export const generalRows = {
           description: "For links clicked in a Little Ardia window: a link that would open a new tab loads right there instead of in a tab of the main window. ⌘-click still opens it behind. Links in the main window follow Settings › Tabs › Open new-tab links in.",
           keywords: ["little ardia", "target blank", "new tab", "links"],
         },
+        littleWindowGestures: {
+          title: "Close and expand Little Ardia and Peeks with trackpad gestures",
+          description: "Pinch in to close, spread to open in the main window, and swipe back on a Little Ardia page with nothing to go back to to close it. Off, pinching zooms the page.",
+          keywords: ["little ardia", "little arc", "peek", "pinch", "swipe", "gesture", "trackpad", "zoom", "close", "expand"],
+        },
       },
     },
     {
@@ -154,6 +159,13 @@ export const generalRows = {
           keywords: ["clear unpinned tabs", "close all tabs", "clear today", "divider", "arc"],
           shown: inSidebar,
         },
+        tidyTabs: {
+          advanced: true,
+          title: "Tidy Tabs",
+          description: "As in Arc: once you have more than six tabs, Tidy on the divider sorts them into groups by site. Pinned tabs stay where you put them.",
+          keywords: ["tidy", "broom", "organize tabs", "group by site", "clean up", "arc max"],
+          shown: inSidebar,
+        },
         balancedTopApps: {
           advanced: true,
           title: "Grow Top Apps as the sidebar widens",
@@ -163,8 +175,13 @@ export const generalRows = {
         },
         showUnreadCounts: {
           title: "Show unread counts on tabs",
-          description: "A notification badge with the unread count or dot a site like Gmail or Slack puts in its title, on its tab, pinned tile and Top App. Off by default. Once on, hide it for one site: right-click its tab and choose Hide Unread Count, or use Site Controls.",
+          description: "A notification badge with the unread count or dot a site like Gmail or Slack puts in its title, at the end of its tab. Off by default. Once on, hide it for one site: right-click its tab and choose Hide Unread Count, or use Site Controls.",
           keywords: ["unread", "badge", "badges", "bubble", "bubbles", "count", "notification", "notifications", "notis", "dot", "red", "gmail", "inbox", "messages", "arc"],
+        },
+        showTopAppBadges: {
+          title: "Show tab status on Top Apps",
+          description: "A Top App's tile shows a speaker while its tab plays or is muted, a mark while it is in Picture in Picture, and its unread count when unread counts are on. Off, as in Dia, a tile shows only the site's icon.",
+          keywords: ["pinned tiles", "favorites", "badges", "indicators", "unread count", "speaker", "audio", "muted", "playing", "clean", "dia"],
         },
         fadeUnloadedTabs: {
           advanced: true,
@@ -281,6 +298,11 @@ export const generalRows = {
           title: "Clean up tabs I haven't used in",
           description: "Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily.",
           keywords: ["archive", "auto close", "inactive tabs", "duplicates", "custom", "minutes"],
+        },
+        suggestCleanUp: {
+          title: "Suggest cleaning up when tabs pile up",
+          description: "Shows a card in the sidebar once 10 or more tabs haven't been used in a while.",
+          keywords: ["upsell", "tidy", "suggestion", "don't show again", "card", "inactive tabs"],
         },
       },
     },

@@ -142,8 +142,9 @@ pid="$(sed -n 's/^pid \([0-9]*\) .*/\1/p' <<<"$launched")"
 sleep 8
 
 locked="$("$work/windows" --locked)"
+access="$("$work/windows" --access)"
 [ "$locked" = 1 ] && echo "note: the screen is locked; checks of window order and closing are skipped (they need an unlocked screen)"
-SMOKE_LOCKED="$locked" SMOKE_DATA="$work/data" SMOKE_KEYS="$work/keys" SMOKE_GURL="$work/gurl" node "$here/smoke.mjs" "$version" "$work/windows" "$pages" || status=1
+SMOKE_LOCKED="$locked" SMOKE_ACCESS="$access" SMOKE_DATA="$work/data" SMOKE_KEYS="$work/keys" SMOKE_GURL="$work/gurl" node "$here/smoke.mjs" "$version" "$work/windows" "$pages" || status=1
 
 children="$(ps -axo ppid=,pid=,comm= | awk -v p="$pid" '$1 == p { $1 = ""; $2 = ""; sub(/^ +/, ""); print }')"
 foreign="$(printf '%s\n' "$children" | grep -v "^$fw/Chromium Framework.framework/" | grep -v '^$' || true)"

@@ -8,6 +8,7 @@ import type {
   CliTabTarget,
   EngineBookmark,
   EngineEvents,
+  EngineTask,
   EventName,
   HistoryChange,
   HistoryChangedBatch,
@@ -36,6 +37,7 @@ const testGlobals = globalThis as {
   acTestCliControl?: (on: boolean | null) => Promise<CliControlStatus> | undefined;
   acTestCliActive?: (tabId: string | null) => Promise<CliControlStatus> | undefined;
   acTestCliTargets?: (tabId: string) => CliTabTarget | undefined;
+  acTestTasks?: () => EngineTask[];
   acTestUserScripts?: { engine: ExtensionEngine };
   acTestSuggest?: (args: { url: string; id: number; profile: string }) => CallResult<"search.suggest"> | undefined;
 };
@@ -305,7 +307,7 @@ const fakeModules = {
     "engine",
     {
       components: () => [],
-      tasks: () => [],
+      tasks: () => testGlobals.acTestTasks?.() ?? [],
       beginTracing: () => false,
       endTracing: () => null,
       isTracing: () => false,

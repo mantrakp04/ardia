@@ -215,6 +215,7 @@ void AcceptDrops(NSView *root, BOOL accept) {
   if (_visible == visible) return;
   if (!visible) [self storePageFocus];
   _visible = visible;
+  if (visible) [self exposePage];
   if (visible) [self stopHolding];
   if (visible) [self settleRevealsInWindow];
   if (!visible) [_tab exitExclusiveAccess];

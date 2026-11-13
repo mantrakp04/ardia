@@ -121,7 +121,9 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
 ```
 
 - **Where it runs:** `infra/telemetry/hexclave.deploy.ts` (ClickHouse, OpenTelemetry Collector, SeaweedFS; all
-  private, images pinned by digest) and the routes in `infra/site/nginx.conf`. Only nginx is public. It limits
+  private, images pinned by digest) and the routes in `infra/site/nginx.conf`. The SeaweedFS there (`ph-objects`)
+  holds replays only; Report a Problem's files are on `ardia-feedback-objects` (`infra/feedback/hexclave.deploy.ts`),
+  so a full replay disk can't refuse a report. Only nginx is public. It limits
   bodies (512 KB events, 2 MB replay chunks), rates per visitor (20/s events, 5/s replays), and only accepts
   OTLP logs (no traces or metrics).
 - **Format:** each event is an OTLP log record. The body and the `event` attribute are the event name, plus
@@ -160,7 +162,8 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   `infra/site/nginx.conf`. nginx refuses an unknown key with 403 and passes the surface to the collector, which
   stores it as `ingest_key` (`app`, `cli`, `site` or `missing`). Reports from Report a Problem go through
   `/api/feedback` to `infra/feedback` (see `docs/feedback.md`), land in `telemetry.feedback`, and keep their
-  files in SeaweedFS under `feedback/<id>/` with no expiry.
+  files in SeaweedFS under `feedback/<id>/` with no expiry, on their own service (`ardia-feedback-objects`, 10 GB;
+  reports from 11-09 to 11-11 are still on `ph-objects`).
 - **Crash and diagnostics fields (opt-in, since 0.2.45-nightly.3):** every field is a count, a size, a
   duration, a fixed name or yes/no, in `properties` like everything else, so no schema change. Code:
   `apps/browser/src/state/telemetry/diagnostics.ts`, `errors.ts`, `tabPresses.ts`, `packages/shell/ios/CrashReports.swift`.
@@ -193,7 +196,10 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   - `tab_presses` (hourly and at quit, when there were any): `presses` on sidebar rows, pinned tiles and top-strip
     chips, `down_switches` (the press switched to the tab on mouse down), `clicks` (the press opened the tab),
     `drag_clicks` (it became a drag and was rescued as a click), `drags`, `unanswered` (a press that got neither before
-    the next one), `held_ms_p50`/`_p75`/`held_n` (how long the button was held after a mouse-down switch: the wait a
+    the next one), `lost_releases` (presses anywhere in the app's own UI whose mouse up a menu or drag session took, ended when
+    the menu began tracking or at that button's next mouse down instead of swallowing that click), `repeat_presses` (a tab or New Tab row press within 3 s and 12 pt
+    of a mouse down that reached no row: the click-twice report), `repeat_on_new_tab` (those with an empty New Tab showing),
+    `repeat_gap_ms_p50` and `repeat_landed_on` (the class names of the view the first click hit and its three ancestors), `held_ms_p50`/`_p75`/`held_n` (how long the button was held after a mouse-down switch: the wait a
     switch on release would have added), `page_click_ms_p50`/`_p75`/`page_click_n` (from opening a tab with a press
     to the first press in its page, within 60 s).
   - `settings_snapshot` adds `setting_app_icon` / `default_app_icon`.
@@ -212,7 +218,8 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
 - **Leftover disks:** a trial self-hosted analytics stack (30 Sep) left two detached Hexclave volumes in the
   deployment group "posthog": `pgdata` (10 GB, service ph-db) and `redpanda` (5 GB, ph-kafka). Hexclave has no
   API to delete a volume; ask Hexclave support to remove them. The group, `ph-clickhouse` and `ph-objects`
-  keep their names because renaming them would detach their volumes.
+  keep their names because renaming them would detach their volumes. `ph-objects` is the replays' store and
+  stays that way; the reports' is `ardia-feedback-objects`.
 
 ### Parity: what PostHog did, what does it now
 

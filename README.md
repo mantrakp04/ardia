@@ -10,7 +10,7 @@
 </p>
 
 <h3 align="center">
-  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.45/Ardia-0.2.45.dmg">Download Ardia 0.2.45 for Mac</a>
+  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.46/Ardia-0.2.46.dmg">Download Ardia 0.2.46 for Mac</a>
 </h3>
 
 <p align="center">
@@ -85,7 +85,7 @@ Not WebKit. Not Electron. Every window is Chrome’s own, so sites, extensions a
 | Intel Macs | Apple Silicon only. | ✗ No |
 
 <h3 align="center">
-  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.45/Ardia-0.2.45.dmg">Download Ardia 0.2.45</a>
+  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.46/Ardia-0.2.46.dmg">Download Ardia 0.2.46</a>
 </h3>
 
 <p align="center">

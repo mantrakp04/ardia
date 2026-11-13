@@ -30,6 +30,9 @@ struct ArdiaLeave {
 
 struct ArdiaFrameHold {
   BOOL awaiting{};
+  BOOL restoring{};
+  NSUInteger restoreGeneration{};
+  NSView *cover;
   NSUInteger generation{};
   NSArray *mark;
   __weak NSView *pane;
@@ -207,6 +210,8 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)schedulePainting;
 - (void)leaveScreen;
 - (void)beginFrameHoldIfCold;
+- (void)exposePage;
+- (void)endRestoring;
 - (void)finishFrameHold;
 - (void)stopHolding;
 - (void)takeFocusFromLingeringPane;
@@ -284,6 +289,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)emitZoom;
 - (void)runChromeCommand:(int)command;
 - (void)thawHiddenPage;
+- (BOOL)awaitsFirstDocument;
 @end
 
 @interface ArdiaWebView (InputMonitorsInternal)
