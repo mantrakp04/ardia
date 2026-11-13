@@ -72,6 +72,25 @@ inline bool IsNameSurrogate(std::wstring const &path) noexcept {
   return (found.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) && IsReparseTagNameSurrogate(found.dwReserved0);
 }
 
+inline bool IsLink(HANDLE handle) noexcept {
+  FILE_ATTRIBUTE_TAG_INFO tag{};
+  if (!GetFileInformationByHandleEx(handle, FileAttributeTagInfo, &tag, sizeof(tag))) return true;
+  return (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) && IsReparseTagNameSurrogate(tag.ReparseTag);
+}
+
+inline HANDLE HoldDirectory(std::wstring const &path) noexcept {
+  HANDLE held = CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+                            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+  if (held == INVALID_HANDLE_VALUE) return held;
+  FILE_ATTRIBUTE_TAG_INFO tag{};
+  bool directory = GetFileInformationByHandleEx(held, FileAttributeTagInfo, &tag, sizeof(tag)) && (tag.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+  if (!directory || IsLink(held)) {
+    CloseHandle(held);
+    return INVALID_HANDLE_VALUE;
+  }
+  return held;
+}
+
 inline Probe ProbePath(std::wstring const &path) noexcept {
   DWORD attributes = GetFileAttributesW(path.c_str());
   if (attributes == INVALID_FILE_ATTRIBUTES) return IsMissing(GetLastError()) ? Probe::Absent : Probe::Inaccessible;
@@ -141,7 +160,7 @@ inline Read ReadFile(std::wstring const &path) {
     throw Failure(Problem("a sync file couldn't be read", error));
   }
   if (IsPlaceholder(attributes)) return Read{Read::State::Placeholder, {}};
-  if (attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) return Read{Read::State::Busy, {}};
+  if (attributes & FILE_ATTRIBUTE_DIRECTORY) return Read{Read::State::Busy, {}};
   HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
                             FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_NO_RECALL | FILE_FLAG_SEQUENTIAL_SCAN | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
   if (file == INVALID_HANDLE_VALUE) {
@@ -149,6 +168,10 @@ inline Read ReadFile(std::wstring const &path) {
     if (IsMissing(error)) return Read{};
     if (IsBusy(error)) return Read{Read::State::Busy, {}};
     throw Failure(Problem("a sync file couldn't be opened", error));
+  }
+  if (IsLink(file)) {
+    CloseHandle(file);
+    return Read{Read::State::Busy, {}};
   }
   BY_HANDLE_FILE_INFORMATION before{};
   BY_HANDLE_FILE_INFORMATION after{};
@@ -216,6 +239,8 @@ inline void MakeDirectory(std::wstring const &path) {
 
 inline bool RemoveTree(std::wstring const &directory, int depth = 0) noexcept {
   if (depth > 16) return false;
+  HANDLE held = HoldDirectory(directory);
+  if (held == INVALID_HANDLE_VALUE) return ProbePath(directory) == Probe::Link && RemoveDirectoryW(directory.c_str());
   WIN32_FIND_DATAW found{};
   HANDLE search = FindFirstFileExW((directory + L"\\*").c_str(), FindExInfoBasic, &found, FindExSearchNameMatch, nullptr, 0);
   bool ok = true;
@@ -232,6 +257,7 @@ inline bool RemoveTree(std::wstring const &directory, int depth = 0) noexcept {
     } while (FindNextFileW(search, &found));
     FindClose(search);
   }
+  CloseHandle(held);
   return RemoveDirectoryW(directory.c_str()) && ok;
 }
 

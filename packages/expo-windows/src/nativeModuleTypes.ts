@@ -1,5 +1,5 @@
 import type { AppNative, DialogsNative, FileDropNative, MenusNative, NotificationsNative, SystemNative, SystemSignalsNative, WindowControlsNative, WindowsNative } from "@ardia/shell";
-import type { PhraseResult } from "@ardia/sync";
+import type { FolderInfo, PhraseResult } from "@ardia/sync";
 import type { TurboModule } from "react-native";
 import type { PowerReading } from "./engine/domains/calling";
 import type { EventSubscription } from "./events";
@@ -98,7 +98,7 @@ export type DialogsModule = DialogsNative & { saveFile(name: string, extension: 
 
 export type SystemSignalsModule = SystemSignalsNative & { powerState(): PowerReading };
 
-export type SyncFolderState = { exists: boolean; writable: boolean; hasSyncData: boolean };
+export type SyncFolderState = Pick<FolderInfo, "exists" | "writable" | "hasSyncData">;
 
 export type WindowsSyncModule = TurboModule &
   VaultNative & {
