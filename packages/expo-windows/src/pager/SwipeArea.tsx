@@ -1,7 +1,7 @@
-import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
-import { View, type ViewProps } from "react-native";
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import type { NativeSwipeAreaProps } from "@ardia/ardiacore";
+import { View } from "react-native";
 import { noteFirstWindow, noteMissing } from "../missing";
-import type { AnyProps } from "../views/shared";
 import { pagers } from "./index";
 import type { PagerArea, PagerConfig, PagerStateEvent } from "./pager";
 
@@ -18,7 +18,7 @@ function readConfig(value: unknown): KeyedConfig | null {
   return { key: config.key, selected: whole(config.selected, 0), count: whole(config.count, 1), ack: whole(config.ack, 0), width, order };
 }
 
-export const SwipeArea = forwardRef<View, AnyProps>(function SwipeArea(
+export const SwipeArea = forwardRef<View, NativeSwipeAreaProps>(function SwipeArea(
   {
     canSwipeBack: _canSwipeBack,
     canSwipeForward: _canSwipeForward,
@@ -41,13 +41,12 @@ export const SwipeArea = forwardRef<View, AnyProps>(function SwipeArea(
     () => ({
       position(position: number) {
         const handler = handlers.current.onPagerPosition;
-        if (typeof handler !== "function") return false;
+        if (!handler) return false;
         handler({ nativeEvent: { position } });
         return true;
       },
       state(event: PagerStateEvent) {
-        const handler = handlers.current.onPagerState;
-        if (typeof handler === "function") handler({ nativeEvent: event });
+        handlers.current.onPagerState?.({ nativeEvent: event });
       },
     }),
     [],
@@ -72,8 +71,8 @@ export const SwipeArea = forwardRef<View, AnyProps>(function SwipeArea(
   }, [key, config?.selected, config?.count, config?.ack, config?.width, config?.order]);
 
   return (
-    <View {...(rest as ViewProps)} ref={ref} pointerEvents={(pointerEvents as ViewProps["pointerEvents"]) ?? "box-none"}>
-      {children as ReactNode}
+    <View {...rest} ref={ref} pointerEvents={pointerEvents ?? "box-none"}>
+      {children}
     </View>
   );
 });
