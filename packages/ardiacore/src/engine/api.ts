@@ -76,7 +76,7 @@ export type EngineCalls = {
   "permissions.devExternalLaunches": [{}, Record<string, unknown>[]];
 
   "profiles.loaded": [{}, { profiles: string[] }];
-  "profiles.release": [Profile, null];
+  "profiles.release": [Profile, { status: "released" | "pending" | "busy" }];
   "profiles.deleteData": [Profile, { remaining: string[] }];
   "profiles.clearBrowsingData": [Profile & { types: BrowsingDataType[]; since: number | null }, null];
 

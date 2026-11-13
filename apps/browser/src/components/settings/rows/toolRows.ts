@@ -152,6 +152,12 @@ export const toolRows = {
     {
       section: "Performance",
       rows: {
+        unloadProfilesAfter: {
+          advanced: true,
+          title: "Unload inactive profiles",
+          description: "When a profile isn't selected in any window. Pages must first be safely discarded by Memory Saver.",
+          keywords: ["unload", "idle", "timeout", "memory", "ram", "five minutes", "15 minutes", "hour"],
+        },
         memorySaver: {
           advanced: true,
           title: "Memory Saver",
@@ -169,7 +175,7 @@ export const toolRows = {
           advanced: true,
           title: "Load profiles when opened",
           description: "A profile, its extensions and its data load the first time you open it, not all at launch, so Ardia uses less memory. Takes effect the next time you open Ardia.",
-          keywords: ["profiles", "memory", "ram", "startup", "launch", "extensions", "lazy", "defer", "performance"],
+          keywords: ["profiles", "memory", "ram", "startup", "launch", "extensions", "lazy", "defer", "preload", "performance"],
         },
       },
     },

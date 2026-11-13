@@ -266,5 +266,5 @@ export type WebViewHandle = {
   setFrozen(frozen: boolean): Promise<void>;
 };
 
-export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported";
+export type DiscardOutcome = "unloaded" | "discarded" | "already" | "refused" | "unsupported";
 export type DiscardReason = "external" | "urgent" | "proactive" | "suggested" | "frozen";

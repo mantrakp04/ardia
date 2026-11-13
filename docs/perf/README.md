@@ -457,11 +457,11 @@ Use a Release app and benchmark bundle built from the same `main` revision, with
 
 The phase runs alone, waits for the selected local page's first contentful paint, settles for `--idle` seconds (default 60), and reports physical footprint for the whole descendant process tree and browser process. Each raw result records the hydrated setting, logical profile/tab/window counts, and settling duration. Logical profile count is fixture metadata, **not** proof of how many Chromium BrowserContexts loaded. These results measure deferred startup, not releasing already visited profiles or timeout-based inactivity unloading. The process-tree measurement includes the bundled content blocker and its processes but no user-installed extensions. Keep measurement runs serial and compare equal profile counts and builds.
 
-With **Load profiles when opened** enabled, native bookmark/history reads and their sync adapters also wait until a profile opens. Cached bookmarks remain available before then. Turning the setting off restores startup reads and sync readiness for every profile after restart
+With **Load profiles when opened** enabled, native bookmark/history reads and their sync adapters also wait until a profile opens. Cached bookmarks remain available before then. Turning the setting off restores startup reads and sync readiness for every profile after restart.
 
 ## Profile unloading memory
 
-Use a Release app and benchmark bundle from the same profile-unloading revision with the matching Chromium framework. Both arms use that same app and fixture, preload the profiles, enable Memory Saver, and select one profile in one window. The candidate unloads inactive profiles after five minutes; the control has unloading Off. The fixture adds no third-party extensions and uses no personal browser data.
+Use a Release app and benchmark bundle from the same revision, including the #1368 profile-unloading dependency, with the matching Chromium framework. Both arms use that same app and fixture, preload the profiles, enable Memory Saver, and select one profile in one window. The candidate unloads inactive profiles after five minutes; the control has unloading Off. The fixture adds no third-party extensions and uses no personal browser data.
 
 ```sh
 node apps/browser/scripts/perf/native-bench.mjs \

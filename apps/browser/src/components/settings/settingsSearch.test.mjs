@@ -286,6 +286,17 @@ test("panes leave showing and hiding an anchored row to the row's own rule", () 
   assert.deepEqual(wrapped, SHOWN_BY_LOADED_DATA);
 });
 
+test("profile startup memory setting is searchable", () => {
+  assert.ok(ids("load profiles when opened").includes("advanced.loadProfilesWhenOpened"));
+  assert.ok(ids("preload").includes("advanced.loadProfilesWhenOpened"));
+  assert.ok(ids("extensions").includes("advanced.loadProfilesWhenOpened"));
+});
+
+test("profile unloading timeout is searchable", () => {
+  assert.ok(ids("unload inactive profiles").includes("advanced.unloadProfilesAfter"));
+  assert.ok(ids("timeout").includes("advanced.unloadProfilesAfter"));
+});
+
 test("a one-letter query matches setting names, not sections or pane names", () => {
   const titleWords = (id) => SETTINGS_INDEX.find((p) => p.entry.id === id).entry.title.toLowerCase().split(/[^a-z0-9]+/);
   for (const q of ["c", "t", "p"]) {

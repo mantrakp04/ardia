@@ -338,6 +338,22 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSStr
             completion:^(NSDictionary *) {}];
 }
 
+- (BOOL)preserveHistoryForUnload {
+  if (!_tab || !_transferKey.length || _tab.profile.offTheRecord) return NO;
+  __block BOOL preserved = NO;
+  [ArdiaServices call:@"ac_tab_restore_tag" profile:_profile
+                args:@{@"tab" : @(_tab.tabId), @"key" : _transferKey,
+                       @"preserveOnClose" : @YES}
+          completion:^(NSDictionary *result) {
+            preserved = [result[@"preserved"] isEqual:@YES];
+          }];
+  return preserved;
+}
+
+- (void)releaseRestoreKey {
+  if (_transferKey.length) [BoundRestoreKeys() removeObject:_transferKey];
+}
+
 - (void)closeBrowser {
   ArdiaCoreTab *tab = _tab;
   if (tab && _life.handingOff && _transferKey.length && !tab.closed) {

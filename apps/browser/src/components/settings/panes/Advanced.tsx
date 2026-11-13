@@ -33,6 +33,7 @@ const MEMORY_SAVER_OPTIONS = Object.entries(MEMORY_SAVER_MODES).map(([value, { t
 
 export function AdvancedPane() {
   const hideBookmarksBarImport = useSettings((s) => s.hideBookmarksBarImport);
+  const unloadProfilesAfter = useSettings((s) => s.unloadProfilesAfter);
   const memorySaverMode = useSettings((s) => s.memorySaverMode);
   const batterySaverWhen = useSettings((s) => s.batterySaverWhen);
   const keepActiveSites = useSettings((s) => s.keepActiveSites);
@@ -56,6 +57,20 @@ export function AdvancedPane() {
 
       <SectionHeader title="Performance" />
       <Group>
+        <Row anchor="advanced.unloadProfilesAfter">
+          <PopUp
+            value={unloadProfilesAfter}
+            options={[
+              { value: "never", title: "Off" },
+              { value: "5m", title: "After 5 minutes" },
+              { value: "15m", title: "After 15 minutes" },
+              { value: "1h", title: "After 1 hour" },
+              { value: "2h", title: "After 2 hours" },
+            ]}
+            onChange={(value) => updateSettings({ unloadProfilesAfter: value })}
+            minWidth={160}
+          />
+        </Row>
         <SettingToggle anchor="advanced.memorySaver" />
         <Row anchor="advanced.memorySaverMode" description={MEMORY_SAVER_MODES[memorySaverMode].description}>
           <PopUp

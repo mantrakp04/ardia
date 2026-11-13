@@ -121,6 +121,7 @@ export const SETTING_SPECS = {
   fadeUnloadedTabs: flag(false, SYNCED),
   warnBeforeClosingTabGroup: flag(true, SYNCED),
   batterySaverWhen: oneOf(["lowBattery", "unplugged", "never"], "lowBattery"),
+  unloadProfilesAfter: oneOf(["never", "5m", "15m", "1h", "2h"], "5m"),
   memorySaver: flag(true),
   memorySaverMode: oneOf(["moderate", "balanced", "maximum"], "balanced"),
   loadProfilesWhenOpened: flag(true),

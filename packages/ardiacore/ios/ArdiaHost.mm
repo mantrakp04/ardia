@@ -140,7 +140,7 @@ static void (^gQuitCancelledHandler)(void);
   remove(p);
 }
 
-+ (void)releaseProfile:(NSString *)profile {
++ (NSString *)releaseProfile:(NSString *)profile {
   ArdiaCoreEngine *engine = ArdiaCoreEngine.sharedEngine;
   ArdiaCoreProfile *p = ardia_host::LoadedProfile(profile);
   if (ardia_host::IsPrivateProfile(profile)) {
@@ -150,9 +150,10 @@ static void (^gQuitCancelledHandler)(void);
     [ProfileWaiters() removeObjectForKey:profile];
     for (void (^waiter)(ArdiaCoreProfile *) in waiting) waiter(nil);
     ardia_host::ForgetPrivateNavigationDownloads(profile);
-    if ([Profiles().allValues containsObject:p]) return;
+    if ([Profiles().allValues containsObject:p]) return @"busy";
   }
-  if (p) [engine releaseProfile:p];
+  if (!p) return ProfileWaiters()[profile] ? @"busy" : @"released";
+  return [engine releaseProfile:p];
 }
 
 + (NSArray<NSString *> *)loadedProfiles {

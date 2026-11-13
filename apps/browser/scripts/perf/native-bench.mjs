@@ -41,7 +41,7 @@
 //                               throttle   hidden animating tabs' rAF and timer rates
 //                               churn      leak check: open and close 10 tabs 5 times
 //                               sample     main-thread `sample`s, idle and while switching and scrolling
-//                               profiles   clean profile startup memory; --profile-count defaults to 8
+//                               profiles   profile memory after idle; --profile-count defaults to 8
 //     --preload-profiles <bool> candidate fixture setting (default false); --control-preload-profiles defaults true
 //     --unload-profiles-after <duration> candidate idle timeout (default 5m); control defaults to never
 //     --control-unload-profiles-after <duration> control idle timeout (default never)

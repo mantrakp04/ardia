@@ -109,6 +109,26 @@ test("a profile opens when a window shows it, or when the engine loads it for an
   stop();
 });
 
+test("history and bookmark watches restart after a profile unloads and opens again", async () => {
+  stub.historyWatches.length = 0;
+  stub.bookmarkWatches.length = 0;
+  const stopLoading = launchWith({ loaded: [] });
+  const stops = [startBookmarks(), startHistory()];
+  const watches = (entries, profile) => entries.filter((entry) => entry === profile).length;
+  await until(() => watches(stub.historyWatches, "work") > 0 && watches(stub.bookmarkWatches, "work") > 0, "initial profile watches");
+  const historyCount = watches(stub.historyWatches, "work");
+  const bookmarkCount = watches(stub.bookmarkWatches, "work");
+
+  loading.unloadProfile("work");
+  assert.equal(loading.profileOpened("work"), false);
+  stub.emitEvent("profiles.loaded", { profile: "work" });
+  assert.equal(loading.profileOpened("work"), true);
+  await until(() => watches(stub.historyWatches, "work") > historyCount && watches(stub.bookmarkWatches, "work") > bookmarkCount, "restarted profile watches");
+
+  for (const stop of stops) stop();
+  stopLoading();
+});
+
 test("at launch nothing reads a deferred profile; its bookmarks, history and favicons load when it opens, current", async () => {
   stub.docs.clear();
   stub.bookmarkDbs.clear();
