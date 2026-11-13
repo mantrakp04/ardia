@@ -2,7 +2,7 @@ import type { MenuItem } from "../../platform/menus";
 import type { MenuShortcut } from "../../platform/commands";
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
-import { shortcutSources } from "./commandCatalog";
+import { shortcutSources, UNAVAILABLE_COMMANDS } from "./commandCatalog";
 import { ALTERNATE_MODIFIER } from "./keyNotation";
 import { formatShortcut, resolveShortcuts, type ResolvedShortcuts, type Shortcut, type ShortcutOverrides, type ShortcutSource } from "./shortcuts";
 
@@ -16,7 +16,8 @@ type MenuBar = { listed: ReadonlySet<string>; fixed: readonly ShortcutSource[] }
 const useMenuBar = create<{ bar: MenuBar | undefined; revision: number }>()(() => ({ bar: undefined, revision: 0 }));
 let resolvedFor: { overrides: ShortcutOverrides; profiles: readonly string[]; menuBar: MenuBar | undefined; resolved: ResolvedShortcuts } | undefined;
 
-export function setMenuBarShortcuts(items: readonly MenuShortcut[]) {
+export function setMenuBarShortcuts(offered: readonly MenuShortcut[]) {
+  const items = offered.filter((item) => !UNAVAILABLE_COMMANDS.has(item.id));
   const fixed = items.flatMap((item): ShortcutSource[] =>
     item.remappable ? [] : [{ id: item.id, fixed: true, keys: [{ key: item.key, modifiers: item.modifiers }] }],
   );

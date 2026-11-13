@@ -220,7 +220,7 @@ class BrowseEndToEnd(unittest.TestCase):
         session = "dnd"
         self.browse("open", self.url("dnd.html"), "--show", session=session)
         dragged = self.browse("drag", "#alpha", "#charlie", session=session).stdout
-        self.assertTrue(dragged.startswith("✓ Done (HTML5 drag and drop)\nchanges:"), dragged)
+        self.assertTrue(dragged.startswith("✓ Done (HTML5 drag and drop)\nmoved to 3 of 4 (was 1)\nchanges:"), dragged)
         state = self.drag_report(session)
         self.assertEqual(state["order"], ["bravo", "charlie", "alpha", "delta"])
         self.assertEqual(state["log"], ["dragstart:alpha", "drop:alpha>charlie", "dragend:alpha:move"])
@@ -817,11 +817,45 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertIn(f"] {app_id}  Fixture Login - ", line)
         self.assertIn("(opened by session token-app-opener)", line)
 
+    def control(self, *args):
+        done = subprocess.run([sys.executable, "-m", "ardia_cli", "--data-dir", str(self.data), *args], capture_output=True, text=True, timeout=60,
+                              env=dict(os.environ, PYTHONPATH=str(CLI)))
+        self.assertEqual(done.returncode, 0, f"ardia {' '.join(args)}: {done.stderr}")
+        return done.stdout
+
+    def size(self, session):
+        return self.browse("eval", "innerWidth + 'x' + innerHeight", session=session).stdout.strip().strip('"')
+
+    def test_a_viewport_is_set_only_on_a_tab_the_command_opened_and_ends_with_its_session(self):
+        owner, watcher, visitor = "token-viewport", "token-viewport-watcher", "token-viewport-visitor"
+        opened = json.loads(self.browse("open", self.url("login.html"), "--json", session=owner).stdout)["data"]
+        before = self.size(owner)
+        self.assertNotEqual(before, "390x844")
+        self.browse("set", "viewport", "390", "844", session=owner)
+        self.assertEqual(self.size(owner), "390x844")
+        self.browse("tab", opened["tabId"], session=watcher)
+        self.assertEqual(self.size(watcher), "390x844")
+
+        made = json.loads(self.control("tabs", "open", self.url("login.html") + "#users-own", "--json"))
+        users = made["tabs"][0]["id"]
+        wait_for(lambda: self.browse("tab", users, session=visitor, check=False).returncode == 0, 20, "the user's tab to load")
+        users_size = self.size(visitor)
+        refused = json.loads(self.browse("set", "viewport", "390", "844", "--json", session=visitor, check=False).stdout)
+        self.assertEqual((refused["success"], refused["code"]), (False, "policy_refused"))
+        self.assertEqual(refused["data"], {"method": "Emulation.setDeviceMetricsOverride", "reason": "on a tab the ardia command didn't open"})
+        self.assertIn("only on a tab this command opened", refused["error"])
+        self.assertEqual(self.size(visitor), users_size)
+
+        self.browse("close", session=owner)
+        wait_for(lambda: self.size(watcher) != "390x844", 10, "the override to end with its session")
+        self.assertEqual(self.size(watcher), before)
+        self.control("tabs", "close", users)
+
     def test_gated_commands_name_the_refused_method(self):
         session = "token-gated"
         self.browse("open", self.url("login.html"), session=session)
         for args, method in ((["cookies"], "Network.getCookies"), (["network", "route", "*", "--abort"], "Fetch.enable"),
-                             (["set", "viewport", "800", "600"], "Emulation.setDeviceMetricsOverride"), (["trace", "start"], "Tracing.start"),
+                             (["set", "geo", "1", "2"], "Emulation.setGeolocationOverride"), (["trace", "start"], "Tracing.start"),
                              (["upload", "#email", str(FIXTURES / "login.html")], "DOM.setFileInputFiles")):
             done = self.browse(*args, session=session, check=False)
             self.assertEqual(done.returncode, 1, args)

@@ -14,6 +14,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from ardia_cli.browse import cli as browse_cli
+from ardia_cli import command_metrics
 from ardia_cli.browse import commands, daemon, readpages, script
 from ardia_cli.browse.errors import BrowseError, OutcomeUnknown, Usage
 
@@ -234,6 +235,7 @@ class ReadingTabs(unittest.TestCase):
         self.state = reader_state()
         self.ctx = commands.Ctx(self.state, {}, "/", {}, None, "read")
         self.visits = []
+        self.detaches = set()
 
         async def read_in(ctx, page, url, selector, timeout, options):
             browser = self.state.browser
@@ -242,6 +244,9 @@ class ReadingTabs(unittest.TestCase):
             self.visits.append((page.target_id, url))
             await asyncio.sleep(browser.delay)
             browser.live -= 1
+            if page.target_id in self.detaches:
+                page.session_id = None
+                return {"url": url, "source": "browser", "error": "detached"}
             if url.endswith("/boom"):
                 return {"url": url, "source": "browser", "error": "couldn't load it: net::ERR_FAILED"}
             return {"url": url, "finalUrl": url, "title": url.rsplit("/", 1)[1], "text": f"text of {url}", "source": "browser"}
@@ -285,6 +290,24 @@ class ReadingTabs(unittest.TestCase):
         self.assertEqual(self.state.browser.closed, ["R1"])
         self.assertEqual(self.state.opened, set())
 
+    def test_a_page_whose_tab_ardia_detached_is_read_again_in_a_new_tab(self):
+        self.detaches.add("R1")
+        request = {"argv": ["read"], "options": {}}
+        command_metrics.begin(request)
+        self.addCleanup(command_metrics.current.set, None)
+        records = run(readpages.read_tabs(self.ctx, ["http://s/p/1", "http://s/p/2"], None, 5, {}))
+        self.assertEqual([record.get("text") for record in records], ["text of http://s/p/1", "text of http://s/p/2"])
+        self.assertEqual(self.visits.count(("R1", "http://s/p/1")), 1)
+        self.assertEqual(sorted(self.state.browser.closed), sorted(self.state.browser.created))
+        self.assertEqual(command_metrics.answer_fields(request)["metrics"]["read_tabs_reopened"], 1)
+
+    def test_a_tab_detached_twice_fails_that_page_only(self):
+        self.detaches.update({"R1", "R2"})
+        records = run(readpages.read_tabs(self.ctx, ["http://s/p/1"], None, 5, {}))
+        self.assertEqual(records[0]["error"], "detached")
+        self.assertEqual(self.state.browser.created, ["R1", "R2"])
+        self.assertEqual(sorted(self.state.browser.closed), ["R1", "R2"])
+
     def test_one_url_uses_one_tab(self):
         run(readpages.read_tabs(self.ctx, ["http://s/p/1"], None, 5, {}))
         self.assertEqual(self.state.browser.created, ["R1"])
@@ -296,6 +319,69 @@ class ReadingTabs(unittest.TestCase):
         self.assertIn("text of http://s/p/1", result.text)
         code, out, _ = daemon.render({}, result=result)
         self.assertEqual(code, 1)
+
+
+class DetachedPage(unittest.TestCase):
+    def test_a_detached_page_never_sends_its_command_to_the_browser_session(self):
+        from ardia_cli.browse.page import Page
+
+        sent = []
+
+        class Browser:
+            async def send(self, method, params=None, session=None, timeout=30):
+                sent.append((method, session))
+                return {}
+
+        page = Page(SimpleNamespace(sessions={}), "T1")
+        page.browser = Browser()
+        page.session_id = "S1"
+        page.detach()
+        with self.assertRaises(BrowseError) as raised:
+            run(page.refresh_frames())
+        self.assertEqual(raised.exception.code, "tab_detached")
+        self.assertNotIn(("Page.getFrameTree", None), sent)
+
+    def test_a_command_waiting_on_a_tab_that_detaches_fails_at_once(self):
+        from ardia_cli.browse.page import Page
+
+        class Browser:
+            async def send(self, method, params=None, session=None, timeout=30):
+                await asyncio.sleep(timeout)
+
+        async def go(method):
+            page = Page(SimpleNamespace(sessions={}), "T1")
+            page.browser = Browser()
+            page.session_id = "S1"
+            asyncio.get_running_loop().call_later(0.05, page.detach)
+            started = time.monotonic()
+            try:
+                await page.send(method, timeout=30)
+            except BrowseError as error:
+                return error.code, time.monotonic() - started, page.calls
+
+        code, took, calls = run(go("Page.getFrameTree"))
+        self.assertEqual((code, calls), ("tab_detached", set()))
+        self.assertLess(took, 2)
+        self.assertEqual(run(go("Page.navigate"))[0], "outcome_unknown")
+
+    def test_a_cancelled_command_is_still_cancelled(self):
+        from ardia_cli.browse.page import Page
+
+        class Browser:
+            async def send(self, method, params=None, session=None, timeout=30):
+                await asyncio.sleep(timeout)
+
+        async def go():
+            page = Page(SimpleNamespace(sessions={}), "T1")
+            page.browser = Browser()
+            page.session_id = "S1"
+            task = asyncio.ensure_future(page.send("Page.getFrameTree", timeout=30))
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        run(go())
 
 
 class RefusedAttach(unittest.TestCase):

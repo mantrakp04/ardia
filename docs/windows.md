@@ -99,7 +99,8 @@ Logic is written once. Only code that calls the OS is written per platform.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
   signals, the clipboard, the bang list, confirm, prompt and file dialogs, the command table with its shortcuts and
-  context menus, the Escape and tab switcher key captures, icons, file and link drops, and notifications.
+  context menus, the Escape and tab switcher key captures, icons, file and link drops, notifications, and the file, SQLite
+  and key primitives behind importing another browser's data (Import from another browser, below).
 - File and link drops: each browser window's top-level window and its child windows take OLE drops (`FileDropTarget.h`).
   Every `FileDropArea` reports its frame in the window to native as it mounts, lays out and changes, and again when a
   drag enters the window; native picks the innermost enabled area under the pointer, so the cursor shows copy or no
@@ -246,8 +247,44 @@ is plain Chromium.
   `chromium-win-relaunch-to-app.patch` gives that to `//ardia/win`, which sends the topic `relaunch` with the web and
   file addresses on it. The app treats them as links from another app (`onOpenURLs`: a Little Ardia window or a tab,
   as Settings says) and a launch with none as `reopen` (the last window comes forward).
+- A first launch opens the addresses it was started with, which is how a link from another app arrives when Ardia is
+  the default browser and isn't running: the engine starts with `--no-startup-window`, so Chromium opens none itself.
+  `ArdiaWindowsHost.launchArguments` reads the process's own command line (Chromium's `--single-argument` form, which
+  the default browser registration uses, as one argument), and `packages/expo-windows/src/launchLinks` keeps what is an
+  address by the relaunch's rule: switches never, http, https and file addresses, a file that exists by its full path,
+  an absolute path, a bare host as http; a bare word, `localhost:<port>` and other schemes are refused. They reach the
+  app as `onOpenURLs` once it listens (`emitWhenListened` in `events.ts` holds them until then; a relaunch's addresses
+  go the same way), after the session has restored, so they open as links from another app do on the Mac. The launch
+  log says `launch links: <n> held until the app listens` and `<n> sent to the app`; telemetry counts them as
+  `launch_command_line_links` in the hourly `usage_counts`.
+- Ardia is a browser Windows knows about once installed: the installer writes the per-user registration Chromium's
+  own `ShellUtil` would, unsuffixed (`ArdiaHTM` is Chromium's ProgID for this install mode): the ProgID, whose open
+  command is `"<app>\Ardia.exe" --single-argument %1` (the form the first-launch and relaunch paths read as one
+  address), `StartMenuInternet\Ardia` with Capabilities for http, https and `.htm .html .shtml .svg .webp .xht .xhtml`,
+  `RegisteredApplications\Ardia`, and `OpenWithProgids` entries, all in HKCU, all removed by the uninstaller. The
+  installer does it, not the engine: Chromium registers itself only from its own installer or its settings page, and
+  Ardia ships neither. `installer-check.ps1` checks every key after install and that none is left after uninstall.
+- Windows 10 and 11 don't let an app make itself the default browser. `setAsDefaultBrowser` opens Default apps
+  (Ardia's own page, `ms-settings:defaultapps?registeredAppUser=Ardia`, on Windows 11 when this Ardia.exe is the one
+  registered; the general page otherwise) and answers false. `isDefaultBrowser` is true when the user's choice for
+  http and https is `ArdiaHTM` and that ProgID opens this Ardia.exe. The choice is what the shell resolves
+  (`AssocQueryString`), then the registry: Windows 11 builds since 2025 write it to `UserChoiceLatest\ProgId` and
+  leave the old `UserChoice` on the previous browser, so reading `UserChoice` alone says Edge after the user chose Ardia;
+  `ArdiaSystem.defaultBrowserState` returns the parts. Settings › General reads it again whenever an Ardia window
+  becomes active (React Native for Windows' AppState never changes in this app). With `PLATFORM_FEATURES.setsDefaultBrowser`
+  off, onboarding's row says "Yes, in Windows Settings", Settings' button says "Choose in Windows Settings…", the
+  7-day trial isn't offered (it starts when Ardia becomes the default, which only Windows Settings decides, so the app
+  could neither start nor date it), and the one-time offer after onboarding isn't made (it would open Settings at a
+  launch nobody asked for).
 - A page that goes full screen takes its window full screen (`setPageFullScreen`, which puts the window back as it
   was when the page leaves), and nothing is cut out of the page while it is.
+- Split View is off on Windows (`PLATFORM_FEATURES.splitView`): the engine keeps one hosted Chromium window per app
+  window and profile and shows one tab in it, so a second pane had no page. Nothing makes a split (the splits slice
+  refuses, and a split that comes from the session, an import or a reopened window drops to its panes, which stay as
+  ordinary tabs), and its menu items, toolbar and hover buttons, shortcuts, command bar actions, ⌥ clicks and drop
+  zones are not offered; a link meant for a pane opens as a tab. The engine needs one hosted window per visible page:
+  `tab.show` placing a tab in its own borderless window owned by the app window, several shown at once, each with its
+  own bounds, corner radius and holes, and hiding only what the UI hides.
 - A tab restored from the last session, or duplicated, loads its address: the Windows engine keeps no saved page
   state yet, so only tabs the engine itself offered are adopted.
 - The Windows engine opens every tab on a real `about:blank` and names it as the committed page, where the Mac's tab
@@ -302,6 +339,7 @@ is plain Chromium.
 | Verb | Needs | What and why |
 | --- | --- | --- |
 | `autofill.settings`, `autofill.setSettings` | Engine | The Mac reads and writes the profile's `autofill.profile_enabled` and `autofill.credit_card_enabled` prefs; no `ac_*` call touches prefs. Today Settings › Autofill shows both toggles on and disabled. |
+| Import's cookie batches (no verb) | Engine | `//ardia/win`'s `engineCall` (`api.cc`) copies the arguments into a plain `std::string` that is freed without being wiped, so each `ac_cookies_import` batch the app wipes after the reply leaves one copy in freed engine memory. The Mac passes them with `callWithSecret`; Windows needs the same: a sensitive call that wipes its copy. |
 | `autofill.showSuggestions` | Engine | Shows Chromium's autofill popup in a tab: a `tab.call` method. |
 | `bookmarks.exportHtml` | Engine (in progress) | The Mac picks a file and calls `ac_bookmarks_export_html`, which refuses Windows paths in the current engine. Then a handler with `ArdiaDialogs`' save dialog. |
 | `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
@@ -366,6 +404,60 @@ The original profile's folder is never removed: as on the Mac (`ProfileData.swif
 site settings, passwords and never-save sites, addresses, cards, running extensions, site settings and zoom levels are
 cleared one by one through their `ac_*` calls, and each step that fails is named. The launch log says
 `profile folder removed|in use|partly removed: <folder>`.
+
+## Import from another browser
+
+The Mac's `ArdiaImport` (Swift, `packages/import`) has a Windows version in TypeScript, `packages/expo-windows/src/import`,
+that answers the same methods with the same result shapes, so the wizard (`components/import`) and
+`state/import/apply.ts` are the Mac's. Only the OS calls are native: `ArdiaWindowsImport` (`ImportModule.h`,
+`ImportFiles.h`, `ImportSecrets.h`).
+
+- Native primitives: the two data folders (`localAppData`, `roamingAppData`, or `<importSourceDir>\Local` and `\Roaming`
+  when `ARDIA_INSTANCE=importSourceDir=<dir>` is set in an instance with its own data folder), `list` a folder,
+  `readText` and `readBase64` a file up to a size, and `query` a SQLite file: it is copied with its `-wal` and
+  `-journal` to `%TEMP%\ardia-import-<pid>-<random>` (leftovers over an hour old go at the next launch), opened with
+  Windows' own `winsqlite3.dll` with ATTACH off, and only statements SQLite calls read-only run. The browsers' secret
+  stores (`Cookies`, `cookies.sqlite`, `Login Data`, `Web Data`, `key4.db`, `logins.db`, `logins.json` and their
+  `-wal`/`-journal`) are refused to these generic reads under any name Windows resolves to them (any case, a trailing
+  dot or space, a stream suffix, a short name: the check also reads the opened file's real name), so their plain-text
+  values can't reach JS through them. A sidecar that exists but can't be copied fails the snapshot rather than leaving
+  it without the latest writes, and a copy during which the database or its WAL changed (a checkpoint, a write) is
+  taken again, up to three times, then reported as in use. `openSnapshot`, `querySnapshot` and `closeSnapshot` keep one snapshot open across
+  calls (closed after 10 idle minutes otherwise), so history is read 5,000 rows a page instead of in one reply. A file the browser holds open with no
+  sharing (Chrome does this to `Network\Cookies` and others while it runs) answers `inUse`, and that kind fails with
+  "Quit <browser> and import again".
+- Discovery (`browsers.ts`, `discovery.ts`): Chrome, Edge, Arc, Firefox, Zen, Brave, Vivaldi, Opera, Opera GX, Chromium,
+  and the Beta, Dev and Canary (`SxS`) channels of Chrome and Edge and Brave's Beta and Nightly, each from its own folder
+  under `%LOCALAPPDATA%` or `%APPDATA%` (Arc from its package's `LocalCache`). Chromium profiles come from `Local State`
+  and the `Default` and `Profile *` folders; Firefox and Zen profiles from `profiles.ini` (relative paths only).
+- What is read, per profile, with the Mac's readers ported: bookmarks (`Bookmarks`, `AccountBookmarks`; Firefox
+  `places.sqlite`), history (`History`; `places.sqlite`), open tabs (the newest cleartext `Sessions\Session_*` or
+  `Current Session`; Firefox and Zen `sessionstore-backups\recovery.jsonlz4` and the rest, LZ4 in TypeScript), favicons
+  for the imported tabs and bookmarks bar (`Favicons`), a bookmarks HTML file and a passwords CSV file (picked with
+  `ArdiaDialogs.pickFiles`).
+- Passwords and cookies (Chromium family): the key is `os_crypt.encrypted_key` in `Local State`, unwrapped with DPAPI
+  (`CryptUnprotectData`, no prompt: it is the same Windows user), and values are `v10` AES-256-GCM through BCrypt; a value
+  with no prefix is tried as plain DPAPI (Chrome before 80). Chrome's app-bound values (`v20`, `app_bound_encrypted_key`)
+  need Chrome's elevated service to unwrap, so they are counted and skipped, and the kind warns "N passwords use Google
+  Chrome's app-bound encryption, which only Google Chrome can read" (an `undecryptable` warning, as the Mac's). So the
+  wizard has no unlock step on Windows (`needsKeychain` is false), and the key is unwrapped the first time a kind needs it.
+- Secrets: the key stays native and is wiped by `forgetUnlockedKeys`. Passwords reach JS (`credentials`), as on the Mac,
+  because `savePassword` (`ac_passwords_add`) takes them from there. Cookie values never do: native decrypts them
+  straight into wiped buffers already in `ac_cookies_import`'s JSON, batches of 500, keeps them for 10 minutes under a
+  one-time token, and JS gets the count and the token. `writeImported` sends the batches to the engine one after another
+  and wipes each after its reply. A token is dropped after 10 minutes even if nothing asks again, and a vault
+  `forgetUnlockedKeys` cleared while a read was running stays empty.
+- Not on Windows yet, each offered by no profile so the wizard doesn't show it: autofill (addresses and cards from
+  `Web Data`), Firefox and Zen passwords (NSS `key4.db`) and cookies (`cookies.sqlite`, plain text, so they need the
+  native vault too), Chromium's encrypted session files (`Sessions_Encrypted`), Arc's and Zen's spaces, pinned tabs and
+  favourites (`StorableSidebar.json`, `zen-sessions.jsonlz4`), extensions found in the profile, Safari, Dia's tabs. None
+  needs engine work: `ac_cookies_import`, `ac_autofill_import`, `ac_passwords_add`, `ac_history_import` and
+  `ac_favicons_set` are all in the Windows engine's call table.
+- Tests: `apps/browser/src/state/import/windowsImport.test.mjs` runs the TypeScript against `packages/import/fixtures`
+  with a stand-in for the native module (Node's own `node:sqlite`, the same snapshot copy). The self-check's import area
+  exercises every native method in the app. Telemetry: `import_runs`, `import_kinds_done`, `import_kinds_failed` and
+  `import_secrets_left` in the hourly `usage_counts` (`state/telemetry/importRuns.ts`, every platform): a rising share of
+  failed kinds or secrets left on Windows is the sign to look at.
 
 ## Updates
 
@@ -446,8 +538,9 @@ The Mac's numbers are the targets for Windows, measured from the first engine bu
    permission, password and autofill prompts drawn by the app, popup windows in the app's own frame, picture in
    picture, the page script, full screen video inside the app's window, session restore of a tab's history.
 4. The Windows versions of the Mac-specific engine patches.
-5. C++ versions of what is still drawn flat or missing: shaders with Direct3D, import
-   from Edge and Chrome, dragging files out of the app, swipe gestures.
+5. C++ versions of what is still drawn flat or missing: shaders with Direct3D, dragging files out of the app, swipe
+   gestures. Import from another browser is done for bookmarks, history, open tabs, favicons, Chromium passwords and
+   cookies, and HTML and CSV files; what is left is listed under Import from another browser.
 6. An installer exists (`scripts/windows/make-installer.ps1`, Inno Setup, per user, no admin prompt; CI builds
    `Ardia-Setup-<cpu>.exe` and installs and uninstalls it), and the app updates itself from the Windows alpha
    (Updates, below). Left: signing both.

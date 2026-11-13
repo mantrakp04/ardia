@@ -19,4 +19,6 @@ export const restoreKeyResponder = (token: number): Promise<boolean> => (token ?
 export const discardKeyResponder = (token: number): void => {
   if (token) void Focus.discardKeyResponder(token);
 };
+export const pressRepeated = (): Promise<{ landedOn: string; ms: number } | null> => Focus.pressRepeated();
+export const pressesWithoutRelease = (): number => Focus.pressesWithoutRelease();
 export const switcherPointerMoved = () => Focus.switcherPointerMoved();

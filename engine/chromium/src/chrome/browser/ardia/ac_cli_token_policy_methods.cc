@@ -89,6 +89,8 @@ const std::set<std::string_view>& AllowedMethods() {
       "DOM.requestNode",
       "DOM.resolveNode",
       "DOM.scrollIntoViewIfNeeded",
+      "Emulation.clearDeviceMetricsOverride",
+      "Emulation.setDeviceMetricsOverride",
       "Input.dispatchDragEvent",
       "Input.dispatchKeyEvent",
       "Input.dispatchMouseEvent",
@@ -144,6 +146,7 @@ const std::set<std::string_view>& AllowedMethods() {
 
 bool NeedsResponse(const std::string& method, const base::DictValue& params) {
   if (method == "Target.getTargets" || method == "Target.getTargetInfo" ||
+      method == "Target.createTarget" ||
       method == "Page.createIsolatedWorld") {
     return true;
   }
@@ -154,6 +157,16 @@ bool NeedsResponse(const std::string& method, const base::DictValue& params) {
     return !params.Find("executionContextId");
   }
   return false;
+}
+
+bool MetricsOverrideAllowed(const base::DictValue& params) {
+  for (auto [key, value] : params) {
+    if (key != "width" && key != "height" && key != "deviceScaleFactor" &&
+        key != "mobile") {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool EditingCommandsAllowed(const base::Value* commands) {

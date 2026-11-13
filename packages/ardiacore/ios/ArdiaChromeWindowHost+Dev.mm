@@ -201,10 +201,11 @@ NSString *Click(NSWindow *window, NSString *argument) {
 
 NSString *MouseEvent(NSWindow *window, NSString *argument) {
   NSArray<NSString *> *parts = Fields(argument);
-  if (parts.count < 2) return @"mouse:<down|up|dragged|moved|otherdown|otherup>:<x>,<y>[,<clickCount>[,<flags>]]";
+  if (parts.count < 2) return @"mouse:<down|up|dragged|moved|rightdown|rightup|otherdown|otherup>:<x>,<y>[,<clickCount>[,<flags>[,<eventNumber>]]]";
   NSDictionary<NSString *, NSNumber *> *types = @{
     @"down" : @(NSEventTypeLeftMouseDown), @"up" : @(NSEventTypeLeftMouseUp),
     @"dragged" : @(NSEventTypeLeftMouseDragged), @"moved" : @(NSEventTypeMouseMoved),
+    @"rightdown" : @(NSEventTypeRightMouseDown), @"rightup" : @(NSEventTypeRightMouseUp),
     @"otherdown" : @(NSEventTypeOtherMouseDown), @"otherup" : @(NSEventTypeOtherMouseUp),
   };
   NSNumber *type = types[parts[0]];
@@ -213,13 +214,13 @@ NSString *MouseEvent(NSWindow *window, NSString *argument) {
   NSPoint p = WindowPoint(window, parts[1]);
   const NSEventType t = (NSEventType)type.unsignedIntegerValue;
   NSEvent *event = [NSEvent mouseEventWithType:t location:p modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
-                                  windowNumber:window.windowNumber context:nil eventNumber:0
+                                  windowNumber:window.windowNumber context:nil eventNumber:n.count > 4 ? n[4].integerValue : 0
                                     clickCount:n.count > 2 ? n[2].integerValue : (t == NSEventTypeMouseMoved ? 0 : 1)
-                                      pressure:t == NSEventTypeLeftMouseUp || t == NSEventTypeMouseMoved ? 0 : 1];
+                                      pressure:t == NSEventTypeLeftMouseUp || t == NSEventTypeRightMouseUp || t == NSEventTypeMouseMoved ? 0 : 1];
   const bool other = t == NSEventTypeOtherMouseDown || t == NSEventTypeOtherMouseUp;
   if (other || n.count > 3) {
     CGEventRef cg = event.CGEvent;
-    if (n.count > 3) CGEventSetFlags(cg, (CGEventFlags)n[3].longLongValue);
+    if (n.count > 3 && n[3].longLongValue) CGEventSetFlags(cg, (CGEventFlags)n[3].longLongValue);
     if (other) CGEventSetIntegerValueField(cg, kCGMouseEventButtonNumber, kCGMouseButtonCenter);
     event = [NSEvent eventWithCGEvent:cg];
   }

@@ -1,8 +1,8 @@
+import type { DevDragPayload } from "@ardia/shell";
 import { requireNativeModule } from "../modules";
 import type { DropAccepts, DropAreaFrame, DroppedItem, WindowDrop } from "../views/fileDropAreas";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type DevDragPayload = { files?: string[]; urls?: string[]; publicURLs?: string[]; text?: string; fileDrag?: boolean };
 type DropTargetReport = { ole: boolean; registered: boolean; windows: number; replaced: number; areas: number; childClasses: string[] };
 
 type FileDropDev = {

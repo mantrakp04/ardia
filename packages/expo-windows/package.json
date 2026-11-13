@@ -9,6 +9,8 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@ardia/ardiacore": "workspace:*",
+    "@ardia/import": "workspace:*",
     "@ardia/shell": "workspace:*"
   },
   "peerDependencies": {

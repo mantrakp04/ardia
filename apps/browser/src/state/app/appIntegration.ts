@@ -1,4 +1,6 @@
-import { isDefaultBrowser, setAsDefaultBrowser, systemInfo } from "../../platform/app";
+import { isDefaultBrowser, systemInfo } from "../../platform/app";
+import { setAsDefaultBrowser } from "./appSettings";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { onNotificationResponse } from "../../platform/notifications";
 import { readDocument, saveDocument } from "../../platform/documents";
 import { maybeStartOnboarding, onboardingCompletedAt, useOnboarding } from "../onboarding/onboarding";
@@ -26,6 +28,7 @@ export function startAppIntegration() {
   maybeStartOnboarding();
   if (updated) openReleaseNotesAfterUpdate();
   afterFirstWindow(() => {
+    if (!PLATFORM_FEATURES.setsDefaultBrowser) return;
     void offerDefaultBrowserAgain({
       read: readDocument,
       save: saveDocument,

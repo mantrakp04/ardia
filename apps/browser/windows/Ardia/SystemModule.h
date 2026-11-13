@@ -2,11 +2,13 @@
 
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <shlwapi.h>
 #include <wincodec.h>
 
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <cwctype>
 #include <vector>
 
 #include "NativeModules.h"
@@ -18,6 +20,7 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "uuid.lib")
 
 namespace Ardia {
@@ -27,8 +30,11 @@ namespace SystemShell {
 constexpr wchar_t RunKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 constexpr wchar_t StartupApprovedKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
 constexpr wchar_t LaunchAtLoginValue[] = L"Ardia";
-constexpr wchar_t HttpUserChoiceKey[] = L"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice";
-constexpr wchar_t ArdiaProgId[] = L"ArdiaHTML";
+constexpr wchar_t UrlAssociationsKey[] = L"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\";
+constexpr wchar_t ArdiaProgId[] = L"ArdiaHTM";
+constexpr wchar_t ArdiaProgIdCommandKey[] = L"Software\\Classes\\ArdiaHTM\\shell\\open\\command";
+constexpr wchar_t RegisteredApplicationName[] = L"Ardia";
+constexpr DWORD FirstBuildWithAppDefaultsPage = 22000;
 
 inline bool Exists(std::wstring const &path) noexcept {
   if (path.empty()) return false;
@@ -78,9 +84,55 @@ inline LSTATUS SetLaunchAtLogin(bool enabled) noexcept {
       HKEY_CURRENT_USER, RunKey, LaunchAtLoginValue, REG_SZ, command.c_str(), static_cast<DWORD>((command.size() + 1) * sizeof(wchar_t)));
 }
 
-inline bool IsDefaultBrowser() noexcept {
-  std::optional<std::wstring> progId = RegistryString(HKEY_CURRENT_USER, HttpUserChoiceKey, L"ProgId");
+inline std::optional<std::wstring> ResolvedProgId(std::wstring const &scheme) noexcept {
+  wchar_t progId[256]{};
+  DWORD length = static_cast<DWORD>(std::size(progId));
+  if (FAILED(AssocQueryStringW(ASSOCF_IS_PROTOCOL, ASSOCSTR_PROGID, scheme.c_str(), nullptr, progId, &length)) || !progId[0]) return std::nullopt;
+  return std::wstring{progId};
+}
+
+inline std::optional<std::wstring> ChosenProgId(std::wstring const &scheme) noexcept {
+  if (std::optional<std::wstring> resolved = ResolvedProgId(scheme)) return resolved;
+  for (wchar_t const *choice : {L"\\UserChoiceLatest\\ProgId", L"\\UserChoiceLatest", L"\\UserChoice"}) {
+    std::wstring key = UrlAssociationsKey + scheme + choice;
+    std::optional<std::wstring> progId = RegistryString(HKEY_CURRENT_USER, key.c_str(), L"ProgId");
+    if (progId && !progId->empty()) return progId;
+  }
+  return std::nullopt;
+}
+
+inline std::wstring Folded(std::wstring text) noexcept {
+  for (wchar_t &c : text) c = static_cast<wchar_t>(towlower(c));
+  for (wchar_t &c : text)
+    if (c == L'/') c = L'\\';
+  return text;
+}
+
+inline std::optional<std::wstring> RegisteredCommand() noexcept {
+  return RegistryString(HKEY_CURRENT_USER, ArdiaProgIdCommandKey, nullptr);
+}
+
+inline bool RegisteredForThisApp(std::optional<std::wstring> const &command) noexcept {
+  std::wstring executable = AppShell::ExecutablePath();
+  if (!command || executable.empty()) return false;
+  std::wstring quoted = L"\"" + Folded(executable) + L"\"";
+  std::wstring folded = Folded(*command);
+  return folded.rfind(quoted, 0) == 0 && folded.find(L"--single-argument %1") != std::wstring::npos;
+}
+
+inline bool ChosenForScheme(std::wstring const &scheme) noexcept {
+  std::optional<std::wstring> progId = ChosenProgId(scheme);
   return progId && _wcsicmp(progId->c_str(), ArdiaProgId) == 0;
+}
+
+inline bool IsDefaultBrowser() noexcept {
+  return ChosenForScheme(L"http") && ChosenForScheme(L"https") && RegisteredForThisApp(RegisteredCommand());
+}
+
+inline std::wstring DefaultAppsPage() noexcept {
+  DWORD build = static_cast<DWORD>((AppDiagnostics::KernelVersion() >> 16) & 0xFFFF);
+  if (build >= FirstBuildWithAppDefaultsPage && RegisteredForThisApp(RegisteredCommand())) return std::wstring{L"ms-settings:defaultapps?registeredAppUser="} + RegisteredApplicationName;
+  return L"ms-settings:defaultapps";
 }
 
 inline bool Reveal(std::wstring const &path) noexcept {
@@ -253,8 +305,26 @@ struct SystemModule {
       AppLaunch::Note(L"ArdiaSystem: background instance, not setting the default browser");
       return promise.Resolve(false);
     }
-    AppShell::RunOnShellThread([]() noexcept { AppShell::Execute(L"ms-settings:defaultapps"); });
+    std::wstring page = SystemShell::DefaultAppsPage();
+    AppLaunch::Note(L"ArdiaSystem: opening " + page);
+    AppShell::RunOnShellThread([page]() noexcept { AppShell::Execute(page); });
     promise.Resolve(false);
+  }
+
+  REACT_SYNC_METHOD(defaultBrowserState)
+  winrt::Microsoft::ReactNative::JSValue defaultBrowserState() noexcept {
+    using winrt::Microsoft::ReactNative::JSValue;
+    auto text = [](std::optional<std::wstring> const &value) { return value ? JSValue{Paths::Utf8(*value)} : JSValue{nullptr}; };
+    std::optional<std::wstring> command = SystemShell::RegisteredCommand();
+    winrt::Microsoft::ReactNative::JSValueObject state;
+    state["progId"] = JSValue{Paths::Utf8(SystemShell::ArdiaProgId)};
+    state["command"] = text(command);
+    state["registeredHere"] = JSValue{SystemShell::RegisteredForThisApp(command)};
+    state["http"] = text(SystemShell::ChosenProgId(L"http"));
+    state["https"] = text(SystemShell::ChosenProgId(L"https"));
+    state["page"] = JSValue{Paths::Utf8(SystemShell::DefaultAppsPage())};
+    state["isDefault"] = JSValue{SystemShell::IsDefaultBrowser()};
+    return JSValue{std::move(state)};
   }
 
   REACT_METHOD(launchAtLoginStatus)

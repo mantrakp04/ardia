@@ -8,21 +8,27 @@ import { parseOps, type Op } from "./workspaceOps";
 import { runOp } from "./workspaceApply";
 import { OpError, type Changed, type OpResult } from "./workspaceTargets";
 import { groupFields, isEligibleGroup, tabNode, workspace, type GroupNode, type TabNode } from "./workspaceTree";
+import { sampleTabUsage, workspaceWithUsage } from "./workspaceUsage";
 
 type Body = { result: unknown } | { error: MethodError };
 
 const textOrNull = (value: unknown) => (value === undefined || value === null ? null : typeof value === "string" ? value : undefined);
 
-export function workspaceMethod(params: Record<string, unknown>): Body {
+export function workspaceMethod(params: Record<string, unknown>): Body | Promise<Body> {
   const window = textOrNull(params.window);
   const profile = textOrNull(params.profile);
   if (window === undefined || profile === undefined) return failure("bad_request", "window and profile are ids.");
-  const unknown = Object.keys(params).filter((key) => key !== "window" && key !== "profile");
-  if (unknown.length) return failure("bad_request", `workspace takes window and profile, not ${unknown.join(", ")}.`);
+  const unknown = Object.keys(params).filter((key) => key !== "window" && key !== "profile" && key !== "usage");
+  if (unknown.length) return failure("bad_request", `workspace takes window, profile and usage, not ${unknown.join(", ")}.`);
+  if (params.usage !== undefined && typeof params.usage !== "boolean") return failure("bad_request", "usage is true or false.");
   const s = useBrowser.getState();
   if (window && !eligibleKind(s, window)) return failure("no_window", `There's no window ${window} the ardia command can use.`);
   if (profile && (!ownEntry(s.profiles, profile) || isIncognitoProfile(profile))) return failure("no_window", `There's no profile ${profile}.`);
-  return { result: workspace(s, { window, profile }) };
+  if (!params.usage) return { result: workspace(s, { window, profile }) };
+  return sampleTabUsage().then(
+    (usage) => ({ result: workspaceWithUsage(workspace(useBrowser.getState(), { window, profile }), usage) }),
+    (error) => failure("failed", `Ardia couldn't read its processes: ${errorText(error)}`),
+  );
 }
 
 export type ApplyResult = {

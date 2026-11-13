@@ -1,7 +1,7 @@
 import { deleteProfileData } from "../../platform/profiles";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
-import { noteProfileDataDeleted } from "../telemetry/usage";
+import { noteProfileDataDeleted } from "../telemetry/profileDataCounts";
 
 export { clearBrowsingData, type BrowsingDataType } from "../../platform/profiles";
 

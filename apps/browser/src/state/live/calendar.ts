@@ -173,7 +173,7 @@ export function startCalendar() {
   void refreshCalendar();
   onCalendarChanged(() => void refreshCalendar());
   onWindowEvent((e) => {
-    if (e.type === "focus" && !calendarConnected()) void refreshCalendar();
+    if (e.type === "focus" && !calendarConnected() && calendarAuthorization() !== useCalendar.getState().access) void refreshCalendar();
   });
   everySlowly({
     every: 5 * 60_000,

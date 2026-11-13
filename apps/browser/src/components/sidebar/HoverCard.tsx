@@ -11,6 +11,7 @@ import { useHoverOrphaned, useIsShownTab } from "../../state/sidebar/hooks";
 import { useFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { awayTitle } from "../../state/pins/organize";
 import { openInSplit } from "../../state/splits/actions";
+import { splitViewAvailable } from "../../state/splits/splits";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
 import { LiveItemCard } from "../live/LiveItemCard";
 import { HoverCard as HoverPanel, space, Text } from "../ui";
@@ -104,7 +105,7 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
             onPress={() => toggleBookmarkInWindow(windowId, { url: tab.url, title: tabTitle(tab), favicon: tab.favicon })}
           />
         ) : null}
-        {!isActive && !tab.pin ? (
+        {!isActive && !tab.pin && splitViewAvailable ? (
           <ActionTile caption
             icon="rectangle.split.2x1"
             label="Split"

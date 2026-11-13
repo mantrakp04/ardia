@@ -15,11 +15,18 @@ const maxedOut = (windowId: string) =>
 
 export function openSplitPane(windowId: string, options: OpenPaneOptions = {}): string | null {
   const result = store().openSplitPane(windowId, options);
+  if (!result.ok && result.reason === "unavailable") return options.url ? openAsTab(windowId, options) : null;
   if (!result.ok) {
     if (result.reason === "max") maxedOut(windowId);
     return null;
   }
   return result.tabId;
+}
+
+function openAsTab(windowId: string, { url, adoptId, anchorTabId, background }: OpenPaneOptions): string | null {
+  const anchor = anchorTabId ? store().tabs[anchorTabId] : undefined;
+  if (!store().windows[windowId]) return null;
+  return store().newTab(windowId, { url, adoptId, background, openerId: anchor?.id, profileId: anchor?.profileId, gated: true });
 }
 
 export const openNewTabInSplit = (windowId: string) => openSplitPane(windowId);

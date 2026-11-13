@@ -1,4 +1,6 @@
-export type CaptionRegion = readonly [left: number, top: number, rightInset: number, height: number];
+import type { CaptionRegion } from "@ardia/shell";
+
+export type { CaptionRegion };
 
 export type WindowControls = {
   minimize(windowId: string): void;

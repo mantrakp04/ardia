@@ -5,7 +5,9 @@ import { readBuild } from "../updater/manifest";
 import { expectTrue, type Check } from "./check";
 
 const app = () => requireNativeModule<AppNative & { windowsApiVersion?: number }>("ArdiaApp");
-const system = () => requireNativeModule<SystemNative>("ArdiaSystem");
+type DefaultBrowserState = { progId: string; command: string | null; registeredHere: boolean; http: string | null; https: string | null; page: string; isDefault: boolean };
+
+const system = () => requireNativeModule<SystemNative & { defaultBrowserState(): DefaultBrowserState }>("ArdiaSystem");
 const signals = () => requireNativeModule<SystemSignalsNative>("ArdiaSystemSignals");
 const documents = () => requireNativeModule<DocumentsNative>("ArdiaDocuments");
 
@@ -123,6 +125,19 @@ export const checks: Check[] = [
       expectTrue(typeof (await system().isDefaultBrowser()) === "boolean", "isDefaultBrowser is not a boolean");
       await system().setLaunchAtLogin(true);
       expectTrue((await system().launchAtLoginStatus()) === status, "setLaunchAtLogin changed the status from a background instance");
+    },
+  },
+  {
+    name: "ArdiaSystem.defaultBrowserState names Ardia's ProgID and agrees with isDefaultBrowser",
+    async run() {
+      const state = system().defaultBrowserState();
+      expectTrue(state.progId === "ArdiaHTM", `progId is ${JSON.stringify(state.progId)}`);
+      expectTrue(typeof state.registeredHere === "boolean" && typeof state.isDefault === "boolean", `registeredHere ${JSON.stringify(state.registeredHere)}, isDefault ${JSON.stringify(state.isDefault)}`);
+      for (const scheme of ["http", "https"] as const) expectTrue(state[scheme] === null || typeof state[scheme] === "string", `${scheme} is ${JSON.stringify(state[scheme])}`);
+      expectTrue(state.command === null || typeof state.command === "string", `command is ${JSON.stringify(state.command)}`);
+      expectTrue(state.page.startsWith("ms-settings:defaultapps"), `page is ${JSON.stringify(state.page)}`);
+      expectTrue(!state.isDefault || state.registeredHere, "isDefault without the ProgID pointing at this Ardia.exe");
+      expectTrue((await system().isDefaultBrowser()) === state.isDefault, "isDefaultBrowser disagrees with defaultBrowserState");
     },
   },
   {
