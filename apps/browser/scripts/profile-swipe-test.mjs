@@ -219,6 +219,28 @@ try {
     assert.ok(result.events.every((e) => !e.swallowed), "vertical events must reach the scroll view");
     return result;
   });
+  // A wheel mouse pages from the sign of scrollingDeltaX alone (+ is a scroll left): AppKit has already applied the
+  // device's natural-scrolling setting, and #325 was a Logitech wheel with it off paging backwards. Run these with
+  // Mouse › Natural scrolling off and again with it on. A synthetic wheel event takes isDirectionInvertedFromDevice from
+  // the system, so the pair only fails on the old `(dx > 0) == isDirectionInvertedFromDevice` when that reads NO.
+  const wheel = (dx) => [{ phase: "wheel", dx, dy: 0 }];
+  await test("a wheel scrolled right pages to the next profile, with natural scrolling on or off", async () => {
+    await reset();
+    const result = await simulate(wheel(-3));
+    assert.ok(result.events.every((e) => e.swallowed), "the wheel step should page the profile, not reach the sidebar");
+    await waitProfile("work");
+    return result;
+  });
+  await test("a wheel scrolled left pages to the previous profile, with natural scrolling on or off", async () => {
+    await reset();
+    await ac('ac.store.getState().switchProfile("w1", "work"); return true;');
+    await waitProfile("work");
+    await sleep(250);
+    const result = await simulate(wheel(3));
+    assert.ok(result.events.every((e) => e.swallowed), "the wheel step should page the profile, not reach the sidebar");
+    await waitProfile("default");
+    return result;
+  });
   await test("cancelled swipe and momentum do not switch profiles", async () => {
     await reset();
     const steps = gesture(-1);

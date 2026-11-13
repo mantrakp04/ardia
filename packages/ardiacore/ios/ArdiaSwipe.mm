@@ -141,7 +141,10 @@ NSEvent *HandleWheel(NSEvent *event, NSWindow *window, NSPoint location) {
     Diag(@{@"diag" : @"wheel", @"reject" : target ? @"notPager" : @"noTarget", @"hit" : HitChain(hit)});
     return event;
   }
-  BOOL back = (dx > 0) == event.isDirectionInvertedFromDevice;
+  // AppKit has already applied the device's scroll-direction setting to scrollingDeltaX (positive is a scroll left, as in
+  // the trackpad path), so the sign alone says which way to page. Flipping it again by isDirectionInvertedFromDevice
+  // paged Spaces backwards for a wheel with natural scrolling off.
+  BOOL back = dx > 0;
   if (NativeContentScrolls(hit, target.superview, back ? 1 : -1)) {
     Diag(@{@"diag" : @"wheel", @"reject" : @"nativeContentScrolls", @"scrollers" : NativeScrollReport(hit, target.superview)});
     return event;
