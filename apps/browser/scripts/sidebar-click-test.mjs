@@ -163,6 +163,19 @@ try {
     assert.ok(shift.selection.includes("c") && shift.selection.includes("a"), `⇧-click selects a range (${shift.selection})`);
   });
 
+  await rep.check("⇧-click after a tile was clicked then ⌘T ranges from the shown tab, with no pinned tab (#1074)", async () => {
+    await run(`st().activate("a"); st().setSelection("w1", []); return settle(400);`);
+    assert.equal(await clickTab("p1"), "p1", "the tile opens");
+    await press("t", 17);
+    await sleep(600);
+    const from = await run("return shown();");
+    assert.ok(!(await run(`return !!st().tabs[${JSON.stringify(from)}].pin;`)), `⌘T shows a regular tab (${from})`);
+    const shift = await run(`return pressHeld("e", 120, ${1 << 17}).then((r) => ({ ...r, selection: st().selection.w1 ?? [], pinned: (st().selection.w1 ?? []).filter((id) => st().tabs[id].pin) }));`);
+    assert.deepEqual(shift.pinned, [], `no pinned tab in the range (${shift.selection})`);
+    assert.ok(shift.selection.includes(from) && shift.selection.includes("e"), `the range runs from ${from} to e (${shift.selection})`);
+    await run(`st().setSelection("w1", []); st().closeTab(${JSON.stringify(from)}); st().activate("a"); return settle(400);`);
+  });
+
   await rep.check("a press inside a multi-selection keeps it for a drag, and the release picks the one tab", async () => {
     await run(`st().activate("a"); st().setSelection("w1", ["a", "b", "c"]); return settle(400);`);
     const r = await run(`return pressHeld("b", 120).then((r) => ({ ...r, downSelection: globalThis.lastDownSelection, selection: st().selection.w1 ?? [] }));`);

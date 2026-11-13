@@ -127,6 +127,32 @@ test("clicks: ⌘ adds to the selection from the shown tab, ⇧ selects the rang
   assert.deepEqual(S().selection[w], [], "⌘-clicking the shown tab alone selects nothing");
 });
 
+test("⇧-click ranges from the shown tab once it changed without a click: never from a tile clicked before (#1074)", () => {
+  const ways = {
+    "a keyboard switch": (w, u) => S().activate(u),
+    "⌘W on the tile": (w, u, t1) => S().closeTab(t1),
+    "⌘T": (w) => S().newTab(w, { url: "https://n.com/" }),
+  };
+  for (const [way, showAnother] of Object.entries(ways)) {
+    const { w, ids } = dockWith();
+    const [t1, , , , , u] = ids;
+    const v = S().newTab(w, { url: "https://v.com/", background: true });
+    const x = S().newTab(w, { url: "https://x.com/", background: true });
+    S().clickTab(w, t1);
+    showAnother(w, u, t1);
+    const shown = S().windows[w].activeTabIds[S().windows[w].profileId];
+    assert.ok(shown !== t1 && !S().tabs[shown].pin, `${way} shows a regular tab`);
+    const target = shown === x ? u : x;
+    S().clickTab(w, target, { shiftKey: true });
+    const view = S().windows[w].tabIds;
+    const [from, to] = [view.indexOf(shown), view.indexOf(target)].sort((a, b) => a - b);
+    assert.deepEqual(S().selection[w].map(host), view.slice(from, to + 1).map(host), `after ${way}`);
+    assert.ok(!S().selection[w].some((id) => S().tabs[id].pin), `no pinned tab after ${way}`);
+    S().clickTab(w, v, { shiftKey: true });
+    assert.ok(S().selection[w].includes(shown) && S().selection[w].includes(v), `the next ⇧-click keeps the same start after ${way}`);
+  }
+});
+
 const shape = (w) => S().windows[w].tabIds.map((id) => {
   const g = Object.values(S().groups).find((x) => x.tabIds.includes(id));
   return g ? `${host(id)}{${g.name}}` : host(id);

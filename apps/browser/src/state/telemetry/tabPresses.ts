@@ -7,7 +7,7 @@ export type TabPressEnd = "click" | "dragClick" | "drag";
 const MAX_SAMPLES = 500;
 const PAGE_CLICK_WINDOW_MS = 60_000;
 
-const empty = () => ({ presses: 0, down_switches: 0, clicks: 0, drag_clicks: 0, drags: 0, unanswered: 0 });
+const empty = () => ({ presses: 0, down_switches: 0, clicks: 0, drag_clicks: 0, drags: 0, unanswered: 0, range_selects: 0, range_from_shown: 0 });
 let tally = empty();
 let pending = false;
 let shown: { tabId: string; at: number } | null = null;
@@ -78,6 +78,11 @@ export function notePressEnded(end: TabPressEnd, tabId: string | null = null) {
   else if (end === "dragClick") tally.drag_clicks++;
   else tally.drags++;
   shown = tabId ? { tabId, at: Date.now() } : null;
+}
+
+export function noteRangeSelect(fromShownTab: boolean) {
+  tally.range_selects++;
+  if (fromShownTab) tally.range_from_shown++;
 }
 
 export function notePagePress(tabId: string) {

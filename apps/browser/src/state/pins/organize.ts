@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
 import { activeTabId, inPinnedContainer, tabTitle, tabTooltip, viewTabIds } from "../browser/model";
-import { clickedSelection, dropping, type ClickMods, type Drop } from "../drag/drops";
+import { clickedSelection, dropping, type ClickMods, type Drop, type SelectionAnchor } from "../drag/drops";
 import type { Tab } from "../browser/types";
 import type { PinChoices, PinSync } from "./pinChoices";
 import { groupOf } from "./tabGrouping";
@@ -12,7 +12,7 @@ import { pinHome } from "./pinHomes";
 
 export type OrganizeSlice = {
   selection: Record<string, string[]>;
-  selectionAnchors: Record<string, string>;
+  selectionAnchors: Record<string, SelectionAnchor>;
   pinChoices: PinChoices;
   pinSync: PinSync;
   topAppsMerged: string;
@@ -88,10 +88,11 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
     const intoGroup = !!mods.altKey && !!mods.shiftKey && !mods.metaKey && s.settings.optShiftClickOpensInGroup;
     const picked = intoGroup ? null : clickedSelection(s, windowId, tabId, mods);
     if (intoGroup) openInActiveGroup(s, windowId, tabId);
-    const anchor = picked ? picked.anchor : tabId;
-    if (anchor && anchor !== get().selectionAnchors[windowId]) set({ selectionAnchors: { ...get().selectionAnchors, [windowId]: anchor } });
     get().setSelection(windowId, picked?.selection ?? []);
     if (!picked) get().activate(tabId);
+    const anchor: SelectionAnchor = { tabId: picked?.anchor ?? tabId, shownTabId: activeTabId(get(), windowId) };
+    const kept = get().selectionAnchors[windowId];
+    if (kept?.tabId !== anchor.tabId || kept.shownTabId !== anchor.shownTabId) set({ selectionAnchors: { ...get().selectionAnchors, [windowId]: anchor } });
   },
 
   placeTabs(ids, placement) {
