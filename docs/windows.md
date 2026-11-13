@@ -72,7 +72,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Page, link and image menus | Differs: Chromium's; offers split view, Cast, Save as Ctrl+S | #1518 |
 | Full-screen video | Works | |
 | Picture in picture | Differs: Chromium's window, no stash, corners or mini player | #1425 |
-| Downloads (download, panel, Ctrl+J) | Broken: panel reopens at launch, stays open, lists a file twice | #1519 |
+| Downloads (download, panel, Ctrl+J, cancel) | Works: the panel opens for a new download, from its button and Ctrl+J, and closes on Escape, a click in the page and its button; one row per download across a relaunch | #1519 |
 | History (Ctrl+H, ardia://history), Clear Browsing Data | Works | |
 | Bookmarks (Ctrl+D, ardia://bookmarks, bar) | Works | |
 | mailto and other app links | Does nothing | stand-ins `permissions.resolveExternalApp` |
@@ -397,6 +397,12 @@ is plain Chromium.
   New Tab (or closes a tab a link opened) instead of leaving a blank page on the download's address, which the
   session then saved and downloaded again at every launch. A tab asked for `about:blank` by address keeps it, and a
   tab the engine opened itself keeps its blank page until a download.
+- The engine's download list (`ac_downloads_list`) includes Chromium's history of earlier launches under their own
+  ids, while the app restores its own list from `downloads.json`. Announcing the whole list at launch made each
+  earlier download a new one: the panel opened by itself and listed it twice. The launch replay
+  (`domains/downloads.ts`) announces only downloads still running or started since this launch, as the engine's live
+  events do. The panel closes on a click in the page through `OutsidePressArea`, which page presses reach
+  (`pagePress`); the full-window backdrop it also has only sees presses in the app's own surface.
 - Chromium's own UI still shows where the app has none on Windows yet: the page's right-click menu, JavaScript
   dialogs, the status bubble for a hovered link, and popup windows a page opens.
 - CI takes its engine from a GitHub release: `scripts/windows/engine/prebuilt.json` names the release and each

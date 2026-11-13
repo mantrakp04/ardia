@@ -220,9 +220,10 @@ export function OutsidePressRoot({ children }: { children?: ReactNode }) {
       const native = event.nativeEvent as unknown as object | undefined;
       if (!native || registry.pending.has(native)) return;
       const pending: PendingPress = { inside: new Set(), timestamp: pressTimestamp(event) };
+      const openWhenPressed = [...registry.areas];
       registry.pending.set(native, pending);
       void Promise.resolve().then(() => {
-        for (const area of [...registry.areas]) if (!pending.inside.has(area)) area.press(pending.timestamp);
+        for (const area of openWhenPressed) if (!pending.inside.has(area)) area.press(pending.timestamp);
       });
     },
     [registry],

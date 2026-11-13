@@ -12,9 +12,14 @@ export function downloadChanged(engine: Engine, payload: Fields) {
   announce(engine, payload.download, typeof payload.profile === "string" ? payload.profile : "");
 }
 
+const launchedAt = Date.now();
+
+export const startedThisLaunch = (download: Fields, since = launchedAt) =>
+  download.state === "downloading" || (typeof download.startTime === "number" && download.startTime >= since);
+
 export async function watchDownloads(engine: Engine, profile: string): Promise<void> {
   const { downloads } = await served(engine, "ac_downloads_list", originalProfile(profile));
-  for (const download of Array.isArray(downloads) ? downloads : []) if (isFields(download)) announce(engine, download, profile);
+  for (const download of Array.isArray(downloads) ? downloads : []) if (isFields(download) && startedThisLaunch(download)) announce(engine, download, profile);
 }
 
 const command =
