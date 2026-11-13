@@ -70,13 +70,13 @@ struct TrayLaunch {
   let kind: TrayKind
   let rest: TrayRest
   let pill: CGRect
+  let capsule: CGRect?
   let chevron: CGRect?
   let dims: Bool
   let focusesField: Bool
   let morphs: Bool
   let content: AnyView
   let sides: AnyView?
-  let barBacking: AnyView?
 }
 
 struct TrayLook: Equatable {

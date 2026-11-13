@@ -21,6 +21,7 @@ final class BrowseSession {
   var trayHoldsKeyboard = false
   var trayOwnsPlus = false
   var trayCoversPageBar = false
+  var pageBarFrame = CGRect.zero
   var pagePlusFrame = CGRect.zero
   var floatingPlusFrame = CGRect.zero
   var pageChevronFrame = CGRect.zero

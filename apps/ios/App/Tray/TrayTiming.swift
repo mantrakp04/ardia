@@ -17,6 +17,7 @@ struct TrayTiming {
   static let shrink = TrayTiming(duration: 0.3, curve: .spring(bounce: 0))
   static let fade = TrayTiming(duration: 0.2, curve: .system(.curveEaseOut))
   static let contentSwap = TrayTiming(duration: 0.15, curve: .system(.curveEaseOut))
+  static let pillGlass = TrayTiming(duration: 0.08, curve: .system(.curveEaseOut))
 
   init(duration: TimeInterval, curve: Curve) {
     self.duration = duration

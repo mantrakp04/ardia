@@ -60,6 +60,7 @@ struct BottomBar: View {
     .frame(height: BrowseLayout.barPillHeight)
     .glassEffect(.regular.interactive(), in: .capsule)
     .contentShape(.capsule)
+    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { app.browse.pageBarFrame = $0 }
     .padding(.horizontal, sideInset + BrowseLayout.barSideInset)
   }
 
@@ -109,9 +110,8 @@ struct PageBarSides: View {
         .opacity(showsChevron ? 1 : 0)
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
-    .padding(.horizontal, BrowseLayout.barSideInset - 4)
-    .frame(height: BrowseLayout.hitTarget)
-    .padding(.top, BrowseLayout.barHeight - BrowseLayout.barCenterFromBottom - BrowseLayout.hitTarget / 2)
+    .padding(BrowseLayout.barPillPadding)
+    .frame(height: BrowseLayout.barPillHeight)
   }
 }
 

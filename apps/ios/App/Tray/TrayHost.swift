@@ -44,12 +44,10 @@ struct TrayHost: View {
 
   private var restsOnPageBar: Bool { app.surface == .browsing }
 
-  private var barTone: ToneColor? {
-    guard restsOnPageBar, let tab = app.tabs.selectedTab else { return nil }
-    return app.browse.tone(for: tab, page: app.currentPage).bottom
+  private var barScheme: ColorScheme {
+    guard restsOnPageBar, let tab = app.tabs.selectedTab else { return colorScheme }
+    return app.browse.tone(for: tab, page: app.currentPage).bottom?.scheme ?? colorScheme
   }
-
-  private var barScheme: ColorScheme { barTone?.scheme ?? colorScheme }
 
   private var panelIsPrivate: Bool {
     if case .pageMenu(let id) = request { return app.tabs.tab(id)?.isPrivate ?? false }
@@ -67,7 +65,8 @@ struct TrayHost: View {
   private func launch(_ request: Request, shell: TrayShellController) -> TrayLaunch {
     let rest: TrayRest = restsOnPageBar ? .pageBar : .floating
     let pill = rest == .pageBar ? app.browse.pagePlusFrame : app.browse.floatingPlusFrame
-    let morphs = !reduceMotion && pill.width > 0
+    let capsule = rest == .pageBar ? app.browse.pageBarFrame : nil
+    let morphs = !reduceMotion && pill.width > 0 && (capsule.map { $0.width > 0 } ?? true)
     let link = TrayContentLink(kind: request.kind, shell: shell)
     let content: AnyView
     var chevron: CGRect?
@@ -84,13 +83,13 @@ struct TrayHost: View {
       kind: request.kind,
       rest: rest,
       pill: pill,
+      capsule: capsule,
       chevron: chevron,
       dims: request.dims,
       focusesField: request.kind == .search && !app.settings.isShowingOnboarding && !app.browse.isVoicePresented,
       morphs: morphs,
       content: content,
-      sides: rest == .pageBar ? AnyView(sides) : nil,
-      barBacking: nil
+      sides: rest == .pageBar ? AnyView(sides) : nil
     )
   }
 

@@ -11,6 +11,8 @@ struct TrayStageShare {
   static let titleField = TrayStageShare(start: 0.7, end: 1)
   static let results = TrayStageShare(start: 0.3, end: 0.8)
   static let surface = TrayStageShare(start: 0, end: 0.35)
+  static let material = TrayStageShare(start: 0.1, end: 0.3)
+  static let pillMaterial = TrayStageShare(start: 0.2, end: 0.8)
 }
 
 struct StagedFade {

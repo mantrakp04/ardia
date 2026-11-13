@@ -1,4 +1,5 @@
 import ArdiaDesign
+import SwiftUI
 import UIKit
 
 final class TrayChevron: UIControl {
@@ -7,14 +8,14 @@ final class TrayChevron: UIControl {
     effect.isInteractive = true
     return UIVisualEffectView(effect: effect)
   }()
-  private let glyph = UIImageView(image: UIImage(systemName: "chevron.up", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)))
+  private let glyph = UIImageView(image: UIImage(systemName: "chevron.up", withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)))
 
   override init(frame: CGRect) {
     super.init(frame: frame)
     glass.cornerConfiguration = .capsule()
     glass.clipsToBounds = true
     glass.isUserInteractionEnabled = false
-    glyph.tintColor = .label
+    glyph.tintColor = UIColor(BrowsePalette.foregroundPrimary)
     glyph.contentMode = .center
     addSubview(glass)
     addSubview(glyph)
@@ -36,6 +37,12 @@ final class TrayChevron: UIControl {
   override func accessibilityActivate() -> Bool {
     sendActions(for: .touchUpInside)
     return true
+  }
+
+  func showsGlass(_ shows: Bool) {
+    let effect = UIGlassEffect(style: .regular)
+    effect.isInteractive = true
+    glass.effect = shows ? effect : nil
   }
 
   func place(at center: CGPoint, pointsDown: Bool) {

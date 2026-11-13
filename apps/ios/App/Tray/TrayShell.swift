@@ -31,6 +31,7 @@ final class TrayShellController: UIViewController {
   private let dimView = UIView()
   private let trayView = UIView()
   private let shadowView = UIView()
+  private let barGlass = UIVisualEffectView(effect: nil)
   private let surfaceView = UIView()
   private let panelFillView = UIView()
   private let pill = DockedPill()
@@ -42,9 +43,11 @@ final class TrayShellController: UIViewController {
   private var content: HostedContent?
   private var leavingContent: HostedContent?
   private var sidesHost: UIHostingController<AnyView>?
-  private var barHost: UIHostingController<AnyView>?
 
   private var trayHeight: NSLayoutConstraint!
+  private var surfaceLeading: NSLayoutConstraint!
+  private var surfaceTrailing: NSLayoutConstraint!
+  private var surfaceBottom: NSLayoutConstraint!
   private var keyboardPin: NSLayoutConstraint!
   private var heldPin: NSLayoutConstraint!
 
@@ -52,6 +55,7 @@ final class TrayShellController: UIViewController {
   private var look = TrayLook(panel: .systemBackground, style: .unspecified, barStyle: .unspecified)
   private var restHeight: CGFloat = BrowseLayout.barHeight
   private var pillAtRest = CGRect.zero
+  private var capsuleAtRest: CGRect?
   private var chevronAtRest: CGRect?
   private var fieldFrame = CGRect.zero
   private var contentTop: CGFloat = 0
@@ -67,6 +71,7 @@ final class TrayShellController: UIViewController {
   static let fieldReportTolerance: CGFloat = 0.5
   static let keyboardWarmUpDelay: TimeInterval = 0.6
   static let keyboardWait: TimeInterval = 0.35
+  static let surfaceBelowScreen = BrowseLayout.sheetTopRadius * 10
 
   override func loadView() {
     view = TrayPassthroughView()
@@ -94,7 +99,7 @@ final class TrayShellController: UIViewController {
 
     surfaceView.clipsToBounds = true
     surfaceView.layer.cornerCurve = .continuous
-    surfaceView.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+    barGlass.isUserInteractionEnabled = false
 
     fieldMask.backgroundColor = .black
     fieldMask.layer.cornerCurve = .continuous
@@ -105,12 +110,13 @@ final class TrayShellController: UIViewController {
     chevron.alpha = 0
     chevron.addTarget(self, action: #selector(dismissTapped), for: .touchUpInside)
 
-    for subview in [dimView, trayView, shadowView, surfaceView, panelFillView, contentStage] {
+    for subview in [dimView, trayView, shadowView, barGlass, surfaceView, panelFillView, contentStage] {
       subview.translatesAutoresizingMaskIntoConstraints = false
     }
     view.addSubview(dimView)
     view.addSubview(trayView)
     trayView.addSubview(shadowView)
+    trayView.addSubview(barGlass)
     trayView.addSubview(surfaceView)
     surfaceView.addSubview(panelFillView)
     trayView.addSubview(pill)
@@ -120,7 +126,9 @@ final class TrayShellController: UIViewController {
     trayHeight = trayView.heightAnchor.constraint(equalToConstant: restHeight)
     keyboardPin = trayView.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor)
     heldPin = trayView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-    let belowScreen = BrowseLayout.sheetTopRadius * 10
+    surfaceLeading = surfaceView.leadingAnchor.constraint(equalTo: trayView.leadingAnchor)
+    surfaceTrailing = surfaceView.trailingAnchor.constraint(equalTo: trayView.trailingAnchor)
+    surfaceBottom = surfaceView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: Self.surfaceBelowScreen)
     NSLayoutConstraint.activate([
       dimView.topAnchor.constraint(equalTo: view.topAnchor),
       dimView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -131,9 +139,13 @@ final class TrayShellController: UIViewController {
       keyboardPin,
       trayHeight,
       surfaceView.topAnchor.constraint(equalTo: trayView.topAnchor),
-      surfaceView.leadingAnchor.constraint(equalTo: trayView.leadingAnchor),
-      surfaceView.trailingAnchor.constraint(equalTo: trayView.trailingAnchor),
-      surfaceView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: belowScreen),
+      surfaceLeading,
+      surfaceTrailing,
+      surfaceBottom,
+      barGlass.topAnchor.constraint(equalTo: surfaceView.topAnchor),
+      barGlass.leadingAnchor.constraint(equalTo: surfaceView.leadingAnchor),
+      barGlass.trailingAnchor.constraint(equalTo: surfaceView.trailingAnchor),
+      barGlass.bottomAnchor.constraint(equalTo: surfaceView.bottomAnchor),
       shadowView.topAnchor.constraint(equalTo: surfaceView.topAnchor),
       shadowView.leadingAnchor.constraint(equalTo: surfaceView.leadingAnchor),
       shadowView.trailingAnchor.constraint(equalTo: surfaceView.trailingAnchor),
@@ -188,6 +200,7 @@ final class TrayShellController: UIViewController {
     panelFillView.backgroundColor = look.panel
     shadowView.backgroundColor = look.panel
     trayView.overrideUserInterfaceStyle = look.style
+    barGlass.overrideUserInterfaceStyle = look.barStyle
     if phase != .idle, phase != .closing, phase != .opening {
       styleControls(look.style)
     }
@@ -225,12 +238,15 @@ final class TrayShellController: UIViewController {
     view.layoutIfNeeded()
 
     let bounds = view.bounds
-    let restTop: CGFloat
     let pillInView = view.convert(launch.pill, from: nil)
-    restHeight = launch.rest == .pageBar
-      ? BrowseLayout.barHeight
-      : max(bounds.maxY - pillInView.minY + Self.pillTopInBar, BrowseLayout.barHeight)
-    restTop = bounds.maxY - restHeight
+    let capsuleInView = launch.capsule.map { view.convert($0, from: nil) }
+    capsuleAtRest = launch.morphs ? capsuleInView : nil
+    if let capsuleInView {
+      restHeight = max(bounds.maxY - capsuleInView.minY, BrowseLayout.barPillHeight)
+    } else {
+      restHeight = max(bounds.maxY - pillInView.minY + Self.pillTopInBar, BrowseLayout.barHeight)
+    }
+    let restTop = bounds.maxY - restHeight
     pillAtRest = launch.morphs ? pillInView.offsetBy(dx: 0, dy: -restTop) : .zero
     chevronAtRest = launch.chevron.map { view.convert($0, from: nil).offsetBy(dx: 0, dy: -restTop) }
 
@@ -256,6 +272,13 @@ final class TrayShellController: UIViewController {
       StagedFade(view: bodyMask, share: .results, rises: true).show(at: 1)
       for fade in stagedFades { fade.show(at: morph) }
       pill.plusGlyph.isHidden = !launch.morphs
+      pill.style(for: launch.rest)
+      showsBarMaterial(capsuleAtRest != nil)
+      surfaceView.layer.removeAnimation(forKey: StagedFade.animationKey)
+      surfaceView.alpha = 1
+      panelFillView.alpha = 1
+      pill.barFill.alpha = 0
+      for fade in stagedFades { fade.show(at: morph) }
       if launch.morphs {
         styleControls(restingStyle)
         applyRest()
@@ -264,7 +287,6 @@ final class TrayShellController: UIViewController {
         applyOpen(trayHeight: open.tray)
         dimView.alpha = 0
       }
-      applyMorphFill(morph)
       view.layoutIfNeeded()
     }
 
@@ -349,12 +371,6 @@ final class TrayShellController: UIViewController {
 
   private func install(_ launch: TrayLaunch) {
     removeHosts()
-    if let backing = launch.barBacking {
-      let barHost = makeHost(backing)
-      surfaceView.insertSubview(barHost.view, belowSubview: panelFillView)
-      pin(barHost.view, to: surfaceView)
-      self.barHost = barHost
-    }
     installContent(launch)
     contentStage.mask = launch.morphs ? contentMask : nil
     installSides(launch)
@@ -376,7 +392,7 @@ final class TrayShellController: UIViewController {
   }
 
   private func installSides(_ launch: TrayLaunch) {
-    guard launch.morphs, let sides = launch.sides else { return }
+    guard launch.morphs, let sides = launch.sides, let capsule = capsuleAtRest else { return }
     let sidesHost = makeHost(AnyView(sides.frame(maxHeight: .infinity, alignment: .top)))
     let sidesView = sidesHost.view!
     sidesView.translatesAutoresizingMaskIntoConstraints = false
@@ -385,9 +401,9 @@ final class TrayShellController: UIViewController {
     trayView.insertSubview(sidesView, belowSubview: pill)
     NSLayoutConstraint.activate([
       sidesView.topAnchor.constraint(equalTo: trayView.topAnchor),
-      sidesView.leadingAnchor.constraint(equalTo: trayView.leadingAnchor),
-      sidesView.trailingAnchor.constraint(equalTo: trayView.trailingAnchor),
-      sidesView.heightAnchor.constraint(equalToConstant: BrowseLayout.barHeight),
+      sidesView.leadingAnchor.constraint(equalTo: trayView.leadingAnchor, constant: capsule.minX),
+      sidesView.widthAnchor.constraint(equalToConstant: capsule.width),
+      sidesView.heightAnchor.constraint(equalToConstant: capsule.height),
     ])
     self.sidesHost = sidesHost
   }
@@ -399,16 +415,6 @@ final class TrayShellController: UIViewController {
     addChild(host)
     host.didMove(toParent: self)
     return host
-  }
-
-  private func pin(_ subview: UIView, to container: UIView) {
-    subview.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      subview.topAnchor.constraint(equalTo: container.topAnchor),
-      subview.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-      subview.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-      subview.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-    ])
   }
 
   private func detach(_ host: UIHostingController<AnyView>?) {
@@ -430,9 +436,7 @@ final class TrayShellController: UIViewController {
 
   private func removeHosts() {
     detach(content?.host)
-    detach(barHost)
     content = nil
-    barHost = nil
     removeSides()
     removeLeavingContent()
   }
@@ -485,8 +489,16 @@ final class TrayShellController: UIViewController {
 
   private func applyRest() {
     trayHeight.constant = restHeight
-    surfaceView.layer.cornerRadius = 0
-    shadowView.alpha = 0
+    if let capsule = capsuleAtRest {
+      surfaceLeading.constant = capsule.minX
+      surfaceTrailing.constant = capsule.maxX - view.bounds.maxX
+      surfaceBottom.constant = capsule.maxY - view.bounds.maxY
+      shapeSurface(radius: capsule.height / 2)
+    } else {
+      spanSurface()
+      shapeSurface(radius: 0)
+      shadowView.alpha = 0
+    }
     dimView.alpha = 0
     pill.rest(at: pillAtRest)
     fieldMask.frame = pillAtRest
@@ -500,11 +512,30 @@ final class TrayShellController: UIViewController {
 
   private func applyOpen(trayHeight openHeight: CGFloat) {
     trayHeight.constant = openHeight
-    surfaceView.layer.cornerRadius = BrowseLayout.sheetTopRadius
-    shadowView.alpha = 1
+    spanSurface()
+    shapeSurface(radius: BrowseLayout.sheetTopRadius)
+    if capsuleAtRest == nil { shadowView.alpha = 1 }
     dimView.alpha = 1
     layoutOpenControls()
     bodyMask.frame = bodyFrame
+  }
+
+  private func spanSurface() {
+    surfaceLeading.constant = 0
+    surfaceTrailing.constant = 0
+    surfaceBottom.constant = Self.surfaceBelowScreen
+  }
+
+  private func shapeSurface(radius: CGFloat) {
+    surfaceView.layer.cornerRadius = radius
+    shadowView.layer.cornerRadius = radius
+    barGlass.cornerConfiguration = .uniformCorners(radius: .fixed(radius))
+  }
+
+  private func showsBarMaterial(_ shows: Bool) {
+    barGlass.effect = shows ? UIGlassEffect(style: .regular) : nil
+    pill.showsGlass(!shows)
+    chevron.showsGlass(!shows)
   }
 
   private func layoutOpenControls() {
@@ -512,9 +543,9 @@ final class TrayShellController: UIViewController {
     fieldMask.frame = fieldFrame
     fieldMask.layer.cornerRadius = fieldFrame.height / 2
     if let launch, launch.chevron != nil {
-      let restX = chevronAtRest?.midX ?? view.bounds.width - (BrowseLayout.barSideInset - 4) - BrowseLayout.hitTarget / 2
+      let openX = view.bounds.width - (BrowseLayout.barSideInset - 4) - BrowseLayout.hitTarget / 2
       chevron.alpha = 1
-      chevron.place(at: CGPoint(x: restX, y: fieldFrame.midY), pointsDown: true)
+      chevron.place(at: CGPoint(x: openX, y: fieldFrame.midY), pointsDown: true)
     } else {
       chevron.alpha = 0
     }
@@ -534,13 +565,12 @@ final class TrayShellController: UIViewController {
     if launch?.rest == .floating {
       fades.append(StagedFade(view: surfaceView, share: .surface, rises: true))
     }
+    if capsuleAtRest != nil {
+      fades.append(StagedFade(view: panelFillView, share: .material, rises: true))
+      fades.append(StagedFade(view: shadowView, share: .material, rises: true))
+      fades.append(StagedFade(view: pill.barFill, share: .pillMaterial, rises: false))
+    }
     return fades
-  }
-
-  private func applyMorphFill(_ morph: CGFloat) {
-    let restsOnPageBar = launch?.rest == .pageBar
-    panelFillView.alpha = restsOnPageBar ? morph : 1
-    if restsOnPageBar { surfaceView.alpha = 1 }
   }
 
   private var presentedMorph: CGFloat {
@@ -576,18 +606,27 @@ final class TrayShellController: UIViewController {
     }
     let start = presentedMorph
     morph = 1
-    timing.animate {
+    let token = animationToken
+    timing.animate({
       self.heldPin.isActive = false
       self.keyboardPin.isActive = true
       self.trayView.transform = .identity
       self.styleControls(self.look.style)
       content.view.alpha = 1
       self.applyOpen(trayHeight: open.tray)
-      self.applyMorphFill(1)
       self.view.layoutIfNeeded()
-    }
+    }, completion: { [weak self] _ in
+      guard let self, self.animationToken == token, self.phase == .open else { return }
+      UIView.performWithoutAnimation { self.barGlass.effect = nil }
+    })
     withAnimation(timing.swiftUI) { progress.value = 1 }
     stageFades(from: start, to: 1)
+    if capsuleAtRest != nil {
+      TrayTiming.pillGlass.animate {
+        self.pill.showsGlass(true)
+        self.chevron.showsGlass(true)
+      }
+    }
   }
 
   private func animateClose(_ timing: TrayTiming) {
@@ -607,12 +646,18 @@ final class TrayShellController: UIViewController {
     }
     let start = presentedMorph
     morph = 0
+    if capsuleAtRest != nil {
+      UIView.performWithoutAnimation { barGlass.effect = UIGlassEffect(style: .regular) }
+      TrayTiming.pillGlass.animate {
+        self.pill.showsGlass(false)
+        self.chevron.showsGlass(false)
+      }
+    }
     timing.animate({
       self.heldPin.constant = 0
       self.trayView.transform = .identity
       self.styleControls(self.restingStyle)
       self.applyRest()
-      self.applyMorphFill(0)
       self.view.layoutIfNeeded()
     }, completion: completion)
     withAnimation(timing.swiftUI) { progress.value = 0 }
