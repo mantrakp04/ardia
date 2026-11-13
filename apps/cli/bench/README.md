@@ -66,6 +66,7 @@ three things:
 | `reset`, `check` | `{method, url}` |
 | `deadline_s` | the run is killed after this |
 | `prompt` | the user's request, verbatim, the same for every contender |
+| `today` | the date the task's app treats as today; every side's prompt ends with "Today is Friday, November 6, 2026." so an agent whose own clock has moved past the fixture's dates doesn't stop to ask |
 
 The Ardia side appends one line to the prompt, naming how to reach the instance: ``Use the `ardia` command with
 `--port 9371` to reach this Ardia instance.``

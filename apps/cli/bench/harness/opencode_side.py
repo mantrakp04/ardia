@@ -20,7 +20,8 @@ CDP_HELPER = Path(__file__).resolve().parent / "opencode_cdp.mjs"
 EXTENSION_ID = "mfnicocicmmlkpjnaffgihfjhdgjkdjg"
 DEFAULTS = {
     "browse_entry": str(ROOT / "npm/node_modules/@opencode/browse/dist/cli.mjs"),
-    "extension": str(ROOT / "ext/store-0.0.10"),
+    "extension": str(max((ROOT / "ext").glob("store-*"), key=lambda p: tuple(int(n) for n in p.name[6:].split(".") if n.isdigit()),
+                         default=ROOT / "ext/store-0.0.10")),
     "chrome": None,
     "cdp_port": 9571,
     "relay_port": 19990,
