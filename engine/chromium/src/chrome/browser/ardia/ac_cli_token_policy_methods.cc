@@ -89,8 +89,6 @@ const std::set<std::string_view>& AllowedMethods() {
       "DOM.requestNode",
       "DOM.resolveNode",
       "DOM.scrollIntoViewIfNeeded",
-      "Emulation.clearDeviceMetricsOverride",
-      "Emulation.setDeviceMetricsOverride",
       "Input.dispatchDragEvent",
       "Input.dispatchKeyEvent",
       "Input.dispatchMouseEvent",
