@@ -130,7 +130,12 @@ struct MenuKeyboard {
   bool UndoReopensClosedTab(KeyPress const &press, ActiveWindow const &window) noexcept {
     MenuStore const &store = MenuStore::Shared();
     if (!PlainUndo(press) || !store.undoReopensClosedTab || store.Disabled("reopenClosedTab") || window.id.empty()) return false;
+    if (store.Match(press)) return false;
     if (!WindowManager::Shared().IsBrowserWindow(window.id)) return false;
+    if (GetActiveWindow() != window.hwnd) {
+      LaunchLog::Write(L"keys", L"ctrl+z left to the focused dialog or page");
+      return false;
+    }
     if (textInputFocused.load()) {
       LaunchLog::Write(L"keys", L"ctrl+z left to the focused text field");
       return false;
