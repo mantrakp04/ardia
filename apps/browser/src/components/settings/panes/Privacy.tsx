@@ -31,6 +31,8 @@ import { blockerAvailable, categoryOn, setBlockingCategory, setFilterList } from
 import { noteContentBlockerUnavailable, noteContentBlockerWriteFailure } from "../../../state/telemetry/usage";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 import { UI_LOCALE } from "../../../lib/uiLocale";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 
 const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId }[] = [
   { id: "ads", section: "Ad blockers", anchor: "privacy.blockAds" },
@@ -99,36 +101,40 @@ export function PrivacyPane() {
 
   return (
     <View>
-      <SectionHeader title="Content blocking" description="Built on EasyList and EasyPrivacy. Blocking happens on this Mac." />
-      <Group>
-        {CATEGORIES.filter((c) => c.anchor).map((c) => (
-          <Row key={c.id} anchor={c.anchor}>
-            <Toggle value={!!blocker && categoryOn(blocker, c.id)} disabled={!blocker} onChange={(v) => void toggleCategory(c.id, v)} />
-          </Row>
-        ))}
-        <Row anchor="privacy.filterLists">
-          <Button title="Advanced…" disabled={!blocker} onPress={() => showSettingsSheet(<FilterListsSheet />)} />
-        </Row>
-        {unavailable && (
-          <Row title="uBlock Origin isn't answering" description="Its settings show here once it responds. Pages keep the blocking they had.">
-            <Button title="Try Again" onPress={refresh} />
-          </Row>
-        )}
-      </Group>
-
-      {!!blocker?.allowedHosts.length && (
+      {PLATFORM_FEATURES.contentBlocker && (
         <>
-          <SectionHeader title="Sites without blocking" description="Turned off from a site's controls. Blocking applies to subdomains too." />
+          <SectionHeader title="Content blocking" description={`Built on EasyList and EasyPrivacy. Blocking happens on this ${PLATFORM_TERMS.computer}.`} />
           <Group>
-            {blocker.allowedHosts.map((host) => (
-              <Row key={host} icon={<Favicon url={`https://${host}`} />} title={host}>
-                <Button
-                  title="Block Again"
-                  onPress={() => void setContentBlockerAllowed(host, false).then(refresh)}
-                />
+            {CATEGORIES.filter((c) => c.anchor).map((c) => (
+              <Row key={c.id} anchor={c.anchor}>
+                <Toggle value={!!blocker && categoryOn(blocker, c.id)} disabled={!blocker} onChange={(v) => void toggleCategory(c.id, v)} />
               </Row>
             ))}
+            <Row anchor="privacy.filterLists">
+              <Button title="Advanced…" disabled={!blocker} onPress={() => showSettingsSheet(<FilterListsSheet />)} />
+            </Row>
+            {unavailable && (
+              <Row title="uBlock Origin isn't answering" description="Its settings show here once it responds. Pages keep the blocking they had.">
+                <Button title="Try Again" onPress={refresh} />
+              </Row>
+            )}
           </Group>
+
+          {!!blocker?.allowedHosts.length && (
+            <>
+              <SectionHeader title="Sites without blocking" description="Turned off from a site's controls. Blocking applies to subdomains too." />
+              <Group>
+                {blocker.allowedHosts.map((host) => (
+                  <Row key={host} icon={<Favicon url={`https://${host}`} />} title={host}>
+                    <Button
+                      title="Block Again"
+                      onPress={() => void setContentBlockerAllowed(host, false).then(refresh)}
+                    />
+                  </Row>
+                ))}
+              </Group>
+            </>
+          )}
         </>
       )}
 
@@ -141,7 +147,7 @@ export function PrivacyPane() {
         </Row>
       </Group>
       <ZoomLevels />
-      {blocker && (
+      {PLATFORM_FEATURES.contentBlocker && blocker && (
         <Text size="caption" tone="textTertiary" style={RULES_LOADED}>
           {`${(blocker.stats.networkFilters ?? 0).toLocaleString(UI_LOCALE)} network and ${(blocker.stats.cosmeticFilters ?? 0).toLocaleString(UI_LOCALE)} cosmetic rules loaded.`}
         </Text>
