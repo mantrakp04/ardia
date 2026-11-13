@@ -2,6 +2,7 @@ import { diagnosticsSample, hardwareInfo, type HardwareInfo } from "../../platfo
 import { onHoverLost, systemState, type HoverLostEpisode } from "../../platform/performance";
 import { cliControlStatus } from "../../platform/cli";
 import { withDeadline } from "../../lib/deadline";
+import { activeTab, resolveWindowId } from "../browser/model";
 import { useBrowser } from "../browser/store";
 import { capture, isSharing, saveContext, useTelemetry } from "./client";
 import type { SavedContext } from "./savedContext";
@@ -16,6 +17,7 @@ const MAX_HOVER_LOST_EVENTS = 20;
 const MAX_HOVER_LOST_SECONDS = 24 * 60 * 60;
 const MINUTE_MS = 60_000;
 const MAX_SAMPLES = 12;
+const WEBUI_RECORD_GAP_MS = 2_000;
 
 const startedAt = Date.now();
 export const sessionStart = () => appInfo().processStart ?? startedAt;
@@ -26,6 +28,9 @@ let hoverLostEvents = 0;
 let samples: SavedContext[] = [];
 let firstSample: ReturnType<typeof setTimeout> | undefined;
 let everySample: ReturnType<typeof setInterval> | undefined;
+let unwatchWebuiPage: (() => void) | undefined;
+let webuiRecord: ReturnType<typeof setTimeout> | undefined;
+let lastWebuiRecordAt = 0;
 
 const size = (o: object) => Object.keys(o).length;
 const sessionMinutes = (at = Date.now()) => Math.max(0, Math.round((at - sessionStart()) / MINUTE_MS));
@@ -38,6 +43,18 @@ function counts() {
 async function memoryPressure(): Promise<string | null> {
   const state = await withDeadline(systemState(), HARDWARE_WAIT_MS, null).catch(() => null);
   return state?.memoryPressure ?? null;
+}
+
+const WEBUI_PAGE = /^(?:ardia|chrome):\/\/([a-z0-9-]{1,32})(?:\/([a-z0-9-]{1,32}))?(?=[/?#]|$)/i;
+
+export function webuiPage(url: string | null | undefined): string | null {
+  const m = url ? WEBUI_PAGE.exec(url) : null;
+  return m ? (m[2] ? `${m[1]}/${m[2]}` : m[1]!).toLowerCase() : null;
+}
+
+function activeWebuiPage(s = useBrowser.getState()): string | null {
+  const windowId = resolveWindowId(s);
+  return webuiPage(windowId ? activeTab(s, windowId)?.url : null);
 }
 
 const roughGigabytes = (gb: number | undefined) => (gb === undefined ? null : gb < 10 ? Math.round(gb * 10) / 10 : Math.round(gb));
@@ -58,6 +75,7 @@ export async function recordContext(): Promise<SavedContext | null> {
     free_disk_gb: roughGigabytes(sample.freeDiskGB),
     memory_pressure: pressure,
     page_processes_gone: pageProcessesGone,
+    webui_page: activeWebuiPage(),
   };
   if (!isSharing()) return null;
   samples = [...samples, context].slice(-MAX_SAMPLES);
@@ -81,19 +99,43 @@ useBrowser.subscribe((s, prev) => {
   saveContext(null);
 });
 
+function recordForWebuiPage() {
+  if (webuiRecord !== undefined) return;
+  const wait = Math.max(0, lastWebuiRecordAt + WEBUI_RECORD_GAP_MS - Date.now());
+  webuiRecord = setTimeout(() => {
+    webuiRecord = undefined;
+    lastWebuiRecordAt = Date.now();
+    void recordContext();
+  }, wait);
+}
+
+function watchWebuiPage() {
+  let shown = activeWebuiPage();
+  unwatchWebuiPage = useBrowser.subscribe((s, prev) => {
+    if (s.tabs === prev.tabs && s.windows === prev.windows && s.ui === prev.ui) return;
+    const page = activeWebuiPage(s);
+    if (page === shown) return;
+    shown = page;
+    recordForWebuiPage();
+  });
+}
+
 export function startContextSamples() {
   stopContextSamples();
   firstSample = setTimeout(() => void recordContext(), FIRST_CONTEXT_MS);
   everySample = setInterval(() => void recordContext(), CONTEXT_EVERY_MS);
+  watchWebuiPage();
 }
 
 export function stopContextSamples() {
   clearTimeout(firstSample);
   clearInterval(everySample);
-  firstSample = everySample = undefined;
+  clearTimeout(webuiRecord);
+  unwatchWebuiPage?.();
+  firstSample = everySample = webuiRecord = unwatchWebuiPage = undefined;
 }
 
-const CONTEXT_FIELDS = ["tabs", "windows", "profiles", "footprint_mb", "app_memory_mb", "free_disk_gb", "memory_pressure", "page_processes_gone"] as const;
+const CONTEXT_FIELDS = ["tabs", "windows", "profiles", "footprint_mb", "app_memory_mb", "free_disk_gb", "memory_pressure", "page_processes_gone", "webui_page"] as const;
 
 export function contextProperties(context: SavedContext | null, prefix: string, at: number): Record<string, unknown> {
   if (!context || typeof context.at !== "number") return {};
