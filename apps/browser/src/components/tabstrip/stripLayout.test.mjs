@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 const { layoutDock, layoutStrip } = await import("./stripGroups.ts");
+const { OVERFLOW_BUTTON_WIDTH } = await import("./tokens.ts");
 
 const tab = (id, group = null) => ({ kind: "tab", id, group });
 const folder = (id, tabIds, group) => ({ kind: "folder", id, tabIds, group });
@@ -8,7 +9,7 @@ const group = (id, members, collapsed = false) => ({ kind: "group", id, collapse
 const dock = (ids, members = {}) => ({ kind: "dock", ids, members: new Map(Object.entries(members)) });
 const measured = (groups = {}, folders = {}) => ({ groupChip: (id) => groups[id], folderChip: (id) => folders[id] });
 const dockOf = (entries) => layoutDock(entries.find((e) => e.kind === "dock"));
-const layout = (entries, activeId, m = measured()) => layoutStrip(entries, activeId, 1000, m, dockOf(entries));
+const layout = (entries, activeId, m = measured()) => layoutStrip(entries, activeId, 1000 + OVERFLOW_BUTTON_WIDTH, m, dockOf(entries));
 
 test("tabs share the page after the new-tab button, rounded to half points and kept between the min and max chip", () => {
   const six = ["a", "b", "c", "d", "e", "f"].map((id) => tab(id));
