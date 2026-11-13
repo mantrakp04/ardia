@@ -67,6 +67,7 @@ class SystemDownloadsTest {
         val page = harness.open("tab", "/login")
         harness.awaitTitle(page, "In")
         assertEquals("session=secret", onMain { harness.engine.cookieHeader(server.url("/statement"), isPrivate = false) })
+        assertNull(onMain { harness.engine.cookieHeader(hostedOnLocalhost("/collect"), isPrivate = false) })
 
         val outcome = DownloadHarness.run(SystemDownloads(harness.context, harness.engine), download(server.url("/statement"), "statement.pdf"))
         created += outcome

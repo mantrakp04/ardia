@@ -4,6 +4,8 @@
         <item name="android:windowBackground">@color/ardia_surface</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 
     <style name="Theme.Ardia.Starting" parent="Theme.SplashScreen">

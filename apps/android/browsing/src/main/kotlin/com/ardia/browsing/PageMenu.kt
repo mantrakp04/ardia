@@ -143,7 +143,7 @@ private fun PageMenuMain(model: AppModel, tab: BrowserTab, page: Page?, onShowSi
     Column(
         Modifier
             .fillMaxWidth()
-            .let { if (large) it.verticalScroll(scroll) else it }
+            .verticalScroll(scroll, enabled = scroll.maxValue > 0)
             .padding(MenuLayout.inset)
             .padding(bottom = if (large) Spacing.large else 0.dp),
         verticalArrangement = Arrangement.spacedBy(MenuLayout.inset),
@@ -640,7 +640,7 @@ internal fun SiteSettingsPage(model: AppModel, onBack: () -> Unit) {
         Modifier
             .testTag(BrowsingTags.SITE_SETTINGS)
             .fillMaxWidth()
-            .let { if (large) it.verticalScroll(scroll) else it }
+            .verticalScroll(scroll, enabled = scroll.maxValue > 0)
             .padding(vertical = MenuLayout.inset),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {

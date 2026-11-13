@@ -84,6 +84,7 @@ fun RootView(model: AppModel) {
         OnboardingCover(model, Modifier.zIndex(40f))
         ToastHost(model.toasts, Modifier.zIndex(50f))
     }
+    StatusBarInkOwner(model)
 }
 
 @Composable

@@ -1,5 +1,6 @@
 package com.ardia.browser.android
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -7,7 +8,14 @@ import android.graphics.Bitmap
 import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.compose.ui.node.RootForTest
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
@@ -106,23 +114,79 @@ object AppTest {
         instrumentation.waitForIdleSync()
     }
 
-    fun tap(text: String, timeoutMillis: Long = 30_000) {
+    fun tap(text: String, timeoutMillis: Long = 30_000): Boolean {
         val end = System.currentTimeMillis() + timeoutMillis
+        val accessibilityEnd = System.currentTimeMillis() + timeoutMillis / 2
         while (true) {
-            val root = instrumentation.uiAutomation.rootInActiveWindow
-            val target = root?.findAccessibilityNodeInfosByText(text).orEmpty().firstNotNullOfOrNull(::clickable)
-            if (target != null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return
-            if (System.currentTimeMillis() > end) fail("nothing labelled \"$text\" could be tapped within $timeoutMillis ms")
+            if (tapThroughAccessibility(text)) return true
+            if (System.currentTimeMillis() > accessibilityEnd && tapThroughSemantics(text)) {
+                Log.w(TAG, "\"$text\" is reachable only through Compose semantics, not the accessibility tree")
+                return false
+            }
+            if (System.currentTimeMillis() > end) {
+                fail("nothing labelled \"$text\" could be tapped within $timeoutMillis ms; accessibility labels: ${accessibilityLabels().take(40)}")
+            }
             Thread.sleep(250)
         }
     }
 
-    private fun clickable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        var current: AccessibilityNodeInfo? = node
-        while (current != null) {
-            if (current.isClickable && current.isEnabled) return current
-            current = current.parent
+    fun tapThroughAccessibility(text: String): Boolean {
+        val target = accessibilityRoots().firstNotNullOfOrNull { findClickable(it, text, null) } ?: return false
+        return target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    private fun accessibilityRoots(): List<AccessibilityNodeInfo> {
+        val automation = instrumentation.uiAutomation
+        val info = automation.serviceInfo
+        if (info != null && info.flags and AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS == 0) {
+            info.flags = info.flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            automation.serviceInfo = info
         }
+        val windows = runCatching { automation.windows.mapNotNull { it.root } }.getOrDefault(emptyList())
+        return listOfNotNull(automation.rootInActiveWindow) + windows
+    }
+
+    private fun labels(node: AccessibilityNodeInfo): List<String> = listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
+
+    private fun findClickable(node: AccessibilityNodeInfo, text: String, clickableAbove: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        val clickable = if (node.isClickable && node.isEnabled && node.isVisibleToUser) node else clickableAbove
+        if (labels(node).any { it.contains(text, ignoreCase = true) } && clickable != null) return clickable
+        for (index in 0 until node.childCount) {
+            val child = node.getChild(index) ?: continue
+            findClickable(child, text, clickable)?.let { return it }
+        }
+        return null
+    }
+
+    fun accessibilityLabels(): List<String> {
+        val found = ArrayList<String>()
+        fun walk(node: AccessibilityNodeInfo) {
+            found += labels(node)
+            for (index in 0 until node.childCount) node.getChild(index)?.let(::walk)
+        }
+        accessibilityRoots().forEach(::walk)
+        return found.distinct()
+    }
+
+    fun tapThroughSemantics(text: String): Boolean = onMain {
+        val roots = activities(Stage.RESUMED).flatMap { composeRoots(it.window.decorView) }
+        for (root in roots) {
+            val action = findSemanticsClick(root.semanticsOwner.unmergedRootSemanticsNode, text, null) ?: continue
+            return@onMain action()
+        }
+        false
+    }
+
+    private fun composeRoots(view: View): List<RootForTest> = buildList {
+        if (view is RootForTest) add(view)
+        if (view is ViewGroup) for (index in 0 until view.childCount) addAll(composeRoots(view.getChildAt(index)))
+    }
+
+    private fun findSemanticsClick(node: SemanticsNode, text: String, clickAbove: (() -> Boolean)?): (() -> Boolean)? {
+        val click = node.config.getOrNull(SemanticsActions.OnClick)?.action ?: clickAbove
+        val words = node.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } + node.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
+        if (words.any { it.contains(text, ignoreCase = true) } && click != null) return click
+        for (child in node.children) findSemanticsClick(child, text, click)?.let { return it }
         return null
     }
 

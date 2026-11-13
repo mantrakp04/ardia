@@ -155,28 +155,41 @@ fun BrowsingView(model: AppModel, isFront: Boolean, modifier: Modifier = Modifie
         }
     }
     DemoMotion(model, pager)
-    StatusBarAppearance(enabled = isFront && model.browse.search == null, darkIcons = !(tone?.top?.let(PageColors::isDark) ?: dark))
-
-    val backState = BackState(
-        isFullscreen = fullscreen != null,
-        hasPressMenu = press != null,
-        isFinding = isFinding,
-        isReading = readerId != null,
-        isOnSubPage = menuVisible && showsSiteSettings,
-        isSheetOpen = menuVisible,
-        canGoBack = canGoBack,
-        hasTab = tab != null,
+    val readerSettings = rememberReaderSettings()
+    val pageDarkIcons = !(tone?.top?.let(PageColors::isDark) ?: dark)
+    val readerDarkIcons = ReaderTheme.resolve(readerSettings.theme, dark).usesDarkStatusIcons
+    StatusBarAppearance(
+        enabled = isFront && (model.browse.search == null || readerId != null),
+        darkIcons = if (readerId != null) readerDarkIcons else pageDarkIcons,
     )
-    val backTarget = BackOrder.next(backState)
-    BackHandler(enabled = isFront && backTarget != null && model.browse.search == null) {
-        when (BackOrder.next(backState)) {
-            BrowsingLayer.FullscreenVideo -> fullscreen?.exit()
+
+    fun liveBackState(): BackState {
+        val livePage = model.currentPage
+        val liveMenu = model.browse.isToolbarPresented && model.tabs.selectedTab != null && isFront
+        return BackState(
+            isFullscreen = livePage?.fullscreen?.value != null,
+            hasPressMenu = model.browse.press?.let { it.tabId == model.tabs.selectedTabId } == true,
+            isFinding = model.browse.isFindPresented && livePage != null && isFront,
+            isReading = model.browse.readerTabId != null,
+            isOnSubPage = liveMenu && showsSiteSettings,
+            isSheetOpen = liveMenu,
+            canGoBack = livePage?.state?.value?.canGoBack == true,
+            hasTab = model.tabs.selectedTab != null,
+        )
+    }
+    val composedBackTarget = BackOrder.next(
+        BackState(fullscreen != null, press != null, isFinding, readerId != null, menuVisible && showsSiteSettings, menuVisible, canGoBack, tab != null),
+    )
+    BackHandler(enabled = isFront && composedBackTarget != null && model.browse.search == null) {
+        val livePage = model.currentPage
+        when (BackOrder.next(liveBackState())) {
+            BrowsingLayer.FullscreenVideo -> livePage?.fullscreen?.value?.exit()
             BrowsingLayer.PressMenu -> model.browse.press = null
             BrowsingLayer.FindBar -> model.endFindOnPage()
             BrowsingLayer.Reader -> model.browse.readerTabId = null
             BrowsingLayer.SubPage -> showsSiteSettings = false
             BrowsingLayer.Sheet -> model.browse.isToolbarPresented = false
-            BrowsingLayer.PageHistory -> page?.goBack()
+            BrowsingLayer.PageHistory -> livePage?.goBack()
             BrowsingLayer.TabSwitcher -> openDeck()
             null -> Unit
         }
@@ -230,7 +243,7 @@ fun BrowsingView(model: AppModel, isFront: Boolean, modifier: Modifier = Modifie
             onSelectTab = ::switchTab,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
-        if (isFinding && page != null) FindBar(page, onDone = model::endFindOnPage, modifier = Modifier.align(Alignment.BottomCenter))
+        page?.takeIf { isFinding }?.let { FindBar(it, onDone = model::endFindOnPage, modifier = Modifier.align(Alignment.BottomCenter)) }
         if (fullscreen != null) FullscreenVideoLayer(fullscreen)
         if (tab != null) {
             LaunchedEffect(menuVisible) { if (menuVisible) showsSiteSettings = false }
@@ -245,7 +258,7 @@ fun BrowsingView(model: AppModel, isFront: Boolean, modifier: Modifier = Modifie
                 )
             }
         }
-        ReaderLayer(model, readerId)
+        ReaderLayer(model, readerId, readerSettings)
         if (isFront) PageRequestHost(page)
     }
 }
@@ -318,7 +331,7 @@ private fun rememberCover(model: AppModel, pager: TabPager, tab: BrowserTab): Bi
 }
 
 @Composable
-private fun ReaderLayer(model: AppModel, readerId: String?) {
+private fun ReaderLayer(model: AppModel, readerId: String?, settings: ReaderSettings) {
     var shownId by remember { mutableStateOf(readerId) }
     if (readerId != null) shownId = readerId
     AnimatedVisibility(
@@ -327,7 +340,7 @@ private fun ReaderLayer(model: AppModel, readerId: String?) {
         exit = slideOutVertically(Motion.trayDismiss.spec()) { it },
     ) {
         val id = shownId ?: return@AnimatedVisibility
-        ReaderView(model.page(id), onDone = { model.browse.readerTabId = null })
+        ReaderView(model.page(id), settings, onDone = { model.browse.readerTabId = null })
     }
 }
 
@@ -356,7 +369,7 @@ private fun FullscreenVideoLayer(video: FullscreenVideo) {
 }
 
 @Composable
-private fun StatusBarAppearance(enabled: Boolean, darkIcons: Boolean) {
+internal fun StatusBarAppearance(enabled: Boolean, darkIcons: Boolean) {
     val context = LocalContext.current
     val view = LocalView.current
     val wanted by rememberUpdatedState(darkIcons)

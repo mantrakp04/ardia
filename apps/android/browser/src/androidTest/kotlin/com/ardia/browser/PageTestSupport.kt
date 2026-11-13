@@ -54,6 +54,10 @@ class PageHarness(preferences: SitePreferences = RecordingPreferences(), liveLim
     private val opened = ArrayList<String>()
     private var scenario: ActivityScenario<PageTestActivity>? = null
 
+    init {
+        onMainSuspending { engine.clearWebsiteData(setOf(WebsiteDataKind.CookiesAndSiteData)) }
+    }
+
     fun open(id: String, path: String? = null, isPrivate: Boolean = false): Page {
         opened += id
         return onMain { engine.open(id, PageSetup(url = path?.let(server::url), isPrivate = isPrivate)) }

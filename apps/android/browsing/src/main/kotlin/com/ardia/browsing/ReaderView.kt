@@ -80,6 +80,8 @@ enum class ReaderTheme(val key: String, val background: Color, val ink: Color) {
 
     val secondary: Color get() = ink.copy(alpha = 0.6f)
 
+    val usesDarkStatusIcons: Boolean get() = this != Dark
+
     companion object {
         fun resolve(stored: String?, systemDark: Boolean): ReaderTheme = entries.firstOrNull { it.key == stored } ?: if (systemDark) Dark else Light
     }
@@ -95,7 +97,7 @@ object ReaderSizes {
     fun bodySize(step: Int): Float = BASE_SP * steps[clamp(step)]
 }
 
-private class ReaderSettings(context: Context) {
+internal class ReaderSettings(context: Context) {
     private val store = context.applicationContext.getSharedPreferences(STORE, Context.MODE_PRIVATE)
     var step by mutableIntStateOf(ReaderSizes.clamp(store.getInt(KEY_STEP, ReaderSizes.DEFAULT_STEP)))
         private set
@@ -136,9 +138,13 @@ private sealed interface ReaderLoad {
 }
 
 @Composable
-internal fun ReaderView(page: Page?, onDone: () -> Unit, modifier: Modifier = Modifier) {
+internal fun rememberReaderSettings(): ReaderSettings {
     val context = LocalContext.current
-    val settings = remember(context) { ReaderSettings(context) }
+    return remember(context) { ReaderSettings(context) }
+}
+
+@Composable
+internal fun ReaderView(page: Page?, settings: ReaderSettings, onDone: () -> Unit, modifier: Modifier = Modifier) {
     val theme = ReaderTheme.resolve(settings.theme, LocalArdiaDarkTheme.current)
     var load by remember(page) { mutableStateOf<ReaderLoad>(ReaderLoad.Loading) }
     LaunchedEffect(page) {
