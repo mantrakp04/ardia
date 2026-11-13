@@ -6,6 +6,7 @@ import { HoverSlot } from "../ui/HoverSlot";
 import { layout, useTheme } from "../ui/theme";
 import { lineHeight } from "../ui/tokens";
 import { useLiveColors } from "../live/tokens";
+import { reduceMotion } from "../ui/reduceMotion";
 import { Fold, useFold } from "./Fold";
 import { useStackTabOpen } from "../../state/sidebar/hooks";
 import { noteLiveStackHide } from "../../state/telemetry/liveHides";
@@ -80,7 +81,7 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
   const fold = useFold(collapsed);
   const { hovered, hoverProps } = useHover();
   const tabOpen = useStackTabOpen(folderId, stack.id);
-  const chevronRotation = fold.open.interpolate({ inputRange: [0, 1], outputRange: ["-90deg", "0deg"] });
+  const chevronRotation = reduceMotion() === false ? fold.open.interpolate({ inputRange: [0, 1], outputRange: ["-90deg", "0deg"] }) : collapsed ? "-90deg" : "0deg";
   const hide = () => {
     hideStack(folderId, stack.id);
     noteLiveStackHide();

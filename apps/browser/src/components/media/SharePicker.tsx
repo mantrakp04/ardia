@@ -220,7 +220,7 @@ function ScreenTile({ source, width, selected, onSelect, onShare }: { source: Di
   const theme = useTheme();
   const tokens = useMediaTokens();
   const { hovered, hoverProps } = useHover();
-  const pressMotion = usePressScaleMotion(true, buttonMotion.controlPressScale);
+  const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
   const iconScaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   const aspect = source.width && source.height ? source.height / source.width : 10 / 16;
   const previewWidth = width - 2 * space.m;
@@ -300,7 +300,7 @@ function SourceRow({
   const theme = useTheme();
   const tokens = useMediaTokens();
   const { hovered, hoverProps } = useHover();
-  const pressMotion = usePressScaleMotion(true, buttonMotion.controlPressScale);
+  const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
   const iconScaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   return (
     <View {...hoverProps} onDoubleClick={onShare}>
