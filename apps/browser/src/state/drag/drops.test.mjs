@@ -230,3 +230,19 @@ test("⌃⇧⇞/⇟: a pinned row steps over a pinned group beside it, one block
   S().moveTabBy(r2, -1);
   assert.deepEqual(pinnedArea(), ["r2", "g{G}", "r1"]);
 });
+
+test("a ⇧-click that ranges from the shown tab because it changed since the last click counts as one (#1074 telemetry)", async () => {
+  const { clickTab } = await import("../sidebar/actions.ts");
+  const { devTabPresses } = await import("../telemetry/tabPresses.ts");
+  reset();
+  const { w, ids: [a, , c, , e] } = windowWith("a", "b", "c", "d", "e");
+  const before = devTabPresses();
+  clickTab(w, a);
+  S().activate(e);
+  clickTab(w, c, { shiftKey: true });
+  assert.deepEqual(S().selection[w].map(host), ["c", "d", "e"]);
+  clickTab(w, a, { shiftKey: true });
+  const after = devTabPresses();
+  assert.equal(after.range_selects - before.range_selects, 2);
+  assert.equal(after.range_from_shown - before.range_from_shown, 1, "only the first ⇧-click came after the shown tab changed");
+});

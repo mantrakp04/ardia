@@ -160,11 +160,11 @@ export function movingTabIds(s: BrowserState, tabId: string): string[] {
   return selected.length > 1 && selected.includes(tabId) ? selected : [tabId];
 }
 
-export type SelectionAnchor = { tabId: string; shownTabId: string | undefined };
+export type SelectionAnchor = { tabId: string; shownTabId: string | undefined; reset?: true };
 
 export function anchorOutdated(s: BrowserState, windowId: string): boolean {
   const anchor = s.selectionAnchors[windowId];
-  return !!anchor && anchor.shownTabId !== activeTabId(s, windowId);
+  return !!anchor && (!!anchor.reset || anchor.shownTabId !== activeTabId(s, windowId));
 }
 
 export function clickedSelection(s: BrowserState, windowId: string, tabId: string, mods: ClickMods): { selection: string[]; anchor: string } | null {

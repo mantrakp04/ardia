@@ -61,7 +61,11 @@ export function forgetMovedAnchors(s: BrowserState, prev: BrowserState): Pick<Br
   });
   if (!moved.length) return null;
   const kept = { ...s.selectionAnchors };
-  for (const [windowId] of moved) delete kept[windowId];
+  for (const [windowId] of moved) {
+    const shown = activeTabId(s, windowId);
+    if (shown) kept[windowId] = { tabId: shown, shownTabId: shown, reset: true };
+    else delete kept[windowId];
+  }
   return { selectionAnchors: kept };
 }
 
@@ -104,7 +108,7 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
     if (!picked) get().activate(tabId);
     const anchor: SelectionAnchor = { tabId: picked?.anchor ?? tabId, shownTabId: activeTabId(get(), windowId) };
     const kept = get().selectionAnchors[windowId];
-    if (kept?.tabId !== anchor.tabId || kept.shownTabId !== anchor.shownTabId) set({ selectionAnchors: { ...get().selectionAnchors, [windowId]: anchor } });
+    if (kept?.tabId !== anchor.tabId || kept.shownTabId !== anchor.shownTabId || kept.reset) set({ selectionAnchors: { ...get().selectionAnchors, [windowId]: anchor } });
   },
 
   placeTabs(ids, placement) {
