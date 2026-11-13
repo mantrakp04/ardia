@@ -390,13 +390,15 @@ is plain Chromium.
   or its binding. A click on a link with the Peek key (`webView.setPeekModifier`), the Split key
   (`setSplitLinkModifier`), or a plain click to another site on a tab that peeks those (`setPeekOtherSiteTabs`), is
   cancelled and reported; the host checks it against the last real left mouse-up over that page and sends the Mac's
-  `openWindow` (`peek` or `split`), or falls back as the Mac does. A tab the page opens itself (`target=_blank`,
-  `window.open()`) carries `fromClick` when its first navigation has a user gesture, so a link click or a
-  `window.open()` during a user activation can become a Peek and a script `window.open()` without one stays a tab.
+  `openWindow` (`peek` or `split`), or falls back as the Mac does. A tab the page opens itself carries `fromClick` only
+  when the link script saw the user's own plain click on a `target=_blank` link to that address in the last two
+  seconds, so a script's `window.open()` or `anchor.click()` never becomes a Peek, even during a user activation
+  (ArdiaCore's page script also counts a `window.open()` during an activation; Windows doesn't).
   Cross-site iframes run in their own process and their own DevTools target, so links in them don't peek yet.
   The Peek card's background is a surface painted beneath the Peek's page, so a Peek's page (`temporary`) keeps a
   cover that encloses it whole; anything over part of it still cuts it. Escape closes a Peek from either page, as on
-  the Mac: the host reports an Escape keydown the page didn't use as the `command` event `escape`.
+  the Mac: the host reports an Escape keydown the page didn't use as the `command` event `escape`, from any frame
+  of the page (it watches every frame widget, so a cross-site iframe counts).
 - A tab restored from the last session, or duplicated, loads its address: the Windows engine keeps no saved page
   state yet, so only tabs the engine itself offered are adopted.
 - The Windows engine opens every tab on a real `about:blank` and names it as the committed page, where the Mac's tab
