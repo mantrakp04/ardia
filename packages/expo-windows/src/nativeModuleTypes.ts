@@ -64,7 +64,7 @@ export type ExternalHandler = { name: string; path: string | null; icon: string 
 
 export type ExternalAppsModule = {
   describe(scheme: string): Promise<ExternalHandler | null>;
-  open(url: string): Promise<boolean>;
+  open(url: string, name: string, path: string | null): Promise<boolean>;
 };
 
 export type WindowsHostModule = {

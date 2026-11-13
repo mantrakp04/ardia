@@ -64,6 +64,13 @@ inline std::optional<std::wstring> Associated(std::wstring const &scheme, ASSOCS
   return value;
 }
 
+inline bool SameHandler(std::wstring const &scheme, std::wstring const &name, std::optional<std::wstring> const &path) noexcept {
+  if (Associated(scheme, ASSOCSTR_FRIENDLYAPPNAME) != std::optional<std::wstring>(name)) return false;
+  std::optional<std::wstring> executable = Associated(scheme, ASSOCSTR_EXECUTABLE);
+  if (!executable || !path) return !executable && !path;
+  return CompareStringOrdinal(executable->c_str(), -1, path->c_str(), -1, TRUE) == CSTR_EQUAL;
+}
+
 inline winrt::Microsoft::ReactNative::JSValue Describe(std::string const &scheme) noexcept {
   using winrt::Microsoft::ReactNative::JSValue;
   std::wstring wide = Paths::Wide(scheme);
@@ -136,18 +143,23 @@ struct ExternalAppsModule {
   }
 
   REACT_METHOD(open)
-  void open(std::string url, winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
+  void open(std::string url, std::string name, std::optional<std::string> path, winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
     if (url.empty() || url.size() > ExternalApps::LongestLink) return promise.Resolve(false);
     std::optional<std::string> scheme = ExternalApps::SchemeOf(url);
-    if (!scheme || ExternalApps::BrowserScheme(*scheme)) return promise.Resolve(false);
+    if (!scheme || ExternalApps::BrowserScheme(*scheme) || name.empty()) return promise.Resolve(false);
     if (AppLaunch::Background()) {
       AppLaunch::Note(L"ArdiaExternalApps: background instance, not opening an app link");
       return promise.Resolve(false);
     }
     std::wstring target = Paths::Wide(ExternalApps::EscapedForHandler(url));
     std::wstring wideScheme = Paths::Wide(*scheme);
-    bool started = AppShell::RunOnShellThread([target, wideScheme, promise]() noexcept {
-      if (!ExternalApps::Associated(wideScheme, ASSOCSTR_FRIENDLYAPPNAME)) return promise.Resolve(false);
+    std::wstring wideName = Paths::Wide(name);
+    std::optional<std::wstring> widePath = path ? std::optional<std::wstring>(Paths::Wide(*path)) : std::nullopt;
+    bool started = AppShell::RunOnShellThread([target, wideScheme, wideName, widePath, promise]() noexcept {
+      if (!ExternalApps::SameHandler(wideScheme, wideName, widePath)) {
+        AppLaunch::Note(L"ArdiaExternalApps: the link's handler changed since the prompt, not opening");
+        return promise.Resolve(false);
+      }
       bool opened = ExternalApps::Launch(target);
       AppLaunch::Note(opened ? L"ArdiaExternalApps: opened an app link" : L"ArdiaExternalApps: the app link didn't open");
       promise.Resolve(opened);

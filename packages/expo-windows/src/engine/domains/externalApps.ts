@@ -5,7 +5,7 @@ import { callError, isFields, isPrivateProfile, ok, type Engine, type Fields, ty
 
 export type ExternalAppAsk = { id: string; url: string; origin: string | null; userGesture: boolean; offTheRecord: boolean };
 
-type Pending = { url: string; scheme: string; profile: string; page: string; origin: string | null; rememberable: boolean };
+type Pending = { ask: string; handler: ExternalHandler; url: string; scheme: string; profile: string; page: string; origin: string | null; rememberable: boolean };
 
 type StillAsked = (page: string, id: string) => Promise<boolean>;
 
@@ -13,6 +13,10 @@ type Saved = { version: 1; allowances: Record<string, Record<string, string[]>> 
 
 const DOCUMENT = "external-app-allowances.json";
 const PENDING_LIMIT = 50;
+const LONGEST_LINK = 32 * 1024;
+const LONGEST_ORIGIN = 2048;
+const ASK_ID = /^[A-Za-z0-9_.:-]{1,64}$/;
+const SERIALIZED_ORIGIN = /^([a-z][a-z0-9+.-]*):\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])(?::\d{1,5})?$/;
 const SCHEME = /^[a-z][a-z0-9+.-]{1,63}$/;
 const LOOPBACK = /^(localhost|.+\.localhost|127\.0\.0\.1|\[::1\])$/;
 
@@ -23,12 +27,13 @@ export const schemeOf = (url: string): string | null => {
   return SCHEME.test(scheme) ? scheme : null;
 };
 
+export const serializedOrigin = (origin: unknown): string | null =>
+  typeof origin === "string" && origin.length <= LONGEST_ORIGIN && SERIALIZED_ORIGIN.test(origin) ? origin : null;
+
 export function trustworthyOrigin(origin: string): boolean {
-  const match = /^([a-z][a-z0-9+.-]*):\/\/([^/:]+|\[[^\]]+\])(?::\d+)?$/i.exec(origin);
+  const match = SERIALIZED_ORIGIN.exec(origin);
   if (!match) return false;
-  const scheme = match[1]!.toLowerCase();
-  const host = match[2]!.toLowerCase();
-  return scheme === "https" || (scheme === "http" && LOOPBACK.test(host));
+  return match[1] === "https" || (match[1] === "http" && LOOPBACK.test(match[2]!));
 }
 
 let automaticOpens = 0;
@@ -67,6 +72,9 @@ export function windowsExternalApps(
   stillAsked: StillAsked,
 ) {
   const pending = new Map<string, Pending>();
+  const forgottenProfiles = new Map<string, number>();
+  let asksMade = 0;
+  const generationOf = (profile: string) => forgottenProfiles.get(profile) ?? 0;
   let saved: Saved | undefined;
   const allowances = () => (saved ??= readSaved(documents()));
   const store = () => {
@@ -82,9 +90,9 @@ export function windowsExternalApps(
       return null;
     }
   };
-  const open = async (url: string) => {
+  const open = async (url: string, handler: ExternalHandler) => {
     try {
-      return (await native()?.open(url)) === true;
+      return (await native()?.open(url, handler.name, handler.path)) === true;
     } catch {
       return false;
     }
@@ -100,21 +108,24 @@ export function windowsExternalApps(
 
   async function request(ask: ExternalAppAsk, profile: string, page: string): Promise<ExternalAppRequest | null> {
     const scheme = schemeOf(ask.url);
-    if (!scheme || !ask.id) return null;
+    if (!scheme || !ASK_ID.test(ask.id) || ask.url.length > LONGEST_LINK) return null;
+    const generation = generationOf(profile);
     const handler = await describe(scheme);
-    const origin = ask.origin && ask.origin !== "null" ? ask.origin : null;
+    if (generationOf(profile) !== generation) return null;
+    const origin = serializedOrigin(ask.origin);
     const rememberable = !!handler && !!origin && !ask.offTheRecord && !isPrivateProfile(profile) && trustworthyOrigin(origin);
     if (handler && rememberable && ask.userGesture && allowed(profile, origin!, scheme)) {
-      if ((await asking(page, ask.id)) && (await open(ask.url))) automaticOpens += 1;
+      if ((await asking(page, ask.id)) && (await open(ask.url, handler))) automaticOpens += 1;
       return null;
     }
+    const id = `w${++asksMade}`;
     if (handler) {
       if (pending.size >= PENDING_LIMIT) pending.clear();
-      pending.set(ask.id, { url: ask.url, scheme, profile, page, origin, rememberable });
+      pending.set(id, { ask: ask.id, handler, url: ask.url, scheme, profile, page, origin, rememberable });
     }
     const name = handler?.name ?? null;
     return {
-      id: ask.id,
+      id,
       url: ask.url,
       scheme,
       origin,
@@ -130,13 +141,15 @@ export function windowsExternalApps(
   async function resolve(id: string, openIt: boolean, remember: boolean): Promise<boolean> {
     const asked = pending.get(id);
     pending.delete(id);
-    if (!asked || !openIt || !(await asking(asked.page, id))) return false;
+    if (!asked || !openIt) return false;
+    const generation = generationOf(asked.profile);
+    if (!(await asking(asked.page, asked.ask)) || generationOf(asked.profile) !== generation) return false;
     if (remember && asked.rememberable && asked.origin) {
       const origins = (allowances().allowances[asked.profile] ??= {});
       origins[asked.origin] = [...new Set([...(origins[asked.origin] ?? []), asked.scheme])];
       store();
     }
-    return open(asked.url);
+    return open(asked.url, asked.handler);
   }
 
   async function list(profile: string): Promise<ExternalAppAllowance[]> {
@@ -169,6 +182,7 @@ export function windowsExternalApps(
   }
 
   function forgetProfile(profile: string) {
+    forgottenProfiles.set(profile, generationOf(profile) + 1);
     for (const [id, asked] of pending) if (asked.profile === profile) pending.delete(id);
     if (!allowances().allowances[profile]) return;
     delete allowances().allowances[profile];
@@ -200,11 +214,11 @@ export const externalAppCalls: Handlers = {
 export function readExternalAppAsk(data: unknown): ExternalAppAsk | null {
   if (!isFields(data)) return null;
   const fields: Fields = data;
-  if (typeof fields.id !== "string" || typeof fields.url !== "string") return null;
+  if (typeof fields.id !== "string" || !ASK_ID.test(fields.id) || typeof fields.url !== "string" || fields.url.length > LONGEST_LINK) return null;
   return {
     id: fields.id,
     url: fields.url,
-    origin: typeof fields.origin === "string" ? fields.origin : null,
+    origin: serializedOrigin(fields.origin),
     userGesture: fields.userGesture === true,
     offTheRecord: fields.offTheRecord === true,
   };

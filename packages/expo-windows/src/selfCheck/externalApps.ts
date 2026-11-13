@@ -32,7 +32,7 @@ export const checks: Check[] = [
     name: "ArdiaExternalApps.open refuses browser, drive-letter, path, file-type and unknown links",
     async run() {
       const opened: Record<string, boolean> = {};
-      for (const link of REFUSED_LINKS) opened[link] = await apps().open(link);
+      for (const link of REFUSED_LINKS) opened[link] = await apps().open(link, "Ardia Self-Check", null);
       expectEqual(opened, Object.fromEntries(REFUSED_LINKS.map((link) => [link, false])), "links opened");
     },
   },
@@ -53,11 +53,11 @@ export const checks: Check[] = [
         console.info(`[ardia windows] self-check app link ${scheme}: ${first?.app ?? "no app"}, icon ${first?.icon ? "yes" : "no"}`);
         if (refused) {
           expectEqual(first?.app ?? null, null, `handler named for refused ${scheme}`);
-          expectEqual(await gate.resolve(`no-${asked}`, true, false), false, `refused ${scheme} opened`);
+          expectEqual(await gate.resolve(first?.id ?? "", true, false), false, `refused ${scheme} opened`);
           continue;
         }
         expectTrue(first?.app, `no handler named for ${scheme}`);
-        expectEqual(await gate.resolve(`no-${asked}`, false, false), false, `${scheme} opened on no`);
+        expectEqual(await gate.resolve(first.id, false, false), false, `${scheme} opened on no`);
         const second = await ask(`yes-${asked}`);
         expectEqual(await gate.resolve(second?.id ?? "", true, false), true, `${scheme} opened on yes`);
       }

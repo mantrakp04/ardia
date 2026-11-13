@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readExternalAppAsk, schemeOf, trustworthyOrigin, windowsExternalAppCounts, windowsExternalApps } from "../../../../packages/expo-windows/src/engine/domains/externalApps.ts";
+import { readExternalAppAsk, schemeOf, serializedOrigin, trustworthyOrigin, windowsExternalAppCounts, windowsExternalApps } from "../../../../packages/expo-windows/src/engine/domains/externalApps.ts";
 import { noteExternalApp, takeExternalAppCounts } from "../state/telemetry/externalAppCounts.ts";
 
 const HANDLERS = { mailto: { name: "Mail", path: "C:\\Mail\\mail.exe", icon: "data:image/png;base64,AA==" }, ardiatest: { name: "Test Handler", path: null, icon: null } };
@@ -9,7 +9,7 @@ function fakes() {
   const opened = [];
   const docs = new Map();
   const gone = new Set();
-  const native = { describe: async (scheme) => HANDLERS[scheme] ?? null, open: async (url) => (opened.push(url), true) };
+  const native = { describe: async (scheme) => HANDLERS[scheme] ?? null, open: async (url, name) => (opened.push(url), name === HANDLERS[schemeOf(url)]?.name) };
   const documents = { readDocument: (name) => docs.get(name) ?? null, writeDocument: (name, text) => void docs.set(name, text) };
   const stillAsked = async (page, id) => !gone.has(page) && !gone.has(id);
   return { opened, docs, gone, apps: windowsExternalApps(() => native, () => documents, stillAsked), native, documents };
@@ -20,7 +20,8 @@ const ask = (fields = {}) => ({ id: "x1", url: "mailto:someone@example.com", ori
 test("a link with a handler asks with the handler's name and icon, in the Mac's words", async () => {
   const { apps, opened } = fakes();
   const request = await apps.request(ask(), "Ardia p-1", "tab-1");
-  assert.deepEqual(request, {
+  assert.match(request?.id ?? "", /^w\d+$/);
+  assert.deepEqual({ ...request, id: "x1" }, {
     id: "x1",
     url: "mailto:someone@example.com",
     scheme: "mailto",
@@ -37,27 +38,28 @@ test("a link with a handler asks with the handler's name and icon, in the Mac's 
 
 test("no opens without a yes, and a no or an unknown id opens nothing", async () => {
   const { apps, opened } = fakes();
-  await apps.request(ask(), "Ardia p-1", "tab-1");
-  assert.equal(await apps.resolve("x1", false, false), false);
+  const first = await apps.request(ask(), "Ardia p-1", "tab-1");
+  assert.equal(await apps.resolve(first.id, false, false), false);
+  assert.equal(await apps.resolve(first.id, true, false), false);
   assert.equal(await apps.resolve("x1", true, false), false);
   assert.equal(await apps.resolve("nope", true, false), false);
   assert.deepEqual(opened, []);
-  await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1");
-  assert.equal(await apps.resolve("x2", true, false), true);
+  const second = await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1");
+  assert.equal(await apps.resolve(second.id, true, false), true);
   assert.deepEqual(opened, ["mailto:someone@example.com"]);
 });
 
 test("a remembered site opens the app with a gesture and asks without one; remembering needs a trustworthy origin and no private profile", async () => {
   const { apps, opened, docs } = fakes();
-  await apps.request(ask(), "Ardia p-1", "tab-1");
-  await apps.resolve("x1", true, true);
+  const first = await apps.request(ask(), "Ardia p-1", "tab-1");
+  await apps.resolve(first.id, true, true);
   assert.equal(docs.size, 1);
   windowsExternalAppCounts.takeAutomaticOpens();
   assert.equal(await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1"), null);
   assert.equal(opened.length, 2);
   assert.equal(windowsExternalAppCounts.takeAutomaticOpens(), 1);
   const noGesture = await apps.request(ask({ id: "x3", userGesture: false }), "Ardia p-1", "tab-1");
-  assert.equal(noGesture?.id, "x3");
+  assert.equal(noGesture?.app, "Mail");
   assert.equal(opened.length, 2);
   assert.equal((await apps.request(ask({ id: "x4", origin: "http://mail.example" }), "Ardia p-1", "tab-1"))?.remember, null);
   assert.equal((await apps.request(ask({ id: "x5", offTheRecord: true }), "Ardia p-1", "tab-1"))?.remember, null);
@@ -71,7 +73,7 @@ test("a scheme with no handler says so and can't be opened", async () => {
   const request = await apps.request(ask({ url: "zoommtg://join?x=1" }), "Ardia p-1", "tab-1");
   assert.equal(request?.app, null);
   assert.equal(request?.message, "Your PC doesn’t have an app for “zoommtg:” links.");
-  assert.equal(await apps.resolve("x1", true, true), false);
+  assert.equal(await apps.resolve(request.id, true, true), false);
   assert.deepEqual(opened, []);
 });
 
@@ -86,6 +88,15 @@ test("only a well-formed scheme and a well-formed ask go further", () => {
   assert.equal(trustworthyOrigin("http://localhost:8080"), true);
   assert.equal(trustworthyOrigin("http://a.example"), false);
   assert.equal(trustworthyOrigin("null"), false);
+  assert.equal(trustworthyOrigin("https://evil.example@bank.example"), false);
+  assert.equal(trustworthyOrigin("HTTPS://A.EXAMPLE"), false);
+  assert.equal(serializedOrigin("https://a.example:8443"), "https://a.example:8443");
+  assert.equal(serializedOrigin("https://[::1]:8443"), "https://[::1]:8443");
+  assert.equal(serializedOrigin("https://a.example/path"), null);
+  assert.equal(serializedOrigin("https://a .example"), null);
+  assert.equal(readExternalAppAsk({ id: "x1", url: "mailto:a", origin: "https://evil.example@bank.example" })?.origin, null);
+  assert.equal(readExternalAppAsk({ id: "x 1", url: "mailto:a" }), null);
+  assert.equal(readExternalAppAsk({ id: "x1", url: `mailto:${"a".repeat(40000)}` }), null);
   assert.equal(readExternalAppAsk({ url: "mailto:a" }), null);
   assert.deepEqual(readExternalAppAsk({ id: "x9", url: "mailto:a", origin: "https://a.example", userGesture: true }), { id: "x9", url: "mailto:a", origin: "https://a.example", userGesture: true, offTheRecord: false });
 });
@@ -100,31 +111,64 @@ test("app link prompts and answers are counted and reset once taken", () => {
 
 test("an ask the engine no longer holds, or whose page moved on, opens nothing", async () => {
   const { apps, opened, gone } = fakes();
-  await apps.request(ask(), "Ardia p-1", "tab-1");
+  const first = await apps.request(ask(), "Ardia p-1", "tab-1");
   gone.add("x1");
-  assert.equal(await apps.resolve("x1", true, false), false);
-  await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1");
+  assert.equal(await apps.resolve(first.id, true, false), false);
+  const second = await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1");
   apps.forgetPage("tab-1");
-  assert.equal(await apps.resolve("x2", true, false), false);
-  await apps.request(ask({ id: "x3" }), "Ardia p-1", "tab-2");
-  apps.forget("x3");
-  assert.equal(await apps.resolve("x3", true, false), false);
+  assert.equal(await apps.resolve(second.id, true, false), false);
+  const third = await apps.request(ask({ id: "x3" }), "Ardia p-1", "tab-2");
+  apps.forget(third.id);
+  assert.equal(await apps.resolve(third.id, true, false), false);
   assert.deepEqual(opened, []);
 });
 
 test("a remembered site opens nothing once its page is gone, and deleting a profile forgets its allowances", async () => {
   const { apps, opened, gone } = fakes();
-  await apps.request(ask(), "Ardia p-1", "tab-1");
-  await apps.resolve("x1", true, true);
-  await apps.request(ask({ id: "o1" }), "Ardia p-2", "tab-2");
-  await apps.resolve("o1", true, true);
+  const mine = await apps.request(ask(), "Ardia p-1", "tab-1");
+  await apps.resolve(mine.id, true, true);
+  const theirs = await apps.request(ask({ id: "o1" }), "Ardia p-2", "tab-2");
+  await apps.resolve(theirs.id, true, true);
   gone.add("tab-1");
   assert.equal(await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1"), null);
   assert.equal(opened.length, 2);
-  await apps.request(ask({ id: "x3" }), "Ardia p-1", "tab-3");
+  const waiting = await apps.request(ask({ id: "x3", userGesture: false }), "Ardia p-1", "tab-3");
   apps.forgetProfile("Ardia p-1");
-  assert.equal(await apps.resolve("x3", true, false), false);
+  assert.equal(await apps.resolve(waiting.id, true, false), false);
   assert.deepEqual(await apps.list("Ardia p-1"), []);
   assert.equal((await apps.list("Ardia p-2")).length, 1);
   assert.notEqual(await apps.request(ask({ id: "x4" }), "Ardia p-1", "tab-3"), null);
+});
+
+const mailOnly = (opened) => ({ describe: async () => ({ name: "Mail", path: null, icon: null }), open: async (url) => (opened.push(url), true) });
+
+test("two pages whose asks carry the same engine id each open only their own link", async () => {
+  const opened = [];
+  const asked = [];
+  const apps = windowsExternalApps(() => mailOnly(opened), () => null, async (page, id) => (asked.push(`${page}/${id}`), true));
+  const a = await apps.request(ask({ url: "mailto:a@a.example", origin: "https://a.example" }), "Ardia p-1", "tab-A");
+  const b = await apps.request(ask({ url: "mailto:b@b.example", origin: "https://b.example" }), "Ardia p-1", "tab-B");
+  assert.notEqual(a.id, b.id);
+  assert.equal(await apps.resolve(a.id, true, false), true);
+  assert.deepEqual(opened, ["mailto:a@a.example"]);
+  assert.deepEqual(asked, ["tab-A/x1"]);
+  apps.forget(a.id);
+  assert.equal(await apps.resolve(b.id, true, false), true);
+  assert.deepEqual(opened, ["mailto:a@a.example", "mailto:b@b.example"]);
+});
+
+test("a profile deleted while a yes waits for the engine keeps no allowance and opens nothing", async () => {
+  const opened = [];
+  const docs = new Map();
+  let answer;
+  const documents = { readDocument: (name) => docs.get(name) ?? null, writeDocument: (name, text) => void docs.set(name, text) };
+  const apps = windowsExternalApps(() => mailOnly(opened), () => documents, () => new Promise((resolve) => (answer = resolve)));
+  const asked = await apps.request(ask(), "Ardia p-1", "tab-1");
+  const answered = apps.resolve(asked.id, true, true);
+  await new Promise((resolve) => setImmediate(resolve));
+  apps.forgetProfile("Ardia p-1");
+  answer(true);
+  assert.equal(await answered, false);
+  assert.deepEqual(await apps.list("Ardia p-1"), []);
+  assert.deepEqual(opened, []);
 });

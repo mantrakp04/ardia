@@ -529,12 +529,16 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   - **Lifetime:** an ask belongs to its page and is dropped when the page closes. Before any launch the engine must
     answer `true` to the `externalAppAlive` page call, as the Mac checks that the asking document is still alive, so
     a prompt survives a single-page site's route change but opens nothing once its document is gone.
+    The prompt carries an id the app makes, so two pages whose engine ids collide never answer each other's
+    prompt. The engine's origin must be a serialized origin (no user info, path or spaces), and a profile deleted
+    while a yes waits for the engine keeps no allowance and opens nothing.
   - **Counts:** the prompt's outcomes are counted in the app (`externalAppCounts.ts`); an automatic open for a site
     you always allow has no prompt, so `ArdiaExternalAppCounts.takeAutomaticOpens` hands it to the hourly extras as
     `external_app_opens_automatic`.
   - **Open:** `ArdiaExternalApps.open` opens only the asked URL of a pending request. It never opens http, https or
     file. It escapes the URL as Chromium's `EscapeExternalHandlerValue` does, and hands it to `ShellExecuteExW` as
-    the single `lpFile`, with the system folder as the working folder as Chromium does.
+    the single `lpFile`, with the system folder as the working folder as Chromium does. It takes the handler's
+    name and executable from the prompt and opens nothing if the scheme's handler changed since.
   - **Denied schemes** stay Chromium's own (`ExternalProtocolHandler`), which run before the engine's hook, as on
     the Mac.
   - **Self-check** (`selfCheck/externalApps.ts`): `describe` names no handler and `open` opens nothing for browser,
