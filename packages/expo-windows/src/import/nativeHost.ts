@@ -6,6 +6,8 @@ type Native = TurboModule & {
   list(path: string): Promise<string>;
   readText(path: string, largest: number): Promise<string | null>;
   readBase64(path: string, largest: number): Promise<string | null>;
+  readTextWithin(folder: string, path: string, largest: number): Promise<string | null>;
+  readBase64Within(folder: string, path: string, largest: number): Promise<string | null>;
   query(path: string, queries: Query[]): Promise<string>;
   openSnapshot(path: string): Promise<string>;
   querySnapshot(id: string, queries: Query[]): Promise<string>;
@@ -32,6 +34,8 @@ export function nativeImportHost(): ImportHost | null {
     list: (path) => parsed(native.list(path)),
     readText: (path, largest) => native.readText(path, largest),
     readBase64: (path, largest) => native.readBase64(path, largest),
+    readTextWithin: (folder, path, largest) => native.readTextWithin(folder, path, largest),
+    readBase64Within: (folder, path, largest) => native.readBase64Within(folder, path, largest),
     query: (path, queries) => parsed(native.query(path, queries)),
     openSnapshot: (path) => parsed(native.openSnapshot(path)),
     querySnapshot: (id, queries) => parsed(native.querySnapshot(id, queries)),

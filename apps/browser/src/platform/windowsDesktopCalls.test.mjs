@@ -35,8 +35,8 @@ function fakeEngine({ saved = null, picked = null, files = {}, power = null, rep
         return saved;
       },
       pickFolder: async () => picked,
-      readText: async (path) => (typeof files[path] === "string" ? files[path] : null),
-      readBase64: async (path) => (files[path] instanceof Buffer ? files[path].toString("base64") : null),
+      readText: async (folder, path) => (path.startsWith(`${folder}\\`) && typeof files[path] === "string" ? files[path] : null),
+      readBase64: async (folder, path) => (path.startsWith(`${folder}\\`) && files[path] instanceof Buffer ? files[path].toString("base64") : null),
       power: () => engine.reading,
       every: (_ms, run) => engine.ticks.push(run),
     },
@@ -151,4 +151,18 @@ test("Windows' power reading becomes the Mac's system state, and a change is sen
   engine.ticks[0]();
   engine.ticks[0]();
   assert.deepEqual(engine.events.map((e) => [e.name, e.data.onBattery, e.data.batteryLevel]), [["engine.systemState", true, 0.8]]);
+});
+
+test("a manifest's locale can't name a folder outside the extension", async () => {
+  const engine = fakeEngine({
+    files: {
+      [`${FOLDER}\\manifest.json`]: '{ "name": "__MSG_n__", "default_locale": "../../outside" }',
+      [`${FOLDER}\\_locales\\..\\..\\outside\\messages.json`]: '{ "n": { "message": "From outside" } }',
+      [`${FOLDER}\\_locales\\pt_BR\\messages.json`]: '{ "n": { "message": "Inside" } }',
+    },
+  });
+  const sheet = await calling(engine, "extensions")("inspectUnpacked", { path: FOLDER });
+  assert.equal(sheet.name, "__MSG_n__");
+  const local = fakeEngine({ files: { [`${FOLDER}\\manifest.json`]: '{ "name": "__MSG_n__", "default_locale": "pt_BR" }', [`${FOLDER}\\_locales\\pt_BR\\messages.json`]: '{ "n": { "message": "Inside" } }' } });
+  assert.equal((await calling(local, "extensions")("inspectUnpacked", { path: FOLDER })).name, "Inside");
 });

@@ -5,6 +5,7 @@ import { sha256 } from "./sha256";
 
 const LARGEST_JSON_BYTES = 4 << 20;
 const LARGEST_ICON_BYTES = 2 << 20;
+const LOCALE_NAME = /^[A-Za-z]{2,3}(?:_[A-Za-z0-9]{2,8})*$/;
 const IMAGE_TYPES: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
@@ -125,8 +126,8 @@ async function messagesOf(desktop: Desktop, folder: string, manifest: Fields, ui
   if (typeof manifest.default_locale === "string") candidates.push(manifest.default_locale);
   candidates.push("en", "en_US");
   const merged: Messages = {};
-  for (const locale of [...new Set(candidates)]) {
-    const raw = await desktop.readText(joinPath(folder, `_locales/${locale}/messages.json`), LARGEST_JSON_BYTES).catch(() => null);
+  for (const locale of [...new Set(candidates)].filter((name) => LOCALE_NAME.test(name))) {
+    const raw = await desktop.readText(folder, joinPath(folder, `_locales/${locale}/messages.json`), LARGEST_JSON_BYTES).catch(() => null);
     const messages = parsed(raw);
     if (!messages) continue;
     const valid = Object.values(messages).every((entry) => isFields(entry) && typeof entry.message === "string");
@@ -149,14 +150,14 @@ async function dataUrl(desktop: Desktop, folder: string, relative: string | unde
   if (!inside) return undefined;
   const type = IMAGE_TYPES[inside.slice(inside.lastIndexOf(".") + 1).toLowerCase()];
   if (!type) return undefined;
-  const base64 = await desktop.readBase64(joinPath(folder, inside), LARGEST_ICON_BYTES).catch(() => null);
+  const base64 = await desktop.readBase64(folder, joinPath(folder, inside), LARGEST_ICON_BYTES).catch(() => null);
   return base64 ? `data:${type};base64,${base64}` : undefined;
 }
 
 const dropUndefined = (fields: Fields): Fields => Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined));
 
 export async function readUnpacked(desktop: Desktop, folder: string, uiLocale = "en"): Promise<Fields> {
-  const manifest = parsed(await desktop.readText(joinPath(folder, "manifest.json"), LARGEST_JSON_BYTES).catch(() => null));
+  const manifest = parsed(await desktop.readText(folder, joinPath(folder, "manifest.json"), LARGEST_JSON_BYTES).catch(() => null));
   if (!manifest) throw callError("ERR_ENGINE", "Manifest file is missing or unreadable");
   const messages = await messagesOf(desktop, folder, manifest, uiLocale);
   const action = [manifest.action, manifest.browser_action, manifest.page_action].find(isFields);

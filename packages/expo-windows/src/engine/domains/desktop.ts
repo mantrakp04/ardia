@@ -16,8 +16,8 @@ export function nativeDesktop(): Desktop | undefined {
   return {
     saveFile: async ({ name, extension, kind, message }) => (await dialogs()?.saveFile(name, extension, kind, message)) ?? null,
     pickFolder: async (prompt) => (await dialogs()?.pickFolder(null, prompt)) ?? null,
-    readText: (path, largest) => files.readText(path, largest),
-    readBase64: (path, largest) => files.readBase64(path, largest),
+    readText: (folder, path, largest) => files.readTextWithin(folder, path, largest),
+    readBase64: (folder, path, largest) => files.readBase64Within(folder, path, largest),
     power: () => signals()?.powerState() ?? null,
     every: (ms, run) => void setInterval(run, ms),
   };

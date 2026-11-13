@@ -2,6 +2,7 @@ import { TurboModuleRegistry, type TurboModule } from "react-native";
 import type { DocumentsNative } from "@ardia/shell";
 import type { WindowsDialogs, WindowsPower } from "../engine/domains/desktop";
 import { engineAvailable } from "../engine/host";
+import { nativeImportHost } from "../import/nativeHost";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
@@ -45,6 +46,23 @@ export const checks: Check[] = [
       expectTrue(isFlag(state.onBattery) && isFlag(state.batterySaver), `flags ${JSON.stringify(state)}`);
       expectTrue(state.batteryPercent === null || isCount(state.batteryPercent, 100), `battery ${JSON.stringify(state.batteryPercent)}`);
       expectTrue(isCount(state.memoryLoad, 100) && typeof state.physicalMemory === "number" && state.physicalMemory > 0, `memory ${JSON.stringify(state)}`);
+    },
+  },
+  {
+    name: "desktop calls: a read within a folder stays inside it",
+    async run() {
+      const files = nativeImportHost();
+      expectTrue(files, "ArdiaWindowsImport has no Windows module");
+      const name = "self-check-within.txt";
+      documents().writeDocument(name, "inside");
+      await documents().documentSaved(name);
+      const folder = dataFolder();
+      const file = `${folder}\\${name}`;
+      expectEqual(await files.readTextWithin(folder, file, 1024), "inside", "a file inside the folder");
+      expectEqual(await files.readTextWithin(`${folder}\\Chromium`, file, 1024), null, "a file outside the folder");
+      expectEqual(await files.readTextWithin(`${folder}\\Chromium`, `${folder}\\Chromium\\..\\${name}`, 1024), null, "a path that climbs out of the folder");
+      expectEqual(await files.readTextWithin(folder, file, 2), null, "a file over the size asked for");
+      documents().removeDocument(name);
     },
   },
   {

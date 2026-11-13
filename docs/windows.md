@@ -364,8 +364,9 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   chosen, never which.
 - `extensions.chooseFolder` and `extensions.inspectUnpacked`: `ArdiaDialogs.pickFolder`, then the Mac's
   `ReadManifest` in TypeScript over `ArdiaWindowsImport`'s file reads: the manifest (comments and trailing commas
-  allowed, as Chrome does), its `_locales` messages, the icons as data addresses (never outside the folder), and the
-  id from `key`. `install` and `installCrx` already went to `ac_extensions_install` and `ac_extensions_install_crx`.
+  allowed, as Chrome does), its `_locales` messages (locale names only), the icons as data addresses, and the id from `key`.
+  Every read goes through `readTextWithin`/`readBase64Within`, which compare the opened file's real path with the
+  folder's, so no `..`, junction or symlink reaches outside it; the size limit is the opened file's, not a link's. `install` and `installCrx` already went to `ac_extensions_install` and `ac_extensions_install_crx`.
 - `engine.systemState`: `ArdiaSystemSignals.powerState` (`GetSystemPowerStatus`, `GlobalMemoryStatusEx`) mapped onto
   the Mac's shape: on battery, the battery's level, battery saver as `lowPowerMode`, and memory pressure from the
   memory load (warning at 85%, critical at 95%). It is read again every 20 s and `engine.systemState` is sent when it
