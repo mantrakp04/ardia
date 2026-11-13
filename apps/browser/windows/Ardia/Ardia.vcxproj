@@ -153,6 +153,7 @@
     <ClInclude Include="Events.h" />
     <ClInclude Include="Host.h" />
     <ClInclude Include="Modules.h" />
+    <ClInclude Include="PageCapture.h" />
     <ClInclude Include="Paths.h" />
     <ClInclude Include="PointerLatch.h" />
     <ClInclude Include="WindowFade.h" />

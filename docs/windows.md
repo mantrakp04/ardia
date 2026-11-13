@@ -50,6 +50,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome | |
 | Search Tabs, Ctrl+Tab | Works | |
 | Pin, Top Apps, New Group with Tab | Works | |
+| Page picture (a pinned tab open in another window, a pinned page moving windows, the tab drag preview) | Works: the app captures the page's window (`ArdiaAppWindows.capturePage`) | #1540 |
 | Tab, pinned tab, sidebar and New Tab row menus | Works | |
 | Tabs in the sidebar or across the top, auto-hide tabs | Works | |
 | Open in WebKit (tab menu), Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |

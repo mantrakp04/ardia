@@ -31,6 +31,7 @@ export type AppWindowsOnWindows = {
   debugDragRegions(id: string): Promise<DragRegions | null>;
   debugSidebarEdgeWatch(): Promise<SidebarEdgeWatch | null>;
   debugWindowFade(id: string): Promise<WindowFade | null>;
+  capturePage(windowId: string, x: number, y: number, width: number, height: number, scale: number): Promise<string>;
 };
 
 export type AppWindowsModule = WindowsNative & WindowControlsNative & AppWindowsOnWindows;
