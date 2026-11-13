@@ -1,19 +1,18 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
-import type { DocumentsNative } from "@ardia/shell";
+import type { DomainModule } from "@ardia/ardiacore";
+import type { AppNative, DocumentsNative } from "@ardia/shell";
 import type { DialogsModule, SystemSignalsModule } from "../nativeModuleTypes";
 import { engineAvailable } from "../engine/host";
 import { nativeImportHost } from "../import/nativeHost";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type DomainModule = { call(verb: string, profile: string, argsJson: string): Promise<string> };
-
 const PICKS = "file-chooser.txt";
 const MANIFEST = "manifest.json";
 
 const documents = () => requireNativeModule<DocumentsNative>("ArdiaDocuments");
 const dataFolder = () => {
-  const folder = requireNativeModule<{ launchConfig(): { dataDirectory?: unknown } }>("ArdiaApp").launchConfig().dataDirectory;
+  const folder = requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().dataDirectory;
   expectTrue(typeof folder === "string" && folder.length > 0, "the instance has no data folder");
   return folder;
 };
