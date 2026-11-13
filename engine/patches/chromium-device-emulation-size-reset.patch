@@ -1,0 +1,13 @@
+diff --git a/content/browser/web_contents/web_contents_impl.cc b/content/browser/web_contents/web_contents_impl.cc
+--- a/content/browser/web_contents/web_contents_impl.cc
++++ b/content/browser/web_contents/web_contents_impl.cc
+@@ -12471,9 +12471,6 @@
+ void WebContentsImpl::ClearDeviceEmulationSize() {
+   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::ClearDeviceEmulationSize");
+   RenderWidgetHostView* rwhv = GetPrimaryMainFrame()->GetView();
+-  if (!rwhv) {
+-    return;
+-  }
+   // WebContentsView could get resized during emulation, which also resizes
+   // RWHV. If it happens, assume user would like to keep using the size after
+   // emulation.

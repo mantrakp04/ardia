@@ -1,5 +1,11 @@
 import AppKit
 
+enum PictureInPictureAnswer {
+  case opened
+  case nothingPlaying
+  case failed
+}
+
 extension WebKitTab {
   var autoPictureInPictureRule: WebKitAutoPictureInPicture {
     get { webView?.autoPictureInPictureRule ?? WebKitAutoPictureInPicture() }
@@ -25,7 +31,7 @@ extension WebKitTab {
     let seen = visible && ArdiaChromeWindowHost.userSees(window)
     let activeCapture = webView?.cameraCaptureState == .active || webView?.microphoneCaptureState == .active
     switch autoPictureInPictureRule.sight(seen, enabled: autoPictureInPicture, playing: !playingFrames.isEmpty || activeCapture) {
-    case .open: setPictureInPicture(true) { _ in }
+    case .open: setPictureInPicture(true, automatic: true) { [weak self] answer in if answer == .nothingPlaying { self?.emit("autoPictureInPictureKept", ["reason": "nothingPlaying"]) } }
     case .close: setPictureInPicture(false) { _ in }
     case .none: break
     }

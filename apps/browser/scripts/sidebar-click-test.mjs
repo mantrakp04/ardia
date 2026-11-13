@@ -8,7 +8,7 @@ import { launch, reporter, session, sleep } from "../../../scripts/lib/instance.
 const args = process.argv.slice(2);
 const appArg = args.find((a) => !a.startsWith("--"));
 if (!appArg) {
-  console.error("usage: node sidebar-click-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nOne click on a sidebar tab or pinned tile opens it, through AppKit's event path: as its hover card appears, under another tile's appearing card, after a New Tab, after closing a pinned tab, and when the pointer drifts up to 9 pt between press and release. A plain press switches on mouse down; a drag from it reorders the selected tab; ⌘/⇧-click, a press in a multi-selection, the shown tab, double-click rename, the close button, middle- and right-click keep their own behaviour.");
+  console.error("usage: node sidebar-click-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nOne click on a sidebar tab or pinned tile opens it, through AppKit's event path: as its hover card appears, under another tile's appearing card, after a New Tab, after closing a pinned tab, when the pointer drifts up to 9 pt between press and release, and right after a press whose mouse up a menu took. A plain press switches on mouse down; a drag from it reorders the selected tab; ⌘/⇧-click, a press in a multi-selection, the shown tab, double-click rename, the close button, middle- and right-click keep their own behaviour.");
   process.exit(2);
 }
 const appPath = resolve(appArg);
@@ -59,6 +59,19 @@ const pressHeld = (id, hold, flags = null) => center(id).then(([x, y]) => {
     return act("mouse:up:" + x + "," + y + f).then(() => settle(450)).then(() => ({ down, up: shown() }));
   });
 });
+const pressNumbered = (id, hold, number) => center(id).then(([x, y]) => point(x, y).then(() => act("mouse:down:" + x + "," + y + ",1,0," + number)).then(() => settle(hold)).then(() => {
+  const down = shown();
+  return act("mouse:up:" + x + "," + y + ",1,0," + number).then(() => settle(450)).then(() => ({ down, up: shown() }));
+}));
+const downWithoutUp = (id, type, tail) => center(id).then(([x, y]) => point(x, y).then(() => act("mouse:" + type + ":" + x + "," + y + tail))).then(() => settle(300));
+const newTabRowButton = () => new Promise((r) => {
+  const item = [...globalThis.sidebarDrag.items.values()].find((i) => i.view && i.kind === "row" && i.tabIds.includes("c"));
+  item.view.measureInWindow((x, y, w, h) => r([Math.round(x + w - 17), Math.round(y + h / 2)]));
+}).then(([x, y]) => {
+  const below = (dy) => dy > 240 ? null : act("hit:" + x + "," + (y + dy)).then((hit) => hit.split(" < ").slice(0, 3).every((c) => c === "RCTView") ? [x, y + dy + 6] : below(dy + 6));
+  return below(12);
+});
+const toA = () => { st().activate("a"); st().setSelection("w1", []); return settle(500); };
 const closeButtonOf = (id) => new Promise((r) => {
   const item = [...globalThis.sidebarDrag.items.values()].find((i) => i.view && i.kind === "row" && i.tabIds.includes(id));
   item.view.measureInWindow((x, y, w, h) => r([Math.round(x + w - 17), Math.round(y + h / 2)]));
@@ -201,6 +214,60 @@ try {
     assert.deepEqual(middle, { down: "a", up: "a", gone: true }, "middle-click closes b without switching");
     const right = await run(`return center("p2").then(([x, y]) => act("click:" + x + "," + y + ",right")).then(() => settle(600)).then(() => shown());`);
     assert.equal(right, "a", "right-click doesn't switch");
+  });
+
+  await rep.check("a press whose mouse up a menu or a drag session took doesn't swallow the next click", async () => {
+    const lost = () => run("return globalThis.expo.modules.ArdiaFocus.pressesWithoutRelease();");
+    const cases = [["a right-click's menu", "rightdown", ",1,0,901", 0], ["a ⌃-click's menu", "down", ",1,262144,902", 0], ["a plain press", "down", ",1,0,903", 1]];
+    for (const [name, type, tail, counted] of cases) {
+      await run(`st().activate("a"); return settle(400);`);
+      const before = await lost();
+      await run(`return downWithoutUp("c", ${JSON.stringify(type)}, ${JSON.stringify(tail)});`);
+      const r = await run(`return pressNumbered("p2", 120, ${tail.split(",").at(-1)}0);`);
+      assert.deepEqual(r, { down: "p2", up: "p2" }, `the first click after ${name} lost its release`);
+      assert.equal((await lost()) - before, counted, `${name}: presses ended at the next mouse down`);
+    }
+  });
+
+  await rep.check("a right-click that arrives while the left button is held leaves the left press its release", async () => {
+    await run(`st().activate("a"); st().setSelection("w1", []); return settle(400);`);
+    const r = await run(`return Promise.all([center("c"), center("p2")]).then(([[cx, cy], [bx, by]]) => point(cx, cy)
+      .then(() => act("mouse:down:" + cx + "," + cy + ",1,${1 << 20},921")).then(() => settle(80))
+      .then(() => act("mouse:rightdown:" + bx + "," + by + ",1,0,922")).then(() => settle(80))
+      .then(() => act("mouse:up:" + cx + "," + cy + ",1,${1 << 20},921")).then(() => settle(450))
+      .then(() => ({ shown: shown(), selection: st().selection.w1 ?? [] })));`);
+    assert.deepEqual(r, { shown: "a", selection: ["a", "c"] }, "the ⌘-click still selects on its release");
+    await run(`st().setSelection("w1", []); return settle(200);`);
+    assert.equal(await run(`return pressNumbered("p2", 120, 923);`).then((p) => p.up), "p2", "and the next click switches");
+  });
+
+  await rep.check("a right-click and its release during a held left press leave that press its click", async () => {
+    const r = await run(`return toA().then(() => Promise.all([center("c"), newTabRowButton()])).then(([[x, y], [bx, by]]) => act("hit:" + bx + "," + by).then((hit) =>
+      act("mouse:down:" + x + "," + y + ",1,${1 << 20},931").then(() => settle(80))
+        .then(() => act("mouse:rightdown:" + bx + "," + by + ",1,0,932")).then(() => settle(60)).then(() => act("mouse:rightup:" + bx + "," + by + ",1,0,932")).then(() => settle(80))
+        .then(() => act("mouse:up:" + x + "," + y + ",1,${1 << 20},931")).then(() => settle(450))
+        .then(() => ({ menuArea: hit.includes("ContextMenuArea"), shown: shown(), selection: st().selection.w1 ?? [] }))));`);
+    assert.deepEqual(r, { menuArea: false, shown: "a", selection: ["a", "c"] });
+  });
+
+  await rep.check("a right-click on a control while the left button is held elsewhere presses nothing", async () => {
+    await run("return toA();");
+    await press("t", 17);
+    await sleep(900);
+    const r = await run(`const newTab = shown(); return act("hit:760,320").then((hit) => act("mouse:down:760,320,1,0,941").then(() => settle(100)).then(() => center("c"))
+      .then(([x, y]) => act("mouse:rightdown:" + x + "," + y + ",1,0,942")).then(() => settle(400))
+      .then(() => { const after = shown(); return act("mouse:up:760,320,1,0,941").then(() => settle(300)).then(() => ({ onBar: hit.includes("ContextMenuArea"), newTabPage: !st().tabs[newTab].url, stayed: after === newTab && shown() === newTab })); }));`);
+    assert.deepEqual(r, { onBar: true, newTabPage: true, stayed: true });
+  });
+
+  await rep.check("after a right-click whose mouse up a menu took, in the New Tab field, on a page or over a button, one click switches", async () => {
+    const lost = () => run("return globalThis.expo.modules.ArdiaFocus.pressesWithoutRelease();");
+    assert.deepEqual(await run(`return act("mouse:rightdown:760,340,1,0,951").then(() => settle(400)).then(() => pressNumbered("c", 120, 952));`), { down: "c", up: "c" }, "after the New Tab page's field");
+    assert.deepEqual(await run(`return toA().then(() => act("mouse:rightdown:700,500,1,0,961")).then(() => settle(400)).then(() => pressNumbered("p2", 120, 962));`), { down: "p2", up: "p2" }, "after a page");
+    const before = await lost();
+    assert.deepEqual(await run(`return toA().then(newTabRowButton).then(([x, y]) => act("mouse:rightdown:" + x + "," + y + ",1,0,971")).then(() => settle(200))
+      .then(() => act("postNotification:app:NSMenuDidBeginTrackingNotification")).then(() => settle(200)).then(() => pressNumbered("c", 120, 972));`), { down: "c", up: "c" }, "after a menu began tracking over a button");
+    assert.ok((await lost()) - before >= 1, "the menu's tracking ended the recorded presses");
   });
 } finally {
   await app?.quit();

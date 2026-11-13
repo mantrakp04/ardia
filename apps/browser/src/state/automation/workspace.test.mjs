@@ -558,3 +558,29 @@ test("order: groups made from one group's tabs keep creation order above it, and
     assert.ok(last(shopping) < at(t[5]), `pinned ${pinned}: still below after ungroup`);
   }
 });
+
+test("workspace with usage: each tab gets its process id, CPU and memory, and a tab with no process gets nulls", async () => {
+  const { a, b, c } = await setup();
+  const task = (tabId, fields) => ({ id: 1, type: "renderer", title: "", killable: true, cpu: 0, processors: 8, memory: 0, gpuMemory: 0, tabIds: [tabId], ...fields });
+  globalThis.acTestTasks = () => [
+    task(a, { pid: 4321, cpu: 87.26, memory: 412_000_000.4 }),
+    task(b, { cpu: Number.NaN, memory: 0 }),
+    { ...task(null, { pid: 99, type: "gpu", memory: 5 }), tabIds: [] },
+  ];
+  try {
+    const plain = (await call("workspace", {})).result;
+    const first = (tree) => tree.windows.at(-1).spaces[0].tabs;
+    assert.equal("pid" in first(plain)[0], false);
+    assert.match((await call("workspace", { usage: "yes" })).error.message, /usage is true or false/);
+    const id = ++nextId;
+    const before = stub.controlSocket.replies.length;
+    stub.emitControlRequest({ connection: 7, generation: stub.controlSocket.generation, line: JSON.stringify({ id, method: "workspace", params: { usage: true } }) });
+    for (let i = 0; i < 400 && stub.controlSocket.replies.length === before; i++) await new Promise((resolve) => setTimeout(resolve, 10));
+    const tabs = Object.fromEntries(first(JSON.parse(stub.controlSocket.replies.at(-1).line).result).map((t) => [t.id, [t.pid, t.cpu, t.memory]]));
+    assert.deepEqual(tabs[a], [4321, 87.3, 412000000]);
+    assert.deepEqual(tabs[b], [null, null, null]);
+    assert.deepEqual(tabs[c], [null, null, null]);
+  } finally {
+    delete globalThis.acTestTasks;
+  }
+});

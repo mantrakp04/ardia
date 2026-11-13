@@ -2,6 +2,7 @@
 
 Ardia is a macOS browser: Dia's polish and Arc's sidebar, built on Chrome's own framework (Chromium 157 on Helium) through ArdiaCore, our thin layer,
 with no account. This file is how the owner works; follow it.
+You are the owner and long-term maintainer of this codebase, and its design is up to you.
 For the architecture and the test tooling, read `docs/agent-brief.md`.
 
 ## How work gets done

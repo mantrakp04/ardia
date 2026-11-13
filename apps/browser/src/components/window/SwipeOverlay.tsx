@@ -11,6 +11,7 @@ import { Favicon, NewTabIcon } from "../favicon/Favicon";
 import { HISTORY_MENU_WIDTH, underButton, HistoryPopover } from "./HistoryPopover";
 import { goBack, goForward, goToHistoryItem, historyFavicons, historyItems, openHistoryMenu, useHistoryAvailability, useHistoryMenu, type HistoryItem } from "../../state/tabs/navigation";
 import { historyMenuLeft, type PageAnchor } from "./pageAnchors";
+import { useSwipeClose } from "./swipeClose";
 import {
   CAPSULE_INSET,
   CAPSULE_SIZE,
@@ -57,6 +58,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
   const sizeRef = useRef({ width: 0, height: 0 });
   const [shown, setShown] = useState<Shown | null>(null);
   const area = useRef<SwipeAreaHandle>(null);
+  const swipeClose = useSwipeClose();
+  const closing = useRef(false);
 
   const g = useRef({
     active: false,
@@ -169,6 +172,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
 
   const lastDy = useRef(0);
   const onSwipe = (e: SwipeEvent) => {
+    if (e.phase === "began" || e.phase === "swipe") closing.current = !!swipeClose && e.direction === "back" && !history.back;
+    if (closing.current) return swipeClose?.(e);
     lastDy.current = e.dy;
     if (e.phase === "began" || e.phase === "swipe") {
       resetValues(e.direction);
@@ -216,7 +221,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
       <SwipeArea
         ref={area}
         style={StyleSheet.absoluteFill}
-        canSwipeBack={history.back}
+        canSwipeBack={history.back || !!swipeClose}
         canSwipeForward={history.forward}
         allowsVerticalMotion={!!shown?.list}
         onSwipe={onSwipe}

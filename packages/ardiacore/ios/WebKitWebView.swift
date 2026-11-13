@@ -8,6 +8,7 @@ final class WebKitWebView: WKWebView {
   let nowPlaying = ArdiaNowPlaying()
   var captureOrigins: [String: Set<String>] = [:]
   var autoPictureInPictureRule = WebKitAutoPictureInPicture()
+  private var keyUpOfReservedKey: UInt16?
 
   override init(frame: CGRect, configuration: WKWebViewConfiguration) {
     super.init(frame: frame, configuration: configuration)
@@ -43,6 +44,31 @@ final class WebKitWebView: WKWebView {
     let became = super.becomeFirstResponder()
     if became { onFocus?() }
     return became
+  }
+
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    guard (window?.firstResponder as? NSView)?.isDescendant(of: self) == true else { return super.performKeyEquivalent(with: event) }
+    let reserved = ArdiaPerformReservedKey(event)
+    keyUpOfReservedKey = reserved ? event.keyCode : nil
+    return reserved || super.performKeyEquivalent(with: event)
+  }
+
+  override func keyDown(with event: NSEvent) {
+    keyUpOfReservedKey = nil
+    super.keyDown(with: event)
+  }
+
+  override func keyUp(with event: NSEvent) {
+    if keyUpOfReservedKey == event.keyCode {
+      keyUpOfReservedKey = nil
+      return
+    }
+    super.keyUp(with: event)
+  }
+
+  override func resignFirstResponder() -> Bool {
+    keyUpOfReservedKey = nil
+    return super.resignFirstResponder()
   }
 
   override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {

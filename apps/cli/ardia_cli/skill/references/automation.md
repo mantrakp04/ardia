@@ -8,6 +8,8 @@ mute, sleep, close) on tabs and groups by id, without changing the tab a window 
 ```sh
 ardia tabs --json        # windows › spaces (one per profile) › topApps, pinned, tabs; groups nest with items
 ardia tabs --flat --json # one object per tab: id, url, title, pin, group, window, profile, active, asleep
+ardia tabs --usage       # each tab's process: pid, CPU % of a core, memory, hottest first (--json: pid, cpu, memory)
+ardia tabs --pid 61234   # the tabs in that process, to name a pid from top or Activity Monitor
 ardia groups --json      # every group: id, name, icon, color, collapsed, pinned, parent, depth, tabs
 ```
 

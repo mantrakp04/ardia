@@ -215,6 +215,7 @@ BOOL Above(NSView *a, NSView *b) {
 
 - (void)applyPainting {
   if (_frameHold.awaiting && !_visible && !_reveal.active) [self finishFrameHold];
+  if (_visible || _reveal.active) [self exposePage];
   if (_visible) [self sinkLingeringPane];
   if (_visible) [self takeFocusFromLingeringPane];
   [self beginFrameHoldIfCold];
@@ -228,9 +229,10 @@ BOOL Above(NSView *a, NSView *b) {
   }
   [CATransaction commit];
   if (TraceVisibility())
-    NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d", _transferKey,
-          _visible, _warm, _tab ? (int)_tab.tabId : -1, _tab.view.superview == self ? @"here" : @"elsewhere",
-          (long)self.window.windowNumber, _tab.view.isHiddenOrHasHiddenAncestor);
+    NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d alpha=%d reveal=%d awaiting=%d restoring=%d cover=%d",
+          _transferKey, _visible, _warm, _tab ? (int)_tab.tabId : -1, _tab.view.superview == self ? @"here" : @"elsewhere",
+          (long)self.window.windowNumber, _tab.view.isHiddenOrHasHiddenAncestor, (int)self.alphaValue, _reveal.active,
+          _frameHold.awaiting, _frameHold.restoring, _frameHold.cover != nil);
 }
 
 + (void)noteShown:(ArdiaCoreTab *)tab {
@@ -337,6 +339,62 @@ BOOL Above(NSView *a, NSView *b) {
          self.alphaValue > 0 && !self.isHiddenOrHasHiddenAncestor;
 }
 
+- (void)exposePage {
+  if (!_tab || !self.window || _tab.view.superview != self) return;
+  if (![_tab noteInShownSlot]) return;
+  if (!_frameHold.restoring) {
+    _frameHold.restoring = YES;
+    const NSUInteger generation = ++_frameHold.restoreGeneration;
+    if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ waits for a frame at its own size", _transferKey);
+    __weak ArdiaWebView *weakSelf = self;
+    [_tab whenSizeRestored:^(NSString *proof) {
+      ArdiaWebView *view = weakSelf;
+      if (view && view->_frameHold.restoring && view->_frameHold.restoreGeneration == generation) [view sizeRestored:proof];
+    }];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFirstFrameHoldSeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      ArdiaWebView *view = weakSelf;
+      if (view && view->_frameHold.restoring && view->_frameHold.restoreGeneration == generation) [view coverUntilRestored];
+    });
+  }
+  if (!_frameHold.restoring || _frameHold.cover || _frameHold.awaiting) return;
+  [self finishFrameHold];
+  _frameHold.awaiting = YES;
+  _frameHold.tookOverFrom = nil;
+  [AwaitingFrames() addObject:self];
+}
+
+- (void)coverUntilRestored {
+  if (!_frameHold.restoring || _frameHold.cover) return;
+  NSView *cover = [[NSView alloc] initWithFrame:self.bounds];
+  cover.wantsLayer = YES;
+  cover.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+  cover.layer.backgroundColor = NSColor.windowBackgroundColor.CGColor;
+  cover.layer.zPosition = 1;
+  [self addSubview:cover positioned:NSWindowAbove relativeTo:nil];
+  _frameHold.cover = cover;
+  if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ shows a placeholder until its own frame is up", _transferKey);
+  WithoutActions(^{
+    [self finishFrameHold];
+    [self applyPainting];
+  });
+}
+
+- (void)endRestoring {
+  _frameHold.restoring = NO;
+  _frameHold.restoreGeneration++;
+  [_frameHold.cover removeFromSuperview];
+  _frameHold.cover = nil;
+}
+
+- (void)sizeRestored:(NSString *)proof {
+  if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ restored frame displayed: %@", _transferKey, proof);
+  WithoutActions(^{
+    [self endRestoring];
+    [self finishFrameHold];
+    [self applyPainting];
+  });
+}
+
 - (void)beginFrameHoldIfCold {
   NSView *page = _tab.view;
   NSWindow *window = self.window;
@@ -384,6 +442,7 @@ BOOL Above(NSView *a, NSView *b) {
       [AwaitingFrames() removeObject:view];
       continue;
     }
+    if (view->_frameHold.restoring) continue;
     NSView *widget = RenderWidgetIn(view->_tab.view);
     if (!widget || ![FrameMarkOf(widget) isEqualToArray:view->_frameHold.mark]) [view frameShown:YES];
   }

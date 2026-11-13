@@ -67,7 +67,6 @@ export function Omnibox({
   const currentUrl = useTab(tabId, (t) => (opensTab ? "" : (t?.url ?? "")));
   const hero = variant === "hero";
   const dropdown = variant === "sidebar";
-
   const noneSelected = opensTab ? -1 : 0;
   const bar = useBarText(hero, tabId, initialText, noneSelected);
   const { typed, edited, suppressCompletion, selected, scope, scopeFrom, pendingSelection, dispatch, selection } = bar;
@@ -92,7 +91,7 @@ export function Omnibox({
     currentUrl,
   });
 
-  useHeldSelection(items, typed, scope, selectedIndex, dispatch);
+  useHeldSelection(items, typed, scope, selectedIndex, unpreviewed, dispatch);
   const waitForProvider = useProviderEnter(items, typed, scope, (s, disposition) => choose(s, disposition));
 
   const snapshot = useRef<BarSnapshot | null>(null);
