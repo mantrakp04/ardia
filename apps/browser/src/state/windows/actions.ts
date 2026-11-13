@@ -1,4 +1,5 @@
 import { storeAction, useBrowser } from "../browser/store";
+import { downloadsClosedByThisPress } from "../downloads/panelPress";
 
 export const toggleSidebar = storeAction("toggleSidebar");
 export const restoreClosed = storeAction("restoreClosed");
@@ -10,4 +11,7 @@ export const returnRefusedMove = storeAction("returnRefusedMove");
 export const removeDownload = storeAction("removeDownload");
 export const clearDownloads = storeAction("clearDownloads");
 
-export const toggleDownloadsOpen = (windowId: string) => setDownloadsOpen(windowId, !useBrowser.getState().windowUi[windowId]?.downloadsOpen);
+export function toggleDownloadsOpen(windowId: string) {
+  if (downloadsClosedByThisPress(windowId)) return;
+  setDownloadsOpen(windowId, !useBrowser.getState().windowUi[windowId]?.downloadsOpen);
+}
