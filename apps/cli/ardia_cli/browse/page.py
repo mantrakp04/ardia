@@ -164,7 +164,6 @@ class Page:
         await self.enable_page()
 
     async def enable_page(self):
-        self.needs_enable = False
         await self.send("Page.enable")
         await self.send("Page.setLifecycleEventsEnabled", {"enabled": True})
         await self.refresh_frames()
@@ -182,6 +181,7 @@ class Page:
         except BrowseError:
             pass
         self.input.bind(viewport)
+        self.needs_enable = False
 
     def mark_crashed(self):
         self.crashed = True

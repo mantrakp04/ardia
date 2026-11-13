@@ -263,8 +263,13 @@ async def leave_offscreen(ctx: Ctx, page):
     label = next((label for label, owner in state.labels.items() if owner == old), None)
     if label:
         del state.labels[label]
+    try:
+        fresh = await new_tab(ctx, url, label)
+    except BaseException:
+        if label:
+            state.labels.setdefault(label, old)
+        raise
     state.set_offscreen(old, False)
-    fresh = await new_tab(ctx, url, label)
     if state.registry.reserve_close(state.instance, old):
         try:
             with contextlib.suppress(BrowseError):
@@ -399,8 +404,8 @@ async def cmd_open(ctx: Ctx, argv):
         page = await state.page()
         came_from = page.url
         if page.crashed and url:
-            await navigate(ctx, page, url)
-            reporting, url = False, None
+            await navigate(ctx, page, "about:blank")
+            came_from = "about:blank"
         await apply_open_options(ctx, page)
     if reporting:
         await changes.settled(page, lambda: navigate(ctx, page, url))

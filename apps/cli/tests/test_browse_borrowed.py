@@ -238,6 +238,53 @@ class BorrowedTab(unittest.TestCase):
         self.assertEqual(self.state.current, "FRESH")
         self.assertIn("reloaded in a new background tab", result.text)
 
+    def test_a_reset_whose_new_tab_fails_keeps_the_off_screen_tab_and_its_lease(self):
+        self.state.current = "MINE"
+        self.state.target_infos["MINE"] = {"targetId": "MINE", "url": "https://mine.example/"}
+        self.mine.url = "https://mine.example/a"
+        self.state.opened.add("MINE")
+        self.state.labels["work"] = "MINE"
+        self.state.set_offscreen("MINE", True)
+        sent = []
+
+        async def new_tab(ctx, url, label=None, window=False, show=False):
+            raise BrowseError("Navigation to https://mine.example/a timed out")
+
+        async def send(method, params=None, *args, **kwargs):
+            sent.append(method)
+            return {}
+
+        self.state.browser = mock.Mock(send=send)
+        self.state.registry = mock.Mock(reserve_close=lambda instance, target: True, finish_close=lambda instance, target: None)
+        with mock.patch.object(commands, "new_tab", new_tab), self.assertRaises(BrowseError):
+            asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "reset"]))
+        self.assertNotIn("Target.closeTarget", sent)
+        self.assertIn("MINE", self.state.extras.get("offscreen"))
+        self.assertIn("offscreen", self.state.leases)
+        self.assertEqual(self.state.labels.get("work"), "MINE")
+
+    def test_open_on_a_crashed_tab_recovers_to_a_blank_page_before_its_init_scripts(self):
+        self.state.current = "MINE"
+        self.state.extras["attached"] = "USER"
+        self.state.target_infos["MINE"] = {"targetId": "MINE", "url": "https://mine.example/"}
+        self.mine.crashed = True
+        steps = []
+
+        async def navigate(ctx, page, url, *args):
+            steps.append(("navigate", url))
+            if url == "about:blank":
+                page.crashed = False
+                return
+            raise Stop()
+
+        async def apply_open_options(ctx, page):
+            steps.append(("options", page.crashed))
+
+        ctx = commands.Ctx(self.state, {"no_changes": True}, "/", {}, None, "open")
+        with mock.patch.object(commands, "navigate", navigate), mock.patch.object(commands, "apply_open_options", apply_open_options), self.assertRaises(Stop):
+            asyncio.run(commands.cmd_open(ctx, ["https://dest.example/", "--init-script", "window.hooked = 1"]))
+        self.assertEqual(steps, [("navigate", "about:blank"), ("options", False), ("navigate", "https://dest.example/")])
+
     def test_each_off_screen_tab_of_a_session_is_remembered(self):
         from ardia_cli.browse import tabs
 

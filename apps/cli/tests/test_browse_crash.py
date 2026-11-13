@@ -89,6 +89,31 @@ class CrashedTab(unittest.TestCase):
 
         asyncio.run(run())
 
+    def test_a_page_setup_cut_short_by_a_second_crash_is_retried_after_the_next_reload(self):
+        async def run():
+            page = await self.state.page("T")
+            self.assertTrue(page.needs_enable)
+            self.browser.crashed = False
+            self.state.on_event("Inspector.targetReloadedAfterCrash", {}, "S")
+            healthy_send = self.browser.send
+
+            async def crash_during_enable(method, params=None, session=None, timeout=30):
+                if method == "Page.enable":
+                    raise BrowseError("The tab's page crashed", code="tab_crashed")
+                return await healthy_send(method, params, session, timeout)
+
+            self.browser.send = crash_during_enable
+            with self.assertRaises(BrowseError):
+                await self.state.page("T")
+            self.assertTrue(page.needs_enable)
+
+            self.browser.send = healthy_send
+            await self.state.page("T")
+            self.assertFalse(page.needs_enable)
+            self.assertEqual(page.main_frame, "F")
+
+        asyncio.run(run())
+
 
 if __name__ == "__main__":
     unittest.main()
