@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { awaitsFirstPage, firstPagePending, noteFirstPagePending, reachableByAnotherPage, reportedAddress } from "./pendingAddress.ts";
+import { awaitsFirstPage, firstPagePending, noteFirstPagePending, reachableByAnotherPage, reportedAddress, reportedTitle } from "./pendingAddress.ts";
 
 const SLOW = "https://slow.example/release";
 const appTab = { adoptId: undefined, openedByPage: false };
@@ -47,4 +47,12 @@ test("a first page is pending while the initial document loads toward a real add
   assert.equal(awaitsFirstPage("t1"), true);
   noteFirstPagePending("t1", false);
   assert.equal(awaitsFirstPage("t1"), false);
+});
+
+test("the blank page's title never names a tab whose address is a real one", () => {
+  assert.equal(reportedTitle("about:blank", SLOW), "");
+  assert.equal(reportedTitle("about:blank", "about:blank"), "about:blank");
+  assert.equal(reportedTitle("about:blank", ""), "about:blank");
+  assert.equal(reportedTitle("Timetable", SLOW), "Timetable");
+  assert.equal(reportedTitle("", SLOW), "");
 });

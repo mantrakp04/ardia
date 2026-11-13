@@ -47,3 +47,9 @@ build("session-r46-profiles.json", {
 });
 
 build("session-r46-cmdbar.json", { tabs: TABS, active: "t1" });
+
+build("session-r46-blank.json", {
+  tabs: [T("k1", "http://links.example/", { title: "Ferry links" }), T("t1", "http://docpad.example/"), T("t4", "http://dailyledger.example/")],
+  active: "k1",
+  settings: { newTabLinksOpenIn: "tab", showUnreadCounts: false },
+});

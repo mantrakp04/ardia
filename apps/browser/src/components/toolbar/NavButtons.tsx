@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, type ViewStyle } from "react-native";
 import { webviews } from "../../state/tabs/webviewHandles";
 import { withLivePage } from "../../state/tabs/livePage";
@@ -18,24 +18,15 @@ import { showReloadMenu } from "../../state/site/reloadMenu";
 const ICON_CENTER = { width: GLYPH, height: GLYPH, alignItems: "center" as const, justifyContent: "center" as const };
 const ICON_LAYER = { ...ICON_CENTER, position: "absolute" as const };
 
-export const ReloadButton = memo(function ReloadButton({
-  tab,
-  loading,
-  palette,
-  place,
-  onFocus,
-}: {
-  tab: Pick<Tab, "id" | "url" | "windowId">;
-  loading: boolean;
-  palette: ToolbarPalette;
-  place?: NavPlace;
-  onFocus: () => void;
-}) {
-  const web = () => webviews.get(tab.id);
-  const reloadHint = useShortcutHint("reload");
+const ReloadGlyphColor = createContext("");
+
+function ReloadSymbol({ name }: { name: "arrow.clockwise" | "xmark" }) {
+  return <Symbol name={name} size={GLYPH} weight="regular" color={useContext(ReloadGlyphColor)} style={ICON_CENTER} />;
+}
+
+const ReloadGlyph = memo(function ReloadGlyph({ loading, color, press }: { loading: boolean; color: string; press: Animated.Value }) {
   const stateMotion = useRef(new Animated.Value(loading ? 1 : 0)).current;
   const returnMotion = useRef(new Animated.Value(0)).current;
-  const pressMotion = useRef(new Animated.Value(1)).current;
   const breatheMotion = useRef(new Animated.Value(0)).current;
   const previousLoading = useRef(loading);
   const [motionReady, setMotionReady] = useState(() => reduceMotion() !== null);
@@ -83,8 +74,6 @@ export const ReloadButton = memo(function ReloadButton({
     ]).start();
   }, [loading, motionReduced, returnMotion, stateMotion]);
   useEffect(() => {
-    breatheMotion.stopAnimation();
-    breatheMotion.setValue(0);
     if (!loading || !motionReady || motionReduced) return;
     const halfCycle = RELOAD_BUTTON_MOTION.breatheCycle / 2;
     const breathe = Animated.loop(Animated.sequence([
@@ -98,20 +87,57 @@ export const ReloadButton = memo(function ReloadButton({
       breatheMotion.setValue(0);
     };
   }, [breatheMotion, loading, motionReady, motionReduced]);
+  const layers = useMemo(() => {
+    const reload = {
+      opacity: stateMotion.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+      transform: [
+        { scale: stateMotion.interpolate({ inputRange: [0, 1], outputRange: [1, RELOAD_BUTTON_MOTION.hiddenScale] }) },
+        { rotate: returnMotion.interpolate({ inputRange: [0, 1], outputRange: ["0deg", `${RELOAD_BUTTON_MOTION.returnRotation}deg`] }) },
+      ],
+    };
+    const stop = { opacity: stateMotion, transform: [{ scale: stateMotion.interpolate({ inputRange: [0, 1], outputRange: [RELOAD_BUTTON_MOTION.hiddenScale, 1] }) }] };
+    const breathe = {
+      opacity: breatheMotion.interpolate({ inputRange: [0, 1], outputRange: [...RELOAD_BUTTON_MOTION.breatheOpacity] }),
+      transform: [{ scale: breatheMotion.interpolate({ inputRange: [0, 1], outputRange: [...RELOAD_BUTTON_MOTION.breatheScale] }) }],
+    };
+    return (
+      <Animated.View style={[ICON_CENTER, { transform: [{ scale: press }] }]}>
+        <Animated.View pointerEvents="none" style={[ICON_LAYER, reload]}>
+          <ReloadSymbol name="arrow.clockwise" />
+        </Animated.View>
+        <Animated.View pointerEvents="none" style={[ICON_LAYER, stop]}>
+          <Animated.View style={[ICON_CENTER, breathe]}>
+            <ReloadSymbol name="xmark" />
+          </Animated.View>
+        </Animated.View>
+      </Animated.View>
+    );
+  }, [press, stateMotion, returnMotion, breatheMotion]);
+  return <ReloadGlyphColor.Provider value={color}>{layers}</ReloadGlyphColor.Provider>;
+});
+
+export const ReloadButton = memo(function ReloadButton({
+  tab,
+  loading,
+  palette,
+  place,
+  onFocus,
+}: {
+  tab: Pick<Tab, "id" | "url" | "windowId">;
+  loading: boolean;
+  palette: ToolbarPalette;
+  place?: NavPlace;
+  onFocus: () => void;
+}) {
+  const web = () => webviews.get(tab.id);
+  const reloadHint = useShortcutHint("reload");
+  const pressMotion = useRef(new Animated.Value(1)).current;
   const animateReloadPress = () => {
-    if (motionReduced || !motionReady) return;
+    if (reduceMotion() !== false) return;
     pressMotion.stopAnimation();
     pressMotion.setValue(RELOAD_BUTTON_MOTION.pressScale);
     Animated.spring(pressMotion, { toValue: 1, ...springs.bouncy, useNativeDriver: true }).start();
   };
-  const reloadOpacity = stateMotion.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
-  const reloadScale = stateMotion.interpolate({ inputRange: [0, 1], outputRange: [1, RELOAD_BUTTON_MOTION.hiddenScale] });
-  const reloadRotation = returnMotion.interpolate({ inputRange: [0, 1], outputRange: ["0deg", `${RELOAD_BUTTON_MOTION.returnRotation}deg`] });
-  const stopOpacity = stateMotion;
-  const stopScale = stateMotion.interpolate({ inputRange: [0, 1], outputRange: [RELOAD_BUTTON_MOTION.hiddenScale, 1] });
-  const breatheScale = breatheMotion.interpolate({ inputRange: [0, 1], outputRange: [...RELOAD_BUTTON_MOTION.breatheScale] });
-  const breatheOpacity = breatheMotion.interpolate({ inputRange: [0, 1], outputRange: [...RELOAD_BUTTON_MOTION.breatheOpacity] });
-  const iconColor = tab.url ? palette.icon : palette.iconDisabled;
   return (
     <Button variant="icon" toolbar
       style={place?.style}
@@ -132,16 +158,7 @@ export const ReloadButton = memo(function ReloadButton({
       }}
       tooltip={loading ? "Stop Loading This Page" : withShortcut("Refresh", reloadHint)}
     >
-        <Animated.View style={[ICON_CENTER, { transform: [{ scale: pressMotion }] }]}>
-          <Animated.View pointerEvents="none" style={[ICON_LAYER, { opacity: reloadOpacity, transform: [{ scale: reloadScale }, { rotate: reloadRotation }] }]}>
-            <Symbol name="arrow.clockwise" size={GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
-          </Animated.View>
-          <Animated.View pointerEvents="none" style={[ICON_LAYER, { opacity: stopOpacity, transform: [{ scale: stopScale }] }]}>
-            <Animated.View style={[ICON_CENTER, { opacity: breatheOpacity, transform: [{ scale: breatheScale }] }]}>
-              <Symbol name="xmark" size={GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
-            </Animated.View>
-          </Animated.View>
-        </Animated.View>
+      <ReloadGlyph loading={loading} color={tab.url ? palette.icon : palette.iconDisabled} press={pressMotion} />
     </Button>
   );
 });

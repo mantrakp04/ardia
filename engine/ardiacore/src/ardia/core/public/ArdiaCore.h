@@ -364,7 +364,7 @@ ARDIACORE_EXPORT
 - (BOOL)stopCapture;
 - (void)noteShownByHost:(BOOL)shown;
 - (BOOL)noteInShownSlot;
-- (void)whenSizeRestored:(void (^)(void))restored;
+- (void)whenSizeRestored:(void (^)(NSString* proof))restored;
 - (void)exitFullscreen;
 - (void)exitExclusiveAccess;
 - (void)tracePictureInPicture:(NSString*)line withInputs:(BOOL)withInputs;

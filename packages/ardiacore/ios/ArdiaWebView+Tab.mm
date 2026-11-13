@@ -140,6 +140,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   [self resetBlocked:NO];
   [self endReveal];
   [self dropFront];
+  [self endRestoring];
   [self finishFrameHold];
   [self finishStandIn];
   [self stopHolding];

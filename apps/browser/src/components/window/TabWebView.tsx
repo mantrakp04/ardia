@@ -26,8 +26,7 @@ import { shallowEqual, useBrowserWhile, useProfilesValue, useTabValue } from "..
 import { isIncognitoProfile, navigationTo } from "../../state/browser/model";
 import type { Tab } from "../../state/browser/types";
 import { zoomChangedByUser } from "../../state/site/zoomBubble";
-import { markTabReady, patchPage, pageOf, popoverOf, setPopover } from "../../state/tabs/pageState";
-import { closeFolderPanelIn } from "../../state/sidebar/tileFolderUi";
+import { markTabReady, patchPage, pageOf } from "../../state/tabs/pageState";
 import { popupBlocked, showAutofillPrompt, showPasswordPrompt } from "../../state/site/prompts";
 import { leftPage, pageEnded } from "../../state/tabs/pageEvents";
 import { copyLinkToSelection, searchSelection, setPageSelection } from "../../state/site/selection";
@@ -37,8 +36,7 @@ import { requestDisplayMedia } from "../../state/media/screenShare";
 import { setNowPlaying, setPictureInPictureState } from "../../state/media/media";
 import { noteScroll } from "../../state/windows/toolbarAutoHide";
 import { closeWebNotification, showWebNotification } from "../../state/site/webNotifications";
-import { closeLittleArdiaOnEscape } from "../../state/littleArdia/actions";
-import { closePeekOnEscape } from "../../state/peek/actions";
+import { escapePressed } from "../../state/windows/unclaimedEscape";
 import { withoutFragment } from "../../lib/url";
 import { adoptOf, loadedPage, navigationOf } from "../../state/tabs/pageSession";
 import { noteCommit } from "../../state/automation/automationEvents";
@@ -48,7 +46,7 @@ import { releaseTranslation, translateCrashContext } from "../../state/site/tran
 import { notePagePress } from "../../state/telemetry/tabPresses";
 import { noteAutoPictureInPictureKept, notePageOverlay, noteReopenedPage, noteWebKitPageKeptHidden } from "../../state/telemetry/usage";
 import { isAdoptKind } from "../../state/tabs/adoptIds";
-import { firstPagePending, isBlankAddress, noteFirstPagePending, reportedAddress } from "../../state/tabs/pendingAddress";
+import { firstPagePending, isBlankAddress, noteFirstPagePending, reportedAddress, reportedTitle } from "../../state/tabs/pendingAddress";
 import { STATUS_FLIP_BAND } from "./tokens";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
@@ -158,7 +156,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         noteReady(tabId);
         void webviews.get(tabId)?.setMuted(isTabSilenced(tabId));
       }}
-      onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
+      onNavigationChange={({ url: reported, title: reportedPageTitle, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
         noteCommit(tabId, committedUrl, committedAt, httpStatus);
         if (reopening.current && reported && !isBlankAddress(reported)) {
           reopening.current = false;
@@ -167,6 +165,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         noteUnreadLoading(tabId, isLoading);
         adoptIconPage(tabId);
         const { url, untouched } = reportedAddress({ url: reported, initialDocumentAccessed, committedInitial }, { adoptId, openedByPage: !!tab()?.openerId });
+        const title = reportedTitle(reportedPageTitle, url);
         const target = pending.current ?? (lastPage.current === null ? (navigationOf(tab())?.url ?? null) : null);
         if (target === null && prewarmOnly()) {
           if (isBlankAddress(url)) return;
@@ -268,8 +267,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         if (command === "search") searchSelection(tabId, text, modifiers);
         else if (command === "share" && share) void shareFromPage(tab(), share, anchor);
         else if (command === "copyLinkToHighlight") void copyLinkToSelection(tabId);
-        else if (command === "escape" && popoverOf(tabId)) setPopover(tabId, null);
-        else if (command === "escape" && !closeFolderPanelIn(tab()?.windowId) && !closePeekOnEscape(tabId)) closeLittleArdiaOnEscape(tabId);
+        else if (command === "escape") escapePressed(tabId, "page");
       }}
       onSelection={(selection) => setPageSelection(tabId, selection)}
       onScroll={(state) => noteScroll(tabId, state)}
