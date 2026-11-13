@@ -3,7 +3,8 @@
 # windows-alpha (never latest): its two installers under this build's own names (Ardia-Setup-<cpu>-<build>.exe), the
 # engine's source, then the feed windows-update.json that names those installers with their SHA-256, then the same
 # installers under the names people download (Ardia-Setup-<cpu>.exe). The feed only ever names files that are
-# already there and never change; the previous build's files go last.
+# already there and never change. The build before this one keeps its files, so an update the app offered from
+# the last feed can still be downloaded; older builds' files go last.
 #
 #   scripts/windows/publish-alpha.sh [--dry-run] [--out <dir>] <Windows workflow run id>
 #   scripts/windows/publish-alpha.sh -h | --help
@@ -133,7 +134,8 @@ run gh release upload "$tag" -R "$repo" --clobber "$out/Ardia-Setup-x64-$build.e
 run gh release upload "$tag" -R "$repo" --clobber "$out/windows-update.json"
 run gh release upload "$tag" -R "$repo" --clobber "$out/Ardia-Setup-x64.exe" "$out/Ardia-Setup-arm64.exe"
 run gh release edit "$tag" -R "$repo" --prerelease --latest=false --notes-file "$notes"
-for stale in $(printf '%s\n' "$before" | grep -E '^(Ardia-Setup-(x64|arm64)-[0-9]+\.exe|ardia-windows-source-[0-9]+\.tar\.xz)$' | grep -v -E -e "-$build\.(exe|tar\.xz)$" || true); do
+previous="$(printf '%s\n' "$before" | sed -n -E 's/^Ardia-Setup-(x64|arm64)-([0-9]+)\.exe$/\2/p' | grep -v -x "$build" | sort -n | tail -1 || true)"
+for stale in $(printf '%s\n' "$before" | grep -E '^(Ardia-Setup-(x64|arm64)-[0-9]+\.exe|ardia-windows-source-[0-9]+\.tar\.xz)$' | grep -v -E -e "-($build${previous:+|$previous})\.(exe|tar\.xz)$" || true); do
   run gh release delete-asset "$tag" "$stale" -R "$repo" --yes
 done
 if [ "$dry" = 1 ]; then
