@@ -373,7 +373,7 @@ string doesn't matter. Afterwards: `kill %1` for the server, quit the app, `rm -
 | Bookmark suggestions | ✓ | ✅ | |
 | Search engine suggestions | ✓ | ✅ | Fetched through the profile's own Chrome network stack (`ac_search_suggest`, as Chrome's omnibox: Chrome's user agent, the profile's cookies sent and never saved, a private window's own session), one request id per bar so windows never cancel each other; Google on Chrome's endpoint (`www.google.com/complete/search?client=chrome`), its navigation and calculator rows left out. None in private windows, as in Chrome. Until 2026-11-12 they went through React Native's fetch (`Ardia/<build> CFNetwork` user agent, no browser cookies, `suggestqueries.google.com?client=firefox`), one per keystroke, a likely cause of Google's "unusual traffic" reCAPTCHA (#1281). Telemetry: `perf_omnibox.search_suggest_ok`, `search_suggest_blocked` (403/429) and `search_suggest_failed`; watch the blocked share |
 | Inline autocomplete | ✓ | ✅ | Deleting text in any way (Backspace, Delete, ⌥⌫, ⌘⌫, cut, deleting the selected completion) drops the completion and puts the search for what was typed on top, as in Chrome and Dia (`preventInline` in `packages/core/src/suggest.ts`: a page only goes first then when what was typed is exactly its host or address, and a typed URL still goes first); the next typed character turns completion back on. Unit tests, and the dev driver in a hidden instance ("gi" → page first with "thub.com"; after a delete → search first, no completion; "t" → back). The native selected-completion delete itself isn't reachable from the dev driver (it bypasses the field), so it's covered by `inline.test.mjs` only |
-| Keyboard/hover selection | ✓ | ✅ | ↑↓, ⌃N/⌃P, Tab/⇧Tab |
+| Keyboard/hover selection | ✓ | ✅ | ↑↓, ⌃N/⌃P, ⌃J/⌃K (Arc's; replaces delete-to-end-of-line in the bar's field only), Tab/⇧Tab. Telemetry: `bar_ctrl_jk_moves`, `bar_ctrl_np_moves` in the hourly usage counts |
 | Route input to site / search / Chat (on‑device router model) | ✓ | ⏸ | input goes to a site or the search engine. The New Tab box reads as what it is (2026-10-21, a Discord user: it looked like an AI chat that then just opened the tab or file): "Search or enter address" as everywhere else instead of Dia's "Ask anything…" (Dia 1.52 has no wording for an AI-off box; its other is "Search or Ask a Question"), and the command bar's "Google ↩" / "Go ↩" pill instead of the round send arrow, greyed and inert while the box is empty as the arrow was |
 | Force route ⌃⌘↩ → Chat | ✓ | ⏸ | |
 | Force route ⇧⌘↩ → search | ✓ | ✅ | searches with the default engine (Dia: Google) |
@@ -741,7 +741,7 @@ Chrome; n/t = not pressed there by the test (clipboard and window-level AppKit i
 | Rename tab | double-click | — | double-click | — | ✅ |
 
 **Command bar** (like Chrome's address bar): ↩ this tab, ⌘↩ new tab, ⌥↩ split to the right (Arc; issue #1076), ⇧↩ new window, ⇧⌘↩ search what was
-typed (Dia), ⌃↩ adds www. and .com, ⌃⇧↩ the same in a new window (new), Tab / ⇧Tab, ↑↓, ⌃N / ⌃P, Esc.
+typed (Dia), ⌃↩ adds www. and .com, ⌃⇧↩ the same in a new window (new), Tab / ⇧Tab, ↑↓, ⌃N / ⌃P, ⌃J / ⌃K (Arc's), Esc.
 
 **In a page** (the page's own, unchanged): Esc stops loading, Space / ⇧Space and ⌘↑ / ⌘↓ scroll, Tab / ⇧Tab move
 between links, and in text fields ⌥← / ⌥→, ⌥⌫, ⌘← / ⌘→ and ⌘A / ⌘C / ⌘V / ⌘X / ⌘Z stay the field's.

@@ -2,7 +2,8 @@ import { siteSearchKey, type Suggestion } from "@ardia/core";
 import type { BarDismissal } from "../../state/omnibox/barState";
 import { dispositionFor, type Disposition } from "../../state/omnibox/openFromBar";
 import type { offeredScope } from "../../state/omnibox/scopes";
-import { isRemovable } from "./SuggestionRow";
+import { noteBarCtrlKeyMove } from "../../state/telemetry/usage";
+import { isRemovable } from "./removableRow";
 import type { useBarText } from "./useBarText";
 
 const BASE_KEYS = [
@@ -15,6 +16,8 @@ const BASE_KEYS = [
   { key: "Tab", shiftKey: true },
   { key: "n", ctrlKey: true },
   { key: "p", ctrlKey: true },
+  { key: "j", ctrlKey: true },
+  { key: "k", ctrlKey: true },
   { key: "Enter", metaKey: true },
   { key: "Enter", altKey: true },
   { key: "Enter", shiftKey: true },
@@ -66,8 +69,12 @@ export function barKeyDown(e: BarKeyEvent, k: BarKeyContext) {
     if (k.shownCompletion) return bar.dispatch({ kind: "completionDropped" });
     return k.reset();
   }
-  if (key === "ArrowDown" || (ctrlKey && key === "n")) return move(1);
-  if (key === "ArrowUp" || (ctrlKey && key === "p")) return move(-1);
+  if (ctrlKey && (key === "j" || key === "k" || key === "n" || key === "p")) {
+    noteBarCtrlKeyMove(key === "j" || key === "k" ? "barCtrlJkMoves" : "barCtrlNpMoves");
+    return move(key === "j" || key === "n" ? 1 : -1);
+  }
+  if (key === "ArrowDown") return move(1);
+  if (key === "ArrowUp") return move(-1);
   if (key === "PageUp") return select(0);
   if (key === "PageDown") return select(Math.max(0, items.length - 1));
   if (key === "Delete" && shiftKey) return isRemovable(current) ? k.removeRow(current.url) : undefined;
