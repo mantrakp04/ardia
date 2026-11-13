@@ -220,7 +220,7 @@ export const generalRows = {
         appLinksFirst: {
           title: "Put links from other apps first",
           description: "When links from Slack, Mail or any other app open as tabs, not in Little Ardia, they go above your other tabs, just below the pinned ones, whatever Add new tabs says.",
-          keywords: ["external links", "other apps", "slack", "mail", "default browser", "top", "first", "left", "position"],
+          keywords: ["external links", "other apps", "default browser", "top", "first", "left", "position"],
         },
         shareTabsAcrossWindows: {
           title: "Share tabs across windows",
