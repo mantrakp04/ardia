@@ -132,6 +132,7 @@ test("the long-press menu matches Compose for links and images", () => {
 
 const back = (extra: Partial<BackState>): BackState => ({
   isFullscreen: false,
+  hasRequest: false,
   isSearching: false,
   hasPressMenu: false,
   isReading: false,
@@ -151,6 +152,7 @@ test("system back closes the topmost layer first", () => {
   assert.equal(backLayer(back({})), "deck");
   assert.equal(backLayer(back({ hasTab: false })), null);
   assert.equal(backLayer(back({ isFullscreen: true, isSearching: true })), "fullscreen");
+  assert.equal(backLayer(back({ hasRequest: true, isMenuOpen: true, canGoBack: true })), "request");
 });
 
 test("reader sizes, themes and source line", () => {

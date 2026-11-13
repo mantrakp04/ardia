@@ -9,7 +9,7 @@ import { cancelSearch, closeArchive, leaveDeck, openTab, showDeck, useBrowse } f
 import { display } from "../search/omnibox";
 import { presentSearch, searchState } from "../search/store";
 import { setPreference } from "../settings/store";
-import { listenToPages, pageHandle, pageIsFullscreen, settled, storeFind, storeFullscreen, storeRequest, usePages } from "../pages/store";
+import { listenToPages, pageHandle, pageIsFullscreen, pageRequest, settled, storeFind, storeFullscreen, storeRequest, usePages } from "../pages/store";
 import { closeTabById, currentTabs, openNewTab, useTabs } from "../tabs/store";
 import { isSyncableUrl } from "../tabs/tabModels";
 import { findTab } from "../tabs/tabsState";
@@ -275,6 +275,7 @@ export function handleSystemBack(): boolean {
   }
   const layer = backLayer({
     isFullscreen: surface === "browsing" && pageIsFullscreen(id),
+    hasRequest: surface === "browsing" && pageRequest(id) !== null,
     isSearching: searchState().open,
     hasPressMenu: ui.press !== null,
     isReading: ui.readerTabId !== null,
@@ -287,6 +288,11 @@ export function handleSystemBack(): boolean {
     case "fullscreen":
       if (id) quietly(() => pages.exitFullscreen(id));
       return true;
+    case "request": {
+      const request = pageRequest(id);
+      if (id && request) answerRequest(id, request as Request, { type: "dismiss" });
+      return true;
+    }
     case "tray":
       cancelSearch();
       return true;
