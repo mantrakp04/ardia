@@ -31,7 +31,7 @@ interface DownloadSessions {
 
 class DownloadCancelled : Exception("cancelled")
 
-class DownloadCall {
+class DownloadCall(val connectionScope: String? = null) {
     @Volatile
     var isCancelled = false
         private set
@@ -77,6 +77,8 @@ class DownloadResponse(
 
 fun interface DownloadTransport {
     fun open(url: String, headers: Map<String, String>, call: DownloadCall): DownloadResponse
+
+    fun endConnectionScope(scope: String) = Unit
 }
 
 class DownloadRefused(val failure: DownloadFailure) : Exception(failure.name)

@@ -48,12 +48,15 @@ class ListSafetyTest {
             for (body in listOf("a".repeat(30_000), "".padEnd(30_000, 'x'), "ab".repeat(15_000))) {
                 val url = "https://site.test/$body"
                 engine.blocks(url, "https://site.test/")
-                val elapsed = millis { engine.blocks(url, "https://site.test/") }
-                assertTrue("$rule on ${url.length} chars took $elapsed ms", elapsed < 100)
+                val clock = java.lang.management.ManagementFactory.getThreadMXBean()
+                val cpuStart = clock.currentThreadCpuTime
+                engine.blocks(url, "https://site.test/")
+                val elapsed = (clock.currentThreadCpuTime - cpuStart) / 1_000_000.0
+                assertTrue("$rule on ${url.length} chars took $elapsed ms of cpu", elapsed < 100)
                 slowest = maxOf(slowest, elapsed)
             }
         }
-        println("ArdiaBlockingTiming slowest hostile regex request on a 30000-char url: %.2f ms".format(slowest))
+        println("ArdiaBlockingTiming slowest hostile regex request on a 30000-char url: %.2f ms of cpu".format(slowest))
         val source = reviewerRule.substring(1, reviewerRule.length - 1)
         val direct = com.google.re2j.Pattern.compile(ListRegex.withoutCaptures(source))
         val input = "a".repeat(30_000)
@@ -71,7 +74,7 @@ class ListSafetyTest {
             "/(?<!a)b/",
             "/a{1,99999}/",
             "/((a{100}){100}){100}/",
-            "/(" + "a".repeat(1100) + ")/",
+            "/(" + "a".repeat(9_000) + ")/",
         )
         val parsed = FilterParser.parse(unsupported.joinToString("\n"), "unsupported")
         assertEquals(0, parsed.network.size)
@@ -82,41 +85,45 @@ class ListSafetyTest {
     }
 
     @Test
-    fun regexWorkIsChargedBeforeItRunsAndCappedPerRequest() {
-        val reviewer = "/.*" + "a?".repeat(490) + "b/"
-        assertEquals(1, FilterParser.parse(reviewer, "reviewer").skipped[SkipReason.UNSUPPORTED_REGEX])
-        var width = 1
-        while (ListRegex.compile(".*" + "a?".repeat(width + 1) + "b000", matchCase = false) != null) width++
-        val program = ListRegex.compile(".*" + "a?".repeat(width) + "b000", matchCase = false)!!.programSize()
-        val shown = ListRegex.MAX_INPUT_LENGTH
+    fun regexWorkIsMeteredAndCappedPerRequest() {
         val url = "https://site.test/" + "a".repeat(4_078)
         val context = RequestContext.current()
-        for ((count, repeat) in listOf(300 to width, 400 to 20)) {
-            val rules = (0 until count).joinToString("\n") { "/.*" + "a?".repeat(repeat) + "b" + it.toString().padStart(3, '0') + "/" }
-            val engine = engineOf(rules)
-            assertEquals(count, engine.stats.unindexedRules)
-            val cost = ListRegex.compile(".*" + "a?".repeat(repeat) + "b000", matchCase = false)!!.programSize() * shown
-            val expectedRuns = ListRegex.STEPS_PER_REQUEST / cost
-            repeat(3) { engine.blocks(url, "https://site.test/") }
-            val runsBefore = context.regexRuns
-            val skippedBefore = context.regexRulesSkipped
-            val bean = java.lang.management.ManagementFactory.getThreadMXBean()
-            val cpuBefore = bean.currentThreadCpuTime
-            val elapsed = millis { assertFalse(engine.blocks(url, "https://site.test/")) }
-            val cpu = (bean.currentThreadCpuTime - cpuBefore) / 1_000_000.0
-            val runs = context.regexRuns - runsBefore
-            val skipped = context.regexRulesSkipped - skippedBefore
-            val used = ListRegex.STEPS_PER_REQUEST - context.regexStepsLeft
-            println(
-                "ArdiaBlockingTiming %d unindexed rules of %d instructions on a %d-char url (%d shown): ran %d, skipped %d, steps %d of %d, cpu %.2f ms (%.1f ns per step), wall %.2f ms"
-                    .format(count, cost / shown, url.length, shown, runs, skipped, used, ListRegex.STEPS_PER_REQUEST, cpu, cpu * 1_000_000 / used, elapsed),
-            )
-            assertEquals(expectedRuns.toLong(), runs)
-            assertEquals((count - expectedRuns).toLong(), skipped)
-            assertEquals(expectedRuns * cost, used)
-            assertTrue("cpu $cpu ms", cpu < 30)
+        val bean = java.lang.management.ManagementFactory.getThreadMXBean()
+        val shapes = listOf(
+            "reviewer" to { suffix: String -> "/.*" + "a?".repeat(490) + suffix + "/" },
+            "maximal" to { suffix: String -> "/.*(?:a?){990}" + suffix + "/" },
+            "small" to { suffix: String -> "/.*" + "a?".repeat(20) + suffix + "/" },
+        )
+        for ((name, shape) in shapes) {
+            fun distinct(number: Int) = "[b\\x{" + (0x4E00 + number).toString(16) + "}]"
+            val single = engineOf(shape(distinct(0)))
+            assertEquals(1, single.stats.unindexedRules)
+            repeat(2) { single.blocks(url, "https://site.test/") }
+            single.blocks(url, "https://site.test/")
+            val oneRun = ListRegex.stepsFor(url.length) - context.regexScratch.steps
+            for (count in listOf(1, 300)) {
+                val engine = engineOf((0 until count).joinToString("\n") { shape(distinct(it)) })
+                repeat(2) { engine.blocks(url, "https://site.test/") }
+                val runsBefore = context.regexRuns
+                val skippedBefore = context.regexRulesSkipped
+                val cpuBefore = bean.currentThreadCpuTime
+                val elapsed = millis { assertFalse(engine.blocks(url, "https://site.test/")) }
+                val cpu = (bean.currentThreadCpuTime - cpuBefore) / 1_000_000.0
+                val runs = context.regexRuns - runsBefore
+                val skipped = context.regexRulesSkipped - skippedBefore
+                val used = ListRegex.stepsFor(url.length) - maxOf(context.regexScratch.steps, 0)
+                println(
+                    "ArdiaBlockingTiming %s x%d on a %d-char url: one rule costs %d steps; ran %d, skipped %d, steps %d of %d, cpu %.2f ms, wall %.2f ms"
+                        .format(name, count, url.length, oneRun, runs, skipped, used, ListRegex.stepsFor(url.length), cpu, elapsed),
+                )
+                val completed = minOf(count, ListRegex.stepsFor(url.length) / oneRun)
+                val partial = if (completed < count && ListRegex.stepsFor(url.length) % oneRun != 0) 1 else 0
+                assertEquals((completed + partial).toLong(), runs)
+                assertEquals((count - completed).toLong(), skipped)
+                assertEquals(if (completed < count) ListRegex.stepsFor(url.length) else completed * oneRun, used)
+                assertTrue("cpu $cpu ms", cpu < 80)
+            }
         }
-        assertTrue(program <= ListRegex.MAX_PROGRAM_SIZE)
         assertTrue(ListRegex.rulesSkippedForBudget > 0)
     }
 
@@ -140,7 +147,19 @@ class ListSafetyTest {
         val engine = engineOf("/shop\\/item-[0-9]+\$/")
         assertTrue(engine.blocks("https://a.test/shop/item-12", "https://a.test/"))
         assertFalse(engine.blocks("https://a.test/shop/item-12" + "x".repeat(800), "https://a.test/"))
-        assertFalse(engine.blocks("https://a.test/" + "p".repeat(800) + "/shop/item-12", "https://a.test/"))
+        assertTrue(engine.blocks("https://a.test/" + "p".repeat(3_000) + "/shop/item-12", "https://a.test/"))
+        val endOfInput = engineOf("||a.test^\n@@/^https:\\/\\/a\\.test\\/.*a\\z/")
+        assertFalse(endOfInput.blocks("https://a.test/" + "q".repeat(497) + "a", "https://page.test/"))
+        assertTrue(endOfInput.blocks("https://a.test/" + "q".repeat(497) + "ab", "https://page.test/"))
+        assertTrue(endOfInput.blocks("https://a.test/" + "q".repeat(3_000) + "ab", "https://page.test/"))
+        assertFalse(engineOf("/^https:\\/\\/a\\.test\\/.*a\\z/").blocks("https://a.test/" + "q".repeat(497) + "ab", "https://page.test/"))
+        assertFalse(engineOf("/^https:\\/\\/a\\.test\\/.*a\\b/").blocks("https://a.test/" + "q".repeat(497) + "ab", "https://page.test/"))
+        val huge = "https://a.test/" + "q".repeat(ListRegex.MAX_INPUT_LENGTH) + "a"
+        assertFalse(engineOf("/^https:\\/\\/a\\.test\\/.*a\\z/").blocks(huge, "https://page.test/"))
+        assertFalse(engineOf("/^https:\\/\\/a\\.test\\/.*q\\b/").blocks(huge, "https://page.test/"))
+        assertTrue(engineOf("/^https:\\/\\/a\\.test\\/q/").blocks(huge, "https://page.test/"))
+        for (form in listOf("a$", "a\\z", "a\\b", "a\\B", "(?m)a$", "(?s).$")) assertTrue(form, ListRegex.dependsOnInputEnd(form))
+        for (form in listOf("[$]a", "a\\$", "a\\\\z", "[\\b]a")) assertFalse(form, ListRegex.dependsOnInputEnd(form))
     }
 
     @Test
@@ -266,7 +285,7 @@ class ListSafetyTest {
 
             val forged = ParsedFilterList(
                 "easylist", 1, 0,
-                listOf(NetworkFilter("/long/", false, false, false, Party.ANY, RequestType.SUBRESOURCES, Anchor.NONE, false, null, "a".repeat(2_000), true, emptyList(), emptyList())),
+                listOf(NetworkFilter("/long/", false, false, false, Party.ANY, RequestType.SUBRESOURCES, Anchor.NONE, false, null, "a".repeat(9_000), true, emptyList(), emptyList())),
                 emptyList(), emptySet(), emptyList(), emptyList(), emptyList(), emptyMap(),
             )
             CompiledListFile.write(cache, forged, source.length(), source.lastModified())

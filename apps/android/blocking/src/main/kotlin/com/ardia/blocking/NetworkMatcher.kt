@@ -1,6 +1,5 @@
 package com.ardia.blocking
 
-import com.google.re2j.Pattern
 
 internal class NetworkRule(
     val isException: Boolean,
@@ -13,13 +12,12 @@ internal class NetworkRule(
     val anchorEnd: Boolean,
     val host: CharArray?,
     val pattern: CharArray,
-    val regex: Pattern?,
+    val regex: MeteredRegex?,
     val include: LongArray?,
     val exclude: LongArray?,
 ) {
-    private val regexSlot = if (regex != null) nextRegexSlot.getAndIncrement() else 0
-    private val regexProgramSize = regex?.programSize() ?: 0
-    private val regexNeedsWholeUrl = regex != null && ListRegex.anchorsAtEnd(String(pattern))
+    private val regexNeedsWholeUrl = regex != null && ListRegex.dependsOnInputEnd(String(pattern))
+    private val regexLiteral: CharArray? = if (regex != null) Tokens.requiredLiteral(String(pattern))?.let { if (matchCase) it else it.lowercase() }?.toCharArray() else null
     private val isHostOnly = host != null && !anchorEnd && pattern.size == 1 && pattern[0] == '^'
 
     fun applies(context: RequestContext): Boolean {
@@ -56,17 +54,25 @@ internal class NetworkRule(
 
     fun matchesUrl(context: RequestContext): Boolean {
         regex?.let { compiled ->
-            val shown = context.rawView.length
+            val shown = minOf(context.length, ListRegex.MAX_INPUT_LENGTH)
             if (regexNeedsWholeUrl && context.length > shown) return false
-            val cost = regexProgramSize * shown
-            if (cost > context.regexStepsLeft) {
+            regexLiteral?.let { literal -> if (!contains(if (matchCase) context.raw else context.lower, shown, literal)) return false }
+            val scratch = context.regexScratch
+            if (scratch.steps <= 0) {
                 context.regexRulesSkipped++
                 ListRegex.countBudgetSkip()
                 return false
             }
-            context.regexStepsLeft -= cost
             context.regexRuns++
-            return context.matcher(compiled, regexSlot).find()
+            return when (compiled.find(context.raw, shown, scratch)) {
+                MeteredRegex.MATCH -> true
+                MeteredRegex.NO_MATCH -> false
+                else -> {
+                    context.regexRulesSkipped++
+                    ListRegex.countBudgetSkip()
+                    false
+                }
+            }
         }
         val chars = if (matchCase) context.raw else context.lower
         return when (anchor) {
@@ -87,6 +93,21 @@ internal class NetworkRule(
         }
     }
 
+    private fun contains(text: CharArray, length: Int, literal: CharArray): Boolean {
+        val first = literal[0]
+        val last = length - literal.size
+        var position = 0
+        while (position <= last) {
+            if (text[position] == first) {
+                var offset = 1
+                while (offset < literal.size && text[position + offset] == literal[offset]) offset++
+                if (offset == literal.size) return true
+            }
+            position++
+        }
+        return false
+    }
+
     fun hostEquals(context: RequestContext, start: Int): Boolean {
         val expected = host ?: return false
         val end = context.hostEnd
@@ -97,7 +118,7 @@ internal class NetworkRule(
     }
 
     companion object {
-        fun from(filter: NetworkFilter, categoryBit: Int, regex: Pattern?): NetworkRule = NetworkRule(
+        fun from(filter: NetworkFilter, categoryBit: Int, regex: MeteredRegex?): NetworkRule = NetworkRule(
             isException = filter.isException,
             matchCase = filter.matchCase,
             party = filter.party,
@@ -114,7 +135,6 @@ internal class NetworkRule(
         )
 
         const val ALL_CATEGORIES = -1
-        private val nextRegexSlot = java.util.concurrent.atomic.AtomicInteger()
     }
 }
 
@@ -241,10 +261,10 @@ internal class RuleIndex private constructor(
     class Builder {
         private val filters = ArrayList<NetworkFilter>()
         private val categories = ArrayList<Int>()
-        private val regexes = ArrayList<Pattern?>()
+        private val regexes = ArrayList<MeteredRegex?>()
 
         fun add(filter: NetworkFilter, categoryBit: Int) {
-            val regex = if (filter.isRegex) ListRegex.compile(filter.pattern, filter.matchCase) ?: return else null
+            val regex = if (filter.isRegex) ListRegex.compile(filter.pattern, filter.matchCase)?.let(::MeteredRegex) ?: return else null
             filters += filter
             categories += categoryBit
             regexes += regex
@@ -318,6 +338,27 @@ internal object Tokens {
     private const val END = 3
 
     private class Atom(val kind: Int, val char: Char = ' ', var quantified: Boolean = false)
+
+    fun requiredLiteral(source: String): String? {
+        if (Regex("\\(\\?[a-zA-Z-]+[:)]").containsMatchIn(source)) return null
+        val atoms = ArrayList<Atom>()
+        if (!readAtoms(source, 0, source.length, atoms)) return null
+        var best: String? = null
+        var index = 0
+        while (index < atoms.size) {
+            if (!isPlainLiteral(atoms[index])) {
+                index++
+                continue
+            }
+            val start = index
+            while (index < atoms.size && isPlainLiteral(atoms[index])) index++
+            val run = buildString { for (atom in start until index) append(atoms[atom].char) }
+            if (run.length >= 3 && run.all { it.code < 0x80 } && (best == null || run.length > best.length)) best = run
+        }
+        return best?.take(32)
+    }
+
+    private fun isPlainLiteral(atom: Atom) = atom.kind == LITERAL && !atom.quantified
 
     fun regexCandidates(source: String): List<String> {
         val atoms = ArrayList<Atom>()

@@ -10,10 +10,13 @@ data class ListBudget(
 class FilterListTooLargeException(val listId: String) : Exception("filter list $listId is over its budget")
 
 internal object ListRegex {
-    const val MAX_SOURCE_LENGTH = 1024
-    const val MAX_PROGRAM_SIZE = 200
-    const val MAX_INPUT_LENGTH = 512
-    const val STEPS_PER_REQUEST = MAX_PROGRAM_SIZE * MAX_INPUT_LENGTH
+    const val MAX_SOURCE_LENGTH = 8_192
+    const val MAX_PROGRAM_SIZE = 4_096
+    const val MAX_INPUT_LENGTH = 16_384
+    const val BASE_STEPS = 500_000
+    const val STEPS_PER_CHARACTER = 256
+
+    fun stepsFor(length: Int): Int = BASE_STEPS + STEPS_PER_CHARACTER * minOf(length, MAX_INPUT_LENGTH)
     private const val MAX_REPEAT_PRODUCT = 1_000
     private val budgetSkips = java.util.concurrent.atomic.AtomicLong()
 
@@ -48,13 +51,16 @@ internal object ListRegex {
         return false
     }
 
-    internal fun anchorsAtEnd(source: String): Boolean {
+    internal fun dependsOnInputEnd(source: String): Boolean {
         var index = 0
         var inClass = false
         while (index < source.length) {
             val char = source[index]
             when {
-                char == '\\' -> index++
+                char == '\\' -> {
+                    if (!inClass && index + 1 < source.length && source[index + 1] in "zbB") return true
+                    index++
+                }
                 inClass -> if (char == ']') inClass = false
                 char == '[' -> inClass = true
                 char == '$' -> return true
@@ -106,46 +112,66 @@ internal object ListRegex {
     }
 
     private fun repeatProduct(source: String): Long {
-        val frames = ArrayList<Long>()
-        frames += 1L
-        var element = 1L
-        var worst = 1L
         var index = 0
-        while (index < source.length) {
-            when (source[index]) {
-                '\\' -> {
-                    element = 1L
+
+        fun count(close: Int): Long =
+            source.substring(index + 1, close).split(',').mapNotNull { it.trim().toLongOrNull() }.maxOrNull() ?: 1L
+
+        fun repeatAfter(): Long {
+            if (index >= source.length) return 1L
+            return when (source[index]) {
+                '*', '+', '?' -> {
                     index++
-                }
-                '[' -> {
-                    index++
-                    if (index < source.length && source[index] == ']') index++
-                    while (index < source.length && source[index] != ']') {
-                        if (source[index] == '\\') index++
-                        index++
-                    }
-                    element = 1L
-                }
-                '(' -> {
-                    frames += 1L
-                    element = 1L
-                }
-                ')' -> {
-                    element = if (frames.size > 1) frames.removeAt(frames.size - 1) else 1L
+                    if (index < source.length && (source[index] == '?' || source[index] == '+')) index++
+                    1L
                 }
                 '{' -> {
                     val close = source.indexOf('}', index)
-                    if (close > index) {
-                        val count = source.substring(index + 1, close).split(',').mapNotNull { it.trim().toLongOrNull() }.maxOrNull() ?: 1L
-                        element *= maxOf(1L, count)
-                        index = close
+                    if (close < 0) return 1L
+                    val value = count(close)
+                    index = close + 1
+                    if (index < source.length && (source[index] == '?' || source[index] == '+')) index++
+                    maxOf(1L, value)
+                }
+                else -> 1L
+            }
+        }
+
+        fun group(): Long {
+            var worst = 1L
+            while (index < source.length && source[index] != ')') {
+                val element = when (source[index]) {
+                    '\\' -> {
+                        index += 2
+                        1L
+                    }
+                    '[' -> {
+                        index++
+                        if (index < source.length && source[index] == '^') index++
+                        if (index < source.length && source[index] == ']') index++
+                        while (index < source.length && source[index] != ']') index += if (source[index] == '\\') 2 else 1
+                        index++
+                        1L
+                    }
+                    '(' -> {
+                        index++
+                        val inner = group()
+                        index++
+                        inner
+                    }
+                    else -> {
+                        index++
+                        1L
                     }
                 }
-                else -> element = 1L
+                worst = maxOf(worst, minOf(element * repeatAfter(), Long.MAX_VALUE / 4))
             }
-            val frame = frames.size - 1
-            frames[frame] = maxOf(frames[frame], element)
-            worst = maxOf(worst, frames.fold(1L) { product, value -> if (product > Long.MAX_VALUE / 2000) product else product * value } )
+            return worst
+        }
+
+        var worst = 1L
+        while (index < source.length) {
+            worst = maxOf(worst, group())
             index++
         }
         return worst

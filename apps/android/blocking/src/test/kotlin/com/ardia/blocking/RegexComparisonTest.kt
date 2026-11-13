@@ -10,30 +10,22 @@ class RegexComparisonTest {
     private class RegexRule(val line: String, val source: String, val matchCase: Boolean)
 
     private fun regexRules(): Pair<String, List<RegexRule>> {
-        val directory = System.getProperty("ardia.blockingLists")?.let(::File)?.takeIf { it.isDirectory }
-        val texts = if (directory != null) {
-            listOf("easylist.txt", "easyprivacy.txt", "fanboy-cookiemonster.txt").map { File(directory, it).readText() }
-        } else {
-            listOf("easylist-sample.txt", "easyprivacy-sample.txt", "cookie-sample.txt").map(::resource) + resource("syntax-sample.txt")
-        }
         val rules = ArrayList<RegexRule>()
-        for (text in texts) {
-            for (raw in text.lineSequence()) {
-                val line = raw.trim()
-                if (line.startsWith("!") || line.contains("##") || line.contains("#@#")) continue
-                var body = line.removePrefix("@@")
-                var options = ""
-                val dollar = body.lastIndexOf('$')
-                if (dollar >= 0 && body.substring(dollar + 1).all { it.isLetterOrDigit() || it in ",=|~._-*" } && dollar + 1 < body.length) {
-                    options = body.substring(dollar + 1)
-                    body = body.substring(0, dollar)
-                }
-                if (body.length > 2 && body.startsWith("/") && body.endsWith("/")) {
-                    rules += RegexRule(line, body.substring(1, body.length - 1), options.split(',').contains("match-case"))
-                }
+        for (raw in resource("default-list-regex-rules.txt").lineSequence()) {
+            val line = raw.trim()
+            if (line.isEmpty()) continue
+            var body = line.removePrefix("@@")
+            var options = ""
+            val dollar = body.lastIndexOf('$')
+            if (dollar >= 0 && body.substring(dollar + 1).all { it.isLetterOrDigit() || it in ",=|~._-*" } && dollar + 1 < body.length) {
+                options = body.substring(dollar + 1)
+                body = body.substring(0, dollar)
+            }
+            if (body.length > 2 && body.startsWith("/") && body.endsWith("/")) {
+                rules += RegexRule(line, body.substring(1, body.length - 1), options.split(',').contains("match-case"))
             }
         }
-        return (if (directory != null) "real lists" else "samples") to rules
+        return "default lists" to rules
     }
 
     private val corpus = listOf(
@@ -94,57 +86,48 @@ class RegexComparisonTest {
         println("ArdiaBlockingRegex engine with ${blockRules.size} real regex block rules vs java on the corpus: mismatches=${engineMismatches.size}")
         assertEquals(emptyList<String>(), engineMismatches)
         assertTrue(matchedPairs > 0)
-        assertTrue("RE2/J refused ${refusedNow.size} rules java accepted", refusedNow.size * 20 <= javaOk.size)
     }
 
     @Test
-    fun re2CostsStaySmallAtEngineBuildAndPerMatch() {
+    fun meteredMatchingCostsStaySmallAtEngineBuildAndPerMatch() {
         val (source, rules) = regexRules()
         val runtime = Runtime.getRuntime()
         System.gc()
         val before = runtime.totalMemory() - runtime.freeMemory()
         val started = System.nanoTime()
-        val compiled = rules.mapNotNull { ListRegex.compile(it.source, it.matchCase) }
+        val compiled = rules.mapNotNull { rule -> ListRegex.compile(rule.source, rule.matchCase)?.let { it to MeteredRegex(it) } }
         val compileMillis = (System.nanoTime() - started) / 1_000_000.0
         System.gc()
         val retained = runtime.totalMemory() - runtime.freeMemory() - before
-        val programs = compiled.map { it.programSize() }
+        val programs = compiled.map { it.second.size }.sorted()
         println(
-            "ArdiaBlockingRegex $source: compiled ${compiled.size} rules in %.1f ms, program size total=%d max=%d, retained about %d KB"
-                .format(compileMillis, programs.sum(), programs.maxOrNull() ?: 0, retained / 1024),
+            "ArdiaBlockingRegex $source: compiled ${compiled.size} rules in %.1f ms, program size median=%d p90=%d p99=%d max=%d, retained about %d KB"
+                .format(compileMillis, programs[programs.size / 2], programs[programs.size * 9 / 10], programs[programs.size * 99 / 100], programs.last(), retained / 1024),
         )
-        repeat(3) { for (pattern in compiled) for (url in corpus) pattern.matcher(url).find() }
-        val cpuClock = ManagementFactory.getThreadMXBean()
-        val matchStart = System.nanoTime()
-        val cpuStart = cpuClock.currentThreadCpuTime
-        var runs = 0
-        repeat(5) { for (pattern in compiled) for (url in corpus) { pattern.matcher(url).find(); runs++ } }
-        val perMatch = (cpuClock.currentThreadCpuTime - cpuStart) / runs / 1000.0
-        val perMatchWall = (System.nanoTime() - matchStart) / runs / 1000.0
-        println("ArdiaBlockingRegex per match: cpu %.2f us, wall %.2f us over %d matches".format(perMatch, perMatchWall, runs))
-        val perRule = compiled.map { pattern ->
-            val begin = System.nanoTime()
-            repeat(20) { for (url in corpus) pattern.matcher(url).find() }
-            (System.nanoTime() - begin) / (20.0 * corpus.size) / 1000.0 to pattern.pattern()
-        }.sortedByDescending { it.first }
-        perRule.take(4).forEach { (micros, pattern) -> println("ArdiaBlockingRegex slowest rule %.2f us per match: %s".format(micros, pattern.take(100))) }
-
-        val engine = engineOf(rules.joinToString("\n") { it.line })
+        val scratch = RegexScratch()
+        val texts = corpus.map { it.toCharArray() }
+        val matchers = compiled.map { it.second }.toTypedArray()
+        val inputs = texts.toTypedArray()
+        fun runAll() {
+            for (rule in matchers.indices) {
+                for (input in inputs.indices) {
+                    scratch.steps = ListRegex.stepsFor(inputs[input].size)
+                    matchers[rule].find(inputs[input], inputs[input].size, scratch)
+                }
+            }
+        }
+        repeat(3) { runAll() }
         val bean = ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean
         val thread = Thread.currentThread().id
-        val url = "https://cdn.jsdelivr.net/npm/abcd-ef@latest/dist/script.min.js"
-        repeat(2_000) { engine.blocks(url, "https://site.test/") }
-        val context = RequestContext.current()
-        val runsBefore = context.regexRuns
         val allocatedBefore = bean.getThreadAllocatedBytes(thread)
-        repeat(10_000) { engine.blocks(url, "https://site.test/") }
+        val cpuStart = bean.currentThreadCpuTime
+        repeat(5) { runAll() }
+        val runs = 5 * compiled.size * texts.size
+        val perMatch = (bean.currentThreadCpuTime - cpuStart) / runs / 1000.0
         val allocated = bean.getThreadAllocatedBytes(thread) - allocatedBefore
-        val regexRuns = context.regexRuns - runsBefore
-        println(
-            "ArdiaBlockingRegex a request that reaches regex rules: %.1f regex runs and %.0f bytes allocated per request"
-                .format(regexRuns / 10_000.0, allocated / 10_000.0),
-        )
-        assertTrue(compileMillis < 2_000)
+        println("ArdiaBlockingRegex metered match: cpu %.2f us per match over %d matches, %.2f bytes allocated per match".format(perMatch, runs, allocated.toDouble() / runs))
+        assertTrue(compileMillis < 5_000)
         assertTrue("cpu per match $perMatch us", perMatch < 100)
+        assertTrue("allocated $allocated bytes", allocated.toDouble() / runs < 1)
     }
 }

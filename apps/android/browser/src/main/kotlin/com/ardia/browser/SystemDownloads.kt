@@ -95,7 +95,12 @@ class SystemDownloads(
         listenForSessionEnds()
         val id = nextId.incrementAndGet()
         val requestedName = DownloadRules.safeFileName(download.fileName)
-        val entry = Entry(download, DownloadCall())
+        val connectionScope = when {
+            !download.isPrivate -> null
+            download.privateSession != null -> download.privateSession
+            else -> "$UNBOUND_PRIVATE_SCOPE$id"
+        }
+        val entry = Entry(download, DownloadCall(connectionScope))
         entries[id] = entry
         report(DownloadProgress(id, requestedName, 0, download.contentLength.takeIf { it > 0 }, isQueued = true))
         val job = scope.launch {
@@ -111,6 +116,7 @@ class SystemDownloads(
             } finally {
                 entries.remove(id)
                 mutableActive.update { list -> list.filterNot { it.id == id } }
+                if (connectionScope != null && connectionScope.startsWith(UNBOUND_PRIVATE_SCOPE)) transport.endConnectionScope(connectionScope)
             }
             if (outcome != null) announce(entry, outcome)
         }
@@ -138,6 +144,7 @@ class SystemDownloads(
     }
 
     private fun endSession(session: String) {
+        transport.endConnectionScope(session)
         for (entry in entries.values) {
             if (entry.download.isPrivate && entry.download.privateSession == session) {
                 entry.endedWithSession = true
@@ -250,6 +257,7 @@ class SystemDownloads(
 
     companion object {
         const val MAX_RUNNING = 3
+        private const val UNBOUND_PRIVATE_SCOPE = "unbound-private-"
         private const val REPORT_INTERVAL_NANOS = 250_000_000L
 
         val NORMAL_PAGE_COOKIES = DownloadCookies { url, isPrivate ->
