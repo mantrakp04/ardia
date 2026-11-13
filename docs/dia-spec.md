@@ -280,6 +280,9 @@ Regular rows on the 37 pt pitch; the same for "+ New Tab" and ⌘T, and for the 
 - Curve: the card's left edge traced through two hides and one show, one spring both ways: response 0.215 s, damping
   ratio 0.79 (rms 2.4 % of the travel hiding, 3.2 % showing; the recorder delivered frames 17–33 ms apart, so ±1
   frame). 90 % of the travel in 100 ms, a 1–2 pt overshoot at ~0.15 s, at rest by ~0.27 s.
+- Ours (`DOCK_SPRING`): Dia's timing without the overshoot, a critically damped spring with response 0.17 s (rms 5 % of
+  the travel from Dia's frames, 88 % in 100 ms, 99.5 % by 0.2 s). Dia's overshoot laid the page out about 3 pt past its
+  final width and then resized it back (#1630).
 
 #### Arc note: hiding the sidebar with the address bar in it (owner's Arc recording 2026-10-06)
 
@@ -304,7 +307,7 @@ screen capture (frames 8–33 ms apart, most 17), so timings are ±1 frame. Edge
   narrower in one frame (a 2 pt settle over three frames after).
 - Hiding the docked sidebar (its button): the sidebar and the card's left edge slide out together, the page laid out at
   every step, much quicker than Dia: ease-out cubic, 100 ms (two hides, rms 1.3 %; Dia's spring misses it by 10 %).
-- Showing from hidden without the peek (⌘S) isn't in the recording: ours uses Dia's spring.
+- Showing from hidden without the peek (⌘S) isn't in the recording: ours uses the docked sidebar's spring.
 - Ours (`dockMotion.ts`: `ARC_PEEK_SPRING`, `ARC_PEEK_OUT_MS`, `ARC_HIDE_MS`; `dockMotion.test.mjs` holds the traced
   points), behind `sidebarSlide`.
 
