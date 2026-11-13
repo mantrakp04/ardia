@@ -19,4 +19,5 @@ export const HISTORY_BUTTON_MOTION = {
   duration: duration.slow + 50,
   incomingDelay: 35,
   travel: 4,
+  pressTravel: 1.5,
 } as const;

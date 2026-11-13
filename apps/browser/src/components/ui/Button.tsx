@@ -34,6 +34,8 @@ type IconBase = {
   color?: string;
   style?: StyleProp<ViewStyle>;
   hit?: ButtonHit;
+  onPressIn?: (event: GestureResponderEvent) => void;
+  onPressOut?: (event: GestureResponderEvent) => void;
 };
 
 type IconProps = IconBase &
@@ -131,6 +133,14 @@ function IconButtonView(props: IconProps) {
   ) : null);
   const hasGlyphPressMotion = !children && (!!icon || !!image);
   const { scale: pressScale, onPressIn, onPressOut } = usePressScaleMotion(hasGlyphPressMotion);
+  const handlePressIn = (event: GestureResponderEvent) => {
+    onPressIn?.();
+    props.onPressIn?.(event);
+  };
+  const handlePressOut = (event: GestureResponderEvent) => {
+    onPressOut?.();
+    props.onPressOut?.(event);
+  };
   const animatedFace = hasGlyphPressMotion && pressScale ? (
     <Animated.View
       pointerEvents="none"
@@ -160,7 +170,7 @@ function IconButtonView(props: IconProps) {
   if (!props.toolbar)
     return (
       <View tooltip={tooltip} style={style} {...hoverProps}>
-        <Pressable onPress={props.onPress} onPressIn={onPressIn} onPressOut={onPressOut} disabled={disabled} accessibilityRole="button" accessibilityLabel={tooltip} style={hit ? { width: hit.width, height: hit.height } : undefined}>
+        <Pressable onPress={props.onPress} onPressIn={handlePressIn} onPressOut={handlePressOut} disabled={disabled} accessibilityRole="button" accessibilityLabel={tooltip} style={hit ? { width: hit.width, height: hit.height } : undefined}>
           {({ pressed }) => plate(pressed)}
         </Pressable>
       </View>
@@ -169,8 +179,8 @@ function IconButtonView(props: IconProps) {
   const button = (
     <Pressable
       onPress={(e) => onPress?.(modifiersOf(e))}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       onLongPress={onLongPress}
       delayLongPress={450}
       disabled={disabled}
