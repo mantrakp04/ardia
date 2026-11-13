@@ -13,7 +13,7 @@ import {
   type PageTone,
 } from "../pages/store";
 import type { VisitKind } from "../../platform/pages";
-import { loadPreferences } from "../settings/store";
+import { currentPreferences, loadPreferences } from "../settings/store";
 import type { VisitTransition, Visit } from "../store/browserDatabase";
 import { resolve, type TrayRow } from "../search/omnibox";
 import { applySearchEngine, dismissSearch, presentSearch, searchState } from "../search/store";
@@ -59,6 +59,7 @@ export function startBrowser() {
   history().pruneBefore(Date.now() - HISTORY_RETENTION_MS);
   archiveDueTabs();
   listenToPages(pageEvent);
+  if (currentPreferences().autoOpensKeyboard) presentSearch("home", "", useTabs.getState().incognito);
 }
 
 export function appBecameActive() {
@@ -123,8 +124,13 @@ export function newRegularTab() {
 }
 
 export function cancelSearch() {
-  const { incognitoOnCancel } = searchState();
+  const { incognitoOnCancel, origin } = searchState();
   dismissSearch();
+  const selected = currentTabs().selectedId;
+  if (origin === "home" && useBrowse.getState().surface === "start" && selected) {
+    openTab(selected);
+    return;
+  }
   if (incognitoOnCancel !== null) setIncognito(incognitoOnCancel);
 }
 

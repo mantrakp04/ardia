@@ -5,7 +5,7 @@ import { currentTabs, useTabs } from "../tabs/store";
 import { remoteSuggestions, setSearchEngine, setSources, suggest, type SuggestContext, type TrayRow } from "./omnibox";
 import { buildSources, sourcesKey } from "./sources";
 
-export type SearchOrigin = "start" | "page";
+export type SearchOrigin = "home" | "start" | "page";
 
 type SearchState = {
   open: boolean;
@@ -18,8 +18,8 @@ type SearchState = {
 };
 
 export const useSearch = create<SearchState>()(() => ({
-  open: true,
-  origin: "start",
+  open: false,
+  origin: "home",
   initialText: "",
   text: "",
   rows: [],
