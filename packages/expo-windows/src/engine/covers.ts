@@ -5,6 +5,7 @@ type Listener = (windowId: string) => void;
 const covers = new Map<string, Map<string, CoverRect>>();
 const listeners = new Set<Listener>();
 const radii = new Map<string, number>();
+const fullScreenPages = new Map<string, string>();
 let defaultRadius = 0;
 
 const changed = (windowId: string) => {
@@ -39,6 +40,22 @@ export function setPageRadius(radius: number, windowId = "") {
 }
 
 export const pageRadiusIn = (windowId: string) => radii.get(windowId) ?? defaultRadius;
+
+export function setFullScreenPage(windowId: string, key: string, on: boolean) {
+  if (on) {
+    if (fullScreenPages.get(windowId) === key) return;
+    fullScreenPages.set(windowId, key);
+  } else {
+    if (fullScreenPages.get(windowId) !== key) return;
+    fullScreenPages.delete(windowId);
+  }
+  changed(windowId);
+}
+
+export const hiddenByFullScreen = (windowId: string, key: string) => {
+  const shown = fullScreenPages.get(windowId);
+  return shown !== undefined && shown !== key;
+};
 
 export function onCoversChange(listener: Listener): () => void {
   listeners.add(listener);

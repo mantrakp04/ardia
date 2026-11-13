@@ -5,7 +5,7 @@ import type { AppWindowsModule } from "../nativeModuleTypes";
 import { followMotion } from "../animation/motion";
 import { noteMissing } from "../missing";
 import { requireNativeModule } from "../modules";
-import { coversIn, onCoversChange, pageRadiusIn } from "./covers";
+import { coversIn, hiddenByFullScreen, onCoversChange, pageRadiusIn, setFullScreenPage } from "./covers";
 import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./pages";
 import { CoverAncestry } from "./usePageCover";
 import { WindowIdContext } from "./windowId";
@@ -81,7 +81,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
   const fullScreen = useRef(false);
 
   const place = useCallback(() => {
-    const wanted = latest.current.visible !== false;
+    const wanted = latest.current.visible !== false && !hiddenByFullScreen(windowId, key);
     if (!wanted) {
       if (shown.current.visible) {
         shown.current = { visible: false, placed: "" };
@@ -90,7 +90,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       return;
     }
     view.current?.measureInWindow((x, y, width, height) => {
-      if (latest.current.visible === false || !(width > 0) || !(height > 0)) return;
+      if (latest.current.visible === false || hiddenByFullScreen(windowId, key) || !(width > 0) || !(height > 0)) return;
       const page = { x, y, width, height };
       const shape: PageShape = fullScreen.current
         ? { ...page, radius: 0, holes: [] }
@@ -120,6 +120,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         const on = !!(data as { fullscreen?: unknown } | null)?.fullscreen;
         if (on !== fullScreen.current) {
           fullScreen.current = on;
+          setFullScreenPage(windowId, key, on);
           void setWindowFullScreen(windowId, on).then(() => {
             if (on && fullScreen.current) void callPage(key, "focus");
           });
@@ -134,6 +135,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       shown.current = { visible: false, placed: "" };
       if (fullScreen.current) {
         fullScreen.current = false;
+        setFullScreenPage(windowId, key, false);
         void setWindowFullScreen(windowId, false);
       }
       unmount();

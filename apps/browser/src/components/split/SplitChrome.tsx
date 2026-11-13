@@ -5,7 +5,7 @@ import { updateSplit } from "../../state/splits/actions";
 import { useDragFallbackPane } from "../../state/splits/hooks";
 import type { SplitView } from "../../state/browser/types";
 import { resize, type Divider, type Rect } from "../window/geometry";
-import { capsule, space, Symbol, Text, Toast, withAlpha } from "../ui";
+import { capsule, OverPage, space, Symbol, Text, Toast, withAlpha } from "../ui";
 import { hideToast, useToasts } from "../../state/app/toasts";
 import { useWindowId } from "../../state/browser/hooks";
 import { overPeek } from "../../state/windows/dockMotion";
@@ -216,6 +216,7 @@ function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect
         transform: [{ translateX: slide.interpolate({ inputRange: [0, 1], outputRange: [away, 0] }) }],
       }}
     >
+      <OverPage radius={ZONE_RADIUS} />
       <View
         style={{
           position: "absolute",

@@ -238,3 +238,15 @@ test("a page that unmounts and mounts again in one tick under the same key close
   unmountSecond();
   await settle();
 });
+
+test("while a page of a window is full screen, the window's other pages count as hidden, and they come back when it leaves", async () => {
+  const { setFullScreenPage, hiddenByFullScreen } = await import("../../../../packages/expo-windows/src/engine/covers.ts");
+  setFullScreenPage("fs-window", "right", true);
+  assert.equal(hiddenByFullScreen("fs-window", "left"), true);
+  assert.equal(hiddenByFullScreen("fs-window", "right"), false);
+  assert.equal(hiddenByFullScreen("other-window", "left"), false);
+  setFullScreenPage("fs-window", "left", false);
+  assert.equal(hiddenByFullScreen("fs-window", "left"), true, "a page that wasn't full screen can't end another's");
+  setFullScreenPage("fs-window", "right", false);
+  assert.equal(hiddenByFullScreen("fs-window", "left"), false);
+});
