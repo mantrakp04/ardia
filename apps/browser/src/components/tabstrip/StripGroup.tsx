@@ -1,5 +1,8 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { RawText as Text } from "../ui/ScaledNative";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { currentGroup } from "../../state/browser/current";
 import { useGroup, usePageProfileId, useWindowId } from "../../state/browser/hooks";
 import { updateGroup } from "../../state/groups/actions";
@@ -39,6 +42,8 @@ export function StripGroup({
   memberWidth: (m: StripMember) => number;
   folderMeasured: (groupId: string) => boolean;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GAP, TOP_STRIP_HEIGHT, ITEM_TOP, ITEM_HEIGHT, TAB_RADIUS, CHIP_HAIRLINE, MID, GROUP_DIVIDER_LENGTH, GROUP_CHIP_PAD, GROUP_TITLE_GAP, GROUP_TITLE_MAX } = useMemo(() => ({ GAP: scaleMetrics(BASE_INTERFACE_METRICS.GAP, interfaceScale), TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale), ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale), ITEM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_HEIGHT, interfaceScale), TAB_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TAB_RADIUS, interfaceScale), CHIP_HAIRLINE: scaleMetrics(BASE_INTERFACE_METRICS.CHIP_HAIRLINE, interfaceScale), MID: scaleMetrics(BASE_INTERFACE_METRICS.MID, interfaceScale), GROUP_DIVIDER_LENGTH: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_DIVIDER_LENGTH, interfaceScale), GROUP_CHIP_PAD: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_CHIP_PAD, interfaceScale), GROUP_TITLE_GAP: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_TITLE_GAP, interfaceScale), GROUP_TITLE_MAX: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_TITLE_MAX, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const windowId = useWindowId();
@@ -52,7 +57,7 @@ export function StripGroup({
   const shown = entry.members.findIndex((m) => holds(m, activeId));
   const chipSize = chipWidth ?? 0;
   const { offsets, width } = groupLayout(chipSize, widths, GAP, expanded, shown);
-  const members = useMemo(() => dragGeometry(entry.members.map((m, i) => ({ tabIds: tabsOf(m), width: widths[i]! })), GAP), [entry.members, widths.join()]);
+  const members = useMemo(() => dragGeometry(entry.members.map((m, i) => ({ tabIds: tabsOf(m), width: widths[i]! })), GAP), [entry.members, widths.join(), interfaceScale]);
   const tuckable = useHasTuckTarget(!expanded && shown >= 0, windowId, profileId, entry.id);
   const open = useRef(new Animated.Value(expanded ? 1 : 0)).current;
   const size = useRef(new Animated.Value(width)).current;
@@ -73,8 +78,8 @@ export function StripGroup({
     } else if (moving) {
       run(spring(size, width));
     } else size.setValue(width);
-  }, [state, width]);
-  const fade = useMemo(() => open.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: "clamp" }), []);
+  }, [state, width, interfaceScale]);
+  const fade = useMemo(() => open.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: "clamp" }), [interfaceScale]);
   const drag = useStripDrag({
     tabId: null,
     ids: () => currentGroup(entry.id)?.tabIds ?? [],
@@ -94,7 +99,7 @@ export function StripGroup({
       return true;
     },
   });
-  const tail = useMemo(() => Animated.add(size, -(TAIL_EXPANDED - 2.25)), []);
+  const tail = useMemo(() => Animated.add(size, -(TAIL_EXPANDED - 2.25)), [interfaceScale]);
   if (!group) return null;
   const tint = groupTint(group.color);
   const bare = group.color === "none";
@@ -120,7 +125,7 @@ export function StripGroup({
         }}
       />
       {onto && <OntoRing width={size} />}
-      <Animated.View pointerEvents="none" style={{ position: "absolute", left: chipSize + 0.75, top: MID - 7.5, width: 0.5, height: 15, backgroundColor: divider, opacity: fade }} />
+      <Animated.View pointerEvents="none" style={{ position: "absolute", left: chipSize + 0.75, top: MID - 7.5, width: 0.5, height: 15 * interfaceScale, backgroundColor: divider, opacity: fade }} />
       {entry.members.map((m, i) => (
         <GroupMember
           key={m.id}
@@ -167,3 +172,5 @@ export function StripGroup({
     </Animated.View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { GAP, TOP_STRIP_HEIGHT, ITEM_TOP, ITEM_HEIGHT, TAB_RADIUS, CHIP_HAIRLINE, MID, GROUP_DIVIDER_LENGTH, GROUP_CHIP_PAD, GROUP_TITLE_GAP, GROUP_TITLE_MAX };

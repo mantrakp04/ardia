@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, View, type ViewStyle } from "react-native";
 import { useTheme } from "../ui/theme";
@@ -50,6 +52,8 @@ export function useToolbarMotion({
   extra: number;
   doc: string;
 }): ToolbarMotion {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TOOLBAR_MOTION, SHOW_EASING, HIDE_EASING } = useMemo(() => ({ TOOLBAR_MOTION: BASE_INTERFACE_METRICS.TOOLBAR_MOTION, SHOW_EASING: scaleMetrics(BASE_INTERFACE_METRICS.SHOW_EASING, interfaceScale), HIDE_EASING: scaleMetrics(BASE_INTERFACE_METRICS.HIDE_EASING, interfaceScale) }), [interfaceScale]);
   const collapsed = mode !== "shown";
   const shownTop = useToolbarRow().height + extra;
   const room = shownTop - STRIP_HEIGHT;
@@ -75,12 +79,12 @@ export function useToolbarMotion({
     for (const a of [page, bar, fade]) a.addListener(() => {});
   }
   const v = values.current;
-  const translateY = useMemo(() => Animated.multiply(Animated.subtract(v.laid, v.page), room), [room]);
-  const bottomShift = useMemo(() => (tall.on ? Animated.multiply(Animated.subtract(v.page, 1), room) : 0), [tall.on, room]);
+  const translateY = useMemo(() => Animated.multiply(Animated.subtract(v.laid, v.page), room), [room, interfaceScale]);
+  const bottomShift = useMemo(() => (tall.on ? Animated.multiply(Animated.subtract(v.page, 1), room) : 0), [tall.on, room, interfaceScale]);
   useEffect(() => {
     const keep = (a: Animated.Value, value: number) => Animated.timing(a, { toValue: value, duration: TOOLBAR_MOTION.settle, useNativeDriver: true });
     Animated.parallel([keep(v.page, initial.page), keep(v.laid, initial.page), keep(v.bar, initial.bar), keep(v.fade, initial.bar)]).start();
-  }, []);
+  }, [interfaceScale]);
   const was = useRef(mode);
   useLayoutEffect(() => {
     const step = motionStep(was.current, mode, reduceMotion() === true);
@@ -92,7 +96,7 @@ export function useToolbarMotion({
     );
     if (glides.length) Animated.parallel(glides).start(({ finished }) => finished && step.fit === "afterGlide" && fitShownPage());
     if (step.fit === "now") fitShownPage();
-  }, [mode]);
+  }, [mode, interfaceScale]);
 
   return {
     bar: v.bar,
@@ -167,6 +171,8 @@ export function AutoHideToolbar({
   mode: ToolbarMode;
   motion: Pick<ToolbarMotion, "bar" | "fade">;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SHRINK, UNPEEK_DELAY, PEEK_DELAY, space } = useMemo(() => ({ SHRINK: BASE_INTERFACE_METRICS.SHRINK, UNPEEK_DELAY: BASE_INTERFACE_METRICS.UNPEEK_DELAY, PEEK_DELAY: BASE_INTERFACE_METRICS.PEEK_DELAY, space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const url = useTab(tabId, (t) => t?.url ?? "");
   const themeColor = useTabLive(tabId, (l) => l.themeColor);
@@ -177,7 +183,7 @@ export function AutoHideToolbar({
   modeNow.current = mode;
 
   const peekTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(peekTimer.current), [tabId]);
+  useEffect(() => () => clearTimeout(peekTimer.current), [tabId, interfaceScale]);
   const peekLater = (on: boolean, ms: number) => {
     clearTimeout(peekTimer.current);
     peekTimer.current = setTimeout(() => setToolbarPeek(tabId, on), ms);
@@ -196,7 +202,7 @@ export function AutoHideToolbar({
           { scale: bar.interpolate({ inputRange: [0, 1], outputRange: [1, SHRINK] }) },
         ],
       },
-    [moved, bar, fade, H],
+    [moved, bar, fade, H, interfaceScale],
   );
   const host = pageHostLabel(url);
 
@@ -231,3 +237,5 @@ export function AutoHideToolbar({
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { TOOLBAR_MOTION, SHOW_EASING, HIDE_EASING, SHRINK, UNPEEK_DELAY, PEEK_DELAY, space };

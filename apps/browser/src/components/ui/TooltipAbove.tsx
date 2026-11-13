@@ -1,6 +1,10 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { RawText as Text } from "./ScaledNative";
+import { useMemo } from "react";
 import { Surface } from "@ardia/shell";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Text } from "react-native";
+import { Animated } from "react-native";
 import { hex, surfaceTheme, useTheme } from "./theme";
 import { font, hairline, shadow, TOOLTIP, weight } from "./tokens";
 import { curve, duration } from "./motion";
@@ -26,6 +30,8 @@ function useShownAfterDelay(active: boolean) {
 }
 
 export function TooltipAbove({ text, active, centerX, bottom }: { text: string; active: boolean; centerX: number; bottom: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FADE_EASING, SPAN, RING, RADIUS, TOOLTIP } = useMemo(() => ({ FADE_EASING: scaleMetrics(BASE_INTERFACE_METRICS.FADE_EASING, interfaceScale), SPAN: scaleMetrics(BASE_INTERFACE_METRICS.SPAN, interfaceScale), RING: scaleMetrics(BASE_INTERFACE_METRICS.RING, interfaceScale), RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.RADIUS, interfaceScale), TOOLTIP: scaleMetrics(BASE_INTERFACE_METRICS.TOOLTIP, interfaceScale) }), [interfaceScale]);
   const theme = surfaceTheme(useTheme());
   const shown = useShownAfterDelay(active && text.length > 0);
   const opacity = useRef(new Animated.Value(0)).current;
@@ -37,7 +43,7 @@ export function TooltipAbove({ text, active, centerX, bottom }: { text: string; 
     const fade = Animated.timing(opacity, { toValue: 1, duration: FADE_MS, easing: FADE_EASING, useNativeDriver: true });
     fade.start();
     return () => fade.stop();
-  }, [shown, opacity]);
+  }, [shown, opacity, interfaceScale]);
   if (!shown) return null;
   return (
     <Animated.View pointerEvents="none" style={{ position: "absolute", left: centerX - SPAN / 2, width: SPAN, bottom: bottom - RING, alignItems: "center", opacity }}>
@@ -66,3 +72,5 @@ export function TooltipAbove({ text, active, centerX, bottom }: { text: string; 
     </Animated.View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { FADE_EASING, SPAN, RING, RADIUS, TOOLTIP };

@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useRef, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
@@ -26,6 +29,8 @@ export function useProfileDotsShown() {
 }
 
 export function ProfileDots({ windowId, width, besideDownloads }: { windowId: string; width: number; besideDownloads: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SIDE_ROOM_BESIDE_DOWNLOADS, SIDE_ROOM, PROFILE_DOTS_HEIGHT } = useMemo(() => ({ SIDE_ROOM_BESIDE_DOWNLOADS: scaleMetrics(BASE_INTERFACE_METRICS.SIDE_ROOM_BESIDE_DOWNLOADS, interfaceScale), SIDE_ROOM: scaleMetrics(BASE_INTERFACE_METRICS.SIDE_ROOM, interfaceScale), PROFILE_DOTS_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.PROFILE_DOTS_HEIGHT, interfaceScale) }), [interfaceScale]);
   const ids = useProfileOrder(useShallow((o) => o));
   const saved = useProfileRecords(useShallow((profiles) => ids.map((id) => profiles[id]?.icon ?? null)));
   const shown = useSettings((s) => s.profileSwitcherIcons);
@@ -43,6 +48,8 @@ export function ProfileDots({ windowId, width, besideDownloads }: { windowId: st
 }
 
 function Dot({ id, windowId, icon, page, pos }: { id: string; windowId: string; icon: string | null; page: PagerPage | undefined; pos: Animated.Value }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { profileSwitcher } = useMemo(() => ({ profileSwitcher: scaleMetrics(BASE_INTERFACE_METRICS.profileSwitcher, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   useNativePagerPosition(windowId);
   const name = useProfile(id, (p) => p?.name ?? "");
@@ -79,3 +86,5 @@ function Dot({ id, windowId, icon, page, pos }: { id: string; windowId: string; 
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { SIDE_ROOM_BESIDE_DOWNLOADS, SIDE_ROOM, PROFILE_DOTS_HEIGHT, profileSwitcher };

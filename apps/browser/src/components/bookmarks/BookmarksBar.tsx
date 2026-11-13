@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { memo, useCallback, useEffect, useId, useReducer, useRef, useState } from "react";
 import { Animated, StyleSheet, View, type LayoutRectangle } from "react-native";
 import { currentBookmarks } from "../../state/browser/current";
@@ -52,6 +55,8 @@ const barRooms = new Map<string, number>();
 const widthKey = (size: BarSize, id: string) => `${size.item}:${id}`;
 
 function Bar({ windowId }: { windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, HINT, OTHER, DIVIDER } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), HINT: scaleMetrics(BASE_INTERFACE_METRICS.HINT, interfaceScale), OTHER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.OTHER, interfaceScale), DIVIDER: scaleMetrics(BASE_INTERFACE_METRICS.DIVIDER, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const size = useBarSize();
   const zone = useId();
@@ -81,7 +86,7 @@ function Bar({ windowId }: { windowId: string }) {
   const [otherX, setOtherX] = useState<number | null>(null);
   const [, remeasured] = useReducer((n: number) => n + 1, 0);
   const remeasure = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => void (remeasure.current && clearTimeout(remeasure.current)), []);
+  useEffect(() => () => void (remeasure.current && clearTimeout(remeasure.current)), [interfaceScale]);
   const sizeRef = useRef(size);
   sizeRef.current = size;
   const onItemWidth = useCallback((id: string, w: number) => {
@@ -92,7 +97,7 @@ function Bar({ windowId }: { windowId: string }) {
       remeasure.current = null;
       remeasured();
     }, 0);
-  }, []);
+  }, [interfaceScale]);
 
   const room = itemsFrame.width;
   const fit = barFit({
@@ -118,7 +123,7 @@ function Bar({ windowId }: { windowId: string }) {
   const measureOrigin = () => root.current?.measureInWindow((x, y) => (origin.current = { x, y }));
   useEffect(() => {
     if (source) measureOrigin();
-  }, [!!source]);
+  }, [!!source, interfaceScale]);
 
   const latest = useRef({ barId, otherId, visible, frames, itemsFrame, otherX, width, size });
   latest.current = { barId, otherId, visible, frames, itemsFrame, otherX, width, size };
@@ -148,7 +153,7 @@ function Bar({ windowId }: { windowId: string }) {
           return { spot: hit, springOpen: () => openFolderMenu(windowId, { parentId: hit.into, fromIndex: 0, anchor, level: 0 }, { sprung: true }) };
         },
       }),
-    [windowId, zone],
+    [windowId, zone, interfaceScale],
   );
 
   const onDropUpdate = (e: DropUpdate) => {
@@ -285,3 +290,5 @@ const HINT = { marginLeft: space.xs } as const;
 const OTHER = { flexDirection: "row", alignItems: "center" } as const;
 const ITEMS = { position: "absolute", left: 0, top: 0, flexDirection: "row", alignItems: "center" } as const;
 const DIVIDER = { width: StyleSheet.hairlineWidth * 2, height: bookmarksBar.dividerHeight, marginHorizontal: space.s } as const;
+
+const BASE_INTERFACE_METRICS = { space, HINT, OTHER, DIVIDER };

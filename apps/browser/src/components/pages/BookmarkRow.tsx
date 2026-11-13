@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, View } from "react-native";
 import { bookmarkAncestors } from "../../state/bookmarks/bookmarks";
@@ -48,6 +50,8 @@ export function BookmarkRow({
   onDragMove: (x: number, y: number) => void;
   onDragEnd: (x: number, y: number) => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ROW_LOOK, FOLDER_ICON, TITLE, DETAIL } = useMemo(() => ({ ROW_LOOK: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ROW_LOOK, interfaceScale), FOLDER_ICON: scaleMetrics(BASE_INTERFACE_METRICS.FOLDER_ICON, interfaceScale), TITLE: scaleMetrics(BASE_INTERFACE_METRICS.TITLE, interfaceScale), DETAIL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.DETAIL, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const colors = pagesColors(theme);
   const node = useBookmarks((b) => b.nodes[id]);
@@ -80,7 +84,7 @@ export function BookmarkRow({
           handlers.current.onDragEnd(-1, -1);
         },
       }),
-    [],
+    [interfaceScale],
   );
   if (!node) return null;
 
@@ -125,3 +129,5 @@ export function BookmarkRow({
     </Animated.View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { ROW_LOOK, FOLDER_ICON, TITLE, DETAIL };

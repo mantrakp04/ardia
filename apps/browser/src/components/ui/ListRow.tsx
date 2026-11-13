@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useRef, useState, type ReactNode } from "react";
 import { markHoverProps } from "../../lib/hoverMarks";
 import { Pressable, View, type GestureResponderEvent } from "react-native";
@@ -23,6 +26,8 @@ export function ListRow({
   onHover?: (hovered: boolean) => void;
   children: ReactNode | ((state: ListRowState) => ReactNode);
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, radius } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const [hovered, setHovered] = useState(false);
   const notify = useRef(onHover);
@@ -61,3 +66,5 @@ export function ListRow({
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { space, radius };

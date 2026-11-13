@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { Children, createContext, isValidElement, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { sectionRevealed, settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
@@ -57,6 +59,8 @@ export type AnchorShape = "row" | "card";
 const ANCHOR_RADIUS: Record<AnchorShape, number> = { row: radii.control, card: radii.panel };
 
 export function Anchor({ id, children, shape, style, keep }: { id?: SettingId; children: ReactNode; shape?: AnchorShape; style?: StyleProp<ViewStyle>; keep?: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ANCHOR_RADIUS } = useMemo(() => ({ ANCHOR_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.ANCHOR_RADIUS, interfaceScale) }), [interfaceScale]);
   const hidden = useHiddenSetting();
   if (!keep && id && hidden(findSetting(id))) return null;
   return (
@@ -93,6 +97,8 @@ function ShownAnchor({ id, children, radius, style }: { id?: SettingId; children
 }
 
 export function SectionHeader({ title, description, action, anchor }: { title?: string; description?: string | null; action?: ReactNode; anchor?: SettingId }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SECTION_HEADER, SECTION_DETAIL } = useMemo(() => ({ SECTION_HEADER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.SECTION_HEADER, interfaceScale), SECTION_DETAIL: scaleMetrics(BASE_INTERFACE_METRICS.SECTION_DETAIL, interfaceScale) }), [interfaceScale]);
   const pane = useContext(SettingsPaneContext);
   const entry = anchor ? setting(anchor) : undefined;
   const text = title ?? entry?.section ?? "";
@@ -161,6 +167,8 @@ const SECTION_HEADER = { flexDirection: "row", alignItems: "flex-end", marginTop
 const SECTION_DETAIL = { marginTop: space.xs, lineHeight: lineHeight.body } as const;
 
 export function PaneIntro({ children }: { children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANE_INTRO } = useMemo(() => ({ PANE_INTRO: scaleMetrics(BASE_INTERFACE_METRICS.PANE_INTRO, interfaceScale) }), [interfaceScale]);
   return (
     <Text size="small" tone="textSecondary" style={PANE_INTRO}>
       {children}
@@ -171,6 +179,8 @@ export function PaneIntro({ children }: { children: ReactNode }) {
 const PANE_INTRO = { marginTop: space.xxl, lineHeight: proseLineHeight.small } as const;
 
 export function FormField({ label, inline, children }: { label: string; inline?: boolean; children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FIELD_INLINE, FIELD, FIELD_LABEL } = useMemo(() => ({ FIELD_INLINE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FIELD_INLINE, interfaceScale), FIELD: scaleMetrics(BASE_INTERFACE_METRICS.FIELD, interfaceScale), FIELD_LABEL: scaleMetrics(BASE_INTERFACE_METRICS.FIELD_LABEL, interfaceScale) }), [interfaceScale]);
   return (
     <View style={inline ? FIELD_INLINE : FIELD}>
       <Text size="caption" tone="textSecondary" style={inline ? undefined : FIELD_LABEL}>
@@ -184,3 +194,5 @@ export function FormField({ label, inline, children }: { label: string; inline?:
 const FIELD = { marginTop: space.l } as const;
 const FIELD_INLINE = { marginTop: space.l, flexDirection: "row", alignItems: "center", gap: space.ml } as const;
 const FIELD_LABEL = { marginBottom: space.xs } as const;
+
+const BASE_INTERFACE_METRICS = { ANCHOR_RADIUS, SECTION_HEADER, SECTION_DETAIL, PANE_INTRO, FIELD_INLINE, FIELD, FIELD_LABEL };

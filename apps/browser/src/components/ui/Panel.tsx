@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Surface, VisualEffect, type SurfaceProps } from "@ardia/shell";
 import { StyleSheet } from "react-native";
 import { GlassFill, useGlass } from "./Glass";

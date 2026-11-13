@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, View } from "react-native";
 import { curve } from "../ui/motion";
@@ -11,6 +14,8 @@ const FOLD_EASING = curve.enter;
 type FoldState = { open: Animated.Value; moving: boolean };
 
 export function useFold(collapsed: boolean): FoldState {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FOLD_EASING } = useMemo(() => ({ FOLD_EASING: scaleMetrics(BASE_INTERFACE_METRICS.FOLD_EASING, interfaceScale) }), [interfaceScale]);
   const open = useRef(new Animated.Value(collapsed ? 0 : 1)).current;
   const [settled, setSettled] = useState(collapsed);
   const [running, setRunning] = useState(false);
@@ -28,7 +33,7 @@ export function useFold(collapsed: boolean): FoldState {
       setRunning(false);
     });
     return () => animation.stop();
-  }, [collapsed]);
+  }, [collapsed, interfaceScale]);
   return { open, moving: running || settled !== collapsed };
 }
 
@@ -61,6 +66,8 @@ export function Fold({
   mountClosed?: boolean;
   footer?: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale) }), [interfaceScale]);
   const { open, moving } = fold;
   const gap = layout.rowGap;
   const parentAway = useContext(FoldedAway);
@@ -128,3 +135,5 @@ export function Fold({
     </Animated.View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { FOLD_EASING, layout };

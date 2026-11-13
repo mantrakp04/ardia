@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { memo, useMemo } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { errorText, manualRefresh, statusText } from "../../state/live/engine";
@@ -33,17 +35,19 @@ const EMPTY: LiveItem[] = [];
 const NONE: string[] = [];
 
 export const LiveFolderBlock = memo(function LiveFolderBlock({ folderId, windowId }: { folderId: string; windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GROUP_BORDER, layout, GROUP_RADIUS } = useMemo(() => ({ GROUP_BORDER: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_BORDER, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), GROUP_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_RADIUS, interfaceScale) }), [interfaceScale]);
   const tokens = useSidebarTokens();
   const folder = useLive((s) => s.folders[folderId]);
   const items = useLive((s) => s.items[folderId] ?? EMPTY);
   const showAll = useLive((s) => s.showAll);
   const folded = useDragFolded(entryKey("live", folderId));
   const collapsed = folded || !!folder?.collapsed;
-  const rows = useMemo(() => (folder ? folderRows(folder, items, showAll) : []), [folder, items, showAll]);
-  const itemIds = useMemo(() => new Set(items.map((i) => i.id)), [items]);
+  const rows = useMemo(() => (folder ? folderRows(folder, items, showAll) : []), [folder, items, showAll, interfaceScale]);
+  const itemIds = useMemo(() => new Set(items.map((i) => i.id)), [items, interfaceScale]);
   const hiddenList = useLive((s) => s.hidden[folderId] ?? EMPTY);
   const repoHiddenList = useLive((s) => s.repoHidden[folderId] ?? EMPTY);
-  const hiddenIds = useMemo(() => new Set([...hiddenList, ...repoHiddenList].map((i) => i.id)), [hiddenList, repoHiddenList]);
+  const hiddenIds = useMemo(() => new Set([...hiddenList, ...repoHiddenList].map((i) => i.id)), [hiddenList, repoHiddenList, interfaceScale]);
   const profileId = usePageProfileId();
   const strays = useLiveStrays(windowId, profileId, folderId, itemIds, hiddenIds);
   const activeTab = useLiveActiveTab(windowId, profileId, folderId, itemIds, hiddenIds);
@@ -101,6 +105,8 @@ function FolderNote({ folderId }: { folderId: string }) {
 }
 
 function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; windowId: string; collapsed: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GROUP_INNER_RADIUS, TAB_ROW, space } = useMemo(() => ({ GROUP_INNER_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_INNER_RADIUS, interfaceScale), TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const colors = useLiveColors();
@@ -137,7 +143,7 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
               <SidebarRowLabel text={folder.name} weight="medium" color={tokens.groupTitle} />
               {status?.error ? (
                 <Pressable onPress={() => openSettings("liveFolders")} tooltip={errorText(status.error.kind, status.error.source)} style={{ marginRight: space.xxs }}>
-                  <Symbol name="exclamationmark.triangle.fill" size={10} color={colors.pending} style={{ width: 18, height: 18 }} />
+                  <Symbol name="exclamationmark.triangle.fill" size={10} color={colors.pending} style={{ width: 18 * interfaceScale, height: 18 * interfaceScale }} />
                 </Pressable>
               ) : null}
               <HoverSlot
@@ -162,13 +168,17 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
 }
 
 function RefreshButton({ spinning, tooltip, onPress }: { spinning: boolean; tooltip: string; onPress(): void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TAB_ROW } = useMemo(() => ({ TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   if (!spinning) return <Button variant="icon" icon="arrow.clockwise" size="s" weight="semibold" onPress={onPress} tooltip={tooltip} />;
   return (
     <View tooltip={tooltip} style={{ width: TAB_ROW.closeSlot, height: TAB_ROW.closeSlot, alignItems: "center", justifyContent: "center" }}>
       <RefreshSpinner>
-        <Symbol name="arrow.clockwise" size={10} weight="semibold" color={theme.textSecondary} style={{ width: 14, height: 14 }} />
+        <Symbol name="arrow.clockwise" size={10} weight="semibold" color={theme.textSecondary} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />
       </RefreshSpinner>
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { GROUP_BORDER, layout, GROUP_RADIUS, GROUP_INNER_RADIUS, TAB_ROW, space };

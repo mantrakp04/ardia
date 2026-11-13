@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { memo, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { markHoverProps } from "../../lib/hoverMarks";
@@ -20,6 +23,8 @@ const HOST = { flexShrink: 0, maxWidth: historyRow.hostMaxWidth } as const;
 const SEPARATOR = { position: "absolute", left: space.xl + space.l, right: space.xl + space.l, bottom: 0 } as const;
 
 export const DayHeader = memo(function DayHeader({ label, top }: { label: string; top: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DAY_HEADER, DAY_LABEL } = useMemo(() => ({ DAY_HEADER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.DAY_HEADER, interfaceScale), DAY_LABEL: scaleMetrics(BASE_INTERFACE_METRICS.DAY_LABEL, interfaceScale) }), [interfaceScale]);
   return (
     <View style={[DAY_HEADER, { top }]}>
       <Text weight="semibold" tone="textSecondary" style={DAY_LABEL}>
@@ -54,6 +59,8 @@ export const HistoryRow = memo(function HistoryRow({
   onRemove: (urls: string[]) => void;
   menuTargets: (entry: HistoryEntry) => HistoryEntry[];
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius, ROW_FRAME, space, TIME, LINK, TITLE, HOST, SEPARATOR } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), ROW_FRAME: scaleMetrics(BASE_INTERFACE_METRICS.ROW_FRAME, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), TIME: scaleMetrics(BASE_INTERFACE_METRICS.TIME, interfaceScale), LINK: scaleInterfaceStyle(BASE_INTERFACE_METRICS.LINK, interfaceScale), TITLE: scaleMetrics(BASE_INTERFACE_METRICS.TITLE, interfaceScale), HOST: scaleMetrics(BASE_INTERFACE_METRICS.HOST, interfaceScale), SEPARATOR: scaleInterfaceStyle(BASE_INTERFACE_METRICS.SEPARATOR, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const url = useRef(entry.url);
   url.current = entry.url;
@@ -151,3 +158,5 @@ export const HistoryRow = memo(function HistoryRow({
     </View>
   );
 });
+
+const BASE_INTERFACE_METRICS = { DAY_HEADER, DAY_LABEL, radius, ROW_FRAME, space, TIME, LINK, TITLE, HOST, SEPARATOR };

@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { RawText as Text } from "../ui/ScaledNative";
+import { View } from "react-native";
 import type { CardNetwork } from "../../state/site/autofill";
 import { capsule, ink, radius, space, Symbol } from "../ui";
 import { CARD_BADGES, cardBadgeType, MASTERCARD_RINGS } from "./tokens";

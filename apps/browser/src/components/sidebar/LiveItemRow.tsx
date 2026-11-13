@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { closeTab } from "../../state/browser/actions";
@@ -29,6 +32,8 @@ import { SidebarRowLabel, SidebarRowSurface } from "./SidebarRow";
 const liveRowKey = (folderId: string, itemId: string) => `live|${folderId}|${itemId}`;
 
 export function LiveItemRow({ folderId, item, windowId, inStack = false }: { folderId: string; item: LiveItem; windowId: string; inStack?: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { STACK_INDENT, SIDEBAR_MOTION, layout, TAB_ROW, UNREAD_DOT_LEFT } = useMemo(() => ({ STACK_INDENT: scaleMetrics(BASE_INTERFACE_METRICS.STACK_INDENT, interfaceScale), SIDEBAR_MOTION: BASE_INTERFACE_METRICS.SIDEBAR_MOTION, layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), UNREAD_DOT_LEFT: scaleMetrics(BASE_INTERFACE_METRICS.UNREAD_DOT_LEFT, interfaceScale) }), [interfaceScale]);
   const indent = inStack ? STACK_INDENT : 0;
   const theme = useTheme();
   const { closeTabHint: closeHint, backToPinHint } = useSidebarRowLook();
@@ -51,7 +56,7 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
       Animated.delay(COMPLETION_MS - 420),
       Animated.timing(fold, { toValue: 0, duration: SIDEBAR_MOTION.liveFold, easing: curve.enter, useNativeDriver: false }),
     ]).start();
-  }, [completion]);
+  }, [completion, interfaceScale]);
   const fill = active ? theme.tabSelected : hovered ? theme.tabHover : ink.clear;
   const resettable = away && !completion;
   const resetting = resettable && backToPin.hovered;
@@ -84,7 +89,7 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
                       accessibilityLabel="Back to Pinned URL"
                     >
                       {resetting ? (
-                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
                       ) : (
                         <ItemIcon item={item} completion={completion} colors={colors} />
                       )}
@@ -136,6 +141,8 @@ function liveRowControl(folderId: string, item: LiveItem, tabId: string | null, 
 }
 
 function PositionChip({ position }: { position: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { POSITION_CHIP } = useMemo(() => ({ POSITION_CHIP: scaleMetrics(BASE_INTERFACE_METRICS.POSITION_CHIP, interfaceScale) }), [interfaceScale]);
   return (
     <View style={POSITION_CHIP}>
       <Badge text={position} tone="chip" size="m" />
@@ -150,22 +157,24 @@ export const COMPLETION_GLYPH: Record<CompletedItem["state"], { symbol: string; 
 };
 
 function ItemIcon({ item, completion, colors }: { item: LiveItem; completion: CompletedItem["state"] | null; colors: LiveColors }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { COMPLETION_GLYPH } = useMemo(() => ({ COMPLETION_GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.COMPLETION_GLYPH, interfaceScale) }), [interfaceScale]);
   const pop = useRef(new Animated.Value(completion ? 0 : 1)).current;
   useEffect(() => {
     if (!completion) return;
     pop.setValue(0);
     Animated.spring(pop, { toValue: 1, ...springs.bouncy, useNativeDriver: true }).start();
-  }, [completion]);
+  }, [completion, interfaceScale]);
   if (completion) {
     const glyph = COMPLETION_GLYPH[completion];
     return (
-      <Animated.View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center", transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }}>
-        <Symbol name={glyph.symbol} size={14} weight="semibold" color={colors[glyph.color]} style={{ width: 16, height: 16 }} />
+      <Animated.View style={{ width: 16 * interfaceScale, height: 16 * interfaceScale, alignItems: "center", justifyContent: "center", transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }}>
+        <Symbol name={glyph.symbol} size={14} weight="semibold" color={colors[glyph.color]} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
       </Animated.View>
     );
   }
   if (item.pr) {
-    return <Symbol name="arrow.triangle.pull" size={12} weight="semibold" color={item.pr.draft ? colors.draft : colors.success} style={{ width: 16, height: 16 }} />;
+    return <Symbol name="arrow.triangle.pull" size={12} weight="semibold" color={item.pr.draft ? colors.draft : colors.success} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />;
   }
   if (item.icon && /^https?:/.test(item.icon)) return <TabIcon url={item.url} favicon={item.icon} direct />;
   return <TabIcon url={item.source === "confluence" && !item.icon ? SOURCES.confluence.site : item.url} icon={item.icon} />;
@@ -183,6 +192,8 @@ const BADGES: Record<NonNullable<ReturnType<typeof prBadge>>, { symbol: string |
 const COMPLETION_LABEL = { marginRight: space.xs } as const;
 
 function Trailing({ item, completion, colors }: { item: LiveItem; completion: CompletedItem["state"] | null; colors: LiveColors }): ReactNode {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { COMPLETION_GLYPH, COMPLETION_LABEL, BADGES, TAB_ROW } = useMemo(() => ({ COMPLETION_GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.COMPLETION_GLYPH, interfaceScale), COMPLETION_LABEL: scaleMetrics(BASE_INTERFACE_METRICS.COMPLETION_LABEL, interfaceScale), BADGES: scaleMetrics(BASE_INTERFACE_METRICS.BADGES, interfaceScale), TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   if (completion) {
     return (
@@ -197,10 +208,12 @@ function Trailing({ item, completion, colors }: { item: LiveItem; completion: Co
   return (
     <View tooltip={spec.tip} style={{ width: TAB_ROW.closeSlot, height: TAB_ROW.closeSlot, alignItems: "center", justifyContent: "center" }}>
       {spec.symbol ? (
-        <Symbol name={spec.symbol} size={11} weight="semibold" color={colors[spec.color]} style={{ width: 16, height: 16 }} />
+        <Symbol name={spec.symbol} size={11} weight="semibold" color={colors[spec.color]} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
       ) : (
         <Dot size={7} color={colors[spec.color]} ring={sidebarTokens(theme).liveDotRing} ringWidth={hairline.ring} />
       )}
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { STACK_INDENT, SIDEBAR_MOTION, layout, TAB_ROW, UNREAD_DOT_LEFT, POSITION_CHIP, COMPLETION_GLYPH, COMPLETION_LABEL, BADGES };

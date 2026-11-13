@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { memo } from "react";
 import { View } from "react-native";
 import { Symbol } from "../ui";
@@ -13,11 +16,14 @@ export const TileStatus = memo(function TileStatus({ tabId }: { tabId: string })
 });
 
 function TileMarks({ tabId }: { tabId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TILE_STATUS } = useMemo(() => ({ TILE_STATUS: scaleMetrics(BASE_INTERFACE_METRICS.TILE_STATUS, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const pip = useMedia((m) => !!m.pipOpen[tabId]);
   const playing = useTabLive(tabId, (l) => l.playingAudio);
   const mute = useMuteState(tabId);
-  const { pip: pipSize, speaker, box, inset } = TILE_STATUS;
+  const { box, inset } = TILE_STATUS;
+  const { pip: pipSize, speaker } = BASE_INTERFACE_METRICS.TILE_STATUS;
   return (
     <>
       {pip ? (
@@ -34,3 +40,5 @@ function TileMarks({ tabId }: { tabId: string }) {
     </>
   );
 }
+
+const BASE_INTERFACE_METRICS = { TILE_STATUS };

@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { memo } from "react";
 import { Pressable, View } from "react-native";
 import { Symbol, Text, useHover, useTheme } from "../ui";
@@ -5,6 +8,8 @@ import { GlassFill, useGlass } from "../ui/Glass";
 import { ADD_CHIP } from "./tokens";
 
 export const AddChip = memo(function AddChip({ onPress }: { onPress(): void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ADD_CHIP } = useMemo(() => ({ ADD_CHIP: scaleMetrics(BASE_INTERFACE_METRICS.ADD_CHIP, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const glass = useGlass();
@@ -26,10 +31,12 @@ export const AddChip = memo(function AddChip({ onPress }: { onPress(): void }) {
           }}
         >
           {glass ? <GlassFill radius={ADD_CHIP.radius} state={hovered ? "lit" : "rest"} /> : null}
-          <Symbol name="arrow.up.right" size={ADD_CHIP.glyph} weight="medium" color={theme.chipText} style={{ width: ADD_CHIP.glyphBox, height: ADD_CHIP.glyphBox }} />
+          <Symbol name="arrow.up.right" size={BASE_INTERFACE_METRICS.ADD_CHIP.glyph} weight="medium" color={theme.chipText} style={{ width: ADD_CHIP.glyphBox, height: ADD_CHIP.glyphBox }} />
           <Text tone="chipText">Open a tab or file</Text>
         </View>
       </Pressable>
     </View>
   );
 });
+
+const BASE_INTERFACE_METRICS = { ADD_CHIP };

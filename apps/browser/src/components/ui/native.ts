@@ -1,8 +1,8 @@
+export { FadeLabel, Symbol } from "./ScaledNative";
 export {
   ActivitySpinner,
   ContextMenuArea,
   DockSelection,
-  FadeLabel,
   FileDropArea,
   MagnifyArea,
   MouseArea,
@@ -10,7 +10,6 @@ export {
   PopoverBubble,
   ReportVideo,
   Surface,
-  Symbol,
   VisualEffect,
   WindowDragRegion,
   WindowProfile,

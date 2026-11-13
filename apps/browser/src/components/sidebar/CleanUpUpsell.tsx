@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { memo, useEffect, useState } from "react";
 import { Animated, View } from "react-native";
 import { everySlowly } from "../../state/app/slowTimers";
@@ -22,6 +25,8 @@ const CLOSE_NUDGE = { marginVertical: -space.xs, marginRight: -space.xs } as con
 let declinedThisSession = false;
 
 export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { windowId: string; shift: Animated.Value | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { UPSELL_MIN } = useMemo(() => ({ UPSELL_MIN: scaleMetrics(BASE_INTERFACE_METRICS.UPSELL_MIN, interfaceScale) }), [interfaceScale]);
   const [count, setCount] = useState(0);
   const [hidden, setHidden] = useState(declinedThisSession);
   const daily = useSettings((st) => st.cleanUpInactiveTabsAfterMinutes !== null);
@@ -35,11 +40,11 @@ export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { 
     const check = () => setCount(cleanUpCandidateCount(windowId));
     check();
     return everySlowly({ every: 60_000, run: check });
-  }, [windowId, off, tabIds, profileId, activeId]);
+  }, [windowId, off, tabIds, profileId, activeId, interfaceScale]);
   const showing = !off && count >= UPSELL_MIN;
   useEffect(() => {
     if (showing) noteCleanUp("suggestionShown");
-  }, [showing]);
+  }, [showing, interfaceScale]);
   if (!showing) return null;
   const hideForSession = () => {
     declinedThisSession = true;
@@ -81,6 +86,8 @@ type SuggestionCardProps = {
 };
 
 function SuggestionCard({ count, shift, cleanUp, everyDay, notNow, neverAgain }: SuggestionCardProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, radius, HEADER, FILL, CLOSE_NUDGE, ACTIONS, NEVER_AGAIN } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), HEADER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.HEADER, interfaceScale), FILL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FILL, interfaceScale), CLOSE_NUDGE: scaleMetrics(BASE_INTERFACE_METRICS.CLOSE_NUDGE, interfaceScale), ACTIONS: scaleMetrics(BASE_INTERFACE_METRICS.ACTIONS, interfaceScale), NEVER_AGAIN: scaleMetrics(BASE_INTERFACE_METRICS.NEVER_AGAIN, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const [moved, movedRef] = useShift(shift);
   const tokens = useSidebarTokens();
@@ -88,7 +95,7 @@ function SuggestionCard({ count, shift, cleanUp, everyDay, notNow, neverAgain }:
   return (
     <View {...moved} ref={movedRef} style={[card, moved.style as object]}>
       <View style={HEADER}>
-        <Symbol name="wand.and.stars" size={12} color={theme.icon} style={{ width: 16, height: 16 }} />
+        <Symbol name="wand.and.stars" size={12} color={theme.icon} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
         <Text size="small" weight="semibold" style={FILL}>
           {count} unused tabs
         </Text>
@@ -107,3 +114,5 @@ function SuggestionCard({ count, shift, cleanUp, everyDay, notNow, neverAgain }:
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { UPSELL_MIN, space, radius, HEADER, FILL, CLOSE_NUDGE, ACTIONS, NEVER_AGAIN };

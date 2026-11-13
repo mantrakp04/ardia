@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useEffect, useRef } from "react";
 import { Animated, type ViewStyle } from "react-native";
 import { useWindowId } from "../../state/browser/hooks";
@@ -9,13 +12,15 @@ import { DROP_GLOW_MS, DROP_RING_WIDTH } from "./tokens";
 export type DropGlowPlace = Pick<ViewStyle, "left" | "right" | "top" | "bottom" | "height" | "borderRadius">;
 
 export function WindowDropGlow({ place }: { place: DropGlowPlace }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DROP_RING_WIDTH } = useMemo(() => ({ DROP_RING_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.DROP_RING_WIDTH, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const theme = useTheme();
   const over = useTabDrag((d) => d.phase !== "idle" && d.overWindow === windowId);
   const glow = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(glow, { toValue: over ? 1 : 0, duration: DROP_GLOW_MS, easing: curve.enter, useNativeDriver: true }).start();
-  }, [over]);
+  }, [over, interfaceScale]);
   return (
     <Animated.View
       pointerEvents="none"
@@ -30,3 +35,5 @@ export function WindowDropGlow({ place }: { place: DropGlowPlace }) {
     />
   );
 }
+
+const BASE_INTERFACE_METRICS = { DROP_RING_WIDTH };

@@ -1,5 +1,6 @@
+import { RawText as Text } from "../ui/ScaledNative";
 import { Component, type ReactNode } from "react";
-import { ScrollView, Text } from "react-native";
+import { ScrollView } from "react-native";
 import { space } from "../ui/tokens";
 import { DEV_ERROR } from "./tokens";
 

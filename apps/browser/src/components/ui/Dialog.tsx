@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, findNodeHandle, Pressable, StyleSheet, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
 import { curve, duration } from "./motion";
@@ -29,6 +32,8 @@ export function Dialog({
   place?: Pick<ViewStyle, "top" | "left" | "right" | "bottom">;
   children: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, radius } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const surfaceWidth = sheetWidth[width];
   const appear = useRef(new Animated.Value(animated ? 0 : 1)).current;
@@ -37,7 +42,7 @@ export function Dialog({
   useEffect(() => {
     if (animated) Animated.timing(appear, { toValue: 1, duration: duration.base, easing: curve.enter, useNativeDriver: true }).start();
     return () => restore.current?.();
-  }, []);
+  }, [interfaceScale]);
   const content = onSubmit ? (
     <DialogKeys onDismiss={onDismiss} onSubmit={onSubmit} pad={pad}>
       {children}
@@ -83,8 +88,10 @@ const DIALOG_KEYS = [{ key: "Escape" }, { key: "Enter" }, { key: "Tab" }, { key:
 const targetTag = (event: object) => (event as { target?: number }).target;
 
 function DialogKeys({ onDismiss, onSubmit, pad, children }: { onDismiss?: () => void; onSubmit: () => void; pad: Space; children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const keys = useRef<View>(null);
-  useEffect(() => keys.current?.focus(), []);
+  useEffect(() => keys.current?.focus(), [interfaceScale]);
   return (
     <View
       ref={keys}
@@ -115,6 +122,8 @@ const TITLE_TEXT = { flex: 1 } as const;
 const SUBTITLE = { lineHeight: proseLineHeight.small, marginTop: space.s } as const;
 
 export function DialogTitle({ icon, subtitle, children }: { icon?: ReactNode; subtitle?: ReactNode; children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SUBTITLE, TITLE_ROW, TITLE_TEXT } = useMemo(() => ({ SUBTITLE: scaleMetrics(BASE_INTERFACE_METRICS.SUBTITLE, interfaceScale), TITLE_ROW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.TITLE_ROW, interfaceScale), TITLE_TEXT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.TITLE_TEXT, interfaceScale) }), [interfaceScale]);
   const title = (
     <Text size="title" weight="semibold">
       {children}
@@ -150,6 +159,8 @@ const ACTIONS = { flexDirection: "row", alignItems: "center", gap: space.m, marg
 const ACTIONS_GAP = { flex: 1 } as const;
 
 export function DialogActions({ leading, note, children }: { leading?: ReactNode; note?: ReactNode; children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ACTIONS, ACTIONS_GAP } = useMemo(() => ({ ACTIONS: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ACTIONS, interfaceScale), ACTIONS_GAP: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ACTIONS_GAP, interfaceScale) }), [interfaceScale]);
   return (
     <View style={ACTIONS}>
       {leading}
@@ -170,3 +181,5 @@ export function DialogActions({ leading, note, children }: { leading?: ReactNode
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { space, radius, SUBTITLE, TITLE_ROW, TITLE_TEXT, ACTIONS, ACTIONS_GAP };

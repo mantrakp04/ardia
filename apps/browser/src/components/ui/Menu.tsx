@@ -1,6 +1,10 @@
-import { Symbol } from "@ardia/shell";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { Symbol as Symbol, RawText as Text } from "./ScaledNative";
+import { useMemo } from "react";
+
 import type { ReactNode } from "react";
-import { Pressable, Text, View, type GestureResponderEvent } from "react-native";
+import { Pressable, View, type GestureResponderEvent } from "react-native";
 import { Divider } from "./Divider";
 import { GlassFill, useGlass } from "./Glass";
 import { PANEL } from "./Popover";
@@ -41,6 +45,8 @@ export function MenuRow({
   ring?: boolean;
   tooltip?: string;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RING_WIDTH, space } = useMemo(() => ({ RING_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.RING_WIDTH, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const glass = useGlass();
   const { hovered, hoverProps } = useHover();
@@ -102,5 +108,9 @@ export function MenuRow({
 const SEPARATOR = { marginVertical: PANEL.separatorGap } as const;
 
 export function MenuSeparator() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SEPARATOR } = useMemo(() => ({ SEPARATOR: scaleMetrics(BASE_INTERFACE_METRICS.SEPARATOR, interfaceScale) }), [interfaceScale]);
   return <Divider inset="xl" style={SEPARATOR} />;
 }
+
+const BASE_INTERFACE_METRICS = { RING_WIDTH, space, SEPARATOR };

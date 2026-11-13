@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { memo, type ReactNode } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { FadeLabel, font, radius, Surface, type SurfaceProps } from "../ui";
@@ -28,6 +31,8 @@ export function SidebarRowSurface({
   padRight?: number;
   children: SurfaceProps["children"];
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SELECTED_ROW_SHADOW_OFFSET, layout } = useMemo(() => ({ SELECTED_ROW_SHADOW_OFFSET: scaleMetrics(BASE_INTERFACE_METRICS.SELECTED_ROW_SHADOW_OFFSET, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const glow = useSelectedTabGlow();
   return (
@@ -49,10 +54,14 @@ export function SidebarRowSurface({
 }
 
 export const SidebarRowLabel = memo(function SidebarRowLabel({ text, color, weight, compact = false }: { text: string; color: string; weight?: "medium" | "regular"; compact?: boolean }) {
-  return <FadeLabel text={text} fontSize={compact ? SIDEBAR_TYPE.compact : font.body.fontSize} weight={weight} color={color} style={compact ? COMPACT_TITLE_FRAME : ROW_TITLE_FRAME} />;
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SIDEBAR_TYPE, COMPACT_TITLE_FRAME, ROW_TITLE_FRAME } = useMemo(() => ({ SIDEBAR_TYPE: BASE_INTERFACE_METRICS.SIDEBAR_TYPE, COMPACT_TITLE_FRAME: scaleInterfaceStyle(BASE_INTERFACE_METRICS.COMPACT_TITLE_FRAME, interfaceScale), ROW_TITLE_FRAME: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ROW_TITLE_FRAME, interfaceScale) }), [interfaceScale]);
+  return <FadeLabel text={text} fontSize={compact ? BASE_INTERFACE_METRICS.SIDEBAR_TYPE.compact : font.body.fontSize} weight={weight} color={color} style={compact ? COMPACT_TITLE_FRAME : ROW_TITLE_FRAME} />;
 });
 
 export function SidebarListRow({ height, fill, padRight = 0, style, children }: { height: number; fill?: string; padRight?: number; style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius, TAB_ROW } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale) }), [interfaceScale]);
   return (
     <View
       style={[
@@ -64,3 +73,5 @@ export function SidebarListRow({ height, fill, padRight = 0, style, children }: 
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { SELECTED_ROW_SHADOW_OFFSET, layout, SIDEBAR_TYPE, COMPACT_TITLE_FRAME, ROW_TITLE_FRAME, radius, TAB_ROW };

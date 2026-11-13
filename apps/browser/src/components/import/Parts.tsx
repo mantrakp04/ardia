@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useState, type ReactNode } from "react";
 import { ActivityIndicator, Image, View } from "react-native";
 import { useProfiles } from "../../state/browser/hooks";
@@ -7,6 +10,8 @@ import { APP } from "./model";
 import { importLayout, importType } from "./tokens";
 
 export function Title({ title, subtitle, spinner }: { title: string; subtitle?: string; spinner?: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   return (
     <View style={{ marginBottom: space.xxl }}>
       <Text weight="bold" style={importType.heading}>
@@ -25,6 +30,8 @@ export function Title({ title, subtitle, spinner }: { title: string; subtitle?: 
 }
 
 export function Note({ text }: { text: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   return (
     <Text tone="textSecondary" style={{ marginTop: space.xxl, textAlign: "center" }}>
       {text}
@@ -33,6 +40,8 @@ export function Note({ text }: { text: string }) {
 }
 
 export function ErrorText({ text }: { text: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   return (
     <Text size="caption" tone="destructive" style={{ marginTop: space.l }}>
       {text}
@@ -45,6 +54,8 @@ export function Spacer() {
 }
 
 export function TargetPicker({ target, onChange }: { target: string; onChange: (id: string) => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const profiles = useProfiles();
   return profiles.length > 1 ? (
     <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
@@ -59,6 +70,8 @@ export function TargetPicker({ target, onChange }: { target: string; onChange: (
 }
 
 export function SettingsSteps({ steps, openTitle, onOpen, onRecheck }: { steps: string[]; openTitle: string; onOpen: () => void; onRecheck: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   return (
     <>
       <View style={{ gap: space.ml, marginBottom: space.xl }}>
@@ -100,6 +113,8 @@ export function FullDiskAccessSteps({ onOpen, onRecheck }: { onOpen: () => void;
 }
 
 export function FileDrop({ onFile, onChoose }: { onFile: (path: string) => void; onChoose: () => Promise<string | null> }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DROP } = useMemo(() => ({ DROP: scaleInterfaceStyle(BASE_INTERFACE_METRICS.DROP, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const [over, setOver] = useState(false);
   return (
@@ -114,7 +129,7 @@ export function FileDrop({ onFile, onChoose }: { onFile: (path: string) => void;
       }}
     >
       <SelectableCard selected={over} dashed style={DROP}>
-        <Symbol name="doc.zipper" size={24} color={theme.textSecondary} style={{ width: 32, height: 32 }} />
+        <Symbol name="doc.zipper" size={24} color={theme.textSecondary} style={{ width: 32 * interfaceScale, height: 32 * interfaceScale }} />
         <Text tone="textSecondary">Choose .zip file or drag it here</Text>
         <Button
           title="Choose .zip file"
@@ -132,13 +147,15 @@ export function FileDrop({ onFile, onChoose }: { onFile: (path: string) => void;
 const DROP = { height: importLayout.dropHeight, alignItems: "center", justifyContent: "center", gap: space.ml } as const;
 
 export function Handoff({ iconPath, symbol, lead, detail }: { iconPath?: string; symbol: string; lead: string; detail: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const icon = importLayout.appIcon;
   return (
     <View style={{ alignItems: "center", marginTop: space.ml, gap: space.xl }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.xl }}>
         {iconPath ? <Image source={{ uri: `file://${iconPath}` }} style={{ width: icon, height: icon }} /> : null}
-        <Symbol name="arrow.right" size={16} color={theme.textTertiary} style={{ width: 20, height: 20 }} />
+        <Symbol name="arrow.right" size={16} color={theme.textTertiary} style={{ width: 20 * interfaceScale, height: 20 * interfaceScale }} />
         <Symbol name={symbol} size={30} color={theme.icon} style={{ width: icon, height: icon }} />
       </View>
       <Text style={{ lineHeight: importType.bodyLine, textAlign: "center", maxWidth: importLayout.textMax }}>{lead}</Text>
@@ -148,3 +165,5 @@ export function Handoff({ iconPath, symbol, lead, detail }: { iconPath?: string;
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { space, DROP };

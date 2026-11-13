@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import {
   cardNetworkName,
   deleteAddress,
@@ -22,6 +25,7 @@ import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 
 export function AutofillPane({ profileId: initial }: { profileId?: string | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
   const theme = useTheme();
   const [profileId, setProfileId] = useSettingsProfile(initial);
   const profile = currentEngineProfile(profileId);
@@ -62,7 +66,7 @@ export function AutofillPane({ profileId: initial }: { profileId?: string | null
           (addresses ?? []).map((a) => (
             <Row
               key={a.id}
-              icon={<Symbol name="person.crop.circle" size={15} color={theme.icon} style={{ width: 22, height: 22 }} />}
+              icon={<Symbol name="person.crop.circle" size={15} color={theme.icon} style={{ width: 22 * interfaceScale, height: 22 * interfaceScale }} />}
               title={a.name || firstLine(a.street) || a.email || "Address"}
               description={addressSummary(a)}
               onPress={() => showSettingsSheet(<AddressSheet profile={profile} saved={a} onChanged={load} />)}
@@ -159,6 +163,8 @@ const ADDRESS_FIELDS: { key: keyof SavedAddress | "line1" | "line2"; title: stri
 ];
 
 function AddressSheet({ profile, saved, onChanged }: { profile: string; saved?: SavedAddress; onChanged: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SHEET_BODY, FIELD_WIDTH } = useMemo(() => ({ SHEET_BODY: scaleMetrics(BASE_INTERFACE_METRICS.SHEET_BODY, interfaceScale), FIELD_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.FIELD_WIDTH, interfaceScale) }), [interfaceScale]);
   const [lines] = useState(() => (saved?.street ?? "").split("\n"));
   const [values, setValues] = useState<Record<string, string>>(() => ({
     name: saved?.name ?? "",
@@ -219,6 +225,8 @@ const SHEET_BODY = { marginTop: space.xl } as const;
 const ERROR = { marginTop: space.ml } as const;
 
 function CardSheet({ profile, saved, onChanged }: { profile: string; saved?: SavedCard; onChanged: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SHEET_BODY, FIELD_WIDTH, ERROR } = useMemo(() => ({ SHEET_BODY: scaleMetrics(BASE_INTERFACE_METRICS.SHEET_BODY, interfaceScale), FIELD_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.FIELD_WIDTH, interfaceScale), ERROR: scaleMetrics(BASE_INTERFACE_METRICS.ERROR, interfaceScale) }), [interfaceScale]);
   const [number, setNumber] = useState(saved ? null : "");
   const [name, setName] = useState(saved?.name ?? "");
   const [month, setMonth] = useState(saved?.expMonth ? String(saved.expMonth) : "");
@@ -297,3 +305,5 @@ function CardSheet({ profile, saved, onChanged }: { profile: string; saved?: Sav
     </Sheet>
   );
 }
+
+const BASE_INTERFACE_METRICS = { SHEET_BODY, FIELD_WIDTH, ERROR };

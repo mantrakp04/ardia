@@ -1,21 +1,28 @@
-import { Symbol } from "@ardia/shell";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { Symbol as Symbol, RawText as Text } from "./ScaledNative";
+import { useMemo } from "react";
+
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { Divider } from "./Divider";
 import { useTheme } from "./theme";
 import { lineHeight, radius, space, font as typeScale } from "./tokens";
 import { useHover } from "./useHover";
 
 export function Row({ title, description, children, icon, onPress }: { title?: ReactNode; description?: ReactNode; children?: ReactNode; icon?: ReactNode; onPress?: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const body = (
     <View
       style={{
-        minHeight: 40,
+        minHeight: 40 * interfaceScale,
         paddingHorizontal: space.l,
         paddingVertical: space.m,
         flexDirection: "row",
+        flexWrap: "wrap",
         alignItems: "center",
         gap: space.l,
         backgroundColor: onPress && hovered ? theme.rowHover : undefined,
@@ -33,7 +40,7 @@ export function Row({ title, description, children, icon, onPress }: { title?: R
         ) : null}
       </View>
       {children}
-      {onPress && <Symbol name="chevron.right" size={11} weight="semibold" color={theme.textTertiary} style={{ width: 12, height: 14 }} />}
+      {onPress && <Symbol name="chevron.right" size={11} weight="semibold" color={theme.textTertiary} style={{ width: 12 * interfaceScale, height: 14 * interfaceScale }} />}
     </View>
   );
   if (!onPress) return body;
@@ -45,6 +52,8 @@ export function Row({ title, description, children, icon, onPress }: { title?: R
 }
 
 export function Group({ children }: { children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const rows = (Array.isArray(children) ? children.flat() : [children]).filter(Boolean);
   return (
@@ -58,3 +67,5 @@ export function Group({ children }: { children: ReactNode }) {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { space, radius };

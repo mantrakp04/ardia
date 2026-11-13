@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { displayUrl, fuzzyScore, hostOf } from "@ardia/core";
 import { useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, View, type TextInput } from "react-native";
@@ -28,6 +30,8 @@ export function SearchTabs({ windowId, windowWidth }: { windowId: string; window
 }
 
 function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { MAX_ROWS, ROW, radius, SEARCH_RADIUS, SIDEBAR_SHADOW, WIDTH, space, FIELD_ROW, NO_MATCH, SECTION } = useMemo(() => ({ MAX_ROWS: BASE_INTERFACE_METRICS.MAX_ROWS, ROW: scaleMetrics(BASE_INTERFACE_METRICS.ROW, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), SEARCH_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.SEARCH_RADIUS, interfaceScale), SIDEBAR_SHADOW: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_SHADOW, interfaceScale), WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.WIDTH, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), FIELD_ROW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FIELD_ROW, interfaceScale), NO_MATCH: scaleMetrics(BASE_INTERFACE_METRICS.NO_MATCH, interfaceScale), SECTION: scaleMetrics(BASE_INTERFACE_METRICS.SECTION, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -53,7 +57,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
         .sort((a, b) => b.score - a.score)
         .map((x) => x.r);
     return [{ title: "Open Tabs", rows: rank(open) }, { title: "Recently Closed", rows: rank(closed).slice(0, 8) }];
-  }, [query, tabs, closedTabs, closedGroups, windowId]);
+  }, [query, tabs, closedTabs, closedGroups, windowId, interfaceScale]);
   const rows = sections.flatMap((s) => s.rows);
   const close = () => setSidebarUi({ searchTabs: null });
   const choose = (row: Row | undefined) => {
@@ -77,7 +81,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
         radius={SEARCH_RADIUS}
         border={theme.panelBorder}
         shadow={SIDEBAR_SHADOW.searchTabs}
-        style={{ position: "absolute", top: 56, left: Math.max(12, (windowWidth - WIDTH) / 2), width: Math.min(WIDTH, windowWidth - 24), paddingBottom: space.s }}
+        style={{ position: "absolute", top: 56 * interfaceScale, left: Math.max(12, (windowWidth - WIDTH) / 2), width: Math.min(WIDTH, windowWidth - 24), paddingBottom: space.s }}
       >
         <View style={FIELD_ROW} onLayout={focusOnce}>
           <SearchField
@@ -122,21 +126,25 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
 }
 
 function ResultRow({ row, selected, onHover, onPress }: { row: Row; selected: boolean; onHover(): void; onPress(): void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ROW, URL_LABEL_GAP } = useMemo(() => ({ ROW: scaleMetrics(BASE_INTERFACE_METRICS.ROW, interfaceScale), URL_LABEL_GAP: scaleMetrics(BASE_INTERFACE_METRICS.URL_LABEL_GAP, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const detail = row.kind === "tab" ? (row.current && !row.where ? "Current Tab" : row.where) : row.detail;
   return (
     <ListRow height={ROW} selected={selected} onPress={onPress} onHover={(hovered) => hovered && onHover()}>
         <TabIcon url={row.url} favicon={row.favicon} icon={row.icon} />
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 }}>
-          <FadeLabel text={row.title} fontSize={font.title.fontSize} color={theme.textPrimary} style={{ flex: 3, height: 19 }} />
-          {row.url ? <FadeLabel text={`— ${displayUrl(row.url)}`} fontSize={font.title.fontSize} color={theme.textSecondary} style={{ flex: 2, height: 19, marginLeft: URL_LABEL_GAP }} /> : null}
+          <FadeLabel text={row.title} fontSize={font.title.fontSize} color={theme.textPrimary} style={{ flex: 3, height: 19 * interfaceScale }} />
+          {row.url ? <FadeLabel text={`— ${displayUrl(row.url)}`} fontSize={font.title.fontSize} color={theme.textSecondary} style={{ flex: 2, height: 19 * interfaceScale, marginLeft: URL_LABEL_GAP }} /> : null}
         </View>
         {detail ? (
           <Text size="small" tone="textTertiary">
             {detail}
           </Text>
         ) : null}
-        {row.kind === "closed" ? <Symbol name="clock.arrow.circlepath" size={12} color={theme.textTertiary} style={{ width: 16, height: 16 }} /> : null}
+        {row.kind === "closed" ? <Symbol name="clock.arrow.circlepath" size={12} color={theme.textTertiary} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} /> : null}
     </ListRow>
   );
 }
+
+const BASE_INTERFACE_METRICS = { MAX_ROWS, ROW, radius, SEARCH_RADIUS, SIDEBAR_SHADOW, WIDTH, space, FIELD_ROW, NO_MATCH, SECTION, URL_LABEL_GAP };

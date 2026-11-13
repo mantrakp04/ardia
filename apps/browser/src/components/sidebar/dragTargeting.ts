@@ -1,3 +1,4 @@
+import { interfaceMetrics, scaleMetrics } from "../../lib/interfaceMetrics";
 import { layout } from "../ui/theme";
 import { currentSettings } from "../../state/browser/current";
 import type { DragSource } from "../../state/drag/drops";
@@ -36,7 +37,7 @@ export class DragTargeting extends DragGeometry {
     }, FOLDER_HOLD_MS);
   }
 
-  protected retarget() {
+  protected retarget() { const { layout, ROW_GAP } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
     const session = this.drag;
     const { x, y } = session.pointer;
     const { sources, external, regionFrames } = session;
@@ -150,3 +151,5 @@ export class DragTargeting extends DragGeometry {
     }
   }
 }
+
+const BASE_INTERFACE_GEOMETRY = { layout, ROW_GAP };

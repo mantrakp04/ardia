@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
 import { plural } from "../../../state/browser/model";
 import { Button, Group, space, Text } from "../../ui";
 import { APP } from "../model";
@@ -30,6 +33,8 @@ function spaceSubtitle(source: BrowserSource, s: ReturnType<typeof spacesOf>[num
 }
 
 export function ProfilesBody({ flow }: { flow: ImportFlow }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const { source, spaces, sourceProfiles } = flow;
   if (!source) return null;
   if (importsBySpaces(source))
@@ -101,3 +106,5 @@ export function ProfilesFooter({ flow }: { flow: ImportFlow }) {
     </>
   );
 }
+
+const BASE_INTERFACE_METRICS = { space };

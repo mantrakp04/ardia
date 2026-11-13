@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { EmptyState, ListRow, SearchField, space, Text } from "../ui";
 import { useEffect, useRef } from "react";
 import { ScrollView, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type TextInput } from "react-native";
@@ -21,6 +24,8 @@ import { PREVIEW_DELAY_MS, RESULT_GAP, RESULT_MIN_HEIGHT, RESULTS_BOTTOM, RESULT
 export type SettingsHit = SearchHit<SettingEntry>;
 
 export function SettingsSearchField() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FIELD } = useMemo(() => ({ FIELD: scaleMetrics(BASE_INTERFACE_METRICS.FIELD, interfaceScale) }), [interfaceScale]);
   const query = useSettingsSearch((s) => s.query);
   const focusRequest = useSettingsSearch((s) => s.focusRequest);
   const input = useRef<TextInput>(null);
@@ -29,7 +34,7 @@ export function SettingsSearchField() {
     if (!focusRequest) return;
     input.current?.focus();
     input.current?.setSelection(0, currentSettingsSearch().query.length);
-  }, [focusRequest]);
+  }, [focusRequest, interfaceScale]);
   return (
     <View style={FIELD}>
       <SearchField
@@ -66,6 +71,8 @@ export function settingsResults(query: string, unshown: ReadonlySet<string>): Se
 }
 
 export function SettingsSearchResults({ query }: { query: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RESULTS, ROW_GAP } = useMemo(() => ({ RESULTS: scaleMetrics(BASE_INTERFACE_METRICS.RESULTS, interfaceScale), ROW_GAP: scaleMetrics(BASE_INTERFACE_METRICS.ROW_GAP, interfaceScale) }), [interfaceScale]);
   const selected = useSettingsSearch((s) => s.selected);
   const keyboardMove = useSettingsSearch((s) => s.keyboardMove);
   const results = settingsResults(query, useUnshownSettings());
@@ -78,13 +85,13 @@ export function SettingsSearchResults({ query }: { query: string }) {
     viewport.current.offset = 0;
     scroller.current?.scrollTo({ y: 0, animated: false });
     if (!results.length && query.trim().length >= 2) noteSettingsSearchEmpty();
-  }, [results]);
+  }, [results, interfaceScale]);
 
   useEffect(() => {
     if (!target) return;
     const timer = setTimeout(() => previewSetting(target), PREVIEW_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [target]);
+  }, [target, interfaceScale]);
 
   useEffect(() => {
     if (!keyboardMove) return;
@@ -95,7 +102,7 @@ export function SettingsSearchResults({ query }: { query: string }) {
     if (next === offset) return;
     viewport.current.offset = next;
     scroller.current?.scrollTo({ y: next, animated: false });
-  }, [keyboardMove]);
+  }, [keyboardMove, interfaceScale]);
 
   if (!results.length) {
     return <EmptyState symbol="magnifyingglass" title="No Results" subtitle={`Nothing matches “${query.trim()}”. Try a setting's name or a shorter word, like “dark” or “downloads”.`} />;
@@ -121,6 +128,8 @@ const RESULTS = { paddingHorizontal: space.ml, paddingTop: RESULTS_TOP, paddingB
 const ROW_GAP = { marginBottom: RESULT_GAP } as const;
 
 function ResultRow({ hit, selected, rank }: { hit: SettingsHit; selected: boolean; rank: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RESULT_TEXT } = useMemo(() => ({ RESULT_TEXT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.RESULT_TEXT, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { entry } = hit;
   const primary = selected ? theme.onAccent : theme.textPrimary;
@@ -175,3 +184,5 @@ function Marked({ text, ranges, color }: { text: string; ranges: SearchRange[]; 
 }
 
 const RESULT_TEXT = { flex: 1, minHeight: RESULT_MIN_HEIGHT, justifyContent: "center", paddingVertical: space.xs } as const;
+
+const BASE_INTERFACE_METRICS = { FIELD, RESULTS, ROW_GAP, RESULT_TEXT };

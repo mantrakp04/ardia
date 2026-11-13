@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useLive } from "../../state/live/store";
 import { setIcon } from "../../state/sidebar/actions";
 import { setSidebarUi, useSidebarUi } from "../../state/sidebar/sidebarUi";
@@ -36,6 +39,8 @@ function besideSidebar(anchor: Picker["anchor"], sidebarWidth: number, side: Sid
 }
 
 function PickerPanel({ picker, sidebarWidth, side }: { picker: Picker; sidebarWidth: number; side: SidebarSide }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ICON_PICKER } = useMemo(() => ({ ICON_PICKER: scaleMetrics(BASE_INTERFACE_METRICS.ICON_PICKER, interfaceScale) }), [interfaceScale]);
   const liveIcon = useLive((s) => (picker.kind === "live" ? s.folders[picker.id.split("|")[1] ?? ""]?.icon : null));
   const current = useIconPickerCurrent(picker.kind, picker.id, liveIcon);
   const close = () => setSidebarUi({ iconPicker: null });
@@ -64,3 +69,5 @@ function PickerPanel({ picker, sidebarWidth, side }: { picker: Picker; sidebarWi
     />
   );
 }
+
+const BASE_INTERFACE_METRICS = { ICON_PICKER };

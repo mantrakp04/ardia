@@ -1,3 +1,5 @@
+import { currentSettings } from "../../state/browser/current";
+import { interfaceMetrics, scaleMetrics } from "../../lib/interfaceMetrics";
 import { createContext, useContext, useLayoutEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
 import { spring, curve } from "../ui/motion";
@@ -19,7 +21,7 @@ export function useHoverCardOrigin(anchor: Anchor) {
   return hoverCardBox(hoverCardAt(anchor, frame), frame);
 }
 
-function createMotion() {
+function createMotion() { const {  } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   const opacity = new Animated.Value(0);
   const scale = new Animated.Value(HOVER_CARD_FROM_SCALE);
   const dx = new Animated.Value(0);
@@ -36,7 +38,7 @@ function createMotion() {
 
 export const hoverCardMotions = new Map<string, ReturnType<typeof createMotion>>();
 
-export function useHoverCardMotion<T>(key: string, target: T | null) {
+export function useHoverCardMotion<T>(key: string, target: T | null) { const {  } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   const [motion] = useState(createMotion);
   const [drawn, setDrawn] = useState<T | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -110,3 +112,5 @@ export function useHoverCardPlacement(
     motion.dy.setValue(at.top - size.height / 2);
   }, [motion, at?.x, at?.top, size.width, size.height]);
 }
+
+const BASE_INTERFACE_GEOMETRY = { HOVER_CARD_FROM_SCALE };

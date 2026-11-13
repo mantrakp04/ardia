@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { terminateCastRoute, type CastRoute, toggleCastPicker, useCastRoutes } from "../../state/media/cast";
 import type { ActionState, InstalledExtension } from "../../state/extensions/store";
 import { Badge, Button, ContextMenuArea, Symbol, useToolbarRowContext } from "../ui";
@@ -45,6 +47,8 @@ function useToolbarExtensions(windowId: string, limit: number) {
 export const extensionsFitting = (room: number) => Math.max(1, Math.floor((room + GAP) / PITCH));
 
 export function useToolbarExtensionsWidth(windowId: string, limit = Infinity): number {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GAP } = useMemo(() => ({ GAP: scaleMetrics(BASE_INTERFACE_METRICS.GAP, interfaceScale) }), [interfaceScale]);
   const { pinned, overflow, casting } = useToolbarExtensions(windowId, limit);
   const button = useToolbarRowContext().extensionButton;
   const count = pinned.length + (overflow ? 1 : 0) + (casting ? 1 : 0);
@@ -72,6 +76,8 @@ function TabToolbarExtensions({
   right,
   limit = Infinity,
 }: ToolbarExtensionsProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GAP } = useMemo(() => ({ GAP: scaleMetrics(BASE_INTERFACE_METRICS.GAP, interfaceScale) }), [interfaceScale]);
   const { pinned, overflow, routes } = useToolbarExtensions(windowId, limit);
   const ready = usePages((p) => !!p.ready[tabId]);
   if (!pinned.length && !overflow && !routes.length) return <EmptyAnchor windowId={windowId} tabId={tabId} top={top} right={right} />;
@@ -97,6 +103,8 @@ function EmptyAnchor({ windowId, tabId, top, right }: { windowId: string; tabId:
 }
 
 function useAnchor(windowId: string, tabId: string, slot: string) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BUTTON } = useMemo(() => ({ BUTTON: scaleMetrics(BASE_INTERFACE_METRICS.BUTTON, interfaceScale) }), [interfaceScale]);
   const ref = useRef<View>(null);
   const [owner] = useState(() => ({ windowId, tabId, slot }));
   const mine = useRef<Anchor | null>(null);
@@ -105,7 +113,7 @@ function useAnchor(windowId: string, tabId: string, slot: string) {
       if (mine.current) dropToolbarAnchor(owner.windowId, owner.tabId, owner.slot, mine.current);
       mine.current = null;
     },
-    [owner],
+    [owner, interfaceScale],
   );
   const measure = () =>
     new Promise<Anchor>((resolve) => {
@@ -124,6 +132,8 @@ function useAnchor(windowId: string, tabId: string, slot: string) {
 }
 
 function ExtensionButton({ ext, windowId, tabId, ready, palette }: { ext: InstalledExtension; windowId: string; tabId: string; ready: boolean; palette: ToolbarPalette }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BADGE_FALLBACK_FILL, BADGE_PLACE, IMAGE, GLYPH, GLYPH_BOX } = useMemo(() => ({ BADGE_FALLBACK_FILL: scaleMetrics(BASE_INTERFACE_METRICS.BADGE_FALLBACK_FILL, interfaceScale), BADGE_PLACE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.BADGE_PLACE, interfaceScale), IMAGE: scaleMetrics(BASE_INTERFACE_METRICS.IMAGE, interfaceScale), GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.GLYPH, interfaceScale), GLYPH_BOX: scaleMetrics(BASE_INTERFACE_METRICS.GLYPH_BOX, interfaceScale) }), [interfaceScale]);
   const fetched = useExtensions((e) => (ready ? e.actions[tabId] : undefined));
   const held = useRef<ActionState | undefined>(undefined);
   if (fetched) held.current = fetched[ext.id];
@@ -152,7 +162,7 @@ function ExtensionButton({ ext, windowId, tabId, ready, palette }: { ext: Instal
               <Image source={{ uri: icon }} style={{ width: IMAGE, height: IMAGE, opacity: dimmed ? opacity.disabled : 1 }} />
             </View>
           ) : (
-            <Symbol name="puzzlepiece.extension" size={GLYPH} color={palette.icon} style={{ width: GLYPH_BOX, height: GLYPH_BOX }} />
+            <Symbol name="puzzlepiece.extension" size={BASE_INTERFACE_METRICS.GLYPH} color={palette.icon} style={{ width: GLYPH_BOX, height: GLYPH_BOX }} />
           )}
         </Button>
       </ContextMenuArea>
@@ -202,3 +212,5 @@ function OverflowButton({ windowId, tabId, palette }: { windowId: string; tabId:
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { GAP, BUTTON, BADGE_FALLBACK_FILL, BADGE_PLACE, IMAGE, GLYPH, GLYPH_BOX };

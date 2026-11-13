@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { Pressable, View } from "react-native";
 import { hideStack, showAllIn, toggleStack, useLive } from "../../state/live/store";
 import type { FolderRow } from "../../state/live/rows";
@@ -18,16 +21,20 @@ import { TAB_ROW } from "./tokens";
 const SECTION_HEIGHT = 22;
 
 export function SectionTitle({ title }: { title: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TAB_ROW, SECTION_HEIGHT, space } = useMemo(() => ({ TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), SECTION_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.SECTION_HEIGHT, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   return <SectionLabel title={title} inset={TAB_ROW.contentLeft} top={SECTION_HEIGHT - space.xxs - lineHeight.caption} bottom={space.xxs} />;
 }
 
 export function NoteRow({ text, icon, spinner, onPress }: { text: string; icon?: string; spinner?: boolean; onPress?: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TAB_ROW, NOTE_GAP, FILL } = useMemo(() => ({ TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), NOTE_GAP: scaleMetrics(BASE_INTERFACE_METRICS.NOTE_GAP, interfaceScale), FILL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FILL, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const colors = useLiveColors();
   const { hovered, hoverProps } = useHover();
   const body = (
     <SidebarListRow height={28} padRight={TAB_ROW.trailing} fill={onPress && hovered ? theme.rowHover : undefined} style={NOTE_GAP}>
-      {spinner ? <Spinner /> : icon ? <Symbol name={icon} size={10} color={colors.pending} style={{ width: 16, height: 16 }} /> : null}
+      {spinner ? <Spinner /> : icon ? <Symbol name={icon} size={10} color={colors.pending} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} /> : null}
       <Text lines={2} size="small" tone="textSecondary" style={FILL}>
         {text}
       </Text>
@@ -46,22 +53,26 @@ const LABEL = { marginLeft: TAB_ROW.titleGap } as const;
 const SPINNER = { width: 16, height: 16, alignItems: "center", justifyContent: "center" } as const;
 
 function Spinner() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SPINNER } = useMemo(() => ({ SPINNER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.SPINNER, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
     <RefreshSpinner style={SPINNER}>
-      <Symbol name="arrow.triangle.2.circlepath" size={10} color={theme.textSecondary} style={{ width: 14, height: 14 }} />
+      <Symbol name="arrow.triangle.2.circlepath" size={10} color={theme.textSecondary} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />
     </RefreshSpinner>
   );
 }
 
 export function MoreRow({ folderId, section, count }: { folderId: string; section: string; count: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LABEL } = useMemo(() => ({ LABEL: scaleMetrics(BASE_INTERFACE_METRICS.LABEL, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps}>
       <Pressable onPress={() => showAllIn(folderId, section)}>
         <SidebarListRow height={26} fill={hovered ? theme.rowHover : undefined}>
-          <Symbol name="ellipsis" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
+          <Symbol name="ellipsis" size={11} color={theme.textSecondary} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
           <Text size="small" tone="textSecondary" style={LABEL}>
             Show {count} More
           </Text>
@@ -75,6 +86,8 @@ const STACK_TITLE = { flex: 1, marginLeft: TAB_ROW.titleGap } as const;
 const STACK_COUNT = { marginRight: space.xs } as const;
 
 export function StackRow({ folderId, windowId, stack }: { folderId: string; windowId: string; stack: Extract<FolderRow, { kind: "stack" }> }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, STACK_TITLE, layout } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), STACK_TITLE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.STACK_TITLE, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const collapsed = useLive((s) => s.expandedStacks[stack.id] === false);
   const fold = useFold(collapsed);
@@ -93,7 +106,7 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
           accessibilityLabel={collapsed ? "Expand pull request stack" : "Collapse pull request stack"}
         >
           <SidebarListRow height={26} padRight={space.m} fill={hovered ? theme.rowHover : undefined}>
-            <Symbol name="square.stack.3d.up" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
+            <Symbol name="square.stack.3d.up" size={11} color={theme.textSecondary} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
             <Text lines={1} size="small" weight="medium" tone="textSecondary" style={STACK_TITLE}>
               {repo} stack
             </Text>
@@ -104,7 +117,7 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
             >
               <Badge text={stack.items.length} size="m" />
             </HoverSlot>
-            <Symbol name={collapsed ? "chevron.right" : "chevron.down"} size={9} weight="semibold" color={theme.textSecondary} style={{ width: 12, height: 12 }} />
+            <Symbol name={collapsed ? "chevron.right" : "chevron.down"} size={9} weight="semibold" color={theme.textSecondary} style={{ width: 12 * interfaceScale, height: 12 * interfaceScale }} />
           </SidebarListRow>
         </Pressable>
       </View>
@@ -118,3 +131,5 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { TAB_ROW, SECTION_HEIGHT, space, NOTE_GAP, FILL, SPINNER, LABEL, STACK_TITLE, layout };

@@ -1,3 +1,4 @@
+import { interfaceMetrics } from "../../lib/interfaceMetrics";
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
 import { activeTabId, tabTitle, viewTabIds } from "../browser/model";
@@ -19,7 +20,7 @@ import { pinnedCollapsed, pinnedKept } from "./pinnedFold";
 import { useSidebarUi, type Hover } from "./sidebarUi";
 
 export function useSidebarWidth(windowId: string): number {
-  const saved = useBrowser((s) => s.settings.sidebarWidth);
+  const saved = useBrowser((s) => (s.settings.sidebarWidth * interfaceMetrics(s.settings.interfaceSize).factor));
   const dragging = useSidebarUi((u) => u.dragWidth[windowId]);
   return dragging ?? saved;
 }

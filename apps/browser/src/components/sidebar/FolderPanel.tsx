@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { layout, useTheme } from "../ui/theme";
@@ -27,32 +29,34 @@ export function FolderPanel({ windowId }: { windowId: string }) {
 }
 
 function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId: string; anchor: { x: number; y: number; width: number; height: number } }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, PANEL_GAP, space } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), PANEL_GAP: scaleMetrics(BASE_INTERFACE_METRICS.PANEL_GAP, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const controller = useDragController();
   const members = useTileFolderMembers(windowId, folderId);
   const label = useTileFolderLabel(windowId, folderId);
   const away = useFolderAway();
   const [root, setRoot] = useState<Frame | null>(null);
-  const shown = useMemo(() => new Animated.Value(0), []);
+  const shown = useMemo(() => new Animated.Value(0), [interfaceScale]);
   const tail = useDragItem(tailKey("folder"), { kind: "tail", tabIds: [], section: "folder" });
 
   useEffect(() => {
     controller?.root?.measureInWindow((x, y, w, h) => setRoot({ x, y, w, h }));
-  }, [controller]);
+  }, [controller, interfaceScale]);
   useEffect(() => {
     if (!root) return;
     const spring = Animated.spring(shown, { toValue: 1, ...SLIDE });
     spring.start();
     return () => spring.stop();
-  }, [root, shown]);
+  }, [root, shown, interfaceScale]);
   useEffect(() => {
     if (!members.length) closeFolderPanel();
-  }, [members.length]);
-  useEffect(() => closeFolderPanelWhenWindowMoves(windowId), [windowId]);
+  }, [members.length, interfaceScale]);
+  useEffect(() => closeFolderPanelWhenWindowMoves(windowId), [windowId, interfaceScale]);
   useEffect(
     () => () => {
       controller?.regions.delete("folder");
     },
-    [controller],
+    [controller, interfaceScale],
   );
   if (!root) return null;
 
@@ -89,6 +93,8 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
 }
 
 function MemberRow({ tabId, windowId }: { tabId: string; windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, TAB_ROW } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tab = useTab(tabId);
   const active = useIsActiveTab(tabId);
@@ -117,3 +123,5 @@ function MemberRow({ tabId, windowId }: { tabId: string; windowId: string }) {
     </Animated.View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { layout, PANEL_GAP, space, TAB_ROW };

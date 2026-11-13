@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useEffect, useMemo } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { downloadsOpenIn } from "../../state/browser/current";
@@ -43,6 +45,8 @@ import { WindowDropGlow } from "./WindowDropGlow";
 export { TOP_STRIP_HEIGHT } from "./tokens";
 
 export function TopTabStrip({ width, floating = false, hidden = false, swipe = true }: { width: number; floating?: boolean; hidden?: boolean; swipe?: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PROFILE_ROOM, CONTROLS_GAP, DOWNLOADS_BOX, layout, LIGHTS_GAP, FLARE, TOP_STRIP_HEIGHT, MID } = useMemo(() => ({ PROFILE_ROOM: scaleMetrics(BASE_INTERFACE_METRICS.PROFILE_ROOM, interfaceScale), CONTROLS_GAP: scaleMetrics(BASE_INTERFACE_METRICS.CONTROLS_GAP, interfaceScale), DOWNLOADS_BOX: scaleMetrics(BASE_INTERFACE_METRICS.DOWNLOADS_BOX, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), LIGHTS_GAP: scaleMetrics(BASE_INTERFACE_METRICS.LIGHTS_GAP, interfaceScale), FLARE: scaleMetrics(BASE_INTERFACE_METRICS.FLARE, interfaceScale), TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale), MID: scaleMetrics(BASE_INTERFACE_METRICS.MID, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const current = useWindowProfileId();
   const { pages } = usePagerPages(windowId);
@@ -56,9 +60,9 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
 
   useEffect(() => {
     if (floating || hidden) return;
-    void setTrafficLightsCenter(windowId, [...TOP_STRIP_LIGHTS_CENTER]);
+    void setTrafficLightsCenter(windowId, TOP_STRIP_LIGHTS_CENTER.map((v) => v * interfaceScale) as [number, number]);
     return () => void setTrafficLightsCenter(windowId, null);
-  }, [floating, hidden, windowId]);
+  }, [floating, hidden, windowId, interfaceScale]);
 
   return (
     <FloatingStrip.Provider value={floating}>
@@ -69,7 +73,7 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
             <StripPage key={page.id} profileId={page.id} slot={page.slot} pageWidth={pageWidth} current={page.id === current} resting={!!page.resting} />
           ))}
         </View>
-        <View mouseDownCanMoveWindow={false} style={{ position: "absolute", right: 8, top: MID - 17, flexDirection: "row", alignItems: "center", gap: CONTROLS_GAP }}>
+        <View mouseDownCanMoveWindow={false} style={{ position: "absolute", right: 8 * interfaceScale, top: MID - 17, flexDirection: "row", alignItems: "center", gap: CONTROLS_GAP }}>
           <TintInk>
             <ProfileIndicator room={PROFILE_ROOM} />
             <DownloadsButton windowId={windowId} />
@@ -103,23 +107,27 @@ function StripDropArea({ style, children }: { style: ViewStyle; children: React.
 }
 
 function StripDropHighlight({ left, right }: { left: number; right: number }) {
-  const place = useMemo(() => ({ left: left - 4, right: right - 4, top: ITEM_TOP - 1, height: ITEM_HEIGHT + 2, borderRadius: TAB_RADIUS + 1 }), [left, right]);
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ITEM_TOP, ITEM_HEIGHT, TAB_RADIUS } = useMemo(() => ({ ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale), ITEM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_HEIGHT, interfaceScale), TAB_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TAB_RADIUS, interfaceScale) }), [interfaceScale]);
+  const place = useMemo(() => ({ left: left - 4, right: right - 4, top: ITEM_TOP - 1, height: ITEM_HEIGHT + 2, borderRadius: TAB_RADIUS + 1 }), [left, right, interfaceScale]);
   return <WindowDropGlow place={place} />;
 }
 
 export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; enabled: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, PEEK_HOVER_HEIGHT, PEEK_LEFT, PEEK_TOP, PEEK_HEIGHT, radius, PEEK_BORDER, PEEK_PAD, ITEM_TOP, TOP_STRIP_HEIGHT } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), PEEK_HOVER_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.PEEK_HOVER_HEIGHT, interfaceScale), PEEK_LEFT: scaleMetrics(BASE_INTERFACE_METRICS.PEEK_LEFT, interfaceScale), PEEK_TOP: scaleMetrics(BASE_INTERFACE_METRICS.PEEK_TOP, interfaceScale), PEEK_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.PEEK_HEIGHT, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), PEEK_BORDER: scaleMetrics(BASE_INTERFACE_METRICS.PEEK_BORDER, interfaceScale), PEEK_PAD: scaleMetrics(BASE_INTERFACE_METRICS.PEEK_PAD, interfaceScale), ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale), TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const windowId = useWindowId();
   const downloadsOpen = useWindowUiOf(windowId, (u) => !!u?.downloadsOpen);
   const { slide, live, show, hide, recheck, cancelPending } = usePeek(enabled, false, () => downloadsOpenIn(windowId), undefined, noteTabStripPeek);
   useEffect(() => {
     if (!downloadsOpen) recheck();
-  }, [downloadsOpen]);
+  }, [downloadsOpen, interfaceScale]);
   useEffect(() => {
     if (!enabled) return;
     void setTrafficLightsCenter(windowId, lightsCenter(layout.sidebarWidth));
     return () => void setTrafficLightsCenter(windowId, null);
-  }, [enabled, windowId]);
+  }, [enabled, windowId, interfaceScale]);
   const leaveStrip = (e: { nativeEvent: { clientY: number } }) => {
     if (live && e.nativeEvent.clientY < PEEK_HOVER_HEIGHT) hide();
     else cancelPending();
@@ -162,3 +170,5 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
     </>
   );
 }
+
+const BASE_INTERFACE_METRICS = { PROFILE_ROOM, CONTROLS_GAP, DOWNLOADS_BOX, layout, LIGHTS_GAP, FLARE, TOP_STRIP_HEIGHT, MID, ITEM_TOP, ITEM_HEIGHT, TAB_RADIUS, PEEK_HOVER_HEIGHT, PEEK_LEFT, PEEK_TOP, PEEK_HEIGHT, radius, PEEK_BORDER, PEEK_PAD };

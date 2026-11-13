@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
@@ -30,6 +33,8 @@ export function useCompletedShown(folderId: string): CompletedItem[] {
 }
 
 export function CompletedFooter({ folderId, windowId }: { folderId: string; windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LABEL, COMPLETED_ROW_HEIGHT, space, DONE_ROW, layout } = useMemo(() => ({ LABEL: scaleMetrics(BASE_INTERFACE_METRICS.LABEL, interfaceScale), COMPLETED_ROW_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.COMPLETED_ROW_HEIGHT, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), DONE_ROW: scaleMetrics(BASE_INTERFACE_METRICS.DONE_ROW, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const colors = useLiveColors();
   const shown = useCompletedShown(folderId);
@@ -48,7 +53,7 @@ export function CompletedFooter({ folderId, windowId }: { folderId: string; wind
   return (
     <View onMouseEnter={enter} onMouseLeave={leave}>
       <SidebarListRow height={24} fill={open ? theme.rowHover : undefined}>
-        <Symbol name="checkmark.circle" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
+        <Symbol name="checkmark.circle" size={11} color={theme.textSecondary} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
         <Text size="small" tone="textSecondary" style={LABEL}>
           {shown.length} Completed
         </Text>
@@ -62,7 +67,7 @@ export function CompletedFooter({ folderId, windowId }: { folderId: string; wind
             <Pressable onPress={() => openLiveItem(windowId, folderId, c.item)}>
               {({ pressed }) => (
                 <SidebarListRow height={COMPLETED_ROW_HEIGHT} padRight={space.m} fill={pressed ? theme.tabPressed : undefined} style={DONE_ROW}>
-                  <Symbol name={COMPLETION_GLYPH[c.state].symbol} size={12} color={colors[COMPLETION_GLYPH[c.state].color]} style={{ width: 16, height: 16 }} />
+                  <Symbol name={COMPLETION_GLYPH[c.state].symbol} size={12} color={colors[COMPLETION_GLYPH[c.state].color]} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
                   <SidebarRowLabel text={c.item.title} color={theme.textSecondary} compact />
                 </SidebarListRow>
               )}
@@ -75,3 +80,5 @@ export function CompletedFooter({ folderId, windowId }: { folderId: string; wind
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { LABEL, COMPLETED_ROW_HEIGHT, space, DONE_ROW, layout };

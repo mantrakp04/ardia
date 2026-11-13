@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, type ViewStyle } from "react-native";
 import { webviews } from "../../state/tabs/webviewHandles";
@@ -21,10 +23,14 @@ const ICON_LAYER = { ...ICON_CENTER, position: "absolute" as const };
 const ReloadGlyphColor = createContext("");
 
 function ReloadSymbol({ name }: { name: "arrow.clockwise" | "xmark" }) {
-  return <Symbol name={name} size={GLYPH} weight="regular" color={useContext(ReloadGlyphColor)} style={ICON_CENTER} />;
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GLYPH, ICON_CENTER } = useMemo(() => ({ GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.GLYPH, interfaceScale), ICON_CENTER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ICON_CENTER, interfaceScale) }), [interfaceScale]);
+  return <Symbol name={name} size={BASE_INTERFACE_METRICS.GLYPH} weight="regular" color={useContext(ReloadGlyphColor)} style={ICON_CENTER} />;
 }
 
 const ReloadGlyph = memo(function ReloadGlyph({ loading, color, press }: { loading: boolean; color: string; press: Animated.Value }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RELOAD_BUTTON_MOTION, ICON_CENTER, ICON_LAYER } = useMemo(() => ({ RELOAD_BUTTON_MOTION: BASE_INTERFACE_METRICS.RELOAD_BUTTON_MOTION, ICON_CENTER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ICON_CENTER, interfaceScale), ICON_LAYER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ICON_LAYER, interfaceScale) }), [interfaceScale]);
   const stateMotion = useRef(new Animated.Value(loading ? 1 : 0)).current;
   const returnMotion = useRef(new Animated.Value(0)).current;
   const breatheMotion = useRef(new Animated.Value(0)).current;
@@ -46,7 +52,7 @@ const ReloadGlyph = memo(function ReloadGlyph({ loading, color, press }: { loadi
       live = false;
       subscription.remove();
     };
-  }, []);
+  }, [interfaceScale]);
   useEffect(() => {
     const changed = previousLoading.current !== loading;
     previousLoading.current = loading;
@@ -72,7 +78,7 @@ const ReloadGlyph = memo(function ReloadGlyph({ loading, color, press }: { loadi
       Animated.timing(stateMotion, { toValue: 0, duration: RELOAD_BUTTON_MOTION.stateOut, easing: curve.enter, useNativeDriver: true }),
       Animated.timing(returnMotion, { toValue: 0, duration: RELOAD_BUTTON_MOTION.stateOut, easing: curve.enter, useNativeDriver: true }),
     ]).start();
-  }, [loading, motionReduced, returnMotion, stateMotion]);
+  }, [loading, motionReduced, returnMotion, stateMotion, interfaceScale]);
   useEffect(() => {
     if (!loading || !motionReady || motionReduced) return;
     const halfCycle = RELOAD_BUTTON_MOTION.breatheCycle / 2;
@@ -86,7 +92,7 @@ const ReloadGlyph = memo(function ReloadGlyph({ loading, color, press }: { loadi
       breatheMotion.stopAnimation();
       breatheMotion.setValue(0);
     };
-  }, [breatheMotion, loading, motionReady, motionReduced]);
+  }, [breatheMotion, loading, motionReady, motionReduced, interfaceScale]);
   const layers = useMemo(() => {
     const reload = {
       opacity: stateMotion.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
@@ -112,7 +118,7 @@ const ReloadGlyph = memo(function ReloadGlyph({ loading, color, press }: { loadi
         </Animated.View>
       </Animated.View>
     );
-  }, [press, stateMotion, returnMotion, breatheMotion]);
+  }, [press, stateMotion, returnMotion, breatheMotion, interfaceScale]);
   return <ReloadGlyphColor.Provider value={color}>{layers}</ReloadGlyphColor.Provider>;
 });
 
@@ -129,6 +135,8 @@ export const ReloadButton = memo(function ReloadButton({
   place?: NavPlace;
   onFocus: () => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RELOAD_BUTTON_MOTION, GLYPH } = useMemo(() => ({ RELOAD_BUTTON_MOTION: BASE_INTERFACE_METRICS.RELOAD_BUTTON_MOTION, GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.GLYPH, interfaceScale) }), [interfaceScale]);
   const web = () => webviews.get(tab.id);
   const reloadHint = useShortcutHint("reload");
   const pressMotion = useRef(new Animated.Value(1)).current;
@@ -180,6 +188,8 @@ export const HistoryButton = memo(function HistoryButton({
   place?: NavPlace;
   onFocus: () => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { HISTORY_BUTTON_MOTION, GLYPH, ICON_CENTER, ICON_LAYER } = useMemo(() => ({ HISTORY_BUTTON_MOTION: BASE_INTERFACE_METRICS.HISTORY_BUTTON_MOTION, GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.GLYPH, interfaceScale), ICON_CENTER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ICON_CENTER, interfaceScale), ICON_LAYER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ICON_LAYER, interfaceScale) }), [interfaceScale]);
   const handoffMotion = useRef(new Animated.Value(0)).current;
   const icon = direction < 0 ? "chevron.left" : "chevron.right";
   const iconColor = disabled ? palette.iconDisabled : palette.icon;
@@ -197,7 +207,7 @@ export const HistoryButton = memo(function HistoryButton({
       subscription.remove();
       handoffMotion.stopAnimation();
     };
-  }, [handoffMotion]);
+  }, [handoffMotion, interfaceScale]);
   const animateHandoff = () => {
     if (reduceMotion() !== false) return;
     handoffMotion.stopAnimation();
@@ -235,13 +245,15 @@ export const HistoryButton = memo(function HistoryButton({
       >
         <Animated.View style={ICON_CENTER}>
           <Animated.View pointerEvents="none" style={[ICON_LAYER, { opacity: handoffFadeOut, transform: [{ translateX: handoffOutX }] }]}>
-            <Symbol name={icon} size={GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
+            <Symbol name={icon} size={BASE_INTERFACE_METRICS.GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
           </Animated.View>
           <Animated.View pointerEvents="none" style={[ICON_LAYER, { opacity: handoffFadeIn, transform: [{ translateX: handoffInX }] }]}>
-            <Symbol name={icon} size={GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
+            <Symbol name={icon} size={BASE_INTERFACE_METRICS.GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
           </Animated.View>
         </Animated.View>
       </Button>
     </MouseArea>
   );
 });
+
+const BASE_INTERFACE_METRICS = { GLYPH, ICON_CENTER, RELOAD_BUTTON_MOTION, ICON_LAYER, HISTORY_BUTTON_MOTION };

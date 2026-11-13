@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useEffect, useRef } from "react";
 import { View } from "react-native";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
@@ -26,6 +29,8 @@ export async function locateDownloadsButton(windowId: string, origin: Rect): Pro
 const DOWNLOADS_HIT = { width: SIDEBAR_FOOTER_DOWNLOADS.size, height: SIDEBAR_FOOTER_DOWNLOADS.size, plateX: 0, plateY: 0, box: SIDEBAR_FOOTER_DOWNLOADS.size, radius: DOWNLOADS_BUTTON.radius };
 
 export function DownloadsButton({ windowId }: { windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DOWNLOADS_BUTTON, DOWNLOADS_HIT } = useMemo(() => ({ DOWNLOADS_BUTTON: scaleMetrics(BASE_INTERFACE_METRICS.DOWNLOADS_BUTTON, interfaceScale), DOWNLOADS_HIT: scaleMetrics(BASE_INTERFACE_METRICS.DOWNLOADS_HIT, interfaceScale) }), [interfaceScale]);
   const open = useWindowUiOf(windowId, (ui) => !!ui?.downloadsOpen);
   const hint = useShortcutHint("downloads");
   const view = useRef<View>(null);
@@ -39,7 +44,7 @@ export function DownloadsButton({ windowId }: { windowId: string }) {
       set.delete(node);
       if (!set.size && downloadsButtons.get(windowId) === set) downloadsButtons.delete(windowId);
     };
-  }, [windowId]);
+  }, [windowId, interfaceScale]);
   return (
     <View ref={view} collapsable={false}>
       <Button variant="icon"
@@ -53,3 +58,5 @@ export function DownloadsButton({ windowId }: { windowId: string }) {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { DOWNLOADS_BUTTON, DOWNLOADS_HIT };

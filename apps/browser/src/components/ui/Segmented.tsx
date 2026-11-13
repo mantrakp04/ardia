@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Symbol } from "./native";
 import { Text } from "./Text";
@@ -10,6 +13,8 @@ const INSET = StyleSheet.hairlineWidth * 2;
 const SEGMENT = { height: 20, imageWidth: 30, glyph: 11, glyphBox: 14 } as const;
 
 export function Segmented<T extends string>({ options, value, onChange }: { options: SegmentOption<T>[]; value: T; onChange: (value: T) => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius, INSET, SEGMENT, space } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), INSET: scaleMetrics(BASE_INTERFACE_METRICS.INSET, interfaceScale), SEGMENT: scaleMetrics(BASE_INTERFACE_METRICS.SEGMENT, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
     <View style={{ flexDirection: "row", borderRadius: radius.control, backgroundColor: theme.control, borderWidth: INSET, borderColor: theme.controlBorder, padding: INSET }}>
@@ -30,7 +35,7 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
               }}
             >
               {o.image ? (
-                <Symbol name={o.image} size={SEGMENT.glyph} color={ink} style={{ width: SEGMENT.glyphBox, height: SEGMENT.glyphBox }} />
+                <Symbol name={o.image} size={BASE_INTERFACE_METRICS.SEGMENT.glyph} color={ink} style={{ width: SEGMENT.glyphBox, height: SEGMENT.glyphBox }} />
               ) : (
                 <Text size="small" color={on ? theme.onAccent : theme.textPrimary}>
                   {o.title}
@@ -43,3 +48,5 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { radius, INSET, SEGMENT, space };

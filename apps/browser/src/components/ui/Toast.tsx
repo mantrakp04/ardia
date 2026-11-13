@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useEffect, useRef } from "react";
 import { Animated, View } from "react-native";
 import { Button } from "./Button";
@@ -30,6 +33,8 @@ export function Toast({
   closing?: boolean;
   onClosed?: () => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DOCK, radius, BODY, ICON, TEXT } = useMemo(() => ({ DOCK: scaleInterfaceStyle(BASE_INTERFACE_METRICS.DOCK, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), BODY: scaleInterfaceStyle(BASE_INTERFACE_METRICS.BODY, interfaceScale), ICON: scaleMetrics(BASE_INTERFACE_METRICS.ICON, interfaceScale), TEXT: scaleMetrics(BASE_INTERFACE_METRICS.TEXT, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const appear = useRef(new Animated.Value(0)).current;
   const closed = useRef(onClosed);
@@ -40,7 +45,7 @@ export function Toast({
       : Animated.spring(appear, { toValue: 1, ...springs.bouncy, useNativeDriver: true });
     run.start(({ finished }) => finished && closing && closed.current?.());
     return () => run.stop();
-  }, [closing]);
+  }, [closing, interfaceScale]);
   return (
     <View pointerEvents={action && !closing ? "box-none" : "none"} style={DOCK}>
       <Animated.View
@@ -65,3 +70,5 @@ export function Toast({
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { DOCK, radius, BODY, ICON, TEXT };

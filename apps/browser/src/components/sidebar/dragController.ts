@@ -1,3 +1,5 @@
+import { currentSettings } from "../../state/browser/current";
+import { interfaceMetrics, scaleMetrics } from "../../lib/interfaceMetrics";
 import { Animated, type GestureResponderEvent, type View } from "react-native";
 import { NO_DROP } from "../../state/drag/drops";
 import { dropTabs } from "../../state/pins/actions";
@@ -197,7 +199,7 @@ export class DragController extends DragTargeting {
     markDrag(this.marks, { dropInto: null, onto: null, pins: false, pinCount: 0, pinBefore: null, folderTarget: null, folderAway: false });
   }
 
-  protected landingSpot(drop: Drop): Promise<{ x: number; y: number } | null> | null {
+  protected landingSpot(drop: Drop): Promise<{ x: number; y: number } | null> | null { const { ROW_GAP } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
     const { sources, gapKey } = this.drag;
     const source = sources[0]!;
     if (drop.type === "tabs" && drop.placement.pinned && !drop.placement.row) return null;
@@ -225,7 +227,7 @@ export class DragController extends DragTargeting {
     });
   }
 
-  protected autoScroll(y: number) {
+  protected autoScroll(y: number) { const { EDGE } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
     const session = this.drag;
     const v = session.viewport;
     const speed = !v ? 0 : y < v.y + EDGE ? -Math.ceil((v.y + EDGE - y) / 4) : y > v.y + v.h - EDGE ? Math.ceil((y - (v.y + v.h - EDGE)) / 4) : 0;
@@ -249,3 +251,5 @@ export class DragController extends DragTargeting {
     return home.x - this.rootFrame.x;
   }
 }
+
+const BASE_INTERFACE_GEOMETRY = { ROW_GAP, EDGE };

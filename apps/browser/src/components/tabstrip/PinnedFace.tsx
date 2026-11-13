@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSettings, useTab } from "../../state/browser/hooks";
 import { useTileTheme } from "../../state/favicons/tileTheme";
@@ -10,6 +13,8 @@ import { useTheme } from "../ui/theme";
 import { ITEM_HEIGHT, PINNED_CELL, PINNED_FACE_INSET, PINNED_FACE_RADIUS, PINNED_RING_STROKE } from "./tokens";
 
 export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string; active: boolean; hovered: boolean; pressed: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PINNED_FACE_INSET, PINNED_CELL, ITEM_HEIGHT, PINNED_FACE_RADIUS, PINNED_RING_STROKE } = useMemo(() => ({ PINNED_FACE_INSET: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_FACE_INSET, interfaceScale), PINNED_CELL: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_CELL, interfaceScale), ITEM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_HEIGHT, interfaceScale), PINNED_FACE_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_FACE_RADIUS, interfaceScale), PINNED_RING_STROKE: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_RING_STROKE, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
@@ -58,3 +63,5 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { PINNED_FACE_INSET, PINNED_CELL, ITEM_HEIGHT, PINNED_FACE_RADIUS, PINNED_RING_STROKE };

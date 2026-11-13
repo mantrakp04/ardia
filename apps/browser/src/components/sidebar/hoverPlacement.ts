@@ -1,3 +1,5 @@
+import { currentSettings } from "../../state/browser/current";
+import { interfaceMetrics, scaleMetrics } from "../../lib/interfaceMetrics";
 import type { SidebarSide } from "../../state/browser/model";
 import type { Anchor } from "../../state/sidebar/sidebarUi";
 import { space } from "../ui/tokens";
@@ -19,7 +21,7 @@ function facingEdge(anchor: Anchor, frame: HoverCardFrame): number {
   return frame.side === "right" ? Math.min(anchor.x, frame.sidebarEdge) : Math.max(anchor.x + anchor.width, frame.sidebarEdge);
 }
 
-export function hoverCardAt(anchor: Anchor, frame: HoverCardFrame): HoverCardAt {
+export function hoverCardAt(anchor: Anchor, frame: HoverCardFrame): HoverCardAt { const { HOVER_CARD_GAP, WINDOW_MARGIN, HOVER_CARD_PAD, HOVER_CARD_HEADER } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   const edge = facingEdge(anchor, frame);
   const headerCenter = anchor.y + anchor.height / 2;
   return {
@@ -31,3 +33,5 @@ export function hoverCardAt(anchor: Anchor, frame: HoverCardFrame): HoverCardAt 
 export function hoverCardBox(at: HoverCardAt, frame: HoverCardFrame): { left: number; top: number } | { right: number; top: number } {
   return frame.side === "right" ? { right: frame.windowWidth - at.x, top: at.top } : { left: at.x, top: at.top };
 }
+
+const BASE_INTERFACE_GEOMETRY = { HOVER_CARD_GAP, WINDOW_MARGIN, HOVER_CARD_PAD, HOVER_CARD_HEADER };

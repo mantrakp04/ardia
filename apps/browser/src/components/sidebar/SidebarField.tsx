@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 import { Button, concentric, type IconPalette } from "../ui";
@@ -19,6 +22,8 @@ export const SidebarFieldFill = memo(function SidebarFieldFill({
 }: {
   hovered: boolean;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SIDEBAR_FIELD, FIELD_BORDER } = useMemo(() => ({ SIDEBAR_FIELD: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_FIELD, interfaceScale), FIELD_BORDER: scaleMetrics(BASE_INTERFACE_METRICS.FIELD_BORDER, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   if (useGlass()) {
     return (
@@ -56,6 +61,8 @@ export function FieldSiteButton({
   palette: IconPalette;
   onPress: () => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FIELD_BUTTON } = useMemo(() => ({ FIELD_BUTTON: scaleMetrics(BASE_INTERFACE_METRICS.FIELD_BUTTON, interfaceScale) }), [interfaceScale]);
   const tokens = useSidebarTokens();
   return (
     <View
@@ -81,3 +88,5 @@ export function FieldSiteButton({
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { SIDEBAR_FIELD, FIELD_BORDER, FIELD_BUTTON };

@@ -1,3 +1,4 @@
+import { interfaceMetrics } from "../../lib/interfaceMetrics";
 import { create } from "zustand";
 import { autoHidesTabsIn, sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
@@ -33,8 +34,8 @@ export function openingLightsCenter(s: BrowserState, windowId: string): LightsPl
   const w = s.windows[windowId];
   if (!w) return null;
   const open = tabsShownIn(s, windowId);
-  if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
-  const width = s.settings.sidebarWidth;
+  if (tabLayoutOf(s, w.id) === "top") return open ? TOP_STRIP_LIGHTS_CENTER.map((v) => v * interfaceMetrics(s.settings.interfaceSize).factor) as [number, number] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
+  const width = (s.settings.sidebarWidth * interfaceMetrics(s.settings.interfaceSize).factor);
   const frame = pageFrameInsetOf(s.settings.pageFrame, {
     borderlessMode: s.settings.borderlessMode,
     zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
@@ -42,7 +43,7 @@ export function openingLightsCenter(s: BrowserState, windowId: string): LightsPl
     zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,
     tabsHidden: autoHidesTabsIn(s, windowId),
   });
-  const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, frame);
+  const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER.map((v) => v * interfaceMetrics(s.settings.interfaceSize).factor) as [number, number] : toolbarLightsCenter(s.settings.compactToolbar, frame, s.settings.interfaceSize);
   return sidebarLightsCenter(sidebarSideOf(s, w.id) === "right", width, open ? 0 : width, 0, base);
 }
 
@@ -59,7 +60,7 @@ export function usePageFrameInset(): number {
   );
 }
 
-export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar), usePageFrameInset());
+export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar), usePageFrameInset(), useBrowser((s) => s.settings.interfaceSize));
 
 type UrlAnchor = { left: number; top: number; width: number; sidebar?: { height: number } };
 

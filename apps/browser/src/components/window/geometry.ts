@@ -1,3 +1,4 @@
+import { interfaceMetrics, scaleMetrics } from "../../lib/interfaceMetrics";
 import { layout } from "../ui/theme";
 import type { SplitView } from "../../state/browser/types";
 
@@ -80,14 +81,14 @@ export type ToolbarGeometry = {
 
 const geometries = new Map<string, ToolbarGeometry>();
 
-export function toolbarGeometry(o: { sidebarButton: boolean }): ToolbarGeometry {
-  const key = `${o.sidebarButton}`;
+export function toolbarGeometry(o: { sidebarButton: boolean; interfaceSize?: unknown }): ToolbarGeometry {
+  const key = `${o.sidebarButton}:${interfaceMetrics(o.interfaceSize).preset}`;
   let g = geometries.get(key);
-  if (!g) geometries.set(key, (g = computeToolbarGeometry(o)));
+  if (!g) geometries.set(key, (g = scaleMetrics(computeToolbarGeometry(o), interfaceMetrics(o.interfaceSize).factor)));
   return g;
 }
 
-function computeToolbarGeometry(o: { sidebarButton: boolean }): ToolbarGeometry {
+function computeToolbarGeometry(o: { sidebarButton: boolean; interfaceSize?: unknown }): ToolbarGeometry {
   const [c0, c1, c2, c3] = layout.toolbarIconCenters;
   if (o.sidebarButton) return { sidebarButton: c0, back: c1, forward: c2, reload: c3, urlLeft: layout.breadcrumbX - 8 };
   const shift = c1 - c0;

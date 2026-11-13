@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import { bookmarkAncestors, folderChildren } from "../../state/bookmarks/bookmarks";
@@ -105,6 +107,8 @@ function FolderTreeRow({
   onToggle: () => void;
   onSelect: () => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius, space, CHEVRON, FOLDER_ICON, TITLE } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), CHEVRON: scaleMetrics(BASE_INTERFACE_METRICS.CHEVRON, interfaceScale), FOLDER_ICON: scaleMetrics(BASE_INTERFACE_METRICS.FOLDER_ICON, interfaceScale), TITLE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.TITLE, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
@@ -145,3 +149,5 @@ function FolderTreeRow({
 const CHEVRON = { width: folderTree.chevronBox, height: folderTree.chevronBox } as const;
 const FOLDER_ICON = { width: folderTree.folderBox, height: folderTree.folderBox } as const;
 const TITLE = { flex: 1, marginLeft: space.s } as const;
+
+const BASE_INTERFACE_METRICS = { radius, space, CHEVRON, FOLDER_ICON, TITLE };

@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { currentEngineProfile } from "../../state/browser/current";
 import { clearBrowsingData, type BrowsingDataType } from "../../state/profiles/profileData";
 import { useState } from "react";
@@ -19,6 +22,8 @@ const RANGES = [
 type Range = (typeof RANGES)[number]["value"];
 
 export function ClearDataDialog({ profileId, onClose }: { profileId: string; onClose: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RANGE_ROW } = useMemo(() => ({ RANGE_ROW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.RANGE_ROW, interfaceScale) }), [interfaceScale]);
   const profileName = useProfileName(profileId);
   const multipleProfiles = useProfileOrder((o) => o.length > 1);
   const [range, setRange] = useState<Range>("hour");
@@ -71,3 +76,5 @@ function Option({ value, onChange, title, subtitle }: { value: boolean; onChange
     </Pressable>
   );
 }
+
+const BASE_INTERFACE_METRICS = { RANGE_ROW };

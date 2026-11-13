@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useContext } from "react";
 import { Animated, View } from "react-native";
 import { useIsActiveTab, usePageProfileId, useTab, useWindowId } from "../../state/browser/hooks";
@@ -18,6 +21,8 @@ import { TabPressArea } from "../sidebar/TabPressArea";
 import { tabTitle } from "../../state/browser/model";
 
 export function SplitChip({ tabIds, width, geometry, from, group }: { tabIds: string[]; width: number; geometry: DragGeometry; from: number; group: string | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GAP, TOP_STRIP_HEIGHT } = useMemo(() => ({ GAP: scaleMetrics(BASE_INTERFACE_METRICS.GAP, interfaceScale), TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale) }), [interfaceScale]);
   const onTint = useTheme();
   const windowId = useWindowId();
   const profileId = usePageProfileId();
@@ -50,6 +55,8 @@ const NO_SLOTS = dragGeometry([], GAP);
 const PART_FILL = { flex: 1 } as const;
 
 function SplitPart({ tabId, first, last, ink }: { tabId: string; first: boolean; last: boolean; ink: ToolbarPalette | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PART_FILL, CHIP_PAD, SPLIT_GLYPH, SPLIT_DIVIDER_LENGTH, SPLIT_DIVIDER_GAP, CHIP_LABEL_GAP } = useMemo(() => ({ PART_FILL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.PART_FILL, interfaceScale), CHIP_PAD: scaleMetrics(BASE_INTERFACE_METRICS.CHIP_PAD, interfaceScale), SPLIT_GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.SPLIT_GLYPH, interfaceScale), SPLIT_DIVIDER_LENGTH: scaleMetrics(BASE_INTERFACE_METRICS.SPLIT_DIVIDER_LENGTH, interfaceScale), SPLIT_DIVIDER_GAP: scaleMetrics(BASE_INTERFACE_METRICS.SPLIT_DIVIDER_GAP, interfaceScale), CHIP_LABEL_GAP: scaleMetrics(BASE_INTERFACE_METRICS.CHIP_LABEL_GAP, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const windowId = useWindowId();
   const tab = useTab(tabId);
@@ -73,7 +80,7 @@ function SplitPart({ tabId, first, last, ink }: { tabId: string; first: boolean;
         <View pointerEvents="none">
           <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact profileId={tab.profileId} />
         </View>
-        <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={ink ? (focused ? ink.text : ink.secondary) : focused ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }} />
+        <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={ink ? (focused ? ink.text : ink.secondary) : focused ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16 * interfaceScale, marginLeft: CHIP_LABEL_GAP }} />
       </TabPressArea>
     </Animated.View>
   );
@@ -82,3 +89,5 @@ function SplitPart({ tabId, first, last, ink }: { tabId: string; first: boolean;
 const SPLIT_GLYPH = { width: 14, height: 16, marginRight: space.xs } as const;
 const SPLIT_DIVIDER_LENGTH = 16;
 const SPLIT_DIVIDER_GAP = { marginHorizontal: space.s } as const;
+
+const BASE_INTERFACE_METRICS = { GAP, TOP_STRIP_HEIGHT, PART_FILL, CHIP_PAD, SPLIT_GLYPH, SPLIT_DIVIDER_LENGTH, SPLIT_DIVIDER_GAP, CHIP_LABEL_GAP };

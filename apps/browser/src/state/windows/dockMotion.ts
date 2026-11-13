@@ -1,3 +1,4 @@
+import { interfaceMetrics } from "../../lib/interfaceMetrics";
 import { create } from "zustand";
 import { CARD_INSET } from "../../lib/windowLayout";
 import { compactLift, toolbarRowOf } from "../../lib/toolbarRow";
@@ -7,10 +8,10 @@ const LIGHTS_X = 25;
 const LIGHTS_BELOW_CARD_TOP = 21;
 export const LIGHTS_CENTER: readonly [number, number] = [LIGHTS_X, CARD_INSET + LIGHTS_BELOW_CARD_TOP];
 const lightsCenters = new Map<string, readonly [number, number]>();
-export function toolbarLightsCenter(compact: boolean, frame: number = CARD_INSET): readonly [number, number] {
-  const key = `${compact}:${frame}`;
+export function toolbarLightsCenter(compact: boolean, frame: number = CARD_INSET, preset: unknown = "100"): readonly [number, number] {
+  const key = `${compact}:${frame}:${interfaceMetrics(preset).preset}`;
   let center = lightsCenters.get(key);
-  if (!center) lightsCenters.set(key, (center = [LIGHTS_X, frame + LIGHTS_BELOW_CARD_TOP - (compact ? compactLift(toolbarRowOf(true)) : 0)]));
+  if (!center) lightsCenters.set(key, (center = [LIGHTS_X, frame + (LIGHTS_BELOW_CARD_TOP - (compact ? compactLift(toolbarRowOf(true)) : 0)) * interfaceMetrics(preset).factor]));
   return center;
 }
 export const ARC_LIGHTS_CENTER: readonly [number, number] = [25, 24];

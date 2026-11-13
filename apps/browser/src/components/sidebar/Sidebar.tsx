@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { ContextMenuArea, space, WindowDragRegion } from "../ui";
@@ -31,6 +34,8 @@ import { useRevealTabs } from "./useRevealTabs";
 const HEADER_RIGHT = space.m;
 
 export function Sidebar({ width }: { width: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ROW_PITCH, SIDEBAR_HEADER_WITH_FIELD, layout, GLOW_ROOM, SIDEBAR_FOOTER_DOWNLOADS, HEADER_RIGHT, SIDEBAR_FIELD } = useMemo(() => ({ ROW_PITCH: scaleMetrics(BASE_INTERFACE_METRICS.ROW_PITCH, interfaceScale), SIDEBAR_HEADER_WITH_FIELD: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_HEADER_WITH_FIELD, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), GLOW_ROOM: scaleMetrics(BASE_INTERFACE_METRICS.GLOW_ROOM, interfaceScale), SIDEBAR_FOOTER_DOWNLOADS: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_FOOTER_DOWNLOADS, interfaceScale), HEADER_RIGHT: scaleMetrics(BASE_INTERFACE_METRICS.HEADER_RIGHT, interfaceScale), SIDEBAR_FIELD: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_FIELD, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const current = useWindowProfileId();
   const { pages, paging } = usePagerPages(windowId);
@@ -54,16 +59,16 @@ export function Sidebar({ width }: { width: number }) {
   const onScrollView = useCallback((v: ScrollView | null) => {
     scroll.current = v;
     if (drag.current) drag.current.scroll = v;
-  }, []);
+  }, [interfaceScale]);
   const onScrollY = useCallback((y: number) => {
     scrollY.current = y;
     if (drag.current) drag.current.scrollY = y;
     dismissHover();
     closeFolderPanel();
-  }, []);
+  }, [interfaceScale]);
 
   useRevealTabs(windowId, scroll, scrollY, geometry);
-  useLayoutEffect(() => dismissHoverIn(windowId), [windowId, current, paging]);
+  useLayoutEffect(() => dismissHoverIn(windowId), [windowId, current, paging, interfaceScale]);
 
   return (
     <DragProvider>
@@ -156,3 +161,5 @@ export function Sidebar({ width }: { width: number }) {
     </DragProvider>
   );
 }
+
+const BASE_INTERFACE_METRICS = { ROW_PITCH, SIDEBAR_HEADER_WITH_FIELD, layout, GLOW_ROOM, SIDEBAR_FOOTER_DOWNLOADS, HEADER_RIGHT, SIDEBAR_FIELD };

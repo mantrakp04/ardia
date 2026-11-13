@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useState } from "react";
 import { Animated } from "react-native";
 import { useTheme } from "../ui/theme";
@@ -12,6 +15,8 @@ export function scrolledPastTop(offset: number): boolean {
 }
 
 export function useScrollEdge() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FADE } = useMemo(() => ({ FADE: scaleMetrics(BASE_INTERFACE_METRICS.FADE, interfaceScale) }), [interfaceScale]);
   const [edge] = useState(() => {
     const opacity = new Animated.Value(0);
     let shown = false;
@@ -29,6 +34,10 @@ export function useScrollEdge() {
 }
 
 export function ScrollEdgeLine({ opacity }: { opacity: Animated.Value }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SCROLL_EDGE } = useMemo(() => ({ SCROLL_EDGE: scaleMetrics(BASE_INTERFACE_METRICS.SCROLL_EDGE, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return <Animated.View pointerEvents="none" style={{ height: SCROLL_EDGE.line, backgroundColor: theme.divider, opacity }} />;
 }
+
+const BASE_INTERFACE_METRICS = { FADE, SCROLL_EDGE };

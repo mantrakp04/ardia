@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useEffect, type ComponentType } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { space, useTheme, VisualEffect, WindowDragRegion } from "../ui";
@@ -30,9 +33,11 @@ const STEPS: Record<ImportStepName, { Body: StepView; Footer: StepView | null }>
 };
 
 export function ImportWindow() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { STEPS, space } = useMemo(() => ({ STEPS: scaleMetrics(BASE_INTERFACE_METRICS.STEPS, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const flow = useImportFlow();
-  useEffect(() => startImport(importMotion.doneDelay), []);
+  useEffect(() => startImport(importMotion.doneDelay), [interfaceScale]);
   useImportDevHandle(flow);
   const { Body, Footer } = STEPS[flow.step.name];
   return (
@@ -48,3 +53,5 @@ export function ImportWindow() {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { STEPS, space };

@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
 import { View } from "react-native";
 import { Button, Checkbox, space, Text } from "../../ui";
 import { SectionHeader } from "../../settings/Form";
@@ -12,6 +15,8 @@ import { continueImport } from "../../../state/import/runImport";
 const HIDDEN_KINDS: ImportKind[] = ["spaces", "pinnedTabs"];
 
 export function ChooseBody({ flow }: { flow: ImportFlow }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const { browsers, source, kinds, step } = flow;
   const bySpaces = importsBySpaces(source);
   const error = step.name === "choose" ? step.error : null;
@@ -68,3 +73,5 @@ export function ChooseFooter({ flow }: { flow: ImportFlow }) {
     </>
   );
 }
+
+const BASE_INTERFACE_METRICS = { space };

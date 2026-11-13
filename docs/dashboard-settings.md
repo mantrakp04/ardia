@@ -28,3 +28,5 @@ PORT=4417 DASHBOARD_DEV_BYPASS_AUTH=1 CLICKHOUSE_URL=http://127.0.0.1:18123/ CLI
 ```
 
 Explicit env vars win over `~/.config/ardia/*.env`, so the dev server never touches the real ClickHouse this way.
+
+Interface size is a device-local enum (`100`, `110`, `125`, `150`). The existing consent-gated daily snapshot includes `setting_interfaceSize` and `default_interfaceSize` (`100`). Watch preset adoption and the share choosing a nondefault size. It carries no page zoom or page content.

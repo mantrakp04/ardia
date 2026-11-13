@@ -1,4 +1,8 @@
-import { PixelRatio, Text } from "react-native";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { RawText as Text } from "../ui/ScaledNative";
+import { useMemo } from "react";
+import { PixelRatio } from "react-native";
 import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
@@ -61,6 +65,8 @@ export function switcherIcons(icons: (string | null)[], shown: boolean, room: nu
 }
 
 export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; color: string; scale?: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { profileSwitcher } = useMemo(() => ({ profileSwitcher: scaleMetrics(BASE_INTERFACE_METRICS.profileSwitcher, interfaceScale) }), [interfaceScale]);
   const { iconCell, icon: size, dot } = profileSwitcher;
   const symbol = iconSymbol(icon);
   if (symbol) return <Symbol name={symbol} size={size * scale} weight="semibold" color={color} style={{ width: iconCell * scale, height: iconCell * scale }} />;
@@ -76,6 +82,8 @@ export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; 
 const BADGE_EDGE_MIN = 22;
 
 export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "name" | "color" | "icon"> & Partial<Pick<Profile, "theme">>; size?: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BADGE_EDGE_MIN } = useMemo(() => ({ BADGE_EDGE_MIN: scaleMetrics(BASE_INTERFACE_METRICS.BADGE_EDGE_MIN, interfaceScale) }), [interfaceScale]);
   const swatch = profileAccent(profile);
   const symbol = iconSymbol(profile.icon);
   const nudge = PixelRatio.roundToNearestPixel(size * profileBadge.nudge);
@@ -102,3 +110,5 @@ export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "n
     </Dot>
   );
 }
+
+const BASE_INTERFACE_METRICS = { profileSwitcher, BADGE_EDGE_MIN };

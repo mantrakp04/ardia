@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
 import { Image, View } from "react-native";
 import { Button, Checkbox, space, Text } from "../../ui";
 import { SectionHeader } from "../../settings/Form";
@@ -10,6 +13,8 @@ import { chooseSafariExport, importSafariDirect, importSafariExport, openFullDis
 const EXPORT_STEPS = ["Open Safari", "File menu › Export Browsing Data to File", `Upload the .zip file to ${APP}`];
 
 export function SafariBody({ flow }: { flow: ImportFlow }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const { source, fullDiskAccess, safariCookies, step } = flow;
   const error = step.name === "safari" ? step.error : null;
   const drop = <FileDrop onFile={(path) => void importSafariExport(path)} onChoose={chooseSafariExport} />;
@@ -86,3 +91,5 @@ export function AccessFooter({ flow }: { flow: ImportFlow }) {
     </>
   );
 }
+
+const BASE_INTERFACE_METRICS = { space };

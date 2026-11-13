@@ -1,3 +1,4 @@
+import { useInterfaceMetrics } from "../ui/interfaceSize";
 import { onWindowEvent, watchSidebarEdge } from "../../state/windows/nativeWindow";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, StyleSheet, View } from "react-native";
@@ -108,7 +109,8 @@ export function DockedLayout({
   const width = useSidebarUi((u) => u.dragWidth[windowId]) ?? sidebarWidth;
   const arc = addressBar && !topTabs && switchOn("sidebarSlide");
   const toolbarLights = useToolbarLightsCenter();
-  const lights = addressBar && !topTabs ? ARC_LIGHTS_CENTER : toolbarLights;
+  const { factor } = useInterfaceMetrics();
+  const lights = useMemo<readonly [number, number]>(() => addressBar && !topTabs ? [ARC_LIGHTS_CENTER[0] * factor, ARC_LIGHTS_CENTER[1] * factor] : toolbarLights, [addressBar, topTabs, factor, toolbarLights]);
   const { dock, away } = useSidebarDock(open, !fullscreen, arc);
   const frame = useCardFrame();
   const sideInset = right ? inset.right : inset.left;

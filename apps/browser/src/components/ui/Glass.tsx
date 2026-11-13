@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { GlassEffect, GlassGroup as NativeGlassGroup, isLiquidGlass } from "@ardia/shell";
 import { createContext, memo, useContext, type ReactNode } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
@@ -64,6 +67,8 @@ export const GlassFill = memo(function GlassFill({
   theme?: Theme;
   children?: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GLASS_STYLE, HOSTED_CONTENT } = useMemo(() => ({ GLASS_STYLE: scaleMetrics(BASE_INTERFACE_METRICS.GLASS_STYLE, interfaceScale), HOSTED_CONTENT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.HOSTED_CONTENT, interfaceScale) }), [interfaceScale]);
   const contextTheme = useTheme();
   const theme = shownTheme ?? contextTheme;
   const { tint } = useGlassLook();
@@ -91,3 +96,5 @@ export function GlassGroup({ style, children }: { style?: StyleProp<ViewStyle>; 
     </NativeGlassGroup>
   );
 }
+
+const BASE_INTERFACE_METRICS = { GLASS_STYLE, HOSTED_CONTENT };

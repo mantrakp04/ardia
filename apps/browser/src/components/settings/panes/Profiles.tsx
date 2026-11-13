@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
 import { Box, Button, ContextMenuArea, Divider, PopUp, radius, space, Symbol, Text, TextField, Toggle, useHover } from "../../ui";
 import { hapticTick } from "../../../state/app/system";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -110,6 +112,8 @@ const settle = (value: Animated.Value, toValue: number) =>
   Animated.timing(value, { toValue, duration: settingsMotion.profileRowSettle, easing: curve.enter, useNativeDriver: true });
 
 function ProfileList() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ROW_HEIGHT, radius } = useMemo(() => ({ ROW_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ROW_HEIGHT, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const order = useProfileOrder();
   const offsets = useRef(new Map<string, Animated.Value>()).current;
   const offsetOf = (id: string) => {
@@ -124,7 +128,7 @@ function ProfileList() {
     if (!drag.current.reorderPending) return;
     drag.current.reorderPending = false;
     offsets.forEach((v) => v.setValue(0));
-  }, [order]);
+  }, [order, interfaceScale]);
 
   const controller = useRef({
     start(id: string) {
@@ -185,6 +189,8 @@ function ProfileRow({
   lifted: boolean;
   controller: DragController;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius, ROW_HEIGHT, space, DESCRIPTION } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), ROW_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ROW_HEIGHT, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), DESCRIPTION: scaleMetrics(BASE_INTERFACE_METRICS.DESCRIPTION, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const profile = useProfile(profileId, (p) => p);
   const isDefault = useSettings((s) => s.defaultProfileId === profileId);
@@ -235,7 +241,7 @@ function ProfileRow({
               }}
             >
               <View tooltip="Drag to reorder">
-                <Symbol name="line.3.horizontal" size={11} color={theme.textTertiary} style={{ width: 14, height: 14 }} />
+                <Symbol name="line.3.horizontal" size={11} color={theme.textTertiary} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />
               </View>
               <View ref={badge} collapsable={false}>
                 <ProfileBadge profile={profile} />
@@ -248,7 +254,7 @@ function ProfileRow({
                   </Text>
                 ) : null}
               </View>
-              <Symbol name="chevron.right" size={11} weight="semibold" color={theme.textTertiary} style={{ width: 12, height: 14 }} />
+              <Symbol name="chevron.right" size={11} weight="semibold" color={theme.textTertiary} style={{ width: 12 * interfaceScale, height: 14 * interfaceScale }} />
             </View>
           </Pressable>
         </View>
@@ -264,6 +270,8 @@ function iconTitle(icon: string | null): string {
 }
 
 export function ProfileDetailsPane({ profileId }: { profileId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DETAILS_HEAD } = useMemo(() => ({ DETAILS_HEAD: scaleInterfaceStyle(BASE_INTERFACE_METRICS.DETAILS_HEAD, interfaceScale) }), [interfaceScale]);
   const profile = useProfile(profileId, (p) => p);
   const isDefault = useSettings((s) => s.defaultProfileId === profileId);
   const only = useProfileOrder((o) => o.length <= 1);
@@ -279,12 +287,12 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
   const edited = useRef(false);
   useEffect(() => {
     if (!edited.current) setName(savedName);
-  }, [savedName]);
+  }, [savedName, interfaceScale]);
   useEffect(
     () => () => {
       if (edited.current) commitProfileName(profileId, typed.current);
     },
-    [profileId],
+    [profileId, interfaceScale],
   );
   const badge = useRef<View>(null);
   const changeButton = useRef<View>(null);
@@ -375,3 +383,5 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
 
 const DESCRIPTION = { marginTop: space.xxs } as const;
 const DETAILS_HEAD = { alignItems: "center", marginTop: space.xxxl } as const;
+
+const BASE_INTERFACE_METRICS = { ROW_HEIGHT, radius, space, DESCRIPTION, DETAILS_HEAD };

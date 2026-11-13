@@ -1,7 +1,8 @@
+import { TextInput as TextInput } from "../ui/ScaledNative";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { claimFocusTag, findFocus } from "../../state/focus/focusClaims";
 import { useEffect, useRef, useState } from "react";
-import { Animated, findNodeHandle, TextInput, View } from "react-native";
+import { Animated, findNodeHandle, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { webviews } from "../../state/tabs/webviewHandles";
 import { useFind, useTab } from "../../state/browser/hooks";

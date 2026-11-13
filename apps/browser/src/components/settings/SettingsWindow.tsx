@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { Box, Button, ListRow, space, Symbol, Text, Toggle, VisualEffect, WindowDragRegion } from "../ui";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -71,6 +74,8 @@ function usePrefetchAllPanes(enabled: boolean) {
 }
 
 export function SettingsWindow() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { REVEAL_MARGIN, SIDEBAR, TOOLBAR, SIDEBAR_LIST, WINDOW_TITLE, PANE_SCROLL, PANE_COLUMN } = useMemo(() => ({ REVEAL_MARGIN: scaleMetrics(BASE_INTERFACE_METRICS.REVEAL_MARGIN, interfaceScale), SIDEBAR: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR, interfaceScale), TOOLBAR: scaleMetrics(BASE_INTERFACE_METRICS.TOOLBAR, interfaceScale), SIDEBAR_LIST: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_LIST, interfaceScale), WINDOW_TITLE: scaleMetrics(BASE_INTERFACE_METRICS.WINDOW_TITLE, interfaceScale), PANE_SCROLL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.PANE_SCROLL, interfaceScale), PANE_COLUMN: scaleMetrics(BASE_INTERFACE_METRICS.PANE_COLUMN, interfaceScale) }), [interfaceScale]);
   const look = useSettingsColors();
   const nav = useSettingsNav();
   const shown = useShownPane();
@@ -78,11 +83,11 @@ export function SettingsWindow() {
   const profileName = useProfile(shown?.profileId, (p) => p?.name);
   const title = shown ? (shown.pane === "profiles" && profileName ? profileName : PANES.find((p) => p.id === shown.pane)!.title) : "";
   const sheet = useSettingsSheet((s) => s.sheet);
-  useEffect(() => trackSettingsSection(nav.pane), [nav.pane]);
+  useEffect(() => trackSettingsSection(nav.pane), [nav.pane, interfaceScale]);
   const scroller = useRef<ScrollView>(null);
   const key = shown ? shownKey(shown) : "";
-  useLayoutEffect(() => scroller.current?.scrollTo({ y: 0, animated: false }), [key]);
-  useEffect(() => closeProfileIconPickerIn(SETTINGS_WINDOW_ID), [key]);
+  useLayoutEffect(() => scroller.current?.scrollTo({ y: 0, animated: false }), [key, interfaceScale]);
+  useEffect(() => closeProfileIconPickerIn(SETTINGS_WINDOW_ID), [key, interfaceScale]);
   const content = useRef<View>(null);
   const scrollTop = useRef(0);
   const viewport = useRef(0);
@@ -117,10 +122,10 @@ export function SettingsWindow() {
       );
     });
     return () => cancelAnimationFrame(frame);
-  }, [reveal, key]);
+  }, [reveal, key, interfaceScale]);
   useEffect(() => {
     switched.current = key;
-  }, [key]);
+  }, [key, interfaceScale]);
 
   return (
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: look.windowFill }}>
@@ -195,10 +200,14 @@ const PANE_VIEWS: Record<SettingsPane, (place: SettingsPlace) => ReactNode> = {
 };
 
 function Pane(place: SettingsPlace): ReactNode {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANE_VIEWS } = useMemo(() => ({ PANE_VIEWS: scaleMetrics(BASE_INTERFACE_METRICS.PANE_VIEWS, interfaceScale) }), [interfaceScale]);
   return PANE_VIEWS[place.pane](place);
 }
 
 function SidebarItem({ title, icon, selected, onPress }: { title: string; icon: string; selected: boolean; onPress: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SIDEBAR_ITEM_HEIGHT, SIDEBAR_ICON } = useMemo(() => ({ SIDEBAR_ITEM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_ITEM_HEIGHT, interfaceScale), SIDEBAR_ICON: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_ICON, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
     <ListRow height={SIDEBAR_ITEM_HEIGHT} selected={selected} selectedTone="accent" onPress={onPress}>
@@ -212,6 +221,8 @@ const SIDEBAR_ITEM_HEIGHT = 30;
 const SIDEBAR_ICON = { width: 20, height: 20 } as const;
 
 function AdvancedToggle() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ADVANCED, FILL } = useMemo(() => ({ ADVANCED: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ADVANCED, interfaceScale), FILL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FILL, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const shown = useSettings((s) => s.showAdvancedSettings);
   return (
@@ -223,3 +234,5 @@ function AdvancedToggle() {
     </Box>
   );
 }
+
+const BASE_INTERFACE_METRICS = { REVEAL_MARGIN, SIDEBAR, TOOLBAR, SIDEBAR_LIST, WINDOW_TITLE, PANE_SCROLL, PANE_COLUMN, PANE_VIEWS, SIDEBAR_ITEM_HEIGHT, SIDEBAR_ICON, ADVANCED, FILL };

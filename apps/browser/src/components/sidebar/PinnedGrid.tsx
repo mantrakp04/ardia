@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { memo, useMemo } from "react";
 import { Animated, View } from "react-native";
 import { radius, Symbol } from "../ui";
@@ -23,6 +25,8 @@ import { TabPressArea } from "./TabPressArea";
 import { entryKey } from "../../state/sidebar/entryKey";
 
 export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = false }: { tabs: string[]; innerWidth: number; flush?: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, TILE_GAP, PIN_SLOT } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), TILE_GAP: scaleMetrics(BASE_INTERFACE_METRICS.TILE_GAP, interfaceScale), PIN_SLOT: scaleMetrics(BASE_INTERFACE_METRICS.PIN_SLOT, interfaceScale) }), [interfaceScale]);
   const controller = useDragController();
   const count = usePinnedCount(tabs);
   const balanced = useSettings((st) => st.balancedTopApps);
@@ -58,6 +62,8 @@ export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = f
 });
 
 export function PinFieldZone({ top, height }: { top: number; height: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, radius } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const tokens = useSidebarTokens();
   const theme = useTheme();
   const controller = useDragController();
@@ -90,6 +96,8 @@ export function PinFieldZone({ top, height }: { top: number; height: number }) {
 }
 
 export function PinSlotZone() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PIN_SLOT, layout, radius } = useMemo(() => ({ PIN_SLOT: scaleMetrics(BASE_INTERFACE_METRICS.PIN_SLOT, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const controller = useDragController();
   const active = useDropPins();
@@ -136,7 +144,8 @@ export function PinSlotZone() {
 }
 
 function PinGlyph({ color }: { color: string }) {
-  return <Symbol name="pin" size={13} color={color} style={{ width: 16, height: 16 }} />;
+  const interfaceScale = useInterfaceMetrics().factor;
+  return <Symbol name="pin" size={13} color={color} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />;
 }
 
 const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { tabId: string; width: number; sliding: boolean; x: number; y: number }) {
@@ -178,3 +187,5 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
     </Animated.View>
   );
 });
+
+const BASE_INTERFACE_METRICS = { layout, TILE_GAP, PIN_SLOT, radius };

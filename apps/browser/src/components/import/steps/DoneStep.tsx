@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
 import { useEffect, useMemo, useRef } from "react";
 import { Animated, View } from "react-native";
 import { allArcHolders, restoreArcFolders } from "../../../state/bookmarks/bookmarkGroups";
@@ -25,6 +27,8 @@ function summaryOf(counts: ImportCounts) {
 }
 
 function ExtensionList({ flow }: { flow: ImportFlow }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const { source, step } = flow;
   const onboarding = useOnboarding((s) => s.windowId !== null);
   if (step.name !== "done" || !step.extensions.list.length) return null;
@@ -55,6 +59,8 @@ function ExtensionList({ flow }: { flow: ImportFlow }) {
 }
 
 function LeftBehind({ notes, failed }: { notes: string[]; failed: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   if (!notes.length) return null;
   return (
     <Text size="caption" tone="textSecondary" style={{ lineHeight: importType.smallLine, marginTop: space.ml, textAlign: failed ? "left" : "center" }}>
@@ -80,6 +86,8 @@ function RestoreArcFolders() {
 }
 
 export function DoneBody({ flow }: { flow: ImportFlow }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const { step } = flow;
   if (step.name !== "done") return null;
   const { counts, failures, notes } = step;
@@ -132,15 +140,18 @@ export function DoneFooter({ flow }: { flow: ImportFlow }) {
 }
 
 function SuccessMark() {
+  const interfaceScale = useInterfaceMetrics().factor;
   const theme = useTheme();
   const { success } = importMotion;
   const scale = useRef(new Animated.Value(success.from)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, ...success.spring, useNativeDriver: true }).start();
-  }, []);
+  }, [interfaceScale]);
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <Symbol name="checkmark.circle.fill" size={46} color={theme.success} style={{ width: 60, height: 60 }} />
+      <Symbol name="checkmark.circle.fill" size={46} color={theme.success} style={{ width: 60 * interfaceScale, height: 60 * interfaceScale }} />
     </Animated.View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { space };

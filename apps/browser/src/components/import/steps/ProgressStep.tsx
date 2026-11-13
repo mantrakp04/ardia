@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
 import { useEffect, useRef } from "react";
 import { ActivityIndicator, Animated, View } from "react-native";
 import { Button, curve, space, Symbol, Text, useTheme } from "../../ui";
@@ -8,6 +11,8 @@ import { Spacer, Title } from "../Parts";
 import { importLayout, importMotion } from "../tokens";
 
 export function ProgressBody({ flow }: { flow: ImportFlow }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const { step, source } = flow;
   if (step.name !== "progress") return null;
   const { status, preparing } = step;
@@ -36,16 +41,18 @@ export function ProgressFooter() {
 }
 
 function CategoryRow({ title, icon, status, index }: { title: string; icon: string; status: KindStatus; index: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CATEGORY_ROW } = useMemo(() => ({ CATEGORY_ROW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.CATEGORY_ROW, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const appear = useRef(new Animated.Value(0)).current;
   const check = useRef(new Animated.Value(0)).current;
   const { rowAppear } = importMotion;
   useEffect(() => {
     Animated.timing(appear, { toValue: 1, duration: rowAppear.duration, delay: index * rowAppear.stagger, easing: curve.enter, useNativeDriver: true }).start();
-  }, []);
+  }, [interfaceScale]);
   useEffect(() => {
     if (status === "done" || status === "failed") Animated.spring(check, { toValue: 1, ...importMotion.check, useNativeDriver: true }).start();
-  }, [status]);
+  }, [status, interfaceScale]);
   const active = status === "active";
   return (
     <Animated.View
@@ -55,7 +62,7 @@ function CategoryRow({ title, icon, status, index }: { title: string; icon: stri
       }}
     >
       <SelectableCard selected={active} style={CATEGORY_ROW}>
-        <Symbol name={icon} size={13} color={status === "pending" ? theme.textTertiary : theme.icon} style={{ width: 20, height: 20 }} />
+        <Symbol name={icon} size={13} color={status === "pending" ? theme.textTertiary : theme.icon} style={{ width: 20 * interfaceScale, height: 20 * interfaceScale }} />
         <Text tone={status === "pending" ? "textSecondary" : "textPrimary"} style={{ flex: 1 }}>
           {title}
         </Text>
@@ -67,7 +74,7 @@ function CategoryRow({ title, icon, status, index }: { title: string; icon: stri
               name={status === "done" ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"}
               size={15}
               color={status === "done" ? theme.success : theme.warning}
-              style={{ width: 20, height: 20 }}
+              style={{ width: 20 * interfaceScale, height: 20 * interfaceScale }}
             />
           </Animated.View>
         )}
@@ -77,3 +84,5 @@ function CategoryRow({ title, icon, status, index }: { title: string; icon: stri
 }
 
 const CATEGORY_ROW = { height: importLayout.categoryRow, paddingHorizontal: space.l, flexDirection: "row", alignItems: "center", gap: space.l } as const;
+
+const BASE_INTERFACE_METRICS = { space, CATEGORY_ROW };

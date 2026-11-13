@@ -1,5 +1,6 @@
+import { RawText as Text } from "../../ui/ScaledNative";
 import type { ReactNode } from "react";
-import { Animated, Text, View, type ViewStyle } from "react-native";
+import { Animated, View, type ViewStyle } from "react-native";
 import { KeyCap } from "../../ui/KeyCap";
 import { capsule, font, ink, radius as radii, shadow, space } from "../../ui/tokens";
 import { SUGGESTION } from "../../omnibox/tokens";

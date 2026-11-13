@@ -1,6 +1,10 @@
-import { OutsidePressArea, showMenu, Symbol, type MenuItem } from "@ardia/shell";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { Symbol as Symbol, RawText as Text, TextInput as TextInput } from "./ScaledNative";
+import { useMemo } from "react";
+import { OutsidePressArea, showMenu, type MenuItem } from "@ardia/shell";
 import { useEffect, useRef, type Ref } from "react";
-import { Animated, Pressable, StyleSheet, Text, TextInput, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
+import { Animated, Pressable, StyleSheet, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
 import { curve, duration } from "./motion";
 import { useTheme } from "./theme";
 import { capsule, opacity, proseLineHeight, radius, space, font as typeScale } from "./tokens";
@@ -39,6 +43,8 @@ export function SearchField({
   onBlur?: () => void;
   inputRef?: Ref<TextInput>;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, radius, BARE_SEARCH } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), BARE_SEARCH: scaleMetrics(BASE_INTERFACE_METRICS.BARE_SEARCH, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const bare = look === "bare";
   return (
@@ -48,7 +54,7 @@ export function SearchField({
           ? { width, flexDirection: "row", alignItems: "center", gap: space.s }
           : {
               width,
-              height: 28,
+              height: 28 * interfaceScale,
               borderRadius: radius.tile,
               flexDirection: "row",
               alignItems: "center",
@@ -62,9 +68,9 @@ export function SearchField({
       ]}
     >
       {bare ? (
-        <Symbol name="magnifyingglass" size={BARE_SEARCH.glyph} color={theme.textSecondary} style={{ width: BARE_SEARCH.glyphBox, height: BARE_SEARCH.glyphBox }} />
+        <Symbol name="magnifyingglass" size={BASE_INTERFACE_METRICS.BARE_SEARCH.glyph} color={theme.textSecondary} style={{ width: BARE_SEARCH.glyphBox, height: BARE_SEARCH.glyphBox }} />
       ) : (
-        <Symbol name="magnifyingglass" size={12} color={theme.textSecondary} style={{ width: 14, height: 14 }} />
+        <Symbol name="magnifyingglass" size={12} color={theme.textSecondary} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />
       )}
       <TextInput
         ref={inputRef}
@@ -89,7 +95,7 @@ export function SearchField({
       {value && !bare ? (
         <View tooltip="Clear">
           <Pressable onPress={() => onChangeText("")}>
-            <Symbol name="xmark.circle.fill" size={12} color={theme.textTertiary} style={{ width: 16, height: 16 }} />
+            <Symbol name="xmark.circle.fill" size={12} color={theme.textTertiary} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
           </Pressable>
         </View>
       ) : null}
@@ -128,6 +134,8 @@ export function TextField({
   width?: DimensionValue;
   style?: StyleProp<ViewStyle>;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { MULTILINE_HEIGHT, radius, space, MULTILINE_TEXT, MONO } = useMemo(() => ({ MULTILINE_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.MULTILINE_HEIGHT, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), MULTILINE_TEXT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.MULTILINE_TEXT, interfaceScale), MONO: scaleMetrics(BASE_INTERFACE_METRICS.MONO, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
     <OutsidePressArea style={[{ width }, style]}>
@@ -186,6 +194,8 @@ export function PopUp<T extends string>({
   minWidth?: number;
   disabled?: boolean;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius, space } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const current = options.find((o) => o.value === value);
@@ -204,7 +214,7 @@ export function PopUp<T extends string>({
           <View
             style={{
               minWidth,
-              height: 22,
+              height: 22 * interfaceScale,
               borderRadius: radius.control,
               paddingLeft: space.m,
               paddingRight: space.xs,
@@ -219,8 +229,8 @@ export function PopUp<T extends string>({
             <Text numberOfLines={1} style={{ flex: 1, ...typeScale.body, color: theme.textPrimary }}>
               {current?.title ?? ""}
             </Text>
-            <View style={{ width: 16, height: 16, borderRadius: radius.control, backgroundColor: theme.formAccent, alignItems: "center", justifyContent: "center" }}>
-              <Symbol name="chevron.up.chevron.down" size={8} weight="bold" color={theme.onAccent} style={{ width: 16, height: 16 }} />
+            <View style={{ width: 16 * interfaceScale, height: 16 * interfaceScale, borderRadius: radius.control, backgroundColor: theme.formAccent, alignItems: "center", justifyContent: "center" }}>
+              <Symbol name="chevron.up.chevron.down" size={8} weight="bold" color={theme.onAccent} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
             </View>
           </View>
         )}
@@ -249,6 +259,8 @@ export function Checkbox({
   look?: "form" | "ring";
   size?: keyof typeof CHECK_RING;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, radius } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const on = value || mixed;
   if (look === "ring" && !onChange) return <RingCheck on={!!on} size={size} />;
@@ -262,8 +274,8 @@ export function Checkbox({
     <Pressable disabled={disabled || !onChange} onPress={() => onChange?.(!value)} style={{ flexDirection: "row", alignItems: "center", gap: space.m, opacity: disabled ? opacity.disabled : 1 }}>
       <View
         style={{
-          width: 14,
-          height: 14,
+          width: 14 * interfaceScale,
+          height: 14 * interfaceScale,
           borderRadius: radius.control,
           alignItems: "center",
           justifyContent: "center",
@@ -272,7 +284,7 @@ export function Checkbox({
           borderColor: theme.controlBorder,
         }}
       >
-        {on && <Symbol name={mixed && !value ? "minus" : "checkmark"} size={9} weight="bold" color={theme.onAccent} style={{ width: 14, height: 14 }} />}
+        {on && <Symbol name={mixed && !value ? "minus" : "checkmark"} size={9} weight="bold" color={theme.onAccent} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />}
       </View>
       {label ? <Text style={{ ...typeScale.body, color: theme.textPrimary }}>{label}</Text> : null}
     </Pressable>
@@ -280,12 +292,14 @@ export function Checkbox({
 }
 
 function RingCheck({ on, size = "m" }: { on: boolean; size?: keyof typeof CHECK_RING }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CHECK_RING, CHECK_RING_BORDER } = useMemo(() => ({ CHECK_RING: scaleMetrics(BASE_INTERFACE_METRICS.CHECK_RING, interfaceScale), CHECK_RING_BORDER: scaleMetrics(BASE_INTERFACE_METRICS.CHECK_RING_BORDER, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { box, glyph } = CHECK_RING[size];
   const t = useRef(new Animated.Value(on ? 1 : 0)).current;
   useEffect(() => {
     Animated.timing(t, { toValue: on ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: true }).start();
-  }, [on]);
+  }, [on, interfaceScale]);
   return (
     <View
       style={{
@@ -320,3 +334,5 @@ function RingCheck({ on, size = "m" }: { on: boolean; size?: keyof typeof CHECK_
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { space, radius, BARE_SEARCH, MULTILINE_HEIGHT, MULTILINE_TEXT, MONO, CHECK_RING, CHECK_RING_BORDER };

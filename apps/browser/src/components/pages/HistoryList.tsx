@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import type { HistoryEntry } from "../../state/browser/types";
 import { type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, ScrollView, View } from "react-native";
@@ -28,6 +31,8 @@ export function HistoryList({
   onRemove: (urls: string[]) => void;
   menuTargets: (entry: HistoryEntry) => HistoryEntry[];
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ROW, HEADER, LIST } = useMemo(() => ({ ROW: scaleMetrics(BASE_INTERFACE_METRICS.ROW, interfaceScale), HEADER: scaleMetrics(BASE_INTERFACE_METRICS.HEADER, interfaceScale), LIST: scaleInterfaceStyle(BASE_INTERFACE_METRICS.LIST, interfaceScale) }), [interfaceScale]);
   const { rows, days } = layout;
   const [viewport, setViewport] = useState(800);
   const overscan = Math.round(viewport / 2);
@@ -45,7 +50,7 @@ export function HistoryList({
     const { rows, overscan, band } = rendered.current;
     if (rowAt(rows, scrollY.current - overscan) !== band) rerender((n) => n + 1);
   });
-  const onLayout = useCallback((e: LayoutChangeEvent) => setViewport(Math.max(ROW, Math.round(e.nativeEvent.layout.height))), []);
+  const onLayout = useCallback((e: LayoutChangeEvent) => setViewport(Math.max(ROW, Math.round(e.nativeEvent.layout.height))), [interfaceScale]);
 
   const top = Math.min(band, rows.length - 1);
   const rowCount = Math.min(rowPool, rows.length);
@@ -92,3 +97,5 @@ export function HistoryList({
 }
 
 const LIST = { paddingBottom: pageList.endPad, alignItems: "center" } as const;
+
+const BASE_INTERFACE_METRICS = { ROW, HEADER, LIST };

@@ -1,5 +1,6 @@
+import { RawText as Span } from "../ui/ScaledNative";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Image, Pressable, Text as Span, View, type TextStyle } from "react-native";
+import { Animated, Image, Pressable, View, type TextStyle } from "react-native";
 import { FadeLabel } from "../ui/native";
 import { openLiveItem } from "../../state/live/engine";
 import { summarizeChecks } from "../../state/live/github";

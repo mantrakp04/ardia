@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useRef } from "react";
 import { Pressable, View, type ViewStyle } from "react-native";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
@@ -28,6 +31,8 @@ const PLATE = 32;
 const PLATE_RADIUS = radius.toolbar;
 
 export function SidebarHeaderTools({ width }: { width: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BUTTON, PLATE, PLATE_RADIUS, GLYPH } = useMemo(() => ({ BUTTON: scaleMetrics(BASE_INTERFACE_METRICS.BUTTON, interfaceScale), PLATE: scaleMetrics(BASE_INTERFACE_METRICS.PLATE, interfaceScale), PLATE_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.PLATE_RADIUS, interfaceScale), GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.GLYPH, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const tab = useToolbarTab(useActiveTabId());
   const palette = toolbarPalette(useTheme(), null);
@@ -100,6 +105,8 @@ function NavigationButtons({
 }
 
 export function SidebarAddressRow({ width }: { width: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, SIDEBAR_FIELD } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), SIDEBAR_FIELD: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_FIELD, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const tab = useToolbarTab(useActiveTabId());
   const field = useRef<View>(null);
@@ -124,6 +131,8 @@ export function SidebarAddressRow({ width }: { width: number }) {
 const HOST_ROOM = 84;
 
 function PageField({ tab, windowId, width }: { tab: NonNullable<ReturnType<typeof useToolbarTab>>; windowId: string; width: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { HOST_ROOM, SIDEBAR_FIELD } = useMemo(() => ({ HOST_ROOM: scaleMetrics(BASE_INTERFACE_METRICS.HOST_ROOM, interfaceScale), SIDEBAR_FIELD: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_FIELD, interfaceScale) }), [interfaceScale]);
   const palette = toolbarPalette(useTheme(), null);
   const loading = useTabLive(tab.id, (l) => l.isLoading);
   const loaded = usePageProgress(tab.id);
@@ -140,7 +149,7 @@ function PageField({ tab, windowId, width }: { tab: NonNullable<ReturnType<typeo
       progress={progress}
       accessory={
         extensionsWidth ? (
-          <View style={{ width: extensionsWidth - 6, height: 28 }}>
+          <View style={{ width: extensionsWidth - 6, height: 28 * interfaceScale }}>
             <ToolbarExtensions tabId={tab.id} windowId={windowId} palette={palette} top={0} right={0} limit={limit} />
           </View>
         ) : null
@@ -150,6 +159,8 @@ function PageField({ tab, windowId, width }: { tab: NonNullable<ReturnType<typeo
 }
 
 function EmptyField({ windowId }: { windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SIDEBAR_FIELD, space } = useMemo(() => ({ SIDEBAR_FIELD: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_FIELD, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const open = () => openEmptySidebarField(windowId);
@@ -158,9 +169,11 @@ function EmptyField({ windowId }: { windowId: string }) {
       <Pressable onPress={open}>
         <View style={{ height: SIDEBAR_FIELD.height, justifyContent: "center", paddingLeft: space.l }}>
           <SidebarFieldFill hovered={hovered} />
-          <FadeLabel text="Search or enter address" fontSize={font.body.fontSize} color={theme.placeholder} fadeWidth={14} style={{ height: 18, marginLeft: -space.xxs }} />
+          <FadeLabel text="Search or enter address" fontSize={font.body.fontSize} color={theme.placeholder} fadeWidth={14} style={{ height: 18 * interfaceScale, marginLeft: -space.xxs }} />
         </View>
       </Pressable>
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { BUTTON, PLATE, PLATE_RADIUS, GLYPH, layout, SIDEBAR_FIELD, HOST_ROOM, space };

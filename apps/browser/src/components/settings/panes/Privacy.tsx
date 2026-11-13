@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import {
   clearSiteData,
   getSiteSettings,
@@ -81,6 +84,8 @@ async function writeBlocker(write: () => Promise<unknown>, refresh: () => void) 
 }
 
 export function PrivacyPane() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RULES_LOADED } = useMemo(() => ({ RULES_LOADED: scaleMetrics(BASE_INTERFACE_METRICS.RULES_LOADED, interfaceScale) }), [interfaceScale]);
   const [blocker, refresh, unavailable] = useContentBlocker({ countOutages: true });
   const commandScrollZoom = useSettings((s) => s.commandScrollZoom);
 
@@ -156,6 +161,8 @@ const LISTS = { maxHeight: 420, marginTop: space.m } as const;
 const SITE_LIST = { maxHeight: 380, marginTop: space.l } as const;
 
 function FilterListsSheet() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LISTS } = useMemo(() => ({ LISTS: scaleMetrics(BASE_INTERFACE_METRICS.LISTS, interfaceScale) }), [interfaceScale]);
   const [blocker, refresh] = useContentBlocker();
   const toggle = async (l: FilterList, on: boolean) => {
     if (!blocker) return;
@@ -281,6 +288,7 @@ function SitePermissions() {
 }
 
 function AppLinks() {
+  const interfaceScale = useInterfaceMetrics().factor;
   const [profileId, setProfileId] = useSettingsProfile();
   const [loaded, reload] = useResource(appLinks, currentEngineProfile(profileId));
   const allowed = loaded ?? null;
@@ -301,7 +309,7 @@ function AppLinks() {
           allowed.map((a) => (
             <Row
               key={`${a.origin}|${a.scheme}`}
-              icon={a.icon ? <Image source={{ uri: a.icon }} style={{ width: 20, height: 20 }} /> : <Favicon url={a.origin} />}
+              icon={a.icon ? <Image source={{ uri: a.icon }} style={{ width: 20 * interfaceScale, height: 20 * interfaceScale }} /> : <Favicon url={a.origin} />}
               title={a.origin.replace(/^https?:\/\//, "")}
               description={`Opens ${a.scheme}: links in ${a.app ?? "an app that's no longer installed"}`}
             >
@@ -318,11 +326,13 @@ function AppLinks() {
 }
 
 function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin: string; onChanged: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SITE_LIST } = useMemo(() => ({ SITE_LIST: scaleMetrics(BASE_INTERFACE_METRICS.SITE_LIST, interfaceScale) }), [interfaceScale]);
   const profile = currentEngineProfile(profileId);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [status, setStatus] = useState("");
   const load = () => void getSiteSettings(profile, origin).catch((): SiteSettings => ({}) as SiteSettings).then(setSettings).catch(() => {});
-  useEffect(load, []);
+  useEffect(load, [interfaceScale]);
   const set = async (type: SiteSettingType, value: SiteSettingValue) => {
     await setSiteSetting(profile, origin, type, value);
     load();
@@ -374,3 +384,5 @@ function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin
     </Sheet>
   );
 }
+
+const BASE_INTERFACE_METRICS = { RULES_LOADED, LISTS, SITE_LIST };

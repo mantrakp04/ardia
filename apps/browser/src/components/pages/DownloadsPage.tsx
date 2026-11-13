@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { cancelDownload, keepDownload, pauseDownload, resumeDownload, type Download } from "../../state/downloads/actions";
 import { openFile, revealFile } from "../../state/app/system";
 import { useState } from "react";
@@ -15,6 +18,8 @@ import { hostLabel, matchesQuery, PAGE_WIDTH, PageHeader } from "./PageLayout";
 import { downloadCard, pageList, pageType } from "./tokens";
 
 export function DownloadsPage({ tabId }: { tabId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LIST } = useMemo(() => ({ LIST: scaleInterfaceStyle(BASE_INTERFACE_METRICS.LIST, interfaceScale) }), [interfaceScale]);
   const windowId = useTab(tabId, (t) => t?.windowId ?? "");
   const downloads = useDownloads(windowId, useShallow((list) => list));
   const [query, setQuery] = useState("");
@@ -53,6 +58,8 @@ const ROW_BUTTONS = { flexDirection: "row", gap: space.m } as const;
 const PROGRESS = { marginTop: downloadCard.progressTop } as const;
 
 function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CARD_WIDTH, CARD, CARD_TEXT, PROGRESS, ROW_BUTTONS } = useMemo(() => ({ CARD_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.CARD_WIDTH, interfaceScale), CARD: scaleInterfaceStyle(BASE_INTERFACE_METRICS.CARD, interfaceScale), CARD_TEXT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.CARD_TEXT, interfaceScale), PROGRESS: scaleMetrics(BASE_INTERFACE_METRICS.PROGRESS, interfaceScale), ROW_BUTTONS: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ROW_BUTTONS, interfaceScale) }), [interfaceScale]);
   const { hovered, hoverProps } = useHover();
   const { exists, done, progress, blocked } = useDownloadView(d);
   return (
@@ -112,3 +119,5 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { LIST, CARD_WIDTH, CARD, CARD_TEXT, PROGRESS, ROW_BUTTONS };

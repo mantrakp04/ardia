@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, ScrollView, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { switchOn } from "../../state/app/switches";
@@ -44,6 +46,8 @@ type PageProps = {
 };
 
 export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, width, current, resting, dockAbove, height, rows, geometry, onScrollView, onScrollY }: PageProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, GLOW_ROOM, LIST_PAD, space, DOCKED_BOTTOM } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), GLOW_ROOM: scaleMetrics(BASE_INTERFACE_METRICS.GLOW_ROOM, interfaceScale), LIST_PAD: scaleMetrics(BASE_INTERFACE_METRICS.LIST_PAD, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), DOCKED_BOTTOM: scaleMetrics(BASE_INTERFACE_METRICS.DOCKED_BOTTOM, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const topGap = listTopGap(useAddressBarInSidebar());
   const pageStyle = usePageStyle(windowId, slot, width);
@@ -54,7 +58,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
     if (!beside) return;
     const frame = requestAnimationFrame(() => setBeside(false));
     return () => cancelAnimationFrame(frame);
-  }, [beside]);
+  }, [beside, interfaceScale]);
   const offScreen = beside && !current;
   const playerTab = useSidebarPlayerTab(windowId, profileId);
   const playerHeight = playerTab ? SIDEBAR_PLAYER_HEIGHT : 0;
@@ -86,7 +90,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
   const scrolledTiles = dockFixed ? NONE : tiles;
   useLayoutEffect(() => {
     if (geometry) geometry.current.tilesFixed = dockFixed;
-  }, [geometry, dockFixed]);
+  }, [geometry, dockFixed, interfaceScale]);
   const scrollEdge = useScrollEdge();
   const scrollY = useRef(new Animated.Value(0)).current;
   const isCurrent = useRef(current);
@@ -97,7 +101,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
     geometry.current.viewport = page.viewport;
     geometry.current.regions = page.regions;
     onScrollY(page.scrollY);
-  }, [geometry]);
+  }, [geometry, interfaceScale]);
   const [onScroll] = useState(() =>
     Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
       useNativeDriver: true,
@@ -108,8 +112,8 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
       },
     }),
   );
-  const edge = useMemo(() => scrollY.interpolate({ inputRange: [0, 1], outputRange: [0, GLOW_ROOM], extrapolate: "clamp" }), [scrollY]);
-  const unedge = useMemo(() => Animated.multiply(edge, -1), [edge]);
+  const edge = useMemo(() => scrollY.interpolate({ inputRange: [0, 1], outputRange: [0, GLOW_ROOM], extrapolate: "clamp" }), [scrollY, interfaceScale]);
+  const unedge = useMemo(() => Animated.multiply(edge, -1), [edge, interfaceScale]);
   const report = () => {
     const m = measured.current;
     if (resting || m.list === null) return;
@@ -125,7 +129,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
     measured.current.fixed = e.nativeEvent.layout.height;
     report();
   };
-  useEffect(report, [playerHeight, resting]);
+  useEffect(report, [playerHeight, resting, interfaceScale]);
   const inlineNewTab = !docked;
 
   return (
@@ -217,3 +221,5 @@ function PageContent({ tilesFixed, tilesRoom, children }: PageContentProps) {
   }, [controller, tilesFixed, tilesRoom]);
   return <>{children(controller)}</>;
 }
+
+const BASE_INTERFACE_METRICS = { layout, GLOW_ROOM, LIST_PAD, space, DOCKED_BOTTOM };

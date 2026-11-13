@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { forwardRef, memo, useMemo, useRef, type ReactNode } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, View } from "react-native";
 import { useBookmarkProfileId, useBookmarks, useSidebarEdge } from "../../state/bookmarks/hooks";
@@ -127,6 +129,8 @@ export const BarButton = forwardRef<View, {
   active?: boolean;
   dropRing?: boolean;
 }>(function BarButton({ title, icon, favicon, tooltip, onPress, width, active, dropRing }, ref) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TITLE } = useMemo(() => ({ TITLE: scaleMetrics(BASE_INTERFACE_METRICS.TITLE, interfaceScale) }), [interfaceScale]);
   const { hovered, hoverProps } = useHover();
   const size = useBarSize();
   return (
@@ -207,3 +211,5 @@ export function ImportButton() {
     </ContextMenuArea>
   );
 }
+
+const BASE_INTERFACE_METRICS = { TITLE };

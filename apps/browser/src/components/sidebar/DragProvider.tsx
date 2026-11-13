@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { devRegister } from "../dev/devRegister";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Animated, PanResponder, type View } from "react-native";
@@ -17,15 +19,18 @@ const DROP_GLOW_PLACE = { left: 5, right: 5, top: 44, bottom: 6, borderRadius: r
 const DragContext = createContext<DragController | null>(null);
 
 export function DragProvider({ children }: { children: (ghost: Ghost | null, controller: DragController) => ReactNode }) {
-  const controller = useMemo(() => new DragController(), []);
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DROP_GLOW_PLACE } = useMemo(() => ({ DROP_GLOW_PLACE: scaleMetrics(BASE_INTERFACE_METRICS.DROP_GLOW_PLACE, interfaceScale) }), [interfaceScale]);
+  const { factor } = useInterfaceMetrics();
+  const controller = useMemo(() => new DragController(), [factor, interfaceScale]);
   const [ghost, setGhost] = useState<Ghost | null>(null);
   controller.setGhost = setGhost;
-  useEffect(() => () => void (controller.active && controller.end(false)), [controller]);
-  useEffect(() => devRegister("sidebarDrag", null, controller), [controller]);
+  useEffect(() => () => void (controller.active && controller.end(false)), [controller, interfaceScale]);
+  useEffect(() => devRegister("sidebarDrag", null, controller), [controller, interfaceScale]);
   useEffect(() => {
     const sub = onAppEvent((e) => e.type === "dragEscape" && controller.active && controller.end(false));
     return () => sub.remove();
-  }, [controller]);
+  }, [controller, interfaceScale]);
   return (
     <DragContext.Provider value={controller}>
       {children(ghost, controller)}
@@ -63,9 +68,11 @@ export const useDragFolded = (key: string) => useStore(useContext(DragContext)?.
 export const useDragging = () => useStore(useContext(DragContext)?.marks ?? noDragMarks, (m) => m.sources.size > 0);
 
 export function useDragItem(key: string, spec: ItemSpec, clip: ClipSource | null = null) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ROW_GAP, RESTING_TAIL } = useMemo(() => ({ ROW_GAP: scaleMetrics(BASE_INTERFACE_METRICS.ROW_GAP, interfaceScale), RESTING_TAIL: scaleMetrics(BASE_INTERFACE_METRICS.RESTING_TAIL, interfaceScale) }), [interfaceScale]);
   const controller = useContext(DragContext) ?? undefined;
   const marks = controller?.marks ?? noDragMarks;
-  const item = useMemo(() => controller?.create(key), [controller, key]);
+  const item = useMemo(() => controller?.create(key), [controller, key, interfaceScale]);
   if (item) Object.assign(item, spec);
   useEffect(() => {
     if (!controller || !item) return;
@@ -73,7 +80,7 @@ export function useDragItem(key: string, spec: ItemSpec, clip: ClipSource | null
     return () => {
       if (controller.items.get(key) === item) controller.items.delete(key);
     };
-  }, [controller, item, key]);
+  }, [controller, item, key, interfaceScale]);
 
   const responder = useMemo(() => {
     let far = 0;
@@ -97,25 +104,25 @@ export function useDragItem(key: string, spec: ItemSpec, clip: ClipSource | null
       onPanResponderTerminate: () => controller?.end(false),
       onPanResponderTerminationRequest: () => false,
     });
-  }, [controller, key]);
+  }, [controller, key, interfaceScale]);
   const ref = useCallback(
     (view: View | null) => {
       if (item) item.view = view;
     },
-    [item],
+    [item, interfaceScale],
   );
   const headerRef = useCallback(
     (view: View | null) => {
       if (item) item.header = view;
     },
-    [item],
+    [item, interfaceScale],
   );
 
   const source = useStore(marks, (m) => m.sources.has(key));
   const landing = useStore(marks, (m) => m.landing === key);
   const clipped = useClipped(clip);
   const horizontal = spec.kind === "tile";
-  const tailOffset = useMemo(() => item && Animated.add(item.gap, -ROW_GAP), [item]);
+  const tailOffset = useMemo(() => item && Animated.add(item.gap, -ROW_GAP), [item, ROW_GAP, interfaceScale]);
   const style = item
     ? {
         ...(horizontal ? null : { marginTop: spec.kind === "tail" ? tailOffset! : item.gap }),
@@ -133,3 +140,5 @@ export function useDragItem(key: string, spec: ItemSpec, clip: ClipSource | null
       : {};
   return { wrapper: { ref, style }, handle: responder.panHandlers, headerRef, dragging: source, gap: item?.gap };
 }
+
+const BASE_INTERFACE_METRICS = { DROP_GLOW_PLACE, ROW_GAP, RESTING_TAIL };

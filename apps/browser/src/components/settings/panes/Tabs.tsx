@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
@@ -187,6 +190,8 @@ function CleanUpRow({ minutes }: { minutes: number | null }) {
 }
 
 function CustomCleanUpSheet({ minutes }: { minutes: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FIELDS, ERROR } = useMemo(() => ({ FIELDS: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FIELDS, interfaceScale), ERROR: scaleMetrics(BASE_INTERFACE_METRICS.ERROR, interfaceScale) }), [interfaceScale]);
   const start = durationParts(minutes);
   const [amount, setAmount] = useState(String(start.amount));
   const [unit, setUnit] = useState<DurationUnit>(start.unit);
@@ -236,3 +241,5 @@ function LayoutChoice({ layout, title, selected, side }: { layout: "sidebar" | "
     </PictureChoice>
   );
 }
+
+const BASE_INTERFACE_METRICS = { FIELDS, ERROR };

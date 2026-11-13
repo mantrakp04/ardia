@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { Button, ContextMenuArea, PinchArea, pinchScale, pinchSettle, reduceMotion, useHover, WindowBackdrop, WindowDragRegion, type PinchMotion, type SwipeEvent } from "../ui";
 import { setTrafficLightsCenter } from "../../state/windows/nativeWindow";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -39,6 +41,7 @@ const FORWARD_AT = { style: { position: "absolute" as const, top: BUTTON_TOP, le
 const alreadyFocused = () => {};
 
 export function LittleArdiaWindow() {
+  const interfaceScale = useInterfaceMetrics().factor;
   const theme = useTheme();
   const windowId = useWindowId();
   const fullScreen = useWindowFullScreen(windowId);
@@ -47,7 +50,7 @@ export function LittleArdiaWindow() {
   const gestures = useSettings((s) => s.littleWindowGestures) && !fullScreen;
   const pinch = useLittleArdiaPinch(windowId);
   const swipe = useLittleArdiaSwipeClose(windowId);
-  useEffect(startLittleArdiaNewTabLinks, []);
+  useEffect(startLittleArdiaNewTabLinks, [interfaceScale]);
   return (
     <View style={{ flex: 1 }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <Animated.View style={{ ...StyleSheet.absoluteFillObject, opacity: swipe.opacity, transform: [{ translateX: swipe.x }] }}>
@@ -55,7 +58,7 @@ export function LittleArdiaWindow() {
         <PinchArea enabled={gestures} motion={pinch.motion} style={StyleSheet.absoluteFill}>
           <Animated.View style={{ flex: 1, transform: [{ scale: pinch.scale }] }}>
             <SwipeCloseContext.Provider value={gestures ? swipe.onSwipe : null}>
-              <View style={{ flex: 1, flexDirection: "row", paddingTop: SMALL_BAR_HEIGHT, paddingLeft: frame, paddingRight: frame, paddingBottom: frame }}>
+              <View style={{ flex: 1, flexDirection: "row", paddingTop: SMALL_BAR_HEIGHT * interfaceScale, paddingLeft: frame, paddingRight: frame, paddingBottom: frame }}>
                 <ContentCard />
               </View>
             </SwipeCloseContext.Provider>
@@ -73,6 +76,8 @@ export function LittleArdiaWindow() {
 }
 
 function useLittleArdiaPinch(windowId: string) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LITTLE_ARDIA_PINCH } = useMemo(() => ({ LITTLE_ARDIA_PINCH: BASE_INTERFACE_METRICS.LITTLE_ARDIA_PINCH }), [interfaceScale]);
   const [scale] = useState(() => new Animated.Value(1));
   const leaving = useRef(false);
   const settle = () => pinchSettle([{ value: scale, to: 1 }]);
@@ -102,8 +107,10 @@ function useLittleArdiaPinch(windowId: string) {
 }
 
 function useLittleArdiaSwipeClose(windowId: string) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LITTLE_ARDIA_SWIPE_CLOSE } = useMemo(() => ({ LITTLE_ARDIA_SWIPE_CLOSE: scaleMetrics(BASE_INTERFACE_METRICS.LITTLE_ARDIA_SWIPE_CLOSE, interfaceScale) }), [interfaceScale]);
   const [x] = useState(() => new Animated.Value(0));
-  const opacity = useMemo(() => x.interpolate({ inputRange: [0, LITTLE_ARDIA_SWIPE_CLOSE.fadeOver], outputRange: [1, 0], extrapolate: "clamp" }), [x]);
+  const opacity = useMemo(() => x.interpolate({ inputRange: [0, LITTLE_ARDIA_SWIPE_CLOSE.fadeOver], outputRange: [1, 0], extrapolate: "clamp" }), [x, interfaceScale]);
   const settle = () => pinchSettle([{ value: x, to: 0 }]);
   const close = () => {
     noteSwipeClose(true);
@@ -128,6 +135,8 @@ function useLittleArdiaSwipeClose(windowId: string) {
 }
 
 function LittleArdiaBar() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FIELD_LEFT, FIELD_MAX_WIDTH, BUTTON_TOP } = useMemo(() => ({ FIELD_LEFT: scaleMetrics(BASE_INTERFACE_METRICS.FIELD_LEFT, interfaceScale), FIELD_MAX_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.FIELD_MAX_WIDTH, interfaceScale), BUTTON_TOP: scaleMetrics(BASE_INTERFACE_METRICS.BUTTON_TOP, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const tab = useActiveTab();
   const panelOpen = useWindowUi().panel.open;
@@ -135,9 +144,9 @@ function LittleArdiaBar() {
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
-    void setTrafficLightsCenter(windowId, SMALL_LIGHTS_CENTER);
-  }, [windowId]);
-  useEffect(() => () => clearTimeout(copiedTimer.current), []);
+    void setTrafficLightsCenter(windowId, SMALL_LIGHTS_CENTER.map((v) => v * interfaceScale) as [number, number]);
+  }, [windowId, interfaceScale]);
+  useEffect(() => () => clearTimeout(copiedTimer.current), [interfaceScale]);
 
   const copy = () => {
     if (!tab?.url) return;
@@ -166,6 +175,8 @@ function LittleArdiaBar() {
 }
 
 function HistoryButtons({ tabId, windowId }: { tabId: string; windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BACK_AT, FORWARD_AT } = useMemo(() => ({ BACK_AT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.BACK_AT, interfaceScale), FORWARD_AT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FORWARD_AT, interfaceScale) }), [interfaceScale]);
   const palette = toolbarPalette(useTheme(), null);
   const history = useHistoryAvailability(tabId);
   return (
@@ -208,3 +219,5 @@ function PageField({ tab, windowId, hidden }: { tab: Tab; windowId: string; hidd
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { LITTLE_ARDIA_PINCH, LITTLE_ARDIA_SWIPE_CLOSE, FIELD_LEFT, FIELD_MAX_WIDTH, BUTTON_TOP, BACK_AT, FORWARD_AT };

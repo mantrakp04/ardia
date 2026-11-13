@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Animated, View } from "react-native";
 import { useTab } from "../../state/browser/hooks";
@@ -31,10 +33,12 @@ export function useStripCardHover(windowId: string, tabId: string, view: RefObje
 }
 
 export function StripHoverCard({ windowId, stripBottom, windowWidth }: { windowId: string; stripBottom: number; windowWidth: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { STRIP_CARD_WIDTH, STRIP_CARD_MARGIN, STRIP_CARD_GAP } = useMemo(() => ({ STRIP_CARD_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.STRIP_CARD_WIDTH, interfaceScale), STRIP_CARD_MARGIN: scaleMetrics(BASE_INTERFACE_METRICS.STRIP_CARD_MARGIN, interfaceScale), STRIP_CARD_GAP: scaleMetrics(BASE_INTERFACE_METRICS.STRIP_CARD_GAP, interfaceScale) }), [interfaceScale]);
   const hover = useStripHover((s) => (s.hover?.windowId === windowId ? s.hover : null));
   const { drawn, motion } = useHoverCardMotion(`strip:${windowId}`, hover);
   const [height, setHeight] = useState(0);
-  const origin = useMemo(() => ({ x: 0, top: 0 }), []);
+  const origin = useMemo(() => ({ x: 0, top: 0 }), [interfaceScale]);
   useHoverCardPlacement(motion, drawn ? origin : null, { width: STRIP_CARD_WIDTH, height });
   if (!drawn) return null;
   const left = Math.max(STRIP_CARD_MARGIN, Math.min(drawn.anchor.x, windowWidth - STRIP_CARD_WIDTH - STRIP_CARD_MARGIN));
@@ -50,6 +54,8 @@ export function StripHoverCard({ windowId, stripBottom, windowWidth }: { windowI
 }
 
 function StripCardContent({ tabId }: { tabId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { STRIP_CARD_WIDTH } = useMemo(() => ({ STRIP_CARD_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.STRIP_CARD_WIDTH, interfaceScale) }), [interfaceScale]);
   const tab = useTab(tabId);
   if (!tab) return null;
   return (
@@ -58,3 +64,5 @@ function StripCardContent({ tabId }: { tabId: string }) {
     </HoverPanel>
   );
 }
+
+const BASE_INTERFACE_METRICS = { STRIP_CARD_WIDTH, STRIP_CARD_MARGIN, STRIP_CARD_GAP };

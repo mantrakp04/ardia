@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { Text } from "./Text";
 import { useTheme } from "./theme";
@@ -6,6 +9,8 @@ import { font, radius, space, weight, withAlpha } from "./tokens";
 const KEY_CAP = { height: 24, minWidth: 38, editingRing: 1.5, editingFill: 0.2 } as const;
 
 export function KeyCap({ keys, editing = false, empty = false, hovered = false, scale = 1 }: { keys: string[]; editing?: boolean; empty?: boolean; hovered?: boolean; scale?: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { KEY_CAP, space, radius } = useMemo(() => ({ KEY_CAP: scaleMetrics(BASE_INTERFACE_METRICS.KEY_CAP, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
     <View
@@ -27,3 +32,5 @@ export function KeyCap({ keys, editing = false, empty = false, hovered = false, 
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { KEY_CAP, space, radius };

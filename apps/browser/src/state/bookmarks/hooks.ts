@@ -1,3 +1,4 @@
+import { interfaceMetrics } from "../../lib/interfaceMetrics";
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
 import { bookmarkProfileId, engineProfile, sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";

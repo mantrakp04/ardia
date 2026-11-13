@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { permissionWarnings } from "@ardia/core";
 import { Image, Pressable, ScrollView } from "react-native";
 import { cancelInstall, closePinDialog, confirmInstall, setPinned, useWindowExtensions, type InstallRequest } from "../../state/extensions/actions";
@@ -15,6 +18,8 @@ function focusShownPage(windowId: string) {
 }
 
 export function InstallDialog({ request }: { request: InstallRequest }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, ICON, PERMISSIONS_MAX_HEIGHT, FLEX } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), ICON: scaleMetrics(BASE_INTERFACE_METRICS.ICON, interfaceScale), PERMISSIONS_MAX_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.PERMISSIONS_MAX_HEIGHT, interfaceScale), FLEX: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FLEX, interfaceScale) }), [interfaceScale]);
   const pkg = request.status === "ready" || request.status === "installing" ? request.pkg : null;
   const prompt = request.status === "prompt" ? request.prompt : null;
   const name = pkg?.name ?? prompt?.name ?? "Extension";
@@ -85,6 +90,8 @@ export function InstallDialog({ request }: { request: InstallRequest }) {
 }
 
 export function PinDialog({ windowId }: { windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PIN_LIST_MAX_HEIGHT, space } = useMemo(() => ({ PIN_LIST_MAX_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.PIN_LIST_MAX_HEIGHT, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const profile = useExtensionProfile(windowId);
   const list = useWindowExtensions(windowId);
   const close = closePinDialog;
@@ -110,10 +117,12 @@ export function PinDialog({ windowId }: { windowId: string }) {
 }
 
 function PinRow({ ext, onChange }: { ext: InstalledExtension; onChange: (pinned: boolean) => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PIN_ROW, FLEX } = useMemo(() => ({ PIN_ROW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.PIN_ROW, interfaceScale), FLEX: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FLEX, interfaceScale) }), [interfaceScale]);
   return (
     <Pressable onPress={() => onChange(!ext.pinned)} style={PIN_ROW}>
       <Checkbox value={ext.pinned} onChange={onChange} />
-      <Image source={{ uri: ext.actionIcon || ext.icon }} style={{ width: 16, height: 16 }} />
+      <Image source={{ uri: ext.actionIcon || ext.icon }} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
       <Text numberOfLines={1} style={FLEX}>
         {ext.name}
       </Text>
@@ -124,3 +133,5 @@ function PinRow({ ext, onChange }: { ext: InstalledExtension; onChange: (pinned:
 const FLEX = { flex: 1 } as const;
 const ICON = { width: EXTENSION_ICON, height: EXTENSION_ICON } as const;
 const PIN_ROW = { flexDirection: "row", alignItems: "center", gap: space.ml, paddingVertical: space.s } as const;
+
+const BASE_INTERFACE_METRICS = { space, ICON, PERMISSIONS_MAX_HEIGHT, FLEX, PIN_LIST_MAX_HEIGHT, PIN_ROW };

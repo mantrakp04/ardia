@@ -1,4 +1,5 @@
-import { AppRegistry, Text, View } from "react-native";
+import { RawText as Text } from "../ui/ScaledNative";
+import { AppRegistry, View } from "react-native";
 import { answerWithSkew, openSkewWindow } from "../../state/app/nativeApiSkew";
 import { space } from "../ui/tokens";
 import { DEV_ERROR, NATIVE_SKEW_PAD_TOP } from "./tokens";

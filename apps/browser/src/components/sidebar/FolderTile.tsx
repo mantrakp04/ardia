@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { memo, useRef } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { concentric, ContextMenuArea, radius, space, Symbol } from "../ui";
@@ -20,6 +23,7 @@ const MOSAICS = {
 } as const;
 
 export const FolderTile = memo(function FolderTile({ folderId, width, sliding, x, y }: { folderId: string; width: number; sliding: boolean; x: number; y: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
   const theme = useTheme();
   const windowId = useWindowId();
   const members = useTileFolderMembers(windowId, folderId);
@@ -32,7 +36,7 @@ export const FolderTile = memo(function FolderTile({ folderId, width, sliding, x
   const position = useSlotPosition(x, y, width, sliding, dragging);
   const pressedAt = useRef<number | undefined>(undefined);
   if (!members.length) return null;
-  const glyph = <Symbol name="folder.fill" size={7} color={theme.textSecondary} style={{ position: "absolute", bottom: 3, right: 4, width: 10, height: 9 }} />;
+  const glyph = <Symbol name="folder.fill" size={7} color={theme.textSecondary} style={{ position: "absolute", bottom: 3 * interfaceScale, right: 4 * interfaceScale, width: 10 * interfaceScale, height: 9 * interfaceScale }} />;
 
   return (
     <Animated.View ref={wrapper.ref} style={[{ position: "absolute", ...position.getLayout() }, wrapper.style]} {...handle}>
@@ -63,6 +67,8 @@ export const FolderTile = memo(function FolderTile({ folderId, width, sliding, x
 });
 
 export function FolderMosaic({ tabIds, scale = "tile" }: { tabIds: string[]; scale?: keyof typeof MOSAICS }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius, MOSAICS } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), MOSAICS: scaleMetrics(BASE_INTERFACE_METRICS.MOSAICS, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { cell, gap, pad, radius: corner } = MOSAICS[scale];
   const side = pad * 2 + cell * 2 + gap;
@@ -95,3 +101,5 @@ function MosaicIcon({ tabId, cell }: { tabId: string; cell: number }) {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { radius, MOSAICS };

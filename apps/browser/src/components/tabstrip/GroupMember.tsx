@@ -1,5 +1,8 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { RawText as Text } from "../ui/ScaledNative";
 import { useEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { useGroup, useWindowId } from "../../state/browser/hooks";
 import { hasOwnGroupIcon } from "../../state/groups/groupIcons";
 import { iconSymbol } from "../../lib/customIcon";
@@ -52,11 +55,13 @@ export function GroupMember({
   tuck?: () => void;
   out: GroupOut;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TOP_STRIP_HEIGHT } = useMemo(() => ({ TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale) }), [interfaceScale]);
   const shownValue = useRef(new Animated.Value(shown ? 1 : 0)).current;
   useEffect(() => {
     Animated.timing(shownValue, { toValue: shown ? 1 : 0, duration: TUCK_FADE_MS, easing: curve.enter, useNativeDriver: false }).start();
-  }, [shown]);
-  const left = useMemo(() => open.interpolate({ inputRange: [0, 1], outputRange: [start, start + offset] }), [start, offset]);
+  }, [shown, interfaceScale]);
+  const left = useMemo(() => open.interpolate({ inputRange: [0, 1], outputRange: [start, start + offset] }), [start, offset, interfaceScale]);
   const opacity = useMemo(
     () =>
       Animated.add(shownValue, open.interpolate({ inputRange: [0, 0.5], outputRange: [0, 1], extrapolate: "clamp" })).interpolate({
@@ -64,7 +69,7 @@ export function GroupMember({
         outputRange: [0, 1],
         extrapolate: "clamp",
       }),
-    [],
+    [interfaceScale],
   );
   return (
     <Animated.View pointerEvents={interactive ? "box-none" : "none"} style={{ position: "absolute", top: 0, left, width, height: TOP_STRIP_HEIGHT, opacity: measured ? opacity : 0, zIndex: shown ? 2 : 1 }}>
@@ -80,6 +85,8 @@ export function GroupMember({
 }
 
 function FolderMember({ groupId, chip, shownTab, tuck }: { groupId: string; chip: number; shownTab: string | null; tuck?: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TOP_STRIP_HEIGHT } = useMemo(() => ({ TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale) }), [interfaceScale]);
   const width = useMeasuredWidth(folderKey(groupId)) ?? 0;
   return (
     <View pointerEvents="box-none" style={{ height: TOP_STRIP_HEIGHT }}>
@@ -94,6 +101,8 @@ function FolderMember({ groupId, chip, shownTab, tuck }: { groupId: string; chip
 }
 
 function FolderChip({ groupId, holding }: { groupId: string; holding: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { MID, FOLDER_HEIGHT, FOLDER_PAD, FOLDER_RADIUS, CHIP_HAIRLINE, FOLDER_TITLE_GAP, FOLDER_TITLE_MAX, space } = useMemo(() => ({ MID: scaleMetrics(BASE_INTERFACE_METRICS.MID, interfaceScale), FOLDER_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.FOLDER_HEIGHT, interfaceScale), FOLDER_PAD: scaleMetrics(BASE_INTERFACE_METRICS.FOLDER_PAD, interfaceScale), FOLDER_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.FOLDER_RADIUS, interfaceScale), CHIP_HAIRLINE: scaleMetrics(BASE_INTERFACE_METRICS.CHIP_HAIRLINE, interfaceScale), FOLDER_TITLE_GAP: scaleMetrics(BASE_INTERFACE_METRICS.FOLDER_TITLE_GAP, interfaceScale), FOLDER_TITLE_MAX: scaleMetrics(BASE_INTERFACE_METRICS.FOLDER_TITLE_MAX, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const windowId = useWindowId();
@@ -132,7 +141,7 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
               <Text numberOfLines={1} style={{ marginLeft: FOLDER_TITLE_GAP, maxWidth: FOLDER_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: titleInk }}>
                 {label}
               </Text>
-              <Symbol name="chevron.down" size={8} weight="semibold" color={withAlpha(titleInk, 0.6)} style={{ marginLeft: space.xs, width: 9, height: 9 }} />
+              <Symbol name="chevron.down" size={8} weight="semibold" color={withAlpha(titleInk, 0.6)} style={{ marginLeft: space.xs, width: 9 * interfaceScale, height: 9 * interfaceScale }} />
             </View>
           )}
         </Pressable>
@@ -142,14 +151,18 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
 }
 
 export function StripGroupIcon({ icon, tint }: { icon: string | null; tint: string | null | undefined }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { NEUTRAL_GROUP_SWATCH } = useMemo(() => ({ NEUTRAL_GROUP_SWATCH: scaleMetrics(BASE_INTERFACE_METRICS.NEUTRAL_GROUP_SWATCH, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   if (!hasOwnGroupIcon(icon)) return <GroupGlyph color={tint ?? (theme.dark ? NEUTRAL_GROUP_SWATCH.dark : NEUTRAL_GROUP_SWATCH.light)} />;
   const symbol = iconSymbol(icon);
-  if (symbol) return <Symbol name={symbol} size={11} weight="medium" color={tint ?? theme.icon} style={{ width: 13, height: 13 }} />;
+  if (symbol) return <Symbol name={symbol} size={11} weight="medium" color={tint ?? theme.icon} style={{ width: 13 * interfaceScale, height: 13 * interfaceScale }} />;
   return <TabIcon url="" icon={icon} />;
 }
 
 function GroupGlyph({ color }: { color: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GROUP_GLYPH, radius } = useMemo(() => ({ GROUP_GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_GLYPH, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   return (
     <View style={{ width: GROUP_GLYPH.width, height: GROUP_GLYPH.height, flexDirection: "row", alignItems: "center" }}>
       <View style={{ width: GROUP_GLYPH.sliver, height: GROUP_GLYPH.backHeight, borderRadius: capsule(GROUP_GLYPH.sliver), backgroundColor: color, opacity: 0.5 }} />
@@ -158,3 +171,5 @@ function GroupGlyph({ color }: { color: string }) {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { TOP_STRIP_HEIGHT, MID, FOLDER_HEIGHT, FOLDER_PAD, FOLDER_RADIUS, CHIP_HAIRLINE, FOLDER_TITLE_GAP, FOLDER_TITLE_MAX, space, NEUTRAL_GROUP_SWATCH, GROUP_GLYPH, radius };

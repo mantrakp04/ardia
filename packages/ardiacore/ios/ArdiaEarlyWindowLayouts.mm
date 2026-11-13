@@ -34,6 +34,7 @@ NSString *StateOf(ArdiaSavedSession *session, NSString *windowId) {
   NSMutableDictionary *state = [NSMutableDictionary dictionary];
   for (NSString *key in @[ @"tabLayout", @"sidebarSide", @"addressBar", @"sidebarWidth", @"bookmarksBar", @"appearance", @"hideToolbarWhileScrolling", @"showFullUrl" ])
     if (settings[key]) state[[@"s." stringByAppendingString:key]] = settings[key];
+  if ([@[@"110", @"125", @"150"] containsObject:settings[@"interfaceSize"] ?: @""]) state[@"s.interfaceSize"] = settings[@"interfaceSize"];
   if ([settings[@"compactToolbar"] isEqual:@YES]) state[@"s.compactToolbar"] = @YES;
   if ([settings[@"borderlessMode"] isEqual:@YES]) state[@"s.borderlessMode"] = @YES;
   if ([settings[@"pageFrame"] isKindOfClass:NSNumber.class] && ![settings[@"pageFrame"] isEqual:@9]) state[@"s.pageFrame"] = settings[@"pageFrame"];

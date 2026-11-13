@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import { Box, Symbol, Text, useHover, useTheme } from "../ui";
@@ -21,6 +24,8 @@ export function PictureChoice({
   size: "m" | "l" | "icon";
   children: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CHECK } = useMemo(() => ({ CHECK: scaleMetrics(BASE_INTERFACE_METRICS.CHECK, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const icon = size === "icon";
@@ -48,3 +53,5 @@ export function PictureChoice({
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { CHECK };

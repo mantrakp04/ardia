@@ -1,6 +1,10 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { TextInput as TextInput } from "../ui/ScaledNative";
+import { useMemo } from "react";
 import type { SearchScope } from "@ardia/core";
 import type { ComponentProps, RefObject } from "react";
-import { TextInput } from "react-native";
+
 import { useTheme } from "../ui";
 import { PASTED_TYPES } from "./omniboxKeys";
 import { BAR, BAR_TYPE } from "./tokens";
@@ -25,6 +29,8 @@ export function BarField({
   scope: SearchScope | null;
   incognito: boolean;
 } & Pick<InputProps, "value" | "onLayout" | "onChangeText" | "onSubmitEditing" | "onFocus" | "onBlur" | "keyDownEvents" | "onKeyDown">) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BAR_TYPE, BAR } = useMemo(() => ({ BAR_TYPE: BASE_INTERFACE_METRICS.BAR_TYPE, BAR: scaleMetrics(BASE_INTERFACE_METRICS.BAR, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const type = variant === "hero" ? BAR_TYPE.heroField : variant === "sidebar" || floating ? BAR_TYPE.floatingField : BAR_TYPE.panelField;
   return (
@@ -59,3 +65,5 @@ export function BarField({
     />
   );
 }
+
+const BASE_INTERFACE_METRICS = { BAR_TYPE, BAR };

@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { Animated } from "react-native";
 import { Badge, FadeLabel, font, Panel, radius, space } from "../ui";
 import { layout, useTheme } from "../ui/theme";
@@ -13,6 +16,8 @@ import { SIDEBAR_SHADOW, TAB_ROW, useSidebarTokens } from "./tokens";
 import { folderOf } from "./dragModel";
 
 export function DragGhost({ ghost }: { ghost: Ghost }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius, SIDEBAR_SHADOW, layout, TAB_ROW, space } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), SIDEBAR_SHADOW: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_SHADOW, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const { item, count, width, height, position } = ghost;
@@ -57,3 +62,5 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
 }
 
 const COUNT_BADGE = { position: "absolute", top: -6, right: -4 } as const;
+
+const BASE_INTERFACE_METRICS = { radius, SIDEBAR_SHADOW, layout, TAB_ROW, space };
