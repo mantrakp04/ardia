@@ -18,9 +18,9 @@ const ACTIONS_DIVIDER = { marginLeft: space.m } as const;
 
 type PinnedFold = { collapsed: boolean; open: Animated.Value };
 
-type DividerProps = { windowId: string; profileId: string; lift: number; clear: boolean; tidy: boolean; pinned: PinnedFold | null };
+type DividerProps = { windowId: string; profileId: string; lift: number; clear: boolean; tidy: boolean; line: boolean; pinned: PinnedFold | null };
 
-export const ClearDivider = memo(function ClearDivider({ windowId, profileId, lift, clear, tidy, pinned }: DividerProps) {
+export const ClearDivider = memo(function ClearDivider({ windowId, profileId, lift, clear, tidy, line, pinned }: DividerProps) {
   const theme = useTheme();
   const { hovered: shown, hoverProps } = useHover();
   const [lineWidth, setLineWidth] = useState(0);
@@ -42,7 +42,7 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, li
       >
         {pinned ? <HoverSlot hovered={foldShown} width="content" reserve="hover" align="start" hover={<FoldButton pinned={pinned} onPress={() => togglePinnedFold(profileId)} />} /> : null}
         <View style={{ flex: 1, height: 1, overflow: "hidden" }}>
-          {lineWidth ? (
+          {line && lineWidth ? (
             <View style={{ position: "absolute", left: 0, top: -1, width: lineWidth, height: 2, borderBottomWidth: 1, borderStyle: "dashed", borderColor: theme.divider }} />
           ) : null}
         </View>
