@@ -33,12 +33,14 @@ typedef NS_ENUM(NSInteger, ArdiaProfileToggle) {
   ArdiaProfileTogglePasswordsOffered,
   ArdiaProfileToggleAddressesAutofilled,
   ArdiaProfileToggleCardsAutofilled,
-  ArdiaProfileTogglePreloadPages,
 };
 
 + (BOOL)profileToggle:(ArdiaProfileToggle)toggle profile:(NSString *)profile NS_SWIFT_NAME(profileToggle(_:profile:));
 + (void)setProfileToggle:(ArdiaProfileToggle)toggle value:(BOOL)value profile:(NSString *)profile
     NS_SWIFT_NAME(setProfileToggle(_:value:profile:));
+
++ (void)preloadPages:(NSString *)profile reply:(ArdiaServiceReply)reply NS_SWIFT_NAME(preloadPages(profile:reply:));
++ (void)setPreloadPages:(BOOL)on profile:(NSString *)profile reply:(ArdiaServiceReply)reply NS_SWIFT_NAME(setPreloadPages(_:profile:reply:));
 
 + (void)addresses:(NSString *)profile reply:(ArdiaServiceReply)reply NS_SWIFT_NAME(addresses(profile:reply:));
 + (void)saveAddress:(NSDictionary<NSString *, id> *)address profile:(NSString *)profile reply:(ArdiaServiceReply)reply

@@ -27,6 +27,24 @@ test("every call in api.ts has a handler in its domain's Swift call table, and n
   assert.deepEqual(sorted(swift), sorted(keysOf(typeBody("EngineCalls"))));
 });
 
+test("Preload pages loads its profile first, so a profile that isn't open yet is read and written, not skipped", () => {
+  const services = native("ArdiaServices.mm");
+  const sites = native("SitesModule.swift");
+  const methodBody = (signature) => {
+    const start = services.indexOf(signature);
+    assert.ok(start >= 0, `ArdiaServices.mm defines ${signature}`);
+    return services.slice(start, services.indexOf("\n}\n", start));
+  };
+  assert.doesNotMatch(native("ArdiaServices.h"), /ArdiaProfileTogglePreloadPages/, "the toggles read LoadedProfile, which is nil for a profile that isn't open");
+  for (const signature of ["+ (void)preloadPages:", "+ (void)setPreloadPages:"]) {
+    const body = methodBody(signature);
+    assert.match(body, /ardia_host::WithProfile\(/, `${signature} loads the profile before using it`);
+    assert.match(body, /reply\(nil, @"/, `${signature} answers an error when the profile can't be loaded`);
+  }
+  assert.match(sites, /"preloadPages": \{ args, reply in\s*ArdiaServices\.preloadPages\(profile: args\.profile\) \{ reply\.service\(\$0, \$1\) \}/);
+  assert.match(sites, /"setPreloadPages": \{ args, reply in\s*ArdiaServices\.setPreloadPages\(try args\.bool\("on"\), profile: args\.profile\) \{ reply\.service\(\$0, \$1\) \}/);
+});
+
 test("every event in api.ts is emitted natively under that name, and nothing else is", () => {
   const emitted = new Set();
   for (const file of nativeFiles) {

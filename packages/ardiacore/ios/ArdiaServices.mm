@@ -205,12 +205,11 @@ NSString *StoreFolder(NSString *profile, NSString *extensionId, id version) {
 
 + (BOOL)profileToggle:(ArdiaProfileToggle)toggle profile:(NSString *)profile {
   ArdiaCoreProfile *p = ardia_host::LoadedProfile(ardia_host::OriginalProfileName(profile));
-  if (!p) return toggle != ArdiaProfileTogglePreloadPages;
+  if (!p) return YES;
   switch (toggle) {
     case ArdiaProfileTogglePasswordsOffered: return p.passwordsOffered;
     case ArdiaProfileToggleAddressesAutofilled: return p.addressesAutofilled;
     case ArdiaProfileToggleCardsAutofilled: return p.cardsAutofilled;
-    case ArdiaProfileTogglePreloadPages: return p.preloadPages;
   }
 }
 
@@ -220,8 +219,22 @@ NSString *StoreFolder(NSString *profile, NSString *extensionId, id version) {
     case ArdiaProfileTogglePasswordsOffered: p.passwordsOffered = value; break;
     case ArdiaProfileToggleAddressesAutofilled: p.addressesAutofilled = value; break;
     case ArdiaProfileToggleCardsAutofilled: p.cardsAutofilled = value; break;
-    case ArdiaProfileTogglePreloadPages: p.preloadPages = value; break;
   }
+}
+
++ (void)preloadPages:(NSString *)profile reply:(ArdiaServiceReply)reply {
+  ardia_host::WithProfile(ardia_host::OriginalProfileName(profile), ^(ArdiaCoreProfile *p) {
+    if (!p) return reply(nil, @"profile not loaded");
+    reply(p.preloadPages ? @YES : @NO, nil);
+  });
+}
+
++ (void)setPreloadPages:(BOOL)on profile:(NSString *)profile reply:(ArdiaServiceReply)reply {
+  ardia_host::WithProfile(ardia_host::OriginalProfileName(profile), ^(ArdiaCoreProfile *p) {
+    if (!p) return reply(nil, @"profile not loaded");
+    p.preloadPages = on;
+    reply(nil, nil);
+  });
 }
 
 + (void)addresses:(NSString *)profile reply:(ArdiaServiceReply)reply {
