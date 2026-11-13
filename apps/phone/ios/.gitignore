@@ -1,0 +1,9 @@
+build/
+DerivedData
+xcuserdata
+*.xcuserstate
+*.hmap
+*.ipa
+.xcode.env.local
+*.jsbundle
+/Pods/
