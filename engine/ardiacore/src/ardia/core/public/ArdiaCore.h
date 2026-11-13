@@ -305,6 +305,7 @@ ARDIACORE_EXPORT
 @property(readonly) NSDictionary<NSString*, id>* securityInfo;
 - (BOOL)discard;
 @property(readonly) BOOL discarded;
+@property(readonly, nullable) NSString* discardReason;
 @property(nonatomic) BOOL frozen;
 - (void)resolveUnresponsive:(BOOL)terminate;
 - (BOOL)showAutofillSuggestions:(BOOL)passwords;
@@ -362,6 +363,8 @@ ARDIACORE_EXPORT
 - (void)copyPicture:(NSTimeInterval)timeout completion:(void (^)(CGImageRef _Nullable picture))completion;
 - (BOOL)stopCapture;
 - (void)noteShownByHost:(BOOL)shown;
+- (BOOL)noteInShownSlot;
+- (void)whenSizeRestored:(void (^)(NSString* proof))restored;
 - (void)exitFullscreen;
 - (void)exitExclusiveAccess;
 - (void)tracePictureInPicture:(NSString*)line withInputs:(BOOL)withInputs;

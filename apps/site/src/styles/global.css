@@ -237,7 +237,8 @@ h3 {
 
 :root:not([data-device="phone"]) .phone-only,
 :root:not([data-device="other"]) .other-only,
-:root[data-device="phone"] .not-phone {
+:root[data-device="phone"] .not-phone,
+:root:not([data-os="ios"]) .ios-only {
   display: none !important;
 }
 

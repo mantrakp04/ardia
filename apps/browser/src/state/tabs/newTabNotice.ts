@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { activeTabId } from "../browser/model";
-import { useBrowser } from "../browser/store";
+import { useBrowser, type BrowserState } from "../browser/store";
 import { notePageOverlay } from "../telemetry/usage";
 
 export type NewTabNotice = { id: number; tabId: string; sourceId: string };
@@ -15,6 +15,7 @@ export function noteBackgroundTab(windowId: string, tabId: string, sourceId: str
   if (!tabId || !sourceId || useBrowser.getState().tabs[tabId]?.windowId !== windowId) return;
   const notice = { id: ++noticeSeq, tabId, sourceId };
   useNewTabNotices.setState((s) => ({ notices: { ...s.notices, [windowId]: notice } }));
+  stopWatchingNoticedTabs ??= useBrowser.subscribe(clearNoticesOfGoneOrShownTabs);
   scheduleHide(windowId, notice.id);
   notePageOverlay("newTabShown");
 }
@@ -34,6 +35,9 @@ export function holdNewTabNotice(windowId: string, notice: NewTabNotice, held: b
 
 export function clearNewTabNotice(windowId: string, id: number) {
   useNewTabNotices.setState((s) => (s.notices[windowId]?.id === id ? { notices: { ...s.notices, [windowId]: null } } : s));
+  if (Object.values(useNewTabNotices.getState().notices).some(Boolean)) return;
+  stopWatchingNoticedTabs?.();
+  stopWatchingNoticedTabs = null;
 }
 
 export function goToNoticedTab(windowId: string, notice: NewTabNotice) {
@@ -49,10 +53,12 @@ export function usePaneNewTabNotice(windowId: string, sourceId: string): NewTabN
   });
 }
 
-useBrowser.subscribe((s, prev) => {
+let stopWatchingNoticedTabs: (() => void) | null = null;
+
+function clearNoticesOfGoneOrShownTabs(s: BrowserState, prev: BrowserState) {
   if (s.tabs === prev.tabs && s.windows === prev.windows) return;
   const { notices } = useNewTabNotices.getState();
   for (const [windowId, notice] of Object.entries(notices)) {
     if (notice && (!s.tabs[notice.tabId] || activeTabId(s, windowId) === notice.tabId)) clearNewTabNotice(windowId, notice.id);
   }
-});
+}

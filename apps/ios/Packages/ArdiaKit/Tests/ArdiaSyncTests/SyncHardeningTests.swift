@@ -53,7 +53,7 @@ import Testing
     let fresh = try #require(relaunched.snapshot.devices.first { $0.isCurrent }).id
     #expect(fresh != j.device)
     #expect(j.sandbox.contents(j.sandbox.state).contains { $0.hasPrefix("sync-state.previous") })
-    #expect(await relaunched.addBookmark(url: URL(string: "https://after.example/")!, title: "After"))
+    #expect(await relaunched.addBookmark(url: URL(string: "https://after.example/")!, title: "After") == .pinned)
     await relaunched.syncNow()
     try j.mac.sync([Self.scope])
     #expect(try j.mac.store(Self.scope).values.contains { ($0 as? [String: Any])?["u"] as? String == "https://after.example/" })
@@ -154,7 +154,7 @@ import Testing
     let j = try await joined()
     defer { j.sandbox.remove() }
     #expect(await j.service.changeFolder(j.sandbox.root) == .connected)
-    #expect(await j.service.addBookmark(url: URL(string: "https://moved.example/")!, title: "Moved"))
+    #expect(await j.service.addBookmark(url: URL(string: "https://moved.example/")!, title: "Moved") == .pinned)
     j.source.tabs.append(LocalTabRecord(url: "https://second.example/", title: "Second", lastActive: .now, profileSyncId: nil))
     j.service.localDidChange()
     await j.service.syncNow()

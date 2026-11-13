@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Ardia</string>
+
+    <string name="shortcut_search">Search</string>
+    <string name="shortcut_voice_search">Voice Search</string>
+    <string name="shortcut_incognito">New Incognito Tab</string>
+    <string name="shortcut_incognito_short">Incognito Tab</string>
+    <string name="shortcut_mac_tabs">Open Synced Tabs</string>
+    <string name="shortcut_mac_tabs_short">Synced Tabs</string>
+
+    <string name="tile_search">Search</string>
+    <string name="tile_search_description">Start a search in Ardia.</string>
+
+    <string name="process_text_search">Search in Ardia</string>
+
+    <string name="widget_search">Search</string>
+    <string name="widget_search_or_enter_address">Search or Enter Address</string>
+    <string name="widget_voice_search">Voice Search</string>
+    <string name="widget_search_description">Quickly start searching.</string>
+    <string name="widget_mac_tabs_name">Your Mac’s Tabs</string>
+    <string name="widget_mac_tabs_description">The tabs you have open in Ardia on your Mac.</string>
+    <string name="widget_mac_tabs_sync_title">Sync With Your Mac</string>
+    <string name="widget_mac_tabs_sync_message">See the tabs you have open in Ardia on your Mac.</string>
+    <string name="widget_mac_tabs_empty_title">No Tabs Open on Your Mac</string>
+    <string name="widget_mac_tabs_empty_message">Tabs you open in Ardia on your Mac show up here.</string>
+
+    <string name="share_label">Ardia</string>
+    <string name="share_open_in_ardia">Open in Ardia</string>
+    <string name="share_search_in_ardia">Search in Ardia</string>
+    <string name="share_send_to_your_mac">Send to Your Mac</string>
+    <string name="share_send_to_your_devices">Send to Your Devices</string>
+    <string name="share_sync_hint">To send pages to your Mac, turn on Sync With Your Mac in Ardia’s Settings.</string>
+    <string name="share_nothing">There’s no web page or text to share with Ardia.</string>
+    <string name="share_close">Close</string>
+    <string name="share_sent_to">Sent to %1$s</string>
+    <string name="share_could_not_send">Couldn’t Send to %1$s</string>
+    <string name="share_could_not_open">Couldn’t open Ardia. Open it from the home screen to see this page.</string>
+</resources>

@@ -11,6 +11,7 @@ import { webviews } from "../../platform/webviews";
 import { useLifecycle } from "./sleepingTabs";
 import { startMemorySaver } from "./memorySaver";
 import { focusedWindowOf } from "../windows/ui";
+import { noteTabSlept } from "../telemetry/tabSleepCounts";
 
 export { useIsSleeping, useLifecycle } from "./sleepingTabs";
 
@@ -30,7 +31,8 @@ export function noteReady(tabId: string) {
   forget(tabId);
 }
 
-export function noteDiscarded(tabId: string) {
+export function noteDiscarded(tabId: string, reason: string | null = null) {
+  noteTabSlept(!!store().tabs[tabId]?.pin, reason);
   useLifecycle.setState((l) => ({ discarded: { ...l.discarded, [tabId]: true } }));
 }
 

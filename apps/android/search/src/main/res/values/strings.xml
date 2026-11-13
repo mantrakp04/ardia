@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_placeholder">Search...</string>
+    <string name="search_field_label">Search or Enter Address</string>
+    <string name="search_clear_text">Clear Text</string>
+    <string name="search_voice">Voice Search</string>
+    <string name="search_incognito">Incognito</string>
+    <string name="search_activate_incognito">Activate Incognito</string>
+    <string name="search_deactivate_incognito">Deactivate Incognito</string>
+    <string name="search_browsing_incognito">You’re browsing Incognito</string>
+    <string name="search_close">Close Search</string>
+    <string name="search_switch_to_tab">Switch to Tab</string>
+    <string name="search_in_new_tab">Search in New Tab</string>
+    <string name="search_in_incognito_tab">Search in Incognito Tab</string>
+    <string name="search_open_in_new_tab">Open in New Tab</string>
+    <string name="search_open_in_incognito_tab">Open in Incognito Tab</string>
+    <string name="search_copy">Copy</string>
+    <string name="search_copy_link">Copy Link</string>
+    <string name="search_share">Share</string>
+    <string name="search_refine">Edit %1$s</string>
+    <string name="search_paste_and_go">Paste and Go</string>
+    <string name="search_link_you_copied">Link You Copied</string>
+    <string name="search_text_you_copied">Text You Copied</string>
+    <string name="search_suggestion_actions">More Actions</string>
+    <string name="deck_tabs">Tabs</string>
+    <string name="deck_synced_tabs">Synced Tabs</string>
+    <string name="deck_archive">Archive</string>
+    <string name="deck_settings">Settings</string>
+    <string name="deck_new_tab">New Tab</string>
+    <string name="deck_new_incognito_tab">New Incognito Tab</string>
+    <string name="deck_reopen_closed_tab">Reopen Closed Tab</string>
+    <string name="deck_more_options">Touch and hold for more options.</string>
+    <string name="voice_cancel">Cancel</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_done">Done</string>
+    <string name="voice_search">Search</string>
+    <string name="voice_try_again">Try Again</string>
+    <string name="voice_permission_title">Speech and Mic permissions required.</string>
+    <string name="voice_permission_detail">Allow Microphone for Ardia in Settings to search with your voice.</string>
+    <string name="voice_open_settings">Open Settings</string>
+    <string name="voice_unavailable_language">Dictation is unavailable in your language.</string>
+    <string name="voice_unavailable">Speech dictation is unavailable.</string>
+    <string name="voice_heard_nothing">Ardia couldn’t hear anything. Try again.</string>
+</resources>

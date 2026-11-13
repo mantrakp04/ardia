@@ -117,12 +117,12 @@ try {
     const iv = setInterval(() => preview().then((p) => seen.push(p)), 30);
     return act("${w}", "drag:${path}").then(() => settle(${ms})).then(() => { clearInterval(iv); return seen; });`);
 
-  await check("a click whose pointer drifts up to 9 pt opens the tab, and a 14 pt press doesn't", async () => {
+  await check("a click whose pointer drifts up to 9 pt opens the tab, and a 14 pt press is a drag that leaves the order alone", async () => {
     const before = await order("w1");
     const shownAfter = (path) => run(`return act("w1", "drag:${path.map((p) => p.join(",")).join(";")}").then(() => settle(1500)).then(() => st().windows.w1.activeTabIds.default);`);
     assert.equal(await shownAfter([[mid(4), 21], [mid(4) + 6, 23]]), "t3");
     assert.equal(await shownAfter([[mid(3), 21], [mid(3) - 9, 21]]), "t2");
-    assert.equal(await shownAfter([[mid(5), 21], [mid(5) + 14, 21]]), "t2", "a 14 pt press is a drag");
+    assert.equal(await shownAfter([[mid(5), 21], [mid(5) + 14, 21]]), "t4", "a 14 pt press is a drag, its tab selected as the button went down");
     assert.deepEqual(await order("w1"), before);
     await run(`st().activate("t1"); return settle(600);`);
   });
@@ -144,7 +144,7 @@ try {
         .then(hits).then((h) => (out.hitsShown = h))
         .then(() => { out.next = performance.now() - t0; return at(${mid(3)}); }).then(() => settle(120))
         .then(() => at(${mid(5)})).then(() => settle(30))
-        .then(() => act("w1", "mouse:down:${mid(5)},21")).then(() => settle(70)).then(() => act("w1", "mouse:up:${mid(5)},21")).then(() => settle(500))
+        .then(() => act("w1", "click:${mid(5)},21")).then(() => settle(570))
         .then(() => { out.shown = st().windows.w1.activeTabIds.default; stop(); out.seen = seen; return ac.shell.devSetPointer("w1", null); })
         .then(() => { st().activate("t1"); return settle(600); }).then(() => out);`);
     const first = result.seen.find(([, id]) => id === "t3");
@@ -179,6 +179,7 @@ try {
     const before = await order("w1");
     const at = (i) => Math.round((now[i][0] + now[i][1]) / 2);
     const live = before.slice(2, 4);
+    await run(`st().activate(${JSON.stringify(before[2])}); return settle(600);`);
     await run(`${JSON.stringify(live)}.forEach((id, i) => st().navigate(id, "data:text/html,<h1>" + i));
       const ready = () => globalThis.acChromeTabs.strips().some((s) => ${JSON.stringify(live)}.every((id) => s.tabs.some((t) => t.key === id)));
       const wait = (n) => (ready() || !n ? Promise.resolve(ready()) : settle(100).then(() => wait(n - 1)));
@@ -329,24 +330,34 @@ try {
     assert.deepEqual(await tabsOf("w5"), ["a2"]);
   });
 
-  await check("a background tab's card shows its own page: its last picture, else its icon and title", async () => {
-    const cardOf = async (id) => {
+  await check("a background tab's card shows its own page: its last picture, else its icon and title; a pressed tab's shows the page it just switched to", async () => {
+    const COMMAND = 1048576;
+    const cardOf = async (id, flags = 0) => {
       const now = await run(`return items("w1");`);
       const i = (await order("w1")).indexOf(id);
       const x = Math.round((now[i][0] + now[i][1]) / 2);
       return run(`${PREVIEW}
-        const out = {};
-        act("w1", "drag:${x},21;${x},220;640,560;640,600;640,640;${x},100;${x},21");
+        const out = { was: st().windows.w1.activeTabIds.default };
+        act("w1", "drag:${flags ? `flags=${flags};` : ""}${x},21;${x},220;640,560;640,600;640,640;${x},100;${x},21");
         setTimeout(() => preview().then((p) => (out.p = p)), 760);
-        return settle(2200).then(() => out.p);`);
+        setTimeout(() => (out.shown = st().windows.w1.activeTabIds.default), 760);
+        return settle(2200).then(() => { st().setSelection("w1", []); return out; });`);
     };
     const before = await order("w1");
-    const never = await cardOf("t4");
-    assert.equal(never?.shape, "card", JSON.stringify(never));
-    assert.ok(never.page && never.placeholder, `placeholder ${JSON.stringify(never)}`);
+    const unseen = await run(`const id = st().newTab("w1", { background: true }); return settle(700).then(() => id);`);
+    const never = await cardOf(unseen, COMMAND);
+    await run(`st().closeTab(${JSON.stringify(unseen)}); return settle(500);`);
+    assert.ok(never.was !== unseen && never.shown === never.was, `a ⌘-press doesn't switch, so a tab never shown is dragged from the background: ${JSON.stringify(never)}`);
+    assert.equal(never.p?.shape, "card", JSON.stringify(never));
+    assert.ok(never.p.page && never.p.placeholder, `placeholder ${JSON.stringify(never)}`);
     await run(`st().activate("t2"); st().navigate("t2", "data:text/html,<body style='background:%2366aaff'><h1>t2</h1>"); return settle(3200).then(() => { st().activate("t1"); return settle(600); });`);
-    const shown = await cardOf("t2");
-    assert.ok(shown?.page && !shown.placeholder, `its picture ${JSON.stringify(shown)}`);
+    const shown = await cardOf("t2", COMMAND);
+    assert.deepEqual([shown.was, shown.shown], ["t1", "t1"]);
+    assert.ok(shown.p?.page && !shown.p.placeholder, `its picture ${JSON.stringify(shown)}`);
+    const pressed = await cardOf("t4");
+    assert.equal(pressed.shown, "t4", "a plain press switches as the button goes down");
+    assert.ok(pressed.p?.shape === "card" && pressed.p.page && !pressed.p.placeholder, `the page it switched to ${JSON.stringify(pressed)}`);
+    await run(`st().activate("t1"); return settle(600);`);
     assert.deepEqual(await order("w1"), before);
   });
 
@@ -540,22 +551,28 @@ try {
     }
   });
 
-  await check("sidebar: the empty room under the rows moves the window, and a double-click there still opens a tab", async () => {
+  await check("sidebar: the empty room under the rows moves the window, and a double-click there opens a tab once", async () => {
+    await run(`const page = st().windows.w1.tabIds.find((id) => st().tabs[id].url && !st().tabs[id].pin);
+      if (page) st().activate(page); else st().newTab("w1", { url: "data:text/html,<h1>page" });
+      return settle(900);`);
     const x = 120, y = (await run(`return st().windows.w1.frame[3];`)) - 140;
     const result = await run(`
       return win("w1").then((n) => {
         const frame = () => ac.engine.call("windows.list").then((ws) => ws.find((w) => w.window === n).frame);
         const click = (count) => ac.engine.call("windows.dev", { window: n, action: "mouse:down:${x},${y}," + count }).then(() => settle(30)).then(() => ac.engine.call("windows.dev", { window: n, action: "mouse:up:${x},${y}," + count })).then(() => settle(60));
-        const out = { tabs: st().windows.w1.tabIds.length };
+        const out = { tabs: st().windows.w1.tabIds.length, shownPage: !!st().tabs[st().windows.w1.activeTabIds.default]?.url };
         return ac.engine.call("windows.dev", { window: n, action: "hit:${x},${y}" }).then((h) => { out.hit = h; return ac.engine.call("windows.dev", { window: n, action: "windowDrags" }); })
           .then(() => click(1)).then(() => settle(300))
           .then(() => ac.engine.call("windows.dev", { window: n, action: "windowDrags" })).then((d) => { out.drags = Number(d.split("\\n")[0]); return frame(); })
           .then((f) => { out.before = f; return click(1).then(() => click(2)); }).then(() => settle(900)).then(frame)
-          .then((f) => { out.after = f; out.opened = st().windows.w1.tabIds.length - out.tabs; return out; });
+          .then((f) => { out.after = f; out.opened = st().windows.w1.tabIds.length - out.tabs; return click(1).then(() => click(2)); }).then(() => settle(900))
+          .then(() => { out.openedAgain = st().windows.w1.tabIds.length - out.tabs - out.opened; return out; });
       });`);
     assert.match(result.hit, /WindowDragRegion/, "the empty sidebar is the drag region's");
     assert.equal(result.drags, 1, "a press there drags the window");
+    assert.equal(result.shownPage, true, "a page is shown");
     assert.equal(result.opened, 1, "a double-click opens a tab");
+    assert.equal(result.openedAgain, 0, "and a second one, with that empty New Tab page showing, reuses it");
     assert.equal(result.after, result.before, "and doesn't zoom the window");
   });
 

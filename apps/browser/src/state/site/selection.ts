@@ -9,6 +9,8 @@ import { defaultSearchEngine } from "../settings/settings";
 import { showToast } from "../app/toasts";
 import { openModeFor } from "../bookmarks/actions";
 import { openFromPage } from "../tabs/openFromPage";
+import { awaitsFirstPage } from "../tabs/pendingAddress";
+import { noteUrlCopied } from "../telemetry/urlCopies";
 
 export type { PageSelection };
 
@@ -97,6 +99,7 @@ export async function copyPageUrl(tabId: string) {
   if (!tab?.url) return;
   const clean = cleanUrl(tab.url);
   copyText(clean);
+  noteUrlCopied(awaitsFirstPage(tabId));
   const title = clean !== tab.url ? "Copied a clean link without trackers" : "Copied Current URL";
   const web = webviews.get(tabId);
   const selected = /^https?:/.test(tab.url) && web ? await web.evaluate<boolean>(HAS_SELECTION) : false;

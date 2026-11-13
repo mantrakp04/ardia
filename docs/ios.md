@@ -54,14 +54,17 @@ the folder or the Mac's format changes, and a Mac that has never heard of the iP
   bring files down; dataless files are reported as pending, as on the Mac.
 - **Joining.** The Mac's Settings › Sync › Connect Another Device shows a QR code of the phrase. The iPhone scans it
   (or takes the 24 words typed or pasted), checks the checksum, and checks that the folder holds that phrase's
-  chain before saving anything. Its errors are the Mac's.
+  chain before saving anything. Its errors are the Mac's. A different phrase entered after a failure clears the old
+  error and, with a folder already chosen, tries again at once (`SyncConnectFlow`); the same words retyped don't.
 - **Keys.** The phrase's entropy is kept in the iPhone's Keychain (`Ardia Sync Key`, this device only,
   `AfterFirstUnlockThisDeviceOnly`, so background refresh can read it). The sync state (replica, base, version
   vectors, journal) is sealed with the file key in the app's container, like the Mac's `sync-state.nns`.
 - **What the iPhone writes.** `dev:<id>` (its name), `tabs:<id>` (its 30 most recent open tabs, as the Mac does),
   history visits as `h:<url>` (the union rule the Mac uses), `send:` records (below), and a new `bm:` bookmark in
   Other Bookmarks when you Pin to Mac (never from an Incognito tab, and never an edit or delete of an existing
-  bookmark). It never writes settings, profiles, pins or passwords, and it keeps every record it doesn't use in its replica untouched, so its snapshots
+  bookmark). A page is pinned once: when the profile's bookmarks already hold its URL (from a Mac, or a pin from
+  this iPhone still on its way), the star is filled, the menu says "Pinned to Mac" and Pin to Mac writes nothing;
+  `companionAddBookmark` refuses the duplicate too. There is no unpin, since the iPhone never deletes a bookmark. It never writes settings, profiles, pins or passwords, and it keeps every record it doesn't use in its replica untouched, so its snapshots
   would be as complete as a Mac's. It doesn't compact; Macs do. `companion.test.ts` holds it to that against a fake
   Mac writing every kind of record today's Macs write (settings, profiles and their themes, shared data, devices, pins
   with their rows, tile folders, homes, order and looks, bookmarks, history, passwords, extensions and their approvals,
@@ -70,6 +73,10 @@ the folder or the Mac's format changes, and a Mac that has never heard of the iP
 - **What it reads.** Device names, profiles (`prof:`, `pth:`), the search engine settings (`set:searchEngine`,
   `set:customSearchUrl`, `set:customSearchEngines`), and per profile the other devices' tabs, pinned tabs and groups,
   bookmarks and history.
+- **Devices.** Settings › Sync lists the other devices by name, with no time. A device writes to the folder only
+  when its own data changes, never to say it is still syncing, so the newest file from a Mac that is syncing but idle
+  can be hours old; the time it gave ("6 hr ago" for a Mac syncing every 15 s) read as "this Mac stopped". The Mac's
+  own Devices list has the same limit. The list is still ordered by each device's newest change.
 - **Cycle.** On launch, on returning to the foreground, every 15 s while in the foreground, 3 s after a local
   change, on pull to refresh, and in background app refresh (`com.ardia.browser.ios.sync`).
 
@@ -194,7 +201,9 @@ are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ar
   every build and works once Apple approves one; later builds of the same version usually pass without a full review.
   Apple has no setting that gives an external group every build, so each one is submitted. `-f public_testers=false`
   keeps an upload to the Internal group, and `gh workflow run ios-release.yml -f mode=public-link -f build=<number>`
-  sends an earlier build. To invite someone by email instead,
+  sends an earlier build. Only one build of a version can wait in Beta App Review, so a newer one is refused until
+  the older one is through. `-f mode=expire -f build=<number>` ends testing of an older build for good, so nobody
+  installs it again; Apple can't undo it and the script refuses the newest build. To invite someone by email instead,
   `gh workflow run ios-release.yml -f mode=add-tester -f email=<address>` adds them to Public Testers; TestFlight
   emails the invite once that group has an approved build.
 

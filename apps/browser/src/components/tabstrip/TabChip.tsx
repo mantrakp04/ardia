@@ -145,7 +145,7 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
             <ItemRow hovered={(hovered || dragged) && !active && !onto} pressed={pressed && !active}>
               <View pointerEvents="none">
                 <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                <TabBadges tabId={tab.id} pip={false} unread={false} />
+                <TabBadges tabId={tab.id} />
               </View>
               {(playing || mute) && (
                 <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: CHIP_LABEL_GAP }} tooltip={muteTitle(mute)}>

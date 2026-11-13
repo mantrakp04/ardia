@@ -211,16 +211,36 @@ extension AppModel {
     }
   }
 
-  func pinToMac(_ tab: BrowserTab) {
+  func isPinnedToMac(_ tab: BrowserTab) -> Bool {
+    guard sync.isEnabled, !tab.isPrivate, let url = URL(string: tab.url) else { return false }
+    return sync.isPinned(url, profileSyncId: tab.profileSyncId)
+  }
+
+  func pinToMac(_ tab: BrowserTab, inPageMenu: Bool = false) {
     guard !tab.isPrivate, let url = URL(string: tab.url) else { return }
+    guard !isPinnedToMac(tab) else {
+      announcePin(.alreadyPinned, inPageMenu: inPageMenu)
+      return
+    }
     let title = tab.title
     let profile = tab.profileSyncId
     Task {
-      if await sync.addBookmark(url: url, title: title, profileSyncId: profile) {
-        toasts.show(Toast(String(localized: "Pinned to Your Mac"), symbol: "star.fill"))
-      } else {
-        toasts.show(Toast(String(localized: "Couldn’t Pin to Your Mac"), symbol: "exclamationmark.triangle.fill"))
-      }
+      announcePin(await sync.addBookmark(url: url, title: title, profileSyncId: profile), inPageMenu: inPageMenu)
+    }
+  }
+
+  private func announcePin(_ outcome: PinOutcome, inPageMenu: Bool) {
+    switch outcome {
+    case .pinned where inPageMenu:
+      browse.showTitleFeedback(String(localized: "Pinned to Mac"))
+    case .alreadyPinned where inPageMenu:
+      browse.showTitleFeedback(String(localized: "Already Pinned to Mac"))
+    case .pinned:
+      toasts.show(Toast(String(localized: "Pinned to Your Mac"), symbol: "star.fill"))
+    case .alreadyPinned:
+      toasts.show(Toast(String(localized: "Already Pinned to Your Mac"), symbol: "star.fill"))
+    case .failed:
+      toasts.show(Toast(String(localized: "Couldn’t Pin to Your Mac"), symbol: "exclamationmark.triangle.fill"))
     }
   }
 

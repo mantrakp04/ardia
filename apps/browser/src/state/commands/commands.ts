@@ -36,6 +36,7 @@ import { withLivePage } from "../tabs/livePage";
 import { webviews } from "../../platform/webviews";
 import { togglePageEngine } from "../engines/actions";
 import { goBack, goForward } from "../tabs/navigation";
+import { awaitsFirstPage } from "../tabs/pendingAddress";
 import { openSplitPane } from "../splits/actions";
 import { isAppCommand, LITTLE_ARDIA_PAGE_COMMANDS, settingChange, variantArg } from "./commandCatalog";
 import { APP_COMMAND_HANDLERS } from "./appCommands";
@@ -50,6 +51,7 @@ import { shareTab } from "../site/share";
 import { groupOf } from "../pins/tabGrouping";
 import { selectedTabIds } from "../pins/organize";
 import { noteSelectionClosedByKey } from "../telemetry/usage";
+import { noteUrlCopied } from "../telemetry/urlCopies";
 import { isSmall, mainWindowFor, newWindowProfile, originalProfile } from "../windows/small";
 import {
   closeLittleArdia,
@@ -203,7 +205,9 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "copyUrl":
       return page ? void copyPageUrl(page.id) : undefined;
     case "copyUrlAsMarkdown":
-      return page ? copyText(markdownLink(page.customTitle || page.title, page.url)) : undefined;
+      if (!page) return;
+      noteUrlCopied(awaitsFirstPage(page.id));
+      return copyText(markdownLink(page.customTitle || page.title, page.url));
     case "findInPage":
       if (page) expectFocus(windowId, findFocus(page.id));
       return page ? openFind(page.id, { replace: false }) : undefined;
