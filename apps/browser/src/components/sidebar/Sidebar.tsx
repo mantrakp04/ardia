@@ -4,6 +4,7 @@ import { ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
 import { TintInk } from "../ui/TintInk";
 import { useSettings, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
+import { focus } from "../../state/browser/actions";
 import { useHasDownloads, useNoTiles } from "../../state/sidebar/hooks";
 import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
 import { DownloadsButton } from "../downloads/DownloadsButton";
@@ -74,6 +75,7 @@ export function Sidebar({ width }: { width: number }) {
             ref={(v) => {
               controller.root = v;
             }}
+            onTouchStart={() => focus(windowId)}
             style={{ width, height: "100%" }}
           >
             <View

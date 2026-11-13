@@ -1,6 +1,6 @@
 import { fixupUrl } from "@ardia/core";
 import { forwardRef, useEffect, useRef, type ReactNode } from "react";
-import type { StyleProp, View, ViewStyle } from "react-native";
+import type { StyleProp, View, ViewProps, ViewStyle } from "react-native";
 import { currentWindow } from "../../state/browser/current";
 import { openDroppedUrls } from "../../state/drag/windowDrop";
 import { installDroppedCrx } from "../../state/extensions/crxDrop";
@@ -33,9 +33,9 @@ let tokens = 0;
 const originOf = (view: View | null): Promise<DropPoint> =>
   new Promise((resolve) => (view ? view.measureInWindow((x, y) => resolve([x, y])) : resolve([0, 0])));
 
-type Props = { target: TabDropTarget; style?: StyleProp<ViewStyle>; children?: ReactNode };
+type Props = { target: TabDropTarget; style?: StyleProp<ViewStyle>; onTouchStart?: ViewProps["onTouchStart"]; children?: ReactNode };
 
-export const TabDropArea = forwardRef<View, Props>(function TabDropArea({ target, style, children }, ref) {
+export const TabDropArea = forwardRef<View, Props>(function TabDropArea({ target, style, onTouchStart, children }, ref) {
   const view = useRef<View | null>(null);
   const latest = useRef(target);
   latest.current = target;
@@ -111,6 +111,7 @@ export const TabDropArea = forwardRef<View, Props>(function TabDropArea({ target
       }}
       style={style}
       onDropUpdate={onDropUpdate}
+      onTouchStart={onTouchStart}
     >
       {children}
     </FileDropArea>

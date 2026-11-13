@@ -1,10 +1,10 @@
 import { forwardRef, type ReactNode } from "react";
-import type { StyleProp, View, ViewStyle } from "react-native";
+import type { StyleProp, View, ViewProps, ViewStyle } from "react-native";
 import { useWindowId } from "../../state/browser/hooks";
 import { TabDropArea, type TabDropTarget } from "../window/TabDropArea";
 import { useDragController } from "./DragProvider";
 
-export const SidebarDropArea = forwardRef<View, { style?: StyleProp<ViewStyle>; children?: ReactNode }>(function SidebarDropArea({ style, children }, ref) {
+export const SidebarDropArea = forwardRef<View, { style?: StyleProp<ViewStyle>; onTouchStart?: ViewProps["onTouchStart"]; children?: ReactNode }>(function SidebarDropArea({ style, onTouchStart, children }, ref) {
   const controller = useDragController();
   const windowId = useWindowId();
   const target: TabDropTarget = {
@@ -18,7 +18,7 @@ export const SidebarDropArea = forwardRef<View, { style?: StyleProp<ViewStyle>; 
     },
   };
   return (
-    <TabDropArea ref={ref} target={target} style={style}>
+    <TabDropArea ref={ref} target={target} style={style} onTouchStart={onTouchStart}>
       {children}
     </TabDropArea>
   );
