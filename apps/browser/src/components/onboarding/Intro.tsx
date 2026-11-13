@@ -17,6 +17,7 @@ import { curve, springs } from "../ui/motion";
 import { space } from "../ui/tokens";
 import { onboardingMotion, onboardingType } from "./tokens";
 import { EXIT, INTRO_CUES, LETTER, TAGLINE, WORDMARK } from "./introCues";
+import { noteIntroShown, noteIntroSkipped } from "../../state/telemetry/introCounts";
 
 const ICON = require("../../../assets/app-icon.png");
 const CUES = INTRO_CUES;
@@ -53,12 +54,14 @@ export function Intro({ onDone }: { onDone: () => void }) {
       Animated.timing(tagline, { toValue: 1, duration: ms(TAGLINE), easing: ease, ...at(CUES.tagline) }),
       Animated.timing(exit, { toValue: 1, duration: ms(EXIT), easing: curve.move, ...at(CUES.exit) }),
     ]);
+    noteIntroShown(introMusicMuted());
     playIntroMusic(CUES, introMusicMuted());
     sequence.start(({ finished }) => finished && finish());
     return () => sequence.stop();
   }, []);
 
   const skip = () => {
+    noteIntroSkipped();
     stopIntroMusic(0.35);
     Animated.timing(exit, { toValue: 1, duration: onboardingMotion.introSkip, easing: curve.enter, useNativeDriver: true }).start(finish);
   };
