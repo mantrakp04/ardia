@@ -228,12 +228,16 @@ struct BrowsingView: View {
     .environment(\.colorScheme, barScheme)
     .contentShape(.rect)
     .highPriorityGesture(pagerGesture)
-    .offset(y: barVisibility.isShown ? 0 : BrowseLayout.barCollapseTravel)
-    .opacity(barVisibility.isShown ? 1 : 0)
-    .allowsHitTesting(barVisibility.isShown)
-    .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse, value: barVisibility.isShown)
+    .offset(y: isBarShown ? 0 : BrowseLayout.barCollapseTravel)
+    .opacity(isBarShown ? 1 : 0)
+    .allowsHitTesting(isBarShown)
+    .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse, value: isBarShown)
     .ignoresSafeArea(.container, edges: .bottom)
     .ignoresSafeArea(.keyboard)
+  }
+
+  private var isBarShown: Bool {
+    barVisibility.isShown(searchTrayPresented: app.browse.isSearchTrayOnScreen)
   }
 
   @Environment(\.colorScheme) private var systemScheme

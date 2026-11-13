@@ -15,6 +15,10 @@ public struct BottomBarVisibility: Equatable, Sendable {
     !scrollCollapsed && findPhase == .idle
   }
 
+  public func isShown(searchTrayPresented: Bool) -> Bool {
+    isShown && !searchTrayPresented
+  }
+
   public mutating func findSessionChanged(isActive: Bool) {
     if isActive {
       findPhase = .finding
