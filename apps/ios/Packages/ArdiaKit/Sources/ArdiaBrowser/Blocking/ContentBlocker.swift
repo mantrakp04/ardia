@@ -156,11 +156,11 @@ public final class ContentBlocker {
   }
 
   func shouldRejectConsent(onHost host: String?, isPrivate: Bool = false) -> Bool {
-    settings.hidesCookieBanners && !settings.isExempt(host, isPrivate: isPrivate)
+    settings.isEnabled(.cookieBanners) && !settings.isExempt(host, isPrivate: isPrivate)
   }
 
   func countBlocked(_ hosts: [String], pageHost: String?, isPrivate: Bool = false, into counter: BlockedResourceCounter) {
-    guard !settings.isExempt(pageHost, isPrivate: isPrivate) else { return }
+    guard settings.isOn, !settings.isExempt(pageHost, isPrivate: isPrivate) else { return }
     counter.add(hosts.count { blocksRequest(toHost: $0) })
   }
 

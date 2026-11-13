@@ -12,10 +12,14 @@ public enum BlockingCategory: String, CaseIterable, Codable, Sendable {
 @MainActor
 @Observable
 public final class BlockingSettings {
-  static let keys = (ads: "blocking.ads", trackers: "blocking.trackers", cookies: "blocking.cookieBanners", exempt: "blocking.exemptHosts")
+  static let keys = (ads: "blocking.ads", trackers: "blocking.trackers", cookies: "blocking.cookieBanners", exempt: "blocking.exemptHosts", on: "blocking.enabled")
 
   @ObservationIgnored let defaults: UserDefaults
   @ObservationIgnored var onChange: (@MainActor () -> Void)?
+
+  public var isOn: Bool {
+    didSet { save(isOn, Self.keys.on, changed: isOn != oldValue) }
+  }
 
   public var blocksAds: Bool {
     didSet { save(blocksAds, Self.keys.ads, changed: blocksAds != oldValue) }
@@ -34,6 +38,7 @@ public final class BlockingSettings {
 
   public init(defaults: UserDefaults) {
     self.defaults = defaults
+    isOn = defaults.object(forKey: Self.keys.on) as? Bool ?? true
     blocksAds = defaults.object(forKey: Self.keys.ads) as? Bool ?? true
     blocksTrackers = defaults.object(forKey: Self.keys.trackers) as? Bool ?? true
     hidesCookieBanners = defaults.object(forKey: Self.keys.cookies) as? Bool ?? true
@@ -41,7 +46,8 @@ public final class BlockingSettings {
   }
 
   public func isEnabled(_ category: BlockingCategory) -> Bool {
-    switch category {
+    guard isOn else { return false }
+    return switch category {
     case .ads: blocksAds
     case .trackers: blocksTrackers
     case .cookieBanners: hidesCookieBanners

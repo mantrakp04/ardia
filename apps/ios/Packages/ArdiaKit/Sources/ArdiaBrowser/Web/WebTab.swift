@@ -19,7 +19,7 @@ public enum PageLoadFailure: Sendable, Equatable {
 @MainActor
 @Observable
 public final class WebTab: DiscardablePage, Identifiable {
-  public static let zoomLevels: [Double] = [0.5, 0.75, 0.85, 1, 1.15, 1.25, 1.5, 1.75, 2, 2.5, 3]
+  public nonisolated static let zoomLevels: [Double] = [0.5, 0.75, 0.85, 1, 1.15, 1.25, 1.5, 1.75, 2, 2.5, 3]
 
   public let id: UUID
   public private(set) var webView: WKWebView?
@@ -313,6 +313,7 @@ public final class WebTab: DiscardablePage, Identifiable {
     let sameDocument = !(webView?.isLoading ?? false) && previous != nil
     if sameDocument, let previous, Self.withoutFragment(previous) != Self.withoutFragment(newURL) {
       lastVisit = engine?.tabs.recordVisit(url: newURL.absoluteString, title: title, transition: .link, fromTab: id)
+      engine?.onVisit?(id, PageVisit(url: newURL.absoluteString, title: title, kind: .sameDocument))
     }
   }
 
@@ -397,12 +398,14 @@ public final class WebTab: DiscardablePage, Identifiable {
     defer { lastCommit = now }
     if restoringState {
       restoringState = false
+      if let restored = webView?.url?.absoluteString { engine?.onVisit?(id, PageVisit(url: restored, title: webView?.title ?? "", kind: .restored)) }
       return
     }
     guard let engine, let committed = webView?.url?.absoluteString else { return }
     if type == .reload { return }
-    if type == .other, now.timeIntervalSince(lastCommit) < 1.5, let lastVisit {
-      engine.tabs.amend(lastVisit, url: committed)
+    if type == .other, now.timeIntervalSince(lastCommit) < 1.5, lastVisit != nil || isPrivate && lastCommit != .distantPast {
+      if let lastVisit { engine.tabs.amend(lastVisit, url: committed) }
+      engine.onVisit?(id, PageVisit(url: committed, title: webView?.title ?? "", kind: .redirect))
       return
     }
     let transition: VisitTransition = switch type {
@@ -413,6 +416,7 @@ public final class WebTab: DiscardablePage, Identifiable {
     default: engine.tabs.tab(id)?.origin == .typed && lastVisit == nil ? .typed : .link
     }
     lastVisit = engine.tabs.recordVisit(url: committed, title: webView?.title ?? "", transition: transition, fromTab: id)
+    engine.onVisit?(id, PageVisit(url: committed, title: webView?.title ?? "", kind: PageVisitKind(transition)))
   }
 
   fileprivate func didFinish() {
@@ -605,8 +609,8 @@ final class WebTabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, UIS
   }
 
   func webViewDidClose(_ webView: WKWebView) {
-    guard let tab else { return }
-    tab.engine?.tabs.close(tab.id)
+    guard let tab, let engine = tab.engine else { return }
+    if let onCloseRequested = engine.onCloseRequested { onCloseRequested(tab.id) } else { engine.tabs.close(tab.id) }
   }
 
   func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async {

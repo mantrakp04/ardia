@@ -55,6 +55,7 @@ public enum ExternalLinks {
 
 public enum BrowserUserAgent {
   public static let applicationName = "Version/27.0 Mobile/15E148 Safari/604.1"
+  public static let desktop = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15"
 }
 
 struct ProgressThrottle {

@@ -24,6 +24,11 @@ public final class WebEngine {
   @ObservationIgnored private var notificationTasks: [Task<Void, Never>] = []
 
   @ObservationIgnored public var openUniversalLink: (@MainActor (URL) async -> Bool)?
+  @ObservationIgnored public var onVisit: (@MainActor (UUID, PageVisit) -> Void)?
+  @ObservationIgnored public var onCloseRequested: (@MainActor (UUID) -> Void)?
+  @ObservationIgnored public var onPopup: (@MainActor (_ opener: WebTab, _ popup: WebTab) -> Void)?
+  @ObservationIgnored public var onOpenLink: (@MainActor (_ url: URL, _ opener: UUID, _ inBackground: Bool) -> Void)?
+  @ObservationIgnored public var onPrivateBrowsingEnded: (@MainActor () -> Void)?
   @ObservationIgnored public var omnibox: Omnibox?
   @ObservationIgnored private let pageScriptControllers = NSHashTable<WKUserContentController>.weakObjects()
   @ObservationIgnored private var sharedPrivateDataStore: WKWebsiteDataStore?
@@ -71,6 +76,10 @@ public final class WebEngine {
   }
 
   public func openLink(_ url: URL, from tabID: UUID, inBackground: Bool) {
+    if let onOpenLink {
+      onOpenLink(url, tabID, inBackground)
+      return
+    }
     let tab = tabs.open(.url(url, origin: .link), placement: .after(tabID), selecting: !inBackground)
     if !inBackground { _ = webTab(for: tab.id) }
   }
@@ -124,6 +133,7 @@ public final class WebEngine {
     privateSession += 1
     preferences.endPrivateBrowsing()
     blocker.settings.endPrivateBrowsing()
+    onPrivateBrowsingEnded?()
     guard let store = sharedPrivateDataStore else { return }
     sharedPrivateDataStore = nil
     Task { await store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) }
@@ -156,6 +166,7 @@ public final class WebEngine {
     let page = WebTab(id: tab.id, engine: self, url: url, popupConfiguration: configuration)
     roster.register(page, for: tab.id)
     roster.activate(tab.id)
+    onPopup?(opener, page)
     return page.webView
   }
 
@@ -171,6 +182,30 @@ public final class WebEngine {
   isolated deinit {
     notificationTasks.forEach { $0.cancel() }
   }
+}
+
+public enum PageVisitKind: String, Sendable {
+  case typed
+  case link
+  case backForward
+  case restored
+  case redirect
+  case sameDocument
+
+  init(_ transition: VisitTransition) {
+    switch transition {
+    case .typed: self = .typed
+    case .backForward: self = .backForward
+    case .restored: self = .restored
+    default: self = .link
+    }
+  }
+}
+
+public struct PageVisit: Sendable, Equatable {
+  public let url: String
+  public let title: String
+  public let kind: PageVisitKind
 }
 
 @MainActor

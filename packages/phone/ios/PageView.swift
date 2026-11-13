@@ -9,47 +9,51 @@ final class PageView: ExpoView {
 
   var pageID: String?
   var initialURL: String?
+  var title: String?
+  var isPrivate = false
+  var savedState: String?
   var toneInsets: (top: CGFloat, bottom: CGFloat) = (0, 0)
   private(set) var page: WebTab?
 
   private weak var hostedWebView: WKWebView?
+  private var failedID: String?
   private var sampled: PageTone?
   private var sentTone: PageTone?
-  private var sentState: NavigationState?
+  private var sentState: NSDictionary?
   private var wasLoading = false
   private var observing = 0
   private var toneTask: Task<Void, Never>?
   private var scrollObservation: NSKeyValueObservation?
   private var lastScroll: TimeInterval = 0
 
-  private struct NavigationState: Equatable {
-    var url: String?
-    var title: String
-    var progress: Double
-    var isLoading: Bool
-    var canGoBack: Bool
-    var canGoForward: Bool
-  }
-
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
     clipsToBounds = true
   }
 
+  @MainActor
   func bind() {
-    guard let pageID else { return }
-    if let page, PhonePages.shared.engine.existingWebTab(page.id) === page, hostedWebView === page.webView, page.webView != nil {
+    guard let pageID, failedID != pageID else { return }
+    if let page, PhonePages.shared.page(pageID) === page { return }
+    unbind()
+    let opened: WebTab
+    do {
+      try PhonePages.shared.open(pageID, url: initialURL, title: title, isPrivate: isPrivate, savedState: savedState)
+      guard let live = PhonePages.shared.activate(pageID) else { throw PagePayloads.error("ERR_NO_PAGE", "The page \(pageID) could not be opened") }
+      opened = live
+    } catch {
+      failedID = pageID
+      let exception = error as? Exception
+      onPageEvent(["name": "error", "code": exception?.code ?? "ERR_PAGE", "message": exception?.reason ?? error.localizedDescription])
       return
     }
-    unbind()
-    guard let opened = PhonePages.shared.open(pageID, initialURL: initialURL) else { return }
     page = opened
     wasLoading = opened.isLoading
-    host(opened.webView)
     observing += 1
     observe(opened, generation: observing)
   }
 
+  @MainActor
   func unbind() {
     observing += 1
     toneTask?.cancel()
@@ -58,63 +62,59 @@ final class PageView: ExpoView {
     if let hostedWebView, hostedWebView.superview === self { hostedWebView.removeFromSuperview() }
     hostedWebView = nil
     page = nil
+    failedID = nil
     sampled = nil
     sentTone = nil
     sentState = nil
   }
 
+  @MainActor
   private func host(_ webView: WKWebView?) {
+    guard webView !== hostedWebView || webView?.superview !== self else { return }
+    if let hostedWebView, hostedWebView.superview === self { hostedWebView.removeFromSuperview() }
+    hostedWebView = webView
+    scrollObservation = nil
     guard let webView else { return }
     webView.removeFromSuperview()
     webView.frame = bounds
     webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     webView.allowsBackForwardNavigationGestures = true
     addSubview(webView)
-    hostedWebView = webView
     scrollObservation = webView.scrollView.observe(\.contentOffset, options: []) { [weak self] _, _ in
       MainActor.assumeIsolated { self?.scrollMoved() }
     }
     scheduleToneSample(after: .milliseconds(120))
   }
 
+  @MainActor
   private func observe(_ page: WebTab, generation: Int) {
     withObservationTracking {
-      send(page)
+      update(page)
     } onChange: { [weak self] in
       Task { @MainActor [weak self] in
-        guard let self, self.observing == generation, let current = self.page, current === page else { return }
+        guard let self, self.observing == generation, self.page === page else { return }
         self.observe(page, generation: generation)
       }
     }
   }
 
-  private func send(_ page: WebTab) {
-    let state = NavigationState(
-      url: page.url?.absoluteString,
-      title: page.title,
-      progress: page.progress,
-      isLoading: page.isLoading,
-      canGoBack: page.canGoBack,
-      canGoForward: page.canGoForward
-    )
-    if state != sentState {
-      sentState = state
-      var payload: [String: Any] = [
-        "name": "state",
-        "title": state.title,
-        "progress": state.progress,
-        "isLoading": state.isLoading,
-        "canGoBack": state.canGoBack,
-        "canGoForward": state.canGoForward,
-      ]
-      if let url = state.url { payload["url"] = url }
+  @MainActor
+  private func update(_ page: WebTab) {
+    host(page.webView)
+    let state = PhonePages.shared.state(page)
+    let comparable = state as NSDictionary
+    if comparable != sentState {
+      sentState = comparable
+      var payload = state
+      payload["name"] = "state"
       onPageEvent(payload)
     }
-    if wasLoading, !state.isLoading { scheduleToneSample(after: .milliseconds(250)) }
-    wasLoading = state.isLoading
+    if wasLoading, !page.isLoading { scheduleToneSample(after: .milliseconds(250)) }
+    wasLoading = page.isLoading
     sendTone(theme: page.themeColor, underPage: page.underPageBackgroundColor)
   }
 
+  @MainActor
   private func sendTone(theme: UIColor?, underPage: UIColor?) {
     let tone = PageTone.resolve(theme: theme, underPage: underPage, sampled: sampled, stored: nil)
     guard tone != sentTone, tone.top != nil || tone.bottom != nil else { return }
@@ -125,6 +125,7 @@ final class PageView: ExpoView {
     onPageEvent(payload)
   }
 
+  @MainActor
   private func scrollMoved() {
     lastScroll = CACurrentMediaTime()
     guard toneTask == nil else { return }
@@ -140,6 +141,7 @@ final class PageView: ExpoView {
     }
   }
 
+  @MainActor
   private func scheduleToneSample(after delay: Duration) {
     toneTask?.cancel()
     toneTask = Task { @MainActor [weak self] in
@@ -150,6 +152,7 @@ final class PageView: ExpoView {
     }
   }
 
+  @MainActor
   private func sampleTone() async {
     guard let page, let webView = hostedWebView, webView.window != nil, !webView.isHidden, webView.url != nil,
           !page.isLoading, webView.bounds.height > toneInsets.top + toneInsets.bottom + ToneSampler.bandHeight * 4 else { return }
@@ -162,26 +165,33 @@ final class PageView: ExpoView {
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
-    if window != nil { scheduleToneSample(after: .milliseconds(120)) }
+    guard window != nil else { return }
+    MainActor.assumeIsolated {
+      if let pageID, page != nil { _ = PhonePages.shared.activate(pageID) }
+      scheduleToneSample(after: .milliseconds(120))
+    }
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    hostedWebView?.frame = bounds
+    if let hostedWebView, hostedWebView.superview === self { hostedWebView.frame = bounds }
   }
 
+  @MainActor
   func goBack() -> Bool {
     guard let page, page.canGoBack else { return false }
     page.goBack()
     return true
   }
 
+  @MainActor
   func goForward() -> Bool {
     guard let page, page.canGoForward else { return false }
     page.goForward()
     return true
   }
 
+  @MainActor
   func load(_ address: String) {
     guard let url = URL(string: address) else { return }
     page?.load(url)
