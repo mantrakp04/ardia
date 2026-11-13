@@ -173,6 +173,23 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
   }
 }
 
+- (BOOL)noteInShownSlot {
+  return _contents && ardiacore::NoteTabInShownSlot(_contents);
+}
+
+- (void)whenSizeRestored:(void (^)(NSString* proof))restored {
+  if (!_contents) {
+    restored(@"");
+    return;
+  }
+  ardiacore::WhenTabSizeRestored(
+      _contents, base::BindOnce(
+                     [](void (^done)(NSString*), const std::string& proof) {
+                       done(base::SysUTF8ToNSString(proof));
+                     },
+                     restored));
+}
+
 - (void)exitFullscreen {
   if (_contents && _contents->IsFullscreen()) {
     _contents->ExitFullscreen(true);

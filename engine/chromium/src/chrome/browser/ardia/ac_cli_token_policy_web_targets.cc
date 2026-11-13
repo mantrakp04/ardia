@@ -1,12 +1,10 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include <set>
 #include <string>
 #include <string_view>
 
 #include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_hooks.h"
-#include "base/no_destructor.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -101,17 +99,6 @@ bool IsWebWorkerUrl(const GURL& url) {
   return url.SchemeIsHTTPOrHTTPS() || (url.SchemeIsBlob() && IsWebUrl(url));
 }
 
-std::set<std::string>& CreatedTargets() {
-  static base::NoDestructor<std::set<std::string>> targets;
-  return *targets;
-}
-
-bool TargetLives(const std::string& target_id) {
-  content::DevToolsAgentHost* host =
-      content::ArdiaDevToolsAgentHostForId(target_id);
-  return host && host->GetWebContents();
-}
-
 }
 
 bool IsWebUrl(const GURL& url) {
@@ -196,21 +183,6 @@ bool IsWebHost(content::DevToolsAgentHost* host) {
 bool IsWebTarget(const std::string* target_id) {
   return target_id &&
          IsWebHost(content::ArdiaDevToolsAgentHostForId(*target_id));
-}
-
-void NoteCreatedTarget(const std::string& target_id) {
-  std::erase_if(CreatedTargets(), [](const std::string& created) {
-    return !TargetLives(created);
-  });
-  CreatedTargets().insert(target_id);
-}
-
-void ForgetCreatedTarget(const std::string& target_id) {
-  CreatedTargets().erase(target_id);
-}
-
-bool IsCreatedTarget(const std::string& target_id) {
-  return CreatedTargets().contains(target_id) && TargetLives(target_id);
 }
 
 }

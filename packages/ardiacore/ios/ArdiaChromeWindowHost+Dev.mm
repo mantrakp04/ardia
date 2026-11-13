@@ -201,10 +201,11 @@ NSString *Click(NSWindow *window, NSString *argument) {
 
 NSString *MouseEvent(NSWindow *window, NSString *argument) {
   NSArray<NSString *> *parts = Fields(argument);
-  if (parts.count < 2) return @"mouse:<down|up|dragged|moved|otherdown|otherup>:<x>,<y>[,<clickCount>[,<flags>]]";
+  if (parts.count < 2) return @"mouse:<down|up|dragged|moved|rightdown|rightup|otherdown|otherup>:<x>,<y>[,<clickCount>[,<flags>[,<eventNumber>]]]";
   NSDictionary<NSString *, NSNumber *> *types = @{
     @"down" : @(NSEventTypeLeftMouseDown), @"up" : @(NSEventTypeLeftMouseUp),
     @"dragged" : @(NSEventTypeLeftMouseDragged), @"moved" : @(NSEventTypeMouseMoved),
+    @"rightdown" : @(NSEventTypeRightMouseDown), @"rightup" : @(NSEventTypeRightMouseUp),
     @"otherdown" : @(NSEventTypeOtherMouseDown), @"otherup" : @(NSEventTypeOtherMouseUp),
   };
   NSNumber *type = types[parts[0]];
@@ -213,13 +214,13 @@ NSString *MouseEvent(NSWindow *window, NSString *argument) {
   NSPoint p = WindowPoint(window, parts[1]);
   const NSEventType t = (NSEventType)type.unsignedIntegerValue;
   NSEvent *event = [NSEvent mouseEventWithType:t location:p modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
-                                  windowNumber:window.windowNumber context:nil eventNumber:0
+                                  windowNumber:window.windowNumber context:nil eventNumber:n.count > 4 ? n[4].integerValue : 0
                                     clickCount:n.count > 2 ? n[2].integerValue : (t == NSEventTypeMouseMoved ? 0 : 1)
-                                      pressure:t == NSEventTypeLeftMouseUp || t == NSEventTypeMouseMoved ? 0 : 1];
+                                      pressure:t == NSEventTypeLeftMouseUp || t == NSEventTypeRightMouseUp || t == NSEventTypeMouseMoved ? 0 : 1];
   const bool other = t == NSEventTypeOtherMouseDown || t == NSEventTypeOtherMouseUp;
   if (other || n.count > 3) {
     CGEventRef cg = event.CGEvent;
-    if (n.count > 3) CGEventSetFlags(cg, (CGEventFlags)n[3].longLongValue);
+    if (n.count > 3 && n[3].longLongValue) CGEventSetFlags(cg, (CGEventFlags)n[3].longLongValue);
     if (other) CGEventSetIntegerValueField(cg, kCGMouseEventButtonNumber, kCGMouseButtonCenter);
     event = [NSEvent eventWithCGEvent:cg];
   }
@@ -229,19 +230,30 @@ NSString *MouseEvent(NSWindow *window, NSString *argument) {
 
 NSString *Drag(NSWindow *window, NSString *argument) {
   NSMutableArray<NSValue *> *points = [NSMutableArray array];
-  for (NSString *spec in [argument componentsSeparatedByString:@";"]) [points addObject:[NSValue valueWithPoint:WindowPoint(window, spec)]];
-  if (points.count < 2) return @"drag needs two points";
-  NSMutableArray<NSEvent *> *events = [NSMutableArray arrayWithObject:Mouse(window, NSEventTypeLeftMouseDown, points[0].pointValue)];
+  NSEventModifierFlags flags = 0;
+  for (NSString *spec in [argument componentsSeparatedByString:@";"]) {
+    if ([spec hasPrefix:@"flags="]) flags = (NSEventModifierFlags)[spec substringFromIndex:6].longLongValue;
+    else [points addObject:[NSValue valueWithPoint:WindowPoint(window, spec)]];
+  }
+  if (points.count < 2) return @"drag:[flags=<modifier flags>;]<x>,<y>;<x>,<y>[;…]";
+  NSEvent * (^held)(NSEventType, NSPoint) = ^NSEvent *(NSEventType type, NSPoint at) {
+    NSEvent *event = Mouse(window, type, at);
+    if (!flags) return event;
+    CGEventRef cg = event.CGEvent;
+    CGEventSetFlags(cg, (CGEventFlags)flags);
+    return [NSEvent eventWithCGEvent:cg];
+  };
+  NSMutableArray<NSEvent *> *events = [NSMutableArray arrayWithObject:held(NSEventTypeLeftMouseDown, points[0].pointValue)];
   for (NSUInteger i = 1; i < points.count; i++) {
     NSPoint a = points[i - 1].pointValue, b = points[i].pointValue;
     for (int k = 1; k <= 12; k++)
-      [events addObject:Mouse(window, NSEventTypeLeftMouseDragged, NSMakePoint(a.x + (b.x - a.x) * k / 12, a.y + (b.y - a.y) * k / 12))];
+      [events addObject:held(NSEventTypeLeftMouseDragged, NSMakePoint(a.x + (b.x - a.x) * k / 12, a.y + (b.y - a.y) * k / 12))];
   }
-  [events addObject:Mouse(window, NSEventTypeLeftMouseUp, points.lastObject.pointValue)];
+  [events addObject:held(NSEventTypeLeftMouseUp, points.lastObject.pointValue)];
   NSString *hit = Describe([window.contentView.superview hitTest:points[0].pointValue]);
   for (NSUInteger i = 0; i < events.count; i++)
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((i ? 150 + i * 16 : 0) * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
-      [window sendEvent:events[i]];
+      [NSApp sendEvent:events[i]];
     });
   return [NSString stringWithFormat:@"%@ (%lu events)", hit, (unsigned long)events.count];
 }

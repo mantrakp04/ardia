@@ -35,6 +35,29 @@ test("setting off: no bar, and the last tab still closes its window", () => {
   assert.equal(S().windows[solo], undefined, "the last tab closes its window");
 });
 
+test("setting off: New Tab on an empty New Tab page focuses its field instead of stacking another empty tab", async () => {
+  reset();
+  const { registerHeroBar } = await import("./barState.ts");
+  const { w } = windowWith("a", "b");
+  assert.equal(toggleNewTabBar(w), false, "a page is shown: New Tab opens a tab");
+  const empty = S().newTab(w, { newTabCommand: true });
+  const count = S().windows[w].tabIds.length;
+  assert.equal(toggleNewTabBar(w), false, "no New Tab page is on screen yet");
+  let focused = 0;
+  const unregister = registerHeroBar(w, empty, () => void focused++);
+  assert.equal(toggleNewTabBar(w), true);
+  assert.equal(toggleNewTabBar(w), true);
+  assert.deepEqual([focused, S().windows[w].tabIds.length, model.activeTabId(S(), w)], [2, count, empty]);
+  S().openPanel(w, "", undefined, "field");
+  assert.equal(panel(w).open, true);
+  assert.equal(toggleNewTabBar(w), true);
+  assert.deepEqual([panel(w).open, focused, S().windows[w].tabIds.length], [false, 3, count], "an open command panel closes before the page's field takes focus");
+  assert.equal(toggleNewTabBar(w, { kind: "group", groupId: S().groupTabs([S().windows[w].tabIds[0]], { pinned: false }) }), false, "a group's New Tab still opens in the group");
+  S().navigate(empty, "https://c.com/");
+  assert.equal(toggleNewTabBar(w), false, "the tab has a page now");
+  unregister();
+});
+
 test("setting on: the bar adds nothing; closing it again leaves everything as it was", () => {
   reset("commandBar");
   const { w, ids: [a] } = windowWith("a", "b");

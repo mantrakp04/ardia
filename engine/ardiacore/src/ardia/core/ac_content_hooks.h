@@ -27,6 +27,10 @@ bool ArdiaHasAccessedInitialMainDocument(WebContents* contents);
 bool ArdiaMainFrameHandlesEnterPictureInPicture(WebContents* contents);
 
 DevToolsAgentHost* ArdiaDevToolsAgentHostForId(const std::string& id);
+
+void ArdiaWhenRestoredFrameDisplayed(
+    WebContents* contents,
+    base::OnceCallback<void(const std::string&)> displayed);
 }
 
 namespace crypto::apple {
