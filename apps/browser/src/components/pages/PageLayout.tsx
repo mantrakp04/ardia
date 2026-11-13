@@ -1,4 +1,4 @@
-import { appUrlOrigin, urlForDisplay } from "@ardia/core";
+import { appUrlOrigin } from "@ardia/core";
 import { displayHostOf } from "../../lib/url";
 import type { ReactNode, Ref } from "react";
 import { StyleSheet, View, type TextInput } from "react-native";
@@ -77,14 +77,3 @@ export function timeLabel(ms: number): string {
 }
 
 export const hostLabel = (url: string) => appUrlOrigin(url) || displayHostOf(url) || url;
-
-export const queryWords = (query: string) => query.toLowerCase().split(/\s+/).filter(Boolean);
-
-export const searchText = (...fields: string[]) => fields.map((f) => (/xn--/i.test(f) ? `${f} ${urlForDisplay(f)}` : f)).join(" ").toLowerCase();
-
-export function matchesQuery(query: string, ...fields: string[]): boolean {
-  const words = queryWords(query);
-  if (!words.length) return true;
-  const hay = searchText(...fields);
-  return words.every((w) => hay.includes(w));
-}

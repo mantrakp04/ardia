@@ -92,6 +92,12 @@ export function comboKey({ key, modifiers }: Shortcut): string {
 
 export const sameShortcut = (a: Shortcut, b: Shortcut) => comboKey(a) === comboKey(b);
 
+export function shortcutChoice(overrides: ShortcutOverrides, id: string): "default" | "custom" | "none" {
+  const stored = overrides[id];
+  if (!stored) return "default";
+  return storedShortcut(stored).key ? "custom" : "none";
+}
+
 export function resolveShortcuts(sources: readonly ShortcutSource[], overrides: ShortcutOverrides): ResolvedShortcuts {
   const rebindable = new Set(sources.filter((s) => !s.fixed).map((s) => s.id));
   const taken = new Set<string>();

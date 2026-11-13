@@ -13,7 +13,8 @@ import { Box, Button, Divider, EmptyState, radius, space, Text, Toast, useTheme 
 import { openOrganizeMenu } from "../../state/bookmarks/bookmarkMenus";
 import { BookmarkRow } from "./BookmarkRow";
 import { DropTargets } from "./dropTargets";
-import { matchesQuery, PageHeader } from "./PageLayout";
+import { PageHeader } from "./PageLayout";
+import { matchesQuery } from "../../lib/textQuery";
 import { bookmarkList, pagesColors, undoToast } from "./tokens";
 
 

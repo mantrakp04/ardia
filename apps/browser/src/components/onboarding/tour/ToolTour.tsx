@@ -6,7 +6,7 @@ import type { Rect } from "../../window/geometry";
 import { Button, Panel, Surface, Text, usePresence } from "../../ui";
 import { useOnboardingColors } from "../Parts";
 import { locateAnchor } from "./anchors";
-import { endToolTour, openVideoTour, stepToolTour, useTour, videoTourUrl, type TourStop } from "../../../state/onboarding/tour";
+import { endToolTour, openVideoTour, stepToolTour, useTour, useTourStopBody, videoTourUrl, type TourStop } from "../../../state/onboarding/tour";
 import { currentValue, curve, springs } from "../../ui/motion";
 import { proseLineHeight, radius, shadow, space } from "../../ui/tokens";
 import { onboardingMotion, onboardingType, tourRing } from "../tokens";
@@ -162,13 +162,14 @@ function Ring({ hole }: { hole: { x: Animated.Value; y: Animated.Value; w: Anima
 function CoachMark({ stop, index, count, windowId }: { stop: TourStop; index: number; count: number; windowId: string }) {
   const last = index === count - 1;
   const video = last ? videoTourUrl() : null;
+  const body = useTourStopBody(stop);
   return (
     <Panel radius={radius.sheet} shadow={shadow.dialog}>
       <View style={{ paddingHorizontal: space.xl, paddingTop: space.xl, paddingBottom: space.xl, gap: space.m }} accessibilityRole="none">
         <Text tone="textTertiary" style={onboardingType.coachCount}>{`${index + 1} OF ${count}`}</Text>
         <Text style={onboardingType.coachTitle}>{stop.title}</Text>
         <Text size="small" tone="textSecondary" style={{ lineHeight: proseLineHeight.small }}>
-          {stop.body}
+          {body}
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", marginTop: space.m, gap: space.s }}>
           {last ? null : <Button variant="text" look="link" tone="textTertiary" label="Skip Tour" title="Skip Tour" onPress={endToolTour} />}

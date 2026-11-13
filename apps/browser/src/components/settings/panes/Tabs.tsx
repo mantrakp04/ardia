@@ -4,7 +4,7 @@ import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { chooseSidebarSide, chooseTabLayout, updateSettings } from "../../../state/settings/actions";
 import { splitLinkModifierOf, type PeekModifier, type Settings, type SplitLinkModifier } from "../../../state/settings/settings";
-import { Box, Button, Checkbox, DialogActions, DialogTitle, PopUp, Segmented, Sheet, space, Text, TextField, Toggle, type Option, type SegmentOption } from "../../ui";
+import { Box, Button, Checkbox, DialogActions, DialogTitle, lineHeight, PopUp, Segmented, Sheet, space, Text, TextField, type Option, type SegmentOption } from "../../ui";
 import { durationMinutes, durationParts, type DurationUnit } from "../../../lib/time";
 import { cleanUpChoices, CUSTOM_CLEAN_UP, DAILY_CLEAN_UP_MINUTES } from "../../../state/settings/cleanUpAfter";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
@@ -13,6 +13,10 @@ import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { setting, type SettingId } from "../settingsIndex";
 import { useSettingsColors } from "../useSettingsColors";
+import { ShortcutConflict, ShortcutKeys, useShortcutEditor } from "../ShortcutEditor";
+import { useShortcutHint } from "../../../state/commands/commandShortcuts";
+import { shortcutItems } from "../../../state/settings/paneData";
+import { useResource } from "../../../state/settings/resources";
 
 const PEEK_WITH: { value: PeekModifier; title: string }[] = [
   { value: "shift", title: "⇧-click" },
@@ -90,6 +94,7 @@ export function TabsPane() {
   const cleanUpMinutes = useSettings((s) => s.cleanUpInactiveTabsAfterMinutes);
   const top = useTabLayout() === "top";
   const sidebarSide = useSettings((s) => s.sidebarSide);
+  const hideTabsHint = useShortcutHint("toggleSidebar");
 
   return (
     <View>
@@ -100,15 +105,15 @@ export function TabsPane() {
           <LayoutChoice layout="top" title="Tab layout across the top of the window" selected={top} />
         </Box>
         <Group>
-          <SettingToggle
-            anchor="tabs.autoHideTabs"
-            description={`In every window, the tabs slide out of view and come back when you move the pointer to the window's ${top ? "top edge" : "edge"}. Changing it here resets every window; ⌘S and View › Auto-Hide Tabs hide or show the tabs in one window only.`}
-          />
+          <AutoHideTabsRow top={top} hint={hideTabsHint} />
         <Row anchor="tabs.sidebarSide">
           <Segmented options={SIDEBAR_SIDES} value={sidebarSide} onChange={chooseSidebarSide} />
         </Row>
         <SettingToggle anchor="tabs.hideToolbarWhileScrolling" />
-        <SettingToggle anchor="tabs.showSidebarButton" />
+        <SettingToggle
+          anchor="tabs.showSidebarButton"
+          description={`The button at the toolbar's leading edge. Auto-hide tabs${hideTabsHint ? `, ${hideTabsHint}` : ""} and View › Auto-Hide Tabs still hide and show the tabs.`}
+        />
         <SettingToggle anchor="tabs.showClearButton" />
         <SettingToggle anchor="tabs.tidyTabs" />
         <SettingToggle anchor="tabs.balancedTopApps" />
@@ -167,6 +172,25 @@ export function TabsPane() {
     </View>
   );
 }
+
+function AutoHideTabsRow({ top, hint }: { top: boolean; hint: string | undefined }) {
+  const [menuItems] = useResource(shortcutItems);
+  const editor = useShortcutEditor("toggleSidebar", "tabsRow", menuItems);
+  const text = `In every window, the tabs slide out of view and come back when you move the pointer to the window's ${top ? "top edge" : "edge"}. Changing it here resets every window; ${hint ? `${hint} and View › Auto-Hide Tabs hide or show` : "View › Auto-Hide Tabs hides or shows"} the tabs in one window only.`;
+  const description = editor.conflicts.length ? (
+    <>
+      <Text size="caption" tone="textSecondary" style={DESCRIPTION}>
+        {text}
+      </Text>
+      <ShortcutConflict titles={editor.conflicts} />
+    </>
+  ) : (
+    text
+  );
+  return <SettingToggle anchor="tabs.autoHideTabs" description={description} accessory={<ShortcutKeys editor={editor} />} />;
+}
+
+const DESCRIPTION = { marginTop: space.xxs, lineHeight: lineHeight.caption } as const;
 
 function CleanUpRow({ minutes }: { minutes: number | null }) {
   const shown = minutes ?? DAILY_CLEAN_UP_MINUTES;

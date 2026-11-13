@@ -11,7 +11,8 @@ import { useDownloadView } from "../downloads/useDownloadView";
 import { downloadMenu } from "../../state/downloads/downloadMenu";
 import { downloadStatus } from "../../state/downloads/status";
 import { Box, Button, EmptyState, MouseArea, opacity, ProgressTrack, space, Text, useHover } from "../ui";
-import { hostLabel, matchesQuery, PAGE_WIDTH, PageHeader } from "./PageLayout";
+import { hostLabel, PAGE_WIDTH, PageHeader } from "./PageLayout";
+import { matchesQuery } from "../../lib/textQuery";
 import { downloadCard, pageList, pageType } from "./tokens";
 
 export function DownloadsPage({ tabId }: { tabId: string }) {

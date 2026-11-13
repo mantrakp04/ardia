@@ -98,6 +98,11 @@ const DEFS: ActionDef[] = [
 
 const actionId = (d: Pick<ActionDef, "command" | "arg">) => (d.arg ? `${d.command}:${d.arg}` : d.command);
 
+const keywordsById = new Map<string, readonly string[]>();
+for (const d of DEFS) if (d.keywords) keywordsById.set(actionId(d), [...(keywordsById.get(actionId(d)) ?? []), ...d.keywords]);
+
+export const commandKeywords = (id: string): readonly string[] => keywordsById.get(id) ?? [];
+
 export function barActions(s: BrowserState, windowId: string): CommandAction[] {
   const w = s.windows[windowId];
   const tab = activeTab(s, windowId);

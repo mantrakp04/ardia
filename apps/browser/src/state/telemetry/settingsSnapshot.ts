@@ -1,5 +1,6 @@
 import { SETTING_SPECS, type Settings, type SettingSpec } from "../settings/settings";
 import { commandBarStartFlags } from "../omnibox/commandBarStart";
+import { shortcutChoice } from "../commands/shortcuts";
 
 export const SETTINGS_SNAPSHOT_EVENT = "settings_snapshot";
 
@@ -28,7 +29,12 @@ export function settingsSnapshot(settings: Settings): Record<string, string> {
     out[`setting_${key}`] = value;
     out[`default_${key}`] = fallback;
   }
-  return { ...out, ...commandBarStartFlags(settings.commandBarStart), unread_hidden_sites: String(Array.isArray(settings.unreadHiddenSites) ? settings.unreadHiddenSites.length : 0) };
+  return {
+    ...out,
+    ...commandBarStartFlags(settings.commandBarStart),
+    unread_hidden_sites: String(Array.isArray(settings.unreadHiddenSites) ? settings.unreadHiddenSites.length : 0),
+    toggle_sidebar_shortcut: shortcutChoice(settings.shortcuts ?? {}, "toggleSidebar"),
+  };
 }
 
 export const appIconSetting = (icon: string | null): Record<string, string> =>

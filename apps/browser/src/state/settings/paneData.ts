@@ -87,6 +87,7 @@ export function paneNeeds(pane: SettingsPane, profileId: string | null): Needed[
       return [need(addresses, profile), need(cards, profile), need(autofillEnabled, profile)];
     case "extensions":
       return [need(extensionList, engineProfile(useBrowser.getState(), extensionsProfileId(profileId)))];
+    case "tabs":
     case "shortcuts":
       return [need(shortcutItems)];
     case "advanced":
