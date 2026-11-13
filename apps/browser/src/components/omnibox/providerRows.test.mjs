@@ -101,10 +101,8 @@ test("the default row is never held: a row moving off the top doesn't become a p
   const page = row("https://narasaka.dev/");
   const before = [page, search];
   const after = [search, page];
-  const key = heldKey(before, 0, 0);
+  const key = heldKey(before, 0);
   assert.equal(key, null);
   assert.equal(heldIndex({ items: before, typed: "n", scope: null, key }, after, "n", null, 0), 0);
-  assert.equal(heldKey(before, 1, 0), "search:https://search/?q=n");
-  assert.equal(heldKey(before, 0, -1), "page:https://narasaka.dev");
-  assert.equal(heldKey(before, -1, -1), null);
+  assert.equal(heldKey(before, 1), "search:https://search/?q=n");
 });
