@@ -132,7 +132,7 @@ async function messagesOf(desktop: Desktop, folder: string, manifest: Fields, ui
     if (!messages) continue;
     const valid = Object.values(messages).every((entry) => isFields(entry) && typeof entry.message === "string");
     if (!valid) throw callError("ERR_ENGINE", `The localization file _locales/${locale}/messages.json is invalid`);
-    for (const [key, entry] of Object.entries(messages)) merged[key] ??= entry as { message: string };
+    for (const [key, entry] of Object.entries(messages)) if (isFields(entry) && typeof entry.message === "string") merged[key] ??= { message: entry.message };
   }
   return merged;
 }

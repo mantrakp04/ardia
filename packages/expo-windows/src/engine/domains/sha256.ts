@@ -28,7 +28,7 @@ export function sha256(message: Uint8Array): Uint8Array {
       const s1 = rotate(w2, 17) ^ rotate(w2, 19) ^ (w2 >>> 10);
       words[i] = (words[i - 16]! + s0 + words[i - 7]! + s1) >>> 0;
     }
-    let [a, b, c, d, e, f, g, h] = hash as unknown as number[];
+    let [a, b, c, d, e, f, g, h] = hash;
     for (let i = 0; i < 64; i++) {
       const t1 = (h! + (rotate(e!, 6) ^ rotate(e!, 11) ^ rotate(e!, 25)) + ((e! & f!) ^ (~e! & g!)) + ROUND[i]! + words[i]!) >>> 0;
       const t2 = ((rotate(a!, 2) ^ rotate(a!, 13) ^ rotate(a!, 22)) + ((a! & b!) ^ (a! & c!) ^ (b! & c!))) >>> 0;
