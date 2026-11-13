@@ -86,7 +86,7 @@ void InstallDragMonitor() {
                                            gDragSamples.data(), (int)gDragSamples.size(), event.timestamp);
                                        const bool moved = gDragSamples.size() > 1;
                                        gDragSamples.clear();
-                                       const BOOL slipped = !gDragHeld && ardia_pip_throw::DragHeld(ThrowRect(window.frame), {gGrabLocal.x, gGrabLocal.y},
+                                       const BOOL slipped = !gDragHeld && ardia_pip_throw::DragSlipped(ThrowRect(window.frame), {gGrabLocal.x, gGrabLocal.y},
                                                                                                   {gDragPointer.x, gDragPointer.y});
                                        ArdiaPiPController *controller = [ArdiaPiPController forWindow:window];
                                        if (moved) [controller.view emit:@"pictureInPictureDragged" payload:@{@"held" : @(gDragHeld), @"slipped" : @(slipped)}];

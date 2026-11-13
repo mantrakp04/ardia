@@ -1,3 +1,4 @@
+import type { PictureInPictureDrag } from "@ardia/ardiacore";
 import type { PageEngine } from "../engines/engines";
 
 let nothingPlaying = 0;
@@ -12,7 +13,7 @@ export function notePictureInPictureBackToTab(engine: PageEngine) {
   backToTab[engine]++;
 }
 
-export function notePictureInPictureDragged({ held, slipped }: { held: boolean; slipped: boolean }) {
+export function notePictureInPictureDragged({ held, slipped }: PictureInPictureDrag) {
   drags.total++;
   if (held) drags.held++;
   if (slipped) drags.slipped++;
