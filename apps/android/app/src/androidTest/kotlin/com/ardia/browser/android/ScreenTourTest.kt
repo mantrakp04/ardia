@@ -145,15 +145,22 @@ class ScreenTourTest(private val theme: String, private val state: TourState) {
                 showOnboarding()
                 tap("Get Started")
             })
-            add(TourState(next + 3, "onboarding-sync", onboarding) {
+            add(TourState(next + 3, "onboarding-default-browser", onboarding) {
                 showOnboarding()
                 tap("Get Started")
                 tap("Continue")
             })
-            add(TourState(next + 4, "onboarding-all-set", onboarding) {
+            add(TourState(next + 4, "onboarding-sync", onboarding) {
                 showOnboarding()
                 tap("Get Started")
                 tap("Continue")
+                tap("Maybe Later")
+            })
+            add(TourState(next + 5, "onboarding-all-set", onboarding) {
+                showOnboarding()
+                tap("Get Started")
+                tap("Continue")
+                tap("Maybe Later")
                 tap("Not Now")
             })
         }
