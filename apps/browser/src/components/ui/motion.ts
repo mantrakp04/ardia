@@ -70,6 +70,12 @@ export function usePressScaleMotion(enabled = true, pressedScale: number = butto
   const scale = useRef<Animated.Value | null>(null);
   if (enabled && !scale.current) scale.current = new Animated.Value(1);
 
+  useEffect(() => {
+    if (enabled) return;
+    scale.current?.stopAnimation();
+    scale.current?.setValue(1);
+  }, [enabled]);
+
   const animate = (pressed: boolean) => {
     const value = scale.current;
     if (!enabled || !value) return;

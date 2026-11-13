@@ -88,7 +88,7 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
   const card = useStripCardHover(windowId, tabId, drag.ref);
   if (!tab) return null;
   return (
-    <Animated.View ref={drag.ref} {...card} mouseDownCanMoveWindow={false} style={[drag.style, { width: PINNED_CELL, height: ITEM_HEIGHT }]}>
+    <Animated.View ref={drag.ref} {...card} mouseDownCanMoveWindow={false} style={[drag.style, { width: PINNED_CELL, height: ITEM_HEIGHT - 1 }]}>
       <View
         {...drag.panHandlers}
         {...hoverProps}
@@ -134,7 +134,7 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
     drop: (dx, ids) => reorder(ids, { tabId: null, ids: () => ids, pinned: true, groupId: null, geometry, from, width: PINNED_CELL, gap: PINNED_SPACING }, dropIndex(geometry, from, dx)),
   });
   return (
-    <Animated.View ref={drag.ref} mouseDownCanMoveWindow={false} style={[drag.style, { width: PINNED_CELL, height: ITEM_HEIGHT }]}>
+    <Animated.View ref={drag.ref} mouseDownCanMoveWindow={false} style={[drag.style, { width: PINNED_CELL, height: ITEM_HEIGHT - 1 }]}>
       <View
         {...drag.panHandlers}
         {...hoverProps}
