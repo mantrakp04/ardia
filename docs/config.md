@@ -70,7 +70,8 @@ row in it) is reported and skipped, the others apply.
   { "keyword": "go", "title": "Linear", "url": "https://linear.app/team/issue/{query}" },
   { "keyword": "t", "title": "Team", "rows": [{ "title": "Wiki", "url": "https://wiki.example.com" }] },
   { "keyword": "pkg", "title": "npm", "suggest": "https://example.com/suggest?q={query}", "url": "https://www.npmjs.com/search?q={query}" },
-  { "title": "Docs", "suggest": "https://docs.example.com/suggest?q={query}", "global": true }
+  { "title": "Docs", "suggest": "https://docs.example.com/suggest?q={query}", "global": true },
+  { "title": "Dictionary", "url": "https://www.merriam-webster.com/dictionary/{query}", "global": true }
 ]
 ```
 
@@ -82,7 +83,9 @@ row in it) is reported and skipped, the others apply.
   provider and 6 in all, below the first three history, bookmark and tab rows. They are never the inline completion
   or what Enter opens by default, and never push a built-in row out.
 - `rows`: a static list of `{ title, url, subtitle?, icon? }` (up to 200), matched against every word you type.
-- `url`: a link template; `{query}` is what you typed after the keyword, URL-encoded. Needs a keyword.
+- `url`: a link template; `{query}` is what you typed, URL-encoded. With a keyword it's what you type after the
+  keyword. Without one (`"global": true`) the provider adds one row for whatever you type that doesn't look like an
+  address, and the row opens the link. Nothing is sent anywhere until you pick it.
 - `suggest`: a suggestion endpoint, `https` with `{query}`. It may answer OpenSearch suggestions (`["q", [texts],
   [descriptions], [urls]]`; a text without a URL goes through `url`, else it's dropped) or `[{ "title", "url" }]`.
   Without a keyword it needs `"global": true`, since it then receives everything you type that doesn't look like an
