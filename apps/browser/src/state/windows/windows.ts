@@ -28,6 +28,7 @@ import { isLastRegularWindow, isOpenRegularWindow, isRegularWindow, isSmall, isS
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
 import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, WindowKind } from "../browser/types";
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
+import { customNewTabUrl } from "../settings/settings";
 import { noteAutoHideTabsChosen } from "../telemetry/autoHideTabsChoices";
 import { lastClosedEntry, lastClosedTab, restoreTab, restoreWindow } from "./reopenClosed";
 import { groupTree, regrouped, splitsWithin, withSplitsBack } from "./groupMoves";
@@ -183,7 +184,8 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
         : { ...emptyWindow(id, profileId, kind, o.frame ?? null), ...(o.chromeWindow ? { chromeWindow: o.chromeWindow } : {}) };
     let next = withWindow(s, w);
     if (o.tabIds?.length && !small) next = moveTabsInto(next, o.tabIds, id);
-    if (!next.windows[id]!.tabIds.length) next = withNewTab(next, id, { url: o.url, adoptId: o.adoptId })[0];
+    const url = o.url ?? (small || o.adoptId ? undefined : customNewTabUrl(s.settings));
+    if (!next.windows[id]!.tabIds.length) next = withNewTab(next, id, { url, adoptId: o.adoptId })[0];
     const first = next.windows[id]!.tabIds[0]!;
     const shown = next.windows[id]!.activeTabIds[next.tabs[first]!.profileId] ?? first;
     if (!small) next = adoptParkedPins(next, id, next.tabs[shown]!.profileId);

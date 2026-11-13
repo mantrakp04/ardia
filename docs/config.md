@@ -38,7 +38,7 @@ Ardia never creates the folder. `ardia config init` does, or the user does.
   (`apps/browser/src/state/settings/settings.ts`). A test makes every setting either allowlisted or deliberately
   left out, so a new setting never becomes file-writable by accident. Left out, because they grant control, send
   data somewhere or change which engine handles a site: `cliControl`, `allowJavaScriptFromAppleEvents`,
-  `extensionSearchEngines`, `defaultProfileId`, `customSearchUrl`, `customSearchEngines`, `pageEngine`,
+  `extensionSearchEngines`, `defaultProfileId`, `customSearchUrl`, `newTabUrl`, `customSearchEngines`, `pageEngine`,
   `websiteEngines`, `protectedVideoInWebKit`. `searchEngine` must name an engine that already exists (built in, or
   one the user added in Settings).
 - `shortcuts` maps a command id from the command catalog to one shortcut, written `cmd+shift+t` (modifiers

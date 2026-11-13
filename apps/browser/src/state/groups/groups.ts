@@ -10,6 +10,7 @@ import type { BrowserWindow, ClosedGroup, ClosedGroupInfo, GroupColor, Tab, TabG
 import { depthOf, descendantIds, innermostGroupOf, nestGroups, reparent } from "./groupNesting";
 import { withShownTab, withoutShownTabs } from "./shownTabs";
 import { pinnedGroupMembers } from "../browser/structure";
+import { customNewTabUrl } from "../settings/settings";
 import { groupingOnto } from "../pins/placing";
 
 export { ancestorIds, canNest, commonGroup, depthOf, descendantIds, groupPath, innermostGroupOf, nestGroups, reparent, rootOf, withParent } from "./groupNesting";
@@ -306,7 +307,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     const g = s.groups[groupId];
     const w = g && s.windows[g.windowId];
     if (!g || !w) return "";
-    const [next, id] = withNewTab(s, w.id, { profileId: g.profileId, index: w.tabIds.indexOf(g.tabIds.at(-1)!) + 1 });
+    const [next, id] = withNewTab(s, w.id, { url: customNewTabUrl(s.settings), profileId: g.profileId, index: w.tabIds.indexOf(g.tabIds.at(-1)!) + 1 });
     const groups = nestGroups({ ...next.groups, [groupId]: { ...g, collapsed: false, tabIds: [...g.tabIds, id] } });
     set(withGroupsPlaced(next, w.id, groups));
     return id;
