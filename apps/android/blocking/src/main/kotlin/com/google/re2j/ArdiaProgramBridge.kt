@@ -56,4 +56,14 @@ internal object ArdiaProgramBridge {
     }
 
     fun matchRune(instruction: Any, rune: Int): Boolean = (instruction as Inst).matchRune(rune)
+
+    fun foldOrbit(rune: Int): IntArray {
+        val orbit = ArrayList<Int>()
+        var next = Unicode.simpleFold(rune)
+        while (next != rune) {
+            orbit += next
+            next = Unicode.simpleFold(next)
+        }
+        return orbit.toIntArray()
+    }
 }

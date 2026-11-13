@@ -32,6 +32,7 @@ enum class SkipReason {
     TOO_BROAD,
     NEVER_APPLIES,
     UNSUPPORTED_REGEX,
+    UNINDEXED_REGEX,
 }
 
 internal object Party {
@@ -141,6 +142,7 @@ object FilterParser {
         var skipped = 0
         var units = 0
         var chars = 0L
+        var unindexedRegex = 0
         val network = ArrayList<NetworkFilter>()
         val cosmetic = ArrayList<CosmeticFilter>()
         val badfilters = HashSet<String>()
@@ -207,8 +209,12 @@ object FilterParser {
                     if (badfilters.add(result.key)) spend(result.key.length)
                 }
                 is NetworkParse.Rule -> {
-                    converted++
                     val filter = result.filter
+                    if (ListRegex.isUnindexed(filter) && ++unindexedRegex > ListRegex.MAX_UNINDEXED_PER_LIST) {
+                        skip(SkipReason.UNINDEXED_REGEX)
+                        return
+                    }
+                    converted++
                     if (seenNetwork.add(filter.key)) {
                         spend(filter.key.length + filter.pattern.length + (filter.host?.length ?: 0) + filter.includeDomains.sumOf { it.length } + filter.excludeDomains.sumOf { it.length })
                         network += filter

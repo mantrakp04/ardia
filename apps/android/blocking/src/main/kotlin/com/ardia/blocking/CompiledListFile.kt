@@ -14,7 +14,7 @@ import java.util.zip.CheckedInputStream
 import java.util.zip.CheckedOutputStream
 
 internal object CompiledListFile {
-    const val FORMAT = 3
+    const val FORMAT = 4
     private const val MAGIC = 0x41524442
     private const val MAX_FILE_BYTES = 96L * 1024 * 1024
     private const val MAX_TEXT_BYTES = 1 shl 20

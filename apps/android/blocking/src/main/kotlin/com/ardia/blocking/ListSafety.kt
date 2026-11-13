@@ -12,9 +12,16 @@ class FilterListTooLargeException(val listId: String) : Exception("filter list $
 internal object ListRegex {
     const val MAX_SOURCE_LENGTH = 8_192
     const val MAX_PROGRAM_SIZE = 4_096
-    const val MAX_INPUT_LENGTH = 16_384
+    const val MAX_INPUT_LENGTH = 8_192
     const val BASE_STEPS = 500_000
     const val STEPS_PER_CHARACTER = 256
+
+    const val STEPS_PER_RULE_CHECK = 64
+    const val MAX_UNINDEXED_PER_LIST = 128
+    const val MAX_UNINDEXED_TOTAL = 256
+
+    fun isUnindexed(filter: NetworkFilter): Boolean =
+        filter.isRegex && filter.includeDomains.isEmpty() && Tokens.regexCandidates(filter.pattern).isEmpty()
 
     fun stepsFor(length: Int): Int = BASE_STEPS + STEPS_PER_CHARACTER * minOf(length, MAX_INPUT_LENGTH)
     private const val MAX_REPEAT_PRODUCT = 1_000

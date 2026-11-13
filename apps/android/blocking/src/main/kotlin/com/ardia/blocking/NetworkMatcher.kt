@@ -17,7 +17,6 @@ internal class NetworkRule(
     val exclude: LongArray?,
 ) {
     private val regexNeedsWholeUrl = regex != null && ListRegex.dependsOnInputEnd(String(pattern))
-    private val regexLiteral: CharArray? = if (regex != null) Tokens.requiredLiteral(String(pattern))?.let { if (matchCase) it else it.lowercase() }?.toCharArray() else null
     private val isHostOnly = host != null && !anchorEnd && pattern.size == 1 && pattern[0] == '^'
 
     fun applies(context: RequestContext): Boolean {
@@ -56,13 +55,13 @@ internal class NetworkRule(
         regex?.let { compiled ->
             val shown = minOf(context.length, ListRegex.MAX_INPUT_LENGTH)
             if (regexNeedsWholeUrl && context.length > shown) return false
-            regexLiteral?.let { literal -> if (!contains(if (matchCase) context.raw else context.lower, shown, literal)) return false }
             val scratch = context.regexScratch
-            if (scratch.steps <= 0) {
+            if (scratch.steps < ListRegex.STEPS_PER_RULE_CHECK) {
                 context.regexRulesSkipped++
                 ListRegex.countBudgetSkip()
                 return false
             }
+            scratch.steps -= ListRegex.STEPS_PER_RULE_CHECK
             context.regexRuns++
             return when (compiled.find(context.raw, shown, scratch)) {
                 MeteredRegex.MATCH -> true
@@ -91,21 +90,6 @@ internal class NetworkRule(
             }
             else -> Glob.matches(pattern, chars, 0, context.length, anchoredStart = false, anchoredEnd = anchorEnd, context = context)
         }
-    }
-
-    private fun contains(text: CharArray, length: Int, literal: CharArray): Boolean {
-        val first = literal[0]
-        val last = length - literal.size
-        var position = 0
-        while (position <= last) {
-            if (text[position] == first) {
-                var offset = 1
-                while (offset < literal.size && text[position + offset] == literal[offset]) offset++
-                if (offset == literal.size) return true
-            }
-            position++
-        }
-        return false
     }
 
     fun hostEquals(context: RequestContext, start: Int): Boolean {
@@ -338,27 +322,6 @@ internal object Tokens {
     private const val END = 3
 
     private class Atom(val kind: Int, val char: Char = ' ', var quantified: Boolean = false)
-
-    fun requiredLiteral(source: String): String? {
-        if (Regex("\\(\\?[a-zA-Z-]+[:)]").containsMatchIn(source)) return null
-        val atoms = ArrayList<Atom>()
-        if (!readAtoms(source, 0, source.length, atoms)) return null
-        var best: String? = null
-        var index = 0
-        while (index < atoms.size) {
-            if (!isPlainLiteral(atoms[index])) {
-                index++
-                continue
-            }
-            val start = index
-            while (index < atoms.size && isPlainLiteral(atoms[index])) index++
-            val run = buildString { for (atom in start until index) append(atoms[atom].char) }
-            if (run.length >= 3 && run.all { it.code < 0x80 } && (best == null || run.length > best.length)) best = run
-        }
-        return best?.take(32)
-    }
-
-    private fun isPlainLiteral(atom: Atom) = atom.kind == LITERAL && !atom.quantified
 
     fun regexCandidates(source: String): List<String> {
         val atoms = ArrayList<Atom>()

@@ -31,6 +31,7 @@ data class EngineStats(
     val unindexedRules: Int,
     val genericSelectors: Int,
     val scopedSelectors: Int,
+    val regexRulesOverCap: Int = 0,
 )
 
 class FilterEngine internal constructor(
@@ -40,6 +41,7 @@ class FilterEngine internal constructor(
     private val elemhideAllows: LongHashSet,
     private val genericHideAllows: LongHashSet,
     private val cosmetic: CosmeticIndex,
+    private val regexRulesOverCap: Int = 0,
 ) {
     val stats: EngineStats
         get() = EngineStats(
@@ -49,6 +51,7 @@ class FilterEngine internal constructor(
             unindexedRules = listOf(lists, owner).sumOf { it.block.unindexedCount + it.important.unindexedCount + it.exception.unindexedCount },
             genericSelectors = cosmetic.genericCount,
             scopedSelectors = cosmetic.scopedCount,
+            regexRulesOverCap = regexRulesOverCap,
         )
 
     internal fun blocks(context: RequestContext): Boolean {
@@ -84,11 +87,17 @@ class FilterEngine internal constructor(
             val elemhideAllows = LongHashSet()
             val genericHideAllows = LongHashSet()
             val cosmetic = CosmeticIndex.Builder()
+            var unindexedRegex = 0
+            var overCap = 0
             for (source in sources) {
                 val target = if (source.isOwner) owner else lists
                 val bit = source.categoryBit
                 for (filter in source.list.network) {
                     if (filter.key in badfilters) continue
+                    if (ListRegex.isUnindexed(filter) && ++unindexedRegex > ListRegex.MAX_UNINDEXED_TOTAL) {
+                        overCap++
+                        continue
+                    }
                     target.add(filter, bit)
                 }
                 source.list.documentAllows.forEach { documentAllows.add(HostHash.of(it)) }
@@ -96,7 +105,7 @@ class FilterEngine internal constructor(
                 source.list.genericHideAllows.forEach { genericHideAllows.add(HostHash.of(it)) }
                 for (filter in source.list.cosmetic) cosmetic.add(filter, bit, source.isOwner)
             }
-            return FilterEngine(lists.build(), owner.build(), documentAllows, elemhideAllows, genericHideAllows, cosmetic.build())
+            return FilterEngine(lists.build(), owner.build(), documentAllows, elemhideAllows, genericHideAllows, cosmetic.build(), overCap)
         }
     }
 }

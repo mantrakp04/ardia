@@ -116,15 +116,93 @@ class ListSafetyTest {
                     "ArdiaBlockingTiming %s x%d on a %d-char url: one rule costs %d steps; ran %d, skipped %d, steps %d of %d, cpu %.2f ms, wall %.2f ms"
                         .format(name, count, url.length, oneRun, runs, skipped, used, ListRegex.stepsFor(url.length), cpu, elapsed),
                 )
-                val completed = minOf(count, ListRegex.stepsFor(url.length) / oneRun)
-                val partial = if (completed < count && ListRegex.stepsFor(url.length) % oneRun != 0) 1 else 0
+                val admitted = minOf(count, ListRegex.MAX_UNINDEXED_PER_LIST)
+                val budget = ListRegex.stepsFor(url.length)
+                val completed = minOf(admitted, budget / oneRun)
+                val partial = if (completed < admitted && budget - completed * oneRun >= ListRegex.STEPS_PER_RULE_CHECK) 1 else 0
                 assertEquals((completed + partial).toLong(), runs)
-                assertEquals((count - completed).toLong(), skipped)
-                assertEquals(if (completed < count) ListRegex.stepsFor(url.length) else completed * oneRun, used)
+                assertEquals((admitted - completed).toLong(), skipped)
+                assertEquals(if (partial == 1) budget else completed * oneRun, used)
                 assertTrue("cpu $cpu ms", cpu < 80)
             }
         }
         assertTrue(ListRegex.rulesSkippedForBudget > 0)
+    }
+
+    @Test
+    fun aListOfManyRegexRulesWithoutATokenIsCappedAndEveryCheckIsCharged() {
+        val list = (0 until 10_000).joinToString("\n") { "/.*aaaaaaaaaaaaaaaaaaaab" + it.toString().padStart(4, '0') + "/" }
+        val parsed = FilterParser.parse(list, "reviewer")
+        assertEquals(ListRegex.MAX_UNINDEXED_PER_LIST, parsed.network.size)
+        assertEquals(10_000 - ListRegex.MAX_UNINDEXED_PER_LIST, parsed.skipped[SkipReason.UNINDEXED_REGEX])
+        val engine = FilterEngine.build(listOf(EngineSource(parsed, BlockingCategory.ADS)))
+        assertEquals(ListRegex.MAX_UNINDEXED_PER_LIST, engine.stats.unindexedRules)
+        val url = "https://site.test/" + "a".repeat(15_997)
+        assertEquals(16_015, url.length)
+        val single = engineOf("/.*aaaaaaaaaaaaaaaaaaaab0000/")
+        single.blocks(url, "https://site.test/")
+        val context = RequestContext.current()
+        val budget = ListRegex.stepsFor(url.length)
+        val oneRun = budget - context.regexScratch.steps
+        val bean = java.lang.management.ManagementFactory.getThreadMXBean()
+        repeat(2) { engine.blocks(url, "https://site.test/") }
+        val runsBefore = context.regexRuns
+        val skippedBefore = context.regexRulesSkipped
+        val cpuBefore = bean.currentThreadCpuTime
+        val wall = millis { assertFalse(engine.blocks(url, "https://site.test/")) }
+        val cpu = (bean.currentThreadCpuTime - cpuBefore) / 1_000_000.0
+        val runs = context.regexRuns - runsBefore
+        val skipped = context.regexRulesSkipped - skippedBefore
+        val used = budget - maxOf(context.regexScratch.steps, 0)
+        println(
+            "ArdiaBlockingTiming reviewer list of 10000 untokened rules: %d admitted, one rule costs %d steps, ran %d, skipped %d, steps %d of %d, cpu %.2f ms, wall %.2f ms"
+                .format(parsed.network.size, oneRun, runs, skipped, used, budget, cpu, wall),
+        )
+        assertTrue(oneRun < budget)
+        val completed = budget / oneRun
+        val partial = if (budget - completed * oneRun >= ListRegex.STEPS_PER_RULE_CHECK) 1 else 0
+        assertEquals(if (partial == 1) budget else completed * oneRun, used)
+        assertEquals((completed + partial).toLong(), runs)
+        assertEquals((ListRegex.MAX_UNINDEXED_PER_LIST - completed).toLong(), skipped)
+        assertTrue("cpu $cpu ms", cpu < 150)
+
+        val many = (0 until 3).map { list -> EngineSource(FilterParser.parse((0 until 128).joinToString("\n") { "/.*q" + list + it.toString().padStart(4, '0') + "x/" }, "list$list"), BlockingCategory.ADS) }
+        assertEquals(ListRegex.MAX_UNINDEXED_TOTAL - 0, FilterEngine.build(many).stats.unindexedRules)
+        assertEquals(3 * 128 - ListRegex.MAX_UNINDEXED_TOTAL, FilterEngine.build(many).stats.regexRulesOverCap)
+    }
+
+    @Test
+    fun domainScopedRegexRulesPayForEveryCheck() {
+        val rules = (0 until 5_000).joinToString("\n") { "/x[0-9]{1,3}q" + it.toString().padStart(4, '0') + "/\$domain=site.test" }
+        val engine = engineOf(rules)
+        val url = "https://cdn.test/" + "x1".repeat(40)
+        val context = RequestContext.current()
+        val bean = java.lang.management.ManagementFactory.getThreadMXBean()
+        repeat(2) { engine.blocks(url, "https://site.test/") }
+        val runsBefore = context.regexRuns
+        val cpuBefore = bean.currentThreadCpuTime
+        assertFalse(engine.blocks(url, "https://site.test/"))
+        val cpu = (bean.currentThreadCpuTime - cpuBefore) / 1_000_000.0
+        val runs = context.regexRuns - runsBefore
+        val budget = ListRegex.stepsFor(url.length)
+        println("ArdiaBlockingTiming 5000 domain-scoped regex rules on their site: ran %d of 5000, steps used %d of %d, cpu %.2f ms".format(runs, budget - maxOf(context.regexScratch.steps, 0), budget, cpu))
+        assertTrue(runs <= budget / ListRegex.STEPS_PER_RULE_CHECK)
+        assertTrue("cpu $cpu ms", cpu < 150)
+        assertFalse(engine.blocks(url, "https://elsewhere.test/"))
+    }
+
+    @Test
+    fun escapesAndUnicodeCaseFoldingNeverHideAMatch() {
+        assertTrue(engineOf("/\\x61bc/\$match-case").blocks("https://x.test/abc", "https://page.test/"))
+        assertTrue(engineOf("/kiss/").blocks("https://x.test/ki\u017f\u017f", "https://page.test/"))
+        assertTrue(engineOf("/kiss/").blocks("https://x.test/\u212aiss", "https://page.test/"))
+        assertTrue(engineOf("/\\.kiss\\./").blocks("https://x.test/a.KI\u017fS.b", "https://page.test/"))
+        assertFalse(engineOf("/KISS/\$match-case").blocks("https://x.test/ki\u017f\u017f", "https://page.test/"))
+        assertTrue(engineOf("/(?i)KISS/\$match-case").blocks("https://x.test/ki\u017f\u017f", "https://page.test/"))
+        assertTrue(engineOf("/\\x{6b}i\\x73s/").blocks("https://x.test/kiss", "https://page.test/"))
+        assertEquals('s', RequestContext.foldsToAscii('\u017f'))
+        assertEquals('k', RequestContext.foldsToAscii('\u212a'))
+        assertEquals(setOf('\u017f', '\u212a'), RequestContext.asciiFoldSources.keys)
     }
 
     @Test

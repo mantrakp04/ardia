@@ -151,7 +151,8 @@ internal class RequestContext {
         var hash = HostHash.start()
         var inToken = false
         for (index in 0..length) {
-            val char = if (index < length) chars[index] else ' '
+            val raw = if (index < length) chars[index] else ' '
+            val char = if (raw.code < 128) raw else foldsToAscii(raw)
             if (isTokenChar(char)) {
                 hash = HostHash.step(hash, char)
                 inToken = true
@@ -285,5 +286,20 @@ internal class RequestContext {
         fun current(): RequestContext = local.get()!!
 
         fun isTokenChar(char: Char): Boolean = char in 'a'..'z' || char in '0'..'9' || char == '%'
+
+        private val asciiFolds: Map<Char, Char> = buildMap {
+            for (letter in 'a'..'z') {
+                for (rune in com.google.re2j.ArdiaProgramBridge.foldOrbit(letter.code)) if (rune in 128..0xFFFF) put(rune.toChar(), letter)
+            }
+        }
+        private val foldedFrom = asciiFolds.keys.toCharArray()
+        private val foldedTo = CharArray(foldedFrom.size) { asciiFolds.getValue(foldedFrom[it]) }
+
+        fun foldsToAscii(char: Char): Char {
+            for (index in foldedFrom.indices) if (foldedFrom[index] == char) return foldedTo[index]
+            return char
+        }
+
+        internal val asciiFoldSources: Map<Char, Char> get() = asciiFolds
     }
 }

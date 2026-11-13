@@ -133,6 +133,37 @@ class DownloadConnectionsTest {
         assertEquals(200, get(served, "/other", "session-b"))
     }
 
+    private fun endWhileHeld(hold: (() -> Unit) -> Unit) {
+        val served = server { ok }
+        val reached = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        hold {
+            reached.countDown()
+            release.await(5, TimeUnit.SECONDS)
+        }
+        val failure = java.util.concurrent.atomic.AtomicReference<Throwable?>()
+        val worker = thread { failure.set(runCatching { get(served, "/held", "session-a") }.exceptionOrNull()) }
+        assertTrue(reached.await(5, TimeUnit.SECONDS))
+        transport.endConnectionScope("session-a")
+        release.countDown()
+        worker.join(5_000)
+        val error = failure.get()
+        assertTrue("$error", error is DownloadRefused && error.failure == DownloadFailure.PrivateSessionEnded)
+        Thread.sleep(300)
+        assertEquals(0, served.requestsTo("/held"))
+        assertEquals(0, served.accepted.get())
+    }
+
+    @Test
+    fun aSessionEndingBetweenChoosingItsClientAndCreatingTheCallSendsNothing() {
+        endWhileHeld { held -> transport.afterScopeChosen = held }
+    }
+
+    @Test
+    fun aSessionEndingAfterTheCallIsCreatedCancelsItBeforeItIsSent() {
+        endWhileHeld { held -> transport.afterCallCreated = held }
+    }
+
     @Test
     fun unavailableWithRetryAfterZeroIsSentOnce() {
         val served = server { "HTTP/1.1 503 Service Unavailable\r\nRetry-After: 0\r\nContent-Length: 0\r\n\r\n" }

@@ -23,6 +23,16 @@ class RegexEquivalenceTest {
         return honoured to refused
     }
 
+    private fun folded(url: String, random: Random): String {
+        val folds = RequestContext.asciiFoldSources.entries.groupBy({ it.value }, { it.key })
+        return buildString {
+            for (char in url) {
+                val options = folds[char.lowercaseChar()]
+                if (options != null && random.nextBoolean()) append(options[random.nextInt(options.size)]) else append(char)
+            }
+        }
+    }
+
     private fun needsBacktracking(line: String): Boolean {
         val body = line.removePrefix("@@")
         return listOf("(?=", "(?!", "(?<=", "(?<!").any { body.contains(it) } ||
@@ -44,9 +54,25 @@ class RegexEquivalenceTest {
         assertTrue(sizes.last() * 2 <= ListRegex.MAX_PROGRAM_SIZE)
     }
 
+    private val escapeAndFoldRules = listOf(
+        Rule("/\\x61bc/\$match-case", "\\x61bc", true),
+        Rule("/\\x{6b}i\\x73s/", "\\x{6b}i\\x73s", false),
+        Rule("/kiss/", "kiss", false),
+        Rule("/\\.kiss\\./", "\\.kiss\\.", false),
+        Rule("/KISS/\$match-case", "KISS", true),
+        Rule("/(?i)KISS/\$match-case", "(?i)KISS", true),
+        Rule("/[k]i[s]s\\.js/", "[k]i[s]s\\.js", false),
+        Rule("/^https?:\\/\\/[a-z]+\\.sk\\/ask\\//", "^https?:\\/\\/[a-z]+\\.sk\\/ask\\/", false),
+        Rule("/\\x2eassets\\x2f/", "\\x2eassets\\x2f", false),
+        Rule("/a\\.b\\-c\\/d/", "a\\.b\\-c\\/d", false),
+        Rule("/\\x41BC\\d+/", "\\x41BC\\d+", false),
+        Rule("/\\\\x61/", "\\\\x61", false),
+        Rule("/stats\\.js\\?k=\\d{2,4}\$/", "stats\\.js\\?k=\\d{2,4}\$", false),
+    )
+
     @Test
     fun theEngineAgreesWithAFullUrlMatchOnGeneratedUrlsForEveryRealRule() {
-        val (honoured, _) = defaultListRules()
+        val honoured = defaultListRules().first + escapeAndFoldRules
         val random = Random(20261113)
         var checked = 0
         var matched = 0
@@ -60,7 +86,7 @@ class RegexEquivalenceTest {
         for (rule in honoured) {
             val reference = ListRegex.compile(rule.source, rule.matchCase)!!
             val engine = engineOf("/${rule.source}/" + if (rule.matchCase) "\$match-case" else "")
-            val samples = RegexSamples(rule.source, random).urls()
+            val samples = RegexSamples(rule.source, random).urls().flatMap { listOf(it, folded(it, random)) }.distinct()
             var ruleMatched = false
             for (url in samples) {
                 if (!probe.loadRequest(url)) {
@@ -279,6 +305,18 @@ internal class RegexSamples(source: String, private val random: Random) {
                 return when (next) {
                     'd', 'w', 's', 'D', 'W', 'S' -> Node.Choice(members("\\$next"))
                     'b', 'B', 'z', 'A' -> Node.Nothing
+                    'x' -> {
+                        if (text[index] == '{') {
+                            val close = text.indexOf('}', index)
+                            val code = text.substring(index + 1, close).toInt(16)
+                            index = close + 1
+                            Node.Choice(charArrayOf(code.toChar()))
+                        } else {
+                            val code = text.substring(index, index + 2).toInt(16)
+                            index += 2
+                            Node.Choice(charArrayOf(code.toChar()))
+                        }
+                    }
                     else -> Node.Choice(charArrayOf(next))
                 }
             }

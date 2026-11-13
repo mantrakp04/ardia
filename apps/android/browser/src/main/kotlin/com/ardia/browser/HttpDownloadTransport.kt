@@ -10,6 +10,7 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 import okhttp3.Authenticator
+import okhttp3.Call
 import okhttp3.ConnectionPool
 import okhttp3.CookieJar
 import okhttp3.Interceptor
@@ -19,39 +20,93 @@ import okhttp3.Request
 import okhttp3.Response
 
 class HttpDownloadTransport(private val timeoutMillis: Long = 30_000) : DownloadTransport {
-    private val normal: OkHttpClient by lazy { newClient() }
-    private val scoped = ConcurrentHashMap<String, OkHttpClient>()
+    private val normal: ConnectionScope by lazy { ConnectionScope(null) }
+    private val scoped = ConcurrentHashMap<String, ConnectionScope>()
     private val endedScopes: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    @Volatile
+    internal var afterScopeChosen: (() -> Unit)? = null
+
+    @Volatile
+    internal var afterCallCreated: (() -> Unit)? = null
+
     override fun open(url: String, headers: Map<String, String>, call: DownloadCall): DownloadResponse {
-        val client = clientFor(call.connectionScope)
+        val scope = scopeFor(call.connectionScope)
         val request = Request.Builder().url(url).get().apply {
             for ((name, value) in headers) header(name, value)
             header("Accept-Encoding", "identity")
             header("Connection", "close")
             tag(NetworkAttempts::class.java, NetworkAttempts())
         }.build()
-        val pending = client.newCall(request)
-        call.register { pending.cancel() }
-        val response = pending.execute()
+        afterScopeChosen?.invoke()
+        val pending = scope.newCall(request)
+        try {
+            call.register { pending.cancel() }
+            afterCallCreated?.invoke()
+            if (scope.isEnded) throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
+        } catch (error: Exception) {
+            scope.finished(pending)
+            throw error
+        }
+        val response = try {
+            pending.execute()
+        } catch (error: IOException) {
+            scope.finished(pending)
+            if (scope.isEnded) throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
+            throw error
+        }
+        if (scope.isEnded) {
+            response.close()
+            scope.finished(pending)
+            throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
+        }
         val body = response.body?.byteStream() ?: ByteArrayInputStream(ByteArray(0))
-        return DownloadResponse(response.code, response.headers.toMultimap(), body) { response.close() }
+        return DownloadResponse(response.code, response.headers.toMultimap(), body) {
+            response.close()
+            scope.finished(pending)
+        }
     }
 
     override fun endConnectionScope(scope: String) {
         endedScopes += scope
-        scoped.remove(scope)?.let(::shutDown)
+        scoped.remove(scope)?.end()
     }
 
-    private fun clientFor(scope: String?): OkHttpClient {
-        if (scope == null) return normal
-        if (scope in endedScopes) throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
-        val client = scoped.computeIfAbsent(scope) { newClient() }
-        if (scope in endedScopes) {
-            scoped.remove(scope)?.let(::shutDown)
+    private fun scopeFor(key: String?): ConnectionScope {
+        if (key == null) return normal
+        if (key in endedScopes) throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
+        val scope = scoped.computeIfAbsent(key) { ConnectionScope(it) }
+        if (key in endedScopes) {
+            scoped.remove(key)?.end()
             throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
         }
-        return client
+        return scope
+    }
+
+    private inner class ConnectionScope(private val key: String?) {
+        private val client = newClient()
+        private val calls = HashSet<Call>()
+        private var ended = false
+
+        val isEnded: Boolean get() = synchronized(this) { ended || (key != null && key in endedScopes) }
+
+        fun newCall(request: Request): Call = synchronized(this) {
+            if (ended || (key != null && key in endedScopes)) throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
+            client.newCall(request).also { calls += it }
+        }
+
+        fun finished(call: Call) {
+            synchronized(this) { calls -= call }
+        }
+
+        fun end() {
+            val live = synchronized(this) {
+                ended = true
+                calls.toList().also { calls.clear() }
+            }
+            live.forEach { runCatching { it.cancel() } }
+            shutDown(client)
+        }
     }
 
     private fun newClient(): OkHttpClient {
