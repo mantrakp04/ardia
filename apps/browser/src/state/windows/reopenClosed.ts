@@ -109,6 +109,7 @@ export function restoreWindow(s: BrowserState, entry: ClosedWindow): BrowserStat
   const profileOk = (p: string) => (s.profiles[p] ? p : s.settings.defaultProfileId);
   const w = emptyWindow(id, profileOk(entry.window.profileId), "main", entry.window.frame);
   if (entry.window.tabLayout) w.tabLayout = entry.window.tabLayout;
+  if (entry.window.autoHideTabs !== undefined) w.autoHideTabs = entry.window.autoHideTabs;
   const tabs = { ...s.tabs };
   const live = { ...s.live };
   const ids: string[] = [];

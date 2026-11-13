@@ -43,7 +43,12 @@ export function mergeRivals(fresh, stored, { force = false } = {}) {
   const storedIds = new Set(stored.rows.map((r) => r.id));
   const merged = stored.rows.map((row) => {
     const now = freshRows.get(row.id);
-    if (!now) return { ...row, browsers: Object.fromEntries(Object.entries(row.browsers).map(([k, b]) => [k, stamp(b, measuredOf(stored, k, b))])) };
+    if (!now)
+      return {
+        ...row,
+        ...(row.machine || machineMismatch(fresh.machine, stored.machine).length ? { machine: row.machine ?? stored.machine } : {}),
+        browsers: Object.fromEntries(Object.entries(row.browsers).map(([k, b]) => [k, stamp(b, measuredOf(stored, k, b))])),
+      };
     return {
       ...row,
       ...now,
