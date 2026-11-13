@@ -9,7 +9,7 @@ import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
 type TabEvent = { key?: unknown; name?: unknown; data?: { title?: unknown; isLoading?: unknown } };
-type ListedTab = { key: string; title: string; shown: boolean; windowVisible: boolean; width: number; height: number };
+type ListedTab = { key: string; title: string; shown: boolean; windowVisible: boolean; width: number; height: number; session?: number };
 
 const PAGE_KEY = "self-check-page";
 const PAGE_TITLE = "ardia self check";
@@ -27,6 +27,9 @@ const system = () => requireNativeModule<Pick<SystemNative, "fileExists">>("Ardi
 const launchData = () => requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().dataDirectory;
 const domain = (name: string) => requireNativeModule<Pick<DomainModule, "call">>(name);
 
+const PRIVATE_FIRST = "incognito:self-check-first@";
+const PRIVATE_SECOND = "incognito:self-check-second@";
+const PRIVATE_NEXT = "incognito:self-check-next@";
 const NEVER_LOADED = "self-check-never-loaded";
 const LOADED = "self-check-loaded";
 const STUCK = "self-check-stuck";
@@ -245,6 +248,36 @@ const withEngine: Check[] = [
     async run() {
       const reply = JSON.parse(await engineCallJson("ac_no_such_call", "", "{}")) as { error?: unknown };
       expectEqual(reply.error, "unknown call", "the reply's error");
+    },
+  },
+  {
+    name: "engine: private windows of a profile share one session until the last is released, then the next gets a new one",
+    async run() {
+      const windowId = await firstWindow();
+      const profiles = domain("ArdiaProfiles");
+      const sessionOf = async (key: string) => (await hostCall<{ tabs: ListedTab[] }>("tabs.list")).tabs.find((tab) => tab.key === key)?.session;
+      const open = async (key: string, profile: string) => {
+        const made = await hostCall<{ tab?: unknown }>("tab.create", { key, url: PAGE_URL, profile }, windowId);
+        expectTrue(typeof made.tab === "number" && made.tab > 0, `tab.create in ${profile} said ${JSON.stringify(made)}`);
+        return sessionOf(key);
+      };
+      const first = await open(PRIVATE_FIRST, PRIVATE_FIRST);
+      expectTrue(typeof first === "number" && first > 0, `the first private tab's session is ${String(first)}`);
+      expectEqual(await open(PRIVATE_SECOND, PRIVATE_SECOND), first, "the second private window's session while the first is open");
+      expectEqual(await sessionOf(PAGE_KEY), 0, "the normal tab's session");
+      for (const name of [PRIVATE_FIRST, PRIVATE_SECOND]) {
+        await hostCall("tab.close", { key: name });
+        expectEqual(await profiles.call("release", name, "{}"), "null", `releasing ${name}`);
+      }
+      const next = await open(PRIVATE_NEXT, PRIVATE_NEXT);
+      expectTrue(typeof next === "number" && next > 0 && next !== first, `the private window after both closed is in session ${String(next)}, the old one was ${String(first)}`);
+      const reopened = await hostCall("tab.create", { key: PRIVATE_FIRST, url: PAGE_URL, profile: PRIVATE_FIRST }, windowId).then(
+        () => true,
+        () => false,
+      );
+      expectEqual(reopened, false, "a released private window opening a tab again");
+      await hostCall("tab.close", { key: PRIVATE_NEXT });
+      expectEqual(await profiles.call("release", PRIVATE_NEXT, "{}"), "null", `releasing ${PRIVATE_NEXT}`);
     },
   },
   {

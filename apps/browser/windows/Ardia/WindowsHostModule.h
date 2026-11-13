@@ -2,6 +2,12 @@
 
 #include "NativeModules.h"
 
+#include <imm.h>
+
+#pragma comment(lib, "imm32.lib")
+
+#include "Events.h"
+
 #include "Paths.h"
 #include "PointerLatch.h"
 
@@ -58,10 +64,47 @@ inline winrt::Microsoft::ReactNative::JSValue Read() noexcept {
 
 }
 
+namespace TextComposition {
+
+inline bool Active() noexcept {
+  HWND focus = GetFocus();
+  if (!focus) return false;
+  HIMC context = ImmGetContext(focus);
+  if (!context) return false;
+  LONG bytes = ImmGetCompositionStringW(context, GCS_COMPSTR, nullptr, 0);
+  ImmReleaseContext(focus, context);
+  return bytes > 0;
+}
+
+}
+
 REACT_MODULE(WindowsHostModule, L"ArdiaWindowsHost")
 struct WindowsHostModule {
+  static constexpr double kAwaySeconds = 3600;
+
   REACT_CONSTANT(selfCheck)
   const bool selfCheck = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
+
+  REACT_INIT(Initialize)
+  void Initialize(winrt::Microsoft::ReactNative::ReactContext const &context) noexcept {
+    m_context = context;
+  }
+
+  REACT_METHOD(textComposing)
+  void textComposing(winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
+    RunOnUI(m_context, [promise]() noexcept { promise.Resolve(TextComposition::Active()); });
+  }
+
+  REACT_SYNC_METHOD(inputIdleSeconds)
+  double inputIdleSeconds() noexcept {
+    HWND front = GetForegroundWindow();
+    DWORD process = 0;
+    if (front) GetWindowThreadProcessId(front, &process);
+    if (process != GetCurrentProcessId()) return kAwaySeconds;
+    LASTINPUTINFO last{sizeof(LASTINPUTINFO)};
+    if (!GetLastInputInfo(&last)) return kAwaySeconds;
+    return static_cast<double>(GetTickCount() - last.dwTime) / 1000.0;
+  }
 
   REACT_SYNC_METHOD(pointerState)
   int pointerState() noexcept {
@@ -87,6 +130,9 @@ struct WindowsHostModule {
     }
     return hex;
   }
+
+ private:
+  winrt::Microsoft::ReactNative::ReactContext m_context{nullptr};
 };
 
 }

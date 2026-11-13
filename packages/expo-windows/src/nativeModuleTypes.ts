@@ -57,10 +57,14 @@ export type SystemModule = SystemNative & { defaultBrowserState(): DefaultBrowse
 
 export type AppModule = AppNative & { windowsApiVersion?: number };
 
+export type IntroMusicModule = { play(muted: boolean): void; setMuted(muted: boolean): void; stop(fade: number): void; embeddedSeconds(): number };
+
 export type WindowsHostModule = {
   getConstants(): { selfCheck?: boolean };
   secureRandomHex(byteCount: number): string;
   pointerState(): number;
+  textComposing(): Promise<boolean>;
+  inputIdleSeconds(): number;
   launchArguments(): LaunchArguments;
 };
 
@@ -81,7 +85,7 @@ export type EngineHostModule = TurboModule & {
   removeProfileFolder(folder: string): Promise<string>;
 };
 
-type ImportAnswersAsJson = "list" | "query" | "openSnapshot" | "querySnapshot" | "unlock" | "logins" | "cookies" | "writeCookies";
+type ImportAnswersAsJson = "list" | "query" | "openSnapshot" | "querySnapshot" | "unlock" | "logins" | "cookies" | "firefoxLogins" | "firefoxCookies" | "autofill" | "writeImported";
 
 export type WindowsImportModule = Pick<ImportHost, "readText" | "readBase64" | "readTextWithin" | "readBase64Within" | "closeSnapshot" | "discard" | "forget"> & {
   [Method in ImportAnswersAsJson]: (...args: Parameters<ImportHost[Method]>) => Promise<string>;

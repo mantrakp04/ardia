@@ -78,11 +78,12 @@ export function windowsImport(hostOf: () => ImportHost | null = nativeImportHost
 
     async writeImported(token: string, profile: string, kinds: string[]): Promise<string> {
       const native = needHost();
-      if (!kinds.includes("cookies")) {
+      const written = kinds.filter((k): k is "cookies" | "autofill" => k === "cookies" || k === "autofill");
+      if (!written.length) {
         native.discard(token);
         return JSON.stringify(NO_WRITE);
       }
-      return JSON.stringify(await native.writeCookies(token, profile));
+      return JSON.stringify(await native.writeImported(token, profile, written));
     },
 
     discardImported(token: string) {

@@ -29,13 +29,13 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Feature | State | Tracked in |
 | --- | --- | --- |
 | Installer (wizard, Start menu, Open Ardia) | Works | |
-| First launch after the installer | Differs: ardia.dev's release notes open behind onboarding | #1517 |
+| First launch after the installer | Works: onboarding, no release notes (they wait while a first run is under way) | #1517 |
 | Onboarding (source, look, last choices; resumes where you left it) | Works | |
-| Intro animation and music | Not offered | #1520, #1249 |
+| Intro animation and music | Differs: the Mac's dawn poster stands in for the animated meadow (none at night); the music is the Mac's, rendered from its synthesis and played with XAudio2 | #1547, #1546, #1249 |
 | Tour | Works (first card seen) | |
 | Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
-| Check for updates | Broken: "the server answered 404", no `windows-alpha` release | #1517 |
-| Default browser | Broken: Settings says Ardia is the default while Edge is | #1439 |
+| Check for updates | Differs: no `windows-alpha` release is published, so Check Now says no Windows update has been published yet; the automatic check stays silent | #1517 |
+| Default browser | Works: Settings follows Windows' choice within one window activation (Edge, Ardia, Edge again, set in Windows Settings); Windows 11 keeps the choice in `UserChoiceLatest` | #1439 |
 | Open at login | Not walked: an instance with its own data folder leaves it alone | |
 
 **Windows and tabs**
@@ -46,6 +46,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | New window | Works | |
 | Private window | Differs: its session lasts until Ardia quits | #1453 |
 | Quit and relaunch with the session restored | Works | |
+| Engine memory trimmed after tabs close, once input is idle | Works: input idle time from `GetLastInputInfo` (`ArdiaWindowsHost.inputIdleSeconds`) | #1544 |
 | Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome | |
 | Search Tabs, Ctrl+Tab | Works | |
 | Pin, Top Apps, New Group with Tab | Works | |
@@ -61,7 +62,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Feature | State | Tracked in |
 | --- | --- | --- |
 | Command bar (history, open tabs, suggestions, calculator) | Works | |
-| Inline completion in the command bar | Does nothing | #1520 |
+| Inline completion in the command bar | Works: the top match completes inline and selected; typing replaces it, Backspace removes it, an IME composition is left alone | #1520 |
 | Find in page | Differs: Chromium's find bar | stand-ins (Chromium's own UI) |
 | Zoom | Works | |
 | Print | Works (Chromium's print preview) | |
@@ -102,7 +103,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | "…" menu (12 items, Windows keys) | Works, except Check for Updates | #1517 |
 | Sync | Not offered ("isn't available in this build"); hidden | #1521 |
 | Calendar | Does nothing (Connect answered with macOS copy); hidden | #1521 |
-| Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden | #1522, #1520 |
+| Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden (thin scroll bars need the engine: #1425) | #1522, #1520 |
 | The ardia command, Widevine | Not offered (each says so) | |
 | Copy naming the Mac (Touch ID, macOS full screen, View ›, this Mac, Keychain) | Fixed | #1522 |
 
@@ -416,8 +417,45 @@ is plain Chromium.
   a page into a tab opened blank and goes Back, exports bookmarks to a Windows path, installs extensions from
   drive-letter and UNC paths that don't exist (the error must not be "an absolute path required"), asks for
   extension load health and a search suggestion, and with
-  `ARDIA_PROBE_DOWNLOAD_URL` loads a download into a blank tab and a tab with a page. It proves an engine build with
-  no app.
+  `ARDIA_PROBE_DOWNLOAD_URL` loads a download into a blank tab and a tab with a page. With `ARDIA_PROBE_COOKIE_URL`
+  (a page that sets a cookie on `?set` and shows its cookies in its title) it sets a cookie in a normal and a private
+  tab, opens a second private tab while the first is open, releases both and reads the cookie from a new private tab
+  and a normal one; with `ARDIA_PROBE_SLOW_DOWNLOAD_URL` it ends a private session while a download in it is running.
+  It proves an engine build with no app.
+- Private windows work as on the Mac. Each private window has its own name (`incognito:<window>@<profile>`); every
+  private window of a profile that is open at the same time shares that profile's one off-the-record profile, so
+  they share cookies and sign-ins. `profiles.release` (the host verb `profile.release`, sent when a private window
+  closes) drops the window's name, and when no name of that profile is left the session ends
+  (`private_sessions.cc`). The host closes every Chromium window of that off-the-record profile with its warnings
+  skipped, Chromium's `BrowserManagerService` hands the profile to `ProfileDestroyer` once its last window is
+  destroyed, and in-flight work (renderers, downloads) ends with it. A private window opened while the old session is
+  still ending waits until the old profile object itself is destroyed, not only told it will be (Chromium sends that
+  before its renderers have gone), and then gets a new, empty one: the session's state is user data on the
+  off-the-record profile, and its destructor resumes the waiting windows. If the old session still has windows 15 s
+  after its last release, waiting windows and any later one of that profile are refused until it is gone. A released
+  name never opens a tab again. `tabs.list` gives each tab's session number (0 for a normal profile), issued once per
+  off-the-record profile object, and `host.info` the number of live sessions.
+- A private window joins its session in the engine only when it opens a tab, and an app window's page windows are
+  destroyed with it (Windows destroys owned windows before their owner), so a private window with no page yet (New Tab
+  set to the command bar) kept nothing alive: closing the other private window destroyed the off-the-record profile's
+  last Chromium window and with it the session. Each open private window now keeps the session itself: its
+  `ArdiaWindowProfile` opens a hidden blank tab under the window's private name in its own page window while it is
+  mounted (`holdPrivateSession` in `engine/privateWindows.ts`) and closes it when it goes. The Windows
+  `profiles.release` also holds a private window's release while another private window of the same profile is
+  open and sends the held ones with the last. The release of a session's last private window is lost in the shared
+  window code (`privateSessions.ts` makes a nested store update when a session's last window closes, so
+  `windowSync` sees the window already gone and never releases it), so a private window whose view has unmounted
+  for a second also releases its name itself; each name is released once, and at quit every session ends with the
+  process anyway.
+- A page whose tab the engine refused (a private window opened while the old session would not end) stays in the
+  app's list of pages; its next `loadUrl`, `reload` or `forceReload` asks for the tab once more and, when it opens,
+  tells the page it is ready, or sends `loadError` when it is refused again (`engine/pages.ts`).
+- Engine call arguments are wiped after the call: the engine keeps them in `ardia::Secret` (`api.cc`) and cleanses the
+  copy it re-serializes for a private profile, and the app's `engineCall` keeps them in `WipedText`
+  (`EngineHostModule.h`), which wipes its own buffer and every buffer it is moved from. This covers the copies the
+  host and the app make, not every copy: the JavaScript string, React Native's own marshalling, Chromium's JSON
+  reader, which keeps a decoded scratch copy of a string with escapes (a password with a backslash), and its
+  serializer, which can free a smaller buffer while it grows, are not wiped.
 
 ## Calls Windows still answers with a stand-in
 
@@ -431,7 +469,6 @@ is plain Chromium.
 | Verb | Needs | What and why |
 | --- | --- | --- |
 | `autofill.settings`, `autofill.setSettings` | Engine | The Mac reads and writes the profile's `autofill.profile_enabled` and `autofill.credit_card_enabled` prefs; no `ac_*` call touches prefs. Today Settings › Autofill shows both toggles on and disabled. |
-| Import's cookie batches (no verb) | Engine | `//ardia/win`'s `engineCall` (`api.cc`) copies the arguments into a plain `std::string` that is freed without being wiped, so each `ac_cookies_import` batch the app wipes after the reply leaves one copy in freed engine memory. The Mac passes them with `callWithSecret`; Windows needs the same: a sensitive call that wipes its copy. |
 | `bookmarks.exportHtml`, `passwords.export` (the engine's answer) | Engine | The app side is done and hidden: `PLATFORM_FEATURES.exportsBookmarksAndPasswords` is false on Windows, so Settings' two export rows, Bookmarks › Export Bookmarks…, the command, its bar action, shortcut and CLI entry are not offered. In the VM (engine `windows-engine-20261113-1`) the save panel opens and answers, but `ac_bookmarks_export_html` and `ac_passwords_export` never answer and write no file, and the password export shows no Windows confirmation, while other engine calls (`ac_passwords_add`) answer at once. Needs a look at `WhenLoaded`/`WriteBookmarks` and `Reauthenticate` in a Windows engine with logging; once both answer, turn the flag on. |
 | `autofill.showSuggestions` | Engine | Shows Chromium's autofill popup in a tab: a `tab.call` method. |
 | `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
@@ -450,7 +487,6 @@ is plain Chromium.
 | `permissions.resolveExternalApp`, `externalAppAllowances`, `removeExternalAppAllowance` | Engine | `ac_external_apps_*` is Mac-only (`ac_external_apps.mm`); Windows needs its own version. |
 | `permissions.devExternalLaunches` | Default | Mac test hook. |
 | `profiles.loaded` | Engine | The profiles the engine has loaded, plus the `profiles.loaded` event. Today the call fails and the app counts every profile as open, as with lazy loading off. |
-| `profiles.release` | Engine | Lets the engine unload a profile when its last tab closes. On Windows every private window of a profile shares Chromium's one off-the-record profile until Ardia quits (the engine ignores the name before `@`), so a new private window still has the last one's cookies. The engine has to make and destroy one off-the-record profile per private name. |
 | Profile folder names (no verb) | App | The engine names a profile's folder `Ardia ` plus its id, with lowercase letters, digits and `-` kept and every other byte written `_` and two lowercase hex digits (`profiles.cc`), so each name has its own folder even on a case-insensitive disk and Ardia's own ids (`p-<base36>-<base36>`) keep the folder they always had. `profiles.deleteData` still maps only ids of that shape and refuses the rest; it could map the escape too. |
 | `search.setEngineName` | Default | Names the search engine in the app's own page context menu; Windows shows Chromium's menu, which names Chromium's default engine. Needed again once the app draws that menu. |
 | `tabs.routeLinkTabs`, `stripCommand`, `strips`, `reportCommits` | Default | The Mac's Chromium tab strip; Windows hosts pages only, so the empty answers are right. |
@@ -524,8 +560,8 @@ cleared one by one through their `ac_*` calls, and each step that fails is named
 
 The Mac's `ArdiaImport` (Swift, `packages/import`) has a Windows version in TypeScript, `packages/expo-windows/src/import`,
 that answers the same methods with the same result shapes, so the wizard (`components/import`) and
-`state/import/apply.ts` are the Mac's. Only the OS calls are native: `ArdiaWindowsImport` (`ImportModule.h`,
-`ImportFiles.h`, `ImportSecrets.h`).
+`state/import/apply.ts` are the Mac's. Only the OS calls and the secrets are native: `ArdiaWindowsImport` (`ImportModule.h`,
+`ImportFiles.h`, `ImportSecrets.h`, `ImportNss.h`, `ImportFirefox.h`, `ImportFirefoxCookies.h`, `ImportAutofill.h`).
 
 - Native primitives: the two data folders (`localAppData`, `roamingAppData`, or `<importSourceDir>\Local` and `\Roaming`
   when `ARDIA_INSTANCE=importSourceDir=<dir>` is set in an instance with its own data folder), `list` a folder,
@@ -550,27 +586,44 @@ that answers the same methods with the same result shapes, so the wizard (`compo
   `Current Session`; Firefox and Zen `sessionstore-backups\recovery.jsonlz4` and the rest, LZ4 in TypeScript), favicons
   for the imported tabs and bookmarks bar (`Favicons`), a bookmarks HTML file and a passwords CSV file (picked with
   `ArdiaDialogs.pickFiles`).
+- Spaces (`arcSidebar.ts`, `zenSession.ts`, `zenSidebar.ts`, `sidebars.ts`, ported from `ArcSidebar.swift` and
+  `ZenSidebar.swift`): Arc for Windows keeps `StorableSidebar.json` beside its `User Data`, in
+  `%LOCALAPPDATA%\Packages\TheBrowserCompany.Arc_ttt1ap7aakyb4\LocalCache\Local\Arc`, in the Mac's format (the path
+  and the format are what the open-source exporters read, e.g. ivnvxd/arc-export, which parses both platforms' files with
+  the same code). Its spaces, pinned tabs, today tabs and favourites (Top Apps) come over per Chromium profile. Zen's
+  workspaces, folders, pinned tabs and Essentials come from `zen-sessions.jsonlz4` in the profile folder, then
+  `zen-sessions-backup\`, then the Firefox session store and `places.sqlite` `zen_workspaces`, as on the Mac; the source
+  carries `sidebar: "arc"` or `"zen"`, so the wizard offers spaces.
 - Passwords and cookies (Chromium family): the key is `os_crypt.encrypted_key` in `Local State`, unwrapped with DPAPI
   (`CryptUnprotectData`, no prompt: it is the same Windows user), and values are `v10` AES-256-GCM through BCrypt; a value
   with no prefix is tried as plain DPAPI (Chrome before 80). Chrome's app-bound values (`v20`, `app_bound_encrypted_key`)
   need Chrome's elevated service to unwrap, so they are counted and skipped, and the kind warns "N passwords use Google
   Chrome's app-bound encryption, which only Google Chrome can read" (an `undecryptable` warning, as the Mac's). So the
   wizard has no unlock step on Windows (`needsKeychain` is false), and the key is unwrapped the first time a kind needs it.
+- Firefox and Zen passwords: `ImportNss.h` derives the `key4.db` key with BCrypt (PBES2: PBKDF2-SHA256 and AES-256-CBC;
+  older profiles: the SHA-1 and 3DES PBE) with the empty primary password, as the Mac's wizard does; a profile with a
+  primary password set fails the kind with the Mac's locked "Wrong Firefox primary password". `ImportFirefox.h` decrypts
+  `logins.json` (3DES or AES-CBC fields) and `logins.db` (JWE, AES-256-GCM under the `as-logins-key` key) and merges
+  them as `FirefoxLogins.swift` does. Firefox and Zen cookies (`ImportFirefoxCookies.h`, `cookies.sqlite`) skip container
+  and private-window cookies and say how many ("N cookies from containers or private windows weren't imported").
+- Autofill (Chromium family, `ImportAutofill.h`): `Web Data` addresses (the token tables and the older
+  `autofill_profiles`) and cards (`v10`, or plain DPAPI; `v20` is app-bound and counted), as `ChromiumAutofill.swift`
+  reads them. A card the key can't open without `Local State` is counted as locked.
 - Secrets: the key stays native and is wiped by `forgetUnlockedKeys`. Passwords reach JS (`credentials`), as on the Mac,
-  because `savePassword` (`ac_passwords_add`) takes them from there. Cookie values never do: native decrypts them
-  straight into wiped buffers already in `ac_cookies_import`'s JSON, batches of 500, keeps them for 10 minutes under a
-  one-time token, and JS gets the count and the token. `writeImported` sends the batches to the engine one after another
-  and wipes each after its reply. A token is dropped after 10 minutes even if nothing asks again, and a vault
+  because `savePassword` (`ac_passwords_add`) takes them from there. Cookie values and autofill entries never do: native
+  decrypts them straight into wiped buffers already in `ac_cookies_import`'s and `ac_autofill_import`'s JSON, batches of
+  500, keeps them for 10 minutes under one one-time token per import (the autofill joins the cookies' entry), and JS gets
+  the counts and the token. `writeImported(token, profile, kinds)` sends the cookie batches and then the autofill
+  batches to the engine one after another, wipes each after its reply, and wipes the kinds the wizard didn't ask for. A token is dropped after 10 minutes even if nothing asks again, and a vault
   `forgetUnlockedKeys` cleared while a read was running stays empty.
-- Not on Windows yet, each offered by no profile so the wizard doesn't show it: autofill (addresses and cards from
-  `Web Data`), Firefox and Zen passwords (NSS `key4.db`) and cookies (`cookies.sqlite`, plain text, so they need the
-  native vault too), Chromium's encrypted session files (`Sessions_Encrypted`), Arc's and Zen's spaces, pinned tabs and
-  favourites (`StorableSidebar.json`, `zen-sessions.jsonlz4`), extensions found in the profile, Safari, Dia's tabs. None
-  needs engine work: `ac_cookies_import`, `ac_autofill_import`, `ac_passwords_add`, `ac_history_import` and
-  `ac_favicons_set` are all in the Windows engine's call table.
-- Tests: `apps/browser/src/state/import/windowsImport.test.mjs` runs the TypeScript against `packages/import/fixtures`
-  with a stand-in for the native module (Node's own `node:sqlite`, the same snapshot copy). The self-check's import area
-  exercises every native method in the app. Telemetry: `import_runs`, `import_kinds_done`, `import_kinds_failed` and
+- Not on Windows yet, each offered by no profile so the wizard doesn't show it: Chromium's encrypted session files
+  (`Sessions_Encrypted`), extensions found in the profile, Safari, Dia's tabs.
+- Tests: `apps/browser/src/state/import/windowsImport.test.mjs`, `windowsSidebars.test.mjs` and `windowsAutofill.test.mjs`
+  run the TypeScript against `packages/import/fixtures` with a stand-in for the native module
+  (`state/import/fixtures/windowsHost.mjs`: Node's own `node:sqlite`, the same snapshot copy). The self-check's import area
+  exercises every native method in the app; `launch-smoke.ps1` copies the fixtures' Firefox, Zen and Chrome profiles
+  into the self-check's data folder (`import-fixtures`), so the NSS, `logins.db`, cookie and `Web Data` readers decrypt
+  real files there. Telemetry: `import_runs`, `import_kinds_done`, `import_kinds_failed` and
   `import_secrets_left` in the hourly `usage_counts` (`state/telemetry/importRuns.ts`, every platform): a rising share of
   failed kinds or secrets left on Windows is the sign to look at.
 

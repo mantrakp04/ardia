@@ -14,6 +14,7 @@
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/strings/utf_string_conversions.h"
+#include "chrome/browser/ardia/ac_sensitive_args.h"
 #include "chrome/browser/profiles/profile.h"
 
 extern "C" void ac_engine_set_event_sink(ac_engine_event_t sink, void* context);
@@ -60,7 +61,7 @@ void HostCall(const char* verb,
 
 void RunEngineCall(ac_engine_call_t call,
                    bool off_the_record,
-                   std::string args_json,
+                   ardia::Secret args,
                    ArdiaEngineReply reply,
                    uintptr_t context,
                    Profile* profile) {
@@ -68,20 +69,28 @@ void RunEngineCall(ac_engine_call_t call,
     Deliver(reply, context, Error("profile not loaded"));
     return;
   }
-  if (off_the_record) {
-    std::optional<base::DictValue> args =
-        base::JSONReader::ReadDict(args_json, base::JSON_PARSE_RFC);
-    if (!args) {
-      Deliver(reply, context, Error("bad arguments"));
-      return;
-    }
-    args->Set("offTheRecord", true);
-    args_json = Json(*args);
-  }
   std::string directory =
       base::WideToUTF8(profile->GetOriginalProfile()->GetPath().value());
-  call(directory.c_str(), args_json.c_str(), reply,
+  if (!off_the_record) {
+    call(directory.c_str(), args.value().c_str(), reply,
+         reinterpret_cast<void*>(context));
+    return;
+  }
+  std::optional<base::Value> parsed =
+      base::JSONReader::Read(args.value(), base::JSON_PARSE_RFC);
+  if (!parsed || !parsed->is_dict()) {
+    if (parsed) {
+      ardia::Cleanse(*parsed);
+    }
+    Deliver(reply, context, Error("bad arguments"));
+    return;
+  }
+  parsed->GetDict().Set("offTheRecord", true);
+  std::string marked = Json(parsed->GetDict());
+  ardia::Cleanse(*parsed);
+  call(directory.c_str(), marked.c_str(), reply,
        reinterpret_cast<void*>(context));
+  ardia::Cleanse(marked);
 }
 
 void EngineCall(const char* name,
@@ -98,7 +107,8 @@ void EngineCall(const char* name,
   WithProfile(profile,
               base::BindOnce(
                   &RunEngineCall, call, ParseProfileName(profile).off_the_record,
-                  std::string(args_json && *args_json ? args_json : "{}"),
+                  ardia::Secret(
+                      std::string(args_json && *args_json ? args_json : "{}")),
                   reply, reinterpret_cast<uintptr_t>(context)));
 }
 

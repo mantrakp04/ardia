@@ -16,22 +16,11 @@ import { useOnboardingColors } from "./Parts";
 import { curve, springs } from "../ui/motion";
 import { space } from "../ui/tokens";
 import { onboardingMotion, onboardingType } from "./tokens";
+import { EXIT, INTRO_CUES, LETTER, TAGLINE, WORDMARK } from "./introCues";
+import { noteIntroShown, noteIntroSkipped } from "../../state/telemetry/introCounts";
 
-const WORDMARK = "Ardia";
 const ICON = require("../../../assets/app-icon.png");
-
-const LETTER = 0.52;
-const TAGLINE = 0.6;
-const EXIT = 0.65;
-const CUES: IntroMusicCues = (() => {
-  const icon = 0.25;
-  const letters = 1.15;
-  const letterStep = 0.055;
-  const letterCount = WORDMARK.length;
-  const tagline = letters + (letterCount - 1) * letterStep + LETTER + 0.15;
-  const exit = tagline + TAGLINE + 1.1;
-  return { icon, letters, letterStep, letterCount, tagline, exit, end: exit + EXIT };
-})();
+const CUES = INTRO_CUES;
 
 const ms = (s: number) => Math.round(s * 1000);
 const OPENING_TONE: Record<"day" | "night", MeadowTone> = { day: { tone: "light", halo: 0 }, night: { tone: "dark", halo: 0 } };
@@ -44,6 +33,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const tagline = useRef(new Animated.Value(0)).current;
   const exit = useRef(new Animated.Value(0)).current;
   const done = useRef(false);
+  const skipped = useRef(false);
   const [muted, setMuted] = useState(introMusicMuted);
   const [tone, setTone] = useState(() => OPENING_TONE[dark ? "night" : "day"]);
   const ink = isWebDemo ? null : meadowTextStyle(tone);
@@ -65,12 +55,16 @@ export function Intro({ onDone }: { onDone: () => void }) {
       Animated.timing(tagline, { toValue: 1, duration: ms(TAGLINE), easing: ease, ...at(CUES.tagline) }),
       Animated.timing(exit, { toValue: 1, duration: ms(EXIT), easing: curve.move, ...at(CUES.exit) }),
     ]);
+    noteIntroShown(introMusicMuted());
     playIntroMusic(CUES, introMusicMuted());
     sequence.start(({ finished }) => finished && finish());
     return () => sequence.stop();
   }, []);
 
   const skip = () => {
+    if (skipped.current || done.current) return;
+    skipped.current = true;
+    noteIntroSkipped();
     stopIntroMusic(0.35);
     Animated.timing(exit, { toValue: 1, duration: onboardingMotion.introSkip, easing: curve.enter, useNativeDriver: true }).start(finish);
   };

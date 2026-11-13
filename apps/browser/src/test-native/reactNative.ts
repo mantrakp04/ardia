@@ -1,5 +1,16 @@
 export const View = () => null;
 
+export const turboModules: Record<string, unknown> = {};
+
+export const TurboModuleRegistry = {
+  get: (name: string) => turboModules[name] ?? null,
+  getEnforcing: (name: string) => turboModules[name],
+};
+
+export const DeviceEventEmitter = {
+  addListener: () => ({ remove: () => {} }),
+};
+
 export const NativeModules: Record<string, unknown> = {
   ACFieldTiming: { setEnabled: () => {}, markFrame: () => {}, lastInput: () => [0, 0], drain: () => [] },
 };

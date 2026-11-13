@@ -3,7 +3,10 @@
 Imports another browser's data into Ardia. The native code lives in `ios/`; `ios/Core/` is plain Swift with no
 Expo dependency, so `Package.swift` builds and tests it on its own. `src/index.ts` is the typed JS wrapper and the UI
 is `apps/browser/src/components/import/`. Every test reads fixtures. Never point anything at a real profile. On Windows the
-same module is TypeScript in `packages/expo-windows/src/import` (`docs/windows.md`, Import from another browser).
+same module is TypeScript in `packages/expo-windows/src/import` (`docs/windows.md`, Import from another browser), with
+the same result shapes: the sidebar readers are ported to TypeScript (`arcSidebar.ts`, `zenSession.ts`), and the
+secrets (Firefox NSS, cookie values, autofill) are read natively in `apps/browser/windows/Ardia/Import*.h`. Arc for Windows
+keeps `StorableSidebar.json` in its package's `LocalCache\Local\Arc`. A change to a reader here needs the same change there.
 
 ## Which file reads what
 

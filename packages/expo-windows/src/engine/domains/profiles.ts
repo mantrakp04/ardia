@@ -1,5 +1,6 @@
 import { ok, served, type Engine, type Handlers } from "./calling";
 import { deleteOriginalProfileData } from "./originalProfile";
+import { releaseProfile } from "../privateWindows";
 
 const FOLDER_PREFIX = "Ardia ";
 const LONGEST_ID = 238;
@@ -21,6 +22,10 @@ async function sameDataFolder(engine: Engine): Promise<boolean> {
 }
 
 export const profileCalls: Handlers = {
+  release: async (args, engine) => {
+    await releaseProfile(args.profile, (profile) => engine.host("profile.release", { profile }));
+    return ok();
+  },
   clearBrowsingData: async (args, engine) => {
     const types = args.strings("types");
     const since = args.optionalDouble("since") ?? 0;

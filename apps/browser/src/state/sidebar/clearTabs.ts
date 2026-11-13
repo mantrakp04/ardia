@@ -1,10 +1,10 @@
 import { closeTab } from "../browser/actions";
-import { useBrowser, type BrowserState } from "../browser/store";
+import { useBrowser } from "../browser/store";
 import { plural } from "../browser/model";
 import { cleanedTabsFor } from "../pins/closedTabs";
 import { canUndoClear, type ClearedTabs } from "../pins/tabCleanup";
-import { hideKeyedToast, showToast, useToasts } from "../app/toasts";
 import { noteCleanUp } from "../telemetry/usage";
+import { showUndoToast } from "./undoToast";
 
 const store = () => useBrowser.getState();
 
@@ -42,32 +42,3 @@ const showClearUndo = (cleared: ClearedTabs, title: string, icon: string) =>
     watched: (s) => [s.windows[cleared.windowId], s.tabs, s.groups, s.splits, s.closedTabs],
     canUndo: (s) => canUndoClear(s, cleared),
   });
-
-type Undoable = { undo: () => void; watched: (s: BrowserState) => unknown[]; canUndo: (s: BrowserState) => boolean };
-
-let undoToasts = 0;
-
-function showUndoToast(windowId: string, title: string, icon: string, { undo, watched, canUndo }: Undoable) {
-  const key = `undo-clear-${++undoToasts}`;
-  showToast(windowId, title, undefined, { icon, key, action: { title: "Undo", run: undo } });
-  let seen: unknown[] = [];
-  const stop = () => {
-    stopWatchingStore();
-    stopWatchingToast();
-  };
-  const stopWatchingStore = useBrowser.subscribe((s) => {
-    if (!s.windows[windowId]) {
-      hideKeyedToast(windowId, key);
-      return stop();
-    }
-    const now = watched(s);
-    if (now.every((x, i) => x === seen[i])) return;
-    seen = now;
-    if (canUndo(s)) return;
-    hideKeyedToast(windowId, key);
-    stop();
-  });
-  const stopWatchingToast = useToasts.subscribe((t) => {
-    if (t.toasts[windowId]?.key !== key) stop();
-  });
-}
