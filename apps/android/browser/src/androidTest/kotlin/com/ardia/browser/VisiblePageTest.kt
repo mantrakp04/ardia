@@ -57,7 +57,7 @@ class VisiblePageTest {
     }
 
     @Test
-    fun drawingThePageIsAFallbackThatFollowsTheScroll() {
+    fun drawingThePageFollowsTheScroll() {
         server.page(
             "/bands",
             "<title>Bands</title><meta name=\"viewport\" content=\"width=device-width\">" +
@@ -66,7 +66,6 @@ class VisiblePageTest {
         )
         val page = harness.open("tab", "/bands")
         val impl = page as WebViewPage
-        onMain { impl.captureRoute = CaptureRoute.ViewDraw }
         harness.show(page)
         harness.awaitTitle(page, "Bands")
         assertPaintedRed(page)

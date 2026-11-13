@@ -76,6 +76,16 @@ class PageHarness(preferences: SitePreferences = RecordingPreferences(), liveLim
         }
     }
 
+    fun withActivity(block: (PageTestActivity) -> Unit) {
+        val launched = checkNotNull(scenario) { "show a page first" }
+        launched.onActivity(block)
+    }
+
+    fun shell(command: String): String {
+        val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        return android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes().toString(Charsets.UTF_8) }
+    }
+
     fun <T> await(flow: StateFlow<T>, timeoutMillis: Long = 20_000, predicate: (T) -> Boolean): T = runBlocking {
         withTimeout(timeoutMillis) { flow.first(predicate) }
     }

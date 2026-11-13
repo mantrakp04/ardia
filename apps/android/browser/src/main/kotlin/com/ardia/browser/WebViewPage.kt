@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -39,6 +40,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 internal class WebViewPage(
@@ -85,8 +87,9 @@ internal class WebViewPage(
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     internal val answeredSignIns = HashSet<String>()
-    internal var captureRoute = CaptureRoute.WindowCopy
     internal var lastCaptureRoute: CaptureRoute? = null
+    private var reportsContent = false
+    private var nextVisualStateRequest = 1L
 
     @Volatile
     internal var filterPageUrl: String? = setup.url
@@ -262,27 +265,51 @@ internal class WebViewPage(
 
     override suspend fun snapshot(maxWidth: Int): Bitmap? = withContext(Dispatchers.Main.immediate) {
         val web = webView ?: return@withContext null
-        if (!PageCapture.isVisible(web) || mutableState.value.url == null) return@withContext null
+        if (!PageCapture.isDrawable(web) || mutableState.value.url == null) return@withContext null
         val scale = min(1f, maxWidth.toFloat() / web.width)
-        val width = (web.width * scale).roundToInt()
-        val height = (web.height * scale).roundToInt()
-        PageCapture.capture(web, Rect(0, 0, web.width, web.height), width, height, captureRoute, blackIsBlank = true)?.let(::remember)?.bitmap
+        val width = (web.width * scale).roundToInt().coerceAtLeast(1)
+        val height = (web.height * scale).roundToInt().coerceAtLeast(1)
+        val region = Rect(0, 0, web.width, web.height)
+        repeat(DRAW_ATTEMPTS) { attempt ->
+            if (webView !== web || !PageCapture.isDrawable(web)) return@withContext null
+            val drawn = PageCapture.drawView(web, region, width, height)
+            if (!isSuspect(drawn)) {
+                lastCaptureRoute = CaptureRoute.ViewDraw
+                return@withContext drawn
+            }
+            drawn.recycle()
+            if (attempt < DRAW_ATTEMPTS - 1) awaitPaintedFrame(web)
+        }
+        if (webView !== web || !PageCapture.windowCopyIsTrustworthy(web)) return@withContext null
+        val copied = PageCapture.copyWindow(web, region, width, height) ?: return@withContext null
+        if (isSuspect(copied)) {
+            copied.recycle()
+            return@withContext null
+        }
+        lastCaptureRoute = CaptureRoute.WindowCopy
+        copied
     }
 
     override suspend fun sampleTone(topInset: Int, bottomInset: Int): PageTone? = withContext(Dispatchers.Main.immediate) {
         val web = webView ?: return@withContext null
-        if (!PageCapture.isVisible(web)) return@withContext null
+        if (!PageCapture.isDrawable(web)) return@withContext null
         val band = (ToneSampler.BAND_HEIGHT_DP * web.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
         if (web.height <= topInset + bottomInset + band * 3) return@withContext null
         val top = Rect(0, topInset + 1, web.width, topInset + 1 + band)
         val bottomEdge = web.height - bottomInset - band - 2
         val bottom = Rect(0, bottomEdge, web.width, bottomEdge + band)
-        var topCapture = sampleBand(web, top) ?: return@withContext null
-        val bottomCapture = sampleBand(web, bottom) ?: return@withContext null
+        var topCapture = sampleBand(web, top, CaptureRoute.ViewDraw) ?: return@withContext null
+        var bottomCapture = sampleBand(web, bottom, topCapture.route) ?: return@withContext null
         if (topCapture.route != bottomCapture.route) {
             topCapture.bitmap.recycle()
-            topCapture = sampleBand(web, top) ?: return@withContext null
+            topCapture = sampleBand(web, top, bottomCapture.route) ?: return@withContext null
+            if (topCapture.route != bottomCapture.route) {
+                topCapture.bitmap.recycle()
+                bottomCapture.bitmap.recycle()
+                return@withContext null
+            }
         }
+        lastCaptureRoute = topCapture.route
         val topColor = ToneSampler.dominant(PageCapture.pixels(topCapture.bitmap))
         val bottomColor = ToneSampler.dominant(PageCapture.pixels(bottomCapture.bitmap))
         topCapture.bitmap.recycle()
@@ -290,13 +317,40 @@ internal class WebViewPage(
         if (topColor == null && bottomColor == null) null else PageTone(topColor, bottomColor)
     }
 
-    private suspend fun sampleBand(web: WebView, region: Rect): Capture? =
-        PageCapture.capture(web, region, ToneSampler.SAMPLE_WIDTH, ToneSampler.SAMPLE_HEIGHT, captureRoute, blackIsBlank = false)?.let(::remember)
+    private suspend fun sampleBand(web: WebView, region: Rect, preferred: CaptureRoute): Capture? {
+        if (preferred == CaptureRoute.ViewDraw) {
+            val drawn = PageCapture.drawView(web, region, ToneSampler.SAMPLE_WIDTH, ToneSampler.SAMPLE_HEIGHT)
+            if (!PageCapture.isBlank(drawn, blackIsBlank = false)) return Capture(drawn, CaptureRoute.ViewDraw)
+            drawn.recycle()
+        }
+        if (!PageCapture.windowCopyIsTrustworthy(web)) return null
+        val copied = PageCapture.copyWindow(web, region, ToneSampler.SAMPLE_WIDTH, ToneSampler.SAMPLE_HEIGHT) ?: return null
+        if (PageCapture.isBlank(copied, blackIsBlank = false)) {
+            copied.recycle()
+            return null
+        }
+        return Capture(copied, CaptureRoute.WindowCopy)
+    }
 
-    private fun remember(capture: Capture): Capture {
-        captureRoute = capture.route
-        lastCaptureRoute = capture.route
-        return capture
+    private fun isSuspect(picture: Bitmap): Boolean =
+        PageCapture.isBlank(picture, blackIsBlank = true) || (reportsContent && PageCapture.isNearlyUniform(picture))
+
+    @SuppressLint("RequiresFeature")
+    private suspend fun awaitPaintedFrame(web: WebView) {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.VISUAL_STATE_CALLBACK)) {
+            withTimeoutOrNull(VISUAL_STATE_WAIT_MILLIS) {
+                suspendCancellableCoroutine { continuation ->
+                    WebViewCompat.postVisualStateCallback(web, nextVisualStateRequest++) { if (continuation.isActive) continuation.resume(Unit) }
+                }
+            }
+        }
+        withTimeoutOrNull(FRAME_WAIT_MILLIS) {
+            suspendCancellableCoroutine { continuation ->
+                val callback = Choreographer.FrameCallback { if (continuation.isActive) continuation.resume(Unit) }
+                Choreographer.getInstance().postFrameCallback(callback)
+                continuation.invokeOnCancellation { Choreographer.getInstance().removeFrameCallback(callback) }
+            }
+        }
     }
 
     override fun saveState(): ByteArray? {
@@ -457,6 +511,7 @@ internal class WebViewPage(
     internal fun pageStarted(web: WebView, url: String) {
         if (web !== webView) return
         filterPageUrl = url
+        reportsContent = false
         val changed = installFilterScripts(web, url)
         if (!engine.supportsDocumentStartScripts) {
             web.evaluateJavascript(PageScripts.mainFrameOnly(engine.scripts.nightShade), null)
@@ -755,6 +810,7 @@ internal class WebViewPage(
             val favicon = text("icon") ?: Uri.parse(url).buildUpon().encodedPath("/favicon.ico").encodedQuery(null).fragment(null).build().toString()
             val theme = PageColors.parseCss(text("theme"))
             val background = PageColors.parseCss(text("background"))
+            reportsContent = look.optBoolean("content", false)
             update { it.copy(faviconUrl = favicon, themeColor = theme, backgroundColor = background) }
         }
     }
@@ -782,6 +838,9 @@ internal class WebViewPage(
         private const val SAVED_STATE_LIMIT = 512 * 1024
         private const val CLIENT_REDIRECT_WINDOW_MILLIS = 1500L
         private const val BLOCKED_FLUSH_MILLIS = 250L
+        private const val DRAW_ATTEMPTS = 2
+        private const val VISUAL_STATE_WAIT_MILLIS = 300L
+        private const val FRAME_WAIT_MILLIS = 100L
         private const val REACHED_SECURELY = 1
         private const val REACHED_INSECURELY = 2
 

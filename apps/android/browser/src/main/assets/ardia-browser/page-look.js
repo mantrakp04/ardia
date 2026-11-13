@@ -21,5 +21,7 @@
   const meta = metas.find(m => { const media = m.getAttribute('media'); return media && matchMedia(media).matches; }) || metas.find(m => !m.getAttribute('media'));
   const opaque = (color) => color && !/^rgba\(.*,\s*0\)$/.test(color) && color !== 'transparent' ? color : null;
   const background = [document.body, document.documentElement].map(el => el && opaque(getComputedStyle(el).backgroundColor)).find(Boolean) || null;
-  return JSON.stringify({ icon: scored.length ? scored[0].href : null, theme: meta ? resolve(meta.getAttribute('content')) : null, background });
+  const body = document.body;
+  const content = !!body && ((body.innerText || '').trim().length > 0 || !!body.querySelector('img,svg,video,canvas,picture,iframe'));
+  return JSON.stringify({ icon: scored.length ? scored[0].href : null, theme: meta ? resolve(meta.getAttribute('content')) : null, background, content });
 })()

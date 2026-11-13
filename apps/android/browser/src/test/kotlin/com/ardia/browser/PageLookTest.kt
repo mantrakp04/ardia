@@ -55,6 +55,18 @@ class PageLookTest {
     }
 
     @Test
+    fun aFrameThatIsOneColourAlmostEverywhereIsNearlyUniform() {
+        val white = PageColors.opaque(255, 255, 255)
+        val text = PageColors.opaque(20, 20, 20)
+        assertTrue(CaptureCheck.isNearlyUniform(IntArray(1024) { white }))
+        assertTrue(CaptureCheck.isNearlyUniform(IntArray(1024) { if (it % 2 == 0) white else PageColors.opaque(252, 251, 253) }))
+        assertTrue(CaptureCheck.isNearlyUniform(IntArray(1024) { if (it < 1020) white else text }))
+        assertFalse(CaptureCheck.isNearlyUniform(IntArray(1024) { if (it < 960) white else text }))
+        val sliceAtTheBottom = IntArray(1024) { if (it < 1024 - 64) white else PageColors.opaque(208, 16, 16) }
+        assertFalse(CaptureCheck.isNearlyUniform(sliceAtTheBottom))
+    }
+
+    @Test
     fun toneMatchesTheIphonePriorities() {
         val theme = 1
         val background = 2

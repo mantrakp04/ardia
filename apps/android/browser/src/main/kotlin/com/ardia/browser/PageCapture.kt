@@ -26,18 +26,11 @@ internal class Capture(val bitmap: Bitmap, val route: CaptureRoute)
 
 internal object PageCapture {
     private const val PROBE_GRID = 12
+    private const val UNIFORM_GRID = 32
 
     fun isVisible(view: View): Boolean = view.isAttachedToWindow && view.isShown && view.width > 0 && view.height > 0
 
-    suspend fun capture(view: View, region: Rect, width: Int, height: Int, preferred: CaptureRoute, blackIsBlank: Boolean): Capture? {
-        if (width <= 0 || height <= 0 || region.isEmpty) return null
-        if (preferred == CaptureRoute.WindowCopy) {
-            val copied = copyWindow(view, region, width, height)
-            if (copied != null && !CaptureCheck.isBlank(probe(copied), blackIsBlank)) return Capture(copied, CaptureRoute.WindowCopy)
-            copied?.recycle()
-        }
-        return Capture(drawView(view, region, width, height), CaptureRoute.ViewDraw)
-    }
+    fun isDrawable(view: View): Boolean = view.isAttachedToWindow && view.width > 0 && view.height > 0
 
     fun pixels(bitmap: Bitmap): IntArray {
         val pixels = IntArray(bitmap.width * bitmap.height)
@@ -45,7 +38,28 @@ internal object PageCapture {
         return pixels
     }
 
-    private suspend fun copyWindow(view: View, region: Rect, width: Int, height: Int): Bitmap? {
+    fun drawView(view: View, region: Rect, width: Int, height: Int): Bitmap {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.scale(width / region.width().toFloat(), height / region.height().toFloat())
+        canvas.translate(-(region.left + view.scrollX).toFloat(), -(region.top + view.scrollY).toFloat())
+        view.draw(canvas)
+        return bitmap
+    }
+
+    fun windowCopyIsTrustworthy(view: View): Boolean {
+        if (!isVisible(view) || !view.isHardwareAccelerated) return false
+        val visible = Rect()
+        if (!view.getGlobalVisibleRect(visible) || visible.width() != view.width || visible.height() != view.height) return false
+        var current: View? = view
+        while (current != null) {
+            if (!current.matrix.isIdentity || current.alpha < 1f) return false
+            current = current.parent as? View
+        }
+        return true
+    }
+
+    suspend fun copyWindow(view: View, region: Rect, width: Int, height: Int): Bitmap? {
         if (!view.isHardwareAccelerated) return null
         val window = view.context.findActivity()?.window ?: return null
         val location = IntArray(2)
@@ -64,20 +78,15 @@ internal object PageCapture {
         return null
     }
 
-    private fun drawView(view: View, region: Rect, width: Int, height: Int): Bitmap {
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.scale(width / region.width().toFloat(), height / region.height().toFloat())
-        canvas.translate(-(region.left + view.scrollX).toFloat(), -(region.top + view.scrollY).toFloat())
-        view.draw(canvas)
-        return bitmap
-    }
+    fun isBlank(bitmap: Bitmap, blackIsBlank: Boolean): Boolean = CaptureCheck.isBlank(sample(bitmap, PROBE_GRID), blackIsBlank)
 
-    private fun probe(bitmap: Bitmap): IntArray {
-        if (bitmap.width * bitmap.height <= PROBE_GRID * PROBE_GRID) return pixels(bitmap)
-        return IntArray(PROBE_GRID * PROBE_GRID) { index ->
-            val x = (index % PROBE_GRID) * (bitmap.width - 1) / (PROBE_GRID - 1)
-            val y = (index / PROBE_GRID) * (bitmap.height - 1) / (PROBE_GRID - 1)
+    fun isNearlyUniform(bitmap: Bitmap): Boolean = CaptureCheck.isNearlyUniform(sample(bitmap, UNIFORM_GRID))
+
+    private fun sample(bitmap: Bitmap, grid: Int): IntArray {
+        if (bitmap.width * bitmap.height <= grid * grid) return pixels(bitmap)
+        return IntArray(grid * grid) { index ->
+            val x = (index % grid) * (bitmap.width - 1) / (grid - 1)
+            val y = (index / grid) * (bitmap.height - 1) / (grid - 1)
             bitmap.getPixel(x, y)
         }
     }

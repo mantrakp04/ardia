@@ -83,4 +83,20 @@ object CaptureCheck {
         if (pixels.all { (it ushr 24) == 0 }) return true
         return blackIsBlank && pixels.all { it == OPAQUE_BLACK }
     }
+
+    fun isNearlyUniform(pixels: IntArray, share: Double = 0.99, tolerance: Int = 6): Boolean {
+        if (pixels.isEmpty()) return true
+        val counts = HashMap<Int, Int>()
+        for (pixel in pixels) {
+            val color = pixel and 0xFFFFFF
+            counts[color] = (counts[color] ?: 0) + 1
+        }
+        val mode = counts.maxBy { it.value }.key
+        val near = pixels.count { pixel ->
+            kotlin.math.abs(((pixel shr 16) and 0xFF) - ((mode shr 16) and 0xFF)) <= tolerance &&
+                kotlin.math.abs(((pixel shr 8) and 0xFF) - ((mode shr 8) and 0xFF)) <= tolerance &&
+                kotlin.math.abs((pixel and 0xFF) - (mode and 0xFF)) <= tolerance
+        }
+        return near >= pixels.size * share
+    }
 }
