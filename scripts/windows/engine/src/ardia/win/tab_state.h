@@ -5,11 +5,14 @@
 #include <string>
 #include <string_view>
 
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/values.h"
 #include "components/favicon/core/favicon_driver.h"
 #include "components/favicon/core/favicon_driver_observer.h"
+#include "content/public/browser/render_widget_host.h"
+#include "content/public/browser/render_widget_host_observer.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "ui/base/page_transition_types.h"
@@ -19,6 +22,8 @@
 namespace ardia_win {
 
 class TabState : public content::WebContentsObserver,
+                 public content::RenderWidgetHost::InputEventObserver,
+                 public content::RenderWidgetHostObserver,
                  public favicon::FaviconDriverObserver,
                  public content::WebContentsUserData<TabState> {
  public:
@@ -64,6 +69,15 @@ class TabState : public content::WebContentsObserver,
   void PrimaryMainFrameRenderProcessGone(
       base::TerminationStatus status) override;
   void WebContentsDestroyed() override;
+  void RenderFrameHostChanged(content::RenderFrameHost* old_host,
+                              content::RenderFrameHost* new_host) override;
+
+  void OnInputEventAck(const content::RenderWidgetHost& widget,
+                       blink::mojom::InputEventResultSource source,
+                       blink::mojom::InputEventResultState state,
+                       const blink::WebInputEvent& event) override;
+  void RenderWidgetHostDestroyed(
+      content::RenderWidgetHost* widget_host) override;
 
   void OnFaviconUpdated(favicon::FaviconDriver* favicon_driver,
                         NotificationIconType notification_icon_type,
@@ -76,6 +90,8 @@ class TabState : public content::WebContentsObserver,
   explicit TabState(content::WebContents* contents);
 
   void SendNavigation();
+  void WatchKeys();
+  void StopWatchingKeys();
   void SendMedia();
 
   std::string key_;
@@ -87,6 +103,7 @@ class TabState : public content::WebContentsObserver,
   bool left_by_download_ = false;
   bool navigation_pending_ = false;
   int http_status_ = 0;
+  raw_ptr<content::RenderWidgetHost> keys_widget_ = nullptr;
   base::ScopedObservation<favicon::FaviconDriver,
                           favicon::FaviconDriverObserver>
       favicon_observation_{this};

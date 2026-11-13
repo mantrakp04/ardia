@@ -17,7 +17,12 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "third_party/blink/public/common/input/web_input_event.h"
+#include "third_party/blink/public/common/input/web_keyboard_event.h"
+#include "third_party/blink/public/mojom/input/input_event_result.mojom-shared.h"
+#include "ui/events/keycodes/keyboard_codes.h"
 #include "net/base/net_errors.h"
 #include "net/http/http_response_headers.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -28,7 +33,9 @@ TabState::TabState(content::WebContents* contents)
     : content::WebContentsObserver(contents),
       content::WebContentsUserData<TabState>(*contents) {}
 
-TabState::~TabState() = default;
+TabState::~TabState() {
+  StopWatchingKeys();
+}
 
 TabState* TabState::Bind(content::WebContents* contents, std::string key) {
   TabState::CreateForWebContents(contents);
@@ -41,6 +48,7 @@ TabState* TabState::Bind(content::WebContents* contents, std::string key) {
     }
   }
   PageLinks::Watch(contents);
+  state->WatchKeys();
   return state;
 }
 
@@ -249,7 +257,67 @@ void TabState::PrimaryMainFrameRenderProcessGone(
   Send("crashed", std::move(data));
 }
 
+void TabState::WatchKeys() {
+  content::RenderFrameHost* frame =
+      web_contents() ? web_contents()->GetPrimaryMainFrame() : nullptr;
+  content::RenderWidgetHost* widget =
+      frame ? frame->GetRenderWidgetHost() : nullptr;
+  if (widget == keys_widget_) {
+    return;
+  }
+  StopWatchingKeys();
+  if (!widget) {
+    return;
+  }
+  keys_widget_ = widget;
+  widget->AddInputEventObserver(this);
+  widget->AddObserver(this);
+}
+
+void TabState::StopWatchingKeys() {
+  if (!keys_widget_) {
+    return;
+  }
+  keys_widget_->RemoveInputEventObserver(this);
+  keys_widget_->RemoveObserver(this);
+  keys_widget_ = nullptr;
+}
+
+void TabState::RenderFrameHostChanged(content::RenderFrameHost* old_host,
+                                      content::RenderFrameHost* new_host) {
+  if (new_host && new_host->IsInPrimaryMainFrame() && !key_.empty()) {
+    WatchKeys();
+  }
+}
+
+void TabState::RenderWidgetHostDestroyed(
+    content::RenderWidgetHost* widget_host) {
+  if (widget_host == keys_widget_) {
+    StopWatchingKeys();
+  }
+}
+
+void TabState::OnInputEventAck(const content::RenderWidgetHost& widget,
+                               blink::mojom::InputEventResultSource source,
+                               blink::mojom::InputEventResultState state,
+                               const blink::WebInputEvent& event) {
+  if (event.GetType() != blink::WebInputEvent::Type::kRawKeyDown ||
+      (event.GetModifiers() & blink::WebInputEvent::kKeyModifiers) ||
+      static_cast<const blink::WebKeyboardEvent&>(event).windows_key_code !=
+          ui::VKEY_ESCAPE) {
+    return;
+  }
+  if (state != blink::mojom::InputEventResultState::kNotConsumed &&
+      state != blink::mojom::InputEventResultState::kNoConsumerExists) {
+    return;
+  }
+  base::DictValue data;
+  data.Set("command", "escape");
+  Send("command", std::move(data));
+}
+
 void TabState::WebContentsDestroyed() {
+  StopWatchingKeys();
   favicon_observation_.Reset();
   Host::Get()->TabDestroyed(this);
 }

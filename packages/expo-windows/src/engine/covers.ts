@@ -31,6 +31,19 @@ export function coversIn(windowId: string, except: readonly string[] = []): Cove
   return [...(covers.get(windowId) ?? [])].filter(([id]) => !except.includes(id)).map(([, rect]) => rect);
 }
 
+type Box = { x: number; y: number; width: number; height: number };
+
+const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+const encloses = (outer: Box, inner: Box) =>
+  outer.x <= inner.x && outer.y <= inner.y && outer.x + outer.width >= inner.x + inner.width && outer.y + outer.height >= inner.y + inner.height;
+
+export function holesFor(page: Box, covers: readonly CoverRect[], temporary: boolean): number[][] {
+  return covers
+    .filter((cover) => overlaps(cover, page) && !(temporary && encloses(cover, page)))
+    .map((hole) => [hole.x, hole.y, hole.width, hole.height, hole.radius]);
+}
+
 export function setPageRadius(radius: number, windowId = "") {
   if (windowId) radii.set(windowId, radius);
   else defaultRadius = radius;
