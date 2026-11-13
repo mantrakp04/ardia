@@ -253,7 +253,7 @@ export function startBookmarks() {
     adopt(engine, flat, { ready: false });
   }
   const changes = onBookmarksChanged((engine) => {
-    if (stateOf(engine).shadow) read(engine);
+    if (engines.get(engine)?.shadow) read(engine);
   });
   let stopped = false;
   void migrateBookmarksFile().then((result) => {
@@ -265,6 +265,8 @@ export function startBookmarks() {
   });
   const stop = useBrowser.subscribe((s, prev) => {
     if (s.profiles !== prev.profiles) {
+      const inStore = engineProfiles(s);
+      for (const engine of engines.keys()) if (!inStore.includes(engine)) engines.delete(engine);
       for (const engine of openedEngineProfiles(s)) if (!stateOf(engine).shadow && !stateOf(engine).busy) read(engine);
     }
     if (s.bookmarks !== prev.bookmarks) {

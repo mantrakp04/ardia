@@ -30,6 +30,8 @@ const toEntry = (e: EngineHistoryEntry): HistoryEntry => ({
 
 const viewOf = (engine: string): HistoryEntry[] => store().history[engine]?.list ?? [];
 
+const inApp = (engine: string) => engineProfiles(store()).includes(engine);
+
 let legacyMoved = false;
 
 function setView(engine: string, list: HistoryEntry[], floor?: number) {
@@ -113,8 +115,8 @@ function load(engine: string): Promise<void> {
         for (const change of state.queued) if (!(change.kind === "deleted" && change.all)) list = applyHistoryChange(list, change);
         if (state.queued.some((c) => c.kind === "deleted" && c.all)) state.again = true;
         setView(engine, list, floor);
-        loaded.add(engine);
-      } while (state.again);
+        if (inApp(engine)) loaded.add(engine);
+      } while (state.again && inApp(engine));
     } catch (error) {
       console.warn(`[history] couldn't read ${engine || "the default profile"}'s history`, error);
     } finally {
@@ -211,7 +213,10 @@ export function startHistory() {
   if (moving) afterFirstWindow(migrate);
   else migrate();
   const stop = useBrowser.subscribe((s, prev) => {
-    if (s.profiles !== prev.profiles && !moving) loadAll(s);
+    if (s.profiles === prev.profiles) return;
+    const inStore = engineProfiles(s);
+    for (const engine of loaded) if (!inStore.includes(engine)) loaded.delete(engine);
+    if (!moving) loadAll(s);
   });
   const opened = onProfilesOpened(() => {
     if (!moving) loadAll(store());
