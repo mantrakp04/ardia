@@ -131,7 +131,14 @@ function IconButtonView(props: IconProps) {
   ) : null);
   const hasGlyphPressMotion = !children && (!!icon || !!image);
   const { scale: pressScale, onPressIn, onPressOut } = usePressScaleMotion(hasGlyphPressMotion);
-  const animatedFace = hasGlyphPressMotion && pressScale ? <Animated.View pointerEvents="none" style={{ transform: [{ scale: pressScale }] }}>{face}</Animated.View> : face;
+  const animatedFace = hasGlyphPressMotion && pressScale ? (
+    <Animated.View
+      pointerEvents="none"
+      style={{ width: glyphFrame, height: glyphFrame, alignItems: "center", justifyContent: "center", transform: [{ scale: pressScale }] }}
+    >
+      {face}
+    </Animated.View>
+  ) : face;
   const plate = (pressed: boolean) => (
     <View
       style={{

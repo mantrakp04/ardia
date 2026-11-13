@@ -7,8 +7,9 @@ import { capsule, closeOnArt, opacity, pillHeight, radius as radii, space, stepp
 import { buttonMotion, usePressScaleMotion } from "./motion";
 import type { CloseProps, PillProps, PushProps, StepperProps } from "./Button";
 
-function ScaledGlyph({ scale, children }: { scale: Animated.Value | null; children: ReactNode }) {
-  return scale ? <Animated.View pointerEvents="none" style={{ transform: [{ scale }] }}>{children}</Animated.View> : children;
+function ScaledGlyph({ scale, size, children }: { scale: Animated.Value | null; size: number; children: ReactNode }) {
+  const style = { width: size, height: size, alignItems: "center" as const, justifyContent: "center" as const };
+  return scale ? <Animated.View pointerEvents="none" style={[style, { transform: [{ scale }] }]}>{children}</Animated.View> : <View pointerEvents="none" style={style}>{children}</View>;
 }
 
 function pillLook(theme: Theme, tone: "prompt" | "chip", primary: boolean, pressed: boolean, hovered: boolean) {
@@ -41,7 +42,7 @@ export function StepperButtonView({ icon, onPress, width = stepperSize.width, he
               borderColor: theme.controlBorder,
             }}
           >
-            <ScaledGlyph scale={pressMotion.scale}><Symbol name={icon} size={10} weight="semibold" color={theme.icon} style={{ width: 12, height: 12 }} /></ScaledGlyph>
+            <ScaledGlyph scale={pressMotion.scale} size={12}><Symbol name={icon} size={10} weight="semibold" color={theme.icon} style={{ width: 12, height: 12 }} /></ScaledGlyph>
           </View>
         )}
       </Pressable>
@@ -118,7 +119,7 @@ export function CloseButtonView(props: CloseProps) {
       <View {...hoverProps} style={style} tooltip={tooltip}>
         <Pressable onPress={onPress} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut}>
           <View style={{ width: PANEL_CLOSE_BOX, height: PANEL_CLOSE_BOX, borderRadius: radii.control, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? theme.toolbarHover : undefined }}>
-            <ScaledGlyph scale={pressMotion.scale}><Symbol name="xmark" size={9} weight="semibold" color={theme.textSecondary} style={{ width: 14, height: 14 }} /></ScaledGlyph>
+              <ScaledGlyph scale={pressMotion.scale} size={14}><Symbol name="xmark" size={9} weight="semibold" color={theme.textSecondary} style={{ width: 14, height: 14 }} /></ScaledGlyph>
           </View>
         </Pressable>
       </View>
@@ -131,7 +132,7 @@ export function CloseButtonView(props: CloseProps) {
         <Pressable onPress={onPress} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut} accessibilityRole="button" accessibilityLabel={label ?? tooltip}>
           {({ pressed }) => (
             <View style={{ width: size, height: size, borderRadius: corner, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? closeOnArt.pressed : hovered ? closeOnArt.hover : closeOnArt.rest }}>
-              <ScaledGlyph scale={pressMotion.scale}><Symbol name="xmark" size={11} weight="medium" color={closeOnArt.glyph} style={{ width: size, height: size }} /></ScaledGlyph>
+              <ScaledGlyph scale={pressMotion.scale} size={size}><Symbol name="xmark" size={11} weight="medium" color={closeOnArt.glyph} style={{ width: size, height: size }} /></ScaledGlyph>
             </View>
           )}
         </Pressable>
@@ -145,7 +146,7 @@ export function CloseButtonView(props: CloseProps) {
         <View style={HUD_PLATE}>
           <VisualEffect material="hudWindow" blendingMode="withinWindow" cornerRadius={capsule(HUD_CLOSE_BOX)} style={StyleSheet.absoluteFill} />
           <Surface style={StyleSheet.absoluteFill} fill={hex(fill)} cornerRadius={capsule(HUD_CLOSE_BOX)} borderColor={theme.hudCloseBorder} borderWidth={1} />
-          <ScaledGlyph scale={pressMotion.scale}><Symbol name="xmark" size={10} weight="medium" color={theme.hudCloseGlyph} style={HUD_GLYPH} /></ScaledGlyph>
+          <ScaledGlyph scale={pressMotion.scale} size={HUD_CLOSE_BOX}><Symbol name="xmark" size={10} weight="medium" color={theme.hudCloseGlyph} style={HUD_GLYPH} /></ScaledGlyph>
         </View>
       </Pressable>
     </View>
