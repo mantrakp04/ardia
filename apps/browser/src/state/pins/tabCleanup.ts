@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
 import { activeTabId, inPinnedContainer, isIncognitoProfile, pinSection, viewTabIds, without } from "../browser/model";
 import { hasPage, isAsleep } from "../tabs/pageSession";
+import { isSleeping } from "../tabs/sleepingTabs";
 import { holderOf, isPageUnloaded } from "./pinShare";
 import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
 import { lastUsedOf, restoredAtOf, sharedLastUsed, sharedRestoredAt } from "../tabs/tabShare";
@@ -208,7 +209,7 @@ export function recentTabIds(s: BrowserState, windowId: string, now = Date.now()
 }
 
 export function sessionTabIds(s: BrowserState, windowId: string, sessionStart: number): string[] {
-  const visible = (ids: string[]) => ids.filter((id) => !isAsleep(s.tabs[id]) && !isPageUnloaded(s, id));
+  const visible = (ids: string[]) => ids.filter((id) => !isAsleep(s.tabs[id]) && !isSleeping(id) && !isPageUnloaded(s, id));
   const now = Date.now();
   const recent = visible(recentTabIds(s, windowId, now, Infinity));
   const active = activeTabId(s, windowId);

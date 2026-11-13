@@ -5,6 +5,7 @@ import { isPageUnloaded } from "../pins/pinShare";
 import { sessionTabIds } from "../pins/tabCleanup";
 import { tabEngine } from "../engines/engines";
 import { isAsleep } from "../tabs/pageSession";
+import { isSleeping, useLifecycle } from "../tabs/sleepingTabs";
 import { rememberPicture } from "../tabs/tabPictures";
 import { noteTabSwitcherOpened } from "../telemetry/usage";
 import { noteTabSwitcherOpenedInWebKit } from "../telemetry/tabSwitcherOpens";
@@ -44,7 +45,7 @@ function syncSwitcherTabs(windowId: string, state = useBrowser.getState()) {
   const inWindow = new Set(viewTabIds(state, windowId));
   const ids = s.ids.filter((id) => {
     const tab = state.tabs[id];
-    return !!tab && inWindow.has(id) && !isAsleep(tab) && !isPageUnloaded(state, id);
+    return !!tab && inWindow.has(id) && !isAsleep(tab) && !isSleeping(id) && !isPageUnloaded(state, id);
   });
   if (ids.length === s.ids.length) return;
   if (ids.length < 2) return endSwitcher();
@@ -59,9 +60,16 @@ function syncSwitcherTabs(windowId: string, state = useBrowser.getState()) {
 
 export function subscribeSwitcherTabChanges(windowId: string) {
   syncSwitcherTabs(windowId);
-  return useBrowser.subscribe((state, previous) => {
-    if (state.tabs !== previous.tabs || state.windows !== previous.windows) syncSwitcherTabs(windowId, state);
+  const unsubscribeBrowser = useBrowser.subscribe((state, previous) => {
+    if (state.tabs !== previous.tabs || state.windows !== previous.windows || state.groups !== previous.groups || state.splits !== previous.splits) syncSwitcherTabs(windowId, state);
   });
+  const unsubscribeLifecycle = useLifecycle.subscribe((state, previous) => {
+    if (state.discarded !== previous.discarded) syncSwitcherTabs(windowId);
+  });
+  return () => {
+    unsubscribeBrowser();
+    unsubscribeLifecycle();
+  };
 }
 
 export function moveSwitcher(step: 1 | -1) {
@@ -122,7 +130,7 @@ export function commitSwitcher(index?: number) {
   const id = s.ids[index ?? pointed ?? s.index];
   const state = useBrowser.getState();
   if (!id || !viewTabIds(state, s.windowId).includes(id)) return;
-  if (isAsleep(state.tabs[id]) || isPageUnloaded(state, id)) return;
+  if (isAsleep(state.tabs[id]) || isSleeping(id) || isPageUnloaded(state, id)) return;
   if (id !== activeTabId(state, s.windowId)) state.activate(id);
 }
 
