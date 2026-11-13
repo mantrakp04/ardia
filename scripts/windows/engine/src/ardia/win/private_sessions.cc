@@ -1,10 +1,13 @@
 #include "ardia/win/private_sessions.h"
 
+#include <cstdint>
+#include <memory>
 #include <utility>
 
 #include "ardia/win/host.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/supports_user_data.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
@@ -16,7 +19,57 @@ namespace {
 
 constexpr base::TimeDelta kEndingLimit = base::Seconds(15);
 
+int g_next_session_number = 1;
+
 }
+
+class PrivateSessions::Session : public base::SupportsUserData::Data {
+ public:
+  static Session* Of(Profile* profile) {
+    return profile ? static_cast<Session*>(profile->GetUserData(Key()))
+                   : nullptr;
+  }
+
+  static Session* For(Profile* profile) {
+    if (Session* existing = Of(profile)) {
+      return existing;
+    }
+    auto owned = std::make_unique<Session>(profile);
+    Session* session = owned.get();
+    profile->SetUserData(Key(), std::move(owned));
+    return session;
+  }
+
+  explicit Session(Profile* profile)
+      : number_(g_next_session_number++),
+        identity_(reinterpret_cast<uintptr_t>(profile)),
+        profile_(profile->GetWeakPtr()) {
+    PrivateSessions::Get()->sessions_.insert(this);
+  }
+
+  ~Session() override {
+    PrivateSessions::Get()->SessionGone(this, std::move(waiting));
+  }
+
+  int number() const { return number_; }
+  Profile* identity() const { return reinterpret_cast<Profile*>(identity_); }
+  Profile* profile() const { return profile_.get(); }
+
+  std::set<std::string> names;
+  std::vector<Waiting> waiting;
+  bool ending = false;
+  bool overdue = false;
+
+ private:
+  static const void* Key() {
+    static const int key = 0;
+    return &key;
+  }
+
+  const int number_;
+  const uintptr_t identity_;
+  base::WeakPtr<Profile> profile_;
+};
 
 PrivateSessions::Waiting::Waiting(std::string name,
                                   base::WeakPtr<Profile> original,
@@ -52,23 +105,36 @@ void PrivateSessions::Open(const std::string& name,
     std::move(opened).Run(nullptr);
     return;
   }
-  Profile* current = original->GetPrimaryOTRProfile(false);
-  if (current && ending_.contains(current)) {
-    waiting_[current].emplace_back(name, original->GetWeakPtr(),
-                                   std::move(opened));
+  if (Profile* current = original->GetPrimaryOTRProfile(false)) {
+    Session* session = Session::For(current);
+    if (session->ending || current->ShutdownStarted()) {
+      if (!session->ending) {
+        session->ending = true;
+        base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+            FROM_HERE,
+            base::BindOnce(&PrivateSessions::Overdue,
+                           weak_factory_.GetWeakPtr(), current->GetWeakPtr()),
+            kEndingLimit);
+      }
+      if (session->overdue) {
+        std::move(opened).Run(nullptr);
+        return;
+      }
+      session->waiting.emplace_back(name, original->GetWeakPtr(),
+                                    std::move(opened));
+      return;
+    }
+    session->names.insert(name);
+    std::move(opened).Run(current);
     return;
   }
-  Profile* session = original->GetPrimaryOTRProfile(true);
-  if (!session) {
+  Profile* fresh = original->GetPrimaryOTRProfile(true);
+  if (!fresh) {
     std::move(opened).Run(nullptr);
     return;
   }
-  if (!observed_.IsObservingSource(session)) {
-    observed_.AddObservation(session);
-    numbers_[session] = next_number_++;
-  }
-  names_[session].insert(name);
-  std::move(opened).Run(session);
+  Session::For(fresh)->names.insert(name);
+  std::move(opened).Run(fresh);
 }
 
 void PrivateSessions::Release(const std::string& name) {
@@ -77,65 +143,65 @@ void PrivateSessions::Release(const std::string& name) {
   }
   released_.insert(name);
   std::vector<Waiting> refused;
-  for (auto& [session, waiting] : waiting_) {
-    for (auto entry = waiting.begin(); entry != waiting.end();) {
+  Session* ended = nullptr;
+  for (Session* session : sessions_) {
+    for (auto entry = session->waiting.begin();
+         entry != session->waiting.end();) {
       if (entry->name == name) {
         refused.push_back(std::move(*entry));
-        entry = waiting.erase(entry);
+        entry = session->waiting.erase(entry);
       } else {
         ++entry;
       }
     }
-  }
-  Profile* ended = nullptr;
-  for (auto& [session, names] : names_) {
-    if (names.erase(name) && names.empty()) {
+    if (session->names.erase(name) && session->names.empty() &&
+        !session->ending) {
       ended = session;
-      break;
     }
   }
   if (ended) {
-    names_.erase(ended);
     End(ended);
   }
   Refuse(std::move(refused));
 }
 
 int PrivateSessions::SessionNumber(Profile* profile) const {
-  auto found = numbers_.find(profile);
-  return found == numbers_.end() ? 0 : found->second;
+  if (!profile || !profile->IsOffTheRecord()) {
+    return 0;
+  }
+  Session* session = Session::Of(profile);
+  return session ? session->number() : 0;
 }
 
 int PrivateSessions::LiveSessions() const {
-  return static_cast<int>(numbers_.size());
+  return static_cast<int>(sessions_.size());
 }
 
-void PrivateSessions::OnProfileWillBeDestroyed(Profile* profile) {
-  observed_.RemoveObservation(profile);
-  names_.erase(profile);
-  numbers_.erase(profile);
-  ending_.erase(profile);
-  Host::Get()->ForgetProfile(profile);
-  auto found = waiting_.find(profile);
-  if (found == waiting_.end()) {
+void PrivateSessions::SessionGone(Session* session,
+                                  std::vector<Waiting> waiting) {
+  sessions_.erase(session);
+  Host::Get()->ForgetProfile(session->identity());
+  if (waiting.empty()) {
     return;
   }
-  std::vector<Waiting> waiting = std::move(found->second);
-  waiting_.erase(found);
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(&PrivateSessions::Resume,
                                 weak_factory_.GetWeakPtr(), std::move(waiting)));
 }
 
-void PrivateSessions::End(Profile* session) {
-  ending_.insert(session);
-  base::WeakPtr<Profile> weak = session->GetWeakPtr();
+void PrivateSessions::End(Session* session) {
+  Profile* profile = session->profile();
+  if (!profile) {
+    return;
+  }
+  session->ending = true;
+  base::WeakPtr<Profile> weak = profile->GetWeakPtr();
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&PrivateSessions::Overdue, weak_factory_.GetWeakPtr(),
                      weak),
       kEndingLimit);
-  if (Host::Get()->CloseBrowsersOf(session) == 0 && weak) {
+  if (Host::Get()->CloseBrowsersOf(profile) == 0 && weak) {
     ProfileDestroyer::DestroyOTRProfileWhenAppropriate(weak.get());
   }
 }
@@ -146,22 +212,25 @@ void PrivateSessions::Resume(std::vector<Waiting> waiting) {
   }
 }
 
-void PrivateSessions::Overdue(base::WeakPtr<Profile> session) {
-  if (!session || !ending_.contains(session.get())) {
+void PrivateSessions::Overdue(base::WeakPtr<Profile> profile) {
+  Session* session = profile ? Session::Of(profile.get()) : nullptr;
+  if (!session || !session->ending || session->overdue) {
     return;
   }
-  if (Host::Get()->BrowsersOf(session.get()) == 0) {
-    ProfileDestroyer::DestroyOTRProfileWhenAppropriate(session.get());
-    return;
+  if (Host::Get()->BrowsersOf(profile.get()) == 0) {
+    ProfileDestroyer::DestroyOTRProfileWhenAppropriate(profile.get());
+    session = profile ? Session::Of(profile.get()) : nullptr;
+    if (!session) {
+      return;
+    }
   }
-  LOG(ERROR) << "Ardia: a private session still has windows "
-             << kEndingLimit.InSeconds() << " s after its last release";
-  auto found = waiting_.find(session.get());
-  if (found == waiting_.end()) {
-    return;
-  }
-  std::vector<Waiting> waiting = std::move(found->second);
-  waiting_.erase(found);
+  session->overdue = true;
+  LOG(ERROR) << "Ardia: a private session has not ended "
+             << kEndingLimit.InSeconds()
+             << " s after its last release; private windows of its profile "
+                "are refused until it does";
+  std::vector<Waiting> waiting = std::move(session->waiting);
+  session->waiting.clear();
   Refuse(std::move(waiting));
 }
 

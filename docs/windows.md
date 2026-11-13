@@ -324,8 +324,12 @@ is plain Chromium.
   (`private_sessions.cc`). The host closes every Chromium window of that off-the-record profile with its warnings
   skipped, Chromium's `BrowserManagerService` hands the profile to `ProfileDestroyer` once its last window is
   destroyed, and in-flight work (renderers, downloads) ends with it. A private window opened while the old session is
-  still ending waits until it is destroyed and gets a new, empty one; a released name never opens a tab again.
-  `tabs.list` gives each tab's session number (0 for a normal profile) and `host.info` the number of live sessions.
+  still ending waits until the old profile object itself is destroyed, not only told it will be (Chromium sends that
+  before its renderers have gone), and then gets a new, empty one: the session's state is user data on the
+  off-the-record profile, and its destructor resumes the waiting windows. If the old session still has windows 15 s
+  after its last release, waiting windows and any later one of that profile are refused until it is gone. A released
+  name never opens a tab again. `tabs.list` gives each tab's session number (0 for a normal profile), issued once per
+  off-the-record profile object, and `host.info` the number of live sessions.
 
 ## Calls Windows still answers with a stand-in
 

@@ -277,6 +277,30 @@ void Step() {
     case 15:
       Call("reply sessions at the end", "tabs.list", "{}");
       Call("reply info at the end", "host.info", "{}");
+      if (!g_cookie_url.empty()) {
+        ClosePrivate("private-e", "incognito:probe-e@");
+        Call("reply create rapid 1", "tab.create",
+             CreateIn("rapid-1", "incognito:rapid-1@", g_cookie_url + "?set"));
+      }
+      break;
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+      if (!g_cookie_url.empty()) {
+        const std::string before = "rapid-" + std::to_string(g_step - 15);
+        const std::string next = "rapid-" + std::to_string(g_step - 14);
+        const std::string before_profile = "incognito:" + before + "@";
+        const std::string next_profile = "incognito:" + next + "@";
+        Call("reply rapid sessions", "tabs.list", "{}");
+        ClosePrivate(before.c_str(), before_profile.c_str());
+        Call("reply create rapid next", "tab.create",
+             CreateIn(next.c_str(), next_profile.c_str(), g_cookie_url + "?set"));
+      }
+      break;
+    case 20:
+      Call("reply sessions after rapid", "tabs.list", "{}");
+      Call("reply info after rapid", "host.info", "{}");
       break;
     default:
       if (Environment("ARDIA_PROBE_STAY", "").empty()) {
