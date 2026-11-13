@@ -7,7 +7,7 @@ globalThis.setTimeout = (callback, ms, ...args) => {
   return ms >= 1_000 ? timer.unref() : timer;
 };
 const { useBrowser } = await import("../browser/store.ts");
-const { bookmarkRoots, bookmarkUuidFor, isBookmarked, ownerOfBookmark } = await import("./bookmarks.ts");
+const { bookmarkRoots, bookmarkUuidFor, isBookmarked, isWithin, ownerOfBookmark } = await import("./bookmarks.ts");
 const { allArcHolders, restoreArcFolders } = await import("./bookmarkGroups.ts");
 const { migrateBookmarksFile, reloadBookmarks, startBookmarks } = await import("./engineSync.ts");
 const stub = await import("../../test-native/index.ts");
@@ -18,6 +18,18 @@ const cpuMs = (since) => {
   const { user, system } = process.cpuUsage(since);
   return (user + system) / 1000;
 };
+
+test("cycle checks cover the full Chrome bookmark depth", () => {
+  const nodes = {};
+  let parentId = null;
+  for (let depth = 0; depth <= 512; depth++) {
+    const id = `depth-${depth}`;
+    nodes[id] = { kind: "folder", id, parentId, title: id, children: [], addedAt: 0 };
+    if (parentId) nodes[parentId].children.push(id);
+    parentId = id;
+  }
+  assert.equal(isWithin({ nodes }, parentId, ["depth-0"]), true);
+});
 
 function chromeTree(profile = "") {
   const db = stub.chromeBookmarks(profile);

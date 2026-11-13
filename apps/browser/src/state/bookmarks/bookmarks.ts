@@ -63,11 +63,11 @@ export const rootIdsFor = (engine: string) => ({ bar: `bar@${engine || "default"
 
 export const ROOT_TITLES = { bar: "Bookmarks Bar", other: "Other Bookmarks" } as const;
 
-const MAX_DEPTH = 64;
+const MAX_DEPTH = 512;
 
 export function isWithin(b: Bookmarks, id: string, ancestors: readonly string[]): boolean {
   let node = b.nodes[id];
-  for (let i = 0; node && i < MAX_DEPTH; i++) {
+  for (let i = 0; node && i <= MAX_DEPTH; i++) {
     if (ancestors.includes(node.id)) return true;
     node = node.parentId ? b.nodes[node.parentId] : undefined;
   }

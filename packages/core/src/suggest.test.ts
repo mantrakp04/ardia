@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mock, test } from "node:test";
 import { BUILT_IN_ENGINES, engineById } from "./engines.ts";
-import { buildSuggestions, type Suggestion } from "./suggest.ts";
+import { buildSuggestions, prepareSuggestions, type Suggestion } from "./suggest.ts";
 import { createSuggestFetcher, type FetchLike } from "./suggestFetcher.ts";
 
 const now = Date.UTC(2026, 8, 24);
@@ -12,6 +12,24 @@ const history = [
   { url: "https://www.xing.com/", title: "XING", favicon: null, visits: 1, lastVisit: now - DAY * 10 },
   { url: "https://github.com/", title: "GitHub", favicon: null, visits: 12, lastVisit: now - 2000 },
 ];
+
+test("suggestion preparation yields while building the initials index", () => {
+  const source = {
+    tabs: [],
+    history: [],
+    bookmarks: Array.from({ length: 128 }, (_, i) => ({ url: `https://bookmark-${i}.example/`, title: `Bookmark ${i}`, favicon: null })),
+  };
+  const originalNow = Date.now;
+  let calls = 0;
+  Date.now = () => ++calls < 5 ? 0 : 2;
+  try {
+    assert.equal(prepareSuggestions(source, 1), false);
+  } finally {
+    Date.now = originalNow;
+  }
+  assert.equal(prepareSuggestions(source, Infinity), true);
+  assert.ok(buildSuggestions("bookmark", source, { now }).items.some((item) => item.kind === "page" && item.url === "https://bookmark-0.example/"));
+});
 
 function rows(items: Suggestion[]): string[] {
   return items.map((i) => {

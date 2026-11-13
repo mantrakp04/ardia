@@ -131,3 +131,51 @@ test("retained children move out before their deleted folder is removed", () => 
 
   equalFlat(applyOps(from, bookmarkOps(from, to, ""), ""), to);
 });
+
+test("cross-folder moves use the order after each emitted move", () => {
+  const d = "d";
+  const e = "e";
+  const w = "w";
+  const o = "o";
+  const p = "p";
+  const n = "n";
+  const from = {
+    nodes: new Map([
+      [roots.bar, folder(null, "bar")], [roots.other, folder(null, "other")],
+      [d, folder(roots.bar, "D")], [e, folder(roots.bar, "E")], [w, folder(roots.bar, "W")],
+      [o, url(d, "o")], [p, url(d, "p")], [n, url(w, "n")],
+    ]),
+    children: new Map([[roots.bar, [d, e, w]], [roots.other, []], [d, [o, p]], [e, []], [w, [n]]]),
+  };
+  const to = {
+    nodes: new Map(from.nodes),
+    children: new Map([[roots.bar, [d, e, w]], [roots.other, []], [d, [p, n]], [e, [o]], [w, []]]),
+  };
+  to.nodes.set(o, { ...to.nodes.get(o), parent: e });
+  to.nodes.set(n, { ...to.nodes.get(n), parent: d });
+
+  equalFlat(applyOps(from, bookmarkOps(from, to, ""), ""), to);
+});
+
+test("moved bookmarks still emit title and URL updates", () => {
+  const source = "source";
+  const target = "target";
+  const id = "moving";
+  const from = {
+    nodes: new Map([
+      [roots.bar, folder(null, "bar")], [roots.other, folder(null, "other")],
+      [source, folder(roots.other, "source")], [target, folder(roots.other, "target")],
+      [id, { ...url(source, "before"), url: "https://before.example/" }],
+    ]),
+    children: new Map([[roots.bar, []], [roots.other, [source, target]], [source, [id]], [target, []]]),
+  };
+  const to = {
+    nodes: new Map(from.nodes),
+    children: new Map([[roots.bar, []], [roots.other, [source, target]], [source, []], [target, [id]]]),
+  };
+  to.nodes.set(id, { ...to.nodes.get(id), parent: target, title: "after", url: "https://after.example/" });
+
+  const ops = bookmarkOps(from, to, "");
+  assert.deepEqual(ops.map((op) => op.op), ["move", "update"]);
+  equalFlat(applyOps(from, ops, ""), to);
+});

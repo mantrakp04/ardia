@@ -215,30 +215,20 @@ export function bookmarkOps(from: Flat, to: Flat, engine: string): BookmarkOp[] 
     }
   }
 
-  const detached = new Set<string>();
-  const detachByParent = new Map<string, Set<string>>();
-  for (const [id, node] of from.nodes) {
-    const parent = node.parent;
-    if (!parent || removed.has(id) || rescueSet.has(id) || !to.nodes.has(id) || to.nodes.get(id)!.parent === parent) continue;
-    let moving = detachByParent.get(parent);
-    if (!moving) detachByParent.set(parent, (moving = new Set()));
-    moving.add(id);
-    detached.add(id);
-  }
-  for (const [parent, moving] of detachByParent) {
-    const children = kids.get(parent);
-    for (const id of moving) children?.remove(id);
-  }
-
   const queue = [roots.bar, roots.other];
   while (queue.length) {
     const folder = queue.shift()!;
     if (!kids.has(folder)) kids.set(folder, new OrderList());
-    (to.children.get(folder) ?? []).forEach((id, index) => {
+    const desired = to.children.get(folder) ?? [];
+    let successor: string | undefined;
+    for (let index = desired.length - 1; index >= 0; index--) {
+      const id = desired[index]!;
       const node = to.nodes.get(id)!;
       const was = from.nodes.get(id);
       const current = kids.get(folder)!;
+      const actualIndex = () => successor && current.has(successor) ? current.indexOf(successor) : current.length;
       if (!parentOf.has(id)) {
+        const position = actualIndex();
         ops.push({
           op: "add",
           id,
@@ -248,30 +238,28 @@ export function bookmarkOps(from: Flat, to: Flat, engine: string): BookmarkOp[] 
           a: node.addedAt,
           ...(node.key ? { key: node.key } : {}),
           parent: opParent(engine, folder),
-          index,
+          index: position,
         });
-        current.insert(index, id);
+        current.insert(position, id);
         parentOf.set(id, folder);
         if (node.kind === "folder") kids.set(id, new OrderList());
-      } else if (detached.has(id)) {
-        current.insert(index, id);
-        parentOf.set(id, folder);
-        detached.delete(id);
-        ops.push({ op: "move", id, parent: opParent(engine, folder), index });
       } else {
-        if (parentOf.get(id) !== folder || current.at(index) !== id) {
-          const old = kids.get(parentOf.get(id)!);
+        const parent = parentOf.get(id)!;
+        if (parent !== folder || (successor && current.indexOf(id) > current.indexOf(successor))) {
+          const old = kids.get(parent);
           old?.remove(id);
-          current.insert(index, id);
+          const position = actualIndex();
+          current.insert(position, id);
           parentOf.set(id, folder);
-          ops.push({ op: "move", id, parent: opParent(engine, folder), index });
+          ops.push({ op: "move", id, parent: opParent(engine, folder), index: position });
         }
         if (was && (was.title !== node.title || (node.url !== undefined && was.url !== node.url))) {
           ops.push({ op: "update", id, t: node.title, ...(node.url !== undefined ? { u: node.url } : {}) });
         }
       }
       if (node.kind === "folder") queue.push(id);
-    });
+      successor = id;
+    }
   }
   return ops;
 }
