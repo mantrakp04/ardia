@@ -8,7 +8,12 @@ import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
 import { useSettings, useTab } from "../../state/browser/hooks";
 import type { Peek } from "../../state/peek/peek";
 import { PEEK_MOTION, PEEK_SCRIM } from "./tokens";
-import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
+import { PageLabel, SMALL_BAR_BUTTON, SMALL_BAR_GAP, SMALL_FIELD_GAP, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
+import { SMALL_BAR_ROW } from "../littleArdia/tokens";
+import { SMALL_BAR_HEIGHT } from "../../state/windows/small";
+import { HistoryButton } from "../toolbar/NavButtons";
+import { toolbarPalette } from "../ui/toolbarColors";
+import { stepPeekHistory, usePeekHistory } from "../../state/peek/peekHistory";
 import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, registerPeekMotion } from "../../state/peek/actions";
 import { notePinch } from "../../state/telemetry/usage";
 
@@ -16,6 +21,13 @@ const INSET_FRACTION = 0.055;
 const MIN_INSET = 16;
 const START_SCALE = 0.12;
 const GROW = PEEK_MOTION.grow;
+const NAV_PITCH = SMALL_BAR_BUTTON + SMALL_BAR_GAP;
+const FIELD_LEFT = SMALL_INSET + NAV_PITCH + SMALL_BAR_BUTTON + SMALL_FIELD_GAP;
+const NAV_HIT = { width: SMALL_BAR_BUTTON, height: SMALL_BAR_BUTTON, plateX: 0, plateY: 0, box: SMALL_BAR_ROW.button, radius: SMALL_BAR_ROW.buttonRadius };
+const BUTTON_TOP = (SMALL_BAR_HEIGHT - SMALL_BAR_BUTTON) / 2;
+const BACK_AT = { style: { position: "absolute" as const, top: BUTTON_TOP, left: SMALL_INSET }, hit: NAV_HIT };
+const FORWARD_AT = { style: { position: "absolute" as const, top: BUTTON_TOP, left: SMALL_INSET + NAV_PITCH }, hit: NAV_HIT };
+const alreadyFocused = () => {};
 
 
 export function peekFrame(width: number, height: number) {
@@ -219,13 +231,27 @@ function PeekBar({ windowId, tabId }: { windowId: string; tabId: string }) {
   const host = tab.url ? breadcrumb(tab.url).host : "";
   return (
     <SmallBar
-      fieldLeft={SMALL_INSET}
+      fieldLeft={FIELD_LEFT}
       field={<PageLabel tab={tab} label={host ? `Peek: ${host}` : "Peek"} />}
       buttons={[
         { icon: "rectangle.split.2x1", disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
         { icon: "arrow.up.left.and.arrow.down.right", tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
         { icon: "xmark", tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
       ]}
-    />
+    >
+      <PeekHistoryButtons windowId={windowId} tabId={tabId} />
+    </SmallBar>
+  );
+}
+
+function PeekHistoryButtons({ windowId, tabId }: { windowId: string; tabId: string }) {
+  const palette = toolbarPalette(useTheme(), null);
+  const history = usePeekHistory(tabId);
+  const go = (direction: -1 | 1) => stepPeekHistory(windowId, direction);
+  return (
+    <>
+      <HistoryButton place={BACK_AT} tabId={tabId} windowId={windowId} direction={-1} disabled={!history.back} palette={palette} onFocus={alreadyFocused} go={go} />
+      <HistoryButton place={FORWARD_AT} tabId={tabId} windowId={windowId} direction={1} disabled={!history.forward} palette={palette} onFocus={alreadyFocused} go={go} />
+    </>
   );
 }

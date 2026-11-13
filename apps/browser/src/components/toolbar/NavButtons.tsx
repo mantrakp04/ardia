@@ -171,6 +171,7 @@ export const HistoryButton = memo(function HistoryButton({
   palette,
   place,
   onFocus,
+  go,
 }: {
   tabId: string;
   windowId: string;
@@ -179,6 +180,7 @@ export const HistoryButton = memo(function HistoryButton({
   palette: ToolbarPalette;
   place?: NavPlace;
   onFocus: () => void;
+  go?: (direction: -1 | 1) => void;
 }) {
   const handoffMotion = useRef(new Animated.Value(0)).current;
   const icon = direction < 0 ? "chevron.left" : "chevron.right";
@@ -217,7 +219,10 @@ export const HistoryButton = memo(function HistoryButton({
     animateHandoff();
     closeHistoryMenu();
     const mode = openModeFor(m);
-    if (mode === "current" || mode === "split") return direction < 0 ? goBack(tabId) : goForward(tabId);
+    if (mode === "current" || mode === "split") {
+      if (go) return go(direction);
+      return direction < 0 ? goBack(tabId) : goForward(tabId);
+    }
     const [target] = await historyItems(tabId, direction, 1);
     if (target?.url) openUrl(target.url, windowId, mode);
   };
