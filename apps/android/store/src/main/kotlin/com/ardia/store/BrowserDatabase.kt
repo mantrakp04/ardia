@@ -64,7 +64,7 @@ open class BrowserDatabase(context: Context, name: String? = FILE_NAME) : AutoCl
 
     internal fun receivedKeys(): Set<String> = strings("SELECT receivedKey FROM tabs WHERE receivedKey IS NOT NULL", emptyArray()).toHashSet()
 
-    internal fun writeTabs(changes: Map<String, BrowserTab?>) {
+    internal open fun writeTabs(changes: Map<String, BrowserTab?>) {
         if (changes.isEmpty()) return
         transaction {
             for ((id, tab) in changes) {
@@ -101,7 +101,7 @@ open class BrowserDatabase(context: Context, name: String? = FILE_NAME) : AutoCl
 
     internal fun maxVisitId(): Long = db.rawQuery("SELECT max(id) FROM visits", null).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else 0L }
 
-    internal fun insertVisit(visit: Visit) {
+    internal open fun insertVisit(visit: Visit) {
         db.insertWithOnConflict("visits", null, values(visit), SQLiteDatabase.CONFLICT_REPLACE)
     }
 

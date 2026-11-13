@@ -10,6 +10,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlinx.coroutines.flow.first
 
 @RunWith(AndroidJUnit4::class)
 class PrivatePagesTest {
@@ -91,7 +92,9 @@ class PrivatePagesTest {
         harness.load(hidden, "/file")
         val event = harness.result(download).download
         assertTrue(event.isPrivate)
-        assertEquals("jar=mine", onMain { harness.engine.cookieHeader(server.url("/file"), isPrivate = true) })
+        val session = event.privateSession!!
+        assertEquals("jar=mine", onMain { harness.engine.privateCookieHeader(server.url("/file"), session) })
+        assertEquals(null, onMain { harness.engine.cookieHeader(server.url("/file"), isPrivate = true) })
         assertEquals("jar=public", onMain { harness.engine.cookieHeader(server.url("/file"), isPrivate = false) })
         val downloads = SystemDownloads(harness.context, harness.engine)
         val outcome = DownloadHarness.run(downloads, event)
@@ -103,7 +106,37 @@ class PrivatePagesTest {
             DownloadHarness.delete(harness.context, outcome)
         }
         onMain { harness.engine.close("private") }
-        assertEquals(null, onMain { harness.engine.cookieHeader(server.url("/file"), isPrivate = true) })
+        assertEquals(null, onMain { harness.engine.privateCookieHeader(server.url("/file"), session) })
+        assertFalse(onMain { harness.engine.isPrivateSessionLive(session) })
+    }
+
+    @Test
+    fun endingPrivateBrowsingStopsItsDownloadsBeforeTheNextSession() {
+        assumeTrue(onMain { harness.engine.separatesPrivatePages })
+        val release = java.util.concurrent.CountDownLatch(1)
+        server.route("/held") {
+            release.await(20, java.util.concurrent.TimeUnit.SECONDS)
+            TestServer.Response(302, headers = mapOf("Location" to server.url("/after")))
+        }
+        server.route("/after") { TestServer.Response(body = "after", contentType = "text/plain") }
+        val first = harness.open("p1", isPrivate = true)
+        set(first, "a")
+        val session = onMain { harness.engine.currentPrivateSession() }!!
+        val downloads = SystemDownloads(harness.context, harness.engine)
+        val held = PageDownload(server.url("/held"), "held.bin", null, -1, null, null, null, isPrivate = true, privateSession = session)
+        assertTrue(downloads.enqueue(held) != null)
+        harness.poll { server.requested("/held").takeIf { it } }
+        assertEquals("jar=a", server.requests.first { it.path == "/held" }.headers["cookie"])
+        onMain { harness.engine.close("p1") }
+        val ended = kotlinx.coroutines.runBlocking { kotlinx.coroutines.withTimeout(10_000) { downloads.outcomes.first() } }
+        assertEquals(DownloadOutcome.Failed("held.bin", DownloadFailure.PrivateSessionEnded), ended)
+        val second = harness.open("p2", isPrivate = true)
+        set(second, "b")
+        assertEquals(null, onMain { harness.engine.privateCookieHeader(server.url("/after"), session) })
+        release.countDown()
+        Thread.sleep(1_000)
+        assertFalse(server.requested("/after"))
+        assertTrue(downloads.active.value.isEmpty())
     }
 
     @Test

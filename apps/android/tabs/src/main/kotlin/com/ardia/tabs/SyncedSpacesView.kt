@@ -1,9 +1,5 @@
 package com.ardia.tabs
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -49,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,7 +60,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -214,7 +210,7 @@ private fun SpacePage(model: AppModel, profile: SyncedProfile) {
     var expandedDevices by rememberSaveable(profile.syncId) { mutableStateOf(emptySet<String>()) }
     var expandedGroups by rememberSaveable(profile.syncId) { mutableStateOf(emptySet<String>()) }
     val devices = remember(profile) { profile.deviceTabs.filter { it.tabs.isNotEmpty() } }
-    val open = { url: String, title: String -> model.openRemote(url, title, profile.syncId) }
+    val links = remember(model, profile.syncId) { RemoteLinks(model, profile.syncId) }
     val toggle = { key: String -> expandedGroups = if (key in expandedGroups) expandedGroups - key else expandedGroups + key }
     PullToRefreshBox(
         isRefreshing = refreshing,
@@ -233,16 +229,16 @@ private fun SpacePage(model: AppModel, profile: SyncedProfile) {
         ) {
             if (profile.pinned.tiles.isNotEmpty()) {
                 item(key = "tiles") {
-                    PinnedTileGrid(profile.pinned.tiles, open, Modifier.padding(start = Spacing.medium, end = Spacing.medium, top = Spacing.tight, bottom = Spacing.small))
+                    PinnedTileGrid(profile.pinned.tiles, links::open, Modifier.padding(start = Spacing.medium, end = Spacing.medium, top = Spacing.tight, bottom = Spacing.small))
                 }
             }
-            pinnedSections(profile.pinned.sections, depth = 0, expanded = expandedGroups, toggle = toggle, open = open)
+            pinnedSections(profile.pinned.sections, depth = 0, expanded = expandedGroups, toggle = toggle, links = links)
             if (profile.bookmarks.isNotEmpty()) {
                 item(key = "bookmarks-header") { SectionHeader(stringResource(R.string.spaces_bookmarks), ArdiaSymbols.star) }
-                bookmarks(profile.bookmarks, depth = 0, expanded = expandedGroups, toggle = toggle, open = open)
+                bookmarks(profile.bookmarks, depth = 0, expanded = expandedGroups, toggle = toggle, links = links)
             }
             for (device in devices) {
-                deviceSection(device, device.deviceId in expandedDevices, open) { expandedDevices = expandedDevices + device.deviceId }
+                deviceSection(device, device.deviceId in expandedDevices, links) { expandedDevices = expandedDevices + device.deviceId }
             }
             if (profile.pinned.isEmpty && devices.isEmpty() && profile.bookmarks.isEmpty()) {
                 item(key = "empty") { NothingHereYet(profile.name) }
@@ -256,20 +252,20 @@ private fun LazyListScope.pinnedSections(
     depth: Int,
     expanded: Set<String>,
     toggle: (String) -> Unit,
-    open: (String, String) -> Unit,
+    links: RemoteLinks,
 ) {
     for (section in sections) {
         val tab = section.tab
         val group = section.group
         when {
             tab != null -> item(key = "pinned:${section.id}:$depth") {
-                RemoteRow(tab.title, tab.url, depth, SpaceColors.symbol(tab.icon)) { open(tab.url, tab.title) }
+                RemoteRow(tab.title, tab.url, depth, links, SpaceColors.symbol(tab.icon))
             }
             group != null -> {
                 val key = "group:${group.key}"
                 val isOpen = key in expanded
                 item(key = key) { GroupRow(group, depth, isOpen) { toggle(key) } }
-                if (isOpen) pinnedSections(group.items, depth + 1, expanded, toggle, open)
+                if (isOpen) pinnedSections(group.items, depth + 1, expanded, toggle, links)
             }
         }
     }
@@ -280,12 +276,12 @@ private fun LazyListScope.bookmarks(
     depth: Int,
     expanded: Set<String>,
     toggle: (String) -> Unit,
-    open: (String, String) -> Unit,
+    links: RemoteLinks,
 ) {
     for (bookmark in items) {
         val url = bookmark.url
         if (url != null) {
-            item(key = "bookmark:${bookmark.key}") { RemoteRow(bookmark.title, url, depth) { open(url, bookmark.title) } }
+            item(key = "bookmark:${bookmark.key}") { RemoteRow(bookmark.title, url, depth, links) }
             continue
         }
         val key = "folder:${bookmark.key}"
@@ -293,15 +289,15 @@ private fun LazyListScope.bookmarks(
         item(key = key) {
             FolderRow(bookmark.title, ArdiaSymbols.folderFill, null, depth, isOpen) { toggle(key) }
         }
-        if (isOpen) bookmarks(bookmark.children.orEmpty(), depth + 1, expanded, toggle, open)
+        if (isOpen) bookmarks(bookmark.children.orEmpty(), depth + 1, expanded, toggle, links)
     }
 }
 
-private fun LazyListScope.deviceSection(device: DeviceTabs, isExpanded: Boolean, open: (String, String) -> Unit, expand: () -> Unit) {
+private fun LazyListScope.deviceSection(device: DeviceTabs, isExpanded: Boolean, links: RemoteLinks, expand: () -> Unit) {
     val expanded = isExpanded || device.tabs.size <= COLLAPSED_LIMIT + 1
     item(key = "device:${device.deviceId}") { SectionHeader(device.deviceName, SpaceColors.device(device.deviceName, device.kind)) }
     val shown = if (expanded) device.tabs else device.tabs.take(COLLAPSED_LIMIT)
-    items(shown, key = { "remote:${device.deviceId}:${it.id}" }) { tab -> RemoteRow(tab.title, tab.url, 0) { open(tab.url, tab.title) } }
+    items(shown, key = { "remote:${device.deviceId}:${it.id}" }) { tab -> RemoteRow(tab.title, tab.url, 0, links) }
     if (!expanded) item(key = "more:${device.deviceId}") { ShowAllRow(expand) }
 }
 
@@ -321,13 +317,13 @@ private fun SectionHeader(title: String, icon: ImageVector) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RemoteRow(title: String, url: String, depth: Int, symbol: ImageVector? = null, open: () -> Unit) {
+private fun RemoteRow(title: String, url: String, depth: Int, links: RemoteLinks, symbol: ImageVector? = null) {
     val dark = LocalArdiaDarkTheme.current
-    val context = LocalContext.current
     val fontScale = LocalDensity.current.fontScale
     var menu by remember { mutableStateOf(false) }
     val iconSide = (24 * fontScale.coerceAtMost(40f / 24f)).dp
     val label = TabText.remoteTitle(title, url)
+    val open = { links.open(url, title) }
     Box {
         Row(
             Modifier
@@ -362,11 +358,11 @@ private fun RemoteRow(title: String, url: String, depth: Int, symbol: ImageVecto
             if (BrowserUrl.isSyncable(url)) {
                 MenuRow(stringResource(R.string.spaces_copy_link), ArdiaSymbols.link) {
                     menu = false
-                    copyLink(context, label, url)
+                    links.copy(url)
                 }
                 MenuRow(stringResource(R.string.spaces_share), ArdiaSymbols.squareAndArrowUp) {
                     menu = false
-                    shareLink(context, label, url)
+                    links.share(url, label)
                 }
             }
         }
@@ -612,19 +608,13 @@ private fun NothingHereYet(name: String) {
     }
 }
 
-private fun copyLink(context: Context, title: String, url: String) {
-    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(title, url))
-}
+@Stable
+private class RemoteLinks(private val model: AppModel, private val profileId: String) {
+    fun open(url: String, title: String) = model.openRemote(url, title, profileId)
 
-private fun shareLink(context: Context, title: String, url: String) {
-    val send = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, url)
-        putExtra(Intent.EXTRA_SUBJECT, title)
-    }
-    val chooser = Intent.createChooser(send, null)
-    if (context !is android.app.Activity) chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    runCatching { context.startActivity(chooser) }
+    fun copy(url: String) = model.copyLink(url)
+
+    fun share(url: String, title: String) = model.share(url, title)
 }
 
 const val SPACES_TAG = "tabs.spaces"

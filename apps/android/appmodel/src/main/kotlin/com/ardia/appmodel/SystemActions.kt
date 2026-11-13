@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import com.ardia.browser.DownloadCookies
 import com.ardia.browser.DownloadOutcome
 import com.ardia.browser.DownloadProgress
 import com.ardia.browser.PageEngine
@@ -30,7 +29,7 @@ interface SystemActions {
 
     fun share(url: String, title: String)
 
-    fun shareText(text: String)
+    fun shareText(text: String, subject: String? = null)
 
     fun browserRoleRequest(): Intent?
 
@@ -40,7 +39,7 @@ interface SystemActions {
 
     fun openDownloaded(outcome: DownloadOutcome.Finished)
 
-    fun enqueueDownload(download: PageDownload): Boolean
+    fun enqueueDownload(download: PageDownload): Long?
 
     fun isDefaultBrowser(): Boolean?
 
@@ -51,7 +50,8 @@ class AndroidSystemActions(context: Context) : SystemActions {
     private val app = context.applicationContext
     @Volatile
     private var engine: PageEngine? = null
-    private val downloads by lazy { SystemDownloads(app, DownloadCookies { url, isPrivate -> engine?.cookieHeader(url, isPrivate) }) }
+    private val currentEngine: () -> PageEngine? = { engine }
+    private val downloads: SystemDownloads by lazy { SystemDownloads(app, currentEngine) }
 
     override val downloadOutcomes: Flow<DownloadOutcome> get() = downloads.outcomes
 
@@ -76,8 +76,10 @@ class AndroidSystemActions(context: Context) : SystemActions {
         start(Intent.createChooser(send, null))
     }
 
-    override fun shareText(text: String) {
-        start(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), null))
+    override fun shareText(text: String, subject: String?) {
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+        subject?.let { send.putExtra(Intent.EXTRA_SUBJECT, it) }
+        start(Intent.createChooser(send, null))
     }
 
     override fun browserRoleRequest(): Intent? {
@@ -95,7 +97,7 @@ class AndroidSystemActions(context: Context) : SystemActions {
         start(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
     }
 
-    override fun enqueueDownload(download: PageDownload): Boolean = downloads.enqueue(download) != null
+    override fun enqueueDownload(download: PageDownload): Long? = downloads.enqueue(download)
 
     override fun isDefaultBrowser(): Boolean? {
         val roles = app.getSystemService(RoleManager::class.java) ?: return null

@@ -1,7 +1,6 @@
 package com.ardia.settings
 
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -141,7 +140,6 @@ private fun SearchGroup(nav: SettingsNav) {
 @Composable
 private fun TabsGroup(nav: SettingsNav) {
     val model = nav.model
-    val context = LocalContext.current
     SettingsGroup {
         PickerRow(
             stringResource(R.string.settings_archive_inactive_tabs),
@@ -163,25 +161,20 @@ private fun TabsGroup(nav: SettingsNav) {
             stringResource(R.string.settings_clear_browsing_data), ArdiaSymbols.eraserFill, SettingsTint.clearData,
             onClick = { nav.push(SettingsRoute.ClearData) }, showsDivider = true, tag = "clearData",
         )
-        val subject = stringResource(R.string.settings_open_tabs_from_ardia)
-        SettingsRow(onClick = { exportOpenTabs(context, model, subject) }, modifier = Modifier.testTag(SettingsTags.row("export"))) {
+        val exportSubject = stringResource(R.string.settings_open_tabs_from_ardia)
+        SettingsRow(onClick = { exportOpenTabs(model, exportSubject) }, modifier = Modifier.testTag(SettingsTags.row("export"))) {
             SettingsRowLabel(stringResource(R.string.settings_export_open_tabs), ArdiaSymbols.squareAndArrowUpFill, SettingsTint.export)
         }
     }
 }
 
-private fun exportOpenTabs(context: Context, model: AppModel, subject: String) {
+private fun exportOpenTabs(model: AppModel, subject: String) {
     val urls = model.exportableTabUrls()
     if (urls.isEmpty()) {
         model.toasts.show(Toasts.noOpenTabsToExport())
         return
     }
-    val send = Intent(Intent.ACTION_SEND)
-        .setType("text/plain")
-        .putExtra(Intent.EXTRA_TEXT, urls.joinToString("\n"))
-        .putExtra(Intent.EXTRA_SUBJECT, subject)
-        .putExtra(Intent.EXTRA_TITLE, subject)
-    runCatching { context.startActivity(Intent.createChooser(send, subject).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    model.shareText(urls.joinToString("\n"), subject)
 }
 
 @Composable

@@ -9,14 +9,12 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.util.regex.Pattern
-import java.util.regex.PatternSyntaxException
 import java.util.zip.CRC32
 import java.util.zip.CheckedInputStream
 import java.util.zip.CheckedOutputStream
 
 internal object CompiledListFile {
-    const val FORMAT = 2
+    const val FORMAT = 3
     private const val MAGIC = 0x41524442
     private const val MAX_FILE_BYTES = 96L * 1024 * 1024
     private const val MAX_TEXT_BYTES = 1 shl 20
@@ -175,7 +173,7 @@ internal object CompiledListFile {
                     includeDomains = texts(),
                     excludeDomains = texts(),
                 )
-                if (filter.isRegex && !isUsableRegex(filter)) return null
+                if (filter.isRegex && filter.pattern.length > ListRegex.MAX_SOURCE_LENGTH) return null
                 spend()
                 network += filter
             }
@@ -201,16 +199,6 @@ internal object CompiledListFile {
             return ParsedFilterList(
                 id, converted, skippedLines, network, cosmetic, badfilters, documentAllows, elemhideAllows, genericHideAllows, skipped, units, chars,
             )
-        }
-
-        private fun isUsableRegex(filter: NetworkFilter): Boolean {
-            if (!RegexSafety.isSafe(filter.pattern)) return false
-            return try {
-                Pattern.compile(filter.pattern)
-                true
-            } catch (error: PatternSyntaxException) {
-                false
-            }
         }
 
         private fun spend() {

@@ -54,6 +54,10 @@ fun ArdiaRoot(model: AppModel, createdAt: Long) {
 fun RootView(model: AppModel) {
     var sheetProgress by remember { mutableFloatStateOf(0f) }
     val backgroundShape = remember { RoundedCornerShape(SheetLayout.backgroundRadius) }
+    val sheet = model.sheet.takeIf { it != AppModel.Sheet.Onboarding }
+    val onboardingCovers = model.settings.isShowingOnboarding
+    val voiceCovers = model.browse.isVoicePresented || onboardingCovers
+    val sheetCovers = sheet != null || voiceCovers
     Box(Modifier.fillMaxSize().background(model.look.surface.current).testTag(RootTags.ROOT)) {
         Box(
             Modifier
@@ -65,21 +69,22 @@ fun RootView(model: AppModel) {
                     scaleY = scale
                     clip = progress > 0f
                     shape = backgroundShape
-                },
+                }
+                .coveredFromAccessibility(sheetCovers),
         ) {
             Surfaces(model)
             SearchTray(model, Modifier.zIndex(10f))
         }
         SheetHost(
-            sheet = model.sheet.takeIf { it != AppModel.Sheet.Onboarding },
+            sheet = sheet,
             onDismiss = { model.sheet = null },
             onProgress = { sheetProgress = it },
-            modifier = Modifier.zIndex(20f),
+            modifier = Modifier.zIndex(20f).coveredFromAccessibility(voiceCovers),
         ) { sheet -> SheetContent(model, sheet) }
         FullScreenCover(
             visible = model.browse.isVoicePresented,
             onDismissRequest = { model.browse.isVoicePresented = false },
-            modifier = Modifier.zIndex(30f).testTag(RootTags.VOICE),
+            modifier = Modifier.zIndex(30f).coveredFromAccessibility(onboardingCovers).testTag(RootTags.VOICE),
         ) { VoiceSearch(model) }
         OnboardingCover(model, Modifier.zIndex(40f))
         ToastHost(model.toasts, Modifier.zIndex(50f))
@@ -108,13 +113,13 @@ private fun Surfaces(model: AppModel) {
     ) {
         if (!homeSettled) {
             BrowsingSurface(model, isFront = surface == AppModel.Surface.Browsing, modifier = Modifier.fillMaxSize())
-            if (covered == AppModel.Surface.TabSwitcher) TabDeck(model, Modifier.fillMaxSize().zIndex(1f))
+            if (covered == AppModel.Surface.TabSwitcher) TabDeck(model, Modifier.fillMaxSize().zIndex(1f).coveredFromAccessibility(isHome))
         }
         AnimatedVisibility(
             visibleState = home,
             enter = fadeIn(motion.spec()),
             exit = fadeOut(motion.spec()),
-            modifier = Modifier.fillMaxSize().zIndex(2f),
+            modifier = Modifier.fillMaxSize().zIndex(2f).coveredFromAccessibility(!isHome),
         ) {
             SearchStart(model, Modifier.fillMaxSize())
         }

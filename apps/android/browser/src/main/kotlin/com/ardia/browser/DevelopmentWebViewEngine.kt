@@ -46,8 +46,11 @@ class DevelopmentWebViewEngine(
     private val privateGrantedPermissions = HashSet<String>()
     private var privateProfileName: String? = null
 
+    private class PrivateJar(val session: String, val cookies: CookieManager)
+
     @Volatile
-    private var privateCookies: CookieManager? = null
+    private var privateJar: PrivateJar? = null
+    private val sessionEndListeners = java.util.concurrent.CopyOnWriteArrayList<(String) -> Unit>()
     private var profilesPrepared = false
     internal var privateSession = 0
         private set
@@ -215,10 +218,24 @@ class DevelopmentWebViewEngine(
 
     override fun cookieHeader(url: String, isPrivate: Boolean): String? {
         if (!BrowserUrl.isWeb(url)) return null
-        if (!isPrivate) return runCatching { CookieManager.getInstance().getCookie(url) }.getOrNull()
-        val cookies = privateCookies ?: return null
-        return runCatching { cookies.getCookie(url) }.getOrNull()
+        if (isPrivate) return null
+        return runCatching { CookieManager.getInstance().getCookie(url) }.getOrNull()
     }
+
+    override fun privateCookieHeader(url: String, session: String): String? {
+        if (!BrowserUrl.isWeb(url)) return null
+        val jar = privateJar?.takeIf { it.session == session } ?: return null
+        return runCatching { jar.cookies.getCookie(url) }.getOrNull()
+    }
+
+    override fun isPrivateSessionLive(session: String): Boolean = privateJar?.session == session
+
+    override fun addPrivateSessionEndListener(listener: (String) -> Unit): AutoCloseable {
+        sessionEndListeners += listener
+        return AutoCloseable { sessionEndListeners -= listener }
+    }
+
+    internal fun currentPrivateSession(): String? = privateJar?.session
 
     internal fun acceptsUpload(uri: String): Boolean = UploadCheck.accepts(uri, ownProviderAuthorities, captureUploads)
 
@@ -257,7 +274,7 @@ class DevelopmentWebViewEngine(
     private fun privateProfile(): String {
         privateProfileName?.let { return it }
         val name = PRIVATE_PROFILE_PREFIX + java.util.UUID.randomUUID()
-        privateCookies = ProfileStore.getInstance().getOrCreateProfile(name).cookieManager
+        privateJar = PrivateJar(java.util.UUID.randomUUID().toString(), ProfileStore.getInstance().getOrCreateProfile(name).cookieManager)
         privateProfileName = name
         return name
     }
@@ -267,7 +284,9 @@ class DevelopmentWebViewEngine(
         privateSession += 1
         val name = privateProfileName
         privateProfileName = null
-        privateCookies = null
+        val endedSession = privateJar?.session
+        privateJar = null
+        endedSession?.let { session -> sessionEndListeners.forEach { listener -> runCatching { listener(session) } } }
         onPrivateBrowsingEnded?.invoke()
         if (name == null || !multiProfileFeature) return
         clearPrivateProfile(name)

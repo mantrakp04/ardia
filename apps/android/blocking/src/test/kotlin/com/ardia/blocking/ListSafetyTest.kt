@@ -12,18 +12,21 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 class ListSafetyTest {
-    private val catastrophic = listOf(
+    private val reviewerRule = "/^" + "()?".repeat(24) + "\$/"
+
+    private val hostile = listOf(
+        reviewerRule,
+        "/^" + "(()?)?".repeat(24) + "\$/",
+        "/^" + "(|a|)".repeat(30) + "b/",
+        "/^" + "a?".repeat(30) + "a".repeat(30) + "\$/",
+        "/" + "(a?){30}" + "a{30}/",
         "/(a+)+b/",
         "/(a*)*b/",
         "/(a|aa)+b/",
         "/(\\w+\\s?)+\$/",
         "/^(([a-z])+.)+[A-Z]([a-z])+\$/",
         "/(.*a){12}/",
-        "/((ab)*)+c/",
-        "/(a+)\\1/",
-        "/x(?=a+)y/",
-        "/(?<!a+)b/",
-        "/a{1,99999}/",
+        "/.*a.*a.*a.*a.*a.*a.*b/",
     )
 
     private fun millis(block: () -> Unit): Double {
@@ -33,51 +36,46 @@ class ListSafetyTest {
     }
 
     @Test
-    fun regexRulesThatCanBacktrackForeverAreRefusedAndCounted() {
-        val parsed = FilterParser.parse(catastrophic.joinToString("\n"), "hostile")
-        assertEquals(0, parsed.network.size)
-        assertEquals(catastrophic.size, parsed.skipped[SkipReason.UNSAFE_REGEX])
-        val real = listOf(
-            "/(https?:\\/\\/)104\\.154\\..{100,}/",
-            "/(https?:\\/\\/)\\w{30,}\\.me\\/\\w{30,}\\./\$script,third-party",
-            "/^https?:\\/\\/[a-z]{10,}\\.(cfd|click|cyou|online)\\/\\d{6,}\\/\\d{6,}\\/[a-z]\$/\$media,third-party",
-            "/\\/[0-9a-f]{32}\\/invoke\\.js/\$script,third-party",
-            "/^https?:\\/\\/(35|104)\\.(\\d){1,3}\\.(\\d){1,3}\\.(\\d){1,3}\\//\$script",
-            "/ad(s|vert)/",
-        )
-        val accepted = FilterParser.parse(real.joinToString("\n"), "real")
-        assertEquals(real.size, accepted.network.size)
-        assertNull(accepted.skipped[SkipReason.UNSAFE_REGEX])
-    }
-
-    @Test
-    fun theReportedRuleCannotStallAPageWhateverTheUrl() {
-        val engine = engineOf("/(a+)+b/\n||ads.test^")
-        for (length in listOf(10_000, 30_000, 100_000)) {
-            val url = "https://site.test/" + "a".repeat(length)
-            val elapsed = millis { assertFalse(engine.blocks(url, "https://site.test/")) }
-            assertTrue("$length chars took $elapsed ms", elapsed < 100)
+    fun hostileRegexRulesRunInLinearTimeOnLongUrls() {
+        var slowest = 0.0
+        for (rule in hostile) {
+            val parsed = FilterParser.parse(rule, "hostile")
+            assertEquals(rule, 1, parsed.network.size)
+            val engine = engineOf(rule)
+            for (body in listOf("a".repeat(30_000), "".padEnd(30_000, 'x'), "ab".repeat(15_000))) {
+                val url = "https://site.test/$body"
+                engine.blocks(url, "https://site.test/")
+                val elapsed = millis { engine.blocks(url, "https://site.test/") }
+                assertTrue("$rule on ${url.length} chars took $elapsed ms", elapsed < 100)
+                slowest = maxOf(slowest, elapsed)
+            }
         }
-        assertTrue(engine.blocks("https://ads.test/x", "https://site.test/"))
+        println("ArdiaBlockingTiming slowest hostile regex request on a 30000-char url: %.2f ms".format(slowest))
+        val source = reviewerRule.substring(1, reviewerRule.length - 1)
+        val direct = ListRegex.compile(source, matchCase = false)!!
+        val input = "a".repeat(30_000)
+        direct.matcher(input).find()
+        val elapsed = millis { direct.matcher(input).find() }
+        println("ArdiaBlockingTiming reviewer pattern on the whole 30000-char input without the url cap: %.2f ms".format(elapsed))
+        assertTrue("took $elapsed ms", elapsed < 100)
     }
 
     @Test
-    fun rulesThatPassTheCheckStillStopWithinTheirBudget() {
-        val slowButAllowed = listOf(
-            "/.*a.*a.*a.*b/",
-            "/\\d+\\d+\\d+\\d+x/",
-            "/a{1,1000}a{1,1000}a{1,1000}b/",
-            "/[a-z]*[a-z]*[a-z]*[a-z]*1/",
+    fun regexRulesRe2CannotRunAreSkippedAndCounted() {
+        val unsupported = listOf(
+            "/(a+)\\1/",
+            "/x(?=a+)y/",
+            "/(?<!a)b/",
+            "/a{1,99999}/",
+            "/((a{100}){100}){100}/",
+            "/(" + "a".repeat(1100) + ")/",
         )
-        for (rule in slowButAllowed) assertEquals(rule, 1, FilterParser.parse(rule, "slow").network.size)
-        val engine = engineOf(slowButAllowed.joinToString("\n") + "\n/beacon\\.js\$/")
-        val inputs = listOf("a".repeat(30_000), "1".repeat(30_000), "abc".repeat(10_000))
-        repeat(2) { for (input in inputs) engine.blocks("https://site.test/$input", "https://site.test/") }
-        val times = inputs.map { input -> millis { engine.blocks("https://site.test/$input", "https://site.test/") } }
-        println("ArdiaBlockingTiming hostile regex per request ms=" + times.joinToString { "%.1f".format(it) })
-        assertTrue("times $times", times.all { it < 100 })
-        assertTrue(engine.blocks("https://cdn.test/beacon.js", "https://site.test/"))
-        assertTrue(engine.blocks("https://cdn.test/aaab", "https://site.test/"))
+        val parsed = FilterParser.parse(unsupported.joinToString("\n"), "unsupported")
+        assertEquals(0, parsed.network.size)
+        assertEquals(unsupported.size, parsed.skipped[SkipReason.UNSUPPORTED_REGEX])
+        assertNull(ListRegex.compile("(a{1000}){2}", matchCase = false))
+        assertNotNull(ListRegex.compile("(\\d){1,3}\\.(\\d){1,3}", matchCase = false))
+        assertEquals("(?:a(?:b))[(]\\((?:x)(?:z)", ListRegex.withoutCaptures("(a(b))[(]\\((?:x)(?<name>z)"))
     }
 
     @Test
@@ -201,12 +199,12 @@ class ListSafetyTest {
             cache.writeBytes(resealed(forgedCount))
             assertNull(readCache())
 
-            val hostile = ParsedFilterList(
+            val forged = ParsedFilterList(
                 "easylist", 1, 0,
-                listOf(NetworkFilter("/(a+)+b/", false, false, false, Party.ANY, RequestType.SUBRESOURCES, Anchor.NONE, false, null, "(a+)+b", true, emptyList(), emptyList())),
+                listOf(NetworkFilter("/long/", false, false, false, Party.ANY, RequestType.SUBRESOURCES, Anchor.NONE, false, null, "a".repeat(2_000), true, emptyList(), emptyList())),
                 emptyList(), emptySet(), emptyList(), emptyList(), emptyList(), emptyMap(),
             )
-            CompiledListFile.write(cache, hostile, source.length(), source.lastModified())
+            CompiledListFile.write(cache, forged, source.length(), source.lastModified())
             assertNull(readCache())
 
             val relaunched = fixture.lists()

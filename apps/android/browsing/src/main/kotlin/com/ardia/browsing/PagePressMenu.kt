@@ -15,7 +15,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -65,7 +64,6 @@ object PressMenuItems {
 
 @Composable
 internal fun PagePressMenu(model: AppModel, press: BrowseSession.PagePress) {
-    val context = LocalContext.current
     val view = LocalView.current
     LaunchedEffect(press) { view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) }
     val dismiss = { if (model.browse.press == press) model.browse.press = null }
@@ -93,8 +91,8 @@ internal fun PagePressMenu(model: AppModel, press: BrowseSession.PagePress) {
                             when (action) {
                                 PressAction.OpenInNewTab -> model.openLink(link, press.tabId, inBackground = false)
                                 PressAction.OpenInBackground -> model.openLink(link, press.tabId, inBackground = true)
-                                PressAction.CopyLink -> model.copyLinkToClipboard(context, link)
-                                PressAction.Share -> model.shareLink(context, link)
+                                PressAction.CopyLink -> model.copyLink(link)
+                                PressAction.Share -> model.share(link, "")
                                 PressAction.Download -> model.page(press.tabId)?.download(link)
                                 PressAction.SaveImage -> model.page(press.tabId)?.download(target.url)
                             }

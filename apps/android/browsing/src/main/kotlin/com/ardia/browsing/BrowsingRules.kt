@@ -76,14 +76,6 @@ object PagerPoses {
 }
 
 object SwipeOrder {
-    fun resolve(current: List<BrowserTab>, frozen: List<String>?): List<BrowserTab> {
-        if (frozen == null) return current
-        val byId = current.associateBy { it.id }
-        val kept = frozen.mapNotNull { byId[it] }
-        val frozenIds = frozen.toHashSet()
-        return kept + current.filter { it.id !in frozenIds }
-    }
-
     fun neighbor(order: List<BrowserTab>, currentId: String?, delta: Int): BrowserTab? {
         val index = order.indexOfFirst { it.id == currentId }
         if (index < 0) return null

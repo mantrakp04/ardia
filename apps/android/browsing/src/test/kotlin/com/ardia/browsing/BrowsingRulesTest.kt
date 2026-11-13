@@ -16,14 +16,6 @@ class BrowsingRulesTest {
     private fun tab(id: String, url: String = "https://$id.example/", title: String = "") = BrowserTab(id = id, url = url, title = title, created = 0)
 
     @Test
-    fun aFrozenSwipeOrderKeepsItsSequenceDropsClosedTabsAndAppendsNewOnes() {
-        val current = listOf(tab("c"), tab("a"), tab("d"))
-        val order = SwipeOrder.resolve(current, frozen = listOf("a", "b", "c"))
-        assertEquals(listOf("a", "c", "d"), order.map { it.id })
-        assertEquals(listOf("c", "a", "d"), SwipeOrder.resolve(current, null).map { it.id })
-    }
-
-    @Test
     fun steppingFindsTheNeighbourOrNothingAtTheEnds() {
         val order = listOf(tab("a"), tab("b"), tab("c"))
         assertEquals("a", SwipeOrder.neighbor(order, "b", -1)?.id)

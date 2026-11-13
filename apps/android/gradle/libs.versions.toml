@@ -26,6 +26,7 @@ zxing = "3.5.4"
 glance = "1.2.0"
 splashscreen = "1.2.0"
 androidxTestServices = "1.6.0"
+re2j = "1.8"
 
 [libraries]
 hermes-android = { module = "com.facebook.hermes:hermes-android", version.ref = "hermes" }
@@ -38,6 +39,7 @@ compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+re2j = { module = "com.google.re2j:re2j", version.ref = "re2j" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }

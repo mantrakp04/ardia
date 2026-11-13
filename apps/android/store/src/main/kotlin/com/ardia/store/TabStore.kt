@@ -34,7 +34,7 @@ data class TabsState(
 class TabStore internal constructor(
     private val database: BrowserDatabase,
     private val queue: StoreQueue,
-    private val writer: StoreWriter,
+    internal val writer: StoreWriter,
     val history: HistoryStore,
     private val settings: KeyValueStore,
     private val clock: StoreClock,
@@ -73,6 +73,10 @@ class TabStore internal constructor(
     val archive: StateFlow<List<ArchivedDay>> = _archive.asStateFlow()
     val archiveLoaded: StateFlow<Boolean> = _archiveLoaded.asStateFlow()
     val writeFailure: StateFlow<Throwable?> get() = writer.failure
+    val quarantinedWrites: StateFlow<List<QuarantinedWrite>> get() = writer.quarantine
+    val droppedVisits: StateFlow<Int> get() = writer.droppedVisits
+
+    fun acknowledgeWriteProblems() = writer.acknowledgeProblems()
     val hasUnsavedChanges: Boolean get() = writer.hasUnsavedChanges
 
     @Volatile var profileSyncId: String? = null
@@ -84,8 +88,16 @@ class TabStore internal constructor(
     var onTabsArchived: ((List<String>) -> Unit)? = null
     var onPrivateTabsClosed: ((ids: List<String>, noneLeft: Boolean) -> Unit)? = null
 
+    @Volatile private var archivedCountStale = false
+
     init {
         publish()
+        writer.onCommit = {
+            if (archivedCountStale) {
+                archivedCountStale = false
+                refreshArchivedCount()
+            }
+        }
     }
 
     var autoArchiveInterval: AutoArchiveInterval
@@ -267,7 +279,7 @@ class TabStore internal constructor(
         deleted.addAll(ids)
         ids.forEach(writer::deleteTab)
         if (tabs.isNotEmpty()) notify { onTabsRemoved?.invoke(tabs) }
-        writer.write(afterCommit = ::refreshArchivedCount) {}
+        archivedCountStale = true
         listingRevision++
         publish()
         localChanged()
@@ -286,7 +298,7 @@ class TabStore internal constructor(
         publish()
         localChanged()
         var removed: List<BrowserTab> = emptyList()
-        writer.write(afterCommit = {
+        writer.barrier("clearArchive", afterCommit = {
             synchronized(lock) { deleted.addAll(removed.map { it.id }) }
             if (removed.isNotEmpty()) notify { onTabsRemoved?.invoke(removed) }
         }) { database -> removed = database.deleteArchivedTabs() }
@@ -356,7 +368,7 @@ class TabStore internal constructor(
             return
         }
         if (find(id) == null) return
-        writer.write { database -> database.saveState(id, data) }
+        writer.saveState(id, data)
     }
 
     suspend fun interactionState(id: String): ByteArray? {
@@ -440,7 +452,10 @@ class TabStore internal constructor(
                 publish()
             }
         }
-        return writer.commitBlocking()
+        writer.commitBlocking()
+        val keys = tabs.map { it.key }.toSet()
+        val ids = synchronized(lock) { (open.asSequence() + knownArchived.values.asSequence()).filter { it.receivedKey in keys }.map { it.id }.toList() }
+        return ids.none(writer::isUnsavedTab)
     }
 
     fun clearLastReceived(): Unit = synchronized(lock) {

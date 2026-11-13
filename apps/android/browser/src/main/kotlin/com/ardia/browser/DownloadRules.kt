@@ -1,7 +1,9 @@
 package com.ardia.browser
 
 import java.io.Closeable
+import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.URI
 
 enum class DownloadFailure {
@@ -11,10 +13,49 @@ enum class DownloadFailure {
     TooManyRedirects,
     Unsupported,
     Storage,
+    NoSpace,
+    PrivateSessionEnded,
 }
 
 fun interface DownloadCookies {
     fun cookieHeader(url: String, isPrivate: Boolean): String?
+}
+
+interface DownloadSessions {
+    fun privateCookieHeader(url: String, session: String): String?
+
+    fun isPrivateSessionLive(session: String): Boolean
+
+    fun addPrivateSessionEndListener(listener: (String) -> Unit): AutoCloseable?
+}
+
+class DownloadCancelled : Exception("cancelled")
+
+class DownloadCall {
+    @Volatile
+    var isCancelled = false
+        private set
+    private var abort: (() -> Unit)? = null
+
+    fun cancel() {
+        val running = synchronized(this) {
+            isCancelled = true
+            abort
+        }
+        running?.let { runCatching(it) }
+    }
+
+    fun whileOpen(abort: () -> Unit) {
+        val cancelled = synchronized(this) {
+            this.abort = abort
+            isCancelled
+        }
+        if (cancelled) runCatching(abort)
+    }
+
+    fun ensureActive() {
+        if (isCancelled) throw DownloadCancelled()
+    }
 }
 
 class DownloadResponse(
@@ -36,7 +77,7 @@ class DownloadResponse(
 }
 
 fun interface DownloadTransport {
-    fun open(url: String, headers: Map<String, String>): DownloadResponse
+    fun open(url: String, headers: Map<String, String>, call: DownloadCall): DownloadResponse
 }
 
 class DownloadRefused(val failure: DownloadFailure) : Exception(failure.name)
@@ -44,6 +85,9 @@ class DownloadRefused(val failure: DownloadFailure) : Exception(failure.name)
 object DownloadRules {
     const val MAX_REDIRECTS = 10
     const val FALLBACK_NAME = "Download"
+    const val SPACE_RESERVE_BYTES = 200L * 1024 * 1024
+    const val SPACE_CHECK_BYTES = 4L * 1024 * 1024
+    private const val COPY_BUFFER_BYTES = 64 * 1024
     private const val MAX_NAME_LENGTH = 120
     private val redirectStatuses = setOf(301, 302, 303, 307, 308)
     private val forbiddenNameCharacters = "/\\:*?\"<>|"
@@ -67,32 +111,58 @@ object DownloadRules {
         return origin(clean)?.let { "$it/" }
     }
 
-    fun headersFor(url: String, isPrivate: Boolean, userAgent: String?, referer: String?, cookies: DownloadCookies): Map<String, String> {
+    fun cookiesFor(download: PageDownload, cookies: DownloadCookies, sessions: DownloadSessions?): (String) -> String? {
+        if (!download.isPrivate) return { url -> cookies.cookieHeader(url, false) }
+        val session = download.privateSession ?: return { null }
+        val bound = sessions ?: return { null }
+        return { url -> bound.privateCookieHeader(url, session) }
+    }
+
+    fun liveCheckFor(download: PageDownload, sessions: DownloadSessions?): () -> Boolean {
+        if (!download.isPrivate) return { true }
+        val session = download.privateSession ?: return { true }
+        val bound = sessions ?: return { true }
+        return { bound.isPrivateSessionLive(session) }
+    }
+
+    fun headersFor(url: String, userAgent: String?, referer: String?, cookies: (String) -> String?): Map<String, String> {
         val headers = LinkedHashMap<String, String>()
         userAgent?.takeIf { it.isNotBlank() }?.let { headers["User-Agent"] = it }
         referer(referer, url)?.let { headers["Referer"] = it }
-        runCatching { cookies.cookieHeader(url, isPrivate) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { headers["Cookie"] = it }
+        runCatching { cookies(url) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { headers["Cookie"] = it }
         return headers
     }
 
     fun fetch(
         url: String,
-        isPrivate: Boolean,
         userAgent: String?,
         referer: String?,
-        cookies: DownloadCookies,
+        cookies: (String) -> String?,
+        isSessionLive: () -> Boolean,
         transport: DownloadTransport,
+        call: DownloadCall,
     ): Pair<String, DownloadResponse> {
         if (!BrowserUrl.isWeb(url)) throw DownloadRefused(DownloadFailure.Unsupported)
         var current = url.substringBefore('#')
         var hops = 0
         while (true) {
+            call.ensureActive()
+            if (!isSessionLive()) throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
+            val headers = headersFor(current, userAgent, referer, cookies)
             val response = try {
-                transport.open(current, headersFor(current, isPrivate, userAgent, referer, cookies))
+                transport.open(current, headers, call)
             } catch (error: DownloadRefused) {
                 throw error
+            } catch (error: DownloadCancelled) {
+                throw error
             } catch (error: Exception) {
+                if (call.isCancelled) throw DownloadCancelled()
                 throw DownloadRefused(DownloadFailure.Network)
+            }
+            if (call.isCancelled || !isSessionLive()) {
+                response.close()
+                call.ensureActive()
+                throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
             }
             if (response.status in 200..299) return current to response
             response.close()
@@ -100,6 +170,44 @@ object DownloadRules {
             hops += 1
             if (hops > MAX_REDIRECTS) throw DownloadRefused(DownloadFailure.TooManyRedirects)
             current = nextHop(current, response.header("location"))
+        }
+    }
+
+    fun copy(
+        body: InputStream,
+        output: OutputStream,
+        expectedBytes: Long?,
+        call: DownloadCall,
+        isSessionLive: () -> Boolean,
+        freeSpace: () -> Long,
+        reserveBytes: Long = SPACE_RESERVE_BYTES,
+        progress: (Long) -> Unit = {},
+    ): Long {
+        if (expectedBytes != null && freeSpace() - expectedBytes < reserveBytes) throw DownloadRefused(DownloadFailure.NoSpace)
+        val buffer = ByteArray(COPY_BUFFER_BYTES)
+        var written = 0L
+        var nextSpaceCheck = 0L
+        while (true) {
+            call.ensureActive()
+            if (!isSessionLive()) throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
+            val read = try {
+                body.read(buffer)
+            } catch (error: IOException) {
+                call.ensureActive()
+                throw DownloadRefused(DownloadFailure.Network)
+            }
+            if (read < 0) return written
+            if (written + read > nextSpaceCheck) {
+                if (freeSpace() - read < reserveBytes) throw DownloadRefused(DownloadFailure.NoSpace)
+                nextSpaceCheck = written + read + SPACE_CHECK_BYTES
+            }
+            try {
+                output.write(buffer, 0, read)
+            } catch (error: IOException) {
+                throw DownloadRefused(DownloadFailure.Storage)
+            }
+            written += read
+            progress(written)
         }
     }
 

@@ -276,6 +276,13 @@ data class OpenSourceCredit(val name: String, val use: Int, val license: String,
             OpenSourceCredit("EasyPrivacy", R.string.credit_easyprivacy, "CC BY-SA 3.0 or GPLv3", "https://easylist.to"),
             OpenSourceCredit("Fanboy’s Cookie Monster List", R.string.credit_cookie_monster, "CC BY-SA 3.0 or GPLv3", "https://secure.fanboy.co.nz"),
             OpenSourceCredit("ZXing", R.string.credit_zxing, "Apache License 2.0", "https://github.com/zxing/zxing"),
+            OpenSourceCredit("RE2/J", R.string.credit_re2j, "BSD 3-Clause License", "https://github.com/google/re2j"),
+            OpenSourceCredit("Hermes", R.string.credit_hermes, "MIT License", "https://github.com/facebook/hermes"),
+            OpenSourceCredit("React Native JSI", R.string.credit_jsi, "MIT License", "https://github.com/facebook/react-native"),
+            OpenSourceCredit("fbjni", R.string.credit_fbjni, "Apache License 2.0", "https://github.com/facebookincubator/fbjni"),
+            OpenSourceCredit("Public Suffix List", R.string.credit_public_suffix, "Mozilla Public License 2.0", "https://publicsuffix.org"),
+            OpenSourceCredit("Jetpack and AndroidX", R.string.credit_androidx, "Apache License 2.0", "https://developer.android.com/jetpack"),
+            OpenSourceCredit("Kotlin", R.string.credit_kotlin, "Apache License 2.0", "https://kotlinlang.org"),
         )
     }
 }

@@ -23,7 +23,7 @@ class HistoryStore internal constructor(
     fun record(url: String, title: String, transition: VisitTransition, profileSyncId: String?, at: Long = clock.now()): Visit? {
         if (!BrowserUrl.isSyncable(url)) return null
         val visit = Visit(nextId.incrementAndGet(), url, title, at, profileSyncId, transition)
-        writer.write { it.insertVisit(visit) }
+        writer.putVisit(visit, isNew = true)
         bump()
         return visit
     }
@@ -33,13 +33,13 @@ class HistoryStore internal constructor(
             url = url?.takeIf(BrowserUrl::isSyncable) ?: visit.url,
             title = title?.takeIf { it.isNotEmpty() } ?: visit.title,
         )
-        writer.write { it.updateVisit(amended) }
+        writer.putVisit(amended, isNew = false)
         bump()
         return amended
     }
 
     fun clear(since: Long? = null) {
-        writer.write { it.deleteVisits(since) }
+        writer.barrier("clearHistory:$since", covers = { since == null || it.visitedAt >= since }) { it.deleteVisits(since) }
         bump()
     }
 
@@ -49,12 +49,12 @@ class HistoryStore internal constructor(
 
     fun delete(ids: Set<Long>) {
         if (ids.isEmpty()) return
-        writer.write { it.deleteVisitIds(ids) }
+        writer.barrier("deleteVisits:${ids.sorted()}", covers = { it.id in ids }) { it.deleteVisitIds(ids) }
         bump()
     }
 
     fun deleteAll(url: String) {
-        writer.write { it.deleteVisits(url) }
+        writer.barrier("deleteUrl:$url", covers = { it.url == url }) { it.deleteVisits(url) }
         bump()
     }
 
@@ -87,7 +87,7 @@ class HistoryStore internal constructor(
 
     suspend fun removeVisits(urls: Set<String>, profileSyncId: String?) {
         if (urls.isEmpty()) return
-        writer.write { it.deleteVisits(urls, profileSyncId) }
+        writer.barrier("removeVisits:$profileSyncId:${urls.sorted()}", covers = { it.url in urls && it.profileSyncId == profileSyncId }) { it.deleteVisits(urls, profileSyncId) }
         bump()
         writer.commit()
     }
@@ -96,7 +96,7 @@ class HistoryStore internal constructor(
 
     internal fun pruneBefore(cutoff: Long) {
         var removed = 0
-        writer.write(afterCommit = { if (removed > 0) bump() }) { removed = it.deleteVisitsBefore(cutoff) }
+        writer.barrier("prune:$cutoff", covers = { it.visitedAt < cutoff }, afterCommit = { if (removed > 0) bump() }) { removed = it.deleteVisitsBefore(cutoff) }
     }
 
     private fun bump() {

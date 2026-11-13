@@ -2,6 +2,7 @@ package com.ardia.appmodel
 
 import android.content.Intent
 import android.os.Looper
+import com.ardia.browser.DownloadOutcome
 import com.ardia.blocking.BlockingSettings
 import com.ardia.blocking.ContentBlocker
 import com.ardia.blocking.FilterLists
@@ -246,6 +247,79 @@ class AppModelRoundTwoTest {
     }
 
     @Test
+    fun theMixedDeckCountsAsPrivateWhilePrivateTabsExistAndPrivateTabsNeverReachTheArchive() {
+        val f = fixture()
+        f.app.openPage("https://normal.example/", TabOrigin.TYPED)
+        idle()
+        val normal = f.app.tabs.selectedTabId!!
+        f.app.newIncognitoTab()
+        f.app.submitSearch("https://private.example/", null)
+        idle()
+        val private = f.app.tabs.selectedTabId!!
+        f.app.openTab(normal)
+        idle()
+        assertFalse(f.app.isIncognito)
+        assertFalse(f.app.isPrivateOnScreen)
+        f.app.showTabSwitcher()
+        idleUntil { f.app.surface == AppModel.Surface.TabSwitcher }
+        assertTrue(f.app.isPrivateOnScreen)
+
+        f.app.closeTab(private)
+        idle()
+        assertFalse(f.app.isPrivateOnScreen)
+        f.app.loadArchive()
+        idleUntil { f.app.archiveLoaded }
+        assertTrue(f.app.archive.flatMap { it.tabs }.none { it.isPrivate || it.id == private })
+        assertTrue(runBlocking { f.app.searchArchive("") }.none { it.isPrivate || it.id == private })
+    }
+
+    @Test
+    fun leavingIncognitoStopsPrivateDownloadsAndSaysSo() {
+        val f = fixture()
+        f.app.openPage("https://normal.example/", TabOrigin.TYPED)
+        idle()
+        val normalPage = f.page(f.app.tabs.selectedTabId!!)
+        f.app.newIncognitoTab()
+        f.app.submitSearch("https://private.example/", null)
+        idle()
+        val privatePage = f.page(f.app.tabs.selectedTabId!!)
+        fun download(name: String, isPrivate: Boolean) =
+            com.ardia.browser.PageDownload("https://files.example/$name", name, null, 10, null, null, null, isPrivate)
+        normalPage.mutableEvents.tryEmit(com.ardia.browser.PageEvent.Download(download("open.pdf", false)))
+        privatePage.mutableEvents.tryEmit(com.ardia.browser.PageEvent.Download(download("secret.pdf", true)))
+        idle()
+        f.system.activeDownloads.value = listOf(
+            com.ardia.browser.DownloadProgress(1, "open.pdf", 1, 10),
+            com.ardia.browser.DownloadProgress(2, "secret.pdf", 1, 10),
+        )
+        idleUntil { f.app.privateDownloadsInFlight == 1 }
+        f.app.leaveIncognito()
+        idleUntil { f.toastText() == AppModel.stoppedPrivateDownloads(1) }
+        assertEquals(listOf(2L), f.system.cancelled)
+        assertEquals(listOf(1L), f.app.downloads.map { it.id })
+        f.app.toasts.dismiss()
+        f.system.outcomes.tryEmit(DownloadOutcome.Failed("secret.pdf", com.ardia.browser.DownloadFailure.PrivateSessionEnded))
+        idle()
+        assertNull(f.app.toasts.current)
+    }
+
+    @Test
+    fun aFailingSaveIsAnnouncedOnceUntilItRecovers() {
+        val f = fixture()
+        f.app.noteSaveFailure(java.io.IOException("disk full"))
+        assertEquals(AppModel.SAVE_FAILED, f.toastText())
+        f.app.toasts.dismiss()
+        f.app.noteSaveFailure(java.io.IOException("still full"))
+        assertNull(f.app.toasts.current)
+        assertNotNull(f.app.saveFailure)
+        f.app.noteSaveFailure(null)
+        assertNull(f.app.saveFailure)
+        f.app.noteSaveFailure(java.io.IOException("full again"))
+        assertEquals(AppModel.SAVE_FAILED, f.toastText())
+        assertNull(f.app.store!!.tabs.writeFailure.value)
+    }
+
+    @Test
     fun privatePagesOnScreenAreReported() {
         val f = fixture()
         f.app.openPage("https://public.example/", TabOrigin.TYPED)
@@ -288,8 +362,10 @@ class AppModelRoundTwoTest {
         assertEquals("Copied URL Without Trackers", f.toastText())
         f.app.share("https://shared.example/", "Shared")
         f.app.shareText("hello")
+        f.app.shareText("https://a.example/", subject = "Open Tabs from Ardia")
         assertEquals(listOf("https://shared.example/"), f.system.shares)
-        assertEquals(listOf("hello"), f.system.textShares)
+        assertEquals(listOf("hello", "https://a.example/"), f.system.textShares)
+        assertEquals(listOf(null, "Open Tabs from Ardia"), f.system.textSubjects)
     }
 
     @Test

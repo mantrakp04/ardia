@@ -1,6 +1,7 @@
 package com.ardia.store
 
 import android.content.Context
+import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteFullException
 import androidx.test.core.app.ApplicationProvider
 import java.time.ZoneOffset
@@ -21,8 +22,25 @@ const val DAY_MS = 24 * HOUR_MS
 class FailingDatabase(context: Context, name: String? = null) : BrowserDatabase(context, name) {
     @Volatile var failing = false
     var failedCommits = 0
+    val poisonedUrls = HashSet<String>()
+
+    override fun writeTabs(changes: Map<String, BrowserTab?>) {
+        changes.values.firstOrNull { it?.url in poisonedUrls }?.let { throw SQLiteConstraintException("bad row ${it.url}") }
+        super.writeTabs(changes)
+    }
+
+    override fun insertVisit(visit: Visit) {
+        if (visit.url in poisonedUrls) throw SQLiteConstraintException("bad visit ${visit.url}")
+        super.insertVisit(visit)
+    }
+
+    @Volatile var failBeforeWork = false
 
     override fun <T> inTransaction(work: () -> T): T = super.inTransaction {
+        if (failing && failBeforeWork) {
+            failedCommits++
+            throw SQLiteFullException("disk full")
+        }
         val result = work()
         if (failing) {
             failedCommits++

@@ -17,6 +17,7 @@ import com.ardia.blocking.FilterLists
 import com.ardia.blocking.FilterListsState
 import com.ardia.blocking.MyFiltersResult
 import com.ardia.browser.BrowserUrl as PageUrl
+import com.ardia.browser.DownloadFailure
 import com.ardia.browser.DownloadOutcome
 import com.ardia.browser.Page
 import com.ardia.browser.PageColors
@@ -138,7 +139,7 @@ class AppModel(
     val isPrivateOnScreen: Boolean
         get() = when (surface) {
             Surface.Browsing -> tabs.selectedTab?.isPrivate == true || (browse.search != null && incognitoState)
-            Surface.TabSwitcher -> incognitoState || tabs.selectedTab?.isPrivate == true
+            Surface.TabSwitcher -> incognitoState || tabs.privateTabs.isNotEmpty() || tabs.selectedTab?.isPrivate == true
             Surface.Search -> browse.search != null && incognitoState
         }
 
@@ -168,6 +169,11 @@ class AppModel(
     var recentQueries: List<String> by mutableStateOf(emptyList())
         private set
     var downloads: List<DownloadProgress> by mutableStateOf(emptyList())
+        private set
+    private var privateDownloadIds: Set<Long> by mutableStateOf(emptySet())
+    private var privateStopAnnounced = false
+    val privateDownloadsInFlight: Int get() = downloads.count { it.id in privateDownloadIds }
+    var saveFailure: Throwable? by mutableStateOf(null)
         private set
     private var autoArchiveState: AutoArchiveInterval by mutableStateOf(AutoArchiveInterval.standard)
 
@@ -294,6 +300,7 @@ class AppModel(
         if (isActive) tabStore.appBecameActive()
         scope.launch { system.downloadOutcomes.collect(::announceDownload) }
         scope.launch { system.activeDownloads.collect { downloads = it } }
+        scope.launch { tabStore.writeFailure.collect(::noteSaveFailure) }
         refreshRecents()
         val work = pendingStoreWork.toList()
         pendingStoreWork.clear()
@@ -390,7 +397,11 @@ class AppModel(
     fun announceDownload(outcome: DownloadOutcome) {
         when (outcome) {
             is DownloadOutcome.Finished -> toasts.show(Toasts.downloaded(outcome.fileName) { system.openDownloaded(outcome) })
-            is DownloadOutcome.Failed -> toasts.show(Toasts.downloadFailed(outcome.fileName))
+            is DownloadOutcome.Failed -> if (outcome.reason == DownloadFailure.PrivateSessionEnded) {
+                if (!privateStopAnnounced) announcePrivateDownloadsStopped(1)
+            } else {
+                toasts.show(Toasts.downloadFailed(outcome.fileName))
+            }
         }
     }
 
@@ -576,7 +587,12 @@ class AppModel(
     }
 
     private fun startDownload(download: PageDownload) {
-        if (system.enqueueDownload(download)) {
+        val id = system.enqueueDownload(download)
+        if (id != null) {
+            if (download.isPrivate) {
+                privateDownloadIds = privateDownloadIds + id
+                privateStopAnnounced = false
+            }
             toasts.show(Toast(downloading(download.fileName), ArdiaSymbols.arrowDownCircleFill))
         } else {
             toasts.show(Toasts.downloadFailed(download.fileName))
@@ -627,9 +643,25 @@ class AppModel(
         engine?.close(id)
     }
 
+    internal fun noteSaveFailure(failure: Throwable?) {
+        val wasFailing = saveFailure != null
+        saveFailure = failure
+        if (failure != null && !wasFailing) toasts.show(Toast(SAVE_FAILED, ArdiaSymbols.exclamationmarkTriangleFill, Toast.LONG_DURATION_MILLIS))
+    }
+
     private fun endPrivateBrowsing() {
         preferences.endPrivateBrowsing()
         blocking.endPrivateBrowsing()
+        val inFlight = downloads.filter { it.id in privateDownloadIds }.map { it.id }
+        privateDownloadIds = emptySet()
+        if (inFlight.isEmpty()) return
+        inFlight.forEach(system::cancelDownload)
+        announcePrivateDownloadsStopped(inFlight.size)
+    }
+
+    private fun announcePrivateDownloadsStopped(count: Int) {
+        privateStopAnnounced = true
+        toasts.show(Toast(stoppedPrivateDownloads(count), ArdiaSymbols.exclamationmarkTriangleFill, Toast.LONG_DURATION_MILLIS))
     }
 
     val deckTabs: List<BrowserTab> get() = tabs.deckTabs
@@ -1205,8 +1237,8 @@ class AppModel(
         system.share(url, title)
     }
 
-    fun shareText(text: String) {
-        system.shareText(text)
+    fun shareText(text: String, subject: String? = null) {
+        system.shareText(text, subject)
     }
 
     val mayFocusSearch: Boolean get() = !settings.isShowingOnboarding && !browse.isVoicePresented
@@ -1286,6 +1318,10 @@ class AppModel(
         }
 
         fun couldNotSend(deviceName: String) = "Couldn’t Send to $deviceName"
+
+        const val SAVE_FAILED = "Ardia Can’t Save Tabs and History"
+
+        fun stoppedPrivateDownloads(count: Int) = if (count == 1) "Stopped 1 Private Download" else "Stopped $count Private Downloads"
 
         fun downloading(fileName: String) = if (fileName.isEmpty()) "Downloading" else "Downloading $fileName"
 

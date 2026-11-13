@@ -20,15 +20,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -68,20 +63,17 @@ fun DefaultBrowserPage(nav: SettingsNav) {
 
 @Composable
 fun DefaultBrowserInstructions(model: AppModel, modifier: Modifier = Modifier, onLater: (() -> Unit)? = null, onDone: (() -> Unit)? = null) {
-    val context = LocalContext.current
-    var isHeld by remember { mutableStateOf(BrowserRole.isHeld(context)) }
+    val status = model.defaultBrowser
+    val isHeld = status.isDefault
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        isHeld = BrowserRole.isHeld(context)
-        model.defaultBrowser.sceneBecameActive()
-        if (isHeld) onDone?.invoke()
+        model.browserRoleAnswered()
+        if (status.isDefault) onDone?.invoke()
     }
-    val roleIntent = remember(isHeld) { if (isHeld) null else BrowserRole.requestIntent(context) }
-    val actionTitle = stringResource(if (roleIntent != null) R.string.default_set else R.string.default_open_apps)
+    val asksForRole = status.isOffered || model.isDemo
+    val actionTitle = stringResource(if (asksForRole) R.string.default_set else R.string.default_open_apps)
     val ask: () -> Unit = {
-        model.defaultBrowser.willOpenSystemSettings()
-        val intent = roleIntent ?: BrowserRole.defaultAppsIntent()
         try {
-            launcher.launch(intent)
+            model.requestBrowserRole(launcher::launch)
         } catch (missing: ActivityNotFoundException) {
             onLater?.invoke()
         }
@@ -107,7 +99,7 @@ fun DefaultBrowserInstructions(model: AppModel, modifier: Modifier = Modifier, o
         if (!isHeld) {
             val steps = listOf(
                 stringResource(R.string.default_step_tap, actionTitle),
-                stringResource(if (roleIntent != null) R.string.default_step_select else R.string.default_step_choose),
+                stringResource(if (asksForRole) R.string.default_step_select else R.string.default_step_choose),
             )
             if (LocalDensity.current.fontScale >= ACCESSIBILITY_FONT_SCALE) {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.small)) {

@@ -184,8 +184,11 @@ class FakeSystem : SystemActions {
 
     val textShares = ArrayList<String>()
 
-    override fun shareText(text: String) {
+    val textSubjects = ArrayList<String?>()
+
+    override fun shareText(text: String, subject: String?) {
         textShares += text
+        textSubjects += subject
     }
 
     var roleRequest: android.content.Intent? = null
@@ -201,9 +204,16 @@ class FakeSystem : SystemActions {
 
     override fun openDownloaded(outcome: DownloadOutcome.Finished) = Unit
 
-    override fun enqueueDownload(download: PageDownload): Boolean {
+    val cancelled = ArrayList<Long>()
+
+    override fun enqueueDownload(download: PageDownload): Long? {
         downloads += download
-        return acceptsDownloads
+        return if (acceptsDownloads) downloads.size.toLong() else null
+    }
+
+    override fun cancelDownload(id: Long) {
+        cancelled += id
+        activeDownloads.value = activeDownloads.value.filterNot { it.id == id }
     }
 
     override fun isDefaultBrowser(): Boolean? = false

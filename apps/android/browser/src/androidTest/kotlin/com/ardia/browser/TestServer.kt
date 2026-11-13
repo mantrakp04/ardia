@@ -16,6 +16,7 @@ class TestServer : AutoCloseable {
         val body: String = "",
         val contentType: String = "text/html; charset=utf-8",
         val headers: Map<String, String> = emptyMap(),
+        val endlessBody: Boolean = false,
     )
 
     private val socket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
@@ -78,7 +79,7 @@ class TestServer : AutoCloseable {
         val head = buildString {
             append("HTTP/1.1 ${response.status} ${if (response.status == 200) "OK" else "Status"}\r\n")
             append("Content-Type: ${response.contentType}\r\n")
-            append("Content-Length: ${body.size}\r\n")
+            if (!response.endlessBody) append("Content-Length: ${body.size}\r\n")
             append("Cache-Control: no-store\r\n")
             append("Connection: close\r\n")
             for ((name, value) in response.headers) append("$name: $value\r\n")
@@ -86,6 +87,11 @@ class TestServer : AutoCloseable {
         }
         val output = client.getOutputStream()
         output.write(head.toByteArray(Charsets.ISO_8859_1))
+        if (response.endlessBody) {
+            val chunk = ByteArray(64 * 1024) { 7 }
+            while (!socket.isClosed) output.write(chunk)
+            return
+        }
         output.write(body)
         output.flush()
     }

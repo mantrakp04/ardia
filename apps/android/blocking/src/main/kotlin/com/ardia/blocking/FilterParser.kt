@@ -1,7 +1,5 @@
 package com.ardia.blocking
 
-import java.util.regex.Pattern
-import java.util.regex.PatternSyntaxException
 
 enum class RequestType(internal val bit: Int) {
     DOCUMENT(1),
@@ -33,7 +31,7 @@ enum class SkipReason {
     UNSUPPORTED_PATTERN,
     TOO_BROAD,
     NEVER_APPLIES,
-    UNSAFE_REGEX,
+    UNSUPPORTED_REGEX,
 }
 
 internal object Party {
@@ -381,8 +379,8 @@ object FilterParser {
         if (typeMask == 0) return skip(SkipReason.NEVER_APPLIES)
         if (typeMask and RequestType.POPUP.bit.inv() == 0) return skip(SkipReason.NEVER_APPLIES)
 
-        if (isRegexBody && !RegexSafety.isSafe(body.substring(1, body.length - 1))) {
-            return skip(SkipReason.UNSAFE_REGEX)
+        if (isRegexBody && ListRegex.compile(body.substring(1, body.length - 1), matchCase) == null) {
+            return skip(SkipReason.UNSUPPORTED_REGEX)
         }
         val shape = patternShape(body, matchCase) ?: return skip(SkipReason.UNSUPPORTED_PATTERN)
         val unrestricted = shape.anchor == Anchor.NONE && !shape.isRegex && shape.pattern.isEmpty() && !shape.anchorEnd &&
@@ -401,14 +399,7 @@ object FilterParser {
     private fun patternShape(raw: String, matchCase: Boolean): Shape? {
         if (raw.length > MAX_PATTERN_LENGTH || raw.any { it.code >= 0x80 }) return null
         if (raw.length > 2 && raw.startsWith("/") && raw.endsWith("/")) {
-            val source = raw.substring(1, raw.length - 1)
-            val flags = if (matchCase) 0 else Pattern.CASE_INSENSITIVE
-            return try {
-                Pattern.compile(source, flags)
-                Shape(Anchor.NONE, false, null, source, true)
-            } catch (error: PatternSyntaxException) {
-                null
-            }
+            return Shape(Anchor.NONE, false, null, raw.substring(1, raw.length - 1), true)
         }
         var rest = if (matchCase) raw else raw.lowercase()
         var anchor = Anchor.NONE

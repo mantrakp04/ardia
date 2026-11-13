@@ -80,6 +80,13 @@
     <string name="credit_easyprivacy">The list behind Block Trackers.</string>
     <string name="credit_cookie_monster">The list behind Block Cookie Banners.</string>
     <string name="credit_zxing">Reads the code your Mac shows when you connect.</string>
+    <string name="credit_re2j">Matches the pattern rules in filter lists.</string>
+    <string name="credit_hermes">Runs the search and sync code Ardia shares with your Mac.</string>
+    <string name="credit_jsi">Connects that shared code to the app.</string>
+    <string name="credit_fbjni">Helps the app talk to Hermes.</string>
+    <string name="credit_public_suffix">Tells which part of an address is the site.</string>
+    <string name="credit_androidx">The screens, the camera preview, widgets and background sync.</string>
+    <string name="credit_kotlin">The language the app is written in.</string>
 
     <string name="lists_checked_weekly">Checked weekly.</string>
     <string name="lists_update_now">Update Now</string>

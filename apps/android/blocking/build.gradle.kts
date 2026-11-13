@@ -29,6 +29,7 @@ android {
 dependencies {
     api(libs.coroutines.android)
     implementation(libs.serialization.json)
+    implementation(libs.re2j)
     testImplementation(libs.junit)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.runner)

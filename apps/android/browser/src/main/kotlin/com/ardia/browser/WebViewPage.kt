@@ -750,6 +750,7 @@ internal class WebViewPage(
                     contentDisposition = contentDisposition,
                     referer = mutableState.value.url?.takeIf(BrowserUrl::isWeb),
                     isPrivate = isPrivate,
+                    privateSession = if (isPrivate) engine.currentPrivateSession() else null,
                 ),
             ),
         )

@@ -181,6 +181,8 @@ fun <T : Any> SheetHost(
     }
 }
 
+fun Modifier.coveredFromAccessibility(covered: Boolean): Modifier = if (covered) clearAndSetSemantics {} else this
+
 fun Modifier.blocksTouchesBelow(): Modifier = pointerInput(Unit) {
     awaitPointerEventScope {
         while (true) awaitPointerEvent()

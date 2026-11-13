@@ -58,6 +58,7 @@ class MatcherSpeedTest {
         val samples = LongArray(runs)
         val bean = ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean
         val thread = Thread.currentThread().id
+        val regexRunsBefore = RequestContext.current().regexRuns
         val allocatedBefore = bean.getThreadAllocatedBytes(thread)
         var blocked = 0
         val started = System.nanoTime()
@@ -68,6 +69,7 @@ class MatcherSpeedTest {
         }
         val elapsed = System.nanoTime() - started
         val allocated = bean.getThreadAllocatedBytes(thread) - allocatedBefore
+        val regexRuns = RequestContext.current().regexRuns - regexRunsBefore
         samples.sort()
         val mean = elapsed / runs / 1000.0
         val median = samples[runs / 2] / 1000.0
@@ -79,8 +81,8 @@ class MatcherSpeedTest {
                 "selectors generic=${stats.genericSelectors} scoped=${stats.scopedSelectors}",
         )
         println(
-            "ArdiaBlockingTiming blocks(): mean=%.2fus median=%.2fus p99=%.2fus max=%.1fus blocked=%d/%d allocated=%.1f bytes/call"
-                .format(mean, median, p99, worst, blocked, runs, allocated.toDouble() / runs),
+            "ArdiaBlockingTiming blocks(): mean=%.2fus median=%.2fus p99=%.2fus max=%.1fus blocked=%d/%d allocated=%.1f bytes/call regexRuns=%d"
+                .format(mean, median, p99, worst, blocked, runs, allocated.toDouble() / runs, regexRuns),
         )
         val perUrl = requests.indices.map { index ->
             val times = LongArray(2_000)
@@ -93,13 +95,14 @@ class MatcherSpeedTest {
             Triple(index, times[0] / 1000.0, times[times.size / 2] / 1000.0)
         }
         for ((index, best, middle) in perUrl.sortedByDescending { it.third }.take(6)) {
-            request(engine, index)
             val context = RequestContext.current()
-            val regexReads = RequestContext.REGEX_READS_PER_REQUEST - context.rawView.budget
+            val runsBefore = context.regexRuns
+            request(engine, index)
+            val regexRuns = context.regexRuns - runsBefore
             val globSteps = RequestContext.GLOB_STEPS_PER_REQUEST - context.globSteps
             println(
-                "ArdiaBlockingTiming slowest url best=%.2fus median=%.2fus regexReads=%d globSteps=%d %s"
-                    .format(best, middle, regexReads, globSteps, requests[index].first.take(90)),
+                "ArdiaBlockingTiming slowest url best=%.2fus median=%.2fus regexRuns=%d globSteps=%d %s"
+                    .format(best, middle, regexRuns, globSteps, requests[index].first.take(90)),
             )
         }
         val slowestBest = perUrl.maxOf { it.second }

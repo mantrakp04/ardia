@@ -106,4 +106,10 @@ interface PageEngine {
     suspend fun clearWebsiteData(kinds: Set<WebsiteDataKind>)
 
     fun cookieHeader(url: String, isPrivate: Boolean): String? = null
+
+    fun privateCookieHeader(url: String, session: String): String? = null
+
+    fun isPrivateSessionLive(session: String): Boolean = false
+
+    fun addPrivateSessionEndListener(listener: (String) -> Unit): AutoCloseable = AutoCloseable {}
 }

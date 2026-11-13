@@ -1,6 +1,6 @@
 package com.ardia.blocking
 
-import java.util.regex.Pattern
+import com.google.re2j.Pattern
 
 internal class NetworkRule(
     val isException: Boolean,
@@ -54,12 +54,8 @@ internal class NetworkRule(
 
     fun matchesUrl(context: RequestContext): Boolean {
         regex?.let { compiled ->
-            if (context.rawView.budget <= 0) return false
-            return try {
-                context.matcher(compiled, regexSlot).find()
-            } catch (exceeded: RegexBudgetExceeded) {
-                false
-            }
+            context.regexRuns++
+            return context.matcher(compiled, regexSlot).find()
         }
         val chars = if (matchCase) context.raw else context.lower
         return when (anchor) {
@@ -90,7 +86,7 @@ internal class NetworkRule(
     }
 
     companion object {
-        fun from(filter: NetworkFilter, categoryBit: Int): NetworkRule = NetworkRule(
+        fun from(filter: NetworkFilter, categoryBit: Int, regex: Pattern?): NetworkRule = NetworkRule(
             isException = filter.isException,
             matchCase = filter.matchCase,
             party = filter.party,
@@ -101,7 +97,7 @@ internal class NetworkRule(
             anchorEnd = filter.anchorEnd,
             host = filter.host?.toCharArray(),
             pattern = filter.pattern.toCharArray(),
-            regex = if (filter.isRegex) Pattern.compile(filter.pattern, if (filter.matchCase) 0 else Pattern.CASE_INSENSITIVE) else null,
+            regex = regex,
             include = DomainMatch.hashes(filter.includeDomains),
             exclude = DomainMatch.hashes(filter.excludeDomains),
         )
@@ -234,21 +230,13 @@ internal class RuleIndex private constructor(
     class Builder {
         private val filters = ArrayList<NetworkFilter>()
         private val categories = ArrayList<Int>()
+        private val regexes = ArrayList<Pattern?>()
 
         fun add(filter: NetworkFilter, categoryBit: Int) {
-            if (filter.isRegex && !isUsableRegex(filter)) return
+            val regex = if (filter.isRegex) ListRegex.compile(filter.pattern, filter.matchCase) ?: return else null
             filters += filter
             categories += categoryBit
-        }
-
-        private fun isUsableRegex(filter: NetworkFilter): Boolean {
-            if (!RegexSafety.isSafe(filter.pattern)) return false
-            return try {
-                Pattern.compile(filter.pattern)
-                true
-            } catch (error: java.util.regex.PatternSyntaxException) {
-                false
-            }
+            regexes += regex
         }
 
         fun build(): RuleIndex {
@@ -261,7 +249,7 @@ internal class RuleIndex private constructor(
                 candidates[index] = tokens
                 for (token in tokens) frequency[token] = (frequency[token] ?: 0) + 1
             }
-            val rules = Array(filters.size) { NetworkRule.from(filters[it], categories[it]) }
+            val rules = Array(filters.size) { NetworkRule.from(filters[it], categories[it], regexes[it]) }
             val byHost = LongBuckets.Builder()
             val byToken = LongBuckets.Builder()
             val byPageDomain = LongBuckets.Builder()

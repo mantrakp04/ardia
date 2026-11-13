@@ -1,7 +1,5 @@
 package com.ardia.search
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.border
@@ -166,7 +164,7 @@ private class TrayController(
             )
             SearchSuggestion.Kind.Calculation -> listOfNotNull(
                 suggestion.copyValue?.let { value ->
-                    RowMenuItem(context.getString(R.string.search_copy), ArdiaSymbols.docOnDoc) { copyPlain(value) }
+                    RowMenuItem(context.getString(R.string.search_copy), ArdiaSymbols.docOnDoc) { model.copyText(value) }
                 },
             )
             else -> if (url == null) {
@@ -181,19 +179,14 @@ private class TrayController(
                         model.openSwitchingMode(url)
                     },
                     RowMenuItem(context.getString(R.string.search_copy_link), ArdiaSymbols.link) {
-                        model.copySuggestionLink(context, url, context.getString(R.string.search_copied_link))
+                        model.copyLink(url)
                     },
                     RowMenuItem(context.getString(R.string.search_share), ArdiaSymbols.squareAndArrowUp) {
-                        model.shareSuggestionLink(context, url, suggestion.title)
+                        model.share(url, suggestion.title)
                     },
                 )
             }
         }
-    }
-
-    private fun copyPlain(value: String) {
-        val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
-        clipboard.setPrimaryClip(ClipData.newPlainText("Result", value))
     }
 }
 
@@ -212,7 +205,7 @@ private fun TrayPanel(
     val field = remember { CompletingFieldState(request.initialText, request.selectsAll) }
     val scrub = remember { ScrubState() }
     val controller = remember { TrayController(model, context, scope, field, presentation, scrub) }
-    val suggestions = remember(isIncognito) { model.makeTraySuggestions() }
+    val suggestions = remember(isIncognito) { model.makeSuggestionsModel() }
     var paste by remember { mutableStateOf<ClipboardOffer?>(null) }
 
     DisposableEffect(suggestions) {

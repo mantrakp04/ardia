@@ -16,7 +16,6 @@
     <string name="search_open_in_incognito_tab">Open in Incognito Tab</string>
     <string name="search_copy">Copy</string>
     <string name="search_copy_link">Copy Link</string>
-    <string name="search_copied_link">Copied Link</string>
     <string name="search_share">Share</string>
     <string name="search_refine">Edit %1$s</string>
     <string name="search_paste_and_go">Paste and Go</string>

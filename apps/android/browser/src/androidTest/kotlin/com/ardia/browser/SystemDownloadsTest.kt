@@ -1,13 +1,23 @@
 package com.ardia.browser
 
 import android.content.Context
+import android.os.Build
+import android.os.Bundle
 import android.provider.MediaStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -113,5 +123,70 @@ class SystemDownloadsTest {
         val downloads = SystemDownloads(harness.context, harness.engine)
         assertNull(downloads.enqueue(download("blob:http://127.0.0.1/1", "a.bin")))
         assertNull(downloads.enqueue(download("data:text/plain,hi", "a.txt")))
+    }
+
+    @Test
+    fun onlyThreeRunAtOnceAndTheRestWaitTheirTurn() {
+        val release = CountDownLatch(1)
+        for (index in 1..4) {
+            server.route("/slow$index") {
+                release.await(20, TimeUnit.SECONDS)
+                TestServer.Response(body = "file $index", contentType = "text/plain")
+            }
+        }
+        val downloads = SystemDownloads(harness.context, harness.engine)
+        for (index in 1..4) assertNotNull(downloads.enqueue(download(server.url("/slow$index"), "slow$index.txt")))
+        harness.poll { server.requests.count { it.path.startsWith("/slow") }.takeIf { it >= 3 } }
+        val waiting = harness.poll { downloads.active.value.takeIf { list -> list.size == 4 && list.count { !it.isQueued } == 3 } }
+        assertEquals(1, waiting.count { it.isQueued })
+        Thread.sleep(500)
+        assertEquals(3, server.requests.count { it.path.startsWith("/slow") })
+        release.countDown()
+        val outcomes = runBlocking { withTimeout(30_000) { downloads.outcomes.take(4).toList() } }
+        created += outcomes
+        assertTrue("$outcomes", outcomes.all { it is DownloadOutcome.Finished })
+        assertEquals(4, server.requests.count { it.path.startsWith("/slow") })
+    }
+
+    @Test
+    fun aCancelDuringAHeldRedirectStopsAtOnceAndNeverFollowsIt() {
+        val release = CountDownLatch(1)
+        server.route("/held") {
+            release.await(20, TimeUnit.SECONDS)
+            TestServer.Response(302, headers = mapOf("Location" to server.url("/after")))
+        }
+        server.route("/after") { TestServer.Response(body = "after", contentType = "text/plain") }
+        val downloads = SystemDownloads(harness.context, harness.engine)
+        val id = downloads.enqueue(download(server.url("/held"), "held.txt"))!!
+        harness.poll { server.requested("/held").takeIf { it } }
+        downloads.cancel(id)
+        assertTrue(downloads.active.value.none { it.id == id })
+        release.countDown()
+        Thread.sleep(1_000)
+        assertFalse(server.requested("/after"))
+        assertNull(runBlocking { withTimeoutOrNull(1_000) { downloads.outcomes.first() } })
+    }
+
+    @Test
+    fun aBodyThatNeverEndsStopsWhenSpaceRunsOutAndLeavesNoFile() {
+        server.route("/endless") { TestServer.Response(contentType = "application/octet-stream", endlessBody = true) }
+        val checks = AtomicLong()
+        val fakeFree = { DownloadRules.SPACE_RESERVE_BYTES + 12L * 1024 * 1024 - checks.getAndIncrement() * DownloadRules.SPACE_CHECK_BYTES }
+        val downloads = SystemDownloads(harness.context, freeSpace = fakeFree)
+        val outcome = DownloadHarness.run(downloads, download(server.url("/endless"), "endless-${System.nanoTime()}.bin"))
+        assertEquals(DownloadFailure.NoSpace, (outcome as DownloadOutcome.Failed).reason)
+        assertTrue(checks.get() >= 3)
+        assertFalse(storedNames().any { it.startsWith(outcome.fileName.substringBefore('.')) })
+        assertTrue(downloads.active.value.isEmpty())
+    }
+
+    private fun storedNames(): Set<String> {
+        val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val arguments = Bundle().apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+        }
+        return harness.context.contentResolver.query(collection, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), arguments, null)?.use { cursor ->
+            buildSet { while (cursor.moveToNext()) cursor.getString(0)?.let(::add) }
+        }.orEmpty()
     }
 }

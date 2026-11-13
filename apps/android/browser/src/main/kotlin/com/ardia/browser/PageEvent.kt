@@ -20,6 +20,7 @@ data class PageDownload(
     val contentDisposition: String?,
     val referer: String?,
     val isPrivate: Boolean,
+    val privateSession: String? = null,
 )
 
 sealed interface PressTarget {

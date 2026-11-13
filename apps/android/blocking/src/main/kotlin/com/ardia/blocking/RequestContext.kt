@@ -27,10 +27,11 @@ internal class RequestContext {
     private var party = PARTY_UNCOMPUTED
     private val labels = IntArray(MAX_LABELS)
     val rawView = CharArrayView()
-    private val matcherPatterns = arrayOfNulls<java.util.regex.Pattern>(MATCHER_SLOTS)
-    private val matchers = arrayOfNulls<java.util.regex.Matcher>(MATCHER_SLOTS)
+    var regexRuns = 0L
+    private val matcherPatterns = arrayOfNulls<com.google.re2j.Pattern>(MATCHER_SLOTS)
+    private val matchers = arrayOfNulls<com.google.re2j.Matcher>(MATCHER_SLOTS)
 
-    fun matcher(pattern: java.util.regex.Pattern, slot: Int): java.util.regex.Matcher {
+    fun matcher(pattern: com.google.re2j.Pattern, slot: Int): com.google.re2j.Matcher {
         val index = slot and (MATCHER_SLOTS - 1)
         val cached = matchers[index]
         if (cached != null && matcherPatterns[index] === pattern) return cached.reset(rawView)
@@ -55,7 +56,6 @@ internal class RequestContext {
         }
         length = count
         rawView.set(raw, minOf(count, MAX_REGEX_INPUT))
-        rawView.budget = REGEX_READS_PER_REQUEST
         globSteps = GLOB_STEPS_PER_REQUEST
         party = PARTY_UNCOMPUTED
         val authority = authorityStart(target, count, requireWebScheme = true)
@@ -240,7 +240,6 @@ internal class RequestContext {
     class CharArrayView : CharSequence {
         private var chars = CharArray(0)
         private var count = 0
-        var budget = 0
 
         fun set(chars: CharArray, count: Int) {
             this.chars = chars
@@ -249,10 +248,7 @@ internal class RequestContext {
 
         override val length: Int get() = count
 
-        override fun get(index: Int): Char {
-            if (--budget < 0) throw RegexBudgetExceeded
-            return chars[index]
-        }
+        override fun get(index: Int): Char = chars[index]
 
         override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = String(chars, startIndex, endIndex - startIndex)
 
@@ -263,7 +259,6 @@ internal class RequestContext {
         const val MAX_LABELS = 64
         private const val MATCHER_SLOTS = 256
         const val MAX_REGEX_INPUT = 4_096
-        const val REGEX_READS_PER_REQUEST = 50_000
         const val GLOB_STEPS_PER_REQUEST = 2_000_000
         const val PARTY_UNKNOWN = -1
         private const val PARTY_UNCOMPUTED = -2
