@@ -16,6 +16,7 @@ import { openDatabaseSync } from "expo-sqlite";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { runRestoreTest, runSelfTest, type TestLine } from "./selfTest";
 
 const labPage = `<!doctype html><meta name="viewport" content="width=device-width"><title>Page Lab</title>
 <body style="font:16px sans-serif;padding:12px">
@@ -89,6 +90,11 @@ function Lab() {
   const [restoreSource, setRestoreSource] = useState<{ url: string | null; title: string; state: string } | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const popupCount = useRef(0);
+  const [results, setResults] = useState<TestLine[]>([]);
+  const report = useCallback((line: TestLine) => {
+    console.log(`PAGELAB ${line.ok ? "PASS" : "FAIL"} ${line.step}: ${line.detail}`);
+    setResults((all) => [...all, line]);
+  }, []);
 
   const note = useCallback((line: string) => setLog((lines) => [`${new Date().toISOString().slice(11, 19)} ${line}`, ...lines].slice(0, 14)), []);
   const run = useCallback(
@@ -206,6 +212,41 @@ function Lab() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
+      {results.length > 0 && (
+        <View style={styles.results}>
+          {results.map((line, index) => (
+            <Text key={`${index}-${line.step}`} style={[styles.result, !line.ok && styles.failed]} numberOfLines={2}>
+              {line.ok ? "PASS" : "FAIL"} {line.step}: {line.detail}
+            </Text>
+          ))}
+        </View>
+      )}
+      {request && (
+        <View style={styles.panel}>
+          <Text style={styles.status}>
+            {request.request.kind}: {request.request.title} {request.request.message ?? ""}
+          </Text>
+          <Row>
+            <Button label="Accept" onPress={() => answer({ type: "accept" })} />
+            <Button label="Dismiss" onPress={() => answer({ type: "dismiss" })} />
+            <Button label="Answer text" onPress={() => answer({ type: "text", text: "from lab" })} />
+            <Button label="Pick files" onPress={() => answer({ type: "pickFiles" })} />
+          </Row>
+        </View>
+      )}
+      {popup && (
+        <View style={styles.panel}>
+          <Text style={styles.status}>popup {popup.url}</Text>
+          <Row>
+            <Button label="Open popup" onPress={openPopup} />
+            <Button label="Dismiss popup" onPress={() => run("dismiss popup", async () => {
+              const dismissed = await pages.dismissPopup(popup.popupId);
+              setPopup(null);
+              return dismissed;
+            })} />
+          </Row>
+        </View>
+      )}
       <ScrollView style={styles.controls} contentContainerStyle={styles.controlsContent}>
         <Text style={styles.status} numberOfLines={2}>
           {pageId} {isPrivate ? "(private) " : ""}
@@ -215,6 +256,25 @@ function Lab() {
           zoom {state?.pageZoom ?? "-"} desktop {String(state?.isDesktopSite ?? "-")} blocked {state?.blockedRequests ?? "-"} security{" "}
           {state?.security ?? "-"} back {String(state?.canGoBack ?? "-")}
         </Text>
+        <Row>
+          <Button label="Self test" onPress={() => {
+            setResults([]);
+            setPageId("lab-test");
+            setTimeout(() => {
+              runSelfTest("lab-test", report, (saved, savedUrl) => {
+                const entry = { url: savedUrl, title: "", state: saved };
+                store.save("lab-saved", entry);
+                setRestoreSource(entry);
+              }).then(() => report({ step: "done", ok: true, detail: "self test finished" }));
+            }, 300);
+          }} />
+          <Button label="Restore test" onPress={() => {
+            if (!restoreSource) return report({ step: "restore after kill", ok: false, detail: "nothing saved" });
+            setResults([]);
+            runRestoreTest("lab-restored", restoreSource, report).then(() => setPageId("lab-restored"));
+          }} />
+          <Button label="Clear results" onPress={() => setResults([])} />
+        </Row>
         <Row>
           {["lab-a", "lab-b"].map((id) => (
             <Button key={id} label={id === "lab-a" ? "Page A" : "Page B"} active={pageId === id} onPress={() => setPageId(id)} />
@@ -287,32 +347,6 @@ function Lab() {
           <Button label="Update lists" onPress={() => run("update lists", () => blocking.updateLists())} />
           <Button label="Count" onPress={() => run("blocked count", () => blocking.blockedCount(pageId))} />
         </Row>
-        {request && (
-          <View style={styles.panel}>
-            <Text style={styles.status}>
-              {request.request.kind}: {request.request.title} {request.request.message ?? ""}
-            </Text>
-            <Row>
-              <Button label="Accept" onPress={() => answer({ type: "accept" })} />
-              <Button label="Dismiss" onPress={() => answer({ type: "dismiss" })} />
-              <Button label="Answer text" onPress={() => answer({ type: "text", text: "from lab" })} />
-              <Button label="Pick files" onPress={() => answer({ type: "pickFiles" })} />
-            </Row>
-          </View>
-        )}
-        {popup && (
-          <View style={styles.panel}>
-            <Text style={styles.status}>popup {popup.url}</Text>
-            <Row>
-              <Button label="Open popup" onPress={openPopup} />
-              <Button label="Dismiss popup" onPress={() => run("dismiss popup", async () => {
-                const dismissed = await pages.dismissPopup(popup.popupId);
-                setPopup(null);
-                return dismissed;
-              })} />
-            </Row>
-          </View>
-        )}
         {active.map((download) => (
           <Text key={download.id} style={styles.status}>
             downloading {download.fileName} {download.bytes}/{download.total ?? "?"}
@@ -386,6 +420,9 @@ const styles = StyleSheet.create({
   input: { flex: 1, minWidth: 120, borderWidth: 1, borderColor: "#bbb", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, color: "#1d1a17" },
   status: { fontSize: 12, color: "#1d1a17" },
   log: { fontSize: 11, color: "#4a4440", fontFamily: "monospace" },
+  results: { backgroundColor: "#e9f3e4", padding: 6, gap: 2 },
+  result: { fontSize: 11, color: "#1d4d12" },
+  failed: { color: "#a1170f" },
   panel: { backgroundColor: "#fff3c4", padding: 6, borderRadius: 6, gap: 4 },
   snapshot: { width: 90, height: 160, borderWidth: 1, borderColor: "#999" },
   page: { flex: 1, borderTopWidth: 1, borderColor: "#999" },
