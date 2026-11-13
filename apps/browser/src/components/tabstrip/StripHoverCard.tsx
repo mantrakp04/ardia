@@ -3,14 +3,15 @@ import { Animated, View } from "react-native";
 import { useTab } from "../../state/browser/hooks";
 import { stripChipEntered, stripChipGone, stripChipLeft, stripChipPressed, useStripHover } from "../../state/tabs/stripHover";
 import { markHoverProps } from "../../lib/hoverMarks";
-import { HoverCard as HoverPanel } from "../ui";
+import { HoverCard as HoverPanel, useOffstage } from "../ui";
 import { TabCardSummary } from "../sidebar/TabCardSummary";
 import { useHoverCardMotion, useHoverCardPlacement } from "../sidebar/hoverMotion";
 import { STRIP_CARD_GAP, STRIP_CARD_MARGIN, STRIP_CARD_WIDTH } from "./tokens";
 
 export function useStripCardHover(windowId: string, tabId: string, view: RefObject<View | null>) {
-  const latest = useRef({ windowId, tabId });
-  latest.current = { windowId, tabId };
+  const offstage = useOffstage();
+  const latest = useRef({ windowId, tabId, offstage });
+  latest.current = { windowId, tabId, offstage };
   const [props] = useState(() => {
     const measure = () =>
       new Promise<{ x: number; y: number; width: number; height: number } | null>((resolve) => {
@@ -20,7 +21,7 @@ export function useStripCardHover(windowId: string, tabId: string, view: RefObje
       });
     return {
       ...markHoverProps({
-        onMouseEnter: () => stripChipEntered(latest.current.windowId, latest.current.tabId, measure),
+        onMouseEnter: () => void (latest.current.offstage || stripChipEntered(latest.current.windowId, latest.current.tabId, measure)),
         onMouseLeave: () => stripChipLeft(latest.current.windowId, latest.current.tabId),
       }),
       onTouchStart: () => stripChipPressed(latest.current.tabId),

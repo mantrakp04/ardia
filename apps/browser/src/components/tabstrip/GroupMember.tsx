@@ -9,7 +9,7 @@ import { openFolderMenu } from "../../state/tabs/topStrip";
 import { setMeasuredWidth, useMeasuredWidth } from "../../state/windows/measuredWidths";
 import { groupTint, useSidebarTokens } from "../sidebar/tokens";
 import { NEUTRAL_GROUP_SWATCH } from "../../state/groups/tokens";
-import { ContextMenuArea, Symbol, useHover } from "../ui";
+import { ContextMenuArea, Symbol, useHover, useTooltip } from "../ui";
 import { curve } from "../ui/motion";
 import { useTheme } from "../ui/theme";
 import { capsule, font, ink, radius, space, weight, withAlpha } from "../ui/tokens";
@@ -100,6 +100,7 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
   const group = useGroup(groupId, (g) => g);
   const label = useGroupLabel(groupId);
   const { hovered, hoverProps } = useHover();
+  const tip = useTooltip(`${label}\nShow Folder`);
   if (!group) return null;
   const tint = groupTint(group.color);
   const bare = group.color === "none";
@@ -108,7 +109,7 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
     <View
       {...hoverProps}
       mouseDownCanMoveWindow={false}
-      tooltip={`${label}\nShow Folder`}
+      tooltip={tip}
       onLayout={(e) => setMeasuredWidth(folderKey(groupId), Math.ceil(e.nativeEvent.layout.width * 2) / 2)}
       style={{ position: "absolute", left: 0, top: MID - FOLDER_HEIGHT / 2, height: FOLDER_HEIGHT }}
     >

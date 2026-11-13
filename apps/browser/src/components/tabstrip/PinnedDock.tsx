@@ -5,7 +5,7 @@ import { folderIdOfCell } from "../../state/pins/tileFolders";
 import { openTileFolderMenu } from "../../state/sidebar/tileFolderUi";
 import { currentMovingTabIds, openTileFolderStripMenu, useTileFolderLabel } from "../../state/tabs/topStrip";
 import { FolderMosaic } from "../sidebar/FolderTile";
-import { ContextMenuArea, useHover } from "../ui";
+import { ContextMenuArea, useHover, useTooltip } from "../ui";
 import { GlassFill, useGlass } from "../ui/Glass";
 import { useTheme } from "../ui/theme";
 import { DockContext } from "./context";
@@ -109,6 +109,7 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
   const windowId = useWindowId();
   const label = useTileFolderLabel(windowId, folderId);
   const { hovered, hoverProps } = useHover();
+  const tip = useTooltip(`${label}\nShow Folder`);
   const drag = useStripDrag({
     tabId: null,
     ids: () => tabIds,
@@ -124,7 +125,7 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
   });
   return (
     <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={drag.style}>
-      <View {...hoverProps} tooltip={`${label}\nShow Folder`}>
+      <View {...hoverProps} tooltip={tip}>
         <ContextMenuArea onContextMenu={() => void openTileFolderMenu(windowId, folderId)}>
           <Pressable onPress={() => void openTileFolderStripMenu(windowId, folderId)}>
             {({ pressed }) => (

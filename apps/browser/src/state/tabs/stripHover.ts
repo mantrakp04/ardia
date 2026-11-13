@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { hoverHeld } from "../app/transientUi";
+import { useBrowser } from "../browser/store";
+import { noteStripHoverCard } from "../telemetry/stripHoverCards";
 import { tabDragging } from "../drag/tabDrag";
 import type { Anchor } from "../sidebar/sidebarUi";
 
@@ -29,6 +31,8 @@ async function show(target: Pointed, mine: number) {
   const anchor = await target.measure();
   if (mine !== ticket || pointed !== target || !anchor || tabDragging() || hoverHeld(target.windowId)) return;
   useStripHover.setState({ hover: { windowId: target.windowId, tabId: target.tabId, anchor } });
+  const s = useBrowser.getState();
+  noteStripHoverCard(s.tabs[target.tabId]?.profileId !== s.windows[target.windowId]?.profileId);
 }
 
 export function stripChipEntered(windowId: string, tabId: string, measure: () => Promise<Anchor | null>) {

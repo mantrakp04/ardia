@@ -8,6 +8,7 @@ import { dismissStripHoverIn } from "../../state/tabs/stripHover";
 import { usePageStyle } from "../../state/windows/profilePager";
 import { ThemeScope } from "../window/ThemeScope";
 import { TintInk } from "../ui/TintInk";
+import { Offstage } from "../ui/useHover";
 import { DockContext, FloatingStrip } from "./context";
 import { IncomingGap, useIncomingTab } from "./IncomingTab";
 import { chipKey, folderKey, type Strip } from "./model";
@@ -89,58 +90,60 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   return (
     <Animated.View
       pointerEvents={current ? "auto" : "none"}
-      onMouseEnter={() => void (pointerIn.current = true)}
+      onMouseEnter={() => void (pointerIn.current = current)}
       onMouseLeave={leave}
       style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: pageWidth + flare * 2, display: resting ? "none" : "flex", ...pageStyle }}
     >
       <PageProfileContext.Provider value={profileId}>
-        <ThemeScope>
-          <TintInk>
-            <DockContext.Provider value={strip}>
-              <ScrollView
-                ref={scroll}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                scrollEventThrottle={16}
-                onLayout={(e) => void (viewport.current = e.nativeEvent.layout.width)}
-                onScroll={(e) => {
-                  if (Math.abs(e.nativeEvent.contentOffset.x - scrolled.current) >= 1) dismissStripHoverIn(windowId);
-                  scrolled.current = e.nativeEvent.contentOffset.x;
-                  setAtStart(scrolled.current < 0.5);
-                }}
-                style={{ flex: 1, marginLeft: flare - inset }}
-                contentContainerStyle={{ alignItems: "flex-start", gap: GAP, paddingLeft: inset, paddingRight: flare }}
-              >
-                {parsed.flatMap((e) => {
-                  if (e.kind === "dock") return <PinnedDock key="dock" tabIds={e.ids} />;
-                  const before = gap(slotIndex++);
-                  if (e.kind === "group")
-                    return [
-                      before,
-                      <StripGroup
-                        key={e.id}
-                        entry={e}
-                        geometry={top}
-                        from={slotOf(e.members[0] ? tabsOf(e.members[0])[0]! : "")}
-                        chip={chip}
-                        activeId={activeId}
-                        chipWidth={chipOf(e.id)}
-                        onChipWidth={(width) => setMeasuredWidth(chipKey(e.id), width)}
-                        memberWidth={memberWidth}
-                        folderMeasured={(groupId) => folderChip(groupId) !== undefined}
-                      />,
-                    ];
-                  if (e.kind === "split")
-                    return [before, <SplitChip key={e.id} tabIds={e.tabIds} width={chip * Math.min(e.tabIds.length, 2)} geometry={top} from={slotOf(e.tabIds[0]!)} group={null} />];
-                  return [before, <DraggableChip key={e.id} tabId={e.id} width={chip} geometry={top} from={slotOf(e.id)} group={null} />];
-                })}
-                {gap(top.slots.length)}
-                <NewTabButton windowId={windowId} geometry={top} />
-                {spare ? <View style={{ width: spare, marginLeft: -GAP }} /> : null}
-              </ScrollView>
-            </DockContext.Provider>
-          </TintInk>
-        </ThemeScope>
+        <Offstage.Provider value={!current}>
+          <ThemeScope>
+            <TintInk>
+              <DockContext.Provider value={strip}>
+                <ScrollView
+                  ref={scroll}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  scrollEventThrottle={16}
+                  onLayout={(e) => void (viewport.current = e.nativeEvent.layout.width)}
+                  onScroll={(e) => {
+                    if (Math.abs(e.nativeEvent.contentOffset.x - scrolled.current) >= 1) dismissStripHoverIn(windowId);
+                    scrolled.current = e.nativeEvent.contentOffset.x;
+                    setAtStart(scrolled.current < 0.5);
+                  }}
+                  style={{ flex: 1, marginLeft: flare - inset }}
+                  contentContainerStyle={{ alignItems: "flex-start", gap: GAP, paddingLeft: inset, paddingRight: flare }}
+                >
+                  {parsed.flatMap((e) => {
+                    if (e.kind === "dock") return <PinnedDock key="dock" tabIds={e.ids} />;
+                    const before = gap(slotIndex++);
+                    if (e.kind === "group")
+                      return [
+                        before,
+                        <StripGroup
+                          key={e.id}
+                          entry={e}
+                          geometry={top}
+                          from={slotOf(e.members[0] ? tabsOf(e.members[0])[0]! : "")}
+                          chip={chip}
+                          activeId={activeId}
+                          chipWidth={chipOf(e.id)}
+                          onChipWidth={(width) => setMeasuredWidth(chipKey(e.id), width)}
+                          memberWidth={memberWidth}
+                          folderMeasured={(groupId) => folderChip(groupId) !== undefined}
+                        />,
+                      ];
+                    if (e.kind === "split")
+                      return [before, <SplitChip key={e.id} tabIds={e.tabIds} width={chip * Math.min(e.tabIds.length, 2)} geometry={top} from={slotOf(e.tabIds[0]!)} group={null} />];
+                    return [before, <DraggableChip key={e.id} tabId={e.id} width={chip} geometry={top} from={slotOf(e.id)} group={null} />];
+                  })}
+                  {gap(top.slots.length)}
+                  <NewTabButton windowId={windowId} geometry={top} />
+                  {spare ? <View style={{ width: spare, marginLeft: -GAP }} /> : null}
+                </ScrollView>
+              </DockContext.Provider>
+            </TintInk>
+          </ThemeScope>
+        </Offstage.Provider>
       </PageProfileContext.Provider>
     </Animated.View>
   );
