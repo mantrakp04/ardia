@@ -37,6 +37,7 @@ object AppTest {
     const val READY_TIMEOUT_MILLIS = 120_000L
     const val ACTIVITY_TIMEOUT_MILLIS = 60_000L
     const val SETTLE_STEP_MILLIS = 400L
+    const val SETTLE_AFTER_DIALOG_MILLIS = 3_000L
 
     val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     val context: Context get() = ApplicationProvider.getApplicationContext()
@@ -61,6 +62,7 @@ object AppTest {
 
     fun freshModel() {
         finishAll()
+        leaveNoSystemScreenOnTop()
         onMain { app.discardModel() }
     }
 
@@ -156,10 +158,12 @@ object AppTest {
         return (listOfNotNull(active) + roots).distinctBy { it.windowId }
     }
 
-    fun clearSystemDialogs(timeoutMillis: Long = SystemDialogs.TIMEOUT_MILLIS) {
+    fun clearSystemDialogs(timeoutMillis: Long = SystemDialogs.TIMEOUT_MILLIS): BlockingDialog? {
         val end = System.currentTimeMillis() + timeoutMillis
+        var last: BlockingDialog? = null
         while (true) {
-            val dialog = SystemDialogs.blocking(windows(), context.packageName) ?: return
+            val dialog = SystemDialogs.blocking(windows(), context.packageName) ?: return last
+            last = dialog
             val dismissed = SystemDialogs.dismiss(dialog, instrumentation.uiAutomation)
             Log.w(TAG, "a system dialog covered the app (${dialog.describe()}); dismissed: $dismissed")
             if (System.currentTimeMillis() > end) fail("a system dialog stayed on top of the app for $timeoutMillis ms: ${dialog.describe()}")
@@ -214,28 +218,51 @@ object AppTest {
 
     fun settledScreenshot(timeoutMillis: Long = 12_000, stableFrames: Int = 2): Bitmap {
         instrumentation.waitForIdleSync()
-        val end = System.currentTimeMillis() + timeoutMillis
+        val start = System.currentTimeMillis()
+        var settleEnd = start + timeoutMillis
+        val dialogEnd = start + timeoutMillis + SystemDialogs.TIMEOUT_MILLIS
+        var lastDialog: BlockingDialog? = null
         var previous: Bitmap? = null
         var stable = 0
         while (true) {
-            if (SystemDialogs.blocking(windows(), context.packageName) != null) {
-                clearSystemDialogs()
+            clearSystemDialogs()?.let { dismissed ->
+                lastDialog = dismissed
                 stable = 0
+                settleEnd = maxOf(settleEnd, System.currentTimeMillis() + SETTLE_AFTER_DIALOG_MILLIS)
             }
             val current = instrumentation.uiAutomation.takeScreenshot()
-            if (current != null && SystemDialogs.blocking(windows(), context.packageName) != null) {
+            val coveredNow = SystemDialogs.blocking(windows(), context.packageName)
+            if (current != null && coveredNow != null) {
                 current.recycle()
+                lastDialog = coveredNow
                 stable = 0
+                settleEnd = maxOf(settleEnd, System.currentTimeMillis() + SETTLE_AFTER_DIALOG_MILLIS)
             } else if (current != null) {
                 if (previous != null && current.sameAs(previous)) stable++ else stable = 0
                 previous?.recycle()
                 previous = current
             }
-            if ((previous != null && stable >= stableFrames) || System.currentTimeMillis() > end) {
-                return previous ?: throw AssertionError("no capture free of system dialogs within $timeoutMillis ms")
+            val now = System.currentTimeMillis()
+            val clean = previous
+            if (clean != null && coveredNow == null && (stable >= stableFrames || now > settleEnd)) return clean
+            if (now > dialogEnd) {
+                val dialog = lastDialog?.describe() ?: "no dialog was recorded"
+                throw AssertionError("no capture free of system dialogs within ${now - start} ms; last dialog: $dialog")
             }
             Thread.sleep(SETTLE_STEP_MILLIS)
             instrumentation.waitForIdleSync()
+        }
+    }
+
+    fun leaveNoSystemScreenOnTop() {
+        val end = System.currentTimeMillis() + SystemDialogs.TIMEOUT_MILLIS
+        while (true) {
+            val left = SystemDialogs.blocking(windows(), context.packageName) ?: return
+            if (left.kind == SystemDialogs.Kind.OtherWindow) return
+            val dismissed = SystemDialogs.dismiss(left, instrumentation.uiAutomation)
+            Log.w(TAG, "a system screen was left on top after the test (${left.describe()}); dismissed: $dismissed")
+            if (System.currentTimeMillis() > end) fail("a system screen stayed on top after the test: ${left.describe()}")
+            Thread.sleep(SystemDialogs.AFTER_DISMISS_MILLIS)
         }
     }
 
