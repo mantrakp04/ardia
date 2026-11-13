@@ -13,7 +13,7 @@ press never owns another session's drag, a late answer for a finished drag (a ca
 session went away) touches nothing, a drag that entered a frame leaves it when it is cancelled or abandoned, a drag
 whose source frame was destroyed ends no other widget's drag, a drop whose destination frame is destroyed or whose
 drag ended during its widget lookup gets an error and frees the page, a mouse drag that Input.dispatchDragEvent
-also took into a frame leaves it and re-enters the page when the mouse comes back, a mouse drag waiting on a frame
+also took into a frame leaves it and re-enters the page when the mouse comes back or is released there, a mouse drag waiting on a frame
 that is destroyed is ended, Input.cancelDragging ends a handed-over drag, and a navigation during a drag's first
 update doesn't crash the browser.
 No macOS drag session is ever begun: the last check runs only once the engine reports that it refuses them.`;
@@ -585,6 +585,23 @@ try {
       check("a mouse drag that Input.dispatchDragEvent moved into a frame re-enters the page when the mouse comes back, so its drop lands",
         started && inFrame && leftFrame && after.drop - before.drop === 1 && after.dragend - before.dragend === 1 && input.ok,
         `dragstart ${started}, dragenter in the frame ${inFrame}, frame left when the mouse came back ${leftFrame}, the release was ${release.how}, drop in the page +${after.drop - before.drop}, dragend +${after.dragend - before.dragend}, ${input.detail}`);
+      driver.close();
+    }
+
+    {
+      const page = await open();
+      const { driver, started, before } = await mouseDrag(page);
+      const framesBefore = await page.frames();
+      await driver.send("Input.dispatchDragEvent", { type: "dragEnter", x: 240, y: 520, data: DATA }).catch(() => null);
+      const inFrame = await until("dragenter", async () => (of(await page.frames(), "frame", "dragenter") > of(framesBefore, "frame", "dragenter") ? true : null), 3000).then(() => true, () => false);
+      const release = await answer(mouse(driver, "mouseReleased", 200, 300, 7000));
+      await sleep(500);
+      const after = await page.counts();
+      const leftFrame = of(await page.frames(), "frame", "dragleave") - of(framesBefore, "frame", "dragleave");
+      const input = await takesInput(page);
+      check("a mouse drag that Input.dispatchDragEvent took into a frame, released on the page with no further move, drops on the page",
+        started && inFrame && release.how === "answered" && leftFrame === 1 && after.drop - before.drop === 1 && after.dragend - before.dragend === 1 && input.ok,
+        `dragstart ${started}, dragenter in the frame ${inFrame}, the release was ${release.how}, dragleave in the frame +${leftFrame}, drop in the page +${after.drop - before.drop}, dragend +${after.dragend - before.dragend}, ${input.detail}`);
       driver.close();
     }
 
