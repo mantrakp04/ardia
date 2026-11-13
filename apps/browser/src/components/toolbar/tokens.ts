@@ -16,7 +16,7 @@ export const RELOAD_BUTTON_MOTION = {
 } as const;
 
 export const HISTORY_BUTTON_MOTION = {
-  duration: duration.slow,
+  duration: duration.slow + 50,
   incomingDelay: 35,
   travel: 4,
 } as const;
