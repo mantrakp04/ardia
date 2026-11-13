@@ -631,6 +631,56 @@ int main() {
     CHECK(overshoot > 0 && overshoot < 2);
   }
 
+  {
+    const Screen single[] = {{{0, 0, 1512, 982}, {0, 0, 1512, 945}}};
+    const Screen pair[] = {{{0, 0, 1512, 982}, {0, 0, 1512, 945}}, {{1512, 0, 1920, 1080}, {1512, 0, 1920, 1055}}};
+    bool lastHeld = false;
+    auto drag = [&](Rect frame, Point grab, Point pointer, const Screen *screens, int n) {
+      const Rect next = DragTo(frame, grab, pointer, screens, n);
+      lastHeld = DragHeld(next, grab, pointer);
+      return Rect{std::round(next.x), std::round(next.y), next.w, next.h};
+    };
+    auto under = [](Rect frame, Point grab, Point pointer) { return Near(frame.x + grab.x, pointer.x, 0.5) && Near(frame.y + grab.y, pointer.y, 0.5); };
+
+    const Point grab{180, 90};
+    Rect w{400, 300, 468, 263};
+    Point pointer{w.x + grab.x, w.y + grab.y};
+    for (int i = 0; i < 2000; i++) {
+      pointer = {pointer.x + (i % 7 < 4 ? 0.37 : -0.29), pointer.y + (i % 5 < 3 ? 0.23 : -0.31)};
+      w = drag(w, grab, pointer, single, 1);
+      CHECK(under(w, grab, pointer) && !lastHeld && !DragSlipped(w, grab, pointer));
+    }
+
+    const Rect start{400, 300, 468, 263};
+    for (const Point edge : {Point{-1200, 0}, Point{0, 900}, Point{0, -700}, Point{2600, 0}, Point{-500, 800}}) {
+      for (const Screen *screens : {single, pair}) {
+        const int n = screens == single ? 1 : 2;
+        w = start;
+        const Point from{start.x + grab.x, start.y + grab.y};
+        bool held = false;
+        for (int i = 1; i <= 200; i++) {
+          pointer = {from.x + edge.x * i / 200.0 + 0.3 * (i % 3), from.y + edge.y * i / 200.0 - 0.2 * (i % 4)};
+          w = drag(w, grab, pointer, screens, n);
+          held = held || lastHeld;
+        }
+        CHECK(held || n == 2);
+        for (int i = 199; i >= 0; i--) {
+          pointer = {from.x + edge.x * i / 200.0 + 0.3 * (i % 3), from.y + edge.y * i / 200.0 - 0.2 * (i % 4)};
+          w = drag(w, grab, pointer, screens, n);
+        }
+        CHECK(under(w, grab, pointer) && !lastHeld && !DragSlipped(w, grab, pointer));
+        CHECK(w.x == start.x && w.y == start.y);
+      }
+    }
+
+    {
+      const Point pointer{500.49, 782.99};
+      const Rect next = DragTo({400, 600, 468, 263}, grab, pointer, single, 1);
+      const Rect shown{std::round(next.x), std::round(next.y), next.w, next.h};
+      CHECK(Near(next.y, 682) && DragHeld(next, grab, pointer) && DragSlipped(shown, grab, pointer));
+    }
+  }
+
   failures += PropertyTest();
   failures += ProgressTest();
   if (failures) return 1;

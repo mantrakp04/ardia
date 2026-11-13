@@ -41,9 +41,11 @@ BOOL GrabsWindowBackground(NSWindow *window, NSEvent *event) {
 
 __weak NSWindow *gDragged;
 
-NSPoint gLastMouse;
-
 NSPoint gGrabLocal;
+
+bool gDragHeld;
+
+NSPoint gDragPointer;
 
 __weak NSScreen *gDragHome;
 
@@ -67,9 +69,10 @@ void InstallDragMonitor() {
                                        [ArdiaPiPController abandonSwipeOn:window];
                                        [[ArdiaPiPController forWindow:window] stopMotion];
                                        NSPoint mouse = ScreenLocation(event);
-                                       gLastMouse = mouse;
                                        gGrabLocal = NSMakePoint(mouse.x - NSMinX(window.frame), mouse.y - NSMinY(window.frame));
                                        gDragHome = [[ArdiaPiPController forWindow:window] gestureHome];
+                                       gDragHeld = false;
+                                       gDragPointer = mouse;
                                        gDragSamples.clear();
                                        SampleDrag(event, mouse);
                                        return nil;
@@ -81,18 +84,23 @@ void InstallDragMonitor() {
                                        const NSPoint grabbed = NSMakePoint(NSMinX(window.frame) + gGrabLocal.x, NSMinY(window.frame) + gGrabLocal.y);
                                        const auto velocity = ardia_pip_throw::ReleaseVelocity(
                                            gDragSamples.data(), (int)gDragSamples.size(), event.timestamp);
+                                       const bool moved = gDragSamples.size() > 1;
                                        gDragSamples.clear();
-                                       [[ArdiaPiPController forWindow:window] dragReleasedAt:grabbed
-                                                                                 velocity:NSMakePoint(velocity.x, velocity.y)];
+                                       const BOOL slipped = !gDragHeld && ardia_pip_throw::DragSlipped(ThrowRect(window.frame), {gGrabLocal.x, gGrabLocal.y},
+                                                                                                  {gDragPointer.x, gDragPointer.y});
+                                       ArdiaPiPController *controller = [ArdiaPiPController forWindow:window];
+                                       if (moved) [controller.view emit:@"pictureInPictureDragged" payload:@{@"held" : @(gDragHeld), @"slipped" : @(slipped)}];
+                                       [controller dragReleasedAt:grabbed velocity:NSMakePoint(velocity.x, velocity.y)];
                                        return nil;
                                      }
                                      NSPoint mouse = ScreenLocation(event);
                                      SampleDrag(event, mouse);
                                      const auto screens = ThrowScreens();
-                                     const auto next = ardia_pip_throw::DragStep(
-                                         ThrowRect(window.frame), {mouse.x - gLastMouse.x, mouse.y - gLastMouse.y}, screens.data(),
-                                         (int)screens.size(), ScreenIndex(gDragHome));
-                                     gLastMouse = mouse;
+                                     const auto next = ardia_pip_throw::DragTo(ThrowRect(window.frame), {gGrabLocal.x, gGrabLocal.y},
+                                                                               {mouse.x, mouse.y}, screens.data(), (int)screens.size(),
+                                                                               ScreenIndex(gDragHome));
+                                     gDragHeld = ardia_pip_throw::DragHeld(next, {gGrabLocal.x, gGrabLocal.y}, {mouse.x, mouse.y});
+                                     gDragPointer = mouse;
                                      [window setFrameOrigin:NSMakePoint(next.x, next.y)];
                                      return nil;
                                    }];

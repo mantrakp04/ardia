@@ -3758,8 +3758,34 @@ try {
           await landed("bottomRight");
         }
       }
+      const shownPip = async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null;
+      if (!(await shownPip())) await open();
+      const numbers = (s) => s.match(/-?[\d.]+/g).map(Number);
+      const pipFrame = async () => numbers((await shownPip()).frame);
+      const [cx, cy, cw, ch] = numbers((await shownPip()).visibleFrame), [, , dw, dh] = await pipFrame();
+      const center = [Math.round(cx + (cw - dw) / 2), Math.round(cy + (ch - dh) / 2)];
+      const dragDrift = {};
+      for (const [name, gesture, offset] of [
+        ["fractional steps", "drag:-131.3,77.7,353,4,120", [-131, 78]],
+        ["past the top edge and back", `drag:37.4,${Math.round(ch)},150,4,120,1`, [0, 0]],
+        ["past the left edge and back", `drag:${-Math.round(cw)},-23.6,150,4,120,1`, [0, 0]],
+      ]) {
+        await engine("tabs.devPictureInPictureAction", { action: `frame:{{${center[0]}, ${center[1]}}, {${dw}, ${dh}}}` });
+        await sleep(300);
+        await engine("tabs.devPictureInPictureAction", { action: gesture });
+        const [x, y] = await until(`the PiP drag (${name}) settled`, async () => {
+          const before = await pipFrame();
+          await sleep(400);
+          const now = await pipFrame();
+          return now[0] === before[0] && now[1] === before[1] ? now : null;
+        }, 10000);
+        dragDrift[name] = [x - center[0] - offset[0], y - center[1] - offset[1]];
+        if (Math.abs(dragDrift[name][0]) > 1 || Math.abs(dragDrift[name][1]) > 1)
+          throw new Error(`the PiP drifted off the grab point (${name}): ${JSON.stringify({ drift: dragDrift[name], at: [x, y], center })}`);
+      }
       return {
         corners,
+        dragDrift,
         steps: result.steps.map((x) => x.step),
         closeButton: closed.point,
         playing: [before.time.toFixed(1), after.time.toFixed(1)],

@@ -45,9 +45,9 @@ let counts = { ...NO_COUNTS }, countsSince = Date.now();
 
 function emitCounts() {
   const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit(), stuckDrags = takeStuckDragCounts(), urlCopies = takeUrlCopyCounts(), tabSleeps = takeTabSleepCounts(), syncCodes = takeSyncCodeCounts(), escapeCloses = takeLittleArdiaEscapeCloses(), liveCompletedTabsClosed = takeLiveCompletedTabsClosed(), liveHides = takeLiveHideCounts(), tidyTabs = takeTidyTabsCounts();
-  const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab } = takePictureInPictureCounts();
+  const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab, drags: pipDrags } = takePictureInPictureCounts();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || Object.values(tabSleeps).some(Boolean) || Object.values(syncCodes).some(Boolean) || Object.values(stuckDrags).some(Boolean) || Object.values(escapeCloses).some(Boolean) || Object.values(liveHides).some(Boolean) || Object.values(tidyTabs).some(Boolean) || urlCopies.url_copies || liveCompletedTabsClosed || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
+  if (Object.values(counts).some(Boolean) || Object.values(tabSleeps).some(Boolean) || Object.values(syncCodes).some(Boolean) || Object.values(stuckDrags).some(Boolean) || Object.values(escapeCloses).some(Boolean) || Object.values(liveHides).some(Boolean) || Object.values(tidyTabs).some(Boolean) || urlCopies.url_copies || liveCompletedTabsClosed || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit || pipDrags.total) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -81,7 +81,7 @@ function emitCounts() {
       split_view_closes: counts.splitViewCloses,
       window_close_tabs_kept: counts.windowCloseTabsKept,
       sync_snapshots_written: snapshots.count,
-      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024), auto_pip_nothing_playing: autoPictureInPictureNothingPlaying, pip_back_to_tab: backToTab.chromium, pip_back_to_tab_webkit: backToTab.webkit,
+      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024), auto_pip_nothing_playing: autoPictureInPictureNothingPlaying, pip_back_to_tab: backToTab.chromium, pip_back_to_tab_webkit: backToTab.webkit, pip_drags: pipDrags.total, pip_drags_held_at_edge: pipDrags.held, pip_drags_slipped: pipDrags.slipped,
       toolbar_scroll_hides: counts.toolbarScrollHides,
       toolbar_scroll_hide_bounces: counts.toolbarScrollHideBounces,
       card_resize_layouts: counts.cardResizeLayouts,

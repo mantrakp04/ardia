@@ -4,7 +4,7 @@ import type { PageEngine } from "../../state/engines/engines";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet } from "react-native";
 import { focus, switchToTab } from "../../state/browser/actions";
-import { notePictureInPictureBackToTab } from "../../state/telemetry/pictureInPictureCounts";
+import { notePictureInPictureBackToTab, notePictureInPictureDragged } from "../../state/telemetry/pictureInPictureCounts";
 import { noteFavicon } from "../../state/favicons/favicons";
 import { adoptIconPage, dropOutlivedFavicon, noteIconPage } from "../../state/favicons/iconPage";
 import { restoredThemeColor } from "../../state/windows/launchLook";
@@ -229,6 +229,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onNowPlaying={(state) => setNowPlaying(tabId, state)}
       onPictureInPicture={(state) => setPictureInPictureState(tabId, state)}
       onAutoPictureInPictureKept={noteAutoPictureInPictureKept}
+      onPictureInPictureDragged={notePictureInPictureDragged}
       onDisplayMediaRequest={(request) => requestDisplayMedia(tabId, request)}
       onOpenWindow={onOpenWindow}
       onStatus={(status, fromBottom) => {

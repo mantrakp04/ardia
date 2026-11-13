@@ -31,3 +31,24 @@ test("going back to a tab from its Picture in Picture window is counted per engi
   usage.sessionEnding();
   assert.equal((await sentUsageCounts()).length, 1);
 });
+
+test("Picture in Picture drags are counted with the ones held at an edge and the ones that ended off the grab point, then start again from zero", async () => {
+  client.loadChoice();
+  client.setSharing(true, "onboarding");
+  const sentDrags = async () => {
+    await client.saveQueueNow();
+    const saved = JSON.parse(stub.docs.get("telemetry-queue.json") ?? '{"events":[]}');
+    return saved.events
+      .filter((e) => e.event === "usage_counts" && e.properties.pip_drags)
+      .map((e) => ({ total: e.properties.pip_drags, held: e.properties.pip_drags_held_at_edge, slipped: e.properties.pip_drags_slipped }));
+  };
+
+  backToTab.notePictureInPictureDragged({ held: false, slipped: false });
+  backToTab.notePictureInPictureDragged({ held: true, slipped: false });
+  backToTab.notePictureInPictureDragged({ held: false, slipped: true });
+  usage.sessionEnding();
+  assert.deepEqual(await sentDrags(), [{ total: 3, held: 1, slipped: 1 }]);
+
+  usage.sessionEnding();
+  assert.equal((await sentDrags()).length, 1);
+});
