@@ -1,5 +1,6 @@
+import { RawText as Text } from "../ui/ScaledNative";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, Text, View, type TextStyle } from "react-native";
+import { Animated, View, type TextStyle } from "react-native";
 import { curve } from "../ui/motion";
 import { fadeStepColor, mediaMotion } from "./tokens";
 

@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { engineHost, type SearchEngine } from "@ardia/core";
 import { Box, Button, DialogActions, DialogTitle, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
 import { useState } from "react";
@@ -19,6 +22,7 @@ function manageExtensionsOf(profile: string) {
 }
 
 export function SearchPane() {
+  const interfaceScale = useInterfaceMetrics().factor;
   const engines = useSettings(searchEngines);
   const selectedId = useSettings((s) => defaultSearchEngine(s).id);
   const controlling = useSettings(controllingSearchExtension);
@@ -35,7 +39,7 @@ export function SearchPane() {
       <Group>
         {controlling && (
           <Row
-            icon={<Symbol name="puzzlepiece.extension" size={13} color={theme.formAccent} style={{ width: 18, height: 18 }} />}
+            icon={<Symbol name="puzzlepiece.extension" size={13} color={theme.formAccent} style={{ width: 18 * interfaceScale, height: 18 * interfaceScale }} />}
             title={`${controlling.extensionName || "An extension"} is controlling this setting`}
             description="To change your default search engine, disable the extension or manage its settings."
           >
@@ -87,6 +91,8 @@ export function SearchPane() {
 }
 
 function EngineRow({ engine, selected, locked, editable }: { engine: SearchEngine; selected: boolean; locked: boolean; editable?: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DEFAULT_MARK, DEFAULT_WIDTH } = useMemo(() => ({ DEFAULT_MARK: scaleInterfaceStyle(BASE_INTERFACE_METRICS.DEFAULT_MARK, interfaceScale), DEFAULT_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.DEFAULT_WIDTH, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const description = engine.extension
     ? `${engine.keyword ? `${engine.keyword} · ` : ""}Added by ${engine.extension.name || "an extension"}`
@@ -100,7 +106,7 @@ function EngineRow({ engine, selected, locked, editable }: { engine: SearchEngin
       )}
       {selected ? (
         <Box row gap="xs" style={DEFAULT_MARK}>
-          <Symbol name="checkmark" size={11} weight="semibold" color={theme.formAccent} style={{ width: 14, height: 14 }} />
+          <Symbol name="checkmark" size={11} weight="semibold" color={theme.formAccent} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />
           <Text size="small" tone="textSecondary">
             Default
           </Text>
@@ -115,6 +121,8 @@ function EngineRow({ engine, selected, locked, editable }: { engine: SearchEngin
 }
 
 function EngineSheet({ engine }: { engine?: SearchEngine }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ERROR } = useMemo(() => ({ ERROR: scaleMetrics(BASE_INTERFACE_METRICS.ERROR, interfaceScale) }), [interfaceScale]);
   const [name, setName] = useState(engine?.name ?? "");
   const [keyword, setKeyword] = useState(engine?.keyword ?? "");
   const [url, setUrl] = useState(engine?.url ?? "");
@@ -170,3 +178,5 @@ function EngineSheet({ engine }: { engine?: SearchEngine }) {
 const DEFAULT_WIDTH = { minWidth: 92 } as const;
 const DEFAULT_MARK = { ...DEFAULT_WIDTH, alignItems: "center", justifyContent: "flex-end" } as const;
 const ERROR = { marginTop: space.ml } as const;
+
+const BASE_INTERFACE_METRICS = { DEFAULT_MARK, DEFAULT_WIDTH, ERROR };

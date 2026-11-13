@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { Button, FadeLabel, Symbol, Text, ToolbarRowContext } from "../ui";
 import type { ReactNode } from "react";
 import { View } from "react-native";
@@ -41,11 +44,13 @@ export function SmallBar({
   trailing?: ReactNode;
   children?: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SMALL_BAR_BUTTON, SMALL_BAR_GAP, SMALL_BAR_ROW, SMALL_FIELD_GAP, MID, FIELD_HEIGHT } = useMemo(() => ({ SMALL_BAR_BUTTON: scaleMetrics(BASE_INTERFACE_METRICS.SMALL_BAR_BUTTON, interfaceScale), SMALL_BAR_GAP: scaleMetrics(BASE_INTERFACE_METRICS.SMALL_BAR_GAP, interfaceScale), SMALL_BAR_ROW: scaleMetrics(BASE_INTERFACE_METRICS.SMALL_BAR_ROW, interfaceScale), SMALL_FIELD_GAP: scaleMetrics(BASE_INTERFACE_METRICS.SMALL_FIELD_GAP, interfaceScale), MID: scaleMetrics(BASE_INTERFACE_METRICS.MID, interfaceScale), FIELD_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.FIELD_HEIGHT, interfaceScale) }), [interfaceScale]);
   const count = buttons.length + (trailing ? 1 : 0);
   const buttonsWidth = count * SMALL_BAR_BUTTON + Math.max(0, count - 1) * SMALL_BAR_GAP;
   return (
     <ToolbarRowContext.Provider value={SMALL_BAR_ROW}>
-      <View style={{ height: SMALL_BAR_HEIGHT }}>
+      <View style={{ height: SMALL_BAR_HEIGHT * interfaceScale }}>
         {children}
         <View style={{ position: "absolute", left: fieldLeft, right: SMALL_INSET + buttonsWidth + SMALL_FIELD_GAP, maxWidth: fieldMaxWidth, top: MID - FIELD_HEIGHT / 2, height: FIELD_HEIGHT }}>{field}</View>
         <View style={{ position: "absolute", right: SMALL_INSET, top: MID - SMALL_BAR_BUTTON / 2, flexDirection: "row", gap: SMALL_BAR_GAP }}>
@@ -60,6 +65,8 @@ export function SmallBar({
 }
 
 export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?: boolean; label?: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, radius, HOST, FLEX, PROGRESS_PLACE } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), HOST: scaleMetrics(BASE_INTERFACE_METRICS.HOST, interfaceScale), FLEX: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FLEX, interfaceScale), PROGRESS_PLACE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.PROGRESS_PLACE, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const live = useTabLive(tab.id);
   const insecure = usePage(tab.id, (p) => !!insecureLevel(p)) && !!tab.url;
@@ -80,18 +87,18 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
       }}
     >
       {insecure ? (
-        <Symbol name="lock.open.trianglebadge.exclamationmark.fill" size={12} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
+        <Symbol name="lock.open.trianglebadge.exclamationmark.fill" size={12} color={theme.textSecondary} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
       ) : tab.url ? (
         <Favicon url={tab.url} favicon={tab.favicon} profileId={tab.profileId} />
       ) : (
-        <Symbol name="magnifyingglass" size={12} color={theme.placeholder} style={{ width: 16, height: 16 }} />
+        <Symbol name="magnifyingglass" size={12} color={theme.placeholder} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
       )}
       {tab.url ? (
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
           <Text accessible={!!label} accessibilityLabel={label} lines={1} ellipsizeMode="head" weight="medium" style={HOST}>
             {host}
           </Text>
-          {title && title !== host ? <FadeLabel text={`  ${title}`} fontSize={font.body.fontSize} color={theme.textSecondary} fadeWidth={14} style={{ flex: 1, height: 18 }} /> : null}
+          {title && title !== host ? <FadeLabel text={`  ${title}`} fontSize={font.body.fontSize} color={theme.textSecondary} fadeWidth={14} style={{ flex: 1, height: 18 * interfaceScale }} /> : null}
         </View>
       ) : (
         <Text lines={1} tone="placeholder" style={FLEX}>
@@ -107,3 +114,5 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
   );
 }
 
+
+const BASE_INTERFACE_METRICS = { SMALL_BAR_BUTTON, SMALL_BAR_GAP, SMALL_BAR_ROW, SMALL_FIELD_GAP, MID, FIELD_HEIGHT, space, radius, HOST, FLEX, PROGRESS_PLACE };

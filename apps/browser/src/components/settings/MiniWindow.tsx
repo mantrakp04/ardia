@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { View, type DimensionValue } from "react-native";
 import { capsule, radius } from "../ui";
@@ -28,6 +31,8 @@ export function MiniWindow({
   size?: MiniWindowSize;
   children?: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const g = miniWindow[size];
   const widths = typeof bars === "number" ? Array.from({ length: bars }, () => 1) : bars;
   const barColor = (i: number) => (i === accentBar && look.accent ? look.accent : look.bar);
@@ -68,3 +73,5 @@ export function MiniWindow({
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { radius };

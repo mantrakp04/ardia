@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import type { SearchScope } from "@ardia/core";
 import { memo, useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet } from "react-native";
@@ -8,6 +11,8 @@ import { brandColorFor, pulseInk } from "./pulseInk";
 import { SCOPE_PULSE } from "./tokens";
 
 export const ScopePulse = memo(function ScopePulse({ scope, shape, profileId }: { scope: SearchScope | null; shape: keyof typeof SCOPE_PULSE.radius; profileId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SCOPE_PULSE } = useMemo(() => ({ SCOPE_PULSE: scaleMetrics(BASE_INTERFACE_METRICS.SCOPE_PULSE, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const host = scope?.host ?? "";
   const brand = host ? brandColorFor(host) : null;
@@ -47,13 +52,13 @@ export const ScopePulse = memo(function ScopePulse({ scope, shape, profileId }: 
     if (reduceMotion()) return glow.setValue(0);
     running.current = Animated.timing(glow, { toValue: 0, duration: duration.base, easing: curve.exit, useNativeDriver: true });
     running.current.start();
-  }, [scope]);
+  }, [scope, interfaceScale]);
 
   useEffect(() => {
     if (scope && !colorPending) play(scope);
-  }, [scope, colorPending]);
+  }, [scope, colorPending, interfaceScale]);
 
-  useEffect(() => () => running.current?.stop(), []);
+  useEffect(() => () => running.current?.stop(), [interfaceScale]);
 
   if (!ink) return null;
   return (
@@ -72,3 +77,5 @@ export const ScopePulse = memo(function ScopePulse({ scope, shape, profileId }: 
     />
   );
 });
+
+const BASE_INTERFACE_METRICS = { SCOPE_PULSE };

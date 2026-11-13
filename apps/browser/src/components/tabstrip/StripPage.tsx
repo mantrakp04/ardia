@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { memo, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Animated, ScrollView, View } from "react-native";
 import { PageProfileContext, useWindowId } from "../../state/browser/hooks";
@@ -24,6 +26,8 @@ type Hold = { chip: number; end: number };
 const stripEnd = ({ slots, lefts }: DragGeometry) => (slots.length ? lefts.at(-1)! + slots.at(-1)!.width : 0);
 
 export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, current, resting }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FLARE, GAP } = useMemo(() => ({ FLARE: scaleMetrics(BASE_INTERFACE_METRICS.FLARE, interfaceScale), GAP: scaleMetrics(BASE_INTERFACE_METRICS.GAP, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const flare = useContext(FloatingStrip) ? 0 : FLARE;
   const pageStyle = usePageStyle(windowId, slot, pageWidth + flare * 2);
@@ -36,7 +40,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const chipOf = (groupId: string) => chipWidths[groupIds.indexOf(groupId)];
   const folderChip = (groupId: string) => folderWidths[folderIds.indexOf(groupId)];
   const dockEntry = parsed.find((e) => e.kind === "dock");
-  const dock = useMemo(() => layoutDock(dockEntry), [dockEntry]);
+  const dock = useMemo(() => layoutDock(dockEntry), [dockEntry, interfaceScale]);
   const pointerIn = useRef(false);
   const held = useRef<Hold | null>(null);
   const last = useRef<Hold & { count: number }>(null);
@@ -82,7 +86,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
       if (x !== null) scroll.current?.scrollTo({ x, animated: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [activeId, current, releases]);
+  }, [activeId, current, releases, interfaceScale]);
   let slotIndex = 0;
   const gap = (i: number) => (incoming.active ? <IncomingGap key={`gap${i}`} open={incoming.at === i} width={chip} origin={i === 0 ? incoming.origin : undefined} /> : null);
 
@@ -145,3 +149,5 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     </Animated.View>
   );
 });
+
+const BASE_INTERFACE_METRICS = { FLARE, GAP };

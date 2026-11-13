@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import type { DownloadSettings } from "../../../state/downloads/actions";
 import { checkForUpdates, setLaunchAtLogin } from "../../../state/app/appSettings";
 import { pickFolder } from "../../../state/app/system";
@@ -149,16 +152,18 @@ function DownloadsSection() {
 }
 
 function UpdatesSection() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CHECK_NOW, CHECK_SPINNER } = useMemo(() => ({ CHECK_NOW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.CHECK_NOW, interfaceScale), CHECK_SPINNER: scaleMetrics(BASE_INTERFACE_METRICS.CHECK_SPINNER, interfaceScale) }), [interfaceScale]);
   const [state, reload] = useResource(updater);
   const refresh = () => void reload();
   useEffect(() => {
     const sub = AppState.addEventListener("change", refresh);
     return () => sub.remove();
-  }, []);
+  }, [interfaceScale]);
   const busy = updaterBusy(state);
   useEffect(() => {
     if (busy) followUpdater();
-  }, [busy]);
+  }, [busy, interfaceScale]);
   if (!state?.available) return null;
   const ready = state.configured;
   const lastCheck = state.lastCheck
@@ -206,12 +211,14 @@ function UpdatesSection() {
 }
 
 function DefaultBrowserBanner() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BANNER, BANNER_ICON } = useMemo(() => ({ BANNER: scaleMetrics(BASE_INTERFACE_METRICS.BANNER, interfaceScale), BANNER_ICON: scaleMetrics(BASE_INTERFACE_METRICS.BANNER_ICON, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const [isDefault, reload] = useResource(defaultBrowser);
   useEffect(() => {
     const sub = AppState.addEventListener("change", () => void reload());
     return () => sub.remove();
-  }, []);
+  }, [interfaceScale]);
   return (
     <Anchor id="general.defaultBrowser" shape="card" style={BANNER}>
       <Group>
@@ -234,3 +241,5 @@ const BANNER_ICON = { width: 28, height: 28 } as const;
 
 const CHECK_NOW = { flexDirection: "row", alignItems: "center", gap: space.m } as const;
 const CHECK_SPINNER = { width: 14, height: 14 } as const;
+
+const BASE_INTERFACE_METRICS = { CHECK_NOW, CHECK_SPINNER, BANNER, BANNER_ICON };

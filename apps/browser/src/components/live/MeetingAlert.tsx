@@ -1,5 +1,6 @@
+import { RawText as Span } from "../ui/ScaledNative";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Text as Span, View } from "react-native";
+import { Animated, View } from "react-native";
 import { dismiss, joinEvent, useMeetingAlert } from "../../state/live/alerts";
 import { useCalendar, useNow } from "../../state/live/calendar";
 import { attendeesLabel, guestsLabel, joinLink, joinTitle, relatedLinks, relativeTime, timeRange, type CalendarEvent } from "../../state/live/meetings";

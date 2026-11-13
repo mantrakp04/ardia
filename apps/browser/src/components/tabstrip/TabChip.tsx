@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useContext, useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { toggleMute } from "../../state/browser/actions";
@@ -49,6 +52,8 @@ export function DraggableChip({
   tuck?: () => void;
   out?: GroupOut;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PINNED_CELL, GAP, ITEM_TOP } = useMemo(() => ({ PINNED_CELL: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_CELL, interfaceScale), GAP: scaleMetrics(BASE_INTERFACE_METRICS.GAP, interfaceScale), ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale) }), [interfaceScale]);
   const active = useIsActiveTab(tabId);
   const windowId = useWindowId();
   const dragToGroup = useSettings((s) => s.dragToGroupInTopStrip);
@@ -114,6 +119,8 @@ export function useWebsiteBand(tabId: string) {
 }
 
 export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width: number; tuck?: () => void; dragged: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TOP_STRIP_HEIGHT, ITEM_TOP, ITEM_HEIGHT, TAB_RADIUS, CHIP_LABEL_GAP, iconButton } = useMemo(() => ({ TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale), ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale), ITEM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_HEIGHT, interfaceScale), TAB_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TAB_RADIUS, interfaceScale), CHIP_LABEL_GAP: scaleMetrics(BASE_INTERFACE_METRICS.CHIP_LABEL_GAP, interfaceScale), iconButton: scaleMetrics(BASE_INTERFACE_METRICS.iconButton, interfaceScale) }), [interfaceScale]);
   const onTint = useTheme();
   const windowId = useWindowId();
   const tab = useTab(tabId);
@@ -149,13 +156,13 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
               </View>
               {(playing || mute) && (
                 <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: CHIP_LABEL_GAP }} tooltip={muteTitle(mute)}>
-                  <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
+                  <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
                 </Pressable>
               )}
               {away ? (
                 <AwayTitleLabel away={away} color={ink} fontSize={font.small.fontSize} height={16} style={{ flex: 1, marginLeft: CHIP_LABEL_GAP }} />
               ) : (
-                <FadeLabel text={title} fontSize={font.small.fontSize} color={ink} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }} />
+                <FadeLabel text={title} fontSize={font.small.fontSize} color={ink} style={{ flex: 1, height: 16 * interfaceScale, marginLeft: CHIP_LABEL_GAP }} />
               )}
               <HoverSlot
                 hovered={hovered}
@@ -182,6 +189,8 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
 }
 
 export function OntoRing({ width }: { width: number | Animated.Value }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ITEM_TOP, ITEM_HEIGHT, TAB_RADIUS, DROP_RING_WIDTH } = useMemo(() => ({ ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale), ITEM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_HEIGHT, interfaceScale), TAB_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TAB_RADIUS, interfaceScale), DROP_RING_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.DROP_RING_WIDTH, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
     <FadeIn
@@ -202,6 +211,8 @@ export function OntoRing({ width }: { width: number | Animated.Value }) {
 }
 
 export function ItemRow({ hovered, pressed, padded = true, children }: { hovered: boolean; pressed: boolean; padded?: boolean; children: React.ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ITEM_TOP, ITEM_HEIGHT, TAB_RADIUS, CHIP_PAD } = useMemo(() => ({ ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale), ITEM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_HEIGHT, interfaceScale), TAB_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TAB_RADIUS, interfaceScale), CHIP_PAD: scaleMetrics(BASE_INTERFACE_METRICS.CHIP_PAD, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
     <View
@@ -223,3 +234,5 @@ export function ItemRow({ hovered, pressed, padded = true, children }: { hovered
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { PINNED_CELL, GAP, ITEM_TOP, TOP_STRIP_HEIGHT, ITEM_HEIGHT, TAB_RADIUS, CHIP_LABEL_GAP, iconButton, DROP_RING_WIDTH, CHIP_PAD };

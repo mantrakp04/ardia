@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { holdThemedWindowsKeyLook, choosePresetColor, setProfileTheme } from "../../state/profiles/themeActions";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, View } from "react-native";
@@ -126,6 +129,8 @@ export function ThemePicker({
   onPreset?: (color: ProfileColor) => void;
   onTheme?: (theme: ProfileTheme) => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const profileId = useWindow(windowId, (w) => w?.profileId) ?? "";
   const incognito = useWindow(windowId, (w) => w?.kind === "private");
   const look = useThemeDraft(profileId, (theme) => (onTheme ? onTheme(theme) : setProfileTheme(profileId, theme)));
@@ -182,6 +187,8 @@ export function ThemeSwatches({
 }
 
 function ColorButton({ name, ring, size, selected, onPress, children }: { name: string; ring: string; size: number; selected: boolean; onPress: () => void; children?: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PRESSED_SCALE } = useMemo(() => ({ PRESSED_SCALE: BASE_INTERFACE_METRICS.PRESSED_SCALE }), [interfaceScale]);
   return (
     <View tooltip={name}>
       <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={name}>
@@ -198,10 +205,12 @@ function ColorButton({ name, ring, size, selected, onPress, children }: { name: 
 }
 
 function FadeIn({ children }: { children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FADE_RISE } = useMemo(() => ({ FADE_RISE: scaleMetrics(BASE_INTERFACE_METRICS.FADE_RISE, interfaceScale) }), [interfaceScale]);
   const t = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(t, { toValue: 1, duration: duration.base, easing: curve.enter, useNativeDriver: true }).start();
-  }, []);
+  }, [interfaceScale]);
   return <Animated.View style={{ opacity: t, transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [FADE_RISE, 0] }) }] }}>{children}</Animated.View>;
 }
 
@@ -219,6 +228,8 @@ const RAINBOW: ProfileTheme = {
 };
 
 export function CustomSwatch({ theme }: { theme: ProfileTheme | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RAINBOW } = useMemo(() => ({ RAINBOW: scaleMetrics(BASE_INTERFACE_METRICS.RAINBOW, interfaceScale) }), [interfaceScale]);
   return <ThemeSwatch colors={flatColors(theme ?? RAINBOW)} angle={theme ? lookAngle(theme) : DEFAULT_THEME_ANGLE} style={{ flex: 1 }} />;
 }
 
@@ -269,6 +280,8 @@ export function ThemeEditor({
   full?: { shown: ShownLook; followsApp: boolean };
   onChange: (next: ProfileTheme, settle?: boolean) => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FILL, TEXTURE_NAMES, KEPT_NOTE } = useMemo(() => ({ FILL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FILL, interfaceScale), TEXTURE_NAMES: scaleMetrics(BASE_INTERFACE_METRICS.TEXTURE_NAMES, interfaceScale), KEPT_NOTE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.KEPT_NOTE, interfaceScale) }), [interfaceScale]);
   const stacked = !full;
   return (
     <Box row gap="xl">
@@ -310,6 +323,8 @@ export function ThemeEditor({
 }
 
 function EditorRow({ label, stacked, children }: { label: string; stacked?: boolean; children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LABELLED_ROW, EDITOR_LABEL } = useMemo(() => ({ LABELLED_ROW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.LABELLED_ROW, interfaceScale), EDITOR_LABEL: scaleMetrics(BASE_INTERFACE_METRICS.EDITOR_LABEL, interfaceScale) }), [interfaceScale]);
   if (stacked) return <Labelled label={label}>{children}</Labelled>;
   return (
     <View style={LABELLED_ROW}>
@@ -328,3 +343,5 @@ const KEPT_NOTE = { flex: 1, marginLeft: space.m } as const;
 const PRESSED_SCALE = 0.94;
 const FADE_RISE = 4;
 const MODE_OPTIONS = MODES.map((m) => ({ value: m.value, title: m.title, image: m.symbol }));
+
+const BASE_INTERFACE_METRICS = { space, PRESSED_SCALE, FADE_RISE, RAINBOW, FILL, TEXTURE_NAMES, KEPT_NOTE, LABELLED_ROW, EDITOR_LABEL };

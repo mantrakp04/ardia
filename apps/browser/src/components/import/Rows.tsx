@@ -1,5 +1,9 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { RawText as NativeText } from "../ui/ScaledNative";
 import type { ReactNode } from "react";
-import { Image, Pressable, Text as NativeText, View } from "react-native";
+import { Image, Pressable, View } from "react-native";
 import { plural } from "../../state/browser/model";
 import { capsule, Checkbox, Dot, ink, Radio, Row, space, Symbol, Text, useTheme } from "../ui";
 import { SelectableCard } from "../settings/SelectableCard";
@@ -20,15 +24,17 @@ function browserDetail(browser: BrowserSource) {
 }
 
 export function BrowserRow({ browser, selected, onPress }: { browser: BrowserSource; selected: boolean; onPress: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BROWSER_ROW } = useMemo(() => ({ BROWSER_ROW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.BROWSER_ROW, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const detail = browserDetail(browser);
   return (
     <SelectableCard selected={selected} onPress={onPress} style={BROWSER_ROW}>
       <Radio on={selected} look="form" />
       {browser.iconPath ? (
-        <Image source={{ uri: `file://${browser.iconPath}` }} style={{ width: 32, height: 32 }} />
+        <Image source={{ uri: `file://${browser.iconPath}` }} style={{ width: 32 * interfaceScale, height: 32 * interfaceScale }} />
       ) : (
-        <Symbol name="globe" size={22} color={theme.icon} style={{ width: 32, height: 32 }} />
+        <Symbol name="globe" size={22} color={theme.icon} style={{ width: 32 * interfaceScale, height: 32 * interfaceScale }} />
       )}
       <Text size="title" weight="medium" style={{ flex: 1 }}>
         {browser.name}
@@ -38,7 +44,7 @@ export function BrowserRow({ browser, selected, onPress }: { browser: BrowserSou
           {detail}
         </Text>
       ) : null}
-      {browser.needsKeychain && <Symbol name="lock" size={11} color={theme.textTertiary} style={{ width: 14, height: 14 }} />}
+      {browser.needsKeychain && <Symbol name="lock" size={11} color={theme.textTertiary} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />}
     </SelectableCard>
   );
 }
@@ -73,6 +79,7 @@ export function Monogram({ name, color }: { name: string; color?: string }) {
 }
 
 export function SpaceIcon({ space: summary }: { space: SpaceSummary }) {
+  const interfaceScale = useInterfaceMetrics().factor;
   const size = importLayout.avatar;
   return (
     <View
@@ -88,7 +95,7 @@ export function SpaceIcon({ space: summary }: { space: SpaceSummary }) {
       {summary.emoji ? (
         <NativeText style={{ fontSize: importType.emoji }}>{summary.emoji}</NativeText>
       ) : (
-        <Symbol name="square.stack" size={12} color={ink.white} style={{ width: 16, height: 16 }} />
+        <Symbol name="square.stack" size={12} color={ink.white} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
       )}
     </View>
   );
@@ -98,3 +105,5 @@ export function ProfileAvatar({ path, name, color }: { path?: string; name: stri
   const size = importLayout.avatar;
   return path ? <Image source={{ uri: `file://${path}` }} style={{ width: size, height: size, borderRadius: capsule(size) }} /> : <Monogram name={name} color={color} />;
 }
+
+const BASE_INTERFACE_METRICS = { BROWSER_ROW };

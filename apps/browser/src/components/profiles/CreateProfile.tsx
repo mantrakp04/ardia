@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useWindowId } from "../../state/browser/hooks";
@@ -32,10 +34,12 @@ export function CreateProfileHost() {
 }
 
 function CreateProfileSheet({ windowId, preset, onDone }: { windowId: string | null; preset: CreateProfilePreset; onDone: (id: string | null) => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius, FLEX } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), FLEX: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FLEX, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const profiles = useProfileRecords();
   const profileOrder = useProfileOrder();
-  const groups = useMemo(() => dataGroups({ profiles, profileOrder }), [profiles, profileOrder]);
+  const groups = useMemo(() => dataGroups({ profiles, profileOrder }), [profiles, profileOrder, interfaceScale]);
   const current = useCreateProfileShareDefault(windowId);
   const [name, setName] = useState(preset.name ?? "");
   const [color, setColor] = useState<ProfileColor>(() => unusedProfileColor(currentProfiles()));
@@ -112,3 +116,5 @@ export function ColorStack({ colors: swatches, size = 12 }: { colors: string[]; 
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { radius, FLEX };

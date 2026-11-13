@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Animated, View } from "react-native";
 import { setInsert, setInsertResolver, useTabDrag } from "../../state/drag/tabDrag";
@@ -43,10 +46,12 @@ function incomingIndex(top: DragGeometry, point: [number, number] | null, start:
 }
 
 export function IncomingGap({ open, width, origin }: { open: boolean; width: number; origin?: React.RefObject<View | null> }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TOP_STRIP_HEIGHT, GAP } = useMemo(() => ({ TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale), GAP: scaleMetrics(BASE_INTERFACE_METRICS.GAP, interfaceScale) }), [interfaceScale]);
   const room = useRef(new Animated.Value(open ? 1 : 0)).current;
   useEffect(() => {
     Animated.timing(room, { toValue: open ? 1 : 0, duration: INCOMING_GAP_MS, easing: curve.enter, useNativeDriver: false }).start();
-  }, [open]);
+  }, [open, interfaceScale]);
   return (
     <Animated.View
       ref={origin}
@@ -59,3 +64,5 @@ export function IncomingGap({ open, width, origin }: { open: boolean; width: num
     />
   );
 }
+
+const BASE_INTERFACE_METRICS = { TOP_STRIP_HEIGHT, GAP };

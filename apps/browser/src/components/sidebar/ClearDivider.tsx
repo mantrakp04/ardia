@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { memo, useState, type ReactNode } from "react";
 import { Animated, Image, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
@@ -21,6 +24,8 @@ type PinnedFold = { collapsed: boolean; open: Animated.Value };
 type DividerProps = { windowId: string; profileId: string; lift: number; clear: boolean; tidy: boolean; pinned: PinnedFold | null };
 
 export const ClearDivider = memo(function ClearDivider({ windowId, profileId, lift, clear, tidy, pinned }: DividerProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PADDING, CLEAR_DIVIDER_HEIGHT, space, ACTIONS_DIVIDER } = useMemo(() => ({ PADDING: scaleMetrics(BASE_INTERFACE_METRICS.PADDING, interfaceScale), CLEAR_DIVIDER_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.CLEAR_DIVIDER_HEIGHT, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), ACTIONS_DIVIDER: scaleMetrics(BASE_INTERFACE_METRICS.ACTIONS_DIVIDER, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered: shown, hoverProps } = useHover();
   const [lineWidth, setLineWidth] = useState(0);
@@ -43,7 +48,7 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, li
         {pinned ? <HoverSlot hovered={foldShown} width="content" reserve="hover" align="start" hover={<FoldButton pinned={pinned} onPress={() => togglePinnedFold(profileId)} />} /> : null}
         <View style={{ flex: 1, height: 1, overflow: "hidden" }}>
           {lineWidth ? (
-            <View style={{ position: "absolute", left: 0, top: -1, width: lineWidth, height: 2, borderBottomWidth: 1, borderStyle: "dashed", borderColor: theme.divider }} />
+            <View style={{ position: "absolute", left: 0, top: -1, width: lineWidth, height: 2 * interfaceScale, borderBottomWidth: 1, borderStyle: "dashed", borderColor: theme.divider }} />
           ) : null}
         </View>
         {actions ? (
@@ -58,7 +63,7 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, li
                     title="Tidy"
                     label="Tidy Tabs"
                     onPress={() => tidyTabs(windowId, "tabs", profileId)}
-                    icon={(color) => <Image source={BROOM} style={{ width: 11, height: 11, marginRight: space.xs, tintColor: color }} />}
+                    icon={(color) => <Image source={BROOM} style={{ width: 11 * interfaceScale, height: 11 * interfaceScale, marginRight: space.xs, tintColor: color }} />}
                   />
                 ) : null}
                 {tidy && clear ? <Divider vertical thick length={9} style={ACTIONS_DIVIDER} /> : null}
@@ -67,7 +72,7 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, li
                     title="Clear"
                     label="Clear unpinned tabs"
                     onPress={() => closeAllTabs(windowId)}
-                    icon={(color) => <Symbol name="arrow.down" size={9} weight="semibold" color={color} style={{ width: 8, height: 11, marginRight: space.xs }} />}
+                    icon={(color) => <Symbol name="arrow.down" size={9} weight="semibold" color={color} style={{ width: 8 * interfaceScale, height: 11 * interfaceScale, marginRight: space.xs }} />}
                   />
                 ) : null}
               </>
@@ -80,6 +85,8 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, li
 });
 
 function FoldButton({ pinned, onPress }: { pinned: PinnedFold; onPress: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CLEAR_DIVIDER_HEIGHT, space } = useMemo(() => ({ CLEAR_DIVIDER_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.CLEAR_DIVIDER_HEIGHT, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const label = pinned.collapsed ? PINNED_FOLD_TITLES.expand : PINNED_FOLD_TITLES.collapse;
@@ -91,8 +98,8 @@ function FoldButton({ pinned, onPress }: { pinned: PinnedFold; onPress: () => vo
           const color = pressed ? theme.textSecondary : hovered ? theme.textPrimary : theme.textTertiary;
           return (
             <View style={{ height: CLEAR_DIVIDER_HEIGHT, flexDirection: "row", alignItems: "center", paddingRight: space.m }}>
-              <Animated.View style={{ width: 10, height: 10, marginRight: space.xs, alignItems: "center", justifyContent: "center", transform: [{ rotate }] }}>
-                <Symbol name="chevron.down" size={8} weight="semibold" color={color} style={{ width: 10, height: 10 }} />
+              <Animated.View style={{ width: 10 * interfaceScale, height: 10 * interfaceScale, marginRight: space.xs, alignItems: "center", justifyContent: "center", transform: [{ rotate }] }}>
+                <Symbol name="chevron.down" size={8} weight="semibold" color={color} style={{ width: 10 * interfaceScale, height: 10 * interfaceScale }} />
               </Animated.View>
               <Text size="tiny" weight="medium" color={color}>
                 Pinned
@@ -106,6 +113,8 @@ function FoldButton({ pinned, onPress }: { pinned: PinnedFold; onPress: () => vo
 }
 
 function DividerButton({ title, label, onPress, icon }: { title: string; label: string; onPress: () => void; icon: (color: string) => ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CLEAR_DIVIDER_HEIGHT, space } = useMemo(() => ({ CLEAR_DIVIDER_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.CLEAR_DIVIDER_HEIGHT, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
@@ -126,3 +135,5 @@ function DividerButton({ title, label, onPress, icon }: { title: string; label: 
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { PADDING, CLEAR_DIVIDER_HEIGHT, space, ACTIONS_DIVIDER };

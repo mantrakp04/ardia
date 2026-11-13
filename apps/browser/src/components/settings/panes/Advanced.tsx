@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useState } from "react";
 import { View } from "react-native";
 import { systemInfo } from "../../../state/app/system";
@@ -32,6 +35,8 @@ const MEMORY_SAVER_MODES: Record<MemorySaverMode, { title: string; description: 
 const MEMORY_SAVER_OPTIONS = Object.entries(MEMORY_SAVER_MODES).map(([value, { title }]) => ({ value: value as MemorySaverMode, title }));
 
 export function AdvancedPane() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BATTERY_SAVER_DESCRIPTIONS } = useMemo(() => ({ BATTERY_SAVER_DESCRIPTIONS: scaleMetrics(BASE_INTERFACE_METRICS.BATTERY_SAVER_DESCRIPTIONS, interfaceScale) }), [interfaceScale]);
   const hideBookmarksBarImport = useSettings((s) => s.hideBookmarksBarImport);
   const memorySaverMode = useSettings((s) => s.memorySaverMode);
   const batterySaverWhen = useSettings((s) => s.batterySaverWhen);
@@ -128,6 +133,8 @@ export function AdvancedPane() {
 }
 
 function CommandLineSection() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { INSTALL_NOTE } = useMemo(() => ({ INSTALL_NOTE: scaleMetrics(BASE_INTERFACE_METRICS.INSTALL_NOTE, interfaceScale) }), [interfaceScale]);
   const on = useSettings((s) => s.cliControl);
   const cli = useCli();
   const server = cli.server;
@@ -189,6 +196,8 @@ function KeepActiveSites({ sites }: { sites: string[] }) {
 }
 
 function KeepActiveSiteSheet() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ERROR } = useMemo(() => ({ ERROR: scaleMetrics(BASE_INTERFACE_METRICS.ERROR, interfaceScale) }), [interfaceScale]);
   const [site, setSite] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -220,3 +229,5 @@ function KeepActiveSiteSheet() {
 
 const INSTALL_NOTE = { marginTop: space.xxs, lineHeight: lineHeight.caption } as const;
 const ERROR = { marginTop: space.ml } as const;
+
+const BASE_INTERFACE_METRICS = { BATTERY_SAVER_DESCRIPTIONS, INSTALL_NOTE, ERROR };

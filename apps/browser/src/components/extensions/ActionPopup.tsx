@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { closeExtensionPopup } from "../../state/extensions/actions";
@@ -11,6 +14,8 @@ const MIN = { width: 25, height: 25 };
 const MAX = { width: 800, height: 600 };
 
 export function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string; pageProfile: string; extensionId: string; url: string; anchor: { x: number; y: number; width: number; height: number } }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { MAX, MIN, PANEL, EXTENSION_PAGE_BACKGROUND } = useMemo(() => ({ MAX: scaleMetrics(BASE_INTERFACE_METRICS.MAX, interfaceScale), MIN: scaleMetrics(BASE_INTERFACE_METRICS.MIN, interfaceScale), PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale), EXTENSION_PAGE_BACKGROUND: scaleMetrics(BASE_INTERFACE_METRICS.EXTENSION_PAGE_BACKGROUND, interfaceScale) }), [interfaceScale]);
   const colors = useExtensionColors();
   const web = useRef<WebViewHandle>(null);
   const screen = useWindowDimensions();
@@ -25,13 +30,13 @@ export function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: 
     return () => {
       alive.current = false;
     };
-  }, []);
+  }, [interfaceScale]);
 
   const tabId = useShownPageId(windowId);
   const openedOn = useRef(tabId);
   useEffect(() => {
     if (tabId !== openedOn.current) closeExtensionPopup();
-  }, [tabId]);
+  }, [tabId, interfaceScale]);
 
   const resize = (w: number, h: number) => {
     const next = {
@@ -102,3 +107,5 @@ export function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: 
     </>
   );
 }
+
+const BASE_INTERFACE_METRICS = { MAX, MIN, PANEL, EXTENSION_PAGE_BACKGROUND };

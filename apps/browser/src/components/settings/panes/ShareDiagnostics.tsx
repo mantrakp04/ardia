@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { setSharing, useTelemetry } from "../../../state/telemetry/client";
@@ -45,13 +48,15 @@ function WatchRow() {
 }
 
 function IdentityRow() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { AVATAR_SIZE } = useMemo(() => ({ AVATAR_SIZE: scaleMetrics(BASE_INTERFACE_METRICS.AVATAR_SIZE, interfaceScale) }), [interfaceScale]);
   const installId = useInstallId();
   if (!installId) return <Row anchor="privacy.anonymousId" title={IDENTITY_COPY.noId} description={IDENTITY_COPY.noIdDetail} />;
   const { name, avatar } = identityFor(installId);
   return (
     <Row
       anchor="privacy.anonymousId"
-      icon={<AnonymousAvatar avatar={avatar} size={AVATAR_SIZE} />}
+      icon={<AnonymousAvatar avatar={avatar} size={BASE_INTERFACE_METRICS.AVATAR_SIZE} />}
       title={IDENTITY_COPY.appearAs(name)}
       description={IDENTITY_COPY.idDetail(shortInstallId(installId))}
     >
@@ -105,6 +110,8 @@ function ResetIdSheet() {
 }
 
 export function WhatsSentSheet() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LIST, ITEM, FOOTNOTE } = useMemo(() => ({ LIST: scaleMetrics(BASE_INTERFACE_METRICS.LIST, interfaceScale), ITEM: scaleMetrics(BASE_INTERFACE_METRICS.ITEM, interfaceScale), FOOTNOTE: scaleMetrics(BASE_INTERFACE_METRICS.FOOTNOTE, interfaceScale) }), [interfaceScale]);
   const groups = [...WHATS_SENT.slice(0, -1), { title: SHARING_COPY.keptOnThisMac, items: [...LOCAL_COPY.items] }, WHATS_SENT.at(-1)!];
   return (
     <Sheet size="l" onClose={closeSettingsSheet}>
@@ -144,3 +151,5 @@ export function WhatsSentSheet() {
 const LIST = { maxHeight: 420, marginTop: space.xs } as const;
 const ITEM = { lineHeight: proseLineHeight.small } as const;
 const FOOTNOTE = { lineHeight: lineHeight.caption } as const;
+
+const BASE_INTERFACE_METRICS = { AVATAR_SIZE, LIST, ITEM, FOOTNOTE };

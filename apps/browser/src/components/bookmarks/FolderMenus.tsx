@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
@@ -73,6 +76,8 @@ function usePresence(panels: FolderMenuPanel[]): Shown[] & { remove(panel: Folde
 const keyOf = (p: FolderMenuPanel) => `${p.level}:${p.key}`;
 
 function DragGhost({ windowId, layer }: { windowId: string; layer: MenuRect }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GHOST_TITLE } = useMemo(() => ({ GHOST_TITLE: scaleMetrics(BASE_INTERFACE_METRICS.GHOST_TITLE, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const size = useBarSize();
   const drag = useBarDrag(useShallow((s) => (s.windowId === windowId && s.source?.kind === "bookmark" ? { id: s.source.id, x: s.x, y: s.y, grab: s.grab, edge: s.sidebarEdge } : null)));
@@ -105,3 +110,5 @@ function DragGhost({ windowId, layer }: { windowId: string; layer: MenuRect }) {
 }
 
 const GHOST_TITLE = { flexShrink: 1 } as const;
+
+const BASE_INTERFACE_METRICS = { GHOST_TITLE };

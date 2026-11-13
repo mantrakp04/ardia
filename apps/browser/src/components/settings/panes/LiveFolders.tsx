@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { copyText } from "../../../state/app/system";
 import { focusWindow } from "../../../state/windows/nativeWindow";
 import { useEffect, useState, type ReactNode } from "react";
@@ -19,6 +22,8 @@ import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/s
 import { settingsType } from "../tokens";
 
 export function LiveFoldersPane() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { NOTE_TOP } = useMemo(() => ({ NOTE_TOP: scaleMetrics(BASE_INTERFACE_METRICS.NOTE_TOP, interfaceScale) }), [interfaceScale]);
   const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter(Boolean)));
   const profiles = useProfileRecords();
   useLive((s) => s.status);
@@ -108,6 +113,8 @@ function SourceRow({ id }: { id: LiveSourceId }) {
 
 
 function ConnectSheet({ id }: { id: LiveSourceId }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BODY_TOP, NOTE_TOP } = useMemo(() => ({ BODY_TOP: scaleMetrics(BASE_INTERFACE_METRICS.BODY_TOP, interfaceScale), NOTE_TOP: scaleMetrics(BASE_INTERFACE_METRICS.NOTE_TOP, interfaceScale) }), [interfaceScale]);
   const source = SOURCES[id];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +170,8 @@ const CODE = { ...settingsType.code, textAlign: "center", marginTop: space.xl } 
 const SPLIT = { marginVertical: space.xl } as const;
 
 function Help({ children }: { children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { HELP } = useMemo(() => ({ HELP: scaleMetrics(BASE_INTERFACE_METRICS.HELP, interfaceScale) }), [interfaceScale]);
   return (
     <Text size="small" tone="textSecondary" style={HELP}>
       {children}
@@ -171,10 +180,12 @@ function Help({ children }: { children: ReactNode }) {
 }
 
 function GithubConnect({ busy, run }: ConnectProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CODE, SPLIT } = useMemo(() => ({ CODE: scaleMetrics(BASE_INTERFACE_METRICS.CODE, interfaceScale), SPLIT: scaleMetrics(BASE_INTERFACE_METRICS.SPLIT, interfaceScale) }), [interfaceScale]);
   const [token, setToken] = useState("");
   const [clientId, setClientId] = useState(live().config.githubClientId);
   const [flow, setFlow] = useState<DeviceFlow | null>(null);
-  useEffect(() => () => flow?.cancel(), [flow]);
+  useEffect(() => () => flow?.cancel(), [flow, interfaceScale]);
 
   const signIn = () =>
     run(async () => {
@@ -316,3 +327,5 @@ function GoogleConnect({ busy, run }: ConnectProps) {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { NOTE_TOP, BODY_TOP, HELP, CODE, SPLIT };

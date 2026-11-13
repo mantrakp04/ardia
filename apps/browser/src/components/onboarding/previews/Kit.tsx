@@ -1,5 +1,6 @@
+import { RawText as Text } from "../../ui/ScaledNative";
 import type { ReactNode } from "react";
-import { Animated, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Animated, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Surface, Symbol } from "../../ui";
 import { hex } from "../../ui/theme";
 import { capsule, font, radius as radii, space, type ShadowLevel } from "../../ui/tokens";

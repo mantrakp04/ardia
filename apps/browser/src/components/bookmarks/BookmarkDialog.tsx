@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { prompt } from "../../state/app/system";
 import { useEffect, useState } from "react";
 import { useSidebarOpen, useSidebarSide, useWindowId } from "../../state/browser/hooks";
@@ -22,6 +25,8 @@ export function BookmarkDialog() {
 }
 
 function DialogPanel({ state }: { state: BookmarkDialogState }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SIDEBAR_HEADER_WITH_FIELD, layout } = useMemo(() => ({ SIDEBAR_HEADER_WITH_FIELD: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_HEADER_WITH_FIELD, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale) }), [interfaceScale]);
   const addressBar = useAddressBarInSidebar();
   const sidebarRight = useSidebarSide(state.windowId) === "right";
   const sidebarOpen = useSidebarOpen();
@@ -39,7 +44,7 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
 
   useEffect(() => {
     if (state.kind === "page" && !bookmark) close();
-  }, [bookmark]);
+  }, [bookmark, interfaceScale]);
 
   const done = () => {
     if (state.kind === "page") {
@@ -94,3 +99,5 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
     </Dialog>
   );
 }
+
+const BASE_INTERFACE_METRICS = { SIDEBAR_HEADER_WITH_FIELD, layout };

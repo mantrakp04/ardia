@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
@@ -41,6 +44,8 @@ export function placeMenu(panel: FolderMenuPanel, layer: MenuRect, width: number
 }
 
 export function FolderMenu({ windowId, panel, layer, closing, onClosed }: { windowId: string; panel: FolderMenuPanel; layer: MenuRect; closing: boolean; onClosed: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { HIDDEN, FOOTER_ROWS, PAD } = useMemo(() => ({ HIDDEN: scaleMetrics(BASE_INTERFACE_METRICS.HIDDEN, interfaceScale), FOOTER_ROWS: scaleMetrics(BASE_INTERFACE_METRICS.FOOTER_ROWS, interfaceScale), PAD: scaleMetrics(BASE_INTERFACE_METRICS.PAD, interfaceScale) }), [interfaceScale]);
   const size = useBarSize();
   const profileId = useBookmarkProfileId(windowId);
   const { parentId, fromIndex, level } = panel;
@@ -92,7 +97,7 @@ export function FolderMenu({ windowId, panel, layer, closing, onClosed }: { wind
           return { spot: { parentId, slot: fromIndex + hit.slot, zone } };
         },
       }),
-    [windowId, zone, height],
+    [windowId, zone, height, interfaceScale],
   );
 
   return (
@@ -187,6 +192,8 @@ function menuLineY(ids: string[], offsets: number[], dragged: string | null, slo
 }
 
 function MenuLine({ y }: { y: number | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FAVICON_LEFT, PANEL } = useMemo(() => ({ FAVICON_LEFT: scaleMetrics(BASE_INTERFACE_METRICS.FAVICON_LEFT, interfaceScale), PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const shown = useEased(y !== null);
   const top = useSlide(y ?? 0);
@@ -209,6 +216,8 @@ function MenuLine({ y }: { y: number | null }) {
 }
 
 function RowFrame({ size, children, plate = false, pressed = false, ring = false }: { size: BarSize; children: ReactNode; plate?: boolean; pressed?: boolean; ring?: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANEL } = useMemo(() => ({ PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const fill = useEased(plate || pressed);
   const ringOpacity = useEased(ring);
@@ -223,6 +232,8 @@ function RowFrame({ size, children, plate = false, pressed = false, ring = false
 }
 
 function ActionRow({ size, symbol, title, onPress, disabled }: { size: BarSize; symbol?: string; title: string; onPress: () => void; disabled?: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DISABLED, ICON_SLOT, PANEL, TITLE } = useMemo(() => ({ DISABLED: scaleMetrics(BASE_INTERFACE_METRICS.DISABLED, interfaceScale), ICON_SLOT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ICON_SLOT, interfaceScale), PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale), TITLE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.TITLE, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const [hovered, setHovered] = useState(false);
   return (
@@ -230,7 +241,7 @@ function ActionRow({ size, symbol, title, onPress, disabled }: { size: BarSize; 
       <Pressable onPress={onPress}>
         {({ pressed }) => (
           <RowFrame size={size} plate={hovered} pressed={pressed}>
-            <View style={ICON_SLOT}>{symbol ? <Symbol name={symbol} size={PANEL.iconSize} color={theme.icon} style={ICON_SLOT} /> : null}</View>
+            <View style={ICON_SLOT}>{symbol ? <Symbol name={symbol} size={BASE_INTERFACE_METRICS.PANEL.iconSize} color={theme.icon} style={ICON_SLOT} /> : null}</View>
             <Text size="body" lines={1} style={TITLE}>
               {title}
             </Text>
@@ -262,6 +273,8 @@ function FolderRow({
   onOpenChild: (id: string) => void;
   onView: (view: View | null) => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ICON_SLOT, MENU_ICON, TITLE, PANEL, CHEVRON } = useMemo(() => ({ ICON_SLOT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ICON_SLOT, interfaceScale), MENU_ICON: scaleMetrics(BASE_INTERFACE_METRICS.MENU_ICON, interfaceScale), TITLE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.TITLE, interfaceScale), PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale), CHEVRON: scaleMetrics(BASE_INTERFACE_METRICS.CHEVRON, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const node = useBookmarks((b) => b.nodes[id]);
   const view = useRef<View | null>(null);
@@ -275,7 +288,7 @@ function FolderRow({
   edge.current = sidebarEdge;
   const shift = useSlide(offset);
   const responder = useBookmarkDragResponder(view, () => ({ windowId, id, panel: panel.key, sidebarEdge: edge.current }), [windowId, id, panel.key]);
-  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+  useEffect(() => () => clearTimeout(hoverTimer.current), [interfaceScale]);
   if (!node) return null;
   const folder = node.kind === "folder";
   const enter = () => {
@@ -312,12 +325,12 @@ function FolderRow({
               {({ pressed }) => (
                 <RowFrame size={size} plate={(hovered && !anyDrag) || open || dropInto} pressed={pressed} ring={dropInto}>
                   <View style={ICON_SLOT}>
-                    <ChipIcon size={MENU_ICON} favicon={node.kind === "url" ? node : undefined} icon={folder ? "folder" : undefined} />
+                    <ChipIcon size={BASE_INTERFACE_METRICS.MENU_ICON} favicon={node.kind === "url" ? node : undefined} icon={folder ? "folder" : undefined} />
                   </View>
                   <Text size="body" lines={1} style={TITLE}>
                     {node.title || (node.kind === "url" ? node.url : "")}
                   </Text>
-                  {folder ? <Symbol name="chevron.right" size={PANEL.subtitleSize - 1} weight="semibold" color={theme.textSecondary} style={CHEVRON} /> : null}
+                  {folder ? <Symbol name="chevron.right" size={BASE_INTERFACE_METRICS.PANEL.subtitleSize - 1} weight="semibold" color={theme.textSecondary} style={CHEVRON} /> : null}
                 </RowFrame>
               )}
             </Pressable>
@@ -333,3 +346,5 @@ const ICON_SLOT = { width: PANEL.iconSlot, height: PANEL.iconSlot, alignItems: "
 const TITLE = { flex: 1 } as const;
 const CHEVRON = { width: folderMenu.chevronBox, height: folderMenu.chevronBox } as const;
 const DISABLED = { opacity: opacity.disabled } as const;
+
+const BASE_INTERFACE_METRICS = { HIDDEN, FOOTER_ROWS, PAD, FAVICON_LEFT, PANEL, DISABLED, ICON_SLOT, TITLE, MENU_ICON, CHEVRON };

@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { View } from "react-native";
 import { displayUrl } from "@ardia/core";
 import type { Tab } from "../../state/browser/types";
@@ -13,6 +16,8 @@ import { TabIcon } from "./TabIcon";
 import { TAB_ROW } from "./tokens";
 
 export function TabCardSummary({ tab }: { tab: Tab }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TAB_ROW, URL_LINE, space } = useMemo(() => ({ TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), URL_LINE: scaleMetrics(BASE_INTERFACE_METRICS.URL_LINE, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const sleeping = useIsSleeping(tab.id);
   const away = awayTitle(tab);
@@ -23,7 +28,7 @@ export function TabCardSummary({ tab }: { tab: Tab }) {
         {away ? (
           <AwayTitleLabel away={away} color={theme.textPrimary} fontSize={font.body.fontSize} weight="medium" height={18} style={{ flex: 1 }} />
         ) : (
-          <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
+          <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 * interfaceScale }} />
         )}
       </View>
       {tab.url ? (
@@ -33,7 +38,7 @@ export function TabCardSummary({ tab }: { tab: Tab }) {
       ) : null}
       {sleeping ? (
         <View accessible accessibilityLabel="Web content has been discarded" style={{ flexDirection: "row", alignItems: "center", gap: space.xs, marginTop: space.xs }}>
-          <Symbol name="moon.zzz" size={10} color={theme.textTertiary} style={{ width: 14, height: 14 }} />
+          <Symbol name="moon.zzz" size={10} color={theme.textTertiary} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />
           <Text size="caption" tone="textTertiary">
             This tab needs to reload
           </Text>
@@ -44,3 +49,5 @@ export function TabCardSummary({ tab }: { tab: Tab }) {
 }
 
 const URL_LINE = { marginTop: space.xs, lineHeight: lineHeight.caption } as const;
+
+const BASE_INTERFACE_METRICS = { TAB_ROW, URL_LINE, space };

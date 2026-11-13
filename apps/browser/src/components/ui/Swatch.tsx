@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, View } from "react-native";
 import { curve, duration } from "./motion";
@@ -23,6 +26,8 @@ export function Swatch({
   animated?: boolean;
   children?: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RING, DISC } = useMemo(() => ({ RING: scaleMetrics(BASE_INTERFACE_METRICS.RING, interfaceScale), DISC: scaleInterfaceStyle(BASE_INTERFACE_METRICS.DISC, interfaceScale) }), [interfaceScale]);
   if (animated)
     return (
       <LivelySwatch selected={selected} ring={ring} fill={fill} size={size}>
@@ -37,11 +42,13 @@ export function Swatch({
 }
 
 function LivelySwatch({ selected, ring, fill, size, children }: { selected: boolean; ring: string; fill?: string; size: number; children?: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LIVELY, swatch } = useMemo(() => ({ LIVELY: scaleMetrics(BASE_INTERFACE_METRICS.LIVELY, interfaceScale), swatch: scaleMetrics(BASE_INTERFACE_METRICS.swatch, interfaceScale) }), [interfaceScale]);
   const { hovered, hoverProps } = useHover();
   const t = useRef(new Animated.Value(selected ? 1 : 0)).current;
   useEffect(() => {
     Animated.timing(t, { toValue: selected ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: false }).start();
-  }, [selected]);
+  }, [selected, interfaceScale]);
   const disc = t.interpolate({ inputRange: [0, 1], outputRange: [size - 2 * (hovered ? LIVELY.hoverInset : LIVELY.restInset), size - 2 * LIVELY.selectedInset] });
   return (
     <View {...hoverProps} style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
@@ -50,3 +57,5 @@ function LivelySwatch({ selected, ring, fill, size, children }: { selected: bool
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { RING, DISC, LIVELY, swatch };

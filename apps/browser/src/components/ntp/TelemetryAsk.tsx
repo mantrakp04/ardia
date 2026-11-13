@@ -1,5 +1,6 @@
+import { RawText as Span } from "../ui/ScaledNative";
 import { useEffect, useState } from "react";
-import { Text as Span, View } from "react-native";
+import { View } from "react-native";
 import { useDefaultBrowserCheckIn } from "../../state/onboarding/defaultBrowserCheckIn";
 import { useWindow } from "../../state/browser/hooks";
 import { dismissAsk, setSharing, useTelemetry, type AskPlacement } from "../../state/telemetry/client";

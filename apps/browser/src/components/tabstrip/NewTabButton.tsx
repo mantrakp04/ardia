@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useEffect, useMemo, useRef } from "react";
 import { Animated } from "react-native";
 import type { ClickModifiers } from "../../lib/keys";
@@ -13,15 +15,17 @@ import { ITEM_HEIGHT, ITEM_TOP, NEW_TAB_ICON, TAB_RADIUS } from "./tokens";
 const NEW_TAB_HIT = { width: ITEM_HEIGHT, height: ITEM_HEIGHT, plateX: 0, plateY: 0, box: ITEM_HEIGHT, radius: TAB_RADIUS };
 
 export function NewTabButton({ windowId, geometry }: { windowId: string; geometry: DragGeometry }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ITEM_TOP, NEW_TAB_ICON, NEW_TAB_HIT } = useMemo(() => ({ ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale), NEW_TAB_ICON: scaleMetrics(BASE_INTERFACE_METRICS.NEW_TAB_ICON, interfaceScale), NEW_TAB_HIT: scaleMetrics(BASE_INTERFACE_METRICS.NEW_TAB_HIT, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const palette = useMemo<IconPalette>(
     () => ({ icon: theme.textSecondary, iconDisabled: theme.iconDisabled, hover: theme.tabHover, pressed: theme.tabPressed }),
-    [theme.textSecondary, theme.iconDisabled, theme.tabHover, theme.tabPressed],
+    [theme.textSecondary, theme.iconDisabled, theme.tabHover, theme.tabPressed, interfaceScale],
   );
   const shift = useRef(new Animated.Value(0)).current;
   const latest = useRef(geometry);
   latest.current = geometry;
-  useEffect(() => registerSlot(() => latest.current, () => latest.current.slots.length, shift), []);
+  useEffect(() => registerSlot(() => latest.current, () => latest.current.slots.length, shift), [interfaceScale]);
   const open = (modifiers: ClickModifiers) => {
     if (modifiers.altKey) openNewTabInSplit(windowId);
     else toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true });
@@ -32,3 +36,5 @@ export function NewTabButton({ windowId, geometry }: { windowId: string; geometr
     </Animated.View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { ITEM_TOP, NEW_TAB_ICON, NEW_TAB_HIT };

@@ -1,3 +1,6 @@
+import { interfaceMetrics } from "../../lib/interfaceMetrics";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { devRegister } from "../dev/devRegister";
 import { createContext, memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, View } from "react-native";
@@ -14,7 +17,6 @@ import { SIDEBAR_MOTION } from "./tokens";
 import { entryId, entryKey, parseEntry } from "../../state/sidebar/entryKey";
 import { splitTabIdsOf } from "../../state/splits/splits";
 import { noteSidebarMotionMerge } from "../../state/telemetry/usage";
-
 export const SLIDE_MS = SIDEBAR_MOTION.listSlide;
 export const FADE_MS = SIDEBAR_MOTION.listFade;
 export const SLIDE_EASING = curve.cssEase;
@@ -23,7 +25,6 @@ const GAP = layout.rowGap;
 const TAIL = "~tail";
 const FRAME_SLACK_MS = 50;
 const devScale = () => (__DEV__ ? ((globalThis as { sidebarMotionScale?: number }).sidebarMotionScale ?? 1) : 1);
-
 type Slide = { value: Animated.Value; from: number; at: number; until: number; landed: boolean };
 type Ghost = { key: string; anchor: string | null; y: number; snapshot: EntrySnapshot; opacity: Animated.Value; until: number };
 type Snapshot = ListSnapshot;
@@ -34,55 +35,46 @@ type Height = (s: BrowserState, entry: string) => number;
 type Planner = (before: Snapshot, after: Snapshot, slides: Map<string, Slide>, ghosts: Ghost[], t: number) => Plan | null;
 export type ListSlot = { entry: string } | { ghost: Ghost; top: number };
 export type ListMotionScope = { enabled: boolean; slideBelow: ((entry: string, delta: number) => void) | null };
-
 export const ListMotionContext = createContext<ListMotionScope>({ enabled: false, slideBelow: null });
 let ghostIds = 0;
-
 const tabsOf = (s: BrowserState, entry: string): string[] => {
   const { kind, id } = parseEntry(entry);
   if (kind === "group") return s.groups[id]?.tabIds ?? [];
   if (kind === "split") return splitTabIdsOf(s.splits[id]) ?? [];
   return [id];
 };
-
 const closedIn = (before: BrowserState, after: BrowserState) => (entry: string) => {
   const ids = tabsOf(before, entry);
   return ids.length > 0 && ids.every((id) => !after.tabs[id]);
 };
-
 const openedIn = (before: BrowserState, after: BrowserState) => (entry: string) => {
   const ids = tabsOf(after, entry);
   return ids.length > 0 && ids.every((id) => !before.tabs[id]);
 };
-
 function offsets(s: BrowserState, entries: string[], height: Height, start = 0, base = 0): Offsets {
   const at = new Map<string, number>();
   let y = base;
   for (let i = start; i < entries.length; i++) {
     at.set(entries[i]!, y);
-    y += height(s, entries[i]!) + GAP;
+    y += height(s, entries[i]!) + interfaceMetrics(s.settings.interfaceSize).rowGap;
   }
   return { at, end: y };
 }
-
 function sharedPrefix(a: string[], b: string[]): number {
   let i = 0;
   while (i < a.length && i < b.length && a[i] === b[i]) i++;
   return i;
 }
-
 function prefixHeight(s: BrowserState, entries: string[], count: number, height: Height): number {
   let y = 0;
-  for (let i = 0; i < count; i++) y += height(s, entries[i]!) + GAP;
+  for (let i = 0; i < count; i++) y += height(s, entries[i]!) + interfaceMetrics(s.settings.interfaceSize).rowGap;
   return y;
 }
-
 function shiftAt(slide: Slide | undefined, t: number): number {
   if (!slide) return 0;
   const p = Math.min(1, Math.max(0, (t - slide.at) / (SLIDE_MS * devScale())));
   return slide.from * (1 - SLIDE_EASING(p));
 }
-
 type Diff = {
   before: Snapshot;
   after: Snapshot;
@@ -98,7 +90,6 @@ type Diff = {
   clipAfter: string[];
   start: number;
 };
-
 function buildPlan({ before, after, old, next, removed, added, slides, ghosts, t, tail, snapshot, clipAfter, start }: Diff): Plan | null {
   const kept = new Set(after.list.slice(start));
   const had = new Set(before.list.slice(start));
@@ -130,7 +121,6 @@ function buildPlan({ before, after, old, next, removed, added, slides, ghosts, t
   });
   return { moves, ghosts: born, clipped, below: 0 };
 }
-
 function mergePlans(first: Plan, then: Plan): Plan {
   const later = new Set(then.moves.map((m) => m.key));
   return {
@@ -140,14 +130,11 @@ function mergePlans(first: Plan, then: Plan): Plan {
     below: first.below + then.below,
   };
 }
-
 type GroupChange = "same" | "grown" | "extended" | "other";
-
 function groupGrowsAtEnd(before: BrowserState, after: BrowserState, groupId: string): boolean {
   const last = groupEntries(after, groupId).at(-1);
   return !!last && !groupEntries(before, groupId).includes(last);
 }
-
 function groupChange(before: BrowserState, after: BrowserState, groupId: string): GroupChange {
   const was = before.groups[groupId];
   const now = after.groups[groupId];
@@ -162,7 +149,6 @@ function groupChange(before: BrowserState, after: BrowserState, groupId: string)
   if (!expanded || gone.length || !came.every((id) => !before.tabs[id])) return "other";
   return groupGrowsAtEnd(before, after, groupId) ? "grown" : "extended";
 }
-
 type Core = {
   devKey: string;
   entries: string[];
@@ -173,8 +159,9 @@ type Core = {
   nativeTail: boolean;
   below?: ((delta: number) => void) | null;
 };
-
 function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail, below }: Core) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SLIDE_EASING, FADE_EASING, GAP } = useMemo(() => ({ SLIDE_EASING: scaleMetrics(BASE_INTERFACE_METRICS.SLIDE_EASING, interfaceScale), FADE_EASING: scaleMetrics(BASE_INTERFACE_METRICS.FADE_EASING, interfaceScale), GAP: scaleMetrics(BASE_INTERFACE_METRICS.GAP, interfaceScale) }), [interfaceScale]);
   const slides = useRef(new Map<string, Slide>()).current;
   const contexts = useRef(new Map<string, EntryMotion>()).current;
   const clipped = useRef(new Set<string>()).current;
@@ -211,7 +198,6 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
   const clipping = useRef<object | null>(null);
   const [, rerender] = useState(0);
   if (enabled) devRegister("sidebarMotion", devKey, { slides, ghosts, clipped });
-
   const now = Date.now();
   for (const slide of slides.values()) {
     if (slide.until && now >= slide.until) {
@@ -220,7 +206,6 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
     }
   }
   if (ghosts.current.some((g) => g.until && now >= g.until)) ghosts.current = ghosts.current.filter((g) => !g.until || now < g.until);
-
   const prepare = (plan: Plan, at: number) => {
     for (const m of plan.moves) if (!slides.has(m.key)) slides.set(m.key, { value: new Animated.Value(m.from), from: m.from, at, until: 0, landed: false });
     ghosts.current = [...ghosts.current, ...plan.ghosts];
@@ -231,7 +216,6 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
     for (const key of next.clipped) clipped.add(key);
     queued.current = next;
   };
-
   const before = from.pending;
   if (before) {
     from.pending = null;
@@ -245,7 +229,6 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
     for (const key of contexts.keys()) if (!live.has(key)) contexts.delete(key);
     for (const key of clipped) if (key !== TAIL && !live.has(key)) clipped.delete(key);
   }
-
   const slideBelow = useRef((entry: string, delta: number) => {
     const list = latest.current;
     const i = list.indexOf(entry);
@@ -255,7 +238,6 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
     prepare({ moves: keys.map((key) => ({ key, from: shiftAt(slides.get(key), t) + delta })), ghosts: [], clipped: [list[i + 1] ?? TAIL], below: 0 }, t);
     rerender((n) => n + 1);
   }).current;
-
   useLayoutEffect(() => {
     const plan = queued.current;
     if (!plan) return;
@@ -293,7 +275,6 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
     announce();
     if (plan.below) below?.(plan.below);
   });
-
   const motion = (entry: string): EntryMotion | null => {
     const shift = slides.get(entry)?.value ?? null;
     const known = contexts.get(entry);
@@ -303,7 +284,6 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
     contexts.set(entry, next);
     return next;
   };
-
   const slots = (list: string[]): ListSlot[] => {
     if (!ghosts.current.length) return list.map((entry) => ({ entry }));
     const place = (ghost: Ghost, top: number): ListSlot => ({ ghost, top });
@@ -326,10 +306,8 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
     for (const left of byAnchor.values()) for (const ghost of left) if (!ghost.anchor || !entries.includes(ghost.anchor)) out.push(place(ghost, ghost.y - y));
     return out;
   };
-
   return { motion, slots, fading: ghosts.current.length > 0, slideBelow, tail: slides.get(TAIL)?.value ?? null, tailClip: source(TAIL) };
 }
-
 export function useListMotion(windowId: string, profileId: string, entries: string[], from: Capture, enabled: boolean) {
   const height: Height = (s, e) => entryHeight(s, windowId, profileId, e);
   const planner: Planner = (before, after, slides, ghosts, t) => {
@@ -362,7 +340,6 @@ export function useListMotion(windowId: string, profileId: string, entries: stri
   };
   return useMotion({ devKey: windowId, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, nativeTail: true });
 }
-
 export function useGroupMotion(windowId: string, profileId: string, groupId: string, entries: string[], from: Capture, scope: ListMotionScope, enabled: boolean) {
   const height: Height = (s, e) => entryHeight(s, windowId, profileId, e);
   const planner: Planner = (before, after, slides, ghosts, t) => {
@@ -386,9 +363,10 @@ export function useGroupMotion(windowId: string, profileId: string, groupId: str
   const below = scope.slideBelow ? (delta: number) => scope.slideBelow?.(entryKey("group", groupId), delta) : null;
   return useMotion({ devKey: `${windowId}:${groupId}`, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, nativeTail: false, below });
 }
-
 export const GhostSlot = memo(function GhostSlot({ snapshot, top, opacity }: { snapshot: EntrySnapshot; top: number; opacity: Animated.Value }) {
-  const style = useMemo(() => ({ opacity }), [opacity]);
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GAP } = useMemo(() => ({ GAP: scaleMetrics(BASE_INTERFACE_METRICS.GAP, interfaceScale) }), [interfaceScale]);
+  const style = useMemo(() => ({ opacity }), [opacity, interfaceScale]);
   const [fade, ref] = useAnimatedStyle(style);
   const theme = useTheme();
   return (
@@ -397,4 +375,4 @@ export const GhostSlot = memo(function GhostSlot({ snapshot, top, opacity }: { s
     </View>
   );
 });
-
+const BASE_INTERFACE_METRICS = { SLIDE_EASING, FADE_EASING, GAP };

@@ -1,3 +1,5 @@
+import { currentSettings } from "../../state/browser/current";
+import { interfaceMetrics, scaleMetrics } from "../../lib/interfaceMetrics";
 import { layout } from "../ui/theme";
 import type { DropSpot } from "../../state/drag/drops";
 import { pinSlot } from "./pinZone";
@@ -64,7 +66,7 @@ const folderPanel: Zone = (p) => {
 const heldFolder: Zone = (p) =>
   p.held ? { spot: { zone: "folder", ontoId: p.firstTab(p.held)! }, gapKey: p.kept.gapKey, pitch: p.kept.pitch, folderTarget: p.held.key } : null;
 
-const tiles: Zone = (p) => {
+const tiles: Zone = (p) => { const { layout, PIN_SLOT } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   if (!p.overTiles || !p.tiles) return null;
   const { spot, cells } = p;
   const index = !spot ? Math.min(cells.length, pinSlot(p.tiles, cells.length + p.count, layout.pinnedHeight, p.x, p.y, p.balanced)) : spot.part === "after" ? spot.index + 1 : spot.part === "before" ? spot.index : spot.gap;
@@ -135,3 +137,5 @@ export function aimAt(p: Pointing): Aim {
   }
   return NO_AIM;
 }
+
+const BASE_INTERFACE_GEOMETRY = { layout, PIN_SLOT };

@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { tabTitle } from "../../state/browser/model";
 import { discardKeyResponder, restoreKeyResponder, saveKeyResponder } from "../../state/windows/nativeWindow";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -42,6 +44,8 @@ function useGroupRows(groupId: string, windowId: string): Row[] {
 }
 
 export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupId: string; windowId: string; anchor: Anchor; windowHeight: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LIST_PAD, MAX_ROWS, ROW, SEARCH_ROW, SEPARATOR, EDGE, WIDTH, SEARCH_FIELD_ROW, EMPTY_LINE } = useMemo(() => ({ LIST_PAD: scaleMetrics(BASE_INTERFACE_METRICS.LIST_PAD, interfaceScale), MAX_ROWS: BASE_INTERFACE_METRICS.MAX_ROWS, ROW: scaleMetrics(BASE_INTERFACE_METRICS.ROW, interfaceScale), SEARCH_ROW: scaleMetrics(BASE_INTERFACE_METRICS.SEARCH_ROW, interfaceScale), SEPARATOR: scaleMetrics(BASE_INTERFACE_METRICS.SEPARATOR, interfaceScale), EDGE: scaleMetrics(BASE_INTERFACE_METRICS.EDGE, interfaceScale), WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.WIDTH, interfaceScale), SEARCH_FIELD_ROW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.SEARCH_FIELD_ROW, interfaceScale), EMPTY_LINE: scaleMetrics(BASE_INTERFACE_METRICS.EMPTY_LINE, interfaceScale) }), [interfaceScale]);
   const exists = useGroup(groupId, (g) => !!g);
   const all = useGroupRows(groupId, windowId);
   const live = useSidebarUi((u) => u.hover?.kind === "group" && u.hover.id === groupId && u.hover.windowId === windowId);
@@ -54,7 +58,7 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
   const focused = useRef(false);
   const origin = useRef<Promise<number> | null>(null);
   const q = query.trim();
-  const rows = useMemo(() => matchingRows(q, all), [q, all]);
+  const rows = useMemo(() => matchingRows(q, all), [q, all, interfaceScale]);
   const current = Math.max(0, Math.min(selected, rows.length - 1));
   const listHeight = LIST_PAD * 2 + Math.max(1, Math.min(MAX_ROWS, all.length)) * ROW;
   const panelHeight = SEARCH_ROW + SEPARATOR + listHeight;
@@ -90,11 +94,11 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), NOW_TICK_MS);
     return () => clearInterval(tick);
-  }, []);
+  }, [interfaceScale]);
   useEffect(() => {
     if (!live) latestHandBack.current("origin");
-  }, [live]);
-  useEffect(() => () => latestHandBack.current("origin"), []);
+  }, [live, interfaceScale]);
+  useEffect(() => () => latestHandBack.current("origin"), [interfaceScale]);
 
   const reveal = (index: number) => {
     const rowTop = LIST_PAD + index * ROW;
@@ -179,6 +183,8 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
 }
 
 function PanelRow({ row, now, selected, onHover, onPress }: { row: Row; now: number; selected: boolean; onHover(): void; onPress(): void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ROW } = useMemo(() => ({ ROW: scaleMetrics(BASE_INTERFACE_METRICS.ROW, interfaceScale) }), [interfaceScale]);
   return (
     <View onMouseEnter={onHover}>
       <MenuRow
@@ -192,3 +198,5 @@ function PanelRow({ row, now, selected, onHover, onPress }: { row: Row; now: num
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { LIST_PAD, MAX_ROWS, ROW, SEARCH_ROW, SEPARATOR, EDGE, WIDTH, SEARCH_FIELD_ROW, EMPTY_LINE };

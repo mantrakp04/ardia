@@ -1,6 +1,9 @@
-import { Symbol, VisualEffect } from "@ardia/shell";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { Symbol as Symbol, RawText as Text } from "./ScaledNative";
+import { VisualEffect } from "@ardia/shell";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Button } from "./Button";
 import { PANEL_CLOSE_GLYPH, PANEL_CLOSE_SIZE } from "./ButtonKinds";
 import { curve, duration } from "./motion";
@@ -54,6 +57,8 @@ export function usePopoverPresence(open: boolean) {
 }
 
 export function usePopoverMotion(closing: boolean, onClosed?: () => void, ready = true) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { POPOVER_MOTION } = useMemo(() => ({ POPOVER_MOTION: BASE_INTERFACE_METRICS.POPOVER_MOTION }), [interfaceScale]);
   const appear = useRef(new Animated.Value(0)).current;
   const closed = useRef(onClosed);
   closed.current = onClosed;
@@ -66,7 +71,7 @@ export function usePopoverMotion(closing: boolean, onClosed?: () => void, ready 
     Animated.timing(appear, { toValue: closing ? 0 : 1, duration: motion.duration, easing: motion.easing, useNativeDriver: true }).start(
       ({ finished }) => finished && closing && closed.current?.(),
     );
-  }, [closing, ready]);
+  }, [closing, ready, interfaceScale]);
   return appear;
 }
 
@@ -109,6 +114,8 @@ export function Popover({
   onClosed?: () => void;
   glass?: boolean;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { POPOVER_WIDTH, POPOVER_MARGIN } = useMemo(() => ({ POPOVER_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.POPOVER_WIDTH, interfaceScale), POPOVER_MARGIN: scaleMetrics(BASE_INTERFACE_METRICS.POPOVER_MARGIN, interfaceScale) }), [interfaceScale]);
   const appear = usePopoverMotion(closing, onClosed);
   const motion = usePopoverMotionStyle(appear, right !== undefined ? "top right" : "top left");
   const [room, setRoom] = useState<number | null>(null);
@@ -128,6 +135,8 @@ export function Popover({
 }
 
 export function PopoverSurface({ children, glass = false, ...props }: Omit<PanelProps, "fill" | "radius" | "border" | "borderWidth" | "shadow" | "glass"> & { glass?: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radius, PANEL } = useMemo(() => ({ radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale) }), [interfaceScale]);
   const theme = surfaceTheme(useTheme());
   const paneGlass = useGlass("panes");
   if (glass && paneGlass)
@@ -162,10 +171,12 @@ export function PanelHeader({
   large?: boolean;
   accessory?: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANEL } = useMemo(() => ({ PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const iconSize = large ? PANEL.largeIcon : PANEL.iconSlot;
-  const titleLine = large ? PANEL.titleLine + 1 : PANEL.titleLine;
-  const [textHeight, setTextHeight] = useState(titleLine + (subtitle ? PANEL.subtitleLine : 0));
+  const titleLine = large ? BASE_INTERFACE_METRICS.PANEL.titleLine + 1 : BASE_INTERFACE_METRICS.PANEL.titleLine;
+  const [textHeight, setTextHeight] = useState((titleLine + (subtitle ? BASE_INTERFACE_METRICS.PANEL.subtitleLine : 0)) * interfaceScale);
   const overhang = Math.max(0, (textHeight - iconSize) / 2);
   return (
     <View
@@ -180,11 +191,11 @@ export function PanelHeader({
     >
       <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>{icon}</View>
       <View style={{ flex: 1 }} onLayout={(e) => setTextHeight(e.nativeEvent.layout.height)}>
-        <Text numberOfLines={1} style={{ fontSize: large ? typeScale.title.fontSize : PANEL.titleSize, lineHeight: titleLine, fontWeight: weight.semibold, color: theme.textPrimary }}>
+        <Text numberOfLines={1} style={{ fontSize: large ? typeScale.title.fontSize : BASE_INTERFACE_METRICS.PANEL.titleSize, lineHeight: titleLine, fontWeight: weight.semibold, color: theme.textPrimary }}>
           {title}
         </Text>
         {subtitle ? (
-          <Text numberOfLines={large ? 2 : 1} style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: theme.textSecondary }}>
+          <Text numberOfLines={large ? 2 : 1} style={{ fontSize: BASE_INTERFACE_METRICS.PANEL.subtitleSize, lineHeight: BASE_INTERFACE_METRICS.PANEL.subtitleLine, color: theme.textSecondary }}>
             {subtitle}
           </Text>
         ) : null}
@@ -197,14 +208,16 @@ export function PanelHeader({
 const VALUE_PAD = space.s;
 
 export function PopoverValue({ title, onPress, chevron = "chevron.up.chevron.down", tooltip }: { title: string; onPress: () => void; chevron?: string; tooltip?: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { VALUE_PAD, space, radius } = useMemo(() => ({ VALUE_PAD: scaleMetrics(BASE_INTERFACE_METRICS.VALUE_PAD, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps} tooltip={tooltip} style={{ marginRight: -VALUE_PAD }}>
       <Pressable onPress={onPress}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, height: 22, paddingLeft: space.m, paddingRight: VALUE_PAD, borderRadius: radius.control, backgroundColor: hovered ? theme.toolbarHover : undefined }}>
-          <Text style={{ fontSize: PANEL.valueSize, color: theme.textSecondary }}>{title}</Text>
-          <Symbol name={chevron} size={9} weight={chevron === "chevron.down" ? "semibold" : undefined} color={theme.textSecondary} style={{ width: 8, height: 14 }} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, height: 22 * interfaceScale, paddingLeft: space.m, paddingRight: VALUE_PAD, borderRadius: radius.control, backgroundColor: hovered ? theme.toolbarHover : undefined }}>
+          <Text style={{ fontSize: BASE_INTERFACE_METRICS.PANEL.valueSize, color: theme.textSecondary }}>{title}</Text>
+          <Symbol name={chevron} size={9} weight={chevron === "chevron.down" ? "semibold" : undefined} color={theme.textSecondary} style={{ width: 8 * interfaceScale, height: 14 * interfaceScale }} />
         </View>
       </Pressable>
     </View>
@@ -215,5 +228,9 @@ const PANEL_CLOSE_OFFSET = PANEL.inset - (PANEL_CLOSE_SIZE - PANEL_CLOSE_GLYPH) 
 const PANEL_CLOSE_PLACE = { position: "absolute", top: PANEL_CLOSE_OFFSET, right: PANEL_CLOSE_OFFSET } as const;
 
 export function PanelCloseButton({ onPress, tooltip = "Dismiss" }: { onPress: () => void; tooltip?: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANEL_CLOSE_PLACE } = useMemo(() => ({ PANEL_CLOSE_PLACE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.PANEL_CLOSE_PLACE, interfaceScale) }), [interfaceScale]);
   return <Button variant="close" look="panel" onPress={onPress} tooltip={tooltip} style={PANEL_CLOSE_PLACE} />;
 }
+
+const BASE_INTERFACE_METRICS = { POPOVER_MOTION, POPOVER_WIDTH, POPOVER_MARGIN, radius, PANEL, VALUE_PAD, space, PANEL_CLOSE_PLACE };

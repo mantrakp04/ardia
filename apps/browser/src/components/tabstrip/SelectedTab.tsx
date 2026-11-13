@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { Fragment, useContext } from "react";
 import { Animated, View } from "react-native";
 import { Surface } from "../ui";
@@ -9,6 +12,8 @@ import { CHIP_HAIRLINE, FLARE, ITEM_HEIGHT, ITEM_TOP, RIM_HEIGHT, RIM_WIDTH, STR
 export type Fill = string | ReturnType<typeof useEasedColor>;
 
 export function SelectedTab({ width, band, opaque = false }: { width: number; band: Fill | null; opaque?: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ITEM_TOP, ITEM_HEIGHT, TAB_RADIUS, CHIP_HAIRLINE, TOP_STRIP_HEIGHT, TAB_TOP, FLARE, RIM_WIDTH, RIM_HEIGHT } = useMemo(() => ({ ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale), ITEM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_HEIGHT, interfaceScale), TAB_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TAB_RADIUS, interfaceScale), CHIP_HAIRLINE: scaleMetrics(BASE_INTERFACE_METRICS.CHIP_HAIRLINE, interfaceScale), TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale), TAB_TOP: scaleMetrics(BASE_INTERFACE_METRICS.TAB_TOP, interfaceScale), FLARE: scaleMetrics(BASE_INTERFACE_METRICS.FLARE, interfaceScale), RIM_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.RIM_WIDTH, interfaceScale), RIM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.RIM_HEIGHT, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const floating = useContext(FloatingStrip);
   if (floating) {
@@ -68,6 +73,8 @@ export function SelectedTab({ width, band, opaque = false }: { width: number; ba
 }
 
 function Flare({ x, side, color }: { x: number; side: "left" | "right"; color: Fill }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FLARE, TOP_STRIP_HEIGHT } = useMemo(() => ({ FLARE: scaleMetrics(BASE_INTERFACE_METRICS.FLARE, interfaceScale), TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale) }), [interfaceScale]);
   const outer = FLARE * 2;
   return (
     <View style={{ position: "absolute", left: x, top: TOP_STRIP_HEIGHT - FLARE, width: FLARE, height: FLARE, overflow: "hidden" }}>
@@ -86,3 +93,5 @@ function Flare({ x, side, color }: { x: number; side: "left" | "right"; color: F
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { ITEM_TOP, ITEM_HEIGHT, TAB_RADIUS, CHIP_HAIRLINE, TOP_STRIP_HEIGHT, TAB_TOP, FLARE, RIM_WIDTH, RIM_HEIGHT };

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { View } from "react-native";
 import type { AnonymousAvatar as Avatar } from "../../state/telemetry/identity";
 import { capsule, ThemeSwatch } from "../ui";

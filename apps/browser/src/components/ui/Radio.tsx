@@ -1,4 +1,8 @@
-import { Symbol } from "@ardia/shell";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { Symbol as Symbol } from "./ScaledNative";
+import { useMemo } from "react";
+
 import { memo } from "react";
 import { View } from "react-native";
 import { Dot } from "./Dot";
@@ -10,6 +14,8 @@ const COMPACT = { box: 14, glyph: 6, glyphBox: 8 } as const;
 const FORM = { box: 16, dot: 6 } as const;
 
 export const Radio = memo(function Radio({ on, look = "form" }: { on: boolean; look?: "form" | "compact" | "ring" }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RING, COMPACT, FORM } = useMemo(() => ({ RING: scaleMetrics(BASE_INTERFACE_METRICS.RING, interfaceScale), COMPACT: scaleMetrics(BASE_INTERFACE_METRICS.COMPACT, interfaceScale), FORM: scaleMetrics(BASE_INTERFACE_METRICS.FORM, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   if (look === "ring")
     return <View style={{ width: RING.box, height: RING.box, borderRadius: capsule(RING.box), borderWidth: on ? RING.on : RING.off, borderColor: on ? theme.ringRadioOn : theme.ringRadioBorder, backgroundColor: theme.ringRadioFill }} />;
@@ -27,7 +33,7 @@ export const Radio = memo(function Radio({ on, look = "form" }: { on: boolean; l
           justifyContent: "center",
         }}
       >
-        {on && <Symbol name="circle.fill" size={COMPACT.glyph} color={theme.onAccent} style={{ width: COMPACT.glyphBox, height: COMPACT.glyphBox }} />}
+        {on && <Symbol name="circle.fill" size={BASE_INTERFACE_METRICS.COMPACT.glyph} color={theme.onAccent} style={{ width: COMPACT.glyphBox, height: COMPACT.glyphBox }} />}
       </View>
     );
   return (
@@ -43,7 +49,9 @@ export const Radio = memo(function Radio({ on, look = "form" }: { on: boolean; l
         borderColor: theme.controlBorder,
       }}
     >
-      {on && <Dot size={FORM.dot} color={theme.onAccent} />}
+      {on && <Dot size={BASE_INTERFACE_METRICS.FORM.dot} color={theme.onAccent} />}
     </View>
   );
 });
+
+const BASE_INTERFACE_METRICS = { RING, COMPACT, FORM };

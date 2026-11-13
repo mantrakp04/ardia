@@ -1,5 +1,9 @@
-import { Surface, Symbol, VisualEffect } from "@ardia/shell";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { Symbol as Symbol, RawText as Text } from "./ScaledNative";
+import { useMemo } from "react";
+import { Surface, VisualEffect } from "@ardia/shell";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useHover } from "./useHover";
 import { hex, useTheme, type Theme } from "./theme";
 import { capsule, closeOnArt, opacity, pillHeight, radius as radii, space, stepperSize, font as typeScale, weight as weights } from "./tokens";
@@ -16,6 +20,8 @@ function pillLook(theme: Theme, tone: "prompt" | "chip", primary: boolean, press
 }
 
 export function StepperButtonView({ icon, onPress, width = stepperSize.width, height = stepperSize.height, tooltip, disabled }: StepperProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radii } = useMemo(() => ({ radii: scaleMetrics(BASE_INTERFACE_METRICS.radii, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
@@ -24,8 +30,8 @@ export function StepperButtonView({ icon, onPress, width = stepperSize.width, he
         {({ pressed }) => (
           <View
             style={{
-              width,
-              height,
+              width: width * interfaceScale,
+              height: height * interfaceScale,
               borderRadius: radii.control,
               alignItems: "center",
               justifyContent: "center",
@@ -34,7 +40,7 @@ export function StepperButtonView({ icon, onPress, width = stepperSize.width, he
               borderColor: theme.controlBorder,
             }}
           >
-            <Symbol name={icon} size={10} weight="semibold" color={theme.icon} style={{ width: 12, height: 12 }} />
+            <Symbol name={icon} size={10} weight="semibold" color={theme.icon} style={{ width: 12 * interfaceScale, height: 12 * interfaceScale }} />
           </View>
         )}
       </Pressable>
@@ -45,6 +51,8 @@ export function StepperButtonView({ icon, onPress, width = stepperSize.width, he
 const CHIP_DIM = 0.85;
 
 export function PillButtonView(props: PillProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { pillHeight, space, radii } = useMemo(() => ({ pillHeight: scaleMetrics(BASE_INTERFACE_METRICS.pillHeight, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), radii: scaleMetrics(BASE_INTERFACE_METRICS.radii, interfaceScale) }), [interfaceScale]);
   const { onPress, title, primary = false, size } = props;
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
@@ -71,7 +79,7 @@ export function PillButtonView(props: PillProps) {
                   opacity: look.dim ? CHIP_DIM : 1,
                 }}
               >
-                {icon ? <Symbol name={icon} size={10.5} weight="semibold" color={ink} style={{ width: 14, height: 14 }} /> : null}
+                {icon ? <Symbol name={icon} size={10.5} weight="semibold" color={ink} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} /> : null}
                 <Text style={{ ...typeScale.small, fontWeight: weights.medium, color: ink }}>{title}</Text>
               </View>
             );
@@ -100,6 +108,8 @@ export function PillButtonView(props: PillProps) {
 }
 
 export function CloseButtonView(props: CloseProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANEL_CLOSE_BOX, radii, ART_CLOSE_BOX, HUD_PLATE, HUD_CLOSE_BOX, HUD_GLYPH } = useMemo(() => ({ PANEL_CLOSE_BOX: scaleMetrics(BASE_INTERFACE_METRICS.PANEL_CLOSE_BOX, interfaceScale), radii: scaleMetrics(BASE_INTERFACE_METRICS.radii, interfaceScale), ART_CLOSE_BOX: scaleMetrics(BASE_INTERFACE_METRICS.ART_CLOSE_BOX, interfaceScale), HUD_PLATE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.HUD_PLATE, interfaceScale), HUD_CLOSE_BOX: scaleMetrics(BASE_INTERFACE_METRICS.HUD_CLOSE_BOX, interfaceScale), HUD_GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.HUD_GLYPH, interfaceScale) }), [interfaceScale]);
   const { onPress, look, tooltip = "Dismiss", label, style } = props;
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
@@ -108,7 +118,7 @@ export function CloseButtonView(props: CloseProps) {
       <View {...hoverProps} style={style} tooltip={tooltip}>
         <Pressable onPress={onPress}>
           <View style={{ width: PANEL_CLOSE_BOX, height: PANEL_CLOSE_BOX, borderRadius: radii.control, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? theme.toolbarHover : undefined }}>
-            <Symbol name="xmark" size={9} weight="semibold" color={theme.textSecondary} style={{ width: 14, height: 14 }} />
+            <Symbol name="xmark" size={9} weight="semibold" color={theme.textSecondary} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />
           </View>
         </Pressable>
       </View>
@@ -151,6 +161,8 @@ const HUD_PLATE = { width: HUD_CLOSE_BOX, height: HUD_CLOSE_BOX, borderRadius: c
 const HUD_GLYPH = { width: HUD_CLOSE_BOX, height: HUD_CLOSE_BOX } as const;
 
 export function PushButtonView({ title, onPress, kind = "default", disabled, icon, style }: PushProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radii, space } = useMemo(() => ({ radii: scaleMetrics(BASE_INTERFACE_METRICS.radii, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const primary = kind === "primary";
@@ -162,7 +174,7 @@ export function PushButtonView({ title, onPress, kind = "default", disabled, ico
         {({ pressed }) => (
           <View
             style={{
-              height: plain ? undefined : 22,
+              height: plain ? undefined : 22 * interfaceScale,
               borderRadius: radii.control,
               paddingHorizontal: plain ? 0 : space.ml,
               flexDirection: "row",
@@ -174,7 +186,7 @@ export function PushButtonView({ title, onPress, kind = "default", disabled, ico
               borderColor: theme.controlBorder,
             }}
           >
-            {icon ? <Symbol name={icon} size={11} color={textColor} style={{ width: 13, height: 13 }} /> : null}
+            {icon ? <Symbol name={icon} size={11} color={textColor} style={{ width: 13 * interfaceScale, height: 13 * interfaceScale }} /> : null}
             <Text style={{ ...typeScale.body, color: textColor, textDecorationLine: plain && hovered ? "underline" : "none" }}>{title}</Text>
           </View>
         )}
@@ -182,3 +194,5 @@ export function PushButtonView({ title, onPress, kind = "default", disabled, ico
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { radii, pillHeight, space, PANEL_CLOSE_BOX, ART_CLOSE_BOX, HUD_PLATE, HUD_CLOSE_BOX, HUD_GLYPH };

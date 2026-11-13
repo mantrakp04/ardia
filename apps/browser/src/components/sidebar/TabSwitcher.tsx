@@ -1,4 +1,6 @@
-import { memo, useEffect, useSyncExternalStore } from "react";
+import { useInterfaceMetrics } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { memo, useEffect, useMemo, useSyncExternalStore } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
 import { tabTitle } from "../../state/browser/model";
 import { useTab } from "../../state/browser/hooks";
@@ -10,10 +12,20 @@ import { useTheme } from "../ui/theme";
 import { TabIcon } from "./TabIcon";
 import { SIDEBAR_SHADOW, TAB_SWITCHER as T } from "./tokens";
 
-const SHOT = Math.round(T.card / T.shotAspect);
-const SHOT_WIDTH = T.card - 2 * T.cardInset;
+function useSwitcherMetrics() {
+  const { factor } = useInterfaceMetrics();
+  return useMemo(() => ({
+    ...scaleMetrics(T, factor),
+    shotAspect: T.shotAspect,
+    titleSize: T.titleSize,
+    icon: { ...scaleMetrics(T.icon, factor), globe: T.icon.globe },
+    shot: Math.round(T.card / T.shotAspect) * factor,
+    shotWidth: (T.card - 2 * T.cardInset) * factor,
+  }), [factor]);
+}
 
 export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId: string; windowWidth: number; windowHeight: number }) {
+  const T = useSwitcherMetrics();
   const theme = useTheme();
   const pendingSwitcher = useSidebarUi((u) => (u.switcher?.windowId === windowId ? u.switcher : null));
   const switcher = pendingSwitcher?.visible ? pendingSwitcher : null;
@@ -29,7 +41,7 @@ export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId:
   const start = Math.max(0, Math.min(switcher.index - Math.floor(count / 2), switcher.ids.length - count));
   const ids = switcher.ids.slice(start, start + count);
   const width = 2 * T.pad + count * T.card + (count - 1) * T.gap;
-  const height = 2 * T.pad + SHOT + T.label + 2 * T.cardInset;
+  const height = 2 * T.pad + T.shot + T.label + 2 * T.cardInset;
 
   return (
     <View
@@ -58,6 +70,7 @@ export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId:
 }
 
 const SwitcherCard = memo(function SwitcherCard({ tabId, index, focused, accent }: { tabId: string; index: number; focused: boolean; accent: string }) {
+  const T = useSwitcherMetrics();
   const tab = useTab(tabId);
   const picture = useSyncExternalStore(onPicturesChanged, () => lastPicture(tabId));
   useEffect(() => () => leaveSwitcherRow(index), [index]);
@@ -73,8 +86,8 @@ const SwitcherCard = memo(function SwitcherCard({ tabId, index, focused, accent 
         <View style={{ width: T.card, padding: T.cardInset, borderRadius: T.cardRadius, backgroundColor: focused ? T.focusFill : undefined }}>
           <View
             style={{
-              width: SHOT_WIDTH,
-              height: SHOT,
+              width: T.shotWidth,
+              height: T.shot,
               borderRadius: T.previewRadius,
               overflow: "hidden",
               backgroundColor: url ? T.pageFill : T.blankFill,

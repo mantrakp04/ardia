@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { Animated, type StyleProp, type ViewStyle } from "react-native";
 import { capsule } from "./tokens";

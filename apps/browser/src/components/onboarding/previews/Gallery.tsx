@@ -1,3 +1,4 @@
+import { RawText as Text } from "../../ui/ScaledNative";
 import {
   devSnapshotWindow,
   DIA,
@@ -7,7 +8,7 @@ import {
   type GalleryMock as MockState,
 } from "../../../state/onboarding/previewGallery";
 import { useMemo, useRef } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { PROFILE_COLORS, useTheme } from "../../ui/theme";
 import { radius, space } from "../../ui/tokens";
 import type { Settings } from "../../../state/settings/settings";

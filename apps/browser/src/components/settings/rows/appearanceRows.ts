@@ -23,6 +23,7 @@ export const appearanceRows = {
     {
       section: "Interface Style",
       rows: {
+        interfaceSize: { title: "Interface size", description: "Enlarge app text and controls. Website zoom stays unchanged. Saved on this Mac.", keywords: ["text size", "larger", "scale", "readability", "zoom", "accessibility"] },
         interfaceStyle: {
           title: "Interface style",
           description: "Glass draws the pinned tiles, fields, buttons, Downloads and the site controls panel in macOS Liquid Glass. Classic keeps them flat, like Dia.",

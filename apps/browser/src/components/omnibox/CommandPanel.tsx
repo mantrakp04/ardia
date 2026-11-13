@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { OutsidePressArea, reduceMotion, Surface } from "../ui";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Animated, StyleSheet, View, type LayoutChangeEvent } from "react-native";
@@ -35,6 +38,8 @@ const CENTRED_TOP_SHARE = 0.22;
 type Box = { left: number; top: number; width: number; height: number };
 
 export function CommandPanel({ windowWidth }: { windowWidth: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { WINDOW_MARGIN, radius, PANEL_OPEN_HEIGHT, PANEL_RADIUS, DROPDOWN_MIN_WIDTH, DROPDOWN_PAST_FIELD, DROPDOWN_RADIUS, PANEL_TEXT_LEFT, ABOVE_PANE, RIGHT_OF_URL, MIN_WIDTH, BAR } = useMemo(() => ({ WINDOW_MARGIN: scaleMetrics(BASE_INTERFACE_METRICS.WINDOW_MARGIN, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), PANEL_OPEN_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.PANEL_OPEN_HEIGHT, interfaceScale), PANEL_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.PANEL_RADIUS, interfaceScale), DROPDOWN_MIN_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.DROPDOWN_MIN_WIDTH, interfaceScale), DROPDOWN_PAST_FIELD: scaleMetrics(BASE_INTERFACE_METRICS.DROPDOWN_PAST_FIELD, interfaceScale), DROPDOWN_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.DROPDOWN_RADIUS, interfaceScale), PANEL_TEXT_LEFT: scaleMetrics(BASE_INTERFACE_METRICS.PANEL_TEXT_LEFT, interfaceScale), ABOVE_PANE: scaleMetrics(BASE_INTERFACE_METRICS.ABOVE_PANE, interfaceScale), RIGHT_OF_URL: scaleMetrics(BASE_INTERFACE_METRICS.RIGHT_OF_URL, interfaceScale), MIN_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.MIN_WIDTH, interfaceScale), BAR: scaleMetrics(BASE_INTERFACE_METRICS.BAR, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const windowId = useWindowId();
   const { panel } = useWindowUi();
@@ -50,7 +55,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   useEffect(() => {
     if (panel.open) dismissHover();
     setRowsCovered(windowId, overRows);
-  }, [panel.open, overRows, windowId]);
+  }, [panel.open, overRows, windowId, interfaceScale]);
   if (!panel.open || !activeId) return null;
   if (panel.newTab) return card ? <CentredBar windowId={windowId} tabId={activeId} target={panel.newTab} card={card} /> : null;
 
@@ -125,6 +130,8 @@ function centredFrame(card: Box) {
 }
 
 function CentredBar({ windowId, tabId, target, card }: { windowId: string; tabId: string; target: NewTabTarget; card: Box }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANEL_OPEN_HEIGHT, radius, PANEL_RADIUS } = useMemo(() => ({ PANEL_OPEN_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.PANEL_OPEN_HEIGHT, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), PANEL_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.PANEL_RADIUS, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const onCancel = () => closePanel(windowId);
   const onDone = () => closeNewTabBar(windowId);
@@ -158,6 +165,8 @@ function Grow({
   surface: Omit<ComponentProps<typeof Surface>, "style">;
   children: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GROW } = useMemo(() => ({ GROW: scaleMetrics(BASE_INTERFACE_METRICS.GROW, interfaceScale) }), [interfaceScale]);
   const fade = !!from && !!reduceMotion();
   const [progress] = useState(() => new Animated.Value(from ? 0 : 1));
   const start = useRef(fade ? null : from);
@@ -168,7 +177,7 @@ function Grow({
   useEffect(() => {
     if (!from || height === null) return;
     Animated.timing(progress, { toValue: 1, ...GROW, useNativeDriver: true }).start();
-  }, [height === null]);
+  }, [height === null, interfaceScale]);
 
   const box = start.current;
   let outer: object = fade ? { opacity: progress } : {};
@@ -200,3 +209,5 @@ function Grow({
     </Animated.View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { WINDOW_MARGIN, radius, PANEL_OPEN_HEIGHT, PANEL_RADIUS, DROPDOWN_MIN_WIDTH, DROPDOWN_PAST_FIELD, DROPDOWN_RADIUS, PANEL_TEXT_LEFT, ABOVE_PANE, RIGHT_OF_URL, MIN_WIDTH, BAR, GROW };

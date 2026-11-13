@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, ScrollView, View } from "react-native";
 import { folderChildren, type RemovedBookmarks } from "../../state/bookmarks/bookmarks";
@@ -21,6 +23,8 @@ type Target = { kind: "folder"; id: string } | { kind: "row"; id: string; index:
 type Drop = { into: string } | { parentId: string; index: number };
 
 export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BODY, TREE, TREE_CONTENT, radius, LIST_CARD, LIST_HEADER, LIST_TITLE, LIST_CONTENT } = useMemo(() => ({ BODY: scaleInterfaceStyle(BASE_INTERFACE_METRICS.BODY, interfaceScale), TREE: scaleMetrics(BASE_INTERFACE_METRICS.TREE, interfaceScale), TREE_CONTENT: scaleMetrics(BASE_INTERFACE_METRICS.TREE_CONTENT, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), LIST_CARD: scaleInterfaceStyle(BASE_INTERFACE_METRICS.LIST_CARD, interfaceScale), LIST_HEADER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.LIST_HEADER, interfaceScale), LIST_TITLE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.LIST_TITLE, interfaceScale), LIST_CONTENT: scaleMetrics(BASE_INTERFACE_METRICS.LIST_CONTENT, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const colors = pagesColors(theme);
   const windowId = useTab(tabId, (t) => t?.windowId ?? "");
@@ -31,13 +35,13 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
   const [undo, setUndo] = useState<{ removed: RemovedBookmarks; count: number } | null>(null);
   const [undoClosing, setUndoClosing] = useState(false);
   const [drop, setDrop] = useState<Drop | null>(null);
-  const targets = useMemo(() => new DropTargets<Target>(), []);
+  const targets = useMemo(() => new DropTargets<Target>(), [interfaceScale]);
 
   const folderExists = useBookmarks((b) => !!folderId && b.nodes[folderId]?.kind === "folder");
   useEffect(() => {
     if (!folderExists && roots) setFolderId(roots.bar);
-  }, [folderExists, roots]);
-  useEffect(() => setSelection(NO_SELECTION), [folderId, query]);
+  }, [folderExists, roots, interfaceScale]);
+  useEffect(() => setSelection(NO_SELECTION), [folderId, query, interfaceScale]);
 
   const folderTitle = useBookmarks((b) => (folderId ? (b.nodes[folderId]?.title ?? "") : ""));
   const listKey = useBookmarks((b) => {
@@ -51,9 +55,9 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
     const folder = folderId ? b.nodes[folderId] : undefined;
     return folder?.kind === "folder" ? folder.children.join(",") : "";
   });
-  const ids = useMemo(() => (listKey ? listKey.split(",") : []), [listKey]);
+  const ids = useMemo(() => (listKey ? listKey.split(",") : []), [listKey, interfaceScale]);
   const searching = !!query.trim();
-  const selected = useMemo(() => selectedInOrder(ids, selection), [ids, selection]);
+  const selected = useMemo(() => selectedInOrder(ids, selection), [ids, selection, interfaceScale]);
 
   const list = useRef<View>(null);
   const select = (id: string, e: { metaKey?: boolean; shiftKey?: boolean }) => {
@@ -76,14 +80,14 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
 
   const [viewport, setViewport] = useState(800);
   const [scrollY, setScrollY] = useState(0);
-  const onListLayout = useCallback((e: LayoutChangeEvent) => setViewport(Math.max(bookmarkList.row, Math.round(e.nativeEvent.layout.height))), []);
-  const onListScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => setScrollY(e.nativeEvent.contentOffset.y), []);
+  const onListLayout = useCallback((e: LayoutChangeEvent) => setViewport(Math.max(bookmarkList.row, Math.round(e.nativeEvent.layout.height))), [interfaceScale]);
+  const onListScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => setScrollY(e.nativeEvent.contentOffset.y), [interfaceScale]);
   const shown = rowWindow(ids.length, bookmarkList.row, scrollY, viewport);
   useEffect(() => {
     if (!undo) return;
     const timer = setTimeout(() => setUndoClosing(true), undoToast.visibleMs);
     return () => clearTimeout(timer);
-  }, [undo]);
+  }, [undo, interfaceScale]);
 
   const dragging = useRef<string[]>([]);
   const onDragStart = (id: string) => {
@@ -233,6 +237,8 @@ function folderLinksAndFolders(b: Bookmarks, folderId: string): BookmarkNode[] {
 }
 
 function DropLine({ top, color }: { top: number; color: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DROP_LINE } = useMemo(() => ({ DROP_LINE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.DROP_LINE, interfaceScale) }), [interfaceScale]);
   return <View style={[DROP_LINE, { top: top - bookmarkList.dropLine / 2, backgroundColor: color }]} />;
 }
 
@@ -247,3 +253,5 @@ const LIST_TITLE = { flex: 1 } as const;
 const LIST_KEYS_VIEW = { flex: 1 } as const;
 const LIST_CONTENT = { padding: space.s } as const;
 const DROP_LINE = { position: "absolute", left: space.m, right: space.m, height: bookmarkList.dropLine, borderRadius: bookmarkList.dropLineRadius, zIndex: 5 } as const;
+
+const BASE_INTERFACE_METRICS = { BODY, TREE, TREE_CONTENT, radius, LIST_CARD, LIST_HEADER, LIST_TITLE, LIST_CONTENT, DROP_LINE };

@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import type { SearchScope } from "@ardia/core";
 import { memo, type ReactNode, type RefObject } from "react";
 import { View } from "react-native";
@@ -20,6 +23,8 @@ type FrameProps = {
 const ICON_SLOT = { width: BAR.iconSlot, alignItems: "center" } as const;
 
 export function DropdownFrame({ rootRef, onContextMenu, leadingIcon, scope, field, list, pulse, onSiteControls }: FrameProps & { onSiteControls: (() => void) | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BAR, ICON_SLOT } = useMemo(() => ({ BAR: scaleMetrics(BASE_INTERFACE_METRICS.BAR, interfaceScale), ICON_SLOT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ICON_SLOT, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
     <View ref={rootRef}>
@@ -48,6 +53,8 @@ export function DropdownFrame({ rootRef, onContextMenu, leadingIcon, scope, fiel
 }
 
 export function PanelFrame({ rootRef, onContextMenu, leadingIcon, scope, field, list, pulse, hero, rowHeight, bottom }: FrameProps & { hero: boolean; rowHeight: number; bottom: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BAR, ICON_SLOT } = useMemo(() => ({ BAR: scaleMetrics(BASE_INTERFACE_METRICS.BAR, interfaceScale), ICON_SLOT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ICON_SLOT, interfaceScale) }), [interfaceScale]);
   return (
     <View ref={rootRef}>
       {pulse}
@@ -74,6 +81,8 @@ export function PanelFrame({ rootRef, onContextMenu, leadingIcon, scope, field, 
 }
 
 export function BottomRow({ hero, addChip, onDictate, label, enabled, onGo }: { hero: boolean; addChip: ReactNode; onDictate(): void; label: string; enabled: boolean; onGo(): void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BAR } = useMemo(() => ({ BAR: scaleMetrics(BASE_INTERFACE_METRICS.BAR, interfaceScale) }), [interfaceScale]);
   return (
     <View
       style={{
@@ -94,6 +103,8 @@ export function BottomRow({ hero, addChip, onDictate, label, enabled, onGo }: { 
 }
 
 const DictateButton = memo(function DictateButton({ onPress }: { onPress(): void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BAR, GO_BUTTON } = useMemo(() => ({ BAR: scaleMetrics(BASE_INTERFACE_METRICS.BAR, interfaceScale), GO_BUTTON: scaleMetrics(BASE_INTERFACE_METRICS.GO_BUTTON, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const glass = useGlass();
   const { hovered, hoverProps } = useHover();
@@ -115,3 +126,5 @@ const DictateButton = memo(function DictateButton({ onPress }: { onPress(): void
     </View>
   );
 });
+
+const BASE_INTERFACE_METRICS = { BAR, ICON_SLOT, GO_BUTTON };

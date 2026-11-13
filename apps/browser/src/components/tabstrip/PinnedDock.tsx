@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useContext, useMemo, useRef } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useIsActiveTab, useTab, useWindowId } from "../../state/browser/hooks";
@@ -21,11 +23,13 @@ import { useStripCardHover } from "./StripHoverCard";
 import { TabPressArea } from "../sidebar/TabPressArea";
 
 export function PinnedDock({ tabIds }: { tabIds: string[] }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ITEM_TOP, DOCK_GAP, GAP, ITEM_HEIGHT, PINNED_CELL, TAB_RADIUS, CHIP_HAIRLINE, PINNED_SPACING } = useMemo(() => ({ ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale), DOCK_GAP: scaleMetrics(BASE_INTERFACE_METRICS.DOCK_GAP, interfaceScale), GAP: scaleMetrics(BASE_INTERFACE_METRICS.GAP, interfaceScale), ITEM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_HEIGHT, interfaceScale), PINNED_CELL: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_CELL, interfaceScale), TAB_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TAB_RADIUS, interfaceScale), CHIP_HAIRLINE: scaleMetrics(BASE_INTERFACE_METRICS.CHIP_HAIRLINE, interfaceScale), PINNED_SPACING: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_SPACING, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const strip = useContext(DockContext)!;
   const geometry = strip.dock!.geometry;
   const width = dockWidth(tabIds.length);
-  const box = useMemo(() => Animated.add(strip.grow, width), [strip.grow, width]);
+  const box = useMemo(() => Animated.add(strip.grow, width), [strip.grow, width, interfaceScale]);
   const glass = useGlass();
   return (
     <View style={{ marginTop: ITEM_TOP, marginRight: DOCK_GAP - GAP, zIndex: 2, width, height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center" }}>
@@ -61,6 +65,8 @@ export function PinnedDock({ tabIds }: { tabIds: string[] }) {
 }
 
 function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGeometry; from: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { MAX_CHIP, PINNED_CELL, PINNED_SPACING, ITEM_TOP, TOP_STRIP_HEIGHT } = useMemo(() => ({ MAX_CHIP: scaleMetrics(BASE_INTERFACE_METRICS.MAX_CHIP, interfaceScale), PINNED_CELL: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_CELL, interfaceScale), PINNED_SPACING: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_SPACING, interfaceScale), ITEM_TOP: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_TOP, interfaceScale), TOP_STRIP_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.TOP_STRIP_HEIGHT, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const tab = useTab(tabId);
   const active = useIsActiveTab(tabId);
@@ -104,6 +110,8 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
 }
 
 function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; tabIds: string[]; geometry: DragGeometry; from: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PINNED_CELL, PINNED_SPACING, ITEM_HEIGHT, PINNED_FACE_INSET, PINNED_FACE_RADIUS } = useMemo(() => ({ PINNED_CELL: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_CELL, interfaceScale), PINNED_SPACING: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_SPACING, interfaceScale), ITEM_HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.ITEM_HEIGHT, interfaceScale), PINNED_FACE_INSET: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_FACE_INSET, interfaceScale), PINNED_FACE_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_FACE_RADIUS, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const glass = useGlass();
   const windowId = useWindowId();
@@ -145,3 +153,5 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
     </Animated.View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { ITEM_TOP, DOCK_GAP, GAP, ITEM_HEIGHT, PINNED_CELL, TAB_RADIUS, CHIP_HAIRLINE, PINNED_SPACING, MAX_CHIP, TOP_STRIP_HEIGHT, PINNED_FACE_INSET, PINNED_FACE_RADIUS };

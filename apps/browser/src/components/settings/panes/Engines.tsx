@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import {
   getPasskeyAccess,
   NO_PASSKEY_ACCESS,
@@ -73,6 +76,8 @@ const PASSKEY_STATUS: Record<Exclude<PasskeyAccessStatus, "entitlementRequired">
 };
 
 function PasskeysRow() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PASSKEY_STATUS } = useMemo(() => ({ PASSKEY_STATUS: scaleMetrics(BASE_INTERFACE_METRICS.PASSKEY_STATUS, interfaceScale) }), [interfaceScale]);
   const [access, setAccess] = useState<PasskeyAccess | null>(null);
   const [asking, setAsking] = useState(false);
   useEffect(() => {
@@ -84,7 +89,7 @@ function PasskeysRow() {
       live = false;
       watch.remove();
     };
-  }, []);
+  }, [interfaceScale]);
   if (!access?.entitled) return <Row anchor="engines.passkeys" />;
   const ask = async () => {
     setAsking(true);
@@ -112,6 +117,8 @@ function RuleRow({ site, engine }: { site: string; engine: PageEngine }) {
 }
 
 function RuleSheet({ site, engine: initial }: { site?: string; engine?: PageEngine }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ERROR } = useMemo(() => ({ ERROR: scaleMetrics(BASE_INTERFACE_METRICS.ERROR, interfaceScale) }), [interfaceScale]);
   const [address, setAddress] = useState(site ? siteLabel(site) : "");
   const [engine, setEngine] = useState<PageEngine>(initial ?? "webkit");
   const [error, setError] = useState<string | null>(null);
@@ -161,3 +168,5 @@ function RuleSheet({ site, engine: initial }: { site?: string; engine?: PageEngi
 }
 
 const ERROR = { marginTop: space.ml } as const;
+
+const BASE_INTERFACE_METRICS = { PASSKEY_STATUS, ERROR };

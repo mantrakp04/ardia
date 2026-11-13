@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useLayoutEffect, useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { displayUrl } from "@ardia/core";
@@ -69,6 +71,8 @@ function HoverContent({ hover, windowId, player, windowHeight }: { hover: Hover;
 }
 
 function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { WIDTH } = useMemo(() => ({ WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.WIDTH, interfaceScale) }), [interfaceScale]);
   const origin = useHoverCardOrigin(anchor);
   return (
     <HoverPanel {...cardHoverProps} width={WIDTH} pad="ml" style={{ position: "absolute", ...origin }}>
@@ -78,6 +82,8 @@ function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode 
 }
 
 function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string; anchor: Anchor }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PINNED_LINE, space } = useMemo(() => ({ PINNED_LINE: scaleMetrics(BASE_INTERFACE_METRICS.PINNED_LINE, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const tab = useTab(tabId);
   const isActive = useIsShownTab(windowId, tabId);
   const bookmarked = useIsBookmarked(tab?.url ?? "");
@@ -136,6 +142,8 @@ const MORE_LINE = { marginTop: space.xs, marginLeft: space.xs } as const;
 const PEEK_ROWS = 8;
 
 function FolderPeek({ folderId, windowId, anchor }: { folderId: string; windowId: string; anchor: Anchor }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PEEK_ROWS, space, MORE_LINE } = useMemo(() => ({ PEEK_ROWS: scaleMetrics(BASE_INTERFACE_METRICS.PEEK_ROWS, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), MORE_LINE: scaleMetrics(BASE_INTERFACE_METRICS.MORE_LINE, interfaceScale) }), [interfaceScale]);
   const members = useTileFolderMembers(windowId, folderId);
   const label = useTileFolderLabel(windowId, folderId);
   const open = useFolderPanel((u) => u.open?.windowId === windowId && u.open.folderId === folderId);
@@ -157,6 +165,8 @@ function FolderPeek({ folderId, windowId, anchor }: { folderId: string; windowId
 }
 
 function PeekRow({ tabId, windowId }: { tabId: string; windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tab = useTab(tabId);
   const [hovered, setHovered] = useState(false);
@@ -177,3 +187,5 @@ function PeekRow({ tabId, windowId }: { tabId: string; windowId: string }) {
     </Pressable>
   );
 }
+
+const BASE_INTERFACE_METRICS = { WIDTH, PINNED_LINE, space, PEEK_ROWS, MORE_LINE };

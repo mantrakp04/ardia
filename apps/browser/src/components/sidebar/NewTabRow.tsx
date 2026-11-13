@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { memo, useState } from "react";
 import { Animated, Pressable, View, type LayoutChangeEvent } from "react-native";
 import { Button, ContextMenuArea, radius, space, Symbol, Text, useHover } from "../ui";
@@ -24,6 +27,8 @@ const HINT = { marginRight: space.xxs } as const;
 const MEASURE_OFFSCREEN = { position: "absolute", width: 1000, height: 0, overflow: "hidden", opacity: 0 } as const;
 
 export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip = null }: { windowId: string; shift?: Animated.Value | null; clip?: ClipSource | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { NEW_TAB_LABEL_X, CLEANED_HINT_GAP, CLEANED_HINT_RIGHT, CLIPPED, MEASURE_OFFSCREEN, MEASURE_TEXT, layout, radius, TAB_ROW, BUTTONS_ROOM, HINT } = useMemo(() => ({ NEW_TAB_LABEL_X: scaleMetrics(BASE_INTERFACE_METRICS.NEW_TAB_LABEL_X, interfaceScale), CLEANED_HINT_GAP: scaleMetrics(BASE_INTERFACE_METRICS.CLEANED_HINT_GAP, interfaceScale), CLEANED_HINT_RIGHT: scaleMetrics(BASE_INTERFACE_METRICS.CLEANED_HINT_RIGHT, interfaceScale), CLIPPED: scaleInterfaceStyle(BASE_INTERFACE_METRICS.CLIPPED, interfaceScale), MEASURE_OFFSCREEN: scaleInterfaceStyle(BASE_INTERFACE_METRICS.MEASURE_OFFSCREEN, interfaceScale), MEASURE_TEXT: scaleMetrics(BASE_INTERFACE_METRICS.MEASURE_TEXT, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), BUTTONS_ROOM: scaleMetrics(BASE_INTERFACE_METRICS.BUTTONS_ROOM, interfaceScale), HINT: scaleMetrics(BASE_INTERFACE_METRICS.HINT, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const cleaned = useCleanedCount(windowId);
@@ -75,7 +80,7 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
                 moved.style as object,
               ]}
             >
-              <Symbol name="plus" size={13} weight="medium" color={tokens.newTabIcon} style={{ width: 16, height: 16 }} />
+              <Symbol name="plus" size={13} weight="medium" color={tokens.newTabIcon} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
               <SidebarRowLabel text="New Tab" color={tokens.newTabLabel} />
             </View>
           )}
@@ -100,3 +105,5 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
     </View>
   );
 });
+
+const BASE_INTERFACE_METRICS = { NEW_TAB_LABEL_X, CLEANED_HINT_GAP, CLEANED_HINT_RIGHT, CLIPPED, MEASURE_OFFSCREEN, MEASURE_TEXT, layout, radius, TAB_ROW, BUTTONS_ROOM, HINT };

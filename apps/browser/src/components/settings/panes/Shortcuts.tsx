@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
 import {
   cancelShortcutRecording,
   recordShortcut,
@@ -24,6 +26,8 @@ type Filter = "all" | "customized" | "conflicts";
 const NO_SHORTCUT: Shortcut = { key: "", modifiers: [] };
 
 export function ShortcutsPane() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { NO_SHORTCUT, TOOLBAR, FILL, NO_MATCH, CONFLICT } = useMemo(() => ({ NO_SHORTCUT: scaleMetrics(BASE_INTERFACE_METRICS.NO_SHORTCUT, interfaceScale), TOOLBAR: scaleInterfaceStyle(BASE_INTERFACE_METRICS.TOOLBAR, interfaceScale), FILL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FILL, interfaceScale), NO_MATCH: scaleMetrics(BASE_INTERFACE_METRICS.NO_MATCH, interfaceScale), CONFLICT: scaleMetrics(BASE_INTERFACE_METRICS.CONFLICT, interfaceScale) }), [interfaceScale]);
   const overrides = useSettings((s) => s.shortcuts);
   const profileOrder = useProfileOrder();
   const menuBar = useMenuBarRevision();
@@ -34,10 +38,10 @@ export function ShortcutsPane() {
   const [filter, setFilter] = useState<Filter>("all");
   const [recording, setRecording] = useState<string | null>(null);
 
-  useEffect(() => () => void cancelShortcutRecording(), []);
+  useEffect(() => () => void cancelShortcutRecording(), [interfaceScale]);
 
-  const resolved = useMemo(() => resolvedShortcuts({ settings: { shortcuts: overrides }, profileOrder }), [items, overrides, profileOrder, menuBar]);
-  const byId = useMemo(() => new Map((items ?? []).map((item) => [item.id, item])), [items]);
+  const resolved = useMemo(() => resolvedShortcuts({ settings: { shortcuts: overrides }, profileOrder }), [items, overrides, profileOrder, menuBar, interfaceScale]);
+  const byId = useMemo(() => new Map((items ?? []).map((item) => [item.id, item])), [items, interfaceScale]);
   const effective = (item: MenuShortcut): Shortcut => resolved.bindings.get(item.id)?.[0] ?? NO_SHORTCUT;
   const conflictsOf = (item: MenuShortcut) => resolved.conflictsOf(item.id).flatMap((id) => byId.get(id) ?? []);
 
@@ -156,6 +160,8 @@ function ShortcutField({
   onRecord: () => void;
   onClear: () => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { KEY_FIELD, CLEAR } = useMemo(() => ({ KEY_FIELD: scaleInterfaceStyle(BASE_INTERFACE_METRICS.KEY_FIELD, interfaceScale), CLEAR: scaleInterfaceStyle(BASE_INTERFACE_METRICS.CLEAR, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const text = recording ? "Type Shortcut" : formatShortcut(combo);
@@ -173,7 +179,7 @@ function ShortcutField({
       </Pressable>
       {hovered && !recording && combo.key ? (
         <Pressable onPress={onClear} tooltip="Remove Shortcut" style={CLEAR}>
-          <Symbol name="xmark.circle.fill" size={11} color={theme.textTertiary} style={{ width: 14, height: 14 }} />
+          <Symbol name="xmark.circle.fill" size={11} color={theme.textTertiary} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />
         </Pressable>
       ) : null}
     </View>
@@ -187,3 +193,5 @@ const CONFLICT = { marginTop: space.xxs } as const;
 const FIXED_KEYS = { minWidth: 110, alignItems: "flex-end" } as const;
 const KEY_FIELD = { minWidth: 110, justifyContent: "center" } as const;
 const CLEAR = { position: "absolute", right: space.xs } as const;
+
+const BASE_INTERFACE_METRICS = { NO_SHORTCUT, TOOLBAR, FILL, NO_MATCH, CONFLICT, KEY_FIELD, CLEAR };

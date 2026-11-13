@@ -1,3 +1,5 @@
+import { useInterfaceMetrics } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, findNodeHandle, PanResponder, type View } from "react-native";
 import { beginTabDrag, cancelTabDrag, endTabDrag, setDragPicture, tabDragging, updateTabDrag } from "../../state/drag/tabDrag";
@@ -14,6 +16,10 @@ import { endHeldTabPress, TAB_CLICK_SLOP } from "../../state/sidebar/heldTabPres
 const IDLE = { kind: "idle" } as const;
 
 export function useStripDrag(item: StripDrag) {
+  const { preset, factor } = useInterfaceMetrics();
+  const metrics = useRef(scaleMetrics(BASE_INTERFACE_GEOMETRY, factor));
+  metrics.current = scaleMetrics(BASE_INTERFACE_GEOMETRY, factor);
+  const previousPreset = useRef(preset);
   const dx = useRef(new Animated.Value(0)).current;
   const shift = useRef(new Animated.Value(0)).current;
   const translateX = useRef(Animated.add(dx, shift)).current;
@@ -22,12 +28,12 @@ export function useStripDrag(item: StripDrag) {
   const view = useRef<View>(null);
   const latest = useRef(item);
   latest.current = item;
-  const drag = useRef({ stripBottom: TOP_STRIP_HEIGHT, lifted: false, ids: [] as string[], dx: 0, to: -1, grab: item.width / 2, crossed: false, onto: null as DropTarget | null, far: 0 });
+  const drag = useRef({ stripBottom: metrics.current.TOP_STRIP_HEIGHT, lifted: false, ids: [] as string[], dx: 0, to: -1, grab: item.width / 2, crossed: false, onto: null as DropTarget | null, far: 0 });
   useEffect(() => registerSlot(() => latest.current.geometry, () => latest.current.from, shift), []);
   const aimAt = (dx: number) => {
     const { geometry, from, targets } = latest.current;
     if (!targets || from < 0) return null;
-    return aimDrop(geometry, from, geometry.lefts[from]! + drag.current.grab + dx, (i) => !!targets[i], ONTO_EDGE);
+    return aimDrop(geometry, from, geometry.lefts[from]! + drag.current.grab + dx, (i) => !!targets[i], metrics.current.ONTO_EDGE);
   };
   const indexAt = (dx: number) => aimAt(dx)?.to ?? dropIndex(latest.current.geometry, latest.current.from, dx);
   const setOnto = (target: DropTarget | null) => {
@@ -77,6 +83,23 @@ export function useStripDrag(item: StripDrag) {
     setLifted(false);
     rest();
   };
+  useEffect(() => {
+    if (previousPreset.current === preset) return;
+    previousPreset.current = preset;
+    const active = phase.current.kind !== "idle";
+    phase.current = IDLE;
+    dx.stopAnimation();
+    lift.stopAnimation();
+    if (active) {
+      endHeldTabPress([], null);
+      latest.current.cross?.clear();
+      settleRoom(latest.current.geometry);
+      if (!latest.current.local) cancelTabDrag();
+    }
+    reset();
+    drag.current = { ...drag.current, stripBottom: metrics.current.TOP_STRIP_HEIGHT, lifted: false, ids: [], dx: 0, to: -1, crossed: false, onto: null };
+    lift.setValue(0);
+  }, [preset]);
   const settleTo = (toValue: number, done: () => void) => {
     const landing = {
       kind: "settling" as const,
@@ -137,7 +160,7 @@ export function useStripDrag(item: StripDrag) {
           landSettle();
           dx.stopAnimation();
           dx.setValue(0);
-          const mine = { stripBottom: TOP_STRIP_HEIGHT, lifted: false, ids, dx: 0, to: -1, grab: latest.current.width / 2, crossed: false, onto: null, far: travel(g.moveX, g.moveY) };
+          const mine = { stripBottom: metrics.current.TOP_STRIP_HEIGHT, lifted: false, ids, dx: 0, to: -1, grab: latest.current.width / 2, crossed: false, onto: null, far: travel(g.moveX, g.moveY) };
           setOnto(null);
           drag.current = mine;
           phase.current = { kind: "dragging" };
@@ -147,12 +170,13 @@ export function useStripDrag(item: StripDrag) {
           const seq = beginTabDrag(ids.length === 1 ? latest.current.tabId : null, ids);
           view.current?.measureInWindow((x, y, width, height) => {
             if (drag.current !== mine) return;
-            mine.stripBottom = y + TOP_STRIP_HEIGHT;
+            mine.stripBottom = y + metrics.current.TOP_STRIP_HEIGHT;
             mine.grab = Math.max(0, Math.min(width, grab[0] - x));
             setDragPicture(seq, () => [x + mine.dx, y, width, height], [grab[0] + mine.dx, grab[1]]);
           });
         },
         onPanResponderMove: (_, g) => {
+          if (phase.current.kind !== "dragging") return;
           const { geometry, from, tabId, range, local, cross } = latest.current;
           drag.current.far = Math.max(drag.current.far, travel(g.moveX, g.moveY));
           const lifted = !local && !!tabId && drag.current.ids.length === 1 && g.moveY > drag.current.stripBottom + LIFT_SLOP;
@@ -170,6 +194,7 @@ export function useStripDrag(item: StripDrag) {
           if (!local) updateTabDrag(g.moveX, g.moveY, lifted);
         },
         onPanResponderRelease: (e, g) => {
+          if (phase.current.kind !== "dragging") return;
           const { local, drop, from, range, geometry } = latest.current;
           const { ids, lifted, crossed, grab, far } = drag.current;
           phase.current = IDLE;
@@ -233,3 +258,5 @@ export function useStripDrag(item: StripDrag) {
   };
   return { ref: view, panHandlers: responder.panHandlers, style, dragging, crossed: look === "crossed", grab: drag.current.grab, dx };
 }
+
+const BASE_INTERFACE_GEOMETRY = { TOP_STRIP_HEIGHT, ONTO_EDGE };

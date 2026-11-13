@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useRef, type ReactNode } from "react";
 import { StyleSheet, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import { colorHex, flatColors, lookAngle, PAD_LIGHTNESS, padColor, stopLightness, themeGrainAlpha, themeLayerAlpha, themeUnderColor, withStopAt, withStopLightness, type ShownLook } from "../../lib/profileLook";
@@ -19,6 +22,8 @@ const DIAL_HUB = 5;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 export function DirectionDial({ angle, onChange }: { angle: number; onChange: (angle: number, settle: boolean) => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DIAL_SNAP, CENTER, DIAL, DIAL_BORDER, DIAL_HUB } = useMemo(() => ({ DIAL_SNAP: scaleMetrics(BASE_INTERFACE_METRICS.DIAL_SNAP, interfaceScale), CENTER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.CENTER, interfaceScale), DIAL: scaleMetrics(BASE_INTERFACE_METRICS.DIAL, interfaceScale), DIAL_BORDER: scaleMetrics(BASE_INTERFACE_METRICS.DIAL_BORDER, interfaceScale), DIAL_HUB: scaleMetrics(BASE_INTERFACE_METRICS.DIAL_HUB, interfaceScale) }), [interfaceScale]);
   const ui = useTheme();
   const ref = useRef<View>(null);
   const centre = useRef({ x: 0, y: 0 });
@@ -54,9 +59,9 @@ export function DirectionDial({ angle, onChange }: { angle: number; onChange: (a
         onResponderTerminate={() => onChange(angle, true)}
       >
         <View pointerEvents="none" style={{ position: "absolute", left: -DIAL_BORDER, top: -DIAL_BORDER, width: DIAL, height: DIAL, transform: [{ rotate: `${angle}deg` }] }}>
-          <View style={{ position: "absolute", left: DIAL / 2 - 1, top: 4, width: 2, height: DIAL / 2 - 4, borderRadius: capsule(2), backgroundColor: ui.formAccent }} />
+          <View style={{ position: "absolute", left: DIAL / 2 - 1, top: 4 * interfaceScale, width: 2 * interfaceScale, height: DIAL / 2 - 4, borderRadius: capsule(2), backgroundColor: ui.formAccent }} />
         </View>
-        <Dot size={DIAL_HUB} color={ui.formAccent} style={{ position: "absolute", left: DIAL / 2 - DIAL_BORDER - DIAL_HUB / 2, top: DIAL / 2 - DIAL_BORDER - DIAL_HUB / 2 }} />
+        <Dot size={BASE_INTERFACE_METRICS.DIAL_HUB} color={ui.formAccent} style={{ position: "absolute", left: DIAL / 2 - DIAL_BORDER - DIAL_HUB / 2, top: DIAL / 2 - DIAL_BORDER - DIAL_HUB / 2 }} />
       </View>
       <Text size="caption" tone="textSecondary" style={tabularNums}>
         {Math.round(angle)}°
@@ -74,6 +79,8 @@ export function ThemeBackdrop({ theme, dark, style, children }: { theme: Profile
   );
 }
 export function Preview({ shown }: { shown: ShownLook }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PREVIEW } = useMemo(() => ({ PREVIEW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.PREVIEW, interfaceScale) }), [interfaceScale]);
   const { look: theme, dark } = shown;
   const preview = themePreview[dark ? "dark" : "light"];
   return (
@@ -98,6 +105,8 @@ export function ColorPad({
   onSelect: (index: number) => void;
   onChange: (next: ProfileTheme, settle?: boolean) => void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PAD, KNOB } = useMemo(() => ({ PAD: scaleMetrics(BASE_INTERFACE_METRICS.PAD, interfaceScale), KNOB: scaleMetrics(BASE_INTERFACE_METRICS.KNOB, interfaceScale) }), [interfaceScale]);
   const ref = useRef<View>(null);
   const origin = useRef({ x: 0, y: 0 });
   const dragging = useRef(0);
@@ -162,6 +171,8 @@ export function ColorPad({
   );
 }
 export function LightnessBar({ theme, index, onChange }: { theme: ProfileTheme; index: number; onChange: (next: ProfileTheme, settle?: boolean) => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PAD, LIGHTNESS_STEPS } = useMemo(() => ({ PAD: scaleMetrics(BASE_INTERFACE_METRICS.PAD, interfaceScale), LIGHTNESS_STEPS: scaleMetrics(BASE_INTERFACE_METRICS.LIGHTNESS_STEPS, interfaceScale) }), [interfaceScale]);
   const stop = theme.stops[index]!;
   return (
     <View style={{ width: PAD }}>
@@ -171,7 +182,7 @@ export function LightnessBar({ theme, index, onChange }: { theme: ProfileTheme; 
         tooltip="Brightness"
         onChange={(v, settle) => onChange(withStopLightness(theme, index, v), settle)}
         bar={
-          <View style={{ height: 8, borderRadius: capsule(8), overflow: "hidden", flexDirection: "row" }}>
+          <View style={{ height: 8 * interfaceScale, borderRadius: capsule(8), overflow: "hidden", flexDirection: "row" }}>
             {Array.from({ length: LIGHTNESS_STEPS }, (_, i) => (
               <View key={i} style={{ flex: 1, backgroundColor: colorHex(padColor(stop.x, stop.y, i / (LIGHTNESS_STEPS - 1))) }} />
             ))}
@@ -204,6 +215,8 @@ export function Slider({
   stacked?: boolean;
   children?: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CENTER, LABEL } = useMemo(() => ({ CENTER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.CENTER, interfaceScale), LABEL: scaleMetrics(BASE_INTERFACE_METRICS.LABEL, interfaceScale) }), [interfaceScale]);
   const ui = useTheme();
   const track = (
     <Track
@@ -260,6 +273,8 @@ function Track({
   thumbColor?: string;
   tooltip?: string;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { THUMB } = useMemo(() => ({ THUMB: scaleMetrics(BASE_INTERFACE_METRICS.THUMB, interfaceScale) }), [interfaceScale]);
   const ref = useRef<View>(null);
   const frame = useRef({ x: 0, width: 1 });
   const measure = () => ref.current?.measureInWindow((x, _y, width) => (frame.current = { x, width: Math.max(1, width) }));
@@ -279,7 +294,7 @@ function Track({
       onResponderRelease={(e) => onChange(at(e), true)}
       onResponderTerminate={() => onChange(value, true)}
     >
-      <View ref={ref} style={{ height: 20, justifyContent: "center" }}>
+      <View ref={ref} style={{ height: 20 * interfaceScale, justifyContent: "center" }}>
         {bar}
         <View
           pointerEvents="none"
@@ -303,3 +318,5 @@ function Track({
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { DIAL_SNAP, CENTER, DIAL, DIAL_BORDER, DIAL_HUB, PREVIEW, PAD, KNOB, LIGHTNESS_STEPS, LABEL, THUMB };

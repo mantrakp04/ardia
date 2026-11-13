@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { DockSelection, radius, Surface } from "../ui";
@@ -17,6 +19,8 @@ export const TILE_RADIUS = radius.chrome;
 type FaceState = { width: number; active: boolean; selected: boolean; hovered: boolean; pressed: boolean };
 
 export const TileFace = memo(function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string; badge?: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TILE_RADIUS, SELECTION_STROKE, layout, TILE_GLOW, TILE_RIM } = useMemo(() => ({ TILE_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TILE_RADIUS, interfaceScale), SELECTION_STROKE: scaleMetrics(BASE_INTERFACE_METRICS.SELECTION_STROKE, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), TILE_GLOW: scaleMetrics(BASE_INTERFACE_METRICS.TILE_GLOW, interfaceScale), TILE_RIM: scaleMetrics(BASE_INTERFACE_METRICS.TILE_RIM, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
@@ -51,7 +55,7 @@ export const TileFace = memo(function TileFace({ tabId, badge, ...state }: FaceS
       >
         {tileTheme.theme.kind === "template" ? (
           <View>
-            <View style={{ width: 16, height: 16 }} />
+            <View style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
             <TabBadges tabId={tabId} />
           </View>
         ) : (
@@ -96,6 +100,8 @@ export const TileFace = memo(function TileFace({ tabId, badge, ...state }: FaceS
 });
 
 export function RestingTile({ width, selected, hovered, pressed, children }: Omit<FaceState, "active"> & { children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, TILE_RADIUS } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), TILE_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TILE_RADIUS, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tokens = useSidebarTokens();
   if (useGlass())
@@ -123,6 +129,8 @@ export function RestingTile({ width, selected, hovered, pressed, children }: Omi
 }
 
 function GlassTile({ width, active, selected, hovered, pressed, tileTheme, children }: FaceState & { tileTheme: TileTheme | null; children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, radius, TILE_RADIUS, GLASS_RING } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), TILE_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TILE_RADIUS, interfaceScale), GLASS_RING: scaleMetrics(BASE_INTERFACE_METRICS.GLASS_RING, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tokens = useSidebarTokens();
   return (
@@ -153,13 +161,15 @@ function GlassTile({ width, active, selected, hovered, pressed, tileTheme, child
 const RING_OUTSET = 3;
 
 export function FolderDropRing({ on }: { on: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { RING_OUTSET, TILE_RADIUS } = useMemo(() => ({ RING_OUTSET: scaleMetrics(BASE_INTERFACE_METRICS.RING_OUTSET, interfaceScale), TILE_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.TILE_RADIUS, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
-  const shown = useMemo(() => new Animated.Value(on ? 1 : 0), []);
+  const shown = useMemo(() => new Animated.Value(on ? 1 : 0), [interfaceScale]);
   useEffect(() => {
     const spring = Animated.spring(shown, { toValue: on ? 1 : 0, ...SLIDE });
     spring.start();
     return () => spring.stop();
-  }, [on, shown]);
+  }, [on, shown, interfaceScale]);
   return (
     <Animated.View
       pointerEvents="none"
@@ -193,3 +203,5 @@ export function useSlotPosition(x: number, y: number, width: number, sliding: bo
   useEffect(() => () => position.stopAnimation(), [position]);
   return position;
 }
+
+const BASE_INTERFACE_METRICS = { TILE_RADIUS, SELECTION_STROKE, layout, TILE_GLOW, TILE_RIM, radius, GLASS_RING, RING_OUTSET };

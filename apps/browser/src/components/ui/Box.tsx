@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { memo, useMemo, type ReactNode } from "react";
 import { StyleSheet, View, type StyleProp, type ViewProps, type ViewStyle } from "react-native";
 import { useTheme } from "./theme";
@@ -18,6 +20,8 @@ export type BoxProps = Omit<ViewProps, "style"> & {
 };
 
 export const Box = memo(function Box({ pad, padX, padY, gap, fill, border, radius, row, center, style, children, ...rest }: BoxProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, radii } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), radii: scaleMetrics(BASE_INTERFACE_METRICS.radii, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const fillColor = fill ? theme[fill] : undefined;
   const borderColor = border ? theme[border] : undefined;
@@ -35,7 +39,7 @@ export const Box = memo(function Box({ pad, padX, padY, gap, fill, border, radiu
       alignItems: center ? "center" : undefined,
       justifyContent: center ? "center" : undefined,
     }),
-    [pad, padX, padY, gap, fillColor, borderColor, radius, row, center],
+    [pad, padX, padY, gap, fillColor, borderColor, radius, row, center, interfaceScale],
   );
   return (
     <View {...rest} style={style ? [tokens, style] : tokens}>
@@ -43,3 +47,5 @@ export const Box = memo(function Box({ pad, padX, padY, gap, fill, border, radiu
     </View>
   );
 });
+
+const BASE_INTERFACE_METRICS = { space, radii };

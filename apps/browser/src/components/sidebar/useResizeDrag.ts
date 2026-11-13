@@ -1,3 +1,5 @@
+import { currentSettings } from "../../state/browser/current";
+import { interfaceMetrics, scaleMetrics } from "../../lib/interfaceMetrics";
 import { useMemo, useRef } from "react";
 import { Animated, PanResponder, type GestureResponderHandlers } from "react-native";
 import { springs } from "../ui/motion";
@@ -12,7 +14,7 @@ export function useResizeDrag(o: {
   saved: () => number;
   onLive: (width: number | null) => void;
   onCommit: (width: number) => void;
-}): GestureResponderHandlers {
+}): GestureResponderHandlers { const { BAND } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   const latest = useRef(o);
   latest.current = o;
   return useMemo(() => {
@@ -73,3 +75,5 @@ export function useResizeDrag(o: {
     }).panHandlers;
   }, []);
 }
+
+const BASE_INTERFACE_GEOMETRY = { BAND, BAND_SCALE };

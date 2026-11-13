@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { displayUrl, asksForBackspace, keywordBySpace, resolveInput, searchUrl, scopedSearchUrl, type Suggestion } from "@ardia/core";
 import { Symbol, useTheme } from "../ui";
 import { copyText, pickFiles } from "../../state/app/system";
@@ -35,11 +36,8 @@ import { useBarItems } from "./useBarItems";
 import { useHeldSelection, useProviderEnter } from "./heldSelection";
 import { useBarText } from "./useBarText";
 import { usePreviewSelection } from "./usePreviewSelection";
-
 export { PANEL_TEXT_LEFT } from "./tokens";
-
 type Variant = "panel" | "hero" | "sidebar";
-
 export function Omnibox({
   variant,
   tabId,
@@ -74,7 +72,6 @@ export function Omnibox({
   useEffect(() => () => bangEnter.cancel(), [bangEnter]);
   useEffect(() => bangEnter.cancel(), [bangEnter, typed, selected, scope]);
   const root = useRef<View>(null);
-
   const { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing } = useBarItems({
     input,
     typed,
@@ -89,10 +86,8 @@ export function Omnibox({
     tabId,
     currentUrl,
   });
-
   useHeldSelection(items, typed, scope, selectedIndex, dispatch);
   const waitForProvider = useProviderEnter(items, typed, scope, (s, disposition) => choose(s, disposition));
-
   const snapshot = useRef<BarSnapshot | null>(null);
   snapshot.current = { typed, edited, selection: selection.current, selected, scope, scopeFrom };
   const fieldText = useRef(value);
@@ -118,7 +113,6 @@ export function Omnibox({
       saveNtpQuery(tabId, snapshot.current);
     };
   }, [hero, windowId, tabId]);
-
   useLayoutEffect(() => {
     if (!pendingSelection) return;
     input.current?.setSelection(pendingSelection.start, pendingSelection.end);
@@ -126,20 +120,16 @@ export function Omnibox({
     dispatch({ kind: "selectionApplied" });
     if (editing.current) claimFocusTag(windowId, hero ? heroBarFocus(tabId) : commandBarFocus, () => findNodeHandle(input.current));
   }, [pendingSelection]);
-
   const previewSelection = usePreviewSelection({ previewing, value, typed, shownCompletion, suppressCompletion, selection, dispatch });
-
   const reset = () => {
     bangEnter.cancel();
     dispatch({ kind: "reset" });
     selection.collapse();
   };
-
   const dismiss = () => {
     bangEnter.cancel();
     return hero ? reset() : onDone?.();
   };
-
   const go = (url: string, asked: Disposition = "current") => {
     bangEnter.cancel();
     if (!url) return;
@@ -149,7 +139,6 @@ export function Omnibox({
     openFromBar(url, tabId, disposition);
     if (disposition !== "current") dismiss();
   };
-
   const choose = (s: Suggestion | undefined, disposition: Disposition = "current", byEnter = false) => {
     bangEnter.cancel();
     if (s || !scope) trackSuggestionChosen(s);
@@ -192,18 +181,15 @@ export function Omnibox({
         return runBarExtension(s, windowId);
     }
   };
-
   const forceSearch = () => {
     const text = (previewing ? value : typed).trim();
     if (!text) return;
     go(scope ? scopedSearchUrl(scope, text, engine) : searchUrl(engine, text));
   };
-
   const onKeyDown = (e: BarKeyEvent) => {
     previewSelection.settle();
     return barKeyDown(e, { bar, hero, shownCompletion, input: previewing ? value : typed, items, selectedIndex, previewing, current, tabScope, onDone, reset, forceSearch, go, choose, cancelBang: () => bangEnter.cancel(), removeRow: (url) => rowActions.remove(url) });
   };
-
   const onContextMenu = async () => {
     const pick = await showFieldMenu(value, selection);
     if (pick?.kind === "go") return go(pick.url);
@@ -214,12 +200,10 @@ export function Omnibox({
     if (pick?.kind === "selectAll") dispatch({ kind: "select", selection: { start: 0, end: value.length } });
     focusField();
   };
-
   useLayoutEffect(() => journeyBarCommitted(tabId), []);
   useLayoutEffect(() => {
     if (items.length) journeySuggestions(tabId);
   }, [items]);
-
   const heardAt = useRef(0);
   const keyAt = useRef(0);
   useLayoutEffect(() => {
@@ -229,7 +213,6 @@ export function Omnibox({
       keyAt.current = 0;
     }
   });
-
   const onChangeText = (next: string) => {
     if (__DEV__) heardAt.current = Date.now();
     previewSelection.settle();
@@ -248,7 +231,6 @@ export function Omnibox({
     if (bySpace && keyword) return dispatch({ kind: "enteredScope", scope: keyword, from: bySpace.from });
     dispatch({ kind: "typed", text: change.typed, suppress: change.suppress, selected: 0 });
   };
-
   useOmniboxDriver(`${windowId}:${variant}`, {
     type: (text) => {
       selection.note({ start: text.length, end: text.length });
@@ -261,14 +243,12 @@ export function Omnibox({
     measure: () => new Promise((resolve) => root.current?.measureInWindow((x, y, width, height) => resolve({ x, y, width, height }))),
     state: () => ({ typed, value, selection: selection.current, completion: shownCompletion, suggested: completion, preventInline: suppressCompletion, selectionBefore: selection.before, selected: selectedIndex, scope, scopeFrom, tabScope, items }),
   });
-
   const leadingIcon =
     current && (typed || scope) && current.kind !== "search" && !(scope?.kind === "provider" && current.kind === "provider") ? (
       <SuggestionIcon suggestion={current} color={theme.textPrimary} />
     ) : (
       <Symbol name={incognito ? INCOGNITO_ICON : "magnifyingglass"} size={BAR.leadingIcon} weight="medium" color={hero ? theme.textSecondary : theme.textPrimary} style={{ width: BAR.iconSlot, height: BAR.iconSlot }} />
     );
-
   const focused = useRef(false);
   const focusOnce = () => {
     if (focused.current) return;
@@ -279,7 +259,6 @@ export function Omnibox({
     claimFocusTag(windowId, hero ? heroBarFocus(tabId) : commandBarFocus, () => findNodeHandle(input.current));
     journeyBarFocused(tabId);
   };
-
   const field = (
     <BarField
       inputRef={input}
@@ -310,7 +289,6 @@ export function Omnibox({
       onKeyDown={onKeyDown}
     />
   );
-
   const latest = useRef({ choose, profileId, go, current, onCancel, tabId, windowId });
   latest.current = { choose, profileId, go, current, onCancel, tabId, windowId };
   const [barActions] = useState(() => ({
@@ -339,7 +317,6 @@ export function Omnibox({
       actions={rowActions}
     />
   );
-
   const onBarContextMenu = () => void onContextMenu();
   const pulse = <ScopePulse scope={scope} shape={variant} profileId={profileId} />;
   if (dropdown)
@@ -379,7 +356,6 @@ export function Omnibox({
     />
   );
 }
-
 async function openTabOrFile(windowId: string, tabId: string, onGo: (url: string) => void) {
   const others = otherOpenTabs(windowId, ADD_CHIP.otherTabs);
   const choice = await chooseFromMenu<{ tab: string }, "files">([

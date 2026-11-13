@@ -1,3 +1,4 @@
+import { interfaceMetrics, scaleMetrics } from "./interfaceMetrics";
 export type ToolbarRow = {
   height: number;
   center: number;
@@ -15,7 +16,14 @@ export const TOOLBAR_ROWS: Record<"regular" | "compact", ToolbarRow> = {
   compact: { height: 28, center: 14, button: 22, buttonRadius: 4, field: 22, fieldRadius: 4, fieldButton: 18, fieldButtonRadius: 2, extensionButton: 22 },
 };
 
-export const toolbarRowOf = (compact: boolean): ToolbarRow => (compact ? TOOLBAR_ROWS.compact : TOOLBAR_ROWS.regular);
+const resolvedRows = new Map<string, ToolbarRow>();
+export function toolbarRowOf(compact: boolean, preset: unknown = "100"): ToolbarRow {
+  const metrics = interfaceMetrics(preset);
+  const key = `${compact}:${metrics.preset}`;
+  let row = resolvedRows.get(key);
+  if (!row) resolvedRows.set(key, row = Object.freeze(scaleMetrics(compact ? TOOLBAR_ROWS.compact : TOOLBAR_ROWS.regular, metrics.factor)));
+  return row;
+}
 
 export const urlFieldOf = (row: ToolbarRow) => ({ top: row.center - row.field / 2, height: row.field });
 

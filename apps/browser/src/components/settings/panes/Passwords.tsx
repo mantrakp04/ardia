@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import {
   deletePassword,
   exportPasswords,
@@ -33,6 +36,8 @@ function passwordManagerAppsNote() {
 }
 
 export function PasswordsPane({ profileId: initial }: { profileId?: string | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LOCKED, LOCK_ICON } = useMemo(() => ({ LOCKED: scaleInterfaceStyle(BASE_INTERFACE_METRICS.LOCKED, interfaceScale), LOCK_ICON: scaleMetrics(BASE_INTERFACE_METRICS.LOCK_ICON, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const [profileId, setProfileId] = useSettingsProfile(initial);
   const [list, setList] = useState<SavedPassword[] | null>(null);
@@ -50,7 +55,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
   };
   useEffect(() => {
     if (unlocked) load();
-  }, [unlocked, profileId]);
+  }, [unlocked, profileId, interfaceScale]);
 
   const importCsv = async () => {
     try {
@@ -143,6 +148,8 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
 }
 
 function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: SavedPassword; onChanged: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SHEET_BODY, CENTER, MONO, ERROR } = useMemo(() => ({ SHEET_BODY: scaleMetrics(BASE_INTERFACE_METRICS.SHEET_BODY, interfaceScale), CENTER: scaleInterfaceStyle(BASE_INTERFACE_METRICS.CENTER, interfaceScale), MONO: scaleMetrics(BASE_INTERFACE_METRICS.MONO, interfaceScale), ERROR: scaleMetrics(BASE_INTERFACE_METRICS.ERROR, interfaceScale) }), [interfaceScale]);
   const [username, setUsername] = useState(saved.username);
   const [password, setPassword] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -156,13 +163,13 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
     return () => {
       open.current = false;
     };
-  }, []);
-  useEffect(() => void revealPassword(profile, saved.origin, saved.username).then(setPassword), []);
+  }, [interfaceScale]);
+  useEffect(() => void revealPassword(profile, saved.origin, saved.username).then(setPassword), [interfaceScale]);
   useEffect(() => {
     if (unlocked) return;
     setPassword(null);
     closeSettingsSheet();
-  }, [unlocked]);
+  }, [unlocked, interfaceScale]);
 
   const save = async () => {
     setError("");
@@ -259,3 +266,5 @@ const SHEET_BODY = { marginTop: space.xl } as const;
 const ERROR = { marginTop: space.ml } as const;
 const CENTER = { alignItems: "center" } as const;
 const MONO = { fontFamily: "Menlo" } as const;
+
+const BASE_INTERFACE_METRICS = { LOCKED, LOCK_ICON, SHEET_BODY, CENTER, MONO, ERROR };

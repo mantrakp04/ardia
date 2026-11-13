@@ -1,3 +1,4 @@
+import { interfaceMetrics } from "../../lib/interfaceMetrics";
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile, tabsShownIn } from "../browser/model";
@@ -24,7 +25,7 @@ export const useSidebarDockState = (windowId: string) =>
       (s) =>
         [
           tabsShownIn(s, windowId),
-          s.settings.sidebarWidth,
+          (s.settings.sidebarWidth * interfaceMetrics(s.settings.interfaceSize).factor),
           s.settings.addressBar === "sidebar",
         ] as const,
     ),

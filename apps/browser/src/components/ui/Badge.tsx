@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { Text } from "./Text";
 import { useTheme, type Theme } from "./theme";
@@ -43,6 +46,8 @@ export function Badge({
   color?: string;
   style?: StyleProp<ViewStyle>;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BADGE_SIZE, space } = useMemo(() => ({ BADGE_SIZE: scaleMetrics(BASE_INTERFACE_METRICS.BADGE_SIZE, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const look = badgeLook(theme, tone);
   const metrics = BADGE_SIZE[size];
@@ -66,3 +71,5 @@ export function Badge({
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { BADGE_SIZE, space };

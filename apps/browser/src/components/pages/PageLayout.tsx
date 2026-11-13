@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { appUrlOrigin, urlForDisplay } from "@ardia/core";
 import { displayHostOf } from "../../lib/url";
 import type { ReactNode, Ref } from "react";
@@ -10,6 +13,8 @@ export const PAGE_WIDTH = 880;
 export type PageToolbarSize = keyof typeof pageToolbar;
 
 export function PageToolbar({ size, divider, drag, children }: { size: PageToolbarSize; divider?: boolean; drag?: boolean; children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { pageToolbar, space } = useMemo(() => ({ pageToolbar: scaleMetrics(BASE_INTERFACE_METRICS.pageToolbar, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const bar = pageToolbar[size];
   return (
@@ -31,6 +36,8 @@ export function PageToolbar({ size, divider, drag, children }: { size: PageToolb
 }
 
 export function PageHeader({ title, query, onQuery, actions, searchRef }: { title: string; query: string; onQuery: (q: string) => void; actions?: ReactNode; searchRef?: Ref<TextInput> }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { HEADER_TITLE, HEADER_SEARCH, SEARCH_WIDTH, HEADER_ACTIONS } = useMemo(() => ({ HEADER_TITLE: scaleMetrics(BASE_INTERFACE_METRICS.HEADER_TITLE, interfaceScale), HEADER_SEARCH: scaleInterfaceStyle(BASE_INTERFACE_METRICS.HEADER_SEARCH, interfaceScale), SEARCH_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.SEARCH_WIDTH, interfaceScale), HEADER_ACTIONS: scaleInterfaceStyle(BASE_INTERFACE_METRICS.HEADER_ACTIONS, interfaceScale) }), [interfaceScale]);
   return (
     <PageToolbar size="page">
       <Text weight="semibold" style={HEADER_TITLE}>
@@ -88,3 +95,5 @@ export function matchesQuery(query: string, ...fields: string[]): boolean {
   const hay = searchText(...fields);
   return words.every((w) => hay.includes(w));
 }
+
+const BASE_INTERFACE_METRICS = { pageToolbar, space, HEADER_TITLE, HEADER_SEARCH, SEARCH_WIDTH, HEADER_ACTIONS };

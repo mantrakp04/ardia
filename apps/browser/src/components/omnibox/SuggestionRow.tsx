@@ -1,6 +1,10 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { RawText as NativeText } from "../ui/ScaledNative";
+import { useMemo } from "react";
 import { displayHost, displayUrl, hostOf, type Suggestion } from "@ardia/core";
 import { memo } from "react";
-import { Image, Pressable, Text as NativeText, View } from "react-native";
+import { Image, Pressable, View } from "react-native";
 import { Button, Symbol, Text, useHover, useTheme, withAlpha, type Theme } from "../ui";
 import { Favicon } from "../favicon/Favicon";
 import { SELECTED_SUGGESTION_ALPHA, SUGGESTION } from "./tokens";
@@ -11,6 +15,8 @@ const selectedFill = (theme: Theme) =>
   theme.powerUpColor ? withAlpha(theme.powerUpColor, theme.dark ? SELECTED_SUGGESTION_ALPHA.dark : SELECTED_SUGGESTION_ALPHA.light) : theme.commandBarSelected;
 
 export function SuggestionIcon({ suggestion: s, color }: { suggestion: Suggestion; color?: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SUGGESTION, ICON_BOX } = useMemo(() => ({ SUGGESTION: scaleMetrics(BASE_INTERFACE_METRICS.SUGGESTION, interfaceScale), ICON_BOX: scaleMetrics(BASE_INTERFACE_METRICS.ICON_BOX, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tint = color ?? theme.textSecondary;
   switch (s.kind) {
@@ -19,16 +25,16 @@ export function SuggestionIcon({ suggestion: s, color }: { suggestion: Suggestio
     case "create":
       return <Favicon url={`https://${s.site}`} />;
     case "search":
-      return <Symbol name="magnifyingglass" size={SUGGESTION.icon} color={tint} style={ICON_BOX} />;
+      return <Symbol name="magnifyingglass" size={BASE_INTERFACE_METRICS.SUGGESTION.icon} color={tint} style={ICON_BOX} />;
     case "calc":
-      return <Symbol name="equal.circle" size={SUGGESTION.calcIcon} color={tint} style={ICON_BOX} />;
+      return <Symbol name="equal.circle" size={BASE_INTERFACE_METRICS.SUGGESTION.calcIcon} color={tint} style={ICON_BOX} />;
     case "action":
-      return <Symbol name={s.icon ?? "command"} size={SUGGESTION.icon} color={tint} style={ICON_BOX} />;
+      return <Symbol name={s.icon ?? "command"} size={BASE_INTERFACE_METRICS.SUGGESTION.icon} color={tint} style={ICON_BOX} />;
     case "extension":
       return s.icon ? (
         <Image source={{ uri: s.icon }} style={ICON_BOX} />
       ) : (
-        <Symbol name="puzzlepiece.extension" size={SUGGESTION.icon} color={tint} style={ICON_BOX} />
+        <Symbol name="puzzlepiece.extension" size={BASE_INTERFACE_METRICS.SUGGESTION.icon} color={tint} style={ICON_BOX} />
       );
     case "provider":
       return <Favicon url={s.url} favicon={s.icon} />;
@@ -74,6 +80,8 @@ export const SuggestionList = memo(function SuggestionList({
   dropdown: boolean;
   actions: RowActions;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SUGGESTION } = useMemo(() => ({ SUGGESTION: scaleMetrics(BASE_INTERFACE_METRICS.SUGGESTION, interfaceScale) }), [interfaceScale]);
   if (!items.length) return null;
   return (
     <View style={{ paddingHorizontal: dropdown ? SUGGESTION.dropdownListX : SUGGESTION.listX, paddingBottom: dropdown ? SUGGESTION.dropdownListBelow : SUGGESTION.listBelow }}>
@@ -110,6 +118,8 @@ const SuggestionRow = memo(
     trailing: string | null;
     actions: RowActions;
   }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SUGGESTION } = useMemo(() => ({ SUGGESTION: scaleMetrics(BASE_INTERFACE_METRICS.SUGGESTION, interfaceScale) }), [interfaceScale]);
     const theme = useTheme();
     const { hovered, hoverProps } = useHover();
     const [title, accessory] = labels(s);
@@ -153,3 +163,5 @@ const SuggestionRow = memo(
   },
   (a, b) => a.selected === b.selected && a.trailing === b.trailing && a.actions === b.actions && sameSuggestion(a.suggestion, b.suggestion),
 );
+
+const BASE_INTERFACE_METRICS = { SUGGESTION, ICON_BOX };

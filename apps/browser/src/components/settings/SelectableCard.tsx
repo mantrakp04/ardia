@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { radius as radii, useHover, useTheme, type Radius } from "../ui";
@@ -25,6 +28,8 @@ export function SelectableCard({
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { radii } = useMemo(() => ({ radii: scaleMetrics(BASE_INTERFACE_METRICS.radii, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const look = useSettingsColors();
   const { hovered: hoveredHere, hoverProps } = useHover();
@@ -64,3 +69,5 @@ export function SelectableCard({
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { radii };

@@ -1,8 +1,13 @@
+import { useMemo } from "react";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { Pressable, View } from "react-native";
 import { GlassFill, menuRowFill, PANEL, Symbol, Text, useGlass, useHover, useTheme } from "../ui";
 import { DOWNLOADS_LIST } from "./tokens";
 
 export function FooterButton({ title, onPress }: { title: string; onPress: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANEL, DOWNLOADS_LIST } = useMemo(() => ({ PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale), DOWNLOADS_LIST: scaleMetrics(BASE_INTERFACE_METRICS.DOWNLOADS_LIST, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const glass = useGlass();
   const { hovered, hoverProps } = useHover();
@@ -26,7 +31,7 @@ export function FooterButton({ title, onPress }: { title: string; onPress: () =>
             </Text>
             <Symbol
               name="chevron.right"
-              size={DOWNLOADS_LIST.chevronSize}
+              size={BASE_INTERFACE_METRICS.DOWNLOADS_LIST.chevronSize}
               weight="semibold"
               color={theme.textTertiary}
               style={{ width: DOWNLOADS_LIST.chevronBox, height: DOWNLOADS_LIST.chevronBox, marginRight: -DOWNLOADS_LIST.chevronBearing }}
@@ -37,3 +42,5 @@ export function FooterButton({ title, onPress }: { title: string; onPress: () =>
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { PANEL, DOWNLOADS_LIST };

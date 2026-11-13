@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import type { Suggestion } from "@ardia/core";
 import { memo } from "react";
 import { Pressable, View } from "react-native";
@@ -12,6 +15,8 @@ export function destinationLabel(s: Suggestion | undefined): string {
 }
 
 export const GoButton = memo(function GoButton({ label, enabled, onPress }: { label: string; enabled: boolean; onPress(): void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GO_BUTTON, BAR_TYPE } = useMemo(() => ({ GO_BUTTON: scaleMetrics(BASE_INTERFACE_METRICS.GO_BUTTON, interfaceScale), BAR_TYPE: BASE_INTERFACE_METRICS.BAR_TYPE }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const glass = useGlass();
@@ -40,7 +45,7 @@ export const GoButton = memo(function GoButton({ label, enabled, onPress }: { la
           </Text>
           <Symbol
             name="return"
-            size={GO_BUTTON.glyph}
+            size={BASE_INTERFACE_METRICS.GO_BUTTON.glyph}
             weight="medium"
             color={enabled ? text + GO_BUTTON.glyphAlpha : text}
             style={{ width: GO_BUTTON.glyphBox, height: GO_BUTTON.glyphBox }}
@@ -50,3 +55,5 @@ export const GoButton = memo(function GoButton({ label, enabled, onPress }: { la
     </View>
   );
 });
+
+const BASE_INTERFACE_METRICS = { GO_BUTTON, BAR_TYPE };

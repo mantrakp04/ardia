@@ -1,4 +1,5 @@
-import { Pressable, Text as Span, View } from "react-native";
+import { RawText as Span } from "../ui/ScaledNative";
+import { Pressable, View } from "react-native";
 import { FadeLabel } from "../ui/native";
 import { joinEvent } from "../../state/live/alerts";
 import { calendarBlocked, connectCalendar, openCalendarPrivacy, refreshCalendar, useCalendar, useNow } from "../../state/live/calendar";

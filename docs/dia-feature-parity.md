@@ -833,3 +833,5 @@ reproduced.
     ACFavicons, Move to Window, Alloy screen-sharing, import-Keychain and `Menus.swift` comments; the README (it still
     described WebKit). The `ArdiaSwipe.mm` responder-delegate comment went with Findings 3 (R1).
 14. No `TODO`/`FIXME`/`XXX` markers in the code paths audited.
+
+| Application interface size | — | 🚧 | Implemented locally: Appearance presets 100/110/125/150%, device-local, live across React window roots, independent of page zoom. Session v12 and native startup geometry cache key updated. Typecheck and focused tests pass; app build and hidden-instance visual checks blocked by missing Xcode. Consent-gated daily `settings_snapshot`: watch `setting_interfaceSize` against `default_interfaceSize`. See `docs/interface-size.md`. |

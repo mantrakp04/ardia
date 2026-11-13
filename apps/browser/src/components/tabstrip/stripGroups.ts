@@ -1,3 +1,5 @@
+import { currentSettings } from "../../state/browser/current";
+import { interfaceMetrics, scaleMetrics } from "../../lib/interfaceMetrics";
 import type { StripDock, StripEntry, StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
 import type { Dock, DropTarget } from "./model";
 import { DOCK_GAP, GAP, ITEM_HEIGHT, MAX_CHIP, MIN_CHIP, PINNED_CELL, PINNED_SPACING } from "./tokens";
@@ -10,7 +12,7 @@ export const TAIL_EXPANDED = 30.25;
 
 type GroupLayout = { offsets: number[]; width: number };
 
-export function groupLayout(chip: number, widths: number[], gap: number, expanded: boolean, shown: number): GroupLayout {
+export function groupLayout(chip: number, widths: number[], gap: number, expanded: boolean, shown: number): GroupLayout { const { MEMBERS_INSET, TAIL_EXPANDED, TAIL_COLLAPSED } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   const offsets: number[] = [];
   let x = 0;
   for (const w of widths) {
@@ -33,7 +35,7 @@ export function stripTabWidth(o: {
   plus: number;
   min: number;
   max: number;
-}): number {
+}): number { const { MEMBERS_INSET, TAIL_EXPANDED, TAIL_COLLAPSED, GROUP_MARGIN_LEFT, GROUP_MARGIN_RIGHT } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   let room = o.pageWidth - o.dockWidth - o.plus - o.gap - o.fixed;
   for (const g of o.groups) {
     const parts = g.expanded ? MEMBERS_INSET + TAIL_EXPANDED : g.shown ? MEMBERS_INSET + TAIL_COLLAPSED : 0;
@@ -89,7 +91,7 @@ export function aimDrop({ slots, lefts }: DragGeometry, from: number, pointer: n
   return { to, onto };
 }
 
-export function leaveIndex({ slots, lefts }: DragGeometry, slot: number, chip: number, expanded: boolean, left: number, width: number): number | null {
+export function leaveIndex({ slots, lefts }: DragGeometry, slot: number, chip: number, expanded: boolean, left: number, width: number): number | null { const { TAIL_EXPANDED, MEMBERS_INSET } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   const start = lefts[slot]!;
   const end = start + slots[slot]!.width;
   const right = left + width;
@@ -128,7 +130,7 @@ export const holds = (m: StripMember, tabId: string) => (m.kind === "tab" ? m.id
 export const tabsOf = (m: StripMember) => (m.kind === "tab" ? [m.id] : m.tabIds);
 export const units = (m: StripMember, activeId: string) => (m.kind === "split" ? Math.min(m.tabIds.length, 2) : m.kind === "folder" ? (holds(m, activeId) ? 1 : 0) : 1);
 export const CELL_STEP = PINNED_CELL + PINNED_SPACING;
-export const dockWidth = (cells: number) => cells * CELL_STEP - PINNED_SPACING;
+export const dockWidth = (cells: number) => { const { CELL_STEP, PINNED_SPACING } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor); return cells * CELL_STEP - PINNED_SPACING; };
 
 export type StripMeasures = { groupChip: (groupId: string) => number | undefined; folderChip: (groupId: string) => number | undefined };
 export type StripLayout = {
@@ -141,14 +143,14 @@ export type StripLayout = {
 
 const dockEntry = (entries: StripEntry[]) => entries.find((e): e is StripDock => e.kind === "dock");
 const dockTabs = (dock: StripDock, cell: string) => dock.members.get(cell) ?? [cell];
-const dockSpan = (dock: StripDock | undefined) => (dock?.ids.length ? dockWidth(dock.ids.length) + DOCK_GAP : 0);
+const dockSpan = (dock: StripDock | undefined) => { const { DOCK_GAP } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor); return (dock?.ids.length ? dockWidth(dock.ids.length) + DOCK_GAP : 0); };
 
-export function layoutDock(dock: StripDock | undefined): Dock | null {
+export function layoutDock(dock: StripDock | undefined): Dock | null { const { PINNED_CELL, PINNED_SPACING } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   if (!dock?.ids.length) return null;
   return { ids: dock.ids, left: -dockSpan(dock), geometry: dragGeometry(dock.ids.map((id) => ({ tabIds: dockTabs(dock, id), width: PINNED_CELL })), PINNED_SPACING) };
 }
 
-export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: number, measured: StripMeasures, dockLayout: Dock | null, heldChip?: number): StripLayout {
+export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: number, measured: StripMeasures, dockLayout: Dock | null, heldChip?: number): StripLayout { const { MEMBERS_INSET, GAP, ITEM_HEIGHT, MIN_CHIP, MAX_CHIP, GROUP_MARGIN_LEFT, GROUP_MARGIN_RIGHT, PINNED_CELL } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   const dock = dockEntry(entries);
   const rows = entries.filter((e): e is StripGroupEntry | StripMember => e.kind !== "dock");
   const groupChip = (g: StripGroupEntry) => measured.groupChip(g.id) ?? 0;
@@ -195,3 +197,5 @@ export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: 
   };
   return { chip, top, targets, memberWidth, spanOf };
 }
+
+const BASE_INTERFACE_GEOMETRY = { MEMBERS_INSET, TAIL_EXPANDED, TAIL_COLLAPSED, GROUP_MARGIN_LEFT, GROUP_MARGIN_RIGHT, CELL_STEP, PINNED_SPACING, DOCK_GAP, PINNED_CELL, GAP, ITEM_HEIGHT, MIN_CHIP, MAX_CHIP };

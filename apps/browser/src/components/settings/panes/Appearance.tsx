@@ -1,5 +1,8 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import type { AppIcon } from "../../../state/app/appSettings";
-import { Box, GlassFill, liquidGlass, PopUp, radius, space, Text, Toggle } from "../../ui";
+import { Box, Button, GlassFill, liquidGlass, PopUp, radius, space, Text, Toggle } from "../../ui";
 import { Image, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
@@ -23,6 +26,7 @@ const MODES: { value: Settings["appearance"]; title: string; description: string
 ];
 
 export function AppearancePane() {
+  const interfaceSize = useSettings((s) => s.interfaceSize);
   const appearance = useSettings((s) => s.appearance);
   const spacesFollow = useSettings((s) => s.spacesFollowAppearance);
   const adaptText = useSettings((s) => s.adaptTextToColor);
@@ -45,6 +49,12 @@ export function AppearancePane() {
           </Row>
         </Group>
       </Box>
+      <Group>
+        <Row anchor="appearance.interfaceSize">
+          <PopUp value={interfaceSize} options={[{ value: "100", title: "100% (Default)" }, { value: "110", title: "110%" }, { value: "125", title: "125%" }, { value: "150", title: "150%" }]} onChange={(interfaceSize) => updateSettings({ interfaceSize })} minWidth={120} />
+          <Button variant="text" title="Reset" onPress={() => updateSettings({ interfaceSize: "100" })} />
+        </Row>
+      </Group>
       <InterfaceStylePicker />
       <AddressBarPicker />
       <PageFramePicker />
@@ -64,6 +74,8 @@ const STYLES: { value: Settings["interfaceStyle"]; title: string }[] = [
 ];
 
 function InterfaceStylePicker() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TINT_SLIDER_WIDTH } = useMemo(() => ({ TINT_SLIDER_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.TINT_SLIDER_WIDTH, interfaceScale) }), [interfaceScale]);
   const style = useSettings((s) => s.interfaceStyle);
   const tinted = useSettings((s) => s.glassTintWithTheme);
   const tintAmount = useSettings((s) => s.glassTintAmount);
@@ -95,6 +107,8 @@ function InterfaceStylePicker() {
 }
 
 function StyleChoice({ value, title, selected, onPress }: { value: Settings["interfaceStyle"]; title: string; selected: boolean; onPress: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { STYLE_TILES, STYLE_TILE, radius } = useMemo(() => ({ STYLE_TILES: scaleInterfaceStyle(BASE_INTERFACE_METRICS.STYLE_TILES, interfaceScale), STYLE_TILE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.STYLE_TILE, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const look = stylePreview[theme.dark ? "dark" : "light"];
   const glass = value === "glass";
@@ -163,6 +177,8 @@ const FRAME_VALUE_WIDTH = 36;
 const FRAME_CONTROL = { alignItems: "center" } as const;
 
 function PageFramePicker() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FRAME_CONTROL, FRAME_SLIDER_WIDTH, FRAME_VALUE_WIDTH } = useMemo(() => ({ FRAME_CONTROL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FRAME_CONTROL, interfaceScale), FRAME_SLIDER_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.FRAME_SLIDER_WIDTH, interfaceScale), FRAME_VALUE_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.FRAME_VALUE_WIDTH, interfaceScale) }), [interfaceScale]);
   const frame = useSettings((s) => s.pageFrame);
   const borderless = useSettings((s) => s.borderlessMode);
   const zeroInFullScreen = useSettings((s) => s.pageFrameZeroInFullScreen);
@@ -261,6 +277,8 @@ function AddressBarChoice({ value, title, selected, onPress }: { value: Settings
 }
 
 function AppIconPicker() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ICON_GRID } = useMemo(() => ({ ICON_GRID: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ICON_GRID, interfaceScale) }), [interfaceScale]);
   const [choices] = useResource(appIconChoices);
   const icons = choices?.icons ?? [];
   const current = choices?.current ?? null;
@@ -281,6 +299,8 @@ const ICON_GRID = { flexDirection: "row", flexWrap: "wrap", columnGap: space.s, 
 const ICON_IMAGE = { width: APP_ICON_SIZE, height: APP_ICON_SIZE } as const;
 
 function IconChoice({ icon, selected, onPress }: { icon: AppIcon; selected: boolean; onPress: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ICON_IMAGE } = useMemo(() => ({ ICON_IMAGE: scaleMetrics(BASE_INTERFACE_METRICS.ICON_IMAGE, interfaceScale) }), [interfaceScale]);
   return (
     <PictureChoice title={icon.name} selected={selected} onPress={onPress} tooltip={icon.name} size="icon">
       {icon.preview ? <Image source={{ uri: icon.preview }} style={ICON_IMAGE} /> : null}
@@ -318,3 +338,5 @@ function ModeChoice({
     </PictureChoice>
   );
 }
+
+const BASE_INTERFACE_METRICS = { TINT_SLIDER_WIDTH, STYLE_TILES, STYLE_TILE, radius, FRAME_CONTROL, FRAME_SLIDER_WIDTH, FRAME_VALUE_WIDTH, ICON_GRID, ICON_IMAGE };

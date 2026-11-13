@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import { PopUp } from "../../ui";

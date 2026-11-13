@@ -1,5 +1,6 @@
+import { TextInput as TextInput } from "../ui/ScaledNative";
 import { useState } from "react";
-import { TextInput, View } from "react-native";
+import { View } from "react-native";
 import { Button, Text } from "../ui";
 import { customizeMore, goToStep } from "../../state/onboarding/onboarding";
 import { applySetupCodeInOnboarding } from "../../state/presets/actions";

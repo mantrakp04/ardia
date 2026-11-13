@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import {
   addFromWebStore,
   configure,
@@ -34,6 +37,7 @@ const siteAccessOf = (ext: InstalledExtension): SiteAccess =>
   ext.siteAccess === "ON_CLICK" ? "onClick" : ext.siteAccess === "ON_SPECIFIC_SITES" ? "specificSites" : "allSites";
 
 export function ExtensionsPane({ profileId: chosen, detail }: { profileId: string | null; detail: string | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
   const [profileId] = useState(() => extensionsProfileId(chosen));
   const profile = currentEngineProfile(profileId);
   const list = useExtensionList(profile);
@@ -53,7 +57,7 @@ export function ExtensionsPane({ profileId: chosen, detail }: { profileId: strin
   const gone = !!detail && !selected && loaded !== undefined;
   useEffect(() => {
     if (gone) replaceSettingsPlace(profileId, null);
-  }, [gone, profileId]);
+  }, [gone, profileId, interfaceScale]);
   if (selected) return <ExtensionDetails ext={selected} profile={profile} onBack={() => showExtensionsList(profileId)} />;
 
   return (
@@ -67,7 +71,7 @@ export function ExtensionsPane({ profileId: chosen, detail }: { profileId: strin
           {list.map((ext) => (
             <Row
               key={ext.id}
-              icon={<Image source={{ uri: ext.icon }} style={{ width: 24, height: 24, opacity: ext.enabled ? 1 : 0.5 }} />}
+              icon={<Image source={{ uri: ext.icon }} style={{ width: 24 * interfaceScale, height: 24 * interfaceScale, opacity: ext.enabled ? 1 : 0.5 }} />}
               title={
                 <Text lines={1}>
                   {ext.name}
@@ -116,6 +120,8 @@ export function ExtensionsPane({ profileId: chosen, detail }: { profileId: strin
 }
 
 function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; profile: string; onBack: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { DETAILS_TOP, DETAILS_ICON, DETAILS_DESCRIPTION, REMOVE } = useMemo(() => ({ DETAILS_TOP: scaleMetrics(BASE_INTERFACE_METRICS.DETAILS_TOP, interfaceScale), DETAILS_ICON: scaleMetrics(BASE_INTERFACE_METRICS.DETAILS_ICON, interfaceScale), DETAILS_DESCRIPTION: scaleMetrics(BASE_INTERFACE_METRICS.DETAILS_DESCRIPTION, interfaceScale), REMOVE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.REMOVE, interfaceScale) }), [interfaceScale]);
   const openTab = (url: string) => {
     const windowId = resolvedWindowId();
     if (windowId) newTab(windowId, { url });
@@ -211,3 +217,5 @@ const DETAILS_TOP = { marginTop: space.xl } as const;
 const DETAILS_ICON = { width: 48, height: 48 } as const;
 const DETAILS_DESCRIPTION = { marginTop: space.l, lineHeight: proseLineHeight.body } as const;
 const REMOVE = { alignItems: "flex-start", marginTop: space.xl } as const;
+
+const BASE_INTERFACE_METRICS = { DETAILS_TOP, DETAILS_ICON, DETAILS_DESCRIPTION, REMOVE };

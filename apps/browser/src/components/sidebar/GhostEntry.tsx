@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { tabTitle } from "../../state/browser/model";
 import { Image, View } from "react-native";
 import { knownFaviconTheme, resolveFavicon } from "../../state/favicons/favicons";
@@ -115,6 +118,8 @@ function tabGhost(shot: TabShot, theme: ReturnType<typeof useTheme>, top = 0) {
 }
 
 function SplitGhost({ shot }: { shot: SplitShot }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, radius, space } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
     <View style={{ height: layout.rowHeight, borderRadius: radius.chrome, flexDirection: "row", alignItems: "center", paddingHorizontal: space.xs }}>
@@ -123,7 +128,7 @@ function SplitGhost({ shot }: { shot: SplitShot }) {
           {i > 0 && <Divider vertical thick length={16} />}
           <View style={{ flex: 1, minWidth: 0, height: layout.rowHeight - 6, flexDirection: "row", alignItems: "center", paddingLeft: space.s }}>
             <TabIcon url={pane.url} favicon={pane.favicon} icon={pane.icon} profileId={pane.profileId} compact />
-            <FadeLabel text={pane.title} fontSize={font.small.fontSize} color={theme.textTab} style={{ flex: 1, height: 16, marginLeft: space.xs }} />
+            <FadeLabel text={pane.title} fontSize={font.small.fontSize} color={theme.textTab} style={{ flex: 1, height: 16 * interfaceScale, marginLeft: space.xs }} />
           </View>
         </View>
       ))}
@@ -134,6 +139,8 @@ function SplitGhost({ shot }: { shot: SplitShot }) {
 const MEASURE_LABEL = { opacity: 0, fontVariant: TABULAR_NUMS } as const;
 
 function GroupGhost({ shot }: { shot: GroupShot }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GROUP_BORDER, GROUP_RADIUS, layout, TAB_ROW, space, MEASURE_LABEL, GROUP_INDENT, GROUP_INSET } = useMemo(() => ({ GROUP_BORDER: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_BORDER, interfaceScale), GROUP_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_RADIUS, interfaceScale), layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), MEASURE_LABEL: scaleMetrics(BASE_INTERFACE_METRICS.MEASURE_LABEL, interfaceScale), GROUP_INDENT: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_INDENT, interfaceScale), GROUP_INSET: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_INSET, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const { fill, stroke } = groupSurface(shot.color, tokens);
@@ -141,18 +148,20 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
     <View style={{ paddingVertical: GROUP_BORDER }}>
       {shot.hovered || groupBoxAtRest(shot.color) ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
       <View style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: TAB_ROW.contentLeft, paddingRight: TAB_ROW.trailing }}>
-        {shot.icon ? <TabIcon url={shot.icon.url} favicon={shot.icon.favicon} icon={shot.icon.icon} profileId={shot.icon.profileId} /> : <View style={{ width: 16 }} />}
+        {shot.icon ? <TabIcon url={shot.icon.url} favicon={shot.icon.favicon} icon={shot.icon.icon} profileId={shot.icon.profileId} /> : <View style={{ width: 16 * interfaceScale }} />}
         <View style={{ flexShrink: 1, height: TAB_ROW.titleHeight, marginLeft: TAB_ROW.titleGap, paddingRight: space.m, justifyContent: "center" }}>
           <Text lines={1} weight="medium" style={MEASURE_LABEL}>
             {shot.label}
           </Text>
           <FadeLabel text={shot.label} fontSize={font.body.fontSize} weight="medium" color={tokens.groupTitle} style={{ position: "absolute", left: 0, right: 0, top: 0, height: TAB_ROW.titleHeight }} />
         </View>
-        <View style={{ width: 10, height: 10, transform: [{ rotate: shot.collapsed ? "-90deg" : "0deg" }] }}>
-          <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10, height: 10 }} />
+        <View style={{ width: 10 * interfaceScale, height: 10 * interfaceScale, transform: [{ rotate: shot.collapsed ? "-90deg" : "0deg" }] }}>
+          <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10 * interfaceScale, height: 10 * interfaceScale }} />
         </View>
       </View>
-      <View style={{ gap: layout.rowGap, paddingTop: headGap(shot.members[0]?.key), paddingBottom: groupMembersPadBottom(shot.members.length), paddingLeft: GROUP_INDENT, paddingRight: GROUP_INSET }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
+      <View style={{ gap: layout.rowGap, paddingTop: headGap(shot.members[0]?.key, interfaceScale), paddingBottom: groupMembersPadBottom(shot.members.length), paddingLeft: GROUP_INDENT, paddingRight: GROUP_INSET }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { layout, radius, space, GROUP_BORDER, GROUP_RADIUS, TAB_ROW, MEASURE_LABEL, GROUP_INDENT, GROUP_INSET };

@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { showMenu } from "../../../state/app/system";
 import { Box, Button, Checkbox, DialogActions, DialogTitle, ink, lineHeight, proseLineHeight, radius, Sheet, space, Symbol, tabularNums, Text, TextField } from "../../ui";
 import {
@@ -24,6 +27,8 @@ import { SYNC_CODE_SIZE, syncCodeFrame } from "./syncCodeFrame";
 const WORDS = 24;
 
 function Body({ children }: { children: ReactNode }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BODY } = useMemo(() => ({ BODY: scaleMetrics(BASE_INTERFACE_METRICS.BODY, interfaceScale) }), [interfaceScale]);
   return (
     <Text size="small" tone="textSecondary" style={BODY}>
       {children}
@@ -52,11 +57,13 @@ export function showRecoveryKit() {
 }
 
 function RecoveryKitSheet() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FILL, radius, SECTION_TOP, WARNING_TEXT, UNDERLINE, PREVIEW_FRAME, PREVIEW } = useMemo(() => ({ FILL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FILL, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), SECTION_TOP: scaleMetrics(BASE_INTERFACE_METRICS.SECTION_TOP, interfaceScale), WARNING_TEXT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.WARNING_TEXT, interfaceScale), UNDERLINE: scaleMetrics(BASE_INTERFACE_METRICS.UNDERLINE, interfaceScale), PREVIEW_FRAME: scaleInterfaceStyle(BASE_INTERFACE_METRICS.PREVIEW_FRAME, interfaceScale), PREVIEW: scaleMetrics(BASE_INTERFACE_METRICS.PREVIEW, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const look = useSettingsColors();
   const [preview, setPreview] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  useEffect(() => void recoveryKitPreview(168)?.then(setPreview), []);
+  useEffect(() => void recoveryKitPreview(168)?.then(setPreview), [interfaceScale]);
   const save = async (format: "pdf" | "text") => {
     const path = await saveRecoveryKit(format);
     if (path) setSaved(path);
@@ -78,7 +85,7 @@ function RecoveryKitSheet() {
         <View style={FILL}>
           <DialogTitle subtitle="Your Recovery Kit contains all you need to recover your data should you lose access to this device.">Save Your Recovery Kit</DialogTitle>
           <Box row gap="m" pad="ml" radius="panel" style={[SECTION_TOP, { backgroundColor: look.warningFill }]}>
-            <Symbol name="exclamationmark.triangle.fill" size={12} color={theme.warning} style={{ width: 16, height: 16 }} />
+            <Symbol name="exclamationmark.triangle.fill" size={12} color={theme.warning} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
             <Text size="small" style={WARNING_TEXT}>
               Save a copy of your Recovery Kit to{" "}
               <Text size="small" style={UNDERLINE}>
@@ -126,6 +133,8 @@ const phraseError = (r: Awaited<ReturnType<typeof enterRecoveryPhrase>>): string
 };
 
 function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; onChooseFolder?: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CHECK_TOP, PHRASE_FOOT, PHRASE_ERROR, WORDS, FOLDER_ROW, FILL } = useMemo(() => ({ CHECK_TOP: scaleMetrics(BASE_INTERFACE_METRICS.CHECK_TOP, interfaceScale), PHRASE_FOOT: scaleMetrics(BASE_INTERFACE_METRICS.PHRASE_FOOT, interfaceScale), PHRASE_ERROR: scaleInterfaceStyle(BASE_INTERFACE_METRICS.PHRASE_ERROR, interfaceScale), WORDS: scaleMetrics(BASE_INTERFACE_METRICS.WORDS, interfaceScale), FOLDER_ROW: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FOLDER_ROW, interfaceScale), FILL: scaleInterfaceStyle(BASE_INTERFACE_METRICS.FILL, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -173,7 +182,7 @@ function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; on
       </Box>
       {folder ? (
         <Box row gap="s" style={FOLDER_ROW}>
-          <Symbol name="folder" size={11} color={theme.textSecondary} style={{ width: 14, height: 14 }} />
+          <Symbol name="folder" size={11} color={theme.textSecondary} style={{ width: 14 * interfaceScale, height: 14 * interfaceScale }} />
           <Text size="caption" tone="textSecondary" lines={1} style={FILL}>
             {folderLabel(folder)}
           </Text>
@@ -224,6 +233,8 @@ function joinedMessage(found: number, joining: boolean, pending: number, error: 
 }
 
 function JoinedSheet() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SECTION_TOP } = useMemo(() => ({ SECTION_TOP: scaleMetrics(BASE_INTERFACE_METRICS.SECTION_TOP, interfaceScale) }), [interfaceScale]);
   const remote = useSync((s) => s.remoteProfiles);
   const joining = useSync((s) => s.joining);
   const pending = useSync((s) => s.pending);
@@ -254,6 +265,8 @@ export function showConnectDevice() {
 }
 
 function ConnectDeviceSheet() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SECTION_TOP, QR, QR_NOTE, radius, WORDS_BOX, WORD } = useMemo(() => ({ SECTION_TOP: scaleMetrics(BASE_INTERFACE_METRICS.SECTION_TOP, interfaceScale), QR: scaleMetrics(BASE_INTERFACE_METRICS.QR, interfaceScale), QR_NOTE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.QR_NOTE, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), WORDS_BOX: scaleMetrics(BASE_INTERFACE_METRICS.WORDS_BOX, interfaceScale), WORD: scaleMetrics(BASE_INTERFACE_METRICS.WORD, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const [qr, setQr] = useState<string | null>(null);
   const [words, setWords] = useState<string[] | null>(null);
@@ -313,6 +326,8 @@ function StopSheet() {
 }
 
 function DeleteDataSheet() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { CHECK_TOP } = useMemo(() => ({ CHECK_TOP: scaleMetrics(BASE_INTERFACE_METRICS.CHECK_TOP, interfaceScale) }), [interfaceScale]);
   const [understood, setUnderstood] = useState(false);
   const [busy, setBusy] = useState(false);
   const finish = async (deleteData: boolean) => {
@@ -343,3 +358,5 @@ export function folderLabel(folder: Pick<FolderInfo, "path" | "inICloud">): stri
   }
   return folder.path.replace(/^\/Users\/[^/]+/, "~");
 }
+
+const BASE_INTERFACE_METRICS = { BODY, FILL, radius, SECTION_TOP, WARNING_TEXT, UNDERLINE, PREVIEW_FRAME, PREVIEW, CHECK_TOP, PHRASE_FOOT, PHRASE_ERROR, WORDS, FOLDER_ROW, QR, QR_NOTE, WORDS_BOX, WORD };

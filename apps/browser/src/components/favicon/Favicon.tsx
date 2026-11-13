@@ -1,6 +1,8 @@
+import { useInterfaceMetrics } from "../ui/interfaceSize";
+import { RawText as Text } from "../ui/ScaledNative";
 import { displayHost, hostOf } from "@ardia/core";
 import { memo, useState } from "react";
-import { Image, Text, View } from "react-native";
+import { Image, View } from "react-native";
 import { faviconFailed, useAppearanceDark, useFavicon, useFaviconTheme } from "../../state/favicons/favicons";
 import { radius, Symbol, useTheme, weight } from "../ui";
 import { bundledSiteIcon } from "./siteIcons";
@@ -41,11 +43,12 @@ export const Favicon = memo(function Favicon({
 });
 
 export const FaviconFallback = memo(function FaviconFallback({ url, size = 16 }: { url: string; size?: number }) {
+  const { factor } = useInterfaceMetrics();
   const theme = useTheme();
   const bundled = bundledSiteIcon(url, theme.dark);
   if (bundled !== undefined) return <Image source={bundled} style={{ width: size, height: size, borderRadius: size > 18 ? radius.control : radius.hair }} />;
   const initial = hostInitial(url);
-  if (!initial) return <Symbol name="globe" size={size - 3} color={theme.textSecondary} style={{ width: size, height: size }} />;
+  if (!initial) return <Symbol name="globe" size={size / factor - 3} color={theme.textSecondary} style={{ width: size, height: size }} />;
   const tile = Math.round((size * 14) / 16);
   return (
     <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
@@ -60,7 +63,7 @@ export const FaviconFallback = memo(function FaviconFallback({ url, size = 16 }:
           justifyContent: "center",
         }}
       >
-        <Text style={{ fontSize: Math.round(tile * 0.64), lineHeight: tile, fontWeight: weight.semibold, color: theme.textSecondary }}>{initial}</Text>
+        <Text style={{ fontSize: Math.round(tile * 0.64) / factor, lineHeight: tile / factor, fontWeight: weight.semibold, color: theme.textSecondary }}>{initial}</Text>
       </View>
     </View>
   );

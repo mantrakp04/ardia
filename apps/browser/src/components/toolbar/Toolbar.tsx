@@ -1,9 +1,11 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { pageHostLabel, urlTrail } from "../../lib/url";
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Animated, Pressable, StyleSheet, View, type ViewStyle } from "react-native";
 import { useTheme } from "../ui/theme";
-import { TOOLBAR_ROWS, urlFieldOf, type ToolbarRow } from "../../lib/toolbarRow";
+import { TOOLBAR_ROWS, toolbarRowOf, urlFieldOf, type ToolbarRow } from "../../lib/toolbarRow";
 import { ToolbarRowContext } from "../ui/toolbarRowContext";
 import { activate } from "../../state/tabs/actions";
 import { openPanel as openWindowPanel, toggleSidebar } from "../../state/windows/actions";
@@ -69,6 +71,8 @@ export function Toolbar({
   focused: boolean;
   bare?: boolean;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TOOLBAR_MOTION, space, BOTTOM_LINE } = useMemo(() => ({ TOOLBAR_MOTION: BASE_INTERFACE_METRICS.TOOLBAR_MOTION, space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), BOTTOM_LINE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.BOTTOM_LINE, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const sidebarHint = useShortcutHint("toggleSidebar");
   const tabsIcon = useTabsToggleIcon(windowId);
@@ -80,26 +84,26 @@ export function Toolbar({
   const history = useHistoryAvailability(tabId);
   const row = useToolbarRow();
   const extensionsWidth = useToolbarExtensionsWidth(windowId, Infinity);
-  useEffect(() => setToolbarExtensionsWidth(windowId, extensionsWidth), [windowId, extensionsWidth]);
+  useEffect(() => setToolbarExtensionsWidth(windowId, extensionsWidth), [windowId, extensionsWidth, interfaceScale]);
   const dim = useRef(new Animated.Value(focused ? 1 : 0.5)).current;
   const dimmedFor = useRef(focused);
   useEffect(() => {
     if (dimmedFor.current === focused) return;
     dimmedFor.current = focused;
     Animated.timing(dim, { toValue: focused ? 1 : 0.5, duration: TOOLBAR_MOTION.dim, easing: curve.enter, useNativeDriver: true }).start();
-  }, [focused]);
+  }, [focused, interfaceScale]);
   const focus = useCallback(() => {
     if (!focused) activate(tabId);
-  }, [focused, tabId]);
+  }, [focused, tabId, interfaceScale]);
   const at = useMemo(() => {
     const top = row.center - row.button / 2;
     const place = (center: number | null) => ({ position: "absolute" as const, top, left: (center ?? 0) - row.button / 2 });
     const hit = { width: row.button, height: row.button, plateX: 0, plateY: 0, box: row.button, radius: row.buttonRadius };
     const nav = (center: number | null) => ({ style: place(center), hit });
     return { top, sidebarButton: place(geometry.sidebarButton), back: nav(geometry.back), forward: nav(geometry.forward), reload: nav(geometry.reload) };
-  }, [geometry, row]);
+  }, [geometry, row, interfaceScale]);
   const right = urlFieldRight(inSplit, extensionsWidth, row);
-  const urlStyle = useMemo(() => ({ position: "absolute" as const, left: geometry.urlLeft, right, top: urlFieldOf(row).top }), [geometry.urlLeft, right, row]);
+  const urlStyle = useMemo(() => ({ position: "absolute" as const, left: geometry.urlLeft, right, top: urlFieldOf(row).top }), [geometry.urlLeft, right, row, interfaceScale]);
   if (!tab) return <View style={{ height: row.height }} />;
 
   return (
@@ -125,7 +129,7 @@ export function Toolbar({
           <ToolbarUrlField tab={tab} palette={palette} windowId={windowId} inSplit={inSplit} onFocus={focus} style={urlStyle} />
         ) : null}
         {inSplit && (
-          <View style={{ position: "absolute", top: at.top, right: 8, flexDirection: "row", gap: -space.xxs }}>
+          <View style={{ position: "absolute", top: at.top, right: 8 * interfaceScale, flexDirection: "row", gap: -space.xxs }}>
             <Button variant="icon" toolbar palette={palette} icon="rectangle.split.2x1" look="row" onPress={() => showSplitMenu(tab.id)} tooltip="Split View" />
             <Button variant="icon" toolbar palette={palette} icon="xmark" look="row" weight="medium" onPress={() => closePane(tab.id)} tooltip="Close Pane" />
           </View>
@@ -141,6 +145,8 @@ export function Toolbar({
 const BOTTOM_LINE = { position: "absolute", left: 0, right: 0, bottom: 0 } as const;
 
 export function ToolbarBackdrop({ tabId }: { tabId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BOTTOM_LINE } = useMemo(() => ({ BOTTOM_LINE: scaleInterfaceStyle(BASE_INTERFACE_METRICS.BOTTOM_LINE, interfaceScale) }), [interfaceScale]);
   const url = useTab(tabId, (t) => t?.url ?? "");
   const palette = useSitePalette(tabId);
   const band = useEasedColor(palette.background);
@@ -173,6 +179,8 @@ function useUrlField(tab: ToolbarTab, windowId: string, onFocus: () => void) {
 type UrlFieldProps = { tab: ToolbarTab; palette: ToolbarPalette; windowId: string; onFocus: () => void };
 
 export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, windowId, inSplit, onFocus, style }: UrlFieldProps & { inSplit: boolean; style: ViewStyle }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LOCK, HOST_FULL, SHRINK } = useMemo(() => ({ LOCK: scaleMetrics(BASE_INTERFACE_METRICS.LOCK, interfaceScale), HOST_FULL: scaleMetrics(BASE_INTERFACE_METRICS.HOST_FULL, interfaceScale), SHRINK: BASE_INTERFACE_METRICS.SHRINK }), [interfaceScale]);
   const theme = useTheme();
   const row = useToolbarRow();
   const splitHint = useShortcutHint("openSplitPane");
@@ -231,6 +239,8 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
 });
 
 export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, windowId, onFocus, height, progress, accessory }: UrlFieldProps & { height: number; progress: number | null; accessory: ReactNode }) {
+  const { factor: interfaceScale, preset } = useInterfaceMetrics();
+  const { SIDEBAR_FIELD, SIDEBAR_TEXT_GAP, SHRINK, space } = useMemo(() => ({ SIDEBAR_FIELD: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_FIELD, interfaceScale), SIDEBAR_TEXT_GAP: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_TEXT_GAP, interfaceScale), SHRINK: BASE_INTERFACE_METRICS.SHRINK, space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const field = useUrlField(tab, windowId, onFocus);
   const { insecure, hovered, popover, toggleSiteControls } = field;
@@ -252,11 +262,11 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
             <Text numberOfLines={1} ellipsizeMode="head" weight="medium" color={palette.text} style={SHRINK}>
               {field.host}
             </Text>
-            <FadeLabel text={field.trail} fontSize={font.body.fontSize} color={palette.secondary} fadeWidth={14} style={{ flex: 1, height: 18, marginLeft: -space.xxs }} />
+            <FadeLabel text={field.trail} fontSize={font.body.fontSize} color={palette.secondary} fadeWidth={14} style={{ flex: 1, height: 18 * interfaceScale, marginLeft: -space.xxs }} />
           </View>
         </Pressable>
       </ContextMenuArea>
-      <ToolbarRowContext.Provider value={TOOLBAR_ROWS.regular}>
+      <ToolbarRowContext.Provider value={toolbarRowOf(false, preset)}>
         <FieldButtons tab={tab} palette={palette} onFocus={onFocus} popover={popover} toggleSiteControls={toggleSiteControls} accessory={accessory}>
           {hovered && <PageButton tab={tab} palette={palette} windowId={windowId} />}
         </FieldButtons>
@@ -309,6 +319,8 @@ function FieldButtons({
   accessory?: ReactNode;
   children: ReactNode;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const popups = usePage(tab.id, (p) => p.popups.length);
   const capture = usePage(tab.id, (p) => p.mediaAccess);
   return (
@@ -342,3 +354,5 @@ function CaptureIndicator({ camera, microphone, screen, onPress }: { camera: boo
   return <Button variant="icon" icon={icon} look="field" color={theme.destructive} onPress={onPress} tooltip={`This page is using your ${what}`} />;
 }
 
+
+const BASE_INTERFACE_METRICS = { TOOLBAR_MOTION, space, BOTTOM_LINE, LOCK, HOST_FULL, SHRINK, SIDEBAR_FIELD, SIDEBAR_TEXT_GAP };

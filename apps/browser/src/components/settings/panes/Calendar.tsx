@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { type SystemCalendar, calendarBlocked, connectCalendar, openCalendarPrivacy, setCalendarHidden, useCalendar } from "../../../state/live/calendar";
 import { View } from "react-native";
 import { ALERT_LEADS, COUNTDOWN_LEADS, countdownLeadTitle } from "../../../state/live/meetings";
@@ -8,6 +11,8 @@ import { Box, Button, Checkbox, EmptyState, PopUp, radius, space, Text, Toggle }
 import { Group, Row, SectionHeader } from "../Form";
 
 export function CalendarPane() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { NO_CALENDARS } = useMemo(() => ({ NO_CALENDARS: scaleMetrics(BASE_INTERFACE_METRICS.NO_CALENDARS, interfaceScale) }), [interfaceScale]);
   const settings = useLive((s) => s.calendar);
   const { access, calendars, requesting, requestError } = useCalendar();
   const autoGroup = useSettings((s) => s.autoGroupMeetingTabs);
@@ -109,6 +114,8 @@ export function CalendarPane() {
 }
 
 function CalendarList({ title, calendars, hidden }: { title: string; calendars: SystemCalendar[]; hidden: string[] }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { LIST_TITLE, CALENDAR_COLOR } = useMemo(() => ({ LIST_TITLE: scaleMetrics(BASE_INTERFACE_METRICS.LIST_TITLE, interfaceScale), CALENDAR_COLOR: scaleMetrics(BASE_INTERFACE_METRICS.CALENDAR_COLOR, interfaceScale) }), [interfaceScale]);
   return (
     <Box padY="s">
       <Text size="caption" weight="semibold" tone="textSecondary" style={LIST_TITLE}>
@@ -129,3 +136,5 @@ function CalendarList({ title, calendars, hidden }: { title: string; calendars: 
 const NO_CALENDARS = { marginTop: space.l } as const;
 const LIST_TITLE = { marginLeft: space.l, marginBottom: space.xxs } as const;
 const CALENDAR_COLOR = { width: 10, height: 10, borderRadius: radius.hair } as const;
+
+const BASE_INTERFACE_METRICS = { NO_CALENDARS, LIST_TITLE, CALENDAR_COLOR };

@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { useRef } from "react";
 import { Pressable, View } from "react-native";
 import { profileNameColor, useTheme } from "../ui/theme";
@@ -14,6 +17,8 @@ const ICON_WIDTH = 32;
 export const PROFILE_INDICATOR_X = 84;
 
 function useIndicator(room: number) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ICON_WIDTH, PAD, MIN_CUT_NAME } = useMemo(() => ({ ICON_WIDTH: scaleMetrics(BASE_INTERFACE_METRICS.ICON_WIDTH, interfaceScale), PAD: scaleMetrics(BASE_INTERFACE_METRICS.PAD, interfaceScale), MIN_CUT_NAME: scaleMetrics(BASE_INTERFACE_METRICS.MIN_CUT_NAME, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const incognito = useIsIncognito();
   const profiles = useProfiles();
@@ -31,6 +36,8 @@ function useIndicator(room: number) {
 export const useProfileIndicatorWidth = (room: number) => useIndicator(room).width;
 
 export function ProfileIndicator({ room }: { room: number }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { HEIGHT, radius, PAD } = useMemo(() => ({ HEIGHT: scaleMetrics(BASE_INTERFACE_METRICS.HEIGHT, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), PAD: scaleMetrics(BASE_INTERFACE_METRICS.PAD, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const windowId = useWindowId();
   const { hovered, hoverProps } = useHover();
@@ -40,7 +47,7 @@ export function ProfileIndicator({ room }: { room: number }) {
 
   return (
     <View {...hoverProps} ref={indicator} tooltip={incognito ? undefined : "Switch between profiles"}>
-      <View pointerEvents="none" style={{ position: "absolute", width: 1000, height: 0, overflow: "hidden", opacity: 0 }}>
+      <View pointerEvents="none" style={{ position: "absolute", width: 1000 * interfaceScale, height: 0, overflow: "hidden", opacity: 0 }}>
         <Text
           numberOfLines={1}
           weight="semibold"
@@ -70,7 +77,7 @@ export function ProfileIndicator({ room }: { room: number }) {
                   {title}
                 </Text>
               ) : textWidth ? (
-                <Symbol name="person.fill" size={14} weight="semibold" color={color} style={{ width: 16, height: 16 }} />
+                <Symbol name="person.fill" size={14} weight="semibold" color={color} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
               ) : null}
             </View>
           )}
@@ -79,3 +86,5 @@ export function ProfileIndicator({ room }: { room: number }) {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { ICON_WIDTH, PAD, MIN_CUT_NAME, HEIGHT, radius };

@@ -1,3 +1,4 @@
+import { useInterfaceMetrics } from "../ui/interfaceSize";
 import { memo } from "react";
 import { View } from "react-native";
 import { useIsSleeping } from "../../state/tabs/tabLifecycle";
@@ -16,7 +17,7 @@ export const TabIcon = memo(function TabIcon({
   url,
   favicon,
   icon,
-  size: givenSize = 16,
+  size: givenSize,
   compact = false,
   color,
   profileId: profile,
@@ -34,7 +35,8 @@ export const TabIcon = memo(function TabIcon({
   direct?: boolean;
   marks?: number;
 }) {
-  const size = compact ? COMPACT_ICON : givenSize;
+  const interfaceScale = useInterfaceMetrics().factor;
+  const size = compact ? COMPACT_ICON * interfaceScale : givenSize ?? 16 * interfaceScale;
   const sleeping = useIsSleeping(tabId ?? "");
   const marks = useIconMarks(tabId, givenMarks);
   const engine = tabId && size >= 14 ? markedEngine(marks) : null;
@@ -48,6 +50,7 @@ export const TabIcon = memo(function TabIcon({
 });
 
 function EngineMark({ mark, size }: { mark: PageEngine; size: number }) {
+  const { factor } = useInterfaceMetrics();
   const theme = useTheme();
   const box = Math.round(size * 0.6);
   return (
@@ -66,7 +69,7 @@ function EngineMark({ mark, size }: { mark: PageEngine; size: number }) {
         backgroundColor: sidebarTokens(theme).engineMarkPlate,
       }}
     >
-      <Symbol name={ENGINE_SYMBOLS[mark]} size={box - 3} weight="semibold" color={theme.icon} style={{ width: box, height: box }} />
+      <Symbol name={ENGINE_SYMBOLS[mark]} size={box / factor - 3} weight="semibold" color={theme.icon} style={{ width: box, height: box }} />
     </View>
   );
 }
@@ -96,16 +99,17 @@ function Icon({
   profileId?: string;
   direct?: boolean;
 }) {
+  const { factor } = useInterfaceMetrics();
   const theme = useTheme();
   const symbol = iconSymbol(icon);
   if (symbol) {
     const ink = icon === NO_GROUP_ICON ? sidebarTokens(theme).noGroupIcon : theme.icon;
-    return <Symbol name={symbol} size={size - 3} weight="medium" color={color ?? ink} style={{ width: size, height: size }} />;
+    return <Symbol name={symbol} size={size / factor - 3} weight="medium" color={color ?? ink} style={{ width: size, height: size }} />;
   }
   if (icon) {
     return (
       <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: size - 3, lineHeight: size }}>{icon}</Text>
+        <Text style={{ fontSize: size / factor - 3, lineHeight: size / factor }}>{icon}</Text>
       </View>
     );
   }

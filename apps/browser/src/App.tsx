@@ -32,9 +32,15 @@ import { currentBasePalette } from "./state/config/basePalette";
 import { focusedWindowOf } from "./state/windows/ui";
 import { SETTLE_MS, useSettled } from "./components/ui/useSettled";
 
-provideProfileLooks({ accent: profileAccent, theme: (profile, appDark, source) => profileTheme(profile, appDark, source, currentBasePalette()) });
+import { InterfaceSizeProvider } from "./components/window/InterfaceSizeProvider";
 
 export function WindowRoot({ windowId }: { windowId?: string }) {
+  return <InterfaceSizeProvider><UnscaledWindowRoot windowId={windowId} /></InterfaceSizeProvider>;
+}
+
+provideProfileLooks({ accent: profileAccent, theme: (profile, appDark, source) => profileTheme(profile, appDark, source, currentBasePalette()) });
+
+function UnscaledWindowRoot({ windowId }: { windowId?: string }) {
   if (isUtilityWindowId(windowId))
     return (
       <ThemeScope>

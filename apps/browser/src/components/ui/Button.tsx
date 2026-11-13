@@ -1,6 +1,10 @@
-import { ContextMenuArea, Symbol, type SymbolProps } from "@ardia/shell";
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { Symbol as Symbol, RawText as Text } from "./ScaledNative";
+import { useMemo } from "react";
+import { ContextMenuArea, type SymbolProps } from "@ardia/shell";
 import { memo, type ReactNode } from "react";
-import { Image, Pressable, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
+import { Image, Pressable, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import { modifiersOf, type ClickModifiers } from "../../lib/keys";
 import { useToolbarRowContext } from "./toolbarRowContext";
 import { useHover } from "./useHover";
@@ -102,6 +106,8 @@ const EXTENSION_GLYPH = 14;
 const IMAGE_SIZE = 16;
 
 function useIconMetrics(props: IconProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ROW_GLYPH, EXTENSION_GLYPH, iconButton, radii } = useMemo(() => ({ ROW_GLYPH: BASE_INTERFACE_METRICS.ROW_GLYPH, EXTENSION_GLYPH: BASE_INTERFACE_METRICS.EXTENSION_GLYPH, iconButton: scaleMetrics(BASE_INTERFACE_METRICS.iconButton, interfaceScale), radii: scaleMetrics(BASE_INTERFACE_METRICS.radii, interfaceScale) }), [interfaceScale]);
   const row = useToolbarRowContext();
   if (props.look === "field") return { box: props.box ?? row.fieldButton, glyph: props.glyph ?? ROW_GLYPH, radius: props.radius ?? row.fieldButtonRadius };
   if (props.look === "row") return { box: props.box ?? row.button, glyph: props.glyph ?? ROW_GLYPH, radius: props.radius ?? row.buttonRadius };
@@ -112,6 +118,8 @@ function useIconMetrics(props: IconProps) {
 }
 
 function IconButtonView(props: IconProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { IMAGE_SIZE } = useMemo(() => ({ IMAGE_SIZE: scaleMetrics(BASE_INTERFACE_METRICS.IMAGE_SIZE, interfaceScale) }), [interfaceScale]);
   const { icon, disabled, active, glyphBox, weight = "regular", tooltip, palette, color, style, hit, image, badge, children } = props;
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
@@ -183,10 +191,13 @@ const TEXT_LOOKS: Record<TextLook, { plate: "toolbar" | "hover" | "none"; height
 const UNDERLINE = { textDecorationLine: "underline" } as const;
 
 function TextButtonView(props: TextProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, UNDERLINE, radii } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), UNDERLINE: scaleMetrics(BASE_INTERFACE_METRICS.UNDERLINE, interfaceScale), radii: scaleMetrics(BASE_INTERFACE_METRICS.radii, interfaceScale) }), [interfaceScale]);
   const { title, onPress, disabled, look, hoverTone, padY, label } = props;
   const base = look ? TEXT_LOOKS[look] : null;
   const plate = props.plate ?? base?.plate ?? "toolbar";
-  const height = props.height ?? base?.height;
+  const baselineHeight = props.height ?? base?.height;
+  const height = baselineHeight === undefined ? undefined : baselineHeight * interfaceScale;
   const pad = props.pad ?? base?.pad ?? "m";
   const size = props.size ?? base?.size ?? "small";
   const weight = props.weight ?? base?.weight ?? "medium";
@@ -217,3 +228,5 @@ function TextButtonView(props: TextProps) {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { ROW_GLYPH, EXTENSION_GLYPH, iconButton, radii, IMAGE_SIZE, space, UNDERLINE };

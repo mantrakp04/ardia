@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { createContext, memo, useContext, useEffect, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
@@ -61,12 +64,14 @@ function useInnermostHover(groupId: string, hovered: boolean) {
 }
 
 function useBoxOpacity(shown: boolean) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { BOX_FADE } = useMemo(() => ({ BOX_FADE: scaleMetrics(BASE_INTERFACE_METRICS.BOX_FADE, interfaceScale) }), [interfaceScale]);
   const [opacity] = useState(() => new Animated.Value(shown ? 1 : 0));
   useEffect(() => {
     const fade = Animated.timing(opacity, { toValue: shown ? 1 : 0, duration: HOVER_CARD_FADE_MS, easing: BOX_FADE, useNativeDriver: true });
     fade.start();
     return () => fade.stop();
-  }, [shown]);
+  }, [shown, interfaceScale]);
   return opacity;
 }
 
@@ -81,6 +86,8 @@ export const GroupBlock = memo(function GroupBlock({
   parentGroup?: string;
   motion?: EntryMotion | null;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GROUP_BORDER, GROUP_RADIUS, GROUP_INDENT, GROUP_INSET } = useMemo(() => ({ GROUP_BORDER: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_BORDER, interfaceScale), GROUP_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_RADIUS, interfaceScale), GROUP_INDENT: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_INDENT, interfaceScale), GROUP_INSET: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_INSET, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const tokens = useSidebarTokens();
   const stored = useGroup(groupId, (g) => !!g?.collapsed);
@@ -133,7 +140,7 @@ export const GroupBlock = memo(function GroupBlock({
             )}
             keep={keptEntries}
             rowHeight={(key) => entryHeightNow(windowId, profileId, key)}
-            padTop={headGap(collapsed && keptEntries.length ? keptEntries[0] : entries[0])}
+            padTop={headGap(collapsed && keptEntries.length ? keptEntries[0] : entries[0], interfaceScale)}
             padBottom={groupMembersPadBottom(collapsed ? keptEntries.length : entries.length)}
             indent={GROUP_INDENT}
             indentEnd={GROUP_INSET}
@@ -171,6 +178,8 @@ export const SidebarEntry = memo(function SidebarEntry({
 const MEASURE_LABEL = { opacity: 0, fontVariant: TABULAR_NUMS } as const;
 
 function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; windowId: string; collapsed: boolean; open: Animated.Value }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { GROUP_INNER_RADIUS, TAB_ROW, space, MEASURE_LABEL } = useMemo(() => ({ GROUP_INNER_RADIUS: scaleMetrics(BASE_INTERFACE_METRICS.GROUP_INNER_RADIUS, interfaceScale), TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), MEASURE_LABEL: scaleMetrics(BASE_INTERFACE_METRICS.MEASURE_LABEL, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const group = useGroup(groupId, (g) => g);
@@ -208,7 +217,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
               {group.icon || firstTab ? (
                 <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} />
               ) : (
-                <View style={{ width: 16 }} />
+                <View style={{ width: 16 * interfaceScale }} />
               )}
               {renaming ? (
                 <RenameField
@@ -229,14 +238,14 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
                   <SharedFolderMark groupId={groupId} />
                   <Animated.View
                     style={{
-                      width: 10,
-                      height: 10,
+                      width: 10 * interfaceScale,
+                      height: 10 * interfaceScale,
                       alignItems: "center",
                       justifyContent: "center",
                       transform: [{ rotate: open.interpolate({ inputRange: [0, 1], outputRange: ["-90deg", "0deg"] }) }],
                     }}
                   >
-                    <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10, height: 10 }} />
+                    <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10 * interfaceScale, height: 10 * interfaceScale }} />
                   </Animated.View>
                 </Animated.View>
               )}
@@ -253,3 +262,5 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { BOX_FADE, GROUP_BORDER, GROUP_RADIUS, GROUP_INDENT, GROUP_INSET, GROUP_INNER_RADIUS, TAB_ROW, space, MEASURE_LABEL };

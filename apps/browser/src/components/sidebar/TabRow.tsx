@@ -1,5 +1,9 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { TextInput as TextInput } from "../ui/ScaledNative";
+import { useMemo } from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Pressable, TextInput, View, type GestureResponderEvent } from "react-native";
+import { Animated, Pressable, View, type GestureResponderEvent } from "react-native";
 import { toggleMute } from "../../state/browser/actions";
 import { layout, useTheme } from "../ui/theme";
 import { useIsActiveTab, usePageProfileId, useTab, useWindow, useWindowId } from "../../state/browser/hooks";
@@ -62,6 +66,8 @@ export const TabRow = memo(function TabRow({
   onto?: boolean;
   shift?: Animated.Value | null;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TAB_ROW, space, AWAY_FRAME } = useMemo(() => ({ TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), AWAY_FRAME: scaleInterfaceStyle(BASE_INTERFACE_METRICS.AWAY_FRAME, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const windowId = useWindowId();
@@ -74,7 +80,7 @@ export const TabRow = memo(function TabRow({
   const [pip, togglePip] = usePictureInPicture(tabId);
   const renaming = useSidebarUi((u) => u.renaming?.kind === "tab" && u.renaming.id === tabId);
   const { hovered, hoverProps } = useRowHover(windowId, renaming ? null : { kind: "tab", id: tabId });
-  const [moved, movedRef] = useShift(shift, useCallback((v: View | null) => registerRow(windowId, tabId, v), [windowId, tabId]));
+  const [moved, movedRef] = useShift(shift, useCallback((v: View | null) => registerRow(windowId, tabId, v), [windowId, tabId, interfaceScale]));
   const backToPin = useHover();
   const closeControl = useTabCloseControlWhile(tabId, hovered && !renaming);
   const { backToPinHint } = useSidebarRowLook();
@@ -111,8 +117,8 @@ export const TabRow = memo(function TabRow({
               {resettable ? (
                 <Pressable onPress={() => returnToPinnedUrl(tab.id)} tooltip={withShortcut("Back to Pinned URL", backToPinHint)}>
                   {resetting ? (
-                    <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
-                      <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                    <View style={{ width: 16 * interfaceScale, height: 16 * interfaceScale, alignItems: "center", justifyContent: "center" }}>
+                      <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16 * interfaceScale, height: 16 * interfaceScale }} />
                     </View>
                   ) : (
                     <View>
@@ -130,12 +136,12 @@ export const TabRow = memo(function TabRow({
             </View>
             {pip && (
               <Pressable onPress={togglePip} style={{ marginLeft: space.s }} tooltip="Exit Picture in Picture">
-                <Symbol name="pip" size={12} color={theme.textTab} style={{ width: 18, height: 16 }} />
+                <Symbol name="pip" size={12} color={theme.textTab} style={{ width: 18 * interfaceScale, height: 16 * interfaceScale }} />
               </Pressable>
             )}
             {(playingAudio || mute) && (
               <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: space.s }} tooltip={muteTitle(mute)}>
-                <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18, height: 16 }} />
+                <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18 * interfaceScale, height: 16 * interfaceScale }} />
               </Pressable>
             )}
             {renaming ? (
@@ -157,7 +163,7 @@ export const TabRow = memo(function TabRow({
             >
               {loading || showsUnread ? (
                 <>
-                  {loading && <ActivitySpinner style={{ width: 12, height: 12, marginRight: space.xxs }} />}
+                  {loading && <ActivitySpinner style={{ width: 12 * interfaceScale, height: 12 * interfaceScale, marginRight: space.xxs }} />}
                   {showsUnread && <UnreadCount unread={unread} ink={active ? theme.rowSelectedText : theme.textTab} onDrawn={setUnreadDrawn} />}
                 </>
               ) : null}
@@ -186,6 +192,8 @@ export function RenameField({
   weight?: "500" | "600";
   onDone(text: string | null): void;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TAB_ROW } = useMemo(() => ({ TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const [text, setText] = useState(initial);
   const done = useRef(false);
@@ -198,7 +206,7 @@ export function RenameField({
   useEffect(() => {
     const t = setTimeout(() => input.current?.focus(), 0);
     return () => clearTimeout(t);
-  }, []);
+  }, [interfaceScale]);
   return (
     <OutsidePressArea onOutsidePress={() => finish(text)} style={ROW_TITLE_FRAME}>
       <TextInput
@@ -231,6 +239,8 @@ export const SplitRowItem = memo(function SplitRowItem({
   parentGroup?: string;
   motion?: EntryMotion | null;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, SPLIT_SLOT, SPLIT_DIVIDER_LENGTH } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), SPLIT_SLOT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.SPLIT_SLOT, interfaceScale), SPLIT_DIVIDER_LENGTH: scaleMetrics(BASE_INTERFACE_METRICS.SPLIT_DIVIDER_LENGTH, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const tabIds = useSplitRowPanes(splitId);
   const { wrapper, handle } = useDragItem(entryKey("split", splitId), { kind: "split", tabIds, section, parentGroup }, motion?.clip);
@@ -238,7 +248,7 @@ export const SplitRowItem = memo(function SplitRowItem({
   const profileId = usePageProfileId();
   const active = useWindow(windowId, (w) => tabIds.includes(w?.activeTabIds[profileId] ?? ""));
   const { hovered, hoverProps } = useRowHover(windowId, null);
-  const [moved, movedRef] = useShift(motion?.shift ?? null, useCallback((v: View | null) => registerRow(windowId, entryKey("split", splitId), v), [windowId, splitId]));
+  const [moved, movedRef] = useShift(motion?.shift ?? null, useCallback((v: View | null) => registerRow(windowId, entryKey("split", splitId), v), [windowId, splitId, interfaceScale]));
   if (tabIds.length < 2) return null;
   const splitBorder = active ? 1 : 0;
   return (
@@ -267,6 +277,8 @@ const SPLIT_DIVIDER_LENGTH = 16;
 const SPLIT_SLOT = { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0, gap: space.xxs } as const;
 
 function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, radius, space } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tab = useTab(tabId);
   const active = useIsActiveTab(tabId);
@@ -288,7 +300,7 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
             }}
           >
             <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact />
-            <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={active ? theme.rowSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: space.xs }} />
+            <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={active ? theme.rowSelectedText : theme.textTab} style={{ flex: 1, height: 16 * interfaceScale, marginLeft: space.xs }} />
             <HoverSlot
               hovered={hovered}
               reserve="hover"
@@ -300,3 +312,5 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { TAB_ROW, space, AWAY_FRAME, SPLIT_SLOT, SPLIT_DIVIDER_LENGTH, layout, radius };

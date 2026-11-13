@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../../ui/interfaceSize";
+import { scaleMetrics } from "../../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { showMenu } from "../../../state/app/system";
 import { Box, Button, Dot, lineHeight, space, Symbol, Text, Toggle } from "../../ui";
 import { copyRecoveryPhrase, revealSyncFolder, type FolderInfo } from "../../../state/sync/recoveryKit";
@@ -49,15 +52,19 @@ export function SyncPane() {
 }
 
 function SyncIcon({ on }: { on: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { SYNC_ICON, SYNC_GLYPH } = useMemo(() => ({ SYNC_ICON: scaleMetrics(BASE_INTERFACE_METRICS.SYNC_ICON, interfaceScale), SYNC_GLYPH: scaleMetrics(BASE_INTERFACE_METRICS.SYNC_GLYPH, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
-    <Dot size={SYNC_ICON} color={on ? theme.formAccent : theme.control} ring={on ? undefined : theme.controlBorder}>
+    <Dot size={BASE_INTERFACE_METRICS.SYNC_ICON} color={on ? theme.formAccent : theme.control} ring={on ? undefined : theme.controlBorder}>
       <Symbol name="arrow.triangle.2.circlepath" size={13} weight="semibold" color={on ? theme.onAccent : theme.icon} style={SYNC_GLYPH} />
     </Dot>
   );
 }
 
 function SyncOff({ info }: { info: FolderInfo | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { FAILURE, FOOTNOTE } = useMemo(() => ({ FAILURE: scaleMetrics(BASE_INTERFACE_METRICS.FAILURE, interfaceScale), FOOTNOTE: scaleMetrics(BASE_INTERFACE_METRICS.FOOTNOTE, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const status = useSync((s) => s.status);
   const error = useSync((s) => s.error);
@@ -116,7 +123,7 @@ function SyncOff({ info }: { info: FolderInfo | null }) {
         </Row>
         {noICloud ? (
           <Row
-            icon={<Symbol name="exclamationmark.icloud" size={14} color={theme.warning} style={{ width: 28, height: 20 }} />}
+            icon={<Symbol name="exclamationmark.icloud" size={14} color={theme.warning} style={{ width: 28 * interfaceScale, height: 20 * interfaceScale }} />}
             title="iCloud Drive is off on this Mac"
             description="Turn on iCloud Drive in System Settings, or choose another folder that syncs between your Macs, like one in Dropbox, on a NAS or on a USB drive."
           >
@@ -165,6 +172,8 @@ function statusLine(status: SyncStatus, lastSyncedAt: number | null, pending: nu
 }
 
 function SyncOn({ info }: { info: FolderInfo | null }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { ERROR_ROW, ERROR_TEXT } = useMemo(() => ({ ERROR_ROW: scaleMetrics(BASE_INTERFACE_METRICS.ERROR_ROW, interfaceScale), ERROR_TEXT: scaleInterfaceStyle(BASE_INTERFACE_METRICS.ERROR_TEXT, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const status = useSync((s) => s.status);
   const lastSyncedAt = useSync((s) => s.lastSyncedAt);
@@ -181,7 +190,7 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 30_000);
     return () => clearInterval(t);
-  }, []);
+  }, [interfaceScale]);
 
   const locked = status === "locked";
   const advanced = async () => {
@@ -216,7 +225,7 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
       </Group>
       {error && status !== "updated" ? (
         <Box row gap="s" padX="xxs" style={ERROR_ROW}>
-          <Symbol name="exclamationmark.circle.fill" size={11} color={theme.destructive} style={{ width: 14, height: 15 }} />
+          <Symbol name="exclamationmark.circle.fill" size={11} color={theme.destructive} style={{ width: 14 * interfaceScale, height: 15 * interfaceScale }} />
           <Text size="caption" tone="textSecondary" style={ERROR_TEXT}>
             {error}
           </Text>
@@ -269,7 +278,7 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
           devices.map((d) => (
             <Row
               key={d.id}
-              icon={<Symbol name={deviceSymbol(d.kind, d.name)} size={15} color={theme.icon} style={{ width: 24, height: 20 }} />}
+              icon={<Symbol name={deviceSymbol(d.kind, d.name)} size={15} color={theme.icon} style={{ width: 24 * interfaceScale, height: 20 * interfaceScale }} />}
               title={d.current ? `${d.name} (This Mac)` : d.name}
               description={d.current ? statusLine(status, lastSyncedAt, 0) : d.lastSeen ? `last synced ${ago(d.lastSeen)}` : "hasn’t synced yet"}
             />
@@ -281,3 +290,5 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { SYNC_ICON, SYNC_GLYPH, FAILURE, FOOTNOTE, ERROR_ROW, ERROR_TEXT };

@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { cancelDownload, keepDownload, pauseDownload, resumeDownload, type Download } from "../../state/downloads/actions";
 import {
   ContextMenuArea,
@@ -79,6 +81,8 @@ export function DownloadsPopover() {
 }
 
 function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; closing: boolean; onClosed: () => void }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { L, PANEL } = useMemo(() => ({ L: scaleMetrics(BASE_INTERFACE_METRICS.L, interfaceScale), PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale) }), [interfaceScale]);
   const liveIds = useDownloads(windowId, useShallow((list) => list.map((d) => d.id)));
   const liveClearable = useDownloads(windowId, (list) => list.some((d) => d.state !== "downloading"));
   const shownList = useRef({ ids: liveIds, clearable: liveClearable });
@@ -94,7 +98,7 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
 
   const upward = p?.bottom !== undefined;
   const arrowX = p?.arrowX;
-  const origin = useMemo(() => (arrowX === undefined ? "top" : ([arrowX, upward ? "100%" : 0, 0] as [number, string | number, number])), [arrowX, upward]);
+  const origin = useMemo(() => (arrowX === undefined ? "top" : ([arrowX, upward ? "100%" : 0, 0] as [number, string | number, number])), [arrowX, upward, interfaceScale]);
   const motion = usePopoverMotionStyle(appear, origin, upward);
   const arrowRoom = p && p.arrow !== "none" ? DOWNLOADS_PANEL.arrowHeight : 0;
   const listMax = p ? Math.max(L.row, Math.min(L.visibleRows * L.row, p.room - L.chrome)) : L.visibleRows * L.row;
@@ -157,6 +161,8 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
 }
 
 function PanelBackground({ placement }: { placement: DownloadsPlacement }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANEL } = useMemo(() => ({ PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const colors = useDownloadsColors();
   const level = shadow.popover;
@@ -183,6 +189,8 @@ function PanelBackground({ placement }: { placement: DownloadsPlacement }) {
 }
 
 function RowButton({ icon, onPress, tooltip }: { icon: string; onPress: () => void; tooltip: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANEL } = useMemo(() => ({ PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale) }), [interfaceScale]);
   return <Button variant="icon" icon={icon} size="s" glyph={PANEL.iconSize} onPress={onPress} tooltip={tooltip} />;
 }
 
@@ -194,6 +202,8 @@ const DownloadRowItem = memo(function DownloadRowItem({ id, windowId }: { id: st
 });
 
 function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANEL, L, PROGRESS_GAP } = useMemo(() => ({ PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale), L: scaleMetrics(BASE_INTERFACE_METRICS.L, interfaceScale), PROGRESS_GAP: scaleMetrics(BASE_INTERFACE_METRICS.PROGRESS_GAP, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const { exists, done, progress, blocked } = useDownloadView(d);
@@ -217,7 +227,7 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
               >
                 <DownloadsRowGlass fill={rowFill(theme, hovered, pressed && done)} pressed={pressed && done} />
                 <View style={{ opacity: exists ? 1 : L.missingOpacity }}>
-                  <FileIcon path={d.path || d.filename} size={L.fileIcon} />
+                  <FileIcon path={d.path || d.filename} size={BASE_INTERFACE_METRICS.L.fileIcon} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text
@@ -266,6 +276,8 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
 }
 
 export function DownloadMagnet() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { MAGNET, SIDEBAR_FOOTER_DOWNLOADS } = useMemo(() => ({ MAGNET: scaleMetrics(BASE_INTERFACE_METRICS.MAGNET, interfaceScale), SIDEBAR_FOOTER_DOWNLOADS: scaleMetrics(BASE_INTERFACE_METRICS.SIDEBAR_FOOTER_DOWNLOADS, interfaceScale) }), [interfaceScale]);
   const windowId = useWindowId();
   const sidebarOpen = useSidebarOpen();
   const sidebarWidth = useSidebarWidth(windowId);
@@ -284,7 +296,7 @@ export function DownloadMagnet() {
       setFlight({ id: fresh.id, path: fresh.path || fresh.filename });
       Animated.timing(t, { toValue: 1, ...MAGNET.flight, useNativeDriver: true }).start(({ finished }) => finished && setFlight(null));
     });
-  }, [windowId]);
+  }, [windowId, interfaceScale]);
 
   const sidebar = !topStrip && sidebarOpen ? sidebarWidth : 0;
   const sidebarLeft = right ? size.width - sidebarWidth : 0;
@@ -326,8 +338,12 @@ export function DownloadMagnet() {
 }
 
 function DownloadsRowGlass({ fill, pressed }: { fill: string | undefined; pressed: boolean }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { PANEL } = useMemo(() => ({ PANEL: scaleMetrics(BASE_INTERFACE_METRICS.PANEL, interfaceScale) }), [interfaceScale]);
   if (!useGlass() || !fill) return null;
   return <GlassFill radius={PANEL.rowRadius} state={pressed ? "pressed" : "lit"} />;
 }
 
 const PROGRESS_GAP = { marginTop: L.progressAbove, marginBottom: L.progressBelow } as const;
+
+const BASE_INTERFACE_METRICS = { L, PANEL, PROGRESS_GAP, MAGNET, SIDEBAR_FOOTER_DOWNLOADS };

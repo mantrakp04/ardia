@@ -1,3 +1,5 @@
+import { currentSettings } from "../../state/browser/current";
+import { interfaceMetrics, scaleMetrics } from "../../lib/interfaceMetrics";
 import { Animated } from "react-native";
 import { dropAt, type Cross, type Dock, type Strip } from "./model";
 import { CELL_STEP, type DragGeometry } from "./stripGroups";
@@ -21,11 +23,11 @@ function settleStrip({ top, dock, grow }: Strip) {
 }
 
 const slotStart = ({ slots, lefts }: DragGeometry, k: number) =>
-  k < slots.length ? lefts[k]! - (slots[k]!.marginLeft ?? 0) : slots.length ? lefts.at(-1)! + slots.at(-1)!.width + (slots.at(-1)!.marginRight ?? 0) + GAP : 0;
+  { const { GAP } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor); return k < slots.length ? lefts[k]! - (slots[k]!.marginLeft ?? 0) : slots.length ? lefts.at(-1)! + slots.at(-1)!.width + (slots.at(-1)!.marginRight ?? 0) + GAP : 0; };
 
-const dockShrink = (dock: Dock) => (dock.ids.length > 1 ? CELL_STEP : PINNED_CELL + DOCK_GAP);
+const dockShrink = (dock: Dock) => { const { PINNED_CELL, DOCK_GAP } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor); return (dock.ids.length > 1 ? CELL_STEP : PINNED_CELL + DOCK_GAP); };
 
-function pinOutIndex({ dock, top }: Strip, from: number, dx: number): number | null {
+function pinOutIndex({ dock, top }: Strip, from: number, dx: number): number | null { const { DOCK_GAP } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   if (!dock) return null;
   const left = dock.left + dock.geometry.lefts[from]! + dx;
   if (left < -DOCK_GAP) return null;
@@ -33,7 +35,7 @@ function pinOutIndex({ dock, top }: Strip, from: number, dx: number): number | n
   return top.slots.filter((slot, i) => top.lefts[i]! - shrink + slot.width / 2 < left).length;
 }
 
-export function pinOut(strip: () => Strip | null, from: number): Cross {
+export function pinOut(strip: () => Strip | null, from: number): Cross { const { GAP, PINNED_CELL } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   return {
     at: (dx) => {
       const s = strip();
@@ -69,7 +71,7 @@ export function pinOut(strip: () => Strip | null, from: number): Cross {
 
 const dockCellLeft = ({ lefts }: DragGeometry, j: number) => (j < lefts.length ? lefts[j]! : (lefts.at(-1) ?? -CELL_STEP) + CELL_STEP);
 
-function tabInIndex({ dock, top }: Strip, from: number, dx: number, grab: number): number | null {
+function tabInIndex({ dock, top }: Strip, from: number, dx: number, grab: number): number | null { const { DOCK_GAP, PINNED_CELL } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   if (!dock || from < 0) return null;
   const left = top.lefts[from]! + dx;
   if (left >= -DOCK_GAP) return null;
@@ -77,7 +79,7 @@ function tabInIndex({ dock, top }: Strip, from: number, dx: number, grab: number
   return dock.ids.filter((_, i) => dock.left + dock.geometry.lefts[i]! + PINNED_CELL / 2 < tile).length;
 }
 
-export function tabIn(strip: () => Strip | null, from: number, width: number): Cross {
+export function tabIn(strip: () => Strip | null, from: number, width: number): Cross { const { GAP, PINNED_CELL } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
   return {
     at: (dx, grab) => {
       const s = strip();
@@ -112,3 +114,5 @@ export function tabIn(strip: () => Strip | null, from: number, width: number): C
 
 export const tileHold = (dx: Animated.Value, limit: number) =>
   dx.interpolate({ inputRange: [limit, limit + 1], outputRange: [0, -1], extrapolateLeft: "clamp", extrapolateRight: "extend" });
+
+const BASE_INTERFACE_GEOMETRY = { GAP, PINNED_CELL, DOCK_GAP };

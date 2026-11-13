@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { Symbol } from "./native";
@@ -7,6 +10,8 @@ import { radius } from "./tokens";
 const TILE = { s: { box: 26, glyph: 13 }, m: { box: 28, glyph: 13 }, l: { box: 36, glyph: 18 } } as const;
 
 export function IconTile({ symbol, children, size = "m", fill, glyph }: { symbol?: string; children?: ReactNode; size?: keyof typeof TILE; fill?: string; glyph?: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { TILE, radius } = useMemo(() => ({ TILE: scaleMetrics(BASE_INTERFACE_METRICS.TILE, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   const tile = TILE[size];
   return (
@@ -15,3 +20,5 @@ export function IconTile({ symbol, children, size = "m", fill, glyph }: { symbol
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { TILE, radius };

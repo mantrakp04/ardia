@@ -1,3 +1,4 @@
+import { interfaceMetrics, scaleMetrics } from "../../lib/interfaceMetrics";
 import type { ScrollView, View } from "react-native";
 import { layout } from "../ui/theme";
 import { currentSettings } from "../../state/browser/current";
@@ -85,7 +86,7 @@ export class DragGeometry {
     return { ...f, y: f.y - (this.scrollY - startScrollY) + (below ? gridGrowth : 0) };
   }
 
-  protected pinFloor(live: Item[], tiles: Frame): number {
+  protected pinFloor(live: Item[], tiles: Frame): number { const { TILE_GAP } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
     const list = this.at(this.drag.regionFrames.get("list") ?? null);
     const pinnedArea = this.at(this.drag.regionFrames.get("pinnedGroups") ?? null);
     const rows = live.filter((i) => i.kind !== "tail" && (i.section === "pinnedRows" || i.section === "pinnedGroups")).map((i) => this.at(i.frame)!.y);
@@ -112,7 +113,7 @@ export class DragGeometry {
     return drop.type === "tabs" && drop.placement.pinned && !!drop.placement.row;
   }
 
-  protected shown(i: Item): Frame {
+  protected shown(i: Item): Frame { const { ROW_GAP } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
     const f = this.at(i.frame, this.still(i))!;
     const { dropKey, gapKey, pitch, sources } = this.drag;
     if (!dropKey) return f;
@@ -142,7 +143,7 @@ export class DragGeometry {
     return null;
   }
 
-  protected pointed(tiles: Frame, cells: Item[], count: number, home: number | null, x: number, y: number, folders: boolean): Pointed | null {
+  protected pointed(tiles: Frame, cells: Item[], count: number, home: number | null, x: number, y: number, folders: boolean): Pointed | null { const { layout, TILE_GAP, PIN_SLOT } = scaleMetrics(BASE_INTERFACE_GEOMETRY, interfaceMetrics(currentSettings().interfaceSize).factor);
     const marks = dragMarksOf(this.marks);
     if (!this.drag.gridBase) return null;
     if (!marks.pins && home === null) count = 0;
@@ -163,3 +164,5 @@ export class DragGeometry {
     return { cell, index, gap, part: centre ? "centre" : x < mid ? "before" : "after" };
   }
 }
+
+const BASE_INTERFACE_GEOMETRY = { TILE_GAP, ROW_GAP, layout, PIN_SLOT };

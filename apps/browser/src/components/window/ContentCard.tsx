@@ -1,3 +1,4 @@
+import { useInterfaceMetrics } from "../ui/interfaceSize";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { startChromeTabs } from "../../state/tabs/chromeTabs";
@@ -42,6 +43,7 @@ export function ContentCard() {
   const hideWhileScrolling = useSettings((st) => st.hideToolbarWhileScrolling);
   const showSidebarButton = useSettings((st) => st.showSidebarButton !== false);
   const barMode = useBookmarksBarMode(windowId);
+  const { preset } = useInterfaceMetrics();
   const toolbarRow = useToolbarRow();
   const barHeight = useBookmarksBarHeight();
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -67,7 +69,7 @@ export function ContentCard() {
   const geometryFor = (rect: Rect | undefined): ToolbarGeometry => {
     if (chrome.kind === "none") return NO_TOOLBAR;
     const leading = !!rect && rect.x === 0 && rect.y === 0;
-    return toolbarGeometry({ sidebarButton: leading && showSidebarButton });
+    return toolbarGeometry({ sidebarButton: leading && showSidebarButton, interfaceSize: preset });
   };
 
   const focusedRect = activeId ? panes[activeId] : undefined;

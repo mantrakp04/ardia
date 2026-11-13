@@ -1,3 +1,6 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "./interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { useMemo } from "react";
 import { View } from "react-native";
 import { Symbol } from "./native";
 import { Text } from "./Text";
@@ -9,6 +12,8 @@ const ICON = { width: emptyState.iconBox, height: emptyState.iconBox } as const;
 const SUBTITLE = { textAlign: "center", maxWidth: emptyState.subtitleMaxWidth } as const;
 
 export function EmptyState({ symbol, title, subtitle }: { symbol: string; title: string; subtitle?: string }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { EMPTY, ICON, SUBTITLE } = useMemo(() => ({ EMPTY: scaleInterfaceStyle(BASE_INTERFACE_METRICS.EMPTY, interfaceScale), ICON: scaleMetrics(BASE_INTERFACE_METRICS.ICON, interfaceScale), SUBTITLE: scaleMetrics(BASE_INTERFACE_METRICS.SUBTITLE, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   return (
     <View style={EMPTY}>
@@ -24,3 +29,5 @@ export function EmptyState({ symbol, title, subtitle }: { symbol: string; title:
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { EMPTY, ICON, SUBTITLE };

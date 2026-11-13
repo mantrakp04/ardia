@@ -1,5 +1,9 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
+import { RawText as Text } from "../ui/ScaledNative";
+import { useMemo } from "react";
 import { memo } from "react";
-import { Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { View, type StyleProp, type ViewStyle } from "react-native";
 import type { AwayTitle } from "../../state/pins/organize";
 import { FadeLabel } from "../ui";
 import { withAlpha } from "../ui/tokens";
@@ -20,6 +24,8 @@ export const AwayTitleLabel = memo(function AwayTitleLabel({
   height: number;
   style?: StyleProp<ViewStyle>;
 }) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { AWAY_TITLE } = useMemo(() => ({ AWAY_TITLE: scaleMetrics(BASE_INTERFACE_METRICS.AWAY_TITLE, interfaceScale) }), [interfaceScale]);
   const fontWeight = weight === "medium" ? "500" : undefined;
   return (
     <View accessible accessibilityLabel={`${away.pinned ?? "Pinned tab"}, now on ${away.page}`} style={[{ flexDirection: "row", alignItems: "center", height }, style]}>
@@ -33,3 +39,5 @@ export const AwayTitleLabel = memo(function AwayTitleLabel({
     </View>
   );
 });
+
+const BASE_INTERFACE_METRICS = { AWAY_TITLE };

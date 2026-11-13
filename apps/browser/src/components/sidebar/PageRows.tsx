@@ -1,3 +1,5 @@
+import { useInterfaceMetrics, scaleInterfaceStyle } from "../ui/interfaceSize";
+import { scaleMetrics } from "../../lib/interfaceMetrics";
 import { memo, useEffect, useMemo, useState, type RefObject } from "react";
 import { Animated, View } from "react-native";
 import { radius, space, Symbol, Text } from "../ui";
@@ -43,6 +45,8 @@ type PageRowsProps = {
 const DOCKED_TILES_GAP = SCROLL_EDGE.gap + SCROLL_EDGE.line + SCROLL_EDGE.inset;
 
 export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, underDockedTiles, innerWidth, inlineNewTab, controller, geometry, regions, onListHeight }: PageRowsProps) {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { layout, ROW_PITCH, space, DOCKED_TILES_GAP } = useMemo(() => ({ layout: scaleMetrics(BASE_INTERFACE_METRICS.layout, interfaceScale), ROW_PITCH: scaleMetrics(BASE_INTERFACE_METRICS.ROW_PITCH, interfaceScale), space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), DOCKED_TILES_GAP: scaleMetrics(BASE_INTERFACE_METRICS.DOCKED_TILES_GAP, interfaceScale) }), [interfaceScale]);
   const [captured] = useState(newCapture);
   const { list: all } = useCapturedSidebarEntries(windowId, profileId, captured);
   const [mountedRows, setMountedRows] = useState(() => firstPaintEntriesNow(windowId, profileId, all, lazy));
@@ -54,7 +58,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
     if (!growing) return;
     const frame = requestAnimationFrame(() => setMountedRows((n) => (n + ROWS_PER_FRAME >= all.length ? Infinity : n + ROWS_PER_FRAME)));
     return () => cancelAnimationFrame(frame);
-  }, [growing, mountedRows, all.length]);
+  }, [growing, mountedRows, all.length, interfaceScale]);
   const limit = cap ?? (growing ? mountedRows : undefined);
   const list = limit === undefined ? all : all.slice(0, limit);
   const pending = usePendingEntriesHeight(windowId, profileId, all, mountedRows, growing);
@@ -72,7 +76,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
   const newTabButtonAtTop = useSettings((s) => s.newTabButtonPosition === "top");
   const animated = current && !offScreen;
   const motion = useListMotion(windowId, profileId, all, captured, animated);
-  const scope = useMemo(() => ({ enabled: animated, slideBelow: motion.slideBelow }), [animated, motion.slideBelow]);
+  const scope = useMemo(() => ({ enabled: animated, slideBelow: motion.slideBelow }), [animated, motion.slideBelow, interfaceScale]);
   if (geometry) geometry.current.newTabAtTop = newTabButtonAtTop && inlineNewTab;
   return (
     <ListMotionContext.Provider value={scope}>
@@ -142,14 +146,18 @@ const Tail = memo(function Tail({ section }: { section: "list" | "pinnedGroups" 
 });
 
 function IncognitoBadge() {
+  const interfaceScale = useInterfaceMetrics().factor;
+  const { space, TAB_ROW, radius } = useMemo(() => ({ space: scaleMetrics(BASE_INTERFACE_METRICS.space, interfaceScale), TAB_ROW: scaleMetrics(BASE_INTERFACE_METRICS.TAB_ROW, interfaceScale), radius: scaleMetrics(BASE_INTERFACE_METRICS.radius, interfaceScale) }), [interfaceScale]);
   const theme = useTheme();
   if (!useAddressBarInSidebar()) return null;
   return (
-    <View style={{ height: 30, marginBottom: space.xs, paddingHorizontal: TAB_ROW.contentLeft, flexDirection: "row", alignItems: "center", gap: space.m, borderRadius: radius.tile, backgroundColor: sidebarTokens(theme).incognitoBadge }}>
-      <Symbol name={INCOGNITO_ICON} size={13} weight="semibold" color={theme.textPrimary} style={{ width: 18, height: 16 }} />
+    <View style={{ height: 30 * interfaceScale, marginBottom: space.xs, paddingHorizontal: TAB_ROW.contentLeft, flexDirection: "row", alignItems: "center", gap: space.m, borderRadius: radius.tile, backgroundColor: sidebarTokens(theme).incognitoBadge }}>
+      <Symbol name={INCOGNITO_ICON} size={13} weight="semibold" color={theme.textPrimary} style={{ width: 18 * interfaceScale, height: 16 * interfaceScale }} />
       <Text size="small" weight="semibold">
         Incognito
       </Text>
     </View>
   );
 }
+
+const BASE_INTERFACE_METRICS = { layout, ROW_PITCH, space, DOCKED_TILES_GAP, TAB_ROW, radius };
