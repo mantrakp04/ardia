@@ -7,7 +7,7 @@ import { requireNativeModule } from "./modules";
 import { runSelfCheck } from "./selfCheck";
 import { installTextFocusReport } from "./textFocus";
 import { startUpdateChecks } from "./updater";
-import { viewOnWindows } from "./views/registry";
+import { viewNamed } from "./views/registry";
 import { installWindowRoot } from "./windowRoot";
 import type { ComponentType } from "react";
 
@@ -17,7 +17,7 @@ export { missingOnWindows } from "./missing";
 export { requireNativeModule, requireOptionalNativeModule } from "./modules";
 
 export function requireNativeViewManager<Props = object>(name: string): ComponentType<Props> {
-  return viewOnWindows(name) as ComponentType<Props>;
+  return viewNamed<Props>(name);
 }
 
 const SELF_CHECK_AFTER_MS = 4000;
