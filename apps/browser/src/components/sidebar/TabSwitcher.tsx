@@ -15,6 +15,7 @@ const SHOT = Math.round(CARD / 1.6);
 const GAP = 4;
 const PAD = 8;
 const LABEL = 30;
+const PREVIEW_RADIUS = 8;
 const ON_PANEL = "#FFFFFFB3";
 const ON_PAGE = "#000000A6";
 
@@ -80,20 +81,33 @@ const SwitcherCard = memo(function SwitcherCard({ tabId, index, focused, accent 
             style={{
               width: CARD - 8,
               height: SHOT,
-              borderRadius: 8,
+              borderRadius: PREVIEW_RADIUS,
               overflow: "hidden",
               backgroundColor: url ? "#FFFFFF" : "#3A3A3C",
               alignItems: "center",
               justifyContent: "center",
-              borderWidth: focused ? 2 : 0.5,
-              borderColor: focused ? accent : "rgba(255,255,255,0.12)",
             }}
           >
             {picture ? (
-              <Image source={{ uri: `data:image/jpeg;base64,${picture.data}` }} resizeMode="cover" style={StyleSheet.absoluteFill} />
+              <Image
+                source={{ uri: `data:image/jpeg;base64,${picture.data}` }}
+                resizeMode="cover"
+                style={[StyleSheet.absoluteFill, { borderRadius: PREVIEW_RADIUS }]}
+              />
             ) : (
               <TabIcon tabId={tab.id} url={url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} size={30} color={url ? ON_PAGE : ON_PANEL} />
             )}
+            <View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  borderRadius: PREVIEW_RADIUS,
+                  borderWidth: focused ? 2 : 1,
+                  borderColor: focused ? accent : "rgba(255,255,255,0.12)",
+                },
+              ]}
+            />
           </View>
           <View style={{ height: LABEL, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 2 }}>
             {url || tab.customIcon ? (
