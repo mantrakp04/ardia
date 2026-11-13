@@ -3,21 +3,20 @@ import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { switchProfile } from "../../state/browser/actions";
 import { noteSwitcherPress } from "../../state/telemetry/switcherPresses";
-import { layout, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
 import { useIsIncognito, useProfile, useSettings } from "../../state/browser/hooks";
 import { useProfileOrder, useProfileRecords } from "../../state/profiles/hooks";
 import { useNativePagerPosition, usePagerPages, type PagerPage } from "../../state/windows/profilePager";
-import { ContextMenuArea, useHover } from "../ui";
+import { capsule, ContextMenuArea, useHover } from "../ui";
+import { GlassFill, useGlass } from "../ui/Glass";
 import { TooltipAbove } from "../ui/TooltipAbove";
-import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
 import { switcherCellWidth, switcherIcons, SwitcherMark } from "./ProfileIcons";
+import { switcherCapsuleEnds, switcherRoom } from "./switcherBand";
 import { openProfileItemMenu } from "./profileMenu";
 import { profileSwitcher } from "./tokens";
 
 export const PROFILE_DOTS_HEIGHT = profileSwitcher.height;
 const { band: BAND, dotTooltipLift } = profileSwitcher;
-const SIDE_ROOM = layout.sidebarInset;
-const SIDE_ROOM_BESIDE_DOWNLOADS = SIDEBAR_FOOTER_DOWNLOADS.left + SIDEBAR_FOOTER_DOWNLOADS.size + 4;
 
 export function useProfileDotsShown() {
   const incognito = useIsIncognito();
@@ -29,11 +28,15 @@ export function ProfileDots({ windowId, width, besideDownloads }: { windowId: st
   const ids = useProfileOrder(useShallow((o) => o));
   const saved = useProfileRecords(useShallow((profiles) => ids.map((id) => profiles[id]?.icon ?? null)));
   const shown = useSettings((s) => s.profileSwitcherIcons);
-  const icons = switcherIcons(saved, shown, width - 2 * (besideDownloads ? SIDE_ROOM_BESIDE_DOWNLOADS : SIDE_ROOM));
+  const glass = useGlass();
+  const room = switcherRoom(width, besideDownloads);
+  const icons = switcherIcons(saved, shown, room);
+  const ends = glass ? switcherCapsuleEnds(icons, room) : null;
   const { pages, pager } = usePagerPages(windowId);
   return (
     <View style={{ height: PROFILE_DOTS_HEIGHT, alignItems: "center" }}>
-      <View style={{ marginTop: (PROFILE_DOTS_HEIGHT - 3 - BAND) / 2, height: BAND, flexDirection: "row" }}>
+      <View style={{ marginTop: (PROFILE_DOTS_HEIGHT - 3 - BAND) / 2, height: BAND, flexDirection: "row", paddingLeft: ends?.left ?? 0, paddingRight: ends?.right ?? 0 }}>
+        {ends ? <GlassFill radius={capsule(BAND)} /> : null}
         {ids.map((id, i) => (
           <Dot key={id} id={id} windowId={windowId} icon={icons[i] ?? null} page={pages.find((p) => p.id === id)} pos={pager.pos} />
         ))}
