@@ -8,6 +8,7 @@ type Later = (run: () => void) => unknown;
 const openWindows = new Map<string, number>();
 const heldReleases = new Set<string>();
 const releasedNames = new Set<string>();
+let holds = 0;
 
 export const isPrivateName = (name: string) => name.includes(OFF_THE_RECORD);
 
@@ -55,7 +56,8 @@ export async function releaseProfile(name: string, send: (name: string) => Promi
 
 export function holdPrivateSession(name: string, windowId: string): () => void {
   if (!isPrivateName(name) || !windowId || !engineAvailable()) return () => {};
-  const key = `private-window:${windowId}:${name}`;
+  holds += 1;
+  const key = `private-window:${windowId}:${holds}:${name}`;
   const held = hostCall("tab.create", { key, url: "", profile: name }, windowId).then(
     () => true,
     () => false,

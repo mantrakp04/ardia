@@ -102,10 +102,13 @@ test("an open private window keeps its session with a hidden blank tab of its ow
   const before = calls.length;
   const release = holdPrivateSession("incognito:w9@work", "w9");
   await settle();
-  assert.deepEqual(calls.slice(before), [{ verb: "tab.create", args: { key: "private-window:w9:incognito:w9@work", url: "", profile: "incognito:w9@work" }, windowId: "w9" }]);
+  const made = calls.slice(before);
+  assert.equal(made.length, 1);
+  assert.match(made[0].args.key, /^private-window:w9:\d+:incognito:w9@work$/);
+  assert.deepEqual({ ...made[0], args: { ...made[0].args, key: "" } }, { verb: "tab.create", args: { key: "", url: "", profile: "incognito:w9@work" }, windowId: "w9" });
   release();
   await settle();
-  assert.deepEqual(calls.at(-1), { verb: "tab.close", args: { key: "private-window:w9:incognito:w9@work" }, windowId: "" });
+  assert.deepEqual(calls.at(-1), { verb: "tab.close", args: { key: made[0].args.key }, windowId: "" });
   const quiet = calls.length;
   holdPrivateSession("work", "w9")();
   holdPrivateSession("incognito:w10@work", "")();
@@ -148,4 +151,22 @@ test("a private window's view that unmounts and shows again within the delay rel
   await settle();
   assert.equal(calls.length, before);
   closeAgain();
+});
+
+test("a private window's view that unmounts and mounts again in one tick keeps a hidden tab: the old one's close cannot reach the new one", async () => {
+  const before = calls.length;
+  const releaseFirst = holdPrivateSession("incognito:w11@work", "w11");
+  await settle();
+  releaseFirst();
+  const releaseSecond = holdPrivateSession("incognito:w11@work", "w11");
+  await settle();
+  const held = calls.slice(before).filter((call) => call.args.profile === "incognito:w11@work" || String(call.args.key).includes("w11"));
+  const creates = held.filter((call) => call.verb === "tab.create").map((call) => call.args.key);
+  const closes = held.filter((call) => call.verb === "tab.close").map((call) => call.args.key);
+  assert.equal(creates.length, 2);
+  assert.notEqual(creates[0], creates[1], "each hold has its own tab");
+  assert.deepEqual(closes, [creates[0]], "only the first hold's tab closed");
+  releaseSecond();
+  await settle();
+  assert.deepEqual(calls.at(-1), { verb: "tab.close", args: { key: creates[1] }, windowId: "" });
 });
