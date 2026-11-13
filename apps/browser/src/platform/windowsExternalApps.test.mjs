@@ -8,16 +8,18 @@ const HANDLERS = { mailto: { name: "Mail", path: "C:\\Mail\\mail.exe", icon: "da
 function fakes() {
   const opened = [];
   const docs = new Map();
+  const gone = new Set();
   const native = { describe: async (scheme) => HANDLERS[scheme] ?? null, open: async (url) => (opened.push(url), true) };
   const documents = { readDocument: (name) => docs.get(name) ?? null, writeDocument: (name, text) => void docs.set(name, text) };
-  return { opened, docs, apps: windowsExternalApps(() => native, () => documents), native, documents };
+  const stillAsked = async (page, id) => !gone.has(page) && !gone.has(id);
+  return { opened, docs, gone, apps: windowsExternalApps(() => native, () => documents, stillAsked), native, documents };
 }
 
 const ask = (fields = {}) => ({ id: "x1", url: "mailto:someone@example.com", origin: "https://mail.example", userGesture: true, offTheRecord: false, ...fields });
 
 test("a link with a handler asks with the handler's name and icon, in the Mac's words", async () => {
   const { apps, opened } = fakes();
-  const request = await apps.request(ask(), "Ardia p-1");
+  const request = await apps.request(ask(), "Ardia p-1", "tab-1");
   assert.deepEqual(request, {
     id: "x1",
     url: "mailto:someone@example.com",
@@ -35,36 +37,36 @@ test("a link with a handler asks with the handler's name and icon, in the Mac's 
 
 test("no opens without a yes, and a no or an unknown id opens nothing", async () => {
   const { apps, opened } = fakes();
-  await apps.request(ask(), "Ardia p-1");
+  await apps.request(ask(), "Ardia p-1", "tab-1");
   assert.equal(await apps.resolve("x1", false, false), false);
   assert.equal(await apps.resolve("x1", true, false), false);
   assert.equal(await apps.resolve("nope", true, false), false);
   assert.deepEqual(opened, []);
-  await apps.request(ask({ id: "x2" }), "Ardia p-1");
+  await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1");
   assert.equal(await apps.resolve("x2", true, false), true);
   assert.deepEqual(opened, ["mailto:someone@example.com"]);
 });
 
 test("a remembered site opens the app with a gesture and asks without one; remembering needs a trustworthy origin and no private profile", async () => {
   const { apps, opened, docs } = fakes();
-  await apps.request(ask(), "Ardia p-1");
+  await apps.request(ask(), "Ardia p-1", "tab-1");
   await apps.resolve("x1", true, true);
   assert.equal(docs.size, 1);
-  assert.equal(await apps.request(ask({ id: "x2" }), "Ardia p-1"), null);
+  assert.equal(await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1"), null);
   assert.equal(opened.length, 2);
-  const noGesture = await apps.request(ask({ id: "x3", userGesture: false }), "Ardia p-1");
+  const noGesture = await apps.request(ask({ id: "x3", userGesture: false }), "Ardia p-1", "tab-1");
   assert.equal(noGesture?.id, "x3");
   assert.equal(opened.length, 2);
-  assert.equal((await apps.request(ask({ id: "x4", origin: "http://mail.example" }), "Ardia p-1"))?.remember, null);
-  assert.equal((await apps.request(ask({ id: "x5", offTheRecord: true }), "Ardia p-1"))?.remember, null);
-  assert.deepEqual(await apps.list("Ardia p-1"), [{ origin: "https://mail.example", scheme: "mailto", app: "Mail", icon: "data:image/png;base64,AA==" }]);
+  assert.equal((await apps.request(ask({ id: "x4", origin: "http://mail.example" }), "Ardia p-1", "tab-1"))?.remember, null);
+  assert.equal((await apps.request(ask({ id: "x5", offTheRecord: true }), "Ardia p-1", "tab-1"))?.remember, null);
+  assert.deepEqual(await apps.list("Ardia p-1", "tab-1"), [{ origin: "https://mail.example", scheme: "mailto", app: "Mail", icon: "data:image/png;base64,AA==" }]);
   apps.remove("Ardia p-1", "https://mail.example", "mailto");
-  assert.deepEqual(await apps.list("Ardia p-1"), []);
+  assert.deepEqual(await apps.list("Ardia p-1", "tab-1"), []);
 });
 
 test("a scheme with no handler says so and can't be opened", async () => {
   const { apps, opened } = fakes();
-  const request = await apps.request(ask({ url: "zoommtg://join?x=1" }), "Ardia p-1");
+  const request = await apps.request(ask({ url: "zoommtg://join?x=1" }), "Ardia p-1", "tab-1");
   assert.equal(request?.app, null);
   assert.equal(request?.message, "Your PC doesn’t have an app for “zoommtg:” links.");
   assert.equal(await apps.resolve("x1", true, true), false);
@@ -75,6 +77,7 @@ test("only a well-formed scheme and a well-formed ask go further", () => {
   assert.equal(schemeOf("MailTo:a@b"), "mailto");
   assert.equal(schemeOf("ms-teams:x"), "ms-teams");
   assert.equal(schemeOf("1abc:x"), null);
+  assert.equal(schemeOf("c:\\Windows\\notepad.exe"), null);
   assert.equal(schemeOf("a b:x"), null);
   assert.equal(schemeOf(":x"), null);
   assert.equal(trustworthyOrigin("https://a.example"), true);
@@ -91,4 +94,35 @@ test("app link prompts and answers are counted and reset once taken", () => {
   noteExternalApp("remembered");
   noteExternalApp("declined");
   assert.deepEqual(takeExternalAppCounts(), { external_app_prompts: 1, external_app_prompts_no_app: 0, external_app_opens: 0, external_app_opens_remembered: 1, external_app_declines: 1 });
+});
+
+test("an ask the engine no longer holds, or whose page moved on, opens nothing", async () => {
+  const { apps, opened, gone } = fakes();
+  await apps.request(ask(), "Ardia p-1", "tab-1");
+  gone.add("x1");
+  assert.equal(await apps.resolve("x1", true, false), false);
+  await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1");
+  apps.forgetPage("tab-1");
+  assert.equal(await apps.resolve("x2", true, false), false);
+  await apps.request(ask({ id: "x3" }), "Ardia p-1", "tab-2");
+  apps.forget("x3");
+  assert.equal(await apps.resolve("x3", true, false), false);
+  assert.deepEqual(opened, []);
+});
+
+test("a remembered site opens nothing once its page is gone, and deleting a profile forgets its allowances", async () => {
+  const { apps, opened, gone } = fakes();
+  await apps.request(ask(), "Ardia p-1", "tab-1");
+  await apps.resolve("x1", true, true);
+  await apps.request(ask({ id: "o1" }), "Ardia p-2", "tab-2");
+  await apps.resolve("o1", true, true);
+  gone.add("tab-1");
+  assert.equal(await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1"), null);
+  assert.equal(opened.length, 2);
+  await apps.request(ask({ id: "x3" }), "Ardia p-1", "tab-3");
+  apps.forgetProfile("Ardia p-1");
+  assert.equal(await apps.resolve("x3", true, false), false);
+  assert.deepEqual(await apps.list("Ardia p-1"), []);
+  assert.equal((await apps.list("Ardia p-2")).length, 1);
+  assert.notEqual(await apps.request(ask({ id: "x4" }), "Ardia p-1", "tab-3"), null);
 });

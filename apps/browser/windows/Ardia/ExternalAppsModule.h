@@ -17,6 +17,7 @@ namespace Ardia {
 
 namespace ExternalApps {
 
+constexpr size_t ShortestScheme = 2;
 constexpr size_t LongestScheme = 64;
 constexpr size_t LongestLink = 32 * 1024;
 constexpr DWORD LongestAssociation = 4096;
@@ -31,7 +32,7 @@ inline bool SchemeCharacter(char c, bool first) noexcept {
 
 inline std::optional<std::string> SchemeOf(std::string const &url) noexcept {
   size_t colon = url.find(':');
-  if (colon == std::string::npos || colon == 0 || colon > LongestScheme) return std::nullopt;
+  if (colon == std::string::npos || colon < ShortestScheme || colon > LongestScheme) return std::nullopt;
   std::string scheme = AppShell::Lowercase(url.substr(0, colon));
   for (size_t i = 0; i < scheme.size(); i++)
     if (!SchemeCharacter(scheme[i], i == 0)) return std::nullopt;
@@ -42,7 +43,16 @@ inline bool BrowserScheme(std::string const &scheme) noexcept {
   return scheme == "http" || scheme == "https" || scheme == "file";
 }
 
+inline bool InternetScheme(std::wstring const &scheme) noexcept {
+  HKEY key = nullptr;
+  if (RegOpenKeyExW(HKEY_CLASSES_ROOT, scheme.c_str(), 0, KEY_QUERY_VALUE, &key) != ERROR_SUCCESS) return false;
+  bool marked = RegQueryValueExW(key, L"URL Protocol", nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS;
+  RegCloseKey(key);
+  return marked;
+}
+
 inline std::optional<std::wstring> Associated(std::wstring const &scheme, ASSOCSTR what) noexcept {
+  if (!InternetScheme(scheme)) return std::nullopt;
   constexpr ASSOCF flags = ASSOCF_IS_PROTOCOL | ASSOCF_NOTRUNCATE;
   DWORD length = 0;
   HRESULT sized = AssocQueryStringW(flags, what, scheme.c_str(), nullptr, nullptr, &length);
@@ -67,13 +77,23 @@ inline winrt::Microsoft::ReactNative::JSValue Describe(std::string const &scheme
   return JSValue{std::move(handler)};
 }
 
+inline bool HexDigit(char c) noexcept {
+  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+inline bool AlreadyEscaped(std::string const &url, size_t at) noexcept {
+  return at + 2 < url.size() && HexDigit(url[at + 1]) && HexDigit(url[at + 2]);
+}
+
 inline std::string EscapedForHandler(std::string const &url) noexcept {
   static constexpr char digits[] = "0123456789ABCDEF";
   std::string escaped;
   escaped.reserve(url.size());
-  for (char c : url) {
+  for (size_t at = 0; at < url.size(); at++) {
+    char c = url[at];
     unsigned char byte = static_cast<unsigned char>(c);
-    bool unsafe = byte <= 0x20 || byte >= 0x7F || EscapedForHandlers.find(c) != std::string_view::npos;
+    bool bareEscape = c == '%' && !AlreadyEscaped(url, at);
+    bool unsafe = bareEscape || byte <= 0x20 || byte >= 0x7F || EscapedForHandlers.find(c) != std::string_view::npos;
     if (!unsafe) {
       escaped.push_back(c);
       continue;
@@ -85,12 +105,20 @@ inline std::string EscapedForHandler(std::string const &url) noexcept {
   return escaped;
 }
 
+inline std::wstring SystemFolder() noexcept {
+  wchar_t folder[MAX_PATH]{};
+  UINT length = GetSystemDirectoryW(folder, MAX_PATH);
+  return length > 0 && length < MAX_PATH ? std::wstring(folder, length) : std::wstring();
+}
+
 inline bool Launch(std::wstring const &target) noexcept {
+  std::wstring folder = SystemFolder();
   SHELLEXECUTEINFOW info{};
   info.cbSize = sizeof(info);
   info.fMask = SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
   info.lpVerb = L"open";
   info.lpFile = target.c_str();
+  info.lpDirectory = folder.empty() ? nullptr : folder.c_str();
   info.nShow = SW_SHOWNORMAL;
   return ShellExecuteExW(&info) != FALSE;
 }

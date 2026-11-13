@@ -5,13 +5,15 @@ import { callError, isFields, isPrivateProfile, ok, type Engine, type Fields, ty
 
 export type ExternalAppAsk = { id: string; url: string; origin: string | null; userGesture: boolean; offTheRecord: boolean };
 
-type Pending = { url: string; scheme: string; profile: string; origin: string | null; rememberable: boolean };
+type Pending = { url: string; scheme: string; profile: string; page: string; origin: string | null; rememberable: boolean };
+
+type StillAsked = (page: string, id: string) => Promise<boolean>;
 
 type Saved = { version: 1; allowances: Record<string, Record<string, string[]>> };
 
 const DOCUMENT = "external-app-allowances.json";
 const PENDING_LIMIT = 50;
-const SCHEME = /^[a-z][a-z0-9+.-]{0,63}$/;
+const SCHEME = /^[a-z][a-z0-9+.-]{1,63}$/;
 const LOOPBACK = /^(localhost|.+\.localhost|127\.0\.0\.1|\[::1\])$/;
 
 export const schemeOf = (url: string): string | null => {
@@ -49,7 +51,11 @@ function readSaved(documents: Pick<DocumentsNative, "readDocument"> | null): Sav
   }
 }
 
-export function windowsExternalApps(native: () => ExternalAppsModule | null, documents: () => Pick<DocumentsNative, "readDocument" | "writeDocument"> | null) {
+export function windowsExternalApps(
+  native: () => ExternalAppsModule | null,
+  documents: () => Pick<DocumentsNative, "readDocument" | "writeDocument"> | null,
+  stillAsked: StillAsked,
+) {
   const pending = new Map<string, Pending>();
   let saved: Saved | undefined;
   const allowances = () => (saved ??= readSaved(documents()));
@@ -74,19 +80,27 @@ export function windowsExternalApps(native: () => ExternalAppsModule | null, doc
     }
   };
 
-  async function request(ask: ExternalAppAsk, profile: string): Promise<ExternalAppRequest | null> {
+  const asking = async (page: string, id: string) => {
+    try {
+      return (await stillAsked(page, id)) === true;
+    } catch {
+      return false;
+    }
+  };
+
+  async function request(ask: ExternalAppAsk, profile: string, page: string): Promise<ExternalAppRequest | null> {
     const scheme = schemeOf(ask.url);
     if (!scheme || !ask.id) return null;
     const handler = await describe(scheme);
     const origin = ask.origin && ask.origin !== "null" ? ask.origin : null;
     const rememberable = !!handler && !!origin && !ask.offTheRecord && !isPrivateProfile(profile) && trustworthyOrigin(origin);
     if (handler && rememberable && ask.userGesture && allowed(profile, origin!, scheme)) {
-      await open(ask.url);
+      if (await asking(page, ask.id)) await open(ask.url);
       return null;
     }
     if (handler) {
       if (pending.size >= PENDING_LIMIT) pending.clear();
-      pending.set(ask.id, { url: ask.url, scheme, profile, origin, rememberable });
+      pending.set(ask.id, { url: ask.url, scheme, profile, page, origin, rememberable });
     }
     const name = handler?.name ?? null;
     return {
@@ -106,7 +120,7 @@ export function windowsExternalApps(native: () => ExternalAppsModule | null, doc
   async function resolve(id: string, openIt: boolean, remember: boolean): Promise<boolean> {
     const asked = pending.get(id);
     pending.delete(id);
-    if (!asked || !openIt) return false;
+    if (!asked || !openIt || !(await asking(asked.page, id))) return false;
     if (remember && asked.rememberable && asked.origin) {
       const origins = (allowances().allowances[asked.profile] ??= {});
       origins[asked.origin] = [...new Set([...(origins[asked.origin] ?? []), asked.scheme])];
@@ -136,7 +150,22 @@ export function windowsExternalApps(native: () => ExternalAppsModule | null, doc
     store();
   }
 
-  return { request, resolve, list, remove };
+  function forget(id: string) {
+    pending.delete(id);
+  }
+
+  function forgetPage(page: string) {
+    for (const [id, asked] of pending) if (asked.page === page) pending.delete(id);
+  }
+
+  function forgetProfile(profile: string) {
+    for (const [id, asked] of pending) if (asked.profile === profile) pending.delete(id);
+    if (!allowances().allowances[profile]) return;
+    delete allowances().allowances[profile];
+    store();
+  }
+
+  return { request, resolve, list, remove, forget, forgetPage, forgetProfile };
 }
 
 export type ExternalApps = ReturnType<typeof windowsExternalApps>;

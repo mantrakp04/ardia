@@ -485,7 +485,7 @@ is plain Chromium.
 | `media.devShowBluetoothChooser`, `media.devChooserEvents` | Default | Mac test hooks. |
 | `passwords.autofillEnabled`, `passwords.setAutofillEnabled` | Engine | The profile's `credentials_enable_service` pref, as for autofill. Today Settings › Passwords' offer-to-save toggle reads off and changes nothing. |
 | `permissions.resolve` | Engine | Permission prompts drawn by the app; Chromium's own prompt shows today. |
-| `externalApp` tab event (no verb) | Engine | The app answers `permissions.resolveExternalApp`, `externalAppAllowances` and `removeExternalAppAllowance` (`domains/externalApps.ts`, `ArdiaExternalApps`), but the Windows engine never raises the request: the `external protocol dialog` hook that `engine/ardiacore/apply.sh` adds to Chromium's `ExternalProtocolHandler` is not in the Windows series. The payload the app expects is on #1425. |
+| `externalApp` tab event (no verb) | Engine | The app answers `permissions.resolveExternalApp`, `externalAppAllowances` and `removeExternalAppAllowance` (`domains/externalApps.ts`, `ArdiaExternalApps`), but the Windows engine never raises the request: the `external protocol dialog` hook that `engine/ardiacore/apply.sh` adds to Chromium's `ExternalProtocolHandler` is not in the Windows series. The engine also needs the `externalAppAlive` page call (`tab.call`, `{ id }`, answers `true` while the asking document is alive, like the Mac's `ResolveExternalApp`): the app opens nothing until it answers `true`. The payload and the call are on #1425. |
 | `permissions.devExternalLaunches` | Default | Mac test hook. |
 | `profiles.loaded` | Engine | The profiles the engine has loaded, plus the `profiles.loaded` event. Today the call fails and the app counts every profile as open, as with lazy loading off. |
 | Profile folder names (no verb) | App | The engine names a profile's folder `Ardia ` plus its id, with lowercase letters, digits and `-` kept and every other byte written `_` and two lowercase hex digits (`profiles.cc`), so each name has its own folder even on a case-insensitive disk and Ardia's own ids (`p-<base36>-<base36>`) keep the folder they always had. `profiles.deleteData` still maps only ids of that shape and refuses the rest; it could map the escape too. |
@@ -520,13 +520,18 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
 
 - Links to other apps: the engine's `externalApp` tab event (once it sends one, #1425) goes to `domains/externalApps.ts`.
   - **Describe:** `ArdiaExternalApps.describe` names the scheme's handler and draws its icon (`AssocQueryStringW` with
-    `ASSOCSTR_FRIENDLYAPPNAME` and `ASSOCSTR_EXECUTABLE`, then `SystemShell::FileIcon`).
+    `ASSOCSTR_FRIENDLYAPPNAME` and `ASSOCSTR_EXECUTABLE`, then `SystemShell::FileIcon`). Like Chromium, it knows only
+    schemes whose `HKCR` key carries `URL Protocol`, so a file type's ProgID can't pose as a link scheme, and it
+    refuses one-letter schemes (drive letters).
   - **Prompt:** the Mac's prompt shows in the Mac's words. "Always allow" is offered only for an https or loopback
-    site, outside private windows, and kept per profile in `external-app-allowances.json`. A remembered site opens
-    the app without asking only when the request had a user gesture.
+    site, outside private windows, and kept per profile in `external-app-allowances.json`; deleting a profile
+    forgets them. A remembered site opens the app without asking only when the request had a user gesture.
+  - **Lifetime:** an ask belongs to its page. It is dropped when the page closes or commits another URL, and before
+    any launch the engine must answer `true` to the `externalAppAlive` page call, as the Mac checks that the asking
+    document is still alive.
   - **Open:** `ArdiaExternalApps.open` opens only the asked URL of a pending request. It never opens http, https or
     file. It escapes the URL as Chromium's `EscapeExternalHandlerValue` does, and hands it to `ShellExecuteExW` as
-    the single `lpFile`.
+    the single `lpFile`, with the system folder as the working folder as Chromium does.
   - **Denied schemes** stay Chromium's own (`ExternalProtocolHandler`), which run before the engine's hook, as on
     the Mac.
 - `bookmarks.exportHtml` and `passwords.export`: `ArdiaDialogs.saveFile` (a Windows save panel, `SaveDialog.h`; the

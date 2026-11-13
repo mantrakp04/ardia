@@ -26,6 +26,7 @@ type Page = {
   mounts: number;
   parked: boolean;
   closed: boolean;
+  committedUrl: string;
 };
 
 type OpenedTab = { adopt?: unknown; url?: unknown; foreground?: unknown; window?: unknown; opener?: unknown; profile?: unknown };
@@ -37,10 +38,40 @@ const pages = new Map<string, Page>();
 const closings = new Map<string, Promise<void>>();
 const pressListeners = new Set<(windowId: string) => void>();
 let listening = false;
-let answerExternalApp: ((profile: string, data: unknown) => Promise<ExternalAppRequest | null>) | null = null;
+type ExternalAppAnswers = {
+  ask: (profile: string, page: string, data: unknown) => Promise<ExternalAppRequest | null>;
+  forget: (id: string) => void;
+  forgetPage: (page: string) => void;
+};
 
-export function answerExternalAppsWith(answer: (profile: string, data: unknown) => Promise<ExternalAppRequest | null>) {
-  answerExternalApp = answer;
+let externalAppAnswers: ExternalAppAnswers | null = null;
+
+export function answerExternalAppsWith(answers: ExternalAppAnswers) {
+  externalAppAnswers = answers;
+}
+
+export function externalAppStillAsked(key: string, id: string): Promise<boolean> {
+  return callPage<unknown>(key, "externalAppAlive", { id }).then((alive) => alive === true);
+}
+
+function askExternalApp(page: Page, data: unknown) {
+  const answers = externalAppAnswers;
+  if (!answers) return;
+  const committed = page.committedUrl;
+  quietly(
+    answers.ask(page.profile, page.key, data).then((request) => {
+      if (!request) return;
+      if (page.closed || page.committedUrl !== committed) return answers.forget(request.id);
+      for (const listener of [...page.listeners]) listener("externalApp", request);
+    }),
+  );
+}
+
+function noteCommitted(page: Page, data: unknown) {
+  const committedUrl = (data as { committedUrl?: unknown } | null)?.committedUrl;
+  if (typeof committedUrl !== "string" || committedUrl === page.committedUrl) return;
+  page.committedUrl = committedUrl;
+  externalAppAnswers?.forgetPage(page.key);
 }
 
 export function onPagePress(listener: (windowId: string) => void): () => void {
@@ -59,11 +90,8 @@ function listen() {
     const page = pages.get(event.key);
     if (!page) return;
     if (event.name === "pagePress") for (const pressed of [...pressListeners]) pressed(page.windowId);
-    if (event.name === "externalApp") {
-      const answer = answerExternalApp;
-      if (answer) quietly(answer(page.profile, event.data).then((request) => request && page.listeners.forEach((listener) => listener("externalApp", request))));
-      return;
-    }
+    if (event.name === "externalApp") return askExternalApp(page, event.data);
+    if (event.name === "navigation") noteCommitted(page, event.data);
     const data = shapedPageEvent(page.opening, event.name, event.data);
     for (const listener of [...page.listeners]) listener(event.name, data);
   });
@@ -159,6 +187,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
       mounts: 0,
       parked: false,
       closed: false,
+      committedUrl: "",
     };
     page.ready = begin(page, from);
     pages.set(key, page);
@@ -192,6 +221,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
 function closePage(page: Page) {
   if (page.closed) return;
   page.closed = true;
+  externalAppAnswers?.forgetPage(page.key);
   if (pages.get(page.key) === page) pages.delete(page.key);
   const closing: Promise<void> = page.ready
     .then(() => hostCall("tab.close", { key: page.key }))
