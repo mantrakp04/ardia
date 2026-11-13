@@ -76,7 +76,7 @@ addEventListener("drop", (e) => { lastDrop = e.dataTransfer.getData("text/plain"
 picky.addEventListener("dragover", (e) => { if (e.dataTransfer.types.includes("text/plain")) e.preventDefault(); e.stopPropagation(); });
 window.frames2 = { frame: {}, slow: {} };
 for (const name of Object.keys(counts)) addEventListener(name, () => { counts[name]++; }, true);
-addEventListener("message", (e) => { const f = frames2[e.data.from]; if (f) f[e.data.name] = (f[e.data.name] || 0) + 1; });
+addEventListener("message", (e) => { const f = frames2[e.data.from]; if (f) { f[e.data.name] = (f[e.data.name] || 0) + 1; if (e.data.name === "drop") f.dropPoint = e.data.point; } });
 drag.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", "x"));
 window.spin = (ms) => setTimeout(() => { for (const end = performance.now() + ms; performance.now() < end; ); }, 0);
 </script>`;
@@ -85,7 +85,7 @@ const FRAME2 = `<!doctype html><title>frame</title>
 <div id="inner" draggable="true">drag me too</div>
 <script>
 const from = new URLSearchParams(location.search).get("name");
-for (const name of ["mousedown", "dragstart", "dragend", "dragenter", "dragleave", "drop"]) addEventListener(name, () => parent.postMessage({ from, name }, "*"), true);
+for (const name of ["mousedown", "dragstart", "dragend", "dragenter", "dragleave", "drop"]) addEventListener(name, (e) => parent.postMessage({ from, name, point: [e.clientX, e.clientY] }, "*"), true);
 addEventListener("dragover", (e) => e.preventDefault());
 addEventListener("message", (e) => { for (const end = performance.now() + Number(e.data.busy || 0); performance.now() < end; ); });
 inner.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", "y"));
@@ -701,6 +701,32 @@ try {
       check("a release sent while the last move's frame hasn't answered drops where the release was, not where the frame's coordinates point",
         started && release.how === "answered" && after.drop - before.drop === 1 && !!at && at[0] === 200 && at[1] === 300 && frameDrops === 0 && after.dragend - before.dragend === 1 && input.ok,
         `dragstart ${started}, the release was ${release.how} after ${release.ms} ms, drop in the page +${after.drop - before.drop} at ${at} (released at 200,300), drop in the frame +${frameDrops}, dragend +${after.dragend - before.dragend}, ${input.detail}`);
+      driver.close();
+    }
+
+    for (const pending of [false, true]) {
+      const page = await open();
+      const framesBefore = await page.frames();
+      const { driver, started, before } = await mouseDrag(page);
+      if (pending) {
+        await mouse(driver, "mouseMoved", 240, 500).catch(() => null);
+        await page.evaluate(`document.getElementById("frame").contentWindow.postMessage({ busy: 2500 }, "*")`);
+        await sleep(150);
+      }
+      const move = answer(mouse(driver, "mouseMoved", 240, 520, 9000));
+      if (pending) await sleep(300);
+      else await move;
+      const release = await answer(mouse(driver, "mouseReleased", 240, 560, 9000));
+      await move;
+      await sleep(600);
+      const frames = await page.frames();
+      const at = frames.frame?.dropPoint;
+      const frameDrops = of(frames, "frame", "drop") - of(framesBefore, "frame", "drop");
+      const after = await page.counts();
+      const input = await takesInput(page);
+      check(`a release at another point of the frame the last move was in${pending ? ", sent before that move was answered," : ""} drops at the release point`,
+        started && release.how === "answered" && frameDrops === 1 && !!at && at[0] === 200 && at[1] === 160 && after.dragend - before.dragend === 1 && input.ok,
+        `dragstart ${started}, the release was ${release.how}, drop in the frame +${frameDrops} at ${at} (last move 200,120, released at 200,160), dragend +${after.dragend - before.dragend}, ${input.detail}`);
       driver.close();
     }
 
