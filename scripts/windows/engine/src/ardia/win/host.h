@@ -108,6 +108,7 @@ class Host : public TabStripModelObserver,
   void Park(Browser* browser);
   void ParkForeign(base::WeakPtr<BrowserWindowInterface> browser);
   void Hide(Browser* browser, Hosted& hosted);
+  void CloseSparePages();
   void Place(HWND window, const Hosted& hosted);
   void WatchParent(HWND parent);
   void FocusFor(ui::Event* event);
