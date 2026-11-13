@@ -159,6 +159,13 @@ export const generalRows = {
           keywords: ["clear unpinned tabs", "close all tabs", "clear today", "divider", "arc"],
           shown: inSidebar,
         },
+        tidyTabs: {
+          advanced: true,
+          title: "Tidy Tabs",
+          description: "As in Arc: once you have more than six tabs, Tidy on the divider sorts them into groups by site. Pinned tabs stay where you put them.",
+          keywords: ["tidy", "broom", "organize tabs", "group by site", "clean up", "arc max"],
+          shown: inSidebar,
+        },
         balancedTopApps: {
           advanced: true,
           title: "Grow Top Apps as the sidebar widens",
@@ -191,6 +198,12 @@ export const generalRows = {
           title: "New tab opens",
           description: "With Command Bar, ⌘T and New Tab open the command bar over the page, as in Arc. The tab appears when you pick a result; Esc leaves everything as it was.",
           keywords: ["new tab page", "command bar", "cmd t"],
+        },
+        reuseEmptyNewTab: {
+          title: "Reuse an empty New Tab page",
+          description: "When the tab you're on is still an empty New Tab page, ⌘T, + New Tab and a double-click under the tabs put the cursor in its address field instead of opening another empty tab. Off, each one opens a new tab.",
+          keywords: ["blank tab", "empty tab", "reuse", "one new tab", "multiple new tabs", "cmd t"],
+          shown: (settings) => settings.newTabOpens === "page",
         },
         newTabPosition: {
           title: "Add new tabs",
@@ -291,6 +304,11 @@ export const generalRows = {
           title: "Clean up tabs I haven't used in",
           description: "Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily.",
           keywords: ["archive", "auto close", "inactive tabs", "duplicates", "custom", "minutes"],
+        },
+        suggestCleanUp: {
+          title: "Suggest cleaning up when tabs pile up",
+          description: "Shows a card in the sidebar once 10 or more tabs haven't been used in a while.",
+          keywords: ["upsell", "tidy", "suggestion", "don't show again", "card", "inactive tabs"],
         },
       },
     },

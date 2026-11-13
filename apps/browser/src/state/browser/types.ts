@@ -54,7 +54,8 @@ export type Tab = {
   pinnedUrl: string | null;
   page: TabPage;
   openerId: string | null;
-  liveItem?: { folderId: string; itemId: string };
+  linkOpenerId?: string;
+  liveItem?: { folderId: string; itemId: string; completed?: true };
   pinKey?: string;
   engine?: PageEngine;
   createdAt: number;

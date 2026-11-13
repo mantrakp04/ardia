@@ -7,7 +7,7 @@ import { cleanedTabsFor, keptDeletedGroups } from "../pins/closedTabs";
 import { allMuted, muteAll } from "./actions";
 import { openSyncedTab, syncedDevicesMenuItem } from "../sync/menu";
 import { setSidebarUi } from "./sidebarUi";
-import { closeAllTabs } from "./clearTabs";
+import { cleanUpWithUndo, closeAllTabs } from "./clearTabs";
 import { DAILY_CLEAN_UP_MINUTES } from "../settings/cleanUpAfter";
 import { sep } from "./menuParts";
 
@@ -82,7 +82,7 @@ export async function openOverflowMenu(windowId: string) {
   } else if (choice === "search") setSidebarUi({ searchTabs: windowId });
   else if (openSyncedTab(choice, windowId, w.profileId)) return;
   else if (choice === "restoreAll") s.restoreCleaned(undefined, windowId);
-  else if (choice === "clean") s.cleanUpTabs(windowId);
+  else if (choice === "clean") cleanUpWithUndo(windowId);
   else if (choice === "daily") s.updateSettings({ cleanUpInactiveTabsAfterMinutes: daily ? null : DAILY_CLEAN_UP_MINUTES });
   else if (choice === "mute") muteAll(windowId, !muted);
   else if (choice === "closeAll") closeAllTabs(windowId);

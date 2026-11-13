@@ -57,11 +57,11 @@ bool TabCameIntoView(content::WebContents* contents) {
       break;
     }
   }
-  if (owned.empty()) {
+  if (owned.empty() || !emulated) {
     return false;
   }
   ClearCliViewportOverride(owned);
-  return emulated;
+  return true;
 }
 
 }
