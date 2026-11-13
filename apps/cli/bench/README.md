@@ -90,7 +90,9 @@ python3 -I harness/bench.py stop
 ```
 
 - **`freeze-cli`** snapshots `apps/cli` into its own venv. Every run uses that `ardia` (`--cli installed` uses
-  `~/.local/bin/ardia` instead), so edits made during a plan don't leak into it.
+  `~/.local/bin/ardia` instead), so edits made during a plan don't leak into it. `freeze-cli --name N` freezes into
+  `devbin-N` and `cli/N.json` instead and leaves the default alone; a plan with `"cli": "dev:N"` uses it, so a rerun
+  of a changed CLI can run next to a plan still using the old one.
 - **Each Ardia-side run** does the following, in order:
   1. Starts the task's server.
   2. Reuses or launches one hidden instance: `open -g -n` with `ARDIA_BACKGROUND=1`, its own `ARDIA_DATA_DIR`, a

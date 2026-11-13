@@ -59,8 +59,24 @@ def lane_paths(opts):
             HOME / f"codex-home-{lane}")
 
 
+def dev_name(opts):
+    cli = str(opts["cli"])
+    if cli == "dev":
+        return ""
+    if cli.startswith("dev:") and cli[4:].replace("-", "").replace("_", "").isalnum():
+        return cli[4:]
+    if cli == "installed":
+        return None
+    raise SystemExit(f"cli must be dev, dev:<name> or installed, not {cli}")
+
+
+def dev_bin(name=""):
+    return HOME / f"devbin-{name}" if name else DEV_BIN
+
+
 def ardia_bin(opts):
-    return str(DEV_BIN / "ardia") if opts["cli"] == "dev" else str(INSTALLED_ARDIA)
+    name = dev_name(opts)
+    return str(INSTALLED_ARDIA) if name is None else str(dev_bin(name) / "ardia")
 
 
 def agent_env(opts, extra=None):
@@ -69,14 +85,14 @@ def agent_env(opts, extra=None):
     local_bin = str(INSTALLED_ARDIA.parent)
     if local_bin not in path.split(":"):
         path = f"{local_bin}:{path}"
-    if opts["cli"] == "dev":
-        path = f"{DEV_BIN}:{path}"
+    if dev_name(opts) is not None:
+        path = f"{dev_bin(dev_name(opts))}:{path}"
     env["PATH"] = path
     env.update(extra or {})
     return env
 
 
-def freeze_cli(src):
+def freeze_cli(src, name=""):
     src = Path(src).resolve()
     git = sh(["git", "-C", str(src), "rev-parse", "--short", "HEAD"]).stdout.strip()
     dirty = bool(sh(["git", "-C", str(src), "status", "--porcelain", "--", "."]).stdout.strip())
@@ -86,23 +102,25 @@ def freeze_cli(src):
     sh(["uv", "venv", "--quiet", "--python", "3.13", str(dest / "venv")], timeout=120).check_returncode()
     sh(["uv", "pip", "install", "--quiet", "--python", str(dest / "venv/bin/python"), str(dest / "src")],
        timeout=300).check_returncode()
-    DEV_BIN.mkdir(parents=True, exist_ok=True)
-    link = DEV_BIN / "ardia"
+    dev_name({"cli": f"dev:{name}" if name else "dev"})
+    dev_bin(name).mkdir(parents=True, exist_ok=True)
+    link = dev_bin(name) / "ardia"
     link.unlink(missing_ok=True)
     link.symlink_to(dest / "venv/bin/ardia")
     version = sh([str(link), "--version"]).stdout.strip()
     info = {"path": str(dest), "git": git, "dirty": dirty, "version": version,
             "frozen_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds")}
-    write_json(CLI_ROOT / "current.json", info)
+    write_json(CLI_ROOT / (f"{name}.json" if name else "current.json"), info)
     return info
 
 
 def cli_info(opts):
-    if opts["cli"] == "dev":
-        info = read_json(CLI_ROOT / "current.json")
-        if not info or not (DEV_BIN / "ardia").exists():
-            raise SystemExit("no frozen dev CLI; run: bench.py freeze-cli")
-        return dict(info, kind="dev")
+    name = dev_name(opts)
+    if name is not None:
+        info = read_json(CLI_ROOT / (f"{name}.json" if name else "current.json"))
+        if not info or not (dev_bin(name) / "ardia").exists():
+            raise SystemExit(f"no frozen dev CLI; run: bench.py freeze-cli{' --name ' + name if name else ''}")
+        return dict(info, kind=f"dev:{name}" if name else "dev")
     return {"kind": "installed", "version": sh([str(INSTALLED_ARDIA), "--version"]).stdout.strip()}
 
 
