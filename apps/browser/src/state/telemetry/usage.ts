@@ -35,8 +35,9 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, tabSwitcherUnseenLast: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, externalLinksTabSettingOff: 0, externalLinksTabSettingOn: 0, externalLinksLittleSettingOn: 0, externalLinksLittleSettingOff: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, tabStripPeeks: 0, tabPeeksWithAutoHideOff: 0, toolbarScrollHides: 0, toolbarScrollHideBounces: 0, cardResizeLayouts: 0, cardResizeLayoutsApplied: 0, importedPinnedRows: 0, importedSplits: 0, importedSpaces: 0, importedContainerSpaces: 0, importedDataProfiles: 0, importedEssentials: 0, splitPaneCloses: 0, splitViewCloses: 0, windowCloseTabsKept: 0, sharesPickedTab: 0, sharesPickedWindow: 0, sharesPickedScreen: 0, screenRecordingMissing: 0, screenRecordingAsked: 0, extensionInstallPrompts: 0, privateWindowExtensionOpens: 0, contentBlockerUnavailable: 0, contentBlockerWriteFailures: 0, newTabNoticesShown: 0, newTabNoticePresses: 0, statusBubbleTopShows: 0, dockReopens: 0, dockReopensPastFloating: 0, sidebarMotionMerges: 0, webKitPagesKeptHidden: 0, newTabBarKeeps: 0, barSplitOpens: 0, barSplitFullTabs: 0, settingsSearchKeyboardReveals: 0, settingsSearchClickReveals: 0, settingsSearches: 0, settingsSearchesEmpty: 0, settingsSearchTopPicks: 0, settingsSearchTop3Picks: 0, settingsSearchLowerPicks: 0, autoPictureInPictureKept: 0, autoPictureInPictureStayedOnAppSwitch: 0, selectionCloseKeys: 0, selectionCloseKeyTabs: 0, onboardingImports: 0, onboardingHeliumImports: 0, onboardingGlassPicks: 0, onboardingClassicPicks: 0, onboardingTintedGlassPicks: 0, onboardingStepsCompleted: 0, onboardingStepsSkipped: 0, onboardingCustomizeMore: 0, onboardingRedoOpened: 0, onboardingRedoCompleted: 0, onboardingRedoCancelled: 0, updateChannelSwitches: 0, updateChannelSwitchOffers: 0, updateChannelSwitchUpToDate: 0, updateChannelSwitchCheckFailures: 0 };
-let counts = { ...NO_COUNTS }, countsSince = Date.now();
+const NO_COUNTS = { tabs: 0, windows: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, tabSwitcherUnseenNearTop: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, externalLinksTabSettingOff: 0, externalLinksTabSettingOn: 0, externalLinksLittleSettingOn: 0, externalLinksLittleSettingOff: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, tabStripPeeks: 0, tabPeeksWithAutoHideOff: 0, toolbarScrollHides: 0, toolbarScrollHideBounces: 0, cardResizeLayouts: 0, cardResizeLayoutsApplied: 0, importedPinnedRows: 0, importedSplits: 0, importedSpaces: 0, importedContainerSpaces: 0, importedDataProfiles: 0, importedEssentials: 0, splitPaneCloses: 0, splitViewCloses: 0, windowCloseTabsKept: 0, sharesPickedTab: 0, sharesPickedWindow: 0, sharesPickedScreen: 0, screenRecordingMissing: 0, screenRecordingAsked: 0, extensionInstallPrompts: 0, privateWindowExtensionOpens: 0, contentBlockerUnavailable: 0, contentBlockerWriteFailures: 0, newTabNoticesShown: 0, newTabNoticePresses: 0, statusBubbleTopShows: 0, dockReopens: 0, dockReopensPastFloating: 0, sidebarMotionMerges: 0, webKitPagesKeptHidden: 0, newTabBarKeeps: 0, barSplitOpens: 0, barSplitFullTabs: 0, settingsSearchKeyboardReveals: 0, settingsSearchClickReveals: 0, settingsSearches: 0, settingsSearchesEmpty: 0, settingsSearchTopPicks: 0, settingsSearchTop3Picks: 0, settingsSearchLowerPicks: 0, autoPictureInPictureKept: 0, autoPictureInPictureStayedOnAppSwitch: 0, selectionCloseKeys: 0, selectionCloseKeyTabs: 0, onboardingImports: 0, onboardingHeliumImports: 0, onboardingGlassPicks: 0, onboardingClassicPicks: 0, onboardingTintedGlassPicks: 0, onboardingStepsCompleted: 0, onboardingStepsSkipped: 0, onboardingCustomizeMore: 0, onboardingRedoOpened: 0, onboardingRedoCompleted: 0, onboardingRedoCancelled: 0, updateChannelSwitches: 0, updateChannelSwitchOffers: 0, updateChannelSwitchUpToDate: 0, updateChannelSwitchCheckFailures: 0 };
+let counts = { ...NO_COUNTS };
+let countsSince = Date.now();
 
 function emitCounts() {
   const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit(), stuckDrags = takeStuckDragCounts(), urlCopies = takeUrlCopyCounts(), tabSleeps = takeTabSleepCounts();
@@ -59,7 +60,7 @@ function emitCounts() {
       tab_switcher_opens: counts.tabSwitcherOpens,
       tab_switcher_opens_in_webkit: switcherOpensInWebKit,
       tab_switcher_closed_left_out: counts.tabSwitcherClosedLeftOut,
-      tab_switcher_unseen_last: counts.tabSwitcherUnseenLast,
+      tab_switcher_unseen_near_top: counts.tabSwitcherUnseenNearTop,
       approval_notices_deferred: counts.approvalNoticesDeferred,
       reopened_pages: counts.reopenedPages,
       reopened_pages_with_back: counts.reopenedPagesWithBack,
@@ -156,8 +157,11 @@ export const notePopoverClosed = (by: "press" | "escape") => void counts[by === 
 
 export const noteUpdateChannelSwitch = (outcome: "offered" | "upToDate" | "failed" | null) => void (counts.updateChannelSwitches++, outcome && counts[outcome === "offered" ? "updateChannelSwitchOffers" : outcome === "upToDate" ? "updateChannelSwitchUpToDate" : "updateChannelSwitchCheckFailures"]++);
 
-export const noteTabSwitcherOpened = (closedLeftOut: number, unseenLast: number) =>
-  void (counts.tabSwitcherOpens++, (counts.tabSwitcherClosedLeftOut += closedLeftOut), (counts.tabSwitcherUnseenLast += unseenLast));
+export function noteTabSwitcherOpened(closedLeftOut: number, unseenNearTop: number) {
+  counts.tabSwitcherOpens++;
+  counts.tabSwitcherClosedLeftOut += closedLeftOut;
+  counts.tabSwitcherUnseenNearTop += unseenNearTop;
+}
 
 export const noteApprovalNoticeDeferred = () => counts.approvalNoticesDeferred++;
 
