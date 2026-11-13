@@ -32,6 +32,7 @@ type TabEvent = { key?: unknown; name?: unknown; data?: unknown };
 const SAME_LOAD_MS = 2000;
 
 const pages = new Map<string, Page>();
+const closings = new Map<string, Promise<void>>();
 const pressListeners = new Set<(windowId: string) => void>();
 let listening = false;
 
@@ -81,7 +82,8 @@ function start(key: string, from: PageStart): Promise<boolean> {
   const url = from.url ?? "";
   const create = (adopt: string) => hostCall("tab.create", { key, url, profile: from.profile ?? "", adopt }, from.windowId);
   const offered = offeredByEngine(from.adopt);
-  return create(offered)
+  const closing = closings.get(key);
+  return (closing ? closing.then(() => create(offered)) : create(offered))
     .catch((error: unknown) => {
       if (!offered || !url) throw error;
       return create("");
@@ -176,7 +178,16 @@ function closePage(page: Page) {
   if (page.closed) return;
   page.closed = true;
   if (pages.get(page.key) === page) pages.delete(page.key);
-  quietly(page.ready.then(() => hostCall("tab.close", { key: page.key })));
+  const closing: Promise<void> = page.ready
+    .then(() => hostCall("tab.close", { key: page.key }))
+    .then(
+      () => {},
+      () => {},
+    )
+    .then(() => {
+      if (closings.get(page.key) === closing) closings.delete(page.key);
+    });
+  closings.set(page.key, closing);
 }
 
 export function showPage(key: string, visible: boolean, shape: PageShape | null) {

@@ -404,6 +404,11 @@ struct WindowManager {
     return report;
   }
 
+  bool IsBrowserWindow(std::string_view id) const noexcept {
+    const ManagedWindow *entry = Find(id);
+    return entry && entry->IsBrowser();
+  }
+
   void ReplyToTerminate(bool ok) noexcept {
     if (!m_quitting) return;
     if (ok) return Finish();

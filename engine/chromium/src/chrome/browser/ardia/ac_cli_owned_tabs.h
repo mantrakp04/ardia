@@ -12,6 +12,7 @@ enum class CliTabOwner { kNobody, kCommand, kUser };
 void NoteCliOwnedTarget(const std::string& target_id);
 void ForgetCliOwnedTarget(const std::string& target_id);
 CliTabOwner CliOwnerOfTarget(const std::string& target_id);
+void NoteCliViewportOverride(const std::string& target_id);
 
 }
 

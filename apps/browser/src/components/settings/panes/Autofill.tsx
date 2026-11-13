@@ -9,6 +9,7 @@ import {
   type SavedCard,
 } from "../../../state/site/autofill";
 import { orWarn } from "../../../lib/fallback";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { confirm, copyText } from "../../../state/app/system";
 import { Box, Button, DialogActions, DialogTitle, type Option, PopUp, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
 import { useState } from "react";
@@ -39,7 +40,7 @@ export function AutofillPane({ profileId: initial }: { profileId?: string | null
     <View>
       <SectionHeader
         title="Autofill"
-        description="Addresses and cards you save are offered when you fill in a form, separately for each profile. Card numbers are kept in your macOS Keychain."
+        description={`Addresses and cards you save are offered when you fill in a form, separately for each profile. Card numbers are kept in ${PLATFORM_TERMS.cardStore}.`}
         action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
@@ -239,7 +240,7 @@ function CardSheet({ profile, saved, onChanged }: { profile: string; saved?: Sav
     closeSettingsSheet();
   };
   const remove = async () => {
-    if (!saved || !(await confirmDelete("Delete this card?", "Its number is removed from your Keychain too."))) return;
+    if (!saved || !(await confirmDelete("Delete this card?", `Its number is removed from ${PLATFORM_TERMS.cardStore} too.`))) return;
     await deleteCard(profile, saved.id).catch(orWarn(undefined));
     onChanged();
     closeSettingsSheet();

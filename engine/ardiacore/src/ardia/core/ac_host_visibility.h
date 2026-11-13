@@ -4,6 +4,7 @@
 #define ARDIA_CORE_AC_HOST_VISIBILITY_H_
 
 #include <optional>
+#include <string>
 
 #include "base/functional/callback.h"
 
@@ -21,10 +22,11 @@ bool NoteTabInShownSlot(content::WebContents* contents);
 
 bool TabWasInShownSlot(content::WebContents* contents);
 
-void WhenTabSizeRestored(content::WebContents* contents,
-                         base::OnceClosure restored);
+void WhenTabSizeRestored(
+    content::WebContents* contents,
+    base::OnceCallback<void(const std::string&)> restored);
 
-void WatchTabsInShownSlot(bool (*resized)(content::WebContents*));
+void WatchTabsInShownSlot(bool (*emulated)(content::WebContents*));
 
 void StartHostVisibility();
 
