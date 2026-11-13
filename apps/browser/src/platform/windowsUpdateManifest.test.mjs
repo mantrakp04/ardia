@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { failureText, folderOf, megabytes, offered, readBuild, readManifest } from "../../../../packages/expo-windows/src/updater/manifest.ts";
+import { failureText, feedNotPublished, folderOf, megabytes, offered, readBuild, readManifest } from "../../../../packages/expo-windows/src/updater/manifest.ts";
+import { noteReleaseNotesHeldForFirstRun, takeFirstRunCounts } from "../state/telemetry/firstRunCounts.ts";
 
 const under = "https://github.com/ardia-browser/ardia/releases/download/";
 const sha = "a".repeat(64);
@@ -76,4 +77,20 @@ test("a failed check is told in words, whatever shape the failure has", () => {
 test("sizes are shown in whole megabytes, never zero", () => {
   assert.equal(megabytes(180_000_000), 172);
   assert.equal(megabytes(10), 1);
+});
+
+test("a feed the server doesn't have is told apart from other failures", () => {
+  assert.equal(feedNotPublished(new Error("the server answered 404")), true);
+  assert.equal(feedNotPublished("the server answered 404"), true);
+  assert.equal(feedNotPublished(new Error("the server answered 500")), false);
+  assert.equal(feedNotPublished(new Error("the server answered 4040")), false);
+  assert.equal(feedNotPublished(new Error("the update feed could not be read")), false);
+  assert.equal(feedNotPublished(null), false);
+});
+
+test("release notes held back for a first run are counted and reset once taken", () => {
+  takeFirstRunCounts();
+  noteReleaseNotesHeldForFirstRun();
+  assert.deepEqual(takeFirstRunCounts(), { release_notes_held_for_first_run: 1 });
+  assert.deepEqual(takeFirstRunCounts(), { release_notes_held_for_first_run: 0 });
 });

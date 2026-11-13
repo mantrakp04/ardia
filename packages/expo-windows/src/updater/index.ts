@@ -1,7 +1,7 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import type { AppNative, ConfirmOptions, DialogsNative, DocumentsNative, UpdateChannel, UpdaterNative, UpdaterState } from "@ardia/shell";
 import type { AppWindowsModule, WindowsUpdateConstants, WindowsUpdateModule } from "../nativeModuleTypes";
-import { failureText, folderOf, megabytes, offered, readBuild, readManifest, type BuildIdentity } from "./manifest";
+import { failureText, feedNotPublished, folderOf, megabytes, offered, readBuild, readManifest, type BuildIdentity } from "./manifest";
 
 const PUBLISHED_UNDER = "https://github.com/ardia-browser/ardia/releases/download/";
 const FEED = `${PUBLISHED_UNDER}windows-alpha/windows-update.json`;
@@ -121,7 +121,9 @@ async function check(asked: boolean) {
     }
   } catch (error) {
     console.info(`[ardia windows] update check failed: ${reason(error)}`);
-    if (asked) await tell("Ardia couldn't check for updates", reason(error));
+    if (!asked) return;
+    if (feedNotPublished(error) && !feedOverride()) await tell("No Windows update published yet", `No Windows build of Ardia has been published for updates yet. You have ${named(current.version, current.build)}, and Ardia keeps checking by itself.`);
+    else await tell("Ardia couldn't check for updates", reason(error));
   } finally {
     checking = false;
   }

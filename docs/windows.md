@@ -29,12 +29,12 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Feature | State | Tracked in |
 | --- | --- | --- |
 | Installer (wizard, Start menu, Open Ardia) | Works | |
-| First launch after the installer | Differs: ardia.dev's release notes open behind onboarding | #1517 |
+| First launch after the installer | Works: onboarding, no release notes (they wait while a first run is under way) | #1517 |
 | Onboarding (source, look, last choices; resumes where you left it) | Works | |
 | Intro animation and music | Not offered | #1520, #1249 |
 | Tour | Works (first card seen) | |
 | Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
-| Check for updates | Broken: "the server answered 404", no `windows-alpha` release | #1517 |
+| Check for updates | Differs: no `windows-alpha` release is published, so Check Now says no Windows update has been published yet; the automatic check stays silent | #1517 |
 | Default browser | Broken: Settings says Ardia is the default while Edge is | #1439 |
 | Open at login | Not walked: an instance with its own data folder leaves it alone | |
 
