@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useKeyboardHeight } from "../search/useKeyboardHeight";
+import { useBottomLift } from "../search/useKeyboardHeight";
 import { useToast } from "../../state/toasts/hooks";
 import { tapToast, type ToastIcon } from "../../state/toasts/store";
 import { barHeight, capsule, font, space, Symbol, tabsMotion, toastLayout, useTheme, type SymbolName } from "../ui";
@@ -18,9 +18,9 @@ export function ToastHost() {
   const toast = useToast();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const keyboard = useKeyboardHeight();
+  const { lift, keyboard } = useBottomLift();
   if (!toast) return null;
-  const bottom = keyboard ? keyboard + space.xs : barHeight(insets.bottom) + space.m;
+  const bottom = keyboard ? lift + space.xs : barHeight(insets.bottom) + space.m;
   return (
     <View style={[styles.host, { bottom }]} pointerEvents="box-none">
       <Animated.View key={toast.id} entering={FadeIn.duration(tabsMotion.surfaceFade)} exiting={FadeOut.duration(tabsMotion.surfaceFade)}>

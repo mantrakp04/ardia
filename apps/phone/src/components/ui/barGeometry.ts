@@ -1,3 +1,4 @@
+import { deckBarCenterFromBottom } from "../../lib/deckGeometry";
 import { browseLayout } from "./tokens";
 
 export const barCenterFromBottom = (navigationInset: number) =>
@@ -8,4 +9,4 @@ export const barHeight = (navigationInset: number) =>
 
 export const pageBottomInset = (navigationInset: number) => barHeight(navigationInset) - browseLayout.pageOverlap;
 
-export const deckCenterFromBottom = (navigationInset: number) => Math.max(navigationInset, 20) + 6;
+export const deckCenterFromBottom = (navigationInset: number) => deckBarCenterFromBottom(navigationInset);

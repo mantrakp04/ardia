@@ -8,7 +8,7 @@ import { typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
 import { browseLayout, capsule, font, ink, radius, rolesFor, space, springs, Symbol, tabsInk, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
-import { useKeyboardHeight } from "./useKeyboardHeight";
+import { useBottomLift } from "./useKeyboardHeight";
 
 const SHEET_ABOVE_KEYBOARD = 274;
 
@@ -25,7 +25,7 @@ export function SearchTray() {
   const theme = useTrayTheme();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
-  const keyboard = useKeyboardHeight();
+  const { lift } = useBottomLift();
   const rise = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -34,7 +34,6 @@ export function SearchTray() {
   }, [open, rise, session]);
 
   if (!open) return null;
-  const lift = Math.max(keyboard, insets.bottom);
   const height = Math.max(Math.min(SHEET_ABOVE_KEYBOARD, window.height - lift - space.s - insets.top), 0);
   const travel = height + radius.sheet + lift;
   return (
@@ -91,7 +90,7 @@ function TrayField() {
           selection={selection}
           onSelectionChange={() => setSelection(undefined)}
           onChangeText={typeSearch}
-          onSubmitEditing={() => submitSearch(text)}
+          onSubmitEditing={(event) => submitSearch(event.nativeEvent.text)}
           placeholder="Search or Enter URL"
           placeholderTextColor={theme.foregroundTertiary}
           selectionColor={theme.formAccent}

@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useKeyboardHeight } from "../search/useKeyboardHeight";
+import { useBottomLift } from "../search/useKeyboardHeight";
 import { closeFind, findNext, findPrevious, typeFind } from "../../state/page/actions";
 import { useFindQuery, useFindResult } from "../../state/page/hooks";
 import { findCount, findHasMatches } from "../../state/page/pagePrompts";
@@ -11,8 +10,7 @@ const FIELD_HEIGHT = 40;
 
 export function FindBar({ tabId }: { tabId: string }) {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
-  const keyboard = useKeyboardHeight();
+  const { lift } = useBottomLift();
   const query = useFindQuery();
   const result = useFindResult(tabId);
   const input = useRef<TextInput>(null);
@@ -23,7 +21,7 @@ export function FindBar({ tabId }: { tabId: string }) {
   const count = findCount(result, query);
   const matches = findHasMatches(result, query);
   return (
-    <View style={[styles.bar, { bottom: keyboard, paddingBottom: keyboard ? 0 : insets.bottom, backgroundColor: theme.surface }]}>
+    <View style={[styles.bar, { bottom: 0, paddingBottom: lift, backgroundColor: theme.surface }]}>
       <View style={[styles.divider, { backgroundColor: theme.separator }]} />
       <View style={styles.row}>
         <View style={[styles.field, { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke, borderRadius: capsule(FIELD_HEIGHT) }]}>

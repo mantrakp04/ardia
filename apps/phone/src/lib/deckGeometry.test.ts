@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  deckBarCenterFromBottom,
   deckCardAt,
   deckDragKind,
   deckGeometry,
@@ -82,4 +83,16 @@ test("a header's title fades in between 52 and 84 points of visible card", () =>
   assert.equal(titleReveal(40), 0);
   assert.equal(titleReveal(68), 0.5);
   assert.equal(titleReveal(200), 1);
+});
+
+test("the deck's buttons keep Compose's place over a gesture bar and clear a 3-button bar", () => {
+  assert.equal(deckBarCenterFromBottom(24), 30);
+  assert.equal(deckBarCenterFromBottom(0), 26);
+  assert.equal(deckBarCenterFromBottom(48), 76);
+  assert.ok(deckBarCenterFromBottom(48) - 22 >= 48, "a 44 point control ends above the navigation bar");
+  const buttons = deckGeometry(392, 872, 40, 48);
+  assert.equal(buttons.barCenterY, 872 - 76);
+  assert.ok(buttons.cardCenterY + buttons.cardHeight / 2 < buttons.barCenterY - 22, "cards end above the bar");
+  const gesture = deckGeometry(392, 872, 40, 24);
+  assert.equal(gesture.barCenterY, 872 - 30);
 });

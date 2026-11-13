@@ -27,6 +27,15 @@ export const DECK = {
   displayCornerRadius: 55,
 } as const;
 
+export const BUTTON_NAVIGATION_INSET = 32;
+const BAR_HALF_HEIGHT = 22;
+const BAR_GAP = 6;
+
+export function deckBarCenterFromBottom(navigationInset: number): number {
+  if (navigationInset > BUTTON_NAVIGATION_INSET) return navigationInset + BAR_HALF_HEIGHT + BAR_GAP;
+  return Math.max(navigationInset, 20) + BAR_GAP;
+}
+
 function reach(peek: number, spacing: number): number {
   const clamped = Math.max(peek, 8);
   let value = clamped;
@@ -38,7 +47,8 @@ export function deckGeometry(width: number, height: number, safeTop: number, saf
   const w = Math.max(width, 1);
   const h = Math.max(height, 1);
   const bandTop = safeTop + DECK.topReserve + DECK.headerHeight;
-  const bandBottom = h - Math.max(safeBottom, 20) - DECK.barReserve + 24;
+  const barCenter = deckBarCenterFromBottom(safeBottom);
+  const bandBottom = h - barCenter + BAR_GAP - DECK.barReserve + 24;
   const band = Math.max(bandBottom - bandTop, 120);
   const aspect = h / w;
   const cardWidth = Math.min(w * DECK.cardWidthRatio, band / aspect);
@@ -55,7 +65,7 @@ export function deckGeometry(width: number, height: number, safeTop: number, saf
     spacing,
     leftReach: reach(Math.min(DECK.leftPeek, focusLeading - 6), spacing),
     cardCenterY: bandTop + band / 2,
-    barCenterY: h - Math.max(safeBottom, 20) - 6,
+    barCenterY: h - barCenter,
     tabButtonX: safeSide + 16 + 17.5,
   };
 }

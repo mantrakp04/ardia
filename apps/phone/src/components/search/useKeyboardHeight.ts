@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Keyboard, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const SHOW = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
 const HIDE = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
@@ -15,4 +16,11 @@ export function useKeyboardHeight(): number {
     };
   }, []);
   return height;
+}
+
+export function useBottomLift(): { lift: number; keyboard: boolean } {
+  const keyboard = useKeyboardHeight();
+  const inset = useSafeAreaInsets().bottom;
+  if (!keyboard) return { lift: inset, keyboard: false };
+  return { lift: Platform.OS === "android" ? keyboard + inset : Math.max(keyboard, inset), keyboard: true };
 }
