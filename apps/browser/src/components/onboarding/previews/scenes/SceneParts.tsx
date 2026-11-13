@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { at, atRect, CARD, type Geo, hairline, LIGHTS_Y, type Rect, ROW, rowY, SIDEBAR_ICONS, sideCard, TOOLBAR_H } from "../geometry";
 import { type Article, NOTES, type Suggestion, tab, type Tab } from "../content";
 import { type Look, pick } from "../look";
-import type { Tracker } from "../timeline";
+import { crumbSwap, type Stop, type Tracker } from "../timeline";
 import { Backdrop, Card, Crumb, Label, Lights, NavIcons, Rows, Selection, SidebarField, TabRow, Toolbar, WindowFrame } from "../Kit";
 import { Page } from "../MockPages";
 import { Keycap, SuggestionRow } from "../Floating";
@@ -14,7 +14,7 @@ import type { SceneOpts } from "../scene";
 
 export const listTop = (opts: SceneOpts) => (opts.addressInSidebar ? ROW.topWithField : ROW.top);
 
-export function Chrome({ g, look, opts, sel = 0 }: { g: Geo; look: Look; opts: SceneOpts; sel?: number }) {
+export function Chrome({ g, look, opts, sel = 0, field }: { g: Geo; look: Look; opts: SceneOpts; sel?: number; field?: ReactNode }) {
   return (
     <>
       <Backdrop look={look} />
@@ -22,7 +22,9 @@ export function Chrome({ g, look, opts, sel = 0 }: { g: Geo; look: Look; opts: S
       {opts.addressInSidebar ? (
         <>
           <NavIcons g={g} color={look.t.icon} xs={SIDEBAR_ICONS} y={LIGHTS_Y.field} names={["sidebar.left", "chevron.left", "chevron.right"]} />
-          <SidebarField g={g} look={look} t={tab(sel)} />
+          <SidebarField g={g} look={look} t={tab(sel)}>
+            {field}
+          </SidebarField>
         </>
       ) : null}
     </>
@@ -119,10 +121,12 @@ export function grow(t: Tracker, g: Geo, from: Rect, to: Rect, ms: number, dur =
 export const drop = (t: Tracker, g: Geo, ms: number) => ({ opacity: t.in(ms, 200), transform: [{ translateY: t([[ms, -10 * g.s], [ms + 300, 0]]) }, { scale: t([[ms, 0.97], [ms + 300, 1]]) }] });
 
 export function SwapCrumb({ g, look, t, a, b, ms, x, y }: { g: Geo; look: Look; t: Tracker; a: Tab; b: Tab; ms: number; x: number; y: number }) {
+  const { leaving, arriving } = crumbSwap(ms);
+  const shift = (stops: readonly Stop[]) => stops.map(([when, dx]) => [when, dx * g.s] as const);
   return (
     <>
-      <Crumb g={g} look={look} t={a} style={[at(g, x, y, 420, 18), { opacity: t.out(ms, 180) }]} />
-      <Crumb g={g} look={look} t={b} style={[at(g, x, y, 420, 18), { opacity: t.in(ms + 60, 220) }]} />
+      <Crumb g={g} look={look} t={a} style={[at(g, x, y, 420, 18), { opacity: t(leaving.opacity), transform: [{ translateX: t(shift(leaving.x)) }] }]} />
+      <Crumb g={g} look={look} t={b} style={[at(g, x, y, 420, 18), { opacity: t(arriving.opacity), transform: [{ translateX: t(shift(arriving.x)) }] }]} />
     </>
   );
 }

@@ -51,3 +51,13 @@ export function useDemo(active: boolean, duration: number) {
   }, [active, duration]);
   return p;
 }
+
+const CRUMB_SWAP = { leave: 120, arrive: 200, slide: 8 } as const;
+
+export function crumbSwap(ms: number) {
+  const { leave, arrive, slide } = CRUMB_SWAP;
+  return {
+    leaving: { opacity: [[ms, 1], [ms + leave, 0]] as const, x: [[ms, 0], [ms + leave, -slide]] as const },
+    arriving: { opacity: [[ms + leave, 0], [ms + leave + arrive, 1]] as const, x: [[ms + leave, slide], [ms + leave + arrive, 0]] as const },
+  };
+}
