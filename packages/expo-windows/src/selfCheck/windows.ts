@@ -1,23 +1,9 @@
-import type { WindowsNative } from "@ardia/shell";
+import type { AppWindowsModule } from "../nativeModuleTypes";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type Fade = {
-  animates: boolean;
-  exists: boolean;
-  visible?: boolean;
-  layered?: boolean;
-  phase?: "none" | "revealing" | "entering" | "leaving" | "lingering";
-  opacity?: number;
-  closing?: boolean;
-  pageWindows?: number;
-};
 
-type Windows = Pick<WindowsNative, "windowIds" | "windowFrame" | "setWindowTitle" | "openWindow" | "closeWindow" | "animateWindowClose"> & {
-  debugWindowFade(id: string): Promise<Fade | null>;
-};
-
-const windows = () => requireNativeModule<Windows>("ArdiaAppWindows");
+const windows = () => requireNativeModule<Pick<AppWindowsModule, "windowIds" | "windowFrame" | "setWindowTitle" | "openWindow" | "closeWindow" | "animateWindowClose" | "debugWindowFade">>("ArdiaAppWindows");
 const settled = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const MAIN_EXIT_MS = 180;

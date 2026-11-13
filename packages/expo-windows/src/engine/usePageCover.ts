@@ -1,11 +1,10 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode, type Ref } from "react";
-import type { LayoutChangeEvent } from "react-native";
+import type { LayoutChangeEvent, NativeMethods } from "react-native";
 import { followMotion } from "../animation/motion";
 import { setCover } from "./covers";
 import { engineAvailable } from "./host";
 import { WindowIdContext } from "./windowId";
 
-type Measured = { measureInWindow(callback: (x: number, y: number, width: number, height: number) => void): void };
 
 export const CoverAncestry = createContext<readonly string[]>([]);
 
@@ -21,7 +20,7 @@ export function usePageCover<Node>(forwarded: Ref<Node> | undefined, onLayout: u
   const windowId = useContext(WindowIdContext);
   const above = useContext(CoverAncestry);
   const id = useRef(`cover-${++covers}`).current;
-  const node = useRef<Measured | null>(null);
+  const node = useRef<Pick<NativeMethods, "measureInWindow"> | null>(null);
   const live = engineAvailable();
   const ancestry = useMemo(() => [...above, id], [above, id]);
 
@@ -34,7 +33,7 @@ export function usePageCover<Node>(forwarded: Ref<Node> | undefined, onLayout: u
 
   const ref = useCallback(
     (value: Node | null) => {
-      node.current = value as unknown as Measured | null;
+      node.current = value as unknown as Pick<NativeMethods, "measureInWindow"> | null;
       assign(forwarded, value);
     },
     [forwarded],

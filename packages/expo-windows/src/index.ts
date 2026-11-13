@@ -1,4 +1,5 @@
-import { TurboModuleRegistry, type TurboModule } from "react-native";
+import { TurboModuleRegistry } from "react-native";
+import type { AppWindowsModule, WindowsHostModule } from "./nativeModuleTypes";
 import { installAnimation } from "./animation";
 import { watchRelaunches } from "./engine/relaunch";
 import { openLaunchLinks } from "./launchLinks";
@@ -19,8 +20,6 @@ export function requireNativeViewManager<Props = object>(name: string): Componen
   return viewOnWindows(name) as ComponentType<Props>;
 }
 
-type WindowsHost = TurboModule & { secureRandomHex(byteCount: number): string };
-
 const SELF_CHECK_AFTER_MS = 4000;
 
 installAnimation();
@@ -30,12 +29,12 @@ watchRelaunches();
 openLaunchLinks();
 startUpdateChecks();
 
-const windowsHost = () => TurboModuleRegistry.getEnforcing<WindowsHost>("ArdiaWindowsHost");
+const windowsHost = () => TurboModuleRegistry.getEnforcing<WindowsHostModule>("ArdiaWindowsHost");
 const secureHex = (byteCount: number) => windowsHost().secureRandomHex(byteCount);
 
-if ((windowsHost().getConstants?.() as { selfCheck?: boolean } | undefined)?.selfCheck) {
+if (windowsHost().getConstants?.()?.selfCheck) {
   setTimeout(() => {
-    void runSelfCheck().finally(() => requireNativeModule<{ quit(): Promise<void> }>("ArdiaAppWindows").quit());
+    void runSelfCheck().finally(() => requireNativeModule<Pick<AppWindowsModule, "quit">>("ArdiaAppWindows").quit());
   }, SELF_CHECK_AFTER_MS);
 }
 

@@ -22,3 +22,5 @@ export const SMALL_BAR_ROW: ToolbarRow = { ...TOOLBAR_ROWS.regular, button: SMAL
 export const SMALL_PROGRESS = { left: space.m, share: "96%" } as const;
 
 export const LITTLE_ARDIA_PINCH = { smallest: 0.6, largest: 1.04 } as const;
+
+export const LITTLE_ARDIA_SWIPE_CLOSE = { distance: 120, velocity: 600, fadeOver: 280, leaveMs: 140 } as const;

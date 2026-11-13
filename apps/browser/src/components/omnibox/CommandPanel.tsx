@@ -15,6 +15,7 @@ import type { NewTabTarget } from "../../state/browser/types";
 import { Omnibox } from "./Omnibox";
 import { BAR, PANEL_TEXT_LEFT, GROW } from "./tokens";
 import { closePanelToHeroBar, type BarDismissal } from "../../state/omnibox/barState";
+import { closeBlankLittleArdiaOnEscape } from "../../state/littleArdia/actions";
 import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { compactLift, urlFieldOf } from "../../lib/toolbarRow";
@@ -57,7 +58,9 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
 
   const room = (left: number, top: number, fallback: number) => (windowWidth > 0 ? windowWidth - left - trailingClearance(top, WINDOW_MARGIN, controlsBottom) : fallback);
   const onCancel = () => closePanel(windowId);
-  const onDone = (reason?: BarDismissal) => closePanelToHeroBar(windowId, activeId, reason);
+  const onDone = (reason?: BarDismissal) => {
+    if (reason !== "escape" || !closeBlankLittleArdiaOnEscape(windowId)) closePanelToHeroBar(windowId, activeId, reason);
+  };
   const surface = (radius: number) => panelSurface(theme, radius);
 
   if (centred && card) {

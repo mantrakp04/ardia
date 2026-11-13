@@ -13,6 +13,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
+#include "chrome/browser/ardia/ac_cli_owned_tabs.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
 #include "url/gurl.h"
 
@@ -123,7 +124,7 @@ void ForgetDestroyedTarget(const std::string& message) {
                                   : nullptr;
   if (const std::string* target_id =
           params ? params->FindString("targetId") : nullptr) {
-    ForgetCreatedTarget(*target_id);
+    ForgetCliOwnedTarget(*target_id);
   }
 }
 
@@ -166,7 +167,7 @@ bool TokenClient::FilterEvent(std::string& message) {
     }
     return method != "Target.receivedMessageFromTarget";
   }
-  if (outstanding_.empty()) {
+  if (outstanding_.empty() && own_commands_.empty()) {
     return true;
   }
   std::optional<int> id = ParseResponseId(view);
@@ -187,6 +188,9 @@ bool TokenClient::FilterEvent(std::string& message) {
       session = *found;
     }
   }
+  if (own_commands_.erase({session, *id})) {
+    return false;
+  }
   auto it = outstanding_.find({session, *id});
   if (it == outstanding_.end()) {
     return true;
@@ -202,6 +206,9 @@ bool TokenClient::FilterEvent(std::string& message) {
 void TokenClient::ForgetSession(const std::string& session) {
   std::erase_if(outstanding_, [&](const auto& entry) {
     return entry.first.first == session;
+  });
+  std::erase_if(own_commands_, [&](const auto& entry) {
+    return entry.first == session;
   });
 }
 
@@ -251,7 +258,7 @@ bool TokenClient::FilterResponse(int id,
   }
   if (method == "Target.createTarget") {
     if (const std::string* target_id = result->FindString("targetId")) {
-      NoteCreatedTarget(*target_id);
+      NoteCliOwnedTarget(*target_id);
     }
     return true;
   }

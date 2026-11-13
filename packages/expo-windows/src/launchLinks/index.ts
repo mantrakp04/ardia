@@ -1,15 +1,15 @@
-import { TurboModuleRegistry, type TurboModule } from "react-native";
+import type { LaunchLinksNative } from "@ardia/shell";
+import { TurboModuleRegistry } from "react-native";
 import { emitWhenListened } from "../events";
+import type { WindowsHostModule } from "../nativeModuleTypes";
 import { launchAddresses, type LaunchArguments } from "./addresses";
-
-type WindowsHost = TurboModule & { launchArguments?(): LaunchArguments };
 
 let read = false;
 let openedAtLaunch = 0;
 
 function launchArguments(): LaunchArguments | null {
   try {
-    return TurboModuleRegistry.get<WindowsHost>("ArdiaWindowsHost")?.launchArguments?.() ?? null;
+    return TurboModuleRegistry.get<WindowsHostModule>("ArdiaWindowsHost")?.launchArguments?.() ?? null;
   } catch {
     return null;
   }
@@ -27,7 +27,7 @@ export function openLaunchLinks() {
   });
 }
 
-export const windowsLaunchLinks = {
+export const windowsLaunchLinks: LaunchLinksNative = {
   takeOpenedAtLaunch() {
     const taken = openedAtLaunch;
     openedAtLaunch = 0;

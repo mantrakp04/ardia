@@ -1,11 +1,9 @@
-import type { ShellNativeModules } from "@ardia/shell";
+import type { FocusNative } from "@ardia/shell";
 import { TurboModuleRegistry } from "react-native";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type Focus = ShellNativeModules["ArdiaFocus"];
-
-const focus = () => requireNativeModule<Focus>("ArdiaFocus");
+const focus = () => requireNativeModule<FocusNative>("ArdiaFocus");
 
 export const checks: Check[] = [
   {
