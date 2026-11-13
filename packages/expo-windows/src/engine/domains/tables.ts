@@ -11,6 +11,7 @@ import { faviconCalls } from "./favicons";
 import { passwordCalls, savePassword, updatePassword } from "./passwords";
 import { profileCalls } from "./profiles";
 import { siteCalls } from "./sites";
+import { webViewCalls } from "./webView";
 
 export type Rows = {
   forwarded: Record<string, Record<string, string>>;
@@ -32,6 +33,7 @@ export const reproduced: Record<string, Handlers> = {
   profiles: profileCalls,
   search: searchCalls,
   sites: siteCalls,
+  webView: webViewCalls,
 };
 
 export const moduleNameOf = (domain: string) => `Ardia${domain[0]!.toUpperCase()}${domain.slice(1)}`;

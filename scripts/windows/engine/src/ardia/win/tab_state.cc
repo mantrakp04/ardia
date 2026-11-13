@@ -4,6 +4,7 @@
 
 #include "ardia/win/api.h"
 #include "ardia/win/host.h"
+#include "ardia/win/page_links.h"
 #include "ardia/win/tab_events.h"
 #include "base/functional/bind.h"
 #include "base/process/kill.h"
@@ -12,6 +13,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/sessions/content/session_tab_helper.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
@@ -38,6 +40,7 @@ TabState* TabState::Bind(content::WebContents* contents, std::string key) {
       state->favicon_observation_.Observe(driver);
     }
   }
+  PageLinks::Watch(contents);
   return state;
 }
 
@@ -146,6 +149,11 @@ void TabState::DidStartNavigation(content::NavigationHandle* handle) {
 }
 
 void TabState::DidFinishNavigation(content::NavigationHandle* handle) {
+  if (handle->HasCommitted() && !handle->IsSameDocument()) {
+    if (PageLinks* links = PageLinks::FromWebContents(web_contents())) {
+      links->FrameCommitted(handle->GetRenderFrameHost());
+    }
+  }
   if (!handle->IsInPrimaryMainFrame()) {
     return;
   }
@@ -171,6 +179,21 @@ void TabState::DidFinishNavigation(content::NavigationHandle* handle) {
   left_by_download_ = handle->IsDownload() &&
                       CommittedPageURL(web_contents()).is_empty();
   NoteNavigation();
+}
+
+void TabState::DidOpenRequestedURL(
+    content::WebContents* new_contents,
+    content::RenderFrameHost* source_render_frame_host,
+    const GURL& url,
+    const content::Referrer& referrer,
+    WindowOpenDisposition disposition,
+    ui::PageTransition transition,
+    bool started_from_context_menu,
+    bool renderer_initiated) {
+  if (new_contents && new_contents != web_contents() && renderer_initiated &&
+      !tabs::TabInterface::MaybeGetFromContents(new_contents)) {
+    OpenRequest::Note(new_contents);
+  }
 }
 
 void TabState::DidStartLoading() {

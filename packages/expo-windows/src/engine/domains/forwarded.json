@@ -87,9 +87,6 @@
     ],
     "webView": [
       "setDisplayMediaPicker",
-      "setPeekModifier",
-      "setSplitLinkModifier",
-      "setPeekOtherSiteTabs",
       "setSelectionPopover",
       "setCommandScrollZoom",
       "setLittleArdiaOpensNewTabLinks",

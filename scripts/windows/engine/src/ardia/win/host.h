@@ -50,6 +50,7 @@ class Host : public TabStripModelObserver,
   int BrowsersOf(Profile* profile) const;
   int CloseBrowsersOf(Profile* profile);
   void ForgetProfile(Profile* profile);
+  bool Shows(const std::string& key) const;
   void TabDestroyed(TabState* state);
   void ParentDestroying(HWND parent);
   void ParentMoved(HWND parent);
@@ -110,6 +111,11 @@ class Host : public TabStripModelObserver,
   void Place(HWND window, const Hosted& hosted);
   void WatchParent(HWND parent);
   void FocusFor(ui::Event* event);
+  std::string PageKeyFor(ui::Event* event) const;
+  void EmitOpened(base::DictValue payload,
+                  base::WeakPtr<content::WebContents> contents,
+                  std::string opener_key,
+                  int tries);
   void NoteOpened(Browser* browser,
                   TabStripModel* model,
                   content::WebContents* contents,

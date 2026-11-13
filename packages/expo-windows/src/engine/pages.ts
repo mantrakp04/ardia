@@ -26,7 +26,8 @@ type Page = {
   closed: boolean;
 };
 
-type OpenedTab = { adopt?: unknown; url?: unknown; foreground?: unknown; window?: unknown; opener?: unknown; profile?: unknown };
+type OpenedTab = { adopt?: unknown; url?: unknown; foreground?: unknown; window?: unknown; opener?: unknown; profile?: unknown; fromClick?: unknown; point?: unknown };
+type Point = { x: number; y: number };
 type TabEvent = { key?: unknown; name?: unknown; data?: unknown };
 
 const SAME_LOAD_MS = 2000;
@@ -43,6 +44,20 @@ export function onPagePress(listener: (windowId: string) => void): () => void {
 
 const quietly = (work: Promise<unknown>) => void work.catch(() => {});
 
+const isPoint = (value: unknown): value is Point =>
+  typeof value === "object" && value !== null && Number.isFinite((value as Point).x) && Number.isFinite((value as Point).y);
+
+function inWindow(page: Page | undefined, point: unknown): Point | undefined {
+  const shown = page?.show;
+  if (!shown?.visible || typeof shown.x !== "number" || typeof shown.y !== "number" || !isPoint(point)) return undefined;
+  return { x: shown.x + point.x, y: shown.y + point.y };
+}
+
+function placedPoint(page: Page, name: string, data: unknown): unknown {
+  if (name !== "openWindow" || typeof data !== "object" || data === null || !("point" in data)) return data;
+  return { ...data, point: inWindow(page, (data as { point?: unknown }).point) };
+}
+
 function listen() {
   if (listening) return;
   listening = true;
@@ -51,19 +66,22 @@ function listen() {
     const page = pages.get(event.key);
     if (!page) return;
     if (event.name === "pagePress") for (const pressed of [...pressListeners]) pressed(page.windowId);
-    const data = shapedPageEvent(page.opening, event.name, event.data);
+    const data = placedPoint(page, event.name, shapedPageEvent(page.opening, event.name, event.data));
     for (const listener of [...page.listeners]) listener(event.name, data);
   });
   onEngineTopic("tab.opened", (opened: OpenedTab) => {
     if (typeof opened.adopt !== "string") return;
+    const opener = typeof opened.opener === "string" ? pages.get(opened.opener) : undefined;
+    const fromClick = opened.fromClick === true;
     const request = {
       url: typeof opened.url === "string" ? opened.url : "",
       disposition: opened.window === true ? "window" : opened.foreground === true ? "foreground" : "background",
       adoptId: opened.adopt,
       userGesture: true,
       profile: typeof opened.profile === "string" ? opened.profile : undefined,
+      fromClick,
+      point: fromClick ? inWindow(opener, opened.point) : undefined,
     };
-    const opener = typeof opened.opener === "string" ? pages.get(opened.opener) : undefined;
     const listening = [...pages.values()].filter((page) => page.listeners.size && !page.closed);
     const taker = opener?.listeners.size ? opener : takerOfOpenedTab(listening, request.profile);
     if (!taker) {
