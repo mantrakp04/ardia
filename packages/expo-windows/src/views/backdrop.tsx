@@ -1,10 +1,11 @@
-import { forwardRef, memo, useMemo, type ReactNode } from "react";
-import { StyleSheet, View, type ViewStyle } from "react-native";
+import { forwardRef, memo, useMemo } from "react";
+import type { ThemeSwatchProps, WindowBackdropProps } from "@ardia/shaders";
+import { StyleSheet, View } from "react-native";
 import { Bands } from "./Bands";
 import { adjustingLightness, flatStops, hslToRgb, parseColor, rgbaString, type Rgba } from "./color";
 import { useAppDark } from "./appearance";
 import { NativeWindowMaterial, nativeWindowMaterial } from "./nativeMaterials";
-import { finite, useFirstWindow, type AnyProps } from "./shared";
+import { finite, useFirstWindow } from "./shared";
 
 const VIBRANCY = {
   dark: { material: [68.3 / 255, 68.0 / 255, 68.4 / 255], white: 0, alpha: 0.4, gradientOpacity: 0.5 },
@@ -67,7 +68,7 @@ function ThemeLayers({ stops, angle, opacity }: { stops: Rgba[]; angle: number; 
 
 const colorList = (colors: unknown): Rgba[] => (Array.isArray(colors) ? colors.map(parseColor).filter((stop): stop is Rgba => !!stop) : []);
 
-export const WindowBackdrop = forwardRef<View, AnyProps>(function WindowBackdrop(
+export const WindowBackdrop = forwardRef<View, WindowBackdropProps>(function WindowBackdrop(
   {
     colors,
     vibrancy,
@@ -121,9 +122,9 @@ export const WindowBackdrop = forwardRef<View, AnyProps>(function WindowBackdrop
     layers = <Bands stops={ends} angle={finite(angle, 180)} />;
   }
   return (
-    <View {...rest} ref={ref} pointerEvents="none" style={style as ViewStyle}>
+    <View {...rest} ref={ref} pointerEvents="none" style={style}>
       {layers}
-      {children as ReactNode}
+      {children}
     </View>
   );
 });
@@ -154,14 +155,14 @@ const ColorPad = memo(function ColorPad({ lightness }: { lightness: number }) {
   );
 });
 
-export const ThemeSwatch = forwardRef<View, AnyProps>(function ThemeSwatch({ colors, grain: _grain, texture: _texture, padLightness, angle, style, children, ...rest }, ref) {
+export const ThemeSwatch = forwardRef<View, ThemeSwatchProps>(function ThemeSwatch({ colors, grain: _grain, texture: _texture, padLightness, angle, style, children, ...rest }, ref) {
   const stops = useMemo(() => flatStops(colors), [colors]);
   const pad = finite(padLightness, -1);
   return (
-    <View {...rest} ref={ref} pointerEvents="none" style={style as ViewStyle}>
+    <View {...rest} ref={ref} pointerEvents="none" style={style}>
       <ThemeLayers stops={stops} angle={finite(angle, DEFAULT_THEME_ANGLE)} />
       {pad >= 0 ? <ColorPad lightness={Math.min(1, pad)} /> : null}
-      {children as ReactNode}
+      {children}
     </View>
   );
 });
