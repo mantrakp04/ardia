@@ -501,7 +501,7 @@ own sign-ins instead.
 ## 13. History
 | Feature | Dia | Ardia | Gap |
 |---|---|---|---|
-| History recorded | ✓ | ✅ | per profile, 5 000 pages, history.json; never for incognito |
+| History recorded | ✓ | ✅ | per profile, never for incognito; the engine keeps all of it (no 90-day expiry: ArdiaCore sets Helium's `keep-old-history` switch, so an imported Arc history keeps its old pages) and the app lists the newest 100 000 pages |
 | History page (⌘Y, `dia://history`) | ✓ | ✅ | `ardia://history` (our page, also when Chrome opens chrome://history): by day, search, bulk delete |
 | History menu | ✓ | ✅ | Show History, Clear Browsing Data, Recently Closed, Recently Closed Groups |
 | Clear browsing data | ✓ | ✅ | our history by visit time and its favicons, plus Chrome's BrowsingDataRemover for the same range: Chrome's history database (what `chrome.history` shows), cookies and every kind of site storage, cached files, live. Form data and passwords stay, as in the dialog's two options |

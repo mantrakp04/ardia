@@ -68,6 +68,48 @@ test("the view follows Chrome: a burst of visits, a retitle, a deletion, a clear
   stop();
 });
 
+test("a history of years, past 5,000 pages, is read whole, with its oldest page (an imported Arc history)", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const total = 5_200;
+  const now = Date.now();
+  const db = stub.chromeHistory("");
+  for (let i = 0; i < total; i++) db.set(`https://site${i}.example/`, { title: `Site ${i}`, visits: [now - i * 86_400_000] });
+  const stop = startHistory();
+  await reloadHistory();
+  const urls = historyOf(S(), "default").map((h) => h.url);
+  assert.equal(urls.length, total, "every page Chrome kept shows");
+  assert.equal(urls.at(-1), `https://site${total - 1}.example/`, "down to the oldest, more than 14 years back");
+  stop();
+});
+
+test("deleting half of a long history reads the selection a few times over, not once per URL kept", () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const total = 2_000;
+  const now = Date.now();
+  const rows = Array.from({ length: total }, (_, i) => ({ url: `https://site${i}.example/path/${i}/page`, title: `Page ${i}`, visits: 1, lastVisit: now - i * 1000 }));
+  S().importHistory("default", rows);
+  assert.equal(historyOf(S(), "default").length, total);
+  const doomed = rows.filter((_, i) => i % 2 === 0).map((r) => r.url);
+  let reads = 0;
+  const watched = new Proxy(doomed, {
+    get(target, key, receiver) {
+      reads++;
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  S().removeHistory("default", watched);
+  assert.deepEqual(
+    historyOf(S(), "default").map((h) => h.url),
+    rows.filter((_, i) => i % 2 === 1).map((r) => r.url),
+    "the other half stays, in order",
+  );
+  assert.ok(reads <= 10 * doomed.length, `removing ${doomed.length} of ${total} history URLs read the selection ${reads} times`);
+});
+
 test("a change that lands while the view is being read joins the read, in order", async () => {
   S().hydrate({});
   stub.historyDbs.clear();

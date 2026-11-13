@@ -16,7 +16,7 @@ export type HistorySlice = {
   importHistory(profileId: string, entries: Omit<HistoryEntry, "favicon">[]): number;
 };
 
-export const MAX_HISTORY = 5000;
+export const MAX_HISTORY = 100_000;
 export const MAX_VISIT_TIMES = 50;
 
 export const NO_HISTORY: HistoryEntry[] = [];
@@ -48,7 +48,8 @@ export const createHistorySlice: StateCreator<BrowserState, [], [], HistorySlice
 
   removeHistory(profileId, urls) {
     if (!urls.length || isIncognitoProfile(profileId)) return;
-    set((s) => withHistoryList(s, engineProfile(s, profileId), historyOf(s, profileId).filter((h) => !urls.includes(h.url))));
+    const gone = new Set(urls);
+    set((s) => withHistoryList(s, engineProfile(s, profileId), historyOf(s, profileId).filter((h) => !gone.has(h.url))));
     void deleteHistoryUrls(engineProfile(get(), profileId), urls).catch(failed("delete"));
   },
 

@@ -541,6 +541,11 @@ Helium host; `helium-check-build.py` fails a build whose binary or paks name one
 - `chromium-helium-rlz-for-cdm-storage-id`, `chromium-angle-metal-shader-cache`: what Helium's applied ungoogled
   patches took that we need (Widevine's storage id input, ANGLE's Metal shader cache).
 
+**Local history is kept in full.** Helium's applied ungoogled patch `add-flag-to-disable-local-history-expiration`
+(with Helium's `history-expiration-threshold` on top) lets the `keep-old-history` switch stop Chromium's 90-day expiry
+pass and its refusal of older visits when rows are added. `ac_main_delegate.cc` appends the switch to the browser
+process, so an imported Arc history keeps its old pages and the app reads up to `MAX_HISTORY` of them.
+
 **Privacy defaults we inherit.** Where Helium's defaults differ from our ungoogled build's, Helium's win: Secure DNS is
 Chromium's automatic mode (ungoogled's `doh-changes` isn't applied; Helium's `dns-providers` adds providers to the
 upgrade table), WebRTC uses `default_public_interface_only` (`webrtc-default-handling-policy`), FedCM is on, and EV

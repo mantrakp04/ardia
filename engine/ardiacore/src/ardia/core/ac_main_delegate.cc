@@ -349,6 +349,7 @@ std::optional<int> ACMainDelegate::BasicStartupComplete() {
     command_line->AppendSwitch(switches::kNoStartupWindow);
     command_line->AppendSwitch(switches::kNoFirstRun);
     command_line->AppendSwitch(switches::kNoDefaultBrowserCheck);
+    command_line->AppendSwitch("keep-old-history");
     command_line->RemoveSwitch(switches::kMakeDefaultBrowser);
     MergeFeatures(command_line, switches::kEnableFeatures, "WebContentsDiscard");
     QuietIdleTimers(command_line);

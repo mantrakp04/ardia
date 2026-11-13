@@ -57,7 +57,8 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
   selection.current = selected;
   const remove = useCallback((urls: string[]) => {
     removeHistory(latest.current.profileId, urls);
-    setSelected((prev) => (urls.some((u) => prev.has(u)) ? new Set([...prev].filter((u) => !urls.includes(u))) : prev));
+    const gone = new Set(urls);
+    setSelected((prev) => (urls.some((u) => prev.has(u)) ? new Set([...prev].filter((u) => !gone.has(u))) : prev));
   }, []);
   const menuTargets = useCallback((entry: HistoryEntry) => {
     const chosen = selection.current;
