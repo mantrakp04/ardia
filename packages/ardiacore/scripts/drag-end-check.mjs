@@ -71,7 +71,8 @@ const PAGE2 = `<!doctype html><title>Drag end check</title>
 window.counts = { mousedown: 0, mouseup: 0, keydown: 0, dragstart: 0, dragend: 0, dragenter: 0, dragleave: 0, drop: 0 };
 addEventListener("dragover", (e) => e.preventDefault());
 window.lastDrop = null;
-addEventListener("drop", (e) => { lastDrop = e.dataTransfer.getData("text/plain"); }, true);
+window.lastDropPoint = null;
+addEventListener("drop", (e) => { lastDrop = e.dataTransfer.getData("text/plain"); lastDropPoint = [e.clientX, e.clientY]; }, true);
 picky.addEventListener("dragover", (e) => { if (e.dataTransfer.types.includes("text/plain")) e.preventDefault(); e.stopPropagation(); });
 window.frames2 = { frame: {}, slow: {} };
 for (const name of Object.keys(counts)) addEventListener(name, () => { counts[name]++; }, true);
@@ -679,6 +680,27 @@ try {
       check("a mouse drag over the page released over a cross-site frame without moving there drops in the frame, and the browser keeps running",
         started && alive && release.how === "answered" && frameDrops === 1 && after.dragend - before.dragend === 1 && input.ok,
         `dragstart ${started}, browser running ${alive}, the release was ${release.how}, drop in the frame +${frameDrops}, dragend +${after.dragend - before.dragend}, ${input.detail}`);
+      driver.close();
+    }
+
+    {
+      const page = await open();
+      const framesBefore = await page.frames();
+      const { driver, started, before } = await mouseDrag(page);
+      await page.evaluate(`document.getElementById("frame").contentWindow.postMessage({ busy: 2500 }, "*")`);
+      await sleep(150);
+      const move = answer(mouse(driver, "mouseMoved", 240, 520, 9000));
+      await sleep(300);
+      const release = await answer(mouse(driver, "mouseReleased", 200, 300, 9000));
+      await move;
+      await sleep(600);
+      const after = await page.counts();
+      const at = await page.evaluate("lastDropPoint");
+      const frameDrops = of(await page.frames(), "frame", "drop") - of(framesBefore, "frame", "drop");
+      const input = await takesInput(page);
+      check("a release sent while the last move's frame hasn't answered drops where the release was, not where the frame's coordinates point",
+        started && release.how === "answered" && after.drop - before.drop === 1 && !!at && at[0] === 200 && at[1] === 300 && frameDrops === 0 && after.dragend - before.dragend === 1 && input.ok,
+        `dragstart ${started}, the release was ${release.how} after ${release.ms} ms, drop in the page +${after.drop - before.drop} at ${at} (released at 200,300), drop in the frame +${frameDrops}, dragend +${after.dragend - before.dragend}, ${input.detail}`);
       driver.close();
     }
 

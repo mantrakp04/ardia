@@ -332,10 +332,11 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
  namespace content::protocol {
  
  namespace {
-@@ -93,6 +96,25 @@
+@@ -92,6 +95,25 @@
+   return found && allowed;
  }
  
- 
++
 +void ArdiaEndDragSource(RenderWidgetHostImpl* source,
 +                        RenderWidgetHostImpl* point_widget,
 +                        const gfx::PointF& point,
@@ -354,10 +355,9 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +    source->DragSourceEndedAt(at, at, operation, std::move(callback));
 +  }
 +}
-+
+ 
  bool ArdiaRestrictedSession(DevToolsSession* session) {
    return g_ardia_devtools_may_input &&
-          (!session ||
 @@ -971,6 +993,9 @@
    // Acts as a counting semaphore for concurrent updates.
    size_t updating;
@@ -368,7 +368,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
  };
  
  struct InputHandler::DragController::InitialState {
-@@ -1062,9 +1087,8 @@
+@@ -1062,27 +1087,74 @@
      return;
    }
    // If we entered a widget previously, we need to leave it.
@@ -380,10 +380,10 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    drag_state_->data.view_id = host.GetRoutingID();
    host.DragTargetDragEnter(drag_state_->data, drag_state_->pos,
                             drag_state_->pos, drag_state_->mask,
-@@ -1072,17 +1096,65 @@
+                            event.GetModifiers(), base::DoNothing());
    drag_state_->host = host.GetWeakPtr();
- }
- 
++}
++
 +void InputHandler::DragController::ArdiaLeaveTargets(
 +    RenderWidgetHostImpl* except) {
 +  RenderWidgetHostImpl* over = drag_state_ ? drag_state_->host.get() : nullptr;
@@ -414,8 +414,8 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +  if (drag_state_ && drag_state_->id == drag_id) {
 +    CancelDragging(base::DoNothing());
 +  }
-+}
-+
+ }
+ 
 +void InputHandler::DragController::ArdiaForgetDrag() {
 +  drag_state_ = nullptr;
 +  initial_state_ = nullptr;
@@ -530,7 +530,35 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
      return;
    }
    drag_state_->data.operation = operation;
-@@ -1166,37 +1263,37 @@
+@@ -1155,9 +1252,24 @@
+     return;
+   }
+   if (drag_state_->updating > 0) {
+-    auto update_callback = base::BindOnce(
+-        &InputHandler::DragController::EndDragging, weak_factory_.GetWeakPtr(),
+-        nullptr, std::move(event), std::move(callback));
++    base::OnceClosure update_callback;
++    if (host_hint) {
++      const gfx::PointF at = host_hint == drag_state_->host.get()
++                                 ? drag_state_->pos
++                                 : event->PositionInWidget();
++      update_callback = base::BindOnce(
++          &InputHandler::DragController::
++              EndDraggingWithRenderWidgetHostAtPoint,
++          weak_factory_.GetWeakPtr(), drag_state_->id, std::move(event),
++          std::move(callback),
++          host_hint->GetRenderWidgetHostViewBase()->GetWeakPtr(),
++          std::optional<gfx::PointF>(at));
++    } else {
++      update_callback = base::BindOnce(
++          &InputHandler::DragController::EndDragging,
++          weak_factory_.GetWeakPtr(), nullptr, std::move(event),
++          std::move(callback));
++    }
+     // Chaining callbacks to ensure none get replaced.
+     drag_state_->updated_callback =
+         drag_state_->updated_callback ? std::move(drag_state_->updated_callback)
+@@ -1166,37 +1278,37 @@
      return;
    }
    if (host_hint) {
@@ -579,7 +607,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    auto* host = RenderWidgetHostImpl::From(view->GetRenderWidgetHost());
    if (!ArdiaMayInject(handler_->session(), handler_->host_, host)) {
      CancelDragging(
-@@ -1206,10 +1303,43 @@
+@@ -1206,10 +1318,43 @@
    }
    auto point = *maybe_point;
  
@@ -626,7 +654,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
        base::BindOnce(&FailSafe<DispatchMouseEventCallback>::sendSuccess,
                       std::move(callback)));
  }
-@@ -1221,8 +1351,88 @@
+@@ -1221,8 +1366,88 @@
        allow_file_access_(allow_file_access),
        allow_sending_input_to_browser_(allow_sending_input_to_browser) {}
  
@@ -634,7 +662,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +InputHandler::~InputHandler() {
 +  ArdiaEndOwnedDrag();
 +}
-+
+ 
 +void InputHandler::ArdiaEndOwnedDrag() {
 +  if (!ardia_drag_owned_ && !drag_controller_.drag_state_) {
 +    drag_controller_.ArdiaLeaveTargets(nullptr);
@@ -651,7 +679,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +  ardia_drag_entered_.reset();
 +  ++ardia_drag_generation_;
 +}
- 
++
 +void InputHandler::ArdiaCancelDragOfGeneration(uint64_t generation) {
 +  if (generation != ardia_drag_generation_ ||
 +      (!ardia_drag_owned_ && !drag_controller_.IsDragging())) {
@@ -716,7 +744,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
  // static
  std::vector<InputHandler*> InputHandler::ForAgentHost(
      DevToolsAgentHostImpl* host) {
-@@ -1546,22 +1756,38 @@
+@@ -1546,22 +1771,38 @@
    widget_host->delegate()
        ->GetRenderWidgetHostAtPointAsynchronously(
            widget_host->GetView(), CssPixelsToPointF(x, y, ScaleFactor()),
@@ -760,7 +788,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
      callback->sendFailure(Response::InternalError());
      return;
    }
-@@ -1581,61 +1807,62 @@
+@@ -1581,61 +1822,62 @@
        GetEventModifiers(modifiers.value_or(blink::WebInputEvent::kNoModifiers),
                          false, false, 0, 0);
    if (event_type == Input::DispatchDragEvent::TypeEnum::DragEnter) {
@@ -861,7 +889,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    } else {
      callback->sendFailure(Response::InvalidParams(
          base::StringPrintf("Unexpected event type '%s'", event_type.c_str())));
-@@ -1688,12 +1915,27 @@
+@@ -1688,12 +1930,27 @@
      }
    }
    // Only allow when Input.setInterceptDrags is disabled.
@@ -891,7 +919,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
      }
      return;
    }
-@@ -1702,6 +1944,9 @@
+@@ -1702,6 +1959,9 @@
      return;
    }
    *intercepted = true;
@@ -901,7 +929,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
  
    auto items =
        std::make_unique<protocol::Array<protocol::Input::DragDataItem>>();
-@@ -1726,12 +1971,17 @@
+@@ -1726,12 +1986,17 @@
                                   .Build());
  }
  
@@ -922,7 +950,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    intercept_drags_ = enabled;
    return Response::Success();
  }
-@@ -1791,7 +2041,8 @@
+@@ -1791,7 +2056,8 @@
  
  void InputHandler::CancelDragging(
      std::unique_ptr<CancelDraggingCallback> callback) {
@@ -932,7 +960,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
      callback->sendSuccess();
      return;
    }
-@@ -2428,6 +2679,7 @@
+@@ -2428,6 +2694,7 @@
  
  void InputHandler::ClearInputState() {
    ardia_press_.reset();
