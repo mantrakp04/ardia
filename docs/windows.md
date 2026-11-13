@@ -46,6 +46,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | New window | Works | |
 | Private window | Differs: its session lasts until Ardia quits | #1453 |
 | Quit and relaunch with the session restored | Works | |
+| Engine memory trimmed after tabs close, once input is idle | Works: input idle time from `GetLastInputInfo` (`ArdiaWindowsHost.inputIdleSeconds`) | #1544 |
 | Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome | |
 | Search Tabs, Ctrl+Tab | Works | |
 | Pin, Top Apps, New Group with Tab | Works | |

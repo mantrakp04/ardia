@@ -1,6 +1,8 @@
+import { TurboModuleRegistry } from "react-native";
 import { moduleDefaults } from "../../defaults";
 import { addNativeListener, emitNativeEvent, type EventSubscription } from "../../events";
 import { noteMissing } from "../../missing";
+import type { WindowsHostModule } from "../../nativeModuleTypes";
 import { engineCallJson, hostCall, onEngineTopic, profileDataFolder, removeProfileFolder } from "../host";
 import { isFields, originalProfile, quietly, type Desktop, type Engine } from "./calling";
 import { nativeDesktop } from "./desktop";
@@ -77,10 +79,7 @@ function moduleOf(domain: string, functions: Record<string, unknown> = {}): Reco
 const functions: Record<string, Record<string, unknown>> = {
   ...domainFunctions(engine),
   engine: {
-    inputIdleSeconds: () => {
-      noteMissing("ArdiaEngine.inputIdleSeconds");
-      return 0;
-    },
+    inputIdleSeconds: () => TurboModuleRegistry.get<WindowsHostModule>("ArdiaWindowsHost")?.inputIdleSeconds() ?? 0,
   },
 };
 

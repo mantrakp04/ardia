@@ -61,6 +61,7 @@ export type WindowsHostModule = {
   getConstants(): { selfCheck?: boolean };
   secureRandomHex(byteCount: number): string;
   pointerState(): number;
+  inputIdleSeconds(): number;
   launchArguments(): LaunchArguments;
 };
 
