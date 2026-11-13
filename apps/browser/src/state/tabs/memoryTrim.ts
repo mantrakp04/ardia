@@ -1,7 +1,7 @@
 import { inputIdleSeconds, trimEngineMemory } from "../../platform/performance";
 import { useBrowser } from "../browser/store";
 import { isQuitting } from "../app/quit";
-import { noteMemoryTrim, noteMemoryTrimGivenUp } from "../telemetry/memoryTrimCounts";
+import { noteMemoryTrim, noteMemoryTrimFailure, noteMemoryTrimGivenUp } from "../telemetry/memoryTrimCounts";
 
 const QUIET_MS = 5000;
 const MIN_GAP_MS = 30000;
@@ -45,8 +45,7 @@ export function startMemoryTrim() {
 
   const finish = () => {
     if (isQuitting()) return;
-    noteMemoryTrim();
-    trimEngineMemory().catch(() => {});
+    trimEngineMemory().then(noteMemoryTrim, noteMemoryTrimFailure);
   };
 
   const compact = (step: number, before: number, postponed: number, lateMs: number) => {
