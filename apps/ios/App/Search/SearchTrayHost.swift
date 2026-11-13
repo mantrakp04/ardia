@@ -20,8 +20,6 @@ struct SearchTrayHost: View {
   @State private var landingTask: Task<Void, Never>?
   @State private var removalTask: Task<Void, Never>?
 
-  static let keyboardThreshold: CGFloat = 120
-
   var body: some View {
     ZStack {
       keyboardProbe
@@ -32,9 +30,9 @@ struct SearchTrayHost: View {
   private var tray: some View {
     GeometryReader { proxy in
       let safeBottom = proxy.safeAreaInsets.bottom
-      let keyboardUp = keyboardHeight > Self.keyboardThreshold
+      let keyboardUp = KeyboardLift.isSoftwareKeyboardUp(keyboardHeight)
       let restsWithoutKeyboard = hasLanded && !keyboardUp && !isClosing
-      let liveLift = restsWithoutKeyboard ? max(keyboardHeight, safeBottom) : keyboardHeight
+      let liveLift = KeyboardLift.lift(overlap: keyboardHeight, safeBottom: safeBottom, restsWithoutKeyboard: restsWithoutKeyboard)
       let isUp = keyboardUp || (!isClosing && hasLanded)
       let lift = heldLift ?? liveLift
       let maxHeight = maxHeight(in: proxy, lift: lift)
@@ -48,6 +46,9 @@ struct SearchTrayHost: View {
             .allowsHitTesting(isUp && !isClosing)
             .ignoresSafeArea()
           SearchTray(request: shown, isFocused: $isFocused, maxHeight: maxHeight, dismissDrag: dismissDrag(lift: liveLift))
+            .padding(.leading, sides(in: proxy, lift: lift).leading)
+            .padding(.trailing, sides(in: proxy, lift: lift).trailing)
+            .padding(.bottom, TrayMetrics.keyboardGap)
             .id(presentation)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { trayHeight = $0 }
             .offset(y: safeBottom - lift + dragOffset + restingDrop)
@@ -59,7 +60,7 @@ struct SearchTrayHost: View {
       }
       .onChange(of: liveLift, initial: true) { _, live in
         guard shown != nil else { return }
-        if live > Self.keyboardThreshold, !isClosing, !hasLanded {
+        if live > KeyboardLift.softwareKeyboardMinimum, !isClosing, !hasLanded {
           landingTask?.cancel()
           hasLanded = true
         }
@@ -69,6 +70,7 @@ struct SearchTrayHost: View {
       }
     }
     .ignoresSafeArea(.keyboard)
+    .ignoresSafeArea(.container, edges: .horizontal)
     .onAppear { keyboard.start() }
     .task { await SearchSuggestionsModel.loadRecents(from: app.tabs) }
     .onChange(of: app.browse.search, initial: true) { _, request in
@@ -81,16 +83,22 @@ struct SearchTrayHost: View {
   }
 
   private var keyboardProbe: some View {
-    GeometryReader { proxy in
-      Color.clear
-        .onChange(of: proxy.safeAreaInsets.bottom, initial: true) { _, inset in
-          let target = inset > Self.keyboardThreshold ? inset : 0
-          guard target != keyboardHeight else { return }
-          withAnimation(keyboard.animation) { keyboardHeight = target }
-        }
+    KeyboardGuideReader { overlap in
+      guard overlap != keyboardHeight else { return }
+      withAnimation(keyboard.animation) { keyboardHeight = overlap }
     }
+    .ignoresSafeArea()
     .allowsHitTesting(false)
     .accessibilityHidden(true)
+  }
+
+  private func sides(in proxy: GeometryProxy, lift: CGFloat) -> SideInsets {
+    let safe = proxy.safeAreaInsets
+    let height = proxy.size.height + safe.top + safe.bottom
+    let bottom = height - lift
+    let band = max(0, bottom - trayHeight)...max(0, bottom)
+    let occlusions = proxy.reservedAreas(.occlusion).map { $0.frame.offsetBy(dx: 0, dy: safe.top) }
+    return SideClearance.insets(containerWidth: proxy.size.width, safeArea: safe, occlusions: occlusions, band: band, base: TrayMetrics.sideInset)
   }
 
   private func dim(over request: BrowseSession.SearchRequest) -> some View {
@@ -104,7 +112,7 @@ struct SearchTrayHost: View {
 
   private func maxHeight(in proxy: GeometryProxy, lift: CGFloat) -> CGFloat {
     let preferred = BrowseLayout.sheetAboveKeyboard + BrowseLayout.searchFieldHeight * (fieldScale - 1)
-    let available = proxy.size.height + proxy.safeAreaInsets.bottom - lift - Spacing.tight
+    let available = proxy.size.height + proxy.safeAreaInsets.bottom - lift - TrayMetrics.keyboardGap - Tokens.Space.m
     return max(min(preferred, available), 0)
   }
 
@@ -117,7 +125,7 @@ struct SearchTrayHost: View {
       if shown == nil || isClosing { presentation += 1 }
       shown = request
       isClosing = false
-      hasLanded = keyboardHeight > Self.keyboardThreshold
+      hasLanded = keyboardHeight > KeyboardLift.softwareKeyboardMinimum
       dragOffset = 0
       heldLift = nil
       isDragging = false
@@ -146,7 +154,7 @@ struct SearchTrayHost: View {
     landingTask?.cancel()
     settleTask?.cancel()
     isFocused = false
-    if keyboardHeight > Self.keyboardThreshold, heldLift == nil {
+    if keyboardHeight > KeyboardLift.softwareKeyboardMinimum, heldLift == nil {
       isClosing = true
     } else {
       let travel = trayHeight + (heldLift ?? 0) + BrowseLayout.sheetTopRadius
@@ -157,7 +165,7 @@ struct SearchTrayHost: View {
     }
     removalTask?.cancel()
     removalTask = Task {
-      for _ in 0..<20 where keyboardHeight > Self.keyboardThreshold {
+      for _ in 0..<20 where keyboardHeight > KeyboardLift.softwareKeyboardMinimum {
         try? await Task.sleep(for: .milliseconds(50))
       }
       try? await Task.sleep(for: .milliseconds(450))

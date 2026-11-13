@@ -78,7 +78,7 @@ private struct PhoneSketch: View {
       .padding(4)
       if connected {
         Image(systemName: "checkmark")
-          .font(.system(size: 30, weight: .bold))
+          .font(Typography.display)
           .foregroundStyle(.white)
           .transition(.scale.combined(with: .opacity))
       } else {

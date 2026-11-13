@@ -6,8 +6,8 @@ struct ColorChoiceRows: View {
   @Environment(\.profileLook) private var look
 
   var body: some View {
-    VStack(alignment: .leading, spacing: Spacing.small) {
-      SettingsRowLabel("Color", systemImage: "paintpalette.fill", tint: look.swatchColor)
+    VStack(alignment: .leading, spacing: Tokens.Space.l) {
+      Text("Color")
       HStack(spacing: 0) {
         ForEach(ProfileLook.Preset.allCases, id: \.self) { preset in
           Button {
@@ -23,11 +23,9 @@ struct ColorChoiceRows: View {
         }
       }
     }
-    .padding(.vertical, Spacing.hairline)
+    .padding(.vertical, Tokens.Space.xs)
     if app.sync.isEnabled {
-      Toggle(isOn: matchesMac) {
-        SettingsRowLabel("Match My Mac", systemImage: "macbook", tint: SettingsTint.neutral)
-      }
+      Toggle("Match My Mac", isOn: matchesMac)
     }
   }
 

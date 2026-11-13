@@ -1,5 +1,6 @@
 import AVFoundation
 import ArdiaDesign
+import ArdiaSync
 import SwiftUI
 import VisionKit
 
@@ -48,7 +49,7 @@ struct SyncCodeScannerSheet: View {
           )
         case .unsupported:
           unavailable(
-            title: "Can’t Scan on This iPhone",
+            title: "Can’t Scan on This \(ThisDevice.current.noun)",
             message: "Type the 24 words of your recovery phrase instead. Your Mac shows them under Connect Another Device.",
             showsSettings: false
           )
@@ -67,17 +68,17 @@ struct SyncCodeScannerSheet: View {
   }
 
   private var viewfinder: some View {
-    VStack(spacing: Spacing.medium) {
-      VStack(spacing: Spacing.tight) {
+    VStack(spacing: Tokens.Space.xxl) {
+      VStack(spacing: Tokens.Space.m) {
         Text("Scan the Code on Your Mac")
-          .font(.title3.bold())
+          .font(Typography.largeTitle)
         Text("In Ardia on your Mac, open Settings › Sync › Connect Another Device.")
-          .font(.subheadline)
+          .font(Typography.row)
           .foregroundStyle(.white.opacity(0.75))
           .multilineTextAlignment(.center)
       }
-      .padding(.horizontal, Spacing.section)
-      .padding(.top, Spacing.page)
+      .padding(.horizontal, Tokens.Space.huge)
+      .padding(.top, Tokens.Space.xl)
       Spacer()
       RoundedRectangle(cornerRadius: 28, style: .continuous)
         .strokeBorder(.white.opacity(0.9), style: StrokeStyle(lineWidth: 3, dash: [44, 1000], dashPhase: 22))
@@ -86,12 +87,12 @@ struct SyncCodeScannerSheet: View {
       Spacer()
       if showsRejection {
         Text("Not an Ardia sync code.")
-          .font(.subheadline.weight(.medium))
+          .font(Typography.row.weight(.medium))
           .multilineTextAlignment(.center)
-          .padding(.horizontal, Spacing.page)
-          .padding(.vertical, Spacing.small)
-          .background(.ultraThinMaterial, in: .rect(cornerRadius: Radius.field, style: .continuous))
-          .padding(.horizontal, Spacing.section)
+          .padding(.horizontal, Tokens.Space.xl)
+          .padding(.vertical, Tokens.Space.l)
+          .background(.ultraThinMaterial, in: .rect(cornerRadius: Tokens.Radius.sheet, style: .continuous))
+          .padding(.horizontal, Tokens.Space.huge)
           .transition(.opacity)
       }
       Button("Enter Words Instead") {
@@ -100,26 +101,28 @@ struct SyncCodeScannerSheet: View {
       }
       .buttonStyle(.glass)
       .controlSize(.large)
-      .padding(.bottom, Spacing.large)
+      .padding(.bottom, Tokens.Space.xxxl)
     }
     .foregroundStyle(.white)
     .animation(Motion.snappy, value: showsRejection)
   }
 
   private func unavailable(title: LocalizedStringKey, message: LocalizedStringKey, showsSettings: Bool) -> some View {
-    VStack(spacing: Spacing.medium) {
+    VStack(spacing: Tokens.Space.xxl) {
       Image(systemName: showsSettings ? "camera.fill" : "qrcode.viewfinder")
-        .font(.system(size: 48, weight: .regular))
+        .resizable()
+        .scaledToFit()
+        .frame(width: SettingsTile.scannerGlyph, height: SettingsTile.scannerGlyph)
         .foregroundStyle(.white.opacity(0.85))
         .accessibilityHidden(true)
-      VStack(spacing: Spacing.tight) {
-        Text(title).font(.title3.bold())
+      VStack(spacing: Tokens.Space.m) {
+        Text(title).font(Typography.largeTitle)
         Text(message)
-          .font(.subheadline)
+          .font(Typography.row)
           .foregroundStyle(.white.opacity(0.75))
           .multilineTextAlignment(.center)
       }
-      VStack(spacing: Spacing.small) {
+      VStack(spacing: Tokens.Space.l) {
         if showsSettings {
           Button("Open Settings") {
             if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
@@ -134,10 +137,10 @@ struct SyncCodeScannerSheet: View {
         .buttonStyle(.glass)
       }
       .controlSize(.large)
-      .padding(.top, Spacing.tight)
+      .padding(.top, Tokens.Space.m)
     }
     .foregroundStyle(.white)
-    .padding(.horizontal, Spacing.section)
+    .padding(.horizontal, Tokens.Space.huge)
   }
 
   static func checkAccess() async -> CameraAccess {

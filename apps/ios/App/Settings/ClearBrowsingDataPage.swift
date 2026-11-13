@@ -1,5 +1,6 @@
 import ArdiaBrowser
 import ArdiaDesign
+import ArdiaSync
 import SwiftUI
 
 struct ClearBrowsingDataPage: View {
@@ -154,7 +155,7 @@ struct ClearChoice: Equatable {
   var footer: String {
     if isEmpty { return String(localized: "Choose what to clear.") }
     var lines: [String] = []
-    if history { lines.append(String(localized: "History clears from this iPhone. Your Mac’s history stays on your Mac.")) }
+    if history { lines.append(String(localized: "History clears from this \(ThisDevice.current.noun). Your Mac’s history stays on your Mac.")) }
     if cookies { lines.append(String(localized: "Clearing cookies signs you out of websites.")) }
     if !cookies { lines.append(String(localized: "You’ll stay signed in to websites.")) }
     return lines.joined(separator: " ")

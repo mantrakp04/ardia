@@ -11,6 +11,7 @@ struct OmniboxTextField: UIViewRepresentable {
   var isIncognito: Bool
   var selectsAllOnFocus: Bool
   var onSubmit: (String) -> Void
+  var onKey: ((OmniboxKey) -> Void)? = nil
 
   func makeCoordinator() -> Coordinator {
     Coordinator(parent: self)
@@ -43,6 +44,7 @@ struct OmniboxTextField: UIViewRepresentable {
   func updateUIView(_ field: CompletingTextField, context: Context) {
     let coordinator = context.coordinator
     coordinator.parent = self
+    field.onKey = onKey
     apply(to: field)
     if field.markedTextRange == nil, coordinator.echo.isExternal(text, current: field.editor.typed) {
       field.reset(to: text)
@@ -180,9 +182,25 @@ final class CompletingTextField: UITextField {
   var completionColor = UIColor.systemBlue.withAlphaComponent(0.3)
   private(set) var isApplyingCompletion = false
   var wantsFocus = false
+  var onKey: ((OmniboxKey) -> Void)?
   var typedLength: Int { (editor.typed as NSString).length }
   static let horizontalInset: CGFloat = 3
   private static let composingLanguages = ["ja", "zh", "ko"]
+
+  override var keyCommands: [UIKeyCommand]? {
+    guard onKey != nil else { return super.keyCommands }
+    let commands = OmniboxKey.all.map { key in
+      let command = UIKeyCommand(input: key.input, modifierFlags: [], action: #selector(handleOmniboxKey(_:)))
+      command.wantsPriorityOverSystemBehavior = true
+      return command
+    }
+    return (super.keyCommands ?? []) + commands
+  }
+
+  @objc private func handleOmniboxKey(_ command: UIKeyCommand) {
+    guard let key = OmniboxKey(input: command.input) else { return }
+    onKey?(key)
+  }
 
   override func didMoveToWindow() {
     super.didMoveToWindow()

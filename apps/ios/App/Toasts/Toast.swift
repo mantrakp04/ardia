@@ -1,3 +1,5 @@
+import ArdiaDesign
+import ArdiaSync
 import Foundation
 
 struct Toast: Identifiable, Equatable {
@@ -46,13 +48,13 @@ extension Toast {
     Toast(String(localized: "Syncing With Your Mac"), symbol: "checkmark.icloud.fill")
   }
 
-  static func tabReceived(from deviceName: String, count: Int = 1, onOpen: (@MainActor () -> Void)? = nil) -> Toast {
+  static func tabReceived(from deviceName: String, kind: SyncedDevice.Kind? = nil, count: Int = 1, onOpen: (@MainActor () -> Void)? = nil) -> Toast {
     let message = count == 1
       ? String(localized: "Tab from \(deviceName)")
       : String(localized: "\(count.formatted()) Tabs from \(deviceName)")
     return Toast(
       message,
-      symbol: deviceName.localizedCaseInsensitiveContains("iPhone") ? "iphone" : "macbook",
+      symbol: SystemDevice(id: deviceName, name: deviceName, kind: kind ?? SenderKind.guess(from: deviceName)).symbol,
       duration: .seconds(3.2),
       onTap: onOpen
     )
@@ -70,5 +72,13 @@ extension Toast {
     fileName.isEmpty
       ? Toast(String(localized: "Couldn’t Download File"), symbol: "exclamationmark.triangle.fill")
       : Toast(String(localized: "Couldn’t Download \(fileName)"), symbol: "exclamationmark.triangle.fill")
+  }
+}
+
+enum SenderKind {
+  static func guess(from deviceName: String) -> SyncedDevice.Kind {
+    if deviceName.localizedCaseInsensitiveContains("iPad") { return .tablet }
+    if deviceName.localizedCaseInsensitiveContains("iPhone") { return .phone }
+    return .mac
   }
 }

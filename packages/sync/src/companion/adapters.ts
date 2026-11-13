@@ -13,7 +13,8 @@ export const MAX_DEVICE_TABS = 30;
 export const MAX_VISIT_TIMES = 50;
 const SAME_VISIT_MS = 1;
 
-export type DeviceValue = { n: string; k?: string; f?: string[]; s?: string };
+export type DeviceValue = { n: string; k?: string; f?: string[]; s?: string; o?: string[] };
+export type CompanionKind = "phone" | "tablet";
 
 export type LocalTab = { u: string; t: string; at: number; p?: string | null };
 export type LocalVisit = { u: string; t: string; vt: number[]; p?: string | null };
@@ -33,20 +34,20 @@ export const lastVisitOf = (v: HistoryValue | null | undefined) => (v && Array.i
 
 export const dayOf = (at: number) => new Date(at).toISOString().slice(0, 10).replaceAll("-", "");
 
-export function deviceAdapter(device: string, name: string, retiring: boolean, ghosts: string[] = []): Adapter {
+export function deviceAdapter(device: string, name: string, retiring: boolean, ghosts: string[] = [], kind: CompanionKind = "phone"): Adapter {
   const key = `dev:${device}`;
   const old = new Set(ghosts.map((g) => `dev:${g}`));
   return {
     prefix: "dev:",
     extract: (_base, _queued, now) => ({
-      values: retiring ? new Map() : new Map([[key, { n: name, k: "phone", f: ["send"], s: dayOf(now) } satisfies DeviceValue]]),
+      values: retiring ? new Map() : new Map([[key, { n: name, k: kind, f: ["send"], s: dayOf(now) } satisfies DeviceValue]]),
       ignore: (k) => k !== key && !old.has(k),
     }),
     apply: () => true,
   };
 }
 
-export function deviceTabsAdapter(device: string, name: string, tabs: LocalTab[] | null, retiring: boolean, ghosts: string[] = []): Adapter {
+export function deviceTabsAdapter(device: string, name: string, tabs: LocalTab[] | null, retiring: boolean, ghosts: string[] = [], kind: CompanionKind = "phone"): Adapter {
   const key = `tabs:${device}`;
   const old = new Set(ghosts.map((g) => `tabs:${g}`));
   const ignore = (k: string) => k !== key && !old.has(k);
@@ -60,7 +61,7 @@ export function deviceTabsAdapter(device: string, name: string, tabs: LocalTab[]
         .sort((a, z) => z.at - a.at)
         .slice(0, MAX_DEVICE_TABS)
         .map((t) => ({ u: t.u, t: t.t }));
-      return { values: new Map([[key, { n: name, k: "phone", tabs: recent } satisfies DeviceTabs]]), ignore };
+      return { values: new Map([[key, { n: name, k: kind, tabs: recent } satisfies DeviceTabs]]), ignore };
     },
     apply: () => true,
   };

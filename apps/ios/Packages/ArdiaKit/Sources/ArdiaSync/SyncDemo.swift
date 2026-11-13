@@ -5,7 +5,7 @@ extension SyncSnapshot {
     let now = Date.now
     let mac = SyncedDevice(id: "demo-mac", name: "MacBook Pro", kind: .mac, lastSeen: now.addingTimeInterval(-40), isCurrent: false, canReceiveTabs: true)
     let studio = SyncedDevice(id: "demo-studio", name: "Mac Studio", kind: .mac, lastSeen: now.addingTimeInterval(-3 * 3600), isCurrent: false, canReceiveTabs: false)
-    let phone = SyncedDevice(id: "demo-phone", name: "iPhone", kind: .phone, lastSeen: now, isCurrent: true, canReceiveTabs: true)
+    let phone = SyncedDevice(id: "demo-phone", name: ThisDevice.current.defaultName, kind: ThisDevice.current.kind, lastSeen: now, isCurrent: true, canReceiveTabs: true)
     let macTabs: [RemoteTab] = [
       .init(url: "https://developer.apple.com/documentation/swiftui", title: "SwiftUI | Apple Developer Documentation"),
       .init(url: "https://www.swift.org/blog/", title: "Blog | Swift.org"),
@@ -27,16 +27,16 @@ extension SyncSnapshot {
     let pinned = PinnedArea(
       tiles: [
         PinnedTile(key: "demo-mail", title: "Mail", url: "https://www.icloud.com/mail", icon: nil, folder: nil),
-        PinnedTile(key: "demo-calendar", title: "Calendar", url: "https://www.icloud.com/calendar", icon: nil, folder: nil),
+        PinnedTile(key: "demo-calendar", title: "Calendar", url: "https://www.icloud.com/calendar", icon: "symbol:calendar", folder: nil),
         PinnedTile(key: "tilefold:demo-social", title: "Social", url: "https://mastodon.social/", icon: nil, folder: [
           PinnedTab(key: "demo-mastodon", title: "Mastodon", url: "https://mastodon.social/", icon: nil),
           PinnedTab(key: "demo-reddit", title: "Reddit", url: "https://www.reddit.com/", icon: nil),
         ]),
-        PinnedTile(key: "demo-music", title: "Music", url: "https://music.apple.com/", icon: nil, folder: nil),
+        PinnedTile(key: "demo-music", title: "Music", url: "https://music.apple.com/", icon: "🎵", folder: nil),
       ],
       sections: [
-        .tab(PinnedTab(key: "demo-notes", title: "Notes", url: "https://www.icloud.com/notes", icon: "note.text")),
-        .group(PinnedGroup(key: "demo-trip", name: "Lisbon Trip", icon: "airplane", color: "orange", items: [
+        .tab(PinnedTab(key: "demo-notes", title: "Notes", url: "https://www.icloud.com/notes", icon: "symbol:note.text")),
+        .group(PinnedGroup(key: "demo-trip", name: "Lisbon Trip", icon: "symbol:airplane", color: "orange", items: [
           .tab(PinnedTab(key: "demo-flights", title: "Flights", url: "https://www.tap.pt/", icon: nil)),
           .tab(PinnedTab(key: "demo-hotel", title: "Hotel", url: "https://www.booking.com/", icon: nil)),
           .group(PinnedGroup(key: "demo-food", name: "Food", icon: nil, color: "red", items: [
@@ -82,23 +82,50 @@ extension SyncSnapshot {
       syncId: "demo-work",
       name: "Work",
       color: "green",
-      icon: "briefcase",
+      icon: "symbol:briefcase.fill",
       isDefault: false,
-      theme: SyncedTheme(colors: ["#4F7CFF", "#9B6BFF"], darkColors: ["#1E2A5A", "#3A2466"]),
+      theme: SyncedTheme(
+        colors: ["#4F7CFF", "#9B6BFF"],
+        darkColors: ["#1E2A5A", "#3A2466"],
+        mode: .auto,
+        light: .init(stops: [demoStop(0x4F7CFF, x: 0.82, y: 0.3), demoStop(0x9B6BFF, x: 0.7, y: 0.2)], intensity: 0.8, grain: 0.3),
+        dark: .init(stops: [demoStop(0x1E2A5A, x: 0.82, y: 0.3), demoStop(0x3A2466, x: 0.7, y: 0.2)], intensity: 0.8, grain: 0.3)
+      ),
       deviceTabs: [DeviceTabs(deviceId: mac.id, deviceName: mac.name, kind: .mac, tabs: [
         .init(url: "https://linear.app/", title: "Linear"),
         .init(url: "https://www.notion.so/", title: "Notion"),
       ])],
-      pinned: PinnedArea(tiles: [PinnedTile(key: "demo-work-mail", title: "Mail", url: "https://outlook.office.com/", icon: nil, folder: nil)]),
+      pinned: PinnedArea(tiles: [
+        PinnedTile(key: "demo-work-mail", title: "Mail", url: "https://outlook.office.com/", icon: nil, folder: nil),
+        PinnedTile(key: "demo-work-linear", title: "Linear", url: "https://linear.app/", icon: "symbol:checklist", folder: nil),
+        PinnedTile(key: "demo-work-figma", title: "Figma", url: "https://www.figma.com/", icon: "🎨", folder: nil),
+      ]),
       bookmarks: [],
       history: [],
       sendTargets: [mac.id]
     )
+    let trips = SyncedProfile(
+      syncId: "demo-trips",
+      name: "Trips",
+      color: "orange",
+      icon: "🏝️",
+      isDefault: false,
+      theme: nil,
+      deviceTabs: [],
+      pinned: PinnedArea(tiles: [PinnedTile(key: "demo-trips-maps", title: "Maps", url: "https://maps.apple.com/", icon: "symbol:map", folder: nil)]),
+      bookmarks: [],
+      history: []
+    )
     return SyncSnapshot(
       devices: [phone, mac, studio],
-      profiles: [personal, work],
+      profiles: [personal, work, trips],
       search: SyncedSearch(engineId: "google", customURL: nil, customEngines: []),
+      lookSettings: SyncedLookSettings(appearance: .auto, interfaceStyle: .glass),
       syncedAt: now
     )
   }()
+}
+
+private func demoStop(_ hex: UInt32, x: Double, y: Double) -> SyncedTheme.Stop {
+  SyncedTheme.Stop(red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255, x: x, y: y)
 }

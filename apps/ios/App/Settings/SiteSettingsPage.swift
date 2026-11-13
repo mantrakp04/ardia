@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SiteSettingsPage: View {
   @Environment(AppModel.self) private var app
+  @Environment(\.chromeLayout) private var layout
 
   var body: some View {
     @Bindable var blocking = app.blocking
@@ -53,12 +54,16 @@ struct SiteSettingsPage: View {
           SettingsRowLabel("Swipe to Navigate", systemImage: "hand.draw.fill", tint: SettingsTint.swipe)
         }
         .tint(.secondary)
-        Toggle(isOn: $settings.collapsesBottomBar) {
-          SettingsRowLabel("Collapse Bottom Bar", systemImage: "platter.filled.bottom.and.arrow.down.iphone", tint: SettingsTint.bottomBar)
+        if layout.hasBottomBar {
+          Toggle(isOn: $settings.collapsesBottomBar) {
+            SettingsRowLabel("Collapse Bottom Bar", systemImage: "platter.filled.bottom.and.arrow.down.iphone", tint: SettingsTint.bottomBar)
+          }
         }
       } footer: {
         Text("Change one site from its page menu.")
       }
+
+      SitePermissionsSection()
     }
     .navigationTitle("Site Settings")
     .navigationBarTitleDisplayMode(.inline)

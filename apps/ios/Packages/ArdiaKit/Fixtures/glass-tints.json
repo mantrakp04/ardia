@@ -1,0 +1,998 @@
+{
+ "controls": [
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "rest",
+   "amount": 0,
+   "tint": "#FFFFFF04"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "rest",
+   "amount": 0.15,
+   "tint": "#E4EBF90D"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "rest",
+   "amount": 0.8,
+   "tint": "#6E92DD37"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "rest",
+   "amount": 1,
+   "tint": "#4A77D444"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "lit",
+   "amount": 0,
+   "tint": "#FFFFFF08"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "lit",
+   "amount": 0.15,
+   "tint": "#E4EBF911"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "lit",
+   "amount": 0.8,
+   "tint": "#6E92DD3B"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "lit",
+   "amount": 1,
+   "tint": "#4A77D447"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0,
+   "tint": "#FFFFFF0B"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0.15,
+   "tint": "#E4EBF915"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0.8,
+   "tint": "#6E92DD3E"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "pressed",
+   "amount": 1,
+   "tint": "#4A77D44B"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "active",
+   "amount": 0,
+   "tint": "#FFFFFF17"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "active",
+   "amount": 0.15,
+   "tint": "#E4EBF921"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "active",
+   "amount": 0.8,
+   "tint": "#6E92DD4A"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "state": "active",
+   "amount": 1,
+   "tint": "#4A77D457"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "rest",
+   "amount": 0,
+   "tint": "#00000002"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "rest",
+   "amount": 0.15,
+   "tint": "#0F16260B"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "rest",
+   "amount": 0.8,
+   "tint": "#4F77CA35"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "rest",
+   "amount": 1,
+   "tint": "#6395FC42"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "lit",
+   "amount": 0,
+   "tint": "#00000004"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "lit",
+   "amount": 0.15,
+   "tint": "#0F16260D"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "lit",
+   "amount": 0.8,
+   "tint": "#4F77CA37"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "lit",
+   "amount": 1,
+   "tint": "#6395FC44"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0,
+   "tint": "#00000006"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0.15,
+   "tint": "#0F16260F"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0.8,
+   "tint": "#4F77CA39"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "pressed",
+   "amount": 1,
+   "tint": "#6395FC45"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "active",
+   "amount": 0,
+   "tint": "#0000000B"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "active",
+   "amount": 0.15,
+   "tint": "#0F162615"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "active",
+   "amount": 0.8,
+   "tint": "#4F77CA3E"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "state": "active",
+   "amount": 1,
+   "tint": "#6395FC4B"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "rest",
+   "amount": 0,
+   "tint": "#FFFFFF04"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "rest",
+   "amount": 0.15,
+   "tint": "#E4EBF90D"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "rest",
+   "amount": 0.8,
+   "tint": "#6E92DD37"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "rest",
+   "amount": 1,
+   "tint": "#4A77D444"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "lit",
+   "amount": 0,
+   "tint": "#FFFFFF08"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "lit",
+   "amount": 0.15,
+   "tint": "#E4EBF911"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "lit",
+   "amount": 0.8,
+   "tint": "#6E92DD3B"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "lit",
+   "amount": 1,
+   "tint": "#4A77D447"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0,
+   "tint": "#FFFFFF0B"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0.15,
+   "tint": "#E4EBF915"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0.8,
+   "tint": "#6E92DD3E"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "pressed",
+   "amount": 1,
+   "tint": "#4A77D44B"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "active",
+   "amount": 0,
+   "tint": "#FFFFFF17"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "active",
+   "amount": 0.15,
+   "tint": "#E4EBF921"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "active",
+   "amount": 0.8,
+   "tint": "#6E92DD4A"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "state": "active",
+   "amount": 1,
+   "tint": "#4A77D457"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "rest",
+   "amount": 0,
+   "tint": "#00000002"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "rest",
+   "amount": 0.15,
+   "tint": "#0F16260B"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "rest",
+   "amount": 0.8,
+   "tint": "#4F77CA35"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "rest",
+   "amount": 1,
+   "tint": "#6395FC42"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "lit",
+   "amount": 0,
+   "tint": "#00000004"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "lit",
+   "amount": 0.15,
+   "tint": "#0F16260D"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "lit",
+   "amount": 0.8,
+   "tint": "#4F77CA37"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "lit",
+   "amount": 1,
+   "tint": "#6395FC44"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0,
+   "tint": "#00000006"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0.15,
+   "tint": "#0F16260F"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0.8,
+   "tint": "#4F77CA39"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "pressed",
+   "amount": 1,
+   "tint": "#6395FC45"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "active",
+   "amount": 0,
+   "tint": "#0000000B"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "active",
+   "amount": 0.15,
+   "tint": "#0F162615"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "active",
+   "amount": 0.8,
+   "tint": "#4F77CA3E"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "state": "active",
+   "amount": 1,
+   "tint": "#6395FC4B"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "rest",
+   "amount": 0,
+   "tint": "#FFFFFF04"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "rest",
+   "amount": 0.15,
+   "tint": "#E4EBF90D"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "rest",
+   "amount": 0.8,
+   "tint": "#6E92DD37"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "rest",
+   "amount": 1,
+   "tint": "#4A77D444"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "lit",
+   "amount": 0,
+   "tint": "#FFFFFF08"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "lit",
+   "amount": 0.15,
+   "tint": "#E4EBF911"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "lit",
+   "amount": 0.8,
+   "tint": "#6E92DD3B"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "lit",
+   "amount": 1,
+   "tint": "#4A77D447"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0,
+   "tint": "#FFFFFF0B"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0.15,
+   "tint": "#E4EBF915"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0.8,
+   "tint": "#6E92DD3E"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "pressed",
+   "amount": 1,
+   "tint": "#4A77D44B"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "active",
+   "amount": 0,
+   "tint": "#FFFFFF17"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "active",
+   "amount": 0.15,
+   "tint": "#E4EBF921"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "active",
+   "amount": 0.8,
+   "tint": "#6E92DD4A"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "state": "active",
+   "amount": 1,
+   "tint": "#4A77D457"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "rest",
+   "amount": 0,
+   "tint": "#00000002"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "rest",
+   "amount": 0.15,
+   "tint": "#0F16260B"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "rest",
+   "amount": 0.8,
+   "tint": "#4F77CA35"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "rest",
+   "amount": 1,
+   "tint": "#6395FC42"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "lit",
+   "amount": 0,
+   "tint": "#00000004"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "lit",
+   "amount": 0.15,
+   "tint": "#0F16260D"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "lit",
+   "amount": 0.8,
+   "tint": "#4F77CA37"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "lit",
+   "amount": 1,
+   "tint": "#6395FC44"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0,
+   "tint": "#00000006"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0.15,
+   "tint": "#0F16260F"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0.8,
+   "tint": "#4F77CA39"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "pressed",
+   "amount": 1,
+   "tint": "#6395FC45"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "active",
+   "amount": 0,
+   "tint": "#0000000B"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "active",
+   "amount": 0.15,
+   "tint": "#0F162615"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "active",
+   "amount": 0.8,
+   "tint": "#4F77CA3E"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "state": "active",
+   "amount": 1,
+   "tint": "#6395FC4B"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "rest",
+   "amount": 0,
+   "tint": "#FFFFFF04"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "rest",
+   "amount": 0.15,
+   "tint": "#E4EBF90D"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "rest",
+   "amount": 0.8,
+   "tint": "#6E92DD37"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "rest",
+   "amount": 1,
+   "tint": "#4A77D444"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "lit",
+   "amount": 0,
+   "tint": "#FFFFFF08"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "lit",
+   "amount": 0.15,
+   "tint": "#E4EBF911"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "lit",
+   "amount": 0.8,
+   "tint": "#6E92DD3B"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "lit",
+   "amount": 1,
+   "tint": "#4A77D447"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0,
+   "tint": "#FFFFFF0B"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0.15,
+   "tint": "#E4EBF915"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "pressed",
+   "amount": 0.8,
+   "tint": "#6E92DD3E"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "pressed",
+   "amount": 1,
+   "tint": "#4A77D44B"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "active",
+   "amount": 0,
+   "tint": "#FFFFFF17"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "active",
+   "amount": 0.15,
+   "tint": "#E4EBF921"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "active",
+   "amount": 0.8,
+   "tint": "#6E92DD4A"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "state": "active",
+   "amount": 1,
+   "tint": "#4A77D457"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "rest",
+   "amount": 0,
+   "tint": "#00000002"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "rest",
+   "amount": 0.15,
+   "tint": "#0F16260B"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "rest",
+   "amount": 0.8,
+   "tint": "#4F77CA35"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "rest",
+   "amount": 1,
+   "tint": "#6395FC42"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "lit",
+   "amount": 0,
+   "tint": "#00000004"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "lit",
+   "amount": 0.15,
+   "tint": "#0F16260D"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "lit",
+   "amount": 0.8,
+   "tint": "#4F77CA37"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "lit",
+   "amount": 1,
+   "tint": "#6395FC44"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0,
+   "tint": "#00000006"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0.15,
+   "tint": "#0F16260F"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "pressed",
+   "amount": 0.8,
+   "tint": "#4F77CA39"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "pressed",
+   "amount": 1,
+   "tint": "#6395FC45"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "active",
+   "amount": 0,
+   "tint": "#0000000B"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "active",
+   "amount": 0.15,
+   "tint": "#0F162615"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "active",
+   "amount": 0.8,
+   "tint": "#4F77CA3E"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "state": "active",
+   "amount": 1,
+   "tint": "#6395FC4B"
+  }
+ ],
+ "panels": [
+  {
+   "preset": "plum",
+   "dark": true,
+   "amount": 0,
+   "tint": "#2A2A2AEC"
+  },
+  {
+   "preset": "plum",
+   "dark": true,
+   "amount": 0.8,
+   "tint": "#3E3134EC"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "amount": 0,
+   "tint": "#FFFFFFEC"
+  },
+  {
+   "preset": "plum",
+   "dark": false,
+   "amount": 0.8,
+   "tint": "#F3E6E9EC"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "amount": 0,
+   "tint": "#2A2A2AEC"
+  },
+  {
+   "preset": "blue",
+   "dark": true,
+   "amount": 0.8,
+   "tint": "#31393EEC"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "amount": 0,
+   "tint": "#FFFFFFEC"
+  },
+  {
+   "preset": "blue",
+   "dark": false,
+   "amount": 0.8,
+   "tint": "#E6EEF3EC"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "amount": 0,
+   "tint": "#2A2A2AEC"
+  },
+  {
+   "preset": "yellow",
+   "dark": true,
+   "amount": 0.8,
+   "tint": "#3E3A31EC"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "amount": 0,
+   "tint": "#FFFFFFEC"
+  },
+  {
+   "preset": "yellow",
+   "dark": false,
+   "amount": 0.8,
+   "tint": "#F3EFE6EC"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "amount": 0,
+   "tint": "#2A2A2AEC"
+  },
+  {
+   "preset": "neutral",
+   "dark": true,
+   "amount": 0.8,
+   "tint": "#383838EC"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "amount": 0,
+   "tint": "#FFFFFFEC"
+  },
+  {
+   "preset": "neutral",
+   "dark": false,
+   "amount": 0.8,
+   "tint": "#EDEDEDEC"
+  }
+ ]
+}

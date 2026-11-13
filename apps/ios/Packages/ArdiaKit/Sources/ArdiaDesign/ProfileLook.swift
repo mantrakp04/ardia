@@ -23,8 +23,8 @@ struct LookRGB: Equatable, Hashable, Sendable {
   init?(hexString: String) {
     var text = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
     if text.hasPrefix("#") { text.removeFirst() }
-    guard text.count == 6, let value = UInt32(text, radix: 16) else { return nil }
-    self.init(hex: value)
+    guard text.count == 6 || text.count == 8, let value = UInt32(text, radix: 16) else { return nil }
+    self.init(hex: text.count == 8 ? value >> 8 : value)
   }
 
   init(hue: Double, saturation: Double, lightness: Double) {
@@ -159,6 +159,7 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
   let isNeutral: Bool
   let theme: [LookRGB]
   let darkTheme: [LookRGB]?
+  let custom: SyncedTheme?
   let isAlwaysDark: Bool
 
   public static let plum = ProfileLook(preset: .plum)
@@ -173,13 +174,14 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
     isAlwaysDark: true
   )
 
-  init(swatch: LookRGB, tint: LookRGB, action: LookRGB, isNeutral: Bool, theme: [LookRGB], darkTheme: [LookRGB]?, isAlwaysDark: Bool = false) {
+  init(swatch: LookRGB, tint: LookRGB, action: LookRGB, isNeutral: Bool, theme: [LookRGB], darkTheme: [LookRGB]?, custom: SyncedTheme? = nil, isAlwaysDark: Bool = false) {
     self.swatch = swatch
     self.tint = tint
     self.action = action
     self.isNeutral = isNeutral
     self.theme = theme
     self.darkTheme = darkTheme
+    self.custom = custom
     self.isAlwaysDark = isAlwaysDark
   }
 
@@ -211,12 +213,31 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
       action: middle.lightened(by: 0.12),
       isNeutral: isNeutral,
       theme: theme,
-      darkTheme: darkTheme
+      darkTheme: darkTheme,
+      custom: theme.count >= 2 ? SyncedTheme(colors: themeColors, darkColors: darkThemeColors) : nil
     )
   }
 
   public init(profile: SyncedProfile?) {
-    self.init(colorName: profile?.color, themeColors: profile?.theme?.colors ?? [], darkThemeColors: profile?.theme?.darkColors)
+    self.init(color: profile?.color, theme: profile?.theme)
+  }
+
+  public init(color: String?, theme: SyncedTheme?) {
+    guard let theme, let light = theme.light, !light.stops.isEmpty else {
+      self.init(colorName: color, themeColors: theme?.colors ?? [], darkThemeColors: theme?.darkColors)
+      return
+    }
+    let swatch = light.accent.snapped
+    let isNeutral = swatch.hsl.saturation < 0.12
+    self.init(
+      swatch: swatch,
+      tint: Self.tint(forHueOf: swatch, grey: isNeutral),
+      action: swatch.lightened(by: 0.12),
+      isNeutral: isNeutral,
+      theme: light.stops.map(\.rgb.snapped),
+      darkTheme: theme.dark.map { $0.stops.map(\.rgb.snapped) },
+      custom: theme
+    )
   }
 
   static func tint(forHueOf swatch: LookRGB, grey: Bool) -> LookRGB {
@@ -234,7 +255,7 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
   public var surfaceLow: Color { surface(at: 1) }
 
   private func surface(at index: Int) -> Color {
-    Color.adaptive(light: backdropStops(dark: false, themed: false)[index].color, dark: backdropStops(dark: true, themed: false)[index].color)
+    Color.adaptive(light: backdropStops(dark: false, themed: true)[index].color, dark: backdropStops(dark: true, themed: true)[index].color)
   }
 
   func themeStops(dark: Bool) -> [LookRGB] {
@@ -250,15 +271,27 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
   }
 
   public func showsTheme(dark: Bool, themed: Bool) -> Bool {
-    themed && themeStops(dark: dark).count >= 2
+    themed && custom != nil
+  }
+
+  public func backdrop(dark: Bool, themed: Bool = true, followsAppearance: Bool = true) -> LookBackdrop {
+    if themed, let shown = custom?.shown(appDark: dark, followsAppearance: followsAppearance) {
+      return LookBackdrop(fill: .theme(shown.look, dark: shown.dark), isDark: shown.dark)
+    }
+    let tintDark = dark || isAlwaysDark
+    return LookBackdrop(fill: .tint(windowTintStops(dark: tintDark)), isDark: tintDark)
   }
 
   func backdropStops(dark: Bool, themed: Bool) -> [LookRGB] {
-    showsTheme(dark: dark, themed: themed) ? themeStops(dark: dark) : windowTintStops(dark: dark || isAlwaysDark)
+    switch backdrop(dark: dark, themed: themed).fill {
+    case .tint(let stops): stops
+    case .theme(let look, let shownDark): look.opaqueTint(dark: shownDark).map(\.snapped)
+    }
   }
 
-  public func inkIsLight(dark: Bool, themed: Bool) -> Bool {
-    let stops = backdropStops(dark: dark, themed: themed)
+  public func inkIsLight(dark: Bool, themed: Bool = true) -> Bool {
+    let backdrop = backdrop(dark: dark, themed: themed)
+    guard case .tint(let stops) = backdrop.fill else { return backdrop.isDark }
     let onWhite = stops.map { $0.contrast(with: LookRGB(hex: 0xFFFFFF)) }.min() ?? 1
     let onBlack = stops.map { $0.contrast(with: LookRGB(hex: 0x000000)) }.min() ?? 1
     return onWhite >= onBlack
@@ -296,6 +329,16 @@ public struct ProfileLook: Equatable, Hashable, Sendable {
   public func backdropColors(dark: Bool, themed: Bool) -> [Color] { backdropStops(dark: dark, themed: themed).map(\.color) }
   public func deckBase(dark: Bool) -> [Color] { deckBaseStops(dark: dark).map(\.color) }
   public func deckBlobs(dark: Bool) -> [Color] { deckBlobStops(dark: dark).map(\.color) }
+}
+
+public struct LookBackdrop: Equatable, Sendable {
+  enum Fill: Equatable, Sendable {
+    case tint([LookRGB])
+    case theme(SyncedTheme.Look, dark: Bool)
+  }
+
+  let fill: Fill
+  public let isDark: Bool
 }
 
 public extension EnvironmentValues {

@@ -21,7 +21,7 @@ extension AppModel {
   func announceDownload(_ outcome: DownloadOutcome) {
     switch outcome {
     case .finished(let file):
-      toasts.show(.downloaded(file.lastPathComponent) { [weak self] in self?.web.shareRequest = file })
+      toasts.show(.downloaded(file.lastPathComponent) { [weak self] in self?.openLibrary(.downloads) })
     case .failed(let fileName):
       toasts.show(.downloadFailed(fileName))
     }
@@ -49,19 +49,8 @@ extension AppModel {
   }
 
   func toggleDesktopSite(for page: WebTab) {
-    guard let webView = page.webView else { return }
-    let wantsDesktop = !browse.desktopTabs.contains(page.id)
-    if wantsDesktop {
-      browse.desktopTabs.insert(page.id)
-      webView.customUserAgent = Self.desktopUserAgent
-    } else {
-      browse.desktopTabs.remove(page.id)
-      webView.customUserAgent = nil
-    }
-    page.reload()
+    page.setSiteVersionOverride(page.siteVersionOverride == .desktop ? nil : .desktop)
   }
-
-  static let desktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15"
 
   func translate(_ page: WebTab) {
     guard let url = page.url, var components = URLComponents(string: "https://translate.google.com/translate") else { return }

@@ -5,12 +5,14 @@ import Synchronization
 
 public struct LocalBrowsing: Sendable {
   public var deviceName: String
+  public var deviceKind: SyncedDevice.Kind
   public var tabs: [LocalTabRecord]?
   public var visits: [LocalVisitRecord]?
   public var fetchedDue: Set<String>
 
-  public init(deviceName: String, tabs: [LocalTabRecord]?, visits: [LocalVisitRecord]?, fetchedDue: Set<String> = []) {
+  public init(deviceName: String, deviceKind: SyncedDevice.Kind = .phone, tabs: [LocalTabRecord]?, visits: [LocalVisitRecord]?, fetchedDue: Set<String> = []) {
     self.deviceName = deviceName
+    self.deviceKind = deviceKind
     self.tabs = tabs
     self.visits = visits
     self.fetchedDue = fetchedDue
@@ -141,6 +143,7 @@ public actor SyncEngine {
     try load()
     let input = CycleInput(
       name: local.deviceName,
+      kind: local.deviceKind == .tablet ? "tablet" : "phone",
       now: now().millisecondsSince1970,
       retiring: retiring,
       tabs: local.tabs?.map { .init(u: $0.url, t: $0.title, at: $0.lastActive.millisecondsSince1970, p: $0.profileSyncId) },
@@ -351,6 +354,7 @@ private struct CycleInput: Encodable {
   }
 
   var name: String
+  var kind: String
   var now: Double
   var retiring: Bool
   var tabs: [Tab]?

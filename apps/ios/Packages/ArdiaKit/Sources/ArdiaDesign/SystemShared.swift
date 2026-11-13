@@ -107,6 +107,7 @@ public struct SystemDevice: Codable, Equatable, Hashable, Identifiable, Sendable
     switch kind {
     case .mac: name.localizedCaseInsensitiveContains("imac") ? "desktopcomputer" : "laptopcomputer"
     case .phone: "iphone"
+    case .tablet: "ipad"
     }
   }
 }
@@ -134,6 +135,7 @@ public struct SystemSnapshot: Codable, Equatable, Sendable {
   public var gradient: [String]
   public var darkGradient: [String]?
   public var color: String?
+  public var theme: SyncedTheme?
 
   public init(
     isSyncEnabled: Bool = false,
@@ -141,7 +143,8 @@ public struct SystemSnapshot: Codable, Equatable, Sendable {
     sendTargets: [SystemDevice] = [],
     gradient: [String] = [],
     darkGradient: [String]? = nil,
-    color: String? = nil
+    color: String? = nil,
+    theme: SyncedTheme? = nil
   ) {
     version = Self.currentVersion
     self.isSyncEnabled = isSyncEnabled
@@ -149,11 +152,13 @@ public struct SystemSnapshot: Codable, Equatable, Sendable {
     self.sendTargets = sendTargets
     self.gradient = gradient
     self.darkGradient = darkGradient
+    self.theme = theme
     self.color = color
   }
 
   public var look: ProfileLook {
-    ProfileLook(colorName: color, themeColors: gradient, darkThemeColors: darkGradient)
+    guard let theme else { return ProfileLook(colorName: color, themeColors: gradient, darkThemeColors: darkGradient) }
+    return ProfileLook(color: color, theme: theme)
   }
 
   public static let empty = SystemSnapshot()

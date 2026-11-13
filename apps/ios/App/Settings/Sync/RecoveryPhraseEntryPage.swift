@@ -16,7 +16,7 @@ struct RecoveryPhraseEntryPage: View {
       Section {
         TextField("Enter your 24-word recovery phrase", text: $draft, axis: .vertical)
           .lineLimit(5...10)
-          .font(.body.monospaced())
+          .font(Typography.body.monospaced())
           .textInputAutocapitalization(.never)
           .autocorrectionDisabled()
           .keyboardType(.asciiCapable)
@@ -59,6 +59,7 @@ struct RecoveryPhraseEntryPage: View {
         }
       }
     }
+    .settingsChrome()
     .navigationTitle("Enter Words")
     .navigationBarTitleDisplayMode(.inline)
     .scrollDismissesKeyboard(.interactively)

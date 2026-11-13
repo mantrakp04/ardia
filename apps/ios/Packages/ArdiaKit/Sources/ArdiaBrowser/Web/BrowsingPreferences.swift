@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 import WebKit
 
 public enum NightShadeMode: String, Codable, Sendable, CaseIterable, Identifiable {
@@ -52,14 +53,16 @@ public struct SiteSettings: Codable, Equatable, Sendable {
   public var pageZoom: Double?
   public var nightShade: NightShadeMode?
   public var appLinks: AppLinkPreference?
+  public var permissions: Set<SitePermission>?
 
-  public init(pageZoom: Double? = nil, nightShade: NightShadeMode? = nil, appLinks: AppLinkPreference? = nil) {
+  public init(pageZoom: Double? = nil, nightShade: NightShadeMode? = nil, appLinks: AppLinkPreference? = nil, permissions: Set<SitePermission>? = nil) {
     self.pageZoom = pageZoom
     self.nightShade = nightShade
     self.appLinks = appLinks
+    self.permissions = permissions
   }
 
-  var isEmpty: Bool { pageZoom == nil && nightShade == nil && appLinks == nil }
+  var isEmpty: Bool { pageZoom == nil && nightShade == nil && appLinks == nil && permissions == nil }
 }
 
 @MainActor
@@ -128,6 +131,30 @@ public final class BrowsingPreferences {
     settings(for: host, isPrivate: isPrivate).appLinks ?? appLinks
   }
 
+  public var permissionGrants: [SitePermissionGrant] {
+    sites
+      .compactMap { host, settings in
+        guard let permissions = settings.permissions, !permissions.isEmpty else { return nil }
+        return SitePermissionGrant(host: host, permissions: permissions.sorted())
+      }
+      .sorted { $0.host.localizedStandardCompare($1.host) == .orderedAscending }
+  }
+
+  public func isGranted(_ permissions: Set<SitePermission>, host: String) -> Bool {
+    permissions.isSubset(of: sites[BlockingSettings.normalize(host)]?.permissions ?? [])
+  }
+
+  public func grant(_ permissions: Set<SitePermission>, host: String) {
+    update(host) { $0.permissions = ($0.permissions ?? []).union(permissions) }
+  }
+
+  public func revoke(_ permissions: Set<SitePermission>, host: String) {
+    update(host) { settings in
+      let left = (settings.permissions ?? []).subtracting(permissions)
+      settings.permissions = left.isEmpty ? nil : left
+    }
+  }
+
   public func endPrivateBrowsing() {
     let hadNightShade = privateSites.values.contains { $0.nightShade != nil }
     privateSites.removeAll()
@@ -151,7 +178,9 @@ public final class BrowsingPreferences {
     change(&value)
     guard value != before else { return }
     if value.isEmpty { sites[key] = nil } else { sites[key] = value }
-    if sites.count > Self.siteLimit, let drop = sites.keys.first(where: { $0 != key }) { sites[drop] = nil }
+    if sites.count > Self.siteLimit, let drop = sites.keys.first(where: { $0 != key && sites[$0]?.permissions == nil }) ?? sites.keys.first(where: { $0 != key }) {
+      sites[drop] = nil
+    }
     if let data = try? JSONEncoder().encode(sites) { defaults.set(data, forKey: Self.keys.sites) }
     if before.nightShade != value.nightShade { onNightShadeChange?() }
   }
@@ -180,10 +209,34 @@ public enum BrowsingDataCleaner {
     var types: Set<String> = []
     if kinds.contains(.cache) { types.formUnion(cacheTypes) }
     if kinds.contains(.cookiesAndSiteData) { types.formUnion(WKWebsiteDataStore.allWebsiteDataTypes().subtracting(cacheTypes)) }
-    if kinds.contains(.history) { tabs.clearHistory(since: date) }
+    if kinds.contains(.history) {
+      do {
+        try HistoryEraser.erase(since: date, at: tabs.now(), in: tabs.context)
+      } catch {
+        Logger(subsystem: "com.ardia.browser.ios", category: "history").error("Couldn't clear history: \(error.localizedDescription, privacy: .public)")
+        tabs.clearHistory(since: date)
+      }
+    }
     if kinds.contains(.cache) { URLCache.shared.removeAllCachedResponses() }
     guard !types.isEmpty else { return }
     await store.removeData(ofTypes: types, modifiedSince: date ?? .distantPast)
+    await clearLeftoverStores(ofTypes: types, since: date, removing: date == nil && kinds.isSuperset(of: [.cache, .cookiesAndSiteData]))
+  }
+
+  @MainActor
+  static func clearLeftoverStores(ofTypes types: Set<String>, since date: Date?, removing: Bool) async {
+    let identifiers = await WKWebsiteDataStore.allDataStoreIdentifiers
+    for identifier in identifiers {
+      await WKWebsiteDataStore(forIdentifier: identifier).removeData(ofTypes: types, modifiedSince: date ?? .distantPast)
+    }
+    guard removing else { return }
+    for identifier in identifiers {
+      do {
+        try await WKWebsiteDataStore.remove(forIdentifier: identifier)
+      } catch {
+        Logger(subsystem: "com.ardia.browser.ios", category: "browsingData").error("Couldn’t remove a leftover website data store: \(error.localizedDescription, privacy: .public)")
+      }
+    }
   }
 }
 

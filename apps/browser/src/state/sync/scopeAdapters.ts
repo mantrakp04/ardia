@@ -29,6 +29,9 @@ export function extensionsOf(profileId: string): ExtensionsAdapter {
   return adapter;
 }
 
+const syncedProfileOrder = (links: Record<string, { syncId: string }>) =>
+  useBrowser.getState().profileOrder.flatMap((id) => (links[id] ? [links[id].syncId] : []));
+
 export function appAdapters(doc: SyncDoc, retiring: boolean): Adapter[] {
   const id = doc.deviceId!;
   if (retiring) return [deviceAdapter(id, deviceName, true)];
@@ -39,7 +42,7 @@ export function appAdapters(doc: SyncDoc, retiring: boolean): Adapter[] {
     profilesAdapter(enabledLinks),
     profileThemesAdapter(enabledLinks, () => doc.scopes[APP_SCOPE]?.records),
     profileTopAppsAdapter(enabledLinks),
-    deviceAdapter(id, deviceName),
+    deviceAdapter(id, deviceName, false, () => syncedProfileOrder(enabledLinks())),
   ];
 }
 

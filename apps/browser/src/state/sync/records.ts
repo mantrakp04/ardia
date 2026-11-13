@@ -4,8 +4,8 @@ import { isFields, isNumber, isString, type Fields } from "../../lib/decode";
 
 export type { BookmarkValue, DeviceTabs, HistoryValue, SendRecord };
 export type ShareRecord = { o: string };
-export type DeviceKind = "mac" | "phone";
-export type DeviceRecord = { n: string; k?: string; f?: string[] };
+export type DeviceKind = "mac" | "phone" | "tablet";
+export type DeviceRecord = { n: string; k?: string; f?: string[]; o?: string[] };
 export type PasswordValue = { o: string; u: string; s: string };
 export type TopAppsRecord = { on: boolean };
 

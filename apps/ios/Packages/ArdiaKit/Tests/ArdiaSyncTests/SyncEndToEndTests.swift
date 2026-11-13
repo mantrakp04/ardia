@@ -233,6 +233,43 @@ import Testing
     await relaunched.stopSyncing()
   }
 
+  @Test func anIPadSaysItIsATabletAndGetsTheMacsLooksAndOrder() async throws {
+    let sandbox = try Sandbox()
+    defer { sandbox.remove() }
+    let entropy = RecoveryPhrase.generateEntropy()
+    let mac = try seededMac(sandbox, entropy: entropy)
+    let work = "work000000000000000000000000"
+    try mac.put("app", "prof:\(work)", #"{"n":"Work","c":"green","i":"symbol:briefcase.fill"}"#)
+    try mac.put("app", "pth:\(work)", #"{"t":{"stops":[{"color":{"r":0.3,"g":0.75,"b":0.45,"a":1},"x":0.2,"y":0.3},{"color":{"r":0.85,"g":0.3,"b":0.65,"a":0.5},"x":0.8,"y":0.7}],"intensity":0.8,"grain":0.4,"texture":"sand","translucency":0.5,"mode":"light"}}"#)
+    try mac.put("app", "pth:\(work):angle", #"{"a":200}"#)
+    try mac.put("app", "dev:\(mac.device)", #"{"n":"MacBook Pro","k":"mac","f":["send"],"o":["\#(work)","\#(Self.profile)"]}"#)
+    try mac.put("app", "set:interfaceStyle", #"{"v":"classic"}"#)
+    try mac.sync(["app"])
+    let service = SyncService(directory: sandbox.state, keyStore: FileKeyStore(directory: sandbox.keys), deviceKind: .tablet)
+    let source = FakeSource()
+    service.source = source
+    #expect(await service.connect(phrase: RecoveryPhrase.words(for: entropy).joined(separator: " "), folder: sandbox.root) == .connected)
+    await service.syncNow()
+    #expect(service.snapshot.profiles.map(\.name) == ["Work", "Personal"])
+    let theme = try #require(service.snapshot.profiles.first?.theme)
+    #expect(theme.mode == .light)
+    #expect(theme.light?.angle == 200)
+    #expect(theme.light?.texture == .sand)
+    #expect(theme.light?.stops.map(\.alpha) == [1, 0.5])
+    #expect(theme.colors == ["#4DBF73", "#D94DA680"])
+    #expect(service.snapshot.profiles.first?.badge == .symbol("briefcase.fill"))
+    #expect(service.snapshot.profiles.last?.badge == .initial("P"))
+    #expect(service.snapshot.lookSettings?.interfaceStyle == .classic)
+    #expect(service.snapshot.lookSettings?.appearance == .dark)
+    let me = try #require(service.snapshot.devices.first { $0.isCurrent })
+    #expect(me.kind == .tablet)
+    try mac.sync(["app", Self.scope])
+    #expect((try mac.store("app")["dev:\(me.id)"] as? [String: Any])?["k"] as? String == "tablet")
+    #expect((try mac.store(Self.scope)["tabs:\(me.id)"] as? [String: Any])?["k"] as? String == "tablet")
+    #expect((try mac.store("app")["dev:\(mac.device)"] as? [String: Any])?["o"] as? [String] == [work, Self.profile])
+    await service.stopSyncing()
+  }
+
   @Test func waitingTextCountsFiles() {
     #expect(SyncService.waitingForDownloads(1) == "Waiting for 1 file to download")
     #expect(SyncService.waitingForDownloads(3) == "Waiting for 3 files to download")

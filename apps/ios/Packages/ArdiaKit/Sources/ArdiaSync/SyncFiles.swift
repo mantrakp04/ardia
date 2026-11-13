@@ -14,7 +14,7 @@ struct SyncMeta: Codable, Equatable, Sendable {
   var visitsSyncedThrough: Date?
   var chainSeen = false
 
-  static let defaultDeviceName = "iPhone"
+  static var defaultDeviceName: String { ThisDevice.current.defaultName }
 }
 
 struct SyncJournal: Codable, Equatable, Sendable {
@@ -80,8 +80,11 @@ struct SyncFiles: Sendable {
   static let snapshotFile = "snapshot"
   static let localScope = "local"
 
-  func loadMeta() -> SyncMeta {
-    guard let data = try? Data(contentsOf: metaURL), let meta = try? JSONDecoder().decode(SyncMeta.self, from: data) else { return SyncMeta() }
+  func loadMeta(for device: ThisDevice = .current) -> SyncMeta {
+    guard let data = try? Data(contentsOf: metaURL), var meta = try? JSONDecoder().decode(SyncMeta.self, from: data) else {
+      return SyncMeta(deviceName: device.defaultName)
+    }
+    if device.isOtherKindsDefault(meta.deviceName) { meta.deviceName = device.defaultName }
     return meta
   }
 

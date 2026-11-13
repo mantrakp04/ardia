@@ -62,7 +62,8 @@ final class WidgetExporter {
       sendTargets: targets,
       gradient: choice == nil ? profile.theme?.colors ?? [] : [],
       darkGradient: choice == nil ? profile.theme?.darkColors : nil,
-      color: choice ?? profile.color
+      color: choice ?? profile.color,
+      theme: choice == nil ? profile.theme : nil
     )
   }
 

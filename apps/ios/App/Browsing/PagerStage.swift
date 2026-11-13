@@ -42,11 +42,13 @@ struct PagerCard: View {
   let shadowEdge: Int
 
   @Environment(AppModel.self) private var app
+  @Environment(\.windowCornerRadii) private var corners
 
   private static let shadowWidth: CGFloat = 36
+  private static let shadowInsetShare: CGFloat = 0.6
 
   var body: some View {
-    let shape = RoundedRectangle(cornerRadius: TabsLayout.displayCornerRadius, style: .continuous)
+    let shape = UnevenRoundedRectangle(cornerRadii: corners, style: .continuous)
     PagerSnapshot(tab: tab, preloaded: image)
       .overlay(alignment: .top) { statusTone }
       .frame(width: size.width, height: size.height)
@@ -74,7 +76,7 @@ struct PagerCard: View {
         endPoint: shadowEdge < 0 ? .trailing : .leading
       )
       .frame(width: Self.shadowWidth)
-      .padding(.vertical, TabsLayout.displayCornerRadius * 0.6)
+      .padding(.vertical, corners.largest * Self.shadowInsetShare)
       .offset(x: CGFloat(shadowEdge) * Self.shadowWidth)
       .opacity(pose.shadow)
     }

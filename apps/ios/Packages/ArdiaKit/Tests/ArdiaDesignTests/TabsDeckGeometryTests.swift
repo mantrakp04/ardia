@@ -11,7 +11,7 @@ struct TabsDeckGeometryTests {
     #expect(abs(proMax.leading(at: 0) - 66) < 0.5)
     #expect(abs(proMax.leading(at: 1) - 284) < 0.5)
     #expect(abs(geometry.leading(at: -1) - 6) < 0.5)
-    #expect(abs(geometry.barCenterY - 812) < 0.5)
+    #expect(abs(geometry.barCenterY - (852 - 22 - BarMetrics.pieceHeight / 2)) < 0.5)
   }
 
   @Test func `the next card overlaps the focused one`() {
@@ -71,5 +71,59 @@ struct TabsDeckGeometryTests {
     let bottom = landscape.cardCenterY + landscape.cardSize.height / 2
     #expect(top >= TabsDeckGeometry.headerHeight)
     #expect(bottom < landscape.barCenterY - 20)
+  }
+
+  @Test func `portrait phones and the closed Duo get the strip, landscape and wide windows the grid`() {
+    #expect(DeckStyle.style(for: CGSize(width: 402, height: 874)) == .strip)
+    #expect(DeckStyle.style(for: CGSize(width: 466, height: 678)) == .strip)
+    #expect(DeckStyle.style(for: CGSize(width: 874, height: 402)) == .grid)
+    #expect(DeckStyle.style(for: CGSize(width: 678, height: 466)) == .grid)
+    #expect(DeckStyle.style(for: CGSize(width: 669, height: 951)) == .grid)
+    #expect(DeckStyle.style(for: CGSize(width: 599, height: 951)) == .strip)
+  }
+
+  @Test func `grid cards stay between the min and max width and fill the row`() {
+    for (width, height) in [(874.0, 402.0), (678.0, 466.0), (669.0, 951.0), (1032.0, 1376.0), (600.0, 900.0)] {
+      let grid = DeckGridMetrics(width: width, height: height)
+      #expect(grid.columns >= 2)
+      #expect(grid.cardSize.width >= DeckGridMetrics.minCardWidth - 0.5, "\(width)")
+      #expect(grid.cardSize.width <= DeckGridMetrics.maxCardWidth + 0.5, "\(width)")
+      let used = grid.cardSize.width * CGFloat(grid.columns) + DeckGridMetrics.gap * CGFloat(grid.columns - 1)
+      #expect(abs(used + grid.sideInset * 2 - width) < 2, "\(width)")
+    }
+  }
+
+  @Test func `a landscape phone row fits between the header and the bar`() {
+    let grid = DeckGridMetrics(width: 874, height: 250)
+    #expect(grid.columns == 4)
+    #expect(grid.cardSize.height + DeckGridMetrics.headerHeight <= 250)
+    #expect(grid.cardSize.height < grid.cardSize.width * DeckGridMetrics.portraitAspect)
+    let tall = DeckGridMetrics(width: 669, height: 800)
+    #expect(abs(tall.cardSize.height - (tall.cardSize.width * DeckGridMetrics.portraitAspect).rounded(.down)) < 1)
+  }
+
+  @Test func `the expanding card starts from the window's real corner`() {
+    let pro = TabsDeckGeometry(container: CGSize(width: 402, height: 874), safeTop: 62, safeBottom: 34, windowCorner: 62)
+    #expect(pro.windowCorner == 62)
+    let headed = TabsDeckGeometry(container: CGSize(width: 402, height: 874), safeTop: 62, safeBottom: 34, topInset: 52)
+    let plain = TabsDeckGeometry(container: CGSize(width: 402, height: 874), safeTop: 62, safeBottom: 34)
+    #expect(headed.cardCenterY > plain.cardCenterY)
+    #expect(headed.cardCenterY + headed.cardSize.height / 2 < headed.barCenterY - 20)
+  }
+
+  @Test func `card titles start a full gap below the deck's header and banner`() {
+    let chrome = TabsLayout.deckChromeTop + TabsLayout.deckHeaderHeight + TabsLayout.deckChromeGap + TabsLayout.bannerHeight
+    let geometry = TabsDeckGeometry(container: CGSize(width: 402, height: 874), safeTop: 62, safeBottom: 34, topInset: chrome + TabsLayout.deckChromeToCards)
+    #expect(geometry.cardTitleTop - (62 + chrome) >= TabsLayout.deckChromeToCards - 0.5)
+    let plain = TabsDeckGeometry(container: CGSize(width: 393, height: 852), safeTop: 59, safeBottom: 34)
+    #expect(plain.cardTitleTop >= 59 + TabsDeckGeometry.topReserve - TabsLayout.headerGap - 0.5)
+  }
+
+  @Test func `four pinned tiles split two and two in the sidebar and stay one row on the phone`() {
+    let sidebar = SidebarMetrics.pinGrid(count: 4, innerWidth: SidebarMetrics.defaultWidth - SidebarMetrics.sideInset * 2, balanced: true)
+    #expect(sidebar.columns == 2)
+    let phone = SidebarMetrics.pinGrid(count: 4, innerWidth: 360, balanced: true)
+    #expect(phone.columns == 4)
+    #expect(SidebarMetrics.pinGrid(count: 5, innerWidth: 360, balanced: true).columns == 3)
   }
 }

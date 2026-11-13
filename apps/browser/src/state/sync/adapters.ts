@@ -46,11 +46,12 @@ export function sharedDataAdapter(links: () => Record<string, ShareLink>): Adapt
   };
 }
 
-export function deviceAdapter(deviceId: string, name: () => string, retired = false): Adapter {
+export function deviceAdapter(deviceId: string, name: () => string, retired = false, spaceOrder: () => string[] = () => []): Adapter {
+  const recordOf = (order: string[]): DeviceRecord => ({ n: name(), k: "mac", f: [RECEIVES_TABS], ...(order.length ? { o: order } : {}) });
   return {
     prefix: DEVICE,
     extract: () => ({
-      values: retired ? new Map() : new Map([[`${DEVICE}${deviceId}`, { n: name(), k: "mac", f: [RECEIVES_TABS] } satisfies DeviceRecord]]),
+      values: retired ? new Map() : new Map([[`${DEVICE}${deviceId}`, recordOf(spaceOrder())]]),
       ignore: (key) => key !== `${DEVICE}${deviceId}`,
     }),
     apply: () => true,

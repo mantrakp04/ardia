@@ -11,7 +11,6 @@ struct SearchTray<Drag: Gesture>: View {
   @Environment(AppModel.self) private var app
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.profileLook) private var look
   @State private var model: SearchSuggestionsModel?
@@ -40,11 +39,8 @@ struct SearchTray<Drag: Gesture>: View {
         .clipped()
     }
     .frame(maxWidth: .infinity)
-    .background(alignment: .top) {
-      panelBackground
-        .padding(.bottom, -BrowseLayout.sheetTopRadius * 12)
-        .ignoresSafeArea(edges: .horizontal)
-    }
+    .glassPanel(.rounded)
+    .environment(\.profileLook, isIncognito ? .incognito : look)
     .environment(\.colorScheme, isIncognito ? .dark : colorScheme)
     .onAppear(perform: start)
     .onDisappear { model?.cancel() }
@@ -62,30 +58,17 @@ struct SearchTray<Drag: Gesture>: View {
 
   private var header: some View {
     field
-      .padding(.horizontal, BrowseLayout.searchFieldInset)
-      .padding(.top, BrowseLayout.trayFieldTop)
-      .padding(.bottom, Spacing.tight)
+      .padding(.horizontal, TrayMetrics.contentInset)
+      .padding(.top, TrayMetrics.contentInset)
+      .padding(.bottom, TrayMetrics.contentInset)
       .frame(maxWidth: .infinity)
       .contentShape(.rect)
       .highPriorityGesture(dismissDrag)
       .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
   }
 
-  private var panelBackground: some View {
-    let shape = UnevenRoundedRectangle(topLeadingRadius: BrowseLayout.sheetTopRadius, topTrailingRadius: BrowseLayout.sheetTopRadius, style: .continuous)
-    return shape
-      .fill(isIncognito || reduceTransparency ? AnyShapeStyle(.clear) : AnyShapeStyle(.regularMaterial))
-      .overlay { shape.fill(panelTint) }
-      .shadow(color: .black.opacity(0.14), radius: 24, y: -4)
-  }
-
-  private var panelTint: Color {
-    if isIncognito { return BrowsePalette.incognitoSheet }
-    return reduceTransparency ? look.surface : look.surface.opacity(BrowseLayout.sheetTintShare)
-  }
-
   private var field: some View {
-    HStack(spacing: Spacing.tight) {
+    HStack(spacing: TrayMetrics.fieldGap) {
       OmniboxTextField(
         text: $text,
         isFocused: $isFocused,
@@ -101,7 +84,7 @@ struct SearchTray<Drag: Gesture>: View {
         if text.isEmpty, !isFocused {
           Text("Search...")
             .font(.system(size: placeholderSize))
-            .foregroundStyle(isIncognito ? Color.white.opacity(0.45) : BrowsePalette.foregroundTertiary)
+            .foregroundStyle(Tokens.Role.placeholder)
             .lineLimit(1)
             .padding(.leading, CompletingTextField.horizontalInset)
             .allowsHitTesting(false)
@@ -113,15 +96,15 @@ struct SearchTray<Drag: Gesture>: View {
         .fixedSize()
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
-    .padding(.leading, 18)
-    .padding(.trailing, 10)
+    .padding(.leading, TrayMetrics.fieldLeading)
+    .padding(.trailing, TrayMetrics.fieldTrailing)
     .frame(minHeight: fieldHeight)
     .background {
       Capsule(style: .continuous)
-        .fill(isIncognito ? BrowsePalette.incognitoField : BrowsePalette.fieldFill)
+        .fill(Tokens.Role.field)
         .overlay {
           Capsule(style: .continuous)
-            .strokeBorder(isIncognito ? Color.white.opacity(0.1) : BrowsePalette.fieldStroke, lineWidth: 1)
+            .strokeBorder(Tokens.Role.fieldBorder, lineWidth: Tokens.Hairline.ring)
         }
     }
   }
@@ -133,9 +116,9 @@ struct SearchTray<Drag: Gesture>: View {
         text = ""
       } label: {
         Image(systemName: "xmark.circle.fill")
-          .font(.body)
-          .foregroundStyle(isIncognito ? BrowsePalette.incognitoCaption : BrowsePalette.foregroundTertiary)
-          .frame(width: 32, height: 40)
+          .font(Typography.body)
+          .foregroundStyle(Tokens.Role.textTertiary)
+          .frame(width: TrayMetrics.accessorySize.width, height: TrayMetrics.accessorySize.height)
           .contentShape(.rect)
       }
       .buttonStyle(.plain)
@@ -145,9 +128,9 @@ struct SearchTray<Drag: Gesture>: View {
         app.browse.isVoicePresented = true
       } label: {
         Image(systemName: "mic")
-          .font(.body.weight(.medium))
-          .foregroundStyle(BrowsePalette.foregroundTertiary)
-          .frame(width: 32, height: 40)
+          .font(Typography.body.weight(Tokens.Weight.medium))
+          .foregroundStyle(Tokens.Role.textTertiary)
+          .frame(width: TrayMetrics.accessorySize.width, height: TrayMetrics.accessorySize.height)
           .contentShape(.rect)
       }
       .buttonStyle(.plain)
@@ -163,10 +146,10 @@ struct SearchTray<Drag: Gesture>: View {
     let rows = model?.rows ?? []
     if isIncognito, text.isEmpty {
       Text("You’re browsing Incognito")
-        .font(.title3.weight(.semibold))
-        .foregroundStyle(BrowsePalette.incognitoCaption)
+        .font(Typography.title)
+        .foregroundStyle(Tokens.Role.textSecondary)
         .multilineTextAlignment(.center)
-        .padding(.horizontal, Spacing.large)
+        .padding(.horizontal, Tokens.Space.xxxl)
         .frame(maxWidth: .infinity)
         .frame(height: rowsBudget)
         .contentShape(.rect)
@@ -206,7 +189,7 @@ struct SearchTray<Drag: Gesture>: View {
     VStack(alignment: .leading, spacing: 0) {
       rowStack(rows)
     }
-    .padding(.bottom, Spacing.tight)
+    .padding(.bottom, TrayMetrics.contentInset)
     .fixedSize(horizontal: false, vertical: true)
     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { naturalRowsHeight = $0 }
   }
@@ -236,7 +219,7 @@ struct SearchTray<Drag: Gesture>: View {
         .contextMenu { rowMenu(suggestion) }
       }
     }
-    .padding(.horizontal, Spacing.tight)
+    .padding(.horizontal, TrayMetrics.contentInset)
     .coordinateSpace(.named("rows"))
   }
 

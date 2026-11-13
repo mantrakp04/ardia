@@ -4,9 +4,11 @@ import { canonical } from "../canon.ts";
 import { Clock } from "../hlc.ts";
 import { compact, syncScope, visible } from "../scope.ts";
 import { emptyScope, type Adapter, type Listing, type LogFile, type ScopeState, type Transport } from "../scopeState.ts";
-import { companionAcknowledge, companionAddBookmark, companionRemoveBookmark, companionRemovalsDone, companionSend, runCompanionCycle, type CycleInput } from "./cycle.ts";
+import { companionAcknowledge, companionAddBookmark, companionRemoveBookmark, companionRemovalsDone, companionSend, companionView, runCompanionCycle, type CycleInput } from "./cycle.ts";
 import { companionLoad, type CompanionState, type Host } from "./state.ts";
+import { buildView } from "./view.ts";
 import type { LocalTab, LocalVisit } from "./adapters.ts";
+import { fromLegacy } from "./legacy.ts";
 
 const DAY = 86_400_000;
 const START = Date.UTC(2026, 9, 1);
@@ -220,8 +222,8 @@ const s3 = `p:${P3}`;
 function seedMac(mac: Mac) {
   mac.put("app", `dev:${MAC}`, { n: "MacBook Pro" });
   mac.put("app", `prof:${P1}`, { n: "Personal", c: "blue", i: null, d: true });
-  mac.put("app", `prof:${P2}`, { n: "Work", c: "green", i: "briefcase" });
-  mac.put("app", `prof:${P3}`, { n: "School", c: "pink", i: null });
+  mac.put("app", `prof:${P2}`, { n: "Work", c: "green", i: "symbol:briefcase.fill" });
+  mac.put("app", `prof:${P3}`, { n: "School", c: "pink", i: "🎓" });
   mac.put("app", `share:${P3}`, { o: P1 });
   mac.put("app", `pth:${P1}`, { t: { stops: [{ color: { r: 1, g: 0.5, b: 0, a: 1 }, x: 0, y: 0 }, { color: { r: 0, g: 0, b: 1, a: 0.5 }, x: 1, y: 1 }], intensity: 0.6, grain: 0, texture: "grain", translucency: 1, mode: "auto" } });
   mac.put("app", `pth:${P1}:angle`, { a: 45 });
@@ -233,7 +235,7 @@ function seedMac(mac: Mac) {
   mac.put(s1, `tabs:${MAC}`, { n: "MacBook Pro", tabs: [{ u: "https://news.example/", t: "News" }, { u: "https://mail.example/", t: "Mail" }] });
   mac.put(s1, "pin:t:t1", { g: null, u: "https://calendar.example/", t: null, i: null, ti: "Calendar", pos: "1" });
   mac.put(s1, "pin:t:t2", { g: null, u: "https://a.example/", t: "A", i: null, ti: "A page", pos: "2" });
-  mac.put(s1, "pin:t:t3", { g: null, u: "https://b.example/", t: null, i: "star", ti: "B page", pos: "3" });
+  mac.put(s1, "pin:t:t3", { g: null, u: "https://b.example/", t: null, i: "symbol:star.fill", ti: "B page", pos: "3" });
   mac.put(s1, "tilefold:t2", { f: "F" });
   mac.put(s1, "tilefold:t3", { f: "F" });
   mac.put(s1, "tilefold:n:F", { n: "Reading" });
@@ -303,14 +305,17 @@ const SEND_OLD = "send:66666666-6666-4666-8666-666666666666";
 const SEND_TO_PHONE = "send:77777777-7777-4777-8777-777777777777";
 
 function seedEveryKind(mac: Mac) {
-  mac.put("app", `dev:${MAC}`, { n: "MacBook Pro", k: "mac", f: ["send"] });
+  mac.put("app", `dev:${MAC}`, { n: "MacBook Pro", k: "mac", f: ["send"], o: [P2, P1, P3] });
   mac.put("app", `dev:${MAC2}`, { n: "Mac mini", k: "mac", f: ["send"] });
   mac.put("app", `dev:${OLD_MAC}`, { n: "iMac" });
-  mac.put("app", `prof:${P2}`, { n: "Work", c: "green", i: "briefcase", th: { stops: [], intensity: 0.2 } });
+  mac.put("app", `prof:${P2}`, { n: "Work", c: "green", i: "symbol:briefcase.fill", th: { stops: [], intensity: 0.2 } });
   mac.put("app", `pth:${P2}`, { preset: true });
   mac.put("app", `pth:${P3}`, { t: { stops: [{ color: { r: 0, g: 1, b: 0, a: 1 }, x: 0.5, y: 0.5 }], intensity: 1, grain: 0.3, texture: "paper", translucency: 0.5, mode: "light", dark: { stops: [], intensity: 0 } } });
   mac.put("app", `pth:${P3}:angle`, { a: 10, d: 200 });
   mac.put("app", "set:tabLayout", { v: "top" });
+  mac.put("app", "set:interfaceStyle", { v: "classic" });
+  mac.put("app", "set:glassTintAmount", { v: 0.4 });
+  mac.put("app", "set:pageFrame", { v: 6 });
   mac.put("app", "set:cleanUpInactiveTabsAfterMinutes", { v: 720 });
   mac.put("app", "set:windowStyle", { v: { glass: true, tint: [0.1, 0.2] } });
   mac.put("app", "set:retired", { v: true });
@@ -319,7 +324,7 @@ function seedEveryKind(mac: Mac) {
   mac.put(s1, `tabs:${MAC2}`, { n: "Mac mini", tabs: [{ u: "https://mini.example/", t: "Mini" }] });
   mac.put(s1, `tabs:${OLD_MAC}`, { n: "iMac", tabs: [] });
   mac.put(s1, "pin:t:gone", { g: null, u: "https://gone.example/", t: null, i: null, ti: "Gone", pos: "9" });
-  mac.put(s1, "pin:g:G2", { n: "Nested only", i: "folder", c: null, pos: "7" });
+  mac.put(s1, "pin:g:G2", { n: "Nested only", i: "symbol:folder.fill", c: null, pos: "7" });
   mac.put(s1, "pin:t:n1", { g: "G2", u: "https://n1.example/", t: null, i: null, ti: "Nested one", pos: "1" });
   mac.put(s1, "pinn:g:N2", { n: "Inner", i: null, c: null, p: "G2" });
   mac.put(s1, "pinn:t:n1", { g: "N2" });
@@ -668,8 +673,35 @@ test("the view orders pins, bookmarks, profiles and search as the Mac does", asy
     view.profiles.map((p) => [p.name, p.isDefault]),
     [["Personal", true], ["School", false], ["Work", false]],
   );
+  assert.deepEqual(view.profiles.map((p) => p.icon), [null, "🎓", "symbol:briefcase.fill"]);
   const personal = view.profiles[0]!;
-  assert.deepEqual(personal.theme, { colors: ["#FF8000", "#0000FF80"], darkColors: null });
+  assert.deepEqual(personal.theme, {
+    colors: ["#FF8000", "#0000FF80"],
+    darkColors: null,
+    mode: "auto",
+    light: {
+      stops: [
+        { r: 1, g: 0.5, b: 0, a: 1, x: 0, y: 0 },
+        { r: 0, g: 0, b: 1, a: 0.5, x: 1, y: 1 },
+      ],
+      intensity: 0.6,
+      grain: 0,
+      texture: "grain",
+      translucency: 1,
+      angle: 45,
+    },
+    dark: null,
+  });
+  assert.deepEqual(view.lookSettings, {
+    appearance: "dark",
+    interfaceStyle: null,
+    glassTintWithTheme: null,
+    glassTintAmount: null,
+    selectedTabGlow: null,
+    pageFrame: null,
+    sidebarSide: null,
+    profileSwitcherIcons: null,
+  });
   assert.deepEqual(
     personal.pinned.tiles.map((t) => [t.key, t.title, t.folder?.map((f) => f.title) ?? null]),
     [["t1", "Calendar", null], ["tilefold:F", "Reading", ["A", "B page"]]],
@@ -939,4 +971,251 @@ test("a phone that starts over under a new id deletes its old device and tabs re
   for (const scope of [s1, s2, s3]) assert.equal(mac.store[scope]!.has(`tabs:${PHONE}`), false);
   assert.ok(mac.store.app!.has(`dev:${fresh.id}`));
   assert.ok(mac.store[s1]!.has("bm:f1"));
+});
+
+test("a Mac theme reaches the view whole, read the way the Mac reads it", async () => {
+  const { folder, mac, phone } = await joined();
+  const stop = (r: number, g: number, b: number, a: number, x: unknown, y: unknown) => ({ color: { r, g, b, a }, x, y });
+  mac.put("app", `pth:${P2}`, {
+    t: {
+      stops: [stop(0.2, 0.4, 0.9, 1, 0.1, 0.9), { color: { r: "x", g: 0, b: 0 } }, stop(1.2, -0.1, 0.5, 0.8, 7, "far"), stop(0, 0, 0, 1, 0, 0), stop(1, 1, 1, 1, 1, 1)],
+      intensity: 2,
+      grain: 0.35,
+      texture: "tweed",
+      translucency: 0.25,
+      mode: "dark",
+      angle: 300,
+      dark: { stops: [stop(0.1, 0.1, 0.2, 1, 0.5, 0.5)], intensity: 0.3, grain: "lots", texture: "paper", translucency: -1, angle: 10 },
+    },
+  });
+  mac.put("app", `pth:${P2}:angle`, { a: -90, d: 725 });
+  mac.put("app", `pth:${P3}`, { t: { stops: [stop(0.5, 0.5, 0.5, 1, 0.5, 0.5)], angle: 90, dark: { stops: [stop(0.3, 0.3, 0.3, 1, 0.5, 0.5)], angle: 200 } } });
+  mac.put("app", `prof:${P3}`, { n: "School", c: "pink", i: "🎓", th: { stops: [stop(0.9, 0.1, 0.1, 1, 0.5, 0.5)] } });
+  await mac.sync();
+  folder.now += 1000;
+  const { view } = await phone.cycle();
+  const theme = (name: string) => view!.profiles.find((p) => p.name === name)!.theme;
+  assert.deepEqual(theme("Work"), {
+    colors: ["#3366E6", "#FF0080CC", "#000000"],
+    darkColors: ["#1A1A33"],
+    mode: "dark",
+    light: {
+      stops: [
+        { r: 0.2, g: 0.4, b: 0.9, a: 1, x: 0.1, y: 0.9 },
+        { r: 1.2, g: -0.1, b: 0.5, a: 0.8, x: 1, y: 0.5 },
+        { r: 0, g: 0, b: 0, a: 1, x: 0, y: 0 },
+      ],
+      intensity: 1,
+      grain: 0.35,
+      texture: "tweed",
+      translucency: 0.25,
+      angle: 270,
+    },
+    dark: { stops: [{ r: 0.1, g: 0.1, b: 0.2, a: 1, x: 0.5, y: 0.5 }], intensity: 0.3, grain: 0, texture: "grain", translucency: 0, angle: 5 },
+  });
+  assert.deepEqual(theme("School"), {
+    colors: ["#808080"],
+    darkColors: ["#4D4D4D"],
+    mode: "auto",
+    light: { stops: [{ r: 0.5, g: 0.5, b: 0.5, a: 1, x: 0.5, y: 0.5 }], intensity: 0.6, grain: 0, texture: "grain", translucency: 1, angle: 90 },
+    dark: { stops: [{ r: 0.3, g: 0.3, b: 0.3, a: 1, x: 0.5, y: 0.5 }], intensity: 0.6, grain: 0, texture: "grain", translucency: 1, angle: 200 },
+  });
+  mac.put("app", `pth:${P3}`, { preset: true });
+  mac.put("app", `pth:${P2}:angle`, ["not", "angles"]);
+  await mac.sync();
+  folder.now += 1000;
+  const later = (await phone.cycle()).view!;
+  assert.equal(later.profiles.find((p) => p.name === "School")!.theme, null);
+  const work = later.profiles.find((p) => p.name === "Work")!.theme!;
+  assert.deepEqual([work.light.angle, work.dark!.angle], [135, 135]);
+});
+
+test("a profile with only a legacy theme on prof: takes that theme and its own angle", async () => {
+  const { folder, mac, phone } = await joined();
+  mac.put("app", `prof:${P2}`, { n: "Work", c: "green", i: null, th: { stops: [{ color: { r: 0, g: 1, b: 0, a: 1 }, x: 0.5, y: 0.5 }], angle: 60, mode: "light" } });
+  mac.put("app", `pth:${P2}:angle`, { a: 10 });
+  await mac.sync();
+  folder.now += 1000;
+  const { view } = await phone.cycle();
+  const theme = view!.profiles.find((p) => p.name === "Work")!.theme!;
+  assert.deepEqual([theme.colors, theme.mode, theme.light.angle], [["#00FF00"], "light", 60]);
+});
+
+test("the Mac's look settings reach the view, and only values the Mac would take", async () => {
+  const { folder, mac, phone } = await joined();
+  const settings: Record<string, unknown> = {
+    appearance: "light",
+    interfaceStyle: "glass",
+    glassTintWithTheme: true,
+    glassTintAmount: 0.35,
+    selectedTabGlow: "soft",
+    pageFrame: 4,
+    sidebarSide: "right",
+    profileSwitcherIcons: false,
+  };
+  for (const [name, v] of Object.entries(settings)) mac.put("app", `set:${name}`, { v });
+  await mac.sync();
+  folder.now += 1000;
+  assert.deepEqual((await phone.cycle()).view!.lookSettings, settings);
+  const invalid: Record<string, unknown> = {
+    appearance: "sepia",
+    interfaceStyle: 1,
+    glassTintWithTheme: "yes",
+    glassTintAmount: 1.5,
+    selectedTabGlow: null,
+    pageFrame: 4.5,
+    sidebarSide: "top",
+    profileSwitcherIcons: 0,
+  };
+  for (const [name, v] of Object.entries(invalid)) mac.put("app", `set:${name}`, { v });
+  await mac.sync();
+  folder.now += 1000;
+  assert.equal((await phone.cycle()).view!.lookSettings, null);
+  for (const name of Object.keys(invalid)) mac.remove("app", `set:${name}`);
+  mac.remove("app", "set:appearance");
+  await mac.sync();
+  folder.now += 1000;
+  assert.equal((await phone.cycle()).view!.lookSettings, null);
+});
+
+test("spaces take the order of the Mac that last republished its device record, and browsing on another Mac never moves it", async () => {
+  const { folder, mac, phone } = await joined();
+  const names = async () => {
+    folder.now += 1000;
+    await phone.cycle();
+    return companionView().profiles.map((p) => p.name);
+  };
+  assert.deepEqual(await names(), ["Personal", "School", "Work"]);
+  mac.put("app", `dev:${MAC}`, { n: "MacBook Pro", k: "mac", f: ["send"], o: [P2, P3, P1] });
+  await mac.sync();
+  assert.deepEqual(await names(), ["Work", "School", "Personal"]);
+  folder.now += 60_000;
+  const mini = new Mac(folder, MAC2);
+  mini.put("app", `dev:${MAC2}`, { n: "Mac mini", k: "mac", f: ["send"], o: [42, P3, "notaprofile", P3, P1] });
+  await mini.sync(["app"]);
+  assert.deepEqual(await names(), ["School", "Personal", "Work"]);
+  for (let i = 0; i < 3; i++) {
+    folder.now += 60_000;
+    mac.put(s1, `bm:browsing${i}`, { k: "u", p: "other", t: `Page ${i}`, u: `https://page${i}.example/`, a: i, pos: `z${i}` });
+    mac.visit(s1, `https://visit${i}.example/`, "Visit", folder.now);
+    await mac.sync();
+    assert.deepEqual(await names(), ["School", "Personal", "Work"], "the other Mac's browsing leaves the order alone");
+  }
+  folder.now += 60_000;
+  mac.put("app", `dev:${MAC}`, { n: "MacBook Pro", k: "mac", f: ["send"], o: [P1, P2, P3] });
+  await mac.sync();
+  assert.deepEqual(await names(), ["Personal", "Work", "School"]);
+  folder.now += 60_000;
+  mini.clock = new Clock(MAC2, mini.clock.last, () => folder.now + 30 * DAY);
+  mini.put("app", `dev:${MAC2}`, { n: "Mac mini", k: "mac", f: ["send"], o: [P3, P2, P1] });
+  await mini.sync(["app"]);
+  assert.deepEqual(await names(), ["School", "Work", "Personal"]);
+  folder.now += 60_000;
+  await mac.sync(["app"]);
+  mac.put("app", `dev:${MAC}`, { n: "MacBook Pro", k: "mac", f: ["send"], o: [P2, P1, P3] });
+  await mac.sync(["app"]);
+  assert.deepEqual(await names(), ["Work", "Personal", "School"], "a reorder made after seeing a record from a Mac whose clock runs ahead still wins");
+  folder.now += 60_000;
+  await mini.sync(["app"]);
+  mini.put("app", `dev:${MAC2}`, { n: "Mac mini", k: "mac", f: ["send"], o: [] });
+  await mini.sync(["app"]);
+  assert.deepEqual(await names(), ["Work", "Personal", "School"], "a newer record with no order passes to the next");
+  mac.put("app", `dev:${MAC}`, { n: "MacBook Pro", k: "mac", f: ["send"], o: "Work" });
+  await mac.sync(["app"]);
+  assert.deepEqual(await names(), ["Personal", "School", "Work"]);
+  const written = new Set(folder.logs(PHONE).flatMap((f) => f.ops.map((op) => op.k)));
+  assert.deepEqual([...written].sort(), [`dev:${PHONE}`, `tabs:${PHONE}`]);
+});
+
+test("two device records stamped alike give the order of the lower device id, whatever order they are read in", () => {
+  const record = (v: unknown, h: string) => ({ h, v, o: ["x", 1] as [string, number] });
+  for (const flipped of [false, true]) {
+    const app = emptyScope();
+    app.records[`prof:${P1}`] = record({ n: "Personal", c: "blue", i: null, d: true }, "a");
+    app.records[`prof:${P2}`] = record({ n: "Work", c: "green", i: null }, "a");
+    app.records[`prof:${P3}`] = record({ n: "School", c: "pink", i: null }, "a");
+    const devices = [
+      [`dev:${MAC2}`, record({ n: "Mac mini", o: [P3, P1, P2] }, "same")],
+      [`dev:${MAC}`, record({ n: "MacBook Pro", o: [P2, P3, P1] }, "same")],
+    ] as const;
+    for (const [key, value] of flipped ? [...devices].reverse() : devices) app.records[key] = value;
+    assert.deepEqual(buildView({ app }, PHONE).profiles.map((p) => p.name), MAC2 < MAC ? ["School", "Personal", "Work"] : ["Work", "School", "Personal"]);
+  }
+});
+
+test("an iPad says it is a tablet, and other kinds the view doesn't know are Macs", async () => {
+  const { folder, mac, phone } = await joined();
+  phone.name = "iPad";
+  phone.tabs = [{ u: "https://ipad.example/", t: "iPad", at: START }];
+  mac.put("app", "dev:tablet00000000000000000000", { n: "Other iPad", k: "tablet", f: ["send"] });
+  mac.put("app", "dev:watch000000000000000000000", { n: "Watch", k: "watch" });
+  mac.put(s1, "tabs:tablet00000000000000000000", { n: "Other iPad", k: "tablet", tabs: [{ u: "https://other.example/", t: "Other" }] });
+  await mac.sync();
+  folder.now += 1000;
+  const out = await phone.cycle({ kind: "tablet" });
+  await mac.sync();
+  assert.deepEqual(mac.scopes.app!.records[`dev:${PHONE}`]!.v, { n: "iPad", k: "tablet", f: ["send"], s: new Date(folder.now).toISOString().slice(0, 10).replaceAll("-", "") });
+  assert.equal((mac.scopes[s1]!.records[`tabs:${PHONE}`]!.v as { k: string }).k, "tablet");
+  const kinds = Object.fromEntries(out.view!.devices.map((d) => [d.name, d.kind]));
+  assert.deepEqual(kinds, { iPad: "tablet", "Other iPad": "tablet", Watch: "mac", "MacBook Pro": "mac" });
+  assert.deepEqual(out.view!.profiles.find((p) => p.syncId === P1)!.deviceTabs.map((d) => [d.deviceName, d.kind]), [["MacBook Pro", "mac"], ["Other iPad", "tablet"]]);
+  folder.now += 1000;
+  await phone.cycle({ kind: "phone" });
+  await mac.sync();
+  assert.equal((mac.scopes.app!.records[`dev:${PHONE}`]!.v as { k: string }).k, "phone");
+});
+
+test("a deleted theme record falls back to the profile's legacy theme, as a Mac pairing from the folder does", async () => {
+  const { folder, mac, phone } = await joined();
+  const color = (r: number, g: number, b: number) => ({ color: { r, g, b, a: 1 }, x: 0.5, y: 0.5 });
+  mac.put("app", `prof:${P2}`, { n: "Work", c: "green", i: null, th: { stops: [color(0, 1, 0)], angle: 60 } });
+  mac.put("app", `pth:${P2}`, { t: { stops: [color(1, 0, 0)] } });
+  mac.put("app", `pth:${P2}:angle`, { a: 10 });
+  await mac.sync();
+  folder.now += 1000;
+  const live = (await phone.cycle()).view!.profiles.find((p) => p.syncId === P2)!.theme!;
+  assert.deepEqual([live.colors, live.light.angle], [["#FF0000"], 10]);
+  mac.remove("app", `pth:${P2}`);
+  await mac.sync();
+  assert.equal(mac.scopes.app!.records[`pth:${P2}`]!.v, null);
+  folder.now += 1000;
+  await phone.cycle();
+  const fallback = companionView().profiles.find((p) => p.syncId === P2)!.theme!;
+  assert.deepEqual([fallback.colors, fallback.light.angle], [["#00FF00"], 60]);
+  mac.put("app", `pth:${P2}`, "not a theme");
+  await mac.sync();
+  folder.now += 1000;
+  await phone.cycle();
+  assert.equal(companionView().profiles.find((p) => p.syncId === P2)!.theme, null);
+});
+
+test("every value the Mac allows for the eight look settings reads as itself, and none has a legacy form", async () => {
+  const { folder, mac, phone } = await joined();
+  const allowed: Record<string, unknown[]> = {
+    appearance: ["auto", "light", "dark"],
+    interfaceStyle: ["glass", "classic"],
+    glassTintWithTheme: [true, false],
+    glassTintAmount: [0, 0.8, 1],
+    selectedTabGlow: ["full", "soft", "off"],
+    pageFrame: [0, 9, 12],
+    sidebarSide: ["left", "right"],
+    profileSwitcherIcons: [true, false],
+  };
+  for (let i = 0; i < 3; i++) {
+    for (const [name, values] of Object.entries(allowed)) {
+      const v = values[i % values.length];
+      assert.equal(fromLegacy(v), v, `${name} ${String(v)} has no legacy form`);
+      mac.put("app", `set:${name}`, { v });
+    }
+    await mac.sync();
+    folder.now += 1000;
+    await phone.cycle();
+    const expected = Object.fromEntries(Object.entries(allowed).map(([name, values]) => [name, values[i % values.length]]));
+    assert.deepEqual(companionView().lookSettings, expected);
+  }
+  mac.put("app", "set:appearance", { v: "netnyahoo://dark" });
+  await mac.sync();
+  folder.now += 1000;
+  await phone.cycle();
+  assert.equal(companionView().lookSettings!.appearance, null);
 });

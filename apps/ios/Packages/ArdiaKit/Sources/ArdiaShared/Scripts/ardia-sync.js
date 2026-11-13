@@ -891,6 +891,7 @@ const { host, loaded, save, viewIsNew } = __require("packages/sync/src/companion
 
                           
                
+                       
                
                      
                            
@@ -965,6 +966,7 @@ async function runCompanionCycle(input            )                       {
   const clock = new Clock(c.device, c.clock, now);
   const device = c.device;
   const retiring = !!input.retiring;
+  const kind                = input.kind === "tablet" ? "tablet" : "phone";
   let published = 0;
   let changed = 0;
   let pending = 0;
@@ -981,7 +983,7 @@ async function runCompanionCycle(input            )                       {
 
   c.ghosts = (c.ghosts ?? []).filter((g) => now() - g.since < GHOST_MS);
   const ghosts = c.ghosts.map((g) => g.id);
-  const app = await run(APP, [deviceAdapter(device, input.name, retiring, ghosts)], false);
+  const app = await run(APP, [deviceAdapter(device, input.name, retiring, ghosts, kind)], false);
   if (retiring) {
     for (const scope of Object.keys(c.scopes).filter((s) => s.startsWith("p:"))) await run(scope, [deviceTabsAdapter(device, input.name, [], true, ghosts)], true);
   } else {
@@ -1015,7 +1017,7 @@ async function runCompanionCycle(input            )                       {
       let extracts = 0;
       const state = (c.scopes[scope] ??= emptyScope());
       const adapters            = [
-        deviceTabsAdapter(device, input.name, input.tabs ? (tabsOf.get(id) ?? []) : null, false, ghosts),
+        deviceTabsAdapter(device, input.name, input.tabs ? (tabsOf.get(id) ?? []) : null, false, ghosts, kind),
         sendsAdapter({
           scope,
           sends: () => c.sends,
@@ -1217,7 +1219,8 @@ const MAX_DEVICE_TABS = 30;
 const MAX_VISIT_TIMES = 50;
 const SAME_VISIT_MS = 1;
 
-                                                                              
+                                                                                            
+                                               
 
                                                                                
                                                                                    
@@ -1237,20 +1240,20 @@ const lastVisitOf = (v                                 ) => (v && Array.isArray(
 
 const dayOf = (at        ) => new Date(at).toISOString().slice(0, 10).replaceAll("-", "");
 
-function deviceAdapter(device        , name        , retiring         , ghosts           = [])          {
+function deviceAdapter(device        , name        , retiring         , ghosts           = [], kind                = "phone")          {
   const key = `dev:${device}`;
   const old = new Set(ghosts.map((g) => `dev:${g}`));
   return {
     prefix: "dev:",
     extract: (_base, _queued, now) => ({
-      values: retiring ? new Map() : new Map([[key, { n: name, k: "phone", f: ["send"], s: dayOf(now) }                      ]]),
+      values: retiring ? new Map() : new Map([[key, { n: name, k: kind, f: ["send"], s: dayOf(now) }                      ]]),
       ignore: (k) => k !== key && !old.has(k),
     }),
     apply: () => true,
   };
 }
 
-function deviceTabsAdapter(device        , name        , tabs                   , retiring         , ghosts           = [])          {
+function deviceTabsAdapter(device        , name        , tabs                   , retiring         , ghosts           = [], kind                = "phone")          {
   const key = `tabs:${device}`;
   const old = new Set(ghosts.map((g) => `tabs:${g}`));
   const ignore = (k        ) => k !== key && !old.has(k);
@@ -1264,7 +1267,7 @@ function deviceTabsAdapter(device        , name        , tabs                   
         .sort((a, z) => z.at - a.at)
         .slice(0, MAX_DEVICE_TABS)
         .map((t) => ({ u: t.u, t: t.t }));
-      return { values: new Map([[key, { n: name, k: "phone", tabs: recent }                     ]]), ignore };
+      return { values: new Map([[key, { n: name, k: kind, tabs: recent }                     ]]), ignore };
     },
     apply: () => true,
   };
@@ -1522,14 +1525,14 @@ const { visible } = __require("packages/sync/src/scope.ts");
                                                    
 const { fromLegacy } = __require("packages/sync/src/companion/legacy.ts");
 const { lastVisitOf } = __require("packages/sync/src/companion/adapters.ts");
+const { lookSettingsOf, settingOf, themeOf } = __require("packages/sync/src/companion/looks.ts");
 
 const MAX_HISTORY_ITEMS = 2_000;
 
-                            
+                                       
                                                                                           
 
                                                                                                                                         
-                                                                          
                                                                                                                           
                                                                                              
                                                                                 
@@ -1551,11 +1554,11 @@ const MAX_HISTORY_ITEMS = 2_000;
                          
   
                                                                                                                                                      
-                                                                                                 
+                                                                                                                                        
 
 const str = (v         , fallback = "") => (typeof v === "string" ? v : fallback);
 const optStr = (v         ) => (typeof v === "string" && v ? v : null);
-const kindOf = (v         )       => (v === "phone" ? "phone" : "mac");
+const kindOf = (v         )       => (v === "phone" || v === "tablet" ? v : "mac");
 const byPosThenKey =                                         (a   , z   ) => (a.pos < z.pos ? -1 : a.pos > z.pos ? 1 : a.key < z.key ? -1 : a.key > z.key ? 1 : 0);
 
 function liveProfiles(app                        )                             {
@@ -1582,32 +1585,6 @@ function dataOwner(app                        , syncId        )         {
     path.push(owner);
     at = owner;
   }
-}
-
-function hex(n         ) {
-  const v = typeof n === "number" && Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0;
-  return Math.round(v * 255).toString(16).padStart(2, "0").toUpperCase();
-}
-
-function colorsOf(look         )                  {
-  if (!look || typeof look !== "object" || !Array.isArray((look                       ).stops)) return null;
-  const out           = [];
-  for (const stop of (look                        ).stops.slice(0, 16)) {
-    if (out.length >= 3) break;
-    const c = (stop                                              )?.color;
-    if (!c || ![c.r, c.g, c.b].every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) < 4)) continue;
-    const alpha = typeof c.a === "number" && Number.isFinite(c.a) ? Math.min(1, Math.max(0, c.a)) : 1;
-    out.push(`#${hex(c.r)}${hex(c.g)}${hex(c.b)}${alpha < 1 ? hex(alpha) : ""}`);
-  }
-  return out.length ? out : null;
-}
-
-function themeOf(app            , syncId        , profile               )                   {
-  const record = app.records[`pth:${syncId}`]?.v                                              ;
-  const theme = record ? (record.preset === true ? null : record.t) : profile.th;
-  const colors = colorsOf(theme);
-  if (!colors) return null;
-  return { colors, darkColors: colorsOf((theme                      ).dark) };
 }
 
 function deviceTabs(scope                        , me        , devices                         )                   {
@@ -1825,10 +1802,7 @@ function historyList(scope                        )                {
 }
 
 function searchOf(app            )                    {
-  const setting = (name        ) => {
-    const record = app.records[`set:${name}`]?.v                                      ;
-    return record && typeof record === "object" ? fromLegacy(record.v) : undefined;
-  };
+  const setting = (name        ) => fromLegacy(settingOf(app, name));
   const engine = setting("searchEngine");
   const customUrl = setting("customSearchUrl");
   const custom = setting("customSearchEngines");
@@ -1844,9 +1818,23 @@ function searchOf(app            )                    {
   return { engineId: typeof engine === "string" && engine ? engine : "google", customURL: optStr(customUrl), customEngines: engines };
 }
 
+function spaceOrder(app            , me        )           {
+  let newest                                                        = null;
+  for (const [k, v] of visible(app, "dev:")) {
+    const id = k.slice(4);
+    const stamp = app.records[k]?.h;
+    const listed = (v                      )?.o;
+    if (id === me || typeof stamp !== "string" || !Array.isArray(listed)) continue;
+    const order = [...new Set(listed.filter((profile)                    => typeof profile === "string"))];
+    if (!order.length) continue;
+    if (!newest || stamp > newest.stamp || (stamp === newest.stamp && id < newest.id)) newest = { stamp, id, order };
+  }
+  return newest?.order ?? [];
+}
+
 function buildView(scopes                            , me        )       {
   const app = scopes.app;
-  if (!app) return { devices: [], profiles: [], search: null };
+  if (!app) return { devices: [], profiles: [], search: null, lookSettings: null };
   const lastSeen = new Map                ();
   for (const scope of Object.values(scopes)) {
     for (const [device, at] of Object.entries(scope.seen)) lastSeen.set(device, Math.max(at, lastSeen.get(device) ?? 0));
@@ -1876,7 +1864,7 @@ function buildView(scopes                            , me        )       {
       color: optStr(p.c),
       icon: optStr(p.i),
       isDefault: syncId === defaultId,
-      theme: themeOf(app, syncId, p),
+      theme: themeOf(app, syncId, p.th),
       sendTargets: sendTargets(own, me, devices),
       deviceTabs: deviceTabs(own, me, devices),
       pinned: pinnedArea(own),
@@ -1884,8 +1872,128 @@ function buildView(scopes                            , me        )       {
       history: historyList(data),
     };
   });
-  profileList.sort((a, z) => Number(z.isDefault) - Number(a.isDefault) || a.name.localeCompare(z.name) || (a.syncId < z.syncId ? -1 : 1));
-  return { devices: deviceList, profiles: profileList, search: searchOf(app) };
+  const rank = new Map(spaceOrder(app, me).map((id, i) => [id, i]));
+  const placed = (p             ) => rank.get(p.syncId) ?? rank.size;
+  profileList.sort((a, z) => placed(a) - placed(z) || Number(z.isDefault) - Number(a.isDefault) || a.name.localeCompare(z.name) || (a.syncId < z.syncId ? -1 : 1));
+  return { devices: deviceList, profiles: profileList, search: searchOf(app), lookSettings: lookSettingsOf(app) };
+}
+
+});
+__define("packages/sync/src/companion/looks.ts", function (exports, __require) {
+  __export(exports, "themeOf", () => themeOf);
+  __export(exports, "settingOf", () => settingOf);
+  __export(exports, "lookSettingsOf", () => lookSettingsOf);
+                                                   
+
+                                                  
+                                                                
+                                                                                                 
+                                                                                                                                                     
+                                                                                                                                             
+                                
+                                               
+                                             
+                                     
+                                 
+                                                  
+                           
+                                       
+                                       
+  
+
+                                      
+
+const TEXTURES                          = ["grain", "sand", "denim", "tweed"];
+const MAX_THEME_STOPS = 3;
+const MAX_SCANNED_STOPS = 16;
+const MAX_CHANNEL = 4;
+const DEFAULT_THEME_ANGLE = 135;
+const PAGE_FRAME_MAX = 12;
+
+const isFields = (v         )              => !!v && typeof v === "object";
+const isNumber = (v         )              => typeof v === "number" && Number.isFinite(v);
+const clamp01 = (v        ) => Math.min(1, Math.max(0, v));
+const numberOr = (v         , fallback        ) => (isNumber(v) ? v : fallback);
+const angleOf = (v         ) => (isNumber(v) ? ((v % 360) + 360) % 360 : undefined);
+
+function hexByte(v        ) {
+  return Math.round(clamp01(v) * 255).toString(16).padStart(2, "0").toUpperCase();
+}
+
+const hexOf = (s               ) => `#${hexByte(s.r)}${hexByte(s.g)}${hexByte(s.b)}${s.a < 1 ? hexByte(s.a) : ""}`;
+
+function stopOf(raw         )                       {
+  const color = isFields(raw) ? raw.color : null;
+  if (!isFields(color) || ![color.r, color.g, color.b].every((n) => isNumber(n) && Math.abs(n) < MAX_CHANNEL)) return null;
+  const at = raw          ;
+  return { r: color.r          , g: color.g          , b: color.b          , a: clamp01(numberOr(color.a, 1)), x: clamp01(numberOr(at.x, 0.5)), y: clamp01(numberOr(at.y, 0.5)) };
+}
+
+function lookOf(raw         , angle                    )                       {
+  if (!isFields(raw) || !Array.isArray(raw.stops)) return null;
+  const stops                  = [];
+  for (const candidate of raw.stops.slice(0, MAX_SCANNED_STOPS)) {
+    if (stops.length >= MAX_THEME_STOPS) break;
+    const stop = stopOf(candidate);
+    if (stop) stops.push(stop);
+  }
+  if (!stops.length) return null;
+  return {
+    stops,
+    intensity: clamp01(numberOr(raw.intensity, 0.6)),
+    grain: clamp01(numberOr(raw.grain, 0)),
+    texture: TEXTURES.includes(raw.texture                ) ? (raw.texture                ) : "grain",
+    translucency: clamp01(numberOr(raw.translucency, 1)),
+    angle: angle ?? DEFAULT_THEME_ANGLE,
+  };
+}
+
+function themeOf(app            , syncId        , legacy         )                   {
+  const record = app.records[`pth:${syncId}`]?.v;
+  const raw = record ? (isFields(record) && record.preset !== true ? record.t : null) : legacy;
+  if (!isFields(raw)) return null;
+  const angles = isFields(record) ? app.records[`pth:${syncId}:angle`]?.v : undefined;
+  const fromRecord = isFields(angles);
+  const darkRaw = isFields(raw.dark) ? raw.dark : null;
+  const light = lookOf(raw, angleOf(fromRecord ? angles.a : raw.angle));
+  if (!light) return null;
+  const dark = lookOf(darkRaw, angleOf(fromRecord ? angles.d : darkRaw?.angle));
+  return {
+    colors: light.stops.map(hexOf),
+    darkColors: dark ? dark.stops.map(hexOf) : null,
+    mode: raw.mode === "light" || raw.mode === "dark" ? raw.mode : "auto",
+    light,
+    dark,
+  };
+}
+
+function settingOf(app            , name        )          {
+  const record = app.records[`set:${name}`]?.v;
+  return isFields(record) ? record.v : undefined;
+}
+
+function lookSettingsOf(app            )                          {
+  const oneOf =                   (name        , values              )           => {
+    const v = settingOf(app, name);
+    return values.includes(v     ) ? (v     ) : null;
+  };
+  const flag = (name        ) => {
+    const v = settingOf(app, name);
+    return typeof v === "boolean" ? v : null;
+  };
+  const amount = settingOf(app, "glassTintAmount");
+  const frame = settingOf(app, "pageFrame");
+  const settings                   = {
+    appearance: oneOf("appearance", ["auto", "light", "dark"]),
+    interfaceStyle: oneOf("interfaceStyle", ["glass", "classic"]),
+    glassTintWithTheme: flag("glassTintWithTheme"),
+    glassTintAmount: isNumber(amount) && amount >= 0 && amount <= 1 ? amount : null,
+    selectedTabGlow: oneOf("selectedTabGlow", ["full", "soft", "off"]),
+    pageFrame: Number.isInteger(frame) && (frame          ) >= 0 && (frame          ) <= PAGE_FRAME_MAX ? (frame          ) : null,
+    sidebarSide: oneOf("sidebarSide", ["left", "right"]),
+    profileSwitcherIcons: flag("profileSwitcherIcons"),
+  };
+  return Object.values(settings).some((v) => v !== null) ? settings : null;
 }
 
 });

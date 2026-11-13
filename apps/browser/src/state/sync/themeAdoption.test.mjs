@@ -74,3 +74,11 @@ test("a pairing made here hands nightly.4 a flag it ends where it would its own,
   themes.pairTheme(app, "default", paired);
   assert.equal(paired.themeAdopting, undefined, "pairing against a theme already there adopts at once, as nightly.4 did");
 });
+
+test("pairing from the folder reads a deleted pth: record as none and takes the profile's legacy th, as the iPhone's view does", () => {
+  S().hydrate({});
+  const app = scope("tombstone", "clean");
+  app.records["prof:s1"] = at({ n: "Personal", c: "blue", i: null, th: THEME });
+  themes.pairTheme(app, "default", { syncId: "s1", enabled: true });
+  assert.deepEqual(S().profiles.default.theme, THEME);
+});

@@ -57,7 +57,7 @@ struct SyncStatusWords {
 
   var heroSubtitle: Text {
     if isOff {
-      return Text("Your Mac’s tabs here, and this iPhone’s on your Mac.")
+      return Text("Your Mac’s tabs here, and this \(ThisDevice.current.noun)’s on your Mac.")
     }
     switch attention {
     case .none: return Text(verbatim: statusText)
@@ -77,6 +77,7 @@ enum SyncDeviceSymbol {
   static func name(for kind: SyncedDevice.Kind, deviceName: String) -> String {
     switch kind {
     case .phone: return "iphone"
+    case .tablet: return "ipad"
     case .mac:
       let lower = deviceName.lowercased()
       if lower.contains("macbook") { return "laptopcomputer" }

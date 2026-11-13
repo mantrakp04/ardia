@@ -1,4 +1,6 @@
+import ArdiaSync
 import Foundation
+import SwiftUI
 import Testing
 @testable import ArdiaDesign
 
@@ -74,7 +76,9 @@ struct ProfileLookTests {
     #expect(deepTheme.inkIsLight(dark: false, themed: true))
     #expect(!deepTheme.inkIsLight(dark: false, themed: false))
     let paleTheme = ProfileLook(colorName: "blue", themeColors: ["#F4E9D8", "#E9F4D8"])
-    #expect(!paleTheme.inkIsLight(dark: true, themed: true))
+    #expect(!paleTheme.inkIsLight(dark: false, themed: true))
+    #expect(paleTheme.inkIsLight(dark: true, themed: true), "the Mac darkens a light-only theme that doesn't read in dark")
+    #expect(paleTheme.backdropStops(dark: true, themed: true).map(\.hexString) == ["#625D56", "#5D6256"])
   }
 
   @Test func `a look knows which of the Mac's colors it is`() {
@@ -104,5 +108,164 @@ struct ProfileLookTests {
     }
     let grey = ProfileLook(preset: .neutral).deckBlobStops(dark: false)
     #expect(grey.allSatisfy { $0.hsl.saturation < 0.01 })
+  }
+
+  @Test func `theme colors with transparency keep their stop, as 8-digit hex`() throws {
+    let look = ProfileLook(colorName: "blue", themeColors: ["#FF8000", "#0000FF80"])
+    #expect(look.themeStops(dark: false).map(\.hexString) == ["#FF8000", "#0000FF"])
+    #expect(look.showsTheme(dark: false, themed: true))
+    #expect(LookRGB(hexString: "#0000FF80") == LookRGB(hex: 0x0000FF))
+    #expect(LookRGB(hexString: "#0000FF8") == nil)
+    let translucent = try #require(Color(hexString: "#0000FF80"))
+    #expect(translucent == Color(.sRGB, red: 0, green: 0, blue: 1, opacity: Double(0x80) / 255))
+    #expect(Color(hexString: "#12345") == nil)
+  }
+
+  struct BackdropFixture: Decodable {
+    struct Expect: Decodable {
+      var requestedDark: Bool
+      var dark: Bool
+      var stops: [[Double]]
+      var angle: Double
+      var layerAlpha: Double
+      var underlayAlpha: Double
+      var grainAlpha: Double
+      var texture: String
+      var under: String
+      var tint: [String]
+      var accent: String
+      var luminance: Double
+      var samples: [[Double]]
+    }
+
+    struct Case: Decodable {
+      var name: String
+      var theme: SyncedTheme
+      var appDark: Bool
+      var followsAppearance: Bool
+      var samples: [[Double]]
+      var expect: Expect
+    }
+
+    var cases: [Case]
+
+    static func load() throws -> BackdropFixture {
+      var root = URL(fileURLWithPath: #filePath)
+      for _ in 0..<7 { root.deleteLastPathComponent() }
+      let url = root.appending(path: "apps/browser/src/state/sync/fixtures/theme-backdrops.json")
+      return try JSONDecoder().decode(BackdropFixture.self, from: Data(contentsOf: url))
+    }
+  }
+
+  static let relativeTolerance = 1e-9
+
+  static func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) <= relativeTolerance * max(1, abs(a), abs(b)) }
+
+  @Test func `a synced theme is shown, composited and sampled with the Mac's own numbers`() throws {
+    let fixture = try BackdropFixture.load()
+    #expect(fixture.cases.count >= 10)
+    for item in fixture.cases {
+      let want = item.expect
+      let shown = try #require(item.theme.shown(appDark: item.appDark, followsAppearance: item.followsAppearance))
+      let look = shown.look
+      #expect(shown.requestedDark == want.requestedDark, "\(item.name)")
+      #expect(shown.dark == want.dark, "\(item.name)")
+      #expect(look.stops.map { [$0.red, $0.green, $0.blue, $0.alpha] }.elementsEqual(want.stops) { zip($0, $1).allSatisfy { Self.near($0, $1) } }, "\(item.name) stops")
+      #expect(Self.near(look.angle, want.angle), "\(item.name) angle")
+      #expect(Self.near(look.layerAlpha, want.layerAlpha), "\(item.name) layer")
+      #expect(Self.near(look.underlayAlpha(dark: shown.dark), want.underlayAlpha), "\(item.name) underlay")
+      #expect(Self.near(look.grainAlpha, want.grainAlpha), "\(item.name) grain")
+      #expect(look.texture.rawValue == want.texture, "\(item.name)")
+      #expect(look.under(dark: shown.dark).hexString == want.under, "\(item.name) under")
+      #expect(look.opaqueTint(dark: shown.dark).map(\.hexString) == want.tint, "\(item.name) tint")
+      #expect(look.accent.hexString == want.accent, "\(item.name) accent")
+      #expect(Self.near(look.luminance(dark: shown.dark), want.luminance), "\(item.name) luminance")
+      for (sample, expected) in zip(item.samples, want.samples) {
+        let area = look.area(x: sample[0], y: sample[1], width: sample[2], height: sample[3])
+        #expect(Self.near(area.red, expected[0]) && Self.near(area.green, expected[1]) && Self.near(area.blue, expected[2]), "\(item.name) at \(sample)")
+      }
+    }
+  }
+
+  @Test func `textures are the Mac's tiles byte for byte`() {
+    let mac: [(SyncedTheme.Texture, UInt64)] = [
+      (.grain, 0xf1d3_2f92_f1e2_2ea9),
+      (.sand, 0x0a08_6e62_6fba_9dbf),
+      (.denim, 0xe169_5685_210e_d160),
+      (.tweed, 0xd6e7_41c7_130d_97c7),
+    ]
+    for (texture, hash) in mac {
+      let bytes = TextureTile.bytes(texture)
+      #expect(bytes.count == TextureTile.side * TextureTile.side * 4)
+      let fnv = bytes.reduce(UInt64(0xcbf2_9ce4_8422_2325)) { ($0 ^ UInt64($1)) &* 0x0000_0100_0000_01b3 }
+      #expect(fnv == hash, "\(texture)")
+    }
+  }
+
+  static func space(theme: SyncedTheme?) -> SyncedProfile {
+    SyncedProfile(syncId: "p", name: "Space", color: "green", icon: nil, isDefault: true, theme: theme, deviceTabs: [], pinned: PinnedArea(), bookmarks: [], history: [])
+  }
+
+  @Test func `every screen asks one function for a space's backdrop`() throws {
+    let fixture = try BackdropFixture.load()
+    let theme = try #require(fixture.cases.first { $0.name == "three stops with alpha and a dark look, light app" }?.theme)
+    let look = ProfileLook(profile: Self.space(theme: theme))
+    for dark in [false, true] {
+      let backdrop = look.backdrop(dark: dark)
+      let shown = try #require(theme.shown(appDark: dark, followsAppearance: true))
+      #expect(backdrop.fill == .theme(shown.look, dark: shown.dark))
+      #expect(backdrop.isDark == shown.dark)
+      #expect(look.backdropStops(dark: dark, themed: true) == shown.look.opaqueTint(dark: shown.dark).map(\.snapped))
+      #expect(look.inkIsLight(dark: dark, themed: true) == shown.dark)
+      #expect(look.backdrop(dark: dark, themed: false).fill == .tint(look.windowTintStops(dark: dark)))
+    }
+    #expect(look.swatch == theme.light!.accent.snapped)
+    let preset = ProfileLook(preset: .green)
+    #expect(preset.backdrop(dark: false).fill == .tint(preset.windowTintStops(dark: false)))
+    #expect(!preset.backdrop(dark: false).isDark)
+    #expect(preset.backdrop(dark: true).isDark)
+    #expect(ProfileLook.incognito.backdrop(dark: false).isDark)
+    let gradientOnly = ProfileLook(profile: Self.space(theme: SyncedTheme(colors: ["#4F7CFF", "#9B6BFF"], darkColors: nil)))
+    #expect(gradientOnly.backdropStops(dark: false, themed: true).map(\.hexString) == ["#4F7CFF", "#9B6BFF"])
+    #expect(gradientOnly == ProfileLook(colorName: "green", themeColors: ["#4F7CFF", "#9B6BFF"]))
+  }
+
+  @MainActor
+  static func pixels(of view: some View, width: Int, height: Int) throws -> (Int, Int) -> LookRGB {
+    let renderer = ImageRenderer(content: view.frame(width: CGFloat(width), height: CGFloat(height)))
+    renderer.scale = 1
+    let image = try #require(renderer.cgImage)
+    var bytes = [UInt8](repeating: 0, count: width * height * 4)
+    let space = CGColorSpace(name: CGColorSpace.sRGB)!
+    let context = try #require(CGContext(data: &bytes, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4, space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    return { x, y in
+      let index = (y * width + x) * 4
+      return LookRGB(red: Double(bytes[index]) / 255, green: Double(bytes[index + 1]) / 255, blue: Double(bytes[index + 2]) / 255)
+    }
+  }
+
+  @MainActor
+  @Test func `the drawn theme is the Mac's composite at every point, in a tall and a wide window`() throws {
+    let look = SyncedTheme.Look(
+      stops: [.init(red: 0.2, green: 0.45, blue: 0.9), .init(red: 0.9, green: 0.35, blue: 0.55), .init(red: 0.95, green: 0.85, blue: 0.2, alpha: 0.8)],
+      intensity: 0.7,
+      translucency: 0.6,
+      angle: 300
+    )
+    for (width, height) in [(120, 260), (300, 140)] {
+      for dark in [false, true] {
+        let pixel = try Self.pixels(of: ThemeBackdrop(look: look, dark: dark), width: width, height: height)
+        let alpha = look.layerAlpha
+        let grey = look.under(dark: dark).red
+        for (x, y) in [(2, 2), (width - 3, height - 3), (width / 2, height / 2), (width / 4, height * 3 / 4), (width - 10, 8)] {
+          let area = look.area(x: Double(x) + 0.5, y: Double(y) + 0.5, width: Double(width), height: Double(height))
+          let want = [area.red, area.green, area.blue].map { alpha * min(1, max(0, $0)) + (1 - alpha) * grey }
+          let got = pixel(x, y)
+          let off = zip([got.red, got.green, got.blue], want).map { abs($0 - $1) }.max()!
+          #expect(off <= 4.0 / 255, "\(width)x\(height) dark \(dark) at (\(x), \(y)): \(got) vs \(want)")
+        }
+      }
+    }
   }
 }

@@ -12,6 +12,7 @@ import {
   sendsAdapter,
   SEND_LIFETIME_MS,
   DAY_MS,
+  type CompanionKind,
   type LocalTab,
   type BookmarkValue,
   type LocalVisit,
@@ -25,6 +26,7 @@ export type ChainStatus = "ok" | "missing" | "unavailable";
 
 export type CycleInput = {
   name: string;
+  kind?: CompanionKind;
   now?: number;
   retiring?: boolean;
   tabs?: LocalTab[] | null;
@@ -99,6 +101,7 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
   const clock = new Clock(c.device, c.clock, now);
   const device = c.device;
   const retiring = !!input.retiring;
+  const kind: CompanionKind = input.kind === "tablet" ? "tablet" : "phone";
   let published = 0;
   let changed = 0;
   let pending = 0;
@@ -115,7 +118,7 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
 
   c.ghosts = (c.ghosts ?? []).filter((g) => now() - g.since < GHOST_MS);
   const ghosts = c.ghosts.map((g) => g.id);
-  const app = await run(APP, [deviceAdapter(device, input.name, retiring, ghosts)], false);
+  const app = await run(APP, [deviceAdapter(device, input.name, retiring, ghosts, kind)], false);
   if (retiring) {
     for (const scope of Object.keys(c.scopes).filter((s) => s.startsWith("p:"))) await run(scope, [deviceTabsAdapter(device, input.name, [], true, ghosts)], true);
   } else {
@@ -149,7 +152,7 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
       let extracts = 0;
       const state = (c.scopes[scope] ??= emptyScope());
       const adapters: Adapter[] = [
-        deviceTabsAdapter(device, input.name, input.tabs ? (tabsOf.get(id) ?? []) : null, false, ghosts),
+        deviceTabsAdapter(device, input.name, input.tabs ? (tabsOf.get(id) ?? []) : null, false, ghosts, kind),
         sendsAdapter({
           scope,
           sends: () => c.sends,

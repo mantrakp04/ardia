@@ -4,53 +4,103 @@ import SwiftUI
 struct OnboardingPage<Illustration: View, Actions: View>: View {
   var title: Text
   var subtitle: Text
-  @ViewBuilder var illustration: Illustration
-  @ViewBuilder var actions: Actions
+  var illustrationAlignment: Alignment
+  var illustration: Illustration
+  var actions: Actions
 
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.onboardingFrame) private var frame
+
+  init(
+    title: Text,
+    subtitle: Text,
+    illustrationAlignment: Alignment = .center,
+    @ViewBuilder illustration: () -> Illustration,
+    @ViewBuilder actions: () -> Actions
+  ) {
+    self.title = title
+    self.subtitle = subtitle
+    self.illustrationAlignment = illustrationAlignment
+    self.illustration = illustration()
+    self.actions = actions()
+  }
 
   var body: some View {
-    if dynamicTypeSize.isAccessibilitySize {
-      ScrollView {
-        page(scrolls: true)
+    switch frame.composition {
+    case .stacked:
+      if dynamicTypeSize.isAccessibilitySize {
+        ScrollView {
+          stacked(scrolls: true)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+      } else {
+        stacked(scrolls: false)
       }
-      .scrollBounceBehavior(.basedOnSize)
-    } else {
-      page(scrolls: false)
+    case .column:
+      ComposedPage {
+        illustration
+      } content: {
+        VStack(spacing: Tokens.Space.xxxl) {
+          copy(alignment: .center)
+          VStack(spacing: Tokens.Space.m) { actions }
+        }
+      }
+    case .sideBySide:
+      ComposedPage {
+        illustration
+      } content: {
+        VStack(alignment: .leading, spacing: Tokens.Space.xxxl) {
+          copy(alignment: .leading)
+          VStack(spacing: Tokens.Space.m) { actions }
+        }
+      }
     }
   }
 
-  private func page(scrolls: Bool) -> some View {
+  private func stacked(scrolls: Bool) -> some View {
     VStack(spacing: 0) {
       illustration
-        .frame(maxWidth: .infinity, minHeight: scrolls ? 260 : nil, maxHeight: scrolls ? nil : .infinity)
-        .padding(.horizontal, Spacing.page)
-        .padding(.top, scrolls ? Spacing.large : 0)
-      VStack(spacing: Spacing.small) {
-        title
-          .font(.system(.largeTitle, design: .rounded, weight: .bold))
-          .foregroundStyle(Color.ardiaTitle)
-          .multilineTextAlignment(.center)
-          .minimumScaleFactor(0.8)
-          .fixedSize(horizontal: false, vertical: true)
-          .accessibilityAddTraits(.isHeader)
-        subtitle
-          .font(.body)
-          .foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
-          .fixedSize(horizontal: false, vertical: true)
-          .contentTransition(.opacity)
-      }
-      .padding(.horizontal, Spacing.section)
-      .padding(.top, Spacing.medium)
-      VStack(spacing: Spacing.tight) {
+        .frame(maxWidth: .infinity, minHeight: scrolls ? OnboardingMetrics.scrollingIllustrationHeight : nil, maxHeight: scrolls ? nil : .infinity, alignment: illustrationAlignment)
+        .padding(.horizontal, Tokens.Space.xl)
+        .padding(.top, scrolls ? Tokens.Space.xxxl : 0)
+      copy(alignment: .center)
+        .padding(.horizontal, Tokens.Space.huge)
+        .padding(.top, Tokens.Space.xxl)
+      VStack(spacing: Tokens.Space.m) {
         actions
       }
-      .padding(.horizontal, Spacing.medium + 4)
-      .padding(.top, Spacing.large)
-      .padding(.bottom, Spacing.small)
+      .padding(.horizontal, Tokens.Space.xxl + Tokens.Space.xs)
+      .padding(.top, Tokens.Space.xxxl)
+      .padding(.bottom, Tokens.Space.l)
     }
   }
+
+  private func copy(alignment: HorizontalAlignment) -> some View {
+    let isCentered = alignment == .center
+    return VStack(alignment: alignment, spacing: Tokens.Space.l) {
+      title
+        .typography(.display)
+        .foregroundStyle(Color.ardiaTitle)
+        .multilineTextAlignment(isCentered ? .center : .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityAddTraits(.isHeader)
+      subtitle
+        .font(Typography.body)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(isCentered ? .center : .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .contentTransition(.opacity)
+    }
+  }
+}
+
+enum OnboardingMetrics {
+  static let scrollingIllustrationHeight: CGFloat = 260
+  static let welcomeIcon: CGFloat = 104
+  static let welcomeIconWide: CGFloat = 136
+  static let welcomeIconRim: CGFloat = 5
+  static let welcomeTilt: Double = -6
+  static let welcomeTiltStart: Double = -18
 }
 
 struct OnboardingBackdrop: View {
@@ -79,12 +129,10 @@ struct OnboardingPrimaryButton: View {
   var body: some View {
     Button(action: action) {
       Text(title)
-        .font(.body.weight(.semibold))
-        .frame(maxWidth: .infinity, minHeight: 50)
+        .font(Typography.title)
+        .frame(maxWidth: .infinity, minHeight: SettingsLayout.primaryButtonHeight)
     }
-    .buttonStyle(.borderedProminent)
-    .buttonBorderShape(.roundedRectangle(radius: 14))
-    .primaryActionColors()
+    .buttonStyle(.glassPrimaryAction)
   }
 }
 
@@ -99,9 +147,9 @@ struct OnboardingSecondaryButton: View {
 
   var body: some View {
     Button(title, action: action)
-      .font(.body.weight(.semibold))
+      .font(Typography.title)
       .foregroundStyle(Color.ardiaTitle)
-      .frame(maxWidth: .infinity, minHeight: 44)
+      .frame(maxWidth: .infinity, minHeight: GlassMetrics.hitTarget)
       .contentShape(.rect)
   }
 }

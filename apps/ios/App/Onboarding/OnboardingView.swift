@@ -35,10 +35,12 @@ struct OnboardingView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var step: OnboardingStep = .launchStep
   @State private var advances = 0
+  @State private var frame = OnboardingFrame(size: OnboardingFrame.sceneSize)
 
   var body: some View {
+    let surface = OnboardingSurface(isWelcome: step == .welcome, composition: frame.composition)
     ZStack {
-      if step == .welcome {
+      if surface == .space {
         ProfileBackdrop()
           .ignoresSafeArea()
           .transition(.opacity)
@@ -57,10 +59,15 @@ struct OnboardingView: View {
         case .allSet: OnboardingAllSetStep(onFinish: finish)
         }
       }
+      .lookInk(surface.followsSpaceInk)
+      .padding(.horizontal, frame.horizontalInset)
+      .ignoresSafeArea(.container, edges: .horizontal)
       .transition(stepTransition)
       .zIndex(1)
       .id(step)
     }
+    .environment(\.onboardingFrame, frame)
+    .background { OnboardingFrameProbe(frame: $frame) }
     .sensoryFeedback(.selection, trigger: advances)
     .onAppear(perform: Self.dismissKeyboard)
     .onChange(of: step) { _, _ in Self.dismissKeyboard() }
@@ -74,8 +81,8 @@ struct OnboardingView: View {
     reduceMotion
       ? .opacity
       : .asymmetric(
-          insertion: .offset(x: 60).combined(with: .opacity),
-          removal: .offset(x: -60).combined(with: .opacity)
+          insertion: .offset(x: Tokens.Space.huge * 2).combined(with: .opacity),
+          removal: .offset(x: -Tokens.Space.huge * 2).combined(with: .opacity)
         )
   }
 

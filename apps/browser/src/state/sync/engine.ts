@@ -378,7 +378,7 @@ export function startSync() {
   });
   useBrowser.subscribe((s, prev) => {
     if (!doc.enabled || cycle) return;
-    if (s.bookmarks !== prev.bookmarks || s.settings !== prev.settings || s.profiles !== prev.profiles || s.groups !== prev.groups) scheduleSync();
+    if (s.bookmarks !== prev.bookmarks || s.settings !== prev.settings || s.profiles !== prev.profiles || s.profileOrder !== prev.profileOrder || s.groups !== prev.groups) scheduleSync();
   });
   if (__DEV__) {
     (globalThis as { acSync?: object }).acSync = {

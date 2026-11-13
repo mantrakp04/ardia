@@ -2,6 +2,29 @@ import SwiftUI
 
 public enum SettingsTile {
   public static let side: CGFloat = 29
+  public static let accountSide: CGFloat = 56
+  public static let accountSideLarge: CGFloat = 44
+  public static let heroSide: CGFloat = 64
+  public static let scannerGlyph: CGFloat = 48
+}
+
+public enum SettingsLayout {
+  public static let readableWidth: CGFloat = 640
+  public static let shortcutHeight: CGFloat = 48
+  public static let heroScrollThreshold: CGFloat = 150
+  public static let primaryButtonHeight: CGFloat = 50
+  public static let stepRowHeight: CGFloat = 52
+  public static let stepDividerInset: CGFloat = 56
+
+  public static let minimumSideMargin: CGFloat = Tokens.Space.xl
+
+  public static func columnMargin(forWidth width: CGFloat) -> CGFloat {
+    max(0, (width - readableWidth) / 2)
+  }
+
+  public static func contentMargin(forWidth width: CGFloat, safeInset: CGFloat = 0) -> CGFloat {
+    max(columnMargin(forWidth: width), max(safeInset, 0) + minimumSideMargin)
+  }
 }
 
 public enum SettingsTint {
