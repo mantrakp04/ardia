@@ -61,7 +61,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Feature | State | Tracked in |
 | --- | --- | --- |
 | Command bar (history, open tabs, suggestions, calculator) | Works | |
-| Inline completion in the command bar | Does nothing | #1520 |
+| Inline completion in the command bar | Works: the top match completes inline and selected; typing replaces it, Backspace removes it, an IME composition is left alone | #1520 |
 | Find in page | Differs: Chromium's find bar | stand-ins (Chromium's own UI) |
 | Zoom | Works | |
 | Print | Works (Chromium's print preview) | |

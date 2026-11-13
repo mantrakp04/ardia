@@ -1,4 +1,5 @@
-import { completeInline } from "../../state/omnibox/textInput";
+import { completeInline, selectInlineCompletion } from "../../state/omnibox/textInput";
+import { noteInlineCompletionShown } from "../../state/telemetry/inlineCompletionCounts";
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { findNodeHandle, type TextInput } from "react-native";
 import { acceptsCompletion, completionToWrite, previewFieldChange, withoutFirst, type EditContext, type FieldChange, type Inline, type PendingInline, type Selection } from "./inline";
@@ -22,7 +23,9 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
     const settle = (result: number) => {
       if (result === 2) return;
       pending.current = withoutFirst(pending.current, write);
-      if (result === 1) setInline(write);
+      if (result !== 1) return;
+      setInline(write);
+      if (write.completion) noteInlineCompletionShown();
     };
     completeInline(tag, write.typed, write.completion).then(settle, () => settle(0));
   }, [input, typed, wanted, shown, preview]);
@@ -31,13 +34,21 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
     const change = previewFieldChange(typed, shown, preview, next, pending.current, edit);
     if (change.echo) {
       pending.current = pending.current.slice(change.settled);
-      if (!change.stale) setInline(change.inline);
+      if (!change.stale) {
+        setInline(change.inline);
+        if (change.inline.completion) noteInlineCompletionShown();
+      }
     } else {
       heard.current = change.typed;
       setInline(null);
     }
     return change;
   };
+
+  useLayoutEffect(() => {
+    if (!shown || preview !== null) return;
+    selectInlineCompletion(input.current, typed.length, typed.length + shown.length);
+  }, [input, typed, shown, preview]);
 
   const accepts = (selection: Selection) => preview === null && acceptsCompletion(typed, shown, selection, pending.current);
 
