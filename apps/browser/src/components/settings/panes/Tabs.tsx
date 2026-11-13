@@ -110,6 +110,7 @@ export function TabsPane() {
         <SettingToggle anchor="tabs.hideToolbarWhileScrolling" />
         <SettingToggle anchor="tabs.showSidebarButton" />
         <SettingToggle anchor="tabs.showClearButton" />
+        <SettingToggle anchor="tabs.tidyTabs" />
         <SettingToggle anchor="tabs.balancedTopApps" />
         <SettingToggle anchor="tabs.showUnreadCounts" />
         <SettingToggle anchor="tabs.showTopAppBadges" />
@@ -178,6 +179,7 @@ function CleanUpRow({ minutes }: { minutes: number | null }) {
           onChange={(v) => (v === CUSTOM_CLEAN_UP ? showSettingsSheet(<CustomCleanUpSheet minutes={shown} />) : updateSettings({ cleanUpInactiveTabsAfterMinutes: Number(v) }))}
         />
       </Row>
+      <SettingToggle anchor="tabs.suggestCleanUp" />
     </Group>
   );
 }

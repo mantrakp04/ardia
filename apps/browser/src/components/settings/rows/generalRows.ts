@@ -159,6 +159,13 @@ export const generalRows = {
           keywords: ["clear unpinned tabs", "close all tabs", "clear today", "divider", "arc"],
           shown: inSidebar,
         },
+        tidyTabs: {
+          advanced: true,
+          title: "Tidy Tabs",
+          description: "As in Arc: once you have more than six tabs, Tidy on the divider sorts them into groups by site. Pinned tabs stay where you put them.",
+          keywords: ["tidy", "broom", "organize tabs", "group by site", "clean up", "arc max"],
+          shown: inSidebar,
+        },
         balancedTopApps: {
           advanced: true,
           title: "Grow Top Apps as the sidebar widens",
@@ -291,6 +298,11 @@ export const generalRows = {
           title: "Clean up tabs I haven't used in",
           description: "Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily.",
           keywords: ["archive", "auto close", "inactive tabs", "duplicates", "custom", "minutes"],
+        },
+        suggestCleanUp: {
+          title: "Suggest cleaning up when tabs pile up",
+          description: "Shows a card in the sidebar once 10 or more tabs haven't been used in a while.",
+          keywords: ["upsell", "tidy", "suggestion", "don't show again", "card", "inactive tabs"],
         },
       },
     },

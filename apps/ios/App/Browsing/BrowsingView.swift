@@ -12,7 +12,7 @@ struct BrowsingView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Namespace private var omnibox
   @State private var pager = PagerModel()
-  @State private var barHidden = false
+  @State private var barVisibility = BottomBarVisibility()
   @State private var tabSwitchTicks = 0
   @State private var pageWidth: CGFloat = 402
   @State private var storedCover: StoredCover?
@@ -68,10 +68,19 @@ struct BrowsingView: View {
     }
     .onChange(of: currentWebPage?.scrollDirection) { _, direction in
       guard app.settings.collapsesBottomBar else { return }
-      withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse) { barHidden = direction == .down }
+      barVisibility.scrollCollapsed = direction == .down
+    }
+    .onChange(of: isFindingInPage) { _, active in
+      barVisibility.findSessionChanged(isActive: active)
+    }
+    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+      barVisibility.keyboardWillShow()
+    }
+    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+      barVisibility.keyboardDidHide()
     }
     .onChange(of: app.tabs.selectedTabID, initial: true) { _, id in
-      barHidden = false
+      barVisibility.scrollCollapsed = false
       app.goBackToSearchIfEmpty()
       if let id { _ = app.web.webTab(for: id) }
       warmPagerNeighbors()
@@ -79,7 +88,7 @@ struct BrowsingView: View {
     .task { await freezePagerForDemo() }
     .task { await runPagerScriptForDemo() }
     .onChange(of: isFront) { _, front in
-      if front { barHidden = false }
+      if front { barVisibility.scrollCollapsed = false }
     }
     .onChange(of: findScope) { old, _ in
       endFindInPage(on: old.tabID)
@@ -147,7 +156,7 @@ struct BrowsingView: View {
         tab: tab,
         cover: cover(for: tab),
         swipeMode: app.preferences.swipeNavigation,
-        bottomInset: BrowseLayout.barHeight - 26,
+        bottomInset: BrowseLayout.barHeight,
         onTone: { id, tone in browse.setTone(tone, for: id) }
       )
       if MotionDemo.loadFreeze != nil {
@@ -219,12 +228,16 @@ struct BrowsingView: View {
     .environment(\.colorScheme, barScheme)
     .contentShape(.rect)
     .highPriorityGesture(pagerGesture)
-    .offset(y: barHidden || isFindingInPage ? BrowseLayout.barCollapseTravel : 0)
-    .opacity(barHidden || isFindingInPage ? 0 : 1)
-    .allowsHitTesting(!barHidden && !isFindingInPage)
-    .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse, value: isFindingInPage)
+    .offset(y: isBarShown ? 0 : BrowseLayout.barCollapseTravel)
+    .opacity(isBarShown ? 1 : 0)
+    .allowsHitTesting(isBarShown)
+    .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse, value: isBarShown)
     .ignoresSafeArea(.container, edges: .bottom)
     .ignoresSafeArea(.keyboard)
+  }
+
+  private var isBarShown: Bool {
+    barVisibility.isShown(searchTrayPresented: app.browse.isSearchTrayOnScreen)
   }
 
   @Environment(\.colorScheme) private var systemScheme

@@ -28,6 +28,10 @@ final class BrowseSession {
   var deckRequested = false
   var tones: [UUID: PageTone] = [:]
 
+  var isSearchTrayOnScreen: Bool {
+    search != nil || trayHoldsKeyboard
+  }
+
   struct StepRequest: Equatable {
     let id = UUID()
     let delta: Int

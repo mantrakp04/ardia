@@ -104,7 +104,10 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   history, bookmarks, the Mac's tabs, network suggestions, bangs and the calculator. Dragging along the rows scrubs
   them.
 - **Browsing.** No URL bar: the page runs under the status bar, with a frosted bottom bar (tab stack, +, chevron)
-  tinted by the page. Swipe the bar to switch tabs, swipe anywhere to go back. The chevron opens the page menu:
+  tinted by the page. WebKit is told the bar's height as an obscured inset, so a site's fixed footer lays out
+  above the bar; the same inset carries the top safe area, or the page would start under the status bar. The bar gives way to Find on Page and to the search tray, and returns only after the find panel,
+  the search tray and the keyboard have left.
+  Swipe the bar to switch tabs, swipe anywhere to go back. The chevron opens the page menu:
   back, forward, title, pin, reload; Reader, Copy Link (without trackers), Share; Find on Page, Send to a
   Mac, Night Shade, Page Zoom, Request Desktop Site, Translate, Site Settings.
 - **Tabs.** An app-switcher deck of live snapshots; flick a card up to close it. Closing archives; tabs left alone
@@ -201,7 +204,9 @@ are `.widgets`, `.share` and `.open`, and they share the app group `group.com.ar
   every build and works once Apple approves one; later builds of the same version usually pass without a full review.
   Apple has no setting that gives an external group every build, so each one is submitted. `-f public_testers=false`
   keeps an upload to the Internal group, and `gh workflow run ios-release.yml -f mode=public-link -f build=<number>`
-  sends an earlier build. To invite someone by email instead,
+  sends an earlier build. Only one build of a version can wait in Beta App Review, so a newer one is refused until
+  the older one is through. `-f mode=expire -f build=<number>` ends testing of an older build for good, so nobody
+  installs it again; Apple can't undo it and the script refuses the newest build. To invite someone by email instead,
   `gh workflow run ios-release.yml -f mode=add-tester -f email=<address>` adds them to Public Testers; TestFlight
   emails the invite once that group has an approved build.
 
