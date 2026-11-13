@@ -533,8 +533,11 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   Windows confirms the password export with Windows Hello, or with the Windows Security password prompt when Hello
   isn't set up. Chromium shows that over `GetLastActiveBrowser()`'s window, which in Ardia is a page window, so
   `chromium-win-reauth-app-window.patch` gives it a hook and the engine host answers with the app window the user is
-  in. The password prompt is modal on the browser UI thread, as in Chrome: until it is answered, other engine calls
-  wait (that was the old stall, when the prompt sat unseen on a page window). If either export has not answered
+  in. In Chrome that password prompt is modal on the browser UI thread, so other engine calls
+  and quitting wait on it (the old stall, when the prompt sat unseen on a page window); the patch runs it on a pool
+  thread that shutdown doesn't wait for. Every confirmation has a 110 s deadline, under the app's two-minute
+  timeout: at the deadline the export answers `reauthFailed`, the password prompt is closed, and a later answer is
+  dropped, so nothing is written after the app gave up. If either export has not answered
   after `EXPORT_ANSWER_MS` (two minutes, enough for a large profile), it fails the way the Mac's does: the bookmark
   export reports "Couldn't export" and the password export answers `writeFailed`.
 - `extensions.chooseFolder` and `extensions.inspectUnpacked`: `ArdiaDialogs.pickFolder`, then the Mac's
