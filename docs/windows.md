@@ -31,7 +31,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Installer (wizard, Start menu, Open Ardia) | Works | |
 | First launch after the installer | Differs: ardia.dev's release notes open behind onboarding | #1517 |
 | Onboarding (source, look, last choices; resumes where you left it) | Works | |
-| Intro animation and music | Not offered | #1520, #1249 |
+| Intro animation and music | Differs: the Mac's dawn poster stands in for the animated meadow (none at night); the music is the Mac's, rendered from its synthesis and played with XAudio2 | #1547, #1546, #1249 |
 | Tour | Works (first card seen) | |
 | Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
 | Check for updates | Broken: "the server answered 404", no `windows-alpha` release | #1517 |
@@ -102,7 +102,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | "…" menu (12 items, Windows keys) | Works, except Check for Updates | #1517 |
 | Sync | Not offered ("isn't available in this build"); hidden | #1521 |
 | Calendar | Does nothing (Connect answered with macOS copy); hidden | #1521 |
-| Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden | #1522, #1520 |
+| Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden (thin scroll bars need the engine: #1425) | #1522, #1520 |
 | The ardia command, Widevine | Not offered (each says so) | |
 | Copy naming the Mac (Touch ID, macOS full screen, View ›, this Mac, Keychain) | Fixed | #1522 |
 

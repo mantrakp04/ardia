@@ -57,6 +57,8 @@ export type SystemModule = SystemNative & { defaultBrowserState(): DefaultBrowse
 
 export type AppModule = AppNative & { windowsApiVersion?: number };
 
+export type IntroMusicModule = { play(muted: boolean): void; setMuted(muted: boolean): void; stop(fade: number): void; embeddedSeconds(): number };
+
 export type WindowsHostModule = {
   getConstants(): { selfCheck?: boolean };
   secureRandomHex(byteCount: number): string;

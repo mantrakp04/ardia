@@ -5,6 +5,7 @@ import { moduleDefaults } from "./defaults";
 import { engineAvailable } from "./engine/host";
 import { engineModules } from "./engine/modules";
 import { windowsImport } from "./import";
+import { windowsIntroMusic } from "./introMusic";
 import { windowsLaunchLinks } from "./launchLinks";
 import { noteMissing } from "./missing";
 import { stampedSystemInfo, windowsUpdater } from "./updater";
@@ -36,7 +37,7 @@ const around: Record<string, Record<string, (native: Call) => Call>> = {
   },
 };
 
-const writtenInJs: Record<string, Record<string, unknown>> = { ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion, ArdiaLaunchLinks: windowsLaunchLinks, ArdiaImport: windowsImport() };
+const writtenInJs: Record<string, Record<string, unknown>> = { ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion, ArdiaLaunchLinks: windowsLaunchLinks, ArdiaImport: windowsImport(), ArdiaApp: windowsIntroMusic };
 
 const inert = (module: string, key: string) => () => {
   noteMissing(`${module}.${key}`);

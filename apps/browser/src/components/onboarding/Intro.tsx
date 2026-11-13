@@ -16,22 +16,10 @@ import { useOnboardingColors } from "./Parts";
 import { curve, springs } from "../ui/motion";
 import { space } from "../ui/tokens";
 import { onboardingMotion, onboardingType } from "./tokens";
+import { EXIT, INTRO_CUES, LETTER, TAGLINE, WORDMARK } from "./introCues";
 
-const WORDMARK = "Ardia";
 const ICON = require("../../../assets/app-icon.png");
-
-const LETTER = 0.52;
-const TAGLINE = 0.6;
-const EXIT = 0.65;
-const CUES: IntroMusicCues = (() => {
-  const icon = 0.25;
-  const letters = 1.15;
-  const letterStep = 0.055;
-  const letterCount = WORDMARK.length;
-  const tagline = letters + (letterCount - 1) * letterStep + LETTER + 0.15;
-  const exit = tagline + TAGLINE + 1.1;
-  return { icon, letters, letterStep, letterCount, tagline, exit, end: exit + EXIT };
-})();
+const CUES = INTRO_CUES;
 
 const ms = (s: number) => Math.round(s * 1000);
 const OPENING_TONE: Record<"day" | "night", MeadowTone> = { day: { tone: "light", halo: 0 }, night: { tone: "dark", halo: 0 } };
