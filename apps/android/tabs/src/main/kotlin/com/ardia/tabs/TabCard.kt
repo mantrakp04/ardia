@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -94,6 +95,7 @@ internal fun DeckCardItem(model: AppModel, state: DeckState, haptics: Haptics, t
     val value = if (tab.isPrivate) stringResource(R.string.tabs_incognito_value, host) else host
     val hint = stringResource(R.string.tabs_card_hint)
     val closeLabel = stringResource(R.string.tabs_close_tab)
+    val image = rememberSnapshot(model, tab)
     Box(
         Modifier
             .deckCardPlacement(state, id, index, isLast, pose, shapes, TabsPalette.cardShadow)
@@ -103,6 +105,7 @@ internal fun DeckCardItem(model: AppModel, state: DeckState, haptics: Haptics, t
                 stateDescription = value
                 role = Role.Button
                 testTag = DECK_CARD_TAG
+                this[ShownSnapshot] = image
                 onClick(hint) {
                     state.open(id)
                     true
@@ -115,7 +118,7 @@ internal fun DeckCardItem(model: AppModel, state: DeckState, haptics: Haptics, t
                 )
             },
     ) {
-        TabCardContent(model, tab, title, host)
+        TabCardContent(tab, image, title, host)
         if (TabText.isUnseenReceived(tab)) ReceivedBadge(Modifier.padding(10.dp))
         DropdownMenu(expanded = state.menuFor == id, onDismissRequest = { if (state.menuFor == id) state.menuFor = null }) {
             CardMenu(model, tab, dismiss = { state.menuFor = null }, close = { state.close(id, animated = true) }, copied = haptics::success)
@@ -192,22 +195,20 @@ private fun DeckHeaderRow(icon: @Composable () -> Unit, title: @Composable () ->
 }
 
 @Composable
-internal fun TabCardContent(model: AppModel, tab: BrowserTab, title: String, host: String) {
+internal fun TabCardContent(tab: BrowserTab, image: ImageBitmap?, title: String, host: String) {
     val dark = LocalArdiaDarkTheme.current
     val background = when {
         tab.isPrivate -> TabsPalette.incognitoCard
         else -> parseHexColor(tab.themeColorHex) ?: SystemPalette.background.resolve(dark)
     }
-    val image = rememberSnapshot(model, tab)
+    val appear = remember(tab.id) { Animatable(if (image != null) 1f else 0f) }
+    val hasImage = image != null
+    LaunchedEffect(hasImage) { if (hasImage) appear.animateTo(1f, TabsMotion.fade.spec()) }
     Box(Modifier.fillMaxSize().background(background)) {
-        if (image == null) {
+        if (image == null || appear.value < 1f) {
             if (tab.isPrivate) IncognitoCardPlaceholder(title) else PageCardPlaceholder(tab, title, host)
-        } else {
-            val appear = remember(image) { Animatable(if (model.deck.memoryImage(tab.id) != null) 1f else 0f) }
-            LaunchedEffect(appear) { appear.animateTo(1f, TabsMotion.fade.spec()) }
-            if (appear.value < 1f) {
-                if (tab.isPrivate) IncognitoCardPlaceholder(title) else PageCardPlaceholder(tab, title, host)
-            }
+        }
+        if (image != null) {
             Image(
                 image,
                 contentDescription = null,
@@ -351,5 +352,7 @@ internal fun MenuRow(title: String, icon: ImageVector?, destructive: Boolean = f
 }
 
 internal const val DECK_CARD_TAG = "tabs.deck.card"
+
+internal val ShownSnapshot = SemanticsPropertyKey<ImageBitmap?>("ShownSnapshot")
 private const val HEADER_HEIGHT = 20.0
 private const val HEADER_MAX_FONT_SCALE = 1.35f

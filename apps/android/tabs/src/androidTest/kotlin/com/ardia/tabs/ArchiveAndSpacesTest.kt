@@ -1,5 +1,6 @@
 package com.ardia.tabs
 
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -61,8 +62,10 @@ class ArchiveAndSpacesTest {
         demo.show { model -> if (model.sheet == AppModel.Sheet.SyncedSpaces) SyncedSpacesView(model) }
         compose.waitUntil(DemoModel.TIMEOUT) { compose.onAllNodesWithText("Personal").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Work").assertExists()
-        compose.onNode(hasTestTag(spacePageTag("demo-personal"))).performScrollToNode(hasText("MacBook Pro"))
+        val page = compose.onNode(hasTestTag(spacePageTag("demo-personal")))
+        page.performScrollToNode(hasText("MacBook Pro"))
         compose.onNodeWithText("MacBook Pro").assertExists()
+        page.performScrollToNode(hasContentDescription("Mail"))
         val before = demo.onMain { demo.model.tabs.openTabs.size }
         compose.onNodeWithContentDescription("Mail").performClick()
         compose.waitUntil(DemoModel.TIMEOUT) { demo.onMain { demo.model.tabs.openTabs.any { it.url == "https://www.icloud.com/mail" } } }
