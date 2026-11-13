@@ -9,6 +9,7 @@ export type PageStart = { url?: string; profile?: string; adopt?: string; window
 type Page = {
   key: string;
   windowId: string;
+  from: PageStart;
   started: { url: string; at: number };
   opening: OpeningPage;
   ready: Promise<boolean>;
@@ -93,6 +94,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
     page = {
       key,
       windowId: from.windowId,
+      from,
       started: { url: from.url ?? "", at: Date.now() },
       opening: openingPage(from.url ?? "", !!offeredByEngine(from.adopt)),
       ready: start(key, from),
@@ -104,6 +106,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
     pages.set(key, page);
   } else if (page.windowId !== from.windowId) {
     page.windowId = from.windowId;
+    page.from = from;
     page.ready = page.ready.then(() => start(key, from));
   }
   const mounted = page;
@@ -143,12 +146,28 @@ export function showPage(key: string, visible: boolean, shape: PageShape | null)
   );
 }
 
+const REOPENING_METHODS = new Set(["loadUrl", "reload", "forceReload"]);
+
+function readyOrReopened(page: Page, url: unknown): Promise<boolean> {
+  page.ready = page.ready.then((opened) => {
+    if (opened || page.closed) return opened;
+    return start(page.key, { ...page.from, adopt: undefined, windowId: page.windowId }).then((again) => {
+      const listeners = page.closed ? [] : [...page.listeners];
+      if (again) for (const listener of listeners) listener("ready", {});
+      else for (const listener of listeners) listener("loadError", { url: typeof url === "string" ? url : page.from.url ?? "", code: 0, text: "the page could not open" });
+      return again;
+    });
+  });
+  return page.ready;
+}
+
 export function callPage<Result = unknown>(key: string, method: string, args: Record<string, unknown> = {}): Promise<Result | null> {
   const page = pages.get(key);
   if (!page || page.closed) return Promise.resolve(null);
   if (method === "loadUrl" && args.url === page.started.url && Date.now() - page.started.at < SAME_LOAD_MS) return Promise.resolve(null);
   if (method === "loadUrl") noteLoadAsked(page.opening, args.url);
-  return page.ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));
+  const ready = REOPENING_METHODS.has(method) ? readyOrReopened(page, args.url) : page.ready;
+  return ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));
 }
 
 export function parkPage(key: string) {
