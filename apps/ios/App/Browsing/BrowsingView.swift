@@ -238,6 +238,7 @@ struct BrowsingView: View {
     .opacity(isBarShown ? 1 : 0)
     .allowsHitTesting(isBarShown)
     .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse, value: isBarShown)
+    .frame(maxHeight: .infinity, alignment: .bottom)
     .ignoresSafeArea(.container, edges: [.bottom, .horizontal])
     .ignoresSafeArea(.keyboard)
   }
