@@ -65,6 +65,19 @@ test("tabs opened behind don't count as used until they're shown", () => {
   assert.equal(shown(w), "b", "not the tabs a opened behind");
 });
 
+test("closing goes to a tab opened behind before a closed pinned tab, so the pin doesn't load again", () => {
+  reset();
+  const [w, p, a] = setup("p", "a");
+  S().togglePin(p);
+  S().activate(p);
+  S().closeTab(p);
+  S().activate(a);
+  open(w, "b", a);
+  S().closeTab(a);
+  assert.equal(shown(w), "b");
+  assert.ok(!S().tabs[p].page.nav, "the pin stays closed");
+});
+
 test("the tab used before wins even in a collapsed group, over tabs opened behind", () => {
   reset();
   const [w, a, b] = setup("a", "b", "x");

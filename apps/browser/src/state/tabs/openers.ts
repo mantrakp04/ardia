@@ -98,10 +98,9 @@ export function switchKeepsOpeners(s: BrowserState, from: string, to: string): b
 export function closeSuccessor(s: BrowserState, closed: string, order: string[], left: string[]): string | undefined {
   const at = order.indexOf(closed);
   const nearest = [...left.filter((id) => order.indexOf(id) > at), ...left.filter((id) => order.indexOf(id) < at).reverse()];
-  const seen = nearest.filter((id) => !s.tabs[id]!.unseen);
-  const pool = seen.length ? seen : nearest;
-  const awake = pool.filter((id) => !isAsleep(s.tabs[id]));
-  const from = awake.length ? awake : pool;
-  if (!seen.length) return from[0];
-  return from.reduce((best, id) => (s.tabs[id]!.lastActiveAt > s.tabs[best]!.lastActiveAt ? id : best));
+  const awake = nearest.filter((id) => !isAsleep(s.tabs[id]));
+  const pool = awake.length ? awake : nearest;
+  const seen = pool.filter((id) => !s.tabs[id]!.unseen);
+  if (!seen.length) return pool[0];
+  return seen.reduce((best, id) => (s.tabs[id]!.lastActiveAt > s.tabs[best]!.lastActiveAt ? id : best));
 }
