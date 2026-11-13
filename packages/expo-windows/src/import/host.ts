@@ -7,6 +7,7 @@ export type Rows = { columns: string[]; rows: Cell[][]; error?: string };
 export type SnapshotFailure = "missing" | "inUse" | "unreadable" | "noTemp" | "refused" | "cancelled" | "closed";
 export type Secrets = { undecryptable: number; appBound: number; failure?: SnapshotFailure };
 export type CookieRead = Secrets & { count: number; dropped: number; skipped?: number; token?: string };
+export type AutofillRead = Secrets & { addresses: number; cards: number; lockedCards: number; token?: string };
 export type FirefoxLoginRead = Secrets & { items: Credential[]; error?: { code: "locked" | "unsupported" | "unreadable" | "notFound"; message: string } };
 export type Answer = { results: Rows[] } | { failure: SnapshotFailure };
 
@@ -27,7 +28,8 @@ export type ImportHost = {
   cookies(browserId: string, file: string): Promise<CookieRead>;
   firefoxLogins(profile: string): Promise<FirefoxLoginRead>;
   firefoxCookies(file: string): Promise<CookieRead>;
-  writeCookies(token: string, profile: string): Promise<WrittenCounts>;
+  autofill(browserId: string, file: string, joinToken: string): Promise<AutofillRead>;
+  writeImported(token: string, profile: string, kinds: ("cookies" | "autofill")[]): Promise<WrittenCounts>;
   discard(token: string): void;
   forget(): void;
 };

@@ -466,10 +466,10 @@ elseif (-not (Select-String -Path $browserLog -Pattern "\[ardia windows\] first 
 $env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
 $importFixtures = Join-Path $env:ARDIA_DATA_DIR "import-fixtures"
 $fixtureProfiles = Join-Path $PSScriptRoot "..\..\packages\import\fixtures\home\Library\Application Support"
-foreach ($fixture in @(@("firefox", "Firefox\Profiles\abcd1234.default-release"), @("work", "Firefox\Profiles\zzzz9999.work"), @("zen", "zen\Profiles\zen12345.Default (release)"))) {
+foreach ($fixture in @(@("firefox", "Firefox\Profiles\abcd1234.default-release"), @("work", "Firefox\Profiles\zzzz9999.work"), @("zen", "zen\Profiles\zen12345.Default (release)"), @("chrome", "Google\Chrome\Default"))) {
   $to = Join-Path $importFixtures $fixture[0]
   New-Item -ItemType Directory -Force -Path $to | Out-Null
-  foreach ($name in @("key4.db", "logins.json", "logins.db", "cookies.sqlite")) {
+  foreach ($name in @("key4.db", "logins.json", "logins.db", "cookies.sqlite", "Web Data")) {
     $from = Join-Path (Join-Path $fixtureProfiles $fixture[1]) $name
     if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination $to }
   }

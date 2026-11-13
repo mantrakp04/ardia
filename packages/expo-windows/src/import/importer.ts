@@ -113,6 +113,19 @@ export async function importProfile(
       } else if (kind === "favorites" && browser.sidebar === "zen") {
         result.favorites = (await sidebars.zenSidebar()).essentials;
         count = result.favorites.length;
+      } else if (kind === "autofill" && chromium) {
+        if (!(await entries(host, dir)).some((e) => e.name === "Web Data")) throw new ImportFailure("notFound", "No autofill data in this profile");
+        const file = join(dir, "Web Data");
+        await unlocks.ensure(host, browser);
+        const outcome = await host.autofill(browser.id, file, result.vaultToken ?? "");
+        if (outcome.failure) throw snapshotFailure(outcome.failure, file, browser.name);
+        result.addressCount = outcome.addresses;
+        result.cardCount = outcome.cards;
+        if (outcome.token) result.vaultToken = outcome.token;
+        count = outcome.addresses + outcome.cards;
+        if (outcome.lockedCards > 0)
+          result.warnings.push({ kind, code: "locked", message: `${plural(outcome.lockedCards, "saved card")} need ${browser.name}'s key, which Windows couldn't unwrap` });
+        secretWarnings(result, kind, outcome, "card", browser);
       } else if (kind === "passwords" && !chromium) {
         const outcome = await host.firefoxLogins(dir);
         if (outcome.error) throw new ImportFailure(outcome.error.code, outcome.error.message);

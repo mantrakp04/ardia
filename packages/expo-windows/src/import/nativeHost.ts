@@ -27,7 +27,8 @@ export function nativeImportHost(): ImportHost | null {
     cookies: (browserId, file) => parsed(native.cookies(browserId, file)),
     firefoxLogins: (profile) => parsed(native.firefoxLogins(profile)),
     firefoxCookies: (file) => parsed(native.firefoxCookies(file)),
-    writeCookies: (token, profile) => parsed(native.writeCookies(token, profile)),
+    autofill: (browserId, file, joinToken) => parsed(native.autofill(browserId, file, joinToken)),
+    writeImported: (token, profile, kinds) => parsed(native.writeImported(token, profile, kinds)),
     discard: (token) => native.discard(token),
     forget: () => native.forget(),
   };

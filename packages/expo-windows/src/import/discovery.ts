@@ -30,6 +30,7 @@ async function chromiumKinds(host: ImportHost, folder: string, arc: boolean): Pr
   if (!arc && (await latestSessionFile(host, folder))) kinds.push("tabs");
   if (has(names, "Login Data", "Login Data For Account")) kinds.push("passwords");
   if (has(network, "Cookies") || has(names, "Cookies")) kinds.push("cookies");
+  if (has(names, "Web Data")) kinds.push("autofill");
   return kinds;
 }
 

@@ -116,7 +116,11 @@ export function fakeHost(secrets = {}) {
       calls.push(["firefoxCookies", file]);
       return secrets.firefoxCookies ?? { count: 0, undecryptable: 0, appBound: 0, dropped: 0, skipped: 0 };
     },
-    async writeCookies() {
+    async autofill(browserId, file, joinToken) {
+      calls.push(["autofill", browserId, joinToken]);
+      return secrets.autofill ?? { addresses: 0, cards: 0, lockedCards: 0, undecryptable: 0, appBound: 0 };
+    },
+    async writeImported() {
       return { cookies: 0, cookiesRejected: 0, cookiesExisting: 0, addresses: 0, cards: 0 };
     },
     discard() {},

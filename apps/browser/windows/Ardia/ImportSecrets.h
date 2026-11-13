@@ -210,6 +210,7 @@ inline const char *SourceScheme(std::optional<int64_t> value) noexcept {
 
 struct VaultEntry {
   std::vector<std::unique_ptr<Wiped>> batches;
+  std::vector<std::unique_ptr<Wiped>> autofill;
   size_t dropped = 0;
   std::chrono::steady_clock::time_point kept = std::chrono::steady_clock::now();
 };
@@ -288,6 +289,22 @@ struct Store {
     } catch (...) {
     }
     return token;
+  }
+
+  std::string Attach(std::string const &token, std::vector<std::unique_ptr<Wiped>> autofill, uint64_t started) {
+    if (!token.empty()) {
+      std::lock_guard guard{lock};
+      PurgeLocked();
+      if (generation != started) return {};
+      auto found = vault.find(token);
+      if (found != vault.end()) {
+        for (auto &batch : autofill) found->second->autofill.push_back(std::move(batch));
+        return token;
+      }
+    }
+    auto entry = std::make_shared<VaultEntry>();
+    entry->autofill = std::move(autofill);
+    return Keep(entry, started);
   }
 };
 

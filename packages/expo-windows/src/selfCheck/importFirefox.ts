@@ -2,7 +2,7 @@ import { join } from "../import/host";
 import { expectEqual, expectTrue, type Check } from "./check";
 import { dataFolder, host } from "./importFiles";
 
-const fixture = (name: "firefox" | "work" | "zen") => join(dataFolder(), "import-fixtures", name);
+const fixture = (name: "firefox" | "work" | "zen" | "chrome") => join(dataFolder(), "import-fixtures", name);
 
 const passwords = (items: { password: string }[]) => items.map((c) => c.password);
 
@@ -41,9 +41,25 @@ export const checks: Check[] = [
       expectTrue(typeof read.token === "string" && /^[0-9a-f]{32}$/.test(read.token), `the token is ${read.token}`);
       native.discard(read.token);
       let refused = "";
-      await native.writeCookies(read.token, "Default").catch((error: unknown) => (refused = String((error as Error).message ?? error)));
+      await native.writeImported(read.token, "Default", ["cookies"]).catch((error: unknown) => (refused = String((error as Error).message ?? error)));
       expectTrue(refused.includes("no longer kept"), `a discarded token was ${refused || "accepted"}`);
       expectEqual<unknown>(await native.firefoxCookies(join(fixture("firefox"), "logins.json")), { failure: "unreadable" }, "cookies from a file that isn't a database");
+    },
+  },
+  {
+    name: "import: Chrome's Web Data addresses go to the vault, cards without the key are counted as locked, and a second read joins the same token",
+    async run() {
+      const native = host();
+      const webData = join(fixture("chrome"), "Web Data");
+      const first = await native.autofill("self-check", webData, "");
+      const { token, ...counts } = first;
+      expectEqual(counts, { addresses: 3, cards: 0, undecryptable: 0, appBound: 0, lockedCards: 3 }, "the counts");
+      expectTrue(typeof token === "string" && /^[0-9a-f]{32}$/.test(token), `the token is ${token}`);
+      const joined = await native.autofill("self-check", webData, token);
+      expectEqual(joined.token, token, "the second read's token");
+      const written = await native.writeImported(token, "Default", []);
+      expectEqual([written.cookies, written.addresses, written.cards, written.error], [0, 0, 0, undefined], "a write that asks for neither kind");
+      expectEqual<unknown>(await native.autofill("self-check", join(fixture("firefox"), "logins.json"), ""), { failure: "unreadable" }, "autofill from a file that isn't a database");
     },
   },
 ];
