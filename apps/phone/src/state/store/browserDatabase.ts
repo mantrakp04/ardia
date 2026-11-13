@@ -81,6 +81,11 @@ export function expiredArchivedIds(db: SqlDatabase, cutoff: number, keep: number
   return [...new Set([...old, ...beyond].map((r) => r.id))];
 }
 
+export const readTabState = (db: SqlDatabase, id: string) => db.first<{ data: string }>("SELECT data FROM tab_state WHERE id = ?", [id])?.data ?? null;
+
+export const writeTabState = (db: SqlDatabase, id: string, data: string | null) =>
+  data === null ? db.run("DELETE FROM tab_state WHERE id = ?", [id]) : db.run("INSERT OR REPLACE INTO tab_state (id, data) VALUES (?, ?)", [id, data]);
+
 export const maxVisitId = (db: SqlDatabase) => db.first<{ n: number | null }>("SELECT max(id) AS n FROM visits")?.n ?? 0;
 
 export const insertVisit = (db: SqlDatabase, visit: Visit) =>

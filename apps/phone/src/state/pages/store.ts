@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import { closePage, type PageNavigationState, type PageTone, type PageViewHandle } from "../../platform/pages";
+import { closePage, pages, type PageEngineEvent, type PageNavigationState, type PageSnapshot, type PageTone, type PageViewHandle } from "../../platform/pages";
 
-export type { PageNavigationState, PageTone, PageViewHandle };
+export type { PageEngineEvent, PageNavigationState, PageSnapshot, PageTone, PageViewHandle };
 
 type PagesState = { navigation: Record<string, PageNavigationState>; tones: Record<string, PageTone> };
 
@@ -41,3 +41,17 @@ export function endPages(ids: readonly string[]) {
     void closePage(id);
   }
 }
+
+export function deletePageSnapshots(ids: readonly string[]) {
+  for (const id of ids) void pages.deleteSnapshots(id);
+}
+
+export const endPrivateSession = () => void pages.endPrivateSession();
+
+export const snapshotPage = (id: string): Promise<PageSnapshot | null> => pages.snapshot(id, { maxWidth: 600, quality: 72 }).catch(() => null);
+
+export const savePageState = (id: string): Promise<string | null> => pages.saveState(id).catch(() => null);
+
+export const livePageIds = (): Promise<string[]> => pages.ids().catch(() => []);
+
+export const listenToPages = (listener: (event: PageEngineEvent) => void) => pages.addListener(listener);

@@ -11,6 +11,8 @@ import {
   readArchivedTabs,
   readOpenTabs,
   readPreferences,
+  readTabState,
+  writeTabState,
   searchArchivedTabs,
   writePreference,
   writeTabs,
@@ -67,6 +69,15 @@ test("tabs round-trip, private ones are never written, archived ones read newest
   assert.deepEqual(searchArchivedTabs(db, "%", 10), []);
   writeTabs(db, [], ["A"]);
   assert.deepEqual(readOpenTabs(db).map((t) => t.id), ["B"]);
+});
+
+test("a tab's saved page state round-trips and goes with the tab", () => {
+  const db = fresh();
+  writeTabs(db, [tab("A")], []);
+  writeTabState(db, "A", "c2F2ZWQ=");
+  assert.equal(readTabState(db, "A"), "c2F2ZWQ=");
+  writeTabs(db, [], ["A"]);
+  assert.equal(readTabState(db, "A"), null);
 });
 
 test("expired archived tabs are found by age and by count", () => {

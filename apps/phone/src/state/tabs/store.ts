@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { newUuid } from "../../lib/ids";
-import { endPages } from "../pages/store";
+import { deletePageSnapshots, endPages, endPrivateSession } from "../pages/store";
 import { currentPreferences, setPreference } from "../settings/store";
 import {
   countArchivedTabs,
@@ -8,7 +8,9 @@ import {
   expiredArchivedIds,
   readArchivedTabs,
   readOpenTabs,
+  readTabState,
   searchArchivedTabs,
+  writeTabState,
   writeTabs,
 } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
@@ -46,13 +48,32 @@ const now = () => Date.now();
 
 const data = (): TabsData => useTabs.getState();
 
+const privateStates = new Map<string, string>();
+
 function apply(change: TabsChange) {
   const db = browserDatabase();
+  const hadPrivate = useTabs.getState().privates.length > 0;
   writeTabs(db, change.put, change.remove);
-  if (change.clearArchived) deleteArchivedTabs(db);
+  const cleared = change.clearArchived ? deleteArchivedTabs(db) : [];
   const listed = change.put.some((t) => !t.isPrivate) || change.remove.length > 0;
   useTabs.setState((s) => ({ ...change.data, listing: listed ? s.listing + 1 : s.listing }));
   endPages(change.endedPages);
+  deletePageSnapshots([...change.remove, ...cleared]);
+  for (const id of change.endedPages) privateStates.delete(id);
+  if (hadPrivate && change.data.privates.length === 0) endPrivateSession();
+}
+
+export function tabSavedState(id: string): string | null {
+  return privateStates.get(id) ?? (data().privates.some((t) => t.id === id) ? null : readTabState(browserDatabase(), id));
+}
+
+export function saveTabState(id: string, saved: string | null) {
+  if (data().privates.some((t) => t.id === id)) {
+    if (saved) privateStates.set(id, saved);
+    else privateStates.delete(id);
+    return;
+  }
+  if (data().open.some((t) => t.id === id)) writeTabState(browserDatabase(), id, saved);
 }
 
 export function loadTabs() {
