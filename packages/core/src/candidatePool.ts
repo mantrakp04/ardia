@@ -1,4 +1,4 @@
-import { logVisits, pageText, pageTexts, type PageText } from "./pageText.ts";
+import { logVisits, pageText, pageTexts, tabPageText, type PageText } from "./pageText.ts";
 import type { SuggestionSource } from "./suggestion.ts";
 
 type HistoryRow = SuggestionSource["history"][number];
@@ -8,6 +8,7 @@ type TabRow = SuggestionSource["tabs"][number];
 export type Candidate = {
   url: string;
   title: string;
+  pageTitle?: string;
   favicon: string | null;
   visits: number;
   lastVisit: number;
@@ -118,7 +119,7 @@ export function prepareSuggestions(source: SuggestionSource, deadline: number): 
   return advance(b, bookmarks, deadline);
 }
 
-type TabsOver = { pool: Pool; currentTabId: string | undefined; rows: TabRow[]; tabIds: Map<string, string>; extra: Candidate[] };
+type TabsOver = { pool: Pool; currentTabId: string | undefined; rows: TabRow[]; tabIds: Map<string, string>; extra: Candidate[]; renamed: Set<string> };
 const tabsOverCache = new WeakMap<readonly TabRow[], TabsOver>();
 
 export function tabsOver(pool: Pool, tabs: readonly TabRow[], currentTabId?: string): TabsOver {
@@ -128,16 +129,31 @@ export function tabsOver(pool: Pool, tabs: readonly TabRow[], currentTabId?: str
     for (let i = 0; same && i < tabs.length; i++) same = cached.rows[i] === tabs[i];
     if (same) return cached;
   }
-  const tabIds = new Map<string, string>();
-  const extra: Candidate[] = [];
+  const open: TabRow[] = [];
+  const chosen = new Map<string, TabRow>();
   for (const t of tabs) {
     if (!t.url || t.id === currentTabId) continue;
-    const text = pageText(t);
-    if (tabIds.has(text.key)) continue;
-    tabIds.set(text.key, t.id);
-    if (!pool.byKey.has(text.key)) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text });
+    open.push(t);
+    const key = pageText(t).key;
+    const kept = chosen.get(key);
+    if (!kept || (t.customTitle && !kept.customTitle)) chosen.set(key, t);
   }
-  const result = { pool, currentTabId, rows: tabs.slice(), tabIds, extra };
+  const tabIds = new Map<string, string>();
+  for (const [key, t] of chosen) tabIds.set(key, t.id);
+  const extra: Candidate[] = [];
+  const renamed = new Set<string>();
+  for (const t of open) {
+    const key = pageText(t).key;
+    const listed = pool.byKey.get(key);
+    if (!listed) {
+      if (!t.customTitle && chosen.get(key) !== t) continue;
+      extra.push({ url: t.url, title: t.customTitle || t.title, pageTitle: t.title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text: tabPageText(t) });
+    } else if (t.customTitle) {
+      renamed.add(key);
+      extra.push({ url: t.url, title: t.customTitle, favicon: t.favicon ?? listed.favicon, visits: listed.visits, lastVisit: listed.lastVisit, logVisits: listed.logVisits, bookmarked: listed.bookmarked, tabId: t.id, text: tabPageText(t, listed.text) });
+    }
+  }
+  const result = { pool, currentTabId, rows: tabs.slice(), tabIds, extra, renamed };
   tabsOverCache.set(tabs, result);
   return result;
 }

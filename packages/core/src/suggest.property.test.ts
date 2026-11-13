@@ -45,7 +45,7 @@ function makeProfile(r: Rng, size: number) {
   });
   const tabs = Array.from({ length: Math.floor(size / 6) }, (_, i) => {
     const h = r.int(2) && history.length ? r.pick(history) : null;
-    return { id: `t${i}`, url: r.int(15) ? (h ? h.url : url()) : "", title: h ? h.title : title(), favicon: null };
+    return { id: `t${i}`, url: r.int(15) ? (h ? (r.int(4) ? h.url : `${h.url}#${r.pick(WORDS)}`) : url()) : "", title: h && r.int(3) ? h.title : title(), customTitle: r.int(3) === 0 ? title() : null, favicon: null };
   });
   return { history, bookmarks, tabs };
 }
@@ -60,7 +60,11 @@ const ACTIONS = [
 function sequence(r: Rng, p: ReturnType<typeof makeProfile>): string[] {
   const row = p.history.length ? r.pick(p.history) : { url: "https://github.com/", title: "GitHub" };
   const shown = row.url.replace(/^https?:\/\//, "");
-  const targets = [shown, shown.replace(/^www\./, ""), row.title, row.title.split(/\s+/).slice(0, 3).join(" "), r.pick(HOSTS), `${r.pick(WORDS)} ${r.pick(WORDS)}`, r.pick(WORDS), `${r.pick(HOSTS)}/${r.pick(WORDS)}`];
+  const named = p.tabs.filter((t) => t.customTitle);
+  const renamed = named.length ? r.pick(named).customTitle! : r.pick(WORDS);
+  const open = p.tabs.filter((t) => t.url);
+  const tabUrl = open.length ? r.pick(open).url : r.pick(WORDS);
+  const targets = [tabUrl, shown, shown.replace(/^www\./, ""), row.title, row.title.split(/\s+/).slice(0, 3).join(" "), r.pick(HOSTS), `${r.pick(WORDS)} ${r.pick(WORDS)}`, r.pick(WORDS), `${r.pick(HOSTS)}/${r.pick(WORDS)}`, renamed, renamed];
   let target = r.pick(targets);
   if (r.int(5) === 0) target = target.toUpperCase();
   if (r.int(8) === 0) target = ` ${target} `;
@@ -126,6 +130,10 @@ function compareRun(seed: number, size: number) {
       source = { ...source, tabs: source.tabs.map((t, i) => (i === at ? { ...t, title: `${r.pick(WORDS)} ${t.title}` } : t)) };
     }
     if (r.int(12) === 0) source = { ...source, tabs: [...source.tabs, { id: `new${i}`, url: `https://${r.pick(HOSTS)}/${r.pick(WORDS)}`, title: r.pick(WORDS), favicon: null }] };
+    if (r.int(8) === 0 && source.tabs.length) {
+      const at = r.int(source.tabs.length);
+      source = { ...source, tabs: source.tabs.map((t, i) => (i === at ? { ...t, customTitle: r.int(3) ? `${r.pick(WORDS)} ${r.pick(WORDS)}` : null } : t)) };
+    }
     if (r.int(10) === 0) {
       const h = source.history.length ? r.pick(source.history) : null;
       source = { ...source, bookmarks: [...(source.bookmarks ?? []), { url: h ? h.url : `https://${r.pick(HOSTS)}/${r.pick(WORDS)}`, title: h ? h.title : r.pick(WORDS), favicon: null }] };

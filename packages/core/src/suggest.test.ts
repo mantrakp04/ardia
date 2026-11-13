@@ -140,6 +140,137 @@ test("open tabs are marked so the bar can switch to them, except the bar's own t
   assert.ok(!own.items.some((i) => i.kind === "page" && i.tabId));
 });
 
+const pageRows = (items: Suggestion[]) => items.flatMap((i) => (i.kind === "page" ? [{ url: i.url, title: i.title, tabId: i.tabId }] : []));
+
+test("a renamed tab is found by its custom title, with or without a history or bookmark row for its URL", () => {
+  const url = "https://linear.app/team/board";
+  const tab = { id: "t7", url, title: "Linear – Issues", customTitle: "Work board", favicon: null };
+  const visited = [...history, { url, title: "Linear – Issues", favicon: null, visits: 6, lastVisit: now - 3000 }];
+  const bookmarks = [{ url, title: "Linear – Issues", favicon: null }];
+  const sources = {
+    "no history": { tabs: [tab], history },
+    history: { tabs: [tab], history: visited },
+    bookmark: { tabs: [tab], history, bookmarks },
+  };
+  for (const [label, source] of Object.entries(sources)) {
+    for (const typed of ["work board", "Work Board", "work", "wo", "board", "linear issues"]) {
+      const found = pageRows(buildSuggestions(typed, source, { now }).items);
+      assert.deepEqual(found, [{ url, title: "Work board", tabId: "t7" }], `${label}: ${typed}`);
+    }
+  }
+  const row = buildSuggestions("work board", sources.history, { now }).items.find((i) => i.kind === "page");
+  assert.equal(row?.kind === "page" && row.visited, true);
+  const marked = buildSuggestions("work board", sources.bookmark, { now }).items.find((i) => i.kind === "page");
+  assert.equal(marked?.kind === "page" && marked.bookmarked, true);
+});
+
+test("a renamed tab still matches the title its history or bookmark row was saved under", () => {
+  const url = "https://example.com/dashboard";
+  const tab = { id: "t7", url, title: "Example Dashboard", customTitle: "Work board", favicon: null };
+  const sources = {
+    bookmark: { tabs: [tab], history, bookmarks: [{ url, title: "Quarterly Budget", favicon: null }] },
+    history: { tabs: [tab], history: [...history, { url, title: "Quarterly Budget", favicon: null, visits: 4, lastVisit: now - 3000 }] },
+  };
+  for (const [label, source] of Object.entries(sources)) {
+    for (const typed of ["quarterly", "budget", "quarterly budget", "work board", "example dashboard"]) {
+      assert.deepEqual(pageRows(buildSuggestions(typed, source, { now }).items), [{ url, title: "Work board", tabId: "t7" }], `${label}: ${typed}`);
+    }
+  }
+});
+
+test("a typed address keeps opening the saved page, even when a renamed tab is on another fragment of it", () => {
+  const saved = "https://example.com/docs";
+  const open = `${saved}#intro`;
+  const tabs = [{ id: "t7", url: open, title: "Docs", customTitle: "Work board", favicon: null }];
+  const hist = [...history, { url: saved, title: "Docs", favicon: null, visits: 4, lastVisit: now - 3000 }];
+  for (const typed of [saved, "example.com/docs"]) {
+    const items = buildSuggestions(typed, { tabs, history: hist }, { now }).items;
+    const first = items[0];
+    assert.equal(first?.kind === "page" && first.url, saved, `${typed}: opens the saved page first`);
+    assert.equal(first?.kind === "page" && first.tabId, undefined, `${typed}: first row opens, it does not switch`);
+    assert.equal(first?.kind === "page" && first.title, "Docs", `${typed}: first row keeps the saved title`);
+    assert.ok(items.some((i) => i.kind === "page" && i.tabId === "t7" && i.url === open && i.title === "Work board"), `${typed}: the Switch to Tab row opens the tab's own address`);
+  }
+});
+
+test("a typed address row shows the page's own title, whatever a tab on it was renamed to", () => {
+  const url = "https://linear.app/team/board";
+  const tab = { id: "t7", url, title: "Linear – Issues", customTitle: "Work board", favicon: null };
+  const visited = [...history, { url, title: "Linear – Issues", favicon: null, visits: 6, lastVisit: now - 3000 }];
+  const cases = [
+    { label: "no history", source: { tabs: [tab], history }, typed: [url] },
+    { label: "history", source: { tabs: [tab], history: visited }, typed: [url, "linear.app/team/b"] },
+  ];
+  for (const { label, source, typed } of cases) {
+    for (const text of typed) {
+      const items = buildSuggestions(text, source, { now }).items;
+      const first = items[0];
+      assert.deepEqual(first?.kind === "page" && { url: first.url, title: first.title, tabId: first.tabId }, { url, title: "Linear – Issues", tabId: undefined }, `${label}: ${text}`);
+      assert.ok(items.some((i) => i.kind === "page" && i.tabId === "t7" && i.title === "Work board"), `${label}: ${text}: the tab keeps its Switch to Tab row`);
+    }
+  }
+});
+
+test("a renamed tab on a fragment of a saved page leaves the path completion and the saved address as they were", () => {
+  const saved = "https://example.com/docs/guide";
+  const hist = [...history, { url: saved, title: "Guide", favicon: null, visits: 4, lastVisit: now - 3000 }];
+  const tab = { id: "t7", url: `${saved}#intro`, title: "Guide", customTitle: "Work board", favicon: null };
+  for (const typed of ["example.com/docs/g", "example.com/docs/guide"]) {
+    const alone = buildSuggestions(typed, { tabs: [], history: hist }, { now });
+    assert.equal(alone.completion === "", typed.endsWith("guide"), `${typed}: the saved page completes unless it is typed in full`);
+    const renamed = buildSuggestions(typed, { tabs: [tab], history: hist }, { now });
+    assert.equal(renamed.completion, alone.completion, `${typed}: the completion is the same`);
+    const first = renamed.items[0];
+    assert.equal(first?.kind === "page" && first.url, saved, `${typed}: the first row opens the saved address`);
+    assert.equal(first?.kind === "page" && first.tabId, undefined, `${typed}: the first row opens, it does not switch`);
+    assert.deepEqual(first, alone.items[0], `${typed}: the first row is the one without the tab`);
+  }
+  const switching = buildSuggestions("work board", { tabs: [tab], history: hist }, { now }).items.find((i) => i.kind === "page");
+  assert.deepEqual(switching?.kind === "page" && { url: switching.url, title: switching.title, tabId: switching.tabId }, { url: tab.url, title: "Work board", tabId: "t7" });
+});
+
+test("a tab without a custom title keeps showing its page title", () => {
+  const url = "https://linear.app/team/board";
+  const visited = [...history, { url, title: "Linear – Issues", favicon: null, visits: 6, lastVisit: now - 3000 }];
+  for (const customTitle of [undefined, null, ""]) {
+    const tabs = [{ id: "t7", url, title: "Linear – Issues", customTitle, favicon: null }];
+    for (const source of [{ tabs, history }, { tabs, history: visited }]) {
+      assert.deepEqual(pageRows(buildSuggestions("linear issues", source, { now }).items), [{ url, title: "Linear – Issues", tabId: "t7" }], String(customTitle));
+    }
+  }
+});
+
+test("of two tabs on one page, the renamed one is the tab the bar switches to", () => {
+  const url = "https://linear.app/team/board";
+  const plain = { id: "t1", url, title: "Linear – Issues", customTitle: null, favicon: null };
+  const named = { id: "t2", url, title: "Linear – Issues", customTitle: "Work board", favicon: null };
+  const visited = [...history, { url, title: "Linear – Issues", favicon: null, visits: 6, lastVisit: now - 3000 }];
+  for (const tabs of [[plain, named], [named, plain]]) {
+    for (const source of [{ tabs, history }, { tabs, history: visited }]) {
+      assert.deepEqual(pageRows(buildSuggestions("work board", source, { now }).items), [{ url, title: "Work board", tabId: "t2" }]);
+    }
+  }
+});
+
+test("two renamed tabs on one page are each found by their own custom title", () => {
+  const url = "https://linear.app/team/board";
+  const first = { id: "t1", url, title: "Linear – Issues", customTitle: "Work board", favicon: null };
+  const second = { id: "t2", url, title: "Linear – Issues", customTitle: "Triage", favicon: null };
+  const plain = { id: "t3", url, title: "Linear – Issues", customTitle: null, favicon: null };
+  const visited = [...history, { url, title: "Linear – Issues", favicon: null, visits: 6, lastVisit: now - 3000 }];
+  const bookmarks = [{ url, title: "Linear – Issues", favicon: null }];
+  for (const tabs of [[first, second], [second, first], [plain, first, second], [first, plain, second]]) {
+    const sources = { "no history": { tabs, history }, history: { tabs, history: visited }, bookmark: { tabs, history, bookmarks } };
+    for (const [label, source] of Object.entries(sources)) {
+      assert.deepEqual(pageRows(buildSuggestions("work board", source, { now }).items), [{ url, title: "Work board", tabId: "t1" }], `${label}: work board`);
+      assert.deepEqual(pageRows(buildSuggestions("triage", source, { now }).items), [{ url, title: "Triage", tabId: "t2" }], `${label}: triage`);
+      const byPage = pageRows(buildSuggestions("linear issues", source, { now }).items);
+      assert.equal(byPage.length, 1, `${label}: one row for the page title`);
+      assert.ok(byPage[0]!.tabId === "t1" || byPage[0]!.tabId === "t2", `${label}: the page title switches to a renamed tab`);
+    }
+  }
+});
+
 test("a typed or completed address opens, even when a tab has it open: the tab keeps a Switch to Tab row", () => {
   const tabs = [{ id: "t1", url: "https://ugc.hekuto.dev/#grid", title: "UGC Radar", favicon: null }];
   const hist = [{ url: "https://ugc.hekuto.dev/#grid", title: "UGC Radar", favicon: null, visits: 3, lastVisit: now - 1000 }];

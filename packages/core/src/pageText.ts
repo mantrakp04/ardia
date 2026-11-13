@@ -1,4 +1,5 @@
 import { hostOf, urlForDisplay } from "./omnibox.ts";
+import type { SuggestionSource } from "./suggestion.ts";
 
 export function displayUrl(url: string): string {
   return urlForDisplay(url).replace(/\/$/, "");
@@ -40,6 +41,21 @@ export function pageText(row: { url: string; title: string }): PageText {
     pageTexts.set(row, text);
   }
   return text;
+}
+
+const renamedTexts = new WeakMap<object, { listed: PageText | undefined; text: PageText }>();
+
+export function tabPageText(row: Pick<SuggestionSource["tabs"][number], "url" | "title" | "customTitle">, listed?: PageText): PageText {
+  const text = pageText(row);
+  if (!row.customTitle) return text;
+  const kept = renamedTexts.get(row);
+  if (kept && kept.listed === listed) return kept.text;
+  const titles = [row.customTitle.toLowerCase(), text.titleLower];
+  if (listed && listed.titleLower !== text.titleLower) titles.push(listed.titleLower);
+  const titleLower = titles.join("\n");
+  const renamed = { ...(listed ?? text), titleLower, titleWords: wordsOf(titleLower) };
+  renamedTexts.set(row, { listed, text: renamed });
+  return renamed;
 }
 
 export const hostOfPage = (t: PageText) => (t.host ??= hostOf(t.url));
