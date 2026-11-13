@@ -24,8 +24,11 @@ struct DuoBrowsingView: View {
     .ignoresSafeArea(.keyboard)
     .onChange(of: app.surface, initial: true) { _, surface in
       guard surface == .tabSwitcher else { return }
-      app.surface = app.tabs.selectedTab == nil ? .search : .browsing
+      if app.tabs.selectedTab != nil { app.surface = .browsing }
       if layout.fold == nil { setSidebar(true) }
+    }
+    .onChange(of: app.tabs.selectedTabID) { _, selected in
+      if selected != nil, app.surface == .tabSwitcher { app.surface = .browsing }
     }
     .onChange(of: app.browse.search != nil) { _, searching in
       if searching { setSidebar(false) }
@@ -122,6 +125,7 @@ struct DuoBrowsingView: View {
   }
 
   private func setSidebar(_ shown: Bool) {
+    if !shown, app.surface == .tabSwitcher, app.tabs.selectedTab == nil { app.surface = .search }
     guard shown != isSidebarShown else { return }
     withAnimation(reduceMotion ? .easeOut(duration: 0.2) : DuoLayout.slide) { isSidebarShown = shown }
   }

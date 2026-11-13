@@ -31,6 +31,7 @@ private struct ToastOverlayRoot: View {
       }
       .environment(\.usesGlass, center.usesGlass)
       .environment(\.profileLook, center.look)
+      .preferredColorScheme(center.scheme)
   }
 }
 

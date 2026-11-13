@@ -151,4 +151,28 @@ import Testing
     store.spaces = Self.spaces("work")
     #expect(store.openTabs.map(\.url) == ["https://work.example/"])
   }
+
+  @Test func historyFollowsTheSameSpaceRulesAsTabs() throws {
+    let fixture = try StoreFixture()
+    defer { fixture.cleanUp() }
+    let store = fixture.store
+    store.recordVisit(url: "https://before-sync.example/", title: "", transition: .typed)
+    store.spaces = TabSpaces(current: "gone", defaultID: "personal", known: Self.known.union(["gone"]))
+    fixture.clock.advance(60)
+    store.recordVisit(url: "https://gone.example/", title: "", transition: .typed)
+    store.spaces = Self.spaces("work")
+    fixture.clock.advance(60)
+    store.recordVisit(url: "https://work.example/", title: "", transition: .typed)
+    #expect(store.visitsInCurrentSpace(limit: 10).map(\.url) == ["https://work.example/"])
+    store.spaces = Self.spaces("personal")
+    #expect(store.visitsInCurrentSpace(limit: 10).map(\.url) == ["https://gone.example/", "https://before-sync.example/"])
+    store.spaces = .unsynced
+    #expect(store.visitsInCurrentSpace(limit: 10).count == 3)
+    #expect(store.visitsInCurrentSpace(limit: 2).count == 2)
+    store.spaces = Self.spaces("personal")
+    store.removeVisitsInCurrentSpace(urls: ["https://gone.example/", "https://work.example/"])
+    #expect(store.visitsInCurrentSpace(limit: 10).map(\.url) == ["https://before-sync.example/"])
+    store.spaces = Self.spaces("work")
+    #expect(store.visitsInCurrentSpace(limit: 10).map(\.url) == ["https://work.example/"])
+  }
 }

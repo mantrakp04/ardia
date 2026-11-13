@@ -467,6 +467,31 @@ public final class TabStore: LocalBrowsingSource {
     return order.compactMap { records[$0] }
   }
 
+  public func visitsInCurrentSpace(limit: Int) -> [Visit] {
+    var matches: [Visit] = []
+    var offset = 0
+    let batch = max(limit, 200)
+    while matches.count < limit {
+      var descriptor = FetchDescriptor<Visit>(sortBy: [SortDescriptor(\.visitedAt, order: .reverse)])
+      descriptor.fetchLimit = batch
+      descriptor.fetchOffset = offset
+      let page = (try? context.fetch(descriptor)) ?? []
+      matches.append(contentsOf: page.filter { spaces.contains($0.profileSyncId) })
+      if page.count < batch { break }
+      offset += batch
+    }
+    return Array(matches.prefix(limit))
+  }
+
+  public func removeVisitsInCurrentSpace(urls: Set<String>) {
+    guard !urls.isEmpty else { return }
+    let list = Array(urls)
+    let visits = (try? context.fetch(FetchDescriptor<Visit>(predicate: #Predicate { list.contains($0.url) }))) ?? []
+    for visit in visits where spaces.contains(visit.profileSyncId) { context.delete(visit) }
+    historyRevision &+= 1
+    try? context.save()
+  }
+
   public func removeVisits(urls: Set<String>, profileSyncId: String?) {
     guard !urls.isEmpty else { return }
     let list = Array(urls)

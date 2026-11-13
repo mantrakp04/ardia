@@ -70,15 +70,7 @@ struct HistoryList: View {
   }
 
   private func localVisits() -> [HistoryVisitInput] {
-    let profile = app.tabs.profileSyncId
-    var descriptor: FetchDescriptor<Visit>
-    if let profile {
-      descriptor = FetchDescriptor<Visit>(predicate: #Predicate { $0.profileSyncId == profile }, sortBy: [SortDescriptor(\.visitedAt, order: .reverse)])
-    } else {
-      descriptor = FetchDescriptor<Visit>(predicate: #Predicate { $0.profileSyncId == nil }, sortBy: [SortDescriptor(\.visitedAt, order: .reverse)])
-    }
-    descriptor.fetchLimit = HiddenHistory.fetchLimit
-    let visits = (try? app.container.mainContext.fetch(descriptor)) ?? []
+    let visits = app.tabs.visitsInCurrentSpace(limit: HiddenHistory.fetchLimit)
     return visits.map { HistoryVisitInput(url: $0.url, title: $0.title, visitedAt: $0.visitedAt) }
   }
 
@@ -93,7 +85,7 @@ struct HistoryList: View {
     withAnimation(Motion.snappy) {
       entries.removeAll { $0.url == entry.url }
     }
-    app.tabs.removeVisits(urls: [entry.url], profileSyncId: app.tabs.profileSyncId)
+    app.tabs.removeVisitsInCurrentSpace(urls: [entry.url])
   }
 }
 

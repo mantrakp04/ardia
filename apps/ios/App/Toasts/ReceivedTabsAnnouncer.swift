@@ -10,7 +10,8 @@ struct ReceivedTabsAnnouncer: ViewModifier {
 
   func body(content: Content) -> some View {
     content
-      .onAppear { center.usesGlass = usesGlass; center.look = look }
+      .onAppear { center.usesGlass = usesGlass; center.look = look; center.scheme = app.preferredScheme }
+      .onChange(of: app.preferredScheme) { _, value in center.scheme = value }
       .onChange(of: usesGlass) { _, value in center.usesGlass = value }
       .onChange(of: look) { _, value in center.look = value }
       .onChange(of: app.tabs.lastReceived.map(\.id)) { _, _ in announce() }
