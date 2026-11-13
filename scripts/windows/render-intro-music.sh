@@ -7,8 +7,9 @@
 # Compiles packages/shell/ios/IntroMusic.swift on this Mac with a small stand-in for ArdiaCore, renders it
 # offline with the intro's cues (apps/browser/src/components/onboarding/introCues.ts) through the same reverb
 # and volume the Mac plays, and writes apps/browser/windows/Ardia/IntroMusic.wav (16-bit stereo, 44.1 kHz)
-# and IntroMusic.json (the cues it was rendered with). windowsIntroMusic.test.mjs fails when the cues change
-# and the file was not rendered again. Needs macOS, swiftc, afconvert and node.
+# and IntroMusic.json (the cues it was rendered with and a SHA-256 of IntroMusic.swift and this script).
+# windowsIntroMusic.test.mjs fails when either changes and the file was not rendered again. Needs macOS,
+# swiftc, afconvert, shasum and node.
 set -euo pipefail
 
 help() {
@@ -45,5 +46,6 @@ SWIFT
 swiftc -O -o "$work/render" "$work/IntroMusic.swift" "$work/main.swift" -framework AVFoundation -framework QuartzCore
 "$work/render" "$cues" "$work/raw.caf"
 afconvert -f WAVE -d LEI16@44100 -c 2 "$work/raw.caf" "$repo/apps/browser/windows/Ardia/IntroMusic.wav"
-printf '%s\n' "$cues" > "$repo/apps/browser/windows/Ardia/IntroMusic.json"
+source="$(cat "$repo/packages/shell/ios/IntroMusic.swift" "$repo/scripts/windows/render-intro-music.sh" | shasum -a 256 | cut -d' ' -f1)"
+printf '{"cues":%s,"source":"%s"}\n' "$cues" "$source" > "$repo/apps/browser/windows/Ardia/IntroMusic.json"
 ls -l "$repo/apps/browser/windows/Ardia/IntroMusic.wav"

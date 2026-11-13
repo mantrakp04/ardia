@@ -33,6 +33,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const tagline = useRef(new Animated.Value(0)).current;
   const exit = useRef(new Animated.Value(0)).current;
   const done = useRef(false);
+  const skipped = useRef(false);
   const [muted, setMuted] = useState(introMusicMuted);
   const [tone, setTone] = useState(() => OPENING_TONE[dark ? "night" : "day"]);
   const ink = isWebDemo ? null : meadowTextStyle(tone);
@@ -61,6 +62,8 @@ export function Intro({ onDone }: { onDone: () => void }) {
   }, []);
 
   const skip = () => {
+    if (skipped.current || done.current) return;
+    skipped.current = true;
     noteIntroSkipped();
     stopIntroMusic(0.35);
     Animated.timing(exit, { toValue: 1, duration: onboardingMotion.introSkip, easing: curve.enter, useNativeDriver: true }).start(finish);

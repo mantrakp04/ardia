@@ -5,7 +5,10 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstring>
+#include <deque>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <string_view>
@@ -68,17 +71,55 @@ inline double EmbeddedSeconds() noexcept {
   return wave ? static_cast<double>(wave->bytes / wave->format.nBlockAlign) / wave->format.nSamplesPerSec : 0;
 }
 
-template <class TWork>
-void OnAudioThread(TWork work) noexcept {
-  try {
-    std::thread([work]() noexcept {
-      bool com = SUCCEEDED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
-      work();
-      if (com) CoUninitialize();
-    }).detach();
-  } catch (...) {
+inline constexpr auto kQueueIdle = std::chrono::seconds(60);
+
+class Queue {
+ public:
+  static Queue &Shared() noexcept {
+    static Queue queue;
+    return queue;
   }
-}
+
+  void Post(std::function<void()> work) noexcept {
+    try {
+      std::lock_guard guard{m_lock};
+      m_work.push_back(std::move(work));
+      if (!m_running) {
+        std::thread([this]() noexcept { Run(); }).detach();
+        m_running = true;
+      }
+      m_ready.notify_one();
+    } catch (...) {
+    }
+  }
+
+ private:
+  void Run() noexcept {
+    bool com = SUCCEEDED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
+    for (;;) {
+      std::function<void()> work;
+      {
+        std::unique_lock guard{m_lock};
+        if (!m_ready.wait_for(guard, kQueueIdle, [this]() { return !m_work.empty(); })) {
+          m_running = false;
+          break;
+        }
+        work = std::move(m_work.front());
+        m_work.pop_front();
+      }
+      try {
+        work();
+      } catch (...) {
+      }
+    }
+    if (com) CoUninitialize();
+  }
+
+  std::mutex m_lock;
+  std::condition_variable m_ready;
+  std::deque<std::function<void()>> m_work;
+  bool m_running = false;
+};
 
 class Player {
  public:
