@@ -207,9 +207,7 @@ function TextButtonView(props: TextProps) {
     return (
       <View {...hoverProps}>
         <Pressable onPress={onPress} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut} disabled={disabled} {...a11y}>
-          <Animated.View style={scaleStyle}>
-            <Text style={[textStyle(hovered && hoverTone ? theme[hoverTone] : theme[tone]), { paddingVertical: padY ? space[padY] : undefined }, look === "link" && hovered ? UNDERLINE : null]}>{title}</Text>
-          </Animated.View>
+          <Animated.Text style={[textStyle(hovered && hoverTone ? theme[hoverTone] : theme[tone]), { paddingVertical: padY ? space[padY] : undefined }, look === "link" && hovered ? UNDERLINE : null, scaleStyle]}>{title}</Animated.Text>
         </Pressable>
       </View>
     );
