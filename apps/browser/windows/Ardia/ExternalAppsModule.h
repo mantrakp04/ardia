@@ -10,7 +10,6 @@
 #include <string_view>
 
 #include "AppModule.h"
-#include "DialogsModule.h"
 #include "Paths.h"
 #include "SystemModule.h"
 
@@ -137,6 +136,13 @@ inline winrt::Microsoft::ReactNative::JSValue Describe(std::string const &scheme
   return JSValue{std::move(handler)};
 }
 
+inline bool LaunchAskedByTest() noexcept {
+  AppLaunch::Config const &config = AppLaunch::Shared();
+  if (!config.testInstance) return false;
+  auto found = config.test.find("externalAppLaunch");
+  return found != config.test.end() && AppLaunch::Truthy(found->second);
+}
+
 inline bool HexDigit(char c) noexcept {
   return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
@@ -200,7 +206,7 @@ struct ExternalAppsModule {
     if (url.empty() || url.size() > ExternalApps::LongestLink) return promise.Resolve(false);
     std::optional<std::string> scheme = ExternalApps::SchemeOf(url);
     if (!scheme || ExternalApps::BrowserScheme(*scheme) || name.empty()) return promise.Resolve(false);
-    if (AppLaunch::Background() && !TestFlag("externalAppLaunch")) {
+    if (AppLaunch::Background() && !ExternalApps::LaunchAskedByTest()) {
       AppLaunch::Note(L"ArdiaExternalApps: background instance, not opening an app link");
       return promise.Resolve(false);
     }

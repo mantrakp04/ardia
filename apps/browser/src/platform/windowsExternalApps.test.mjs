@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { readExternalAppAsk, schemeOf, serializedOrigin, trustworthyOrigin, windowsExternalAppCounts, windowsExternalApps } from "../../../../packages/expo-windows/src/engine/domains/externalApps.ts";
 import { noteExternalApp, takeExternalAppCounts } from "../state/telemetry/externalAppCounts.ts";
@@ -171,4 +172,34 @@ test("a profile deleted while a yes waits for the engine keeps no allowance and 
   assert.equal(await answered, false);
   assert.deepEqual(await apps.list("Ardia p-1"), []);
   assert.deepEqual(opened, []);
+});
+
+test("the self-check's gate, which skips the engine's liveness check, still needs a yes, refuses unhandled schemes and needs a gesture", async () => {
+  const opened = [];
+  const docs = new Map();
+  const documents = { readDocument: (name) => docs.get(name) ?? null, writeDocument: (name, text) => void docs.set(name, text) };
+  const apps = windowsExternalApps(() => ({ describe: async (scheme) => HANDLERS[scheme] ?? null, open: async (url) => (opened.push(url), true) }), () => documents, async () => true);
+  const refused = await apps.request(ask({ url: "ardiaprogid:boom" }), "self-check", "page");
+  assert.equal(refused.app, null);
+  assert.equal(await apps.resolve(refused.id, true, true), false);
+  const declined = await apps.request(ask({ url: "ardiatest:x" }), "self-check", "page");
+  assert.equal(await apps.resolve(declined.id, false, true), false);
+  assert.deepEqual(opened, []);
+  const remembered = await apps.request(ask(), "self-check", "page");
+  assert.equal(await apps.resolve(remembered.id, true, true), true);
+  assert.notEqual(await apps.request(ask({ userGesture: false }), "self-check", "page"), null);
+  assert.deepEqual(opened, ["mailto:someone@example.com"]);
+});
+
+test("ARDIA_TEST=externalAppLaunch reaches only the native background refusal and the self-check's opt-in", () => {
+  const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const mentions = (text) => text.split("externalAppLaunch").length - 1;
+  for (const path of ["../../../../packages/expo-windows/src/engine/domains/externalApps.ts", "../../../../packages/expo-windows/src/engine/domains/externalAppsNative.ts", "../../../../packages/expo-windows/src/engine/pages.ts", "../state/site/prompts.ts"]) {
+    assert.equal(mentions(source(path)), 0, path);
+  }
+  const native = source("../../windows/Ardia/ExternalAppsModule.h");
+  assert.equal(mentions(native), 1);
+  assert.match(native, /if \(!config\.testInstance\) return false;\n  auto found = config\.test\.find\("externalAppLaunch"\);/);
+  assert.deepEqual(native.split("\n").filter((line) => line.includes("LaunchAskedByTest()") && !line.includes("inline")), ["    if (AppLaunch::Background() && !ExternalApps::LaunchAskedByTest()) {"]);
+  assert.match(source("../../../../packages/expo-windows/src/selfCheck/externalApps.ts"), /launchConfig\(\)\.test\.externalAppLaunch === "1"/);
 });
