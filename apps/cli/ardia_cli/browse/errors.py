@@ -42,6 +42,7 @@ REFUSAL_HINTS = {
     "to that URL": "only http, https, data and about:blank pages can be opened",
     "on a tab the ardia command didn't open": "the viewport can be set only on a tab this command opened: `ardia browse open <url>`, then set it there",
     "with that option": "only a width, a height, a scale and mobile can be set",
+    "on a tab the user took over": "the user selected, pinned, moved or used that tab, so it is theirs now and has its own size back: open another with `ardia browse open <url>` and set its viewport there",
 }
 
 

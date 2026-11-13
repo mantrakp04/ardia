@@ -1433,6 +1433,10 @@ async def cmd_set(ctx: Ctx, argv):
             ctx.state.leases.add("emulation")
             return Result({"features": features})
     except Gated as error:
+        if error.reason == "on a tab the user took over":
+            from ardia_cli import command_metrics
+
+            command_metrics.flag("viewport_tab_taken", True)
         raise error.during(f"set {setting}", error.data.get("detail") if error.data else None) from None
     raise Usage(f"Unknown setting: {setting}")
 

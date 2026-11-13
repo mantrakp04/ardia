@@ -714,20 +714,36 @@ The policy also refuses some uses of methods it allows (`ac_cli_token_policy.cc`
 | `without flatten` | `Target.attachToTarget`, `setAutoAttach` | The command always sends `flatten`, so this is a bug in it |
 | `to that URL`, `in another browser context` | `Target.createTarget`, `Page.navigate` | Only http, https, data and about:blank pages, in the user's own profile |
 | `in that execution context`, `on that object` | `Runtime.*`, `DOM.*` | A context or object the connection didn't make |
-| `on a tab the ardia command didn't open`, `with that option` | `Emulation.setDeviceMetricsOverride`, `clearDeviceMetricsOverride` | The viewport override is for tabs the command opened (below), with a width, height, scale and `mobile` only |
+| `on a tab the ardia command didn't open`, `on a tab the user took over`, `with that option` | `Emulation.setDeviceMetricsOverride`, `clearDeviceMetricsOverride` | The viewport override is for tabs the command opened (below), with a width, height, scale and `mobile` only |
 | `in a named world`, `as a stream`, `with the command line API`, `without a button`, `with those editing commands` | `Page.addScriptToEvaluateOnNewDocument`, `Page.printToPDF`, `Runtime.evaluate`, `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` | That option isn't allowed |
 
 `set viewport <w> <h> [scale]` works on the token path, for responsive checks, on a tab the command opened. The
 policy allows `Emulation.setDeviceMetricsOverride` and `clearDeviceMetricsOverride` only on a session attached to a
-target that a token connection made with `Target.createTarget` (`open`, `tab new`, a reader or script tab). The
-engine keeps those target ids for the whole process, learned from each `createTarget` reply, so a daemon that
-reconnects after its idle disconnect still owns its tabs; an id goes when its target is destroyed. Any other tab,
+target that a token connection made with `Target.createTarget` (`open`, `tab new`, a reader or script tab) and that
+the user hasn't taken over. The engine keeps those tabs for the whole process (`ac_cli_owned_tabs.cc`), learned from
+each `createTarget` reply, so a daemon that reconnects after its idle disconnect still owns its tabs; one goes when
+its page is destroyed. A command's tab is an ordinary sidebar tab, so the user can make it theirs, and then the
+command must not resize what they look at. The tab becomes the user's, for good, when it becomes the tab shown in
+the focused window without the command asking (a click in the sidebar, a shortcut, the tab switcher,
+`ardia tabs activate`, or Ardia showing it after the shown tab closed; the app's own report, `setCliActiveTab`, since
+Chrome's strip can already have the tab active while the window shows New Tab), when it's pinned or unpinned or moved to
+another window or profile, and when a real key press or mouse press lands in its page. A move into or out of a group
+alone doesn't count: Ardia itself regroups Chrome's tabs as it adopts and closes them, so the engine can't tell the
+user's from its own. `open --show`, `tab <id> --show` and `Page.bringToFront` are the command asking (the tab's next showing within
+30 s is its own), and so is a tab Chrome made active as it created it (the only tab of a window showing New Tab,
+which Ardia then shows), and the command's own clicks and keys are DevTools input, marked as such, so neither hands the tab
+over. At that moment
+the engine clears the override itself (a `clearDeviceMetricsOverride` it sends on each of its sessions attached to
+that tab, whose replies never reach the command), and from then on the two methods are refused there
+(`on a tab the user took over`; telemetry `viewport_tab_taken`). Any other tab,
 the user's included, is refused (`on a tab the ardia command didn't open`), also when the session picked it with
 `tab <id>`; a session that only borrowed the user's tab is refused by the command first (`borrowed_tab`). Only
 `width`, `height`, `deviceScaleFactor` and `mobile` pass (`with that option` otherwise). Nothing clears the override
-by hand: it belongs to the DevTools session, so Chrome drops it when the session detaches (`close`, the daemon
-exiting, Stop, control turned off, the tab closing), and the `emulation` lease keeps the daemon connected while it's
-on. `set device` still fails, before changing anything, on `Emulation.setTouchEmulationEnabled`. The 1280×800
+by hand otherwise: it belongs to the DevTools session, so Chrome drops it when the session detaches (`close`, the
+daemon exiting, Stop, control turned off, the tab closing), and the `emulation` lease keeps the daemon connected
+while it's on. Chrome used to keep the emulated size when the renderer had crashed before the detach
+(`ClearDeviceEmulationSize` returned before forgetting it when the page had no view), so a reload came back at
+390×844 for good; `chromium-device-emulation-size-reset.patch` forgets the size either way. `set device` still fails, before changing anything, on `Emulation.setTouchEmulationEnabled`. The 1280×800
 override a click gives a tab with no size (Input) works on those tabs too. Telemetry: `viewport_set` on the
 command event; watch `error_code` `policy_refused` on `set`.
 

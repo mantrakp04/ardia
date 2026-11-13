@@ -334,8 +334,9 @@ COMMANDS = {
                "Gated by Ardia's policy; works against a plain --port test server.",
     "set": "ardia browse set viewport <w> <h> [scale] | device <name> | geo <lat> <lng> | offline [on|off] | headers <json>\n"
            "  | credentials <user> <pass> | media [dark|light|no-preference] [reduced-motion]\n\nset viewport sizes the page of a tab this session opened (open <url> first), for responsive checks: screenshots,\n"
-           "snapshots and clicks then see that size. It lasts until the session closes or disconnects, and never touches\n"
-           "your own tabs. The other settings are gated by Ardia's policy; they work against a plain --port test server.",
+           "snapshots and clicks then see that size. It lasts until the session closes or disconnects, or the user takes\n"
+           "the tab over (selects, pins, moves, clicks or types in it): then it is theirs, with its own size back. It never\n"
+           "touches your own tabs. The other settings are gated by Ardia's policy; they work against a plain --port test server.",
     "state": "ardia browse state save|load <path>\n\nSaves or loads cookies and storage (gated).",
     "dialog": "ardia browse dialog status | accept [text] | dismiss\n\nAnswers the page's open alert, confirm or prompt.",
     "diff": "ardia browse diff snapshot [-b baseline] [-s sel] [-i] [-c] [-d n] | screenshot --baseline <png> | url <u1> <u2>\n\n"

@@ -851,6 +851,61 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual(self.size(watcher), before)
         self.control("tabs", "close", users)
 
+    def app_tab(self, part):
+        tabs = json.loads(self.control("tabs", "--flat", "--usage", "--json"))
+        return next(tab for tab in tabs if part in tab["url"])
+
+    def refused_viewport(self, session):
+        said = json.loads(self.browse("set", "viewport", "500", "600", "--json", session=session, check=False).stdout)
+        return said["success"], said.get("data")
+
+    def test_a_tab_the_user_takes_over_gets_its_size_back_and_cant_be_resized(self):
+        taken = (False, {"method": "Emulation.setDeviceMetricsOverride", "reason": "on a tab the user took over"})
+        users = json.loads(self.control("tabs", "open", self.url("login.html") + "#users-shown", "--activate", "--json"))["tabs"][0]["id"]
+        self.addCleanup(self.control, "tabs", "close", users)
+        wait_for(lambda: "#users-shown" in self.browse("tab", "active", session="token-taken-probe", check=False).stdout, 20, "the user's tab to be the one shown")
+        self.browse("close", session="token-taken-probe", check=False)
+        for session, mark, take in (("token-taken-select", "#selected", lambda tab: self.control("tabs", "activate", tab)),
+                                    ("token-taken-pin", "#pinned", lambda tab: self.control("tabs", "pin", tab, "--row"))):
+            self.browse("open", self.url("login.html") + mark, session=session)
+            before = self.size(session)
+            self.browse("set", "viewport", "390", "844", session=session)
+            self.assertEqual(self.size(session), "390x844")
+            take(self.app_tab(mark)["id"])
+            wait_for(lambda: self.size(session) == before, 10, f"the override to end when the user took the tab ({mark})")
+            self.assertEqual(self.refused_viewport(session), taken, mark)
+            self.assertEqual(self.size(session), before)
+            self.control("tabs", "close", self.app_tab(mark)["id"])
+
+    def test_a_tab_the_command_shows_itself_stays_the_commands(self):
+        session = "token-shown"
+        self.browse("open", self.url("login.html") + "#shown", "--show", session=session)
+        self.browse("set", "viewport", "390", "844", session=session)
+        self.browse("click", "#email", session=session)
+        self.browse("fill", "#email", "shown@example.com", session=session)
+        opened = json.loads(self.browse("tab", "--json", session=session).stdout)
+        self.assertTrue(opened["success"])
+        self.assertEqual(self.size(session), "390x844")
+        self.browse("set", "viewport", "768", "1024", session=session)
+        self.assertEqual(self.size(session), "768x1024")
+
+    def test_a_renderer_crash_under_an_override_doesnt_keep_the_size(self):
+        owner, watcher, after = "token-crash", "token-crash-watcher", "token-crash-after"
+        opened = json.loads(self.browse("open", self.url("login.html") + "#crashed", "--json", session=owner).stdout)["data"]
+        before = self.size(owner)
+        self.browse("set", "viewport", "390", "844", session=owner)
+        self.browse("tab", opened["tabId"], session=watcher)
+        tab = self.app_tab("#crashed")
+        self.assertIsInstance(tab["pid"], int)
+        os.kill(tab["pid"], 9)
+        time.sleep(1)
+        self.browse("close", session=owner, check=False)
+        self.browse("close", session=watcher, check=False)
+        self.control("run", "reload", "--tab", tab["id"])
+        wait_for(lambda: self.browse("tab", tab["id"], session=after, check=False).returncode == 0, 20, "the reloaded tab")
+        wait_for(lambda: self.size(after) == before, 10, "the window's size after the crash, the disconnect and a reload")
+        self.control("tabs", "close", tab["id"])
+
     def test_gated_commands_name_the_refused_method(self):
         session = "token-gated"
         self.browse("open", self.url("login.html"), session=session)
