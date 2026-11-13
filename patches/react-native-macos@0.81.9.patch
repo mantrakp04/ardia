@@ -657,7 +657,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
  @property (nonatomic, assign) UIEdgeInsets textContainerInset;
  @property (nonatomic, getter=isAutomaticTextReplacementEnabled) BOOL automaticTextReplacementEnabled;
  @property (nonatomic, getter=isAutomaticSpellingCorrectionEnabled) BOOL automaticSpellingCorrectionEnabled;
-@@ -29,7 +136,28 @@ @interface RCTUITextFieldCell : NSTextFieldCell
+@@ -29,7 +136,29 @@ @interface RCTUITextFieldCell : NSTextFieldCell
  
  @end
  
@@ -680,6 +680,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
 +  if (!_plainPasteEditor) {
 +    _plainPasteEditor = [[RCTUIPlainPasteFieldEditor alloc] initWithFrame:NSZeroRect];
 +    _plainPasteEditor.fieldEditor = YES;
++    _plainPasteEditor.allowsUndo = YES; // [Ardia: AppKit's shared field editor has allowsUndo on and a bare NSTextView doesn't, which left Edit's Undo and Redo disabled while the bar had focus Ardia]
 +    _plainPasteEditor.pasteTypes = _pasteTypes;
 +  }
 +  return _plainPasteEditor;
@@ -687,7 +688,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
  
  - (NSRect)titleRectForBounds:(NSRect)rect
  {
-@@ -155,6 +283,11 @@ - (BOOL)hasMarkedText
+@@ -155,6 +284,11 @@ - (BOOL)hasMarkedText
  	return ((NSTextView *)self.currentEditor).validAttributesForMarkedText ?: @[];
  }
  
@@ -699,7 +700,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
  #endif // macOS]
  
  #pragma mark - Accessibility
-@@ -330,7 +463,9 @@ - (void)setPlaceholder:(NSString *)placeholder
+@@ -330,7 +464,9 @@ - (void)setPlaceholder:(NSString *)placeholder
  #if !TARGET_OS_OSX // [macOS]
    [super setPlaceholder:placeholder];
  #else // [macOS
@@ -709,7 +710,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
  #endif // macOS]
    [self _updatePlaceholder];
  }
-@@ -385,6 +520,20 @@ - (void)_updatePlaceholder
+@@ -385,6 +521,20 @@ - (void)_updatePlaceholder
    _isUpdatingPlaceholderText = YES;
    self.placeholderAttributedString = [[NSAttributedString alloc] initWithString:self.placeholder ?: @""
  																	 attributes:[self _placeholderTextAttributes]];
@@ -730,7 +731,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
    _isUpdatingPlaceholderText = NO;
  #endif // macOS]
  }
-@@ -710,6 +859,9 @@ - (void)keyUp:(NSEvent *)event {
+@@ -710,6 +860,9 @@ - (void)keyUp:(NSEvent *)event {
  - (void)setReadablePasteBoardTypes:(NSArray<NSPasteboardType> *)readablePasteboardTypes
  {
    _readablePasteboardTypes = readablePasteboardTypes;
