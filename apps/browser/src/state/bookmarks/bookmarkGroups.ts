@@ -1,5 +1,5 @@
 import { useBrowser, type BrowserState } from "../browser/store";
-import { bookmarkDraft, hasLinks, MAX_DRAFT_LINKS, withDraftGroups, type DraftGroups, type GroupDraft } from "../groups/draftGroups";
+import { bookmarkDraft, hasLinks, MAX_DRAFT_LINKS, withDraftGroups, type DraftGroupOptions, type DraftGroups, type GroupDraft } from "../groups/draftGroups";
 import { bookmarkProfileId, plural } from "../browser/model";
 import { isRegularWindow, mainWindowFor } from "../windows/small";
 import { showToast } from "../app/toasts";
@@ -13,10 +13,10 @@ function sidebarWindow(s: BrowserState, profileId: string, near?: string | null)
   return mainWindowFor(s, profileId);
 }
 
-export function addGroupsFromDrafts(profileId: string, drafts: GroupDraft[], near?: string | null): DraftGroups {
+export function addGroupsFromDrafts(profileId: string, drafts: GroupDraft[], near?: string | null, options?: DraftGroupOptions): DraftGroups {
   const s = useBrowser.getState();
   const windowId = sidebarWindow(s, profileId, near) ?? s.createWindow({ profileId });
-  const [next, result] = withDraftGroups(useBrowser.getState(), windowId, profileId, drafts);
+  const [next, result] = withDraftGroups(useBrowser.getState(), windowId, profileId, drafts, options);
   if (result.made.length) useBrowser.setState(next);
   if (result.skipped) showToast(windowId, `${plural(result.skipped, "link")} left out`, `A folder brings up to ${MAX_DRAFT_LINKS.toLocaleString("en-US")} links.`);
   return result;
@@ -74,7 +74,7 @@ export function restoreArcFolders(holderId: string, windowId: string | null): st
   const holder = s.bookmarks.nodes[holderId];
   const folders = holder?.kind === "folder" ? holder.children.filter((id) => makesGroup(s, id)) : [];
   const near = windowId && s.windows[windowId]?.profileId === profileId ? windowId : null;
-  const { made, carried } = addGroupsFromDrafts(profileId, folders.map((id) => bookmarkDraft(s.bookmarks, id)!), near);
+  const { made, carried } = addGroupsFromDrafts(profileId, folders.map((id) => bookmarkDraft(s.bookmarks, id)!), near, { collapsed: true });
   const b = useBrowser.getState();
   b.removeBookmarks(folders.flatMap((id) => carriedOver(b.bookmarks, id, carried).ids));
   const left = useBrowser.getState().bookmarks.nodes[holderId];
