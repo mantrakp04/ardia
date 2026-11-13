@@ -97,6 +97,7 @@ export const SETTING_SPECS = {
   splitLinkModifier: oneOf(["altShift", "alt"], "altShift", SYNCED),
   autoGroupMeetingTabs: flag(true, SYNCED),
   cleanUpInactiveTabsAfterMinutes: shaped<number | null>(null, (v) => v === null || isWidth(v), { type: ["number", "null"], exclusiveMinimum: 0 }, SYNCED),
+  suggestCleanUp: flag(true, SYNCED),
   mutedSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   showUnreadCounts: flag(false, SYNCED),
   showTopAppBadges: flag(false, SYNCED),

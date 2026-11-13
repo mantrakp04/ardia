@@ -4,16 +4,19 @@ import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 import { keyText } from "../../../state/commands/keyText";
 
+
+const blockerOffered = () => PLATFORM_FEATURES.contentBlocker;
 export const privacyRows = {
   privacy: [
     {
       section: "Content blocking",
       rows: {
-        blockAds: { title: "Block ads", keywords: ["ad blocker", "adblock", "ublock origin", "easylist"] },
-        blockTrackers: { title: "Block trackers", keywords: ["tracking", "easyprivacy", "fingerprinting"] },
-        blockCookieBanners: { title: "Block cookie banners", keywords: ["cookies", "consent", "gdpr", "popups"] },
+        blockAds: { title: "Block ads", keywords: ["ad blocker", "adblock", "ublock origin", "easylist"], shown: blockerOffered },
+        blockTrackers: { title: "Block trackers", keywords: ["tracking", "easyprivacy", "fingerprinting"], shown: blockerOffered },
+        blockCookieBanners: { title: "Block cookie banners", keywords: ["cookies", "consent", "gdpr", "popups"], shown: blockerOffered },
         filterLists: {
           advanced: true,
+          shown: blockerOffered,
           title: "Advanced Settings",
           description: "Block common components found across the web by using additional rules and filters.",
           keywords: ["filter lists", "annoyances", "malware", "regional", "ad block settings"],
@@ -84,7 +87,7 @@ export const privacyRows = {
       section: "Autofill",
       rows: {
         addresses: { title: "Save and fill addresses", description: "Names, addresses, email addresses and phone numbers.", keywords: ["forms", "contact", "phone", "email"] },
-        cards: { title: "Save and fill credit cards", description: "Filling in or showing a card number asks for Touch ID or your password.", keywords: ["payment", "debit card", "forms"] },
+        cards: { title: "Save and fill credit cards", description: `Filling in or showing a card number asks for ${PLATFORM_TERMS.deviceUnlock}.`, keywords: ["payment", "debit card", "forms"] },
       },
     },
     { section: "Addresses", rows: { addressList: { title: "Addresses", keywords: ["add address", "saved addresses"] } } },

@@ -178,7 +178,7 @@ export type CleanUpSlice = {
   privateCleanedTabs: Record<string, ClosedTab[]>;
 
   cleanUpTabs(windowId: string, options?: { inactiveForMs?: number }): number;
-  restoreCleaned(entryId?: string, windowId?: string): void;
+  restoreCleaned(entryIds?: string | string[], windowId?: string): void;
   clearUnpinnedTabs(windowId: string): ClearedTabs | null;
   undoClearTabs(cleared: ClearedTabs): void;
   removeClosedPin(id: string): ClearedTabs | null;
@@ -211,13 +211,14 @@ export const createCleanUpSlice: StateCreator<BrowserState, [], [], CleanUpSlice
     return ids.length;
   },
 
-  restoreCleaned(entryId, fromWindowId) {
+  restoreCleaned(entryIds, fromWindowId) {
     const s = get();
+    const wanted = entryIds === undefined ? null : new Set([entryIds].flat());
     const privateId = fromWindowId && s.windows[fromWindowId]?.kind === "private"
       ? fromWindowId
-      : Object.keys(s.privateCleanedTabs).find((id) => !!entryId && s.privateCleanedTabs[id]!.some((c) => c.id === entryId));
+      : Object.keys(s.privateCleanedTabs).find((id) => !!wanted && s.privateCleanedTabs[id]!.some((c) => wanted.has(c.id)));
     const list = keptCleanedTabs(privateId ? (s.privateCleanedTabs[privateId] ?? []) : s.cleanedTabs);
-    const entries = list.filter((c) => !entryId || c.id === entryId);
+    const entries = list.filter((c) => !wanted || wanted.has(c.id));
     if (!entries.length) return;
     const left = list.filter((c) => !entries.includes(c));
     let next: BrowserState = privateId
@@ -229,7 +230,7 @@ export const createCleanUpSlice: StateCreator<BrowserState, [], [], CleanUpSlice
       const [restored, [id]] = restoreSnapshots(next, windowId, [{ tab: e.tab, tabId: e.restoreFrom ?? e.tabId, index: windowId === e.windowId ? e.index : undefined }]);
       next = restored;
       if (id && e.group) next = regroupRestored(next, windowId, [e], [id]);
-      if (id && entryId) next = apply(next, activated(next, id));
+      if (id && typeof entryIds === "string") next = apply(next, activated(next, id));
     }
     set(next);
   },

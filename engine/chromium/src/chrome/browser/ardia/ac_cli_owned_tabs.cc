@@ -15,11 +15,8 @@
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/ardia/ac_cli_token_policy.h"
 #include "content/public/browser/devtools_agent_host.h"
-#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "ui/gfx/geometry/rect.h"
-#include "ui/gfx/geometry/size.h"
 
 namespace ardia {
 namespace {
@@ -31,6 +28,8 @@ class OwnedTab : public content::WebContentsObserver {
         target_id_(std::move(target_id)) {}
 
   const std::string& target_id() const { return target_id_; }
+  bool emulated() const { return emulated_; }
+  void set_emulated() { emulated_ = true; }
 
   void WebContentsDestroyed() override {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -39,6 +38,7 @@ class OwnedTab : public content::WebContentsObserver {
 
  private:
   const std::string target_id_;
+  bool emulated_ = false;
 };
 
 std::map<std::string, std::unique_ptr<OwnedTab>>& OwnedTabs() {
@@ -47,25 +47,21 @@ std::map<std::string, std::unique_ptr<OwnedTab>>& OwnedTabs() {
   return *tabs;
 }
 
-gfx::Size ViewSizeOf(content::WebContents* contents) {
-  content::RenderWidgetHostView* view = contents->GetRenderWidgetHostView();
-  return view ? view->GetViewBounds().size() : gfx::Size();
-}
-
 bool TabCameIntoView(content::WebContents* contents) {
   std::string owned;
+  bool emulated = false;
   for (const auto& [target_id, tab] : OwnedTabs()) {
     if (tab->web_contents() == contents) {
       owned = target_id;
+      emulated = tab->emulated();
       break;
     }
   }
   if (owned.empty()) {
     return false;
   }
-  const gfx::Size before = ViewSizeOf(contents);
   ClearCliViewportOverride(owned);
-  return ViewSizeOf(contents) != before;
+  return emulated;
 }
 
 }
@@ -80,6 +76,13 @@ void NoteCliOwnedTarget(const std::string& target_id) {
     return;
   }
   OwnedTabs()[target_id] = std::make_unique<OwnedTab>(target_id, contents);
+}
+
+void NoteCliViewportOverride(const std::string& target_id) {
+  auto it = OwnedTabs().find(target_id);
+  if (it != OwnedTabs().end()) {
+    it->second->set_emulated();
+  }
 }
 
 void ForgetCliOwnedTarget(const std::string& target_id) {

@@ -15,6 +15,7 @@ import { PictureChoice } from "../PictureChoice";
 import { setting, type SettingId } from "../settingsIndex";
 import { useSettingsColors } from "../useSettingsColors";
 import { keyText } from "../../../state/commands/keyText";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 
 const PEEK_WITH: { value: PeekModifier; title: string }[] = [
   { value: "shift", title: `${keyText("⇧")}-click` },
@@ -106,7 +107,7 @@ export function TabsPane() {
         <Group>
           <SettingToggle
             anchor="tabs.autoHideTabs"
-            description={`In every window, the tabs slide out of view and come back when you move the pointer to the window's ${top ? "top edge" : "edge"}. ${keyText("⌘S")} and View › Auto-Hide Tabs flip this same switch.`}
+            description={`In every window, the tabs slide out of view and come back when you move the pointer to the window's ${top ? "top edge" : "edge"}. ${keyText("⌘S")} ${PLATFORM_FEATURES.menuBar ? "and View › Auto-Hide Tabs flip" : "flips"} this same switch.`}
           />
         <Row anchor="tabs.sidebarSide">
           <Segmented options={SIDEBAR_SIDES} value={sidebarSide} onChange={chooseSidebarSide} />
@@ -182,6 +183,7 @@ function CleanUpRow({ minutes }: { minutes: number | null }) {
           onChange={(v) => (v === CUSTOM_CLEAN_UP ? showSettingsSheet(<CustomCleanUpSheet minutes={shown} />) : updateSettings({ cleanUpInactiveTabsAfterMinutes: Number(v) }))}
         />
       </Row>
+      <SettingToggle anchor="tabs.suggestCleanUp" />
     </Group>
   );
 }

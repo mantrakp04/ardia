@@ -8,6 +8,7 @@ import { importType } from "../tokens";
 import { chooseSource, closeImport, importsBySpaces, setImportTarget, toggleImportKind, type ImportFlow } from "../../../state/import/flow";
 import { importBookmarksHtml } from "../../../state/import/fileImports";
 import { continueImport } from "../../../state/import/runImport";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 
 const HIDDEN_KINDS: ImportKind[] = ["spaces", "pinnedTabs"];
 
@@ -23,7 +24,7 @@ export function ChooseBody({ flow }: { flow: ImportFlow }) {
     <>
       <Title title="Import from Another Browser" subtitle="Import once and stay in your flow. Your tabs, passwords, bookmarks and history come with you, and you stay signed in." />
       {browsers.length === 0 ? (
-        <Note text="No other browsers with data to import were found on this Mac." />
+        <Note text={`No other browsers with data to import were found on this ${PLATFORM_TERMS.computer}.`} />
       ) : (
         <View style={{ gap: space.s }}>
           {browsers.map((b) => (

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { goToSettingsPane, useSettingsNav, type SettingsPane } from "./settingsWindows";
+import { goToSettingsPane, offeredPane, type SettingsPane, useSettingsNav } from "./settingsWindows";
 import { settingsProfileFor } from "../extensions/store";
 import { noteSettingsSearch, noteSettingsSearchReveal } from "../telemetry/usage";
 
@@ -78,7 +78,8 @@ export function previewSetting({ id, pane, section }: Target) {
   useSettingsSearch.setState({ previewSection: settingsSectionKey(pane, section), previewing: true, reveal: { id, at: Date.now() } });
 }
 
-function showWithoutHistory(pane: SettingsPane) {
+function showWithoutHistory(asked: SettingsPane) {
+  const pane = offeredPane(asked);
   const nav = useSettingsNav.getState();
   const profileId = settingsProfileFor(pane, nav);
   if (nav.pane !== pane || nav.profileId !== profileId || nav.detail) useSettingsNav.setState({ pane, profileId, detail: null, forward: [] });

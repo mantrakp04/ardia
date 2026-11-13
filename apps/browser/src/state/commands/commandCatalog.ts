@@ -215,9 +215,11 @@ export const WINDOW_COMMANDS = commandsWhere((c) => c.scope !== undefined);
 export const LITTLE_ARDIA_DISABLED_COMMANDS = commandsWhere((c) => c.littleArdia === "off");
 export const SPLIT_VIEW_COMMANDS: readonly BrowserCommand[] = ["openSplitPane", "focusNextPane", "focusPreviousPane"];
 export const EXPORT_COMMANDS: readonly BrowserCommand[] = ["exportBookmarks"];
+export const WEBKIT_COMMANDS: readonly BrowserCommand[] = ["togglePageEngine"];
 export const UNAVAILABLE_COMMANDS: ReadonlySet<string> = new Set([
   ...(splitViewAvailable ? [] : SPLIT_VIEW_COMMANDS),
   ...(PLATFORM_FEATURES.exportsBookmarksAndPasswords ? [] : EXPORT_COMMANDS),
+  ...(PLATFORM_FEATURES.webKit ? [] : WEBKIT_COMMANDS),
 ]);
 export const LITTLE_ARDIA_PAGE_COMMANDS: ReadonlySet<string> = new Set(commandsWhere((c) => c.littleArdia === "page"));
 

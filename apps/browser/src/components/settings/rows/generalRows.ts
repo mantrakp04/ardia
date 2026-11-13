@@ -38,6 +38,7 @@ export const generalRows = {
           title: "Close and expand Little Ardia and Peeks with trackpad gestures",
           description: "Pinch in to close, spread to open in the main window, and swipe back on a Little Ardia page with nothing to go back to to close it. Off, pinching zooms the page.",
           keywords: ["little ardia", "little arc", "peek", "pinch", "swipe", "gesture", "trackpad", "zoom", "close", "expand"],
+          shown: () => PLATFORM_FEATURES.trackpadGestures,
         },
       },
     },
@@ -82,7 +83,7 @@ export const generalRows = {
       rows: {
         importBrowser: {
           title: "Import from another browser",
-          description: "Bookmarks, history, passwords, tabs and Arc spaces from Chrome, Arc, Safari, Firefox and more.",
+          description: `Bookmarks, history, passwords, tabs and Arc spaces from Chrome, Arc, ${PLATFORM_FEATURES.hiddenBrowserSources.includes("safari") ? "Edge" : "Safari"}, Firefox and more.`,
           keywords: ["migrate", "switch", "transfer"],
         },
         exportBookmarks: {
@@ -141,7 +142,7 @@ export const generalRows = {
       rows: {
         autoHideTabs: {
           title: "Auto-hide tabs",
-          description: `In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. ${keyText("⌘S")} and View › Auto-Hide Tabs flip this same switch.`,
+          description: `In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. ${keyText("⌘S")} ${PLATFORM_FEATURES.menuBar ? "and View › Auto-Hide Tabs flip" : "flips"} this same switch.`,
           keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
         },
         sidebarSide: {
@@ -155,7 +156,7 @@ export const generalRows = {
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back. Your tabs stay put: hiding them is Auto-hide tabs.",
           keywords: ["auto hide toolbar", "address bar hides", "collapse", "compact", "scroll"],
         },
-        showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: `The button at the toolbar's leading edge. Auto-hide tabs, ${keyText("⌘S")} and View › Auto-Hide Tabs still hide and show the tabs.`, keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
+        showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: `The button at the toolbar's leading edge. Auto-hide tabs${PLATFORM_FEATURES.menuBar ? `, ${keyText("⌘S")} and View › Auto-Hide Tabs` : ` and ${keyText("⌘S")}`} still hide and show the tabs.`, keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
         showClearButton: {
           advanced: true,
           title: "Show Clear button",
@@ -214,7 +215,7 @@ export const generalRows = {
           keywords: ["arc", "multiple windows", "same tabs", "sync windows", "shared sidebar", "unpinned"],
         },
         warnBeforeClosingLastTab: { advanced: true, title: "Warn before closing last tab in a Profile", keywords: ["confirm", "close tab"] },
-        tabReorderHaptics: { advanced: true, title: "Haptic feedback when reordering tabs", keywords: ["trackpad", "vibration", "drag"] },
+        tabReorderHaptics: { advanced: true, title: "Haptic feedback when reordering tabs", keywords: ["trackpad", "vibration", "drag"], shown: () => PLATFORM_FEATURES.haptics },
         extendWebsiteColor: { title: "Extend website color into tab bar", keywords: ["theme color", "tint", "colour"] },
         sidebarMediaControls: {
           advanced: true,
@@ -233,6 +234,7 @@ export const generalRows = {
           title: "Video upscaling",
           description: "Sharpens low-resolution videos shown larger than they are, on Apple silicon. Only in the tab you're watching, never in the background, in Low Power Mode or when the Mac runs hot.",
           keywords: ["super resolution", "sharpen", "video quality"],
+          shown: () => PLATFORM_FEATURES.videoUpscaling,
         },
       },
     },
@@ -296,6 +298,11 @@ export const generalRows = {
           title: "Clean up tabs I haven't used in",
           description: "Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily.",
           keywords: ["archive", "auto close", "inactive tabs", "duplicates", "custom", "minutes"],
+        },
+        suggestCleanUp: {
+          title: "Suggest cleaning up when tabs pile up",
+          description: "Shows a card in the sidebar once 10 or more tabs haven't been used in a while.",
+          keywords: ["upsell", "tidy", "suggestion", "don't show again", "card", "inactive tabs"],
         },
       },
     },
