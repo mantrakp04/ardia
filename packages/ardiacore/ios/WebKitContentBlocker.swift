@@ -101,6 +101,8 @@ final class WebKitContentBlocker {
     ]
   }
 
+  var isFiltering: Bool { settings.enabled && !lists.isEmpty }
+
   private func start() {
     guard !started else { return }
     started = true

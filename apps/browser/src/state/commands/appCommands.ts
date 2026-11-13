@@ -7,6 +7,7 @@ import { useBrowser } from "../browser/store";
 import { focusedWindowOf } from "../windows/ui";
 import { openReport } from "../report/actions";
 import { openReleaseNotesPage } from "../releaseNotes/releaseNotesPage";
+import { webKitMediaFaultsLine } from "../telemetry/webkitMediaFaults";
 import type { AppCommand } from "./commandCatalog";
 
 export const APP_COMMAND_HANDLERS: Readonly<Record<AppCommand, (windowId: string | null) => void>> = {
@@ -41,6 +42,7 @@ export async function diagnostics(): Promise<string> {
       : !updates.configured
         ? "Updates: not set up for this build"
         : `Updates: automatic checks ${updates.automaticChecks ? "on" : "off"}, feed ${updates.feedURL ?? "none"}`,
+    webKitMediaFaultsLine(),
     ...(engine?.focus ? [`Focus: ${engine.focus.replace(/\n/g, "\n  ")}`] : []),
   ].join("\n");
 }

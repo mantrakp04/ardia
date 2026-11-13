@@ -132,6 +132,15 @@ enum WebKitPageScript {
     },
     true,
   );
+  let faultsRelayed = 0;
+  document.addEventListener(
+    "ardia:media-fault",
+    (e) => {
+      if (typeof e.detail !== "string" || e.detail.length > 64 || ++faultsRelayed > 200) return;
+      post("mediaFault", { reason: e.detail });
+    },
+    true,
+  );
   const knownActions = ["play", "pause", "stop", "seekbackward", "seekforward", "seekto", "previoustrack", "nexttrack", "skipad", "enterpictureinpicture"];
   document.addEventListener(
     "ardia:media-session",
@@ -377,6 +386,32 @@ enum WebKitPageScript {
   const Mouse = MouseEvent;
   const now = Date.now;
   const doc = document;
+  const NativePromise = Promise;
+  const then = Promise.prototype.then;
+  const sites = \#(WebKitMediaFaults.sitesJSON);
+  const watched = location.protocol === "https:" && sites.some((site) => location.hostname === site || location.hostname.endsWith("." + site));
+  const noop = () => {};
+  const reported = Object.create(null);
+  const fault = (reason) => {
+    reported[reason] = (reported[reason] || 0) + 1;
+    if (reported[reason] > 20) return;
+    apply(dispatch, doc, [new Custom("ardia:media-fault", { detail: reason })]);
+  };
+  const observe = (promise, onValue, onError) =>
+    apply(then, promise, [
+      (value) => {
+        try {
+          onValue(value);
+        } catch (e) {}
+        return value;
+      },
+      (error) => {
+        try {
+          onError(error);
+        } catch (e) {}
+        throw error;
+      },
+    ]);
   const handedOver = new WeakSet();
   const mediaProto = HTMLMediaElement.prototype;
   const play = mediaProto.play;
@@ -387,8 +422,91 @@ enum WebKitPageScript {
         apply(dispatch, doc, [new Mouse("ardia:media-element", { relatedTarget: this })]);
       } catch (e) {}
     }
-    return apply(play, this, arguments);
+    const result = apply(play, this, arguments);
+    return watched && result instanceof NativePromise ? observe(result, noop, (error) => fault("play_rejected_" + playRejection(error))) : result;
   };
+
+  const getter = (proto, name) => {
+    const d = proto && Object.getOwnPropertyDescriptor(proto, name);
+    return d && d.get;
+  };
+  const read = (get, target) => (typeof get === "function" ? apply(get, target, []) : undefined);
+  const nameOf = getter(DOMException.prototype, "name");
+  const targetOf = getter(Event.prototype, "target");
+  const mediaErrorOf = getter(HTMLMediaElement.prototype, "error");
+  const mediaErrorCodeOf = getter(MediaError.prototype, "code");
+  const errorName = (error) => (error instanceof DOMException ? read(nameOf, error) : "");
+  const refusal = (error) => {
+    switch (errorName(error)) {
+      case "NotSupportedError":
+        return "not_supported";
+      case "SecurityError":
+        return "security";
+      case "NotAllowedError":
+        return "not_allowed";
+      default:
+        return "other";
+    }
+  };
+  const playRejection = (error) => {
+    switch (errorName(error)) {
+      case "NotAllowedError":
+        return "not_allowed";
+      case "NotSupportedError":
+        return "not_supported";
+      case "AbortError":
+        return "abort";
+      default:
+        return "other";
+    }
+  };
+  const keySystem = (name) => {
+    if (typeof name !== "string") return "other";
+    if (name.startsWith("com.widevine.alpha")) return "widevine";
+    if (name.startsWith("com.microsoft.playready")) return "playready";
+    if (name.startsWith("com.apple.fps")) return "fairplay";
+    return "other";
+  };
+  const mediaError = (code) => {
+    switch (code) {
+      case 1:
+        return "media_error_aborted";
+      case 2:
+        return "media_error_network";
+      case 3:
+        return "media_error_decode";
+      case 4:
+        return "media_error_src_not_supported";
+      default:
+        return null;
+    }
+  };
+  const requestAccess = Navigator.prototype.requestMediaKeySystemAccess;
+  if (watched && typeof requestAccess === "function") {
+    Navigator.prototype.requestMediaKeySystemAccess = function (name, configurations) {
+      const result = apply(requestAccess, this, arguments);
+      if (!(result instanceof NativePromise)) return result;
+      const system = keySystem(name);
+      return observe(
+        result,
+        () => fault("eme_" + system + "_granted"),
+        (error) => fault("eme_" + system + "_refused_" + refusal(error)),
+      );
+    };
+  }
+  if (watched) {
+    apply(listen, doc, [
+      "error",
+      (e) => {
+        const target = read(targetOf, e);
+        if (!(target instanceof HTMLMediaElement)) return;
+        const error = read(mediaErrorOf, target);
+        const reason = error && mediaError(read(mediaErrorCodeOf, error));
+        if (reason) fault(reason);
+      },
+      true,
+    ]);
+  }
 
   const session = navigator.mediaSession;
   const proto = session && Object.getPrototypeOf(session);
