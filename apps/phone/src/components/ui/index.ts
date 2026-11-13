@@ -11,4 +11,4 @@ export { Symbol } from "./Symbol";
 export { placeholderTint, TabFace, tabFill } from "./TabFace";
 export type { SymbolName } from "./symbolPaths";
 export { rolesFor, useTheme, type Theme } from "./theme";
-export { browseLayout, capsule, font, ink, radius, space, tabsInk, tabsLayout, type ColorRoles } from "./tokens";
+export { browseLayout, capsule, font, ink, radius, space, tabsInk, tabsLayout, trayShadow, type ColorRoles } from "./tokens";

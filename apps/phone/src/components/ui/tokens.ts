@@ -32,7 +32,7 @@ const lightRoles = {
   disabled: "rgba(0,0,0,0.2)",
   accent: "#6395FC",
   formAccent: "#007AFF",
-  trayShadow: "rgba(0,0,0,0.18)",
+  trayShadow: "#000000",
   trayDim: "rgba(0,0,0,0.28)",
   pageSurface: "#FFFFFF",
   tileFill: "rgba(118,118,128,0.2)",
@@ -66,7 +66,7 @@ const darkRoles: ColorRoles = {
   disabled: "rgba(255,255,255,0.25)",
   accent: "#4A77D4",
   formAccent: "#0A84FF",
-  trayShadow: "rgba(0,0,0,0.5)",
+  trayShadow: "#000000",
   trayDim: "rgba(0,0,0,0.28)",
   pageSurface: "#000000",
   tileFill: "rgba(255,255,255,0.2)",
@@ -83,6 +83,8 @@ const darkRoles: ColorRoles = {
 };
 
 export const colorRoles = { light: lightRoles, dark: darkRoles } as const;
+
+export const trayShadow = { opacity: 0.14, radius: 24, offsetY: -4, elevation: 12 } as const;
 
 export const tabsInk = {
   incognitoCard: "#1C1D22",

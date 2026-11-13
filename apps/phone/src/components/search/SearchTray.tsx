@@ -6,7 +6,7 @@ import { useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, us
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
-import { browseLayout, capsule, font, ink, radius, rolesFor, space, springs, Symbol, tabsInk, useTheme } from "../ui";
+import { browseLayout, capsule, font, ink, radius, rolesFor, space, springs, Symbol, tabsInk, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { useKeyboardHeight } from "./useKeyboardHeight";
 
@@ -53,6 +53,9 @@ export function SearchTray() {
             paddingBottom: lift,
             backgroundColor: theme.surface,
             shadowColor: theme.trayShadow,
+            shadowOpacity: trayShadow.opacity,
+            shadowRadius: trayShadow.radius,
+            shadowOffset: { width: 0, height: trayShadow.offsetY },
             transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [travel, 0] }) }],
           },
         ]}
@@ -130,7 +133,7 @@ const styles = StyleSheet.create({
     right: 0,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
-    elevation: 12,
+    elevation: trayShadow.elevation,
     overflow: "hidden",
   },
   fieldArea: { paddingHorizontal: browseLayout.searchFieldInset, paddingTop: browseLayout.trayFieldTop, paddingBottom: space.s },

@@ -9,6 +9,9 @@
     "android": {
       "package": "com.ardia.browser.android",
       "edgeToEdgeEnabled": true
+    },
+    "ios": {
+      "bundleIdentifier": "com.ardia.browser.ios"
     }
   }
 }

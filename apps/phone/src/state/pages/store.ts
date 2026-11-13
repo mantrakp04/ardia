@@ -42,16 +42,27 @@ export function endPages(ids: readonly string[]) {
   }
 }
 
+const settled = <T>(call: () => Promise<T>, fallback: T): Promise<T> =>
+  Promise.resolve()
+    .then(call)
+    .catch(() => fallback);
+
 export function deletePageSnapshots(ids: readonly string[]) {
-  for (const id of ids) void pages.deleteSnapshots(id);
+  for (const id of ids) void settled(() => pages.deleteSnapshots(id), undefined);
 }
 
-export const endPrivateSession = () => void pages.endPrivateSession();
+export const endPrivateSession = () => void settled(() => pages.endPrivateSession(), undefined);
 
-export const snapshotPage = (id: string): Promise<PageSnapshot | null> => pages.snapshot(id, { maxWidth: 600, quality: 72 }).catch(() => null);
+export const snapshotPage = (id: string): Promise<PageSnapshot | null> => settled(() => pages.snapshot(id, { maxWidth: 600, quality: 72 }), null);
 
-export const savePageState = (id: string): Promise<string | null> => pages.saveState(id).catch(() => null);
+export const savePageState = (id: string): Promise<string | null> => settled(() => pages.saveState(id), null);
 
-export const livePageIds = (): Promise<string[]> => pages.ids().catch(() => []);
+export const livePageIds = (): Promise<string[]> => settled(() => pages.ids(), []);
 
-export const listenToPages = (listener: (event: PageEngineEvent) => void) => pages.addListener(listener);
+export function listenToPages(listener: (event: PageEngineEvent) => void) {
+  try {
+    return pages.addListener(listener);
+  } catch {
+    return null;
+  }
+}
