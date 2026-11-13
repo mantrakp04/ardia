@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -69,6 +70,7 @@ class TabState : public content::WebContentsObserver,
   void PrimaryMainFrameRenderProcessGone(
       base::TerminationStatus status) override;
   void WebContentsDestroyed() override;
+  void RenderFrameCreated(content::RenderFrameHost* frame) override;
   void RenderFrameHostChanged(content::RenderFrameHost* old_host,
                               content::RenderFrameHost* new_host) override;
 
@@ -91,6 +93,7 @@ class TabState : public content::WebContentsObserver,
 
   void SendNavigation();
   void WatchKeys();
+  void WatchKeysOf(content::RenderFrameHost* frame);
   void StopWatchingKeys();
   void SendMedia();
 
@@ -103,7 +106,7 @@ class TabState : public content::WebContentsObserver,
   bool left_by_download_ = false;
   bool navigation_pending_ = false;
   int http_status_ = 0;
-  raw_ptr<content::RenderWidgetHost> keys_widget_ = nullptr;
+  std::vector<raw_ptr<content::RenderWidgetHost>> keys_widgets_;
   base::ScopedObservation<favicon::FaviconDriver,
                           favicon::FaviconDriverObserver>
       favicon_observation_{this};

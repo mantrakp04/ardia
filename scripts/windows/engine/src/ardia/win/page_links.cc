@@ -39,6 +39,8 @@ constexpr int kMeta = 8;
 constexpr base::TimeDelta kGestureLifetime = base::Seconds(10);
 constexpr base::TimeDelta kFallbackLifetime = base::Seconds(60);
 constexpr size_t kLongestUrl = 8192;
+constexpr base::TimeDelta kNewTabLinkLifetime = base::Seconds(2);
+constexpr size_t kNewTabLinksKept = 4;
 
 struct LinkKeys {
   std::string peek = "shift";
@@ -440,7 +442,39 @@ void PageLinks::Heard(int context, const std::string& payload) {
   const base::DictValue* data = message->FindDict("data");
   if (kind && data && *kind == "peek") {
     PeekLink(*data, context, found->second.main);
+  } else if (kind && data && *kind == "newTabLink") {
+    NoteNewTabLink(*data);
   }
+}
+
+void PageLinks::NoteNewTabLink(const base::DictValue& data) {
+  const GURL url(Field(data, "url", kLongestUrl));
+  if (!Web(url)) {
+    return;
+  }
+  DropStaleNewTabLinks();
+  new_tab_links_.push_back(NewTabLink{url, base::TimeTicks::Now()});
+  if (new_tab_links_.size() > kNewTabLinksKept) {
+    new_tab_links_.erase(new_tab_links_.begin());
+  }
+}
+
+void PageLinks::DropStaleNewTabLinks() {
+  const base::TimeTicks now = base::TimeTicks::Now();
+  std::erase_if(new_tab_links_, [now](const NewTabLink& link) {
+    return now - link.at > kNewTabLinkLifetime;
+  });
+}
+
+bool PageLinks::TakeNewTabLink(const std::vector<GURL>& urls) {
+  DropStaleNewTabLinks();
+  for (auto it = new_tab_links_.begin(); it != new_tab_links_.end(); ++it) {
+    if (std::find(urls.begin(), urls.end(), it->url) != urls.end()) {
+      new_tab_links_.erase(it);
+      return true;
+    }
+  }
+  return false;
 }
 
 void PageLinks::PeekLink(const base::DictValue& data, int context, bool main) {

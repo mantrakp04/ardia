@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { findNodeHandle, Pressable, View, type TextInput } from "react-native";
 import { useTheme } from "../ui/theme";
-import { useTab } from "../../state/browser/hooks";
+import { useTab, useWindowId } from "../../state/browser/hooks";
+import { claimFocusTag, heroBarFocus } from "../../state/focus/focusClaims";
 import { navigate } from "../../state/tabs/actions";
 import { replaceSplitPane } from "../../state/splits/actions";
 import { useSplitSuggestions } from "../../state/splits/hooks";
@@ -15,6 +16,17 @@ export function SplitEmptyState({ tabId, focused }: { tabId: string; focused: bo
   const [typing, setTyping] = useState(focused);
   const [text, setText] = useState("");
   const suggestions = useSplitSuggestions(tabId);
+  const windowId = useWindowId();
+  const input = useRef<TextInput>(null);
+  const wasFocused = useRef(focused);
+  useEffect(() => {
+    const activated = focused && !wasFocused.current;
+    wasFocused.current = focused;
+    if (!activated) return;
+    setTyping(true);
+    input.current?.focus();
+    claimFocusTag(windowId, heroBarFocus(tabId), () => findNodeHandle(input.current));
+  }, [focused, windowId, tabId]);
   const go = () => {
     if (text.trim()) navigate(tabId, text.trim());
   };
@@ -36,6 +48,7 @@ export function SplitEmptyState({ tabId, focused }: { tabId: string; focused: bo
             <SearchField
               look="bare"
               autoFocus
+              inputRef={input}
               value={text}
               onChangeText={setText}
               placeholder="Search or Ask a Question"

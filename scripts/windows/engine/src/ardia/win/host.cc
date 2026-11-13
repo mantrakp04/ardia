@@ -1015,7 +1015,13 @@ void Host::EmitOpened(base::DictValue payload,
     return;
   }
   OpenRequest* request = OpenRequest::FromWebContents(contents.get());
-  if (request && !request->started() && tries < kOpenRequestTries) {
+  content::WebContents* opener = Find(opener_key);
+  PageLinks* links = opener ? PageLinks::FromWebContents(opener) : nullptr;
+  const bool linked = request && request->clicked() && links &&
+                      links->TakeNewTabLink(
+                          {request->url(), contents->GetVisibleURL()});
+  if (request && !linked && tries < kOpenRequestTries &&
+      (!request->started() || request->clicked())) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&Host::EmitOpened, weak_factory_.GetWeakPtr(),
@@ -1024,7 +1030,7 @@ void Host::EmitOpened(base::DictValue payload,
         kOpenRequestWait);
     return;
   }
-  if (request && request->clicked()) {
+  if (linked) {
     payload.Set("fromClick", true);
     payload.Set("url", request->url().spec());
     if (std::optional<gfx::PointF> point =

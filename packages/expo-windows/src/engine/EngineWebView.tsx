@@ -116,7 +116,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         const on = !!(data as { fullscreen?: unknown } | null)?.fullscreen;
         if (on !== fullScreen.current) {
           fullScreen.current = on;
-          setFullScreenPage(windowId, key, on);
+          setFullScreenPage(windowId, key, on && latest.current.visible !== false);
           void setWindowFullScreen(windowId, on).then(() => {
             if (on && fullScreen.current) void callPage(key, "focus");
           });
@@ -137,6 +137,10 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       unmount();
     };
   }, [key, windowId, place]);
+
+  useEffect(() => {
+    if (fullScreen.current) setFullScreenPage(windowId, key, visible);
+  }, [windowId, key, visible]);
 
   useEffect(() => {
     const timers = SETTLE_MS.map((delay) => setTimeout(place, delay));

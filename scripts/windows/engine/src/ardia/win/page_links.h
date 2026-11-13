@@ -4,10 +4,12 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "base/functional/callback.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/devtools_agent_host_client.h"
@@ -41,6 +43,7 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   static std::optional<gfx::PointF> RecentClickPoint(const std::string& page);
 
   void FrameCommitted(content::RenderFrameHost* frame);
+  bool TakeNewTabLink(const std::vector<GURL>& urls);
   int ScriptFrames() const { return static_cast<int>(contexts_.size()); }
 
   void DispatchProtocolMessage(content::DevToolsAgentHost* agent_host,
@@ -56,6 +59,10 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   struct Context {
     content::GlobalRenderFrameHostId frame;
     bool main = false;
+  };
+  struct NewTabLink {
+    GURL url;
+    base::TimeTicks at;
   };
 
   explicit PageLinks(content::WebContents* contents);
@@ -77,6 +84,8 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   bool PeeksOtherSites();
   void Heard(int context, const std::string& payload);
   void PeekLink(const base::DictValue& data, int context, bool main);
+  void NoteNewTabLink(const base::DictValue& data);
+  void DropStaleNewTabLinks();
   void FallBack(const base::DictValue& data,
                 const GURL& url,
                 int context,
@@ -89,6 +98,7 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   int next_id_ = 1;
   std::map<int, Answer> pending_;
   std::map<int, Context> contexts_;
+  std::vector<NewTabLink> new_tab_links_;
   base::WeakPtrFactory<PageLinks> weak_factory_{this};
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };

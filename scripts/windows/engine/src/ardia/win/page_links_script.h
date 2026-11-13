@@ -162,24 +162,36 @@ inline constexpr char kLinkScript[] = R"JS((() => {
     const scale = window.devicePixelRatio;
     send("peek", { url, key: "site", origin: location.origin, x: e.clientX * scale, y: e.clientY * scale, moved: 0 });
   };
+  const noteNewTabLink = (e, link) => {
+    if (e.defaultPrevented || replacesPage(link)) return;
+    const url = linkUrl(link);
+    if (url && /^https?:/i.test(url)) send("newTabLink", { url });
+  };
   addEventListener(
     "click",
     guard((e) => {
       const site = siteClick;
       siteClick = null;
-      if (!site || !e.isTrusted || e.button !== 0 || !plainPress(e)) return;
-      if (e.timeStamp !== site.stamp || !e.composedPath().includes(site.link) || !replacesPage(site.link)) return;
+      if (!e.isTrusted || e.button !== 0 || !plainPress(e)) return;
+      const hit = linkAt(e);
+      if (!peekable(hit)) return;
+      const forSite = !!site && e.timeStamp === site.stamp && e.composedPath().includes(site.link);
+      const link = forSite ? site.link : hit.link;
       let decided = false;
       const decide = guard((ev) => {
         if (ev !== e || decided) return;
         decided = true;
-        peekSiteLink(e, site.link);
+        if (forSite && replacesPage(link)) return peekSiteLink(e, link);
+        noteNewTabLink(e, link);
       });
       window.addEventListener("click", decide);
       setTimeout(
         guard(() => {
           window.removeEventListener("click", decide);
+          if (decided) return;
           decided = true;
+          if (forSite && replacesPage(link)) return;
+          noteNewTabLink(e, link);
         }),
         0,
       );
