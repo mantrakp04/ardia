@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include "AppModule.h"
+#include "DialogsModule.h"
 #include "Paths.h"
 #include "SystemModule.h"
 
@@ -199,7 +200,7 @@ struct ExternalAppsModule {
     if (url.empty() || url.size() > ExternalApps::LongestLink) return promise.Resolve(false);
     std::optional<std::string> scheme = ExternalApps::SchemeOf(url);
     if (!scheme || ExternalApps::BrowserScheme(*scheme) || name.empty()) return promise.Resolve(false);
-    if (AppLaunch::Background()) {
+    if (AppLaunch::Background() && !TestFlag("externalAppLaunch")) {
       AppLaunch::Note(L"ArdiaExternalApps: background instance, not opening an app link");
       return promise.Resolve(false);
     }
