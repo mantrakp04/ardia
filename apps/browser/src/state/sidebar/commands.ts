@@ -5,7 +5,7 @@ import { activeTabId, pinSection, plural } from "../browser/model";
 import { awayFromPin, selectedTabIds } from "../pins/organize";
 import { groupOf } from "../pins/tabGrouping";
 import { newGroupWithSelection, openIconPicker, startRename } from "./actions";
-import { closeAllTabs } from "./clearTabs";
+import { cleanUpWithUndo, closeAllTabs } from "./clearTabs";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { movePinnedTitle, togglePinnedRows } from "./movePinned";
 import { setSidebarUi } from "./sidebarUi";
@@ -27,7 +27,7 @@ export function runSidebarCommand(command: BrowserCommand, arg: string | null, w
       newGroupWithSelection(windowId);
       return true;
     case "cleanUpTabs":
-      s.cleanUpTabs(windowId);
+      cleanUpWithUndo(windowId);
       return true;
     case "closeAllTabs":
       closeAllTabs(windowId);

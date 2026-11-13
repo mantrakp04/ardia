@@ -2,13 +2,12 @@
 
 #include "ardia/core/ac_host_visibility.h"
 
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
-#include "base/timer/timer.h"
 #include "chrome/browser/ui/tabs/public/tab_dialog_manager.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "components/permissions/permission_request_manager.h"
@@ -16,6 +15,7 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_user_data.h"
+#include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_hooks.h"
 #include "ardia/core/ac_picture_in_picture.h"
 #include "ardia/core/ac_video_upscaling.h"
@@ -40,24 +40,22 @@ class HostVisibility : public content::WebContentsUserData<HostVisibility> {
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(HostVisibility);
 
-constexpr base::TimeDelta kRestoreDeadline = base::Milliseconds(250);
-
 class ShownSlot : public content::WebContentsUserData<ShownSlot> {
  public:
+  using Restored = base::OnceCallback<void(const std::string&)>;
+
   bool restoring() const { return restoring_; }
 
   void BeginRestore() {
     restoring_ = true;
-    GetWebContents().GetPrimaryMainFrame()->InsertVisualStateCallback(
-        base::BindOnce(&ShownSlot::Restored, weak_.GetWeakPtr()));
-    deadline_.Start(FROM_HERE, kRestoreDeadline,
-                    base::BindOnce(&ShownSlot::Restored,
-                                   base::Unretained(this), false));
+    content::ArdiaWhenRestoredFrameDisplayed(
+        &GetWebContents(),
+        base::BindOnce(&ShownSlot::FrameDisplayed, weak_.GetWeakPtr()));
   }
 
-  void WhenRestored(base::OnceClosure restored) {
+  void WhenRestored(Restored restored) {
     if (!restoring_) {
-      std::move(restored).Run();
+      std::move(restored).Run(std::string());
       return;
     }
     waiting_.push_back(std::move(restored));
@@ -69,28 +67,26 @@ class ShownSlot : public content::WebContentsUserData<ShownSlot> {
   friend class content::WebContentsUserData<ShownSlot>;
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 
-  void Restored(bool drawn) {
+  void FrameDisplayed(const std::string& proof) {
     if (!restoring_) {
       return;
     }
     restoring_ = false;
-    deadline_.Stop();
-    std::vector<base::OnceClosure> waiting = std::move(waiting_);
+    std::vector<Restored> waiting = std::move(waiting_);
     waiting_.clear();
-    for (base::OnceClosure& restored : waiting) {
-      std::move(restored).Run();
+    for (Restored& restored : waiting) {
+      std::move(restored).Run(proof);
     }
   }
 
   bool restoring_ = false;
-  base::OneShotTimer deadline_;
-  std::vector<base::OnceClosure> waiting_;
+  std::vector<Restored> waiting_;
   base::WeakPtrFactory<ShownSlot> weak_{this};
 };
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ShownSlot);
 
-bool (*g_shown_slot_resized)(content::WebContents*) = nullptr;
+bool (*g_shown_slot_emulated)(content::WebContents*) = nullptr;
 
 int Answer(content::WebContents* contents) {
   std::optional<bool> shown = ShownByHost(contents);
@@ -135,18 +131,19 @@ bool NoteTabInShownSlot(content::WebContents* contents) {
   if (!slot) {
     ShownSlot::CreateForWebContents(contents);
     slot = ShownSlot::FromWebContents(contents);
-    if (g_shown_slot_resized && g_shown_slot_resized(contents)) {
+    if (g_shown_slot_emulated && g_shown_slot_emulated(contents)) {
       slot->BeginRestore();
     }
   }
   return slot->restoring();
 }
 
-void WhenTabSizeRestored(content::WebContents* contents,
-                         base::OnceClosure restored) {
+void WhenTabSizeRestored(
+    content::WebContents* contents,
+    base::OnceCallback<void(const std::string&)> restored) {
   ShownSlot* slot = contents ? ShownSlot::FromWebContents(contents) : nullptr;
   if (!slot) {
-    std::move(restored).Run();
+    std::move(restored).Run(std::string());
     return;
   }
   slot->WhenRestored(std::move(restored));
@@ -156,8 +153,8 @@ bool TabWasInShownSlot(content::WebContents* contents) {
   return contents && ShownSlot::FromWebContents(contents);
 }
 
-void WatchTabsInShownSlot(bool (*resized)(content::WebContents*)) {
-  g_shown_slot_resized = resized;
+void WatchTabsInShownSlot(bool (*emulated)(content::WebContents*)) {
+  g_shown_slot_emulated = emulated;
 }
 
 void StartHostVisibility() {

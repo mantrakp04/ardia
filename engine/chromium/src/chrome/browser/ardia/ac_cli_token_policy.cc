@@ -249,6 +249,9 @@ std::string TokenClient::Refusal(const std::string& method,
     if (!MetricsOverrideAllowed(params)) {
       return "with that option";
     }
+    if (method == "Emulation.setDeviceMetricsOverride") {
+      NoteCliViewportOverride(target->second);
+    }
   } else if (method == "Runtime.evaluate") {
     if (params.FindBool("includeCommandLineAPI").value_or(false)) {
       return "with the command line API";
