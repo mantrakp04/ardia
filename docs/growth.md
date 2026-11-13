@@ -201,7 +201,14 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     of a mouse down that reached no row: the click-twice report), `repeat_on_new_tab` (those with an empty New Tab showing),
     `repeat_gap_ms_p50` and `repeat_landed_on` (the class names of the view the first click hit and its three ancestors), `held_ms_p50`/`_p75`/`held_n` (how long the button was held after a mouse-down switch: the wait a
     switch on release would have added), `page_click_ms_p50`/`_p75`/`page_click_n` (from opening a tab with a press
-    to the first press in its page, within 60 s).
+    to the first press in its page, within 60 s). Issue #1386 (a sidebar tab sometimes needs a second click) adds
+    counts of where a press is lost: `drop_no_release`/`drop_not_dragged`/`drop_no_start`/`drop_start_mismatch` (the
+    condition that stopped a drag from being rescued as a click; they add up to `drags`), `press_out_no_press` (presses
+    Pressable ended without `onPress`), `unfocused_presses` and `unfocused_no_press` (presses that began while the
+    window was not the key window of an active app, in all and among those without `onPress`), and the pointer's
+    drift from where the press began when Pressable ended it, in buckets of under 5 pt, 5-9 pt, 10 pt or more and
+    unknown, for every press (`drift_lt5`/`drift_5_9`/`drift_10_plus`/`drift_unknown`) and for those without `onPress`
+    (`no_press_drift_*`). Counts only: no tab id, URL, title or position.
   - `settings_snapshot` adds `setting_app_icon` / `default_app_icon`.
   - The context is saved in `telemetry.json` (`context`) every 10 minutes and 3 s after launch while sharing is on
     (the last 12 samples also stay in memory), and cleared when sharing is turned off or a profile is deleted. It's
