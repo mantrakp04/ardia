@@ -91,6 +91,69 @@ inline HANDLE HoldDirectory(std::wstring const &path) noexcept {
   return held;
 }
 
+inline std::wstring FinalPath(HANDLE handle) {
+  DWORD size = GetFinalPathNameByHandleW(handle, nullptr, 0, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+  if (!size) return {};
+  std::wstring path(size, L'\0');
+  DWORD written = GetFinalPathNameByHandleW(handle, path.data(), size, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+  if (!written || written >= size) return {};
+  path.resize(written);
+  return path;
+}
+
+inline bool SamePath(std::wstring const &a, std::wstring const &b) noexcept {
+  return !a.empty() && CompareStringOrdinal(a.c_str(), static_cast<int>(a.size()), b.c_str(), static_cast<int>(b.size()), TRUE) == CSTR_EQUAL;
+}
+
+class HeldPath {
+ public:
+  HeldPath() = default;
+  HeldPath(HeldPath const &) = delete;
+  HeldPath &operator=(HeldPath const &) = delete;
+  ~HeldPath() {
+    for (HANDLE held : m_held) CloseHandle(held);
+  }
+
+  bool Root(std::wstring const &path) {
+    HANDLE held = CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (held == INVALID_HANDLE_VALUE) return false;
+    FILE_ATTRIBUTE_TAG_INFO tag{};
+    bool directory = GetFileInformationByHandleEx(held, FileAttributeTagInfo, &tag, sizeof(tag)) && (tag.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+    std::wstring final = directory ? FinalPath(held) : std::wstring{};
+    if (final.empty()) {
+      CloseHandle(held);
+      return false;
+    }
+    m_held.push_back(held);
+    m_path = path;
+    m_final = final;
+    return true;
+  }
+
+  bool Child(std::wstring const &name) {
+    if (m_held.empty() || name.empty() || name.find_first_of(L"\\/:") != std::wstring::npos) return false;
+    std::wstring path = m_path + L"\\" + name;
+    HANDLE held = HoldDirectory(path);
+    if (held == INVALID_HANDLE_VALUE) return false;
+    std::wstring final = FinalPath(held);
+    if (!SamePath(final, m_final + L"\\" + name)) {
+      CloseHandle(held);
+      return false;
+    }
+    m_held.push_back(held);
+    m_path = path;
+    m_final = final;
+    return true;
+  }
+
+  std::wstring const &Path() const noexcept { return m_path; }
+
+ private:
+  std::vector<HANDLE> m_held;
+  std::wstring m_path;
+  std::wstring m_final;
+};
+
 inline Probe ProbePath(std::wstring const &path) noexcept {
   DWORD attributes = GetFileAttributesW(path.c_str());
   if (attributes == INVALID_FILE_ATTRIBUTES) return IsMissing(GetLastError()) ? Probe::Absent : Probe::Inaccessible;

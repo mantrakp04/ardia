@@ -125,15 +125,24 @@ inline void DeleteChain(std::string const &folder, Keys const &keys) {
   if (probe != SyncFiles::Probe::Directory || !SyncFiles::RemoveTree(chain)) throw Failure("the sync data couldn't be deleted");
 }
 
+inline bool HoldScope(SyncFiles::HeldPath &held, std::string const &folder, Keys const &keys, std::string const &scope, bool create) {
+  if (!held.Root(Folder(folder)) || !held.Child(Paths::Wide(keys.ChainTag()))) throw Failure("the sync folder isn't reachable");
+  std::optional<std::string> tag = keys.ScopeTag(scope);
+  if (!tag) throw Failure("no scope tag");
+  std::wstring name = Paths::Wide(*tag);
+  std::wstring path = held.Path() + L"\\" + name;
+  if (SyncFiles::ProbePath(path) == SyncFiles::Probe::Absent) {
+    if (!create) return false;
+    SyncFiles::MakeDirectory(path);
+  }
+  if (!held.Child(name)) throw Failure("the sync folder holds a link where sync data belongs");
+  return true;
+}
+
 inline std::optional<std::string> List(std::string const &folder, Keys const &keys, std::string const &scope) {
-  std::wstring chain = ChainPath(folder, keys);
-  std::wstring scopePath = ScopePath(folder, keys, scope);
-  SyncFiles::RequireNoLink(chain);
-  SyncFiles::RequireNoLink(scopePath);
-  std::optional<std::string> listed = SyncFiles::List(scopePath);
-  if (listed) return listed;
-  if (SyncFiles::ProbePath(chain) != SyncFiles::Probe::Directory) throw Failure("the sync folder isn't reachable");
-  return std::nullopt;
+  SyncFiles::HeldPath held;
+  if (!HoldScope(held, folder, keys, scope, false)) return std::nullopt;
+  return SyncFiles::List(held.Path());
 }
 
 struct Opened {
@@ -155,9 +164,9 @@ inline Opened OpenSealed(Keys const &keys, std::string const &scopeTag, std::str
 }
 
 inline Opened Open(std::string const &folder, Keys const &keys, std::string const &scope, std::string const &id) {
-  std::wstring scopePath = ScopePath(folder, keys, scope);
-  SyncFiles::RequireNoLink(scopePath);
-  SyncFiles::Read read = SyncFiles::ReadFile(FilePath(scopePath, id));
+  SyncFiles::HeldPath held;
+  if (!HoldScope(held, folder, keys, scope, false)) return Opened{"missing", {}};
+  SyncFiles::Read read = SyncFiles::ReadFile(FilePath(held.Path(), id));
   switch (read.state) {
     case SyncFiles::Read::State::Busy: return Opened{"busy", {}};
     case SyncFiles::Read::State::Placeholder: return Opened{"placeholder", {}};
@@ -183,21 +192,19 @@ inline std::string SealForVault(Keys const &keys, std::string const &scopeTag, s
 
 template <class TStill>
 std::string Write(std::string const &folder, Keys const &keys, std::string const &scope, std::string_view payload, TStill &&still) {
-  std::wstring chain = ChainPath(folder, keys);
-  if (SyncFiles::ProbePath(chain) != SyncFiles::Probe::Directory) throw Failure("the sync folder isn't reachable");
-  std::wstring scopePath = ScopePath(folder, keys, scope);
-  SyncFiles::MakeDirectory(scopePath);
+  SyncFiles::HeldPath held;
+  HoldScope(held, folder, keys, scope, true);
   std::string id = NewFileId();
   std::string sealed = SealForVault(keys, *keys.ScopeTag(scope), id, payload);
   if (!still()) throw Failure(Locked);
-  SyncFiles::Publish(scopePath, Paths::Wide(id) + std::wstring{SyncFiles::VaultExtension}, sealed, false);
+  SyncFiles::Publish(held.Path(), Paths::Wide(id) + std::wstring{SyncFiles::VaultExtension}, sealed, false);
   return id;
 }
 
 inline std::string Remove(std::string const &folder, Keys const &keys, std::string const &scope, std::string const &id) {
-  std::wstring scopePath = ScopePath(folder, keys, scope);
-  SyncFiles::RequireNoLink(scopePath);
-  return SyncFiles::Remove(FilePath(scopePath, id));
+  SyncFiles::HeldPath held;
+  if (!HoldScope(held, folder, keys, scope, false)) return "missing";
+  return SyncFiles::Remove(FilePath(held.Path(), id));
 }
 
 inline void Hydrate(std::string const &folder, Keys const &keys, std::string const &scope, std::string const &id) {

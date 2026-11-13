@@ -99,7 +99,10 @@ inline std::string ReplyError(std::shared_ptr<WipedString> const &reply) {
   SyncLogins::Node const *error = root && root->kind == SyncLogins::Node::Kind::Object ? SyncLogins::Member(*root, "error") : nullptr;
   if (!error) return "a logins reply that couldn't be sealed";
   std::optional<WipedString> text = SyncLogins::Reader::Decoded(reply->text(), *error);
-  return text ? "the engine refused: " + text->text().substr(0, 120) : "the engine refused";
+  if (!text) return "the engine refused";
+  std::string reason;
+  for (char c : text->text().substr(0, 120)) reason.push_back(c >= 0x20 && c < 0x7f ? c : '?');
+  return "the engine refused: " + reason;
 }
 
 inline std::shared_ptr<WipedString> LoginArgs(std::string_view origin, std::string_view username, std::string_view password, bool withPassword) {

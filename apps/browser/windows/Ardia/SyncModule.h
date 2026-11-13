@@ -267,9 +267,10 @@ struct SyncModule {
     SyncSystem::CallEngine(m_context, "ac_passwords_logins", profile, std::make_shared<SyncCrypto::WipedString>(std::string{"{}"}), [session, promise](std::shared_ptr<SyncCrypto::WipedString> reply) {
       bool queued = SyncModuleParts::Work().Async([session, promise, reply]() {
         std::optional<std::string> sealed = reply ? SyncLogins::SealedLogins(reply->text(), *session.keys) : std::nullopt;
-        if (reply) reply->text().clear();
+        std::string problem = sealed ? std::string{} : reply ? SyncSystem::ReplyError(reply) : std::string{"no reply"};
+        if (reply) SyncCrypto::WipeString(reply->text());
         if (!SyncModuleParts::Shared().Still(session.generation)) return promise.Resolve(std::nullopt);
-        if (!sealed) LaunchLog::Write(L"sync", L"reading passwords: " + Paths::Wide(reply ? SyncSystem::ReplyError(reply) : std::string{"no reply"}));
+        if (!sealed) LaunchLog::Write(L"sync", L"reading passwords: " + Paths::Wide(problem));
         promise.Resolve(sealed);
       });
       if (!queued) promise.Resolve(std::nullopt);
