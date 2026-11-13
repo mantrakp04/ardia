@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, View } from "react-native";
 import { useLastingLoad } from "../../state/tabs/lastingLoad";
 import { noteLoadingPillLong, noteLoadingPillShown } from "../../state/telemetry/loadingPill";
-import { capsule, reduceMotion, useTheme } from "../ui";
-import { Hud } from "./Hud";
+import { capsule, hairline, reduceMotion, useTheme } from "../ui";
+import { HudPlate } from "./Hud";
 import { LOADING_PILL } from "./tokens";
 
 const { width, height, top, track, motion } = LOADING_PILL;
@@ -67,22 +67,26 @@ export function LoadingPill({ tabId }: { tabId: string }) {
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top, alignItems: "center" }}>
       <Animated.View style={{ opacity, transform: [{ scale }] }}>
-        <Hud shape="capsule" height={height} accessibilityRole="progressbar" accessibilityLabel="Loading page">
-          <View style={{ width, alignItems: "center" }}>
-            <View style={{ width: track.width, height: track.height, borderRadius: ends, backgroundColor: theme.progressTrack, opacity: track.opacity, overflow: "hidden" }} />
-            <View style={{ position: "absolute", width: track.width, height: track.height, borderRadius: ends, overflow: "hidden" }}>
-              <Animated.View
-                style={{
-                  width: track.width,
-                  height: track.height,
-                  backgroundColor: theme.textPrimary,
-                  opacity: track.fillOpacity,
-                  transform: [{ translateX: sweep.interpolate({ inputRange: [0, FULL, WIPED], outputRange: [-track.width, 0, track.width] }) }],
-                }}
-              />
-            </View>
+        <HudPlate
+          shape="capsule"
+          height={height}
+          accessibilityRole="progressbar"
+          accessibilityLabel="Loading page"
+          style={{ width: width + 2 * hairline.panel, height: height + 2 * hairline.panel, alignItems: "center", justifyContent: "center" }}
+        >
+          <View style={{ width: track.width, height: track.height, borderRadius: ends, backgroundColor: theme.progressTrack, opacity: track.opacity, overflow: "hidden" }} />
+          <View style={{ position: "absolute", width: track.width, height: track.height, borderRadius: ends, overflow: "hidden" }}>
+            <Animated.View
+              style={{
+                width: track.width,
+                height: track.height,
+                backgroundColor: theme.textPrimary,
+                opacity: track.fillOpacity,
+                transform: [{ translateX: sweep.interpolate({ inputRange: [0, FULL, WIPED], outputRange: [-track.width, 0, track.width] }) }],
+              }}
+            />
           </View>
-        </Hud>
+        </HudPlate>
       </Animated.View>
     </View>
   );
