@@ -24,11 +24,13 @@ turboModules.ArdiaEngineHost = {
   engineCall: async () => "{}",
 };
 
-const { mountPage, callPage, releasePage } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
+const { mountPage, callPage, releasePage, showPage } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
 const { holdPrivateSession, privateWindowShown, releaseProfile } = await import("../../../../packages/expo-windows/src/engine/privateWindows.ts");
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 const creates = (key) => calls.filter((call) => call.verb === "tab.create" && call.args.key === key).length;
+const shows = (key) => calls.filter((call) => call.verb === "tab.show" && call.args.key === key);
+const readies = (events) => events.filter((name) => name === "ready").length;
 const quietWarnings = () => {
   const warn = console.warn;
   console.warn = () => {};
@@ -72,11 +74,58 @@ test("a second mount while a retry is in flight waits for it and makes no second
   open();
   await loading;
   await settle();
+  await settle();
   assert.equal(creates("in-flight"), 2, "one refused create and one retry, nothing more");
-  assert.ok(first.includes("ready"));
-  assert.ok(second.includes("ready"));
+  assert.equal(readies(first), 1, "the listener mounted before the retry is told ready once");
+  assert.equal(readies(second), 1, "the listener mounted during the retry is told ready once");
   unmountFirst();
   unmountSecond();
+  restore();
+});
+
+test("a page shown while its tab was refused is shown once with that shape when the retry opens it, before ready", async () => {
+  const restore = quietWarnings();
+  refuseCreates = 1;
+  const showsAtReady = [];
+  const unmount = mountPage("hidden-retry", { url: "https://g.example/", windowId: "w" }, (name) => {
+    if (name === "ready") showsAtReady.push(shows("hidden-retry").length);
+  });
+  await settle();
+  const shape = { x: 10, y: 20, width: 300, height: 200, radius: 8, holes: [] };
+  showPage("hidden-retry", true, shape);
+  await settle();
+  assert.equal(shows("hidden-retry").length, 0, "nothing is shown while the tab is refused");
+  await callPage("hidden-retry", "loadUrl", { url: "https://h.example/" });
+  await settle();
+  await settle();
+  assert.equal(creates("hidden-retry"), 2);
+  const secondCreate = calls.findLastIndex((call) => call.verb === "tab.create" && call.args.key === "hidden-retry");
+  const after = calls.slice(secondCreate).filter((call) => call.verb === "tab.show" && call.args.key === "hidden-retry");
+  assert.deepEqual(after, [{ verb: "tab.show", args: { key: "hidden-retry", visible: true, ...shape }, windowId: "w" }]);
+  assert.deepEqual(showsAtReady, [1], "the show went before the listeners heard ready");
+  showPage("hidden-retry", true, { ...shape, width: 320 });
+  await settle();
+  assert.equal(shows("hidden-retry").length, 2, "a later show still goes");
+  unmount();
+  restore();
+});
+
+test("a show asked while the retry is in flight goes once", async () => {
+  const restore = quietWarnings();
+  refuseCreates = 1;
+  const unmount = mountPage("show-in-flight", { url: "https://i.example/", windowId: "w" }, () => {});
+  await settle();
+  let open;
+  createGate = new Promise((resolve) => (open = resolve));
+  const loading = callPage("show-in-flight", "reload");
+  const shape = { x: 0, y: 0, width: 100, height: 100, radius: 0, holes: [] };
+  showPage("show-in-flight", true, shape);
+  createGate = null;
+  open();
+  await loading;
+  await settle();
+  assert.equal(shows("show-in-flight").length, 1);
+  unmount();
   restore();
 });
 
