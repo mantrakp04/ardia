@@ -1,5 +1,6 @@
 import type { DomainModule } from "@ardia/ardiacore";
 import type { ImportHost } from "../../import/host";
+import type { ExternalApps } from "./externalApps";
 
 export type Fields = Record<string, unknown>;
 
@@ -11,6 +12,7 @@ export type Engine = {
   emit(name: string, data: unknown): void;
   missing(domain: string, verb: string, profile: string, argsJson: string): Promise<string>;
   desktop?: Desktop;
+  externalApps?: ExternalApps;
 };
 
 export type SaveRequest = { name: string; extension: string; kind: string; message: string };

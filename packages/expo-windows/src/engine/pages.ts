@@ -2,6 +2,7 @@ import { hostCall, onEngineTopic } from "./host";
 import { takerOfOpenedTab } from "./openedTabs";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
 import { privateSessionOpened } from "./privateWindows";
+import type { ExternalAppRequest } from "@ardia/ardiacore";
 
 export type PageListener = (name: string, data: unknown) => void;
 export type PageRect = { x: number; y: number; width: number; height: number };
@@ -36,6 +37,11 @@ const pages = new Map<string, Page>();
 const closings = new Map<string, Promise<void>>();
 const pressListeners = new Set<(windowId: string) => void>();
 let listening = false;
+let answerExternalApp: ((profile: string, data: unknown) => Promise<ExternalAppRequest | null>) | null = null;
+
+export function answerExternalAppsWith(answer: (profile: string, data: unknown) => Promise<ExternalAppRequest | null>) {
+  answerExternalApp = answer;
+}
 
 export function onPagePress(listener: (windowId: string) => void): () => void {
   pressListeners.add(listener);
@@ -53,6 +59,11 @@ function listen() {
     const page = pages.get(event.key);
     if (!page) return;
     if (event.name === "pagePress") for (const pressed of [...pressListeners]) pressed(page.windowId);
+    if (event.name === "externalApp") {
+      const answer = answerExternalApp;
+      if (answer) quietly(answer(page.profile, event.data).then((request) => request && page.listeners.forEach((listener) => listener("externalApp", request))));
+      return;
+    }
     const data = shapedPageEvent(page.opening, event.name, event.data);
     for (const listener of [...page.listeners]) listener(event.name, data);
   });

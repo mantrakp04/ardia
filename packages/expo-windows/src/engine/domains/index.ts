@@ -9,11 +9,13 @@ import { nativeDesktop } from "./desktop";
 import { watchDownloads } from "./downloads";
 import rows from "./forwarded.json";
 import { domainCall, domainFunctions, domainsOf, moduleNameOf, topicRouter, type DomainCall } from "./tables";
+import { nativeExternalApps } from "./externalAppsNative";
 
 const DOWNLOADS = "downloads";
 
 const profilesSeen = new Set([""]);
 let desktopMade: Desktop | undefined;
+const externalAppsMade = nativeExternalApps();
 let listening = false;
 let watchingDownloads = false;
 
@@ -32,6 +34,7 @@ const engine: Engine = {
   },
   profileDataFolder,
   removeProfileFolder,
+  externalApps: externalAppsMade,
   get desktop() {
     desktopMade ??= nativeDesktop();
     return desktopMade;

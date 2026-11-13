@@ -75,7 +75,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Downloads (download, panel, Ctrl+J, cancel) | Works: the panel opens for a new download, from its button and Ctrl+J, and closes on Escape, a click in the page and its button; one row per download across a relaunch | #1519 |
 | History (Ctrl+H, ardia://history), Clear Browsing Data | Works | |
 | Bookmarks (Ctrl+D, ardia://bookmarks, bar) | Works | |
-| mailto and other app links | Does nothing | stand-ins `permissions.resolveExternalApp` |
+| mailto and other app links | Does nothing until the engine announces the request: the app side (prompt with the handler's name and icon, per-site "always allow", the launch) is done | #1425 (engine), #1590 |
 | Translate | Not offered | #1520 |
 | Network error page | Works (Chromium's) | |
 | DevTools (F12), Task Manager (Shift+Esc) | Works (Chromium's) | |
@@ -485,7 +485,7 @@ is plain Chromium.
 | `media.devShowBluetoothChooser`, `media.devChooserEvents` | Default | Mac test hooks. |
 | `passwords.autofillEnabled`, `passwords.setAutofillEnabled` | Engine | The profile's `credentials_enable_service` pref, as for autofill. Today Settings › Passwords' offer-to-save toggle reads off and changes nothing. |
 | `permissions.resolve` | Engine | Permission prompts drawn by the app; Chromium's own prompt shows today. |
-| `permissions.resolveExternalApp`, `externalAppAllowances`, `removeExternalAppAllowance` | Engine | `ac_external_apps_*` is Mac-only (`ac_external_apps.mm`); Windows needs its own version. |
+| `externalApp` tab event (no verb) | Engine | The app answers `permissions.resolveExternalApp`, `externalAppAllowances` and `removeExternalAppAllowance` (`domains/externalApps.ts`, `ArdiaExternalApps`), but the Windows engine never raises the request: the `external protocol dialog` hook that `engine/ardiacore/apply.sh` adds to Chromium's `ExternalProtocolHandler` is not in the Windows series. The payload the app expects is on #1425. |
 | `permissions.devExternalLaunches` | Default | Mac test hook. |
 | `profiles.loaded` | Engine | The profiles the engine has loaded, plus the `profiles.loaded` event. Today the call fails and the app counts every profile as open, as with lazy loading off. |
 | Profile folder names (no verb) | App | The engine names a profile's folder `Ardia ` plus its id, with lowercase letters, digits and `-` kept and every other byte written `_` and two lowercase hex digits (`profiles.cc`), so each name has its own folder even on a case-insensitive disk and Ardia's own ids (`p-<base36>-<base36>`) keep the folder they always had. `profiles.deleteData` still maps only ids of that shape and refuses the rest; it could map the escape too. |
@@ -518,6 +518,17 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
 `unpacked.ts` and `systemState.ts`, with the dialogs, file reads and power reading passed in as the domain engine's
 `desktop` (`domains/desktop.ts`):
 
+- Links to other apps: the engine's `externalApp` tab event (once it sends one, #1425) goes to `domains/externalApps.ts`.
+  - **Describe:** `ArdiaExternalApps.describe` names the scheme's handler and draws its icon (`AssocQueryStringW` with
+    `ASSOCSTR_FRIENDLYAPPNAME` and `ASSOCSTR_EXECUTABLE`, then `SystemShell::FileIcon`).
+  - **Prompt:** the Mac's prompt shows in the Mac's words. "Always allow" is offered only for an https or loopback
+    site, outside private windows, and kept per profile in `external-app-allowances.json`. A remembered site opens
+    the app without asking only when the request had a user gesture.
+  - **Open:** `ArdiaExternalApps.open` opens only the asked URL of a pending request. It never opens http, https or
+    file. It escapes the URL as Chromium's `EscapeExternalHandlerValue` does, and hands it to `ShellExecuteExW` as
+    the single `lpFile`.
+  - **Denied schemes** stay Chromium's own (`ExternalProtocolHandler`), which run before the engine's hook, as on
+    the Mac.
 - `bookmarks.exportHtml` and `passwords.export`: `ArdiaDialogs.saveFile` (a Windows save panel, `SaveDialog.h`; the
   password one carries the Mac's warning that anyone who can open the file can read the passwords), then
   `ac_bookmarks_export_html` or `ac_passwords_export`, which asks Windows to confirm it is you before it writes
