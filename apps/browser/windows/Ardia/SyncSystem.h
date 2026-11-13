@@ -55,6 +55,14 @@ inline bool Succeeded(std::shared_ptr<WipedString> const &reply) {
   return root && root->kind == SyncLogins::Node::Kind::Object && !SyncLogins::Member(*root, "error");
 }
 
+inline std::string ReplyError(std::shared_ptr<WipedString> const &reply) {
+  std::optional<SyncLogins::Node> root = SyncLogins::Reader(reply->text()).Document();
+  SyncLogins::Node const *error = root && root->kind == SyncLogins::Node::Kind::Object ? SyncLogins::Member(*root, "error") : nullptr;
+  if (!error) return "a logins reply that couldn't be sealed";
+  std::optional<WipedString> text = SyncLogins::Reader::Decoded(reply->text(), *error);
+  return text ? "the engine refused: " + text->text().substr(0, 120) : "the engine refused";
+}
+
 inline std::shared_ptr<WipedString> LoginArgs(std::string_view origin, std::string_view username, std::string_view password, bool withPassword) {
   auto args = std::make_shared<WipedString>();
   std::string &out = args->text();

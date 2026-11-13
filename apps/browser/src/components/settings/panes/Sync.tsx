@@ -17,7 +17,7 @@ import {
   turnOnSync,
   useSync,
 } from "../../../state/sync/engine";
-import { DATA_TYPES, type SyncStatus } from "../../../state/sync/syncDoc";
+import { DATA_TYPES, SYNCED_KINDS, type SyncStatus } from "../../../state/sync/syncDoc";
 import { deviceSymbol } from "../../../state/sync/devices";
 import { ProfileBadge } from "../../profiles/ProfileIcons";
 import { Group, PaneIntro, Row, SectionHeader } from "../Form";
@@ -41,8 +41,7 @@ export function SyncPane() {
   return (
     <Box gap="xl">
       <PaneIntro>
-        Sync your profiles, bookmarks, history, open tabs, pinned tabs, groups, passwords, extensions and settings across your {PLATFORM_TERMS.syncedComputer}s. It all goes
-        through a folder you choose, like one in {PLATFORM_TERMS.cloudDrive}, and it’s end-to-end encrypted: only your devices can read it.
+        Sync your profiles, {SYNCED_KINDS} across your {PLATFORM_TERMS.syncedComputer}s. It all goes through a folder you choose, like one in {PLATFORM_TERMS.cloudDrive}, and it’s end-to-end encrypted: only your devices can read it.
       </PaneIntro>
       {enabled ? <SyncOn info={info} /> : <SyncOff info={info} />}
     </Box>

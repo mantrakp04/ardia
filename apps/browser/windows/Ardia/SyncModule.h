@@ -269,7 +269,7 @@ struct SyncModule {
         std::optional<std::string> sealed = reply ? SyncLogins::SealedLogins(reply->text(), *session.keys) : std::nullopt;
         if (reply) reply->text().clear();
         if (!SyncModuleParts::Shared().Still(session.generation)) return promise.Resolve(std::nullopt);
-        if (!sealed) LaunchLog::Write(L"sync", L"reading passwords: no logins reply, or one that couldn't be sealed");
+        if (!sealed) LaunchLog::Write(L"sync", L"reading passwords: " + Paths::Wide(reply ? SyncSystem::ReplyError(reply) : std::string{"no reply"}));
         promise.Resolve(sealed);
       });
       if (!queued) promise.Resolve(std::nullopt);

@@ -102,7 +102,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Appearance: light and dark | Works | |
 | Keyboard Shortcuts pane | Works, Windows keys | |
 | "…" menu (12 items, Windows keys) | Works, except Check for Updates | #1517 |
-| Sync | Works with the Mac's vault: any folder the user picks (OneDrive's `Ardia Sync` by default), the key in DPAPI, the phrase behind Windows Hello or the Windows password; Share… in the Recovery Kit menu is not offered | #1575 |
+| Sync | Works with the Mac's vault through any folder the user picks (OneDrive's `Ardia Sync` by default); a Mac and a PC exchanged pinned tabs and bookmarks both ways in the VM on 2026-11-13. Passwords don't sync on Windows yet: the engine refuses to list logins (below). Share… in the Recovery Kit menu is not offered | #1575, #1425 |
 | Calendar | Does nothing (Connect answered with macOS copy); hidden | #1521 |
 | Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden (thin scroll bars need the engine: #1425) | #1522, #1520 |
 | The ardia command, Widevine | Not offered (each says so) | |
@@ -640,8 +640,13 @@ sealed exactly as `packages/sync/ios/Core/SyncCrypto.swift` seals it. The engine
   four keys are derived (BCrypt HKDF, HMAC and AES-256-GCM in `SyncCrypto.h`). A failed unseal never makes a new key;
   sync asks for the phrase. Each operation holds the keys it started with; `forget` bumps a generation, so a result or
   an owner check that began before it is dropped.
-- Passwords: `ac_passwords_logins` is called and its reply sealed in C++ (`SyncSystem.h`), and a synced password is
-  opened only to hand it to `ac_passwords_add`. The Mac's vault files carry plaintext `p` in `pw:` records, as the Mac
+- Passwords are off on Windows (`PLATFORM_FEATURES.syncsPasswords`: no What Syncs row, the type never syncs, and
+  the Mac's synced passwords stay in the vault untouched). Chromium turns `kSkipUndecryptablePasswords` on by default
+  on Windows only, and with it `ac_passwords_logins` answers "partial password reads": a login list that may silently
+  leave out undecryptable passwords would look like deletions to sync. The engine needs to list every login on
+  Windows (#1425); the native side below is ready for it.
+- Passwords, once the engine lists them: `ac_passwords_logins` is called and its reply sealed in C++ (`SyncSystem.h`),
+  and a synced password is opened only to hand it to `ac_passwords_add`. The Mac's vault files carry plaintext `p` in `pw:` records, as the Mac
   writes them; `SyncLogins.h` swaps them for sealed `s` before JS sees a document (escaped keys included; a login it
   can't seal loses its `p`) and back when writing. Replacing a password reads the old one first and puts it back if
   the add fails, because `ac_passwords_update` asks the user to sign in again.
