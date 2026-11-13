@@ -22,8 +22,8 @@ export { startWatch, stopWatch, watchStatus, WATCH_DAYS, type WatchStatus } from
 export { localEventsSince, exportLocalCopy } from "./localStore";
 export { diagnosticsSnapshot, type DiagnosticsSnapshot } from "./diagnosticsSnapshot";
 
-export function startTelemetry() {
-  startUsage();
+export function startTelemetry({ continuing = false }: { continuing?: boolean } = {}) {
+  startUsage(continuing);
   startWatchNotice();
   startDaily(onboardingCompletedAt() !== null);
   if (__DEV__) {

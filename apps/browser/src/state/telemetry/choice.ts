@@ -142,6 +142,7 @@ export const isSharing = () => saved.sharing;
 let currentSession: string | null = null;
 export const sessionId = () => (currentSession ??= uuidv7());
 export const startNewSession = () => (currentSession = uuidv7());
+export const resumeSession = (id: string | null) => (currentSession = id ?? uuidv7());
 
 function readStateDoc(): SavedObject | null {
   const json = readDocument(STATE_DOC);
@@ -162,6 +163,11 @@ export function loadChoice() {
   loaded = true;
   saved = readSaved(readStateDoc());
   useTelemetry.setState(shown(saved));
+}
+
+export function reloadChoice() {
+  loaded = false;
+  loadChoice();
 }
 
 export const dismissAsk = () => save({ askDoneAt: Date.now() });

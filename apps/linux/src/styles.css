@@ -1,0 +1,116 @@
+.ardia-profile-controls {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 34px;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ardia-header-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+  padding: 0;
+}
+
+.ardia-header-button:hover {
+  background: rgba(127, 127, 127, 0.16);
+}
+
+.ardia-header-button:active {
+  background: rgba(127, 127, 127, 0.28);
+}
+
+.ardia-current-space {
+  flex: 1;
+  min-width: 0;
+  padding: 0 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ardia-current-space span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ardia-current-space:disabled {
+  background: transparent;
+}
+
+.ardia-app-menu-button {
+  flex: 0 0 32px;
+}
+
+.ardia-traffic-lights {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.ardia-window-control {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.ardia-window-control-mark {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(0, 0, 0, 0.65);
+  font: 600 12px/14px system-ui, sans-serif;
+  opacity: 0;
+}
+
+.ardia-window-control:hover .ardia-window-control-mark,
+.ardia-window-control:focus-visible .ardia-window-control-mark {
+  opacity: 1;
+}
+
+.ardia-linux button:focus-visible {
+  outline: 2px solid #5a9bff;
+  outline-offset: 2px;
+}
+
+.ardia-linux.utility .ardia-window > div:first-child {
+  min-width: 700px;
+}
+
+.ardia-linux.utility .ardia-window {
+  overflow-x: auto;
+}
+
+.ardia-window-control:disabled {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+.ardia-window-control:disabled .ardia-window-control-mark {
+  opacity: 0;
+}
+
+.ardia-menu-item {
+  overflow: hidden;
+}
+
+.ardia-menu-item.expanded:not(.disabled) {
+  background: #0a63e0;
+  color: #fff;
+}

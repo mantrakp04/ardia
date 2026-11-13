@@ -356,15 +356,17 @@ async function launchEvents(session: ReturnType<typeof startClient>) {
   if (session.updatedFrom) capture("app_updated", { from_version: session.updatedFrom });
 }
 
-export function startUsage() {
-  const session = startClient();
+export function startUsage(continuing = false) {
+  const session = startClient(continuing);
   previousContext = session.context;
-  void launchEvents(session);
-  launchCrashRead = setTimeout(() => void reportNativeCrashes([previousContext]), session.previous === "unclean" ? 1000 : 5000);
+  if (!continuing) {
+    void launchEvents(session);
+    launchCrashRead = setTimeout(() => void reportNativeCrashes([previousContext]), session.previous === "unclean" ? 1000 : 5000);
+  }
   startWatchChecks();
   startLocalStore(LOCAL_STORE_LAUNCH_DELAY_MS);
   startContextSamples();
-  startJourneys(isSharing() ? session : null);
+  startJourneys(isSharing() && !continuing ? session : null);
   counts.windowsRealignedToAutoHideTabs = windowsRealignedToAutoHideTabsAtLaunch();
   watchStore();
   watchToolbarAutoHide();
@@ -382,6 +384,12 @@ export function startUsage() {
       sessionEnding();
     } else if (e.type === "quitCancelled") startContextSamples();
   });
+}
+
+export function emitWindowUsage() {
+  emitCounts();
+  emitOmniboxLatency();
+  emitTabPresses();
 }
 
 export function sessionEnding() {

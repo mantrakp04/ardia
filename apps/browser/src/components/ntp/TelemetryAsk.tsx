@@ -6,6 +6,7 @@ import { dismissAsk, setSharing, useTelemetry, type AskPlacement } from "../../s
 import { space } from "../ui/tokens";
 import type { Frame } from "./NewTabExtras";
 import { SHARING_COPY } from "../../state/telemetry/copy";
+import { sharingRequired } from "../../state/telemetry/required";
 import { onboardingCompletedAt, useOnboarding } from "../../state/onboarding/onboarding";
 import { Box, Button, IconTile, lineHeight, Text } from "../ui";
 import { NtpCard, NtpCardSlot, NtpCardSurface, NtpCardTitle, useCardRetire } from "./NtpCard";
@@ -26,7 +27,7 @@ function clearOfBar(size: { width: number; height: number }, bar: Frame, height:
 }
 
 export function TelemetryAsk({ windowId, size, bar }: { windowId: string; size: { width: number; height: number }; bar: Frame }) {
-  const due = useTelemetry((s) => !s.decided && !s.askDone);
+  const due = useTelemetry((s) => !s.decided && !s.askDone) && !sharingRequired();
   const incognito = useWindow(windowId, (w) => w?.kind === "private");
   const onboarding = useOnboarding((s) => s.windowId !== null);
   const checkIn = useDefaultBrowserCheckIn(windowId).visible;

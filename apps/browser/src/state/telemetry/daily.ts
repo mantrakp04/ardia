@@ -2,7 +2,7 @@ import { readDocument, saveDocument } from "../../platform/documents";
 import { updaterState } from "../../platform/app";
 import { environment } from "./client";
 import { uuidv4 } from "./ids";
-import { appInfo, mayPost, post } from "./transport";
+import { appInfo, mayPost, post, telemetryHost } from "./transport";
 import { EVENTS_SCOPE, eventRecord, logsRequest, outcome } from "./otlp";
 import { parseSaved, versionedJson, unchanged, type Migrations } from "../../lib/savedDocument";
 
@@ -100,7 +100,7 @@ export function dailyProperties(flags: DailyFlags, channel: string | null): Reco
     $lib_version: "1",
     $app_name: "Ardia",
     $app_version: info.appVersion,
-    $os: "macOS",
+    $os: telemetryHost().os,
     os_major: (info.osVersion ?? "").split(".")[0] || null,
     arch: info.arch,
     channel,

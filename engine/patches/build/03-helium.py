@@ -37,6 +37,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pathguard  # noqa: E402
+from target_config import configuration  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
 CB = pathlib.Path(os.environ.get('AC_CHROMIUM_BUILD') or pathlib.Path.home() / 'chromium-build')
@@ -62,6 +63,17 @@ SKIP = {
     'helium/macos/rbe-linux-clang-wrapper.patch': 'Helium\'s remote build setup',
     'helium/macos/chromium-signing.patch': 'Helium\'s signing flow; scripts/release.sh signs Ardia',
 }
+
+LINUX_SKIP = {
+    'helium/linux/change-chromium-branding.patch': 'Ardia supplies its own desktop identity and isolated user-data directory',
+    'helium/linux/rename-chrome-binary.patch': 'Ardia packages the chrome executable and Chromium crashpad handler under its own launcher',
+}
+
+
+def platform_skips(platform):
+    common = {name: reason for name, reason in SKIP.items() if '/macos/' not in name}
+    return SKIP if platform == 'mac' else dict(common, **LINUX_SKIP)
+
 
 GUARD_MARKERS = [
     ('keychain_password_mac.mm', False), ('Safe Storage', False), ('Storage Key', False),
@@ -115,9 +127,12 @@ def series(repo):
 
 
 def helium_patches(ctx):
-    for repo, tag in ((ctx.hc, 'helium-chromium'), (ctx.hm, 'helium-macos')):
+    for repo, tag in ((ctx.hc, 'helium-chromium'), (ctx.hm, ctx.platform_repo)):
         for name in series(repo):
             yield tag, name, repo / 'patches' / name
+
+
+HELIUM_BUILD_INPUTS = ('patches', 'chromium_version.txt', 'version.txt', 'revision.txt', 'deps.ini', 'downloads.ini', 'flags.gn', 'domain_substitution.list', 'domain_regex.list', 'pruning.list', 'resources', 'i18n', 'utils')
 
 
 def git(repo, *args):
@@ -127,7 +142,7 @@ def git(repo, *args):
 def stage_pins(ctx):
     config = pins()
     problems = []
-    for section, repo in (('helium-chromium', ctx.hc), ('helium-macos', ctx.hm)):
+    for section, repo in (('helium-chromium', ctx.hc), (ctx.platform_repo, ctx.hm)):
         want = config[section]['commit']
         head = git(repo, 'rev-parse', 'HEAD').stdout.strip()
         if head != want:
@@ -135,6 +150,21 @@ def stage_pins(ctx):
         dirty = git(repo, 'status', '--porcelain', '--untracked-files=no').stdout.strip()
         if dirty:
             problems.append(f'{repo} has local changes:\n{dirty}')
+    if ctx.platform == 'linux':
+        want_hc = config['helium-linux']['helium_chromium_commit']
+        entry = git(ctx.hm, 'ls-tree', 'HEAD', 'helium-chromium').stdout.split()
+        if len(entry) < 3 or entry[0] != '160000' or entry[2] != want_hc:
+            problems.append('helium-linux submodule does not match its pinned helium-chromium commit')
+        if want_hc != config['helium-chromium']['commit']:
+            pinned_hc = config['helium-chromium']['commit']
+            for path in HELIUM_BUILD_INPUTS:
+                ours = git(ctx.hc, 'rev-parse', '--verify', '-q', f'{pinned_hc}:{path}').stdout.strip()
+                theirs = git(ctx.hc, 'rev-parse', '--verify', '-q', f'{want_hc}:{path}').stdout.strip()
+                if not theirs:
+                    problems.append(f'{ctx.hc} lacks helium-linux\'s helium-chromium commit {want_hc}: fetch it')
+                    break
+                if ours != theirs:
+                    problems.append(f'helium-linux\'s helium-chromium {want_hc} differs from {pinned_hc} in {path}')
     chromium = config['chromium']['version']
     if os.environ.get('CHROMIUM_VERSION', chromium) != chromium:
         problems.append(f'env.sh CHROMIUM_VERSION {os.environ["CHROMIUM_VERSION"]} != helium-pins.ini {chromium}')
@@ -155,7 +185,7 @@ def stage_pins(ctx):
             problems.append(f'deps.ini [{section}] downloads into {out}, which Ardia doesn\'t omit: decide on it')
     if problems:
         raise StageError('\n'.join(problems))
-    print(f'Helium {config["helium-chromium"]["tag"]} / macOS {config["helium-macos"]["tag"]} on Chromium {chromium}')
+    print(f'Helium {config["helium-chromium"]["tag"]} / {ctx.platform_repo} {config[ctx.platform_repo]["tag"]} on Chromium {chromium}')
 
 
 def guard_hits(name, path):
@@ -175,10 +205,11 @@ def guard_hits(name, path):
 def stage_guard(ctx):
     problems = []
     names = {name for _, name, _ in helium_patches(ctx)}
-    for name in SKIP:
+    skips = platform_skips(ctx.platform)
+    for name in skips:
         if name not in names:
             problems.append(f'skipped {name} is no longer in Helium\'s series: re-check what replaced it')
-    candidates = [(name, path) for _, name, path in helium_patches(ctx) if name not in SKIP]
+    candidates = [(name, path) for _, name, path in helium_patches(ctx) if name not in skips]
     candidates += [(f'extra:{p}', pathlib.Path(p)) for p in ctx.guard_extra]
     seen = set()
     for name, path in candidates:
@@ -187,12 +218,13 @@ def stage_guard(ctx):
             seen.add(key)
             if key not in GUARD_ALLOWED:
                 problems.append(f'{name} ({target}) touches what a skip protects [{marker}]: {line[:160]}')
-    for key in sorted(GUARD_ALLOWED - seen):
+    allowed = {key for key in GUARD_ALLOWED if ctx.platform == 'mac' or '/macos/' not in key[0]}
+    for key in sorted(allowed - seen):
         problems.append(f'allowlisted guard hit is gone (re-review and update GUARD_ALLOWED): {key}')
     if problems:
         raise StageError('\n'.join(problems))
-    print(f'{len(SKIP)} skips guarded; {len(candidates)} applied patches checked, '
-          f'{len(GUARD_ALLOWED)} allowlisted hits')
+    print(f'{len(skips)} skips guarded; {len(candidates)} applied patches checked, '
+          f'{len(allowed)} allowlisted hits')
 
 
 def file_sections(text):
@@ -276,10 +308,11 @@ def write_report(ctx, rows):
 
 def stage_patches(ctx):
     rows, applied = [], 0
-    skipped = {name: path for _, name, path in helium_patches(ctx) if name in SKIP}
+    skips = platform_skips(ctx.platform)
+    skipped = {name: path for _, name, path in helium_patches(ctx) if name in skips}
     for tag, name, path in helium_patches(ctx):
-        if name in SKIP:
-            rows.append((tag, name, 'skipped', SKIP[name]))
+        if name in skips:
+            rows.append((tag, name, 'skipped', skips[name]))
             continue
         path, dropped = without_omitted(ctx, name, path)
         p = run_patch(ctx, path, dry=True)
@@ -367,6 +400,11 @@ def stage_brand_namesub(ctx):
         return
     if not script.exists():
         raise StageError(f'{script} is missing; --no-brand skips the Ardia branding')
+    if ctx.platform == 'linux':
+        strings = ctx.tree / 'chrome/app/settings_chromium_strings.grdp'
+        text = strings.read_text()
+        if 'helium.desktop' in text:
+            strings.write_text(text.replace('helium.desktop', 'ardia.desktop'))
     p = subprocess.run([sys.executable, str(script), '--tree', str(ctx.tree), '--helium', str(ctx.hc)],
                        cwd=ctx.work, capture_output=True, text=True)
     if p.returncode:
@@ -397,6 +435,26 @@ def resource_lines(listing):
         yield parts
 
 
+def resize_icon(source, target, size, platform):
+    if platform == 'mac' and shutil.which('sips'):
+        command = ['sips', '-s', 'format', 'png', '-z', str(size), str(size), str(source), '--out', str(target)]
+    elif source.suffix.lower() == '.svg' and shutil.which('rsvg-convert'):
+        command = ['rsvg-convert', '-w', str(size), '-h', str(size), '-o', str(target), str(source)]
+    elif shutil.which('magick'):
+        command = ['magick', str(source), '-resize', f'{size}x{size}!', str(target)]
+    else:
+        try:
+            from PIL import Image
+            with Image.open(source) as image:
+                image.convert('RGBA').resize((size, size), Image.Resampling.LANCZOS).save(target, 'PNG')
+            return
+        except (ImportError, OSError) as error:
+            raise StageError(f'cannot resize {source}: install ImageMagick or Pillow (rsvg-convert for SVG): {error}') from error
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode:
+        raise StageError(f'icon generation failed: {result.stderr or result.stdout}')
+
+
 def generate_icons(ctx):
     out = ctx.work / 'helium-resources'
     for line in (ctx.hc / 'resources/generate_resources.txt').read_text().splitlines():
@@ -406,8 +464,7 @@ def generate_icons(ctx):
         source, size, dest = line.split()
         target = out / dest
         target.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run(['sips', '-s', 'format', 'png', '-z', size, size, str(ctx.hc / 'resources' / source),
-                        '--out', str(target)], check=True, capture_output=True)
+        resize_icon(ctx.hc / 'resources' / source, target, int(size), ctx.platform)
     return out
 
 
@@ -472,6 +529,10 @@ def main():
                         default=pathlib.Path(os.environ.get('CHROMIUM_SRC', CB / 'chromium_git/chromium/src')))
     parser.add_argument('--helium', type=pathlib.Path,
                         default=pathlib.Path(os.environ.get('HELIUM_DIR', CB / 'helium')))
+    parser.add_argument('--platform', choices=('mac', 'linux'))
+    parser.add_argument('--cpu', choices=('arm64', 'x64'))
+    parser.add_argument('--helium-linux', type=pathlib.Path,
+                        default=pathlib.Path(os.environ.get('HELIUM_LINUX_DIR', CB / 'helium-linux')))
     parser.add_argument('--helium-macos', type=pathlib.Path,
                         default=pathlib.Path(os.environ.get('HELIUM_MACOS_DIR', CB / 'helium-macos')))
     parser.add_argument('--domsub-cache', type=pathlib.Path,
@@ -486,7 +547,14 @@ def main():
     parser.add_argument('--guard-extra', action='append', default=[], metavar='PATCH')
     args = parser.parse_args()
 
-    ctx = argparse.Namespace(tree=args.tree.resolve(), hc=args.helium.resolve(), hm=args.helium_macos.resolve(),
+    try:
+        target = configuration(args.platform, args.cpu)
+    except ValueError as error:
+        parser.error(str(error))
+    platform = target['AC_TARGET_OS']
+    ctx = argparse.Namespace(tree=args.tree.resolve(), hc=args.helium.resolve(),
+                             hm=(args.helium_macos if platform == 'mac' else args.helium_linux).resolve(),
+                             platform=platform, platform_repo=f'helium-{ "macos" if platform == "mac" else "linux"}',
                              no_brand=args.no_brand, guard_extra=args.guard_extra)
     ctx.work = (args.work or pathlib.Path(tempfile.mkdtemp(prefix='helium-work-'))).resolve()
     live = bool(pathguard.reaches(ctx.tree))
@@ -516,11 +584,19 @@ def main():
 
     marker = ctx.tree.parent / f'.helium-stages-{ctx.tree.name}'
     identity = f'tree-inode={ctx.tree.stat().st_ino}'
+    platform_identity = f'platform={ctx.platform}'
     recorded = marker.read_text().split() if marker.exists() else []
     if marker.exists() and not recorded[:1] and mutating:
         print(f'{marker} is empty or unreadable: a run was interrupted; start again from a fresh tree', file=sys.stderr)
         return 1
     done = set(recorded[1:]) if recorded[:1] == [identity] else set()
+    if done and platform_identity not in done and ctx.platform != 'mac':
+        print(f'{marker}: stages belong to another platform; use a fresh Linux tree', file=sys.stderr)
+        return 1
+    if 'platform=linux' in done and ctx.platform != 'linux':
+        print(f'{marker}: stages belong to Linux', file=sys.stderr)
+        return 1
+    done.add(platform_identity)
     broken = sorted(d for d in done if d.startswith('started:') and d[len('started:'):] not in done)
     if broken and mutating:
         print(f'{ctx.tree}: a previous run died during {", ".join(b[len("started:"):] for b in broken)} '

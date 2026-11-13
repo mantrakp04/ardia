@@ -205,15 +205,24 @@ class Notes(unittest.TestCase):
 
 
 class BrowsingCommands(unittest.TestCase):
+    linux = False
+
     def setUp(self):
+        layout = mock.patch.object(endpoint, "LINUX", self.linux)
+        layout.start()
+        self.addCleanup(layout.stop)
         self.data = scratch_dir()
         self.addCleanup(shutil.rmtree, self.data, True)
-        chromium = self.data / "Chromium"
+        self.chromium = chromium = endpoint.chromium_dir(self.data)
         (chromium / "Default").mkdir(parents=True)
         control = chromium / endpoint.CONTROL_FILE
         control.write_text(json.dumps({"port": 1, "browser": "/devtools/browser/abc", "token": "t" * 24, "pid": os.getpid(), "generation": 1}))
         control.chmod(0o600)
-        (self.data / "session.json").write_text(json.dumps(self.session()))
+        if self.linux:
+            (chromium / "Default" / "Ardia").mkdir()
+            (chromium / "Default" / "Ardia" / "linux-session.json").write_text(json.dumps(self.session()))
+        else:
+            (self.data / "session.json").write_text(json.dumps(self.session()))
         self.history(chromium / "Default" / "History")
 
     def session(self):
@@ -294,11 +303,15 @@ class BrowsingCommands(unittest.TestCase):
         self.assertEqual(self.cli("history", "--limit", "-1")[0], 1)
 
     def test_not_running_exits_2(self):
-        (self.data / "Chromium" / endpoint.CONTROL_FILE).unlink()
+        (self.chromium / endpoint.CONTROL_FILE).unlink()
         for command in ("pinned", "history"):
             status, _, err = self.cli(command)
             self.assertEqual(status, 2, command)
             self.assertIn(endpoint.NOT_REACHABLE, err)
+
+
+class LinuxBrowsingCommands(BrowsingCommands):
+    linux = True
 
 
 if __name__ == "__main__":

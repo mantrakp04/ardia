@@ -15,6 +15,7 @@
 #include "base/supports_user_data.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "build/build_config.h"
 #include "chrome/browser/ardia/ac_sensitive_args.h"
 #include "chrome/browser/ardia/public/ac_engine.h"
 #include "chrome/browser/profiles/profile.h"
@@ -63,6 +64,7 @@ class Reply {
 
   void Send(base::DictValue result);
   void SendSecretJSON(std::string& json);
+  void SendSecret(base::DictValue result);
   void Ok();
   void Error(std::string_view message);
 

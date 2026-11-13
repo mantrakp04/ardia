@@ -104,6 +104,7 @@ reconstructed from Dia's own New Tab effects.
 ```
 apps/
   browser/            Expo + react-native-macos app (UI in src/, Xcode project in macos/)
+  linux/              Linux desktop entry, window controls and native host integration; shares the browser UI
 packages/
   ardiacore/             The engine: Chromium 157's framework with our layer (Chrome tabs hosted in our views), JS API in src/
   shell/              Native menu bar + shortcuts → JS, windows, SF Symbols, native primitives
@@ -115,7 +116,10 @@ packages/
 
 ## Run it
 
-Requires Xcode 26+, CocoaPods, Node 24 (pinned in `.nvmrc`), pnpm 11.
+The Linux desktop target is `apps/linux`, for x86-64 Linux on Wayland or X11; its source-build and packaging
+instructions are in [docs/linux-port.md](docs/linux-port.md). It builds against the dedicated Linux Chromium host.
+
+The macOS app requires Xcode 26+, CocoaPods, Node 24 (pinned in `.nvmrc`), pnpm 11.
 
 ```bash
 pnpm install

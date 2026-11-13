@@ -30,10 +30,14 @@ it never changes what a connection may do, and both ends strip control and invis
 characters (the app keeps `app` only when it's an absolute, outermost `.app` path). When several run at once the pill
 names the most recent one; a pill that hid and shows again without a new name says "The ardia command".
 
-Code: `apps/cli` (`ardia_cli`, `install.sh`, `scripts/build.sh`). Dependencies are pinned with hashes in
-`apps/cli/requirements.lock` (regenerate with `uv pip compile requirements.in --python-version 3.13
---python-platform aarch64-apple-darwin --generate-hashes --no-annotate --no-header -o requirements.lock`, then copy
-the pins into `pyproject.toml`).
+Code: `apps/cli` (`ardia_cli`, `install.sh`, `scripts/build.sh`). It runs on macOS (Apple silicon) and Linux
+(x86_64). Dependencies are pinned with hashes in `apps/cli/requirements.lock` (regenerate with `uv pip compile
+requirements.in --python-version 3.13 --python-platform aarch64-apple-darwin --generate-hashes --no-annotate
+--no-header -o requirements.lock`, then copy the pins into `pyproject.toml`). uv writes the hash of every file a
+pinned version publishes, so the one lock covers both platforms: compiled with `--python-platform
+x86_64-manylinux_2_28` it comes out byte for byte the same, and it carries the cp313 manylinux x86_64 wheels of the
+native packages (aiohttp, pydantic-core, multidict, yarl, frozenlist, propcache, websockets). Check that again when
+you bump a pin.
 
 ## Commands
 
@@ -101,8 +105,8 @@ the pins into `pyproject.toml`).
 - `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`). PROGRAM's output goes
   to the terminal untouched; event data such as `ARDIA_TITLE` and `ARDIA_URL` comes from pages, so a program that
   prints it should escape control characters, as the CLI's own output does.
-- `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json`, at login through a LaunchAgent (see
-  `docs/automation.md`).
+- `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json`, at login through a LaunchAgent on macOS
+  or a systemd user service on Linux (see Linux below and `docs/automation.md`).
 - `ardia feedback --title TITLE [--kind bug|slow|idea|other] [--attach FILE]… [--command CMD] [--data-dir DIR] TEXT|-`
   reports a problem or an idea to the developer (see Feedback and the star nudge). Exit 0 sent (or the same report
   already went out today), 1 not sent and kept on the Mac (the line says why), 2 a missing or bad title, description
@@ -876,12 +880,18 @@ checks as the token path first (regular file, owned, 0600, live pid), so they wo
 on (exit 2 otherwise). Neither reads cookies, passwords, Login Data or Web Data. Text output is one line per row;
 `--json` prints the rows.
 
-- `ardia pinned` reads `<data dir>/session.json` (the app's persisted state, `apps/browser/src/state/session/persist.ts`) and lists
-  one row per pin: `title` (custom title first), `url` (else the pinned URL), `pinned_url`, `kind` (`favorite` for a
-  tile, `pinned` for a tab in a pinned folder), `folder`, `profile` (its name) and `parked` (pins of a profile no
-  window shows, from `parkedPins`). Pins mirrored across windows count once. Incognito profiles are skipped.
+- `ardia pinned` reads `<data dir>/session.json` (the app's persisted state, `apps/browser/src/state/session/persist.ts`;
+  version 2 or later) and, on Linux, `<data dir>/<app profile>/Ardia/linux-session.json` (see Linux) and lists one
+  row per pin: `title` (custom title first), `url` (else the pinned URL), `pinned_url`, `kind` (`favorite` for a
+  Top Apps tile, `pinned` for a pinned row or a tab in a pinned folder), `folder` (the pinned folder, the innermost
+  one when they nest, or the tile's folder), `profile` (its name) and `parked` (pins of a profile no window shows,
+  from `parkedPins`). It takes each tab's `pin` (`{"as": "tile" | "row", "folder"?}`), or the older `pinned`,
+  `pinnedAsRow` and `tileFolder` fields when a tab still has them. Rows follow `profileOrder`, then `windowOrder`,
+  then each window's tab order. Pins mirrored across windows (one `pinKey`) count once. Incognito profiles, private
+  and small windows are skipped. A missing file gives no rows; a symlink, a file that isn't regular, one past the
+  size cap (256 MB for `session.json`, the host's 8 MB for `linux-session.json`) or invalid JSON is an error.
 - `ardia history [--days N] [--limit N] [--profile P] [--domains]` (default 1 day, 200 rows, `--limit 0` for all) reads Chromium's `History` for each `Default` and
-  `Profile <id>` folder under `<data dir>/Chromium/` (never incognito, guest or system profiles; `--profile` must be a
+  `Profile <id>` folder under `<data dir>/Chromium/` (on Linux, the data dir itself) (never incognito, guest or system profiles; `--profile` must be a
   profile name or one of those folder names, never a path). Rows per URL, newest first: `url`, `title`, `visits` in
   the window, `total_visits`, `last_visit` (ISO 8601, local time), `profile`. Only http(s) pages; subframe
   navigations and hidden URLs are left out. `--domains` rolls rows up per domain (`domain`, `visits`, `pages`,
@@ -918,7 +928,8 @@ resolving symlinks), not by path spelling, since APFS is case-insensitive. A scr
 before anything is injected or published, so a script can't bundle `ArdiaControl.json` or other files and send
 them to a page. `data:` imports are allowed. The tarball ships esbuild in `ardia_cli/bin/esbuild` and an installed
 CLI uses only that one; from the repo (`python -m ardia_cli`) it falls back to
-`node_modules/@esbuild/darwin-arm64/bin/esbuild` in a parent folder of the package, then `esbuild` on PATH. It never
+`node_modules/@esbuild/darwin-arm64/bin/esbuild` (`@esbuild/linux-x64` on Linux) in a parent folder of the package,
+then `esbuild` on PATH. It never
 looks in the cwd.
 
 - `ardia scripts new NAME [--match PATTERN]…` writes `NAME.user.ts` in the cwd (default match
@@ -956,12 +967,15 @@ looks in the cwd.
 
 ### Install contract with the app
 
-The data dir is `--data-dir`, else `$ARDIA_DATA_DIR`, else `~/Library/Application Support/com.ardia.browser`.
+The data dir is `--data-dir`, else `$ARDIA_DATA_DIR`, else the installed app's (`~/Library/Application
+Support/com.ardia.browser`; on Linux `${ARDIA_CONFIG_HOME:-${XDG_CONFIG_HOME:-~/.config}}/ardia`, see How it finds
+Ardia).
 
 1. The CLI takes an exclusive `flock` on `<data dir>/Scripts/.lock` (polled, 30 s deadline). The app takes a shared
    one while it reads and validates. `Scripts/`, `Scripts/scripts/`, record folders and `extension/` must be real
    folders the user owns: each is opened with `O_NOFOLLOW`, and everything below works relative to those folder
-   descriptors (`renameatx_np`, `openat`, `rmtree(dir_fd=)`), so a planted symlink is refused, not followed.
+   descriptors (`renameatx_np` on macOS, `renameat2` on Linux, `openat`, `rmtree(dir_fd=)`), so a planted symlink is
+   refused, not followed.
 2. It keeps its record in `Scripts/scripts/<id>/`: `meta.json` (the parsed metadata, `id`, `world`, `source_file`,
    `installed_at`, `updated_at`), `script.js` (the build) and `source.<ext>` (a copy of the entry file). A new record
    is staged in a temp sibling and only swapped in after the extension built from it validated and was published; if
@@ -974,7 +988,8 @@ The data dir is `--data-dir`, else `$ARDIA_DATA_DIR`, else `~/Library/Applicatio
    one bad script can't make the shared extension unloadable, along with the engine's limits: at most 256 content
    script entries, 256 files per entry, 512 distinct files, and a 256 KB manifest. A script with `@match` gets one entry; one with `@include` gets an entry with `matches` `*://*/*` and
    the globs, excluding its `@match` patterns so no page runs it twice. Entries follow install order. When
-   `extension/` exists the new folder replaces it with `renamex_np(RENAME_SWAP)` and the old one is deleted, so the
+   `extension/` exists the new folder replaces it with `renameatx_np(RENAME_SWAP)` (`renameat2(RENAME_EXCHANGE)` on
+   Linux) and the old one is deleted, so the
    path never goes missing; a plain rename only when there's none. With no scripts left, `extension/` is removed.
 4. It writes `Scripts/generation` (temp file and rename): one more than the largest of `Scripts/generation`,
    `extension/generation` and the last reported one. A crashed run is repaired by the next install or
@@ -1002,6 +1017,10 @@ The data dir is `--data-dir`, else `$ARDIA_DATA_DIR`, else `~/Library/Applicatio
 4. `$ARDIA_CDP_URL`, like `--ws`.
 5. `<data dir>/Chromium/ArdiaControl.json`, with `--data-dir` or `$ARDIA_DATA_DIR`, else the installed app's
    `~/Library/Application Support/com.ardia.browser/Chromium/ArdiaControl.json`.
+   On Linux the browser is Chromium itself and its user data dir is the data dir, so it's `<data dir>/ArdiaControl.json`
+   and the installed app's is `${XDG_CONFIG_HOME:-~/.config}/ardia/ArdiaControl.json` (`$ARDIA_CONFIG_HOME/ardia` when
+   that's set, as the engine does). The control socket is `<data dir>/ArdiaControl.sock` on both, checked with
+   `LOCAL_PEERCRED` on macOS and `SO_PEERCRED` on Linux; its path may be 103 bytes on macOS and 107 on Linux.
 
 The active-page route is `GET http://127.0.0.1:P/ardia/active?token=<token>`: `{"targetId": "<id>"}`, or `null` when
 New Tab or an Ardia view is showing; anything else is a 404. The CLI calls it directly (no proxy, no Origin header)
@@ -1284,8 +1303,9 @@ The app runs `install.sh` with its own environment minus every `ARDIA_*` variabl
 
 `install.sh [--version V] [--sha256 DIGEST] [--uninstall]` (run with `/bin/sh`; `--help`):
 
-- Downloads `https://github.com/mantrakp04/ardia/releases/download/v<V>/ardia-cli-<V>-macos-arm64.tar.gz` (https only)
-  into a private temp dir; it runs on Apple silicon only and stops with an error anywhere else. Without `--version` it
+- Downloads `https://github.com/mantrakp04/ardia/releases/download/v<V>/ardia-cli-<V>-macos-arm64.tar.gz` on macOS
+  and `…/ardia-cli-<V>-linux-x64.tar.gz` on Linux (https only) into a private temp dir; it runs on Apple silicon and
+  x86_64 Linux and stops with an error anywhere else. Without `--version` it
   takes the latest release that has the asset. `--sha256` is the only
   digest it trusts (the app passes `Ardia.app/Contents/Resources/ardia-cli.sha256`, which the signed bundle pins), and
   a download needs it: a `.sha256` from the same release would only prove the tarball came from wherever the tarball
@@ -1300,15 +1320,22 @@ The app runs `install.sh` with its own environment minus every `ARDIA_*` variabl
   against the lease's mtime), so a reused pid doesn't pin a version.
 - Links `$ARDIA_CLI_BIN_DIR/ardia` (default `~/.local/bin`) to `current/bin/ardia`. It replaces only a link that
   already points into `$ARDIA_CLI_HOME` and refuses anything else. With the default bin dir off the login shell's
-  PATH, it adds `export PATH="$HOME/.local/bin:$PATH"` to `~/.zprofile` once.
+  PATH, it adds `export PATH="$HOME/.local/bin:$PATH"` to the shell's login file once: on macOS `~/.zprofile`
+  (`~/.bash_profile` for bash); on Linux `~/.zprofile` for zsh, `~/.bash_profile` for bash when it exists, else
+  `~/.profile`, and `~/.profile` for any other shell. Fish reads none of those, so for fish (on both) it writes
+  `contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH` to
+  `${XDG_CONFIG_HOME:-~/.config}/fish/conf.d/ardia.fish` instead. The login shell comes from `dscl` on macOS and
+  `getent passwd` on Linux, else `$SHELL`.
 - A version that is already current is a no-op. Two runs never overlap: each takes a flock on
-  `$ARDIA_CLI_HOME/.lock` through fd 9 (`/usr/bin/lockf -s -t 120 9`). The kernel drops it when the run exits, even on
+  `$ARDIA_CLI_HOME/.lock` through fd 9 (`/usr/bin/lockf -s -t 120 9`; `flock -w 120 9` on Linux). The kernel drops it
+  when the run exits, even on
   SIGKILL; a run that waits 120 s prints `error another install is still running`. Uninstall leaves the empty `.lock`
   file, since deleting a lock file other runs may have open would split the lock.
 - Output for the app, one line each: `step resolve|download|verify|install|link`, `version <v>`, `path <rc file>`,
   then `installed <bin path>` or `uninstalled`, or `error <message>` with exit 1.
 
-`$ARDIA_CLI_HOME` defaults to `~/Library/Application Support/Ardia/CLI`. The installed version is
+`$ARDIA_CLI_HOME` defaults to `~/Library/Application Support/Ardia/CLI` (on Linux
+`${XDG_DATA_HOME:-~/.local/share}/ardia/cli`). The installed version is
 `basename "$(readlink "$ARDIA_CLI_HOME/current")"`; the app reads that link to decide whether to upgrade, and after an
 app update it runs `install.sh --version <app version> --sha256 <pinned digest>` in the background. The CLI never
 updates itself. After switching `current` to a new version, `install.sh` runs `current/bin/ardia skills refresh`
@@ -1316,12 +1343,18 @@ updates itself. After switching `current` to a new version, `install.sh` runs `c
 
 ## Build and release
 
-`apps/cli/scripts/build.sh <version> <out dir>` writes `ardia-cli-<version>-macos-arm64.tar.gz` and its `.sha256`:
-python-build-standalone CPython 3.13 (release and sha256 pinned in the script), the locked dependencies and
-`ardia_cli` in its site-packages, pruned of tests, idlelib, Tk, ensurepip, the unused libpython dylib and
-`__pycache__`, plus `bin/ardia`, an sh launcher that resolves its links and runs `python3 -I -m ardia_cli`, and
-esbuild (the npm `@esbuild/darwin-arm64` tarball, version, sha256 and sha512 pinned in the script) in
-`ardia_cli/bin/esbuild`. About 18 MB; 52 MB installed. `ardia --version` takes about 10 ms; the first command about 1 s while Python writes its
+`apps/cli/scripts/build.sh <version> <out dir> [--platform macos-arm64|linux-x64]` writes
+`ardia-cli-<version>-<platform>.tar.gz` and its `.sha256` (`sha256sum` format). The platform defaults to the host's
+and must be the host's, since the bundled Python installs the wheels and runs the checks; the Linux tarball builds on
+any x86_64 Linux with uv. Both hold python-build-standalone CPython 3.13 (release and sha256 pinned in the script per
+platform: `aarch64-apple-darwin` and `x86_64-unknown-linux-gnu` `install_only_stripped`), the locked dependencies and
+`ardia_cli` in its site-packages, pruned of tests, idlelib, Tk, ensurepip, the unused libpython (a dylib on macOS; on
+Linux `python3.13` links it statically, so the `.so` goes too) and `__pycache__`, plus `bin/ardia`, an sh launcher
+that resolves its links and runs `python3 -I -m ardia_cli`, and esbuild (the npm `@esbuild/darwin-arm64` or
+`@esbuild/linux-x64` tarball, the same version, its sha256 and npm's sha512 pinned in the script) in
+`ardia_cli/bin/esbuild`. Downloads are cached in `~/Library/Caches/ardia-cli-build` on macOS and
+`${XDG_CACHE_HOME:-~/.cache}/ardia-cli-build` on Linux. The macOS tarball is about 18 MB, 52 MB installed; the Linux
+one about 26 MB, 76 MB installed. `ardia --version` takes about 10 ms; the first command about 1 s while Python writes its
 bytecode cache, later ones about 0.15 s.
 
 `scripts/release.sh` builds it into the release's dist dir after the export and writes its digest to
@@ -1354,5 +1387,70 @@ helpers need the token path: an instance launched without `ARDIA_REMOTE_DEBUGGIN
 control server when the port switch is set) and with control on, for example a scratch dir whose `session.json` has
 `"settings": {"cliControl": true}`, opened with `open -g -n --env ARDIA_BACKGROUND=1 --env ARDIA_DATA_DIR=<dir>`.
 Unit tests (matching parity with node, import confinement, store rollback and recovery, symlink refusal; config
-and theme commands against hand-written schemas in `tests/fixtures` that use every keyword of the subset):
-`python -m unittest discover -s apps/cli/tests` with the locked dependencies installed.
+and theme commands against hand-written schemas in `tests/fixtures` that use every keyword of the subset; the Linux
+paths, the systemd unit against a fake `systemctl`, and `install.sh` run end to end from `file://` tarballs in a
+scratch home in `tests/test_linux.py`): `python -m unittest discover -s apps/cli/tests` with the locked dependencies
+installed. On Linux, the installer:
+
+```sh
+apps/cli/scripts/build.sh 0.0.1 /tmp/ardia-cli-out --platform linux-x64
+HOME=/tmp/ardia-cli-home ARDIA_CLI_URL=file:///tmp/ardia-cli-out/ardia-cli-0.0.1-linux-x64.tar.gz \
+  /bin/sh apps/cli/install.sh
+/tmp/ardia-cli-home/.local/bin/ardia browse --port <port> open https://example.com
+/tmp/ardia-cli-home/.local/bin/ardia browse --port <port> get title
+```
+
+Any Chromium works for `--port`: `chromium --headless=new --remote-debugging-port=<port> --user-data-dir=<scratch>`.
+
+## Linux
+
+The same CLI, with these differences:
+
+- Paths: data dir `${ARDIA_CONFIG_HOME:-${XDG_CONFIG_HOME:-~/.config}}/ardia` (the engine's Chromium user data dir,
+  holding `ArdiaControl.json`, `ArdiaControl.sock` and the `Default`/`Profile N` folders), config folder
+  `<data dir>/config` (`${ARDIA_CONFIG_HOME:-${XDG_CONFIG_HOME:-~/.config}}/ardia/config` by default, which the app
+  reads too; on macOS the default is `~/.config/ardia`), so `hooks.json` lives there as well, CLI home
+  `${XDG_DATA_HOME:-~/.local/share}/ardia/cli`, bin dir `~/.local/bin`, hooks log
+  `${XDG_STATE_HOME:-~/.local/state}/ardia/hooks.log` (rotated at 5 MB as on macOS). An `XDG_*_HOME` that isn't an
+  absolute path is ignored, as the XDG spec, systemd and the engine's CLI installer do, except `XDG_CONFIG_HOME` (and
+  `ARDIA_CONFIG_HOME`) for the data dir and config folder, where Chromium takes any non-empty value.
+- `ardia hooks install` writes `${XDG_CONFIG_HOME:-~/.config}/systemd/user/dev.ardia.hooks.service` (`Type=exec`,
+  `ExecStart` the installed `current/bin/ardia hooks run --log <log>`, `WorkingDirectory` the home folder, `PATH`
+  from the installing shell, an empty `ARDIA_DATA_DIR` and `ARDIA_CONFIG_HOME` set to the folder the installing
+  shell resolved (`$ARDIA_CONFIG_HOME`, else `${XDG_CONFIG_HOME:-~/.config}`), so the service reads the same
+  `hooks.json` and reaches the same Ardia as `ardia hooks list` even when the systemd user manager's environment
+  differs, `Restart=on-failure` with `RestartSec=10` and
+  `StartLimitIntervalSec=0` so it never gives up, output to null, `WantedBy=default.target`), then runs `systemctl
+  --user daemon-reload`, `enable` and `restart` (so a reinstall picks up a new unit). `hooks run` exits 0 only on
+  SIGTERM or SIGHUP, so `systemctl --user stop` sticks and every crash restarts it. `uninstall` runs `disable --now`,
+  removes the unit and reloads; `list` reads `systemctl --user show` and prints whether it's active. Paths in the unit
+  escape `%`, `$`, `"` and `\`; control characters are refused.
+- `ardia config edit` uses `$VISUAL`, then `$EDITOR`; with neither, in a desktop session (`$DISPLAY` or
+  `$WAYLAND_DISPLAY` set) it opens the file with `xdg-open`, which returns at once, so it prints a reminder to run
+  `ardia config check` instead of checking. Without a display (an SSH session) or without `xdg-open` it uses `vi`.
+- `ardia scripts install|uninstall|list` use `<data dir>/Scripts`, which is where the engine's scripts policy looks on
+  Linux (the Mac's `Chromium/..` parent would be `~/.config` here). The Linux host reads, watches and reports the
+  folder with the same contract as the Mac (`ac_linux_user_scripts*.cc`, see [linux-port.md](linux-port.md) › "The
+  `ardia` command"); one regular window applies the scripts, and another takes over when it closes.
+- `ardia browse` runs on Linux for opening, reading, snapshots and screenshots, with two gaps. `open --show` and
+  `tab <id> --show` switch Ardia to the tab, but a tab it opened in the background stays hidden to the page, so `click`
+  and typing refuse it with the hidden-tab error. `auth` stores passwords through `/usr/bin/security`, the macOS
+  Keychain tool, which Linux doesn't have.
+- `ardia computer` is macOS only (cua-driver drives macOS apps): `setup` and every passthrough print `ardia computer:
+  computer use through cua-driver needs macOS here` and exit 1, and `computer refresh`, which `install.sh` starts after
+  an upgrade, does nothing. `skills refresh` works as on macOS.
+- The caller name (`ardia_cli/caller.py`) walks the parent processes through `/proc/<pid>/stat`, `exe` and `cmdline`
+  instead of libproc and `sysctl`; app bundles don't exist here, so a process with no known agent above it is
+  `ardia`. Telemetry's `startup_ms` reads the process start from `/proc/self/stat` against `CLOCK_BOOTTIME`.
+- `ardia pinned` reads the host's session, `<data dir>/<app profile>/Ardia/linux-session.json`
+  (`engine/ardiacore-linux/src/ardia/linux/ac_linux_host.cc`, `MergeAndWriteSession`; the shape is
+  `snapshotHostSession` in `apps/linux/src/hostSession.ts`), never `session.json`. The app profile is the folder
+  `profile.last_used` names in `<data dir>/Local State`, which the host pins to its app profile, when it's `Default`
+  or a regular `Profile …` folder; else `Default`. The shape differs from macOS's only in packaging: `windows`,
+  `tabs`, `groups` and `splits` are objects keyed by id rather than lists, there's no `version`, and windows carry
+  `kind` instead of `incognito`. Nothing macOS's pins need is missing: profile names, `profileOrder`,
+  `windowOrder`, tab order, pin keys, folders and `parkedPins` are all there, so the rows match macOS's. The host
+  writes it with `ImportantFileWriter::WriteFileAtomically` (a temp file in `Ardia/`, then a rename), so the CLI
+  opens the profile folder, `Ardia` and the file each with `O_NOFOLLOW` (relative to the folder above) and reads
+  the one file it opened, which is always a whole version; it never writes there. `ardia history` takes its profile
+  labels from the same file (`Profile <dataId>` is that profile's folder).

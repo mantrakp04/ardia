@@ -97,6 +97,25 @@ class Naming(unittest.TestCase):
         reader = FakeReader({10: Process(10, 1, "/bin/sh", ("/bin/sh", "-c"))})
         self.assertEqual(caller.from_chain(caller.ancestry(10, reader)), Caller("ardia"))
 
+    def test_procfs_reads_parents_paths_and_argv_from_a_proc_tree(self):
+        with tempfile.TemporaryDirectory() as proc:
+            for pid, stat, cmdline, exe in (
+                (10, b"10 (node (x) y) S 11 10 10 0", b"node\0/usr/local/bin/claude\0--resume\0", "/usr/bin/node"),
+                (11, b"11 (bash) S 1 11 11 0", b"-bash\0", None),
+            ):
+                folder = Path(proc, str(pid))
+                folder.mkdir()
+                (folder / "stat").write_bytes(stat)
+                (folder / "cmdline").write_bytes(cmdline)
+                if exe:
+                    (folder / "exe").symlink_to(exe + " (deleted)")
+            reader = caller.ProcFs(proc)
+            self.assertEqual(caller.ancestry(10, reader), [Process(10, 11, "/usr/bin/node", ("node", "/usr/local/bin/claude")), Process(11, 1, "", ("-bash",))])
+            self.assertEqual(caller.from_chain(caller.ancestry(10, reader)), Caller("Claude Code"))
+            self.assertIsNone(reader.process(12))
+            Path(proc, "11", "stat").write_bytes(b"garbage")
+            self.assertEqual([p.pid for p in caller.ancestry(10, reader)], [10])
+
     def test_the_live_ancestry_reads_this_process(self):
         chain_now = caller.ancestry(os.getpid())
         self.assertEqual(chain_now[0].pid, os.getpid())

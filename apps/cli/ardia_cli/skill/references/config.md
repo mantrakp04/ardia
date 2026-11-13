@@ -1,8 +1,9 @@
 # Config and themes
 
 When the user wants a setting changed for good, or set up from their dotfiles, edit `~/.config/ardia/config.json`
-with `ardia config` instead of clicking through Settings. Ardia reads the file at launch and whenever it changes,
-and never writes it; these commands don't need Ardia running.
+(on Linux `~/.config/ardia/config/config.json`; `ardia config path` prints the folder) with `ardia config` instead
+of clicking through Settings. Ardia reads the file at launch and whenever it changes, and never writes it; these
+commands don't need Ardia running.
 
 ```sh
 ardia config init
@@ -17,7 +18,7 @@ ardia config check
 default and file value; shortcuts are one per command (`''` unbinds); `unset` leaves Ardia's current value in place;
 `check` reports what Ardia would complain about.
 
-Themes are colour overrides in `~/.config/ardia/themes/NAME.json`. `ardia theme new NAME` writes every dark and light
+Themes are colour overrides in `themes/NAME.json` in that folder. `ardia theme new NAME` writes every dark and light
 role with Ardia's values, so change only the ones the user asked about and delete the rest if they like;
 `ardia theme use NAME` (or `none`) picks one, and `ardia theme check` checks it. Ask before replacing the user's
 own theme or config values. Settings that grant control or send data somewhere (`cliControl`, custom search URLs,

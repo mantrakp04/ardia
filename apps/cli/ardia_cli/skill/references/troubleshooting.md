@@ -97,7 +97,7 @@ ardia browse auth save github --url https://github.com/login --username me --pas
 ardia browse auth login github
 ```
 
-Passwords go to the macOS login Keychain; `--password` is refused. `login` types only on the saved https origins and
+Passwords go to the macOS login Keychain (so `auth` doesn't work on Linux); `--password` is refused. `login` types only on the saved https origins and
 stops if the page navigates, the frame changes or focus leaves the field. Never echo secrets yourself.
 
 ## Exit status
