@@ -287,6 +287,15 @@ is plain Chromium.
   holes); pages do not overlap, because the UI cuts a hole in a page where another surface, such as the Peek card,
   sits over it. Owned windows, they minimize and move with the app window, and a press in any of them is that page's
   `pagePress`.
+- Peek opens as on the Mac. The engine host keeps a DevTools session of its own on each page and puts the Peek part of
+  ArdiaCore's page script into an isolated world of every web frame (`page_links.cc`): the page can't see the script
+  or its binding. A click on a link with the Peek key (`webView.setPeekModifier`), the Split key
+  (`setSplitLinkModifier`), or a plain click to another site on a tab that peeks those (`setPeekOtherSiteTabs`), is
+  cancelled and reported; the host checks it against the last real left mouse-up over that page and sends the Mac's
+  `openWindow` (`peek` or `split`), or falls back as the Mac does. A tab the page opens itself (`target=_blank`,
+  `window.open()`) carries `fromClick` when its first navigation has a user gesture, so a link click or a
+  `window.open()` during a user activation can become a Peek and a script `window.open()` without one stays a tab.
+  Cross-site iframes run in their own process and their own DevTools target, so links in them don't peek yet.
 - A tab restored from the last session, or duplicated, loads its address: the Windows engine keeps no saved page
   state yet, so only tabs the engine itself offered are adopted.
 - The Windows engine opens every tab on a real `about:blank` and names it as the committed page, where the Mac's tab
@@ -388,7 +397,7 @@ is plain Chromium.
 | `search.setEngineName` | Default | Names the search engine in the app's own page context menu; Windows shows Chromium's menu, which names Chromium's default engine. Needed again once the app draws that menu. |
 | `tabs.routeLinkTabs`, `stripCommand`, `strips`, `reportCommits` | Default | The Mac's Chromium tab strip; Windows hosts pages only, so the empty answers are right. |
 | `tabs.dev*` (10 verbs) | Default | Mac test hooks. |
-| `webView.setDisplayMediaPicker`, `setPeekModifier`, `setSplitLinkModifier`, `setPeekOtherSiteTabs`, `setSelectionPopover`, `setCommandScrollZoom`, `setLittleArdiaOpensNewTabLinks`, `setAutoPictureInPicture` | Engine | Settings for the page script and the Mac's page input hooks, which Windows doesn't have yet. |
+| `webView.setDisplayMediaPicker`, `setSelectionPopover`, `setCommandScrollZoom`, `setLittleArdiaOpensNewTabLinks`, `setAutoPictureInPicture` | Engine | Settings for the page script and the Mac's page input hooks, which Windows doesn't have yet. |
 | `webView.setVideoUpscaling`, `setVideoUpscalingTestConditions`, `videoUpscalingState` | Native and engine | The Mac upscales with MetalFX; Windows needs a Direct3D path. |
 | `windows.list`, `windows.dev` | Default | The Mac's Chromium window hosts. |
 
