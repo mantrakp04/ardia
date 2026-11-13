@@ -78,6 +78,7 @@ if (is_linux) {
   ardia_sources += [
     "ac_engine_dispatch.cc",
     "ac_external_apps_linux.cc",
+    "ac_host_visibility_linux.cc",
     "ac_reauth_linux.cc",
     "ac_reauth_linux.h",
     "ac_reauth_linux_policy.h",

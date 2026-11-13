@@ -5,7 +5,7 @@ src=${CHROMIUM_SRC:-$HOME/chromium-build/chromium_git/chromium/src}
 owned=(ardia/linux)
 mode=${1:-}
 case "$mode" in
-  --paths) printf '%s\n' ardia/core/ac_hooks.h ardia/core/ac_content_hooks.h ardia/core/ac_launch_switches.h ardia/core/page_script.js; exit 0 ;;
+  --paths) printf '%s\n' ardia/core/ac_hooks.h ardia/core/ac_content_hooks.h ardia/core/ac_host_visibility.h ardia/core/ac_launch_switches.h ardia/core/page_script.js; exit 0 ;;
   ''|--check) ;;
   *) echo "usage: $0 [--check|--paths]" >&2; exit 64 ;;
 esac
@@ -26,6 +26,7 @@ copy_file() {
 }
 copy_file "$here/../ardiacore/src/ardia/core/ac_hooks.h" "$src/ardia/core/ac_hooks.h"
 copy_file "$here/../ardiacore/src/ardia/core/ac_content_hooks.h" "$src/ardia/core/ac_content_hooks.h"
+copy_file "$here/../ardiacore/src/ardia/core/ac_host_visibility.h" "$src/ardia/core/ac_host_visibility.h"
 copy_file "$here/../ardiacore/src/ardia/core/ac_launch_switches.h" "$src/ardia/core/ac_launch_switches.h"
 copy_file "$here/../../packages/ardiacore/ios/page_script.js" "$src/ardia/core/page_script.js"
 for file in "$here"/src/ardia/core/*; do

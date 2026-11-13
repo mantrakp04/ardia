@@ -48,7 +48,9 @@ int main(int argc, char** argv) {
   if (mode == "split") {
     Pane p;
     p.Dock();
+    assert(!ardiacore::shown_slot);
     p.host.Show(p.binding, true);
+    assert(ardiacore::shown_slot == &p.page);
     assert(p.tools() && p.tools()->GetVisible() && p.tools()->web_contents() == &p.frontend);
     assert(p.host.restacks == 1);
     assert(p.binding->viewport()->bounds() == gfx::Rect(100, 50, 500, 600));

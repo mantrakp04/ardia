@@ -62,6 +62,7 @@
 #include "ardia/linux/ac_linux_private_services.h"
 #include "ardia/linux/ac_linux_profile_service.h"
 #include "ardia/linux/ac_linux_profiles.h"
+#include "ardia/core/ac_host_visibility.h"
 #include "ardia/core/ac_launch_switches.h"
 #include "ardia/linux/ac_linux_session.h"
 #include "ardia/linux/ac_linux_site_controls_service.h"
@@ -4363,6 +4364,7 @@ void ShellHostView::LayoutPane(TabBinding* binding) {
     owner_view->GetActiveContentsWebView()->SetWebContents(nullptr);
     page->SetWebContents(contents);
     page->holder()->SetNativeViewCornerRadii(gfx::RoundedCornersF(12.0f));
+    ardiacore::NoteTabInShownSlot(contents);
   } else {
     page->SetWebContents(nullptr);
   }

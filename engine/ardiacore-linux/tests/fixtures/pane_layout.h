@@ -144,6 +144,11 @@ inline void WebContentsObserver::Observe(WebContents* contents) {
 }
 }
 
+namespace ardiacore {
+inline content::WebContents* shown_slot = nullptr;
+inline void NoteTabInShownSlot(content::WebContents* contents) { shown_slot = contents; }
+}
+
 struct DevToolsContentsResizingStrategy {
   bool hide_inspected_contents() const { return hide; }
   int width = 0;
