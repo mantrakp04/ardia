@@ -3,5 +3,6 @@
   "compilerOptions": {
     "types": []
   },
-  "include": ["src", "index.js"]
+  "include": ["src", "index.js"],
+  "exclude": ["src/**/*.test.ts"]
 }

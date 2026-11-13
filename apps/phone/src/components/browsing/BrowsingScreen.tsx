@@ -1,35 +1,71 @@
-import { StatusBar, StyleSheet, View } from "react-native";
+import { useMemo } from "react";
+import { StatusBar, StyleSheet, useWindowDimensions, View } from "react-native";
+import { GestureDetector } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, usePageTone } from "../../state/browse/hooks";
-import type { OpenPage } from "../../state/browse/store";
-import { isDarkColor, LoadingLine, pageBottomInset, useTheme } from "../ui";
+import { neighbours } from "../../lib/pagerPhysics";
+import { useFrozenOrder, useNavigation, usePageTone } from "../../state/browse/hooks";
+import { newTab, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
+import { useSearchOpen } from "../../state/search/hooks";
+import { useDeckOrder } from "../../state/tabs/hooks";
+import type { BrowserTab } from "../../state/tabs/tabModels";
+import { barCenterFromBottom, barHeight, browseLayout, isDarkColor, LoadingLine, pageBottomInset, rolesFor, tabsInk, tabsMotion, useTheme } from "../ui";
 import { BottomBar } from "./BottomBar";
 import { PageSurface } from "./PageSurface";
+import { PagerBlack, PagerNeighbour, useTabPager } from "./TabPager";
 
-export function BrowsingScreen({ page }: { page: OpenPage }) {
+export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const tone = usePageTone();
-  const progress = useNavigation((n) => n?.progress ?? 0);
-  const isLoading = useNavigation((n) => n?.isLoading ?? true);
+  const { width } = useWindowDimensions();
+  const tone = usePageTone(tab.id);
+  const progress = useNavigation(tab.id, (n) => n?.progress ?? 0);
+  const isLoading = useNavigation(tab.id, (n) => n?.isLoading ?? true);
+  const order = useDeckOrder();
+  const frozen = useFrozenOrder();
+  const searching = useSearchOpen();
+  const byId = useMemo(() => new Map(order.map((t) => [t.id, t])), [order]);
+  const around = useMemo(() => neighbours(swipeOrder(), tab.id), [order, frozen, tab.id]);
+  const left = around.left ? byId.get(around.left) ?? null : null;
+  const right = around.right ? byId.get(around.right) ?? null : null;
+  const pager = useTabPager({ width, selectedId: tab.id, left: left?.id ?? null, right: right?.id ?? null, onCommit: switchToNeighbour });
   const top = tone?.top ?? theme.surface;
   const bottom = tone?.bottom ?? theme.surface;
+  const barDark = isDarkColor(bottom);
+  const statusStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(top, { duration: tabsMotion.barTone }) }), [top]);
+  const barStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(bottom, { duration: tabsMotion.barTone }) }), [bottom]);
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}>
       <StatusBar barStyle={isDarkColor(top) ? "light-content" : "dark-content"} />
-      <View style={{ height: insets.top, backgroundColor: top }} />
-      <View style={[styles.page, { marginBottom: pageBottomInset(insets.bottom) }]}>
-        <PageSurface page={page} />
-      </View>
+      <PagerBlack />
+      <Animated.View style={[StyleSheet.absoluteFill, styles.outgoing, { backgroundColor: theme.surface }, pager.outgoing]}>
+        <Animated.View style={[{ height: insets.top }, statusStyle]} />
+        <View style={[styles.page, { marginBottom: pageBottomInset(insets.bottom) }]}>
+          <PageSurface key={tab.id} tab={tab} />
+        </View>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }, pager.dim]} pointerEvents="none" />
+      </Animated.View>
+      {left ? <PagerNeighbour pager={pager} tab={left} side={-1} width={width} statusHeight={insets.top} hasLeft hasRight={right !== null} /> : null}
+      {right ? <PagerNeighbour pager={pager} tab={right} side={1} width={width} statusHeight={insets.top} hasLeft={left !== null} hasRight /> : null}
       <View style={[styles.loading, { top: insets.top }]} pointerEvents="none">
         <LoadingLine progress={progress} isLoading={isLoading} color={theme.accent} />
       </View>
-      <BottomBar fill={bottom} dark={isDarkColor(bottom)} />
+      <GestureDetector gesture={pager.gesture}>
+        <Animated.View style={[styles.bar, { height: barHeight(insets.bottom) }, barStyle]}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: barDark ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} />
+          <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom) - browseLayout.hitTarget / 2 }]}>
+            <BottomBar order={order} roles={rolesFor(barDark)} showsPlus={!searching} onTabs={showDeck} onPlus={newTab} />
+          </View>
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outgoing: { overflow: "hidden" },
   page: { flex: 1 },
   loading: { position: "absolute", left: 0, right: 0 },
+  bar: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  controls: { position: "absolute", left: 0, right: 0 },
 });

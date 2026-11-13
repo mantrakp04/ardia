@@ -1,21 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { activateRow, submitSearch } from "../../state/browse/store";
+import { activateRow, cancelSearch, submitSearch } from "../../state/browse/store";
 import { useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, useSearchSession, useSearchText } from "../../state/search/hooks";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
-import { dismissSearch, typeSearch } from "../../state/search/store";
-import { browseLayout, capsule, font, ink, radius, space, springs, Symbol, useTheme } from "../ui";
+import { typeSearch } from "../../state/search/store";
+import { useIncognito } from "../../state/tabs/hooks";
+import { browseLayout, capsule, font, ink, radius, rolesFor, space, springs, Symbol, tabsInk, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { useKeyboardHeight } from "./useKeyboardHeight";
 
 const SHEET_ABOVE_KEYBOARD = 274;
 
+function useTrayTheme() {
+  const base = useTheme();
+  const incognito = useIncognito();
+  return incognito ? { ...base, ...rolesFor(true), surface: tabsInk.incognitoSheet } : base;
+}
+
 export function SearchTray() {
   const open = useSearchOpen();
   const origin = useSearchOrigin();
   const session = useSearchSession();
-  const theme = useTheme();
+  const theme = useTrayTheme();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const keyboard = useKeyboardHeight();
@@ -35,14 +42,15 @@ export function SearchTray() {
       <Pressable
         accessibilityLabel="Close"
         style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
-        onPress={dismissSearch}
+        onPress={cancelSearch}
       />
       <Animated.View
         style={[
           styles.sheet,
           {
-            bottom: lift,
-            height,
+            bottom: 0,
+            height: height + lift,
+            paddingBottom: lift,
             backgroundColor: theme.surface,
             shadowColor: theme.trayShadow,
             transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [travel, 0] }) }],
@@ -57,7 +65,7 @@ export function SearchTray() {
 }
 
 function TrayField() {
-  const theme = useTheme();
+  const theme = useTrayTheme();
   const initialText = useSearchInitialText();
   const text = useSearchText();
   const input = useRef<TextInput>(null);
@@ -102,7 +110,7 @@ function TrayField() {
 }
 
 function TrayRows() {
-  const theme = useTheme();
+  const theme = useTrayTheme();
   const rows = useSearchRows();
   const typed = useSearchText();
   const refine = (row: TrayRow) => typeSearch(refinedText(row));

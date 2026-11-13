@@ -35,6 +35,17 @@ const lightRoles = {
   trayShadow: "rgba(0,0,0,0.18)",
   trayDim: "rgba(0,0,0,0.28)",
   pageSurface: "#FFFFFF",
+  tileFill: "rgba(118,118,128,0.2)",
+  tileEdge: "rgba(0,0,0,0.14)",
+  cardEdge: "rgba(0,0,0,0.08)",
+  headerText: "rgba(14,15,16,0.88)",
+  secondaryLabel: "rgba(60,60,67,0.6)",
+  deckControl: "rgba(255,255,255,0.62)",
+  destructive: "#FF3B30",
+  panel: "#FFFFFF",
+  divider: "rgba(0,0,0,0.09)",
+  menuScrim: "rgba(0,0,0,0.12)",
+  placeholderTints: ["#E8E6FB", "#FBE7EE", "#E3F0FB", "#E6F5EA", "#FDF0DD", "#EFE6F8"] as readonly string[],
 };
 
 export type ColorRoles = typeof lightRoles;
@@ -58,9 +69,60 @@ const darkRoles: ColorRoles = {
   trayShadow: "rgba(0,0,0,0.5)",
   trayDim: "rgba(0,0,0,0.28)",
   pageSurface: "#000000",
+  tileFill: "rgba(255,255,255,0.2)",
+  tileEdge: "rgba(255,255,255,0.28)",
+  cardEdge: "rgba(255,255,255,0.12)",
+  headerText: "rgba(255,255,255,0.92)",
+  secondaryLabel: "rgba(235,235,245,0.6)",
+  deckControl: "rgba(255,255,255,0.14)",
+  destructive: "#FF453A",
+  panel: "#2A2A2A",
+  divider: "rgba(255,255,255,0.09)",
+  menuScrim: "rgba(0,0,0,0.3)",
+  placeholderTints: ["#262447", "#3F2532", "#1E3046", "#1F3527", "#3D3020", "#30243F"] as readonly string[],
 };
 
 export const colorRoles = { light: lightRoles, dark: darkRoles } as const;
+
+export const tabsInk = {
+  incognitoCard: "#1C1D22",
+  incognitoCardRaised: "#2A2B31",
+  incognitoBackdrop: ["#1A1A1E", "#0E0E10"] as const,
+  incognitoSheet: "#151517",
+  cardShadow: "rgba(0,0,0,0.18)",
+  tileShadow: "rgba(0,0,0,0.2)",
+  onDark: "rgba(255,255,255,0.85)",
+  onDarkSoft: "rgba(255,255,255,0.55)",
+  onDarkChip: "rgba(255,255,255,0.6)",
+  pagerBlack: "#000000",
+  pagerShadow: ["rgba(0,0,0,0)", "rgba(0,0,0,0.08)", "rgba(0,0,0,0.26)"] as const,
+  barShadeOnDark: "rgba(255,255,255,0.06)",
+  barShadeOnLight: "rgba(0,0,0,0.025)",
+} as const;
+
+export const tabsLayout = {
+  cardRadius: 13,
+  displayCornerRadius: 55,
+  faviconSize: 16,
+  headerSpacing: 6,
+  headerGap: 8,
+  headerHeight: 20,
+  barCircle: 35,
+  barPlus: { width: 78, height: 40 },
+  barSideInset: 16,
+  tabStackTile: { width: 20, height: 26 },
+  tabStackRadius: 5,
+  tabStackButton: 47,
+  barTouchClearance: 28,
+  chipHeight: 32,
+  faviconRadius: 4,
+  menuWidth: 250,
+  emptyWidth: 300,
+  archiveTop: 52,
+  archiveButton: 44,
+  archiveField: 40,
+  archiveTile: 28,
+} as const;
 
 export const space = { none: 0, xs: 4, s: 8, m: 12, l: 16, xl: 20, xxl: 24, huge: 32 } as const;
 

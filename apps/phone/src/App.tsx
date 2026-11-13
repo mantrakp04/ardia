@@ -1,26 +1,44 @@
-import { useEffect } from "react";
-import { BackHandler, StatusBar, useColorScheme } from "react-native";
+import { useEffect, useState } from "react";
+import { AppState, BackHandler, StatusBar, StyleSheet, useColorScheme } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { BrowsingScreen } from "./components/browsing/BrowsingScreen";
 import { SearchTray } from "./components/search/SearchTray";
 import { StartScreen } from "./components/search/StartScreen";
+import { ArchiveView } from "./components/tabs/ArchiveView";
+import { TabDeck } from "./components/tabs/TabDeck";
 import { ink } from "./components/ui";
-import { useOpenPage } from "./state/browse/hooks";
-import { handleSystemBack } from "./state/browse/store";
-import { handleSearchBack } from "./state/search/store";
+import { useSheet, useSurface } from "./state/browse/hooks";
+import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, handleSystemBack, startBrowser } from "./state/browse/store";
+import { useSelectedTab } from "./state/tabs/hooks";
 
 export default function App() {
-  const page = useOpenPage();
+  useState(startBrowser);
+  const surface = useSurface();
+  const sheet = useSheet();
+  const tab = useSelectedTab();
   const dark = useColorScheme() === "dark";
   useEffect(() => {
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => handleSearchBack() || handleSystemBack());
-    return () => subscription.remove();
+    const back = BackHandler.addEventListener("hardwareBackPress", handleSystemBack);
+    const state = AppState.addEventListener("change", (next) => (next === "active" ? appBecameActive() : appWillResignActive()));
+    return () => {
+      back.remove();
+      state.remove();
+    };
   }, []);
+  useEffect(goBackToStartIfEmpty, [tab, surface]);
   return (
-    <SafeAreaProvider>
-      <StatusBar translucent backgroundColor={ink.clear} barStyle={dark ? "light-content" : "dark-content"} />
-      {page ? <BrowsingScreen page={page} /> : <StartScreen />}
-      <SearchTray />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <StatusBar translucent backgroundColor={ink.clear} barStyle={dark ? "light-content" : "dark-content"} />
+        {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
+        {surface === "deck" ? <TabDeck /> : null}
+        {surface === "start" ? <StartScreen /> : null}
+        <SearchTray />
+        {sheet === "archive" ? <ArchiveView /> : null}
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({ root: { flex: 1 } });

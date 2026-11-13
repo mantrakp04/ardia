@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "expo start --port 8091",
     "android": "scripts/gradle-locked :app:assembleDebug",
-    "typecheck": "tsc -p .",
-    "test": "node --test \"src/**/*.test.ts\""
+    "typecheck": "tsc -p . && tsc -p tsconfig.test.json",
+    "test": "node --no-warnings --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@ardia/core": "workspace:*",

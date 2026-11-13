@@ -19,6 +19,9 @@ function roundRect(x: number, y: number, width: number, height: number, r: numbe
   );
 }
 
+const ellipse = (cx: number, cy: number, rx: number, ry: number) =>
+  `M${cx - rx} ${cy}A${rx} ${ry} 0 1 1 ${cx + rx} ${cy}A${rx} ${ry} 0 1 1 ${cx - rx} ${cy}Z`;
+
 function cross(cx: number, cy: number, arm: number, half: number): string {
   const points: number[] = [];
   const corners = [
@@ -35,6 +38,34 @@ function cross(cx: number, cy: number, arm: number, half: number): string {
 export const SYMBOLS = {
   plus: [{ d: line(12, 5, 12, 19) + line(5, 12, 19, 12), stroke: BOLD }],
   xmark: [{ d: line(6.5, 6.5, 17.5, 17.5) + line(17.5, 6.5, 6.5, 17.5), stroke: BOLD }],
+  chevronUp: [{ d: polyline(5.5, 15.5, 12, 9, 18.5, 15.5), stroke: BOLD }],
+  checkmark: [{ d: polyline(5, 12.5, 9.8, 17.3, 19, 6.6), stroke: BOLD }],
+  arrowUturnBackward: [{ d: polyline(8.5, 13.5, 3.5, 8.5, 8.5, 3.5) + "M3.5 8.5H14a6 6 0 0 1 0 12H10.5", stroke: STROKE }],
+  trash: [
+    {
+      d:
+        line(4, 6.5, 20, 6.5) +
+        "M9.5 6.5V4.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.7" +
+        "M6 6.5l1 13a2 2 0 0 0 2 1.8h6a2 2 0 0 0 2-1.8l1-13" +
+        line(10, 10.5, 10, 17.5) +
+        line(14, 10.5, 14, 17.5),
+      stroke: STROKE,
+    },
+  ],
+  archivebox: [
+    {
+      d: roundRect(3, 3.5, 18, 5, 1.4) + "M4.5 8.5V18a2.5 2.5 0 0 0 2.5 2.5h10a2.5 2.5 0 0 0 2.5-2.5V8.5" + line(10, 12.5, 14, 12.5),
+      stroke: STROKE,
+    },
+  ],
+  squareOnSquare: [
+    {
+      d: roundRect(3.5, 8, 12.5, 12.5, 2.6) + "M8 8V6.5A2.5 2.5 0 0 1 10.5 4h7A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H16",
+      stroke: STROKE,
+    },
+  ],
+  ellipsis: [{ d: circle(5.5, 12, 1.75) + circle(12, 12, 1.75) + circle(18.5, 12, 1.75), fill: true }],
+  eyes: [{ d: ellipse(7.6, 12, 3.6, 7) + ellipse(16.4, 12, 3.6, 7) + ellipse(6.9, 13, 1.65, 2.8) + ellipse(15.7, 13, 1.65, 2.8), fill: true, evenOdd: true }],
   chevronLeft: [{ d: polyline(15.5, 5, 8.5, 12, 15.5, 19), stroke: BOLD }],
   chevronRight: [{ d: polyline(8.5, 5, 15.5, 12, 8.5, 19), stroke: BOLD }],
   arrowClockwise: [{ d: "M19.5 12.5A7.5 7.5 0 1 1 15.6 5.9" + polyline(13.96, 2.25, 15.6, 5.9, 11.64, 6.45), stroke: STROKE }],
