@@ -708,7 +708,7 @@ Chrome; n/t = not pressed there by the test (clipboard and window-level AppKit i
 | Jump to Selection / Find and Replace | ⌘J / ⌥⌘F | ⌘J / ⌥⌘F searches the web | Dia's | ✓ ✓ ✓ ✓ | ✅ |
 | Spelling / Check Now | ⌘: / ⌘; | same | same | n/t ✓ n/t n/t (they'd open AppKit panels) | ✅ |
 | Stop | — | ⌘. (and Esc) | ⌘. (View menu), Esc on a loading page | ○ ○ ○ ○ (nothing loading) | ✅ new |
-| Refresh / Force Refresh | ⌘R / ⇧⌘R | same | same | ✓ ✓ ✓ ✓ | ✅ |
+| Refresh / Force Refresh | ⌘R / ⇧⌘R | same | same | ✓ ✓ ✓ ✓ | ✅ Only the Reload glyph springs on click; the hover plate and hit area stay fixed. Stop breathes gently while loading, then Reload unwinds on exit. Reduce Motion disables the motion. No telemetry: the animation adds no distinct measurable outcome. |
 | Show Tabs in Sidebar / Auto-Hide Tabs | ⇧⌘S / ⌘S | ⇧⌘L collapses vertical tabs, ⇧⌘F toolbar in full screen | Dia's (+ hidden ⇧⌘L, ⇧⌘F for Auto-Hide) | ✓ ✓ ✓ ✓ | ✅ |
 | Open Split Pane / Focus Next / Previous | ⌃⇧= / ⌃⇧] / ⌃⇧[ | ⌥⌘N new split view | Dia's (+ hidden ⌃+ ⌃} ⌃{); ⌥⌘N is New Little Ardia Window, as in Arc | ✓ ✓ ✓ ✓ / ○ (no split) | ✅ |
 | New Little Ardia Window (Arc's Little Arc) | — | — | ⌥⌘N (Arc's) | ✓ ✓ ✓ ✓ | ✅ new |

@@ -1,10 +1,10 @@
-import { memo } from "react";
-import type { ViewStyle } from "react-native";
+import { memo, useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Animated, type ViewStyle } from "react-native";
 import { webviews } from "../../state/tabs/webviewHandles";
 import { withLivePage } from "../../state/tabs/livePage";
 import { newTab } from "../../state/tabs/actions";
 import type { Tab } from "../../state/browser/types";
-import { Button, MouseArea, type ButtonHit } from "../ui";
+import { Button, curve, MouseArea, reduceMotion, reduceMotionKnown, springs, Symbol, type ButtonHit } from "../ui";
 
 export type NavPlace = { style?: ViewStyle; hit?: ButtonHit };
 import type { ClickModifiers } from "../../lib/keys";
@@ -12,8 +12,11 @@ import { closeHistoryMenu, goBack, goForward, historyItems, toggleHistoryMenu } 
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
-import { GLYPH } from "./tokens";
+import { GLYPH, RELOAD_BUTTON_MOTION } from "./tokens";
 import { showReloadMenu } from "../../state/site/reloadMenu";
+
+const ICON_CENTER = { width: GLYPH, height: GLYPH, alignItems: "center" as const, justifyContent: "center" as const };
+const ICON_LAYER = { ...ICON_CENTER, position: "absolute" as const };
 
 export const ReloadButton = memo(function ReloadButton({
   tab,
@@ -30,11 +33,89 @@ export const ReloadButton = memo(function ReloadButton({
 }) {
   const web = () => webviews.get(tab.id);
   const reloadHint = useShortcutHint("reload");
+  const stateMotion = useRef(new Animated.Value(loading ? 1 : 0)).current;
+  const returnMotion = useRef(new Animated.Value(0)).current;
+  const pressMotion = useRef(new Animated.Value(1)).current;
+  const breatheMotion = useRef(new Animated.Value(0)).current;
+  const previousLoading = useRef(loading);
+  const [motionReady, setMotionReady] = useState(() => reduceMotion() !== null);
+  const [motionReduced, setMotionReduced] = useState(() => reduceMotion() === true);
+  useEffect(() => {
+    let live = true;
+    void reduceMotionKnown.then((reduced) => {
+      if (!live) return;
+      setMotionReduced(reduced);
+      setMotionReady(true);
+    });
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", (reduced) => {
+      setMotionReduced(reduced);
+      setMotionReady(true);
+    });
+    return () => {
+      live = false;
+      subscription.remove();
+    };
+  }, []);
+  useEffect(() => {
+    const changed = previousLoading.current !== loading;
+    previousLoading.current = loading;
+    if (motionReduced) {
+      stateMotion.stopAnimation();
+      returnMotion.stopAnimation();
+      stateMotion.setValue(loading ? 1 : 0);
+      returnMotion.setValue(0);
+      return;
+    }
+    if (!changed) return;
+    stateMotion.stopAnimation();
+    if (loading) {
+      stateMotion.setValue(0);
+      returnMotion.stopAnimation();
+      returnMotion.setValue(0);
+      Animated.timing(stateMotion, { toValue: 1, duration: RELOAD_BUTTON_MOTION.stateIn, easing: curve.enter, useNativeDriver: true }).start();
+      return;
+    }
+    stateMotion.setValue(1);
+    returnMotion.setValue(1);
+    Animated.parallel([
+      Animated.timing(stateMotion, { toValue: 0, duration: RELOAD_BUTTON_MOTION.stateOut, easing: curve.enter, useNativeDriver: true }),
+      Animated.timing(returnMotion, { toValue: 0, duration: RELOAD_BUTTON_MOTION.stateOut, easing: curve.enter, useNativeDriver: true }),
+    ]).start();
+  }, [loading, motionReduced, returnMotion, stateMotion]);
+  useEffect(() => {
+    breatheMotion.stopAnimation();
+    breatheMotion.setValue(0);
+    if (!loading || !motionReady || motionReduced) return;
+    const halfCycle = RELOAD_BUTTON_MOTION.breatheCycle / 2;
+    const breathe = Animated.loop(Animated.sequence([
+      Animated.timing(breatheMotion, { toValue: 1, duration: halfCycle, easing: curve.pulse, useNativeDriver: true }),
+      Animated.timing(breatheMotion, { toValue: 0, duration: halfCycle, easing: curve.pulse, useNativeDriver: true }),
+    ]));
+    breathe.start();
+    return () => {
+      breathe.stop();
+      breatheMotion.stopAnimation();
+      breatheMotion.setValue(0);
+    };
+  }, [breatheMotion, loading, motionReady, motionReduced]);
+  const animateReloadPress = () => {
+    if (motionReduced || !motionReady) return;
+    pressMotion.stopAnimation();
+    pressMotion.setValue(RELOAD_BUTTON_MOTION.pressScale);
+    Animated.spring(pressMotion, { toValue: 1, ...springs.bouncy, useNativeDriver: true }).start();
+  };
+  const reloadOpacity = stateMotion.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const reloadScale = stateMotion.interpolate({ inputRange: [0, 1], outputRange: [1, RELOAD_BUTTON_MOTION.hiddenScale] });
+  const reloadRotation = returnMotion.interpolate({ inputRange: [0, 1], outputRange: ["0deg", `${RELOAD_BUTTON_MOTION.returnRotation}deg`] });
+  const stopOpacity = stateMotion;
+  const stopScale = stateMotion.interpolate({ inputRange: [0, 1], outputRange: [RELOAD_BUTTON_MOTION.hiddenScale, 1] });
+  const breatheScale = breatheMotion.interpolate({ inputRange: [0, 1], outputRange: [...RELOAD_BUTTON_MOTION.breatheScale] });
+  const breatheOpacity = breatheMotion.interpolate({ inputRange: [0, 1], outputRange: [...RELOAD_BUTTON_MOTION.breatheOpacity] });
+  const iconColor = tab.url ? palette.icon : palette.iconDisabled;
   return (
     <Button variant="icon" toolbar
       style={place?.style}
       palette={palette}
-      icon={loading ? "xmark" : "arrow.clockwise"}
       glyph={GLYPH}
       hit={place?.hit}
       disabled={!tab.url}
@@ -42,6 +123,7 @@ export const ReloadButton = memo(function ReloadButton({
         onFocus();
         if (loading) return void web()?.stopLoading();
         if (m.metaKey) return void newTab(tab.windowId, { url: tab.url, background: true, openerId: tab.id });
+        animateReloadPress();
         void withLivePage(tab.id, (page) => (m.shiftKey ? page.forceReload() : page.reload()));
       }}
       onContextMenu={() => {
@@ -49,7 +131,18 @@ export const ReloadButton = memo(function ReloadButton({
         void showReloadMenu(tab.id);
       }}
       tooltip={loading ? "Stop Loading This Page" : withShortcut("Refresh", reloadHint)}
-    />
+    >
+        <Animated.View style={[ICON_CENTER, { transform: [{ scale: pressMotion }] }]}>
+          <Animated.View pointerEvents="none" style={[ICON_LAYER, { opacity: reloadOpacity, transform: [{ scale: reloadScale }, { rotate: reloadRotation }] }]}>
+            <Symbol name="arrow.clockwise" size={GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
+          </Animated.View>
+          <Animated.View pointerEvents="none" style={[ICON_LAYER, { opacity: stopOpacity, transform: [{ scale: stopScale }] }]}>
+            <Animated.View style={[ICON_CENTER, { opacity: breatheOpacity, transform: [{ scale: breatheScale }] }]}>
+              <Symbol name="xmark" size={GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
+            </Animated.View>
+          </Animated.View>
+        </Animated.View>
+    </Button>
   );
 });
 
