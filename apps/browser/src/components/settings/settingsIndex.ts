@@ -6,6 +6,7 @@ import { generalRows } from "./rows/generalRows";
 import { privacyRows } from "./rows/privacyRows";
 import { toolRows } from "./rows/toolRows";
 import type { SettingSection, SettingsEnv } from "./rows/types";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 
 const PANE_LOOKS: Record<SettingsPane, { title: string; icon: string }> = {
   general: { title: "General", icon: "gearshape" },
@@ -25,7 +26,13 @@ const PANE_LOOKS: Record<SettingsPane, { title: string; icon: string }> = {
   advanced: { title: "Advanced", icon: "slider.horizontal.3" },
 };
 
-export const PANES: { id: SettingsPane; title: string; icon: string }[] = SETTINGS_PANES.map((id) => ({ id, ...PANE_LOOKS[id] }));
+const PANES_OFFERED: Partial<Record<SettingsPane, boolean>> = { sync: PLATFORM_FEATURES.sync, calendar: PLATFORM_FEATURES.calendar, engines: PLATFORM_FEATURES.webKit };
+
+export const paneOffered = (pane: SettingsPane) => PANES_OFFERED[pane] !== false;
+
+const neverShown = () => false;
+
+export const PANES: { id: SettingsPane; title: string; icon: string }[] = SETTINGS_PANES.filter(paneOffered).map((id) => ({ id, ...PANE_LOOKS[id] }));
 
 const ROWS = { ...generalRows, ...appearanceRows, ...privacyRows, ...toolRows };
 
@@ -36,9 +43,17 @@ export type SettingEntry = Searchable & { id: SettingId; pane: SettingsPane; sec
 
 const paneTitle = (pane: SettingsPane) => PANE_LOOKS[pane].title;
 
-export const SETTINGS: SettingEntry[] = PANES.flatMap(({ id: pane }) =>
+export const SETTINGS: SettingEntry[] = SETTINGS_PANES.flatMap((pane) =>
   (ROWS[pane] as SettingSection[]).flatMap(({ section, rows }) =>
-    Object.entries(rows).map(([key, row]) => ({ ...row, id: `${pane}.${key}` as SettingId, pane, paneTitle: paneTitle(pane), section, advanced: !!row.advanced })),
+    Object.entries(rows).map(([key, row]) => ({
+      ...row,
+      id: `${pane}.${key}` as SettingId,
+      pane,
+      paneTitle: paneTitle(pane),
+      section,
+      advanced: !!row.advanced,
+      ...(paneOffered(pane) ? {} : { shown: neverShown }),
+    })),
   ),
 );
 

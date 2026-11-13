@@ -17,6 +17,95 @@ the plan and the state of the port. The request is issue #351.
 
 Logic is written once. Only code that calls the OS is written per platform.
 
+## What works on Windows today
+
+Walked by hand on 2026-11-13 in the Windows 11 ARM VM, with the `Ardia-Setup-arm64` installer of run 43371556107
+(commit bfd586fe, engine `windows-engine-20261113-1`), from a fresh data folder, as a user would. Works with a
+difference says what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows
+behind `PLATFORM_FEATURES` until what they need exists.
+
+**Install, first launch, updates**
+
+| Feature | State | Tracked in |
+| --- | --- | --- |
+| Installer (wizard, Start menu, Open Ardia) | Works | |
+| First launch after the installer | Differs: ardia.dev's release notes open behind onboarding | #1517 |
+| Onboarding (source, look, last choices; resumes where you left it) | Works | |
+| Intro animation and music | Not offered | #1520, #1249 |
+| Tour | Works (first card seen) | |
+| Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
+| Check for updates | Broken: "the server answered 404", no `windows-alpha` release | #1517 |
+| Default browser | Broken: Settings says Ardia is the default while Edge is | #1439 |
+| Open at login | Not walked: an instance with its own data folder leaves it alone | |
+
+**Windows and tabs**
+
+| Feature | State | Tracked in |
+| --- | --- | --- |
+| New tab, close, reopen closed tab | Works | |
+| New window | Works | |
+| Private window | Differs: its session lasts until Ardia quits | #1453 |
+| Quit and relaunch with the session restored | Works | |
+| Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome | |
+| Search Tabs, Ctrl+Tab | Works | |
+| Pin, Top Apps, New Group with Tab | Works | |
+| Tab, pinned tab, sidebar and New Tab row menus | Works | |
+| Tabs in the sidebar or across the top, auto-hide tabs | Works | |
+| Open in WebKit (tab menu), Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
+| Split View | Not offered | #1490 |
+| Pop-up windows from pages | Broken: a bare Chromium window with the Windows title bar | #1518 |
+| Main, Settings and Little Ardia window chrome | Works, no system title bar | |
+
+**Pages**
+
+| Feature | State | Tracked in |
+| --- | --- | --- |
+| Command bar (history, open tabs, suggestions, calculator) | Works | |
+| Inline completion in the command bar | Does nothing | #1520 |
+| Find in page | Differs: Chromium's find bar | stand-ins (Chromium's own UI) |
+| Zoom | Works | |
+| Print | Works (Chromium's print preview) | |
+| JavaScript confirm and prompt | Works | |
+| File upload | Works (Windows' Open dialog) | |
+| Page, link and image menus | Differs: Chromium's; offers split view, Cast, Save as Ctrl+S | #1518 |
+| Full-screen video | Works | |
+| Picture in picture | Differs: Chromium's window, no stash, corners or mini player | #1425 |
+| Downloads (download, panel, Ctrl+J) | Broken: panel reopens at launch, stays open, lists a file twice | #1519 |
+| History (Ctrl+H, ardia://history), Clear Browsing Data | Works | |
+| Bookmarks (Ctrl+D, ardia://bookmarks, bar) | Works | |
+| mailto and other app links | Does nothing | stand-ins `permissions.resolveExternalApp` |
+| Translate | Not offered | #1520 |
+| Network error page | Works (Chromium's) | |
+| DevTools (F12), Task Manager (Shift+Esc) | Works (Chromium's) | |
+
+**Passwords, permissions, extensions**
+
+| Feature | State | Tracked in |
+| --- | --- | --- |
+| Offer to save a password | Differs: Chromium's bubble | #1425 |
+| Fill a saved password | Works | |
+| Location and notification prompts | Differs: Chromium's prompts; location then asks Windows | #1425 |
+| Camera and microphone | Not walked: the VM has no camera | |
+| Chrome Web Store install | Differs: Chromium's Add extension dialog; installs, icon in the toolbar | stand-ins `extensions.resolveInstallPrompt` |
+| ardia://extensions | Works | |
+| Ad, tracker and cookie-banner blocking | Not offered; hidden | #1425 |
+| Bookmark and password export | Not offered; hidden | stand-ins table |
+
+**Settings**
+
+| Feature | State | Tracked in |
+| --- | --- | --- |
+| Settings window, panes, search | Works | |
+| Profiles: create, switcher | Works | |
+| Appearance: light and dark | Works | |
+| Keyboard Shortcuts pane | Works, Windows keys | |
+| "…" menu (12 items, Windows keys) | Works, except Check for Updates | #1517 |
+| Sync | Not offered ("isn't available in this build"); hidden | #1521 |
+| Calendar | Does nothing (Connect answered with macOS copy); hidden | #1521 |
+| Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden | #1522, #1520 |
+| The ardia command, Widevine | Not offered (each says so) | |
+| Copy naming the Mac (Touch ID, macOS full screen, View ›, this Mac, Keychain) | Fixed | #1522 |
+
 ## The Windows app
 
 - `apps/browser/windows` is the app project: React Native for Windows 0.81 on the new architecture, which is the

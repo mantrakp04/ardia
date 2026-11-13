@@ -18,6 +18,8 @@ import { useResource } from "../../../state/settings/resources";
 import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 
+const ADDRESS_BAR_IN_MENU = PLATFORM_FEATURES.menuBar ? " Also in View › Show Address Bar in Sidebar." : "";
+
 const MODES: { value: Settings["appearance"]; title: string; description: string }[] = [
   { value: "auto", title: "Automatic", description: "Follow the system appearance setting" },
   { value: "light", title: "Light", description: "Use the light application appearance" },
@@ -130,8 +132,8 @@ function AddressBarPicker() {
         anchor="appearance.addressBar"
         description={
           topTabs
-            ? "Tabs are across the top of the window, so the address bar stays in the toolbar. Also in View › Show Address Bar in Sidebar."
-            : "In the sidebar, the page gets the toolbar’s height. While the sidebar is hidden, the address bar is in the toolbar. Also in View › Show Address Bar in Sidebar."
+            ? `Tabs are across the top of the window, so the address bar stays in the toolbar.${ADDRESS_BAR_IN_MENU}`
+            : `In the sidebar, the page gets the toolbar’s height. While the sidebar is hidden, the address bar is in the toolbar.${ADDRESS_BAR_IN_MENU}`
         }
       />
       <Box gap="xl">
@@ -232,6 +234,7 @@ function SelectedTabGlowPicker() {
 
 function ScrollBarsPicker() {
   const scrollBars = useSettings((s) => s.pageScrollBars);
+  if (!PLATFORM_FEATURES.thinScrollBars) return null;
   return (
     <>
       <SectionHeader title="Scroll Bars" />
