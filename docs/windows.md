@@ -330,11 +330,18 @@ is plain Chromium.
   after its last release, waiting windows and any later one of that profile are refused until it is gone. A released
   name never opens a tab again. `tabs.list` gives each tab's session number (0 for a normal profile), issued once per
   off-the-record profile object, and `host.info` the number of live sessions.
-- A private window joins its session in the engine only when it opens a tab, so a private window with no page yet
-  (New Tab set to the command bar) would not keep the session alive. The Windows `profiles.release`
-  (`engine/privateWindows.ts`) therefore counts the private windows that are open (each window's `ArdiaWindowProfile`
-  while it is mounted) and holds a private window's release while another private window of the same profile is
-  open; the held releases go to the host with the last one. Quitting sends none, as on the Mac.
+- A private window joins its session in the engine only when it opens a tab, and an app window's page windows are
+  destroyed with it (Windows destroys owned windows before their owner), so a private window with no page yet (New Tab
+  set to the command bar) kept nothing alive: closing the other private window destroyed the off-the-record profile's
+  last Chromium window and with it the session. Each open private window now keeps the session itself: its
+  `ArdiaWindowProfile` opens a hidden blank tab under the window's private name in its own page window while it is
+  mounted (`holdPrivateSession` in `engine/privateWindows.ts`) and closes it when it goes. The Windows
+  `profiles.release` also holds a private window's release while another private window of the same profile is
+  open and sends the held ones with the last. The release of a session's last private window is lost in the shared
+  window code (`privateSessions.ts` makes a nested store update when a session's last window closes, so
+  `windowSync` sees the window already gone and never releases it), so a private window whose view has unmounted
+  for a second also releases its name itself; each name is released once, and at quit every session ends with the
+  process anyway.
 - A page whose tab the engine refused (a private window opened while the old session would not end) stays in the
   app's list of pages; its next `loadUrl`, `reload` or `forceReload` asks for the tab once more and, when it opens,
   tells the page it is ready, or sends `loadError` when it is refused again (`engine/pages.ts`).

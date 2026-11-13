@@ -25,6 +25,7 @@ turboModules.ArdiaEngineHost = {
 };
 
 const { mountPage, callPage, releasePage } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
+const { holdPrivateSession, privateWindowShown, releaseProfile } = await import("../../../../packages/expo-windows/src/engine/privateWindows.ts");
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 const creates = (key) => calls.filter((call) => call.verb === "tab.create" && call.args.key === key).length;
@@ -95,4 +96,56 @@ test("a retry that is refused again reports a load error and stops, and a closed
   assert.equal(await callPage("refused-twice", "reload"), null);
   assert.equal(creates("refused-twice"), 2, "nothing reopens a closed page");
   restore();
+});
+
+test("an open private window keeps its session with a hidden blank tab of its own, closed when the window goes", async () => {
+  const before = calls.length;
+  const release = holdPrivateSession("incognito:w9@work", "w9");
+  await settle();
+  assert.deepEqual(calls.slice(before), [{ verb: "tab.create", args: { key: "private-window:w9:incognito:w9@work", url: "", profile: "incognito:w9@work" }, windowId: "w9" }]);
+  release();
+  await settle();
+  assert.deepEqual(calls.at(-1), { verb: "tab.close", args: { key: "private-window:w9:incognito:w9@work" }, windowId: "" });
+  const quiet = calls.length;
+  holdPrivateSession("work", "w9")();
+  holdPrivateSession("incognito:w10@work", "")();
+  await settle();
+  assert.equal(calls.length, quiet, "a regular profile, or a window with no id, holds nothing");
+});
+
+test("a closed private window releases its name itself when the app's release never comes, with the releases it held", async () => {
+  const pending = [];
+  const later = (run) => pending.push(run);
+  const closeFirst = privateWindowShown("incognito:lost-a@lost", later);
+  const closeLast = privateWindowShown("incognito:lost-b@lost", later);
+  const sent = [];
+  closeFirst();
+  await releaseProfile("incognito:lost-a@lost", async (name) => sent.push(name));
+  assert.deepEqual(sent, [], "held while the other private window is open");
+  const before = calls.length;
+  closeLast();
+  assert.equal(calls.length, before, "nothing goes before the delay");
+  for (const run of pending.splice(0)) run();
+  await settle();
+  assert.deepEqual(
+    calls.slice(before).map((call) => [call.verb, call.args.profile]),
+    [
+      ["profile.release", "incognito:lost-a@lost"],
+      ["profile.release", "incognito:lost-b@lost"],
+    ],
+  );
+  await releaseProfile("incognito:lost-b@lost", async (name) => sent.push(name));
+  assert.deepEqual(sent, [], "the app's late release of the same window sends nothing more");
+});
+
+test("a private window's view that unmounts and shows again within the delay releases nothing", async () => {
+  const pending = [];
+  const closeOnce = privateWindowShown("incognito:remount@again", (run) => pending.push(run));
+  closeOnce();
+  const closeAgain = privateWindowShown("incognito:remount@again", (run) => pending.push(run));
+  const before = calls.length;
+  for (const run of pending.splice(0)) run();
+  await settle();
+  assert.equal(calls.length, before);
+  closeAgain();
 });

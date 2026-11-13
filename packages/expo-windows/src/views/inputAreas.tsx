@@ -1,6 +1,6 @@
 import { engineAvailable } from "../engine/host";
 import { onPagePress } from "../engine/pages";
-import { privateWindowShown } from "../engine/privateWindows";
+import { holdPrivateSession, privateWindowShown } from "../engine/privateWindows";
 import { WindowIdContext } from "../engine/windowId";
 import { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, type ReactNode } from "react";
 import { RootTagContext, TurboModuleRegistry, View, type GestureResponderEvent, type TurboModule, type ViewStyle } from "react-native";
@@ -329,7 +329,16 @@ export const FileDrop = forwardRef<{ nativeRef: { current: View | null } }, AnyP
 
 export const WindowProfile = forwardRef<View, AnyProps>(function WindowProfile({ profile, selection: _selection, neighbours: _neighbours, style, children, ...rest }, ref) {
   useEffect(() => noteMissing("<ArdiaWindowProfile> profile swap"), []);
-  useEffect(() => (typeof profile === "string" ? privateWindowShown(profile) : undefined), [profile]);
+  const windowId = useContext(WindowIdContext);
+  useEffect(() => {
+    if (typeof profile !== "string") return undefined;
+    const closed = privateWindowShown(profile);
+    const released = holdPrivateSession(profile, windowId);
+    return () => {
+      released();
+      closed();
+    };
+  }, [profile, windowId]);
   return (
     <View {...rest} ref={ref} pointerEvents="none" style={style as ViewStyle}>
       {children as ReactNode}
