@@ -7,6 +7,8 @@ export type PageRect = { x: number; y: number; width: number; height: number };
 export type PageShape = PageRect & { radius: number; holes: number[][] };
 export type PageStart = { url?: string; profile?: string; adopt?: string; windowId: string };
 
+type ShowArgs = { key: string; visible: boolean } & Partial<PageShape>;
+
 type Page = {
   key: string;
   windowId: string;
@@ -16,6 +18,9 @@ type Page = {
   opening: OpeningPage;
   ready: Promise<boolean>;
   listeners: Set<PageListener>;
+  told: Set<PageListener>;
+  show: ShowArgs | null;
+  showSent: ShowArgs | null;
   mounts: number;
   parked: boolean;
   closed: boolean;
@@ -90,6 +95,34 @@ function start(key: string, from: PageStart): Promise<boolean> {
     );
 }
 
+function begin(page: Page, from: PageStart): Promise<boolean> {
+  page.told.clear();
+  page.showSent = null;
+  return start(page.key, from);
+}
+
+function tellReady(page: Page, listener: PageListener) {
+  if (page.closed || !page.listeners.has(listener) || page.told.has(listener)) return;
+  page.told.add(listener);
+  listener("ready", {});
+}
+
+function sendShow(page: Page): Promise<unknown> | undefined {
+  const args = page.show;
+  if (!args || args === page.showSent || page.closed) return undefined;
+  page.showSent = args;
+  return hostCall("tab.show", args, page.windowId);
+}
+
+function askShow(page: Page, args: ShowArgs) {
+  page.show = args;
+  quietly(
+    page.ready.then((opened) => {
+      if (opened && page.show === args) return sendShow(page);
+    }),
+  );
+}
+
 export function mountPage(key: string, from: PageStart, listener: PageListener): () => void {
   listen();
   let page = pages.get(key);
@@ -101,32 +134,38 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
       profile: from.profile ?? "",
       started: { url: from.url ?? "", at: Date.now() },
       opening: openingPage(from.url ?? "", !!offeredByEngine(from.adopt)),
-      ready: start(key, from),
+      ready: Promise.resolve(false),
       listeners: new Set(),
+      told: new Set(),
+      show: null,
+      showSent: null,
       mounts: 0,
       parked: false,
       closed: false,
     };
+    page.ready = begin(page, from);
     pages.set(key, page);
   } else if (page.windowId !== from.windowId) {
     page.windowId = from.windowId;
     page.from = from;
     page.profile = from.profile ?? "";
-    page.ready = page.ready.then(() => start(key, from));
+    page.show = null;
+    const moving = page;
+    page.ready = page.ready.then(() => begin(moving, from));
   }
   const mounted = page;
   mounted.parked = false;
   mounted.mounts += 1;
   mounted.listeners.add(listener);
   void mounted.ready.then((opened) => {
-    if (opened && mounted.listeners.has(listener)) listener("ready", {});
+    if (opened) tellReady(mounted, listener);
   });
   return () => {
     mounted.listeners.delete(listener);
     mounted.mounts -= 1;
     if (mounted.mounts > 0) return;
     if (mounted.parked) {
-      quietly(mounted.ready.then(() => hostCall("tab.show", { key, visible: false }, mounted.windowId)));
+      askShow(mounted, { key, visible: false });
       return;
     }
     closePage(mounted);
@@ -143,12 +182,7 @@ function closePage(page: Page) {
 export function showPage(key: string, visible: boolean, shape: PageShape | null) {
   const page = pages.get(key);
   if (!page || page.closed) return;
-  const args = visible && shape ? { key, visible: true, ...shape } : { key, visible: false };
-  quietly(
-    page.ready.then((opened) => {
-      if (opened && !page.closed) return hostCall("tab.show", args, page.windowId);
-    }),
-  );
+  askShow(page, visible && shape ? { key, visible: true, ...shape } : { key, visible: false });
 }
 
 const REOPENING_METHODS = new Set(["loadUrl", "reload", "forceReload"]);
@@ -156,10 +190,12 @@ const REOPENING_METHODS = new Set(["loadUrl", "reload", "forceReload"]);
 function readyOrReopened(page: Page, url: unknown): Promise<boolean> {
   page.ready = page.ready.then((opened) => {
     if (opened || page.closed) return opened;
-    return start(page.key, { ...page.from, adopt: undefined, windowId: page.windowId }).then((again) => {
-      const listeners = page.closed ? [] : [...page.listeners];
-      if (again) for (const listener of listeners) listener("ready", {});
-      else for (const listener of listeners) listener("loadError", { url: typeof url === "string" ? url : page.from.url ?? "", code: 0, text: "the page could not open" });
+    return begin(page, { ...page.from, adopt: undefined, windowId: page.windowId }).then((again) => {
+      if (page.closed) return again;
+      if (again) {
+        quietly(sendShow(page) ?? Promise.resolve());
+        for (const listener of [...page.listeners]) tellReady(page, listener);
+      } else for (const listener of [...page.listeners]) listener("loadError", { url: typeof url === "string" ? url : page.from.url ?? "", code: 0, text: "the page could not open" });
       return again;
     });
   });
