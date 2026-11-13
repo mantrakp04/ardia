@@ -363,6 +363,28 @@ void Host::ParentDestroying(HWND parent) {
     }
     hosted.parent = nullptr;
   }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&Host::CloseSparePages, weak_factory_.GetWeakPtr()));
+}
+
+void Host::CloseSparePages() {
+  std::vector<base::WeakPtr<BrowserWindowInterface>> spare;
+  for (const auto& entry : hosted_) {
+    const HWND parent = entry.second.parent;
+    if ((!parent || !::IsWindow(parent)) &&
+        entry.first->GetTabStripModel()->empty()) {
+      spare.push_back(entry.first->GetWeakPtr());
+    }
+  }
+  for (const base::WeakPtr<BrowserWindowInterface>& weak : spare) {
+    if (!weak) {
+      continue;
+    }
+    Browser* browser = static_cast<Browser*>(weak.get());
+    hosted_.erase(browser);
+    browser->GetWindow()->Close();
+  }
 }
 
 void Host::CreateTab(base::DictValue args, HWND parent, Reply reply) {
@@ -636,6 +658,7 @@ base::DictValue Host::Info() {
                                   ->user_data_dir()
                                   .value()));
   result.Set("privateSessions", PrivateSessions::Get()->LiveSessions());
+  result.Set("pageWindows", static_cast<int>(hosted_.size()));
   return result;
 }
 
@@ -1044,6 +1067,14 @@ void Host::OnTabStripModelChanged(TabStripModel* tab_strip_model,
     return;
   }
   if (change.type() == TabStripModelChange::kRemoved) {
+    auto orphan = hosted_.find(browser);
+    if (orphan != hosted_.end() &&
+        (!orphan->second.parent || !::IsWindow(orphan->second.parent)) &&
+        tab_strip_model->empty()) {
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE,
+          base::BindOnce(&Host::CloseSparePages, weak_factory_.GetWeakPtr()));
+    }
     for (const auto& removed : change.GetRemove()->contents) {
       if (removed.remove_reason != TabRemovedReason::kDeleted) {
         continue;

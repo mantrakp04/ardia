@@ -40,6 +40,7 @@ import { awaitsFirstPage } from "../tabs/pendingAddress";
 import { openSplitPane } from "../splits/actions";
 import { isAppCommand, LITTLE_ARDIA_PAGE_COMMANDS, settingChange, UNAVAILABLE_COMMANDS, variantArg } from "./commandCatalog";
 import { APP_COMMAND_HANDLERS } from "./appCommands";
+import { returnFocusToPage } from "../sidebar/actions";
 import { runSidebarCommand } from "../sidebar/commands";
 import { numberedTabs } from "../sidebar/entries";
 import { openExtensionFromMenu } from "../extensions/bridge";
@@ -232,9 +233,9 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "openSplitPane":
       return void openSplitPane(windowId);
     case "focusNextPane":
-      return s.focusPane(windowId, 1);
     case "focusPreviousPane":
-      return s.focusPane(windowId, -1);
+      s.focusPane(windowId, command === "focusNextPane" ? 1 : -1);
+      return returnFocusToPage(windowId);
     case "toggleSidebar":
       return s.toggleSidebar(windowId);
     case "zoomIn":
