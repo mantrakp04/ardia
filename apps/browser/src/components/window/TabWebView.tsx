@@ -48,7 +48,7 @@ import { releaseTranslation, translateCrashContext } from "../../state/site/tran
 import { notePagePress } from "../../state/telemetry/tabPresses";
 import { noteAutoPictureInPictureKept, notePageOverlay, noteReopenedPage, noteWebKitPageKeptHidden } from "../../state/telemetry/usage";
 import { isAdoptKind } from "../../state/tabs/adoptIds";
-import { firstPagePending, isBlankAddress, noteFirstPagePending, reportedAddress } from "../../state/tabs/pendingAddress";
+import { firstPagePending, isBlankAddress, noteFirstPagePending, reportedAddress, reportedTitle } from "../../state/tabs/pendingAddress";
 import { STATUS_FLIP_BAND } from "./tokens";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
@@ -158,7 +158,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         noteReady(tabId);
         void webviews.get(tabId)?.setMuted(isTabSilenced(tabId));
       }}
-      onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
+      onNavigationChange={({ url: reported, title: reportedPageTitle, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
         noteCommit(tabId, committedUrl, committedAt, httpStatus);
         if (reopening.current && reported && !isBlankAddress(reported)) {
           reopening.current = false;
@@ -167,6 +167,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         noteUnreadLoading(tabId, isLoading);
         adoptIconPage(tabId);
         const { url, untouched } = reportedAddress({ url: reported, initialDocumentAccessed, committedInitial }, { adoptId, openedByPage: !!tab()?.openerId });
+        const title = reportedTitle(reportedPageTitle, url);
         const target = pending.current ?? (lastPage.current === null ? (navigationOf(tab())?.url ?? null) : null);
         if (target === null && prewarmOnly()) {
           if (isBlankAddress(url)) return;
