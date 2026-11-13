@@ -272,6 +272,7 @@ export function startBookmarks() {
     for (const engine of now) {
       const state = stateOf(engine);
       state.generation++;
+      state.shown = state.shadow ?? state.shown;
       state.shadow = null;
       state.needRead = false;
       state.needPush = false;
