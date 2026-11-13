@@ -237,18 +237,26 @@ bool TokenClient::FilterResponse(int id,
         return !info.is_dict() ||
                !IsWebTarget(info.GetDict().FindString("targetId"));
       });
+      for (base::Value& info : *infos) {
+        if (IsOffscreenTarget(info.GetDict().FindString("targetId"))) {
+          info.GetDict().Set("ardiaOffscreen", true);
+        }
+      }
       message = base::WriteJson(response).value_or(std::string());
     }
     return !message.empty();
   }
   if (method == "Target.getTargetInfo") {
-    const base::DictValue* info = result->FindDict("targetInfo");
+    base::DictValue* info = result->FindDict("targetInfo");
     if (info && !IsWebTarget(info->FindString("targetId"))) {
       message = ErrorReply(id, session, kRefused,
                            "ardia: Target.getTargetInfo on that target "
                            "isn't allowed for the ardia command");
+    } else if (info && IsOffscreenTarget(info->FindString("targetId"))) {
+      info->Set("ardiaOffscreen", true);
+      message = base::WriteJson(response).value_or(std::string());
     }
-    return true;
+    return !message.empty();
   }
   if (method == "Target.createTarget") {
     if (const std::string* target_id = result->FindString("targetId")) {

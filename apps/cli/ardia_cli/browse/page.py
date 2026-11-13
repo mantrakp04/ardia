@@ -136,6 +136,7 @@ class Page:
         self.calls: set = set()
         self.dropped: set = set()
         self.crashed = False
+        self.needs_enable = False
 
     async def attach(self, browser):
         self.browser = browser
@@ -158,10 +159,12 @@ class Page:
         except BrowseError:
             pass
         if self.crashed:
+            self.needs_enable = True
             return
         await self.enable_page()
 
     async def enable_page(self):
+        self.needs_enable = False
         await self.send("Page.enable")
         await self.send("Page.setLifecycleEventsEnabled", {"enabled": True})
         await self.refresh_frames()
@@ -188,11 +191,14 @@ class Page:
             call.cancel()
 
     async def revive(self, timeout: float):
+        await self.send("Page.reload", {})
+        await self.recovered(timeout)
+
+    async def recovered(self, timeout: float):
         from ardia_cli import command_metrics
         from ardia_cli.browse.state import wait_until
 
         command_metrics.flag("crashed_reloaded", True)
-        await self.send("Page.reload", {})
         self.crashed = False
         await self.enable_page()
 

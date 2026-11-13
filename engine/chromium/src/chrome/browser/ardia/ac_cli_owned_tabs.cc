@@ -37,7 +37,11 @@ class OwnedTab : public content::WebContentsObserver {
         owner_(owner) {}
 
   const void* owner() const { return owner_; }
-  void set_owner(const void* owner) { owner_ = owner; }
+  int generation() const { return generation_; }
+  void set_owner(const void* owner) {
+    owner_ = owner;
+    ++generation_;
+  }
 
   void WebContentsDestroyed() override {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -47,6 +51,7 @@ class OwnedTab : public content::WebContentsObserver {
  private:
   const std::string target_id_;
   const void* owner_;
+  int generation_ = 0;
 };
 
 std::map<std::string, std::unique_ptr<OwnedTab>>& OwnedTabs() {
@@ -55,11 +60,12 @@ std::map<std::string, std::unique_ptr<OwnedTab>>& OwnedTabs() {
   return *tabs;
 }
 
-void CloseIfOrphanedOffscreen(const std::string& target_id) {
+void CloseIfOrphanedOffscreen(const std::string& target_id, int generation) {
   auto it = OwnedTabs().find(target_id);
   content::WebContents* contents =
       it == OwnedTabs().end() ? nullptr : it->second->web_contents();
   if (!contents || it->second->owner() ||
+      it->second->generation() != generation ||
       !ardiacore::InAutomationWindow(contents)) {
     return;
   }
@@ -94,16 +100,17 @@ void ClaimCliOwnedTarget(const std::string& target_id, const void* owner) {
 }
 
 void ReleaseCliOwnedTargets(const void* owner) {
-  std::vector<std::string> released;
+  std::vector<std::pair<std::string, int>> released;
   for (const auto& [target_id, tab] : OwnedTabs()) {
     if (tab->owner() == owner) {
       tab->set_owner(nullptr);
-      released.push_back(target_id);
+      released.emplace_back(target_id, tab->generation());
     }
   }
-  for (const std::string& target_id : released) {
+  for (const auto& [target_id, generation] : released) {
     base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE, base::BindOnce(&CloseIfOrphanedOffscreen, target_id),
+        FROM_HERE,
+        base::BindOnce(&CloseIfOrphanedOffscreen, target_id, generation),
         kOrphanCloseDelay);
   }
 }

@@ -150,6 +150,15 @@ async def wait_for_load(page, loader: str | None, timeout: float, until: str = "
 async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
     from ardia_cli.browse import readpages
 
+    if page.crashed:
+        try:
+            result = await page.send("Page.navigate", {"url": url}, timeout=ctx.timeout)
+        except Gated:
+            raise BrowseError(f"Ardia's policy only lets the ardia command open web pages (http, https, data, about:blank); {url} isn't one") from None
+        if result.get("errorText"):
+            raise BrowseError(f"Navigation to {url} failed: {result['errorText']}")
+        await page.recovered(ctx.timeout)
+        return
     before = await readpages.before_navigating(page, url)
     try:
         result = await page.send("Page.navigate", {"url": url}, timeout=ctx.timeout)
@@ -206,17 +215,30 @@ NEEDS_HIDDEN_TAB = ("`set viewport` works on a tab this session opened that has 
 OPEN_ONE = "Open one with `ardia browse open <url>` (without --show) and set its viewport there"
 
 
-def offscreen_targets(state) -> set:
-    return state.extras.setdefault("offscreen", set())
+async def engine_offscreen(state, target_id: str) -> bool:
+    if target_id in state.offscreen:
+        return True
+    if state.endpoint is None or state.endpoint.explicit or state.browser is None:
+        return False
+    try:
+        info = (await state.browser.send("Target.getTargetInfo", {"targetId": target_id})).get("targetInfo") or {}
+    except BrowseError:
+        return False
+    if info.get("ardiaOffscreen") is True:
+        state.set_offscreen(target_id, True)
+        return True
+    return False
 
 
-async def go_offscreen(ctx: Ctx, page):
+async def go_offscreen(ctx: Ctx, page) -> bool:
     from ardia_cli import control
     from ardia_cli.browse import tabs
 
     state = ctx.state
-    if page.target_id in offscreen_targets(state) or state.endpoint is None or state.endpoint.explicit:
-        return
+    if state.endpoint is None or state.endpoint.explicit:
+        return False
+    if await engine_offscreen(state, page.target_id):
+        return True
     app_tab = (await tabs.app_tab_map(state)).get(page.target_id)
     if not app_tab:
         raise BrowseError(f"{NEEDS_HIDDEN_TAB}. Ardia doesn't list this session's tab. {OPEN_ONE}", code="viewport_needs_hidden_tab")
@@ -228,8 +250,9 @@ async def go_offscreen(ctx: Ctx, page):
         raise BrowseError(f"{NEEDS_HIDDEN_TAB}. {error.message} {OPEN_ONE}", code="viewport_needs_hidden_tab") from None
     except control.Unreachable as error:
         raise BrowseError(f"Couldn't ask Ardia to take the tab off-screen ({error})", code="viewport_unsupported") from None
-    offscreen_targets(state).add(page.target_id)
+    state.set_offscreen(page.target_id, True)
     state.app_tabs.pop(page.target_id, None)
+    return True
 
 
 async def leave_offscreen(ctx: Ctx, page):
@@ -240,9 +263,7 @@ async def leave_offscreen(ctx: Ctx, page):
     label = next((label for label, owner in state.labels.items() if owner == old), None)
     if label:
         del state.labels[label]
-    offscreen_targets(state).discard(old)
-    if not offscreen_targets(state):
-        state.leases.discard("emulation")
+    state.set_offscreen(old, False)
     fresh = await new_tab(ctx, url, label)
     if state.registry.reserve_close(state.instance, old):
         try:
@@ -261,7 +282,7 @@ def offscreen_note(state) -> str:
 
 
 async def show_tab(ctx: Ctx, page):
-    if page.target_id in offscreen_targets(ctx.state):
+    if await engine_offscreen(ctx.state, page.target_id):
         page = await leave_offscreen(ctx, page)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + 5
@@ -377,6 +398,9 @@ async def cmd_open(ctx: Ctx, argv):
     else:
         page = await state.page()
         came_from = page.url
+        if page.crashed and url:
+            await navigate(ctx, page, url)
+            reporting, url = False, None
         await apply_open_options(ctx, page)
     if reporting:
         await changes.settled(page, lambda: navigate(ctx, page, url))
@@ -1445,7 +1469,7 @@ async def cmd_set(ctx: Ctx, argv):
     try:
         if setting == "viewport":
             if len(args) == 2 and args[1] in ("reset", "off"):
-                if page.target_id in offscreen_targets(ctx.state):
+                if await engine_offscreen(ctx.state, page.target_id):
                     fresh = await leave_offscreen(ctx, page)
                     tab = ctx.state.extras.pop("left_offscreen", None)
                     return Result({"reset": True, "tabId": tab, "url": fresh.url}, f"✓ Viewport reset: the page was reloaded in a new background tab [{tab}]")
@@ -1456,9 +1480,10 @@ async def cmd_set(ctx: Ctx, argv):
             need(args, 3, "set viewport <w> <h> [scale] | reset")
             width, height = int(args[1]), int(args[2])
             scale = float(args[3]) if len(args) > 3 else 1.0
-            await go_offscreen(ctx, page)
+            offscreen = await go_offscreen(ctx, page)
             await page.send("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": False})
-            ctx.state.leases.add("emulation")
+            if not offscreen:
+                ctx.state.leases.add("emulation")
             from ardia_cli import command_metrics
 
             command_metrics.flag("viewport_set", True)

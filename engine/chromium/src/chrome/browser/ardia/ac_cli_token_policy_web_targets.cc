@@ -187,5 +187,12 @@ bool IsWebTarget(const std::string* target_id) {
          IsWebHost(content::ArdiaDevToolsAgentHostForId(*target_id));
 }
 
+bool IsOffscreenTarget(const std::string* target_id) {
+  content::DevToolsAgentHost* host =
+      target_id ? content::ArdiaDevToolsAgentHostForId(*target_id) : nullptr;
+  content::WebContents* contents = host ? host->GetWebContents() : nullptr;
+  return contents && ardiacore::InAutomationWindow(contents);
+}
+
 }
 }

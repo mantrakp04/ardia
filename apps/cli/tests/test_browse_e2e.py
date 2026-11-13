@@ -636,6 +636,27 @@ async def main(data_dir):
 asyncio.run(main(sys.argv[1]))
 """
 
+CLAIM = """
+import asyncio, sys
+from ardia_cli import endpoint
+from ardia_cli.browse.connection import Browser
+
+
+async def main(data_dir, target, hold):
+    browser = Browser(endpoint.resolve(data_dir=data_dir), lambda *event: None)
+    await browser.open()
+    try:
+        session = (await browser.send("Target.attachToTarget", {"targetId": target, "flatten": True}))["sessionId"]
+        await browser.send("Emulation.setDeviceMetricsOverride", {"width": 300, "height": 300, "deviceScaleFactor": 1, "mobile": False}, session)
+        print("claimed", flush=True)
+        await asyncio.sleep(float(hold))
+    finally:
+        await browser.close()
+
+
+asyncio.run(main(sys.argv[1], sys.argv[2], sys.argv[3]))
+"""
+
 SESSION_JS = (
     "import('./scripts/lib/instance.mjs').then(({ session }) => {"
     " const fs = require('fs'); const dir = process.argv[1];"
@@ -667,6 +688,8 @@ class BrowseTokenPath(unittest.TestCase):
             wait_for(control.exists, 60, "ArdiaControl.json")
             cls.pid = json.loads(control.read_text())["pid"]
             wait_for(lambda: BrowseEndToEnd.fetch_ok(f"http://127.0.0.1:{cls.http_port}/login.html"), 10, "the fixture server")
+            wait_for(lambda: subprocess.run([sys.executable, "-m", "ardia_cli", "--data-dir", str(cls.data), "tabs", "--flat"], capture_output=True,
+                                            timeout=30, env=dict(os.environ, PYTHONPATH=str(CLI))).returncode == 0, 30, "the control socket")
         except BaseException:
             cls.tearDownClass()
             raise
@@ -995,13 +1018,30 @@ class BrowseTokenPath(unittest.TestCase):
 
     @unittest.skipUnless(JS_LOCATION, "the page's process is found through the dev harness, which only a Debug build has")
     def test_a_crashed_background_tab_reloads_at_once(self):
-        session, mark = "token-crash-background", "#crash-background"
+        session, other, mark = "token-crash-background", "token-crash-other", "#crash-background"
         self.users_tab_shown("#users-crash-background")
         self.browse("open", self.url("login.html") + mark, session=session)
+        tab = self.targets(session, mark)[0]["tabId"]
         self.crash(session, "background crash")
         self.prompt_reload(session)
         self.assertEqual(self.browse("get", "title", session=session).stdout.strip(), "Fixture Login")
         self.assertEqual(len(self.rows(mark)[0]), 1)
+
+        self.crash(session, "background crash again")
+        os.kill(self.daemon_pid(session), 9)
+        self.browse("tab", tab, session=session)
+        refused = json.loads(self.browse("get", "url", "--json", session=session, check=False, timeout=20).stdout)
+        self.assertEqual(refused["code"], "tab_crashed")
+        self.browse("tab", tab, session=other)
+        self.browse("reload", session=other, timeout=20)
+        self.assertIn(mark, self.browse("get", "url", session=session, timeout=20).stdout)
+
+        self.crash(session, "background crash a third time")
+        started = time.monotonic()
+        self.browse("open", self.url("login.html") + mark + "-moved", session=session, timeout=20)
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertIn(mark + "-moved", self.browse("get", "url", session=session).stdout)
+        self.browse("close", session=other, check=False)
 
     def test_a_session_keeps_each_of_its_off_screen_tabs(self):
         session = "token-viewport-two"
@@ -1034,6 +1074,52 @@ class BrowseTokenPath(unittest.TestCase):
             if isinstance(found, dict) and found.get("session") == session and found.get("pid"):
                 return found["pid"]
         return None
+
+    def captures(self, session):
+        return json.loads(self.browse("session", "info", "--json", session=session).stdout)["data"]["captures"]
+
+    def test_closing_the_last_off_screen_tab_lets_the_session_disconnect(self):
+        session = "token-viewport-lease"
+        self.users_tab_shown("#users-viewport-lease")
+        tab, _ = self.off_screen(session, "#viewport-lease")
+        self.assertIn("offscreen", self.captures(session))
+        self.browse("tab", "new", self.url("login.html") + "#viewport-lease-plain", session=session)
+        self.browse("set", "viewport", "reset", session=session)
+        self.assertIn("offscreen", self.captures(session))
+        self.browse("tab", "close", tab, session=session)
+        self.assertEqual([lease for lease in self.captures(session) if lease in ("offscreen", "emulation")], [])
+
+    def test_a_reset_from_another_session_after_the_owner_died_reloads_the_page(self):
+        owner, other, mark = "token-viewport-heir-owner", "token-viewport-heir", "#viewport-heir"
+        self.users_tab_shown("#users-viewport-heir")
+        tab, before = self.off_screen(owner, mark)
+        os.kill(self.daemon_pid(owner), 9)
+        self.browse("tab", tab, session=other)
+        reset = self.browse("set", "viewport", "reset", session=other)
+        self.assertIn("reloaded in a new background tab", reset.stdout)
+        time.sleep(7)
+        self.assertEqual(len(self.rows(mark)[0]), 1)
+        self.assertIn(mark, self.browse("get", "url", session=other).stdout)
+        self.assertEqual(self.size(other), before)
+        self.browse("close", session=other, check=False)
+
+    def test_a_later_owner_gets_its_whole_grace(self):
+        owner, watcher, mark = "token-viewport-grace", "token-viewport-grace-watch", "#viewport-grace"
+        self.users_tab_shown("#users-viewport-grace")
+        self.off_screen(owner, mark)
+        target = self.targets(watcher, mark)[0]["targetId"]
+        os.kill(self.daemon_pid(owner), 9)
+        dropped = time.monotonic()
+        claim = subprocess.Popen([sys.executable, "-c", CLAIM, str(self.data), target, "3"], stdout=subprocess.PIPE, text=True,
+                                 env=dict(os.environ, PYTHONPATH=str(CLI)))
+        self.assertEqual(claim.stdout.readline().strip(), "claimed")
+        claim.wait(15)
+        released = time.monotonic()
+        self.assertLess(released - dropped, 5)
+        time.sleep(max(0, dropped + 6.5 - time.monotonic()))
+        self.assertEqual(len(self.targets(watcher, mark)), 1)
+        wait_for(lambda: not self.targets(watcher, mark), released + 9 - time.monotonic(), "the off-screen tab to close after its last owner's grace")
+        self.browse("close", session=watcher, check=False)
 
     def test_a_dead_daemons_off_screen_tab_closes_while_another_stays_connected(self):
         dead, alive, watcher = "token-viewport-dead", "token-viewport-alive", "token-viewport-dead-watch"

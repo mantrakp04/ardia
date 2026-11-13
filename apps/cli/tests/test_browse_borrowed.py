@@ -212,8 +212,7 @@ class BorrowedTab(unittest.TestCase):
         self.state.target_infos["MINE"] = {"targetId": "MINE", "url": "https://mine.example/"}
         self.mine.url = "https://mine.example/a"
         self.state.opened.add("MINE")
-        self.state.extras["offscreen"] = {"MINE"}
-        self.state.leases.add("emulation")
+        self.state.set_offscreen("MINE", True)
         fresh = FakePage("FRESH")
         fresh.url = "https://mine.example/a"
         opened, closed = [], []
@@ -235,7 +234,7 @@ class BorrowedTab(unittest.TestCase):
         self.assertEqual(opened, ["https://mine.example/a"])
         self.assertEqual(closed, [("Target.closeTarget", {"targetId": "MINE"})])
         self.assertFalse(self.state.extras.get("offscreen"))
-        self.assertNotIn("emulation", self.state.leases)
+        self.assertNotIn("offscreen", self.state.leases)
         self.assertEqual(self.state.current, "FRESH")
         self.assertIn("reloaded in a new background tab", result.text)
 
@@ -271,7 +270,8 @@ class BorrowedTab(unittest.TestCase):
             return fresh
 
         async def browser_send(method, params=None, *args, **kwargs):
-            closed.append(params["targetId"])
+            if method == "Target.closeTarget":
+                closed.append(params["targetId"])
             return {}
 
         for each in pages.values():
@@ -297,7 +297,7 @@ class BorrowedTab(unittest.TestCase):
         self.assertIn("reloaded in a new background tab", result.text)
         self.assertEqual((opened, closed), (["https://mine.example/a"], ["MINE"]))
         self.assertEqual(self.state.extras["offscreen"], {"OTHER"})
-        self.assertIn("emulation", self.state.leases)
+        self.assertIn("offscreen", self.state.leases)
         self.assertNotIn("Emulation.clearDeviceMetricsOverride", sent)
 
         run("viewport", "500", "600")
@@ -306,6 +306,67 @@ class BorrowedTab(unittest.TestCase):
 
         self.state.forget_target("OTHER")
         self.assertEqual(self.state.extras["offscreen"], {"FRESH"})
+
+    def test_the_off_screen_lease_follows_the_off_screen_tabs(self):
+        self.state.set_offscreen("A", True)
+        self.state.set_offscreen("B", True)
+        self.assertIn("offscreen", self.state.leases)
+        self.state.set_offscreen("A", False)
+        self.assertIn("offscreen", self.state.leases)
+        self.state.forget_target("B")
+        self.assertNotIn("offscreen", self.state.leases)
+        self.assertEqual(self.state.offscreen, set())
+
+    def ordinary_and_off_screen(self, engine_says_off_screen):
+        self.state.current = "MINE"
+        self.state.extras.pop("attached", None)
+        self.state.target_infos["MINE"] = {"targetId": "MINE", "url": "https://mine.example/a"}
+        self.mine.url = "https://mine.example/a"
+        self.state.endpoint = mock.Mock(explicit=False)
+        sent, browser_calls, opened = [], [], []
+
+        async def page_send(method, params=None, **kwargs):
+            sent.append(method)
+            return {}
+
+        async def browser_send(method, params=None, *args, **kwargs):
+            browser_calls.append(method)
+            if method == "Target.getTargetInfo":
+                return {"targetInfo": {"targetId": params["targetId"], **({"ardiaOffscreen": True} if engine_says_off_screen else {})}}
+            return {}
+
+        async def new_tab(ctx, url, label=None, window=False, show=False):
+            opened.append(url)
+            self.state.current = "FRESH"
+            return FakePage("FRESH")
+
+        self.mine.send = page_send
+        self.state.browser = mock.Mock(send=browser_send)
+        self.state.registry = mock.Mock(reserve_close=lambda instance, target: True, finish_close=lambda instance, target: None)
+        patch = mock.patch.object(commands, "new_tab", new_tab)
+        patch.start()
+        self.addCleanup(patch.stop)
+        return sent, browser_calls, opened
+
+    def test_resetting_an_ordinary_tab_keeps_the_off_screen_lease(self):
+        sent, _, opened = self.ordinary_and_off_screen(False)
+        self.state.set_offscreen("OTHER", True)
+        self.state.leases.add("emulation")
+        result = asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "reset"]))
+        self.assertEqual(result.text, "✓ Viewport reset")
+        self.assertEqual((sent, opened), (["Emulation.clearDeviceMetricsOverride"], []))
+        self.assertNotIn("emulation", self.state.leases)
+        self.assertIn("offscreen", self.state.leases)
+
+    def test_reset_asks_the_engine_whether_a_tab_another_session_left_is_off_screen(self):
+        sent, browser_calls, opened = self.ordinary_and_off_screen(True)
+        result = asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "reset"]))
+        self.assertIn("reloaded in a new background tab", result.text)
+        self.assertEqual(opened, ["https://mine.example/a"])
+        self.assertEqual(browser_calls, ["Target.getTargetInfo", "Target.closeTarget"])
+        self.assertNotIn("Emulation.clearDeviceMetricsOverride", sent)
+        self.assertEqual(self.state.offscreen, set())
+        self.assertNotIn("offscreen", self.state.leases)
 
     def test_cookie_changes_refuse_a_borrowed_tab(self):
         self.refused(commands.cmd_cookies, ["clear"])

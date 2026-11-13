@@ -229,8 +229,11 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
   answers it from the browser and reports a dead renderer at once), so a session that attaches later knows too. A
   crashed page refuses every method but `Page.reload` and `Page.navigate` at once (`code: "tab_crashed"`, which says
   to reload or close it), and fails the calls still waiting. `reload` on it sends `Page.reload`, enables the page
-  again and waits for `document.readyState` to be `complete` (about a second); `close`, `tab close`, `--show` and
-  `set viewport reset` need no answer from the page. A main-frame navigation clears the mark.
+  again and waits for `document.readyState` to be `complete` (about a second); `open <url>` on it navigates first the
+  same way; `close`, `tab close`, `--show` and `set viewport reset` need no answer from the page. A main-frame
+  navigation or `Inspector.targetReloadedAfterCrash` (someone else reloaded it) clears the mark. A session that
+  attached to an already crashed tab skipped `Page.enable` (it would never answer), so the page is enabled before
+  the next command once the mark is gone (`needs_enable`).
 - `close` takes the command lock, marks the session closing, and only then closes its tabs; requests already queued
   or arriving later get `session_closing`. On any stop the daemon lets running handlers settle (up to 5 s, then
   cancels them) before it touches the browser. Every answer is sanitized (registered tokens and any `token=` query
@@ -751,12 +754,17 @@ version of that unsound: e7f251520 and the commits before it).
   in a new tab; form state, scroll position and `sessionStorage` are gone. The first frame a user's window gets is
   from a page that never had an override.
 - **Ending.** `close` and `tab close` close the off-screen tab like any tab the session opened. A session keeps
-  every tab it took off-screen (`offscreen_targets`), so `--show` and `reset` reload the right one. Each tab the
-  command created has an owner in the engine (`ac_cli_owned_tabs.cc`): the token connection that created it, then
-  whichever one last set its viewport (`ClaimCliOwnedTarget`). When a connection goes (the daemon died, Stop,
+  every tab it took off-screen (`State.offscreen`), and the engine is the authority for the rest: on the token path
+  `Target.getTargets` and `Target.getTargetInfo` mark a target in an automation window `"ardiaOffscreen": true`, so
+  `--show`, `reset` and `set viewport` from a session that didn't move it (another session, or the same session's new
+  daemon) take the off-screen path too. Each tab the command created has an owner in the engine
+  (`ac_cli_owned_tabs.cc`): the token connection that created it, then whichever one last set its viewport
+  (`ClaimCliOwnedTarget`, on `setDeviceMetricsOverride` only). When a connection goes (the daemon died, Stop,
   control turned off), every tab it owned is checked 5 s later and closed if it is still in an automation window and
-  no connection has claimed it, whatever other connections are open (`ReleaseCliOwnedTargets`). The `emulation`
-  lease keeps a daemon connected while any of its tabs is off-screen. The app's sweep stays as a backstop for a tab
+  no connection has claimed it since, whatever other connections are open (`ReleaseCliOwnedTargets`); each change
+  of owner bumps the tab's generation, so an older release's check does nothing and a later owner gets its own 5 s.
+  The `offscreen` lease keeps a daemon connected while any of its tabs is off-screen; `State.set_offscreen` derives
+  it from the set, so a reset of another tab or a close (the session's own or anyone's) can't leave it wrong. The app's sweep stays as a backstop for a tab
   moved off-screen whose viewport was never set: 5 s after the last connection goes it closes every tab in the
   automation windows (`noteCliConnections`, `cliCloseOffscreenTabs`). Off-screen tabs aren't in the store, so
   `session.json` never has them, and Chrome's restore list never gets one either: `LiveTabSkipsRestore`
