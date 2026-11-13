@@ -71,6 +71,9 @@ jobs:
       - name: Unit tests
         working-directory: apps/android
         run: ./gradlew testDebugUnitTest --stacktrace
+      - name: The release build shrinks without losing what it needs
+        working-directory: apps/android
+        run: ./gradlew :app:assembleRelease --stacktrace
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
