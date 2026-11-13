@@ -302,14 +302,25 @@ class Hydrator {
   }
 
   static bool Fetch(std::wstring const &path) noexcept {
+    HANDLE pinned = CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_OPEN_NO_RECALL, nullptr);
+    if (pinned == INVALID_HANDLE_VALUE) return false;
+    if (IsLink(pinned)) {
+      CloseHandle(pinned);
+      return false;
+    }
     HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
-    if (file == INVALID_HANDLE_VALUE) return false;
+    if (file == INVALID_HANDLE_VALUE) {
+      CloseHandle(pinned);
+      return false;
+    }
     std::vector<char> buffer(64 * 1024);
     DWORD done = 0;
     while (::ReadFile(file, buffer.data(), static_cast<DWORD>(buffer.size()), &done, nullptr) && done > 0) {
     }
     CloseHandle(file);
-    return !IsPlaceholder(GetFileAttributesW(path.c_str()));
+    bool fetched = !IsPlaceholder(GetFileAttributesW(path.c_str()));
+    CloseHandle(pinned);
+    return fetched;
   }
 
   std::mutex m_lock;

@@ -1,6 +1,9 @@
 #pragma once
 
+#include <chrono>
+#include <condition_variable>
 #include <functional>
+#include <mutex>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,26 +29,62 @@ namespace Ardia::SyncSystem {
 
 using SyncCrypto::WipedString;
 using Answer = std::function<void(std::shared_ptr<WipedString>)>;
+using Still = std::function<bool()>;
+
+constexpr std::chrono::seconds EngineReplyDeadline{30};
+
+class Settle {
+ public:
+  explicit Settle(SyncSystem::Answer done) : m_done(std::move(done)) {}
+
+  void Resolve(std::shared_ptr<WipedString> reply) noexcept {
+    {
+      std::lock_guard<std::mutex> guard(m_lock);
+      if (m_settled) return;
+      m_settled = true;
+    }
+    m_wake.notify_all();
+    try {
+      m_done(std::move(reply));
+    } catch (...) {
+    }
+  }
+
+  void Watch() {
+    std::unique_lock<std::mutex> guard(m_lock);
+    if (m_wake.wait_for(guard, EngineReplyDeadline, [this] { return m_settled; })) return;
+    guard.unlock();
+    Resolve(nullptr);
+  }
+
+ private:
+  std::mutex m_lock;
+  std::condition_variable m_wake;
+  bool m_settled = false;
+  SyncSystem::Answer m_done;
+};
 
 struct EngineReply {
-  Answer done;
+  std::shared_ptr<Settle> settle;
 };
 
 inline void OnEngineReply(void *context, const char *json) noexcept {
   std::unique_ptr<EngineReply> reply{static_cast<EngineReply *>(context)};
   if (!reply) return;
-  auto text = std::make_shared<WipedString>(std::string{json ? json : ""});
-  try {
-    reply->done(text);
-  } catch (...) {
-  }
+  reply->settle->Resolve(std::make_shared<WipedString>(std::string{json ? json : ""}));
 }
 
 inline void CallEngine(winrt::Microsoft::ReactNative::ReactContext const &context, std::string name, std::string profile, std::shared_ptr<WipedString> args, Answer done) noexcept {
-  RunOnUI(context, [name = std::move(name), profile = std::move(profile), args, done]() noexcept {
+  auto settle = std::make_shared<Settle>(std::move(done));
+  try {
+    std::thread([settle]() noexcept { settle->Watch(); }).detach();
+  } catch (...) {
+    return settle->Resolve(nullptr);
+  }
+  RunOnUI(context, [name = std::move(name), profile = std::move(profile), args, settle]() noexcept {
     const ArdiaEngineApi *engine = Host::Engine();
-    if (!engine) return done(nullptr);
-    engine->engineCall(name.c_str(), profile.c_str(), args->text().c_str(), &OnEngineReply, new EngineReply{done});
+    if (!engine) return settle->Resolve(nullptr);
+    engine->engineCall(name.c_str(), profile.c_str(), args->text().c_str(), &OnEngineReply, new EngineReply{settle});
   });
 }
 
@@ -103,14 +142,18 @@ inline std::shared_ptr<WipedString> SavedPassword(std::shared_ptr<WipedString> c
 }
 
 inline void ReplacePassword(winrt::Microsoft::ReactNative::ReactContext const &context, std::string profile, std::string origin, std::string username, std::shared_ptr<WipedString> password,
-                            std::function<void(bool)> done) {
+                            Still still, std::function<void(bool)> done) {
+  if (!still()) return done(false);
   CallEngine(context, "ac_passwords_logins", profile, std::make_shared<WipedString>(std::string{"{}"}), [=](std::shared_ptr<WipedString> logins) {
-    if (!logins) return done(false);
+    if (!logins || !still()) return done(false);
     std::shared_ptr<WipedString> previous = SavedPassword(logins, origin, username);
     logins->text().clear();
     CallEngine(context, "ac_passwords_remove", profile, LoginArgs(origin, username, {}, false), [=](std::shared_ptr<WipedString> removed) {
       if (!Succeeded(removed)) return done(false);
-      CallEngine(context, "ac_passwords_add", profile, LoginArgs(origin, username, password->text(), true), [=](std::shared_ptr<WipedString> added) {
+      std::shared_ptr<WipedString> chosen = still() ? password : previous;
+      if (!chosen) return done(false);
+      CallEngine(context, "ac_passwords_add", profile, LoginArgs(origin, username, chosen->text(), true), [=](std::shared_ptr<WipedString> added) {
+        if (chosen == previous) return done(false);
         if (Succeeded(added)) return done(true);
         if (!previous) return done(false);
         CallEngine(context, "ac_passwords_add", profile, LoginArgs(origin, username, previous->text(), true), [=](std::shared_ptr<WipedString>) { done(false); });
@@ -120,7 +163,8 @@ inline void ReplacePassword(winrt::Microsoft::ReactNative::ReactContext const &c
 }
 
 inline void AddPassword(winrt::Microsoft::ReactNative::ReactContext const &context, std::string profile, std::string origin, std::string username, std::shared_ptr<WipedString> password,
-                        std::function<void(bool)> done) {
+                        Still still, std::function<void(bool)> done) {
+  if (!still()) return done(false);
   CallEngine(context, "ac_passwords_add", profile, LoginArgs(origin, username, password->text(), true), [done](std::shared_ptr<WipedString> added) { done(Succeeded(added)); });
 }
 

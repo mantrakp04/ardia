@@ -287,9 +287,11 @@ struct SyncModule {
         return promise.Resolve(false);
       }
       auto password = std::make_shared<SyncCrypto::WipedString>(std::string{opened->view()});
-      auto done = [promise](bool saved) { promise.Resolve(saved); };
-      if (replacing) SyncSystem::ReplacePassword(context, profile, origin, username, password, done);
-      else SyncSystem::AddPassword(context, profile, origin, username, password, done);
+      uint64_t generation = session.generation;
+      auto still = [generation]() { return SyncModuleParts::Shared().Still(generation); };
+      auto done = [promise, still](bool saved) { promise.Resolve(saved && still()); };
+      if (replacing) SyncSystem::ReplacePassword(context, profile, origin, username, password, still, done);
+      else SyncSystem::AddPassword(context, profile, origin, username, password, still, done);
     });
   }
 
