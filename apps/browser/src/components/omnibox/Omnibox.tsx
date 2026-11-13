@@ -20,7 +20,8 @@ import { barSplitsFrom, openFromBar, otherOpenTabs, switchFromBar, type Disposit
 import { openFromNewTabBar } from "../../state/omnibox/newTabBar";
 import type { NewTabTarget } from "../../state/browser/types";
 import { showFieldMenu } from "../../state/omnibox/paste";
-import { SuggestionIcon, SuggestionList, isRemovable, type RowActions } from "./SuggestionRow";
+import { isRemovable } from "./removableRow";
+import { SuggestionIcon, SuggestionList, type RowActions } from "./SuggestionRow";
 import { keywordScope } from "../../state/omnibox/scopes";
 import { setPopover } from "../../state/tabs/pageState";
 import { AddChip } from "./AddChip";

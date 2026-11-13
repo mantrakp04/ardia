@@ -337,6 +337,21 @@ await ac(`ac.runCommand({ command: "focusCommandBar", arg: null, windowId: "w1" 
 await sleep(600);
 await real("⌘2 in the command bar", cmd("2", 19), { asKey: true }, "pin2");
 check("…and the command bar closes", !(await state()).panel, "");
+await ac(`ac.runCommand({ command: "focusCommandBar", arg: null, windowId: "w1" });`);
+await sleep(600);
+await ac(`ac.omnibox.get("w1:panel").type("t"); return 1;`);
+await sleep(800);
+const barRow = () => ac(`const s = ac.omnibox.get("w1:panel").state(); return { selected: s.selected, rows: s.items.length, typed: s.typed };`);
+for (const [label, key, delta] of [["⌃J", K("j", 38, "control"), 1], ["⌃K", K("k", 40, "control"), -1], ["⌃N", K("n", 45, "control"), 1], ["⌃P", K("p", 35, "control"), -1]]) {
+  const before = await barRow();
+  const r = await press(key, { asKey: true });
+  await sleep(300);
+  const after = await barRow();
+  const want = (before.selected + delta + before.rows) % before.rows;
+  check(`${label} in the command bar moves the selection ${delta > 0 ? "down" : "up"}`, before.rows > 1 && after.selected === want && after.typed === "t", `${before.selected} → ${after.selected} of ${before.rows} rows, typed "${after.typed}"; ${describe(r)}, first responder ${r.firstResponder}`);
+}
+await ac(`ac.store.getState().closePanel("w1");`);
+await sleep(300);
 await real("⇧⌘] (Next Tab)", cmd("}", 30, "shift"), sidebar, "t1");
 await real("⇧⌘[ (Previous Tab)", cmd("{", 33, "shift"), sidebar, "pin2");
 await real("⌥⌘↓ (Next Tab)", cmd(F(0xf701), 125, "option", "function"), sidebar, "t1");

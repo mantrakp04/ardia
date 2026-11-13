@@ -3,6 +3,7 @@ import { memo } from "react";
 import { Image, Pressable, Text as NativeText, View } from "react-native";
 import { Button, Symbol, Text, useHover, useTheme, withAlpha, type Theme } from "../ui";
 import { Favicon } from "../favicon/Favicon";
+import { isRemovable } from "./removableRow";
 import { SELECTED_SUGGESTION_ALPHA, SUGGESTION } from "./tokens";
 
 const ICON_BOX = { width: SUGGESTION.iconBox, height: SUGGESTION.iconBox } as const;
@@ -95,8 +96,6 @@ function sameSuggestion(a: Suggestion, b: Suggestion): boolean {
   const ka = Object.keys(a) as (keyof Suggestion)[];
   return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
 }
-
-export const isRemovable = (s: Suggestion | undefined): s is Extract<Suggestion, { kind: "page" }> => s?.kind === "page" && !!s.visited && !s.tabId;
 
 const SuggestionRow = memo(
   function SuggestionRow({
