@@ -11,6 +11,7 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import androidx.compose.ui.node.RootForTest
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
@@ -130,20 +131,40 @@ object AppTest {
         }
     }
 
-    fun tapThroughAccessibility(text: String): Boolean {
-        val target = accessibilityRoots().firstNotNullOfOrNull { findClickable(it, text, null) } ?: return false
-        return target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    fun findThroughAccessibility(text: String): AccessibilityNodeInfo? {
+        clearSystemDialogs()
+        return accessibilityRoots().firstNotNullOfOrNull { findClickable(it, text, null) }
     }
 
-    private fun accessibilityRoots(): List<AccessibilityNodeInfo> {
+    fun tapThroughAccessibility(text: String): Boolean = findThroughAccessibility(text)?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+
+    private fun windows(): List<AccessibilityWindowInfo> {
         val automation = instrumentation.uiAutomation
         val info = automation.serviceInfo
         if (info != null && info.flags and AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS == 0) {
             info.flags = info.flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
             automation.serviceInfo = info
         }
-        val windows = runCatching { automation.windows.mapNotNull { it.root } }.getOrDefault(emptyList())
-        return listOfNotNull(automation.rootInActiveWindow) + windows
+        return runCatching { automation.windows.toList() }.getOrDefault(emptyList())
+    }
+
+    private fun isOurs(root: AccessibilityNodeInfo?): Boolean = root?.packageName?.toString() == context.packageName
+
+    private fun accessibilityRoots(): List<AccessibilityNodeInfo> {
+        val roots = windows().mapNotNull { it.root }.filter(::isOurs)
+        val active = instrumentation.uiAutomation.rootInActiveWindow?.takeIf(::isOurs)
+        return (listOfNotNull(active) + roots).distinctBy { it.windowId }
+    }
+
+    fun clearSystemDialogs(timeoutMillis: Long = SystemDialogs.TIMEOUT_MILLIS) {
+        val end = System.currentTimeMillis() + timeoutMillis
+        while (true) {
+            val dialog = SystemDialogs.blocking(windows(), context.packageName) ?: return
+            val dismissed = SystemDialogs.dismiss(dialog, instrumentation.uiAutomation)
+            Log.w(TAG, "a system dialog covered the app (${dialog.describe()}); dismissed: $dismissed")
+            if (System.currentTimeMillis() > end) fail("a system dialog stayed on top of the app for $timeoutMillis ms: ${dialog.describe()}")
+            Thread.sleep(SystemDialogs.AFTER_DISMISS_MILLIS)
+        }
     }
 
     private fun labels(node: AccessibilityNodeInfo): List<String> = listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
@@ -159,6 +180,7 @@ object AppTest {
     }
 
     fun accessibilityLabels(): List<String> {
+        clearSystemDialogs()
         val found = ArrayList<String>()
         fun walk(node: AccessibilityNodeInfo) {
             found += labels(node)
@@ -168,14 +190,14 @@ object AppTest {
         return found.distinct()
     }
 
-    fun tapThroughSemantics(text: String): Boolean = onMain {
-        val roots = activities(Stage.RESUMED).flatMap { composeRoots(it.window.decorView) }
-        for (root in roots) {
-            val action = findSemanticsClick(root.semanticsOwner.unmergedRootSemanticsNode, text, null) ?: continue
-            return@onMain action()
-        }
-        false
+    private fun semanticsClick(text: String): (() -> Boolean)? = onMain {
+        activities(Stage.RESUMED).flatMap { composeRoots(it.window.decorView) }
+            .firstNotNullOfOrNull { findSemanticsClick(it.semanticsOwner.unmergedRootSemanticsNode, text, null) }
     }
+
+    fun inSemantics(text: String): Boolean = semanticsClick(text) != null
+
+    fun tapThroughSemantics(text: String): Boolean = semanticsClick(text)?.let { click -> onMain(click) } == true
 
     private fun composeRoots(view: View): List<RootForTest> = buildList {
         if (view is RootForTest) add(view)
@@ -196,14 +218,21 @@ object AppTest {
         var previous: Bitmap? = null
         var stable = 0
         while (true) {
+            if (SystemDialogs.blocking(windows(), context.packageName) != null) {
+                clearSystemDialogs()
+                stable = 0
+            }
             val current = instrumentation.uiAutomation.takeScreenshot()
-            if (current != null) {
+            if (current != null && SystemDialogs.blocking(windows(), context.packageName) != null) {
+                current.recycle()
+                stable = 0
+            } else if (current != null) {
                 if (previous != null && current.sameAs(previous)) stable++ else stable = 0
                 previous?.recycle()
                 previous = current
             }
             if ((previous != null && stable >= stableFrames) || System.currentTimeMillis() > end) {
-                return previous ?: error("the screen could not be captured")
+                return previous ?: throw AssertionError("no capture free of system dialogs within $timeoutMillis ms")
             }
             Thread.sleep(SETTLE_STEP_MILLIS)
             instrumentation.waitForIdleSync()

@@ -51,7 +51,7 @@ fun ArdiaRoot(model: AppModel, createdAt: Long) {
 }
 
 @Composable
-fun RootView(model: AppModel) {
+fun RootView(model: AppModel, screens: RootScreens = RootScreens.app) {
     var sheetProgress by remember { mutableFloatStateOf(0f) }
     val backgroundShape = remember { RoundedCornerShape(SheetLayout.backgroundRadius) }
     val sheet = model.sheet.takeIf { it != AppModel.Sheet.Onboarding }
@@ -72,28 +72,28 @@ fun RootView(model: AppModel) {
                 }
                 .coveredFromAccessibility(sheetCovers),
         ) {
-            Surfaces(model)
-            SearchTray(model, Modifier.zIndex(10f))
+            Surfaces(model, screens)
+            screens.searchTray(model, Modifier.zIndex(10f))
         }
         SheetHost(
             sheet = sheet,
             onDismiss = { model.sheet = null },
             onProgress = { sheetProgress = it },
             modifier = Modifier.zIndex(20f).coveredFromAccessibility(voiceCovers),
-        ) { sheet -> SheetContent(model, sheet) }
+        ) { sheet -> SheetContent(model, sheet, screens) }
         FullScreenCover(
             visible = model.browse.isVoicePresented,
             onDismissRequest = { model.browse.isVoicePresented = false },
             modifier = Modifier.zIndex(30f).coveredFromAccessibility(onboardingCovers).testTag(RootTags.VOICE),
-        ) { VoiceSearch(model) }
-        OnboardingCover(model, Modifier.zIndex(40f))
+        ) { screens.voiceSearch(model) }
+        OnboardingCover(model, screens, Modifier.zIndex(40f))
         ToastHost(model.toasts, Modifier.zIndex(50f))
     }
     StatusBarInkOwner(model)
 }
 
 @Composable
-private fun Surfaces(model: AppModel) {
+private fun Surfaces(model: AppModel, screens: RootScreens) {
     val surface = model.surface
     val isHome = surface == AppModel.Surface.Search
     val reduceMotion = LocalReduceMotion.current
@@ -105,15 +105,17 @@ private fun Surfaces(model: AppModel) {
     val covered = lastCovered.surface
     val homeSettled = home.isIdle && home.currentState
     val holdsKeyboard = model.browse.trayHoldsKeyboard
+    val trayCovers = model.browse.search != null
     Box(
         Modifier
             .fillMaxSize()
             .then(if (holdsKeyboard) Modifier else Modifier.imePadding())
+            .coveredFromAccessibility(trayCovers)
             .testTag(RootTags.SURFACES),
     ) {
         if (!homeSettled) {
-            BrowsingSurface(model, isFront = surface == AppModel.Surface.Browsing, modifier = Modifier.fillMaxSize())
-            if (covered == AppModel.Surface.TabSwitcher) TabDeck(model, Modifier.fillMaxSize().zIndex(1f).coveredFromAccessibility(isHome))
+            screens.browsing(model, surface == AppModel.Surface.Browsing, Modifier.fillMaxSize().coveredFromAccessibility(surface != AppModel.Surface.Browsing))
+            if (covered == AppModel.Surface.TabSwitcher) screens.tabDeck(model, Modifier.fillMaxSize().zIndex(1f).coveredFromAccessibility(isHome))
         }
         AnimatedVisibility(
             visibleState = home,
@@ -121,7 +123,7 @@ private fun Surfaces(model: AppModel) {
             exit = fadeOut(motion.spec()),
             modifier = Modifier.fillMaxSize().zIndex(2f).coveredFromAccessibility(!isHome),
         ) {
-            SearchStart(model, Modifier.fillMaxSize())
+            screens.searchStart(model, Modifier.fillMaxSize())
         }
     }
 }
@@ -131,18 +133,18 @@ private class CoveredSurface {
 }
 
 @Composable
-private fun SheetContent(model: AppModel, sheet: AppModel.Sheet) {
+private fun SheetContent(model: AppModel, sheet: AppModel.Sheet, screens: RootScreens) {
     when (sheet) {
-        AppModel.Sheet.Settings -> SettingsSheet(model)
-        AppModel.Sheet.SyncSetup -> SyncSetupSheet(model)
+        AppModel.Sheet.Settings -> screens.settings(model)
+        AppModel.Sheet.SyncSetup -> screens.syncSetup(model)
         AppModel.Sheet.Onboarding -> Unit
-        AppModel.Sheet.Archive -> ArchiveSheet(model)
-        AppModel.Sheet.SyncedSpaces -> SyncedSpacesSheet(model)
+        AppModel.Sheet.Archive -> screens.archive(model)
+        AppModel.Sheet.SyncedSpaces -> screens.syncedSpaces(model)
     }
 }
 
 @Composable
-private fun OnboardingCover(model: AppModel, modifier: Modifier) {
+private fun OnboardingCover(model: AppModel, screens: RootScreens, modifier: Modifier) {
     val settings = model.settings
     LaunchedEffect(model.sheet) {
         if (model.sheet == AppModel.Sheet.Onboarding) {
@@ -154,5 +156,5 @@ private fun OnboardingCover(model: AppModel, modifier: Modifier) {
         visible = settings.isShowingOnboarding,
         onDismissRequest = { if (!settings.hasFinishedOnboarding) model.finishOnboarding() else settings.isShowingOnboarding = false },
         modifier = modifier.testTag(RootTags.ONBOARDING),
-    ) { Onboarding(model) }
+    ) { screens.onboarding(model) }
 }

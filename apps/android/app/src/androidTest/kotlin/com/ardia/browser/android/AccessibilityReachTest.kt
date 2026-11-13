@@ -31,7 +31,7 @@ class AccessibilityReachTest {
     fun onboardingsButtonsAreInTheAccessibilityTree() {
         session = AppTest.launch(mapOf(LaunchArguments.ARDIA_ONBOARDING to true))
         AppTest.waitUntil("onboarding on screen") { AppTest.model.settings.isShowingOnboarding }
-        expectReachable("Get Started")
+        expectTapped("Get Started")
         expectReachable("Continue")
     }
 
@@ -84,11 +84,15 @@ class AccessibilityReachTest {
         assertTrue("covered controls $exposed are still in the accessibility tree; labels seen: ${seen.take(40)}", exposed.isEmpty())
     }
 
-    private fun expectReachable(text: String, timeoutMillis: Long = 30_000) {
+    private fun expectReachable(text: String, timeoutMillis: Long = 30_000) = expectThroughAccessibility(text, timeoutMillis) { AppTest.findThroughAccessibility(text) != null }
+
+    private fun expectTapped(text: String, timeoutMillis: Long = 30_000) = expectThroughAccessibility(text, timeoutMillis) { AppTest.tapThroughAccessibility(text) }
+
+    private fun expectThroughAccessibility(text: String, timeoutMillis: Long, found: () -> Boolean) {
         val end = System.currentTimeMillis() + timeoutMillis
-        while (!AppTest.tapThroughAccessibility(text)) {
+        while (!found()) {
             if (System.currentTimeMillis() > end) {
-                val semantics = if (AppTest.tapThroughSemantics(text)) "it is in Compose semantics" else "it is not in Compose semantics either"
+                val semantics = if (AppTest.inSemantics(text)) "it is in Compose semantics" else "it is not in Compose semantics either"
                 fail("\"$text\" is not reachable through the accessibility tree ($semantics); labels seen: ${AppTest.accessibilityLabels().take(40)}")
             }
             Thread.sleep(250)

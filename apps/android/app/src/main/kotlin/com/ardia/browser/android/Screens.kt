@@ -2,6 +2,7 @@ package com.ardia.browser.android
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
 import com.ardia.appmodel.AppModel
 import com.ardia.browsing.BrowsingView
@@ -15,32 +16,31 @@ import com.ardia.tabs.ArchiveView
 import com.ardia.tabs.SyncedSpacesView
 import com.ardia.tabs.TabSwitcherView
 
-@Composable
-fun SearchStart(model: AppModel, modifier: Modifier) = SearchHomeView(model, modifier)
-
-@Composable
-fun SearchTray(model: AppModel, modifier: Modifier) = SearchTrayHost(model, modifier)
-
-@Composable
-fun VoiceSearch(model: AppModel) = VoiceSearchView(model, Modifier.fillMaxSize())
-
-@Composable
-fun BrowsingSurface(model: AppModel, isFront: Boolean, modifier: Modifier) = BrowsingView(model, isFront, modifier)
-
-@Composable
-fun TabDeck(model: AppModel, modifier: Modifier) = TabSwitcherView(model, modifier)
-
-@Composable
-fun ArchiveSheet(model: AppModel) = ArchiveView(model, Modifier.fillMaxSize())
-
-@Composable
-fun SyncedSpacesSheet(model: AppModel) = SyncedSpacesView(model, Modifier.fillMaxSize())
-
-@Composable
-fun SettingsSheet(model: AppModel) = SettingsView(model, Modifier.fillMaxSize())
-
-@Composable
-fun SyncSetupSheet(model: AppModel) = SyncSetupView(model, Modifier.fillMaxSize())
-
-@Composable
-fun Onboarding(model: AppModel) = OnboardingView(model, Modifier.fillMaxSize())
+@Immutable
+class RootScreens(
+    val searchStart: @Composable (AppModel, Modifier) -> Unit,
+    val searchTray: @Composable (AppModel, Modifier) -> Unit,
+    val voiceSearch: @Composable (AppModel) -> Unit,
+    val browsing: @Composable (AppModel, Boolean, Modifier) -> Unit,
+    val tabDeck: @Composable (AppModel, Modifier) -> Unit,
+    val archive: @Composable (AppModel) -> Unit,
+    val syncedSpaces: @Composable (AppModel) -> Unit,
+    val settings: @Composable (AppModel) -> Unit,
+    val syncSetup: @Composable (AppModel) -> Unit,
+    val onboarding: @Composable (AppModel) -> Unit,
+) {
+    companion object {
+        val app = RootScreens(
+            searchStart = { model, modifier -> SearchHomeView(model, modifier) },
+            searchTray = { model, modifier -> SearchTrayHost(model, modifier) },
+            voiceSearch = { model -> VoiceSearchView(model, Modifier.fillMaxSize()) },
+            browsing = { model, isFront, modifier -> BrowsingView(model, isFront, modifier) },
+            tabDeck = { model, modifier -> TabSwitcherView(model, modifier) },
+            archive = { model -> ArchiveView(model, Modifier.fillMaxSize()) },
+            syncedSpaces = { model -> SyncedSpacesView(model, Modifier.fillMaxSize()) },
+            settings = { model -> SettingsView(model, Modifier.fillMaxSize()) },
+            syncSetup = { model -> SyncSetupView(model, Modifier.fillMaxSize()) },
+            onboarding = { model -> OnboardingView(model, Modifier.fillMaxSize()) },
+        )
+    }
+}

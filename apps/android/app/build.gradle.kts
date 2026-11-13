@@ -56,6 +56,8 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.coroutines.test)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.runner)
@@ -64,4 +66,5 @@ dependencies {
     androidTestImplementation(libs.androidx.test.services.storage)
     androidTestImplementation(libs.coroutines.test)
     androidTestUtil(libs.androidx.test.services)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
