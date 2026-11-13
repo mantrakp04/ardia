@@ -330,6 +330,20 @@ is plain Chromium.
   after its last release, waiting windows and any later one of that profile are refused until it is gone. A released
   name never opens a tab again. `tabs.list` gives each tab's session number (0 for a normal profile), issued once per
   off-the-record profile object, and `host.info` the number of live sessions.
+- A private window joins its session in the engine only when it opens a tab, so a private window with no page yet
+  (New Tab set to the command bar) would not keep the session alive. The Windows `profiles.release`
+  (`engine/privateWindows.ts`) therefore counts the private windows that are open (each window's `ArdiaWindowProfile`
+  while it is mounted) and holds a private window's release while another private window of the same profile is
+  open; the held releases go to the host with the last one. Quitting sends none, as on the Mac.
+- A page whose tab the engine refused (a private window opened while the old session would not end) stays in the
+  app's list of pages; its next `loadUrl`, `reload` or `forceReload` asks for the tab once more and, when it opens,
+  tells the page it is ready, or sends `loadError` when it is refused again (`engine/pages.ts`).
+- Engine call arguments are wiped after the call: the engine keeps them in `ardia::Secret` (`api.cc`) and cleanses the
+  copy it re-serializes for a private profile, and the app's `engineCall` keeps them in `WipedText`
+  (`EngineHostModule.h`), which wipes its own buffer and every buffer it is moved from. This covers the copies the
+  host and the app make, not every copy: the JavaScript string, React Native's own marshalling, Chromium's JSON
+  reader, which keeps a decoded scratch copy of a string with escapes (a password with a backslash), and its
+  serializer, which can free a smaller buffer while it grows, are not wiped.
 
 ## Calls Windows still answers with a stand-in
 
@@ -343,7 +357,6 @@ is plain Chromium.
 | Verb | Needs | What and why |
 | --- | --- | --- |
 | `autofill.settings`, `autofill.setSettings` | Engine | The Mac reads and writes the profile's `autofill.profile_enabled` and `autofill.credit_card_enabled` prefs; no `ac_*` call touches prefs. Today Settings › Autofill shows both toggles on and disabled. |
-| Import's cookie batches (no verb) | Engine | `//ardia/win`'s `engineCall` (`api.cc`) copies the arguments into a plain `std::string` that is freed without being wiped, so each `ac_cookies_import` batch the app wipes after the reply leaves one copy in freed engine memory. The Mac passes them with `callWithSecret`; Windows needs the same: a sensitive call that wipes its copy. |
 | `autofill.showSuggestions` | Engine | Shows Chromium's autofill popup in a tab: a `tab.call` method. |
 | `bookmarks.exportHtml` | Engine (in progress) | The Mac picks a file and calls `ac_bookmarks_export_html`, which refuses Windows paths in the current engine. Then a handler with `ArdiaDialogs`' save dialog. |
 | `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
