@@ -7,6 +7,7 @@ const KEPT_PRESSES = 4;
 type SwitcherPress = { windowId: string; profileId: string; icons: boolean; corrected: boolean; at: number; matched: boolean };
 
 let presses: SwitcherPress[] = [];
+let reorders = 0;
 
 useTelemetry.subscribe((s, prev) => {
   if (prev.sharing && !s.sharing) presses = [];
@@ -24,4 +25,14 @@ export function switcherSwitchProperties(windowId: string, profileId: string, no
   if (!press) return { via_switcher: false };
   press.matched = true;
   return { via_switcher: true, switcher_icons: press.icons, switcher_corrected: press.corrected };
+}
+
+export function noteProfileSwitcherReorder() {
+  reorders++;
+}
+
+export function takeProfileSwitcherReorders() {
+  const taken = reorders;
+  reorders = 0;
+  return taken;
 }
