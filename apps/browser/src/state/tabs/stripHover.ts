@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { hoverHeld } from "../app/transientUi";
+import { useBrowser } from "../browser/store";
+import { noteStripHoverCard } from "../telemetry/stripHoverCards";
 import { tabDragging } from "../drag/tabDrag";
 import type { Anchor } from "../sidebar/sidebarUi";
 
@@ -29,6 +31,8 @@ async function show(target: Pointed, mine: number) {
   const anchor = await target.measure();
   if (mine !== ticket || pointed !== target || !anchor || tabDragging() || hoverHeld(target.windowId)) return;
   useStripHover.setState({ hover: { windowId: target.windowId, tabId: target.tabId, anchor } });
+  const s = useBrowser.getState();
+  noteStripHoverCard(s.tabs[target.tabId]?.profileId !== s.windows[target.windowId]?.profileId);
 }
 
 export function stripChipEntered(windowId: string, tabId: string, measure: () => Promise<Anchor | null>) {
@@ -65,6 +69,18 @@ export function dismissStripHover() {
 
 export function dismissStripHoverIn(windowId: string) {
   if (pointed?.windowId === windowId || useStripHover.getState().hover?.windowId === windowId) dismissStripHover();
+}
+
+export function stripPageOffstage(windowId: string, profileId: string) {
+  const tabs = useBrowser.getState().tabs;
+  const ofPage = (tabId: string) => tabs[tabId]?.profileId === profileId;
+  if (pointed?.windowId === windowId && ofPage(pointed.tabId)) {
+    pointed = null;
+    ticket++;
+    stop();
+  }
+  const hover = useStripHover.getState().hover;
+  if (hover?.windowId === windowId && ofPage(hover.tabId)) hide();
 }
 
 export function stripChipGone(windowId: string, tabId: string) {
