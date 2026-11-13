@@ -472,7 +472,7 @@ public final class TabStore: LocalBrowsingSource {
     var offset = 0
     let batch = max(limit, 200)
     while matches.count < limit {
-      var descriptor = FetchDescriptor<Visit>(sortBy: [SortDescriptor(\.visitedAt, order: .reverse)])
+      var descriptor = FetchDescriptor<Visit>(predicate: currentSpaceVisits, sortBy: [SortDescriptor(\.visitedAt, order: .reverse)])
       descriptor.fetchLimit = batch
       descriptor.fetchOffset = offset
       let page = (try? context.fetch(descriptor)) ?? []
@@ -481,6 +481,15 @@ public final class TabStore: LocalBrowsingSource {
       offset += batch
     }
     return Array(matches.prefix(limit))
+  }
+
+  private var currentSpaceVisits: Predicate<Visit>? {
+    guard spaces.isSplit else { return nil }
+    guard let current = spaces.current, current != spaces.defaultID else {
+      let otherSpaces: [String?] = Array(spaces.known.subtracting([spaces.defaultID].compactMap { $0 }))
+      return #Predicate { $0.profileSyncId == nil || !otherSpaces.contains($0.profileSyncId) }
+    }
+    return #Predicate { $0.profileSyncId == current }
   }
 
   public func removeVisitsInCurrentSpace(urls: Set<String>) {
