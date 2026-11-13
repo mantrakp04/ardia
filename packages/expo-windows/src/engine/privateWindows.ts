@@ -4,10 +4,12 @@ const OFF_THE_RECORD = "@";
 const CLOSED_WINDOW_RELEASE_MS = 1000;
 
 type Later = (run: () => void) => unknown;
+type Hold = { name: string; released: boolean; made: Promise<boolean>; make(): Promise<boolean> };
 
 const openWindows = new Map<string, number>();
 const heldReleases = new Set<string>();
 const releasedNames = new Set<string>();
+const refusedHolds = new Set<Hold>();
 let holds = 0;
 
 export const isPrivateName = (name: string) => name.includes(OFF_THE_RECORD);
@@ -58,9 +60,33 @@ export function holdPrivateSession(name: string, windowId: string): () => void {
   if (!isPrivateName(name) || !windowId || !engineAvailable()) return () => {};
   holds += 1;
   const key = `private-window:${windowId}:${holds}:${name}`;
-  const held = hostCall("tab.create", { key, url: "", profile: name }, windowId).then(
-    () => true,
-    () => false,
-  );
-  return () => void held.then((made) => (made ? hostCall("tab.close", { key }).catch(() => {}) : undefined));
+  const hold: Hold = { name, released: false, made: Promise.resolve(false), make: () => Promise.resolve(false) };
+  hold.make = () =>
+    hostCall("tab.create", { key, url: "", profile: name }, windowId).then(
+      () => {
+        refusedHolds.delete(hold);
+        privateSessionOpened(name);
+        return true;
+      },
+      () => {
+        if (!hold.released) refusedHolds.add(hold);
+        return false;
+      },
+    );
+  hold.made = hold.make();
+  return () => {
+    hold.released = true;
+    refusedHolds.delete(hold);
+    void hold.made.then((made) => (made ? hostCall("tab.close", { key }).catch(() => {}) : undefined));
+  };
+}
+
+export function privateSessionOpened(name: string) {
+  if (!isPrivateName(name)) return;
+  const parent = parentOf(name);
+  for (const hold of [...refusedHolds]) {
+    if (parentOf(hold.name) !== parent) continue;
+    refusedHolds.delete(hold);
+    hold.made = hold.made.then((made) => (made || hold.released ? made : hold.make()));
+  }
 }
