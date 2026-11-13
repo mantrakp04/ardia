@@ -135,6 +135,8 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     items: [
       "Time to the first window, profile switch time, and command bar speed (a sample of keystrokes)",
       "How long launches, new tabs, tab switches and page loads take, step by step (for a launch: until the engine is up, the interface starts, the first window and the restored page): times and counts only, summed up once an hour, with how many tabs were open",
+      "How many tabs a page opened were matched to your click on a link, opened at once because nothing was clicked or typed in that window in the 5 seconds before, or opened only after a 0.2 second wait for a click that never came, summed up once an hour",
+      `How many times ${keyText("⌘Y")} asked for the History search field, and how many of those put the cursor in it, summed up once an hour. Never what you searched`,
       `At launch, in rough ranges: how many tabs and windows came back, how much history there is, and whether it's the first launch since the ${PLATFORM_TERMS.computer} started`,
       "Memory use and the number of tabs, once an hour",
     ],
@@ -143,7 +145,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     title: "The ardia command",
     items: [
       "Each command's name (like history or browse snapshot), its exit and error codes, and the names of the options it was given, never their values",
-      "How long it took, step by step (starting up, starting its helper, connecting to Ardia, finding the tab, the command itself, waiting for the page to settle), plus counts and sizes: browser calls, steps in a batch, how many coding agents the install gave the agent skill to or skipped, the length of a page snapshot and of the output, how many requests an action sent, how many reading tabs it had to open again, and whether the output was cut short, the input humanized, it gave up waiting for its helper, it set a viewport size, you took back a tab it had sized or Ardia refused it a tab. Times, counts and yes or no only",
+      "How long it took, step by step (starting up, starting its helper, connecting to Ardia, finding the tab, the command itself, waiting for the page to settle), plus counts and sizes: browser calls, steps in a batch, how many coding agents the install gave the agent skill to or skipped, the length of a page snapshot and of the output, how many requests an action sent, how many reading tabs it had to open again, and whether the output was cut short, the input humanized, it gave up waiting for its helper, it set a viewport size, it reloaded a crashed page or Ardia refused it a tab. Times, counts and yes or no only",
       `Its version, ${PLATFORM_TERMS.os} version, chip and Python version, with this ${PLATFORM_TERMS.computer}'s install ID`,
       "After a crash: the error's type (with its message only when it's one of Python's fixed ones, like “division by zero”), and the module, function and line number of each step in the stack trace",
       "Nothing from commands pointed at a test browser (--port, --ws), and nothing at all with DO_NOT_TRACK=1 or ARDIA_TELEMETRY=0 set",

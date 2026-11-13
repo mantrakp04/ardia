@@ -88,7 +88,6 @@ chromium chromium-background-instance-no-default-handlers.patch
 chromium chromium-apple-passwords-host-skipped.patch
 chromium chromium-extension-tab-move-closing-window.patch
 chromium chromium-webstore-icon-optional.patch
-chromium chromium-restored-frame-gate.patch
 chromium chromium-ardia-layer.patch
 
 layer engine/chromium

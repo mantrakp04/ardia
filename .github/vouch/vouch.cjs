@@ -12,7 +12,7 @@ const LABEL_SPECS = [
   { name: DENOUNCED, color: "d1242f", description: "The author is denounced" },
   { name: RUN_CI, color: "0969da", description: "A maintainer started CI for this pull request" },
 ];
-const GATED_WORKFLOWS = ["ios.yml"];
+const GATED_WORKFLOWS = ["ios.yml", "android.yml"];
 const GATE_JOB = "gate";
 const TRUSTED_STATUSES = ["bot", "collaborator", "vouched"];
 const WRITE_PERMISSIONS = ["admin", "write"];

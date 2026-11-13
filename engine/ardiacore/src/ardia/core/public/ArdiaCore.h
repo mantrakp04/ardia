@@ -205,6 +205,7 @@ ARDIACORE_EXPORT
                          foreground:(BOOL)foreground;
 - (void)placeTab:(ArdiaCoreTab*)tab index:(int)index pinned:(BOOL)pinned;
 @property(nonatomic) BOOL internal;
+@property(nonatomic) BOOL automation;
 @end
 
 @interface ArdiaCoreWindow (Picture)
@@ -363,8 +364,7 @@ ARDIACORE_EXPORT
 - (void)copyPicture:(NSTimeInterval)timeout completion:(void (^)(CGImageRef _Nullable picture))completion;
 - (BOOL)stopCapture;
 - (void)noteShownByHost:(BOOL)shown;
-- (BOOL)noteInShownSlot;
-- (void)whenSizeRestored:(void (^)(NSString* proof))restored;
+- (void)noteInShownSlot;
 - (void)exitFullscreen;
 - (void)exitExclusiveAccess;
 - (void)tracePictureInPicture:(NSString*)line withInputs:(BOOL)withInputs;

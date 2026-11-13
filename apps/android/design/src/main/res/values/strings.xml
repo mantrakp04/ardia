@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ardia_new_tab">New Tab</string>
+    <string name="ardia_loading_page">Loading %1$s</string>
+    <string name="ardia_your_mac">Your Mac</string>
+    <string name="ardia_step_done">Step %1$d, done</string>
+    <string name="ardia_step_current">Step %1$d</string>
+    <string name="ardia_step_upcoming">Step %1$d, later</string>
+    <string name="ardia_toast_copied_url">Copied URL</string>
+    <string name="ardia_toast_copied_url_without_trackers">Copied URL Without Trackers</string>
+    <string name="ardia_toast_cleared_browsing_data">Cleared Browsing Data</string>
+    <string name="ardia_toast_no_open_tabs">No Open Tabs</string>
+    <string name="ardia_toast_sync_connected">Syncing With Your Mac</string>
+    <string name="ardia_toast_tab_from">Tab from %1$s</string>
+    <string name="ardia_toast_sent_to">Sent to %1$s</string>
+    <string name="ardia_toast_downloaded">Downloaded %1$s</string>
+    <string name="ardia_toast_download_failed">Couldn’t Download File</string>
+    <string name="ardia_toast_download_failed_named">Couldn’t Download %1$s</string>
+    <string name="ardia_color">Color</string>
+    <string name="ardia_match_my_mac">Match My Mac</string>
+    <string name="ardia_color_plum">Plum</string>
+    <string name="ardia_color_blue">Blue</string>
+    <string name="ardia_color_purple">Purple</string>
+    <string name="ardia_color_pink">Pink</string>
+    <string name="ardia_color_red">Red</string>
+    <string name="ardia_color_orange">Orange</string>
+    <string name="ardia_color_yellow">Yellow</string>
+    <string name="ardia_color_green">Green</string>
+    <string name="ardia_color_neutral">Neutral</string>
+    <plurals name="ardia_toast_tabs_from">
+        <item quantity="one">%1$d Tab from %2$s</item>
+        <item quantity="other">%1$d Tabs from %2$s</item>
+    </plurals>
+</resources>

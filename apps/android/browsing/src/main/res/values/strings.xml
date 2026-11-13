@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="browsing_tabs">Tabs</string>
+    <plurals name="browsing_tab_count">
+        <item quantity="one">%1$d tab</item>
+        <item quantity="other">%1$d tabs</item>
+    </plurals>
+    <string name="browsing_tabs_hint">Touch and hold for recent tabs.</string>
+    <string name="browsing_previous_tab">Previous Tab</string>
+    <string name="browsing_next_tab">Next Tab</string>
+    <string name="browsing_close_tab">Close Tab</string>
+    <string name="browsing_new_search">New Search</string>
+    <string name="browsing_page_menu">Page Menu</string>
+
+    <string name="browsing_back">Back</string>
+    <string name="browsing_forward">Forward</string>
+    <string name="browsing_pin_to_mac">Pin to Mac</string>
+    <string name="browsing_stop">Stop</string>
+    <string name="browsing_reload">Reload</string>
+    <string name="browsing_edits_search">Edits the search</string>
+    <string name="browsing_reader">Reader</string>
+    <string name="browsing_copy_link">Copy Link</string>
+    <string name="browsing_share">Share</string>
+    <string name="browsing_find_on_page">Find on Page</string>
+    <string name="browsing_translate">Translate</string>
+    <string name="browsing_send_to">Send to %1$s</string>
+    <string name="browsing_send_to_device">Send to Device</string>
+    <string name="browsing_night_shade">Night Shade</string>
+    <string name="browsing_page_zoom">Page Zoom</string>
+    <string name="browsing_zoom_out">Zoom Out</string>
+    <string name="browsing_zoom_in">Zoom In</string>
+    <string name="browsing_reset_zoom">Reset Zoom</string>
+    <string name="browsing_desktop_site">Desktop Site</string>
+    <string name="browsing_block_ads_and_trackers">Block Ads and Trackers</string>
+    <string name="browsing_blocked">Blocked</string>
+    <string name="browsing_open_in_default_browser">Open in Default Browser</string>
+    <string name="browsing_site_settings">Site Settings</string>
+    <string name="browsing_translate_title">Translate with Google?</string>
+    <string name="browsing_translate_message">Google will see this page’s address.</string>
+    <string name="browsing_cancel">Cancel</string>
+    <string name="browsing_close">Close</string>
+
+    <string name="browsing_block_ads">Block Ads</string>
+    <string name="browsing_block_trackers">Block Trackers</string>
+    <string name="browsing_block_cookie_banners">Block Cookie Banners</string>
+    <string name="browsing_filter_lists">Filter Lists</string>
+    <string name="browsing_trusted_sites">Trusted Sites</string>
+    <string name="browsing_none">None</string>
+    <string name="browsing_swipe_to_navigate">Swipe to Navigate</string>
+    <string name="browsing_collapse_bottom_bar">Collapse Bottom Bar</string>
+    <string name="browsing_site_settings_footer">Change one site from its page menu.</string>
+    <string name="browsing_night_shade_off">Off</string>
+    <string name="browsing_night_shade_automatic">Automatic</string>
+    <string name="browsing_night_shade_always">Always</string>
+    <string name="browsing_swipe_anywhere">From Anywhere</string>
+    <string name="browsing_swipe_edges">From Screen Edges</string>
+    <string name="browsing_swipe_off">Off</string>
+
+    <string name="browsing_done">Done</string>
+    <string name="browsing_no_article">No Article Found</string>
+    <string name="browsing_loading_article">Loading article</string>
+    <string name="browsing_text_appearance">Text Appearance</string>
+    <string name="browsing_smaller_text">Smaller Text</string>
+    <string name="browsing_larger_text">Larger Text</string>
+    <string name="browsing_font">Font</string>
+    <string name="browsing_font_serif">Serif</string>
+    <string name="browsing_font_sans">Sans Serif</string>
+    <string name="browsing_theme">Theme</string>
+    <string name="browsing_theme_light">Light</string>
+    <string name="browsing_theme_sepia">Sepia</string>
+    <string name="browsing_theme_dark">Dark</string>
+    <string name="browsing_minutes_read">%1$d min read</string>
+
+    <string name="browsing_find_placeholder">Find on Page</string>
+    <string name="browsing_find_count">%1$d of %2$d</string>
+    <string name="browsing_find_none">No matches</string>
+    <string name="browsing_previous_match">Previous Match</string>
+    <string name="browsing_next_match">Next Match</string>
+
+    <string name="browsing_ok">OK</string>
+    <string name="browsing_open">Open</string>
+    <string name="browsing_user_name">User Name</string>
+    <string name="browsing_password">Password</string>
+    <string name="browsing_sign_in">Sign In</string>
+    <string name="browsing_dont_allow">Don’t Allow</string>
+    <string name="browsing_allow">Allow</string>
+    <string name="browsing_take_photo">Take Photo</string>
+    <string name="browsing_record_video">Record Video</string>
+    <string name="browsing_choose_file">Choose File</string>
+    <string name="browsing_choose_files">Choose Files</string>
+
+    <string name="browsing_open_in_new_tab">Open in New Tab</string>
+    <string name="browsing_open_in_background">Open in Background</string>
+    <string name="browsing_share_ellipsis">Share…</string>
+    <string name="browsing_download_linked_file">Download Linked File</string>
+    <string name="browsing_save_image">Save Image</string>
+
+    <string name="browsing_try_again">Try Again</string>
+    <string name="browsing_reloading">Reloading</string>
+    <string name="browsing_exit_full_screen">Exit Full Screen</string>
+</resources>
