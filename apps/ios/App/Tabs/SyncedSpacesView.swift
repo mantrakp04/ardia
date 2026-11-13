@@ -32,7 +32,12 @@ struct SyncedSpacesView: View {
         .tabViewStyle(.page(indexDisplayMode: .never))
         .safeAreaInset(edge: .bottom, spacing: 0) {
           if profiles.count > 1 {
-            SpaceSwitcher(profiles: profiles, selection: $selection)
+            SpacePageDots(count: profiles.count, index: profiles.firstIndex { $0.syncId == selection } ?? 0)
+              .padding(.horizontal, 22)
+              .frame(height: BrowseLayout.hitTarget)
+              .chromeSurface(in: .capsule, interactive: false)
+              .padding(.top, Spacing.tight)
+              .frame(maxWidth: .infinity)
           }
         }
       }
@@ -51,44 +56,26 @@ struct SyncedSpacesView: View {
     .onChange(of: selection) { old, new in
       guard let new, old != nil, new != app.tabs.profileSyncId else { return }
       switchTicks += 1
-      app.switchProfile(to: new)
+      app.switchSpace(to: new)
     }
   }
 
   private var header: some View {
-    HStack(alignment: .center, spacing: Spacing.small) {
-      Text(currentProfile?.name ?? String(localized: "Spaces"))
-        .font(.system(.title2, weight: .semibold))
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
-        .contentTransition(.opacity)
-        .animation(.easeOut(duration: 0.2), value: selection)
-        .accessibilityAddTraits(.isHeader)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    HStack(alignment: .center, spacing: TabsLayout.barGap) {
+      SpaceSwitcher(spaces: app.sync.snapshot.profiles, current: currentProfile, fallbackTitle: "Spaces") { id in
+        withAnimation(Motion.snappy) { selection = id }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
       Group {
-        headerButton("archivebox", label: "Archive") { app.openArchive() }
-        headerButton("xmark", label: "Close") { dismiss() }
+        GlassCircleButton(symbol: "archivebox", label: "Archive", diameter: TabsLayout.headerCircle) { app.openArchive() }
+        GlassCircleButton(symbol: "xmark", label: "Close", diameter: TabsLayout.headerCircle) { dismiss() }
       }
       .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
     .padding(.leading, Spacing.medium + 4)
     .padding(.trailing, Spacing.page)
-    .padding(.top, Spacing.medium)
+    .padding(.top, Spacing.small)
     .padding(.bottom, Spacing.tight)
-  }
-
-  private func headerButton(_ symbol: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.subheadline.weight(.bold))
-        .foregroundStyle(.secondary)
-        .frame(width: 32, height: 32)
-        .background(.primary.opacity(0.1), in: .circle)
-        .frame(width: 44, height: 44)
-        .contentShape(.circle)
-    }
-    .buttonStyle(PressableStyle())
-    .accessibilityLabel(label)
   }
 
   private var currentProfile: SyncedProfile? {
@@ -135,7 +122,7 @@ private struct SpacePage: View {
   var body: some View {
     List {
       if !profile.pinned.tiles.isEmpty {
-        PinnedTileGrid(tiles: profile.pinned.tiles, open: open)
+        PinnedTiles(tiles: profile.pinned.tiles, open: open)
           .spaceRow(insets: EdgeInsets(top: Spacing.tight, leading: Spacing.medium, bottom: Spacing.small, trailing: Spacing.medium))
       }
       ForEach(profile.pinned.sections) { section in
@@ -207,77 +194,6 @@ private extension View {
   }
 }
 
-private struct PinnedTileGrid: View {
-  let tiles: [PinnedTile]
-  let open: (String, String) -> Void
-  @ScaledMetric(relativeTo: .caption) private var scaledTileHeight: CGFloat = 56
-  @Environment(\.dynamicTypeSize) private var typeSize
-
-  private var tileHeight: CGFloat { min(scaledTileHeight, 72) }
-
-  var body: some View {
-    LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: Spacing.tight)], spacing: Spacing.tight) {
-      ForEach(tiles) { tile in
-        if let folder = tile.folder, !folder.isEmpty {
-          Menu {
-            ForEach(folder) { tab in
-              Button(tab.title.isEmpty ? (BrowserURL.host(of: tab.url) ?? tab.url) : tab.title) { open(tab.url, tab.title) }
-            }
-          } label: {
-            PinnedTileView(title: tile.title, url: tile.url, isFolder: true, height: tileHeight, showsTitle: !typeSize.isAccessibilitySize)
-          }
-          .buttonStyle(.plain)
-        } else {
-          Button { open(tile.url, tile.title) } label: {
-            PinnedTileView(title: tile.title, url: tile.url, isFolder: false, height: tileHeight, showsTitle: !typeSize.isAccessibilitySize)
-          }
-          .buttonStyle(PressableStyle())
-        }
-      }
-    }
-  }
-}
-
-private struct PinnedTileView: View {
-  let title: String
-  let url: String
-  let isFolder: Bool
-  let height: CGFloat
-  let showsTitle: Bool
-  @Environment(\.colorScheme) private var colorScheme
-
-  var body: some View {
-    VStack(spacing: 6) {
-      ZStack {
-        RoundedRectangle(cornerRadius: TabsLayout.tileRadius, style: .continuous)
-          .fill(colorScheme == .dark ? Color.white.opacity(0.1) : Color.white.opacity(0.7))
-        if isFolder {
-          Image(systemName: "folder.fill")
-            .font(.system(size: 20))
-            .foregroundStyle(.secondary)
-        } else {
-          FaviconImage(iconURL: nil, pageURL: url, size: 24)
-        }
-      }
-      .frame(height: height)
-      if showsTitle {
-        Text(label)
-          .font(.caption.weight(.medium))
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-      }
-    }
-    .contentShape(.rect)
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(label)
-    .accessibilityAddTraits(.isButton)
-  }
-
-  private var label: String {
-    title.isEmpty ? (BrowserURL.host(of: url) ?? "") : title
-  }
-}
-
 private struct PinnedSectionRow: View {
   let section: PinnedSection
   let open: (String, String) -> Void
@@ -344,59 +260,6 @@ private struct RemoteRow: View {
         Button("Copy Link", systemImage: "link") { UIPasteboard.general.url = link }
         ShareLink(item: link) { Label("Share", systemImage: "square.and.arrow.up") }
       }
-    }
-  }
-}
-
-private struct SpaceSwitcher: View {
-  let profiles: [SyncedProfile]
-  @Binding var selection: String?
-
-  var body: some View {
-    ScrollView(.horizontal) {
-      HStack(spacing: 0) {
-        ForEach(profiles) { profile in
-          let isSelected = selection == profile.syncId
-          Button {
-            withAnimation(Motion.snappy) { selection = profile.syncId }
-          } label: {
-            SpaceGlyph(profile: profile)
-              .opacity(isSelected ? 1 : 0.35)
-              .frame(width: 52, height: 36)
-              .contentShape(.rect)
-          }
-          .buttonStyle(PressableStyle())
-          .accessibilityLabel(profile.name)
-          .accessibilityAddTraits(isSelected ? .isSelected : [])
-        }
-      }
-      .padding(.horizontal, Spacing.tight)
-    }
-    .scrollIndicators(.hidden)
-    .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-    .frame(height: 44)
-    .fixedSize(horizontal: profiles.count <= 6, vertical: false)
-    .background(.primary.opacity(0.06), in: .capsule)
-    .overlay(Capsule().strokeBorder(.primary.opacity(0.15), lineWidth: 0.5))
-    .padding(.horizontal, Spacing.page)
-    .padding(.top, Spacing.tight)
-    .padding(.bottom, Spacing.hairline)
-    .frame(maxWidth: .infinity)
-  }
-}
-
-private struct SpaceGlyph: View {
-  let profile: SyncedProfile
-
-  var body: some View {
-    if let symbol = SpaceColors.symbol(profile.icon) {
-      Image(systemName: symbol)
-        .font(.system(size: 19, weight: .semibold))
-        .foregroundStyle(.primary)
-    } else {
-      Circle()
-        .fill(.primary)
-        .frame(width: 9, height: 9)
     }
   }
 }

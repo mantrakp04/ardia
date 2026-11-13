@@ -59,9 +59,81 @@ struct SiteSettingsPage: View {
       } footer: {
         Text("Change one site from its page menu.")
       }
+
+      AllowedSitesSection(permissions: app.preferences.sitePermissions)
     }
     .navigationTitle("Site Settings")
     .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+private struct AllowedSitesSection: View {
+  let permissions: SitePermissions
+  @Environment(AppModel.self) private var app
+  @State private var revoking: SitePermissionGrant?
+
+  var body: some View {
+    Section {
+      if permissions.grants.isEmpty {
+        Text("None")
+          .foregroundStyle(.secondary)
+      }
+      ForEach(permissions.grants) { grant in
+        Button {
+          revoking = grant
+        } label: {
+          AllowedSiteRow(grant: grant)
+        }
+        .tint(.primary)
+        .swipeActions {
+          Button("Revoke", role: .destructive) {
+            app.web.revokeCapture(grant.permissions, origin: grant.origin)
+          }
+        }
+      }
+    } header: {
+      Text("Camera, Microphone and Location")
+    } footer: {
+      Text("Sites you allowed keep access on this iPhone until you revoke it. Private tabs always ask.")
+    }
+    .confirmationDialog(revoking?.host ?? "", isPresented: isRevoking, titleVisibility: .visible, presenting: revoking) { grant in
+      if grant.permissions.count > 1 {
+        ForEach(grant.permissions.sorted(), id: \.self) { permission in
+          Button("Revoke \(permission.name)", role: .destructive) {
+            app.web.revokeCapture([permission], origin: grant.origin)
+          }
+        }
+      }
+      Button(grant.permissions.count > 1 ? "Revoke All" : "Revoke \(grant.summary)", role: .destructive) {
+        app.web.revokeCapture(grant.permissions, origin: grant.origin)
+      }
+    } message: { grant in
+      Text("Allowed: \(grant.summary)")
+    }
+  }
+
+  private var isRevoking: Binding<Bool> {
+    Binding { revoking != nil } set: { if !$0 { revoking = nil } }
+  }
+}
+
+private struct AllowedSiteRow: View {
+  let grant: SitePermissionGrant
+
+  var body: some View {
+    HStack(spacing: Spacing.small) {
+      FaviconImage(iconURL: nil, pageURL: grant.origin, size: SiteRow.favicon)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(verbatim: grant.host)
+          .foregroundStyle(.primary)
+        Text(grant.summary)
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityHint("Revoke access")
   }
 }
 

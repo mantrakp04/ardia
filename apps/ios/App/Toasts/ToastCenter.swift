@@ -1,3 +1,4 @@
+import ArdiaDesign
 import Observation
 import SwiftUI
 import UIKit
@@ -7,6 +8,8 @@ import UIKit
 final class ToastCenter {
   private(set) var current: Toast?
   private(set) var isKeyboardVisible = false
+  var usesGlass = true
+  var look = ProfileLook.plum
   @ObservationIgnored private var dismissal: Task<Void, Never>?
   @ObservationIgnored private var isHeld = false
   @ObservationIgnored private var keyboardWatchers: [Task<Void, Never>] = []

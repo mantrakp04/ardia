@@ -3,79 +3,58 @@ import ArdiaDesign
 import SwiftUI
 
 struct BottomBar: View {
-  let isSearchPresented: Bool
-  var sideInset: CGFloat = 0
-  var onTabs: () -> Void
-  var onPlus: () -> Void
-  var onMore: () -> Void
-  var onStep: (Int) -> Void = { _ in }
-  var onSelectTab: (UUID) -> Void = { _ in }
-  var onCloseTab: () -> Void = {}
+  enum Arrangement {
+    case row
+    case column(ScreenLayout.SideColumn, CGSize)
+  }
 
-  @Environment(AppModel.self) private var app
+  let address: BarAddress
+  let isCollapsed: Bool
+  var arrangement = Arrangement.row
+  var sideInset: CGFloat = 0
+  let actions: BarActions
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    let order = app.deckOrder
-    HStack(spacing: 0) {
-      Button(action: onTabs) {
-        TabStackGlyph(tabs: Array(order.suffix(2)))
-          .frame(width: BrowseLayout.hitTarget, height: BrowseLayout.hitTarget)
-          .contentShape(.circle)
+    if case .column(let column, let size) = arrangement {
+      SideColumnStack(column: column, size: size) {
+        BarTabsButton(actions: actions)
+        BarSiteButton(address: address, action: actions.onAddress)
+        BarRoundMenuButton(action: actions.onMore)
+        BarPlusButton(action: actions.onPlus)
       }
-      .buttonStyle(BarButtonStyle())
-      .contextMenu { recentTabsMenu(order) }
-      .accessibilityLabel("Tabs")
-      .accessibilityValue(Text("^[\(order.count) tab](inflect: true)"))
-      .accessibilityHint("Touch and hold for recent tabs.")
-      .accessibilityActions {
-        Button("Previous Tab") { onStep(-1) }
-        Button("Next Tab") { onStep(1) }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-
-      ZStack {
-        if !isSearchPresented {
-          Button(action: onPlus) {
-            Image(systemName: "plus")
-              .font(.system(size: 18, weight: .semibold))
-              .foregroundStyle(BrowsePalette.foregroundPrimary)
-              .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
-              .background(BrowsePalette.fieldFill, in: .capsule)
-              .contentShape(.capsule)
-          }
-          .buttonStyle(BarButtonStyle())
-          .transition(.opacity)
-          .accessibilityLabel("New Search")
-        }
-      }
-      .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
-
-      Button(action: onMore) {
-        Image(systemName: "chevron.up")
-          .font(.system(size: 16, weight: .semibold))
-          .foregroundStyle(BrowsePalette.foregroundPrimary)
-          .frame(width: BrowseLayout.hitTarget, height: BrowseLayout.hitTarget)
-          .contentShape(.circle)
-      }
-      .buttonStyle(BarButtonStyle())
-      .accessibilityLabel("Page Menu")
-      .frame(maxWidth: .infinity, alignment: .trailing)
+    } else {
+      rowBar
     }
-    .padding(BrowseLayout.barPillPadding)
-    .frame(height: BrowseLayout.barPillHeight)
-    .glassEffect(.regular.interactive(), in: .capsule)
-    .contentShape(.capsule)
-    .padding(.horizontal, sideInset + BrowseLayout.barSideInset)
+  }
+
+  private var rowBar: some View {
+    ZStack(alignment: .bottom) {
+      if isCollapsed {
+        BarCollapsedPill(address: address, action: actions.onExpand)
+          .transition(.scale(scale: reduceMotion ? 1 : 1 / BrowseLayout.barCollapsedScale, anchor: .bottom).combined(with: .opacity))
+      } else {
+        expanded
+          .transition(.scale(scale: reduceMotion ? 1 : BrowseLayout.barCollapsedScale, anchor: .bottom).combined(with: .opacity))
+      }
+    }
+    .frame(maxWidth: .infinity)
+    .padding(.horizontal, sideInset + BrowseLayout.barEdgeInset)
   }
 
   @ViewBuilder
-  private func recentTabsMenu(_ order: [BrowserTab]) -> some View {
-    let recent = order.dropLast().suffix(8).reversed()
-    ForEach(Array(recent)) { tab in
-      Button(TabText.title(for: tab)) { onSelectTab(tab.id) }
+  private var expanded: some View {
+    switch arrangement {
+    case .row:
+      HStack(spacing: BrowseLayout.barGap) {
+        BarTabsButton(actions: actions)
+        BarAddressField(address: address, onAddress: actions.onAddress, onMore: actions.onMore)
+        BarPlusButton(action: actions.onPlus)
+      }
+    case .column:
+      EmptyView()
     }
-    if !recent.isEmpty { Divider() }
-    Button("Close Tab", systemImage: "xmark", role: .destructive, action: onCloseTab)
   }
 }
 
