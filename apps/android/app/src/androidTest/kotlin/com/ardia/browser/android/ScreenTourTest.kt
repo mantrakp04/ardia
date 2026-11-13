@@ -161,7 +161,7 @@ class ScreenTourTest(private val theme: String, private val state: TourState) {
                 tap("Get Started")
                 tap("Continue")
                 tap("Maybe Later")
-                tap("Not Now")
+                tap("Continue")
             })
         }
 
