@@ -45,7 +45,7 @@ export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet:
 
 const lastVisits = new Map<string, Visit>();
 
-const SNAPSHOT_SETTLE_MS = 600;
+const SNAPSHOT_SETTLE_MS = 700;
 const DECK_SNAPSHOT_WAIT_MS = 400;
 
 let started = false;
@@ -218,6 +218,12 @@ function pageEvent(event: PageEngineEvent) {
 
 const loading = new Map<string, boolean>();
 const snapshotTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+export function captureCurrentCover() {
+  const id = currentTabs().selectedId;
+  if (!id || loading.get(id) !== false) return;
+  void captureSnapshot(id);
+}
 
 export async function captureSnapshot(id: string) {
   const snapshot = await snapshotPage(id);

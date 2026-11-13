@@ -16,9 +16,9 @@ export type TabPager = {
   dim: ReturnType<typeof useAnimatedStyle>;
 };
 
-type Options = { width: number; selectedId: string | null; left: string | null; right: string | null; onCommit: (id: string) => void };
+type Options = { width: number; selectedId: string | null; left: string | null; right: string | null; onCommit: (id: string) => void; onGrab: () => void };
 
-export function useTabPager({ width, selectedId, left, right, onCommit }: Options): TabPager {
+export function useTabPager({ width, selectedId, left, right, onCommit, onGrab }: Options): TabPager {
   const offset = useSharedValue(0);
   const active = useSharedValue(0);
   const base = useSharedValue(0);
@@ -46,6 +46,7 @@ export function useTabPager({ width, selectedId, left, right, onCommit }: Option
     .activeOffsetX([-PAGER.minimumDistance, PAGER.minimumDistance])
     .failOffsetY([-PAGER.minimumDistance, PAGER.minimumDistance])
     .onStart(() => {
+      if (!active.value) runOnJS(onGrab)();
       active.value = 1;
       base.value = offset.value;
     })

@@ -7,7 +7,7 @@ import { neighbours } from "../../lib/pagerPhysics";
 import { useFrozenOrder, useNavigation, usePageTone } from "../../state/browse/hooks";
 import { openPageMenu } from "../../state/page/actions";
 import { useFindOpen, useMenuOpen, useReaderTabId } from "../../state/page/hooks";
-import { newTab, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
+import { captureCurrentCover, newTab, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
 import { useDeckOrder } from "../../state/tabs/hooks";
 import type { BrowserTab } from "../../state/tabs/tabModels";
@@ -37,7 +37,7 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const around = useMemo(() => neighbours(swipeOrder(), tab.id), [order, frozen, tab.id]);
   const left = around.left ? byId.get(around.left) ?? null : null;
   const right = around.right ? byId.get(around.right) ?? null : null;
-  const pager = useTabPager({ width, selectedId: tab.id, left: left?.id ?? null, right: right?.id ?? null, onCommit: switchToNeighbour });
+  const pager = useTabPager({ width, selectedId: tab.id, left: left?.id ?? null, right: right?.id ?? null, onCommit: switchToNeighbour, onGrab: captureCurrentCover });
   const top = tone?.top ?? theme.surface;
   const bottom = tone?.bottom ?? theme.surface;
   const barDark = isDarkColor(bottom);

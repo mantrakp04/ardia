@@ -8,7 +8,6 @@ import { StartScreen } from "./components/search/StartScreen";
 import { ArchiveView } from "./components/tabs/ArchiveView";
 import { TabDeck } from "./components/tabs/TabDeck";
 import { ToastHost } from "./components/toasts/ToastHost";
-import { ink } from "./components/ui";
 import { useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
@@ -35,7 +34,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <StatusBar translucent backgroundColor={ink.clear} barStyle={dark ? "light-content" : "dark-content"} />
+        <StatusBar barStyle={dark ? "light-content" : "dark-content"} />
         {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
         {surface === "deck" ? <TabDeck /> : null}
         {surface === "start" ? <StartScreen /> : null}
