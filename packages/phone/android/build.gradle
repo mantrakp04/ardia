@@ -6,8 +6,11 @@ plugins {
 group = 'com.ardia.phone'
 version = '0.0.0'
 
-def pageEngine = file("${projectDir}/../../../apps/android/browser/src/main")
+def androidApp = file("${projectDir}/../../../apps/android")
+def pageEngine = file("${androidApp}/browser/src/main")
+def contentBlocking = file("${androidApp}/blocking/src/main")
 def pageEngineOutsideThisModule = ['**/Omnibox.kt', '**/PageSurface.kt']
+def kotlinVersion = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt.getKotlinPluginVersion(project)
 
 android {
   namespace "com.ardia.browser"
@@ -17,10 +20,14 @@ android {
   }
   sourceSets {
     main {
-      java.srcDirs += "${pageEngine}/kotlin"
+      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin"]
       assets.srcDirs += "${pageEngine}/assets"
       res.srcDirs += "${pageEngine}/res"
+      resources.srcDirs += "${contentBlocking}/resources"
     }
+  }
+  testOptions {
+    unitTests.returnDefaultValues = true
   }
 }
 
@@ -29,7 +36,12 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
 }
 
 dependencies {
+  kotlinCompilerPluginClasspath "org.jetbrains.kotlin:kotlin-serialization-compiler-plugin-embeddable:${kotlinVersion}"
+  implementation "androidx.core:core:1.16.0"
   implementation "androidx.webkit:webkit:1.18.0"
   implementation "com.squareup.okhttp3:okhttp:4.12.0"
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
+  implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0"
+  implementation "com.google.re2j:re2j:1.8"
+  testImplementation "junit:junit:4.13.2"
 }

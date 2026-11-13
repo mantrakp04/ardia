@@ -1,6 +1,6 @@
 {
   "platforms": ["android"],
   "android": {
-    "modules": ["com.ardia.phone.PageViewModule"]
+    "modules": ["com.ardia.phone.PageViewModule", "com.ardia.phone.BlockingModule", "com.ardia.phone.DownloadsModule"]
   }
 }

@@ -6,11 +6,10 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.ardia.browser.Page
 import com.ardia.browser.PageColors
-import com.ardia.browser.PageSetup
 import com.ardia.browser.PageState
 import com.ardia.browser.PageTone
-import com.ardia.browser.VisitKind
 import expo.modules.kotlin.AppContext
+import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
 import kotlin.math.roundToInt
@@ -30,9 +29,13 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     private var scope: CoroutineScope? = null
     private var sampled: PageTone? = null
     private var sentTone: PageTone? = null
+    private var failedId: String? = null
 
     var pageId: String? = null
     var initialUrl: String? = null
+    var title: String? = null
+    var isPrivate: Boolean = false
+    var savedState: String? = null
     var toneInsets: Pair<Double, Double> = 0.0 to 0.0
     var page: Page? = null
         private set
@@ -43,9 +46,15 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     fun bind() {
         val id = pageId ?: return
-        if (page?.id == id) return
+        if (page?.id == id || failedId == id) return
         unbind()
-        val opened = PhonePages.engine(context).open(id, initialUrl?.let { PageSetup.fresh(it, VisitKind.Typed) } ?: PageSetup())
+        val opened = try {
+            PhonePages.open(context, id, PhonePages.setup(initialUrl, title, isPrivate, savedState))
+        } catch (error: CodedException) {
+            failedId = id
+            onPageEvent(mapOf("name" to "error", "code" to error.code, "message" to (error.message ?: error.code)))
+            return
+        }
         page = opened
         val running = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         scope = running
@@ -58,9 +67,15 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
         scope?.cancel()
         scope = null
         page = null
+        failedId = null
         sampled = null
         sentTone = null
         host.removeAllViews()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        page?.id?.let(PhonePages::activate)
     }
 
     private fun show(view: View?) {
@@ -72,19 +87,11 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     }
 
     private fun sendState(state: PageState) {
-        onPageEvent(
-            buildMap {
-                put("name", "state")
-                state.url?.let { put("url", it) }
-                put("title", state.title)
-                put("progress", state.progress.toDouble())
-                put("isLoading", state.isLoading)
-                put("canGoBack", state.canGoBack)
-                put("canGoForward", state.canGoForward)
-            },
-        )
+        onPageEvent(present(mapOf("name" to "state") + PagePayloads.state(context, state, page?.isPrivate ?: isPrivate)))
         sendTone(state)
     }
+
+    private fun present(fields: Map<String, Any?>): Map<String, Any> = buildMap { fields.forEach { (key, value) -> if (value != null) put(key, value) } }
 
     private fun sendTone(state: PageState) {
         val tone = PageTone.resolve(state.themeColor, state.backgroundColor, sampled, stored = null)
