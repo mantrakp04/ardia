@@ -535,7 +535,10 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   - **Denied schemes** stay Chromium's own (`ExternalProtocolHandler`), which run before the engine's hook, as on
     the Mac.
   - **Self-check** (`selfCheck/externalApps.ts`): `describe` names no handler and `open` opens nothing for browser,
-    one-letter, path, file-type (`txtfile`) and unknown schemes. It never launches anything.
+    one-letter, path, file-type (`txtfile`) and unknown schemes. It launches nothing unless the test instance sets
+    `ARDIA_TEST=externalAppLaunch=1`: then each link in the data folder's `external-app-links.txt` goes through the
+    real gate and launch, which must name a handler, open nothing on no and open on yes (a line starting `! ` must
+    stay refused). The VM run uses that with a throwaway handler registered under `HKCU`.
 - `bookmarks.exportHtml` and `passwords.export`: `ArdiaDialogs.saveFile` (a Windows save panel, `SaveDialog.h`; the
   password one carries the Mac's warning that anyone who can open the file can read the passwords), then
   `ac_bookmarks_export_html` or `ac_passwords_export`, which asks Windows to confirm it is you before it writes
