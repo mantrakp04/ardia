@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { newUuid } from "../../lib/ids";
-import { deletePageSnapshots, endPages, endPrivateSession } from "../pages/store";
+import { deletePageSnapshots, endPages, endPrivateSession, savePageState } from "../pages/store";
 import { currentPreferences, setPreference } from "../settings/store";
 import {
   countArchivedTabs,
@@ -57,10 +57,19 @@ function apply(change: TabsChange) {
   const cleared = change.clearArchived ? deleteArchivedTabs(db) : [];
   const listed = change.put.some((t) => !t.isPrivate) || change.remove.length > 0;
   useTabs.setState((s) => ({ ...change.data, listing: listed ? s.listing + 1 : s.listing }));
-  endPages(change.endedPages);
+  const archived = new Set(change.put.filter((t) => t.archivedAt !== null && !t.isPrivate).map((t) => t.id));
+  endPages(change.endedPages.filter((id) => !archived.has(id)));
+  for (const id of change.endedPages) if (archived.has(id)) void saveAndEnd(id);
   deletePageSnapshots([...change.remove, ...cleared]);
   for (const id of change.endedPages) privateStates.delete(id);
   if (hadPrivate && change.data.privates.length === 0) endPrivateSession();
+}
+
+async function saveAndEnd(id: string) {
+  const saved = await savePageState(id);
+  if (saved) writeTabState(browserDatabase(), id, saved);
+  const { open, privates } = data();
+  if (!open.some((t) => t.id === id) && !privates.some((t) => t.id === id)) endPages([id]);
 }
 
 export function tabSavedState(id: string): string | null {
