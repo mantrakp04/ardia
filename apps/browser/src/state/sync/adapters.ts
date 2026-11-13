@@ -36,9 +36,10 @@ export function sharedDataAdapter(links: () => Record<string, ShareLink>, remove
       const values = new Map<string, unknown>();
       for (const [id, link] of Object.entries(all)) {
         const ownerId = store().profiles[id]?.dataId;
-        if (!synced(id) || !ownerId || ownerId === id || !synced(ownerId)) continue;
+        if (!synced(id) || !ownerId || ownerId === id || !all[ownerId] || !store().profiles[ownerId]) continue;
         const key = `${SHARE}${link.syncId}`;
-        if (!known(key) || remote(key) === null) values.set(key, { o: all[ownerId]!.syncId } satisfies ShareRecord);
+        const removedElsewhere = known(key) && remote(key) === null;
+        if (removedElsewhere || (!known(key) && synced(ownerId))) values.set(key, { o: all[ownerId]!.syncId } satisfies ShareRecord);
       }
       const gone = removed();
       return { values, ignore: (key) => !values.has(key) && !gone.has(key) };

@@ -228,3 +228,43 @@ test("a removal still waiting to go out is dropped when the profile is added to 
     assert.ok(engineA.useSync.getState().remoteProfiles.find((p) => p.name === "Work"), "deleting it later keeps it offered, as before");
   });
 });
+
+test("a Mac that keeps a sharing profile but stopped syncing its owner brings it back with its shared data, not on its own", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const c = new Mac("C");
+  const engineA = await import("./engine.ts?ownerOffA");
+  const engineC = await import("./engine.ts?ownerOffC");
+  const ids = await a.with(() => {
+    const owner = S().createProfile({ name: "Owner" });
+    return { owner, child: S().createProfile({ name: "Child", shareWith: owner }) };
+  });
+  await turnOn(a, engineA);
+  await join(c, engineC);
+  await c.with(async () => {
+    const child = engineC.useSync.getState().remoteProfiles.find((p) => p.name === "Child");
+    const childHere = engineC.addRemoteProfile(child.syncId);
+    const ownerHere = S().profiles[childHere].dataId;
+    assert.ok(ownerHere, "Child shares Owner's data on C too");
+    await engineC.syncNow();
+    engineC.setProfileSynced(ownerHere, false);
+    await engineC.syncNow();
+    await engineC.syncNow();
+  });
+  const syncId = await a.with(async () => {
+    S().deleteProfile(ids.child);
+    await engineA.syncNow();
+    await engineA.syncNow();
+    const child = engineA.useSync.getState().remoteProfiles.find((p) => p.name === "Child");
+    assert.equal(engineA.removeRemoteProfile(child.syncId), true);
+    await engineA.syncNow();
+    return child.syncId;
+  });
+  assert.equal(live("share:", syncId), false, "the removal went out");
+  await c.with(async () => {
+    await engineC.syncNow();
+    await engineC.syncNow();
+  });
+  assert.equal(live("prof:", syncId), true, "C publishes Child again");
+  assert.equal(live("share:", syncId), true, "with the link to Owner's data");
+});
