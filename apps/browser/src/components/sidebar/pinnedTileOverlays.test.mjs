@@ -34,3 +34,11 @@ test("the badge and status marks are siblings of the press area in every style, 
   const siblings = area.parent.children.filter(ts.isJsxExpression).map((c) => c.expression?.getText(file));
   assert.ok(siblings.includes("overlays"), `the overlays after the press area are ${JSON.stringify(siblings)}, not a bare overlays in every style`);
 });
+
+test("the badge and status marks come after the press area, so they draw over the tile and its selection ring", () => {
+  const area = elements("TabPressArea")[0];
+  const children = [...area.parent.children];
+  const overlays = children.findIndex((c) => ts.isJsxExpression(c) && c.expression?.getText(file) === "overlays");
+  assert.ok(overlays >= 0, "the overlays are not a sibling of the press area");
+  assert.ok(overlays > children.indexOf(area), "the overlays come before the press area, so they draw behind the tile and its selection ring");
+});
