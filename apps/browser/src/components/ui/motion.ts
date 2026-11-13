@@ -24,6 +24,8 @@ export const duration = {
 
 export const period = { spinner: 900, pulse: 1100 } as const;
 
+export const buttonMotion = { iconPressScale: 0.96 } as const;
+
 export type Fade = { duration: number; easing: EasingFunction; delay?: number };
 
 export function usePresence<T>(value: T | null, motion: { show: Fade; hide: Fade }) {

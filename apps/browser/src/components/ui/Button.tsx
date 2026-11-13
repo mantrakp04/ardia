@@ -1,11 +1,13 @@
 import { ContextMenuArea, Symbol, type SymbolProps } from "@ardia/shell";
-import { memo, type ReactNode } from "react";
-import { Image, Pressable, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
+import { memo, useRef, type ReactNode } from "react";
+import { Animated, Image, Pressable, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import { modifiersOf, type ClickModifiers } from "../../lib/keys";
 import { useToolbarRowContext } from "./toolbarRowContext";
 import { useHover } from "./useHover";
 import { CloseButtonView, PillButtonView, PushButtonView, StepperButtonView } from "./ButtonKinds";
 import { useTheme } from "./theme";
+import { buttonMotion, springs } from "./motion";
+import { reduceMotion } from "./reduceMotion";
 import { capsule, iconButton, opacity, radius as radii, space, font as typeScale, weight as weights, type ColorRole, type IconButtonSize, type Space, type TypeSize, type Weight } from "./tokens";
 
 export type ButtonHit = { width: number; height: number; plateX: number; plateY: number; box?: number; radius?: number };
@@ -113,6 +115,7 @@ function useIconMetrics(props: IconProps) {
 
 function IconButtonView(props: IconProps) {
   const { icon, disabled, active, glyphBox, weight = "regular", tooltip, palette, color, style, hit, image, badge, children } = props;
+  const pressMotion = useRef<Animated.Value | null>(null);
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const metrics = useIconMetrics(props);
@@ -128,6 +131,19 @@ function IconButtonView(props: IconProps) {
   ) : icon ? (
     <Symbol name={icon} size={metrics.glyph} weight={weight} color={ink} style={{ width: glyphFrame, height: glyphFrame }} />
   ) : null);
+  const hasGlyphPressMotion = props.toolbar && !children && (!!icon || !!image);
+  if (hasGlyphPressMotion && !pressMotion.current) pressMotion.current = new Animated.Value(1);
+  const scaleMotion = pressMotion.current;
+  const animatedFace = hasGlyphPressMotion && scaleMotion ? <Animated.View pointerEvents="none" style={{ transform: [{ scale: scaleMotion }] }}>{face}</Animated.View> : face;
+  const animatePress = (pressed: boolean) => {
+    if (!hasGlyphPressMotion || !scaleMotion) return;
+    scaleMotion.stopAnimation();
+    if (reduceMotion() !== false) {
+      scaleMotion.setValue(1);
+      return;
+    }
+    Animated.spring(scaleMotion, { toValue: pressed ? buttonMotion.iconPressScale : 1, ...springs.snappy, useNativeDriver: true }).start();
+  };
   const plate = (pressed: boolean) => (
     <View
       style={{
@@ -142,7 +158,7 @@ function IconButtonView(props: IconProps) {
         backgroundColor: disabled ? undefined : pressed || active ? pressedFill : hovered ? hover : undefined,
       }}
     >
-      {face}
+      {animatedFace}
       {badge}
     </View>
   );
@@ -158,6 +174,8 @@ function IconButtonView(props: IconProps) {
   const button = (
     <Pressable
       onPress={(e) => onPress?.(modifiersOf(e))}
+      onPressIn={() => animatePress(true)}
+      onPressOut={() => animatePress(false)}
       onLongPress={onLongPress}
       delayLongPress={450}
       disabled={disabled}
