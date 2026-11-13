@@ -5,7 +5,7 @@ import { tabDragging } from "../../state/drag/tabDrag";
 import { useShownTabIdFor, useStripEntries } from "../../state/tabs/topStrip";
 import { setMeasuredWidth, useMeasuredWidths } from "../../state/windows/measuredWidths";
 import { dismissStripHoverIn } from "../../state/tabs/stripHover";
-import { usePageStyle } from "../../state/windows/profilePager";
+import { usePageInReach, usePageStyle } from "../../state/windows/profilePager";
 import { ThemeScope } from "../window/ThemeScope";
 import { TintInk } from "../ui/TintInk";
 import { DockContext, FloatingStrip } from "./context";
@@ -27,7 +27,8 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const windowId = useWindowId();
   const flare = useContext(FloatingStrip) ? 0 : FLARE;
   const pageStyle = usePageStyle(windowId, slot, pageWidth + flare * 2);
-  const parsed = useStripEntries(windowId, profileId);
+  const inReach = usePageInReach(windowId, profileId, current);
+  const parsed = useStripEntries(windowId, profileId, !inReach);
   const activeId = useShownTabIdFor(windowId, profileId);
   const groupIds = parsed.flatMap((e) => (e.kind === "group" ? [e.id] : []));
   const chipWidths = useMeasuredWidths(groupIds.map(chipKey));

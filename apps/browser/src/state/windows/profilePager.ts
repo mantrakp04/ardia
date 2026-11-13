@@ -1,5 +1,5 @@
 import { pagerState, selectPager, stepPager, switchPager, type NativePagerConfig, type PagerStateEvent, type SwipeEvent } from "../../platform/pager";
-import { useEffect, useLayoutEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Animated, unstable_batchedUpdates } from "react-native";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -190,6 +190,20 @@ export function usePagerPages(windowId: string): { pages: PagerPage[]; paging: b
   const everyPage = useMemo(() => order.map((id, slot) => ({ id, slot })), [order]);
   const resting = useMemo(() => (all ? null : restPages(current, order).map((p) => (p.id === current ? p : { ...p, resting: true }))), [all, current, order]);
   return { pages: resting ?? everyPage, paging: all, pager };
+}
+
+export const LEAVING_PAGE_STAYS_MS = 1000;
+
+export function usePageInReach(windowId: string, profileId: string, current: boolean): boolean {
+  const near = pagerFor(windowId).state((s) => current || !!s.pages?.some((p) => p.id === profileId));
+  const [kept, setKept] = useState(near);
+  if (near && !kept) setKept(true);
+  useEffect(() => {
+    if (near || !kept) return;
+    const timer = setTimeout(() => setKept(false), LEAVING_PAGE_STAYS_MS);
+    return () => clearTimeout(timer);
+  }, [near, kept]);
+  return near || kept;
 }
 
 export function usePagerNativeConfig(windowId: string, width?: number): NativePagerConfig | undefined {

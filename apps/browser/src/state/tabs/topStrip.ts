@@ -152,7 +152,10 @@ export function folderMenuItems(s: BrowserState, groupId: string, activeId: stri
   });
 }
 
-export const useStripEntries = (windowId: string, profileId: string) => useBrowser((s) => stripEntries(s, windowId, profileId));
+const NO_STRIP_ENTRIES: StripEntry[] = [];
+
+export const useStripEntries = (windowId: string, profileId: string, away = false) =>
+  useBrowser((s) => (away ? NO_STRIP_ENTRIES : stripEntries(s, windowId, profileId)));
 
 export const useShownTabIdFor = (windowId: string, profileId: string) => useBrowser((s) => s.windows[windowId]?.activeTabIds[profileId] ?? "");
 
