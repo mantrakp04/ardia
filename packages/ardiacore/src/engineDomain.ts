@@ -59,6 +59,11 @@ export const inputIdleSeconds = () => nativeModule("ArdiaEngine").inputIdleSecon
 
 type CliServer = { connections: number; generation: number; file: string; reason?: string };
 
+// A page in a popup window asked for protected media (a Widevine, PlayReady or FairPlay key system) and was
+// refused or stalled. Counts only: the key-system family, and whether the popup's host is on the fixed streaming-site
+// list. Never the URL, the host or the title.
+export type PopupProtectedMedia = { family: "widevine" | "playready" | "fairplay" | "other"; listed: boolean };
+
 export type HoverLostEpisode = {
   reason: "halfActive" | "staleMenu" | "notKeyOrMain" | "coveredByView" | "responderLost";
   trigger: "move" | "click";
