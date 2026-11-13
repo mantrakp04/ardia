@@ -9,6 +9,7 @@ import type { Tab, TabGroup } from "../browser/types";
 import { pinnedGroupMembers } from "../browser/structure";
 import { isRegularWindow } from "../windows/small";
 import { splitTabIds, withPaneIds } from "../splits/splits";
+import { isPeekTab, peekTabIds } from "../peek/peek";
 
 type Section = ReturnType<typeof sectionOf>;
 
@@ -18,13 +19,14 @@ export const sharesTabs = (s: Pick<BrowserState, "settings">) => !!s.settings?.s
 const listable = (t: Tab) => !t.pin && !!t.url && !t.liveItem;
 
 export function sharedListTab(s: BrowserState, t: Tab): boolean {
-  return sharesTabs(s) && listable(t) && isRegularWindow(s.windows[t.windowId]) && !inPinnedContainer(s, t.id) && s.peeks[t.windowId]?.tabId !== t.id;
+  return sharesTabs(s) && listable(t) && isRegularWindow(s.windows[t.windowId]) && !inPinnedContainer(s, t.id) && !isPeekTab(s, t.id);
 }
 
 function listMember(s: BrowserState): (t: Tab) => boolean {
   const pinnedMembers = pinnedGroupMembers(s.groups);
   const inSplit = new Set(Object.values(s.splits).flatMap((v) => splitTabIds(v)));
-  return (t) => listable(t) && !pinnedMembers.has(t.id) && !inSplit.has(t.id) && s.peeks[t.windowId]?.tabId !== t.id;
+  const peeked = peekTabIds(s.peeks);
+  return (t) => listable(t) && !pinnedMembers.has(t.id) && !inSplit.has(t.id) && !peeked.has(t.id);
 }
 
 const listGroupsOf = (s: Pick<BrowserState, "groups">) => Object.values(s.groups).filter((g) => !g.pinned);
@@ -353,7 +355,8 @@ export function openTabsByUse(
   o: { profileId: string; windowId: string; shared: boolean },
 ): { tab: Tab; lastActiveAt: number }[] {
   const view = o.shared ? sharedTabsIn(tabs, o.windowId) : null;
+  const peeked = peekTabIds(peeks);
   return Object.values(tabs)
-    .filter((t) => t.profileId === o.profileId && peeks[t.windowId]?.tabId !== t.id && !view?.elsewhere(t))
+    .filter((t) => t.profileId === o.profileId && !peeked.has(t.id) && !view?.elsewhere(t))
     .map((t) => ({ tab: t, lastActiveAt: view ? view.lastUsed(t) : t.lastActiveAt }));
 }

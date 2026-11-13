@@ -17,7 +17,10 @@ test("the tab a Peek was opened from knows its Peek until the Peek closes", () =
   assert.equal(peekOpenedFrom(S(), a), peek);
   assert.equal(peekOpenedFrom(S(), b), undefined);
   assert.equal(peekOpenedFrom(S(), peek), undefined);
-  S().closePeek(w);
+  S().activate(b);
+  assert.equal(peekOpenedFrom(S(), a), peek);
+  S().activate(a);
+  S().closePeek(a);
   assert.equal(peekOpenedFrom(S(), a), undefined);
 });
 
@@ -37,7 +40,7 @@ test("a tab's Peek mark wakes only when its own Peek opens or closes", async () 
   assert.deepEqual(woke, { a: 0, b: 0 });
   S().openPeek(a, "https://peeked.example/");
   assert.deepEqual(woke, { a: 1, b: 0 });
-  S().closePeek(w);
+  S().closePeek(a);
   assert.deepEqual(woke, { a: 2, b: 0 });
   stopA();
   stopB();

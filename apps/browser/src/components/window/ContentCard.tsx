@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { startChromeTabs } from "../../state/tabs/chromeTabs";
 import { useIsSmallWindow, useSplitOf } from "../../state/windows/card";
-import { usePeeks } from "../../state/peek/hooks";
+import { usePeekOpenedFrom } from "../../state/peek/hooks";
 import { useActiveTabId, useSettings, useWindowId } from "../../state/browser/hooks";
 import { useBookmarksBarHeight } from "../bookmarks/barSize";
 import { useBookmarksBarMode } from "../../state/bookmarks/hooks";
@@ -52,7 +52,7 @@ export function ContentCard() {
   useEffect(startMedia, []);
   useEffect(startSelectionTools, []);
   useEffect(startPeeks, []);
-  const peekId = usePeeks((p) => p[windowId]?.tabId);
+  const peekId = usePeekOpenedFrom(activeId ?? "");
   const peekFullscreen = !!peekId && fullscreenTab === peekId;
   useEffect(() => {
     if (fullscreenTab && peekId && !peekFullscreen) dismissPeek(windowId);
@@ -175,14 +175,13 @@ export function ContentCard() {
         />
       )}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}
-      {(!fullscreenTab || peekFullscreen) && !small && (
+      {!small && (
         <PeekOverlay
           windowId={windowId}
           width={size.width}
           height={size.height}
           origin={origin}
-          fullscreen={peekFullscreen}
-          page={(tabId, sourceId, width) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} />}
+          page={(tabId, sourceId, width, shown) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} shown={shown} />}
         />
       )}
       <SplitToast windowId={windowId} />

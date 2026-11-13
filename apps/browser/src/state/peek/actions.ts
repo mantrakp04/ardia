@@ -7,11 +7,12 @@ import { splitLinkModifierOf, type PeekModifier, type SplitLinkModifier } from "
 import { MAX_SPLIT_PANES, splitOf, splitTabIdsOf } from "../splits/splits";
 import { openSplitPane } from "../splits/actions";
 import { showToast } from "../app/toasts";
-import { isPeekTab, otherSitePeekTabIds, shownPageId } from "./peek";
+import { otherSitePeekTabIds, peekSourceOf, peekTabId, peekTabIds, shownPageId, shownPeek } from "./peek";
 import { closeFind } from "../find/actions";
 import { hostOf } from "@ardia/core";
 import { linkDestination } from "../../lib/linkWrappers";
 import { navigationOf } from "../tabs/pageSession";
+import { notePageOverlay } from "../telemetry/usage";
 
 const store = () => useBrowser.getState();
 const closers = new Map<string, () => void>();
@@ -27,25 +28,25 @@ export function registerPeekMotion(windowId: string, close: () => void, expand: 
 }
 
 export function dismissPeek(windowId: string) {
-  if (!store().peeks[windowId]) return;
+  const peek = shownPeek(store(), windowId);
+  if (!peek) return;
   const close = closers.get(windowId);
   if (close) close();
-  else finishPeek(windowId, store().peeks[windowId]!.tabId);
+  else finishPeek(peek.tabId);
 }
 
-export function finishPeek(windowId: string, tabId: string) {
-  const peek = store().peeks[windowId];
-  if (!peek || peek.tabId !== tabId) return;
-  store().closePeek(windowId);
+export function finishPeek(tabId: string) {
+  const source = peekSourceOf(store(), tabId);
+  if (source) store().closePeek(source);
 }
 
 const focusSoon = (tabId: string) => setTimeout(() => void webviews.get(tabId)?.focus(), 50);
 
 export function openPeekAsTab(windowId: string) {
-  const peek = store().peeks[windowId];
+  const peek = shownPeek(store(), windowId);
   if (!peek) return;
   const promote = () => {
-    if (store().peeks[windowId]?.tabId !== peek.tabId) return;
+    if (shownPeek(store(), windowId)?.tabId !== peek.tabId) return;
     const id = store().peekToTab(windowId);
     if (!id) return;
     hapticTick();
@@ -58,7 +59,7 @@ export function openPeekAsTab(windowId: string) {
 
 export function openPeekInSplit(windowId: string) {
   const s = store();
-  const peek = s.peeks[windowId];
+  const peek = shownPeek(s, windowId);
   if (!peek) return;
   if ((splitTabIdsOf(splitOf(s, peek.sourceId))?.length ?? 0) >= MAX_SPLIT_PANES) {
     return showToast(windowId, "Cannot Add New Pane", `Split View can show up to ${MAX_SPLIT_PANES} tabs at once.`);
@@ -72,7 +73,7 @@ export function openPeekInSplit(windowId: string) {
 export function closePeekOnEscape(tabId: string): boolean {
   const s = store();
   const tab = s.tabs[tabId];
-  const peek = tab ? s.peeks[tab.windowId] : undefined;
+  const peek = tab ? shownPeek(s, tab.windowId) : undefined;
   if (!tab || !peek || (peek.tabId !== tabId && peek.sourceId !== tabId) || s.find[tabId]?.open || s.windowUi[tab.windowId]?.panel.open) return false;
   dismissPeek(tab.windowId);
   return true;
@@ -80,7 +81,7 @@ export function closePeekOnEscape(tabId: string): boolean {
 
 export function runPeekCommand(command: string, windowId: string): boolean {
   const s = store();
-  const peek = s.peeks[windowId];
+  const peek = shownPeek(s, windowId);
   if (!peek) return false;
   if (command === "openFile") {
     openPeekAsTab(windowId);
@@ -121,6 +122,15 @@ export function startPeeks() {
   useBrowser.subscribe(bumpOnFirstLoad);
   useBrowser.subscribe(refocusAfterClose);
   useBrowser.subscribe(landBackOnSite);
+  useBrowser.subscribe(countPeeksShownAgain);
+}
+
+function countPeeksShownAgain(s: BrowserState, prev: BrowserState) {
+  if (s.windows === prev.windows) return;
+  for (const windowId in s.windows) {
+    const peek = shownPeek(s, windowId);
+    if (peek && prev.peeks[peek.sourceId]?.tabId === peek.tabId && shownPeek(prev, windowId)?.tabId !== peek.tabId) notePageOverlay("peekShownAgain");
+  }
 }
 
 type LandingWatch = { nav: number | null; judged: boolean };
@@ -129,9 +139,9 @@ const isLinkWrapper = (url: string) => linkDestination(url) !== url;
 
 function landBackOnSite(s: BrowserState, prev: BrowserState) {
   if (s.tabs === prev.tabs && s.peeks === prev.peeks && s.live === prev.live) return;
-  const shown = new Set(Object.values(s.peeks).map((p) => p.tabId));
+  const shown = peekTabIds(s.peeks);
   for (const id of landings.keys()) if (!shown.has(id)) landings.delete(id);
-  for (const [windowId, peek] of Object.entries(s.peeks)) {
+  for (const [sourceId, peek] of Object.entries(s.peeks)) {
     const landing = peek.landing;
     const tab = s.tabs[peek.tabId];
     if (!landing || !tab) continue;
@@ -149,19 +159,20 @@ function landBackOnSite(s: BrowserState, prev: BrowserState) {
     if (hostOf(tab.url) !== landing.host) continue;
     const url = tab.url;
     queueMicrotask(() => {
-      if (store().peeks[windowId]?.tabId !== peek.tabId) return;
-      if (landing.then === "tab") return openPeekAsTab(windowId);
-      store().closePeek(windowId);
-      store().navigate(peek.sourceId, url, { userInitiated: false });
+      if (store().peeks[sourceId]?.tabId !== peek.tabId) return;
+      if (landing.then === "tab") return void (peekTabId(store(), tab.windowId) === peek.tabId && openPeekAsTab(tab.windowId));
+      store().closePeek(sourceId);
+      store().navigate(sourceId, url, { userInitiated: false });
     });
   }
 }
 
 function refocusAfterClose(s: BrowserState, prev: BrowserState) {
   if (s.peeks === prev.peeks) return;
-  for (const [windowId, peek] of Object.entries(prev.peeks)) {
-    if (s.peeks[windowId]?.tabId === peek.tabId || s.tabs[peek.tabId]) continue;
-    if (s.tabs[peek.sourceId] && activeTabId(s, windowId) === peek.sourceId) void webviews.get(peek.sourceId)?.focus();
+  for (const [sourceId, peek] of Object.entries(prev.peeks)) {
+    if (s.peeks[sourceId]?.tabId === peek.tabId || s.tabs[peek.tabId]) continue;
+    const source = s.tabs[sourceId];
+    if (source && activeTabId(s, source.windowId) === sourceId) void webviews.get(sourceId)?.focus();
   }
 }
 
@@ -170,7 +181,7 @@ const loaded = new Set<string>();
 
 function bumpOnFirstLoad(s: BrowserState, prev: BrowserState) {
   if (s.peeks === prev.peeks && s.live === prev.live) return;
-  const shown = new Set(Object.values(s.peeks).map((p) => p.tabId));
+  const shown = peekTabIds(s.peeks);
   for (const id of [...loading, ...loaded]) if (!shown.has(id)) (loading.delete(id), loaded.delete(id));
   for (const id of shown) {
     if (loaded.has(id)) continue;

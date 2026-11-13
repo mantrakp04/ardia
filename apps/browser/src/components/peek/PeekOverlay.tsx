@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useCardFrame } from "../window/cardFrame";
-import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
-import { useSettings, useTab } from "../../state/browser/hooks";
+import { usePeekSplitFull, useWindowPeeks } from "../../state/peek/hooks";
+import { useActiveTabId, useSettings, useTab } from "../../state/browser/hooks";
+import { useFullscreenTab } from "../../state/tabs/pageState";
 import type { Peek } from "../../state/peek/peek";
 import { PEEK_MOTION, PEEK_SCRIM } from "./tokens";
 import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
@@ -29,24 +30,40 @@ export function PeekOverlay({
   width,
   height,
   origin,
-  fullscreen,
   page,
 }: {
   windowId: string;
   width: number;
   height: number;
   origin: { x: number; y: number } | null;
-  fullscreen: boolean;
-  page: (tabId: string, sourceId: string, width: number) => ReactNode;
+  page: (tabId: string, sourceId: string, width: number, shown: boolean) => ReactNode;
 }) {
-  const peek = usePeeks((p) => p[windowId]);
-  if (!peek || width <= 0 || height <= 0) return null;
-  return <PeekCard key={peek.tabId} windowId={windowId} peek={peek} width={width} height={height} origin={origin} fullscreen={fullscreen} page={page} />;
+  const peeks = useWindowPeeks(windowId);
+  const activeTabId = useActiveTabId();
+  const fullscreenTabId = useFullscreenTab(windowId);
+  if (!peeks.length || width <= 0 || height <= 0) return null;
+  return peeks.map((peek) => {
+    const fullscreen = fullscreenTabId === peek.tabId;
+    return (
+      <PeekCard
+        key={peek.tabId}
+        windowId={windowId}
+        peek={peek}
+        shown={peek.sourceId === activeTabId && (!fullscreenTabId || fullscreen)}
+        width={width}
+        height={height}
+        origin={origin}
+        fullscreen={fullscreen}
+        page={page}
+      />
+    );
+  });
 }
 
 function PeekCard({
   windowId,
   peek,
+  shown,
   width,
   height,
   origin,
@@ -55,11 +72,12 @@ function PeekCard({
 }: {
   windowId: string;
   peek: Peek;
+  shown: boolean;
   width: number;
   height: number;
   origin: { x: number; y: number } | null;
   fullscreen: boolean;
-  page: (tabId: string, sourceId: string, width: number) => ReactNode;
+  page: (tabId: string, sourceId: string, width: number, shown: boolean) => ReactNode;
 }) {
   const theme = useTheme();
   const card = useCardFrame();
@@ -73,6 +91,7 @@ function PeekCard({
   const [progress] = useState(() => new Animated.Value(0));
   const [expand] = useState(() => new Animated.Value(0));
   const leaving = useRef<"close" | "expand" | null>(null);
+  const openedBefore = useRef(!shown);
 
   const centerX = frame.left + frame.width / 2;
   const centerY = frame.top + frame.height / 2;
@@ -87,20 +106,29 @@ function PeekCard({
   }, []);
 
   useEffect(() => {
-    if (!motion) return;
+    if (!motion || !shown) return;
+    leaving.current = null;
     const grow = fade
       ? Animated.timing(progress, { toValue: 1, ...PEEK_MOTION.fadeIn, useNativeDriver: true })
       : Animated.spring(progress, { toValue: 1, ...GROW, overshootClamping: true, restDisplacementThreshold: 0.001, restSpeedThreshold: 0.01, useNativeDriver: true });
-    grow.start();
+    if (openedBefore.current) {
+      progress.stopAnimation();
+      expand.stopAnimation();
+      progress.setValue(1);
+      expand.setValue(0);
+    } else {
+      grow.start();
+    }
+    openedBefore.current = true;
     const close = () => {
       if (leaving.current) return;
       leaving.current = "close";
       progress.stopAnimation();
       Animated.timing(progress, { toValue: 0, ...PEEK_MOTION.close, useNativeDriver: true }).start(({ finished }) => {
-        if (finished) finishPeek(windowId, peek.tabId);
+        if (finished) finishPeek(peek.tabId);
       });
     };
-    const grown = (done: () => void) => {
+    const expandToTab = (done: () => void) => {
       if (leaving.current === "expand") return;
       leaving.current = "expand";
       progress.stopAnimation();
@@ -108,8 +136,8 @@ function PeekCard({
       if (fade) return done();
       Animated.timing(expand, { toValue: 1, ...PEEK_MOTION.expand, useNativeDriver: true }).start(done);
     };
-    return registerPeekMotion(windowId, close, grown);
-  }, [motion]);
+    return registerPeekMotion(windowId, close, expandToTab);
+  }, [motion, shown]);
 
   const gestures = useSettings((s) => s.littleWindowGestures);
   const pinch: PinchMotion = {
@@ -153,7 +181,7 @@ function PeekCard({
   const dim = Animated.multiply(progress, expand.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }));
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={motion ? "box-none" : "none"}>
+    <View style={[StyleSheet.absoluteFill, !shown && { opacity: 0 }]} pointerEvents={motion && shown ? "box-none" : "none"}>
       <Animated.View pointerEvents={fullscreen ? "none" : "auto"} style={[StyleSheet.absoluteFill, { opacity: fullscreen ? 0 : dim }]}>
         <Pressable
           accessibilityLabel="Close Peek"
@@ -176,7 +204,7 @@ function PeekCard({
             style={StyleSheet.absoluteFill}
           />
         )}
-        <PinchArea enabled={!fullscreen && !!motion && gestures} motion={pinch} style={{ flex: 1 }}>
+        <PinchArea enabled={!fullscreen && !!motion && shown && gestures} motion={pinch} style={{ flex: 1 }}>
           <View style={{ flex: 1, borderRadius: fullscreen ? 0 : SMALL_WINDOW_RADIUS, overflow: "hidden" }}>
             {!fullscreen && <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />}
             {!fullscreen && <PeekBar windowId={windowId} tabId={peek.tabId} />}
@@ -187,7 +215,7 @@ function PeekCard({
                   : { flex: 1, marginLeft: card.inset, marginRight: card.inset, marginBottom: card.inset, borderRadius: card.radius, overflow: "hidden", backgroundColor: theme.card }
               }
             >
-              {page(peek.tabId, peek.sourceId, fullscreen ? width : frame.width - 2 * card.inset)}
+              {page(peek.tabId, peek.sourceId, fullscreen ? width : frame.width - 2 * card.inset, shown)}
             </View>
           </View>
         </PinchArea>
