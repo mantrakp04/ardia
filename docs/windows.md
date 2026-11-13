@@ -526,9 +526,12 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   - **Prompt:** the Mac's prompt shows in the Mac's words. "Always allow" is offered only for an https or loopback
     site, outside private windows, and kept per profile in `external-app-allowances.json`; deleting a profile
     forgets them. A remembered site opens the app without asking only when the request had a user gesture.
-  - **Lifetime:** an ask belongs to its page. It is dropped when the page closes or commits another URL, and before
-    any launch the engine must answer `true` to the `externalAppAlive` page call, as the Mac checks that the asking
-    document is still alive.
+  - **Lifetime:** an ask belongs to its page and is dropped when the page closes. Before any launch the engine must
+    answer `true` to the `externalAppAlive` page call, as the Mac checks that the asking document is still alive, so
+    a prompt survives a single-page site's route change but opens nothing once its document is gone.
+  - **Counts:** the prompt's outcomes are counted in the app (`externalAppCounts.ts`); an automatic open for a site
+    you always allow has no prompt, so `ArdiaExternalAppCounts.takeAutomaticOpens` hands it to the hourly extras as
+    `external_app_opens_automatic`.
   - **Open:** `ArdiaExternalApps.open` opens only the asked URL of a pending request. It never opens http, https or
     file. It escapes the URL as Chromium's `EscapeExternalHandlerValue` does, and hands it to `ShellExecuteExW` as
     the single `lpFile`, with the system folder as the working folder as Chromium does.

@@ -1,5 +1,5 @@
 import type { ExternalAppAllowance, ExternalAppRequest } from "@ardia/ardiacore";
-import type { DocumentsNative } from "@ardia/shell";
+import type { DocumentsNative, ExternalAppCountsNative } from "@ardia/shell";
 import type { ExternalAppsModule, ExternalHandler } from "../../nativeModuleTypes";
 import { callError, isFields, isPrivateProfile, ok, type Engine, type Fields, type Handlers } from "./calling";
 
@@ -30,6 +30,16 @@ export function trustworthyOrigin(origin: string): boolean {
   const host = match[2]!.toLowerCase();
   return scheme === "https" || (scheme === "http" && LOOPBACK.test(host));
 }
+
+let automaticOpens = 0;
+
+export const windowsExternalAppCounts: ExternalAppCountsNative = {
+  takeAutomaticOpens() {
+    const taken = automaticOpens;
+    automaticOpens = 0;
+    return taken;
+  },
+};
 
 const emptySaved = (): Saved => ({ version: 1, allowances: {} });
 
@@ -95,7 +105,7 @@ export function windowsExternalApps(
     const origin = ask.origin && ask.origin !== "null" ? ask.origin : null;
     const rememberable = !!handler && !!origin && !ask.offTheRecord && !isPrivateProfile(profile) && trustworthyOrigin(origin);
     if (handler && rememberable && ask.userGesture && allowed(profile, origin!, scheme)) {
-      if (await asking(page, ask.id)) await open(ask.url);
+      if ((await asking(page, ask.id)) && (await open(ask.url))) automaticOpens += 1;
       return null;
     }
     if (handler) {

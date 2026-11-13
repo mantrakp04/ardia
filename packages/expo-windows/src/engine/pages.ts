@@ -26,7 +26,6 @@ type Page = {
   mounts: number;
   parked: boolean;
   closed: boolean;
-  committedUrl: string;
 };
 
 type OpenedTab = { adopt?: unknown; url?: unknown; foreground?: unknown; window?: unknown; opener?: unknown; profile?: unknown };
@@ -57,22 +56,15 @@ export function externalAppStillAsked(key: string, id: string): Promise<boolean>
 function askExternalApp(page: Page, data: unknown) {
   const answers = externalAppAnswers;
   if (!answers) return;
-  const committed = page.committedUrl;
   quietly(
     answers.ask(page.profile, page.key, data).then((request) => {
       if (!request) return;
-      if (page.closed || page.committedUrl !== committed) return answers.forget(request.id);
+      if (page.closed) return answers.forget(request.id);
       for (const listener of [...page.listeners]) listener("externalApp", request);
     }),
   );
 }
 
-function noteCommitted(page: Page, data: unknown) {
-  const committedUrl = (data as { committedUrl?: unknown } | null)?.committedUrl;
-  if (typeof committedUrl !== "string" || committedUrl === page.committedUrl) return;
-  page.committedUrl = committedUrl;
-  externalAppAnswers?.forgetPage(page.key);
-}
 
 export function onPagePress(listener: (windowId: string) => void): () => void {
   pressListeners.add(listener);
@@ -91,7 +83,6 @@ function listen() {
     if (!page) return;
     if (event.name === "pagePress") for (const pressed of [...pressListeners]) pressed(page.windowId);
     if (event.name === "externalApp") return askExternalApp(page, event.data);
-    if (event.name === "navigation") noteCommitted(page, event.data);
     const data = shapedPageEvent(page.opening, event.name, event.data);
     for (const listener of [...page.listeners]) listener(event.name, data);
   });
@@ -187,7 +178,6 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
       mounts: 0,
       parked: false,
       closed: false,
-      committedUrl: "",
     };
     page.ready = begin(page, from);
     pages.set(key, page);

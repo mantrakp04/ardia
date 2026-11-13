@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readExternalAppAsk, schemeOf, trustworthyOrigin, windowsExternalApps } from "../../../../packages/expo-windows/src/engine/domains/externalApps.ts";
+import { readExternalAppAsk, schemeOf, trustworthyOrigin, windowsExternalAppCounts, windowsExternalApps } from "../../../../packages/expo-windows/src/engine/domains/externalApps.ts";
 import { noteExternalApp, takeExternalAppCounts } from "../state/telemetry/externalAppCounts.ts";
 
 const HANDLERS = { mailto: { name: "Mail", path: "C:\\Mail\\mail.exe", icon: "data:image/png;base64,AA==" }, ardiatest: { name: "Test Handler", path: null, icon: null } };
@@ -52,8 +52,10 @@ test("a remembered site opens the app with a gesture and asks without one; remem
   await apps.request(ask(), "Ardia p-1", "tab-1");
   await apps.resolve("x1", true, true);
   assert.equal(docs.size, 1);
+  windowsExternalAppCounts.takeAutomaticOpens();
   assert.equal(await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1"), null);
   assert.equal(opened.length, 2);
+  assert.equal(windowsExternalAppCounts.takeAutomaticOpens(), 1);
   const noGesture = await apps.request(ask({ id: "x3", userGesture: false }), "Ardia p-1", "tab-1");
   assert.equal(noGesture?.id, "x3");
   assert.equal(opened.length, 2);
@@ -93,7 +95,7 @@ test("app link prompts and answers are counted and reset once taken", () => {
   noteExternalApp("asked");
   noteExternalApp("remembered");
   noteExternalApp("declined");
-  assert.deepEqual(takeExternalAppCounts(), { external_app_prompts: 1, external_app_prompts_no_app: 0, external_app_opens: 0, external_app_opens_remembered: 1, external_app_declines: 1 });
+  assert.deepEqual(takeExternalAppCounts(), { external_app_prompts: 1, external_app_prompts_no_app: 0, external_app_opens: 0, external_app_opens_remembered: 1, external_app_declines: 1, external_app_opens_automatic: 0 });
 });
 
 test("an ask the engine no longer holds, or whose page moved on, opens nothing", async () => {

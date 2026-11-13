@@ -1,3 +1,5 @@
+import { externalAppCounts } from "../../platform/externalAppCounts";
+
 const counts = { asked: 0, noApp: 0, opened: 0, remembered: 0, declined: 0 };
 
 export type ExternalAppOutcome = keyof typeof counts;
@@ -11,6 +13,7 @@ export function takeExternalAppCounts() {
     external_app_opens: counts.opened,
     external_app_opens_remembered: counts.remembered,
     external_app_declines: counts.declined,
+    external_app_opens_automatic: externalAppCounts.takeAutomaticOpens(),
   };
   for (const key of Object.keys(counts) as ExternalAppOutcome[]) counts[key] = 0;
   return taken;
