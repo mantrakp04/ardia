@@ -187,21 +187,27 @@ class SyncService(
             folders.release(grant.location, keeping = previousLocation)
             return ConnectResult.KeyStoreFailed
         }
+        val replaced = if (reuse == null) meta.deviceId else null
         if (reuse == null) {
-            val previous = meta.deviceId
             try {
-                SyncEngine.prepareFresh(directory, deviceId, listOfNotNull(abandoned, previous))
+                SyncEngine.prepareFresh(directory, deviceId, listOfNotNull(abandoned, replaced))
             } catch (error: Exception) {
                 keyStore.delete(deviceId)
                 folders.release(grant.location, keeping = previousLocation)
                 return ConnectResult.KeyStoreFailed
             }
-            previous?.let(keyStore::delete)
-            meta = meta.copy(setupAt = now(), lastSyncedAt = null, visitsSyncedThrough = null, chainSeen = false)
+        }
+        val base = if (reuse == null) meta.copy(setupAt = now(), lastSyncedAt = null, visitsSyncedThrough = null, chainSeen = false) else meta
+        if (!savedMeta(base.copy(deviceId = deviceId, folder = grant.location, enabled = true, outOfSync = false))) {
+            if (reuse == null) keyStore.delete(deviceId)
+            folders.release(grant.location, keeping = previousLocation)
+            return ConnectResult.KeyStoreFailed
+        }
+        if (reuse == null) {
+            replaced?.let(keyStore::delete)
             lastSynced = null
             snapshot = SyncSnapshot.empty
         }
-        updateMeta { it.copy(deviceId = deviceId, folder = grant.location, enabled = true, outOfSync = false) }
         previousLocation?.let { folders.release(it, keeping = grant.location) }
         folderName = grant.location.name
         missingSince = null
@@ -226,7 +232,10 @@ class SyncService(
         }
         if (!folders.keep(grant.location)) return ConnectResult.FolderUnavailable
         val previous = meta.folder
-        updateMeta { it.copy(folder = grant.location, chainSeen = false) }
+        if (!savedMeta(meta.copy(folder = grant.location, chainSeen = false))) {
+            folders.release(grant.location, keeping = previous)
+            return ConnectResult.KeyStoreFailed
+        }
         previous?.let { folders.release(it, keeping = grant.location) }
         folderName = grant.location.name
         missingSince = null
@@ -569,6 +578,12 @@ class SyncService(
     }
 
     private fun opensState(entropy: ByteArray): Boolean = files.readSealed(files.stateFile, SyncKeys(entropy), SyncFiles.STATE_FILE) != null
+
+    private fun savedMeta(next: SyncMeta): Boolean {
+        if (runCatching { files.saveMeta(next) }.isFailure) return false
+        meta = next
+        return true
+    }
 
     private fun updateMeta(change: (SyncMeta) -> SyncMeta) {
         meta = change(meta)

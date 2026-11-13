@@ -380,8 +380,9 @@ class TabStore internal constructor(
         recordVisit(url, title, transition, fromTab, clock.now())
 
     internal fun recordVisit(url: String, title: String, transition: VisitTransition, fromTab: String?, at: Long): Visit? = synchronized(lock) {
-        if (!BrowserUrl.isSyncable(url) || fromTab != null && privates.any { it.id == fromTab }) return null
+        if (!BrowserUrl.isSyncable(url)) return null
         val source = fromTab?.let(::find)
+        if (fromTab != null && (source == null || privates.any { it.id == fromTab })) return null
         val profile = if (source != null) source.profileSyncId else profileSyncId
         history.record(url, title, transition, profile, at)?.also { localChanged() }
     }

@@ -485,6 +485,62 @@ class SyncEndToEndTest {
         }
     }
 
+    private fun refuseMetaSaves(sandbox: Sandbox) = java.io.File(sandbox.state, ".sync.json.partial").apply { mkdirs() }
+
+    @Test
+    fun aFolderChangeThatCannotBeSavedKeepsTheWorkingFolder() {
+        val j = joined()
+        try {
+            val second = java.io.File(j.sandbox.root, "Second")
+            j.sandbox.folder.copyRecursively(java.io.File(second, "Ardia Sync"))
+            val metaFile = java.io.File(j.sandbox.state, "sync.json")
+            val before = metaFile.readText()
+            val block = refuseMetaSaves(j.sandbox)
+            assertEquals(ConnectResult.KeyStoreFailed, j.service.changeFolder(SyncFolderPick.Folder(second)))
+            assertEquals(before, metaFile.readText())
+            assertFalse(before.contains("Second"))
+            block.delete()
+            j.service.close()
+            val relaunched = service(j.sandbox, j.source, j.clock)
+            relaunched.start()
+            relaunched.syncNow()
+            assertEquals(SyncPhase.Updated, relaunched.phase)
+            assertEquals(j.device, relaunched.snapshot.devices.first { it.isCurrent }.id)
+            relaunched.stopSyncing()
+        } finally {
+            j.done()
+        }
+    }
+
+    @Test
+    fun joiningAnotherMacThatCannotBeSavedKeepsTheWorkingKey() {
+        val j = joined()
+        val other = Sandbox()
+        val otherEntropy = RecoveryPhrase.generateEntropy()
+        val otherMac = seededMac(other, otherEntropy)
+        try {
+            val metaFile = java.io.File(j.sandbox.state, "sync.json")
+            val before = metaFile.readText()
+            val keysBefore = j.sandbox.contents(j.sandbox.keys)
+            val block = refuseMetaSaves(j.sandbox)
+            assertEquals(ConnectResult.KeyStoreFailed, j.service.connect(phrase(otherEntropy), other.root))
+            assertEquals(before, metaFile.readText())
+            assertEquals(keysBefore, j.sandbox.contents(j.sandbox.keys))
+            block.delete()
+            j.service.close()
+            val relaunched = service(j.sandbox, j.source, j.clock)
+            relaunched.start()
+            relaunched.syncNow()
+            assertEquals(SyncPhase.Updated, relaunched.phase)
+            assertEquals(j.device, relaunched.snapshot.devices.first { it.isCurrent }.id)
+            relaunched.stopSyncing()
+        } finally {
+            otherMac.close()
+            other.remove()
+            j.done()
+        }
+    }
+
     @Test
     fun aLockedPhoneKeepsItsIdWhenThePhraseIsEnteredAgain() {
         val j = joined()

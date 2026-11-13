@@ -3,6 +3,7 @@ package com.ardia.store
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -290,6 +291,21 @@ class TabStoreTest {
         store.profileSyncId = "work"
         val unassignedChild = store.open(TabDestination.Url("https://before-sync.example/child", TabOrigin.LINK), TabPlacement.After(unassigned.id))
         assertNull(unassignedChild.profileSyncId)
+    }
+
+    @Test
+    fun aVisitThatArrivesAfterItsPrivateTabClosedIsNotRecorded(): Unit = runBlocking {
+        val fixture = StoreFixture()
+        val store = fixture.store
+        val start = fixture.clock.now
+        val normal = fixture.open("https://normal.example/")
+        val secret = store.open(TabDestination.Url("https://secret.example/"), isPrivate = true)
+        store.close(secret.id)
+        assertNull(store.recordVisit("https://secret.example/late", "Late", VisitTransition.LINK, fromTab = secret.id))
+        assertNull(store.recordVisit("https://nowhere.example/", "Nowhere", VisitTransition.LINK, fromTab = "never-opened"))
+        assertTrue(fixture.history.syncedVisits(start).isEmpty())
+        assertNotNull(store.recordVisit("https://normal.example/next", "Next", VisitTransition.LINK, fromTab = normal.id))
+        assertEquals(listOf("https://normal.example/next"), fixture.history.syncedVisits(start).map { it.url })
     }
 
     @Test
