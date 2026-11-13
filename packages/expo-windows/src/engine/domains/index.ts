@@ -67,6 +67,7 @@ function moduleOf(domain: string, functions: Record<string, unknown> = {}): Reco
     ...functions,
     call: (verb: string, profile: string, argsJson: string) => {
       use(domain);
+      if (domain === "engine" && verb === "trimMemory") console.info("[ardia windows] engine memory trim asked");
       return call(verb, profile, argsJson);
     },
     addListener: (event: string, listener: (payload: unknown) => void): EventSubscription => {
