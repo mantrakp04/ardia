@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { domainCall, domainFunctions, domainsOf, reproduced, topicRouter } from "../../../../packages/expo-windows/src/engine/domains/tables.ts";
 import { watchDownloads } from "../../../../packages/expo-windows/src/engine/domains/downloads.ts";
 import { readArgs } from "../../../../packages/expo-windows/src/engine/domains/calling.ts";
+import { privateWindowShown } from "../../../../packages/expo-windows/src/engine/privateWindows.ts";
 
 const repo = new URL("../../../../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, repo), "utf8");
@@ -121,6 +122,52 @@ test("releasing a profile asks the host to end that private session and answers 
   ]);
   assert.deepEqual(engine.calls, []);
   assert.deepEqual(engine.missed, []);
+});
+
+test("a private window's release waits while another private window of its profile is open, then both go together", async () => {
+  const engine = fakeEngine();
+  const release = (profile) => calling(engine, "profiles")("release", {}, profile);
+  const closeA = privateWindowShown("incognito:hold-a@hold");
+  const closeB = privateWindowShown("incognito:hold-b@hold");
+  const closeOther = privateWindowShown("incognito:hold-other@elsewhere");
+  closeA();
+  assert.equal(await release("incognito:hold-a@hold"), null);
+  assert.deepEqual(engine.hosted, [], "A's session goes on while B is open");
+  assert.equal(await release("incognito:hold-other@elsewhere-closed"), null);
+  assert.deepEqual(engine.hosted.map((call) => call.args.profile), ["incognito:hold-other@elsewhere-closed"], "another profile's private windows don't hold it");
+  assert.equal(await release("incognito:hold-b@hold"), null);
+  closeB();
+  assert.deepEqual(
+    engine.hosted.map((call) => call.args.profile),
+    ["incognito:hold-other@elsewhere-closed", "incognito:hold-a@hold", "incognito:hold-b@hold"],
+    "the held release goes with the last one",
+  );
+  closeOther();
+});
+
+test("a private window that closed before its profile view mounted, or a name never seen, is released as its siblings allow", async () => {
+  const engine = fakeEngine();
+  const release = (profile) => calling(engine, "profiles")("release", {}, profile);
+  assert.equal(await release("incognito:never-seen@solo"), null);
+  assert.deepEqual(engine.hosted.map((call) => call.args.profile), ["incognito:never-seen@solo"], "nothing else of its profile is open");
+  const closeOpen = privateWindowShown("incognito:still-open@pair");
+  assert.equal(await release("incognito:never-mounted@pair"), null);
+  assert.equal(engine.hosted.length, 1, "held while its sibling is open");
+  closeOpen();
+  assert.equal(await release("incognito:still-open@pair"), null);
+  assert.deepEqual(engine.hosted.slice(1).map((call) => call.args.profile), ["incognito:never-mounted@pair", "incognito:still-open@pair"]);
+  const closeLate = privateWindowShown("incognito:late@late");
+  assert.equal(await release("incognito:late@late"), null);
+  closeLate();
+  assert.deepEqual(engine.hosted.at(-1).args.profile, "incognito:late@late", "a release before its view unmounts goes at once");
+});
+
+test("a regular profile's release goes to the host at once, and an open window of it holds nothing", async () => {
+  const engine = fakeEngine();
+  const closeRegular = privateWindowShown("work");
+  assert.equal(await calling(engine, "profiles")("release", {}, "work"), null);
+  closeRegular();
+  assert.deepEqual(engine.hosted, [{ verb: "profile.release", args: { profile: "work" } }]);
 });
 
 test("a forwarded verb sends the profile and arguments unchanged and returns the engine's reply", async () => {
