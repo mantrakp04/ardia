@@ -1,7 +1,7 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import type { AppNative, ConfirmOptions, DialogsNative, DocumentsNative, UpdateChannel, UpdaterNative, UpdaterState } from "@ardia/shell";
 import type { AppWindowsModule, WindowsUpdateConstants, WindowsUpdateModule } from "../nativeModuleTypes";
-import { failureText, folderOf, megabytes, offered, readBuild, readManifest, type BuildIdentity } from "./manifest";
+import { failureText, feedNotPublished, folderOf, megabytes, offered, readBuild, readManifest, type BuildIdentity } from "./manifest";
 
 const PUBLISHED_UNDER = "https://github.com/ardia-browser/ardia/releases/download/";
 const FEED = `${PUBLISHED_UNDER}windows-alpha/windows-update.json`;
@@ -81,7 +81,17 @@ async function check(asked: boolean) {
   if (!asked && !checksByItself()) return;
   checking = true;
   try {
-    const manifest = readManifest(await update.fetchText(feed()), publishedUnder());
+    let feedText: string;
+    try {
+      feedText = await update.fetchText(feed());
+    } catch (error) {
+      if (!feedNotPublished(error) || feedOverride()) throw error;
+      console.info(`[ardia windows] update check failed: ${reason(error)}`);
+      const keepsChecking = checksByItself() ? " Ardia keeps checking by itself." : "";
+      if (asked) await tell("No Windows update published yet", `No Windows build of Ardia has been published for updates yet. You have ${named(current.version, current.build)}.${keepsChecking}`);
+      return;
+    }
+    const manifest = readManifest(feedText, publishedUnder());
     if (!manifest) throw new Error("the update feed could not be read");
     remember({ lastCheck: Date.now() });
     const installer = offered(manifest, String(constants().cpu), current.build);

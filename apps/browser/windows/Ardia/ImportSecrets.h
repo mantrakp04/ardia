@@ -210,6 +210,7 @@ inline const char *SourceScheme(std::optional<int64_t> value) noexcept {
 
 struct VaultEntry {
   std::vector<std::unique_ptr<Wiped>> batches;
+  std::vector<std::unique_ptr<Wiped>> autofill;
   size_t dropped = 0;
   std::chrono::steady_clock::time_point kept = std::chrono::steady_clock::now();
 };
@@ -289,6 +290,22 @@ struct Store {
     }
     return token;
   }
+
+  std::string Attach(std::string const &token, std::vector<std::unique_ptr<Wiped>> autofill, uint64_t started) {
+    if (!token.empty()) {
+      std::lock_guard guard{lock};
+      PurgeLocked();
+      if (generation != started) return {};
+      auto found = vault.find(token);
+      if (found != vault.end()) {
+        for (auto &batch : autofill) found->second->autofill.push_back(std::move(batch));
+        return token;
+      }
+    }
+    auto entry = std::make_shared<VaultEntry>();
+    entry->autofill = std::move(autofill);
+    return Keep(entry, started);
+  }
 };
 
 inline std::string Unlock(std::string const &browser, std::filesystem::path const &localState) {
@@ -310,7 +327,9 @@ inline std::string Unlock(std::string const &browser, std::filesystem::path cons
   return std::string{"{\"unlocked\":"} + (unlocked ? "true" : "false") + ",\"appBound\":" + (found.appBound ? "true" : "false") + "}";
 }
 
-inline void AppendLogin(std::string &out, sqlite3_stmt *row, std::string_view password, int columns[7]) {
+inline void AppendLogin(Wiped &items, sqlite3_stmt *row, std::string_view password, int columns[7]) {
+  std::string out;
+  out.reserve(password.size() * 6 + 512);
   std::string origin = ImportFiles::ColumnText(row, columns[0]);
   std::string realm = ImportFiles::ColumnText(row, columns[1]);
   out.append("{\"url\":");
@@ -332,13 +351,15 @@ inline void AppendLogin(std::string &out, sqlite3_stmt *row, std::string_view pa
   }
   if (auto used = ImportFiles::ColumnInt(row, columns[5])) out.append(",\"timesUsed\":").append(std::to_string(*used));
   out.push_back('}');
+  items.Append(out);
+  SecureZeroMemory(out.data(), out.size());
 }
 
 inline std::string Logins(std::string const &browser, std::vector<std::filesystem::path> const &files) {
   auto key = Store::Shared().KeyFor(browser);
   std::unique_ptr<Gcm> gcm = key ? std::make_unique<Gcm>(*key) : nullptr;
   if (key) SecureZeroMemory(key->data(), key->size());
-  std::string out = "{\"items\":[";
+  Wiped list;
   Counted counted;
   size_t items = 0;
   std::string failure;
@@ -377,13 +398,15 @@ inline std::string Logins(std::string const &browser, std::vector<std::filesyste
         plain.Wipe();
         continue;
       }
-      if (items++) out.push_back(',');
-      AppendLogin(out, row, plain.View(), columns);
+      if (items++) list.Append(",");
+      AppendLogin(list, row, plain.View(), columns);
       plain.Wipe();
     }
     if (step != SQLITE_DONE) note("unreadable");
   }
-  out.append("],").append(counted.Json());
+  std::string out;
+  out.reserve(list.Size() + 256);
+  out.append("{\"items\":[").append(list.View()).append("],").append(counted.Json());
   if (!failure.empty()) out.append(",\"failure\":").append(ImportFiles::JsonString(failure));
   out.push_back('}');
   return out;

@@ -164,7 +164,7 @@ const PNG_BASE64_PREFIX = "iVBORw0KGgo";
 export function faviconPages(result: Result): string[] {
   const links = (n: BookmarkNode): string[] => (n.type === "url" ? (n.url ? [n.url] : []) : (n.children ?? []).flatMap(links));
   const toolbar = (result.bookmarks?.children ?? []).filter((c) => c.role === "toolbar").flatMap(links);
-  return [...result.favorites.map((t) => t.url), ...result.tabs.map((t) => t.url), ...toolbar];
+  return [...result.favorites.map((t) => t.url), ...result.spaces.flatMap((s) => [...s.pinned.flatMap(links), ...s.tabs.map((t) => t.url)]), ...result.tabs.map((t) => t.url), ...toolbar];
 }
 
 const originOf = (page: string) => {

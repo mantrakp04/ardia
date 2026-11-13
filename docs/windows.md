@@ -29,13 +29,13 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Feature | State | Tracked in |
 | --- | --- | --- |
 | Installer (wizard, Start menu, Open Ardia) | Works | |
-| First launch after the installer | Differs: ardia.dev's release notes open behind onboarding | #1517 |
+| First launch after the installer | Works: onboarding, no release notes (they wait while a first run is under way) | #1517 |
 | Onboarding (source, look, last choices; resumes where you left it) | Works | |
 | Intro animation and music | Not offered | #1520, #1249 |
 | Tour | Works (first card seen) | |
 | Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
-| Check for updates | Broken: "the server answered 404", no `windows-alpha` release | #1517 |
-| Default browser | Broken: Settings says Ardia is the default while Edge is | #1439 |
+| Check for updates | Differs: no `windows-alpha` release is published, so Check Now says no Windows update has been published yet; the automatic check stays silent | #1517 |
+| Default browser | Works: Settings follows Windows' choice within one window activation (Edge, Ardia, Edge again, set in Windows Settings); Windows 11 keeps the choice in `UserChoiceLatest` | #1439 |
 | Open at login | Not walked: an instance with its own data folder leaves it alone | |
 
 **Windows and tabs**
@@ -61,7 +61,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Feature | State | Tracked in |
 | --- | --- | --- |
 | Command bar (history, open tabs, suggestions, calculator) | Works | |
-| Inline completion in the command bar | Does nothing | #1520 |
+| Inline completion in the command bar | Works: the top match completes inline and selected; typing replaces it, Backspace removes it, an IME composition is left alone | #1520 |
 | Find in page | Differs: Chromium's find bar | stand-ins (Chromium's own UI) |
 | Zoom | Works | |
 | Print | Works (Chromium's print preview) | |
@@ -567,8 +567,8 @@ cleared one by one through their `ac_*` calls, and each step that fails is named
 
 The Mac's `ArdiaImport` (Swift, `packages/import`) has a Windows version in TypeScript, `packages/expo-windows/src/import`,
 that answers the same methods with the same result shapes, so the wizard (`components/import`) and
-`state/import/apply.ts` are the Mac's. Only the OS calls are native: `ArdiaWindowsImport` (`ImportModule.h`,
-`ImportFiles.h`, `ImportSecrets.h`).
+`state/import/apply.ts` are the Mac's. Only the OS calls and the secrets are native: `ArdiaWindowsImport` (`ImportModule.h`,
+`ImportFiles.h`, `ImportSecrets.h`, `ImportNss.h`, `ImportFirefox.h`, `ImportFirefoxCookies.h`, `ImportAutofill.h`).
 
 - Native primitives: the two data folders (`localAppData`, `roamingAppData`, or `<importSourceDir>\Local` and `\Roaming`
   when `ARDIA_INSTANCE=importSourceDir=<dir>` is set in an instance with its own data folder), `list` a folder,
@@ -593,27 +593,44 @@ that answers the same methods with the same result shapes, so the wizard (`compo
   `Current Session`; Firefox and Zen `sessionstore-backups\recovery.jsonlz4` and the rest, LZ4 in TypeScript), favicons
   for the imported tabs and bookmarks bar (`Favicons`), a bookmarks HTML file and a passwords CSV file (picked with
   `ArdiaDialogs.pickFiles`).
+- Spaces (`arcSidebar.ts`, `zenSession.ts`, `zenSidebar.ts`, `sidebars.ts`, ported from `ArcSidebar.swift` and
+  `ZenSidebar.swift`): Arc for Windows keeps `StorableSidebar.json` beside its `User Data`, in
+  `%LOCALAPPDATA%\Packages\TheBrowserCompany.Arc_ttt1ap7aakyb4\LocalCache\Local\Arc`, in the Mac's format (the path
+  and the format are what the open-source exporters read, e.g. ivnvxd/arc-export, which parses both platforms' files with
+  the same code). Its spaces, pinned tabs, today tabs and favourites (Top Apps) come over per Chromium profile. Zen's
+  workspaces, folders, pinned tabs and Essentials come from `zen-sessions.jsonlz4` in the profile folder, then
+  `zen-sessions-backup\`, then the Firefox session store and `places.sqlite` `zen_workspaces`, as on the Mac; the source
+  carries `sidebar: "arc"` or `"zen"`, so the wizard offers spaces.
 - Passwords and cookies (Chromium family): the key is `os_crypt.encrypted_key` in `Local State`, unwrapped with DPAPI
   (`CryptUnprotectData`, no prompt: it is the same Windows user), and values are `v10` AES-256-GCM through BCrypt; a value
   with no prefix is tried as plain DPAPI (Chrome before 80). Chrome's app-bound values (`v20`, `app_bound_encrypted_key`)
   need Chrome's elevated service to unwrap, so they are counted and skipped, and the kind warns "N passwords use Google
   Chrome's app-bound encryption, which only Google Chrome can read" (an `undecryptable` warning, as the Mac's). So the
   wizard has no unlock step on Windows (`needsKeychain` is false), and the key is unwrapped the first time a kind needs it.
+- Firefox and Zen passwords: `ImportNss.h` derives the `key4.db` key with BCrypt (PBES2: PBKDF2-SHA256 and AES-256-CBC;
+  older profiles: the SHA-1 and 3DES PBE) with the empty primary password, as the Mac's wizard does; a profile with a
+  primary password set fails the kind with the Mac's locked "Wrong Firefox primary password". `ImportFirefox.h` decrypts
+  `logins.json` (3DES or AES-CBC fields) and `logins.db` (JWE, AES-256-GCM under the `as-logins-key` key) and merges
+  them as `FirefoxLogins.swift` does. Firefox and Zen cookies (`ImportFirefoxCookies.h`, `cookies.sqlite`) skip container
+  and private-window cookies and say how many ("N cookies from containers or private windows weren't imported").
+- Autofill (Chromium family, `ImportAutofill.h`): `Web Data` addresses (the token tables and the older
+  `autofill_profiles`) and cards (`v10`, or plain DPAPI; `v20` is app-bound and counted), as `ChromiumAutofill.swift`
+  reads them. A card the key can't open without `Local State` is counted as locked.
 - Secrets: the key stays native and is wiped by `forgetUnlockedKeys`. Passwords reach JS (`credentials`), as on the Mac,
-  because `savePassword` (`ac_passwords_add`) takes them from there. Cookie values never do: native decrypts them
-  straight into wiped buffers already in `ac_cookies_import`'s JSON, batches of 500, keeps them for 10 minutes under a
-  one-time token, and JS gets the count and the token. `writeImported` sends the batches to the engine one after another
-  and wipes each after its reply. A token is dropped after 10 minutes even if nothing asks again, and a vault
+  because `savePassword` (`ac_passwords_add`) takes them from there. Cookie values and autofill entries never do: native
+  decrypts them straight into wiped buffers already in `ac_cookies_import`'s and `ac_autofill_import`'s JSON, batches of
+  500, keeps them for 10 minutes under one one-time token per import (the autofill joins the cookies' entry), and JS gets
+  the counts and the token. `writeImported(token, profile, kinds)` sends the cookie batches and then the autofill
+  batches to the engine one after another, wipes each after its reply, and wipes the kinds the wizard didn't ask for. A token is dropped after 10 minutes even if nothing asks again, and a vault
   `forgetUnlockedKeys` cleared while a read was running stays empty.
-- Not on Windows yet, each offered by no profile so the wizard doesn't show it: autofill (addresses and cards from
-  `Web Data`), Firefox and Zen passwords (NSS `key4.db`) and cookies (`cookies.sqlite`, plain text, so they need the
-  native vault too), Chromium's encrypted session files (`Sessions_Encrypted`), Arc's and Zen's spaces, pinned tabs and
-  favourites (`StorableSidebar.json`, `zen-sessions.jsonlz4`), extensions found in the profile, Safari, Dia's tabs. None
-  needs engine work: `ac_cookies_import`, `ac_autofill_import`, `ac_passwords_add`, `ac_history_import` and
-  `ac_favicons_set` are all in the Windows engine's call table.
-- Tests: `apps/browser/src/state/import/windowsImport.test.mjs` runs the TypeScript against `packages/import/fixtures`
-  with a stand-in for the native module (Node's own `node:sqlite`, the same snapshot copy). The self-check's import area
-  exercises every native method in the app. Telemetry: `import_runs`, `import_kinds_done`, `import_kinds_failed` and
+- Not on Windows yet, each offered by no profile so the wizard doesn't show it: Chromium's encrypted session files
+  (`Sessions_Encrypted`), extensions found in the profile, Safari, Dia's tabs.
+- Tests: `apps/browser/src/state/import/windowsImport.test.mjs`, `windowsSidebars.test.mjs` and `windowsAutofill.test.mjs`
+  run the TypeScript against `packages/import/fixtures` with a stand-in for the native module
+  (`state/import/fixtures/windowsHost.mjs`: Node's own `node:sqlite`, the same snapshot copy). The self-check's import area
+  exercises every native method in the app; `launch-smoke.ps1` copies the fixtures' Firefox, Zen and Chrome profiles
+  into the self-check's data folder (`import-fixtures`), so the NSS, `logins.db`, cookie and `Web Data` readers decrypt
+  real files there. Telemetry: `import_runs`, `import_kinds_done`, `import_kinds_failed` and
   `import_secrets_left` in the hourly `usage_counts` (`state/telemetry/importRuns.ts`, every platform): a rising share of
   failed kinds or secrets left on Windows is the sign to look at.
 
