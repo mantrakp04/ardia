@@ -68,6 +68,7 @@ final class PageView: ExpoView {
     webView.removeFromSuperview()
     webView.frame = bounds
     webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    webView.allowsBackForwardNavigationGestures = true
     addSubview(webView)
     hostedWebView = webView
     scrollObservation = webView.scrollView.observe(\.contentOffset, options: []) { [weak self] _, _ in
