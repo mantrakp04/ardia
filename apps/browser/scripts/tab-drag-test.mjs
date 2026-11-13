@@ -546,6 +546,8 @@ try {
       return win("w1").then((n) => {
         const frame = () => ac.engine.call("windows.list").then((ws) => ws.find((w) => w.window === n).frame);
         const click = (count) => ac.engine.call("windows.dev", { window: n, action: "mouse:down:${x},${y}," + count }).then(() => settle(30)).then(() => ac.engine.call("windows.dev", { window: n, action: "mouse:up:${x},${y}," + count })).then(() => settle(60));
+        const page = st().windows.w1.tabIds.find((id) => st().tabs[id].url && !st().tabs[id].pin);
+        if (page) st().activate(page);
         const out = { tabs: st().windows.w1.tabIds.length };
         return ac.engine.call("windows.dev", { window: n, action: "hit:${x},${y}" }).then((h) => { out.hit = h; return ac.engine.call("windows.dev", { window: n, action: "windowDrags" }); })
           .then(() => click(1)).then(() => settle(300))
