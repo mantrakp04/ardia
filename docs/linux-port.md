@@ -1020,6 +1020,20 @@ It works as on the Mac ([cli.md](cli.md), [automation.md](automation.md)); what 
 
 Newest first. Each entry names the upstream commit `linux-support` was rebased onto and what the Linux side needed.
 
+- **2026-11-13, upstream da8ac687f** (65 commits after 0134e00dc). One conflict, in the shared Live folder code:
+  upstream added `markCompletedTabs` after a refresh and `hideStack` beside `releaseShownRepos`, which the Linux commit
+  had folded into `applyFetch`'s write. Both of upstream's additions stay, and releasing shown repos stays inside the
+  refresh's write, so the completion ticket isn't cancelled on Linux. Upstream's `chromium-restored-frame-gate.patch`
+  came and went within the range, so the series is unchanged. The engine key moved from `1078820d892b` to
+  `8562381ee0dd`; engine `engine-8562381ee0dd` is published, rebuilt incrementally at `-j 8` (13 steps). The link exports
+  the same 63 dynamic symbols and no `ac_*`; the package passes all 12 smoke checks. Linux changes:
+  - set viewport now works only on a tab the ardia command took into an off-screen automation window
+    (`engine.cliMoveOffscreen`). Linux has no such window: `IsAutomationWindow` and `InAutomationWindow` answer false,
+    `engine.cliMoveOffscreen`, `cliCloseOffscreenTabs` and `cliOwnsTab` answer that the call is unavailable on Linux,
+    and set viewport stays refused over the token connection (see Known gaps).
+  - The shown-slot record is a plain note again: `LayoutPane` notes a tab when it attaches it to a visible pane and no
+    longer holds the page back.
+
 - **2026-11-12, upstream 0134e00dc** (89 commits after 42c6291). Upstream moved the engine to Chromium 157.0.8103.50
   on Helium 0.21.2 and kept moving during the build, so the branch was rebased three times (2ff079b, 5ec3ed3, then
   0134e00) and the new engine commits were folded into the same out dir before its link. Two conflicts:
@@ -1104,6 +1118,8 @@ These were open at the time of the PR.
   - the `extensions.installFailed` event;
   - Paste and Go (the clipboard read answers empty);
   - performance recording (`beginTracing`/`endTracing`), which stays hidden.
+  - `ardia browse`'s off-screen tabs (`engine.cliMoveOffscreen`, `cliCloseOffscreenTabs`, `cliOwnsTab`): Linux has no
+    off-screen automation window, so `ardia browse set viewport` is refused over the token connection.
 - **Profiles.** Deleting a profile's data (`profiles.deleteData`) isn't routed. In a window that shows several engine
   profiles:
   - a page's own fullscreen in a companion's tab makes only its viewport fullscreen, not the window;
