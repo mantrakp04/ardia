@@ -9,16 +9,19 @@ import { currentBookmarks } from "../browser/current";
 import { useBrowser } from "../browser/store";
 import type { BookmarkNode, Bookmarks } from "../browser/types";
 import { openImport } from "../settings/settingsWindows";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { exportBookmarksFromWindow } from "./exportHtml";
 
+export const organizeMenuItems = (): MenuItem[] => [
+  { id: "bookmark", title: "Add Page…", symbol: "bookmark" },
+  { id: "folder", title: "New Folder…", symbol: "folder.badge.plus" },
+  { separator: true },
+  { id: "import", title: "Import Bookmarks…", symbol: "square.and.arrow.down" },
+  ...(PLATFORM_FEATURES.exportsBookmarksAndPasswords ? [{ id: "export", title: "Export Bookmarks…", symbol: "square.and.arrow.up" }] : []),
+];
+
 export async function openOrganizeMenu(windowId: string, profileId: string, folderId: string | null) {
-  const choice = await showMenu([
-    { id: "bookmark", title: "Add Page…", symbol: "bookmark" },
-    { id: "folder", title: "New Folder…", symbol: "folder.badge.plus" },
-    { separator: true },
-    { id: "import", title: "Import Bookmarks…", symbol: "square.and.arrow.down" },
-    { id: "export", title: "Export Bookmarks…", symbol: "square.and.arrow.up" },
-  ]);
+  const choice = await showMenu(organizeMenuItems());
   const parentId = folderId ?? undefined;
   if (choice === "bookmark") editBookmark(null, windowId, { profileId, parentId });
   if (choice === "folder") editBookmark(null, windowId, { profileId, parentId, folder: true });

@@ -328,15 +328,12 @@ is plain Chromium.
 | --- | --- | --- |
 | `autofill.settings`, `autofill.setSettings` | Engine | The Mac reads and writes the profile's `autofill.profile_enabled` and `autofill.credit_card_enabled` prefs; no `ac_*` call touches prefs. Today Settings › Autofill shows both toggles on and disabled. |
 | Import's cookie batches (no verb) | Engine | `//ardia/win`'s `engineCall` (`api.cc`) copies the arguments into a plain `std::string` that is freed without being wiped, so each `ac_cookies_import` batch the app wipes after the reply leaves one copy in freed engine memory. The Mac passes them with `callWithSecret`; Windows needs the same: a sensitive call that wipes its copy. |
+| `bookmarks.exportHtml`, `passwords.export` (the engine's answer) | Engine | The app side is done and hidden: `PLATFORM_FEATURES.exportsBookmarksAndPasswords` is false on Windows, so Settings' two export rows, Bookmarks › Export Bookmarks…, the command, its bar action, shortcut and CLI entry are not offered. In the VM (engine `windows-engine-20261113-1`) the save panel opens and answers, but `ac_bookmarks_export_html` and `ac_passwords_export` never answer and write no file, and the password export shows no Windows confirmation, while other engine calls (`ac_passwords_add`) answer at once. Needs a look at `WhenLoaded`/`WriteBookmarks` and `Reauthenticate` in a Windows engine with logging; once both answer, turn the flag on. |
 | `autofill.showSuggestions` | Engine | Shows Chromium's autofill popup in a tab: a `tab.call` method. |
-| `bookmarks.exportHtml` | Engine (in progress) | The Mac picks a file and calls `ac_bookmarks_export_html`, which refuses Windows paths in the current engine. Then a handler with `ArdiaDialogs`' save dialog. |
 | `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
 | `contentBlocker.devFailNextMessage`, `devDelayNextLoad` | Default | Mac test hooks. |
 | `engine.beginTracing`, `endTracing`, `isTracing` | Engine | Chromium's tracing controller for Report a Problem. |
-| `engine.systemState` | Native | The Mac's thermal, power and low-power snapshot; Windows has power status and battery saver to report. |
 | `engine.cliTabTargets` | Default | The `ardia` command's control is off on Windows (the engine swaps its control file for a stand-in). |
-| `extensions.inspectUnpacked` | Native | Reads an unpacked extension's `manifest.json` and icon from the folder picked. |
-| `extensions.chooseFolder` | Native, then TypeScript | `ArdiaDialogs.pickFolder` can answer it, but only once `inspectUnpacked` exists and the engine takes Windows paths for `ac_extensions_install`; alone it would show an empty install sheet. |
 | `extensions.resolveInstallPrompt` | Engine | Answers the Web Store's install prompt, which the engine doesn't send to the app on Windows yet. |
 | `extensions.actionStates`, `extensions.sidePanelUrl` | Engine | An extension's toolbar state and side panel for a tab. |
 | `media.displayMediaSources`, `screenRecordingAllowed`, `requestScreenRecording` | Engine | The app's own screen share picker; Chromium's picker shows today. |
@@ -344,7 +341,6 @@ is plain Chromium.
 | `media.showCastDialog`, `startCasting`, `stopCasting`, `closeCastDialog`, `watchCastRoutes`, `terminateCastRoute` | Engine | Casting. |
 | `media.changeCaptureSource`, `media.stopCapture` | Engine | A tab's camera, microphone or screen capture. |
 | `media.devShowBluetoothChooser`, `media.devChooserEvents` | Default | Mac test hooks. |
-| `passwords.export` | Engine (in progress) | Same Windows path refusal as bookmark export. |
 | `passwords.autofillEnabled`, `passwords.setAutofillEnabled` | Engine | The profile's `credentials_enable_service` pref, as for autofill. Today Settings › Passwords' offer-to-save toggle reads off and changes nothing. |
 | `permissions.resolve` | Engine | Permission prompts drawn by the app; Chromium's own prompt shows today. |
 | `permissions.resolveExternalApp`, `externalAppAllowances`, `removeExternalAppAllowance` | Engine | `ac_external_apps_*` is Mac-only (`ac_external_apps.mm`); Windows needs its own version. |
@@ -376,6 +372,32 @@ session with track actions, and the mini player shows skip by 15 seconds where t
 Answered in TypeScript on Windows since this list was made: `engine.info` (from `host.info`), `favicons.fetch` (the
 icon Chromium stored for that address, from `ac_favicons_get`, asked again after 0.4 and 1.5 s while Chromium writes
 it), and `profiles.deleteData`.
+
+Answered on Windows since the engine took Windows paths (`windows-engine-20261112-2`), in `domains/exports.ts`,
+`unpacked.ts` and `systemState.ts`, with the dialogs, file reads and power reading passed in as the domain engine's
+`desktop` (`domains/desktop.ts`):
+
+- `bookmarks.exportHtml` and `passwords.export`: `ArdiaDialogs.saveFile` (a Windows save panel, `SaveDialog.h`; the
+  password one carries the Mac's warning that anyone who can open the file can read the passwords), then
+  `ac_bookmarks_export_html` or `ac_passwords_export`, which asks Windows to confirm it is you before it writes
+  (`reauthFailed` otherwise). A background instance answers the panel from `file-chooser.txt` and logs that a file was
+  chosen, never which.
+  In the VM (build 157, engine `windows-engine-20261113-1`) the panel opens and answers, and the app hands the path to
+  the engine, but neither engine call answers: no file is written, no reply comes within a minute, and the password
+  export shows no Windows confirmation. Saving a password through the engine (`ac_passwords_add`) answers at once, so
+  this is in the two calls (row in the table above). Until they answer, both exports are hidden on Windows
+  (`PLATFORM_FEATURES.exportsBookmarksAndPasswords`). If either has not answered after `EXPORT_ANSWER_MS` (two
+  minutes, enough for a large profile), it fails the way the Mac's does: the bookmark export reports "Couldn't
+  export" and the password export answers `writeFailed`.
+- `extensions.chooseFolder` and `extensions.inspectUnpacked`: `ArdiaDialogs.pickFolder`, then the Mac's
+  `ReadManifest` in TypeScript over `ArdiaWindowsImport`'s file reads: the manifest (comments and trailing commas
+  allowed, as Chrome does), its `_locales` messages (locale names only), the icons as data addresses, and the id from `key`.
+  Every read goes through `readTextWithin`/`readBase64Within`, which compare the opened file's real path with the
+  folder's, so no `..`, junction or symlink reaches outside it; the size limit is the opened file's, not a link's. `install` and `installCrx` already went to `ac_extensions_install` and `ac_extensions_install_crx`.
+- `engine.systemState`: `ArdiaSystemSignals.powerState` (`GetSystemPowerStatus`, `GlobalMemoryStatusEx`) mapped onto
+  the Mac's shape: on battery, the battery's level, battery saver as `lowPowerMode`, and memory pressure from the
+  memory load (warning at 85%, critical at 95%). It is read again every 20 s and `engine.systemState` is sent when it
+  changes, as macOS's notifications do. Settings › Advanced says "battery saver" where the Mac says Low Power Mode.
 
 Deleting a profile's data: native (`ArdiaEngineHost.removeProfileFolder`) works out Chromium's data folder itself, as
 the engine does (`<ARDIA_DATA_DIR>\Chromium` in an instance with its own data folder, `%LOCALAPPDATA%\Ardia\User Data`

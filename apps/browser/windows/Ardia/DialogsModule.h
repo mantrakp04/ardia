@@ -580,6 +580,12 @@ inline std::string JoinedUtf8(std::vector<std::wstring> const &paths) noexcept {
 
 }
 
+}
+
+#include "SaveDialog.h"
+
+namespace Ardia {
+
 REACT_MODULE(DialogsModule, L"ArdiaDialogs")
 struct DialogsModule {
   REACT_INIT(Initialize)
@@ -708,6 +714,25 @@ struct DialogsModule {
         promise.Resolve(urls);
       } catch (...) {
         promise.Reject("pickFiles failed");
+      }
+    });
+  }
+
+  REACT_METHOD(saveFile)
+  void saveFile(std::string name, std::string extension, std::string kind, std::string message, winrt::Microsoft::ReactNative::ReactPromise<std::optional<std::string>> promise) noexcept {
+    DialogParts::SaveRequest request{Paths::Wide(name), Paths::Wide(extension), Paths::Wide(kind), Paths::Wide(message)};
+    if (DialogParts::Background()) {
+      std::vector<std::wstring> picks = DialogParts::TakePicks();
+      DialogParts::Log(DialogParts::DescribeSavePanel(request) + " | " + (picks.empty() ? std::string{"cancelled"} : std::string{"chose a file"}));
+      promise.Resolve(picks.empty() ? std::nullopt : std::optional<std::string>{Paths::Utf8(picks.front())});
+      return;
+    }
+    RunOnUI(m_context, [promise, request]() noexcept {
+      try {
+        std::optional<std::wstring> path = DialogParts::ShowSaveFile(WindowManager::Shared().ActiveHwnd(), request);
+        promise.Resolve(path ? std::optional<std::string>{Paths::Utf8(*path)} : std::nullopt);
+      } catch (...) {
+        promise.Reject("saveFile failed");
       }
     });
   }

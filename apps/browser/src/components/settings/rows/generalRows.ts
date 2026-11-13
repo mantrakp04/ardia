@@ -86,6 +86,7 @@ export const generalRows = {
           keywords: ["migrate", "switch", "transfer"],
         },
         exportBookmarks: {
+          shown: () => PLATFORM_FEATURES.exportsBookmarksAndPasswords,
           title: "Export bookmarks",
           description: "To an HTML file that Chrome, Safari, Firefox and every other browser can import.",
           keywords: ["backup", "html", "netscape", "bookmarks.html", "save bookmarks", "transfer"],

@@ -15,6 +15,8 @@ export type ImportHost = {
   list(path: string): Promise<Entry[] | null | { denied: true }>;
   readText(path: string, largest: number): Promise<string | null>;
   readBase64(path: string, largest: number): Promise<string | null>;
+  readTextWithin(folder: string, path: string, largest: number): Promise<string | null>;
+  readBase64Within(folder: string, path: string, largest: number): Promise<string | null>;
   query(path: string, queries: Query[]): Promise<Answer>;
   openSnapshot(path: string): Promise<{ id: string } | { failure: SnapshotFailure }>;
   querySnapshot(id: string, queries: Query[]): Promise<Answer>;

@@ -129,18 +129,70 @@ inline std::string TextOf(std::string bytes) {
   return Paths::Utf8(wide);
 }
 
-inline std::optional<uint64_t> SizeOf(std::filesystem::path const &path) noexcept {
-  WIN32_FILE_ATTRIBUTE_DATA data{};
-  if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) return std::nullopt;
-  if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) return std::nullopt;
-  return (static_cast<uint64_t>(data.nFileSizeHigh) << 32) | data.nFileSizeLow;
+inline std::wstring RealPath(HANDLE file) {
+  std::wstring real(32768, L'\0');
+  DWORD length = GetFinalPathNameByHandleW(file, real.data(), static_cast<DWORD>(real.size()), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+  if (length == 0 || length >= real.size()) return {};
+  real.resize(length);
+  CharLowerBuffW(real.data(), static_cast<DWORD>(real.size()));
+  while (!real.empty() && (real.back() == L'\\' || real.back() == L'/')) real.pop_back();
+  return real;
+}
+
+inline std::wstring RealFolder(std::filesystem::path const &folder) {
+  HANDLE handle = CreateFileW(folder.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+  if (handle == INVALID_HANDLE_VALUE) return {};
+  std::wstring real = RealPath(handle);
+  CloseHandle(handle);
+  return real;
+}
+
+inline std::optional<std::string> ReadOpened(HANDLE file, uint64_t largest) noexcept {
+  try {
+    BY_HANDLE_FILE_INFORMATION info{};
+    LARGE_INTEGER size{};
+    if (!GetFileInformationByHandle(file, &info) || (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || !GetFileSizeEx(file, &size)) return std::nullopt;
+    if (size.QuadPart < 0 || static_cast<uint64_t>(size.QuadPart) > std::min(largest, kLargestFileBytes)) return std::nullopt;
+    std::string contents(static_cast<size_t>(size.QuadPart), '\0');
+    size_t filled = 0;
+    while (filled < contents.size()) {
+      DWORD got = 0;
+      DWORD chunk = static_cast<DWORD>(std::min<size_t>(contents.size() - filled, 1u << 20));
+      if (!ReadFile(file, contents.data() + filled, chunk, &got, nullptr)) return std::nullopt;
+      if (got == 0) break;
+      filled += got;
+    }
+    contents.resize(filled);
+    return contents;
+  } catch (...) {
+    return std::nullopt;
+  }
 }
 
 inline std::optional<std::string> ReadBytes(std::filesystem::path const &path, uint64_t largest) noexcept {
   if (IsSecretStore(path)) return std::nullopt;
-  auto size = SizeOf(path);
-  if (!size || *size > std::min(largest, kLargestFileBytes)) return std::nullopt;
-  return Files::ReadAll(path);
+  HANDLE file = Files::OpenForReading(path);
+  if (file == INVALID_HANDLE_VALUE) return std::nullopt;
+  std::optional<std::string> bytes = ReadOpened(file, largest);
+  CloseHandle(file);
+  return bytes;
+}
+
+inline std::optional<std::string> ReadBytesWithin(std::filesystem::path const &folder, std::filesystem::path const &path, uint64_t largest) noexcept {
+  try {
+    if (IsSecretStore(path)) return std::nullopt;
+    std::wstring root = RealFolder(folder);
+    if (root.empty()) return std::nullopt;
+    HANDLE file = Files::OpenForReading(path);
+    if (file == INVALID_HANDLE_VALUE) return std::nullopt;
+    std::wstring real = RealPath(file);
+    std::optional<std::string> bytes;
+    if (!real.empty() && real.size() > root.size() + 1 && real.compare(0, root.size(), root) == 0 && real[root.size()] == L'\\') bytes = ReadOpened(file, largest);
+    CloseHandle(file);
+    return bytes;
+  } catch (...) {
+    return std::nullopt;
+  }
 }
 
 inline double UnixMilliseconds(FILETIME time) noexcept {

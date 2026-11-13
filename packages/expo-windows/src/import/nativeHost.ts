@@ -1,6 +1,6 @@
 import { TurboModuleRegistry } from "react-native";
 import type { WindowsImportModule } from "../nativeModuleTypes";
-import type { ImportHost, Query } from "./host";
+import type { ImportHost } from "./host";
 
 export const NATIVE_IMPORT = "ArdiaWindowsImport";
 
@@ -16,6 +16,8 @@ export function nativeImportHost(): ImportHost | null {
     list: (path) => parsed(native.list(path)),
     readText: (path, largest) => native.readText(path, largest),
     readBase64: (path, largest) => native.readBase64(path, largest),
+    readTextWithin: (folder, path, largest) => native.readTextWithin(folder, path, largest),
+    readBase64Within: (folder, path, largest) => native.readBase64Within(folder, path, largest),
     query: (path, queries) => parsed(native.query(path, queries)),
     openSnapshot: (path) => parsed(native.openSnapshot(path)),
     querySnapshot: (id, queries) => parsed(native.querySnapshot(id, queries)),

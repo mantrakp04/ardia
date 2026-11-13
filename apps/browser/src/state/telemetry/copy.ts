@@ -87,6 +87,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "On Windows, how many animations ran and how many of their frames came late, summed up once an hour",
       "On Windows, how many links Ardia opened that it was started with while it wasn't running, summed up once an hour. Never which links or which app",
       "How many times you asked to make Ardia your default browser (on Windows, how many times that opened Windows Settings), and whether Ardia was your default browser when it started, summed up once an hour",
+      "How many times bookmarks were exported to an HTML file, passwords were exported to a CSV file, and an extension was installed from a folder, and how many of those exports failed, summed up once an hour. Never which bookmarks, passwords, extensions or files",
       "How many imports from another browser finished, how many kinds of data (bookmarks, history, passwords and so on) came over or failed, and how many times some passwords or cookies were left behind because they couldn't be decrypted, summed up once an hour. Never which browser, pages, names or passwords",
       "How many times a page open in WebKit was kept out of sight while it waited, ready, to be switched to: the open tab of a neighbouring profile, or the tab that takes over while you drag one away. Summed up once an hour, never which page",
       "How many Peek cards and Little Ardia windows you opened or closed with a trackpad pinch, how many Little Ardia windows you closed by swiping back or started to and let go, summed up once an hour",

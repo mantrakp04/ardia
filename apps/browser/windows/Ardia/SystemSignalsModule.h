@@ -220,6 +220,24 @@ struct SystemSignalsModule {
     promise.Resolve(winrt::Microsoft::ReactNative::JSValue{std::move(result)});
   }
 
+  REACT_SYNC_METHOD(powerState)
+  winrt::Microsoft::ReactNative::JSValue powerState() noexcept {
+    using winrt::Microsoft::ReactNative::JSValue;
+    winrt::Microsoft::ReactNative::JSValueObject state;
+    SYSTEM_POWER_STATUS power{};
+    bool known = GetSystemPowerStatus(&power) != FALSE;
+    bool hasBattery = known && power.BatteryFlag != 128 && power.BatteryFlag != 255;
+    state["onBattery"] = JSValue{hasBattery && power.ACLineStatus == 0};
+    state["batteryPercent"] = hasBattery && power.BatteryLifePercent <= 100 ? JSValue{static_cast<int64_t>(power.BatteryLifePercent)} : JSValue{nullptr};
+    state["batterySaver"] = JSValue{known && (power.SystemStatusFlag & 1) != 0};
+    MEMORYSTATUSEX memory{};
+    memory.dwLength = sizeof(memory);
+    bool measured = GlobalMemoryStatusEx(&memory) != FALSE;
+    state["memoryLoad"] = measured ? JSValue{static_cast<int64_t>(memory.dwMemoryLoad)} : JSValue{nullptr};
+    state["physicalMemory"] = measured ? JSValue{static_cast<double>(memory.ullTotalPhys)} : JSValue{nullptr};
+    return JSValue{std::move(state)};
+  }
+
   REACT_METHOD(devPost)
   void devPost(std::string name, winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
     if (!AppLaunch::Shared().isolated || !m_state) return promise.Resolve(false);

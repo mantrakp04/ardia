@@ -1,5 +1,6 @@
-import type { AppNative, FileDropNative, MenusNative, NotificationsNative, SystemNative, WindowControlsNative, WindowsNative } from "@ardia/shell";
+import type { AppNative, DialogsNative, FileDropNative, MenusNative, NotificationsNative, SystemNative, SystemSignalsNative, WindowControlsNative, WindowsNative } from "@ardia/shell";
 import type { TurboModule } from "react-native";
+import type { PowerReading } from "./engine/domains/calling";
 import type { EventSubscription } from "./events";
 import type { ImportHost } from "./import/host";
 import type { LaunchArguments } from "./launchLinks/addresses";
@@ -82,6 +83,10 @@ export type EngineHostModule = TurboModule & {
 
 type ImportAnswersAsJson = "list" | "query" | "openSnapshot" | "querySnapshot" | "unlock" | "logins" | "cookies" | "writeCookies";
 
-export type WindowsImportModule = Pick<ImportHost, "readText" | "readBase64" | "closeSnapshot" | "discard" | "forget"> & {
+export type WindowsImportModule = Pick<ImportHost, "readText" | "readBase64" | "readTextWithin" | "readBase64Within" | "closeSnapshot" | "discard" | "forget"> & {
   [Method in ImportAnswersAsJson]: (...args: Parameters<ImportHost[Method]>) => Promise<string>;
 } & { getConstants(): { localAppData?: unknown; roamingAppData?: unknown } };
+
+export type DialogsModule = DialogsNative & { saveFile(name: string, extension: string, kind: string, message: string): Promise<string | null> };
+
+export type SystemSignalsModule = SystemSignalsNative & { powerState(): PowerReading };
