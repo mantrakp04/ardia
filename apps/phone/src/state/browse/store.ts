@@ -4,14 +4,12 @@ import { HISTORY_RETENTION_MS } from "../history/historySummary";
 import {
   livePageIds,
   listenToPages,
-  pageHandle,
-  pageNavigation,
   savePageState,
   snapshotPage,
   storeNavigation,
   storeTone,
   type PageEngineEvent,
-  type PageNavigationState,
+  type PageState,
   type PageTone,
 } from "../pages/store";
 import type { VisitKind } from "../../platform/pages";
@@ -231,7 +229,7 @@ function scheduleSnapshot(id: string) {
   );
 }
 
-export function pageStateChanged(id: string, state: PageNavigationState) {
+export function pageStateChanged(id: string, state: PageState) {
   storeNavigation(id, state);
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
@@ -268,30 +266,4 @@ useTabs.subscribe((tabs) => {
 
 export function goBackToStartIfEmpty() {
   if (useBrowse.getState().surface === "browsing" && !selectedTab(currentTabs())) show("start");
-}
-
-export function handleSystemBack(): boolean {
-  if (searchState().open) {
-    cancelSearch();
-    return true;
-  }
-  const { surface, sheet } = useBrowse.getState();
-  if (sheet) {
-    closeArchive();
-    return true;
-  }
-  if (surface === "deck") {
-    leaveDeck();
-    return true;
-  }
-  if (surface === "browsing") {
-    const id = currentTabs().selectedId;
-    if (pageNavigation(id)?.canGoBack) {
-      void pageHandle(id)?.goBack();
-      return true;
-    }
-    showDeck();
-    return true;
-  }
-  return false;
 }

@@ -9,11 +9,15 @@ import { ArchiveView } from "./components/tabs/ArchiveView";
 import { TabDeck } from "./components/tabs/TabDeck";
 import { ink } from "./components/ui";
 import { useSheet, useSurface } from "./state/browse/hooks";
-import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, handleSystemBack, startBrowser } from "./state/browse/store";
+import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
+import { handleSystemBack, startPageUi } from "./state/page/actions";
 import { useSelectedTab } from "./state/tabs/hooks";
 
 export default function App() {
-  useState(startBrowser);
+  useState(() => {
+    startBrowser();
+    startPageUi();
+  });
   const surface = useSurface();
   const sheet = useSheet();
   const tab = useSelectedTab();

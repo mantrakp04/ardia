@@ -83,8 +83,8 @@ export function loadTabs() {
   useTabs.setState({ ...launchTabs(readOpenTabs(db), countArchivedTabs(db)), incognito: false, listing: 0 });
 }
 
-export function openNewTab(request: Omit<OpenRequest, "isPrivate">): BrowserTab {
-  const { change, tab } = openTab(data(), { ...request, isPrivate: useTabs.getState().incognito }, now(), newUuid());
+export function openNewTab(request: Omit<OpenRequest, "isPrivate"> & { isPrivate?: boolean }): BrowserTab {
+  const { change, tab } = openTab(data(), { ...request, isPrivate: request.isPrivate ?? useTabs.getState().incognito }, now(), newUuid());
   apply(change);
   return tab;
 }

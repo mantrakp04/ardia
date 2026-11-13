@@ -1,11 +1,28 @@
 import { create } from "zustand";
-import { closePage, pages, type PageEngineEvent, type PageNavigationState, type PageSnapshot, type PageTone, type PageViewHandle } from "../../platform/pages";
+import {
+  closePage,
+  pages,
+  type FindResult,
+  type PageEngineEvent,
+  type PageNavigationState,
+  type PageRequest,
+  type PageSnapshot,
+  type PageState,
+  type PageTone,
+  type PageViewHandle,
+} from "../../platform/pages";
 
-export type { PageEngineEvent, PageNavigationState, PageSnapshot, PageTone, PageViewHandle };
+export type { FindResult, PageEngineEvent, PageNavigationState, PageRequest, PageSnapshot, PageState, PageTone, PageViewHandle };
 
-type PagesState = { navigation: Record<string, PageNavigationState>; tones: Record<string, PageTone> };
+type PagesState = {
+  navigation: Record<string, PageState>;
+  tones: Record<string, PageTone>;
+  finds: Record<string, FindResult | null>;
+  requests: Record<string, PageRequest | null>;
+  fullscreen: Record<string, boolean>;
+};
 
-export const usePages = create<PagesState>()(() => ({ navigation: {}, tones: {} }));
+export const usePages = create<PagesState>()(() => ({ navigation: {}, tones: {}, finds: {}, requests: {}, fullscreen: {} }));
 
 const handles = new Map<string, PageViewHandle>();
 
@@ -20,21 +37,37 @@ export const pageNavigation = (id: string | null) => (id ? usePages.getState().n
 
 export const pageTone = (id: string) => usePages.getState().tones[id] ?? null;
 
-export const storeNavigation = (id: string, navigation: PageNavigationState) =>
+export const storeNavigation = (id: string, navigation: PageState) =>
   usePages.setState((s) => ({ navigation: { ...s.navigation, [id]: navigation } }));
 
 export const storeTone = (id: string, tone: PageTone) => usePages.setState((s) => ({ tones: { ...s.tones, [id]: tone } }));
+
+export const storeFind = (id: string, result: FindResult | null) => usePages.setState((s) => ({ finds: { ...s.finds, [id]: result } }));
+
+export const storeRequest = (id: string, request: PageRequest | null) => usePages.setState((s) => ({ requests: { ...s.requests, [id]: request } }));
+
+export const storeFullscreen = (id: string, on: boolean) => usePages.setState((s) => ({ fullscreen: { ...s.fullscreen, [id]: on } }));
+
+export const pageRequest = (id: string | null) => (id ? usePages.getState().requests[id] ?? null : null);
+
+export const pageIsFullscreen = (id: string | null) => (id ? usePages.getState().fullscreen[id] ?? false : false);
 
 export function endPages(ids: readonly string[]) {
   if (!ids.length) return;
   usePages.setState((s) => {
     const navigation = { ...s.navigation };
     const tones = { ...s.tones };
+    const finds = { ...s.finds };
+    const requests = { ...s.requests };
+    const fullscreen = { ...s.fullscreen };
     for (const id of ids) {
       delete navigation[id];
       delete tones[id];
+      delete finds[id];
+      delete requests[id];
+      delete fullscreen[id];
     }
-    return { navigation, tones };
+    return { navigation, tones, finds, requests, fullscreen };
   });
   for (const id of ids) {
     handles.delete(id);
@@ -42,7 +75,7 @@ export function endPages(ids: readonly string[]) {
   }
 }
 
-const settled = <T>(call: () => Promise<T>, fallback: T): Promise<T> =>
+export const settled = <T>(call: () => Promise<T>, fallback: T): Promise<T> =>
   Promise.resolve()
     .then(call)
     .catch(() => fallback);

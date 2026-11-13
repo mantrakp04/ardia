@@ -17,6 +17,9 @@ export type Preferences = {
   hasFinishedOnboarding: boolean;
   archiveCardShown: boolean;
   colorChoice: ColorChoice | null;
+  readerStep: number;
+  readerSerif: boolean;
+  readerTheme: "light" | "sepia" | "dark" | null;
 };
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -31,6 +34,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   hasFinishedOnboarding: false,
   archiveCardShown: false,
   colorChoice: null,
+  readerStep: 2,
+  readerSerif: true,
+  readerTheme: null,
 };
 
 export const PREFERENCE_KEYS: Record<keyof Preferences, string> = {
@@ -45,6 +51,9 @@ export const PREFERENCE_KEYS: Record<keyof Preferences, string> = {
   hasFinishedOnboarding: "settings.finishedOnboarding",
   archiveCardShown: "tabs.archiveCardShown",
   colorChoice: "settings.color",
+  readerStep: "reader.sizeStep",
+  readerSerif: "reader.serif",
+  readerTheme: "reader.theme",
 };
 
 const oneOf =
@@ -66,6 +75,9 @@ const PARSERS: { [K in keyof Preferences]: (raw: string) => Preferences[K] | und
   hasFinishedOnboarding: flag,
   archiveCardShown: flag,
   colorChoice: oneOf<ColorChoice>(["plum", "blue", "purple", "pink", "red", "orange", "yellow", "green", "neutral"]),
+  readerStep: (raw) => (/^\d$/.test(raw) && Number(raw) <= 6 ? Number(raw) : undefined),
+  readerSerif: flag,
+  readerTheme: oneOf<"light" | "sepia" | "dark">(["light", "sepia", "dark"]),
 };
 
 export function parsePreferences(stored: Record<string, string>): Preferences {
