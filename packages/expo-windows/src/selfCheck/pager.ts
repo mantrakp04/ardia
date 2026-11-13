@@ -7,9 +7,8 @@ import { viewOnWindows } from "../views/registry";
 import { expectEqual, expectTrue, type Check } from "./check";
 import { holdOnStage } from "./stage";
 
-type Swipe = Pick<SwipeModule, "switchPager" | "stepPager" | "pagerState">;
 
-const swipe = () => requireNativeModule<Swipe>("ArdiaSwipe");
+const swipe = () => requireNativeModule<Pick<SwipeModule, "switchPager" | "stepPager" | "pagerState">>("ArdiaSwipe");
 const settled = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const ORDER = ["self-check-a", "self-check-b", "self-check-c"];

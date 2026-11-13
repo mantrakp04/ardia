@@ -1,5 +1,5 @@
 import { TurboModuleRegistry } from "react-native";
-import type { DocumentsNative } from "@ardia/shell";
+import type { AppNative, DocumentsNative } from "@ardia/shell";
 import { join } from "../import/host";
 import { nativeImportHost } from "../import/nativeHost";
 import { requireNativeModule } from "../modules";
@@ -14,7 +14,7 @@ const host = () => {
 const documents = () => requireNativeModule<DocumentsNative>("ArdiaDocuments");
 
 const dataFolder = () => {
-  const folder = requireNativeModule<{ launchConfig(): { dataDirectory?: unknown } }>("ArdiaApp").launchConfig().dataDirectory;
+  const folder = requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().dataDirectory;
   expectTrue(typeof folder === "string" && folder.length > 0, "the instance has no data folder");
   return folder;
 };

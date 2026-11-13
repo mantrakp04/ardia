@@ -7,7 +7,7 @@ export type CallArgs<N extends CallName> = EngineCalls[N][0];
 export type CallResult<N extends CallName> = EngineCalls[N][1];
 export type EventName = keyof EngineEvents;
 
-type DomainModule = {
+export type DomainModule = {
   call(name: string, profile: string, args: string): Promise<string>;
   addListener(channel: string, listener: (event: { name: string; data: unknown }) => void): EventSubscription;
 };

@@ -2,7 +2,8 @@ import { engineAvailable } from "../engine/host";
 import { onPagePress } from "../engine/pages";
 import { WindowIdContext } from "../engine/windowId";
 import { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, type ReactNode } from "react";
-import { RootTagContext, TurboModuleRegistry, View, type GestureResponderEvent, type TurboModule, type ViewStyle } from "react-native";
+import { RootTagContext, TurboModuleRegistry, View, type GestureResponderEvent, type ViewStyle } from "react-native";
+import type { WindowsHostModule } from "../nativeModuleTypes";
 import { noteMissing } from "../missing";
 import { acceptsOf, useFileDropArea, type DropUpdate } from "./fileDropAreas";
 import { claimOnce, type AnyProps } from "./shared";
@@ -36,7 +37,6 @@ const CONTROL_DOWN = 16;
 const ALT_DOWN = 32;
 const FIBER_STEPS = 400;
 
-type PointerHost = TurboModule & { pointerState?(): number };
 type ContextMenuMarker = { open(): void; capture: boolean; purpose: string };
 type MiddleClickMarker = { click(state: number): void };
 type FiberLike = { memoizedProps?: unknown; return?: FiberLike | null };
@@ -53,7 +53,7 @@ function pointerStateAt(event: PointerLike): number {
   if (known !== undefined) return known;
   let state = 0;
   try {
-    state = TurboModuleRegistry.get<PointerHost>("ArdiaWindowsHost")?.pointerState?.() ?? 0;
+    state = TurboModuleRegistry.get<WindowsHostModule>("ArdiaWindowsHost")?.pointerState?.() ?? 0;
   } catch {
     state = 0;
   }
