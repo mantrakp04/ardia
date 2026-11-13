@@ -81,7 +81,17 @@ async function check(asked: boolean) {
   if (!asked && !checksByItself()) return;
   checking = true;
   try {
-    const manifest = readManifest(await update.fetchText(feed()), publishedUnder());
+    let feedText: string;
+    try {
+      feedText = await update.fetchText(feed());
+    } catch (error) {
+      if (!feedNotPublished(error) || feedOverride()) throw error;
+      console.info(`[ardia windows] update check failed: ${reason(error)}`);
+      const keepsChecking = checksByItself() ? " Ardia keeps checking by itself." : "";
+      if (asked) await tell("No Windows update published yet", `No Windows build of Ardia has been published for updates yet. You have ${named(current.version, current.build)}.${keepsChecking}`);
+      return;
+    }
+    const manifest = readManifest(feedText, publishedUnder());
     if (!manifest) throw new Error("the update feed could not be read");
     remember({ lastCheck: Date.now() });
     const installer = offered(manifest, String(constants().cpu), current.build);
@@ -121,9 +131,7 @@ async function check(asked: boolean) {
     }
   } catch (error) {
     console.info(`[ardia windows] update check failed: ${reason(error)}`);
-    if (!asked) return;
-    if (feedNotPublished(error) && !feedOverride()) await tell("No Windows update published yet", `No Windows build of Ardia has been published for updates yet. You have ${named(current.version, current.build)}, and Ardia keeps checking by itself.`);
-    else await tell("Ardia couldn't check for updates", reason(error));
+    if (asked) await tell("Ardia couldn't check for updates", reason(error));
   } finally {
     checking = false;
   }
