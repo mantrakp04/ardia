@@ -112,6 +112,13 @@ bool FindPicked(ui::MenuModel* model,
   return false;
 }
 
+void RemoveOpenLinkInProfile(RenderViewContextMenuBase& menu) {
+  menu.RemoveMenuItem(IDC_CONTENT_CONTEXT_OPENLINKINPROFILE);
+  for (int i = 0; i < kOpenLinkInProfileItems; ++i) {
+    menu.RemoveMenuItem(IDC_OPEN_LINK_IN_PROFILE_FIRST + i);
+  }
+}
+
 class ACContextMenu : public RenderViewContextMenuMacCocoa {
  public:
   using RenderViewContextMenuMacCocoa::RenderViewContextMenuMacCocoa;
@@ -123,14 +130,7 @@ class ACContextMenu : public RenderViewContextMenuMacCocoa {
   }
 
   void ArrangeLikeDia() {
-    for (size_t i = menu_model_.GetItemCount(); i-- > 0;) {
-      const int command = menu_model_.GetCommandIdAt(i);
-      if (command == IDC_CONTENT_CONTEXT_OPENLINKINPROFILE ||
-          (command >= IDC_OPEN_LINK_IN_PROFILE_FIRST &&
-           command < IDC_OPEN_LINK_IN_PROFILE_FIRST + kOpenLinkInProfileItems)) {
-        menu_model_.RemoveItemAt(i);
-      }
-    }
+    RemoveOpenLinkInProfile(*this);
     const std::optional<size_t> save =
         menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_SAVELINKAS);
     const std::optional<size_t> copy =
@@ -366,8 +366,10 @@ class ACViewDelegate : public ChromeWebContentsViewDelegateViewsMac {
       const content::ContextMenuParams& params) override {
     content::RenderWidgetHostView* view = contents_->GetRenderWidgetHostView();
     if (!TabOf(contents_) || !view) {
-      return ChromeWebContentsViewDelegateViewsMac::BuildMenu(render_frame_host,
-                                                              params);
+      std::unique_ptr<RenderViewContextMenuBase> stock =
+          ChromeWebContentsViewDelegateViewsMac::BuildMenu(render_frame_host, params);
+      RemoveOpenLinkInProfile(*stock);
+      return stock;
     }
     auto menu = std::make_unique<ACContextMenu>(
         render_frame_host, params, paste_enabled_, paste_and_match_style_enabled_,
