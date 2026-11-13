@@ -13,6 +13,8 @@ source_set("win") {
     "host.h",
     "main.cc",
     "main.h",
+    "private_sessions.cc",
+    "private_sessions.h",
     "profiles.cc",
     "profiles.h",
     "public/EngineApi.h",

@@ -410,8 +410,45 @@ is plain Chromium.
   a page into a tab opened blank and goes Back, exports bookmarks to a Windows path, installs extensions from
   drive-letter and UNC paths that don't exist (the error must not be "an absolute path required"), asks for
   extension load health and a search suggestion, and with
-  `ARDIA_PROBE_DOWNLOAD_URL` loads a download into a blank tab and a tab with a page. It proves an engine build with
-  no app.
+  `ARDIA_PROBE_DOWNLOAD_URL` loads a download into a blank tab and a tab with a page. With `ARDIA_PROBE_COOKIE_URL`
+  (a page that sets a cookie on `?set` and shows its cookies in its title) it sets a cookie in a normal and a private
+  tab, opens a second private tab while the first is open, releases both and reads the cookie from a new private tab
+  and a normal one; with `ARDIA_PROBE_SLOW_DOWNLOAD_URL` it ends a private session while a download in it is running.
+  It proves an engine build with no app.
+- Private windows work as on the Mac. Each private window has its own name (`incognito:<window>@<profile>`); every
+  private window of a profile that is open at the same time shares that profile's one off-the-record profile, so
+  they share cookies and sign-ins. `profiles.release` (the host verb `profile.release`, sent when a private window
+  closes) drops the window's name, and when no name of that profile is left the session ends
+  (`private_sessions.cc`). The host closes every Chromium window of that off-the-record profile with its warnings
+  skipped, Chromium's `BrowserManagerService` hands the profile to `ProfileDestroyer` once its last window is
+  destroyed, and in-flight work (renderers, downloads) ends with it. A private window opened while the old session is
+  still ending waits until the old profile object itself is destroyed, not only told it will be (Chromium sends that
+  before its renderers have gone), and then gets a new, empty one: the session's state is user data on the
+  off-the-record profile, and its destructor resumes the waiting windows. If the old session still has windows 15 s
+  after its last release, waiting windows and any later one of that profile are refused until it is gone. A released
+  name never opens a tab again. `tabs.list` gives each tab's session number (0 for a normal profile), issued once per
+  off-the-record profile object, and `host.info` the number of live sessions.
+- A private window joins its session in the engine only when it opens a tab, and an app window's page windows are
+  destroyed with it (Windows destroys owned windows before their owner), so a private window with no page yet (New Tab
+  set to the command bar) kept nothing alive: closing the other private window destroyed the off-the-record profile's
+  last Chromium window and with it the session. Each open private window now keeps the session itself: its
+  `ArdiaWindowProfile` opens a hidden blank tab under the window's private name in its own page window while it is
+  mounted (`holdPrivateSession` in `engine/privateWindows.ts`) and closes it when it goes. The Windows
+  `profiles.release` also holds a private window's release while another private window of the same profile is
+  open and sends the held ones with the last. The release of a session's last private window is lost in the shared
+  window code (`privateSessions.ts` makes a nested store update when a session's last window closes, so
+  `windowSync` sees the window already gone and never releases it), so a private window whose view has unmounted
+  for a second also releases its name itself; each name is released once, and at quit every session ends with the
+  process anyway.
+- A page whose tab the engine refused (a private window opened while the old session would not end) stays in the
+  app's list of pages; its next `loadUrl`, `reload` or `forceReload` asks for the tab once more and, when it opens,
+  tells the page it is ready, or sends `loadError` when it is refused again (`engine/pages.ts`).
+- Engine call arguments are wiped after the call: the engine keeps them in `ardia::Secret` (`api.cc`) and cleanses the
+  copy it re-serializes for a private profile, and the app's `engineCall` keeps them in `WipedText`
+  (`EngineHostModule.h`), which wipes its own buffer and every buffer it is moved from. This covers the copies the
+  host and the app make, not every copy: the JavaScript string, React Native's own marshalling, Chromium's JSON
+  reader, which keeps a decoded scratch copy of a string with escapes (a password with a backslash), and its
+  serializer, which can free a smaller buffer while it grows, are not wiped.
 
 ## Calls Windows still answers with a stand-in
 
@@ -425,7 +462,6 @@ is plain Chromium.
 | Verb | Needs | What and why |
 | --- | --- | --- |
 | `autofill.settings`, `autofill.setSettings` | Engine | The Mac reads and writes the profile's `autofill.profile_enabled` and `autofill.credit_card_enabled` prefs; no `ac_*` call touches prefs. Today Settings › Autofill shows both toggles on and disabled. |
-| Import's cookie batches (no verb) | Engine | `//ardia/win`'s `engineCall` (`api.cc`) copies the arguments into a plain `std::string` that is freed without being wiped, so each `ac_cookies_import` batch the app wipes after the reply leaves one copy in freed engine memory. The Mac passes them with `callWithSecret`; Windows needs the same: a sensitive call that wipes its copy. |
 | `bookmarks.exportHtml`, `passwords.export` (the engine's answer) | Engine | The app side is done and hidden: `PLATFORM_FEATURES.exportsBookmarksAndPasswords` is false on Windows, so Settings' two export rows, Bookmarks › Export Bookmarks…, the command, its bar action, shortcut and CLI entry are not offered. In the VM (engine `windows-engine-20261113-1`) the save panel opens and answers, but `ac_bookmarks_export_html` and `ac_passwords_export` never answer and write no file, and the password export shows no Windows confirmation, while other engine calls (`ac_passwords_add`) answer at once. Needs a look at `WhenLoaded`/`WriteBookmarks` and `Reauthenticate` in a Windows engine with logging; once both answer, turn the flag on. |
 | `autofill.showSuggestions` | Engine | Shows Chromium's autofill popup in a tab: a `tab.call` method. |
 | `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
@@ -444,7 +480,6 @@ is plain Chromium.
 | `permissions.resolveExternalApp`, `externalAppAllowances`, `removeExternalAppAllowance` | Engine | `ac_external_apps_*` is Mac-only (`ac_external_apps.mm`); Windows needs its own version. |
 | `permissions.devExternalLaunches` | Default | Mac test hook. |
 | `profiles.loaded` | Engine | The profiles the engine has loaded, plus the `profiles.loaded` event. Today the call fails and the app counts every profile as open, as with lazy loading off. |
-| `profiles.release` | Engine | Lets the engine unload a profile when its last tab closes. On Windows every private window of a profile shares Chromium's one off-the-record profile until Ardia quits (the engine ignores the name before `@`), so a new private window still has the last one's cookies. The engine has to make and destroy one off-the-record profile per private name. |
 | Profile folder names (no verb) | App | The engine names a profile's folder `Ardia ` plus its id, with lowercase letters, digits and `-` kept and every other byte written `_` and two lowercase hex digits (`profiles.cc`), so each name has its own folder even on a case-insensitive disk and Ardia's own ids (`p-<base36>-<base36>`) keep the folder they always had. `profiles.deleteData` still maps only ids of that shape and refuses the rest; it could map the escape too. |
 | `search.setEngineName` | Default | Names the search engine in the app's own page context menu; Windows shows Chromium's menu, which names Chromium's default engine. Needed again once the app draws that menu. |
 | `tabs.routeLinkTabs`, `stripCommand`, `strips`, `reportCommits` | Default | The Mac's Chromium tab strip; Windows hosts pages only, so the empty answers are right. |
