@@ -137,7 +137,7 @@ export const generalRows = {
       rows: {
         autoHideTabs: {
           title: "Auto-hide tabs",
-          description: "In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. ⌘S and View › Auto-Hide Tabs flip this same switch.",
+          description: "In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. Changing it here resets every window; ⌘S and View › Auto-Hide Tabs hide or show the tabs in one window only.",
           keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
         },
         sidebarSide: {
@@ -216,6 +216,11 @@ export const generalRows = {
           description: "Where + New Tab sits in the sidebar, whatever Add new tabs says. At the top it stays above your tabs and scrolls with them; at the bottom it follows your last tab and stays at the sidebar's bottom edge once the tabs fill it.",
           keywords: ["new tab button", "plus", "+", "top", "bottom", "sticky", "docked", "position"],
           shown: inSidebar,
+        },
+        appLinksFirst: {
+          title: "Put links from other apps first",
+          description: "When links from Slack, Mail or any other app open as tabs, not in Little Ardia, they go above your other tabs, just below the pinned ones, whatever Add new tabs says.",
+          keywords: ["external links", "other apps", "slack", "mail", "default browser", "top", "first", "left", "position"],
         },
         shareTabsAcrossWindows: {
           title: "Share tabs across windows",

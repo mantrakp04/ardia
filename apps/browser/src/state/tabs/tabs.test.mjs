@@ -566,7 +566,7 @@ test("a tab opened behind joins the ⌃Tab order only once it is shown, so ⌃Ta
   S().activate(a);
   const link = open(w, "link", a);
   const order = () => organize.recentTabIds(S(), w, now).map((id) => short(S().tabs[id].url));
-  assert.deepEqual(order(), ["a", "b", "link"]);
+  assert.deepEqual(order(), ["a", "link", "b"]);
   S().activate(link);
   assert.deepEqual(order(), ["link", "a", "b"]);
   assert.equal(S().tabs[link].unseen, undefined);

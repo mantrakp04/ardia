@@ -8,8 +8,6 @@ const DEFAULT_PEEK = dm.cardFrameOf(PAGE_FRAME.default).peek;
 const motion = await import("../ui/motion.ts");
 const { toolbarGeometry } = await import("./geometry.ts");
 const { useBrowser } = await import("../../state/browser/store.ts");
-const { tabsShownIn } = await import("../../state/browser/model.ts");
-const { flushPersistence, loadSession, startPersistence } = await import("../../state/session/persist.ts");
 const stub = await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
@@ -184,38 +182,6 @@ test("in window full screen the sidebar's button sits at Arc's 29 pt, with no ro
     const centres = [29, ...buttons.map((_, i) => last - (buttons.length - 1 - i) * step)];
     for (let i = 1; i < centres.length; i++) assert.ok(centres[i] - centres[i - 1] >= 30 - 1e-9, `${w}: ${centres}`);
   }
-});
-
-test("hidden or shown is one setting for every window, and survives a quit and relaunch; new and reopened windows follow it", () => {
-  stub.docs.clear();
-  S().hydrate({});
-  const stop = startPersistence();
-  const shown = (id) => tabsShownIn(S(), id);
-  const a = S().createWindow({ url: "a.com" });
-  const b = S().createWindow({ url: "b.com" });
-  S().toggleSidebar(a);
-  assert.deepEqual([shown(a), shown(b)], [false, false], "every window hides its tabs");
-  flushPersistence();
-  S().hydrate(loadSession());
-  assert.deepEqual([shown(a), shown(b)], [false, false], "relaunch: still hidden");
-
-  S().toggleSidebar(b);
-  flushPersistence();
-  S().hydrate(loadSession());
-  assert.deepEqual([shown(a), shown(b)], [true, true], "relaunch: still shown");
-
-  S().toggleSidebar(a);
-  S().closeWindow(a);
-  flushPersistence();
-  S().hydrate(loadSession());
-  assert.equal(S().windows[a], undefined, "closed: gone after a relaunch");
-  S().reopenClosedWindow();
-  const reopened = S().windowOrder.find((id) => id !== b);
-  assert.ok(reopened, "the closed window came back");
-  assert.equal(shown(reopened), false, "reopened as the setting says");
-  const c = S().createWindow({ url: "c.com" });
-  assert.equal(shown(c), false, "the last choice was hidden");
-  stop();
 });
 
 const springAt = (t, s) => dm.springAt(t, s);

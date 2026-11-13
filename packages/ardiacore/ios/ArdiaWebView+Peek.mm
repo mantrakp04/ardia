@@ -28,6 +28,13 @@ static NSUInteger gPeekUsedSeq = 0;
 static BOOL gPeekPressedSinceUp = NO;
 static const CFTimeInterval kPeekGestureLifetime = 10;
 static const CFTimeInterval kPeekFallbackLifetime = 60;
+static const CFTimeInterval kUserActivationLifespan = 5;
+static const NSEventMask kActivatingInputMask = NSEventMaskLeftMouseDown | NSEventMaskLeftMouseUp | NSEventMaskRightMouseDown |
+                                                NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp | NSEventMaskKeyDown;
+static NSMapTable<NSWindow *, NSNumber *> *InputTimesByWindow() {
+  static NSMapTable *times = [NSMapTable weakToStrongObjectsMapTable];
+  return times;
+}
 
 static ArdiaWebView *PageViewUnder(NSEvent *event) {
   NSView *content = event.window.contentView;
@@ -57,8 +64,10 @@ namespace ardia_web_view {
 void InstallPeekMonitor() {
   static id monitor;
   if (monitor) return;
-  monitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDown | NSEventMaskLeftMouseUp
+  monitor = [NSEvent addLocalMonitorForEventsMatchingMask:kActivatingInputMask
                                                   handler:^NSEvent *(NSEvent *event) {
+                                                    if (event.window) [InputTimesByWindow() setObject:@(CACurrentMediaTime()) forKey:event.window];
+                                                    if (event.type != NSEventTypeLeftMouseDown && event.type != NSEventTypeLeftMouseUp) return event;
                                                     if (event.type == NSEventTypeLeftMouseDown) {
                                                       gPeekPressedSinceUp = YES;
                                                       return event;
@@ -100,6 +109,11 @@ NSDictionary *RecentClickPoint(ArdiaWebView *view) {
   NSWindow *window = view.window;
   if (!window || gPeekUpView != view || gPeekUpAt < 0 || CACurrentMediaTime() - gPeekUpAt > kPeekGestureLifetime) return nil;
   return @{@"x" : @(gPeekUpPoint.x), @"y" : @(window.contentView.frame.size.height - gPeekUpPoint.y)};
+}
+
+BOOL MayHoldUserActivation(NSWindow *window) {
+  NSNumber *at = window ? [InputTimesByWindow() objectForKey:window] : nil;
+  return at && CACurrentMediaTime() - at.doubleValue <= kUserActivationLifespan;
 }
 
 NSString *PeekConfigJSON(ArdiaWebView *view) {

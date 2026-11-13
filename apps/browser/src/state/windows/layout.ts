@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
+import { autoHidesTabsIn, sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
 import { ARC_LIGHTS_CENTER, lightsCenter, sidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import type { LightsPlace } from "../../platform/windows";
@@ -40,7 +40,7 @@ export function openingLightsCenter(s: BrowserState, windowId: string): LightsPl
     zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
     fullScreen: !!w.fullScreen,
     zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,
-    tabsHidden: s.settings.autoHideTabs,
+    tabsHidden: autoHidesTabsIn(s, windowId),
   });
   const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, frame);
   return sidebarLightsCenter(sidebarSideOf(s, w.id) === "right", width, open ? 0 : width, 0, base);
@@ -54,7 +54,7 @@ export function usePageFrameInset(): number {
       zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
       fullScreen: !!s.windows[windowId]?.fullScreen,
       zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,
-      tabsHidden: s.settings.autoHideTabs,
+      tabsHidden: autoHidesTabsIn(s, windowId),
     }),
   );
 }

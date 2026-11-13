@@ -12,7 +12,7 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
     ])
   }
 
-  private static let focusMovingCommands: Set<String> = ["newTab", "focusCommandBar", "findInPage"]
+  private static let focusMovingCommands: Set<String> = ["newTab", "focusCommandBar", "findInPage", "showHistory"]
 
   @objc(commandDispatch:) func performCommand(_ sender: NSMenuItem) {
     guard let item = sender as? CommandItem else { return }

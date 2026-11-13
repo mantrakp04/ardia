@@ -43,3 +43,9 @@ export const FIELD_LOAD = {
     hide: { duration: duration.slow, easing: curve.exit },
   },
 } as const;
+
+export const HISTORY_BUTTON_MOTION = {
+  duration: duration.slow + 50,
+  incomingDelay: 35,
+  travel: 4,
+} as const;
