@@ -46,7 +46,78 @@ test("closing a page opened in front returns to its opener unless you moved away
   S().activate(b);
   S().activate(d);
   S().closeTab(d);
-  assert.equal(shown(w), "b", "after moving away, the tab after it");
+  assert.equal(shown(w), "b", "after moving away, the tab you were on");
+});
+
+const clocked = (t) => {
+  let now = Date.now();
+  t.mock.method(Date, "now", () => (now += 1000));
+};
+
+test("closing the shown tab goes back to the tab you were on, not the one below it (#421)", (t) => {
+  clocked(t);
+  reset();
+  const [w, a, b, c] = setup("a", "b", "c");
+  S().activate(a);
+  S().activate(b);
+  S().closeTab(b);
+  assert.equal(S().tabs[a].openerId, null);
+  assert.equal(S().tabs[c].openerId, null);
+  assert.equal(shown(w), "a", "the tab before b, not the tab below it");
+});
+
+test("closing walks back through the tabs you used, most recent first", (t) => {
+  clocked(t);
+  reset();
+  const [w, a, b, c, d] = setup("a", "b", "c", "d");
+  S().activate(c);
+  S().activate(a);
+  S().activate(d);
+  S().activate(b);
+  S().closeTab(b);
+  assert.equal(shown(w), "d");
+  S().closeTab(d);
+  assert.equal(shown(w), "a");
+  S().closeTab(a);
+  assert.equal(shown(w), "c");
+});
+
+test("a tab opened behind and never shown is not 'the tab you were on' when closing", (t) => {
+  clocked(t);
+  reset();
+  const [w, a, b] = setup("a", "b");
+  S().activate(a);
+  S().activate(b);
+  const behind = open(w, "behind");
+  assert.equal(S().tabs[behind].unseen, true);
+  S().closeTab(b);
+  assert.equal(shown(w), "a", "not the unseen tab below b");
+  S().closeTab(a);
+  assert.equal(model.activeTabId(S(), w), behind, "with nothing else left it is the tab below");
+});
+
+test("closing several tabs at once shows the most recently used tab left", (t) => {
+  clocked(t);
+  reset();
+  const [w, a, b, c, d] = setup("a", "b", "c", "d");
+  S().activate(d);
+  S().activate(a);
+  S().activate(b);
+  S().activate(c);
+  S().closeTabs([b, c]);
+  assert.equal(shown(w), "a", "not the tab below the closed ones");
+});
+
+test("closing skips a recently used tab hidden in a collapsed group", (t) => {
+  clocked(t);
+  reset();
+  const [w, a, b, c] = setup("a", "b", "c");
+  const g = S().createGroup([a], { name: "G" });
+  S().activate(a);
+  S().activate(b);
+  S().updateGroup(g, { collapsed: true });
+  S().closeTab(b);
+  assert.equal(shown(w), "c", "a is hidden in its collapsed group");
 });
 
 test("closing goes to the page's own tabs, then its siblings, then its opener", () => {

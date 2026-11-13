@@ -1,7 +1,7 @@
 import type { BrowserState } from "../browser/store";
 import { ancestorIds } from "../groups/groups";
 import { withShownTab } from "../groups/shownTabs";
-import { inPinnedContainer } from "../browser/model";
+import { byRecentUse, inPinnedContainer } from "../browser/model";
 import { groupOf, pinnedChildGroup } from "../pins/tabGrouping";
 import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
 import type { BrowserWindow, Tab } from "../browser/types";
@@ -101,11 +101,21 @@ const hiddenInGroup = (s: BrowserState, id: string) => {
   return !!g && (g.collapsed || ancestorIds(s.groups, g.id).some((x) => s.groups[x]!.collapsed));
 };
 
-export function openerSuccessor(s: BrowserState, closed: string, order: string[], left: string[]): string | undefined {
+const successors = (s: BrowserState, closed: string, order: string[], left: string[]): string[] => {
   const at = order.indexOf(closed);
-  const candidates = [...left.filter((id) => order.indexOf(id) > at), ...left.filter((id) => order.indexOf(id) < at).reverse()].filter(
+  return [...left.filter((id) => order.indexOf(id) > at), ...left.filter((id) => order.indexOf(id) < at).reverse()].filter(
     (id) => !isAsleep(s.tabs[id]) && !hiddenInGroup(s, id),
   );
+};
+
+export function recentSuccessor(s: BrowserState, closed: string, order: string[], left: string[]): string | undefined {
+  return successors(s, closed, order, left)
+    .filter((id) => !s.tabs[id]!.unseen)
+    .reduce<string | undefined>((best, id) => (!best || byRecentUse(s.tabs[id]!, s.tabs[best]!) < 0 ? id : best), undefined);
+}
+
+export function openerSuccessor(s: BrowserState, closed: string, order: string[], left: string[]): string | undefined {
+  const candidates = successors(s, closed, order, left);
   const opener = s.tabs[closed]?.openerId;
   return (
     candidates.find((id) => s.tabs[id]!.openerId === closed) ??
