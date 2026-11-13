@@ -5,7 +5,9 @@ import { firefoxBookmarks, loadFirefoxSession } from "./firefox";
 import { entries, join, type ImportHost, type Secrets } from "./host";
 import { checkCancelled, ImportFailure, KIND_ORDER, linkCount, plural, warningCode, type ImportKind, type Observer, type Options, type Result } from "./model";
 import { loadSession } from "./sessions";
+import { Sidebars, takeSpaces } from "./sidebars";
 import { snapshotFailure } from "./sqlite";
+import { zenFavicons } from "./zenSidebar";
 
 export class Unlocks {
   private unlocked = new Set<string>();
@@ -74,6 +76,7 @@ export async function importProfile(
     warnings: [],
   };
   const chromium = isChromiumBased(browser);
+  const sidebars = new Sidebars(host, dir, profileId, () => observer.cancelled());
   for (const kind of KIND_ORDER.filter((k) => kinds.includes(k))) {
     checkCancelled(observer);
     if (kind !== "history") observer.progress({ kind, phase: "start", processed: 0 });
@@ -89,11 +92,42 @@ export async function importProfile(
         result.history = read.entries;
         result.historyCount = read.count;
         count = read.count;
-      } else if (kind === "tabs" && browser.family !== "arc") {
-        const session = chromium ? await loadSession(host, dir) : await loadFirefoxSession(host, dir);
+      } else if (kind === "tabs" && browser.family === "chromium") {
+        const session = await loadSession(host, dir);
         result.tabs = session.tabs;
         result.tabGroups = session.groups;
         count = session.tabs.length;
+      } else if (kind === "tabs" && browser.family === "firefox" && !(await sidebars.spaces(browser.sidebar))) {
+        const session = await loadFirefoxSession(host, dir);
+        result.tabs = session.tabs;
+        result.tabGroups = session.groups;
+        count = session.tabs.length;
+      } else if (kind === "spaces" || kind === "pinnedTabs" || kind === "tabs") {
+        if (!browser.sidebar) throw new ImportFailure("unsupported", `${browser.name} has no ${kind} to import`);
+        const spaces = await sidebars.spaces(browser.sidebar);
+        if (!spaces) throw new ImportFailure("notFound", `No ${browser.name} spaces in this profile`);
+        count = takeSpaces(result, spaces, kind, kinds, options.spaceIds);
+      } else if (kind === "favorites" && browser.sidebar === "arc") {
+        result.favorites = (await sidebars.arcSidebar()).favorites[profileId] ?? [];
+        count = result.favorites.length;
+      } else if (kind === "favorites" && browser.sidebar === "zen") {
+        result.favorites = (await sidebars.zenSidebar()).essentials;
+        count = result.favorites.length;
+      } else if (kind === "passwords" && !chromium) {
+        const outcome = await host.firefoxLogins(dir);
+        if (outcome.error) throw new ImportFailure(outcome.error.code, outcome.error.message);
+        if (outcome.failure && !outcome.items.length) throw snapshotFailure(outcome.failure, join(dir, "key4.db"), browser.name);
+        result.credentials = outcome.items;
+        count = outcome.items.length;
+        secretWarnings(result, kind, outcome, "password", browser);
+      } else if (kind === "cookies" && !chromium) {
+        const file = join(dir, "cookies.sqlite");
+        const outcome = await host.firefoxCookies(file);
+        if (outcome.failure) throw snapshotFailure(outcome.failure, file, browser.name);
+        result.cookieCount = outcome.count;
+        if (outcome.token) result.vaultToken = outcome.token;
+        count = outcome.count;
+        if (outcome.skipped) result.warnings.push({ kind, code: "skipped", message: `${plural(outcome.skipped, "cookie")} from containers or private windows weren't imported` });
       } else if (kind === "passwords" && chromium) {
         const files = await loginFiles(host, dir);
         await unlocks.ensure(host, browser);
@@ -138,6 +172,11 @@ export async function importProfile(
   if (chromium) {
     checkCancelled(observer);
     result.favicons = await readFavicons(host, [dir], faviconPages(result)).catch(() => []);
+  }
+  const zen = sidebars.loadedZen();
+  if (zen) {
+    result.favicons = zenFavicons(zen, faviconPages(result));
+    result.separateEssentials = zen.separateEssentials;
   }
   return result;
 }

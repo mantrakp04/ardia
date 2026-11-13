@@ -3,6 +3,7 @@ import { firefoxProfiles, firefoxSessionFile } from "./firefox";
 import { entries, join, readJson, type ImportHost } from "./host";
 import { hexColor, ImportFailure, type ImportKind, type Profile, type Source } from "./model";
 import { latestSessionFile } from "./sessions";
+import { attachArcSpaces, zenProfileSpaces } from "./sidebars";
 
 type Info = Record<string, unknown>;
 
@@ -91,13 +92,18 @@ async function firefoxSource(host: ImportHost, browser: Browser): Promise<Profil
     const kinds: ImportKind[] = [];
     if (has(names, "places.sqlite")) kinds.push("bookmarks", "history");
     if (await firefoxSessionFile(host, dir)) kinds.push("tabs");
-    out.push({ id: p.path, name: p.name, path: dir, isDefault: p.isDefault, available: kinds, tabsNeedKey: false });
+    if (has(names, "logins.json", "logins.db")) kinds.push("passwords");
+    if (has(names, "cookies.sqlite")) kinds.push("cookies");
+    const spaces = browser.sidebar === "zen" ? await zenProfileSpaces(host, dir, p.path, kinds) : undefined;
+    out.push({ id: p.path, name: p.name, path: dir, isDefault: p.isDefault, available: kinds, ...(spaces ? { spaces } : {}), tabsNeedKey: false });
   }
   return out;
 }
 
 export async function profilesOf(host: ImportHost, browser: Browser): Promise<Profile[]> {
-  return browser.family === "firefox" ? firefoxSource(host, browser) : chromiumProfiles(host, browser);
+  if (browser.family === "firefox") return firefoxSource(host, browser);
+  const profiles = await chromiumProfiles(host, browser);
+  return browser.sidebar === "arc" ? attachArcSpaces(host, profiles) : profiles;
 }
 
 export async function listSources(host: ImportHost): Promise<Source[]> {
@@ -113,6 +119,7 @@ export async function listSources(host: ImportHost): Promise<Source[]> {
         needsKeychain: false,
         needsFullDiskAccess: false,
         profiles,
+        ...(browser.sidebar ? { sidebar: browser.sidebar } : {}),
         asksAppForTabs: false,
       };
     }),

@@ -5,7 +5,7 @@ import { nativeImportHost } from "../import/nativeHost";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-const host = () => {
+export const host = () => {
   const made = nativeImportHost();
   expectTrue(made, "ArdiaWindowsImport has no Windows module");
   return made;
@@ -13,7 +13,7 @@ const host = () => {
 
 const documents = () => requireNativeModule<DocumentsNative>("ArdiaDocuments");
 
-const dataFolder = () => {
+export const dataFolder = () => {
   const folder = requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().dataDirectory;
   expectTrue(typeof folder === "string" && folder.length > 0, "the instance has no data folder");
   return folder;

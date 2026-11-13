@@ -25,6 +25,8 @@ export function nativeImportHost(): ImportHost | null {
     unlock: (browserId, localState) => parsed(native.unlock(browserId, localState)),
     logins: (browserId, files) => parsed(native.logins(browserId, files)),
     cookies: (browserId, file) => parsed(native.cookies(browserId, file)),
+    firefoxLogins: (profile) => parsed(native.firefoxLogins(profile)),
+    firefoxCookies: (file) => parsed(native.firefoxCookies(file)),
     writeCookies: (token, profile) => parsed(native.writeCookies(token, profile)),
     discard: (token) => native.discard(token),
     forget: () => native.forget(),

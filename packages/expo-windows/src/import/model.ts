@@ -10,6 +10,7 @@ import type {
   ImportedTab,
   ImportedTabGroup,
   ImportKind,
+  ImportOptions,
   ImportProgress,
   ImportResult,
   ImportWarning,
@@ -32,7 +33,7 @@ export type OpenTabs = { tabs: ImportedTab[]; groups: TabGroup[] };
 
 export const KIND_ORDER: ImportKind[] = ["bookmarks", "history", "tabs", "passwords", "cookies", "autofill", "spaces", "pinnedTabs", "favorites"];
 
-export type Options = { historyLimit?: number; historySince?: number; chunkSize?: number; streamHistory?: boolean; historyPage?: number };
+export type Options = Pick<ImportOptions, "historyLimit" | "historySince" | "chunkSize" | "spaceIds"> & { streamHistory?: boolean; historyPage?: number };
 
 export type Observer = {
   progress(progress: Progress): void;

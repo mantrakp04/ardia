@@ -16,6 +16,8 @@
 #include "Events.h"
 #include "Host.h"
 #include "ImportFiles.h"
+#include "ImportFirefox.h"
+#include "ImportFirefoxCookies.h"
 #include "ImportSecrets.h"
 #include "Paths.h"
 
@@ -300,6 +302,30 @@ struct ImportModule {
     ImportParts::OnAThread(promise, [browserId, file, promise]() noexcept {
       try {
         promise.Resolve(ImportSecrets::Cookies(browserId, std::filesystem::path{Paths::Wide(file)}));
+      } catch (...) {
+        promise.Reject("the cookies could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(firefoxLogins)
+  void firefoxLogins(std::string profile, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [profile, promise]() noexcept {
+      try {
+        std::string out = ImportFirefox::Logins(std::filesystem::path{Paths::Wide(profile)});
+        promise.Resolve(out);
+        SecureZeroMemory(out.data(), out.size());
+      } catch (...) {
+        promise.Reject("the passwords could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(firefoxCookies)
+  void firefoxCookies(std::string file, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [file, promise]() noexcept {
+      try {
+        promise.Resolve(ImportFirefox::Cookies(std::filesystem::path{Paths::Wide(file)}));
       } catch (...) {
         promise.Reject("the cookies could not be read");
       }
