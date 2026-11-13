@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { startedThisLaunch, watchDownloads } from "../../../../packages/expo-windows/src/engine/domains/downloads.ts";
+import { withoutRepeats } from "../state/downloads/downloadsSlice.ts";
 import { noteDownloadsPanelClose, noteDownloadsPanelOpen, noteDownloadsPanelToggle, takeDownloadsPanelCounts } from "../state/telemetry/downloadsPanelCounts.ts";
 
 const LAUNCH = 1_800_000_000_000;
@@ -47,4 +48,16 @@ test("downloads panel opens and closes are counted by cause and reset once taken
     downloads_panel_closes_command: 1,
   });
   assert.equal(Object.values(takeDownloadsPanelCounts()).reduce((a, b) => a + b, 0), 0);
+});
+
+test("a download saved twice by the old launch replay is restored once; different files and rows without a file stay", () => {
+  const file = { url: "http://localhost/fx-small.zip", path: "C:\\Users\\t\\Downloads\\fx-small.zip" };
+  const rows = [
+    { id: "guid", ...file },
+    { id: "saved-0", ...file },
+    { id: "other", url: file.url, path: "C:\\Users\\t\\Downloads\\fx-small (1).zip" },
+    { id: "cancelled-a", url: file.url, path: "" },
+    { id: "cancelled-b", url: file.url, path: "" },
+  ];
+  assert.deepEqual(withoutRepeats(rows).map((d) => d.id), ["guid", "other", "cancelled-a", "cancelled-b"]);
 });
