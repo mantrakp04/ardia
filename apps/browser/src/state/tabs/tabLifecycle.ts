@@ -14,6 +14,7 @@ import { useLifecycle } from "./sleepingTabs";
 import { startMemorySaver } from "./memorySaver";
 import { focusedWindowOf } from "../windows/ui";
 import { noteTabSlept } from "../telemetry/tabSleepCounts";
+import { unloadProfile } from "../profiles/profileLoading";
 
 export { useIsSleeping, useLifecycle } from "./sleepingTabs";
 
@@ -70,7 +71,10 @@ function releaseUnusedProfiles() {
       suspended && store().settings.unloadProfilesAfter === unloadAfter
         && profileUnloadDelay(store().settings) !== null && !profileSelected(store(), profile) ? releaseProfile(profile) : null,
     ).then((result) => {
-      if (result?.status === "released" && profileGenerations.get(profile) === generation) loadedProfiles.delete(profile);
+      if (result?.status === "released" && profileGenerations.get(profile) === generation) {
+        loadedProfiles.delete(profile);
+        unloadProfile(profile);
+      }
     }).catch(() => {}).finally(() => releasingProfiles.delete(profile));
   }
 }
