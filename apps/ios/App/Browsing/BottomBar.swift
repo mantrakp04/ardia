@@ -16,56 +16,56 @@ struct BottomBar: View {
 
   var body: some View {
     let order = app.deckOrder
-    GlassEffectContainer {
-      HStack(spacing: 0) {
-        Button(action: onTabs) {
-          TabStackGlyph(tabs: Array(order.suffix(2)))
-            .frame(width: BrowseLayout.barGlassCircle, height: BrowseLayout.barGlassCircle)
-            .glassEffect(.regular.interactive(), in: .circle)
-            .contentShape(.circle)
-        }
-        .buttonStyle(BarButtonStyle())
-        .contextMenu { recentTabsMenu(order) }
-        .accessibilityLabel("Tabs")
-        .accessibilityValue(Text("^[\(order.count) tab](inflect: true)"))
-        .accessibilityHint("Touch and hold for recent tabs.")
-        .accessibilityActions {
-          Button("Previous Tab") { onStep(-1) }
-          Button("Next Tab") { onStep(1) }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-
-        ZStack {
-          if !isSearchPresented {
-            Button(action: onPlus) {
-              Image(systemName: "plus")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(BrowsePalette.foregroundPrimary)
-                .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
-                .glassEffect(.regular.interactive(), in: .capsule)
-                .contentShape(.capsule)
-            }
-            .buttonStyle(BarButtonStyle())
-            .transition(.opacity)
-            .accessibilityLabel("New Search")
-          }
-        }
-        .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
-
-        Button(action: onMore) {
-          Image(systemName: "chevron.up")
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(BrowsePalette.foregroundPrimary)
-            .frame(width: BrowseLayout.barGlassCircle, height: BrowseLayout.barGlassCircle)
-            .glassEffect(.regular.interactive(), in: .circle)
-            .contentShape(.circle)
-        }
-        .buttonStyle(BarButtonStyle())
-        .accessibilityLabel("Page Menu")
-        .frame(maxWidth: .infinity, alignment: .trailing)
+    HStack(spacing: 0) {
+      Button(action: onTabs) {
+        TabStackGlyph(tabs: Array(order.suffix(2)))
+          .frame(width: BrowseLayout.hitTarget, height: BrowseLayout.hitTarget)
+          .contentShape(.circle)
       }
-      .padding(.horizontal, sideInset + BrowseLayout.barSideInset)
+      .buttonStyle(BarButtonStyle())
+      .contextMenu { recentTabsMenu(order) }
+      .accessibilityLabel("Tabs")
+      .accessibilityValue(Text("^[\(order.count) tab](inflect: true)"))
+      .accessibilityHint("Touch and hold for recent tabs.")
+      .accessibilityActions {
+        Button("Previous Tab") { onStep(-1) }
+        Button("Next Tab") { onStep(1) }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+
+      ZStack {
+        if !isSearchPresented {
+          Button(action: onPlus) {
+            Image(systemName: "plus")
+              .font(.system(size: 18, weight: .semibold))
+              .foregroundStyle(BrowsePalette.foregroundPrimary)
+              .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
+              .background(BrowsePalette.fieldFill, in: .capsule)
+              .contentShape(.capsule)
+          }
+          .buttonStyle(BarButtonStyle())
+          .transition(.opacity)
+          .accessibilityLabel("New Search")
+        }
+      }
+      .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
+
+      Button(action: onMore) {
+        Image(systemName: "chevron.up")
+          .font(.system(size: 16, weight: .semibold))
+          .foregroundStyle(BrowsePalette.foregroundPrimary)
+          .frame(width: BrowseLayout.hitTarget, height: BrowseLayout.hitTarget)
+          .contentShape(.circle)
+      }
+      .buttonStyle(BarButtonStyle())
+      .accessibilityLabel("Page Menu")
+      .frame(maxWidth: .infinity, alignment: .trailing)
     }
+    .padding(BrowseLayout.barPillPadding)
+    .frame(height: BrowseLayout.barPillHeight)
+    .glassEffect(.regular.interactive(), in: .capsule)
+    .contentShape(.capsule)
+    .padding(.horizontal, sideInset + BrowseLayout.barSideInset)
   }
 
   @ViewBuilder

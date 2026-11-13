@@ -223,12 +223,11 @@ struct BrowsingView: View {
       onSelectTab: { id in switchTab(to: id, order: swipeOrder) },
       onCloseTab: closeCurrentTab
     )
-    .frame(height: BrowseLayout.hitTarget)
-    .padding(.top, BrowseLayout.barHeight - BrowseLayout.barCenterFromBottom - BrowseLayout.hitTarget / 2)
+    .frame(height: BrowseLayout.barPillHeight)
+    .padding(.top, BrowseLayout.barHeight - BrowseLayout.barCenterFromBottom - BrowseLayout.barPillHeight / 2)
     .frame(maxWidth: .infinity)
     .frame(height: BrowseLayout.barHeight, alignment: .top)
     .environment(\.colorScheme, barScheme)
-    .contentShape(.rect)
     .highPriorityGesture(pagerGesture)
     .offset(y: isBarShown ? 0 : BrowseLayout.barCollapseTravel)
     .opacity(isBarShown ? 1 : 0)

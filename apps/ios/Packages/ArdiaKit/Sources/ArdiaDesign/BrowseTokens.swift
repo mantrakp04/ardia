@@ -46,8 +46,9 @@ public enum BrowseLayout {
   public static let trayFieldTop: CGFloat = 15
   public static let trayDim: Double = 0.28
   public static let logoSize: CGFloat = 132
-  public static let plusCapsule = CGSize(width: 84, height: 44)
-  public static let barGlassCircle: CGFloat = 44
+  public static let plusCapsule = CGSize(width: 84, height: 40)
+  public static let barPillHeight: CGFloat = 54
+  public static let barPillPadding: CGFloat = 5
   public static let tabStackRadius: CGFloat = 5
   public static let tabStackTile = CGSize(width: 20, height: 26)
   public static let barCenterFromBottom: CGFloat = 44
