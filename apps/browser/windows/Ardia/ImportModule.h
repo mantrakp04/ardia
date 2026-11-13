@@ -201,6 +201,31 @@ struct ImportModule {
     });
   }
 
+  REACT_METHOD(readTextWithin)
+  void readTextWithin(std::string folder, std::string path, double largest, MaybeText promise) noexcept {
+    ImportParts::OnAThread(promise, [folder, path, largest, promise]() noexcept {
+      try {
+        auto bytes = ImportFiles::ReadBytesWithin(std::filesystem::path{Paths::Wide(folder)}, std::filesystem::path{Paths::Wide(path)}, largest > 0 ? static_cast<uint64_t>(largest) : 0);
+        promise.Resolve(bytes ? std::optional<std::string>{ImportFiles::TextOf(std::move(*bytes))} : std::nullopt);
+      } catch (...) {
+        promise.Reject("the file could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(readBase64Within)
+  void readBase64Within(std::string folder, std::string path, double largest, MaybeText promise) noexcept {
+    ImportParts::OnAThread(promise, [folder, path, largest, promise]() noexcept {
+      try {
+        auto bytes = ImportFiles::ReadBytesWithin(std::filesystem::path{Paths::Wide(folder)}, std::filesystem::path{Paths::Wide(path)}, largest > 0 ? static_cast<uint64_t>(largest) : 0);
+        if (!bytes) return promise.Resolve(std::nullopt);
+        promise.Resolve(std::optional<std::string>{ImportFiles::Base64(reinterpret_cast<const uint8_t *>(bytes->data()), bytes->size())});
+      } catch (...) {
+        promise.Reject("the file could not be read");
+      }
+    });
+  }
+
   REACT_METHOD(query)
   void query(std::string path, winrt::Microsoft::ReactNative::JSValue queries, Promise promise) noexcept {
     auto shared = std::make_shared<winrt::Microsoft::ReactNative::JSValue>(std::move(queries));

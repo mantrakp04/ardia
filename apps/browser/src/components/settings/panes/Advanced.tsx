@@ -14,13 +14,14 @@ import { Favicon } from "../../favicon/Favicon";
 import { FormField, Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { engineVersion, widevine as widevineComponent } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { AutomationRules } from "./AutomationRules";
 
 const REPOSITORY = "https://github.com/mantrakp04/ardia";
 
 const BATTERY_SAVER_DESCRIPTIONS: Record<BatterySaverWhen, string> = {
-  lowBattery: "At 20% battery or less, or in Low Power Mode, busy background tabs pause and animations slow down.",
-  unplugged: "On battery or in Low Power Mode, busy background tabs pause and animations slow down.",
+  lowBattery: `At 20% battery or less, or in ${PLATFORM_TERMS.lowPowerMode}, busy background tabs pause and animations slow down.`,
+  unplugged: `On battery or in ${PLATFORM_TERMS.lowPowerMode}, busy background tabs pause and animations slow down.`,
   never: "Background tabs and animations run at full speed on battery.",
 };
 
