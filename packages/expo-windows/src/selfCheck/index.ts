@@ -10,6 +10,7 @@ import { checks as launchLinkChecks } from "./launchLinks";
 import { checks as materialChecks } from "./materials";
 import { checks as menuChecks } from "./menus";
 import { checks as motionChecks } from "./motion";
+import { checks as pagePictureChecks } from "./pagePicture";
 import { checks as pagerChecks } from "./pager";
 import { checks as shellChecks } from "./shell";
 import { checks as storageChecks } from "./storage";
@@ -19,7 +20,7 @@ import { checks as viewChecks } from "./views";
 import { checks as windowDragChecks } from "./windowDrag";
 import { checks as windowChecks } from "./windows";
 
-const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, materialChecks, windowDragChecks, fileDropChecks, focusChecks, textFocusChecks, launchLinkChecks, engineHostChecks, importChecks, importFirefoxChecks, desktopCallChecks];
+const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, pagePictureChecks, materialChecks, windowDragChecks, fileDropChecks, focusChecks, textFocusChecks, launchLinkChecks, engineHostChecks, importChecks, importFirefoxChecks, desktopCallChecks];
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 

@@ -1,6 +1,6 @@
 import { createElement, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef, type ComponentType } from "react";
 import { View, type LayoutChangeEvent, type NativeMethods, type NativeSyntheticEvent } from "react-native";
-import type { NativeProps, PageEvent } from "@ardia/ardiacore";
+import type { NativeProps, PageEvent, WebViewHandle } from "@ardia/ardiacore";
 import type { AppWindowsModule } from "../nativeModuleTypes";
 import { followMotion } from "../animation/motion";
 import { noteMissing } from "../missing";
@@ -56,10 +56,26 @@ const ANSWERS: Record<string, unknown> = {
   takeControlPress: false,
 };
 const SETTLE_MS = [0, 50, 200, 500];
+const PICTURE_DEADLINE_MS = 1000;
+
+type Picture = Awaited<ReturnType<WebViewHandle["capturePicture"]>>;
+
+const appWindows = () => requireNativeModule<Pick<AppWindowsModule, "setPageFullScreen" | "capturePage">>("ArdiaAppWindows");
+
+function capturePicture(windowId: string, placed: string, scale: number): Promise<Picture> {
+  if (!placed) return Promise.resolve(null);
+  const { x, y, width, height } = JSON.parse(placed) as PageRect;
+  const capture = Promise.resolve(appWindows().capturePage(windowId, x, y, width, height, scale)).then(
+    (data): Picture => (data ? { data, frame: [x, y, width, height] } : null),
+    () => null,
+  );
+  const late = new Promise<Picture>((done) => setTimeout(() => done(null), PICTURE_DEADLINE_MS));
+  return Promise.race([capture, late]);
+}
 
 
 const setWindowFullScreen = (windowId: string, on: boolean) =>
-  Promise.resolve(requireNativeModule<Pick<AppWindowsModule, "setPageFullScreen">>("ArdiaAppWindows").setPageFullScreen(windowId, on)).then(
+  Promise.resolve(appWindows().setPageFullScreen(windowId, on)).then(
     () => {},
     () => {},
   );
@@ -153,6 +169,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         {
           get(_target, method) {
             if (typeof method !== "string" || method === "then" || method === "$$typeof") return undefined;
+            if (method === "capturePicture") return (scale: number) => capturePicture(windowId, shown.current.visible ? shown.current.placed : "", scale);
             const names = ARGUMENTS[method];
             if (names) {
               const unwrap = UNWRAPPED[method];
@@ -168,7 +185,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
           },
         },
       ),
-    [key],
+    [key, windowId],
   );
 
   const onLayout = useCallback((_event: LayoutChangeEvent) => place(), [place]);
