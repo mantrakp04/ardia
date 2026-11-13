@@ -184,10 +184,17 @@ export function bookmarkAncestors(b: Bookmarks, id: string): BookmarkFolder[] {
 function removeBookmarksFrom(b: Bookmarks, ids: string[]): BookmarkRemoval {
   const removable = new Set(ids.filter((id) => b.nodes[id]?.parentId));
   const tops = [...removable].filter((id) => !bookmarkAncestors(b, id).some((a) => removable.has(a.id)));
+  const childIndexes = new Map<string, Map<string, number>>();
   const places = tops.map((id) => {
     const parentId = b.nodes[id]!.parentId!;
     const parent = b.nodes[parentId];
-    return { id, parentId, index: parent?.kind === "folder" ? parent.children.indexOf(id) : 0 };
+    if (parent?.kind !== "folder") return { id, parentId, index: 0 };
+    let indexes = childIndexes.get(parentId);
+    if (!indexes) {
+      indexes = new Map(parent.children.map((child, index) => [child, index]));
+      childIndexes.set(parentId, indexes);
+    }
+    return { id, parentId, index: indexes.get(id) ?? 0 };
   });
   const roots = subtree(b, tops);
   const nodes = roots.map((id) => b.nodes[id]!);
