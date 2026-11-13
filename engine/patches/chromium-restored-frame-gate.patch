@@ -62,7 +62,7 @@ diff --git a/content/browser/renderer_host/render_widget_host_view_base.cc b/con
  #include "third_party/blink/public/common/features.h"
  #include "third_party/blink/public/mojom/frame/intrinsic_sizing_info.mojom.h"
  #include "third_party/blink/public/mojom/unbounded_element/unbounded_element.mojom.h"
-@@ -1246,6 +1267,250 @@
+@@ -1246,6 +1267,258 @@
  std::optional<uint32_t>
  RenderWidgetHostView::GetForceSpecifiedDeadlineForTesting() {
    return std::nullopt;
@@ -122,7 +122,11 @@ diff --git a/content/browser/renderer_host/render_widget_host_view_base.cc b/con
 +    Finish("the page's process is gone");
 +  }
 +
-+  void WebContentsDestroyed() override { delete this; }
++  void WebContentsDestroyed() override {
++    if (!finished_) {
++      delete this;
++    }
++  }
 +
 +  void RenderWidgetHostDestroyed(RenderWidgetHost* widget_host) override {
 +    Unwatch();
@@ -271,6 +275,7 @@ diff --git a/content/browser/renderer_host/render_widget_host_view_base.cc b/con
 +    }
 +    finished_ = true;
 +    Unwatch();
++    Observe(nullptr);
 +    std::move(displayed_).Run(proof);
 +    base::SequencedTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE, this);
 +  }
@@ -303,6 +308,9 @@ diff --git a/content/browser/renderer_host/render_widget_host_view_base.cc b/con
 +
 +void ArdiaDisplayedLayerUpdated(RenderWidgetHostViewBase* view,
 +                                const gfx::Size& pixel_size) {
++  if (ArdiaRestoredFrameGates().empty()) {
++    return;
++  }
 +  std::vector<ArdiaRestoredFrameGate*> gates(ArdiaRestoredFrameGates().begin(),
 +                                             ArdiaRestoredFrameGates().end());
 +  for (ArdiaRestoredFrameGate* gate : gates) {

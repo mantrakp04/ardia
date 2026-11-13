@@ -298,7 +298,7 @@ random offset inside the box; a click whose point is covered fails with
 `covered by <tag#id.class>`, and one outside the laid-out viewport with `outside_viewport` (the point and the viewport
 size). A tab with no size yet (0×0, seen on a loaded hidden test instance) is waited for up to 2 s, then given a
 1280×800 device metrics override for that command, cleared afterwards and never over the session's own `set viewport`;
-where the policy refuses it (the token path, on a tab the command didn't open) it fails with `no_viewport`.
+where Emulation is gated (the token path) it fails with `no_viewport`.
 
 `fill` on a `date`, `time`, `datetime-local`, `month`, `week`, `color` or `range` input doesn't type (typing
 `2026-11-09` into the segmented date field stored `0009-02-06`, and a time field stayed empty). As Playwright's
@@ -689,7 +689,7 @@ only change needed.
 | --- | --- |
 | `cookies get\|set\|clear`, `cookies set --curl` | `Network.getCookies`, `Network.setCookie`, `Network.clearBrowserCookies` |
 | `state save\|load` | `Network.getAllCookies`, `Network.setCookies` |
-| `set device\|geo\|media` | `Emulation.setTouchEmulationEnabled`, `Emulation.setUserAgentOverride`, `Emulation.setGeolocationOverride`, `Emulation.setEmulatedMedia` |
+| `set viewport\|device\|geo\|media` | `Emulation.setDeviceMetricsOverride`, `Emulation.setTouchEmulationEnabled`, `Emulation.setUserAgentOverride`, `Emulation.setGeolocationOverride`, `Emulation.setEmulatedMedia` |
 | `set offline`, `set headers` | `Network.emulateNetworkConditions`, `Network.setExtraHTTPHeaders` |
 | `set credentials`, `network route\|unroute` | `Fetch.enable` (and `Fetch.fulfillRequest`, `failRequest`, `continueRequest`) |
 | `upload` | `DOM.setFileInputFiles` |
@@ -717,8 +717,19 @@ The policy also refuses some uses of methods it allows (`ac_cli_token_policy.cc`
 | `on a tab the ardia command didn't open`, `on a tab the user can see`, `with that option` | `Emulation.setDeviceMetricsOverride`, `clearDeviceMetricsOverride` | The viewport override is for tabs the command opened (below), with a width, height, scale and `mobile` only |
 | `in a named world`, `as a stream`, `with the command line API`, `without a button`, `with those editing commands` | `Page.addScriptToEvaluateOnNewDocument`, `Page.printToPDF`, `Runtime.evaluate`, `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` | That option isn't allowed |
 
-`set viewport <w> <h> [scale]` works on the token path, for responsive checks, on a tab the command opened. The
-policy allows `Emulation.setDeviceMetricsOverride` and `clearDeviceMetricsOverride` only on a session attached to a
+`set viewport` is gated on the token path, as in 0.2.45: `Emulation.setDeviceMetricsOverride` and
+`clearDeviceMetricsOverride` are off the policy's list (`AllowedMethods`). They were on it from ce0e35bff to
+4aff6b021 and again in ea0704f77, with an override restored in place when the tab came into view, held off the
+screen until its own frame was displayed. Five reviews found that hold unsound each time; the last: the gate accepts
+the surface's last activated frame, not the one tied to its request; presentation feedback on the Mac comes from
+the GPU process committing its CoreAnimation transaction, not from the window server; a page that stays blocked
+leaves the placeholder up for good; the launch and popup hosts would hide a page the gate needs shown. So in-place
+restoring is given up: the plan is to emulate only in a window the user never sees and reload before showing. What
+the rest of this section describes stays in the tree and can't run while the methods are off: no override can be
+set, so no tab is ever marked as emulated, and the clear, the hold and the gate start only for one that is
+(`TabCameIntoView`). The shown-slot report still runs for every page; it only records that the page was shown.
+With the methods listed, the policy allows
+`Emulation.setDeviceMetricsOverride` and `clearDeviceMetricsOverride` only on a session attached to a
 target that a token connection made with `Target.createTarget` (`open`, `tab new`, a reader or script tab) and that
 isn't shown to the user. The engine keeps those tabs for the whole process (`ac_cli_owned_tabs.cc`), learned from
 each `createTarget` reply, so a daemon that reconnects after its idle disconnect still owns its tabs; one goes when
@@ -735,7 +746,7 @@ screen (`exposePage` → `noteInShownSlot`, kept on the page as `ShownSlot`), fr
 painting pass of a view that is `visible` or revealed, the reveal that shows a tab ahead of React's `visible`
 (`revealAhead`), `setVisible:` before it raises a warm page's alpha, and `revealOffered` before it fronts a new
 tab's page; the launch window and popup windows report the page they attach too (`ArdiaEarlyWindow`,
-`ArdiaPopupWindow`). The engine clears the override inside that call, not after it, and answers whether the command
+`ArdiaPopupWindow`; these two only report). The engine clears the override inside that call, not after it, and answers whether the command
 ever set one on that tab (`NoteCliViewportOverride`, kept from the policy's check; not whether the native view's size
 changed, which a pane of another size or an override of the page's own size hides). If it did, the view stays at
 alpha 0, the outgoing page still up, until the restored frame is on the displayed layer
