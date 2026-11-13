@@ -6,7 +6,7 @@ import { noteLoadingFieldShown } from "../../state/telemetry/loadingPill";
 import { GradientFill, reduceMotion, type GradientStop } from "../ui";
 import { FIELD_LOAD } from "./tokens";
 
-const { floor, tail, cap, motion } = FIELD_LOAD;
+const { floor, motion } = FIELD_LOAD;
 
 const lined = (glow: readonly GradientStop[], height: number): GradientStop[] => {
   const lineTop = 1 - FIELD_LOAD.line / height;
@@ -30,9 +30,12 @@ export const FieldLoadFill = memo(function FieldLoadFill({ tabId, color, height,
   const comet = useRef(new Animated.Value(0)).current;
   const stops = useMemo(() => lined(FIELD_LOAD.glow, height), [height]);
   const capStops = useMemo(() => lined(CAP_GLOW, height), [height]);
-  const tailFade = useMemo(() => fadingPast(width, tail, FIELD_LOAD.tailFade), [width]);
-  const capFade = useMemo(() => fadingPast(width, cap, FIELD_LOAD.capFade), [width]);
-  const cometFade = useMemo((): GradientStop[] => [[0, 0], ...fadingPast(width, cap, FIELD_LOAD.capFade).slice(1)], [width]);
+  const frontScale = Math.min(1, (width * FIELD_LOAD.frontShareOfField) / FIELD_LOAD.tail);
+  const tail = FIELD_LOAD.tail * frontScale;
+  const cap = FIELD_LOAD.cap * frontScale;
+  const tailFade = useMemo(() => fadingPast(width, tail, FIELD_LOAD.tailFade), [width, tail]);
+  const capFade = useMemo(() => fadingPast(width, cap, FIELD_LOAD.capFade), [width, cap]);
+  const cometFade = useMemo((): GradientStop[] => [[0, 0], ...fadingPast(width, cap, FIELD_LOAD.capFade).slice(1)], [width, cap]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -62,7 +65,7 @@ export const FieldLoadFill = memo(function FieldLoadFill({ tabId, color, height,
     const to = Math.max(floor, Math.min(progress, 1 - tail / width));
     if (reduceMotion()) filled.setValue(to);
     else Animated.timing(filled, { toValue: to, ...motion.progress, useNativeDriver: true }).start();
-  }, [progress, loading, mounted, width]);
+  }, [progress, loading, mounted, width, tail]);
 
   if (!mounted) return null;
   return (

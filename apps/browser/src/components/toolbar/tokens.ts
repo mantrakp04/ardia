@@ -19,6 +19,7 @@ export const FIELD_LOAD = {
   floor: 0.1,
   accentApartFromBand: 0.25,
   tail: 120,
+  frontShareOfField: 0.4,
   tailFade: [1, 0.55, 0.38, 0.33, 0.3, 0],
   tailCeiling: 0.2,
   cap: 72,
