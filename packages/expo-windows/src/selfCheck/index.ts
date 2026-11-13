@@ -12,11 +12,12 @@ import { checks as pagerChecks } from "./pager";
 import { checks as shellChecks } from "./shell";
 import { checks as storageChecks } from "./storage";
 import { checks as symbolChecks } from "./symbol";
+import { checks as textFocusChecks } from "./textFocus";
 import { checks as viewChecks } from "./views";
 import { checks as windowDragChecks } from "./windowDrag";
 import { checks as windowChecks } from "./windows";
 
-const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, materialChecks, windowDragChecks, fileDropChecks, focusChecks, launchLinkChecks, engineHostChecks, importChecks];
+const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, materialChecks, windowDragChecks, fileDropChecks, focusChecks, textFocusChecks, launchLinkChecks, engineHostChecks, importChecks];
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 

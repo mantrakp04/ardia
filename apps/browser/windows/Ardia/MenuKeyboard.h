@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <optional>
 #include <set>
 #include <string>
@@ -47,6 +48,7 @@ struct MenuKeyboard {
   bool consumedWithAlt = false;
   bool escapeCaptured = false;
   bool switcherCaptured = false;
+  std::atomic<bool> textInputFocused{false};
   std::set<UINT> swallowedKeyUps;
   std::optional<winrt::Microsoft::ReactNative::ReactPromise<winrt::Microsoft::ReactNative::JSValue>> recording;
 
@@ -111,6 +113,39 @@ struct MenuKeyboard {
     else if (press.virtualKey == VK_RIGHT) key = "next";
     else if (press.virtualKey == VK_LEFT) key = "previous";
     if (key) EmitEvent(context, L"ArdiaShell", L"onAppEvent", winrt::Microsoft::ReactNative::JSValueObject{{"type", "switcherKey"}, {"key", key}});
+    return true;
+  }
+
+  static bool PlainUndo(KeyPress const &press) noexcept {
+    return press.virtualKey == 'Z' && press.modifiers == ModifierControl;
+  }
+
+  static bool PageHasFocus() noexcept {
+    HWND focus = GetFocus();
+    if (!focus) focus = GetActiveWindow();
+    wchar_t name[16] = {};
+    return focus && GetClassNameW(focus, name, 16) >= 7 && std::wstring_view(name, 7) == L"Chrome_";
+  }
+
+  bool UndoReopensClosedTab(KeyPress const &press, ActiveWindow const &window) noexcept {
+    MenuStore const &store = MenuStore::Shared();
+    if (!PlainUndo(press) || !store.undoReopensClosedTab || store.Disabled("reopenClosedTab") || window.id.empty()) return false;
+    ManagedWindow const *entry = WindowManager::Shared().Find(window.id);
+    if (!entry || !entry->IsBrowser()) return false;
+    if (textInputFocused.load()) {
+      LaunchLog::Write(L"keys", L"ctrl+z left to the focused text field");
+      return false;
+    }
+    if (PageHasFocus()) {
+      LaunchLog::Write(L"keys", L"ctrl+z left to the focused page");
+      return false;
+    }
+    return true;
+  }
+
+  bool ReopenClosedTab(ActiveWindow const &window) noexcept {
+    Emit("reopenClosedTab", std::nullopt, window.id);
+    LaunchLog::Write(L"keys", L"ctrl+z reopens the last closed tab");
     return true;
   }
 
@@ -255,9 +290,11 @@ struct MenuKeyboard {
     if (recording) {
       handled = Record(press);
     } else {
-      if (!ActiveArdiaWindow().hwnd) return false;
+      ActiveWindow window = ActiveArdiaWindow();
+      if (!window.hwnd) return false;
       if (switcherCaptured) handled = CaptureSwitcherKey(press);
       else if (escapeCaptured && BareEscape(press)) handled = CaptureEscape();
+      else if (UndoReopensClosedTab(press, window)) handled = ReopenClosedTab(window);
       else handled = Dispatch(press);
     }
     if (handled) {
