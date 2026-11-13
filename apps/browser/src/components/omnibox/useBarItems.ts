@@ -48,10 +48,9 @@ export function useBarItems({
   const idle = opensTab && !scope && !typed.trim();
   const openTabs = useOpenTabsStart(idle, windowId, profileId);
   const items = dropdown && !edited && !scope ? start : idle ? openTabs : suggested;
-  const unpreviewed = idle ? -1 : 0;
-  const selectedIndex = selected < 0 && idle ? -1 : Math.min(Math.max(selected, 0), items.length - 1);
+  const selectedIndex = Math.min(Math.max(selected, 0), items.length - 1);
   const current = items[selectedIndex];
-  const preview = selectedIndex > unpreviewed ? (previewText(current) ?? typed) : null;
+  const preview = !idle && selectedIndex > 0 ? (previewText(current) ?? typed) : null;
   const previewing = preview !== null;
   const inline = useInlineCompletion(input, typed, suppressCompletion || scope ? "" : completion, preview);
   const shownCompletion = previewing ? "" : inline.shown;
@@ -60,5 +59,5 @@ export function useBarItems({
     () => (!scope && edited && !previewing ? offeredScope(typed, shownCompletion, windowId) : null),
     [scope, edited, previewing, typed, shownCompletion, windowId],
   );
-  return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing, unpreviewed };
+  return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing };
 }
