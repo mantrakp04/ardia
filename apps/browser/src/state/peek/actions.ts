@@ -1,5 +1,6 @@
 import { setPeekModifier, setPeekOtherSiteTabs, setSplitLinkModifier } from "../../platform/pageOptions";
 import { hapticTick } from "../../platform/haptics";
+import { tolerateMissingCall } from "../../lib/fallback";
 import { webviews } from "../../platform/webviews";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, IDLE_LIVE } from "../browser/model";
@@ -104,9 +105,9 @@ export function startPeeks() {
   const sync = () => {
     const s = store();
     const modifier = s.settings.peekModifier;
-    if (modifier !== sent) void setPeekModifier((sent = modifier));
+    if (modifier !== sent) void setPeekModifier((sent = modifier)).catch(tolerateMissingCall);
     const split = splitLinkModifierOf(s.settings);
-    if (split !== sentSplit) void setSplitLinkModifier((sentSplit = split));
+    if (split !== sentSplit) void setSplitLinkModifier((sentSplit = split)).catch(tolerateMissingCall);
     const on = s.settings.peekLinksToOtherSites;
     if (read && read.tabs === s.tabs && read.groups === s.groups && read.on === on) return;
     read = { tabs: s.tabs, groups: s.groups, on };
@@ -114,7 +115,7 @@ export function startPeeks() {
     const key = ids.join("\n");
     if (key === sentSites) return;
     sentSites = key;
-    void setPeekOtherSiteTabs(ids);
+    void setPeekOtherSiteTabs(ids).catch(tolerateMissingCall);
   };
   sync();
   useBrowser.subscribe(sync);

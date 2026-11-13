@@ -1827,6 +1827,7 @@ vermögensberater vermögensberatung ελ ευ бг бел дети ею кат�
 __define("packages/core/src/errors.ts", function (exports, __require) {
   __export(exports, "ArdiaError", () => ArdiaError);
   __export(exports, "ardiaError", () => ardiaError);
+  __export(exports, "isUnknownCall", () => isUnknownCall);
 class ArdiaError extends Error {
            code        ;
 
@@ -1841,6 +1842,8 @@ const ardiaError = (error         )             =>
   error instanceof ArdiaError
     ? error
     : new ArdiaError(String((error                             )?.code ?? "ERR_UNKNOWN"), String((error                                )?.message ?? error));
+
+const isUnknownCall = (error         )                      => error instanceof ArdiaError && error.code === "ERR_UNKNOWN_CALL";
 
 });
 __define("packages/core/src/extensionRows.ts", function (exports, __require) {

@@ -9,6 +9,7 @@ import {
   type TabStripTransaction,
 } from "../../platform/tabs";
 import { useBrowser, type BrowserState } from "../browser/store";
+import { tolerateMissingCall } from "../../lib/fallback";
 import { changedIds } from "../browser/changes";
 import { chromeChanged, groupStep, stripActual, stripPlan, type GroupBindings } from "./liveTabs";
 
@@ -48,7 +49,7 @@ export function startChromeTabs() {
     early = [];
     for (const tx of queued) receive(tx);
     scheduleProject();
-  });
+  }, tolerateMissingCall);
   useBrowser.subscribe((s, prev) => {
     if (s.windows !== prev.windows || s.groups !== prev.groups || placed(s, prev)) scheduleProject();
   });

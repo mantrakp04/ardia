@@ -1,4 +1,4 @@
-import { ArdiaError, ardiaError } from "@ardia/core";
+import { ArdiaError, ardiaError, isUnknownCall } from "@ardia/core";
 import { requireNativeModule, type EventSubscription } from "expo-modules-core";
 import type { EngineCalls, EngineEvents } from "./api";
 
@@ -41,7 +41,12 @@ export async function decodeReply<T>(reply: Promise<string>): Promise<T> {
 
 export async function call<N extends CallName>(name: N, ...[args]: {} extends CallArgs<N> ? [CallArgs<N>?] : [CallArgs<N>]): Promise<CallResult<N>> {
   const { profile = "", ...rest } = (args ?? {}) as { profile?: string };
-  return decodeReply(domainModule(domainOf(name)).call(name.slice(name.indexOf(".") + 1), profile, JSON.stringify(rest)));
+  try {
+    return await decodeReply<CallResult<N>>(domainModule(domainOf(name)).call(name.slice(name.indexOf(".") + 1), profile, JSON.stringify(rest)));
+  } catch (error) {
+    if (isUnknownCall(error) && !error.message.includes(name)) throw new ArdiaError(error.code, `${name}: ${error.message}`);
+    throw error;
+  }
 }
 
 type Listener = (data: unknown) => void;
