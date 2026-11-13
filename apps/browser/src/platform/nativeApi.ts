@@ -1,7 +1,7 @@
 import { requireNativeModule, requireOptionalNativeModule } from "expo-modules-core";
 import { DEV_EVAL_RESULT, watchDevEval } from "../lib/devEval";
 
-export const NATIVE_API_VERSION = 59;
+export const NATIVE_API_VERSION = 61;
 
 const built = requireOptionalNativeModule<{ apiVersion?: number }>("ArdiaApp")?.apiVersion ?? 0;
 

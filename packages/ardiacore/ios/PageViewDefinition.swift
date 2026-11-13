@@ -16,7 +16,10 @@ enum PageViewDefinition {
       Prop("temporary") { (view: V, temporary: Bool?) in view.page.temporary = temporary ?? false }
       Prop("temporarySource") { (view: V, source: String?) in view.page.temporarySource = source }
       Prop("extensionHost") { (view: V, kind: String?) in view.page.extensionHost = kind }
-      Prop("visible") { (view: V, visible: Bool?) in view.page.visible = visible ?? true }
+      Prop("visible") { (view: V, visible: Bool?) in
+        view.page.visible = visible ?? true
+        if visible == false { view.endCapture() }
+      }
       Prop("warm") { (view: V, warm: Bool?) in view.page.warm = warm ?? false }
       Prop("neighbour") { (view: V, neighbour: Bool?) in view.page.neighbour = neighbour ?? false }
       Prop("pageBackgroundColor") { (view: V, color: NSColor?) in view.page.pageBackgroundColor = color }
@@ -54,6 +57,8 @@ enum PageViewDefinition {
       AsyncFunction("capturePicture") { (view: V, scale: Double, promise: Promise) in
         view.page.capturePicture(scale) { promise.resolve($0) }
       }.runOnQueue(.main)
+      AsyncFunction("toggleCapture") { (view: V) -> Bool in view.toggleCapture() }.runOnQueue(.main)
+      AsyncFunction("captureFullPage") { (view: V) -> Bool in view.captureFullPage() }.runOnQueue(.main)
       AsyncFunction("downloadFavicon") { (view: V, url: String, promise: Promise) in
         view.page.downloadFavicon(url) { promise.resolve($0) }
       }.runOnQueue(.main)

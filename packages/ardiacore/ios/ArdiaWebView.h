@@ -171,6 +171,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)mediaCommand:(NSString *)action seconds:(double)seconds NS_SWIFT_NAME(mediaCommand(_:seconds:));
 @end
 
+@interface ArdiaWebView (Capture)
+- (void)copyPictureForCapture:(void (^)(CGImageRef _Nullable picture, NSRect frame))completion NS_SWIFT_NAME(copyPictureForCapture(_:));
+- (nullable NSView *)pageViewForCapture NS_SWIFT_NAME(pageViewForCapture());
+- (void)copyFullPagePicture:(void (^)(NSData *_Nullable png))completion NS_SWIFT_NAME(copyFullPagePicture(_:));
+@end
+
 @interface ArdiaWebView (Site)
 - (void)securityInfo:(void (^)(NSDictionary<NSString *, id> *info))completion NS_SWIFT_NAME(securityInfo(_:));
 - (void)pageCookies:(NSArray<NSString *> *)urls

@@ -33,6 +33,9 @@ public class WebViewModule: Module {
       ArdiaWebView.setVideoUpscalingTestConditions(conditions)
     },
     "videoUpscalingState": { _, reply in reply.ok(ArdiaWebView.videoUpscalingState()) },
+    "saveCapture": { args, reply in
+      reply.ok(CaptureClipboard.save(try args.int("capture"), folder: try args.text("folder"), name: try args.text("name")))
+    },
   ])
 }
 

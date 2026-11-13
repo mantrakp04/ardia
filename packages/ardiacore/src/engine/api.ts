@@ -172,6 +172,7 @@ export type EngineCalls = {
 
   "webView.setDisplayMediaPicker": [{ enabled: boolean }, null];
   "webView.setPeekModifier": [{ modifier: "alt" | "shift" | "off" }, null];
+  "webView.saveCapture": [{ capture: number; folder: string; name: string }, string | null];
   "webView.setSplitLinkModifier": [{ modifier: "alt" | "altShift" }, null];
   "webView.setPeekOtherSiteTabs": [{ tabIds: string[] }, null];
   "webView.setSelectionPopover": [{ enabled: boolean }, null];
