@@ -6,8 +6,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   deckCardAt,
   deckGeometry,
-  deckRubberBand,
+  deckDragKind,
+  deckLift,
+  deckScrollDuringDrag,
   deckSettleTarget,
+  deckSettleVelocity,
   deckShouldClose,
   focusedIndex,
   initialDeckScroll,
@@ -143,7 +146,7 @@ export function TabDeck() {
     .minDistance(10)
     .onStart((e) => {
       const card = deckCardAt(g, count, scroll.value, e.x - e.translationX, e.y - e.translationY);
-      if (card >= 0 && Math.abs(e.translationY) > Math.abs(e.translationX) && e.translationY < 0) {
+      if (deckDragKind(card, e.translationX, e.translationY) === "lift") {
         vertical.value = true;
         dragIndex.value = card;
         dragLift.value = 0;
@@ -154,10 +157,10 @@ export function TabDeck() {
     })
     .onUpdate((e) => {
       if (vertical.value) {
-        dragLift.value = e.translationY < 0 ? e.translationY : e.translationY * 0.12;
+        dragLift.value = deckLift(e.translationY);
         return;
       }
-      scroll.value = deckRubberBand(startScroll.value - e.translationX / g.spacing, count);
+      scroll.value = deckScrollDuringDrag(g, startScroll.value, e.translationX, count);
     })
     .onEnd((e) => {
       if (vertical.value) {
@@ -172,10 +175,7 @@ export function TabDeck() {
         return;
       }
       const target = deckSettleTarget(g, scroll.value, e.velocityX, count);
-      const distance = target - scroll.value;
-      const raw = -e.velocityX / g.spacing;
-      const velocity = Math.abs(distance) <= 0.001 ? 0 : Math.min(Math.max(raw / distance, -30), 30) * distance;
-      scroll.value = withSpring(target, { ...tabsMotion.settle, velocity });
+      scroll.value = withSpring(target, { ...tabsMotion.settle, velocity: deckSettleVelocity(g, scroll.value, target, e.velocityX) });
     });
   const tap = Gesture.Tap().onEnd((e, success) => {
     if (!success) return;
@@ -213,7 +213,19 @@ export function TabDeck() {
           {order.map((id, index) => {
             const tab = tabs.get(id);
             if (!tab || hidden.current.has(id)) return null;
-            return <DeckCard key={id} tab={tab} index={index} isLast={index === count - 1} role={roleOf(phase, id, index, order)} geometry={g} motion={motion} shift={shift} />;
+            return (
+              <DeckCard
+                key={id}
+                tab={tab}
+                index={index}
+                isLast={index === count - 1} role={roleOf(phase, id, index, order)}
+                geometry={g}
+                motion={motion}
+                shift={shift}
+                onOpen={open}
+                onClose={(at) => close(at, 0)}
+              />
+            );
           })}
         </View>
       </GestureDetector>

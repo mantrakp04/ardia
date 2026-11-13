@@ -128,3 +128,34 @@ export const lerp = (from: number, to: number, t: number) => {
   "worklet";
   return from + (to - from) * t;
 };
+
+export const DECK_HEADER = { titleHidden: 52, titleShown: 84 } as const;
+
+export function titleReveal(width: number): number {
+  "worklet";
+  return Math.min(Math.max((width - DECK_HEADER.titleHidden) / (DECK_HEADER.titleShown - DECK_HEADER.titleHidden), 0), 1);
+}
+
+export type DeckDrag = "lift" | "scroll";
+
+export function deckDragKind(card: number, dx: number, dy: number): DeckDrag {
+  "worklet";
+  return card >= 0 && Math.abs(dy) > Math.abs(dx) && dy < 0 ? "lift" : "scroll";
+}
+
+export function deckLift(dy: number): number {
+  "worklet";
+  return dy < 0 ? dy : dy * 0.12;
+}
+
+export function deckScrollDuringDrag(g: DeckGeometry, start: number, dx: number, count: number): number {
+  "worklet";
+  return deckRubberBand(start - dx / g.spacing, count);
+}
+
+export function deckSettleVelocity(g: DeckGeometry, scroll: number, target: number, velocityX: number): number {
+  "worklet";
+  const distance = target - scroll;
+  if (Math.abs(distance) <= 0.001) return 0;
+  return Math.min(Math.max(-velocityX / g.spacing / distance, -30), 30) * distance;
+}

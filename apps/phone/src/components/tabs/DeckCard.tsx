@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from "react-native-reanimated";
-import { DECK, deckLeading, deckVisibleWidth, lerp, type DeckGeometry } from "../../lib/deckGeometry";
+import { DECK, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
@@ -20,7 +20,17 @@ export type DeckMotion = {
   flyVanish: SharedValue<number>;
 };
 
-type Props = { tab: BrowserTab; index: number; isLast: boolean; role: DeckRole; geometry: DeckGeometry; motion: DeckMotion; shift: { by: number; generation: number } };
+type Props = {
+  tab: BrowserTab;
+  index: number;
+  isLast: boolean;
+  role: DeckRole;
+  geometry: DeckGeometry;
+  motion: DeckMotion;
+  shift: { by: number; generation: number };
+  onOpen: (index: number) => void;
+  onClose: (index: number) => void;
+};
 
 type Pose = { x: number; y: number; scale: number; corner: number; opacity: number; header: number; visible: number; lift: number };
 
@@ -58,7 +68,7 @@ function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number,
   return { x, y, scale, corner, opacity, header: Math.min(1, settle) * Math.min(1, liftFade) * (1 - fade), visible: deckVisibleWidth(g, relative, isLast), lift };
 }
 
-export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift }: Props) {
+export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift, onOpen, onClose }: Props) {
   const theme = useTheme();
   const tone = usePageTone(tab.id);
   const slot = useSharedValue(0);
@@ -71,29 +81,29 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift 
     slot.value = withSpring(0, tabsMotion.gapClose);
   }, [index, shift.generation, shift.by, slot]);
 
-  const pose = (): Pose => {
-    "worklet";
-    const dragging = motion.dragIndex.value === index;
-    const flying = motion.flyIndex.value === index;
-    const lift = dragging ? motion.dragLift.value : flying ? motion.flyLift.value : 0;
-    const vanish = flying ? motion.flyVanish.value : 0;
-    const relative = index + slot.value - motion.scroll.value;
-    return cardPose(g, role, relative, motion.scaleProgress.value, motion.positionProgress.value, lift, vanish, isLast);
-  };
+  const { scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
 
   const cardStyle = useAnimatedStyle(() => {
-    const p = pose();
+    const flying = flyIndex.value === index;
+    const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
+    const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : 0, isLast);
     return {
       opacity: p.opacity,
       borderRadius: p.corner / Math.max(p.scale, 0.01),
       transform: [{ translateX: p.x - g.cardWidth / 2 }, { translateY: p.y - g.cardHeight / 2 }, { scale: p.scale }],
     };
-  });
+  }, [g, role, index, isLast]);
   const headerStyle = useAnimatedStyle(() => {
-    const p = pose();
+    const flying = flyIndex.value === index;
+    const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
+    const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : 0, isLast);
     const top = p.y - (g.cardHeight * p.scale) / 2 - tabsLayout.headerGap - tabsLayout.headerHeight;
     return { opacity: p.header, width: p.visible, transform: [{ translateX: p.x - (g.cardWidth * p.scale) / 2 }, { translateY: top }] };
-  });
+  }, [g, role, index, isLast]);
+  const titleStyle = useAnimatedStyle(() => {
+    const visible = deckVisibleWidth(g, index + slot.value - scroll.value, isLast);
+    return { opacity: titleReveal(visible), maxWidth: Math.max(0, visible - tabsLayout.faviconSize - tabsLayout.headerSpacing) };
+  }, [g, index, isLast]);
 
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
@@ -105,6 +115,9 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift 
         accessibilityRole="button"
         accessibilityLabel={title}
         accessibilityValue={{ text: tab.isPrivate ? `Incognito, ${host}` : host }}
+        accessibilityHint="Opens the tab"
+        accessibilityActions={[{ name: "activate" }, { name: "close", label: "Close Tab" }]}
+        onAccessibilityAction={(event) => (event.nativeEvent.actionName === "close" ? onClose(index) : onOpen(index))}
         style={[
           styles.card,
           { width: g.cardWidth, height: g.cardHeight, zIndex: z, borderColor: theme.cardEdge, shadowColor: tabsInk.cardShadow },
@@ -122,9 +135,9 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift 
           ) : (
             <Symbol name="globe" size={tabsLayout.faviconSize} color={theme.headerText} />
           )}
-          <Text style={[font.caption, styles.title, { color: theme.headerText }]} numberOfLines={1}>
+          <Animated.Text style={[font.caption, styles.title, { color: theme.headerText }, titleStyle]} numberOfLines={1}>
             {title}
-          </Text>
+          </Animated.Text>
         </View>
       </Animated.View>
     </>
