@@ -220,6 +220,18 @@ try {
       assert.equal((await lost()) - before, counted, `${name}: presses ended at the next mouse down`);
     }
   });
+
+  await rep.check("a right-click that arrives while the left button is held leaves the left press its release", async () => {
+    await run(`st().activate("a"); st().setSelection("w1", []); return settle(400);`);
+    const r = await run(`return Promise.all([center("c"), center("p2")]).then(([[cx, cy], [bx, by]]) => point(cx, cy)
+      .then(() => act("mouse:down:" + cx + "," + cy + ",1,${1 << 20},921")).then(() => settle(80))
+      .then(() => act("mouse:rightdown:" + bx + "," + by + ",1,0,922")).then(() => settle(80))
+      .then(() => act("mouse:up:" + cx + "," + cy + ",1,${1 << 20},921")).then(() => settle(450))
+      .then(() => ({ shown: shown(), selection: st().selection.w1 ?? [] })));`);
+    assert.deepEqual(r, { shown: "a", selection: ["a", "c"] }, "the ⌘-click still selects on its release");
+    await run(`st().setSelection("w1", []); return settle(200);`);
+    assert.equal(await run(`return pressNumbered("p2", 120, 923);`).then((p) => p.up), "p2", "and the next click switches");
+  });
 } finally {
   await app?.quit();
   server.close();

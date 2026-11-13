@@ -48,6 +48,10 @@ test("setting off: New Tab on an empty New Tab page focuses its field instead of
   assert.equal(toggleNewTabBar(w), true);
   assert.equal(toggleNewTabBar(w), true);
   assert.deepEqual([focused, S().windows[w].tabIds.length, model.activeTabId(S(), w)], [2, count, empty]);
+  S().openPanel(w, "", undefined, "field");
+  assert.equal(panel(w).open, true);
+  assert.equal(toggleNewTabBar(w), true);
+  assert.deepEqual([panel(w).open, focused, S().windows[w].tabIds.length], [false, 3, count], "an open command panel closes before the page's field takes focus");
   assert.equal(toggleNewTabBar(w, { kind: "group", groupId: S().groupTabs([S().windows[w].tabIds[0]], { pinned: false }) }), false, "a group's New Tab still opens in the group");
   S().navigate(empty, "https://c.com/");
   assert.equal(toggleNewTabBar(w), false, "the tab has a page now");

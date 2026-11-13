@@ -453,7 +453,8 @@ that answers the same methods with the same result shapes, so the wizard (`compo
 - The Windows alpha is the GitHub prerelease `windows-alpha`: `Ardia-Setup-x64.exe`, `Ardia-Setup-arm64.exe`, the
   feed `windows-update.json` (version, build, and per CPU the installer's address, SHA-256 and size) and the
   engine's source. `scripts/windows/publish-alpha.sh <run id>` publishes one green Windows workflow run there; the
-  feed goes up last.
+  feed goes up last. It keeps the installers of the build before, so an update the app already offered still downloads,
+  and removes older ones.
 - A build knows what it is from `Ardia.build.json` beside `Ardia.exe` (`assemble.ps1 -Build`, the workflow's run
   number). `ArdiaApp.systemInfo` takes its version and build from that file, since the library has no version
   resource, so telemetry, About and problem reports name the build; a folder build without it says 0.0.0, build 0. Only an installed build with that file updates: Settings › General › Updates shows "not set up" for a

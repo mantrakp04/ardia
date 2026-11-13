@@ -34,7 +34,9 @@ export function showNewTabBar(windowId: string, target: NewTabTarget = IN_LIST):
 
 function focusShownNewTabPage(s: BrowserState, windowId: string): boolean {
   const active = activeTabId(s, windowId);
-  if (!active || !isEmptyCardTab(s, s.tabs[active]) || !focusHeroBar(windowId, active)) return false;
+  if (!active || !isEmptyCardTab(s, s.tabs[active])) return false;
+  if (s.windowUi[windowId]?.panel.open) s.closePanel(windowId);
+  if (!focusHeroBar(windowId, active)) return false;
   notePageOverlay("newTabReused");
   return true;
 }
