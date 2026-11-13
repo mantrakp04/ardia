@@ -252,7 +252,7 @@ bool TokenClient::FilterResponse(int id,
   }
   if (method == "Target.createTarget") {
     if (const std::string* target_id = result->FindString("targetId")) {
-      NoteCliOwnedTarget(*target_id);
+      NoteCliOwnedTarget(*target_id, this);
     }
     return true;
   }

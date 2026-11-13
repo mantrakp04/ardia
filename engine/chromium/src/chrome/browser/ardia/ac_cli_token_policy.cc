@@ -53,6 +53,7 @@ TokenClient::TokenClient(content::DevToolsAgentHostClient* client,
 
 TokenClient::~TokenClient() {
   Registry().erase(client_);
+  ReleaseCliOwnedTargets(this);
 }
 
 bool TokenClient::FilterCommand(std::string& message, std::string* reply) {
@@ -215,6 +216,9 @@ std::string TokenClient::Refusal(const std::string& method,
     }
     if (!MetricsOverrideAllowed(params)) {
       return "with that option";
+    }
+    if (method == "Emulation.setDeviceMetricsOverride") {
+      ClaimCliOwnedTarget(target->second, this);
     }
   } else if (method == "Runtime.evaluate") {
     if (params.FindBool("includeCommandLineAPI").value_or(false)) {

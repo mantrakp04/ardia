@@ -959,28 +959,95 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual(self.rows(mark), ([], []))
         self.browse("close", session=watcher, check=False)
 
+    def renderer_of(self, title):
+        tasks = self.dev(f"return ac.engine.call('engine.tasks', {{}}).then((tasks) => tasks.filter((task) => task.title.includes({json.dumps(title)})).map((task) => task.pid))")
+        return tasks[0] if tasks else None
+
+    def crash(self, session, title):
+        self.browse("eval", f"document.title = {json.dumps(title)}", session=session)
+        wait_for(lambda: isinstance(self.renderer_of(title), int), 15, "the page's process")
+        crashed = self.renderer_of(title)
+        os.kill(crashed, 9)
+        wait_for(lambda: self.renderer_of(title) != crashed, 15, "the crashed page's process to go")
+
+    def prompt_reload(self, session):
+        refused = json.loads(self.browse("screenshot", str(SCRATCH / "crashed.png"), "--json", session=session, check=False, timeout=20).stdout)
+        self.assertEqual((refused["success"], refused["code"]), (False, "tab_crashed"))
+        started = time.monotonic()
+        reloaded = self.browse("reload", session=session, timeout=20)
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertIn("it was reloaded", reloaded.stdout)
+
     @unittest.skipUnless(JS_LOCATION, "the page's process is found through the dev harness, which only a Debug build has")
-    def test_a_crash_off_screen_stays_off_screen(self):
+    def test_a_crash_off_screen_stays_off_screen_and_reloads(self):
         session, mark = "token-viewport-crash", "#viewport-crash"
         self.users_tab_shown("#users-viewport-crash")
-        self.off_screen(session, mark)
-        self.browse("eval", "document.title = 'off-screen crash'", session=session)
-
-        def process():
-            tasks = self.dev("return ac.engine.call('engine.tasks', {}).then((tasks) => tasks.filter((task) => task.title.includes('off-screen crash')).map((task) => task.pid))")
-            return tasks[0] if tasks else None
-
-        wait_for(lambda: isinstance(process(), int), 15, "the off-screen page's process")
-        crashed = process()
-        os.kill(crashed, 9)
-        wait_for(lambda: process() != crashed, 15, "the crashed page's process to go")
+        _, before = self.off_screen(session, mark)
+        self.crash(session, "off-screen crash")
+        self.assertEqual(self.rows(mark), ([], []))
+        self.prompt_reload(session)
         self.assertEqual(self.rows(mark), ([], []))
         self.assertIn("#users-viewport-crash", self.shown_mark())
-        watcher = "token-viewport-crash-watch"
-        self.assertEqual(len(self.targets(watcher, mark)), 1)
-        self.browse("close", session=session)
-        wait_for(lambda: not self.targets(watcher, mark), 10, "the crashed off-screen tab to close with its session")
-        self.assertEqual(self.rows(mark), ([], []))
+        reset = self.browse("set", "viewport", "reset", session=session)
+        self.assertIn("reloaded in a new background tab", reset.stdout)
+        self.assertEqual(self.size(session), before)
+        self.assertEqual(len(self.rows(mark)[0]), 1)
+
+    @unittest.skipUnless(JS_LOCATION, "the page's process is found through the dev harness, which only a Debug build has")
+    def test_a_crashed_background_tab_reloads_at_once(self):
+        session, mark = "token-crash-background", "#crash-background"
+        self.users_tab_shown("#users-crash-background")
+        self.browse("open", self.url("login.html") + mark, session=session)
+        self.crash(session, "background crash")
+        self.prompt_reload(session)
+        self.assertEqual(self.browse("get", "title", session=session).stdout.strip(), "Fixture Login")
+        self.assertEqual(len(self.rows(mark)[0]), 1)
+
+    def test_a_session_keeps_each_of_its_off_screen_tabs(self):
+        session = "token-viewport-two"
+        self.users_tab_shown("#users-viewport-two")
+        first, before = self.off_screen(session, "#viewport-first")
+        second = json.loads(self.browse("tab", "new", self.url("login.html") + "#viewport-second", "--json", session=session).stdout)["data"]["tabId"]
+        self.browse("set", "viewport", "400", "700", session=session)
+        self.assertEqual(self.rows("#viewport-first"), ([], []))
+        self.assertEqual(self.rows("#viewport-second"), ([], []))
+        self.browse("tab", first, session=session)
+        self.assertEqual(self.size(session), "390x844")
+        reset = self.browse("set", "viewport", "reset", session=session)
+        self.assertIn("reloaded in a new background tab", reset.stdout)
+        self.assertEqual(self.size(session), before)
+        self.assertEqual(len(self.rows("#viewport-first")[0]), 1)
+        self.browse("set", "viewport", "500", "600", session=session)
+        self.assertEqual(self.size(session), "500x600")
+        self.assertEqual(self.rows("#viewport-first"), ([], []))
+        shown = self.browse("tab", second, "--show", session=session)
+        self.assertIn("the page was reloaded in a new tab", shown.stdout)
+        self.assertIn("#viewport-second", self.shown_mark())
+        self.assertEqual(len(self.rows("#viewport-second")[0]), 1)
+
+    def daemon_pid(self, session):
+        for info in (self.data / "Browse").glob("*.json"):
+            try:
+                found = json.loads(info.read_text())
+            except (OSError, ValueError):
+                continue
+            if isinstance(found, dict) and found.get("session") == session and found.get("pid"):
+                return found["pid"]
+        return None
+
+    def test_a_dead_daemons_off_screen_tab_closes_while_another_stays_connected(self):
+        dead, alive, watcher = "token-viewport-dead", "token-viewport-alive", "token-viewport-dead-watch"
+        self.users_tab_shown("#users-viewport-dead")
+        self.off_screen(dead, "#viewport-dead")
+        self.off_screen(alive, "#viewport-alive")
+        pid = self.daemon_pid(dead)
+        self.assertIsInstance(pid, int)
+        os.kill(pid, 9)
+        started = time.monotonic()
+        wait_for(lambda: not self.targets(watcher, "#viewport-dead"), 15, "the dead daemon's off-screen tab to close")
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertEqual(len(self.targets(watcher, "#viewport-alive")), 1)
+        self.assertEqual(self.size(alive), "390x844")
         self.browse("close", session=watcher, check=False)
 
     def test_gated_commands_name_the_refused_method(self):

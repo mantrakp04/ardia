@@ -180,7 +180,7 @@ class BorrowedTab(unittest.TestCase):
         set_viewport()
         self.assertEqual(calls, [("offscreen", {"tab": "tab-mine"})])
         self.assertEqual(sent, ["Emulation.setDeviceMetricsOverride"])
-        self.assertEqual(self.state.extras["offscreen"], "MINE")
+        self.assertEqual(self.state.extras["offscreen"], {"MINE"})
         set_viewport()
         self.assertEqual(len(calls), 1)
 
@@ -205,14 +205,14 @@ class BorrowedTab(unittest.TestCase):
             self.assertEqual(caught.exception.code, code)
             self.assertIn(says, caught.exception.message)
         self.assertEqual(sent, [])
-        self.assertNotIn("offscreen", self.state.extras)
+        self.assertFalse(self.state.extras.get("offscreen"))
 
     def test_showing_or_resetting_an_off_screen_tab_reloads_it_in_a_new_tab(self):
         self.state.current = "MINE"
         self.state.target_infos["MINE"] = {"targetId": "MINE", "url": "https://mine.example/"}
         self.mine.url = "https://mine.example/a"
         self.state.opened.add("MINE")
-        self.state.extras["offscreen"] = "MINE"
+        self.state.extras["offscreen"] = {"MINE"}
         self.state.leases.add("emulation")
         fresh = FakePage("FRESH")
         fresh.url = "https://mine.example/a"
@@ -234,10 +234,78 @@ class BorrowedTab(unittest.TestCase):
             result = asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "reset"]))
         self.assertEqual(opened, ["https://mine.example/a"])
         self.assertEqual(closed, [("Target.closeTarget", {"targetId": "MINE"})])
-        self.assertNotIn("offscreen", self.state.extras)
+        self.assertFalse(self.state.extras.get("offscreen"))
         self.assertNotIn("emulation", self.state.leases)
         self.assertEqual(self.state.current, "FRESH")
         self.assertIn("reloaded in a new background tab", result.text)
+
+    def test_each_off_screen_tab_of_a_session_is_remembered(self):
+        from ardia_cli.browse import tabs
+
+        other, fresh = FakePage("OTHER"), FakePage("FRESH")
+        pages = {"MINE": self.mine, "OTHER": other, "FRESH": fresh}
+        for page, url in ((self.mine, "https://mine.example/a"), (other, "https://mine.example/b"), (fresh, "https://mine.example/a")):
+            page.url = url
+            self.state.target_infos[page.target_id] = {"targetId": page.target_id, "url": url}
+        self.state.opened.update(("MINE", "OTHER"))
+        self.state.endpoint = mock.Mock(explicit=False)
+        moved, sent, opened, closed = [], [], [], []
+
+        async def page(target=None):
+            return pages[target or self.state.current]
+
+        async def app_tab_map(state):
+            return {"MINE": "tab-a", "OTHER": "tab-b", "FRESH": "tab-fresh"}
+
+        async def app_call(state, method, params, timeout=0):
+            moved.append(params["tab"])
+            return {"ok": True}
+
+        async def page_send(method, params=None, **kwargs):
+            sent.append(method)
+            return {}
+
+        async def new_tab(ctx, url, label=None, window=False, show=False):
+            opened.append(url)
+            self.state.current = "FRESH"
+            return fresh
+
+        async def browser_send(method, params=None, *args, **kwargs):
+            closed.append(params["targetId"])
+            return {}
+
+        for each in pages.values():
+            each.send = page_send
+        self.state.page = page
+        self.state.browser = mock.Mock(send=browser_send)
+        self.state.registry = mock.Mock(reserve_close=lambda instance, target: True, finish_close=lambda instance, target: None)
+        run = lambda *argv: asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), list(argv)))
+        patches = (mock.patch.object(tabs, "app_tab_map", app_tab_map), mock.patch.object(tabs, "app_call", app_call), mock.patch.object(commands, "new_tab", new_tab))
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+        self.state.current = "MINE"
+        run("viewport", "390", "844")
+        self.state.current = "OTHER"
+        run("viewport", "400", "700")
+        self.assertEqual(moved, ["tab-a", "tab-b"])
+        self.assertEqual(self.state.extras["offscreen"], {"MINE", "OTHER"})
+
+        self.state.current = "MINE"
+        result = run("viewport", "reset")
+        self.assertIn("reloaded in a new background tab", result.text)
+        self.assertEqual((opened, closed), (["https://mine.example/a"], ["MINE"]))
+        self.assertEqual(self.state.extras["offscreen"], {"OTHER"})
+        self.assertIn("emulation", self.state.leases)
+        self.assertNotIn("Emulation.clearDeviceMetricsOverride", sent)
+
+        run("viewport", "500", "600")
+        self.assertEqual(moved, ["tab-a", "tab-b", "tab-fresh"])
+        self.assertEqual(self.state.extras["offscreen"], {"OTHER", "FRESH"})
+
+        self.state.forget_target("OTHER")
+        self.assertEqual(self.state.extras["offscreen"], {"FRESH"})
 
     def test_cookie_changes_refuse_a_borrowed_tab(self):
         self.refused(commands.cmd_cookies, ["clear"])

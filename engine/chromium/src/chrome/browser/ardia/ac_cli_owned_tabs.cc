@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_host_visibility.h"
@@ -13,6 +14,10 @@
 #include "base/location.h"
 #include "base/no_destructor.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/time/time.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -20,11 +25,19 @@
 namespace ardia {
 namespace {
 
+constexpr base::TimeDelta kOrphanCloseDelay = base::Seconds(5);
+
 class OwnedTab : public content::WebContentsObserver {
  public:
-  OwnedTab(std::string target_id, content::WebContents* contents)
+  OwnedTab(std::string target_id,
+           content::WebContents* contents,
+           const void* owner)
       : content::WebContentsObserver(contents),
-        target_id_(std::move(target_id)) {}
+        target_id_(std::move(target_id)),
+        owner_(owner) {}
+
+  const void* owner() const { return owner_; }
+  void set_owner(const void* owner) { owner_ = owner; }
 
   void WebContentsDestroyed() override {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -33,6 +46,7 @@ class OwnedTab : public content::WebContentsObserver {
 
  private:
   const std::string target_id_;
+  const void* owner_;
 };
 
 std::map<std::string, std::unique_ptr<OwnedTab>>& OwnedTabs() {
@@ -41,16 +55,57 @@ std::map<std::string, std::unique_ptr<OwnedTab>>& OwnedTabs() {
   return *tabs;
 }
 
+void CloseIfOrphanedOffscreen(const std::string& target_id) {
+  auto it = OwnedTabs().find(target_id);
+  content::WebContents* contents =
+      it == OwnedTabs().end() ? nullptr : it->second->web_contents();
+  if (!contents || it->second->owner() ||
+      !ardiacore::InAutomationWindow(contents)) {
+    return;
+  }
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
+  TabStripModel* model = browser ? browser->GetTabStripModel() : nullptr;
+  const int index =
+      model ? model->GetIndexOfWebContents(contents) : TabStripModel::kNoTab;
+  if (index != TabStripModel::kNoTab) {
+    model->DetachAndDeleteWebContentsAt(index);
+  }
 }
 
-void NoteCliOwnedTarget(const std::string& target_id) {
+}
+
+void NoteCliOwnedTarget(const std::string& target_id, const void* owner) {
   content::DevToolsAgentHost* host =
       content::ArdiaDevToolsAgentHostForId(target_id);
   content::WebContents* contents = host ? host->GetWebContents() : nullptr;
   if (!contents || OwnedTabs().contains(target_id)) {
     return;
   }
-  OwnedTabs()[target_id] = std::make_unique<OwnedTab>(target_id, contents);
+  OwnedTabs()[target_id] =
+      std::make_unique<OwnedTab>(target_id, contents, owner);
+}
+
+void ClaimCliOwnedTarget(const std::string& target_id, const void* owner) {
+  auto it = OwnedTabs().find(target_id);
+  if (it != OwnedTabs().end()) {
+    it->second->set_owner(owner);
+  }
+}
+
+void ReleaseCliOwnedTargets(const void* owner) {
+  std::vector<std::string> released;
+  for (const auto& [target_id, tab] : OwnedTabs()) {
+    if (tab->owner() == owner) {
+      tab->set_owner(nullptr);
+      released.push_back(target_id);
+    }
+  }
+  for (const std::string& target_id : released) {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, base::BindOnce(&CloseIfOrphanedOffscreen, target_id),
+        kOrphanCloseDelay);
+  }
 }
 
 void ForgetCliOwnedTarget(const std::string& target_id) {

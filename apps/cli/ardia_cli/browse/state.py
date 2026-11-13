@@ -165,6 +165,7 @@ class State:
         self.frames.pop(target_id, None)
         self.target_infos.pop(target_id, None)
         self.extras.get("views", {}).pop(target_id, None)
+        self.extras.get("offscreen", set()).discard(target_id)
         for label, owner in list(self.labels.items()):
             if owner == target_id:
                 del self.labels[label]
@@ -189,8 +190,11 @@ class State:
         if session_id:
             page = self.sessions.get(session_id)
             if page is not None:
-                if method in ("Inspector.detached", "Inspector.targetCrashed"):
+                if method == "Inspector.detached":
                     page.detach()
+                    return
+                if method == "Inspector.targetCrashed":
+                    page.mark_crashed()
                     return
                 page.on_event(method, params)
             return

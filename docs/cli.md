@@ -223,6 +223,14 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
   mutating one as an unknown outcome) instead of leaving them to their timeout (a `Page.navigate` waited its 30 s), and
   the load and settle waits stop on it. A multi-page `read` reads that page again in a new tab, once
   (`READER_TRIES`; telemetry `read_tabs_reopened`); a second detach fails that page only.
+- **A crashed tab.** A renderer that dies leaves the CDP session attached but answers nothing, so `Page.enable` on
+  attach waited its 30 s and every command after it too, `reload` included. `Inspector.targetCrashed` now marks the
+  page crashed instead of detaching it, and attach asks `Inspector.enable` first (on the token policy's list; Chrome
+  answers it from the browser and reports a dead renderer at once), so a session that attaches later knows too. A
+  crashed page refuses every method but `Page.reload` and `Page.navigate` at once (`code: "tab_crashed"`, which says
+  to reload or close it), and fails the calls still waiting. `reload` on it sends `Page.reload`, enables the page
+  again and waits for `document.readyState` to be `complete` (about a second); `close`, `tab close`, `--show` and
+  `set viewport reset` need no answer from the page. A main-frame navigation clears the mark.
 - `close` takes the command lock, marks the session closing, and only then closes its tabs; requests already queued
   or arriving later get `session_closing`. On any stop the daemon lets running handlers settle (up to 5 s, then
   cancels them) before it touches the browser. Every answer is sanitized (registered tokens and any `token=` query
@@ -742,13 +750,20 @@ version of that unsound: e7f251520 and the commits before it).
   closes the off-screen one, and only then shows the new one (not for `reset`). The output says the page was reloaded
   in a new tab; form state, scroll position and `sessionStorage` are gone. The first frame a user's window gets is
   from a page that never had an override.
-- **Ending.** `close` and `tab close` close the off-screen tab like any tab the session opened. The `emulation`
-  lease keeps the daemon connected while a viewport is set, so an off-screen tab without a connection is an orphan:
-  5 s after the last connection goes (the daemon died, Stop, control turned off) the app closes every tab in the
+- **Ending.** `close` and `tab close` close the off-screen tab like any tab the session opened. A session keeps
+  every tab it took off-screen (`offscreen_targets`), so `--show` and `reset` reload the right one. Each tab the
+  command created has an owner in the engine (`ac_cli_owned_tabs.cc`): the token connection that created it, then
+  whichever one last set its viewport (`ClaimCliOwnedTarget`). When a connection goes (the daemon died, Stop,
+  control turned off), every tab it owned is checked 5 s later and closed if it is still in an automation window and
+  no connection has claimed it, whatever other connections are open (`ReleaseCliOwnedTargets`). The `emulation`
+  lease keeps a daemon connected while any of its tabs is off-screen. The app's sweep stays as a backstop for a tab
+  moved off-screen whose viewport was never set: 5 s after the last connection goes it closes every tab in the
   automation windows (`noteCliConnections`, `cliCloseOffscreenTabs`). Off-screen tabs aren't in the store, so
-  `session.json` never has them, and closing one records no closed tab, in the app's store or in Chrome's own restore
-  list (`InAutomationWindow` in `DeleteTabClosedByHost`, `-[ArdiaCoreTab close]` and
-  `ACWebContentsDelegate::CloseContents`). A crashed page stays off-screen, with no row, until its session closes it.
+  `session.json` never has them, and Chrome's restore list never gets one either: `LiveTabSkipsRestore`
+  (`g_ardia_live_tab_skips_restore`, `ac_seams.mm`) answers yes for a tab in an automation window, so neither a
+  closed tab nor the window snapshot a quit takes (`TabRestoreService::BrowserClosing`) records it, and an
+  automation window with no other tab records no window. A crashed page stays off-screen with no row; `reload`
+  brings it back there.
 - `set device` still fails, before changing anything, on `Emulation.setTouchEmulationEnabled`. A session on a plain
   `--port` server sets the override where the tab is, as before. Telemetry: `viewport_set` on the command event;
   watch `error_code` `viewport_needs_hidden_tab` and `viewport_unsupported` on `set`.

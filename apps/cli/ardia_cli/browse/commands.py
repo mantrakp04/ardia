@@ -206,12 +206,16 @@ NEEDS_HIDDEN_TAB = ("`set viewport` works on a tab this session opened that has 
 OPEN_ONE = "Open one with `ardia browse open <url>` (without --show) and set its viewport there"
 
 
+def offscreen_targets(state) -> set:
+    return state.extras.setdefault("offscreen", set())
+
+
 async def go_offscreen(ctx: Ctx, page):
     from ardia_cli import control
     from ardia_cli.browse import tabs
 
     state = ctx.state
-    if state.extras.get("offscreen") == page.target_id or state.endpoint is None or state.endpoint.explicit:
+    if page.target_id in offscreen_targets(state) or state.endpoint is None or state.endpoint.explicit:
         return
     app_tab = (await tabs.app_tab_map(state)).get(page.target_id)
     if not app_tab:
@@ -224,19 +228,21 @@ async def go_offscreen(ctx: Ctx, page):
         raise BrowseError(f"{NEEDS_HIDDEN_TAB}. {error.message} {OPEN_ONE}", code="viewport_needs_hidden_tab") from None
     except control.Unreachable as error:
         raise BrowseError(f"Couldn't ask Ardia to take the tab off-screen ({error})", code="viewport_unsupported") from None
-    state.extras["offscreen"] = page.target_id
+    offscreen_targets(state).add(page.target_id)
     state.app_tabs.pop(page.target_id, None)
 
 
 async def leave_offscreen(ctx: Ctx, page):
     state = ctx.state
     old = page.target_id
-    url = page.url if page.url and not page.url.startswith("about:") else None
+    known = page.url or state.target_infos.get(old, {}).get("url", "")
+    url = known if known and not known.startswith("about:") else None
     label = next((label for label, owner in state.labels.items() if owner == old), None)
     if label:
         del state.labels[label]
-    state.extras.pop("offscreen", None)
-    state.leases.discard("emulation")
+    offscreen_targets(state).discard(old)
+    if not offscreen_targets(state):
+        state.leases.discard("emulation")
     fresh = await new_tab(ctx, url, label)
     if state.registry.reserve_close(state.instance, old):
         try:
@@ -255,7 +261,7 @@ def offscreen_note(state) -> str:
 
 
 async def show_tab(ctx: Ctx, page):
-    if ctx.state.extras.get("offscreen") == page.target_id:
+    if page.target_id in offscreen_targets(ctx.state):
         page = await leave_offscreen(ctx, page)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + 5
@@ -437,6 +443,9 @@ async def cmd_history(ctx: Ctx, argv):
 async def cmd_reload(ctx: Ctx, argv):
     page = await ctx.state.page()
     refuse_on_borrowed(ctx, page, "reload")
+    if page.crashed:
+        await page.revive(ctx.timeout)
+        return Result({"url": page.url, "crashed": True}, f"{page.url}\n→ The page had crashed; it was reloaded")
     before = page.navigations
     await page.send("Page.reload", {})
     await wait_until(lambda: _settled(page, before), ctx.timeout, 0.05, "the reload")
@@ -1436,7 +1445,7 @@ async def cmd_set(ctx: Ctx, argv):
     try:
         if setting == "viewport":
             if len(args) == 2 and args[1] in ("reset", "off"):
-                if ctx.state.extras.get("offscreen") == page.target_id:
+                if page.target_id in offscreen_targets(ctx.state):
                     fresh = await leave_offscreen(ctx, page)
                     tab = ctx.state.extras.pop("left_offscreen", None)
                     return Result({"reset": True, "tabId": tab, "url": fresh.url}, f"✓ Viewport reset: the page was reloaded in a new background tab [{tab}]")
