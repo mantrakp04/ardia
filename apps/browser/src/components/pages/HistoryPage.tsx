@@ -5,7 +5,7 @@ import { useProfileHistory } from "../../state/history/hooks";
 import { removeHistory } from "../../state/history/actions";
 import type { HistoryEntry } from "../../state/browser/types";
 import { requestClearData, useClearDataRequest } from "../../state/profiles/clearDataRequest";
-import { requestHistorySearchFocus, useHistorySearchFocusRequest } from "../../state/history/showHistory";
+import { takeHistorySearchFocusRequest, useHistorySearchFocusRequest } from "../../state/history/showHistory";
 import { claimFocusTag, historySearchFocus } from "../../state/focus/focusClaims";
 import { Button, EmptyState, Text } from "../ui";
 import { ClearDataDialog } from "./ClearDataDialog";
@@ -36,7 +36,7 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
   const searchFocusRequested = useHistorySearchFocusRequest((r) => r.tabId === tabId);
   useEffect(() => {
     if (!searchFocusRequested || !activeHere || !windowId) return;
-    requestHistorySearchFocus(null);
+    takeHistorySearchFocusRequest();
     search.current?.focus();
     search.current?.setSelection(0, query.length);
     claimFocusTag(windowId, historySearchFocus(tabId), () => findNodeHandle(search.current));
