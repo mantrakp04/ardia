@@ -435,25 +435,32 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
   if (found == hosted_.end()) {
     return Error("the tab is not in a hosted window");
   }
-  Hosted& hosted = found->second;
   if (!args.FindBool("visible").value_or(true)) {
-    if (hosted.shown == key) {
-      Hide(browser, hosted);
+    if (found->second.shown == key) {
+      Hide(browser, found->second);
     }
     return Ok();
   }
   if (!::IsWindow(parent)) {
     return Error("no window");
   }
+  if (!Fits(found->second, parent, key)) {
+    Browser* page = FreePageFor(
+        parent, Profile::FromBrowserContext(contents->GetBrowserContext()),
+        browser);
+    if (!page || !MoveTab(contents, browser, page)) {
+      return Error("no page window for the tab");
+    }
+    browser = page;
+    found = hosted_.find(browser);
+    if (found == hosted_.end()) {
+      return Error("the page window went away");
+    }
+  }
+  Hosted& hosted = found->second;
   HWND window = WindowOf(browser);
   if (!window) {
     return Error("the browser has no window");
-  }
-  for (auto& entry : hosted_) {
-    if (entry.first != browser && entry.second.parent == parent &&
-        !entry.second.shown.empty()) {
-      Hide(entry.first, entry.second);
-    }
   }
   TabStripModel* model = browser->GetTabStripModel();
   int index = model->GetIndexOfWebContents(contents);
@@ -667,11 +674,38 @@ content::WebContents* Host::FindOffered(const std::string& adopt) const {
 }
 
 Browser* Host::BrowserFor(HWND parent, Profile* profile) {
+  if (Browser* free = FreePageFor(parent, profile, nullptr)) {
+    return free;
+  }
   for (auto& entry : hosted_) {
     if (entry.second.parent == parent && entry.second.profile == profile) {
       return entry.first;
     }
   }
+  return NewPage(parent, profile);
+}
+
+Browser* Host::FreePageFor(HWND parent,
+                           Profile* profile,
+                           const Browser* except) {
+  for (auto& entry : hosted_) {
+    if (entry.first != except && entry.second.parent == parent &&
+        entry.second.profile == profile && entry.second.shown.empty()) {
+      return entry.first;
+    }
+  }
+  return except ? NewPage(parent, profile) : nullptr;
+}
+
+bool Host::Fits(const Hosted& hosted, HWND parent,
+                const std::string& key) const {
+  const bool free = hosted.shown.empty() || hosted.shown == key;
+  const bool here = hosted.parent == parent || !hosted.parent ||
+                    !::IsWindow(hosted.parent);
+  return free && here;
+}
+
+Browser* Host::NewPage(HWND parent, Profile* profile) {
   Browser* browser = nullptr;
   {
     base::AutoReset<bool> creating(&creating_browser_, true);
@@ -717,17 +751,28 @@ Browser* Host::OwnerOf(const TabStripModel* model) const {
 bool Host::PlaceTab(content::WebContents* contents, HWND parent) {
   Profile* profile =
       Profile::FromBrowserContext(contents->GetBrowserContext());
+  Browser* from = BrowserOf(contents);
+  if (!from) {
+    return false;
+  }
+  auto current = hosted_.find(from);
+  if (current != hosted_.end() && current->second.parent == parent &&
+      current->second.profile == profile) {
+    return true;
+  }
   Browser* target = BrowserFor(parent, profile);
   if (!target) {
     return false;
   }
-  Browser* from = BrowserOf(contents);
   if (from == target) {
     return true;
   }
-  if (!from) {
-    return false;
-  }
+  return MoveTab(contents, from, target);
+}
+
+bool Host::MoveTab(content::WebContents* contents,
+                   Browser* from,
+                   Browser* target) {
   TabStripModel* source = from->GetTabStripModel();
   int index = source->GetIndexOfWebContents(contents);
   if (index == TabStripModel::kNoTab) {
