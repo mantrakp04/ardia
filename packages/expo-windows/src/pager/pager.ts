@@ -1,24 +1,8 @@
-export type PagerPhase = "idle" | "tracking" | "holding" | "settling";
+import type { PagerSnapshot, PagerStateEvent } from "@ardia/ardiacore";
 
-export type PagerStateEvent = {
-  phase: "began" | "selected" | "settled";
-  sequence: number;
-  position: number;
-  selected: number;
-  velocity: number;
-  profileId?: string | null;
-};
+export type { PagerSnapshot, PagerStateEvent };
 
-export type PagerSnapshot = {
-  sequence: number;
-  selectionSequence: number;
-  position: number;
-  selected: number;
-  phase: PagerPhase;
-  velocity: number;
-  count: number;
-  profileId?: string | null;
-};
+export type PagerPhase = PagerSnapshot["phase"];
 
 export type PagerArea = {
   position(position: number): boolean;

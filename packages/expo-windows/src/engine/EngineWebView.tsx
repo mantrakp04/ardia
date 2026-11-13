@@ -1,5 +1,6 @@
 import { createElement, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef, type ComponentType } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
+import type { PageEvent } from "@ardia/ardiacore";
 import { followMotion } from "../animation/motion";
 import { noteMissing } from "../missing";
 import { requireNativeModule } from "../modules";
@@ -8,8 +9,6 @@ import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./
 import { CoverAncestry } from "./usePageCover";
 import { WindowIdContext } from "./windowId";
 
-type PageEvent = { nativeEvent: { name: string; data: unknown } };
-
 type Props = {
   url?: string;
   profile?: string;
@@ -17,7 +16,7 @@ type Props = {
   tabId?: string;
   visible?: boolean;
   pageEvents?: string[];
-  onPageEvent?: (event: PageEvent) => void;
+  onPageEvent?: (event: { nativeEvent: PageEvent }) => void;
   style?: unknown;
 };
 
