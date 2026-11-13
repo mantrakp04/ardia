@@ -14,7 +14,10 @@ export function ExportBookmarksRow() {
     setStatus("");
     try {
       const path = await exportBookmarks(profileId);
-      if (path) setStatus(`Saved “${path.split("/").pop()}” to “${path.split("/").slice(-2, -1)[0] ?? ""}”.`);
+      if (path) {
+        const parts = path.split(/[\\/]/);
+        setStatus(`Saved “${parts.at(-1) ?? path}” to “${parts.at(-2) ?? ""}”.`);
+      }
     } catch (error) {
       setStatus(`Couldn't export: ${(error as Error).message}`);
     } finally {

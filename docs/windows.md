@@ -328,6 +328,7 @@ is plain Chromium.
 | --- | --- | --- |
 | `autofill.settings`, `autofill.setSettings` | Engine | The Mac reads and writes the profile's `autofill.profile_enabled` and `autofill.credit_card_enabled` prefs; no `ac_*` call touches prefs. Today Settings › Autofill shows both toggles on and disabled. |
 | Import's cookie batches (no verb) | Engine | `//ardia/win`'s `engineCall` (`api.cc`) copies the arguments into a plain `std::string` that is freed without being wiped, so each `ac_cookies_import` batch the app wipes after the reply leaves one copy in freed engine memory. The Mac passes them with `callWithSecret`; Windows needs the same: a sensitive call that wipes its copy. |
+| `bookmarks.exportHtml`, `passwords.export` (the engine's answer) | Engine | Windows answers both (save panel, then `ac_bookmarks_export_html` or `ac_passwords_export`), but in the VM the engine never replies to either and writes no file; see the exports below. Needs a look at `WhenLoaded`/`WriteBookmarks` and `Reauthenticate` in a Windows engine with logging. |
 | `autofill.showSuggestions` | Engine | Shows Chromium's autofill popup in a tab: a `tab.call` method. |
 | `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
 | `contentBlocker.devFailNextMessage`, `devDelayNextLoad` | Default | Mac test hooks. |
@@ -381,6 +382,10 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   `ac_bookmarks_export_html` or `ac_passwords_export`, which asks Windows to confirm it is you before it writes
   (`reauthFailed` otherwise). A background instance answers the panel from `file-chooser.txt` and logs that a file was
   chosen, never which.
+  In the VM (build 157, engine `windows-engine-20261113-1`) the panel opens and answers, and the app hands the path to
+  the engine, but neither engine call answers: no file is written, no reply comes within a minute, and the password
+  export shows no Windows confirmation. Saving a password through the engine (`ac_passwords_add`) answers at once, so
+  this is in the two calls (row in the table above).
 - `extensions.chooseFolder` and `extensions.inspectUnpacked`: `ArdiaDialogs.pickFolder`, then the Mac's
   `ReadManifest` in TypeScript over `ArdiaWindowsImport`'s file reads: the manifest (comments and trailing commas
   allowed, as Chrome does), its `_locales` messages (locale names only), the icons as data addresses, and the id from `key`.

@@ -23,6 +23,7 @@ import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "..
 import { settingsLayout } from "../tokens";
 import { passwordAutofill, setPasswordAutofillFor } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 
 function passwordManagerAppsNote() {
@@ -79,7 +80,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
     <View>
       <SectionHeader
         title="Passwords"
-        description="Saved on this Mac, separately for each profile, and encrypted with a key in your Keychain."
+        description={`Saved on this ${PLATFORM_TERMS.computer}, separately for each profile, and encrypted with ${PLATFORM_TERMS.passwordKey}.`}
         action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
@@ -102,7 +103,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
             Passwords are locked
           </Text>
           <Text size="small" tone="textSecondary">
-            Unlock with Touch ID or your login password to see them.
+            {`Unlock with ${PLATFORM_TERMS.deviceUnlock} to see them.`}
           </Text>
           <Button title="Unlock" kind="primary" onPress={() => void unlockPasswordsFor(profile)} />
         </Box>
