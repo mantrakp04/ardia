@@ -1,6 +1,7 @@
 import { type SettingSection } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
 import { PLATFORM_TERMS } from "../../../lib/platformTerms";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 import { keyText } from "../../../state/commands/keyText";
 
 export const privacyRows = {
@@ -73,7 +74,7 @@ export const privacyRows = {
           keywords: ["password manager", "logins", "credentials", "keychain"],
         },
         importPasswords: { title: "Import passwords", description: "From a CSV exported by Chrome, Safari, Firefox, 1Password, Bitwarden…", keywords: ["csv", "logins"] },
-        exportPasswords: { advanced: true, title: "Export passwords", description: "To a CSV file. Anyone who can open the file can read your passwords.", keywords: ["csv", "backup", "logins"] },
+        exportPasswords: { advanced: true, shown: () => PLATFORM_FEATURES.exportsBookmarksAndPasswords, title: "Export passwords", description: "To a CSV file. Anyone who can open the file can read your passwords.", keywords: ["csv", "backup", "logins"] },
         managerApps: { advanced: true, title: "Password manager apps", keywords: ["1password", "bitwarden", "keepassxc", "proton pass"] },
       },
     },

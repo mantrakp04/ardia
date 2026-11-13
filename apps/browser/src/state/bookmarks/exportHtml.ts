@@ -5,14 +5,19 @@ import { useBrowser } from "../browser/store";
 import { profileOfWindow } from "./bookmarkGroups";
 import { showToast } from "../app/toasts";
 import { PLATFORM_TERMS } from "../../lib/platformTerms";
-import { noteBookmarkExport } from "../telemetry/exportCounts";
+import { noteBookmarkExport, noteBookmarkExportFailure } from "../telemetry/exportCounts";
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
 export async function exportBookmarks(profileId: string): Promise<string | null> {
-  const path = await exportBookmarksHtml(engineProfile(useBrowser.getState(), profileId));
-  if (path) noteBookmarkExport();
-  return path;
+  try {
+    const path = await exportBookmarksHtml(engineProfile(useBrowser.getState(), profileId));
+    if (path) noteBookmarkExport();
+    return path;
+  } catch (error) {
+    noteBookmarkExportFailure();
+    throw error;
+  }
 }
 
 export async function exportBookmarksFromWindow(windowId: string | null | undefined) {

@@ -1,5 +1,5 @@
 import { exportPasswords as exportPasswordsOf } from "../../platform/passwords";
-import { notePasswordExport } from "../telemetry/exportCounts";
+import { notePasswordExport, notePasswordExportFailure } from "../telemetry/exportCounts";
 
 export {
   deletePassword,
@@ -16,7 +16,11 @@ export {
 } from "../../platform/passwords";
 
 export async function exportPasswords(profile: string) {
-  const result = await exportPasswordsOf(profile);
+  const result = await exportPasswordsOf(profile).catch((error: unknown) => {
+    notePasswordExportFailure();
+    throw error;
+  });
   if (result.status === "succeeded") notePasswordExport();
+  if (result.status === "writeFailed") notePasswordExportFailure();
   return result;
 }

@@ -2,6 +2,7 @@ import type { BrowserCommand } from "../../platform/commands";
 import type { Settings } from "../settings/settings";
 import { parseShortcut, type ShortcutSource } from "./shortcuts";
 import { defaultKeys, profileSwitchKey } from "./keyNotation";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { splitViewAvailable } from "../splits/splits";
 
 type Keys = readonly string[];
@@ -213,7 +214,11 @@ export const PAGE_COMMANDS_OFF_INTERNAL_PAGES = commandsWhere((c) => c.scope ===
 export const WINDOW_COMMANDS = commandsWhere((c) => c.scope !== undefined);
 export const LITTLE_ARDIA_DISABLED_COMMANDS = commandsWhere((c) => c.littleArdia === "off");
 export const SPLIT_VIEW_COMMANDS: readonly BrowserCommand[] = ["openSplitPane", "focusNextPane", "focusPreviousPane"];
-export const UNAVAILABLE_COMMANDS: ReadonlySet<string> = new Set(splitViewAvailable ? [] : SPLIT_VIEW_COMMANDS);
+export const EXPORT_COMMANDS: readonly BrowserCommand[] = ["exportBookmarks"];
+export const UNAVAILABLE_COMMANDS: ReadonlySet<string> = new Set([
+  ...(splitViewAvailable ? [] : SPLIT_VIEW_COMMANDS),
+  ...(PLATFORM_FEATURES.exportsBookmarksAndPasswords ? [] : EXPORT_COMMANDS),
+]);
 export const LITTLE_ARDIA_PAGE_COMMANDS: ReadonlySet<string> = new Set(commandsWhere((c) => c.littleArdia === "page"));
 
 const APP_COMMANDS: ReadonlySet<string> = new Set(commandsWhere((c) => !!c.app));

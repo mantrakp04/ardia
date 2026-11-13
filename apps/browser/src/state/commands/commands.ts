@@ -38,7 +38,7 @@ import { togglePageEngine } from "../engines/actions";
 import { goBack, goForward } from "../tabs/navigation";
 import { awaitsFirstPage } from "../tabs/pendingAddress";
 import { openSplitPane } from "../splits/actions";
-import { isAppCommand, LITTLE_ARDIA_PAGE_COMMANDS, settingChange, variantArg } from "./commandCatalog";
+import { isAppCommand, LITTLE_ARDIA_PAGE_COMMANDS, settingChange, UNAVAILABLE_COMMANDS, variantArg } from "./commandCatalog";
 import { APP_COMMAND_HANDLERS } from "./appCommands";
 import { runSidebarCommand } from "../sidebar/commands";
 import { numberedTabs } from "../sidebar/entries";
@@ -314,6 +314,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "manageBookmarks":
       return openInternalPage("bookmarks", windowId);
     case "exportBookmarks":
+      if (UNAVAILABLE_COMMANDS.has(command)) return;
       return void exportBookmarksFromWindow(windowId);
     case "bookmarkAllTabs":
       return bookmarkAllTabs(windowId);

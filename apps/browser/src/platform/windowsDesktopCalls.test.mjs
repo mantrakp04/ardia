@@ -3,11 +3,12 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import { domainCall } from "../../../../packages/expo-windows/src/engine/domains/tables.ts";
 import { sha256 } from "../../../../packages/expo-windows/src/engine/domains/sha256.ts";
 import { idForKey, insideFolder, withoutComments } from "../../../../packages/expo-windows/src/engine/domains/unpacked.ts";
 import { systemStateOf } from "../../../../packages/expo-windows/src/engine/domains/systemState.ts";
+import { EXPORT_ANSWER_MS } from "../../../../packages/expo-windows/src/engine/domains/exports.ts";
 
 const rows = JSON.parse(readFileSync(new URL("../../../../packages/expo-windows/src/engine/domains/forwarded.json", import.meta.url), "utf8"));
 const FOLDER = "C:\\Users\\tester\\Extensions\\sample";
@@ -165,4 +166,32 @@ test("a manifest's locale can't name a folder outside the extension", async () =
   assert.equal(sheet.name, "__MSG_n__");
   const local = fakeEngine({ files: { [`${FOLDER}\\manifest.json`]: '{ "name": "__MSG_n__", "default_locale": "pt_BR" }', [`${FOLDER}\\_locales\\pt_BR\\messages.json`]: '{ "n": { "message": "Inside" } }' } });
   assert.equal((await calling(local, "extensions")("inspectUnpacked", { path: FOLDER })).name, "Inside");
+});
+
+test("an export the engine never answers reports a failure after the time limit, the way the Mac reports one", async () => {
+  assert.ok(EXPORT_ANSWER_MS >= 60_000);
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const engine = fakeEngine({ saved: "C:\\Users\\tester\\Ardia Passwords.csv" });
+    engine.call = (name) => {
+      engine.calls.push({ name });
+      return new Promise(() => {});
+    };
+    const settled = (promise) => promise.then((value) => ({ value }), (error) => ({ error }));
+    const bookmarks = settled(calling(engine, "bookmarks")("exportHtml"));
+    const passwords = settled(calling(engine, "passwords")("export"));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(engine.calls.map((c) => c.name), ["ac_bookmarks_export_html", "ac_passwords_export"]);
+    let early = false;
+    void Promise.race([bookmarks, passwords]).then(() => (early = true));
+    mock.timers.tick(EXPORT_ANSWER_MS - 1);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(early, false);
+    mock.timers.tick(1);
+    const [bookmarked, exported] = await Promise.all([bookmarks, passwords]);
+    assert.ok(bookmarked.error, `bookmarks answered ${JSON.stringify(bookmarked.value)}`);
+    assert.deepEqual(exported.value, { status: "writeFailed" });
+  } finally {
+    mock.timers.reset();
+  }
 });
