@@ -103,11 +103,15 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   theme replaces it), keyboard up. Suggestions come from the Mac's own omnibox code: open tabs, local and synced
   history, bookmarks, the Mac's tabs, network suggestions, bangs and the calculator. Dragging along the rows scrubs
   them.
-- **Browsing.** No URL bar: the page runs under the status bar, with a frosted bottom bar (tab stack, +, chevron)
-  tinted by the page. WebKit is told the bar's height as an obscured inset, so a site's fixed footer lays out
-  above the bar; the same inset carries the top safe area, or the page would start under the status bar. The bar gives way to Find on Page and to the search tray, and returns only after the find panel,
-  the search tray and the keyboard have left.
-  Swipe the bar to switch tabs, swipe anywhere to go back. The chevron opens the page menu:
+- **Browsing.** No URL bar: the page runs under the status bar and fills the screen, with the bottom bar floating
+  over it as one Liquid Glass pill holding the tab stack, + and chevron; there is no strip behind it, and only the
+  pill takes touches, so a link beside it can be tapped. The glyphs follow the page's light or dark tone. WebKit is
+  told the bar's height as an obscured inset, so a site's fixed footer lays out above the bar; the same inset
+  carries the top safe area, or the page would start under the status bar. The bar gives way to Find on Page and to
+  the search tray, and returns only after the find panel, the search tray and the keyboard have left. Where the
+  screen has a side inset (the iPhone Duo's sensor edge, a phone on its side) the pill keeps the larger inset on
+  both sides, so the plus stays in the middle of the screen.
+  Swipe the pill to switch tabs, swipe anywhere to go back. The chevron opens the page menu:
   back, forward, title, pin, reload; Reader, Copy Link (without trackers), Share; Find on Page, Send to a
   Mac, Night Shade, Page Zoom, Request Desktop Site, Translate, Site Settings.
 - **Tabs.** An app-switcher deck of live snapshots; flick a card up to close it. Closing archives; tabs left alone

@@ -59,7 +59,9 @@ line succeeded. On `stale_ref`, the answer has the new refs.
 
 ## Refused commands
 
-Ardia's policy doesn't allow the browser methods behind cookies, `state`, `set …`, `network route`, `upload`,
+Ardia's policy doesn't allow the browser methods behind cookies, `state`, `set …` (but `set viewport <w> <h>` works
+on a tab this session opened and never showed: it goes off-screen, and `--show` or `set viewport reset` reloads it
+at its own size), `network route`, `upload`,
 `download`, `highlight`, `clipboard`, `trace`, `profiler`, `record` and `stream`. They fail with exit 1 and name the
 refused method (`code: "policy_refused"` in `--json`). Use `storage local|session`, `eval`, or ask the user to do that
 step. A refusal that says "which Ardia allows for the ardia command, but not …" is about the tab or address, not the

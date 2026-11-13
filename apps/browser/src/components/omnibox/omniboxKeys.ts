@@ -38,7 +38,6 @@ export type BarKeyContext = {
   items: Suggestion[];
   selectedIndex: number;
   previewing: boolean;
-  unpreviewed: number;
   current: Suggestion | undefined;
   tabScope: ReturnType<typeof offeredScope>;
   cancelBang(): void;
@@ -57,11 +56,11 @@ export function barKeyDown(e: BarKeyEvent, k: BarKeyContext) {
   const select = (index: number) => bar.dispatch({ kind: "selected", index });
   const move = (delta: 1 | -1) => {
     const n = items.length;
-    select(!n ? 0 : selectedIndex < 0 ? (delta > 0 ? 0 : n - 1) : (selectedIndex + delta + n) % n);
+    select(!n ? 0 : (selectedIndex + delta + n) % n);
   };
   k.cancelBang();
   if (key === "Escape") {
-    if (k.previewing) return select(k.unpreviewed);
+    if (k.previewing) return select(0);
     if (scope) return bar.dispatch({ kind: "leftScope", restore: null });
     if (!k.hero) return k.onDone?.("escape");
     if (k.shownCompletion) return bar.dispatch({ kind: "completionDropped" });

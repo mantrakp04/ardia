@@ -255,6 +255,64 @@ static void (^gQuitCancelledHandler)(void);
   return tab ? tab.tabId : -1;
 }
 
+static NSMutableDictionary<NSString *, ArdiaCoreWindow *> *OffscreenWindows() {
+  static NSMutableDictionary<NSString *, ArdiaCoreWindow *> *windows = [NSMutableDictionary dictionary];
+  return windows;
+}
+
+static ArdiaCoreWindow *OffscreenWindowFor(ArdiaCoreProfile *profile) {
+  NSString *name = ardia_host::ProfileName(profile);
+  ArdiaCoreWindow *window = OffscreenWindows()[name];
+  if (window.window) return window;
+  window = [[ArdiaCoreWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1280, 800)];
+  if (!window.window) return nil;
+  window.internal = YES;
+  window.automation = YES;
+  OffscreenWindows()[name] = window;
+  return window;
+}
+
+static NSDictionary<NSString *, id> *OffscreenRefusal(NSString *reason) {
+  return @{@"ok" : @NO, @"reason" : reason};
+}
+
++ (void)cliMoveOffscreen:(NSString *)tabId tries:(NSInteger)tries completion:(void (^)(NSDictionary<NSString *, id> *moved))completion {
+  ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
+  ArdiaWebView *view = tab ? [ArdiaTabRegistry viewForTab:tab] : nil;
+  if (!tab || tab.closed || tab.discarded || !view) return completion(OffscreenRefusal(@"That tab has no page loaded."));
+  ArdiaCoreWindow *window = OffscreenWindowFor(tab.profile);
+  const ArdiaCoreAdoption adoption = window ? [window canAdoptTab:tab] : ArdiaCoreAdoptionRefused;
+  if (adoption == ArdiaCoreAdoptionBusy && tries > 0) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+      [self cliMoveOffscreen:tabId tries:tries - 1 completion:completion];
+    });
+    return;
+  }
+  if (adoption != ArdiaCoreAdoptionAdopted) return completion(OffscreenRefusal(@"Ardia couldn't take that tab off-screen."));
+  if (![view releasePageForOffscreen]) return completion(OffscreenRefusal(@"That tab is shown in a window, so it can't go off-screen."));
+  if ([window adoptTab:tab] != ArdiaCoreAdoptionAdopted) {
+    [tab close];
+    return completion(OffscreenRefusal(@"Ardia couldn't take that tab off-screen, and closed it."));
+  }
+  NSView *page = tab.view, *host = window.hostView;
+  [page removeFromSuperview];
+  page.frame = host.bounds;
+  page.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+  page.hidden = NO;
+  [host addSubview:page];
+  completion(@{@"ok" : @YES});
+}
+
++ (void)cliMoveOffscreen:(NSString *)tabId completion:(void (^)(NSDictionary<NSString *, id> *moved))completion {
+  [self cliMoveOffscreen:tabId tries:50 completion:completion];
+}
+
++ (void)cliCloseOffscreenTabs {
+  for (ArdiaCoreWindow *window in OffscreenWindows().allValues)
+    for (ArdiaCoreProfile *profile in ardia_host::LoadedProfiles())
+      for (ArdiaCoreTab *tab in [[window tabsForProfile:profile] copy]) [tab close];
+}
+
 + (void)cliTabTargets:(NSArray<NSString *> *)tabIds completion:(void (^)(NSDictionary<NSString *, id> *targets))completion {
   static NSMutableDictionary<NSString *, NSString *> *lastTarget;
   static NSMutableDictionary<NSString *, NSNumber *> *generations;

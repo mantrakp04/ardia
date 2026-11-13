@@ -41,6 +41,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (int)chromeTabIdOfTab:(NSString *)tabId NS_SWIFT_NAME(chromeTabId(ofTab:));
 + (void)cliTabTargets:(NSArray<NSString *> *)tabIds completion:(void (^)(NSDictionary<NSString *, id> *targets))completion
     NS_SWIFT_NAME(cliTabTargets(_:completion:));
++ (void)cliMoveOffscreen:(NSString *)tabId completion:(void (^)(NSDictionary<NSString *, id> *moved))completion
+    NS_SWIFT_NAME(cliMoveOffscreen(_:completion:));
++ (void)cliCloseOffscreenTabs;
 + (BOOL)isPrivateProfile:(NSString *)profile NS_SWIFT_NAME(isPrivateProfile(_:));
 @property(class, nullable, copy) void (^quitCancelledHandler)(void);
 + (void)menuShortcutsChanged;

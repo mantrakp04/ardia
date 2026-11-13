@@ -24,6 +24,7 @@ import { focusedWindowOf } from "../windows/ui";
 import { noteCliPillShown } from "../telemetry/usage";
 import { noteDragsEnded } from "../telemetry/stuckDrags";
 import type { CliCaller } from "./cliCaller";
+import { noteCliConnections } from "../automation/offscreen";
 
 const DOC = "ardia-cli.json";
 const DOC_VERSION = 1;
@@ -96,6 +97,7 @@ export function noteCliCaller(caller: CliCaller) {
 
 function updateIndicator({ server }: CliState) {
   const cdpOn = server?.state === "on";
+  noteCliConnections(cdpOn ? server.connections : 0);
   const on = cdpOn || socketServing;
   const connected = on && (cdpOn ? server.connections : 0) + socketRuns > 0;
   if (connected || !on) {

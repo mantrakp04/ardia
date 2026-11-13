@@ -49,7 +49,8 @@ Find:        find role|text|label|placeholder|alt|title|testid|first|last|nth <v
              actions: click (default), fill, type, check, uncheck, select, hover, focus, dblclick, text
              find role <role> <action> --name <name>: exact name first, several matches list refs
 Mouse:       mouse move <x> <y> | down [btn] | up [btn] | wheel <dy> [dx]
-Settings:    set viewport|device|geo|offline|headers|credentials|media   (gated)
+Settings:    set viewport <w> <h> [scale] | reset                 (this session's own hidden tab, off-screen)
+             set device|geo|offline|headers|credentials|media    (gated)
 Network:     network requests [--filter --type --method --status --clear] | request <id>
              network har start [--content text|all|none] | har stop [path]
              network route <url> [--abort|--body <json>] | unroute [url]  (gated)
@@ -331,8 +332,12 @@ COMMANDS = {
     "cookies": "ardia browse cookies [get] | set <name> <value> [--url u] [--domain d] [--path p] [--httpOnly] [--secure]\n"
                "  [--sameSite Strict|Lax|None] [--expires epoch] | set --curl <file> | clear\n\n"
                "Gated by Ardia's policy; works against a plain --port test server.",
-    "set": "ardia browse set viewport <w> <h> [scale] | device <name> | geo <lat> <lng> | offline [on|off] | headers <json>\n"
-           "  | credentials <user> <pass> | media [dark|light|no-preference] [reduced-motion]\n\nEmulation settings for the session's tab (gated).",
+    "set": "ardia browse set viewport <w> <h> [scale] | viewport reset | device <name> | geo <lat> <lng> | offline [on|off] | headers <json>\n"
+           "  | credentials <user> <pass> | media [dark|light|no-preference] [reduced-motion]\n\nset viewport sizes the page of a tab this session opened and never showed, for responsive checks. Ardia first takes\n"
+           "the tab off-screen (it leaves the sidebar), so an emulated page is never on screen; screenshots, snapshots and\n"
+           "clicks work there at that size. To see the page, `tab <id> --show` (or `set viewport reset`, in the background):\n"
+           "the viewport ends and the page is reloaded in a new tab of its own size. The other settings are gated by Ardia's\n"
+           "policy; they work against a plain --port test server.",
     "state": "ardia browse state save|load <path>\n\nSaves or loads cookies and storage (gated).",
     "dialog": "ardia browse dialog status | accept [text] | dismiss\n\nAnswers the page's open alert, confirm or prompt.",
     "diff": "ardia browse diff snapshot [-b baseline] [-s sel] [-i] [-c] [-d n] | screenshot --baseline <png> | url <u1> <u2>\n\n"
