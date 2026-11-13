@@ -11,6 +11,7 @@ import { peekTabId } from "../peek/peek";
 import { splitOf, splitTabIdsOf } from "../splits/splits";
 import { hostOf } from "@ardia/core";
 import { capture } from "../telemetry/client";
+import { noteMediaPositionReport } from "../telemetry/mediaPositionReports";
 import { isSleeping } from "../tabs/sleepingTabs";
 
 export type Session = NowPlaying & {
@@ -52,6 +53,11 @@ export function setPictureInPictureState(tabId: string, { kind, active, fullScre
 }
 
 export function setNowPlaying(tabId: string, state: NowPlaying | null) {
+  if (state) noteMediaPositionReport(useMedia.getState().sessions[tabId], state);
+  applyNowPlaying(tabId, state);
+}
+
+function applyNowPlaying(tabId: string, state: NowPlaying | null) {
   useMedia.setState((s) => {
     const sessions = { ...s.sessions };
     if (!state) {
@@ -155,12 +161,12 @@ export const SKIP_SECONDS = 15;
 export function skipBy(tabId: string, session: Session, seconds: number) {
   const now = Date.now();
   const position = Math.max(0, Math.min(session.duration ?? Infinity, positionOf(session, now) + seconds));
-  setNowPlaying(tabId, { ...session, position, timestamp: now });
+  applyNowPlaying(tabId, { ...session, position, timestamp: now });
   mediaCommand(tabId, "seekBy", seconds);
 }
 
 export function seekTo(tabId: string, session: Session, seconds: number) {
-  setNowPlaying(tabId, { ...session, position: seconds, timestamp: Date.now() });
+  applyNowPlaying(tabId, { ...session, position: seconds, timestamp: Date.now() });
   mediaCommand(tabId, "seekTo", seconds);
 }
 
