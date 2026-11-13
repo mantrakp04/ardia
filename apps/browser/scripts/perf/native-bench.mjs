@@ -41,8 +41,6 @@
 //                               throttle   hidden animating tabs' rAF and timer rates
 //                               churn      leak check: open and close 10 tabs 5 times
 //                               sample     main-thread `sample`s, idle and while switching and scrolling
-//                               profiles   clean profile startup memory; --profile-count defaults to 8
-//     --preload-profiles <bool> candidate fixture setting (default false); --control-preload-profiles defaults true
 //                               prepare    prepare the app copies and exit (see --prepared)
 //     --env K=V               repeatable: extra environment for every instance (DYLD_INSERT_LIBRARIES is appended to
 //                             the marker library). Instances stay muted; don't pass ARDIA_INSTANCE allowAudio.
@@ -172,8 +170,15 @@ const { values: opt } = parseArgs({
   },
 });
 if (opt.help) {
+  const profileHelp = [
+    "                              profiles   clean profile startup memory; --profile-count defaults to 8",
+    "    --preload-profiles <bool> candidate fixture setting (default false); --control-preload-profiles defaults true",
+  ];
   const lines = readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1);
-  console.log(lines.slice(0, lines.findIndex((l) => !l.startsWith("//"))).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
+  const help = lines.slice(0, lines.findIndex((l) => !l.startsWith("//"))).map((l) => l.replace(/^\/\/ ?/, ""));
+  const sample = help.findIndex((line) => line.trimStart().startsWith("sample "));
+  help.splice(sample + 1, 0, ...profileHelp);
+  console.log(help.join("\n"));
   process.exit(0);
 }
 
