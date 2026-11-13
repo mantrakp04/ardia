@@ -1,5 +1,6 @@
 #include "ardia/win/tab_state.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "ardia/win/api.h"
@@ -258,43 +259,57 @@ void TabState::PrimaryMainFrameRenderProcessGone(
 }
 
 void TabState::WatchKeys() {
-  content::RenderFrameHost* frame =
-      web_contents() ? web_contents()->GetPrimaryMainFrame() : nullptr;
+  if (!web_contents()) {
+    return;
+  }
+  web_contents()->GetPrimaryMainFrame()->ForEachRenderFrameHost(
+      [this](content::RenderFrameHost* frame) { WatchKeysOf(frame); });
+}
+
+void TabState::WatchKeysOf(content::RenderFrameHost* frame) {
   content::RenderWidgetHost* widget =
       frame ? frame->GetRenderWidgetHost() : nullptr;
-  if (widget == keys_widget_) {
+  if (!widget || std::ranges::find(keys_widgets_, widget) !=
+                     keys_widgets_.end()) {
     return;
   }
-  StopWatchingKeys();
-  if (!widget) {
-    return;
-  }
-  keys_widget_ = widget;
+  keys_widgets_.push_back(widget);
   widget->AddInputEventObserver(this);
   widget->AddObserver(this);
 }
 
 void TabState::StopWatchingKeys() {
-  if (!keys_widget_) {
-    return;
+  std::vector<raw_ptr<content::RenderWidgetHost>> widgets =
+      std::move(keys_widgets_);
+  keys_widgets_.clear();
+  for (content::RenderWidgetHost* widget : widgets) {
+    widget->RemoveInputEventObserver(this);
+    widget->RemoveObserver(this);
   }
-  keys_widget_->RemoveInputEventObserver(this);
-  keys_widget_->RemoveObserver(this);
-  keys_widget_ = nullptr;
+}
+
+void TabState::RenderFrameCreated(content::RenderFrameHost* frame) {
+  if (!key_.empty()) {
+    WatchKeysOf(frame);
+  }
 }
 
 void TabState::RenderFrameHostChanged(content::RenderFrameHost* old_host,
                                       content::RenderFrameHost* new_host) {
-  if (new_host && new_host->IsInPrimaryMainFrame() && !key_.empty()) {
-    WatchKeys();
+  if (!key_.empty()) {
+    WatchKeysOf(new_host);
   }
 }
 
 void TabState::RenderWidgetHostDestroyed(
     content::RenderWidgetHost* widget_host) {
-  if (widget_host == keys_widget_) {
-    StopWatchingKeys();
+  auto found = std::ranges::find(keys_widgets_, widget_host);
+  if (found == keys_widgets_.end()) {
+    return;
   }
+  keys_widgets_.erase(found);
+  widget_host->RemoveInputEventObserver(this);
+  widget_host->RemoveObserver(this);
 }
 
 void TabState::OnInputEventAck(const content::RenderWidgetHost& widget,
