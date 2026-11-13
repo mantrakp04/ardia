@@ -4,6 +4,7 @@ import { checks as engineHostChecks } from "./engineHost";
 import { checks as fileDropChecks } from "./fileDrop";
 import { checks as desktopCallChecks } from "./desktopCalls";
 import { checks as focusChecks } from "./focus";
+import { checks as idleTimeChecks } from "./idleTime";
 import { checks as importChecks } from "./importFiles";
 import { checks as importFirefoxChecks } from "./importFirefox";
 import { checks as launchLinkChecks } from "./launchLinks";
@@ -19,7 +20,7 @@ import { checks as viewChecks } from "./views";
 import { checks as windowDragChecks } from "./windowDrag";
 import { checks as windowChecks } from "./windows";
 
-const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, materialChecks, windowDragChecks, fileDropChecks, focusChecks, textFocusChecks, launchLinkChecks, engineHostChecks, importChecks, importFirefoxChecks, desktopCallChecks];
+const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, materialChecks, windowDragChecks, fileDropChecks, focusChecks, idleTimeChecks, textFocusChecks, launchLinkChecks, engineHostChecks, importChecks, importFirefoxChecks, desktopCallChecks];
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
