@@ -3,7 +3,9 @@ import { readConfigFile } from "../../platform/configFolder";
 import { useBrowser } from "../browser/store";
 import { showToast } from "../app/toasts";
 import { focusedWindowOf } from "../windows/ui";
-import { offerRules, useAutomationApprovals, type ApprovalRule, type ApprovalSource } from "./approvals";
+import { afterFirstWindow } from "../../lib/afterFirstWindow";
+import { noteApprovalNoticeDeferred } from "../telemetry/usage";
+import { offerRules, pendingRules, useAutomationApprovals, type ApprovalRule, type ApprovalSource } from "./approvals";
 import { HOOKS_FILE, parseHooksText, type HookSpec } from "./hookFile";
 import { approvalFor, isHookActive, launchActionApproval } from "./hookPolicy";
 import type { DecideEvent } from "./eventNames";
@@ -13,25 +15,57 @@ type Store = { hooks: HookSpec[]; generation: number; problems: string[]; stamp:
 export const useHookRules = create<Store>()(() => ({ hooks: [], generation: 0, problems: [], stamp: null }));
 
 const changeListeners = new Set<() => void>();
-let unshownNotice = false;
+const unshown = new Map<ApprovalSource, Set<string>>();
+let noticesHeld = true;
 
 export const onHooksChanged = (listener: () => void) => {
   changeListeners.add(listener);
   return () => void changeListeners.delete(listener);
 };
 
-function noticePending(source: ApprovalSource, fresh: ApprovalRule[]) {
-  if (!fresh.length) return;
+function noticeWindow(): string | undefined {
   const s = useBrowser.getState();
-  const windowId = focusedWindowOf(s) ?? s.windowOrder[0];
-  if (!windowId) return void (unshownNotice = true);
-  unshownNotice = false;
-  const what = fresh.length === 1 ? `“${fresh[0]!.name}” waits` : `${fresh.length} automation rules wait`;
-  showToast(windowId, `${source}: ${what} for your approval`, "Settings › Advanced › Automation", { icon: "lock.shield" });
+  return focusedWindowOf(s) ?? s.windowOrder[0];
 }
 
-export function showPendingNotice() {
-  if (unshownNotice) noticePending(HOOKS_FILE, useHookRules.getState().hooks.map(approvalFor).filter((r): r is ApprovalRule => !!r));
+function announce(windowId: string, sources: ApprovalSource[], rules: ApprovalRule[]) {
+  const what = rules.length === 1 ? `“${rules[0]!.name}” waits` : `${rules.length} automation rules wait`;
+  showToast(windowId, `${sources.join(", ")}: ${what} for your approval`, "Settings › Advanced › Automation", { icon: "lock.shield" });
+}
+
+function noticePending(source: ApprovalSource, fresh: ApprovalRule[]) {
+  if (!fresh.length) return;
+  const windowId = noticeWindow();
+  if (noticesHeld || !windowId) {
+    const keys = unshown.get(source) ?? new Set<string>();
+    for (const rule of fresh) keys.add(rule.key);
+    unshown.set(source, keys);
+    noteApprovalNoticeDeferred();
+    return;
+  }
+  unshown.delete(source);
+  announce(windowId, [source], fresh);
+}
+
+function releaseHeldNotices() {
+  noticesHeld = false;
+  showPendingNotice();
+}
+
+function showPendingNotice() {
+  const windowId = noticeWindow();
+  if (noticesHeld || !windowId || !unshown.size) return;
+  const waiting = pendingRules();
+  const sources: ApprovalSource[] = [];
+  const rules: ApprovalRule[] = [];
+  for (const [source, keys] of unshown) {
+    const still = waiting.filter((r) => keys.has(r.key) && !rules.includes(r));
+    if (!still.length) continue;
+    sources.push(source);
+    rules.push(...still);
+  }
+  unshown.clear();
+  if (rules.length) announce(windowId, sources, rules);
 }
 
 function applyHooks(hooks: HookSpec[], problems: string[], stamp: string | null) {
@@ -82,6 +116,7 @@ export function startHookRules() {
   if (watching) return;
   watching = true;
   reloadHooks();
+  afterFirstWindow(() => setTimeout(releaseHeldNotices, 0));
   useAutomationApprovals.subscribe((s, prev) => {
     if (s.approved !== prev.approved) for (const listener of changeListeners) listener();
   });

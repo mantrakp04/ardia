@@ -20,7 +20,7 @@ using namespace ardia_runtime;
 }
 
 - (void)pageCookies:(NSArray<NSString *> *)urls completion:(void (^)(NSArray<NSDictionary<NSString *, id> *> *))completion {
-  if (!_tab || _tab.closed || !urls.count) return completion(nil);
+  if (!_tab || _tab.closed || !urls.count || self.awaitsFirstDocument) return completion(nil);
   __block BOOL answered = NO;
   void (^answer)(NSArray *) = ^(NSArray *cookies) {
     if (answered) return;
@@ -67,6 +67,7 @@ using namespace ardia_runtime;
 - (void)tab:(ArdiaCoreTab *)tab didChangeMediaAccess:(NSDictionary<NSString *, NSNumber *> *)access {
   _reports.capturing = [access[@"camera"] boolValue] || [access[@"microphone"] boolValue] || [access[@"screen"] boolValue];
   [self emit:@"mediaAccess" payload:access ?: @{}];
+  [self autoPictureInPictureInputsChanged];
 }
 
 - (void)tab:(ArdiaCoreTab *)tab externalAppRequest:(NSDictionary<NSString *, id> *)request {

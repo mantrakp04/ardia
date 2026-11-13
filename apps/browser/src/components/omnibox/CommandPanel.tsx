@@ -4,7 +4,8 @@ import { Animated, StyleSheet, View, type LayoutChangeEvent } from "react-native
 import { hex, useTheme } from "../ui/theme";
 import { useSidebarSide, useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { closePanel } from "../../state/windows/actions";
-import { useActiveTabIdWhile, useCommandBarCentred, useTabHasUrlWhile } from "../../state/omnibox/hooks";
+import { useActiveTabIdWhile, useTabHasUrlWhile } from "../../state/omnibox/hooks";
+import { isCentred } from "../../state/omnibox/barPlacement";
 import { usePage } from "../../state/tabs/pageState";
 import { dismissHover, setRowsCovered } from "../../state/sidebar/hover";
 import { useCardAnchors, useUrlAnchors } from "../../state/windows/layout";
@@ -14,6 +15,7 @@ import type { NewTabTarget } from "../../state/browser/types";
 import { Omnibox } from "./Omnibox";
 import { BAR, PANEL_TEXT_LEFT, GROW } from "./tokens";
 import { closePanelToHeroBar, type BarDismissal } from "../../state/omnibox/barState";
+import { closeBlankLittleArdiaOnEscape } from "../../state/littleArdia/actions";
 import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { compactLift, urlFieldOf } from "../../lib/toolbarRow";
@@ -40,7 +42,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const hasField = useTabHasUrlWhile(activeId, panel.open);
   const insecure = usePage(activeId, (p) => !!insecureLevel(p));
   const anchor = useUrlAnchors((s) => (panel.open ? s[windowId] : undefined));
-  const centred = useCommandBarCentred(windowId, panel.open && !panel.newTab);
+  const centred = panel.open && !panel.newTab && isCentred(panel.placement);
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
   const toolbarRow = useToolbarRow();
   const sidebarRight = useSidebarSide(windowId) === "right";
@@ -54,7 +56,9 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
 
   const room = (left: number, fallback: number) => (windowWidth > 0 ? windowWidth - left - WINDOW_MARGIN : fallback);
   const onCancel = () => closePanel(windowId);
-  const onDone = (reason?: BarDismissal) => closePanelToHeroBar(windowId, activeId, reason);
+  const onDone = (reason?: BarDismissal) => {
+    if (reason !== "escape" || !closeBlankLittleArdiaOnEscape(windowId)) closePanelToHeroBar(windowId, activeId, reason);
+  };
   const surface = (radius: number) => panelSurface(theme, radius);
 
   if (centred && card) {

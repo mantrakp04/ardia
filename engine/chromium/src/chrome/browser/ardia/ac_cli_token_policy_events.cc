@@ -13,6 +13,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
+#include "chrome/browser/ardia/ac_cli_owned_tabs.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
 #include "url/gurl.h"
 
@@ -115,6 +116,18 @@ void StripSecrets(base::Value& value) {
   }
 }
 
+void ForgetDestroyedTarget(const std::string& message) {
+  std::optional<base::Value> parsed =
+      base::JSONReader::Read(message, base::JSON_PARSE_RFC);
+  const base::DictValue* params =
+      parsed && parsed->is_dict() ? parsed->GetDict().FindDict("params")
+                                  : nullptr;
+  if (const std::string* target_id =
+          params ? params->FindString("targetId") : nullptr) {
+    ForgetCliOwnedTarget(*target_id);
+  }
+}
+
 }
 
 bool TokenClient::FilterEvent(std::string& message) {
@@ -145,12 +158,16 @@ bool TokenClient::FilterEvent(std::string& message) {
         method == "Page.frameStartedNavigating") {
       return FilterPageEvent(message);
     }
+    if (method == "Target.targetDestroyed") {
+      ForgetDestroyedTarget(message);
+      return true;
+    }
     if (method == "Inspector.targetCrashed" || method == "Inspector.detached") {
       ForgetSessionOf(message);
     }
     return method != "Target.receivedMessageFromTarget";
   }
-  if (outstanding_.empty()) {
+  if (outstanding_.empty() && own_commands_.empty()) {
     return true;
   }
   std::optional<int> id = ParseResponseId(view);
@@ -171,6 +188,9 @@ bool TokenClient::FilterEvent(std::string& message) {
       session = *found;
     }
   }
+  if (own_commands_.erase({session, *id})) {
+    return false;
+  }
   auto it = outstanding_.find({session, *id});
   if (it == outstanding_.end()) {
     return true;
@@ -186,6 +206,9 @@ bool TokenClient::FilterEvent(std::string& message) {
 void TokenClient::ForgetSession(const std::string& session) {
   std::erase_if(outstanding_, [&](const auto& entry) {
     return entry.first.first == session;
+  });
+  std::erase_if(own_commands_, [&](const auto& entry) {
+    return entry.first == session;
   });
 }
 
@@ -230,6 +253,12 @@ bool TokenClient::FilterResponse(int id,
       message = ErrorReply(id, session, kRefused,
                            "ardia: Target.getTargetInfo on that target "
                            "isn't allowed for the ardia command");
+    }
+    return true;
+  }
+  if (method == "Target.createTarget") {
+    if (const std::string* target_id = result->FindString("targetId")) {
+      NoteCliOwnedTarget(*target_id);
     }
     return true;
   }

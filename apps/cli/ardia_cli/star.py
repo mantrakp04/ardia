@@ -47,7 +47,7 @@ def open_in_ardia(data_dir: str | None, run=subprocess.run) -> bool:
 def run(args, run=subprocess.run, which=shutil.which, env=None) -> int:
     from ardia_cli import usage
 
-    home = usage.cli_home(os.environ if env is None else env)
+    home = usage.recording_home(os.environ if env is None else env)
     if star_with_gh(run, which):
         outcome, status = "gh", 0
         message = f"★ Starred github.com/{REPO} with the user's GitHub account (through gh). Thanks for the star!"
@@ -57,9 +57,10 @@ def run(args, run=subprocess.run, which=shutil.which, env=None) -> int:
     else:
         outcome, status = "manual", 1
         message = f"Couldn't star through gh or open Ardia. Ask the user to open {URL} and click Star."
-    try:
-        usage.mark_starred(home, outcome)
-    except Exception:
-        pass
+    if home is not None:
+        try:
+            usage.mark_starred(home, outcome)
+        except Exception:
+            pass
     (sys.stdout if status == 0 else sys.stderr).write(message + "\n")
     return status

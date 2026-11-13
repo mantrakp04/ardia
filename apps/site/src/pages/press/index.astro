@@ -26,8 +26,8 @@ import { oklch } from "../../lib/oklch";
 
 const press = `${base}/press`;
 const zipSize = megabytes((await pressZip()).length);
-const shotImages = import.meta.glob<{ default: ImageMetadata }>("../../assets/shots/*.webp", { eager: true });
-const shots = SHOTS.map((s) => ({ ...s, image: shotImages[`../../assets/shots/${s.id}.webp`]!.default }));
+const shotImages = import.meta.glob<{ default: ImageMetadata }>("../../assets/shots/*.webp");
+const shots = await Promise.all(SHOTS.map(async (s) => ({ ...s, image: (await shotImages[`../../assets/shots/${s.id}.webp`]!()).default })));
 const previews: Record<string, ImageMetadata> = { "app-icon": appIcon, "mark-painted": paintedMark };
 const sections = [
   ["logo", "Logo"],

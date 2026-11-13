@@ -21,6 +21,8 @@ import { isFields, isString, isStringList } from "../../lib/decode";
 import type { SavedObject } from "../../lib/savedDocument";
 import type { JsonSchema } from "../../lib/jsonSchema";
 import { PROVIDERS_SCHEMA } from "../omnibox/providerSchema";
+import { COMMAND_BAR_START_SCHEMA, isCommandBarStart, type CommandBarStart } from "../omnibox/commandBarStart";
+import { noteAutoHideTabsChosen } from "../telemetry/autoHideTabsChoices";
 
 export const DEFAULT_PROFILE_ID = "default";
 
@@ -75,6 +77,7 @@ export const SETTING_SPECS = {
   commandBarPreference: oneOf(["website", "search"], "website", SYNCED),
   tabLayout: oneOf(["sidebar", "top"], "sidebar", SYNCED),
   sidebarSide: oneOf(["left", "right"], "left", SYNCED),
+  autoHideTabs: flag(false, SYNCED),
   hideToolbarWhileScrolling: flag(true, SYNCED),
   newTabPosition: oneOf(["top", "bottom", "nextToCurrent"], "bottom", SYNCED),
   newTabButtonPosition: oneOf(["top", "bottom"], "bottom", SYNCED),
@@ -89,12 +92,16 @@ export const SETTING_SPECS = {
   optShiftClickOpensInGroup: flag(true, SYNCED),
   dragToGroupInTopStrip: flag(false, SYNCED),
   peekModifier: oneOf(["alt", "shift", "off"], "shift", SYNCED),
-  peekLinksToOtherSites: flag(false, SYNCED),
-  newTabLinksOpenIn: oneOf(["tab", "peek", "littleArdia"], "tab", SYNCED),
+  peekLinksToOtherSites: flag(true, SYNCED),
+  newTabLinksOpenIn: oneOf(["tab", "peek", "littleArdia"], "peek", SYNCED),
   splitLinkModifier: oneOf(["altShift", "alt"], "altShift", SYNCED),
   autoGroupMeetingTabs: flag(true, SYNCED),
   cleanUpInactiveTabsAfterMinutes: shaped<number | null>(null, (v) => v === null || isWidth(v), { type: ["number", "null"], exclusiveMinimum: 0 }, SYNCED),
+  suggestCleanUp: flag(true, SYNCED),
   mutedSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
+  showUnreadCounts: flag(false, SYNCED),
+  showTopAppBadges: flag(false, SYNCED),
+  unreadHiddenSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST)),
   autoPictureInPicture: flag(true, SYNCED),
   commandScrollZoom: flag(true, SYNCED),
@@ -103,6 +110,7 @@ export const SETTING_SPECS = {
   sidebarWidth: width(DEFAULT_SIDEBAR_WIDTH),
   showSidebarButton: flag(true, SYNCED),
   showClearButton: flag(true, SYNCED),
+  tidyTabs: flag(false, SYNCED),
   balancedTopApps: flag(false, SYNCED),
   showAdvancedSettings: flag(false),
   selectedTabGlow: oneOf(["full", "soft", "off"], "full", SYNCED),
@@ -129,13 +137,19 @@ export const SETTING_SPECS = {
   addressBar: oneOf(["toolbar", "sidebar"], "toolbar", SYNCED),
   compactToolbar: flag(false, SYNCED),
   pageFrame: shaped<number>(PAGE_FRAME.default, validPageFrame, { type: "integer", minimum: PAGE_FRAME.min, maximum: PAGE_FRAME.max }, SYNCED),
+  borderlessMode: flag(false, SYNCED),
+  pageFrameZeroInFullScreen: flag(false, SYNCED),
+  pageFrameZeroWhenTabsHidden: flag(false, SYNCED),
   commandBarPlacement: oneOf(["field", "centred"], "field", SYNCED),
+  commandBarStart: shaped<CommandBarStart>({}, isCommandBarStart, COMMAND_BAR_START_SCHEMA),
   spacesFollowAppearance: flag(true),
+  adaptTextToColor: flag(true, SYNCED),
   defaultProfileId: text(DEFAULT_PROFILE_ID),
   profileSwitcherIcons: flag(false, SYNCED),
   shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST), SYNCED),
   openLinksInLittleArdia: flag(true),
   littleArdiaOpensNewTabLinks: flag(true, SYNCED),
+  littleWindowGestures: flag(true, SYNCED),
   littleArdiaSize: shaped<[number, number]>([900, 640], (v) => Array.isArray(v) && v.length === 2 && v.every(isWidth), { type: "array", prefixItems: [WIDTH, WIDTH], minItems: 2, maxItems: 2 }),
   pageEngine: oneOf(["chromium", "webkit"], "chromium"),
   websiteEngines: shaped<Record<string, "chromium" | "webkit">>({}, (v) => isRecordOf(v, (e) => e === "chromium" || e === "webkit"), recordOf({ type: "string", enum: ["chromium", "webkit"] })),
@@ -152,9 +166,7 @@ export type Settings = { -readonly [K in SettingKey]: Specs[K]["default"] };
 export type SettingsMeta = { chosen: string[]; inferred: string[] };
 export const NO_SETTINGS_META: SettingsMeta = { chosen: [], inferred: [] };
 
-export type SearchEngineId = string;
 export type BatterySaverWhen = Settings["batterySaverWhen"];
-export type SelectedTabGlow = Settings["selectedTabGlow"];
 export type PeekModifier = Settings["peekModifier"];
 export type SplitLinkModifier = Settings["splitLinkModifier"];
 
@@ -220,12 +232,23 @@ function validateCustomEngine(settings: Settings, input: EngineInput, ignoreId?:
   return validateEngine(input, searchEngines(settings), ignoreId);
 }
 
+function withPageFrameDependencies(settings: Settings, patch: Partial<Settings>): Partial<Settings> {
+  const next = { ...settings, ...patch };
+  if (next.pageFrameZeroInFullScreen && !next.pageFrameZeroWhenTabsHidden && !("pageFrameZeroWhenTabsHidden" in patch)) {
+    return { ...patch, pageFrameZeroWhenTabsHidden: true };
+  }
+  return patch;
+}
+
 export function choose(s: Pick<BrowserState, "settings" | "settingsMeta">, patch: Partial<Settings>): Pick<BrowserState, "settings" | "settingsMeta"> {
   const { chosen, inferred } = s.settingsMeta;
+  if (patch.autoHideTabs !== undefined && patch.autoHideTabs !== s.settings.autoHideTabs) noteAutoHideTabsChosen();
+  patch = withPageFrameDependencies(s.settings, patch);
+  const next = { ...s.settings, ...patch };
   const added = Object.keys(patch).filter((k) => !chosen.includes(k));
   const left = inferred.filter((k) => !(k in patch));
   const settingsMeta = added.length || left.length !== inferred.length ? { chosen: added.length ? [...chosen, ...added] : chosen, inferred: left } : s.settingsMeta;
-  return { settings: { ...s.settings, ...patch }, settingsMeta };
+  return { settings: next, settingsMeta };
 }
 
 export function sessionWithSettingsMeta(doc: SavedObject): SavedObject {
@@ -260,16 +283,18 @@ function withoutBatterySaver(saved: (Partial<Settings & SettingsMeta> & { batter
   };
 }
 
-const NEW_TAB_LINKS_IN_LITTLE_ARDIA: SettingKey = "littleArdiaOpensNewTabLinks";
-
-export function sessionWithNewTabLinksInLittleArdia(doc: SavedObject): SavedObject {
-  if (!isFields(doc.settings) || doc.settings[NEW_TAB_LINKS_IN_LITTLE_ARDIA] !== false) return doc;
+function withoutUntouchedSetting(doc: SavedObject, key: SettingKey, oldDefault: unknown): SavedObject {
+  if (!isFields(doc.settings) || doc.settings[key] !== oldDefault) return doc;
   const { chosen, inferred } = parseSettingsMeta(doc.settingsMeta);
-  if (chosen.includes(NEW_TAB_LINKS_IN_LITTLE_ARDIA) && !inferred.includes(NEW_TAB_LINKS_IN_LITTLE_ARDIA)) return doc;
-  const { [NEW_TAB_LINKS_IN_LITTLE_ARDIA]: _untouchedOff, ...settings } = doc.settings;
-  const without = (keys: string[]) => keys.filter((k) => k !== NEW_TAB_LINKS_IN_LITTLE_ARDIA);
+  if (chosen.includes(key) && !inferred.includes(key)) return doc;
+  const { [key]: _untouched, ...settings } = doc.settings;
+  const without = (keys: string[]) => keys.filter((k) => k !== key);
   return { ...doc, settings, settingsMeta: { chosen: without(chosen), inferred: without(inferred) } };
 }
+
+export const sessionWithNewTabLinksInLittleArdia = (doc: SavedObject) => withoutUntouchedSetting(doc, "littleArdiaOpensNewTabLinks", false);
+
+export const sessionWithUnreadCountsOffByDefault = (doc: SavedObject) => withoutUntouchedSetting(doc, "showUnreadCounts", true);
 
 export type SettingsSlice = {
   settings: Settings;
@@ -288,7 +313,10 @@ export const createSettingsSlice: StateCreator<BrowserState, [], [], SettingsSli
   settings: DEFAULT_SETTINGS,
   settingsMeta: NO_SETTINGS_META,
   updateSettings(patch, { fromSync = false } = {}) {
-    set((s) => (fromSync ? { settings: { ...s.settings, ...patch } } : choose(s, withLinkKeysApart(s.settings, patch))));
+    set((s) => {
+      if (fromSync) return { settings: { ...s.settings, ...withPageFrameDependencies(s.settings, patch) } };
+      return choose(s, withLinkKeysApart(s.settings, patch));
+    });
   },
 
   setSearchEngine(id) {

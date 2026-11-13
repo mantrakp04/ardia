@@ -1,37 +1,16 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { session } from "../../../../scripts/lib/instance.mjs";
+import { DARK, hostOf, TITLES, writeSession } from "./sessions-lib.mjs";
 
-const out = process.argv[2];
-const TITLES = {
-  mail: "Inbox — Mailbox",
-  chat: "Pinecone",
-  notes: "Notes",
-  forum: "Threadly",
-  lexicon: "meadow | Lexicon dictionary",
-  crumbs: "Crumbs — Brown butter oat cookies",
-  dailyledger: "The Daily Ledger",
-  docpad: "Trip plan — Docpad",
-  moodwall: "moodwall — ideas for everything",
-  trails: "Ridge Trail Map",
-};
+const TITLES_HERE = { ...TITLES, mail: "Inbox — Mailbox", chat: "Pinecone", notes: "Notes", forum: "Threadly", trails: "Ridge Trail Map" };
 const ICONS = { mail: "favicon.svg", chat: "favicon.svg", notes: "favicon.svg", forum: "favicon.svg", trails: "favicon.svg" };
-const host = (url) => new URL(url).hostname.split(".")[0];
-const icon = (url) => `${url}${ICONS[host(url)] ?? "favicon.ico"}`;
-const T = (id, url, extra = {}) => ({ id, profileId: "default", url, title: TITLES[host(url)], favicon: icon(url), ...extra });
+const icon = (url) => `${url}${ICONS[hostOf(url)] ?? "favicon.ico"}`;
+const T = (id, url, extra = {}) => ({ id, profileId: "default", url, title: TITLES_HERE[hostOf(url)], favicon: icon(url), ...extra });
 const tile = (id, url, extra = {}) => T(id, url, { pinned: true, pinnedUrl: url, ...extra });
 const row = (id, url, extra = {}) => tile(id, url, { pinnedAsRow: true, ...extra });
 const NEAR_BLACK = { r: 0.02, g: 0.02, b: 0.02, a: 1 };
 const flat = (color) => ({ stops: [{ x: 0.2, y: 0.2, color }, { x: 0.8, y: 0.8, color }], intensity: 0.6, mode: "dark", grain: 0, texture: "grain", translucency: 1 });
 
-function build(file, { tabs, active, frame = [80, 60, 1360, 860], settings = {}, profiles = [{ id: "default", name: "Personal", color: "plum" }], activeTabIds, tabLayout }) {
-  const s = session({
-    profiles,
-    windows: [{ id: "w1", frame, profileId: "default", ...(tabLayout ? { tabLayout } : {}), activeTabIds: activeTabIds ?? { default: active } }],
-    tabs,
-  });
-  s.settings = { appearance: "dark", searchSuggestions: false, warnBeforeQuitting: false, sidebarWidth: 260, ...(tabLayout ? { tabLayout } : {}), ...settings };
-  writeFileSync(join(out, file), JSON.stringify(s, null, 2));
+function build(file, { tabs, active, frame, settings = {}, profiles = [{ id: "default", name: "Personal", color: "plum" }], activeTabIds, tabLayout }) {
+  writeSession(file, { profiles, tabs, active, activeTabIds, frame, windowExtra: tabLayout ? { tabLayout } : {}, settings: { ...DARK, ...(tabLayout ? { tabLayout } : {}), ...settings } });
 }
 
 const TILES = [tile("p1", "http://mail.example/"), tile("p2", "http://crumbs.example/"), tile("p3", "http://lexicon.example/")];

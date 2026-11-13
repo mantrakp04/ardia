@@ -1,14 +1,15 @@
-import asyncio
 import json
 import sys
 
 from ardia_cli import control
 from ardia_cli.control import MethodError, Unreachable
-from ardia_cli.printable import shown
+from ardia_cli.endpoint import DATA_DIR_HELP
+from ardia_cli.printable import complain, say, shown
 
-DATA_DIR_HELP = "the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)"
 APPLY_TIMEOUT = 120.0
-COLORS = ("neutral", "none", "grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange")
+TINTS = ("grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange")
+COLORS = ("neutral", "none", *TINTS)
+COLOR_HELP = f"{', '.join(TINTS)}; neutral (the default: a box only under the pointer) or none (no box)"
 ICON_HELP = "an emoji from Ardia's icon picker (🚀), symbol:<SF Symbol name> (symbol:star), or none"
 EXIT_STATUS = """\
 Exit status: 0 done, 1 refused, a bad request or a target that isn't there (nothing after the failing operation
@@ -23,14 +24,23 @@ Without a command, it lists every window's tabs per profile: Top Apps, the pinne
 groups), then the rest, with groups nested as in the sidebar. --json prints the tree with stable ids (see
 docs/automation.md); --flat prints one tab per line.
 
-Ids: tab-… for tabs, g-… for groups, w-… for windows (ardia tabs shows them). --before and --after take a tab or a
-group id.
+--usage adds each tab's renderer process: its pid, CPU (percent of one core, as Chrome's Task Manager shows it) and
+memory, hottest first, so a process from `top -o power` or Activity Monitor can be named. --pid N prints the tabs
+running in process N. With --json each tab gets "pid", "cpu" and "memory" (bytes); null for a sleeping tab, which has
+no process. Tabs that share a process show that process's numbers. The first --usage in a while takes about 2 s,
+since CPU is measured over time.
+
+Ids: tab-… for tabs, g-… for groups, w-… for windows (ardia tabs shows them). --group takes a group's id or its
+name (case-insensitive, in that window; an exact id wins, and a name two groups share is refused with their ids).
+--before and --after take a tab or a group id.
 
 {EXIT_STATUS}
 Examples:
   ardia tabs --json
-  ardia tabs open https://example.com news.ycombinator.com --group g-abc
-  ardia tabs move tab-1 tab-2 --group g-abc
+  ardia tabs --usage
+  ardia tabs --pid 61234
+  ardia tabs open https://example.com news.ycombinator.com --group Work
+  ardia tabs move tab-1 tab-2 --group Work
   ardia tabs move tab-3 --top
   ardia tabs pin tab-4 --row
   ardia tabs sleep tab-5 tab-6
@@ -38,15 +48,19 @@ Examples:
 GROUPS_DESCRIPTION = f"""\
 List and organize tab groups: create (around tabs you name, URLs you open, or one new tab), rename, set the icon,
 colour and collapsed state, nest, reorder, pin, move to another window or profile, ungroup, close or delete. New
-groups are pinned, as with New Group with Tab in the sidebar, unless --unpinned or --parent says otherwise.
+groups are pinned, as with New Group with Tab in the sidebar, unless --unpinned or --parent says otherwise. A group
+made from tabs of another group, with no --parent, --before or --after, goes just above that group, so groups made
+one after another from it keep their order and what's left of it stays below. A group argument takes an id or a
+name, looked up case-insensitively in the last focused window (--parent: in the window the group goes to); an exact
+id wins, and a name two groups share is refused with their ids.
 
 {EXIT_STATUS}
 Examples:
   ardia groups create tab-1 tab-2 --name Work --icon 🚀 --color blue
-  ardia groups create --parent g-abc --url https://a.example --url https://b.example --name Reading
-  ardia groups update g-abc --collapse --icon symbol:briefcase
-  ardia groups move g-def --parent g-abc
-  ardia groups ungroup g-def
+  ardia groups create --parent Work --url https://a.example --url https://b.example --name Reading
+  ardia groups update Work --collapse --icon symbol:briefcase
+  ardia groups move Reading --parent Projects
+  ardia groups ungroup Imported
 """
 APPLY_DESCRIPTION = f"""\
 Apply several tab and group operations in one call, in order, without touching the tab each window shows. Reads
@@ -87,20 +101,22 @@ def add_parsers(commands, formatter):
     tabs.add_argument("--window", metavar="ID", help="only this window")
     tabs.add_argument("--profile", metavar="ID", help="only this profile")
     tabs.add_argument("--flat", action="store_true", help="one tab per line (with --json, a flat list)")
+    tabs.add_argument("--usage", action="store_true", help="each tab's process id, CPU and memory, hottest first")
+    tabs.add_argument("--pid", type=int, metavar="N", help="only the tabs running in process N (implies --usage)")
     verbs = tabs.add_subparsers(dest="tabs_command", metavar="<command>")
 
     opening = common(verbs.add_parser("open", help="open URLs in the background", description="Open one or more URLs as new tabs, in the background, in the last focused window (or --window, or a window\nshowing --profile), at the top level or in --group, where new tabs go or --before/--after a tab or group.\nOnly http, https and file URLs, about:blank and ardia://history, bookmarks, downloads and newtab open.", formatter_class=formatter))
     opening.add_argument("urls", nargs="+", metavar="URL", help="URLs (example.com works)")
     opening.add_argument("--window", metavar="ID", help="a window id")
     opening.add_argument("--profile", metavar="ID", help="a profile id: the tabs belong to it")
-    opening.add_argument("--group", metavar="ID", help="open them inside this group")
+    opening.add_argument("--group", metavar="GROUP", help="open them inside this group (id or name)")
     opening.add_argument("--pin", choices=("tile", "row"), help="pin them as Top Apps tiles or pinned rows")
     opening.add_argument("--activate", action="store_true", help="show the first one (never focuses the window)")
     placement(opening, "tabs")
 
     move = common(ids(verbs.add_parser("move", help="move tabs: into a group, out of one, next to another tab, to a window or profile", description="Move tabs without reloading them. --group puts them in a group (in its window and profile), --top takes\nthem out of every group, --before/--after puts them next to a tab or group (in that tab's group and section),\n--window and --profile move them to another window or profile. The tabs keep the order given.", formatter_class=formatter)))
     target = move.add_mutually_exclusive_group()
-    target.add_argument("--group", metavar="ID", help="into this group")
+    target.add_argument("--group", metavar="GROUP", help="into this group (id or name)")
     target.add_argument("--top", action="store_true", help="out of every group, to the top level")
     move.add_argument("--window", metavar="ID", help="to this window")
     move.add_argument("--profile", metavar="ID", help="to this profile")
@@ -133,7 +149,7 @@ def add_parsers(commands, formatter):
 
     def looks(parser):
         parser.add_argument("--icon", metavar="ICON", help=ICON_HELP)
-        parser.add_argument("--color", choices=COLORS, metavar="COLOR", help=", ".join(COLORS))
+        parser.add_argument("--color", choices=COLORS, metavar="COLOR", help=COLOR_HELP)
 
     create = common(gverbs.add_parser("create", help="make a group", description="Make a group from the tabs given, the URLs given (opened in the background), or else one new tab.\nThe tabs move out of the groups they were in, without reloading.", formatter_class=formatter))
     create.add_argument("ids", nargs="*", metavar="TAB", help="tab ids to put in it")
@@ -141,14 +157,14 @@ def add_parsers(commands, formatter):
     create.add_argument("--name", metavar="NAME", help="its name (default: one made from its tabs)")
     looks(create)
     create.add_argument("--collapsed", action="store_true", help="collapsed")
-    create.add_argument("--parent", metavar="ID", help="nest it inside this group")
+    create.add_argument("--parent", metavar="GROUP", help="nest it inside this group (id or name)")
     create.add_argument("--unpinned", action="store_true", help="below the pinned section instead of in it")
     create.add_argument("--window", metavar="ID", help="in this window (default: the tabs', else the last focused)")
     create.add_argument("--profile", metavar="ID", help="in this profile")
     placement(create, "group")
 
     update = common(gverbs.add_parser("update", help="rename, set icon, colour, collapse or expand a group", description="Change a group's name, icon, colour or collapsed state."))
-    update.add_argument("id", metavar="ID", help="a group id")
+    update.add_argument("id", metavar="GROUP", help="a group id or name")
     update.add_argument("--name", metavar="NAME", help="its name (\"\" for one made from its tabs)")
     looks(update)
     update.add_argument("--reset-icon", action="store_true", help="the default icon")
@@ -157,13 +173,13 @@ def add_parsers(commands, formatter):
     fold.add_argument("--expand", action="store_true", help="expand it")
 
     rename_group = common(gverbs.add_parser("rename", help="rename a group", description="Rename a group (\"\" for a name made from its tabs)."))
-    rename_group.add_argument("id", metavar="ID", help="a group id")
+    rename_group.add_argument("id", metavar="GROUP", help="a group id or name")
     rename_group.add_argument("name", metavar="NAME", help="the name")
 
     gmove = common(gverbs.add_parser("move", help="nest, reorder, pin or move a group to another window or profile", description="Move a group: --parent nests it, --top takes it out of its parent, --before/--after puts it next to a\ntab or group, --pin/--unpin moves it in or out of the pinned section, --window and --profile move it there\n(pinned groups are in every window of their profile, so they don't move between windows).", formatter_class=formatter))
-    gmove.add_argument("id", metavar="ID", help="a group id")
+    gmove.add_argument("id", metavar="GROUP", help="a group id or name")
     nest = gmove.add_mutually_exclusive_group()
-    nest.add_argument("--parent", metavar="ID", help="inside this group")
+    nest.add_argument("--parent", metavar="GROUP", help="inside this group (id or name)")
     nest.add_argument("--top", action="store_true", help="out of its parent group")
     pinning = gmove.add_mutually_exclusive_group()
     pinning.add_argument("--pin", action="store_true", help="into the pinned section")
@@ -177,21 +193,10 @@ def add_parsers(commands, formatter):
         ("close", "close a group and its tabs (History › Recently Closed Groups brings it back)"),
         ("delete", "delete a group and its tabs"),
     ):
-        common(gverbs.add_parser(name, help=text, description=text[0].upper() + text[1:] + ".")).add_argument("id", metavar="ID", help="a group id")
+        common(gverbs.add_parser(name, help=text, description=text[0].upper() + text[1:] + ".")).add_argument("id", metavar="GROUP", help="a group id or name")
 
     batch = common(commands.add_parser("apply", help="apply several tab and group operations at once (JSON)", description=APPLY_DESCRIPTION, formatter_class=formatter))
     batch.add_argument("file", nargs="?", metavar="FILE", help="a JSON file (default: stdin)")
-
-
-def say(text: str) -> None:
-    sys.stdout.write(text + "\n")
-    sys.stdout.flush()
-
-
-def complain(text: str) -> None:
-    sys.stdout.flush()
-    sys.stderr.write(text + "\n")
-    sys.stderr.flush()
 
 
 def placed(args, op: dict) -> dict:
@@ -278,18 +283,6 @@ def group_op(args) -> dict:
     return {"op": f"group.{verb}", "group": args.id}
 
 
-async def with_connection(args, work):
-    connection = await control.connect(control.socket_path(args.data_dir))
-    try:
-        return await work(connection)
-    finally:
-        await connection.close()
-
-
-def call(args, method: str, params, timeout=control.CALL_TIMEOUT):
-    return asyncio.run(with_connection(args, lambda c: c.call(method, params, timeout)))
-
-
 def note_error(code) -> None:
     from ardia_cli import telemetry
 
@@ -310,7 +303,7 @@ def apply_ops(args, command: str, ops: list) -> int:
 
     telemetry.note_count("batch_steps", len(ops))
     try:
-        reply = call(args, "apply", {"ops": ops}, APPLY_TIMEOUT)
+        reply = control.call(args.data_dir, "apply", {"ops": ops}, APPLY_TIMEOUT)
     except Unreachable as error:
         if error.sent:
             complain(f"ardia {command}: the connection dropped after the request went out, so it may or may not have run ({error})")
@@ -323,8 +316,9 @@ def apply_ops(args, command: str, ops: list) -> int:
     if args.json:
         say(json.dumps(reply, indent=2, ensure_ascii=False))
     else:
+        titles = {tab.get("id"): tab.get("title") for tab in reply.get("tabs") or [] if isinstance(tab, dict)}
         for result in reply.get("results") or []:
-            say(describe_result(result))
+            say(describe_result(result, titles))
     error = reply.get("error")
     if not reply.get("ok"):
         note_error(error.get("code") if isinstance(error, dict) else "failed")
@@ -345,17 +339,32 @@ VERBS = {
 GROUP_VERBS = {"group.update": "updated", "group.move": "moved", "group.ungroup": "ungrouped", "group.close": "closed", "group.delete": "deleted"}
 
 
-def describe_result(result: dict) -> str:
-    op = str(result.get("op"))
-    tabs = [shown(tab) for tab in result.get("tabs") or []]
+def group_name(result: dict) -> str:
     group = shown(result.get("group"))
+    icon = result.get("icon")
+    label = result.get("label")
+    shown_icon = f"{shown(icon)} " if isinstance(icon, str) and icon != "none" and not icon.startswith("symbol:") else ""
+    return f"{shown_icon}{shown(label)} ({group})" if label else group
+
+
+def tab_name(tab_id, titles: dict) -> str:
+    title = titles.get(tab_id)
+    return f"{shown(title)} ({shown(tab_id)})" if title else shown(tab_id)
+
+
+def describe_result(result: dict, titles: dict | None = None) -> str:
+    titles = titles or {}
+    op = str(result.get("op"))
+    tabs = [tab_name(tab, titles) for tab in result.get("tabs") or []]
     outcomes = result.get("outcomes")
     if isinstance(outcomes, dict):
-        return "  ".join(f"{shown(tab)}: {shown(outcome)}" for tab, outcome in outcomes.items())
+        return "  ".join(f"{tab_name(tab, titles)}: {shown(outcome)}" for tab, outcome in outcomes.items())
     if op == "group.create":
-        return f"created group {group} with {len(tabs)} tab{'s' if len(tabs) != 1 else ''}"
+        return f"created group {group_name(result)} with {len(tabs)} tab{'s' if len(tabs) != 1 else ''}"
+    if op == "group.ungroup":
+        return f"ungrouped {group_name(result)}"
     if op.startswith("group."):
-        return f"{GROUP_VERBS.get(op, shown(op))} group {group}"
+        return f"{GROUP_VERBS.get(op, shown(op))} group {group_name(result)}"
     return f"{VERBS.get(op, shown(op))} {', '.join(tabs)}".rstrip()
 
 
@@ -370,8 +379,12 @@ def cmd_tabs(args) -> int:
     tree = read_workspace(args, "tabs")
     if isinstance(tree, int):
         return tree
+    if args.pid is not None:
+        return print_process_tabs(args, flat_tabs(tree))
     if args.json:
         say(json.dumps(flat_tabs(tree) if args.flat else tree, indent=2, ensure_ascii=False))
+    elif args.usage:
+        print_usage(by_heat(flat_tabs(tree)))
     elif args.flat:
         for tab in flat_tabs(tree):
             say(tab_line(tab, f"{shown(tab['window'])}  {shown(tab['profile'])}  "))
@@ -419,13 +432,63 @@ def cmd_apply(args) -> int:
 
 def read_workspace(args, command: str):
     params = {key: getattr(args, key) for key in ("window", "profile") if getattr(args, key, None)}
+    usage = bool(getattr(args, "usage", False) or getattr(args, "pid", None) is not None)
+    if usage:
+        params["usage"] = True
     try:
-        return call(args, "workspace", params)
+        return control.call(args.data_dir, "workspace", params)
     except Unreachable as error:
         complain(f"ardia: {error}")
         return 2
     except MethodError as error:
+        if usage and error.code == "bad_request" and "not usage" in error.message:
+            note_error("unknown_method")
+            complain(f"ardia {command}: this Ardia doesn't know --usage and --pid yet; update Ardia")
+            return 1
         return method_failed(command, error)
+
+
+def by_heat(tabs: list) -> list:
+    def heat(tab: dict):
+        cpu, memory = tab.get("cpu"), tab.get("memory")
+        return (cpu is None and memory is None, -(cpu or 0), -(memory or 0))
+
+    return sorted(tabs, key=heat)
+
+
+def megabytes(memory) -> str:
+    return f"{memory / 1_000_000:.0f} MB" if isinstance(memory, (int, float)) and not isinstance(memory, bool) else "-"
+
+
+def usage_line(tab: dict) -> str:
+    pid, cpu = tab.get("pid"), tab.get("cpu")
+    shown_cpu = f"{cpu:.1f}" if isinstance(cpu, (int, float)) and not isinstance(cpu, bool) else "-"
+    return f"{pid if isinstance(pid, int) else '-':>7}  {shown_cpu:>6}  {megabytes(tab.get('memory')):>8}  {tab_line(tab)}"
+
+
+def print_usage(tabs: list) -> None:
+    say(f"{'PID':>7}  {'CPU%':>6}  {'MEMORY':>8}    TAB")
+    for tab in tabs:
+        say(usage_line(tab))
+    if tabs and not any(isinstance(tab.get("pid"), int) for tab in tabs) and any(tab.get("memory") is not None for tab in tabs):
+        say("(this Ardia doesn't report process ids yet, only CPU and memory; update Ardia for the PID column)")
+
+
+def print_process_tabs(args, tabs: list) -> int:
+    if not any(isinstance(tab.get("pid"), int) for tab in tabs):
+        note_error("no_pid")
+        complain("ardia tabs: this Ardia doesn't report tab process ids yet; update Ardia (ardia tabs --usage still shows CPU and memory)")
+        return 1
+    found = by_heat([tab for tab in tabs if tab.get("pid") == args.pid])
+    if not found:
+        note_error("no_tab")
+        complain(f"ardia tabs: no tab runs in process {args.pid}; it may be Ardia itself, its GPU or a utility process, an extension, or a frame of another site (ardia tabs --usage lists every tab's process)")
+        return 1
+    if args.json:
+        say(json.dumps(found, indent=2, ensure_ascii=False))
+    else:
+        print_usage(found)
+    return 0
 
 
 def walk(items, depth=0, group=None):

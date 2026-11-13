@@ -4,7 +4,7 @@ The demo draws its icons from the open icon sets below, rescaled and repositione
 
 ==============================================================================
 Lucide (lucide-static 1.56.0, ISC) https://lucide.dev
-Icons used: a-large-small, arrow-left-right, arrow-up-down, ban, banknote, car-front, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-up-down, circle, circle-equal, circle-minus, circle-question-mark, circle-stop, clock-9, coffee, command, corner-down-left, film, flag, flame, git-merge, hammer, hard-drive, key-round, leaf, lightbulb, message-square, messages-square, moon, navigation, newspaper, orbit, package, paintbrush, pin, pin-off, plug, plus, shopping-cart, square-plus, sun, target, test-tubes, trophy, undo-2, unfold-vertical, user, video
+Icons used: arrow-left-right, arrow-up-down, car-front, check, chevrons-up-down, circle-equal, circle-question-mark, clock-9, coffee, command, ellipsis, film, flag, flame, git-merge, hammer, hard-drive, key-round, leaf, lightbulb, message-square, messages-square, moon, navigation, newspaper, orbit, package, paintbrush, palette, pin, pin-off, plug, plus, shopping-cart, square-plus, sun, target, test-tubes, trophy, umbrella, undo-2, unfold-vertical, user, video
 ------------------------------------------------------------------------------
 ISC License
 
@@ -52,7 +52,7 @@ SOFTWARE.
 
 ==============================================================================
 Tabler Icons (@tabler/icons 3.49.0, MIT) https://tabler.io/icons
-Icons used: alarm, alert-triangle, archive, ball-football, bolt, book, chevrons-right, circle-arrow-down, circle-arrow-right, clock-hour-9, cloud-exclamation, code, contrast, device-gamepad-2, device-vision-pro, flask, gift, hand-stop, letter-a, letter-z, lock, logout, mail, map, message, microphone, mood-smile, number-1, palette, paw, plane, power, puzzle, question-mark, search, settings, sun, umbrella, zoom-in, zoom-out
+Icons used: alert-triangle, archive, bell, book, chevrons-right, clock-hour-9, cloud-exclamation, code, contrast, corner-down-left, device-gamepad-2, device-vision-pro, file-text, flask, gift, letter-a, letter-z, lock, logout, mail, map, message, microphone, mood-smile, number-1, paw, plane, power, puzzle, question-mark, school, search, settings, sun
 ------------------------------------------------------------------------------
 MIT License
 
@@ -78,7 +78,7 @@ SOFTWARE.
 
 ==============================================================================
 Iconoir (iconoir 7.12.1, MIT) https://iconoir.com
-Icons used: bell, book, bookmark, cloud, compass, dollar-circle, expand, half-moon, label, lock, magic-wand, microphone, minus, more-horiz-circle, palette, phone, play, puzzle, snow-flake, sparks, tools, undo-circle, warning-triangle
+Icons used: book, cloud, compass, dollar-circle, expand, half-moon, label, lock, magic-wand, microphone, palette, phone, snow-flake, sparks, tools, undo-circle
 ------------------------------------------------------------------------------
 MIT License
 
@@ -104,7 +104,7 @@ SOFTWARE.
 
 ==============================================================================
 Phosphor Icons (@phosphor-icons/core 2.1.1, MIT) https://phosphoricons.com
-Icons used: arrow-down, arrow-right, arrow-square-up-right, arrow-up, arrow-up-left, arrow-up-right, arrows-down-up, bag, briefcase, camera, chart-line-up, check-circle, check-circle-fill, circle-fill, clock-fill, cloud-slash, copy-fill, court-basketball-fill, dots-three, envelope, eye, eye-slash, file-arrow-down, flame, gift, globe-hemisphere-west-fill, graduation-cap, hard-drives, heart, heart-fill, house, info, key-fill, keyboard, leaf-fill, lightning-fill, lock-simple-open-fill, magnifying-glass, map-pin-simple-area, map-trifold-fill, minus-circle-fill, monitor-play, moon-fill, moon-stars-fill, newspaper-fill, pause-fill, paw-print-fill, play-circle-fill, play-fill, plus-circle-fill, printer, seal-check-fill, shopping-cart-fill, squares-four, stack, star-fill, stethoscope, terminal-window-fill, tree, user-fill, video-camera-fill, warning-circle-fill, warning-fill, x, x-circle
+Icons used: arrow-circle-down, arrow-circle-right, arrow-down, arrow-right, arrow-square-up-right, arrow-up, arrow-up-left, arrow-up-right, arrows-down-up, bag, bookmark-simple, bookmark-simple-fill, briefcase, building-office-fill, camera, caret-down, caret-left, caret-right, caret-up, chart-line-up, check-circle, check-circle-fill, circle, circle-fill, clock-fill, copy-fill, court-basketball-fill, dots-three-circle, envelope, eye, eye-slash, file-arrow-down, film-strip-fill, flame, game-controller, gift, globe-hemisphere-west-fill, graduation-cap, hard-drives, heart, heart-fill, house, info, key-fill, keyboard, leaf-fill, lightning, lightning-fill, lock-simple-open-fill, magnifying-glass, magnifying-glass-minus, magnifying-glass-plus, map-pin-simple-area, map-trifold-fill, minus, minus-circle, minus-circle-fill, money-fill, moon-fill, moon-stars-fill, newspaper-fill, paperclip, pause-fill, paw-print-fill, picture-in-picture, play, play-circle-fill, play-fill, plus, plus-circle-fill, printer, prohibit, seal-check-fill, shopping-cart-fill, squares-four, stack, star-fill, stethoscope, terminal-window-fill, text-aa, tree, user-fill, video-camera-fill, warning, warning-circle-fill, warning-fill, x, x-circle, x-circle-fill, x-square
 ------------------------------------------------------------------------------
 MIT License
 
@@ -130,7 +130,7 @@ SOFTWARE.
 
 ==============================================================================
 Material Design Icons (Pictogrammers) (@mdi/svg 7.4.47, Apache-2.0) https://pictogrammers.com/library/mdi
-Icons used: account, account-multiple, account-multiple-outline, account-outline, arrow-collapse-vertical, bicycle, brain, briefcase, bug-outline, camera, close-circle, coffee-outline, cursor-default, file-document, filmstrip, folder, hammer, headphones, home, image-filter-hdr, image-outline, lightbulb, link-variant, music-note, office-building, pause, pause-circle, pencil-outline, piano, pin, run, school, shield-check, shield-half-full, shield-lock-outline, silverware-fork-knife, skip-next, skip-previous, soccer-field, star, star-outline, web, zip-box-outline
+Icons used: account, account-multiple, account-multiple-outline, account-outline, alarm, arrow-collapse-vertical, bicycle, brain, briefcase, bug-outline, camera, cloud-off-outline, coffee-outline, cursor-default, folder, hammer, hand-back-right-outline, headphones, home, image-filter-hdr, image-outline, lightbulb, menu, music-note, pause, pause-circle, pencil-outline, piano, pin, play-box-outline, record-circle-outline, run, shield-check, shield-check-outline, shield-half-full, shield-lock-outline, silverware-fork-knife, skip-next, skip-previous, soccer, soccer-field, star, star-outline, stop-circle-outline, web, zip-box-outline
 ------------------------------------------------------------------------------
 Pictogrammers Free License
 --------------------------

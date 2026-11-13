@@ -1180,6 +1180,16 @@ Name=Plain
 IsRelative=1
 Path=Profiles/pln00000.Plain
 
+[Profile4]
+Name=Containers
+IsRelative=1
+Path=Profiles/cnt00000.Containers
+
+[Profile5]
+Name=Places
+IsRelative=1
+Path=Profiles/plc00000.Places
+
 [General]
 StartWithLastProfile=1
 Version=2
@@ -1273,6 +1283,65 @@ Locked=1
         {"uuid": "{older}", "name": "Older"}], "tabs": []}))
     write(os.path.join(recovered, "zen-sessions-backup", "zen-sessions-2026-09-02-12.jsonlz4"), mozlz4({"spaces": [
         {"uuid": "{newer}", "name": "Newer"}], "tabs": [zen_tab("https://backup.example/", "Backup", "b-1", "{newer}")]}))
+
+    boxes = os.path.join(root, "Profiles", "cnt00000.Containers")
+    write(os.path.join(boxes, "containers.json"), json.dumps({"version": 5, "lastUserContextId": 4, "identities": [
+        {"userContextId": 1, "public": True, "icon": "fingerprint", "color": "blue", "l10nId": "user-context-personal"},
+        {"userContextId": 2, "public": True, "icon": "briefcase", "color": "orange", "name": "Work"},
+        {"userContextId": 3, "public": True, "icon": "dollar", "color": "green", "name": "Bank"},
+        {"userContextId": 4, "public": False, "icon": "", "color": "", "name": "userContextIdInternal.thumbnail"},
+    ]}).encode())
+    write(os.path.join(boxes, "zen-sessions.jsonlz4"), mozlz4({
+        "spaces": [
+            {"uuid": "{c-home}", "name": "Home", "containerTabId": 0},
+            {"uuid": "{c-work}", "name": "Work", "containerTabId": 2},
+            {"uuid": "{c-bank}", "name": "Bank", "containerTabId": 3},
+            {"uuid": "{c-side}", "name": "Side", "containerTabId": 0},
+        ],
+        "folders": [{"id": "c-folder", "name": "Projects", "workspaceId": "{c-work}", "parentId": None}],
+        "tabs": [
+            zen_tab("https://home.example/", "Home pin", "c-1", "{c-home}", pinned=True),
+            zen_tab("https://work.example/", "Work pin", "c-2", "{c-work}", pinned=True, userContextId=2),
+            zen_tab("https://projects.example/", "Project", "c-3", "{c-work}", pinned=True, groupId="c-folder", userContextId=2),
+            zen_tab("https://bank.example/", "Bank pin", "c-4", "{c-bank}", pinned=True, userContextId=3),
+            zen_tab("https://lost.example/", "Lost pin", "c-5", "{c-gone}", pinned=True, userContextId=3),
+            zen_tab("https://side.example/", "Side pin", "c-6", "{c-side}", pinned=True),
+            zen_tab("https://mail.example/", "Mail", "c-7", essential=True),
+            zen_tab("https://mail.example/", "Work mail", "c-8", essential=True, userContextId=2),
+            zen_tab("https://chat.example/", "Chat", "c-9", essential=True, userContextId=2),
+            zen_tab("https://ledger.example/", "Ledger", "c-10", essential=True, userContextId="3"),
+        ],
+    }))
+
+    old_places = os.path.join(root, "Profiles", "plc00000.Places")
+    write(os.path.join(old_places, "prefs.js"), b'// Mozilla User Preferences\n\nuser_pref("zen.workspaces.separate-essentials", false);\n')
+    workspaces = new_db(os.path.join(old_places, "places.sqlite"))
+    workspaces.executescript("""
+        CREATE TABLE zen_workspaces (id INTEGER PRIMARY KEY, uuid TEXT UNIQUE NOT NULL, name TEXT NOT NULL, icon TEXT,
+          is_default INTEGER NOT NULL DEFAULT 0, container_id INTEGER, position INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, theme_type TEXT, theme_colors TEXT,
+          theme_opacity REAL, theme_rotation INTEGER, theme_texture REAL);
+    """)
+    workspaces.executemany("INSERT INTO zen_workspaces (uuid, name, icon, container_id, position, created_at, updated_at, theme_type, theme_colors) VALUES (?,?,?,?,?,?,?,?,?)", [
+        ("{p-lab}", "Lab", None, 1, 2000, 2, 2, None, None),
+        ("{p-home}", "Home", "\U0001F3E0", None, 1000, 1, 1, "gradient", json.dumps([{"c": [0, 128, 255], "isPrimary": True}])),
+    ])
+    workspaces.commit()
+    workspaces.close()
+    def pin_117(url, title, pin_id, workspace, **extra):
+        tab = zen_tab(url, title, None, workspace, pinned=True, zenPinnedId=pin_id, **extra)
+        del tab["zenSyncId"]
+        return tab
+    write(os.path.join(old_places, "sessionstore-backups", "recovery.jsonlz4"), mozlz4({"windows": [{"selected": 1,
+        "folders": [{"id": "p-folder", "name": "Reading", "workspaceId": "{p-home}", "parentId": None,
+                     "prevSiblingInfo": {"type": "tab", "id": "{p-pin-2}"}, "pinId": "{p-folder-pin}"}],
+        "tabs": [
+            pin_117("https://lab.example/", "Lab pin", "{p-pin-1}", "{p-lab}", userContextId=1),
+            pin_117("https://old-home.example/", "Home pin", "{p-pin-2}", "{p-home}"),
+            pin_117("https://read.example/", "Read", "{p-pin-3}", "{p-home}", groupId="p-folder"),
+            pin_117("about:blank", "", None, None, groupId="p-folder", zenIsEmpty=True),
+            pin_117("https://essential.example/", "Essential", "{p-pin-4}", None, zenEssential="true", userContextId=1),
+        ]}]}))
 
     plain = os.path.join(root, "Profiles", "pln00000.Plain")
     write(os.path.join(plain, "sessionstore-backups", "recovery.jsonlz4"), mozlz4({"windows": [{"selected": 1, "tabs": [

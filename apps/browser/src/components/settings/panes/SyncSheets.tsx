@@ -19,6 +19,7 @@ import { ProfileBadge } from "../../profiles/ProfileIcons";
 import { Group, Row } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { useSettingsColors } from "../useSettingsColors";
+import { SYNC_CODE_SIZE, syncCodeFrame } from "./syncCodeFrame";
 
 const WORDS = 24;
 
@@ -40,8 +41,7 @@ const PHRASE_FOOT = { marginTop: space.s } as const;
 const PHRASE_ERROR = { flex: 1, lineHeight: lineHeight.caption } as const;
 const FOLDER_ROW = { alignItems: "center", marginTop: space.ml } as const;
 const FILL = { flex: 1 } as const;
-const QR_BOX = { width: 132, height: 132, borderRadius: radius.tile, backgroundColor: ink.white, alignItems: "center", justifyContent: "center" } as const;
-const QR = { width: 120, height: 120 } as const;
+const QR = { width: SYNC_CODE_SIZE, height: SYNC_CODE_SIZE } as const;
 const QR_NOTE = { flex: 1, lineHeight: lineHeight.body } as const;
 const WORDS_BOX = { flexWrap: "wrap", marginTop: space.xl } as const;
 const WORD = { width: "25%", paddingVertical: space.xs, fontFamily: "Menlo" } as const;
@@ -254,6 +254,7 @@ export function showConnectDevice() {
 }
 
 function ConnectDeviceSheet() {
+  const theme = useTheme();
   const [qr, setQr] = useState<string | null>(null);
   const [words, setWords] = useState<string[] | null>(null);
   return (
@@ -264,9 +265,9 @@ function ConnectDeviceSheet() {
         Connect Another Device
       </DialogTitle>
       <Box row gap="xl" style={[SECTION_TOP, { alignItems: "center" }]}>
-        <View style={QR_BOX}>{qr ? <Image source={{ uri: qr }} style={QR} /> : <Button title="Show Code" onPress={() => void recoveryQrCode()?.then(setQr)} />}</View>
+        <View style={syncCodeFrame(theme, qr !== null)}>{qr ? <Image source={{ uri: qr }} style={QR} /> : <Button title="Show Code" onPress={() => void recoveryQrCode().then(setQr)} />}</View>
         <Text size="small" tone="textSecondary" style={QR_NOTE}>
-          Or scan this code with your iPhone’s camera to copy the words, then paste them on your other Mac with Universal Clipboard.
+          Click Show Code. On your iPhone, open Ardia, tap Sync With Mac, and scan the code. For another Mac, you can also scan it with your iPhone’s camera and paste the words there with Universal Clipboard.
         </Text>
       </Box>
       {words ? (

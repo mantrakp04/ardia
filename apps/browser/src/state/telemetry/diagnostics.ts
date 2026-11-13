@@ -1,15 +1,19 @@
 import { diagnosticsSample, hardwareInfo, type HardwareInfo } from "../../platform/app";
-import { systemState } from "../../platform/performance";
+import { onHoverLost, systemState, type HoverLostEpisode } from "../../platform/performance";
+import { cliControlStatus } from "../../platform/cli";
 import { withDeadline } from "../../lib/deadline";
 import { useBrowser } from "../browser/store";
 import { capture, isSharing, saveContext, useTelemetry } from "./client";
 import type { SavedContext } from "./savedContext";
+import { noteDragsEnded } from "./stuckDrags";
 import { appInfo } from "./transport";
 
 const CONTEXT_EVERY_MS = 10 * 60_000;
 const FIRST_CONTEXT_MS = 3_000;
 const HARDWARE_WAIT_MS = 1_000;
 const MAX_PAGE_PROCESS_EVENTS = 30;
+const MAX_HOVER_LOST_EVENTS = 20;
+const MAX_HOVER_LOST_SECONDS = 24 * 60 * 60;
 const MINUTE_MS = 60_000;
 const MAX_SAMPLES = 12;
 
@@ -18,6 +22,7 @@ export const sessionStart = () => appInfo().processStart ?? startedAt;
 let appMemoryMb: number | null = null;
 let pageProcessesGone = 0;
 let pageProcessEvents = 0;
+let hoverLostEvents = 0;
 let samples: SavedContext[] = [];
 let firstSample: ReturnType<typeof setTimeout> | undefined;
 let everySample: ReturnType<typeof setInterval> | undefined;
@@ -41,6 +46,7 @@ export const noteAppMemory = (totalMb: number) => (appMemoryMb = totalMb);
 
 export async function recordContext(): Promise<SavedContext | null> {
   if (!isSharing()) return null;
+  void cliControlStatus().then((status) => noteDragsEnded(status.dragsEnded), () => {});
   const [sample, pressure] = await Promise.all([diagnosticsSample().catch(() => ({ footprintMB: undefined, freeDiskGB: undefined })), memoryPressure()]);
   const now = Date.now();
   const context: SavedContext = {
@@ -133,7 +139,9 @@ export async function hardwareProperties(): Promise<Record<string, unknown>> {
 
 const GONE_REASONS = new Set(["abnormal", "killed", "crashed", "oom", "launchFailed", "integrity", "unknown"]);
 
-export function trackPageProcessGone(info: { reason: string; code: number }, visible: boolean) {
+export type PageTranslateContext = { translate: string; translate_stage: string | null; translating_tabs: number; translated_tabs: number };
+
+export function trackPageProcessGone(info: { reason: string; code: number }, visible: boolean, translate?: PageTranslateContext) {
   pageProcessesGone++;
   if (pageProcessEvents >= MAX_PAGE_PROCESS_EVENTS) return;
   pageProcessEvents++;
@@ -143,9 +151,51 @@ export function trackPageProcessGone(info: { reason: string; code: number }, vis
     reason,
     exit_code: Number.isSafeInteger(info.code) ? info.code : null,
     visible,
+    ...translate,
     ...counts(),
     session_min: sessionMinutes(),
     gone_this_session: pageProcessesGone,
   };
   void memoryPressure().then((memory_pressure) => capture("page_process_gone", { ...props, memory_pressure }));
 }
+
+const HOVER_REASONS = new Set(["halfActive", "staleMenu", "notKeyOrMain", "coveredByView", "responderLost"]);
+const HOVER_WINDOW_KINDS = new Set(["none", "hidden", "blockerPage", "internal", "ardiaPanel", "popup", "browser", "other"]);
+const HOVER_COVERS = new Set(["none", "reactNative", "chromium", "other"]);
+const HOVER_ENDINGS = new Set(["hover", "heal", "appInactive", "windowClosed"]);
+
+const oneOf = (allowed: Set<string>, value: unknown) => (typeof value === "string" && allowed.has(value) ? value : "unknown");
+
+export function hoverLostProperties(e: HoverLostEpisode) {
+  return {
+    reason: oneOf(HOVER_REASONS, e.reason),
+    trigger: e.trigger === "click" ? "click" : "move",
+    key_window: oneOf(HOVER_WINDOW_KINDS, e.keyWindow),
+    main_window: oneOf(HOVER_WINDOW_KINDS, e.mainWindow),
+    prevent_key: e.preventKey === true,
+    can_key: e.canKey === true,
+    window_main: e.windowMain === true,
+    half_active: e.halfActive === true,
+    app_active: e.appActive === true,
+    running_active: e.runningActive === true,
+    frontmost: e.frontmost === true,
+    menu_active: e.menuActive === true,
+    over_page: e.overPage === true,
+    cover: oneOf(HOVER_COVERS, e.cover),
+    cover_clear: e.coverClear === true,
+    healed: e.healed === true,
+    heal_worked: typeof e.healWorked === "boolean" ? e.healWorked : null,
+    ended_by: oneOf(HOVER_ENDINGS, e.endedBy),
+    lost_seconds: Number.isFinite(e.seconds) ? Math.min(Math.max(0, Math.round(e.seconds)), MAX_HOVER_LOST_SECONDS) : null,
+    episode: Number.isSafeInteger(e.episode) ? e.episode : null,
+    session_min: sessionMinutes(),
+  };
+}
+
+export function trackHoverLost(e: HoverLostEpisode) {
+  if (hoverLostEvents >= MAX_HOVER_LOST_EVENTS) return;
+  hoverLostEvents++;
+  capture("page_hover_lost", hoverLostProperties(e));
+}
+
+export const watchHoverLost = () => onHoverLost(trackHoverLost);

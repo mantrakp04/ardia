@@ -164,7 +164,10 @@ void AcceptDrops(NSView *root, BOOL accept) {
   if (_visible) [ArdiaEarlyWindow noteLayoutChangeIn:self.window];
   __weak ArdiaWebView *weakSelf = self;
   _sightObserver = [NSNotificationCenter.defaultCenter addObserverForName:ArdiaWindowSeenDidChange object:self.window queue:nil
-                                                               usingBlock:^(NSNotification *) { [weakSelf userSightChanged]; }];
+                                                               usingBlock:^(NSNotification *note) {
+                                                                 [weakSelf userSightChanged];
+                                                                 if ([note.userInfo[ArdiaWindowSeenLeftAppKey] boolValue]) [weakSelf noteStayedOnAppSwitch];
+                                                               }];
   [self userSightChanged];
   if (_tab) [self reclaimLentPage];
   if (_tab) [self adoptMovedPage];
@@ -187,6 +190,11 @@ void AcceptDrops(NSView *root, BOOL accept) {
   [self schedulePainting];
 }
 
+- (void)setAutoPictureInPicture:(BOOL)autoPictureInPicture {
+  _autoPictureInPicture = autoPictureInPicture;
+  [self autoPictureInPictureInputsChanged];
+}
+
 - (void)setWarm:(BOOL)warm {
   if (_warm == warm) return;
   _warm = warm;
@@ -207,6 +215,7 @@ void AcceptDrops(NSView *root, BOOL accept) {
   if (_visible == visible) return;
   if (!visible) [self storePageFocus];
   _visible = visible;
+  if (visible) [self exposePage];
   if (visible) [self stopHolding];
   if (visible) [self settleRevealsInWindow];
   if (!visible) [_tab exitExclusiveAccess];

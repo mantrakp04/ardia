@@ -1,5 +1,6 @@
 import asyncio
 import re
+import shlex
 from dataclasses import dataclass, field
 from urllib.parse import parse_qsl, unquote, urlsplit
 
@@ -19,7 +20,6 @@ MAX_ADDED = 40
 MAX_NAVIGATED = 150
 COLLAPSE_RUN = 6
 COLLAPSE_LONG_RUN = 12
-MIN_RERENDERED = 2
 RUN_LABEL = 40
 COLLAPSED_ROLES = {"option": COLLAPSE_RUN, "link": COLLAPSE_RUN, "menuitem": COLLAPSE_RUN, "menuitemradio": COLLAPSE_RUN,
                    "menuitemcheckbox": COLLAPSE_RUN, "treeitem": COLLAPSE_RUN, "generic": COLLAPSE_RUN, "button": COLLAPSE_LONG_RUN,
@@ -33,6 +33,147 @@ MAX_PATH = 200
 WATCH_BUFFER = 1024 * 1024
 SAFE_KEY = re.compile(r"[A-Za-z0-9_.\[\]-]{1,40}")
 SENSITIVE_KEY = re.compile(r"code|token|pass|pwd|secret|key|sig|auth|session|cred|otp|state|nonce|ticket|jwt", re.I)
+OPENED_TEXT = 1200
+NAVIGATED_TEXT = 3000
+NAVIGATED_REPORT = 5400
+MIN_NAVIGATED_LIST = 1200
+OPENED_LEVEL = 2
+CONTAINER_ROLES = {"dialog", "alertdialog", "article", "region"}
+MAX_TEXT_MARKS = 200
+MIN_NEW_TEXT = 40
+MIN_FRAME_TEXT = 200
+MARKER = re.compile("\x01(\\d+)\x01")
+INLINE_REF = re.compile(r" \[@(e\d+)\]")
+TEXT_JS = r"""(budget, ...anchors) => {
+  const SKIP = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "HEAD", "SVG", "svg"]);
+  const BLOCK = /^(P|DIV|SECTION|ARTICLE|MAIN|HEADER|FOOTER|NAV|ASIDE|FORM|FIELDSET|UL|OL|LI|TABLE|THEAD|TBODY|TFOOT|TR|BLOCKQUOTE|PRE|FIGURE|FIGCAPTION|DETAILS|SUMMARY|DL|DT|DD|ADDRESS|HR|BR|DIALOG|H[1-6])$/;
+  const CONTAINER = "article,dialog,[role=dialog],[role=alertdialog],[role=region],section,main > *";
+  const CONTROL = "a[href],button,input,select,textarea,summary,[role=button],[role=link],[role=checkbox],[role=radio],[role=tab],[role=option],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=switch],[role=combobox],[role=textbox],[role=searchbox],[role=slider],[role=spinbutton],[role=treeitem],[contenteditable=''],[contenteditable=true]";
+  const NESTED = "h1,h2,h3,h4,h5,h6,[role=heading],li,pre,iframe,tr,dialog,[role=dialog]";
+  const SEP = "\u0002", CELL = "\u0003";
+  const norm = (text) => String(text || "").replace(/\s+/g, " ").trim();
+  const quote = (text) => JSON.stringify(norm(text).slice(0, 80));
+  const els = [], kinds = [], names = [];
+  const mark = (el, kind, name) => { els.push(el); kinds.push(kind); names.push(name || ""); return "\u0001" + (els.length - 1) + "\u0001"; };
+  const close = (el) => { line = line.replace(/[\s\u0002]+$/, "") + mark(el, "ref"); };
+  const isHeading = (el) => /^H[1-6]$/.test(el.tagName) || el.getAttribute("role") === "heading";
+  let roots = anchors.length ? anchors.map((anchor) => {
+    const from = isHeading(anchor) ? anchor.parentElement : anchor;
+    return (from && from.closest(CONTAINER)) || from || anchor;
+  }) : [document.querySelector("main,[role=main]") || document.body];
+  roots = roots.filter((root, index) => root && roots.indexOf(root) === index);
+  roots = roots.filter((root) => !roots.some((other) => other !== root && other.contains(root)));
+  roots.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+  const lines = [];
+  let line = "", size = 0, full = false;
+  const tidy = (text) => text.replace(/[\s\u0002]*\u0003[\s\u0002]*/g, "\u0003").replace(/\u0003/g, " | ").replace(/[\s\u0002]*\u0002[\s\u0002]*/g, " · ")
+    .replace(/\s+/g, " ").trim().replace(/^(· |\| )+/, "").replace(/^- (· )+/, "- ").replace(/( ·| \|)+$/, "").trim();
+  const flush = () => {
+    let text = tidy(line);
+    line = "";
+    if (!text || /^[-#]+$/.test(text) || full) return;
+    if (size + text.length > budget) { text = text.slice(0, Math.max(0, budget - size)) + "…"; full = true; }
+    lines.push(text);
+    size += text.length + 1;
+    if (size >= budget) full = true;
+  };
+  const hidden = (el, style) => style.display === "none" || style.visibility === "hidden" || el.getAttribute("aria-hidden") === "true";
+  const compact = (el) => el.textContent.length <= 500 && norm(el.innerText).length <= 200 && !el.querySelector(NESTED);
+  const field = (el) => {
+    const type = (el.type || "").toLowerCase();
+    if (el.tagName === "SELECT") return norm(el.selectedOptions && el.selectedOptions[0] ? el.selectedOptions[0].text : "");
+    if (type === "checkbox" || type === "radio") return el.checked ? "[x]" : "[ ]";
+    if (type === "password") return el.value ? "••••" : "";
+    if (["button", "submit", "reset"].includes(type)) return norm(el.value);
+    if (el.value) return quote(el.value);
+    return el.placeholder ? "(" + norm(el.placeholder).slice(0, 60) + ")" : "";
+  };
+  const pointer = (el, style) => style.cursor === "pointer" && !(el.parentElement && getComputedStyle(el.parentElement).cursor === "pointer");
+  const children = (el, oneLine) => {
+    for (const child of el.childNodes) walk(child, oneLine);
+    if (el.shadowRoot) for (const child of el.shadowRoot.childNodes) walk(child, oneLine);
+  };
+  const walk = (node, oneLine) => {
+    if (full) return;
+    if (node.nodeType === 3) { line += node.nodeValue; return; }
+    if (node.nodeType !== 1 || SKIP.has(node.tagName)) return;
+    const el = node, tag = el.tagName.toUpperCase();
+    const style = getComputedStyle(el);
+    if (hidden(el, style)) return;
+    if (tag === "IFRAME" || tag === "FRAME") {
+      flush();
+      line = "[frame " + quote(el.title || el.name || (el.src || "").split(/[?#]/)[0].split("/").pop()) + mark(el, "frame") + "]";
+      flush();
+      return;
+    }
+    const role = el.getAttribute("role");
+    if (tag === "CANVAS" || tag === "IMG" || (role === "img" && !norm(el.textContent))) {
+      const label = norm(el.getAttribute("aria-label") || el.getAttribute("alt") || el.getAttribute("title"));
+      const box = el.getBoundingClientRect();
+      if (box.width < 48 || box.height < 48) { if (label) line += " " + label + " "; return; }
+      line += " [image " + quote(label) + mark(el, "image", label) + "] ";
+      return;
+    }
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
+      if ((el.type || "").toLowerCase() === "hidden") return;
+      line += " " + field(el) + (el.disabled ? "" : mark(el, "ref")) + " ";
+      return;
+    }
+    const off = el.disabled === true || el.getAttribute("aria-disabled") === "true";
+    const control = el.matches(CONTROL) || pointer(el, style);
+    const candidate = control && !off;
+    const label = control ? norm(el.getAttribute("aria-label")) : "";
+    if (label && norm(el.innerText).length <= 80) {
+      if (off) { line += " " + (norm(el.innerText) || "×") + " "; return; }
+      line += " " + label;
+      close(el);
+      line += " ";
+      return;
+    }
+    if (isHeading(el)) {
+      flush();
+      const level = /^H([1-6])$/.exec(tag) ? Number(tag[1]) : Number(el.getAttribute("aria-level")) || 2;
+      line = "#".repeat(level) + " ";
+      children(el, true);
+      close(el);
+      flush();
+      return;
+    }
+    const display = style.display;
+    const block = BLOCK.test(tag) || !(display.startsWith("inline") || display === "contents");
+    if (!block) {
+      children(el, oneLine);
+      if (candidate) close(el);
+      return;
+    }
+    if (oneLine) {
+      const cell = tag === "TD" || tag === "TH" || display === "table-cell";
+      line += cell ? (el.previousElementSibling ? CELL : "") : SEP;
+      children(el, true);
+      if (candidate) close(el);
+      if (!cell) line += SEP;
+      return;
+    }
+    flush();
+    if (tag === "LI") line = "- ";
+    children(el, compact(el));
+    if (candidate) close(el);
+    flush();
+  };
+  for (const root of roots) { walk(root, false); flush(); }
+  globalThis.ardiaBrowseTextEls = els;
+  const where = (el) => {
+    if (el.id) return "#" + CSS.escape(el.id);
+    const tag = el.tagName.toLowerCase(), role = el.getAttribute("role");
+    if (document.querySelectorAll(tag).length === 1) return tag;
+    if (role && document.querySelectorAll("[role=" + JSON.stringify(role) + "]").length === 1) return "[role=" + role + "]";
+    const parent = el.parentElement;
+    if (!parent || parent === document.body || parent === document.documentElement) return tag;
+    const same = [...parent.children].filter((child) => child.tagName === el.tagName);
+    return where(parent) + " > " + tag + (same.length > 1 ? ":nth-of-type(" + (same.indexOf(el) + 1) + ")" : "");
+  };
+  return { text: lines.join("\n"), kinds, names, more: full, where: roots.length ? where(roots[0]) : "" };
+}"""
 
 
 @dataclass
@@ -42,6 +183,7 @@ class View:
     url: str
     title: str
     entries: list = field(default_factory=list)
+    containers: frozenset = frozenset()
 
 
 def entry(level: int, node) -> dict:
@@ -52,6 +194,10 @@ def entry(level: int, node) -> dict:
 
 def entries_of(nodes) -> list[dict]:
     return [entry(level, node) for level, node in snapshot.interactive_rows(nodes)]
+
+
+def containers_of(nodes) -> frozenset:
+    return frozenset((node.frame, node.backend) for node in snapshot.walk(nodes) if node.role in CONTAINER_ROLES and node.backend is not None)
 
 
 def view_frame(state, page) -> str:
@@ -71,7 +217,8 @@ async def title_of(page) -> str:
 async def view(state, page, nodes=None) -> View:
     if nodes is None:
         nodes = await snapshot.collect(state, page)
-    return View(page.target_id, page.loader(view_frame(state, page)) or "", page.url, await title_of(page), entries_of(nodes))
+    return View(page.target_id, page.loader(view_frame(state, page)) or "", page.url, await title_of(page), entries_of(nodes),
+                containers_of(nodes))
 
 
 async def remember(state, page, nodes) -> View:
@@ -134,7 +281,7 @@ def rerendered(added: list[dict], removed: list[dict]) -> list[tuple[dict, dict]
         same = waiting.get((row["level"], *key(row)))
         if same:
             pairs.append((same.pop(0), row))
-    return pairs if len(pairs) >= MIN_RERENDERED else []
+    return pairs
 
 
 def refs_text(refs: list[str]) -> str:
@@ -238,9 +385,45 @@ def added_lines(added: list[dict], parents: dict[str, dict]) -> list[str]:
             lines.append("+ " + indent(part[1]) + part[1]["line"])
             continue
         _, rows, items, parent = part
+        off = [item for item in items if "disabled" in item["attrs"]]
+        on = [item for item in items if "disabled" not in item["attrs"]]
+        if off and on:
+            lines.extend(choices_lines(on, off, indent(items[0])))
+            continue
         lines.append("+ " + indent(items[0]) + run_text(items, parent))
         lines.extend("+ " + indent(row) + row["line"] for row in rows if kept_whole(row))
     return lines
+
+
+def choices_lines(on: list[dict], off: list[dict], indent: str) -> list[str]:
+    command_metrics.flag("change_run_choices", True)
+    role = on[0]["role"]
+    lines = ["+ " + indent + row["line"] for row in on[:MAX_ADDED]]
+    if len(on) > MAX_ADDED:
+        lines.append(f"+ {indent}… {len(on) - MAX_ADDED} more enabled {plural(role, len(on) - MAX_ADDED)} (`snapshot -i` lists every one)")
+    span = f"{run_label(off[0]['name'] or off[0]['value'])} … {run_label(off[-1]['name'] or off[-1]['value'])}" if len(off) > 1 else run_label(off[0]["name"])
+    lines.append(f"+ {indent}{len(off)} disabled {plural(role, len(off))} ({span})")
+    return lines
+
+
+def plain_row(row: dict) -> bool:
+    return not row["value"] and all(attr.startswith("level=") for attr in row["attrs"])
+
+
+def text_block(text: dict) -> list[str]:
+    lines = ["text:"] + ["  " + line for line in text["lines"]]
+    if text.get("more"):
+        lines.append(f"  … more: read -s {shlex.quote(text['where'])}" if text.get("where") else "  … more: read")
+    return lines
+
+
+def within(lines: list[str], budget: int) -> int:
+    used = 0
+    for index, line in enumerate(lines):
+        used += len(line) + 1
+        if used > budget:
+            return index
+    return len(lines)
 
 
 def changed_lines(changed: list[tuple[dict, dict]], parents: dict[str, dict]) -> list[str]:
@@ -266,13 +449,17 @@ def render(report: dict, before_known: bool = True) -> str:
     back = set(report.get("back") or [])
     again = report.get("rerendered") or []
     fresh = {new["ref"] for _, new in again}
-    added = [row for row in report["added"] if row["ref"] not in back and row["ref"] not in fresh]
+    text = report.get("text")
+    inline = set(text["refs"]) if text else set()
+    added = [row for row in report["added"] if row["ref"] not in back and row["ref"] not in fresh
+             and not (row["ref"] in inline and plain_row(row))]
     parents = parents_of(report.get("context") or report["added"] + [new for _, new in report["changed"]])
-    navigated = report["document"] == "new" or bool(report["url"])
+    navigated = moved(report)
     if report.get("notes"):
         lines.append(report["notes"])
     if report["document"] == "new" and before_known:
-        lines.append(f"new document, {len(report['added'])} interactive nodes (its snapshot -i, so no need to take one):")
+        where = "; the ones marked [@e…] in its text below aren't repeated here" if text and len(added) < len(report["added"]) else ""
+        lines.append(f"new document, {len(report['added'])} interactive nodes (its snapshot -i, so no need to take one{where}):")
     if back:
         refs = [row["ref"] for row in report["added"] if row["ref"] in back]
         more = f" … {len(refs) - MAX_REMOVED_REFS} more" if len(refs) > MAX_REMOVED_REFS else ""
@@ -280,16 +467,23 @@ def render(report: dict, before_known: bool = True) -> str:
     if added:
         shown = added_lines(added, parents)
         limit = MAX_NAVIGATED if navigated else MAX_ADDED
+        if navigated and text:
+            budget = max(MIN_NAVIGATED_LIST, NAVIGATED_REPORT - sum(len(line) + 1 for line in text_block(text)))
+            limit = min(limit, within(shown, budget))
         lines.extend(shown[:limit])
         if len(shown) > limit:
             lines.append(f"+ … {len(shown) - limit} more lines (`snapshot -i -s <css>` shows one region)")
     if again:
         lines.append(f"+ {len(again)} redrawn as they were, with new refs: {refs_text([new['ref'] for _, new in again])}")
+    if text:
+        lines.extend(text_block(text))
     lines.extend(changed_lines(report["changed"], parents))
     gone = {old["ref"] for old, _ in again}
     removed = [row for row in report["removed"] if row["ref"] not in gone]
     if len(removed) <= MAX_REMOVED_LINES:
         lines.extend(f"- {row['line']}" for row in removed)
+    elif navigated and text:
+        lines.append(f"- {len(removed)} of the last view's nodes removed")
     else:
         refs = " ".join(row["ref"] for row in removed[:MAX_REMOVED_REFS])
         more = f" … {len(removed) - MAX_REMOVED_REFS} more" if len(removed) > MAX_REMOVED_REFS else ""
@@ -321,6 +515,8 @@ def as_data(report: dict) -> dict:
     }
     if report.get("notes"):
         data["notes"] = report["notes"]
+    if report.get("text"):
+        data["text"] = {"lines": report["text"]["lines"], "more": bool(report["text"].get("more")), "where": report["text"].get("where") or None}
     if report.get("unsettled"):
         data["unsettled"] = True
     if report.get("error"):
@@ -558,7 +754,177 @@ async def observe(ctx, page, run):
         report["unsettled"] = True
     if before is None:
         report["document"] = "unknown"
+    await add_text(ctx, page, nodes, report, before)
     return value, report
+
+
+async def settled(page, run):
+    watch = NetworkWatch(page)
+    navigations = page.navigations
+    try:
+        await watch.start()
+        value = await run()
+        settling = command_metrics.clock()
+        await watch.settle(lambda: navigation_busy(page, navigations))
+        command_metrics.spent("settle_ms", settling)
+    finally:
+        await watch.stop()
+    return value
+
+
+async def arrival(ctx, page, came_from: str):
+    state = ctx.state
+    try:
+        await page.refresh_frames()
+        nodes = await snapshot.collect(state, page)
+        state.set_refs(snapshot.refs_of(state, page, nodes), None, page)
+        after = await remember(state, page, nodes)
+    except ConnectionLost:
+        raise
+    except BrowseError:
+        return None
+    report = diff(None, after)
+    report["notes"] = arrival_notes(state, View(page.target_id, "", came_from, ""), after)
+    mark_shown(state, report, after)
+    await add_text(ctx, page, nodes, report, None)
+    command_metrics.flag("open_report", True)
+    return report
+
+
+def moved(report: dict) -> bool:
+    return report["document"] == "new" or bool(report["url"]) or bool(report["title"])
+
+
+def fresh_rows(report: dict) -> list[dict]:
+    back = set(report.get("back") or [])
+    redrawn = {new["ref"] for _, new in report.get("rerendered") or []}
+    return [row for row in report["added"] if row["ref"] not in back and row["ref"] not in redrawn]
+
+
+def heading_level(node) -> int:
+    try:
+        return int(node.props.get("level") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def opened_anchors(report: dict, nodes, before: View | None) -> list:
+    fresh = {row["ref"] for row in fresh_rows(report)}
+    known = before.containers if before is not None else frozenset()
+    anchors = []
+    for node in snapshot.walk(nodes):
+        if node.backend is None:
+            continue
+        if node.role == "heading" and node.ref in fresh and 0 < heading_level(node) <= OPENED_LEVEL:
+            anchors.append(node)
+        elif node.role in CONTAINER_ROLES and (node.frame, node.backend) not in known and any(
+                inner.ref in fresh for inner in snapshot.walk(node.children)):
+            anchors.append(node)
+    return anchors
+
+
+def adds_text(lines: list[str], rows: list[dict]) -> bool:
+    rest = INLINE_REF.sub("", "\n".join(lines))
+    for row in rows:
+        if len(row["name"]) >= 3:
+            rest = rest.replace(row["name"], "", 1)
+    return len(re.sub(r"[\W_]+", "", rest)) >= MIN_NEW_TEXT
+
+
+async def add_text(ctx, page, nodes, report: dict, before: View | None):
+    if ctx.options.get("no_text") or report["document"] == "unknown":
+        return
+    frame = view_frame(ctx.state, page)
+    if moved(report):
+        anchors, budget = [], NAVIGATED_TEXT
+    else:
+        anchors, budget = [node for node in opened_anchors(report, nodes, before) if node.frame == frame], OPENED_TEXT
+        if not anchors:
+            return
+    refs = {(node.frame, node.backend): node.ref for node in snapshot.walk(nodes) if node.ref and node.backend is not None}
+    try:
+        text = await page_text(ctx.state, page, frame, budget, anchors, refs)
+    except ConnectionLost:
+        raise
+    except BrowseError:
+        return
+    if text is None or not adds_text(text["lines"], fresh_rows(report)):
+        return
+    report["text"] = text
+    command_metrics.flag("change_text", True)
+    command_metrics.count("change_text_chars", sum(len(line) + 1 for line in text["lines"]))
+
+
+async def page_text(state, page, frame: str, budget: int, anchors: list, refs: dict, nested: bool = False) -> dict | None:
+    elements = []
+    for node in anchors:
+        element = await page.resolve_backend(node.backend, node.frame, "opened content")
+        if element is not None:
+            elements.append(element)
+    if anchors and not elements:
+        return None
+    found = await page.call(TEXT_JS, budget, *elements, frame=frame, read=True)
+    if not isinstance(found, dict) or not found.get("text"):
+        return None
+    kinds = found.get("kinds") or []
+    names = found.get("names") or []
+    marked = []
+    if kinds:
+        remote = await page.call("() => globalThis.ardiaBrowseTextEls", frame=frame, by_value=False, read=True)
+        marked = await page.elements_from(remote, frame, "text", MAX_TEXT_MARKS)
+    inline: set[str] = set()
+    inner: dict[int, str] = {}
+
+    def replace(match) -> str:
+        index = int(match.group(1))
+        if index >= len(marked) or index >= len(kinds):
+            return ""
+        element, kind = marked[index], kinds[index]
+        ref = refs.get((frame, element.backend_id))
+        if kind == "image":
+            return f": screenshot @{ref or state.add_ref(page, element, 'image', names[index])}"
+        if kind == "frame":
+            ref = ref or state.add_ref(page, element, "Iframe", names[index])
+            inner[index] = ref
+            inline.add(ref)
+            return f": frame @{ref}; read"
+        if not ref:
+            return ""
+        inline.add(ref)
+        return f" [@{ref}]"
+
+    lines = []
+    frames_at = []
+    for raw in found["text"].split("\n"):
+        indexes = [int(index) for index in MARKER.findall(raw)]
+        line = re.sub(r" {2,}", " ", redact(MARKER.sub(replace, raw).replace("\x01", ""))).strip()
+        if line:
+            lines.append(line)
+            frames_at.extend((len(lines), index) for index in indexes if index in inner)
+    more = bool(found.get("more"))
+    left = budget - sum(len(line) + 1 for line in lines)
+    for at, index in reversed(frames_at if not nested else []):
+        child = await frame_of(page, marked[index])
+        if child is None or left < MIN_FRAME_TEXT:
+            continue
+        sub_text = await page_text(state, page, child, left, [], refs, True)
+        if sub_text:
+            lines[at:at] = sub_text["lines"]
+            inline |= sub_text["refs"]
+            more = more or sub_text["more"]
+            left -= sum(len(line) + 1 for line in sub_text["lines"])
+    if not lines:
+        return None
+    return {"lines": lines, "refs": inline, "more": more, "where": found.get("where") or ""}
+
+
+async def frame_of(page, element) -> str | None:
+    try:
+        described = await page.send("DOM.describeNode", {"backendNodeId": element.backend_id})
+    except BrowseError:
+        return None
+    child = (described.get("node") or {}).get("frameId")
+    return child if child and child in page.frames else None
 
 
 def arrival_notes(state, before: View | None, after: View) -> str | None:
@@ -576,6 +942,8 @@ def attach(result, report):
     if report is None:
         return result
     result.data["changes"] = as_data(report)
+    if report.get("text"):
+        result.page_content = True
     text = render(report, report["document"] != "unknown")
     if report["document"] == "unknown" and report["added"]:
         text = text.replace("changes:\n", "changes (no view of the page before, so everything shows as added):\n", 1)

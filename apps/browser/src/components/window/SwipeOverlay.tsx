@@ -8,9 +8,10 @@ import { spring as springOf, springSpec, type SpringSpec } from "../ui/motion";
 import { SHADOWS, SWIPE_CONFIRMED_WASH, SWIPE_MOTION, SWIPE_PILL_SPRING, windowColors } from "./tokens";
 import { useTab } from "../../state/browser/hooks";
 import { Favicon, NewTabIcon } from "../favicon/Favicon";
-import { underButton, HistoryPopover } from "./HistoryPopover";
+import { HISTORY_MENU_WIDTH, underButton, HistoryPopover } from "./HistoryPopover";
 import { goBack, goForward, goToHistoryItem, historyFavicons, historyItems, openHistoryMenu, useHistoryAvailability, useHistoryMenu, type HistoryItem } from "../../state/tabs/navigation";
-import type { ToolbarGeometry } from "./geometry";
+import { historyMenuLeft, type PageAnchor } from "./pageAnchors";
+import { useSwipeClose } from "./swipeClose";
 import {
   CAPSULE_INSET,
   CAPSULE_SIZE,
@@ -38,11 +39,12 @@ function spring(value: Animated.Value, toValue: number, spec: SpringSpec, native
 const rowsAboveSelected = (count: number, selected: number) => count - 1 - selected;
 const listTop = (height: number, count: number, selected: number) => height / 2 - ROW / 2 - LIST_PAD - rowsAboveSelected(count, selected) * ROW;
 
-export function NavigationOverlays({ tabId, windowId, geometry, historyMenu }: { tabId: string; windowId: string; geometry: ToolbarGeometry; historyMenu: boolean }) {
+export function NavigationOverlays({ tabId, windowId, anchor, paneWidth, historyMenu }: { tabId: string; windowId: string; anchor: PageAnchor; paneWidth: number; historyMenu: boolean }) {
+  const historyLeft = (direction: -1 | 1) => historyMenuLeft(anchor, underButton(direction < 0 ? anchor.toolbar?.back ?? 0 : anchor.toolbar?.forward ?? 0), paneWidth, HISTORY_MENU_WIDTH);
   return (
     <>
       <SwipeOverlay tabId={tabId} />
-      {historyMenu && <HistoryPopover tabId={tabId} windowId={windowId} top={POPOVER_MARGIN} left={(direction) => underButton(direction < 0 ? geometry.back : geometry.forward)} />}
+      {historyMenu && <HistoryPopover tabId={tabId} windowId={windowId} top={POPOVER_MARGIN} left={historyLeft} />}
     </>
   );
 }
@@ -56,6 +58,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
   const sizeRef = useRef({ width: 0, height: 0 });
   const [shown, setShown] = useState<Shown | null>(null);
   const area = useRef<SwipeAreaHandle>(null);
+  const swipeClose = useSwipeClose();
+  const closing = useRef(false);
 
   const g = useRef({
     active: false,
@@ -68,7 +72,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     selected: 0,
     idle: undefined as ReturnType<typeof setTimeout> | undefined,
   }).current;
-  const v = useRef({
+  const [v] = useState(() => ({
     x: new Animated.Value(-SIZE),
     w: new Animated.Value(SIZE),
     h: new Animated.Value(SIZE),
@@ -81,7 +85,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     pill: new Animated.Value(0),
     fade: new Animated.Value(1),
     scale: new Animated.Value(1),
-  }).current;
+  }));
 
   const resetValues = (direction: "back" | "forward") => {
     for (const value of Object.values(v)) value.stopAnimation();
@@ -168,6 +172,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
 
   const lastDy = useRef(0);
   const onSwipe = (e: SwipeEvent) => {
+    if (e.phase === "began" || e.phase === "swipe") closing.current = !!swipeClose && e.direction === "back" && !history.back;
+    if (closing.current) return swipeClose?.(e);
     lastDy.current = e.dy;
     if (e.phase === "began" || e.phase === "swipe") {
       resetValues(e.direction);
@@ -214,7 +220,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
       <SwipeArea
         ref={area}
         style={StyleSheet.absoluteFill}
-        canSwipeBack={history.back}
+        canSwipeBack={history.back || !!swipeClose}
         canSwipeForward={history.forward}
         allowsVerticalMotion={!!shown?.list}
         onSwipe={onSwipe}

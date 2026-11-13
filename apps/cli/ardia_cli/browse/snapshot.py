@@ -1,6 +1,8 @@
 import asyncio
+from collections import Counter
 from dataclasses import dataclass, field
 
+from ardia_cli import command_metrics
 from ardia_cli.browse.errors import BrowseError
 from ardia_cli.browse.state import Ref
 
@@ -12,6 +14,9 @@ REF_ROLES = INTERACTIVE | {"heading"}
 SKIPPED = {"none", "InlineTextBox", "LineBreak", "ListMarker"}
 LIFTED = {"generic", "GenericContainer", "group", "Section", "div", "presentation", "RootWebArea", "WebArea", "Ignored", "IgnoredRole"}
 MAX_NAME = 200
+SHOWN_NAME = 100
+DISABLED_RUN = {"option": 6, "link": 6, "menuitem": 6, "treeitem": 6, "button": 12, "radio": 12, "checkbox": 12, "switch": 12, "tab": 12}
+MIN_DISABLED = 3
 VALUE_FIELDS = {"Date": "date", "DateTime": "datetime-local", "InputTime": "time", "ColorWell": "color"}
 ROLE_NAMES = {"DisclosureTriangle": "button"}
 MAX_SCOPES = 20
@@ -134,10 +139,17 @@ def _quote(text: str) -> str:
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
 
 
+def shown_name(name: str) -> str:
+    if len(name) <= SHOWN_NAME:
+        return name
+    command_metrics.flag("names_clipped", True)
+    return name[: SHOWN_NAME - 1].rstrip() + "…"
+
+
 def _line(node: Node, depth: int, urls: bool) -> str:
     parts = ["  " * depth + "- " + node.role]
     if node.name:
-        parts.append(" " + _quote(node.name))
+        parts.append(" " + _quote(node.name if node.role == "StaticText" else shown_name(node.name)))
     attrs = _attrs(node, urls)
     if attrs:
         parts.append(" [" + ", ".join(attrs) + "]")
@@ -163,9 +175,58 @@ def interactive_rows(nodes: list[Node]) -> list[tuple[int, Node]]:
     return rows
 
 
+def disabled(node: Node) -> bool:
+    return bool(node.props.get("disabled"))
+
+
+def span_label(node: Node) -> str:
+    text = " ".join((node.name or node.value).split())
+    return text if len(text) <= 40 else text[:39] + "…"
+
+
+def run_span(nodes: list[Node]) -> str:
+    return f"{span_label(nodes[0])} … {span_label(nodes[-1])}" if len(nodes) > 1 else span_label(nodes[0])
+
+
+def interactive_lines(rows: list[tuple[int, Node]], urls: bool) -> list[str]:
+    lines = []
+    index = 0
+    while index < len(rows):
+        level, node = rows[index]
+        members = [(index, node)]
+        end = index + 1
+        while end < len(rows) and rows[end][0] >= level:
+            if rows[end][0] == level:
+                if rows[end][1].role != node.role:
+                    break
+                members.append((end, rows[end][1]))
+            end += 1
+        off = [member for _, member in members if disabled(member)]
+        if len(members) < DISABLED_RUN.get(node.role, len(members) + 1) or len(off) < MIN_DISABLED:
+            lines.append(_line(node, level, urls))
+            index += 1
+            continue
+        noted = False
+        hiding = False
+        for position in range(index, end):
+            row_level, row = rows[position]
+            if hiding and row_level > level:
+                continue
+            hiding = row_level == level and disabled(row)
+            if hiding:
+                command_metrics.flag("snapshot_disabled_folded", True)
+                if not noted:
+                    lines.append("  " * level + f"- {len(off)} disabled {row.role}{'s' if len(off) > 1 else ''} ({run_span(off)})")
+                    noted = True
+                continue
+            lines.append(_line(row, row_level, urls))
+        index = end
+    return lines
+
+
 def render(nodes: list[Node], interactive: bool = False, compact: bool = False, depth: int | None = None, urls: bool = False) -> str:
     if interactive:
-        return "\n".join(_line(node, level, urls) for level, node in interactive_rows(nodes) if depth is None or level <= depth)
+        return "\n".join(interactive_lines([(level, node) for level, node in interactive_rows(nodes) if depth is None or level <= depth], urls))
     lines = []
 
     def keep_compact(node: Node) -> bool:
@@ -322,12 +383,29 @@ async def collect(state, page, selector=None, cursor=True) -> list[Node]:
     return nodes
 
 
-def refs_of(state, page, nodes: list[Node]) -> list[Ref]:
-    return [
-        Ref(node.ref, state.instance, page.target_id, node.frame, page.loader(node.frame) or "", 0, node.backend, node.role, node.name)
-        for node in walk(nodes)
-        if node.ref and node.backend is not None
-    ]
+UNNAMED_CONTEXTS = frozenset({"RootWebArea", "WebArea"})
+
+
+def walk_in_context(nodes, context: tuple = ()):
+    for node in nodes:
+        yield node, context
+        inner = context + ((node.role, node.name),) if node.name and node.role not in UNNAMED_CONTEXTS else context
+        yield from walk_in_context(node.children, inner)
+
+
+def refs_of(state, page, nodes: list[Node], whole_page: bool = True) -> list[Ref]:
+    placed = [(node, context) for node, context in walk_in_context(nodes) if node.ref and node.backend is not None]
+    counts = Counter((node.role, node.name) for node, _ in placed)
+    refs = []
+    for node, context in placed:
+        if whole_page:
+            unique = counts[(node.role, node.name)] == 1
+        else:
+            known = state.refs.get(node.ref)
+            unique, context = (known.unique, known.context) if known else (False, ())
+        refs.append(Ref(node.ref, state.instance, page.target_id, node.frame, page.loader(node.frame) or "", 0, node.backend,
+                        node.role, node.name, unique, context))
+    return refs
 
 
 async def take(state, page, interactive=False, compact=False, depth=None, selector=None, urls=False, cursor=True):
@@ -336,7 +414,7 @@ async def take(state, page, interactive=False, compact=False, depth=None, select
         for used in {node.frame for node in walk(nodes)}:
             await link_urls(page, [node for node in walk(nodes) if node.frame == used], used)
     text = render(nodes, interactive, compact, depth, urls)
-    refs = refs_of(state, page, nodes)
+    refs = refs_of(state, page, nodes, whole_page=not selector)
     whole = not (depth is not None or selector)
     full_text = text if whole and not (interactive or compact) else None
     state.set_refs(refs, text, page)

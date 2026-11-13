@@ -12,13 +12,13 @@ const MAX_ID = 128;
 const MAX_TEXT = 200;
 const MAX_URL = 8192;
 
-type Kind = "ref" | "refs" | "refOrNull" | "id" | "urls" | "bool" | "text" | "textOrNull" | "icon" | "color" | "pinAs";
+type Kind = "ref" | "refs" | "refOrNull" | "group" | "groupOrNull" | "id" | "urls" | "bool" | "text" | "textOrNull" | "icon" | "color" | "pinAs";
 
 const TABS: Record<string, Kind> = { tabs: "refs" };
 
 const SPECS = {
-  open: { required: ["urls"], fields: { urls: "urls", window: "id", profile: "id", group: "ref", before: "ref", after: "ref", pin: "pinAs", activate: "bool" } },
-  "tab.move": { required: ["tabs"], fields: { ...TABS, group: "refOrNull", before: "ref", after: "ref", window: "id", profile: "id" } },
+  open: { required: ["urls"], fields: { urls: "urls", window: "id", profile: "id", group: "group", before: "ref", after: "ref", pin: "pinAs", activate: "bool" } },
+  "tab.move": { required: ["tabs"], fields: { ...TABS, group: "groupOrNull", before: "ref", after: "ref", window: "id", profile: "id" } },
   "tab.pin": { required: ["tabs"], fields: { ...TABS, as: "pinAs" } },
   "tab.unpin": { required: ["tabs"], fields: TABS },
   "tab.activate": { required: ["tab"], fields: { tab: "ref" } },
@@ -31,13 +31,13 @@ const SPECS = {
   "tab.icon": { required: ["tab", "icon"], fields: { tab: "ref", icon: "icon" } },
   "group.create": {
     required: [],
-    fields: { tabs: "refs", urls: "urls", window: "id", profile: "id", parent: "ref", pinned: "bool", name: "text", icon: "icon", color: "color", collapsed: "bool", before: "ref", after: "ref" },
+    fields: { tabs: "refs", urls: "urls", window: "id", profile: "id", parent: "group", pinned: "bool", name: "text", icon: "icon", color: "color", collapsed: "bool", before: "ref", after: "ref" },
   },
-  "group.update": { required: ["group"], fields: { group: "ref", name: "text", icon: "icon", color: "color", collapsed: "bool" } },
-  "group.move": { required: ["group"], fields: { group: "ref", parent: "refOrNull", pinned: "bool", before: "ref", after: "ref", window: "id", profile: "id" } },
-  "group.ungroup": { required: ["group"], fields: { group: "ref" } },
-  "group.close": { required: ["group"], fields: { group: "ref" } },
-  "group.delete": { required: ["group"], fields: { group: "ref" } },
+  "group.update": { required: ["group"], fields: { group: "group", name: "text", icon: "icon", color: "color", collapsed: "bool" } },
+  "group.move": { required: ["group"], fields: { group: "group", parent: "groupOrNull", pinned: "bool", before: "ref", after: "ref", window: "id", profile: "id" } },
+  "group.ungroup": { required: ["group"], fields: { group: "group" } },
+  "group.close": { required: ["group"], fields: { group: "group" } },
+  "group.delete": { required: ["group"], fields: { group: "group" } },
 } satisfies Record<string, { required: string[]; fields: Record<string, Kind> }>;
 
 export type OpName = keyof typeof SPECS;
@@ -84,8 +84,25 @@ export function openableUrl(value: string): string | { error: string } {
 const isRef = (value: unknown, index: number) =>
   typeof value === "string" && value.length > 0 && value.length <= MAX_ID && (!/^\$/.test(value) || (/^\$\d+$/.test(value) && Number(value.slice(1)) < index));
 
+export type GroupName = { name: string };
+
+const isName = (value: unknown): value is string => typeof value === "string" && !!value.trim() && value.length <= MAX_TEXT && !/[\u0000-\u001f\u007f-\u009f]/.test(value);
+
+function groupField(value: unknown, index: number): string | GroupName | null {
+  if (typeof value === "string") return /^\$\d+$/.test(value) ? (isRef(value, index) ? value : null) : isName(value) ? value : null;
+  const fields = value as Record<string, unknown> | null;
+  if (typeof fields !== "object" || fields === null || Array.isArray(fields) || Object.keys(fields).join() !== "name" || !isName(fields.name)) return null;
+  return { name: fields.name.trim() };
+}
+
+const GROUP_FIELD = "a group id, a group's name, {\"name\": \"…\"}, or $N for an earlier operation's group";
+
 function check(kind: Kind, value: unknown, index: number): unknown | { bad: string } {
   switch (kind) {
+    case "group":
+      return groupField(value, index) ?? { bad: GROUP_FIELD };
+    case "groupOrNull":
+      return value === null ? null : (groupField(value, index) ?? { bad: `${GROUP_FIELD}, or null` });
     case "ref":
       return isRef(value, index) ? value : { bad: "an id (or $N for an earlier operation's result)" };
     case "refOrNull":

@@ -1,8 +1,8 @@
-import { Text } from "react-native";
+import { PixelRatio, Text } from "react-native";
 import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
-import { profileColors, profileSwitcher } from "./tokens";
+import { profileBadge, profileColors, profileSwitcher } from "./tokens";
 import { iconSymbol } from "../../lib/customIcon";
 
 export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
@@ -78,12 +78,24 @@ const BADGE_EDGE_MIN = 22;
 export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "name" | "color" | "icon"> & Partial<Pick<Profile, "theme">>; size?: number }) {
   const swatch = profileAccent(profile);
   const symbol = iconSymbol(profile.icon);
+  const nudge = PixelRatio.roundToNearestPixel(size * profileBadge.nudge);
   return (
     <Dot size={size} color={swatch} ring={size >= BADGE_EDGE_MIN ? profileColors.badgeEdge : undefined} ringWidth={hairline.ring}>
       {symbol ? (
         <Symbol name={symbol} size={size * 0.5} weight="semibold" color={ink.white} style={{ width: size, height: size }} />
       ) : (
-        <Text style={{ fontSize: profile.icon ? size * 0.55 : size * 0.46, fontWeight: weight.semibold, color: ink.white }}>
+        <Text
+          numberOfLines={1}
+          style={{
+            width: size,
+            textAlign: "center",
+            fontSize: profile.icon ? size * 0.55 : size * profileBadge.initialScale,
+            letterSpacing: profile.icon ? 0 : size * profileBadge.initialTracking,
+            fontWeight: weight.semibold,
+            color: ink.white,
+            transform: [{ translateX: profile.icon ? nudge : 0 }, { translateY: nudge }],
+          }}
+        >
           {profile.icon ?? (profile.name.trim()[0] ?? "?").toUpperCase()}
         </Text>
       )}

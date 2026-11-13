@@ -27,6 +27,10 @@ bool ArdiaHasAccessedInitialMainDocument(WebContents* contents);
 bool ArdiaMainFrameHandlesEnterPictureInPicture(WebContents* contents);
 
 DevToolsAgentHost* ArdiaDevToolsAgentHostForId(const std::string& id);
+
+void ArdiaWhenRestoredFrameDisplayed(
+    WebContents* contents,
+    base::OnceCallback<void(const std::string&)> displayed);
 }
 
 namespace crypto::apple {
@@ -47,6 +51,16 @@ struct RequestAction;
 }
 
 extern int g_ardia_disk_space_check_seconds;
+
+enum ArdiaDragEnd {
+  kArdiaDragEndOwnerGone,
+  kArdiaDragEndDebuggerUnowned,
+  kArdiaDragEndNativeRefused,
+  kArdiaDragEndSourceGone,
+  kArdiaDragEndKinds,
+};
+
+extern int g_ardia_drags_ended[kArdiaDragEndKinds];
 
 extern bool g_ardia_auto_picture_in_picture_off;
 
@@ -73,8 +87,6 @@ void ArdiaSetHybridUiShown(const void* model, bool shown);
 
 extern bool (*g_ardia_restricted_component_extension)(
     const extensions::ExtensionId& extension_id);
-
-extern bool g_ardia_begin_frame_bridge;
 
 extern void (*g_ardia_initial_main_document_accessed)(
     content::WebContents* contents);

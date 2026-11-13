@@ -7,7 +7,7 @@ import { SiteLogo } from "./SiteLogo";
 import { useSiteRing } from "./GlassBacking";
 import { ChoiceCard } from "./ChoiceCard";
 import { Dot } from "../ui";
-import { capsule, radius, space } from "../ui/tokens";
+import { capsule, ink, radius, space } from "../ui/tokens";
 import { SelectTile, useOnboardingColors } from "./Parts";
 import { StepActions, StepLayout } from "./StepLayout";
 import { trafficLights } from "./tokens";
@@ -86,7 +86,7 @@ function PinnedPreview({ selected }: { selected: string[] }) {
               <SiteLogo url={site.url} size={18} />
             </ChoiceCard>
           ) : (
-            <ChoiceCard key={`empty-${i}`} dashed radius={radius.chrome * PREVIEW.scale} fill="transparent" style={tile} />
+            <ChoiceCard key={`empty-${i}`} dashed radius={radius.chrome * PREVIEW.scale} fill={ink.clear} style={tile} />
           );
         })}
       </View>

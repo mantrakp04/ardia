@@ -3,7 +3,7 @@ import { linkProfileOf } from "./small";
 import type { BrowserWindow, Frame } from "../browser/types";
 
 export function emptyWindow(id: string, profileId: string, kind: "main" | "private", frame: Frame | null = null): BrowserWindow {
-  return { id, profileId, kind, tabIds: [], activeTabIds: {}, sidebarOpen: true, frame, createdAt: Date.now() };
+  return { id, profileId, kind, tabIds: [], activeTabIds: {}, frame, createdAt: Date.now() };
 }
 
 export const smallWindow = (id: string, profileId: string, frame: Frame | null = null): BrowserWindow => ({
@@ -12,7 +12,6 @@ export const smallWindow = (id: string, profileId: string, frame: Frame | null =
   kind: "small",
   tabIds: [],
   activeTabIds: {},
-  sidebarOpen: false,
   frame,
   createdAt: Date.now(),
 });

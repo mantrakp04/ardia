@@ -1,8 +1,7 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { session } from "../../../../scripts/lib/instance.mjs";
+import { DARK, writeSession } from "./sessions-lib.mjs";
 
-const out = process.argv[2];
 const pages = process.argv[3];
 const PAGES = {
   moodwall: "moodwall — ideas for everything",
@@ -22,13 +21,7 @@ const T = (id, page, extra = {}) => ({ id, profileId: "default", url: url(page),
 const tile = (id, page) => T(id, page, { pinned: true, pinnedUrl: url(page), unloaded: true });
 
 function build(file, { tabs, active, appearance }) {
-  const s = session({
-    profiles: [{ id: "default", name: "Personal", color: "plum", icon: "🪐" }],
-    windows: [{ id: "w1", frame: [80, 60, 1360, 860], profileId: "default", activeTabIds: { default: active } }],
-    tabs,
-  });
-  s.settings = { appearance, searchSuggestions: false, warnBeforeQuitting: false, sidebarWidth: 260 };
-  writeFileSync(join(out, file), JSON.stringify(s, null, 2));
+  writeSession(file, { tabs, active, settings: { ...DARK, appearance } });
 }
 
 build("session-lasttab.json", {

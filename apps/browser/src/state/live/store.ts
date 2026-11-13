@@ -1,6 +1,6 @@
 import { readDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
-import { repoKey } from "./rows";
+import { repoKey, stackMembers } from "./rows";
 import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
@@ -112,18 +112,28 @@ const setLive = (patch: Partial<LiveState> | ((s: LiveState) => Partial<LiveStat
 
 export const showAllKey = (folderId: string, section: string) => `${folderId}:${section}`;
 
+const SAVE_DELAY_MS = 800;
 let timer: ReturnType<typeof setTimeout> | undefined;
+
+function save() {
+  clearTimeout(timer);
+  timer = undefined;
+  const s = live();
+  try {
+    writeDocument(DOC, versionedJson(Object.fromEntries(PERSISTED.map((k) => [k, s[k]])), DOC_VERSION));
+  } catch (error) {
+    console.warn("Couldn't save live folders", error);
+  }
+}
+
+export function flushLive() {
+  if (timer !== undefined) save();
+}
+
 useLive.subscribe((s, prev) => {
   if (PERSISTED.every((k) => s[k] === prev[k])) return;
   clearTimeout(timer);
-  timer = setTimeout(() => {
-    const s = live();
-    try {
-      writeDocument(DOC, versionedJson(Object.fromEntries(PERSISTED.map((k) => [k, s[k]])), DOC_VERSION));
-    } catch (error) {
-      console.warn("Couldn't save live folders", error);
-    }
-  }, 800);
+  timer = setTimeout(save, SAVE_DELAY_MS);
 });
 
 let counter = 0;
@@ -325,6 +335,10 @@ export function releaseShownRepos(folderId: string, fetchedSources: Set<LiveSour
     const still = keptOut?.filter((it) => repoStillHidden(it) || awaitingFetch(it));
     return keptOut && still && still.length !== keptOut.length ? { repoHidden: { ...s.repoHidden, [folderId]: still } } : {};
   });
+}
+
+export function hideStack(folderId: string, stackId: string) {
+  hideItems(folderId, stackMembers(live().items[folderId] ?? [], stackId));
 }
 
 export function unhide(folderId: string) {

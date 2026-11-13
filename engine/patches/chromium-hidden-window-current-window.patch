@@ -8,22 +8,22 @@
  
  #include "chrome/browser/extensions/browser_extension_window_controller.h"
  #include "chrome/browser/extensions/window_controller.h"
-@@ -44,7 +45,13 @@
-       // Only return the found controller if it's not about to be deleted,
+@@ -45,7 +46,13 @@
        // otherwise fall through to finding another one.
-       if (!window_controller->GetBrowserWindowInterface()
--               ->IsDeleteScheduled()) {
-+               ->IsDeleteScheduled() &&
-+          // Ardia: extension pages ArdiaCore shows outside any tab strip
-+          // (its popups, side panels) sit in hidden windows: their "current
-+          // window" is the last active one, as for Chrome's popups.
-+          !(g_ardia_hidden_from_extensions &&
-+            g_ardia_hidden_from_extensions(
-+                window_controller->GetBrowserWindowInterface()))) {
+       BrowserWindowInterface* bwi =
+           window_controller->GetBrowserWindowInterface();
+-      if (!bwi || !bwi->IsDeleteScheduled()) {
++      if (!bwi ||
++          (!bwi->IsDeleteScheduled() &&
++           // Ardia: extension pages ArdiaCore shows outside any tab strip
++           // (its popups, side panels) sit in hidden windows: their "current
++           // window" is the last active one, as for Chrome's popups.
++           !(g_ardia_hidden_from_extensions &&
++             g_ardia_hidden_from_extensions(bwi)))) {
          return window_controller;
        }
      }
-@@ -60,6 +67,11 @@
+@@ -61,6 +68,11 @@
    WindowController* window_controller = nullptr;
    ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
        [&](BrowserWindowInterface* browser) {

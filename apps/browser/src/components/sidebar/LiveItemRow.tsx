@@ -4,10 +4,12 @@ import { closeTab } from "../../state/browser/actions";
 import { COMPLETION_MS, openLiveItem, returnLiveTab } from "../../state/live/engine";
 import { prBadge } from "../../state/live/github";
 import { SOURCES } from "../../state/live/sources";
-import { useLive } from "../../state/live/store";
+import { hideItems, useLive } from "../../state/live/store";
 import type { CompletedItem, LiveItem } from "../../state/live/types";
 import { usePageProfileId } from "../../state/browser/hooks";
-import { useIsActiveIn, useLiveItemTab, useTabAwayFromPin } from "../../state/sidebar/hooks";
+import { useIsActiveIn, useLiveItemTab, useLiveTabOpen, useTabAwayFromPin } from "../../state/sidebar/hooks";
+import type { CloseControl } from "../../state/sidebar/closeControl";
+import { noteLiveRowHide } from "../../state/telemetry/liveHides";
 import { HoverSlot } from "../ui/HoverSlot";
 import { Badge, Button, ContextMenuArea, Dot, hairline, ink, space, Symbol, Text, useHover } from "../ui";
 import { curve, springs } from "../ui/motion";
@@ -37,6 +39,7 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
   const tabId = useLiveItemTab(windowId, profileId, folderId, item.id);
   const active = useIsActiveIn(windowId, profileId, tabId);
   const away = useTabAwayFromPin(tabId);
+  const tabOpen = useLiveTabOpen(folderId, [item.id]);
   const unread = useLive((s) => !!s.unread[folderId]?.includes(item.id));
   const completion = useLive((s) => (s.completing[folderId]?.includes(item.id) ? (s.completed[folderId]?.find((c) => c.item.id === item.id)?.state ?? "merged") : null));
   const { hovered, hoverProps } = useRowHover(windowId, completion ? null : { kind: "live", id: key });
@@ -52,6 +55,7 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
   const fill = active ? theme.tabSelected : hovered ? theme.tabHover : ink.clear;
   const resettable = away && !completion;
   const resetting = resettable && backToPin.hovered;
+  const control = liveRowControl(folderId, item, tabId, tabOpen, closeHint);
 
   return (
     <Animated.View style={completion ? { height: fold.interpolate({ inputRange: [0, 1], outputRange: [0, layout.rowHeight] }), opacity: fold, overflow: "hidden" } : null}>
@@ -80,7 +84,7 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
                       accessibilityLabel="Back to Pinned URL"
                     >
                       {resetting ? (
-                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
                       ) : (
                         <ItemIcon item={item} completion={completion} colors={colors} />
                       )}
@@ -92,13 +96,13 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
                 <SidebarRowLabel
                   text={resetting ? "Back to Pinned URL" : item.title}
                   weight={unread ? "medium" : undefined}
-                  color={active ? theme.tabSelectedText : completion ? theme.textSecondary : theme.textTab}
+                  color={active ? theme.rowSelectedText : completion ? theme.textSecondary : theme.textTab}
                 />
                 {inStack && item.pr?.stack ? <PositionChip position={item.pr.stack.position} /> : null}
                 <HoverSlot
-                  hovered={hovered && !!tabId && !completion}
+                  hovered={hovered && !!control && !completion}
                   reserve={inStack && item.pr?.stack ? "always" : "hover"}
-                  hover={<Button variant="icon" icon="xmark" size="s" weight="semibold" onPress={() => tabId && void closeTab(tabId)} tooltip={withShortcut("Close Tab", closeHint)} />}
+                  hover={control ? <Button variant="icon" icon={control.icon} size="s" weight="semibold" onPress={control.press} tooltip={control.tooltip} /> : null}
                 >
                   <Trailing item={item} completion={completion} colors={colors} />
                 </HoverSlot>
@@ -114,6 +118,22 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
 const UNREAD_DOT_LEFT = 2;
 const STACK_INDENT = 10;
 const POSITION_CHIP = { marginLeft: space.xs } as const;
+
+type LiveRowControl = CloseControl & { press(): void };
+
+function liveRowControl(folderId: string, item: LiveItem, tabId: string | null, tabOpen: boolean, closeHint: string | undefined): LiveRowControl | null {
+  if (tabId) return { icon: "minus", tooltip: withShortcut("Close Tab", closeHint), press: () => void closeTab(tabId) };
+  if (item.pr && !tabOpen)
+    return {
+      icon: "xmark",
+      tooltip: "Hide Until Refresh",
+      press: () => {
+        hideItems(folderId, [item]);
+        noteLiveRowHide();
+      },
+    };
+  return null;
+}
 
 function PositionChip({ position }: { position: number }) {
   return (

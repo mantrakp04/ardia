@@ -19,6 +19,7 @@ export type ContentBlockerStats = {
   lookups: number;
   averageLookupMicros: number;
   maxLookupMicros: number;
+  error?: string;
 };
 
 export type ContentBlockerState = {

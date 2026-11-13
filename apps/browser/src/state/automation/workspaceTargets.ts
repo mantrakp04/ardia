@@ -3,10 +3,11 @@ import type { TabGroup } from "../browser/types";
 import { isIncognitoProfile, isPinnedRow } from "../browser/model";
 import { ancestorIds, innermostGroupOf, rootOf } from "../groups/groups";
 import type { TabPlacement } from "../pins/placing";
+import { groupLabel } from "../pins/tabGrouping";
 import type { ErrorCode } from "./automationMethods";
 import { eligibleKind, isEligibleTab, lastFocusedEligibleWindow, ownEntry } from "./automationWindows";
-import type { Op } from "./workspaceOps";
-import { isEligibleGroup } from "./workspaceTree";
+import type { GroupName, Op } from "./workspaceOps";
+import { iconName, isEligibleGroup } from "./workspaceTree";
 
 export type Changed = { tabs?: string[]; groups?: string[] };
 
@@ -20,7 +21,7 @@ export class OpError extends Error {
   }
 }
 
-export type OpResult = { tabs?: string[]; group?: string; outcomes?: Record<string, string> };
+export type OpResult = { tabs?: string[]; group?: string; label?: string; icon?: string | null; outcomes?: Record<string, string> };
 
 export const store = () => useBrowser.getState();
 
@@ -45,13 +46,46 @@ export function tabRef(results: OpResult[], ref: string): string {
   return ids[0]!;
 }
 
-export function groupRef(results: OpResult[], ref: string): TabGroup {
-  const at = refIndex(ref);
-  const id = at === null ? ref : results[at]?.group;
-  if (!id) throw new OpError("bad_request", `${ref} made no group.`);
+export type NameScope = { windowId: string; profileId?: string };
+
+const ANY_SCOPE = (): NameScope => ({ windowId: defaultWindow() });
+
+const folded = (text: string) => text.trim().toLocaleLowerCase();
+
+function groupNamed(name: string, scope: NameScope): TabGroup {
   const s = store();
-  if (!isEligibleGroup(s, id)) throw new OpError("no_window", `There's no group ${id} the ardia command can use.`);
-  return ownEntry(s.groups, id)!;
+  const want = folded(name);
+  const pool = Object.values(s.groups).filter((g) => isEligibleGroup(s, g.id) && g.windowId === scope.windowId && (!scope.profileId || g.profileId === scope.profileId));
+  let found = pool.filter((g) => folded(g.name) === want);
+  if (!found.length) found = pool.filter((g) => !g.name.trim() && folded(groupLabel(s, g)) === want);
+  const where = `window ${scope.windowId}${scope.profileId ? `, profile ${scope.profileId}` : ""}`;
+  if (!found.length) throw new OpError("no_window", `There's no group named ${JSON.stringify(name)} in ${where} (ardia groups lists them; --window picks another window).`);
+  if (found.length > 1) {
+    const list = found.map((g) => `${g.id} (${JSON.stringify(groupLabel(s, g))}${g.parentId ? `, inside ${g.parentId}` : ""}, profile ${g.profileId})`).join(", ");
+    throw new OpError("bad_request", `${JSON.stringify(name)} names ${found.length} groups in ${where}: ${list}. Give one id.`);
+  }
+  return found[0]!;
+}
+
+export function groupRef(results: OpResult[], ref: unknown, scope: () => NameScope = ANY_SCOPE): TabGroup {
+  const s = store();
+  if (typeof ref === "string") {
+    const at = refIndex(ref);
+    const id = at === null ? (ownEntry(s.groups, ref) ? ref : null) : results[at]?.group;
+    if (at !== null && !id) throw new OpError("bad_request", `${ref} made no group.`);
+    if (id) {
+      if (!isEligibleGroup(s, id)) throw new OpError("no_window", `There's no group ${id} the ardia command can use.`);
+      return ownEntry(s.groups, id)!;
+    }
+    return groupNamed(ref, scope());
+  }
+  return groupNamed((ref as GroupName).name, scope());
+}
+
+export function labelled(groupId: string): Pick<OpResult, "group" | "label" | "icon"> {
+  const s = store();
+  const g = ownEntry(s.groups, groupId);
+  return g ? { group: groupId, label: groupLabel(s, g), icon: iconName(g.icon) } : { group: groupId };
 }
 
 export type Anchor = { kind: "tab" | "group"; id: string; windowId: string; profileId: string };

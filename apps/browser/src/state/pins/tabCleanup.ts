@@ -1,10 +1,10 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
-import { activeTabId, inPinnedContainer, isIncognitoProfile, pinSection, viewTabIds, without } from "../browser/model";
+import { activeTabId, byRecentUse, inPinnedContainer, isIncognitoProfile, pinSection, viewTabIds, without } from "../browser/model";
 import { hasPage, isAsleep } from "../tabs/pageSession";
 import { holderOf } from "./pinShare";
 import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
-import { lastUsedOf, sharedLastUsed } from "../tabs/tabShare";
+import { lastUsedOf, restoredAtOf, sharedLastUsed, sharedRestoredAt } from "../tabs/tabShare";
 import type { ClosedTab, Tab, TabGroup } from "../browser/types";
 import { withoutFragment } from "../../lib/url";
 import { tileFolderOf } from "./tileFolders";
@@ -108,19 +108,22 @@ function inactivity(s: BrowserState, windowId: string) {
   const inSplit = new Set(Object.values(s.splits).flatMap((v) => splitTabIds(v)));
   const keep = (t: Tab) => t.id === active || inPinnedContainer(s, t.id) || s.live[t.id]?.playingAudio;
   const used = sharedLastUsed(s);
+  const restored = sharedRestoredAt(s);
   return {
     active,
     inSplit,
     used,
+    restored,
     keep,
     expires: (t: Tab) => !keep(t) && !grouped.has(t.id) && !inSplit.has(t.id),
-    lastUsed: (t: Tab) => Math.max(lastUsedOf(used, t), deselectedAt.get(t.id) ?? 0),
+    lastUsed: (t: Tab) => Math.max(lastUsedOf(used, t), deselectedAt.get(t.id) ?? 0, restoredAtOf(restored, t)),
   };
 }
 
 export function cleanUpCandidates(s: BrowserState, windowId: string, inactiveForMs = CLEAN_UP_AFTER_MS, now = Date.now()): string[] {
   const view = viewTabIds(s, windowId);
-  const { active, inSplit, used, keep, expires, lastUsed } = inactivity(s, windowId);
+  const { active, inSplit, used, restored, keep, expires, lastUsed } = inactivity(s, windowId);
+  const recency = (t: Tab) => Math.max(lastUsedOf(used, t), restoredAtOf(restored, t));
   const out = new Set<string>();
   const byPage = new Map<string, Tab[]>();
   for (const id of view) {
@@ -131,7 +134,7 @@ export function cleanUpCandidates(s: BrowserState, windowId: string, inactiveFor
   }
   for (const same of byPage.values()) {
     if (same.length < 2) continue;
-    const keeper = same.find((t) => t.pin) ?? same.find((t) => t.id === active) ?? [...same].sort((a, b) => lastUsedOf(used, b) - lastUsedOf(used, a))[0]!;
+    const keeper = same.find((t) => t.pin) ?? same.find((t) => t.id === active) ?? [...same].sort((a, b) => recency(b) - recency(a))[0]!;
     for (const t of same) if (t !== keeper && !keep(t) && !inSplit.has(t.id)) out.add(t.id);
   }
   for (const id of view) {
@@ -165,17 +168,20 @@ export function abandonedNewTabs(s: BrowserState, windowId: string): string[] {
 
 export function recentTabIds(s: BrowserState, windowId: string, now = Date.now(), staleAfterMs = CLEAN_UP_AFTER_MS): string[] {
   const open = viewTabIds(s, windowId).map((id) => s.tabs[id]!).filter((t) => !isAsleep(t));
-  const sorted = open.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+  const sorted = open.sort(byRecentUse);
   return sorted.filter((t, i) => i < 2 || now - t.lastActiveAt < staleAfterMs).map((t) => t.id);
 }
 
+
+const addCleanedBatch = (list: ClosedTab[], batch: ClosedTab[]) =>
+  [...keptCleanedTabs(list), ...batch].slice(-Math.max(MAX_CLEANED, batch.length));
 
 export type CleanUpSlice = {
   cleanedTabs: ClosedTab[];
   privateCleanedTabs: Record<string, ClosedTab[]>;
 
   cleanUpTabs(windowId: string, options?: { inactiveForMs?: number }): number;
-  restoreCleaned(entryId?: string, windowId?: string): void;
+  restoreCleaned(entryIds?: string | string[], windowId?: string): void;
   clearUnpinnedTabs(windowId: string): ClearedTabs | null;
   undoClearTabs(cleared: ClearedTabs): void;
   removeClosedPin(id: string): ClearedTabs | null;
@@ -200,21 +206,22 @@ export const createCleanUpSlice: StateCreator<BrowserState, [], [], CleanUpSlice
     const entries = closedEntries(s, ids);
     const next = closeQuietly(s, ids);
     if (s.windows[windowId]?.kind === "private") {
-      const own = [...keptCleanedTabs(next.privateCleanedTabs[windowId] ?? []), ...entries].slice(-MAX_CLEANED);
+      const own = addCleanedBatch(next.privateCleanedTabs[windowId] ?? [], entries);
       set({ ...next, privateCleanedTabs: { ...next.privateCleanedTabs, [windowId]: own } });
     } else {
-      set({ ...next, cleanedTabs: [...keptCleanedTabs(next.cleanedTabs), ...entries].slice(-MAX_CLEANED) });
+      set({ ...next, cleanedTabs: addCleanedBatch(next.cleanedTabs, entries) });
     }
     return ids.length;
   },
 
-  restoreCleaned(entryId, fromWindowId) {
+  restoreCleaned(entryIds, fromWindowId) {
     const s = get();
+    const wanted = entryIds === undefined ? null : new Set([entryIds].flat());
     const privateId = fromWindowId && s.windows[fromWindowId]?.kind === "private"
       ? fromWindowId
-      : Object.keys(s.privateCleanedTabs).find((id) => !!entryId && s.privateCleanedTabs[id]!.some((c) => c.id === entryId));
+      : Object.keys(s.privateCleanedTabs).find((id) => !!wanted && s.privateCleanedTabs[id]!.some((c) => wanted.has(c.id)));
     const list = keptCleanedTabs(privateId ? (s.privateCleanedTabs[privateId] ?? []) : s.cleanedTabs);
-    const entries = list.filter((c) => !entryId || c.id === entryId);
+    const entries = list.filter((c) => !wanted || wanted.has(c.id));
     if (!entries.length) return;
     const left = list.filter((c) => !entries.includes(c));
     let next: BrowserState = privateId
@@ -226,7 +233,7 @@ export const createCleanUpSlice: StateCreator<BrowserState, [], [], CleanUpSlice
       const [restored, [id]] = restoreSnapshots(next, windowId, [{ tab: e.tab, tabId: e.restoreFrom ?? e.tabId, index: windowId === e.windowId ? e.index : undefined }]);
       next = restored;
       if (id && e.group) next = regroupRestored(next, windowId, [e], [id]);
-      if (id && entryId) next = apply(next, activated(next, id));
+      if (id && typeof entryIds === "string") next = apply(next, activated(next, id));
     }
     set(next);
   },

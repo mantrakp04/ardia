@@ -146,6 +146,36 @@ test("groups stay contiguous; splits need two panes", () => {
   assert.equal(S().closedWindows.at(-1).groups.length, 1);
 });
 
+test("closing the focused pane of a split shows the pane left, not the next tab", () => {
+  reset();
+  const w = S().createWindow({ url: "https://a.com" });
+  const a = model.viewTabIds(S(), w)[0];
+  const b = S().newTab(w, { url: "https://b.com" });
+  S().newTab(w, { url: "https://c.com" });
+  const sp = S().createSplit([a, b]);
+  S().activate(b);
+  S().closeTab(b);
+  assert.equal(S().splits[sp], undefined, "the split dissolves");
+  assert.equal(shown(w), "a", "the other pane stays on screen as a tab");
+  assert.deepEqual(hosts(w), ["a", "c"]);
+});
+
+test("closing one pane of a three-pane split keeps the split and shows the pane used last", () => {
+  reset();
+  const w = S().createWindow({ url: "https://a.com" });
+  const a = model.viewTabIds(S(), w)[0];
+  const b = S().newTab(w, { url: "https://b.com" });
+  const c = S().newTab(w, { url: "https://c.com" });
+  S().newTab(w, { url: "https://d.com" });
+  const sp = S().createSplit([a, b, c]);
+  S().activate(b);
+  S().updateTab(a, { lastActiveAt: 1 });
+  S().updateTab(c, { lastActiveAt: 2 });
+  S().closeTab(b);
+  assert.deepEqual(splitTabIdsOf(S().splits[sp]), [a, c]);
+  assert.equal(shown(w), "c");
+});
+
 test("hydrate drops broken splits", () => {
   reset();
   const w = S().createWindow({ url: "a.com" });
@@ -180,6 +210,24 @@ test("clean up closes duplicates and stale tabs into Recently Cleaned, and resto
   assert.equal(S().cleanedTabs.length, 0);
   assert.equal(view(w).length, 5);
   assert.ok(S().tabs[e]);
+});
+
+test("one clean-up keeps every tab it closes in Recently Cleaned, past the cap, so Undo brings them all back", () => {
+  reset();
+  const many = organize.MAX_CLEANED + 20;
+  const [w] = setup("a", ...Array(many).fill("a"));
+  assert.equal(S().cleanUpTabs(w), many);
+  assert.equal(S().cleanedTabs.length, many);
+  S().restoreCleaned(S().cleanedTabs.map((c) => c.id), w);
+  assert.equal(view(w).length, many + 1);
+  open(w, "a");
+  assert.equal(S().cleanUpTabs(w), many + 1);
+  assert.equal(S().cleanedTabs.length, many + 1, "the newest batch is whole even when it alone is past the cap");
+  open(w, "b");
+  S().updateTab(model.viewTabIds(S(), w).find((id) => S().tabs[id].url === "https://b.com"), { lastActiveAt: Date.now() - 13 * 3600_000 });
+  S().activate(model.viewTabIds(S(), w)[0]);
+  assert.equal(S().cleanUpTabs(w), 1);
+  assert.equal(S().cleanedTabs.length, organize.MAX_CLEANED, "a later clean-up trims older entries back to the cap");
 });
 
 test("a reopened group's and cleaned tabs' tabs take their back/forward lists back", () => {
@@ -507,4 +555,19 @@ test("Clear on a lone selected tab closes nothing and opens no New Tab page", ()
   const [w, a] = setup("a");
   assert.equal(S().clearUnpinnedTabs(w), null);
   assert.deepEqual(S().windows[w].tabIds, [a]);
+});
+
+test("a tab opened behind joins the ⌃Tab order only once it is shown, so ⌃Tab still returns to the tab before (#1190)", (t) => {
+  reset();
+  let now = Date.now();
+  t.mock.method(Date, "now", () => (now += 1000));
+  const [w, a, b] = setup("a", "b");
+  S().activate(b);
+  S().activate(a);
+  const link = open(w, "link", a);
+  const order = () => organize.recentTabIds(S(), w, now).map((id) => short(S().tabs[id].url));
+  assert.deepEqual(order(), ["a", "b", "link"]);
+  S().activate(link);
+  assert.deepEqual(order(), ["link", "a", "b"]);
+  assert.equal(S().tabs[link].unseen, undefined);
 });
