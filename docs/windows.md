@@ -89,7 +89,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Chrome Web Store install | Differs: Chromium's Add extension dialog; installs, icon in the toolbar | stand-ins `extensions.resolveInstallPrompt` |
 | ardia://extensions | Works | |
 | Ad, tracker and cookie-banner blocking | Not offered; hidden | #1425 |
-| Bookmark and password export | Not offered; hidden | stand-ins table |
+| Bookmark and password export | Works; the password export confirms over the app window | #1551 |
 
 **Settings**
 
@@ -473,7 +473,6 @@ is plain Chromium.
 | Verb | Needs | What and why |
 | --- | --- | --- |
 | `autofill.settings`, `autofill.setSettings` | Engine | The Mac reads and writes the profile's `autofill.profile_enabled` and `autofill.credit_card_enabled` prefs; no `ac_*` call touches prefs. Today Settings › Autofill shows both toggles on and disabled. |
-| `bookmarks.exportHtml`, `passwords.export` (the engine's answer) | Engine | The app side is done and hidden: `PLATFORM_FEATURES.exportsBookmarksAndPasswords` is false on Windows, so Settings' two export rows, Bookmarks › Export Bookmarks…, the command, its bar action, shortcut and CLI entry are not offered. In the VM (engine `windows-engine-20261113-1`) the save panel opens and answers, but `ac_bookmarks_export_html` and `ac_passwords_export` never answer and write no file, and the password export shows no Windows confirmation, while other engine calls (`ac_passwords_add`) answer at once. Needs a look at `WhenLoaded`/`WriteBookmarks` and `Reauthenticate` in a Windows engine with logging; once both answer, turn the flag on. |
 | `autofill.showSuggestions` | Engine | Shows Chromium's autofill popup in a tab: a `tab.call` method. |
 | `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
 | `contentBlocker.devFailNextMessage`, `devDelayNextLoad` | Default | Mac test hooks. |
@@ -526,13 +525,13 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   `ac_bookmarks_export_html` or `ac_passwords_export`, which asks Windows to confirm it is you before it writes
   (`reauthFailed` otherwise). A background instance answers the panel from `file-chooser.txt` and logs that a file was
   chosen, never which.
-  In the VM (build 157, engine `windows-engine-20261113-1`) the panel opens and answers, and the app hands the path to
-  the engine, but neither engine call answers: no file is written, no reply comes within a minute, and the password
-  export shows no Windows confirmation. Saving a password through the engine (`ac_passwords_add`) answers at once, so
-  this is in the two calls (row in the table above). Until they answer, both exports are hidden on Windows
-  (`PLATFORM_FEATURES.exportsBookmarksAndPasswords`). If either has not answered after `EXPORT_ANSWER_MS` (two
-  minutes, enough for a large profile), it fails the way the Mac's does: the bookmark export reports "Couldn't
-  export" and the password export answers `writeFailed`.
+  Windows confirms the password export with Windows Hello, or with the Windows Security password prompt when Hello
+  isn't set up. Chromium shows that over `GetLastActiveBrowser()`'s window, which in Ardia is a page window, so
+  `chromium-win-reauth-app-window.patch` gives it a hook and the engine host answers with the app window the user is
+  in. The password prompt is modal on the browser UI thread, as in Chrome: until it is answered, other engine calls
+  wait (that was the old stall, when the prompt sat unseen on a page window). If either export has not answered
+  after `EXPORT_ANSWER_MS` (two minutes, enough for a large profile), it fails the way the Mac's does: the bookmark
+  export reports "Couldn't export" and the password export answers `writeFailed`.
 - `extensions.chooseFolder` and `extensions.inspectUnpacked`: `ArdiaDialogs.pickFolder`, then the Mac's
   `ReadManifest` in TypeScript over `ArdiaWindowsImport`'s file reads: the manifest (comments and trailing commas
   allowed, as Chrome does), its `_locales` messages (locale names only), the icons as data addresses, and the id from `key`.
