@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
-const { noteScroll, revealToolbar, setToolbarPeek, toolbarMode, useToolbarAutoHide } = await import("./toolbarAutoHide.ts");
+const { addressFieldShownIn, noteScroll, revealToolbar, setToolbarPeek, toolbarMode, useToolbarAutoHide } = await import("./toolbarAutoHide.ts");
 
 const script = readFileSync(new URL("../../../../../packages/ardiacore/ios/page_script.js", import.meta.url), "utf8");
 const source = script.match(/const scrollDirection = (\(\) => \{[\s\S]*?\n {2}\});\n/)?.[1];
@@ -248,6 +248,12 @@ test("the mode: shown unless the page scrolled down and nothing needs the bar", 
   assert.equal(toolbarMode({ ...base, scrolledDown: false }), "shown");
   assert.equal(toolbarMode({ ...base, needsBar: true }), "shown");
   assert.equal(toolbarMode({ ...base, needsBar: true, peek: true }), "shown");
+});
+
+test("the address field shows the load while the toolbar is shown or peeking, the pill only while it is collapsed", () => {
+  assert.equal(addressFieldShownIn("shown"), true);
+  assert.equal(addressFieldShownIn("peek"), true);
+  assert.equal(addressFieldShownIn("collapsed"), false);
 });
 
 test("page reports, reveals and peeks", () => {
