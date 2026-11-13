@@ -13,16 +13,20 @@ const WIPED = 2;
 function useLastingLoad(tabId: string) {
   const loading = useTabLive(tabId, (live) => live.isLoading);
   const [lasting, setLasting] = useState(false);
+  const waiting = useRef(false);
   useEffect(() => {
-    if (!loading) return;
-    let lasted = false;
+    if (!loading) {
+      if (waiting.current) noteLoadingPillSkipped();
+      waiting.current = false;
+      return;
+    }
+    waiting.current = true;
     const wait = setTimeout(() => {
-      lasted = true;
+      waiting.current = false;
       setLasting(true);
     }, LOADING_PILL.showAfterMs);
     return () => {
       clearTimeout(wait);
-      if (!lasted) noteLoadingPillSkipped();
       setLasting(false);
     };
   }, [loading]);
