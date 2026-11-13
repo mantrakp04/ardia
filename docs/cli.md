@@ -714,20 +714,58 @@ The policy also refuses some uses of methods it allows (`ac_cli_token_policy.cc`
 | `without flatten` | `Target.attachToTarget`, `setAutoAttach` | The command always sends `flatten`, so this is a bug in it |
 | `to that URL`, `in another browser context` | `Target.createTarget`, `Page.navigate` | Only http, https, data and about:blank pages, in the user's own profile |
 | `in that execution context`, `on that object` | `Runtime.*`, `DOM.*` | A context or object the connection didn't make |
-| `on a tab the ardia command didn't open`, `with that option` | `Emulation.setDeviceMetricsOverride`, `clearDeviceMetricsOverride` | The viewport override is for tabs the command opened (below), with a width, height, scale and `mobile` only |
+| `on a tab the ardia command didn't open`, `on a tab the user can see`, `with that option` | `Emulation.setDeviceMetricsOverride`, `clearDeviceMetricsOverride` | The viewport override is for tabs the command opened (below), with a width, height, scale and `mobile` only |
 | `in a named world`, `as a stream`, `with the command line API`, `without a button`, `with those editing commands` | `Page.addScriptToEvaluateOnNewDocument`, `Page.printToPDF`, `Runtime.evaluate`, `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` | That option isn't allowed |
 
 `set viewport <w> <h> [scale]` works on the token path, for responsive checks, on a tab the command opened. The
 policy allows `Emulation.setDeviceMetricsOverride` and `clearDeviceMetricsOverride` only on a session attached to a
-target that a token connection made with `Target.createTarget` (`open`, `tab new`, a reader or script tab). The
-engine keeps those target ids for the whole process, learned from each `createTarget` reply, so a daemon that
-reconnects after its idle disconnect still owns its tabs; an id goes when its target is destroyed. Any other tab,
+target that a token connection made with `Target.createTarget` (`open`, `tab new`, a reader or script tab) and that
+isn't shown to the user. The engine keeps those tabs for the whole process (`ac_cli_owned_tabs.cc`), learned from
+each `createTarget` reply, so a daemon that reconnects after its idle disconnect still owns its tabs; one goes when
+its page is destroyed. A command's tab is an ordinary sidebar tab, and the command must never resize what someone
+looks at, so the rule is about visibility, not about who did what: the override is for a tab in the background. The
+moment the tab is in a shown slot of any window (the window's tab, a split pane, Little Ardia; a covered or
+minimised window counts), the engine clears the override itself (a `clearDeviceMetricsOverride` it sends on each
+of its sessions attached to that tab, whose replies never reach the command) and the two methods are refused there
+for good (`on a tab the user can see`; telemetry `viewport_tab_taken`), also after the tab is hidden again. It
+doesn't matter who showed it: the user picking it, Ardia showing it because nothing else was open, or the command's
+own `open --show` and `tab <id> --show`, so viewport checks run on a hidden tab, where screenshots, snapshots and
+clicks work at the emulated size. The signal is the app's: `ArdiaWebView` tells the engine before it puts a page on
+screen (`exposePage` → `noteInShownSlot`, kept on the page as `ShownSlot`), from every native path that can: the
+painting pass of a view that is `visible` or revealed, the reveal that shows a tab ahead of React's `visible`
+(`revealAhead`), `setVisible:` before it raises a warm page's alpha, and `revealOffered` before it fronts a new
+tab's page; the launch window and popup windows report the page they attach too (`ArdiaEarlyWindow`,
+`ArdiaPopupWindow`). The engine clears the override inside that call, not after it, and answers whether the command
+ever set one on that tab (`NoteCliViewportOverride`, kept from the policy's check; not whether the native view's size
+changed, which a pane of another size or an override of the page's own size hides). If it did, the view stays at
+alpha 0, the outgoing page still up, until the restored frame is on the displayed layer
+(`chromium-restored-frame-gate.patch`, `ArdiaWhenRestoredFrameDisplayed`): the view asks for a new surface
+(`RequestRepaintOnNewSurface`), so the frame it waits for is tied to the clear whatever the bounds did; once the view
+is showing it waits for the renderer's main thread to confirm a frame committed after that
+(`InsertVisualStateCallback` answering true, asked again when a hidden widget answers false or nothing), since the
+compositor thread alone can put up a frame at the new size with the old layout; then for a frame activated on the
+view's current surface (`RenderFrameMetadata.local_surface_id`); then for two frames of the view's own compositor
+presented after it, which is past the point where a frame was only submitted, and for the layer the view last
+applied to have that frame's pixel size (`AcceleratedWidgetCALayerParamsUpdated`; the page draws through a remote
+CoreAnimation context, so that only fires when the layer's size or context changes). There is no
+deadline that lets the page through: after 250 ms the view comes up behind an opaque placeholder
+(`coverUntilRestored`), which stays until that frame is displayed, the page's process is gone or the tab leaves the
+view. The trace (`ARDIA_TRACE=visibility`) logs the wait, the placeholder and what was displayed (surface, frame,
+viewport in pixels, frames presented, layer size). The in-process window snapshot draws only a page view's background
+colour, not its web content, so it shows where and at what size a view is exposed and nothing about the frame in it. Chromium's own
+`content::Visibility` doesn't say it: Ardia paints a page it is about to show before it is `visible` (warm, at
+alpha 0), and a page the command drives is held visible to its renderer by a capturer count so it keeps drawing in
+the background (`ac_cli_visible_tabs.cc`). An earlier version inferred a takeover from activations, pins and input
+and missed split panes, scrolling and rejected activations. A Peek is never the command's tab (a page opens it, not
+`Target.createTarget`), so it is refused as a tab the command didn't open. Any other tab,
 the user's included, is refused (`on a tab the ardia command didn't open`), also when the session picked it with
 `tab <id>`; a session that only borrowed the user's tab is refused by the command first (`borrowed_tab`). Only
 `width`, `height`, `deviceScaleFactor` and `mobile` pass (`with that option` otherwise). Nothing clears the override
-by hand: it belongs to the DevTools session, so Chrome drops it when the session detaches (`close`, the daemon
-exiting, Stop, control turned off, the tab closing), and the `emulation` lease keeps the daemon connected while it's
-on. `set device` still fails, before changing anything, on `Emulation.setTouchEmulationEnabled`. The 1280×800
+by hand otherwise: it belongs to the DevTools session, so Chrome drops it when the session detaches (`close`, the
+daemon exiting, Stop, control turned off, the tab closing), and the `emulation` lease keeps the daemon connected
+while it's on. Chrome used to keep the emulated size when the renderer had crashed before the detach
+(`ClearDeviceEmulationSize` returned before forgetting it when the page had no view), so a reload came back at
+390×844 for good; `chromium-device-emulation-size-reset.patch` forgets the size either way. `set device` still fails, before changing anything, on `Emulation.setTouchEmulationEnabled`. The 1280×800
 override a click gives a tab with no size (Input) works on those tabs too. Telemetry: `viewport_set` on the
 command event; watch `error_code` `policy_refused` on `set`.
 
