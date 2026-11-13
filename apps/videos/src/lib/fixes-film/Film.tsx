@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { AbsoluteFill, Easing, Freeze, Img, interpolate, OffthreadVideo, Sequence, staticFile, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Easing, Img, interpolate, OffthreadVideo, Sequence, staticFile, useCurrentFrame } from "remotion";
 import { color, font, loadFonts } from "../ac-launch/theme";
 import { AlertReplica, MenuReplica, NoteBubble, NotificationBanner, OverlayWindow, PageGoneCover, WindowGoneCover } from "./extras";
 import { CARD, clamp, FPS, HOLD_IN, HOLD_OUT, INTRO, label, OUTRO } from "./look";
@@ -82,6 +82,8 @@ function boxFor(seg: Segment) {
   return { w: Math.round(cw * k), h: Math.round(ch * k), k };
 }
 
+const HELD_RATE = 0.0001;
+
 function Footage({ clip, seg, play, symbols }: { clip: Clip; seg: Segment; play: number; symbols: string }) {
   const t = useClipTime(clip, seg, play);
   const rate = rateOf(seg);
@@ -104,19 +106,21 @@ function Footage({ clip, seg, play, symbols }: { clip: Clip; seg: Segment; play:
       style={place}
     />
   ) : null;
+  const heldAt = (frame: number) =>
+    clip.file ? <OffthreadVideo src={staticFile(clip.file)} trimBefore={frame} muted playbackRate={HELD_RATE} style={place} /> : null;
   const gone = clip.gone;
   return (
     <>
       {video ? (
         <>
           <Sequence durationInFrames={HOLD_IN} layout="none">
-            <Freeze frame={0}>{video}</Freeze>
+            {heldAt(Math.round(clip.inS * FPS))}
           </Sequence>
           <Sequence from={HOLD_IN} durationInFrames={play} layout="none">
             {video}
           </Sequence>
           <Sequence from={HOLD_IN + play} layout="none">
-            <Freeze frame={play - 1}>{video}</Freeze>
+            {heldAt(Math.round(clip.inS * FPS + (play - 1) * rate))}
           </Sequence>
         </>
       ) : (
@@ -220,7 +224,7 @@ export function fixesFilm({ id, release, before, channel, segments }: FixesFilm)
         >
           {after ? "After" : "Before"}
         </div>
-        <div style={{ ...label, fontSize: 18 }}>{after ? (version ?? release) : before}</div>
+        <div style={{ ...label, fontSize: 18 }}>{version ?? (after ? release : before)}</div>
       </div>
     );
   }
@@ -230,7 +234,7 @@ export function fixesFilm({ id, release, before, channel, segments }: FixesFilm)
     return (
       <>
         <Keycap events={clip.events} t={t} right={place.left + place.w} top={place.top - 10} />
-        <SideLabel after={after} version={seg.afterVersion} style={{ position: "absolute", left: place.left, top: place.top - 46 }} />
+        <SideLabel after={after} version={after ? seg.afterVersion : seg.beforeVersion} style={{ position: "absolute", left: place.left, top: place.top - 46 }} />
         <div style={panelStyle(place)}>
           <Footage clip={clip} seg={seg} play={play} symbols={symbols} />
         </div>
@@ -259,7 +263,7 @@ export function fixesFilm({ id, release, before, channel, segments }: FixesFilm)
     return (
       <AbsoluteFill style={{ justifyContent: "center", paddingLeft: 140, opacity: out }}>
         <div style={{ display: "flex", gap: 28, alignItems: "center", ...rise(0) }}>
-          <div style={{ ...label, fontSize: 24, color: color.ink }}>Before {before}</div>
+          <div style={{ ...label, fontSize: 24, color: color.ink }}>Before {seg.beforeVersion ?? before}</div>
           <div style={{ ...label, fontSize: 24, color: color.ink2 }}>→</div>
           <div style={{ ...label, fontSize: 24, color: color.blue }}>After {seg.afterVersion ?? release}</div>
         </div>

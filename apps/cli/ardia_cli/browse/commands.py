@@ -133,7 +133,9 @@ async def wait_for_load(page, loader: str | None, timeout: float, until: str = "
         if event in ("load", "DOMContentLoaded"):
             try:
                 state = await page.call("() => document.readyState", frame=main, read=True)
-            except BrowseError:
+            except BrowseError as error:
+                if error.code == "tab_detached":
+                    raise
                 return False
             frame_loader = page.loader(main)
             if loader is not None and frame_loader != loader:
@@ -1380,6 +1382,9 @@ async def cmd_set(ctx: Ctx, argv):
             scale = float(args[3]) if len(args) > 3 else 1.0
             await page.send("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": False})
             ctx.state.leases.add("emulation")
+            from ardia_cli import command_metrics
+
+            command_metrics.flag("viewport_set", True)
             return Result({"width": width, "height": height, "deviceScaleFactor": scale, "mobile": False})
         if setting == "device":
             need(args, 2, "set device <name>")
@@ -1387,8 +1392,8 @@ async def cmd_set(ctx: Ctx, argv):
             if device is None:
                 raise BrowseError(f"Unknown device: {' '.join(args[1:])} ({', '.join(sorted(DEVICES))})")
             width, height, scale, mobile, agent = device
-            await page.send("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": mobile})
             await page.send("Emulation.setTouchEmulationEnabled", {"enabled": mobile})
+            await page.send("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": mobile})
             if agent:
                 await page.send("Emulation.setUserAgentOverride", {"userAgent": agent})
             ctx.state.leases.add("emulation")
@@ -1428,6 +1433,10 @@ async def cmd_set(ctx: Ctx, argv):
             ctx.state.leases.add("emulation")
             return Result({"features": features})
     except Gated as error:
+        if error.reason == "on a tab the user can see":
+            from ardia_cli import command_metrics
+
+            command_metrics.flag("viewport_tab_taken", True)
         raise error.during(f"set {setting}", error.data.get("detail") if error.data else None) from None
     raise Usage(f"Unknown setting: {setting}")
 

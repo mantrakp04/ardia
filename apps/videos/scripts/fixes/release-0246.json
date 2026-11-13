@@ -1,0 +1,324 @@
+{
+  "id": "release-0246",
+  "segments": [
+    {
+      "scene": "r46many",
+      "title": "Two hundred tabs, and the sidebar keeps up",
+      "body": "Two hundred open tabs: click three of them, then ⌘T. Only the rows that change do any work now, so a switch does about a third of the bookkeeping. On 0.2.45 the New Tab row also shrank to its arrow once the list outgrew the window; now it keeps its place at the bottom.",
+      "cam": [
+        0,
+        0,
+        1100,
+        720
+      ],
+      "lead": 1.4,
+      "tail": 7.2
+    },
+    {
+      "scene": "r46onboard",
+      "title": "Onboarding is three steps",
+      "body": "Starting fresh. It used to be eight steps and up to 24 screens; now it asks where you're coming from, how it should look and a last few choices, and sets the rest from the browser you picked. From the nightly.6 film. Sped up: 3.7× on the left, 2.2× on the right.",
+      "cam": [
+        0,
+        0,
+        880,
+        562
+      ],
+      "cursor": false,
+      "beforeVersion": "0.2.46-nightly.5",
+      "afterVersion": "0.2.46-nightly.6",
+      "reuse": {
+        "film": "fixes-0246n6.mp4",
+        "before": [
+          60,
+          364,
+          880,
+          562,
+          4.75,
+          9.25
+        ],
+        "after": [
+          980,
+          364,
+          880,
+          562,
+          4.75,
+          9.25
+        ]
+      },
+      "lead": 0,
+      "tail": 4.5
+    },
+    {
+      "scene": "r46peek",
+      "title": "Peek is on by default",
+      "body": "A link that opens a new tab, from an ordinary tab. 0.2.45 opened a tab and took you off the page; now it opens in a Peek over it, as in Arc. Links to other sites from pinned tabs Peek too. Settings you already changed stay as they are.",
+      "cam": [
+        0,
+        0,
+        1100,
+        720
+      ],
+      "lead": 1.6,
+      "tail": 3.4
+    },
+    {
+      "scene": "n6inline",
+      "title": "Clicking the address edits it in place",
+      "body": "Click the address and type. 0.2.45 opened the command bar in the middle of the page; now the field edits in place with the suggestions dropping down from it. ⌘T still opens the bar in the middle.",
+      "cam": [
+        0,
+        0,
+        1360,
+        560
+      ],
+      "lead": 1.2,
+      "tail": 3.6
+    },
+    {
+      "scene": "n6mousedown",
+      "title": "A tab switches when the button goes down",
+      "body": "Press and hold on a tab. 0.2.45 waited for the button to come back up; now the tab switches the moment it goes down, as in Chrome, Safari and Arc, about a tenth of a second off every switch.",
+      "cam": [
+        0,
+        0,
+        960,
+        600
+      ],
+      "lead": 1.8,
+      "tail": 3.0
+    },
+    {
+      "scene": "n6cmdw",
+      "title": "⌘W closes every selected tab",
+      "body": "Click Lexicon, ⇧-click The Daily Ledger, press ⌘W. 0.2.45 closed one tab; now all three go. In a split, ⌘W closes only the pane you're in.",
+      "cam": [
+        0,
+        0,
+        900,
+        560
+      ],
+      "lead": 3.6,
+      "tail": 2.4
+    },
+    {
+      "scene": "r46profiles",
+      "title": "⌥⌘← and ⌥⌘→ switch profiles",
+      "body": "Personal and Work in one window. 0.2.45 did nothing; now ⌥⌘→ and ⌥⌘← step through your profiles, as in Dia and Arc.",
+      "cam": [
+        0,
+        0,
+        1100,
+        720
+      ],
+      "lead": 0.8,
+      "tail": 4.2,
+      "cursor": false
+    },
+    {
+      "scene": "n6altenter",
+      "title": "⌥↩ opens the address in Split View",
+      "body": "⌘L, type an address, press ⌥↩. 0.2.45 opened it in place of the page; now it opens beside it in Split View.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "cursor": false,
+      "lead": 2.6,
+      "tail": 2.8
+    },
+    {
+      "scene": "r46pill",
+      "title": "A \"New tab opened\" pill",
+      "body": "⌘-click a link, which opens it in a background tab. 0.2.45 gave no sign beyond a new row in the sidebar; now a pill in the page's top right takes you to it.",
+      "cam": [
+        0,
+        0,
+        1100,
+        720
+      ],
+      "lead": 1.4,
+      "tail": 3.6
+    },
+    {
+      "scene": "reopenback",
+      "title": "Reopening a window you just closed keeps Back",
+      "body": "Two pages deep in a doc that saves as it unloads. Close the window with ⇧⌘W and bring it straight back with ⇧⌘T. 0.2.45 was still closing it, so the tab came back with no history; now Back works.",
+      "cam": [
+        0,
+        0,
+        1120,
+        720
+      ],
+      "zoom": {
+        "cam": [
+          0,
+          0,
+          560,
+          360
+        ],
+        "from": 3.3,
+        "to": 4.1
+      },
+      "lead": 2.5,
+      "tail": 5.0
+    },
+    {
+      "scene": "r46blanklink",
+      "title": "A loading tab keeps its address, not about:blank",
+      "body": "A link with target=_blank to a page that answers after 8 s. About 1.5 s in, 0.2.45 turned the tab into about:blank: the row, the address field, and Copy URL (⇧⌘C, pasted into Notes). Now the row shows slow.example/timetable, the address field keeps slow.example and Copy URL copies the real address until the page arrives.",
+      "cam": [
+        0,
+        0,
+        1100,
+        720
+      ],
+      "lead": 1.4,
+      "tail": 9.8
+    },
+    {
+      "scene": "r46light",
+      "title": "A light custom colour keeps the sidebar readable",
+      "body": "A light grey custom colour on a profile, in dark mode. 0.2.45 kept tab titles, groups and icons white on light grey; now they turn dark, as Arc draws them. Settings › Appearance › \"Adjust text to the colour\" turns it off.",
+      "cam": [
+        0,
+        0,
+        560,
+        400
+      ],
+      "lead": 1.0,
+      "tail": 4.4
+    },
+    {
+      "scene": "r46glass",
+      "title": "Glass or classic? shows the difference",
+      "body": "The look step in onboarding, Liquid Glass and then Classic. Before, both drew the same preview; now each shows what it looks like. From the nightly.6 film.",
+      "cam": [
+        0,
+        0,
+        880,
+        508
+      ],
+      "cursor": false,
+      "beforeVersion": "0.2.46-nightly.5",
+      "afterVersion": "0.2.46-nightly.6",
+      "reuse": {
+        "film": "fixes-0246n6.mp4",
+        "before": [
+          60,
+          391,
+          880,
+          508,
+          12.1,
+          16.6
+        ],
+        "after": [
+          980,
+          391,
+          880,
+          508,
+          12.1,
+          16.6
+        ]
+      },
+      "lead": 0,
+      "tail": 4.5
+    },
+    {
+      "scene": "n7settingscli",
+      "title": "Settings search finds what you typed",
+      "body": "Search Settings for \"cli\". 0.2.45 listed every setting with \"click\" in it; now the ardia command comes first, once, and matches are highlighted.",
+      "cam": [
+        0,
+        0,
+        820,
+        640
+      ],
+      "lead": 1.6,
+      "tail": 4.6
+    },
+    {
+      "scene": "n6siteright",
+      "title": "Site Controls opens next to its button",
+      "body": "The sidebar on the right. 0.2.45 opened Site Controls on the far side of the window; now it opens next to its button, as do the zoom, permission and history popovers.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "lead": 1.4,
+      "tail": 2.8
+    },
+    {
+      "scene": "n6unread",
+      "title": "Unread counts, calmer",
+      "body": "A mail app and a chat whose titles carry unread counts, with the setting on (it's now off by default). 0.2.45 put a small red badge on the icon; now a calm pill with larger digits sits at the end of the row.",
+      "cam": [
+        0,
+        0,
+        560,
+        300
+      ],
+      "cursor": false,
+      "lead": 1.0,
+      "tail": 3.0
+    },
+    {
+      "scene": "r46topapps",
+      "title": "Top Apps show only the icon",
+      "body": "Three Top Apps, two with unread counts. 0.2.45 put badges over the tiles; now a tile shows only the site's icon, as in Dia. Halfway through, Settings › Tabs › \"Show tab status on Top Apps\" goes on and the counts come back in the corners.",
+      "cam": [
+        0,
+        0,
+        560,
+        300
+      ],
+      "cursor": false,
+      "lead": 1.0,
+      "tail": 5.6
+    },
+    {
+      "scene": "r46group",
+      "title": "A group's colour shows without hovering",
+      "body": "A green group, pointer elsewhere, then folded and opened again. 0.2.45 showed the group's colour only while you hovered it; now the box is always there. Neutral groups still show it only on hover, as in Dia.",
+      "cam": [
+        0,
+        0,
+        560,
+        360
+      ],
+      "lead": 2.2,
+      "tail": 3.0
+    },
+    {
+      "scene": "n7helpask",
+      "title": "Help fix Ardia? stays out of the way",
+      "body": "A new tab on an install that hasn't answered the sharing question. 0.2.45 put the card over the top of the page; now it waits in the bottom-left corner, out of the command bar's way.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "lead": 1.4,
+      "tail": 5.6
+    },
+    {
+      "scene": "r46cmdbar",
+      "title": "Command bar results match the field",
+      "body": "⌘T and type \"trip\". The results used a smaller size than the field; now they match the text you're typing.",
+      "cam": [
+        330,
+        230,
+        700,
+        300
+      ],
+      "lead": 0.6,
+      "tail": 4.4,
+      "cursor": false
+    }
+  ]
+}

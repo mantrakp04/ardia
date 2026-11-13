@@ -1,3 +1,4 @@
+import { pressesWithoutRelease, pressRepeated } from "../../platform/focus";
 import { capture, useTelemetry } from "./client";
 import { percentile } from "./transport";
 
@@ -13,6 +14,19 @@ let shown: { tabId: string; at: number } | null = null;
 let toPageClick: number[] = [];
 let heldMs: number[] = [];
 let pressedAt: number | null = null;
+let lostReleasesSeen = 0;
+const REPEAT_SLACK_MS = 150;
+let lastRowPressAt = 0;
+let repeats = { presses: 0, onNewTab: 0 };
+let repeatGaps: number[] = [];
+let repeatsLandedOn = new Map<string, number>();
+
+function takeLostReleases() {
+  const total = pressesWithoutRelease();
+  const fresh = Math.max(0, total - lostReleasesSeen);
+  lostReleasesSeen = total;
+  return fresh;
+}
 
 function forgetPresses() {
   tally = empty();
@@ -21,6 +35,27 @@ function forgetPresses() {
   toPageClick = [];
   heldMs = [];
   pressedAt = null;
+  takeLostReleases();
+  forgetRepeats();
+}
+
+function forgetRepeats() {
+  repeats = { presses: 0, onNewTab: 0 };
+  repeatGaps = [];
+  repeatsLandedOn = new Map();
+}
+
+export function noteRowPress(shownTabEmpty: boolean): Promise<void> {
+  const at = Date.now();
+  const rowPressBefore = lastRowPressAt;
+  lastRowPressAt = at;
+  return pressRepeated().then((earlier) => {
+    if (!earlier || rowPressBefore > at - earlier.ms - REPEAT_SLACK_MS) return;
+    repeats.presses++;
+    if (shownTabEmpty) repeats.onNewTab++;
+    if (repeatGaps.length < MAX_SAMPLES) repeatGaps.push(earlier.ms);
+    repeatsLandedOn.set(earlier.landedOn, (repeatsLandedOn.get(earlier.landedOn) ?? 0) + 1);
+  });
 }
 
 useTelemetry.subscribe((s, prev) => prev.sharing && !s.sharing && forgetPresses());
@@ -60,10 +95,20 @@ export function emitTabPresses() {
   tally = empty();
   toPageClick = [];
   heldMs = [];
-  if (!counts.presses) return;
+  const lostReleases = takeLostReleases();
+  const repeated = repeats;
+  const gaps = repeatGaps.sort((a, b) => a - b);
+  const landedOn = [...repeatsLandedOn].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  forgetRepeats();
+  if (!counts.presses && !lostReleases && !repeated.presses) return;
   const at = (list: number[], p: number) => (list.length ? percentile(list, p) : null);
   capture("tab_presses", {
     ...counts,
+    lost_releases: lostReleases,
+    repeat_presses: repeated.presses,
+    repeat_on_new_tab: repeated.onNewTab,
+    repeat_gap_ms_p50: at(gaps, 0.5),
+    repeat_landed_on: landedOn,
     page_click_ms_p50: at(samples, 0.5),
     page_click_ms_p75: at(samples, 0.75),
     page_click_n: samples.length,

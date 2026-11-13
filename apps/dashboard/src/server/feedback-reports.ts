@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { identityOf } from "../lib/identity";
 import { num, query, str, type QueryParams } from "./clickhouse";
 import { isDev, serverEnv } from "./env";
+import { feedbackFileBases } from "./feedback-files";
 import { fixStatus, type FixStatus, type InstallHistory, type Issue } from "./fix-status";
 import { gh, github } from "./github";
 import { APP_SOURCE, prop } from "./sql";
@@ -227,13 +228,8 @@ export async function getFeedbackReport(id: string, signal?: AbortSignal) {
   return report ?? null;
 }
 
-export function feedbackFilesBase(): string | null {
-  const explicit = serverEnv("FEEDBACK_FILES_URL");
-  if (explicit) return explicit.endsWith("/") ? explicit : `${explicit}/`;
-  const replays = serverEnv("REPLAYS_URL");
-  if (replays && /\/buckets\/replays\/?$/.test(replays)) return replays.replace(/\/buckets\/replays\/?$/, "/buckets/feedback/");
-  const host = serverEnv("REPLAYS_HOST");
-  return host ? `http://${host}:8888/buckets/feedback/` : null;
+export function feedbackFilesBases(): string[] {
+  return feedbackFileBases(serverEnv);
 }
 
 export function feedbackFilesHeaders(): Record<string, string> {

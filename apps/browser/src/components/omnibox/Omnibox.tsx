@@ -30,7 +30,7 @@ import { destinationLabel } from "./GoButton";
 import { BottomRow, DropdownFrame, PanelFrame } from "./OmniboxFrame";
 import { ScopePulse } from "./ScopePulse";
 import { barKeyDown, barKeyDownEvents, type BarKeyEvent } from "./omniboxKeys";
-import { ADD_CHIP, BAR, BAR_TYPE } from "./tokens";
+import { ADD_CHIP, BAR } from "./tokens";
 import { useBarItems } from "./useBarItems";
 import { useHeldSelection, useProviderEnter } from "./heldSelection";
 import { useBarText } from "./useBarText";
@@ -67,8 +67,6 @@ export function Omnibox({
   const currentUrl = useTab(tabId, (t) => (opensTab ? "" : (t?.url ?? "")));
   const hero = variant === "hero";
   const dropdown = variant === "sidebar";
-  const fieldTextStyle = hero ? BAR_TYPE.heroField : dropdown || floating ? BAR_TYPE.floatingField : BAR_TYPE.panelField;
-
   const noneSelected = opensTab ? -1 : 0;
   const bar = useBarText(hero, tabId, initialText, noneSelected);
   const { typed, edited, suppressCompletion, selected, scope, scopeFrom, pendingSelection, dispatch, selection } = bar;
@@ -93,7 +91,7 @@ export function Omnibox({
     currentUrl,
   });
 
-  useHeldSelection(items, typed, scope, selectedIndex, dispatch);
+  useHeldSelection(items, typed, scope, selectedIndex, unpreviewed, dispatch);
   const waitForProvider = useProviderEnter(items, typed, scope, (s, disposition) => choose(s, disposition));
 
   const snapshot = useRef<BarSnapshot | null>(null);
@@ -288,7 +286,7 @@ export function Omnibox({
     <BarField
       inputRef={input}
       variant={variant}
-      textStyle={fieldTextStyle}
+      floating={floating}
       scope={scope}
       incognito={incognito}
       onLayout={focusOnce}
@@ -340,7 +338,6 @@ export function Omnibox({
       selectedIndex={selectedIndex}
       trailing={tabScope ? `Search ${tabScope.name}  ⇥` : null}
       dropdown={dropdown}
-      textStyle={fieldTextStyle}
       actions={rowActions}
     />
   );

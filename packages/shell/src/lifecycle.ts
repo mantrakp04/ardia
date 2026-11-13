@@ -13,7 +13,8 @@ export type AppEvent =
   | { type: "switcherReleased" }
   | { type: "switcherKey"; key: "escape" | "next" | "previous" }
   | { type: "switcherMouseUp" }
-  | { type: "dragEscape" };
+  | { type: "dragEscape" }
+  | { type: "unclaimedEscape"; windowId: string };
 
 export type AppearanceMode = "auto" | "light" | "dark";
 

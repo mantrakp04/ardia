@@ -94,7 +94,12 @@ using namespace ardia_runtime;
   if (command) [self runChromeCommand:command];
 }
 
+- (BOOL)awaitsFirstDocument {
+  return _tab.loading && _tab.committedInitial && !_tab.initialDocumentAccessed;
+}
+
 - (void)executeJavaScript:(NSString *)code {
+  if (self.awaitsFirstDocument) return;
   [_tab executeJavaScript:code frame:nil];
 }
 
@@ -103,14 +108,14 @@ using namespace ardia_runtime;
 }
 
 - (void)evaluate:(NSString *)code completion:(void (^)(NSString *))completion {
-  if (!_tab) return completion(nil);
+  if (!_tab || self.awaitsFirstDocument) return completion(nil);
   [self thawHiddenPage];
   [_tab evaluate:code completion:completion];
 }
 
 - (void)capturePicture:(double)scale completion:(void (^)(NSDictionary<NSString *, id> *))completion {
   NSWindow *window = self.window;
-  if (!_tab || !window || self.hidden) return completion(nil);
+  if (!_tab || !window || self.hidden || self.awaitsFirstDocument) return completion(nil);
   NSRect inWindow = [self convertRect:self.bounds toView:nil];
   CGFloat top = NSHeight(window.contentView.frame);
   NSArray *frame = @[ @(NSMinX(inWindow)), @(top - NSMaxY(inWindow)), @(NSWidth(inWindow)), @(NSHeight(inWindow)) ];
