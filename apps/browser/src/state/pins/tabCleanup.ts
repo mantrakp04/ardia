@@ -173,6 +173,9 @@ export function recentTabIds(s: BrowserState, windowId: string, now = Date.now()
 }
 
 
+const addCleanedBatch = (list: ClosedTab[], batch: ClosedTab[]) =>
+  [...keptCleanedTabs(list), ...batch].slice(-Math.max(MAX_CLEANED, batch.length));
+
 export type CleanUpSlice = {
   cleanedTabs: ClosedTab[];
   privateCleanedTabs: Record<string, ClosedTab[]>;
@@ -203,10 +206,10 @@ export const createCleanUpSlice: StateCreator<BrowserState, [], [], CleanUpSlice
     const entries = closedEntries(s, ids);
     const next = closeQuietly(s, ids);
     if (s.windows[windowId]?.kind === "private") {
-      const own = [...keptCleanedTabs(next.privateCleanedTabs[windowId] ?? []), ...entries].slice(-MAX_CLEANED);
+      const own = addCleanedBatch(next.privateCleanedTabs[windowId] ?? [], entries);
       set({ ...next, privateCleanedTabs: { ...next.privateCleanedTabs, [windowId]: own } });
     } else {
-      set({ ...next, cleanedTabs: [...keptCleanedTabs(next.cleanedTabs), ...entries].slice(-MAX_CLEANED) });
+      set({ ...next, cleanedTabs: addCleanedBatch(next.cleanedTabs, entries) });
     }
     return ids.length;
   },
