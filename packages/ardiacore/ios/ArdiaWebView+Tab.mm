@@ -228,10 +228,10 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   if (!clicked && hidden && _tab) clicked = [self takeNewTabLinkNoted:kHiddenNewTabLinkSeconds];
   if (clicked && self.opensNewTabLinksInPlace) {
     if ([ArdiaTabRegistry takeOffered:adoptId] == tab) [tab close];
-    [self emit:@"openWindow" payload:@{@"url" : clicked, @"disposition" : @"current", @"userGesture" : @YES}];
+    [self emit:@"openWindow" payload:@{@"url" : clicked, @"disposition" : @"current", @"userGesture" : @YES, @"linkWait" : @"matched"}];
     return;
   }
-  const BOOL activated = MayHoldUserActivation(self.window);
+  const BOOL activated = tries > 0 || MayHoldUserActivation(self.window);
   const BOOL retry = !clicked && _tab && activated && tries < kNewTabLinkTries;
   if (!retry)
     PeekTrace(@{

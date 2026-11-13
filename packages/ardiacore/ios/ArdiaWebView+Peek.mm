@@ -31,8 +31,10 @@ static const CFTimeInterval kPeekFallbackLifetime = 60;
 static const CFTimeInterval kUserActivationLifespan = 5;
 static const NSEventMask kActivatingInputMask = NSEventMaskLeftMouseDown | NSEventMaskLeftMouseUp | NSEventMaskRightMouseDown |
                                                 NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp | NSEventMaskKeyDown;
-static CFTimeInterval gInputAt = -1;
-static __weak NSWindow *gInputWindow;
+static NSMapTable<NSWindow *, NSNumber *> *InputTimesByWindow() {
+  static NSMapTable *times = [NSMapTable weakToStrongObjectsMapTable];
+  return times;
+}
 
 static ArdiaWebView *PageViewUnder(NSEvent *event) {
   NSView *content = event.window.contentView;
@@ -64,8 +66,7 @@ void InstallPeekMonitor() {
   if (monitor) return;
   monitor = [NSEvent addLocalMonitorForEventsMatchingMask:kActivatingInputMask
                                                   handler:^NSEvent *(NSEvent *event) {
-                                                    gInputAt = CACurrentMediaTime();
-                                                    gInputWindow = event.window;
+                                                    if (event.window) [InputTimesByWindow() setObject:@(CACurrentMediaTime()) forKey:event.window];
                                                     if (event.type != NSEventTypeLeftMouseDown && event.type != NSEventTypeLeftMouseUp) return event;
                                                     if (event.type == NSEventTypeLeftMouseDown) {
                                                       gPeekPressedSinceUp = YES;
@@ -111,7 +112,8 @@ NSDictionary *RecentClickPoint(ArdiaWebView *view) {
 }
 
 BOOL MayHoldUserActivation(NSWindow *window) {
-  return window && gInputWindow == window && gInputAt >= 0 && CACurrentMediaTime() - gInputAt <= kUserActivationLifespan;
+  NSNumber *at = window ? [InputTimesByWindow() objectForKey:window] : nil;
+  return at && CACurrentMediaTime() - at.doubleValue <= kUserActivationLifespan;
 }
 
 NSString *PeekConfigJSON(ArdiaWebView *view) {
