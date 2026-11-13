@@ -1,20 +1,13 @@
-import type { WindowsNative } from "@ardia/shell";
-import { TurboModuleRegistry, type TurboModule } from "react-native";
+import type { DomainModule } from "@ardia/ardiacore";
+import type { AppNative, SystemNative, WindowsNative } from "@ardia/shell";
+import { TurboModuleRegistry } from "react-native";
+import type { EngineHostModule } from "../nativeModuleTypes";
 import { engineAvailable, engineCallJson, hostCall, onEngineTopic, profileDataFolder, removeProfileFolder } from "../engine/host";
 import { pngImage } from "../engine/domains/favicons";
 import { profileFolder } from "../engine/domains/profiles";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type EngineHost = TurboModule & {
-  available(): boolean;
-  profileDataFolder(): string;
-  removeProfileFolder(folder: string): Promise<string>;
-  hostCall(verb: string, argsJson: string, windowId: string): Promise<string>;
-  engineCall(name: string, profileDir: string, argsJson: string): Promise<string>;
-};
-
-type DomainModule = { call(verb: string, profile: string, argsJson: string): Promise<string> };
 type TabEvent = { key?: unknown; name?: unknown; data?: { title?: unknown; isLoading?: unknown } };
 type ListedTab = { key: string; title: string; shown: boolean; windowVisible: boolean; width: number; height: number };
 
@@ -24,15 +17,15 @@ const PAGE_URL = `data:text/html,<title>${PAGE_TITLE}</title><p>the engine loade
 const LOAD_MS = 20000;
 
 const engineHost = () => {
-  const found = TurboModuleRegistry.get<EngineHost>("ArdiaEngineHost");
+  const found = TurboModuleRegistry.get<EngineHostModule>("ArdiaEngineHost");
   expectTrue(found, "ArdiaEngineHost has no native module");
   return found;
 };
 
 const windows = () => requireNativeModule<Pick<WindowsNative, "windowIds">>("ArdiaAppWindows");
-const system = () => requireNativeModule<{ fileExists(path: string): boolean }>("ArdiaSystem");
-const launchData = () => requireNativeModule<{ launchConfig(): { dataDirectory?: unknown } }>("ArdiaApp").launchConfig().dataDirectory;
-const domain = (name: string) => requireNativeModule<DomainModule>(name);
+const system = () => requireNativeModule<Pick<SystemNative, "fileExists">>("ArdiaSystem");
+const launchData = () => requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().dataDirectory;
+const domain = (name: string) => requireNativeModule<Pick<DomainModule, "call">>(name);
 
 const NEVER_LOADED = "self-check-never-loaded";
 const LOADED = "self-check-loaded";
@@ -168,7 +161,7 @@ const withEngine: Check[] = [
   {
     name: "engine: clearing browsing data reaches the engine",
     async run() {
-      const profiles = requireNativeModule<DomainModule>("ArdiaProfiles");
+      const profiles = requireNativeModule<Pick<DomainModule, "call">>("ArdiaProfiles");
       expectEqual(await profiles.call("clearBrowsingData", "", JSON.stringify({ types: ["cache"], since: Date.now() - 60000 })), "null", "the reply to clearing a minute of cache");
       const refused = await profiles.call("clearBrowsingData", "", JSON.stringify({ types: ["no such data"], since: 0 })).then(
         () => false,

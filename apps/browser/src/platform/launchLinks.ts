@@ -1,3 +1,3 @@
-export type LaunchLinks = { takeOpenedAtLaunch(): number };
+import type { LaunchLinksNative } from "@ardia/shell";
 
-export const launchLinks: LaunchLinks = { takeOpenedAtLaunch: () => 0 };
+export const launchLinks: LaunchLinksNative = { takeOpenedAtLaunch: () => 0 };

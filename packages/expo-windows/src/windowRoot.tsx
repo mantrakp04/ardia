@@ -1,5 +1,6 @@
 import { createElement, type ReactNode } from "react";
-import { AppRegistry, TurboModuleRegistry, type TurboModule } from "react-native";
+import { AppRegistry, TurboModuleRegistry } from "react-native";
+import type { WindowsHostModule } from "./nativeModuleTypes";
 import { WindowIdContext } from "./engine/windowId";
 import { SelfCheckStage } from "./selfCheck/stage";
 import { OutsidePressRoot } from "./views/index";
@@ -7,7 +8,7 @@ import { TitleBandDrag } from "./windowDragRegion";
 
 type RootProps = { children?: ReactNode; initialProps?: { windowId?: unknown } | null };
 
-const selfChecking = () => !!(TurboModuleRegistry.get<TurboModule>("ArdiaWindowsHost")?.getConstants?.() as { selfCheck?: boolean } | undefined)?.selfCheck;
+const selfChecking = () => !!TurboModuleRegistry.get<WindowsHostModule>("ArdiaWindowsHost")?.getConstants?.()?.selfCheck;
 
 function WindowRoot({ children, initialProps }: RootProps) {
   const windowId = typeof initialProps?.windowId === "string" ? initialProps.windowId : "";

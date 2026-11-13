@@ -1,20 +1,11 @@
 import type { CaptionRegion, WindowControlsNative } from "@ardia/shell";
 import { requireNativeModule } from "../modules";
+import type { AppWindowsModule } from "../nativeModuleTypes";
 import { hostPath, pressThroughTitleBand, type HostFiber } from "../windowDragRegion";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type Regions = { rootTag: number; scale: number; nonClient: boolean; kind: string; titleBand: string; maximized: boolean; titleBarHeight: number; caption: number[][]; passthrough: number[][] };
 
-type WindowDragging = WindowControlsNative & {
-  windowIds(): Promise<string[]>;
-  watchSidebarEdge(id: string, on: boolean, hold: number, right: boolean, whilePressed: boolean): Promise<void>;
-  debugDragRegions(id: string): Promise<Regions | null>;
-  debugSidebarEdgeWatch(): Promise<EdgeWatch | null>;
-};
-
-type EdgeWatch = { running: boolean; windows: string[] };
-
-const windows = () => requireNativeModule<WindowDragging>("ArdiaAppWindows");
+const windows = () => requireNativeModule<Pick<AppWindowsModule, keyof WindowControlsNative | "windowIds" | "watchSidebarEdge" | "debugDragRegions" | "debugSidebarEdgeWatch">>("ArdiaAppWindows");
 
 const HOST = 5;
 const FUNCTION_COMPONENT = 0;

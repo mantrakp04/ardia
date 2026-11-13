@@ -1,15 +1,12 @@
-import type { ShellNativeModules } from "@ardia/shell";
+import type { DialogsNative, ShellNative } from "@ardia/shell";
+import type { NotificationsModule } from "../nativeModuleTypes";
 import { TurboModuleRegistry } from "react-native";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type Shell = ShellNativeModules["ArdiaShell"];
-type Dialogs = ShellNativeModules["ArdiaDialogs"];
-type Notifications = ShellNativeModules["ArdiaNotifications"] & { notificationCenterPath(): string };
-
-const shell = () => requireNativeModule<Shell>("ArdiaShell");
-const dialogs = () => requireNativeModule<Dialogs>("ArdiaDialogs");
-const notifications = () => requireNativeModule<Notifications>("ArdiaNotifications");
+const shell = () => requireNativeModule<ShellNative>("ArdiaShell");
+const dialogs = () => requireNativeModule<DialogsNative>("ArdiaDialogs");
+const notifications = () => requireNativeModule<NotificationsModule>("ArdiaNotifications");
 const settled = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 async function waitFor(condition: () => boolean, ms: number) {
