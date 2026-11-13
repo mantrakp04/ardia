@@ -20,7 +20,7 @@ const store = () => useBrowser.getState();
 export function backClosesTab(s: BrowserState, tabId: string): boolean {
   const tab = s.tabs[tabId];
   if (!tab?.openerId) return false;
-  if (!tab.fromLink && !isPeekTab(s, tabId)) return false;
+  if (!isPeekTab(s, tabId) && tab.linkOpenerId !== tab.openerId) return false;
   const opener = s.tabs[tab.openerId];
   if (!opener || opener.windowId !== tab.windowId || opener.profileId !== tab.profileId) return false;
   if (inPinnedContainer(s, tabId)) return false;

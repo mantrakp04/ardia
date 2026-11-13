@@ -3,6 +3,7 @@ import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const { activeTabId, IDLE_LIVE } = await import("../browser/model.ts");
 const { canGoBack, goBack } = await import("./navigation.ts");
+const { openLinkInSplit } = await import("../splits/actions.ts");
 await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
@@ -119,7 +120,7 @@ test("back is not offered on a tab opened by hand beside the current one, once i
   S().updateSettings({ newTabPosition: "nextToCurrent" });
   const b = S().newTab(w, { newTabCommand: true });
   assert.equal(S().tabs[b].openerId, a, "placement still records the tab it sits beside, for ordinary close");
-  assert.equal(S().tabs[b].fromLink, undefined, "but a placement hint is not a link opening");
+  assert.equal(S().tabs[b].linkOpenerId, undefined, "but a placement hint is not a link opening");
   S().navigate(b, "https://typed.example/");
   assert.equal(live(b).canGoBack, false);
   assert.equal(canGoBack(b, live(b)), false, "back stays off: the page is the first one this tab has shown");
@@ -133,11 +134,37 @@ test("back on a Peek expanded into a tab closes it and shows the tab it was open
   const peek = S().openPeek(a, "https://peek.example/");
   const promoted = S().peekToTab(w);
   assert.equal(promoted, peek);
-  assert.equal(S().tabs[peek].fromLink, true, "expanding a Peek keeps that a link opened it");
+  assert.equal(S().tabs[peek].linkOpenerId, a, "expanding a Peek keeps which tab opened it");
   assert.equal(canGoBack(peek, live(peek)), true);
   goBack(peek);
   assert.equal(S().tabs[peek], undefined, "the tab closed");
   assert.equal(shown(w), a, "the tab it was opened from is shown");
+});
+
+test("back does nothing on a link-opened tab whose opener closed, even when its opener's opener adopts it", () => {
+  const { w, a } = windowWith("a");
+  const b = S().newTab(w, { url: "https://b.com/", openerId: a, background: true });
+  const c = S().newTab(w, { url: "https://c.com/", openerId: b, background: true });
+  S().closeTab(b);
+  assert.equal(S().tabs[c].openerId, a, "ordinary closing adopts the opener's opener");
+  S().activate(c);
+  assert.equal(canGoBack(c, live(c)), false, "back is not offered: the tab that opened this one is gone");
+  goBack(c);
+  assert.ok(S().tabs[c], "the tab stays");
+  assert.equal(shown(w), c);
+});
+
+test("back on a link opened in a split pane closes it and shows the tab that opened it", () => {
+  const { w, a } = windowWith("a");
+  openLinkInSplit(a, "https://split.example/");
+  const pane = Object.values(S().tabs).find((t) => t.url === "https://split.example/");
+  assert.ok(pane, "the link opened in a pane beside the tab");
+  assert.equal(pane.linkOpenerId, a, "a split link records the tab that opened it");
+  assert.equal(live(pane.id).canGoBack, false);
+  assert.equal(canGoBack(pane.id, live(pane.id)), true);
+  goBack(pane.id);
+  assert.equal(S().tabs[pane.id], undefined, "the pane's tab closed");
+  assert.equal(shown(w), a);
 });
 
 test("back does nothing once the opener is gone", () => {
