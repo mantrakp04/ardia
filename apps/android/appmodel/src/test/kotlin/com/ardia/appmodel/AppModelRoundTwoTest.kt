@@ -259,7 +259,7 @@ class AppModelRoundTwoTest {
         f.app.openTab(normal)
         idle()
         assertFalse(f.app.isIncognito)
-        assertFalse(f.app.isPrivateOnScreen)
+        assertTrue(f.app.isPrivateOnScreen)
         f.app.showTabSwitcher()
         idleUntil { f.app.surface == AppModel.Surface.TabSwitcher }
         assertTrue(f.app.isPrivateOnScreen)
@@ -320,22 +320,36 @@ class AppModelRoundTwoTest {
     }
 
     @Test
-    fun privatePagesOnScreenAreReported() {
+    fun theWindowCountsAsPrivateWheneverAnyPrivateTabExistsOrIncognitoIsOn() {
         val f = fixture()
         f.app.openPage("https://public.example/", TabOrigin.TYPED)
         idle()
+        val normal = f.app.tabs.selectedTabId!!
         assertFalse(f.app.isPrivateOnScreen)
+
         f.app.newIncognitoTab()
+        assertTrue(f.app.tabs.privateTabs.isEmpty())
         assertTrue(f.app.isPrivateOnScreen)
         f.app.submitSearch("https://private.example/", null)
         idle()
-        assertTrue(f.app.tabs.selectedTab!!.isPrivate)
-        assertTrue(f.app.isPrivateOnScreen)
-        f.app.showTabSwitcher()
-        idleUntil { f.app.surface == AppModel.Surface.TabSwitcher }
-        assertTrue(f.app.isPrivateOnScreen)
-        f.app.leaveIncognito()
+        val private = f.app.tabs.selectedTabId!!
+
+        f.app.openTab(normal)
         idle()
+        assertFalse(f.app.isIncognito)
+        assertEquals(AppModel.Surface.Browsing, f.app.surface)
+        assertTrue(f.app.isPrivateOnScreen)
+
+        f.app.showSearch()
+        assertEquals(AppModel.Surface.Search, f.app.surface)
+        assertTrue(f.app.isPrivateOnScreen)
+        f.app.browse.dismissSearch()
+        assertTrue(f.app.isPrivateOnScreen)
+
+        f.app.closeTab(private)
+        idle()
+        assertTrue(f.app.tabs.privateTabs.isEmpty())
+        assertFalse(f.app.isIncognito)
         assertFalse(f.app.isPrivateOnScreen)
     }
 

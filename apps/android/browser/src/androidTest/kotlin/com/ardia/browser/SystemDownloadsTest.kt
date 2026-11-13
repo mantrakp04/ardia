@@ -180,6 +180,27 @@ class SystemDownloadsTest {
         assertTrue(downloads.active.value.isEmpty())
     }
 
+    @Test
+    fun aCancelWhileCookiesAreLookedUpSendsNoRequest() {
+        server.route("/quiet") { TestServer.Response(body = "quiet", contentType = "text/plain") }
+        val inLookup = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val slowCookies = DownloadCookies { _, _ ->
+            inLookup.countDown()
+            release.await(10, TimeUnit.SECONDS)
+            "session=secret"
+        }
+        val downloads = SystemDownloads(harness.context, slowCookies)
+        val id = downloads.enqueue(download(server.url("/quiet"), "quiet.txt"))!!
+        assertTrue(inLookup.await(10, TimeUnit.SECONDS))
+        downloads.cancel(id)
+        release.countDown()
+        Thread.sleep(1_000)
+        assertFalse(server.requested("/quiet"))
+        assertTrue(downloads.active.value.isEmpty())
+        assertNull(runBlocking { withTimeoutOrNull(500) { downloads.outcomes.first() } })
+    }
+
     private fun storedNames(): Set<String> {
         val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         val arguments = Bundle().apply {

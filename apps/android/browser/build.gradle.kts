@@ -30,6 +30,7 @@ dependencies {
     api(project(":shared"))
     api(libs.coroutines.android)
     implementation(libs.androidx.webkit)
+    implementation(libs.okhttp)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)

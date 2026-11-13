@@ -87,6 +87,7 @@ class StoreWriter internal constructor(
     private val quarantinedTabs = HashSet<String>()
     private var drainScheduled = false
     private var backingOff = false
+    private val droppedVisitIds = LinkedHashSet<Long>()
     private var retry: Job? = null
     private var lastPermanent: Throwable? = null
     private val _failure = MutableStateFlow<Throwable?>(null)
@@ -121,10 +122,14 @@ class StoreWriter internal constructor(
         synchronized(lock) {
             val batch = lastBatch()
             val existing = batch.visits[visit.id]
-            if (existing == null && isNew && pendingVisitCount() >= MAX_PENDING_VISITS) {
-                _droppedVisits.value += 1
-                _failure.value = problem()
-                return
+            if (existing == null) {
+                val belongsToDropped = !isNew && visit.id in droppedVisitIds
+                if (belongsToDropped || pendingVisitCount() >= MAX_PENDING_VISITS) {
+                    if (isNew) rememberDropped(visit.id)
+                    _droppedVisits.value += 1
+                    _failure.value = problem()
+                    return
+                }
             }
             batch.visits[visit.id] = PendingVisit(visit, isNew || existing?.isNew == true)
         }
@@ -172,6 +177,11 @@ class StoreWriter internal constructor(
     }
 
     private fun lastBatch(): Batch = segments.lastOrNull() as? Batch ?: Batch().also(segments::add)
+
+    private fun rememberDropped(id: Long) {
+        droppedVisitIds.add(id)
+        if (droppedVisitIds.size > MAX_PENDING_VISITS) droppedVisitIds.remove(droppedVisitIds.first())
+    }
 
     private fun pendingVisitCount(): Int = segments.sumOf { if (it is Batch) it.visits.size else 0 }
 

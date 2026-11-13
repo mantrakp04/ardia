@@ -28,6 +28,8 @@ internal class RequestContext {
     private val labels = IntArray(MAX_LABELS)
     val rawView = CharArrayView()
     var regexRuns = 0L
+    var regexRulesSkipped = 0L
+    var regexStepsLeft = 0
     private val matcherPatterns = arrayOfNulls<com.google.re2j.Pattern>(MATCHER_SLOTS)
     private val matchers = arrayOfNulls<com.google.re2j.Matcher>(MATCHER_SLOTS)
 
@@ -55,7 +57,8 @@ internal class RequestContext {
             target[index] = if (char in 'A'..'Z') char + 32 else char
         }
         length = count
-        rawView.set(raw, minOf(count, MAX_REGEX_INPUT))
+        rawView.set(raw, minOf(count, ListRegex.MAX_INPUT_LENGTH))
+        regexStepsLeft = ListRegex.STEPS_PER_REQUEST
         globSteps = GLOB_STEPS_PER_REQUEST
         party = PARTY_UNCOMPUTED
         val authority = authorityStart(target, count, requireWebScheme = true)
@@ -258,7 +261,6 @@ internal class RequestContext {
     companion object {
         const val MAX_LABELS = 64
         private const val MATCHER_SLOTS = 256
-        const val MAX_REGEX_INPUT = 4_096
         const val GLOB_STEPS_PER_REQUEST = 2_000_000
         const val PARTY_UNKNOWN = -1
         private const val PARTY_UNCOMPUTED = -2

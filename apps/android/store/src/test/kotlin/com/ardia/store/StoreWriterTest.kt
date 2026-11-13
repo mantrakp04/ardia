@@ -139,3 +139,44 @@ class StoreWriterTest {
         assertFalse(StoreWriter.isRetryable(IllegalStateException()))
     }
 }
+
+@RunWith(RobolectricTestRunner::class)
+class VisitCapTest {
+    @Test
+    fun recordingAndAmendingPastTheCapNeverGrowsTheLogAndEveryDropIsCounted(): Unit = runBlocking {
+        val fixture = StoreFixture()
+        val store = fixture.store
+        fixture.database.failing = true
+        fixture.database.failBeforeWork = true
+        val cap = StoreWriter.MAX_PENDING_VISITS
+        val perRound = cap + 2
+        var expectedDrops = 0
+        repeat(3) { round ->
+            val visits = (0 until perRound).mapNotNull { store.recordVisit("https://r$round-v$it.example/", "", VisitTransition.LINK) }
+            visits.forEach { store.amend(it, title = "Loaded") }
+            expectedDrops += if (round == 0) 2 * 2 else 2 * perRound
+            assertTrue(store.writer.retainedEntries <= cap)
+            assertEquals(cap, store.writer.retainedEntries)
+            assertEquals(expectedDrops, store.droppedVisits.value)
+        }
+        fixture.database.failing = false
+        assertTrue(store.flush())
+        assertEquals(cap, fixture.database.visitCount())
+        assertTrue(fixture.history.recent(limit = cap).all { it.title == "Loaded" && it.url.startsWith("https://r0-") })
+        assertTrue(store.writeFailure.value is StoreWriteException)
+    }
+
+    @Test
+    fun anAmendmentOfASavedVisitStillGoesThroughWhenTheLogIsBelowTheCap(): Unit = runBlocking {
+        val fixture = StoreFixture()
+        val visit = fixture.store.recordVisit("https://a.example/", "", VisitTransition.LINK)!!
+        assertTrue(fixture.store.flush())
+        fixture.database.failing = true
+        fixture.store.amend(visit, title = "Later")
+        assertEquals(1, fixture.store.writer.retainedEntries)
+        fixture.database.failing = false
+        assertTrue(fixture.store.flush())
+        assertEquals(listOf("Later"), fixture.history.recent().map { it.title })
+        assertEquals(0, fixture.store.droppedVisits.value)
+    }
+}

@@ -44,6 +44,8 @@ class ContentBlocker(
 
     val isRefreshing: Boolean get() = filterLists.state.value.isUpdating
 
+    val regexRulesSkippedForBudget: Long get() = ListRegex.rulesSkippedForBudget
+
     fun start(): Job = scope.launch { prepare() }
 
     suspend fun prepare() {

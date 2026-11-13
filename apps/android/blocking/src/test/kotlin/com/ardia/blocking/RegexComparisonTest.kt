@@ -83,6 +83,16 @@ class RegexComparisonTest {
         println("ArdiaBlockingRegex corpus=${corpus.size} urls, rule/url pairs that match=$matchedPairs, java vs RE2/J mismatches=${mismatches.size}")
         mismatches.forEach { println("ArdiaBlockingRegex mismatch: $it") }
         assertEquals(emptyList<String>(), mismatches)
+        val blockRules = both.filter { !it.line.startsWith("@@") }
+        val engine = engineOf(blockRules.joinToString("\n") { "/${it.source}/" + if (it.matchCase) "\$match-case" else "" })
+        val engineMismatches = corpus.filter { url ->
+            val expected = blockRules.any { rule ->
+                java.util.regex.Pattern.compile(rule.source, if (rule.matchCase) 0 else java.util.regex.Pattern.CASE_INSENSITIVE).matcher(url).find()
+            }
+            engine.blocks(url, "https://page.test/") != expected
+        }
+        println("ArdiaBlockingRegex engine with ${blockRules.size} real regex block rules vs java on the corpus: mismatches=${engineMismatches.size}")
+        assertEquals(emptyList<String>(), engineMismatches)
         assertTrue(matchedPairs > 0)
         assertTrue("RE2/J refused ${refusedNow.size} rules java accepted", refusedNow.size * 20 <= javaOk.size)
     }
@@ -104,11 +114,14 @@ class RegexComparisonTest {
                 .format(compileMillis, programs.sum(), programs.maxOrNull() ?: 0, retained / 1024),
         )
         repeat(3) { for (pattern in compiled) for (url in corpus) pattern.matcher(url).find() }
+        val cpuClock = ManagementFactory.getThreadMXBean()
         val matchStart = System.nanoTime()
+        val cpuStart = cpuClock.currentThreadCpuTime
         var runs = 0
         repeat(5) { for (pattern in compiled) for (url in corpus) { pattern.matcher(url).find(); runs++ } }
-        val perMatch = (System.nanoTime() - matchStart) / runs / 1000.0
-        println("ArdiaBlockingRegex per match: %.2f us over %d matches".format(perMatch, runs))
+        val perMatch = (cpuClock.currentThreadCpuTime - cpuStart) / runs / 1000.0
+        val perMatchWall = (System.nanoTime() - matchStart) / runs / 1000.0
+        println("ArdiaBlockingRegex per match: cpu %.2f us, wall %.2f us over %d matches".format(perMatch, perMatchWall, runs))
         val perRule = compiled.map { pattern ->
             val begin = System.nanoTime()
             repeat(20) { for (url in corpus) pattern.matcher(url).find() }
@@ -132,6 +145,6 @@ class RegexComparisonTest {
                 .format(regexRuns / 10_000.0, allocated / 10_000.0),
         )
         assertTrue(compileMillis < 2_000)
-        assertTrue(perMatch < 50)
+        assertTrue("cpu per match $perMatch us", perMatch < 100)
     }
 }

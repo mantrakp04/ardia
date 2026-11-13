@@ -40,7 +40,10 @@ class ListSafetyTest {
         var slowest = 0.0
         for (rule in hostile) {
             val parsed = FilterParser.parse(rule, "hostile")
-            assertEquals(rule, 1, parsed.network.size)
+            if (parsed.network.isEmpty()) {
+                assertEquals(rule, 1, parsed.skipped[SkipReason.UNSUPPORTED_REGEX])
+                continue
+            }
             val engine = engineOf(rule)
             for (body in listOf("a".repeat(30_000), "".padEnd(30_000, 'x'), "ab".repeat(15_000))) {
                 val url = "https://site.test/$body"
@@ -52,7 +55,7 @@ class ListSafetyTest {
         }
         println("ArdiaBlockingTiming slowest hostile regex request on a 30000-char url: %.2f ms".format(slowest))
         val source = reviewerRule.substring(1, reviewerRule.length - 1)
-        val direct = ListRegex.compile(source, matchCase = false)!!
+        val direct = com.google.re2j.Pattern.compile(ListRegex.withoutCaptures(source))
         val input = "a".repeat(30_000)
         direct.matcher(input).find()
         val elapsed = millis { direct.matcher(input).find() }
@@ -76,6 +79,68 @@ class ListSafetyTest {
         assertNull(ListRegex.compile("(a{1000}){2}", matchCase = false))
         assertNotNull(ListRegex.compile("(\\d){1,3}\\.(\\d){1,3}", matchCase = false))
         assertEquals("(?:a(?:b))[(]\\((?:x)(?:z)", ListRegex.withoutCaptures("(a(b))[(]\\((?:x)(?<name>z)"))
+    }
+
+    @Test
+    fun regexWorkIsChargedBeforeItRunsAndCappedPerRequest() {
+        val reviewer = "/.*" + "a?".repeat(490) + "b/"
+        assertEquals(1, FilterParser.parse(reviewer, "reviewer").skipped[SkipReason.UNSUPPORTED_REGEX])
+        var width = 1
+        while (ListRegex.compile(".*" + "a?".repeat(width + 1) + "b000", matchCase = false) != null) width++
+        val program = ListRegex.compile(".*" + "a?".repeat(width) + "b000", matchCase = false)!!.programSize()
+        val shown = ListRegex.MAX_INPUT_LENGTH
+        val url = "https://site.test/" + "a".repeat(4_078)
+        val context = RequestContext.current()
+        for ((count, repeat) in listOf(300 to width, 400 to 20)) {
+            val rules = (0 until count).joinToString("\n") { "/.*" + "a?".repeat(repeat) + "b" + it.toString().padStart(3, '0') + "/" }
+            val engine = engineOf(rules)
+            assertEquals(count, engine.stats.unindexedRules)
+            val cost = ListRegex.compile(".*" + "a?".repeat(repeat) + "b000", matchCase = false)!!.programSize() * shown
+            val expectedRuns = ListRegex.STEPS_PER_REQUEST / cost
+            repeat(3) { engine.blocks(url, "https://site.test/") }
+            val runsBefore = context.regexRuns
+            val skippedBefore = context.regexRulesSkipped
+            val bean = java.lang.management.ManagementFactory.getThreadMXBean()
+            val cpuBefore = bean.currentThreadCpuTime
+            val elapsed = millis { assertFalse(engine.blocks(url, "https://site.test/")) }
+            val cpu = (bean.currentThreadCpuTime - cpuBefore) / 1_000_000.0
+            val runs = context.regexRuns - runsBefore
+            val skipped = context.regexRulesSkipped - skippedBefore
+            val used = ListRegex.STEPS_PER_REQUEST - context.regexStepsLeft
+            println(
+                "ArdiaBlockingTiming %d unindexed rules of %d instructions on a %d-char url (%d shown): ran %d, skipped %d, steps %d of %d, cpu %.2f ms (%.1f ns per step), wall %.2f ms"
+                    .format(count, cost / shown, url.length, shown, runs, skipped, used, ListRegex.STEPS_PER_REQUEST, cpu, cpu * 1_000_000 / used, elapsed),
+            )
+            assertEquals(expectedRuns.toLong(), runs)
+            assertEquals((count - expectedRuns).toLong(), skipped)
+            assertEquals(expectedRuns * cost, used)
+            assertTrue("cpu $cpu ms", cpu < 30)
+        }
+        assertTrue(program <= ListRegex.MAX_PROGRAM_SIZE)
+        assertTrue(ListRegex.rulesSkippedForBudget > 0)
+    }
+
+    @Test
+    fun quotedLiteralsAreRefusedAndOtherGroupFormsKeepTheirMeaning() {
+        val quoted = FilterParser.parse("/\\Q(foo)\\E/\n/a\\Q.b/", "quoted")
+        assertEquals(0, quoted.network.size)
+        assertEquals(2, quoted.skipped[SkipReason.UNSUPPORTED_REGEX])
+        fun finds(source: String, input: String, matchCase: Boolean = false) = ListRegex.compile(source, matchCase)!!.matcher(input).find()
+        assertTrue(finds("\\(foo\\)", "a(foo)b"))
+        assertFalse(finds("\\(foo\\)", "afoob"))
+        assertTrue(finds("[(]foo[)]", "a(foo)b"))
+        assertFalse(finds("[(]foo[)]", "afoob"))
+        assertTrue(finds("[^(]foo", "xfoo"))
+        assertTrue(finds("(?P<word>foo)bar", "foobar"))
+        assertTrue(finds("(?:foo)+bar", "foofoobar"))
+        assertTrue(finds("(?i)FOO", "xfoo", matchCase = true))
+        assertFalse(finds("FOO", "xfoo", matchCase = true))
+        assertTrue(finds("^https?:\\/\\/(?:www\\.)?(ads|track)\\.", "https://www.track.example/"))
+        assertEquals("[(]\\((?:a)(?:b)(?i)(?:c)", ListRegex.withoutCaptures("[(]\\((a)(?:b)(?i)(?P<n>c)"))
+        val engine = engineOf("/shop\\/item-[0-9]+\$/")
+        assertTrue(engine.blocks("https://a.test/shop/item-12", "https://a.test/"))
+        assertFalse(engine.blocks("https://a.test/shop/item-12" + "x".repeat(800), "https://a.test/"))
+        assertFalse(engine.blocks("https://a.test/" + "p".repeat(800) + "/shop/item-12", "https://a.test/"))
     }
 
     @Test

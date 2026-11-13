@@ -71,8 +71,14 @@ iPhone's WebKit:
 - **Mixed content is blocked** (`MIXED_CONTENT_NEVER_ALLOW`): an http image on an https page doesn't load.
 - **Snapshots are drawn from the view**, so video and other hardware layers come out blank on the tab cards.
 - **Private pages need a WebView with multi-profile support** (`WebViewFeature.MULTI_PROFILE`). Without it Incognito
-  is off and says it needs a newer Android System WebView. The private profile is cleared when private browsing ends,
-  and leftover private profiles are deleted at the next start.
+  is off and says it needs a newer Android System WebView. Each private session gets a new profile. Its cookies, storage
+  and cache are cleared when private browsing ends, but its folder stays on disk until the next start: androidx.webkit
+  cannot delete a profile that was loaded in the running process, so leftover private profiles are deleted when the
+  app next starts, before any is loaded. An app that is killed in the middle of a private session leaves that profile
+  until then.
+- **Private tabs keep the window out of Recents.** While any private tab is open, or Incognito is on, the window is
+  hidden from Android's Recents preview (`setRecentsScreenshotEnabled(false)` on Android 13 and later, `FLAG_SECURE`
+  below that, which also blocks screenshots).
 - **Downloads run in the app** (`SystemDownloads`, into the shared Downloads folder through MediaStore), with a toast
   and no system notification, and they end with the process. Private downloads stop when private browsing ends.
 
@@ -112,6 +118,11 @@ kind `phone`. A Mac that has never heard of it reads its files.
 The iPhone app is the spec: the same screens, copy and defaults, on Material's controls where Android has its own
 manner, in the Mac's colours. Where Android differs it says so on the line.
 
+- **Launch.** The first frame draws before the store, Hermes, the page engine and sync are ready: `AppModel` starts
+  them in the background and the screens fill in. `ArdiaApplication` starts loading the two preference files on a
+  background thread first thing (`AppEnvironment.preloadPreferences`); if the model is built before that finishes,
+  its first preference read still waits for it on the main thread. `StartupTiming` logs time to first frame under
+  `ArdiaTiming`.
 - **Colours.** `ProfileLook` (`design`) is the Mac's profile look: the nine profile colours (plum is the default) and
   the Mac's window tint for each, checked against the Mac's values in `ProfileLookTest`. Settings picks one of the nine;
   with sync on, Match My Mac follows the selected profile's colour or custom theme. `ProfileBackdrop` draws the tint

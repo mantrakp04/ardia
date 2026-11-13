@@ -45,12 +45,11 @@ class DownloadCall {
         running?.let { runCatching(it) }
     }
 
-    fun whileOpen(abort: () -> Unit) {
-        val cancelled = synchronized(this) {
+    fun register(abort: () -> Unit) {
+        synchronized(this) {
+            if (isCancelled) throw DownloadCancelled()
             this.abort = abort
-            isCancelled
         }
-        if (cancelled) runCatching(abort)
     }
 
     fun ensureActive() {

@@ -8,8 +8,6 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.webkit.CookieManager
 import android.webkit.MimeTypeMap
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
@@ -266,21 +264,4 @@ private class EngineSessions(private val engine: () -> PageEngine?) : DownloadSe
     override fun isPrivateSessionLive(session: String): Boolean = engine()?.isPrivateSessionLive(session) ?: false
 
     override fun addPrivateSessionEndListener(listener: (String) -> Unit): AutoCloseable? = engine()?.addPrivateSessionEndListener(listener)
-}
-
-class HttpDownloadTransport(private val timeoutMillis: Int = 30_000) : DownloadTransport {
-    override fun open(url: String, headers: Map<String, String>, call: DownloadCall): DownloadResponse {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        call.whileOpen { connection.disconnect() }
-        connection.instanceFollowRedirects = false
-        connection.useCaches = false
-        connection.connectTimeout = timeoutMillis
-        connection.readTimeout = timeoutMillis
-        connection.setRequestProperty("Accept-Encoding", "identity")
-        for ((name, value) in headers) connection.setRequestProperty(name, value)
-        val status = connection.responseCode
-        val body = if (status in 200..299) connection.inputStream else (connection.errorStream ?: java.io.ByteArrayInputStream(ByteArray(0)))
-        val responseHeaders = connection.headerFields.filterKeys { it != null }
-        return DownloadResponse(status, responseHeaders, body) { connection.disconnect() }
-    }
 }

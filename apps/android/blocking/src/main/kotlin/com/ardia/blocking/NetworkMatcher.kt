@@ -18,6 +18,8 @@ internal class NetworkRule(
     val exclude: LongArray?,
 ) {
     private val regexSlot = if (regex != null) nextRegexSlot.getAndIncrement() else 0
+    private val regexProgramSize = regex?.programSize() ?: 0
+    private val regexNeedsWholeUrl = regex != null && ListRegex.anchorsAtEnd(String(pattern))
     private val isHostOnly = host != null && !anchorEnd && pattern.size == 1 && pattern[0] == '^'
 
     fun applies(context: RequestContext): Boolean {
@@ -54,6 +56,15 @@ internal class NetworkRule(
 
     fun matchesUrl(context: RequestContext): Boolean {
         regex?.let { compiled ->
+            val shown = context.rawView.length
+            if (regexNeedsWholeUrl && context.length > shown) return false
+            val cost = regexProgramSize * shown
+            if (cost > context.regexStepsLeft) {
+                context.regexRulesSkipped++
+                ListRegex.countBudgetSkip()
+                return false
+            }
+            context.regexStepsLeft -= cost
             context.regexRuns++
             return context.matcher(compiled, regexSlot).find()
         }

@@ -131,7 +131,7 @@ class DownloadRulesTest {
         val sent = mutableListOf<String>()
         val transport = DownloadTransport { url, _, call ->
             sent += url
-            call.whileOpen { aborted.countDown() }
+            call.register { aborted.countDown() }
             opened.countDown()
             aborted.await(5, TimeUnit.SECONDS)
             DownloadResponse(302, mapOf("Location" to listOf("https://cdn.example/next")), ByteArrayInputStream(ByteArray(0)))

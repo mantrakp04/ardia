@@ -11,11 +11,20 @@ class FilterListTooLargeException(val listId: String) : Exception("filter list $
 
 internal object ListRegex {
     const val MAX_SOURCE_LENGTH = 1024
-    const val MAX_PROGRAM_SIZE = 4_000
+    const val MAX_PROGRAM_SIZE = 200
+    const val MAX_INPUT_LENGTH = 512
+    const val STEPS_PER_REQUEST = MAX_PROGRAM_SIZE * MAX_INPUT_LENGTH
     private const val MAX_REPEAT_PRODUCT = 1_000
+    private val budgetSkips = java.util.concurrent.atomic.AtomicLong()
+
+    val rulesSkippedForBudget: Long get() = budgetSkips.get()
+
+    internal fun countBudgetSkip() {
+        budgetSkips.incrementAndGet()
+    }
 
     fun compile(source: String, matchCase: Boolean): com.google.re2j.Pattern? {
-        if (source.isEmpty() || source.length > MAX_SOURCE_LENGTH || repeatProduct(source) > MAX_REPEAT_PRODUCT) return null
+        if (source.isEmpty() || source.length > MAX_SOURCE_LENGTH || usesQuoting(source) || repeatProduct(source) > MAX_REPEAT_PRODUCT) return null
         val pattern = try {
             com.google.re2j.Pattern.compile(withoutCaptures(source), if (matchCase) 0 else com.google.re2j.Pattern.CASE_INSENSITIVE)
         } catch (error: com.google.re2j.PatternSyntaxException) {
@@ -24,6 +33,35 @@ internal object ListRegex {
             return null
         }
         return pattern.takeIf { it.programSize() <= MAX_PROGRAM_SIZE }
+    }
+
+    internal fun usesQuoting(source: String): Boolean {
+        var index = 0
+        while (index < source.length - 1) {
+            if (source[index] == '\\') {
+                if (source[index + 1] == 'Q' || source[index + 1] == 'E') return true
+                index += 2
+            } else {
+                index++
+            }
+        }
+        return false
+    }
+
+    internal fun anchorsAtEnd(source: String): Boolean {
+        var index = 0
+        var inClass = false
+        while (index < source.length) {
+            val char = source[index]
+            when {
+                char == '\\' -> index++
+                inClass -> if (char == ']') inClass = false
+                char == '[' -> inClass = true
+                char == '$' -> return true
+            }
+            index++
+        }
+        return false
     }
 
     internal fun withoutCaptures(source: String): String {

@@ -136,12 +136,7 @@ class AppModel(
     var supportsIncognito: Boolean by mutableStateOf(true)
         private set
 
-    val isPrivateOnScreen: Boolean
-        get() = when (surface) {
-            Surface.Browsing -> tabs.selectedTab?.isPrivate == true || (browse.search != null && incognitoState)
-            Surface.TabSwitcher -> incognitoState || tabs.privateTabs.isNotEmpty() || tabs.selectedTab?.isPrivate == true
-            Surface.Search -> browse.search != null && incognitoState
-        }
+    val isPrivateOnScreen: Boolean get() = incognitoState || tabs.privateTabs.isNotEmpty()
 
     var store: BrowserStore? by mutableStateOf(null)
         private set
