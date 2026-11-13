@@ -2,7 +2,7 @@ import type { BrowserState } from "../browser/store";
 import { leaveGroups } from "../groups/groups";
 import { withShownTab } from "../groups/shownTabs";
 import { byRecentUse, IDLE_LIVE, inPinnedContainer, makeTab, navigationTo, TILE_PIN, viewTabIds, without } from "../browser/model";
-import { forgetOpeners, insertionIndex, openerSuccessor } from "./openers";
+import { forgetOpeners, insertionIndex, openerSuccessor, recentSuccessor } from "./openers";
 import { onUrlChange, pruneSelection } from "../pins/organize";
 import { isClosedPin } from "../pins/tabCleanup";
 import { adoptedPage, ASLEEP, frozenOn, hasOwnOrSharedPage, hasPage, isAsleep, isLazy, loadedPage, needsPage, withWake, wokenPage } from "./pageSession";
@@ -143,7 +143,7 @@ export function removeTabs(s: BrowserState, ids: string[], record: boolean): Bro
       const awake = left.filter((id) => !isAsleep(s.tabs[id]));
       const after = awake.length ? awake : left;
       const index = before.indexOf(activeId);
-      const next = otherPane(s, activeId, gone) ?? openerSuccessor(s, activeId, before, left) ?? after.find((id) => before.indexOf(id) > index) ?? after.at(-1);
+      const next = otherPane(s, activeId, gone) ?? openerSuccessor(s, activeId, before, left) ?? recentSuccessor(s, activeId, before, left) ?? after.find((id) => before.indexOf(id) > index) ?? after.at(-1);
       if (next) activeTabIds[profileId] = next;
       else delete activeTabIds[profileId];
     }
@@ -167,9 +167,16 @@ export function removeTabs(s: BrowserState, ids: string[], record: boolean): Bro
   for (const w of Object.values(next.windows)) {
     const id = w.activeTabIds[w.profileId];
     const t = id ? next.tabs[id] : undefined;
-    if (t && needsPage(t)) next = apply(next, activated(next, t.id));
+    if (!t) continue;
+    if (needsPage(t)) next = apply(next, activated(next, t.id));
+    else if (gone.has(s.windows[w.id]?.activeTabIds[w.profileId] ?? "")) next = apply(next, { tabs: { ...next.tabs, [t.id]: usedNow(t, now) } });
   }
   return next;
+}
+
+function usedNow(tab: Tab, now: number): Tab {
+  const { unseen: _, ...seen } = tab;
+  return { ...seen, lastActiveAt: now };
 }
 
 function otherPane(s: BrowserState, closedId: string, gone: Set<string>): string | undefined {
