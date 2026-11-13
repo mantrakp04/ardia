@@ -35,8 +35,22 @@ test("setting off: no bar, and the last tab still closes its window", () => {
   assert.equal(S().windows[solo], undefined, "the last tab closes its window");
 });
 
-test("setting off: New Tab on an empty New Tab page focuses its field instead of stacking another empty tab", async () => {
+test("by default New Tab on an empty New Tab page opens another tab", async () => {
   reset();
+  const { registerHeroBar } = await import("./barState.ts");
+  const { w } = windowWith("a", "b");
+  const empty = S().newTab(w, { newTabCommand: true });
+  let focused = 0;
+  const unregister = registerHeroBar(w, empty, () => void focused++);
+  assert.equal(S().settings.reuseEmptyNewTab, false);
+  assert.equal(toggleNewTabBar(w), false, "New Tab opens a tab");
+  assert.equal(focused, 0);
+  unregister();
+});
+
+test("Reuse an empty New Tab page: New Tab on an empty New Tab page focuses its field instead of stacking another empty tab", async () => {
+  reset();
+  S().updateSettings({ reuseEmptyNewTab: true });
   const { registerHeroBar } = await import("./barState.ts");
   const { w } = windowWith("a", "b");
   assert.equal(toggleNewTabBar(w), false, "a page is shown: New Tab opens a tab");

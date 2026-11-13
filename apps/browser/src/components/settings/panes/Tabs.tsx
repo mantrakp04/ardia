@@ -131,6 +131,7 @@ export function TabsPane() {
             minWidth={160}
           />
         </Row>
+        <SettingToggle anchor="tabs.reuseEmptyNewTab" />
         <Row anchor="tabs.newTabPosition">
           <PopUp value={newTabPosition} options={top ? NEW_TABS_ACROSS : NEW_TABS_DOWN} onChange={(v) => updateSettings({ newTabPosition: v })} minWidth={190} />
         </Row>
