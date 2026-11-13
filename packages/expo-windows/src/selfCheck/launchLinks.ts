@@ -1,11 +1,10 @@
-import { TurboModuleRegistry, type TurboModule } from "react-native";
+import { TurboModuleRegistry } from "react-native";
 import { addNativeListener, emitWhenListened } from "../events";
-import { launchAddresses, type LaunchArguments } from "../launchLinks/addresses";
+import { launchAddresses } from "../launchLinks/addresses";
+import type { WindowsHostModule } from "../nativeModuleTypes";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type WindowsHost = TurboModule & { launchArguments(): LaunchArguments };
-
-const host = () => TurboModuleRegistry.getEnforcing<WindowsHost>("ArdiaWindowsHost");
+const host = () => TurboModuleRegistry.getEnforcing<WindowsHostModule>("ArdiaWindowsHost");
 const settled = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export const checks: Check[] = [

@@ -1,25 +1,18 @@
-import { DeviceEventEmitter, TurboModuleRegistry, type TurboModule } from "react-native";
+import { DeviceEventEmitter, TurboModuleRegistry } from "react-native";
 import { nativeEventName } from "../events";
-
-type EngineHost = TurboModule & {
-  available(): boolean;
-  hostCall(verb: string, argsJson: string, windowId: string): Promise<string>;
-  engineCall(name: string, profile: string, argsJson: string): Promise<string>;
-  profileDataFolder?(): string;
-  removeProfileFolder?(folder: string): Promise<string>;
-};
+import type { EngineHostModule } from "../nativeModuleTypes";
 
 type EngineEvent = { topic?: unknown; json?: unknown };
 type TopicListener = (payload: Record<string, unknown>) => void;
 
 const MODULE = "ArdiaEngineHost";
 
-let native: EngineHost | null | undefined;
+let native: EngineHostModule | null | undefined;
 let present: boolean | undefined;
 const listeners = new Map<string, Set<TopicListener>>();
 let subscribed = false;
 
-const host = () => (native === undefined ? (native = TurboModuleRegistry.get<EngineHost>(MODULE)) : native);
+const host = () => (native === undefined ? (native = TurboModuleRegistry.get<EngineHostModule>(MODULE)) : native);
 
 export function engineAvailable(): boolean {
   if (present !== undefined) return present;

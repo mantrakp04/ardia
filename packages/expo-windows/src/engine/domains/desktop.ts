@@ -1,14 +1,10 @@
-import type { DialogsNative } from "@ardia/shell";
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import { nativeImportHost } from "../../import/nativeHost";
-import type { Desktop, PowerReading } from "./calling";
+import type { DialogsModule, SystemSignalsModule } from "../../nativeModuleTypes";
+import type { Desktop } from "./calling";
 
-export type WindowsDialogs = TurboModule &
-  Pick<DialogsNative, "pickFolder"> & { saveFile(name: string, extension: string, kind: string, message: string): Promise<string | null> };
-export type WindowsPower = TurboModule & { powerState(): PowerReading };
-
-const dialogs = () => TurboModuleRegistry.get<WindowsDialogs>("ArdiaDialogs");
-const signals = () => TurboModuleRegistry.get<WindowsPower>("ArdiaSystemSignals");
+const dialogs = () => TurboModuleRegistry.get<TurboModule & DialogsModule>("ArdiaDialogs");
+const signals = () => TurboModuleRegistry.get<TurboModule & SystemSignalsModule>("ArdiaSystemSignals");
 
 export function nativeDesktop(): Desktop | undefined {
   const files = nativeImportHost();

@@ -10,7 +10,6 @@ import { ImportFailure, type ImportKind, type Options, type Progress } from "./m
 import { nativeImportHost } from "./nativeHost";
 
 type NativeOptions = Omit<Options, "historyPage">;
-type Dialogs = TurboModule & Pick<DialogsNative, "pickFiles">;
 
 const LARGEST_FILE_BYTES = 64 << 20;
 const NO_WRITE = { cookies: 0, cookiesRejected: 0, cookiesExisting: 0, addresses: 0, cards: 0 };
@@ -101,7 +100,7 @@ export function windowsImport(hostOf: () => ImportHost | null = nativeImportHost
     },
 
     async chooseImportFile(): Promise<string | null> {
-      const dialogs = TurboModuleRegistry.get<Dialogs>("ArdiaDialogs");
+      const dialogs = TurboModuleRegistry.get<TurboModule & Pick<DialogsNative, "pickFiles">>("ArdiaDialogs");
       const [picked] = (await dialogs?.pickFiles()) ?? [];
       if (!picked) return null;
       return pathFromFileUrl(picked);

@@ -1,33 +1,15 @@
-import { TurboModuleRegistry, type TurboModule } from "react-native";
-import type { ImportHost, Query } from "./host";
-
-type Native = TurboModule & {
-  getConstants?(): { localAppData?: unknown; roamingAppData?: unknown };
-  list(path: string): Promise<string>;
-  readText(path: string, largest: number): Promise<string | null>;
-  readBase64(path: string, largest: number): Promise<string | null>;
-  readTextWithin(folder: string, path: string, largest: number): Promise<string | null>;
-  readBase64Within(folder: string, path: string, largest: number): Promise<string | null>;
-  query(path: string, queries: Query[]): Promise<string>;
-  openSnapshot(path: string): Promise<string>;
-  querySnapshot(id: string, queries: Query[]): Promise<string>;
-  closeSnapshot(id: string): void;
-  unlock(browserId: string, localState: string): Promise<string>;
-  logins(browserId: string, files: string[]): Promise<string>;
-  cookies(browserId: string, file: string): Promise<string>;
-  writeCookies(token: string, profile: string): Promise<string>;
-  discard(token: string): void;
-  forget(): void;
-};
+import { TurboModuleRegistry } from "react-native";
+import type { WindowsImportModule } from "../nativeModuleTypes";
+import type { ImportHost } from "./host";
 
 export const NATIVE_IMPORT = "ArdiaWindowsImport";
 
 const parsed = async <Value>(promise: Promise<string>): Promise<Value> => JSON.parse(await promise) as Value;
 
 export function nativeImportHost(): ImportHost | null {
-  const native = TurboModuleRegistry.get<Native>(NATIVE_IMPORT);
+  const native = TurboModuleRegistry.get<WindowsImportModule>(NATIVE_IMPORT);
   if (!native) return null;
-  const constants: { localAppData?: unknown; roamingAppData?: unknown } = native.getConstants?.() ?? {};
+  const constants = native.getConstants?.() ?? {};
   return {
     localAppData: typeof constants.localAppData === "string" ? constants.localAppData : "",
     roamingAppData: typeof constants.roamingAppData === "string" ? constants.roamingAppData : "",

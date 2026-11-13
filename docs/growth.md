@@ -196,8 +196,8 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   - `tab_presses` (hourly and at quit, when there were any): `presses` on sidebar rows, pinned tiles and top-strip
     chips, `down_switches` (the press switched to the tab on mouse down), `clicks` (the press opened the tab),
     `drag_clicks` (it became a drag and was rescued as a click), `drags`, `unanswered` (a press that got neither before
-    the next one), `lost_releases` (presses anywhere in the app's own UI whose mouse up a menu or drag session took, ended at
-    the next mouse down instead of swallowing that click), `repeat_presses` (a tab or New Tab row press within 3 s and 12 pt
+    the next one), `lost_releases` (presses anywhere in the app's own UI whose mouse up a menu or drag session took, ended when
+    the menu began tracking or at that button's next mouse down instead of swallowing that click), `repeat_presses` (a tab or New Tab row press within 3 s and 12 pt
     of a mouse down that reached no row: the click-twice report), `repeat_on_new_tab` (those with an empty New Tab showing),
     `repeat_gap_ms_p50` and `repeat_landed_on` (the class names of the view the first click hit and its three ancestors), `held_ms_p50`/`_p75`/`held_n` (how long the button was held after a mouse-down switch: the wait a
     switch on release would have added), `page_click_ms_p50`/`_p75`/`page_click_n` (from opening a tab with a press

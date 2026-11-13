@@ -1,6 +1,6 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import type { DocumentsNative } from "@ardia/shell";
-import type { WindowsDialogs, WindowsPower } from "../engine/domains/desktop";
+import type { DialogsModule, SystemSignalsModule } from "../nativeModuleTypes";
 import { engineAvailable } from "../engine/host";
 import { nativeImportHost } from "../import/nativeHost";
 import { requireNativeModule } from "../modules";
@@ -31,7 +31,7 @@ export const checks: Check[] = [
   {
     name: "desktop calls: the save panel answers cancelled, then the queued pick",
     async run() {
-      const dialogs = native<WindowsDialogs>("ArdiaDialogs");
+      const dialogs = native<TurboModule & DialogsModule>("ArdiaDialogs");
       expectEqual(await dialogs.saveFile("Ardia Bookmarks.html", "html", "Web page", ""), null, "a save panel nobody answered");
       const chosen = `${dataFolder()}\\self-check-export.html`;
       documents().writeDocument(PICKS, chosen);
@@ -42,7 +42,7 @@ export const checks: Check[] = [
   {
     name: "desktop calls: the power state is a battery and memory reading",
     run() {
-      const state = native<WindowsPower>("ArdiaSystemSignals").powerState();
+      const state = native<TurboModule & SystemSignalsModule>("ArdiaSystemSignals").powerState();
       expectTrue(isFlag(state.onBattery) && isFlag(state.batterySaver), `flags ${JSON.stringify(state)}`);
       expectTrue(state.batteryPercent === null || isCount(state.batteryPercent, 100), `battery ${JSON.stringify(state.batteryPercent)}`);
       expectTrue(isCount(state.memoryLoad, 100) && typeof state.physicalMemory === "number" && state.physicalMemory > 0, `memory ${JSON.stringify(state)}`);

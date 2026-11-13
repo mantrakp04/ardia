@@ -1,11 +1,11 @@
-import type { MenuShortcut, MenusNative, MenuState } from "@ardia/shell";
+import type { MenuShortcut, MenuState } from "@ardia/shell";
+import type { MenusModule, WindowsHostModule } from "../nativeModuleTypes";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type MenusOnWindows = MenusNative & { activeShortcuts(): Promise<Record<string, string[][]>>; recentMenuLog(): Promise<string[]> };
 type SentState = Omit<MenuState, "bookmarkFolders" | "recentBookmarks" | "bookmarksBar" | "otherBookmarks">;
 
-const menus = () => requireNativeModule<MenusOnWindows>("ArdiaMenus");
+const menus = () => requireNativeModule<MenusModule>("ArdiaMenus");
 
 const withinSeconds = <Value>(seconds: number, what: string, promise: Promise<Value>) =>
   Promise.race([promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${what} did not answer within ${seconds}s`)), seconds * 1000))]);
@@ -116,7 +116,7 @@ export const checks: Check[] = [
   {
     name: "menus: the pointer state behind right and middle clicks reads live with no button held",
     run() {
-      const host = requireNativeModule<{ pointerState(): number }>("ArdiaWindowsHost");
+      const host = requireNativeModule<Pick<WindowsHostModule, "pointerState">>("ArdiaWindowsHost");
       const first = host.pointerState();
       const second = host.pointerState();
       expectTrue(Number.isInteger(first) && first >= 0 && first < 64, `pointerState returned ${JSON.stringify(first)}`);

@@ -1,24 +1,12 @@
-import type { DevDragPayload } from "@ardia/shell";
+import type { DevDragPayload, WindowsNative } from "@ardia/shell";
+import type { FileDropModule } from "../nativeModuleTypes";
 import { requireNativeModule } from "../modules";
 import type { DropAccepts, DropAreaFrame, DroppedItem, WindowDrop } from "../views/fileDropAreas";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type DropTargetReport = { ole: boolean; registered: boolean; windows: number; replaced: number; areas: number; childClasses: string[] };
 
-type FileDropDev = {
-  setDropArea(frame: DropAreaFrame): void;
-  removeDropArea(windowId: string, area: string): void;
-  devDrag(windowId: string, action: "move" | "drop" | "cancel" | "end", x: number, y: number, payload: DevDragPayload | null): Promise<string>;
-  devLastFileDrag(): Promise<string[]>;
-  devDropTarget(windowId: string): Promise<DropTargetReport | null>;
-  devWriteDropFixture(name: string, contents: string): Promise<string>;
-  addListener(event: "onWindowDrop", listener: (payload: unknown) => void): { remove(): void };
-};
-
-type WindowIds = { windowIds(): Promise<string[]> };
-
-const fileDrop = () => requireNativeModule<FileDropDev>("ArdiaFileDrop");
-const windows = () => requireNativeModule<WindowIds>("ArdiaAppWindows");
+const fileDrop = () => requireNativeModule<FileDropModule>("ArdiaFileDrop");
+const windows = () => requireNativeModule<Pick<WindowsNative, "windowIds">>("ArdiaAppWindows");
 const settled = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const FRAME = { x: 4, y: 48, width: 200, height: 120 };
