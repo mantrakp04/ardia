@@ -787,10 +787,10 @@ index 6f332dc1701cada0aff0e9a2678fa7bdcea0ef85..462853ec8b76f004cd5b9e92291473bc
  
  #endif // TARGET_OS_OSX
 diff --git a/React/Base/RCTTouchHandler.m b/React/Base/RCTTouchHandler.m
-index b85ee3dd203f88bf2daaa47e912031ea200ff910..c252cfa97deb7b7cc0533105f604fa50985e144b 100644
+index b85ee3dd203f88bf2daaa47e912031ea200ff910..1a789453b5d22fb80330a84f9f7c5c910b169e1f 100644
 --- a/React/Base/RCTTouchHandler.m
 +++ b/React/Base/RCTTouchHandler.m
-@@ -100,6 +100,36 @@ - (void)detachFromView:(RCTPlatformView *)view // [macOS]
+@@ -100,6 +100,68 @@ - (void)detachFromView:(RCTPlatformView *)view // [macOS]
  
  #pragma mark - Bookkeeping for touch indices
  
@@ -824,10 +824,42 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..c252cfa97deb7b7cc0533105f604fa50
 +}
 +#endif // Ardia]
 +
++#if TARGET_OS_OSX // [Ardia: a mouse has one of each button, so a recorded touch whose button is down again, or is no longer held, lost its mouse up to a menu or a drag session that tracked it. Its React responder would keep every later press, so the next click did nothing; it is cancelled before the new touch is recorded
++static NSUInteger ArdiaTouchesCancelledWithoutRelease = 0;
++
+++ (NSUInteger)ardia_touchesCancelledWithoutRelease
++{
++  return ArdiaTouchesCancelledWithoutRelease;
++}
++
++- (void)ardia_cancelTouchesWithoutReleaseBeforeMouseDown:(NSEvent *)down
++{
++  if (_nativeTouches.count == 0) {
++    return;
++  }
++  NSInteger button = ArdiaMouseButton(down);
++  NSUInteger held = NSEvent.pressedMouseButtons;
++  NSMutableSet<NSEvent *> *lost = [NSMutableSet new];
++  for (NSEvent *touch in _nativeTouches) {
++    NSInteger touchButton = ArdiaMouseButton(touch);
++    BOOL sameDown = touch == down || (touchButton == button && touch.eventNumber == down.eventNumber && down.eventNumber != 0);
++    if (!sameDown && (touchButton == button || touchButton > 31 || !(held & (1UL << touchButton)))) {
++      [lost addObject:touch];
++    }
++  }
++  if (lost.count == 0) {
++    return;
++  }
++  ArdiaTouchesCancelledWithoutRelease += lost.count;
++  [self _updateAndDispatchTouches:lost eventName:@"touchCancel"];
++  [self _recordRemovedTouches:lost];
++}
++#endif // Ardia]
++
  - (void)_recordNewTouches:(NSSet *)touches
  {
  #if !TARGET_OS_OSX // [macOS]
-@@ -108,7 +138,13 @@ - (void)_recordNewTouches:(NSSet *)touches
+@@ -108,7 +170,13 @@ - (void)_recordNewTouches:(NSSet *)touches
    for (NSEvent *touch in touches) {
  #endif // macOS]
  
@@ -841,7 +873,7 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..c252cfa97deb7b7cc0533105f604fa50
  
      // Find closest React-managed touchable view
      
-@@ -204,19 +240,27 @@ - (void)_recordRemovedTouches:(NSSet *)touches
+@@ -204,19 +272,27 @@ - (void)_recordRemovedTouches:(NSSet *)touches
    for (UITouch *touch in touches) {
      NSInteger index = [_nativeTouches indexOfObject:touch];
  #else // [macOS
@@ -873,7 +905,7 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..c252cfa97deb7b7cc0533105f604fa50
  }
  
  - (void)_updateReactTouchAtIndex:(NSInteger)touchIndex
-@@ -303,15 +347,17 @@ - (void)_updateAndDispatchTouches:(NSSet<NSEvent *> *)touches eventName:(NSStrin
+@@ -303,15 +379,17 @@ - (void)_updateAndDispatchTouches:(NSSet<NSEvent *> *)touches eventName:(NSStrin
    for (UITouch *touch in touches) {
      NSInteger index = [_nativeTouches indexOfObject:touch];
  #else // [macOS
@@ -894,6 +926,22 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..c252cfa97deb7b7cc0533105f604fa50
      
  #if TARGET_OS_OSX // [macOS
      _nativeTouches[index] = touch;
+@@ -497,6 +575,7 @@ - (BOOL)acceptsFirstMouse:(NSEvent *)event
+ - (void)mouseDown:(NSEvent *)event
+ {
+   [super mouseDown:event];
++  [self ardia_cancelTouchesWithoutReleaseBeforeMouseDown:event]; // [Ardia]
+   [self interactionsBegan:[NSSet setWithObject:event]];
+   // [macOS
+   if (_shouldSendMouseUpOnSystemBehalf) {
+@@ -519,6 +598,7 @@ - (void)mouseDown:(NSEvent *)event
+ - (void)rightMouseDown:(NSEvent *)event
+ {
+   [super rightMouseDown:event];
++  [self ardia_cancelTouchesWithoutReleaseBeforeMouseDown:event]; // [Ardia]
+   [self interactionsBegan:[NSSet setWithObject:event]];
+ }
+   
 diff --git a/React/Base/macOS/RCTUIKit.m b/React/Base/macOS/RCTUIKit.m
 index a37a1c106a04752c1baeb6dd2170402ce5f34f71..4b0fa1207d50724979fdb0122a4a88eed20374cd 100644
 --- a/React/Base/macOS/RCTUIKit.m

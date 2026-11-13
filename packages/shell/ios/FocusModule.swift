@@ -35,6 +35,8 @@ public class FocusModule: Module {
 
     OnDestroy { self.lifetime.end() }
 
+    Function("pressesWithoutRelease") { () -> Int in PressRelease.pressesWithoutRelease }
+    AsyncFunction("pressRepeated") { () -> [String: Any]? in PressRelease.pressRepeated }.runOnQueue(.main)
     AsyncFunction("cancelFocusMove") { (generation: Int, restoringSource: Bool) in
       FocusHandoff.shared.cancel(generation, restoringSource: restoringSource)
     }.runOnQueue(.main)
