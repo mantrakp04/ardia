@@ -330,6 +330,7 @@ void PeekTrace(NSDictionary *entry);
 NSString *SplitLinkModifier();
 NSString *PeekConfigJSON(ArdiaWebView *view);
 NSDictionary *_Nullable RecentClickPoint(ArdiaWebView *view);
+BOOL MayHoldUserActivation(NSWindow *window);
 
 void InstallControlPressMonitor();
 BOOL TracingPictureInPicture();
