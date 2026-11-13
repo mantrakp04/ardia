@@ -1,7 +1,9 @@
+import type { DomainModule } from "@ardia/ardiacore";
+
 export type Fields = Record<string, unknown>;
 
 export type Engine = {
-  call(name: string, profile: string, argsJson: string): Promise<string>;
+  call: DomainModule["call"];
   host(verb: string, args?: Fields): Promise<Fields>;
   profileDataFolder(): string | null;
   removeProfileFolder(folder: string): Promise<string>;

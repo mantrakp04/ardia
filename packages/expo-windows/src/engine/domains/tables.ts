@@ -1,3 +1,4 @@
+import type { DomainModule } from "@ardia/ardiacore";
 import { autofillCalls, saveCard } from "./autofill";
 import { BadArgs, callError, isFields, passed, readArgs, type Engine, type Fields, type Handlers } from "./calling";
 import { downloadCalls, downloadChanged } from "./downloads";
@@ -15,7 +16,7 @@ export type Rows = {
   topics: Record<string, string>;
 };
 
-export type DomainCall = (verb: string, profile: string, argsJson: string) => Promise<string>;
+export type DomainCall = DomainModule["call"];
 
 export const reproduced: Record<string, Handlers> = {
   autofill: autofillCalls,
