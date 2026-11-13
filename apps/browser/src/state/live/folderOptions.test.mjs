@@ -239,7 +239,7 @@ test("a hidden repo stays out through fetches and manual refreshes, keeps its op
   const { fetch, resolveGone } = SOURCES.bitbucket;
   const asked = [];
   SOURCES.bitbucket.fetch = async () => [work, personal];
-  SOURCES.bitbucket.resolveGone = async (items) => (asked.push(...items.map((it) => it.id)), {});
+  SOURCES.bitbucket.resolveGone = async (_folder, items) => (asked.push(...items.map((it) => it.id)), {});
   try {
     await refreshFolder(id);
     setRepoHidden(id, "bitbucket:me/dotfiles", true);
