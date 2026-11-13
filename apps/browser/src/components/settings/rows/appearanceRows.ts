@@ -25,7 +25,7 @@ export const appearanceRows = {
       rows: {
         interfaceStyle: {
           title: "Interface style",
-          description: "Glass draws the pinned tiles, fields, buttons, Downloads and the site controls panel in macOS Liquid Glass. Classic keeps them flat, like Dia.",
+          description: "Glass draws the pinned tiles, fields, buttons, the New Tab row, the profile switcher, Downloads and the site controls panel in macOS Liquid Glass. Classic keeps them flat, like Dia.",
           keywords: ["liquid glass", "glass", "classic", "flat", "translucent", "transparency", "glow", "frosted"],
           shown: (_, env) => !!env.glass,
         },

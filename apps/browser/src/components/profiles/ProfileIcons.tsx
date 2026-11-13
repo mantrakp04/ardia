@@ -3,7 +3,10 @@ import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
 import { profileBadge, profileColors, profileSwitcher } from "./tokens";
+import { switcherCellWidth } from "./switcherBand";
 import { iconSymbol } from "../../lib/customIcon";
+
+export { switcherCellWidth };
 
 export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "house.fill", title: "Home" },
@@ -52,8 +55,6 @@ export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "flame.fill", title: "Hot" },
   { name: "bolt.fill", title: "Energy" },
 ];
-
-export const switcherCellWidth = (icon: string | null) => (icon ? profileSwitcher.iconCell : profileSwitcher.dotCell);
 
 export function switcherIcons(icons: (string | null)[], shown: boolean, room: number): (string | null)[] {
   const fits = icons.reduce((width, icon) => width + switcherCellWidth(icon), 0) <= room;

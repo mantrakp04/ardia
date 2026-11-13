@@ -1,7 +1,8 @@
 import { memo, useState } from "react";
 import { Animated, Pressable, View, type LayoutChangeEvent } from "react-native";
-import { Button, ContextMenuArea, radius, space, Symbol, Text, useHover } from "../ui";
+import { Button, ContextMenuArea, ink, radius, space, Symbol, Text, useHover } from "../ui";
 import { layout, useTheme } from "../ui/theme";
+import { GlassFill, useGlass } from "../ui/Glass";
 import { HoverSlot } from "../ui/HoverSlot";
 import { newTab } from "../../state/tabs/actions";
 import { useCleanedCount } from "../../state/sidebar/hooks";
@@ -22,10 +23,12 @@ const BUTTONS_ROOM = TAB_ROW.trailing + TAB_ROW.closeSlot + TAB_ROW.trailing;
 const MEASURE_TEXT = { alignSelf: "flex-start" } as const;
 const HINT = { marginRight: space.xxs } as const;
 const MEASURE_OFFSCREEN = { position: "absolute", width: 1000, height: 0, overflow: "hidden", opacity: 0 } as const;
+const ON_GLASS = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: radius.chrome } as const;
 
 export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip = null }: { windowId: string; shift?: Animated.Value | null; clip?: ClipSource | null }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
+  const glass = useGlass();
   const cleaned = useCleanedCount(windowId);
   const { hovered, hoverProps } = useHover();
   const [moved, movedRef] = useShift(shift);
@@ -70,11 +73,13 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
                   alignItems: "center",
                   paddingLeft: TAB_ROW.contentLeft,
                   paddingRight: BUTTONS_ROOM,
-                  backgroundColor: pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
+                  backgroundColor: glass ? undefined : pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
                 },
                 moved.style as object,
               ]}
             >
+              {glass ? <GlassFill radius={radius.chrome} state={pressed ? "pressed" : hovered ? "lit" : "rest"} /> : null}
+              {glass ? <View pointerEvents="none" style={[ON_GLASS, { backgroundColor: pressed ? theme.tabPressed : hovered ? theme.tabHover : ink.clear }]} /> : null}
               <Symbol name="plus" size={13} weight="medium" color={tokens.newTabIcon} style={{ width: 16, height: 16 }} />
               <SidebarRowLabel text="New Tab" color={tokens.newTabLabel} />
             </View>
