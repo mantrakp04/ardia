@@ -8,9 +8,7 @@ struct BrowsingView: View {
 
   @Environment(AppModel.self) private var app
   @Environment(\.profileLook) private var look
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Namespace private var omnibox
   @State private var pager = PagerModel()
   @State private var barVisibility = BottomBarVisibility()
   @State private var tabSwitchTicks = 0
@@ -216,7 +214,6 @@ struct BrowsingView: View {
 
   private var bar: some View {
     BottomBar(
-      plusNamespace: omnibox,
       isSearchPresented: app.browse.search != nil,
       sideInset: pageSpan.safeSide,
       onTabs: openDeck,
@@ -230,7 +227,6 @@ struct BrowsingView: View {
     .padding(.top, BrowseLayout.barHeight - BrowseLayout.barCenterFromBottom - BrowseLayout.hitTarget / 2)
     .frame(maxWidth: .infinity)
     .frame(height: BrowseLayout.barHeight, alignment: .top)
-    .background { BarBacking(tone: tone?.bottom, solid: reduceTransparency) }
     .environment(\.colorScheme, barScheme)
     .contentShape(.rect)
     .highPriorityGesture(pagerGesture)

@@ -3,7 +3,6 @@ import ArdiaDesign
 import SwiftUI
 
 struct BottomBar: View {
-  let plusNamespace: Namespace.ID
   let isSearchPresented: Bool
   var sideInset: CGFloat = 0
   var onTabs: () -> Void
@@ -17,63 +16,56 @@ struct BottomBar: View {
 
   var body: some View {
     let order = app.deckOrder
-    HStack(spacing: 0) {
-      Button(action: onTabs) {
-        TabStackGlyph(tabs: Array(order.suffix(2)))
-          .offset(x: -2.8)
-          .frame(width: 47, height: BrowseLayout.hitTarget)
-          .contentShape(.rect)
-      }
-      .buttonStyle(BarButtonStyle())
-      .contextMenu { recentTabsMenu(order) }
-      .accessibilityLabel("Tabs")
-      .accessibilityValue(Text("^[\(order.count) tab](inflect: true)"))
-      .accessibilityHint("Touch and hold for recent tabs.")
-      .accessibilityActions {
-        Button("Previous Tab") { onStep(-1) }
-        Button("Next Tab") { onStep(1) }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-
-      ZStack {
-        if isSearchPresented {
-          Color.clear
-        } else {
-          Button(action: onPlus) {
-            Image(systemName: "plus")
-              .font(.system(size: 16, weight: .semibold))
-              .foregroundStyle(BrowsePalette.foregroundPrimary)
-              .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
-              .contentShape(.capsule)
-          }
-          .buttonStyle(BarButtonStyle())
-          .background {
-            Capsule()
-              .fill(BarPalette.plusFill)
-              .overlay { Capsule().strokeBorder(BarPalette.controlEdge, lineWidth: 1 / 3) }
-              .matchedGeometryEffect(id: "omnibox", in: plusNamespace)
-          }
-          .transition(.opacity)
-          .accessibilityLabel("New Search")
+    GlassEffectContainer {
+      HStack(spacing: 0) {
+        Button(action: onTabs) {
+          TabStackGlyph(tabs: Array(order.suffix(2)))
+            .frame(width: BrowseLayout.barGlassCircle, height: BrowseLayout.barGlassCircle)
+            .glassEffect(.regular.interactive(), in: .circle)
+            .contentShape(.circle)
         }
-      }
-      .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
+        .buttonStyle(BarButtonStyle())
+        .contextMenu { recentTabsMenu(order) }
+        .accessibilityLabel("Tabs")
+        .accessibilityValue(Text("^[\(order.count) tab](inflect: true)"))
+        .accessibilityHint("Touch and hold for recent tabs.")
+        .accessibilityActions {
+          Button("Previous Tab") { onStep(-1) }
+          Button("Next Tab") { onStep(1) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
 
-      Button(action: onMore) {
-        Image(systemName: "chevron.up")
-          .font(.system(size: 15, weight: .semibold))
-          .foregroundStyle(BrowsePalette.foregroundPrimary)
-          .frame(width: BrowseLayout.chevronCircle, height: BrowseLayout.chevronCircle)
-          .background(BarPalette.chevronFill, in: .circle)
-          .overlay { Circle().strokeBorder(BarPalette.controlEdge, lineWidth: 1 / 3) }
-          .frame(width: BrowseLayout.hitTarget, height: BrowseLayout.hitTarget)
-          .contentShape(.rect)
+        ZStack {
+          if !isSearchPresented {
+            Button(action: onPlus) {
+              Image(systemName: "plus")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(BrowsePalette.foregroundPrimary)
+                .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .contentShape(.capsule)
+            }
+            .buttonStyle(BarButtonStyle())
+            .transition(.opacity)
+            .accessibilityLabel("New Search")
+          }
+        }
+        .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
+
+        Button(action: onMore) {
+          Image(systemName: "chevron.up")
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(BrowsePalette.foregroundPrimary)
+            .frame(width: BrowseLayout.barGlassCircle, height: BrowseLayout.barGlassCircle)
+            .glassEffect(.regular.interactive(), in: .circle)
+            .contentShape(.circle)
+        }
+        .buttonStyle(BarButtonStyle())
+        .accessibilityLabel("Page Menu")
+        .frame(maxWidth: .infinity, alignment: .trailing)
       }
-      .buttonStyle(BarButtonStyle())
-      .accessibilityLabel("Page Menu")
-      .frame(maxWidth: .infinity, alignment: .trailing)
+      .padding(.horizontal, sideInset + BrowseLayout.barSideInset)
     }
-    .padding(.horizontal, sideInset + BrowseLayout.barSideInset - 4)
   }
 
   @ViewBuilder
@@ -88,47 +80,13 @@ struct BottomBar: View {
 }
 
 enum BarPalette {
-  static let plusFill = Color.adaptive(light: Color(hex: 0x767680, opacity: 0.16), dark: Color.white.opacity(0.16))
-  static let chevronFill = Color.adaptive(light: Color(hex: 0x767680, opacity: 0.12), dark: Color.white.opacity(0.13))
-  static let controlEdge = Color.adaptive(light: Color.black.opacity(0.06), dark: Color.white.opacity(0.1))
   static let tileFill = Color.adaptive(light: Color(hex: 0x767680, opacity: 0.2), dark: Color.white.opacity(0.2))
   static let tileEdge = Color.adaptive(light: Color.black.opacity(0.14), dark: Color.white.opacity(0.28))
-}
-
-struct BarBacking: View {
-  let tone: ToneColor?
-  var solid = false
-
-  @Environment(\.profileLook) private var look
-
-  var body: some View {
-    ZStack {
-      if let tone {
-        if solid {
-          tone.color
-        } else {
-          Rectangle().fill(.ultraThinMaterial)
-          tone.color.opacity(0.9)
-        }
-        (tone.isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.025))
-      } else {
-        if solid {
-          look.surface
-        } else {
-          Rectangle().fill(.bar)
-          look.surface.opacity(BrowseLayout.sheetTintShare)
-        }
-      }
-    }
-    .animation(Motion.barTone, value: tone)
-  }
 }
 
 struct BarButtonStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .scaleEffect(configuration.isPressed ? BrowseLayout.barControlScale : 1)
-      .animation(configuration.isPressed ? Motion.barPressIn : Motion.barPressOut, value: configuration.isPressed)
       .sensoryFeedback(.impact(weight: .light, intensity: 0.5), trigger: configuration.isPressed) { _, pressed in pressed }
   }
 }
