@@ -1,6 +1,10 @@
 import { launchLinks } from "../../platform/launchLinks";
 import { takeAnimationBursts, watchAnimationBursts } from "./animationBursts";
+import { checkDefaultBrowserAtLaunch, takeDefaultBrowserCounts } from "./defaultBrowserCounts";
 
-export const watchPlatformCounts = watchAnimationBursts;
+export function watchPlatformCounts() {
+  watchAnimationBursts();
+  checkDefaultBrowserAtLaunch();
+}
 
-export const takePlatformCounts = () => ({ ...takeAnimationBursts(), launch_command_line_links: launchLinks.takeOpenedAtLaunch() });
+export const takePlatformCounts = () => ({ ...takeAnimationBursts(), ...takeDefaultBrowserCounts(), launch_command_line_links: launchLinks.takeOpenedAtLaunch() });

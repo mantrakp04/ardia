@@ -257,6 +257,25 @@ is plain Chromium.
   go the same way), after the session has restored, so they open as links from another app do on the Mac. The launch
   log says `launch links: <n> held until the app listens` and `<n> sent to the app`; telemetry counts them as
   `launch_command_line_links` in the hourly `usage_counts`.
+- Ardia is a browser Windows knows about once installed: the installer writes the per-user registration Chromium's
+  own `ShellUtil` would, unsuffixed (`ArdiaHTM` is Chromium's ProgID for this install mode): the ProgID, whose open
+  command is `"<app>\Ardia.exe" --single-argument %1` (the form the first-launch and relaunch paths read as one
+  address), `StartMenuInternet\Ardia` with Capabilities for http, https and `.htm .html .shtml .svg .webp .xht .xhtml`,
+  `RegisteredApplications\Ardia`, and `OpenWithProgids` entries, all in HKCU, all removed by the uninstaller. The
+  installer does it, not the engine: Chromium registers itself only from its own installer or its settings page, and
+  Ardia ships neither. `installer-check.ps1` checks every key after install and that none is left after uninstall.
+- Windows 10 and 11 don't let an app make itself the default browser. `setAsDefaultBrowser` opens Default apps
+  (Ardia's own page, `ms-settings:defaultapps?registeredAppUser=Ardia`, on Windows 11 when this Ardia.exe is the one
+  registered; the general page otherwise) and answers false. `isDefaultBrowser` is true when the user's choice for
+  http and https is `ArdiaHTM` and that ProgID opens this Ardia.exe. The choice is what the shell resolves
+  (`AssocQueryString`), then the registry: Windows 11 builds since 2025 write it to `UserChoiceLatest\ProgId` and
+  leave the old `UserChoice` on the previous browser, so reading `UserChoice` alone says Edge after the user chose Ardia;
+  `ArdiaSystem.defaultBrowserState` returns the parts. Settings › General reads it again whenever an Ardia window
+  becomes active (React Native for Windows' AppState never changes in this app). With `PLATFORM_FEATURES.setsDefaultBrowser`
+  off, onboarding's row says "Yes, in Windows Settings", Settings' button says "Choose in Windows Settings…", the
+  7-day trial isn't offered (it starts when Ardia becomes the default, which only Windows Settings decides, so the app
+  could neither start nor date it), and the one-time offer after onboarding isn't made (it would open Settings at a
+  launch nobody asked for).
 - A page that goes full screen takes its window full screen (`setPageFullScreen`, which puts the window back as it
   was when the page leaves), and nothing is cut out of the page while it is.
 - Split View is off on Windows (`PLATFORM_FEATURES.splitView`): the engine keeps one hosted Chromium window per app
@@ -448,7 +467,8 @@ that answers the same methods with the same result shapes, so the wizard (`compo
 - The Windows alpha is the GitHub prerelease `windows-alpha`: `Ardia-Setup-x64.exe`, `Ardia-Setup-arm64.exe`, the
   feed `windows-update.json` (version, build, and per CPU the installer's address, SHA-256 and size) and the
   engine's source. `scripts/windows/publish-alpha.sh <run id>` publishes one green Windows workflow run there; the
-  feed goes up last.
+  feed goes up last. It keeps the installers of the build before, so an update the app already offered still downloads,
+  and removes older ones.
 - A build knows what it is from `Ardia.build.json` beside `Ardia.exe` (`assemble.ps1 -Build`, the workflow's run
   number). `ArdiaApp.systemInfo` takes its version and build from that file, since the library has no version
   resource, so telemetry, About and problem reports name the build; a folder build without it says 0.0.0, build 0. Only an installed build with that file updates: Settings › General › Updates shows "not set up" for a
