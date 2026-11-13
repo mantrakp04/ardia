@@ -35,7 +35,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Tour | Works (first card seen) | |
 | Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
 | Check for updates | Differs: no `windows-alpha` release is published, so Check Now says no Windows update has been published yet; the automatic check stays silent | #1517 |
-| Default browser | Broken: Settings says Ardia is the default while Edge is | #1439 |
+| Default browser | Works: Settings follows Windows' choice within one window activation (Edge, Ardia, Edge again, set in Windows Settings); Windows 11 keeps the choice in `UserChoiceLatest` | #1439 |
 | Open at login | Not walked: an instance with its own data folder leaves it alone | |
 
 **Windows and tabs**
