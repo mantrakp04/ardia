@@ -86,6 +86,8 @@ const LINUX_SHELL_METHODS: Record<string, ShellMethod> = {
   discardKeyResponder,
   cancelFocusMove: resolved,
   switcherPointerMoved: () => false,
+  pressesWithoutRelease: () => 0,
+  pressRepeated: () => Promise.resolve(null),
   animateWindowClose: resolved,
   raiseView,
   dragPreviewBegin: resolved,
