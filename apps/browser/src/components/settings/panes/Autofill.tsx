@@ -40,7 +40,7 @@ export function AutofillPane({ profileId: initial }: { profileId?: string | null
     <View>
       <SectionHeader
         title="Autofill"
-        description="Addresses and cards you save are offered when you fill in a form, separately for each profile. Card numbers are kept in your macOS Keychain."
+        description={`Addresses and cards you save are offered when you fill in a form, separately for each profile. Card numbers are kept in ${PLATFORM_TERMS.cardStore}.`}
         action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>

@@ -259,7 +259,7 @@ function SiteControlsPanel({
             <MenuSeparator />
             <MenuRow icon="plus.magnifyingglass" title="Zoom" accessory={<ZoomStepper tabId={tabId} zoom={tab.zoom} />} />
             {origin && !castTile ? <MenuRow icon="tv.and.mediabox" title="Cast…" onPress={cast} /> : null}
-            {origin ? (
+            {origin && PLATFORM_FEATURES.webKit ? (
               <MenuRow
                 icon={ENGINE_SYMBOLS[otherEngine(pageEngine)]}
                 title={`Open Page in ${ENGINE_NAMES[otherEngine(pageEngine)]}`}
