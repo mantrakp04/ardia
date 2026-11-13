@@ -121,6 +121,9 @@ export function startDevHarness() {
     get report(): typeof import("../../state/report/actions") & typeof import("../../state/report/recording") & typeof import("../../state/report/store") {
       return { ...require("../../state/report/actions"), ...require("../../state/report/recording"), ...require("../../state/report/store") };
     },
+    get model(): typeof import("../../state/browser/model") {
+      return require("../../state/browser/model");
+    },
     get unread(): typeof import("../../state/tabs/unread") {
       return require("../../state/tabs/unread");
     },

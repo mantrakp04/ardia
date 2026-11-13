@@ -30,6 +30,7 @@ struct ArdiaLeave {
 
 struct ArdiaFrameHold {
   BOOL awaiting{};
+  BOOL restoring{};
   NSUInteger generation{};
   NSArray *mark;
   __weak NSView *pane;
@@ -205,6 +206,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)schedulePainting;
 - (void)leaveScreen;
 - (void)beginFrameHoldIfCold;
+- (void)exposePage;
 - (void)finishFrameHold;
 - (void)stopHolding;
 - (void)takeFocusFromLingeringPane;

@@ -4,6 +4,7 @@
 #define CHROME_BROWSER_ARDIA_AC_CLI_TOKEN_POLICY_H_
 
 #include <memory>
+#include <string>
 
 #include "ardia/core/ac_content_hooks.h"
 
@@ -26,6 +27,8 @@ bool TokenClientMayInput(content::DevToolsAgentHostClient* root_client,
                          content::RenderFrameHost* frame);
 
 bool IsTokenClient(content::DevToolsAgentHostClient* root_client);
+
+void ClearCliViewportOverride(const std::string& target_id);
 
 }
 
