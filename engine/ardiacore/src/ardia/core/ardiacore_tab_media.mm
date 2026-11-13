@@ -177,13 +177,17 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
   return _contents && ardiacore::NoteTabInShownSlot(_contents);
 }
 
-- (void)whenSizeRestored:(void (^)(void))restored {
+- (void)whenSizeRestored:(void (^)(NSString* proof))restored {
   if (!_contents) {
-    restored();
+    restored(@"");
     return;
   }
   ardiacore::WhenTabSizeRestored(
-      _contents, base::BindOnce([](void (^done)(void)) { done(); }, restored));
+      _contents, base::BindOnce(
+                     [](void (^done)(NSString*), const std::string& proof) {
+                       done(base::SysUTF8ToNSString(proof));
+                     },
+                     restored));
 }
 
 - (void)exitFullscreen {

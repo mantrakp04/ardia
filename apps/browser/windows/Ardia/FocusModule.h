@@ -69,6 +69,17 @@ struct FocusModule {
     });
   }
 
+  REACT_METHOD(setTextInputFocused)
+  void setTextInputFocused(bool focused, DonePromise promise) noexcept {
+    Menus::MenuKeyboard::Shared().textInputFocused.store(focused);
+    promise.Resolve();
+  }
+
+  REACT_SYNC_METHOD(textInputFocused)
+  bool textInputFocused() noexcept {
+    return Menus::MenuKeyboard::Shared().textInputFocused.load();
+  }
+
   REACT_SYNC_METHOD(switcherPointerMoved)
   bool switcherPointerMoved() noexcept {
     return SwitcherPointer::Shared().Moved();

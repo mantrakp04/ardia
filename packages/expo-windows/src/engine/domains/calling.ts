@@ -1,4 +1,5 @@
 import type { DomainModule } from "@ardia/ardiacore";
+import type { ImportHost } from "../../import/host";
 
 export type Fields = Record<string, unknown>;
 
@@ -19,8 +20,8 @@ export type PowerReading = { onBattery?: unknown; batteryPercent?: unknown; batt
 export type Desktop = {
   saveFile(request: SaveRequest): Promise<string | null>;
   pickFolder(prompt: string): Promise<string | null>;
-  readText(folder: string, path: string, largest: number): Promise<string | null>;
-  readBase64(folder: string, path: string, largest: number): Promise<string | null>;
+  readText: ImportHost["readTextWithin"];
+  readBase64: ImportHost["readBase64Within"];
   power(): PowerReading | null;
   every(ms: number, run: () => void): void;
 };

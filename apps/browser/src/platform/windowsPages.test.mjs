@@ -246,3 +246,22 @@ test("a private window's view that unmounts and mounts again in one tick keeps a
   await settle();
   assert.deepEqual(calls.at(-1), { verb: "tab.close", args: { key: creates[1] }, windowId: "" });
 });
+
+test("a page that unmounts and mounts again in one tick under the same key closes its old tab before the new one is made", async () => {
+  const unmountFirst = mountPage("moved-profile", { url: "https://a.example/", profile: "p-one", windowId: "w" }, () => {});
+  await settle();
+  const before = calls.length;
+  unmountFirst();
+  const unmountSecond = mountPage("moved-profile", { url: "https://a.example/", profile: "p-two", windowId: "w" }, () => {});
+  await settle();
+  const order = calls.slice(before).filter((call) => call.args.key === "moved-profile" && (call.verb === "tab.close" || call.verb === "tab.create"));
+  assert.deepEqual(
+    order.map((call) => [call.verb, call.args.profile ?? ""]),
+    [
+      ["tab.close", ""],
+      ["tab.create", "p-two"],
+    ],
+  );
+  unmountSecond();
+  await settle();
+});

@@ -91,7 +91,7 @@ export function Omnibox({
     currentUrl,
   });
 
-  useHeldSelection(items, typed, scope, selectedIndex, dispatch);
+  useHeldSelection(items, typed, scope, selectedIndex, unpreviewed, dispatch);
   const waitForProvider = useProviderEnter(items, typed, scope, (s, disposition) => choose(s, disposition));
 
   const snapshot = useRef<BarSnapshot | null>(null);

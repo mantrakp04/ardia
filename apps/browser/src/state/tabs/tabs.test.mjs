@@ -212,6 +212,24 @@ test("clean up closes duplicates and stale tabs into Recently Cleaned, and resto
   assert.ok(S().tabs[e]);
 });
 
+test("one clean-up keeps every tab it closes in Recently Cleaned, past the cap, so Undo brings them all back", () => {
+  reset();
+  const many = organize.MAX_CLEANED + 20;
+  const [w] = setup("a", ...Array(many).fill("a"));
+  assert.equal(S().cleanUpTabs(w), many);
+  assert.equal(S().cleanedTabs.length, many);
+  S().restoreCleaned(S().cleanedTabs.map((c) => c.id), w);
+  assert.equal(view(w).length, many + 1);
+  open(w, "a");
+  assert.equal(S().cleanUpTabs(w), many + 1);
+  assert.equal(S().cleanedTabs.length, many + 1, "the newest batch is whole even when it alone is past the cap");
+  open(w, "b");
+  S().updateTab(model.viewTabIds(S(), w).find((id) => S().tabs[id].url === "https://b.com"), { lastActiveAt: Date.now() - 13 * 3600_000 });
+  S().activate(model.viewTabIds(S(), w)[0]);
+  assert.equal(S().cleanUpTabs(w), 1);
+  assert.equal(S().cleanedTabs.length, organize.MAX_CLEANED, "a later clean-up trims older entries back to the cap");
+});
+
 test("a reopened group's and cleaned tabs' tabs take their back/forward lists back", () => {
   reset();
   const [w, a, b, c, d] = setup("a", "b", "c", "d");

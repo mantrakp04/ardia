@@ -108,7 +108,7 @@ export function WhatsSentSheet() {
   const groups = [...WHATS_SENT.slice(0, -1), { title: SHARING_COPY.keptOnThisMac, items: [...LOCAL_COPY.items] }, WHATS_SENT.at(-1)!];
   return (
     <Sheet size="l" onClose={closeSettingsSheet}>
-      <DialogTitle subtitle={`Only while “${SHARING_COPY.toggle}” is on, except what’s under “Even with sharing off” and “Kept on this Mac”.`}>{SHARING_COPY.whatsSent}</DialogTitle>
+      <DialogTitle subtitle={`Only while “${SHARING_COPY.toggle}” is on, except what’s under “Even with sharing off” and “${SHARING_COPY.keptOnThisMac}”.`}>{SHARING_COPY.whatsSent}</DialogTitle>
       <ScrollView style={LIST}>
         {groups.map((group) => (
           <View key={group.title}>
