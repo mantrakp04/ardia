@@ -4,6 +4,7 @@ import { captureEscape } from "../../platform/focus";
 import { useBrowser } from "../browser/store";
 import { dismissZoomPopover } from "../site/zoomBubble";
 import { notePopoverClosed } from "../telemetry/usage";
+import { noteDownloadsPanelClose } from "../telemetry/downloadsPanelCounts";
 import { focusedWindowOf } from "../windows/ui";
 import { popoverOf, setPopover, usePages, type PagePopover } from "./pageState";
 
@@ -74,7 +75,10 @@ export function startPopoverEscape(closesDownloads = PLATFORM_FEATURES.escapeClo
     const open = popoverTabsIn(windowId);
     for (const id of open) closePopover(id);
     const downloads = downloadsOpenIn(windowId);
-    if (downloads) useBrowser.getState().setDownloadsOpen(windowId!, false);
+    if (downloads) {
+      useBrowser.getState().setDownloadsOpen(windowId!, false);
+      noteDownloadsPanelClose("escape");
+    }
     if (open.length || downloads) notePopoverClosed("escape");
   });
 }

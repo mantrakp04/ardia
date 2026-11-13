@@ -66,6 +66,7 @@ import { peekTabId } from "../peek/peek";
 import { expectFocus, findFocus } from "../focus/focusClaims";
 import { isWebPageUrl } from "../../lib/url";
 import { findStep, openFind } from "../find/actions";
+import { noteDownloadsPanelToggle } from "../telemetry/downloadsPanelCounts";
 
 const newOrId = (arg: string) => (arg === "new" ? null : arg);
 
@@ -303,6 +304,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "toggleMute":
       return page ? (arg === "site" ? toggleSiteMute(page.id) : toggleMute(page.id)) : undefined;
     case "downloads":
+      noteDownloadsPanelToggle(!ui?.downloadsOpen, "command");
       return s.setDownloadsOpen(windowId, !ui?.downloadsOpen);
     case "cast":
       return void toggleCastPicker(windowId, tabId);
