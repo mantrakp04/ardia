@@ -24,6 +24,7 @@ const SYNTHETIC = {
     row("Juniper", "lunch at noon?", "10:02"),
     row("Basil", "pushed the new build", "9:58"),
   ].join("")}</ul>`),
+  "links.example": shell("Ferry links", "2f6f8f", `<header>Ferry links</header>${story("http://slow.example/timetable", "Night ferry timetable", "slow.example · opens in a new tab, answers after 8 s", true)}<label style="display:block;margin:28px 40px 8px;color:#777">Notes</label><textarea style="display:block;margin:0 40px;width:calc(100% - 80px);height:96px;box-sizing:border-box;padding:14px 16px;border:1px solid #d8d2c6;border-radius:12px;font:17px -apple-system,system-ui;background:#fff"></textarea>`),
   "news.example": shell("Morning Digest", "b4532a", `<header>Morning Digest</header>${[
     story("http://lexicon.example/", "Word of the day: meadow", "lexicon.example"),
     story("http://docpad.example/", "Trip plan: a weekend in the hills", "docpad.example · opens in a new tab", true),
@@ -34,6 +35,12 @@ const SYNTHETIC = {
 createServer((req, res) => {
   const host = (req.headers.host || "").split(":")[0];
   const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^(\.\.[/\\])+/, "");
+  if (host === "slow.example") {
+    return setTimeout(() => {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      res.end(shell("Night ferry — Timetable", "1f4e79", `<header>Night ferry timetable</header><ul>${[row("Harbor", "Departs 22:10", "Pier 3"), row("Island", "Arrives 23:40", "Quay"), row("Return", "Departs 05:30", "Pier 1")].join("")}</ul>`));
+    }, 8000);
+  }
   if (SYNTHETIC[host] && path === "/") {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
     return res.end(SYNTHETIC[host]);
