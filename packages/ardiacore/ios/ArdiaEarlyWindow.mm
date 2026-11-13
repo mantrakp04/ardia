@@ -328,9 +328,8 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
     [CATransaction setDisableActions:YES];
     [page removeFromSuperview];
     page.frame = s.pageRect;
-    const BOOL restoring = [tab noteInShownSlot];
-    page.hidden = restoring;
-    if (restoring) [tab whenSizeRestored:^(NSString *proof) { page.hidden = NO; }];
+    [tab noteInShownSlot];
+    page.hidden = NO;
     [s.cover addSubview:page];
     [CATransaction commit];
     s.tab = tab;
