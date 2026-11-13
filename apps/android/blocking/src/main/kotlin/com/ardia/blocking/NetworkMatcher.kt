@@ -341,14 +341,16 @@ internal object Tokens {
             }
             val left = atoms.getOrNull(start - 1)
             val right = atoms.getOrNull(index)
-            val leftBounded = left != null && !left.quantified && (left.kind == START || (left.kind == LITERAL && !isPatternTokenChar(left.char)))
-            val rightBounded = right != null && !right.quantified && (right.kind == END || (right.kind == LITERAL && !isPatternTokenChar(right.char)))
+            val leftBounded = left != null && !left.quantified && (left.kind == START || breaksToken(left))
+            val rightBounded = right != null && !right.quantified && (right.kind == END || breaksToken(right))
             if (clean && leftBounded && rightBounded) {
                 result += buildString { for (atom in start until index) append(atoms[atom].char.lowercaseChar()) }
             }
         }
         return result
     }
+
+    private fun breaksToken(atom: Atom) = atom.kind == LITERAL && atom.char.code < 128 && !isPatternTokenChar(atom.char)
 
     private fun isTokenLiteral(atom: Atom) = atom.kind == LITERAL && isPatternTokenChar(atom.char)
 
@@ -366,11 +368,8 @@ internal object Tokens {
                     continue
                 }
                 '[' -> {
-                    var end = index + 1
-                    if (end < to && source[end] == '^') end++
-                    if (end < to && source[end] == ']') end++
-                    while (end < to && source[end] != ']') end += if (source[end] == '\\') 2 else 1
-                    if (end >= to) return false
+                    val end = ListRegex.classEnd(source, index, to)
+                    if (end < 0) return false
                     atoms += Atom(ANY)
                     index = end + 1
                     continue
@@ -411,13 +410,15 @@ internal object Tokens {
     private fun closingParen(source: String, open: Int, to: Int): Int {
         var depth = 0
         var index = open
-        var inClass = false
         while (index < to) {
             val char = source[index]
             when {
                 char == '\\' -> index++
-                inClass -> if (char == ']') inClass = false
-                char == '[' -> inClass = true
+                char == '[' -> {
+                    val end = ListRegex.classEnd(source, index, to)
+                    if (end < 0) return -1
+                    index = end
+                }
                 char == '(' -> depth++
                 char == ')' -> {
                     depth--

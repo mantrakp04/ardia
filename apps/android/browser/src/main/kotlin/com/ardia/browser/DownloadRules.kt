@@ -33,6 +33,9 @@ class DownloadCancelled : Exception("cancelled")
 
 class DownloadCall(val connectionScope: String? = null) {
     @Volatile
+    internal var boundScope: Any? = null
+
+    @Volatile
     var isCancelled = false
         private set
     private var abort: (() -> Unit)? = null
@@ -77,6 +80,8 @@ class DownloadResponse(
 
 fun interface DownloadTransport {
     fun open(url: String, headers: Map<String, String>, call: DownloadCall): DownloadResponse
+
+    fun newCall(connectionScope: String?): DownloadCall = DownloadCall(connectionScope)
 
     fun endConnectionScope(scope: String) = Unit
 }

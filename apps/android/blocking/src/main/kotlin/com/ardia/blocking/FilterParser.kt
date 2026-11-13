@@ -210,6 +210,10 @@ object FilterParser {
                 }
                 is NetworkParse.Rule -> {
                     val filter = result.filter
+                    if (filter.key in seenNetwork) {
+                        converted++
+                        return
+                    }
                     if (ListRegex.isUnindexed(filter) && ++unindexedRegex > ListRegex.MAX_UNINDEXED_PER_LIST) {
                         skip(SkipReason.UNINDEXED_REGEX)
                         return
@@ -313,7 +317,7 @@ object FilterParser {
             }
         }
         val isRegexBody = body.length > 2 && body.startsWith("/") && body.endsWith("/")
-        if (body.any { it == ' ' || it == '\t' || (it == '$' && !isRegexBody) }) return skip(SkipReason.UNSUPPORTED_PATTERN)
+        if (!isRegexBody && body.any { it == ' ' || it == '\t' || it == '$' }) return skip(SkipReason.UNSUPPORTED_PATTERN)
         if ("badfilter" in options) return NetworkParse.Badfilter(filterKey(isException, body, options.filter { it != "badfilter" }))
         val key = filterKey(isException, body, options)
 
@@ -403,10 +407,10 @@ object FilterParser {
     private class Shape(val anchor: Int, val anchorEnd: Boolean, val host: String?, val pattern: String, val isRegex: Boolean)
 
     private fun patternShape(raw: String, matchCase: Boolean): Shape? {
-        if (raw.length > MAX_PATTERN_LENGTH || raw.any { it.code >= 0x80 }) return null
         if (raw.length > 2 && raw.startsWith("/") && raw.endsWith("/")) {
             return Shape(Anchor.NONE, false, null, raw.substring(1, raw.length - 1), true)
         }
+        if (raw.length > MAX_PATTERN_LENGTH || raw.any { it.code >= 0x80 }) return null
         var rest = if (matchCase) raw else raw.lowercase()
         var anchor = Anchor.NONE
         var host: String? = null

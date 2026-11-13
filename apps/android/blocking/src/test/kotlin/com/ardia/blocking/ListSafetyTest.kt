@@ -192,6 +192,33 @@ class ListSafetyTest {
     }
 
     @Test
+    fun theNoTokenCapCountsDistinctRules() {
+        val list = (List(128) { "/same/" } + "/ads/").joinToString("\n")
+        val parsed = FilterParser.parse(list, "duplicates")
+        assertEquals(2, parsed.network.size)
+        assertNull(parsed.skipped[SkipReason.UNINDEXED_REGEX])
+        assertTrue(engineOf(list).blocks("https://site.test/ads", "https://page.test/"))
+        val over = FilterParser.parse((0 until 130).joinToString("\n") { "/q" + it.toString().padStart(3, '0') + "/" } + "\n/q000/", "over")
+        assertEquals(ListRegex.MAX_UNINDEXED_PER_LIST, over.network.size)
+        assertEquals(2, over.skipped[SkipReason.UNINDEXED_REGEX])
+    }
+
+    @Test
+    fun aTokenIsOnlyTakenWhenItsNeighboursBreakIt() {
+        assertTrue(engineOf("/[[:alpha:]]ads\\./").blocks("https://x.test/xads.", "https://page.test/"))
+        assertTrue(engineOf("/\\/ads[[:alpha:]]/").blocks("https://x.test/adsx", "https://page.test/"))
+        assertTrue(engineOf("/\u017fads\\./").blocks("https://x.test/sads.", "https://page.test/"))
+        assertEquals(emptyList<String>(), Tokens.regexCandidates("[[:alpha:]]ads\\."))
+        assertEquals(emptyList<String>(), Tokens.regexCandidates("\u017fads\\."))
+        assertEquals(emptyList<String>(), Tokens.regexCandidates("(?:x)?ads\\."))
+        assertEquals(listOf("ads"), Tokens.regexCandidates("[[:alpha:]]\\/ads\\."))
+        assertEquals(listOf("ads"), Tokens.regexCandidates("\\.ads\\/"))
+        assertEquals(16, ListRegex.classEnd("x[[:alpha:]\\]a-z]", 1))
+        assertEquals("[(][[:alpha:](]a(?:b)", ListRegex.withoutCaptures("[(][[:alpha:](]a(b)"))
+        assertFalse(ListRegex.dependsOnInputEnd("[[:alpha:]$]a"))
+    }
+
+    @Test
     fun escapesAndUnicodeCaseFoldingNeverHideAMatch() {
         assertTrue(engineOf("/\\x61bc/\$match-case").blocks("https://x.test/abc", "https://page.test/"))
         assertTrue(engineOf("/kiss/").blocks("https://x.test/ki\u017f\u017f", "https://page.test/"))

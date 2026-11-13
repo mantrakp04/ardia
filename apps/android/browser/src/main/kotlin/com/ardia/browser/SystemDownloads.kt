@@ -85,6 +85,7 @@ class SystemDownloads(
 
     @Volatile
     private var sessionListener: AutoCloseable? = null
+    private val sessionLock = Any()
 
     val active: StateFlow<List<DownloadProgress>> = mutableActive.asStateFlow()
 
@@ -100,8 +101,10 @@ class SystemDownloads(
             download.privateSession != null -> download.privateSession
             else -> "$UNBOUND_PRIVATE_SCOPE$id"
         }
-        val entry = Entry(download, DownloadCall(connectionScope))
-        entries[id] = entry
+        val entry = synchronized(sessionLock) {
+            if (!DownloadRules.liveCheckFor(download, sessions)()) return null
+            Entry(download, transport.newCall(connectionScope)).also { entries[id] = it }
+        }
         report(DownloadProgress(id, requestedName, 0, download.contentLength.takeIf { it > 0 }, isQueued = true))
         val job = scope.launch {
             val outcome = try {
@@ -143,7 +146,7 @@ class SystemDownloads(
         }
     }
 
-    private fun endSession(session: String) {
+    private fun endSession(session: String) = synchronized(sessionLock) {
         transport.endConnectionScope(session)
         for (entry in entries.values) {
             if (entry.download.isPrivate && entry.download.privateSession == session) {

@@ -119,18 +119,63 @@ class DownloadConnectionsTest {
     }
 
     @Test
-    fun anEndedSessionCannotOpenAConnection() {
+    fun aCallCreatedBeforeItsSessionEndedIsRefused() {
         val served = server { ok }
         get(served, "/before", "session-a")
+        val waiting = transport.newCall("session-a")
         transport.endConnectionScope("session-a")
         try {
-            get(served, "/after", "session-a")
-            fail("an ended session must not open a connection")
+            transport.open(served.url + "/after", emptyMap(), waiting)
+            fail("a call from an ended session must not open a connection")
         } catch (error: DownloadRefused) {
             assertEquals(DownloadFailure.PrivateSessionEnded, error.failure)
         }
         assertEquals(0, served.requestsTo("/after"))
         assertEquals(200, get(served, "/other", "session-b"))
+    }
+
+    @Test
+    fun endingManySessionsLeavesNothingBehindOnceTheirCallsAreGone() {
+        val served = server { ok }
+        repeat(500) { index ->
+            val session = "session-$index"
+            val call = transport.newCall(session)
+            if (index % 50 == 0) {
+                transport.open(served.url + "/file", emptyMap(), call).close()
+            }
+            transport.endConnectionScope(session)
+        }
+        assertEquals(0, transport.retainedScopeCount)
+        val held = transport.newCall("session-held")
+        transport.endConnectionScope("session-held")
+        assertEquals(0, transport.retainedScopeCount)
+        try {
+            transport.open(served.url + "/late", emptyMap(), held)
+            fail("a call held across its session's end must stay refused")
+        } catch (error: DownloadRefused) {
+            assertEquals(DownloadFailure.PrivateSessionEnded, error.failure)
+        }
+        assertEquals(0, served.requestsTo("/late"))
+    }
+
+    @Test
+    fun anEndedScopeIsCollectedWithTheLastCallThatHoldsIt() {
+        val scope = endedScopeHeldOnlyByACall()
+        repeat(20) {
+            if (scope.get() == null) return
+            System.gc()
+            Thread.sleep(50)
+        }
+        assertTrue("the ended scope is still reachable", scope.get() == null)
+    }
+
+    private fun endedScopeHeldOnlyByACall(): java.lang.ref.WeakReference<Any> {
+        val call = transport.newCall("session-collected")
+        val scope = java.lang.ref.WeakReference(call.boundScope!!)
+        transport.endConnectionScope("session-collected")
+        assertEquals(0, transport.retainedScopeCount)
+        assertTrue(scope.get() != null)
+        return scope
     }
 
     private fun endWhileHeld(hold: (() -> Unit) -> Unit) {

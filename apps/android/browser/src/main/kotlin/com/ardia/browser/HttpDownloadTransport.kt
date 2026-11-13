@@ -20,9 +20,10 @@ import okhttp3.Request
 import okhttp3.Response
 
 class HttpDownloadTransport(private val timeoutMillis: Long = 30_000) : DownloadTransport {
-    private val normal: ConnectionScope by lazy { ConnectionScope(null) }
+    private val normal: ConnectionScope by lazy { ConnectionScope() }
     private val scoped = ConcurrentHashMap<String, ConnectionScope>()
-    private val endedScopes: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    internal val retainedScopeCount: Int get() = scoped.size
 
     @Volatile
     internal var afterScopeChosen: (() -> Unit)? = null
@@ -31,7 +32,7 @@ class HttpDownloadTransport(private val timeoutMillis: Long = 30_000) : Download
     internal var afterCallCreated: (() -> Unit)? = null
 
     override fun open(url: String, headers: Map<String, String>, call: DownloadCall): DownloadResponse {
-        val scope = scopeFor(call.connectionScope)
+        val scope = bind(call)
         val request = Request.Builder().url(url).get().apply {
             for ((name, value) in headers) header(name, value)
             header("Accept-Encoding", "identity")
@@ -67,31 +68,29 @@ class HttpDownloadTransport(private val timeoutMillis: Long = 30_000) : Download
         }
     }
 
+    override fun newCall(connectionScope: String?): DownloadCall = DownloadCall(connectionScope).also { bind(it) }
+
     override fun endConnectionScope(scope: String) {
-        endedScopes += scope
         scoped.remove(scope)?.end()
     }
 
-    private fun scopeFor(key: String?): ConnectionScope {
-        if (key == null) return normal
-        if (key in endedScopes) throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
-        val scope = scoped.computeIfAbsent(key) { ConnectionScope(it) }
-        if (key in endedScopes) {
-            scoped.remove(key)?.end()
-            throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
-        }
-        return scope
+    private fun bind(call: DownloadCall): ConnectionScope = synchronized(call) {
+        (call.boundScope as? ConnectionScope)?.let { return it }
+        val key = call.connectionScope
+        val scope = if (key == null) normal else scoped.computeIfAbsent(key) { ConnectionScope() }
+        call.boundScope = scope
+        scope
     }
 
-    private inner class ConnectionScope(private val key: String?) {
+    private inner class ConnectionScope {
         private val client = newClient()
         private val calls = HashSet<Call>()
         private var ended = false
 
-        val isEnded: Boolean get() = synchronized(this) { ended || (key != null && key in endedScopes) }
+        val isEnded: Boolean get() = synchronized(this) { ended }
 
         fun newCall(request: Request): Call = synchronized(this) {
-            if (ended || (key != null && key in endedScopes)) throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
+            if (ended) throw DownloadRefused(DownloadFailure.PrivateSessionEnded)
             client.newCall(request).also { calls += it }
         }
 

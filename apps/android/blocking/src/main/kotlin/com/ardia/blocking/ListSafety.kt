@@ -58,19 +58,38 @@ internal object ListRegex {
         return false
     }
 
+    internal fun classEnd(source: String, open: Int, to: Int = source.length): Int {
+        var index = open + 1
+        if (index < to && source[index] == '^') index++
+        if (index < to && source[index] == ']') index++
+        while (index < to) {
+            when {
+                source[index] == '\\' -> index += 2
+                source.startsWith("[:", index) -> {
+                    val close = source.indexOf(":]", index + 2)
+                    index = if (close in 0 until to) close + 2 else index + 1
+                }
+                source[index] == ']' -> return index
+                else -> index++
+            }
+        }
+        return -1
+    }
+
     internal fun dependsOnInputEnd(source: String): Boolean {
         var index = 0
-        var inClass = false
         while (index < source.length) {
-            val char = source[index]
-            when {
-                char == '\\' -> {
-                    if (!inClass && index + 1 < source.length && source[index + 1] in "zbB") return true
+            when (source[index]) {
+                '\\' -> {
+                    if (index + 1 < source.length && source[index + 1] in "zbB") return true
                     index++
                 }
-                inClass -> if (char == ']') inClass = false
-                char == '[' -> inClass = true
-                char == '$' -> return true
+                '[' -> {
+                    val end = classEnd(source, index)
+                    if (end < 0) return true
+                    index = end
+                }
+                '$' -> return true
             }
             index++
         }
@@ -80,7 +99,6 @@ internal object ListRegex {
     internal fun withoutCaptures(source: String): String {
         val out = StringBuilder(source.length + 16)
         var index = 0
-        var inClass = false
         while (index < source.length) {
             val char = source[index]
             when {
@@ -89,13 +107,10 @@ internal object ListRegex {
                     index += 2
                     continue
                 }
-                inClass -> if (char == ']') inClass = false
                 char == '[' -> {
-                    inClass = true
-                    out.append(char)
-                    index++
-                    if (index < source.length && source[index] == '^') out.append(source[index++])
-                    if (index < source.length && source[index] == ']') out.append(source[index++])
+                    val end = classEnd(source, index).let { if (it < 0) source.length - 1 else it }
+                    out.append(source, index, end + 1)
+                    index = end + 1
                     continue
                 }
                 char == '(' && !source.startsWith("(?", index) -> {
@@ -153,11 +168,8 @@ internal object ListRegex {
                         1L
                     }
                     '[' -> {
-                        index++
-                        if (index < source.length && source[index] == '^') index++
-                        if (index < source.length && source[index] == ']') index++
-                        while (index < source.length && source[index] != ']') index += if (source[index] == '\\') 2 else 1
-                        index++
+                        val end = classEnd(source, index)
+                        index = if (end < 0) source.length else end + 1
                         1L
                     }
                     '(' -> {
