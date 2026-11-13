@@ -29,13 +29,13 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Feature | State | Tracked in |
 | --- | --- | --- |
 | Installer (wizard, Start menu, Open Ardia) | Works | |
-| First launch after the installer | Differs: ardia.dev's release notes open behind onboarding | #1517 |
+| First launch after the installer | Works: onboarding, no release notes (they wait while a first run is under way) | #1517 |
 | Onboarding (source, look, last choices; resumes where you left it) | Works | |
 | Intro animation and music | Differs: the Mac's dawn poster stands in for the animated meadow (none at night); the music is the Mac's, rendered from its synthesis and played with XAudio2 | #1547, #1546, #1249 |
 | Tour | Works (first card seen) | |
 | Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
-| Check for updates | Broken: "the server answered 404", no `windows-alpha` release | #1517 |
-| Default browser | Broken: Settings says Ardia is the default while Edge is | #1439 |
+| Check for updates | Differs: no `windows-alpha` release is published, so Check Now says no Windows update has been published yet; the automatic check stays silent | #1517 |
+| Default browser | Works: Settings follows Windows' choice within one window activation (Edge, Ardia, Edge again, set in Windows Settings); Windows 11 keeps the choice in `UserChoiceLatest` | #1439 |
 | Open at login | Not walked: an instance with its own data folder leaves it alone | |
 
 **Windows and tabs**
@@ -61,7 +61,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Feature | State | Tracked in |
 | --- | --- | --- |
 | Command bar (history, open tabs, suggestions, calculator) | Works | |
-| Inline completion in the command bar | Does nothing | #1520 |
+| Inline completion in the command bar | Works: the top match completes inline and selected; typing replaces it, Backspace removes it, an IME composition is left alone | #1520 |
 | Find in page | Differs: Chromium's find bar | stand-ins (Chromium's own UI) |
 | Zoom | Works | |
 | Print | Works (Chromium's print preview) | |

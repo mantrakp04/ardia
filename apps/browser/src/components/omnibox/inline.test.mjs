@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildSuggestions } from "@ardia/core";
-import { acceptsCompletion, completionToWrite, fieldChange, previewFieldChange, withoutFirst } from "./inline.ts";
+import { acceptsCompletion, completionToWrite, fieldChange, previewFieldChange, settlesInline, withoutFirst } from "./inline.ts";
 
 const now = Date.UTC(2026, 8, 25);
 const history = [
@@ -270,4 +270,11 @@ test("previewFieldChange: a completion echo that lands after arrowing to a row i
   const typedOnPreview = previewFieldChange("gi", "thub.com", "gitlab.com", "gitlab.com/", []);
   assert.deepEqual(typedOnPreview, { echo: false, typed: "gitlab.com/", suppress: false });
   assert.deepEqual(previewFieldChange("gi", "", null, "git", []), fieldChange("gi", "", "git", []));
+});
+
+test("a completion that was cleared is taken as cleared wherever the caret is, and one that was added only where the caret allows it", () => {
+  assert.equal(settlesInline(true, "", false), true);
+  assert.equal(settlesInline(true, "mple.com", false), false);
+  assert.equal(settlesInline(true, "mple.com", true), true);
+  assert.equal(settlesInline(false, "", true), false);
 });
