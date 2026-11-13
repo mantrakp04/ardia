@@ -61,20 +61,32 @@ inline Text Upper(Text text) {
   return text;
 }
 
+struct Broken {
+  bool any = false;
+  void Finished(ImportFiles::Statement const &statement, int step) noexcept {
+    if (!statement || step != SQLITE_DONE) any = true;
+  }
+};
+
+inline int Step(ImportFiles::Statement const &statement) noexcept { return statement ? sqlite3_step(statement.Get()) : SQLITE_ERROR; }
+
 inline Text TextAt(sqlite3_stmt *row, const char *column) { return NonEmpty(ImportFiles::ColumnText(row, ImportFiles::ColumnIndex(row, column))); }
 
-inline std::vector<std::pair<std::string, Address>> TokenAddresses(sqlite3 *db, std::string const &table, std::string const &tokens) {
+inline std::vector<std::pair<std::string, Address>> TokenAddresses(sqlite3 *db, std::string const &table, std::string const &tokens, Broken &broken) {
   std::vector<std::string> order;
   ImportFiles::Statement guids{db, "SELECT guid FROM " + table + " ORDER BY rowid"};
-  while (guids && sqlite3_step(guids.Get()) == SQLITE_ROW)
+  int step = SQLITE_ROW;
+  while ((step = Step(guids)) == SQLITE_ROW)
     if (sqlite3_column_type(guids.Get(), 0) != SQLITE_NULL) order.push_back(ImportFiles::ColumnText(guids.Get(), 0));
+  broken.Finished(guids, step);
   std::map<std::string, std::map<int64_t, std::string>> values;
   ImportFiles::Statement rows{db, "SELECT guid, type, value FROM " + tokens};
-  while (rows && sqlite3_step(rows.Get()) == SQLITE_ROW) {
+  while ((step = Step(rows)) == SQLITE_ROW) {
     if (sqlite3_column_type(rows.Get(), 0) == SQLITE_NULL) continue;
     Text value = NonEmpty(ImportFiles::ColumnText(rows.Get(), 2));
     if (value) values[ImportFiles::ColumnText(rows.Get(), 0)][ImportFiles::ColumnInt(rows.Get(), 1).value_or(0)] = *value;
   }
+  broken.Finished(rows, step);
   std::vector<std::pair<std::string, Address>> out;
   for (auto const &guid : order) {
     auto found = values.find(guid);
@@ -98,34 +110,37 @@ inline std::vector<std::pair<std::string, Address>> TokenAddresses(sqlite3 *db, 
   return out;
 }
 
-inline std::map<std::string, std::string> FirstValues(sqlite3 *db, const char *table, Text (*build)(sqlite3_stmt *)) {
+inline std::map<std::string, std::string> FirstValues(sqlite3 *db, const char *table, Text (*build)(sqlite3_stmt *), Broken &broken) {
   std::map<std::string, std::string> out;
   if (!ImportFiles::TableExists(db, table)) return out;
   ImportFiles::Statement rows{db, std::string{"SELECT * FROM "} + table + " ORDER BY rowid"};
-  while (rows && sqlite3_step(rows.Get()) == SQLITE_ROW) {
+  int step = SQLITE_ROW;
+  while ((step = Step(rows)) == SQLITE_ROW) {
     int guid = ImportFiles::ColumnIndex(rows.Get(), "guid");
     if (guid < 0 || sqlite3_column_type(rows.Get(), guid) == SQLITE_NULL) continue;
     std::string key = ImportFiles::ColumnText(rows.Get(), guid);
     if (out.count(key)) continue;
     if (Text value = build(rows.Get())) out[key] = *value;
   }
+  broken.Finished(rows, step);
   return out;
 }
 
-inline std::vector<std::pair<std::string, Address>> LegacyAddresses(sqlite3 *db) {
+inline std::vector<std::pair<std::string, Address>> LegacyAddresses(sqlite3 *db, Broken &broken) {
   auto names = FirstValues(db, "autofill_profile_names", [](sqlite3_stmt *row) -> Text {
     Text full = TextAt(row, "full_name");
     return full ? full : Joined({TextAt(row, "first_name"), TextAt(row, "middle_name"), TextAt(row, "last_name")}, " ");
-  });
-  auto emails = FirstValues(db, "autofill_profile_emails", [](sqlite3_stmt *row) { return TextAt(row, "email"); });
-  auto phones = FirstValues(db, "autofill_profile_phones", [](sqlite3_stmt *row) { return TextAt(row, "number"); });
+  }, broken);
+  auto emails = FirstValues(db, "autofill_profile_emails", [](sqlite3_stmt *row) { return TextAt(row, "email"); }, broken);
+  auto phones = FirstValues(db, "autofill_profile_phones", [](sqlite3_stmt *row) { return TextAt(row, "number"); }, broken);
   auto lookup = [](std::map<std::string, std::string> const &from, std::string const &guid) -> Text {
     auto found = from.find(guid);
     return found == from.end() ? std::nullopt : Text{found->second};
   };
   std::vector<std::pair<std::string, Address>> out;
   ImportFiles::Statement rows{db, "SELECT * FROM autofill_profiles ORDER BY rowid"};
-  while (rows && sqlite3_step(rows.Get()) == SQLITE_ROW) {
+  int step = SQLITE_ROW;
+  while ((step = Step(rows)) == SQLITE_ROW) {
     sqlite3_stmt *row = rows.Get();
     int guidColumn = ImportFiles::ColumnIndex(row, "guid");
     if (guidColumn < 0 || sqlite3_column_type(row, guidColumn) == SQLITE_NULL) continue;
@@ -143,6 +158,7 @@ inline std::vector<std::pair<std::string, Address>> LegacyAddresses(sqlite3 *db)
                 lookup(emails, guid)};
     out.emplace_back(guid, std::move(a));
   }
+  broken.Finished(rows, step);
   return out;
 }
 
@@ -212,6 +228,7 @@ inline std::string Read(std::string const &browser, std::filesystem::path const 
   bool any = false;
   for (const char *table : {"credit_cards", "addresses", "local_addresses", "contact_info", "autofill_profiles"}) any = any || ImportFiles::TableExists(db, table);
   if (!any) return "{\"failure\":\"unreadable\"}";
+  Broken broken;
   std::vector<Address> addresses;
   std::set<std::string> guids;
   auto take = [&](std::vector<std::pair<std::string, Address>> found) {
@@ -224,14 +241,15 @@ inline std::string Read(std::string const &browser, std::filesystem::path const 
   };
   for (auto [table, tokens] : std::array<std::pair<const char *, const char *>, 3>{
            {{"addresses", "address_type_tokens"}, {"local_addresses", "local_addresses_type_tokens"}, {"contact_info", "contact_info_type_tokens"}}})
-    if (ImportFiles::TableExists(db, table) && ImportFiles::TableExists(db, tokens)) take(TokenAddresses(db, table, tokens));
-  if (ImportFiles::TableExists(db, "autofill_profiles")) take(LegacyAddresses(db));
+    if (ImportFiles::TableExists(db, table) && ImportFiles::TableExists(db, tokens)) take(TokenAddresses(db, table, tokens, broken));
+  if (ImportFiles::TableExists(db, "autofill_profiles")) take(LegacyAddresses(db, broken));
   std::vector<Card> cards;
   ImportSecrets::Counted counted;
   size_t locked = 0;
   if (ImportFiles::TableExists(db, "credit_cards")) {
     ImportFiles::Statement select{db, "SELECT * FROM credit_cards"};
-    while (select && sqlite3_step(select.Get()) == SQLITE_ROW) {
+    int step = SQLITE_ROW;
+    while ((step = Step(select)) == SQLITE_ROW) {
       sqlite3_stmt *row = select.Get();
       int column = ImportFiles::ColumnIndex(row, "card_number_encrypted");
       auto blob = static_cast<const uint8_t *>(column >= 0 ? sqlite3_column_blob(row, column) : nullptr);
@@ -259,7 +277,9 @@ inline std::string Read(std::string const &browser, std::filesystem::path const 
       if (auto year = ImportFiles::ColumnInt(row, ImportFiles::ColumnIndex(row, "expiration_year")); year && *year > 0) card.year = *year < 100 ? 2000 + *year : *year;
       cards.push_back(std::move(card));
     }
+    broken.Finished(select, step);
   }
+  if (broken.any) return "{\"failure\":\"unreadable\"}";
   std::vector<std::unique_ptr<Wiped>> batches;
   for (size_t start = 0; start < std::max(addresses.size(), cards.size()); start += kAutofillBatch) {
     auto batch = std::make_unique<Wiped>();
