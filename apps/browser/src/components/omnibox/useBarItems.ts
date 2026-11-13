@@ -6,9 +6,11 @@ import { offeredScope } from "../../state/omnibox/scopes";
 import { useDropdownStart, useOpenTabsStart } from "./dropdownStart";
 import { useInlineCompletion } from "./useInlineCompletion";
 import { useSuggestions } from "./useSuggestions";
+import type { Selection } from "./inline";
 
 export function useBarItems({
   input,
+  caret,
   typed,
   edited,
   scope,
@@ -22,6 +24,7 @@ export function useBarItems({
   currentUrl,
 }: {
   input: RefObject<TextInput | null>;
+  caret: () => Selection;
   typed: string;
   edited: boolean;
   scope: SearchScope | null;
@@ -53,7 +56,7 @@ export function useBarItems({
   const current = items[selectedIndex];
   const preview = selectedIndex > unpreviewed ? (previewText(current) ?? typed) : null;
   const previewing = preview !== null;
-  const inline = useInlineCompletion(input, typed, suppressCompletion || scope ? "" : completion, preview);
+  const inline = useInlineCompletion(input, typed, suppressCompletion || scope ? "" : completion, preview, caret);
   const shownCompletion = previewing ? "" : inline.shown;
   const value = preview ?? typed + shownCompletion;
   const tabScope = useMemo(

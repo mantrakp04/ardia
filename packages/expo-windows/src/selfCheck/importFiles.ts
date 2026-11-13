@@ -5,7 +5,7 @@ import { nativeImportHost } from "../import/nativeHost";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-const host = () => {
+export const host = () => {
   const made = nativeImportHost();
   expectTrue(made, "ArdiaWindowsImport has no Windows module");
   return made;
@@ -13,7 +13,7 @@ const host = () => {
 
 const documents = () => requireNativeModule<DocumentsNative>("ArdiaDocuments");
 
-const dataFolder = () => {
+export const dataFolder = () => {
   const folder = requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().dataDirectory;
   expectTrue(typeof folder === "string" && folder.length > 0, "the instance has no data folder");
   return folder;
@@ -127,7 +127,7 @@ export const checks: Check[] = [
       expectEqual(await native.unlock("self-check", wrapped), { unlocked: false, appBound: false }, "a key Windows can't unwrap");
       expectEqual(await native.unlock("self-check", appBound), { unlocked: false, appBound: true }, "an app-bound key");
       let refused = "";
-      await native.writeCookies("no-such-token", "Default").catch((error: unknown) => (refused = String((error as Error).message ?? error)));
+      await native.writeImported("no-such-token", "Default", ["cookies", "autofill"]).catch((error: unknown) => (refused = String((error as Error).message ?? error)));
       expectTrue(refused.includes("no longer kept"), `an unknown token was ${refused || "accepted"}`);
       native.discard("no-such-token");
       native.forget();

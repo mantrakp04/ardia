@@ -364,12 +364,19 @@ export function dismissOnboarding(session: number) {
   else if (redo) openSettings("general");
 }
 
-export function maybeStartOnboarding() {
+export function maybeStartOnboarding(): boolean {
   const saved = readSaved();
-  if (saved?.completedAt) return;
-  if (saved?.startedAt) return resumeOnboarding(saved);
-  if (hasSavedSession()) return markCompleted();
-  if (__DEV__ && devTestValue("onboarding") !== "1") return;
+  if (saved?.completedAt) return false;
+  if (saved?.startedAt) {
+    resumeOnboarding(saved);
+    return true;
+  }
+  if (hasSavedSession()) {
+    markCompleted();
+    return false;
+  }
+  if (__DEV__ && devTestValue("onboarding") !== "1") return false;
   save({ startedAt: Date.now() });
   startOnboarding();
+  return true;
 }

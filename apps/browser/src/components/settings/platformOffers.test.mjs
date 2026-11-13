@@ -17,12 +17,23 @@ const OFFERS = `
 const { useBrowser } = await import("./src/state/browser/store.ts");
 const { PANES, SETTINGS, unshownSettings } = await import("./src/components/settings/settingsIndex.ts");
 const { UNAVAILABLE_COMMANDS } = await import("./src/state/commands/commandCatalog.ts");
-const { canSwitchEngine } = await import("./src/state/engines/engines.ts");
+const { canSwitchEngine, engineForUrl, tabEngine, typedNavigationEngine } = await import("./src/state/engines/engines.ts");
 const { goToSettingsPane, useSettingsNav } = await import("./src/state/settings/settingsWindows.ts");
 const S = () => useBrowser.getState();
 S().hydrate({});
 const unshown = new Set(unshownSettings(S().settings, { top: false }).split("\\n"));
 const watched = ["sync.sync", "calendar.access", "engines.defaultEngine", "privacy.blockAds", "privacy.filterLists", "general.littleWindowGestures", "tabs.videoUpscaling", "tabs.tabReorderHaptics", "appearance.pageScrollBars"];
+function pageEngines() {
+  const settings = S().settings;
+  const withRules = { settings: { ...settings, pageEngine: "webkit", websiteEngines: { "https://rule.example": "webkit" } }, tabs: { marked: { id: "marked", url: "https://example.com/", engine: "webkit", page: { kind: "empty" } } } };
+  return [
+    engineForUrl({ settings }, "https://www.netflix.com/watch/1"),
+    engineForUrl(withRules, "https://example.com/"),
+    engineForUrl(withRules, "https://rule.example/page"),
+    tabEngine(withRules, "marked"),
+    typedNavigationEngine(withRules, withRules.tabs.marked, "https://open.spotify.com/"),
+  ];
+}
 goToSettingsPane("calendar");
 const calendarLink = useSettingsNav.getState().pane;
 const shownCopy = SETTINGS.filter((e) => !unshown.has(e.id)).map((e) => [e.id, [e.title, e.description ?? ""].join(" ")]);
@@ -31,6 +42,7 @@ console.log(JSON.stringify({
   hidden: watched.filter((id) => unshown.has(id)),
   engineCommand: UNAVAILABLE_COMMANDS.has("togglePageEngine"),
   switchesEngine: canSwitchEngine("https://example.com/"),
+  pageEngines: pageEngines(),
   calendarLink,
   macWords: shownCopy.filter(([, text]) => /macOS|Touch ID|Keychain|this Mac|View ›|Apple silicon/.test(text)).map(([id]) => id),
 }));
@@ -49,6 +61,7 @@ test("Windows offers no Sync, Calendar or WebKit pane, no blocker, gesture, upsc
     hidden: ["sync.sync", "calendar.access", "engines.defaultEngine", "privacy.blockAds", "privacy.filterLists", "general.littleWindowGestures", "tabs.videoUpscaling", "tabs.tabReorderHaptics", "appearance.pageScrollBars"],
     engineCommand: true,
     switchesEngine: false,
+    pageEngines: ["chromium", "chromium", "chromium", "chromium", "chromium"],
     calendarLink: "general",
     macWords: [],
   });
@@ -60,6 +73,7 @@ test("the Mac keeps every pane, row and the engine switch", () => {
   assert.deepEqual(mac.hidden, []);
   assert.equal(mac.engineCommand, false);
   assert.equal(mac.switchesEngine, true);
+  assert.deepEqual(mac.pageEngines, ["webkit", "webkit", "webkit", "webkit", "webkit"]);
   assert.equal(mac.calendarLink, "calendar");
 });
 

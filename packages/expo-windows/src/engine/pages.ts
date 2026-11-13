@@ -1,6 +1,7 @@
 import { hostCall, onEngineTopic } from "./host";
 import { takerOfOpenedTab } from "./openedTabs";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
+import { privateSessionOpened } from "./privateWindows";
 
 export type PageListener = (name: string, data: unknown) => void;
 export type PageRect = { x: number; y: number; width: number; height: number };
@@ -89,7 +90,10 @@ function start(key: string, from: PageStart): Promise<boolean> {
       return create("");
     })
     .then(
-      () => true,
+      () => {
+        privateSessionOpened(from.profile ?? "");
+        return true;
+      },
       (error: unknown) => {
         console.warn(`[ardia windows] the page for ${key} did not open: ${String((error as Error)?.message ?? error)}`);
         return false;

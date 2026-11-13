@@ -250,3 +250,35 @@ test("while a page of a window is full screen, the window's other pages count as
   setFullScreenPage("fs-window", "right", false);
   assert.equal(hiddenByFullScreen("fs-window", "left"), false);
 });
+
+test("a private window whose hidden tab was refused gets it once a private page of its session opens, and not after the window went", async () => {
+  const restore = quietWarnings();
+  const before = calls.length;
+  const holdsOf = (windowId) => calls.slice(before).filter((call) => call.verb === "tab.create" && String(call.args.key).startsWith(`private-window:${windowId}:`));
+  refuseCreates = 3;
+  const releaseIdle = holdPrivateSession("incognito:w20@late", "w20");
+  const releaseGone = holdPrivateSession("incognito:w21@late", "w21");
+  const unmount = mountPage("late-page", { url: "https://a.example/", profile: "incognito:w22@late", windowId: "w22" }, () => {});
+  await settle();
+  assert.equal(holdsOf("w20").length, 1);
+  assert.equal(holdsOf("w21").length, 1);
+  releaseGone();
+  const unmountOther = mountPage("other-parent", { url: "https://a.example/", profile: "incognito:w23@other", windowId: "w23" }, () => {});
+  await settle();
+  assert.equal(holdsOf("w20").length, 1, "a private page of another profile's session retries nothing");
+  await callPage("late-page", "reload");
+  await settle();
+  assert.equal(creates("late-page"), 2);
+  assert.equal(holdsOf("w20").length, 2, "the idle window's hidden tab is made once the session opens");
+  assert.equal(holdsOf("w21").length, 1, "a window that went gets none");
+  await callPage("late-page", "reload");
+  await settle();
+  assert.equal(holdsOf("w20").length, 2, "a hold that was made is not made again");
+  const key = holdsOf("w20")[1].args.key;
+  releaseIdle();
+  await settle();
+  assert.ok(calls.some((call) => call.verb === "tab.close" && call.args.key === key), "and it closes with its window");
+  unmount();
+  unmountOther();
+  restore();
+});

@@ -132,8 +132,12 @@
     <ClInclude Include="FileDropModule.h" />
     <ClInclude Include="FileDropTarget.h" />
     <ClInclude Include="FocusModule.h" />
+    <ClInclude Include="ImportAutofill.h" />
     <ClInclude Include="ImportFiles.h" />
+    <ClInclude Include="ImportFirefox.h" />
+    <ClInclude Include="ImportFirefoxCookies.h" />
     <ClInclude Include="ImportModule.h" />
+    <ClInclude Include="ImportNss.h" />
     <ClInclude Include="ImportSecrets.h" />
     <ClInclude Include="NotificationCenter.h" />
     <ClInclude Include="NotificationJson.h" />

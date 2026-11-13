@@ -59,6 +59,8 @@ export function failureText(error: unknown): string {
   return "the check failed";
 }
 
+export const feedNotPublished = (error: unknown) => /\banswered 404\b/.test(failureText(error));
+
 export const folderOf = (address: string) => address.slice(0, address.lastIndexOf("/") + 1);
 
 export const megabytes = (bytes: number) => Math.max(1, Math.round(bytes / (1024 * 1024)));
