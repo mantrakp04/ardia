@@ -1,4 +1,5 @@
 import { setSearchEngineName, setSelectionPopover } from "../../platform/pageOptions";
+import { tolerateMissingCall } from "../../lib/fallback";
 import { chooseTextFragment, cleanUrl, searchUrl, withTextFragment, type SelectionContext } from "@ardia/core";
 import { copyText } from "../../platform/clipboard";
 import { create } from "zustand";
@@ -28,11 +29,11 @@ export function startSelectionTools() {
   let popover: boolean | null = null;
   const sync = () => {
     const next = defaultSearchEngine(store().settings).name;
-    if (next !== name) void setSearchEngineName((name = next));
+    if (next !== name) void setSearchEngineName((name = next)).catch(tolerateMissingCall);
     const enabled = store().settings.showSelectionSearch;
     if (enabled === popover) return;
     popover = enabled;
-    void setSelectionPopover(enabled);
+    void setSelectionPopover(enabled).catch(tolerateMissingCall);
     if (!enabled) usePageSelection.setState({}, true);
   };
   sync();

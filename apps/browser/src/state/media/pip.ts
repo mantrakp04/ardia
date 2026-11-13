@@ -1,4 +1,5 @@
 import { setDisplayMediaPicker } from "../../platform/media";
+import { tolerateMissingCall } from "../../lib/fallback";
 import { useRef } from "react";
 import { useBrowser } from "../browser/store";
 import { useStoreWhile } from "../tabs/tabWatch";
@@ -20,7 +21,7 @@ let started = false;
 export function startMedia() {
   if (started) return;
   started = true;
-  void setDisplayMediaPicker(true);
+  void setDisplayMediaPicker(true).catch(tolerateMissingCall);
   cancelDisplayMediaOnNavigation();
   startTabShareCleanup();
   startCast();

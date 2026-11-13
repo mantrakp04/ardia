@@ -1,5 +1,6 @@
 import { CastMode, closeCastDialog, onCastDialog, onCastRoutes, showCastDialog, watchCastRoutes, type CastDialog, type CastRoute } from "../../platform/media";
 import { create } from "zustand";
+import { tolerateMissingCall } from "../../lib/fallback";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { shownPageId } from "../peek/peek";
@@ -49,7 +50,7 @@ export function startCast() {
       const profile = castProfile(s, id);
       if (watched.has(profile)) continue;
       watched.add(profile);
-      void watchCastRoutes(profile);
+      void watchCastRoutes(profile).catch(tolerateMissingCall);
     }
   };
   watch(useBrowser.getState());
