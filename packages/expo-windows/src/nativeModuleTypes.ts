@@ -1,7 +1,7 @@
 import type { AppNative, FileDropNative, MenusNative, NotificationsNative, SystemNative, WindowControlsNative, WindowsNative } from "@ardia/shell";
 import type { TurboModule } from "react-native";
 import type { EventSubscription } from "./events";
-import type { Query } from "./import/host";
+import type { ImportHost } from "./import/host";
 import type { LaunchArguments } from "./launchLinks/addresses";
 import type { DropAreaFrame } from "./views/fileDropAreas";
 
@@ -80,19 +80,8 @@ export type EngineHostModule = TurboModule & {
   removeProfileFolder(folder: string): Promise<string>;
 };
 
-export type WindowsImportModule = {
-  getConstants(): { localAppData?: unknown; roamingAppData?: unknown };
-  list(path: string): Promise<string>;
-  readText(path: string, largest: number): Promise<string | null>;
-  readBase64(path: string, largest: number): Promise<string | null>;
-  query(path: string, queries: Query[]): Promise<string>;
-  openSnapshot(path: string): Promise<string>;
-  querySnapshot(id: string, queries: Query[]): Promise<string>;
-  closeSnapshot(id: string): void;
-  unlock(browserId: string, localState: string): Promise<string>;
-  logins(browserId: string, files: string[]): Promise<string>;
-  cookies(browserId: string, file: string): Promise<string>;
-  writeCookies(token: string, profile: string): Promise<string>;
-  discard(token: string): void;
-  forget(): void;
-};
+type ImportAnswersAsJson = "list" | "query" | "openSnapshot" | "querySnapshot" | "unlock" | "logins" | "cookies" | "writeCookies";
+
+export type WindowsImportModule = Pick<ImportHost, "readText" | "readBase64" | "closeSnapshot" | "discard" | "forget"> & {
+  [Method in ImportAnswersAsJson]: (...args: Parameters<ImportHost[Method]>) => Promise<string>;
+} & { getConstants(): { localAppData?: unknown; roamingAppData?: unknown } };
