@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "ardia/core/ac_launch_switches.h"
 #include "ardia/win/hooks.h"
 #include "ardia/win/main.h"
 #include "ardia/win/page_links.h"
@@ -36,6 +37,7 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/version_info/version_info.h"
@@ -59,6 +61,7 @@ namespace {
 
 constexpr int kParkedAt = -32000;
 constexpr char kOfferedPrefix[] = "ardiacore:";
+constexpr base::TimeDelta kKeyboardHandoff = base::Seconds(1);
 constexpr int kOpenRequestTries = 20;
 constexpr base::TimeDelta kOpenRequestWait = base::Milliseconds(25);
 constexpr UINT_PTR kParentSubclass = 0xA2D1A;
@@ -202,6 +205,16 @@ Host* Host::Get() {
 }
 
 namespace {
+
+bool KeyboardMayMove() {
+  if (ardiacore::BackgroundInstance()) {
+    return false;
+  }
+  HWND front = ::GetForegroundWindow();
+  DWORD process = 0;
+  return front && ::GetWindowThreadProcessId(front, &process) &&
+         process == ::GetCurrentProcessId();
+}
 
 HWND PromptWindow() {
   HWND front = ::GetForegroundWindow();
@@ -363,6 +376,7 @@ void Host::ParentDestroying(HWND parent) {
     }
     hosted.parent = nullptr;
   }
+  keyboard_waits_.erase(parent);
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE,
       base::BindOnce(&Host::CloseSparePages, weak_factory_.GetWeakPtr()));
@@ -540,11 +554,24 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
   Shape(window, x, y, width, height,
         Scaled(args.FindDouble("radius").value_or(0), scale),
         args.FindList("holes"), scale);
+  const bool newly = !::IsWindowVisible(window) || hosted.shown != key;
   if (!::IsWindowVisible(window)) {
     browser->GetWindow()->ShowInactive();
     Place(window, hosted);
   }
   hosted.shown = key;
+  if (newly) {
+    hosted.shown_at = base::TimeTicks::Now();
+    auto waits = keyboard_waits_.find(parent);
+    if (waits != keyboard_waits_.end()) {
+      const bool due =
+          base::TimeTicks::Now() - waits->second <= kKeyboardHandoff;
+      keyboard_waits_.erase(waits);
+      if (due && !args.FindBool("fieldFocused").value_or(false)) {
+        GiveKeyboard(browser, contents);
+      }
+    }
+  }
   return Ok();
 }
 
@@ -640,9 +667,8 @@ std::optional<base::DictValue> Host::CallTab(content::WebContents* contents,
   } else if (method == "focus") {
     Browser* browser = BrowserOf(contents);
     HWND window = browser ? WindowOf(browser) : nullptr;
-    if (window && ::IsWindowVisible(window)) {
-      ::SetFocus(window);
-      contents->Focus();
+    if (browser && window && ::IsWindowVisible(window)) {
+      GiveKeyboard(browser, contents);
     }
   } else {
     return std::nullopt;
@@ -659,6 +685,8 @@ base::DictValue Host::Info() {
                                   .value()));
   result.Set("privateSessions", PrivateSessions::Get()->LiveSessions());
   result.Set("pageWindows", static_cast<int>(hosted_.size()));
+  result.Set("keyboardPage", KeyboardPage());
+  result.Set("keyboardMayMove", KeyboardMayMove());
   return result;
 }
 
@@ -877,15 +905,72 @@ void Host::ParkForeign(base::WeakPtr<BrowserWindowInterface> browser) {
 }
 
 void Host::Hide(Browser* browser, Hosted& hosted) {
+  if (content::WebContents* shown = Find(hosted.shown)) {
+    if (ExclusiveAccessManager* manager =
+            ExclusiveAccessManager::From(browser)) {
+      manager->OnTabDeactivated(shown);
+    }
+  }
   hosted.shown.clear();
   HWND window = WindowOf(browser);
   if (window && ::IsWindowVisible(window)) {
     const bool active = ::GetActiveWindow() == window;
     browser->GetWindow()->Hide();
     if (active && hosted.parent) {
-      ::SetActiveWindow(hosted.parent);
+      HandKeyboardOn(hosted.parent, browser);
     }
   }
+}
+
+void Host::HandKeyboardOn(HWND parent, const Browser* hidden) {
+  const base::TimeTicks now = base::TimeTicks::Now();
+  Browser* next = nullptr;
+  base::TimeTicks latest;
+  for (const auto& entry : hosted_) {
+    const Hosted& other = entry.second;
+    HWND window = WindowOf(entry.first);
+    if (entry.first == hidden || other.parent != parent ||
+        other.shown.empty() || !window || !::IsWindowVisible(window) ||
+        now - other.shown_at > kKeyboardHandoff || other.shown_at < latest) {
+      continue;
+    }
+    next = entry.first;
+    latest = other.shown_at;
+  }
+  content::WebContents* contents = next ? Find(hosted_[next].shown) : nullptr;
+  if (contents) {
+    keyboard_waits_.erase(parent);
+    GiveKeyboard(next, contents);
+    return;
+  }
+  if (KeyboardMayMove()) {
+    ::SetActiveWindow(parent);
+  }
+  keyboard_waits_[parent] = now;
+}
+
+void Host::GiveKeyboard(Browser* browser, content::WebContents* contents) {
+  HWND window = WindowOf(browser);
+  auto found = hosted_.find(browser);
+  if (found != hosted_.end() && found->second.parent) {
+    keyboard_waits_.erase(found->second.parent);
+  }
+  if (!window || !KeyboardMayMove()) {
+    return;
+  }
+  ::SetFocus(window);
+  contents->Focus();
+}
+
+std::string Host::KeyboardPage() const {
+  HWND focus = ::GetFocus();
+  for (const auto& entry : hosted_) {
+    HWND window = WindowOf(entry.first);
+    if (window && focus && (focus == window || ::IsChild(window, focus))) {
+      return entry.second.shown;
+    }
+  }
+  return std::string();
 }
 
 void Host::Place(HWND window, const Hosted& hosted) {

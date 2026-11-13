@@ -176,6 +176,28 @@ const withEngine: Check[] = [
     },
   },
   {
+    name: "engine: a page shown in place of the page that had the keyboard takes it, and only while the app is in front",
+    async run() {
+      const windowId = await firstWindow();
+      const made = await hostCall<{ tab?: unknown }>("tab.create", { key: SECOND_PAGE_KEY, url: PAGE_URL, profile: "" }, windowId);
+      expectTrue(typeof made.tab === "number" && made.tab > 0, `tab.create said ${JSON.stringify(made)}`);
+      await hostCall("tab.show", { key: PAGE_KEY, visible: true, unit: "px", x: 40, y: 60, width: 300, height: 240 }, windowId);
+      await hostCall("tab.call", { key: PAGE_KEY, method: "focus" });
+      const before = await hostCall<{ keyboardPage?: unknown; keyboardMayMove?: unknown }>("host.info");
+      await hostCall("tab.show", { key: SECOND_PAGE_KEY, visible: true, unit: "px", x: 40, y: 60, width: 300, height: 240, fieldFocused: false }, windowId);
+      await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
+      const after = await hostCall<{ keyboardPage?: unknown; keyboardMayMove?: unknown }>("host.info");
+      if (before.keyboardMayMove === true) {
+        expectEqual(before.keyboardPage, PAGE_KEY, "the keyboard after the first page was focused");
+        expectEqual(after.keyboardPage, SECOND_PAGE_KEY, "the keyboard after the first page hid behind the second");
+      } else {
+        expectEqual(after.keyboardPage, before.keyboardPage, "the keyboard of an app that isn't in front");
+      }
+      await hostCall("tab.show", { key: SECOND_PAGE_KEY, visible: false }, windowId);
+      await hostCall("tab.close", { key: SECOND_PAGE_KEY });
+    },
+  },
+  {
     name: "engine: the bookmarks call answers for the default profile",
     async run() {
       const tree = JSON.parse(await engineCallJson("ac_bookmarks_tree", "", "{}")) as { bar?: { k?: unknown }; error?: unknown };

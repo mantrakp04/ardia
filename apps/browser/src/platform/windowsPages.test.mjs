@@ -102,7 +102,7 @@ test("a page shown while its tab was refused is shown once with that shape when 
   assert.equal(creates("hidden-retry"), 2);
   const secondCreate = calls.findLastIndex((call) => call.verb === "tab.create" && call.args.key === "hidden-retry");
   const after = calls.slice(secondCreate).filter((call) => call.verb === "tab.show" && call.args.key === "hidden-retry");
-  assert.deepEqual(after, [{ verb: "tab.show", args: { key: "hidden-retry", visible: true, ...shape }, windowId: "w" }]);
+  assert.deepEqual(after, [{ verb: "tab.show", args: { key: "hidden-retry", visible: true, ...shape, fieldFocused: false }, windowId: "w" }]);
   assert.deepEqual(showsAtReady, [1], "the show went before the listeners heard ready");
   showPage("hidden-retry", true, { ...shape, width: 320 });
   await settle();

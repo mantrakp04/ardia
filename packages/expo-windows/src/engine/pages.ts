@@ -1,3 +1,4 @@
+import { appFieldFocused } from "../appKeyboard";
 import { hostCall, onEngineTopic } from "./host";
 import { takerOfOpenedTab } from "./openedTabs";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
@@ -138,7 +139,7 @@ function sendShow(page: Page): Promise<unknown> | undefined {
   const args = page.show;
   if (!args || args === page.showSent || page.closed) return undefined;
   page.showSent = args;
-  return hostCall("tab.show", args, page.windowId);
+  return hostCall("tab.show", args.visible ? { ...args, fieldFocused: appFieldFocused() } : args, page.windowId);
 }
 
 const focusWaits = (page: Page) => lastAskedToFocus === page && page.focusAsked > 0 && Date.now() - page.focusAsked < FOCUS_WAITS_FOR_SHOW_MS;
