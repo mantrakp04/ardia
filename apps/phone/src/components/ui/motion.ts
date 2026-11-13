@@ -24,6 +24,9 @@ export const tabsMotion = {
   flyAway: 200,
   barTone: 250,
   menu: 160,
+  sheetIn: spring(0.39, 1),
+  sheetOut: spring(0.32, 1),
+  surfaceFade: 200,
 } as const;
 
 export const tabsCurve = { easeOut: WorkletEasing.bezier(0, 0, 0.58, 1), easeInOut: WorkletEasing.bezier(0.42, 0, 0.58, 1) } as const;

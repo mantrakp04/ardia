@@ -46,6 +46,14 @@ const lightRoles = {
   divider: "rgba(0,0,0,0.09)",
   menuScrim: "rgba(0,0,0,0.12)",
   placeholderTints: ["#E8E6FB", "#FBE7EE", "#E3F0FB", "#E6F5EA", "#FDF0DD", "#EFE6F8"] as readonly string[],
+  groupFill: "#FFFFFF",
+  separator: "rgba(60,60,67,0.29)",
+  tertiaryFill: "rgba(118,118,128,0.12)",
+  tertiaryLabel: "rgba(60,60,67,0.3)",
+  toastFill: "rgba(255,255,255,0.92)",
+  toastShadow: "rgba(0,0,0,0.18)",
+  panelBorder: "rgba(0,0,0,0.1)",
+  dialogScrim: "rgba(0,0,0,0.32)",
 };
 
 export type ColorRoles = typeof lightRoles;
@@ -80,9 +88,44 @@ const darkRoles: ColorRoles = {
   divider: "rgba(255,255,255,0.09)",
   menuScrim: "rgba(0,0,0,0.3)",
   placeholderTints: ["#262447", "#3F2532", "#1E3046", "#1F3527", "#3D3020", "#30243F"] as readonly string[],
+  groupFill: "#1C1C1E",
+  separator: "rgba(84,84,88,0.6)",
+  tertiaryFill: "rgba(118,118,128,0.24)",
+  tertiaryLabel: "rgba(235,235,245,0.3)",
+  toastFill: "rgba(44,42,43,0.9)",
+  toastShadow: "rgba(0,0,0,0.5)",
+  panelBorder: "rgba(255,255,255,0.1)",
+  dialogScrim: "rgba(0,0,0,0.48)",
 };
 
 export const colorRoles = { light: lightRoles, dark: darkRoles } as const;
+
+export const menuLayout = {
+  sheetRadius: 38,
+  inset: 16,
+  innerRadius: 22,
+  capsuleHeight: 44,
+  tileHeight: 68,
+  rowHeight: 50,
+  iconSlot: 26,
+  zoomButton: { width: 40, height: 34 },
+  zoomReset: 48,
+  sheetTopGap: 24,
+} as const;
+
+export const toastLayout = { minHeight: 44, verticalPadding: 11, iconSize: 17, barClearance: 64, sideInset: 32, shadowRadius: 14, shadowY: 6 } as const;
+
+export const pageInk = { findError: "#C93333" } as const;
+
+export const readerInk = {
+  light: { background: "#FFFFFF", ink: "#1C1C1E", secondary: "rgba(28,28,30,0.6)" },
+  sepia: { background: "#F8F1E3", ink: "#4F321C", secondary: "rgba(79,50,28,0.6)" },
+  dark: { background: "#121214", ink: "#E3E3E6", secondary: "rgba(227,227,230,0.6)" },
+} as const;
+
+export const readerLayout = { maxWidth: 680, topBar: 52, lineHeight: 1.52, titleScale: 1.55, titleLine: 1.2, paragraphGap: 0.9, headerGap: 1.2 } as const;
+
+export const dialogLayout = { width: 312, radius: 28, fieldHeight: 48 } as const;
 
 export const trayShadow = { opacity: 0.14, radius: 24, offsetY: -4, elevation: 12 } as const;
 

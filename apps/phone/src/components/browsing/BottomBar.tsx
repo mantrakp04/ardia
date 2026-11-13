@@ -3,9 +3,9 @@ import type { BrowserTab } from "../../state/tabs/tabModels";
 import { display } from "../../state/search/omnibox";
 import { browseLayout, capsule, PressScale, Symbol, TabFace, tabsInk, tabsLayout, type ColorRoles } from "../ui";
 
-type Props = { order: BrowserTab[]; roles: ColorRoles; showsPlus: boolean; onTabs: () => void; onPlus: () => void };
+type Props = { order: BrowserTab[]; roles: ColorRoles; showsPlus: boolean; onTabs: () => void; onPlus: () => void; onMore: () => void };
 
-export function BottomBar({ order, roles, showsPlus, onTabs, onPlus }: Props) {
+export function BottomBar({ order, roles, showsPlus, onTabs, onPlus, onMore }: Props) {
   const plus = browseLayout.plusCapsule;
   const count = order.length;
   return (
@@ -30,7 +30,7 @@ export function BottomBar({ order, roles, showsPlus, onTabs, onPlus }: Props) {
         ) : null}
       </View>
       <View style={[styles.side, styles.end]}>
-        <View accessibilityLabel="Page Menu" accessibilityState={{ disabled: true }} style={styles.more}>
+        <PressScale label="Page Menu" onPress={onMore} style={styles.more}>
           <View
             style={[
               styles.center,
@@ -40,7 +40,7 @@ export function BottomBar({ order, roles, showsPlus, onTabs, onPlus }: Props) {
           >
             <Symbol name="chevronUp" size={16} color={roles.foregroundPrimary} />
           </View>
-        </View>
+        </PressScale>
       </View>
     </View>
   );

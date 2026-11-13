@@ -14,6 +14,8 @@ export function Symbol({ name, size, color }: { name: SymbolName; size: number; 
           strokeWidth={"stroke" in layer ? layer.stroke : 0}
           strokeLinecap="round"
           strokeLinejoin="round"
+          rotation={"rotate" in layer ? layer.rotate : 0}
+          origin="12, 12"
         />
       ))}
     </Svg>

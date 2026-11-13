@@ -5,19 +5,28 @@ import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { neighbours } from "../../lib/pagerPhysics";
 import { useFrozenOrder, useNavigation, usePageTone } from "../../state/browse/hooks";
+import { openPageMenu } from "../../state/page/actions";
+import { useFindOpen, useMenuOpen, useReaderTabId } from "../../state/page/hooks";
 import { newTab, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
 import { useDeckOrder } from "../../state/tabs/hooks";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { barCenterFromBottom, barHeight, browseLayout, isDarkColor, LoadingLine, pageBottomInset, rolesFor, tabsInk, tabsMotion, useTheme } from "../ui";
 import { BottomBar } from "./BottomBar";
+import { FindBar } from "./FindBar";
+import { PageMenu } from "./PageMenu";
+import { PageRequestHost, PressMenu } from "./PageRequests";
+import { ReaderView } from "./ReaderView";
 import { PageSurface } from "./PageSurface";
 import { PagerBlack, PagerNeighbour, useTabPager } from "./TabPager";
 
 export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const menuOpen = useMenuOpen();
+  const finding = useFindOpen();
+  const readerId = useReaderTabId();
   const tone = usePageTone(tab.id);
   const progress = useNavigation(tab.id, (n) => n?.progress ?? 0);
   const isLoading = useNavigation(tab.id, (n) => n?.isLoading ?? true);
@@ -50,14 +59,22 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
       <View style={[styles.loading, { top: insets.top }]} pointerEvents="none">
         <LoadingLine progress={progress} isLoading={isLoading} color={theme.accent} />
       </View>
-      <GestureDetector gesture={pager.gesture}>
-        <Animated.View style={[styles.bar, { height: barHeight(insets.bottom) }, barStyle]}>
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: barDark ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} />
-          <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom) - browseLayout.hitTarget / 2 }]}>
-            <BottomBar order={order} roles={rolesFor(barDark)} showsPlus={!searching} onTabs={showDeck} onPlus={newTab} />
-          </View>
-        </Animated.View>
-      </GestureDetector>
+      {finding ? (
+        <FindBar tabId={tab.id} />
+      ) : (
+        <GestureDetector gesture={pager.gesture}>
+          <Animated.View style={[styles.bar, { height: barHeight(insets.bottom) }, barStyle]}>
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: barDark ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} />
+            <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom) - browseLayout.hitTarget / 2 }]}>
+              <BottomBar order={order} roles={rolesFor(barDark)} showsPlus={!searching} onTabs={showDeck} onPlus={newTab} onMore={openPageMenu} />
+            </View>
+          </Animated.View>
+        </GestureDetector>
+      )}
+      <PressMenu width={width} height={height} />
+      {menuOpen ? <PageMenu tabId={tab.id} /> : null}
+      {readerId === tab.id ? <ReaderView tabId={tab.id} /> : null}
+      <PageRequestHost tabId={tab.id} />
     </View>
   );
 }

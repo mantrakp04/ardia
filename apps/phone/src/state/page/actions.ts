@@ -2,6 +2,8 @@ import { mobileClean } from "@ardia/core/src/mobile";
 import { blocking } from "../../platform/blocking";
 import { downloads, type DownloadEvent } from "../../platform/downloads";
 import { pages, type PageEngineEvent, type PageRequestAnswer } from "../../platform/pages";
+
+export type { ReadableContent } from "../../platform/pages";
 import { copyText, openExternal, preferredLanguage, pressHaptic, shareLink, successHaptic } from "../../platform/system";
 import { cancelSearch, closeArchive, leaveDeck, openTab, showDeck, useBrowse } from "../browse/store";
 import { display } from "../search/omnibox";

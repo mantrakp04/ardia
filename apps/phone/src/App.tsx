@@ -7,6 +7,7 @@ import { SearchTray } from "./components/search/SearchTray";
 import { StartScreen } from "./components/search/StartScreen";
 import { ArchiveView } from "./components/tabs/ArchiveView";
 import { TabDeck } from "./components/tabs/TabDeck";
+import { ToastHost } from "./components/toasts/ToastHost";
 import { ink } from "./components/ui";
 import { useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
@@ -40,6 +41,7 @@ export default function App() {
         {surface === "start" ? <StartScreen /> : null}
         <SearchTray />
         {sheet === "archive" ? <ArchiveView /> : null}
+        <ToastHost />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
