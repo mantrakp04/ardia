@@ -44,6 +44,7 @@ import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading,
 import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
 import { releaseTranslation, translateCrashContext } from "../../state/site/translate";
 import { notePagePress } from "../../state/telemetry/tabPresses";
+import { trackDrmDiagnostic } from "../../state/telemetry/protectedMedia";
 import { noteAutoPictureInPictureKept, notePageOverlay, noteReopenedPage, noteWebKitPageKeptHidden } from "../../state/telemetry/usage";
 import { isAdoptKind } from "../../state/tabs/adoptIds";
 import { firstPagePending, isBlankAddress, noteFirstPagePending, reportedAddress, reportedTitle } from "../../state/tabs/pendingAddress";
@@ -272,6 +273,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onSelection={(selection) => setPageSelection(tabId, selection)}
       onScroll={(state) => noteScroll(tabId, state)}
       onProtectedMedia={(request) => offerWebKit(tabId, request)}
+      onDrmDiagnostic={trackDrmDiagnostic}
       onNotificationClose={closeWebNotification}
       onDiscarded={(url, reason) => {
         releaseTranslation(tabId);

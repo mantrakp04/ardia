@@ -12,6 +12,8 @@ const pageEvents = readFileSync(new URL("./pageEvents.ts", import.meta.url), "ut
 const table = pageEvents.slice(pageEvents.indexOf("const PAGE_EVENTS = {"), pageEvents.indexOf("} as const"));
 const PAGE_EVENTS = collect([table], /^ {2}on[A-Za-z]+: "([A-Za-z]+)",$/gm);
 
+const WEBKIT_ONLY = new Set(["drmDiagnostic"]);
+
 const chromiumView = files(/^ArdiaWebView.*\.mm$/).map(native);
 const chromiumEmitters = files(/\.mm$/).map(native);
 const webKitTab = files(/^WebKitTab.*\.swift$/).map(native);
@@ -19,7 +21,13 @@ const pageScript = native("page_script.js");
 const messageReceivers = ["ArdiaWebView+PageMessages.mm", "ArdiaWebView+Peek.mm"].map(native);
 
 test("the Chromium view emits every page event in PAGE_EVENTS, and nothing else", () => {
-  assert.deepEqual(sorted(collect(chromiumEmitters, /\bemit:@"([A-Za-z]+)"\s+payload:/g)), sorted(PAGE_EVENTS));
+  const chromiumEvents = sorted([...PAGE_EVENTS].filter((name) => !WEBKIT_ONLY.has(name)));
+  assert.deepEqual(sorted(collect(chromiumEmitters, /\bemit:@"([A-Za-z]+)"\s+payload:/g)), chromiumEvents);
+});
+
+test("the WebKit tab emits every WebKit-only page event", () => {
+  const emitted = collect(webKitTab, /(?<![.\w])emit\("([A-Za-z]+)"/g);
+  assert.deepEqual(sorted([...WEBKIT_ONLY].filter((name) => !emitted.has(name) || !PAGE_EVENTS.has(name))), []);
 });
 
 test("the WebKit tab emits only page events in PAGE_EVENTS", () => {

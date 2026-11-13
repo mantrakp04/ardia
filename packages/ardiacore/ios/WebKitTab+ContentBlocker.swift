@@ -3,6 +3,7 @@ import WebKit
 final class WebKitBlockedCount {
   var count = 0
   var lastURL = ""
+  var hosts: [String] = []
   var generation = 0
   var emitQueued = false
   var exemptLoad = false
@@ -24,6 +25,7 @@ extension WebKitTab {
     guard webView === self.webView, (action.value(forKey: "blockedLoad") as? Bool) == true else { return }
     blocked.count += 1
     blocked.lastURL = url.absoluteString
+    if let host = url.host?.lowercased(), blocked.hosts.count < 8, !blocked.hosts.contains(host) { blocked.hosts.append(host) }
     guard !blocked.emitQueued else { return }
     blocked.emitQueued = true
     let generation = blocked.generation
@@ -40,7 +42,21 @@ extension WebKitTab {
     let had = blocked.count > 0 || !blocked.lastURL.isEmpty
     blocked.count = 0
     blocked.lastURL = ""
+    blocked.hosts = []
     if had { emit("contentBlocked", ["count": 0, "url": ""]) }
+  }
+
+  func emitDrmDiagnostic(_ dict: [String: Any]?, frameInfo: WKFrameInfo) {
+    guard let dict, let stage = dict["stage"] as? String, ["access", "accessDenied", "encrypted", "waitingforkey", "error"].contains(stage) else { return }
+    let keySystem = (dict["keySystem"] as? String).flatMap { $0.range(of: "^[A-Za-z0-9.-]{1,64}$", options: .regularExpression) != nil ? $0 : nil } ?? ""
+    emit("drmDiagnostic", [
+      "host": frameInfo.securityOrigin.host.lowercased(),
+      "keySystem": keySystem,
+      "stage": stage,
+      "code": dict["code"] as? Int ?? 0,
+      "main": frameInfo.isMainFrame,
+      "blockedHosts": blocked.hosts,
+    ])
   }
 
   func applyBlockerPolicy(_ action: WKNavigationAction, preferences: WKWebpagePreferences, in webView: WKWebView) -> Bool {

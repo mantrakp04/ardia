@@ -451,6 +451,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     case "scroll":
       guard main, let state = dict?["state"] as? String, ["down", "up", "top"].contains(state) else { return }
       emit("scroll", ["state": state])
+    case "drm": emitDrmDiagnostic(dict, frameInfo: frameInfo)
     default: break
     }
   }
