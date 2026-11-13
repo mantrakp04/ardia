@@ -580,6 +580,24 @@ class BrowseEndToEnd(unittest.TestCase):
 
 
 
+FRONT_TAB = """
+import asyncio, sys
+from ardia_cli import endpoint
+from ardia_cli.browse.connection import Browser
+
+
+async def main(data_dir, url):
+    browser = Browser(endpoint.resolve(data_dir=data_dir), lambda *event: None)
+    await browser.open()
+    try:
+        print((await browser.send("Target.createTarget", {"url": url, "background": False}))["targetId"])
+    finally:
+        await browser.close()
+
+
+asyncio.run(main(sys.argv[1], sys.argv[2]))
+"""
+
 REFUSALS = """
 import asyncio, json, sys
 from ardia_cli import endpoint
@@ -929,6 +947,73 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertIn("#users-split", self.browse("tab", "active", session="token-split-probe", check=False).stdout)
         self.browse("close", session="token-split-probe", check=False)
         self.control("tabs", "close", tab)
+
+    MAGENTA = "document.documentElement.style.background = 'rgb(255,0,255)'; document.body.style.background = 'rgb(255,0,255)'; 1"
+
+    def page_columns(self, png):
+        bmp = png.with_suffix(".bmp")
+        subprocess.run(["sips", "-s", "format", "bmp", str(png), "--out", str(bmp)], check=True, capture_output=True, timeout=30)
+        data = bmp.read_bytes()
+        offset = int.from_bytes(data[10:14], "little")
+        width, height = (int.from_bytes(data[at:at + 4], "little", signed=True) for at in (18, 22))
+        step = int.from_bytes(data[28:30], "little") // 8
+        row = (width * step + 3) & ~3
+        line = abs(height) // 2
+
+        def magenta(fraction):
+            at = offset + line * row + int(width * fraction) * step
+            blue, green, red = data[at:at + 3]
+            return red > 200 and green < 60 and blue > 200
+
+        return magenta(0.30), magenta(0.90)
+
+    def shown_while(self, session, mark, act):
+        self.browse("open", self.url("login.html") + mark, session=session)
+        before = self.size(session)
+        self.browse("eval", self.MAGENTA, session=session)
+        self.browse("set", "viewport", "390", "844", session=session)
+        self.assertEqual(self.size(session), "390x844")
+        tab = self.app_tab(mark)["id"]
+        shots = [SCRATCH / f"{session}-{n}.png" for n in range(2)]
+        window = "ac.store.getState().windowOrder[0]"
+        taken = self.dev(f"{act(tab)}; return ac.shell.devSnapshotWindow({window}, {json.dumps(str(shots[0]))})"
+                         f".then((first) => new Promise((done) => setTimeout(done, 500)).then(() => ac.shell.devSnapshotWindow({window}, {json.dumps(str(shots[1]))})).then((second) => [first, second]))")
+        self.assertEqual(taken, [True, True])
+        self.assertEqual(self.refused_viewport(session), self.SEEN)
+        self.assertEqual(self.size(session), before)
+        for shot in shots:
+            left, right = self.page_columns(shot)
+            self.assertFalse(left and not right, f"{shot.name} shows the page 390 wide")
+        self.assertEqual(self.page_columns(shots[1]), (True, True), "the page is up at its own size")
+        return tab
+
+    @unittest.skipUnless(JS_LOCATION, "the reveal is driven and pictured through the dev harness, which only a Debug build has")
+    def test_a_tab_revealed_ahead_of_react_is_never_drawn_at_the_emulated_size(self):
+        self.users_tab_shown("#users-reveal")
+        tab = self.shown_while("token-reveal", "#revealed", lambda tab: f"globalThis.expo.modules.ArdiaTabs.revealTab({json.dumps(tab)})")
+        self.control("tabs", "close", tab)
+
+    @unittest.skipUnless(JS_LOCATION, "the switch is driven and pictured through the dev harness, which only a Debug build has")
+    def test_a_tab_the_user_switches_to_is_never_drawn_at_the_emulated_size(self):
+        self.users_tab_shown("#users-switch")
+        tab = self.shown_while("token-switch", "#switched", lambda tab: f"ac.store.getState().activate({json.dumps(tab)})")
+        self.control("tabs", "close", tab)
+
+    def test_a_tab_created_in_front_never_takes_a_viewport(self):
+        session = "token-front"
+        self.users_tab_shown("#users-front")
+        done = subprocess.run([sys.executable, "-c", FRONT_TAB, str(self.data), self.url("login.html") + "#front"], capture_output=True, text=True,
+                              timeout=60, env=dict(os.environ, PYTHONPATH=str(CLI)))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        target = done.stdout.strip()
+        probe = "token-front-probe"
+        wait_for(lambda: "#front" in self.browse("tab", "active", session=probe, check=False).stdout, 20, "Ardia to show the tab made in front")
+        self.browse("close", session=probe, check=False)
+        self.browse("tab", target, session=session)
+        before = self.size(session)
+        self.assertEqual(self.refused_viewport(session), self.SEEN)
+        self.assertEqual(self.size(session), before)
+        self.control("tabs", "close", self.app_tab("#front")["id"])
 
     def test_a_peek_is_not_the_commands_tab(self):
         session = "token-peek"

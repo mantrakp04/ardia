@@ -5,6 +5,8 @@
 
 #include <optional>
 
+#include "base/functional/callback.h"
+
 namespace content {
 class WebContents;
 }
@@ -15,11 +17,14 @@ void NoteTabShownByHost(content::WebContents* contents, bool shown);
 
 std::optional<bool> ShownByHost(content::WebContents* contents);
 
-void NoteTabInShownSlot(content::WebContents* contents);
+bool NoteTabInShownSlot(content::WebContents* contents);
 
 bool TabWasInShownSlot(content::WebContents* contents);
 
-void WatchTabsInShownSlot(void (*watcher)(content::WebContents*));
+void WhenTabSizeRestored(content::WebContents* contents,
+                         base::OnceClosure restored);
+
+void WatchTabsInShownSlot(bool (*resized)(content::WebContents*));
 
 void StartHostVisibility();
 

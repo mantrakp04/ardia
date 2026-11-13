@@ -15,8 +15,11 @@
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/ardia/ac_cli_token_policy.h"
 #include "content/public/browser/devtools_agent_host.h"
+#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "ui/gfx/geometry/rect.h"
+#include "ui/gfx/geometry/size.h"
 
 namespace ardia {
 namespace {
@@ -44,14 +47,25 @@ std::map<std::string, std::unique_ptr<OwnedTab>>& OwnedTabs() {
   return *tabs;
 }
 
-void TabCameIntoView(content::WebContents* contents) {
+gfx::Size ViewSizeOf(content::WebContents* contents) {
+  content::RenderWidgetHostView* view = contents->GetRenderWidgetHostView();
+  return view ? view->GetViewBounds().size() : gfx::Size();
+}
+
+bool TabCameIntoView(content::WebContents* contents) {
+  std::string owned;
   for (const auto& [target_id, tab] : OwnedTabs()) {
     if (tab->web_contents() == contents) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-          FROM_HERE, base::BindOnce(&ClearCliViewportOverride, target_id));
-      return;
+      owned = target_id;
+      break;
     }
   }
+  if (owned.empty()) {
+    return false;
+  }
+  const gfx::Size before = ViewSizeOf(contents);
+  ClearCliViewportOverride(owned);
+  return ViewSizeOf(contents) != before;
 }
 
 }

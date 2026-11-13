@@ -173,10 +173,17 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
   }
 }
 
-- (void)noteInShownSlot {
-  if (_contents) {
-    ardiacore::NoteTabInShownSlot(_contents);
+- (BOOL)noteInShownSlot {
+  return _contents && ardiacore::NoteTabInShownSlot(_contents);
+}
+
+- (void)whenSizeRestored:(void (^)(void))restored {
+  if (!_contents) {
+    restored();
+    return;
   }
+  ardiacore::WhenTabSizeRestored(
+      _contents, base::BindOnce([](void (^done)(void)) { done(); }, restored));
 }
 
 - (void)exitFullscreen {

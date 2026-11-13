@@ -730,8 +730,13 @@ of its sessions attached to that tab, whose replies never reach the command) and
 for good (`on a tab the user can see`; telemetry `viewport_tab_taken`), also after the tab is hidden again. It
 doesn't matter who showed it: the user picking it, Ardia showing it because nothing else was open, or the command's
 own `open --show` and `tab <id> --show`, so viewport checks run on a hidden tab, where screenshots, snapshots and
-clicks work at the emulated size. The signal is the app's: `ArdiaWebView` tells the engine when a page is attached
-to a view that is `visible` and in a window (`noteInShownSlot`, kept on the page as `ShownSlot`). Chromium's own
+clicks work at the emulated size. The signal is the app's: `ArdiaWebView` tells the engine before it puts a page on
+screen (`exposePage` → `noteInShownSlot`, kept on the page as `ShownSlot`), from every native path that can: the
+painting pass of a view that is `visible` or revealed, the reveal that shows a tab ahead of React's `visible`
+(`revealAhead`), `setVisible:` before it raises a warm page's alpha, and `revealOffered` before it fronts a new
+tab's page. The engine clears the override inside that call, not after it, and says whether the page's size changed;
+if it did, the view stays at alpha 0, the outgoing page still up, until the renderer confirms a frame after the
+resize (`InsertVisualStateCallback`, 250 ms at most), so no frame at the emulated size reaches the screen. Chromium's own
 `content::Visibility` doesn't say it: Ardia paints a page it is about to show before it is `visible` (warm, at
 alpha 0), and a page the command drives is held visible to its renderer by a capturer count so it keeps drawing in
 the background (`ac_cli_visible_tabs.cc`). An earlier version inferred a takeover from activations, pins and input
