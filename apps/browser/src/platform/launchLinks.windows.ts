@@ -1,4 +1,4 @@
 import { requireNativeModule } from "expo-modules-core";
-import type { LaunchLinks } from "./launchLinks";
+import type { LaunchLinksNative } from "@ardia/shell";
 
-export const launchLinks = requireNativeModule<LaunchLinks>("ArdiaLaunchLinks");
+export const launchLinks = requireNativeModule<LaunchLinksNative>("ArdiaLaunchLinks");

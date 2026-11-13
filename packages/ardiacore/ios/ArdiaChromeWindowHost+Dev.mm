@@ -230,19 +230,30 @@ NSString *MouseEvent(NSWindow *window, NSString *argument) {
 
 NSString *Drag(NSWindow *window, NSString *argument) {
   NSMutableArray<NSValue *> *points = [NSMutableArray array];
-  for (NSString *spec in [argument componentsSeparatedByString:@";"]) [points addObject:[NSValue valueWithPoint:WindowPoint(window, spec)]];
-  if (points.count < 2) return @"drag needs two points";
-  NSMutableArray<NSEvent *> *events = [NSMutableArray arrayWithObject:Mouse(window, NSEventTypeLeftMouseDown, points[0].pointValue)];
+  NSEventModifierFlags flags = 0;
+  for (NSString *spec in [argument componentsSeparatedByString:@";"]) {
+    if ([spec hasPrefix:@"flags="]) flags = (NSEventModifierFlags)[spec substringFromIndex:6].longLongValue;
+    else [points addObject:[NSValue valueWithPoint:WindowPoint(window, spec)]];
+  }
+  if (points.count < 2) return @"drag:[flags=<modifier flags>;]<x>,<y>;<x>,<y>[;…]";
+  NSEvent * (^held)(NSEventType, NSPoint) = ^NSEvent *(NSEventType type, NSPoint at) {
+    NSEvent *event = Mouse(window, type, at);
+    if (!flags) return event;
+    CGEventRef cg = event.CGEvent;
+    CGEventSetFlags(cg, (CGEventFlags)flags);
+    return [NSEvent eventWithCGEvent:cg];
+  };
+  NSMutableArray<NSEvent *> *events = [NSMutableArray arrayWithObject:held(NSEventTypeLeftMouseDown, points[0].pointValue)];
   for (NSUInteger i = 1; i < points.count; i++) {
     NSPoint a = points[i - 1].pointValue, b = points[i].pointValue;
     for (int k = 1; k <= 12; k++)
-      [events addObject:Mouse(window, NSEventTypeLeftMouseDragged, NSMakePoint(a.x + (b.x - a.x) * k / 12, a.y + (b.y - a.y) * k / 12))];
+      [events addObject:held(NSEventTypeLeftMouseDragged, NSMakePoint(a.x + (b.x - a.x) * k / 12, a.y + (b.y - a.y) * k / 12))];
   }
-  [events addObject:Mouse(window, NSEventTypeLeftMouseUp, points.lastObject.pointValue)];
+  [events addObject:held(NSEventTypeLeftMouseUp, points.lastObject.pointValue)];
   NSString *hit = Describe([window.contentView.superview hitTest:points[0].pointValue]);
   for (NSUInteger i = 0; i < events.count; i++)
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((i ? 150 + i * 16 : 0) * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
-      [window sendEvent:events[i]];
+      [NSApp sendEvent:events[i]];
     });
   return [NSString stringWithFormat:@"%@ (%lu events)", hit, (unsigned long)events.count];
 }

@@ -580,6 +580,24 @@ class BrowseEndToEnd(unittest.TestCase):
 
 
 
+FRONT_TAB = """
+import asyncio, sys
+from ardia_cli import endpoint
+from ardia_cli.browse.connection import Browser
+
+
+async def main(data_dir, url):
+    browser = Browser(endpoint.resolve(data_dir=data_dir), lambda *event: None)
+    await browser.open()
+    try:
+        print((await browser.send("Target.createTarget", {"url": url, "background": False}))["targetId"])
+    finally:
+        await browser.close()
+
+
+asyncio.run(main(sys.argv[1], sys.argv[2]))
+"""
+
 REFUSALS = """
 import asyncio, json, sys
 from ardia_cli import endpoint
@@ -622,6 +640,9 @@ SESSION_JS = (
     " fs.writeFileSync(dir + '/session.json', JSON.stringify(session({ settings: { cliControl: true } })));"
     " fs.writeFileSync(dir + '/onboarding.json', JSON.stringify({ version: 1, completedAt: 1 })); });"
 )
+
+
+viewport_over_token = unittest.skip("set viewport is gated over the token connection until a page is proven never to be shown at an emulated size")
 
 
 @unittest.skipUnless(APP, "set ARDIA_BROWSE_E2E_APP to a built Ardia.app (never /Applications) to run the end-to-end test")
@@ -826,8 +847,10 @@ class BrowseTokenPath(unittest.TestCase):
     def size(self, session):
         return self.browse("eval", "innerWidth + 'x' + innerHeight", session=session).stdout.strip().strip('"')
 
+    @viewport_over_token
     def test_a_viewport_is_set_only_on_a_tab_the_command_opened_and_ends_with_its_session(self):
         owner, watcher, visitor = "token-viewport", "token-viewport-watcher", "token-viewport-visitor"
+        self.users_tab_shown("#users-viewport")
         opened = json.loads(self.browse("open", self.url("login.html"), "--json", session=owner).stdout)["data"]
         before = self.size(owner)
         self.assertNotEqual(before, "390x844")
@@ -851,10 +874,201 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual(self.size(watcher), before)
         self.control("tabs", "close", users)
 
+    def app_tab(self, part):
+        tabs = json.loads(self.control("tabs", "--flat", "--usage", "--json"))
+        return next(tab for tab in tabs if part in tab["url"])
+
+    def refused_viewport(self, session):
+        said = json.loads(self.browse("set", "viewport", "500", "600", "--json", session=session, check=False).stdout)
+        return said["success"], said.get("data")
+
+    def users_tab_shown(self, mark):
+        users = json.loads(self.control("tabs", "open", self.url("login.html") + mark, "--activate", "--json"))["tabs"][0]["id"]
+        self.addCleanup(self.control, "tabs", "close", users)
+        probe = "token-shown-probe"
+        wait_for(lambda: mark in self.browse("tab", "active", session=probe, check=False).stdout, 20, "the user's tab to be the one shown")
+        self.browse("close", session=probe, check=False)
+        return users
+
+    def dev(self, body):
+        marker = f"e{time.monotonic_ns()}"
+        result = self.data / "dev-eval-result.json"
+        (self.data / "dev-eval.js").write_text(f"// {marker}\n{body}")
+        wait_for(lambda: result.exists() and marker in result.read_text(), 20, "the dev harness")
+        answer = json.loads(result.read_text())
+        self.assertNotIn("error", answer, answer)
+        return answer.get("result")
+
+    SEEN = (False, {"method": "Emulation.setDeviceMetricsOverride", "reason": "on a tab the user can see"})
+
+    @viewport_over_token
+    def test_a_hidden_tabs_screenshot_has_the_emulated_size(self):
+        session = "token-shot"
+        self.users_tab_shown("#users-shot")
+        self.browse("open", self.url("login.html") + "#shot", session=session)
+        self.browse("set", "viewport", "390", "844", session=session)
+        shot = SCRATCH / "token-viewport.png"
+        self.browse("screenshot", str(shot), session=session)
+        width, height = (int.from_bytes(shot.read_bytes()[at:at + 4], "big") for at in (16, 20))
+        self.assertEqual((width, height), (390, 844))
+
+    @viewport_over_token
+    def test_a_tab_that_comes_into_view_gets_its_size_back_for_good(self):
+        users = self.users_tab_shown("#users-view")
+        for session, mark, show in (("token-seen-select", "#selected", lambda tab: self.control("tabs", "activate", tab)),
+                                    ("token-seen-show", "#shown", lambda tab: self.browse("tab", tab, "--show", session="token-seen-show"))):
+            self.browse("open", self.url("login.html") + mark, session=session)
+            before = self.size(session)
+            self.browse("set", "viewport", "390", "844", session=session)
+            self.assertEqual(self.size(session), "390x844")
+            show(self.app_tab(mark)["id"])
+            wait_for(lambda: self.size(session) == before, 10, f"the override to end when the tab came into view ({mark})")
+            self.assertEqual(self.refused_viewport(session), self.SEEN, mark)
+            self.control("tabs", "activate", users)
+            time.sleep(0.5)
+            self.assertEqual(self.refused_viewport(session), self.SEEN, f"{mark}, hidden again")
+            self.assertEqual(self.size(session), before)
+            self.control("tabs", "close", self.app_tab(mark)["id"])
+
+    @viewport_over_token
+    def test_a_tab_opened_in_view_never_takes_a_viewport(self):
+        session = "token-open-shown"
+        self.users_tab_shown("#users-open")
+        self.browse("open", self.url("login.html") + "#open-shown", "--show", session=session)
+        before = self.size(session)
+        self.assertEqual(self.refused_viewport(session), self.SEEN)
+        self.assertEqual(self.size(session), before)
+
+    @viewport_over_token
+    @unittest.skipUnless(JS_LOCATION, "the split is made through the dev harness, which only a Debug build has")
+    def test_a_tab_in_a_split_pane_is_in_view(self):
+        session = "token-split"
+        users = self.users_tab_shown("#users-split")
+        self.browse("open", self.url("login.html") + "#split", session=session)
+        before = self.size(session)
+        self.browse("set", "viewport", "390", "844", session=session)
+        tab = self.app_tab("#split")["id"]
+        self.dev(f"return ac.store.getState().createSplit([{json.dumps(users)}, {json.dumps(tab)}])")
+        wait_for(lambda: self.size(session) != "390x844", 10, "the override to end when the tab became a split pane")
+        self.assertEqual(self.refused_viewport(session), self.SEEN)
+        self.assertNotEqual(self.size(session), "500x600")
+        self.assertIn("#users-split", self.browse("tab", "active", session="token-split-probe", check=False).stdout)
+        self.browse("close", session="token-split-probe", check=False)
+        self.control("tabs", "close", tab)
+
+    MAGENTA = "document.documentElement.style.background = 'rgb(255,0,255)'; document.body.style.background = 'rgb(255,0,255)'; 1"
+
+    def page_columns(self, png):
+        bmp = png.with_suffix(".bmp")
+        subprocess.run(["sips", "-s", "format", "bmp", str(png), "--out", str(bmp)], check=True, capture_output=True, timeout=30)
+        data = bmp.read_bytes()
+        offset = int.from_bytes(data[10:14], "little")
+        width, height = (int.from_bytes(data[at:at + 4], "little", signed=True) for at in (18, 22))
+        step = int.from_bytes(data[28:30], "little") // 8
+        row = (width * step + 3) & ~3
+        line = abs(height) // 2
+
+        def magenta(fraction):
+            at = offset + line * row + int(width * fraction) * step
+            blue, green, red = data[at:at + 3]
+            return red > 200 and green < 60 and blue > 200
+
+        return magenta(0.30), magenta(0.90)
+
+    def shown_while(self, session, mark, act):
+        self.browse("open", self.url("login.html") + mark, session=session)
+        before = self.size(session)
+        self.browse("eval", self.MAGENTA, session=session)
+        self.browse("set", "viewport", "390", "844", session=session)
+        self.assertEqual(self.size(session), "390x844")
+        tab = self.app_tab(mark)["id"]
+        shots = [SCRATCH / f"{session}-{n}.png" for n in range(2)]
+        window = "ac.store.getState().windowOrder[0]"
+        taken = self.dev(f"{act(tab)}; return ac.shell.devSnapshotWindow({window}, {json.dumps(str(shots[0]))})"
+                         f".then((first) => new Promise((done) => setTimeout(done, 500)).then(() => ac.shell.devSnapshotWindow({window}, {json.dumps(str(shots[1]))})).then((second) => [first, second]))")
+        self.assertEqual(taken, [True, True])
+        self.assertEqual(self.refused_viewport(session), self.SEEN)
+        self.assertEqual(self.size(session), before)
+        for shot in shots:
+            left, right = self.page_columns(shot)
+            self.assertFalse(left and not right, f"{shot.name} shows the page 390 wide")
+        self.assertEqual(self.page_columns(shots[1]), (True, True), "the page is up at its own size")
+        return tab
+
+    @viewport_over_token
+    @unittest.skipUnless(JS_LOCATION, "the reveal is driven and pictured through the dev harness, which only a Debug build has")
+    def test_a_tab_revealed_ahead_of_react_is_never_drawn_at_the_emulated_size(self):
+        self.users_tab_shown("#users-reveal")
+        tab = self.shown_while("token-reveal", "#revealed", lambda tab: f"globalThis.expo.modules.ArdiaTabs.revealTab({json.dumps(tab)})")
+        self.control("tabs", "close", tab)
+
+    @viewport_over_token
+    @unittest.skipUnless(JS_LOCATION, "the switch is driven and pictured through the dev harness, which only a Debug build has")
+    def test_a_tab_the_user_switches_to_is_never_drawn_at_the_emulated_size(self):
+        self.users_tab_shown("#users-switch")
+        tab = self.shown_while("token-switch", "#switched", lambda tab: f"ac.store.getState().activate({json.dumps(tab)})")
+        self.control("tabs", "close", tab)
+
+    @viewport_over_token
+    def test_a_tab_created_in_front_never_takes_a_viewport(self):
+        session = "token-front"
+        self.users_tab_shown("#users-front")
+        done = subprocess.run([sys.executable, "-c", FRONT_TAB, str(self.data), self.url("login.html") + "#front"], capture_output=True, text=True,
+                              timeout=60, env=dict(os.environ, PYTHONPATH=str(CLI)))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        target = done.stdout.strip()
+        probe = "token-front-probe"
+        wait_for(lambda: "#front" in self.browse("tab", "active", session=probe, check=False).stdout, 20, "Ardia to show the tab made in front")
+        self.browse("close", session=probe, check=False)
+        self.browse("tab", target, session=session)
+        before = self.size(session)
+        self.assertEqual(self.refused_viewport(session), self.SEEN)
+        self.assertEqual(self.size(session), before)
+        self.control("tabs", "close", self.app_tab("#front")["id"])
+
+    @viewport_over_token
+    def test_a_peek_is_not_the_commands_tab(self):
+        session = "token-peek"
+        users = self.users_tab_shown("#users-peek")
+        self.browse("tab", users, session=session)
+        self.browse("eval", "(() => { const a = document.createElement('a'); a.id = 'peek-link'; a.target = '_blank'; a.href = location.pathname + '?peeked'; a.textContent = 'peek'; a.style.cssText = 'position:fixed;left:8px;top:8px;z-index:9;background:#fff'; document.body.append(a); })()", session=session)
+        self.browse("click", "#peek-link", session=session)
+
+        def peek():
+            listed = json.loads(self.browse("tab", "list", "--json", session=session).stdout)["data"]["tabs"]
+            return next((tab for tab in listed if "?peeked" in tab.get("url", "")), None)
+
+        wait_for(lambda: peek() is not None, 15, "the peek the link opened")
+        self.browse("tab", peek()["tabId"], session=session)
+        before = self.size(session)
+        said = json.loads(self.browse("set", "viewport", "390", "844", "--json", session=session, check=False).stdout)
+        self.assertEqual(said["data"], {"method": "Emulation.setDeviceMetricsOverride", "reason": "on a tab the ardia command didn't open"})
+        self.assertEqual(self.size(session), before)
+
+    @viewport_over_token
+    def test_a_renderer_crash_under_an_override_doesnt_keep_the_size(self):
+        owner, watcher, after = "token-crash", "token-crash-watcher", "token-crash-after"
+        self.users_tab_shown("#users-crash")
+        opened = json.loads(self.browse("open", self.url("login.html") + "#crashed", "--json", session=owner).stdout)["data"]
+        before = self.size(owner)
+        self.browse("set", "viewport", "390", "844", session=owner)
+        self.browse("tab", opened["tabId"], session=watcher)
+        tab = self.app_tab("#crashed")
+        self.assertIsInstance(tab["pid"], int)
+        os.kill(tab["pid"], 9)
+        time.sleep(1)
+        self.browse("close", session=owner, check=False)
+        self.browse("close", session=watcher, check=False)
+        self.control("run", "reload", "--tab", tab["id"])
+        wait_for(lambda: self.browse("tab", tab["id"], session=after, check=False).returncode == 0, 20, "the reloaded tab")
+        wait_for(lambda: self.size(after) == before, 10, "the window's size after the crash, the disconnect and a reload")
+        self.control("tabs", "close", tab["id"])
+
     def test_gated_commands_name_the_refused_method(self):
         session = "token-gated"
         self.browse("open", self.url("login.html"), session=session)
         for args, method in ((["cookies"], "Network.getCookies"), (["network", "route", "*", "--abort"], "Fetch.enable"),
+                             (["set", "viewport", "800", "600"], "Emulation.setDeviceMetricsOverride"),
                              (["set", "geo", "1", "2"], "Emulation.setGeolocationOverride"), (["trace", "start"], "Tracing.start"),
                              (["upload", "#email", str(FIXTURES / "login.html")], "DOM.setFileInputFiles")):
             done = self.browse(*args, session=session, check=False)

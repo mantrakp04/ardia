@@ -12,6 +12,7 @@ import { isUtilityWindowId } from "../settings/settingsWindows";
 import { openingLightsCenter } from "../windows/layout";
 import { createWindowSync, type WindowPort } from "../windows/windowSync";
 import { openExternalUrls } from "../littleArdia/actions";
+import { startUnclaimedEscape } from "../windows/unclaimedEscape";
 import { SMALL_LIGHTS_CENTER } from "../windows/small";
 import { runCommand } from "../commands/commands";
 import { setMenuBarShortcuts } from "../commands/commandShortcuts";
@@ -53,6 +54,7 @@ export function startNativeSync() {
   startWindowCloseGuard();
   startExtensionsBridge();
   onOpenURLs((urls, pointer, source) => openExternalUrls(urls, pointer, source));
+  startUnclaimedEscape();
   void lastTabClosesWindow()
     .catch(() => true)
     .then((closes) => setLastTabKeepsWindow(!closes));

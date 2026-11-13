@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import type { View } from "react-native";
 import type { DropUpdate, DroppedItem, FileDropAreaProps } from "@ardia/shell";
 import { requireNativeModule } from "../modules";
+import type { FileDropModule } from "../nativeModuleTypes";
 
 export type { DropUpdate, DroppedItem };
 export type DropAccepts = NonNullable<FileDropAreaProps["accepts"]>;
@@ -10,13 +11,6 @@ export type WindowDrop = DropUpdate & { windowId: string; area: string; windowX:
 export type WindowDrag = { windowId: string; phase: "enter" | "exit" };
 export type DropAreaFrame = { windowId: string; area: string; depth: number; x: number; y: number; width: number; height: number; accepts: DropAccepts; enabled: boolean };
 
-type Subscription = { remove(): void };
-
-export type FileDropNativeModule = {
-  setDropArea(frame: DropAreaFrame): void;
-  removeDropArea(windowId: string, area: string): void;
-  addListener(event: "onWindowDrop" | "onWindowDrag", listener: (payload: unknown) => void): Subscription;
-};
 
 type Fiber = { return: Fiber | null; memoizedProps?: unknown };
 type AreaEntry = { windowId: string; measure: () => void; deliver: (update: DropUpdate) => void };
@@ -24,7 +18,7 @@ type AreaEntry = { windowId: string; measure: () => void; deliver: (update: Drop
 const MOST_ANCESTORS = 4096;
 const ACCEPTS: readonly DropAccepts[] = ["links", "linksAndText", "extensionPackages"];
 
-const fileDrop = () => requireNativeModule<FileDropNativeModule>("ArdiaFileDrop");
+const fileDrop = () => requireNativeModule<Pick<FileDropModule, "setDropArea" | "removeDropArea" | "addListener">>("ArdiaFileDrop");
 
 const areas = new Map<string, AreaEntry>();
 const windowIdsByRoot = new Map<number, string>();

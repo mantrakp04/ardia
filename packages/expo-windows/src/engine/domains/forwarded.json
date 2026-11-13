@@ -43,10 +43,9 @@
   },
   "missing": {
     "autofill": ["settings", "setSettings", "showSuggestions"],
-    "bookmarks": ["exportHtml"],
     "contentBlocker": ["state", "setEnabled", "setListEnabled", "isAllowed", "setAllowed", "devFailNextMessage", "devDelayNextLoad"],
-    "engine": ["beginTracing", "endTracing", "isTracing", "systemState", "cliTabTargets"],
-    "extensions": ["inspectUnpacked", "chooseFolder", "resolveInstallPrompt", "actionStates", "sidePanelUrl"],
+    "engine": ["beginTracing", "endTracing", "isTracing", "cliTabTargets"],
+    "extensions": ["resolveInstallPrompt", "actionStates", "sidePanelUrl"],
     "media": [
       "displayMediaSources",
       "screenRecordingAllowed",
@@ -66,7 +65,7 @@
       "changeCaptureSource",
       "stopCapture"
     ],
-    "passwords": ["export", "autofillEnabled", "setAutofillEnabled"],
+    "passwords": ["autofillEnabled", "setAutofillEnabled"],
     "permissions": ["resolve", "resolveExternalApp", "externalAppAllowances", "removeExternalAppAllowance", "devExternalLaunches"],
     "profiles": ["loaded"],
     "search": ["setEngineName"],

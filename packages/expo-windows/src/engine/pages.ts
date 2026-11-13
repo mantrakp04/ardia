@@ -1,4 +1,5 @@
 import { hostCall, onEngineTopic } from "./host";
+import { takerOfOpenedTab } from "./openedTabs";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
 
 export type PageListener = (name: string, data: unknown) => void;
@@ -10,6 +11,7 @@ type Page = {
   key: string;
   windowId: string;
   from: PageStart;
+  profile: string;
   started: { url: string; at: number };
   opening: OpeningPage;
   ready: Promise<boolean>;
@@ -57,9 +59,10 @@ function listen() {
       profile: typeof opened.profile === "string" ? opened.profile : undefined,
     };
     const opener = typeof opened.opener === "string" ? pages.get(opened.opener) : undefined;
-    const takers = opener?.listeners.size ? [opener] : [...pages.values()].filter((page) => page.listeners.size && !page.closed);
-    const taker = takers[0];
+    const listening = [...pages.values()].filter((page) => page.listeners.size && !page.closed);
+    const taker = opener?.listeners.size ? opener : takerOfOpenedTab(listening, request.profile);
     if (!taker) {
+      if (listening.length) console.warn("[ardia windows] a tab opened by a page was closed: no page of its profile is showing");
       quietly(hostCall("tab.discard", { adopt: opened.adopt }));
       return;
     }
@@ -95,6 +98,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
       key,
       windowId: from.windowId,
       from,
+      profile: from.profile ?? "",
       started: { url: from.url ?? "", at: Date.now() },
       opening: openingPage(from.url ?? "", !!offeredByEngine(from.adopt)),
       ready: start(key, from),
@@ -107,6 +111,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
   } else if (page.windowId !== from.windowId) {
     page.windowId = from.windowId;
     page.from = from;
+    page.profile = from.profile ?? "";
     page.ready = page.ready.then(() => start(key, from));
   }
   const mounted = page;

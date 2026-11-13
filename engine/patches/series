@@ -29,6 +29,7 @@ chromium chromium-drag-start-event-id.patch
 chromium chromium-devtools-control-token.patch
 chromium chromium-drag-always-ends.patch
 chromium chromium-capture-wake-lock-awake-only.patch
+chromium chromium-device-emulation-size-reset.patch
 chromium chromium-devtools-find-detach-keeps-selection.patch
 chromium chromium-extension-install-prompt-hook.patch
 chromium chromium-webstore-direct.patch

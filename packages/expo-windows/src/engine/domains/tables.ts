@@ -1,8 +1,12 @@
+import type { DomainModule } from "@ardia/ardiacore";
 import { autofillCalls, saveCard } from "./autofill";
 import { BadArgs, callError, isFields, passed, readArgs, type Engine, type Fields, type Handlers } from "./calling";
 import { downloadCalls, downloadChanged } from "./downloads";
 import { engineCalls, searchCalls } from "./engineCalls";
 import { extensionCalls } from "./extensions";
+import { bookmarkCalls, exportPasswords } from "./exports";
+import { systemState } from "./systemState";
+import { unpackedCalls } from "./unpacked";
 import { faviconCalls } from "./favicons";
 import { passwordCalls, savePassword, updatePassword } from "./passwords";
 import { profileCalls } from "./profiles";
@@ -15,15 +19,16 @@ export type Rows = {
   topics: Record<string, string>;
 };
 
-export type DomainCall = (verb: string, profile: string, argsJson: string) => Promise<string>;
+export type DomainCall = DomainModule["call"];
 
 export const reproduced: Record<string, Handlers> = {
   autofill: autofillCalls,
+  bookmarks: bookmarkCalls,
   downloads: downloadCalls,
-  engine: engineCalls,
-  extensions: extensionCalls,
+  engine: { ...engineCalls, systemState },
+  extensions: { ...extensionCalls, ...unpackedCalls },
   favicons: faviconCalls,
-  passwords: passwordCalls,
+  passwords: { ...passwordCalls, export: exportPasswords },
   profiles: profileCalls,
   search: searchCalls,
   sites: siteCalls,

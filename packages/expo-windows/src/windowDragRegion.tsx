@@ -1,6 +1,8 @@
 import { createElement, forwardRef, useContext, useEffect, useMemo, useRef, type ComponentType, type ReactNode } from "react";
 import { RootTagContext, View, type ViewProps } from "react-native";
+import type { EventSubscription } from "./events";
 import { requireNativeModule } from "./modules";
+import type { AppWindowsModule } from "./nativeModuleTypes";
 
 type DragRegionProps = ViewProps & {
   titleBarDoubleClick?: boolean;
@@ -9,14 +11,6 @@ type DragRegionProps = ViewProps & {
   onRegionClick?: () => void;
 };
 
-type Subscription = { remove(): void };
-
-type WindowDragging = {
-  beginWindowDrag(rootTag: number): Promise<void>;
-  pressDragArea(rootTag: number): Promise<void>;
-  toggleMaximize(rootTag: number): Promise<void>;
-  addListener(event: string, listener: (payload: unknown) => void): Subscription;
-};
 
 type Press = { nativeEvent: { pageX: number; pageY: number } };
 
@@ -49,10 +43,10 @@ const HOST_COMPONENT = 5;
 const MOST_ANCESTORS = 512;
 const RIGHT_BUTTON = 2;
 
-const windows = () => requireNativeModule<WindowDragging>("ArdiaAppWindows");
+const windows = () => requireNativeModule<Pick<AppWindowsModule, "beginWindowDrag" | "pressDragArea" | "toggleMaximize" | "addListener">>("ArdiaAppWindows");
 
 const bands = new Map<number, { current: unknown }>();
-let titleBandPresses: Subscription | null = null;
+let titleBandPresses: EventSubscription | null = null;
 
 const takesPressItself = (options: DragOptions) => options.clickable === true || options.onRegionDoubleClick !== undefined || !options.titleBarDoubleClick;
 

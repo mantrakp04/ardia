@@ -1,6 +1,7 @@
 import { createElement, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef, type ComponentType } from "react";
-import { View, type LayoutChangeEvent } from "react-native";
-import type { PageEvent } from "@ardia/ardiacore";
+import { View, type LayoutChangeEvent, type NativeMethods, type NativeSyntheticEvent } from "react-native";
+import type { NativeProps, PageEvent } from "@ardia/ardiacore";
+import type { AppWindowsModule } from "../nativeModuleTypes";
 import { followMotion } from "../animation/motion";
 import { noteMissing } from "../missing";
 import { requireNativeModule } from "../modules";
@@ -9,18 +10,10 @@ import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./
 import { CoverAncestry } from "./usePageCover";
 import { WindowIdContext } from "./windowId";
 
-type Props = {
-  url?: string;
-  profile?: string;
-  adoptId?: string;
-  tabId?: string;
-  visible?: boolean;
-  pageEvents?: string[];
-  onPageEvent?: (event: { nativeEvent: PageEvent }) => void;
-  style?: unknown;
-};
+type PageEventsOnWindows = { onPageEvent?: (event: Pick<NativeSyntheticEvent<PageEvent>, "nativeEvent">) => void };
 
-type Measured = { measureInWindow(callback: (x: number, y: number, width: number, height: number) => void): void };
+type Props = Pick<NativeProps, "url" | "profile" | "adoptId" | "tabId" | "visible" | "style"> & Partial<Pick<NativeProps, "pageEvents">> & PageEventsOnWindows;
+
 
 const ARGUMENTS: Record<string, string[]> = {
   loadUrl: ["url", "userInitiated"],
@@ -64,10 +57,9 @@ const ANSWERS: Record<string, unknown> = {
 };
 const SETTLE_MS = [0, 50, 200, 500];
 
-type AppWindows = { setPageFullScreen(windowId: string, on: boolean): Promise<unknown> };
 
 const setWindowFullScreen = (windowId: string, on: boolean) =>
-  Promise.resolve(requireNativeModule<AppWindows>("ArdiaAppWindows").setPageFullScreen(windowId, on)).then(
+  Promise.resolve(requireNativeModule<Pick<AppWindowsModule, "setPageFullScreen">>("ArdiaAppWindows").setPageFullScreen(windowId, on)).then(
     () => {},
     () => {},
   );
@@ -81,7 +73,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
   const above = useRef(useContext(CoverAncestry));
   above.current = useContext(CoverAncestry);
   const key = useRef(props.tabId || `page-${++unnamed}`).current;
-  const view = useRef<Measured | null>(null);
+  const view = useRef<Pick<NativeMethods, "measureInWindow"> | null>(null);
   const latest = useRef(props);
   latest.current = props;
   const visible = props.visible !== false;

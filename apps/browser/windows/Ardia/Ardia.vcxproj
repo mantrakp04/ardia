@@ -138,6 +138,7 @@
     <ClInclude Include="NotificationCenter.h" />
     <ClInclude Include="NotificationJson.h" />
     <ClInclude Include="NotificationsModule.h" />
+    <ClInclude Include="SaveDialog.h" />
     <ClInclude Include="ShellModule.h" />
     <ClInclude Include="SystemModule.h" />
     <ClInclude Include="SystemSignalsModule.h" />

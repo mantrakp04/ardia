@@ -64,6 +64,14 @@ const pressNumbered = (id, hold, number) => center(id).then(([x, y]) => point(x,
   return act("mouse:up:" + x + "," + y + ",1,0," + number).then(() => settle(450)).then(() => ({ down, up: shown() }));
 }));
 const downWithoutUp = (id, type, tail) => center(id).then(([x, y]) => point(x, y).then(() => act("mouse:" + type + ":" + x + "," + y + tail))).then(() => settle(300));
+const newTabRowButton = () => new Promise((r) => {
+  const item = [...globalThis.sidebarDrag.items.values()].find((i) => i.view && i.kind === "row" && i.tabIds.includes("c"));
+  item.view.measureInWindow((x, y, w, h) => r([Math.round(x + w - 17), Math.round(y + h / 2)]));
+}).then(([x, y]) => {
+  const below = (dy) => dy > 240 ? null : act("hit:" + x + "," + (y + dy)).then((hit) => hit.split(" < ").slice(0, 3).every((c) => c === "RCTView") ? [x, y + dy + 6] : below(dy + 6));
+  return below(12);
+});
+const toA = () => { st().activate("a"); st().setSelection("w1", []); return settle(500); };
 const closeButtonOf = (id) => new Promise((r) => {
   const item = [...globalThis.sidebarDrag.items.values()].find((i) => i.view && i.kind === "row" && i.tabIds.includes(id));
   item.view.measureInWindow((x, y, w, h) => r([Math.round(x + w - 17), Math.round(y + h / 2)]));
@@ -231,6 +239,35 @@ try {
     assert.deepEqual(r, { shown: "a", selection: ["a", "c"] }, "the ⌘-click still selects on its release");
     await run(`st().setSelection("w1", []); return settle(200);`);
     assert.equal(await run(`return pressNumbered("p2", 120, 923);`).then((p) => p.up), "p2", "and the next click switches");
+  });
+
+  await rep.check("a right-click and its release during a held left press leave that press its click", async () => {
+    const r = await run(`return toA().then(() => Promise.all([center("c"), newTabRowButton()])).then(([[x, y], [bx, by]]) => act("hit:" + bx + "," + by).then((hit) =>
+      act("mouse:down:" + x + "," + y + ",1,${1 << 20},931").then(() => settle(80))
+        .then(() => act("mouse:rightdown:" + bx + "," + by + ",1,0,932")).then(() => settle(60)).then(() => act("mouse:rightup:" + bx + "," + by + ",1,0,932")).then(() => settle(80))
+        .then(() => act("mouse:up:" + x + "," + y + ",1,${1 << 20},931")).then(() => settle(450))
+        .then(() => ({ menuArea: hit.includes("ContextMenuArea"), shown: shown(), selection: st().selection.w1 ?? [] }))));`);
+    assert.deepEqual(r, { menuArea: false, shown: "a", selection: ["a", "c"] });
+  });
+
+  await rep.check("a right-click on a control while the left button is held elsewhere presses nothing", async () => {
+    await run("return toA();");
+    await press("t", 17);
+    await sleep(900);
+    const r = await run(`const newTab = shown(); return act("hit:760,320").then((hit) => act("mouse:down:760,320,1,0,941").then(() => settle(100)).then(() => center("c"))
+      .then(([x, y]) => act("mouse:rightdown:" + x + "," + y + ",1,0,942")).then(() => settle(400))
+      .then(() => { const after = shown(); return act("mouse:up:760,320,1,0,941").then(() => settle(300)).then(() => ({ onBar: hit.includes("ContextMenuArea"), newTabPage: !st().tabs[newTab].url, stayed: after === newTab && shown() === newTab })); }));`);
+    assert.deepEqual(r, { onBar: true, newTabPage: true, stayed: true });
+  });
+
+  await rep.check("after a right-click whose mouse up a menu took, in the New Tab field, on a page or over a button, one click switches", async () => {
+    const lost = () => run("return globalThis.expo.modules.ArdiaFocus.pressesWithoutRelease();");
+    assert.deepEqual(await run(`return act("mouse:rightdown:760,340,1,0,951").then(() => settle(400)).then(() => pressNumbered("c", 120, 952));`), { down: "c", up: "c" }, "after the New Tab page's field");
+    assert.deepEqual(await run(`return toA().then(() => act("mouse:rightdown:700,500,1,0,961")).then(() => settle(400)).then(() => pressNumbered("p2", 120, 962));`), { down: "p2", up: "p2" }, "after a page");
+    const before = await lost();
+    assert.deepEqual(await run(`return toA().then(newTabRowButton).then(([x, y]) => act("mouse:rightdown:" + x + "," + y + ",1,0,971")).then(() => settle(200))
+      .then(() => act("postNotification:app:NSMenuDidBeginTrackingNotification")).then(() => settle(200)).then(() => pressNumbered("c", 120, 972));`), { down: "c", up: "c" }, "after a menu began tracking over a button");
+    assert.ok((await lost()) - before >= 1, "the menu's tracking ended the recorded presses");
   });
 } finally {
   await app?.quit();

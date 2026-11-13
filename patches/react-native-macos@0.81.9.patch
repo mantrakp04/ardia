@@ -212,6 +212,31 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..13effa264ea260263dcf9ae7cd5e80bc
      NSData *dataCopy = nil;
      {
        std::lock_guard<std::mutex> lock(self->_mutex);
+diff --git a/Libraries/Pressability/Pressability.js b/Libraries/Pressability/Pressability.js
+index bbee6d1e1865359b350da78b745c6c0061a2dc5d..c645bfead1814173bef35608504aa5ec6015987f 100644
+--- a/Libraries/Pressability/Pressability.js
++++ b/Libraries/Pressability/Pressability.js
+@@ -1027,15 +1027,17 @@ function normalizeDelay(
+ }
+ 
+ const getTouchFromPressEvent = (event: GestureResponderEvent) => {
++  // [Ardia: the touch this event is about comes first. `touches` also lists every other button still held, or one whose mouse up a menu took, and its button decided whether this press counted
+   const {changedTouches, touches} = event.nativeEvent;
+ 
+-  if (touches != null && touches.length > 0) {
+-    return touches[0];
+-  }
+   if (changedTouches != null && changedTouches.length > 0) {
+     return changedTouches[0];
+   }
++  if (touches != null && touches.length > 0) {
++    return touches[0];
++  }
+   return event.nativeEvent;
++  // Ardia]
+ };
+ 
+ function convertPointerEventToMouseEvent(input: PointerEvent): MouseEvent {
 diff --git a/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm b/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm
 index 18bbe64f657a36596563b3eb6d135284e28c674a..a4046a33e13d35cac155e306f368e04ef8d1f51e 100644
 --- a/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm
@@ -787,7 +812,7 @@ index 6f332dc1701cada0aff0e9a2678fa7bdcea0ef85..462853ec8b76f004cd5b9e92291473bc
  
  #endif // TARGET_OS_OSX
 diff --git a/React/Base/RCTTouchHandler.m b/React/Base/RCTTouchHandler.m
-index b85ee3dd203f88bf2daaa47e912031ea200ff910..35dbed98a0b1a6edf478abc4f2347c71049cee37 100644
+index b85ee3dd203f88bf2daaa47e912031ea200ff910..fdd49042170be0c7850fea3ea8550c32f52ee33b 100644
 --- a/React/Base/RCTTouchHandler.m
 +++ b/React/Base/RCTTouchHandler.m
 @@ -7,6 +7,8 @@
@@ -799,7 +824,18 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..35dbed98a0b1a6edf478abc4f2347c71
  #if !TARGET_OS_OSX // [macOS]
  #import <UIKit/UIGestureRecognizerSubclass.h>
  #endif // [macOS]
-@@ -100,6 +102,80 @@ - (void)detachFromView:(RCTPlatformView *)view // [macOS]
+@@ -59,6 +61,10 @@ - (instancetype)initWithBridge:(RCTBridge *)bridge
+     _reactTouches = [NSMutableArray new];
+     _touchViews = [NSMutableArray new];
+ 
++#if TARGET_OS_OSX // [Ardia: a menu's tracking loop takes every mouse up from here on
++    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(ardia_menuDidBeginTracking:) name:NSMenuDidBeginTrackingNotification object:nil];
++#endif // Ardia]
++
+ #if !TARGET_OS_OSX // [macOS]
+     // `cancelsTouchesInView` and `delaysTouches*` are needed in order to be used as a top level
+     // event delegated recognizer. Otherwise, lower-level components not built
+@@ -100,6 +106,114 @@ - (void)detachFromView:(RCTPlatformView *)view // [macOS]
  
  #pragma mark - Bookkeeping for touch indices
  
@@ -862,6 +898,40 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..35dbed98a0b1a6edf478abc4f2347c71
 +  [self _recordRemovedTouches:lost];
 +}
 +
++- (void)ardia_menuDidBeginTracking:(__unused NSNotification *)notification
++{
++  if (_nativeTouches.count == 0) {
++    return;
++  }
++  NSSet<NSEvent *> *tracked = [_nativeTouches.set copy];
++  atomic_fetch_add(&ArdiaTouchesCancelledWithoutRelease, tracked.count);
++  [self _updateAndDispatchTouches:tracked eventName:@"touchCancel"];
++  [self _recordRemovedTouches:tracked];
++  self.state = UIGestureRecognizerStateCancelled;
++}
++
++- (BOOL)ardia_recordsAnyOf:(NSSet<NSEvent *> *)touches
++{
++  for (NSEvent *touch in touches) {
++    if ([self ardia_indexOfNativeTouch:touch excluding:[NSIndexSet new]] != NSNotFound) {
++      return YES;
++    }
++  }
++  return NO;
++}
++
++- (void)ardia_finishTouches:(NSSet<NSEvent *> *)touches eventName:(NSString *)eventName state:(NSGestureRecognizerState)finished
++{
++  BOOL recorded = [self ardia_recordsAnyOf:touches];
++  [self _updateAndDispatchTouches:touches eventName:eventName];
++  [self _recordRemovedTouches:touches];
++  if (_nativeTouches.count == 0) {
++    self.state = finished;
++  } else if (recorded) {
++    self.state = UIGestureRecognizerStateChanged;
++  }
++}
++
 +- (void)ardia_releaseTouchForMenuWithEvent:(NSEvent *)press
 +{
 +  if ([self ardia_indexOfNativeTouch:press excluding:[NSIndexSet new]] == NSNotFound) {
@@ -880,7 +950,7 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..35dbed98a0b1a6edf478abc4f2347c71
  - (void)_recordNewTouches:(NSSet *)touches
  {
  #if !TARGET_OS_OSX // [macOS]
-@@ -108,7 +184,13 @@ - (void)_recordNewTouches:(NSSet *)touches
+@@ -108,7 +222,13 @@ - (void)_recordNewTouches:(NSSet *)touches
    for (NSEvent *touch in touches) {
  #endif // macOS]
  
@@ -894,7 +964,7 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..35dbed98a0b1a6edf478abc4f2347c71
  
      // Find closest React-managed touchable view
      
-@@ -204,19 +286,27 @@ - (void)_recordRemovedTouches:(NSSet *)touches
+@@ -204,19 +324,27 @@ - (void)_recordRemovedTouches:(NSSet *)touches
    for (UITouch *touch in touches) {
      NSInteger index = [_nativeTouches indexOfObject:touch];
  #else // [macOS
@@ -926,7 +996,7 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..35dbed98a0b1a6edf478abc4f2347c71
  }
  
  - (void)_updateReactTouchAtIndex:(NSInteger)touchIndex
-@@ -303,15 +393,17 @@ - (void)_updateAndDispatchTouches:(NSSet<NSEvent *> *)touches eventName:(NSStrin
+@@ -303,15 +431,17 @@ - (void)_updateAndDispatchTouches:(NSSet<NSEvent *> *)touches eventName:(NSStrin
    for (UITouch *touch in touches) {
      NSInteger index = [_nativeTouches indexOfObject:touch];
  #else // [macOS
@@ -947,7 +1017,51 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..35dbed98a0b1a6edf478abc4f2347c71
      
  #if TARGET_OS_OSX // [macOS
      _nativeTouches[index] = touch;
-@@ -497,6 +589,7 @@ - (BOOL)acceptsFirstMouse:(NSEvent *)event
+@@ -431,34 +561,34 @@ - (void)interactionsMoved:(NSSet *)touches // [macOS]
+ 
+ - (void)interactionsEnded:(NSSet *)touches withEvent:(UIEvent*)event // [macOS]
+ {
++#if TARGET_OS_OSX // [Ardia: a mouse up ends the gesture only when no other button's touch is still recorded, and one that matches no touch leaves a gesture in progress alone; ending it reset the recognizer, which cancelled the press still held
++  [self ardia_finishTouches:touches eventName:@"touchEnd" state:UIGestureRecognizerStateEnded];
++#else // Ardia]
+   [self _updateAndDispatchTouches:touches eventName:@"touchEnd"];
+-#if !TARGET_OS_OSX // [macOS]
+   if (RCTAllTouchesAreCancelledOrEnded(event.allTouches)) {
+     self.state = UIGestureRecognizerStateEnded;
+   } else if (RCTAnyTouchesChanged(event.allTouches)) {
+     self.state = UIGestureRecognizerStateChanged;
+   }
+-#else // [macOS
+-  self.state = UIGestureRecognizerStateEnded;
+-#endif // macOS]
+ 
+   [self _recordRemovedTouches:touches];
++#endif // macOS]
+ }
+ 
+ - (void)interactionsCancelled:(NSSet *)touches withEvent:(UIEvent*)event // [macOS]
+ {
++#if TARGET_OS_OSX // [Ardia]
++  [self ardia_finishTouches:touches eventName:@"touchCancel" state:UIGestureRecognizerStateCancelled];
++#else // Ardia]
+   [self _updateAndDispatchTouches:touches eventName:@"touchCancel"];
+-#if !TARGET_OS_OSX // [macOS]
+   if (RCTAllTouchesAreCancelledOrEnded(event.allTouches)) {
+     self.state = UIGestureRecognizerStateCancelled;
+   } else if (RCTAnyTouchesChanged(event.allTouches)) {
+     self.state = UIGestureRecognizerStateChanged;
+   }
+-#else // [macOS
+-  self.state = UIGestureRecognizerStateCancelled;
+-#endif // macOS]
+-  
++
+   [self _recordRemovedTouches:touches];
++#endif // macOS]
+ }
+   
+ #if !TARGET_OS_OSX // [macOS]
+@@ -497,6 +627,7 @@ - (BOOL)acceptsFirstMouse:(NSEvent *)event
  - (void)mouseDown:(NSEvent *)event
  {
    [super mouseDown:event];
@@ -955,7 +1069,7 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..35dbed98a0b1a6edf478abc4f2347c71
    [self interactionsBegan:[NSSet setWithObject:event]];
    // [macOS
    if (_shouldSendMouseUpOnSystemBehalf) {
-@@ -519,6 +612,7 @@ - (void)mouseDown:(NSEvent *)event
+@@ -519,6 +650,7 @@ - (void)mouseDown:(NSEvent *)event
  - (void)rightMouseDown:(NSEvent *)event
  {
    [super rightMouseDown:event];

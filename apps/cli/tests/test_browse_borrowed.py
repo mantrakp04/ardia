@@ -146,6 +146,15 @@ class BorrowedTab(unittest.TestCase):
         self.assertIn("emulation", self.state.leases)
         self.assertTrue(command_metrics.answer_fields(request)["metrics"]["viewport_set"])
 
+        async def taken(method, params=None, **kwargs):
+            raise Gated(method, reason="on a tab the user can see")
+
+        self.mine.send = taken
+        command_metrics.begin(request)
+        with self.assertRaises(Gated):
+            asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "390", "844"]))
+        self.assertTrue(command_metrics.answer_fields(request)["metrics"]["viewport_tab_taken"])
+
     def test_cookie_changes_refuse_a_borrowed_tab(self):
         self.refused(commands.cmd_cookies, ["clear"])
         self.refused(commands.cmd_cookies, ["set", "a", "b"])
