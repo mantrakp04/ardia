@@ -2245,6 +2245,15 @@ try {
     return { levels };
   });
 
+  await check("preload-pages", async () => {
+    await engine("sites.setPreloadPages", { profile: "", on: true });
+    const on = await engine("sites.preloadPages", { profile: "" });
+    await engine("sites.setPreloadPages", { profile: "", on: false });
+    const off = await engine("sites.preloadPages", { profile: "" });
+    if (on !== true || off !== false) throw new Error(`Preload pages didn't follow the setting: on read ${on}, off read ${off}`);
+    return { on, off };
+  });
+
   await check("extensions", async () => {
     const inspected = await engineOrError("extensions.inspectUnpacked", { path: extPath });
     const installed = await engineOrError("extensions.install", { profile: "", path: extPath });

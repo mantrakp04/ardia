@@ -23,7 +23,7 @@ import { Button, Checkbox, DialogActions, DialogTitle, PopUp, Sheet, space, Text
 import { Favicon } from "../../favicon/Favicon";
 import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "../Form";
 import { setting, type SettingId } from "../settingsIndex";
-import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
+import { appLinks, contentBlocker, preloadPages, setPreloadPagesFor, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { updateSettings } from "../../../state/settings/actions";
@@ -141,6 +141,7 @@ export function PrivacyPane() {
         </Row>
       </Group>
       <ZoomLevels />
+      <PreloadPages />
       {blocker && (
         <Text size="caption" tone="textTertiary" style={RULES_LOADED}>
           {`${(blocker.stats.networkFilters ?? 0).toLocaleString(UI_LOCALE)} network and ${(blocker.stats.cosmeticFilters ?? 0).toLocaleString(UI_LOCALE)} cosmetic rules loaded.`}
@@ -194,6 +195,22 @@ function FilterListsSheet() {
         <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
       </DialogActions>
     </Sheet>
+  );
+}
+
+function PreloadPages() {
+  const [selected, setSelected] = useSettingsProfile();
+  const profile = currentEngineProfile(selected);
+  const [on = false] = useResource(preloadPages, profile);
+  return (
+    <>
+      <SectionHeader anchor="privacy.preloadPages" description={null} action={<ProfilePicker value={selected} onChange={setSelected} />} />
+      <Group>
+        <Row anchor="privacy.preloadPages">
+          <Toggle value={on} accessibilityLabel={setting("privacy.preloadPages").title} onChange={(v) => void setPreloadPagesFor(profile, v)} />
+        </Row>
+      </Group>
+    </>
   );
 }
 

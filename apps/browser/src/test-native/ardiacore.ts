@@ -371,6 +371,8 @@ const fakeModules = {
     clearData: () => ({ cookies: 0, storage: true }),
     zoomLevels: () => ({}),
     setZoom: () => null,
+    preloadPages: () => false,
+    setPreloadPages: () => null,
   }),
   ArdiaPasswords: domain(
     "passwords",

@@ -39,5 +39,10 @@ public class SitesModule: Module {
       ArdiaServices.setZoom(try args.double("zoom"), profile: args.profile, host: try args.text("host"))
       reply.ok()
     },
+    "preloadPages": { args, reply in reply.ok(ArdiaServices.profileToggle(.preloadPages, profile: args.profile)) },
+    "setPreloadPages": { args, reply in
+      ArdiaServices.setProfileToggle(.preloadPages, value: try args.bool("on"), profile: args.profile)
+      reply.ok()
+    },
   ])
 }

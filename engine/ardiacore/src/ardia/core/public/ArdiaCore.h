@@ -121,6 +121,7 @@ ARDIACORE_EXPORT
 @property BOOL passwordsOffered;
 @property BOOL addressesAutofilled;
 @property BOOL cardsAutofilled;
+@property BOOL preloadPages;
 - (void)clearBrowsingData:(NSArray<NSString*>*)types
                     since:(nullable NSDate*)since
                completion:(nullable void (^)(void))completion;

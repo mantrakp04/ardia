@@ -19,6 +19,7 @@
 #include "base/time/time.h"
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_constants.h"
 #include "chrome/browser/extensions/component_loader.h"
+#include "chrome/browser/preloading/preloading_prefs.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "components/autofill/core/common/autofill_prefs.h"
@@ -243,6 +244,21 @@ bool IsProfileDeleting(const Profile* profile) {
 
 - (void)setCardsAutofilled:(BOOL)autofilled {
   SetBoolPref(_profile.get(), autofill::prefs::kAutofillCreditCardEnabled, autofilled);
+}
+
+- (BOOL)preloadPages {
+  return _profile &&
+         prefetch::GetPreloadPagesState(*_profile->GetPrefs()) !=
+             prefetch::PreloadPagesState::kNoPreloading;
+}
+
+- (void)setPreloadPages:(BOOL)preload {
+  if (_profile) {
+    prefetch::SetPreloadPagesState(
+        _profile->GetPrefs(), preload
+                                  ? prefetch::PreloadPagesState::kStandardPreloading
+                                  : prefetch::PreloadPagesState::kNoPreloading);
+  }
 }
 
 - (void)clearBrowsingData:(NSArray<NSString*>*)types
