@@ -33,6 +33,7 @@
 #include "ardia/core/ac_browser.h"
 #include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_extension_view.h"
+#include "ardia/core/ac_host_visibility.h"
 #include "ardia/core/ac_page_channel.h"
 #include "ardia/core/ac_password_prompt.h"
 #include "ardia/core/ac_tab_info.h"
@@ -411,7 +412,8 @@ using ardiacore::NS;
   int index = model->GetIndexOfWebContents(_contents);
   if (index != TabStripModel::kNoTab) {
     uint32_t close_types = TabCloseTypes::CLOSE_USER_GESTURE;
-    if (!ardiacore::OnlyShowedBlank(_contents)) {
+    if (!ardiacore::OnlyShowedBlank(_contents) &&
+        !ardiacore::InAutomationWindow(_contents)) {
       close_types |= TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB;
     }
     model->CloseWebContentsAt(index, close_types);

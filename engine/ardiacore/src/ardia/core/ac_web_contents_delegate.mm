@@ -13,6 +13,7 @@
 #include "ardia/core/ac_contents_background.h"
 #include "ardia/core/ac_desktop_capture.h"
 #include "ardia/core/ac_fake_media.h"
+#include "ardia/core/ac_host_visibility.h"
 #include "ardia/core/ac_app_urls.h"
 #include "ardia/core/ac_page_channel.h"
 #import "ardia/core/ardiacore_internal.h"
@@ -176,7 +177,8 @@ void ACWebContentsDelegate::RendererResponsive(
 
 void ACWebContentsDelegate::CloseContents(content::WebContents* source) {
   TabBridge* bridge = source ? TabBridge::FromWebContents(source) : nullptr;
-  if (!bridge || !bridge->closing_after_unload()) {
+  if ((!bridge || !bridge->closing_after_unload()) &&
+      !InAutomationWindow(source)) {
     BrowserWebContentsDelegate::CloseContents(source);
     return;
   }

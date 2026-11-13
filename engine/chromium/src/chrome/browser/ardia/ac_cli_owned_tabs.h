@@ -5,14 +5,16 @@
 
 #include <string>
 
-namespace ardia {
+namespace content {
+class WebContents;
+}
 
-enum class CliTabOwner { kNobody, kCommand, kUser };
+namespace ardia {
 
 void NoteCliOwnedTarget(const std::string& target_id);
 void ForgetCliOwnedTarget(const std::string& target_id);
-CliTabOwner CliOwnerOfTarget(const std::string& target_id);
-void NoteCliViewportOverride(const std::string& target_id);
+bool IsCliOwnedTab(content::WebContents* contents);
+std::string CliEmulationRefusal(const std::string& target_id);
 
 }
 

@@ -7,13 +7,11 @@
 #include <optional>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/no_destructor.h"
 #include "base/strings/strcat.h"
-#include "base/containers/span.h"
 #include "base/values.h"
 #include "chrome/browser/ardia/ac_cli_owned_tabs.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
@@ -73,11 +71,6 @@ bool TokenClient::FilterCommand(std::string& message, std::string* reply) {
   if (!id || !method || (command.Find("sessionId") && !session_id)) {
     *reply = ErrorReply(id.value_or(0), session, kInvalidRequest,
                         "ardia: a command needs an id and a method");
-    return false;
-  }
-  if (*id < 0) {
-    *reply = ErrorReply(*id, session, kInvalidRequest,
-                        "ardia: a command's id can't be negative");
     return false;
   }
   for (auto [key, value] : command) {
@@ -141,30 +134,6 @@ bool TokenClient::MayAttachToURL(const GURL& url, bool is_webui) {
 
 bool TokenClient::MayAttachToRenderFrameHost(content::RenderFrameHost* frame) {
   return IsWebFrame(frame);
-}
-
-void TokenClient::ClearMetricsOverride(const std::string& target_id) {
-  std::vector<std::string> sessions;
-  for (const auto& [session, target] : targets_) {
-    if (target == target_id) {
-      sessions.push_back(session);
-    }
-  }
-  for (const std::string& session : sessions) {
-    const int id = --last_own_command_;
-    const std::string command =
-        base::WriteJson(
-            base::DictValue()
-                .Set("id", id)
-                .Set("method", "Emulation.clearDeviceMetricsOverride")
-                .Set("sessionId", session))
-            .value_or(std::string());
-    if (command.empty()) {
-      continue;
-    }
-    own_commands_.insert({session, id});
-    root_host_->DispatchProtocolMessage(client_, base::as_byte_span(command));
-  }
 }
 
 std::string TokenClient::Refusal(const std::string& method,
@@ -237,20 +206,15 @@ std::string TokenClient::Refusal(const std::string& method,
   } else if (method == "Emulation.setDeviceMetricsOverride" ||
              method == "Emulation.clearDeviceMetricsOverride") {
     auto target = targets_.find(session);
-    const CliTabOwner owner = target == targets_.end()
-                                  ? CliTabOwner::kNobody
-                                  : CliOwnerOfTarget(target->second);
-    if (owner == CliTabOwner::kUser) {
-      return "on a tab the user can see";
-    }
-    if (owner != CliTabOwner::kCommand) {
+    if (target == targets_.end()) {
       return "on a tab the ardia command didn't open";
+    }
+    std::string refusal = CliEmulationRefusal(target->second);
+    if (!refusal.empty()) {
+      return refusal;
     }
     if (!MetricsOverrideAllowed(params)) {
       return "with that option";
-    }
-    if (method == "Emulation.setDeviceMetricsOverride") {
-      NoteCliViewportOverride(target->second);
     }
   } else if (method == "Runtime.evaluate") {
     if (params.FindBool("includeCommandLineAPI").value_or(false)) {
@@ -296,18 +260,6 @@ bool TokenClientMayInput(content::DevToolsAgentHostClient* root_client,
 
 bool IsTokenClient(content::DevToolsAgentHostClient* root_client) {
   return cli_token_policy_internal::Registry().contains(root_client);
-}
-
-void ClearCliViewportOverride(const std::string& target_id) {
-  std::vector<cli_token_policy_internal::TokenClient*> clients;
-  for (const auto& [root, client] : cli_token_policy_internal::Registry()) {
-    clients.push_back(client);
-  }
-  for (cli_token_policy_internal::TokenClient* client : clients) {
-    if (cli_token_policy_internal::Registry().contains(client->root())) {
-      client->ClearMetricsOverride(target_id);
-    }
-  }
 }
 
 }

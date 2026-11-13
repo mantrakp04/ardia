@@ -13,6 +13,7 @@
 #include "content/public/browser/web_contents.h"
 #include "ardia/core/ac_browser_internal.h"
 #include "ardia/core/ac_contents_background.h"
+#include "ardia/core/ac_host_visibility.h"
 #import "ardia/core/ardiacore_internal.h"
 
 namespace ardiacore {
@@ -131,7 +132,8 @@ void DeleteTabClosedByHost(content::WebContents* contents) {
   }
   content::NavigationEntry* committed =
       contents->GetController().GetLastCommittedEntry();
-  if (!Profile::FromBrowserContext(contents->GetBrowserContext())
+  if (!InAutomationWindow(contents) &&
+      !Profile::FromBrowserContext(contents->GetBrowserContext())
            ->IsOffTheRecord() &&
       committed && !committed->IsInitialEntry() && !OnlyShowedBlank(contents)) {
     model->delegate()->CreateHistoricalTab(contents);

@@ -66,8 +66,6 @@ class TokenClient : public ArdiaDevToolsTokenClient {
   bool ShouldClose() const override;
   bool MayAttachToURL(const GURL& url, bool is_webui) override;
   bool MayAttachToRenderFrameHost(content::RenderFrameHost* frame) override;
-  void ClearMetricsOverride(const std::string& target_id);
-  content::DevToolsAgentHostClient* root() const { return client_; }
 
  private:
   struct Contexts {
@@ -99,8 +97,6 @@ class TokenClient : public ArdiaDevToolsTokenClient {
   std::map<std::string, std::string> targets_;
   std::map<std::string, Contexts> sessions_;
   std::map<std::pair<std::string, int>, std::string> outstanding_;
-  std::set<std::pair<std::string, int>> own_commands_;
-  int last_own_command_ = 0;
   bool wedged_ = false;
 };
 

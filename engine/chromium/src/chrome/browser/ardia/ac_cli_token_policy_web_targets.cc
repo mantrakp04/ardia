@@ -5,6 +5,7 @@
 
 #include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_hooks.h"
+#include "ardia/core/ac_host_visibility.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -46,7 +47,8 @@ bool IsPrivilegedContents(content::WebContents* contents) {
     return true;
   }
   return g_ardia_hidden_from_extensions &&
-         g_ardia_hidden_from_extensions(browser);
+         g_ardia_hidden_from_extensions(browser) &&
+         !ardiacore::IsAutomationWindow(browser);
 }
 
 bool IsWebProcess(content::RenderProcessHost* process) {

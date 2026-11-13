@@ -146,14 +146,98 @@ class BorrowedTab(unittest.TestCase):
         self.assertIn("emulation", self.state.leases)
         self.assertTrue(command_metrics.answer_fields(request)["metrics"]["viewport_set"])
 
-        async def taken(method, params=None, **kwargs):
-            raise Gated(method, reason="on a tab the user can see")
+    def own_tab_on_the_token_path(self):
+        from ardia_cli.browse import tabs
 
-        self.mine.send = taken
-        command_metrics.begin(request)
-        with self.assertRaises(Gated):
-            asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "390", "844"]))
-        self.assertTrue(command_metrics.answer_fields(request)["metrics"]["viewport_tab_taken"])
+        self.state.current = "MINE"
+        self.state.target_infos["MINE"] = {"targetId": "MINE", "url": "https://mine.example/"}
+        self.state.endpoint = mock.Mock(explicit=False)
+        self.mine.url = "https://mine.example/"
+        calls = []
+
+        async def app_tab_map(state):
+            return {"MINE": "tab-mine"}
+
+        async def app_call(state, method, params, timeout=0):
+            calls.append((method, params))
+            return {"ok": True}
+
+        for patch in (mock.patch.object(tabs, "app_tab_map", app_tab_map), mock.patch.object(tabs, "app_call", app_call)):
+            patch.start()
+            self.addCleanup(patch.stop)
+        return calls, tabs
+
+    def test_set_viewport_takes_the_sessions_tab_off_screen_first(self):
+        calls, _ = self.own_tab_on_the_token_path()
+        sent = []
+
+        async def send(method, params=None, **kwargs):
+            sent.append(method)
+            return {}
+
+        self.mine.send = send
+        set_viewport = lambda: asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "390", "844"]))
+        set_viewport()
+        self.assertEqual(calls, [("offscreen", {"tab": "tab-mine"})])
+        self.assertEqual(sent, ["Emulation.setDeviceMetricsOverride"])
+        self.assertEqual(self.state.extras["offscreen"], "MINE")
+        set_viewport()
+        self.assertEqual(len(calls), 1)
+
+    def test_a_tab_ardia_wont_take_off_screen_gets_no_viewport(self):
+        from ardia_cli import control
+
+        _, tabs = self.own_tab_on_the_token_path()
+        sent = []
+
+        async def send(method, params=None, **kwargs):
+            sent.append(method)
+            return {}
+
+        self.mine.send = send
+        for error, code, says in ((control.MethodError("refused", "That tab is shown in a window, so it can't go off-screen."), "viewport_needs_hidden_tab", "open <url>` (without --show)"),
+                                  (control.MethodError("unknown_method", "no such method"), "viewport_unsupported", "update Ardia")):
+            async def app_call(state, method, params, timeout=0):
+                raise error
+
+            with mock.patch.object(tabs, "app_call", app_call), self.assertRaises(BrowseError) as caught:
+                asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "390", "844"]))
+            self.assertEqual(caught.exception.code, code)
+            self.assertIn(says, caught.exception.message)
+        self.assertEqual(sent, [])
+        self.assertNotIn("offscreen", self.state.extras)
+
+    def test_showing_or_resetting_an_off_screen_tab_reloads_it_in_a_new_tab(self):
+        self.state.current = "MINE"
+        self.state.target_infos["MINE"] = {"targetId": "MINE", "url": "https://mine.example/"}
+        self.mine.url = "https://mine.example/a"
+        self.state.opened.add("MINE")
+        self.state.extras["offscreen"] = "MINE"
+        self.state.leases.add("emulation")
+        fresh = FakePage("FRESH")
+        fresh.url = "https://mine.example/a"
+        opened, closed = [], []
+
+        async def new_tab(ctx, url, label=None, window=False, show=False):
+            opened.append(url)
+            self.state.current = "FRESH"
+            self.state.target_infos["FRESH"] = {"targetId": "FRESH", "url": url}
+            return fresh
+
+        async def send(method, params=None, *args, **kwargs):
+            closed.append((method, params))
+            return {}
+
+        self.state.browser = mock.Mock(send=send)
+        self.state.registry = mock.Mock(reserve_close=lambda instance, target: True, finish_close=lambda instance, target: None)
+        with mock.patch.object(commands, "new_tab", new_tab):
+            result = asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "reset"]))
+        self.assertEqual(opened, ["https://mine.example/a"])
+        self.assertEqual(closed, [("Target.closeTarget", {"targetId": "MINE"})])
+        self.assertNotIn("offscreen", self.state.extras)
+        self.assertNotIn("emulation", self.state.leases)
+        self.assertEqual(self.state.current, "FRESH")
+        self.assertIn("reloaded in a new background tab", result.text)
 
     def test_cookie_changes_refuse_a_borrowed_tab(self):
         self.refused(commands.cmd_cookies, ["clear"])

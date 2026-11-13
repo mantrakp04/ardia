@@ -167,7 +167,7 @@ bool TokenClient::FilterEvent(std::string& message) {
     }
     return method != "Target.receivedMessageFromTarget";
   }
-  if (outstanding_.empty() && own_commands_.empty()) {
+  if (outstanding_.empty()) {
     return true;
   }
   std::optional<int> id = ParseResponseId(view);
@@ -188,9 +188,6 @@ bool TokenClient::FilterEvent(std::string& message) {
       session = *found;
     }
   }
-  if (own_commands_.erase({session, *id})) {
-    return false;
-  }
   auto it = outstanding_.find({session, *id});
   if (it == outstanding_.end()) {
     return true;
@@ -206,9 +203,6 @@ bool TokenClient::FilterEvent(std::string& message) {
 void TokenClient::ForgetSession(const std::string& session) {
   std::erase_if(outstanding_, [&](const auto& entry) {
     return entry.first.first == session;
-  });
-  std::erase_if(own_commands_, [&](const auto& entry) {
-    return entry.first == session;
   });
 }
 
