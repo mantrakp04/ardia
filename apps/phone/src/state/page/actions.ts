@@ -14,8 +14,8 @@ import { closeTabById, currentTabs, openNewTab, useTabs } from "../tabs/store";
 import { isSyncableUrl } from "../tabs/tabModels";
 import { findTab } from "../tabs/tabsState";
 import { blockersToast, searchQuery, translationUrl, type NightShadeMode } from "./pageMenu";
-import { backLayer, downloadedToast, downloadFailedToast, downloadingToast, pressLinkUrl, type PressAction, type Request } from "./pagePrompts";
-import { pageUi, usePageUi } from "./store";
+import { backLayer, downloadedToast, downloadFailedToast, downloadingToast, pressPlan, type PressAction, type Request } from "./pagePrompts";
+import { pageUi, usePageUi, type Press } from "./store";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 
 const TITLE_FEEDBACK_MS = 1500;
@@ -178,25 +178,30 @@ export function answerRequest(pageId: string, request: Request, answer: PageRequ
 
 export const dismissPress = () => usePageUi.setState({ press: null });
 
-export function pressAction(action: PressAction) {
-  const press = pageUi().press;
+export function pressAction(press: Press, action: PressAction) {
   dismissPress();
-  if (!press) return;
-  const link = pressLinkUrl(press.target);
   const opener = findTab(currentTabs(), press.tabId);
-  if (action === "openInNewTab" || action === "openInBackground") {
-    if (!isSyncableUrl(link)) return;
-    const tab = openNewTab({ url: link, origin: "link", after: press.tabId, selecting: false, isPrivate: opener?.isPrivate ?? false });
-    if (action === "openInNewTab") openTab(tab.id);
-    return;
+  const plan = pressPlan(press, action, opener?.isPrivate ?? false, isSyncableUrl);
+  switch (plan.kind) {
+    case "open": {
+      const tab = openNewTab({ url: plan.url, origin: "link", after: plan.after, selecting: false, isPrivate: plan.isPrivate });
+      if (!plan.background) openTab(tab.id);
+      return;
+    }
+    case "copy":
+      quietly(() => copyText(mobileClean(plan.url)));
+      quietly(successHaptic);
+      showToast(COPIED_URL, "link");
+      return;
+    case "share":
+      quietly(() => shareLink(plan.url, ""));
+      return;
+    case "download":
+      quietly(() => pages.download(plan.pageId, plan.url));
+      return;
+    case "none":
+      return;
   }
-  if (action === "copyLink") {
-    quietly(() => copyText(mobileClean(link)));
-    quietly(successHaptic);
-    showToast(COPIED_URL, "link");
-  } else if (action === "share") quietly(() => shareLink(link, ""));
-  else if (action === "download") quietly(() => pages.download(press.tabId, link));
-  else if (action === "saveImage") quietly(() => pages.download(press.tabId, press.target.url));
 }
 
 async function openPopup(openerId: string, popupId: string, url: string | null, isPrivate: boolean) {

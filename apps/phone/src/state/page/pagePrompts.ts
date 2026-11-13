@@ -83,6 +83,35 @@ export const pressLinkUrl = (target: PressTarget) => (target.kind === "link" ? t
 
 export const pressHeading = (target: PressTarget) => (target.kind === "link" ? target.text || target.url : target.linkUrl ?? target.url);
 
+export type PressPlan =
+  | { kind: "open"; url: string; background: boolean; isPrivate: boolean; after: string }
+  | { kind: "copy"; url: string }
+  | { kind: "share"; url: string }
+  | { kind: "download"; pageId: string; url: string }
+  | { kind: "none" };
+
+export function pressPlan(
+  press: { tabId: string; target: PressTarget },
+  action: PressAction,
+  openerIsPrivate: boolean,
+  isWebUrl: (url: string) => boolean,
+): PressPlan {
+  const link = pressLinkUrl(press.target);
+  switch (action) {
+    case "openInNewTab":
+    case "openInBackground":
+      return isWebUrl(link) ? { kind: "open", url: link, background: action === "openInBackground", isPrivate: openerIsPrivate, after: press.tabId } : { kind: "none" };
+    case "copyLink":
+      return { kind: "copy", url: link };
+    case "share":
+      return { kind: "share", url: link };
+    case "download":
+      return { kind: "download", pageId: press.tabId, url: link };
+    case "saveImage":
+      return press.target.kind === "image" ? { kind: "download", pageId: press.tabId, url: press.target.url } : { kind: "none" };
+  }
+}
+
 export const PRESS_TITLES: Record<PressAction, string> = {
   openInNewTab: "Open in New Tab",
   openInBackground: "Open in Background",

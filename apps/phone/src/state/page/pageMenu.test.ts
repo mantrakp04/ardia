@@ -10,6 +10,7 @@ import {
   pressHeading,
   pressLinkUrl,
   pressMenuGroups,
+  pressPlan,
   readerBodySize,
   readerSource,
   readerTheme,
@@ -166,4 +167,20 @@ test("reader sizes, themes and source line", () => {
   assert.equal(readerSource("Site", null), "Site");
   assert.equal(readerSource("", "Ada"), "Ada");
   assert.equal(readerSource("", null), null);
+});
+
+test("each long-press action acts on the press it was chosen from", () => {
+  const web = (url: string) => /^https?:/.test(url);
+  const link = { tabId: "T1", target: { kind: "link" as const, url: "https://a.example/x", text: "X" } };
+  assert.deepEqual(pressPlan(link, "openInNewTab", false, web), { kind: "open", url: "https://a.example/x", background: false, isPrivate: false, after: "T1" });
+  assert.deepEqual(pressPlan(link, "openInBackground", true, web), { kind: "open", url: "https://a.example/x", background: true, isPrivate: true, after: "T1" });
+  assert.deepEqual(pressPlan(link, "copyLink", false, web), { kind: "copy", url: "https://a.example/x" });
+  assert.deepEqual(pressPlan(link, "share", false, web), { kind: "share", url: "https://a.example/x" });
+  assert.deepEqual(pressPlan(link, "download", false, web), { kind: "download", pageId: "T1", url: "https://a.example/x" });
+  const mail = { tabId: "T1", target: { kind: "link" as const, url: "mailto:a@b.c", text: null } };
+  assert.deepEqual(pressPlan(mail, "openInNewTab", false, web), { kind: "none" });
+  const image = { tabId: "T2", target: { kind: "image" as const, url: "https://a.example/i.png", linkUrl: "https://a.example/p" } };
+  assert.deepEqual(pressPlan(image, "saveImage", false, web), { kind: "download", pageId: "T2", url: "https://a.example/i.png" });
+  assert.deepEqual(pressPlan(image, "openInNewTab", false, web).kind, "open");
+  assert.equal((pressPlan(image, "copyLink", false, web) as { url: string }).url, "https://a.example/p");
 });

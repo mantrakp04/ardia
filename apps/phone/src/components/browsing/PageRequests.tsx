@@ -73,7 +73,7 @@ export function PressMenu({ width, height }: { width: number; height: number }) 
   const items: MenuItem[] = [{ heading: pressHeading(press.target) }];
   for (const group of pressMenuGroups(press.target)) {
     items.push("divider");
-    for (const action of group) items.push({ label: PRESS_TITLES[action], icon: PRESS_ICONS[action], onPress: () => pressAction(action) });
+    for (const action of group) items.push({ label: PRESS_TITLES[action], icon: PRESS_ICONS[action], onPress: () => pressAction(press, action) });
   }
   const left = Math.min(Math.max(press.x, space.s), width - PRESS_MENU_WIDTH - space.s);
   const top = Math.min(Math.max(press.y + insets.top, insets.top + space.s), height - PRESS_MENU_HEIGHT);
