@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -18,7 +19,8 @@ namespace PageCapture {
 
 inline constexpr UINT kPrintFullContent = 0x00000002;
 inline constexpr double kSmallestScale = 0.5;
-inline constexpr LONG kLargestSide = 4096;
+inline constexpr LONG kLargestSide = 16384;
+inline constexpr int64_t kLargestPixels = 6144ll * 4096;
 
 struct Target {
   HWND owner = nullptr;
@@ -91,7 +93,7 @@ inline std::optional<Pixels> Print(HWND window, RECT const &wanted) noexcept {
   if (!IntersectRect(&crop, &rect, &wanted)) return std::nullopt;
   LONG width = rect.right - rect.left;
   LONG height = rect.bottom - rect.top;
-  if (width <= 0 || height <= 0 || width > kLargestSide || height > kLargestSide) return std::nullopt;
+  if (width <= 0 || height <= 0 || width > kLargestSide || height > kLargestSide || static_cast<int64_t>(width) * height > kLargestPixels) return std::nullopt;
   HDC screen = GetDC(nullptr);
   HDC memory = CreateCompatibleDC(screen);
   BITMAPINFO info{};

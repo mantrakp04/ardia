@@ -62,11 +62,15 @@ type Picture = Awaited<ReturnType<WebViewHandle["capturePicture"]>>;
 
 const appWindows = () => requireNativeModule<Pick<AppWindowsModule, "setPageFullScreen" | "capturePage">>("ArdiaAppWindows");
 
-function capturePicture(windowId: string, placed: string, scale: number): Promise<Picture> {
-  if (!placed) return Promise.resolve(null);
+type Shown = { visible: boolean; placed: string; shows: number };
+
+function capturePicture(windowId: string, shown: { current: Shown }, scale: number): Promise<Picture> {
+  const { visible, placed, shows } = shown.current;
+  if (!visible || !placed) return Promise.resolve(null);
   const { x, y, width, height } = JSON.parse(placed) as PageRect;
+  const stillShown = () => shown.current.visible && shown.current.shows === shows;
   const capture = Promise.resolve(appWindows().capturePage(windowId, x, y, width, height, scale)).then(
-    (data): Picture => (data ? { data, frame: [x, y, width, height] } : null),
+    (data): Picture => (data && stillShown() ? { data, frame: [x, y, width, height] } : null),
     () => null,
   );
   const late = new Promise<Picture>((done) => setTimeout(() => done(null), PICTURE_DEADLINE_MS));
@@ -93,14 +97,14 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
   const latest = useRef(props);
   latest.current = props;
   const visible = props.visible !== false;
-  const shown = useRef<{ visible: boolean; placed: string }>({ visible: false, placed: "" });
+  const shown = useRef<Shown>({ visible: false, placed: "", shows: 0 });
   const fullScreen = useRef(false);
 
   const place = useCallback(() => {
     const wanted = latest.current.visible !== false;
     if (!wanted) {
       if (shown.current.visible) {
-        shown.current = { visible: false, placed: "" };
+        shown.current = { visible: false, placed: "", shows: shown.current.shows + 1 };
         showPage(key, false, null);
       }
       return;
@@ -119,7 +123,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
           };
       const placed = JSON.stringify(shape);
       if (shown.current.visible && shown.current.placed === placed) return;
-      shown.current = { visible: true, placed };
+      shown.current = { visible: true, placed, shows: shown.current.shows + 1 };
       showPage(key, true, shape);
     });
   }, [key, windowId]);
@@ -147,7 +151,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       now.onPageEvent?.({ nativeEvent: { name, data } });
     });
     return () => {
-      shown.current = { visible: false, placed: "" };
+      shown.current = { visible: false, placed: "", shows: shown.current.shows + 1 };
       if (fullScreen.current) {
         fullScreen.current = false;
         void setWindowFullScreen(windowId, false);
@@ -169,7 +173,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         {
           get(_target, method) {
             if (typeof method !== "string" || method === "then" || method === "$$typeof") return undefined;
-            if (method === "capturePicture") return (scale: number) => capturePicture(windowId, shown.current.visible ? shown.current.placed : "", scale);
+            if (method === "capturePicture") return (scale: number) => capturePicture(windowId, shown, scale);
             const names = ARGUMENTS[method];
             if (names) {
               const unwrap = UNWRAPPED[method];
