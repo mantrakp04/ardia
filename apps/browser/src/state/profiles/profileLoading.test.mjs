@@ -129,6 +129,27 @@ test("history and bookmark watches restart after a profile unloads and opens aga
   stopLoading();
 });
 
+test("a bookmark deleted while its profile is unloaded stays deleted when it reopens", async () => {
+  stub.docs.clear();
+  stub.bookmarkDbs.clear();
+  const id = "0f0f0f0f-0000-4000-8000-00000000d001";
+  stub.chromeBookmarkEdit("work", [{ op: "add", id, k: "u", t: "Remove me", u: "https://remove.example/", a: 1, parent: "bar", index: 0 }]);
+  const stopLoading = launchWith({ loaded: ["", "work"] });
+  const stopBookmarks = startBookmarks();
+  await until(() => S().bookmarks.nodes[id]?.kind === "url", "initial bookmark tree");
+  await reloadBookmarks();
+
+  loading.unloadProfile("work");
+  assert.equal(loading.profileOpened("work"), false);
+  S().removeBookmark(id);
+  assert.equal(loading.profileOpened("work"), true, "the local edit reopens the profile");
+  await until(() => !stub.chromeBookmarks("work").has(id), "bookmark deletion in Chrome");
+  assert.equal(S().bookmarks.nodes[id], undefined);
+
+  stopBookmarks();
+  stopLoading();
+});
+
 test("at launch nothing reads a deferred profile; its bookmarks, history and favicons load when it opens, current", async () => {
   stub.docs.clear();
   stub.bookmarkDbs.clear();
