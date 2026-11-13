@@ -14,7 +14,7 @@ struct BrowsingView: View {
   @State private var pager = PagerModel()
   @State private var barVisibility = BottomBarVisibility()
   @State private var tabSwitchTicks = 0
-  @State private var pageWidth: CGFloat = 402
+  @State private var pageSpan = PageSpan(width: 402, safeSide: 0)
   @State private var storedCover: StoredCover?
 
   var body: some View {
@@ -40,7 +40,10 @@ struct BrowsingView: View {
           .ignoresSafeArea(edges: .horizontal)
       }
     }
-    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }
+    .onGeometryChange(for: PageSpan.self) { proxy in
+      let insets = proxy.safeAreaInsets
+      return PageSpan(width: proxy.size.width + insets.leading + insets.trailing, safeSide: max(insets.leading, insets.trailing))
+    } action: { pageSpan = $0 }
     .modifier(PageRequestAlert(page: currentWebPage))
     .sheet(isPresented: $browse.isToolbarPresented) {
       if let id = app.tabs.selectedTabID {
@@ -100,6 +103,8 @@ struct BrowsingView: View {
     .accessibilityHidden(!isFront)
     .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: tabSwitchTicks)
   }
+
+  private var pageWidth: CGFloat { pageSpan.width }
 
   private var isFindingInPage: Bool {
     currentWebPage?.isFindingInPage ?? false
@@ -213,6 +218,7 @@ struct BrowsingView: View {
     BottomBar(
       plusNamespace: omnibox,
       isSearchPresented: app.browse.search != nil,
+      sideInset: pageSpan.safeSide,
       onTabs: openDeck,
       onPlus: openSearch,
       onMore: { app.browse.isToolbarPresented = true },
@@ -232,7 +238,7 @@ struct BrowsingView: View {
     .opacity(isBarShown ? 1 : 0)
     .allowsHitTesting(isBarShown)
     .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse, value: isBarShown)
-    .ignoresSafeArea(.container, edges: .bottom)
+    .ignoresSafeArea(.container, edges: [.bottom, .horizontal])
     .ignoresSafeArea(.keyboard)
   }
 
@@ -414,6 +420,11 @@ struct BrowsingView: View {
     guard let index = order.firstIndex(where: { $0.id == app.tabs.selectedTabID }), order.indices.contains(index + delta) else { return }
     switchTab(to: order[index + delta].id, order: order)
   }
+}
+
+nonisolated struct PageSpan: Equatable {
+  let width: CGFloat
+  let safeSide: CGFloat
 }
 
 struct StoredCover {

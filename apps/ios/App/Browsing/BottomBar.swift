@@ -5,6 +5,7 @@ import SwiftUI
 struct BottomBar: View {
   let plusNamespace: Namespace.ID
   let isSearchPresented: Bool
+  var sideInset: CGFloat = 0
   var onTabs: () -> Void
   var onPlus: () -> Void
   var onMore: () -> Void
@@ -72,7 +73,7 @@ struct BottomBar: View {
       .accessibilityLabel("Page Menu")
       .frame(maxWidth: .infinity, alignment: .trailing)
     }
-    .padding(.horizontal, BrowseLayout.barSideInset - 4)
+    .padding(.horizontal, sideInset + BrowseLayout.barSideInset - 4)
   }
 
   @ViewBuilder
