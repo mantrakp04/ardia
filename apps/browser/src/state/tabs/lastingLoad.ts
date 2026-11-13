@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTabLive } from "../browser/hooks";
-import { noteLoadingPillSkipped } from "../telemetry/loadingPill";
+import { notePageOverlay } from "../telemetry/usage";
 
 const SHOW_AFTER_MS = 150;
 
@@ -10,7 +10,7 @@ export function useLastingLoad(tabId: string) {
   const waiting = useRef(false);
   useEffect(() => {
     if (!loading) {
-      if (waiting.current) noteLoadingPillSkipped();
+      if (waiting.current) notePageOverlay("loadingSkipped");
       waiting.current = false;
       return;
     }

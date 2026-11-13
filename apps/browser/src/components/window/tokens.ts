@@ -64,7 +64,6 @@ export const LOADING_PILL = {
     show: { duration: duration.base, easing: curve.enter },
     hide: { duration: duration.slow, easing: curve.exit },
     sweep: { duration: 330, easing: curve.move },
-    settle: { duration: duration.base, easing: curve.enter },
     rest: 330,
   },
 } as const;

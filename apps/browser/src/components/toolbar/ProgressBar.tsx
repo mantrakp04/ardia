@@ -11,7 +11,7 @@ export const TabProgressBar = memo(function TabProgressBar({ tabId, color }: { t
   return <ProgressBar progress={usePageProgress(tabId)} color={color} />;
 });
 
-export function ProgressBar({ progress, color }: { progress: number; color: string }) {
+function ProgressBar({ progress, color }: { progress: number; color: string }) {
   const width = useRef(new Animated.Value(Math.max(progress, PROGRESS.floor))).current;
   const shownFor = useRef(Math.max(progress, PROGRESS.floor));
   useEffect(() => {
