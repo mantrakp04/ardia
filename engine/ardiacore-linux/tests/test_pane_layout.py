@@ -45,17 +45,6 @@ struct Pane {
 int main(int argc, char** argv) {
   assert(argc == 2);
   const std::string mode = argv[1];
-  if (mode == "restoring") {
-    Pane p;
-    ardiacore::restoring = true;
-    p.host.Show(p.binding, true);
-    assert(ardiacore::shown_slot == &p.page);
-    assert(!p.binding->viewport()->GetVisible() && !p.binding->viewport()->web_contents());
-    ardiacore::restoring = false;
-    p.host.LayoutPane(p.binding);
-    assert(p.binding->viewport()->GetVisible() && p.binding->viewport()->web_contents() == &p.page);
-    return 0;
-  }
   if (mode == "split") {
     Pane p;
     p.Dock();
@@ -212,9 +201,6 @@ class PaneLayoutTests(unittest.TestCase):
         result = subprocess.run([str(self.binary), mode], capture_output=True, text=True, timeout=20,
                                 env={**os.environ, 'ASAN_OPTIONS': 'detect_leaks=1'})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-
-    def test_a_tab_whose_size_is_being_restored_stays_hidden_until_the_next_layout(self):
-        self.run_case('restoring')
 
     def test_docked_frontend_splits_the_pane_and_orders_by_strategy(self):
         self.run_case('split')

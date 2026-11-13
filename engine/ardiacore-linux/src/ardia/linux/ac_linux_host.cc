@@ -1232,7 +1232,6 @@ class ShellHostView : public views::View,
   void OnDevToolsDockChanged(content::WebContents* inspected, content::WebContents* devtools);
   void HideDevToolsViewport(TabBinding* binding);
   void LayoutPane(TabBinding* binding);
-  bool HoldsPageForRestoredSize(TabBinding* binding);
   void KeepPaneFocus(TabBinding* activating);
   void OnDidChangeFocus(views::View* before, views::View* now) override;
   void QueueTransaction(std::optional<int> command);
@@ -4330,16 +4329,6 @@ void ShellHostView::HideDevToolsViewport(TabBinding* binding) {
   if (focused && visible) binding->FocusFromHost();
 }
 
-bool ShellHostView::HoldsPageForRestoredSize(TabBinding* binding) {
-  content::WebContents* contents = binding->contents();
-  if (!ardiacore::NoteTabInShownSlot(contents)) return false;
-  ardiacore::WhenTabSizeRestored(contents, base::BindOnce(
-      [](base::WeakPtr<ShellHostView> host, base::WeakPtr<TabBinding> binding) {
-        if (host && binding) host->LayoutPane(binding.get());
-      }, GetWeakPtr(), binding->GetWeakPtr()));
-  return true;
-}
-
 void ShellHostView::LayoutPane(TabBinding* binding) {
   views::WebView* page = binding->viewport();
   if (!browser_view_) return;
@@ -4360,7 +4349,7 @@ void ShellHostView::LayoutPane(TabBinding* binding) {
     }
     return;
   }
-  const bool visible = binding->pane_visible && contents && !HoldsPageForRestoredSize(binding);
+  const bool visible = binding->pane_visible && contents;
   DevToolsContentsResizingStrategy strategy;
   content::WebContents* devtools =
       visible && claimed ? DevToolsWindow::GetInTabWebContents(contents, &strategy) : nullptr;
@@ -4375,6 +4364,7 @@ void ShellHostView::LayoutPane(TabBinding* binding) {
     owner_view->GetActiveContentsWebView()->SetWebContents(nullptr);
     page->SetWebContents(contents);
     page->holder()->SetNativeViewCornerRadii(gfx::RoundedCornersF(12.0f));
+    ardiacore::NoteTabInShownSlot(contents);
   } else {
     page->SetWebContents(nullptr);
   }

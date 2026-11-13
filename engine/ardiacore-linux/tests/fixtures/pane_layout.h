@@ -146,11 +146,7 @@ inline void WebContentsObserver::Observe(WebContents* contents) {
 
 namespace ardiacore {
 inline content::WebContents* shown_slot = nullptr;
-inline bool restoring = false;
-inline bool NoteTabInShownSlot(content::WebContents* contents) {
-  shown_slot = contents;
-  return restoring;
-}
+inline void NoteTabInShownSlot(content::WebContents* contents) { shown_slot = contents; }
 }
 
 struct DevToolsContentsResizingStrategy {
@@ -311,7 +307,6 @@ class ShellHostView : public views::View {
   ShellHostView();
   ~ShellHostView();
   void LayoutPane(TabBinding* binding);
-  bool HoldsPageForRestoredSize(TabBinding* binding) { return ardiacore::NoteTabInShownSlot(binding->contents()); }
   void OnDevToolsDockChanged(content::WebContents* inspected, content::WebContents* devtools);
   void HideDevToolsViewport(TabBinding* binding);
   void Restack() { restacks++; }
