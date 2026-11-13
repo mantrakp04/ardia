@@ -7,7 +7,7 @@ import { restoreSnapshots } from "./closedTabs";
 import { withRowsGrouped } from "./tabGrouping";
 import { splitOf, splitRowPanes, withSplitRows } from "../splits/splits";
 import { activated, apply, removeTabs } from "../tabs/tabs";
-import type { ClosedTab, Tab, TabGroup } from "../browser/types";
+import type { ClosedTab, Tab, TabGroup, TabPin } from "../browser/types";
 import { samePage } from "../../lib/url";
 import { isRegularWindow } from "../windows/small";
 import { hiddenEmptyCard } from "../omnibox/newTabBarPolicy";
@@ -181,3 +181,11 @@ export function untidying(s: BrowserState, tidied: Tidied): BrowserState {
   }
   return next;
 }
+
+export type PinStates = Record<string, TabPin["as"] | null>;
+
+export const pinStatesOf = (s: Pick<BrowserState, "tabs">, tidied: Tidied): PinStates =>
+  Object.fromEntries(Object.keys(tidied.homes).map((id) => [id, s.tabs[id]?.pin?.as ?? null]));
+
+export const canUndoTidy = (s: Pick<BrowserState, "tabs">, after: PinStates) =>
+  Object.entries(after).every(([id, as]) => !s.tabs[id] || (s.tabs[id]!.pin?.as ?? null) === as);

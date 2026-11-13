@@ -4,6 +4,8 @@ const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
 const { TIDY_TABS_AFTER, canTidy, offersTidyTabs, tidyPlan, tidying, untidying } = await import("./tidy.ts");
 const { splitTabIdsOf } = await import("../splits/splits.ts");
+const { useToasts } = await import("../app/toasts.ts");
+const { tidy: tidyWithToast } = await import("../sidebar/tidyUi.ts");
 
 const S = () => useBrowser.getState();
 const reset = () => S().hydrate({});
@@ -393,6 +395,17 @@ test("Undo of Tidy on tabs puts every tab back in its place and removes Tidy's g
   assert.deepEqual(unpinnedList(w), before);
   assert.ok(!Object.values(S().groups).some((g) => g.name === "Figma"));
   for (const id of [l1, f1, g1, f2]) assert.equal(S().tabs[id].pin, null);
+});
+
+test("pinning a tab Tidy moved takes Undo away, so Undo can't unpin it", () => {
+  reset();
+  const { w, ids: [f1, , f2] } = windowWith("https://figma.com/1", "https://github.com/1", "https://figma.com/2");
+  tidyWithToast(w, "tabs");
+  assert.equal(useToasts.getState().toasts[w]?.action?.title, "Undo");
+  S().updateTab(f1, { title: "Figma, renamed" });
+  assert.equal(useToasts.getState().toasts[w]?.action?.title, "Undo");
+  S().pinTabs([f2], true, true);
+  assert.equal(useToasts.getState().toasts[w] ?? null, null);
 });
 
 test("the divider offers Tidy only past six unpinned tabs, as in Arc; pins and tabs in pinned folders don't count", () => {
