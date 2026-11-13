@@ -53,15 +53,13 @@ extension AppModel {
     let wantsDesktop = !browse.desktopTabs.contains(page.id)
     if wantsDesktop {
       browse.desktopTabs.insert(page.id)
-      webView.customUserAgent = Self.desktopUserAgent
+      webView.customUserAgent = BrowserUserAgent.desktop
     } else {
       browse.desktopTabs.remove(page.id)
       webView.customUserAgent = nil
     }
     page.reload()
   }
-
-  static let desktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15"
 
   func translate(_ page: WebTab) {
     guard let url = page.url, var components = URLComponents(string: "https://translate.google.com/translate") else { return }
