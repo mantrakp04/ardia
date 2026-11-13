@@ -245,6 +245,16 @@ inline Rect DragStep(Rect frame, Point delta, const Screen *screens, int count, 
   return MoveWithin(frame, delta, screens, count, home);
 }
 
+inline Rect DragTo(Rect frame, Point grab, Point pointer, const Screen *screens, int count, int home = -1) {
+  return DragStep(frame, {pointer.x - grab.x - frame.x, pointer.y - grab.y - frame.y}, screens, count, home);
+}
+
+constexpr double kDragSlipTolerance = 1;
+
+inline bool DragHeld(Rect frame, Point grab, Point pointer) {
+  return std::hypot(pointer.x - grab.x - frame.x, pointer.y - grab.y - frame.y) > kDragSlipTolerance;
+}
+
 struct SpringState {
   double offset, velocity;
 };

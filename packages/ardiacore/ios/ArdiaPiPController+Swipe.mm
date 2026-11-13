@@ -130,10 +130,15 @@ static __weak NSWindow *gSwipeMomentum;
                atStart:NO];
     });
   };
+  const bool returns = args.count > 5 && args[5].boolValue;
+  const int moves = returns ? 2 * steps : steps;
+  auto along = [=](int i) {
+    const double share = (double)(i <= steps ? i : moves - i) / steps;
+    return NSMakePoint(start.x + fx * share, start.y + fy * share);
+  };
   post(0, NSEventTypeLeftMouseDown, start);
-  for (int i = 1; i <= steps; i++)
-    post(i * interval, NSEventTypeLeftMouseDragged, NSMakePoint(start.x + fx * i / steps, start.y + fy * i / steps));
-  post(steps * interval + pause + 0.004, NSEventTypeLeftMouseUp, NSMakePoint(start.x + fx, start.y + fy));
+  for (int i = 1; i <= moves; i++) post(i * interval, NSEventTypeLeftMouseDragged, along(i));
+  post(moves * interval + pause + 0.004, NSEventTypeLeftMouseUp, along(moves));
 }
 
 @end
