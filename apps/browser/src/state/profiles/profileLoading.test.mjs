@@ -129,6 +129,38 @@ test("history and bookmark watches restart after a profile unloads and opens aga
   stopLoading();
 });
 
+test("a profile reopening during a pending native release restarts its data watches", async () => {
+  stub.historyWatches.length = 0;
+  stub.bookmarkWatches.length = 0;
+  const stopLoading = launchWith({ loaded: [] });
+  const stops = [startBookmarks(), startHistory()];
+  const watches = (entries, profile) => entries.filter((entry) => entry === profile).length;
+  await until(() => watches(stub.historyWatches, "work") > 0 && watches(stub.bookmarkWatches, "work") > 0, "initial profile watches");
+  let historyCount = watches(stub.historyWatches, "work");
+  let bookmarkCount = watches(stub.bookmarkWatches, "work");
+
+  loading.noteProfileReleasePending("work");
+  assert.equal(loading.profileOpened("work"), true);
+  stub.emitEvent("profiles.loaded", { profile: "work" });
+  await until(() => watches(stub.historyWatches, "work") > historyCount && watches(stub.bookmarkWatches, "work") > bookmarkCount, "watches after pending release reopens");
+
+  historyCount = watches(stub.historyWatches, "work");
+  bookmarkCount = watches(stub.bookmarkWatches, "work");
+  loading.noteProfileReleasePending("work", true);
+  await until(() => watches(stub.historyWatches, "work") > historyCount && watches(stub.bookmarkWatches, "work") > bookmarkCount, "watches after release returns pending late");
+
+  historyCount = watches(stub.historyWatches, "work");
+  bookmarkCount = watches(stub.bookmarkWatches, "work");
+  loading.noteProfileReleasePending("work");
+  assert.deepEqual(loading.reconcilePendingProfileReleases([""]), ["work"]);
+  assert.equal(loading.profileOpened("work"), false);
+  stub.emitEvent("profiles.loaded", { profile: "work" });
+  await until(() => watches(stub.historyWatches, "work") > historyCount && watches(stub.bookmarkWatches, "work") > bookmarkCount, "watches after poll detects destruction");
+
+  for (const stop of stops) stop();
+  stopLoading();
+});
+
 test("a bookmark deleted while its profile is unloaded stays deleted when it reopens", async () => {
   stub.docs.clear();
   stub.bookmarkDbs.clear();
