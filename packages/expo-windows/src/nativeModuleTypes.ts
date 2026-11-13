@@ -1,9 +1,11 @@
 import type { AppNative, DialogsNative, FileDropNative, MenusNative, NotificationsNative, SystemNative, SystemSignalsNative, WindowControlsNative, WindowsNative } from "@ardia/shell";
+import type { PhraseResult } from "@ardia/sync";
 import type { TurboModule } from "react-native";
 import type { PowerReading } from "./engine/domains/calling";
 import type { EventSubscription } from "./events";
 import type { ImportHost } from "./import/host";
 import type { LaunchArguments } from "./launchLinks/addresses";
+import type { VaultNative } from "./sync/vault";
 import type { DropAreaFrame } from "./views/fileDropAreas";
 
 export type WindowFade = {
@@ -95,3 +97,27 @@ export type WindowsImportModule = Pick<ImportHost, "readText" | "readBase64" | "
 export type DialogsModule = DialogsNative & { saveFile(name: string, extension: string, kind: string, message: string): Promise<string | null> };
 
 export type SystemSignalsModule = SystemSignalsNative & { powerState(): PowerReading };
+
+export type SyncFolderState = { exists: boolean; writable: boolean; hasSyncData: boolean };
+
+export type WindowsSyncModule = TurboModule &
+  VaultNative & {
+    getConstants(): { computerName?: unknown; oneDriveFolder?: unknown; documentsFolder?: unknown; testFolder?: unknown };
+    createKey(account: string): Promise<boolean>;
+    enterPhrase(account: string, text: string, folder: string): Promise<PhraseResult>;
+    unlock(account: string): Promise<boolean>;
+    forget(account: string): Promise<boolean>;
+    sealLocal(text: string): Promise<string>;
+    openLocal(sealed: string): Promise<string | null>;
+    recoveryWords(): Promise<string[] | null>;
+    copyRecoveryPhrase(): Promise<boolean | null>;
+    folderState(path: string): Promise<SyncFolderState>;
+    readPasswords(profile: string): Promise<string | null>;
+    savePassword(profile: string, origin: string, username: string, sealed: string, replacing: boolean): Promise<boolean>;
+    saveFile(path: string, base64: string): Promise<boolean>;
+    copyKitFile(name: string, base64: string): Promise<boolean>;
+    renderPdf(base64: string, width: number): Promise<string | null>;
+    takeHydrated(): number;
+    selfTest(): Promise<Record<string, boolean>>;
+    checkWith(entropyHex: string, action: string, first: string, second: string, third: string): Promise<string | null>;
+  };

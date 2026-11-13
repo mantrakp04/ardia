@@ -12,6 +12,7 @@ import { windowsLaunchLinks } from "./launchLinks";
 import { noteMissing } from "./missing";
 import { stampedSystemInfo, windowsUpdater } from "./updater";
 import { windowsSwipe } from "./pager";
+import { windowsSync } from "./sync";
 import { setWindowDark } from "./windowDark";
 
 type Listener = (payload: unknown) => void;
@@ -39,7 +40,9 @@ const around: Record<string, Record<string, (native: Call) => Call>> = {
   },
 };
 
-const writtenInJs: Record<string, Record<string, unknown>> = { ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion, ArdiaLaunchLinks: windowsLaunchLinks, ArdiaImport: windowsImport(), ArdiaInlineCompletion: windowsInlineCompletion(() => TurboModuleRegistry.get<TurboModule & WindowsHostModule>("ArdiaWindowsHost")), ArdiaApp: windowsIntroMusic };
+const syncOnWindows = windowsSync();
+
+const writtenInJs: Record<string, Record<string, unknown>> = { ...(syncOnWindows ? { ArdiaSync: syncOnWindows } : {}), ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion, ArdiaLaunchLinks: windowsLaunchLinks, ArdiaImport: windowsImport(), ArdiaInlineCompletion: windowsInlineCompletion(() => TurboModuleRegistry.get<TurboModule & WindowsHostModule>("ArdiaWindowsHost")), ArdiaApp: windowsIntroMusic };
 
 const inert = (module: string, key: string) => () => {
   noteMissing(`${module}.${key}`);

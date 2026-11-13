@@ -15,6 +15,7 @@
 #include "MenusModule.h"
 #include "NotificationsModule.h"
 #include "ShellModule.h"
+#include "SyncModule.h"
 #include "SystemModule.h"
 #include "SystemSignalsModule.h"
 #include "TelemetryLocalModule.h"

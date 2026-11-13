@@ -3,6 +3,7 @@ import type { Profile } from "../browser/types";
 import { unchanged, type Migrations } from "../../lib/savedDocument";
 import type { DeviceKind, SendRecord } from "./records";
 import type { SendLedger } from "./sentTabsAdapter";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 type SyncTypeSpec = { title: string; description: string; profileData?: true };
 
@@ -11,7 +12,7 @@ const SYNC_TYPES = {
   history: { title: "History", description: "The last 90 days.", profileData: true },
   tabs: { title: "Open Tabs", description: "Your other devices’ tabs show in the tab overflow menu." },
   pinned: { title: "Pinned Tabs and Groups", description: "Pinned tabs and pinned tab groups." },
-  passwords: { title: "Passwords", description: "Saved passwords. Turning sync off never removes them from this Mac.", profileData: true },
+  passwords: { title: "Passwords", description: `Saved passwords. Turning sync off never removes them from this ${PLATFORM_TERMS.computer}.`, profileData: true },
   extensions: {
     title: "Extensions",
     description: "Extensions from the Chrome Web Store, whether they’re on, and whether they’re pinned.",

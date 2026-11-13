@@ -55,10 +55,10 @@ function offers(onWindows) {
   return JSON.parse(run.stdout.trim().split("\n").at(-1));
 }
 
-test("Windows offers no Sync, Calendar or WebKit pane, no blocker, gesture, upscaling, haptics or scroll bar row, and no Settings copy that names the Mac", () => {
+test("Windows offers Sync but no Calendar or WebKit pane, no blocker, gesture, upscaling, haptics or scroll bar row, and no Settings copy that names the Mac", () => {
   assert.deepEqual(offers(true), {
-    panes: [],
-    hidden: ["sync.sync", "calendar.access", "engines.defaultEngine", "privacy.blockAds", "privacy.filterLists", "general.littleWindowGestures", "tabs.videoUpscaling", "tabs.tabReorderHaptics", "appearance.pageScrollBars"],
+    panes: ["sync"],
+    hidden: ["calendar.access", "engines.defaultEngine", "privacy.blockAds", "privacy.filterLists", "general.littleWindowGestures", "tabs.videoUpscaling", "tabs.tabReorderHaptics", "appearance.pageScrollBars"],
     engineCommand: true,
     switchesEngine: false,
     pageEngines: ["chromium", "chromium", "chromium", "chromium", "chromium"],
@@ -78,7 +78,7 @@ test("the Mac keeps every pane, row and the engine switch", () => {
 });
 
 const PANES_DIR = new URL("./panes/", import.meta.url);
-const HIDDEN_ON_WINDOWS = new Set(["Sync.tsx", "SyncSheets.tsx", "Calendar.tsx", "Engines.tsx"]);
+const HIDDEN_ON_WINDOWS = new Set(["Calendar.tsx", "Engines.tsx"]);
 const MAC_ONLY_STATES = [["General.tsx", "requiresApproval"]];
 const MAC_WORDS = /macOS|Touch ID|Keychain|this Mac|their Mac|View ›|Apple silicon|System Settings/;
 

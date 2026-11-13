@@ -148,6 +148,16 @@
     <ClInclude Include="ShellModule.h" />
     <ClInclude Include="SystemModule.h" />
     <ClInclude Include="SystemSignalsModule.h" />
+    <ClInclude Include="SyncCrypto.h" />
+    <ClInclude Include="SyncFiles.h" />
+    <ClInclude Include="SyncLogins.h" />
+    <ClInclude Include="SyncModule.h" />
+    <ClInclude Include="SyncPhrase.h" />
+    <ClInclude Include="SyncSecrets.h" />
+    <ClInclude Include="SyncSelfTest.h" />
+    <ClInclude Include="SyncSystem.h" />
+    <ClInclude Include="SyncVault.h" />
+    <ClInclude Include="SyncWordlist.h" />
     <ClInclude Include="TelemetryLocalModule.h" />
     <ClInclude Include="UpdateModule.h" />
     <ClInclude Include="Events.h" />

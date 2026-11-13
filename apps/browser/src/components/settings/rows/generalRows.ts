@@ -2,6 +2,7 @@ import { APP, type SettingSection, type SettingsEnv } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
 import { keyText } from "../../../state/commands/keyText";
 import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { splitViewAvailable } from "../../../state/splits/splits";
 
 const inSidebar = (_: unknown, env: SettingsEnv) => !env.top;
@@ -130,7 +131,7 @@ export const generalRows = {
     {
       section: "Sync",
       rows: {
-        sync: { title: "Sync", description: "Sync your profiles, bookmarks, history, tabs, passwords, extensions and settings across your Macs.", keywords: ["icloud", "recovery phrase", "devices", "turn on sync", "end to end", "encrypted"] },
+        sync: { title: "Sync", description: `Sync your profiles, bookmarks, history, tabs, passwords, extensions and settings across your ${PLATFORM_TERMS.syncedComputer}s.`, keywords: [PLATFORM_TERMS.cloudDrive.toLowerCase(), "recovery phrase", "devices", "turn on sync", "end to end", "encrypted"] },
         folder: { advanced: true, title: "Sync folder", keywords: ["icloud drive", "dropbox", "folder"] },
       },
     },

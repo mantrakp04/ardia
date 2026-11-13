@@ -1,0 +1,56 @@
+{
+  "chainTag" : "zseyjilvl6xq2alynk5nzp5suy",
+  "entropy" : "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "files" : [
+    {
+      "id" : "vjkwac2xmfzpjtwrixz5qs2b7a",
+      "payload" : "{\"records\":{\"pw:1\":{\"k\":\"pw:1\",\"v\":{\"o\":\"https://example.com\",\"u\":\"ada\",\"p\":\"correct horse\"}}},\"pw:2\":{\"v\":{\"o\":\"https://ardia.dev\",\"u\":\"grace\",\"p\":\"battery staple\"}}}",
+      "scope" : "app"
+    },
+    {
+      "id" : "i5jec7fd3o4i4hr3g2szcqcoyu",
+      "payload" : "{\"title\":\"Ünïcode ✓\",\"bookmarks\":[\"https://ardia.dev/\"]}",
+      "scope" : "profile-mac"
+    }
+  ],
+  "local" : {
+    "plain" : "{\"state\":1}",
+    "sealed" : "Tk5TMUNPoPgvTUeECRPd1QZyFibfesVq+OVLHcXZ0ZzDWThKfAK9JB/MQGNN4hhZVx7xC9eMMdm7qTkCb9AqFEwZ4ggSKgwnNHi1VFRQZ1A6WjnuW1q1whifRyWxqSKYRO/ALNGDXhtOapWaADqn42e7bn/kNcn7j4WWF+bU2Wi7FpiNiknvbPP3YbfjvfJkQOg031Mh8BjDrB+u82h7I+05MQlhp+Lls5RgLCfgJ+BZZ3VcNoEqOiY8aCjuUegCmJmBbksdffeuO19QtWzuP2rdf8j5+j7RUYXmgZykFcDhByvbJxyZ6km+7sFmOsn8G4gjWD6n/3FL3yD+KUezWuVPCZWG8r1aTSxQ9dbr3QPzMIq2WzUEFLKQ2f6h2hyqjnW3JE3aoKgPpeaMb8zjvAuowGE2gGEuq1IxyTfhuEsAvJBM5qcR63w2M5r6N05v5/4UN/GPaKp4qXNRkGAQjme9ZbeqSETyEwH1dUfjq9KNOa+RyZBAHJi28P3GnV/6xelNm6WpcGKYaqEIuldhW45UwSHSdRVCPDwlEv9WGrFcdcwZigOHBtQMrQKItXS9Xku7QlxxVXOVncJNKDpz6sFdAT5Wzp9gPVEcC3C6KoIfjzl9mMm7OGLz6gWxwhQbA0a/jyRVnE0vqdTLhVdgVkmQ9YKzSDv505gnYibW6PWGc2GVlKlPTAafliY4SEf0+DHS6HG37QdVIbP73qRDUK1be5+aTrUfnihc1V76KmqRoeBSvRUHaVISw7H0qYOYIbjb6yHb/uFXTvm4rPrfBh92y2/lOKPqA6cTrSLNV8gDKPWyji03OuxtPIz5n2i/ASHOvJCqasKwQejOcKC8hAPhSP4QGXTYnLqKkw2u5hQ3ZvunSWv0JVOlgqFUxN/9hO9h22Slr+GXvNzie4qZOD6+ceXUqa7VAgxXeZcukZFJiuQcYhIEHSHpKiTMkQ4aBHC8Trdi6j5DBcPCLkCTOhl7Pr4h8k+RTExhJvSUJNNW+ilLpSZu2ogts72Mr/PP9q2KpeY5L/vFcyQqx7wVdL+u5fKOgVvxJ1JdQ5OO3GAqOk5h/vAMwT3RGvrPSkO+GmsBTBEvwSagRVsJI+GlrfRM/+i4No5nSOPf9iBInvqFYIwEatq/P+geYSpYN34jCB9Ir1naaoYN8r6RNl6yYDDRkvJhkdq/hCj/EShafhUGRdPE8fD2sZ61HKb7g5TM0djDaI5fCSv9lMKDjkSfWE7o+Es48iQFJ0FySj7u7PoI4aDBccxuGU272Q1qhvcFuWmJTBVl19I1d3E77/fUv/0yi5SQruqMSHGHU2R4PTLMGa1UqK904u0XiSAlCA0Ci+tTHV0UZr8IozvVwCJunpHGfb+jHbZB/pGEQhY0URqU3Uc/t4MDWuZ9oaAhBozK"
+  },
+  "password" : {
+    "origin" : "https://example.com",
+    "password" : "correct horse",
+    "sealed" : "AQQkUAWEN1LoYHnpFS9ehreNIl/R7+G2coeyjtXgJlYPzclt5cWRwTv5XGpiD12LlmtNpYKRz/stGc0+HQ==",
+    "username" : "ada"
+  },
+  "scopeTags" : {
+    "app" : "5rn6mdllcfdc3da7d276yyyepq",
+    "profile-mac" : "rjvpwpyww5xqkluhjmbuprvini"
+  },
+  "words" : [
+    "absurd",
+    "avoid",
+    "scissors",
+    "anxiety",
+    "gather",
+    "lottery",
+    "category",
+    "door",
+    "army",
+    "half",
+    "long",
+    "cage",
+    "bachelor",
+    "another",
+    "expect",
+    "people",
+    "blade",
+    "school",
+    "educate",
+    "curtain",
+    "scrub",
+    "monitor",
+    "lady",
+    "beyond"
+  ]
+}
