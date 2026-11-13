@@ -105,7 +105,7 @@ export function emitTabPresses() {
   const gaps = repeatGaps.sort((a, b) => a - b);
   const landedOn = [...repeatsLandedOn].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   forgetRepeats();
-  if (!counts.presses && !lostReleases && !repeated.presses) return;
+  if (!counts.presses && !counts.range_selects && !lostReleases && !repeated.presses) return;
   const at = (list: number[], p: number) => (list.length ? percentile(list, p) : null);
   capture("tab_presses", {
     ...counts,

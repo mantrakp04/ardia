@@ -53,6 +53,18 @@ export function onUrlChange(s: BrowserState, tab: Tab, url: string): Partial<Tab
   return inPinnedContainer(s, tab.id) ? { pinnedUrl: pinHome({ ...tab, url }, true) } : {};
 }
 
+export function forgetMovedAnchors(s: BrowserState, prev: BrowserState): Pick<BrowserState, "selectionAnchors"> | null {
+  if (s.windows === prev.windows) return null;
+  const moved = Object.entries(s.selectionAnchors).filter(([windowId, anchor]) => {
+    const shown = activeTabId(s, windowId);
+    return shown !== activeTabId(prev, windowId) && shown !== anchor.shownTabId;
+  });
+  if (!moved.length) return null;
+  const kept = { ...s.selectionAnchors };
+  for (const [windowId] of moved) delete kept[windowId];
+  return { selectionAnchors: kept };
+}
+
 export function pruneSelection(selection: Record<string, string[]>, gone: Set<string>): Record<string, string[]> {
   if (!Object.values(selection).some((ids) => ids.some((id) => gone.has(id)))) return selection;
   return Object.fromEntries(Object.entries(selection).map(([w, ids]) => [w, ids.filter((id) => !gone.has(id))]));

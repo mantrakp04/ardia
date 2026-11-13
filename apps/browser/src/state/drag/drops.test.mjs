@@ -158,6 +158,18 @@ const shape = (w) => S().windows[w].tabIds.map((id) => {
   return g ? `${host(id)}{${g.name}}` : host(id);
 });
 
+test("⇧-click after switching away and back by keyboard ranges from the shown tab, not from a ⌘-click made before", () => {
+  reset();
+  const { w, ids: [a, , c, d, e] } = windowWith("a", "b", "c", "d", "e");
+  S().clickTab(w, a);
+  S().clickTab(w, d, { metaKey: true });
+  S().setSelection(w, []);
+  S().activate(e);
+  S().activate(a);
+  S().clickTab(w, c, { shiftKey: true });
+  assert.deepEqual(S().selection[w].map(host), ["a", "b", "c"]);
+});
+
 test("⌃⇧⇞/⇟: a tab steps over a whole group, a member steps inside its group and leaves it at the edge, a split moves as one", () => {
   reset();
   const { w, ids: [a, b, c, d, e, f] } = windowWith("a", "b", "c", "d", "e", "f");
