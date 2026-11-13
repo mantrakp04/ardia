@@ -18,6 +18,7 @@ public struct BookmarkNode: Codable, Equatable, Sendable {
   public var children: [BookmarkNode]?
   public var role: String?
   public var pageTitle: String?
+  public var collapsed: Bool? = nil
 
   public static func folder(_ title: String, _ children: [BookmarkNode], role: String? = nil, dateAdded: Double? = nil) -> BookmarkNode {
     BookmarkNode(type: .folder, title: title, url: nil, dateAdded: dateAdded, children: children, role: role, pageTitle: nil)
@@ -212,6 +213,7 @@ public struct SpaceSuggestion: Codable, Equatable, Sendable {
   public var tabs: [ImportedTab]
   public var theme: String? = nil
   public var container: Int? = nil
+  public var pinnedCollapsed: Bool? = nil
 }
 
 public struct ProfileSuggestion: Codable, Equatable, Sendable {

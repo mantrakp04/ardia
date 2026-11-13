@@ -32,6 +32,7 @@ import { isWebPageUrl, withoutFragment } from "../../lib/url";
 import { focusedWindowOf } from "../windows/ui";
 import { originOfLogin } from "../site/savedPasswords";
 import { IDLE } from "../tabs/pageSession";
+import { setPinnedCollapsed } from "../sidebar/pinnedFold";
 
 export type { BrowserProfile, BrowserSource, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSummary } from "../../platform/importModule";
 
@@ -47,7 +48,7 @@ const toDraft = (n: ImportedNode): BookmarkDraft =>
 const toGroupDraft = (n: ImportedNode): GroupDraft =>
   n.type === "url"
     ? { title: n.pageTitle ?? n.title, url: n.url ?? "", ...(n.pageTitle ? { customTitle: n.title } : {}) }
-    : { title: n.title, ...(n.role === SPLIT_ROLE ? { split: true } : {}), children: (n.children ?? []).map(toGroupDraft) };
+    : { title: n.title, ...(n.role === SPLIT_ROLE ? { split: true } : {}), ...(n.collapsed ? { collapsed: true } : {}), children: (n.children ?? []).map(toGroupDraft) };
 
 const SPLIT_ROLE = "split";
 const isSplitNode = (n: ImportedNode) => n.type === "folder" && n.role === SPLIT_ROLE;
@@ -245,6 +246,7 @@ export function importArcSpace(profileId: string, space: SpaceSuggestion, favico
     skipped = drafts.skipped;
   }
   noteImportedPins({ rows: pinnedRows.tabs, splits });
+  if (space.pinnedCollapsed) setPinnedCollapsed(profileId, true);
   return { tabs, bookmarks: 0, skipped };
 }
 

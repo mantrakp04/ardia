@@ -74,7 +74,7 @@ public final class Importer: @unchecked Sendable {
       if let arc { return arc }
       let url = discovery.arcSidebarURL()
       guard FileManager.default.fileExists(atPath: url.path) else { throw ImportError.notFound("No Arc sidebar data") }
-      let parsed = try ArcSidebar.parse(Data(contentsOf: url))
+      let parsed = try ArcSidebar.parse(Data(contentsOf: url), windows: try? Data(contentsOf: discovery.arcWindowsURL()))
       arc = parsed
       return parsed
     }
