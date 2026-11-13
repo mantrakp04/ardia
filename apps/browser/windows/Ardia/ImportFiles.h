@@ -134,7 +134,6 @@ inline std::wstring RealPath(HANDLE file) {
   DWORD length = GetFinalPathNameByHandleW(file, real.data(), static_cast<DWORD>(real.size()), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
   if (length == 0 || length >= real.size()) return {};
   real.resize(length);
-  CharLowerBuffW(real.data(), static_cast<DWORD>(real.size()));
   while (!real.empty() && (real.back() == L'\\' || real.back() == L'/')) real.pop_back();
   return real;
 }
