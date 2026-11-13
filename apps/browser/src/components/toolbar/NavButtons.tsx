@@ -17,11 +17,12 @@ import { showReloadMenu } from "../../state/site/reloadMenu";
 
 const ICON_CENTER = { width: GLYPH, height: GLYPH, alignItems: "center" as const, justifyContent: "center" as const };
 const ICON_LAYER = { ...ICON_CENTER, position: "absolute" as const };
+const RELOAD_SYMBOL_BOX = 16;
 
 const ReloadGlyphColor = createContext("");
 
 function ReloadSymbol({ name }: { name: "arrow.clockwise" | "xmark" }) {
-  return <Symbol name={name} size={GLYPH} weight="regular" color={useContext(ReloadGlyphColor)} style={ICON_CENTER} />;
+  return <Symbol name={name} size={GLYPH} weight="regular" color={useContext(ReloadGlyphColor)} style={{ width: RELOAD_SYMBOL_BOX, height: RELOAD_SYMBOL_BOX }} />;
 }
 
 const ReloadGlyph = memo(function ReloadGlyph({ loading, color, press }: { loading: boolean; color: string; press: Animated.Value }) {
