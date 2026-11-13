@@ -9,6 +9,7 @@ export type Browser = {
   root: Root;
   path: string;
   rootIsProfile?: boolean;
+  sidebar?: "arc" | "zen";
 };
 
 const chromium = (id: string, name: string, path: string, root: Root = "local", rootIsProfile = false): Browser => ({
@@ -25,9 +26,9 @@ const ARC_PACKAGE = "Packages\\TheBrowserCompany.Arc_ttt1ap7aakyb4\\LocalCache\\
 export const BROWSERS: Browser[] = [
   chromium("chrome", "Google Chrome", "Google\\Chrome\\User Data"),
   chromium("edge", "Microsoft Edge", "Microsoft\\Edge\\User Data"),
-  { id: "arc", name: "Arc", family: "arc", root: "local", path: ARC_PACKAGE },
+  { id: "arc", name: "Arc", family: "arc", root: "local", path: ARC_PACKAGE, sidebar: "arc" },
   { id: "firefox", name: "Firefox", family: "firefox", root: "roaming", path: "Mozilla\\Firefox" },
-  { id: "zen", name: "Zen", family: "firefox", root: "roaming", path: "zen" },
+  { id: "zen", name: "Zen", family: "firefox", root: "roaming", path: "zen", sidebar: "zen" },
   chromium("brave", "Brave", "BraveSoftware\\Brave-Browser\\User Data"),
   chromium("vivaldi", "Vivaldi", "Vivaldi\\User Data"),
   chromium("opera", "Opera", "Opera Software\\Opera Stable", "roaming", true),
