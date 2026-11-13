@@ -120,7 +120,6 @@ export const moveBookmark = storeAction("moveBookmark");
 export const removeBookmark = storeAction("removeBookmark");
 export const toggleBookmark = storeAction("toggleBookmark");
 export const addBookmarkTree = storeAction("addBookmarkTree");
-export const insertBookmarkNodes = storeAction("insertBookmarkNodes");
 export const removeBookmarks = storeAction("removeBookmarks");
 export const restoreBookmarks = storeAction("restoreBookmarks");
 

@@ -14,6 +14,8 @@ import { copyBookmarkNodes, cutBookmarkNodes, hasBookmarkClipboard, pasteBookmar
 
 export async function openOrganizeMenu(windowId: string, profileId: string, folderId: string | null) {
   const choice = await showMenu([
+    { id: "bookmarkPaste", title: "Paste", key: "v", modifiers: ["command"], enabled: hasBookmarkClipboard() },
+    { separator: true },
     { id: "bookmark", title: "Add Page…", symbol: "bookmark" },
     { id: "folder", title: "New Folder…", symbol: "folder.badge.plus" },
     { separator: true },
@@ -21,6 +23,7 @@ export async function openOrganizeMenu(windowId: string, profileId: string, fold
     { id: "export", title: "Export Bookmarks…", symbol: "square.and.arrow.up" },
   ]);
   const parentId = folderId ?? undefined;
+  if (choice === "bookmarkPaste") pasteBookmarkNodes(profileId, parentId);
   if (choice === "bookmark") editBookmark(null, windowId, { profileId, parentId });
   if (choice === "folder") editBookmark(null, windowId, { profileId, parentId, folder: true });
   if (choice === "import") openImport();
