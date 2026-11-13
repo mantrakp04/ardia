@@ -394,6 +394,9 @@ is plain Chromium.
   `window.open()`) carries `fromClick` when its first navigation has a user gesture, so a link click or a
   `window.open()` during a user activation can become a Peek and a script `window.open()` without one stays a tab.
   Cross-site iframes run in their own process and their own DevTools target, so links in them don't peek yet.
+  The Peek card's background is a surface painted beneath the Peek's page, so a Peek's page (`temporary`) keeps a
+  cover that encloses it whole; anything over part of it still cuts it. Escape closes a Peek from either page, as on
+  the Mac: the host reports an Escape keydown the page didn't use as the `command` event `escape`.
 - A tab restored from the last session, or duplicated, loads its address: the Windows engine keeps no saved page
   state yet, so only tabs the engine itself offered are adopted.
 - The Windows engine opens every tab on a real `about:blank` and names it as the committed page, where the Mac's tab
