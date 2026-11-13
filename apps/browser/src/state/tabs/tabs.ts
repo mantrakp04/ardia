@@ -164,7 +164,7 @@ export function removeTabs(s: BrowserState, ids: string[], record: boolean): Bro
   for (const w of Object.values(next.windows)) {
     const id = w.activeTabIds[w.profileId];
     const t = id ? next.tabs[id] : undefined;
-    if (t && needsPage(t)) next = apply(next, activated(next, t.id));
+    if (t && (needsPage(t) || id !== s.windows[w.id]!.activeTabIds[w.profileId])) next = apply(next, activated(next, t.id));
   }
   return next;
 }

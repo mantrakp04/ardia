@@ -65,6 +65,31 @@ test("tabs opened behind don't count as used until they're shown", () => {
   assert.equal(shown(w), "b", "not the tabs a opened behind");
 });
 
+test("the tab used before wins even in a collapsed group, over tabs opened behind", () => {
+  reset();
+  const [w, a, b] = setup("a", "b", "x");
+  const g = S().createGroup([a], { name: "G" });
+  S().activate(a);
+  S().activate(b);
+  S().updateGroup(g, { collapsed: true });
+  open(w, "c", b);
+  S().closeTab(b);
+  assert.equal(shown(w), "a");
+});
+
+test("the tab a close shows counts as used, so the next close comes back to it", () => {
+  reset();
+  const [w, a, b, c] = setup("a", "b", "c");
+  S().createSplit([a, c]);
+  S().activate(b);
+  S().activate(c);
+  S().closeTab(c);
+  assert.equal(shown(w), "a", "the split's other pane");
+  const d = open(w, "d", a, false);
+  S().closeTab(d);
+  assert.equal(shown(w), "a");
+});
+
 test("closing a group that holds the shown tab shows the tab just above the group", () => {
   reset({ cmdClickCreatesTabGroup: true });
   const [w, pin, home] = setup("pin", "home");

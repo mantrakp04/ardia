@@ -1,5 +1,4 @@
 import type { BrowserState } from "../browser/store";
-import { ancestorIds } from "../groups/groups";
 import { withShownTab } from "../groups/shownTabs";
 import { inPinnedContainer } from "../browser/model";
 import { groupOf, pinnedChildGroup } from "../pins/tabGrouping";
@@ -96,17 +95,13 @@ export function switchKeepsOpeners(s: BrowserState, from: string, to: string): b
   return a === b || b === from || a === to;
 }
 
-const hiddenInGroup = (s: BrowserState, id: string) => {
-  const g = groupOf(s, id);
-  return !!g && (g.collapsed || ancestorIds(s.groups, g.id).some((x) => s.groups[x]!.collapsed));
-};
-
 export function closeSuccessor(s: BrowserState, closed: string, order: string[], left: string[]): string | undefined {
   const at = order.indexOf(closed);
   const nearest = [...left.filter((id) => order.indexOf(id) > at), ...left.filter((id) => order.indexOf(id) < at).reverse()];
-  const awake = nearest.filter((id) => !isAsleep(s.tabs[id]));
-  const visible = awake.filter((id) => !hiddenInGroup(s, id));
-  const pool = visible.length ? visible : awake.length ? awake : nearest;
-  const seen = pool.filter((id) => !s.tabs[id]!.unseen);
-  return seen.reduce<string | undefined>((best, id) => (!best || s.tabs[id]!.lastActiveAt > s.tabs[best]!.lastActiveAt ? id : best), undefined) ?? pool[0];
+  const seen = nearest.filter((id) => !s.tabs[id]!.unseen);
+  const pool = seen.length ? seen : nearest;
+  const awake = pool.filter((id) => !isAsleep(s.tabs[id]));
+  const from = awake.length ? awake : pool;
+  if (!seen.length) return from[0];
+  return from.reduce((best, id) => (s.tabs[id]!.lastActiveAt > s.tabs[best]!.lastActiveAt ? id : best));
 }
