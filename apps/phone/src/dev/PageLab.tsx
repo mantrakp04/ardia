@@ -16,7 +16,7 @@ import { openDatabaseSync } from "expo-sqlite";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
-import { runRestoreTest, runSelfTest, type TestLine } from "./selfTest";
+import { LAB_BLOCKING_URL, labBlockingHtml, runRestoreTest, runSelfTest, summarize, type TestLine } from "./selfTest";
 
 const labPage = `<!doctype html><meta name="viewport" content="width=device-width"><title>Page Lab</title>
 <body style="font:16px sans-serif;padding:12px">
@@ -35,28 +35,34 @@ const LAB_URL = `data:text/html;charset=utf-8,${encodeURIComponent(labPage)}`;
 const presets: [string, string][] = [
   ["Lab", LAB_URL],
   ["Wiki", "https://en.wikipedia.org/wiki/Web_browser"],
-  ["Ads", "https://d3ward.github.io/toolz/adblock.html"],
   ["Perms", "https://permission.site/"],
   ["UA", "https://www.whatsmyua.info/"],
 ];
 
 const DOWNLOAD_URL = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
 
-type SavedPage = { url: string | null; title: string; state: string };
+type SavedPage = { url: string | null; title: string; state: string; scrollY: number | null };
 
 const store = (() => {
   let database: ReturnType<typeof openDatabaseSync> | null = null;
   const open = () => {
     if (!database) {
       database = openDatabaseSync("page-lab.db");
-      database.execSync("create table if not exists saved (id text primary key, url text, title text, state text not null)");
+      database.execSync("create table if not exists saved_pages (id text primary key, url text, title text, state text not null, scrollY real)");
     }
     return database;
   };
   return {
     save: (id: string, page: SavedPage) =>
-      open().runSync("insert or replace into saved (id, url, title, state) values (?, ?, ?, ?)", id, page.url, page.title, page.state),
-    load: (id: string) => open().getFirstSync<SavedPage>("select url, title, state from saved where id = ?", id),
+      open().runSync(
+        "insert or replace into saved_pages (id, url, title, state, scrollY) values (?, ?, ?, ?, ?)",
+        id,
+        page.url,
+        page.title,
+        page.state,
+        page.scrollY,
+      ),
+    load: (id: string) => open().getFirstSync<SavedPage>("select url, title, state, scrollY from saved_pages where id = ?", id),
   };
 })();
 
@@ -87,10 +93,15 @@ function Lab() {
   const [siteBlocking, setSiteBlocking] = useState<boolean | null>(null);
   const [active, setActive] = useState<DownloadProgress[]>([]);
   const [finished, setFinished] = useState<{ fileName: string; uri: string | null; failure: string | null } | null>(null);
-  const [restoreSource, setRestoreSource] = useState<{ url: string | null; title: string; state: string } | null>(null);
+  const [restoreSource, setRestoreSource] = useState<SavedPage | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const popupCount = useRef(0);
   const [results, setResults] = useState<TestLine[]>([]);
+  const [summary, setSummary] = useState<string | null>(null);
+  const announce = useCallback((line: string) => {
+    console.log(line);
+    setSummary(line);
+  }, []);
   const report = useCallback((line: TestLine) => {
     console.log(`PAGELAB ${line.ok ? "PASS" : "FAIL"} ${line.step}: ${line.detail}`);
     setResults((all) => [...all, line]);
@@ -194,10 +205,11 @@ function Lab() {
     run("save state", async () => {
       const saved = await pages.saveState(pageId);
       if (!saved) return null;
-      const entry = { url: state?.url ?? null, title: state?.title ?? "", state: saved };
+      const scroll = await pages.scrollPosition(pageId);
+      const entry = { url: state?.url ?? null, title: state?.title ?? "", state: saved, scrollY: scroll?.y ?? null };
       store.save("lab-saved", entry);
       setRestoreSource(entry);
-      return `${saved.length} chars`;
+      return `${saved.length} chars at scrollY ${Math.round(scroll?.y ?? -1)}`;
     });
 
   const restore = () => {
@@ -214,6 +226,7 @@ function Lab() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       {results.length > 0 && (
         <View style={styles.results}>
+          {summary && <Text style={styles.summary}>{summary}</Text>}
           {results.map((line, index) => (
             <Text key={`${index}-${line.step}`} style={[styles.result, !line.ok && styles.failed]} numberOfLines={2}>
               {line.ok ? "PASS" : "FAIL"} {line.step}: {line.detail}
@@ -259,21 +272,39 @@ function Lab() {
         <Row>
           <Button label="Self test" onPress={() => {
             setResults([]);
+            setSummary(null);
             setPageId("lab-test");
             setTimeout(() => {
-              runSelfTest("lab-test", report, (saved, savedUrl) => {
-                const entry = { url: savedUrl, title: "", state: saved };
+              const lines: TestLine[] = [];
+              const collect = (line: TestLine) => {
+                lines.push(line);
+                report(line);
+              };
+              runSelfTest("lab-test", collect, (saved, savedUrl, scrollY) => {
+                const entry = { url: savedUrl, title: "", state: saved, scrollY };
                 store.save("lab-saved", entry);
                 setRestoreSource(entry);
-              }).then(() => report({ step: "done", ok: true, detail: "self test finished" }));
+              }).then(() => announce(summarize(lines)));
             }, 300);
           }} />
           <Button label="Restore test" onPress={() => {
             if (!restoreSource) return report({ step: "restore after kill", ok: false, detail: "nothing saved" });
             setResults([]);
-            runRestoreTest("lab-restored", restoreSource, report).then(() => setPageId("lab-restored"));
+            setSummary(null);
+            const lines: TestLine[] = [];
+            runRestoreTest("lab-restored", restoreSource, (line) => {
+              lines.push(line);
+              report(line);
+            }).then(() => {
+              setPageId("lab-restored");
+              announce(summarize(lines));
+            });
           }} />
           <Button label="Clear results" onPress={() => setResults([])} />
+          <Button label="Discard others" onPress={() => run("discard background", async () => {
+            await pages.discardBackgroundPages(pageId);
+            return pages.livePageIds();
+          })} />
         </Row>
         <Row>
           {["lab-a", "lab-b"].map((id) => (
@@ -295,6 +326,7 @@ function Lab() {
           {presets.map(([label, target]) => (
             <Button key={label} label={label} onPress={() => go(target)} />
           ))}
+          <Button label="Ads" onPress={() => run("local ad page", () => pages.loadHtml(pageId, labBlockingHtml, LAB_BLOCKING_URL))} />
         </Row>
         <Row>
           <Button label="Back" onPress={() => run("back", () => pages.goBack(pageId))} />
@@ -421,6 +453,7 @@ const styles = StyleSheet.create({
   status: { fontSize: 12, color: "#1d1a17" },
   log: { fontSize: 11, color: "#4a4440", fontFamily: "monospace" },
   results: { backgroundColor: "#e9f3e4", padding: 6, gap: 2 },
+  summary: { fontSize: 13, fontWeight: "700", color: "#1d1a17" },
   result: { fontSize: 11, color: "#1d4d12" },
   failed: { color: "#a1170f" },
   panel: { backgroundColor: "#fff3c4", padding: 6, borderRadius: 6, gap: 4 },

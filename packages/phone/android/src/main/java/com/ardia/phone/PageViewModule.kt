@@ -32,6 +32,14 @@ class PageSetupRecord : Record {
     @Field val savedState: String? = null
 }
 
+class SnapshotOptionsRecord : Record {
+    @Field val maxWidth: Int? = null
+
+    @Field val quality: Int? = null
+
+    @Field val coveredInsets: List<Double>? = null
+}
+
 class RequestAnswerRecord : Record {
     @Field val type: String = ""
 
@@ -166,16 +174,25 @@ class PageViewModule : Module() {
             }
         }
 
-        AsyncFunction("snapshot") Coroutine { pageId: String, maxWidth: Int?, quality: Int? ->
-            val page = withContext(Dispatchers.Main) { PhonePages.require(pageId) }
-            val bitmap = withContext(Dispatchers.Main) { page.snapshot(maxWidth ?: com.ardia.browser.Page.SNAPSHOT_WIDTH) } ?: return@Coroutine null
-            PhonePages.snapshots.write(pageId, bitmap, page.isPrivate, quality ?: SNAPSHOT_QUALITY)
+        AsyncFunction("snapshot") Coroutine { pageId: String, options: SnapshotOptionsRecord ->
+            withContext(Dispatchers.Main) {
+                val covered = options.coveredInsets?.takeIf { it.size == 2 }?.let { it[0] to it[1] }
+                PhonePages.snapshot(pageId, options.maxWidth ?: com.ardia.browser.Page.SNAPSHOT_WIDTH, options.quality ?: SNAPSHOT_QUALITY, covered)
+            }
         }
 
         AsyncFunction("deleteSnapshots") { pageId: String ->
             PhonePages.engine(context)
             PhonePages.snapshots.delete(pageId)
         }
+
+        AsyncFunction("loadHtml") { pageId: String, html: String, baseUrl: String -> PhonePages.loadHtml(pageId, html, baseUrl) }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("scrollPosition") { pageId: String -> PhonePages.scrollPosition(pageId) }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("discardBackgroundPages") { keeping: String? -> PhonePages.discardBackgroundPages(keeping) }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("livePageIds") { -> PhonePages.livePageIds() }.runOnQueue(Queues.MAIN)
 
         AsyncFunction("saveState") { pageId: String -> PhonePages.saveState(pageId) }.runOnQueue(Queues.MAIN)
 

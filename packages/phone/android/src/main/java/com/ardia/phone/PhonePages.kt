@@ -2,7 +2,11 @@ package com.ardia.phone
 
 import android.app.Activity
 import android.content.Context
+import android.graphics.Bitmap
 import android.util.Base64
+import android.webkit.WebView
+import com.ardia.browser.BrowserUrl
+import com.ardia.browser.CaptureRoute
 import com.ardia.browser.DevelopmentWebViewEngine
 import com.ardia.browser.DownloadFailure
 import com.ardia.browser.DownloadOutcome
@@ -14,9 +18,11 @@ import com.ardia.browser.PopupRequest
 import com.ardia.browser.PrivatePagesUnavailableException
 import com.ardia.browser.SystemDownloads
 import com.ardia.browser.VisitKind
+import com.ardia.browser.WebViewPage
 import expo.modules.kotlin.exception.CodedException
 import java.lang.ref.WeakReference
 import java.util.UUID
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +40,7 @@ object PhonePages {
     private val watchers = HashMap<String, Job>()
     private val popups = HashMap<String, PopupRequest>()
     private var host: WeakReference<Activity>? = null
+    private val views = HashMap<String, WeakReference<PageView>>()
 
     lateinit var sitePreferences: PhoneSitePreferences
         private set
@@ -113,11 +120,72 @@ object PhonePages {
     fun activate(pageId: String) {
         val engine = shared ?: return
         val page = engine.existing(pageId) ?: return
-        if (!page.state.value.isLive) engine.open(pageId, PageSetup(isPrivate = page.isPrivate))
+        engine.open(pageId, PageSetup(isPrivate = page.isPrivate))
+    }
+
+    fun viewShows(pageId: String, view: PageView) {
+        views[pageId] = WeakReference(view)
+    }
+
+    fun viewLeaves(pageId: String, view: PageView) {
+        if (views[pageId]?.get() === view) views.remove(pageId)
+    }
+
+    fun discardBackgroundPages(keeping: String?) {
+        val engine = shared ?: return
+        keeping?.let(::activate)
+        engine.discardBackgroundPages()
+    }
+
+    fun livePageIds(): List<String> = shared?.livePageIds.orEmpty()
+
+    fun loadHtml(pageId: String, html: String, baseUrl: String) {
+        if (!BrowserUrl.isWeb(baseUrl)) throw PagePayloads.badArgs("baseUrl must be an http or https address")
+        val page = require(pageId) as? WebViewPage ?: throw CodedException("ERR_ENGINE", "This page engine cannot load HTML", null)
+        activate(pageId)
+        val web = page.webViewOrNull ?: throw CodedException("ERR_ENGINE", "The page has no web view", null)
+        page.startDocumentRequests()
+        page.prepareNavigation(web, baseUrl)
+        web.loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", baseUrl)
+    }
+
+    fun scrollPosition(pageId: String): Map<String, Any?>? {
+        val web = page(pageId)?.view?.value as? WebView ?: return null
+        val density = web.resources.displayMetrics.density
+        @Suppress("DEPRECATION")
+        val contentPixels = web.contentHeight * web.scale
+        return mapOf(
+            "y" to (web.scrollY / density).toDouble(),
+            "viewportHeight" to (web.height / density).toDouble(),
+            "contentHeight" to (contentPixels / density).toDouble(),
+        )
+    }
+
+    suspend fun snapshot(pageId: String, maxWidth: Int, quality: Int, covered: Pair<Double, Double>?): Map<String, Any?>? {
+        val page = require(pageId)
+        val drawn = page.snapshot(maxWidth) ?: return null
+        val route = (page as? WebViewPage)?.lastCaptureRoute
+        val web = page.view.value
+        val insets = covered ?: views[pageId]?.get()?.toneInsets
+        val picture = if (route == CaptureRoute.WindowCopy && web != null && web.width > 0 && insets != null) withoutCovered(drawn, web.width, web.resources.displayMetrics.density, insets) else drawn
+        val written = snapshots.write(pageId, picture, page.isPrivate, quality) ?: return null
+        return written + ("route" to if (route == CaptureRoute.WindowCopy) "windowCopy" else "draw")
+    }
+
+    private fun withoutCovered(bitmap: Bitmap, viewWidth: Int, density: Float, insets: Pair<Double, Double>): Bitmap {
+        val scale = bitmap.width / viewWidth.toFloat()
+        val top = (insets.first * density * scale).roundToInt().coerceAtLeast(0)
+        val bottom = (insets.second * density * scale).roundToInt().coerceAtLeast(0)
+        val height = bitmap.height - top - bottom
+        if ((top == 0 && bottom == 0) || height < bitmap.height / 4) return bitmap
+        val cropped = Bitmap.createBitmap(bitmap, 0, top, bitmap.width, height)
+        if (cropped !== bitmap) bitmap.recycle()
+        return cropped
     }
 
     fun close(pageId: String) {
         watchers.remove(pageId)?.cancel()
+        views.remove(pageId)
         val page = shared?.existing(pageId)
         if (page != null && fullscreen.owns(page.fullscreen.value)) fullscreen.hide()
         popups.entries.removeAll { it.value.openerId == pageId }

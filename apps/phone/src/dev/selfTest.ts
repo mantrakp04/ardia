@@ -11,8 +11,18 @@ const DIALOG_PAGE = dataPage(
   "dialogs",
   "<p>dialogs</p><script>setTimeout(()=>{alert('lab alert');const c=confirm('lab confirm?');const p=prompt('lab prompt','default');document.title='c '+c+' p '+p},400)</script>",
 );
+export const LAB_BLOCKING_URL = "https://lab.ardia.dev/blocking";
+export const LAB_BLOCKED_REQUESTS = [
+  "https://securepubads.g.doubleclick.net/tag/js/gpt.js",
+  "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js",
+  "https://ad.doubleclick.net/ddm/ad/lab.gif",
+  "https://www.google-analytics.com/analytics.js",
+  "https://connect.facebook.net/en_US/fbevents.js",
+  "https://static.hotjar.com/c/hotjar-1.js",
+  "https://cdn.taboola.com/libtrc/lab/loader.js",
+];
+export const labBlockingHtml = `<!doctype html><meta name="viewport" content="width=device-width"><title>blocking</title><body style="font:18px sans-serif;padding:12px"><p>blocking</p>${LAB_BLOCKED_REQUESTS.map((url) => (url.endsWith(".gif") ? `<img src="${url}">` : `<script async src="${url}"></script>`)).join("")}</body>`;
 export const ARTICLE_URL = "https://en.wikipedia.org/wiki/Web_browser";
-export const ADS_URL = "https://d3ward.github.io/toolz/adblock.html";
 export const DOWNLOAD_URL = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
 
 const waitForPage = <T>(pick: (event: PageEngineEvent) => T | undefined, millis: number, what: string) =>
@@ -47,8 +57,49 @@ const waitForDownload = <T>(pick: (event: DownloadEvent) => T | undefined, milli
 
 const pause = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
 
+const describe = (state: PageState | null) =>
+  state ? `url=${state.url?.slice(0, 60)} loading=${state.isLoading} back=${state.canGoBack} title="${state.title}"` : "no state event";
+
 const settledState = (pageId: string, accept: (state: PageState) => boolean, millis: number, what: string) =>
-  waitForPage((event) => (event.name === "page.state" && event.pageId === pageId && !event.state.isLoading && accept(event.state) ? event.state : undefined), millis, what);
+  new Promise<PageState>((resolve, reject) => {
+    let last: PageState | null = null;
+    const subscription = pages.addListener((event) => {
+      if (event.name !== "page.state" || event.pageId !== pageId) return;
+      last = event.state;
+      if (event.state.isLoading || !accept(event.state)) return;
+      clearTimeout(timer);
+      subscription.remove();
+      resolve(event.state);
+    });
+    const timer = setTimeout(() => {
+      subscription.remove();
+      reject(new Error(`timed out waiting for ${what}; last ${describe(last)}`));
+    }, millis);
+  });
+
+const loadLabHtml = async (pageId: string, html: string, baseUrl: string) => {
+  let sawLoading = false;
+  const done = settledState(
+    pageId,
+    (state) => {
+      if (state.url !== baseUrl) return false;
+      return sawLoading;
+    },
+    30000,
+    `local page ${baseUrl}`,
+  );
+  const loading = pages.addListener((event) => {
+    if (event.name === "page.state" && event.pageId === pageId && event.state.isLoading) sawLoading = true;
+  });
+  try {
+    await pages.loadHtml(pageId, html, baseUrl);
+    const state = await done;
+    await pause(1500);
+    return (await pages.state(pageId))?.blockedRequests ?? state.blockedRequests;
+  } finally {
+    loading.remove();
+  }
+};
 
 const load = async (pageId: string, url: string, accept: (state: PageState) => boolean = () => true, millis = 30000) => {
   const settled = settledState(pageId, (state) => state.url !== null && accept(state), millis, `load ${url.slice(0, 40)}`);
@@ -66,7 +117,11 @@ const answerNext = async (pageId: string, kind: string, answer: Parameters<typeo
   return `${kind} "${request.title}" answered ${answer.type}=${answered}`;
 };
 
-export async function runSelfTest(pageId: string, report: (line: TestLine) => void, saveState: (state: string, url: string | null) => void) {
+export async function runSelfTest(
+  pageId: string,
+  report: (line: TestLine) => void,
+  saveState: (state: string, url: string | null, scrollY: number | null) => void,
+) {
   const step = async (name: string, work: () => Promise<string>) => {
     try {
       const detail = await work();
@@ -83,17 +138,42 @@ export async function runSelfTest(pageId: string, report: (line: TestLine) => vo
   });
 
   await step("find", async () => {
-    const first = waitForPage((event) => (event.name === "page.find" && event.pageId === pageId && event.result?.isDone ? event.result : undefined), 10000, "find result");
-    await pages.find(pageId, "browser");
-    const result = await first;
-    const next = waitForPage((event) => (event.name === "page.find" && event.pageId === pageId && event.result && event.result.activeIndex === 1 ? event.result : undefined), 10000, "find next");
-    await pages.findNext(pageId);
-    const moved = await next;
-    const ended = waitForPage((event) => (event.name === "page.find" && event.pageId === pageId && event.result === null ? true : undefined), 10000, "find end");
-    await pages.endFind(pageId);
-    await ended;
-    if (result.total !== 3) throw new Error(`expected 3 matches, got ${result.total}`);
-    return `total=${result.total} first=${result.activeIndex + 1} next=${moved.activeIndex + 1} ended`;
+    const seen: string[] = [];
+    const trace = pages.addListener((event) => {
+      if (event.name === "page.find" && event.pageId === pageId) seen.push(event.result ? `${event.result.activeIndex + 1}/${event.result.total}${event.result.isDone ? "" : "…"}` : "end");
+    });
+    const findEvent = (accept: (index: number, total: number) => boolean, what: string, millis = 4000) =>
+      waitForPage(
+        (event) => (event.name === "page.find" && event.pageId === pageId && event.result?.isDone && accept(event.result.activeIndex, event.result.total) ? event.result : undefined),
+        millis,
+        what,
+      );
+    try {
+      const counted = findEvent((_, total) => total > 0, "find count", 10000);
+      await pages.find(pageId, "browser");
+      const first = await counted;
+      let tries = 0;
+      let moved: Awaited<typeof counted> | null = null;
+      while (!moved && tries < 3) {
+        tries += 1;
+        const next = findEvent((index) => index !== first.activeIndex, "find next");
+        await pages.findNext(pageId);
+        moved = await next.catch(() => null);
+      }
+      if (!moved) throw new Error(`no find event after ${tries} findNext calls`);
+      const back = findEvent((index) => index === first.activeIndex, "find previous");
+      await pages.findPrevious(pageId);
+      await back;
+      const ended = waitForPage((event) => (event.name === "page.find" && event.pageId === pageId && event.result === null ? true : undefined), 10000, "find end");
+      await pages.endFind(pageId);
+      await ended;
+      if (first.total !== 3) throw new Error(`expected 3 matches, got ${first.total}`);
+      return `total=${first.total} first=${first.activeIndex + 1} next=${moved.activeIndex + 1} (findNext calls ${tries}) previous=${first.activeIndex + 1} ended; events ${seen.join(" ")}`;
+    } catch (error) {
+      throw new Error(`${error instanceof Error ? error.message : String(error)}; events ${seen.join(" ") || "none"}`);
+    } finally {
+      trace.remove();
+    }
   });
 
   await step("zoom", async () => {
@@ -158,7 +238,8 @@ export async function runSelfTest(pageId: string, report: (line: TestLine) => vo
     const state = await pages.state(pageId);
     const saved = await pages.saveState(pageId);
     if (!saved || !state?.canGoBack) throw new Error(`saved=${saved?.length} canGoBack=${state?.canGoBack}`);
-    saveState(saved, state.url);
+    const scroll = await pages.scrollPosition(pageId);
+    saveState(saved, state.url, scroll?.y ?? null);
     return `${saved.length} base64 chars, url=${state.url}, canGoBack=${state.canGoBack}`;
   });
 
@@ -176,40 +257,43 @@ export async function runSelfTest(pageId: string, report: (line: TestLine) => vo
   });
 
   await step("blocking", async () => {
-    let status = await blocking.state();
-    if (status.enabledRuleCount === 0) {
-      await blocking.updateLists();
-      status = await blocking.state();
-    }
-    await load(pageId, ADS_URL, () => true, 60000);
-    await pause(10000);
-    const blocked = (await pages.state(pageId))?.blockedRequests ?? 0;
+    const status = await blocking.state();
+    await blocking.setEnabledForSite(LAB_BLOCKING_URL, true);
+    const blocked = await loadLabHtml(pageId, labBlockingHtml, LAB_BLOCKING_URL);
     const counted = await blocking.blockedCount(pageId);
-    if (blocked === 0) throw new Error(`no requests blocked; rules=${status.enabledRuleCount} status=${status.status}`);
-    return `rules=${status.enabledRuleCount} blocked=${blocked} blockedCount()=${counted}`;
+    if (blocked < 3) throw new Error(`blocked ${blocked} of ${LAB_BLOCKED_REQUESTS.length}; rules=${status.enabledRuleCount} status=${status.status}`);
+    return `local page: blocked ${blocked} of ${LAB_BLOCKED_REQUESTS.length}, blockedCount()=${counted}, rules=${status.enabledRuleCount}`;
   });
 
   await step("blocking off for site", async () => {
-    const host = await blocking.setEnabledForSite(ADS_URL, false);
-    const enabled = await blocking.isEnabledForSite(ADS_URL);
-    const settled = settledState(pageId, () => true, 60000, "reload");
-    await pages.reload(pageId);
-    await settled;
-    await pause(10000);
-    const blocked = (await pages.state(pageId))?.blockedRequests ?? -1;
-    await blocking.setEnabledForSite(ADS_URL, true);
-    if (enabled || blocked !== 0) throw new Error(`host=${host} enabled=${enabled} blocked=${blocked}`);
-    return `off for ${host}: isEnabledForSite=${enabled}, blocked after reload=${blocked}; turned back on`;
+    const host = await blocking.setEnabledForSite(LAB_BLOCKING_URL, false);
+    const enabled = await blocking.isEnabledForSite(LAB_BLOCKING_URL);
+    const off = await loadLabHtml(pageId, labBlockingHtml, LAB_BLOCKING_URL);
+    await blocking.setEnabledForSite(LAB_BLOCKING_URL, true);
+    const on = await loadLabHtml(pageId, labBlockingHtml, LAB_BLOCKING_URL);
+    if (enabled || off !== 0 || on < 3) throw new Error(`host=${host} isEnabledForSite=${enabled} blocked off=${off} back on=${on}`);
+    return `off for ${host}: blocked ${off}; back on: blocked ${on}`;
   });
 }
 
-export async function runRestoreTest(pageId: string, saved: { url: string | null; state: string }, report: (line: TestLine) => void) {
+export const summarize = (lines: TestLine[]) => {
+  const pass = lines.filter((line) => line.ok).length;
+  return `PAGELAB RESULT pass=${pass} fail=${lines.length - pass}`;
+};
+
+export async function runRestoreTest(
+  pageId: string,
+  saved: { url: string | null; state: string; scrollY?: number | null },
+  report: (line: TestLine) => void,
+) {
   try {
-    const settled = settledState(pageId, () => true, 60000, "restored page");
+    const settled = settledState(pageId, (state) => state.canGoBack && state.url === saved.url, 60000, "the restored history");
     await pages.open(pageId, { url: saved.url ?? undefined, savedState: saved.state });
     const state = await settled;
-    const ok = state.canGoBack && state.url === saved.url;
-    report({ step: "restore after kill", ok, detail: `url=${state.url} canGoBack=${state.canGoBack} (saved url ${saved.url})` });
+    await pause(1500);
+    const scroll = await pages.scrollPosition(pageId);
+    const scrollNote = scroll ? `scrollY ${Math.round(scroll.y)} of ${Math.round(scroll.contentHeight)} (saved at ${saved.scrollY == null ? "?" : Math.round(saved.scrollY)})` : "no scroll position";
+    report({ step: "restore after kill", ok: true, detail: `url=${state.url} canGoBack=${state.canGoBack}; ${scrollNote}` });
   } catch (error) {
     report({ step: "restore after kill", ok: false, detail: error instanceof Error ? error.message : String(error) });
   }

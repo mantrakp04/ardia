@@ -25,6 +25,7 @@ export type {
   PageRequest,
   PageRequestAnswer,
   PageRequestKind,
+  PageScrollPosition,
   PageSecurity,
   PageSetup,
   PageSnapshot,

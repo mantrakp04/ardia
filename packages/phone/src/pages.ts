@@ -8,7 +8,9 @@ import type {
   PageRequestAnswer,
   PageSetup,
   PageSnapshot,
+  PageScrollPosition,
   PageState,
+  PageToneInsets,
   ReadableContent,
   Subscription,
   WebsiteDataKind,
@@ -37,7 +39,11 @@ type PagesNative = {
   setDesktopSite(pageId: string, enabled: boolean): Promise<void>;
   download(pageId: string, url: string): Promise<void>;
   readableContent(pageId: string): Promise<ReadableContent | null>;
-  snapshot(pageId: string, maxWidth?: number, quality?: number): Promise<PageSnapshot | null>;
+  snapshot(pageId: string, options: { maxWidth?: number; quality?: number; coveredInsets?: [number, number] }): Promise<PageSnapshot | null>;
+  loadHtml(pageId: string, html: string, baseUrl: string): Promise<void>;
+  scrollPosition(pageId: string): Promise<PageScrollPosition | null>;
+  discardBackgroundPages(keeping: string | null): Promise<void>;
+  livePageIds(): Promise<string[]>;
   deleteSnapshots(pageId: string): Promise<void>;
   saveState(pageId: string): Promise<string | null>;
   answerRequest(pageId: string, requestId: string, answer: PageRequestAnswer): Promise<boolean>;
@@ -81,8 +87,16 @@ export const pages = {
   setDesktopSite: (pageId: string, enabled: boolean) => native().setDesktopSite(pageId, enabled),
   download: (pageId: string, url: string) => native().download(pageId, url),
   readableContent: (pageId: string) => native().readableContent(pageId),
-  snapshot: (pageId: string, options: { maxWidth?: number; quality?: number } = {}) =>
-    native().snapshot(pageId, options.maxWidth, options.quality),
+  snapshot: (pageId: string, options: { maxWidth?: number; quality?: number; coveredInsets?: PageToneInsets } = {}) =>
+    native().snapshot(pageId, {
+      maxWidth: options.maxWidth,
+      quality: options.quality,
+      coveredInsets: options.coveredInsets ? [options.coveredInsets.top, options.coveredInsets.bottom] : undefined,
+    }),
+  loadHtml: (pageId: string, html: string, baseUrl: string) => native().loadHtml(pageId, html, baseUrl),
+  scrollPosition: (pageId: string) => native().scrollPosition(pageId),
+  discardBackgroundPages: (keeping?: string | null) => native().discardBackgroundPages(keeping ?? null),
+  livePageIds: () => native().livePageIds(),
   deleteSnapshots: (pageId: string) => native().deleteSnapshots(pageId),
   saveState: (pageId: string) => native().saveState(pageId),
   answerRequest: (pageId: string, requestId: string, answer: PageRequestAnswer) => native().answerRequest(pageId, requestId, answer),

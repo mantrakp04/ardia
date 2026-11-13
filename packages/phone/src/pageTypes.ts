@@ -116,7 +116,9 @@ export type ReadableContent = {
   isArticle: boolean;
 };
 
-export type PageSnapshot = { path: string; uri: string; width: number; height: number };
+export type PageSnapshot = { path: string; uri: string; width: number; height: number; route?: "draw" | "windowCopy" };
+
+export type PageScrollPosition = { y: number; viewportHeight: number; contentHeight: number };
 
 export type NightShadeMode = "disabled" | "automatic" | "always";
 

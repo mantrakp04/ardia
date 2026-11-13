@@ -56,6 +56,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
             return
         }
         page = opened
+        PhonePages.viewShows(id, this)
         val running = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         scope = running
         running.launch { opened.view.collect(::show) }
@@ -64,6 +65,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     }
 
     fun unbind() {
+        page?.id?.let { PhonePages.viewLeaves(it, this) }
         scope?.cancel()
         scope = null
         page = null
