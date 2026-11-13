@@ -93,6 +93,7 @@ export const TabPane = memo(function TabPane({
   const autoLayout = bar.kind === "autoHide";
   const hideBar = autoLayout && bar.bar !== null;
   const mode = useToolbarMode(tabId, windowId, hideBar);
+  const addressFieldShown = bar.kind !== "none" && !(hideBar && mode !== "shown");
   const bookmarksBar = bookmarksBarShown(barMode, own.exists ? own : undefined) && !fullscreen && !inSplit && !small;
   const barHeight = useBookmarksBarHeight();
   const cardRadius = useCardFrame().radius;
@@ -148,6 +149,7 @@ export const TabPane = memo(function TabPane({
                 statusStyle={autoLayout ? motion.bottomStyle : undefined}
                 popovers={popovers}
                 cliPill={!peekShown && (fullscreen || focused || !inSplit)}
+                loadingPill={!addressFieldShown}
               />
             )}
           </View>

@@ -58,7 +58,6 @@ export const LOADING_PILL = {
   height: 10,
   top: 4,
   leaveScale: 0.55,
-  showAfterMs: 150,
   longShowMs: 10_000,
   track: { width: 128, height: 3, opacity: 0.4, fillOpacity: 0.8 },
   motion: {

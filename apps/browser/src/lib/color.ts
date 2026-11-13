@@ -33,6 +33,14 @@ export function over(top: string, under: string): string {
   return toHex([r, g, b].map((v, i) => a * v + (1 - a) * base[i]!));
 }
 
+const FARTHEST_RGB = Math.hypot(255, 255, 255);
+
+export function colorDistance(a: string, b: string): number {
+  const from = parseColor(a);
+  const to = parseColor(b);
+  return Math.hypot(from[0] - to[0], from[1] - to[1], from[2] - to[2]) / FARTHEST_RGB;
+}
+
 export function luminance(color: string): number {
   if (!isHexColor(color)) return 0;
   const [r, g, b] = parseColor(color).map((v) => {

@@ -1,3 +1,4 @@
+import { colorDistance } from "../../lib/color";
 import { pageHostLabel, urlTrail } from "../../lib/url";
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -30,8 +31,9 @@ import { TranslateButton } from "../site/TranslateControls";
 import { ZoomIndicator } from "../site/ZoomControls";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { curve } from "../ui/motion";
+import { FieldLoadFill } from "./FieldLoadFill";
 import { HistoryButton, ReloadButton } from "./NavButtons";
-import { TOOLBAR_MOTION } from "./tokens";
+import { FIELD_LOAD, TOOLBAR_MOTION } from "./tokens";
 import { useToolbarRow } from "./useToolbarRow";
 
 type ToolbarTab = Pick<Tab, "id" | "url" | "title" | "windowId" | "zoom">;
@@ -168,6 +170,9 @@ function useUrlField(tab: ToolbarTab, windowId: string, onFocus: () => void) {
   return { insecure, popover, hovered, hoverProps, openPanel, toggleSiteControls, host: pageHostLabel(tab.url), trail: urlTrail(tab.url, tab.title, { hovered, showFullUrl }) };
 }
 
+const loadFillColor = (palette: ToolbarPalette, accent: string) =>
+  palette.background && colorDistance(accent, palette.background) < FIELD_LOAD.accentApartFromBand ? palette.text : accent;
+
 type UrlFieldProps = { tab: ToolbarTab; palette: ToolbarPalette; windowId: string; onFocus: () => void };
 
 export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, windowId, inSplit, onFocus, style }: UrlFieldProps & { inSplit: boolean; style: ViewStyle }) {
@@ -183,6 +188,7 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
       {glass ? (
         <GlassFill state={hovered ? "lit" : "rest"} radius={row.fieldRadius} dark={palette.background ? palette.text.startsWith(ink.white) : undefined} />
       ) : null}
+      <FieldLoadFill key={tab.id} tabId={tab.id} color={loadFillColor(palette, theme.accent)} height={row.field} radius={row.fieldRadius} />
       {insecure && (
         <Pressable onPress={toggleSiteControls} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
           <Symbol
