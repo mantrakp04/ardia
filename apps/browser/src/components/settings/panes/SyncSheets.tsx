@@ -1,4 +1,4 @@
-import { showMenu } from "../../../state/app/system";
+import { confirm, showMenu } from "../../../state/app/system";
 import { Box, Button, Checkbox, DialogActions, DialogTitle, ink, lineHeight, proseLineHeight, radius, Sheet, space, Symbol, tabularNums, Text, TextField } from "../../ui";
 import {
   copyRecoveryKit,
@@ -13,7 +13,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { Image, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { addRemoteProfile, enterRecoveryPhrase, stopSync, useSync } from "../../../state/sync/engine";
+import { addRemoteProfile, enterRecoveryPhrase, removeRemoteProfile, stopSync, useSync } from "../../../state/sync/engine";
 import type { RemoteProfile } from "../../../state/sync/syncDoc";
 import { ProfileBadge } from "../../profiles/ProfileIcons";
 import { Group, Row } from "../Form";
@@ -199,6 +199,16 @@ export function addAllRemoteProfiles(profiles: RemoteProfile[]) {
   for (const p of profiles) if (!p.waiting) addRemoteProfile(p.syncId);
 }
 
+async function confirmRemoveFromSync(profile: RemoteProfile) {
+  const { confirmed } = await confirm({
+    title: `Remove “${profile.name}” from Sync?`,
+    message: "It leaves this list on all your devices. A device that still has this profile keeps it, and it comes back here.",
+    confirmTitle: "Remove",
+    destructive: true,
+  });
+  if (confirmed) removeRemoteProfile(profile.syncId);
+}
+
 export function RemoteProfileRow({ profile }: { profile: RemoteProfile }) {
   return (
     <Row
@@ -206,7 +216,10 @@ export function RemoteProfileRow({ profile }: { profile: RemoteProfile }) {
       title={profile.name}
       description={remoteProfileDescription(profile)}
     >
-      <Button title="Add to This Mac" disabled={!!profile.waiting} onPress={() => addRemoteProfile(profile.syncId)} />
+      <Box row gap="s">
+        <Button title="Remove…" onPress={() => void confirmRemoveFromSync(profile)} />
+        <Button title="Add to This Mac" disabled={!!profile.waiting} onPress={() => addRemoteProfile(profile.syncId)} />
+      </Box>
     </Row>
   );
 }

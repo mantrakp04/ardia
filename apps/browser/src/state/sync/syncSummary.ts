@@ -3,6 +3,7 @@ import { useBrowser } from "../browser/store";
 import { DEVICE_TABS, PROFILE, deviceTabs, profileRecord, profileScope, recordId, type DeviceTabs } from "./records";
 import { deviceKindOf, deviceRecords, isCurrentDevice, offersTabs } from "./devices";
 import { remoteProfileRecord, sharedDataChain } from "./profileLinks";
+import { beingRemoved } from "./profileRemoval";
 import { APP_SCOPE, type RemoteProfile, type RemoteTabs, type SyncDoc, type SyncedDevice, type SyncUi } from "./syncDoc";
 
 export function summarize(doc: SyncDoc): Pick<SyncUi, "devices" | "remoteTabs" | "remoteProfiles"> {
@@ -43,7 +44,7 @@ export function summarize(doc: SyncDoc): Pick<SyncUi, "devices" | "remoteTabs" |
   }
   const linked = new Set(Object.values(doc.profiles).map((l) => l.syncId));
   const remoteProfiles = [...visible(app, PROFILE)]
-    .filter(([k, v]) => !doc.joining && !linked.has(recordId(PROFILE, k)) && profileRecord(v))
+    .filter(([k, v]) => !doc.joining && !linked.has(recordId(PROFILE, k)) && !beingRemoved(doc, recordId(PROFILE, k)) && profileRecord(v))
     .map(([k, v]): RemoteProfile => {
       const syncId = recordId(PROFILE, k);
       const record = profileRecord(v)!;

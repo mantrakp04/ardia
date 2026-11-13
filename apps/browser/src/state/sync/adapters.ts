@@ -25,12 +25,12 @@ export const inTodaysNames = (adapter: Adapter): Adapter => ({
 
 type ShareLink = { syncId: string; enabled: boolean; retire?: boolean };
 
-export function sharedDataAdapter(links: () => Record<string, ShareLink>): Adapter {
+export function sharedDataAdapter(links: () => Record<string, ShareLink>, removed: () => ReadonlySet<string> = () => new Set()): Adapter {
   return {
     prefix: SHARE,
     adoptRemoteOnJoin: true,
     publishAfterPull: true,
-    extract: (_base, _queued, _now, known) => {
+    extract: (_base, _queued, _now, known, remote) => {
       const all = links();
       const synced = (id: string) => !!store().profiles[id] && !!all[id]?.enabled && !all[id]?.retire;
       const values = new Map<string, unknown>();
@@ -38,9 +38,10 @@ export function sharedDataAdapter(links: () => Record<string, ShareLink>): Adapt
         const ownerId = store().profiles[id]?.dataId;
         if (!synced(id) || !ownerId || ownerId === id || !synced(ownerId)) continue;
         const key = `${SHARE}${link.syncId}`;
-        if (!known(key)) values.set(key, { o: all[ownerId]!.syncId } satisfies ShareRecord);
+        if (!known(key) || remote(key) === null) values.set(key, { o: all[ownerId]!.syncId } satisfies ShareRecord);
       }
-      return { values, ignore: (key) => !values.has(key) };
+      const gone = removed();
+      return { values, ignore: (key) => !values.has(key) && !gone.has(key) };
     },
     apply: () => true,
   };
