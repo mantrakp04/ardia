@@ -714,7 +714,52 @@ The policy also refuses some uses of methods it allows (`ac_cli_token_policy.cc`
 | `without flatten` | `Target.attachToTarget`, `setAutoAttach` | The command always sends `flatten`, so this is a bug in it |
 | `to that URL`, `in another browser context` | `Target.createTarget`, `Page.navigate` | Only http, https, data and about:blank pages, in the user's own profile |
 | `in that execution context`, `on that object` | `Runtime.*`, `DOM.*` | A context or object the connection didn't make |
+| `on a tab the ardia command didn't open`, `on a tab the user can see`, `with that option` | `Emulation.setDeviceMetricsOverride`, `clearDeviceMetricsOverride` | The viewport override is for tabs the command opened (below), with a width, height, scale and `mobile` only |
 | `in a named world`, `as a stream`, `with the command line API`, `without a button`, `with those editing commands` | `Page.addScriptToEvaluateOnNewDocument`, `Page.printToPDF`, `Runtime.evaluate`, `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` | That option isn't allowed |
+
+`set viewport` is gated on the token path, as in 0.2.45: `Emulation.setDeviceMetricsOverride` and
+`clearDeviceMetricsOverride` are off the policy's list (`AllowedMethods`). They were on it from ce0e35bff to
+4aff6b021, and what the engine and the app need for it stays in the tree, unused until the methods are listed again;
+the rest of this section describes that. It isn't enough yet, which is why the methods are off: when the wait for
+the restored frame times out (250 ms) or its callback fails, the hold ends and the stale emulated frame shows; the
+callback it waits on confirms a frame was submitted to the display compositor, not that it is on screen; and the
+hold is asked for only when clearing changes the native view's size, so a hidden emulated tab laid out into a pane
+or window of another size before the report, or an override of the page's own size, gets none. Two hosts attach
+pages without reporting them (`ArdiaEarlyWindow`, `ArdiaPopupWindow`). With the methods listed, the policy allows
+`Emulation.setDeviceMetricsOverride` and `clearDeviceMetricsOverride` only on a session attached to a
+target that a token connection made with `Target.createTarget` (`open`, `tab new`, a reader or script tab) and that
+isn't shown to the user. The engine keeps those tabs for the whole process (`ac_cli_owned_tabs.cc`), learned from
+each `createTarget` reply, so a daemon that reconnects after its idle disconnect still owns its tabs; one goes when
+its page is destroyed. A command's tab is an ordinary sidebar tab, and the command must never resize what someone
+looks at, so the rule is about visibility, not about who did what: the override is for a tab in the background. The
+moment the tab is in a shown slot of any window (the window's tab, a split pane, Little Ardia; a covered or
+minimised window counts), the engine clears the override itself (a `clearDeviceMetricsOverride` it sends on each
+of its sessions attached to that tab, whose replies never reach the command) and the two methods are refused there
+for good (`on a tab the user can see`; telemetry `viewport_tab_taken`), also after the tab is hidden again. It
+doesn't matter who showed it: the user picking it, Ardia showing it because nothing else was open, or the command's
+own `open --show` and `tab <id> --show`, so viewport checks run on a hidden tab, where screenshots, snapshots and
+clicks work at the emulated size. The signal is the app's: `ArdiaWebView` tells the engine before it puts a page on
+screen (`exposePage` → `noteInShownSlot`, kept on the page as `ShownSlot`), from every native path that can: the
+painting pass of a view that is `visible` or revealed, the reveal that shows a tab ahead of React's `visible`
+(`revealAhead`), `setVisible:` before it raises a warm page's alpha, and `revealOffered` before it fronts a new
+tab's page. The engine clears the override inside that call, not after it, and says whether the page's size changed;
+if it did, the view stays at alpha 0, the outgoing page still up, until the renderer confirms a frame after the
+resize (`InsertVisualStateCallback`, 250 ms at most), so no frame at the emulated size reaches the screen. Chromium's own
+`content::Visibility` doesn't say it: Ardia paints a page it is about to show before it is `visible` (warm, at
+alpha 0), and a page the command drives is held visible to its renderer by a capturer count so it keeps drawing in
+the background (`ac_cli_visible_tabs.cc`). An earlier version inferred a takeover from activations, pins and input
+and missed split panes, scrolling and rejected activations. A Peek is never the command's tab (a page opens it, not
+`Target.createTarget`), so it is refused as a tab the command didn't open. Any other tab,
+the user's included, is refused (`on a tab the ardia command didn't open`), also when the session picked it with
+`tab <id>`; a session that only borrowed the user's tab is refused by the command first (`borrowed_tab`). Only
+`width`, `height`, `deviceScaleFactor` and `mobile` pass (`with that option` otherwise). Nothing clears the override
+by hand otherwise: it belongs to the DevTools session, so Chrome drops it when the session detaches (`close`, the
+daemon exiting, Stop, control turned off, the tab closing), and the `emulation` lease keeps the daemon connected
+while it's on. Chrome used to keep the emulated size when the renderer had crashed before the detach
+(`ClearDeviceEmulationSize` returned before forgetting it when the page had no view), so a reload came back at
+390×844 for good; `chromium-device-emulation-size-reset.patch` forgets the size either way. `set device` still fails, before changing anything, on `Emulation.setTouchEmulationEnabled`. The 1280×800
+override a click gives a tab with no size (Input) works on those tabs too. Telemetry: `viewport_set` on the
+command event; watch `error_code` `policy_refused` on `set`.
 
 A refused `Target.attachToTarget` also says what Ardia's own tab list has for that page (`ardia windows`): the tab and
 its address, or that no tab holds it. The command used to print the off-the-list sentence for every refusal, which hid

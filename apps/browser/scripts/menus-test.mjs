@@ -70,8 +70,10 @@ const pointOf = (target) => new Promise((r) => {
 const rightClick = (target) => pointOf(target).then((p) => (p ? act("click:" + p[0] + "," + p[1] + ",right") : "no item " + target));
 const byUrl = (name) => Object.values(st().tabs).filter((t) => t.url.endsWith("/" + name));
 const idOf = (name) => byUrl(name)[0]?.id;
+const panesOf = (split) => split.slots.flatMap((x) => x.stack ?? [x.tabId]);
+const splitOfTab = (id) => Object.values(st().splits).find((s) => panesOf(s).includes(id));
 const groupOfTab = (id) => Object.values(st().groups).find((g) => g.tabIds.includes(id)) ?? null;
-const clip = () => settle(150).then(() => ac.menus.readClipboard());
+const clip = () => settle(150).then(() => ac.menus.readText());
 const resetUi = () => ac.sidebarRows.setSidebarUi({ renaming: null, iconPicker: null });
 const housed = (id) => { const t = st().tabs[id]; let g = groupOfTab(id); while (g?.parentId) g = st().groups[g.parentId]; return !!t.pin || !!g?.pinned; };
 const regular = (w = "w1") => st().windows[w].tabIds.filter((id) => !housed(id) && st().tabs[id].profileId === st().windows[w].profileId);
@@ -109,6 +111,14 @@ async function choose(target, pick = null, { answer, open } = {}) {
   rep.log(`${open ?? target} → ${pick}: ${hit}`);
   return JSON.parse(readFileSync(menuFile(), "utf8"));
 }
+const choiceIn = (menu, parentId, title) => itemsOf(menu, parentId)?.children?.find((c) => c.title === title) ?? null;
+async function chooseIn(target, parentId, title, options = {}) {
+  const offered = await choose(target, null, { open: options.open });
+  const choice = choiceIn(offered, parentId, title);
+  assert.ok(choice?.id, `${parentId} › ${title} is offered by ${options.open ?? target}: ${JSON.stringify(itemsOf(offered, parentId)?.children?.map((c) => c.title))}`);
+  return choose(target, choice.id, options);
+}
+const windowTitleOf = (id) => run(`return ac.model.windowTitle(st(), ${JSON.stringify(id)});`);
 const tabMenuIn = (windowExpr, tabExpr) => `ac.menus.openTabMenu(${windowExpr}, st().tabs[${tabExpr}])`;
 
 const check = (name, fn) => (only && !only.test(name) ? undefined : rep.check(name, fn));
@@ -211,29 +221,29 @@ try {
     const where = (name) => `const s = st(); const roots = ac.bookmarks.bookmarkRoots(s, "default");
       return Object.values(s.bookmarks.nodes).filter((n) => n.kind === "url" && n.url.endsWith("/${name}")).map((n) => n.parentId === roots.bar ? "bar" : (s.bookmarks.nodes[n.parentId]?.title ?? n.parentId));`;
     assert.equal((await run(where("b"))).length, 1, "b bookmarked");
-    await choose("t:c", "folder:bar");
+    await chooseIn("t:c", "bookmarkTo", "Bookmarks Bar");
     assert.deepEqual(await run(where("c")), ["bar"]);
-    await choose("t:f", "folder:new", { answer: "MT Folder" });
+    await chooseIn("t:f", "bookmarkTo", "New Folder…", { answer: "MT Folder" });
     assert.deepEqual(await run(where("f")), ["MT Folder"]);
   });
 
   await check("tab: Open as Split on another tab splits it with the shown one, Remove from Split View on its pane", async () => {
     await run(`st().activate("a"); return settle(400);`);
     await choose("t:c", "split");
-    const split = await run(`const s = Object.values(st().splits).find((s) => s.slots.flatMap((x) => x.stack ?? [x.tabId]).includes("c")); return s && { id: s.id, tabIds: s.slots.flatMap((x) => x.stack ?? [x.tabId]) };`);
+    const split = await run(`const s = splitOfTab("c"); return s && { id: s.id, tabIds: panesOf(s) };`);
     assert.deepEqual(split?.tabIds, ["a", "c"]);
     const menu = await choose(`s:${split.id}#1`, "unsplit");
     assert.ok(itemsOf(menu, "unsplit") && !itemsOf(menu, "split"), "the pane offers Remove from Split View");
-    assert.ok(!(await run(`return Object.values(st().splits).some((s) => s.tabIds.includes("c"));`)), "c left the split");
+    assert.ok(!(await run(`return !!splitOfTab("c");`)), "c left the split");
   });
 
   await check("tab: Open as Split on the shown tab opens a New Tab beside it", async () => {
     await run(`st().activate("a"); return settle(400);`);
     await choose("t:a", "split");
-    const split = await run(`const s = Object.values(st().splits).find((s) => s.tabIds.includes("a")); return s && s.tabIds.map((id) => st().tabs[id].url);`);
+    const split = await run(`const s = splitOfTab("a"); return s && panesOf(s).map((id) => st().tabs[id].url);`);
     assert.deepEqual(split, [url("a"), ""]);
-    await run(`const s = Object.values(st().splits).find((s) => s.tabIds.includes("a")); st().closeTabs([s.tabIds[1]]); return settle(400);`);
-    assert.ok(!(await run(`return Object.values(st().splits).some((s) => s.tabIds.includes("a"));`)));
+    await run(`st().closeTabs([panesOf(splitOfTab("a"))[1]]); return settle(400);`);
+    assert.ok(!(await run(`return !!splitOfTab("a");`)));
   });
 
   await check("tab: New Group with Tab makes a pinned group whose member offers Unpin; Move to Group, Remove from Group", async () => {
@@ -242,34 +252,32 @@ try {
     const member = await choose("t:c", "unpinMember");
     assert.ok(!itemsOf(member, "ungroupTab") && !itemsOf(member, "newGroup"), "a pinned group's member has Unpin in their place");
     assert.deepEqual(await run(`return [groupOfTab("c"), !!st().tabs.c.pin];`), [null, false]);
-    const menu = await choose("t:b", "group:g1");
-    assert.ok(itemsOf(menu, "group:g1"), "Move to Group lists Grp");
+    await chooseIn("t:b", "moveToGroup", "Grp");
     assert.equal(await run(`return groupOfTab("b")?.id;`), "g1");
     await choose("t:b", "ungroupTab");
     assert.equal(await run(`return groupOfTab("b");`), null);
   });
 
   await check("tab: Move to Profile › Work (warning confirmed), cancelled at the warning moves nothing", async () => {
-    const menu = await choose("t:h", "profile:work", { answer: "confirm" });
-    assert.equal(itemsOf(menu, "profile:default").checked, true);
-    assert.equal(itemsOf(menu, "profile:default").enabled, false);
+    const menu = await chooseIn("t:h", "moveToProfile", "Work", { answer: "confirm" });
+    assert.equal(choiceIn(menu, "moveToProfile", "Personal").checked, true);
+    assert.equal(choiceIn(menu, "moveToProfile", "Personal").enabled, false);
     assert.equal(dialog().title, "Move Tab to Profile?");
     assert.deepEqual(await run(`return byUrl("h").map((t) => [t.profileId, t.windowId]);`), [["work", "w1"]]);
     await run(`return home();`);
-    await choose("t:f", "profile:work", { answer: "cancel" });
+    await chooseIn("t:f", "moveToProfile", "Work", { answer: "cancel" });
     assert.deepEqual(await run(`return byUrl("f").map((t) => t.profileId);`), ["default"]);
   });
 
   await check("tab: Move to Window › New Window, then back into w1 from there (the last tab of a window)", async () => {
     await run(`return home();`);
-    await choose("t:c", "window:new");
+    await chooseIn("t:c", "moveToWindow", "New Window");
     const [moved] = await run(`return byUrl("c").map((t) => t.windowId);`);
     assert.notEqual(moved, "w1");
-    const menu = await choose("t:f", `window:${moved}`);
-    assert.ok(itemsOf(menu, `window:${moved}`), "the new window is listed");
+    await chooseIn("t:f", "moveToWindow", await windowTitleOf(moved));
     assert.deepEqual(await run(`return byUrl("f").map((t) => t.windowId);`), [moved]);
-    await choose(null, "window:w1", { open: tabMenuIn(JSON.stringify(moved), `idOf("f")`) });
-    await choose(null, "window:w1", { open: tabMenuIn(JSON.stringify(moved), `idOf("c")`) });
+    await chooseIn(null, "moveToWindow", await windowTitleOf("w1"), { open: tabMenuIn(JSON.stringify(moved), `idOf("f")`) });
+    await chooseIn(null, "moveToWindow", await windowTitleOf("w1"), { open: tabMenuIn(JSON.stringify(moved), `idOf("c")`) });
     await sleep(800);
     const after = await run(`return { c: byUrl("c").map((t) => t.windowId), f: byUrl("f").map((t) => t.windowId), gone: !st().windows[${JSON.stringify(moved)}] || st().windows[${JSON.stringify(moved)}].tabIds.every((id) => !!st().tabs[id].pin) };`);
     assert.deepEqual(after.c, ["w1"]);
@@ -280,20 +288,21 @@ try {
   await check("tab: a split pane moved to a New Window leaves its partner whole in w1", async () => {
     await run(`return home().then(() => { st().activate("a"); return settle(300); });`);
     await choose("t:c", "split");
-    const split = await run(`return Object.values(st().splits).find((s) => s.tabIds.includes("c"))?.id;`);
-    await choose(`s:${split}#1`, "window:new");
-    const r = await run(`return { c: byUrl("c").map((t) => t.windowId), a: byUrl("a").map((t) => t.windowId), splits: Object.values(st().splits).map((s) => s.tabIds) };`);
+    const split = await run(`return splitOfTab("c")?.id;`);
+    await chooseIn(`s:${split}#1`, "moveToWindow", "New Window");
+    const r = await run(`return { c: byUrl("c").map((t) => t.windowId), a: byUrl("a").map((t) => t.windowId), splits: Object.values(st().splits).map(panesOf) };`);
     assert.notEqual(r.c[0], "w1");
     assert.deepEqual(r.a, ["w1"]);
     assert.ok(!r.splits.some((t) => t.includes("a") || t.includes("c")), `no broken split left: ${JSON.stringify(r.splits)}`);
-    await choose(null, "window:w1", { open: tabMenuIn(JSON.stringify(r.c[0]), `idOf("c")`) });
+    await chooseIn(null, "moveToWindow", await windowTitleOf("w1"), { open: tabMenuIn(JSON.stringify(r.c[0]), `idOf("c")`) });
+    assert.deepEqual(await run(`return byUrl("c").map((t) => t.windowId);`), ["w1"], "and c comes back");
   });
 
   await check("tab: Move to Window on a Top Apps tile", async () => {
     await run(`return home();`);
     const target = await run(`return st().createWindow({ url: "${url("tilewin")}" });`);
     await sleep(1500);
-    await choose("t:p2", `window:${target}`);
+    await chooseIn("t:p2", "moveToWindow", await windowTitleOf(target));
     const r = await run(`const s = st(); return { tiles: Object.values(s.tabs).filter((t) => t.url.endsWith("/p2")).map((t) => [t.windowId, !!t.pin]), w1: s.windows.w1.tabIds.includes("p2") };`);
     rep.log(`p2 after Move to Window: ${JSON.stringify(r)}`);
     assert.equal(r.tiles.filter(([w]) => w === target).length, 1, `one p2 in the target window: ${JSON.stringify(r)}`);
@@ -322,7 +331,7 @@ try {
     await run(`return home();`);
     const [m1, m2] = await run(`return [idOf("m1"), idOf("m2")];`);
     await run(`return select(${JSON.stringify([m1, m2])});`);
-    const menu = await choose(`t:${m1}`, "profile:work", { answer: "confirm" });
+    const menu = await chooseIn(`t:${m1}`, "moveToProfile", "Work", { answer: "confirm" });
     assert.equal(itemsOf(menu, "moveToProfile").title, "Move 2 Tabs to Profile");
     assert.equal(dialog().title, "Move 2 Tabs to Profile?");
     assert.deepEqual(await run(`return [byUrl("m1")[0].profileId, byUrl("m2")[0].profileId];`), ["work", "work"]);
@@ -332,16 +341,16 @@ try {
     await run(`return home().then(() => { open(["n1", "n2", "n3", "n4", "n5", "n6"]); return settle(600); });`);
     const [n1, n2, n3, n4, n5, n6] = await run(`return ["n1", "n2", "n3", "n4", "n5", "n6"].map(idOf);`);
     await run(`return select(${JSON.stringify([n1, n2])});`);
-    await choose(`t:${n1}`, "window:new");
+    await chooseIn(`t:${n1}`, "moveToWindow", "New Window");
     const where = await run(`return [byUrl("n1")[0].windowId, byUrl("n2")[0].windowId];`);
     assert.ok(where[0] !== "w1" && where[0] === where[1], `both in one new window: ${where}`);
     await run(`return home().then(() => select(${JSON.stringify([n5, n6])}));`);
-    await choose(`t:${n5}`, `window:${where[0]}`);
+    await chooseIn(`t:${n5}`, "moveToWindow", await windowTitleOf(where[0]));
     assert.deepEqual(await run(`return [byUrl("n5")[0].windowId, byUrl("n6")[0].windowId];`), [where[0], where[0]]);
     await run(`return home().then(() => select(${JSON.stringify([n3, n4])}));`);
     const menu = await choose(`t:${n3}`, "close");
     assert.equal(itemsOf(menu, "close").title, "Close 2 Tabs");
-    assert.equal(itemsOf(menu, "close").key, undefined, "no ⌘W on Close 2 Tabs");
+    assert.ok(!itemsOf(menu, "close").key, `no ⌘W on Close 2 Tabs: ${JSON.stringify(itemsOf(menu, "close").key)}`);
     assert.deepEqual(await run(`return [byUrl("n3").length, byUrl("n4").length];`), [0, 0]);
     await run(`st().closeWindow(${JSON.stringify(where[0])}); return settle(800);`);
   });
@@ -351,9 +360,9 @@ try {
     await choose("g:g1", "rename");
     assert.deepEqual(await run(`const r = ac.sidebarRows.useSidebarUi.getState().renaming; resetUi(); return r && [r.kind, r.id];`), ["group", "g1"]);
     const colors = await choose("g:g1");
-    const color = itemsOf(colors, "color").children.filter((c) => c.id && c.id !== "color:" && !c.checked).at(-1).id;
-    await choose("g:g1", color);
-    assert.equal(await run(`return st().groups.g1.color;`), color.slice(6));
+    const color = itemsOf(colors, "color").children.filter((c) => c.id && c.title !== "None" && c.enabled !== false && !c.checked).at(-1);
+    await choose("g:g1", color.id);
+    assert.equal(await run(`return st().groups.g1.color;`), color.title.toLowerCase());
     await choose("g:g1", "pin");
     assert.equal(await run(`return st().groups.g1.pinned;`), true);
     const pinned = await choose("g:g1", "pin");
@@ -406,7 +415,7 @@ try {
     const menu = await choose(`g:${child}`);
     assert.ok(!itemsOf(menu, "pin"), "no Pin Group on a nested group");
     await run(`st().groups[${JSON.stringify(child)}]?.tabIds.forEach((id) => st().closeTabs([id])); mkGroup("ToWindow", ["wg1", "wg2"]); return settle(500);`);
-    await choose(`g:${await run(`return groupNamed("ToWindow").id;`)}`, "window:new");
+    await chooseIn(`g:${await run(`return groupNamed("ToWindow").id;`)}`, "moveToWindow", "New Window");
     const r = await run(`const g = groupNamed("ToWindow"); return g && { w: g.windowId, tabs: g.tabIds.map((id) => st().tabs[id].windowId) };`);
     assert.notEqual(r.w, "w1");
     assert.deepEqual(r.tabs, [r.w, r.w]);
@@ -415,11 +424,11 @@ try {
 
   await check("group: Move to Profile › Work moves the group and its tabs; a pinned group too", async () => {
     await run(`return home().then(() => { mkGroup("ToWork", ["pg1"]); return settle(500); });`);
-    await choose(`g:${await run(`return groupNamed("ToWork").id;`)}`, "profile:work", { answer: "confirm" });
+    await chooseIn(`g:${await run(`return groupNamed("ToWork").id;`)}`, "moveToProfile", "Work", { answer: "confirm" });
     assert.deepEqual(await run(`const g = groupNamed("ToWork"); return g && [g.profileId, byUrl("pg1").map((t) => t.profileId)];`), ["work", ["work"]]);
     await run(`return home().then(() => { st().groupTabs(open(["pp1"]), { pinned: true, name: "PinnedToWork" }); return settle(500); });`);
     const pinnedGroup = await run(`return groupNamed("PinnedToWork").id;`);
-    const menu = await choose(`g:${pinnedGroup}`, "profile:work", { answer: "confirm" });
+    const menu = await chooseIn(`g:${pinnedGroup}`, "moveToProfile", "Work", { answer: "confirm" });
     assert.ok(!itemsOf(menu, "moveToWindow"));
     assert.deepEqual(await run(`const g = groupNamed("PinnedToWork"); return g && [g.profileId, g.pinned, [...new Set(byUrl("pp1").map((t) => t.profileId))]];`), ["work", true, ["work"]]);
   });
@@ -444,11 +453,16 @@ try {
   });
 
   await check("sidebar: New Tab, New Group, Bookmark All Tabs…", async () => {
-    await run(`return home();`);
+    await run(`return home().then(() => { st().activate(regular().find((id) => st().tabs[id].url)); return settle(500); });`);
     const tabs = await run(`return Object.keys(st().tabs).length;`);
     await choose("bg", "newTab");
     const after = await run(`const p = st().windowUi.w1?.panel; return { tabs: Object.keys(st().tabs).length, panel: !!p?.newTab };`);
     assert.ok(after.tabs === tabs + 1 || after.panel, `a New Tab: ${JSON.stringify(after)}`);
+    if (!after.panel) {
+      await sleep(600);
+      await choose("bg", "newTab");
+      assert.equal(await run(`return Object.keys(st().tabs).length;`), tabs + 1, "New Tab with that empty New Tab page showing reuses it");
+    }
     await run(`if (st().windowUi.w1?.panel?.open) st().closePanel("w1"); return settle(300);`);
     const groups = await run(`return Object.values(st().groups).filter((g) => g.windowId === "w1").length;`);
     await choose("bg", "newGroup");
@@ -490,9 +504,9 @@ try {
     await choose(null, "rename", { open: open("work"), answer: "Office" });
     assert.equal(await run(`return st().profiles.work.name;`), "Office");
     const menu = await choose(null, null, { open: open("work") });
-    const color = itemsOf(menu, "color").children.find((c) => !c.checked).id;
-    await choose(null, color, { open: open("work") });
-    assert.equal(await run(`return st().profiles.work.color;`), color.slice(6));
+    const color = itemsOf(menu, "color").children.find((c) => !c.checked);
+    await choose(null, color.id, { open: open("work") });
+    assert.equal(await run(`return st().profiles.work.color;`), color.title.toLowerCase());
     await choose(null, "settings", { open: open("work") });
     await sleep(1200);
     assert.deepEqual(await run(`const n = ac.settingsNav.getState(); return [n.pane, n.profileId];`), ["profiles", "work"]);
@@ -507,7 +521,8 @@ try {
     assert.equal(itemsOf(items, "moveToProfile").enabled, false);
     assert.equal(itemsOf(items, "moveToWindow").enabled, false);
     const regularMenu = await choose("t:a");
-    assert.ok(!itemsOf(regularMenu, `window:${w}`), "the private window isn't offered");
+    const privateTitle = await windowTitleOf(w);
+    assert.ok(privateTitle && choiceIn(regularMenu, "moveToWindow", "New Window") && !choiceIn(regularMenu, "moveToWindow", privateTitle), `the private window isn't offered: ${JSON.stringify(itemsOf(regularMenu, "moveToWindow").children.map((c) => c.title))}`);
     await run(`st().closeWindow(${JSON.stringify(w)}); return settle(800);`);
   });
 

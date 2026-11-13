@@ -53,6 +53,15 @@ check "ardia browse open <url> opens a tab over the token connection" $ok "$(hea
 again="$(browse read --json)"
 [ "$(field success <<<"$again")" = true ] && ok=1 || ok=0
 check "ardia browse read reads the session's tab" $ok "$(head -c 300 <<<"$again")"
+shot="$work/shot.png"
+browse screenshot "$shot" >/dev/null
+[ "$(head -c 4 "$shot" 2>/dev/null | tail -c 3)" = PNG ] && ok=1 || ok=0
+check "ardia browse screenshot pictures the session's background tab" $ok
+viewport="$(browse set viewport 390 844 --json)"
+sized="$(browse eval "innerWidth + 'x' + innerHeight" --json)"
+[ "$(field code <<<"$viewport")" = policy_refused ] && [ "$(field data.method <<<"$viewport")" = Emulation.setDeviceMetricsOverride ] &&
+  [ "$(field data.result <<<"$sized")" != 390x844 ] && ok=1 || ok=0
+check "ardia browse set viewport is gated over the token connection" $ok "$(head -c 300 <<<"$viewport")"
 refused="$(browse cookies --json)"
 [ "$(field code <<<"$refused")" = policy_refused ] && [ "$(field data.method <<<"$refused")" = Network.getCookies ] && ok=1 || ok=0
 check "a method off the policy's list is refused by name" $ok "$(head -c 300 <<<"$refused")"

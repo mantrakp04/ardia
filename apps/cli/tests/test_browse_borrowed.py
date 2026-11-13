@@ -119,6 +119,42 @@ class BorrowedTab(unittest.TestCase):
         result = asyncio.run(commands.cmd_storage(commands.Ctx(self.state, {}, "/", {}, None, "storage"), ["local"]))
         self.assertEqual(result.text, "(empty)")
 
+    def test_set_device_asks_for_touch_before_it_changes_the_viewport(self):
+        from ardia_cli import command_metrics
+        from ardia_cli.browse.errors import Gated
+
+        self.state.current = "MINE"
+        self.state.target_infos["MINE"] = {"targetId": "MINE", "url": "about:blank"}
+        sent = []
+
+        async def send(method, params=None, **kwargs):
+            sent.append(method)
+            if method == "Emulation.setTouchEmulationEnabled":
+                raise Gated(method)
+            return {}
+
+        self.mine.send = send
+        with self.assertRaises(Gated):
+            asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["device", "iphone", "14"]))
+        self.assertEqual(sent, ["Emulation.setTouchEmulationEnabled"])
+        self.assertNotIn("emulation", self.state.leases)
+        request = {"argv": ["set"], "options": {}}
+        command_metrics.begin(request)
+        self.addCleanup(command_metrics.current.set, None)
+        asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "390", "844"]))
+        self.assertEqual(sent[-1], "Emulation.setDeviceMetricsOverride")
+        self.assertIn("emulation", self.state.leases)
+        self.assertTrue(command_metrics.answer_fields(request)["metrics"]["viewport_set"])
+
+        async def taken(method, params=None, **kwargs):
+            raise Gated(method, reason="on a tab the user can see")
+
+        self.mine.send = taken
+        command_metrics.begin(request)
+        with self.assertRaises(Gated):
+            asyncio.run(commands.cmd_set(commands.Ctx(self.state, {}, "/", {}, None, "set"), ["viewport", "390", "844"]))
+        self.assertTrue(command_metrics.answer_fields(request)["metrics"]["viewport_tab_taken"])
+
     def test_cookie_changes_refuse_a_borrowed_tab(self):
         self.refused(commands.cmd_cookies, ["clear"])
         self.refused(commands.cmd_cookies, ["set", "a", "b"])
