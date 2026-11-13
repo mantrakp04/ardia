@@ -1,7 +1,9 @@
+import type { NowPlaying } from "../../platform/media";
+
 const REWIND_SECONDS = 1;
 const PAST_END_SECONDS = 2;
 
-type PositionReport = { playbackState: string; position: number; duration: number | null; playbackRate: number; timestamp: number };
+type PositionReport = Pick<NowPlaying, "playbackState" | "position" | "duration" | "playbackRate" | "timestamp">;
 
 let rewinds = 0;
 let pastEnd = 0;

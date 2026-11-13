@@ -216,7 +216,7 @@
         playbackState,
         position: settleAnchor(playbackState)?.position ?? el?.currentTime ?? 0,
         duration: Number.isFinite(duration) ? duration : null,
-        playbackRate: positionState?.playbackRate ?? el?.playbackRate ?? 1,
+        playbackRate: positionAnchor ? positionAnchor.rate : (el?.playbackRate ?? 1),
         hasVideo: !!el && el.tagName === "VIDEO" && el.videoWidth > 0,
         actions: [...actions.keys()],
         controllable: !!el && heard.has(el) && ((session ? session.playbackState : "none") !== "none" || !oneShot(el)),
