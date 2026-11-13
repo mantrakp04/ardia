@@ -520,7 +520,11 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
 
 - Links to other apps: the engine's `externalApp` tab event (once it sends one, #1425) goes to `domains/externalApps.ts`.
   - **Describe:** `ArdiaExternalApps.describe` names the scheme's handler and draws its icon (`AssocQueryStringW` with
-    `ASSOCSTR_FRIENDLYAPPNAME` and `ASSOCSTR_EXECUTABLE`, then `SystemShell::FileIcon`). Like Chromium, it knows only
+    `ASSOCSTR_FRIENDLYAPPNAME` and `ASSOCSTR_EXECUTABLE`, then `SystemShell::FileIcon`). A classic scheme under
+    `Software\Classes` (how Zoom and Slack register) gets no name from `AssocQueryString` on Windows 11 build 26200,
+    so, like Chromium's `GetAppForSchemeUsingRegistry`, it then takes the scheme's own name (without `URL:`) or the
+    program of its `shell\open\command`. A packaged handler (the new Outlook for `mailto`) has a name but no
+    executable, so its prompt shows no icon. Like Chromium, it knows only
     schemes whose `HKCR` key carries `URL Protocol`, so a file type's ProgID can't pose as a link scheme, and it
     refuses one-letter schemes (drive letters).
   - **Prompt:** the Mac's prompt shows in the Mac's words. "Always allow" is offered only for an https or loopback

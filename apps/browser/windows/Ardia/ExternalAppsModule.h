@@ -64,23 +64,75 @@ inline std::optional<std::wstring> Associated(std::wstring const &scheme, ASSOCS
   return value;
 }
 
+struct Handler {
+  std::wstring name;
+  std::optional<std::wstring> path;
+};
+
+inline std::optional<std::wstring> ClassesText(std::wstring const &key) noexcept {
+  DWORD size = 0;
+  if (RegGetValueW(HKEY_CLASSES_ROOT, key.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, nullptr, &size) != ERROR_SUCCESS) return std::nullopt;
+  if (size < sizeof(wchar_t) * 2 || size > LongestAssociation * sizeof(wchar_t)) return std::nullopt;
+  std::wstring value(size / sizeof(wchar_t), L'\0');
+  if (RegGetValueW(HKEY_CLASSES_ROOT, key.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, value.data(), &size) != ERROR_SUCCESS) return std::nullopt;
+  value.resize(wcsnlen(value.c_str(), value.size()));
+  if (value.empty()) return std::nullopt;
+  return value;
+}
+
+inline std::optional<std::wstring> CommandProgram(std::wstring const &scheme) noexcept {
+  std::optional<std::wstring> command = ClassesText(scheme + L"\\shell\\open\\command");
+  if (!command) return std::nullopt;
+  int count = 0;
+  LPWSTR *arguments = CommandLineToArgvW(command->c_str(), &count);
+  if (!arguments) return std::nullopt;
+  std::wstring program = count > 0 && arguments[0] ? arguments[0] : L"";
+  LocalFree(arguments);
+  if (program.empty()) return std::nullopt;
+  return program;
+}
+
+inline std::wstring ProgramTitle(std::wstring const &program) noexcept {
+  size_t slash = program.find_last_of(L"\\/");
+  std::wstring file = slash == std::wstring::npos ? program : program.substr(slash + 1);
+  size_t dot = file.find_last_of(L'.');
+  return dot == std::wstring::npos || dot == 0 ? file : file.substr(0, dot);
+}
+
+inline std::optional<std::wstring> RegisteredTitle(std::wstring const &scheme) noexcept {
+  constexpr std::wstring_view prefix = L"URL:";
+  std::optional<std::wstring> title = ClassesText(scheme);
+  if (!title) return std::nullopt;
+  std::wstring shown = title->rfind(prefix.data(), 0) == 0 ? title->substr(prefix.size()) : *title;
+  size_t start = shown.find_first_not_of(L' ');
+  if (start == std::wstring::npos) return std::nullopt;
+  return shown.substr(start);
+}
+
+inline std::optional<Handler> HandlerOf(std::wstring const &scheme) noexcept {
+  if (!InternetScheme(scheme)) return std::nullopt;
+  if (std::optional<std::wstring> name = Associated(scheme, ASSOCSTR_FRIENDLYAPPNAME)) return Handler{*name, Associated(scheme, ASSOCSTR_EXECUTABLE)};
+  std::optional<std::wstring> program = CommandProgram(scheme);
+  if (!program) return std::nullopt;
+  std::optional<std::wstring> title = RegisteredTitle(scheme);
+  return Handler{title ? *title : ProgramTitle(*program), program};
+}
+
 inline bool SameHandler(std::wstring const &scheme, std::wstring const &name, std::optional<std::wstring> const &path) noexcept {
-  if (Associated(scheme, ASSOCSTR_FRIENDLYAPPNAME) != std::optional<std::wstring>(name)) return false;
-  std::optional<std::wstring> executable = Associated(scheme, ASSOCSTR_EXECUTABLE);
-  if (!executable || !path) return !executable && !path;
-  return CompareStringOrdinal(executable->c_str(), -1, path->c_str(), -1, TRUE) == CSTR_EQUAL;
+  std::optional<Handler> handler = HandlerOf(scheme);
+  if (!handler || handler->name != name) return false;
+  if (!handler->path || !path) return !handler->path && !path;
+  return CompareStringOrdinal(handler->path->c_str(), -1, path->c_str(), -1, TRUE) == CSTR_EQUAL;
 }
 
 inline winrt::Microsoft::ReactNative::JSValue Describe(std::string const &scheme) noexcept {
   using winrt::Microsoft::ReactNative::JSValue;
-  std::wstring wide = Paths::Wide(scheme);
-  std::optional<std::wstring> name = Associated(wide, ASSOCSTR_FRIENDLYAPPNAME);
-  if (!name) return JSValue{nullptr};
-  std::optional<std::wstring> executable = Associated(wide, ASSOCSTR_EXECUTABLE);
+  std::optional<Handler> found = HandlerOf(Paths::Wide(scheme));
+  if (!found) return JSValue{nullptr};
   winrt::Microsoft::ReactNative::JSValueObject handler;
-  handler["name"] = JSValue{Paths::Utf8(*name)};
-  handler["path"] = executable ? JSValue{Paths::Utf8(*executable)} : JSValue{nullptr};
-  handler["icon"] = executable ? SystemShell::OptionalString(SystemShell::FileIcon(*executable, IconPoints)) : JSValue{nullptr};
+  handler["name"] = JSValue{Paths::Utf8(found->name)};
+  handler["path"] = found->path ? JSValue{Paths::Utf8(*found->path)} : JSValue{nullptr};
+  handler["icon"] = found->path ? SystemShell::OptionalString(SystemShell::FileIcon(*found->path, IconPoints)) : JSValue{nullptr};
   return JSValue{std::move(handler)};
 }
 
