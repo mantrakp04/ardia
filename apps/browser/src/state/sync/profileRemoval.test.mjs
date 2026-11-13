@@ -177,3 +177,54 @@ test("only a profile that isn't on this Mac can be removed from sync", async () 
     assert.equal(live("prof:", syncId), true);
   });
 });
+
+test("a profile others share data with can't be removed until they are, so none of them is left waiting for it", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const engineA = await import("./engine.ts?owner");
+  const ids = await a.with(() => {
+    const owner = S().createProfile({ name: "Owner" });
+    return { owner, child: S().createProfile({ name: "Child", shareWith: owner }) };
+  });
+  await turnOn(a, engineA);
+  await a.with(async () => {
+    S().deleteProfile(ids.child);
+    S().deleteProfile(ids.owner);
+    await engineA.syncNow();
+    await engineA.syncNow();
+    const row = (name) => engineA.useSync.getState().remoteProfiles.find((p) => p.name === name);
+    assert.equal(row("Owner").sharedByOthers, true);
+    assert.equal(engineA.removeRemoteProfile(row("Owner").syncId), false, "Child shares Owner's data");
+    assert.equal(engineA.removeRemoteProfile(row("Child").syncId), true);
+    assert.equal(row("Owner").sharedByOthers, undefined, "once Child is going, Owner can go too");
+    assert.equal(engineA.removeRemoteProfile(row("Owner").syncId), true);
+    await engineA.syncNow();
+    await engineA.syncNow();
+    assert.deepEqual(engineA.useSync.getState().remoteProfiles, []);
+  });
+});
+
+test("a removal still waiting to go out is dropped when the profile is added to this Mac again", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const engineA = await import("./engine.ts?readded");
+  const work = await a.with(() => S().createProfile({ name: "Work" }));
+  await turnOn(a, engineA);
+  await a.with(async () => {
+    S().deleteProfile(work);
+    await engineA.syncNow();
+    await engineA.syncNow();
+    const syncId = engineA.useSync.getState().remoteProfiles.find((p) => p.name === "Work").syncId;
+    assert.equal(engineA.removeRemoteProfile(syncId), true);
+    const again = engineA.addRemoteProfile(syncId) ?? S().profileOrder.find((id) => S().profiles[id].name === "Work");
+    assert.ok(again, "it can still be added before the removal goes out");
+    await engineA.syncNow();
+    await engineA.syncNow();
+    assert.equal(live("prof:", syncId), true, "nothing deleted its records");
+    assert.equal(JSON.parse(shell.docs.get("sync.json")).removing, undefined, "and the removal is gone");
+    S().deleteProfile(again);
+    await engineA.syncNow();
+    await engineA.syncNow();
+    assert.ok(engineA.useSync.getState().remoteProfiles.find((p) => p.name === "Work"), "deleting it later keeps it offered, as before");
+  });
+});

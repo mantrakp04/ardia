@@ -3,7 +3,7 @@ import { useBrowser } from "../browser/store";
 import { DEVICE_TABS, PROFILE, deviceTabs, profileRecord, profileScope, recordId, type DeviceTabs } from "./records";
 import { deviceKindOf, deviceRecords, isCurrentDevice, offersTabs } from "./devices";
 import { remoteProfileRecord, sharedDataChain } from "./profileLinks";
-import { beingRemoved } from "./profileRemoval";
+import { beingRemoved, sharesItsData } from "./profileRemoval";
 import { APP_SCOPE, type RemoteProfile, type RemoteTabs, type SyncDoc, type SyncedDevice, type SyncUi } from "./syncDoc";
 
 export function summarize(doc: SyncDoc): Pick<SyncUi, "devices" | "remoteTabs" | "remoteProfiles"> {
@@ -57,6 +57,7 @@ export function summarize(doc: SyncDoc): Pick<SyncUi, "devices" | "remoteTabs" |
         icon: record.i,
         ...(ownerName !== undefined ? { sharesWith: { name: ownerName, added: !!adds[1] } } : {}),
         ...(waitingFor ? { waiting: true as const } : {}),
+        ...(sharesItsData(doc, syncId) ? { sharedByOthers: true as const } : {}),
       };
     });
   return { devices, remoteTabs, remoteProfiles };

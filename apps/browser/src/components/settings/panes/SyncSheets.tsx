@@ -188,11 +188,17 @@ function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; on
   );
 }
 
-export function remoteProfileDescription(p: Pick<RemoteProfile, "sharesWith" | "waiting">): string {
+function sharingDescription(p: Pick<RemoteProfile, "sharesWith" | "waiting">): string {
   if (p.waiting) return "On your other devices. Waiting for the profile it shares data with to sync.";
   if (!p.sharesWith) return "On your other devices";
   const { name, added } = p.sharesWith;
   return added ? `On your other devices. Shares data with ${name}, which is added too.` : `On your other devices. Shares data with ${name}.`;
+}
+
+export function remoteProfileDescription(p: Pick<RemoteProfile, "sharesWith" | "waiting" | "sharedByOthers">): string {
+  const sharing = sharingDescription(p);
+  if (!p.sharedByOthers) return sharing;
+  return `${sharing.endsWith(".") ? sharing : `${sharing}.`} To remove it, first remove the profiles that share its data.`;
 }
 
 export function addAllRemoteProfiles(profiles: RemoteProfile[]) {
@@ -217,7 +223,7 @@ export function RemoteProfileRow({ profile }: { profile: RemoteProfile }) {
       description={remoteProfileDescription(profile)}
     >
       <Box row gap="s">
-        <Button title="Remove…" onPress={() => void confirmRemoveFromSync(profile)} />
+        <Button title="Remove…" disabled={!!profile.sharedByOthers} onPress={() => void confirmRemoveFromSync(profile)} />
         <Button title="Add to This Mac" disabled={!!profile.waiting} onPress={() => addRemoteProfile(profile.syncId)} />
       </Box>
     </Row>
