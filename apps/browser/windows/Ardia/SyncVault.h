@@ -10,6 +10,7 @@
 #include "Paths.h"
 #include "SyncCrypto.h"
 #include "SyncFiles.h"
+#include "SyncHandles.h"
 #include "SyncLogins.h"
 #include "SyncPhrase.h"
 #include "SyncSecrets.h"
@@ -96,11 +97,20 @@ inline std::wstring FilePath(std::wstring const &scopePath, std::string const &i
   return scopePath + L"\\" + Paths::Wide(id) + std::wstring{SyncFiles::VaultExtension};
 }
 
+inline std::wstring Name(std::string const &tag) { return Paths::Wide(tag); }
+
+inline SyncHandles::Handle RootOf(std::string const &folder) {
+  SyncHandles::OpenedFolder root = SyncHandles::OpenRoot(Folder(folder));
+  if (root.state != SyncHandles::Folder::Directory) throw Failure("the sync folder isn't reachable");
+  return std::move(root.handle);
+}
+
 inline std::string ChainStatus(std::string const &folder, Keys const &keys) {
-  if (SyncFiles::ProbePath(Folder(folder)) != SyncFiles::Probe::Directory) return "unavailable";
-  switch (SyncFiles::ProbePath(ChainPath(folder, keys))) {
-    case SyncFiles::Probe::Directory: return "ok";
-    case SyncFiles::Probe::Absent: return "missing";
+  SyncHandles::OpenedFolder root = SyncHandles::OpenRoot(Folder(folder));
+  if (root.state != SyncHandles::Folder::Directory) return "unavailable";
+  switch (SyncHandles::OpenFolderAt(root.handle.get(), Name(keys.ChainTag()), false).state) {
+    case SyncHandles::Folder::Directory: return "ok";
+    case SyncHandles::Folder::Absent: return "missing";
     default: return "unavailable";
   }
 }
@@ -111,38 +121,38 @@ inline void CreateChain(std::string const &folder, Keys const &keys) {
     int created = SHCreateDirectoryExW(nullptr, root.c_str(), nullptr);
     if (created != ERROR_SUCCESS && created != ERROR_ALREADY_EXISTS) throw Failure(SyncFiles::Problem("the sync folder couldn't be created", static_cast<DWORD>(created)));
   }
-  SyncFiles::MakeDirectory(ChainPath(folder, keys));
+  SyncHandles::OpenedFolder chain = SyncHandles::OpenFolderAt(RootOf(folder).get(), Name(keys.ChainTag()), true);
+  if (chain.state == SyncHandles::Folder::Link) throw Failure("the sync folder holds a link where sync data belongs");
+  if (chain.state != SyncHandles::Folder::Directory) throw Failure("the sync data couldn't be created");
 }
 
 inline void DeleteChain(std::string const &folder, Keys const &keys) {
-  std::wstring chain = ChainPath(folder, keys);
-  SyncFiles::Probe probe = SyncFiles::ProbePath(chain);
-  if (probe == SyncFiles::Probe::Absent) return;
-  if (probe == SyncFiles::Probe::Link) {
-    if (!RemoveDirectoryW(chain.c_str())) throw Failure("the sync data couldn't be deleted");
-    return;
-  }
-  if (probe != SyncFiles::Probe::Directory || !SyncFiles::RemoveTree(chain)) throw Failure("the sync data couldn't be deleted");
+  if (!SyncHandles::RemoveFolderAt(RootOf(folder).get(), Name(keys.ChainTag()))) throw Failure("the sync data couldn't be deleted");
 }
 
-inline bool HoldScope(SyncFiles::HeldPath &held, std::string const &folder, Keys const &keys, std::string const &scope, bool create) {
-  if (!held.Root(Folder(folder)) || !held.Child(Paths::Wide(keys.ChainTag()))) throw Failure("the sync folder isn't reachable");
+inline std::optional<SyncHandles::Handle> ScopeOf(std::string const &folder, Keys const &keys, std::string const &scope, bool create) {
+  SyncHandles::Handle root = RootOf(folder);
+  SyncHandles::OpenedFolder chain = SyncHandles::OpenFolderAt(root.get(), Name(keys.ChainTag()), false);
+  if (chain.state == SyncHandles::Folder::Link) throw Failure("the sync folder holds a link where sync data belongs");
+  if (chain.state != SyncHandles::Folder::Directory) throw Failure("the sync folder isn't reachable");
   std::optional<std::string> tag = keys.ScopeTag(scope);
   if (!tag) throw Failure("no scope tag");
-  std::wstring name = Paths::Wide(*tag);
-  std::wstring path = held.Path() + L"\\" + name;
-  if (SyncFiles::ProbePath(path) == SyncFiles::Probe::Absent) {
-    if (!create) return false;
-    SyncFiles::MakeDirectory(path);
-  }
-  if (!held.Child(name)) throw Failure("the sync folder holds a link where sync data belongs");
-  return true;
+  SyncHandles::OpenedFolder held = SyncHandles::OpenFolderAt(chain.handle.get(), Name(*tag), create);
+  if (held.state == SyncHandles::Folder::Absent && !create) return std::nullopt;
+  if (held.state == SyncHandles::Folder::Link) throw Failure("the sync folder holds a link where sync data belongs");
+  if (held.state != SyncHandles::Folder::Directory) throw Failure("the sync folder isn't reachable");
+  return std::move(held.handle);
+}
+
+inline std::wstring FileName(std::string const &id) {
+  if (!SyncCrypto::IsTag(id)) throw Failure("not a sync file id");
+  return Paths::Wide(id) + std::wstring{SyncFiles::VaultExtension};
 }
 
 inline std::optional<std::string> List(std::string const &folder, Keys const &keys, std::string const &scope) {
-  SyncFiles::HeldPath held;
-  if (!HoldScope(held, folder, keys, scope, false)) return std::nullopt;
-  return SyncFiles::List(held.Path());
+  std::optional<SyncHandles::Handle> held = ScopeOf(folder, keys, scope, false);
+  if (!held) return std::nullopt;
+  return SyncHandles::ListJson(held->get());
 }
 
 struct Opened {
@@ -164,9 +174,9 @@ inline Opened OpenSealed(Keys const &keys, std::string const &scopeTag, std::str
 }
 
 inline Opened Open(std::string const &folder, Keys const &keys, std::string const &scope, std::string const &id) {
-  SyncFiles::HeldPath held;
-  if (!HoldScope(held, folder, keys, scope, false)) return Opened{"missing", {}};
-  SyncFiles::Read read = SyncFiles::ReadFile(FilePath(held.Path(), id));
+  std::optional<SyncHandles::Handle> held = ScopeOf(folder, keys, scope, false);
+  if (!held) return Opened{"missing", {}};
+  SyncFiles::Read read = SyncHandles::ReadAt(held->get(), FileName(id));
   switch (read.state) {
     case SyncFiles::Read::State::Busy: return Opened{"busy", {}};
     case SyncFiles::Read::State::Placeholder: return Opened{"placeholder", {}};
@@ -192,19 +202,19 @@ inline std::string SealForVault(Keys const &keys, std::string const &scopeTag, s
 
 template <class TStill>
 std::string Write(std::string const &folder, Keys const &keys, std::string const &scope, std::string_view payload, TStill &&still) {
-  SyncFiles::HeldPath held;
-  HoldScope(held, folder, keys, scope, true);
+  std::optional<SyncHandles::Handle> held = ScopeOf(folder, keys, scope, true);
+  if (!held) throw Failure("the sync folder isn't reachable");
   std::string id = NewFileId();
   std::string sealed = SealForVault(keys, *keys.ScopeTag(scope), id, payload);
   if (!still()) throw Failure(Locked);
-  SyncFiles::Publish(held.Path(), Paths::Wide(id) + std::wstring{SyncFiles::VaultExtension}, sealed, false);
+  SyncHandles::PublishAt(held->get(), FileName(id), sealed);
   return id;
 }
 
 inline std::string Remove(std::string const &folder, Keys const &keys, std::string const &scope, std::string const &id) {
-  SyncFiles::HeldPath held;
-  if (!HoldScope(held, folder, keys, scope, false)) return "missing";
-  return SyncFiles::Remove(FilePath(held.Path(), id));
+  std::optional<SyncHandles::Handle> held = ScopeOf(folder, keys, scope, false);
+  if (!held) return "missing";
+  return SyncHandles::RemoveAt(held->get(), FileName(id));
 }
 
 inline void Hydrate(std::string const &folder, Keys const &keys, std::string const &scope, std::string const &id) {

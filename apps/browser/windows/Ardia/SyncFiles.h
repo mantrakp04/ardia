@@ -91,69 +91,6 @@ inline HANDLE HoldDirectory(std::wstring const &path) noexcept {
   return held;
 }
 
-inline std::wstring FinalPath(HANDLE handle) {
-  DWORD size = GetFinalPathNameByHandleW(handle, nullptr, 0, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
-  if (!size) return {};
-  std::wstring path(size, L'\0');
-  DWORD written = GetFinalPathNameByHandleW(handle, path.data(), size, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
-  if (!written || written >= size) return {};
-  path.resize(written);
-  return path;
-}
-
-inline bool SamePath(std::wstring const &a, std::wstring const &b) noexcept {
-  return !a.empty() && CompareStringOrdinal(a.c_str(), static_cast<int>(a.size()), b.c_str(), static_cast<int>(b.size()), TRUE) == CSTR_EQUAL;
-}
-
-class HeldPath {
- public:
-  HeldPath() = default;
-  HeldPath(HeldPath const &) = delete;
-  HeldPath &operator=(HeldPath const &) = delete;
-  ~HeldPath() {
-    for (HANDLE held : m_held) CloseHandle(held);
-  }
-
-  bool Root(std::wstring const &path) {
-    HANDLE held = CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
-    if (held == INVALID_HANDLE_VALUE) return false;
-    FILE_ATTRIBUTE_TAG_INFO tag{};
-    bool directory = GetFileInformationByHandleEx(held, FileAttributeTagInfo, &tag, sizeof(tag)) && (tag.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
-    std::wstring final = directory ? FinalPath(held) : std::wstring{};
-    if (final.empty()) {
-      CloseHandle(held);
-      return false;
-    }
-    m_held.push_back(held);
-    m_path = path;
-    m_final = final;
-    return true;
-  }
-
-  bool Child(std::wstring const &name) {
-    if (m_held.empty() || name.empty() || name.find_first_of(L"\\/:") != std::wstring::npos) return false;
-    std::wstring path = m_path + L"\\" + name;
-    HANDLE held = HoldDirectory(path);
-    if (held == INVALID_HANDLE_VALUE) return false;
-    std::wstring final = FinalPath(held);
-    if (!SamePath(final, m_final + L"\\" + name)) {
-      CloseHandle(held);
-      return false;
-    }
-    m_held.push_back(held);
-    m_path = path;
-    m_final = final;
-    return true;
-  }
-
-  std::wstring const &Path() const noexcept { return m_path; }
-
- private:
-  std::vector<HANDLE> m_held;
-  std::wstring m_path;
-  std::wstring m_final;
-};
-
 inline Probe ProbePath(std::wstring const &path) noexcept {
   DWORD attributes = GetFileAttributesW(path.c_str());
   if (attributes == INVALID_FILE_ATTRIBUTES) return IsMissing(GetLastError()) ? Probe::Absent : Probe::Inaccessible;
@@ -162,35 +99,6 @@ inline Probe ProbePath(std::wstring const &path) noexcept {
 }
 
 inline bool IsDirectory(std::wstring const &path) noexcept { return ProbePath(path) == Probe::Directory; }
-
-inline void RequireNoLink(std::wstring const &path) {
-  if (ProbePath(path) == Probe::Link) throw Failure("the sync folder holds a link where sync data belongs");
-}
-
-inline std::optional<std::string> List(std::wstring const &directory) {
-  WIN32_FIND_DATAW found{};
-  HANDLE search = FindFirstFileExW((directory + L"\\*").c_str(), FindExInfoBasic, &found, FindExSearchNameMatch, nullptr, FIND_FIRST_EX_LARGE_FETCH);
-  if (search == INVALID_HANDLE_VALUE) {
-    DWORD error = GetLastError();
-    if (IsMissing(error)) return std::nullopt;
-    throw Failure(Problem("the folder couldn't be listed", error));
-  }
-  std::string out = "[";
-  do {
-    std::wstring name = found.cFileName;
-    if (name == L"." || name == L"..") continue;
-    if (out.size() > 1) out.push_back(',');
-    bool directoryEntry = (found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-    out += "{\"name\":" + Quoted(Paths::Utf8(name)) + ",\"dir\":" + (directoryEntry ? "true" : "false") +
-        ",\"modified\":" + std::to_string(static_cast<int64_t>(UnixMilliseconds(found.ftLastWriteTime))) +
-        ",\"placeholder\":" + (!directoryEntry && IsPlaceholder(found.dwFileAttributes) ? "true" : "false") + "}";
-  } while (FindNextFileW(search, &found));
-  DWORD error = GetLastError();
-  FindClose(search);
-  if (error != ERROR_NO_MORE_FILES) throw Failure(Problem("the folder couldn't be listed", error));
-  out.push_back(']');
-  return out;
-}
 
 inline bool HasTagFolder(std::wstring const &folder) noexcept {
   WIN32_FIND_DATAW found{};
@@ -212,6 +120,28 @@ struct Read {
 inline bool SameVersion(BY_HANDLE_FILE_INFORMATION const &a, BY_HANDLE_FILE_INFORMATION const &b) noexcept {
   return a.nFileSizeHigh == b.nFileSizeHigh && a.nFileSizeLow == b.nFileSizeLow && a.ftLastWriteTime.dwLowDateTime == b.ftLastWriteTime.dwLowDateTime &&
       a.ftLastWriteTime.dwHighDateTime == b.ftLastWriteTime.dwHighDateTime && a.nFileIndexLow == b.nFileIndexLow && a.nFileIndexHigh == b.nFileIndexHigh;
+}
+
+inline Read ReadOpened(HANDLE file) {
+  BY_HANDLE_FILE_INFORMATION before{};
+  BY_HANDLE_FILE_INFORMATION after{};
+  bool ok = GetFileInformationByHandle(file, &before);
+  uint64_t size = (uint64_t{before.nFileSizeHigh} << 32) | before.nFileSizeLow;
+  ok = ok && size <= LargestFile;
+  std::string bytes;
+  if (ok) {
+    bytes.resize(static_cast<size_t>(size));
+    DWORD done = 0;
+    ok = bytes.empty() || (::ReadFile(file, bytes.data(), static_cast<DWORD>(bytes.size()), &done, nullptr) && done == bytes.size());
+  }
+  DWORD error = ok ? ERROR_SUCCESS : GetLastError();
+  bool stable = ok && GetFileInformationByHandle(file, &after) && SameVersion(before, after);
+  if (!ok) {
+    if (IsBusy(error) || error == ERROR_SUCCESS) return Read{Read::State::Busy, {}};
+    throw Failure(Problem("a sync file couldn't be read", error));
+  }
+  if (!stable) return Read{Read::State::Busy, {}};
+  return Read{Read::State::Data, std::move(bytes)};
 }
 
 inline Read ReadFile(std::wstring const &path) {
@@ -236,26 +166,9 @@ inline Read ReadFile(std::wstring const &path) {
     CloseHandle(file);
     return Read{Read::State::Busy, {}};
   }
-  BY_HANDLE_FILE_INFORMATION before{};
-  BY_HANDLE_FILE_INFORMATION after{};
-  bool ok = GetFileInformationByHandle(file, &before);
-  uint64_t size = (uint64_t{before.nFileSizeHigh} << 32) | before.nFileSizeLow;
-  ok = ok && size <= LargestFile;
-  std::string bytes;
-  if (ok) {
-    bytes.resize(static_cast<size_t>(size));
-    DWORD done = 0;
-    ok = bytes.empty() || (::ReadFile(file, bytes.data(), static_cast<DWORD>(bytes.size()), &done, nullptr) && done == bytes.size());
-  }
-  DWORD error = ok ? ERROR_SUCCESS : GetLastError();
-  bool stable = ok && GetFileInformationByHandle(file, &after) && SameVersion(before, after);
+  Read read = ReadOpened(file);
   CloseHandle(file);
-  if (!ok) {
-    if (IsBusy(error) || error == ERROR_SUCCESS) return Read{Read::State::Busy, {}};
-    throw Failure(Problem("a sync file couldn't be read", error));
-  }
-  if (!stable) return Read{Read::State::Busy, {}};
-  return Read{Read::State::Data, std::move(bytes)};
+  return read;
 }
 
 inline std::wstring StagingName(std::wstring const &name) {
@@ -283,13 +196,6 @@ inline void Publish(std::wstring const &directory, std::wstring const &name, std
     DeleteFileW(staged.c_str());
     throw Failure(Problem("a sync file couldn't be written", error));
   }
-}
-
-inline std::string Remove(std::wstring const &path) {
-  if (DeleteFileW(path.c_str())) return "removed";
-  DWORD error = GetLastError();
-  if (IsMissing(error)) return "missing";
-  throw Failure(Problem("a sync file couldn't be removed", error));
 }
 
 inline void MakeDirectory(std::wstring const &path) {

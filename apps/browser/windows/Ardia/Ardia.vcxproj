@@ -150,6 +150,7 @@
     <ClInclude Include="SystemSignalsModule.h" />
     <ClInclude Include="SyncCrypto.h" />
     <ClInclude Include="SyncFiles.h" />
+    <ClInclude Include="SyncHandles.h" />
     <ClInclude Include="SyncLogins.h" />
     <ClInclude Include="SyncModule.h" />
     <ClInclude Include="SyncPhrase.h" />
