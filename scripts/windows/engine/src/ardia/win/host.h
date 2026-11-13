@@ -51,6 +51,7 @@ class Host : public TabStripModelObserver,
   int CloseBrowsersOf(Profile* profile);
   void ForgetProfile(Profile* profile);
   bool Shows(const std::string& key) const;
+  HWND VisibleParent() const;
   void TabDestroyed(TabState* state);
   void ParentDestroying(HWND parent);
   void ParentMoved(HWND parent);

@@ -27,6 +27,7 @@ std::string g_download_url;
 std::string g_cookie_url;
 std::string g_slow_download_url;
 std::string g_files_dir;
+bool g_exports = false;
 
 void Log(const char* what, const char* detail) {
   if (!g_log) {
@@ -130,11 +131,80 @@ void ClosePrivate(const char* key, const char* profile) {
   Call("reply release private", "profile.release", ProfileArgs(profile));
 }
 
+std::string BookmarkOps() {
+  std::string ops = "{\"ops\":[";
+  const char* urls[] = {"https://example.com/", "https://www.wikipedia.org/",
+                        "https://github.com/", "https://news.ycombinator.com/",
+                        "https://www.bbc.com/"};
+  for (int i = 0; i < 5; ++i) {
+    if (i) {
+      ops += ",";
+    }
+    ops += "{\"op\":\"add\",\"id\":\"00000000-0000-4000-8000-00000000000" +
+           std::to_string(i) + "\",\"parent\":\"bar\",\"t\":\"probe " +
+           std::to_string(i) + "\",\"u\":\"" + urls[i] + "\"}";
+  }
+  return ops + "]}";
+}
+
+void ExportStep() {
+  switch (g_step) {
+    case 1:
+      Call("reply info", "host.info", "{}");
+      Call("reply create one", "tab.create", CreateArgs("one", g_first_url));
+      Call("reply show one", "tab.show", ShowArgs("one"));
+      break;
+    case 2:
+      EngineCall("reply apply bookmarks", "ac_bookmarks_apply",
+                 BookmarkOps().c_str());
+      EngineCall("reply add password", "ac_passwords_add",
+                 "{\"origin\":\"https://example.com\",\"username\":"
+                 "\"probe\",\"password\":\"probe-only-secret\"}");
+      break;
+    case 3:
+      EngineCall("reply bookmarks", "ac_bookmarks_tree", "{}");
+      EngineCall("reply history", "ac_history_query",
+                 "{\"maxUrls\":5,\"maxVisits\":1}");
+      EngineCall("reply favicon", "ac_favicons_get",
+                 "{\"pages\":[\"https://example.com/\"]}");
+      EngineCall("reply password list", "ac_passwords_list", "{}");
+      EngineCallWithPath("reply export bookmarks", "ac_bookmarks_export_html",
+                         g_files_dir + "\\probe-bookmarks.html");
+      break;
+    case 4:
+      EngineCallWithPath("reply export bookmarks again",
+                         "ac_bookmarks_export_html",
+                         g_files_dir + "\\probe-bookmarks-2.html");
+      break;
+    case 6:
+      EngineCallWithPath("reply export passwords", "ac_passwords_export",
+                         g_files_dir + "\\probe-passwords.csv");
+      break;
+    case 8:
+      EngineCall("reply history after", "ac_history_query",
+                 "{\"maxUrls\":1,\"maxVisits\":1}");
+      Call("reply list after", "tabs.list", "{}");
+      break;
+    default:
+      if (g_step < 25) {
+        Log("waiting", "");
+        break;
+      }
+      ::KillTimer(g_window, kStepTimer);
+      Call("reply quit", "app.quit", "{}");
+      break;
+  }
+}
+
 void Step() {
   ++g_step;
   char label[32];
   snprintf(label, sizeof(label), "%d", g_step);
   Log("step", label);
+  if (g_exports) {
+    ExportStep();
+    return;
+  }
   switch (g_step) {
     case 1:
       Call("reply info", "host.info", "{}");
@@ -370,6 +440,7 @@ extern "C" __declspec(dllexport) int ArdiaAppStart(const ArdiaEngineApi* engine)
   g_cookie_url = Environment("ARDIA_PROBE_COOKIE_URL", "");
   g_slow_download_url = Environment("ARDIA_PROBE_SLOW_DOWNLOAD_URL", "");
   g_files_dir = Environment("ARDIA_PROBE_DIR", Environment("TEMP", "C:"));
+  g_exports = !Environment("ARDIA_PROBE_EXPORTS", "").empty();
   g_step_ms = atoi(Environment("ARDIA_PROBE_STEP_MS", "4000").c_str());
   HINSTANCE instance = ::GetModuleHandleW(nullptr);
   WNDCLASSEXW window_class = {};
