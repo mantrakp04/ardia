@@ -27,9 +27,9 @@ function page({ range = 2000, height = 800 } = {}) {
     sent,
     d,
     listeners,
-    to(y, { dt = 16, viewport = height, max = range, user = true } = {}) {
+    to(y, { dt = 16, viewport = height, max = range, user = true, snap = "none" } = {}) {
       clock.now += dt;
-      const state = d.scrolled(y, max, viewport, clock.now, user);
+      const state = d.scrolled(y, max, viewport, clock.now, user, snap);
       if (state) sent.push(state);
       return state;
     },
@@ -237,6 +237,114 @@ test("one jump (End, Space) counts", () => {
   const p = page();
   p.to(1200);
   assert.deepEqual(p.sent, ["down"]);
+});
+
+test("a scroller that snaps vertically and mandatorily (a Shorts or Reels feed) never reports down (#1301)", () => {
+  for (const snap of ["y mandatory", "block mandatory", "both mandatory"]) {
+    const p = page({ range: 20000 });
+    for (let item = 1; item <= 10; item++) {
+      p.pause();
+      p.wheel(100);
+      for (let step = 1; step <= 4; step++) p.to((item - 1) * 800 + step * 200, { snap });
+    }
+    assert.deepEqual(p.sent, [], snap);
+  }
+});
+
+test("horizontal snapping, proximity snapping and no snapping still hide it", () => {
+  for (const snap of ["x mandatory", "inline mandatory", "y proximity", "both proximity", "x proximity", "none", ""]) {
+    const p = page({ range: 20000 });
+    p.wheel(100);
+    for (let step = 1; step <= 4; step++) p.to(step * 200, { snap });
+    assert.deepEqual(p.sent, ["down"], snap);
+  }
+});
+
+test("a page that stops snapping mandatorily hides it again, and a feed still shows it going back up", () => {
+  const p = page({ range: 20000 });
+  p.wheel(100);
+  p.to(800, { snap: "y mandatory" });
+  assert.deepEqual(p.sent, []);
+  p.pause();
+  p.to(1000, { snap: "none" });
+  p.to(1030, { snap: "none" });
+  assert.deepEqual(p.sent, ["down"]);
+  p.pause();
+  p.wheel(-100);
+  p.to(230, { snap: "y mandatory" });
+  assert.deepEqual(p.sent, ["down", "up"]);
+});
+
+const tail = script.match(/const scrollDirection = [\s\S]*?(?=\n {2}return receive;)/)?.[0];
+assert.ok(tail, "page_script.js ends with the scroll detector and its wiring");
+
+function feedPage({ viewport = "none", scroller = "none", scrolls = "viewport" } = {}) {
+  const listeners = {};
+  const frames = [];
+  const sent = [];
+  const clock = { now: 1000 };
+  const size = { clientHeight: 800, clientWidth: 1200, scrollHeight: 20800, scrollTop: 0 };
+  const html = { ...size, snap: viewport };
+  const bodyEl = { ...size, snap: "none" };
+  const inner = { ...size, snap: scroller };
+  const document = { documentElement: html, body: bodyEl, scrollingElement: scrolls === "body" ? bodyEl : html };
+  const run = new Function(
+    "addEventListener",
+    "performance",
+    "document",
+    "guard",
+    "send",
+    "getComputedStyle",
+    "innerHeight",
+    "innerWidth",
+    "requestAnimationFrame",
+    tail,
+  );
+  run(
+    (type, listener) => (listeners[type] = listener),
+    { now: () => clock.now },
+    document,
+    (fn) => fn,
+    (kind, data) => kind === "scroll" && sent.push(data.state),
+    (el) => ({ scrollSnapType: el.snap }),
+    800,
+    1200,
+    (frame) => frames.push(frame),
+  );
+  const target = scrolls === "inner" ? inner : document.scrollingElement;
+  return {
+    sent,
+    swipe(item) {
+      clock.now += 500;
+      listeners.wheel({ deltaX: 0, deltaY: 100, ctrlKey: false });
+      for (let step = 1; step <= 4; step++) {
+        clock.now += 16;
+        target.scrollTop = (item - 1) * 800 + step * 200;
+        listeners.scroll({ target: scrolls === "inner" ? inner : document });
+        frames.shift()();
+      }
+    },
+  };
+}
+
+const swipes = (p) => {
+  for (let item = 1; item <= 10; item++) p.swipe(item);
+  return p.sent;
+};
+const downs = Array(10).fill("down");
+
+test("the scroller's own scroll-snap-type decides, read from the element that scrolls", () => {
+  assert.deepEqual(swipes(feedPage({ scrolls: "inner", scroller: "y mandatory" })), [], "an inner feed scroller");
+  assert.deepEqual(swipes(feedPage({ scrolls: "inner", scroller: "none", viewport: "y mandatory" })), downs, "the page's own snap doesn't speak for an inner scroller");
+  assert.deepEqual(swipes(feedPage({ scrolls: "inner", scroller: "x mandatory" })), downs, "an inner carousel");
+  assert.deepEqual(swipes(feedPage({ scrolls: "inner" })), downs, "an inner scroller with no snapping");
+});
+
+test("a page whose viewport snaps takes its scroll-snap-type from the root element", () => {
+  assert.deepEqual(swipes(feedPage({ viewport: "y mandatory" })), [], "the viewport scrolling");
+  assert.deepEqual(swipes(feedPage({ viewport: "y mandatory", scrolls: "body" })), [], "the viewport scrolling in quirks mode (the body is the scrolling element)");
+  assert.deepEqual(swipes(feedPage({ viewport: "y proximity" })), downs, "proximity snapping");
+  assert.deepEqual(swipes(feedPage()), downs, "no snapping");
 });
 
 test("the mode: shown unless the page scrolled down and nothing needs the bar", () => {
