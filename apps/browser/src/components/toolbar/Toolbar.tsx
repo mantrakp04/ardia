@@ -72,7 +72,6 @@ export function Toolbar({
   bare?: boolean;
   loadFill?: boolean;
 }) {
-  const theme = useTheme();
   const sidebarHint = useShortcutHint("toggleSidebar");
   const tabsIcon = useTabsToggleIcon(windowId);
   const tabsShown = useTabsShown(windowId);
