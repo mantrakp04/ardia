@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { chooseSidebarSide, chooseTabLayout, updateSettings } from "../../../state/settings/actions";
-import { splitLinkModifierOf, type PeekModifier, type Settings, type SplitLinkModifier } from "../../../state/settings/settings";
+import { customNewTabUrl, splitLinkModifierOf, type PeekModifier, type Settings, type SplitLinkModifier } from "../../../state/settings/settings";
 import { Box, Button, Checkbox, DialogActions, DialogTitle, PopUp, Segmented, Sheet, space, Text, TextField, Toggle, type Option, type SegmentOption } from "../../ui";
 import { durationMinutes, durationParts, type DurationUnit } from "../../../lib/time";
 import { cleanUpChoices, CUSTOM_CLEAN_UP, DAILY_CLEAN_UP_MINUTES } from "../../../state/settings/cleanUpAfter";
@@ -83,6 +83,26 @@ const DURATION_UNITS: Option<DurationUnit>[] = [
   { value: "days", title: "Days" },
 ];
 
+function NewTabUrlRow() {
+  const saved = useSettings((s) => s.newTabUrl);
+  const [draft, setDraft] = useState(saved);
+  const [editedFrom, setEditedFrom] = useState(saved);
+  if (editedFrom !== saved) {
+    setEditedFrom(saved);
+    setDraft(saved);
+  }
+  const invalid = !!draft.trim() && !customNewTabUrl({ newTabOpens: "page", newTabUrl: draft });
+  const save = () => {
+    const value = draft.trim();
+    if (value !== saved) updateSettings({ newTabUrl: value });
+  };
+  return (
+    <Row anchor="tabs.newTabUrl">
+      <TextField value={draft} onChangeText={setDraft} placeholder="New Tab page" onSubmit={save} onBlur={save} invalid={invalid} width={220} />
+    </Row>
+  );
+}
+
 export function TabsPane() {
   const newTabOpens = useSettings((s) => s.newTabOpens);
   const newTabPosition = useSettings((s) => s.newTabPosition);
@@ -132,6 +152,7 @@ export function TabsPane() {
           />
         </Row>
         <SettingToggle anchor="tabs.reuseEmptyNewTab" />
+        <NewTabUrlRow />
         <Row anchor="tabs.newTabPosition">
           <PopUp value={newTabPosition} options={top ? NEW_TABS_ACROSS : NEW_TABS_DOWN} onChange={(v) => updateSettings({ newTabPosition: v })} minWidth={190} />
         </Row>
