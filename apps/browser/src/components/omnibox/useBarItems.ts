@@ -9,6 +9,7 @@ import { useSuggestions } from "./useSuggestions";
 
 export function useBarItems({
   input,
+  caret,
   typed,
   edited,
   scope,
@@ -22,6 +23,7 @@ export function useBarItems({
   currentUrl,
 }: {
   input: RefObject<TextInput | null>;
+  caret: () => { start: number; end: number };
   typed: string;
   edited: boolean;
   scope: SearchScope | null;
@@ -53,7 +55,7 @@ export function useBarItems({
   const current = items[selectedIndex];
   const preview = selectedIndex > unpreviewed ? (previewText(current) ?? typed) : null;
   const previewing = preview !== null;
-  const inline = useInlineCompletion(input, typed, suppressCompletion || scope ? "" : completion, preview);
+  const inline = useInlineCompletion(input, typed, suppressCompletion || scope ? "" : completion, preview, caret);
   const shownCompletion = previewing ? "" : inline.shown;
   const value = preview ?? typed + shownCompletion;
   const tabScope = useMemo(

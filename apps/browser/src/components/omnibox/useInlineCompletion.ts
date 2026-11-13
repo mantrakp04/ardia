@@ -1,13 +1,14 @@
-import { completeInline, selectInlineCompletion } from "../../state/omnibox/textInput";
+import { caretAllowsInline, completeInline, selectInlineCompletion } from "../../state/omnibox/textInput";
 import { noteInlineCompletionShown } from "../../state/telemetry/inlineCompletionCounts";
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { findNodeHandle, type TextInput } from "react-native";
 import { acceptsCompletion, completionToWrite, previewFieldChange, withoutFirst, type EditContext, type FieldChange, type Inline, type PendingInline, type Selection } from "./inline";
 
-export function useInlineCompletion(input: RefObject<TextInput | null>, typed: string, wanted: string, preview: string | null) {
+export function useInlineCompletion(input: RefObject<TextInput | null>, typed: string, wanted: string, preview: string | null, caret: () => Selection) {
   const [inline, setInline] = useState<Inline | null>(null);
   const pending = useRef<PendingInline[]>([]);
   const heard = useRef(typed);
+  const counted = useRef("");
   const shown = inline?.typed === typed ? inline.completion : "";
 
   useLayoutEffect(() => {
@@ -23,9 +24,7 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
     const settle = (result: number) => {
       if (result === 2) return;
       pending.current = withoutFirst(pending.current, write);
-      if (result !== 1) return;
-      setInline(write);
-      if (write.completion) noteInlineCompletionShown();
+      if (result === 1 && caretAllowsInline(caret(), write.typed.length)) setInline(write);
     };
     completeInline(tag, write.typed, write.completion).then(settle, () => settle(0));
   }, [input, typed, wanted, shown, preview]);
@@ -34,10 +33,7 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
     const change = previewFieldChange(typed, shown, preview, next, pending.current, edit);
     if (change.echo) {
       pending.current = pending.current.slice(change.settled);
-      if (!change.stale) {
-        setInline(change.inline);
-        if (change.inline.completion) noteInlineCompletionShown();
-      }
+      if (!change.stale) setInline(change.inline);
     } else {
       heard.current = change.typed;
       setInline(null);
@@ -48,6 +44,10 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
   useLayoutEffect(() => {
     if (!shown || preview !== null) return;
     selectInlineCompletion(input.current, typed.length, typed.length + shown.length);
+    const key = `${typed}\n${shown}`;
+    if (counted.current === key) return;
+    counted.current = key;
+    noteInlineCompletionShown();
   }, [input, typed, shown, preview]);
 
   const accepts = (selection: Selection) => preview === null && acceptsCompletion(typed, shown, selection, pending.current);
