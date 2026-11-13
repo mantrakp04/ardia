@@ -28,7 +28,7 @@ struct RootView: View {
       }
       .animation(reduceMotion ? Motion.surfaceFade : Motion.surfaceSwap, value: isHome)
       .ignoresSafeArea(.keyboard, edges: browse.trayHoldsKeyboard ? .bottom : [])
-      SearchTrayHost()
+      TrayHost()
         .zIndex(10)
     }
     .sheet(item: $app.sheet) { sheet in

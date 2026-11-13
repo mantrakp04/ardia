@@ -43,11 +43,6 @@ struct BrowsingView: View {
       return PageSpan(width: proxy.size.width + insets.leading + insets.trailing, safeSide: max(insets.leading, insets.trailing))
     } action: { pageSpan = $0 }
     .modifier(PageRequestAlert(page: currentWebPage))
-    .sheet(isPresented: $browse.isToolbarPresented) {
-      if let id = app.tabs.selectedTabID {
-        ToolbarSheet(tabID: id)
-      }
-    }
     .sheet(item: Binding(get: { app.web.shareRequest }, set: { app.web.shareRequest = $0 })) { url in
       ActivitySheet(url: url)
         .presentationDetents([.medium, .large])
@@ -213,8 +208,9 @@ struct BrowsingView: View {
   }
 
   private var bar: some View {
-    BottomBar(
-      isSearchPresented: app.browse.search != nil,
+    let coveredByTray = app.browse.trayCoversPageBar
+    return BottomBar(
+      hidesPlus: app.browse.trayOwnsPlus,
       sideInset: pageSpan.safeSide,
       onTabs: openDeck,
       onPlus: openSearch,
@@ -231,15 +227,17 @@ struct BrowsingView: View {
     .highPriorityGesture(pagerGesture)
     .offset(y: isBarShown ? 0 : BrowseLayout.barCollapseTravel)
     .opacity(isBarShown ? 1 : 0)
-    .allowsHitTesting(isBarShown)
+    .allowsHitTesting(isBarShown && !coveredByTray)
     .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse, value: isBarShown)
+    .opacity(coveredByTray ? 0 : 1)
+    .animation(nil, value: coveredByTray)
     .frame(maxHeight: .infinity, alignment: .bottom)
     .ignoresSafeArea(.container, edges: [.bottom, .horizontal])
     .ignoresSafeArea(.keyboard)
   }
 
   private var isBarShown: Bool {
-    barVisibility.isShown(searchTrayPresented: app.browse.isSearchTrayOnScreen)
+    barVisibility.isShown(searchTrayPresented: app.browse.isSearchTrayOnScreen && !app.browse.pageBarGrowsIntoTray(reduceMotion: reduceMotion))
   }
 
   @Environment(\.colorScheme) private var systemScheme

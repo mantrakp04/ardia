@@ -2,18 +2,14 @@ import ArdiaBrowser
 import ArdiaDesign
 import SwiftUI
 
-struct SearchTray<Drag: Gesture>: View {
+struct SearchTray: View {
   let request: BrowseSession.SearchRequest
-  @Binding var isFocused: Bool
-  let maxHeight: CGFloat
-  let dismissDrag: Drag
+  let link: TrayContentLink
 
   @Environment(AppModel.self) private var app
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.profileLook) private var look
+  @State private var isFocused = false
   @State private var model: SearchSuggestionsModel?
   @State private var text = ""
   @State private var highlightedID: String?
@@ -24,12 +20,15 @@ struct SearchTray<Drag: Gesture>: View {
   @State private var scrubStart: CGPoint?
   @State private var headerHeight: CGFloat = 0
   @State private var naturalRowsHeight: CGFloat = 0
+  @State private var panelHeight: CGFloat = 0
   @State private var isSubmitting = false
   @ScaledMetric(relativeTo: .title3) private var fieldHeight = BrowseLayout.searchFieldHeight
   @ScaledMetric(relativeTo: .title3) private var placeholderSize: CGFloat = 20
 
+  private static let panelSpace = "trayPanel"
+
   private var isIncognito: Bool { app.isIncognito }
-  private var rowsBudget: CGFloat { max(maxHeight - headerHeight, 0) }
+  private var rowsBudget: CGFloat { max(panelHeight - headerHeight, 0) }
 
   var body: some View {
     VStack(spacing: 0) {
@@ -39,12 +38,9 @@ struct SearchTray<Drag: Gesture>: View {
         .frame(height: rowsBudget, alignment: .top)
         .clipped()
     }
-    .frame(maxWidth: .infinity)
-    .background(alignment: .top) {
-      panelBackground
-        .padding(.bottom, -BrowseLayout.sheetTopRadius * 12)
-        .ignoresSafeArea(edges: .horizontal)
-    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
+    .coordinateSpace(.named(Self.panelSpace))
     .environment(\.colorScheme, isIncognito ? .dark : colorScheme)
     .onAppear(perform: start)
     .onDisappear { model?.cancel() }
@@ -67,21 +63,17 @@ struct SearchTray<Drag: Gesture>: View {
       .padding(.bottom, Spacing.tight)
       .frame(maxWidth: .infinity)
       .contentShape(.rect)
-      .highPriorityGesture(dismissDrag)
-      .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+      .highPriorityGesture(link.dismissDrag)
+      .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.panelSpace)) } action: { frame in
+        headerHeight = frame.height
+        reportLayout()
+      }
   }
 
-  private var panelBackground: some View {
-    let shape = UnevenRoundedRectangle(topLeadingRadius: BrowseLayout.sheetTopRadius, topTrailingRadius: BrowseLayout.sheetTopRadius, style: .continuous)
-    return shape
-      .fill(isIncognito || reduceTransparency ? AnyShapeStyle(.clear) : AnyShapeStyle(.regularMaterial))
-      .overlay { shape.fill(panelTint) }
-      .shadow(color: .black.opacity(0.14), radius: 24, y: -4)
-  }
+  @State private var fieldFrame = CGRect.zero
 
-  private var panelTint: Color {
-    if isIncognito { return BrowsePalette.incognitoSheet }
-    return reduceTransparency ? look.surface : look.surface.opacity(BrowseLayout.sheetTintShare)
+  private func reportLayout() {
+    link.report(field: fieldFrame, contentTop: headerHeight)
   }
 
   private var field: some View {
@@ -116,13 +108,9 @@ struct SearchTray<Drag: Gesture>: View {
     .padding(.leading, 18)
     .padding(.trailing, 10)
     .frame(minHeight: fieldHeight)
-    .background {
-      Capsule(style: .continuous)
-        .fill(isIncognito ? BrowsePalette.incognitoField : BrowsePalette.fieldFill)
-        .overlay {
-          Capsule(style: .continuous)
-            .strokeBorder(isIncognito ? Color.white.opacity(0.1) : BrowsePalette.fieldStroke, lineWidth: 1)
-        }
+    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.panelSpace)) } action: { frame in
+      fieldFrame = frame
+      reportLayout()
     }
   }
 
@@ -170,7 +158,7 @@ struct SearchTray<Drag: Gesture>: View {
         .frame(maxWidth: .infinity)
         .frame(height: rowsBudget)
         .contentShape(.rect)
-        .gesture(dismissDrag)
+        .gesture(link.dismissDrag)
         .transition(.opacity)
     } else if !rows.isEmpty, rowsBudget > 0 {
       rowsArea(rows)
@@ -178,7 +166,7 @@ struct SearchTray<Drag: Gesture>: View {
     } else {
       Color.clear
         .contentShape(.rect)
-        .gesture(dismissDrag)
+        .gesture(link.dismissDrag)
     }
   }
 
@@ -316,7 +304,6 @@ struct SearchTray<Drag: Gesture>: View {
     if model == nil { rebuildModel() }
     text = request.initialText
     model?.update(request.initialText)
-    if mayFocus { isFocused = true }
   }
 
   private var mayFocus: Bool {
