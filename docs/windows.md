@@ -475,7 +475,7 @@ is plain Chromium.
 | `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
 | `contentBlocker.devFailNextMessage`, `devDelayNextLoad` | Default | Mac test hooks. |
 | `engine.beginTracing`, `endTracing`, `isTracing` | Engine | Chromium's tracing controller for Report a Problem. |
-| `engine.cliTabTargets` | Default | The `ardia` command's control is off on Windows (the engine swaps its control file for a stand-in). |
+| `engine.cliTabTargets`, `cliOwnsTab`, `cliMoveOffscreen`, `cliCloseOffscreenTabs` | Default | The `ardia` command's control is off on Windows (the engine swaps its control file for a stand-in), so it opens no tabs to look up, take off-screen or close. |
 | `extensions.resolveInstallPrompt` | Engine | Answers the Web Store's install prompt, which the engine doesn't send to the app on Windows yet. |
 | `extensions.actionStates`, `extensions.sidePanelUrl` | Engine | An extension's toolbar state and side panel for a tab. |
 | `media.displayMediaSources`, `screenRecordingAllowed`, `requestScreenRecording` | Engine | The app's own screen share picker; Chromium's picker shows today. |
