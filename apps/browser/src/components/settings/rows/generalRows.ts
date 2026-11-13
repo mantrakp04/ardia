@@ -137,7 +137,7 @@ export const generalRows = {
       rows: {
         autoHideTabs: {
           title: "Auto-hide tabs",
-          description: "In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. ⌘S and View › Auto-Hide Tabs flip this same switch.",
+          description: "In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. Changing it here resets every window; ⌘S and View › Auto-Hide Tabs hide or show the tabs in one window only.",
           keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
         },
         sidebarSide: {
