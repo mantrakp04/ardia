@@ -1,8 +1,8 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, View, type ViewStyle } from "react-native";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { layout, useTheme } from "../ui/theme";
-import { useActiveTabId, useSettings, useSidebarSide, useTabLive, useWindowFullScreen, useWindowId } from "../../state/browser/hooks";
+import { useActiveTabId, useSettings, useSidebarSide, useTabLive, useWindow, useWindowFullScreen, useWindowId } from "../../state/browser/hooks";
 import { toggleSidebar } from "../../state/windows/actions";
 import { openEmptySidebarField } from "../../state/omnibox/barState";
 import { isAddressBarInSidebar } from "../../state/sidebar/current";
@@ -19,7 +19,7 @@ import { SidebarUrlField, useToolbarTab } from "../toolbar/Toolbar";
 import { HistoryButton, ReloadButton } from "../toolbar/NavButtons";
 import { GLYPH } from "../toolbar/tokens";
 import { HEADER_TOOLS, headerToggleX, navButtonsFitting, type HeaderButton } from "../window/dockMotion";
-import { ARC_LIGHTS_CENTER } from "../../state/windows/dockMotion";
+import { ARC_LIGHTS_CENTER, whenDockStill } from "../../state/windows/dockMotion";
 
 const BUTTON = layout.toolbarButton;
 const { edge: EDGE } = HEADER_TOOLS;
@@ -107,6 +107,13 @@ export function SidebarAddressRow({ width }: { width: number }) {
     field.current?.measureInWindow((x, y, width, height) => {
       if (width && isAddressBarInSidebar(windowId)) setUrlAnchor(windowId, { left: x, top: y, width, sidebar: { height } });
     });
+  const side = useSidebarSide(windowId);
+  const fullScreen = useWindowFullScreen(windowId);
+  const windowWidth = useWindow(windowId, (w) => w?.frame?.[2] ?? 0);
+  useEffect(() => whenDockStill(windowId, () => anchor()), [windowId]);
+  useEffect(() => {
+    anchor();
+  }, [side, fullScreen, windowWidth]);
 
   return (
     <View
