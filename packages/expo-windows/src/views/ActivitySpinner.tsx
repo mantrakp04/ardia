@@ -1,6 +1,7 @@
-import { forwardRef, useCallback, useEffect, useState, type ReactNode } from "react";
+import { forwardRef, useCallback, useEffect, useState } from "react";
 import { Animated, Easing, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
-import { useDark, type AnyProps } from "./shared";
+import type { ActivitySpinnerProps } from "@ardia/shell";
+import { useDark } from "./shared";
 
 const LINE_WIDTH = 1.5;
 const RING_INSET = 1.25 - LINE_WIDTH / 2;
@@ -29,7 +30,7 @@ function stopSpinning() {
   loop = null;
 }
 
-export const ActivitySpinner = forwardRef<View, AnyProps>(function ActivitySpinner({ style, onLayout, children, ...rest }, ref) {
+export const ActivitySpinner = forwardRef<View, ActivitySpinnerProps>(function ActivitySpinner({ style, onLayout, children, ...rest }, ref) {
   const tone = useDark(undefined) ? "dark" : "light";
   const [size, setSize] = useState(0);
   useEffect(() => {
@@ -40,14 +41,14 @@ export const ActivitySpinner = forwardRef<View, AnyProps>(function ActivitySpinn
     (event: LayoutChangeEvent) => {
       const { width, height } = event.nativeEvent.layout;
       setSize(Math.min(width, height));
-      if (typeof onLayout === "function") onLayout(event);
+      onLayout?.(event);
     },
     [onLayout],
   );
   const diameter = Math.max(0, size - 2 * RING_INSET);
   const ring: ViewStyle = { position: "absolute", left: RING_INSET, top: RING_INSET, width: diameter, height: diameter, borderRadius: diameter / 2, borderWidth: LINE_WIDTH };
   return (
-    <View {...rest} ref={ref} onLayout={measure} pointerEvents="none" style={style as ViewStyle}>
+    <View {...rest} ref={ref} onLayout={measure} pointerEvents="none" style={style}>
       {diameter > 0 ? (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <View style={[ring, { borderColor: SECONDARY_TRACK[tone] }]} />
@@ -59,7 +60,7 @@ export const ActivitySpinner = forwardRef<View, AnyProps>(function ActivitySpinn
           />
         </View>
       ) : null}
-      {children as ReactNode}
+      {children}
     </View>
   );
 });

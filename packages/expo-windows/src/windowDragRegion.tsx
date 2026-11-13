@@ -1,16 +1,9 @@
 import { createElement, forwardRef, useContext, useEffect, useMemo, useRef, type ComponentType, type ReactNode } from "react";
-import { RootTagContext, View, type ViewProps } from "react-native";
+import type { WindowDragRegionProps } from "@ardia/shell";
+import { RootTagContext, View } from "react-native";
 import type { EventSubscription } from "./events";
 import { requireNativeModule } from "./modules";
 import type { AppWindowsModule } from "./nativeModuleTypes";
-
-type DragRegionProps = ViewProps & {
-  titleBarDoubleClick?: boolean;
-  onRegionDoubleClick?: () => void;
-  clickable?: boolean;
-  onRegionClick?: () => void;
-};
-
 
 type Press = { nativeEvent: { pageX: number; pageY: number } };
 
@@ -186,7 +179,7 @@ function listenForTitleBandPresses() {
   titleBandPresses ??= windows().addListener("onCaptionPress", titleBandPressed);
 }
 
-export const WindowDragRegion = forwardRef<View, DragRegionProps>(function WindowDragRegion(
+export const WindowDragRegion = forwardRef<View, WindowDragRegionProps>(function WindowDragRegion(
   { titleBarDoubleClick = true, onRegionDoubleClick, clickable, onRegionClick, ...rest },
   ref,
 ) {

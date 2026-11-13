@@ -1,10 +1,11 @@
-import { forwardRef, type ReactNode } from "react";
+import { forwardRef } from "react";
+import type { NativeSurfaceProps } from "@ardia/shell";
 import { View, type ViewStyle } from "react-native";
 import { usePageCover } from "../engine/usePageCover";
 import { parseColor, rgbaString, sampleStops, type Rgba } from "./color";
 import { RoundedShadow } from "./RoundedShadow";
 import { shadowSpec } from "./shadowLayers";
-import { colorOrUndefined, finite, useFirstWindow, type AnyProps } from "./shared";
+import { colorOrUndefined, finite, useFirstWindow } from "./shared";
 
 function gradientBorderSides(colors: unknown): ViewStyle | null {
   if (!Array.isArray(colors) || colors.length < 2) return null;
@@ -16,7 +17,7 @@ function gradientBorderSides(colors: unknown): ViewStyle | null {
 
 const CLEAR_BORDER = "rgba(0,0,0,0)";
 
-export const Surface = forwardRef<View, AnyProps>(function Surface(
+export const Surface = forwardRef<View, NativeSurfaceProps>(function Surface(
   { fill, cornerRadius, borderColor, borderWidth, borderColors, surfaceShadowColor, surfaceShadowOpacity, surfaceShadowRadius, surfaceShadowOffset, style, onLayout, children, ...rest },
   ref,
 ) {
@@ -32,8 +33,8 @@ export const Surface = forwardRef<View, AnyProps>(function Surface(
   const shadow = shadowSpec(surfaceShadowColor, surfaceShadowOpacity, surfaceShadowRadius, offset[0], offset[1]);
   if (!shadow) {
     return (
-      <View {...rest} ref={cover.ref} onLayout={cover.onLayout} style={[face, style as ViewStyle]}>
-        {cover.within(children as ReactNode)}
+      <View {...rest} ref={cover.ref} onLayout={cover.onLayout} style={[face, style]}>
+        {cover.within(children)}
       </View>
     );
   }
@@ -41,10 +42,10 @@ export const Surface = forwardRef<View, AnyProps>(function Surface(
   const around = { top: inset, left: inset, right: inset, bottom: inset };
   const frame: ViewStyle = { borderRadius: corner, ...(border ? { borderWidth: width, borderColor: CLEAR_BORDER } : null) };
   return (
-    <View {...rest} ref={cover.ref} onLayout={cover.onLayout} style={[frame, style as ViewStyle]}>
+    <View {...rest} ref={cover.ref} onLayout={cover.onLayout} style={[frame, style]}>
       <RoundedShadow spec={shadow} cornerRadius={corner} around={around} />
       <View pointerEvents="none" style={[face, { position: "absolute", ...around }]} />
-      {cover.within(children as ReactNode)}
+      {cover.within(children)}
     </View>
   );
 });
