@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { useLastingLoad } from "../../state/tabs/lastingLoad";
 import { usePageProgress } from "../../state/tabs/pageProgress";
-import { noteLoadingFieldShown } from "../../state/telemetry/loadingPill";
+import { notePageOverlay } from "../../state/telemetry/usage";
 import { GradientFill, reduceMotion, type GradientStop } from "../ui";
 import { FIELD_LOAD } from "./tokens";
 
@@ -40,7 +40,7 @@ export const FieldLoadFill = memo(function FieldLoadFill({ tabId, color, height,
   useEffect(() => {
     if (!mounted) return;
     if (loading) {
-      noteLoadingFieldShown();
+      notePageOverlay("loadingField");
       filled.setValue(0);
       comet.setValue(0);
       Animated.timing(opacity, { toValue: 1, ...motion.show, useNativeDriver: true }).start();
