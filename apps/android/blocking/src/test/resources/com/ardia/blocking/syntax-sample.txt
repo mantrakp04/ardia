@@ -1,0 +1,63 @@
+[Adblock Plus 2.0]
+! Title: EasyList
+! Comment line ||ignored.com^
+# hosts comment
+0.0.0.0 hosts.example
+127.0.0.1 localhost
+||doubleclick.net^
+||ads.example.com^$third-party
+||tracker.example^$script,image,domain=news.example|blog.example
+||mixed.example^$domain=a.example|~b.example
+||guarded.example^$domain=site.example|other.example|~account.site.example
+||walled.example^$domain=site.example|~account.site.example
+||popunder.example^$popup
+||frames.example^$subdocument
+||notscript.example^$~script
+||sockets.example^$xhr,websocket,ping
+||page.example^$doc
+||CaseTest.example/Path$match-case
+||redirect.example/ad.js$script,redirect=noopjs
+||csp.example^$csp=script-src 'none'
+||removeparam.example^$removeparam=utm_source
+||badfilter.example^
+||badfilter.example^$badfilter
+||important.example^$important
+||path.example/ads/*.js
+|https://cdn.example/ads/
+/banner/*/img^
+/^https?:\/\/ad[0-9]+\.example\//$script
+/ad(s|vert)/
+ad
+||ADS.UPPER.example^
+@@||cdn.example.com^$script
+@@||important.example^
+@@||trusted.example^$document
+@@||news.example^$elemhide
+##.ad-banner
+##.ad-banner
+###sponsored-box
+##div[id^="google_ads_iframe"]
+##.card:has(> .sponsored)
+##.adsbox:-abp-has(.foo)
+##a[href*="click"]:has-text(Sponsored)
+##::selection
+##.broken[
+example.com##.local-ad
+example.com,shop.example.com##.shop-ad
+example.com,~sub.example.com##.scoped-mixed
+~excluded.example##.everywhere-but
+example.com#@#.local-ad
+news.example#@#.promo-box
+##.promo-box
+shop.example,blog.example##.promo-box
+~kept.example##.promo-box
+~excluded.example#@#.never-excepted
+#@#.adsbox
+##.adsbox
+example.com#?#.procedural:has-text(Ad)
+example.com#$#.inject { display: none }
+example.com##+js(nobab)
+##^script:has-text(ad)
+bücher.example##.idn
+google.*##.tld-entity
+||xn--bcher-kva.example^

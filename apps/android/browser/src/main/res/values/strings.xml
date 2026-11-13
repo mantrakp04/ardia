@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="request_this_page_says">This Page Says</string>
+    <string name="request_open_in_app">Open in “%1$s”?</string>
+    <string name="request_proxy_sign_in">Proxy Sign In</string>
+    <string name="request_sign_in_to">Sign In to “%1$s”</string>
+    <string name="request_camera">“%1$s” Would Like to Access the Camera</string>
+    <string name="request_microphone">“%1$s” Would Like to Access the Microphone</string>
+    <string name="request_camera_and_microphone">“%1$s” Would Like to Access the Camera and Microphone</string>
+    <string name="request_location">“%1$s” Would Like to Use Your Current Location</string>
+    <string name="request_choose_file">Choose a File</string>
+    <string name="request_choose_files">Choose Files</string>
+    <string name="request_sign_in_failed">The user name or password you entered isn’t correct. Try again.</string>
+    <string name="request_sign_in_unencrypted">Your password will be sent unencrypted.</string>
+    <string name="request_sign_in_secure">Your login information will be sent securely to “%1$s”.</string>
+    <string name="app_phone">Phone</string>
+    <string name="app_email">Email</string>
+    <string name="app_messages">Messages</string>
+    <string name="app_maps">Maps</string>
+    <string name="app_store">Play Store</string>
+    <string name="app_other">Another App</string>
+    <string name="failure_network_title">This Webpage Couldn’t Load</string>
+    <string name="failure_offline_title">You’re Offline</string>
+    <string name="failure_crashed_title">This Page Stopped Working</string>
+    <string name="failure_crashed_message">Try again, or come back to it later.</string>
+    <string name="failure_offline_message">The page will load when you’re back online.</string>
+    <string name="failure_host_not_found">The server can’t be found. Check the address and try again.</string>
+    <string name="failure_timed_out">The server took too long to respond. Try again later.</string>
+    <string name="failure_connection_lost">The server stopped responding. Try again later.</string>
+    <string name="failure_not_private">This connection isn’t private, so the page wasn’t opened.</string>
+    <string name="failure_other">Something went wrong while loading this page. Try again.</string>
+    <string name="download_fallback_name">Download</string>
+</resources>
