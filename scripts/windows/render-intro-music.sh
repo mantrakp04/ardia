@@ -46,6 +46,6 @@ SWIFT
 swiftc -O -o "$work/render" "$work/IntroMusic.swift" "$work/main.swift" -framework AVFoundation -framework QuartzCore
 "$work/render" "$cues" "$work/raw.caf"
 afconvert -f WAVE -d LEI16@44100 -c 2 "$work/raw.caf" "$repo/apps/browser/windows/Ardia/IntroMusic.wav"
-source="$(cat "$repo/packages/shell/ios/IntroMusic.swift" "$repo/scripts/windows/render-intro-music.sh" | shasum -a 256 | cut -d' ' -f1)"
+source="$(cat "$repo/packages/shell/ios/IntroMusic.swift" "$repo/scripts/windows/render-intro-music.sh" | tr -d '\r' | shasum -a 256 | cut -d' ' -f1)"
 printf '{"cues":%s,"source":"%s"}\n' "$cues" "$source" > "$repo/apps/browser/windows/Ardia/IntroMusic.json"
 ls -l "$repo/apps/browser/windows/Ardia/IntroMusic.wav"

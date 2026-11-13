@@ -10,9 +10,10 @@ const repo = new URL("../../../../../", import.meta.url);
 test("the Windows intro music was rendered with the intro's cues and the Mac's current synthesis (scripts/windows/render-intro-music.sh)", () => {
   const rendered = JSON.parse(readFileSync(new URL("IntroMusic.json", windows), "utf8"));
   assert.deepEqual(rendered.cues, INTRO_CUES);
+  const withUnixLineEndings = (path) => readFileSync(new URL(path, repo), "utf8").replaceAll("\r", "");
   const source = createHash("sha256")
-    .update(readFileSync(new URL("packages/shell/ios/IntroMusic.swift", repo)))
-    .update(readFileSync(new URL("scripts/windows/render-intro-music.sh", repo)))
+    .update(withUnixLineEndings("packages/shell/ios/IntroMusic.swift"))
+    .update(withUnixLineEndings("scripts/windows/render-intro-music.sh"))
     .digest("hex");
   assert.equal(rendered.source, source, "IntroMusic.swift or the render script changed: run scripts/windows/render-intro-music.sh");
   const wav = readFileSync(new URL("IntroMusic.wav", windows));
