@@ -118,10 +118,7 @@ export const showAllKey = (folderId: string, section: string) => `${folderId}:${
 
 const SAVE_DELAY_MS = 800;
 let timer: ReturnType<typeof setTimeout> | undefined;
-const persisted = () => {
-  const s = live();
-  return versionedJson(Object.fromEntries(PERSISTED.map((k) => [k, s[k]])), DOC_VERSION);
-};
+const persisted = (s = live()) => versionedJson(Object.fromEntries(PERSISTED.map((k) => [k, s[k]])), DOC_VERSION);
 
 function save() {
   clearTimeout(timer);
