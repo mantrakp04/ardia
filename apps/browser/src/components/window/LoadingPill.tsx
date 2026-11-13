@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, View } from "react-native";
 import { useTabLive } from "../../state/browser/hooks";
-import { noteLoadingPillLong, noteLoadingPillShown } from "../../state/telemetry/loadingPill";
+import { noteLoadingPillLong, noteLoadingPillShown, noteLoadingPillSkipped } from "../../state/telemetry/loadingPill";
 import { capsule, reduceMotion, useTheme } from "../ui";
 import { Hud } from "./Hud";
 import { LOADING_PILL } from "./tokens";
@@ -10,9 +10,28 @@ const { width, height, top, track, motion } = LOADING_PILL;
 const FULL = 1;
 const WIPED = 2;
 
+function useLastingLoad(tabId: string) {
+  const loading = useTabLive(tabId, (live) => live.isLoading);
+  const [lasting, setLasting] = useState(false);
+  useEffect(() => {
+    if (!loading) return;
+    let lasted = false;
+    const wait = setTimeout(() => {
+      lasted = true;
+      setLasting(true);
+    }, LOADING_PILL.showAfterMs);
+    return () => {
+      clearTimeout(wait);
+      if (!lasted) noteLoadingPillSkipped();
+      setLasting(false);
+    };
+  }, [loading]);
+  return loading && lasting;
+}
+
 export function LoadingPill({ tabId }: { tabId: string }) {
   const theme = useTheme();
-  const loading = useTabLive(tabId, (live) => live.isLoading);
+  const loading = useLastingLoad(tabId);
   const [mounted, setMounted] = useState(loading);
   if (loading && !mounted) setMounted(true);
   const opacity = useRef(new Animated.Value(0)).current;
