@@ -31,7 +31,7 @@ final class ContextMenuArea: ExpoView {
   }
 
   private func openMenu(for press: NSEvent) {
-    PressRelease.cancelPress(press, in: self)
+    PressRelease.releasePressForMenu(press, in: self)
     onContextMenu([:])
   }
 
@@ -40,7 +40,7 @@ final class ContextMenuArea: ExpoView {
 
 enum PressRelease {
   private static let handlerOfView = NSSelectorFromString("touchHandlerForView:")
-  private static let cancelTouch = NSSelectorFromString("cancelTouchWithEvent:")
+  private static let releaseForMenu = NSSelectorFromString("ardia_releaseTouchForMenuWithEvent:")
   private static let cancelledWithoutRelease = "ardia_touchesCancelledWithoutRelease"
   private static let repeatWithin: TimeInterval = 3
   private static let repeatDistance: CGFloat = 12
@@ -81,10 +81,10 @@ enum PressRelease {
     return (handlers.value(forKey: cancelledWithoutRelease) as? NSNumber)?.intValue ?? 0
   }
 
-  static func cancelPress(_ press: NSEvent, in view: NSView) {
+  static func releasePressForMenu(_ press: NSEvent, in view: NSView) {
     guard let handlers = NSClassFromString("RCTTouchHandler") as AnyObject?, handlers.responds(to: handlerOfView),
-          let handler = handlers.perform(handlerOfView, with: view)?.takeUnretainedValue(), handler.responds(to: cancelTouch)
+          let handler = handlers.perform(handlerOfView, with: view)?.takeUnretainedValue(), handler.responds(to: releaseForMenu)
     else { return }
-    _ = handler.perform(cancelTouch, with: press)
+    _ = handler.perform(releaseForMenu, with: press)
   }
 }
