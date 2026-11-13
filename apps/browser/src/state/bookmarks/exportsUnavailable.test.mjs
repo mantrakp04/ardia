@@ -40,24 +40,19 @@ function entryPoints(onWindows) {
   return JSON.parse(run.stdout.trim().split("\n").at(-1));
 }
 
-test("on Windows no menu, bar action, command, shortcut or Settings row offers either export", () => {
-  assert.deepEqual(entryPoints(true), {
-    unavailable: true,
-    bar: false,
-    organize: ["bookmark", "folder", "import"],
-    unshown: ["general.exportBookmarks", "passwords.exportPasswords"],
-    cli: false,
-    menuDisabled: true,
-  });
+const EVERY_ENTRY_POINT = {
+  unavailable: false,
+  bar: true,
+  organize: ["bookmark", "folder", "import", "export"],
+  unshown: [],
+  cli: true,
+  menuDisabled: false,
+};
+
+test("on Windows every export entry point is offered, now that the password export confirms over the app window", () => {
+  assert.deepEqual(entryPoints(true), EVERY_ENTRY_POINT);
 });
 
 test("on the Mac every export entry point stays", () => {
-  assert.deepEqual(entryPoints(false), {
-    unavailable: false,
-    bar: true,
-    organize: ["bookmark", "folder", "import", "export"],
-    unshown: [],
-    cli: true,
-    menuDisabled: false,
-  });
+  assert.deepEqual(entryPoints(false), EVERY_ENTRY_POINT);
 });
