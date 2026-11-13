@@ -107,6 +107,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Whether a sent problem report's recording showed its window's Picture in Picture, and how many of Ardia's other windows over it the recording left out. Never what was in them",
       "Once a day, your on/off, pick-one and number settings (like light or dark, glass or classic, borderless mode, how much tint, and whether text adjusts to your colour), which app icon you picked, each with its default, how many of your profiles use a custom colour, and how many sites you hid unread counts for. Never addresses, names, colours, search engines or anything you typed",
       "How many times ⌘W closed several selected sidebar tabs at once and how many tabs that closed, summed up once an hour. Never which tabs",
+      "How many times you dragged a profile to a new place in the sidebar's profile switcher, summed up once an hour. Never which profile or its name",
       "Bringing your last window back from the Dock or at launch: how many tabs came back and how long it was closed, in rough ranges, and whether a pinned tab was showing",
     ],
   },
