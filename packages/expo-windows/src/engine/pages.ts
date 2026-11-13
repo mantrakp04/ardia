@@ -25,6 +25,7 @@ type Page = {
   mounts: number;
   parked: boolean;
   closed: boolean;
+  focusAsked: number;
 };
 
 type OpenedTab = { adopt?: unknown; url?: unknown; foreground?: unknown; window?: unknown; opener?: unknown; profile?: unknown; fromClick?: unknown; point?: unknown };
@@ -32,11 +33,13 @@ type Point = { x: number; y: number };
 type TabEvent = { key?: unknown; name?: unknown; data?: unknown };
 
 const SAME_LOAD_MS = 2000;
+const FOCUS_WAITS_FOR_SHOW_MS = 1500;
 
 const pages = new Map<string, Page>();
 const closings = new Map<string, Promise<void>>();
 const pressListeners = new Set<(windowId: string) => void>();
 let listening = false;
+let lastAskedToFocus: Page | null = null;
 
 export function onPagePress(listener: (windowId: string) => void): () => void {
   pressListeners.add(listener);
@@ -138,11 +141,17 @@ function sendShow(page: Page): Promise<unknown> | undefined {
   return hostCall("tab.show", args, page.windowId);
 }
 
+const focusWaits = (page: Page) => lastAskedToFocus === page && page.focusAsked > 0 && Date.now() - page.focusAsked < FOCUS_WAITS_FOR_SHOW_MS;
+
 function askShow(page: Page, args: ShowArgs) {
   page.show = args;
   quietly(
     page.ready.then((opened) => {
-      if (opened && page.show === args) return sendShow(page);
+      if (!opened || page.show !== args) return;
+      const sent = sendShow(page);
+      if (!args.visible || !focusWaits(page)) return sent;
+      page.focusAsked = 0;
+      return Promise.resolve(sent).then(() => (page.closed ? undefined : hostCall("tab.call", { key: page.key, method: "focus" })));
     }),
   );
 }
@@ -166,6 +175,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
       mounts: 0,
       parked: false,
       closed: false,
+      focusAsked: 0,
     };
     page.ready = begin(page, from);
     pages.set(key, page);
@@ -199,6 +209,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
 function closePage(page: Page) {
   if (page.closed) return;
   page.closed = true;
+  if (lastAskedToFocus === page) lastAskedToFocus = null;
   if (pages.get(page.key) === page) pages.delete(page.key);
   const closing: Promise<void> = page.ready
     .then(() => hostCall("tab.close", { key: page.key }))
@@ -240,6 +251,11 @@ export function callPage<Result = unknown>(key: string, method: string, args: Re
   if (!page || page.closed) return Promise.resolve(null);
   if (method === "loadUrl" && args.url === page.started.url && Date.now() - page.started.at < SAME_LOAD_MS) return Promise.resolve(null);
   if (method === "loadUrl") noteLoadAsked(page.opening, args.url);
+  if (method === "focus") {
+    lastAskedToFocus = page;
+    page.focusAsked = page.show?.visible ? 0 : Date.now();
+    if (page.focusAsked) return Promise.resolve(null);
+  }
   const ready = REOPENING_METHODS.has(method) ? readyOrReopened(page, args.url) : page.ready;
   return ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));
 }

@@ -233,9 +233,11 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "openSplitPane":
       return void openSplitPane(windowId);
     case "focusNextPane":
-    case "focusPreviousPane":
+    case "focusPreviousPane": {
+      const before = activeTabId(s, windowId);
       s.focusPane(windowId, command === "focusNextPane" ? 1 : -1);
-      return returnFocusToPage(windowId);
+      return activeTabId(useBrowser.getState(), windowId) === before ? undefined : returnFocusToPage(windowId);
+    }
     case "toggleSidebar":
       return s.toggleSidebar(windowId);
     case "zoomIn":
