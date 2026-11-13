@@ -167,9 +167,16 @@ export function removeTabs(s: BrowserState, ids: string[], record: boolean): Bro
   for (const w of Object.values(next.windows)) {
     const id = w.activeTabIds[w.profileId];
     const t = id ? next.tabs[id] : undefined;
-    if (t && needsPage(t)) next = apply(next, activated(next, t.id));
+    if (!t) continue;
+    if (needsPage(t)) next = apply(next, activated(next, t.id));
+    else if (gone.has(s.windows[w.id]?.activeTabIds[w.profileId] ?? "")) next = apply(next, { tabs: { ...next.tabs, [t.id]: usedNow(t, now) } });
   }
   return next;
+}
+
+function usedNow(tab: Tab, now: number): Tab {
+  const { unseen: _, ...seen } = tab;
+  return { ...seen, lastActiveAt: now };
 }
 
 function otherPane(s: BrowserState, closedId: string, gone: Set<string>): string | undefined {

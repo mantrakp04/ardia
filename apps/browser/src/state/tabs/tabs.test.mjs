@@ -96,6 +96,34 @@ test("a tab opened behind and never shown is not 'the tab you were on' when clos
   assert.equal(model.activeTabId(S(), w), behind, "with nothing else left it is the tab below");
 });
 
+test("the tab a close reveals counts as the tab you were on, so the next close returns to it", (t) => {
+  clocked(t);
+  reset();
+  const [w, x, a, b] = setup("x", "a", "b");
+  S().activate(a);
+  S().activate(b);
+  S().createSplit([x, b]);
+  S().closeTab(b);
+  assert.equal(shown(w), "x", "the other pane of the split");
+  const d = S().newTab(w, { url: "https://d.com" });
+  S().closeTab(d);
+  assert.equal(shown(w), "x", "not the older tab a");
+});
+
+test("a tab shown by its opener rule counts as used too", (t) => {
+  clocked(t);
+  reset();
+  const [w, a, b] = setup("a", "b");
+  S().activate(a);
+  S().activate(b);
+  const c = open(w, "c", a, false);
+  S().closeTab(c);
+  assert.equal(shown(w), "a", "back to the opener");
+  const d = S().newTab(w, { url: "https://d.com" });
+  S().closeTab(d);
+  assert.equal(shown(w), "a", "not b, which was used before a");
+});
+
 test("closing several tabs at once shows the most recently used tab left", (t) => {
   clocked(t);
   reset();
