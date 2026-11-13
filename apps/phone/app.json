@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Ardia",
+    "slug": "ardia-phone",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.ardia.browser.android",
+      "edgeToEdgeEnabled": true
+    }
+  }
+}

@@ -1,0 +1,128 @@
+package com.ardia.phone
+
+import android.content.Context
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import com.ardia.browser.Page
+import com.ardia.browser.PageColors
+import com.ardia.browser.PageSetup
+import com.ardia.browser.PageState
+import com.ardia.browser.PageTone
+import com.ardia.browser.VisitKind
+import expo.modules.kotlin.AppContext
+import expo.modules.kotlin.viewevent.EventDispatcher
+import expo.modules.kotlin.views.ExpoView
+import kotlin.math.roundToInt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+
+class PageView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
+    private val onPageEvent by EventDispatcher()
+    private val host = FrameLayout(context)
+    private var scope: CoroutineScope? = null
+    private var sampled: PageTone? = null
+    private var sentTone: PageTone? = null
+
+    var pageId: String? = null
+    var initialUrl: String? = null
+    var toneInsets: Pair<Double, Double> = 0.0 to 0.0
+    var page: Page? = null
+        private set
+
+    init {
+        addView(host, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
+    fun bind() {
+        val id = pageId ?: return
+        if (page?.id == id) return
+        unbind()
+        val opened = PhonePages.engine(context).open(id, initialUrl?.let { PageSetup.fresh(it, VisitKind.Typed) } ?: PageSetup())
+        page = opened
+        val running = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        scope = running
+        running.launch { opened.view.collect(::show) }
+        running.launch { opened.state.collect(::sendState) }
+        running.launch { sampleTone(opened) }
+    }
+
+    fun unbind() {
+        scope?.cancel()
+        scope = null
+        page = null
+        sampled = null
+        sentTone = null
+        host.removeAllViews()
+    }
+
+    private fun show(view: View?) {
+        if (view != null && view.parent === host && host.childCount == 1) return
+        host.removeAllViews()
+        if (view == null) return
+        (view.parent as? ViewGroup)?.removeView(view)
+        host.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
+    private fun sendState(state: PageState) {
+        onPageEvent(
+            buildMap {
+                put("name", "state")
+                state.url?.let { put("url", it) }
+                put("title", state.title)
+                put("progress", state.progress.toDouble())
+                put("isLoading", state.isLoading)
+                put("canGoBack", state.canGoBack)
+                put("canGoForward", state.canGoForward)
+            },
+        )
+        sendTone(state)
+    }
+
+    private fun sendTone(state: PageState) {
+        val tone = PageTone.resolve(state.themeColor, state.backgroundColor, sampled, stored = null)
+        if (tone == sentTone || (tone.top == null && tone.bottom == null)) return
+        sentTone = tone
+        onPageEvent(
+            buildMap {
+                put("name", "tone")
+                tone.top?.let { put("top", PageColors.hex(it)) }
+                tone.bottom?.let { put("bottom", PageColors.hex(it)) }
+            },
+        )
+    }
+
+    private suspend fun sampleTone(page: Page) {
+        page.state.map { Triple(it.isLoading, it.scrollDirection, it.isScrolledToTop) }.distinctUntilChanged().collectLatest { (loading, _, _) ->
+            if (loading) return@collectLatest
+            delay(TONE_SETTLE_MILLIS)
+            val density = resources.displayMetrics.density
+            val (top, bottom) = toneInsets
+            sampled = page.sampleTone((top * density).roundToInt(), (bottom * density).roundToInt()) ?: return@collectLatest
+            sendTone(page.state.value)
+        }
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        host.layout(0, 0, r - l, b - t)
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        host.measure(
+            MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY),
+        )
+    }
+
+    private companion object {
+        const val TONE_SETTLE_MILLIS = 250L
+    }
+}

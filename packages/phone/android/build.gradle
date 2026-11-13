@@ -1,0 +1,35 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.ardia.phone'
+version = '0.0.0'
+
+def pageEngine = file("${projectDir}/../../../apps/android/browser/src/main")
+def pageEngineOutsideThisModule = ['**/Omnibox.kt', '**/PageSurface.kt']
+
+android {
+  namespace "com.ardia.browser"
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.0"
+  }
+  sourceSets {
+    main {
+      java.srcDirs += "${pageEngine}/kotlin"
+      assets.srcDirs += "${pageEngine}/assets"
+      res.srcDirs += "${pageEngine}/res"
+    }
+  }
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+  exclude(pageEngineOutsideThisModule)
+}
+
+dependencies {
+  implementation "androidx.webkit:webkit:1.18.0"
+  implementation "com.squareup.okhttp3:okhttp:4.12.0"
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
+}

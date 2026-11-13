@@ -1,0 +1,16 @@
+{
+  "name": "@ardia/phone-native",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The phone app's native views and modules: the page view today",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

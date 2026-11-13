@@ -1,0 +1,10 @@
+.DS_Store
+build/
+.idea
+.gradle
+.kotlin/
+local.properties
+*.iml
+*.hprof
+.cxx/
+*.jsbundle
