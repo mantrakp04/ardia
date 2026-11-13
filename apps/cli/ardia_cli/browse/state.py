@@ -165,6 +165,7 @@ class State:
         self.frames.pop(target_id, None)
         self.target_infos.pop(target_id, None)
         self.extras.get("views", {}).pop(target_id, None)
+        self.set_offscreen(target_id, False)
         for label, owner in list(self.labels.items()):
             if owner == target_id:
                 del self.labels[label]
@@ -175,6 +176,20 @@ class State:
             self.current = None
         self.app_tabs.pop(target_id, None)
         self.app_generations.pop(target_id, None)
+
+    @property
+    def offscreen(self) -> set:
+        return self.extras.setdefault("offscreen", set())
+
+    def set_offscreen(self, target_id: str, offscreen: bool):
+        if offscreen:
+            self.offscreen.add(target_id)
+        else:
+            self.offscreen.discard(target_id)
+        if self.offscreen:
+            self.leases.add("offscreen")
+        else:
+            self.leases.discard("offscreen")
 
     def tab_id(self, target_id: str) -> str:
         if target_id not in self.tab_ids:
@@ -189,8 +204,14 @@ class State:
         if session_id:
             page = self.sessions.get(session_id)
             if page is not None:
-                if method in ("Inspector.detached", "Inspector.targetCrashed"):
+                if method == "Inspector.detached":
                     page.detach()
+                    return
+                if method == "Inspector.targetCrashed":
+                    page.mark_crashed()
+                    return
+                if method == "Inspector.targetReloadedAfterCrash":
+                    page.crashed = False
                     return
                 page.on_event(method, params)
             return
@@ -239,6 +260,8 @@ class State:
             page = self.pages[target_id] = Page(self, target_id)
         if page.session_id is None or page.browser is not self.browser:
             await page.attach(self.browser)
+        if page.needs_enable and not page.crashed:
+            await page.enable_page()
         self.extras["had_tab"] = True
         command_metrics.spent("attach_ms", started)
         return page

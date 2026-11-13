@@ -167,7 +167,7 @@ bool TokenClient::FilterEvent(std::string& message) {
     }
     return method != "Target.receivedMessageFromTarget";
   }
-  if (outstanding_.empty() && own_commands_.empty()) {
+  if (outstanding_.empty()) {
     return true;
   }
   std::optional<int> id = ParseResponseId(view);
@@ -188,9 +188,6 @@ bool TokenClient::FilterEvent(std::string& message) {
       session = *found;
     }
   }
-  if (own_commands_.erase({session, *id})) {
-    return false;
-  }
   auto it = outstanding_.find({session, *id});
   if (it == outstanding_.end()) {
     return true;
@@ -206,9 +203,6 @@ bool TokenClient::FilterEvent(std::string& message) {
 void TokenClient::ForgetSession(const std::string& session) {
   std::erase_if(outstanding_, [&](const auto& entry) {
     return entry.first.first == session;
-  });
-  std::erase_if(own_commands_, [&](const auto& entry) {
-    return entry.first == session;
   });
 }
 
@@ -243,22 +237,30 @@ bool TokenClient::FilterResponse(int id,
         return !info.is_dict() ||
                !IsWebTarget(info.GetDict().FindString("targetId"));
       });
+      for (base::Value& info : *infos) {
+        if (IsOffscreenTarget(info.GetDict().FindString("targetId"))) {
+          info.GetDict().Set("ardiaOffscreen", true);
+        }
+      }
       message = base::WriteJson(response).value_or(std::string());
     }
     return !message.empty();
   }
   if (method == "Target.getTargetInfo") {
-    const base::DictValue* info = result->FindDict("targetInfo");
+    base::DictValue* info = result->FindDict("targetInfo");
     if (info && !IsWebTarget(info->FindString("targetId"))) {
       message = ErrorReply(id, session, kRefused,
                            "ardia: Target.getTargetInfo on that target "
                            "isn't allowed for the ardia command");
+    } else if (info && IsOffscreenTarget(info->FindString("targetId"))) {
+      info->Set("ardiaOffscreen", true);
+      message = base::WriteJson(response).value_or(std::string());
     }
-    return true;
+    return !message.empty();
   }
   if (method == "Target.createTarget") {
     if (const std::string* target_id = result->FindString("targetId")) {
-      NoteCliOwnedTarget(*target_id);
+      NoteCliOwnedTarget(*target_id, this);
     }
     return true;
   }

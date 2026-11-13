@@ -4,9 +4,8 @@
 #define ARDIA_CORE_AC_HOST_VISIBILITY_H_
 
 #include <optional>
-#include <string>
 
-#include "base/functional/callback.h"
+class BrowserWindowInterface;
 
 namespace content {
 class WebContents;
@@ -18,15 +17,13 @@ void NoteTabShownByHost(content::WebContents* contents, bool shown);
 
 std::optional<bool> ShownByHost(content::WebContents* contents);
 
-bool NoteTabInShownSlot(content::WebContents* contents);
+void NoteTabInShownSlot(content::WebContents* contents);
 
 bool TabWasInShownSlot(content::WebContents* contents);
 
-void WhenTabSizeRestored(
-    content::WebContents* contents,
-    base::OnceCallback<void(const std::string&)> restored);
+bool IsAutomationWindow(const BrowserWindowInterface* browser);
 
-void WatchTabsInShownSlot(bool (*emulated)(content::WebContents*));
+bool InAutomationWindow(content::WebContents* contents);
 
 void StartHostVisibility();
 
