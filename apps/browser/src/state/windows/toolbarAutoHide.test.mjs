@@ -27,9 +27,9 @@ function page({ range = 2000, height = 800 } = {}) {
     sent,
     d,
     listeners,
-    to(y, { dt = 16, viewport = height, max = range, user = true, snap = "none" } = {}) {
+    to(y, { dt = 16, viewport = height, max = range, user = true, snap = "none", vertical = false } = {}) {
       clock.now += dt;
-      const state = d.scrolled(y, max, viewport, clock.now, user, snap);
+      const state = d.scrolled(y, max, viewport, clock.now, user, snap, vertical);
       if (state) sent.push(state);
       return state;
     },
@@ -260,6 +260,19 @@ test("horizontal snapping, proximity snapping and no snapping still hide it", ()
   }
 });
 
+test("in a vertical writing mode the logical axes swap: inline snaps vertically and block horizontally", () => {
+  const sentFor = (snap, vertical) => {
+    const p = page({ range: 20000 });
+    p.wheel(100);
+    for (let step = 1; step <= 4; step++) p.to(step * 200, { snap, vertical });
+    return p.sent;
+  };
+  for (const snap of ["inline mandatory", "y mandatory", "both mandatory"]) assert.deepEqual(sentFor(snap, true), [], `vertical ${snap}`);
+  for (const snap of ["block mandatory", "x mandatory", "inline proximity", "none"]) assert.deepEqual(sentFor(snap, true), ["down"], `vertical ${snap}`);
+  for (const snap of ["block mandatory", "y mandatory", "both mandatory"]) assert.deepEqual(sentFor(snap, false), [], `horizontal ${snap}`);
+  for (const snap of ["inline mandatory", "x mandatory"]) assert.deepEqual(sentFor(snap, false), ["down"], `horizontal ${snap}`);
+});
+
 test("a page that stops snapping mandatorily hides it again, and a feed still shows it going back up", () => {
   const p = page({ range: 20000 });
   p.wheel(100);
@@ -278,15 +291,15 @@ test("a page that stops snapping mandatorily hides it again, and a feed still sh
 const tail = script.match(/const scrollDirection = [\s\S]*?(?=\n {2}return receive;)/)?.[0];
 assert.ok(tail, "page_script.js ends with the scroll detector and its wiring");
 
-function feedPage({ viewport = "none", scroller = "none", scrolls = "viewport" } = {}) {
+function feedPage({ viewport = "none", scroller = "none", scrolls = "viewport", writing = "horizontal-tb" } = {}) {
   const listeners = {};
   const frames = [];
   const sent = [];
   const clock = { now: 1000 };
   const size = { clientHeight: 800, clientWidth: 1200, scrollHeight: 20800, scrollTop: 0 };
-  const html = { ...size, snap: viewport };
-  const bodyEl = { ...size, snap: "none" };
-  const inner = { ...size, snap: scroller };
+  const html = { ...size, snap: viewport, writing: scrolls === "inner" ? "horizontal-tb" : writing };
+  const bodyEl = { ...size, snap: "none", writing: "horizontal-tb" };
+  const inner = { ...size, snap: scroller, writing: scrolls === "inner" ? writing : "horizontal-tb" };
   const document = { documentElement: html, body: bodyEl, scrollingElement: scrolls === "body" ? bodyEl : html };
   const run = new Function(
     "addEventListener",
@@ -306,7 +319,7 @@ function feedPage({ viewport = "none", scroller = "none", scrolls = "viewport" }
     document,
     (fn) => fn,
     (kind, data) => kind === "scroll" && sent.push(data.state),
-    (el) => ({ scrollSnapType: el.snap }),
+    (el) => ({ scrollSnapType: el.snap, writingMode: el.writing }),
     800,
     1200,
     (frame) => frames.push(frame),
@@ -338,6 +351,16 @@ test("the scroller's own scroll-snap-type decides, read from the element that sc
   assert.deepEqual(swipes(feedPage({ scrolls: "inner", scroller: "none", viewport: "y mandatory" })), downs, "the page's own snap doesn't speak for an inner scroller");
   assert.deepEqual(swipes(feedPage({ scrolls: "inner", scroller: "x mandatory" })), downs, "an inner carousel");
   assert.deepEqual(swipes(feedPage({ scrolls: "inner" })), downs, "an inner scroller with no snapping");
+});
+
+test("the writing mode of the element that snaps decides which axis block and inline mean", () => {
+  const vertical = { writing: "vertical-rl" };
+  assert.deepEqual(swipes(feedPage({ viewport: "inline mandatory", ...vertical })), [], "a vertical page snapping on its inline axis");
+  assert.deepEqual(swipes(feedPage({ viewport: "block mandatory", ...vertical })), downs, "a vertical page snapping on its block axis");
+  assert.deepEqual(swipes(feedPage({ scrolls: "inner", scroller: "inline mandatory", ...vertical })), [], "an inner vertical feed");
+  assert.deepEqual(swipes(feedPage({ scrolls: "inner", scroller: "block mandatory", ...vertical })), downs, "an inner vertical carousel");
+  assert.deepEqual(swipes(feedPage({ scrolls: "inner", scroller: "block mandatory" })), [], "a horizontal-writing inner feed");
+  assert.deepEqual(swipes(feedPage({ viewport: "block mandatory", scrolls: "body", ...vertical })), downs, "the root's writing mode, with the body scrolling");
 });
 
 test("a page whose viewport snaps takes its scroll-snap-type from the root element", () => {
