@@ -212,14 +212,6 @@ std::string TokenClient::Refusal(const std::string& method,
     if (!IsWebTarget(params.FindString("targetId"))) {
       return "on that target";
     }
-    if (method == "Target.activateTarget") {
-      ExpectCliActivation(*params.FindString("targetId"));
-    }
-  } else if (method == "Page.bringToFront") {
-    auto target = targets_.find(session);
-    if (target != targets_.end()) {
-      ExpectCliActivation(target->second);
-    }
   } else if (method == "Target.getTargetInfo") {
     if (params.Find("targetId") &&
         !IsWebTarget(params.FindString("targetId"))) {
@@ -249,7 +241,7 @@ std::string TokenClient::Refusal(const std::string& method,
                                   ? CliTabOwner::kNobody
                                   : CliOwnerOfTarget(target->second);
     if (owner == CliTabOwner::kUser) {
-      return "on a tab the user took over";
+      return "on a tab the user can see";
     }
     if (owner != CliTabOwner::kCommand) {
       return "on a tab the ardia command didn't open";

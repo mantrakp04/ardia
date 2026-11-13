@@ -363,6 +363,7 @@ ARDIACORE_EXPORT
 - (void)copyPicture:(NSTimeInterval)timeout completion:(void (^)(CGImageRef _Nullable picture))completion;
 - (BOOL)stopCapture;
 - (void)noteShownByHost:(BOOL)shown;
+- (void)noteInShownSlot;
 - (void)exitFullscreen;
 - (void)exitExclusiveAccess;
 - (void)tracePictureInPicture:(NSString*)line withInputs:(BOOL)withInputs;

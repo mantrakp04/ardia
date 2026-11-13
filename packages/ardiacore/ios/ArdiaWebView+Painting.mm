@@ -215,6 +215,7 @@ BOOL Above(NSView *a, NSView *b) {
 
 - (void)applyPainting {
   if (_frameHold.awaiting && !_visible && !_reveal.active) [self finishFrameHold];
+  if (_visible && _tab && self.window && _tab.view.superview == self) [_tab noteInShownSlot];
   if (_visible) [self sinkLingeringPane];
   if (_visible) [self takeFocusFromLingeringPane];
   [self beginFrameHoldIfCold];

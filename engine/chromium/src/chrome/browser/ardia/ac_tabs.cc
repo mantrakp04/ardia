@@ -12,7 +12,6 @@
 #include "base/no_destructor.h"
 #include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/ardia/ac_cli_owned_tabs.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -137,13 +136,9 @@ class StripWatcher : public BrowserCollectionObserver,
     if (selection.active_tab_changed()) {
       picked_[model] = change.type() == TabStripModelChange::kRemoved;
     }
-    if (change.type() == TabStripModelChange::kInserted) {
-      CliTabsMoved();
-    }
     Report(model);
   }
   void OnTabPinnedStateChanged(tabs::TabInterface* tab, int index) override {
-    CliTabPinChanged(tab->GetContents());
     GlobalBrowserCollection::GetInstance()->ForEach(
         [this, tab](BrowserWindowInterface* browser) {
           TabStripModel* model = browser->GetTabStripModel();

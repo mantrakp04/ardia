@@ -49,7 +49,7 @@ Find:        find role|text|label|placeholder|alt|title|testid|first|last|nth <v
              actions: click (default), fill, type, check, uncheck, select, hover, focus, dblclick, text
              find role <role> <action> --name <name>: exact name first, several matches list refs
 Mouse:       mouse move <x> <y> | down [btn] | up [btn] | wheel <dy> [dx]
-Settings:    set viewport <w> <h> [scale]                         (a tab this session opened)
+Settings:    set viewport <w> <h> [scale]                         (this session's own tab, in the background)
              set device|geo|offline|headers|credentials|media    (gated)
 Network:     network requests [--filter --type --method --status --clear] | request <id>
              network har start [--content text|all|none] | har stop [path]
@@ -333,10 +333,11 @@ COMMANDS = {
                "  [--sameSite Strict|Lax|None] [--expires epoch] | set --curl <file> | clear\n\n"
                "Gated by Ardia's policy; works against a plain --port test server.",
     "set": "ardia browse set viewport <w> <h> [scale] | device <name> | geo <lat> <lng> | offline [on|off] | headers <json>\n"
-           "  | credentials <user> <pass> | media [dark|light|no-preference] [reduced-motion]\n\nset viewport sizes the page of a tab this session opened (open <url> first), for responsive checks: screenshots,\n"
-           "snapshots and clicks then see that size. It lasts until the session closes or disconnects, or the user takes\n"
-           "the tab over (selects, pins, moves, clicks or types in it): then it is theirs, with its own size back. It never\n"
-           "touches your own tabs. The other settings are gated by Ardia's policy; they work against a plain --port test server.",
+           "  | credentials <user> <pass> | media [dark|light|no-preference] [reduced-motion]\n\nset viewport sizes the page of a tab this session opened, while that tab is in the background (open <url>, without\n"
+           "--show), for responsive checks: screenshots, snapshots and clicks then see that size. It ends when the session\n"
+           "closes or disconnects, and for good the moment the tab is shown in a window, by you (--show) or by the user: a\n"
+           "tab someone can see keeps its own size. The other settings are gated by Ardia's policy; they work against a plain\n"
+           "--port test server.",
     "state": "ardia browse state save|load <path>\n\nSaves or loads cookies and storage (gated).",
     "dialog": "ardia browse dialog status | accept [text] | dismiss\n\nAnswers the page's open alert, confirm or prompt.",
     "diff": "ardia browse diff snapshot [-b baseline] [-s sel] [-i] [-c] [-d n] | screenshot --baseline <png> | url <u1> <u2>\n\n"

@@ -5,10 +5,6 @@
 
 #include <string>
 
-namespace content {
-class WebContents;
-}
-
 namespace ardia {
 
 enum class CliTabOwner { kNobody, kCommand, kUser };
@@ -16,10 +12,6 @@ enum class CliTabOwner { kNobody, kCommand, kUser };
 void NoteCliOwnedTarget(const std::string& target_id);
 void ForgetCliOwnedTarget(const std::string& target_id);
 CliTabOwner CliOwnerOfTarget(const std::string& target_id);
-void ExpectCliActivation(const std::string& target_id);
-void CliTabShownToUser(content::WebContents* contents);
-void CliTabPinChanged(content::WebContents* contents);
-void CliTabsMoved();
 
 }
 

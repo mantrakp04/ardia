@@ -37,7 +37,6 @@
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "chrome/browser/ardia/ac_cli_owned_tabs.h"
 #include "chrome/browser/ardia/ac_cli_token_policy.h"
 #include "chrome/browser/ardia/ac_engine.h"
 #include "chrome/browser/browser_process.h"
@@ -327,13 +326,12 @@ class ControlServer {
 
  public:
   void SetActiveTab(std::optional<int> tab_id) {
-    content::WebContents* shown = tab_id ? TabWithId(*tab_id) : nullptr;
-    if (shown && shown != active_.get()) {
-      CliTabShownToUser(shown);
-    }
     active_.reset();
-    if (shown) {
-      active_ = shown->GetWeakPtr();
+    if (!tab_id) {
+      return;
+    }
+    if (content::WebContents* contents = TabWithId(*tab_id)) {
+      active_ = contents->GetWeakPtr();
     }
   }
 

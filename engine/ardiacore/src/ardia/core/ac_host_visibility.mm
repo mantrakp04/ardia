@@ -32,6 +32,18 @@ class HostVisibility : public content::WebContentsUserData<HostVisibility> {
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(HostVisibility);
 
+class ShownSlot : public content::WebContentsUserData<ShownSlot> {
+ private:
+  explicit ShownSlot(content::WebContents* contents)
+      : content::WebContentsUserData<ShownSlot>(*contents) {}
+  friend class content::WebContentsUserData<ShownSlot>;
+  WEB_CONTENTS_USER_DATA_KEY_DECL();
+};
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(ShownSlot);
+
+void (*g_shown_slot_watcher)(content::WebContents*) = nullptr;
+
 int Answer(content::WebContents* contents) {
   std::optional<bool> shown = ShownByHost(contents);
   return shown ? *shown : -1;
@@ -65,6 +77,24 @@ void NoteTabShownByHost(content::WebContents* contents, bool shown) {
       }
     }
   }
+}
+
+void NoteTabInShownSlot(content::WebContents* contents) {
+  if (!contents || ShownSlot::FromWebContents(contents)) {
+    return;
+  }
+  ShownSlot::CreateForWebContents(contents);
+  if (g_shown_slot_watcher) {
+    g_shown_slot_watcher(contents);
+  }
+}
+
+bool TabWasInShownSlot(content::WebContents* contents) {
+  return contents && ShownSlot::FromWebContents(contents);
+}
+
+void WatchTabsInShownSlot(void (*watcher)(content::WebContents*)) {
+  g_shown_slot_watcher = watcher;
 }
 
 void StartHostVisibility() {

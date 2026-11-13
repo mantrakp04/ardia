@@ -147,7 +147,7 @@ class BorrowedTab(unittest.TestCase):
         self.assertTrue(command_metrics.answer_fields(request)["metrics"]["viewport_set"])
 
         async def taken(method, params=None, **kwargs):
-            raise Gated(method, reason="on a tab the user took over")
+            raise Gated(method, reason="on a tab the user can see")
 
         self.mine.send = taken
         command_metrics.begin(request)
