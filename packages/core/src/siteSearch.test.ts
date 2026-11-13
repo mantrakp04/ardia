@@ -102,3 +102,22 @@ test("no site search is offered for text with spaces", () => {
   assert.equal(offeredSiteSearch("google maps", "", sources), null);
   assert.equal(offeredSiteSearch("  ", ".com", sources), null);
 });
+
+test("Tab offers the site of a recently visited page that is the top row, with no inline completion: 'wik' over a Wikipedia article", () => {
+  const offered = offeredSiteSearch("wik", "", sources, "https://en.wikipedia.org/wiki/Foo");
+  assert.equal(offered?.name, "Wikipedia");
+  const action = siteSearchKey("Tab", {}, { typed: "wik", completion: "", scope: null, offered, scopeFrom: "" });
+  assert.deepEqual(action?.kind === "enter" && [action.scope.name, action.from], ["Wikipedia", "wik"]);
+});
+
+test("the top row's site is offered only when its name starts with what was typed", () => {
+  assert.equal(offeredSiteSearch("wik", "", sources, "https://example.com/wik"), null);
+  assert.equal(offeredSiteSearch("pedia", "", sources, "https://en.wikipedia.org/wiki/Foo"), null);
+  assert.equal(offeredSiteSearch("wik foo", "", sources, "https://en.wikipedia.org/wiki/Foo"), null);
+});
+
+test("a top row on a site with no search offers nothing, and the completion still wins over the top row", () => {
+  assert.equal(offeredSiteSearch("exa", "", sources, "https://example.com/page"), null);
+  assert.equal(offeredSiteSearch("goo", "gle.com", sources, "https://www.youtube.com/watch?v=1")?.name, "Google");
+  assert.equal(offeredSiteSearch("you", "", sources, "https://www.youtube.com/watch?v=1")?.name, "YouTube");
+});

@@ -1,7 +1,8 @@
 import { siteSearchKey, type Suggestion } from "@ardia/core";
 import type { BarDismissal } from "../../state/omnibox/barState";
 import { dispositionFor, type Disposition } from "../../state/omnibox/openFromBar";
-import type { offeredScope } from "../../state/omnibox/scopes";
+import type { offeredScope, OfferedScope } from "../../state/omnibox/scopes";
+import { noteTabSearchFromTopRow } from "../../state/telemetry/track";
 import { isRemovable } from "./SuggestionRow";
 import type { useBarText } from "./useBarText";
 
@@ -73,7 +74,11 @@ export function barKeyDown(e: BarKeyEvent, k: BarKeyContext) {
   if (key === "Delete" && shiftKey) return isRemovable(current) ? k.removeRow(current.url) : undefined;
   if ((key === "Tab" && !ctrlKey) || key === "Backspace") {
     const action = siteSearchKey(key, { shiftKey, altKey, metaKey, ctrlKey }, { typed, completion: k.shownCompletion, scope, offered: k.tabScope, scopeFrom: bar.scopeFrom });
-    if (action?.kind === "enter") return bar.dispatch({ kind: "enteredScope", scope: action.scope, from: action.from });
+    if (action?.kind === "enter") {
+      const { fromTopRow, ...entered }: OfferedScope = action.scope;
+      if (fromTopRow) noteTabSearchFromTopRow();
+      return bar.dispatch({ kind: "enteredScope", scope: entered, from: action.from });
+    }
     if (action?.kind === "leave") return bar.dispatch({ kind: "leftScope", restore: action.text });
     if (action?.kind === "accept") return bar.dispatch({ kind: "tabAccepted", text: action.text });
     if (key === "Tab") return move(shiftKey ? -1 : 1);

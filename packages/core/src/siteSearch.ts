@@ -98,10 +98,18 @@ export function scopedSearchUrl(scope: SearchScope, query: string, defaultEngine
   return searchUrlFor(scope.url, query);
 }
 
-export function offeredSiteSearch(typed: string, completion: string, sources: ScopeSources): SearchScope | null {
+export function offeredSiteSearch(typed: string, completion: string, sources: ScopeSources, topUrl?: string): SearchScope | null {
   const t = typed.trim();
   if (!t || /\s/.test(t)) return null;
-  return providerScope(typed, sources.providers) ?? findScope(typed + completion, sources);
+  return providerScope(typed, sources.providers) ?? findScope(typed + completion, sources) ?? topRowScope(t, topUrl, sources);
+}
+
+function topRowScope(typed: string, topUrl: string | undefined, sources: ScopeSources): SearchScope | null {
+  const host = topUrl ? normalize(hostOf(topUrl)) : "";
+  if (!host) return null;
+  const t = typed.toLowerCase();
+  if (!host.startsWith(t) && !siteLabel(host).startsWith(t)) return null;
+  return findScope(host, sources);
 }
 
 export type SiteSearchKeyState = {
