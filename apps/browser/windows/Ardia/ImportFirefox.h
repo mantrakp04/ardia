@@ -118,13 +118,43 @@ inline void SkipSpace(std::string_view s, size_t &at) noexcept {
   while (at < s.size() && (s[at] == ' ' || s[at] == '\t' || s[at] == '\n' || s[at] == '\r')) at++;
 }
 
+inline bool SkipLiteral(std::string_view s, size_t &at) noexcept {
+  for (std::string_view word : {"true", "false", "null"}) {
+    if (s.substr(at, word.size()) == word) {
+      at += word.size();
+      return true;
+    }
+  }
+  size_t start = at;
+  if (at < s.size() && s[at] == '-') at++;
+  auto digits = [&]() {
+    size_t first = at;
+    while (at < s.size() && s[at] >= '0' && s[at] <= '9') at++;
+    return at - first;
+  };
+  size_t whole = at;
+  if (digits() == 0 || (s[whole] == '0' && at - whole > 1)) return false;
+  if (at < s.size() && s[at] == '.') {
+    at++;
+    if (digits() == 0) return false;
+  }
+  if (at < s.size() && (s[at] == 'e' || s[at] == 'E')) {
+    at++;
+    if (at < s.size() && (s[at] == '+' || s[at] == '-')) at++;
+    if (digits() == 0) return false;
+  }
+  return at > start;
+}
+
 inline bool SecureFields(std::string_view s, Wiped &user, Wiped &password, bool &hasPassword) {
   size_t at = 0;
+  hasPassword = false;
   SkipSpace(s, at);
   if (at >= s.size() || s[at++] != '{') return false;
   SkipSpace(s, at);
-  if (at < s.size() && s[at] == '}') return true;
-  while (at < s.size()) {
+  bool closed = at < s.size() && s[at] == '}';
+  if (closed) at++;
+  while (!closed) {
     Wiped key;
     SkipSpace(s, at);
     if (!ReadJsonString(s, at, &key)) return false;
@@ -132,22 +162,22 @@ inline bool SecureFields(std::string_view s, Wiped &user, Wiped &password, bool 
     if (at >= s.size() || s[at++] != ':') return false;
     SkipSpace(s, at);
     Wiped *target = key.View() == "u" ? &user : key.View() == "p" ? &password : nullptr;
+    if (target) target->Wipe();
     if (at < s.size() && s[at] == '"') {
-      if (target) target->Wipe();
       if (!ReadJsonString(s, at, target)) return false;
       if (target == &password) hasPassword = true;
     } else {
-      while (at < s.size() && s[at] != ',' && s[at] != '}') {
-        if (s[at] == '{' || s[at] == '[' || s[at] == '"') return false;
-        at++;
-      }
+      if (!SkipLiteral(s, at)) return false;
+      if (target == &password) hasPassword = false;
     }
     SkipSpace(s, at);
     if (at >= s.size()) return false;
-    if (s[at] == '}') return true;
-    if (s[at++] != ',') return false;
+    char next = s[at++];
+    if (next == '}') closed = true;
+    else if (next != ',') return false;
   }
-  return false;
+  SkipSpace(s, at);
+  return at == s.size();
 }
 
 struct Login {
@@ -160,8 +190,10 @@ struct Login {
   std::string Identity() const { return realm + '\n' + url + '\n' + username; }
 };
 
-inline void AppendLogin(std::string &out, size_t &items, Login const &login, std::string_view password) {
-  if (items++) out.push_back(',');
+inline void AppendLogin(Wiped &items, size_t &count, Login const &login, std::string_view password) {
+  std::string out;
+  out.reserve(login.url.size() + login.username.size() + login.realm.size() + password.size() * 6 + 160);
+  if (count++) out.push_back(',');
   out.append("{\"url\":");
   ImportFiles::AppendJsonString(out, login.url);
   out.append(",\"username\":");
@@ -180,15 +212,16 @@ inline void AppendLogin(std::string &out, size_t &items, Login const &login, std
   }
   if (login.timesUsed) out.append(",\"timesUsed\":").append(std::to_string(*login.timesUsed));
   out.push_back('}');
+  items.Append(out);
+  SecureZeroMemory(out.data(), out.size());
 }
 
 struct Collected {
-  std::string items;
+  Wiped items;
   size_t count = 0;
   size_t undecryptable = 0;
   std::set<std::string> identities;
   std::set<std::string> guids;
-  ~Collected() noexcept { SecureZeroMemory(items.data(), items.size()); }
 };
 
 inline bool DecryptField(std::string_view base64, Wiped const &key, Wiped &out) {
@@ -332,8 +365,10 @@ inline std::optional<std::string> ReadSecretFile(std::filesystem::path const &pa
 }
 
 inline std::string Answer(Collected const &collected, Problem problem, std::string const &failure) {
-  std::string out = "{\"items\":[";
-  if (!problem) out.append(collected.items);
+  std::string out;
+  out.reserve(collected.items.Size() + 256);
+  out.append("{\"items\":[");
+  if (!problem) out.append(collected.items.View());
   out.append("],\"undecryptable\":").append(std::to_string(collected.undecryptable)).append(",\"appBound\":0");
   if (problem) {
     out.append(",\"error\":{\"code\":\"").append(ImportNss::CodeName(problem.code)).append("\",\"message\":");
@@ -371,8 +406,7 @@ inline std::string Logins(std::filesystem::path const &profile) {
     if (problem) databaseProblem = problem;
     stored = !problem && databaseFailure.empty();
     if (!stored) {
-      SecureZeroMemory(collected.items.data(), collected.items.size());
-      collected.items.clear();
+      collected.items.Wipe();
       collected.count = 0;
       collected.identities.clear();
       collected.guids.clear();
@@ -393,8 +427,8 @@ inline std::string Logins(std::filesystem::path const &profile) {
     problem = FromJson(*text, key, extra, stored);
     SecureZeroMemory(text->data(), text->size());
     if (!problem) {
-      if (collected.count && extra.count) collected.items.push_back(',');
-      collected.items.append(extra.items);
+      if (collected.count && extra.count) collected.items.Append(",");
+      collected.items.Append(extra.items.View());
       collected.count += extra.count;
       collected.undecryptable += extra.undecryptable;
     }
