@@ -479,6 +479,17 @@ that answers the same methods with the same result shapes, so the wizard (`compo
   which launches it three times and uploads each launch's log: a first launch (onboarding) and a launch with
   onboarding done (the browser window), each with a screenshot when the runner allows a capture, then a hidden
   self-check launch.
+- A pull request gets the fast run. The `gate` job waits for a vouch, like the iPhone build. Then each CPU looks in
+  the Actions cache for an app built from the same native code (`windows-app-<cpu>-<hash>`; the hash covers
+  `apps/browser/windows`, the lockfile, the patches and the workflow). When one is there nothing is compiled:
+  `scripts/windows/rebundle.ps1` bundles the change's JavaScript, compiles it with the Hermes compiler saved beside
+  that app and replaces its `Bundle` folder. When none is there the app is compiled and saved for the next push.
+  Both CPUs compile on x64 runners; the ARM runner downloads the ARM64 app and only launches it. The fast run
+  launches the app once, with the engine inside.
+- A push to `main` gets the full run, and so does a pull request with the `full-ci` label (add the label, then push
+  or re-run the run). A full run always compiles, saves that app for pull requests to reuse, and adds the tours, the
+  installers and the install check. Only a full run has the `Ardia-Setup-<cpu>` artifacts that
+  `scripts/windows/publish-alpha.sh` publishes.
 - With the browser window open, the x64 run also drives the app with real input and fails when the default layout
   marks no caption region; a drag by the gap beside the window buttons is not Windows' own move or does not move the
   window by the dragged distance; dragging it to the top edge does not maximize the window or dragging back down does
