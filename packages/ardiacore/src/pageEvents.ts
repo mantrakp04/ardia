@@ -59,7 +59,7 @@ type NativeEvents = {
   onWindowClose: object;
   onCommand: PageCommand;
   onPageFocus: object;
-  onPagePress: object;
+  onPagePress: { refused?: boolean };
   onSelection: { selection: PageSelection | null };
   onScroll: { state: ScrollState };
   onProtectedMedia: ProtectedMediaRequest;
@@ -151,7 +151,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onWindowClose: () => [],
   onCommand: (e) => [e],
   onPageFocus: () => [],
-  onPagePress: () => [],
+  onPagePress: (e) => [e.refused === true],
   onSelection: (e) => [e.selection],
   onScroll: (e) => [e.state],
   onProtectedMedia: (e) => [e],
