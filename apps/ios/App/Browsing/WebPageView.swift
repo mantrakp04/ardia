@@ -294,27 +294,11 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     guard let webView, let page, webView.window != nil, !webView.isHidden, webView.url != nil,
           webView.bounds.height > BrowseLayout.barHeight * 3, swipe == nil else { return }
     let id = page.id
-    let bounds = webView.bounds
-    let top = webView.safeAreaInsets.top + 1
-    let bottom = bounds.height - BrowseLayout.barHeight - ToneSampler.bandHeight - 2
     Task { @MainActor [weak self, weak webView] in
-      guard let webView else { return }
-      async let topImage = Self.snapshot(of: webView, in: CGRect(x: 0, y: top, width: bounds.width, height: ToneSampler.bandHeight))
-      async let bottomImage = Self.snapshot(of: webView, in: CGRect(x: 0, y: bottom, width: bounds.width, height: ToneSampler.bandHeight))
-      let images = await (topImage, bottomImage)
+      guard let webView, let tone = await ToneSampler.sample(webView, topInset: 0, bottomInset: BrowseLayout.barHeight) else { return }
       guard let self, self.page?.id == id else { return }
-      let tone = PageTone(top: images.0.flatMap(ToneSampler.dominant), bottom: images.1.flatMap(ToneSampler.dominant))
-      guard tone.top != nil || tone.bottom != nil else { return }
       self.onTone?(id, tone)
     }
-  }
-
-  private static func snapshot(of webView: WKWebView, in rect: CGRect) async -> UIImage? {
-    let configuration = WKSnapshotConfiguration()
-    configuration.rect = rect
-    configuration.afterScreenUpdates = false
-    configuration.snapshotWidth = NSNumber(value: ToneSampler.sampleWidth)
-    return try? await webView.takeSnapshot(configuration: configuration)
   }
 
   private func showPlaceholder() {
