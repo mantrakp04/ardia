@@ -593,7 +593,7 @@ test("Clear on a lone selected tab closes nothing and opens no New Tab page", ()
   assert.deepEqual(S().windows[w].tabIds, [a]);
 });
 
-test("a tab opened behind joins the ⌃Tab order only once it is shown, so ⌃Tab still returns to the tab before (#1190)", (t) => {
+test("a tab opened behind comes up first in the switcher, and joins the use order once shown (#1190)", (t) => {
   reset();
   let now = Date.now();
   t.mock.method(Date, "now", () => (now += 1000));
@@ -606,4 +606,59 @@ test("a tab opened behind joins the ⌃Tab order only once it is shown, so ⌃Ta
   S().activate(link);
   assert.deepEqual(order(), ["link", "a", "b"]);
   assert.equal(S().tabs[link].unseen, undefined);
+});
+
+test("the links opened behind the tab you are on come up in click order", () => {
+  reset();
+  const [w, a, b] = setup("a", "b");
+  S().updateTab(b, { lastActiveAt: Date.now() - 5000 });
+  S().updateTab(a, { lastActiveAt: Date.now() - 1000 });
+  const [x, y] = ["x", "y"].map((u) => open(w, u, a));
+  assert.deepEqual(organize.recentTabIds(S(), w), [a, y, x, b]);
+});
+
+test("a link opened from a tab you moved away from comes up next", () => {
+  reset();
+  const [w, a, b] = setup("a", "b");
+  S().updateTab(b, { lastActiveAt: Date.now() - 3000 });
+  S().updateTab(a, { lastActiveAt: Date.now() - 5000 });
+  const x = open(w, "x", b);
+  S().activate(a);
+  assert.deepEqual(organize.recentTabIds(S(), w), [a, x, b]);
+});
+
+test("a tab saved by an older build, with no unseen mark, ranks by the time it was last used", () => {
+  reset();
+  const now = Date.now();
+  const saved = (id, openerId, at) => ({
+    id, windowId: "w", profileId: "default", url: `https://${id}.com/`, title: "", favicon: null, pin: null, muted: false, zoom: 1,
+    customTitle: null, customIcon: null, pinnedUrl: null, openerId, createdAt: at, lastActiveAt: at,
+    page: { kind: "idle" },
+  });
+  S().hydrate({
+    profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } },
+    windows: { w: { id: "w", profileId: "default", kind: "main", tabIds: ["a", "x", "b"], activeTabIds: { default: "a" }, sidebarOpen: true, frame: null, createdAt: 0 } },
+    tabs: { a: saved("a", null, now - 5000), x: saved("x", "a", now - 3000), b: saved("b", null, now - 1000) },
+  });
+  assert.deepEqual(organize.recentTabIds(S(), "w"), ["a", "b", "x"]);
+});
+
+test("a page opened in front is the first press, and the link opened before it comes next", () => {
+  reset();
+  const [w, a, b] = setup("a", "b");
+  S().updateTab(b, { lastActiveAt: Date.now() - 5000 });
+  const x = open(w, "x", a);
+  const z = open(w, "z", a, false);
+  assert.deepEqual(organize.recentTabIds(S(), w), [z, x, a, b]);
+});
+
+test("closing the tab links were opened from leaves them last", () => {
+  reset();
+  const [w, a, b] = setup("a", "b");
+  S().updateTab(b, { lastActiveAt: Date.now() - 5000 });
+  S().updateTab(a, { lastActiveAt: Date.now() - 1000 });
+  const [x, y] = ["x", "y"].map((u) => open(w, u, a));
+  S().closeTab(a);
+  S().activate(b);
+  assert.deepEqual(organize.recentTabIds(S(), w), [b, y, x]);
 });
