@@ -9,6 +9,7 @@ import { engineProfiles } from "./engineProfiles";
 type ProfileLoading = { deferred: boolean; opened: Readonly<Record<string, true>>; unloaded: Readonly<Record<string, true>> };
 
 export const useProfileLoading = create<ProfileLoading>()(() => ({ deferred: false, opened: {}, unloaded: {} }));
+const pendingReleases = new Set<string>();
 
 export const profileOpened = (engine: string, l: ProfileLoading = useProfileLoading.getState()) => !l.unloaded[engine] && (!l.deferred || !!l.opened[engine]);
 
@@ -30,6 +31,7 @@ export function shownEngineProfiles(s: Pick<BrowserState, "profiles" | "windows"
 }
 
 export function openProfile(engine: string) {
+  if (pendingReleases.has(engine)) unloadProfile(engine);
   const l = useProfileLoading.getState();
   if (profileOpened(engine, l)) return;
   const unloaded = { ...l.unloaded };
@@ -38,9 +40,28 @@ export function openProfile(engine: string) {
 }
 
 export function unloadProfile(engine: string) {
+  pendingReleases.delete(engine);
   const l = useProfileLoading.getState();
   if (l.unloaded[engine]) return;
   useProfileLoading.setState({ unloaded: { ...l.unloaded, [engine]: true } });
+}
+
+export function noteProfileReleasePending(engine: string, reopened = false) {
+  pendingReleases.add(engine);
+  if (!reopened) return;
+  unloadProfile(engine);
+  openProfile(engine);
+  pendingReleases.add(engine);
+}
+
+export function reconcilePendingProfileReleases(loaded: readonly string[]): string[] {
+  const current = new Set(loaded);
+  const gone: string[] = [];
+  for (const engine of pendingReleases) if (!current.has(engine)) {
+    unloadProfile(engine);
+    gone.push(engine);
+  }
+  return gone;
 }
 
 export function onProfilesOpened(listener: (engines: string[]) => void): () => void {
@@ -64,10 +85,12 @@ export const loadsProfilesWhenOpened = (s: Pick<BrowserState, "settings">) => s.
 export function startProfileLoading(): () => void {
   const s = useBrowser.getState();
   if (!loadsProfilesWhenOpened(s)) {
+    pendingReleases.clear();
     useProfileLoading.setState({ deferred: false, opened: {}, unloaded: {} });
     const loaded = onProfileLoaded(openProfile);
     return () => loaded.remove();
   }
+  pendingReleases.clear();
   useProfileLoading.setState({ deferred: true, opened: Object.fromEntries(shownEngineProfiles(s).map((engine) => [engine, true as const])), unloaded: {} });
   const loaded = onProfileLoaded(openProfile);
   let stopped = false;

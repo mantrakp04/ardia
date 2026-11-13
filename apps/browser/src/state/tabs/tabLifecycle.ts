@@ -14,7 +14,7 @@ import { useLifecycle } from "./sleepingTabs";
 import { startMemorySaver } from "./memorySaver";
 import { focusedWindowOf } from "../windows/ui";
 import { noteTabSlept } from "../telemetry/tabSleepCounts";
-import { unloadProfile } from "../profiles/profileLoading";
+import { noteProfileReleasePending, openProfile, reconcilePendingProfileReleases, unloadProfile } from "../profiles/profileLoading";
 
 export { useIsSleeping, useLifecycle } from "./sleepingTabs";
 
@@ -71,9 +71,12 @@ function releaseUnusedProfiles() {
       suspended && store().settings.unloadProfilesAfter === unloadAfter
         && profileUnloadDelay(store().settings) !== null && !profileSelected(store(), profile) ? releaseProfile(profile) : null,
     ).then((result) => {
-      if (result?.status === "released" && profileGenerations.get(profile) === generation) {
+      if (result?.status === "released") {
         loadedProfiles.delete(profile);
         unloadProfile(profile);
+        if (profileSelected(store(), profile) || profileGenerations.get(profile) !== generation) openProfile(profile);
+      } else if (result?.status === "pending") {
+        noteProfileReleasePending(profile, profileSelected(store(), profile) || profileGenerations.get(profile) !== generation);
       }
     }).catch(() => {}).finally(() => releasingProfiles.delete(profile));
   }
@@ -152,6 +155,7 @@ export function startTabLifecycle() {
     if (readingProfiles) return;
     readingProfiles = true;
     void nativeLoadedProfiles().then((profiles) => {
+      for (const profile of reconcilePendingProfileReleases(profiles)) loadedProfiles.delete(profile);
       for (const profile of profiles) if (!isIncognitoProfile(profile)) loadedProfiles.add(profile);
       releaseUnusedProfiles();
     }).catch(() => {}).finally(() => { readingProfiles = false; });
