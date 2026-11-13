@@ -65,6 +65,16 @@ test("tabs opened behind don't count as used until they're shown", () => {
   assert.equal(shown(w), "b", "not the tabs a opened behind");
 });
 
+test("closing a regular tab goes back to the pinned tab you came from", () => {
+  reset();
+  const [w, p, , b] = setup("p", "a", "b");
+  S().togglePin(p);
+  S().activate(p);
+  S().activate(b);
+  S().closeTab(b);
+  assert.equal(shown(w), "p");
+});
+
 test("closing goes to a tab opened behind before a closed pinned tab, so the pin doesn't load again", () => {
   reset();
   const [w, p, a] = setup("p", "a");
