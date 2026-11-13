@@ -20,11 +20,39 @@ namespace Ardia {
 
 namespace EngineHostParts {
 
-inline void WipeArgs(std::string &args) noexcept {
-  args.resize(args.capacity());
-  SecureZeroMemory(args.data(), args.size());
-  args.clear();
+inline void WipeText(std::string &text) noexcept {
+  text.resize(text.capacity());
+  SecureZeroMemory(text.data(), text.size());
+  text.clear();
 }
+
+class WipedText {
+ public:
+  explicit WipedText(std::string &&text) noexcept : m_text(std::move(text)) { WipeText(text); }
+  WipedText(WipedText const &other) : m_text(other.m_text) {}
+  WipedText(WipedText &&other) noexcept : m_text(std::move(other.m_text)) { WipeText(other.m_text); }
+  WipedText &operator=(WipedText const &other) {
+    if (this != &other) {
+      WipeText(m_text);
+      m_text = other.m_text;
+    }
+    return *this;
+  }
+  WipedText &operator=(WipedText &&other) noexcept {
+    if (this != &other) {
+      WipeText(m_text);
+      m_text = std::move(other.m_text);
+      WipeText(other.m_text);
+    }
+    return *this;
+  }
+  ~WipedText() { WipeText(m_text); }
+
+  char const *c_str() const noexcept { return m_text.c_str(); }
+
+ private:
+  std::string m_text;
+};
 
 using Reply = winrt::Microsoft::ReactNative::ReactPromise<std::string>;
 
@@ -215,11 +243,11 @@ struct EngineHostModule {
 
   REACT_METHOD(engineCall)
   void engineCall(std::string name, std::string profileDir, std::string argsJson, Reply reply) noexcept {
-    RunOnUI(m_context, [name = std::move(name), profileDir = std::move(profileDir), argsJson = std::move(argsJson), reply]() mutable noexcept {
+    EngineHostParts::WipedText args{std::move(argsJson)};
+    RunOnUI(m_context, [name = std::move(name), profileDir = std::move(profileDir), args = std::move(args), reply]() noexcept {
       const ArdiaEngineApi *engine = Host::Engine();
-      if (engine) engine->engineCall(name.c_str(), profileDir.c_str(), argsJson.c_str(), &EngineHostParts::OnReply, new Reply(reply));
-      EngineHostParts::WipeArgs(argsJson);
-      if (!engine) reply.Resolve(std::string{EngineHostParts::NoEngine});
+      if (!engine) return reply.Resolve(std::string{EngineHostParts::NoEngine});
+      engine->engineCall(name.c_str(), profileDir.c_str(), args.c_str(), &EngineHostParts::OnReply, new Reply(reply));
     });
   }
 
