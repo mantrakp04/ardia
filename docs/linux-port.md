@@ -1,7 +1,7 @@
 # Ardia on Linux
 
-The Linux port runs the same browser UI as the Mac app on the same Chromium (157.0.8103.38) and Helium (0.21.1, with
-helium-linux 0.21.1.1) pins. It targets x86-64 Linux on Wayland, with Hyprland and Omarchy as the main desktop; X11
+The Linux port runs the same browser UI as the Mac app on the same Chromium (157.0.8103.50) and Helium (0.21.2, with
+helium-linux 0.21.2.1) pins. It targets x86-64 Linux on Wayland, with Hyprland and Omarchy as the main desktop; X11
 works, and arm64 builds are configured but untested. It answers upstream issue #1, "Linux Support".
 
 On the Mac, ArdiaCore is a framework that the React Native app hosts. On Linux there is no React Native: Chromium's own
@@ -335,8 +335,8 @@ export PYTHONDONTWRITEBYTECODE=1
 mkdir -p "$AC_CHROMIUM_BUILD"
 
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$AC_CHROMIUM_BUILD/depot_tools"
-git clone --depth 1 --branch 0.21.1 https://github.com/imputnet/helium-chromium.git "$AC_CHROMIUM_BUILD/helium"
-git clone --depth 1 --branch 0.21.1.1 https://github.com/imputnet/helium-linux.git "$AC_CHROMIUM_BUILD/helium-linux"
+git clone --depth 1 --branch 0.21.2 https://github.com/imputnet/helium-chromium.git "$AC_CHROMIUM_BUILD/helium"
+git clone --depth 1 --branch 0.21.2.1 https://github.com/imputnet/helium-linux.git "$AC_CHROMIUM_BUILD/helium-linux"
 git -C "$AC_CHROMIUM_BUILD/helium" fetch --depth 1 origin "$(sed -n 's/^helium_chromium_commit = //p' engine/patches/build/helium-pins.ini)"
 
 source engine/patches/build/env.sh
@@ -1019,6 +1019,30 @@ It works as on the Mac ([cli.md](cli.md), [automation.md](automation.md)); what 
 ## Upstream syncs
 
 Newest first. Each entry names the upstream commit `linux-support` was rebased onto and what the Linux side needed.
+
+- **2026-11-12, upstream 0134e00dc** (89 commits after 42c6291). Upstream moved the engine to Chromium 157.0.8103.50
+  on Helium 0.21.2 and kept moving during the build, so the branch was rebased three times (2ff079b, 5ec3ed3, then
+  0134e00) and the new engine commits were folded into the same out dir before its link. Two conflicts:
+  - `engine/patches/build/helium-pins.ini`: upstream's helium-chromium 0.21.2 and helium-macos 0.21.2.1 pins, with
+    `[helium-linux]` moved to 0.21.2.1 (`c594074e`), whose `helium-chromium` submodule is exactly 0.21.2 (`e817502a`);
+    helium-linux changed only its packaging metadata. `HELIUM_LINUX_TAG` in `env.sh` follows.
+  - the ardia `BUILD.gn`: upstream added `ac_cli_owned_tabs.{cc,h}` to the Mac-only list; the CLI sources build on
+    Linux, so they join the shared list with the rest of them.
+
+  The engine key moved from `087c111e94fc` to `1078820d892b`; engine `engine-1078820d892b` is published. The build tree
+  moved to the .50 tag with `out/` set aside and put back (01-sync, then 03-helium, which needed helium-linux's
+  initialized submodule updated to the pinned commit), and the series applied strictly (97 steps, 275 paths). Upstream's
+  later edit to `chromium-drag-always-ends.patch` went into the tree through `series.py materialize`, which rewrote only
+  the six files that differed. The link exports the same 63 dynamic symbols as before and no `ac_*`; the package passes
+  all 12 smoke checks. Linux changes:
+  - `ardia browse set viewport`'s shown-slot record (`ac_host_visibility_linux.cc`): `ShellHostView::LayoutPane` notes a
+    tab when it attaches its contents to a visible pane, as the Mac web view does when it is visible in a window. A tab
+    whose override is being cleared keeps its page hidden until the size is restored; with the page held back that
+    usually ends at upstream's 250 ms deadline. Upstream gated set viewport over the token connection again for 0.2.46,
+    so this path doesn't run in practice yet.
+  - `ArdiaFocus.pressesWithoutRelease` and `pressRepeated` answer 0 and null: Linux has no macOS press tracker, so the
+    lost-release and repeated-press tab counts stay 0 from Linux, as does `dragsEnded.nativeRefused`.
+  - Wording follows Connect Another Device's new Show Code step and the new drag-end line in What's Sent.
 
 - **2026-11-12, still upstream 42c6291: the sidebar peek's two-tone strip** (no rebase). jreyes138 reported on #622
   that the revealed strip sometimes looked two-toned with a non-Neutral accent. The peek draws its own window backdrop,
