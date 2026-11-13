@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, type EasingFunction } from "react-native";
+import { reduceMotion } from "./reduceMotion";
 
 export const curve = {
   linear: Easing.linear,
@@ -24,7 +25,7 @@ export const duration = {
 
 export const period = { spinner: 900, pulse: 1100 } as const;
 
-export const buttonMotion = { iconPressScale: 0.96 } as const;
+export const buttonMotion = { iconPressScale: 0.96, controlPressScale: 0.985 } as const;
 
 export type Fade = { duration: number; easing: EasingFunction; delay?: number };
 
@@ -64,3 +65,25 @@ export const springs = {
   smooth: spring(springSpec.smooth),
   bouncy: spring(springSpec.bouncy),
 } as const;
+
+export function usePressScaleMotion(enabled = true, pressedScale = buttonMotion.iconPressScale) {
+  const scale = useRef<Animated.Value | null>(null);
+  if (enabled && !scale.current) scale.current = new Animated.Value(1);
+
+  const animate = (pressed: boolean) => {
+    const value = scale.current;
+    if (!enabled || !value) return;
+    value.stopAnimation();
+    if (reduceMotion() !== false) {
+      value.setValue(1);
+      return;
+    }
+    Animated.spring(value, { toValue: pressed ? pressedScale : 1, ...springs.snappy, useNativeDriver: true }).start();
+  };
+
+  return {
+    scale: enabled ? scale.current : null,
+    onPressIn: enabled ? () => animate(true) : undefined,
+    onPressOut: enabled ? () => animate(false) : undefined,
+  };
+}
