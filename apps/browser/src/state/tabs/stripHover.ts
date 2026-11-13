@@ -71,6 +71,18 @@ export function dismissStripHoverIn(windowId: string) {
   if (pointed?.windowId === windowId || useStripHover.getState().hover?.windowId === windowId) dismissStripHover();
 }
 
+export function stripPageOffstage(windowId: string, profileId: string) {
+  const tabs = useBrowser.getState().tabs;
+  const ofPage = (tabId: string) => tabs[tabId]?.profileId === profileId;
+  if (pointed?.windowId === windowId && ofPage(pointed.tabId)) {
+    pointed = null;
+    ticket++;
+    stop();
+  }
+  const hover = useStripHover.getState().hover;
+  if (hover?.windowId === windowId && ofPage(hover.tabId)) hide();
+}
+
 export function stripChipGone(windowId: string, tabId: string) {
   if (pointed?.windowId === windowId && pointed.tabId === tabId) pointed = null;
   const hover = useStripHover.getState().hover;

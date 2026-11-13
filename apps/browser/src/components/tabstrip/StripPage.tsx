@@ -4,7 +4,7 @@ import { PageProfileContext, useWindowId } from "../../state/browser/hooks";
 import { tabDragging } from "../../state/drag/tabDrag";
 import { useShownTabIdFor, useStripEntries } from "../../state/tabs/topStrip";
 import { setMeasuredWidth, useMeasuredWidths } from "../../state/windows/measuredWidths";
-import { dismissStripHoverIn } from "../../state/tabs/stripHover";
+import { dismissStripHoverIn, stripPageOffstage } from "../../state/tabs/stripHover";
 import { usePageStyle } from "../../state/windows/profilePager";
 import { ThemeScope } from "../window/ThemeScope";
 import { TintInk } from "../ui/TintInk";
@@ -84,6 +84,9 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     });
     return () => cancelAnimationFrame(frame);
   }, [activeId, current, releases]);
+  useEffect(() => {
+    if (!current) stripPageOffstage(windowId, profileId);
+  }, [current, windowId, profileId]);
   let slotIndex = 0;
   const gap = (i: number) => (incoming.active ? <IncomingGap key={`gap${i}`} open={incoming.at === i} width={chip} origin={i === 0 ? incoming.origin : undefined} /> : null);
 

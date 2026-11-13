@@ -7,7 +7,7 @@ import { pressGroupClose, useGroupCloseControl } from "../../state/sidebar/close
 import { openGroupMenu } from "../../state/sidebar/menus";
 import { moveInGroup, tuckGroup, useHasTuckTarget } from "../../state/tabs/topStrip";
 import { groupTint, useSidebarTokens } from "../sidebar/tokens";
-import { Button, ContextMenuArea, Divider, useHover } from "../ui";
+import { Button, ContextMenuArea, Divider, useHover, useTooltip } from "../ui";
 import { useTheme } from "../ui/theme";
 import { font, ink, weight, withAlpha } from "../ui/tokens";
 import { GroupMember, StripGroupIcon } from "./GroupMember";
@@ -48,6 +48,7 @@ export function StripGroup({
   const onto = useOnto({ kind: "group", id: entry.id });
   const { hovered, hoverProps } = useHover();
   const expanded = !entry.collapsed;
+  const chipTip = useTooltip(expanded ? "Collapse Group" : "Expand Group");
   const widths = entry.members.map(memberWidth);
   const shown = entry.members.findIndex((m) => holds(m, activeId));
   const chipSize = chipWidth ?? 0;
@@ -148,7 +149,7 @@ export function StripGroup({
         {...hoverProps}
         {...drag.panHandlers}
         mouseDownCanMoveWindow={false}
-        tooltip={expanded ? "Collapse Group" : "Expand Group"}
+        tooltip={chipTip}
         onLayout={(e) => onChipWidth(Math.ceil(e.nativeEvent.layout.width * 2) / 2)}
         style={{ position: "absolute", left: 0, top: ITEM_TOP, height: ITEM_HEIGHT }}
       >
