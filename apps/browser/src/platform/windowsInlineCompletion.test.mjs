@@ -22,10 +22,10 @@ test("inline completions shown are counted and reset once taken", () => {
 
 test("on Windows a completion needs the caret right after what was typed, as the Mac's field checks", async () => {
   const { caretAllowsInline } = await import("./inlineSelection.windows.ts");
-  assert.equal(caretAllowsInline({ start: 3, end: 3 }, 3), true);
-  assert.equal(caretAllowsInline({ start: 3, end: 11 }, 3), true);
-  assert.equal(caretAllowsInline({ start: 3, end: 3 }, 4), false);
-  assert.equal(caretAllowsInline({ start: 0, end: 4 }, 4), false);
+  assert.equal(caretAllowsInline(3, 3, 3), true);
+  assert.equal(caretAllowsInline(3, 11, 3), true);
+  assert.equal(caretAllowsInline(3, 3, 4), false);
+  assert.equal(caretAllowsInline(0, 4, 4), false);
   const mac = await import("./inlineSelection.ts");
-  assert.equal(mac.caretAllowsInline({ start: 0, end: 0 }, 4), true);
+  assert.equal(mac.caretAllowsInline(0, 0, 4), true);
 });

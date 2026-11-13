@@ -24,7 +24,8 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
     const settle = (result: number) => {
       if (result === 2) return;
       pending.current = withoutFirst(pending.current, write);
-      if (result === 1 && caretAllowsInline(caret(), write.typed.length)) setInline(write);
+      const { start, end } = caret();
+      if (result === 1 && caretAllowsInline(start, end, write.typed.length)) setInline(write);
     };
     completeInline(tag, write.typed, write.completion).then(settle, () => settle(0));
   }, [input, typed, wanted, shown, preview]);
@@ -42,6 +43,7 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
   };
 
   useLayoutEffect(() => {
+    if (!shown) counted.current = "";
     if (!shown || preview !== null) return;
     selectInlineCompletion(input.current, typed.length, typed.length + shown.length);
     const key = `${typed}\n${shown}`;

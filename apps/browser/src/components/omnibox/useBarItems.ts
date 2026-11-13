@@ -6,6 +6,7 @@ import { offeredScope } from "../../state/omnibox/scopes";
 import { useDropdownStart, useOpenTabsStart } from "./dropdownStart";
 import { useInlineCompletion } from "./useInlineCompletion";
 import { useSuggestions } from "./useSuggestions";
+import type { Selection } from "./inline";
 
 export function useBarItems({
   input,
@@ -23,7 +24,7 @@ export function useBarItems({
   currentUrl,
 }: {
   input: RefObject<TextInput | null>;
-  caret: () => { start: number; end: number };
+  caret: () => Selection;
   typed: string;
   edited: boolean;
   scope: SearchScope | null;
