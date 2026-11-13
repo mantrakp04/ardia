@@ -4,6 +4,7 @@ import { addToDock, backgroundInstance, isDefaultBrowser, isInDock, setAsDefault
 import { isSharing, setSharing } from "../../state/telemetry/client";
 import { SHARING_COPY } from "../../state/telemetry/copy";
 import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 import { Button, Symbol, Text } from "../ui";
 import { lineHeight, proseLineHeight, space } from "../ui/tokens";
 import { PostageStamp, PostcardPaper } from "../ntp/PostageStamp";
@@ -28,7 +29,7 @@ export function OutroStep() {
   const [receipt, setReceipt] = useState(false);
   const lines = QUESTION_ORDER.flatMap((q) => picked[q] ?? []);
   const setDefault = extras.setDefault ?? !backgroundInstance;
-  const trial = !redo && (extras.trial ?? false);
+  const trial = !redo && PLATFORM_FEATURES.setsDefaultBrowser && (extras.trial ?? false);
   const dock = PLATFORM_FEATURES.dock && (extras.dock ?? true);
   const share = extras.share ?? isSharing();
 
@@ -69,7 +70,7 @@ export function OutroStep() {
             <OptionRow
               title="Default browser"
               value={defaultChoice}
-              options={redo ? DEFAULT_CHOICES.filter((c) => c.value !== "trial") : DEFAULT_CHOICES}
+              options={redo || !PLATFORM_FEATURES.setsDefaultBrowser ? DEFAULT_CHOICES.filter((c) => c.value !== "trial") : DEFAULT_CHOICES}
               onChange={(choice) => setOnboardingExtras({ setDefault: choice === "yes", trial: choice === "trial" })}
             />
           ) : null}
@@ -98,7 +99,7 @@ export function OutroStep() {
 type DefaultChoice = "yes" | "trial" | "no";
 
 const DEFAULT_CHOICES: { value: DefaultChoice; title: string }[] = [
-  { value: "yes", title: "Yes" },
+  { value: "yes", title: PLATFORM_FEATURES.setsDefaultBrowser ? "Yes" : `Yes, in ${PLATFORM_TERMS.os} Settings` },
   { value: "trial", title: "Try for 7 days" },
   { value: "no", title: "Not now" },
 ];
