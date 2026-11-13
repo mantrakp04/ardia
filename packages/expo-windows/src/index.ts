@@ -5,6 +5,7 @@ import { watchRelaunches } from "./engine/relaunch";
 import { openLaunchLinks } from "./launchLinks";
 import { requireNativeModule } from "./modules";
 import { runSelfCheck } from "./selfCheck";
+import { installTextFocusReport } from "./textFocus";
 import { startUpdateChecks } from "./updater";
 import { viewOnWindows } from "./views/registry";
 import { installWindowRoot } from "./windowRoot";
@@ -23,6 +24,7 @@ const SELF_CHECK_AFTER_MS = 4000;
 
 installAnimation();
 installWindowRoot();
+installTextFocusReport();
 watchRelaunches();
 openLaunchLinks();
 startUpdateChecks();
