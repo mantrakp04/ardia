@@ -9,6 +9,7 @@ import type { CompletedItem, LiveItem } from "../../state/live/types";
 import { usePageProfileId } from "../../state/browser/hooks";
 import { useIsActiveIn, useLiveItemTab, useLiveTabOpen, useTabAwayFromPin } from "../../state/sidebar/hooks";
 import type { CloseControl } from "../../state/sidebar/closeControl";
+import { noteLiveRowHide } from "../../state/telemetry/liveHides";
 import { HoverSlot } from "../ui/HoverSlot";
 import { Badge, Button, ContextMenuArea, Dot, hairline, ink, space, Symbol, Text, useHover } from "../ui";
 import { curve, springs } from "../ui/motion";
@@ -122,7 +123,15 @@ type LiveRowControl = CloseControl & { press(): void };
 
 function liveRowControl(folderId: string, item: LiveItem, tabId: string | null, tabOpen: boolean, closeHint: string | undefined): LiveRowControl | null {
   if (tabId) return { icon: "minus", tooltip: withShortcut("Close Tab", closeHint), press: () => void closeTab(tabId) };
-  if (item.pr && !tabOpen) return { icon: "xmark", tooltip: "Hide Until Refresh", press: () => hideItems(folderId, [item]) };
+  if (item.pr && !tabOpen)
+    return {
+      icon: "xmark",
+      tooltip: "Hide Until Refresh",
+      press: () => {
+        hideItems(folderId, [item]);
+        noteLiveRowHide();
+      },
+    };
   return null;
 }
 

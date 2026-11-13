@@ -8,6 +8,7 @@ import { lineHeight } from "../ui/tokens";
 import { useLiveColors } from "../live/tokens";
 import { Fold, useFold } from "./Fold";
 import { useStackTabOpen } from "../../state/sidebar/hooks";
+import { noteLiveStackHide } from "../../state/telemetry/liveHides";
 import { LiveItemRow } from "./LiveItemRow";
 import { RefreshSpinner } from "./RefreshSpinner";
 import { SectionLabel } from "./SectionLabel";
@@ -79,6 +80,10 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
   const fold = useFold(collapsed);
   const { hovered, hoverProps } = useHover();
   const tabOpen = useStackTabOpen(folderId, stack.id);
+  const hide = () => {
+    hideStack(folderId, stack.id);
+    noteLiveStackHide();
+  };
   const repo = stack.repo.split("/")[1] ?? stack.repo;
   return (
     <View>
@@ -94,7 +99,7 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
             </Text>
             <HoverSlot
               hovered={hovered && !tabOpen}
-              hover={<Button variant="icon" icon="xmark" size="s" weight="semibold" onPress={() => hideStack(folderId, stack.id)} tooltip="Hide Stack Until Refresh" />}
+              hover={<Button variant="icon" icon="xmark" size="s" weight="semibold" onPress={hide} tooltip="Hide Stack Until Refresh" />}
               style={STACK_COUNT}
             >
               <Badge text={stack.items.length} size="m" />
