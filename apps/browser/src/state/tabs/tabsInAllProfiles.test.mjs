@@ -130,3 +130,13 @@ test("the command bar hook: other profiles' tabs only with the setting on, and a
   assert.deepEqual(rows("tracker."), [{ url: "https://tracker.example/board", tabId: ownCopy, tabProfile: null }]);
   h.unmount();
 });
+
+test("the command bar never offers the page you're on as another profile's tab", () => {
+  const { home, homeProfile, workTab } = setup();
+  S().updateSettings({ searchTabsInAllProfiles: true });
+  const current = S().newTab(home, { url: "https://tracker.example/board" });
+  const h = mount(({ text }) => useSuggestions({ text, active: true, windowId: home, profileId: homeProfile, currentTabId: current, currentUrl: "https://tracker.example/board", scope: null }), { props: { text: "t" } });
+  const rows = h.rerender({ text: "tracker" }).items.filter((x) => x.kind === "page");
+  assert.ok(!rows.some((x) => x.tabId === workTab || x.tabProfile), JSON.stringify(rows));
+  h.unmount();
+});

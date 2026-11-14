@@ -1,4 +1,4 @@
-import type { SuggestionResult } from "@ardia/core";
+import { pageKey, type SuggestionResult } from "@ardia/core";
 import { isIncognitoProfile } from "../browser/model";
 import type { Profile, Tab } from "../browser/types";
 
@@ -12,7 +12,10 @@ export const inOtherProfile =
 export function searchedTabs(tabs: Record<string, Tab>, profileId: string, allProfiles: boolean): Tab[] {
   const all = Object.values(tabs);
   const own = all.filter((t) => t.profileId === profileId);
-  return allProfiles ? [...own, ...all.filter(inOtherProfile(profileId))] : own;
+  if (!allProfiles) return own;
+  const openHere = new Set(own.map((t) => pageKey(t.url)));
+  const other = inOtherProfile(profileId);
+  return [...own, ...all.filter((t) => other(t) && !openHere.has(pageKey(t.url)))];
 }
 
 export function withTabProfiles(result: SuggestionResult, tabs: Record<string, Tab>, profileId: string, profiles: Record<string, Profile>): SuggestionResult {
