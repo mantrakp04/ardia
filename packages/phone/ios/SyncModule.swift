@@ -1,7 +1,9 @@
+import ArdiaDesign
 import ArdiaSync
 import ExpoModulesCore
 import os
 import PhoneSync
+import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
@@ -155,20 +157,21 @@ public final class SyncModule: Module {
 }
 
 @MainActor
-final class FolderPicker: NSObject, UIDocumentPickerDelegate {
+final class FolderPicker {
   static let shared = FolderPicker()
 
   private var waiting: CheckedContinuation<URL?, Never>?
+  private weak var host: UIViewController?
 
   func pick() async -> URL? {
     guard waiting == nil, let presenter = Self.presenter() else { return nil }
     return await withCheckedContinuation { continuation in
       waiting = continuation
-      let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
-      picker.allowsMultipleSelection = false
-      picker.delegate = self
-      picker.directoryURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-      presenter.present(picker, animated: true)
+      let host = UIHostingController(rootView: FolderPickerHost { [weak self] url in self?.finish(url) })
+      host.view.backgroundColor = .clear
+      host.modalPresentationStyle = .overFullScreen
+      self.host = host
+      presenter.present(host, animated: false)
     }
   }
 
@@ -176,17 +179,11 @@ final class FolderPicker: NSObject, UIDocumentPickerDelegate {
     finish(nil)
   }
 
-  func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-    finish(urls.first)
-  }
-
-  func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-    finish(nil)
-  }
-
   private func finish(_ url: URL?) {
     let continuation = waiting
     waiting = nil
+    if let host, host.presentingViewController != nil { host.dismiss(animated: false) }
+    host = nil
     continuation?.resume(returning: url)
   }
 
@@ -195,5 +192,24 @@ final class FolderPicker: NSObject, UIDocumentPickerDelegate {
     var top = (windows.first(where: \.isKeyWindow) ?? windows.first)?.rootViewController
     while let presented = top?.presentedViewController { top = presented }
     return top
+  }
+}
+
+private struct FolderPickerHost: View {
+  let done: (URL?) -> Void
+  @State private var isPresented = false
+
+  var body: some View {
+    Color.clear
+      .ignoresSafeArea()
+      .folderPicker(isPresented: $isPresented) { url in done(url) }
+      .onAppear { isPresented = true }
+      .onChange(of: isPresented) { _, showing in
+        guard !showing else { return }
+        Task { @MainActor in
+          try? await Task.sleep(for: .milliseconds(300))
+          done(nil)
+        }
+      }
   }
 }
