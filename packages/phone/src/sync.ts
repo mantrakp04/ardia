@@ -19,6 +19,7 @@ export type SyncStatus = {
   deviceName: string;
   selectedProfileId: string | null;
   showsResetNotice: boolean;
+  inboxProblem: string | null;
 };
 
 export type PhraseCheck = { wordCount: number; counterText: string; isTooLong: boolean; problem: string | null; isValid: boolean };

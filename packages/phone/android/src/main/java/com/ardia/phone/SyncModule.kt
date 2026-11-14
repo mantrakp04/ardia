@@ -43,7 +43,11 @@ class SyncModule : Module() {
         Events("onSyncEvent")
 
         OnCreate {
-            PhoneSync.inbox(context).onChange = { count -> sendEvent("onSyncEvent", mapOf("name" to "sync.inbox", "count" to count)) }
+            val inbox = PhoneSync.inbox(context)
+            inbox.onChange = { count -> sendEvent("onSyncEvent", mapOf("name" to "sync.inbox", "count" to count)) }
+            inbox.onProblem = { problem ->
+                PhoneSync.current()?.let { sync -> sendEvent("onSyncEvent", mapOf("name" to "sync.status", "status" to SyncPayloads.status(sync.state.value, problem))) }
+            }
         }
 
         OnDestroy {
@@ -51,6 +55,7 @@ class SyncModule : Module() {
             scope = null
             watched = null
             PhoneSync.inbox(context).onChange = null
+            PhoneSync.inbox(context).onProblem = null
         }
 
         OnActivityEntersForeground {
@@ -68,7 +73,7 @@ class SyncModule : Module() {
             done(payload.data?.data?.takeIf { payload.resultCode == Activity.RESULT_OK }?.toString())
         }
 
-        AsyncFunction("status") { -> SyncPayloads.status(controller.state.value) }
+        AsyncFunction("status") { -> SyncPayloads.status(controller.state.value, PhoneSync.inbox(context).problem) }
 
         AsyncFunction("view") { ->
             val sync = controller
@@ -127,7 +132,7 @@ class SyncModule : Module() {
         watched = sync
         val running = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         scope = running
-        running.launch { sync.state.collect { sendEvent("onSyncEvent", mapOf("name" to "sync.status", "status" to SyncPayloads.status(it))) } }
+        running.launch { sync.state.collect { sendEvent("onSyncEvent", mapOf("name" to "sync.status", "status" to SyncPayloads.status(it, PhoneSync.inbox(context).problem))) } }
         running.launch {
             combine(sync.snapshot, sync.state, sync.receivers) { snapshot, state, receivers -> SyncPayloads.view(snapshot, state.selectedProfileId, receivers) }
                 .collect { sendEvent("onSyncEvent", mapOf("name" to "sync.view", "view" to it)) }

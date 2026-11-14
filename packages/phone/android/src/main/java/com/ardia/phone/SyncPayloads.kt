@@ -34,7 +34,8 @@ object SyncPayloads {
         SyncStatusWords.Attention.STALLED -> "stalled"
     }
 
-    fun status(state: SyncState): Map<String, Any?> = mapOf(
+    fun status(state: SyncState, inboxProblem: String? = null): Map<String, Any?> = mapOf(
+        "inboxProblem" to inboxProblem,
         "phase" to phase(state.phase),
         "statusText" to state.statusText,
         "stalledMessage" to (state.phase as? SyncPhase.Stalled)?.message,
