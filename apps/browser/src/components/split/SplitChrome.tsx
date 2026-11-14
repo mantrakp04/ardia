@@ -7,6 +7,7 @@ import type { SplitView } from "../../state/browser/types";
 import { resize, type Divider, type Rect } from "../window/geometry";
 import { capsule, space, Symbol, Text, Toast, withAlpha } from "../ui";
 import { hideToast, useToasts } from "../../state/app/toasts";
+import { noteSplit } from "../../state/telemetry/usage";
 import { useWindowId } from "../../state/browser/hooks";
 import { useCardFrame } from "../window/cardFrame";
 import type { Size } from "../ui/useSettled";
@@ -112,11 +113,18 @@ function DividerHandle({ split, divider, width, height }: { split: SplitView; di
     [],
   );
 
+  const evenOut = () => {
+    if (divider.kind === "root") updateSplit(split.id, { sizes: split.slots.map(() => 1 / split.slots.length) });
+    else updateSplit(split.id, { stackSizes: [0.5, 0.5] });
+    noteSplit("splitDividerResets");
+  };
+
   const { rect, vertical } = divider;
   const active = hovered || dragging;
   return (
     <View
       {...responder.panHandlers}
+      onDoubleClick={evenOut}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
