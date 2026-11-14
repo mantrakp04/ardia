@@ -93,6 +93,15 @@ test("reopening a closed tab puts it back where it was and selects it", () => {
   assert.equal(change.data.undo.length, 0);
 });
 
+test("reopening after Close All brings every tab back with the one that was in front selected", () => {
+  const { data, a, b, c } = threeTabs();
+  const closed = closeAllTabs(selectTab(data, b.id, 4).data, 5).data;
+  const { change, reopened } = reopenLastClosed(closed, 6);
+  assert.deepEqual(reopened.map((t) => t.id).sort(), [a.id, b.id, c.id].sort());
+  assert.equal(change.data.selectedId, b.id);
+  assert.deepEqual(change.data.open.map((t) => t.id), [a.id, b.id, c.id]);
+});
+
 test("private tabs stay out of the store and out of the regular order", () => {
   const { data } = threeTabs();
   const { change, tab } = opened(data, "https://secret.example/", 9, { isPrivate: true });

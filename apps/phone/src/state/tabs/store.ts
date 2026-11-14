@@ -115,7 +115,7 @@ export const closePrivateTabs = () => {
 export function reopenClosedTab(): BrowserTab | null {
   const { change, reopened } = reopenLastClosed(data(), now());
   apply(change);
-  return reopened[reopened.length - 1] ?? null;
+  return reopened.find((t) => t.id === change.data.selectedId) ?? reopened[reopened.length - 1] ?? null;
 }
 
 export const updateTabById = (id: string, patch: TabPatch) => apply(updateTab(data(), id, patch));
