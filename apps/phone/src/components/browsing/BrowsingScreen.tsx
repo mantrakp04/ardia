@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { neighbours } from "../../lib/pagerPhysics";
 import { useSystemBars } from "../../state/app/systemBars";
 import { useFrozenOrder, useNavigation, usePageTone } from "../../state/browse/hooks";
-import { openPageMenu } from "../../state/page/actions";
+import { closePageMenu, openPageMenu } from "../../state/page/actions";
 import { useFindOpen, useMenuOpen, useReaderTabId } from "../../state/page/hooks";
 import { captureCurrentCover, newTab, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
@@ -26,6 +26,7 @@ import {
   tabsInk,
   tabsLayout,
   tabsMotion,
+  usePresence,
   useTheme,
   type MenuItem,
 } from "../ui";
@@ -51,6 +52,8 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const frozen = useFrozenOrder();
   const searching = useSearchOpen();
   const [tabsMenu, setTabsMenu] = useState(false);
+  const menu = usePresence(menuOpen);
+  useEffect(() => closePageMenu, [tab.id]);
   const byId = useMemo(() => new Map(order.map((t) => [t.id, t])), [order]);
   const around = useMemo(() => neighbours(swipeOrder(), tab.id), [order, frozen, tab.id]);
   const left = around.left ? (byId.get(around.left) ?? null) : null;
@@ -115,7 +118,7 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
         />
       ) : null}
       <PressMenu width={width} height={height} />
-      {menuOpen ? <PageMenu tabId={tab.id} /> : null}
+      {menu.mounted ? <PageMenu tabId={tab.id} open={menuOpen} onHidden={menu.hidden} /> : null}
       {readerId === tab.id ? <ReaderView tabId={tab.id} /> : null}
       <PageRequestHost tabId={tab.id} />
     </View>

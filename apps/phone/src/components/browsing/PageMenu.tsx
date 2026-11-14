@@ -24,10 +24,10 @@ import {
 import { useMenuModel, useMenuTitle, useTitleFeedback } from "../../state/page/hooks";
 import { capsule, font, menuLayout, PressScale, Sheet, space, Symbol, Toggle, useTheme, type SymbolName } from "../ui";
 
-export function PageMenu({ tabId }: { tabId: string }) {
+export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boolean; onHidden: () => void }) {
   const model = useMenuModel(tabId);
   return (
-    <Sheet onDismiss={closePageMenu}>
+    <Sheet open={open} onDismiss={closePageMenu} onHidden={onHidden}>
       <ScrollView contentContainerStyle={styles.column} bounces={false}>
         <NavigationCapsule tabId={tabId} />
         <View style={styles.tiles}>
