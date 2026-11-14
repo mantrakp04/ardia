@@ -49,7 +49,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Ctrl+Z reopens closed tabs | Works once turned on in Keyboard Shortcuts (off by default, as on the Mac) | |
 | New window | Works | |
 | Private window | Works; closing one with two tabs asks first (Close 2 tabs?, Don't ask me again) | #1453 |
-| Close-tabs confirm while other windows load | Broken: while "Close 2 tabs?" is open, new pages in every other window stay blank until it is answered, and the dialog can sit behind the main window | #1672 |
+| Close-tabs confirm while other windows load | Works: the confirm (like the prompt and the file pickers) runs on its own thread, so other windows keep loading and taking input while it is open; it stays in front of its own window and comes forward with it | #1672 |
 | Quit and relaunch with the session restored | Works (tabs, the split and the open windows came back) | |
 | Engine memory trimmed after tabs close, once input is idle | Works (logged after closes) | #1544 |
 | Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome; its command bar lists recent pages | |
@@ -352,6 +352,23 @@ is plain Chromium.
   into the holes. While a modal the app shows is open (a confirm, a prompt, a file or folder picker), the page windows its
   window owns are disabled and enabled again when it closes, so a click on the page cannot raise it over the dialog. A press in the page counts
   as a press outside every popover of its window.
+- Native modals (confirm and alert, the prompt, the open, save and folder pickers; `NativeDialogs.h`, `SaveDialog.h`)
+  run on a thread of their own (`ModalThread.h` `RunModal`, a COM STA thread), never on the UI thread. The app shares
+  that thread with Chromium's browser UI, and Chromium runs none of its own tasks inside a native modal loop, so a
+  dialog there stalled every window's pages until it closed (#1672: in the VM, Chromium's DevTools list gave no answer
+  for 5 s while "Close 2 tabs?" was open and a page asked in another window stayed "Untitled"). No dialog is owned by
+  a window on another thread: that joins the two threads' input queues, and WinAppSDK's input (`Microsoft.UI.Input.dll`)
+  then fails fast (`0xc0000602`) when the app quits. The dialog thread owns the dialog by a hidden window of its own
+  over the app window (`ModalParent`), disables the app window and its pages, keeps the dialog just above the app
+  window and gives the window its focus back when it closes. When the app window is activated (its taskbar button,
+  Alt+Tab, or the app focusing it), `WindowManager` brings that window's dialog forward instead (`BringModalForward`).
+  A hidden instance's dialog never hands the foreground to the app window. The app clears keyboard focus before it
+  shuts down WinUI's queue (`ShutDown` in `Ardia.cpp`): destroying the input site of a focused window moves focus
+  into a site being torn down, and `Microsoft.UI.Input` fails fast (`0xc0000602`, seen in a VM dump). Keys typed in it no longer reach the app's shortcut hook. One dialog per window at a time; a dialog whose window goes away, or every
+  dialog when the app stops, is cancelled within 250 ms. Pop-up menus (`TrackPopupMenuEx`) still run on the UI thread
+  and stall pages while a menu is open (#1687). The self-check holds a real confirm on both threads and checks that a
+  page loads only in the first case; `dialog_pages_asked` and `dialog_pages_stalled` count pages asked while a dialog
+  was open and how many hadn't loaded 10 s later.
 - A second launch reaches the running app: Chromium's process singleton hands it the command line, and
   `chromium-win-relaunch-to-app.patch` gives that to `//ardia/win`, which sends the topic `relaunch` with the web and
   file addresses on it. The app treats them as links from another app (`onOpenURLs`: a Little Ardia window or a tab,

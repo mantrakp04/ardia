@@ -19,7 +19,6 @@ struct SaveRequest {
 inline constexpr DWORD kSaveMessageControl = 1;
 
 inline std::optional<std::wstring> ShowSaveFile(HWND owner, SaveRequest const &request) noexcept {
-  ComApartment apartment;
   ModalOverWindow modal(owner, "save panel");
   winrt::com_ptr<IFileSaveDialog> dialog;
   if (FAILED(CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IFileSaveDialog), dialog.put_void())) || !dialog) return std::nullopt;
@@ -39,7 +38,8 @@ inline std::optional<std::wstring> ShowSaveFile(HWND owner, SaveRequest const &r
     winrt::com_ptr<IFileDialogCustomize> customize = dialog.try_as<IFileDialogCustomize>();
     if (customize) customize->AddText(kSaveMessageControl, request.message.c_str());
   }
-  if (FAILED(dialog->Show(owner))) return std::nullopt;
+  ModalWatch::OnAbandon([shown = dialog.get()] { shown->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED)); });
+  if (FAILED(dialog->Show(modal.Parent()))) return std::nullopt;
   winrt::com_ptr<IShellItem> result;
   if (FAILED(dialog->GetResult(result.put())) || !result) return std::nullopt;
   std::wstring path = ItemPath(result.get());

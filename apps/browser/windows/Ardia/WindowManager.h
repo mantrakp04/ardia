@@ -22,6 +22,7 @@
 #include "AppIcon.h"
 #include "Events.h"
 #include "Host.h"
+#include "ModalThread.h"
 #include "LaunchLog.h"
 #include "LaunchConfig.h"
 #include "Paths.h"
@@ -259,7 +260,7 @@ struct WindowManager {
     }
     if (Background()) return;
     if (IsIconic(entry->hwnd)) ShowWindow(entry->hwnd, SW_RESTORE);
-    SetForegroundWindow(entry->hwnd);
+    if (!DialogParts::BringModalForward(entry->hwnd)) SetForegroundWindow(entry->hwnd);
   }
 
   void SetTitle(std::string_view id, std::string_view title) noexcept {
@@ -961,6 +962,7 @@ struct WindowManager {
       manager->m_systemMove = false;
       manager->m_captionPressed = nullptr;
     }
+    if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE && DialogParts::BringModalForward(hwnd)) return 0;
     if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE) manager->Activated(hwnd);
     if (message == WM_SIZE && wParam != SIZE_MINIMIZED) manager->ArrangeToClient(hwnd, LOWORD(lParam), HIWORD(lParam));
     if (message == WM_ACTIVATEAPP && wParam == FALSE) manager->EmitApp("resignActive");

@@ -101,7 +101,12 @@ export type WindowsImportModule = Pick<ImportHost, "readText" | "readBase64" | "
   [Method in ImportAnswersAsJson]: (...args: Parameters<ImportHost[Method]>) => Promise<string>;
 } & { getConstants(): { localAppData?: unknown; roamingAppData?: unknown } };
 
-export type DialogsModule = DialogsNative & { saveFile(name: string, extension: string, kind: string, message: string): Promise<string | null> };
+export type DialogsModule = DialogsNative & {
+  saveFile(name: string, extension: string, kind: string, message: string): Promise<string | null>;
+  openCount(): number;
+  devHoldConfirm(windowId: string, onUiThread: boolean): Promise<boolean>;
+  devReleaseDialogs(): void;
+};
 
 export type SystemSignalsModule = SystemSignalsNative & { powerState(): PowerReading };
 

@@ -143,6 +143,7 @@ static int Prepare(const ArdiaEngineApi *engine) {
 
 static void ShutDown(Ardia::Host &host) {
   host.engine = nullptr;
+  SetFocus(nullptr);
   if (host.queue) host.queue.ShutdownQueue();
   Ardia::LaunchLog::Write(L"launch", L"process ending");
 }
@@ -201,6 +202,7 @@ __declspec(dllexport) int ArdiaAppPreTranslateMessage(const void *message) {
 }
 
 __declspec(dllexport) void ArdiaAppStop(void) {
+  Ardia::DialogParts::StopAllModals();
   if (!EngineLoopRunning()) return;
   EngineLoopRunning() = false;
   Ardia::Host *host = Ardia::Host::Current();
