@@ -91,3 +91,46 @@ test("a profile that shares its data with another stays in sync when one of them
     for (const stop of stops) stop();
   }
 });
+
+function holdWatch(moduleName, engine) {
+  const fake = stub.ardiaCoreNativeModules[moduleName];
+  const call = fake.call;
+  let release;
+  const held = new Promise((r) => (release = r));
+  fake.call = (verb, profile, json) => (verb === "watch" && profile === engine ? held.then(() => call(verb, profile, json)) : call(verb, profile, json));
+  return () => {
+    release();
+    fake.call = call;
+  };
+}
+
+test("a profile deleted while its history and bookmarks are loading is not read after it left", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const warnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => void warnings.push(args.map(String).join(" "));
+  const stops = [startHistory(), startBookmarks()];
+  try {
+    const doomed = S().createProfile({ name: "Doomed" });
+    const engine = model.engineProfile(S(), doomed);
+    await reloadHistory();
+    await reloadBookmarks();
+    await settle();
+    const releases = [holdWatch("ArdiaHistory", engine), holdWatch("ArdiaBookmarks", engine)];
+    stub.chromeHistoryEvent({ kind: "deleted", profile: engine, all: true, urls: [] });
+    stub.chromeBookmarkEdit(engine, []);
+    await settle();
+    stub.engineCalls.length = 0;
+    S().deleteProfile(doomed);
+    for (const release of releases) release();
+    await settle();
+    assert.deepEqual([...callsFor(engine, "history"), ...callsFor(engine, "bookmarks")].filter((c) => !c.endsWith(".watch")), [], "no read after it left");
+    assert.equal(S().bookmarksReady[engine], undefined, "its bookmarks aren't adopted back");
+    assert.deepEqual(warnings, []);
+  } finally {
+    console.warn = warn;
+    for (const stop of stops) stop();
+  }
+});

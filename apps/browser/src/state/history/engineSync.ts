@@ -109,6 +109,7 @@ function load(engine: string): Promise<void> {
         state.again = false;
         state.queued = [];
         await watchHistory(engine);
+        if (!inApp(engine)) return;
         const read = await queryHistory(engine, MAX_HISTORY, MAX_VISIT_TIMES);
         const floor = read.length >= MAX_HISTORY ? Math.min(...read.map((e) => e.visitTimes.at(-1) ?? 0)) : -Infinity;
         let list = read.filter((e) => isWebPageUrl(e.url)).map(toEntry).sort(byLastVisit);

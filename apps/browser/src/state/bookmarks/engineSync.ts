@@ -27,6 +27,8 @@ type EngineState = {
   needPush: boolean;
 };
 const engines = new Map<string, EngineState>();
+const isCurrent = (engine: string, state: EngineState) => engines.get(engine) === state;
+
 const stateOf = (engine: string) => {
   let state = engines.get(engine);
   if (!state) engines.set(engine, (state = { shadow: null, shown: null, busy: false, needRead: false, needPush: false }));
@@ -79,7 +81,9 @@ async function sendOps(engine: string, ops: BookmarkOp[]): Promise<boolean> {
 
 async function readTree(engine: string, state: EngineState) {
   await watchBookmarks(engine);
+  if (!isCurrent(engine, state)) return;
   const fetched = flatFromEngine(await bookmarkTree(engine), engine);
+  if (!isCurrent(engine, state)) return;
   const base = state.shadow ?? state.shown ?? flatFromStore({ nodes: {} }, engine);
   const edits = bookmarkOps(base, flatFromStore(store().bookmarks, engine), engine);
   const merged = edits.length ? applyOps(fetched, edits, engine) : fetched;
@@ -107,7 +111,7 @@ function work(engine: string) {
   state.busy = true;
   void (async () => {
     try {
-      while (state.needRead || state.needPush) {
+      while ((state.needRead || state.needPush) && isCurrent(engine, state)) {
         if (state.needRead) {
           state.needRead = false;
           state.needPush = false;
