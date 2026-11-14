@@ -34,9 +34,7 @@ function qrDataUrl(words: string[]): string {
   return `data:image/png;base64,${base64(grayscalePng(side, side, shade))}`;
 }
 
-export type SyncFileCounts = FileCounts & { hydrated: number };
-
-export function windowsSync(): (SyncContract & { takeFileCounts(): SyncFileCounts }) | null {
+export function windowsSync(): (SyncContract & Required<Pick<SyncContract, "takeFileCounts">>) | null {
   const native = TurboModuleRegistry.get<WindowsSyncModule>(NATIVE_SYNC);
   if (!native) return null;
   const dialogs = () => TurboModuleRegistry.get<TurboModule & DialogsModule>("ArdiaDialogs");
@@ -60,7 +58,7 @@ export function windowsSync(): (SyncContract & { takeFileCounts(): SyncFileCount
       return {
         path: chosen,
         defaultPath: defaultFolder,
-        iCloudAvailable: !!testFolder || !!oneDrive,
+        iCloudAvailable: !!defaultFolder,
         inICloud: !!oneDrive && sameOrInside(chosen, oneDrive),
         exists: state.exists,
         writable: state.exists && state.writable,

@@ -1,4 +1,4 @@
-import type { Listing } from "@ardia/sync";
+import type { Listing, SyncNative } from "@ardia/sync";
 import { isTag } from "./base32";
 
 export const FILE_EXTENSION = ".nns";
@@ -18,7 +18,9 @@ export type VaultNative = {
   hydrate(folder: string, scope: string, id: string): void;
 };
 
-export type FileCounts = { placeholders: number; busy: number };
+export type SyncFileCounts = ReturnType<NonNullable<NonNullable<typeof SyncNative>["takeFileCounts"]>>;
+
+export type FileCounts = Omit<SyncFileCounts, "hydrated">;
 
 export const FOLDER_UNREADABLE = "ERR_SYNC_FOLDER_UNREADABLE";
 

@@ -229,23 +229,24 @@ inline void PublishAt(HANDLE directory, std::wstring const &name, std::string_vi
   }
 }
 
-inline std::string RemoveAt(HANDLE directory, std::wstring const &name) {
-  Opened opened = OpenAt(directory, name, DELETE | FILE_READ_ATTRIBUTES, ShareAll, OpenExisting, FileOnly | NoFollow);
-  if (!opened.handle) {
-    if (SyncFiles::IsMissing(opened.error)) return "missing";
-    throw Failure(SyncFiles::Problem("a sync file couldn't be removed", opened.error));
-  }
-  FILE_DISPOSITION_INFO gone{TRUE};
-  if (!SetFileInformationByHandle(opened.handle.get(), FileDispositionInfo, &gone, sizeof(gone))) throw Failure(SyncFiles::Problem("a sync file couldn't be removed", GetLastError()));
-  return "removed";
-}
-
 inline void Writable(HANDLE item) noexcept {
   FILE_BASIC_INFO basic{};
   if (!GetFileInformationByHandleEx(item, FileBasicInfo, &basic, sizeof(basic)) || !(basic.FileAttributes & FILE_ATTRIBUTE_READONLY)) return;
   basic.FileAttributes &= ~FILE_ATTRIBUTE_READONLY;
   if (!basic.FileAttributes) basic.FileAttributes = FILE_ATTRIBUTE_NORMAL;
   SetFileInformationByHandle(item, FileBasicInfo, &basic, sizeof(basic));
+}
+
+inline std::string RemoveAt(HANDLE directory, std::wstring const &name) {
+  Opened opened = OpenAt(directory, name, DELETE | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES, ShareAll, OpenExisting, FileOnly | NoFollow);
+  if (!opened.handle) {
+    if (SyncFiles::IsMissing(opened.error)) return "missing";
+    throw Failure(SyncFiles::Problem("a sync file couldn't be removed", opened.error));
+  }
+  Writable(opened.handle.get());
+  FILE_DISPOSITION_INFO gone{TRUE};
+  if (!SetFileInformationByHandle(opened.handle.get(), FileDispositionInfo, &gone, sizeof(gone))) throw Failure(SyncFiles::Problem("a sync file couldn't be removed", GetLastError()));
+  return "removed";
 }
 
 inline bool EmptyAt(HANDLE directory, int depth) {
