@@ -42,6 +42,7 @@ NSString *PopupOriginText(NSString *url) {
 @implementation ArdiaPopupOriginStrip {
   NSImageView *_glyph;
   NSTextField *_origin;
+  NSButton *_tabButton;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -53,8 +54,16 @@ NSString *PopupOriginText(NSString *url) {
   _origin.font = [NSFont systemFontOfSize:12];
   _origin.textColor = NSColor.labelColor;
   _origin.lineBreakMode = NSLineBreakByTruncatingHead;
+  _tabButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"arrow.up.right.square" accessibilityDescription:@"Open as Tab"]
+                                  target:self
+                                  action:@selector(openAsTabClicked)];
+  _tabButton.bordered = NO;
+  _tabButton.toolTip = @"Open as Tab";
+  _tabButton.symbolConfiguration = [NSImageSymbolConfiguration configurationWithPointSize:11 weight:NSFontWeightMedium];
+  _tabButton.contentTintColor = NSColor.secondaryLabelColor;
   [self addSubview:_glyph];
   [self addSubview:_origin];
+  [self addSubview:_tabButton];
   [self setFrameSize:frame.size];
   return self;
 }
@@ -73,7 +82,12 @@ NSString *PopupOriginText(NSString *url) {
   const CGFloat text = ceil(_origin.intrinsicContentSize.height);
   _glyph.frame = NSMakeRect(inset, floor((size.height - glyph) / 2), glyph, glyph);
   const CGFloat left = inset + glyph + gap;
-  _origin.frame = NSMakeRect(left, floor((size.height - text) / 2), MAX(size.width - left - inset, 0), text);
+  _tabButton.frame = NSMakeRect(MAX(size.width - inset - glyph, left), floor((size.height - glyph) / 2), glyph, glyph);
+  _origin.frame = NSMakeRect(left, floor((size.height - text) / 2), MAX(NSMinX(_tabButton.frame) - gap - left, 0), text);
+}
+
+- (void)openAsTabClicked {
+  if (self.openAsTab) self.openAsTab();
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
