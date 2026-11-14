@@ -18,12 +18,12 @@ const DIA = [
   [0.0324, 0.316], [0.0657, 0.586], [0.0949, 0.846], [0.1032, 0.973], [0.1365, 1.011], [0.1532, 1.011], [0.1782, 1.005],
 ];
 
-test("the spring follows Dia's measured motion (rms under 4 % of the travel, the recorder's own timing jitter)", () => {
+test("the spring keeps Dia's measured timing without its overshoot, so the page is never laid out past its final width", () => {
   const rms = Math.sqrt(DIA.reduce((sum, [t, x]) => sum + (dm.springAt(t) - x) ** 2, 0) / DIA.length);
-  assert.ok(rms < 0.04, `rms ${rms.toFixed(3)}`);
-  assert.ok(dm.springAt(0.1) > 0.88);
-  const peak = Math.max(...Array.from({ length: 60 }, (_, i) => dm.springAt(i / 120)));
-  assert.ok(peak > 1.005 && peak < 1.03, `peak ${peak}`);
+  assert.ok(rms < 0.06, `rms ${rms.toFixed(3)}`);
+  assert.ok(dm.springAt(0.1) > 0.85);
+  const peak = Math.max(...Array.from({ length: 120 }, (_, i) => dm.springAt(i / 120)));
+  assert.ok(peak <= 1, `peak ${peak}`);
   assert.ok(Math.abs(dm.springAt(0.3) - 1) < 0.003);
 });
 
@@ -31,8 +31,8 @@ test("React Native's spring parameters are the same spring", () => {
   const { stiffness, damping, mass } = motion.spring(dm.DOCK_SPRING);
   assert.equal(mass, 1);
   const omega = Math.sqrt(stiffness);
-  assert.ok(Math.abs(omega - (2 * Math.PI) / 0.215) < 1e-9);
-  assert.ok(Math.abs(damping / (2 * omega) - 0.79) < 1e-9);
+  assert.ok(Math.abs(omega - (2 * Math.PI) / dm.DOCK_SPRING.response) < 1e-9);
+  assert.ok(Math.abs(damping / (2 * omega) - dm.DOCK_SPRING.damping) < 1e-9);
 });
 
 test("the traffic lights go with the sidebar: at their place when it's shown, past the window's edge when it's hidden", () => {
@@ -213,7 +213,7 @@ test("Arc's peek slides in on its measured spring and leaves on its ease-in-out;
     const rms = fitT0(motion, hide);
     assert.ok(rms < 0.05, `hide rms ${rms.toFixed(3)}`);
   }
-  const dia = Math.max(...ARC_HIDE.map((m) => fitT0(m, (t) => dm.springAt(t))));
+  const dia = Math.max(...ARC_HIDE.map((m) => fitT0(m, (t) => dm.springAt(t, { response: 0.215, damping: 0.79 }))));
   assert.ok(dia > 0.06, `Dia's spring against Arc's hide: rms ${dia.toFixed(3)}`);
   assert.equal(dm.easeInOutCubic(0), 0);
   assert.equal(dm.easeInOutCubic(0.5), 0.5);
