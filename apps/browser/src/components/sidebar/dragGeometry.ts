@@ -1,10 +1,10 @@
 import type { ScrollView, View } from "react-native";
-import { layout } from "../ui/theme";
+import { BASE_SIDEBAR_METRICS, type SidebarMetrics } from "../../lib/sidebarMetrics";
 import { currentSettings } from "../../state/browser/current";
 import { createDragMarks, dragMarksOf, markDrag } from "../../state/sidebar/dragMarks";
-import { overPins, pinGrid, pinSlot, TILE_GAP } from "./pinZone";
+import { overPins, pinGrid, pinSlot } from "./pinZone";
 import { SCROLL_EDGE } from "./ScrollEdge";
-import { apart, type Drop, type Frame, type Ghost, type Item, PIN_SLOT, type Pointed, ROW_GAP, tailKey } from "./dragModel";
+import { apart, type Drop, type Frame, type Ghost, type Item, type Pointed, tailKey } from "./dragModel";
 import { NO_DROP } from "../../state/drag/drops";
 
 export type DragSession = {
@@ -59,6 +59,7 @@ export class DragGeometry {
   scrollY = 0;
   tilesFixed = true;
   tilesRoom = Infinity;
+  metrics: SidebarMetrics = BASE_SIDEBAR_METRICS;
   setGhost: (ghost: Ghost | null) => void = () => {};
   marks = createDragMarks();
   setSources = (sources: Set<string>) => markDrag(this.marks, { sources });
@@ -89,7 +90,7 @@ export class DragGeometry {
     const list = this.at(this.drag.regionFrames.get("list") ?? null);
     const pinnedArea = this.at(this.drag.regionFrames.get("pinnedGroups") ?? null);
     const rows = live.filter((i) => i.kind !== "tail" && (i.section === "pinnedRows" || i.section === "pinnedGroups")).map((i) => this.at(i.frame)!.y);
-    const top = Math.min(list?.y ?? tiles.y + tiles.h + TILE_GAP, pinnedArea?.y ?? Infinity, ...rows);
+    const top = Math.min(list?.y ?? tiles.y + tiles.h + this.metrics.tile.gap, pinnedArea?.y ?? Infinity, ...rows);
     return this.tilesFixed ? Math.max(top, tiles.y + tiles.h + this.drag.gridGrowth + SCROLL_EDGE.gap + SCROLL_EDGE.line) : top;
   }
 
@@ -126,7 +127,7 @@ export class DragGeometry {
     }
     for (const s of sources) {
       if (s.kind === "tile" || !s.frame || s === i || apart(s, i)) continue;
-      const closed = s.frame.h + (s.parentGroup ? 0 : ROW_GAP);
+      const closed = s.frame.h + (s.parentGroup ? 0 : this.metrics.rowGap);
       if (s.frame.y < top) dy -= closed;
       else if (s.frame.y < bottom) dh -= closed;
     }
@@ -149,17 +150,18 @@ export class DragGeometry {
     const total = cells.length + count;
     if (!total) return null;
     const balanced = currentSettings().balancedTopApps;
-    const slot = pinSlot(tiles, total, layout.pinnedHeight, x, y, balanced);
+    const { tile } = this.metrics;
+    const slot = pinSlot(tiles, total, tile, x, y, balanced);
     const found = !marks.pins ? (home ?? cells.length) : marks.pinBefore === tailKey("tiles") ? cells.length : cells.findIndex((c) => c.key === marks.pinBefore);
     const gap = found < 0 ? cells.length : found;
     const index = slot < gap ? slot : slot >= gap + count ? slot - count : -1;
     const cell = index >= 0 ? cells[index] : undefined;
     if (!cell) return { cell: null, index: gap, gap, part: "gap" };
-    const { columns, width } = pinGrid(total, tiles.w, balanced);
-    const mid = tiles.x + (slot % columns) * (width + TILE_GAP) + width / 2;
-    const top = tiles.y + Math.floor(slot / columns) * PIN_SLOT;
+    const { columns, width } = pinGrid(total, tiles.w, balanced, tile);
+    const mid = tiles.x + (slot % columns) * (width + tile.gap) + width / 2;
+    const top = tiles.y + Math.floor(slot / columns) * tile.slot;
     const reach = this.drag.hold.ready === cell.key ? 0.45 : 0.3;
-    const centre = folders && Math.abs(x - mid) < width * reach && Math.abs(y - (top + layout.pinnedHeight / 2)) <= (layout.pinnedHeight + TILE_GAP) / 2;
+    const centre = folders && Math.abs(x - mid) < width * reach && Math.abs(y - (top + tile.height / 2)) <= tile.slot / 2;
     return { cell, index, gap, part: centre ? "centre" : x < mid ? "before" : "after" };
   }
 }

@@ -4,20 +4,22 @@ import { useShallow } from "zustand/react/shallow";
 import { openLiveItem } from "../../state/live/engine";
 import { useLive } from "../../state/live/store";
 import type { CompletedItem } from "../../state/live/types";
-import { space, Symbol, Text } from "../ui";
-import { layout, useTheme } from "../ui/theme";
+import { Symbol, Text } from "../ui";
+import { useTheme } from "../ui/theme";
 import { useLiveColors } from "../live/tokens";
 import { Fold, useFold } from "./Fold";
 import { COMPLETION_GLYPH } from "./LiveItemRow";
 import { SidebarListRow, SidebarRowLabel } from "./SidebarRow";
-import { TAB_ROW } from "./tokens";
+import { useSidebarScale } from "./scale";
 
-const LABEL = { marginLeft: TAB_ROW.titleGap } as const;
 const DONE_ROW = { opacity: 0.75 } as const;
 
 const NONE: string[] = [];
 const NONE_COMPLETED: CompletedItem[] = [];
 const COMPLETED_ROW_HEIGHT = 28;
+const SUMMARY_ROW_HEIGHT = 24;
+const SUMMARY_GLYPH = 11;
+const DONE_GLYPH = 12;
 
 export function useCompletedShown(folderId: string): CompletedItem[] {
   return useLive(
@@ -32,6 +34,7 @@ export function useCompletedShown(folderId: string): CompletedItem[] {
 export function CompletedFooter({ folderId, windowId }: { folderId: string; windowId: string }) {
   const theme = useTheme();
   const colors = useLiveColors();
+  const m = useSidebarScale();
   const shown = useCompletedShown(folderId);
   const [open, setOpen] = useState(false);
   const fold = useFold(!open);
@@ -47,9 +50,9 @@ export function CompletedFooter({ folderId, windowId }: { folderId: string; wind
   };
   return (
     <View onMouseEnter={enter} onMouseLeave={leave}>
-      <SidebarListRow height={24} fill={open ? theme.rowHover : undefined}>
-        <Symbol name="checkmark.circle" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
-        <Text size="small" tone="textSecondary" style={LABEL}>
+      <SidebarListRow height={m.px(SUMMARY_ROW_HEIGHT)} fill={open ? theme.rowHover : undefined}>
+        <Symbol name="checkmark.circle" size={m.px(SUMMARY_GLYPH)} color={theme.textSecondary} style={{ width: m.icon, height: m.icon }} />
+        <Text size="small" tone="textSecondary" style={{ fontSize: m.font.small, marginLeft: m.tabRow.titleGap }}>
           {shown.length} Completed
         </Text>
       </SidebarListRow>
@@ -61,16 +64,16 @@ export function CompletedFooter({ folderId, windowId }: { folderId: string; wind
           node: (
             <Pressable onPress={() => openLiveItem(windowId, folderId, c.item)}>
               {({ pressed }) => (
-                <SidebarListRow height={COMPLETED_ROW_HEIGHT} padRight={space.m} fill={pressed ? theme.tabPressed : undefined} style={DONE_ROW}>
-                  <Symbol name={COMPLETION_GLYPH[c.state].symbol} size={12} color={colors[COMPLETION_GLYPH[c.state].color]} style={{ width: 16, height: 16 }} />
+                <SidebarListRow height={m.px(COMPLETED_ROW_HEIGHT)} padRight={m.space.m} fill={pressed ? theme.tabPressed : undefined} style={DONE_ROW}>
+                  <Symbol name={COMPLETION_GLYPH[c.state].symbol} size={m.px(DONE_GLYPH)} color={colors[COMPLETION_GLYPH[c.state].color]} style={{ width: m.icon, height: m.icon }} />
                   <SidebarRowLabel text={c.item.title} color={theme.textSecondary} compact />
                 </SidebarListRow>
               )}
             </Pressable>
           ),
         }))}
-        rowHeight={COMPLETED_ROW_HEIGHT}
-        padTop={layout.rowGap}
+        rowHeight={m.px(COMPLETED_ROW_HEIGHT)}
+        padTop={m.rowGap}
       />
     </View>
   );

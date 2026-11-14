@@ -23,12 +23,14 @@ import { ResizeHandle } from "./ResizeHandle";
 import { SIDEBAR_FIELD, SIDEBAR_FOOTER_DOWNLOADS, SIDEBAR_HEADER_WITH_FIELD } from "./geometry";
 import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { openSidebarMenu } from "../../state/sidebar/menus";
-import { GLOW_ROOM, ROW_PITCH, type SidebarGeometry } from "./pageLayout";
+import { GLOW_ROOM, type SidebarGeometry } from "./pageLayout";
+import { SidebarScaleContext, useChosenSidebarScale } from "./scale";
 import { SidebarPage } from "./SidebarPage";
 import { SidebarRowLookContext, useSidebarRowLookSource } from "./rowLook";
 import { useRevealTabs } from "./useRevealTabs";
 
 const HEADER_RIGHT = space.m;
+const DOCK_CLEARANCE = 12;
 
 export function Sidebar({ width }: { width: number }) {
   const windowId = useWindowId();
@@ -36,7 +38,8 @@ export function Sidebar({ width }: { width: number }) {
   const { pages, paging } = usePagerPages(windowId);
   const [available, setAvailable] = useState(0);
   const newTabAtTop = useSettings((s) => s.newTabButtonPosition === "top");
-  const dockAbove = newTabAtTop || available <= 0 ? Infinity : available - ROW_PITCH - 12;
+  const scale = useChosenSidebarScale();
+  const dockAbove = newTabAtTop || available <= 0 ? Infinity : available - scale.rowPitch - DOCK_CLEARANCE;
   const scroll = useRef<ScrollView>(null);
   const scrollY = useRef(0);
   const geometry = useRef<SidebarGeometry>({ viewport: 0, regions: { pinnedGroups: 0, list: 0 }, newTabAtTop: false, tilesFixed: true });
@@ -66,93 +69,95 @@ export function Sidebar({ width }: { width: number }) {
   useLayoutEffect(() => dismissHoverIn(windowId), [windowId, current, paging]);
 
   return (
-    <DragProvider>
-      {(ghost: Ghost | null, controller) => {
-        drag.current = controller;
-        return (
-          <SidebarDropArea
-            ref={(v) => {
-              controller.root = v;
-            }}
-            style={{ width, height: "100%" }}
-          >
-            <View
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                top: header - GLOW_ROOM,
-                bottom: footer,
-                overflow: paging ? "hidden" : "visible",
+    <SidebarScaleContext.Provider value={scale}>
+      <DragProvider>
+        {(ghost: Ghost | null, controller) => {
+          drag.current = controller;
+          return (
+            <SidebarDropArea
+              ref={(v) => {
+                controller.root = v;
               }}
-              onLayout={(e) => setAvailable(e.nativeEvent.layout.height)}
+              style={{ width, height: "100%" }}
             >
-              <SidebarRowLookContext.Provider value={rowLook}>
-                {pages.map((page) => (
-                  <SidebarPage
-                    key={page.id}
-                    profileId={page.id}
-                    slot={page.slot}
-                    paging={paging}
-                    width={width}
-                    current={page.id === current}
-                    resting={!!page.resting}
-                    dockAbove={dockAbove}
-                    height={Math.max(0, available - (addressBar ? GLOW_ROOM : 0))}
-                    rows={page.id === current ? undefined : Math.ceil(available / ROW_PITCH) + 1}
-                    geometry={page.id === current ? geometry : undefined}
-                    onScrollView={onScrollView}
-                    onScrollY={onScrollY}
-                  />
-                ))}
-              </SidebarRowLookContext.Provider>
-            </View>
-
-            <TintInk>
-              {footer ? (
-                <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
-                  <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
-                  {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
-                  {footerDownloads ? (
-                    <View style={{ position: "absolute", left: SIDEBAR_FOOTER_DOWNLOADS.left, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
-                      <DownloadsButton windowId={windowId} />
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-
-              <View style={{ height: header }}>
-                <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)}>
-                  <WindowDragRegion style={StyleSheet.absoluteFill} />
-                </ContextMenuArea>
-                {addressBar ? (
-                  <>
-                    <SidebarHeaderTools width={width} />
-                    <SidebarAddressRow width={width} />
-                  </>
-                ) : (
-                  <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
-                    <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0)} />
-                    <View pointerEvents="none" style={{ flex: 1 }} />
-                    {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
-                  </View>
-                )}
+              <View
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: header - GLOW_ROOM,
+                  bottom: footer,
+                  overflow: paging ? "hidden" : "visible",
+                }}
+                onLayout={(e) => setAvailable(e.nativeEvent.layout.height)}
+              >
+                <SidebarRowLookContext.Provider value={rowLook}>
+                  {pages.map((page) => (
+                    <SidebarPage
+                      key={page.id}
+                      profileId={page.id}
+                      slot={page.slot}
+                      paging={paging}
+                      width={width}
+                      current={page.id === current}
+                      resting={!!page.resting}
+                      dockAbove={dockAbove}
+                      height={Math.max(0, available - (addressBar ? GLOW_ROOM : 0))}
+                      rows={page.id === current ? undefined : Math.ceil(available / scale.rowPitch) + 1}
+                      geometry={page.id === current ? geometry : undefined}
+                      onScrollView={onScrollView}
+                      onScrollY={onScrollY}
+                    />
+                  ))}
+                </SidebarRowLookContext.Provider>
               </View>
-            </TintInk>
 
-            <ResizeHandle windowId={windowId} />
-            {ghost && !ghost.landing && nothingPinned ? (
-              addressBar ? (
-                <PinFieldZone top={SIDEBAR_FIELD.top} height={SIDEBAR_FIELD.height} />
-              ) : (
-                <PinSlotZone />
-              )
-            ) : null}
-            <FolderPanel windowId={windowId} />
-            {ghost ? <DragGhost ghost={ghost} /> : null}
-          </SidebarDropArea>
-        );
-      }}
-    </DragProvider>
+              <TintInk>
+                {footer ? (
+                  <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
+                    <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
+                    {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
+                    {footerDownloads ? (
+                      <View style={{ position: "absolute", left: SIDEBAR_FOOTER_DOWNLOADS.left, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
+                        <DownloadsButton windowId={windowId} />
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                <View style={{ height: header }}>
+                  <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)}>
+                    <WindowDragRegion style={StyleSheet.absoluteFill} />
+                  </ContextMenuArea>
+                  {addressBar ? (
+                    <>
+                      <SidebarHeaderTools width={width} />
+                      <SidebarAddressRow width={width} />
+                    </>
+                  ) : (
+                    <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
+                      <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0)} />
+                      <View pointerEvents="none" style={{ flex: 1 }} />
+                      {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
+                    </View>
+                  )}
+                </View>
+              </TintInk>
+
+              <ResizeHandle windowId={windowId} />
+              {ghost && !ghost.landing && nothingPinned ? (
+                addressBar ? (
+                  <PinFieldZone top={SIDEBAR_FIELD.top} height={SIDEBAR_FIELD.height} />
+                ) : (
+                  <PinSlotZone />
+                )
+              ) : null}
+              <FolderPanel windowId={windowId} />
+              {ghost ? <DragGhost ghost={ghost} /> : null}
+            </SidebarDropArea>
+          );
+        }}
+      </DragProvider>
+    </SidebarScaleContext.Provider>
   );
 }

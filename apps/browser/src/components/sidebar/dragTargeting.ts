@@ -1,4 +1,3 @@
-import { layout } from "../ui/theme";
 import { currentSettings } from "../../state/browser/current";
 import type { DragSource } from "../../state/drag/drops";
 import { descendantGroupIds, resolveDropNow } from "../../state/sidebar/current";
@@ -6,7 +5,7 @@ import { tabDragOutside } from "../../state/drag/tabDrag";
 import { dragMarksOf, markDrag } from "../../state/sidebar/dragMarks";
 import { folderPanel } from "../../state/sidebar/tileFolderUi";
 import { overPins, pinGridHeight } from "./pinZone";
-import { boxed, type Drop, FOLDER_HOLD_MS, folderOf, inside, type Item, pinnedBlock, ROW_GAP, spring } from "./dragModel";
+import { boxed, type Drop, FOLDER_HOLD_MS, folderOf, inside, type Item, pinnedBlock, spring } from "./dragModel";
 import { aimAt, type Pointing } from "./dragZones";
 import { DragGeometry } from "./dragGeometry";
 import { hapticTick } from "../../state/drag/dragNative";
@@ -55,7 +54,8 @@ export class DragTargeting extends DragGeometry {
     const firstTab = (i: Item | undefined) => i?.tabIds.find((id) => !dragged.has(id)) ?? null;
     const tabsDrag = source.kind === "row" || source.kind === "tile";
     const count = external || (folderOf(source) ? 1 : dragged.size);
-    const rowPitch = (boxed(source) ? source.foldedHeight() : layout.rowHeight * (source.kind === "split" ? 1 : Math.max(1, session.ghost?.count ?? external ?? 1))) + ROW_GAP;
+    const { rowHeight, rowGap, tile } = this.metrics;
+    const rowPitch = (boxed(source) ? source.foldedHeight() : rowHeight * (source.kind === "split" ? 1 : Math.max(1, session.ghost?.count ?? external ?? 1))) + rowGap;
     const blocks = live.filter(pinnedBlock).sort(byY);
     const moved = sources
       .filter((s) => s.frame)
@@ -76,7 +76,7 @@ export class DragTargeting extends DragGeometry {
     const { gridBase } = session;
     const overTiles = !away && tabsDrag && !!tiles && (gridBase ? overPins(y, this.pinFloor(live, tiles), this.pinning) : inside(tiles, x, y, 6));
     if (gridBase)
-      session.gridGrowth = Math.min(pinGridHeight(cells.length + (overTiles ? count : 0), gridBase.w, layout.pinnedHeight, balanced), this.tilesFixed ? this.tilesRoom : Infinity) - gridBase.h;
+      session.gridGrowth = Math.min(pinGridHeight(cells.length + (overTiles ? count : 0), gridBase.w, tile, balanced), this.tilesFixed ? this.tilesRoom : Infinity) - gridBase.h;
     const list = this.at(regionFrames.get("list") ?? null);
     const panel = folderPanel();
     const panelFrame = panel ? (regionFrames.get("folder") ?? null) : null;
@@ -111,6 +111,7 @@ export class DragTargeting extends DragGeometry {
       cells,
       count,
       balanced,
+      tile,
       grid: !!gridBase,
       inPinned: !!list && y < list.y,
       kept: { gapKey: session.gapKey, pitch: session.pitch },

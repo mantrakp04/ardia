@@ -8,12 +8,14 @@ import { launch, reporter, session, sleep } from "../../../scripts/lib/instance.
 const args = process.argv.slice(2);
 const appArg = args.find((a) => !a.startsWith("--"));
 if (!appArg) {
-  console.error("usage: node sidebar-scroll-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nThe sidebar's pinned tiles stay put while the tabs scroll under them (Dia's dock), with the address field in the sidebar and without: drags onto the tiles after a scroll, selecting a tile while scrolled, a dock too tall for the window (24 tiles in an 800 pt window), and a click on a tab in view after a change to another profile's page.");
+  console.error("usage: node sidebar-scroll-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data] [--scale=100]\n\nThe sidebar's pinned tiles stay put while the tabs scroll under them (Dia's dock), with the address field in the sidebar and without: drags onto the tiles after a scroll, selecting a tile while scrolled, a dock too tall for the window (24 tiles in an 800 pt window), and a click on a tab in view after a change to another profile's page.");
   process.exit(2);
 }
 const appPath = resolve(appArg);
 const port = args.find((a) => a.startsWith("--port="))?.slice(7);
 const keep = args.includes("--keep-data");
+const sidebarScale = Number(args.find((a) => a.startsWith("--scale="))?.slice(8) ?? 100);
+assert.ok([80, 90, 100, 120].includes(sidebarScale), "--scale must be 80, 90, 100 or 120");
 const scratch = mkdtempSync(join(tmpdir(), "ac-sidebar-scroll-"));
 const data = join(scratch, "data");
 const rep = reporter(join(scratch, "sidebar-scroll-test.log"), { name: "sidebar-scroll-test" });
@@ -30,6 +32,7 @@ const PINS = ["p1", "p2", "p3"];
 const LOOSE = Array.from({ length: 40 }, (_, i) => `t${i}`);
 const WORK = Array.from({ length: 40 }, (_, i) => `w${i}`);
 const fixture = session({
+  settings: { sidebarScale },
   profiles: ["Personal", "Work"],
   windows: [{ id: "w1", frame: [80, 80, 1280, 800], activeTabIds: { default: "t0", work: "w0" } }],
   tabs: [...PINS.map((id) => tab(id, { pinned: true, pinnedUrl: url(id) })), ...LOOSE.map((id) => tab(id)), ...WORK.map((id) => tab(id, { profileId: "work" }))],

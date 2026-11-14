@@ -10,23 +10,25 @@ import { newCapture } from "../../state/sidebar/listCapture";
 import { useCapturedGroupEntries, useGroupFirstTabIcon, useGroupTabIds, useKeptEntries, useShowsExtraTabs } from "../../state/sidebar/hooks";
 import { MeetingTimeLabel, useMeetingCountdown } from "../live/MeetingCountdown";
 import { HoverSlot } from "../ui/HoverSlot";
-import { Button, ContextMenuArea, FadeLabel, font, ink, space, Symbol, Text, weight, withAlpha } from "../ui";
+import { Button, ContextMenuArea, FadeLabel, ink, Symbol, Text, weight, withAlpha } from "../ui";
 import { commitRename, endRename } from "../../state/sidebar/actions";
 import { useDragFolded, useDragItem, useDropInto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
 import { Fold, useFold } from "./Fold";
-import { GROUP_BORDER, GROUP_INNER_RADIUS, GROUP_INDENT, GROUP_INSET, GROUP_RADIUS, groupMembersPadBottom } from "./geometry";
+import { groupMembersPadBottom } from "./geometry";
+import { useSidebarScale } from "./scale";
 import { entryHeightNow, foldedGroupHeight, headGap } from "../../state/sidebar/geometry";
 import { dismissHover } from "../../state/sidebar/hover";
 import { useGroupHover, useRowHover } from "./hoverController";
 import { HOVER_CARD_FADE_MS } from "./hoverMotion";
-import { GhostSlot, ListMotionContext, useGroupMotion } from "./ListMotion";
+import { GhostSlot } from "./GhostEntry";
+import { ListMotionContext, useGroupMotion } from "./ListMotion";
 import { pressGroupClose, useGroupCloseControlWhile } from "../../state/sidebar/closeControl";
 import { openGroupMenu } from "../../state/sidebar/menus";
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 import { RenameField, SplitRowItem, TabRowItem } from "./TabRow";
-import { groupBoxAtRest, groupSurface, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
+import { groupBoxAtRest, groupSurface, TABULAR_NUMS, useSidebarTokens } from "./tokens";
 import { SidebarRowSurface } from "./SidebarRow";
 import { curve } from "../ui/motion";
 import { entryKey, parseEntry } from "../../state/sidebar/entryKey";
@@ -83,6 +85,7 @@ export const GroupBlock = memo(function GroupBlock({
 }) {
   const windowId = useWindowId();
   const tokens = useSidebarTokens();
+  const m = useSidebarScale();
   const stored = useGroup(groupId, (g) => !!g?.collapsed);
   const collapsed = useDragFolded(entryKey("group", groupId)) || stored;
   const color = useGroup(groupId, (g) => g?.color ?? null);
@@ -109,10 +112,10 @@ export const GroupBlock = memo(function GroupBlock({
 
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style}>
-      <View {...moved} {...box.hoverProps} ref={movedRef} style={[{ paddingVertical: GROUP_BORDER }, moved.style as object]}>
+      <View {...moved} {...box.hoverProps} ref={movedRef} style={[{ paddingVertical: m.group.border }, moved.style as object]}>
         <Animated.View
           pointerEvents="none"
-          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, opacity: boxOpacity }}
+          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: m.group.radius, backgroundColor: fill, borderWidth: m.group.border, borderColor: stroke, opacity: boxOpacity }}
         />
         <View ref={headerRef} {...handle}>
           <GroupHeader groupId={groupId} windowId={windowId} collapsed={collapsed} open={fold.open} />
@@ -133,10 +136,10 @@ export const GroupBlock = memo(function GroupBlock({
             )}
             keep={keptEntries}
             rowHeight={(key) => entryHeightNow(windowId, profileId, key)}
-            padTop={headGap(collapsed && keptEntries.length ? keptEntries[0] : entries[0])}
-            padBottom={groupMembersPadBottom(collapsed ? keptEntries.length : entries.length)}
-            indent={GROUP_INDENT}
-            indentEnd={GROUP_INSET}
+            padTop={headGap(collapsed && keptEntries.length ? keptEntries[0] : entries[0], m.rowGap)}
+            padBottom={groupMembersPadBottom(collapsed ? keptEntries.length : entries.length, m.group.membersPadBottom)}
+            indent={m.group.indent}
+            indentEnd={m.group.inset}
             mountClosed={selectedInside}
             footer={<Animated.View ref={tail.wrapper.ref} style={tail.wrapper.style} />}
           />
@@ -169,10 +172,13 @@ export const SidebarEntry = memo(function SidebarEntry({
 });
 
 const MEASURE_LABEL = { opacity: 0, fontVariant: TABULAR_NUMS } as const;
+const CHEVRON_BOX = 10;
+const CHEVRON_GLYPH = 9;
 
 function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; windowId: string; collapsed: boolean; open: Animated.Value }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
+  const m = useSidebarScale();
   const group = useGroup(groupId, (g) => g);
   const label = useGroupLabel(groupId);
   const firstTab = useGroupFirstTabIcon(groupId);
@@ -204,11 +210,11 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
           }}
         >
           {() => (
-            <SidebarRowSurface fill={dropInto ? theme.tabPressed : ink.clear} cornerRadius={GROUP_INNER_RADIUS}>
+            <SidebarRowSurface fill={dropInto ? theme.tabPressed : ink.clear} cornerRadius={m.group.innerRadius}>
               {group.icon || firstTab ? (
-                <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} />
+                <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} size={m.icon} />
               ) : (
-                <View style={{ width: 16 }} />
+                <View style={{ width: m.icon }} />
               )}
               {renaming ? (
                 <RenameField
@@ -219,32 +225,33 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
                   onDone={(text) => (text === null ? endRename(target) : commitRename(target, text))}
                 />
               ) : (
-                <Animated.View style={{ flex: 1, height: TAB_ROW.titleHeight, marginLeft: TAB_ROW.titleGap, flexDirection: "row", alignItems: "center", transform: [{ rotate: countdown.rotate }] }}>
-                  <View style={{ flexShrink: 1, height: TAB_ROW.titleHeight, paddingRight: space.m, justifyContent: "center" }}>
-                    <Text lines={1} weight="medium" style={MEASURE_LABEL}>
+                <Animated.View style={{ flex: 1, height: m.tabRow.titleHeight, marginLeft: m.tabRow.titleGap, flexDirection: "row", alignItems: "center", transform: [{ rotate: countdown.rotate }] }}>
+                  <View style={{ flexShrink: 1, height: m.tabRow.titleHeight, paddingRight: m.space.m, justifyContent: "center" }}>
+                    <Text lines={1} weight="medium" style={[MEASURE_LABEL, { fontSize: m.font.body }]}>
                       {label}
                     </Text>
-                    <FadeLabel text={label} fontSize={font.body.fontSize} weight="medium" color={tokens.groupTitle} style={{ position: "absolute", left: 0, right: 0, top: 0, height: TAB_ROW.titleHeight }} />
+                    <FadeLabel text={label} fontSize={m.font.body} weight="medium" color={tokens.groupTitle} style={{ position: "absolute", left: 0, right: 0, top: 0, height: m.tabRow.titleHeight }} />
                   </View>
                   <SharedFolderMark groupId={groupId} />
                   <Animated.View
                     style={{
-                      width: 10,
-                      height: 10,
+                      width: m.px(CHEVRON_BOX),
+                      height: m.px(CHEVRON_BOX),
                       alignItems: "center",
                       justifyContent: "center",
                       transform: [{ rotate: open.interpolate({ inputRange: [0, 1], outputRange: ["-90deg", "0deg"] }) }],
                     }}
                   >
-                    <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10, height: 10 }} />
+                    <Symbol name="chevron.down" size={m.px(CHEVRON_GLYPH)} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: m.px(CHEVRON_BOX), height: m.px(CHEVRON_BOX) }} />
                   </Animated.View>
                 </Animated.View>
               )}
               <HoverSlot
                 hovered={hovered && !renaming}
-                hover={closeControl && <Button variant="icon" icon={closeControl.icon} size="s" weight="semibold" onPress={() => pressGroupClose(groupId)} tooltip={closeControl.tooltip} />}
+                width={m.rowButton.box}
+                hover={closeControl && <Button variant="icon" icon={closeControl.icon} box={m.rowButton.box} glyph={m.rowButton.glyph} weight="semibold" onPress={() => pressGroupClose(groupId)} tooltip={closeControl.tooltip} />}
               >
-                {countdown.label && !renaming ? <MeetingTimeLabel label={countdown.label} urgent={countdown.urgent} /> : null}
+                {countdown.label && !renaming ? <MeetingTimeLabel label={countdown.label} urgent={countdown.urgent} fontSize={m.font.caption} gap={m.space.xs} /> : null}
               </HoverSlot>
             </SidebarRowSurface>
           )}

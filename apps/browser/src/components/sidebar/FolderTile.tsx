@@ -13,11 +13,14 @@ import { TabIcon } from "./TabIcon";
 import { FolderDropRing, RestingTile, TileFace, useSlotPosition } from "./TileFace";
 import { closedByPress, openTileFolderMenu, toggleFolderPanel, useFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { entryKey } from "../../state/sidebar/entryKey";
+import { useSidebarScale } from "./scale";
 
 const MOSAICS = {
   tile: { cell: 9, gap: space.xxs, pad: space.xs, radius: radius.tile },
   strip: { cell: 7, gap: space.xxs, pad: space.xxs, radius: concentric(radius.tile, space.xxs) },
 } as const;
+
+const FOLDER_GLYPH = { size: 7, bottom: 3, right: 4, width: 10, height: 9 } as const;
 
 export const FolderTile = memo(function FolderTile({ folderId, width, sliding, x, y }: { folderId: string; width: number; sliding: boolean; x: number; y: number }) {
   const theme = useTheme();
@@ -31,8 +34,16 @@ export const FolderTile = memo(function FolderTile({ folderId, width, sliding, x
   const target = useFolderTarget(entryKey("tileFolder", folderId));
   const position = useSlotPosition(x, y, width, sliding, dragging);
   const pressedAt = useRef<number | undefined>(undefined);
+  const { px } = useSidebarScale();
   if (!members.length) return null;
-  const glyph = <Symbol name="folder.fill" size={7} color={theme.textSecondary} style={{ position: "absolute", bottom: 3, right: 4, width: 10, height: 9 }} />;
+  const glyph = (
+    <Symbol
+      name="folder.fill"
+      size={px(FOLDER_GLYPH.size)}
+      color={theme.textSecondary}
+      style={{ position: "absolute", bottom: px(FOLDER_GLYPH.bottom), right: px(FOLDER_GLYPH.right), width: px(FOLDER_GLYPH.width), height: px(FOLDER_GLYPH.height) }}
+    />
+  );
 
   return (
     <Animated.View ref={wrapper.ref} style={[{ position: "absolute", ...position.getLayout() }, wrapper.style]} {...handle}>
@@ -64,7 +75,9 @@ export const FolderTile = memo(function FolderTile({ folderId, width, sliding, x
 
 export function FolderMosaic({ tabIds, scale = "tile" }: { tabIds: string[]; scale?: keyof typeof MOSAICS }) {
   const theme = useTheme();
-  const { cell, gap, pad, radius: corner } = MOSAICS[scale];
+  const { px } = useSidebarScale();
+  const mosaic = MOSAICS[scale];
+  const [cell, gap, pad, corner] = [px(mosaic.cell), px(mosaic.gap), px(mosaic.pad), px(mosaic.radius)];
   const side = pad * 2 + cell * 2 + gap;
   return (
     <View

@@ -1,8 +1,6 @@
 import { Animated, type View } from "react-native";
-import { layout } from "../ui/theme";
 import type { Drop as StoreDrop } from "../../state/drag/drops";
 import { SLIDE } from "../tabstrip/tokens";
-import { TILE_GAP } from "./pinZone";
 import { folderIdOfCell } from "../../state/pins/tileFolders";
 import { entryKey } from "../../state/sidebar/entryKey";
 
@@ -47,9 +45,6 @@ export const cellKey = (cell: string) => {
 
 export type Ghost = { item: Item; count: number; width: number; height: number; position: Animated.ValueXY; landing?: boolean };
 
-export const ROW_GAP = layout.rowGap;
-export const RESTING_TAIL = { marginTop: -ROW_GAP };
-export const PIN_SLOT = layout.pinnedHeight + TILE_GAP;
 export const EDGE = 28;
 export const FOLDER_HOLD_MS = 400;
 export const spring = (value: Animated.Value, toValue: number) => Animated.spring(value, { toValue, ...SLIDE });

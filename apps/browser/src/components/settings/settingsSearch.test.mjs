@@ -96,6 +96,9 @@ const TOP = [
   ["appearence", ["appearance.theme"]],
   ["upscalling", ["tabs.videoUpscaling"]],
   ["extensoins", ["extensions.installed"]],
+  ["sidebar size", ["tabs.sidebarScale"]],
+  ["tab height", ["tabs.sidebarScale"]],
+  ["ui scale", ["tabs.sidebarScale"]],
 ];
 
 test("real queries put the setting people mean first", () => {

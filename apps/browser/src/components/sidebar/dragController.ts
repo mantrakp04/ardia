@@ -9,13 +9,15 @@ import { arrangeLive } from "../../state/sidebar/pinnedOrder";
 import { suppressHover } from "../../state/sidebar/hover";
 import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { dragMarksOf, markDrag } from "../../state/sidebar/dragMarks";
-import { boxed, type Drop, EDGE, type Item, measure, ROW_GAP, spring, tabCell } from "./dragModel";
+import { boxed, type Drop, EDGE, type Item, measure, spring, tabCell } from "./dragModel";
 import { DragTargeting } from "./dragTargeting";
 import { type DragSession, newDragSession } from "./dragGeometry";
 import { captureEscape } from "../../state/drag/dragNative";
 import { entryKey } from "../../state/sidebar/entryKey";
 import { endHeldTabPress } from "../../state/sidebar/heldTabPress";
 import { tabPlace } from "../../state/sidebar/actions";
+
+const FALLBACK_GHOST = { width: 176, height: 33 } as const;
 
 export class DragController extends DragTargeting {
   create(key: string): Item {
@@ -45,10 +47,11 @@ export class DragController extends DragTargeting {
     }
     await this.measureAll(session);
     if (this.session !== session) return;
-    const frame = item.frame ?? { x, y, w: 176, h: 33 };
+    const fallbackHeight = this.metrics.px(FALLBACK_GHOST.height);
+    const frame = item.frame ?? { x, y, w: FALLBACK_GHOST.width, h: fallbackHeight };
     const grab = (session.grab = { x: x - frame.x, y: y - frame.y });
     const count = new Set(sources.flatMap((s) => s.tabIds)).size;
-    const height = boxed(item) ? Math.min(frame.h, item.headerFrame?.h ?? 33) : frame.h;
+    const height = boxed(item) ? Math.min(frame.h, item.headerFrame?.h ?? fallbackHeight) : frame.h;
     if (seq) setDragPicture(seq, () => [session.pointer.x - grab.x, session.pointer.y - grab.y, frame.w, height], [x, y]);
     session.ghost = {
       item,
@@ -199,6 +202,7 @@ export class DragController extends DragTargeting {
 
   protected landingSpot(drop: Drop): Promise<{ x: number; y: number } | null> | null {
     const { sources, gapKey } = this.drag;
+    const { rowGap } = this.metrics;
     const source = sources[0]!;
     if (drop.type === "tabs" && drop.placement.pinned && !drop.placement.row) return null;
     const target = drop.type !== "none" && gapKey ? this.items.get(gapKey) : undefined;
@@ -215,13 +219,13 @@ export class DragController extends DragTargeting {
     const group = source.parentGroup ? this.items.get(entryKey("group", source.parentGroup)) : undefined;
     const emptied = !!group && group.tabIds.every((id) => source.tabIds.includes(id)) && !!group.frame && group.frame.y < top && group !== ref;
     if (!emptied && source !== ref && source.frame && source.frame.y < top)
-      closing += source.parentGroup ? Math.max(0, now(source.size) - ROW_GAP) + ROW_GAP : now(source.size);
+      closing += source.parentGroup ? Math.max(0, now(source.size) - rowGap) + rowGap : now(source.size);
     const container = ref.kind === "tail" ? [...this.items.values()].find((i) => i !== source && i.kind !== "tail" && i.frame && i.section === ref.section && i.parentGroup === ref.parentGroup) : ref;
     const home = target ? null : this.at(source.frame, this.still(source));
     if (home) return Promise.resolve({ x: home.x, y: home.y });
     return Promise.all([measure(ref.view), emptied ? measure(group!.view) : null]).then(([f, gone]) => {
       if (!f) return null;
-      return { x: container?.frame?.x ?? f.x, y: f.y - closing - (gone ? gone.h + ROW_GAP : 0) + (ref.kind === "tail" ? ROW_GAP : 0) };
+      return { x: container?.frame?.x ?? f.x, y: f.y - closing - (gone ? gone.h + rowGap : 0) + (ref.kind === "tail" ? rowGap : 0) };
     });
   }
 

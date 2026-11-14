@@ -2,7 +2,7 @@ import { escapeCapture } from "./nativeFakes.mjs";
 import { DragController } from "../dragController.ts";
 import { cellKey, tailKey } from "../dragModel.ts";
 import { pinGrid } from "../pinZone.ts";
-import { layout } from "../../ui/theme.ts";
+import { BASE_SIDEBAR_METRICS } from "../../../lib/sidebarMetrics.ts";
 import { animations } from "../../../test-native/reactNative.ts";
 import { entryKey } from "../../../state/sidebar/entryKey.ts";
 import { dragMarksOf } from "../../../state/sidebar/dragMarks.ts";
@@ -12,13 +12,13 @@ import { live } from "../../../state/live/store.ts";
 import { pinSection } from "../../../state/browser/model.ts";
 import { tileFolderOf } from "../../../state/pins/tileFolders.ts";
 
-export const ROW = layout.rowHeight;
-export const GAP = layout.rowGap;
+export const ROW = BASE_SIDEBAR_METRICS.rowHeight;
+export const GAP = BASE_SIDEBAR_METRICS.rowGap;
 export const PITCH = ROW + GAP;
 export const LEFT = 6;
 export const WIDTH = 180;
 export const INDENT = 16;
-export const TILE = layout.pinnedHeight;
+export const TILE = BASE_SIDEBAR_METRICS.tile.height;
 export { animations, entryKey, tailKey, cellKey, escapeCapture };
 
 export const S = () => useBrowser.getState();
@@ -53,7 +53,13 @@ export function fakeView(frame) {
 
 const frameAt = (x, y, w, h) => ({ x, y, w, h });
 
-export function sceneLayout({ top = 200, x = LEFT, width = WIDTH } = {}) {
+export function sceneLayout({ top = 200, x = LEFT, width = WIDTH, metrics = BASE_SIDEBAR_METRICS } = {}) {
+  const ROW = metrics.rowHeight;
+  const GAP = metrics.rowGap;
+  const PITCH = ROW + GAP;
+  const INDENT = metrics.group.indent;
+  const TILE = metrics.tile.height;
+  const TILE_GAP = metrics.tile.gap;
   const entries = [];
   let y = top;
   const place = (key, spec, frame, header = null) => entries.push({ key, spec, frame, header });
@@ -100,17 +106,17 @@ export function sceneLayout({ top = 200, x = LEFT, width = WIDTH } = {}) {
     },
     tiles(cells, { balanced = false, gridWidth = width } = {}) {
       const start = y;
-      const { columns, width: tile } = pinGrid(cells.length, gridWidth, balanced);
+      const { columns, width: tile } = pinGrid(cells.length, gridWidth, balanced, metrics.tile);
       cells.forEach((cell, i) => {
         const folder = typeof cell === "object" ? cell : null;
         const column = i % columns;
         const row = Math.floor(i / columns);
-        const frame = frameAt(x + column * (tile + 6), start + row * (TILE + 6), tile, TILE);
+        const frame = frameAt(x + column * (tile + TILE_GAP), start + row * (TILE + TILE_GAP), tile, TILE);
         if (folder) place(entryKey("tileFolder", folder.folderId), { kind: "tile", tabIds: folder.members, section: "tiles", folderId: folder.folderId }, frame);
         else place(entryKey("tab", cell), { kind: "tile", tabIds: [cell], section: "tiles" }, frame);
       });
       const rows = Math.max(1, Math.ceil(cells.length / columns));
-      const h = rows * TILE + (rows - 1) * 6;
+      const h = rows * TILE + (rows - 1) * TILE_GAP;
       place(tailKey("tiles"), { kind: "tail", tabIds: [], section: "tiles" }, frameAt(x, start + h, width, 0));
       y = start + h;
       return { frame: frameAt(x, start, gridWidth, h), api };
@@ -128,8 +134,9 @@ export function sceneLayout({ top = 200, x = LEFT, width = WIDTH } = {}) {
   return api;
 }
 
-export function mount({ entries, regions = {}, root = frameAt(0, 0, 200, 900), viewport = frameAt(0, 100, 200, 700), scrollY = 0, tilesFixed = true, tilesRoom = Infinity }) {
+export function mount({ entries, regions = {}, root = frameAt(0, 0, 200, 900), viewport = frameAt(0, 100, 200, 700), scrollY = 0, tilesFixed = true, tilesRoom = Infinity, metrics = BASE_SIDEBAR_METRICS }) {
   const c = new DragController();
+  c.metrics = metrics;
   const ghosts = [];
   c.setGhost = (g) => ghosts.push(g);
   c.root = fakeView(root);
@@ -142,7 +149,7 @@ export function mount({ entries, regions = {}, root = frameAt(0, 0, 200, 900), v
     const item = c.create(e.key);
     Object.assign(item, e.spec);
     item.view = fakeView(e.frame);
-    item.header = e.header ? fakeView(e.header) : e.spec.kind === "group" ? fakeView({ ...e.frame, h: ROW }) : null;
+    item.header = e.header ? fakeView(e.header) : e.spec.kind === "group" ? fakeView({ ...e.frame, h: metrics.rowHeight }) : null;
     c.items.set(e.key, item);
   }
   return { c, ghosts, view: (key) => c.items.get(key).view };

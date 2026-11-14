@@ -6,7 +6,8 @@ import { useShallow } from "zustand/react/shallow";
 import { radius } from "../ui";
 import { useClipped, type ClipSource } from "./EntryMotion";
 import { noDragMarks } from "../../state/sidebar/dragMarks";
-import { cellKey, RESTING_TAIL, ROW_GAP, type Ghost, type ItemSpec } from "./dragModel";
+import { cellKey, type Ghost, type ItemSpec } from "./dragModel";
+import { useSidebarScale } from "./scale";
 import { DragController } from "./dragController";
 import { onAppEvent } from "../../state/drag/dragNative";
 import { WindowDropGlow } from "../tabstrip/WindowDropGlow";
@@ -20,6 +21,7 @@ export function DragProvider({ children }: { children: (ghost: Ghost | null, con
   const controller = useMemo(() => new DragController(), []);
   const [ghost, setGhost] = useState<Ghost | null>(null);
   controller.setGhost = setGhost;
+  controller.metrics = useSidebarScale();
   useEffect(() => () => void (controller.active && controller.end(false)), [controller]);
   useEffect(() => devRegister("sidebarDrag", null, controller), [controller]);
   useEffect(() => {
@@ -64,6 +66,7 @@ export const useDragging = () => useStore(useContext(DragContext)?.marks ?? noDr
 
 export function useDragItem(key: string, spec: ItemSpec, clip: ClipSource | null = null) {
   const controller = useContext(DragContext) ?? undefined;
+  const { rowGap } = useSidebarScale();
   const marks = controller?.marks ?? noDragMarks;
   const item = useMemo(() => controller?.create(key), [controller, key]);
   if (item) Object.assign(item, spec);
@@ -115,21 +118,21 @@ export function useDragItem(key: string, spec: ItemSpec, clip: ClipSource | null
   const landing = useStore(marks, (m) => m.landing === key);
   const clipped = useClipped(clip);
   const horizontal = spec.kind === "tile";
-  const tailOffset = useMemo(() => item && Animated.add(item.gap, -ROW_GAP), [item]);
+  const tailOffset = useMemo(() => item && Animated.add(item.gap, -rowGap), [item, rowGap]);
   const style = item
     ? {
         ...(horizontal ? null : { marginTop: spec.kind === "tail" ? tailOffset! : item.gap }),
         ...(source
           ? horizontal
             ? { opacity: 0 }
-            : { height: item.size, marginBottom: -ROW_GAP, opacity: 0, overflow: "hidden" as const }
+            : { height: item.size, marginBottom: -rowGap, opacity: 0, overflow: "hidden" as const }
           : landing
             ? { opacity: 0 }
             : {}),
-        ...(clipped && !source && !landing ? { marginTop: -ROW_GAP, paddingTop: ROW_GAP, overflow: "hidden" as const } : {}),
+        ...(clipped && !source && !landing ? { marginTop: -rowGap, paddingTop: rowGap, overflow: "hidden" as const } : {}),
       }
     : spec.kind === "tail"
-      ? RESTING_TAIL
+      ? { marginTop: -rowGap }
       : {};
   return { wrapper: { ref, style }, handle: responder.panHandlers, headerRef, dragging: source, gap: item?.gap };
 }

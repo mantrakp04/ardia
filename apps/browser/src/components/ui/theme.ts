@@ -4,7 +4,7 @@ import type { ThemeBackdropProps } from "@ardia/core";
 import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../lib/windowTint";
 import { isRgbFunction, luminance, mix, over, parseColor, rgbToHsl, toHex } from "../../lib/color";
 import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
-import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
+import { SIDEBAR_ROW, SIDEBAR_TILE } from "../../lib/sidebarMetrics";
 import { arcSelectedFill, colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
 import type { BasePalette } from "../../lib/themeFile";
 import { visibleSelection } from "../../lib/selectionContrast";
@@ -221,7 +221,7 @@ export const layout = {
   sidebarHeader: 46,
   sidebarInset: SIDEBAR_INSET,
   pinnedTop: 54,
-  pinnedHeight: 41,
+  pinnedHeight: SIDEBAR_TILE.height,
   rowHeight: SIDEBAR_ROW.height,
   rowGap: SIDEBAR_ROW.gap,
   cardRadius: radius.chrome,

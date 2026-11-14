@@ -13,6 +13,7 @@ import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { setting, type SettingId } from "../settingsIndex";
 import { useSettingsColors } from "../useSettingsColors";
+import { SIDEBAR_SCALE, SIDEBAR_SCALES } from "../../../lib/sidebarMetrics";
 
 const PEEK_WITH: { value: PeekModifier; title: string }[] = [
   { value: "shift", title: "⇧-click" },
@@ -83,6 +84,11 @@ const DURATION_UNITS: Option<DurationUnit>[] = [
   { value: "days", title: "Days" },
 ];
 
+const SIDEBAR_SIZES: Option<string>[] = SIDEBAR_SCALES.map((percent) => ({
+  value: String(percent),
+  title: percent === SIDEBAR_SCALE.default ? `${percent}% (Default)` : `${percent}%`,
+}));
+
 export function TabsPane() {
   const newTabOpens = useSettings((s) => s.newTabOpens);
   const newTabPosition = useSettings((s) => s.newTabPosition);
@@ -90,6 +96,7 @@ export function TabsPane() {
   const cleanUpMinutes = useSettings((s) => s.cleanUpInactiveTabsAfterMinutes);
   const top = useTabLayout() === "top";
   const sidebarSide = useSettings((s) => s.sidebarSide);
+  const sidebarScale = useSettings((s) => s.sidebarScale);
 
   return (
     <View>
@@ -106,6 +113,9 @@ export function TabsPane() {
           />
         <Row anchor="tabs.sidebarSide">
           <Segmented options={SIDEBAR_SIDES} value={sidebarSide} onChange={chooseSidebarSide} />
+        </Row>
+        <Row anchor="tabs.sidebarScale">
+          <PopUp value={String(sidebarScale)} options={SIDEBAR_SIZES} onChange={(v) => updateSettings({ sidebarScale: Number(v) })} minWidth={140} />
         </Row>
         <SettingToggle anchor="tabs.hideToolbarWhileScrolling" />
         <SettingToggle anchor="tabs.showSidebarButton" />

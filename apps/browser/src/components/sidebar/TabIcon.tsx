@@ -10,6 +10,7 @@ import { FADED, markedEngine, useIconMarks } from "../../state/sidebar/rowState"
 import { NO_GROUP_ICON } from "../../state/groups/groupIcons";
 import { iconSymbol } from "../../lib/customIcon";
 import { Favicon } from "../favicon/Favicon";
+import { useSidebarScale } from "./scale";
 
 export const TabIcon = memo(function TabIcon({
   tabId,
@@ -37,7 +38,8 @@ export const TabIcon = memo(function TabIcon({
   const size = compact ? COMPACT_ICON : givenSize;
   const sleeping = useIsSleeping(tabId ?? "");
   const marks = useIconMarks(tabId, givenMarks);
-  const engine = tabId && size >= 14 ? markedEngine(marks) : null;
+  const m = useSidebarScale();
+  const engine = tabId && size >= m.compactIcon ? markedEngine(marks) : null;
   const props = { url, favicon, icon, size, color, direct };
   return (
     <View style={{ opacity: sleeping || marks & FADED ? SLEEPING_OPACITY : 1 }}>
