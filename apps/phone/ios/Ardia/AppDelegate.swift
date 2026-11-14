@@ -7,6 +7,7 @@ import ReactAppDependencyProvider
 class AppDelegate: ExpoAppDelegate {
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
+  private var sceneAdoption: NSObjectProtocol?
 
   override func application(
     _ application: UIApplication,
@@ -20,6 +21,10 @@ class AppDelegate: ExpoAppDelegate {
     reactNativeFactory = factory
     bindReactNativeFactory(factory)
     PhoneSyncHost.shared.launch()
+    sceneAdoption = NotificationCenter.default.addObserver(forName: UIScene.willConnectNotification, object: nil, queue: nil) { note in
+      guard let scene = note.object as? UIScene else { return }
+      MainActor.assumeIsolated { SceneDelegate.adopt(scene) }
+    }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

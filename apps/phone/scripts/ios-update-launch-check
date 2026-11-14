@@ -1,0 +1,48 @@
+#!/bin/bash
+set -u
+
+usage() {
+  cat <<'EOF'
+Check that the Expo iPhone app starts React Native when it updates the SwiftUI app.
+
+  apps/phone/scripts/ios-update-launch-check <simulator-udid> <swiftui-app> <expo-app>
+
+Installs the SwiftUI build on a booted simulator, launches it and sends it to the background so iOS
+saves its scene session, installs the Expo build over it, launches it and waits up to 30 s for
+Documents/SQLite/browser.db, which only React Native writes. Exits 0 when it appears, 1 when it
+doesn't, 2 when a step fails. The simulator's Ardia data is replaced.
+EOF
+}
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ $# -ne 3 ]; then
+  usage
+  [ $# -eq 3 ] && exit 0 || exit 2
+fi
+
+SIM=$1
+SWIFTUI=$2
+EXPO=$3
+ID=com.ardia.browser.ios
+
+xcrun simctl terminate "$SIM" "$ID" >/dev/null 2>&1
+xcrun simctl uninstall "$SIM" "$ID" >/dev/null 2>&1
+xcrun simctl install "$SIM" "$SWIFTUI" || exit 2
+xcrun simctl launch "$SIM" "$ID" >/dev/null || exit 2
+sleep 10
+xcrun simctl launch "$SIM" com.apple.Preferences >/dev/null || exit 2
+sleep 8
+xcrun simctl install "$SIM" "$EXPO" || exit 2
+CONTAINER=$(xcrun simctl get_app_container "$SIM" "$ID" data) || exit 2
+PID=$(xcrun simctl launch "$SIM" "$ID" | awk '{print $NF}')
+for _ in $(seq 1 30); do
+  [ -f "$CONTAINER/Documents/SQLite/browser.db" ] && break
+  sleep 1
+done
+THREADS=$(ps -M -p "$PID" 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
+xcrun simctl terminate "$SIM" "$ID" >/dev/null 2>&1
+if [ -f "$CONTAINER/Documents/SQLite/browser.db" ]; then
+  echo "PASS: React Native started after the update ($THREADS threads, browser.db written)"
+  exit 0
+fi
+echo "FAIL: React Native never started after the update ($THREADS threads, no browser.db)"
+exit 1
