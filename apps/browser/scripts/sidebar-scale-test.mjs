@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { launch, reporter, session } from "../../../scripts/lib/instance.mjs";
 
-const [appArg, outputArg] = process.argv.slice(2);
-if (!appArg) throw new Error("usage: node sidebar-scale-test.mjs <Debug Ardia.app> [output directory]");
+const [appArg, outputArg] = process.argv.slice(2).filter(a => !a.startsWith("--"));
+if (!appArg) throw new Error("usage: node sidebar-scale-test.mjs <Debug Ardia.app> [output directory] [--only=name]");
 const output = outputArg ? resolve(outputArg) : mkdtempSync(join(tmpdir(), "ac-sidebar-scale-"));
 mkdirSync(output, { recursive: true });
 const only = process.argv.find(a => a.startsWith("--only="))?.slice(7);
@@ -33,17 +33,15 @@ try {
     const [a,b] = points;
     const sx = Math.round(a.x + Math.min(a.w/2, 45)), sy = Math.round(a.y+a.h/2);
     const tx = Math.round(b.x + (edge === "tile" ? 3 : Math.min(b.w/2,45))), ty = Math.round(edge === "before" ? b.y+1 : b.y+b.h/2);
-    const path = [[sx,sy],[sx+3,sy-14],[sx+7,sy-25],[tx,Math.round((sy+ty)/2)],[tx,ty],[tx,ty],[tx,ty]].map(p=>p.join(",")).join(";");
-    console.log("drag",source,points,path);
-    const trace = await run(`const trace=[];const timer=setInterval(()=>{const d=controller().session;if(d)trace.push({sources:d.sources.map(i=>i.key),drop:d.drop,pointer:d.pointer,folder:d.regionFrames.get("folder"),away:controller().marks.getState().folderAway});},120);return ac.shell.devSetPointer("w1", {x:${sx},y:${sy}}).then(()=>wait(100)).then(()=>act(${JSON.stringify("drag:"+path)})).then(()=>wait(1500)).then(()=>{ let tries=0; const settled=()=>!controller().session ? wait(300) : ++tries>30 ? Promise.reject(new Error("native drag did not finish")) : wait(100).then(settled); return settled(); }).then(()=>wait(800)).then(()=>{clearInterval(timer);return trace;});`);
-    rep.log(JSON.stringify(trace));
+    const path = (source.includes('section==="folder"') ? [[sx,sy],[tx,ty]] : [[sx,sy],[sx+3,sy-14],[sx+7,sy-25],[tx,Math.round((sy+ty)/2)],[tx,ty],[tx,ty],[tx,ty]]).map(p=>p.join(",")).join(";");
+    await run(`return ac.shell.devSetPointer("w1", {x:${sx},y:${sy}}).then(()=>wait(100)).then(()=>act(${JSON.stringify("drag:"+path)})).then(()=>wait(1500)).then(()=>{ let tries=0; const settled=()=>!controller().session ? wait(300) : ++tries>30 ? Promise.reject(new Error("native drag did not finish")) : wait(100).then(settled); return settled(); }).then(()=>wait(800));`);
   };
   for (const scale of [80,120]) for (const addressBar of ["toolbar","sidebar"]) {
     const name = `${scale}-${addressBar}`;
     await run(`st().updateSettings({sidebarScale:${scale},addressBar:${JSON.stringify(addressBar)},appearance:"light",sidebarWidth:260}); controller().scroll.scrollTo({y:0,animated:false}); return wait(700);`);
     await check(`${name}: native row reorder`, async()=>{
       const order = await run('return st().windows.w1.tabIds.filter(id=>!st().tabs[id].pin && !Object.values(st().groups).some(g=>g.tabIds.includes(id)));');
-      const [first,second,third] = order;
+      const [first,,third] = order;
       await drag(`i.kind==="row" && i.tabIds.includes(${JSON.stringify(third)})`,`i.kind==="row" && i.tabIds.includes(${JSON.stringify(first)})`);
       const result=await run('return st().windows.w1.tabIds;');
       assert.ok(result.indexOf(third)<result.indexOf(first), result.join());
@@ -58,6 +56,8 @@ try {
       await run('if (!globalThis.scaleOuter) { globalThis.scaleOuter=st().createGroup(["t6","t7"],{name:"Outer group"}); globalThis.scaleInner=st().createGroup(["t8","t9"],{name:"Inner group"}); st().moveGroup(scaleInner,{pinned:false,parentId:scaleOuter}); } st().updateGroup(scaleOuter,{collapsed:false,pinned:false}); return wait(500);');
       const measured=await run('return Promise.all([ac.sidebarRows.measureRow("w1","t6"),ac.sidebarRows.measureRow("w1","t8")]);');
       assert.ok(measured[0] && measured[1] && measured[1].x>measured[0].x, JSON.stringify(measured));
+      assert.equal(measured[0].height, scale === 80 ? 27 : 41);
+      assert.equal(measured[1].height, measured[0].height);
       frames.push({name,nested:measured});
       await run('st().updateGroup(scaleOuter,{collapsed:true}); return wait(500);');
       await drag('i.kind==="group" && i.groupId===scaleOuter','i.kind==="row" && i.tabIds.includes("t0")');
@@ -66,7 +66,7 @@ try {
       await run('st().moveGroup(scaleOuter,{pinned:false,beforeId:null}); return wait(400);');
     });
     await check(`${name}: folder-panel drag reorder`,async()=>{
-      await run('st().placeTabs(["p4","p5"],{pinned:true,tileFolder:{id:"scale-folder",name:"Scale folder"},beforeId:null}); return wait(500);');
+      await run('st().activate("p1");st().activate("t0");st().placeTabs(["p4","p5"],{pinned:true,tileFolder:{id:"scale-folder",name:"Scale folder"},beforeId:null}); return wait(500);');
       const f=await run('return frame(items().find(i=>i.kind==="tile" && i.folderId==="scale-folder"));');
       assert.ok(f);
       const x=Math.round(f.x+f.w/2),y=Math.round(f.y+f.h/2);
