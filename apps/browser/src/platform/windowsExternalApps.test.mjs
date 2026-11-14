@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { readExternalAppAsk, schemeOf, serializedOrigin, trustworthyOrigin, windowsExternalAppCounts, windowsExternalApps } from "../../../../packages/expo-windows/src/engine/domains/externalApps.ts";
+import { answerExternalApp, showExternalAppPrompt } from "../state/site/prompts.ts";
 import { noteExternalApp, takeExternalAppCounts } from "../state/telemetry/externalAppCounts.ts";
 
 const HANDLERS = { mailto: { name: "Mail", path: "C:\\Mail\\mail.exe", icon: "data:image/png;base64,AA==" }, ardiatest: { name: "Test Handler", path: null, icon: null } };
@@ -55,10 +56,10 @@ test("a remembered site opens the app with a gesture and asks without one; remem
   const first = await apps.request(ask(), "Ardia p-1", "tab-1");
   await apps.resolve(first.id, true, true);
   assert.equal(docs.size, 1);
-  windowsExternalAppCounts.takeAutomaticOpens();
+  windowsExternalAppCounts.takeLaunches();
   assert.equal(await apps.request(ask({ id: "x2" }), "Ardia p-1", "tab-1"), null);
   assert.equal(opened.length, 2);
-  assert.equal(windowsExternalAppCounts.takeAutomaticOpens(), 1);
+  assert.deepEqual(windowsExternalAppCounts.takeLaunches(), { opened: 0, refused: 0, automatic: 1 });
   const noGesture = await apps.request(ask({ id: "x3", userGesture: false }), "Ardia p-1", "tab-1");
   assert.equal(noGesture?.app, "Mail");
   assert.equal(opened.length, 2);
@@ -105,9 +106,18 @@ test("only a well-formed scheme and a well-formed ask go further", () => {
 test("app link prompts and answers are counted and reset once taken", () => {
   takeExternalAppCounts();
   noteExternalApp("asked");
-  noteExternalApp("remembered");
+  noteExternalApp("allowedAlways");
   noteExternalApp("declined");
-  assert.deepEqual(takeExternalAppCounts(), { external_app_prompts: 1, external_app_prompts_no_app: 0, external_app_opens: 0, external_app_opens_remembered: 1, external_app_declines: 1, external_app_opens_automatic: 0 });
+  assert.deepEqual(takeExternalAppCounts(), {
+    external_app_prompts: 1,
+    external_app_prompts_no_app: 0,
+    external_app_allows: 0,
+    external_app_allows_always: 1,
+    external_app_declines: 1,
+    external_app_launches: 0,
+    external_app_launches_refused: 0,
+    external_app_launches_automatic: 0,
+  });
 });
 
 test("an ask the engine no longer holds, or whose page moved on, opens nothing", async () => {
@@ -202,4 +212,56 @@ test("ARDIA_TEST=externalAppLaunch reaches only the native background refusal an
   assert.match(native, /if \(!config\.testInstance\) return false;\n  auto found = config\.test\.find\("externalAppLaunch"\);/);
   assert.deepEqual(native.split("\n").filter((line) => line.includes("LaunchAskedByTest()") && !line.includes("inline")), ["    if (AppLaunch::Background() && !ExternalApps::LaunchAskedByTest()) {"]);
   assert.match(source("../../../../packages/expo-windows/src/selfCheck/externalApps.ts"), /launchConfig\(\)\.test\.externalAppLaunch === "1"/);
+});
+
+test("a remembered open whose profile is deleted while the engine answers opens nothing and counts as refused", async () => {
+  const opened = [];
+  const docs = new Map();
+  let answer = null;
+  const documents = { readDocument: (name) => docs.get(name) ?? null, writeDocument: (name, text) => void docs.set(name, text) };
+  const native = { describe: async () => HANDLERS.mailto, open: async (url) => (opened.push(url), true) };
+  const apps = windowsExternalApps(() => native, () => documents, (page) => (page === "slow" ? new Promise((resolve) => (answer = resolve)) : Promise.resolve(true)));
+  const first = await apps.request(ask(), "Ardia p-1", "tab-1");
+  await apps.resolve(first.id, true, true);
+  opened.length = 0;
+  windowsExternalAppCounts.takeLaunches();
+  const automatic = apps.request(ask({ id: "x2" }), "Ardia p-1", "slow");
+  while (!answer) await new Promise((resolve) => setImmediate(resolve));
+  apps.forgetProfile("Ardia p-1");
+  answer(true);
+  assert.equal(await automatic, null);
+  assert.deepEqual(opened, []);
+  assert.deepEqual(windowsExternalAppCounts.takeLaunches(), { opened: 0, refused: 1, automatic: 0 });
+});
+
+test("a yes counts as a click, and only a launch Windows confirmed counts as a launch", async () => {
+  takeExternalAppCounts();
+  showExternalAppPrompt("t-count", { id: "w1", url: "mailto:a", scheme: "mailto", origin: null, app: "Mail", appPath: null, icon: null, title: "", message: "", remember: null });
+  answerExternalApp("t-count", true, false);
+  const clicked = takeExternalAppCounts();
+  assert.deepEqual([clicked.external_app_allows, clicked.external_app_launches], [1, 0]);
+  const { apps, gone } = fakes();
+  windowsExternalAppCounts.takeLaunches();
+  const stale = await apps.request(ask(), "Ardia p-1", "tab-1");
+  gone.add("tab-1");
+  assert.equal(await apps.resolve(stale.id, true, false), false);
+  const live = await apps.request(ask({ id: "x2", url: "ardiatest:x" }), "Ardia p-1", "tab-2");
+  assert.equal(await apps.resolve(live.id, true, false), true);
+  assert.deepEqual(windowsExternalAppCounts.takeLaunches(), { opened: 1, refused: 1, automatic: 0 });
+});
+
+test("a host with a trailing dot keeps its site name and its own allowance, and look-alikes stay out", async () => {
+  assert.equal(serializedOrigin("https://example.com."), "https://example.com.");
+  assert.equal(trustworthyOrigin("https://example.com."), true);
+  assert.equal(trustworthyOrigin("http://localhost.:3000"), true);
+  for (const lookAlike of ["https://evil.example@bank.example", "https://evil.example.@bank.example", "https://example..com", "https://.", "https://example.com./", "https://example .com."]) {
+    assert.equal(serializedOrigin(lookAlike), null, lookAlike);
+  }
+  const { apps } = fakes();
+  const dotted = await apps.request(ask({ origin: "https://example.com." }), "Ardia p-1", "tab-1");
+  assert.equal(dotted.message, "https://example.com. wants to open this application.");
+  assert.notEqual(dotted.remember, null);
+  await apps.resolve(dotted.id, true, true);
+  assert.deepEqual((await apps.list("Ardia p-1")).map((allowance) => allowance.origin), ["https://example.com."]);
+  assert.notEqual(await apps.request(ask({ id: "x2", origin: "https://example.com" }), "Ardia p-1", "tab-1"), null);
 });

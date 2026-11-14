@@ -39,6 +39,6 @@ export function answerExternalApp(tabId: string, open: boolean, remember = false
   const request = pageOf(tabId).externalApp;
   if (!request) return;
   patchPage(tabId, { externalApp: null });
-  if (request.app) noteExternalApp(!open ? "declined" : remember ? "remembered" : "opened");
+  if (request.app) noteExternalApp(!open ? "declined" : remember ? "allowedAlways" : "allowed");
   void resolveExternalApp(request.id, open, remember);
 }

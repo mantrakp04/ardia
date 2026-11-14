@@ -536,9 +536,11 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
     The prompt carries an id the app makes, so two pages whose engine ids collide never answer each other's
     prompt. The engine's origin must be a serialized origin (no user info, path or spaces), and a profile deleted
     while a yes waits for the engine keeps no allowance and opens nothing.
-  - **Counts:** the prompt's outcomes are counted in the app (`externalAppCounts.ts`); an automatic open for a site
-    you always allow has no prompt, so `ArdiaExternalAppCounts.takeAutomaticOpens` hands it to the hourly extras as
-    `external_app_opens_automatic`.
+  - **Counts:** the prompt's buttons are counted in the app (`externalAppCounts.ts`: `external_app_allows`,
+    `external_app_allows_always`, `external_app_declines`), on the Mac too. Only Windows knows whether a launch
+    happened, so `ArdiaExternalAppCounts.takeLaunches` adds `external_app_launches`, `external_app_launches_refused`
+    (allowed, but the page had gone, the profile was deleted or the handler changed) and
+    `external_app_launches_automatic`; the Mac sends 0 for those three. Watch refused against launches.
   - **Open:** `ArdiaExternalApps.open` opens only the asked URL of a pending request. It never opens http, https or
     file. It escapes the URL as Chromium's `EscapeExternalHandlerValue` does, and hands it to `ShellExecuteExW` as
     the single `lpFile`, with the system folder as the working folder as Chromium does. It takes the handler's

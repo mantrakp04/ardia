@@ -1,5 +1,5 @@
 import type { ExternalAppAllowance, ExternalAppRequest } from "@ardia/ardiacore";
-import type { DocumentsNative, ExternalAppCountsNative } from "@ardia/shell";
+import type { DocumentsNative, ExternalAppCountsNative, ExternalAppLaunches } from "@ardia/shell";
 import type { ExternalAppsModule, ExternalHandler } from "../../nativeModuleTypes";
 import { callError, isFields, isPrivateProfile, ok, type Engine, type Fields, type Handlers } from "./calling";
 
@@ -16,9 +16,9 @@ const PENDING_LIMIT = 50;
 const LONGEST_LINK = 32 * 1024;
 const LONGEST_ORIGIN = 2048;
 const ASK_ID = /^[A-Za-z0-9_.:-]{1,64}$/;
-const SERIALIZED_ORIGIN = /^([a-z][a-z0-9+.-]*):\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])(?::\d{1,5})?$/;
+const SERIALIZED_ORIGIN = /^([a-z][a-z0-9+.-]*):\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)*\.?|\[[0-9a-f:.]+\])(?::\d{1,5})?$/;
 const SCHEME = /^[a-z][a-z0-9+.-]{1,63}$/;
-const LOOPBACK = /^(localhost|.+\.localhost|127\.0\.0\.1|\[::1\])$/;
+const LOOPBACK = /^((?:.+\.)?localhost\.?|127\.0\.0\.1|\[::1\])$/;
 
 export const schemeOf = (url: string): string | null => {
   const colon = url.indexOf(":");
@@ -36,12 +36,12 @@ export function trustworthyOrigin(origin: string): boolean {
   return match[1] === "https" || (match[1] === "http" && LOOPBACK.test(match[2]!));
 }
 
-let automaticOpens = 0;
+const launches: ExternalAppLaunches = { opened: 0, refused: 0, automatic: 0 };
 
 export const windowsExternalAppCounts: ExternalAppCountsNative = {
-  takeAutomaticOpens() {
-    const taken = automaticOpens;
-    automaticOpens = 0;
+  takeLaunches() {
+    const taken = { ...launches };
+    launches.opened = launches.refused = launches.automatic = 0;
     return taken;
   },
 };
@@ -115,7 +115,8 @@ export function windowsExternalApps(
     const origin = serializedOrigin(ask.origin);
     const rememberable = !!handler && !!origin && !ask.offTheRecord && !isPrivateProfile(profile) && trustworthyOrigin(origin);
     if (handler && rememberable && ask.userGesture && allowed(profile, origin!, scheme)) {
-      if ((await asking(page, ask.id)) && (await open(ask.url, handler))) automaticOpens += 1;
+      const opened = (await asking(page, ask.id)) && generationOf(profile) === generation && (await open(ask.url, handler));
+      launches[opened ? "automatic" : "refused"] += 1;
       return null;
     }
     const id = `w${++asksMade}`;
@@ -143,13 +144,18 @@ export function windowsExternalApps(
     pending.delete(id);
     if (!asked || !openIt) return false;
     const generation = generationOf(asked.profile);
-    if (!(await asking(asked.page, asked.ask)) || generationOf(asked.profile) !== generation) return false;
+    if (!(await asking(asked.page, asked.ask)) || generationOf(asked.profile) !== generation) {
+      launches.refused += 1;
+      return false;
+    }
     if (remember && asked.rememberable && asked.origin) {
       const origins = (allowances().allowances[asked.profile] ??= {});
       origins[asked.origin] = [...new Set([...(origins[asked.origin] ?? []), asked.scheme])];
       store();
     }
-    return open(asked.url, asked.handler);
+    const opened = await open(asked.url, asked.handler);
+    launches[opened ? "opened" : "refused"] += 1;
+    return opened;
   }
 
   async function list(profile: string): Promise<ExternalAppAllowance[]> {
