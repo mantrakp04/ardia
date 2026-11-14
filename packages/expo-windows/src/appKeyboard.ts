@@ -1,6 +1,7 @@
 type TakesKeyboard = { takeKeyboardFromPage(windowId: string): Promise<boolean> | boolean };
 type Fiber = { return: Fiber | null; memoizedProps?: unknown };
-type FocusedField = { field: unknown; windowId: string } | null;
+type FocusedField = { field: unknown; windowId: string; tabId?: string } | null;
+type FieldPlace = { windowId: string; tabId: string };
 
 const MOST_ANCESTORS = 4096;
 
@@ -16,9 +17,10 @@ export function notePagePressed(windowId: string) {
   if (focused && (focused.windowId === windowId || !focused.windowId)) pressedOver.set(windowId, focused.field);
 }
 
-export function fieldFocusedIn(windowId: string): boolean {
+export function fieldFocusedIn(windowId: string, forTab = ""): boolean {
   const focused = readFocusedField();
   if (!focused || (focused.windowId && focused.windowId !== windowId)) return false;
+  if (forTab && focused.tabId && focused.tabId !== forTab) return false;
   return pressedOver.get(windowId) !== focused.field;
 }
 
@@ -27,16 +29,20 @@ export function noteFieldAsked(windowId: string) {
   else pressedOver.clear();
 }
 
-export function windowIdOfField(field: unknown): string {
+export function placeOfField(field: unknown): FieldPlace {
   let fiber = (field as { __internalInstanceHandle?: Fiber | null } | null)?.__internalInstanceHandle ?? null;
-  let found = "";
+  const place = { windowId: "", tabId: "" };
   for (let steps = 0; fiber && steps < MOST_ANCESTORS; steps++, fiber = fiber.return) {
     const props = fiber.memoizedProps;
-    const id = props && typeof props === "object" ? (props as { windowId?: unknown }).windowId : undefined;
-    if (typeof id === "string" && id) found = id;
+    if (!props || typeof props !== "object") continue;
+    const { windowId, tabId } = props as { windowId?: unknown; tabId?: unknown };
+    if (typeof windowId === "string" && windowId) place.windowId = windowId;
+    if (!place.tabId && typeof tabId === "string" && tabId) place.tabId = tabId;
   }
-  return found;
+  return place;
 }
+
+export const windowIdOfField = (field: unknown) => placeOfField(field).windowId;
 
 export function takeKeyboardFor(native: TakesKeyboard, windowId: string): Promise<boolean> {
   if (!windowId) return Promise.resolve(false);

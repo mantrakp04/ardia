@@ -184,9 +184,9 @@ function askShow(page: Page, args: ShowArgs) {
       if (!args.visible || !focusWaits(page)) return sent;
       page.focusAsked = 0;
       const focusArgs = page.focusArgs;
-      if (fieldFocusedIn(page.windowId)) return sent;
+      if (fieldFocusedIn(page.windowId, page.key)) return sent;
       return Promise.resolve(sent).then(() =>
-        page.closed || fieldFocusedIn(page.windowId) ? undefined : hostCall("tab.call", { ...focusArgs, key: page.key, method: "focus", deferred: true }),
+        page.closed || fieldFocusedIn(page.windowId, page.key) ? undefined : hostCall("tab.call", { ...focusArgs, key: page.key, method: "focus", deferred: true }),
       );
     }),
   );
@@ -294,7 +294,7 @@ export function callPage<Result = unknown>(key: string, method: string, args: Re
     page.focusArgs = args;
     page.focusAsked = page.show?.visible ? 0 : Date.now();
     if (page.focusAsked) return Promise.resolve(null);
-    if (args.follow === true && fieldFocusedIn(page.windowId)) return Promise.resolve(null);
+    if (args.follow === true && fieldFocusedIn(page.windowId, page.key)) return Promise.resolve(null);
   }
   const ready = REOPENING_METHODS.has(method) ? readyOrReopened(page, args.url) : page.ready;
   return ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));

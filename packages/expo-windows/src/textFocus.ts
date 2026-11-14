@@ -1,6 +1,6 @@
 import type { FocusNative } from "@ardia/shell";
 import type { TextInput } from "react-native";
-import { noteFieldAsked, notePagePressed, readFocusedFieldWith, takeKeyboardFor, windowIdOfField } from "./appKeyboard";
+import { noteFieldAsked, notePagePressed, placeOfField, readFocusedFieldWith, takeKeyboardFor, windowIdOfField } from "./appKeyboard";
 import { engineAvailable, hostCall } from "./engine/host";
 import { onPagePress } from "./engine/pages";
 import { requireNativeModule } from "./modules";
@@ -48,7 +48,7 @@ export function installTextFocusReport() {
   const state = textInputState.default;
   readFocusedFieldWith(() => {
     const field = state.currentlyFocusedInput();
-    return field != null && state.isTextInput(field) ? { field, windowId: windowIdOfField(field) } : null;
+    return field != null && state.isTextInput(field) ? { field, ...placeOfField(field) } : null;
   });
   onPagePress((windowId) => notePagePressed(windowId));
   for (const name of REPORTED) {

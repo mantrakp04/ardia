@@ -14,7 +14,7 @@ turboModules.ArdiaEngineHost = {
 
 const { mountPage, showPage, callPage, followPage } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
 const keyboard = await import("../../../../packages/expo-windows/src/appKeyboard.ts");
-const { fieldFocusedIn, notePagePressed, noteFieldAsked, readFocusedFieldWith, takeKeyboardFor, windowIdOfField } = keyboard;
+const { fieldFocusedIn, notePagePressed, noteFieldAsked, placeOfField, readFocusedFieldWith, takeKeyboardFor, windowIdOfField } = keyboard;
 
 const settle = async () => {
   for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0));
@@ -108,4 +108,23 @@ test("a field's window is the topmost windowId above it", () => {
   const fieldNode = { __internalInstanceHandle: { return: { return: inner, memoizedProps: { style: {} } }, memoizedProps: {} } };
   assert.equal(windowIdOfField(fieldNode), "outer");
   assert.equal(windowIdOfField(null), "");
+  const inTab = { __internalInstanceHandle: { return: { return: { return: inner, memoizedProps: { tabId: "t-outer" } }, memoizedProps: { tabId: "t-inner" } }, memoizedProps: {} } };
+  assert.deepEqual(placeOfField(inTab), { windowId: "outer", tabId: "t-inner" }, "the topmost window and the innermost tab");
+});
+
+test("a field of the tab the user switched away from doesn't hold the keyboard against the new tab's page", async () => {
+  const unmount = mountPage("kb-next-tab", { url: "https://a.example/", windowId: "w9" }, () => {});
+  await settle();
+  focused = { field: { id: "ntp" }, windowId: "w9", tabId: "kb-left-tab" };
+  assert.equal(fieldFocusedIn("w9", "kb-next-tab"), false, "the New Tab page's field of the tab just left");
+  assert.equal(fieldFocusedIn("w9", "kb-left-tab"), true, "a field of the very tab asked to follow");
+  assert.equal(fieldFocusedIn("w9"), true, "an ask that names no tab");
+  followPage("kb-next-tab");
+  showPage("kb-next-tab", true, shape);
+  await settle();
+  assert.deepEqual(focusCalls("kb-next-tab").map((call) => call.follow), [true]);
+  focused = { field: { id: "command bar" }, windowId: "w9" };
+  assert.equal(fieldFocusedIn("w9", "kb-next-tab"), true, "a field that belongs to no tab, like the command bar, still holds");
+  focused = null;
+  unmount();
 });
