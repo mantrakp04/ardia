@@ -77,7 +77,6 @@ class Host : public TabStripModelObserver,
     raw_ptr<Profile> profile = nullptr;
     std::string shown;
     gfx::Rect place;
-    base::TimeTicks shown_at;
   };
 
   Host();
@@ -112,8 +111,10 @@ class Host : public TabStripModelObserver,
   void Park(Browser* browser);
   void ParkForeign(base::WeakPtr<BrowserWindowInterface> browser);
   void Hide(Browser* browser, Hosted& hosted);
-  void HandKeyboardOn(HWND parent, const Browser* hidden);
-  void GiveKeyboard(Browser* browser, content::WebContents* contents);
+  void GiveKeyboard(Browser* browser,
+                    content::WebContents* contents,
+                    bool follow,
+                    bool background);
   void ApplyWantedKeyboard(HWND parent);
   std::string KeyboardPage() const;
   void CloseSparePages();
@@ -137,9 +138,7 @@ class Host : public TabStripModelObserver,
   std::map<std::string, raw_ptr<content::WebContents>> tabs_;
   std::map<Profile*, std::string> profile_names_;
   std::set<HWND> parents_;
-  std::map<HWND, base::TimeTicks> keyboard_waits_;
   std::map<HWND, std::string> keyboard_wanted_;
-  bool field_focused_ = false;
   bool creating_browser_ = false;
   bool creating_tab_ = false;
   bool moving_tab_ = false;

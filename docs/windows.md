@@ -389,17 +389,19 @@ is plain Chromium.
   sits over it. Owned windows, they minimize and move with the app window, and a press in any of them is that page's
   `pagePress`.
 - The keyboard follows the user between the app's own windows, as the Mac's follows Chromium's tab activation.
-  Only between this app's windows, only while one of them is the foreground window, and never in a background
-  instance. When a page window that holds the keyboard is hidden or closed (a tab switch, a numbered tab, closing the
-  tab), the engine host gives the keyboard to the page the app shows in its place in that app window, else to the
-  app window. The app tells the host when one of its text fields asks for the keyboard and when it loses it
-  (`keyboard.field`); while a field has it, no hand-off and no deferred page focus take it, and a press in a page
-  clears it. A page that shows without replacing the keyboard's page (a hover preview, a Peek, a resize) takes
-  nothing. A page focus refused because Ardia isn't the foreground app is kept and given when that app window is
-  activated again. When an app text field is focused while the keyboard is in a page window of the field's own app
-  window (the command bar, the find bar, an empty pane's search field), `ArdiaFocus.takeKeyboardFromPage` activates
-  that app window and the field focuses itself again. A page that hides or closes leaves full screen, as the Mac's
-  does.
+  A page never takes the keyboard because it shows. When a window's shown tab changes (a tab switch, a numbered tab,
+  closing the tab, a pane focus), the app asks that tab's page to follow (`state/focus/keyboardFollows.ts` calling
+  `platform/keyboardFollow.windows.ts`; the Mac has no such call and subscribes to nothing). `pages.ts` sends it once
+  the page shows, unless a text field of that window has the keyboard: React Native's focused field and the window it
+  is in decide, and a field the user left by pressing a page of its window no longer counts. The engine host carries
+  it out only if the keyboard is already in that app window (its own UI or its pages), only while one of the app's
+  windows is the foreground window, and never in a background instance. A focus it can't carry out because Ardia
+  isn't in front is kept for that window and given when the window is activated again; it is dropped when the window
+  closes, a field of the window takes the keyboard (`keyboard.forget`), another page of the window is asked or
+  pressed, or the page hides. When a page that holds the keyboard hides, the keyboard goes to its app window. When an
+  app text field is focused while the keyboard is in a page of the field's own window (the command bar, the find bar,
+  an empty pane's search field), `ArdiaFocus.takeKeyboardFromPage` activates that window. A page that hides or
+  closes leaves full screen, as the Mac's does.
 - Peek opens as on the Mac. The engine host keeps a DevTools session of its own on each page and puts the Peek part of
   ArdiaCore's page script into an isolated world of every web frame (`page_links.cc`): the page can't see the script
   or its binding. A click on a link with the Peek key (`webView.setPeekModifier`), the Split key

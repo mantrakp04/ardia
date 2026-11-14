@@ -1,7 +1,8 @@
 import type { FocusNative } from "@ardia/shell";
 import type { TextInput } from "react-native";
-import { noteAppFieldFocused, takeKeyboardFor, windowIdOfField } from "./appKeyboard";
+import { noteFieldAsked, notePagePressed, readFocusedFieldWith, takeKeyboardFor, windowIdOfField } from "./appKeyboard";
 import { engineAvailable, hostCall } from "./engine/host";
+import { onPagePress } from "./engine/pages";
 import { requireNativeModule } from "./modules";
 
 export type FocusOnWindows = FocusNative & { setTextInputFocused(focused: boolean): Promise<void>; textInputFocused(): boolean; takeKeyboardFromPage(windowId: string): Promise<boolean> };
@@ -32,13 +33,8 @@ export function textInputHasFocus(state: Pick<TextInputState, "currentlyFocusedI
   return field != null && state.isTextInput(field);
 }
 
-const tellHost = (focused: boolean) => {
-  if (engineAvailable()) void hostCall("keyboard.field", { focused }).catch(() => {});
-};
-
-export function reportTextInputFocus(asked = false) {
+export function reportTextInputFocus() {
   const focused = textInputHasFocus();
-  noteAppFieldFocused(focused, tellHost, asked && focused);
   if (focused === reported) return;
   reported = focused;
   void Promise.resolve(focus().setTextInputFocused(focused)).catch(() => {
@@ -50,15 +46,25 @@ export function installTextFocusReport() {
   if (installed) return;
   installed = true;
   const state = textInputState.default;
+  readFocusedFieldWith(() => {
+    const field = state.currentlyFocusedInput();
+    return field != null && state.isTextInput(field) ? { field, windowId: windowIdOfField(field) } : null;
+  });
+  onPagePress((windowId) => notePagePressed(windowId));
   for (const name of REPORTED) {
     const original = state[name].bind(state);
     state[name] = (field: TextField) => {
       original(field);
-      const asked = FOCUSING.has(name) && field != null;
-      reportTextInputFocus(asked);
-      if (asked) void takeKeyboardFor(focus(), windowIdOfField(field), () => original(field));
+      reportTextInputFocus();
+      if (FOCUSING.has(name) && field != null) fieldAskedForKeyboard(windowIdOfField(field));
     };
   }
+}
+
+function fieldAskedForKeyboard(windowId: string) {
+  noteFieldAsked(windowId);
+  if (windowId && engineAvailable()) void hostCall("keyboard.forget", {}, windowId).catch(() => {});
+  void takeKeyboardFor(focus(), windowId);
 }
 
 export const textFocusForCheck = {

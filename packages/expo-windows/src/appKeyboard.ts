@@ -1,18 +1,30 @@
 type TakesKeyboard = { takeKeyboardFromPage(windowId: string): Promise<boolean> | boolean };
 type Fiber = { return: Fiber | null; memoizedProps?: unknown };
+type FocusedField = { field: unknown; windowId: string } | null;
 
 const MOST_ANCESTORS = 4096;
 
-let fieldFocused = false;
-let toldHost: boolean | undefined;
+let readFocusedField: () => FocusedField = () => null;
+const pressedOver = new Map<string, unknown>();
 
-export const appFieldFocused = () => fieldFocused;
+export function readFocusedFieldWith(read: () => FocusedField) {
+  readFocusedField = read;
+}
 
-export function noteAppFieldFocused(focused: boolean, tellHost: (focused: boolean) => unknown, asked = false) {
-  fieldFocused = focused;
-  if (!asked && focused === toldHost) return;
-  toldHost = focused;
-  tellHost(focused);
+export function notePagePressed(windowId: string) {
+  const focused = readFocusedField();
+  if (focused && (focused.windowId === windowId || !focused.windowId)) pressedOver.set(windowId, focused.field);
+}
+
+export function fieldFocusedIn(windowId: string): boolean {
+  const focused = readFocusedField();
+  if (!focused || (focused.windowId && focused.windowId !== windowId)) return false;
+  return pressedOver.get(windowId) !== focused.field;
+}
+
+export function noteFieldAsked(windowId: string) {
+  if (windowId) pressedOver.delete(windowId);
+  else pressedOver.clear();
 }
 
 export function windowIdOfField(field: unknown): string {
@@ -26,14 +38,12 @@ export function windowIdOfField(field: unknown): string {
   return found;
 }
 
-export function takeKeyboardFor(native: TakesKeyboard, windowId: string, refocus: () => void): Promise<void> {
-  if (!windowId) return Promise.resolve();
+export function takeKeyboardFor(native: TakesKeyboard, windowId: string): Promise<boolean> {
+  if (!windowId) return Promise.resolve(false);
   return Promise.resolve()
     .then(() => native.takeKeyboardFromPage(windowId))
     .then(
-      (moved) => {
-        if (moved) refocus();
-      },
-      () => {},
+      (moved) => moved === true,
+      () => false,
     );
 }

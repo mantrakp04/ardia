@@ -1,4 +1,4 @@
-import { appFieldFocused } from "../appKeyboard";
+import { fieldFocusedIn } from "../appKeyboard";
 import { hostCall, onEngineTopic } from "./host";
 import { takerOfOpenedTab } from "./openedTabs";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
@@ -28,6 +28,7 @@ type Page = {
   parked: boolean;
   closed: boolean;
   focusAsked: number;
+  focusArgs: Record<string, unknown>;
 };
 
 type OpenedTab = { adopt?: unknown; url?: unknown; foreground?: unknown; window?: unknown; opener?: unknown; profile?: unknown; fromClick?: unknown; point?: unknown };
@@ -182,8 +183,11 @@ function askShow(page: Page, args: ShowArgs) {
       const sent = sendShow(page);
       if (!args.visible || !focusWaits(page)) return sent;
       page.focusAsked = 0;
-      if (appFieldFocused()) return sent;
-      return Promise.resolve(sent).then(() => (page.closed || appFieldFocused() ? undefined : hostCall("tab.call", { key: page.key, method: "focus", deferred: true })));
+      const focusArgs = page.focusArgs;
+      if (fieldFocusedIn(page.windowId)) return sent;
+      return Promise.resolve(sent).then(() =>
+        page.closed || fieldFocusedIn(page.windowId) ? undefined : hostCall("tab.call", { ...focusArgs, key: page.key, method: "focus", deferred: true }),
+      );
     }),
   );
 }
@@ -208,6 +212,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
       parked: false,
       closed: false,
       focusAsked: 0,
+      focusArgs: {},
     };
     page.ready = begin(page, from);
     pages.set(key, page);
@@ -286,12 +291,16 @@ export function callPage<Result = unknown>(key: string, method: string, args: Re
   if (method === "loadUrl") noteLoadAsked(page.opening, args.url);
   if (method === "focus") {
     lastAskedToFocus = page;
+    page.focusArgs = args;
     page.focusAsked = page.show?.visible ? 0 : Date.now();
     if (page.focusAsked) return Promise.resolve(null);
+    if (args.follow === true && fieldFocusedIn(page.windowId)) return Promise.resolve(null);
   }
   const ready = REOPENING_METHODS.has(method) ? readyOrReopened(page, args.url) : page.ready;
   return ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));
 }
+
+export const followPage = (key: string) => void callPage(key, "focus", { follow: true });
 
 export function parkPage(key: string) {
   const page = pages.get(key);
