@@ -11,6 +11,7 @@ final class AppDelegate: ExpoAppDelegate {
   private var reactNativeFactory: RCTReactNativeFactory?
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
+    ProcessInfo.processInfo.processName = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? ProcessInfo.processInfo.processName
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
