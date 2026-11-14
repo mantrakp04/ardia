@@ -203,6 +203,17 @@ export const SYMBOLS = {
   textCursor: [{ d: line(12, 4.5, 12, 19.5) + line(9, 4.5, 15, 4.5) + line(9, 19.5, 15, 19.5), stroke: STROKE }],
   docOnDoc: [{ d: roundRect(8, 8, 12, 13, 2) + "M5 16V5.5A2 2 0 0 1 7 3.5h9", stroke: STROKE }],
   checkmarkCircle: [{ d: circle(12, 12, 9.2) + polyline(7.8, 12.3, 10.7, 15.2, 16.3, 9.2), stroke: STROKE }],
+  qrcodeViewfinder: [
+    {
+      d:
+        "M3.5 8V5.5a2 2 0 0 1 2-2H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16" +
+        roundRect(7, 7, 4, 4, 0.6) +
+        roundRect(13, 7, 4, 4, 0.6) +
+        roundRect(7, 13, 4, 4, 0.6) +
+        line(13.5, 13.5, 16.5, 16.5),
+      stroke: STROKE,
+    },
+  ],
   equalCircleFill: [{ d: circle(12, 12, 10) + roundRect(7.3, 8.8, 9.4, 2, 1) + roundRect(7.3, 13.2, 9.4, 2, 1), fill: true, evenOdd: true }],
   xmarkCircleFill: [{ d: circle(12, 12, 10) + cross(12, 12, 4.4, 1.05), fill: true, evenOdd: true }],
 } satisfies Record<string, SymbolLayer[]>;

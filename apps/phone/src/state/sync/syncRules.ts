@@ -189,3 +189,16 @@ export function inboxNotice(status: SyncStatus): { message: string; footer: stri
   if (!problem) return null;
   return { message: problem, footer: INBOX_RETRY };
 }
+
+export const SCAN_REJECTED = "Not an Ardia sync code.";
+
+export type ScanVerdict = { kind: "accept"; phrase: string } | { kind: "reject" } | { kind: "repeat" };
+
+export function scanJudge(isValid: (payload: string) => boolean) {
+  let last: string | null = null;
+  return (payload: string): ScanVerdict => {
+    if (payload === last) return { kind: "repeat" };
+    last = payload;
+    return isValid(payload) ? { kind: "accept", phrase: payload.trim() } : { kind: "reject" };
+  };
+}

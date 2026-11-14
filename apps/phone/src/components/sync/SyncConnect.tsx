@@ -5,12 +5,16 @@ import { connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRul
 import { font, radius, settingsLayout, space, Symbol, useTheme } from "../ui";
 import { BarButton, Group, SettingsPage } from "../settings/SettingsKit";
 import { CapsuleButton, SyncHero } from "./SyncPage";
+import { SyncScan } from "./SyncScan";
+import { canScanCodes } from "../../state/sync/scan";
 
 type FlowProps = { onClose: () => void; onConnected: () => void; closes?: boolean };
 
 export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   const [phrase, setPhrase] = useState("");
   const [entering, setEntering] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scans] = useState(canScanCodes);
   const [connecting, setConnecting] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const hasPhrase = phrase.length > 0 && checkPhrase(phrase).isValid;
@@ -18,12 +22,13 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
       if (connecting) return true;
-      if (entering) setEntering(false);
+      if (scanning) setScanning(false);
+      else if (entering) setEntering(false);
       else onClose();
       return true;
     });
     return () => back.remove();
-  }, [connecting, entering, onClose]);
+  }, [connecting, entering, scanning, onClose]);
 
   const connect = async () => {
     if (!hasPhrase || connecting) return;
@@ -37,6 +42,22 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
     } else setFailure(connectMessage(result));
   };
 
+  if (scanning) {
+    return (
+      <SyncScan
+        onScan={(text) => {
+          setPhrase(text);
+          setFailure(null);
+          setScanning(false);
+        }}
+        onEnterWords={() => {
+          setScanning(false);
+          setEntering(true);
+        }}
+        onCancel={() => setScanning(false)}
+      />
+    );
+  }
   if (entering) {
     return (
       <PhraseEntry
@@ -62,7 +83,10 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
           {hasPhrase ? (
             <PhraseAdded onChange={() => setEntering(true)} />
           ) : (
-            <CapsuleButton title="Enter Words" icon="textCursor" prominent onPress={() => setEntering(true)} />
+            <>
+              {scans ? <CapsuleButton title="Scan Code" icon="qrcodeViewfinder" prominent onPress={() => setScanning(true)} /> : null}
+              <CapsuleButton title="Enter Words" icon="textCursor" prominent={!scans} onPress={() => setEntering(true)} />
+            </>
           )}
         </Step>
         <Step number={2} title="Choose the Ardia Sync folder" detail="Choose the Ardia Sync folder your Mac syncs to." done={false} current={hasPhrase}>

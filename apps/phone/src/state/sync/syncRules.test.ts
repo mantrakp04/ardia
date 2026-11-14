@@ -16,6 +16,7 @@ import {
   sendReceivers,
   syncBanner,
   inboxNotice,
+  scanJudge,
   syncedEngineName,
   syncHeroSubtitle,
   syncRowSubtitle,
@@ -188,4 +189,13 @@ test("a set-aside inbox shows the module's message and that Sync Now tries again
     message: "Ardia set aside some tabs and history changes from your Mac it couldn’t read.",
     footer: "Sync couldn’t read some changes your Mac sent and set that file aside. Sync Now tries again.",
   });
+});
+
+test("a scanned code is used when it is a valid phrase, rejected once otherwise, and the same code twice is ignored", () => {
+  const judge = scanJudge((payload) => payload.trim().split(/\s+/).length === 24);
+  const phrase = Array.from({ length: 24 }, (_, i) => `word${i}`).join(" ");
+  assert.deepEqual(judge("https://ardia.dev"), { kind: "reject" });
+  assert.deepEqual(judge("https://ardia.dev"), { kind: "repeat" });
+  assert.deepEqual(judge(` ${phrase} `), { kind: "accept", phrase });
+  assert.deepEqual(judge(` ${phrase} `), { kind: "repeat" });
 });
