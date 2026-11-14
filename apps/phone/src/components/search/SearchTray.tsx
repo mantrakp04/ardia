@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
 import { menuOpenedHaptic, trayRowActions } from "../../state/browse/tabMenus";
@@ -28,6 +30,14 @@ export function SearchTray() {
   const window = useWindowDimensions();
   const { lift } = useBottomLift();
   const rise = useRef(new Animated.Value(0)).current;
+  const closeOnTouch = useMemo(
+    () =>
+      Gesture.Manual().onTouchesDown((_event, manager) => {
+        runOnJS(cancelSearch)();
+        manager.fail();
+      }),
+    [],
+  );
 
   useEffect(() => {
     rise.setValue(0);
@@ -39,11 +49,14 @@ export function SearchTray() {
   const travel = height + radius.sheet + lift;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Pressable
-        accessibilityLabel="Close"
-        style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
-        onPressIn={cancelSearch}
-      />
+      <GestureDetector gesture={closeOnTouch}>
+        <Pressable
+          accessibilityLabel="Close Search"
+          accessibilityRole="button"
+          onPress={cancelSearch}
+          style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
+        />
+      </GestureDetector>
       <Animated.View
         style={[
           styles.sheet,
