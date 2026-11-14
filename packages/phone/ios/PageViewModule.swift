@@ -75,7 +75,8 @@ public final class PageViewModule: Module {
     AsyncFunction("load") { (pageID: String, url: String) in
       try MainActor.assumeIsolated {
         guard let target = URL(string: url) else { throw PagePayloads.badArgs("Not a URL: \(url)") }
-        try PhonePages.shared.require(pageID).load(target)
+        _ = try PhonePages.shared.require(pageID)
+        PhonePages.shared.activate(pageID)?.load(target)
       }
     }.runOnQueue(.main)
 
@@ -176,6 +177,10 @@ public final class PageViewModule: Module {
 
     AsyncFunction("scrollPosition") { (pageID: String) -> [String: Any]? in
       MainActor.assumeIsolated { PhonePages.shared.scrollPosition(pageID) }
+    }.runOnQueue(.main)
+
+    AsyncFunction("evaluate") { (pageID: String, script: String, promise: Promise) in
+      Self.main(promise) { try await PhonePages.shared.evaluate(pageID, script: script) }
     }.runOnQueue(.main)
 
     AsyncFunction("discardBackgroundPages") { (keeping: String?) in

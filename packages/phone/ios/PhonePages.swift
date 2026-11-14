@@ -79,6 +79,7 @@ final class PhonePages {
   func discardBackgroundPages(keeping: String?) {
     if let keeping, let tabID = tabIDs[keeping] { engine.tabs.select(tabID) }
     engine.discardBackgroundTabs()
+    if let keeping { _ = activate(keeping) }
   }
 
   func loadHTML(_ pageID: String, html: String, baseURL: String) throws {
@@ -89,10 +90,23 @@ final class PhonePages {
     webView.loadHTMLString(html, baseURL: base)
   }
 
+  func evaluate(_ pageID: String, script: String) async throws -> String? {
+    guard let page = activate(pageID), let webView = page.webView else { throw PagePayloads.error("ERR_ENGINE", "The page has no web view") }
+    let result: Any? = await withCheckedContinuation { continuation in
+      webView.evaluateJavaScript(script, in: nil, in: .page) { outcome in
+        continuation.resume(returning: try? outcome.get())
+      }
+    }
+    guard let result, !(result is NSNull) else { return nil }
+    guard let data = try? JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed]) else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
   func scrollPosition(_ pageID: String) -> [String: Any]? {
     guard let scrollView = page(pageID)?.webView?.scrollView else { return nil }
     return [
       "y": Double(scrollView.contentOffset.y + scrollView.adjustedContentInset.top),
+      "viewportWidth": Double(scrollView.bounds.width),
       "viewportHeight": Double(scrollView.bounds.height),
       "contentHeight": Double(scrollView.contentSize.height),
     ]
@@ -478,6 +492,7 @@ final class PageFind {
   let page: WebTab
   private let report: ([String: Any]?) -> Void
   private var query = ""
+  private var hasSearched = false
   private var total = 0
   private var index = 0
 
@@ -487,6 +502,8 @@ final class PageFind {
   }
 
   func start(_ text: String) async {
+    if hasSearched, text == query { return }
+    hasSearched = true
     query = text
     index = 0
     total = 0
@@ -558,7 +575,7 @@ enum PageSnapshots {
       let target = folder.appending(path: "\(stem)-\(stamp).jpg")
       guard (try? data.write(to: target, options: .atomic)) != nil else { return nil }
       for old in older(in: folder, stem: stem) where old != target { try? manager.removeItem(at: old) }
-      return ["path": target.path(percentEncoded: false), "uri": target.absoluteString, "width": width, "height": height, "route": "draw"]
+      return ["path": target.path(percentEncoded: false), "uri": target.absoluteString, "width": width, "height": height, "route": "draw", "bytes": data.count]
     }.value
   }
 
