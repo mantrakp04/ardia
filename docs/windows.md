@@ -62,7 +62,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Profiles: switch with Alt+1, Alt+2 | Works (Work opened in its own colour) | |
 | Open in WebKit, Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
 | Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Seen on #1686's build: Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window and gets Escape | #1490, #1658 |
-| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it and keys reach the page beneath again (seen on #1686's build). Typing in a Peek needs a click first: the keyboard stays in the page beneath while it is open | #1531 |
+| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it. Keys reach the Peek's page without a click, and after Escape they reach the source page with the link still focused, as on the Mac (the engine thread saw both in the VM on build 339 of #1708; not re-walked here) | #1531, #1708 |
 | A download while split | Differs: an insecure (http) download is blocked by Chromium's own download bubble; a download from localhost reaches Ardia's panel | #1519 |
 | Pop-up windows from pages | Broken: a bare Chromium window with the Windows title bar | #1518 |
 | Main, Settings and Little Ardia window chrome | Works, no system title bar | |
@@ -868,8 +868,7 @@ Ranked by how much a user notices. Sizes are rough: S is under a day, M is one t
 App side, an agent can do these now:
 1. The close-tabs confirm freezes other windows' pages (#1672): show it without a modal loop on the shared UI
    thread and keep it in front of its window. M.
-2. Typing in a Peek needs a click first: the keyboard stays in the page beneath while the Peek is open (the engine
-   thread is matching the Mac). Also #1689: a new tab opened with an address gets no keyboard. M, with the engine
+2. A new tab opened with an address (Ctrl+T, the address, Enter) gets no keyboard (#1689). S, with the engine
    thread.
 3. Pop-up windows in the app's own frame instead of Chromium's (#1518). M.
 4. The app's own page, link and image menus instead of Chromium's (#1518). M.
