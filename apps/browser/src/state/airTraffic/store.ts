@@ -28,11 +28,13 @@ function read(doc: string): string | null {
   }
 }
 
-function write(doc: string, json: string) {
+function write(doc: string, json: string): boolean {
   try {
     writeDocument(doc, json);
+    return true;
   } catch (error) {
     console.warn(`[airTraffic] couldn't save ${doc}`, error);
+    return false;
   }
 }
 
@@ -51,9 +53,8 @@ export const profileUsable = (profileId: string) => !!useBrowser.getState().prof
 function saveConfig(change: (config: AirTrafficConfig) => AirTrafficConfig) {
   const before = currentAirTraffic();
   const config = change(before);
-  if (config === before) return;
+  if (config === before || !write(AIR_TRAFFIC_DOC, airTrafficJson(config))) return;
   useAirTraffic.setState({ config });
-  write(AIR_TRAFFIC_DOC, airTrafficJson(config));
 }
 
 const newRuleId = () => `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;

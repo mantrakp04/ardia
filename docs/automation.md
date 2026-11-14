@@ -356,9 +356,9 @@ Hooks that answer before something happens, with a deadline after which Ardia do
   once its hooks are loaded and again on every change, `true` while an active `tab.opening` or `link.opening` hook,
   an enabled Air Traffic Control rule or an Everything Else choice exists. `hooksStamp` is the stamp (device, inode, size, mtime, ctime) native returned with the hooks.json read the
   rules came from, so a decision is never filed under a newer file; native keeps the fast-path fingerprint only when
-  that stamp is the file's current one. The fingerprint also covers config.json and `automation-approvals.json`, so
-  native takes its fast path before JS loads only when the last report said no hold and none of the three changed
-  since. A routed or rewritten link never adopts contents loaded for it
+  that stamp is the file's current one. The fingerprint also covers config.json, `automation-approvals.json` and
+  `air-traffic.json`, so native takes its fast path before JS loads only when the last report said no hold and none of
+  the four changed since. A routed or rewritten link never adopts contents loaded for it
   under another profile.
 - **Permissions.** A hook can deny or leave the normal prompt; `allow` means "show the prompt", never an unattended
   grant. A deny is answered on the engine's own request id and never remembered. A request dismissed or replaced
@@ -412,12 +412,15 @@ the data dir (`air-traffic.json`, version 1: an ordered `rules` list and a `fall
 - **No approval.** The user makes these rules in Settings, so they count as approved. hooks.json route hooks still need
   approval in Advanced › Automation; the pane lists them read-only with their state.
 - **The hold.** An enabled rule or an Everything Else choice turns the incoming-link hold on, reported again on every
-  change, so the native fast path never opens a link before the rules have seen it.
+  change, so the native fast path never opens a link before the rules have seen it. `air-traffic.json` is in native's
+  fast-path fingerprint, so a file changed while Ardia was closed holds the first link of the next launch too. A
+  change is saved before the store takes it, so a save that fails changes neither the rules nor the hold.
 - **Source apps.** The app (bundle id, name) of the last 20 distinct apps that sent a link is kept in
   `link-sources.json` for the app picker, on this Mac only and never sent.
-- **Try a Link** runs the same `traceLink` the real decision runs (`state/automation/decisions.ts`), so it can't
-  drift: it names the rule, hook, Everything Else or usual routing that would take the link and where it would open.
-  A program hook can't be asked without sending the link, so it shows what happens if the program doesn't answer.
+- **Try a Link** runs the same `traceOpening` and `traceLink` the real decision runs (`state/automation/decisions.ts`),
+  so it can't drift: a `tab.opening` rule that cancels or rewrites the link comes first, then it names the rule, hook,
+  Everything Else or usual routing that would take the link and where it would open. A program hook can't be asked
+  without sending the link, so it shows what happens if the program doesn't answer.
 - Code: `state/airTraffic/rules.ts` (the pure matching and the saved document), `store.ts`, `sourceApps.ts`,
   `preview.ts`; the pane is `components/settings/panes/AirTraffic.tsx`.
 - Telemetry: `usage_counts.air_traffic_rule_links` and `air_traffic_fallback_links`, and `settings_snapshot`'s

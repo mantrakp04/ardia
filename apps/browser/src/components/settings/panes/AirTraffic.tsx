@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { useAirTrafficConfig, useLinkHooks, useRoutableProfiles, type LinkHookRow, type LinkHookState, type RoutableProfile } from "../../../state/airTraffic/hooks";
 import { moveAirTrafficRule, removeAirTrafficRule, setAirTrafficFallback, updateAirTrafficRule } from "../../../state/airTraffic/store";
 import { previewLink, type LinkPreview } from "../../../state/airTraffic/preview";
+import type { OpeningTrace } from "../../../state/automation/decisions";
 import type { AirTrafficRule, AirTrafficTarget, SourceApp } from "../../../state/airTraffic/rules";
 import { showMenu } from "../../../state/app/system";
 import { goToSettingsPane } from "../../../state/settings/settingsWindows";
@@ -116,9 +117,17 @@ function landing(preview: Extract<LinkPreview, { ok: true }>): string {
   return `Opens in ${preview.profileName}${preview.usedLast ? " (used last)" : ""} · ${OPEN_LABELS[preview.open]}`;
 }
 
+function openingNote(opening: OpeningTrace): string {
+  if (opening.by === "rewrite") return ` hooks.json: ${opening.hook} changes the link to ${opening.url} first.`;
+  if (opening.by === "program") return ` hooks.json: ${opening.hook.name} may change the link first; this shows it unchanged.`;
+  return "";
+}
+
 function caughtBy(preview: Extract<LinkPreview, { ok: true }>): { title: string; detail: string } {
-  const trace = preview.trace;
-  const lands = landing(preview);
+  const opening = preview.opening;
+  if (opening.by === "cancel") return { title: `hooks.json: ${opening.hook} blocks it`, detail: "Nothing opens." };
+  const trace = preview.trace!;
+  const lands = landing(preview) + openingNote(opening);
   if (trace.by === "rule") return { title: `Rule ${trace.index + 1}: ${fromLabel(trace.rule.from)} · ${conditionLabel(trace.rule.when)}`, detail: lands };
   if (trace.by === "hook") return { title: `hooks.json: ${trace.hook}`, detail: lands };
   if (trace.by === "program") return { title: `hooks.json: ${trace.hook.name} asks ${trace.hook.program?.[0] ?? "a program"}`, detail: `If it doesn't answer: ${lands}` };

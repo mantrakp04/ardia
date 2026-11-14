@@ -57,7 +57,7 @@ export function RuleSheet({ rule }: { rule?: AirTrafficRule }) {
   const [typed, setTyped] = useState("");
   const [kind, setKind] = useState<LinkCondition["kind"]>(rule?.when.kind ?? "any");
   const [text, setText] = useState(rule?.when.kind === "site" ? rule.when.host : rule?.when.kind === "pattern" ? rule.when.pattern : "");
-  const [profileId, setProfileId] = useState(rule?.profileId ?? profiles[0]?.id ?? USED_LAST_VALUE);
+  const [profileId, setProfileId] = useState(rule ? (rule.profileId ?? USED_LAST_VALUE) : (profiles[0]?.id ?? USED_LAST_VALUE));
   const [open, setOpen] = useState<OpenAs>(rule?.open ?? "tab");
   const [error, setError] = useState<string | null>(null);
 

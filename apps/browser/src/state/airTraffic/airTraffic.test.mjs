@@ -156,6 +156,39 @@ test("Try a Link says what decideLink does, for every kind of answer", () => {
   assert.ok(work);
 });
 
+test("Try a Link follows a tab.opening rewrite or cancel that runs before routing", () => {
+  fresh({
+    rules: [(w) => rule({ when: { kind: "site", host: "new.example" }, profileId: w, open: "window" })],
+    fallback: { profileId: null, open: "tab" },
+    hooks: [
+      { name: "move", on: "tab.opening", rewrite: [{ match: "https://old.example/*", to: "https://new.example{path}" }] },
+      { name: "block", on: "tab.opening", match: "https://blocked.example/*", cancel: true },
+    ],
+  });
+  approveRule(approvalFor(useHookRules.getState().hooks.find((h) => h.name === "move")).key);
+  const moved = previewLink("https://old.example/a", MAIL);
+  assert.equal(moved.opening.by, "rewrite");
+  assert.equal(moved.url, "https://new.example/a");
+  assert.equal(moved.trace.by, "rule");
+  assert.deepEqual(moved.trace.verdict, decideLink(moved.url, MAIL));
+  const blocked = previewLink("https://blocked.example/", MAIL);
+  assert.deepEqual([blocked.opening.by, blocked.dropped, blocked.trace], ["cancel", true, null]);
+});
+
+test("a rule change that can't be saved leaves the rules and the hold as they were", () => {
+  fresh({ rules: [rule()] });
+  const id = store.useAirTraffic.getState().config.rules[0].id;
+  stub.docs.set = () => {
+    throw new Error("disk full");
+  };
+  try {
+    store.updateAirTrafficRule(id, { enabled: false });
+  } finally {
+    delete stub.docs.set;
+  }
+  assert.equal(store.useAirTraffic.getState().config.rules[0].enabled, true);
+});
+
 test("the saved rules read back, an unversioned file upgrades, and a newer or broken one reads as nothing", () => {
   const config = {
     rules: [rule({ from: slackApp, when: { kind: "site", host: "github.com" }, profileId: "p1", open: "window" }), rule({ enabled: false, when: { kind: "pattern", pattern: "https://*.example.com/*" } })],

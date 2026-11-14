@@ -58,11 +58,9 @@ function eligibleContext(context: { windowId: string | null; profileId: string |
   return true;
 }
 
-export function decideOpening(url: string, context: OpeningContext, signal?: AbortSignal): OpeningVerdict | Promise<OpeningVerdict> {
-  if (!eligibleContext(context)) return null;
-  const data = { url, via: context.via, windowId: context.windowId, tabId: context.tabId, profile: context.profileId };
+function openingPlan(url: string): Plan<NonNullable<OpeningVerdict>> {
   const changed = (target: string | null): OpeningVerdict => (target && target !== url ? { url: target } : null);
-  return decide<NonNullable<OpeningVerdict>>("tab.opening", data, {
+  return {
     applies: (hook) => urlApplies(hook, url),
     rule: (hook) => {
       if (hook.rules!.cancel) return { cancel: true };
@@ -75,7 +73,24 @@ export function decideOpening(url: string, context: OpeningContext, signal?: Abo
       if (answer.cancel === true) return { cancel: true };
       return typeof answer.url === "string" ? changed(safeRewriteTarget(answer.url)) : null;
     },
-  }, signal);
+  };
+}
+
+export function decideOpening(url: string, context: OpeningContext, signal?: AbortSignal): OpeningVerdict | Promise<OpeningVerdict> {
+  if (!eligibleContext(context)) return null;
+  const data = { url, via: context.via, windowId: context.windowId, tabId: context.tabId, profile: context.profileId };
+  return decide<NonNullable<OpeningVerdict>>("tab.opening", data, openingPlan(url), signal);
+}
+
+export type OpeningTrace = { by: "none" } | { by: "cancel"; hook: string } | { by: "rewrite"; hook: string; url: string } | { by: "program"; hook: HookSpec };
+
+export function traceOpening(url: string): OpeningTrace {
+  const found = decidingHook("tab.opening", openingPlan(url));
+  if (!found) return { by: "none" };
+  if ("program" in found) return { by: "program", hook: found.hook };
+  if (found.verdict && "cancel" in found.verdict) return { by: "cancel", hook: found.hook.name };
+  if (found.verdict) return { by: "rewrite", hook: found.hook.name, url: found.verdict.url };
+  return { by: "none" };
 }
 
 export type LinkSource = SourceInfo;
