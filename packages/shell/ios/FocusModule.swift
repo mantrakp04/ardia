@@ -87,6 +87,8 @@ public class FocusModule: Module {
       case 53: emit(["type": "switcherKey", "key": "escape"])
       case 124: emit(["type": "switcherKey", "key": "next"])
       case 123: emit(["type": "switcherKey", "key": "previous"])
+      case _ where event.charactersIgnoringModifiers?.lowercased() == "w" && !event.isARepeat && !event.modifierFlags.intersection([.control, .command]).isEmpty:
+        emit(["type": "switcherKey", "key": "close"])
       default: break
       }
       return nil

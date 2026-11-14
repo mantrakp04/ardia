@@ -8,7 +8,7 @@ import { changedIds } from "../browser/changes";
 import { isSilenced } from "../tabs/mute";
 import { dismissHover } from "./hover";
 import { sidebarUi } from "./sidebarUi";
-import { cancelSwitcher, commitSwitcher, moveSwitcher } from "./switcher";
+import { cancelSwitcher, closeSwitcherRow, commitSwitcher, moveSwitcher } from "./switcher";
 
 let started = false;
 
@@ -37,7 +37,8 @@ export function startSidebarEffects() {
     }
     if (e.type === "switcherReleased" || e.type === "resignActive") commitSwitcher();
     if (e.type === "switcherMouseUp" || (e.type === "switcherKey" && e.key === "escape")) cancelSwitcher();
-    if (e.type === "switcherKey" && e.key !== "escape") moveSwitcher(e.key === "next" ? 1 : -1);
+    if (e.type === "switcherKey" && e.key === "close") void closeSwitcherRow();
+    if (e.type === "switcherKey" && (e.key === "next" || e.key === "previous")) moveSwitcher(e.key === "next" ? 1 : -1);
   });
 
   onWindowEvent((e) => {
