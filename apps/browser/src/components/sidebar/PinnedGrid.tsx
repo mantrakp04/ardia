@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import { Animated, View } from "react-native";
 import { radius, Symbol } from "../ui";
-import { GlassGroup, useGlass } from "../ui/Glass";
+import { GlassGroup } from "../ui/Glass";
 import { layout, useTheme } from "../ui/theme";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { listTopGap } from "./geometry";
@@ -148,7 +148,6 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
   const { wrapper, handle, dragging } = useDragItem(entryKey("tab", tabId), { kind: "tile", tabIds: [tabId], section: "tiles" });
   const target = useFolderTarget(entryKey("tab", tabId));
   const position = useSlotPosition(x, y, width, sliding, dragging);
-  const glass = useGlass();
   const overlays = useMemo(
     () => (
       <>
@@ -170,10 +169,10 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
       >
         <TabPressArea windowId={windowId} tab={tab}>
           {({ pressed }) => (
-            <TileFace tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} badge={glass ? overlays : undefined} />
+            <TileFace tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} />
           )}
         </TabPressArea>
-        {glass ? null : overlays}
+        {overlays}
       </View>
     </Animated.View>
   );
