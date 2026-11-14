@@ -39,7 +39,8 @@ NSString *StateOf(ArdiaSavedSession *session, NSString *windowId) {
   if ([settings[@"pageFrame"] isKindOfClass:NSNumber.class] && ![settings[@"pageFrame"] isEqual:@9]) state[@"s.pageFrame"] = settings[@"pageFrame"];
   for (NSString *key in @[ @"tabLayout", @"profileId", @"incognito" ])
     if (window[key]) state[[@"w." stringByAppendingString:key]] = window[key];
-  NSNumber *autoHideTabs = [settings[@"autoHideTabs"] isKindOfClass:NSNumber.class] ? settings[@"autoHideTabs"] : nil;
+  NSNumber *autoHideTabs = [window[@"autoHideTabs"] isKindOfClass:NSNumber.class] ? window[@"autoHideTabs"]
+                         : [settings[@"autoHideTabs"] isKindOfClass:NSNumber.class] ? settings[@"autoHideTabs"] : nil;
   if (id tabsShown = autoHideTabs ? (autoHideTabs.boolValue ? @NO : @YES) : window[@"sidebarOpen"]) state[@"w.sidebarOpen"] = tabsShown;
   NSData *data = [NSJSONSerialization dataWithJSONObject:state options:NSJSONWritingSortedKeys error:nil];
   return data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;

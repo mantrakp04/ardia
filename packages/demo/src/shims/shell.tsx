@@ -90,6 +90,7 @@ provideNativeModule("ArdiaAppWindows", {
   windowCornerRadius: () => 19,
   windowIds: async () => [] as string[],
   windowFrame: async (_id: string): Promise<[number, number, number, number] | null> => null,
+  frameCornerRadius: async (_id: string): Promise<number> => 0,
   setTrafficLightsCenter: async (windowId: string, next: [number, number] | null, trailing: boolean) => setTrafficLightsCenter(windowId, next, trailing),
 });
 darkQuery?.addEventListener("change", (e) => appearance === "auto" && emitAppEvent({ type: "appearance", dark: e.matches }));

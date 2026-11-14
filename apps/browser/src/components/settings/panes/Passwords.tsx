@@ -170,7 +170,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
     const changed = await updatePassword(profile, saved.origin, saved.username, {
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
-    }).catch(orWarn(false));
+    }).catch(orWarn(false, "settings edit"));
     if (changed) onChanged();
     if (!open.current) return;
     setBusy(false);
@@ -186,7 +186,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
       destructive: true,
     });
     if (!confirmed) return setBusy(false);
-    await deletePassword(profile, saved.origin, saved.username).catch(orWarn(false));
+    await deletePassword(profile, saved.origin, saved.username).catch(orWarn(false, "settings delete"));
     onChanged();
     closeSettingsSheet();
   };

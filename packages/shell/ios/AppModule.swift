@@ -6,7 +6,7 @@ import ExpoModulesCore
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
-    Constant("apiVersion") { () -> Int in 60 }
+    Constant("apiVersion") { () -> Int in 61 }
 
     OnCreate {
       DispatchQueue.main.async { AppIcons.restore() }
@@ -70,6 +70,8 @@ public class AppModule: Module {
         "processStart": Self.processStart as Any,
         "bootTime": Self.bootTime as Any,
         "launchMarks": ArdiaHost.launchMarks,
+        "launchedHidden": ArdiaHost.launchedHidden as Any,
+        "loadAverage1m": Self.loadAverage1m as Any,
         "inApplicationsFolder": Self.inApplicationsFolder,
         "updatePrewarm": UserDefaults.standard.dictionary(forKey: UpdatePrewarm.lastRunKey) as Any,
       ]
@@ -126,6 +128,11 @@ extension AppModule {
     guard sysctl(&mib, 2, &boot, &size, nil, 0) == 0 else { return nil }
     return Double(boot.tv_sec) * 1000 + Double(boot.tv_usec) / 1000
   }()
+
+  fileprivate static var loadAverage1m: Double? {
+    var loads = [Double](repeating: 0, count: 1)
+    return getloadavg(&loads, 1) == 1 ? loads[0] : nil
+  }
 
   fileprivate static let processStart: Double? = {
     var info = kinfo_proc()

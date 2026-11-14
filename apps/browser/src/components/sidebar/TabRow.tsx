@@ -32,6 +32,7 @@ import { withShortcut } from "../../state/commands/commandShortcuts";
 import { TabPressArea } from "./TabPressArea";
 import { entryKey } from "../../state/sidebar/entryKey";
 import type { RowSection } from "./dragModel";
+import { buttonMotion, usePressScaleMotion } from "../ui/motion";
 
 export const TabRowItem = memo(function TabRowItem({
   tabId,
@@ -81,8 +82,10 @@ export const TabRow = memo(function TabRow({
   const unread = useTabUnread(tabId);
   const [unreadDrawn, setUnreadDrawn] = useState(false);
   const showsUnread = !!unread || unreadDrawn;
+  const resettable = !!tab && (isPinnedRow(tab) || !tab.pin) && awayFromPin(tab);
+  const pinActionMotion = usePressScaleMotion(resettable, buttonMotion.iconPressScale);
+  const pinActionScale = pinActionMotion.scale ? { transform: [{ scale: pinActionMotion.scale }] } : undefined;
   if (!tab) return null;
-  const resettable = (isPinnedRow(tab) || !tab.pin) && awayFromPin(tab);
   const resetting = resettable && backToPin.hovered && !renaming;
   const title = resetting ? "Back to Pinned URL" : tab.customTitle ? tabTitle(tab) : titleWithoutUnread(tabTitle(tab), unread);
   const away = resettable && !resetting ? awayTitle(tab) : null;
@@ -109,17 +112,24 @@ export const TabRow = memo(function TabRow({
           >
             <View {...backToPin.hoverProps}>
               {resettable ? (
-                <Pressable onPress={() => returnToPinnedUrl(tab.id)} tooltip={withShortcut("Back to Pinned URL", backToPinHint)}>
-                  {resetting ? (
-                    <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
-                      <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
-                    </View>
-                  ) : (
-                    <View>
-                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
-                      <TabBadges tabId={tab.id} />
-                    </View>
-                  )}
+                <Pressable
+                  onPress={() => returnToPinnedUrl(tab.id)}
+                  onPressIn={pinActionMotion.onPressIn}
+                  onPressOut={pinActionMotion.onPressOut}
+                  tooltip={withShortcut("Back to Pinned URL", backToPinHint)}
+                >
+                  <Animated.View pointerEvents="none" style={pinActionScale}>
+                    {resetting ? (
+                      <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
+                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                      </View>
+                    ) : (
+                      <View>
+                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
+                        <TabBadges tabId={tab.id} />
+                      </View>
+                    )}
+                  </Animated.View>
                 </Pressable>
               ) : (
                 <>
@@ -129,14 +139,10 @@ export const TabRow = memo(function TabRow({
               )}
             </View>
             {pip && (
-              <Pressable onPress={togglePip} style={{ marginLeft: space.s }} tooltip="Exit Picture in Picture">
-                <Symbol name="pip" size={12} color={theme.textTab} style={{ width: 18, height: 16 }} />
-              </Pressable>
+              <StatusIconButton icon="pip" color={theme.textTab} tooltip="Exit Picture in Picture" onPress={togglePip} />
             )}
             {(playingAudio || mute) && (
-              <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: space.s }} tooltip={muteTitle(mute)}>
-                <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18, height: 16 }} />
-              </Pressable>
+              <StatusIconButton icon={mute ? "speaker.slash" : "speaker.wave.2"} color={theme.textTab} tooltip={muteTitle(mute)} onPress={() => toggleMute(tab.id)} />
             )}
             {renaming ? (
               <RenameField
@@ -170,6 +176,26 @@ export const TabRow = memo(function TabRow({
 });
 
 const AWAY_FRAME = { flex: 1, marginLeft: TAB_ROW.titleGap } as const;
+
+function StatusIconButton({ icon, color, tooltip, onPress }: { icon: string; color: string; tooltip: string; onPress: (event: GestureResponderEvent) => void }) {
+  const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
+  const scaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={pressMotion.onPressIn}
+      onPressOut={pressMotion.onPressOut}
+      style={{ marginLeft: space.s }}
+      tooltip={tooltip}
+    >
+      <Animated.View style={[STATUS_GLYPH, scaleStyle]}>
+        <Symbol name={icon} size={12} color={color} style={STATUS_GLYPH} />
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+const STATUS_GLYPH = { width: 18, height: 16, alignItems: "center", justifyContent: "center" } as const;
 
 export function RenameField({
   initial,
@@ -214,7 +240,7 @@ export function RenameField({
         onBlur={() => finish(text)}
         keyDownEvents={[{ key: "Escape" }]}
         onKeyDown={(e) => e.nativeEvent.key === "Escape" && finish(null)}
-        style={{ flex: 1, fontSize, fontWeight: weight, color, paddingVertical: 0, paddingHorizontal: 0 }}
+        style={{ flex: 1, fontSize, fontWeight: weight, color, paddingVertical: 0, paddingHorizontal: 0, transform: [{ translateY: TAB_ROW.renameTextOffset }] }}
       />
     </OutsidePressArea>
   );

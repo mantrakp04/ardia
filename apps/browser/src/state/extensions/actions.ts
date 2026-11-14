@@ -22,6 +22,7 @@ import { focus, openWindow } from "../browser/actions";
 import { webviews } from "../../platform/webviews";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
+import { engineProfiles } from "../profiles/engineProfiles";
 import { shownPageId } from "../peek/peek";
 import { mainWindowFor, originalProfile } from "../windows/small";
 import { goToSettingsPane, openSettings, replaceSettingsPlace, settingsBack, useSettingsNav } from "../settings/settingsWindows";
@@ -38,6 +39,7 @@ const EMPTY: InstalledExtension[] = [];
 const loading = new Map<string, Promise<InstalledExtension[]>>();
 
 export function refreshExtensions(profile: string): Promise<InstalledExtension[]> {
+  if (!engineProfiles(useBrowser.getState()).includes(profile)) return Promise.resolve(useExtensions.getState().lists[profile] ?? EMPTY);
   const running = loading.get(profile);
   if (running) return running;
   const job = listExtensions(profile)

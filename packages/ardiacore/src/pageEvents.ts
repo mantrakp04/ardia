@@ -14,6 +14,7 @@ import type {
   FindResult,
   LoadError,
   MediaAccess,
+  MediaFault,
   MediaState,
   NavigationState,
   NowPlaying,
@@ -54,6 +55,7 @@ type NativeEvents = {
   onNotificationClose: { id: string };
   onPictureInPicture: PictureInPictureState;
   onAutoPictureInPictureKept: { appSwitch?: boolean; reason?: string };
+  onMediaFault: MediaFault;
   onActivateRequest: ActivateRequest;
   onDisplayMediaRequest: DisplayMediaRequest;
   onWindowClose: object;
@@ -100,6 +102,7 @@ const PAGE_EVENTS = {
   onNotificationClose: "notificationClose",
   onPictureInPicture: "pictureInPicture",
   onAutoPictureInPictureKept: "autoPictureInPictureKept",
+  onMediaFault: "mediaFault",
   onActivateRequest: "activateRequest",
   onDisplayMediaRequest: "displayMediaRequest",
   onWindowClose: "windowClose",
@@ -146,6 +149,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onNotificationClose: (e) => [e.id],
   onPictureInPicture: (e) => [e],
   onAutoPictureInPictureKept: (e) => [e.reason === "nothingPlaying" ? "nothingPlaying" : e.appSwitch ? "appSwitch" : "onScreen"],
+  onMediaFault: (e) => [e],
   onActivateRequest: (e) => [e],
   onDisplayMediaRequest: (e) => [e],
   onWindowClose: () => [],
