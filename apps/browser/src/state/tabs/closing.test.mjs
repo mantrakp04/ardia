@@ -4,6 +4,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const { closeIntent, closeKind } = await import("./tabs.ts");
 const { activeTabId, viewTabIds } = await import("../browser/model.ts");
 const { closeTab } = await import("../browser/actions.ts");
+const { closeWindowDialog } = await import("../windows/windowClose.ts");
 await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
@@ -101,6 +102,28 @@ test("⌘W on the empty window left beside pinned items closes the window as bef
   const empty = activeTabId(S(), w);
   S().closeTab(empty);
   assert.equal(S().windows[w], undefined);
+});
+
+test("⌘W on the empty window left beside pinned items closes it without asking", async () => {
+  const { w, last } = lastTabBesidePinned(pinnings.tile);
+  S().closeTab(last);
+  await closeTab(activeTabId(S(), w));
+  assert.equal(S().windows[w], undefined, "the test shell declines every confirmation, so only an unasked close gets through");
+});
+
+test("⌘W on a window whose only tab is empty closes it without asking", async () => {
+  S().hydrate({});
+  const w = S().createWindow();
+  const [empty] = S().windows[w].tabIds;
+  assert.equal(S().tabs[empty].url, "");
+  await closeTab(empty);
+  assert.equal(S().windows[w], undefined);
+});
+
+test("the close dialog counts the tabs with something open and leaves the empty one out", () => {
+  const { w } = windowWith("a", "b");
+  S().newTab(w);
+  assert.equal(closeWindowDialog(w).title, "Close 2 tabs?");
 });
 
 test("an empty pinned group alone keeps the window on its last tab's close", () => {

@@ -13,7 +13,7 @@ import { groupLabel } from "../pins/tabGrouping";
 import { sharingProfiles } from "../profiles/profiles";
 import { closeWindowAnimated } from "../windows/closeAnimated";
 import { applyHeldReports } from "../../platform/nativeEvents";
-import { closeWindowDialog } from "../windows/windowClose";
+import { closeWindowDialog, unpinnedOpenTabIds } from "../windows/windowClose";
 import { menuCommandAlternate, menuShortcut } from "../commands/commandShortcuts";
 import { openSettings } from "../settings/settingsWindows";
 import { profileAccentOf } from "../profiles/looks";
@@ -46,8 +46,9 @@ export async function closeTab(tabId: string) {
   const w = tab && s.windows[tab.windowId];
   if (!tab || !w) return;
   const last = closesWindow(s, tabId) && !leavesEmptyWindow(s, tabId);
-  if (last && s.settings.warnBeforeClosingLastTab && w.kind !== "private") {
-    const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(w.id), suppression: "Don’t ask me again", windowId: w.id });
+  const open = unpinnedOpenTabIds(w.id);
+  if (last && s.settings.warnBeforeClosingLastTab && w.kind !== "private" && open.length) {
+    const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(w.id, open), suppression: "Don’t ask me again", windowId: w.id });
     if (suppressed) store().updateSettings({ warnBeforeClosingLastTab: false });
     if (!confirmed) return;
     applyHeldReports();
