@@ -90,3 +90,7 @@ export function pageStatePatch(tab: BrowserTab, page: PageLook, keepsAddress: bo
 }
 
 export const coverIsCapturable = (finishedLoading: boolean | undefined, covered: boolean) => finishedLoading === true && !covered;
+
+export const ARCHIVE_CARD_THRESHOLD = 8;
+
+export const offersArchiveCard = (alreadyShown: boolean, openTabs: number) => !alreadyShown && openTabs >= ARCHIVE_CARD_THRESHOLD;

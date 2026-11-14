@@ -208,6 +208,8 @@ export const voiceLayout = {
 
 export const failureLayout = { icon: 36, textWidth: 320, button: 40 } as const;
 
+export const archiveCardLayout = { radius: 16, tile: 28, maxWidth: 520, rise: 76, tint: "#B059EE" } as const;
+
 export const sheetInk = { scrim: "rgba(0,0,0,0.25)" } as const;
 
 export const sheetLayout = { topGap: 10, radius: 32, backgroundRadius: 24 } as const;

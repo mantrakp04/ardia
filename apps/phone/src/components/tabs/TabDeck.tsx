@@ -34,11 +34,13 @@ import {
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
-import { Backdrop, ConfirmDialog, Menu, Shade, space, tabsCurve, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
+import { archiveCardLayout, Backdrop, ConfirmDialog, Menu, Shade, space, tabsCurve, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { DeckBar } from "./DeckBar";
 import { DeckCard, type DeckMotion, type DeckRole } from "./DeckCard";
+import { hideArchiveCard, offerArchiveCard, useArchiveCardShowing } from "../../state/browse/archiveCard";
+import { ArchiveIntervalCard } from "./ArchiveIntervalCard";
 import { DeckEmpty, IncognitoChip } from "./DeckChrome";
 
 type Phase = { kind: "opening" | "settled" | "closing"; id: string | null };
@@ -69,6 +71,14 @@ export function TabDeck() {
   const [menu, setMenu] = useState<"plus" | "chip" | null>(null);
   const [cardMenu, setCardMenu] = useState<{ index: number; x: number; y: number } | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const archiveCard = useArchiveCardShowing();
+  const offered = useRef(false);
+  useEffect(() => {
+    if (phase.kind !== "settled" || offered.current) return;
+    offered.current = true;
+    offerArchiveCard(order.length);
+  }, [phase.kind]);
+  useEffect(() => () => void hideArchiveCard(), []);
   const hidden = useRef(new Set<string>());
   const motion: DeckMotion = {
     scroll: useSharedValue(initialDeckScroll(order.length)),
@@ -293,6 +303,7 @@ export function TabDeck() {
           </View>
         </GestureDetector>
         {!count && phase.kind === "settled" ? <DeckEmpty centerY={g.cardCenterY} showsArchive={hasArchive} onArchive={openArchive} /> : null}
+        {archiveCard && phase.kind === "settled" ? <ArchiveIntervalCard centerY={g.barCenterY - archiveCardLayout.rise} /> : null}
         {privateCount > 0 && phase.kind === "settled" ? <IncognitoChip count={privateCount} top={g.safeTop} onPress={() => setMenu("chip")} /> : null}
         {phase.kind === "settled" ? (
           <View style={[styles.bar, { top: g.barCenterY - tabsLayout.barPlus.height / 2 - 2, paddingHorizontal: tabsLayout.barSideInset - 4 }]}>

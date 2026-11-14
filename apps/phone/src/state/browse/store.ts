@@ -41,6 +41,7 @@ import {
 import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
 import { setHidesFromRecents } from "../../platform/links";
 import { pasteText } from "../../platform/system";
+import { hideArchiveCard } from "./archiveCard";
 import { coverIsCapturable, isSyncableUrl, pageStatePatch, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
 
 export type Surface = "start" | "browsing" | "deck";
@@ -144,6 +145,7 @@ export function activateRow(row: TrayRow) {
 }
 
 export function openTab(id: string) {
+  hideArchiveCard();
   dismissSearch();
   setIncognito(isPrivateTab(currentTabs(), id));
   selectTabById(id);

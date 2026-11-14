@@ -221,6 +221,7 @@ export const SYMBOLS = {
     { d: circle(12, 12, 10) + polyline(16.6, 7.4, 13.4, 13.4, 7.4, 16.6, 10.6, 10.6) + "Z", fill: true, evenOdd: true },
     { d: polyline(16.6, 7.4, 13.4, 13.4, 10.6, 10.6) + "Z", fill: true },
   ],
+  chevronUpChevronDown: [{ d: polyline(8, 9.5, 12, 5.5, 16, 9.5) + polyline(8, 14.5, 12, 18.5, 16, 14.5), stroke: STROKE }],
   camera: [
     {
       d: "M4 7.5h3l1.5-2.5h7L17 7.5h3a1.5 1.5 0 0 1 1.5 1.5v9.5A1.5 1.5 0 0 1 20 20H4a1.5 1.5 0 0 1-1.5-1.5V9A1.5 1.5 0 0 1 4 7.5zM12 10a3.5 3.5 0 1 1 0 7a3.5 3.5 0 1 1 0-7z",

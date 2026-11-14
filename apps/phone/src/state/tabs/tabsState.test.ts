@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AUTO_ARCHIVE_INTERVALS, coverIsCapturable, isAutoArchiveDue, pageStatePatch, POSITION_STEP } from "./tabModels.ts";
+import { AUTO_ARCHIVE_INTERVALS, coverIsCapturable, offersArchiveCard, isAutoArchiveDue, pageStatePatch, POSITION_STEP } from "./tabModels.ts";
 import {
   isPrivateOnScreen,
   archiveTabs,
@@ -242,4 +242,10 @@ test("a page's cover is captured only once it has finished loading in this sessi
   assert.equal(coverIsCapturable(false, false), false);
   assert.equal(coverIsCapturable(true, true), false);
   assert.equal(coverIsCapturable(true, false), true);
+});
+
+test("the deck offers the archive card once, the first time it settles with eight or more tabs", () => {
+  assert.equal(offersArchiveCard(false, 7), false);
+  assert.equal(offersArchiveCard(false, 8), true);
+  assert.equal(offersArchiveCard(true, 20), false);
 });
