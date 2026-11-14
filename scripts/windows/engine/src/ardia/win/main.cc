@@ -12,6 +12,7 @@
 #include "ardia/core/ac_hooks.h"
 #include "ardia/core/ac_launch_switches.h"
 #include "ardia/win/api.h"
+#include "ardia/win/external_apps.h"
 #include "ardia/win/frame_view.h"
 #include "ardia/win/hooks.h"
 #include "ardia/win/host.h"
@@ -319,6 +320,7 @@ void BeforeChromeMain() {
   g_ardia_win_frame_view = &CreateHostedFrameView;
   g_ardia_win_add_main_parts = &AddMainParts;
   g_ardia_win_relaunched = &Relaunched;
+  InstallExternalAppAsks();
   g_ardia_keeps_window_without_tabs = &KeepsWindowWithoutTabs;
 }
 

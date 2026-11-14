@@ -1,0 +1,32 @@
+--- a/chrome/browser/external_protocol/external_protocol_handler.cc
++++ b/chrome/browser/external_protocol/external_protocol_handler.cc
+@@ -55,6 +55,15 @@
+ #include "components/url_formatter/elide_url.h"
+ #include "components/web_modal/web_contents_modal_dialog_manager.h"
+ #endif
++
++// Ardia: the Windows engine host (ardia/win) asks the app about links to other apps
++// for the tabs it hosts; the app names the handler, asks and launches.
++bool (*g_ardia_win_external_protocol_dialog)(
++    const GURL& url,
++    content::WebContents* web_contents,
++    bool has_user_gesture,
++    const std::optional<url::Origin>& initiating_origin,
++    content::WeakDocumentPtr initiator_document) = nullptr;
+ 
+ namespace {
+ 
+@@ -142,6 +151,13 @@
+     const std::u16string& program_name,
+     ExternalProtocolHandler::Delegate* delegate) {
+   CHECK(web_contents, base::NotFatalUntil::M161);
++  // Ardia: the Windows engine host
++  if (!delegate && g_ardia_win_external_protocol_dialog &&
++      g_ardia_win_external_protocol_dialog(url, web_contents, has_user_gesture,
++                                           initiating_origin,
++                                           initiator_document)) {
++    return;
++  }
+   if (delegate) {
+     delegate->RunExternalProtocolDialog(url, web_contents, page_transition,
+                                         has_user_gesture, initiating_origin,

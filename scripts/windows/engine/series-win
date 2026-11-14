@@ -12,3 +12,4 @@ chromium chromium-win-hosted-page-fills-window.patch
 chromium chromium-win-hosted-no-browser-shortcuts.patch
 chromium chromium-win-relaunch-to-app.patch
 chromium chromium-win-reauth-app-window.patch
+chromium chromium-win-external-protocol-dialog.patch

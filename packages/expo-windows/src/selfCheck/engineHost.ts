@@ -387,6 +387,32 @@ const withEngine: Check[] = [
     },
   },
   {
+    name: "engine: a page's link to another app reaches the app as an externalApp ask, and externalAppAlive answers once",
+    async run() {
+      const asked = new Promise<Record<string, unknown>>((resolve, reject) => {
+        const watching = onEngineTopic("tab", (event: { key?: unknown; name?: unknown; data?: unknown }) => {
+          if (event.key !== PAGE_KEY || event.name !== "externalApp") return;
+          clearTimeout(deadline);
+          watching.remove();
+          resolve((event.data ?? {}) as Record<string, unknown>);
+        });
+        const deadline = setTimeout(() => {
+          watching.remove();
+          reject(new Error("no externalApp event within 10000 ms"));
+        }, 10000);
+      });
+      await hostCall("tab.call", { key: PAGE_KEY, method: "executeJavaScript", code: 'location.href = "ardia-self-check-link:hello"' });
+      const ask = await asked;
+      expectEqual({ url: ask.url, origin: ask.origin, offTheRecord: ask.offTheRecord }, { url: "ardia-self-check-link:hello", origin: null, offTheRecord: false }, "the externalApp ask");
+      expectTrue(typeof ask.id === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(ask.id), `the ask's id is ${JSON.stringify(ask.id)}`);
+      expectEqual(typeof ask.userGesture, "boolean", "the ask's userGesture");
+      const first = await hostCall<{ alive?: unknown }>("tab.call", { key: PAGE_KEY, method: "externalAppAlive", id: ask.id });
+      const second = await hostCall<{ alive?: unknown }>("tab.call", { key: PAGE_KEY, method: "externalAppAlive", id: ask.id });
+      const unknown = await hostCall<{ alive?: unknown }>("tab.call", { key: PAGE_KEY, method: "externalAppAlive", id: "x0" });
+      expectEqual({ first: first.alive, second: second.alive, unknown: unknown.alive }, { first: true, second: false, unknown: false }, "externalAppAlive");
+    },
+  },
+  {
     name: "engine: the tab closes",
     async run() {
       await hostCall("tab.close", { key: PAGE_KEY });

@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "ardia/win/ac_calls.h"
+#include "ardia/win/external_apps.h"
 #include "ardia/win/tab_events.h"
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
@@ -732,6 +733,14 @@ void ResolveUnresponsive(content::WebContents* contents,
   std::move(reply).Run(Ok());
 }
 
+void ExternalAppAliveCall(content::WebContents* contents,
+                          const base::DictValue& args,
+                          Reply reply) {
+  base::DictValue answer;
+  answer.Set("alive", ExternalAppAlive(contents, Text(args, "id")));
+  std::move(reply).Run(std::move(answer));
+}
+
 using Method = void (*)(content::WebContents* contents,
                         const base::DictValue& args,
                         Reply reply);
@@ -759,6 +768,7 @@ constexpr NamedMethod kMethods[] = {
     {"discard", &Discard},
     {"setFrozen", &SetFrozen},
     {"resolveUnresponsive", &ResolveUnresponsive},
+    {"externalAppAlive", &ExternalAppAliveCall},
 };
 
 }
