@@ -565,6 +565,43 @@ try {
       await ac('ac.store.getState().reorderProfiles(["default","work"]); return true;');
     }
   });
+  await test("a sidebar page two profiles away holds no rows, and one that leaves reach lets go of its rows", async () => {
+    await reset();
+    const ids = await ac(`
+      const s = ac.store.getState();
+      const ids = ["Reach 1", "Reach 2", "Reach 3"].map((name) => s.createProfile({ name }));
+      for (const id of ids) for (let i = 0; i < 2; i++) s.newTab("w1", { url: "https://reach.example/" + i, profileId: id, background: true });
+      return ids;
+    `);
+    const rowsBy = () => ac(`
+      const s = ac.store.getState();
+      const by = {};
+      for (const id of ac.sidebarRows.rowIds("w1")) {
+        const p = s.tabs[id]?.profileId ?? s.groups[id]?.profileId;
+        if (p) by[p] = (by[p] ?? 0) + 1;
+      }
+      return by;
+    `);
+    try {
+      await sleep(600);
+      const before = await rowsBy();
+      assert.ok(ids.every((id) => !before[id]), `pages two or more away hold no rows: ${JSON.stringify(before)}`);
+      await ac(`ac.store.getState().switchProfile("w1", ${JSON.stringify(ids[0])}); return true;`);
+      await waitProfile(ids[0]);
+      await sleep(1600);
+      const near = await rowsBy();
+      assert.ok(near[ids[0]] && near[ids[1]] && !near[ids[2]], `the shown page and the one beside it have rows, the one two away doesn't: ${JSON.stringify(near)}`);
+      await ac(`ac.store.getState().switchProfile("w1", ${JSON.stringify(ids[2])}); return true;`);
+      await waitProfile(ids[2]);
+      await sleep(1600);
+      const after = await rowsBy();
+      assert.ok(after[ids[1]] && after[ids[2]] && !after[ids[0]], `a page that left reach let go of its rows: ${JSON.stringify(after)}`);
+      return { before, near, after };
+    } finally {
+      await ac(`const s = ac.store.getState(); s.switchProfile("w1", "default"); for (const id of ${JSON.stringify(ids)}) s.deleteProfile(id); return true;`);
+      await waitProfile("default");
+    }
+  });
   await test("removing the other profile keeps the remaining sidebar at its origin", async () => {
     await ac('ac.store.getState().switchProfile("w1","work"); return true;');
     await waitProfile("work");
