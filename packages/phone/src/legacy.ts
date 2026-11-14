@@ -38,6 +38,8 @@ export type LegacyData = {
 
 type LegacyNative = {
   available(): Promise<boolean>;
+  imported?(): Promise<boolean>;
+  markImported?(): Promise<void>;
   read(): Promise<(Omit<LegacyData, "store" | "selectedTabId"> & { store?: string; selectedTabId?: string }) | null>;
 };
 
@@ -45,6 +47,10 @@ const native = requireOptionalNativeModule<LegacyNative>("ArdiaLegacy");
 
 export const legacy = {
   available: async (): Promise<boolean> => (native ? native.available() : false),
+  imported: async (): Promise<boolean> => (native?.imported ? native.imported() : true),
+  markImported: async (): Promise<void> => {
+    await native?.markImported?.();
+  },
   read: async (): Promise<LegacyData | null> => {
     const data = native ? await native.read() : null;
     return data ? { ...data, store: data.store ?? null, selectedTabId: data.selectedTabId ?? null } : null;

@@ -178,7 +178,40 @@ titles and phrases that post links instead.
 - `legacy.available()` and `legacy.read()`: the SwiftUI app's tabs, archive, history and preferences, read from a
   copy of its SwiftData store so the store itself is never opened. `-ArdiaLegacyDump YES` logs what `read()` returns
   (`ARDIA_LEGACY` lines) and `-ArdiaLegacyRestore YES` also opens the first saved tab, for checking an import;
-  `-ArdiaLogSystemLinks YES` logs each link (`ARDIA_SYSTEM_LINK`). `-ArdiaPageLab YES` opens the page lab.
+  `-ArdiaLogSystemLinks YES` logs each link (`ARDIA_SYSTEM_LINK`). These need a test build (below).
+
+#### Sync on iPhone
+
+`ArdiaSync` on iPhone wraps the SwiftUI app's `SyncService` (ArdiaKit's ArdiaSync) whole, behind the same
+interface and events as Android. `PhoneSyncHost` owns the one service: `AppDelegate` creates it in
+`didFinishLaunching`, registers the background refresh task (`com.ardia.browser.ios.sync`) and starts it, so a
+background launch with no scene runs a cycle without React Native. `SceneDelegate` tells it when the app becomes
+active and resigns. Keys, the phrase's entropy and sealed bytes stay in Swift; only the typed phrase crosses, to
+`connect`.
+
+- **Continuing the SwiftUI app's sync.** Same bundle id, same container: the service reads `Application
+  Support/Sync` (`sync.json`, `sync-state.nns`, `sync-journal.nns`, `sync-snapshot.nns`) and the `Ardia Sync Key`
+  Keychain item, so a tester's phone keeps its device id and folder with no new connect.
+- **The phone's data.** `packages/phone/ios/PhoneSync` (a Swift package the Podfile links into the pod) reads
+  `Documents/SQLite/browser.db` read-only, one connection and one read transaction per cycle, with a busy timeout;
+  the same rules as Android (open web tabs, 30 newest per profile, visits by page and profile, a missing file is an
+  empty phone, a newer `user_version` fails the cycle). When the `-wal` and `-shm` files are gone it opens
+  read-write with `query_only` on, since a read-only open can't start then. SyncService calls it on the main actor.
+- **Sync's writes.** The inbox is `Application Support/PhoneSync/inbox.json` (excluded from backup), in Android's
+  format and with its rules: replays add nothing, removals are merged and never dropped, an unreadable file is set
+  aside, the next write refused and `inboxProblem` set.
+- **Waiting for the import.** While the SwiftUI app's `Browser.store` exists and `legacy.markImported()` hasn't
+  written `Application Support/PhoneSync/legacy-imported.json`, the source refuses to read and no cycle runs, in
+  the foreground or in the background task; status says it is waiting. `legacy.imported()` reads the marker.
+- **Widgets.** The host writes the Mac tabs widget's app-group snapshot with ArdiaDesign's `WidgetExporter`, the
+  SwiftUI app's code, whenever the synced view changes.
+- **Test build.** `ARDIA_TEST_BUILD=YES` on the xcodebuild line sets `ArdiaTestBuild` in Info.plist and
+  `EXPO_PUBLIC_ARDIA_LAB=true` in the JS bundle phase; it is `NO` in the project, so a store build has no lab, no
+  demo and no logging hooks. In a test build, `-ArdiaSyncDemo YES` swaps in `SyncService.demo` unless sync is set up,
+  and `-ArdiaPageLab YES` opens the page lab. With Metro, start it with `EXPO_PUBLIC_ARDIA_LAB=true`.
+- **Background refresh on the simulator.** With the app running, pause it in the debugger and run
+  `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.ardia.browser.ios.sync"]`,
+  then continue.
 
 Edge swipes for back and forward are WebKit's own gesture. Simulator automation (agent-device swipes and pans from
 the edge) has never triggered it; check it with a finger on a device or with the mouse in the Simulator window.

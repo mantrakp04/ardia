@@ -30,13 +30,13 @@ public final class PageViewModule: Module {
     Events("onPageEngineEvent")
 
     OnCreate {
-      MainActor.assumeIsolated {
+      onMain {
         PhonePages.shared.pageSink = { [weak self] event in self?.sendEvent("onPageEngineEvent", event) }
       }
     }
 
     OnDestroy {
-      MainActor.assumeIsolated { PhonePages.shared.pageSink = nil }
+      onMain { PhonePages.shared.pageSink = nil }
     }
 
     Function("capabilities") { () -> [String: Any] in
@@ -51,7 +51,7 @@ public final class PageViewModule: Module {
     }
 
     Function("launchOptions") { () -> [String: Any] in
-      ["pageLab": UserDefaults.standard.bool(forKey: "ArdiaPageLab")]
+      ["lab": PhoneTestBuild.isOn, "pageLab": PhoneTestBuild.flag("ArdiaPageLab"), "syncDemo": PhoneTestBuild.flag("ArdiaSyncDemo")]
     }
 
     AsyncFunction("openPage") { (pageID: String, setup: PageSetupRecord) in
@@ -353,13 +353,13 @@ public final class BlockingModule: Module {
     Events("onBlockingEvent")
 
     OnCreate {
-      MainActor.assumeIsolated {
+      onMain {
         PhonePages.shared.blockingSink = { [weak self] event in self?.sendEvent("onBlockingEvent", event) }
       }
     }
 
     OnDestroy {
-      MainActor.assumeIsolated { PhonePages.shared.blockingSink = nil }
+      onMain { PhonePages.shared.blockingSink = nil }
     }
 
     AsyncFunction("state") { () -> [String: Any?] in
@@ -444,13 +444,13 @@ public final class DownloadsModule: Module {
     Events("onDownloadEvent")
 
     OnCreate {
-      MainActor.assumeIsolated {
+      onMain {
         PhonePages.shared.downloadSink = { [weak self] event in self?.sendEvent("onDownloadEvent", event) }
       }
     }
 
     OnDestroy {
-      MainActor.assumeIsolated { PhonePages.shared.downloadSink = nil }
+      onMain { PhonePages.shared.downloadSink = nil }
     }
 
     AsyncFunction("active") { () -> [[String: Any?]] in

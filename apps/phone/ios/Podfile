@@ -16,6 +16,7 @@ platform :ios, deployment_target
 prepare_react_native_project!
 
 ardia_kit = Pathname.new(File.join(__dir__, '..', '..', 'ios', 'Packages', 'ArdiaKit')).cleanpath
+phone_sync = Pathname.new(File.join(__dir__, '..', '..', '..', 'packages', 'phone', 'ios', 'PhoneSync')).cleanpath
 
 publish_changed = '"${PODS_ROOT}/../publish-changed.sh"'
 
@@ -57,22 +58,25 @@ end
 
 link_ardia_kit = lambda do |installer|
   project = installer.pods_project
-  reference = project.root_object.package_references.find do |package|
-    package.is_a?(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
-  end
-  unless reference
-    reference = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
-    reference.relative_path = ardia_kit.relative_path_from(Pathname.new(project.project_dir)).to_s
-    project.root_object.package_references << reference
-  end
   target = project.targets.find { |t| t.name == 'ArdiaPhoneNative' }
   next unless target
-  %w[ArdiaBrowser ArdiaDesign].each do |product|
-    next if target.package_product_dependencies.any? { |d| d.product_name == product }
-    dependency = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
-    dependency.package = reference
-    dependency.product_name = product
-    target.package_product_dependencies << dependency
+  { ardia_kit => %w[ArdiaBrowser ArdiaDesign], phone_sync => %w[PhoneSync] }.each do |package, products|
+    path = package.relative_path_from(Pathname.new(project.project_dir)).to_s
+    reference = project.root_object.package_references.find do |existing|
+      existing.is_a?(Xcodeproj::Project::Object::XCLocalSwiftPackageReference) && existing.relative_path == path
+    end
+    unless reference
+      reference = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
+      reference.relative_path = path
+      project.root_object.package_references << reference
+    end
+    products.each do |product|
+      next if target.package_product_dependencies.any? { |d| d.product_name == product }
+      dependency = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+      dependency.package = reference
+      dependency.product_name = product
+      target.package_product_dependencies << dependency
+    end
   end
 end
 

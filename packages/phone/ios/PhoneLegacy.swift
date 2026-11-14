@@ -111,7 +111,7 @@ enum PhoneLegacy {
   }
 
   static func dumpIfAsked() {
-    guard UserDefaults.standard.bool(forKey: "ArdiaLegacyDump") else { return }
+    guard PhoneTestBuild.flag("ArdiaLegacyDump") else { return }
     do {
       guard let value = try read() else {
         NSLog("ARDIA_LEGACY none")
@@ -125,7 +125,7 @@ enum PhoneLegacy {
       for (index, tab) in archive.enumerated() { log("archive[\(index)]", tab) }
       for (index, visit) in visits.prefix(12).enumerated() { log("visit[\(index)]", visit) }
       log("preferences", value["preferences"] as? [String: Any] ?? [:])
-      if UserDefaults.standard.bool(forKey: "ArdiaLegacyRestore"), let first = tabs.first(where: { $0["savedState"] != nil }) {
+      if PhoneTestBuild.flag("ArdiaLegacyRestore"), let first = tabs.first(where: { $0["savedState"] != nil }) {
         restore(first)
       }
     } catch {
@@ -171,7 +171,7 @@ public final class LegacyModule: Module {
     Name("ArdiaLegacy")
 
     OnCreate {
-      MainActor.assumeIsolated { PhoneLegacy.dumpIfAsked() }
+      onMain { PhoneLegacy.dumpIfAsked() }
     }
 
     AsyncFunction("available") { () -> Bool in
@@ -180,6 +180,17 @@ public final class LegacyModule: Module {
 
     AsyncFunction("read") { () -> [String: Any]? in
       try MainActor.assumeIsolated { try PhoneLegacy.read() }
+    }.runOnQueue(.main)
+
+    AsyncFunction("imported") { () -> Bool in
+      MainActor.assumeIsolated { PhoneSyncHost.legacyGate.imported }
+    }.runOnQueue(.main)
+
+    AsyncFunction("markImported") {
+      try MainActor.assumeIsolated {
+        try PhoneSyncHost.legacyGate.markImported()
+        PhoneSyncHost.shared.legacyImportFinished()
+      }
     }.runOnQueue(.main)
   }
 }

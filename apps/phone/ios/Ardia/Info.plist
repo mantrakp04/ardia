@@ -4,6 +4,8 @@
 <dict>
 	<key>ArdiaDefaultBrowser</key>
 	<string>$(ARDIA_DEFAULT_BROWSER)</string>
+	<key>ArdiaTestBuild</key>
+	<string>$(ARDIA_TEST_BUILD)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.ardia.browser.ios.sync</string>

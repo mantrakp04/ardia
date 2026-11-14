@@ -76,7 +76,7 @@ public final class PhoneSystemLinks {
   }
 
   private func deliver(_ payload: [String: Any]) {
-    if UserDefaults.standard.bool(forKey: "ArdiaLogSystemLinks"),
+    if PhoneTestBuild.flag("ArdiaLogSystemLinks"),
        let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) {
       NSLog("ARDIA_SYSTEM_LINK %@", String(decoding: data, as: UTF8.self))
     }
@@ -112,13 +112,13 @@ public final class SystemModule: Module {
     Events("onSystemLink")
 
     OnStartObserving {
-      MainActor.assumeIsolated {
+      onMain {
         PhoneSystemLinks.shared.sink = { [weak self] link in self?.sendEvent("onSystemLink", link) }
       }
     }
 
     OnStopObserving {
-      MainActor.assumeIsolated { PhoneSystemLinks.shared.sink = nil }
+      onMain { PhoneSystemLinks.shared.sink = nil }
     }
 
     AsyncFunction("initialLink") { () -> [String: Any]? in

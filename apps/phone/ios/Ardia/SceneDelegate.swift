@@ -22,6 +22,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
   func sceneDidBecomeActive(_ scene: UIScene) {
     PhoneSystemLinks.shared.sceneBecameActive()
+    PhoneSyncHost.shared.sceneBecameActive()
+  }
+
+  func sceneWillResignActive(_ scene: UIScene) {
+    PhoneSyncHost.shared.sceneWillResignActive()
   }
 
   func scene(_ scene: UIScene, openURLContexts contexts: Set<UIOpenURLContext>) {

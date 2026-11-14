@@ -1,3 +1,4 @@
+import ArdiaPhoneNative
 import Expo
 import React
 import ReactAppDependencyProvider
@@ -18,6 +19,7 @@ class AppDelegate: ExpoAppDelegate {
     reactNativeDelegate = delegate
     reactNativeFactory = factory
     bindReactNativeFactory(factory)
+    PhoneSyncHost.shared.launch()
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
