@@ -7,11 +7,18 @@ import { pngImage } from "../engine/domains/favicons";
 import { profileFolder } from "../engine/domains/profiles";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
+import { fieldFocusedIn } from "../appKeyboard";
+import { textFocusForCheck } from "../textFocus";
 
 type TabEvent = { key?: unknown; name?: unknown; data?: { title?: unknown; isLoading?: unknown } };
 type ListedTab = { key: string; title: string; shown: boolean; windowVisible: boolean; width: number; height: number; session?: number };
 
 const PAGE_KEY = "self-check-page";
+const OTHER_WINDOW = "self-check-other-window";
+const SHOWN_AT = { unit: "px", x: 40, y: 60, width: 300, height: 240 };
+type KeyboardInfo = { keyboardPage?: unknown; keyboardMayMove?: unknown; keyboardWanted?: unknown };
+const keyboardInfo = () => hostCall<KeyboardInfo>("host.info");
+const focusAsked = async () => ((await keyboardInfo()).keyboardMayMove === true ? {} : { background: true });
 const PAGE_TITLE = "ardia self check";
 const PAGE_URL = `data:text/html,<title>${PAGE_TITLE}</title><p>the engine loaded this page</p>`;
 const PAGE_PLACE = { x: 40, y: 60, width: 320, height: 240 };
@@ -181,6 +188,75 @@ const withEngine: Check[] = [
       expectEqual(after.find((tab) => tab.key === SECOND_PAGE_KEY)?.shown, false, "the second page after it hid");
       await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
       await hostCall("tab.close", { key: SECOND_PAGE_KEY });
+    },
+  },
+  {
+    name: "engine: a page that only shows never takes the keyboard, even right after the keyboard's page hid; a follow does",
+    async run() {
+      const windowId = await firstWindow();
+      const made = await hostCall<{ tab?: unknown }>("tab.create", { key: SECOND_PAGE_KEY, url: PAGE_URL, profile: "" }, windowId);
+      expectTrue(typeof made.tab === "number" && made.tab > 0, `tab.create said ${JSON.stringify(made)}`);
+      await hostCall("tab.show", { key: PAGE_KEY, visible: true, ...SHOWN_AT }, windowId);
+      const asked = await focusAsked();
+      await hostCall("tab.call", { key: PAGE_KEY, method: "focus", ...asked });
+      const before = await keyboardInfo();
+      await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
+      await hostCall("tab.show", { key: SECOND_PAGE_KEY, visible: true, ...SHOWN_AT }, windowId);
+      const shown = await keyboardInfo();
+      expectTrue(shown.keyboardPage !== SECOND_PAGE_KEY, "the second page took the keyboard by only showing");
+      await hostCall("tab.call", { key: SECOND_PAGE_KEY, method: "focus", follow: true, ...asked });
+      const followed = await keyboardInfo();
+      if (before.keyboardMayMove === true) {
+        expectEqual(before.keyboardPage, PAGE_KEY, "the keyboard after the first page was focused");
+        expectEqual(shown.keyboardPage, "", "the keyboard after the first page hid and the second only showed");
+        expectEqual(followed.keyboardPage, SECOND_PAGE_KEY, "the keyboard after the app asked it to follow the second page");
+      } else {
+        expectEqual(before.keyboardWanted, [PAGE_KEY], "the focus kept for when the app is in front");
+        expectEqual(shown.keyboardWanted, [], "the kept focus after its page hid and the second only showed");
+        expectEqual(followed.keyboardWanted, [SECOND_PAGE_KEY], "the kept focus after the app asked it to follow the second page");
+      }
+      await hostCall("tab.show", { key: SECOND_PAGE_KEY, visible: false }, windowId);
+      await hostCall("tab.close", { key: SECOND_PAGE_KEY });
+    },
+  },
+  {
+    name: "engine: a field in another window doesn't hold this window's keyboard",
+    async run() {
+      const windowId = await firstWindow();
+      const previous = textFocusForCheck.focused();
+      const field = JSON.parse(`{"__internalInstanceHandle":{"return":null,"memoizedProps":{"windowId":"${OTHER_WINDOW}"}}}`);
+      textFocusForCheck.register(field);
+      textFocusForCheck.focus(field);
+      try {
+        expectEqual(fieldFocusedIn(OTHER_WINDOW), true, "the field's own window");
+        expectEqual(fieldFocusedIn(windowId), false, "another window while that field is focused");
+        await hostCall("tab.show", { key: PAGE_KEY, visible: true, ...SHOWN_AT }, windowId);
+        await hostCall("tab.call", { key: PAGE_KEY, method: "focus", follow: true, ...(await focusAsked()) });
+        const info = await keyboardInfo();
+        if (info.keyboardMayMove === true) expectEqual(info.keyboardPage, PAGE_KEY, "the keyboard after a follow in this window");
+        else expectEqual(info.keyboardWanted, [PAGE_KEY], "the focus kept for when the app is in front");
+      } finally {
+        textFocusForCheck.blur(field);
+        textFocusForCheck.unregister(field);
+        if (previous) textFocusForCheck.focus(previous);
+        await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
+      }
+    },
+  },
+  {
+    name: "engine: a focus kept while the app isn't in front is dropped when its page hides or the app says to forget it",
+    async run() {
+      const windowId = await firstWindow();
+      await hostCall("tab.show", { key: PAGE_KEY, visible: true, ...SHOWN_AT }, windowId);
+      await hostCall("tab.call", { key: PAGE_KEY, method: "focus", background: true });
+      expectEqual((await keyboardInfo()).keyboardWanted, [PAGE_KEY], "the kept focus");
+      await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
+      expectEqual((await keyboardInfo()).keyboardWanted, [], "the kept focus after its page hid");
+      await hostCall("tab.show", { key: PAGE_KEY, visible: true, ...SHOWN_AT }, windowId);
+      await hostCall("tab.call", { key: PAGE_KEY, method: "focus", background: true });
+      await hostCall("keyboard.forget", {}, windowId);
+      expectEqual((await keyboardInfo()).keyboardWanted, [], "the kept focus after a field of its window took the keyboard");
+      await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
     },
   },
   {
