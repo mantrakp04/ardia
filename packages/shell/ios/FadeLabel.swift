@@ -9,6 +9,7 @@ final class FadeLabel: ExpoView {
   var text = "" { didSet { update() } }
   var fontSize: Double = 13 { didSet { update() } }
   var weight = "regular" { didSet { update() } }
+  var fontFamily = "" { didSet { update() } }
   var color: NSColor = .labelColor { didSet { field.textColor = color } }
   var fadeWidth: Double = 24 { didSet { relayout() } }
 
@@ -36,12 +37,21 @@ final class FadeLabel: ExpoView {
 
   private func update() {
     let weights: [String: NSFont.Weight] = [
-      "light": .light, "regular": .regular, "medium": .medium, "semibold": .semibold, "bold": .bold,
+      "ultraLight": .ultraLight, "thin": .thin, "light": .light, "regular": .regular, "medium": .medium,
+      "semibold": .semibold, "bold": .bold, "heavy": .heavy, "black": .black,
     ]
-    field.font = .monospacedDigitSystemFont(ofSize: fontSize, weight: weights[weight] ?? .regular)
+    let fontWeight = weights[weight] ?? .regular
+    field.font = familyFont(weight: fontWeight) ?? .monospacedDigitSystemFont(ofSize: fontSize, weight: fontWeight)
     field.stringValue = text
     field.textColor = color
     relayout()
+  }
+
+  private func familyFont(weight: NSFont.Weight) -> NSFont? {
+    guard !fontFamily.isEmpty else { return nil }
+    let descriptor = NSFontDescriptor(fontAttributes: [.family: fontFamily, .traits: [NSFontDescriptor.TraitKey.weight: weight]])
+    guard let font = NSFont(descriptor: descriptor, size: fontSize), font.familyName == fontFamily else { return nil }
+    return font
   }
 
   private func relayout() {

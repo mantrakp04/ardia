@@ -23,6 +23,7 @@ import { extensionList } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { replaceSettingsPlace, SETTINGS_WINDOW_ID } from "../../../state/settings/settingsWindows";
+import { perLook } from "../../ui/tokens";
 
 type SiteAccess = "allSites" | "specificSites" | "onClick";
 const SITE_ACCESS: { value: SiteAccess; title: string }[] = [
@@ -141,7 +142,7 @@ function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; p
         </Group>
       </Box>
       {ext.description ? (
-        <Text tone="textSecondary" style={DETAILS_DESCRIPTION}>
+        <Text tone="textSecondary" style={DETAILS_DESCRIPTION()}>
           {ext.description}
         </Text>
       ) : null}
@@ -209,5 +210,5 @@ function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; p
 
 const DETAILS_TOP = { marginTop: space.xl } as const;
 const DETAILS_ICON = { width: 48, height: 48 } as const;
-const DETAILS_DESCRIPTION = { marginTop: space.l, lineHeight: proseLineHeight.body } as const;
+const DETAILS_DESCRIPTION = perLook(() => ({ marginTop: space.l, lineHeight: proseLineHeight.body }) as const);
 const REMOVE = { alignItems: "flex-start", marginTop: space.xl } as const;

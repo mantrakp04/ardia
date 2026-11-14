@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 const { mergedPalettes, parseThemeFile, themeColor } = await import("./themeFile.ts");
+const { DEFAULT_LOOK, resolveLook } = await import("./themeLook.ts");
 const { colorRoles } = await import("../components/ui/tokens.ts");
 
 const parse = (doc) => parseThemeFile("themes/nord.json", typeof doc === "string" ? doc : JSON.stringify(doc), colorRoles);
@@ -27,7 +28,7 @@ test("a theme keeps its good roles and reports each bad one by file, appearance 
     light: { accent: "#5E81AC" },
   });
   assert.deepEqual(problems, [
-    "themes/nord.json: extra isn't a theme key (dark, light)",
+    "themes/nord.json: extra isn't a theme key (dark, light, type, metrics, layout, icons)",
     "themes/nord.json: dark.panel must be a colour (#RGB, #RRGGBB, #RRGGBBAA, or rgb or rgba with r, g, b from 0 to 255 and a from 0 to 1)",
     "themes/nord.json: dark.tabSelectedShadowRadius must be a number from 0 to 100",
     "themes/nord.json: dark.dark isn't a colour role",
@@ -51,4 +52,13 @@ test("the theme's roles replace Ardia's in the base palettes, and a role left ou
   assert.equal(merged.dark.dark, true);
   assert.deepEqual(merged.light, { ...colorRoles.light });
   assert.equal(mergedPalettes(colorRoles, null, 0).dark, colorRoles.dark);
+});
+
+test("a theme file carries its look blocks next to its roles, and a colours-only theme keeps Ardia's own look", () => {
+  const parsed = parse({ dark: { accent: "#88C0D0" }, metrics: { rowHeight: 40, rowGap: "x" }, layout: { hide: ["pinned"] } });
+  assert.deepEqual(parsed.problems, ["themes/nord.json: metrics.rowGap must be a number from 0 to 12"]);
+  assert.deepEqual(parsed.look, { metrics: { rowHeight: 40 }, layout: { hide: ["pinned"] } });
+  assert.equal(resolveLook(parsed.look).metrics.rowHeight, 40);
+  assert.equal(resolveLook(parse({ dark: { accent: "#88C0D0" } }).look), DEFAULT_LOOK);
+  assert.equal(parse("{ dark: ").look, null);
 });

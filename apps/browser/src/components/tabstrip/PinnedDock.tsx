@@ -15,7 +15,7 @@ import { reorder } from "./model";
 import { PinnedFace } from "./PinnedFace";
 import { dockWidth, dropIndex, type DragGeometry } from "./stripGroups";
 import { TabChip } from "./TabChip";
-import { CHIP_HAIRLINE, DOCK_GAP, GAP, ITEM_HEIGHT, ITEM_TOP, MAX_CHIP, PINNED_CELL, PINNED_FACE_INSET, PINNED_FACE_RADIUS, PINNED_SPACING, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
+import { CHIP_HAIRLINE, DOCK_GAP, GAP, ITEM_HEIGHT, ITEM_TOP, MAX_CHIP, PINNED_CELL, PINNED_FACE_INSET, pinnedFaceRadius, PINNED_SPACING, tabRadius, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
 import { useStripCardHover } from "./StripHoverCard";
 import { TabPressArea } from "../sidebar/TabPressArea";
@@ -38,13 +38,13 @@ export function PinnedDock({ tabIds }: { tabIds: string[] }) {
           height: ITEM_HEIGHT,
           width: box.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolateLeft: "clamp" }),
           opacity: box.interpolate({ inputRange: [0, PINNED_CELL / 2], outputRange: [0, 1], extrapolate: "clamp" }),
-          borderRadius: TAB_RADIUS,
+          borderRadius: tabRadius(),
           borderWidth: glass ? 0 : CHIP_HAIRLINE,
           borderColor: theme.pinnedRestingStroke,
           backgroundColor: glass ? undefined : theme.pinnedResting,
         }}
       >
-        {glass ? <GlassFill radius={TAB_RADIUS} /> : null}
+        {glass ? <GlassFill radius={tabRadius()} /> : null}
       </Animated.View>
       <View style={{ flexDirection: "row", gap: PINNED_SPACING }}>
         {tabIds.map((id, i) => {
@@ -155,8 +155,8 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
             {({ pressed }) => (
               <View style={{ width: PINNED_CELL - PINNED_FACE_INSET * 2, height: ITEM_HEIGHT - 1 - PINNED_FACE_INSET * 2, alignItems: "center", justifyContent: "center" }}>
                 {(hovered || pressed) && (
-                  <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: PINNED_FACE_RADIUS, backgroundColor: glass ? undefined : pressed ? theme.tabPressed : theme.tabHover }}>
-                    {glass ? <GlassFill radius={PINNED_FACE_RADIUS} state={pressed ? "pressed" : "lit"} /> : null}
+                  <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: pinnedFaceRadius(), backgroundColor: glass ? undefined : pressed ? theme.tabPressed : theme.tabHover }}>
+                    {glass ? <GlassFill radius={pinnedFaceRadius()} state={pressed ? "pressed" : "lit"} /> : null}
                   </View>
                 )}
                 <View pointerEvents="none">

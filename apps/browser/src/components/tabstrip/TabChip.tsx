@@ -21,7 +21,7 @@ import { dropAt, useOnto, type GroupOut, type StripDrag } from "./model";
 import { PinnedFace } from "./PinnedFace";
 import { SelectedTab } from "./SelectedTab";
 import { CELL_STEP, dragRange, leaveIndex, type DragGeometry } from "./stripGroups";
-import { CHIP_LABEL_GAP, CHIP_PAD, DROP_RING_WIDTH, GAP, ITEM_HEIGHT, ITEM_TOP, PINNED_CELL, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
+import { CHIP_LABEL_GAP, CHIP_PAD, DROP_RING_WIDTH, GAP, ITEM_HEIGHT, ITEM_TOP, PINNED_CELL, tabRadius, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
 import { useStripCardHover } from "./StripHoverCard";
 import { TabPressArea } from "../sidebar/TabPressArea";
@@ -140,7 +140,7 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
       <View {...hoverProps} style={{ width, height: TOP_STRIP_HEIGHT }}>
         {active && <SelectedTab width={width} band={band} opaque={dragged} />}
         {dragged && !active && (
-          <View pointerEvents="none" style={{ position: "absolute", left: 0, width, top: ITEM_TOP, height: ITEM_HEIGHT, borderRadius: TAB_RADIUS, backgroundColor: theme.windowTint[0] }} />
+          <View pointerEvents="none" style={{ position: "absolute", left: 0, width, top: ITEM_TOP, height: ITEM_HEIGHT, borderRadius: tabRadius(), backgroundColor: theme.windowTint[0] }} />
         )}
         {onto && <OntoRing width={width} />}
         <TabPressArea windowId={windowId} tab={tab} style={StyleSheet.absoluteFill} pressStyle={{ flex: 1 }}>
@@ -195,7 +195,7 @@ export function OntoRing({ width }: { width: number | Animated.Value }) {
         top: ITEM_TOP,
         width,
         height: ITEM_HEIGHT,
-        borderRadius: TAB_RADIUS,
+        borderRadius: tabRadius(),
         borderWidth: DROP_RING_WIDTH,
         borderColor: theme.accent,
         backgroundColor: theme.tabPressed,
@@ -216,7 +216,7 @@ export function ItemRow({ hovered, pressed, padded = true, children }: { hovered
         right: 0,
         top: ITEM_TOP,
         height: ITEM_HEIGHT,
-        borderRadius: TAB_RADIUS,
+        borderRadius: tabRadius(),
         backgroundColor: pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
         flexDirection: "row",
         alignItems: "center",

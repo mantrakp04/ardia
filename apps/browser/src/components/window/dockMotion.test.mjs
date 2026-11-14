@@ -106,7 +106,7 @@ test("the card radius follows the native window radius minus the frame, and the 
   assert.equal(dm.cardFrameOf(0).radius, 0, "edge to edge: square corners; the window rounds the page");
   assert.equal(dm.cardFrameOf(12).radius, 7);
   assert.equal(dm.cardFrameOf(4).radius, 15);
-  assert.equal(pageFrameOf(18, 19, dm.PEEK_RADIUS).radius, 2);
+  assert.equal(pageFrameOf(18, 19, dm.peekRadius()).radius, 2);
   assert.ok(dm.cardFrameOf(0).splitGap > 0, "split panes keep a hairline gap edge to edge, so they still read as two pages");
   assert.deepEqual(dm.toolbarLightsCenter(false, 0), [25, 21]);
   assert.deepEqual(dm.toolbarLightsCenter(false), [...dm.LIGHTS_CENTER]);

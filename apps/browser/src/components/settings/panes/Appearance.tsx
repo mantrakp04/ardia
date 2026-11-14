@@ -15,6 +15,7 @@ import { modePreview, stylePreview } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";
 import { APP_ICON_SIZE, appIconChoices, chooseAppIcon } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
+import { perLook } from "../../ui/tokens";
 import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 
@@ -107,7 +108,7 @@ function StyleChoice({ value, title, selected, onPress }: { value: Settings["int
       <MiniWindow layout="none" look={{ window: look.backdrop, bar: look.tile, page: look.tile }}>
         <Box row gap="m" pad="xs" style={STYLE_TILES}>
           {[0, 1, 2].map((i) => (
-            <View key={i} style={[STYLE_TILE, glass ? null : { backgroundColor: look.tile, borderWidth: 1, borderColor: look.tileStroke }]}>
+            <View key={i} style={[STYLE_TILE(), glass ? null : { backgroundColor: look.tile, borderWidth: 1, borderColor: look.tileStroke }]}>
               {glass ? <GlassFill radius={radius.tile} state={i === 0 ? "active" : "rest"} /> : null}
             </View>
           ))}
@@ -118,7 +119,7 @@ function StyleChoice({ value, title, selected, onPress }: { value: Settings["int
 }
 
 const STYLE_TILES = { flex: 1 } as const;
-const STYLE_TILE = { flex: 1, alignSelf: "flex-start", height: 30, borderRadius: radius.tile } as const;
+const STYLE_TILE = perLook(() => ({ flex: 1, alignSelf: "flex-start", height: 30, borderRadius: radius.tile }) as const);
 
 function AddressBarPicker() {
   const addressBar = useSettings((s) => s.addressBar);

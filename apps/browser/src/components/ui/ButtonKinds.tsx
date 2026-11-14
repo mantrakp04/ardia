@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
-import { Surface, Symbol, VisualEffect } from "@ardia/shell";
+import { Surface, VisualEffect } from "@ardia/shell";
+import { Symbol } from "./Symbol";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useHover } from "./useHover";
 import { hex, useTheme, type Theme } from "./theme";

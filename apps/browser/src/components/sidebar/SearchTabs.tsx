@@ -16,7 +16,6 @@ import { SectionLabel } from "./SectionLabel";
 const WIDTH = 560;
 const ROW = 36;
 const MAX_ROWS = 10;
-const SEARCH_RADIUS = radius.sheet;
 const FIELD_ROW = { height: 50, justifyContent: "center", paddingHorizontal: space.xl } as const;
 const NO_MATCH = { paddingHorizontal: space.xl, paddingVertical: space.xl } as const;
 const SECTION = { paddingHorizontal: space.s, paddingTop: space.s } as const;
@@ -74,7 +73,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
       <Pressable onPress={close} style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0 }} />
       <Panel
         fill={theme.panel}
-        radius={SEARCH_RADIUS}
+        radius={radius.sheet}
         border={theme.panelBorder}
         shadow={SIDEBAR_SHADOW.searchTabs}
         style={{ position: "absolute", top: 56, left: Math.max(12, (windowWidth - WIDTH) / 2), width: Math.min(WIDTH, windowWidth - 24), paddingBottom: space.s }}

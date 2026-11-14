@@ -122,6 +122,7 @@ struct ArchiveRow: View {
   @Environment(\.dynamicTypeSize) private var typeSize
 
   var body: some View {
+    let iconSize = iconSize
     HStack(alignment: .firstTextBaseline, spacing: 12) {
       FaviconImage(iconURL: tab.faviconURL, pageURL: tab.url, size: iconSize)
         .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + iconSize * 0.25 }

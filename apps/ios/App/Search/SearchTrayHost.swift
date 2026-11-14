@@ -4,6 +4,7 @@ import SwiftUI
 struct SearchTrayHost: View {
   @Environment(AppModel.self) private var app
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.screenLayout) private var screenLayout
   @ScaledMetric(relativeTo: .title3) private var fieldScale: CGFloat = 1
   @State private var shown: BrowseSession.SearchRequest?
   @State private var presentation = 0
@@ -37,9 +38,10 @@ struct SearchTrayHost: View {
       let liveLift = restsWithoutKeyboard ? max(keyboardHeight, safeBottom) : keyboardHeight
       let isUp = keyboardUp || (!isClosing && hasLanded)
       let lift = heldLift ?? liveLift
-      let maxHeight = maxHeight(in: proxy, lift: lift)
+      let command = screenLayout.isWide ? CommandBarPlacement(proxy: proxy, lift: lift) : nil
+      let maxHeight = command?.maxHeight ?? maxHeight(in: proxy, lift: lift)
       let progress = TrayDrag.progress(offset: dragOffset, travel: trayHeight + lift)
-      let restingDrop = isUp || reduceMotion ? 0 : maxHeight + BrowseLayout.sheetTopRadius
+      let restingDrop = isUp || reduceMotion || command != nil ? 0 : maxHeight + BrowseLayout.sheetTopRadius
       ZStack(alignment: .bottom) {
         if let shown {
           dim(over: shown)
@@ -50,9 +52,10 @@ struct SearchTrayHost: View {
           SearchTray(request: shown, isFocused: $isFocused, maxHeight: maxHeight, dismissDrag: dismissDrag(lift: liveLift))
             .id(presentation)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { trayHeight = $0 }
-            .offset(y: safeBottom - lift + dragOffset + restingDrop)
-            .opacity(isUp || !reduceMotion ? 1 : 0)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .modifier(CommandBarFrame(placement: command, isUp: isUp))
+            .offset(y: command == nil ? safeBottom - lift + dragOffset + restingDrop : dragOffset)
+            .opacity(isUp || (!reduceMotion && command == nil) ? 1 : 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: command == nil ? .bottom : .top)
             .allowsHitTesting(!isClosing)
             .accessibilityAddTraits(.isModal)
         }
@@ -104,7 +107,7 @@ struct SearchTrayHost: View {
 
   private func maxHeight(in proxy: GeometryProxy, lift: CGFloat) -> CGFloat {
     let preferred = BrowseLayout.sheetAboveKeyboard + BrowseLayout.searchFieldHeight * (fieldScale - 1)
-    let available = proxy.size.height + proxy.safeAreaInsets.bottom - lift - Spacing.tight
+    let available = proxy.size.height + proxy.safeAreaInsets.bottom - lift - Spacing.tight - BrowseLayout.panelAboveKeyboard
     return max(min(preferred, available), 0)
   }
 

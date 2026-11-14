@@ -1,11 +1,12 @@
-import { Symbol, VisualEffect } from "@ardia/shell";
+import { VisualEffect } from "@ardia/shell";
+import { Symbol } from "./Symbol";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "./Button";
 import { PANEL_CLOSE_GLYPH, PANEL_CLOSE_SIZE } from "./ButtonKinds";
 import { curve, duration } from "./motion";
 import { surfaceTheme, ThemeContext, useTheme } from "./theme";
-import { concentric, font as typeScale, lineHeight, POPOVER_WIDTH, radius, shadow, space, weight } from "./tokens";
+import { concentric, font as typeScale, lineHeight, POPOVER_WIDTH, radius, shadow, space, typeFace, weight } from "./tokens";
 import { useHover } from "./useHover";
 import { Panel, type PanelProps } from "./Panel";
 import { OutsidePressArea } from "./native";
@@ -15,17 +16,20 @@ export const POPOVER_MARGIN = space.m;
 
 const INSET = space.xl;
 const ROW_INSET = space.s;
-const RADIUS = radius.panel;
 const ROW_HEIGHT = 32;
 const SEPARATOR_GAP = 5;
 const ICON_SLOT = 20;
 const ICON_GAP = space.ml;
 export const PANEL = {
-  radius: RADIUS,
+  get radius() {
+    return radius.panel;
+  },
   inset: INSET,
   rowInset: ROW_INSET,
   rowPadding: INSET - ROW_INSET,
-  rowRadius: concentric(RADIUS, ROW_INSET),
+  get rowRadius() {
+    return concentric(radius.panel, ROW_INSET);
+  },
   rowHeight: ROW_HEIGHT,
   iconSlot: ICON_SLOT,
   iconSize: 13,
@@ -34,13 +38,23 @@ export const PANEL = {
   listPadding: INSET - (ROW_HEIGHT - ICON_SLOT) / 2,
   headerGap: space.m,
   separatorGap: SEPARATOR_GAP,
-  titleSize: typeScale.body.fontSize,
-  titleLine: lineHeight.body,
-  subtitleSize: typeScale.caption.fontSize,
-  subtitleLine: lineHeight.caption,
-  valueSize: typeScale.small.fontSize,
+  get titleSize() {
+    return typeScale.body.fontSize;
+  },
+  get titleLine() {
+    return lineHeight.body;
+  },
+  get subtitleSize() {
+    return typeScale.caption.fontSize;
+  },
+  get subtitleLine() {
+    return lineHeight.caption;
+  },
+  get valueSize() {
+    return typeScale.small.fontSize;
+  },
   largeIcon: 32,
-} as const;
+};
 
 export const POPOVER_MOTION = {
   open: { duration: duration.base, easing: curve.enter },
@@ -180,11 +194,11 @@ export function PanelHeader({
     >
       <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>{icon}</View>
       <View style={{ flex: 1 }} onLayout={(e) => setTextHeight(e.nativeEvent.layout.height)}>
-        <Text numberOfLines={1} style={{ fontSize: large ? typeScale.title.fontSize : PANEL.titleSize, lineHeight: titleLine, fontWeight: weight.semibold, color: theme.textPrimary }}>
+        <Text numberOfLines={1} style={{ fontSize: large ? typeScale.title.fontSize : PANEL.titleSize, lineHeight: titleLine, fontWeight: weight.semibold, color: theme.textPrimary, ...typeFace() }}>
           {title}
         </Text>
         {subtitle ? (
-          <Text numberOfLines={large ? 2 : 1} style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: theme.textSecondary }}>
+          <Text numberOfLines={large ? 2 : 1} style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: theme.textSecondary, ...typeFace() }}>
             {subtitle}
           </Text>
         ) : null}
@@ -203,7 +217,7 @@ export function PopoverValue({ title, onPress, chevron = "chevron.up.chevron.dow
     <View {...hoverProps} tooltip={tooltip} style={{ marginRight: -VALUE_PAD }}>
       <Pressable onPress={onPress}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, height: 22, paddingLeft: space.m, paddingRight: VALUE_PAD, borderRadius: radius.control, backgroundColor: hovered ? theme.toolbarHover : undefined }}>
-          <Text style={{ fontSize: PANEL.valueSize, color: theme.textSecondary }}>{title}</Text>
+          <Text style={{ fontSize: PANEL.valueSize, color: theme.textSecondary, ...typeFace() }}>{title}</Text>
           <Symbol name={chevron} size={9} weight={chevron === "chevron.down" ? "semibold" : undefined} color={theme.textSecondary} style={{ width: 8, height: 14 }} />
         </View>
       </Pressable>

@@ -6,9 +6,8 @@ import { copySetupCode, onboardingSetupCode } from "../../state/presets/actions"
 import { StepActions, StepLayout } from "./StepLayout";
 import { SecondaryButton } from "./Buttons";
 import { useOnboardingColors } from "./Parts";
-import { MONO } from "./tokens";
 import { Text } from "../ui";
-import { proseLineHeight, radius, space } from "../ui/tokens";
+import { monoFace, proseLineHeight, radius, space } from "../ui/tokens";
 import { ChoiceCard } from "./ChoiceCard";
 import { SetupLines } from "./SetupLines";
 
@@ -46,7 +45,7 @@ export function SetupCodeOutro() {
       preview={<SetupLines heading="You picked:" lines={lines} />}
     >
       <ChoiceCard dashed radius={radius.panel} style={{ paddingVertical: space.xl, paddingHorizontal: space.xl }}>
-        <Text selectable accessibilityLabel={`Setup code ${code}`} color={colors.title} style={{ fontFamily: MONO, lineHeight: proseLineHeight.body }}>
+        <Text selectable accessibilityLabel={`Setup code ${code}`} color={colors.title} style={{ ...monoFace(), lineHeight: proseLineHeight.body }}>
           {code}
         </Text>
       </ChoiceCard>

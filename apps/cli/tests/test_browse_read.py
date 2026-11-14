@@ -29,7 +29,7 @@ class PagesCap(unittest.TestCase):
     def test_cap_grows_with_pages_between_floor_and_ceiling(self):
         self.assertEqual(readpages.pages_cap(1), daemon.OUTPUT_CAP)
         self.assertEqual(readpages.pages_cap(2), daemon.OUTPUT_CAP)
-        self.assertEqual(readpages.pages_cap(4), 12000)
+        self.assertEqual(readpages.pages_cap(4), 24000)
         self.assertEqual(readpages.pages_cap(30), readpages.PAGES_CAP_CEILING)
 
     def test_twelve_pages_fit_whole_under_the_scaled_cap(self):
@@ -42,12 +42,12 @@ class PagesCap(unittest.TestCase):
         self.assertEqual(err, "")
 
     def test_too_many_pages_are_cut_and_the_footer_reaches_stderr(self):
-        records = [record(index, 3000) for index in range(10)]
+        records = [record(index, 5000) for index in range(10)]
         result = readpages.result_for(records, {}, {})
         self.assertLessEqual(len(result.text), readpages.PAGES_CAP_CEILING)
-        self.assertIn("pages cut to fit 24,000 characters", result.text)
+        self.assertIn("pages cut to fit 36,000 characters", result.text)
         _, out, err = daemon.render({}, result=result, name="read")
-        self.assertTrue(err.startswith("[pages cut to fit 24,000 characters"))
+        self.assertTrue(err.startswith("[pages cut to fit 36,000 characters"))
         self.assertTrue(out.rstrip("\n").endswith(err.rstrip("\n")))
 
     def test_max_output_still_wins_over_the_page_budget(self):

@@ -18,8 +18,8 @@ const LIGHT: typeof DARK = {
 export const unreadColors = (dark: boolean) => (dark ? DARK : LIGHT);
 
 export const UNREAD_PILL = {
-  row: { height: 16, padX: 5, type: font.caption, line: 16, weight: weight.semibold },
-  tile: { height: 11, padX: 3, type: font.badge, line: 11, weight: weight.semibold },
+  row: { height: 16, padX: 5, get type() { return font.caption; }, line: 16, get weight() { return weight.semibold; } },
+  tile: { height: 11, padX: 3, get type() { return font.badge; }, line: 11, get weight() { return weight.semibold; } },
 } as const;
 export const UNREAD_TILE = { inset: 4, dotInset: 5.5 } as const;
 export const UNREAD_DOT = 6;

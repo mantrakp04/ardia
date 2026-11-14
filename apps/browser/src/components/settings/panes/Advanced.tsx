@@ -16,6 +16,7 @@ import { engineVersion, widevine as widevineComponent } from "../../../state/set
 import { useResource } from "../../../state/settings/resources";
 import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { AutomationRules } from "./AutomationRules";
+import { perLook } from "../../ui/tokens";
 
 const REPOSITORY = "https://github.com/mantrakp04/ardia";
 
@@ -150,7 +151,7 @@ function CommandLineSection() {
         <Row
           anchor="advanced.cliInstall"
           description={
-            <Text selectable size="caption" tone={cli.error && !cli.installing ? "destructive" : "textSecondary"} style={INSTALL_NOTE}>
+            <Text selectable size="caption" tone={cli.error && !cli.installing ? "destructive" : "textSecondary"} style={INSTALL_NOTE()}>
               {describeCliInstall(cli)}
             </Text>
           }
@@ -219,5 +220,5 @@ function KeepActiveSiteSheet() {
   );
 }
 
-const INSTALL_NOTE = { marginTop: space.xxs, lineHeight: lineHeight.caption } as const;
+const INSTALL_NOTE = perLook(() => ({ marginTop: space.xxs, lineHeight: lineHeight.caption }) as const);
 const ERROR = { marginTop: space.ml } as const;

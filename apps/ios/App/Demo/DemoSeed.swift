@@ -19,6 +19,14 @@ enum DemoSeed {
     Page(url: "https://en.wikipedia.org/wiki/Sintra", title: "Sintra - Wikipedia", minutesAgo: 3),
   ]
 
+  static let workSpace = "demo-work"
+
+  static let workPages: [Page] = [
+    Page(url: "https://linear.app/", title: "Linear", minutesAgo: 70),
+    Page(url: "https://developer.apple.com/documentation/swiftui", title: "SwiftUI | Apple Developer Documentation", minutesAgo: 25),
+    Page(url: "https://www.figma.com/community", title: "Figma Community", minutesAgo: 6),
+  ]
+
   static let archivedPages: [Page] = [
     Page(url: "https://www.timeout.com/lisbon", title: "Time Out Lisbon", minutesAgo: 60 * 5),
     Page(url: "https://www.metmuseum.org/", title: "The Metropolitan Museum of Art", minutesAgo: 60 * 26),
@@ -60,6 +68,13 @@ enum DemoSeed {
       tabs.update(tab.id, title: page.title)
       tab.lastActive = now.addingTimeInterval(-page.minutesAgo * 60)
     }
+    for page in workPages {
+      guard let url = URL(string: page.url) else { continue }
+      let tab = tabs.open(.url(url, origin: .typed), selecting: false)
+      tabs.update(tab.id, title: page.title)
+      tab.lastActive = now.addingTimeInterval(-page.minutesAgo * 60)
+      tabs.assign(tab.id, toSpace: workSpace)
+    }
     if let latest = tabs.openTabs.max(by: { $0.lastActive < $1.lastActive }) {
       tabs.select(latest.id)
     }
@@ -75,6 +90,9 @@ enum DemoScenario {
       return arguments[index + 1]
     }
     if arguments.contains("-BrowseIncognito") { app.isIncognito = true }
+    if let name = value("-ArdiaSpace"), let space = app.spaces.first(where: { $0.syncId == name || $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }) {
+      app.switchSpace(to: space.syncId)
+    }
     if let link = value("-BrowseOpen").flatMap(URL.init(string:)) {
       app.openPage(link, origin: .typed)
     }

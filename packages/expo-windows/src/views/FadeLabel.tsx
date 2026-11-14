@@ -3,7 +3,7 @@ import type { FadeLabelProps } from "@ardia/shell";
 import { Text, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import { colorOrUndefined, finite, useDark, useFirstWindow } from "./shared";
 
-const FONT_WEIGHT: Record<string, TextStyle["fontWeight"]> = { light: "300", regular: "400", medium: "500", semibold: "600", bold: "700" };
+const FONT_WEIGHT: Record<string, TextStyle["fontWeight"]> = { ultraLight: "100", thin: "200", light: "300", regular: "400", medium: "500", semibold: "600", bold: "700", heavy: "800", black: "900" };
 const CELL_PADDING = 2;
 const FADE_SLICES = 6;
 const RUN_WIDTH = 100000;
@@ -26,7 +26,7 @@ const Run = memo(function Run({ text, textStyle, left, width, opacity, onTextLay
   return <View style={{ position: "absolute", top: 0, bottom: 0, left, width, opacity, overflow: "hidden" }}>{line}</View>;
 });
 
-export const FadeLabel = forwardRef<View, FadeLabelProps>(function FadeLabel({ text, fontSize, weight, color, fadeWidth, style, onLayout, ...rest }, ref) {
+export const FadeLabel = forwardRef<View, FadeLabelProps>(function FadeLabel({ text, fontSize, weight, fontFamily, color, fadeWidth, style, onLayout, ...rest }, ref) {
   useFirstWindow();
   const dark = useDark(undefined);
   const [boxWidth, setBoxWidth] = useState(0);
@@ -36,6 +36,7 @@ export const FadeLabel = forwardRef<View, FadeLabelProps>(function FadeLabel({ t
     fontSize: Math.max(1, finite(fontSize, 13)),
     fontWeight: FONT_WEIGHT[typeof weight === "string" ? weight : "regular"] ?? "400",
     fontVariant: ["tabular-nums"],
+    ...(fontFamily ? { fontFamily } : null),
     color: colorOrUndefined(color) ?? LABEL_COLOR[dark ? "dark" : "light"],
   };
   const measureBox = useCallback(

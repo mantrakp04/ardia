@@ -22,31 +22,32 @@ import { useSettingsColors } from "../useSettingsColors";
 import { SYNC_CODE_SIZE, syncCodeFrame } from "./syncCodeFrame";
 import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
+import { monoFace, perLook } from "../../ui/tokens";
 
 const WORDS = 24;
 
 function Body({ children }: { children: ReactNode }) {
   return (
-    <Text size="small" tone="textSecondary" style={BODY}>
+    <Text size="small" tone="textSecondary" style={BODY()}>
       {children}
     </Text>
   );
 }
 
-const BODY = { lineHeight: proseLineHeight.small, marginTop: space.ml } as const;
+const BODY = perLook(() => ({ lineHeight: proseLineHeight.small, marginTop: space.ml }) as const);
 const PREVIEW = { width: 168, height: 217 } as const;
-const PREVIEW_FRAME = { ...PREVIEW, borderRadius: radius.control, overflow: "hidden", borderWidth: 1, backgroundColor: ink.white } as const;
-const WARNING_TEXT = { flex: 1, lineHeight: lineHeight.body } as const;
+const PREVIEW_FRAME = perLook(() => ({ ...PREVIEW, borderRadius: radius.control, overflow: "hidden", borderWidth: 1, backgroundColor: ink.white }) as const);
+const WARNING_TEXT = perLook(() => ({ flex: 1, lineHeight: lineHeight.body }) as const);
 const UNDERLINE = { textDecorationLine: "underline" } as const;
 const SECTION_TOP = { marginTop: space.xl } as const;
 const PHRASE_FOOT = { marginTop: space.s } as const;
-const PHRASE_ERROR = { flex: 1, lineHeight: lineHeight.caption } as const;
+const PHRASE_ERROR = perLook(() => ({ flex: 1, lineHeight: lineHeight.caption }) as const);
 const FOLDER_ROW = { alignItems: "center", marginTop: space.ml } as const;
 const FILL = { flex: 1 } as const;
 const QR = { width: SYNC_CODE_SIZE, height: SYNC_CODE_SIZE } as const;
-const QR_NOTE = { flex: 1, lineHeight: lineHeight.body } as const;
+const QR_NOTE = perLook(() => ({ flex: 1, lineHeight: lineHeight.body }) as const);
 const WORDS_BOX = { flexWrap: "wrap", marginTop: space.xl } as const;
-const WORD = { width: "25%", paddingVertical: space.xs, fontFamily: "Menlo" } as const;
+const WORD = perLook(() => ({ width: "25%", paddingVertical: space.xs, ...monoFace() }) as const);
 const CHECK_TOP = { marginTop: space.l } as const;
 
 export function showRecoveryKit() {
@@ -81,7 +82,7 @@ function RecoveryKitSheet() {
           <DialogTitle subtitle="Your Recovery Kit contains all you need to recover your data should you lose access to this device.">Save Your Recovery Kit</DialogTitle>
           <Box row gap="m" pad="ml" radius="panel" style={[SECTION_TOP, { backgroundColor: look.warningFill }]}>
             <Symbol name="exclamationmark.triangle.fill" size={12} color={theme.warning} style={{ width: 16, height: 16 }} />
-            <Text size="small" style={WARNING_TEXT}>
+            <Text size="small" style={WARNING_TEXT()}>
               Save a copy of your Recovery Kit to{" "}
               <Text size="small" style={UNDERLINE}>
                 another
@@ -91,7 +92,7 @@ function RecoveryKitSheet() {
           </Box>
           {saved ? <Body>Saved to {saved.replace(/^\/Users\/[^/]+/, "~")}.</Body> : null}
         </View>
-        <View accessibilityLabel="Recovery kit preview" style={[PREVIEW_FRAME, { borderColor: theme.groupBorder }]}>
+        <View accessibilityLabel="Recovery kit preview" style={[PREVIEW_FRAME(), { borderColor: theme.groupBorder }]}>
           {preview ? <Image source={{ uri: preview }} style={PREVIEW} /> : null}
         </View>
       </Box>
@@ -166,7 +167,7 @@ function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; on
         />
       </View>
       <Box row style={PHRASE_FOOT}>
-        <Text size="caption" tone={error ? "destructive" : "textSecondary"} style={PHRASE_ERROR}>
+        <Text size="caption" tone={error ? "destructive" : "textSecondary"} style={PHRASE_ERROR()}>
           {error ?? ""}
         </Text>
         <Text size="caption" tone={count > WORDS ? "destructive" : "textTertiary"} style={tabularNums}>
@@ -268,7 +269,7 @@ function ConnectDeviceSheet() {
       </DialogTitle>
       <Box row gap="xl" style={[SECTION_TOP, { alignItems: "center" }]}>
         <View style={syncCodeFrame(theme, qr !== null)}>{qr ? <Image source={{ uri: qr }} style={QR} /> : <Button title="Show Code" onPress={() => void recoveryQrCode().then(setQr)} />}</View>
-        <Text size="small" tone="textSecondary" style={QR_NOTE}>
+        <Text size="small" tone="textSecondary" style={QR_NOTE()}>
           {PLATFORM_FEATURES.syncsWithPhone
             ? "Click Show Code. On your iPhone, open Ardia, tap Sync With Mac, and scan the code. For another Mac, you can also scan it with your iPhone’s camera and paste the words there with Universal Clipboard."
             : "Click Show Code, then scan it with your phone’s camera to copy the words and enter them on your other computer."}
@@ -277,7 +278,7 @@ function ConnectDeviceSheet() {
       {words ? (
         <Box row pad="ml" radius="tile" fill="groupFill" style={WORDS_BOX}>
           {words.map((w, i) => (
-            <Text key={i} size="small" style={WORD}>
+            <Text key={i} size="small" style={WORD()}>
               <Text size="small" tone="textTertiary">{`${`${i + 1}`.padStart(2, " ")} `}</Text>
               {w}
             </Text>

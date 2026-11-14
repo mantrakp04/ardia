@@ -50,3 +50,38 @@ test("the reads cover every top-level field the menu used, including through its
   }
   assert.equal(reads.has("history"), false);
 });
+
+test("History › Recently Closed lists only what the window's shown profile closed", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://home.example/" });
+  const personal = S().newTab(w, { url: "https://personal.example/" });
+  S().updateTab(personal, { title: "Personal page" });
+  const grouped = S().newTab(w, { url: "https://grouped.example/" });
+  S().closeGroup(S().createGroup([grouped], { name: "Personal group" }));
+  S().closeTab(personal);
+  const other = S().createWindow({ url: "https://other.example/" });
+  S().updateTab(model.activeTabId(S(), other), { title: "Personal window" });
+  S().closeWindow(other);
+  const work = S().createProfile({ name: "Work" });
+  S().switchProfile(w, work);
+  const job = S().newTab(w, { url: "https://work.example/" });
+  S().updateTab(job, { title: "Work page" });
+  S().closeTab(job);
+  const titles = () => [...menuState(S()).recentlyClosed, ...menuState(S()).recentlyClosedGroups].map((e) => e.title);
+  assert.deepEqual(titles(), ["Work page"]);
+  S().switchProfile(w, "default");
+  assert.ok(titles().includes("Personal page"), titles().join(", "));
+  assert.ok(titles().includes("Personal group (1 Tab)"), titles().join(", "));
+  assert.ok(titles().some((t) => t.startsWith("Window")), titles().join(", "));
+  assert.ok(!titles().includes("Work page"));
+  S().switchProfile(w, work);
+  const workWindow = S().createWindow({ profileId: work, url: "https://work-window.example/" });
+  S().switchProfile(workWindow, "default");
+  S().newTab(workWindow, { url: "https://kept.example/" });
+  S().switchProfile(workWindow, work);
+  S().closeWindow(workWindow);
+  S().switchProfile(w, "default");
+  const before = titles().filter((t) => t.startsWith("Window")).length;
+  S().deleteProfile(work);
+  assert.equal(titles().filter((t) => t.startsWith("Window")).length, before + 1, "a closed window whose profile was deleted reopens in the default profile, so it lists there");
+});

@@ -4,7 +4,7 @@ import type { Tab } from "../../state/browser/types";
 import { tabTitle } from "../../state/browser/model";
 import { awayTitle } from "../../state/pins/organize";
 import { useIsSleeping } from "../../state/tabs/tabLifecycle";
-import { FadeLabel, font, space, Symbol, Text } from "../ui";
+import { FadeLabel, font, perLook, space, Symbol, Text } from "../ui";
 import { lineHeight } from "../ui/tokens";
 import { useTheme } from "../ui/theme";
 import { AwayTitleLabel } from "./AwayTitle";
@@ -27,7 +27,7 @@ export function TabCardSummary({ tab }: { tab: Tab }) {
         )}
       </View>
       {tab.url ? (
-        <Text lines={2} size="caption" tone="textSecondary" style={URL_LINE}>
+        <Text lines={2} size="caption" tone="textSecondary" style={urlLine()}>
           {displayUrl(tab.url)}
         </Text>
       ) : null}
@@ -43,4 +43,4 @@ export function TabCardSummary({ tab }: { tab: Tab }) {
   );
 }
 
-const URL_LINE = { marginTop: space.xs, lineHeight: lineHeight.caption } as const;
+const urlLine = perLook(() => ({ marginTop: space.xs, lineHeight: lineHeight.caption }));

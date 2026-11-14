@@ -1,6 +1,6 @@
 import { externalAppCounts } from "../../platform/externalAppCounts";
 
-const counts = { asked: 0, noApp: 0, allowed: 0, allowedAlways: 0, declined: 0 };
+const counts = { allowed: 0, allowedAlways: 0, declined: 0 };
 
 export type ExternalAppOutcome = keyof typeof counts;
 
@@ -9,8 +9,6 @@ export const noteExternalApp = (outcome: ExternalAppOutcome) => void (counts[out
 export function takeExternalAppCounts() {
   const launches = externalAppCounts.takeLaunches();
   const taken = {
-    external_app_prompts: counts.asked,
-    external_app_prompts_no_app: counts.noApp,
     external_app_allows: counts.allowed,
     external_app_allows_always: counts.allowedAlways,
     external_app_declines: counts.declined,

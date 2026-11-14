@@ -8,8 +8,9 @@ import { useWindowId } from "../../state/browser/hooks";
 import type { ReleaseNotes } from "../../state/releaseNotes/releaseNotes";
 import { PostageStamp, PostcardPaper } from "./PostageStamp";
 import { ntpType, postcard, useNtpColors } from "./tokens";
+import { perLook } from "../ui/tokens";
 
-const CARD = { width: 320, height: 200, overhangRight: 40, overhangTop: 30, tilt: 2, radius: radii.panel };
+const CARD = { width: 320, height: 200, overhangRight: 40, overhangTop: 30, tilt: 2, get radius() { return radii.panel; } };
 const HOVER_SLOP = 24;
 const TOOLTIP = { height: 28, gap: space.xs };
 const PAGE_CLOSE = 23;
@@ -112,7 +113,7 @@ function Tooltip({ text, onOpen, onClose }: { text: string; onOpen: () => void; 
   const colors = useNtpColors();
   return (
     <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={text}>
-      <View style={TOOLTIP_PLATE}>
+      <View style={TOOLTIP_PLATE()}>
         <VisualEffect material="contentBackground" blendingMode="withinWindow" cornerRadius={radii.control} style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.postcardTooltip }]} />
         <Text lines={1} size="small" weight="medium" style={TOOLTIP_TEXT}>
@@ -125,7 +126,7 @@ function Tooltip({ text, onOpen, onClose }: { text: string; onOpen: () => void; 
 }
 
 const FILL = { flex: 1 } as const;
-const TOOLTIP_PLATE = { height: TOOLTIP.height, borderRadius: radii.control, overflow: "hidden", flexDirection: "row", alignItems: "center", paddingLeft: space.m, paddingRight: space.xs } as const;
+const TOOLTIP_PLATE = perLook(() => ({ height: TOOLTIP.height, borderRadius: radii.control, overflow: "hidden", flexDirection: "row", alignItems: "center", paddingLeft: space.m, paddingRight: space.xs }) as const);
 const TOOLTIP_TEXT = { color: postcard.tooltipText, marginRight: space.m } as const;
 
 function Artwork({ notes, radius, titleSize, hidden }: { notes: ReleaseNotes; radius: number; titleSize: number; hidden?: { top: number; right: number } }) {
@@ -192,9 +193,9 @@ export function ReleaseNotesPage({ notes, size, onClose }: { notes: ReleaseNotes
               <View style={STAMP_PLACE}>
                 <PostageStamp icon={STAMP.icon} ring={STAMP.ring} label="WHAT'S NEW" tilt={STAMP.tilt} ink={STAMP_INK} ringAt={STAMP.ringAt} />
               </View>
-              <Text style={DATE_TEXT}>{notes.date.toUpperCase()}</Text>
-              <Text style={TITLE_TEXT}>{notes.title}</Text>
-              <Text size="body" style={SUMMARY_TEXT}>
+              <Text style={DATE_TEXT()}>{notes.date.toUpperCase()}</Text>
+              <Text style={TITLE_TEXT()}>{notes.title}</Text>
+              <Text size="body" style={SUMMARY_TEXT()}>
                 {notes.summary}
               </Text>
               <ScrollView style={ITEMS} contentContainerStyle={ITEMS_CONTENT} showsVerticalScrollIndicator={false}>
@@ -203,7 +204,7 @@ export function ReleaseNotesPage({ notes, size, onClose }: { notes: ReleaseNotes
                     <Text size="body" weight="semibold" style={INK_TEXT}>
                       {item.title}
                     </Text>
-                    <Text style={ITEM_BODY}>{item.body}</Text>
+                    <Text style={ITEM_BODY()}>{item.body}</Text>
                   </Box>
                 ))}
               </ScrollView>
@@ -223,14 +224,14 @@ const PAGE_STACK = { flex: 1, flexDirection: "column", gap: PAGE_GAP } as const;
 const ART_SPLIT = { width: "46%" } as const;
 const ART_STACK = { height: 150 } as const;
 const NOTES_COLUMN = { flex: 1, paddingTop: space.ml, paddingRight: space.m } as const;
-const DATE_TEXT = { ...ntpType.releaseDate, color: postcard.inkTertiary, marginRight: PAGE_GUTTER } as const;
-const TITLE_TEXT = { ...ntpType.releaseTitle, color: postcard.ink, marginTop: space.s, marginRight: PAGE_GUTTER } as const;
-const SUMMARY_TEXT = { lineHeight: proseLineHeight.body, color: postcard.inkSecondary, marginTop: space.m, marginRight: PAGE_GUTTER } as const;
+const DATE_TEXT = perLook(() => ({ ...ntpType.releaseDate, color: postcard.inkTertiary, marginRight: PAGE_GUTTER }) as const);
+const TITLE_TEXT = perLook(() => ({ ...ntpType.releaseTitle, color: postcard.ink, marginTop: space.s, marginRight: PAGE_GUTTER }) as const);
+const SUMMARY_TEXT = perLook(() => ({ lineHeight: proseLineHeight.body, color: postcard.inkSecondary, marginTop: space.m, marginRight: PAGE_GUTTER }) as const);
 const ITEMS = { flex: 1, marginTop: space.xl } as const;
 const ITEMS_CONTENT = { gap: space.l, paddingBottom: space.m } as const;
 const ITEM = { paddingBottom: space.ml, borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: postcard.inkRule } as const;
 const INK_TEXT = { color: postcard.ink } as const;
-const ITEM_BODY = { ...ntpType.releaseItemBody, color: postcard.inkBody } as const;
+const ITEM_BODY = perLook(() => ({ ...ntpType.releaseItemBody, color: postcard.inkBody }) as const);
 const PAGE_CLOSE_PLACE = { position: "absolute", right: -PAGE_CLOSE / 2, top: -PAGE_CLOSE / 2 } as const;
 
 const STAMP_PLACE = { position: "absolute", right: 0, top: 0 } as const;

@@ -7,7 +7,7 @@ const { sidebarMenuItems } = await import("../sidebar/sidebarMenu.ts");
 const { flushPersistence, loadSession, parseSession, startPersistence } = await import("../session/persist.ts");
 const { SESSION_DOCUMENT } = await import("../session/sessionDocument.ts");
 const { noteScroll, useToolbarAutoHide } = await import("./toolbarAutoHide.ts");
-const { takeAutoHideTabsChoices } = await import("../telemetry/autoHideTabsChoices.ts");
+const { takeAutoHideTabsChoices, takeTornOffWindowsKeptAutoHide } = await import("../telemetry/autoHideTabsChoices.ts");
 const stub = await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
@@ -104,6 +104,26 @@ test("scrolling tucks the toolbar away only while its own setting is on, and nev
   S().updateSettings({ hideToolbarWhileScrolling: true, autoHideTabs: true });
   noteScroll(tabId, "down");
   assert.equal(tucked(), true, "hidden tabs don't stop the toolbar tucking");
+});
+
+test("tabs moved or dragged out of a window into a new one keep that window's hidden or shown tabs (#780)", () => {
+  const a = fresh();
+  const tabs = [S().newTab(a, { url: "https://second.example" }), S().newTab(a, { url: "https://third.example" }), S().newTab(a, { url: "https://fourth.example" })];
+  S().toggleSidebar(a);
+  takeTornOffWindowsKeptAutoHide();
+  const moved = S().moveTabsToWindow([tabs[0]], null);
+  assert.equal(shown(moved), false, "Move to New Window");
+  const dropped = S().createWindow({ profileId: "default", tabIds: [tabs[1]], frame: [800, 0, 1200, 800] });
+  assert.equal(shown(dropped), false, "dragged out onto another screen");
+  assert.equal(S().settings.autoHideTabs, false, "the setting stays as it was");
+  assert.equal(shown(S().createWindow()), true, "a new window with no tabs of its own still follows the setting");
+  assert.equal(takeTornOffWindowsKeptAutoHide(), 2);
+  S().updateSettings({ autoHideTabs: true });
+  const b = S().createWindow();
+  S().toggleSidebar(b);
+  const back = S().moveTabsToWindow([S().newTab(b, { url: "https://fifth.example" })], null);
+  assert.equal(shown(back), true, "a window showing its tabs against the setting hands that on too");
+  assert.equal(shown(S().moveTabsToWindow([tabs[2]], null)), false, "a window in line with the setting hands on the setting");
 });
 
 test("Little Ardia has no tabs to hide and leaves the setting alone", () => {

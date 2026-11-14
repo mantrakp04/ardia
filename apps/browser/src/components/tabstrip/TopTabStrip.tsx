@@ -35,7 +35,7 @@ import {
   PEEK_PAD,
   PEEK_TOP,
   PROFILE_ROOM,
-  TAB_RADIUS,
+  tabRadius,
   TOP_STRIP_HEIGHT,
 } from "./tokens";
 import { WindowDropGlow } from "./WindowDropGlow";
@@ -106,7 +106,8 @@ function StripDropArea({ style, children }: { style: ViewStyle; children: React.
 }
 
 function StripDropHighlight({ left, right }: { left: number; right: number }) {
-  const place = useMemo(() => ({ left: left - 4, right: right - 4, top: ITEM_TOP - 1, height: ITEM_HEIGHT + 2, borderRadius: TAB_RADIUS + 1 }), [left, right]);
+  const corner = tabRadius();
+  const place = useMemo(() => ({ left: left - 4, right: right - 4, top: ITEM_TOP - 1, height: ITEM_HEIGHT + 2, borderRadius: corner + 1 }), [left, right, corner]);
   return <WindowDropGlow place={place} />;
 }
 

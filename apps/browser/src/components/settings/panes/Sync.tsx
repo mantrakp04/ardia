@@ -24,6 +24,7 @@ import { Group, PaneIntro, Row, SectionHeader } from "../Form";
 import { addAllRemoteProfiles, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
 import { ago } from "../../../lib/time";
 import { PLATFORM_TERMS } from "../../../lib/platformTerms";
+import { perLook } from "../../ui/tokens";
 
 export function SyncPane() {
   const enabled = useSync((s) => s.enabled);
@@ -129,7 +130,7 @@ function SyncOff({ info }: { info: FolderInfo | null }) {
           {failure}
         </Text>
       ) : null}
-      <Text size="caption" tone="textTertiary" style={FOOTNOTE}>
+      <Text size="caption" tone="textTertiary" style={FOOTNOTE()}>
         No server and no account: your {PLATFORM_TERMS.syncedComputer}s meet in the sync folder. Your recovery phrase never leaves your devices, and without it the
         folder is unreadable, file names included.
       </Text>
@@ -140,9 +141,9 @@ function SyncOff({ info }: { info: FolderInfo | null }) {
 const SYNC_ICON = 28;
 const SYNC_GLYPH = { width: SYNC_ICON, height: SYNC_ICON } as const;
 const FAILURE = { marginTop: space.m } as const;
-const FOOTNOTE = { marginTop: space.l, lineHeight: lineHeight.caption } as const;
+const FOOTNOTE = perLook(() => ({ marginTop: space.l, lineHeight: lineHeight.caption }) as const);
 const ERROR_ROW = { marginTop: space.m } as const;
-const ERROR_TEXT = { flex: 1, lineHeight: lineHeight.caption } as const;
+const ERROR_TEXT = perLook(() => ({ flex: 1, lineHeight: lineHeight.caption }) as const);
 
 function statusLine(status: SyncStatus, lastSyncedAt: number | null, pending: number): string {
   const since = lastSyncedAt ? ago(lastSyncedAt) : null;
@@ -217,7 +218,7 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
       {error && status !== "updated" ? (
         <Box row gap="s" padX="xxs" style={ERROR_ROW}>
           <Symbol name="exclamationmark.circle.fill" size={11} color={theme.destructive} style={{ width: 14, height: 15 }} />
-          <Text size="caption" tone="textSecondary" style={ERROR_TEXT}>
+          <Text size="caption" tone="textSecondary" style={ERROR_TEXT()}>
             {error}
           </Text>
         </Box>

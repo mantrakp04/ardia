@@ -4,6 +4,7 @@ import { patchPage, pageOf, setPopover, type AutofillPrompt, type PasswordPrompt
 import type { ExternalAppRequest } from "../../platform/siteSettings";
 import { currentEngineProfile, currentTab } from "../browser/current";
 import { noteExternalApp } from "../telemetry/externalAppCounts";
+import { noteExternalAppRequest } from "../telemetry/track";
 
 async function shouldPromptForPopups(profile: string, origin: string): Promise<boolean> {
   try {
@@ -30,9 +31,10 @@ export function showAutofillPrompt(tabId: string, prompt: AutofillPrompt | null,
   else if (pageOf(tabId).autofillPrompt?.id === id) patchPage(tabId, { autofillPrompt: null });
 }
 
-export function showExternalAppPrompt(tabId: string, request: ExternalAppRequest) {
-  noteExternalApp(request.app ? "asked" : "noApp");
-  patchPage(tabId, { externalApp: request });
+export function showExternalApp(tabId: string, request: ExternalAppRequest) {
+  noteExternalAppRequest(!!request.app);
+  if (request.app) patchPage(tabId, { externalApp: request });
+  else void resolveExternalApp(request.id, false);
 }
 
 export function answerExternalApp(tabId: string, open: boolean, remember = false) {

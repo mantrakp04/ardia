@@ -245,7 +245,6 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "zoomReset":
       return page ? void web?.zoomStep(0) : undefined;
     case "devTools":
-      return void web?.showDevTools();
     case "toggleDevTools":
       return void web?.showDevTools("toggle");
     case "inspectElements":

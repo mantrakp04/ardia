@@ -10,7 +10,7 @@ struct AboutPage: View {
             .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
           VStack(spacing: Spacing.hairline) {
             Text("Ardia")
-              .font(.system(.title, design: .rounded, weight: .bold))
+              .font(.title.bold())
               .accessibilityAddTraits(.isHeader)
             Text(AppVersion.footer)
               .font(.subheadline)
@@ -23,16 +23,16 @@ struct AboutPage: View {
       }
 
       Section {
-        AboutLink("ardia.dev", systemImage: "globe", url: "https://ardia.dev")
-        AboutLink("Release Notes", systemImage: "sparkles", url: "https://ardia.dev/release-notes")
-        AboutLink("Source Code", systemImage: "chevron.left.forwardslash.chevron.right", url: "https://github.com/mantrakp04/ardia")
+        AboutLink("ardia.dev", url: "https://ardia.dev")
+        AboutLink("Release Notes", url: "https://ardia.dev/release-notes")
+        AboutLink("Source Code", url: "https://github.com/mantrakp04/ardia")
       } footer: {
         Text("No accounts. Your data stays on your devices and in your iCloud Drive.")
       }
 
       Section {
         NavigationLink(value: SettingsRoute.licenses) {
-          Label("Open Source Licenses", systemImage: "doc.text")
+          Text("Open Source Licenses")
         }
       }
     }
@@ -43,12 +43,10 @@ struct AboutPage: View {
 
 private struct AboutLink: View {
   var title: LocalizedStringKey
-  var systemImage: String
   var url: String
 
-  init(_ title: LocalizedStringKey, systemImage: String, url: String) {
+  init(_ title: LocalizedStringKey, url: String) {
     self.title = title
-    self.systemImage = systemImage
     self.url = url
   }
 
@@ -56,12 +54,12 @@ private struct AboutLink: View {
     if let destination = URL(string: url) {
       Link(destination: destination) {
         HStack {
-          Label(title, systemImage: systemImage)
-            .foregroundStyle(.primary)
+          Text(title)
+            .foregroundStyle(Palette.formAccent)
           Spacer()
           Image(systemName: "arrow.up.forward")
             .font(.footnote.weight(.semibold))
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(Palette.formAccent.opacity(0.35))
             .accessibilityHidden(true)
         }
       }

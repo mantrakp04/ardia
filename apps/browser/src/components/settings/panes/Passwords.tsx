@@ -14,6 +14,7 @@ import { Box, Button, DialogActions, DialogTitle, SearchField, Sheet, space, Sym
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
+import { monoFace } from "../../ui/tokens";
 import { currentEngineProfile } from "../../../state/browser/current";
 import { plural } from "../../../state/browser/model";
 import { importPasswordsCsv, revealPassword, unlockPasswordsFor, usePasswordsUnlocked } from "../../../state/site/savedPasswords";
@@ -215,7 +216,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
               <TextField value={password ?? ""} onChangeText={setPassword} secure={!revealed} width={220} />
             ) : (
               <Box row gap="xs" style={CENTER}>
-                <Text selectable style={revealed ? MONO : undefined}>
+                <Text selectable style={revealed ? monoFace() : undefined}>
                   {password === null ? "…" : revealed ? password : "•".repeat(Math.min(password.length, 12))}
                 </Text>
                 <Button variant="icon" icon={revealed ? "eye.slash" : "eye"} size="m" onPress={() => setRevealed(!revealed)} tooltip={revealed ? "Hide" : "Show"} />
@@ -259,4 +260,3 @@ const LOCK_ICON = { width: 36, height: 36 } as const;
 const SHEET_BODY = { marginTop: space.xl } as const;
 const ERROR = { marginTop: space.ml } as const;
 const CENTER = { alignItems: "center" } as const;
-const MONO = { fontFamily: "Menlo" } as const;

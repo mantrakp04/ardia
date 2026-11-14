@@ -222,10 +222,18 @@ export const layout = {
   sidebarHeader: 46,
   sidebarInset: SIDEBAR_INSET,
   pinnedTop: 54,
-  pinnedHeight: 41,
-  rowHeight: SIDEBAR_ROW.height,
-  rowGap: SIDEBAR_ROW.gap,
-  cardRadius: radius.chrome,
+  get pinnedHeight() {
+    return SIDEBAR_ROW.pinnedHeight;
+  },
+  get rowHeight() {
+    return SIDEBAR_ROW.height;
+  },
+  get rowGap() {
+    return SIDEBAR_ROW.gap;
+  },
+  get cardRadius() {
+    return radius.chrome;
+  },
   toolbarButton: 30,
   toolbarIconCenters: [21, 56, 92, 127],
   breadcrumbX: 153,

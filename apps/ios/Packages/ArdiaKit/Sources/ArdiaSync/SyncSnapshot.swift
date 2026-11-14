@@ -4,12 +4,14 @@ public struct SyncSnapshot: Codable, Equatable, Sendable {
   public var devices: [SyncedDevice]
   public var profiles: [SyncedProfile]
   public var search: SyncedSearch?
+  public var look: SyncedLook?
   public var syncedAt: Date?
 
-  public init(devices: [SyncedDevice] = [], profiles: [SyncedProfile] = [], search: SyncedSearch? = nil, syncedAt: Date? = nil) {
+  public init(devices: [SyncedDevice] = [], profiles: [SyncedProfile] = [], search: SyncedSearch? = nil, look: SyncedLook? = nil, syncedAt: Date? = nil) {
     self.devices = devices
     self.profiles = profiles
     self.search = search
+    self.look = look
     self.syncedAt = syncedAt
   }
 
@@ -256,6 +258,27 @@ public struct HistoryItem: Codable, Equatable, Hashable, Identifiable, Sendable 
     self.title = title
     self.visits = visits
     self.lastVisit = lastVisit
+  }
+}
+
+public struct SyncedLook: Codable, Equatable, Hashable, Sendable {
+  public enum InterfaceStyle: String, Codable, Sendable {
+    case glass
+    case classic
+  }
+
+  public enum Appearance: String, Codable, Sendable {
+    case auto
+    case light
+    case dark
+  }
+
+  public var interfaceStyle: InterfaceStyle?
+  public var appearance: Appearance?
+
+  public init(interfaceStyle: InterfaceStyle?, appearance: Appearance?) {
+    self.interfaceStyle = interfaceStyle
+    self.appearance = appearance
   }
 }
 

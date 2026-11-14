@@ -6,7 +6,7 @@ import { SHARING_COPY } from "../../state/telemetry/copy";
 import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { PLATFORM_TERMS } from "../../lib/platformTerms";
 import { Button, Symbol, Text } from "../ui";
-import { lineHeight, proseLineHeight, space } from "../ui/tokens";
+import { lineHeight, proseLineHeight, space, perLook } from "../ui/tokens";
 import { PostageStamp, PostcardPaper } from "../ntp/PostageStamp";
 import { customizeMore, finishOnboarding, QUESTION_ORDER, recordDefaultBrowserTrial, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
 import { SecondaryButton } from "./Buttons";
@@ -87,7 +87,7 @@ export function OutroStep() {
           onHover={setReceipt}
           onPress={() => setOnboardingExtras({ share: !share })}
         />
-        <Text size="small" color={colors.rowSubtitle} style={NOTE}>
+        <Text size="small" color={colors.rowSubtitle} style={NOTE()}>
           {SHARING_COPY.onboarding.note}
         </Text>
         {customizing ? null : <CustomizeMoreLink />}
@@ -136,20 +136,20 @@ function Postcard({ lines }: { lines: string[] }) {
         </Text>
         {shown.length ? (
           <View style={{ gap: space.xs }}>
-            <Text size="caption" color={colors.subtitle} style={CAPTION_LINE}>
+            <Text size="caption" color={colors.subtitle} style={CAPTION_LINE()}>
               {"You picked:"}
             </Text>
             {shown.map((line) => (
               <View key={line} style={{ flexDirection: "row", gap: space.s, alignItems: "flex-start" }}>
                 <Symbol name="checkmark" size={8} weight="bold" color={colors.title} style={{ width: 10, height: lineHeight.caption }} />
-                <Text size="caption" color={colors.title} style={PICKED_LINE}>
+                <Text size="caption" color={colors.title} style={PICKED_LINE()}>
                   {line}
                 </Text>
               </View>
             ))}
           </View>
         ) : (
-          <Text size="small" color={colors.subtitle} style={GREETING}>
+          <Text size="small" color={colors.subtitle} style={GREETING()}>
             {"Glad you're here. Make yourself at home. Your tabs, bookmarks and pins are ready."}
           </Text>
         )}
@@ -168,7 +168,7 @@ function Postcard({ lines }: { lines: string[] }) {
 }
 
 const WELCOME_STAMP = { icon: 46, ring: 44, tilt: -12, ringAt: { right: 32, top: 34 } } as const;
-const CAPTION_LINE = { lineHeight: lineHeight.caption } as const;
-const PICKED_LINE = { flex: 1, lineHeight: lineHeight.caption } as const;
-const GREETING = { lineHeight: proseLineHeight.small } as const;
-const NOTE = { lineHeight: proseLineHeight.small } as const;
+const CAPTION_LINE = perLook(() => ({ lineHeight: lineHeight.caption }) as const);
+const PICKED_LINE = perLook(() => ({ flex: 1, lineHeight: lineHeight.caption }) as const);
+const GREETING = perLook(() => ({ lineHeight: proseLineHeight.small }) as const);
+const NOTE = perLook(() => ({ lineHeight: proseLineHeight.small }) as const);

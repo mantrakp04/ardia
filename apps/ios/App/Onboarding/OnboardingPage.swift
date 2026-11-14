@@ -28,7 +28,7 @@ struct OnboardingPage<Illustration: View, Actions: View>: View {
         .padding(.top, scrolls ? Spacing.large : 0)
       VStack(spacing: Spacing.small) {
         title
-          .font(.system(.largeTitle, design: .rounded, weight: .bold))
+          .font(.title.bold())
           .foregroundStyle(Color.ardiaTitle)
           .multilineTextAlignment(.center)
           .minimumScaleFactor(0.8)
@@ -83,7 +83,7 @@ struct OnboardingPrimaryButton: View {
         .frame(maxWidth: .infinity, minHeight: 50)
     }
     .buttonStyle(.borderedProminent)
-    .buttonBorderShape(.roundedRectangle(radius: 14))
+    .buttonBorderShape(.capsule)
     .primaryActionColors()
   }
 }

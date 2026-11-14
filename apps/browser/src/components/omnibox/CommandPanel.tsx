@@ -8,7 +8,8 @@ import { useActiveTabIdWhile, useTabHasUrlWhile } from "../../state/omnibox/hook
 import { isCentred } from "../../state/omnibox/barPlacement";
 import { usePage } from "../../state/tabs/pageState";
 import { dismissHover, setRowsCovered } from "../../state/sidebar/hover";
-import { useCardAnchors, useUrlAnchors, useWindowControlsBottom } from "../../state/windows/layout";
+import { useAddressBarInSidebar, useCardAnchors, useUrlAnchors, useWindowControlsBottom } from "../../state/windows/layout";
+import { useSidebarField } from "../../state/sidebar/chrome";
 import { barWidth } from "../ntp/NewTabPage";
 import { closeNewTabBar } from "../../state/omnibox/newTabBar";
 import type { NewTabTarget } from "../../state/browser/types";
@@ -24,12 +25,10 @@ import { trailingClearance } from "../../lib/windowChrome";
 
 const RIGHT_OF_URL = 40;
 const ABOVE_PANE = 5.5;
-const PANEL_RADIUS = radius.hero;
 const MIN_WIDTH = 420;
 const WINDOW_MARGIN = space.l;
 const DROPDOWN_MIN_WIDTH = 350;
 const DROPDOWN_PAST_FIELD = 137;
-const DROPDOWN_RADIUS = radius.panel;
 const PANEL_OPEN_HEIGHT = 107;
 const CENTRED_TOP_SHARE = 0.22;
 
@@ -43,7 +42,9 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const hasField = useTabHasUrlWhile(activeId, panel.open);
   const insecure = usePage(activeId, (p) => !!insecureLevel(p));
   const anchor = useUrlAnchors((s) => (panel.open ? s[windowId] : undefined));
-  const centred = panel.open && !panel.newTab && isCentred(panel.placement);
+  const sidebarField = useSidebarField();
+  const fieldAway = useAddressBarInSidebar() && sidebarField !== "top";
+  const centred = panel.open && !panel.newTab && (isCentred(panel.placement) || fieldAway);
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
   const toolbarRow = useToolbarRow();
   const controlsBottom = useWindowControlsBottom();
@@ -65,7 +66,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
 
   if (centred && card) {
     return (
-      <Grow from={null} frame={centredFrame(card)} openHeight={PANEL_OPEN_HEIGHT} radius={PANEL_RADIUS} surface={surface(PANEL_RADIUS)}>
+      <Grow from={null} frame={centredFrame(card)} openHeight={PANEL_OPEN_HEIGHT} radius={radius.hero} surface={surface(radius.hero)}>
         <OutsidePressArea onOutsidePress={onCancel}>
           <Omnibox key={activeId} variant="panel" floating tabId={activeId} initialText={panel.initialText} onCancel={onCancel} onDone={onDone} />
         </OutsidePressArea>
@@ -82,7 +83,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
     const width = sidebarRight ? end - left : Math.min(wanted, room(left, anchor.top, DROPDOWN_MIN_WIDTH));
     const from = shown ? { left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.sidebar.height } : null;
     return (
-      <Grow from={from} frame={{ left, top: anchor.top, width }} openHeight={anchor.sidebar.height} radius={DROPDOWN_RADIUS} surface={surface(DROPDOWN_RADIUS)}>
+      <Grow from={from} frame={{ left, top: anchor.top, width }} openHeight={anchor.sidebar.height} radius={radius.panel} surface={surface(radius.panel)}>
         <OutsidePressArea onOutsidePress={onCancel}>
           <Omnibox key={activeId} variant="sidebar" tabId={activeId} initialText={panel.initialText} onCancel={onCancel} onDone={onDone} />
         </OutsidePressArea>
@@ -98,7 +99,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const lift = compactLift(toolbarRow);
   const from = hasField ? { left: anchor.left, top: anchor.top + field.top, width: anchor.width, height: field.height } : null;
   return (
-    <Grow from={from} frame={{ left, top, width }} openHeight={PANEL_OPEN_HEIGHT - 2 * lift} radius={PANEL_RADIUS} surface={surface(PANEL_RADIUS)}>
+    <Grow from={from} frame={{ left, top, width }} openHeight={PANEL_OPEN_HEIGHT - 2 * lift} radius={radius.hero} surface={surface(radius.hero)}>
       <OutsidePressArea onOutsidePress={onCancel}>
         <Omnibox key={activeId} variant="panel" tabId={activeId} initialText={panel.initialText} fieldRowHeight={BAR.panel.height - 2 * lift} onCancel={onCancel} onDone={onDone} />
       </OutsidePressArea>
@@ -135,8 +136,8 @@ function CentredBar({ windowId, tabId, target, card }: { windowId: string; tabId
       from={null}
       frame={centredFrame(card)}
       openHeight={PANEL_OPEN_HEIGHT}
-      radius={PANEL_RADIUS}
-      surface={panelSurface(theme, PANEL_RADIUS)}
+      radius={radius.hero}
+      surface={panelSurface(theme, radius.hero)}
     >
       <OutsidePressArea onOutsidePress={onCancel}>
         <Omnibox key={`newTab:${target.kind}`} variant="panel" floating tabId={tabId} opensTab={target} onCancel={onCancel} onDone={onDone} />

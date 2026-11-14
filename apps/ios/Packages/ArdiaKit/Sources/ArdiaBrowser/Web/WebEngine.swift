@@ -16,10 +16,8 @@ public final class WebEngine {
   public var shareRequest: URL?
   public var isInspectable = false
   @ObservationIgnored public var openExternalURL: (@MainActor (URL) -> Void)?
+  @ObservationIgnored public var canMakeWebViews: @MainActor () -> Bool = { true }
 
-  @ObservationIgnored private var grantedCapture: Set<String> = []
-  @ObservationIgnored private var privateGrantedCapture: Set<String> = []
-  @ObservationIgnored private(set) var privateSession = 0
   @ObservationIgnored private let roster = LivePageRoster<WebTab>(limit: WebEngine.liveLimit)
   @ObservationIgnored private var notificationTasks: [Task<Void, Never>] = []
 
@@ -106,22 +104,24 @@ public final class WebEngine {
     return store
   }
 
-  func isCaptureGranted(_ key: String, isPrivate: Bool) -> Bool {
-    isPrivate ? privateGrantedCapture.contains(key) : grantedCapture.contains(key)
+  func isCaptureGranted(_ needed: Set<SitePermission>, origin: String, isPrivate: Bool) -> Bool {
+    !isPrivate && preferences.sitePermissions.allows(needed, origin: origin)
   }
 
-  func grantCapture(_ key: String, isPrivate: Bool, session: Int) {
-    if isPrivate {
-      guard session == privateSession else { return }
-      privateGrantedCapture.insert(key)
-    } else {
-      grantedCapture.insert(key)
+  func grantCapture(_ granted: Set<SitePermission>, origin: String, host: String, isPrivate: Bool) {
+    guard !isPrivate else { return }
+    preferences.sitePermissions.allow(granted, origin: origin, host: host)
+  }
+
+  public func revokeCapture(_ revoked: Set<SitePermission>, origin: String) {
+    for permission in revoked { preferences.sitePermissions.revoke(permission, origin: origin) }
+    for id in roster.liveIDs {
+      guard let page = roster.page(id), !page.isPrivate else { continue }
+      page.endCapture(revoked, origin: origin)
     }
   }
 
   private func endPrivateBrowsing() {
-    privateGrantedCapture.removeAll()
-    privateSession += 1
     preferences.endPrivateBrowsing()
     blocker.settings.endPrivateBrowsing()
     guard let store = sharedPrivateDataStore else { return }
