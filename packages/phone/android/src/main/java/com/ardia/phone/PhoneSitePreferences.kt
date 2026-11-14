@@ -57,15 +57,27 @@ class PhoneSitePreferences(private val store: SharedPreferences) : SitePreferenc
         editSites(KEY_ZOOM_SITES) { if (value == null) it.remove(key) else it.put(key, value) }
     }
 
+    var defaultOpensLinksInApps: Boolean
+        get() = store.getBoolean(KEY_APP_LINKS, false)
+        set(value) {
+            store.edit().putBoolean(KEY_APP_LINKS, value).apply()
+        }
+
     override fun opensLinksInApps(host: String?, isPrivate: Boolean): Boolean {
-        val key = host?.let(::siteKey) ?: return false
-        return sites(KEY_APP_LINK_SITES).optBoolean(key, false)
+        val key = host?.let(::siteKey) ?: return defaultOpensLinksInApps
+        return siteOpensLinksInApps(key) ?: defaultOpensLinksInApps
     }
 
-    fun setOpensLinksInApps(host: String, opens: Boolean) {
+    fun siteOpensLinksInApps(host: String): Boolean? {
+        val sites = sites(KEY_APP_LINK_SITES)
+        val key = siteKey(host)
+        return if (sites.has(key)) sites.optBoolean(key) else null
+    }
+
+    fun setOpensLinksInApps(host: String, opens: Boolean?) {
         val key = siteKey(host)
         if (key.isEmpty()) return
-        editSites(KEY_APP_LINK_SITES) { if (opens) it.put(key, true) else it.remove(key) }
+        editSites(KEY_APP_LINK_SITES) { if (opens == null) it.remove(key) else it.put(key, opens) }
     }
 
     fun endPrivateBrowsing() = synchronized(lock) {
@@ -86,6 +98,7 @@ class PhoneSitePreferences(private val store: SharedPreferences) : SitePreferenc
         private const val KEY_NIGHT_SHADE_SITES = "nightShade.sites"
         private const val KEY_ZOOM_SITES = "pageZoom.sites"
         private const val KEY_APP_LINK_SITES = "appLinks.sites"
+        private const val KEY_APP_LINKS = "appLinks.default"
 
         fun mode(raw: String?): NightShadeMode? = NightShadeMode.entries.firstOrNull { it.raw == raw }
 

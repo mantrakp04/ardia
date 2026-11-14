@@ -55,7 +55,10 @@ type PagesNative = {
   nightShade(host?: string | null, isPrivate?: boolean): Promise<NightShade>;
   setNightShade(mode: NightShadeMode | null, host?: string | null, isPrivate?: boolean): Promise<void>;
   opensLinksInApps(host: string): Promise<boolean>;
-  setOpensLinksInApps(host: string, opens: boolean): Promise<void>;
+  setOpensLinksInApps(host: string, opens: boolean | null): Promise<void>;
+  siteOpensLinksInApps?(host: string): Promise<boolean | null>;
+  appLinksDefault?(): Promise<boolean>;
+  setAppLinksDefault?(opens: boolean): Promise<void>;
   clearWebsiteData(kinds: WebsiteDataKind[]): Promise<void>;
   setInspectable(inspectable: boolean): Promise<void>;
 };
@@ -109,7 +112,12 @@ export const pages = {
   nightShade: (host?: string | null, isPrivate = false) => native().nightShade(host ?? null, isPrivate),
   setNightShade: (mode: NightShadeMode | null, host?: string | null, isPrivate = false) => native().setNightShade(mode, host ?? null, isPrivate),
   opensLinksInApps: (host: string) => native().opensLinksInApps(host),
-  setOpensLinksInApps: (host: string, opens: boolean) => native().setOpensLinksInApps(host, opens),
+  setOpensLinksInApps: (host: string, opens: boolean | null) => native().setOpensLinksInApps(host, opens),
+  siteOpensLinksInApps: async (host: string): Promise<boolean | null> => (await native().siteOpensLinksInApps?.(host)) ?? null,
+  appLinksDefault: async (): Promise<boolean> => (await native().appLinksDefault?.()) ?? false,
+  setAppLinksDefault: async (opens: boolean): Promise<void> => {
+    await native().setAppLinksDefault?.(opens);
+  },
   clearWebsiteData: (kinds: WebsiteDataKind[]) => native().clearWebsiteData(kinds),
   setInspectable: (inspectable: boolean) => native().setInspectable(inspectable),
   addListener: (listener: (event: PageEngineEvent) => void): Subscription =>

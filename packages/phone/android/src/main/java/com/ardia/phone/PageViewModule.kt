@@ -269,9 +269,24 @@ class PageViewModule : Module() {
             engine.refreshSitePreferences()
         }.runOnQueue(Queues.MAIN)
 
-        AsyncFunction("setOpensLinksInApps") { host: String, opens: Boolean ->
+        AsyncFunction("setOpensLinksInApps") { host: String, opens: Boolean? ->
             PhonePages.engine(context)
             PhonePages.sitePreferences.setOpensLinksInApps(host, opens)
+        }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("siteOpensLinksInApps") { host: String ->
+            PhonePages.engine(context)
+            PhonePages.sitePreferences.siteOpensLinksInApps(host)
+        }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("appLinksDefault") { ->
+            PhonePages.engine(context)
+            PhonePages.sitePreferences.defaultOpensLinksInApps
+        }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("setAppLinksDefault") { opens: Boolean ->
+            PhonePages.engine(context)
+            PhonePages.sitePreferences.defaultOpensLinksInApps = opens
         }.runOnQueue(Queues.MAIN)
 
         AsyncFunction("opensLinksInApps") { host: String ->
