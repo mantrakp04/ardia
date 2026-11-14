@@ -148,7 +148,7 @@ return rows.filter((row) => row.price < "$140");
         before = self.targets()
         failed = self.browse("script", stdin="log('start');\nawait page.wait('#add');\nawait page.click('#nope');\nlog('never');", session=session, check=False)
         self.assertEqual(failed.returncode, 1)
-        self.assertTrue(failed.stderr.startswith("✗ line 3: Element not found: #nope."), failed.stderr)
+        self.assertTrue(failed.stderr.startswith("✗ line 3: Element not found: #nope (waited 3 s for it to appear)."), failed.stderr)
         self.assertIn("(in `click '#nope'`)\nlogged before that:\nstart", failed.stderr)
         caught = self.browse("script", stdin="try { await page.click('#nope'); } catch (e) { return e.code; }", session=session).stdout
         self.assertEqual(caught, "not_found\n")

@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Fixture Consent</title>
+<style>
+  body { margin: 0; font: 16px system-ui; }
+  header { position: sticky; top: 0; height: 80px; background: #224; color: #fff; z-index: 5; }
+  .gap { height: 1400px; }
+  #banner { position: fixed; left: 0; right: 0; bottom: 0; height: 160px; background: #eee; z-index: 10; padding: 12px; }
+  #buy { margin-top: 20px; }
+</style>
+</head>
+<body>
+<header>Store header</header>
+<div class="gap"></div>
+<button id="under-header">Under the header</button>
+<div class="gap"></div>
+<button id="buy">Buy now</button>
+<div style="height: 40px"></div>
+<pre id="report">{}</pre>
+<div id="banner" class="cookie-consent" role="dialog" aria-label="Cookie preferences">
+  We use cookies to measure traffic. Choose what we may store.
+  <button id="accept">Accept all</button>
+  <button id="reject">Reject all</button>
+</div>
+<script>
+  const state = { clicked: [], choice: null };
+  const show = () => { document.getElementById("report").textContent = JSON.stringify(state); };
+  document.getElementById("accept").addEventListener("click", () => { state.choice = "accept"; document.getElementById("banner").remove(); show(); });
+  document.getElementById("reject").addEventListener("click", () => { state.choice = "reject"; document.getElementById("banner").remove(); show(); });
+  for (const id of ["buy", "under-header"]) document.getElementById(id).addEventListener("click", () => { state.clicked.push(id); show(); });
+  window.scrollToUnderHeader = () => { const el = document.getElementById("under-header"); window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 30); };
+  show();
+</script>
+</body>
+</html>

@@ -40,6 +40,7 @@ class Scheduler:
     last_growth: float = float("-inf")
     growth_in_flight: int = 0
     pinned_tasks: set = field(default_factory=set)
+    lane_base: int = 0
 
     def __post_init__(self):
         self.order = {it["run_id"]: n for n, it in enumerate(self.items)}
@@ -98,7 +99,7 @@ class Scheduler:
         if group == "aside":
             return Lane(id="aside", group=group, kind="aside", index=0), False
         used = {ln.index for ln in self.lanes if ln.kind == "ardia"}
-        index = next(i for i in range(len(used) + 1) if i not in used)
+        index = next(i for i in range(self.lane_base, self.lane_base + len(used) + 1) if i not in used)
         return Lane(id=f"{group}@{index}", group=group, kind="ardia", index=index), False
 
     def growth_ok(self, now, used):

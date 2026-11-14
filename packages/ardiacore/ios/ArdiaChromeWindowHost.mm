@@ -2,7 +2,10 @@
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaWebViewInternal.h"
 
+#import <objc/message.h>
 #import <objc/runtime.h>
+
+#include <cmath>
 
 using namespace ardia_window;
 
@@ -22,6 +25,23 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
 
 + (CGFloat)windowCornerRadius {
   return WindowCornerRadius(nil);
+}
+
++ (CGFloat)frameCornerRadiusOfWindow:(NSWindow *)window {
+  if (window.styleMask & NSWindowStyleMaskFullScreen) return 0;
+  NSView *frame = window.contentView.superview;
+  for (NSString *name in @[ @"cornerRadius", @"_cornerRadius" ]) {
+    SEL selector = NSSelectorFromString(name);
+    if (![frame respondsToSelector:selector]) continue;
+    CGFloat radius = reinterpret_cast<CGFloat (*)(id, SEL)>(objc_msgSend)(frame, selector);
+    if (std::isfinite(radius) && radius > 0) return radius;
+  }
+  SEL rounded = NSSelectorFromString(@"roundedCornerRadius");
+  if ([frame respondsToSelector:rounded]) {
+    float radius = reinterpret_cast<float (*)(id, SEL)>(objc_msgSend)(frame, rounded);
+    if (std::isfinite(radius) && radius > 0) return radius;
+  }
+  return 0;
 }
 
 + (NSWindow *)makeWindowForProfile:(NSString *)profile {

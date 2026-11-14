@@ -16,10 +16,33 @@ SETTLE_QUIET = 0.3
 SETTLE_POLL = 0.1
 SAME_DOCUMENT_WAIT = 3.0
 MIN_USEFUL = 120
+THIN_WAIT = 5.0
+THIN_POLL = 0.5
 CUT_MARK = 24
 MAX_STDIN = 1024 * 1024
 PAGE_SHARE = 3000
 PAGES_CAP_CEILING = 24000
+
+MAIN_LIST = r"""() => {
+  let best = null, bestScore = 0;
+  for (const el of document.querySelectorAll("body *")) {
+    if (el.childElementCount < 4) continue;
+    const kinds = new Map();
+    for (const child of el.children) {
+      const key = child.tagName + "." + ((typeof child.className === "string" && child.className.trim().split(/\s+/)[0]) || "");
+      kinds.set(key, (kinds.get(key) || 0) + 1);
+    }
+    const [key, count] = [...kinds.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (count < 4) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 100 || rect.height < 100) continue;
+    let linked = 0;
+    for (const child of el.children) if (child.tagName + "." + ((typeof child.className === "string" && child.className.trim().split(/\s+/)[0]) || "") === key && child.querySelector("a[href]")) linked++;
+    const score = count * (1 + linked / count) * Math.log2(2 + (el.innerText || "").length / 1000);
+    if (score > bestScore) { best = el; bestScore = score; }
+  }
+  return best;
+}"""
 
 LINKS = r"""() => {
   const out = [];
@@ -169,6 +192,12 @@ def parse_limit(value) -> int:
     return int(value)
 
 
+def pages_limit(options: dict, named: int) -> int:
+    if options.get("limit") is not None:
+        return parse_limit(options.get("limit"))
+    return max(DEFAULT_LIMIT, min(named, MAX_LIMIT))
+
+
 def page_timeout(options: dict) -> float:
     value = options.get("timeout")
     if value is None:
@@ -275,14 +304,20 @@ def header(record: dict, index: int, total: int) -> str:
     url = record.get("finalUrl") or record["url"]
     if record.get("error"):
         return f"=== {place}✗ {url}\n{record['error']}"
-    status = f" (HTTP {record['status']})" if record.get("status") and record["status"] >= 400 else ""
-    return f"=== {place}{record.get('title') or '(no title)'}{status}\n{url}"
+    facts = [f"HTTP {record['status']}"] if record.get("status") else []
+    if record.get("readAt"):
+        facts.append(f"read {record['readAt']}")
+    status = f" ({', '.join(facts)})" if facts else ""
+    note = f"\n({record['note']})" if record.get("note") else ""
+    return f"=== {place}{record.get('title') or '(no title)'}{status}\n{url}{note}"
 
 
-def footer(limit: int, cut_any: bool, hidden: int, wanted: int) -> str:
+def footer(limit: int, cut_any: bool, hidden: int, wanted: int, saved: str = "") -> str:
     parts = [f"pages cut to fit {limit:,} characters"] if cut_any else []
     if hidden:
         parts.append(f"+{hidden} page{'s' if hidden != 1 else ''} not shown")
+    if saved:
+        parts.append(f"all of it is in {saved}")
     return (f"[{'; '.join(parts)}. Narrow it instead: -s <css> (one region per page), a tighter --links pattern, or --limit <n>. "
             f"Only if you need every line: --max-output {wanted}]")
 
@@ -313,17 +348,20 @@ def render(records: list[dict], options: dict, extra: str = "") -> str:
     whole = join(heads, texts, [extra])
     if not limit or limit <= 0 or len(whole) <= limit:
         return whole
+    from ardia_cli.browse.daemon import spill
+
+    saved = spill(whole) or ""
     for shown in range(len(records), -1, -1):
-        out = fit(heads[:shown], texts[:shown], len(records) - shown, limit, extra, len(whole) + 300)
+        out = fit(heads[:shown], texts[:shown], len(records) - shown, limit, extra, len(whole) + 300, saved)
         if out is not None:
             return out
-    return footer(limit, False, len(records), len(whole) + 300)[:limit]
+    return footer(limit, False, len(records), len(whole) + 300, saved)[:limit]
 
 
-def fit(heads: list[str], texts: list[str], hidden: int, limit: int, extra: str, wanted: int) -> str | None:
+def fit(heads: list[str], texts: list[str], hidden: int, limit: int, extra: str, wanted: int, saved: str = "") -> str | None:
     lengths = [len(text) for text in texts]
     needed = sum(min(length, MIN_USEFUL) for length in lengths)
-    longest = footer(limit, True, hidden, wanted)
+    longest = footer(limit, True, hidden, wanted, saved)
     budget = limit - len(join(heads, [""] * len(heads), [extra, longest])) - (CUT_MARK + 1) * len(texts)
     best = None
     for _ in range(4):
@@ -331,7 +369,7 @@ def fit(heads: list[str], texts: list[str], hidden: int, limit: int, extra: str,
             return best
         allowed = shares(lengths, budget)
         cut_any = any(room < length for room, length in zip(allowed, lengths))
-        tail = [extra, footer(limit, cut_any, hidden, wanted)] if cut_any or hidden else [extra]
+        tail = [extra, footer(limit, cut_any, hidden, wanted, saved)] if cut_any or hidden else [extra]
         out = join(heads, [cut(text, room) for text, room in zip(texts, allowed)], tail)
         if len(out) > limit:
             budget -= len(out) - limit
@@ -425,9 +463,9 @@ async def goto(ctx, page, url: str, timeout: float):
     try:
         result = await page.send("Page.navigate", {"url": url}, timeout=timeout)
     except Gated:
-        raise BrowseError(f"Ardia's policy only lets the ardia command open web pages; {url} isn't one") from None
+        raise BrowseError(f"Ardia's policy only lets the ardia command open web pages; {url} isn't one", code="policy_refused") from None
     if result.get("errorText"):
-        raise BrowseError(f"couldn't load it: {result['errorText']}")
+        raise BrowseError(f"couldn't load it: {result['errorText']}", code="navigation_failed")
     loader = result.get("loaderId")
     if loader:
         await wait_for_load(page, loader, max(deadline - loop.time(), 0.1), "domcontentloaded")
@@ -441,20 +479,77 @@ async def goto(ctx, page, url: str, timeout: float):
     await page.refresh_frames()
 
 
+CHALLENGE = re.compile(r"just a moment|attention required|verify (that )?you are (a )?human|are you a robot|press (&|and) hold|"
+                       r"captcha|human verification|security check|access denied|unusual traffic|request blocked|bot detection", re.I)
+CHALLENGE_MAX_TEXT = 1500
+
+
+def read_at() -> str:
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def bot_check(title: str, text: str, status, count: bool = True) -> str | None:
+    from ardia_cli import command_metrics
+
+    blocked_status = status in (401, 403, 429)
+    if not (blocked_status or CHALLENGE.search(title or "") or (len(text or "") < CHALLENGE_MAX_TEXT and CHALLENGE.search(text or ""))):
+        return None
+    if count:
+        command_metrics.flag("read_bot_check", True)
+    what = "a rate limit (HTTP 429)" if status == 429 else "a bot check or access block"
+    return (f"this looks like {what}, not the page's content: wait 30-60 s and read it again, try the site's other pages "
+            "or another source, and say in your answer which sources stayed blocked")
+
+
+def thin(got: dict, selector: str | None) -> bool:
+    return (selector and not got.get("matched")) or len((got.get("text") or "").strip()) < MIN_USEFUL
+
+
+async def extract_filled(page, selector: str | None, timeout: float) -> dict:
+    from ardia_cli import command_metrics
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + min(THIN_WAIT, timeout)
+    got = await page.call(EXTRACT, selector, frame=page.main_frame, read=True)
+    if (got.get("status") or 0) >= 400 or bot_check(got.get("title") or "", got.get("text") or "", got.get("status"), count=False):
+        return got
+    waited = False
+    while thin(got, selector) and loop.time() + THIN_POLL < deadline:
+        waited = True
+        await asyncio.sleep(THIN_POLL)
+        got = await page.call(EXTRACT, selector, frame=page.main_frame, read=True)
+    if waited:
+        command_metrics.flag("read_waited_for_content", True)
+    return got
+
+
 async def read_in(ctx, page, url: str, selector: str | None, timeout: float, options: dict) -> dict:
     from ardia_cli.browse import readurl
+
+    from ardia_cli.browse import pdftext
 
     record = {"url": url, "source": "browser"}
     try:
         await goto(ctx, page, url, timeout)
-        got = await page.call(EXTRACT, selector, frame=page.main_frame, read=True)
+        if await pdftext.page_is_pdf(page):
+            record.update(finalUrl=page.url, title=page.url.rsplit("/", 1)[-1], source="pdf",
+                          text=readurl.post_process(await pdftext.page_text(page), options))
+            if selector:
+                record["note"] = f"{url} is a PDF, so -s {selector} doesn't apply; this is the whole document's text"
+            return record
+        got = await extract_filled(page, selector, timeout)
     except ConnectionLost:
         raise
     except BrowseError as error:
         record["error"] = error.message
         return record
-    record.update(finalUrl=page.url, title=got.get("title") or "", status=got.get("status"),
+    record.update(finalUrl=page.url, title=got.get("title") or "", status=got.get("status"), readAt=read_at(),
                   text=readurl.post_process(got.get("text") or "", options))
+    challenge = bot_check(record["title"], record["text"], record.get("status"))
+    if challenge:
+        record["note"] = challenge
     if selector and not got.get("matched"):
         record["error"] = f"nothing on the page matches {selector}"
     return record
@@ -511,7 +606,10 @@ def read_http_one(url: str, options: dict) -> dict:
         record["error"] = error.message
         return record
     data = result.data
-    record.update(finalUrl=data.get("finalUrl") or url, title=data.get("title") or "", text=data.get("content") or "")
+    record.update(finalUrl=data.get("finalUrl") or url, title=data.get("title") or "", text=data.get("content") or "", readAt=read_at())
+    challenge = bot_check(record["title"], record["text"], record.get("status"))
+    if challenge:
+        record["note"] = challenge
     return record
 
 
@@ -538,7 +636,7 @@ def run_local(options: dict, positional: list[str], stdin: str | None, global_op
     urls = wanted_urls(options, positional, stdin)
     if not urls:
         raise Usage("Usage: ardia browse read <url>... [--stdin] [--links <pattern>] [-s <selector>] [--http]")
-    limit = parse_limit(options.get("limit"))
+    limit = pages_limit(options, len(urls))
     page_timeout(options)
     if options.get("selector"):
         raise Usage("-s needs the browser's DOM; drop --http to read the pages in Ardia")
@@ -682,12 +780,20 @@ async def run_scroll(ctx, options: dict, positional: list[str]):
     selector = options.get("selector")
     if not options.get("scroll"):
         raise Usage("--match goes with --scroll: read -s <list> --scroll --match <text>")
-    if not selector or positional or options.get("stdin") or options.get("links") is not None or fetch_only(options):
-        raise Usage("--scroll reads one list on the session's tab: read -s <list> --scroll [--limit n] [--match <text>]")
+    if positional or options.get("stdin") or options.get("links") is not None or fetch_only(options):
+        raise Usage("--scroll reads one list on the session's tab: read [-s <list>] --scroll [--limit n] [--match <text>]")
     match = options.get("match")
     limit = parse_rows(options.get("limit"), bool(match))
     timeout = scroll_timeout(options)
-    if parse_ref(selector):
+    if not selector:
+        page = await ctx.state.page()
+        frame = ctx.state.frame_for(page) or page.main_frame
+        remote = await page.call(MAIN_LIST, frame=frame, by_value=False, read=True)
+        target = await page.element_from(remote, frame, "the page's main list")
+        if target is None:
+            raise BrowseError("No repeated list stands out on this page; name it: read -s <list> --scroll", code="no_list")
+        command_metrics.flag("read_scroll_guessed", True)
+    elif parse_ref(selector):
         page, target = await ctx.state.locate(selector)
         frame = target.frame
     else:
@@ -726,6 +832,7 @@ async def run(ctx, options: dict, positional: list[str]):
         await page.refresh_frames()
         base = page.url
     urls = wanted_urls(options, positional, ctx.stdin, base)
+    named = len(urls)
     data_extra = {}
     if options.get("links") is not None:
         source, links, picked = await collect_links(ctx, options["links"])
@@ -743,6 +850,7 @@ async def run(ctx, options: dict, positional: list[str]):
         raise Usage("--list goes with --links <pattern>: it prints the links that read would visit")
     if not urls:
         raise Usage("Usage: ardia browse read <url>... [--stdin] [--links <pattern>] [-s <selector>] [--http]")
+    limit = pages_limit(options, named)
     extra = limit_note(len(urls), limit, "--limit")
     urls = urls[:limit]
     if fetch_only(options):

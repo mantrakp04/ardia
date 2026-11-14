@@ -81,6 +81,23 @@ return { done, failed };
 EOF
 ```
 
+## Long jobs: keep what you gathered in `state`
+
+`state` is one object per session that every script starts with and keeps after it ends, even when it times out.
+Push rows there as you go, and pick up where you stopped in the next script:
+
+```sh
+ardia browse script --timeout 5m --out rows.json <<'EOF'
+state.rows ??= [];
+state.next ??= 1;
+for (; state.next <= 119; state.next++) {
+  await page.goto(`https://example.com/results?page=${state.next}`);
+  state.rows.push(...await page.evaluate(() => [...document.querySelectorAll('.card')].map((c) => c.innerText)));
+}
+return state.rows;
+EOF
+```
+
 ## Anything else
 
 `browse('tab', 'list')` runs any other command and returns `{text, data}`. `page.snapshot('-i -s main')` returns a

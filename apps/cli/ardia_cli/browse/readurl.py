@@ -92,9 +92,16 @@ def fetch(url: str, timeout: float, accept: str = "text/markdown, text/plain;q=0
         return error.code, "", "", url
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         raise BrowseError(f"Couldn't fetch {url}: {getattr(error, 'reason', error)}") from None
+    kind = content_type.split(";")[0].strip().lower()
+    if kind == "application/pdf" or body.startswith(b"%PDF"):
+        from ardia_cli.browse import pdftext
+
+        if len(body) > MAX_BODY:
+            raise BrowseError(f"{url} is a PDF over {MAX_BODY} bytes; read it in a tab instead (drop --http)")
+        return status, "application/pdf", pdftext.text_from_bytes(body), final
     charset = re.search(r"charset=([\w-]+)", content_type)
     text = body[:MAX_BODY].decode(charset.group(1) if charset else "utf-8", errors="replace")
-    return status, content_type.split(";")[0].strip().lower(), text, final
+    return status, kind, text, final
 
 
 def sections(markdown: str) -> list[tuple[str, list[str]]]:

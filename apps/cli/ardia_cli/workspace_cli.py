@@ -305,6 +305,7 @@ def apply_ops(args, command: str, ops: list) -> int:
     try:
         reply = control.call(args.data_dir, "apply", {"ops": ops}, APPLY_TIMEOUT)
     except Unreachable as error:
+        error.noted()
         if error.sent:
             complain(f"ardia {command}: the connection dropped after the request went out, so it may or may not have run ({error})")
         else:
@@ -438,6 +439,7 @@ def read_workspace(args, command: str):
     try:
         return control.call(args.data_dir, "workspace", params)
     except Unreachable as error:
+        error.noted()
         complain(f"ardia: {error}")
         return 2
     except MethodError as error:
