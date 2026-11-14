@@ -9,7 +9,7 @@ import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/wind
 import { DownloadsButton } from "../downloads/DownloadsButton";
 import { UpdateButton, useReadyUpdate } from "../updates/UpdateButton";
 import { UPDATE_BUTTON } from "../updates/tokens";
-import { PROFILE_INDICATOR_X, ProfileIndicator } from "../profiles/ProfileIndicator";
+import { PROFILE_INDICATOR_X, ProfileIndicator, useProfileIndicatorWidth } from "../profiles/ProfileIndicator";
 import { usePagerPages } from "../../state/windows/profilePager";
 import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "../profiles/ProfileDots";
 import { SidebarAddressRow, SidebarHeaderTools } from "./AddressBar";
@@ -55,7 +55,12 @@ export function Sidebar({ width }: { width: number }) {
   const dots = dotsWanted && profileShown;
   const footerDownloads = addressBar && hasDownloads;
   const updateReady = !!useReadyUpdate();
-  const footerUpdate = addressBar && updateReady;
+  const profileRoom = width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0);
+  const updateRoom = UPDATE_BUTTON.box + (hasDownloads ? UPDATE_BUTTON.gap : 0);
+  const profileFits = useProfileIndicatorWidth(profileRoom) > 0;
+  const profileFitsBesideUpdate = useProfileIndicatorWidth(profileRoom - updateRoom) > 0;
+  const headerUpdate = !addressBar && updateReady && (!profileShown || !profileFits || profileFitsBesideUpdate);
+  const footerUpdate = updateReady && !headerUpdate;
   const band = dots || footerDownloads || footerUpdate ? PROFILE_DOTS_HEIGHT : 0;
   const fieldBand = field === "bottom" ? bottomFieldBand() : 0;
   const footer = band + fieldBand;
@@ -151,10 +156,10 @@ export function Sidebar({ width }: { width: number }) {
                   </>
                 ) : (
                   <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
-                    {profileShown ? <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0) - (updateReady ? UPDATE_BUTTON.box + (hasDownloads ? UPDATE_BUTTON.gap : 0) : 0)} /> : null}
+                    {profileShown ? <ProfileIndicator room={profileRoom - (headerUpdate ? updateRoom : 0)} /> : null}
                     <View pointerEvents="none" style={{ flex: 1 }} />
                     {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
-                    <UpdateButton style={hasDownloads ? { marginLeft: UPDATE_BUTTON.gap } : undefined} />
+                    {headerUpdate ? <UpdateButton style={hasDownloads ? { marginLeft: UPDATE_BUTTON.gap } : undefined} /> : null}
                   </View>
                 )}
               </View>
