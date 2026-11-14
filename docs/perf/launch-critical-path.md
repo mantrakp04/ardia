@@ -365,3 +365,32 @@ instead of the first idle): `js_ms` −23 to −82 ms and content −16 to −30
 need the main thread and waited behind React Native's first render, so its first paint was 32 to 100 ms later in every
 variant. Not shipped. `perf_launch` now sends `engine_ms`, `early_window_ms` and `rn_ms` so the field can split the
 pre-JS time the same way and tell whether the early window pays off on slower Macs.
+
+## Cold launches over 10 s (2026-11-13)
+
+Field `perf_launch`, cold, last 24 h: 65 of 381 launches had `content_ms` above 10 s (p50 3.0 s, p90 14.7 s on 0.2.45;
+0.2.44 14.8 s; nightlies 9.7 to 10.1 s). On those launches `js_ms` is ~14 s and `content_ms` only ~0.4 s later, so the
+time is spent before the app's JavaScript runs, not in tab restore. In the nightly rows that carry `engine_ms`, most of
+it is already spent at `engineDidStart` (6.4 s of 7.0 s in one row). Stable builds send no `engine_ms` yet, and the
+cause isn't known: it could be the OS (Gatekeeper, a cold page cache, a loaded Mac) or our code between process start and
+`engineDidStart`. Nothing here is fixed or confirmed; the next change waits for the data below.
+
+`perf_launch` now also sends the marks that split process start → `engineDidStart`, in ms from process start, each null
+when the app didn't reach it:
+
+| Field | Stamped | Reads as |
+|---|---|---|
+| `main_ms` | first statement of `main.swift`, before `LaunchConfig` and `LegacyMigration` | the OS's time before our code runs |
+| `startup_ms` | after `ardia_host::PrepareStartup` in `runWithArgc` | `startup_ms - main_ms`: migration, launch config, data directory |
+| `chromium_ms` | just before `ArdiaCoreEngine runWithArgc:` | `chromium_ms - startup_ms`: the rest of our setup |
+| `engine_ms` | `engineDidStart` | `engine_ms - chromium_ms`: Chromium's startup and its profile load |
+
+`load_1m` (the 1-minute load average from `getloadavg`) says whether the Mac was busy, and `launched_hidden` whether
+the launch was a hidden one (a login item) or the user opening the app. Together with `since_boot` and `since_quit`
+(`unclean`) they tell the first launch after a reboot or an unclean quit from the rest.
+
+How to read a slow launch once these ship (nightly first, since stable builds carry no `engine_ms` today): when
+`main_ms` is close to `engine_ms`, the time is before `main` and is the OS's (the next change would be a login-time
+prewarm); when `startup_ms - main_ms`, `chromium_ms - startup_ms` or `engine_ms - chromium_ms` holds the 5 to 10 s, that
+stretch is the one to optimise. A high `load_1m` with `launched_hidden` true points at a Mac still busy logging in. In a
+lab release build run hidden, `main_ms` should be a few tens of ms and `engine_ms` ~150 ms, as in the table above.
