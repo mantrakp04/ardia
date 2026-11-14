@@ -24,6 +24,7 @@ export type PlatformCopy = {
   defaultBrowserInstructions: DefaultBrowserSteps | null;
   offersDefaultBrowserAlways: boolean;
   offersPasteAndGo: boolean;
+  pinFeedbackInMenu: boolean;
 };
 
 const ANDROID: PlatformCopy = {
@@ -48,6 +49,7 @@ const ANDROID: PlatformCopy = {
   defaultBrowserInstructions: null,
   offersDefaultBrowserAlways: true,
   offersPasteAndGo: true,
+  pinFeedbackInMenu: false,
 };
 
 const IOS: PlatformCopy = {
@@ -77,6 +79,7 @@ const IOS: PlatformCopy = {
   },
   offersDefaultBrowserAlways: false,
   offersPasteAndGo: false,
+  pinFeedbackInMenu: true,
 };
 
 const TABLES: Record<CopyPlatform, PlatformCopy> = { android: ANDROID, ios: IOS };

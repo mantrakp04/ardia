@@ -189,3 +189,13 @@ export const setupStepLabel = (number: number, done: boolean, current: boolean) 
 export const pickedFolder = (result: ConnectResult["result"] | null) => result === "mismatch" || result === "noSyncData" || result === "keyStoreFailed";
 
 export const chooseFolderTitle = (lastResult: ConnectResult["result"] | null) => (pickedFolder(lastResult) ? "Choose Another Folder…" : "Choose Folder…");
+
+export type PinOutcome = "pinned" | "alreadyPinned" | "failed";
+
+export type PinAnnouncement = { where: "title"; text: string } | { where: "toast"; text: string; icon: "star" | "warning" };
+
+export function pinAnnouncement(outcome: PinOutcome, inPageMenu: boolean, copy: { pinFeedbackInMenu: boolean; alreadyPinnedToast: string }): PinAnnouncement {
+  if (inPageMenu && copy.pinFeedbackInMenu && outcome !== "failed") return { where: "title", text: outcome === "pinned" ? "Pinned to Mac" : "Already Pinned to Mac" };
+  if (outcome === "failed") return { where: "toast", text: COULD_NOT_PIN_TOAST, icon: "warning" };
+  return { where: "toast", text: outcome === "pinned" ? PINNED_TOAST : copy.alreadyPinnedToast, icon: "star" };
+}

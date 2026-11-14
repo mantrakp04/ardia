@@ -23,6 +23,8 @@ import { pageUi, usePageUi, type Press } from "./store";
 import { closeVoiceSearch, useVoice } from "../voice/store";
 import { addOnlineAgainListener } from "../../platform/network";
 import { hideArchiveCard } from "../browse/archiveCard";
+import { copy } from "../../lib/platformCopy";
+import { syncData } from "../sync/store";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 
 const TITLE_FEEDBACK_MS = 1500;
@@ -67,8 +69,9 @@ export function openInDefaultBrowser() {
 export function pinCurrentToMac() {
   const tab = selectedTab();
   if (!tab) return;
-  closePageMenu();
-  void pinToMac(tab, () => openSettings({ page: "sync" }));
+  const inTitle = copy().pinFeedbackInMenu && syncData().status.isEnabled;
+  if (!inTitle) closePageMenu();
+  void pinToMac(tab, () => openSettings({ page: "sync" }), inTitle ? showTitleFeedback : null);
 }
 
 export function sendCurrentTab(device: SyncedDevice) {
@@ -123,9 +126,13 @@ export function copyCurrentLink() {
   if (!tab || !isSyncableUrl(tab.url)) return;
   quietly(() => copyText(mobileClean(tab.url)));
   quietly(successHaptic);
-  usePageUi.setState({ titleFeedback: COPIED_URL });
+  showTitleFeedback(COPIED_URL);
+}
+
+export function showTitleFeedback(text: string) {
+  usePageUi.setState({ titleFeedback: text });
   setTimeout(() => {
-    if (pageUi().titleFeedback === COPIED_URL) usePageUi.setState({ titleFeedback: null });
+    if (pageUi().titleFeedback === text) usePageUi.setState({ titleFeedback: null });
   }, TITLE_FEEDBACK_MS);
 }
 

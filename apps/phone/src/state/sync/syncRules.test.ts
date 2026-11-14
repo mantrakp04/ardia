@@ -4,6 +4,7 @@ import { NOW, status, view } from "../../../test/syncFixture.ts";
 import { idleMacTabs, isPinnedOnMac, macTabIndex, pinKey, pinsOnTheirWay, pinsStillOnTheirWay, mergeSyncedHistory, spaceGroupColor, spaceRows, syncedBookmarks } from "./spaces.ts";
 import {
   chooseFolderTitle,
+  pinAnnouncement,
   connectMessage,
   setupStepLabel,
   deviceIcon,
@@ -239,4 +240,15 @@ test("after a folder was picked and didn't connect, the button offers another fo
   assert.equal(chooseFolderTitle("folderUnavailable"), "Choose Folder…");
   assert.equal(chooseFolderTitle("noSyncData"), "Choose Another Folder…");
   assert.equal(chooseFolderTitle("mismatch"), "Choose Another Folder…");
+});
+
+test("pinning from the iPhone page menu answers in its title; elsewhere, and on Android, with a toast", () => {
+  const ios = { pinFeedbackInMenu: true, alreadyPinnedToast: "Already Pinned to Your Mac" };
+  const android = { pinFeedbackInMenu: false, alreadyPinnedToast: "Pinned to Your Mac" };
+  assert.deepEqual(pinAnnouncement("pinned", true, ios), { where: "title", text: "Pinned to Mac" });
+  assert.deepEqual(pinAnnouncement("alreadyPinned", true, ios), { where: "title", text: "Already Pinned to Mac" });
+  assert.deepEqual(pinAnnouncement("alreadyPinned", false, ios), { where: "toast", text: "Already Pinned to Your Mac", icon: "star" });
+  assert.deepEqual(pinAnnouncement("failed", true, ios), { where: "toast", text: "Couldn’t Pin to Your Mac", icon: "warning" });
+  assert.deepEqual(pinAnnouncement("pinned", true, android), { where: "toast", text: "Pinned to Your Mac", icon: "star" });
+  assert.deepEqual(pinAnnouncement("alreadyPinned", true, android), { where: "toast", text: "Pinned to Your Mac", icon: "star" });
 });

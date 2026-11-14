@@ -18,9 +18,9 @@ import { noteLocalChange, notePinSent, selectedProfile, selectedProfileId, start
 import { copy } from "../../lib/platformCopy";
 import {
   CONNECTED_TOAST,
-  COULD_NOT_PIN_TOAST,
   couldNotSendToast,
-  PINNED_TOAST,
+  pinAnnouncement,
+  type PinOutcome,
   receivedSender,
   receivedToast,
   sendReceivers,
@@ -153,19 +153,24 @@ export async function sendTab(tab: BrowserTab, device: SyncedDevice) {
 
 export const isTabPinned = (tab: BrowserTab | null) => Boolean(tab && syncData().status.isEnabled && isPinnedOnMac(selectedProfile(), tab.url, pinsOnTheirWay(syncData().view, syncData().pinsOnTheirWay)));
 
-export async function pinToMac(tab: BrowserTab, onSetup: () => void) {
+export async function pinToMac(tab: BrowserTab, onSetup: () => void, showInTitle: ((text: string) => void) | null = null) {
   if (tab.isPrivate || !isSyncableUrl(tab.url)) return;
   if (!syncData().status.isEnabled) {
     showToast(SYNC_TO_PIN_TOAST, "laptop", undefined, onSetup);
     return;
   }
+  const announce = (outcome: PinOutcome) => {
+    const said = pinAnnouncement(outcome, showInTitle !== null, copy());
+    if (said.where === "title") showInTitle?.(said.text);
+    else showToast(said.text, said.icon);
+  };
   if (isTabPinned(tab)) {
-    showToast(copy().alreadyPinnedToast, "star");
+    announce("alreadyPinned");
     return;
   }
   const pinned = await settled(() => sync.pinToMac({ url: tab.url, title: tab.title, profileSyncId: tab.profileSyncId }), false);
   if (pinned) notePinSent(tab.profileSyncId ?? selectedProfileId(), tab.url);
-  showToast(pinned ? PINNED_TOAST : COULD_NOT_PIN_TOAST, pinned ? "star" : "warning");
+  announce(pinned ? "pinned" : "failed");
 }
 
 export function openRemote(url: string, title: string, profileSyncId: string | null) {
