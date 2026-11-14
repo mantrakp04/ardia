@@ -27,6 +27,8 @@ source_set("win") {
     "tab_events.h",
     "tab_state.cc",
     "tab_state.h",
+    "test_gate.cc",
+    "test_gate.h",
   ]
 
   deps = [
@@ -40,6 +42,7 @@ source_set("win") {
     "//chrome/browser/ui:recently_audible_helper",
     "//chrome/browser/profiles:profile",
     "//chrome/common",
+    "//chrome/install_static:install_static_util",
     "//components/blocked_content",
     "//components/content_settings/core/browser",
     "//components/favicon/content",

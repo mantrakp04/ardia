@@ -7,6 +7,8 @@ void BeforeChromeMain();
 
 void QuitApp();
 
+const char* TestGateDecision();
+
 }
 
 #endif

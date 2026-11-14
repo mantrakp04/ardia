@@ -17,6 +17,7 @@ typedef struct ArdiaEngineApi {
   void (*setEventSink)(ArdiaEngineEventSink sink, void *context);
   void (*hostCall)(const char *verb, const char *argsJson, uint64_t windowHandle, ArdiaEngineReply reply, void *context);
   void (*engineCall)(const char *name, const char *profileDir, const char *argsJson, ArdiaEngineReply reply, void *context);
+  const char *(*testGateRefusal)(void);
 } ArdiaEngineApi;
 
 typedef int (*ArdiaAppStartFunction)(const ArdiaEngineApi *engine);

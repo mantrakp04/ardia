@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <share.h>
 #include <stdio.h>
 
 #include <memory>
@@ -15,13 +16,17 @@
 #include "ardia/win/frame_view.h"
 #include "ardia/win/hooks.h"
 #include "ardia/win/host.h"
+#include "ardia/win/test_gate.h"
 #include "base/base_switches.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/process/process.h"
 #include "base/values.h"
+#include "chrome/browser/devtools/chrome_devtools_manager_delegate.h"
+#include "chrome/install_static/user_data_dir.h"
 #include "chrome/browser/chrome_browser_main.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
@@ -52,6 +57,17 @@ struct App {
 App& TheApp() {
   static App app;
   return app;
+}
+
+struct Gate {
+  std::string refusal = "no scratch ARDIA_DATA_DIR";
+  bool asked = false;
+  std::string port;
+};
+
+Gate& TheGate() {
+  static base::NoDestructor<Gate> gate;
+  return *gate;
 }
 
 std::unique_ptr<ScopedKeepAlive>& KeepAlive() {
@@ -105,16 +121,85 @@ void AddFeatures(base::CommandLine* command_line,
   command_line->AppendSwitchASCII(switch_name, all);
 }
 
-void AddLaunchSwitches(base::CommandLine* command_line) {
-  command_line->AppendSwitch(switches::kNoStartupWindow);
-  command_line->AppendSwitch(switches::kNoFirstRun);
-  command_line->AppendSwitch(switches::kNoDefaultBrowserCheck);
-  command_line->AppendSwitch(switches::kHideCrashRestoreBubble);
-  AddFeatures(command_line, switches::kDisableFeatures,
-              "CalculateNativeWinOcclusion");
-  for (const char* forbidden : {switches::kRemoteDebuggingPort,
-                                switches::kRemoteDebuggingPipe,
-                                "remote-allow-origins"}) {
+constexpr const char* kSwitchesThatOpenTheProfile[] = {
+    "allow-insecure-localhost",
+    "auto-open-devtools-for-tabs",
+    "custom-devtools-frontend",
+    "devtools-flags",
+    "disable-extensions-except",
+    "disable-web-security",
+    "enable-automation",
+    "enable-ui-devtools",
+    "extensions-on-chrome-urls",
+    "extensions-on-extension-urls",
+    "host-resolver-rules",
+    "host-rules",
+    "ignore-certificate-errors",
+    "ignore-certificate-errors-spki-list",
+    "load-apps",
+    "load-extension",
+    "log-net-log",
+    "net-log-capture-mode",
+    "proxy-pac-url",
+    "proxy-server",
+    "remote-allow-origins",
+    "remote-debugging-address",
+    "remote-debugging-io-pipes",
+    "remote-debugging-pipe",
+    "remote-debugging-port",
+    "remote-debugging-socket-name",
+    "remote-debugging-targets",
+    "silent-debugger-extension-api",
+    "ssl-key-log-file",
+    "unsafely-treat-insecure-origin-as-secure",
+    "webtransport-developer-mode",
+};
+
+bool BrowserProcess(const base::CommandLine& command_line) {
+  return command_line.GetSwitchValueNative(switches::kProcessType).empty();
+}
+
+std::wstring ChromiumUserDataDir() {
+  std::wstring user_data_dir;
+  std::wstring invalid;
+  if (!install_static::GetUserDataDirectory(&user_data_dir, &invalid) ||
+      !invalid.empty()) {
+    return std::wstring();
+  }
+  return user_data_dir;
+}
+
+constexpr const char* kWindowsSwitchesThatOpenTheProfile[] = {
+    "browser-subprocess-path",
+    "gpu-launcher",
+    "no-sandbox",
+    "renderer-cmd-prefix",
+    "utility-cmd-prefix",
+};
+
+void KeepRealProfileClosed(base::CommandLine* command_line) {
+  if (TheGate().refusal.empty()) {
+    return;
+  }
+  for (const char* name : kSwitchesThatOpenTheProfile) {
+    command_line->RemoveSwitch(name);
+  }
+  for (const char* name : kWindowsSwitchesThatOpenTheProfile) {
+    command_line->RemoveSwitch(name);
+  }
+  ::SetEnvironmentVariableW(L"SSLKEYLOGFILE", nullptr);
+  if (::GetEnvironmentVariableW(L"SSLKEYLOGFILE", nullptr, 0) != 0) {
+    LOG(ERROR) << "Ardia engine: SSLKEYLOGFILE could not be cleared outside "
+                  "a test instance; not starting";
+    base::Process::TerminateCurrentProcessImmediately(1);
+  }
+}
+
+void DecideTestGate(base::CommandLine* command_line) {
+  for (const char* forbidden :
+       {switches::kRemoteDebuggingPort, switches::kRemoteDebuggingPipe,
+        "remote-allow-origins", kTestInstanceSwitch, ardiacore::kTestSwitch,
+        ardiacore::kTraceSwitch, ardiacore::kDataDirSwitch}) {
     command_line->RemoveSwitch(forbidden);
   }
   std::wstring data_dir = Environment(L"ARDIA_DATA_DIR");
@@ -122,25 +207,51 @@ void AddLaunchSwitches(base::CommandLine* command_line) {
          (data_dir.back() == L'\\' || data_dir.back() == L'/')) {
     data_dir.pop_back();
   }
-  const bool scratch = !data_dir.empty();
+  const std::wstring port = Environment(L"ARDIA_REMOTE_DEBUGGING_PORT");
+  const std::wstring test = Environment(L"ARDIA_TEST");
+  const std::wstring trace = Environment(L"ARDIA_TRACE");
+  Gate& gate = TheGate();
+  std::wstring refusal = TestGateRefusal(data_dir, ChromiumUserDataDir());
+  if (refusal.empty()) {
+    refusal = HoldScratchFolders(data_dir, ChromiumUserDataDir());
+  }
+  gate.refusal = base::WideToUTF8(refusal);
+  gate.asked = !port.empty() || !test.empty() || !trace.empty();
+  KeepRealProfileClosed(command_line);
+  if (!gate.refusal.empty()) {
+    return;
+  }
+  command_line->AppendSwitch(kTestInstanceSwitch);
+  if (!port.empty()) {
+    command_line->AppendSwitchNative(switches::kRemoteDebuggingPort, port);
+    command_line->AppendSwitchASCII("remote-allow-origins", "*");
+    gate.port = base::WideToUTF8(port);
+  }
+  if (!test.empty()) {
+    command_line->AppendSwitchNative(ardiacore::kTestSwitch, test);
+  }
+  if (!trace.empty()) {
+    command_line->AppendSwitchNative(ardiacore::kTraceSwitch, trace);
+  }
+}
+
+void AddLaunchSwitches(base::CommandLine* command_line) {
+  command_line->AppendSwitch(switches::kNoStartupWindow);
+  command_line->AppendSwitch(switches::kNoFirstRun);
+  command_line->AppendSwitch(switches::kNoDefaultBrowserCheck);
+  command_line->AppendSwitch(switches::kHideCrashRestoreBubble);
+  AddFeatures(command_line, switches::kDisableFeatures,
+              "CalculateNativeWinOcclusion");
+  std::wstring data_dir = Environment(L"ARDIA_DATA_DIR");
+  while (!data_dir.empty() &&
+         (data_dir.back() == L'\\' || data_dir.back() == L'/')) {
+    data_dir.pop_back();
+  }
   const bool background = Set(Environment(L"ARDIA_BACKGROUND"));
-  if (scratch) {
+  if (!data_dir.empty()) {
     command_line->AppendSwitchNative(ardiacore::kDataDirSwitch, data_dir);
     command_line->AppendSwitchNative(switches::kUserDataDir,
                                      data_dir + L"\\Chromium");
-    std::wstring port = Environment(L"ARDIA_REMOTE_DEBUGGING_PORT");
-    if (!port.empty()) {
-      command_line->AppendSwitchNative(switches::kRemoteDebuggingPort, port);
-      command_line->AppendSwitchASCII("remote-allow-origins", "*");
-    }
-    std::wstring test = Environment(L"ARDIA_TEST");
-    if (!test.empty()) {
-      command_line->AppendSwitchNative(ardiacore::kTestSwitch, test);
-    }
-    std::wstring trace = Environment(L"ARDIA_TRACE");
-    if (!trace.empty()) {
-      command_line->AppendSwitchNative(ardiacore::kTraceSwitch, trace);
-    }
   }
   if (background) {
     command_line->AppendSwitch(ardiacore::kBackgroundSwitch);
@@ -151,6 +262,42 @@ void AddLaunchSwitches(base::CommandLine* command_line) {
   if (!app_switches.empty()) {
     command_line->AppendSwitchNative(ardiacore::kSwitchesSwitch, app_switches);
   }
+}
+
+void WriteLaunchLog(const std::string& line) {
+  const base::FilePath path =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValuePath("log-file");
+  if (path.empty()) {
+    return;
+  }
+  FILE* file = _wfsopen(path.value().c_str(), L"ab", _SH_DENYNO);
+  if (!file) {
+    return;
+  }
+  const std::string text = "engine 0 " + line + "\n";
+  fwrite(text.data(), 1, text.size(), file);
+  fclose(file);
+}
+
+void NoteTestGate() {
+  const Gate& gate = TheGate();
+  if (!gate.refusal.empty() && !gate.asked) {
+    return;
+  }
+  const std::string facts =
+      std::string("; ardiacore test instance: ") +
+      (ardiacore::TestInstance() ? "yes" : "no") +
+      "; reauth=granted honoured: " +
+      (ardiacore::TestValue("reauth") == "granted" ? "yes" : "no");
+  std::string line =
+      gate.refusal.empty()
+          ? "test gate: a test instance; remote debugging port: " +
+                (gate.port.empty() ? std::string("none") : gate.port) + facts
+          : "test gate: ARDIA_REMOTE_DEBUGGING_PORT, ARDIA_TEST and "
+            "ARDIA_TRACE ignored: not a test instance (" +
+                gate.refusal + ")" + facts;
+  LOG(WARNING) << "Ardia engine " << line;
+  WriteLaunchLog(line);
 }
 
 bool ForEngineWindow(const MSG& msg) {
@@ -261,12 +408,17 @@ class MainParts : public ChromeBrowserMainExtraParts {
   MainParts& operator=(const MainParts&) = delete;
   ~MainParts() override = default;
 
+  void PreEarlyInitialization() override {
+    KeepRealProfileClosed(base::CommandLine::ForCurrentProcess());
+  }
+
   void PreBrowserStart() override {
     KeepAlive() = std::make_unique<ScopedKeepAlive>(
         KeepAliveOrigin::APP_CONTROLLER, KeepAliveRestartOption::DISABLED);
   }
 
   void PostBrowserStart() override {
+    NoteTestGate();
     Host::Get()->Start();
     WatchEngineEvents();
     StartApp();
@@ -310,8 +462,12 @@ bool Relaunched(const base::CommandLine& command_line,
 
 void BeforeChromeMain() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(switches::kProcessType) ||
-      !AppLibraryPresent()) {
+  if (!BrowserProcess(*command_line)) {
+    return;
+  }
+  command_line->RemoveSwitch(switches::kProcessType);
+  DecideTestGate(command_line);
+  if (!AppLibraryPresent()) {
     return;
   }
   AddLaunchSwitches(command_line);
@@ -322,8 +478,13 @@ void BeforeChromeMain() {
   g_ardia_keeps_window_without_tabs = &KeepsWindowWithoutTabs;
 }
 
+const char* TestGateDecision() {
+  return TheGate().refusal.c_str();
+}
+
 void QuitApp() {
   KeepAlive().reset();
+  ChromeDevToolsManagerDelegate::AllowBrowserToClose();
   chrome::CloseAllBrowsersAndQuit();
 }
 

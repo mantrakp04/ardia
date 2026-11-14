@@ -693,6 +693,7 @@ base::DictValue Host::Info() {
                                   .value()));
   result.Set("privateSessions", PrivateSessions::Get()->LiveSessions());
   result.Set("pageWindows", static_cast<int>(hosted_.size()));
+  result.Set("testInstance", ardiacore::TestInstance());
   result.Set("keyboardPage", KeyboardPage());
   result.Set("keyboardMayMove", KeyboardMayMove());
   base::ListValue wanted;

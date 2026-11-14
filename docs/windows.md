@@ -318,10 +318,11 @@ is plain Chromium.
 
 - `//ardia/win` (`scripts/windows/engine/src/ardia/win`, copied into the tree by `series_win.py`) is the engine's side.
   It starts Chromium with no window of its own, turns the launch variables into switches as the Mac's launcher does
-  (`ARDIA_DATA_DIR` keeps Chromium's data in `<dir>\Chromium`; `ARDIA_REMOTE_DEBUGGING_PORT` only works with it; a
-  remote debugging switch on the command line is dropped), loads the app's library once the browser has started, and
-  hands it the API in `EngineApi.h`: `hostCall(verb, json, window)`, `engineCall(name, profile, json)` and one event
-  sink. Chromium's message loop offers each message to the app first, except messages for Chromium's own windows.
+  (`ARDIA_DATA_DIR` keeps Chromium's data in `<dir>\Chromium`; `ARDIA_REMOTE_DEBUGGING_PORT`, `ARDIA_TEST` and
+  `ARDIA_TRACE` only count in a test instance, see Test instances; a remote debugging switch or an Ardia test switch on
+  the command line is dropped), loads the app's library once the browser has started, and hands it the API in
+  `EngineApi.h`: `hostCall(verb, json, window)`, `engineCall(name, profile, json)`, one event sink and
+  `testGateRefusal()`, the engine's test-instance decision. Chromium's message loop offers each message to the app first, except messages for Chromium's own windows.
 - Every normal browser window Chromium has is hosted: page only, with no frame, tab strip, toolbar, rounded page frame
   or shortcuts of its own (the `chromium-win-hosted-*` patches), and each shows one page: its active tab. Each is
   a borderless top-level window owned by the app's window, placed over the page's view: it stays above its owner, hides
@@ -770,7 +771,10 @@ Swift core wrote (`fixtures/windows-interop/mac`), and the self-check opens that
 ## Test instances
 
 `LaunchConfig.h` (`AppLaunch::Shared()`) reads the environment once at launch; `Paths.h` holds the one raw reader and
-the data folder, and `TestGate.h` decides whether this launch is a test instance. No other Windows native file reads
+the data folder. Whether this launch is a test instance is decided once, by the engine, before the app loads
+(`scripts/windows/engine/src/ardia/win/test_gate.cc`), and handed to the app through `EngineApi.h`'s
+`testGateRefusal()`, so the two can't disagree when the marker or a folder changes in between. `TestGate.h` holds the
+same rule for the app run without the engine (`ArdiaAppRun`). No other Windows native file reads
 the environment (`platform/windowsLaunchConfig.test.mjs` fails if one does). The one exception is the small
 `ArdiaLauncher`, which runs before the DLL loads and reads `ARDIA_BACKGROUND` only to keep a failed launch quiet.
 
@@ -806,8 +810,48 @@ the scratch instance makes a new one. Sync's `selfTest`, which seals and removes
 
 Outside a test instance the launch config drops `ARDIA_TEST`, `ARDIA_TRACE`, `ARDIA_CONFIG_DIR` and the test-only
 `ARDIA_INSTANCE` keys (`updateFeed`, `importSourceDir`, `importSafariHome`), and the launch log says once why. The other
-`ARDIA_INSTANCE` keys and `ARDIA_BACKGROUND` stay instance settings, as on the Mac. The engine reads its own
-switches before the app loads; its side of the rule is #1663.
+`ARDIA_INSTANCE` keys and `ARDIA_BACKGROUND` stay instance settings, as on the Mac.
+
+The engine applies the same decision to its own switches (`main.cc` `DecideTestGate`, before Chromium starts):
+
+- **Which process.** A launch counts as the browser process when its `--type` is missing or empty, as Chromium counts
+  it, so an empty `--type=` can't skip the gate.
+- **Which folder.** The gate judges the profile folder Chromium will really open: `install_static::GetUserDataDirectory()`,
+  which `chrome_elf` derives from the raw command line, policy and `ARDIA_DATA_DIR`. It must be `<ARDIA_DATA_DIR>\Chromium`,
+  compared by final path, so a `--user-data-dir` or a policy pointing anywhere else refuses the test instance. The
+  path string Chromium will open must also be the held folder's own path (its final path as a drive path), so an alias
+  that merely resolves to it (a junction, a short name, a mapped drive) is refused: an alias could be re-pointed after
+  the check.
+- **What a test instance gets.** `--remote-debugging-port` (with `remote-allow-origins=*`), `--ardia-test`,
+  `--ardia-trace` and `--ardia-test-instance`, which `ardiacore`'s gate reads in place of the Mac's signing check
+  (`series_win.py` `launch_switches_source()`). Those switches given on the command line are always dropped first.
+- **What everyone else loses.** Outside a test instance the engine drops the Mac's list of switches that open the
+  profile to an outsider (`--load-extension`, `--disable-web-security`, `--enable-automation`, the remote debugging and
+  proxy switches and the rest of `kSwitchesThatOpenTheProfile`), plus five Windows-only ones that start a chosen
+  program as a browser child or run children unsandboxed (`--browser-subprocess-path`, `--renderer-cmd-prefix`,
+  `--utility-cmd-prefix`, `--gpu-launcher`, `--no-sandbox`; nothing in the engine, CI or the probe passes them), and
+  unsets `SSLKEYLOGFILE`; if that variable can't be cleared the engine doesn't start. This happens before Chromium starts and
+  again after `chrome://flags` adds its switches. A second launch handed to the running instance only gives it its URLs
+  (`Relaunched`), and child processes only get switches the browser process still has. The launch log gets one
+  `engine 0 test gate:` line saying why, and `reauth=granted`, `keychain`, `safeStorageAnswer` and the other engine
+  test keys never count.
+- **The folders, held.** Once approved, the scratch folder and its `Chromium` folder are created if missing and held
+  open for the life of the process without delete sharing, then checked again through those handles; a folder held that
+  way can't be renamed away or swapped for a junction, and a folder that is itself a link is refused.
+
+What the marker does and doesn't protect: it marks a build CI tests, and only a build with it honours any of the above.
+The gate keeps test powers off the real profile's folder for an unmodified shipped build; it is not a boundary against
+someone who can write the app folder (who can add the marker, or replace `Ardia.exe` or `ArdiaApp.dll`) or who can
+already read the real profile. For example, in a marker build a scratch folder whose `Default` profile folder is a
+junction to the real profile's passes the gate; that gives nothing beyond copying the real profile into a scratch
+folder, which a test instance is allowed to open.
+
+`launch-smoke.ps1` checks it with the engine. With no marker, a relative folder, the real profile folder, a junction to
+it, an empty `--type=` on the real profile, an approved folder while `--user-data-dir` points at the real profile or at a
+junction to the approved folder, and `--load-extension` with debugging switches outside a test instance, the engine must
+log its refusal (so it did start), leave the port closed, and (for the extension) never run it, while the same extension
+does run in a test instance. A scratch folder with the marker must get both powers, with the port answering
+`/json/version`.
 
 ## Checks
 
