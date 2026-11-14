@@ -181,3 +181,11 @@ export function matchedColor<K extends string>(
   }
   return best?.key ?? null;
 }
+
+export const INBOX_RETRY = "Sync couldn’t read some changes your Mac sent and set that file aside. Sync Now tries again.";
+
+export function inboxNotice(status: SyncStatus): { message: string; footer: string } | null {
+  const problem = status.inboxProblem?.trim();
+  if (!problem) return null;
+  return { message: problem, footer: INBOX_RETRY };
+}

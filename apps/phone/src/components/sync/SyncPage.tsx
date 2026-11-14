@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { acknowledgeSyncReset, changeSyncFolder, setDeviceName, stopSyncing, syncNow } from "../../state/sync/actions";
 import { useSyncStatus, useSyncView } from "../../state/sync/hooks";
-import { connectMessage, deviceIcon, deviceSeen, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, syncHeroSubtitle } from "../../state/sync/syncRules";
+import { connectMessage, deviceIcon, inboxNotice, deviceSeen, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, syncHeroSubtitle } from "../../state/sync/syncRules";
 import { popSettings, pushSettings } from "../../state/settings/nav";
 import { capsule, ConfirmDialog, font, settingsLayout, settingsTint, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
 import { ButtonRow, Divider, Group, IconTile, NavRow, SettingsPage, ValueRow } from "../settings/SettingsKit";
@@ -97,6 +97,7 @@ export function SyncPage() {
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const off = isSyncOff(status);
   const hero = syncHeroSubtitle(status);
+  const notice = inboxNotice(status);
   const devices = orderedDevices(view.devices);
   const noReceivers = sendReceivers(view, status.selectedProfileId ?? view.selectedProfileId).length === 0;
   const now = Date.now();
@@ -129,6 +130,14 @@ export function SyncPage() {
           <FeatureRow icon="pinFill" title="Pinned Tabs and Spaces" divider />
           <FeatureRow icon="paperplane" title="Send Tabs Both Ways" divider />
           <FeatureRow icon="clockArrow" title="History and Bookmarks" />
+        </Group>
+      ) : null}
+      {notice ? (
+        <Group footer={notice.footer}>
+          <View accessible style={styles.row}>
+            <Symbol name="exclamationmarkTriangle" size={20} color={theme.destructive} />
+            <Text style={[font.body, styles.fill, { color: theme.label }]}>{notice.message}</Text>
+          </View>
         </Group>
       ) : null}
       {status.attention === "folder" ? (

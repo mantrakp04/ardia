@@ -15,6 +15,7 @@ import {
   receivedToast,
   sendReceivers,
   syncBanner,
+  inboxNotice,
   syncedEngineName,
   syncHeroSubtitle,
   syncRowSubtitle,
@@ -178,4 +179,13 @@ test("the Mac's search engine and colour carry over", () => {
   assert.equal(matchedColor({ color: "Green", theme: null }, swatches), "green");
   assert.equal(matchedColor({ color: null, theme: { colors: ["#40B080"], darkColors: null } }, swatches), "green");
   assert.equal(matchedColor({ color: null, theme: null }, swatches), null);
+});
+
+test("a set-aside inbox shows the module's message and that Sync Now tries again", () => {
+  assert.equal(inboxNotice(status()), null);
+  assert.equal(inboxNotice(status({ inboxProblem: "  " })), null);
+  assert.deepEqual(inboxNotice(status({ inboxProblem: "Ardia set aside some tabs and history changes from your Mac it couldn’t read." })), {
+    message: "Ardia set aside some tabs and history changes from your Mac it couldn’t read.",
+    footer: "Sync couldn’t read some changes your Mac sent and set that file aside. Sync Now tries again.",
+  });
 });
