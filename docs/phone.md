@@ -44,6 +44,49 @@ forward.
 `browser`'s `Omnibox.kt` (the ScriptEngine bridge) and `PageSurface.kt` (Compose) are left out of the module's build:
 the Expo app calls `@ardia/core` itself and hosts the page's view natively.
 
+## Sync on Android
+
+Sync is a native subsystem with its own script runtime; the app's JavaScript never sees the host functions,
+keys, the phrase's entropy or sealed bytes. `@ardia/phone-native` compiles `apps/android/sync` and
+`apps/android/shared` in place, and `ArdiaSync` (`packages/phone/src/sync.ts`) wraps `SyncController` whole:
+status and the synced view as getters and events, connect and change folder with the system folder picker, sync
+now, stop, the reset notice, device name, profile, send, pin to Mac, incoming sends. One controller owns every
+cycle on its own thread; `MainApplication` is the `SyncControllerOwner`, so WorkManager's `SyncWorker` (every 15
+minutes, and a flush after the app leaves the screen) runs it without React Native.
+
+- **Runtime.** `ardia_hermes.cpp` builds against React Native 0.81's prefab Hermes, JSI and fbjni
+  (`ARDIA_REACT_NATIVE_HERMES` picks the runtime options that Hermes has), so the process has one Hermes and sync
+  gets its own runtime instance. `libardiahermes.so` needs only the `libhermes.so`, `libjsi.so` and
+  `libfbjni.so` the app ships.
+- **Bytecode.** React Native 0.81's `hermesc` rejects `async` functions and classes in `ardia-sync.js`, and
+  its hidden `-block-scoping` flag crashes on it; there is no `-Xes6-block-scoping` in that compiler. So
+  `CompileSyncBundle` (`packages/phone/android/build.gradle`) runs the bundle through Babel's class, block-scoping
+  and async-to-generator transforms, the ones React Native applies to app code for this Hermes, then compiles it
+  with React Native 0.81's `hermesc`, pinned by sha256. The Compose app compiles the same source with
+  `hermes-compiler` 0.88.1 and `-Xes6-block-scoping`. The step proves the two cannot differ: Babel must leave
+  no `let`, `const`, class, `async` or `await` (each loop variable a closure captures becomes its own `_loop`
+  function, so a binding per pass does not depend on the engine); closures in loops, through the same
+  transform, must keep each pass's value; the whole companion suite (`packages/sync/src/companion`) runs
+  against the transpiled bundle; and the transpiled bundle must make the same host calls as the original.
+- **The phone's data.** Sync reads the app's `browser.db` (`filesDir/SQLite`, written by expo-sqlite) read-only
+  on its own thread: open web tabs, the 30 newest per profile, and visits grouped by address and profile. A
+  missing database is an empty phone; one that cannot be read fails the cycle. The app never writes private
+  tabs or their visits to it. Its tables are the Kotlin store's: `tabs`, `tab_state` and `visits` have the
+  same columns and indexes, `PRAGMA user_version` is 1 in both and both use WAL. The differences: the Expo
+  file adds a `preferences` table (the Kotlin app keeps preferences in SharedPreferences), Android's
+  `SQLiteOpenHelper` adds `android_metadata` to the Kotlin file, and nothing marks a row as private in either
+  file (the Kotlin app keeps private tabs in memory, the Expo app never writes them). The Kotlin `store`
+  module's readers are not reused: `BrowserDatabase` opens the file to write and migrate, and `TabStore`
+  answers sync from its in-memory state.
+- **Sync's writes to the phone's data.** Tabs a Mac sent and history a Mac removed go to an inbox file next to
+  the sync state (`noBackupFilesDir/PhoneSync`), written whole and renamed into place, until the app applies
+  them to its store (`sync.inbox()`, `sync.inboxApplied(ids)`, the `sync.inbox` event). Visits waiting to be
+  removed are left out of what sync reads, so they never go back to the Mac.
+- **Lab.** The page lab's Sync button connects with a typed phrase and a picked folder and shows the status and
+  the synced view's counts.
+- **Scanning the phrase.** The Compose app scans the Mac's QR code with CameraX and ZXing in Compose. The Expo
+  screens should scan in JavaScript (expo-camera reads QR codes) and pass the text to `sync.connect`.
+
 ## Build and run
 
 ```
