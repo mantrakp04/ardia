@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { checkPhrase, connectSync, pastedText } from "../../state/sync/actions";
-import { setupStepLabel, connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRules";
+import { chooseFolderTitle, setupStepLabel, connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRules";
 import { capsule, font, radius, settingsLayout, space, spacesLayout, Symbol, useTheme } from "../ui";
 import { BarButton, Group, SettingsPage } from "../settings/SettingsKit";
 import { CapsuleButton, SyncHero } from "./SyncPage";
 import { SyncScan } from "./SyncScan";
 import { copy } from "../../lib/platformCopy";
+import type { ConnectResult } from "../../platform/sync";
 import { canScanCodes } from "../../state/sync/scan";
 
 type FlowProps = { onClose: () => void; onConnected: () => void; closes?: boolean };
@@ -18,6 +19,7 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   const [scans] = useState(canScanCodes);
   const [connecting, setConnecting] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<ConnectResult["result"] | null>(null);
   const hasPhrase = phrase.length > 0 && checkPhrase(phrase).isValid;
 
   useEffect(() => {
@@ -37,6 +39,7 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
     setFailure(null);
     const result = await connectSync(phrase);
     setConnecting(false);
+    setLastResult(result.result);
     if (result.result === "connected") {
       setPhrase("");
       onConnected();
@@ -91,7 +94,7 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
           )}
         </Step>
         <Step number={2} title="Choose the Ardia Sync folder" detail={copy().chooseFolderDetail} done={false} current={hasPhrase}>
-          {connecting ? <Connecting /> : <CapsuleButton title="Choose Folder…" enabled={hasPhrase} onPress={() => void connect()} />}
+          {connecting ? <Connecting /> : <CapsuleButton title={chooseFolderTitle(lastResult)} enabled={hasPhrase} onPress={() => void connect()} />}
           {failure ? <Problem text={failure} /> : null}
         </Step>
       </Group>

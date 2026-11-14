@@ -73,7 +73,7 @@ export function ReaderView({ tabId }: { tabId: string }) {
       </View>
       {load.kind === "loading" ? (
         <View style={styles.center}>
-          <ActivityIndicator accessibilityLabel="Loading Article" color={ink.secondary} />
+          <ActivityIndicator accessibilityLabel="Loading article" color={ink.secondary} />
         </View>
       ) : load.kind === "failed" ? (
         <View style={[styles.center, styles.gap]}>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import {
+import { openFromSettings,
   addList,
   applyMyFilters,
   openOutside,
@@ -29,6 +29,8 @@ import {
 } from "../../state/settings/settingsRules";
 import { ConfirmDialog, Dialog, dialogLayout, font, radius, settingsLayout, settingsTint, space, Symbol, Toggle, useTheme, type Confirmation } from "../ui";
 import { copy } from "../../lib/platformCopy";
+
+const FILTER_SYNTAX_URL = "https://github.com/gorhill/uBlock/wiki/Static-filter-syntax";
 import { BarButton, ButtonRow, Divider, EmptyState, Group, IconTile, NavRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
 
 export function FilterListsPage() {
@@ -238,6 +240,9 @@ export function MyFiltersPage() {
           {myFiltersSummary(state?.myFiltersRuleCount ?? 0, state?.myFiltersSkippedCount ?? 0, changed)}
         </Text>
         <Text style={[font.footnote, { color: theme.secondaryLabel }]}>||site.com^ blocks a site. site.com##.ad hides part of a page. Lines that start with ! are notes.</Text>
+        <Pressable accessibilityRole="link" onPress={() => openFromSettings(FILTER_SYNTAX_URL)} style={styles.syntax}>
+          <Text style={[font.footnote, styles.bold, { color: theme.formAccent }]}>Filter Syntax</Text>
+        </Pressable>
       </View>
     </SettingsPage>
   );
@@ -270,6 +275,7 @@ export function TrustedSitesPage() {
 }
 
 const styles = StyleSheet.create({
+  syntax: { alignSelf: "flex-start", paddingVertical: space.xs },
   hero: { alignItems: "center", gap: space.xs, paddingHorizontal: space.l },
   bold: { fontWeight: "600" },
   fill: { flex: 1 },

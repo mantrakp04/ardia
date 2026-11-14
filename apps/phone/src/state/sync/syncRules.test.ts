@@ -3,6 +3,7 @@ import test from "node:test";
 import { NOW, status, view } from "../../../test/syncFixture.ts";
 import { idleMacTabs, isPinnedOnMac, macTabIndex, pinKey, pinsOnTheirWay, pinsStillOnTheirWay, mergeSyncedHistory, spaceGroupColor, spaceRows, syncedBookmarks } from "./spaces.ts";
 import {
+  chooseFolderTitle,
   connectMessage,
   setupStepLabel,
   deviceIcon,
@@ -230,4 +231,12 @@ test("a setup step tells a screen reader whether it is done, now or later", () =
   assert.equal(setupStepLabel(1, true, false), "Step 1, done");
   assert.equal(setupStepLabel(2, false, true), "Step 2");
   assert.equal(setupStepLabel(2, false, false), "Step 2, later");
+});
+
+test("after a folder was picked and didn't connect, the button offers another folder", () => {
+  assert.equal(chooseFolderTitle(null), "Choose Folder…");
+  assert.equal(chooseFolderTitle("invalidPhrase"), "Choose Folder…");
+  assert.equal(chooseFolderTitle("folderUnavailable"), "Choose Folder…");
+  assert.equal(chooseFolderTitle("noSyncData"), "Choose Another Folder…");
+  assert.equal(chooseFolderTitle("mismatch"), "Choose Another Folder…");
 });

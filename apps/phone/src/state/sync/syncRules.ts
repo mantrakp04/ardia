@@ -185,3 +185,7 @@ export function scanJudge(isValid: (payload: string) => boolean) {
 }
 
 export const setupStepLabel = (number: number, done: boolean, current: boolean) => (done ? `Step ${number}, done` : current ? `Step ${number}` : `Step ${number}, later`);
+
+export const pickedFolder = (result: ConnectResult["result"] | null) => result === "mismatch" || result === "noSyncData" || result === "keyStoreFailed";
+
+export const chooseFolderTitle = (lastResult: ConnectResult["result"] | null) => (pickedFolder(lastResult) ? "Choose Another Folder…" : "Choose Folder…");
