@@ -29,6 +29,7 @@ import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/s
 import { updateSettings } from "../../../state/settings/actions";
 import { blockerAvailable, categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
 import { noteContentBlockerUnavailable, noteContentBlockerWriteFailure } from "../../../state/telemetry/usage";
+import { CustomFiltersSection } from "./CustomFilters";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 import { UI_LOCALE } from "../../../lib/uiLocale";
 
@@ -165,6 +166,7 @@ function FilterListsSheet() {
     <Sheet size="l" onClose={closeSettingsSheet}>
       <DialogTitle subtitle={setting("privacy.filterLists").description}>Advanced Ad Block Settings</DialogTitle>
       <ScrollView style={LISTS}>
+        <CustomFiltersSection blocker={blocker} refresh={refresh} back={() => showSettingsSheet(<FilterListsSheet />)} />
         {CATEGORIES.map((c) => {
           const lists = blocker?.lists.filter((l) => l.category === c.id) ?? [];
           if (!lists.length) return null;

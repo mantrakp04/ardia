@@ -110,7 +110,9 @@ export function TextField({
   multiline,
   mono,
   invalid,
+  editable,
   width,
+  height,
   style,
 }: {
   value: string;
@@ -125,7 +127,9 @@ export function TextField({
   multiline?: boolean;
   mono?: boolean;
   invalid?: boolean;
+  editable?: boolean;
   width?: DimensionValue;
+  height?: number;
   style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
@@ -133,7 +137,7 @@ export function TextField({
     <OutsidePressArea style={[{ width }, style]}>
       <View
         style={{
-          height: multiline ? MULTILINE_HEIGHT : 24,
+          height: height ?? (multiline ? MULTILINE_HEIGHT : 24),
           borderRadius: radius.control,
           justifyContent: multiline ? "flex-start" : "center",
           paddingHorizontal: space.m,
@@ -150,6 +154,7 @@ export function TextField({
           placeholderTextColor={theme.textTertiary}
           selectionColor={theme.selection}
           autoFocus={autoFocus}
+          editable={editable}
           secureTextEntry={secure}
           enableFocusRing={false}
           selectTextOnFocus={selectOnFocus}

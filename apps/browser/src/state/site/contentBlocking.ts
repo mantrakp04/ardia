@@ -6,7 +6,8 @@ export const categoryOn = (s: ContentBlockerState, category: FilterListCategory)
 
 async function setLists(s: ContentBlockerState, ids: string[], on: boolean) {
   for (const id of ids) await setFilterListEnabled(id, on);
-  const anyOn = s.lists.some((l) => (ids.includes(l.id) ? on : s.enabled && l.enabled));
+  const ownOn = (s.customLists ?? []).some((l) => l.enabled) || (s.userFilters ?? 0) > 0;
+  const anyOn = ownOn || s.lists.some((l) => (ids.includes(l.id) ? on : s.enabled && l.enabled));
   if (anyOn !== s.enabled) await setContentBlockerEnabled(anyOn);
 }
 

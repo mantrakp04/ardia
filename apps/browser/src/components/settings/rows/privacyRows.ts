@@ -13,7 +13,7 @@ export const privacyRows = {
           advanced: true,
           title: "Advanced Settings",
           description: "Block common components found across the web by using additional rules and filters.",
-          keywords: ["filter lists", "annoyances", "malware", "regional", "ad block settings"],
+          keywords: ["filter lists", "annoyances", "malware", "regional", "ad block settings", "custom filter lists", "my filters"],
         },
       },
     },

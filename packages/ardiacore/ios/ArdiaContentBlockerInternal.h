@@ -30,6 +30,7 @@ bool IsHiddenPageWindow(NSWindow *window);
 void LoadIntoProfile(NSString *profile, void (^then)(NSString *error));
 extern NSString *const kOffDirective;
 void Call(NSString *profile, NSString *expression, void (^completion)(id value, NSString *error));
+void CallWithin(NSString *profile, NSString *expression, double seconds, void (^completion)(id value, NSString *error));
 bool LiteSettingsPending(ArdiaCoreProfile *p);
 void MoveLiteSettings(NSString *profile, ArdiaCoreProfile *p, void (^done)(void));
 

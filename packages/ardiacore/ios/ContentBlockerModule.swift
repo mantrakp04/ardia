@@ -26,6 +26,21 @@ public class ContentBlockerModule: Module {
     "setAllowed": { args, reply in
       ArdiaContentBlocker.setAllowed(try args.bool("allowed"), host: try args.text("host"), completion: settled(reply))
     },
+    "addList": { args, reply in
+      ArdiaContentBlocker.addList(try args.text("url")) { list, error in
+        if let error { return reply.fail("ERR_CONTENT_BLOCKER", error) }
+        reply.ok(list)
+      }
+    },
+    "removeList": { args, reply in ArdiaContentBlocker.removeList(try args.text("id"), completion: settled(reply)) },
+    "updateList": { args, reply in ArdiaContentBlocker.updateList(try args.text("id"), completion: settled(reply)) },
+    "userFilters": { _, reply in
+      ArdiaContentBlocker.userFilters { text, error in
+        if let error { return reply.fail("ERR_CONTENT_BLOCKER", error) }
+        reply.ok(text)
+      }
+    },
+    "setUserFilters": { args, reply in ArdiaContentBlocker.setUserFilters(try args.text("text"), completion: settled(reply)) },
     "devFailNextMessage": { _, reply in
       ArdiaContentBlocker.devFailNextMessage()
       reply.ok()

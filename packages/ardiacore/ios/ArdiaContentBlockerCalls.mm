@@ -11,6 +11,7 @@ using namespace ardia_content_blocker;
 @property int attemptsLeft;
 @property BOOL failNext;
 @property NSTimeInterval deadline;
+@property double seconds;
 @property NSUInteger attempt;
 @end
 
@@ -151,6 +152,11 @@ NSString *const kPrelude =
      "  return l;"
      "});"
      "const selected = (l) => Object.keys(l.available).filter((k) => l.available[k] && l.available[k].off !== true);"
+     "const custom = (l) => Object.keys(l.available).filter((k) => l.available[k] && l.available[k].group === 'custom');"
+     "const userFilters = () => send({what: 'readUserFilters'}).then((u) => {"
+     "  if (!u || typeof u !== 'object') throw new Error('readUserFilters: no answer');"
+     "  return {text: typeof u.content === 'string' ? u.content : '', enabled: u.enabled === true, trusted: u.trusted === true};"
+     "});"
      "const covers = (directive, host) => !directive.includes('/') && (host === directive || host.endsWith('.' + directive));"
      "const sameSet = (a, b) => [...a].sort().join('\\n') === [...b].sort().join('\\n');"
      "const storageCall = (name, arg) => expired ? Promise.reject(new Error(`storage ${name}: timed out`))"
@@ -168,9 +174,30 @@ NSString *const kPrelude =
      "  .then(askReload)"
      "  .then(() => Promise.race([reloadLists(), reloadWait()]));"
      "const resumePendingReload = () => { pendingReload().then((asked) => asked ? reloadLists() : null).catch(() => {}); };"
+     "const fromAddress = (l, id, url) => [].concat(l.available[id].contentURL || [])"
+     "  .some((u) => typeof u === 'string' && u.endsWith(url.replace(/^https?:/, '')));"
+     "const rollBackImport = () => local.get('ardiaPendingFilterImport').then((p) => {"
+     "  const saved = p.ardiaPendingFilterImport;"
+     "  if (!saved) return null;"
+     "  const url = typeof saved.url === 'string' ? saved.url : '';"
+     "  const before = Array.isArray(saved.selectedBefore) ? saved.selectedBefore : null;"
+     "  return lists().then((l) => {"
+     "    const stock = url && before ? selected(l).filter((id) => !id.includes('://') && !before.includes(id) && fromAddress(l, id, url)) : [];"
+     "    const removeCustom = custom(l).includes(url) && (((l.cache || {})[url] || {}).cached !== true || !l.available[url].entryCount);"
+     "    if (!removeCustom && !stock.length && !saved.cleaning) return local.remove('ardiaPendingFilterImport');"
+     "    return askReload().then(() => local.set({ardiaPendingFilterImport: Object.assign({}, saved, {cleaning: true})}))"
+     "      .then(() => removeCustom ? send({what: 'applyFilterListSelection', toRemove: [url]}) : null)"
+     "      .then(() => stock.length ? send({what: 'applyFilterListSelection', toSelect: selected(l).filter((id) => !stock.includes(id) && (!removeCustom || id !== url))}) : null)"
+     "      .then(reloadLists).then(lists)"
+     "      .then((after) => {"
+     "        if (removeCustom && custom(after).includes(url)) throw new Error('The rejected list is still imported.');"
+     "        if (stock.some((id) => selected(after).includes(id))) throw new Error('The rejected built-in list is still enabled.');"
+     "      }).then(() => local.remove('ardiaPendingFilterImport'));"
+     "  });"
+     "});"
      "Promise.resolve().then(() => { if (location.origin !== extensionOrigin) throw new Error(`not the extension page: ${location.href}`); })"
      ".then(() => withDeadline(ready(), 'uBlock Origin'))"
-     ".then(() => { resumePendingReload(); return withDeadline(Promise.resolve().then(() => (%@)), 'the call'); })"
+     ".then(() => withDeadline(rollBackImport().then(() => { resumePendingReload(); return (%@); }), 'the call'))"
      ".then((v) => post('result', JSON.stringify({value: v === undefined ? null : v})),"
      "(e) => post('result', JSON.stringify({error: String(e && e.message || e)})))";
 
@@ -263,6 +290,7 @@ void Pump(NSString *profile) {
   ArdiaContentBlockerOp *op = Queues()[profile].firstObject;
   if (!op) return;
   [BusyProfiles() addObject:profile];
+  if (!op.attempt) op.deadline = NSDate.timeIntervalSinceReferenceDate + op.seconds;
   Attempt(op);
 }
 
@@ -270,13 +298,13 @@ void Pump(NSString *profile) {
 
 namespace ardia_content_blocker {
 
-void Call(NSString *profile, NSString *expression, void (^completion)(id value, NSString *error)) {
+void CallWithin(NSString *profile, NSString *expression, double seconds, void (^completion)(id value, NSString *error)) {
   ArdiaContentBlockerOp *op = [ArdiaContentBlockerOp new];
   op.profile = profile;
   op.expression = expression;
   op.completion = completion;
   op.attemptsLeft = kAttempts;
-  op.deadline = NSDate.timeIntervalSinceReferenceDate + kOpSeconds;
+  op.seconds = seconds;
   if (gFailNextMessage && ![expression isEqualToString:@"null"]) {
     op.failNext = YES;
     gFailNextMessage = false;
@@ -284,6 +312,10 @@ void Call(NSString *profile, NSString *expression, void (^completion)(id value, 
   NSMutableArray *queue = Queues()[profile] ?: (Queues()[profile] = [NSMutableArray array]);
   [queue addObject:op];
   Pump(profile);
+}
+
+void Call(NSString *profile, NSString *expression, void (^completion)(id value, NSString *error)) {
+  CallWithin(profile, expression, kOpSeconds, completion);
 }
 
 }

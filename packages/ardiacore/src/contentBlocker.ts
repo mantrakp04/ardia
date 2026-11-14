@@ -9,6 +9,18 @@ export type FilterList = {
   filters: number;
 };
 
+export type CustomFilterList = {
+  id: string;
+  title: string;
+  enabled: boolean;
+  filters: number;
+  downloaded: boolean;
+  updatedAt: number;
+  error: string;
+};
+
+export type AddedFilterList = { id: string; title: string; builtIn: boolean; filters: number };
+
 export type ContentBlockerStats = {
   ready: boolean;
   enabled: boolean;
@@ -26,6 +38,9 @@ export type ContentBlockerState = {
   enabled: boolean;
   version: string;
   lists: FilterList[];
+  customLists?: CustomFilterList[];
+  userFilters?: number;
+  updating?: boolean;
   allowedHosts: string[];
   stats: ContentBlockerStats;
 };
