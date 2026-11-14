@@ -202,8 +202,6 @@ function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId
   for (const t of tabs) {
     if (!t.url || t.id === currentTabId) continue;
     const text = pageText(t);
-    if (tabIds.has(text.key)) continue;
-    tabIds.set(text.key, t.id);
     const visited = pool.byKey.get(text.key);
     const name = t.customTitle?.trim();
     if (name) {
@@ -218,8 +216,13 @@ function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId
         tabId: t.id,
         text: pageText({ url: t.url, title: `${name} ${t.title}` }),
       });
-    } else if (!visited) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text });
+      continue;
+    }
+    if (tabIds.has(text.key)) continue;
+    tabIds.set(text.key, t.id);
+    if (!visited) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text });
   }
+  for (const key of tabIds.keys()) renamed.delete(key);
   return { tabIds, extra, renamed };
 }
 
@@ -319,7 +322,7 @@ const pageSuggestion = (c: Candidate, tabId: string | null | undefined = c.tabId
 export function suggestionKey(s: Suggestion): string {
   switch (s.kind) {
     case "page":
-      return `${s.tabId ? "tab" : "page"}:${pageKey(s.url)}`;
+      return s.tabId ? `tab:${s.tabId}` : `page:${pageKey(s.url)}`;
     case "search":
       return `search:${s.url}`;
     case "calc":
@@ -368,7 +371,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const parsed = parseQuery(q, tokens);
   const matched: Candidate[] = [];
   const top = new TopList(limit + 1);
-  const tabTop = new TopList(LEADING_ROWS);
+  const tabTop = new TabList();
   const onSite = scope ? new TopList(4) : null;
   let inline: Ranked | null = null;
   for (const list of [pages, extra]) {
@@ -502,6 +505,20 @@ function dedupeSuggestions(remote: readonly string[], query: string): string[] {
 }
 
 const LEADING_ROWS = 5;
+
+class TabList {
+  readonly items: Ranked[] = [];
+  offer(r: Ranked) {
+    const items = this.items;
+    if (items.length === LEADING_ROWS && !matchesAhead(r, items[items.length - 1]!)) return;
+    let i = items.length;
+    while (i > 0 && matchesAhead(r, items[i - 1]!)) i--;
+    items.splice(i, 0, r);
+    if (items.length > LEADING_ROWS) items.pop();
+  }
+}
+
+const matchesAhead = (a: Ranked, b: Ranked) => a.m > b.m || (a.m === b.m && a.s > b.s);
 
 function leadingRows(ranked: readonly Ranked[], tabs: readonly Ranked[]): Ranked[] {
   const lead = ranked.slice(0, 3);

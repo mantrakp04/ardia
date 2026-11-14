@@ -15,7 +15,7 @@ export const pageSuggestion = (c: Candidate, tabId: string | null | undefined = 
 export function suggestionKey(s: Suggestion): string {
   switch (s.kind) {
     case "page":
-      return `${s.tabId ? "tab" : "page"}:${pageKey(s.url)}`;
+      return s.tabId ? `tab:${s.tabId}` : `page:${pageKey(s.url)}`;
     case "search":
       return `search:${s.url}`;
     case "calc":

@@ -134,8 +134,6 @@ export function tabsOver(pool: Pool, tabs: readonly TabRow[], currentTabId?: str
   for (const t of tabs) {
     if (!t.url || t.id === currentTabId) continue;
     const text = pageText(t);
-    if (tabIds.has(text.key)) continue;
-    tabIds.set(text.key, t.id);
     const visited = pool.byKey.get(text.key);
     const name = t.customTitle?.trim();
     if (name) {
@@ -152,8 +150,13 @@ export function tabsOver(pool: Pool, tabs: readonly TabRow[], currentTabId?: str
         tabId: t.id,
         text: pageText({ url: t.url, title: `${name} ${t.title}` }),
       });
-    } else if (!visited) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text });
+      continue;
+    }
+    if (tabIds.has(text.key)) continue;
+    tabIds.set(text.key, t.id);
+    if (!visited) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text });
   }
+  for (const key of tabIds.keys()) renamed.delete(key);
   const result = { pool, currentTabId, rows: tabs.slice(), tabIds, extra, renamed };
   tabsOverCache.set(tabs, result);
   return result;

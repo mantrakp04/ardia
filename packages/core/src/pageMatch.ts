@@ -120,6 +120,20 @@ export class TopList {
 
 export const LEADING_ROWS = 5;
 
+export class TabList {
+  readonly items: Ranked[] = [];
+  offer(r: Ranked) {
+    const items = this.items;
+    if (items.length === LEADING_ROWS && !matchesAhead(r, items[items.length - 1]!)) return;
+    let i = items.length;
+    while (i > 0 && matchesAhead(r, items[i - 1]!)) i--;
+    items.splice(i, 0, r);
+    if (items.length > LEADING_ROWS) items.pop();
+  }
+}
+
+const matchesAhead = (a: Ranked, b: Ranked) => a.m > b.m || (a.m === b.m && a.s > b.s);
+
 export function leadingRows(ranked: readonly Ranked[], tabs: readonly Ranked[]): Ranked[] {
   const lead = ranked.slice(0, 3);
   const bar = lead.length ? lead[lead.length - 1]!.m : 0;

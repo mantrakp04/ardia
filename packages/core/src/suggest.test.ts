@@ -243,3 +243,34 @@ test("a well-matching open tab isn't pushed out by many weaker but busier histor
   assert.ok(at >= 0, "the renamed tab is listed");
   assert.ok(at < items.findIndex((s) => s.kind === "search" && s.suggested), "and sits above the remote suggestions");
 });
+
+test("a renamed copy of a tab is found by its own name, next to the original", () => {
+  const url = "https://boards.example.com/team";
+  const hist = [{ url, title: "Board - Tracker", favicon: null, visits: 30, lastVisit: now - 1000 }];
+  const tabs = [
+    { id: "t-original", url, title: "Board - Tracker", favicon: null },
+    { id: "t-copy", url, title: "Board - Tracker", favicon: null, customTitle: "Sprint Board (Copy)" },
+    { id: "t-fragment", url: `${url}#backlog`, title: "Board - Tracker", favicon: null, customTitle: "Sprint Backlog" },
+  ];
+  const pages = (q: string) => buildSuggestions(q, { tabs, history: hist }, { now, preference: "search" }).items.filter((s) => s.kind === "page");
+
+  assert.deepEqual(pages("sprint board copy").map((s) => s.kind === "page" && s.tabId), ["t-copy"]);
+  assert.deepEqual(pages("sprint backlog").map((s) => s.kind === "page" && s.tabId), ["t-fragment"]);
+  assert.deepEqual(pages("tracker").map((s) => s.kind === "page" && s.tabId).sort(), ["t-copy", "t-fragment", "t-original"]);
+});
+
+test("busy open tabs that match less well don't crowd out a better-matching renamed tab", () => {
+  const archive = Array.from({ length: 9 }, (_, i) => ({ url: `https://boards.example.com/archive-${i}`, title: "Sprint Board archive", favicon: null, visits: 400, lastVisit: now - 1000 }));
+  const items5 = Array.from({ length: 5 }, (_, i) => ({ url: `https://boards.example.com/item-${i}`, title: "sprint item - Board", favicon: null, visits: 400, lastVisit: now - 1000 }));
+  const quiet = "https://boards.example.com/team/delta";
+  const hist = [...archive, ...items5, { url: quiet, title: "delta - Board", favicon: null, visits: 8, lastVisit: now - DAY * 3 }];
+  const tabs = [
+    ...items5.map((h, i) => ({ id: `t-item-${i}`, url: h.url, title: h.title, favicon: null })),
+    { id: "t-delta", url: quiet, title: "delta - Board", favicon: null, customTitle: "Sprint Board (Delta)" },
+  ];
+  const remote = ["sprint board template", "sprint board app", "sprint board online", "sprint board ideas"];
+  const { items } = buildSuggestions("sprint board", { tabs, history: hist }, { now, preference: "search", remote });
+  const at = items.findIndex((s) => s.kind === "page" && s.tabId === "t-delta");
+  assert.ok(at >= 0, "the renamed tab is listed");
+  assert.ok(at < items.findIndex((s) => s.kind === "search" && s.suggested), "and sits above the remote suggestions");
+});

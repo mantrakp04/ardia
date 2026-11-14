@@ -5,7 +5,7 @@ import { extensionSuggestions } from "./extensionRows.ts";
 import { BUILT_IN_ENGINES, searchUrl } from "./engines.ts";
 import { matchActions } from "./fuzzy.ts";
 import { fixupUrl, hostOf, searchUrlFor } from "./omnibox.ts";
-import { LEADING_ROWS, leadingRows, matchScore, matchScoreWord, narrowing, parseQuery, remember, TopList, type Ranked } from "./pageMatch.ts";
+import { leadingRows, matchScore, matchScoreWord, narrowing, parseQuery, remember, TabList, TopList, type Ranked } from "./pageMatch.ts";
 import { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, type PageText } from "./pageText.ts";
 import { globalProviderRows, providerUrl, safeProviderRows, type ProviderSection, type ProviderSuggestion } from "./providerRows.ts";
 import { matchQuickCreate } from "./quickCreate.ts";
@@ -62,7 +62,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const scores: number[] = again ? from.scores : [];
   let found = 0;
   const top = new TopList(limit + 1);
-  const tabTop = new TopList(LEADING_ROWS);
+  const tabTop = new TabList();
   const onSite = scope ? new TopList(4) : null;
   const score = oneWord ? matchScoreWord : matchScore;
   const bound = Boolean(scope);
@@ -88,7 +88,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
       }
       const base = c.logVisits - age + (c.bookmarked ? 20 : 0);
       const tabId = c.tabId ?? tabIds.get(key);
-      if (tabId && !bound && (tabTop.floor < m + base + 6 - derank || tabTop.items.length < LEADING_ROWS)) tabTop.offer({ c, tabId, m, s: m + base + 6 - derank });
+      if (tabId && !bound) tabTop.offer({ c, tabId, m, s: m + base + 6 - derank });
       if (!bound && top.floor >= m + base - derank + 7) {
         if (!completes) continue;
         if (inline === null ? false : inline.s >= m + base - derank + 7) continue;
