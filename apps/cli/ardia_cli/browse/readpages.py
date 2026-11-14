@@ -16,6 +16,8 @@ SETTLE_QUIET = 0.3
 SETTLE_POLL = 0.1
 SAME_DOCUMENT_WAIT = 3.0
 MIN_USEFUL = 120
+THIN_WAIT = 5.0
+THIN_POLL = 0.5
 CUT_MARK = 24
 MAX_STDIN = 1024 * 1024
 PAGE_SHARE = 3000
@@ -453,6 +455,26 @@ async def goto(ctx, page, url: str, timeout: float):
     await page.refresh_frames()
 
 
+def thin(got: dict, selector: str | None) -> bool:
+    return (selector and not got.get("matched")) or len((got.get("text") or "").strip()) < MIN_USEFUL
+
+
+async def extract_filled(page, selector: str | None, timeout: float) -> dict:
+    from ardia_cli import command_metrics
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + min(THIN_WAIT, timeout)
+    got = await page.call(EXTRACT, selector, frame=page.main_frame, read=True)
+    waited = False
+    while thin(got, selector) and loop.time() + THIN_POLL < deadline:
+        waited = True
+        await asyncio.sleep(THIN_POLL)
+        got = await page.call(EXTRACT, selector, frame=page.main_frame, read=True)
+    if waited:
+        command_metrics.flag("read_waited_for_content", True)
+    return got
+
+
 async def read_in(ctx, page, url: str, selector: str | None, timeout: float, options: dict) -> dict:
     from ardia_cli.browse import readurl
 
@@ -467,7 +489,7 @@ async def read_in(ctx, page, url: str, selector: str | None, timeout: float, opt
             if selector:
                 record["note"] = f"{url} is a PDF, so -s {selector} doesn't apply; this is the whole document's text"
             return record
-        got = await page.call(EXTRACT, selector, frame=page.main_frame, read=True)
+        got = await extract_filled(page, selector, timeout)
     except ConnectionLost:
         raise
     except BrowseError as error:

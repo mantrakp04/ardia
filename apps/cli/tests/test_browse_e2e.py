@@ -649,6 +649,10 @@ class BrowseEndToEnd(unittest.TestCase):
         missing = self.browse("is", "visible", "#never", session=session, check=False)
         self.assertNotIn("waited", missing.stdout + missing.stderr)
 
+    def test_read_waits_for_a_page_that_hydrates_late(self):
+        out = self.browse("read", self.url("late.html"), session="late-read").stdout
+        self.assertIn("Result card 12", out)
+
     def test_read_reads_every_named_url_past_the_link_limit(self):
         urls = [self.url(f"picker.html?n={number}") for number in range(25)]
         pages = json.loads(self.browse("read", *urls, "--http", "--json", session="many-urls").stdout)["data"]["pages"]
