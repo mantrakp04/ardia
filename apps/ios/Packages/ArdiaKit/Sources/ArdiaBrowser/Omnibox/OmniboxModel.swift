@@ -68,11 +68,17 @@ extension OmniboxCandidates {
       }
       walk(profile.bookmarks)
       for tile in profile.pinned.tiles {
-        bookmarks.append(Bookmark(url: tile.url, title: tile.title, favicon: tile.icon))
-        for tab in tile.folder ?? [] { bookmarks.append(Bookmark(url: tab.url, title: tab.title, favicon: tab.icon)) }
+        bookmarks.append(Bookmark(url: tile.url, title: tile.title, favicon: Self.faviconAddress(for: tile.mark)))
+        for tab in tile.folder ?? [] { bookmarks.append(Bookmark(url: tab.url, title: tab.title, favicon: Self.faviconAddress(for: tab.mark))) }
       }
     }
     return OmniboxCandidates(tabs: openTabs, history: order.compactMap { history[$0] }, bookmarks: bookmarks)
+  }
+
+  static func faviconAddress(for mark: SyncedIcon?) -> String? {
+    switch mark {
+    case .symbol, .emoji, .initial, nil: nil
+    }
   }
 }
 

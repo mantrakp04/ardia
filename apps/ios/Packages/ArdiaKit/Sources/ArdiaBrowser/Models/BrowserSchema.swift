@@ -112,8 +112,10 @@ public typealias BrowserTab = BrowserSchemaV1.BrowserTab
 public typealias Visit = BrowserSchemaV1.Visit
 
 public enum BrowserMigrationPlan: SchemaMigrationPlan {
-  public static var schemas: [any VersionedSchema.Type] { [BrowserSchemaV1.self] }
-  public static var stages: [MigrationStage] { [] }
+  public static var schemas: [any VersionedSchema.Type] { [BrowserSchemaV1.self, BrowserSchemaV2.self] }
+  public static var stages: [MigrationStage] {
+    [.lightweight(fromVersion: BrowserSchemaV1.self, toVersion: BrowserSchemaV2.self)]
+  }
 }
 
 public enum BrowserStoreLocation: Sendable {
@@ -126,14 +128,14 @@ public enum BrowserStore {
   public static let appGroupIdentifier = "group.com.ardia.browser.ios"
 
   public static func makeContainer(_ location: BrowserStoreLocation) throws -> ModelContainer {
-    let schema = Schema(versionedSchema: BrowserSchemaV1.self)
+    let schema = Schema(versionedSchema: BrowserSchemaV2.self)
     let configuration: ModelConfiguration
     switch location {
     case .inMemory:
       configuration = ModelConfiguration("Browser", schema: schema, isStoredInMemoryOnly: true, allowsSave: true)
     case .directory(let directory):
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-      configuration = ModelConfiguration(schema: schema, url: directory.appending(path: "Browser.store"))
+      configuration = ModelConfiguration("Browser", schema: schema, url: directory.appending(path: "Browser.store"))
     case .appGroup:
       if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) != nil {
         configuration = ModelConfiguration("Browser", schema: schema, groupContainer: .identifier(appGroupIdentifier))

@@ -15,7 +15,7 @@ struct ArchiveView: View {
     NavigationStack {
       content
         .lookBackdrop()
-        .navigationTitle("Archive")
+        .navigationTitle(app.currentSpace.map { String(localized: "\($0.name) Archive") } ?? String(localized: "Archive"))
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search Archive")
         .toolbar {
@@ -27,7 +27,7 @@ struct ArchiveView: View {
         .confirmationDialog("Delete All Archived Tabs?", isPresented: $isConfirmingClear, titleVisibility: .visible) {
           Button("Delete All", role: .destructive) {
             deleteAllTicks += 1
-            app.tabs.clearArchive()
+            app.tabs.clearSpaceArchive()
           }
         } message: {
           Text("This can’t be undone.")

@@ -16,7 +16,6 @@ public enum TabsPalette {
 
 public enum TabsLayout {
   public static let cardRadius: CGFloat = 13
-  public static let displayCornerRadius: CGFloat = 55
   public static let faviconSize: CGFloat = 16
   public static let faviconRadius: CGFloat = 4
   public static let headerSpacing: CGFloat = 6
@@ -27,6 +26,14 @@ public enum TabsLayout {
   public static let tileRadius: CGFloat = 16
   public static let archiveCardRadius: CGFloat = 16
   public static let archiveCardTile: CGFloat = 28
+  public static let deckHeaderHeight = GlassMetrics.hitTarget
+  public static let bannerHeight = GlassMetrics.hitTarget
+  public static let deckChromeGap = Tokens.Space.m
+  public static let deckChromeTop = Tokens.Space.xs
+  public static let deckChromeToCards = Tokens.Space.l
+  public static let bannerMinWindowHeight = ChromeLayout.sidebarMinHeight
+  public static let deckScrollFade = Tokens.Space.l
+  public static let closeGlyph: CGFloat = 22
 }
 
 public enum TabsMotion {

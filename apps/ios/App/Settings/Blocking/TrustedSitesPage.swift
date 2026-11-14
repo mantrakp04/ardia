@@ -18,12 +18,7 @@ struct TrustedSitesPage: View {
         List {
           Section {
             ForEach(hosts, id: \.self) { host in
-              Label {
-                Text(verbatim: host)
-              } icon: {
-                Image(systemName: "globe")
-                  .foregroundStyle(.secondary)
-              }
+              Text(verbatim: host)
             }
             .onDelete { offsets in
               for index in offsets { app.blocking.setExempt(hosts[index], false) }

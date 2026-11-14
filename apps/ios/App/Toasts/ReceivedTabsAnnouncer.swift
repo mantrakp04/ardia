@@ -17,7 +17,8 @@ struct ReceivedTabsAnnouncer: ViewModifier {
     app.tabs.clearLastReceived()
     let sender = ReceivedTabsSender.name(senders: received.map(\.receivedFromDevice))
     let ids = received.map(\.id)
-    center.show(.tabReceived(from: sender, count: ids.count) { [app] in
+    let kind = app.sync.snapshot.devices.first { $0.name == sender }?.kind
+    center.show(.tabReceived(from: sender, kind: kind, count: ids.count) { [app] in
       if ids.count == 1, let id = ids.first {
         app.openTab(id)
       } else {

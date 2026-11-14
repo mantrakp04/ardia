@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+import ArdiaSync
 import Foundation
 import Observation
 import UIKit
@@ -41,11 +42,13 @@ public final class WebTab: DiscardablePage, Identifiable {
   public let blockedResources = BlockedResourceCounter()
 
   public var isLive: Bool { webView != nil }
+  private var liveLastVisit: Visit? { lastVisit.flatMap { $0.isDeleted || $0.modelContext == nil ? nil : $0 } }
   public let isPrivate: Bool
   public var host: String? { url.flatMap { BrowserURL.host(of: $0.absoluteString) } }
 
   @ObservationIgnored weak var engine: WebEngine?
   @ObservationIgnored private var popupConfiguration: WKWebViewConfiguration?
+  public internal(set) var siteVersionOverride: SiteVersion?
   @ObservationIgnored private var coordinator: WebTabCoordinator?
   @ObservationIgnored private var observations: [NSKeyValueObservation] = []
   @ObservationIgnored private var progressThrottle = ProgressThrottle()
@@ -193,9 +196,10 @@ public final class WebTab: DiscardablePage, Identifiable {
   public func makeLive() {
     guard webView == nil, let engine else { return }
     let isPopup = popupConfiguration != nil
-    let configuration = popupConfiguration ?? Self.makeConfiguration(dataStore: isPrivate ? engine.privateDataStore() : .default())
+    let configuration = popupConfiguration ?? Self.makeConfiguration(dataStore: isPrivate ? engine.privateDataStore() : .default(), version: siteVersion)
     popupConfiguration = nil
     let webView = FindReportingWebView(frame: .zero, configuration: configuration)
+    webView.customUserAgent = siteVersion.customUserAgent
     webView.onFindSessionChange = { [weak self] active in self?.isFindingInPage = active }
     let coordinator = WebTabCoordinator(tab: self)
     self.coordinator = coordinator
@@ -257,12 +261,12 @@ public final class WebTab: DiscardablePage, Identifiable {
     engine.tabs.saveInteractionState(webView.interactionState as? Data, for: id)
   }
 
-  static func makeConfiguration(dataStore: WKWebsiteDataStore) -> WKWebViewConfiguration {
+  static func makeConfiguration(dataStore: WKWebsiteDataStore, version: SiteVersion = SiteVersion.current) -> WKWebViewConfiguration {
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = dataStore
     configuration.userContentController = WKUserContentController()
     configuration.applicationNameForUserAgent = BrowserUserAgent.applicationName
-    configuration.defaultWebpagePreferences.preferredContentMode = .mobile
+    configuration.defaultWebpagePreferences.preferredContentMode = version.contentMode
     configuration.defaultWebpagePreferences.allowsContentJavaScript = true
     configuration.allowsInlineMediaPlayback = true
     configuration.allowsPictureInPictureMediaPlayback = true
@@ -320,7 +324,7 @@ public final class WebTab: DiscardablePage, Identifiable {
     guard !newTitle.isEmpty, newTitle != title else { return }
     title = newTitle
     engine?.tabs.update(id, title: newTitle)
-    if let lastVisit, lastVisit.url == url?.absoluteString { engine?.tabs.amend(lastVisit, title: newTitle) }
+    if let lastVisit = liveLastVisit, lastVisit.url == url?.absoluteString { engine?.tabs.amend(lastVisit, title: newTitle) }
   }
 
   private func colorsChanged(theme: UIColor?, underPage: UIColor?) {
@@ -388,6 +392,7 @@ public final class WebTab: DiscardablePage, Identifiable {
   }
 
   fileprivate func didCommit() {
+    engine?.pageCommitted(id)
     blockedResources.reset()
     scrollTracker.reset()
     if scrollDirection != .up { scrollDirection = .up }
@@ -401,7 +406,7 @@ public final class WebTab: DiscardablePage, Identifiable {
     }
     guard let engine, let committed = webView?.url?.absoluteString else { return }
     if type == .reload { return }
-    if type == .other, now.timeIntervalSince(lastCommit) < 1.5, let lastVisit {
+    if type == .other, now.timeIntervalSince(lastCommit) < 1.5, let lastVisit = liveLastVisit {
       engine.tabs.amend(lastVisit, url: committed)
       return
     }
@@ -506,7 +511,7 @@ public final class WebTab: DiscardablePage, Identifiable {
     guard error.domain == NSURLErrorDomain else { return String(localized: "Something went wrong while loading this page. Try again.") }
     switch error.code {
     case NSURLErrorNotConnectedToInternet, NSURLErrorDataNotAllowed:
-      return String(localized: "Your iPhone isn’t connected to the internet.")
+      return ThisDevice.current.offlineMessage
     case NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed:
       return String(localized: "The server can’t be found. Check the address and try again.")
     case NSURLErrorTimedOut:
@@ -539,6 +544,7 @@ final class WebTabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, UIS
        engine.preferences.appLinks(for: targetHost, isPrivate: tab.isPrivate) == .app, let open = engine.openUniversalLink, await open(target) {
       return (.cancel, preferences)
     }
+    preferences.preferredContentMode = tab.siteVersion.contentMode
     return (tab.decidePolicy(for: navigationAction, preferences: preferences), preferences)
   }
 
@@ -636,34 +642,33 @@ final class WebTabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, UIS
 
   func webView(_ webView: WKWebView, decideMediaCapturePermissionsFor origin: WKSecurityOrigin, initiatedBy frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision {
     guard let tab, let engine = tab.engine else { return .deny }
-    let key = "\(origin.protocol)://\(origin.host):\(origin.port)#\(type.rawValue)"
-    if engine.isCaptureGranted(key, isPrivate: tab.isPrivate) { return .grant }
-    let session = engine.privateSession
     let kind: MediaCaptureKind = switch type {
     case .camera: .camera
     case .microphone: .microphone
     default: .cameraAndMicrophone
     }
+    let needed = SitePermission.permissions(for: kind)
+    if engine.allows(needed, origin: origin, page: tab) { return .grant }
+    let session = engine.privateSession
     let answer: PageRequest.Answer = await withCheckedContinuation { continuation in
       tab.handle(PageRequest(kind: .mediaCapture(kind), host: origin.host) { continuation.resume(returning: $0) })
     }
     guard case .accepted = answer else { return .deny }
     guard tab.webView === webView else { return .deny }
-    engine.grantCapture(key, isPrivate: tab.isPrivate, session: session)
+    engine.grant(needed, origin: origin, page: tab, session: session)
     return .grant
   }
 
   func webView(_ webView: WKWebView, requestGeolocationPermissionFor origin: WKSecurityOrigin, initiatedBy frame: WKFrameInfo) async -> WKPermissionDecision {
     guard let tab, let engine = tab.engine else { return .deny }
-    let key = "\(origin.protocol)://\(origin.host):\(origin.port)#location"
-    if engine.isCaptureGranted(key, isPrivate: tab.isPrivate) { return .grant }
+    if engine.allows([.location], origin: origin, page: tab) { return .grant }
     let session = engine.privateSession
     let answer: PageRequest.Answer = await withCheckedContinuation { continuation in
       tab.handle(PageRequest(kind: .location, host: origin.host) { continuation.resume(returning: $0) })
     }
     guard case .accepted = answer else { return .deny }
     guard tab.webView === webView else { return .deny }
-    engine.grantCapture(key, isPrivate: tab.isPrivate, session: session)
+    engine.grant([.location], origin: origin, page: tab, session: session)
     return .grant
   }
 

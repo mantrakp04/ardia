@@ -74,7 +74,7 @@ final class ToastCenter {
 
   private func scheduleDismissal(of id: UUID, after duration: Duration) {
     dismissal?.cancel()
-    guard !isHeld else { return }
+    guard !isHeld, !ToastDemo.holdsOnScreen else { return }
     dismissal = Task { [weak self] in
       try? await Task.sleep(for: duration)
       guard !Task.isCancelled, let self, self.current?.id == id else { return }

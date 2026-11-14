@@ -6,7 +6,8 @@ import UIKit
 
 extension AppModel {
   func connectServices() {
-    sync.source = tabs
+    if !usesFallbackStore { sync.source = tabs }
+    warnIfStoreIsFallback()
     web.omnibox = omnibox
     web.downloads.onOutcome = { [weak self] outcome in self?.announceDownload(outcome) }
     tabs.onLocalChange = { [weak self] in self?.sync.localDidChange() }

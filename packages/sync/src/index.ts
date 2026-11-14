@@ -8,3 +8,4 @@ export * from "./records.ts";
 export * from "./scope.ts";
 export * from "./scopeState.ts";
 export * from "./sharedFolders.ts";
+export type { ViewTheme, ViewThemeLook, ViewThemeStop } from "./companion/looks.ts";

@@ -13,18 +13,20 @@ final class AppModel {
     case tabSwitcher
   }
 
-  enum Sheet: String, Identifiable {
+  enum Sheet: Hashable, Identifiable {
     case settings
     case syncSetup
     case onboarding
     case archive
     case syncedSpaces
+    case library(LibrarySection)
 
-    var id: String { rawValue }
+    var id: Self { self }
   }
 
   let isDemo: Bool
   let container: ModelContainer
+  let usesFallbackStore: Bool
   let tabs: TabStore
   let blocking: BlockingSettings
   let blocker: ContentBlocker
@@ -48,12 +50,9 @@ final class AppModel {
     self.isDemo = isDemo
     let defaults = isDemo ? (UserDefaults(suiteName: "ardia.demo") ?? .standard) : .standard
     if isDemo { defaults.removePersistentDomain(forName: "ardia.demo") }
-    let container: ModelContainer
-    do {
-      container = try BrowserStore.makeContainer(isDemo ? .inMemory : .appGroup)
-    } catch {
-      container = try! BrowserStore.makeContainer(.inMemory)
-    }
+    let store = Self.openBrowserStore(isDemo: isDemo)
+    let container = store.container
+    usesFallbackStore = store.isFallback
     self.container = container
     tabs = TabStore(context: container.mainContext, defaults: defaults)
     blocking = BlockingSettings(defaults: defaults)
@@ -69,6 +68,7 @@ final class AppModel {
     sync = isDemo ? .demo : SyncService()
     omnibox = Omnibox()
     connectServices()
+    connectSpaces()
   }
 
   static func launch() -> AppModel {

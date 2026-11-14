@@ -29,6 +29,10 @@ struct ToneColor: Hashable {
 
   var color: Color { Color(.sRGB, red: red, green: green, blue: blue) }
 
+  var hexString: String {
+    String(format: "#%02X%02X%02X", Int((red * 255).rounded()), Int((green * 255).rounded()), Int((blue * 255).rounded()))
+  }
+
   var luminance: Double {
     func linear(_ channel: Double) -> Double {
       channel <= 0.03928 ? channel / 12.92 : pow((channel + 0.055) / 1.055, 2.4)

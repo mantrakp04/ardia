@@ -90,18 +90,18 @@ struct TabEntityQuery: EntityStringQuery {
 
   @MainActor
   func suggestedEntities() async throws -> [TabEntity] {
-    app.tabs.openTabs.sorted { $0.lastActive > $1.lastActive }.map(TabEntity.init)
+    app.tabs.allOpenTabs.sorted { $0.lastActive > $1.lastActive }.map(TabEntity.init)
   }
 
   @MainActor
   func entities(matching string: String) async throws -> [TabEntity] {
     let needle = string.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !needle.isEmpty else { return try await suggestedEntities() }
-    let open = app.tabs.openTabs.filter {
+    let open = app.tabs.allOpenTabs.filter {
       $0.title.localizedStandardContains(needle) || $0.url.localizedStandardContains(needle)
     }
     let openIDs = Set(open.map(\.id))
-    let archived = app.tabs.searchArchive(needle).filter { !openIDs.contains($0.id) }.prefix(Self.archiveSearchLimit)
+    let archived = app.tabs.searchArchive(needle, inAllSpaces: true).filter { !openIDs.contains($0.id) }.prefix(Self.archiveSearchLimit)
     return (open.sorted { $0.lastActive > $1.lastActive } + archived).map(TabEntity.init)
   }
 }

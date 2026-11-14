@@ -5,29 +5,21 @@ struct ToastView: View {
   let toast: Toast
 
   var body: some View {
-    HStack(spacing: Spacing.tight) {
+    HStack(spacing: Tokens.Space.m) {
       Image(systemName: toast.symbol)
-        .font(.subheadline.weight(.semibold))
+        .font(Typography.row.weight(Tokens.Weight.semibold))
         .symbolRenderingMode(.hierarchical)
         .accessibilityHidden(true)
       Text(toast.message)
-        .font(.subheadline.weight(.semibold))
+        .font(Typography.row.weight(Tokens.Weight.semibold))
         .multilineTextAlignment(.leading)
         .lineLimit(3)
     }
-    .foregroundStyle(.primary)
-    .padding(.horizontal, Spacing.page)
-    .padding(.vertical, 11)
-    .frame(minHeight: 44)
-    .background {
-      Capsule(style: .continuous)
-        .fill(Palette.toast)
-        .overlay {
-          Capsule(style: .continuous)
-            .strokeBorder(Palette.panelBorder, lineWidth: 0.5)
-        }
-        .shadow(color: Palette.toastShadow, radius: 14, y: 6)
-    }
+    .foregroundStyle(Tokens.Role.textPrimary)
+    .padding(.horizontal, Tokens.Space.xl)
+    .padding(.vertical, Tokens.Space.ml)
+    .frame(minHeight: GlassMetrics.hitTarget)
+    .glassPanel(.capsule)
     .contentShape(Capsule())
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(toast.onTap == nil ? .isStaticText : .isButton)
@@ -35,8 +27,8 @@ struct ToastView: View {
 }
 
 struct ToastOverlay: ViewModifier {
-  static let barClearance: CGFloat = 64
-  static let sheetClearance: CGFloat = 12
+  static let barClearance = BarMetrics.toastClearance
+  static let sheetClearance = Tokens.Space.l
 
   let center: ToastCenter
   var clearance: () -> CGFloat = { ToastOverlay.barClearance }
@@ -50,9 +42,9 @@ struct ToastOverlay: ViewModifier {
         ZStack {
           if let toast = center.current {
             ToastView(toast: toast)
-              .padding(.horizontal, Spacing.page * 2)
+              .padding(.horizontal, Tokens.Space.huge)
               .padding(.bottom, center.isKeyboardVisible ? 0 : clearance())
-              .padding(.top, center.isKeyboardVisible ? 4 : 0)
+              .padding(.top, center.isKeyboardVisible ? Tokens.Space.xs : 0)
               .offset(y: max(dragOffset, dragOffset / 4))
               .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onInteractiveFrame($0) }
               .onDisappear { onInteractiveFrame(.null) }
@@ -111,7 +103,7 @@ extension View {
 
 #Preview("Toasts") {
   @Previewable @State var center = ToastCenter()
-  VStack(spacing: Spacing.small) {
+  VStack(spacing: Tokens.Space.l) {
     Button("Copied URL") { center.show(.copiedURL) }
     Button("Cleared Browsing Data") { center.show(.clearedBrowsingData) }
     Button("Tab From Mac") { center.show(.tabReceived(from: "Luke's MacBook Pro")) }
@@ -122,7 +114,7 @@ extension View {
 }
 
 #Preview("Toast Styles") {
-  VStack(spacing: Spacing.small) {
+  VStack(spacing: Tokens.Space.l) {
     ToastView(toast: .copiedURL)
     ToastView(toast: .clearedBrowsingData)
     ToastView(toast: .tabReceived(from: "Luke's MacBook Pro"))

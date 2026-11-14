@@ -19,9 +19,9 @@ public extension Color {
 }
 
 public enum BrowsePalette {
-  public static let foregroundPrimary = Color.adaptive(light: Color(hex: 0x0E0F10, opacity: 0.9), dark: .white.opacity(0.8))
-  public static let foregroundSecondary = Color.adaptive(light: .black.opacity(0.5), dark: .white.opacity(0.5))
-  public static let foregroundTertiary = Color.adaptive(light: .black.opacity(0.3), dark: .white.opacity(0.3))
+  public static let foregroundPrimary = Tokens.Role.textTab.color
+  public static let foregroundSecondary = Tokens.Role.textSecondary.color
+  public static let foregroundTertiary = Tokens.Role.textTertiary.color
   public static let popover = Palette.panel
   public static let loadingBorder = Palette.accent
   public static let findError = Color(hex: 0xC93333)
@@ -46,18 +46,57 @@ public enum BrowseLayout {
   public static let trayFieldTop: CGFloat = 15
   public static let trayDim: Double = 0.28
   public static let logoSize: CGFloat = 132
-  public static let plusCapsule = CGSize(width: 84, height: 40)
-  public static let barPillHeight: CGFloat = 54
-  public static let barPillPadding: CGFloat = 5
   public static let tabStackRadius: CGFloat = 5
   public static let tabStackTile = CGSize(width: 20, height: 26)
-  public static let barCenterFromBottom: CGFloat = 44
-  public static let barSideInset: CGFloat = 20
   public static let hitTarget: CGFloat = 44
   public static let barHeight: CGFloat = 75
   public static let barCollapseTravel: CGFloat = 30
   public static let progressHeight: CGFloat = 2.5
   public static let toolbarTile: CGFloat = 78
+}
+
+public enum BarMetrics {
+  public static let pieceHeight = GlassMetrics.hitTarget + Tokens.Space.xs
+  public static let pieceGap = Tokens.Space.m
+  public static let sideInset = Tokens.Space.l
+  public static let maxWidth: CGFloat = 560
+  public static let homeIndicatorShare = Tokens.Space.l
+  public static let cornerMargin = Tokens.Space.xs
+  public static let pageGap = Tokens.Space.m
+  public static let compactHeight = GlassMetrics.pillHeight
+  public static let compactShape = GlassControlShape.pill
+  public static let compactMaxWidth: CGFloat = 220
+  public static let addressGlyph = Tokens.Space.xl
+  public static let compactGlyph = Tokens.Space.l
+  public static let railBadgeOffset = Tokens.Space.s
+  public static let addressGap = Tokens.Space.s
+  public static let railPieces: CGFloat = 4
+  public static let toastClearance = pieceHeight + Tokens.Space.l
+  public static let tabStackWidth = Tokens.Space.huge
+}
+
+public enum TrayMetrics {
+  public static let sideInset = Tokens.Space.m
+  public static let keyboardGap = Tokens.Space.m
+  public static let contentInset = Tokens.Space.m
+  public static let fieldLeading = Tokens.Space.l
+  public static let fieldTrailing = Tokens.Space.ml
+  public static let fieldGap = Tokens.Space.m
+  public static let accessorySize = CGSize(width: Tokens.Space.huge, height: GlassMetrics.hitTarget - Tokens.Space.xs)
+}
+
+public enum PageMenuLayout {
+  public static let inset = Tokens.Space.xl
+  public static let groupRadius = Tokens.Radius.hero
+  public static let rowHeight = GlassMetrics.hitTarget + Tokens.Space.s
+  public static let tileHeight = GlassMetrics.hitTarget
+  public static let rowPadding = Tokens.Space.xl
+  public static let rowGap = Tokens.Space.l
+  public static let tileGap = Tokens.Space.m
+  public static let zoomButton = CGSize(width: GlassMetrics.hitTarget - Tokens.Space.xs, height: GlassMetrics.hitTarget - Tokens.Space.ml)
+  public static let zoomValueWidth = Tokens.Space.huge + Tokens.Space.xl
+  public static let minimumHeight = Tokens.Space.huge * 6
+  public static let popoverWidth = SidebarMetrics.touch(256)
 }
 
 public extension Motion {

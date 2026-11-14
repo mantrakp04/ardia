@@ -17,8 +17,9 @@ public final class WebEngine {
   public var isInspectable = false
   @ObservationIgnored public var openExternalURL: (@MainActor (URL) -> Void)?
 
-  @ObservationIgnored private var grantedCapture: Set<String> = []
-  @ObservationIgnored private var privateGrantedCapture: Set<String> = []
+  @ObservationIgnored private var sessionGrants: [String: Set<SitePermission>] = [:]
+  @ObservationIgnored private var privateGrants: [String: Set<SitePermission>] = [:]
+  @ObservationIgnored private var permissionUse = SitePermissionUse()
   @ObservationIgnored private(set) var privateSession = 0
   @ObservationIgnored private let roster = LivePageRoster<WebTab>(limit: WebEngine.liveLimit)
   @ObservationIgnored private var notificationTasks: [Task<Void, Never>] = []
@@ -27,15 +28,17 @@ public final class WebEngine {
   @ObservationIgnored public var omnibox: Omnibox?
   @ObservationIgnored private let pageScriptControllers = NSHashTable<WKUserContentController>.weakObjects()
   @ObservationIgnored private var sharedPrivateDataStore: WKWebsiteDataStore?
+  @ObservationIgnored private var backgroundDownloader: WKWebView?
 
   public let preferences: BrowsingPreferences
 
-  public init(tabs: TabStore, blocker: ContentBlocker, preferences: BrowsingPreferences, downloads: DownloadManager = DownloadManager(), snapshots: TabSnapshotStore = TabSnapshotStore()) {
+  public init(tabs: TabStore, blocker: ContentBlocker, preferences: BrowsingPreferences, downloads: DownloadManager? = nil, snapshots: TabSnapshotStore = TabSnapshotStore()) {
     self.tabs = tabs
     self.blocker = blocker
     self.preferences = preferences
-    self.downloads = downloads
+    self.downloads = downloads ?? DownloadManager.forStore(tabs.context)
     self.snapshots = snapshots
+    self.downloads.startDownload = { [weak self] url in self?.startDownload(url) }
     preferences.onNightShadeChange = { [weak self] in self?.broadcastNightShade() }
     preferences.onSwipeNavigationChange = { [weak self] in self?.applySwipeNavigationPreference() }
     tabs.onTabsArchived = { [weak self] ids in
@@ -70,6 +73,10 @@ public final class WebEngine {
     roster.page(id)
   }
 
+  var livePages: [WebTab] {
+    roster.liveIDs.compactMap { roster.page($0) }
+  }
+
   public func openLink(_ url: URL, from tabID: UUID, inBackground: Bool) {
     let tab = tabs.open(.url(url, origin: .link), placement: .after(tabID), selecting: !inBackground)
     if !inBackground { _ = webTab(for: tab.id) }
@@ -80,6 +87,21 @@ public final class WebEngine {
     webView.startDownload(using: URLRequest(url: url)) { [weak self] download in
       self?.downloads.track(download)
     }
+  }
+
+  public func startDownload(_ url: URL) {
+    let page = roster.liveIDs.lazy.compactMap { self.roster.page($0) }.first { !$0.isPrivate && $0.webView != nil }
+    let webView = page?.webView ?? downloaderWebView()
+    webView.startDownload(using: URLRequest(url: url)) { [weak self] download in
+      self?.downloads.track(download)
+    }
+  }
+
+  private func downloaderWebView() -> WKWebView {
+    if let backgroundDownloader { return backgroundDownloader }
+    let webView = WKWebView(frame: .zero, configuration: WebTab.makeConfiguration(dataStore: .default()))
+    backgroundDownloader = webView
+    return webView
   }
 
   public func copyLink(_ url: URL) {
@@ -106,21 +128,69 @@ public final class WebEngine {
     return store
   }
 
-  func isCaptureGranted(_ key: String, isPrivate: Bool) -> Bool {
-    isPrivate ? privateGrantedCapture.contains(key) : grantedCapture.contains(key)
+  func allows(_ permissions: Set<SitePermission>, origin: WKSecurityOrigin, page: WebTab) -> Bool {
+    guard isGranted(permissions, origin: origin, isPrivate: page.isPrivate) else { return false }
+    noteUse(permissions, origin: origin, page: page)
+    return true
   }
 
-  func grantCapture(_ key: String, isPrivate: Bool, session: Int) {
-    if isPrivate {
-      guard session == privateSession else { return }
-      privateGrantedCapture.insert(key)
-    } else {
-      grantedCapture.insert(key)
+  func isGranted(_ permissions: Set<SitePermission>, origin: WKSecurityOrigin, isPrivate: Bool) -> Bool {
+    switch SitePermissionMemory(scheme: origin.protocol, isPrivate: isPrivate) {
+    case .saved: preferences.isGranted(permissions, host: Self.siteKey(origin))
+    case .session: permissions.isSubset(of: sessionGrants[Self.originKey(origin)] ?? [])
+    case .privateSession: permissions.isSubset(of: privateGrants[Self.originKey(origin)] ?? [])
     }
   }
 
+  func grant(_ permissions: Set<SitePermission>, origin: WKSecurityOrigin, page: WebTab, session: Int) {
+    let key = Self.originKey(origin)
+    switch SitePermissionMemory(scheme: origin.protocol, isPrivate: page.isPrivate) {
+    case .saved:
+      preferences.grant(permissions, host: Self.siteKey(origin))
+      noteUse(permissions, origin: origin, page: page)
+    case .session:
+      sessionGrants[key, default: []].formUnion(permissions)
+    case .privateSession:
+      guard session == privateSession else { return }
+      privateGrants[key, default: []].formUnion(permissions)
+    }
+  }
+
+  public func revoke(_ permissions: Set<SitePermission>, host: String) {
+    preferences.revoke(permissions, host: host)
+    let site = SitePermissionSite.normalize(host)
+    let users = permissionUse.tabs(using: permissions, site: site)
+    for id in roster.liveIDs {
+      guard let page = roster.page(id), !page.isPrivate, let webView = page.webView else { continue }
+      let topLevel = page.url.map { SitePermissionSite.key(host: $0.host() ?? "", port: $0.port ?? 0) }
+      guard users.contains(id) || topLevel == site else { continue }
+      if permissions.contains(.camera) { webView.setCameraCaptureState(.none) }
+      if permissions.contains(.microphone) { webView.setMicrophoneCaptureState(.none) }
+      permissionUse = permissionUse.forgetting(tab: id)
+      page.reload()
+    }
+  }
+
+  func pageCommitted(_ id: UUID) {
+    permissionUse = permissionUse.forgetting(tab: id)
+  }
+
+  private func noteUse(_ permissions: Set<SitePermission>, origin: WKSecurityOrigin, page: WebTab) {
+    guard SitePermissionMemory(scheme: origin.protocol, isPrivate: page.isPrivate) == .saved else { return }
+    permissionUse = permissionUse.recording(permissions, site: Self.siteKey(origin), tab: page.id)
+  }
+
+  private static func siteKey(_ origin: WKSecurityOrigin) -> String {
+    SitePermissionSite.key(host: origin.host, port: origin.port)
+  }
+
+  private static func originKey(_ origin: WKSecurityOrigin) -> String {
+    "\(origin.protocol)://\(origin.host):\(origin.port)"
+  }
+
   private func endPrivateBrowsing() {
-    privateGrantedCapture.removeAll()
+    privateGrants.removeAll()
+    downloads.endPrivateBrowsing()
     privateSession += 1
     preferences.endPrivateBrowsing()
     blocker.settings.endPrivateBrowsing()
@@ -154,6 +224,7 @@ public final class WebEngine {
   func openPopup(from opener: WebTab, url: URL, configuration: WKWebViewConfiguration) -> WKWebView? {
     let tab = tabs.open(.url(url, origin: .link), placement: .after(opener.id), selecting: true)
     let page = WebTab(id: tab.id, engine: self, url: url, popupConfiguration: configuration)
+    page.siteVersionOverride = opener.siteVersionOverride
     roster.register(page, for: tab.id)
     roster.activate(tab.id)
     return page.webView

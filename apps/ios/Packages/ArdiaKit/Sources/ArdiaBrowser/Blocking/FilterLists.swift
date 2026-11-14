@@ -1,3 +1,4 @@
+import ArdiaSync
 import CryptoKit
 import Foundation
 import Observation
@@ -690,7 +691,7 @@ public final class FilterLists {
   static func message(for error: any Error) -> String {
     if let error = error as? FilterListError { return error.message }
     switch (error as? URLError)?.code {
-    case .notConnectedToInternet?, .networkConnectionLost?: return String(localized: "Your iPhone isn’t connected to the internet.")
+    case .notConnectedToInternet?, .networkConnectionLost?: return ThisDevice.current.offlineMessage
     case .timedOut?: return String(localized: "The server took too long to respond. Ardia will try again later.")
     case .cannotFindHost?, .dnsLookupFailed?: return String(localized: "The server can’t be found. Check the address and try again.")
     default: return String(localized: "This list couldn’t be downloaded. Ardia will try again later.")

@@ -42,11 +42,17 @@ final class TabDeckModel {
 
   var hasShownArchiveCard: Bool {
     get { defaults.bool(forKey: Self.archiveCardKey) }
-    set { defaults.set(newValue, forKey: Self.archiveCardKey) }
+    set {
+      defaults.set(newValue, forKey: Self.archiveCardKey)
+      archiveAnswerRevision &+= 1
+    }
   }
 
+  var archiveAnswerRevision = 0
+
   func shouldOfferArchiveCard(openTabs: Int) -> Bool {
-    !hasShownArchiveCard && openTabs >= Self.archiveCardThreshold
+    _ = archiveAnswerRevision
+    return !hasShownArchiveCard && openTabs >= Self.archiveCardThreshold
   }
 
   func memoryImage(for id: UUID) -> UIImage? {

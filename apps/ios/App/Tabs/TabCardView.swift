@@ -7,6 +7,7 @@ struct TabCardContent: View {
   let isIncognito: Bool
   let memoryImage: UIImage?
   let snapshots: TabSnapshotStore
+  var fillsCard = false
 
   @State private var stored: CGImage?
 
@@ -16,12 +17,12 @@ struct TabCardContent: View {
       if let memoryImage {
         Image(uiImage: memoryImage)
           .resizable()
-          .scaledToFit()
+          .aspectRatio(contentMode: fillsCard ? .fill : .fit)
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       } else if let stored {
         Image(decorative: stored, scale: 1)
           .resizable()
-          .scaledToFit()
+          .aspectRatio(contentMode: fillsCard ? .fill : .fit)
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
           .transition(.opacity)
       } else {
@@ -131,9 +132,8 @@ struct IncognitoGlyph: View {
 
 struct ReceivedBadge: View {
   var body: some View {
-    Label("From Your Mac", systemImage: "macbook")
+    Text("From Your Mac")
       .font(.caption2.weight(.semibold))
-      .labelStyle(.titleAndIcon)
       .foregroundStyle(Palette.onPrimaryAction)
       .padding(.horizontal, 8)
       .padding(.vertical, 4)

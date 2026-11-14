@@ -6,6 +6,15 @@ on:
       - "apps/ios/**"
       - "packages/sync/**"
       - "packages/core/**"
+      - "apps/browser/src/components/ui/tokens.ts"
+      - "apps/browser/src/components/ui/motion.ts"
+      - "apps/browser/src/components/window/tokens.ts"
+      - "apps/browser/src/lib/color.ts"
+      - "apps/browser/src/lib/profileLook.ts"
+      - "apps/browser/src/state/sync/fixtures/theme-backdrops.json"
+      - "apps/browser/src/components/window/dockMotion.ts"
+      - "apps/browser/src/components/window/usePeek.ts"
+      - "packages/shell/ios/CommandTable.swift"
       - ".github/workflows/ios.yml"
   push:
     branches: [main]
@@ -13,6 +22,15 @@ on:
       - "apps/ios/**"
       - "packages/sync/**"
       - "packages/core/**"
+      - "apps/browser/src/components/ui/tokens.ts"
+      - "apps/browser/src/components/ui/motion.ts"
+      - "apps/browser/src/components/window/tokens.ts"
+      - "apps/browser/src/lib/color.ts"
+      - "apps/browser/src/lib/profileLook.ts"
+      - "apps/browser/src/state/sync/fixtures/theme-backdrops.json"
+      - "apps/browser/src/components/window/dockMotion.ts"
+      - "apps/browser/src/components/window/usePeek.ts"
+      - "packages/shell/ios/CommandTable.swift"
       - ".github/workflows/ios.yml"
 
 permissions:
@@ -92,6 +110,10 @@ jobs:
           restore-keys: swiftpm-xcode-27.1-
       - name: The JavaScriptCore bundles match their TypeScript
         run: node apps/ios/scripts/bundle-shared.mjs --check
+      - name: The iOS design tokens match the Mac's
+        run: |
+          node --no-warnings --test apps/ios/scripts/bundle-tokens.test.mjs
+          node --no-warnings apps/ios/scripts/bundle-tokens.mjs --check
       - name: ArdiaKit tests
         run: swift test --package-path apps/ios/Packages/ArdiaKit --scratch-path "$SCRATCH/ardiakit"
       - name: Sync core tests

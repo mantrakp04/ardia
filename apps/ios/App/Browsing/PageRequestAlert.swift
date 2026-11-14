@@ -1,5 +1,6 @@
 import ArdiaBrowser
 import ArdiaDesign
+import ArdiaSync
 import Network
 import SwiftUI
 
@@ -109,7 +110,7 @@ struct PageFailureView: View {
   }
 
   private var isOffline: Bool {
-    if case .network(_, let message) = failure { return message == String(localized: "Your iPhone isn’t connected to the internet.") }
+    if case .network(_, let message) = failure { return message == ThisDevice.current.offlineMessage }
     return false
   }
 

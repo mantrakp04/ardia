@@ -12,22 +12,23 @@ struct SyncSettingsPage: View {
   @State private var isConfirmingStop = false
   @State private var isStopping = false
   @State private var folderError: String?
+  @State private var isConnecting = false
 
   var body: some View {
     let sync = app.sync
     let words = SyncStatusWords(sync: sync)
     Form {
-      SettingsHero("Sync With Mac", subtitle: words.heroSubtitle, systemImage: "macbook.and.iphone", tint: SettingsTint.sync) {
+      SettingsHero("Sync With Mac", subtitle: words.heroSubtitle, systemImage: ThisDevice.current.pairSymbol, tint: SettingsTint.sync) {
         if words.isOff {
-          NavigationLink(value: SettingsRoute.connect) {
+          Button {
+            isConnecting = true
+          } label: {
             Text("Connect to Your Mac")
-              .frame(maxWidth: .infinity)
+              .font(Typography.title)
+              .frame(maxWidth: .infinity, minHeight: SettingsLayout.primaryButtonHeight)
           }
-          .buttonStyle(.borderedProminent)
-          .buttonBorderShape(.capsule)
-          .controlSize(.large)
-          .primaryActionColors()
-          .padding(.top, Spacing.tight)
+          .buttonStyle(.glassPrimaryAction)
+          .padding(.top, Tokens.Space.m)
         }
       }
 
@@ -39,6 +40,9 @@ struct SyncSettingsPage: View {
       }
     }
     .settingsPage("Sync With Mac")
+    .navigationDestination(isPresented: $isConnecting) {
+      SyncConnectPage().settingsChrome()
+    }
     .refreshable {
       guard sync.isEnabled else { return }
       await sync.syncNow()
@@ -97,7 +101,7 @@ struct SyncSettingsPage: View {
         }
       } footer: {
         if attention == .reset {
-          Text("Tabs on this iPhone stay.")
+          Text("Tabs on this \(ThisDevice.current.noun) stay.")
         }
       }
     case .none, .stalled:
@@ -153,7 +157,7 @@ struct SyncSettingsPage: View {
         .textInputAutocapitalization(.words)
         .submitLabel(.done)
     } header: {
-      Text("This iPhone’s Name")
+      Text("This \(ThisDevice.current.noun)’s Name")
     } footer: {
       Text("Shown on your Mac.")
     }
@@ -183,7 +187,7 @@ struct SyncSettingsPage: View {
       }
       .disabled(isStopping)
     } footer: {
-      Text("Your Mac stops seeing this iPhone’s tabs.")
+      Text("Your Mac stops seeing this \(ThisDevice.current.noun)’s tabs.")
     }
   }
 }
@@ -194,9 +198,9 @@ private struct SyncFeatureRow: View {
   @ScaledMetric(relativeTo: .body) private var symbolWidth: CGFloat = 28
 
   var body: some View {
-    HStack(alignment: .firstTextBaseline, spacing: Spacing.small) {
+    HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.l) {
       Image(systemName: symbol)
-        .font(.body.weight(.semibold))
+        .font(Typography.title)
         .foregroundStyle(Palette.formAccent)
         .frame(width: symbolWidth)
         .accessibilityHidden(true)

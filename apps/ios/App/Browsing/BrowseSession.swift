@@ -23,7 +23,6 @@ final class BrowseSession {
   var readerTabID: UUID?
   var titleFeedback: String?
   var isVoicePresented = false
-  var desktopTabs: Set<UUID> = []
   var stepRequest: StepRequest?
   var deckRequested = false
   var tones: [UUID: PageTone] = [:]
@@ -37,6 +36,7 @@ final class BrowseSession {
     let delta: Int
   }
 
+  @ObservationIgnored var menuFollowUp: (() -> Void)?
   @ObservationIgnored let covers = PageCoverCache()
   @ObservationIgnored private(set) var frozenOrder: [UUID]?
   @ObservationIgnored private var unfreezeTask: Task<Void, Never>?
@@ -67,6 +67,12 @@ final class BrowseSession {
   func setTone(_ tone: PageTone, for id: UUID) {
     guard tones[id] != tone else { return }
     tones[id] = tone
+  }
+
+  func runMenuFollowUp() {
+    let followUp = menuFollowUp
+    menuFollowUp = nil
+    followUp?()
   }
 
   func dismissSearch() {

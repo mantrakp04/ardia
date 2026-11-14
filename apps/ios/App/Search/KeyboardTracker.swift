@@ -8,7 +8,7 @@ final class KeyboardTracker {
   private(set) var animation: Animation? = KeyboardTracker.animation(duration: 0.25, curve: KeyboardTracker.systemCurve)
   @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
-  static let systemCurve = 7
+  nonisolated static let systemCurve = 7
 
   func start() {
     guard observers.isEmpty else { return }

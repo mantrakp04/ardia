@@ -5,7 +5,7 @@ import { showToast } from "../app/toasts";
 import { isQuitting } from "../app/quit";
 import { flushPersistence } from "../session/persist";
 import { newBookmarkId as newUuid } from "../bookmarks/bookmarks";
-import { deviceKindOf, deviceLabel, deviceRecords, deviceSymbol, offersTabs } from "./devices";
+import { deviceKindOf, deviceLabel, deviceRecords, deviceSymbol, isCompanion, offersTabs } from "./devices";
 import { SEND, profileScope, type DeviceRecord, type SendRecord } from "./records";
 import { sendableUrl, type ReceivedSend, type SendLedger } from "./sentTabsAdapter";
 import { APP_SCOPE, type ReceivedTab, type SendTarget, type SyncDoc } from "./syncDoc";
@@ -23,7 +23,7 @@ export function sendTargetsIn(doc: SyncDoc, profileId: string): SendTarget[] {
   const now = Date.now();
   const seenAt = (id: string) => Math.max(...Object.values(doc.scopes).map((s) => s.seen[id] ?? -Infinity));
   return [...deviceRecords(app)]
-    .filter(([id, record]) => id !== doc.deviceId && offersTabs(record, seenAt(id), now) && (deviceKindOf(record) === "phone" || id in scope.seen))
+    .filter(([id, record]) => id !== doc.deviceId && offersTabs(record, seenAt(id), now) && (isCompanion(deviceKindOf(record)) || id in scope.seen))
     .sort(([a], [b]) => (scope.seen[b] ?? app.seen[b] ?? 0) - (scope.seen[a] ?? app.seen[a] ?? 0))
     .map(([id, record]) => ({ id, name: record.n || "Unknown Device", kind: deviceKindOf(record) }));
 }

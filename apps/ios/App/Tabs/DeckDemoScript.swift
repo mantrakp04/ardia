@@ -8,8 +8,13 @@ extension AppModel {
     guard isDemo else { return }
     let warming = Task { await DemoSnapshotWarmer.warm(self) }
     guard let script = UserDefaults.standard.string(forKey: "ArdiaDeck"), !script.isEmpty else { return }
+    let steps = script.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+    if steps.contains(where: Self.showsDeck) {
+      settings.autoOpensKeyboard = false
+      browse.dismissSearch()
+    }
     try? await Task.sleep(for: .seconds(1.2))
-    for step in script.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) {
+    for step in steps {
       if step == "warm" {
         await warming.value
       } else {
@@ -25,12 +30,10 @@ extension AppModel {
       let seconds = parts.count > 1 ? Double(parts[1]) ?? 1 : 1
       try? await Task.sleep(for: .seconds(seconds))
     case "deck":
-      deck.entrance = .plain
-      surface = .tabSwitcher
+      showDemoDeck(.plain)
     case "open":
       deck.handoff = demoHandoff()
-      deck.entrance = deck.handoff.map { .fromPage($0.tabID) } ?? .plain
-      surface = .tabSwitcher
+      showDemoDeck(deck.handoff.map { .fromPage($0.tabID) } ?? .plain)
     case "snapall":
       let limit = parts.count > 1 ? Int(parts[1]) ?? 6 : 6
       let ids = deckOrder.suffix(limit).map(\.id)
@@ -41,6 +44,7 @@ extension AppModel {
       }
       if let last = ids.last { openTab(last) }
     case "switcher":
+      browse.dismissSearch()
       showTabSwitcher()
     case "browse":
       if let id = tabs.selectedTabID { openTab(id) }
@@ -57,8 +61,7 @@ extension AppModel {
       for url in ["https://en.wikipedia.org/wiki/Moon", "https://www.apple.com/"] {
         if let target = URL(string: url) { tabs.open(.url(target), isPrivate: true) }
       }
-      deck.entrance = .plain
-      surface = .tabSwitcher
+      showDemoDeck(.plain)
     case "lift":
       deck.command = .init(kind: .lift(parts.count > 1 ? Double(parts[1]) ?? -120 : -120))
     case "keep":
@@ -71,8 +74,7 @@ extension AppModel {
       }
     case "empty":
       tabs.closeAll()
-      deck.entrance = .plain
-      surface = .tabSwitcher
+      showDemoDeck(.plain)
     case "archive":
       sheet = .archive
     case "spaces":
@@ -91,6 +93,16 @@ extension AppModel {
     default:
       break
     }
+  }
+
+  private static func showsDeck(_ step: String) -> Bool {
+    ["deck", "open", "switcher", "incognito", "empty"].contains(step)
+  }
+
+  private func showDemoDeck(_ entrance: TabDeckModel.Entrance) {
+    browse.dismissSearch()
+    deck.entrance = entrance
+    surface = .tabSwitcher
   }
 
   private func demoHandoff() -> TabDeckModel.Handoff? {

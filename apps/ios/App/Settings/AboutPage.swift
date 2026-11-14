@@ -5,15 +5,15 @@ struct AboutPage: View {
   var body: some View {
     Form {
       Section {
-        VStack(spacing: Spacing.small) {
+        VStack(spacing: Tokens.Space.l) {
           AppIconPreview(side: 72)
             .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-          VStack(spacing: Spacing.hairline) {
+          VStack(spacing: Tokens.Space.xs) {
             Text("Ardia")
-              .font(.system(.title, design: .rounded, weight: .bold))
+              .typography(.display)
               .accessibilityAddTraits(.isHeader)
             Text(AppVersion.footer)
-              .font(.subheadline)
+              .font(Typography.row)
               .foregroundStyle(.secondary)
               .textSelection(.enabled)
           }
@@ -23,16 +23,16 @@ struct AboutPage: View {
       }
 
       Section {
-        AboutLink("ardia.dev", systemImage: "globe", url: "https://ardia.dev")
-        AboutLink("Release Notes", systemImage: "sparkles", url: "https://ardia.dev/release-notes")
-        AboutLink("Source Code", systemImage: "chevron.left.forwardslash.chevron.right", url: "https://github.com/mantrakp04/ardia")
+        AboutLink("ardia.dev", url: "https://ardia.dev")
+        AboutLink("Release Notes", url: "https://ardia.dev/release-notes")
+        AboutLink("Source Code", url: "https://github.com/mantrakp04/ardia")
       } footer: {
         Text("No accounts. Your data stays on your devices and in your iCloud Drive.")
       }
 
       Section {
         NavigationLink(value: SettingsRoute.licenses) {
-          Label("Open Source Licenses", systemImage: "doc.text")
+          Text("Open Source Licenses")
         }
       }
     }
@@ -43,12 +43,10 @@ struct AboutPage: View {
 
 private struct AboutLink: View {
   var title: LocalizedStringKey
-  var systemImage: String
   var url: String
 
-  init(_ title: LocalizedStringKey, systemImage: String, url: String) {
+  init(_ title: LocalizedStringKey, url: String) {
     self.title = title
-    self.systemImage = systemImage
     self.url = url
   }
 
@@ -56,11 +54,11 @@ private struct AboutLink: View {
     if let destination = URL(string: url) {
       Link(destination: destination) {
         HStack {
-          Label(title, systemImage: systemImage)
+          Text(title)
             .foregroundStyle(.primary)
           Spacer()
           Image(systemName: "arrow.up.forward")
-            .font(.footnote.weight(.semibold))
+            .font(Typography.section)
             .foregroundStyle(.tertiary)
             .accessibilityHidden(true)
         }
@@ -74,9 +72,9 @@ struct LicensesPage: View {
     Form {
       ForEach(OpenSourceCredit.all) { credit in
         Section {
-          VStack(alignment: .leading, spacing: Spacing.hairline) {
-            Text(verbatim: credit.name).font(.body.weight(.semibold))
-            Text(credit.use).font(.subheadline).foregroundStyle(.secondary)
+          VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+            Text(verbatim: credit.name).font(Typography.title)
+            Text(credit.use).font(Typography.row).foregroundStyle(.secondary)
           }
           .padding(.vertical, 2)
           LabeledContent("License", value: credit.license)

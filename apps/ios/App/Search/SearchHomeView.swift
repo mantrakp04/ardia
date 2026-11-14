@@ -7,19 +7,25 @@ struct SearchHomeView: View {
   @Environment(AppModel.self) private var app
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.profileLook) private var look
 
   var body: some View {
     let isTrayUp = app.browse.search != nil
     GeometryReader { proxy in
       ZStack {
-        backdrop
-          .ignoresSafeArea()
-        restingLogo
+        resting(in: proxy)
           .opacity(isTrayUp ? 0 : 1)
-          .scaleEffect(isTrayUp && !reduceMotion ? 0.92 : 1)
+          .scaleEffect(isTrayUp && !reduceMotion ? StartMetrics.trayScale : 1)
+          .allowsHitTesting(!isTrayUp)
         bar(in: proxy)
           .opacity(isTrayUp ? 0 : 1)
           .allowsHitTesting(!isTrayUp)
+      }
+      .lookInk()
+      .environment(\.profileLook, app.isIncognito ? .incognito : look)
+      .background {
+        backdrop
+          .ignoresSafeArea()
       }
     }
     .ignoresSafeArea(.keyboard)
@@ -38,6 +44,41 @@ struct SearchHomeView: View {
   private func openTrayIfWanted() {
     guard app.settings.autoOpensKeyboard, !app.settings.isShowingOnboarding, app.browse.search == nil, app.sheet == nil else { return }
     app.browse.presentSearch(from: .home, incognitoOnCancel: app.isIncognito)
+  }
+
+  @ViewBuilder
+  private func resting(in proxy: GeometryProxy) -> some View {
+    if showsSpace {
+      spaceStart(in: proxy)
+    } else {
+      restingLogo
+    }
+  }
+
+  private var showsSpace: Bool {
+    !app.isIncognito && app.currentSpace != nil
+  }
+
+  private func spaceStart(in proxy: GeometryProxy) -> some View {
+    let safe = proxy.safeAreaInsets
+    let container = CGSize(width: proxy.size.width + safe.leading + safe.trailing, height: proxy.size.height + safe.top + safe.bottom)
+    let layout = StartLayout(container: container, safeArea: safe)
+    let stack = layout.isSideBySide
+      ? AnyLayout(HStackLayout(alignment: .center, spacing: StartLayout.sectionGap))
+      : AnyLayout(VStackLayout(alignment: .center, spacing: StartLayout.sectionGap))
+    return ZStack(alignment: .bottom) {
+      stack {
+        SpaceHeader()
+          .frame(maxWidth: layout.headerWidth)
+        PinnedTileGrid(width: layout.gridWidth)
+      }
+      .frame(width: layout.contentWidth)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .padding(.bottom, TabsDeckGeometry.barReserve)
+      SpaceDots()
+        .padding(.bottom, StartMetrics.dotsLift(safeBottom: safe.bottom))
+        .ignoresSafeArea(.container, edges: .bottom)
+    }
   }
 
   private var restingLogo: some View {
@@ -89,6 +130,14 @@ struct SearchHomeView: View {
     } else {
       ProfileBackdrop(themed: true)
     }
+  }
+}
+
+enum StartMetrics {
+  static let trayScale: CGFloat = 0.92
+
+  static func dotsLift(safeBottom: CGFloat) -> CGFloat {
+    TabsDeckGeometry.barReserve + max(safeBottom, Tokens.Space.xxl) - Tokens.Space.m
   }
 }
 

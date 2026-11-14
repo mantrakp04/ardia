@@ -108,7 +108,7 @@ struct VoiceSearchView: View {
         Button {
           dictation.stop()
         } label: {
-          Label("Done", systemImage: "stop.fill")
+          Text("Done")
             .frame(maxWidth: .infinity, minHeight: 50)
         }
         .buttonStyle(.glass)
@@ -124,7 +124,7 @@ struct VoiceSearchView: View {
         Button {
           Task { await dictation.start() }
         } label: {
-          Label("Try Again", systemImage: "mic.fill")
+          Text("Try Again")
             .frame(maxWidth: .infinity, minHeight: 50)
         }
         .buttonStyle(.glass)

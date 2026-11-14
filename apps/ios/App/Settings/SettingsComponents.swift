@@ -38,15 +38,15 @@ struct SettingsHero<Accessory: View>: View {
 
   var body: some View {
     Section {
-      VStack(spacing: Spacing.small) {
-        SettingsIconTile(systemImage: systemImage, color: tint, baseSide: 64)
-        VStack(spacing: Spacing.hairline) {
+      VStack(spacing: Tokens.Space.l) {
+        SettingsIconTile(systemImage: systemImage, color: tint, baseSide: SettingsTile.heroSide)
+        VStack(spacing: Tokens.Space.xs) {
           Text(title)
-            .font(.title2.bold())
+            .font(Typography.largeTitle)
             .multilineTextAlignment(.center)
             .accessibilityAddTraits(.isHeader)
           subtitle
-            .font(.subheadline)
+            .font(Typography.row)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
             .contentTransition(.opacity)
@@ -54,9 +54,9 @@ struct SettingsHero<Accessory: View>: View {
         accessory
       }
       .frame(maxWidth: .infinity)
-      .padding(.bottom, Spacing.hairline)
+      .padding(.bottom, Tokens.Space.xs)
       .listRowBackground(Color.clear)
-      .listRowInsets(EdgeInsets(top: 0, leading: Spacing.page, bottom: 0, trailing: Spacing.page))
+      .listRowInsets(EdgeInsets(top: 0, leading: Tokens.Space.xl, bottom: 0, trailing: Tokens.Space.xl))
     }
   }
 }
@@ -71,20 +71,15 @@ struct LegibleInk: ShapeStyle {
   var tint: Color
 
   func resolve(in environment: EnvironmentValues) -> Color {
-    let isDark = environment.colorScheme == .dark
-    let target: Float = environment.colorSchemeContrast == .increased ? 7 : 4.5
-    let surface = isDark
-      ? Color.Resolved(red: 0.110, green: 0.110, blue: 0.118)
-      : Color.Resolved(red: 0.949, green: 0.949, blue: 0.969)
-    let destination = isDark ? Color.Resolved(red: 1, green: 1, blue: 1) : Color.Resolved(red: 0, green: 0, blue: 0)
-    let start = tint.resolve(in: environment)
-    var candidate = start
-    var amount: Float = 0
-    while candidate.contrast(against: surface) < target && amount < 1 {
-      amount = min(1, amount + 0.03)
-      candidate = start.mixed(with: destination, by: amount)
-    }
-    return Color(candidate)
+    let cell = Color(.secondarySystemGroupedBackground).resolve(in: environment)
+    let backdrop = environment.lookBackdropScheme.map { environment.profileLook.surfaceColors(dark: $0 == .dark) } ?? []
+    let surfaces = [TokenColor(cell)] + backdrop
+    return LegibleTint.ink(
+      TokenColor(tint.resolve(in: environment)),
+      on: surfaces,
+      dark: environment.colorScheme == .dark,
+      increasedContrast: environment.colorSchemeContrast == .increased
+    ).color
   }
 }
 
@@ -92,24 +87,13 @@ extension ShapeStyle where Self == LegibleInk {
   static func ink(_ tint: Color) -> LegibleInk { LegibleInk(tint: tint) }
 }
 
-nonisolated extension Color.Resolved {
-  func mixed(with other: Color.Resolved, by amount: Float) -> Color.Resolved {
-    Color.Resolved(
-      red: red + (other.red - red) * amount,
-      green: green + (other.green - green) * amount,
-      blue: blue + (other.blue - blue) * amount,
-      opacity: opacity
+nonisolated extension TokenColor {
+  init(_ resolved: Color.Resolved) {
+    self.init(
+      red: Double(min(max(resolved.red, 0), 1)),
+      green: Double(min(max(resolved.green, 0), 1)),
+      blue: Double(min(max(resolved.blue, 0), 1))
     )
-  }
-
-  var relativeLuminance: Float {
-    0.2126 * linearRed + 0.7152 * linearGreen + 0.0722 * linearBlue
-  }
-
-  func contrast(against other: Color.Resolved) -> Float {
-    let a = relativeLuminance
-    let b = other.relativeLuminance
-    return (max(a, b) + 0.05) / (min(a, b) + 0.05)
   }
 }
 
@@ -124,14 +108,38 @@ extension View {
 }
 
 private struct SettingsChrome: ViewModifier {
-  @Environment(\.profileLook) private var look
+  @State private var page = PageBox()
 
   func body(content: Content) -> some View {
     content
+      .contentMargins(.leading, SettingsLayout.contentMargin(forWidth: page.width, safeInset: page.leading), for: .scrollContent)
+      .contentMargins(.trailing, SettingsLayout.contentMargin(forWidth: page.width, safeInset: page.trailing), for: .scrollContent)
+      .background { PageBoxProbe(page: $page) }
+      .lookInk()
       .lookBackdrop()
-      .scrollEdgeEffectStyle(.hard, for: .top)
-      .toolbarBackground(look.surface, for: .navigationBar)
-      .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+      .scrollEdgeEffectStyle(.soft, for: .top)
+  }
+}
+
+nonisolated private struct PageBox: Equatable, Sendable {
+  var width: CGFloat = 0
+  var leading: CGFloat = 0
+  var trailing: CGFloat = 0
+}
+
+private struct PageBoxProbe: View {
+  @Binding var page: PageBox
+
+  var body: some View {
+    Color.clear
+      .ignoresSafeArea()
+      .onGeometryChange(for: PageBox.self) { proxy in
+        PageBox(width: proxy.size.width, leading: proxy.safeAreaInsets.leading, trailing: proxy.safeAreaInsets.trailing)
+      } action: { measured in
+        page = measured
+      }
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
   }
 }
 
@@ -144,7 +152,7 @@ private struct SettingsPageTitle: ViewModifier {
       .navigationTitle(isHeroHidden ? title : "")
       .navigationBarTitleDisplayMode(.inline)
       .onScrollGeometryChange(for: Bool.self) { geometry in
-        geometry.contentOffset.y + geometry.contentInsets.top > 150
+        geometry.contentOffset.y + geometry.contentInsets.top > SettingsLayout.heroScrollThreshold
       } action: { _, hidden in
         isHeroHidden = hidden
       }
@@ -171,17 +179,17 @@ struct SetupStepRow<Content: View>: View {
   }
 
   var body: some View {
-    HStack(alignment: .top, spacing: Spacing.small) {
+    HStack(alignment: .top, spacing: Tokens.Space.l) {
       ZStack {
         Circle().fill(badgeFill)
         if progress == .done {
           Image(systemName: "checkmark")
-            .font(.caption.weight(.bold))
+            .font(Typography.badge.weight(.bold))
             .foregroundStyle(.white)
             .transition(.scale.combined(with: .opacity))
         } else {
           Text(number.formatted())
-            .font(.subheadline.weight(.semibold))
+            .font(Typography.row.weight(.semibold))
             .monospacedDigit()
             .foregroundStyle(progress == .current ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
         }
@@ -190,20 +198,20 @@ struct SetupStepRow<Content: View>: View {
       .animation(Motion.snappy, value: progress)
       .accessibilityHidden(true)
 
-      VStack(alignment: .leading, spacing: Spacing.hairline) {
+      VStack(alignment: .leading, spacing: Tokens.Space.xs) {
         title
-          .font(.body.weight(.semibold))
+          .font(Typography.title)
           .foregroundStyle(progress == .upcoming ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
         detail
-          .font(.subheadline)
+          .font(Typography.row)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         content
-          .padding(.top, Spacing.hairline)
+          .padding(.top, Tokens.Space.xs)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .padding(.vertical, Spacing.hairline)
+    .padding(.vertical, Tokens.Space.xs)
     .accessibilityElement(children: .contain)
     .accessibilityLabel(accessibilityTitle)
   }
@@ -237,6 +245,8 @@ extension Color {
 }
 
 struct AppIconPreview: View {
+  static let cornerShare: CGFloat = 0.225
+
   var side: CGFloat = 29
   @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
 
@@ -247,9 +257,9 @@ struct AppIconPreview: View {
       .resizable()
       .interpolation(.high)
       .frame(width: scaledSide, height: scaledSide)
-      .clipShape(.rect(cornerRadius: scaledSide * 0.225, style: .continuous))
+      .clipShape(.rect(cornerRadius: scaledSide * Self.cornerShare, style: .continuous))
       .overlay {
-        RoundedRectangle(cornerRadius: scaledSide * 0.225, style: .continuous)
+        RoundedRectangle(cornerRadius: scaledSide * Self.cornerShare, style: .continuous)
           .strokeBorder(.primary.opacity(0.08), lineWidth: 0.5)
       }
       .accessibilityHidden(true)

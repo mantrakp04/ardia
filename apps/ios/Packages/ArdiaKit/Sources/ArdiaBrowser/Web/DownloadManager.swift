@@ -1,4 +1,7 @@
 import Foundation
+import Observation
+import OSLog
+import SwiftData
 import WebKit
 
 public enum DownloadOutcome: Equatable, Sendable {
@@ -7,69 +10,322 @@ public enum DownloadOutcome: Equatable, Sendable {
 }
 
 @MainActor
-public final class DownloadManager {
-  public let directory: URL
-  public var onOutcome: (@MainActor (DownloadOutcome) -> Void)?
+protocol DownloadTask: AnyObject {
+  var progress: Progress { get }
+  func cancel(then cleanup: @escaping @MainActor () -> Void)
+}
 
-  private struct Active {
-    let download: WKDownload
-    var fileName: String
+extension WKDownload: DownloadTask {
+  func cancel(then cleanup: @escaping @MainActor () -> Void) {
+    cancel { _ in
+      Task { @MainActor in cleanup() }
+    }
+  }
+}
+
+public enum DownloadError: Error, Equatable {
+  case cannotRetry
+  case couldNotDelete(fileName: String)
+}
+
+@MainActor
+@Observable
+public final class DownloadManager {
+  public static let defaultDirectory = URL.documentsDirectory.appending(path: "Downloads", directoryHint: .isDirectory)
+  public static let defaultPrivateDirectory = URL.temporaryDirectory.appending(path: "ArdiaPrivateDownloads", directoryHint: .isDirectory)
+  static let progressInterval: Duration = .milliseconds(250)
+  static let log = Logger(subsystem: "com.ardia.browser.ios", category: "downloads")
+
+  public let directory: URL
+  public let privateDirectory: URL
+  public private(set) var items: [DownloadItem] = []
+  @ObservationIgnored public var onOutcome: (@MainActor (DownloadOutcome) -> Void)?
+  @ObservationIgnored public var startDownload: (@MainActor (URL) -> Void)?
+
+  @ObservationIgnored private let store: (any DownloadStore)?
+  @ObservationIgnored private let now: () -> Date
+  @ObservationIgnored private var running: [ObjectIdentifier: Running] = [:]
+  @ObservationIgnored private var cleanupPending: [UUID: URL] = [:]
+  @ObservationIgnored private var delegate: DownloadDelegate?
+  @ObservationIgnored private var progressTask: Task<Void, Never>?
+
+  private struct Running {
+    let id: UUID
+    let task: any DownloadTask
     var destination: URL?
   }
 
-  private var active: [ObjectIdentifier: Active] = [:]
-  private var delegate: DownloadDelegate?
-
-  public init(directory: URL = URL.documentsDirectory.appending(path: "Downloads", directoryHint: .isDirectory)) {
+  public init(directory: URL = DownloadManager.defaultDirectory, privateDirectory: URL = DownloadManager.defaultPrivateDirectory, store: (any DownloadStore)? = nil, now: @escaping () -> Date = Date.init) {
     self.directory = directory
+    self.privateDirectory = privateDirectory
+    self.store = store
+    self.now = now
+    removeContents(of: privateDirectory)
+    items = loadSaved()
+  }
+
+  public static func forStore(_ context: ModelContext) -> DownloadManager {
+    let inMemory = context.container.configurations.contains { $0.isStoredInMemoryOnly }
+    let directory = inMemory ? URL.temporaryDirectory.appending(path: "ArdiaDemoDownloads", directoryHint: .isDirectory) : defaultDirectory
+    return DownloadManager(directory: directory, privateDirectory: defaultPrivateDirectory, store: SwiftDataDownloadStore(context: ModelContext(context.container)))
+  }
+
+  public func fileURL(for item: DownloadItem) -> URL? {
+    guard item.state == .finished, !item.fileName.isEmpty else { return nil }
+    return folder(for: item).appending(path: item.fileName)
+  }
+
+  private func folder(for item: DownloadItem) -> URL {
+    item.isPrivate ? privateDirectory : directory
+  }
+
+  private func ownedFile(of item: DownloadItem) -> URL? {
+    guard item.ownsFile, !item.fileName.isEmpty else { return nil }
+    return folder(for: item).appending(path: item.fileName)
+  }
+
+  public func fileExists(_ item: DownloadItem) -> Bool {
+    fileURL(for: item).map { FileManager.default.fileExists(atPath: $0.path(percentEncoded: false)) } ?? false
+  }
+
+  public func cancel(_ id: UUID) {
+    guard let before = item(id), before.isRunning else { return }
+    let partial = ownedFile(of: before)
+    if let key = running.first(where: { $0.value.id == id })?.key, let entry = running.removeValue(forKey: key) {
+      if let destination = entry.destination ?? partial { cleanupPending[id] = destination }
+      entry.task.cancel { [weak self] in self?.finishCleanup(of: id) }
+    } else {
+      removePartialFile(partial)
+    }
+    update(id, saving: true) { $0.cancelling(at: now()) }
+  }
+
+  public func retry(_ id: UUID) throws {
+    guard let item = item(id), item.canRetry, let source = item.sourceURL, let startDownload else { throw DownloadError.cannotRetry }
+    remove([id])
+    startDownload(source)
+  }
+
+  public func delete(_ id: UUID) throws {
+    guard let item = item(id) else { return }
+    if item.isRunning { cancel(id) }
+    if cleanupPending[id] == nil, let file = fileURL(for: item) ?? ownedFile(of: item), FileManager.default.fileExists(atPath: file.path(percentEncoded: false)) {
+      do {
+        try FileManager.default.removeItem(at: file)
+      } catch {
+        Self.log.error("Couldn't delete a download: \(error.localizedDescription, privacy: .public)")
+        throw DownloadError.couldNotDelete(fileName: item.fileName)
+      }
+    }
+    remove([id])
+  }
+
+  public func clearInactive() {
+    remove(Set(items.filter { !$0.isRunning }.map(\.id)))
+  }
+
+  public func endPrivateBrowsing() {
+    let ended = items.filter(\.isPrivate)
+    for item in ended where item.isRunning { cancel(item.id) }
+    remove(Set(ended.map(\.id)))
+    removeContents(of: privateDirectory)
+  }
+
+  public func add(_ added: [DownloadItem]) {
+    let known = Set(items.map(\.id))
+    let fresh = added.filter { !known.contains($0.id) }
+    items = (fresh + items).sorted(by: Self.newestFirst)
+    fresh.forEach(persist)
   }
 
   func track(_ download: WKDownload) {
     if delegate == nil { delegate = DownloadDelegate(manager: self) }
     download.delegate = delegate
-    active[ObjectIdentifier(download)] = Active(download: download, fileName: download.originalRequest?.url?.lastPathComponent ?? "")
+    let isPrivate = !(download.webView?.configuration.websiteDataStore.isPersistent ?? true)
+    adopt(download, source: download.originalRequest?.url, isPrivate: isPrivate)
   }
 
-  func destination(for download: WKDownload, suggestedFilename: String) -> URL? {
-    let key = ObjectIdentifier(download)
-    guard active[key] != nil else { return nil }
+  @discardableResult
+  func adopt(_ task: any DownloadTask, source: URL?, isPrivate: Bool) -> UUID {
+    let id = UUID()
+    running[ObjectIdentifier(task)] = Running(id: id, task: task)
+    begin(id: id, source: source, isPrivate: isPrivate)
+    watchProgress()
+    return id
+  }
+
+  func destination(for task: any DownloadTask, suggestedFilename: String) -> URL? {
+    let key = ObjectIdentifier(task)
+    guard let entry = running[key], let current = item(entry.id) else { return nil }
+    let folder = folder(for: current)
     do {
-      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     } catch {
-      failed(download)
+      running[key] = nil
+      fail(entry.id, error: error)
       return nil
     }
-    let url = Self.uniqueURL(in: directory, for: suggestedFilename)
-    active[key]?.fileName = url.lastPathComponent
-    active[key]?.destination = url
+    let neighbours = items.filter { $0.id != entry.id && $0.isPrivate == current.isPrivate }.map(\.fileName)
+    let reserved = Set(neighbours)
+      .union(running.values.compactMap { $0.destination?.lastPathComponent })
+      .union(cleanupPending.values.filter { $0.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL }.map(\.lastPathComponent))
+    let url = Self.uniqueURL(in: folder, for: suggestedFilename, excluding: reserved)
+    running[key]?.destination = url
+    place(entry.id, as: url.lastPathComponent)
     return url
   }
 
-  func finished(_ download: WKDownload) {
-    guard let entry = active.removeValue(forKey: ObjectIdentifier(download)) else { return }
+  func finished(_ task: any DownloadTask) {
+    guard let entry = running.removeValue(forKey: ObjectIdentifier(task)) else { return }
     if let destination = entry.destination {
-      onOutcome?(.finished(destination))
+      finish(entry.id, file: destination)
     } else {
-      onOutcome?(.failed(fileName: entry.fileName))
+      fail(entry.id, error: CocoaError(.fileWriteUnknown))
     }
   }
 
-  func failed(_ download: WKDownload) {
-    guard let entry = active.removeValue(forKey: ObjectIdentifier(download)) else { return }
-    onOutcome?(.failed(fileName: entry.fileName))
+  func failed(_ task: any DownloadTask, error: any Error) {
+    guard let entry = running.removeValue(forKey: ObjectIdentifier(task)) else { return }
+    fail(entry.id, error: error)
   }
 
-  nonisolated static func uniqueURL(in directory: URL, for suggested: String) -> URL {
+  func begin(id: UUID, source: URL?, isPrivate: Bool) {
+    let item = DownloadItem.started(id: id, source: source, isPrivate: isPrivate, at: now())
+    items = ([item] + items).sorted(by: Self.newestFirst)
+    persist(item)
+  }
+
+  func place(_ id: UUID, as name: String) {
+    update(id, saving: true) { $0.placed(as: name) }
+  }
+
+  func progress(_ id: UUID, received: Int64, expected: Int64?) {
+    update(id, saving: false) { $0.receiving(received, of: expected) }
+  }
+
+  func finish(_ id: UUID, file: URL) {
+    guard item(id)?.isRunning == true else { return }
+    let attributes = try? FileManager.default.attributesOfItem(atPath: file.path(percentEncoded: false))
+    let size = (attributes?[.size] as? NSNumber)?.int64Value
+    update(id, saving: true) { $0.finishing(at: now(), size: size) }
+    onOutcome?(.finished(file))
+  }
+
+  func fail(_ id: UUID, error: any Error) {
+    guard let before = item(id), before.isRunning else { return }
+    removePartialFile(ownedFile(of: before))
+    update(id, saving: true) { $0.failing(DownloadFailure(error), at: now()) }
+    onOutcome?(.failed(fileName: before.fileName))
+  }
+
+  private func item(_ id: UUID) -> DownloadItem? {
+    items.first { $0.id == id }
+  }
+
+  private func update(_ id: UUID, saving: Bool, _ change: (DownloadItem) -> DownloadItem) {
+    guard let before = item(id) else { return }
+    let after = change(before)
+    guard after != before else { return }
+    items = items.map { $0.id == id ? after : $0 }
+    if saving { persist(after) }
+  }
+
+  private func remove(_ ids: Set<UUID>) {
+    guard !ids.isEmpty else { return }
+    let saved = Set(items.filter { ids.contains($0.id) && !$0.isPrivate }.map(\.id))
+    items = items.filter { !ids.contains($0.id) }
+    do {
+      try store?.deleteDownloads(saved)
+    } catch {
+      Self.log.error("Couldn't forget downloads: \(error.localizedDescription, privacy: .public)")
+    }
+  }
+
+  private func persist(_ item: DownloadItem) {
+    guard let store, !item.isPrivate else { return }
+    do {
+      try store.saveDownload(item)
+    } catch {
+      Self.log.error("Couldn't save a download: \(error.localizedDescription, privacy: .public)")
+    }
+  }
+
+  private func loadSaved() -> [DownloadItem] {
+    guard let store else { return [] }
+    do {
+      let saved = try store.loadDownloads()
+      let settled = saved.map { $0.relaunched() }
+      for (before, after) in zip(saved, settled) where before != after {
+        removePartialFile(ownedFile(of: before))
+        persist(after)
+      }
+      return settled.sorted(by: Self.newestFirst)
+    } catch {
+      Self.log.error("Couldn't load downloads: \(error.localizedDescription, privacy: .public)")
+      return []
+    }
+  }
+
+  private func finishCleanup(of id: UUID) {
+    guard let file = cleanupPending.removeValue(forKey: id) else { return }
+    let claimed = running.values.contains { $0.destination?.standardizedFileURL == file.standardizedFileURL }
+    guard !claimed else { return }
+    removePartialFile(file)
+  }
+
+  private func removeContents(of folder: URL) {
+    guard FileManager.default.fileExists(atPath: folder.path(percentEncoded: false)) else { return }
+    let files: [URL]
+    do {
+      files = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+    } catch {
+      Self.log.error("Couldn't list private downloads: \(error.localizedDescription, privacy: .public)")
+      return
+    }
+    for file in files { removePartialFile(file) }
+  }
+
+  private func removePartialFile(_ url: URL?) {
+    guard let url, FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { return }
+    do {
+      try FileManager.default.removeItem(at: url)
+    } catch {
+      Self.log.error("Couldn't remove a partial download: \(error.localizedDescription, privacy: .public)")
+    }
+  }
+
+  private func watchProgress() {
+    guard progressTask == nil else { return }
+    progressTask = Task { [weak self] in
+      while let self, !self.running.isEmpty, !Task.isCancelled {
+        for entry in self.running.values {
+          let progress = entry.task.progress
+          self.progress(entry.id, received: progress.completedUnitCount, expected: progress.totalUnitCount)
+        }
+        try? await Task.sleep(for: Self.progressInterval)
+      }
+      self?.progressTask = nil
+    }
+  }
+
+  private static func newestFirst(_ lhs: DownloadItem, _ rhs: DownloadItem) -> Bool {
+    lhs.startedAt > rhs.startedAt
+  }
+
+  nonisolated static func uniqueURL(in directory: URL, for suggested: String, excluding reserved: Set<String> = []) -> URL {
     let cleaned = suggested
       .replacingOccurrences(of: "/", with: "-")
       .replacingOccurrences(of: ":", with: "-")
-      .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ".")))
+      .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ".-")))
     let name = cleaned.isEmpty ? String(localized: "Download") : cleaned
     let base = (name as NSString).deletingPathExtension
     let ext = (name as NSString).pathExtension
+    func taken(_ url: URL) -> Bool {
+      reserved.contains(url.lastPathComponent) || FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
+    }
     var candidate = directory.appending(path: name)
     var counter = 2
-    while FileManager.default.fileExists(atPath: candidate.path(percentEncoded: false)) {
+    while taken(candidate) {
       let numbered = "\(base) \(counter)"
       candidate = directory.appending(path: ext.isEmpty ? numbered : "\(numbered).\(ext)")
       counter += 1
@@ -95,6 +351,6 @@ final class DownloadDelegate: NSObject, WKDownloadDelegate {
   }
 
   func download(_ download: WKDownload, didFailWithError error: any Error, resumeData: Data?) {
-    manager?.failed(download)
+    manager?.failed(download, error: error)
   }
 }

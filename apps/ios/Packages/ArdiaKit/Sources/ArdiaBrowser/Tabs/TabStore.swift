@@ -12,16 +12,22 @@ public final class TabStore: LocalBrowsingSource {
   public static let archiveLimit = 2000
   public static let syncedTabLimit = 30
   static let autoArchiveDefaultsKey = "tabs.autoArchiveInterval"
+  static let selectionDefaultsKey = "tabs.selectionBySpace"
   static let autoArchiveCheckInterval: Duration = .seconds(15 * 60)
 
   public let context: ModelContext
-  public private(set) var openTabs: [BrowserTab] = []
-  public private(set) var privateTabs: [BrowserTab] = []
-  public private(set) var selectedTabID: UUID?
-  public private(set) var archive: [ArchivedDay] = []
+  public internal(set) var allOpenTabs: [BrowserTab] = [] {
+    didSet { refreshSpaceTabs() }
+  }
+  public internal(set) var openTabs: [BrowserTab] = []
+  public internal(set) var privateTabs: [BrowserTab] = []
+  public internal(set) var selectedTabID: UUID?
+  public internal(set) var archive: [ArchivedDay] = []
   public private(set) var lastReceived: [BrowserTab] = []
   public private(set) var historyRevision = 0
-  public private(set) var listingRevision = 0
+  public internal(set) var listingRevision = 0
+  public internal(set) var spaceRoster: SpaceRoster = .unnamed
+  public internal(set) var canReopenClosed = false
 
   public var autoArchiveInterval: AutoArchiveInterval {
     didSet {
@@ -37,7 +43,13 @@ public final class TabStore: LocalBrowsingSource {
     }
   }
 
-  public var profileSyncId: String?
+  public var profileSyncId: String? {
+    didSet {
+      guard profileSyncId != oldValue else { return }
+      spaceDidChange()
+    }
+  }
+
   public var searchTemplate = "https://www.google.com/search?q=%s"
   public var onLocalChange: (@MainActor () -> Void)?
   public var onTabsRemoved: (@MainActor ([BrowserTab]) -> Void)?
@@ -45,20 +57,21 @@ public final class TabStore: LocalBrowsingSource {
   public var onPrivateTabsClosed: (@MainActor (_ ids: [UUID], _ noneLeft: Bool) -> Void)?
 
   @ObservationIgnored private let container: ModelContainer
-  @ObservationIgnored private let defaults: UserDefaults
-  @ObservationIgnored private let now: () -> Date
-  @ObservationIgnored private var undoStack: [[ClosedTab]] = []
-  @ObservationIgnored private var archiveLoaded = false
-  @ObservationIgnored private var autoArchivePending = false
+  @ObservationIgnored let defaults: UserDefaults
+  @ObservationIgnored let now: () -> Date
+  @ObservationIgnored var undoStack: [[ClosedTab]] = []
+  @ObservationIgnored var archiveLoaded = false
+  @ObservationIgnored var autoArchivePending = false
   @ObservationIgnored private var isActive = false
   @ObservationIgnored private var scheduleTask: Task<Void, Never>?
-
-  public private(set) var canReopenClosed = false
+  @ObservationIgnored var selectionBySpace: [String: UUID] = [:]
+  @ObservationIgnored var openers: [UUID: UUID] = [:]
 
   struct ClosedTab {
     var id: UUID
     var position: Double
     var wasSelected: Bool
+    var profileSyncId: String?
   }
 
   public init(context: ModelContext, defaults: UserDefaults = .standard, now: @escaping () -> Date = Date.init) {
@@ -67,6 +80,7 @@ public final class TabStore: LocalBrowsingSource {
     self.defaults = defaults
     self.now = now
     self.autoArchiveInterval = defaults.string(forKey: Self.autoArchiveDefaultsKey).flatMap(AutoArchiveInterval.init(rawValue:)) ?? .standard
+    selectionBySpace = Self.loadSelection(from: defaults)
     reloadOpenTabs()
     selectedTabID = openTabs.max(by: { $0.lastActive < $1.lastActive })?.id
     pruneExpired()
@@ -74,7 +88,7 @@ public final class TabStore: LocalBrowsingSource {
 
   public var selectedTab: BrowserTab? {
     guard let selectedTabID else { return nil }
-    return openTabs.first { $0.id == selectedTabID } ?? privateTabs.first { $0.id == selectedTabID }
+    return allOpenTabs.first { $0.id == selectedTabID } ?? privateTabs.first { $0.id == selectedTabID }
   }
 
   public func isPrivate(_ id: UUID) -> Bool {
@@ -82,7 +96,7 @@ public final class TabStore: LocalBrowsingSource {
   }
 
   public func tab(_ id: UUID) -> BrowserTab? {
-    if let open = openTabs.first(where: { $0.id == id }) { return open }
+    if let open = allOpenTabs.first(where: { $0.id == id }) { return open }
     if let open = privateTabs.first(where: { $0.id == id }) { return open }
     var descriptor = FetchDescriptor<BrowserTab>(predicate: #Predicate { $0.id == id })
     descriptor.fetchLimit = 1
@@ -117,7 +131,8 @@ public final class TabStore: LocalBrowsingSource {
       if selecting { select(tab.id) }
       return tab
     }
-    tab.position = position(for: placement)
+    tab.position = position(for: placement, profileSyncId: profile, background: !selecting)
+    if case .after(let opener) = placement { openers[tab.id] = opener }
     context.insert(tab)
     insertSorted(tab)
     if selecting { select(tab.id) }
@@ -128,11 +143,16 @@ public final class TabStore: LocalBrowsingSource {
 
   public func select(_ id: UUID?) {
     let date = now()
-    if let current = selectedTab, current.id != id { current.lastActive = date }
+    let previous = selectedTab
+    if let previous, previous.id != id { previous.lastActive = date }
+    if let previous, let id, previous.id != id { keepOrForgetOpeners(from: previous.id, to: id) }
     selectedTabID = id
     if let tab = selectedTab {
       tab.lastActive = date
-      if !tab.isPrivate { persist(changedTabs: true) }
+      if !tab.isPrivate {
+        remember(tab)
+        persist(changedTabs: true)
+      }
     }
   }
 
@@ -167,108 +187,10 @@ public final class TabStore: LocalBrowsingSource {
       if let selectedIndex, !privateTabs.isEmpty {
         self.selectedTabID = privateTabs[min(selectedIndex, privateTabs.count - 1)].id
       } else {
-        self.selectedTabID = openTabs.max(by: { $0.lastActive < $1.lastActive })?.id
+        self.selectedTabID = rememberedSelection()
       }
     }
     onPrivateTabsClosed?(ids, privateTabs.isEmpty)
-  }
-
-  public func archive(_ id: UUID) {
-    archiveTabs([id], undoable: true)
-  }
-
-  public func closeAll() {
-    archiveTabs(openTabs.map(\.id), undoable: true)
-  }
-
-  @discardableResult
-  public func reopenLastClosed() -> [BrowserTab] {
-    guard let group = undoStack.popLast() else { return [] }
-    canReopenClosed = !undoStack.isEmpty
-    var reopened: [BrowserTab] = []
-    var selection: UUID?
-    for closed in group {
-      guard let tab = tab(closed.id), tab.isArchived else { continue }
-      tab.archivedAt = nil
-      tab.lastActive = now()
-      tab.position = openTabs.contains(where: { $0.position == closed.position }) ? position(for: .end) : closed.position
-      insertSorted(tab)
-      reopened.append(tab)
-      if closed.wasSelected { selection = tab.id }
-    }
-    if let target = selection ?? reopened.last?.id { select(target) }
-    refreshArchiveIfLoaded()
-    listingRevision &+= 1
-    persist(changedTabs: true)
-    return reopened
-  }
-
-  public func restore(_ id: UUID) {
-    guard let tab = tab(id), tab.isArchived else { return }
-    tab.archivedAt = nil
-    tab.position = position(for: .end)
-    tab.lastActive = now()
-    insertSorted(tab)
-    select(id)
-    refreshArchiveIfLoaded()
-    listingRevision &+= 1
-    persist(changedTabs: true)
-  }
-
-  public func move(_ id: UUID, to index: Int) {
-    if let from = privateTabs.firstIndex(where: { $0.id == id }) {
-      let tab = privateTabs.remove(at: from)
-      privateTabs.insert(tab, at: max(0, min(index, privateTabs.count)))
-      for (offset, each) in privateTabs.enumerated() { each.position = Double(offset) * TabPositions.step }
-      return
-    }
-    guard let from = openTabs.firstIndex(where: { $0.id == id }) else { return }
-    let tab = openTabs.remove(at: from)
-    let target = max(0, min(index, openTabs.count))
-    let lower = target > 0 ? openTabs[target - 1].position : nil
-    let upper = target < openTabs.count ? openTabs[target].position : nil
-    openTabs.insert(tab, at: target)
-    if let position = TabPositions.between(lower, upper) {
-      tab.position = position
-    } else {
-      for (offset, each) in openTabs.enumerated() { each.position = Double(offset) * TabPositions.step }
-    }
-    persist(changedTabs: true)
-  }
-
-  public func delete(_ ids: Set<UUID>) {
-    let tabs = ids.compactMap(tab)
-    guard !tabs.isEmpty else { return }
-    openTabs.removeAll { ids.contains($0.id) }
-    if let selectedTabID, ids.contains(selectedTabID) { self.selectedTabID = openTabs.max(by: { $0.lastActive < $1.lastActive })?.id }
-    undoStack = undoStack.map { $0.filter { !ids.contains($0.id) } }.filter { !$0.isEmpty }
-    canReopenClosed = !undoStack.isEmpty
-    onTabsRemoved?(tabs)
-    for tab in tabs { context.delete(tab) }
-    refreshArchiveIfLoaded()
-    listingRevision &+= 1
-    persist(changedTabs: true)
-  }
-
-  public func clearArchive() {
-    let archived = (try? context.fetch(FetchDescriptor<BrowserTab>(predicate: #Predicate { $0.archivedAt != nil }))) ?? []
-    delete(Set(archived.map(\.id)))
-  }
-
-  public func loadArchive() {
-    archiveLoaded = true
-    refreshArchive()
-  }
-
-  public func searchArchive(_ text: String) -> [BrowserTab] {
-    let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !query.isEmpty else { return archive.flatMap(\.tabs) }
-    var descriptor = FetchDescriptor<BrowserTab>(
-      predicate: #Predicate { $0.archivedAt != nil && ($0.title.localizedStandardContains(query) || $0.url.localizedStandardContains(query)) },
-      sortBy: [SortDescriptor(\.archivedAt, order: .reverse)]
-    )
-    descriptor.fetchLimit = 200
-    return (try? context.fetch(descriptor)) ?? []
   }
 
   public func update(_ id: UUID, url: String? = nil, title: String? = nil, faviconURL: String? = nil, themeColorHex: String? = nil, snapshotFileName: String? = nil) {
@@ -354,25 +276,9 @@ public final class TabStore: LocalBrowsingSource {
     persist(changedTabs: false)
   }
 
-  @discardableResult
-  public func runAutoArchive() -> Int {
-    guard !isGridInteractionActive else {
-      autoArchivePending = true
-      return 0
-    }
-    autoArchivePending = false
-    let date = now()
-    let due = openTabs.filter {
-      AutoArchivePolicy.isDue(lastActive: $0.lastActive, now: date, interval: autoArchiveInterval, isBeingViewed: $0.id == selectedTabID)
-    }
-    guard !due.isEmpty else { return 0 }
-    archiveTabs(due.map(\.id), undoable: false)
-    return due.count
-  }
-
   public func syncedTabs() -> [LocalTabRecord] {
     var countBySpace: [String?: Int] = [:]
-    return openTabs
+    return allOpenTabs
       .filter { BrowserURL.isSyncable($0.url) }
       .sorted { $0.lastActive > $1.lastActive }
       .filter { tab in
@@ -451,93 +357,12 @@ public final class TabStore: LocalBrowsingSource {
     lastReceived = []
   }
 
-  private func archiveTabs(_ ids: [UUID], undoable: Bool) {
-    let date = now()
-    let set = Set(ids)
-    let tabs = openTabs.filter { set.contains($0.id) }
-    guard !tabs.isEmpty else { return }
-    if undoable {
-      undoStack.append(tabs.map { ClosedTab(id: $0.id, position: $0.position, wasSelected: $0.id == selectedTabID) })
-      if undoStack.count > Self.undoLimit { undoStack.removeFirst(undoStack.count - Self.undoLimit) }
-      canReopenClosed = true
-    }
-    let selectedIndex = selectedTabID.flatMap { id in openTabs.firstIndex { $0.id == id } }
-    for tab in tabs { tab.archivedAt = date }
-    openTabs.removeAll { set.contains($0.id) }
-    if let selectedTabID, set.contains(selectedTabID) {
-      let neighbour = selectedIndex.map { min($0, openTabs.count - 1) } ?? -1
-      self.selectedTabID = neighbour >= 0 ? openTabs[neighbour].id : nil
-      selectedTab?.lastActive = date
-    }
-    onTabsArchived?(tabs.map(\.id))
-    refreshArchiveIfLoaded()
-    listingRevision &+= 1
-    persist(changedTabs: true)
-  }
-
-  private func pruneExpired() {
-    let date = now()
-    let historyCutoff = date.addingTimeInterval(-Self.historyRetention)
-    try? context.delete(model: Visit.self, where: #Predicate { $0.visitedAt < historyCutoff })
-    let archiveCutoff = date.addingTimeInterval(-Self.archiveRetention)
-    var expired = (try? context.fetch(FetchDescriptor<BrowserTab>(predicate: #Predicate { $0.archivedAt != nil && $0.archivedAt! < archiveCutoff }))) ?? []
-    var overflow = FetchDescriptor<BrowserTab>(predicate: #Predicate { $0.archivedAt != nil }, sortBy: [SortDescriptor(\.archivedAt, order: .reverse)])
-    overflow.fetchOffset = Self.archiveLimit
-    expired += (try? context.fetch(overflow)) ?? []
-    if !expired.isEmpty {
-      delete(Set(expired.map(\.id)))
-    } else {
-      try? context.save()
-    }
-  }
-
-  private func reloadOpenTabs() {
+  func reloadOpenTabs() {
     let descriptor = FetchDescriptor<BrowserTab>(predicate: #Predicate { $0.archivedAt == nil }, sortBy: [SortDescriptor(\.position)])
-    openTabs = (try? context.fetch(descriptor)) ?? []
+    allOpenTabs = (try? context.fetch(descriptor)) ?? []
   }
 
-  private func refreshArchiveIfLoaded() {
-    if archiveLoaded { refreshArchive() }
-  }
-
-  private func refreshArchive() {
-    var descriptor = FetchDescriptor<BrowserTab>(predicate: #Predicate { $0.archivedAt != nil }, sortBy: [SortDescriptor(\.archivedAt, order: .reverse)])
-    descriptor.fetchLimit = Self.archiveLimit
-    let tabs = (try? context.fetch(descriptor)) ?? []
-    let calendar = Calendar.current
-    var days: [ArchivedDay] = []
-    for tab in tabs {
-      let day = calendar.startOfDay(for: tab.archivedAt ?? tab.lastActive)
-      if days.last?.day == day {
-        days[days.count - 1].tabs.append(tab)
-      } else {
-        days.append(ArchivedDay(day: day, tabs: [tab]))
-      }
-    }
-    archive = days
-  }
-
-  private func position(for placement: TabPlacement) -> Double {
-    switch placement {
-    case .end:
-      return (openTabs.last?.position).map { $0 + TabPositions.step } ?? 0
-    case .after(let id):
-      guard let index = openTabs.firstIndex(where: { $0.id == id }) else { return position(for: .end) }
-      let lower = openTabs[index].position
-      let upper = index + 1 < openTabs.count ? openTabs[index + 1].position : nil
-      if let between = TabPositions.between(lower, upper) { return between }
-      for (offset, each) in openTabs.enumerated() { each.position = Double(offset) * TabPositions.step }
-      return openTabs[index].position + TabPositions.step / 2
-    }
-  }
-
-  private func insertSorted(_ tab: BrowserTab) {
-    openTabs.removeAll { $0.id == tab.id }
-    let index = openTabs.firstIndex { $0.position > tab.position } ?? openTabs.count
-    openTabs.insert(tab, at: index)
-  }
-
-  private func persist(changedTabs: Bool) {
+  func persist(changedTabs: Bool) {
     try? context.save()
     if changedTabs { onLocalChange?() }
   }

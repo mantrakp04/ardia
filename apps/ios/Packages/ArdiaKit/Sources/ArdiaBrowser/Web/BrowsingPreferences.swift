@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 import WebKit
 
 public enum NightShadeMode: String, Codable, Sendable, CaseIterable, Identifiable {
@@ -67,7 +68,8 @@ public struct SiteSettings: Codable, Equatable, Sendable {
 public final class BrowsingPreferences {
   static let keys = (
     nightShade: "browsing.nightShade", swipe: "browsing.swipeNavigation", appLinks: "browsing.appLinks",
-    suggestions: "browsing.searchSuggestions", engine: "browsing.searchEngine", sites: "browsing.sites"
+    suggestions: "browsing.searchSuggestions", engine: "browsing.searchEngine", sites: "browsing.sites",
+    permissions: "browsing.sitePermissions"
   )
   static let siteLimit = 500
 
@@ -102,6 +104,7 @@ public final class BrowsingPreferences {
   }
 
   public private(set) var sites: [String: SiteSettings]
+  public private(set) var sitePermissions: [String: Set<SitePermission>]
   private var privateSites: [String: SiteSettings] = [:]
 
   public init(defaults: UserDefaults) {
@@ -111,7 +114,27 @@ public final class BrowsingPreferences {
     appLinks = defaults.string(forKey: Self.keys.appLinks).flatMap(AppLinkPreference.init(rawValue:)) ?? .ardia
     searchSuggestions = defaults.object(forKey: Self.keys.suggestions) as? Bool ?? true
     searchEngineID = defaults.string(forKey: Self.keys.engine) ?? "google"
-    sites = (defaults.data(forKey: Self.keys.sites)).flatMap { try? JSONDecoder().decode([String: SiteSettings].self, from: $0) } ?? [:]
+    let storedSites = defaults.data(forKey: Self.keys.sites)
+    sites = storedSites.flatMap { try? JSONDecoder().decode([String: SiteSettings].self, from: $0) } ?? [:]
+    sitePermissions = (defaults.data(forKey: Self.keys.permissions)).flatMap { try? JSONDecoder().decode([String: Set<SitePermission>].self, from: $0) } ?? [:]
+    if Self.holdsEarlierGrants(storedSites) { saveSites() }
+  }
+
+  private struct EarlierSiteGrants: Decodable {
+    var permissions: [String]?
+  }
+
+  private static func holdsEarlierGrants(_ data: Data?) -> Bool {
+    guard let data, let decoded = try? JSONDecoder().decode([String: EarlierSiteGrants].self, from: data) else { return false }
+    return decoded.values.contains { $0.permissions != nil }
+  }
+
+  private func saveSites() {
+    do {
+      defaults.set(try JSONEncoder().encode(sites), forKey: Self.keys.sites)
+    } catch {
+      Logger(subsystem: "com.ardia.browser.ios", category: "permissions").error("Couldn't save site settings: \(error.localizedDescription, privacy: .public)")
+    }
   }
 
   public func settings(for host: String?, isPrivate: Bool = false) -> SiteSettings {
@@ -126,6 +149,41 @@ public final class BrowsingPreferences {
 
   public func appLinks(for host: String?, isPrivate: Bool = false) -> AppLinkPreference {
     settings(for: host, isPrivate: isPrivate).appLinks ?? appLinks
+  }
+
+  public var permissionGrants: [SitePermissionGrant] {
+    sitePermissions
+      .compactMap { site, permissions in
+        permissions.isEmpty ? nil : SitePermissionGrant(host: site, permissions: permissions.sorted())
+      }
+      .sorted { $0.host.localizedStandardCompare($1.host) == .orderedAscending }
+  }
+
+  public func isGranted(_ permissions: Set<SitePermission>, host: String) -> Bool {
+    permissions.isSubset(of: sitePermissions[SitePermissionSite.normalize(host)] ?? [])
+  }
+
+  public func grant(_ permissions: Set<SitePermission>, host: String) {
+    let site = SitePermissionSite.normalize(host)
+    guard !site.isEmpty else { return }
+    savePermissions(sitePermissions.merging([site: (sitePermissions[site] ?? []).union(permissions)]) { $1 })
+  }
+
+  public func revoke(_ permissions: Set<SitePermission>, host: String) {
+    let site = SitePermissionSite.normalize(host)
+    guard let granted = sitePermissions[site] else { return }
+    let left = granted.subtracting(permissions)
+    savePermissions(left.isEmpty ? sitePermissions.filter { $0.key != site } : sitePermissions.merging([site: left]) { $1 })
+  }
+
+  private func savePermissions(_ updated: [String: Set<SitePermission>]) {
+    guard updated != sitePermissions else { return }
+    sitePermissions = updated
+    do {
+      defaults.set(try JSONEncoder().encode(updated), forKey: Self.keys.permissions)
+    } catch {
+      Logger(subsystem: "com.ardia.browser.ios", category: "permissions").error("Couldn't save site permissions: \(error.localizedDescription, privacy: .public)")
+    }
   }
 
   public func endPrivateBrowsing() {
@@ -152,7 +210,7 @@ public final class BrowsingPreferences {
     guard value != before else { return }
     if value.isEmpty { sites[key] = nil } else { sites[key] = value }
     if sites.count > Self.siteLimit, let drop = sites.keys.first(where: { $0 != key }) { sites[drop] = nil }
-    if let data = try? JSONEncoder().encode(sites) { defaults.set(data, forKey: Self.keys.sites) }
+    saveSites()
     if before.nightShade != value.nightShade { onNightShadeChange?() }
   }
 }
@@ -180,10 +238,34 @@ public enum BrowsingDataCleaner {
     var types: Set<String> = []
     if kinds.contains(.cache) { types.formUnion(cacheTypes) }
     if kinds.contains(.cookiesAndSiteData) { types.formUnion(WKWebsiteDataStore.allWebsiteDataTypes().subtracting(cacheTypes)) }
-    if kinds.contains(.history) { tabs.clearHistory(since: date) }
+    if kinds.contains(.history) {
+      do {
+        try HistoryEraser.erase(since: date, at: tabs.now(), in: tabs.context)
+      } catch {
+        Logger(subsystem: "com.ardia.browser.ios", category: "history").error("Couldn't clear history: \(error.localizedDescription, privacy: .public)")
+        tabs.clearHistory(since: date)
+      }
+    }
     if kinds.contains(.cache) { URLCache.shared.removeAllCachedResponses() }
     guard !types.isEmpty else { return }
     await store.removeData(ofTypes: types, modifiedSince: date ?? .distantPast)
+    await clearLeftoverStores(ofTypes: types, since: date, removing: date == nil && kinds.isSuperset(of: [.cache, .cookiesAndSiteData]))
+  }
+
+  @MainActor
+  static func clearLeftoverStores(ofTypes types: Set<String>, since date: Date?, removing: Bool) async {
+    let identifiers = await WKWebsiteDataStore.allDataStoreIdentifiers
+    for identifier in identifiers {
+      await WKWebsiteDataStore(forIdentifier: identifier).removeData(ofTypes: types, modifiedSince: date ?? .distantPast)
+    }
+    guard removing else { return }
+    for identifier in identifiers {
+      do {
+        try await WKWebsiteDataStore.remove(forIdentifier: identifier)
+      } catch {
+        Logger(subsystem: "com.ardia.browser.ios", category: "browsingData").error("Couldn’t remove a leftover website data store: \(error.localizedDescription, privacy: .public)")
+      }
+    }
   }
 }
 

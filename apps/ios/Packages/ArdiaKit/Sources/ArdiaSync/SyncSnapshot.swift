@@ -4,12 +4,14 @@ public struct SyncSnapshot: Codable, Equatable, Sendable {
   public var devices: [SyncedDevice]
   public var profiles: [SyncedProfile]
   public var search: SyncedSearch?
+  public var lookSettings: SyncedLookSettings?
   public var syncedAt: Date?
 
-  public init(devices: [SyncedDevice] = [], profiles: [SyncedProfile] = [], search: SyncedSearch? = nil, syncedAt: Date? = nil) {
+  public init(devices: [SyncedDevice] = [], profiles: [SyncedProfile] = [], search: SyncedSearch? = nil, lookSettings: SyncedLookSettings? = nil, syncedAt: Date? = nil) {
     self.devices = devices
     self.profiles = profiles
     self.search = search
+    self.lookSettings = lookSettings
     self.syncedAt = syncedAt
   }
 
@@ -26,6 +28,11 @@ public struct SyncedDevice: Codable, Equatable, Hashable, Identifiable, Sendable
   public enum Kind: String, Codable, Sendable {
     case mac
     case phone
+    case tablet
+
+    public init(from decoder: any Decoder) throws {
+      self = Kind(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .mac
+    }
   }
 
   public var id: String
@@ -72,16 +79,6 @@ public struct SyncedProfile: Codable, Equatable, Hashable, Identifiable, Sendabl
     self.bookmarks = bookmarks
     self.history = history
     self.sendTargets = sendTargets
-  }
-}
-
-public struct SyncedTheme: Codable, Equatable, Hashable, Sendable {
-  public var colors: [String]
-  public var darkColors: [String]?
-
-  public init(colors: [String], darkColors: [String]?) {
-    self.colors = colors
-    self.darkColors = darkColors
   }
 }
 

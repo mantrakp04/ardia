@@ -82,7 +82,7 @@ public final class BlockingSettings {
     onChange?()
   }
 
-  static func normalize(_ host: String) -> String {
+  nonisolated static func normalize(_ host: String) -> String {
     let lower = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ". "))
     return lower.hasPrefix("www.") ? String(lower.dropFirst(4)) : lower
   }

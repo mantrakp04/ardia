@@ -19,8 +19,8 @@ struct SyncSetupView: View {
           Button("Close", role: .close) { dismiss() }
         }
       }
-      .lookBackdrop()
-      .navigationDestination(for: SettingsRoute.self) { $0.destination.lookBackdrop() }
+      .settingsChrome()
+      .navigationDestination(for: SettingsRoute.self) { $0.destination.settingsChrome() }
     }
     .tint(Color.ardiaAccentText)
   }

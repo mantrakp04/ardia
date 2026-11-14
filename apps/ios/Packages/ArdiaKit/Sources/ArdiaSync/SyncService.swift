@@ -60,12 +60,13 @@ public final class SyncService {
   public private(set) var isEnabled = false
   public private(set) var folderName: String?
   public let isDemo: Bool
+  public let deviceKind: SyncedDevice.Kind
 
   public var deviceName: String {
     didSet {
       guard deviceName != oldValue else { return }
       let trimmed = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
-      meta.deviceName = trimmed.isEmpty ? SyncMeta.defaultDeviceName : trimmed
+      meta.deviceName = trimmed.isEmpty ? ThisDevice(kind: deviceKind).defaultName : trimmed
       saveMeta()
       localDidChange()
     }
@@ -114,7 +115,7 @@ public final class SyncService {
       return "Not syncing · Last synced \(Self.relative.localizedString(for: lastSynced, relativeTo: now()))"
     case .offline: return "Offline"
     case .needsFolderAccess: return "Choose your sync folder again to keep syncing."
-    case .locked: return "Enter your recovery phrase to keep syncing on this iPhone."
+    case .locked: return lockedStatusText
     case .reset: return Self.resetMessage
     }
   }
@@ -146,6 +147,10 @@ public final class SyncService {
   static let historyWindow: TimeInterval = 90 * 86_400
   static let resetConfirmation: TimeInterval = 60
   static let visitOverlap: TimeInterval = 300
+  public var lockedStatusText: String {
+    "Enter your recovery phrase to keep syncing on this \(ThisDevice(kind: deviceKind).noun)."
+  }
+
   static let resetMessage = "This device is out of sync. Sync may have been reset from another device."
 
   private static weak var active: SyncService?
@@ -154,13 +159,16 @@ public final class SyncService {
     directory: URL = SyncService.defaultDirectory,
     keyStore: any SyncKeyStore = KeychainKeyStore(service: "Ardia Sync Key"),
     coordinationTimeout: TimeInterval = SyncFolderAccess.defaultTimeout,
+    deviceKind: SyncedDevice.Kind? = nil,
     now: @escaping @Sendable () -> Date = Date.init
   ) {
+    let resolvedKind = deviceKind ?? ThisDevice.current.kind
+    self.deviceKind = resolvedKind
     files = SyncFiles(directory: directory)
     self.keyStore = keyStore
     self.now = now
     self.coordinationTimeout = coordinationTimeout
-    meta = files.loadMeta()
+    meta = files.loadMeta(for: ThisDevice(kind: resolvedKind))
     deviceName = meta.deviceName
     selectedProfileId = meta.selectedProfileId
     lastSynced = meta.lastSyncedAt
@@ -168,27 +176,30 @@ public final class SyncService {
     isDemo = false
   }
 
-  private init(demo snapshot: SyncSnapshot) {
+  private init(demo snapshot: SyncSnapshot, isOn: Bool) {
     files = SyncFiles(directory: URL(filePath: "/dev/null"))
     keyStore = DemoKeyStore()
     now = Date.init
     coordinationTimeout = SyncFolderAccess.defaultTimeout
-    meta = SyncMeta(deviceName: "iPhone", enabled: true)
-    deviceName = "iPhone"
+    meta = SyncMeta(deviceName: ThisDevice.current.defaultName, enabled: isOn)
+    deviceName = ThisDevice.current.defaultName
+    deviceKind = ThisDevice.current.kind
     isDemo = true
-    self.snapshot = snapshot
-    phase = .updated
-    isEnabled = true
-    folderName = "Ardia Sync"
-    lastSynced = .now
+    self.snapshot = isOn ? snapshot : .empty
+    phase = isOn ? .updated : .off
+    isEnabled = isOn
+    folderName = isOn ? "Ardia Sync" : nil
+    lastSynced = isOn ? .now : nil
   }
 
-  public static var demo: SyncService { SyncService(demo: .demo) }
+  public static var demo: SyncService {
+    SyncService(demo: .demo, isOn: !ProcessInfo.processInfo.arguments.contains("-ArdiaSyncOff"))
+  }
 
   public func start() {
     guard !isDemo, engine == nil else { return }
     Self.active = self
-    meta = files.loadMeta()
+    meta = files.loadMeta(for: ThisDevice(kind: deviceKind))
     folderName = meta.folder?.name
     if meta.retiringDeviceId != nil, retiring == nil {
       retiring = Task { await retirePending() }
@@ -776,7 +787,7 @@ public final class SyncService {
   }
 
   private func gatherLocal(at time: Date) -> LocalBrowsing {
-    guard let source else { return LocalBrowsing(deviceName: meta.deviceName, tabs: nil, visits: nil) }
+    guard let source else { return LocalBrowsing(deviceName: meta.deviceName, deviceKind: deviceKind, tabs: nil, visits: nil) }
     var visits: [LocalVisitRecord]?
     if visitsDue {
       let window = time.addingTimeInterval(-Self.historyWindow)
@@ -785,7 +796,7 @@ public final class SyncService {
     }
     let due = dueVisits
     if !due.isEmpty { visits = (visits ?? []) + source.syncedVisits(urls: due) }
-    return LocalBrowsing(deviceName: meta.deviceName, tabs: source.syncedTabs(), visits: visits, fetchedDue: due)
+    return LocalBrowsing(deviceName: meta.deviceName, deviceKind: deviceKind, tabs: source.syncedTabs(), visits: visits, fetchedDue: due)
   }
 
   private func saveMeta() {

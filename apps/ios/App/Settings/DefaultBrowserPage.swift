@@ -5,11 +5,10 @@ struct DefaultBrowserPage: View {
   var body: some View {
     ScrollView {
       DefaultBrowserInstructions()
-        .padding(.horizontal, Spacing.page + 4)
-        .padding(.top, Spacing.large)
-        .padding(.bottom, Spacing.section)
+        .padding(.horizontal, Tokens.Space.xxl)
+        .padding(.top, Tokens.Space.xxxl)
+        .padding(.bottom, Tokens.Space.huge)
     }
-    .background { ProfileBackdrop().ignoresSafeArea() }
     .navigationTitle("Default Browser")
     .navigationBarTitleDisplayMode(.inline)
   }
@@ -24,52 +23,50 @@ struct DefaultBrowserInstructions: View {
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   var body: some View {
-    VStack(spacing: Spacing.large) {
-      VStack(spacing: Spacing.small) {
+    VStack(spacing: Tokens.Space.xxxl) {
+      VStack(spacing: Tokens.Space.l) {
         Text("How to change your default browser")
-          .font(.system(.title, design: .rounded, weight: .bold))
+          .typography(.display)
           .foregroundStyle(Color.ardiaTitle)
           .multilineTextAlignment(.center)
           .fixedSize(horizontal: false, vertical: true)
           .accessibilityAddTraits(.isHeader)
         Text("Open links from other apps in Ardia.")
-          .font(.body)
+          .font(Typography.body)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
           .fixedSize(horizontal: false, vertical: true)
       }
 
       if dynamicTypeSize.isAccessibilitySize {
-        VStack(alignment: .leading, spacing: Spacing.small) {
+        VStack(alignment: .leading, spacing: Tokens.Space.l) {
           Text("1. Open Ardia in Settings")
           Text("2. Tap on “Default Browser App”")
           Text("3. Select Ardia")
         }
-        .font(.body)
+        .font(Typography.body)
         .frame(maxWidth: .infinity, alignment: .leading)
       } else {
         stepsCard
       }
 
-      VStack(spacing: Spacing.small) {
+      VStack(spacing: Tokens.Space.l) {
         Button {
           onOpened?()
           app.defaultBrowser.willOpenSystemSettings()
           if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
         } label: {
           Text("Open Ardia in Settings")
-            .font(.body.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 50)
+            .font(Typography.title)
+            .frame(maxWidth: .infinity, minHeight: SettingsLayout.primaryButtonHeight)
         }
-        .buttonStyle(.borderedProminent)
-        .buttonBorderShape(.roundedRectangle(radius: 14))
-        .primaryActionColors()
+        .buttonStyle(.glassPrimaryAction)
 
         if let onLater {
           Button("Maybe Later", action: onLater)
-            .font(.body.weight(.semibold))
+            .font(Typography.title)
             .foregroundStyle(Color.ardiaTitle)
-            .frame(minHeight: 44)
+            .frame(minHeight: GlassMetrics.hitTarget)
         }
       }
     }
@@ -79,24 +76,24 @@ struct DefaultBrowserInstructions: View {
     VStack(spacing: 0) {
       DefaultBrowserStep(number: 1, text: Text("Open Ardia in Settings")) {
         Image(systemName: "gear")
-          .font(.system(size: 17, weight: .semibold))
+          .font(Typography.title)
           .foregroundStyle(.white)
-          .frame(width: 29, height: 29)
-          .background(Color.gray.gradient, in: .rect(cornerRadius: 7, style: .continuous))
+          .frame(width: SettingsTile.side, height: SettingsTile.side)
+          .background(Color.gray.gradient, in: .rect(cornerRadius: Tokens.Radius.toolbar, style: .continuous))
       }
-      Divider().padding(.leading, 56)
+      Divider().padding(.leading, SettingsLayout.stepDividerInset)
       DefaultBrowserStep(number: 2, text: Text("Tap on “Default Browser App”")) {
         Image(systemName: "hand.point.up.left.fill")
-          .font(.system(size: 18))
+          .font(Typography.title.weight(.regular))
           .foregroundStyle(.secondary)
-          .frame(width: 29, height: 29)
+          .frame(width: SettingsTile.side, height: SettingsTile.side)
       }
-      Divider().padding(.leading, 56)
+      Divider().padding(.leading, SettingsLayout.stepDividerInset)
       DefaultBrowserStep(number: 3, text: Text("Select Ardia")) {
         AppIconPreview()
       }
     }
-    .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Radius.field, style: .continuous))
+    .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Tokens.Radius.sheet, style: .continuous))
   }
 }
 
@@ -106,15 +103,15 @@ private struct DefaultBrowserStep<Icon: View>: View {
   @ViewBuilder var icon: Icon
 
   var body: some View {
-    HStack(spacing: Spacing.small + 3) {
+    HStack(spacing: Tokens.Space.xl) {
       icon
-        .frame(minWidth: 29)
+        .frame(minWidth: SettingsTile.side)
       Text("\(number.formatted()). \(text)")
     }
-    .font(.body)
-    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-    .padding(.horizontal, Spacing.page)
-    .padding(.vertical, Spacing.hairline)
+    .font(Typography.body)
+    .frame(maxWidth: .infinity, minHeight: SettingsLayout.stepRowHeight, alignment: .leading)
+    .padding(.horizontal, Tokens.Space.xl)
+    .padding(.vertical, Tokens.Space.xs)
     .accessibilityElement(children: .combine)
   }
 }

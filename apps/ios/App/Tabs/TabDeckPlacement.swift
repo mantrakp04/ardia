@@ -74,7 +74,7 @@ nonisolated struct DeckPose {
     case .expanded:
       scale = lerp(geometry.expandedScale, deckScale, scaleT)
       center = lerp(geometry.expandedCenter, deckCenter, positionT)
-      corner = lerp(TabsLayout.displayCornerRadius, TabsLayout.cardRadius, scaleT)
+      corner = lerp(geometry.windowCorner, TabsLayout.cardRadius, scaleT)
     case .launcher:
       let start = 22 / max(geometry.cardSize.width, 1)
       scale = lerp(start, deckScale, scaleT)

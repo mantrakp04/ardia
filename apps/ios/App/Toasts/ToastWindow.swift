@@ -16,9 +16,26 @@ final class ToastPassthroughWindow: UIWindow {
   }
 }
 
+@MainActor
+@Observable
+final class ToastAppearance {
+  var interfaceStyle = InterfaceStyle.glass
+  var glassTintAmount = GlassTint.defaultAmount
+  var look = ProfileLook.plum
+  var colorScheme = ColorScheme.light
+
+  func update(from environment: EnvironmentValues) {
+    if interfaceStyle != environment.interfaceStyle { interfaceStyle = environment.interfaceStyle }
+    if glassTintAmount != environment.glassTintAmount { glassTintAmount = environment.glassTintAmount }
+    if look != environment.profileLook { look = environment.profileLook }
+    if colorScheme != environment.colorScheme { colorScheme = environment.colorScheme }
+  }
+}
+
 private struct ToastOverlayRoot: View {
   let center: ToastCenter
   let window: ToastPassthroughWindow
+  let appearance: ToastAppearance
 
   var body: some View {
     Color.clear
@@ -29,6 +46,13 @@ private struct ToastOverlayRoot: View {
       } onInteractiveFrame: { frame in
         window.interactiveFrame = frame
       }
+      .environment(\.interfaceStyle, appearance.interfaceStyle)
+      .environment(\.glassTintAmount, appearance.glassTintAmount)
+      .environment(\.profileLook, appearance.look)
+      .environment(\.colorScheme, appearance.colorScheme)
+      .onChange(of: appearance.colorScheme, initial: true) { _, scheme in
+        window.overrideUserInterfaceStyle = scheme == .dark ? .dark : .light
+      }
   }
 }
 
@@ -36,13 +60,13 @@ private struct ToastOverlayRoot: View {
 private enum ToastWindowRegistry {
   static var windows: [ObjectIdentifier: ToastPassthroughWindow] = [:]
 
-  static func install(in scene: UIWindowScene, center: ToastCenter) {
+  static func install(in scene: UIWindowScene, center: ToastCenter, appearance: ToastAppearance) {
     let key = ObjectIdentifier(scene)
     guard windows[key] == nil else { return }
     let window = ToastPassthroughWindow(windowScene: scene)
     window.windowLevel = .alert + 1
     window.backgroundColor = .clear
-    let host = UIHostingController(rootView: ToastOverlayRoot(center: center, window: window))
+    let host = UIHostingController(rootView: ToastOverlayRoot(center: center, window: window, appearance: appearance))
     host.view.backgroundColor = .clear
     window.rootViewController = host
     window.isHidden = false
@@ -57,10 +81,13 @@ private struct ToastWindowInstaller: UIViewRepresentable {
     InstallerView(center: center)
   }
 
-  func updateUIView(_ uiView: InstallerView, context: Context) {}
+  func updateUIView(_ uiView: InstallerView, context: Context) {
+    uiView.appearance.update(from: context.environment)
+  }
 
   final class InstallerView: UIView {
     let toasts: ToastCenter
+    let appearance = ToastAppearance()
 
     init(center: ToastCenter) {
       toasts = center
@@ -73,7 +100,7 @@ private struct ToastWindowInstaller: UIViewRepresentable {
     override func didMoveToWindow() {
       super.didMoveToWindow()
       guard let scene = window?.windowScene else { return }
-      ToastWindowRegistry.install(in: scene, center: toasts)
+      ToastWindowRegistry.install(in: scene, center: toasts, appearance: appearance)
     }
   }
 }

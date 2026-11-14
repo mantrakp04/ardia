@@ -26,7 +26,7 @@ struct SyncConnectPage: View {
   var body: some View {
     let hasPhrase = flow.hasPhrase
     Form {
-      SettingsHero("Connect to Your Mac", subtitle: Text("Two steps, and your Mac’s tabs are here."), systemImage: "macbook.and.iphone", tint: SettingsTint.sync)
+      SettingsHero("Connect to Your Mac", subtitle: Text("Two steps, and your Mac’s tabs are here."), systemImage: ThisDevice.current.pairSymbol, tint: SettingsTint.sync)
 
       Section {
         SetupStepRow(
@@ -36,18 +36,18 @@ struct SyncConnectPage: View {
           progress: .step(done: hasPhrase, after: true)
         ) {
           if hasPhrase {
-            HStack(spacing: Spacing.tight) {
-              Label("Recovery phrase added", systemImage: "checkmark.circle.fill")
-                .font(.subheadline.weight(.medium))
+            HStack(spacing: Tokens.Space.m) {
+              Text("Recovery phrase added")
+                .font(Typography.row.weight(.medium))
                 .foregroundStyle(.ink(.green))
               Spacer()
               Button("Change") { isEnteringWords = true }
-                .font(.subheadline)
+                .font(Typography.row)
             }
           } else {
             ViewThatFits(in: .horizontal) {
-              HStack(spacing: Spacing.tight) { phraseButtons }
-              VStack(alignment: .leading, spacing: Spacing.tight) { phraseButtons }
+              HStack(spacing: Tokens.Space.m) { phraseButtons }
+              VStack(alignment: .leading, spacing: Tokens.Space.m) { phraseButtons }
             }
           }
         }
@@ -58,22 +58,18 @@ struct SyncConnectPage: View {
           detail: Text("Choose the Ardia Sync folder in iCloud Drive."),
           progress: .step(done: false, after: hasPhrase)
         ) {
-          VStack(alignment: .leading, spacing: Spacing.tight) {
+          VStack(alignment: .leading, spacing: Tokens.Space.m) {
             if let pickedFolder, !isConnecting {
-              Label {
-                Text(verbatim: pickedFolder.lastPathComponent)
-              } icon: {
-                Image(systemName: "folder.fill")
-              }
-              .font(.subheadline.weight(.medium))
-              .foregroundStyle(.secondary)
+              Text(verbatim: pickedFolder.lastPathComponent)
+                .font(Typography.row.weight(.medium))
+                .foregroundStyle(.secondary)
             }
             if isConnecting {
-              HStack(spacing: Spacing.tight) {
+              HStack(spacing: Tokens.Space.m) {
                 ProgressView()
                 Text("Connecting…").foregroundStyle(.secondary)
               }
-              .font(.subheadline)
+              .font(Typography.row)
             } else {
               Button(pickedFolder == nil ? "Choose Folder…" : "Choose Another Folder…") { isChoosingFolder = true }
                 .buttonStyle(.bordered)
@@ -83,7 +79,7 @@ struct SyncConnectPage: View {
             }
             if let failure {
               Text(failure)
-                .font(.subheadline)
+                .font(Typography.row)
                 .foregroundStyle(.ink(.red))
                 .fixedSize(horizontal: false, vertical: true)
                 .transition(.opacity)
@@ -93,7 +89,7 @@ struct SyncConnectPage: View {
       } header: {
         Text("Two Steps")
       } footer: {
-        Text("Your recovery phrase stays in this iPhone’s Keychain.")
+        Text("Your recovery phrase stays in this \(ThisDevice.current.noun)’s Keychain.")
       }
     }
     .settingsPage("Connect to Your Mac")
@@ -126,10 +122,9 @@ struct SyncConnectPage: View {
   private var phraseButtons: some View {
     Group {
       Button("Scan Code", systemImage: "qrcode.viewfinder") { isScanning = true }
-        .buttonStyle(.borderedProminent)
-        .primaryActionColors()
+        .buttonStyle(.glassPrimaryAction)
       Button("Enter Words", systemImage: "character.cursor.ibeam") { isEnteringWords = true }
-        .buttonStyle(.bordered)
+        .buttonStyle(.glassAction)
     }
     .labelStyle(.titleAndIcon)
     .buttonBorderShape(.capsule)

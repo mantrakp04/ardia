@@ -17,69 +17,46 @@ struct TabDeckBar: View {
   let settings: () -> Void
 
   var body: some View {
-    HStack(spacing: 0) {
-      DeckCircleButton(
-        symbol: opensTabs ? "square.on.square" : showsSyncedTabs ? "laptopcomputer" : "archivebox",
-        label: opensTabs ? "Tabs" : showsSyncedTabs ? "Synced Tabs" : "Archive",
-        action: leading
-      )
-      Spacer(minLength: 0)
-      plusButton
-      Spacer(minLength: 0)
-      DeckCircleButton(symbol: "gearshape", label: "Settings", action: settings)
+    GlassBar {
+      HStack(spacing: 0) {
+        circle(opensTabs ? "square.on.square" : showsSyncedTabs ? "square.grid.2x2" : "archivebox", label: opensTabs ? "Tabs" : showsSyncedTabs ? "Space" : "Archive", morphID: BarMorph.tabs, action: leading)
+        Spacer(minLength: 0)
+        Button(action: newTab) {
+          Image(systemName: "plus")
+            .font(Typography.title)
+            .foregroundStyle(Tokens.Role.textPrimary)
+            .frame(width: BarMetrics.pieceHeight * 1.6, height: BarMetrics.pieceHeight)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.glassControl(.capsule, morphID: BarMorph.plus))
+        .contextMenu {
+          if isIncognito {
+            Button("New Tab", systemImage: "plus", action: newRegularTab)
+          } else {
+            Button("New Incognito Tab", systemImage: "eyes", action: newIncognitoTab)
+          }
+          if canReopen {
+            Button("Reopen Closed Tab", systemImage: "arrow.uturn.backward", action: reopen)
+          }
+        }
+        .accessibilityLabel(isIncognito ? "New Incognito Tab" : "New Tab")
+        Spacer(minLength: 0)
+        circle("gearshape", label: "Settings", morphID: BarMorph.menu, action: settings)
+      }
+      .frame(width: TabsDeckGeometry.barWidth(container: geometry.container, safeSide: geometry.safeSide))
     }
-    .padding(.horizontal, geometry.safeSide + TabsLayout.barSideInset - (BrowseLayout.hitTarget - TabsLayout.barCircle) / 2)
-    .frame(width: geometry.container.width)
     .position(x: geometry.container.width / 2, y: geometry.barCenterY)
   }
 
-  private var plusButton: some View {
-    Button(action: newTab) {
-      Image(systemName: "plus")
-        .font(.system(size: 20, weight: .medium))
-        .foregroundStyle(.primary)
-        .frame(width: TabsLayout.barPlus.width, height: TabsLayout.barPlus.height)
-        .contentShape(.capsule)
-    }
-    .buttonStyle(.plain)
-    .glassEffect(.regular.interactive(), in: .capsule)
-    .frame(minHeight: BrowseLayout.hitTarget)
-    .contextMenu {
-      if isIncognito {
-        Button("New Tab", systemImage: "plus", action: newRegularTab)
-        Button("New Incognito Tab", systemImage: "eyes", action: newTab)
-      } else {
-        Button("New Incognito Tab", systemImage: "eyes", action: newIncognitoTab)
-        if canReopen {
-          Button("Reopen Closed Tab", systemImage: "arrow.uturn.backward", action: reopen)
-        }
-      }
-      if hasTabs {
-        Divider()
-        Button(isIncognito ? "Close Incognito Tabs" : "Close All Tabs", systemImage: "xmark", role: .destructive, action: closeAll)
-      }
-    }
-    .accessibilityLabel(isIncognito ? "New Incognito Tab" : "New Tab")
-    .accessibilityHint("Touch and hold for more options.")
-  }
-}
-
-struct DeckCircleButton: View {
-  let symbol: String
-  let label: LocalizedStringKey
-  let action: () -> Void
-
-  var body: some View {
+  private func circle(_ symbol: String, label: LocalizedStringKey, morphID: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       Image(systemName: symbol)
-        .font(.system(size: 15, weight: .medium))
-        .foregroundStyle(.secondary)
-        .frame(width: TabsLayout.barCircle, height: TabsLayout.barCircle)
-        .glassEffect(.regular.interactive(), in: .circle)
-        .frame(width: BrowseLayout.hitTarget, height: BrowseLayout.hitTarget)
+        .font(Typography.body.weight(Tokens.Weight.medium))
+        .foregroundStyle(Tokens.Role.textPrimary)
+        .frame(width: BarMetrics.pieceHeight, height: BarMetrics.pieceHeight)
         .contentShape(.circle)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.glassControl(.circle, morphID: morphID))
     .accessibilityLabel(label)
   }
 }

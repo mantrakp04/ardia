@@ -30,6 +30,7 @@ private struct SettingsLaunchHooks: ViewModifier {
       if let index = arguments.firstIndex(of: "-ArdiaOpenSheet"), arguments.indices.contains(index + 1) {
         try? await Task.sleep(for: .milliseconds(600))
         switch arguments[index + 1] {
+        case "settings": app.sheet = .settings
         case "archive": app.openArchive()
         case "spaces": app.openSyncedSpaces()
         default: break
