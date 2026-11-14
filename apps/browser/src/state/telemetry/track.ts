@@ -64,6 +64,16 @@ export const takeSearchSuggests = () => {
   return taken;
 };
 
+let externalAppRequests = { external_app_prompts: 0, external_app_requests_without_app: 0 };
+
+export const noteExternalAppRequest = (hasApp: boolean) => void externalAppRequests[hasApp ? "external_app_prompts" : "external_app_requests_without_app"]++;
+
+export const takeExternalAppRequests = () => {
+  const taken = externalAppRequests;
+  externalAppRequests = { external_app_prompts: 0, external_app_requests_without_app: 0 };
+  return taken;
+};
+
 let firstWindowAt: number | null = null;
 
 export function markFirstWindow() {
