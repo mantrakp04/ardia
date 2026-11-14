@@ -240,7 +240,7 @@ export function importArcSpace(profileId: string, space: SpaceSuggestion, favico
   if (theme) setProfileTheme(profileId, theme);
   let skipped = 0;
   if (folders.length) {
-    const drafts = addGroupsFromDrafts(profileId, folders.map(toGroupDraft), windowFor(profileId));
+    const drafts = addGroupsFromDrafts(profileId, folders.map(toGroupDraft), windowFor(profileId), { collapsed: true });
     const groups = useBrowser.getState().groups;
     tabs += drafts.made.reduce((n, id) => n + (groups[id]?.tabIds.length ?? 0), 0);
     splits += drafts.splits;

@@ -29,7 +29,10 @@ export function bookmarkDraft(b: Bookmarks, folderId: string): GroupDraft | null
   return { id: node.id, title: node.title, children: walk(node) };
 }
 
-export function withDraftGroups(s: BrowserState, windowId: string, profileId: string, drafts: GroupDraft[]): [BrowserState, DraftGroups] {
+export type DraftGroupOptions = { collapsed?: boolean };
+
+export function withDraftGroups(s: BrowserState, windowId: string, profileId: string, drafts: GroupDraft[], options: DraftGroupOptions = {}): [BrowserState, DraftGroups] {
+  const collapsed = options.collapsed ?? false;
   const carried = new Set<string>();
   const w = s.windows[windowId];
   if (!w || w.kind === "private") return [s, { made: [], carried, skipped: 0, splits: 0 }];
@@ -87,7 +90,7 @@ export function withDraftGroups(s: BrowserState, windowId: string, profileId: st
       if (t) tabIds.push(t);
     }
     if (!tabIds.length) return tabIds;
-    groups[id] = { id, windowId, profileId, name: d.title, icon: null, color: null, collapsed: false, pinned: true, tabIds, createdAt: now, ...(parentId ? { parentId } : {}) };
+    groups[id] = { id, windowId, profileId, name: d.title, icon: null, color: null, collapsed, pinned: true, tabIds, createdAt: now, ...(parentId ? { parentId } : {}) };
     all.push(id);
     if (!parentId) made.push(id);
     return tabIds;

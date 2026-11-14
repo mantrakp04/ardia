@@ -48,6 +48,44 @@ test("re-importing an Arc space after renaming its group adds no page that's alr
   assert.equal(pinnedGroups().filter((x) => !x.parentId).length, 1, "no second Work");
 });
 
+const arcFolder = (title, sub) => ({
+  type: "folder",
+  title,
+  children: [
+    { type: "url", title: `${title} A`, url: `https://${title.toLowerCase()}-a.example/` },
+    { type: "folder", title: sub, children: [{ type: "url", title: `${sub} B`, url: `https://${sub.toLowerCase()}-b.example/` }] },
+  ],
+});
+const groupsNamed = (...names) => Object.values(S().groups).filter((g) => g.pinned && names.includes(g.name));
+
+test("an imported Arc space's folders, nested ones included, come in closed", () => {
+  start();
+  const space = { id: "s", name: "Home", profileId: P, tabs: [], pinned: [arcFolder("Work", "Inner"), arcFolder("Play", "Deep")] };
+  assert.equal(importArcSpace(P, space).tabs, 4);
+  const made = groupsNamed("Work", "Inner", "Play", "Deep");
+  assert.equal(made.length, 4, "two folders and their two subfolders");
+  assert.ok(made.some((g) => g.parentId), "the subfolders are nested groups");
+  assert.deepEqual(made.filter((g) => !g.collapsed).map((g) => g.name), [], "every imported group is closed");
+});
+
+test("Restore Arc Folders as Groups brings the folders in closed", () => {
+  const { w, bar } = start();
+  const holder = S().addBookmarkFolder({ profileId: P, title: "Home (Arc)", parentId: bar });
+  nestedFolder(holder, "Work", "Alpha", "https://work.example/");
+  nestedFolder(holder, "Play", "Beta", "https://play.example/");
+  assert.equal(restoreArcFolders(holder, w).length, 2);
+  const made = groupsNamed("Work", "Alpha", "Play", "Beta");
+  assert.equal(made.length, 4);
+  assert.deepEqual(made.filter((g) => !g.collapsed).map((g) => g.name), []);
+});
+
+test("Add to Sidebar as Group on one folder still opens it", () => {
+  const { w, bar } = start();
+  const [group] = addFolderToSidebar(nestedFolder(bar, "Work", "Alpha", "https://work.example/"), w);
+  assert.equal(S().groups[group].collapsed, false);
+  assert.equal(groupsNamed("Alpha")[0].collapsed, false, "and its subfolder");
+});
+
 test("a folder past the link limit imports up to it and reports the rest", () => {
   const { w } = start();
   const n = MAX_DRAFT_LINKS + 25;
