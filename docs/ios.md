@@ -112,8 +112,9 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   `.history`, `.bookmarks` and `.downloads` open it on that section. History merges this iPhone's visits with the
   current space's synced history (`HistoryTimeline`), one row per page at its latest visit, marked with the device
   it came from, grouped Today, Yesterday, then weekdays. Deleting a row removes this iPhone's visits and hides the
-  page until it is visited again; the iPhone can't delete history on a Mac. Bookmarks are the space's synced
-  bookmarks, read-only. Downloads are the files in the app's Downloads folder, opened with Quick Look.
+  page until it is visited again; the iPhone can't delete history on a Mac. The hidden pages (`HiddenHistory`) are
+  kept per space, only while that space's synced history still lists the page, and Clear Browsing Data forgets
+  them with the history it clears. Bookmarks are the space's synced bookmarks, read-only. Downloads are the files in the app's Downloads folder, opened with Quick Look.
 - **Start.** The app opens on search over the profile's window tint (a synced profile's Mac theme replaces it,
   under a light white veil in light mode), keyboard up. Behind the search panel is the space's start screen
   (`SearchHomeView`): the space switcher in the middle, the space's pinned tiles from the Mac under it (icons only,

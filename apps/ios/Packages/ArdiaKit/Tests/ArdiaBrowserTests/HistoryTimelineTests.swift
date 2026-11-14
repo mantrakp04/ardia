@@ -50,6 +50,24 @@ import Testing
     #expect(after.map(\.source) == [.thisDevice])
   }
 
+  @Test func hiddenPagesAreKeptOnlyWhileTheMacStillListsThem() {
+    let old = now.addingTimeInterval(-3_600)
+    let hidden = ["https://a.example/": old, "https://gone.example/": old]
+    let kept = HistoryTimeline.keeping(hidden, stillIn: [visit("https://a.example/", "A", minutesAgo: 90)])
+    #expect(kept == ["https://a.example/": old])
+    let many = (0..<2_000).reduce(into: [String: Date]()) { hidden, index in
+      let row = HistoryEntry(url: "https://\(index).example/", title: "", visitedAt: now, source: .otherDevice)
+      hidden = HistoryTimeline.hiding(row, in: hidden)
+    }
+    #expect(many.count == 2_000)
+  }
+
+  @Test func clearingHistoryForgetsTheHiddenPagesInThatRange() {
+    let hidden = ["https://old.example/": now.addingTimeInterval(-7_200), "https://new.example/": now.addingTimeInterval(-600)]
+    #expect(HistoryTimeline.forgetting(hidden, since: now.addingTimeInterval(-3_600)) == ["https://old.example/": now.addingTimeInterval(-7_200)])
+    #expect(HistoryTimeline.forgetting(hidden, since: nil).isEmpty)
+  }
+
   @Test func searchMatchesEveryWordInTitleOrAddress() {
     let entries = [
       HistoryEntry(url: "https://www.google.com/search?q=sintra", title: "best time to visit sintra - Google Search", visitedAt: now, source: .thisDevice),

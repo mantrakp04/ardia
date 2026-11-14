@@ -63,9 +63,17 @@ struct HistoryList: View {
       .accessibilityLabel(Text(verbatim: "\(entry.host), \(time), \(deviceName)"))
   }
 
+  private var syncedSpace: SyncedProfile? {
+    app.sync.isEnabled ? app.sync.snapshot.profile(app.tabs.profileSyncId) : nil
+  }
+
   private func reload() {
-    hidden = HiddenHistory.load(isDemo: app.isDemo)
-    entries = HistoryTimeline.entries(local: localVisits(), synced: syncedVisits(), hidden: hidden)
+    let space = syncedSpace
+    let synced = syncedVisits(in: space)
+    let stored = HiddenHistory.load(space: space?.syncId, isDemo: app.isDemo)
+    hidden = HistoryTimeline.keeping(stored, stillIn: synced)
+    if hidden != stored { HiddenHistory.save(hidden, space: space?.syncId, isDemo: app.isDemo) }
+    entries = HistoryTimeline.entries(local: localVisits(), synced: synced, hidden: hidden)
     hasLoaded = true
   }
 
@@ -74,14 +82,14 @@ struct HistoryList: View {
     return visits.map { HistoryVisitInput(url: $0.url, title: $0.title, visitedAt: $0.visitedAt) }
   }
 
-  private func syncedVisits() -> [HistoryVisitInput] {
-    guard app.sync.isEnabled, let profile = app.sync.snapshot.profile(app.tabs.profileSyncId) else { return [] }
-    return profile.history.map { HistoryVisitInput(url: $0.url, title: $0.title, visitedAt: $0.lastVisit) }
+  private func syncedVisits(in space: SyncedProfile?) -> [HistoryVisitInput] {
+    (space?.history ?? []).map { HistoryVisitInput(url: $0.url, title: $0.title, visitedAt: $0.lastVisit) }
   }
 
   private func delete(_ entry: HistoryEntry) {
-    hidden = HistoryTimeline.hiding(entry, in: hidden)
-    HiddenHistory.save(hidden, isDemo: app.isDemo)
+    let space = syncedSpace
+    hidden = HistoryTimeline.keeping(HistoryTimeline.hiding(entry, in: hidden), stillIn: syncedVisits(in: space))
+    HiddenHistory.save(hidden, space: space?.syncId, isDemo: app.isDemo)
     withAnimation(Motion.snappy) {
       entries.removeAll { $0.url == entry.url }
     }
@@ -108,12 +116,32 @@ enum HiddenHistory {
     isDemo ? (UserDefaults(suiteName: AppSettings.demoSuite) ?? .standard) : .standard
   }
 
-  static func load(isDemo: Bool) -> [String: Date] {
-    let stored = defaults(isDemo: isDemo).dictionary(forKey: key) as? [String: Double] ?? [:]
-    return stored.mapValues { Date(timeIntervalSince1970: $0) }
+  static func load(space: String?, isDemo: Bool) -> [String: Date] {
+    space.flatMap { stored(isDemo: isDemo)[$0] } ?? [:]
   }
 
-  static func save(_ hidden: [String: Date], isDemo: Bool) {
-    defaults(isDemo: isDemo).set(hidden.mapValues(\.timeIntervalSince1970), forKey: key)
+  static func save(_ hidden: [String: Date], space: String?, isDemo: Bool) {
+    guard let space else { return }
+    var spaces = stored(isDemo: isDemo)
+    spaces[space] = hidden.isEmpty ? nil : hidden
+    write(spaces, isDemo: isDemo)
+  }
+
+  static func clear(since date: Date?, isDemo: Bool) {
+    let spaces = stored(isDemo: isDemo).mapValues { HistoryTimeline.forgetting($0, since: date) }
+    write(spaces.filter { !$0.value.isEmpty }, isDemo: isDemo)
+  }
+
+  private static func stored(isDemo: Bool) -> [String: [String: Date]] {
+    let spaces = defaults(isDemo: isDemo).dictionary(forKey: key) as? [String: [String: Double]] ?? [:]
+    return spaces.mapValues { $0.mapValues { Date(timeIntervalSince1970: $0) } }
+  }
+
+  private static func write(_ spaces: [String: [String: Date]], isDemo: Bool) {
+    guard !spaces.isEmpty else {
+      defaults(isDemo: isDemo).removeObject(forKey: key)
+      return
+    }
+    defaults(isDemo: isDemo).set(spaces.mapValues { $0.mapValues(\.timeIntervalSince1970) }, forKey: key)
   }
 }

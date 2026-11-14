@@ -114,13 +114,20 @@ public enum HistoryTimeline {
     }
   }
 
-  public static func hiding(_ entry: HistoryEntry, in hidden: [String: Date], limit: Int = 500) -> [String: Date] {
+  public static func hiding(_ entry: HistoryEntry, in hidden: [String: Date]) -> [String: Date] {
     var next = hidden
     next[entry.url] = max(entry.visitedAt, hidden[entry.url] ?? .distantPast)
-    while next.count > limit, let oldest = next.min(by: { $0.value < $1.value })?.key, oldest != entry.url {
-      next[oldest] = nil
-    }
     return next
+  }
+
+  public static func keeping(_ hidden: [String: Date], stillIn synced: [HistoryVisitInput]) -> [String: Date] {
+    let urls = Set(synced.map(\.url))
+    return hidden.filter { urls.contains($0.key) }
+  }
+
+  public static func forgetting(_ hidden: [String: Date], since date: Date?) -> [String: Date] {
+    guard let date else { return [:] }
+    return hidden.filter { $0.value < date }
   }
 
   private static func isVisible(_ visit: HistoryVisitInput, hidden: [String: Date]) -> Bool {
