@@ -439,3 +439,37 @@ The JS reports stamp `probeRevision` (from `PERF_PROBE_REVISION` in `perfProbe.t
 and `benchRevision` (the seed and scenarios). `js-bench.mjs compare` prints a warning line when either differs
 between the two reports. The native bench bundles also differ across a native API bump, so on those rows some of
 the difference is the JS.
+
+## Clean profile startup memory
+
+The optional `profiles` phase measures profile startup with the existing native benchmark's app preparation, hidden-instance lifecycle, process-tree `phys_footprint`, and alternating control/candidate order. It seeds one window before launch with one local, lazily restored tab per profile. The fixture adds no user-installed extensions and uses no personal browser data. The default fixture has eight profiles; use `--profile-count 16` for a second matched run.
+
+```sh
+node apps/browser/scripts/perf/native-bench.mjs \
+  --app /absolute/path/Ardia.app --control /absolute/path/Ardia.app \
+  --label selected-profiles --control-label preloaded-profiles \
+  --only profiles --profile-count 8 --runs 3 \
+  --preload-profiles false --control-preload-profiles true \
+  --out /tmp/ardia-profile-native-bench
+```
+
+Use a Release app and benchmark bundle built from the same `main` revision, with matching native API versions. Both arms may use the same app and bundle: the fixture's `loadProfilesWhenOpened` setting is the intended difference. The CLI preloading options map inversely to this setting: candidate `--preload-profiles false` enables loading when opened, while control `--control-preload-profiles true` preloads every profile. Loading when opened is enabled by default in the product. `bench-entry.js` imports the normal app entry point, so startup applies the setting before history, bookmarks, favicon lookups, and neighbour-profile preparation.
+
+The phase runs alone, waits for the selected local page's first contentful paint, settles for `--idle` seconds (default 60), and reports physical footprint for the whole descendant process tree and browser process. Each raw result records the hydrated setting, logical profile/tab/window counts, and settling duration. Logical profile count is fixture metadata, **not** proof of how many Chromium BrowserContexts loaded. These results measure deferred startup, not releasing already visited profiles or timeout-based inactivity unloading. The process-tree measurement includes the bundled content blocker and its processes but no user-installed extensions. Keep measurement runs serial and compare equal profile counts and builds.
+
+With **Load profiles when opened** enabled, native bookmark/history reads and their sync adapters also wait until a profile opens. Cached bookmarks remain available before then. Turning the setting off restores startup reads and sync readiness for every profile after restart.
+
+## Profile unloading memory
+
+Use a Release app and benchmark bundle from the same revision, including the #1368 profile-unloading dependency, with the matching Chromium framework. Both arms use that same app and fixture, preload the profiles, enable Memory Saver, and select one profile in one window. The candidate unloads inactive profiles after five minutes; the control has unloading Off. The fixture adds no third-party extensions and uses no personal browser data.
+
+```sh
+node apps/browser/scripts/perf/native-bench.mjs \
+  --app /absolute/path/Ardia.app --control /absolute/path/Ardia.app \
+  --only profiles --profile-count 8 --runs 3 --idle 360 \
+  --preload-profiles true --control-preload-profiles true \
+  --unload-profiles-after 5m --control-unload-profiles-after never \
+  --out /tmp/ardia-profile-unloading-bench
+```
+
+Each run records process-tree and browser-process physical footprint about 60 seconds after the selected page paints and again after the idle interval. The six-minute idle period leaves time for the five-minute threshold and the 60-second release poll. Use profile counts 2, 4, 8 and 16 for a table comparable to #802. Run measurements serially. Memory Saver must first discard pages, and Chromium keepalives or other native work may delay release.

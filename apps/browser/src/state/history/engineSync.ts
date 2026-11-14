@@ -7,7 +7,7 @@ import { engineProfile, isIncognitoProfile } from "../browser/model";
 import type { HistoryEntry } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";
 import { engineProfiles } from "../profiles/engineProfiles";
-import { onProfilesOpened, openedEngineProfiles } from "../profiles/profileLoading";
+import { onProfilesOpened, onProfilesUnloaded, openedEngineProfiles } from "../profiles/profileLoading";
 import { migrateLegacyFile } from "../app/legacyFiles";
 
 const LEGACY_FILE = "history.json";
@@ -91,6 +91,7 @@ export function applyHistoryChange(list: HistoryEntry[], change: Exclude<History
 type Load = { running: Promise<void>; again: boolean; queued: HistoryChange[] };
 const loads = new Map<string, Load>();
 const loaded = new Set<string>();
+const loadVersions = new Map<string, number>();
 const migrating = new Set<string>();
 
 function load(engine: string): Promise<void> {
@@ -99,6 +100,7 @@ function load(engine: string): Promise<void> {
     running.again = true;
     return running.running;
   }
+  const version = loadVersions.get(engine) ?? 0;
   const state: Load = { running: Promise.resolve(), again: false, queued: [] };
   loads.set(engine, state);
   state.running = (async () => {
@@ -107,7 +109,9 @@ function load(engine: string): Promise<void> {
         state.again = false;
         state.queued = [];
         await watchHistory(engine);
+        if ((loadVersions.get(engine) ?? 0) !== version) return;
         const read = await queryHistory(engine, MAX_HISTORY, MAX_VISIT_TIMES);
+        if ((loadVersions.get(engine) ?? 0) !== version) return;
         const floor = read.length >= MAX_HISTORY ? Math.min(...read.map((e) => e.visitTimes.at(-1) ?? 0)) : -Infinity;
         let list = read.filter((e) => isWebPageUrl(e.url)).map(toEntry).sort(byLastVisit);
         for (const change of state.queued) if (!(change.kind === "deleted" && change.all)) list = applyHistoryChange(list, change);
@@ -116,9 +120,9 @@ function load(engine: string): Promise<void> {
         loaded.add(engine);
       } while (state.again);
     } catch (error) {
-      console.warn(`[history] couldn't read ${engine || "the default profile"}'s history`, error);
+      if ((loadVersions.get(engine) ?? 0) === version) console.warn(`[history] couldn't read ${engine || "the default profile"}'s history`, error);
     } finally {
-      loads.delete(engine);
+      if (loads.get(engine) === state) loads.delete(engine);
     }
   })();
   return state.running;
@@ -216,13 +220,22 @@ export function startHistory() {
   const opened = onProfilesOpened(() => {
     if (!moving) loadAll(store());
   });
+  const unloaded = onProfilesUnloaded((engines) => {
+    for (const engine of engines) {
+      loadVersions.set(engine, (loadVersions.get(engine) ?? 0) + 1);
+      loaded.delete(engine);
+      loads.delete(engine);
+    }
+  });
   return () => {
     stopped = true;
     events.remove();
     stop();
     opened();
+    unloaded();
     pending = [];
     loaded.clear();
+    loadVersions.clear();
     legacyMoved = false;
   };
 }

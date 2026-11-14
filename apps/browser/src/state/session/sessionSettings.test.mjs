@@ -60,3 +60,27 @@ test("settings and their bookkeeping save apart, read back the same, and a chang
   assert.deepEqual(S().settingsMeta, { chosen: ["tabLayout", "appearance"], inferred: [] });
   assert.equal(S().settings.appearance, "light");
 });
+
+test("loading profiles when opened defaults on and the off choice survives persistence", () => {
+  S().hydrate({});
+  assert.equal(S().settings.loadProfilesWhenOpened, true);
+  const stop = startPersistence();
+  S().updateSettings({ loadProfilesWhenOpened: false });
+  flushPersistence();
+  assert.equal(loadSession().settings.loadProfilesWhenOpened, false);
+  stop();
+});
+
+test("profile unloading choices persist and invalid choices fall back to five minutes", () => {
+  S().hydrate({ settings: { unloadProfilesAfter: "invalid" } });
+  assert.equal(S().settings.unloadProfilesAfter, "5m");
+  for (const value of ["never", "5m", "15m", "1h", "2h"]) {
+    const stop = startPersistence();
+    S().updateSettings({ unloadProfilesAfter: value });
+    flushPersistence();
+    const saved = loadSession();
+    stop();
+    S().hydrate(saved);
+    assert.equal(S().settings.unloadProfilesAfter, value);
+  }
+});

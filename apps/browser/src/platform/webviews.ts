@@ -1,4 +1,5 @@
 import type { WebViewHandle } from "@ardia/ardiacore";
+export type { WebViewHandle } from "@ardia/ardiacore";
 
 export const webviews = new Map<string, WebViewHandle>();
 

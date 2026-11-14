@@ -170,6 +170,27 @@ using ardiacore::NS;
                      ::mojom::LifecycleUnitDiscardReason::EXTERNAL);
 }
 
+- (BOOL)canUnload {
+  if (!_contents || !_contents->WasDiscarded() ||
+      _contents->NeedToFireBeforeUnloadOrUnloadEvents() || ardiacore::IsNotifyingAny()) {
+    return NO;
+  }
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(_contents);
+  return browser && browser->GetTabStripModel()->GetIndexOfWebContents(_contents) !=
+                        TabStripModel::kNoTab &&
+         !ardiacore::TabBridge::GetOrCreate(_contents)->closing_after_unload();
+}
+
+- (BOOL)unload {
+  if (!self.canUnload) {
+    return NO;
+  }
+  ardiacore::TabBridge::GetOrCreate(_contents)->set_closed_by_host();
+  ardiacore::DeleteTabClosedByHost(_contents, false);
+  return self.closed;
+}
+
 - (BOOL)discarded {
   return _contents && _contents->WasDiscarded();
 }

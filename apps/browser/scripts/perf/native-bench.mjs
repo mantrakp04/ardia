@@ -129,6 +129,7 @@ import { parseArgs } from "node:util";
 import { INJECTION_ENTITLEMENTS, prepareApp } from "../../../../scripts/lib/app-copy.mjs";
 import { appEnv, launchVariables, mergeLaunchEnv } from "../../../../scripts/lib/instance.mjs";
 import { buildSeed } from "./seed.mjs";
+import { profileSeed } from "./profile-seed.mjs";
 import { writeSwitches } from "./js-bench.mjs";
 import { frameRows, frameTable, framesLibrary, framesRun } from "./frames-phase.mjs";
 
@@ -154,6 +155,11 @@ const { values: opt } = parseArgs({
     prepared: { type: "boolean" },
     env: { type: "string", multiple: true, default: [] },
     seed: { type: "string" },
+    "profile-count": { type: "string", default: "8" },
+    "preload-profiles": { type: "string", default: "false" },
+    "control-preload-profiles": { type: "string", default: "true" },
+    "unload-profiles-after": { type: "string", default: "5m" },
+    "control-unload-profiles-after": { type: "string", default: "never" },
     "fresh-copy": { type: "boolean" },
     "trace-startup": { type: "string" },
     "page-port": { type: "string", default: "0" },
@@ -166,8 +172,17 @@ const { values: opt } = parseArgs({
   },
 });
 if (opt.help) {
+  const profileHelp = [
+    "                              profiles   profile memory after idle; --profile-count defaults to 8",
+    "    --preload-profiles <bool> candidate fixture setting (default false); --control-preload-profiles defaults true",
+    "    --unload-profiles-after <duration> candidate idle timeout (default 5m); control defaults to never",
+    "    --control-unload-profiles-after <duration> control idle timeout (default never)",
+  ];
   const lines = readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1);
-  console.log(lines.slice(0, lines.findIndex((l) => !l.startsWith("//"))).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
+  const help = lines.slice(0, lines.findIndex((l) => !l.startsWith("//"))).map((l) => l.replace(/^\/\/ ?/, ""));
+  const sample = help.findIndex((line) => line.trimStart().startsWith("sample "));
+  help.splice(sample + 1, 0, ...profileHelp);
+  console.log(help.join("\n"));
   process.exit(0);
 }
 
@@ -540,6 +555,13 @@ async function makeTemplate(side) {
   const dir = side.template;
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
+  if (only.has("profiles")) {
+    const preload = opt[side.role === "control" ? "control-preload-profiles" : "preload-profiles"] === "true";
+    const unloadAfter = opt[side.role === "control" ? "control-unload-profiles-after" : "unload-profiles-after"];
+    writeFileSync(join(dir, "session.json"), JSON.stringify(profileSeed(base(), +opt["profile-count"], !preload, unloadAfter)));
+    writeFileSync(join(dir, "onboarding.json"), JSON.stringify({ version: 1, completedAt: 1 }));
+    return;
+  }
   if (opt.seed) return writeBigSeed(side);
   log(`seeding a session (${side.label})`);
   writeFileSync(join(dir, "onboarding.json"), JSON.stringify({ version: 1, completedAt: 1 }));
@@ -902,6 +924,32 @@ async function journeyRun(side, i, parts) {
   }
 }
 
+async function profilesRun(side, i) {
+  const app = new Instance(side, freshDir(side, `profiles-${i}`));
+  try {
+    await app.launch();
+    if (!await app.pageState("id=profile-0", 30_000, (s) => s.fcp)) throw new Error("profile fixture page did not paint");
+    const settleMs = +opt.idle * 1000;
+    const warmupMs = Math.min(settleMs, 60_000);
+    await sleep(warmupMs);
+    const beforeMemory = footprint(usage(app.pid));
+    await sleep(settleMs - warmupMs);
+    const state = await app.run(`const s = ac.store.getState(); return {
+      logicalProfiles: Object.keys(s.profiles).length, tabs: Object.keys(s.tabs).length,
+      windows: s.windowOrder.length, loadProfilesWhenOpened: s.settings.loadProfilesWhenOpened,
+      unloadProfilesAfter: s.settings.unloadProfilesAfter,
+    };`);
+    const expected = opt[side.role === "control" ? "control-preload-profiles" : "preload-profiles"] === "false";
+    const expectedUnload = opt[side.role === "control" ? "control-unload-profiles-after" : "unload-profiles-after"];
+    if (state.logicalProfiles !== +opt["profile-count"] || state.loadProfilesWhenOpened !== expected || state.unloadProfilesAfter !== expectedUnload) throw new Error("profile fixture or settings did not hydrate");
+    const result = { ...state, warmupMs, settleMs, thirdPartyExtensions: false, beforeMemory, memory: footprint(usage(app.pid)) };
+    side.results.profiles.push(result);
+    log(`${side.tag}profiles ${i}:`, JSON.stringify(result));
+  } finally {
+    await app.quit();
+  }
+}
+
 const SESSION_PARTS = ["idle", "memory", "switch", "newtab", "newwindow"];
 
 async function sessionRun(side, i, parts) {
@@ -1087,6 +1135,13 @@ function summary(res) {
   add("launch → JS running", res.launch.map((r) => r.js), "ms");
   add("launch → first page painted", res.launch.map((r) => r.firstPaint), "ms");
   add("launch → first page's first frame", res.launch.map((r) => r.firstFrame), "ms");
+  const profiles = res.profiles ?? [];
+  if (profiles.length) {
+    add(`profile memory at ${profiles[0].warmupMs / 1000}s, ${profiles[0].logicalProfiles} configured profiles (phys_footprint)`, profiles.map((r) => r.beforeMemory.totalMB), "MB");
+    add(`profile memory after ${profiles[0].settleMs / 1000}s (phys_footprint)`, profiles.map((r) => r.memory.totalMB), "MB");
+    add("profile memory change during idle (phys_footprint)", profiles.map((r) => r.memory.totalMB - r.beforeMemory.totalMB), "MB");
+    add("profile memory after idle, browser process", profiles.map((r) => r.memory.kinds.browser), "MB");
+  }
   const S = res.session;
   for (const t of ["tabs1", "tabs20"]) {
     add(`idle CPU, ${t.slice(4)} tab(s) (all processes)`, S.map((r) => r.idle[t]?.total.cpu), "%", 2);
@@ -1177,7 +1232,7 @@ const fail = (message) => {
 if (!opt.app) fail("usage: native-bench.mjs --app <Ardia.app> [--control <app>] [--out dir] [--only phases] … (--help)");
 const JOURNEY_PHASES = ["newtabkey", "navigate"];
 const FRAME_PHASES = ["frames", "framecounts"];
-const PHASES = ["launch", "session", ...SESSION_PARTS, ...JOURNEY_PHASES, ...FRAME_PHASES, "windows", "throttle", "churn", "sample", "prepare"];
+const PHASES = ["launch", "session", ...SESSION_PARTS, ...JOURNEY_PHASES, ...FRAME_PHASES, "profiles", "windows", "throttle", "churn", "sample", "prepare"];
 const only = new Set(opt.only.split(",").map((p) => p.trim()).filter(Boolean));
 for (const p of only) if (!PHASES.includes(p)) fail(`--only: no phase "${p}"; phases: ${PHASES.join(", ")}`);
 if (only.has("frames") || only.has("framecounts")) opt.seed ??= "big";
@@ -1187,6 +1242,12 @@ if (opt["trace-startup"] && ![...only].every((p) => p === "launch")) fail("--tra
 if (opt.seed && ![...only].every((p) => p === "launch" || p === "prepare" || JOURNEY_PHASES.includes(p) || FRAME_PHASES.includes(p))) fail("--seed big works with --only launch, newtabkey, navigate, frames and framecounts (the other phases measure a one-tab session)");
 for (const e of opt.env) if (!/^[A-Za-z_]\w*=/.test(e)) fail(`--env wants K=V, got "${e}"`);
 if (!(+opt.hold >= 0)) fail(`--hold wants seconds, got "${opt.hold}"`);
+if (only.has("profiles")) {
+  if (only.size !== 1 || opt.seed) fail("profiles runs alone with its own clean fixture");
+  if (!Number.isSafeInteger(+opt["profile-count"]) || +opt["profile-count"] < 1) fail("profile-count must be a positive integer");
+  for (const key of ["preload-profiles", "control-preload-profiles"]) if (!["true", "false"].includes(opt[key])) fail(`${key} must be true or false`);
+  for (const key of ["unload-profiles-after", "control-unload-profiles-after"]) if (!["never", "5m", "15m", "1h", "2h"].includes(opt[key])) fail(`${key} must be one of never, 5m, 15m, 1h or 2h`);
+}
 if (opt.control && opt.compare) log("--compare is ignored with --control: the control is the before column");
 
 const labelOf = (app) => basename(dirname(dirname(resolve(app))));
@@ -1194,7 +1255,7 @@ function makeSide(app, label, role) {
   const dir = join(opt.out, label);
   mkdirSync(dir, { recursive: true });
   return { role, label, tag: "", src: resolve(app), dir, template: join(dir, "template"), app: null, bundle: null,
-    results: { meta: {}, launch: [], session: [], windows: [], journeys: [], frames: [], throttle: [], sample: [] } };
+    results: { meta: {}, profiles: [], launch: [], session: [], windows: [], journeys: [], frames: [], throttle: [], sample: [] } };
 }
 const candidate = makeSide(opt.app, opt.label ?? labelOf(opt.app), "candidate");
 let control = null;
@@ -1243,6 +1304,7 @@ try {
     process.exit(0);
   }
   for (const side of sides) await makeTemplate(side);
+  if (only.has("profiles")) await interleaved(+opt.runs, profilesRun);
   if (only.has("launch")) await interleaved(+opt["launch-runs"], launchRun);
   const parts = new Set(SESSION_PARTS.filter((p) => only.has("session") || only.has(p)));
   if (parts.size) await interleaved(+opt.runs, (side, i) => sessionRun(side, i, parts));

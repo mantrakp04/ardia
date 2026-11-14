@@ -7,7 +7,7 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile, isIncognitoProfile } from "../browser/model";
 import type { BookmarkFolder, BookmarkNode, Bookmarks } from "../browser/types";
 import { engineProfiles } from "../profiles/engineProfiles";
-import { onProfilesOpened, openedEngineProfiles, openProfile, profileOpened } from "../profiles/profileLoading";
+import { onProfilesOpened, onProfilesUnloaded, openedEngineProfiles, openProfile, profileOpened } from "../profiles/profileLoading";
 import { migrateLegacyFile } from "../app/legacyFiles";
 
 const LEGACY_FILE = "bookmarks.json";
@@ -25,11 +25,12 @@ type EngineState = {
   busy: boolean;
   needRead: boolean;
   needPush: boolean;
+  generation: number;
 };
 const engines = new Map<string, EngineState>();
 const stateOf = (engine: string) => {
   let state = engines.get(engine);
-  if (!state) engines.set(engine, (state = { shadow: null, shown: null, busy: false, needRead: false, needPush: false }));
+  if (!state) engines.set(engine, (state = { shadow: null, shown: null, busy: false, needRead: false, needPush: false, generation: 0 }));
   return state;
 };
 let legacyMoved = false;
@@ -77,9 +78,11 @@ async function sendOps(engine: string, ops: BookmarkOp[]): Promise<boolean> {
   }
 }
 
-async function readTree(engine: string, state: EngineState) {
+async function readTree(engine: string, state: EngineState, generation: number) {
   await watchBookmarks(engine);
+  if (state.generation !== generation) return;
   const fetched = flatFromEngine(await bookmarkTree(engine), engine);
+  if (state.generation !== generation) return;
   const base = state.shadow ?? state.shown ?? flatFromStore({ nodes: {} }, engine);
   const edits = bookmarkOps(base, flatFromStore(store().bookmarks, engine), engine);
   const merged = edits.length ? applyOps(fetched, edits, engine) : fetched;
@@ -87,18 +90,20 @@ async function readTree(engine: string, state: EngineState) {
   state.shown = null;
   adopt(engine, merged);
   if (!edits.length) return;
-  if (await sendOps(engine, edits)) state.shadow = merged;
-  else state.needRead = true;
+  if (await sendOps(engine, edits)) {
+    if (state.generation === generation) state.shadow = merged;
+  } else if (state.generation === generation) state.needRead = true;
 }
 
-async function pushTree(engine: string, state: EngineState) {
+async function pushTree(engine: string, state: EngineState, generation: number) {
   if (!state.shadow) return;
   const desired = flatFromStore(store().bookmarks, engine);
   if (!desired.nodes.size) return;
   const ops = bookmarkOps(state.shadow, desired, engine);
   if (!ops.length) return;
-  if (await sendOps(engine, ops)) state.shadow = desired;
-  else state.needRead = true;
+  if (await sendOps(engine, ops)) {
+    if (state.generation === generation) state.shadow = desired;
+  } else if (state.generation === generation) state.needRead = true;
 }
 
 function work(engine: string) {
@@ -111,10 +116,10 @@ function work(engine: string) {
         if (state.needRead) {
           state.needRead = false;
           state.needPush = false;
-          await readTree(engine, state);
+          await readTree(engine, state, state.generation);
         } else {
           state.needPush = false;
-          await pushTree(engine, state);
+          await pushTree(engine, state, state.generation);
         }
       }
     } catch (error) {
@@ -261,7 +266,17 @@ export function startBookmarks() {
     if (!stopped) for (const engine of openedEngineProfiles(store())) read(engine);
   });
   const opened = onProfilesOpened((now) => {
-    for (const engine of now) if (!stateOf(engine).shadow && !stateOf(engine).busy) read(engine);
+    for (const engine of now) read(engine);
+  });
+  const unloaded = onProfilesUnloaded((now) => {
+    for (const engine of now) {
+      const state = stateOf(engine);
+      state.generation++;
+      state.shown = state.shadow ?? state.shown;
+      state.shadow = null;
+      state.needRead = false;
+      state.needPush = false;
+    }
   });
   const stop = useBrowser.subscribe((s, prev) => {
     if (s.profiles !== prev.profiles) {
@@ -280,6 +295,7 @@ export function startBookmarks() {
     cacheTimer = undefined;
     changes.remove();
     opened();
+    unloaded();
     stop();
     engines.clear();
     legacyMoved = false;
