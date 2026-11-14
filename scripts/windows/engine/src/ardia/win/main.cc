@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <share.h>
 #include <stdio.h>
 
 #include <memory>
@@ -15,6 +16,7 @@
 #include "ardia/win/frame_view.h"
 #include "ardia/win/hooks.h"
 #include "ardia/win/host.h"
+#include "ardia/win/test_gate.h"
 #include "base/base_switches.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
@@ -52,6 +54,17 @@ struct App {
 App& TheApp() {
   static App app;
   return app;
+}
+
+struct Gate {
+  std::string refusal = "no scratch ARDIA_DATA_DIR";
+  bool asked = false;
+  std::string port;
+};
+
+Gate& TheGate() {
+  static base::NoDestructor<Gate> gate;
+  return *gate;
 }
 
 std::unique_ptr<ScopedKeepAlive>& KeepAlive() {
@@ -112,9 +125,10 @@ void AddLaunchSwitches(base::CommandLine* command_line) {
   command_line->AppendSwitch(switches::kHideCrashRestoreBubble);
   AddFeatures(command_line, switches::kDisableFeatures,
               "CalculateNativeWinOcclusion");
-  for (const char* forbidden : {switches::kRemoteDebuggingPort,
-                                switches::kRemoteDebuggingPipe,
-                                "remote-allow-origins"}) {
+  for (const char* forbidden :
+       {switches::kRemoteDebuggingPort, switches::kRemoteDebuggingPipe,
+        "remote-allow-origins", kTestInstanceSwitch, ardiacore::kTestSwitch,
+        ardiacore::kTraceSwitch, ardiacore::kDataDirSwitch}) {
     command_line->RemoveSwitch(forbidden);
   }
   std::wstring data_dir = Environment(L"ARDIA_DATA_DIR");
@@ -122,22 +136,28 @@ void AddLaunchSwitches(base::CommandLine* command_line) {
          (data_dir.back() == L'\\' || data_dir.back() == L'/')) {
     data_dir.pop_back();
   }
-  const bool scratch = !data_dir.empty();
   const bool background = Set(Environment(L"ARDIA_BACKGROUND"));
-  if (scratch) {
+  if (!data_dir.empty()) {
     command_line->AppendSwitchNative(ardiacore::kDataDirSwitch, data_dir);
     command_line->AppendSwitchNative(switches::kUserDataDir,
                                      data_dir + L"\\Chromium");
-    std::wstring port = Environment(L"ARDIA_REMOTE_DEBUGGING_PORT");
+  }
+  const std::wstring port = Environment(L"ARDIA_REMOTE_DEBUGGING_PORT");
+  const std::wstring test = Environment(L"ARDIA_TEST");
+  const std::wstring trace = Environment(L"ARDIA_TRACE");
+  Gate& gate = TheGate();
+  gate.refusal = base::WideToUTF8(TestGateRefusal(data_dir));
+  gate.asked = !port.empty() || !test.empty() || !trace.empty();
+  if (gate.refusal.empty()) {
+    command_line->AppendSwitch(kTestInstanceSwitch);
     if (!port.empty()) {
       command_line->AppendSwitchNative(switches::kRemoteDebuggingPort, port);
       command_line->AppendSwitchASCII("remote-allow-origins", "*");
+      gate.port = base::WideToUTF8(port);
     }
-    std::wstring test = Environment(L"ARDIA_TEST");
     if (!test.empty()) {
       command_line->AppendSwitchNative(ardiacore::kTestSwitch, test);
     }
-    std::wstring trace = Environment(L"ARDIA_TRACE");
     if (!trace.empty()) {
       command_line->AppendSwitchNative(ardiacore::kTraceSwitch, trace);
     }
@@ -151,6 +171,42 @@ void AddLaunchSwitches(base::CommandLine* command_line) {
   if (!app_switches.empty()) {
     command_line->AppendSwitchNative(ardiacore::kSwitchesSwitch, app_switches);
   }
+}
+
+void WriteLaunchLog(const std::string& line) {
+  const base::FilePath path =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValuePath("log-file");
+  if (path.empty()) {
+    return;
+  }
+  FILE* file = _wfsopen(path.value().c_str(), L"ab", _SH_DENYNO);
+  if (!file) {
+    return;
+  }
+  const std::string text = "engine 0 " + line + "\n";
+  fwrite(text.data(), 1, text.size(), file);
+  fclose(file);
+}
+
+void NoteTestGate() {
+  const Gate& gate = TheGate();
+  if (!gate.refusal.empty() && !gate.asked) {
+    return;
+  }
+  const std::string facts =
+      std::string("; ardiacore test instance: ") +
+      (ardiacore::TestInstance() ? "yes" : "no") +
+      "; reauth=granted honoured: " +
+      (ardiacore::TestValue("reauth") == "granted" ? "yes" : "no");
+  std::string line =
+      gate.refusal.empty()
+          ? "test gate: a test instance; remote debugging port: " +
+                (gate.port.empty() ? std::string("none") : gate.port) + facts
+          : "test gate: ARDIA_REMOTE_DEBUGGING_PORT, ARDIA_TEST and "
+            "ARDIA_TRACE ignored: not a test instance (" +
+                gate.refusal + ")" + facts;
+  LOG(WARNING) << "Ardia engine " << line;
+  WriteLaunchLog(line);
 }
 
 bool ForEngineWindow(const MSG& msg) {
@@ -267,6 +323,7 @@ class MainParts : public ChromeBrowserMainExtraParts {
   }
 
   void PostBrowserStart() override {
+    NoteTestGate();
     Host::Get()->Start();
     WatchEngineEvents();
     StartApp();
@@ -320,6 +377,10 @@ void BeforeChromeMain() {
   g_ardia_win_add_main_parts = &AddMainParts;
   g_ardia_win_relaunched = &Relaunched;
   g_ardia_keeps_window_without_tabs = &KeepsWindowWithoutTabs;
+}
+
+const char* TestGateDecision() {
+  return TheGate().refusal.c_str();
 }
 
 void QuitApp() {

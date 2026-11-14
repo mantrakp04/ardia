@@ -312,10 +312,11 @@ is plain Chromium.
 
 - `//ardia/win` (`scripts/windows/engine/src/ardia/win`, copied into the tree by `series_win.py`) is the engine's side.
   It starts Chromium with no window of its own, turns the launch variables into switches as the Mac's launcher does
-  (`ARDIA_DATA_DIR` keeps Chromium's data in `<dir>\Chromium`; `ARDIA_REMOTE_DEBUGGING_PORT` only works with it; a
-  remote debugging switch on the command line is dropped), loads the app's library once the browser has started, and
-  hands it the API in `EngineApi.h`: `hostCall(verb, json, window)`, `engineCall(name, profile, json)` and one event
-  sink. Chromium's message loop offers each message to the app first, except messages for Chromium's own windows.
+  (`ARDIA_DATA_DIR` keeps Chromium's data in `<dir>\Chromium`; `ARDIA_REMOTE_DEBUGGING_PORT`, `ARDIA_TEST` and
+  `ARDIA_TRACE` only count in a test instance, see Test instances; a remote debugging switch or an Ardia test switch on
+  the command line is dropped), loads the app's library once the browser has started, and hands it the API in
+  `EngineApi.h`: `hostCall(verb, json, window)`, `engineCall(name, profile, json)`, one event sink and
+  `testGateRefusal()`, the engine's test-instance decision. Chromium's message loop offers each message to the app first, except messages for Chromium's own windows.
 - Every normal browser window Chromium has is hosted: page only, with no frame, tab strip, toolbar, rounded page frame
   or shortcuts of its own (the `chromium-win-hosted-*` patches), and each shows one page: its active tab. Each is
   a borderless top-level window owned by the app's window, placed over the page's view: it stays above its owner, hides
@@ -758,7 +759,10 @@ Swift core wrote (`fixtures/windows-interop/mac`), and the self-check opens that
 ## Test instances
 
 `LaunchConfig.h` (`AppLaunch::Shared()`) reads the environment once at launch; `Paths.h` holds the one raw reader and
-the data folder, and `TestGate.h` decides whether this launch is a test instance. No other Windows native file reads
+the data folder. Whether this launch is a test instance is decided once, by the engine, before the app loads
+(`scripts/windows/engine/src/ardia/win/test_gate.cc`), and handed to the app through `EngineApi.h`'s
+`testGateRefusal()`, so the two can't disagree when the marker or a folder changes in between. `TestGate.h` holds the
+same rule for the app run without the engine (`ArdiaAppRun`). No other Windows native file reads
 the environment (`platform/windowsLaunchConfig.test.mjs` fails if one does). The one exception is the small
 `ArdiaLauncher`, which runs before the DLL loads and reads `ARDIA_BACKGROUND` only to keep a failed launch quiet.
 
@@ -794,8 +798,16 @@ the scratch instance makes a new one. Sync's `selfTest`, which seals and removes
 
 Outside a test instance the launch config drops `ARDIA_TEST`, `ARDIA_TRACE`, `ARDIA_CONFIG_DIR` and the test-only
 `ARDIA_INSTANCE` keys (`updateFeed`, `importSourceDir`, `importSafariHome`), and the launch log says once why. The other
-`ARDIA_INSTANCE` keys and `ARDIA_BACKGROUND` stay instance settings, as on the Mac. The engine reads its own
-switches before the app loads; its side of the rule is #1663.
+`ARDIA_INSTANCE` keys and `ARDIA_BACKGROUND` stay instance settings, as on the Mac.
+
+The engine applies the same decision to its own switches. Only a test instance gets `--remote-debugging-port` (with
+`remote-allow-origins=*`), `--ardia-test` and `--ardia-trace`, plus `--ardia-test-instance`, which `ardiacore`'s gate
+reads in place of the Mac's signing check (`series_win.py` `launch_switches_source()`); otherwise the launch log gets
+one `engine 0 test gate:` line saying why, and `reauth=granted`, `keychain`, `safeStorageAnswer` and the other engine
+test keys never count. Any of those switches given on the command line is dropped first. `launch-smoke.ps1` checks
+it with the engine: with no marker, a relative folder, the real profile folder and a junction to it, the launch
+asks for remote debugging and `reauth=granted`, and the engine must refuse both, write no `DevToolsActivePort` and
+leave the port closed; a scratch folder with the marker must get both.
 
 ## Checks
 

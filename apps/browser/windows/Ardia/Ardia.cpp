@@ -10,6 +10,7 @@
 #include "AppImage.h"
 #include "CrashLog.h"
 #include "EngineApi.h"
+#include "LaunchConfig.h"
 #include "Host.h"
 #include "LaunchLog.h"
 #include "LoggedErrors.h"
@@ -177,7 +178,9 @@ __declspec(dllexport) int ArdiaAppStart(const ArdiaEngineApi *engine) {
             .append(std::to_wstring(sizeof(ArdiaEngineApi)))
             .append(L" bytes"));
   }
-  if (!engine->setEventSink || !engine->hostCall || !engine->engineCall) return Refuse(kEngineMismatch, L"the engine API table has an empty entry");
+  if (!engine->setEventSink || !engine->hostCall || !engine->engineCall || !engine->testGateRefusal) return Refuse(kEngineMismatch, L"the engine API table has an empty entry");
+  const char *engineRefusal = engine->testGateRefusal();
+  Ardia::AppLaunch::EngineTestGate() = Ardia::Paths::Wide(engineRefusal ? engineRefusal : "the engine gave no test gate decision");
   try {
     const int prepared = Prepare(engine);
     if (prepared != 0) return prepared;
