@@ -130,6 +130,40 @@ export function deleteVisitsFor(db: SqlDatabase, urls: readonly string[], profil
   else db.run(`DELETE FROM visits WHERE url IN (${marks}) AND profileSyncId = ?`, [...urls, profileSyncId]);
 }
 
+export const hasBrowserData = (db: SqlDatabase) =>
+  (db.first<{ n: number }>("SELECT (SELECT count(*) FROM tabs) + (SELECT count(*) FROM visits) AS n")?.n ?? 0) > 0;
+
+export type ImportRows = {
+  tabs: readonly BrowserTab[];
+  states: readonly { id: string; data: string }[];
+  visits: readonly Omit<Visit, "id">[];
+  preferences: Readonly<Record<string, string>>;
+};
+
+export class ImportMismatch extends Error {}
+
+export function writeImport(db: SqlDatabase, rows: ImportRows, markerKey: string, marker: string) {
+  db.transaction(() => {
+    for (const tab of rows.tabs) db.run(`INSERT INTO tabs (${TAB_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, tabValues(tab));
+    for (const state of rows.states) db.run("INSERT OR REPLACE INTO tab_state (id, data) VALUES (?, ?)", [state.id, state.data]);
+    let id = maxVisitId(db);
+    for (const visit of rows.visits) {
+      id += 1;
+      db.run(`INSERT INTO visits (${VISIT_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)`, [id, visit.url, visit.title, visit.visitedAt, visit.profileSyncId, visit.transition]);
+    }
+    for (const [key, value] of Object.entries(rows.preferences)) db.run("INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)", [key, value]);
+    const tabs = db.first<{ n: number }>("SELECT count(*) AS n FROM tabs")?.n ?? 0;
+    const visits = db.first<{ n: number }>("SELECT count(*) AS n FROM visits")?.n ?? 0;
+    const states = db.first<{ n: number }>("SELECT count(*) AS n FROM tab_state")?.n ?? 0;
+    if (tabs !== rows.tabs.length || visits !== rows.visits.length || states !== rows.states.length) {
+      throw new ImportMismatch(`tabs ${tabs}/${rows.tabs.length} visits ${visits}/${rows.visits.length} states ${states}/${rows.states.length}`);
+    }
+    db.run("INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)", [markerKey, marker]);
+  });
+}
+
+export const writeMarker = (db: SqlDatabase, key: string, value: string) => db.run("INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)", [key, value]);
+
 export const countVisits = (db: SqlDatabase) => db.first<{ n: number }>("SELECT count(*) AS n FROM visits")?.n ?? 0;
 
 export function readPreferences(db: SqlDatabase): Record<string, string> {

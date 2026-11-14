@@ -17,6 +17,7 @@ import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
 import { useSettingsNav } from "./state/settings/hooks";
 import { useOnboarding } from "./state/onboarding/hooks";
+import { bootApp, useBoot } from "./state/app/boot";
 import { useBaseSystemBars } from "./state/app/systemBars";
 import { useSearchOpen } from "./state/search/hooks";
 import { useSheet, useSurface } from "./state/browse/hooks";
@@ -27,20 +28,17 @@ import { useSelectedTab } from "./state/tabs/hooks";
 const SWATCHES = (Object.keys(PROFILE_COLORS) as ProfileColor[]).map((key) => ({ key, hex: PROFILE_COLORS[key].swatch }));
 
 export default function App() {
-  useState(() => {
-    startBrowser();
-    startPageUi();
-    startSettingsSources();
-    startSync();
-  });
-  const surface = useSurface();
-  const sheet = useSheet();
-  const tab = useSelectedTab();
+  useState(() =>
+    bootApp(() => {
+      startBrowser();
+      startPageUi();
+      startSettingsSources();
+      startSync();
+    }),
+  );
+  const ready = useBoot((s) => s.ready);
   const dark = useColorScheme() === "dark";
   const color = useLookColor(SWATCHES, "plum");
-  const settingsOpen = useSettingsNav((s) => s.open);
-  const onboarding = useOnboarding((s) => s.showing);
-  const searching = useSearchOpen();
   useBaseSystemBars(dark);
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", handleSystemBack);
@@ -50,31 +48,43 @@ export default function App() {
       state.remove();
     };
   }, []);
-  useEffect(goBackToStartIfEmpty, [tab, surface]);
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <ThemeColorContext.Provider value={color}>
-          <Layer covered={sheet !== null || settingsOpen || onboarding}>
-            <Shade shaded={searching}>
-              {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
-              {surface === "deck" ? <TabDeck /> : null}
-              {surface === "start" ? <StartScreen /> : null}
-            </Shade>
-            <SearchTray />
-          </Layer>
-          <Layer covered={settingsOpen || onboarding}>
-            {sheet === "archive" ? <ArchiveView /> : null}
-            {sheet === "spaces" ? <SpacesView /> : null}
-          </Layer>
-          <Layer covered={onboarding}>
-            <SettingsView />
-          </Layer>
-          <OnboardingView />
-          <ToastHost />
-        </ThemeColorContext.Provider>
+        <ThemeColorContext.Provider value={color}>{ready ? <Surfaces /> : null}</ThemeColorContext.Provider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function Surfaces() {
+  const surface = useSurface();
+  const sheet = useSheet();
+  const tab = useSelectedTab();
+  const settingsOpen = useSettingsNav((s) => s.open);
+  const onboarding = useOnboarding((s) => s.showing);
+  const searching = useSearchOpen();
+  useEffect(goBackToStartIfEmpty, [tab, surface]);
+  return (
+    <>
+      <Layer covered={sheet !== null || settingsOpen || onboarding}>
+        <Shade shaded={searching}>
+          {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
+          {surface === "deck" ? <TabDeck /> : null}
+          {surface === "start" ? <StartScreen /> : null}
+        </Shade>
+        <SearchTray />
+      </Layer>
+      <Layer covered={settingsOpen || onboarding}>
+        {sheet === "archive" ? <ArchiveView /> : null}
+        {sheet === "spaces" ? <SpacesView /> : null}
+      </Layer>
+      <Layer covered={onboarding}>
+        <SettingsView />
+      </Layer>
+      <OnboardingView />
+      <ToastHost />
+    </>
   );
 }
 

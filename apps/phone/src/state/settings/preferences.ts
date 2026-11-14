@@ -80,6 +80,8 @@ const PARSERS: { [K in keyof Preferences]: (raw: string) => Preferences[K] | und
   readerTheme: oneOf<"light" | "sepia" | "dark">(["light", "sepia", "dark"]),
 };
 
+export const acceptsPreference = (name: keyof Preferences, raw: string) => PARSERS[name](raw) !== undefined;
+
 export function parsePreferences(stored: Record<string, string>): Preferences {
   const out = { ...DEFAULT_PREFERENCES } as Record<keyof Preferences, unknown>;
   for (const name of Object.keys(PREFERENCE_KEYS) as (keyof Preferences)[]) {
