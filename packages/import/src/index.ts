@@ -65,6 +65,7 @@ export type BookmarkNode = {
   children?: BookmarkNode[];
   role?: BookmarkRole;
   pageTitle?: string;
+  collapsed?: boolean;
 };
 
 export type ImportedHistoryEntry = { url: string; title: string; visits: number; lastVisit: number; typedCount?: number };
@@ -109,6 +110,7 @@ export type SpaceSuggestion = {
   tabs: ImportedTab[];
   theme?: string;
   container?: number;
+  pinnedCollapsed?: boolean;
 };
 
 export type ProfileSuggestion = { name: string; color?: string; avatarPath?: string };

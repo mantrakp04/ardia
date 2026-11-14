@@ -18,7 +18,7 @@ the file and its WAL before opening it.
 | cookies | `ChromiumSecrets.swift`: `Network/Cookies` (or `Cookies`) | same as Chromium | `Firefox.swift`: `cookies.sqlite` |
 | autofill (addresses, cards) | `ChromiumAutofill.swift`: `Web Data` | same as Chromium | none |
 | extensions (listed, never installed) | `ChromiumExtensions.swift`: `Preferences`, `Secure Preferences`, `Extensions/*/manifest.json` | same as Chromium | none |
-| spaces, pinnedTabs, favorites | none | `ArcSidebar.swift`: `<Application Support>/Arc/StorableSidebar.json` | none |
+| spaces, pinnedTabs, favorites | none | `ArcSidebar.swift`: `<Application Support>/Arc/StorableSidebar.json`, and `StorableWindows.json` beside it for which folders Arc shows open (`expandedItems`) and which spaces' pinned sections it folds (`spacesWithCollapsedPinnedSections`) | none |
 | favicons (for the imported tabs, favourites and bookmarks-bar links) | `ChromiumFavicons.swift`: `Favicons` (the page's own icon, else another page of the same site's; one PNG near 32 px, 16 KB each, up to 1,000 pages and 6 MB) | same as Chromium | none |
 
 | Source | Files | What it reads |

@@ -301,6 +301,10 @@ public struct BrowserDiscovery {
     applicationSupport.appendingPathComponent("Arc/StorableSidebar.json")
   }
 
+  public func arcWindowsURL() -> URL {
+    applicationSupport.appendingPathComponent("Arc/StorableWindows.json")
+  }
+
   func attachArcSpaces(_ profiles: inout [BrowserProfile]) {
     guard let data = try? Data(contentsOf: arcSidebarURL()), let sidebar = try? ArcSidebar.parse(data) else { return }
     for i in profiles.indices {

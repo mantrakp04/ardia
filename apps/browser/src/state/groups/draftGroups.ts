@@ -9,7 +9,7 @@ import { pinnedGroupMembers } from "../browser/structure";
 import { ASLEEP } from "../tabs/pageSession";
 import { evenSlots, paneChunks } from "../splits/splits";
 
-export type GroupDraft = { title: string; url?: string; customTitle?: string; id?: string; split?: boolean; children?: GroupDraft[] };
+export type GroupDraft = { title: string; url?: string; customTitle?: string; id?: string; split?: boolean; collapsed?: boolean; children?: GroupDraft[] };
 export type DraftGroups = { made: string[]; carried: Set<string>; skipped: number; splits: number };
 
 export const MAX_DRAFT_LINKS = 5000;
@@ -87,7 +87,7 @@ export function withDraftGroups(s: BrowserState, windowId: string, profileId: st
       if (t) tabIds.push(t);
     }
     if (!tabIds.length) return tabIds;
-    groups[id] = { id, windowId, profileId, name: d.title, icon: null, color: null, collapsed: false, pinned: true, tabIds, createdAt: now, ...(parentId ? { parentId } : {}) };
+    groups[id] = { id, windowId, profileId, name: d.title, icon: null, color: null, collapsed: !!d.collapsed, pinned: true, tabIds, createdAt: now, ...(parentId ? { parentId } : {}) };
     all.push(id);
     if (!parentId) made.push(id);
     return tabIds;

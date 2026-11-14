@@ -4,7 +4,7 @@ public struct ArcSidebar: Equatable {
   public var spaces: [SpaceSuggestion] = []
   public var favorites: [String: [ImportedTab]] = [:]
 
-  public static func parse(_ data: Data) throws -> ArcSidebar {
+  public static func parse(_ data: Data, windows: Data? = nil) throws -> ArcSidebar {
     guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let sidebar = top["sidebar"] as? [String: Any],
           let containers = sidebar["containers"] as? [Any] else {
@@ -13,6 +13,7 @@ public struct ArcSidebar: Equatable {
     guard let box = mainContainer(containers) else { return ArcSidebar() }
 
     let items = Items(objects(box["items"]))
+    let shown = windows.flatMap(WindowState.init)
 
     var out = ArcSidebar()
     var untitled = 0
@@ -21,7 +22,7 @@ public struct ArcSidebar: Equatable {
       let profile = profileDirectory(space["profile"]) ?? "Default"
       let roots = containerIDs(space)
       var seen = Set<String>()
-      let pinned = (roots["pinned"] ?? []).flatMap { tree(of: $0, items: items, seen: &seen) }
+      let pinned = (roots["pinned"] ?? []).flatMap { tree(of: $0, items: items, seen: &seen, open: shown?.openItems) }
       let today = (roots["unpinned"] ?? []).flatMap { flatTabs(of: $0, items: items, seen: &seen, pinned: false) }
       let info = space["customInfo"] as? [String: Any]
       let icon = info?["iconType"] as? [String: Any]
@@ -43,7 +44,8 @@ public struct ArcSidebar: Equatable {
         profileId: profile,
         pinned: pinned,
         tabs: today,
-        theme: json(theme)
+        theme: json(theme),
+        pinnedCollapsed: shown.map { $0.collapsedPinned.contains(id) }
       ))
     }
 
@@ -212,7 +214,26 @@ public struct ArcSidebar: Equatable {
     (item["data"] as? [String: Any])?["splitView"] != nil
   }
 
-  static func tree(of containerID: String, items: Items, seen: inout Set<String>, depth: Int = 0) -> [BookmarkNode] {
+  struct WindowState: Equatable {
+    var openItems: Set<String> = []
+    var collapsedPinned: Set<String> = []
+
+    init?(_ data: Data) {
+      guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+      let windows = ArcSidebar.objects(top["windows"]).filter { $0["expandedItems"] != nil }
+      guard !windows.isEmpty else { return nil }
+      for window in windows {
+        for (id, state) in ArcSidebar.pairs(window["expandedItems"]) {
+          if let id = id as? String, (state as? [String: Any])?["expanded"] != nil { openItems.insert(id) }
+        }
+        for id in window["spacesWithCollapsedPinnedSections"] as? [Any] ?? [] {
+          if let id = id as? String { collapsedPinned.insert(id) }
+        }
+      }
+    }
+  }
+
+  static func tree(of containerID: String, items: Items, seen: inout Set<String>, depth: Int = 0, open: Set<String>? = nil) -> [BookmarkNode] {
     guard depth < 64, items[containerID] != nil, seen.insert(containerID).inserted else { return [] }
     var out: [BookmarkNode] = []
     for id in items.children(containerID) {
@@ -227,10 +248,12 @@ public struct ArcSidebar: Equatable {
         guard seen.insert(id).inserted else { continue }
         out.append(.folder(customTitle(item) ?? "Pull Requests", [], role: role))
       } else if data["list"] != nil {
-        let kids = tree(of: id, items: items, seen: &seen, depth: depth + 1)
-        out.append(.folder(customTitle(item) ?? "Folder", kids))
+        let kids = tree(of: id, items: items, seen: &seen, depth: depth + 1, open: open)
+        var folder = BookmarkNode.folder(customTitle(item) ?? "Folder", kids)
+        folder.collapsed = open.map { !$0.contains(id) }
+        out.append(folder)
       } else if isSplit(item) {
-        let panes = tree(of: id, items: items, seen: &seen, depth: depth + 1)
+        let panes = tree(of: id, items: items, seen: &seen, depth: depth + 1, open: open)
         if panes.count >= 2, panes.allSatisfy({ $0.type == .url }) {
           out.append(.folder(customTitle(item) ?? "", panes, role: splitRole))
         } else {
