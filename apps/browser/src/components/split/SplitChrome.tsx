@@ -9,7 +9,7 @@ import { capsule, space, Symbol, Text, Toast, withAlpha } from "../ui";
 import { hideToast, useToasts } from "../../state/app/toasts";
 import { useWindowId } from "../../state/browser/hooks";
 import { useCardFrame } from "../window/cardFrame";
-import { windowCornerRadius } from "../../state/windows/layout";
+import type { Size } from "../ui/useSettled";
 import { overPeek } from "../../state/windows/dockMotion";
 import { zoneHit, zoneRect, type ZoneStage } from "./splitDrop";
 import { setDropTarget, setOnPage, setTargetResolver, useTabDrag } from "../../state/drag/tabDrag";
@@ -25,24 +25,16 @@ export function SplitDividers({ split, dividers, width, height }: { split: Split
   );
 }
 
-export const SplitFocusRing = memo(function SplitFocusRing({
-  rect,
-  origin,
-  windowSize,
-  windowFullScreen,
-}: {
-  rect: Rect;
-  origin: { x: number; y: number } | null;
-  windowSize: { width: number; height: number } | null;
-  windowFullScreen: boolean;
-}) {
+export type WindowShape = Size & { radius: number };
+
+export const SplitFocusRing = memo(function SplitFocusRing({ rect, origin, windowShape }: { rect: Rect; origin: { x: number; y: number } | null; windowShape: WindowShape | null }) {
   const theme = useTheme();
   const { inset, radius, splitGap } = useCardFrame();
   const framed = inset > 0;
   const room = framed ? splitGap / 2 : 0;
   const width = framed ? Math.min(FOCUS_RING.width, room) : FOCUS_RING.width;
   const outset = Math.min(FOCUS_RING.width + FOCUS_RING.gap, room);
-  const corners = framed ? uniformCorners(radius > 0 ? radius + outset : 0) : windowCorners(rect, origin, windowSize, windowFullScreen ? 0 : windowCornerRadius());
+  const corners = framed ? uniformCorners(radius > 0 ? radius + outset : 0) : windowCorners(rect, origin, windowShape);
   return (
     <View
       pointerEvents="none"
@@ -62,13 +54,14 @@ export const SplitFocusRing = memo(function SplitFocusRing({
 
 const uniformCorners = (r: number) => ({ borderTopLeftRadius: r, borderTopRightRadius: r, borderBottomLeftRadius: r, borderBottomRightRadius: r });
 
-function windowCorners(rect: Rect, origin: { x: number; y: number } | null, windowSize: { width: number; height: number } | null, r: number) {
-  if (!origin || !windowSize || r <= 0) return uniformCorners(0);
+function windowCorners(rect: Rect, origin: { x: number; y: number } | null, windowShape: WindowShape | null) {
+  if (!origin || !windowShape || windowShape.radius <= 0) return uniformCorners(0);
+  const r = windowShape.radius;
   const touches = (a: number, b: number) => Math.abs(a - b) < 0.5;
   const left = touches(origin.x + rect.x, 0);
   const top = touches(origin.y + rect.y, 0);
-  const right = touches(origin.x + rect.x + rect.width, windowSize.width);
-  const bottom = touches(origin.y + rect.y + rect.height, windowSize.height);
+  const right = touches(origin.x + rect.x + rect.width, windowShape.width);
+  const bottom = touches(origin.y + rect.y + rect.height, windowShape.height);
   return {
     borderTopLeftRadius: left && top ? r : 0,
     borderTopRightRadius: right && top ? r : 0,
