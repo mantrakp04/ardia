@@ -5,7 +5,7 @@ import { folderIdOfCell } from "../../state/pins/tileFolders";
 import { openTileFolderMenu } from "../../state/sidebar/tileFolderUi";
 import { currentMovingTabIds, openTileFolderStripMenu, useTileFolderLabel } from "../../state/tabs/topStrip";
 import { FolderMosaic } from "../sidebar/FolderTile";
-import { ContextMenuArea, useHover } from "../ui";
+import { ContextMenuArea, useTooltip } from "../ui";
 import { GlassFill, useGlass } from "../ui/Glass";
 import { useTheme } from "../ui/theme";
 import { DockContext } from "./context";
@@ -18,6 +18,7 @@ import { TabChip } from "./TabChip";
 import { CHIP_HAIRLINE, DOCK_GAP, GAP, ITEM_HEIGHT, ITEM_TOP, MAX_CHIP, PINNED_CELL, PINNED_FACE_INSET, PINNED_FACE_RADIUS, PINNED_SPACING, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
 import { useStripCardHover } from "./StripHoverCard";
+import { useChipHover, useChipHovered } from "./reachableHover";
 import { TabPressArea } from "../sidebar/TabPressArea";
 
 export function PinnedDock({ tabIds }: { tabIds: string[] }) {
@@ -64,7 +65,8 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
   const windowId = useWindowId();
   const tab = useTab(tabId);
   const active = useIsActiveTab(tabId);
-  const { hovered, hoverProps } = useHover();
+  const hover = useChipHover();
+  const hovered = useChipHovered(hover);
   const strip = useContext(DockContext);
   const latestStrip = useRef(strip);
   latestStrip.current = strip;
@@ -85,11 +87,11 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
     cross: dock ? pinOut(() => latestStrip.current, from) : undefined,
     levels: 2,
   });
-  const card = useStripCardHover(windowId, tabId, drag.ref);
+  const card = useStripCardHover(windowId, tabId, drag.ref, hover);
   if (!tab) return null;
   return (
     <Animated.View ref={drag.ref} {...drag.panHandlers} {...card} mouseDownCanMoveWindow={false} style={drag.style}>
-      <View {...hoverProps} style={{ opacity: drag.crossed ? 0 : 1 }}>
+      <View {...hover.hoverProps} style={{ opacity: drag.crossed ? 0 : 1 }}>
         <TabPressArea windowId={windowId} tab={tab}>
           {({ pressed }) => <PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} />}
         </TabPressArea>
@@ -108,7 +110,9 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
   const glass = useGlass();
   const windowId = useWindowId();
   const label = useTileFolderLabel(windowId, folderId);
-  const { hovered, hoverProps } = useHover();
+  const hover = useChipHover();
+  const hovered = useChipHovered(hover);
+  const tip = useTooltip(`${label}\nShow Folder`);
   const drag = useStripDrag({
     tabId: null,
     ids: () => tabIds,
@@ -124,7 +128,7 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
   });
   return (
     <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={drag.style}>
-      <View {...hoverProps} tooltip={`${label}\nShow Folder`}>
+      <View {...hover.hoverProps} tooltip={tip}>
         <ContextMenuArea onContextMenu={() => void openTileFolderMenu(windowId, folderId)}>
           <Pressable onPress={() => void openTileFolderStripMenu(windowId, folderId)}>
             {({ pressed }) => (

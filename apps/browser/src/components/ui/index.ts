@@ -31,7 +31,7 @@ export { capsule, colorRoles, concentric, display, emptyState, font, hairline, i
 export { Toast } from "./Toast";
 export { ToolbarRowContext, useToolbarRowContext } from "./toolbarRowContext";
 export { TooltipAbove } from "./TooltipAbove";
-export { useHover } from "./useHover";
+export { Offstage, useHover, useOffstage, useTooltip } from "./useHover";
 export {
   ActivitySpinner,
   ContextMenuArea,

@@ -4,7 +4,8 @@ import { PageProfileContext, useWindowId } from "../../state/browser/hooks";
 import { tabDragging } from "../../state/drag/tabDrag";
 import { useShownTabIdFor, useStripEntries } from "../../state/tabs/topStrip";
 import { setMeasuredWidth, useMeasuredWidths } from "../../state/windows/measuredWidths";
-import { dismissStripHoverIn } from "../../state/tabs/stripHover";
+import { dismissStripHoverIn, stripPageOffstage } from "../../state/tabs/stripHover";
+import { Offstage } from "../ui/useHover";
 import { usePageStyle } from "../../state/windows/profilePager";
 import { ThemeScope } from "../window/ThemeScope";
 import { TintInk } from "../ui/TintInk";
@@ -63,6 +64,11 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const scroll = useRef<ScrollView>(null);
   const scrolled = useRef(0);
   const viewport = useRef(pageWidth + flare * 2);
+  const content = useRef(0);
+  const keepInRange = () => {
+    const end = Math.max(0, content.current - viewport.current);
+    if (scrolled.current > end + 0.5) scroll.current?.scrollTo({ x: end, animated: false });
+  };
   const [atStart, setAtStart] = useState(true);
   const inset = atStart ? flare : 0;
   const spanOf = (tabId: string): [number, number] | null => {
@@ -83,13 +89,16 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     });
     return () => cancelAnimationFrame(frame);
   }, [activeId, current, releases]);
+  useEffect(() => {
+    if (!current) stripPageOffstage(windowId, profileId);
+  }, [current, windowId, profileId]);
   let slotIndex = 0;
   const gap = (i: number) => (incoming.active ? <IncomingGap key={`gap${i}`} open={incoming.at === i} width={chip} origin={i === 0 ? incoming.origin : undefined} /> : null);
 
   return (
     <Animated.View
       pointerEvents={current ? "auto" : "none"}
-      onMouseEnter={() => void (pointerIn.current = true)}
+      onMouseEnter={() => void (pointerIn.current = current)}
       onMouseLeave={leave}
       style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: pageWidth + flare * 2, display: resting ? "none" : "flex", ...pageStyle }}
     >
@@ -97,47 +106,56 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
         <ThemeScope>
           <TintInk>
             <DockContext.Provider value={strip}>
-              <ScrollView
-                ref={scroll}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                scrollEventThrottle={16}
-                onLayout={(e) => void (viewport.current = e.nativeEvent.layout.width)}
-                onScroll={(e) => {
-                  if (Math.abs(e.nativeEvent.contentOffset.x - scrolled.current) >= 1) dismissStripHoverIn(windowId);
-                  scrolled.current = e.nativeEvent.contentOffset.x;
-                  setAtStart(scrolled.current < 0.5);
-                }}
-                style={{ flex: 1, marginLeft: flare - inset }}
-                contentContainerStyle={{ alignItems: "flex-start", gap: GAP, paddingLeft: inset, paddingRight: flare }}
-              >
-                {parsed.flatMap((e) => {
-                  if (e.kind === "dock") return <PinnedDock key="dock" tabIds={e.ids} />;
-                  const before = gap(slotIndex++);
-                  if (e.kind === "group")
-                    return [
-                      before,
-                      <StripGroup
-                        key={e.id}
-                        entry={e}
-                        geometry={top}
-                        from={slotOf(e.members[0] ? tabsOf(e.members[0])[0]! : "")}
-                        chip={chip}
-                        activeId={activeId}
-                        chipWidth={chipOf(e.id)}
-                        onChipWidth={(width) => setMeasuredWidth(chipKey(e.id), width)}
-                        memberWidth={memberWidth}
-                        folderMeasured={(groupId) => folderChip(groupId) !== undefined}
-                      />,
-                    ];
-                  if (e.kind === "split")
-                    return [before, <SplitChip key={e.id} tabIds={e.tabIds} width={chip * Math.min(e.tabIds.length, 2)} geometry={top} from={slotOf(e.tabIds[0]!)} group={null} />];
-                  return [before, <DraggableChip key={e.id} tabId={e.id} width={chip} geometry={top} from={slotOf(e.id)} group={null} />];
-                })}
-                {gap(top.slots.length)}
-                <NewTabButton windowId={windowId} geometry={top} />
-                {spare ? <View style={{ width: spare, marginLeft: -GAP }} /> : null}
-              </ScrollView>
+              <Offstage.Provider value={!current}>
+                <ScrollView
+                  ref={scroll}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  scrollEventThrottle={16}
+                  onLayout={(e) => {
+                    viewport.current = e.nativeEvent.layout.width;
+                    keepInRange();
+                  }}
+                  onContentSizeChange={(width) => {
+                    content.current = width;
+                    keepInRange();
+                  }}
+                  onScroll={(e) => {
+                    if (Math.abs(e.nativeEvent.contentOffset.x - scrolled.current) >= 1) dismissStripHoverIn(windowId);
+                    scrolled.current = e.nativeEvent.contentOffset.x;
+                    setAtStart(scrolled.current < 0.5);
+                  }}
+                  style={{ flex: 1, marginLeft: flare - inset }}
+                  contentContainerStyle={{ alignItems: "flex-start", gap: GAP, paddingLeft: inset, paddingRight: flare }}
+                >
+                  {parsed.flatMap((e) => {
+                    if (e.kind === "dock") return <PinnedDock key="dock" tabIds={e.ids} />;
+                    const before = gap(slotIndex++);
+                    if (e.kind === "group")
+                      return [
+                        before,
+                        <StripGroup
+                          key={e.id}
+                          entry={e}
+                          geometry={top}
+                          from={slotOf(e.members[0] ? tabsOf(e.members[0])[0]! : "")}
+                          chip={chip}
+                          activeId={activeId}
+                          chipWidth={chipOf(e.id)}
+                          onChipWidth={(width) => setMeasuredWidth(chipKey(e.id), width)}
+                          memberWidth={memberWidth}
+                          folderMeasured={(groupId) => folderChip(groupId) !== undefined}
+                        />,
+                      ];
+                    if (e.kind === "split")
+                      return [before, <SplitChip key={e.id} tabIds={e.tabIds} width={chip * Math.min(e.tabIds.length, 2)} geometry={top} from={slotOf(e.tabIds[0]!)} group={null} />];
+                    return [before, <DraggableChip key={e.id} tabId={e.id} width={chip} geometry={top} from={slotOf(e.id)} group={null} />];
+                  })}
+                  {gap(top.slots.length)}
+                  <NewTabButton windowId={windowId} geometry={top} />
+                  {spare ? <View style={{ width: spare, marginLeft: -GAP }} /> : null}
+                </ScrollView>
+              </Offstage.Provider>
             </DockContext.Provider>
           </TintInk>
         </ThemeScope>

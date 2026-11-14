@@ -234,7 +234,7 @@ test("a closed window's snapshot of a collapsed group carries no reveal state", 
 });
 
 test("telemetry counts each tab newly kept under a collapsed header once, however many groups list it", async () => {
-  const { keptTabsAdded } = await import("../telemetry/usage.ts");
+  const { keptTabsAdded } = await import("../telemetry/keptTabs.ts");
   hydrate({ nested: ["t3", "t4"] });
   const before = S().groups;
   S().activate("t3");
