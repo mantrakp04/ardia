@@ -41,6 +41,13 @@ export const Favicon = memo(function Favicon({
   );
 });
 
+export const SiteFavicon = memo(function SiteFavicon({ host, profileId, size }: { host: string; profileId: string; size?: number }) {
+  const theme = useTheme();
+  const url = `https://${host}`;
+  if (bundledSiteIcon(url, theme.dark) !== undefined) return <Favicon url={url} size={size} />;
+  return <Favicon url={url} favicon={`${url}/favicon.ico`} profileId={profileId} size={size} />;
+});
+
 export const FaviconFallback = memo(function FaviconFallback({ url, size = 16 }: { url: string; size?: number }) {
   const theme = useTheme();
   const bundled = bundledSiteIcon(url, theme.dark);
