@@ -10,7 +10,6 @@ export function springAt(
 ): number {
   if (t <= 0) return 0;
   const omega = (2 * Math.PI) / response;
-  if (damping === 1) return 1 - (1 + omega * t) * Math.exp(-omega * t);
   const wd = omega * Math.sqrt(1 - damping * damping);
   return 1 - Math.exp(-damping * omega * t) * (Math.cos(wd * t) + ((damping * omega) / wd) * Math.sin(wd * t));
 }
