@@ -1,5 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { openArchive } from "../../state/browse/store";
+import { openArchive, openSpaces } from "../../state/browse/store";
+import { matchMyMac } from "../../state/sync/actions";
+import { useLookColor, useSyncEnabled, useSyncStatus, useSyncView } from "../../state/sync/hooks";
+import { syncedEngineName, syncRowSubtitle } from "../../state/sync/syncRules";
 import { showOnboarding } from "../../state/onboarding/store";
 import { appVersion, exportOpenTabs, setArchiveInterval, setAutoOpenKeyboard, setColorChoice, setSearchSuggestions, useEngines } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
@@ -17,9 +20,14 @@ export function SettingsRoot() {
   const keyboard = usePreferences((p) => p.autoOpensKeyboard);
   const interval = usePreferences((p) => p.autoArchiveInterval);
   const engines = useEngines((s) => s.engines);
-  const engineName = engines.find((engine) => engine.id === engineId)?.name ?? "";
+  const syncEnabled = useSyncEnabled();
+  const synced = useSyncView().search;
+  const engineName = syncEnabled && synced ? syncedEngineName(synced, engines) : (engines.find((engine) => engine.id === engineId)?.name ?? "");
   return (
     <SettingsPage title="Settings" trailing={<BarButton title="Done" emphasized onPress={closeSettings} />}>
+      <Group>
+        <SyncCard />
+      </Group>
       <View style={styles.shortcuts}>
         <Pressable
           accessibilityRole="button"
@@ -32,9 +40,21 @@ export function SettingsRoot() {
           <Symbol name="archivebox" size={20} color={theme.label} />
           <Text style={[font.body, styles.medium, { color: theme.label }]}>Archive</Text>
         </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            closeSettings();
+            openSpaces();
+          }}
+          style={[styles.shortcut, { backgroundColor: theme.groupFill }]}
+        >
+          <Symbol name="squareStack" size={20} color={theme.label} />
+          <Text style={[font.body, styles.medium, { color: theme.label }]}>Spaces</Text>
+        </Pressable>
       </View>
       <Group>
         <ColorRow />
+        {syncEnabled ? <MatchMyMac /> : null}
       </Group>
       <Group>
         <NavRow title="Site Settings" icon="globe" tint={settingsTint.neutral} onPress={() => pushSettings({ page: "siteSettings" })} />
@@ -67,9 +87,47 @@ export function SettingsRoot() {
 
 const COLORS = Object.keys(PROFILE_COLORS) as ProfileColor[];
 
+function SyncCard() {
+  const theme = useTheme();
+  const status = useSyncStatus();
+  const line = syncRowSubtitle(status);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Sync With Mac"
+      accessibilityValue={{ text: line.text }}
+      onPress={() => pushSettings({ page: "sync" })}
+      style={({ pressed }) => [styles.syncCard, pressed ? { backgroundColor: theme.rowHighlight } : null]}
+    >
+      <IconTile icon="macAndPhone" tint={settingsTint.sync} side={settingsLayout.syncTile} />
+      <View style={styles.syncText}>
+        <Text style={[font.title3, styles.bold, { color: theme.label }]}>Sync With Mac</Text>
+        <Text style={[font.subheadline, { color: line.isWarning ? theme.destructive : theme.secondaryLabel }]} numberOfLines={2}>
+          {line.text}
+        </Text>
+      </View>
+      <Symbol name="chevronRight" size={14} color={theme.tertiaryLabel} />
+    </Pressable>
+  );
+}
+
+function MatchMyMac() {
+  const theme = useTheme();
+  const chosen = usePreferences((p) => p.colorChoice);
+  const look = useLookColor(SWATCHES, "plum");
+  return (
+    <>
+      <View style={[styles.divider, { backgroundColor: theme.separator }]} />
+      <ToggleRow title="Match My Mac" icon="laptop" tint={settingsTint.neutral} value={chosen === null} onChange={(on) => matchMyMac(on, look)} />
+    </>
+  );
+}
+
+const SWATCHES = COLORS.map((key) => ({ key, hex: PROFILE_COLORS[key].swatch }));
+
 function ColorRow() {
   const theme = useTheme();
-  const chosen = usePreferences((p) => p.colorChoice) ?? "plum";
+  const chosen = useLookColor(SWATCHES, "plum");
   return (
     <View style={styles.colorRow}>
       <View style={styles.colorLabel}>
@@ -106,6 +164,9 @@ const styles = StyleSheet.create({
   shortcuts: { flexDirection: "row", paddingHorizontal: space.l, gap: space.m },
   shortcut: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.s, minHeight: 48, borderRadius: capsule(48) },
   medium: { fontWeight: "500" },
+  bold: { fontWeight: "600" },
+  syncCard: { flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.m },
+  syncText: { flex: 1, gap: 2 },
   row: { flexDirection: "row", alignItems: "center", gap: settingsLayout.labelGap, minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: settingsLayout.rowInset + settingsLayout.tile + settingsLayout.labelGap },
   centered: { textAlign: "center" },

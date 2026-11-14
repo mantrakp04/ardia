@@ -40,7 +40,7 @@ import { deckOrder, findTab, isPrivateTab, selectedTab } from "../tabs/tabsState
 import { isSyncableUrl, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
 
 export type Surface = "start" | "browsing" | "deck";
-export type Sheet = "archive" | null;
+export type Sheet = "archive" | "spaces" | null;
 
 type BrowseState = { surface: Surface; sheet: Sheet; deckEntrance: string | null; frozenOrder: string[] | null };
 
@@ -209,6 +209,8 @@ export function reopenLastClosed() {
 export const openArchive = () => useBrowse.setState({ sheet: "archive" });
 
 export const closeArchive = () => useBrowse.setState({ sheet: null });
+
+export const openSpaces = () => useBrowse.setState({ sheet: "spaces" });
 
 export function reopenArchived(tab: BrowserTab) {
   restoreArchivedTab(tab);

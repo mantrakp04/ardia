@@ -1,4 +1,5 @@
 import { sync, type ConnectResult, type PhraseCheck, type SyncedDevice } from "../../platform/sync";
+import { pasteText } from "../../platform/system";
 import { openTab, showDeck, useBrowse } from "../browse/store";
 import { history } from "../history/store";
 import { useOnboarding } from "../onboarding/store";
@@ -115,6 +116,8 @@ export async function connectSync(phrase: string): Promise<ConnectResult> {
 }
 
 export const changeSyncFolder = (): Promise<ConnectResult> => settled(() => sync.changeFolder(), { result: "folderUnavailable" } as ConnectResult);
+
+export const pastedText = () => settled(() => pasteText(), "");
 
 export const stopSyncing = () => settled(() => sync.stopSyncing(), undefined);
 

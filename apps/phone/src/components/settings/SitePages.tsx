@@ -4,7 +4,9 @@ import { usePreferences } from "../../state/settings/hooks";
 import { popSettings, pushSettings } from "../../state/settings/nav";
 import { formatNumber } from "../../state/settings/settingsRules";
 import { font, settingsLayout, settingsTint, Symbol, useTheme } from "../ui";
-import { Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
+import { Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
+import { useSyncEnabled, useSyncView } from "../../state/sync/hooks";
+import { syncedEngineName } from "../../state/sync/syncRules";
 
 const NIGHT_SHADE = [
   { id: "disabled" as const, title: "Off" },
@@ -16,6 +18,17 @@ export function SearchEnginePage() {
   const theme = useTheme();
   const engines = useEngines((s) => s.engines);
   const selected = usePreferences((p) => p.searchEngineId);
+  const syncEnabled = useSyncEnabled();
+  const synced = useSyncView().search;
+  if (syncEnabled && synced) {
+    return (
+      <SettingsPage title="Search Engine" onBack={popSettings}>
+        <Group footer="Set on your Mac.">
+          <ValueRow title="From Your Mac" value={syncedEngineName(synced, engines)} />
+        </Group>
+      </SettingsPage>
+    );
+  }
   return (
     <SettingsPage title="Search Engine" onBack={popSettings}>
       <Group>

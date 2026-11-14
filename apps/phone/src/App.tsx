@@ -10,16 +10,19 @@ import { TabDeck } from "./components/tabs/TabDeck";
 import { OnboardingView } from "./components/onboarding/OnboardingView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { ToastHost } from "./components/toasts/ToastHost";
-import { ThemeColorContext } from "./components/ui";
+import { PROFILE_COLORS, ThemeColorContext, type ProfileColor } from "./components/ui";
+import { useLookColor } from "./state/sync/hooks";
 import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
-import { usePreferences, useSettingsNav } from "./state/settings/hooks";
+import { useSettingsNav } from "./state/settings/hooks";
 import { useOnboarding } from "./state/onboarding/hooks";
 import { useBaseSystemBars } from "./state/app/systemBars";
 import { useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
 import { useSelectedTab } from "./state/tabs/hooks";
+
+const SWATCHES = (Object.keys(PROFILE_COLORS) as ProfileColor[]).map((key) => ({ key, hex: PROFILE_COLORS[key].swatch }));
 
 export default function App() {
   useState(() => {
@@ -32,7 +35,7 @@ export default function App() {
   const sheet = useSheet();
   const tab = useSelectedTab();
   const dark = useColorScheme() === "dark";
-  const color = usePreferences((p) => p.colorChoice) ?? "plum";
+  const color = useLookColor(SWATCHES, "plum");
   const settingsOpen = useSettingsNav((s) => s.open);
   const onboarding = useOnboarding((s) => s.showing);
   useBaseSystemBars(dark);

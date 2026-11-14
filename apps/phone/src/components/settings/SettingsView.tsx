@@ -8,6 +8,9 @@ import { FilterListDetailPage, FilterListsPage, MyFiltersPage, TrustedSitesPage 
 import { AboutPage, ClearDataPage, LicensesPage } from "./DataPages";
 import { SettingsRoot } from "./SettingsRoot";
 import { SearchEnginePage, SiteSettingsPage } from "./SitePages";
+import { SyncConnect } from "../sync/SyncConnect";
+import { SyncPage } from "../sync/SyncPage";
+import { popSettings } from "../../state/settings/nav";
 
 const rise = SlideInDown.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
 const fall = SlideOutDown.springify().stiffness(tabsMotion.sheetOut.stiffness).damping(tabsMotion.sheetOut.damping);
@@ -33,6 +36,10 @@ function Page({ route }: { route: SettingsRoute }) {
       return <TrustedSitesPage />;
     case "clearData":
       return <ClearDataPage />;
+    case "sync":
+      return <SyncPage />;
+    case "syncConnect":
+      return <SyncConnect onClose={popSettings} onConnected={popSettings} />;
     case "about":
       return <AboutPage />;
     case "licenses":

@@ -138,6 +138,7 @@ export const settingsLayout = {
   labelGap: 16,
   tile: 29,
   heroTile: 64,
+  syncTile: 44,
   topBar: 52,
   swatch: 26,
   swatchRing: 2,
@@ -150,6 +151,7 @@ export const settingsLayout = {
 
 export const settingsTint = {
   neutral: "#86888D",
+  sync: "#458AFF",
   ads: "#FF5A5F",
   trackers: "#FFC829",
   cookies: "#FF901A",
@@ -216,6 +218,7 @@ export const capsule = (height: number) => height / 2;
 export const font = {
   hero: { fontSize: 40, lineHeight: 46 },
   largeTitle: { fontSize: 34, lineHeight: 41 },
+  title2: { fontSize: 22, lineHeight: 28 },
   title3: { fontSize: 20, lineHeight: 25 },
   body: { fontSize: 17, lineHeight: 22 },
   callout: { fontSize: 16, lineHeight: 21 },
