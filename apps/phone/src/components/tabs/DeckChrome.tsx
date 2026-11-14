@@ -23,7 +23,7 @@ export function IncognitoChip({ count, top, onPress }: { count: number; top: num
     <View style={[styles.chipRow, { top, width }]} pointerEvents="box-none">
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Incognito, ${count} tabs`}
+        accessibilityLabel={`Incognito, ${count} ${count === 1 ? "tab" : "tabs"}`}
         accessibilityHint="Shows the option to close incognito tabs."
         onPress={onPress}
         style={[styles.chip, { backgroundColor: tabsInk.incognitoCard, borderRadius: capsule(tabsLayout.chipHeight) }]}

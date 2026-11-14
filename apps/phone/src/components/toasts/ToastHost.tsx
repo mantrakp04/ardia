@@ -1,10 +1,10 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomLift } from "../search/useKeyboardHeight";
 import { useToast } from "../../state/toasts/hooks";
 import { tapToast, type ToastIcon } from "../../state/toasts/store";
-import { barHeight, capsule, font, space, Symbol, tabsMotion, toastLayout, useTheme, type SymbolName } from "../ui";
+import { capsule, font, space, Symbol, tabsMotion, toastLayout, useTheme, type SymbolName } from "../ui";
 
 const ICONS: Record<ToastIcon, SymbolName> = {
   checkmark: "checkmark",
@@ -23,10 +23,10 @@ export function ToastHost() {
   const insets = useSafeAreaInsets();
   const { lift, keyboard } = useBottomLift();
   if (!toast) return null;
-  const bottom = keyboard ? lift + space.xs : barHeight(insets.bottom) + space.m;
+  const bottom = keyboard ? lift + space.xs : insets.bottom + toastLayout.barClearance;
   return (
     <View style={[styles.host, { bottom }]} pointerEvents="box-none">
-      <Animated.View key={toast.id} entering={FadeIn.duration(tabsMotion.surfaceFade)} exiting={FadeOut.duration(tabsMotion.surfaceFade)}>
+      <Animated.View key={toast.id} entering={FadeIn.duration(tabsMotion.surfaceFade)} pointerEvents={toast.onTap ? "auto" : "none"}>
         <Pressable
           accessibilityRole={toast.onTap ? "button" : "alert"}
           accessibilityLiveRegion="polite"
