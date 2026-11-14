@@ -389,11 +389,14 @@ is plain Chromium.
   Only between this app's windows, only while one of them is the foreground window, and never in a background
   instance. When a page window that holds the keyboard is hidden or closed (a tab switch, a numbered tab, closing the
   tab), the engine host gives the keyboard to the page the app shows in its place in that app window, else to the
-  app window. A page shown while an app text field has focus (`fieldFocused` with each `tab.show`) never takes it,
-  and a page that shows without replacing the keyboard's page (a hover preview, a Peek, a resize) takes nothing.
-  When an app text field is focused while the keyboard is in a page window (the command bar, the find bar, an empty
-  pane's search field), `ArdiaFocus.takeKeyboardFromPage` activates the app window and the field focuses itself
-  again. A page that hides leaves full screen, as the Mac's does.
+  app window. The app tells the host when one of its text fields asks for the keyboard and when it loses it
+  (`keyboard.field`); while a field has it, no hand-off and no deferred page focus take it, and a press in a page
+  clears it. A page that shows without replacing the keyboard's page (a hover preview, a Peek, a resize) takes
+  nothing. A page focus refused because Ardia isn't the foreground app is kept and given when that app window is
+  activated again. When an app text field is focused while the keyboard is in a page window of the field's own app
+  window (the command bar, the find bar, an empty pane's search field), `ArdiaFocus.takeKeyboardFromPage` activates
+  that app window and the field focuses itself again. A page that hides or closes leaves full screen, as the Mac's
+  does.
 - Peek opens as on the Mac. The engine host keeps a DevTools session of its own on each page and puts the Peek part of
   ArdiaCore's page script into an isolated world of every web frame (`page_links.cc`): the page can't see the script
   or its binding. A click on a link with the Peek key (`webView.setPeekModifier`), the Split key
