@@ -49,16 +49,14 @@ extension AppModel {
   }
 
   func toggleDesktopSite(for page: WebTab) {
-    guard let webView = page.webView else { return }
+    guard page.webView != nil else { return }
     let wantsDesktop = !browse.desktopTabs.contains(page.id)
     if wantsDesktop {
       browse.desktopTabs.insert(page.id)
-      webView.customUserAgent = BrowserUserAgent.desktop
     } else {
       browse.desktopTabs.remove(page.id)
-      webView.customUserAgent = nil
     }
-    page.reload()
+    page.setDesktopSite(wantsDesktop)
   }
 
   func translate(_ page: WebTab) {

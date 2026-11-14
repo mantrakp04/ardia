@@ -107,12 +107,37 @@ release APK in about 2.
 scripts/agent/locked pod -- bash -c 'cd apps/phone/ios && pod install'     after native dependencies change
 scripts/agent/locked xcodebuild -- xcodebuild -workspace apps/phone/ios/Ardia.xcworkspace -scheme Ardia \
   -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath <your own dir> ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build             JS bundled in
-xcrun simctl install <udid> <dir>/Build/Products/Release-iphonesimulator/Ardia.app
+  -derivedDataPath <your own dir> ARCHS=arm64 CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- \
+  DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= build                                   JS bundled in
+agent-device install com.ardia.browser.ios <dir>/Build/Products/Release-iphonesimulator/Ardia.app
 ```
 
-The Podfile adds `apps/ios/Packages/ArdiaKit` to the `ArdiaPhoneNative` pod as a local Swift package; Xcode links
-ArdiaKit into the pod's library and copies its resource bundles into the app. The app target must not link
-ArdiaBrowser itself, or every ArdiaKit symbol is linked twice. iOS 27 refuses to launch an app without the scene
-lifecycle, which Expo 54's template lacks, so `SceneDelegate` starts React Native in the scene's window. The first
-build takes about 25 minutes on a busy Mac; a native-only change rebuilds in about 8 to 12.
+The ad hoc identity signs locally for the simulator with each target's entitlements (the app group, so the app and
+its extensions share the SwiftUI app's container) and needs no account or profile. The Podfile adds
+`apps/ios/Packages/ArdiaKit` to the `ArdiaPhoneNative` pod as a local Swift package (ArdiaBrowser and ArdiaDesign);
+Xcode links ArdiaKit into the pod's library and copies its resource bundles into the app. The app target must not
+link ArdiaKit itself, or every symbol is linked twice; it finds ArdiaDesign's module for its intents through
+`SWIFT_INCLUDE_PATHS`. iOS 27 refuses to launch an app without the scene lifecycle, which Expo 54's template lacks, so
+`SceneDelegate` starts React Native in the scene's window and hands links, quick actions and Handoff to the module.
+
+The project carries the SwiftUI app's extensions, compiled from `apps/ios/Share`, `Action` and `Widgets` in place with
+that project's Info.plists and entitlement files: the Share extension, Open in Ardia and the widgets, under the same
+bundle ids. The SwiftUI app's intents need its `AppModel`, so the app target has its own copies with the same names,
+titles and phrases that post links instead.
+
+- `system.initialLink()` and `system.addLinkListener()`: `{ kind, source }` with kind `open` (url), `search` (query),
+  `voiceSearch`, `incognito`, `tab` (id), `macTabs` or `inbox`, and source `web` (an http link from another app),
+  `system` (an `ardia://` link from a widget, the share sheet or the action), `shortcut`, `share` (the share
+  sheet's inbox, when it couldn't open the app), `handoff` or `intent`.
+- `defaultBrowser`: `status()` from ArdiaBrowser's `DefaultBrowserStatus`, shared with the SwiftUI app;
+  `requestRole()` is always false on iPhone, which has no role prompt; `openDefaultAppsSettings()`.
+- `legacy.available()` and `legacy.read()`: the SwiftUI app's tabs, archive, history and preferences, read from a
+  copy of its SwiftData store so the store itself is never opened. `-ArdiaLegacyDump YES` logs what `read()` returns
+  (`ARDIA_LEGACY` lines) and `-ArdiaLegacyRestore YES` also opens the first saved tab, for checking an import;
+  `-ArdiaLogSystemLinks YES` logs each link (`ARDIA_SYSTEM_LINK`). `-ArdiaPageLab YES` opens the page lab.
+
+Edge swipes for back and forward are WebKit's own gesture. Simulator automation (agent-device swipes and pans from
+the edge) has never triggered it; check it with a finger on a device or with the mouse in the Simulator window.
+
+The first build takes about 25 minutes on a busy Mac; a native-only change rebuilds in 3 to 5, since the codegen and
+Expo provider phases publish only files that changed.

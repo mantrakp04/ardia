@@ -198,8 +198,7 @@ final class PhonePages {
   func setDesktopSite(_ pageID: String, _ enabled: Bool) throws {
     let page = try require(pageID)
     if enabled { desktopTabs.insert(page.id) } else { desktopTabs.remove(page.id) }
-    applyUserAgent(page)
-    page.reload()
+    page.setDesktopSite(enabled)
     watchers[pageID]?.resend()
   }
 

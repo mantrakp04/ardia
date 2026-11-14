@@ -76,6 +76,10 @@ public final class PhoneSystemLinks {
   }
 
   private func deliver(_ payload: [String: Any]) {
+    if UserDefaults.standard.bool(forKey: "ArdiaLogSystemLinks"),
+       let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) {
+      NSLog("ARDIA_SYSTEM_LINK %@", String(decoding: data, as: UTF8.self))
+    }
     queued.append(payload)
     flush()
   }

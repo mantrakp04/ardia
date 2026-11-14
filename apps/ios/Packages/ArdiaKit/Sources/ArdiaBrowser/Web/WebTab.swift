@@ -59,6 +59,7 @@ public final class WebTab: DiscardablePage, Identifiable {
   @ObservationIgnored private var pendingURL: URL?
   @ObservationIgnored private var swipeSnapshots: [ObjectIdentifier: UIImage] = [:]
   @ObservationIgnored private var swipeSnapshotOrder: [ObjectIdentifier] = []
+  @ObservationIgnored private var refreshesVisibleContentAfterLoad = false
 
   init(id: UUID, engine: WebEngine, url: URL?, popupConfiguration: WKWebViewConfiguration? = nil) {
     self.id = id
@@ -143,6 +144,21 @@ public final class WebTab: DiscardablePage, Identifiable {
 
   public func stopLoading() {
     webView?.stopLoading()
+  }
+
+  public func setDesktopSite(_ desktop: Bool) {
+    webView?.customUserAgent = desktop ? BrowserUserAgent.desktop : nil
+    refreshesVisibleContentAfterLoad = true
+    reload()
+  }
+
+  private func refreshVisibleContent() {
+    guard let webView else { return }
+    let frame = webView.frame
+    webView.frame = CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height - 0.5)
+    webView.layoutIfNeeded()
+    webView.frame = frame
+    webView.layoutIfNeeded()
   }
 
   public func presentFindInPage() {
@@ -421,6 +437,15 @@ public final class WebTab: DiscardablePage, Identifiable {
 
   fileprivate func didFinish() {
     crashReloads = 0
+    if refreshesVisibleContentAfterLoad {
+      refreshesVisibleContentAfterLoad = false
+      Task { [weak self] in
+        try? await Task.sleep(for: .milliseconds(300))
+        self?.refreshVisibleContent()
+        try? await Task.sleep(for: .milliseconds(700))
+        self?.refreshVisibleContent()
+      }
+    }
     fetchFavicon()
     scheduleSnapshot()
   }
