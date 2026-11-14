@@ -1,24 +1,41 @@
-import { DeckBackdrop, FilmGrain, Frost, lookIsNative, ProfileBackdrop, type FrostVariant } from "@ardia/phone-native";
+import { DeckBackdrop, Frost, INCOGNITO_LOOK, lookIsNative, ProfileBackdrop, type FrostVariant } from "@ardia/phone-native";
 import type { ReactNode } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
-import { nativeLookColors, windowTintStops } from "../../lib/profileLook";
+import { nativeLookColors, windowTintStops, type NativeLookColors, type ProfileLook } from "../../lib/profileLook";
 import { Backdrop } from "./Backdrop";
 import { useReduceTransparency } from "./contrast";
 import { useProfileLook, useTheme } from "./theme";
-import { grainInk } from "./tokens";
+import { tabsInk } from "./tokens";
 
 export const SURFACES_FROST = "surfaces";
 
-export function LookBackdrop({ themed = false, softened = false, dark }: { themed?: boolean; softened?: boolean; dark?: boolean }) {
+const INCOGNITO_COLORS: NativeLookColors = { color: INCOGNITO_LOOK, themeColors: [], darkThemeColors: null };
+
+const lookColors = (look: ProfileLook, incognito: boolean): NativeLookColors => (incognito ? INCOGNITO_COLORS : nativeLookColors(look));
+
+type BackdropProps = { themed?: boolean; softened?: boolean; fadesOut?: boolean; incognito?: boolean; dark?: boolean };
+
+export function LookBackdrop({ themed = false, softened = false, fadesOut = false, incognito = false, dark }: BackdropProps) {
   const look = useProfileLook();
   const theme = useTheme();
-  const shade = dark ?? theme.dark;
+  const shade = incognito || (dark ?? theme.dark);
   if (!lookIsNative()) {
+    if (incognito) return <Backdrop colors={tabsInk.incognitoBackdrop} />;
     if (themed) return <Backdrop colors={theme.start.colors} diagonal={theme.start.diagonal} />;
     return <Backdrop colors={dark === undefined ? theme.backdrop : windowTintStops(look, shade)} />;
   }
-  return <ProfileBackdrop pointerEvents="none" style={StyleSheet.absoluteFill} {...nativeLookColors(look)} dark={shade} themed={themed} softened={softened} />;
+  return (
+    <ProfileBackdrop
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}
+      {...lookColors(look, incognito)}
+      dark={shade}
+      themed={themed}
+      softened={softened}
+      fadesOut={fadesOut}
+    />
+  );
 }
 
 export function DeckLookBackdrop() {
@@ -39,22 +56,18 @@ export function DeckLookBackdrop() {
   );
 }
 
-export function GrainOver({ dark }: { dark: boolean }) {
-  if (!lookIsNative()) return null;
-  return <FilmGrain pointerEvents="none" style={StyleSheet.absoluteFill} opacity={dark ? grainInk.dark : grainInk.light} />;
-}
-
 type FrostProps = {
   source: string;
   variant: FrostVariant;
   cornerRadius: number;
   fill: string;
   dark?: boolean;
+  incognito?: boolean;
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
 };
 
-export function LookFrost({ source, variant, cornerRadius, fill, dark, style, children }: FrostProps) {
+export function LookFrost({ source, variant, cornerRadius, fill, dark, incognito = false, style, children }: FrostProps) {
   const look = useProfileLook();
   const theme = useTheme();
   const reduceTransparency = useReduceTransparency();
@@ -64,8 +77,8 @@ export function LookFrost({ source, variant, cornerRadius, fill, dark, style, ch
       source={source}
       variant={variant}
       cornerRadius={cornerRadius}
-      {...nativeLookColors(look)}
-      dark={dark ?? theme.dark}
+      {...lookColors(look, incognito)}
+      dark={incognito || (dark ?? theme.dark)}
       reduceTransparency={reduceTransparency}
       style={[style, { borderRadius: cornerRadius }]}
     >

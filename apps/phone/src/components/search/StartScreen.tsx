@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { newIncognitoTab, newRegularTab, newTab, openArchive, reopenLastClosed, showDeck } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
 import { useCanReopen, useHasTabs, useIncognito } from "../../state/tabs/hooks";
-import { ArdiaLogo, Backdrop, browseLayout, deckCenterFromBottom, FrostSource, GrainOver, LookBackdrop, Menu, tabsInk, tabsLayout, type MenuItem } from "../ui";
+import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, Menu, tabsLayout, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { DeckBar } from "../tabs/DeckBar";
 
@@ -31,14 +31,7 @@ export function StartScreen() {
   return (
     <View style={StyleSheet.absoluteFill}>
       <FrostSource name={START_FROST} style={StyleSheet.absoluteFill} pointerEvents="none">
-        {incognito ? (
-          <>
-            <Backdrop colors={tabsInk.incognitoBackdrop} />
-            <GrainOver dark />
-          </>
-        ) : (
-          <LookBackdrop themed />
-        )}
+        <LookBackdrop themed={!incognito} incognito={incognito} />
       </FrostSource>
       <View style={[styles.logo, { paddingBottom: BAR_RESERVE / 2, opacity: trayUp ? 0 : 1 }]} pointerEvents="none">
         <ArdiaLogo width={browseLayout.logoWidth} />
@@ -48,7 +41,7 @@ export function StartScreen() {
           <DeckBar
             leading={hasTabs ? { icon: "squareOnSquare", label: "Tabs", onPress: showDeck } : { icon: "archivebox", label: "Archive", onPress: openArchive }}
             plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
-            frost={{ source: START_FROST, variant: "glass", dark: incognito || undefined }}
+            frost={{ source: START_FROST, variant: "glass", incognito }}
             onPlus={newTab}
             onPlusMenu={() => setMenu(true)}
             onSettings={() => openSettings()}

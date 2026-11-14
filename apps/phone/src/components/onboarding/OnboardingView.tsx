@@ -28,7 +28,7 @@ export function OnboardingView() {
   if (!showing) return null;
   return (
     <Animated.View exiting={FadeOut.duration(tabsMotion.surfaceFade)} style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}>
-      <LookBackdrop softened={step !== "welcome"} />
+      <LookBackdrop softened={step !== "welcome"} fadesOut={step !== "welcome"} />
       <Animated.View
         key={step}
         entering={(forward ? SlideInRight : SlideInLeft).springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping)}

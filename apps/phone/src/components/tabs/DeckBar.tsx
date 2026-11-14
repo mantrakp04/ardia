@@ -4,7 +4,7 @@ import { noteDeckBarTop, watchDeckBar } from "../../state/toasts/store";
 import type { FrostVariant } from "@ardia/phone-native";
 import { browseLayout, capsule, LookFrost, PressScale, Symbol, tabsLayout, useTheme, type SymbolName } from "../ui";
 
-export type DeckBarFrost = { source: string; variant: FrostVariant; dark?: boolean };
+export type DeckBarFrost = { source: string; variant: FrostVariant; incognito?: boolean };
 
 type Props = {
   leading: { icon: SymbolName; label: string; onPress: () => void } | null;
