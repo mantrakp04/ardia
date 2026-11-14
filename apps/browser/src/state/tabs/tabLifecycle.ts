@@ -10,6 +10,7 @@ import { everySlowly } from "../../platform/slowTimers";
 import { webviews } from "../../platform/webviews";
 import { useLifecycle } from "./sleepingTabs";
 import { startMemorySaver } from "./memorySaver";
+import { startLoadedTabCap } from "./loadedTabCap";
 import { focusedWindowOf } from "../windows/ui";
 import { noteTabSlept } from "../telemetry/tabSleepCounts";
 
@@ -102,6 +103,7 @@ export function startTabLifecycle() {
   started = true;
 
   startMemorySaver();
+  startLoadedTabCap();
   useBrowser.subscribe((s: BrowserState, prev: BrowserState) => {
     if (s.settings.batterySaverWhen !== prev.settings.batterySaverWhen) {
       lowBatteryHeld = false;
