@@ -398,7 +398,8 @@ Hooks that answer before something happens, with a deadline after which Ardia do
 ## Air Traffic Control
 
 Settings › Air Traffic Control is the same `link.opening` route engine with rules the user makes in Settings, kept in
-the data dir (`air-traffic.json`, version 1: an ordered `rules` list and a `fallback`), not in the config folder.
+the data dir (`air-traffic.json`, version 1: an ordered `rules` list and a `fallback`), not in the config folder. A rule
+for any app can also take the links you click and the addresses you type in Ardia (below).
 
 - **Order.** For a link from another app (after `tab.opening` has had its say): the Settings rules from the top, the
   first enabled one that fits answering; then the hooks.json `link.opening` hooks as above; then the Everything Else
@@ -409,22 +410,73 @@ the data dir (`air-traffic.json`, version 1: an ordered `rules` list and a `fall
   id (`null` is the profile used last) and `open` (`tab`, `window`, `littleArdia`). Profiles are stored by id, so a
   rename keeps the rule; a rule or fallback whose profile was deleted, or is private, doesn't apply and the link
   goes on down the list.
+- **A tab group.** A rule (or Everything Else) that opens a profile as a tab may name one of that profile's tab groups
+  (`groupKey`: the group's pin key, or its id when it has none, so a pinned group keeps its key when its window closes
+  and comes back). The link opens as a tab in the group's copy in the window shown last, or in a new window of that
+  profile when the group is parked (a pinned group whose window closed), and the group expands if it was collapsed.
+  A rule whose group no longer exists in that profile doesn't apply, like one whose profile is gone. The parser drops
+  a `groupKey` without a profile or with another `open`, so the rule keeps working as a plain tab.
+- **Links clicked and addresses typed in Ardia.** A rule for any app with `inside: true` ("Also for links I click and
+  addresses I type in Ardia") also applies inside Ardia. The parser forces `inside` off on a rule for one app, and the
+  Everything Else choice has none. Inside Ardia only those rules count, in order, and the first one that fits a link
+  decides: when its destination differs from where the link is, the link opens there and the page or tab it came from
+  stays as it was; otherwise the link behaves as it always did. Where it already is: the rule's profile is the page's
+  own (`null` means the page's own profile here) and it opens as a plain tab; or it is Little Ardia and the page is in
+  a Little Ardia window of that profile; or it is a tab group that holds the page's tab; or the page's own address
+  already fits the same rule (so the links inside a site a window or Little Ardia rule opened stay there). Private
+  windows never route, and nothing routes into one. hooks.json `link.opening` hooks don't apply inside Ardia;
+  `tab.opening` hooks run first, with the page's or bar's tab, window and profile, and a rewritten URL is placed again.
+  The placement is one module, `state/airTraffic/inside.ts`, shared by typed addresses, routed clicks and the routes
+  handed to pages.
+- **Clicks.** The page script (`packages/ardiacore/ios/page_script.js`, the one that handles Peek and Split clicks)
+  gets the inside rules as `{ spec, profile, open, group }` (`spec` is the parsed match pattern, or `"any"`) with its
+  config and the tab's profile, and native pushes new routes to every open page (`webView.setLinkRoutes`; JS sends
+  them again when a rule, a profile or a group changes, and retries with backoff while the bridge refuses). Its
+  `matchesSpec` is `lib/matchPattern.ts`'s `matchesUrl` (`platform/pageScriptPeek.test.mjs` runs the same cases
+  through both). After the page's own click handlers (a late window listener, so a click the page prevented stays the
+  page's), a trusted plain, ⌘-, ⇧- or ⌘⇧-click on an `http(s)` link the first route sends elsewhere is prevented before
+  Chrome navigates, and the page posts `route`. Native accepts it only against the last real mouse-up over that page
+  (the check Peek uses), takes the disposition from that mouse-up's keys (none: a foreground tab, or the rule's window
+  or Little Ardia; ⌘: a background tab; ⇧: a window; ⌘⇧: a foreground tab; the Peek or Split key: nothing) and emits
+  `openWindow` with `routed`, `keyed` and whether the link opens a tab (`target=_blank`). ⌘ and ⇧ decide a tab or a
+  window ahead of the rule's `open`, so a ⌘- or ⇧-click to the page's own profile with no group is left to Chrome. JS
+  places it (`state/tabs/openFromPage.ts`); if the rules changed in between and the link no longer routes, it performs
+  the click's own open. A plain click native refuses is followed in the page as it would have gone; a refused ⌘- or
+  ⇧-click opens nothing. Links inside frames route on ⌘- and ⇧-clicks and on plain clicks that open a tab or the whole
+  page; a plain click on a named target (`target`, `<base target>`) stays Chrome's. A matching route beats the tab's
+  Peek links to other sites. A page back from the back-forward cache gets the current routes with its `peekHello`.
+- **Not routed, by design:** a click the page prevented, links with `download`, the Peek or Split modifier, ⌥-, ⌃- and
+  middle clicks, keyboard activation, URLs over 8192 characters, WebKit pages (they run WebKit's page script), forms,
+  script navigations, `window.open` and redirects.
+- **Typed addresses.** The address bar, the command bar and the new-tab bar route an address the same way
+  (`state/airTraffic/openAt.ts` › `routeTypedUrl`): it opens at the destination as a foreground tab (⇧↩: a window there)
+  and the source tab is left alone. Searches, provider searches (a provider's own URL template), calculator results
+  and ⌥↩ (Split View) are never routed.
 - **No approval.** The user makes these rules in Settings, so they count as approved. hooks.json route hooks still need
   approval in Advanced › Automation; the pane lists them read-only with their state.
 - **The hold.** An enabled rule or an Everything Else choice turns the incoming-link hold on, reported again on every
   change, so the native fast path never opens a link before the rules have seen it. `air-traffic.json` is in native's
   fast-path fingerprint, so a file changed while Ardia was closed holds the first link of the next launch too. A
   change is saved before the store takes it, so a save that fails changes neither the rules nor the hold.
+- **Older builds.** `groupKey` and `inside` are optional, so the file stays version 1: a build without them ignores
+  both (a group rule opens a plain tab in its profile, an inside rule only takes links from other apps).
 - **Source apps.** The app (bundle id, name) of the last 20 distinct apps that sent a link is kept in
   `link-sources.json` for the app picker, on this Mac only and never sent.
 - **Try a Link** runs the same `traceOpening` and `traceLink` the real decision runs (`state/automation/decisions.ts`),
   so it can't drift: a `tab.opening` rule that cancels or rewrites the link comes first, then it names the rule, hook,
-  Everything Else or usual routing that would take the link and where it would open. A program hook can't be asked
-  without sending the link, so it shows what happens if the program doesn't answer.
+  Everything Else or usual routing that would take the link and where it would open, tab group included. A program
+  hook can't be asked without sending the link, so it shows what happens if the program doesn't answer.
 - Code: `state/airTraffic/rules.ts` (the pure matching and the saved document), `store.ts`, `sourceApps.ts`,
-  `preview.ts`; the pane is `components/settings/panes/AirTraffic.tsx`.
-- Telemetry: `usage_counts.air_traffic_rule_links` and `air_traffic_fallback_links`, and `settings_snapshot`'s
-  `air_traffic_rules` (enabled rules) and `air_traffic_fallback` (true or false).
+  `preview.ts`, `groups.ts` (a profile's groups by key, their names and where they are), `inside.ts`, `openAt.ts`
+  (opening at a destination, typed addresses) and `pageRoutes.ts`; `state/littleArdia/actions.ts` opens links from
+  other apps; the pane is `components/settings/panes/AirTraffic.tsx` with its sheet `AirTrafficSheet.tsx`. Native:
+  `ArdiaWebView+Peek.mm` (`setLinkRoutes`, the `route` message and its gesture check), `ArdiaWebView+PageMessages.mm`
+  (the routes in the page's config), `ArdiaWebView.mm` (the `sidebarProfile` prop). Native API 63.
+- Telemetry: `usage_counts.air_traffic_rule_links` and `air_traffic_fallback_links` (links from other apps),
+  `air_traffic_click_links` and `air_traffic_typed_links` (clicks and typed addresses a rule sent elsewhere),
+  `air_traffic_group_links` (links that joined a tab group, from anywhere), and `settings_snapshot`'s
+  `air_traffic_rules` (enabled rules), `air_traffic_inside_rules` and `air_traffic_group_rules` (enabled rules that also
+  take Ardia's own links, or send into a group) and `air_traffic_fallback` (true or false).
 
 ## Approvals
 
