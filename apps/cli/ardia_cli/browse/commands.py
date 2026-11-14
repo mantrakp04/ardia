@@ -562,8 +562,12 @@ async def cmd_notes(ctx: Ctx, argv):
     return notes.run_request(Path(ctx.state.config["data_root"]), request, url)
 
 
+APPEAR_WAIT = 3.0
+CHECKS_PRESENCE = {"is"}
+
+
 async def resolve(ctx: Ctx, selector: str):
-    return await ctx.state.locate(selector)
+    return await ctx.state.locate(selector, wait=0.0 if ctx.command in CHECKS_PRESENCE else APPEAR_WAIT)
 
 
 @command("click")

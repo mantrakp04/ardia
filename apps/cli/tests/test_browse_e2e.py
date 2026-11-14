@@ -639,6 +639,16 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertIsNotNone(saved, last)
         self.assertEqual(Path(saved.group(1)).read_text().count("Button number"), 400)
 
+    def test_click_waits_for_an_element_that_appears_late(self):
+        session = "late"
+        self.browse("open", self.url("consent.html"), "--show", session=session)
+        self.browse("eval", "setTimeout(() => { const late = document.createElement('button'); late.id = 'late'; late.textContent = 'Late';"
+                    " late.onclick = () => { document.title = 'late clicked'; }; document.querySelector('header').after(late); }, 800)", session=session)
+        self.browse("click", "#late", session=session)
+        self.assertEqual(self.browse("get", "title", session=session).stdout, "late clicked\n")
+        missing = self.browse("is", "visible", "#never", session=session, check=False)
+        self.assertNotIn("waited", missing.stdout + missing.stderr)
+
     def test_read_reads_every_named_url_past_the_link_limit(self):
         urls = [self.url(f"picker.html?n={number}") for number in range(25)]
         pages = json.loads(self.browse("read", *urls, "--http", "--json", session="many-urls").stdout)["data"]["pages"]
