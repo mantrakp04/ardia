@@ -104,6 +104,9 @@ test("keyword mode shows only that provider's rows, the URL template first", () 
   const providers = [{ id: "config:go", title: "Linear", rows: [{ title: "ENG-12 crash", url: "https://linear.app/team/issue/ENG-12" }] }, section("other", 3)];
   const items = buildSuggestions("ENG-12", source, { now, scope, providers }).items;
   assert.deepEqual(items.map((s) => (s.kind === "provider" ? s.url : s.kind)), ["https://linear.app/team/issue/ENG-12"]);
+  assert.deepEqual(items.map((s) => s.kind === "provider" && s.search), [true]);
+  const results = buildSuggestions("crash", source, { now, scope: { ...scope, url: "" }, providers }).items;
+  assert.deepEqual(results.map((s) => s.kind === "provider" && [s.url, s.search]), [["https://linear.app/team/issue/ENG-12", undefined]]);
   const empty = buildSuggestions("", source, { now, scope: { ...scope, url: "" }, providers });
   assert.deepEqual(empty.items.map((s) => s.kind === "provider" && s.title), ["ENG-12 crash"]);
   assert.equal(empty.completion, "");

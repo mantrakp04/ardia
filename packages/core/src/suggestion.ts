@@ -28,7 +28,7 @@ export type Suggestion =
   | { kind: "action"; id: string; title: string; icon?: string; hint?: string }
   | { kind: "create"; id: string; title: string; url: string; site: string }
   | { kind: "extension"; id: string; title: string; icon: string | null; open: "action" | "options" }
-  | { kind: "provider"; providerId: string; provider: string; title: string; url: string; subtitle?: string; icon: string | null };
+  | { kind: "provider"; providerId: string; provider: string; title: string; url: string; subtitle?: string; icon: string | null; search?: true };
 
 export type SuggestionResult = {
   items: Suggestion[];

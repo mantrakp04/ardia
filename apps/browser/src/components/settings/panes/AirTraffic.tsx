@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { View } from "react-native";
-import { useAirTrafficConfig, useLinkHooks, useRoutableProfiles, type LinkHookRow, type LinkHookState, type RoutableProfile } from "../../../state/airTraffic/hooks";
+import { useAirTrafficConfig, useLinkHooks, useRoutableProfiles, useRouteGroupName, type LinkHookRow, type LinkHookState, type RoutableProfile } from "../../../state/airTraffic/hooks";
 import { moveAirTrafficRule, removeAirTrafficRule, setAirTrafficFallback, updateAirTrafficRule } from "../../../state/airTraffic/store";
 import { previewLink, type LinkPreview } from "../../../state/airTraffic/preview";
 import type { OpeningTrace } from "../../../state/automation/decisions";
@@ -10,13 +10,19 @@ import { goToSettingsPane } from "../../../state/settings/settingsWindows";
 import { showSettingsSheet } from "../../../state/settings/sheet";
 import { Button, PopUp, Symbol, TextField, Toggle, useTheme, type Option } from "../../ui";
 import { Group, PaneIntro, Row, SectionHeader } from "../Form";
-import { AppPicker, conditionLabel, fromLabel, OPEN_LABELS, OPEN_OPTIONS, profileOptions, RuleSheet, USED_LAST } from "./AirTrafficSheet";
+import { AppPicker, CLOSED_GROUP, conditionLabel, fromLabel, GroupPicker, OPEN_LABELS, OPEN_OPTIONS, profileOptions, RuleSheet, USED_LAST } from "./AirTrafficSheet";
 
 const USUAL = "usual";
 
-function targetLabel(target: AirTrafficTarget, profiles: RoutableProfile[]): string | null {
+function targetLabel(target: AirTrafficTarget, profiles: RoutableProfile[], groupName: string | null): string | null {
   const profile = target.profileId === null ? USED_LAST : profiles.find((p) => p.id === target.profileId)?.name;
-  return profile ? `${profile} · ${OPEN_LABELS[target.open]}` : null;
+  if (!profile) return null;
+  return target.groupKey ? `${profile} › ${groupName ?? CLOSED_GROUP}` : `${profile} · ${OPEN_LABELS[target.open]}`;
+}
+
+function ruleProblem(target: string | null, groupGone: boolean): string | null {
+  if (!target) return "Its profile is gone, so this rule is skipped. Edit it to pick another.";
+  return groupGone ? "Its tab group is gone, so this rule is skipped. Edit it to pick another." : null;
 }
 
 export function AirTrafficPane() {
@@ -25,8 +31,8 @@ export function AirTrafficPane() {
   return (
     <View>
       <PaneIntro>
-        Send links from other apps to the profile you want, as a new tab, a new window or Little Ardia. Links you click inside Ardia stay where they
-        are.
+        Send links from other apps to the profile you want, as a new tab, a new window, Little Ardia or into a tab group. A rule for any app can
+        also take the links you click and the addresses you type in Ardia.
       </PaneIntro>
 
       <SectionHeader anchor="airTraffic.rules" action={<Button title="Add Rule…" icon="plus" onPress={() => showSettingsSheet(<RuleSheet />)} />} />
@@ -52,7 +58,9 @@ export function AirTrafficPane() {
 }
 
 function RuleRow({ rule, index, last, profiles }: { rule: AirTrafficRule; index: number; last: boolean; profiles: RoutableProfile[] }) {
-  const target = targetLabel(rule, profiles);
+  const groupName = useRouteGroupName(rule.profileId, rule.groupKey);
+  const target = targetLabel(rule, profiles, groupName);
+  const groupGone = !!rule.groupKey && !groupName;
   const more = async () => {
     const choice = await showMenu([
       { id: "edit", title: "Edit…" },
@@ -68,8 +76,8 @@ function RuleRow({ rule, index, last, profiles }: { rule: AirTrafficRule; index:
   };
   return (
     <Row
-      title={`${fromLabel(rule.from)} · ${conditionLabel(rule.when)} → ${target ?? "a deleted profile"}`}
-      description={target ? null : "Its profile is gone, so this rule is skipped. Edit it to pick another."}
+      title={`${fromLabel(rule.from)}${rule.inside ? " and Ardia" : ""} · ${conditionLabel(rule.when)} → ${target ?? "a deleted profile"}`}
+      description={ruleProblem(target, groupGone)}
     >
       <Toggle value={rule.enabled} accessibilityLabel="Use this rule" onChange={(enabled) => updateAirTrafficRule(rule.id, { enabled })} />
       <Button variant="icon" icon="pencil" size="m" onPress={() => showSettingsSheet(<RuleSheet rule={rule} />)} tooltip="Edit" />
@@ -83,11 +91,14 @@ function FallbackRow({ profiles }: { profiles: RoutableProfile[] }) {
   const { fallback } = useAirTrafficConfig();
   const options: Option<string>[] = [{ value: USUAL, title: "Ardia's usual routing" }, ...profileOptions(profiles).map((o, i) => ({ ...o, separatorBefore: i <= 1 }))];
   const value = !fallback ? USUAL : (fallback.profileId ?? "");
-  const pick = (choice: string) => setAirTrafficFallback(choice === USUAL ? null : { profileId: choice || null, open: fallback?.open ?? "tab" });
+  const pick = (choice: string) => setAirTrafficFallback(choice === USUAL ? null : { profileId: choice || null, open: fallback?.open ?? "tab", ...(choice === fallback?.profileId && fallback.groupKey ? { groupKey: fallback.groupKey } : {}) });
   return (
     <Row anchor="airTraffic.fallback" description={fallback ? null : "They open as Settings › General says, in the profile you used last."}>
       <PopUp value={value} options={options} onChange={pick} minWidth={180} />
       {fallback ? <PopUp value={fallback.open} options={OPEN_OPTIONS} onChange={(open) => setAirTrafficFallback({ ...fallback, open })} /> : null}
+      {fallback?.profileId && fallback.open === "tab" ? (
+        <GroupPicker profileId={fallback.profileId} value={fallback.groupKey ?? ""} onChange={(groupKey) => setAirTrafficFallback({ ...fallback, groupKey: groupKey || undefined })} />
+      ) : null}
     </Row>
   );
 }
@@ -114,7 +125,8 @@ function HooksSection() {
 
 function landing(preview: Extract<LinkPreview, { ok: true }>): string {
   if (preview.dropped) return "Dropped: nothing opens.";
-  return `Opens in ${preview.profileName}${preview.usedLast ? " (used last)" : ""} · ${OPEN_LABELS[preview.open]}`;
+  const where = preview.groupName ? ` › ${preview.groupName}` : "";
+  return `Opens in ${preview.profileName}${preview.usedLast ? " (used last)" : ""}${where} · ${OPEN_LABELS[preview.open]}`;
 }
 
 function openingNote(opening: OpeningTrace): string {

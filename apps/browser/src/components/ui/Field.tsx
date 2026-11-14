@@ -183,18 +183,21 @@ export function PopUp<T extends string>({
   onChange,
   minWidth = 120,
   disabled,
+  accessibilityLabel,
 }: {
   value: T;
   options: Option<T>[];
   onChange: (value: T) => void;
   minWidth?: number;
   disabled?: boolean;
+  accessibilityLabel?: string;
 }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const pressMotion = usePressScaleMotion(!disabled, buttonMotion.controlPressScale);
   const scaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : null;
   const current = options.find((o) => o.value === value);
+  const labelled = accessibilityLabel ? { accessibilityLabel, accessibilityValue: { text: current?.title ?? "" } } : {};
   const open = async () => {
     const items: MenuItem[] = options.flatMap((o) => [
       ...(o.separatorBefore ? [{ separator: true as const }] : []),
@@ -205,7 +208,7 @@ export function PopUp<T extends string>({
   };
   return (
     <View {...hoverProps} style={{ opacity: disabled ? opacity.disabled : 1 }}>
-      <Pressable disabled={disabled} onPress={open} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut}>
+      <Pressable disabled={disabled} onPress={open} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut} accessibilityRole="button" {...labelled}>
         {({ pressed }) => (
           <Animated.View
             style={[

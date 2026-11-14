@@ -709,6 +709,12 @@
   let splitKey = null;
   let peekTrace = false;
   let peekOtherSites = false;
+  let linkRoutes = [];
+  let ownProfile = "";
+  handlers.routeConfig = (config) => {
+    linkRoutes = config && isArray(config.routes) ? config.routes : [];
+    if (config && typeof config.self === "string") ownProfile = config.self;
+  };
   handlers.peekConfig = (config) => {
     peekKey = config && (config.modifier === "alt" || config.modifier === "shift") ? config.modifier : null;
     splitKey = config && (config.split === "alt" || config.split === "altShift") ? config.split : null;
@@ -821,6 +827,153 @@
       const selection = apply(selectionOf, document, []);
       return !!selection && !collapsed(selection);
     };
+    const toLower = String.prototype.toLowerCase;
+    const lowered = (text) => apply(toLower, text, []);
+    const protocolOf = getter(URL.prototype, "protocol");
+    const portOf = getter(URL.prototype, "port");
+    const pathnameOf = getter(URL.prototype, "pathname");
+    const searchOf = getter(URL.prototype, "search");
+    const decodePath = decodeURI;
+    const DEFAULT_PORTS = { http: "80", https: "443", ftp: "21" };
+    const withoutDots = (text) => {
+      let end = text.length;
+      while (end > 0 && text[end - 1] === ".") end--;
+      return apply(sliceText, text, [0, end]);
+    };
+    const globMatches = (glob, text) => {
+      let g = 0;
+      let t = 0;
+      let star = -1;
+      let resume = 0;
+      while (t < text.length) {
+        if (g < glob.length && glob[g] !== "*" && glob[g] === text[t]) {
+          g++;
+          t++;
+        } else if (g < glob.length && glob[g] === "*") {
+          star = g++;
+          resume = t;
+        } else if (star >= 0) {
+          g = star + 1;
+          t = ++resume;
+        } else return false;
+      }
+      while (glob[g] === "*") g++;
+      return g === glob.length;
+    };
+    const hostMatches = (spec, given) => {
+      const host = withoutDots(given);
+      const pattern = withoutDots(spec.host);
+      if (host === pattern || (spec.sub && !pattern)) return true;
+      if (!spec.sub || host[0] === "[" || apply(test, /^\d+\.\d+\.\d+\.\d+$/, [host])) return false;
+      return host.length > pattern.length + 1 && apply(sliceText, host, [host.length - pattern.length - 1]) === "." + pattern;
+    };
+    const matchesSpec = (spec, href) => {
+      if (spec === "any") return true;
+      if (!spec || typeof spec !== "object" || !isArray(spec.schemes) || typeof spec.host !== "string" || typeof spec.path !== "string") return false;
+      let url;
+      try {
+        url = new URLCtor(href);
+      } catch (e) {
+        return false;
+      }
+      const scheme = apply(sliceText, protocolOf(url), [0, -1]);
+      if (!apply(includes, spec.schemes, [scheme])) return false;
+      if (spec.all) return true;
+      if (!spec.file && !hostMatches(spec, hostnameOf(url))) return false;
+      if (spec.port !== "*" && spec.port !== (portOf(url) || DEFAULT_PORTS[scheme] || "-1")) return false;
+      const path = pathnameOf(url) + searchOf(url);
+      if (spec.path === path + "/*") return true;
+      let decoded;
+      try {
+        decoded = decodePath(path);
+      } catch (e) {
+        decoded = path;
+      }
+      return globMatches(spec.path, path) || globMatches(spec.path, decoded);
+    };
+    const routeFor = (url) => {
+      for (let i = 0; i < linkRoutes.length; i++) {
+        const route = linkRoutes[i];
+        if (route && matchesSpec(route.spec, url)) return route;
+      }
+      return null;
+    };
+    const clickDetail = getter(UIEvent.prototype, "detail");
+    const cancelBubble = getter(Event.prototype, "cancelBubble");
+    const linkTarget = (link) => lowered(targetOf(link));
+    const routedOpens = (link) => {
+      const target = linkTarget(link);
+      if (target === "_blank") return "tab";
+      if (target === "_top") return "page";
+      return !isTop || (target && target !== "_self" && target !== "_parent") ? null : "page";
+    };
+    const routed = (url, keyed) => {
+      const route = routeFor(url);
+      if (!route) return false;
+      const here = route.profile === null || route.profile === ownProfile;
+      if (!here) return true;
+      if ((keyed || route.open === "tab") && !route.group) return false;
+      return !isTop || !matchesSpec(route.spec, location.href);
+    };
+    let routeSent = null;
+    handlers.routeRefused = (refusal) => {
+      const gesture = routeSent;
+      if (!gesture || !refusal || refusal.url !== gesture.url || now() - gesture.at > 60000) return;
+      routeSent = null;
+      if (!gesture.plain) return;
+      if (namespace(gesture.link) === XHTML) return apply(clickElement, gesture.link, []);
+      const follow = apply(createElement, document, ["a"]);
+      apply(setAttribute, follow, ["href", gesture.url]);
+      return apply(clickElement, follow, []);
+    };
+    const routeUnhandledClick = (e, link, how) => {
+      if (defaultPrevented(e)) return;
+      const url = linkUrl(link);
+      if (!peekable({ link, url, path: [] }) || url.length > 8192) return;
+      const opens = metaKey(e) ? "tab" : shiftKey(e) ? "page" : routedOpens(link);
+      const keyed = metaKey(e) || shiftKey(e);
+      if (!opens || !routed(url, keyed)) return;
+      apply(preventDefault, e, []);
+      routeSent = { url, link, at: now(), plain: !keyed };
+      send("route", { url, how, opens, keyed, origin: pageOrigin });
+    };
+    addEventListener(
+      "click",
+      guard((e) => {
+        if (button(e) !== 0 || !ownProfile || !linkRoutes.length || !e.isTrusted || clickDetail(e) === 0 || ctrlKey(e) || altKey(e)) return;
+        const hit = linkAt(e);
+        if (!peekable(hit) || chosen(e)) return;
+        const how = metaKey(e) ? (shiftKey(e) ? "foreground" : "background") : shiftKey(e) ? "window" : "foreground";
+        const nodes = [];
+        let decided = false;
+        let decide = null;
+        let stopped = null;
+        const finish = () => {
+          decided = true;
+          apply(unlisten, window, ["click", decide]);
+          for (let i = 0; i < nodes.length; i++) apply(unlisten, nodes[i], ["click", stopped]);
+        };
+        decide = guard((ev) => {
+          if (ev !== e || decided) return;
+          finish();
+          routeUnhandledClick(e, hit.link, how);
+        });
+        stopped = guard((ev) => {
+          if (ev !== e || decided || !cancelBubble(e) || defaultPrevented(e)) return;
+          finish();
+          routeUnhandledClick(e, hit.link, how);
+        });
+        for (let i = 0; i < hit.path.length; i++) {
+          const node = hit.path[i];
+          if (node === window) break;
+          nodes[nodes.length] = node;
+          apply(listen, node, ["click", stopped]);
+        }
+        apply(listen, window, ["click", decide]);
+        apply(scheduleTimeout, window, [guard(finish), 0]);
+      }),
+      true,
+    );
     let press = null;
     let peeked = null;
     let siteClick = null;
@@ -872,6 +1025,7 @@
         if (moved > PRESS_SLOP) return trace("moved too far", { url: hit.url, moved });
         if (key === "site") {
           if (selecting()) return trace("the click belongs to a selection", { url: hit.url });
+          if (routed(hit.url, false)) return trace("the link is routed", { url: hit.url });
           siteClick = { link: hit.link, stamp: timeStamp(e) };
           return;
         }
@@ -1099,6 +1253,7 @@
 
   handlers.config = (config) => {
     handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace, otherSites: config.peekOtherSites });
+    handlers.routeConfig({ routes: config.routes, self: config.sidebarProfile });
     blockAutoplay = !!config.blockAutoplay;
     pipTrace = !!config.pipTrace;
     if (pipTrace && pipHandlerSet !== null)

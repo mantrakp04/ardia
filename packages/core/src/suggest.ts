@@ -162,7 +162,7 @@ function providerScopeSuggestions(query: string, scope: SearchScope, sections: r
   const id = scope.providerId ?? "";
   const items: ProviderSuggestion[] = [];
   const typedUrl = scope.url && query ? providerUrl(searchUrlFor(scope.url, query)) : null;
-  if (typedUrl) items.push({ kind: "provider", providerId: id, provider: scope.name, title: query, url: typedUrl, icon: null });
+  if (typedUrl) items.push({ kind: "provider", providerId: id, provider: scope.name, title: query, url: typedUrl, icon: null, search: true });
   const section = sections.find((x) => x.id === id);
   const seen = new Set(items.map((x) => x.url));
   if (section) for (const row of safeProviderRows({ id, title: scope.name }, section.rows, limit)) if (!seen.has(row.url) && items.length < limit) items.push(row);

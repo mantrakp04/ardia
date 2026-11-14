@@ -18,6 +18,7 @@ import { claimFocusTag, commandBarFocus, heroBarFocus } from "../../state/focus/
 import { registerHeroBar, saveNtpQuery, type BarDismissal, type BarSnapshot } from "../../state/omnibox/barState";
 import { barSplitsFrom, openFromBar, otherOpenTabs, switchFromBar, type Disposition } from "../../state/omnibox/openFromBar";
 import { openFromNewTabBar } from "../../state/omnibox/newTabBar";
+import { isTypedSearch, routeTypedUrl } from "../../state/airTraffic/openAt";
 import type { NewTabTarget } from "../../state/browser/types";
 import { showFieldMenu } from "../../state/omnibox/paste";
 import { SuggestionIcon, SuggestionList, isRemovable, type RowActions } from "./SuggestionRow";
@@ -76,18 +77,7 @@ export function Omnibox({
   const root = useRef<View>(null);
 
   const { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing } = useBarItems({
-    input,
-    typed,
-    edited,
-    scope,
-    suppressCompletion,
-    selected,
-    dropdown,
-    opensTab: !!opensTab,
-    windowId,
-    profileId,
-    tabId,
-    currentUrl,
+    input, typed, edited, scope, suppressCompletion, selected, dropdown, opensTab: !!opensTab, windowId, profileId, tabId, currentUrl,
   });
 
   useHeldSelection(items, typed, scope, selectedIndex, dispatch);
@@ -140,10 +130,11 @@ export function Omnibox({
     return hero ? reset() : onDone?.();
   };
 
-  const go = (url: string, asked: Disposition = "current") => {
+  const go = (url: string, asked: Disposition = "current", search = false) => {
     bangEnter.cancel();
     if (!url) return;
     const disposition = asked === "split" && !barSplitsFrom(tabId) ? (opensTab ? "newTab" : "current") : asked;
+    if (!search && disposition !== "split" && routeTypedUrl(url, { windowId, tabId: opensTab ? undefined : tabId, disposition, newTab: opensTab })) return dismiss();
     if (opensTab && disposition !== "newWindow" && disposition !== "split") return openFromNewTabBar(windowId, opensTab, url);
     if (disposition === "current") journeyNavigate(tabId);
     openFromBar(url, tabId, disposition);
@@ -158,14 +149,14 @@ export function Omnibox({
       const text = edited ? value : initialText || value;
       if (mayBeBang(text)) {
         const fallback = s?.kind === "search" ? s.url : resolveInput(text, engine.url);
-        bangEnter.submit(text, (url) => go(url ?? fallback, disposition));
+        bangEnter.submit(text, (url) => go(url ?? fallback, disposition, !!url || s?.kind === "search" || isTypedSearch(text)));
         return;
       }
     }
     if (!s) {
       if (scope) return void waitForProvider(disposition);
       const text = edited ? value : initialText || value;
-      return go(resolveInput(text, engine.url), disposition);
+      return go(resolveInput(text, engine.url), disposition, isTypedSearch(text));
     }
     switch (s.kind) {
       case "page":
@@ -178,9 +169,9 @@ export function Omnibox({
       case "search":
       case "create":
       case "provider":
-        return go(s.url, disposition);
+        return go(s.url, disposition, s.kind === "search" || (s.kind === "provider" && !!s.search));
       case "calc":
-        if (disposition !== "current") return go(s.url, disposition);
+        if (disposition !== "current") return go(s.url, disposition, true);
         copyText(s.value);
         dispatch({ kind: "calculated", text: s.value });
         return;
@@ -196,7 +187,7 @@ export function Omnibox({
   const forceSearch = () => {
     const text = (previewing ? value : typed).trim();
     if (!text) return;
-    go(scope ? scopedSearchUrl(scope, text, engine) : searchUrl(engine, text));
+    go(scope ? scopedSearchUrl(scope, text, engine) : searchUrl(engine, text), "current", true);
   };
 
   const onKeyDown = (e: BarKeyEvent) => {
@@ -206,7 +197,7 @@ export function Omnibox({
 
   const onContextMenu = async () => {
     const pick = await showFieldMenu(value, selection);
-    if (pick?.kind === "go") return go(pick.url);
+    if (pick?.kind === "go") return go(pick.url, "current", !!pick.search);
     if (pick?.kind === "edit") {
       previewSelection.edited();
       dispatch({ kind: "edited", text: pick.text, caret: pick.caret });

@@ -9,11 +9,15 @@ import {
   NO_AIR_TRAFFIC,
   airTrafficJson,
   parseAirTraffic,
+  cleanRule,
+  cleanTarget,
+  sameTarget,
   type AirTrafficConfig,
   type AirTrafficRule,
   type AirTrafficTarget,
   type SourceApp,
 } from "./rules";
+import { hasRouteGroup } from "./groups";
 import { LINK_SOURCES_DOC, parseRecentApps, recentAppsJson, withRecentApp } from "./sourceApps";
 
 type Store = { loaded: boolean; config: AirTrafficConfig; recentApps: readonly SourceApp[] };
@@ -48,7 +52,10 @@ export function currentAirTraffic(): AirTrafficConfig {
   return useAirTraffic.getState().config;
 }
 
-export const profileUsable = (profileId: string) => !!useBrowser.getState().profiles[profileId] && !isIncognitoProfile(profileId);
+export const targetUsableNow = (profileId: string, groupKey: string | null) => {
+  const s = useBrowser.getState();
+  return !!s.profiles[profileId] && !isIncognitoProfile(profileId) && (!groupKey || hasRouteGroup(s, profileId, groupKey));
+};
 
 function saveConfig(change: (config: AirTrafficConfig) => AirTrafficConfig) {
   const before = currentAirTraffic();
@@ -67,13 +74,13 @@ export function addAirTrafficRule(draft: RuleDraft): string | null {
   saveConfig((c) => {
     if (c.rules.length >= MAX_AIR_TRAFFIC_RULES) return c;
     added = true;
-    return { ...c, rules: [...c.rules, { ...draft, id }] };
+    return { ...c, rules: [...c.rules, cleanRule({ ...draft, id })] };
   });
   return added ? id : null;
 }
 
 export function updateAirTrafficRule(id: string, patch: Partial<RuleDraft>) {
-  saveConfig((c) => (c.rules.some((r) => r.id === id) ? { ...c, rules: c.rules.map((r) => (r.id === id ? { ...r, ...patch, id } : r)) } : c));
+  saveConfig((c) => (c.rules.some((r) => r.id === id) ? { ...c, rules: c.rules.map((r) => (r.id === id ? cleanRule({ ...r, ...patch, id }) : r)) } : c));
 }
 
 export function removeAirTrafficRule(id: string) {
@@ -91,8 +98,9 @@ export function moveAirTrafficRule(id: string, step: -1 | 1) {
   });
 }
 
-export function setAirTrafficFallback(fallback: AirTrafficTarget | null) {
-  saveConfig((c) => (c.fallback?.profileId === fallback?.profileId && c.fallback?.open === fallback?.open ? c : { ...c, fallback }));
+export function setAirTrafficFallback(given: AirTrafficTarget | null) {
+  const fallback = given && cleanTarget(given);
+  saveConfig((c) => (sameTarget(c.fallback, fallback) ? c : { ...c, fallback }));
 }
 
 export function noteLinkSource(source: LinkSource) {
