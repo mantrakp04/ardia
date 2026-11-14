@@ -9,6 +9,7 @@ import { ArchiveView } from "./components/tabs/ArchiveView";
 import { TabDeck } from "./components/tabs/TabDeck";
 import { OnboardingView } from "./components/onboarding/OnboardingView";
 import { SettingsView } from "./components/settings/SettingsView";
+import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
 import { PROFILE_COLORS, ThemeColorContext, type ProfileColor } from "./components/ui";
 import { useLookColor } from "./state/sync/hooks";
@@ -58,7 +59,10 @@ export default function App() {
             {surface === "start" ? <StartScreen /> : null}
             <SearchTray />
           </Layer>
-          <Layer covered={settingsOpen || onboarding}>{sheet === "archive" ? <ArchiveView /> : null}</Layer>
+          <Layer covered={settingsOpen || onboarding}>
+            {sheet === "archive" ? <ArchiveView /> : null}
+            {sheet === "spaces" ? <SpacesView /> : null}
+          </Layer>
           <Layer covered={onboarding}>
             <SettingsView />
           </Layer>

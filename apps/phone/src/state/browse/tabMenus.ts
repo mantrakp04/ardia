@@ -29,7 +29,7 @@ export function trayRowActions(row: TrayRow): RowAction[] {
   ];
 }
 
-function copyLink(url: string) {
+export function copyLink(url: string) {
   quietly(() => copyText(mobileClean(url)));
   quietly(successHaptic);
   showToast(COPIED_LINK, "link");
@@ -66,3 +66,5 @@ export function closeFrontTab() {
 export const openArchivedTab = (tab: BrowserTab) => reopenArchived(tab);
 
 export const deleteArchivedTab = (tab: BrowserTab) => deleteArchivedTabsById([tab.id]);
+
+export const shareUrl = (url: string, title: string) => quietly(() => shareLink(url, title));

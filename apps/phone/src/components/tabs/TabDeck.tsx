@@ -27,6 +27,7 @@ import {
   newRegularTab,
   newTab,
   openArchive,
+  openSpaces,
   openTab,
   reopenLastClosed,
 } from "../../state/browse/store";
@@ -34,6 +35,7 @@ import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../stat
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
 import { Backdrop, ConfirmDialog, Menu, space, tabsCurve, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
+import { useSyncEnabled } from "../../state/sync/hooks";
 import { DeckBar } from "./DeckBar";
 import { DeckCard, type DeckMotion, type DeckRole } from "./DeckCard";
 import { DeckEmpty, IncognitoChip } from "./DeckChrome";
@@ -59,6 +61,7 @@ export function TabDeck() {
   const privateCount = usePrivateCount();
   const canReopen = useCanReopen();
   const hasArchive = useHasArchivedTabs();
+  const syncEnabled = useSyncEnabled();
   const [order, setOrder] = useState<string[]>(() => live.map((t) => t.id));
   const [shift, setShift] = useState({ by: 0, generation: 0 });
   const [phase, setPhase] = useState<Phase>({ kind: "settled", id: null });
@@ -281,7 +284,7 @@ export function TabDeck() {
       {phase.kind === "settled" ? (
         <View style={[styles.bar, { top: g.barCenterY - tabsLayout.barPlus.height / 2 - 2, paddingHorizontal: tabsLayout.barSideInset - 4 }]}>
           <DeckBar
-            leading={{ icon: "archivebox", label: "Archive", onPress: openArchive }}
+            leading={syncEnabled ? { icon: "laptop", label: "Synced Tabs", onPress: openSpaces } : { icon: "archivebox", label: "Archive", onPress: openArchive }}
             plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
             onPlus={newTab}
             onPlusMenu={() => setMenu("plus")}
