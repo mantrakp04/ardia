@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.row,
   },
   leading: { width: browseLayout.suggestionIconSlot, height: browseLayout.suggestionIconSlot, alignItems: "center", justifyContent: "center" },
-  label: { flex: 1, gap: 1 },
+  label: { flex: 1, gap: space.hair },
   detail: { flexDirection: "row", alignItems: "center", gap: space.xs },
   detailText: { flexShrink: 1 },
   refine: { width: browseLayout.refineWidth, height: browseLayout.suggestionPitch, alignItems: "center", justifyContent: "center" },

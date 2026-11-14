@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { checkPhrase, connectSync, pastedText } from "../../state/sync/actions";
 import { connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRules";
-import { font, radius, settingsLayout, space, Symbol, useTheme } from "../ui";
+import { capsule, font, radius, settingsLayout, space, spacesLayout, Symbol, useTheme } from "../ui";
 import { BarButton, Group, SettingsPage } from "../settings/SettingsKit";
 import { CapsuleButton, SyncHero } from "./SyncPage";
 import { SyncScan } from "./SyncScan";
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   digits: { fontVariant: ["tabular-nums"] },
   step: { flexDirection: "row", gap: space.m, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.m },
-  badge: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  badge: { width: spacesLayout.stepBadge, height: spacesLayout.stepBadge, borderRadius: capsule(spacesLayout.stepBadge), borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   stepBody: { flex: 1, gap: space.xs },
   stepActions: { gap: space.s, paddingTop: space.xs },
   added: { flexDirection: "row", alignItems: "center", gap: space.s },

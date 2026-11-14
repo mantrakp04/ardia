@@ -3,7 +3,7 @@ import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View } fro
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { makeScanJudge, openCameraSettings, prepareCamera, type CameraAccess } from "../../state/sync/scan";
 import { SCAN_REJECTED } from "../../state/sync/syncRules";
-import { capsule, CodeCamera, font, ink, space, Symbol, useTheme } from "../ui";
+import { capsule, CodeCamera, font, ink, scanInk, scanLayout, space, Symbol, useTheme } from "../ui";
 
 type Props = { onScan: (phrase: string) => void; onEnterWords: () => void; onCancel: () => void };
 
@@ -89,7 +89,7 @@ function Unavailable({ icon, title, message, onSettings, onEnterWords }: { icon:
 function GlassButton({ title, onPress, prominent }: { title: string; onPress: () => void; prominent?: boolean }) {
   const theme = useTheme();
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.glass, { backgroundColor: prominent ? ink.white : "rgba(255,255,255,0.2)" }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.glass, { backgroundColor: prominent ? ink.white : scanInk.glass }]}>
       <Text style={[font.body, styles.bold, { color: prominent ? theme.label : ink.white }]}>{title}</Text>
     </Pressable>
   );
@@ -100,14 +100,14 @@ const styles = StyleSheet.create({
   center: { ...StyleSheet.absoluteFillObject },
   finder: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "space-between" },
   words: { alignItems: "center", gap: space.xs, paddingHorizontal: space.xxl },
-  frame: { width: 250, height: 250, borderRadius: 24, borderWidth: 3, borderColor: "rgba(255,255,255,0.9)" },
-  rejected: { backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 12, paddingHorizontal: space.l, paddingVertical: space.s, overflow: "hidden" },
+  frame: { width: scanLayout.frame, height: scanLayout.frame, borderRadius: scanLayout.frameRadius, borderWidth: scanLayout.frameStroke, borderColor: scanInk.frame },
+  rejected: { backgroundColor: scanInk.note, borderRadius: scanLayout.noteRadius, paddingHorizontal: space.l, paddingVertical: space.s, overflow: "hidden" },
   unavailable: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.m, paddingHorizontal: space.xxl },
   glass: { minHeight: 50, borderRadius: capsule(50), paddingHorizontal: space.xl, justifyContent: "center" },
   cancel: { position: "absolute", left: space.s, minHeight: 44, justifyContent: "center", paddingHorizontal: space.s },
   bold: { fontWeight: "600" },
   medium: { fontWeight: "500" },
   white: { color: ink.white },
-  soft: { color: "rgba(255,255,255,0.75)", textAlign: "center" },
+  soft: { color: scanInk.soft, textAlign: "center" },
   centered: { textAlign: "center" },
 });

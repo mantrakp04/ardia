@@ -4,7 +4,7 @@ import Animated, { FadeIn, FadeOut, SlideInLeft, SlideInRight, useAnimatedStyle,
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { advanceOnboarding, finishOnboarding, useOnboarding } from "../../state/onboarding/hooks";
 import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/settings/actions";
-import { ArdiaLogo, Backdrop, capsule, font, radius, settingsLayout, settingsTint, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
+import { ArdiaLogo, Backdrop, capsule, font, radius, settingsLayout, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
 import { ToggleRow } from "../settings/SettingsKit";
 import { SyncConnect } from "../sync/SyncConnect";
 import { DefaultBrowserSteps } from "../settings/DefaultBrowserPage";
@@ -206,7 +206,7 @@ function AllSet() {
 const styles = StyleSheet.create({
   column: { flex: 1, alignItems: "stretch", gap: space.xxl },
   fill: { flex: 1 },
-  logo: { alignSelf: "center", padding: space.l, borderRadius: settingsLayout.onboardingIcon * 0.3, elevation: 12, shadowOpacity: 1, shadowRadius: 24 },
+  logo: { alignSelf: "center", padding: space.l, borderRadius: settingsLayout.onboardingIcon * 0.3, elevation: 12, shadowOpacity: 1, shadowRadius: shadowRadius.lifted },
   words: { paddingHorizontal: space.huge, gap: space.s, alignItems: "center" },
   heavy: { fontWeight: "700", textAlign: "center" },
   centered: { textAlign: "center" },
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   actions: { paddingHorizontal: space.xxl, paddingBottom: space.m, gap: space.s },
   primary: { minHeight: settingsLayout.primaryButton, borderRadius: capsule(settingsLayout.primaryButton), alignItems: "center", justifyContent: "center" },
   illustration: { flex: 1, justifyContent: "flex-end", paddingHorizontal: space.l },
-  card: { borderRadius: radius.card, paddingVertical: space.xs, elevation: 8, shadowOpacity: 0.4, shadowRadius: 16 },
+  card: { borderRadius: radius.card, paddingVertical: space.xs, elevation: 8, shadowOpacity: 0.4, shadowRadius: shadowRadius.card },
   defaultBrowser: { paddingBottom: space.m },
   syncArt: { alignSelf: "center", padding: space.huge, alignItems: "center" },
   secondary: { minHeight: 44, alignItems: "center", justifyContent: "center" },

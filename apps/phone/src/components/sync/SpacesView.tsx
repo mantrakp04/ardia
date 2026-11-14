@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { PinnedTile, SyncedProfile } from "../../platform/sync";
+import type { PinnedTile, SyncedProfile } from "../../state/sync/store";
 import { closeArchive, openArchive } from "../../state/browse/store";
 import { copyLink, menuOpenedHaptic, shareUrl } from "../../state/browse/tabMenus";
 import { openSettings } from "../../state/settings/nav";
@@ -10,14 +10,13 @@ import { useSelectedProfile, useSyncStatus, useSyncView } from "../../state/sync
 import { remoteTitle, spaceRows, type SpaceRow } from "../../state/sync/spaces";
 import { syncBanner, type BannerIcon } from "../../state/sync/syncRules";
 import { sfSymbol } from "../../lib/sfSymbols";
-import { Backdrop, capsule, FloatingMenu, font, isSymbolName, space, Symbol, tabsLayout, useTheme, type MenuItem, type SymbolName } from "../ui";
+import { Backdrop, capsule, FloatingMenu, font, isSymbolName, space, Symbol, spacesLayout, syncInk, tabsLayout, useTheme, type MenuItem, type SymbolName } from "../ui";
 
 const BANNER_ICONS: Record<BannerIcon, SymbolName> = { folder: "folderFill", lock: "lockFill", reset: "arrowClockwise", warning: "exclamationmarkTriangle", offline: "wifiSlash" };
 const HEADER_ICONS: Record<"star" | "laptop" | "desktop" | "phone", SymbolName> = { star: "star", laptop: "laptop", desktop: "macDesktop", phone: "iphone" };
 const INDENT = 20;
 const TILE_MIN_WIDTH = 72;
 const TILE_HEIGHT = 56;
-const BANNER_ORANGE = "#FF9500";
 
 type RowMenu = { items: MenuItem[]; y: number };
 
@@ -51,7 +50,7 @@ export function SpacesView() {
         </View>
         {banner ? (
           <View style={[styles.banner, { backgroundColor: theme.tertiaryFill }]}>
-            <Symbol name={BANNER_ICONS[banner.icon]} size={18} color={BANNER_ORANGE} />
+            <Symbol name={BANNER_ICONS[banner.icon]} size={18} color={syncInk.banner} />
             <Text style={[font.subheadline, styles.fill, { color: theme.label }]}>{banner.text}</Text>
             {banner.needsAction ? (
               <Pressable accessibilityRole="button" onPress={() => openSettings({ page: "sync" })} style={[styles.fix, { borderColor: theme.separator }]}>
@@ -293,21 +292,21 @@ const styles = StyleSheet.create({
   centered: { textAlign: "center" },
   header: { flexDirection: "row", alignItems: "center", gap: space.s, paddingLeft: space.l + 4, paddingRight: space.s, paddingTop: space.m, paddingBottom: space.xs },
   headerButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  headerCircle: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  banner: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: space.l, marginBottom: space.xs, padding: 12, borderRadius: 14 },
+  headerCircle: { width: spacesLayout.headerCircle, height: spacesLayout.headerCircle, borderRadius: capsule(spacesLayout.headerCircle), alignItems: "center", justifyContent: "center" },
+  banner: { flexDirection: "row", alignItems: "center", gap: spacesLayout.bannerGap, marginHorizontal: space.l, marginBottom: space.xs, padding: spacesLayout.bannerPadding, borderRadius: spacesLayout.bannerRadius },
   fix: { borderWidth: StyleSheet.hairlineWidth, borderRadius: capsule(32), minHeight: 32, paddingHorizontal: space.m, justifyContent: "center" },
   row: { flexDirection: "row", alignItems: "center", gap: space.s, minHeight: 48, paddingRight: space.l },
-  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: space.l, paddingTop: space.l, paddingBottom: 4 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: spacesLayout.headerGap, paddingHorizontal: space.l, paddingTop: space.l, paddingBottom: spacesLayout.headerBottom },
   showAll: { minHeight: 44, justifyContent: "center", paddingHorizontal: space.l },
-  empty: { alignItems: "center", gap: 10, paddingTop: space.huge * 2, paddingHorizontal: space.xxl },
+  empty: { alignItems: "center", gap: spacesLayout.stackGap, paddingTop: space.huge * 2, paddingHorizontal: space.xxl },
   tiles: { gap: space.s, paddingHorizontal: space.l, paddingTop: space.xs, paddingBottom: space.s },
   tileRow: { flexDirection: "row", gap: space.s },
-  tile: { flex: 1, alignItems: "center", gap: 6 },
-  tileFace: { alignSelf: "stretch", height: TILE_HEIGHT, borderRadius: tabsLayout.tabStackRadius + 6, alignItems: "center", justifyContent: "center" },
+  tile: { flex: 1, alignItems: "center", gap: spacesLayout.tileGap },
+  tileFace: { alignSelf: "stretch", height: TILE_HEIGHT, borderRadius: spacesLayout.tileFaceRadius, alignItems: "center", justifyContent: "center" },
   switcherRow: { alignItems: "center", paddingTop: space.xs },
   switcher: { flexDirection: "row", height: 44, borderRadius: capsule(44), borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: space.xs, alignItems: "center" },
   switch: { width: 52, height: 36, alignItems: "center", justifyContent: "center" },
-  dot: { width: 9, height: 9, borderRadius: 4.5 },
-  unavailable: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: space.xxl },
-  primary: { minHeight: 44, borderRadius: capsule(44), paddingHorizontal: space.xl, justifyContent: "center", marginTop: 6 },
+  dot: { width: spacesLayout.dot, height: spacesLayout.dot, borderRadius: capsule(spacesLayout.dot) },
+  unavailable: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacesLayout.stackGap, paddingHorizontal: space.xxl },
+  primary: { minHeight: 44, borderRadius: capsule(44), paddingHorizontal: space.xl, justifyContent: "center", marginTop: spacesLayout.buttonTop },
 });

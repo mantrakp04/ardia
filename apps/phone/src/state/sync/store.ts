@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { sync, type SyncedView, type SyncEvent, type SyncStatus } from "../../platform/sync";
+
+export type { PinnedTile, SyncedProfile } from "../../platform/sync";
 import { settled } from "../pages/store";
 import { setTabProfile } from "../tabs/store";
 import { shownProfile } from "./syncRules";

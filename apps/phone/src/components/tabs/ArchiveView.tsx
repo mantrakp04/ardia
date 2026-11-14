@@ -188,6 +188,6 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: space.xl, paddingTop: space.l, paddingBottom: space.xs, fontWeight: "600" },
   row: { flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: space.l, paddingVertical: space.s, marginHorizontal: space.s, borderRadius: radius.row },
   icon: { width: tabsLayout.archiveTile, height: tabsLayout.archiveTile, borderRadius: tabsLayout.cardRadius - space.xs - 1, alignItems: "center", justifyContent: "center" },
-  label: { flex: 1, gap: 1 },
+  label: { flex: 1, gap: space.hair },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.xs + 2, paddingHorizontal: space.xxl },
 });

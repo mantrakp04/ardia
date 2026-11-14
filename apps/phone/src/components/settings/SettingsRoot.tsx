@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   medium: { fontWeight: "500" },
   bold: { fontWeight: "600" },
   syncCard: { flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.m },
-  syncText: { flex: 1, gap: 2 },
+  syncText: { flex: 1, gap: space.tight },
   row: { flexDirection: "row", alignItems: "center", gap: settingsLayout.labelGap, minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: settingsLayout.rowInset + settingsLayout.tile + settingsLayout.labelGap },
   centered: { textAlign: "center" },

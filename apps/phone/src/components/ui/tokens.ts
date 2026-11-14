@@ -168,6 +168,34 @@ export const settingsTint = {
 
 export const trayShadow = { opacity: 0.14, radius: 24, offsetY: -4, elevation: 12 } as const;
 
+export const scanInk = {
+  glass: "rgba(255,255,255,0.2)",
+  frame: "rgba(255,255,255,0.9)",
+  note: "rgba(255,255,255,0.18)",
+  soft: "rgba(255,255,255,0.75)",
+} as const;
+
+export const scanLayout = { frame: 250, frameRadius: 24, frameStroke: 3, noteRadius: 12, cancelInset: 8 } as const;
+
+export const syncInk = { banner: "#FF9500" } as const;
+
+export const spacesLayout = {
+  headerCircle: 32,
+  bannerGap: 10,
+  bannerPadding: 12,
+  bannerRadius: 14,
+  headerGap: 6,
+  headerBottom: 4,
+  tileGap: 6,
+  stackGap: 10,
+  tileFaceRadius: 11,
+  dot: 9,
+  buttonTop: 6,
+  stepBadge: 26,
+  stepTileRadius: 7,
+  stepDividerInset: 56,
+} as const;
+
 export const tabsInk = {
   incognitoCard: "#1C1D22",
   incognitoCardRaised: "#2A2B31",
@@ -209,7 +237,9 @@ export const tabsLayout = {
   archiveTile: 28,
 } as const;
 
-export const space = { none: 0, xs: 4, s: 8, m: 12, l: 16, xl: 20, xxl: 24, huge: 32 } as const;
+export const space = { none: 0, hair: 1, tight: 2, xs: 4, s: 8, m: 12, l: 16, xl: 20, xxl: 24, huge: 32 } as const;
+
+export const shadowRadius = { tile: 1.5, knob: 2, card: 16, lifted: 24 } as const;
 
 export const radius = { row: 14, field: 16, card: 20, sheet: 40 } as const;
 

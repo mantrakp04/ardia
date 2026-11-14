@@ -1,7 +1,7 @@
 import { StyleSheet, View } from "react-native";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { display } from "../../state/search/omnibox";
-import { browseLayout, capsule, PressScale, Symbol, TabFace, tabsInk, tabsLayout, type ColorRoles } from "../ui";
+import { browseLayout, capsule, PressScale, shadowRadius, Symbol, TabFace, tabsInk, tabsLayout, type ColorRoles } from "../ui";
 
 type Props = { order: BrowserTab[]; roles: ColorRoles; showsPlus: boolean; onTabs: () => void; onTabsMenu: () => void; onPlus: () => void; onMore: () => void };
 
@@ -96,5 +96,5 @@ const styles = StyleSheet.create({
   more: { width: browseLayout.hitTarget, height: browseLayout.hitTarget, alignItems: "center", justifyContent: "center" },
   chevron: { width: browseLayout.chevronCircle, height: browseLayout.chevronCircle },
   tile: { borderRadius: tabsLayout.tabStackRadius },
-  thumbnail: { position: "absolute", overflow: "hidden", borderWidth: 0.5, elevation: 2, shadowOpacity: 1, shadowRadius: 1.5 },
+  thumbnail: { position: "absolute", overflow: "hidden", borderWidth: 0.5, elevation: 2, shadowOpacity: 1, shadowRadius: shadowRadius.tile },
 });

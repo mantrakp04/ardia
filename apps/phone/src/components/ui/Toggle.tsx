@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet } from "react-native";
 import { springs } from "./motion";
 import { useTheme } from "./theme";
-import { capsule, ink, toggleLayout } from "./tokens";
+import { capsule, ink, shadowRadius, toggleLayout } from "./tokens";
 
 const TRAVEL = toggleLayout.width - toggleLayout.knob - toggleLayout.inset * 2;
 
@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     elevation: 2,
     shadowColor: ink.knobShadow,
     shadowOpacity: 1,
-    shadowRadius: 2,
+    shadowRadius: shadowRadius.knob,
     shadowOffset: { width: 0, height: 1 },
   },
   disabled: { opacity: 0.4 },
