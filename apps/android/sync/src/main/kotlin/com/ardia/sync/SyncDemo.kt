@@ -130,18 +130,25 @@ object SyncDemo {
     }
 }
 
-class DemoSyncDevice(now: Long = System.currentTimeMillis()) : SyncDevice {
+class DemoSyncDevice(private val now: Long = System.currentTimeMillis()) : SyncDevice {
+    private var on = true
+    private var connected: SyncSnapshot = SyncDemo.snapshot(now)
+
     override val isDemo: Boolean get() = true
-    override val phase: SyncPhase get() = SyncPhase.Updated
-    override val snapshot: SyncSnapshot = SyncDemo.snapshot(now)
+    override val phase: SyncPhase get() = if (on) SyncPhase.Updated else SyncPhase.Off
+    override val snapshot: SyncSnapshot get() = if (on) connected else SyncSnapshot.empty
     override val pendingDownloads: Int get() = 0
-    override val lastSynced: Long? = now
-    override val isEnabled: Boolean get() = true
-    override val isRunning: Boolean get() = true
-    override val folderName: String get() = SyncDemo.FOLDER_NAME
+    override val lastSynced: Long? get() = if (on) now else null
+    override val isEnabled: Boolean get() = on
+    override val isRunning: Boolean get() = on
+    override val folderName: String? get() = if (on) SyncDemo.FOLDER_NAME else null
     override val hasUnsentChanges: Boolean get() = false
     override val wantsBackgroundRefresh: Boolean get() = false
     override var deviceName: String = SyncDemo.DEVICE_NAME
+        set(value) {
+            field = value
+            connected = connected.copy(devices = connected.devices.map { if (it.isCurrent) it.copy(name = value) else it })
+        }
     override var selectedProfileId: String? = null
     override var source: LocalBrowsingSource? = null
 
@@ -159,17 +166,30 @@ class DemoSyncDevice(now: Long = System.currentTimeMillis()) : SyncDevice {
 
     override fun cancelCoordination() {}
 
-    override fun connect(phrase: String, pick: SyncFolderPick): ConnectResult = ConnectResult.Connected
+    override fun connect(phrase: String, pick: SyncFolderPick): ConnectResult {
+        on = true
+        return ConnectResult.Connected
+    }
 
     override fun changeFolder(pick: SyncFolderPick): ConnectResult = ConnectResult.Connected
 
-    override fun stopSyncing() {}
+    override fun stopSyncing() {
+        on = false
+    }
 
     override fun acknowledgeReset() {}
 
     override fun send(url: String, title: String, to: SyncedDevice, profileSyncId: String?, key: String, fromPrivateTab: Boolean): Boolean = !fromPrivateTab
 
-    override fun addBookmark(url: String, title: String, profileSyncId: String?, fromPrivateTab: Boolean): Boolean = !fromPrivateTab
+    override fun addBookmark(url: String, title: String, profileSyncId: String?, fromPrivateTab: Boolean): Boolean {
+        if (fromPrivateTab || !on) return false
+        val profile = connected.profile(profileSyncId ?: selectedProfileId) ?: return false
+        val has = profile.bookmarks.any { item -> item.url == url || item.children.orEmpty().any { it.url == url } }
+        if (has) return true
+        val pin = BookmarkItem("demo-pin-${profile.bookmarks.size}-${url.hashCode()}", title, url, now.toDouble())
+        connected = connected.copy(profiles = connected.profiles.map { if (it.syncId == profile.syncId) it.copy(bookmarks = it.bookmarks + pin) else it })
+        return true
+    }
 
     override fun takeReceived(): List<ReceivedTab> = emptyList()
 
