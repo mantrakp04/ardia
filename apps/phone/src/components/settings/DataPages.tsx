@@ -5,6 +5,7 @@ import { popSettings, pushSettings } from "../../state/settings/nav";
 import { CLEAR_RANGES, clearChoice, clearFooter, clearIsEmpty, clearMessage, clearTitle, type ClearRange } from "../../state/settings/settingsRules";
 import { ArdiaLogo, ConfirmDialog, font, settingsLayout, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
 import { copy } from "../../lib/platformCopy";
+import { LIBRARY_CREDITS } from "../../state/settings/libraryCredits";
 import { ButtonRow, Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
 
 export function ClearDataPage() {
@@ -82,27 +83,19 @@ export function AboutPage() {
   );
 }
 
-const CREDITS = [
+const DATA_CREDITS = [
   { name: "Ardia", use: "This app, and the Mac browser it syncs with.", license: "Apache License 2.0", url: "https://github.com/mantrakp04/ardia" },
   { name: "EasyList", use: "The list behind Block Ads.", license: "CC BY-SA 3.0 or GPLv3", url: "https://easylist.to" },
   { name: "EasyPrivacy", use: "The list behind Block Trackers.", license: "CC BY-SA 3.0 or GPLv3", url: "https://easylist.to" },
   { name: "Fanboy’s Cookie Monster List", use: "The list behind Block Cookie Banners.", license: "CC BY-SA 3.0 or GPLv3", url: "https://secure.fanboy.co.nz" },
-  { name: "RE2/J", use: "Matches the pattern rules in filter lists.", license: "BSD 3-Clause License", url: "https://github.com/google/re2j" },
-  { name: "OkHttp", use: "Downloads files.", license: "Apache License 2.0", url: "https://github.com/square/okhttp" },
-  { name: "React Native", use: "Draws the app and runs its code.", license: "MIT License", url: "https://github.com/facebook/react-native" },
-  { name: "Expo", use: "The app's native modules and build.", license: "MIT License", url: "https://github.com/expo/expo" },
-  { name: "Hermes", use: "Runs the app's code, including the search code Ardia shares with your Mac.", license: "MIT License", url: "https://github.com/facebook/hermes" },
-  { name: "Reanimated and Gesture Handler", use: "The tab deck's and the bar's gestures and motion.", license: "MIT License", url: "https://github.com/software-mansion" },
   { name: "Public Suffix List", use: "Tells which part of an address is the site.", license: "Mozilla Public License 2.0", url: "https://publicsuffix.org" },
-  { name: "Jetpack and AndroidX", use: "Android's own building blocks.", license: "Apache License 2.0", url: "https://developer.android.com/jetpack" },
-  { name: "Kotlin", use: "The language the page engine is written in.", license: "Apache License 2.0", url: "https://kotlinlang.org" },
 ];
 
 export function LicensesPage() {
   const theme = useTheme();
   return (
     <SettingsPage title="Open Source Licenses" onBack={popSettings}>
-      {CREDITS.map((credit) => (
+      {DATA_CREDITS.map((credit) => (
         <Group key={credit.name}>
           <View style={styles.credit}>
             <Text style={[font.body, styles.bold, { color: theme.label }]}>{credit.name}</Text>
@@ -117,6 +110,29 @@ export function LicensesPage() {
           </Pressable>
         </Group>
       ))}
+      <Group header="Code in This App">
+        {LIBRARY_CREDITS.map((credit, index) => (
+          <View key={`${credit.name}@${credit.detail}`}>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`${credit.name}, ${credit.license}`}
+              onPress={() => openFromSettings(credit.url)}
+              style={({ pressed }) => [styles.library, pressed ? { backgroundColor: theme.rowHighlight } : null]}
+            >
+              <View style={styles.fill}>
+                <Text style={[font.body, { color: theme.label }]} numberOfLines={1}>
+                  {credit.name}
+                </Text>
+                <Text style={[font.footnote, { color: theme.secondaryLabel }]} numberOfLines={2}>
+                  {credit.detail}
+                </Text>
+              </View>
+              <Text style={[font.footnote, { color: theme.secondaryLabel }]}>{credit.license}</Text>
+            </Pressable>
+            {index < LIBRARY_CREDITS.length - 1 ? <Divider /> : null}
+          </View>
+        ))}
+      </Group>
     </SettingsPage>
   );
 }
@@ -126,5 +142,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   hero: { alignItems: "center", gap: space.s },
   bold: { fontWeight: "600" },
+  library: { flexDirection: "row", alignItems: "center", gap: space.m, minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.s },
   credit: { paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.m, gap: space.xs },
 });
