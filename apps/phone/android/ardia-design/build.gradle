@@ -3,7 +3,7 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "org.jetbrains.kotlin.plugin.compose"
 
 def design = new File(rootDir, "../../android/design/src/main")
-def designInThisModule = ['ProfileLook.kt', 'Monogram.kt', 'Colors.kt']
+def designInThisModule = ['ProfileLook.kt', 'Monogram.kt', 'Colors.kt', 'MeshGradient.kt', 'GrainTexture.kt', 'TabsBackdropMotion.kt', 'FrostedStyle.kt', 'BrowseTokens.kt', 'Tokens.kt', 'ProfileBackdropStyle.kt']
 
 android {
     namespace 'com.ardia.design'
@@ -32,4 +32,5 @@ dependencies {
     implementation "androidx.annotation:annotation:1.9.1"
     api "androidx.compose.runtime:runtime:1.7.8"
     api "androidx.compose.ui:ui-graphics:1.7.8"
+    api "androidx.compose.ui:ui-unit:1.7.8"
 }

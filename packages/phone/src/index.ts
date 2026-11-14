@@ -9,6 +9,21 @@ export { syncLab, type SyncRuntimeCheck } from "./syncLab";
 export { system, type SystemLink, type SystemLinkSource } from "./system";
 export { scanner, ScanView, type ScanError, type ScanPermission, type ScanViewProps } from "./scan";
 export { clipboard, type ClipboardOffer } from "./clipboard";
+export {
+  DeckBackdrop,
+  FilmGrain,
+  Frost,
+  FrostSource,
+  lookIsNative,
+  ProfileBackdrop,
+  type DeckBackdropProps,
+  type FilmGrainProps,
+  type FrostProps,
+  type FrostSourceProps,
+  type FrostVariant,
+  type LookColors,
+  type ProfileBackdropProps,
+} from "./look";
 export { favicons, type FaviconLook, type FaviconTone } from "./favicons";
 export { network, type NetworkEvent } from "./network";
 export { canUseSpeech, speech, type SpeechAccess, type SpeechEvent, type SpeechProblem } from "./voice";

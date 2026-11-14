@@ -18,6 +18,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LAB_BLOCKING_URL, labBlockingHtml, runRestoreTest, runSelfTest, summarize, type TestLine } from "./selfTest";
 import { SyncLab } from "./SyncLab";
+import { LookLab } from "./LookLab";
 import { ScanLab } from "./ScanLab";
 import { SystemLab } from "./SystemLab";
 import { VoiceLab } from "./VoiceLab";
@@ -91,6 +92,7 @@ function Lab() {
   const [swipeNavigation, setSwipeNavigation] = useState<"anywhere" | "edges" | "off">("anywhere");
   const [pullToRefresh, setPullToRefresh] = useState(true);
   const [showVoice, setShowVoice] = useState(false);
+  const [showLook, setShowLook] = useState(false);
   const [url, setUrl] = useState(LAB_URL);
   const [query, setQuery] = useState("browser");
   const [states, setStates] = useState<Record<string, PageState>>({});
@@ -282,6 +284,7 @@ function Lab() {
         {showSystem && <SystemLab note={note} />}
         {showScan && <ScanLab note={note} />}
         {showVoice && <VoiceLab note={note} />}
+        {showLook && <LookLab />}
         <Text style={styles.status} numberOfLines={2}>
           {pageId} {isPrivate ? "(private) " : ""}
           {state ? `${state.isLoading ? `loading ${Math.round(state.progress * 100)}% ` : ""}${state.title || "untitled"}` : "no state"}
@@ -328,6 +331,7 @@ function Lab() {
           <Button label={pullToRefresh ? "Pull on" : "Pull off"} active={pullToRefresh} onPress={() => setPullToRefresh((on) => !on)} />
           <Button label={showScan ? "Hide scanner" : "Scanner"} active={showScan} onPress={() => setShowScan((shown) => !shown)} />
           <Button label={showVoice ? "Hide voice" : "Voice"} active={showVoice} onPress={() => setShowVoice((shown) => !shown)} />
+          <Button label={showLook ? "Hide look" : "Look"} active={showLook} onPress={() => setShowLook((shown) => !shown)} />
           <Button label="Discard others" onPress={() => run("discard background", async () => {
             await pages.discardBackgroundPages(pageId);
             return pages.livePageIds();
