@@ -725,6 +725,21 @@ class BrowseEndToEnd(unittest.TestCase):
         other = self.browse("script", session="state-other", stdin="return Object.keys(state).length;").stdout.strip()
         self.assertEqual(other, "0")
 
+    def test_out_covers_scroll_reads_snapshots_and_inline_scripts(self):
+        session = "out-more"
+        self.browse("open", self.url("feed.html"), "--show", session=session)
+        rows = self.data / "out" / "rows.json"
+        said = self.browse("read", "--scroll", "--out", str(rows), session=session).stdout
+        self.assertEqual(len(json.loads(rows.read_text())), 60)
+        self.assertIn("a list of 60 items", said)
+        snap = self.data / "out" / "snap.txt"
+        said = self.browse("snapshot", "-i", "--out", str(snap), session=session).stdout
+        self.assertIn("Saved to", said)
+        self.assertIn("Card 1", snap.read_text())
+        self.assertEqual(self.browse("script", "return 6 * 7;", session=session).stdout.strip(), "42")
+        missing = self.browse("script", "missing-file.js", session=session, check=False)
+        self.assertIn("Can't read missing-file.js", missing.stderr)
+
     def test_read_reads_every_named_url_past_the_link_limit(self):
         urls = [self.url(f"picker.html?n={number}") for number in range(25)]
         pages = json.loads(self.browse("read", *urls, "--http", "--json", session="many-urls").stdout)["data"]["pages"]

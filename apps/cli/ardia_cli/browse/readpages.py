@@ -490,13 +490,14 @@ def read_at() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
-def bot_check(title: str, text: str, status) -> str | None:
+def bot_check(title: str, text: str, status, count: bool = True) -> str | None:
     from ardia_cli import command_metrics
 
     blocked_status = status in (401, 403, 429)
     if not (blocked_status or CHALLENGE.search(title or "") or (len(text or "") < CHALLENGE_MAX_TEXT and CHALLENGE.search(text or ""))):
         return None
-    command_metrics.flag("read_bot_check", True)
+    if count:
+        command_metrics.flag("read_bot_check", True)
     what = "a rate limit (HTTP 429)" if status == 429 else "a bot check or access block"
     return (f"this looks like {what}, not the page's content: wait 30-60 s and read it again, try the site's other pages "
             "or another source, and say in your answer which sources stayed blocked")
@@ -512,6 +513,8 @@ async def extract_filled(page, selector: str | None, timeout: float) -> dict:
     loop = asyncio.get_running_loop()
     deadline = loop.time() + min(THIN_WAIT, timeout)
     got = await page.call(EXTRACT, selector, frame=page.main_frame, read=True)
+    if (got.get("status") or 0) >= 400 or bot_check(got.get("title") or "", got.get("text") or "", got.get("status"), count=False):
+        return got
     waited = False
     while thin(got, selector) and loop.time() + THIN_POLL < deadline:
         waited = True

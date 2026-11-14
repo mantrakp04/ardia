@@ -265,7 +265,7 @@ COMMANDS = {
             "--http fetches outside the browser instead (no logins, no page scripts; faster on public docs), and so do\n"
             "--llms index|full, --require-md, --raw, --outline and --filter, which also work on the session's tab's URL.\n"
             "Exit 1 when any page failed (its block says why).",
-    "script": "ardia browse script [file.js] [--timeout 90s] [--out <file>]   (or the script on stdin)\n\n"
+    "script": "ardia browse script [file.js | '<code>'] [--timeout 90s] [--out <file>]   (or the script on stdin)\n\n"
               "--out <file> saves the whole returned value (JSON, or a string as is) and prints a summary and the log;\n"
               "build deliverables from that file instead of copying printed output. `state` is an object the session keeps\n"
               "between scripts, even past a timeout: push rows to it in long loops and continue in the next script.\n\n"

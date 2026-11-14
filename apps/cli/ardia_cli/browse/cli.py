@@ -375,6 +375,10 @@ def read_stdin_urls(args: list[str]) -> str | None:
     return sys.stdin.read(readpages.MAX_STDIN)
 
 
+def inline_code(text: str) -> bool:
+    return not text.endswith((".js", ".mjs", ".ts")) and any(mark in text for mark in (" ", ";", "(", "=", "\n"))
+
+
 def script_source(args: list[str], cwd: str) -> str:
     from ardia_cli.browse import script
     from ardia_cli.browse.commands import parse
@@ -388,7 +392,9 @@ def script_source(args: list[str], cwd: str) -> str:
             with open(path, encoding="utf-8") as handle:
                 source = handle.read(script.MAX_SOURCE + 1)
         except OSError as error:
-            raise Usage(f"Can't read {positional[0]}: {error.strerror or error}") from None
+            if not inline_code(positional[0]):
+                raise Usage(f"Can't read {positional[0]}: {error.strerror or error}") from None
+            source = positional[0]
     elif positional or parsed.get("stdin") or not sys.stdin.isatty():
         source = sys.stdin.read(script.MAX_SOURCE + 1)
     else:

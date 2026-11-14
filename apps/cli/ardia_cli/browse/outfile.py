@@ -6,7 +6,8 @@ from pathlib import Path
 
 from ardia_cli.browse.errors import Usage
 
-TAKES_OUT = ("script", "eval", "read")
+TAKES_OUT = ("script", "eval", "read", "snapshot", "get")
+AS_TEXT = ("snapshot", "get")
 PREVIEW = 300
 EXCERPT = 240
 EXCERPT_PAGES = 12
@@ -40,6 +41,18 @@ def run_saving(run, argv: list[str], command: str, path: str) -> int:
     from ardia_cli import telemetry
 
     captured = io.StringIO()
+    if command in AS_TEXT:
+        with redirect_stdout(captured):
+            code = run([*argv, "--max-output", "0"])
+        if code:
+            sys.stdout.write(captured.getvalue())
+            return code
+        text = captured.getvalue()
+        target = save(path, text)
+        telemetry.note_count("saved_to_file", True)
+        lines = text.splitlines()
+        sys.stdout.write(f"✓ Saved to {target} ({len(text):,} characters, {len(lines):,} lines). First lines:\n" + "\n".join(lines[:12]) + "\n")
+        return code
     with redirect_stdout(captured):
         code = run(["--json", *argv])
     try:
@@ -86,6 +99,10 @@ def list_digest(items: list) -> str:
 
 
 def content(command: str, data: dict, path: Path) -> tuple[str, str]:
+    if command == "read" and "rows" in data:
+        rows = data.get("rows") or []
+        text = json.dumps(rows, ensure_ascii=False, indent=2) if path.suffix.lower() == ".json" else "\n".join(map(str, rows)) + "\n"
+        return text, f"{list_digest(rows)}\n(stopped: {data.get('stopped')}; {data.get('total')} rows in the list)"
     if command == "read":
         pages = data.get("pages") or []
         failed = sum(1 for page in pages if page.get("error"))

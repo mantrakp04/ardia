@@ -610,8 +610,9 @@ role <role> <action> --name <text> (act without a snapshot). Only if you need ev
 used to suggest `--full`, and agents ran `snapshot --full` at up to 35K characters a time. The same line also goes to
 stderr (so does `read`'s own "pages cut to fit" line), so it survives `| head`, `| grep` and `> file`. `--max-output N` (or
 `AGENT_BROWSER_MAX_OUTPUT`) sets another limit (`0` for none), `--full` turns it off; JSON output is never cut, and
-neither is output redirected to a regular file (`> out.json`), which never reaches the agent's context. `script`, `eval` and
-`read` take `--out <file>`: the client asks the daemon for JSON, writes the whole result to the file (a script's or
+neither is output redirected to a regular file (`> out.json`), which never reaches the agent's context. `script`, `eval`,
+`read`, `snapshot` and `get` take `--out <file>` (`snapshot` and `get` save their full text, uncapped, and print the
+first 12 lines; `read --scroll` saves its rows): the client asks the daemon for JSON, writes the whole result to the file (a script's or
 eval's value as JSON, or a string as is; `read` pages as JSON for a `.json` path, else as text), redacted, through a
 temporary file, and prints a short digest (`✓ Saved to rows.json (84,210 characters): a list of 900 items with fields i, name`, then
 the first and last rows) plus the script's last 20 log lines. A failure prints the error and writes nothing. `read --out` lists each page with its status,
