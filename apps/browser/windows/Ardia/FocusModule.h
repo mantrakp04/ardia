@@ -2,6 +2,8 @@
 
 #include <mutex>
 #include <optional>
+#include <string>
+#include <string_view>
 
 #include "NativeModules.h"
 #include "Events.h"
@@ -43,6 +45,30 @@ struct SwitcherPointer {
   }
 };
 
+struct KeyboardHandoff {
+  static bool OursInFront() noexcept {
+    HWND front = GetForegroundWindow();
+    DWORD process = 0;
+    return front && GetWindowThreadProcessId(front, &process) && process == GetCurrentProcessId();
+  }
+
+  static bool PageWindow(HWND window) noexcept {
+    wchar_t name[16] = {};
+    return window && GetClassNameW(window, name, 16) >= 7 && std::wstring_view(name, 7) == L"Chrome_";
+  }
+
+  static bool FromPage(std::string const &windowId) noexcept {
+    if (windowId.empty() || WindowManager::Background() || !OursInFront()) return false;
+    HWND app = WindowManager::Shared().Hwnd(windowId);
+    HWND focus = GetFocus();
+    HWND page = focus ? GetAncestor(focus, GA_ROOT) : nullptr;
+    if (!app || !PageWindow(page) || GetWindow(page, GW_OWNER) != app) return false;
+    SetActiveWindow(app);
+    LaunchLog::Write(L"keys", L"an app field took the keyboard from a page");
+    return GetActiveWindow() == app;
+  }
+};
+
 REACT_MODULE(FocusModule, L"ArdiaFocus")
 struct FocusModule {
   using DonePromise = winrt::Microsoft::ReactNative::ReactPromise<void>;
@@ -73,6 +99,11 @@ struct FocusModule {
   void setTextInputFocused(bool focused, DonePromise promise) noexcept {
     Menus::MenuKeyboard::Shared().textInputFocused.store(focused);
     promise.Resolve();
+  }
+
+  REACT_METHOD(takeKeyboardFromPage)
+  void takeKeyboardFromPage(std::string windowId, winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
+    RunOnUI(m_context, [windowId, promise]() noexcept { promise.Resolve(KeyboardHandoff::FromPage(windowId)); });
   }
 
   REACT_SYNC_METHOD(textInputFocused)

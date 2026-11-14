@@ -13,6 +13,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/scoped_observation.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -55,6 +56,7 @@ class Host : public TabStripModelObserver,
   void TabDestroyed(TabState* state);
   void ParentDestroying(HWND parent);
   void ParentMoved(HWND parent);
+  void ParentActivated(HWND parent);
 
   void OnTabStripModelChanged(
       TabStripModel* tab_strip_model,
@@ -109,6 +111,12 @@ class Host : public TabStripModelObserver,
   void Park(Browser* browser);
   void ParkForeign(base::WeakPtr<BrowserWindowInterface> browser);
   void Hide(Browser* browser, Hosted& hosted);
+  void GiveKeyboard(Browser* browser,
+                    content::WebContents* contents,
+                    bool follow,
+                    bool background);
+  void ApplyWantedKeyboard(HWND parent);
+  std::string KeyboardPage() const;
   void CloseSparePages();
   void Place(HWND window, const Hosted& hosted);
   void WatchParent(HWND parent);
@@ -130,6 +138,7 @@ class Host : public TabStripModelObserver,
   std::map<std::string, raw_ptr<content::WebContents>> tabs_;
   std::map<Profile*, std::string> profile_names_;
   std::set<HWND> parents_;
+  std::map<HWND, std::string> keyboard_wanted_;
   bool creating_browser_ = false;
   bool creating_tab_ = false;
   bool moving_tab_ = false;
