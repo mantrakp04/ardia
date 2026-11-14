@@ -11,6 +11,7 @@ import { clickSelection, NO_SELECTION, rowWindow, selectAll, selectedInOrder, ty
 import { FolderTree } from "../bookmarks/FolderTree";
 import { Box, Button, Divider, EmptyState, radius, space, Text, Toast, useTheme } from "../ui";
 import { openOrganizeMenu } from "../../state/bookmarks/bookmarkMenus";
+import { copyBookmarkNodes, cutBookmarkNodes, pasteBookmarkNodes } from "../../state/bookmarks/bookmarkClipboard";
 import { BookmarkRow } from "./BookmarkRow";
 import { DropTargets } from "./dropTargets";
 import { matchesQuery, PageHeader } from "./PageLayout";
@@ -162,24 +163,30 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
             )}
           </Box>
           <Divider thick />
-          {ids.length === 0 ? (
-            <EmptyState
-              symbol={searching ? "magnifyingglass" : "bookmark"}
-              title={searching ? "No search results found" : "This folder is empty"}
-            />
-          ) : (
-            <View
-              ref={list}
-              focusable
-              enableFocusRing={false}
-              keyDownEvents={LIST_KEYS}
-              onKeyDown={(e) => {
-                const { key, metaKey } = e.nativeEvent;
-                if (key === "Backspace" || key === "Delete") remove(selected);
-                else if (key === "a" && metaKey) setSelection(selectAll(ids));
-              }}
-              style={LIST_KEYS_VIEW}
-            >
+          <View
+            ref={list}
+            focusable
+            enableFocusRing={false}
+            keyDownEvents={LIST_KEYS}
+            onKeyDown={(e) => {
+              const { key, metaKey } = e.nativeEvent;
+              if (key === "Backspace" || key === "Delete") remove(selected);
+              else if (key === "a" && metaKey) setSelection(selectAll(ids));
+              else if (key === "c" && metaKey && selected.length) copyBookmarkNodes(selected);
+              else if (key === "x" && metaKey && selected.length) {
+                cutBookmarkNodes(selected);
+                setSelection(NO_SELECTION);
+              }
+              else if (key === "v" && metaKey) pasteBookmarkNodes(profileId, folderId ?? undefined);
+            }}
+            style={LIST_KEYS_VIEW}
+          >
+            {ids.length === 0 ? (
+              <EmptyState
+                symbol={searching ? "magnifyingglass" : "bookmark"}
+                title={searching ? "No search results found" : "This folder is empty"}
+              />
+            ) : (
               <ScrollView onLayout={onListLayout} onScroll={onListScroll} scrollEventThrottle={16} contentContainerStyle={LIST_CONTENT}>
                 <View style={{ height: ids.length * bookmarkList.row }}>
                   {ids.slice(shown.first, shown.end).map((id, offset) => {
@@ -211,8 +218,8 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
                   {indicator !== null && <DropLine top={indicator * bookmarkList.row} color={theme.formAccent} />}
                 </View>
               </ScrollView>
-            </View>
-          )}
+            )}
+          </View>
         </Box>
       </View>
       {undo && (
@@ -236,7 +243,10 @@ function DropLine({ top, color }: { top: number; color: string }) {
   return <View style={[DROP_LINE, { top: top - bookmarkList.dropLine / 2, backgroundColor: color }]} />;
 }
 
-const LIST_KEYS = [{ key: "Backspace" }, { key: "Delete" }, { key: "a", metaKey: true }];
+const LIST_KEYS = [
+  { key: "Backspace" }, { key: "Delete" }, { key: "a", metaKey: true },
+  { key: "x", metaKey: true }, { key: "c", metaKey: true }, { key: "v", metaKey: true },
+];
 
 const BODY = { flex: 1, flexDirection: "row", paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.xl } as const;
 const TREE = { width: bookmarkList.treeWidth, flexGrow: 0 } as const;

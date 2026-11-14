@@ -13,6 +13,7 @@ import { currentBookmarks } from "../browser/current";
 import type { BookmarkNode } from "../browser/types";
 import { openInternalPage } from "../pages/urls";
 import { updateSettings } from "../settings/actions";
+import { copyBookmarkNodes, cutBookmarkNodes, hasBookmarkClipboard, pasteBookmarkNodes } from "./bookmarkClipboard";
 import type { Settings } from "../settings/settings";
 
 export type ClickMods = { metaKey?: boolean; shiftKey?: boolean; altKey?: boolean };
@@ -31,14 +32,23 @@ const BAR_SIZES: { id: BarSizeChoice; title: string }[] = [
   { id: "large", title: "Large" },
 ];
 
+function bookmarkClipboardMenuItems(): MenuItem[] {
+  return [
+    { id: "bookmarkCut", title: "Cut", key: "x", modifiers: ["command"] },
+    { id: "bookmarkCopy", title: "Copy", key: "c", modifiers: ["command"] },
+    { id: "bookmarkPaste", title: "Paste", key: "v", modifiers: ["command"], enabled: hasBookmarkClipboard() },
+  ];
+}
+
 export function barMenuItems(
   target: BarMenuTarget,
   { barShown, size = "default", keys = menuShortcut }: { barShown: boolean; size?: BarSizeChoice; keys?: (command: string) => MenuKey },
 ): MenuItem[] {
-  if (target?.kind === "url") return menuSections(openLinkItems(), copyLinkItems(), [{ id: "edit", title: "Edit…", symbol: "pencil" }], [{ id: "delete", title: "Delete", symbol: "trash" }]);
+  if (target?.kind === "url") return menuSections(openLinkItems(), copyLinkItems(), bookmarkClipboardMenuItems(), [{ id: "edit", title: "Edit…", symbol: "pencil" }], [{ id: "delete", title: "Delete", symbol: "trash" }]);
   if (target?.kind === "folder")
     return menuSections(
       openAllItems(target.links),
+      bookmarkClipboardMenuItems(),
       [
         { id: "addGroup", title: "Add to Sidebar as Group", symbol: "sidebar.left", enabled: target.makesGroup },
         target.restoresArc && { id: "restoreArc", title: "Restore Arc Folders as Groups" },
@@ -90,6 +100,13 @@ export async function openBarMenu(windowId: string, profileId: string, node: Boo
     if (choice === "rename") void editBookmark(node.id, windowId);
     if (choice === "addGroup") addFolderToSidebar(node.id, windowId);
     if (choice === "restoreArc") restoreArcFolders(node.id, windowId);
+  }
+  if (node && choice === "bookmarkCopy") copyBookmarkNodes([node.id]);
+  if (node && choice === "bookmarkCut") cutBookmarkNodes([node.id]);
+  if (node && choice === "bookmarkPaste") {
+    const parentId = node.kind === "folder" ? node.id : node.parentId ?? bar;
+    const index = node.kind === "url" && node.parentId ? folderChildren(currentBookmarks(), node.parentId).findIndex((n) => n.id === node.id) + 1 : undefined;
+    pasteBookmarkNodes(profileId, parentId ?? undefined, index);
   }
   if (choice === "delete" && node) removeBookmark(node.id);
   const parentId = node?.parentId ?? bar;

@@ -11,15 +11,18 @@ const render = (items) =>
 
 const OPEN_ONE = ["Open in New Tab [plus.app]", "Open in New Window [macwindow.badge.plus]", "Open in Incognito Window [eyeglasses]", "Open in Split View [rectangle.split.2x1]"];
 const COPY_ONE = ["Copy Link [link]", "Copy Link as Markdown [link] (alt)"];
+const BOOKMARK_CLIPBOARD = ["Cut ⌘X", "Copy ⌘C", "Paste ⌘V (off)"];
 const OPEN_ALL = ["Open All in New Tabs [plus.app]", "Open All in New Window [macwindow.badge.plus]", "Open All in Incognito Window [eyeglasses]"];
 
 test("a bookmarks bar link: opens, Copy Link, Edit…, and Delete last, with no bar settings mixed in", () => {
-  assert.deepEqual(render(barMenuItems({ kind: "url" }, { barShown: true })), [...OPEN_ONE, "---", ...COPY_ONE, "---", "Edit… [pencil]", "---", "Delete [trash]"]);
+  assert.deepEqual(render(barMenuItems({ kind: "url" }, { barShown: true })), [...OPEN_ONE, "---", ...COPY_ONE, "---", ...BOOKMARK_CLIPBOARD, "---", "Edit… [pencil]", "---", "Delete [trash]"]);
 });
 
 test("a bookmarks bar folder: Open All in each place, group, Rename… and New Folder…, Delete Folder last", () => {
   assert.deepEqual(render(barMenuItems({ kind: "folder", links: 2, makesGroup: true, restoresArc: false }, { barShown: true })), [
     ...OPEN_ALL,
+    "---",
+    ...BOOKMARK_CLIPBOARD,
     "---",
     "Add to Sidebar as Group [sidebar.left]",
     "---",
@@ -29,7 +32,7 @@ test("a bookmarks bar folder: Open All in each place, group, Rename… and New F
     "Delete Folder [trash]",
   ]);
   const empty = render(barMenuItems({ kind: "folder", links: 0, makesGroup: false, restoresArc: true }, { barShown: true }));
-  assert.deepEqual(empty.slice(0, 6), [...OPEN_ALL.map((t) => `${t} (off)`), "---", "Add to Sidebar as Group [sidebar.left] (off)", "Restore Arc Folders as Groups"]);
+  assert.deepEqual(empty.slice(0, 10), [...OPEN_ALL.map((t) => `${t} (off)`), "---", ...BOOKMARK_CLIPBOARD, "---", "Add to Sidebar as Group [sidebar.left] (off)", "Restore Arc Folders as Groups"]);
 });
 
 test("the bookmarks bar background: Add Page…, New Folder…, then Manage Bookmarks and the bar toggle with their real keys", () => {
@@ -48,9 +51,11 @@ test("the bookmarks bar background: Add Page…, New Folder…, then Manage Book
 });
 
 test("a Bookmarks page row matches the bar, adds Show in Folder for a search result, and a selection acts on all of it", () => {
-  assert.deepEqual(render(bookmarkRowMenuItems({ kind: "url", showPath: true })), [...OPEN_ONE, "Show in Folder [folder]", "---", ...COPY_ONE, "---", "Edit… [pencil]", "---", "Delete [trash]"]);
+  assert.deepEqual(render(bookmarkRowMenuItems({ kind: "url", showPath: true })), [...OPEN_ONE, "Show in Folder [folder]", "---", ...COPY_ONE, "---", ...BOOKMARK_CLIPBOARD, "---", "Edit… [pencil]", "---", "Delete [trash]"]);
   assert.deepEqual(render(bookmarkRowMenuItems({ kind: "folder", links: 3, makesGroup: false, restoresArc: false, showPath: false })), [
     ...OPEN_ALL,
+    "---",
+    ...BOOKMARK_CLIPBOARD,
     "---",
     "Add to Sidebar as Group [sidebar.left] (off)",
     "---",
@@ -66,6 +71,8 @@ test("a Bookmarks page row matches the bar, adds Show in Folder for a search res
     "---",
     "Copy 3 Links [link]",
     "Copy 3 Links as Markdown [link] (alt)",
+    "---",
+    ...BOOKMARK_CLIPBOARD,
     "---",
     "Delete 2 Items [trash]",
   ]);
