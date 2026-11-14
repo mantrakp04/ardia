@@ -68,7 +68,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Find in page | Differs: Chromium's find bar | stand-ins (Chromium's own UI) |
 | Zoom | Works | |
 | Print | Works (Chromium's print preview) | |
-| JavaScript confirm and prompt | Works | |
+| JavaScript confirm and prompt | Works; a confirm or prompt is modal to its own window only, other windows keep loading | #1672 |
 | File upload | Works (Windows' Open dialog) | |
 | Page, link and image menus | Differs: Chromium's; offers split view, Cast, Save as Ctrl+S | #1518 |
 | Full-screen video | Works | |
@@ -344,6 +344,17 @@ is plain Chromium.
   into the holes. While a modal the app shows is open (a confirm, a prompt, a file or folder picker), the page windows its
   window owns are disabled and enabled again when it closes, so a click on the page cannot raise it over the dialog. A press in the page counts
   as a press outside every popover of its window.
+- Native modals (confirm and alert, the prompt, the open, save and folder pickers; `NativeDialogs.h`, `SaveDialog.h`)
+  run on a thread of their own (`ModalThread.h` `RunModal`, a COM STA thread), never on the UI thread. The app shares
+  that thread with Chromium's browser UI, and Chromium runs none of its own tasks inside a native modal loop, so a
+  dialog there stalled every window's pages until it closed (#1672: in the VM, Chromium's DevTools list gave no answer
+  for 5 s while "Close 2 tabs?" was open and a page asked in another window stayed "Untitled"). Owned by its window
+  across threads, the dialog stays in front of that window, disables only it and its pages, and keys typed in it no
+  longer reach the app's shortcut hook. One dialog per window at a time; a dialog whose window goes away, or every
+  dialog when the app stops, is cancelled within 250 ms. Pop-up menus (`TrackPopupMenuEx`) still run on the UI thread
+  and stall pages while a menu is open (#1687). The self-check holds a real confirm on both threads and checks that a
+  page loads only in the first case; `dialog_pages_asked` and `dialog_pages_stalled` count pages asked while a dialog
+  was open and how many hadn't loaded 10 s later.
 - A second launch reaches the running app: Chromium's process singleton hands it the command line, and
   `chromium-win-relaunch-to-app.patch` gives that to `//ardia/win`, which sends the topic `relaunch` with the web and
   file addresses on it. The app treats them as links from another app (`onOpenURLs`: a Little Ardia window or a tab,

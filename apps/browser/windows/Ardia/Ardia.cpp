@@ -201,6 +201,7 @@ __declspec(dllexport) int ArdiaAppPreTranslateMessage(const void *message) {
 }
 
 __declspec(dllexport) void ArdiaAppStop(void) {
+  Ardia::DialogParts::StopAllModals();
   if (!EngineLoopRunning()) return;
   EngineLoopRunning() = false;
   Ardia::Host *host = Ardia::Host::Current();

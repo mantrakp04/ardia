@@ -110,6 +110,8 @@
     <ClInclude Include="AppImage.h" />
     <ClInclude Include="AppModule.h" />
     <ClInclude Include="LaunchConfig.h" />
+    <ClInclude Include="ModalThread.h" />
+    <ClInclude Include="NativeDialogs.h" />
     <ClInclude Include="TestGate.h" />
     <ClInclude Include="EngineApi.h" />
     <ClInclude Include="EngineHostModule.h" />

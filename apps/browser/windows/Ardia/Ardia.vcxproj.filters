@@ -3,6 +3,8 @@
   <ItemGroup>
     <ClInclude Include="AppModule.h" />
     <ClInclude Include="LaunchConfig.h" />
+    <ClInclude Include="ModalThread.h" />
+    <ClInclude Include="NativeDialogs.h" />
     <ClInclude Include="TestGate.h" />
     <ClInclude Include="AutolinkedNativeModules.g.h" />
     <ClInclude Include="LaunchLog.h" />
