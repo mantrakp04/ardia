@@ -7,18 +7,18 @@ export type VaultEntry = { name: string; dir: boolean; modified: number; placeho
 
 export type Opened = { state: "data"; payload: string } | { state: "busy" | "placeholder" | "missing" | "damaged" | "unreadable" };
 
-export type VaultNative = {
-  chainStatus(folder: string): Promise<"ok" | "missing" | "unavailable">;
+type SyncContract = NonNullable<typeof SyncNative>;
+
+export type VaultNative = Pick<SyncContract, "chainStatus" | "write"> & {
   createChain(folder: string): Promise<unknown>;
   deleteChain(folder: string): Promise<unknown>;
   list(folder: string, scope: string): Promise<string | null>;
   open(folder: string, scope: string, id: string): Promise<Opened>;
-  write(folder: string, scope: string, payload: string): Promise<string>;
   remove(folder: string, scope: string, id: string): Promise<string>;
   hydrate(folder: string, scope: string, id: string): void;
 };
 
-export type SyncFileCounts = ReturnType<NonNullable<NonNullable<typeof SyncNative>["takeFileCounts"]>>;
+export type SyncFileCounts = ReturnType<NonNullable<SyncContract["takeFileCounts"]>>;
 
 export type FileCounts = Omit<SyncFileCounts, "hydrated">;
 
