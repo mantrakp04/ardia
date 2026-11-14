@@ -889,7 +889,7 @@ Decisions for Shivam:
 - signing, or a per-machine install (#1659).
 
 With the engine and owner items set aside, the app side has not reached parity yet: items 1 and 2 are bugs a user
-hits, and 4 to 6 are visible differences with Chromium's own UI. Everything else in the table works or differs only
+hits, and 3 to 5 are visible differences with Chromium's own UI. Everything else in the table works or differs only
 where the engine, Windows itself or a decision stands in the way.
 
 ## Order of work
