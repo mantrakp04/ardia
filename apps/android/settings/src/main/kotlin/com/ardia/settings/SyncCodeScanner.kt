@@ -1,20 +1,8 @@
 package com.ardia.settings
 
 import android.Manifest
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -40,8 +28,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -67,7 +55,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ardia.design.ArdiaSymbols
 import com.ardia.design.ArdiaType
@@ -79,25 +66,6 @@ import com.ardia.design.bold
 import com.ardia.design.medium
 import com.ardia.design.semibold
 import com.ardia.sync.SyncJoin
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-
-enum class CameraAccess { Checking, Ready, Denied, Unsupported }
-
-object CameraAccessCheck {
-    fun hasCamera(context: Context): Boolean = context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
-
-    fun isGranted(context: Context): Boolean = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-
-    fun initial(context: Context): CameraAccess = when {
-        !hasCamera(context) -> CameraAccess.Unsupported
-        isGranted(context) -> CameraAccess.Ready
-        else -> CameraAccess.Checking
-    }
-
-    fun appSettings(context: Context): Intent =
-        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-}
 
 @Composable
 fun SyncCodeScanner(onScan: (String) -> Unit, onEnterWords: () -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier) {
@@ -256,56 +224,9 @@ private fun CameraPreview(modifier: Modifier = Modifier, onPayload: (String) -> 
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
     val analyzer = remember { QrFrameAnalyzer { payload -> latest(payload) } }
     DisposableEffect(lifecycleOwner) {
-        var provider: ProcessCameraProvider? = null
-        var disposed = false
-        val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-        val analysis = ImageAnalysis.Builder()
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .build()
-            .also { it.setAnalyzer(analyzer.executor, analyzer) }
-        val future = ProcessCameraProvider.getInstance(context)
-        future.addListener({
-            if (disposed) return@addListener
-            val ready = runCatching { future.get() }.getOrNull() ?: return@addListener
-            provider = ready
-            runCatching {
-                ready.unbind(preview, analysis)
-                ready.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-            }
-        }, ContextCompat.getMainExecutor(context))
-        onDispose {
-            disposed = true
-            analysis.clearAnalyzer()
-            provider?.unbind(preview, analysis)
-        }
+        val session = QrCameraSession(context, lifecycleOwner, previewView, analyzer).also { it.start() }
+        onDispose { session.close() }
     }
     DisposableEffect(analyzer) { onDispose { analyzer.close() } }
     AndroidView({ previewView }, modifier.semantics { contentDescription = description })
-}
-
-private class QrFrameAnalyzer(private val onPayload: (String) -> Unit) : ImageAnalysis.Analyzer {
-    val executor: ExecutorService = Executors.newSingleThreadExecutor { work -> Thread(work, "ardia-sync-scanner").apply { isDaemon = true } }
-    private val decoder = QrDecoder()
-    private val main = Handler(Looper.getMainLooper())
-    private var buffer = ByteArray(0)
-
-    override fun analyze(image: ImageProxy) {
-        try {
-            val plane = image.planes.firstOrNull() ?: return
-            val data = plane.buffer
-            val rowStride = plane.rowStride
-            val needed = rowStride * image.height
-            if (buffer.size < needed) buffer = ByteArray(needed)
-            val length = minOf(data.remaining(), needed)
-            data.get(buffer, 0, length)
-            val text = decoder.decode(buffer, image.width, image.height, rowStride) ?: return
-            main.post { onPayload(text) }
-        } finally {
-            image.close()
-        }
-    }
-
-    fun close() {
-        executor.shutdown()
-    }
 }
