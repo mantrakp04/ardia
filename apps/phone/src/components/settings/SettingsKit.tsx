@@ -9,6 +9,8 @@ type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trai
 export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true }: PageProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const list = useRef<ScrollView>(null);
+  const restored = useRef(false);
   return (
     <View style={StyleSheet.absoluteFill}>
       <Backdrop colors={theme.backdrop} />
@@ -28,11 +30,16 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
       </View>
       {scroll ? (
         <ScrollView
+          ref={list}
           style={{ marginBottom: insets.bottom }}
           contentContainerStyle={[styles.content, { paddingBottom: space.huge }]}
-          contentOffset={{ x: 0, y: settingsScroll(title) }}
-          onScroll={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
-          scrollEventThrottle={64}
+          onContentSizeChange={(_width, height) => {
+            if (restored.current || height <= 0) return;
+            restored.current = true;
+            list.current?.scrollTo({ y: settingsScroll(title), animated: false });
+          }}
+          onScrollEndDrag={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
+          onMomentumScrollEnd={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
           keyboardShouldPersistTaps="handled"
         >
           {children}

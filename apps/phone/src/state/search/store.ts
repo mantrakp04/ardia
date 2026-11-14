@@ -88,17 +88,8 @@ let frame: ReturnType<typeof requestAnimationFrame> | null = null;
 let remoteTimer: ReturnType<typeof setTimeout> | null = null;
 
 function showRows(text: string) {
-  const began = performance.now();
   const carried = remote.text && text.startsWith(remote.text) ? remote.values : [];
-  const rows = rowsFor(text, carried);
-  const computed = performance.now();
-  useSearch.setState({ text, rows });
-  const rendered = performance.now();
-  requestAnimationFrame(() =>
-    console.log(
-      `ardia-typing len=${text.length} rows=${rows.length} suggest=${(computed - began).toFixed(1)}ms render=${(rendered - computed).toFixed(1)}ms frame=${(performance.now() - began).toFixed(1)}ms`,
-    ),
-  );
+  useSearch.setState({ text, rows: rowsFor(text, carried) });
   inFlight?.abort();
   if (remoteTimer) clearTimeout(remoteTimer);
   if (!text.trim() || !currentPreferences().searchSuggestions) return;
