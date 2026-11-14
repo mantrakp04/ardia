@@ -13,12 +13,13 @@ import { spaceTone } from "../../lib/profileLook";
 import { sfSymbol } from "../../lib/sfSymbols";
 import { syncBanner, type BannerIcon } from "../../state/sync/syncRules";
 import {
-  Backdrop,
   capsule,
+  FadingBackdrop,
   DEFAULT_PROFILE_COLOR,
   Favicon,
   FloatingMenu,
   font,
+  useIncreasedContrast,
   useSheetFrame,
   isSymbolName,
   PROFILE_PRESETS,
@@ -60,7 +61,8 @@ export function SpacesView() {
   useEffect(() => {
     if (chosen && shown?.syncId === chosen) setChosen(null);
   }, [chosen, shown?.syncId]);
-  const tone = useMemo(() => spaceTone(profile, theme.dark, false, PROFILE_PRESETS, DEFAULT_PROFILE_COLOR), [profile, theme.dark]);
+  const contrast = useIncreasedContrast();
+  const tone = useMemo(() => spaceTone(profile, theme.dark, contrast, PROFILE_PRESETS, DEFAULT_PROFILE_COLOR), [profile, theme.dark, contrast]);
   const banner = syncBanner(status);
   const choose = (id: string) => {
     setChosen(id);
@@ -68,7 +70,7 @@ export function SpacesView() {
   };
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Backdrop colors={tone} />
+      <FadingBackdrop colors={tone} />
       <View style={[styles.column, { paddingTop: frame ? 0 : insets.top }]}>
         <View style={styles.header}>
           <Text accessibilityRole="header" style={[font.title2, styles.bold, styles.fill, { color: theme.label }]} numberOfLines={1}>

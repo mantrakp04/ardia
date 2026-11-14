@@ -77,3 +77,8 @@ test("synced Spaces take the shown profile's own colours, softened toward the ba
   assert.deepEqual(spaceTone({ color: "blue", theme: null }, false, false, presets, "plum"), ["#DAE9F3", "#D3E5F1"]);
   assert.deepEqual(spaceTone(null, true, false, presets, "plum"), ["#412934", "#36222B"]);
 });
+
+test("with Increased Contrast the Spaces tone moves further toward the background", () => {
+  assert.deepEqual(spaceTone(macTheme, false, true, presets, "plum"), ["#FFF0E6", "#F2ECFF"]);
+  assert.deepEqual(spaceTone(macTheme, true, true, presets, "plum"), ["#200D00", "#0F0820"]);
+});
