@@ -41,7 +41,8 @@ export function isKeptSite(url: string, sites: string[]): boolean {
   const [host, bare] = siteParts(url);
   return sites.some((site) => {
     const [ruleHost, rule] = siteParts(site);
-    if (ruleHost.startsWith("[*.]")) return host === ruleHost.slice(4) || host.endsWith(`.${ruleHost.slice(4)}`);
+    const name = host.replace(/:\d*$/, "");
+    if (ruleHost.startsWith("[*.]")) return name === ruleHost.slice(4) || name.endsWith(`.${ruleHost.slice(4)}`);
     return host === rule || bare === rule || bare.startsWith(rule.endsWith("/") ? rule : `${rule}/`) || bare.startsWith(`${rule}?`);
   });
 }

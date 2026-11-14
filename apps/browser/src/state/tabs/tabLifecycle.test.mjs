@@ -221,6 +221,7 @@ test("past the mode's cap, the least recently seen hidden tabs go to sleep; a sh
   assert.equal(isKeptSite("https://docs.google.com/document/d/1", ["docs.google.com/document"]), true);
   assert.equal(isKeptSite("https://docs.google.com/spreadsheets", ["docs.google.com/document"]), false);
   assert.equal(isKeptSite("https://www.youtube.com/watch", ["[*.]youtube.com"]), true);
+  assert.equal(isKeptSite("https://sub.example.com:8443/app", ["[*.]example.com"]), true, "a port doesn't hide the host from a wildcard rule");
   assert.equal(isKeptSite("https://youtube.com.evil.net/", ["youtube.com"]), false);
   assert.equal(isKeptSite("https://Example.com/Editor?Doc=AbC", ["example.com/Editor?Doc=AbC"]), true);
   assert.equal(isKeptSite("https://example.com/editor?doc=abc", ["example.com/Editor?Doc=AbC"]), false, "a path keeps its case, as Chrome matches it");
