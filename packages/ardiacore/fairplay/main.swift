@@ -24,7 +24,7 @@ final class Track: NSObject, AVContentKeySessionDelegate, AVAssetResourceLoaderD
   let asset: AVURLAsset
   lazy var item = AVPlayerItem(asset: asset)
   var pendingSeek: (time: Double, sequence: Int)?
-  var requested = false
+  var exchanging = false
   var cancelled = false
   var announcedReady = false
   var announcedFailure = false
@@ -63,15 +63,19 @@ final class Track: NSObject, AVContentKeySessionDelegate, AVAssetResourceLoaderD
   }
 
   func requestLicense(_ request: AVContentKeyRequest) {
-    if requested || cancelled { return }
-    requested = true
+    if exchanging || cancelled { return }
+    exchanging = true
     let identifier = (request.identifier as? String) ?? ""
     let contentIdentifier = Data(identifier.replacingOccurrences(of: "skd://", with: "").utf8)
     request.makeStreamingContentKeyRequestData(forApp: certificate, contentIdentifier: contentIdentifier, options: nil) { spc, _ in
       DispatchQueue.main.async {
         guard !self.cancelled else { return }
-        guard let spc else { return self.fail("license") }
+        guard let spc else {
+          self.exchanging = false
+          return self.fail("license")
+        }
         self.awaitingLicense = request
+        self.licenseDeadline?.invalidate()
         self.licenseDeadline = Timer.scheduledTimer(withTimeInterval: licenseTimeout, repeats: false) { _ in
           if self.awaitingLicense != nil { self.fail("license") }
         }
@@ -83,6 +87,7 @@ final class Track: NSObject, AVContentKeySessionDelegate, AVAssetResourceLoaderD
   func license(_ ckc: Data) {
     guard let request = awaitingLicense, !cancelled else { return }
     awaitingLicense = nil
+    exchanging = false
     licenseDeadline?.invalidate()
     request.processContentKeyResponse(AVContentKeyResponse(fairPlayStreamingKeyResponseData: ckc))
   }

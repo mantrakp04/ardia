@@ -1034,7 +1034,7 @@
       const sessionGeneration = new WeakMap();
       bridgesProtectedPlayback = () => {
         const t = media && tracks.get(media);
-        return enabled === true && !(t && t.failed);
+        return !!t && !t.failed;
       };
 
       const deliverRequest = () => {
@@ -1097,7 +1097,14 @@
       defineProperty(Navigator.prototype, "requestMediaKeySystemAccess", {
         ...getOwnPropertyDescriptor(Navigator.prototype, "requestMediaKeySystemAccess"),
         value: asNative(requestAccess, (target, self, args) => {
-          if (args[0] !== KEY_SYSTEM) return apply(target, self, args);
+          if (args[0] !== KEY_SYSTEM) {
+            if (!/^com\.(?:widevine|microsoft\.playready)(?:\.|$)/.test(String(args[0]))) return apply(target, self, args);
+            return whenConfigured().then(() =>
+              enabled === true
+                ? Promise.reject(new DOMException("Unsupported keySystem or supportedConfigurations.", "NotSupportedError"))
+                : apply(target, self, args)
+            );
+          }
           const configurations = args[1];
           return whenConfigured().then(() => {
             if (enabled !== true) return apply(target, self, args);
@@ -1148,12 +1155,19 @@
         fire(el, "seeked");
         fire(el, "timeupdate");
       };
+      const drives = (t) => !t.detached && !t.failed;
       const seek = (t, el, value) => {
         const time = +value;
         if (!isFinite(time) || time < 0) return;
         t.time = time;
         t.stamp = now();
         t.ended = false;
+        if (!drives(t)) {
+          fire(el, "seeking");
+          fire(el, "seeked");
+          fire(el, "timeupdate");
+          return;
+        }
         const seq = ++t.seeks;
         t.seeking = seq;
         send("fairPlay", { op: "seek", time, seq });
@@ -1198,12 +1212,12 @@
       override("volume", (t) => t.volume, (t, el, value) => {
         const volume = Math.min(Math.max(+value || 0, 0), 1);
         t.volume = volume;
-        send("fairPlay", { op: "volume", volume });
+        if (drives(t)) send("fairPlay", { op: "volume", volume });
         fire(el, "volumechange");
       });
       override("muted", (t) => t.muted, (t, el, value) => {
         t.muted = !!value;
-        send("fairPlay", { op: "muted", muted: t.muted });
+        if (drives(t)) send("fairPlay", { op: "muted", muted: t.muted });
         fire(el, "volumechange");
       });
       const nativeValue = (el, name, fallback) => {

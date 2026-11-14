@@ -183,7 +183,16 @@ NSString *HttpsURL(NSDictionary *d, NSString *key) {
   NSString *certificate = _certificate;
   _parts = nil;
   _certificate = nil;
-  const BOOL playable = playlist.length <= kMaxPlaylist && [playlist hasPrefix:@"#EXTM3U"] && RemoteOnlyPlaylist(playlist);
+  if (playlist.length > kMaxPlaylist || ![playlist hasPrefix:@"#EXTM3U"] || !RemoteOnlyPlaylist(playlist)) {
+    [[ArdiaTabRegistry viewForTab:tab] emit:@"fairPlay" payload:@{@"event" : @"failed", @"step" : @"playback"}];
+    if ([self owns:tab frame:frameId]) {
+      [self send:@{@"op" : @"stop"}];
+      [self setPlaying:NO];
+      _generation = generation;
+      _failedGeneration = generation;
+    }
+    return [self deliver:@{@"event" : @"failed", @"gen" : @(generation), @"step" : @"playback"} to:tab frame:frameId];
+  }
   ArdiaCoreTab *previous = _owner;
   NSString *previousFrame = _frame;
   if (![self owns:tab frame:frameId]) {
@@ -198,7 +207,6 @@ NSString *HttpsURL(NSDictionary *d, NSString *key) {
   _pageMuted = Flag(message, @"muted");
   double volume = 1;
   Finite(message, @"volume", &volume);
-  if (!playable) return [self failed:@"playback" generation:generation];
   if (![self ensureHelper]) return [self failed:@"player" generation:generation];
   [self send:@{
     @"op" : @"load",
