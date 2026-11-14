@@ -11,12 +11,15 @@ DURATIONS = frozenset({
 COUNTS = frozenset({"cdp_calls", "snapshot_nodes", "snapshot_chars", "output_chars", "network_writes_count", "batch_steps",
                     "read_rows", "read_pages", "read_tabs_reopened", "skills_installed", "skills_skipped"})
 READ_FLAGS = frozenset({"read_scrolled", "read_matched", "read_virtualized_grid"})
-ACT_FLAGS = frozenset({"waited_for_enabled", "fill_picked_option", "fill_inserted_text", "drag_side_given", "drag_list_position"})
+ACT_FLAGS = frozenset({"waited_for_enabled", "fill_picked_option", "fill_inserted_text", "drag_side_given", "drag_list_position",
+                       "select_opened_list", "press_targeted"})
 ACT_COUNTS = frozenset({"cell_edits"})
-CHANGE_FLAGS = frozenset({"change_text", "change_run_choices", "open_report", "open_moved_tab", "snapshot_disabled_folded", "names_clipped"})
+CHANGE_FLAGS = frozenset({"change_text", "change_run_choices", "open_report", "open_moved_tab", "snapshot_disabled_folded", "names_clipped",
+                          "waited_for_reaction"})
 CHANGE_COUNTS = frozenset({"change_text_chars"})
 FLAGS = frozenset({"daemon_spawned", "reconnected_after_idle", "output_truncated", "humanize", "unsettled", "daemon_answer_timed_out",
-                   "followed_redrawn_ref", "script_eval_alias", "script_page_world_hint", "attach_refused", "viewport_set", "crashed_reloaded"})
+                   "followed_redrawn_ref", "script_eval_alias", "script_page_world_hint", "attach_refused", "viewport_set", "crashed_reloaded",
+                   "selector_nth"})
 MAIN_PHASE = {"snapshot": "snapshot_build_ms", "eval": "eval_ms"}
 OUTPUT_MARKERS = ("\n[output capped at ", "\n[truncated ", "\n[pages cut to fit ", " not shown. Narrow it instead: ")
 

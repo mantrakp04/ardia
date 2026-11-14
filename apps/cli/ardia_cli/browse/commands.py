@@ -630,7 +630,7 @@ async def cmd_fill(ctx: Ctx, argv):
         finally:
             await actions.unwatch_suggestions(page, element)
 
-    ((retargeted, stored), found), report = await changes.observe(ctx, page, run)
+    ((retargeted, stored), found), report = await changes.observe(ctx, page, run, None if typeahead else (element, None))
     result = filled_result("filled", args[0], retargeted, text, stored)
     if found:
         result.data["suggestions"] = [item["text"] for item in found]
@@ -664,19 +664,35 @@ async def cmd_type(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool", "--delay": "value"})
     need(args, 2, "type <selector> <text>")
     page, element = await resolve(ctx, args[0])
-    retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize")))
+    retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize")),
+                                               (element, None))
     return changes.attach(typed_result("typed", args[0], retargeted), report)
 
 
 @command("press")
 async def cmd_press(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool"})
-    need(args, 1, "press <key>")
-    page = await ctx.state.page()
+    need(args, 1, "press [selector] <key>")
     humanize = ctx.humanize and not options.get("no_humanize")
+    if len(args) >= 2:
+        key = args[1]
+        page, element = await resolve(ctx, args[0])
+        frame = element.frame or page.main_frame
+
+        async def focus_and_press():
+            from ardia_cli import command_metrics
+
+            command_metrics.flag("press_targeted", True)
+            await page.focus_element(element)
+            return await page.input.gesture("press", lambda: page.input.press_combo(key, humanize))
+
+        _, report = await changes.observe(ctx, page, lambda: actions.expect_input(page, frame, focus_and_press, {"keydown": 1}, "The key press"),
+                                          (element, None))
+        return changes.attach(Result({"pressed": key, "in": args[0]}), report)
+    page = await ctx.state.page()
     frame = ctx.state.frame_for(page) or page.main_frame
     _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
-        page, frame, lambda: page.input.gesture("press", lambda: page.input.press_combo(args[0], humanize)), {"keydown": 1}, "The key press"))
+        page, frame, lambda: page.input.gesture("press", lambda: page.input.press_combo(args[0], humanize)), {"keydown": 1}, "The key press"), (None, frame))
     return changes.attach(Result({"pressed": args[0]}), report)
 
 
@@ -703,7 +719,7 @@ async def cmd_keyboard(ctx: Ctx, argv):
         await page.require_visible()
         _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
             page, frame, lambda: page.input.gesture("keyboard inserttext", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
-            {"beforeinput|input": 1} if text else {}, "The text insert"))
+            {"beforeinput|input": 1} if text else {}, "The text insert"), (None, frame))
         return changes.attach(Result({"inserted": True}), report)
     if args[0] != "type":
         raise Usage(f"Unknown keyboard subcommand: {args[0]} (type or inserttext)")
@@ -711,7 +727,8 @@ async def cmd_keyboard(ctx: Ctx, argv):
     humanize = ctx.humanize and not options.get("no_humanize")
     frame = ctx.state.frame_for(page) or page.main_frame
     _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
-        page, frame, lambda: page.input.gesture("keyboard type", lambda: keyboard.type_text(text, humanize=humanize)), {"keydown": len(text)}, "The typing"))
+        page, frame, lambda: page.input.gesture("keyboard type", lambda: keyboard.type_text(text, humanize=humanize)), {"keydown": len(text)}, "The typing"),
+        (None, frame))
     return changes.attach(Result({"typed": True}), report)
 
 
@@ -1088,8 +1105,10 @@ def find_arguments(args: list[str], name: str | None) -> tuple[str, list[str], s
 
 @command("find")
 async def cmd_find(ctx: Ctx, argv):
-    options, args = parse(argv, {"--name": "value", "--exact": "bool", "--no-humanize": "bool"})
+    options, args = parse(argv, {"--name": "value", "--exact": "bool", "--partial": "bool", "--no-humanize": "bool"})
     need(args, 1, "find <locator> <value> [action] [text]")
+    if options.get("exact") and options.get("partial"):
+        raise Usage("find takes --exact or --partial, not both")
     locator, args, wanted_name = find_arguments(args, options.get("name"))
     need(args, 1, "find <locator> <value> [action] [text]")
     page = await ctx.state.page()
@@ -1147,10 +1166,10 @@ async def cmd_find(ctx: Ctx, argv):
         return changes.attach(Result({"clicked": f"@{ref}", "count": 2}), report)
     if action == "fill":
         text = " ".join(rest[1:])
-        (retargeted, stored), report = await changes.observe(ctx, page, lambda: actions.fill(page, element, text, humanize))
+        (retargeted, stored), report = await changes.observe(ctx, page, lambda: actions.fill(page, element, text, humanize), (element, None))
         return changes.attach(filled_result("filled", f"@{ref}", retargeted, text, stored), report)
     if action == "type":
-        retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(rest[1:]), humanize))
+        retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(rest[1:]), humanize), (element, None))
         return changes.attach(typed_result("typed", f"@{ref}", retargeted), report)
     if action in ("check", "uncheck"):
         _, report = await changes.observe(ctx, page, lambda: actions.set_checked(page, element, action == "check", humanize))
