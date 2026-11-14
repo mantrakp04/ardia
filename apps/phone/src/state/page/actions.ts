@@ -100,6 +100,8 @@ export const menuReload = () => {
   void pageHandle(selectedId())?.reload();
 };
 
+export const retryPage = (tabId: string) => void pageHandle(tabId)?.reload();
+
 export const menuStop = () => void pageHandle(selectedId())?.stopLoading();
 
 export function editPageQuery() {
