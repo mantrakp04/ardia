@@ -162,9 +162,16 @@ internal object MeshRaster {
     }
 }
 
+object DeckMesh {
+    const val WIDTH = 96
+    const val HEIGHT = 160
+
+    fun pixels(look: ProfileLook, dark: Boolean): IntArray = MeshRaster.render(MeshGrid.uniform(3, 2, look.deckBase(dark)), WIDTH, HEIGHT)
+}
+
 internal object MeshImageCache {
-    private const val WIDTH = 96
-    private const val HEIGHT = 160
+    private const val WIDTH = DeckMesh.WIDTH
+    private const val HEIGHT = DeckMesh.HEIGHT
     private const val LIMIT = 12
     private val images = object : LinkedHashMap<MeshGrid, ImageBitmap>(LIMIT, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<MeshGrid, ImageBitmap>?): Boolean = size > LIMIT

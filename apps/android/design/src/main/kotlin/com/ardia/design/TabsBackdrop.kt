@@ -23,16 +23,6 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
 
-internal object TabsBackdropMotion {
-    val loopsMillis = intArrayOf(
-        TabsMotion.backdropSlowLoopMillis,
-        TabsMotion.backdropFastLoopMillis,
-        (TabsMotion.backdropSlowLoopMillis * 1.3).toInt(),
-    )
-    val anchors = floatArrayOf(0.42f, 0.38f, 0.6f, 0.58f, 0.5f, 0.45f)
-    val placements = floatArrayOf(0.18f, 0.22f, 0.86f, 0.5f, 0.3f, 0.86f)
-}
-
 @Composable
 fun TabsBackdrop(modifier: Modifier = Modifier, look: ProfileLook = LocalProfileLook.current) {
     val dark = LocalArdiaDarkTheme.current
@@ -42,13 +32,13 @@ fun TabsBackdrop(modifier: Modifier = Modifier, look: ProfileLook = LocalProfile
     val image = remember(mesh) { MeshImageCache.image(mesh) }
     val blobColors = remember(dark, look) { look.deckBlobs(dark) }
     val angles = blobAngles(animated = !reduceMotion && !reduceTransparency)
-    val blobOpacity = if (dark) 0.7f else 0.85f
-    val grainOpacity = if (dark) 0.06f else 0.08f
+    val blobOpacity = DeckBackdropStyle.blobOpacity(dark)
+    val grainOpacity = DeckBackdropStyle.grainOpacity(dark)
     Box(
         modifier
             .clearAndSetSemantics {}
             .drawWithCache {
-                val side = max(size.width, size.height) * 0.95f
+                val side = max(size.width, size.height) * DeckBackdropStyle.BLOB_SIDE_SHARE
                 val radius = side / 2f
                 val brushes = blobColors.map { color ->
                     Brush.radialGradient(listOf(color, color.copy(alpha = 0f)), center = Offset.Zero, radius = radius)
