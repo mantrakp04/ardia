@@ -1,3 +1,4 @@
+import { EVERY_SITE } from "./match";
 import { BOOST_CASES, BOOST_SIZES, type Boost, type BoostCase, type BoostColors, type BoostSize } from "./types";
 
 type Fields = Record<string, unknown>;
@@ -68,7 +69,7 @@ const IP_ADDRESS = /^[0-9.]+$/;
 const GENERIC_SECOND_LEVEL = /^(co|com|org|net|gov|edu|ac|or|ne|go)\.[a-z]{2}$/;
 export function boostableDomain(domain: string) {
   const host = domain.trim().toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
-  return HOSTNAME.test(host) && !IP_ADDRESS.test(host) && (host === "localhost" || (host.includes(".") && !GENERIC_SECOND_LEVEL.test(host)));
+  return host === EVERY_SITE || (HOSTNAME.test(host) && !IP_ADDRESS.test(host) && (host === "localhost" || (host.includes(".") && !GENERIC_SECOND_LEVEL.test(host))));
 }
 
 const MAX_ID = 128;

@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { Pressable, View } from "react-native";
+import { GOOGLE_FONTS } from "../../state/boosts/googleFontList";
+import { downloadGoogleFont, googleFontFaces, isGoogleFamily, useGoogleFonts } from "../../state/boosts/googleFonts";
 import { BOOST_CASES, BOOST_FONTS, BOOST_SIZES, type Boost, type BoostCase, type BoostSize } from "../../state/boosts/types";
-import { Box, hairline, radius, space, Symbol, Text, useHover, useTheme } from "../ui";
+import { Box, hairline, MenuRow, radius, SearchField, space, Symbol, Text, useHover, useTheme } from "../ui";
 import { useSiteTokens } from "../site/tokens";
 import { BOOST_PANEL, CASE_LABELS } from "./tokens";
 
@@ -35,13 +38,43 @@ function FontTile({ family, selected, onPress }: { family: string; selected: boo
   );
 }
 
+function googleFontStatus(family: string, status: string | undefined) {
+  if (googleFontFaces(family).length) return "Google font, saved on this Mac";
+  if (status === "failed") return "Couldn't download it. Pick it again to retry.";
+  return "Downloading…";
+}
+
+function GoogleFontPicker({ font, onChange }: { font: Boost["font"]; onChange: (font: Boost["font"]) => void }) {
+  const [query, setQuery] = useState("");
+  const google = font && isGoogleFamily(font) ? font : null;
+  const status = useGoogleFonts((s) => (google ? s.status[google] : undefined));
+  const needle = query.trim().toLowerCase();
+  const results = needle ? GOOGLE_FONTS.filter((family) => family.toLowerCase().includes(needle)).slice(0, BOOST_PANEL.googleResults) : [];
+  const pick = (family: string) => {
+    setQuery("");
+    onChange(family);
+    void downloadGoogleFont(family);
+  };
+  return (
+    <Box gap="s">
+      <SearchField value={query} onChangeText={setQuery} placeholder="Search Google Fonts" onSubmit={() => results[0] && pick(results[0])} onEscape={() => setQuery("")} />
+      {results.map((family) => (
+        <MenuRow key={family} title={family} selected={family === font} onPress={() => pick(family)} />
+      ))}
+      {google && !results.length ? <MenuRow icon="checkmark" title={google} detail={googleFontStatus(google, status)} tooltip="Remove font" onPress={() => onChange(null)} /> : null}    </Box>
+  );
+}
+
 export function BoostFonts({ font, onChange }: { font: Boost["font"]; onChange: (font: Boost["font"]) => void }) {
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: BOOST_PANEL.fontGap }}>
-      {BOOST_FONTS.map((family) => (
-        <FontTile key={family} family={family} selected={font === family} onPress={() => onChange(font === family ? null : family)} />
-      ))}
-    </View>
+    <Box gap="m">
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: BOOST_PANEL.fontGap }}>
+        {BOOST_FONTS.map((family) => (
+          <FontTile key={family} family={family} selected={font === family} onPress={() => onChange(font === family ? null : family)} />
+        ))}
+      </View>
+      <GoogleFontPicker font={font} onChange={onChange} />
+    </Box>
   );
 }
 

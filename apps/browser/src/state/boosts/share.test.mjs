@@ -150,6 +150,8 @@ test("every field is checked", async () => {
     { domain: "" },
     { domain: "a".repeat(260) + ".com" },
     { domain: "https://example.com" },
+    { domain: "*.example.com" },
+    { domain: "**" },
     { subdomains: "yes" },
     { colors: undefined },
     { colors: {} },
@@ -161,7 +163,10 @@ test("every field is checked", async () => {
     { colors: { ...shared().colors, appearance: "auto" } },
     { colors: { ...shared().colors, extra: 1 } },
     { colors: [] },
-    { font: "Comic Sans" },
+    { font: 'Comic"Sans' },
+    { font: "Comic;}Sans" },
+    { font: " Comic" },
+    { font: "x".repeat(61) },
     { font: 5 },
     { size: 120 },
     { size: "110" },
@@ -184,6 +189,18 @@ test("every field is checked", async () => {
     const result = decodeBoost(await codeFor(data));
     assert.equal(typeof result.error, "string", JSON.stringify(patch).slice(0, 80));
   }
+});
+
+test("an every-site boost round-trips", () => {
+  const decoded = decodeBoost(encodeBoost(boost({ domain: "*", subdomains: false })));
+  assert.equal(decoded.error, undefined);
+  assert.equal(decoded.domain, "*");
+});
+
+test("a Google font round-trips by name", () => {
+  const decoded = decodeBoost(encodeBoost(boost({ font: "Playfair Display" })));
+  assert.equal(decoded.error, undefined);
+  assert.equal(decoded.font, "Playfair Display");
 });
 
 test("a missing field is refused", async () => {

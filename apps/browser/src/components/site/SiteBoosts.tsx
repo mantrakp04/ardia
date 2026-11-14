@@ -23,7 +23,7 @@ export function SiteBoosts({ windowId, tabId, profileId, host, onClose }: { wind
           }}
           accessory={
             <>
-              <Button variant="icon" icon="ellipsis" size="m" tooltip="Boost Options" onPress={() => void showBoostMenu(profileId, boost, windowId)} />
+              <Button variant="icon" icon="ellipsis" size="m" tooltip="Boost Options" onPress={() => void showBoostMenu(profileId, boost, windowId, tabId)} />
               <Toggle look="panel" value={boost.enabled} onChange={(on) => setBoostEnabled(profileId, boost.id, on)} />
             </>
           }

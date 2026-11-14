@@ -28,6 +28,15 @@ test("a boost made on www gets the bare domain", () => {
   assert.equal(boostDomain("dashboard.example.com"), "dashboard.example.com");
 });
 
+test("an every-site boost matches any host and ignores the subdomains flag", () => {
+  for (const host of ["example.com", "www.example.com", "a.b.example.co.uk", "localhost"]) {
+    assert.ok(boostMatchesHost(boost("*"), host), host);
+    assert.ok(boostMatchesHost(boost("*", true), host), host);
+  }
+  assert.equal(boostMatchesHost(boost("*"), ""), false);
+  assert.deepEqual(boostsForHost([boost("*"), boost("*", false, false)], "other.com").length, 1);
+});
+
 test("only enabled boosts apply", () => {
   const list = [boost("example.com"), boost("example.com", false, false), boost("other.com")];
   assert.deepEqual(boostsForHost(list, "www.example.com"), [list[0]]);

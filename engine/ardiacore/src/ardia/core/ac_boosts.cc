@@ -36,7 +36,7 @@ std::string BareHost(std::string_view host) {
 }
 
 bool BoostableDomain(const std::string& domain) {
-  return domain == "localhost" ||
+  return domain == "*" || domain == "localhost" ||
          !net::registry_controlled_domains::GetDomainAndRegistry(
               domain, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES)
               .empty();
@@ -140,6 +140,9 @@ bool BoostMatchesHost(const Boost& boost, std::string_view host) {
   }
   if (boost.domain.empty() || trimmed.empty()) {
     return false;
+  }
+  if (boost.domain == "*") {
+    return true;
   }
   if (trimmed == boost.domain) {
     return true;

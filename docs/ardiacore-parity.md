@@ -378,7 +378,7 @@ Plain Chromium code over Chrome's services (`engine/chromium/src/chrome/browser/
 **Boosts** (`ArdiaCoreProfile.boosts`, `ArdiaCoreTab previewBoost:`/`clearBoostPreview`; no `ac_*` export): `setProfileBoosts`,
 `previewBoost`, `clearBoostPreview` (`ArdiaBoosts`, `BoostsModule.swift`; `ArdiaHost`). The app sends a profile's enabled boosts as one
 JSON list (`id`, `domain`, `subdomains`, `css`, `js`, `zoom` 90|100|110|125|150, `color` null or 20 floats, `scheme` null|0|1); the engine
-refuses a malformed list whole (the call rejects, the old list stays); a Boost's `domain` is malformed unless it is `localhost` or a registrable domain, so an IP address, a public suffix or a bare TLD rejects the profile's whole list. The engine matches each frame by its own URL (host == domain,
+refuses a malformed list whole (the call rejects, the old list stays); a Boost's `domain` is malformed unless it is `localhost`, `*` (every http/https URL, whatever `subdomains` says) or a registrable domain, so an IP address, a public suffix or a bare TLD rejects the profile's whole list. The engine matches each frame by its own URL (host == domain,
 `www.`domain, or any subdomain with `subdomains`), puts the matches' `css` in one user stylesheet at document start (a navigation's
 stylesheet goes with the commit, the old document keeps its own), runs each `js` once at document end in the chrome-internal isolated
 world, and sets the tab's page zoom in isolated mode so it isn't the saved site zoom (the zoom stepper works on top; zoom 100 means

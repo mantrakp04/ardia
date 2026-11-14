@@ -1,4 +1,5 @@
-import type { Boost, BoostColors } from "./types";
+import type { FontFace } from "./googleFonts";
+import { BOOST_FONTS, type Boost, type BoostColors } from "./types";
 import { safeSelector } from "./valid";
 
 export type EngineBoost = {
@@ -27,9 +28,14 @@ export function colorMatrix(colors: BoostColors): number[] {
   return [0, 0, primary - secondary, 0, secondary, 0, colors.originalSaturation, 0, 0, (1 - colors.originalSaturation) * colors.saturation, ...lightness, 0, 0, 0, 1, 0];
 }
 
-export function boostStylesheet(boost: Pick<Boost, "zaps" | "font" | "textCase" | "css">): string {
-  const rules = boost.zaps.filter(safeSelector).map((selector) => `${selector}{display:none !important;}`);
-  if (boost.font) rules.push(`${TEXT_ONLY}{font-family:${quoted(boost.font)} !important;}`);
+const fontFaceRule = (family: string, face: FontFace) =>
+  `@font-face{font-family:${quoted(family)};font-style:normal;font-weight:${face.weight};src:url(data:font/woff2;base64,${face.data}) format("woff2");}`;
+
+export function boostStylesheet(boost: Pick<Boost, "zaps" | "font" | "textCase" | "css">, faces: FontFace[] = []): string {
+  const font = boost.font;
+  const rules = font ? faces.map((face) => fontFaceRule(font, face)) : [];
+  rules.push(...boost.zaps.filter(safeSelector).map((selector) => `${selector}{display:none !important;}`));
+  if (font && (faces.length || (BOOST_FONTS as readonly string[]).includes(font))) rules.push(`${TEXT_ONLY}{font-family:${quoted(font)} !important;}`);
   if (boost.textCase !== "none") rules.push(`${TEXT_ONLY}{text-transform:${TEXT_TRANSFORM[boost.textCase]} !important;}`);
   if (boost.css) rules.push(boost.css);
   return rules.join("\n");
@@ -54,13 +60,16 @@ export function fitEngineList(boosts: EngineBoost[]) {
   return kept;
 }
 
-export const compileBoost = (boost: Boost): EngineBoost => ({
-  id: boost.id,
-  domain: boost.domain,
-  subdomains: boost.subdomains,
-  css: boostStylesheet(boost),
-  js: boost.js,
-  zoom: boost.size,
-  color: boost.colors ? colorMatrix(boost.colors) : null,
-  scheme: boost.colors?.appearance === "dark" ? 1 : boost.colors?.appearance === "light" ? 0 : null,
-});
+export function compileBoost(boost: Boost, faces: FontFace[] = []): EngineBoost {
+  const compiled: EngineBoost = {
+    id: boost.id,
+    domain: boost.domain,
+    subdomains: boost.subdomains,
+    css: boostStylesheet(boost, faces),
+    js: boost.js,
+    zoom: boost.size,
+    color: boost.colors ? colorMatrix(boost.colors) : null,
+    scheme: boost.colors?.appearance === "dark" ? 1 : boost.colors?.appearance === "light" ? 0 : null,
+  };
+  return faces.length && !fitsEngine(compiled) ? compileBoost(boost) : compiled;
+}

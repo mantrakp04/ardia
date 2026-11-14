@@ -1,7 +1,7 @@
 import { confirm, copyText, prompt, showMenu } from "../app/system";
 import { createBoost, deleteBoost, resetBoost, setBoostEnabled, updateBoost } from "../boosts/actions";
 import { closeBoostEditor, openBoostEditor } from "../boosts/editor";
-import { boostMatchesHost } from "../boosts/match";
+import { boostDomain, boostMatchesHost, EVERY_SITE } from "../boosts/match";
 import { encodeBoost, shareLink } from "../boosts/share";
 import { currentBoostsKey, loadBoosts } from "../boosts/store";
 import type { Boost } from "../boosts/types";
@@ -17,7 +17,7 @@ export function boostTarget(tabId: string): BoostTarget | null {
   if (!tab || tab.engine === "webkit" || isIncognitoProfile(tab.profileId) || !/^https?:/i.test(tab.url)) return null;
   try {
     const host = new URL(tab.url).hostname;
-    return boostableDomain(host) ? { profileId: tab.profileId, host } : null;
+    return host !== EVERY_SITE && boostableDomain(host) ? { profileId: tab.profileId, host } : null;
   } catch {
     return null;
   }
@@ -88,10 +88,13 @@ export function copyShareCode(boost: Boost, link = false): boolean {
   return code !== null;
 }
 
-export async function showBoostMenu(profileId: string, boost: Boost, windowId: string) {
+export async function showBoostMenu(profileId: string, boost: Boost, windowId: string, tabId: string) {
+  const everySite = boost.domain === EVERY_SITE;
+  const host = boostTarget(tabId)?.host;
   const choice = await showMenu([
     { id: "rename", title: "Rename…" },
-    { id: "subdomains", title: "Include Subdomains", checked: boost.subdomains },
+    { id: "everySite", title: "Apply to Every Site", checked: everySite, enabled: !everySite || !!host },
+    { id: "subdomains", title: "Include Subdomains", checked: boost.subdomains && !everySite, enabled: !everySite },
     { separator: true },
     { id: "share", title: "Copy Share Code", enabled: !boost.js.trim() },
     { separator: true },
@@ -99,6 +102,7 @@ export async function showBoostMenu(profileId: string, boost: Boost, windowId: s
     { id: "delete", title: "Delete…" },
   ]);
   if (choice === "rename") await renameBoost(profileId, boost, windowId);
+  else if (choice === "everySite") updateBoost(profileId, boost.id, { domain: everySite && host ? boostDomain(host) : EVERY_SITE });
   else if (choice === "subdomains") updateBoost(profileId, boost.id, { subdomains: !boost.subdomains });
   else if (choice === "share") copyShareCode(loadBoosts(currentBoostsKey(profileId)).find((b) => b.id === boost.id) ?? boost);
   else if (choice === "reset") await resetBoostAfterConfirm(profileId, boost, windowId);

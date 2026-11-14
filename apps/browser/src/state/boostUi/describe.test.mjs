@@ -24,4 +24,5 @@ test("each setting adds one line", () => {
 test("the site line follows include subdomains", () => {
   assert.equal(siteLine(blank), "example.com and www.example.com");
   assert.equal(siteLine({ ...blank, subdomains: true }), "example.com and every subdomain");
+  assert.equal(siteLine({ ...blank, domain: "*", subdomains: true }), "every site");
 });

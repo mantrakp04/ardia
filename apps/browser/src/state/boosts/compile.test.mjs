@@ -33,18 +33,42 @@ test("the secondary hue is not wrapped", () => {
 });
 
 test("the stylesheet hides zaps, sets font and case, then user css", () => {
-  const css = boostStylesheet({ zaps: [".ad", "#banner"], font: 'Say "hi"', textCase: "title", css: "body{color:red}" });
+  const css = boostStylesheet({ zaps: [".ad", "#banner"], font: "Futura", textCase: "title", css: "body{color:red}" });
   assert.equal(
     css,
     [
       ".ad{display:none !important;}",
       "#banner{display:none !important;}",
-      '*:not(i, .material-symbols-outlined, .material-icons){font-family:"Say \\"hi\\"" !important;}',
+      '*:not(i, .material-symbols-outlined, .material-icons){font-family:"Futura" !important;}',
       "*:not(i, .material-symbols-outlined, .material-icons){text-transform:capitalize !important;}",
       "body{color:red}",
     ].join("\n"),
   );
   assert.equal(boostStylesheet(blank), "");
+  assert.equal(boostStylesheet({ ...blank, font: "Inter" }), "");
+});
+
+test("cached Google font faces come first as data: fonts", () => {
+  const css = boostStylesheet({ ...blank, font: "Inter" }, [
+    { weight: "400", data: "d09GMgAB" },
+    { weight: "400 700", data: "d09GMgAC" },
+  ]);
+  assert.equal(
+    css,
+    [
+      '@font-face{font-family:"Inter";font-style:normal;font-weight:400;src:url(data:font/woff2;base64,d09GMgAB) format("woff2");}',
+      '@font-face{font-family:"Inter";font-style:normal;font-weight:400 700;src:url(data:font/woff2;base64,d09GMgAC) format("woff2");}',
+      '*:not(i, .material-symbols-outlined, .material-icons){font-family:"Inter" !important;}',
+    ].join("\n"),
+  );
+  assert.equal(boostStylesheet(blank, [{ weight: "400", data: "AAAA" }]), "");
+});
+
+test("a font face that would push the boost past the engine cap is left out", () => {
+  const big = compileBoost({ ...blank, font: "Inter", css: "a".repeat(1000 * 1024) }, [{ weight: "400", data: "A".repeat(100 * 1024) }]);
+  assert.ok(fitsEngine(big));
+  assert.ok(!big.css.includes("@font-face"));
+  assert.ok(compileBoost({ ...blank, font: "Inter" }, [{ weight: "400", data: "AAAA" }]).css.startsWith("@font-face"));
 });
 
 test("a compiled boost carries zoom, scheme and matrix", () => {
@@ -68,7 +92,7 @@ test("a picker-escaped selector keeps its rule, a trailing backslash does not", 
 
 test("compiled code is measured in UTF-8 bytes against the engine limit", () => {
   assert.ok(fitsEngine(compileBoost({ ...blank, css: "a".repeat(1024 * 1024) })));
-  assert.ok(!fitsEngine(compileBoost({ ...blank, css: "a".repeat(1024 * 1024), font: "Inter" })));
+  assert.ok(!fitsEngine(compileBoost({ ...blank, css: "a".repeat(1024 * 1024), font: "Futura" })));
   assert.ok(!fitsEngine(compileBoost({ ...blank, js: "é".repeat(600 * 1024) })));
 });
 

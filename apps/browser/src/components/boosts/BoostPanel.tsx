@@ -98,7 +98,7 @@ function Panel({ windowId, tabId, profileId, stored }: { windowId: string; tabId
       <Box row center gap="m" style={{ height: BOOST_PANEL.headerHeight, paddingLeft: BOOST_PANEL.pad, paddingRight: space.m }}>
         <Symbol name="paintbrush.fill" size={13} color={theme.icon} style={{ width: 18, height: 18 }} />
         <TextField value={name} onChangeText={setName} placeholder={stored.domain} onBlur={commitName} onSubmit={commitName} style={{ flex: 1 }} />
-        <Button variant="icon" icon="ellipsis" size="l" tooltip="More" onPress={() => void showBoostMenu(profileId, stored, windowId)} />
+        <Button variant="icon" icon="ellipsis" size="l" tooltip="More" onPress={() => void showBoostMenu(profileId, stored, windowId, tabId)} />
       </Box>
       <Divider />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: BOOST_PANEL.pad, gap: BOOST_PANEL.sectionGap }}>

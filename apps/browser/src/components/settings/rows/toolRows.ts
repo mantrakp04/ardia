@@ -8,8 +8,8 @@ export const toolRows = {
       rows: {
         list: {
           title: "Boosts",
-          description: "Colours, fonts, hidden elements, CSS and JavaScript that restyle a site. Create one from Site Controls or the tab menu.",
-          keywords: ["boost", "restyle", "theme site", "zap", "custom css", "userscript"],
+          description: "Colours, fonts, hidden elements, CSS and JavaScript that restyle a site. Create one from Site Controls or the tab menu. A Google font is downloaded once from Google when you pick it.",
+          keywords: ["boost", "restyle", "theme site", "zap", "custom css", "userscript", "google fonts"],
         },
       },
     },

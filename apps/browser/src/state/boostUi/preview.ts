@@ -1,6 +1,7 @@
 import { clearBoostPreview, previewBoost } from "../../platform/boosts";
 import { orWarn } from "../../lib/fallback";
 import { compileBoost } from "../boosts/compile";
+import { googleFontFaces } from "../boosts/googleFonts";
 import type { Boost } from "../boosts/types";
 
 const inFlight = new Set<string>();
@@ -21,7 +22,7 @@ export function previewDraft(tabId: string, boost: Boost) {
     return;
   }
   inFlight.add(tabId);
-  void Promise.resolve(previewBoost(tabId, JSON.stringify(compileBoost(boost))))
+  void Promise.resolve(previewBoost(tabId, JSON.stringify(compileBoost(boost, googleFontFaces(boost.font)))))
     .catch(orWarn(undefined))
     .finally(() => {
       inFlight.delete(tabId);

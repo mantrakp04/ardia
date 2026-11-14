@@ -1,5 +1,6 @@
-import { boostDomain } from "./match";
+import { boostDomain, EVERY_SITE } from "./match";
 import { boostableDomain, importableCss, safeSelector } from "./valid";
+import { isGoogleFamily } from "./googleFonts";
 import { BOOST_CASES, BOOST_FONTS, BOOST_SIZES, type Boost, type BoostColors } from "./types";
 
 export const SHARE_VERSION = 1;
@@ -174,11 +175,11 @@ export function decodeBoost(code: string): Boost | ShareError {
   const { name, author, domain, subdomains, colors, font, size, textCase, zaps, css } = data;
   if (!shortText(name, MAX_SHARE_NAME)) return invalid("a name");
   if (!shortText(author, MAX_SHARE_NAME)) return invalid("an author name");
-  if (typeof domain !== "string" || !DOMAIN.test(domain) || !boostableDomain(domain)) return invalid("a site");
+  if (typeof domain !== "string" || !(domain === EVERY_SITE || DOMAIN.test(domain)) || !boostableDomain(domain)) return invalid("a site");
   if (typeof subdomains !== "boolean") return invalid("a subdomains setting");
   const readColorsResult = readColors(colors);
   if (readColorsResult === undefined) return invalid("colours");
-  if (font !== null && !(typeof font === "string" && (BOOST_FONTS as readonly string[]).includes(font))) return invalid("a font");
+  if (font !== null && !(typeof font === "string" && ((BOOST_FONTS as readonly string[]).includes(font) || isGoogleFamily(font)))) return invalid("a font");
   if (!(BOOST_SIZES as readonly unknown[]).includes(size)) return invalid("a size");
   if (!(BOOST_CASES as readonly unknown[]).includes(textCase)) return invalid("a text case");
   if (!Array.isArray(zaps) || zaps.length > MAX_SHARE_ZAPS || !zaps.every((zap) => typeof zap === "string" && zap.length > 0 && zap.length <= MAX_SHARE_SELECTOR && !CONTROL.test(zap) && safeSelector(zap))) return invalid("hidden elements");

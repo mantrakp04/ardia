@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { setBoostEnabled } from "../../../state/boosts/actions";
 import { hideImportBoost, useImportBoostSheet } from "../../../state/boosts/importSheet";
 import { useProfileBoosts } from "../../../state/boosts/hooks";
+import { EVERY_SITE } from "../../../state/boosts/match";
 import type { Boost } from "../../../state/boosts/types";
 import { boostChanges } from "../../../state/boostUi/describe";
 import { deleteBoostAfterConfirm } from "../../../state/boostUi/actions";
@@ -14,7 +15,7 @@ import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "..
 function bySite(boosts: Boost[]): [string, Boost[]][] {
   const sites = new Map<string, Boost[]>();
   for (const boost of [...boosts].sort((a, b) => a.name.localeCompare(b.name))) sites.set(boost.domain, [...(sites.get(boost.domain) ?? []), boost]);
-  return [...sites].sort(([a], [b]) => a.localeCompare(b));
+  return [...sites].sort(([a], [b]) => (a === EVERY_SITE ? -1 : b === EVERY_SITE ? 1 : a.localeCompare(b)));
 }
 
 export function BoostsPane({ profileId: chosen }: { profileId: string | null }) {
@@ -34,7 +35,7 @@ export function BoostsPane({ profileId: chosen }: { profileId: string | null }) 
       {sites.length ? (
         sites.map(([domain, list]) => (
           <Group key={domain}>
-            <Row icon={<Symbol name="globe" size={13} color={theme.icon} style={{ width: 20, height: 20 }} />} title={domain} />
+            <Row icon={<Symbol name="globe" size={13} color={theme.icon} style={{ width: 20, height: 20 }} />} title={domain === EVERY_SITE ? "Every site" : domain} />
             {list.map((boost) => (
               <Row key={boost.id} title={boost.name} description={boostChanges(boost).join(" · ") || "No changes yet"}>
                 <Button title="Delete…" kind="plain" onPress={() => void deleteBoostAfterConfirm(profileId, boost, SETTINGS_WINDOW_ID)} />

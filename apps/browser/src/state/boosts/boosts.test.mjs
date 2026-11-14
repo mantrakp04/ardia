@@ -27,6 +27,8 @@ test("creating, editing, switching and deleting a boost", () => {
   actions.resetBoost("default", boost.id);
   assert.equal(useBoostStore.getState().boostsByProfile.default[0].textCase, "none");
   assert.equal(useBoostStore.getState().boostsByProfile.default[0].name, "Dark");
+  actions.updateBoost("default", boost.id, { domain: "*" });
+  assert.equal(useBoostStore.getState().boostsByProfile.default[0].domain, "*");
   actions.deleteBoost("default", boost.id);
   assert.deepEqual(useBoostStore.getState().boostsByProfile.default, []);
 });
@@ -39,6 +41,7 @@ test("importing starts a new boost on the given site and drops JS", () => {
   assert.equal(copy.domain, "b.com");
   assert.equal(copy.js, "");
   assert.equal(actions.importBoost("default", null, { ...original, domain: "c.com" }).domain, "c.com");
+  assert.equal(actions.importBoost("default", null, { ...original, domain: "*" }).domain, "*");
 });
 
 test("incognito edits are no-ops and read the parent profile", () => {
@@ -60,6 +63,8 @@ test("a malformed boost is rejected", () => {
   for (const domain of ["com", "co.uk", "www.com", "uk"]) assert.equal(validBoost("x", { ...good, domain }), null, domain);
   for (const domain of ["example.com/path", "a b.com", "exa_mple.com:80"]) assert.equal(validBoost("x", { ...good, domain }), null, domain);
   assert.ok(validBoost("x", { ...good, domain: "localhost" }));
+  assert.ok(validBoost("x", { ...good, domain: "*" }));
+  for (const domain of ["*.com", "**", "a*.com"]) assert.equal(validBoost("x", { ...good, domain }), null, domain);
   assert.ok(validBoost("x", { ...good, domain: "example.co.uk" }));
   assert.equal(validBoost("x", { ...good, zaps: [1] }), null);
   assert.equal(validBoost("x", { ...good, colors: { hue: 1 } }), null);

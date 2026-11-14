@@ -5,6 +5,7 @@ import { orWarn } from "../../lib/fallback";
 import { useBrowser } from "../browser/store";
 import { engineProfile, isIncognitoProfile } from "../browser/model";
 import { compileBoost, fitEngineList, fitsEngine } from "./compile";
+import { ensureGoogleFonts, googleFontFaces, useGoogleFonts } from "./googleFonts";
 import { BOOSTS_VERSION, boostsDocument, boostsKey, loadBoosts, useBoostStore } from "./store";
 import type { Boost } from "./types";
 
@@ -15,9 +16,11 @@ const profileKeys = () => {
   return [...new Set(Object.keys(s.profiles).filter((id) => !isIncognitoProfile(id)).map((id) => boostsKey(s, id)))];
 };
 
-const engineJson = (boosts: Boost[]) => JSON.stringify(fitEngineList(boosts.filter((b) => b.enabled).sort((a, c) => (a.id < c.id ? -1 : 1)).map(compileBoost).filter(fitsEngine)));
+const engineJson = (boosts: Boost[]) =>
+  JSON.stringify(fitEngineList(boosts.filter((b) => b.enabled).sort((a, c) => (a.id < c.id ? -1 : 1)).map((b) => compileBoost(b, googleFontFaces(b.font))).filter(fitsEngine)));
 
 function push(key: string, boosts: Boost[]) {
+  ensureGoogleFonts(boosts);
   const engine = engineProfile(useBrowser.getState(), key);
   const json = engineJson(boosts);
   if (json === (pushed.get(engine) ?? "[]")) return;
@@ -58,10 +61,12 @@ export function startBoosts() {
     useBoostStore.setState({ boostsByProfile: Object.fromEntries(Object.entries(loaded).filter(([key]) => kept.has(key))) });
     for (const key of gone) removeDocument(boostsDocument(key));
   });
+  const stopFonts = useGoogleFonts.subscribe(adopt);
   adopt();
   return () => {
     stopBoosts();
     stopProfiles();
+    stopFonts();
     pushed.clear();
   };
 }

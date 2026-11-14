@@ -9,6 +9,7 @@ export const BOOST_PANEL = {
   fontColumns: 5,
   fontGap: 6,
   fontTile: 40,
+  googleResults: 5,
   codeHeight: 150,
   chipHeight: 28,
 } as const;
