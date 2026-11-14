@@ -34,6 +34,7 @@ struct Conditions {
   bool enabled = true;
   std::optional<bool> test_low_power;
   std::optional<bool> test_thermal_pressure;
+  std::optional<bool> test_capturing;
   bool update_posted = false;
   std::set<content::WebContents*> allowed;
 };
@@ -55,6 +56,13 @@ bool ThermalPressure() {
     return *State().test_thermal_pressure;
   }
   return NSProcessInfo.processInfo.thermalState >= NSProcessInfoThermalStateSerious;
+}
+
+bool Capturing(content::WebContents* contents) {
+  if (State().test_capturing) {
+    return *State().test_capturing;
+  }
+  return IsCapturingScreen(contents);
 }
 
 class UpscalingTab : public content::WebContentsObserver,
@@ -150,7 +158,7 @@ void Update() {
   for (WindowHost* host : WindowHost::All()) {
     content::WebContents* focused =
         global && WindowShowsVideoFocused(host) ? FocusedTab(host) : nullptr;
-    if (focused) {
+    if (focused && !Capturing(focused)) {
       allowed.insert(focused);
     }
     for (Browser* browser : host->browsers()) {
@@ -218,12 +226,14 @@ void SetVideoUpscalingEnabled(bool enabled) {
 }
 
 void SetVideoUpscalingTestConditions(std::optional<bool> low_power,
-                                     std::optional<bool> thermal_pressure) {
+                                     std::optional<bool> thermal_pressure,
+                                     std::optional<bool> capturing) {
   if (!BackgroundInstance() || !TestInstance()) {
     return;
   }
   State().test_low_power = low_power;
   State().test_thermal_pressure = thermal_pressure;
+  State().test_capturing = capturing;
   VideoUpscalingInputsChanged();
 }
 
@@ -239,6 +249,7 @@ NSDictionary* VideoUpscalingState() {
           @"tabId" : @(sessions::SessionTabHelper::IdForTab(contents).id()),
           @"url" : base::SysUTF8ToNSString(contents->GetLastCommittedURL().spec()),
           @"allowed" : @(tab && tab->allowed()),
+          @"capturing" : @(Capturing(contents)),
         }];
       }
     }
