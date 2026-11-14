@@ -1,5 +1,7 @@
 Closes #
 
-## What changes for the user
+## Problem
 
-## How I checked it
+## Change
+
+## Verification (screenshots and videos)
