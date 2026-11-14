@@ -71,3 +71,21 @@ test("a test instance seals its sync key under its own DPAPI purpose, so it can'
   assert.equal(secrets.split("CryptUnprotectData(").length - 1, 1);
   assert.match(secrets, /std::string purpose = Purpose\(account\);\n[^\n]*\n    DATA_BLOB extra\{static_cast<DWORD>\(purpose\.size\(\)\)/);
 });
+
+test("an app folder the Windows workflow uploads has lost its test-build marker, with no harness run after that", () => {
+  const workflow = readFileSync(new URL("../../../../.github/workflows/windows.yml", import.meta.url), "utf8");
+  const jobs = workflow.split(/\r?\n  (?=[a-z0-9-]+:\r?\n    runs-on:)/).slice(1);
+  assert.equal(jobs.length, 2);
+  for (const job of jobs) {
+    const strip = job.indexOf('-Filter "Ardia.test-build"');
+    assert.ok(strip > 0, "the job removes the marker");
+    const uploads = [...job.matchAll(/path: (\$\{\{ runner\.temp \}\}\/Ardia|apps\/browser\/windows\/\w+\/Release)\r?\n/g)];
+    assert.equal(uploads.length, 2);
+    const removal = job.slice(job.lastIndexOf("\n", strip), job.indexOf("\n", strip));
+    for (const upload of uploads) {
+      assert.ok(upload.index > strip, `${upload[1]} is uploaded after the marker is removed`);
+      assert.ok(removal.includes(upload[1]), `${upload[1]} is one of the folders the marker is removed from`);
+    }
+    assert.doesNotMatch(job.slice(strip), /launch-smoke\.ps1|tour\.ps1/);
+  }
+});
