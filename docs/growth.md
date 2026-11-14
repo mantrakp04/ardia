@@ -178,7 +178,9 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     `ctx_tabs`, `ctx_windows`, `ctx_profiles`, `ctx_footprint_mb` (the app process's physical footprint),
     `ctx_app_memory_mb` (every Ardia process, from the last hourly memory sample), `ctx_free_disk_gb` (0.1 GB under
     10 GB, whole GB above), `ctx_memory_pressure` (`normal`, `warning`, `critical`), `ctx_page_processes_gone`,
-    `ctx_session_min` and `ctx_age_min` (how old the context was at the crash). The context is the latest one
+    `ctx_webui_page` (the built-in page the active tab was on: the host and first path segment of an `ardia://` or
+    `chrome://` URL, like `settings/cookies` or `history`, never a query or hash; null on any web page, and on a
+    sample saved by an older version), `ctx_session_min` and `ctx_age_min` (how old the context was at the crash). The context is the latest one
     sampled at or before the crash (the report's `captureTime`; the file's date only decides which reports are new)
     in the session that crashed, else none. Native exception reasons are never sent, only the exception's type, name
     and stack (older builds sent a scrubbed reason in `$exception_values`). Before 0.2.45-nightly.3 a report from an
@@ -214,6 +216,11 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   - The context is saved in `telemetry.json` (`context`) every 10 minutes and 3 s after launch while sharing is on
     (the last 12 samples also stay in memory), and cleared when sharing is turned off or a profile is deleted. It's
     sent only with a crash report or an unclean launch. Turning sharing off also drops uncounted tab presses.
+  - The context also gets a sample when the active tab goes to a built-in page or leaves one (at most one every 2 s),
+    so `ctx_webui_page` is current at a crash right after opening a page like `ardia://settings/cookies`. This is
+    data only, to find which built-in page a crash happens on (#1244: adding a third-party cookie exception on
+    `ardia://settings/cookies`). The crash property cleaner lets a `webui_page` value through only in the shape
+    `host` or `host/segment` (letters, digits, dashes); anything else is scrubbed like any string.
   - The dashboard's health table credits app crashes to `crashed_version` and lists a version that has crashes but no
     usage in the window, with no rate.
 - **Checks of the pipeline:** send with service `ardia-selftest` (or version `0.0.0-selftest`); the views

@@ -4,7 +4,7 @@ import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 
 export function periodicNote(computer: string, memoryPressure: boolean): string {
   const noted = ["its tab, window and profile counts", "its memory use", "rough free disk space", ...(memoryPressure ? [`the ${computer}'s memory pressure`] : []), "how long it has been open"];
-  return `Every 10 minutes Ardia notes on this ${computer} ${noted.slice(0, -1).join(", ")} and ${noted.at(-1)}. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the ${computer} restarted since. Turning sharing off or deleting a profile erases it`;
+  return `Every 10 minutes Ardia notes on this ${computer} ${noted.join(", ")}, and which of Ardia's own pages (like Settings or History) the tab in front was on, never a website's address. Ardia also takes that note when you open or leave one of those pages. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the ${computer} restarted since. Turning sharing off or deleting a profile erases it`;
 }
 
 export const SHARING_COPY = {
