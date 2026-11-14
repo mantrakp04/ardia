@@ -26,8 +26,11 @@ export function switcherStep(windowId: string, backward: boolean) {
   const s = useBrowser.getState();
   const ids = sessionTabIds(s, windowId, SESSION_START);
   if (ids.length < 2) return;
-  noteTabSwitcherOpened(viewTabIds(s, windowId).filter((id) => isAsleep(s.tabs[id])).length, ids.slice(0, 2).filter((id) => s.tabs[id]!.unseen).length);
   const from = activeTabId(s, windowId);
+  noteTabSwitcherOpened(
+    viewTabIds(s, windowId).filter((id) => id !== from && isAsleep(s.tabs[id])).length,
+    ids.slice(0, 2).filter((id) => s.tabs[id]?.unseen).length,
+  );
   if (from) void rememberPicture(from);
   if (from && tabEngine(s, from) === "webkit") noteTabSwitcherOpenedInWebKit();
   setSidebarUi({ switcher: { windowId, ids, index: backward ? ids.length - 1 : 1, visible: false } });
