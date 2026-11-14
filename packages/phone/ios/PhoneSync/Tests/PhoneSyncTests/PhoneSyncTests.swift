@@ -311,7 +311,10 @@ func received(_ key: String, url: String = "https://sent.example/", sentAt: Date
     try Data("store".utf8).write(to: scratch.root.appending(path: "Group/Browser.store"))
     let source = try source(scratch, gate)
     #expect(throws: LocalBrowsingNotReady.self) { try source.beginRead() }
-    try gate.markImported()
+    try gate.markImported(at: Date(timeIntervalSince1970: 1_000))
+    let first = try Data(contentsOf: gate.marker)
+    try gate.markImported(at: Date(timeIntervalSince1970: 2_000))
+    #expect(try Data(contentsOf: gate.marker) == first)
     #expect(gate.imported && !gate.holdsSync)
     #expect(scratch.names("Group") == ["Browser.store"])
     try source.beginRead()

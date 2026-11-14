@@ -20,6 +20,7 @@ public struct LegacyImportGate: Sendable {
   public var holdsSync: Bool { hasLegacyStore && !imported }
 
   public func markImported(at time: Date = .now) throws {
+    guard !imported else { return }
     try FileManager.default.createDirectory(at: marker.deletingLastPathComponent(), withIntermediateDirectories: true)
     let record = try JSONSerialization.data(withJSONObject: ["importedAt": (time.timeIntervalSince1970 * 1000).rounded()])
     try record.write(to: marker, options: .atomic)
