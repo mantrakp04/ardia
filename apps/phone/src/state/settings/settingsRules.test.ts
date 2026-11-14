@@ -68,7 +68,9 @@ test("My Filters and the add-a-list field", () => {
 
 test("onboarding runs Welcome, Blocking, All Set without the sync and default browser steps", () => {
   assert.equal(nextStep("welcome"), "blocking");
-  assert.equal(nextStep("blocking"), "allSet");
+  assert.equal(nextStep("blocking"), "sync");
+  assert.equal(nextStep("sync"), "allSet");
+  assert.equal(previousStep("allSet"), "sync");
   assert.equal(nextStep("allSet"), null);
   assert.equal(previousStep("welcome"), null);
 });

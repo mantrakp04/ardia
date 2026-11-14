@@ -162,9 +162,9 @@ export function validListUrl(text: string): string | null {
   return /^https?:\/\/[^\s/?#]+\.[^\s/?#]+[^\s]*$/i.test(trimmed) ? trimmed : null;
 }
 
-export type OnboardingStep = "welcome" | "blocking" | "allSet";
+export type OnboardingStep = "welcome" | "blocking" | "sync" | "allSet";
 
-export const ONBOARDING_STEPS: readonly OnboardingStep[] = ["welcome", "blocking", "allSet"];
+export const ONBOARDING_STEPS: readonly OnboardingStep[] = ["welcome", "blocking", "sync", "allSet"];
 
 export const nextStep = (step: OnboardingStep): OnboardingStep | null => ONBOARDING_STEPS[ONBOARDING_STEPS.indexOf(step) + 1] ?? null;
 

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeOut, SlideInLeft, SlideInRight, useAnimatedStyle, useSharedValue, withDelay, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -6,6 +6,8 @@ import { advanceOnboarding, finishOnboarding, useOnboarding } from "../../state/
 import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/settings/actions";
 import { ArdiaLogo, Backdrop, capsule, font, radius, settingsLayout, settingsTint, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
 import { ToggleRow } from "../settings/SettingsKit";
+import { SyncConnect } from "../sync/SyncConnect";
+import { useSyncConnected } from "../../state/sync/hooks";
 
 const welcomeSpring = spring(0.7, 0.7);
 const WELCOME_DELAY_MS = 100;
@@ -28,9 +30,55 @@ export function OnboardingView() {
         entering={(forward ? SlideInRight : SlideInLeft).springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping)}
         style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
       >
-        {step === "welcome" ? <Welcome /> : step === "blocking" ? <Blocking /> : <AllSet />}
+        {step === "welcome" ? <Welcome /> : step === "blocking" ? <Blocking /> : step === "sync" ? <SyncStep /> : <AllSet />}
       </Animated.View>
     </Animated.View>
+  );
+}
+
+function SyncStep() {
+  const theme = useTheme();
+  const connected = useSyncConnected();
+  const [connecting, setConnecting] = useState(false);
+  return (
+    <>
+      <Page
+        title={
+          <>
+            Every tab, <Text style={{ color: theme.formAccent }}>anywhere</Text>.
+          </>
+        }
+        subtitle={connected ? "Connected." : "Your Mac’s tabs, right here. End-to-end encrypted."}
+        illustration={
+          <View style={[styles.card, styles.syncArt, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]}>
+            <Symbol name={connected ? "checkmarkCircle" : "macAndPhone"} size={64} color={connected ? theme.switchOn : theme.formAccent} />
+          </View>
+        }
+      >
+        {connected ? (
+          <Primary title="Continue" onPress={advanceOnboarding} />
+        ) : (
+          <>
+            <Primary title="Connect to Your Mac" onPress={() => setConnecting(true)} />
+            <Secondary title="Not Now" onPress={advanceOnboarding} />
+          </>
+        )}
+      </Page>
+      {connecting ? (
+        <View style={StyleSheet.absoluteFill}>
+          <SyncConnect closes onClose={() => setConnecting(false)} onConnected={() => setConnecting(false)} />
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+function Secondary({ title, onPress }: { title: string; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.secondary}>
+      <Text style={[font.body, styles.bold, { color: theme.label }]}>{title}</Text>
+    </Pressable>
   );
 }
 
@@ -157,6 +205,8 @@ const styles = StyleSheet.create({
   primary: { minHeight: settingsLayout.primaryButton, borderRadius: capsule(settingsLayout.primaryButton), alignItems: "center", justifyContent: "center" },
   illustration: { flex: 1, justifyContent: "flex-end", paddingHorizontal: space.l },
   card: { borderRadius: radius.card, paddingVertical: space.xs, elevation: 8, shadowOpacity: 0.4, shadowRadius: 16 },
+  syncArt: { alignSelf: "center", padding: space.huge, alignItems: "center" },
+  secondary: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   tips: { paddingHorizontal: space.xl, paddingVertical: space.xl, gap: space.xl },
   tip: { flexDirection: "row", alignItems: "center", gap: space.m },
   tipIcon: { width: 28, alignItems: "center" },
