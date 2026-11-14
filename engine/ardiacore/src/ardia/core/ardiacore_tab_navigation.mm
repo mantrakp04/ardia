@@ -60,15 +60,29 @@ using ardiacore::NS;
   }
   content::NavigationController& controller = _contents->GetController();
   const int current = controller.GetCurrentEntryIndex();
+  const int committed = controller.GetLastCommittedEntryIndex();
   for (int i = 0; i < controller.GetEntryCount(); ++i) {
     content::NavigationEntry* entry = controller.GetEntryAtIndex(i);
     [entries addObject:@{
       @"url" : NS(entry->GetURL().spec()),
       @"title" : NS(entry->GetTitle()),
       @"current" : @(i == current),
+      @"committed" : @(i == committed),
     }];
   }
   return entries;
+}
+
+- (int)committedHTTPStatus {
+  ardiacore::TabBridge* bridge =
+      _contents ? ardiacore::TabBridge::FromWebContents(_contents) : nullptr;
+  return bridge ? bridge->document_http_status() : 0;
+}
+
+- (int)committedDocumentCount {
+  ardiacore::TabBridge* bridge =
+      _contents ? ardiacore::TabBridge::FromWebContents(_contents) : nullptr;
+  return bridge ? bridge->document_commits() : 0;
 }
 
 - (void)goBack {

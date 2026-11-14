@@ -5,10 +5,6 @@
 #include <string>
 #include <string_view>
 
-namespace base {
-class CommandLine;
-}
-
 namespace ardiacore {
 
 inline constexpr char kBackgroundSwitch[] = "ardia-background";
@@ -34,10 +30,6 @@ bool Traced(std::string_view area);
 std::optional<bool> SwitchOverride(std::string_view name);
 
 bool SwitchOn(std::string_view name);
-
-bool ExperimentOn(std::string_view name);
-
-void PassSwitchesToGpuProcess(base::CommandLine* gpu_command_line);
 
 void DecideTestGateAtStartup();
 

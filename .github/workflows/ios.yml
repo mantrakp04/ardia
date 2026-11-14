@@ -1,0 +1,105 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - "apps/ios/**"
+      - "packages/sync/**"
+      - "packages/core/**"
+      - ".github/workflows/ios.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/ios/**"
+      - "packages/sync/**"
+      - "packages/core/**"
+      - ".github/workflows/ios.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.vouch.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: .github
+      - id: vouch
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        with:
+          retries: 3
+          script: |
+            const vouch = require(`${process.env.GITHUB_WORKSPACE}/.github/vouch/vouch.cjs`);
+            await vouch.gate({ github, context, core });
+
+  app:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      SCRATCH: ${{ github.workspace }}/.ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+      - name: Build the app for the simulator
+        run: >-
+          xcodebuild -project apps/ios/Ardia.xcodeproj -scheme Ardia -configuration Debug
+          -destination 'generic/platform=iOS Simulator' -derivedDataPath "$SCRATCH/dd"
+          CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO -quiet build
+
+  packages:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      SCRATCH: ${{ github.workspace }}/.ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: Toolchain
+        run: |
+          swift --version
+          node --version
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            .ci/ardiakit
+            .ci/sync
+          key: swiftpm-xcode-27.1-${{ github.sha }}
+          restore-keys: swiftpm-xcode-27.1-
+      - name: The JavaScriptCore bundles match their TypeScript
+        run: node apps/ios/scripts/bundle-shared.mjs --check
+      - name: ArdiaKit tests
+        run: swift test --package-path apps/ios/Packages/ArdiaKit --scratch-path "$SCRATCH/ardiakit"
+      - name: Sync core tests
+        run: swift test --package-path packages/sync --scratch-path "$SCRATCH/sync"
+      - if: github.event_name == 'push'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            .ci/ardiakit
+            .ci/sync
+          key: swiftpm-xcode-27.1-${{ github.sha }}

@@ -1,10 +1,11 @@
 import { showMenu, type MenuItem } from "../../platform/menus";
-import { tabLayoutOf } from "../browser/model";
+import { tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchProfile } from "../browser/actions";
 import { requestCreateProfile } from "../profiles/createProfileRequest";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { menuShortcut } from "../commands/commandShortcuts";
 import { bookmarkAllTabs } from "../bookmarks/actions";
+import { bookmarksShown } from "../bookmarks/visibility";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { newGroupWithSelection } from "./actions";
 import { closeAllTabs } from "./clearTabs";
@@ -12,23 +13,32 @@ import { lastClosedEntry } from "../windows/reopenClosed";
 import { newLiveFolderMenuItem, runNewLiveFolder } from "./liveMenus";
 import { sections } from "./menuParts";
 import { pinnedFoldMenuItem, runPinnedFold } from "./pinnedFold";
+import { addSharedFolder } from "../sharedFolders/actions";
+import { canAddSharedFolder } from "../sharedFolders/removal";
+import { toggleSidebarSide } from "../settings/actions";
 
 const store = () => useBrowser.getState();
 
 export function sidebarMenuItems(s: BrowserState, windowId: string): MenuItem[] {
   const w = s.windows[windowId];
+  const inSidebar = tabLayoutOf(s, windowId) === "sidebar";
   return sections(
     [
       { id: "newTab", title: "New Tab", symbol: "plus.app", ...menuShortcut("newTab", s) },
       { id: "reopen", title: "Reopen Closed Tab", enabled: !!lastClosedEntry(s, windowId), ...menuShortcut("reopenClosedTab", s) },
     ],
-    [{ id: "newGroup", title: "New Group", symbol: "folder.badge.plus" }, newLiveFolderMenuItem()],
+    [
+      { id: "newGroup", title: "New Group", symbol: "folder.badge.plus" },
+      newLiveFolderMenuItem(),
+      ...(canAddSharedFolder(w?.profileId) ? [{ id: "addShared", title: "Add Shared Folder…", symbol: "person.2" }] : []),
+    ],
     [{ id: "newProfile", title: "New Profile…", symbol: "plus" }],
-    [{ id: "bookmarkAll", title: "Bookmark All Tabs…", symbol: "bookmark", ...menuShortcut("bookmarkAllTabs", s) }],
+    [bookmarksShown(s.settings) && { id: "bookmarkAll", title: "Bookmark All Tabs…", symbol: "bookmark", ...menuShortcut("bookmarkAllTabs", s) }],
     [
       ...pinnedFoldMenuItem(s, windowId),
-      { id: "tabLayout", title: "Show Tabs in Sidebar", symbol: "sidebar.left", checked: tabLayoutOf(s, windowId) === "sidebar", ...menuShortcut("toggleTabLayout", s) },
-      { id: "autoHide", title: "Auto-Hide Tabs", checked: !!w && !w.sidebarOpen, ...menuShortcut("toggleSidebar", s) },
+      { id: "tabLayout", title: "Show Tabs in Sidebar", symbol: "sidebar.left", checked: inSidebar, ...menuShortcut("toggleTabLayout", s) },
+      ...(inSidebar ? [{ id: "sidebarSide", title: "Sidebar on Right", symbol: "sidebar.right", checked: s.settings.sidebarSide === "right", ...menuShortcut("toggleSidebarSide", s) }] : []),
+      { id: "autoHide", title: "Auto-Hide Tabs", checked: !!w && !tabsShownIn(s, windowId), ...menuShortcut("toggleSidebar", s) },
     ],
     [{ id: "closeAll", title: "Close All Tabs", symbol: "xmark", ...menuShortcut("closeAllTabs", s) }],
   );
@@ -45,8 +55,10 @@ export async function openSidebarMenu(windowId: string) {
     const id = s.newTab(windowId);
     if (id) newGroupWithSelection(windowId, [id]);
   } else if (choice === "newProfile") void requestCreateProfile(windowId).then((id) => id && switchProfile(windowId, id));
+  else if (choice === "addShared") void addSharedFolder(windowId);
   else if (choice === "bookmarkAll") bookmarkAllTabs(windowId);
   else if (choice === "tabLayout") s.toggleTabLayout(windowId);
+  else if (choice === "sidebarSide") toggleSidebarSide();
   else if (choice === "autoHide") s.toggleSidebar(windowId);
   else if (choice === "closeAll") closeAllTabs(windowId);
 }

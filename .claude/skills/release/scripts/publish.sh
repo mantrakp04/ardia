@@ -82,7 +82,7 @@ if [ "$channel" = nightly ]; then
   cp -c "$dmg" "$work/Ardia-Nightly.dmg"
   run gh release upload nightly -R "$REPO" --clobber "$work/Ardia-Nightly.dmg"
   run gh release edit nightly -R "$REPO" --notes "$nightly_notes"
-  run gh release upload "$stable_tag" -R "$REPO" --clobber "$feed"
+  run gh release upload "$stable_tag" -R "$REPO" --clobber "$merged"
 fi
 
 tap() { [ "${PUBLISH_TAP:-1}" = 0 ] && { echo "note: the Homebrew tap is left alone (PUBLISH_TAP=0): run update-tap.sh $version"; return 0; }; "$here/update-tap.sh" "$@"; }

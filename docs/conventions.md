@@ -6,7 +6,7 @@ How Ardia's code is laid out and written. `apps/browser/src/conventions.test.mjs
 ## Backwards compatibility: migrations only
 
 The app and its engine ship together (a release bundles its engine; a dev build fetches the prebuilt engine matching
-its commit's `engine/` tree), so code never tolerates a mismatched engine.
+its commit's engine key, `engine/engine-key.sh`), so code never tolerates a mismatched engine.
 
 - No `respondsToSelector` guards for ArdiaCore's API, no optional `?.()` native calls, no always-true `isAvailable`
   checks, no metadata probes, no aliases for old names, no duplicate overloads. Keep `respondsToSelector` only for
@@ -92,7 +92,7 @@ lib/                    pure helpers: url, color, time, keys
 | Hand-built today | Use |
 | --- | --- |
 | `theme.dark ? "rgba(…)" : "rgba(…)"` | a role on the theme (`theme.popoverBorder`, `theme.scrim`, …), added to both palettes in `tokens.ts` |
-| `useFormColors().accent` and friends | the theme role: `formAccent`, `groupFill`, `control`, `field`, `destructive`, `searchFlash`, … (`useFormColors` stays only until its callers move) |
+| `useFormColors().accent` and friends | the theme role: `formAccent`, `groupFill`, `control`, `field`, `destructive`, `searchFlash`, … |
 | `Easing.out(Easing.quad)`, `Easing.bezier(…)` | `curve.enter`, `curve.exit`, `curve.move`, `curve.pulse`, … from `motion.ts` |
 | a numeric `duration:` | `duration.fast`, `duration.base`, `duration.slow`, `duration.long`; a loop's period is `period.spinner` / `period.pulse` |
 | `stiffness: (2π/response)²` written by hand | `springs.snappy` / `smooth` / `bouncy`, or `spring({ response, damping })` for a measured spring |
@@ -146,7 +146,7 @@ export const requestClearData = (windowId: string | null) => useClearDataRequest
 `getState()`:
 
 - A hook keeps the selector as narrow as the component needs: `useSettings((s) => s.tabLayout)`,
-  `useTab(id, (t) => t?.title)`, `useWindow(id, (w) => w?.sidebarOpen)`. Pass `useShallow(…)` through when the
+  `useTab(id, (t) => t?.title)`, `useWindow(id, (w) => w?.frame)`. Pass `useShallow(…)` through when the
   selector builds an array or object. Moving a selector into a hook never widens it: a component re-renders exactly
   when it did before.
 - A selector that combines domains, or that two components share, becomes a named hook (`useWindowProfile`,
@@ -177,18 +177,18 @@ writeDocument(DOC, versionedJson(data, VERSION));
   depends on: a version says which shape to expect, not that the data is valid.
 - The field is `version`, except in `sync.json` (`v`) and `ardia-cli.json` (`schemaVersion`; its `version` is the
   installed CLI's version).
-- Covered: `session.json` (9), `downloads.json` (3), `launch-look.json` (2), `bookmarks-cache.json`, `telemetry.json`,
+- Covered: `session.json` (10), `downloads.json` (3), `launch-look.json` (2), `bookmarks-cache.json`, `telemetry.json`,
   `telemetry-queue.json`, `telemetry-daily.json`, `release-notes.json`, `onboarding.json`,
-  `default-browser-offer.json`, `sync.json`, `sync-extensions.json`, `live.json`, `ardia-cli.json`,
-  `bangs-state.json` and `Scripts/status.json` (all 1).
+  `default-browser-offer.json`, `sync.json`, `sync-extensions.json`, `live.json`, `shared-folders.json`, `ardia-cli.json`,
+  `bangs-state.json`, `Scripts/status.json`, `air-traffic.json` and `link-sources.json` (all 1).
 - Native code reads through `ArdiaSavedDocument` (packages/ardiacore/ios), with the same rules: `session.json` and
-  `onboarding.json` (any version up to the one JS writes; a test pins each) and `launch-layout.json` (3, written and
+  `onboarding.json` (any version up to the one JS writes; a test pins each) and `launch-layout.json` (4, written and
   read by native code only, so any other version reads as nothing).
 - The sealed sync files carry their own `version` inside the sealed JSON, because they're written apart from
   `sync.json` and its `v` doesn't cover them: the `sync-state.nns` checkpoint (`{ covers, clock, scopes }`, 1; version 0
   includes the older bare scope map) and each `sync-journal-<n>.nns` part (1). The single `sync-journal.nns` from before
   numbered parts is still read first and emptied with them.
-- Out of scope: the Keychain token JSON, logs (`dev-console.log`, `telemetry-requests.log`), dev and bench results
+- Out of scope: `config-schema/*.json` (regenerated at every launch, `docs/config.md`), the Keychain token JSON, logs (`dev-console.log`, `telemetry-requests.log`), dev and bench results
   (`dev-eval-result.json`, `layout-watch.json`), test fixtures (`calendar-fixture.json`), and the legacy
   `bookmarks.json` / `history.json`, which are migration inputs read once. The sync payload (log and snapshot files,
   `v: 1`) and `switches-cache.json` have their own versions.
@@ -198,9 +198,11 @@ writeDocument(DOC, versionedJson(data, VERSION));
 - Components are `PascalCase.tsx`; every other module is `camelCase.ts`. Tests sit next to the code as
   `camelCase.test.mjs` (or `PascalCase.test.mjs` for a component).
 - At most 400 lines per TS/TSX file (`apps/browser/src`, `packages/*/src`), 600 per native file (`packages/*/ios`,
-  `engine/ardiacore/src`, `engine/chromium/src`). Tests, fixtures and generated files (`packages/core/src/bangList.ts`)
-  are exempt, and so is `packages/ardiacore/ios/page_script.js`: it is injected as one closure into every frame, and its
-  helpers share builtins captured before page code runs, so splitting it would need a bundling step. So is
+  `engine/ardiacore/src`, `engine/chromium/src`). Tests, fixtures and generated files (`packages/core/src/bangList.ts`,
+  `packages/demo/src/shims/web/symbols/data.ts`, `apps/browser/src/lib/emojiData.ts` from `apps/browser/scripts/emoji-data.mjs`)
+  are exempt, and so is `packages/ardiacore/ios/page_script.js`: it is
+  injected as one closure into every frame, and its helpers share builtins captured before page code runs, so
+  splitting it would need a bundling step. So is
   `packages/core/src/suggest.reference.ts`, the frozen spec the suggestion code was tuned against
   (`suggest.property.test.ts` holds the live code to it, `SUGGEST_BEFORE=1` benches it): it stays as written.
 - One type per native file, named after it.
@@ -264,6 +266,7 @@ still counts:
 | `ARDIA_SWITCHES` | `name=on,…` | The only feature toggle, backed by the registry `platform/killSwitches.ts`: kill switches (on by default, at most 8) and experiments (off by default), each with an owner and `removeBy` |
 | `ARDIA_TRACE` | `pip,visibility,…` | Trace logging per area |
 | `ARDIA_TEST` | `keychain=file,reauth=granted,…` | All test fakes and fixtures |
+| `ARDIA_FEEDBACK_URL` | URL | Where Report a Problem sends (`https://ardia.dev/api/feedback` otherwise); the `ardia` CLI reads the same variable (`docs/feedback.md`) |
 
 - `ARDIA_TEST` and `ARDIA_TRACE` work only in a test instance (not signed for distribution, a scratch data dir, the
   mock keychain); a release build ignores them and logs that once. CDP, argv and extra switches reach Chrome only with
@@ -281,7 +284,7 @@ still counts:
 | `layout` | an app file outside the folders above |
 | `imports` | an import against the direction table, or into a file outside the folders (a component importing `platform/` included, except `components/dev/devHarness.ts`) |
 | `native-calls` | a native package, `expo-modules-core` or `NativeModules` used outside `platform/` and `components/ui/` |
-| `tokens` | a colour literal, `Easing.` curve or numeric duration outside `tokens.ts`/`motion.ts` |
+| `tokens` | a colour literal (`"transparent"` included: use `ink.clear`), `Easing.` curve or numeric duration outside `tokens.ts`/`motion.ts` |
 | `scale` | in `components/` and `App.tsx`, outside `tokens.ts`/`motion.ts`: a `fontSize`, `letterSpacing`, radius (`radius`, `borderRadius`, `cornerRadius`, `shadowRadius`, …), `padding*`, `margin*`, `gap`/`rowGap`/`columnGap`, or spring `damping`/`stiffness`/`friction`/`tension`/`bounciness` whose value starts with a non-zero number (`9`, `-3.5`, `10 * g.s`) or has a numeric ternary branch; use the `font`, `radius`, `space` and `springs` scales (`concentric()`, `capsule()` for derived radii). Sizes, offsets, `lineHeight`, computed values and `lib/`/`state/` geometry don't count |
 | `get-state` | `getState(` in `components/` |
 | `set-state` | `.setState(` in `components/` |

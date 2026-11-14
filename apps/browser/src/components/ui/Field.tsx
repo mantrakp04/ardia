@@ -1,9 +1,11 @@
-import { showMenu, Symbol, type MenuItem } from "@ardia/shell";
+import { OutsidePressArea, showMenu, type MenuItem } from "@ardia/shell";
+import { withIconNames } from "../../lib/activeLook";
+import { Symbol } from "./Symbol";
 import { useEffect, useRef, type Ref } from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
-import { curve, duration } from "./motion";
+import { buttonMotion, curve, duration, usePressScaleMotion } from "./motion";
 import { useTheme } from "./theme";
-import { capsule, opacity, proseLineHeight, radius, space, font as typeScale } from "./tokens";
+import { capsule, monoFace, opacity, perLook, proseLineHeight, radius, space, font as typeScale } from "./tokens";
 import { useHover } from "./useHover";
 
 const SEARCH_KEYS = [{ key: "Escape" }];
@@ -41,6 +43,7 @@ export function SearchField({
 }) {
   const theme = useTheme();
   const bare = look === "bare";
+  const clearMotion = usePressScaleMotion(!!value && !bare, buttonMotion.iconPressScale);
   return (
     <View
       style={[
@@ -88,8 +91,10 @@ export function SearchField({
       />
       {value && !bare ? (
         <View tooltip="Clear">
-          <Pressable onPress={() => onChangeText("")}>
-            <Symbol name="xmark.circle.fill" size={12} color={theme.textTertiary} style={{ width: 16, height: 16 }} />
+          <Pressable onPress={() => onChangeText("")} onPressIn={clearMotion.onPressIn} onPressOut={clearMotion.onPressOut}>
+            <Animated.View style={[CLEAR_GLYPH, clearMotion.scale ? { transform: [{ scale: clearMotion.scale }] } : null]}>
+              <Symbol name="xmark.circle.fill" size={12} color={theme.textTertiary} style={CLEAR_GLYPH} />
+            </Animated.View>
           </Pressable>
         </View>
       ) : null}
@@ -130,10 +135,9 @@ export function TextField({
 }) {
   const theme = useTheme();
   return (
-    <View
-      style={[
-        {
-          width,
+    <OutsidePressArea style={[{ width }, style]}>
+      <View
+        style={{
           height: multiline ? MULTILINE_HEIGHT : 24,
           borderRadius: radius.control,
           justifyContent: multiline ? "flex-start" : "center",
@@ -142,36 +146,34 @@ export function TextField({
           backgroundColor: theme.field,
           borderWidth: StyleSheet.hairlineWidth * 2,
           borderColor: invalid ? theme.destructive : theme.fieldBorder,
-        },
-        style,
-      ]}
-    >
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={theme.textTertiary}
-        selectionColor={theme.selection}
-        autoFocus={autoFocus}
-        secureTextEntry={secure}
-        enableFocusRing={false}
-        selectTextOnFocus={selectOnFocus}
-        multiline={multiline}
-        autoCorrect={mono ? false : undefined}
-        spellCheck={mono ? false : undefined}
-        onSubmitEditing={onSubmit}
-        onBlur={onBlur}
-        keyDownEvents={onEscape ? ESCAPE_KEY : undefined}
-        onKeyDown={(e) => e.nativeEvent.key === "Escape" && onEscape?.()}
-        style={[{ ...typeScale.body, color: theme.textPrimary, paddingVertical: 0 }, multiline && MULTILINE_TEXT, mono && MONO]}
-      />
-    </View>
+        }}
+      >
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={theme.textTertiary}
+          selectionColor={theme.selection}
+          autoFocus={autoFocus}
+          secureTextEntry={secure}
+          enableFocusRing={false}
+          selectTextOnFocus={selectOnFocus}
+          multiline={multiline}
+          autoCorrect={mono ? false : undefined}
+          spellCheck={mono ? false : undefined}
+          onSubmitEditing={onSubmit}
+          onBlur={onBlur}
+          keyDownEvents={onEscape ? ESCAPE_KEY : undefined}
+          onKeyDown={(e) => e.nativeEvent.key === "Escape" && onEscape?.()}
+          style={[{ ...typeScale.body, color: theme.textPrimary, paddingVertical: 0 }, multiline && multilineText(), mono && monoFace()]}
+        />
+      </View>
+    </OutsidePressArea>
   );
 }
 
 const MULTILINE_HEIGHT = 96;
-const MULTILINE_TEXT = { flex: 1, lineHeight: proseLineHeight.body } as const;
-const MONO = { fontFamily: "Menlo" } as const;
+const multilineText = perLook(() => ({ flex: 1, lineHeight: proseLineHeight.body }));
 
 export type Option<T extends string> = { value: T; title: string; separatorBefore?: boolean };
 
@@ -190,33 +192,38 @@ export function PopUp<T extends string>({
 }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
+  const pressMotion = usePressScaleMotion(!disabled, buttonMotion.controlPressScale);
+  const scaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : null;
   const current = options.find((o) => o.value === value);
   const open = async () => {
     const items: MenuItem[] = options.flatMap((o) => [
       ...(o.separatorBefore ? [{ separator: true as const }] : []),
       { id: o.value, title: o.title, checked: o.value === value },
     ]);
-    const choice = await showMenu(items);
+    const choice = await showMenu(withIconNames(items));
     if (choice !== null && choice !== value) onChange(choice as T);
   };
   return (
     <View {...hoverProps} style={{ opacity: disabled ? opacity.disabled : 1 }}>
-      <Pressable disabled={disabled} onPress={open}>
+      <Pressable disabled={disabled} onPress={open} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut}>
         {({ pressed }) => (
-          <View
-            style={{
-              minWidth,
-              height: 22,
-              borderRadius: radius.control,
-              paddingLeft: space.m,
-              paddingRight: space.xs,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: space.s,
-              backgroundColor: pressed ? theme.controlPressed : hovered ? theme.controlHover : theme.control,
-              borderWidth: StyleSheet.hairlineWidth * 2,
-              borderColor: theme.controlBorder,
-            }}
+          <Animated.View
+            style={[
+              {
+                minWidth,
+                height: 22,
+                borderRadius: radius.control,
+                paddingLeft: space.m,
+                paddingRight: space.xs,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: space.s,
+                backgroundColor: pressed ? theme.controlPressed : hovered ? theme.controlHover : theme.control,
+                borderWidth: StyleSheet.hairlineWidth * 2,
+                borderColor: theme.controlBorder,
+              },
+              scaleStyle,
+            ]}
           >
             <Text numberOfLines={1} style={{ flex: 1, ...typeScale.body, color: theme.textPrimary }}>
               {current?.title ?? ""}
@@ -224,12 +231,14 @@ export function PopUp<T extends string>({
             <View style={{ width: 16, height: 16, borderRadius: radius.control, backgroundColor: theme.formAccent, alignItems: "center", justifyContent: "center" }}>
               <Symbol name="chevron.up.chevron.down" size={8} weight="bold" color={theme.onAccent} style={{ width: 16, height: 16 }} />
             </View>
-          </View>
+          </Animated.View>
         )}
       </Pressable>
     </View>
   );
 }
+
+const CLEAR_GLYPH = { width: 16, height: 16 } as const;
 
 const CHECK_RING = { s: { box: 14, glyph: 8 }, m: { box: 18, glyph: 10 } } as const;
 const CHECK_RING_BORDER = 1.5;
@@ -253,33 +262,56 @@ export function Checkbox({
 }) {
   const theme = useTheme();
   const on = value || mixed;
+  const pressMotion = usePressScaleMotion(!!onChange && !disabled, buttonMotion.iconPressScale);
+  const scaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : null;
   if (look === "ring" && !onChange) return <RingCheck on={!!on} size={size} />;
   if (look === "ring")
     return (
-      <Pressable disabled={disabled} onPress={() => onChange?.(!value)} accessibilityRole="checkbox" accessibilityState={{ checked: value, disabled }} style={{ opacity: disabled ? opacity.disabled : 1 }}>
-        <RingCheck on={!!on} size={size} />
+      <Pressable
+        disabled={disabled}
+        onPress={() => onChange?.(!value)}
+        onPressIn={pressMotion.onPressIn}
+        onPressOut={pressMotion.onPressOut}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: value, disabled }}
+        style={{ opacity: disabled ? opacity.disabled : 1 }}
+      >
+        <Animated.View style={[CHECK_RING_FRAME[size], scaleStyle]}>
+          <RingCheck on={!!on} size={size} />
+        </Animated.View>
       </Pressable>
     );
   return (
-    <Pressable disabled={disabled || !onChange} onPress={() => onChange?.(!value)} style={{ flexDirection: "row", alignItems: "center", gap: space.m, opacity: disabled ? opacity.disabled : 1 }}>
-      <View
-        style={{
-          width: 14,
-          height: 14,
-          borderRadius: radius.control,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: on ? theme.formAccent : theme.control,
-          borderWidth: on ? 0 : StyleSheet.hairlineWidth * 2,
-          borderColor: theme.controlBorder,
-        }}
-      >
-        {on && <Symbol name={mixed && !value ? "minus" : "checkmark"} size={9} weight="bold" color={theme.onAccent} style={{ width: 14, height: 14 }} />}
-      </View>
+    <Pressable
+      disabled={disabled || !onChange}
+      onPress={() => onChange?.(!value)}
+      onPressIn={pressMotion.onPressIn}
+      onPressOut={pressMotion.onPressOut}
+      style={{ flexDirection: "row", alignItems: "center", gap: space.m, opacity: disabled ? opacity.disabled : 1 }}
+    >
+      <Animated.View style={[CHECK_BOX_FRAME, scaleStyle]}>
+        <View
+          style={{
+            width: 14,
+            height: 14,
+            borderRadius: radius.control,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: on ? theme.formAccent : theme.control,
+            borderWidth: on ? 0 : StyleSheet.hairlineWidth * 2,
+            borderColor: theme.controlBorder,
+          }}
+        >
+          {on && <Symbol name={mixed && !value ? "minus" : "checkmark"} size={9} weight="bold" color={theme.onAccent} style={{ width: 14, height: 14 }} />}
+        </View>
+      </Animated.View>
       {label ? <Text style={{ ...typeScale.body, color: theme.textPrimary }}>{label}</Text> : null}
     </Pressable>
   );
 }
+
+const CHECK_BOX_FRAME = { width: 14, height: 14, alignItems: "center", justifyContent: "center" } as const;
+const CHECK_RING_FRAME = { s: { width: 14, height: 14 }, m: { width: 18, height: 18 } } as const;
 
 function RingCheck({ on, size = "m" }: { on: boolean; size?: keyof typeof CHECK_RING }) {
   const theme = useTheme();

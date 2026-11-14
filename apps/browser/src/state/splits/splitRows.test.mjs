@@ -344,3 +344,17 @@ test("a link opened into a pinned two-pane split's other pane is pinned in its p
   assert.ok(!sidebarEntries(S(), w).pinned.includes(`t:${r.tabId}`) && !sidebarEntries(S(), w).list.includes(`t:${r.tabId}`), "the new pane shows only in the split row");
   assert.deepEqual(panesOf(other), [["b", "e"]], "the other window keeps the split, with the new pane");
 });
+
+test("adding a pane beside a stack left alone in its split keeps both stacked tabs", () => {
+  reset();
+  const { w, b, c, d, splitId } = splitWindow();
+  const below = S().openSplitPane(w, { anchorTabId: c, side: "bottom" });
+  assert.equal(below.ok, true);
+  S().closeTab(b);
+  assert.deepEqual(S().splits[splitId].slots.map((slot) => ("stack" in slot ? slot.stack : slot.tabId)), [[c, below.tabId]]);
+  const added = S().openSplitPane(w, { tabId: d, anchorTabId: c, side: "bottom" });
+  assert.equal(added.ok, true);
+  assert.deepEqual(splitTabIdsOf(S().splits[splitId]), [c, d, below.tabId]);
+  assert.equal(S().splits[splitId].orientation, "vertical");
+  assert.ok(S().splits[splitId].slots.every((slot) => !("stack" in slot)));
+});

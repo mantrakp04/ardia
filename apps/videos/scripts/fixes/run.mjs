@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repo = process.env.ARDIA_REPO ?? join(process.env.HOME, "Documents/netnyahoo");
+const repo = process.env.ARDIA_REPO ?? join(here, "../../../..");
 const { appEnv, attach, binaryOf, binaryPids, launch, launchVariables, mergeLaunchEnv, processInfo, sleep } = await import(join(repo, "scripts/lib/instance.mjs"));
 
 const scratch = process.env.FIXES_SCRATCH ?? join(process.env.HOME, "ardia-scratch/video-fixes");
@@ -13,6 +13,10 @@ const recorder = join(scratch, "demo-rec");
 const sitesPort = Number(process.env.FIXES_SITES_PORT ?? 47231);
 const portBase = process.env.FIXES_PORT_BASE ? Number(process.env.FIXES_PORT_BASE) : null;
 const hoverLib = process.env.FIXES_HOVER ? join(scratch, "hover.dylib") : null;
+const inputLib = process.env.FIXES_INPUT ? join(scratch, "input.dylib") : null;
+const selfLib = process.env.FIXES_SELFREC ? join(scratch, "selfrec.dylib") : null;
+const pasteLib = process.env.FIXES_PASTEBOARD ? join(scratch, "pasteboard.dylib") : null;
+const injected = [hoverLib, inputLib, selfLib, pasteLib].filter(Boolean).join(":");
 const fps = process.env.FIXES_FPS ?? "60";
 const apps = {
   before: { app: process.env.BEFORE_APP ?? join(scratch, "before/Ardia.app"), js: "none", probe: true },
@@ -29,7 +33,22 @@ if (hoverLib && !existsSync(hoverLib)) {
   if (built.status !== 0) throw new Error("hover.dylib didn't build");
 }
 
-if (!existsSync(recorder)) {
+if (inputLib && !existsSync(inputLib)) {
+  const built = spawnSync("clang", ["-dynamiclib", "-fobjc-arc", "-framework", "AppKit", "-o", inputLib, join(here, "input.m")], { stdio: "inherit" });
+  if (built.status !== 0) throw new Error("input.dylib didn't build");
+}
+
+if (selfLib && !existsSync(selfLib)) {
+  const built = spawnSync("clang", ["-dynamiclib", "-fobjc-arc", "-framework", "AppKit", "-framework", "AVFoundation", "-framework", "CoreMedia", "-framework", "CoreVideo", "-o", selfLib, join(here, "selfrec.m")], { stdio: "inherit" });
+  if (built.status !== 0) throw new Error("selfrec.dylib didn't build");
+}
+
+if (pasteLib && !existsSync(pasteLib)) {
+  const built = spawnSync("clang", ["-dynamiclib", "-fobjc-arc", "-framework", "AppKit", "-o", pasteLib, join(here, "pasteboard.m")], { stdio: "inherit" });
+  if (built.status !== 0) throw new Error("pasteboard.dylib didn't build");
+}
+
+if (!selfLib && !existsSync(recorder)) {
   const built = spawnSync("swiftc", ["-O", "-o", recorder, join(repo, "apps/browser/scripts/demo-rec.swift")], { stdio: "inherit" });
   if (built.status !== 0) throw new Error("demo-rec didn't build");
 }
@@ -55,6 +74,30 @@ async function launchWithoutDevTools(app, { data, js, probe, onboarded, files = 
   const instance = attach(data);
   await instance.ready();
   return instance;
+}
+
+function recordSelf(dir, out) {
+  const status = join(dir, "status");
+  rmSync(status, { force: true });
+  const id = `${Date.now()}`;
+  writeFileSync(join(dir, "cmd"), `start\t${id}\t${out}\t${fps}\t90`);
+  const read = () => (existsSync(status) ? readFileSync(status, "utf8") : "");
+  const started = (async () => {
+    for (const end = Date.now() + 15000; Date.now() < end; await sleep(50)) {
+      const text = read();
+      if (/^error/m.test(text)) throw new Error(`selfrec: ${text}`);
+      const m = /recording (\d+)/.exec(text);
+      const r = /rect (-?\d+),(-?\d+),(\d+),(\d+) scale ([\d.]+)/.exec(text);
+      if (m && r) return { t0: Number(m[1]), rect: r.slice(1, 5).map(Number), scale: Number(r[5]) };
+    }
+    throw new Error(`selfrec didn't start: ${read()}`);
+  })();
+  const stop = async () => {
+    writeFileSync(join(dir, "cmd"), `stop\t${id}`);
+    for (const end = Date.now() + 25000; Date.now() < end; await sleep(100)) if (/^(finished|error)/m.test(read())) return 0;
+    return 1;
+  };
+  return { started, stop };
 }
 
 function record(pid, out) {
@@ -91,12 +134,16 @@ async function shoot(scene, name, side) {
   const empty = join(scratch, "import-empty");
   mkdirSync(empty, { recursive: true });
   const options = {
-    data, js, probe, port, onboarded: true, files: { "telemetry.json": { sharing: false, decidedAt: 1, askDoneAt: 1 } }, session: JSON.parse(readFileSync(sessionFile, "utf8")),
-    switches: [`--host-resolver-rules=MAP *.example 127.0.0.1:${sitesPort}`, ...(scene.switches ?? [])],
+    data, js, probe, port, onboarded: true, files: { "telemetry.json": { sharing: false, decidedAt: 1, askDoneAt: 1 }, ...(scene.files ?? {}) }, session: JSON.parse(readFileSync(sessionFile, "utf8")),
+    switches: [`--host-resolver-rules=MAP *.example 127.0.0.1:${sitesPort}`, ...(selfLib ? ["--disable-features=RemoteCoreAnimationAPI"] : []), ...(scene.switches ?? [])],
     instance: { importSourceDir: empty, importSafariHome: empty, downloadsDir: downloads, ...(scene.instance ?? {}) },
-    env: { ...(hoverLib ? { DYLD_INSERT_LIBRARIES: hoverLib } : {}), ...(scene.env ?? {}) },
+    env: { ...(injected ? { DYLD_INSERT_LIBRARIES: injected } : {}), ...(selfLib ? { FIXES_SELFREC_DIR: join(data, "selfrec") } : {}), ...(pasteLib ? { FIXES_PASTEBOARD_NAME: `com.ardia.film.${name}-${side}` } : {}), ...(scene.env ?? {}) },
   };
   const start = scene.withoutDevTools ? launchWithoutDevTools : launch;
+  if (scene.seed) {
+    mkdirSync(data, { recursive: true });
+    scene.seed(data, side);
+  }
   let instance = await start(app, options);
   try {
     await sleep(scene.boot ?? 6000);
@@ -116,9 +163,9 @@ async function shoot(scene, name, side) {
     let rec = null;
     let started = null;
     for (let attempt = 0; attempt < 6 && !started; attempt++) {
-      rec = record(instance.pid, out);
+      rec = selfLib ? recordSelf(join(data, "selfrec"), out) : record(instance.pid, out);
       const got = await rec.started;
-      if (got.rect[2] >= 1000) started = got;
+      if (got.rect[2] >= (scene.minWidth ?? 1000)) started = got;
       else {
         console.log(`${name} ${side}: the recorder picked ${got.rect}, retrying`);
         await rec.stop();

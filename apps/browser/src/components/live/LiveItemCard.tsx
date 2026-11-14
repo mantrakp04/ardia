@@ -10,7 +10,7 @@ import { newTab } from "../../state/tabs/actions";
 import { Badge, Box, Button, capsule, curve, Divider, font, HoverCard, space, Symbol, Text, useHover, useTheme, weight } from "../ui";
 import { dismissHover } from "../../state/sidebar/hover";
 import { cardHoverProps } from "../sidebar/hoverController";
-import { hoverCardOrigin } from "../sidebar/hoverMotion";
+import { useHoverCardOrigin } from "../sidebar/hoverMotion";
 import type { Anchor } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "../sidebar/TabIcon";
 import { liveMotion, liveType, useLiveColors, type LiveColors } from "./tokens";
@@ -22,8 +22,9 @@ const CHECK_PAD = space.xs;
 export const AVATAR_SIZE = 20;
 
 export function HoverSurface({ anchor, width, children }: { anchor: Anchor; width: number; children: ReactNode }) {
+  const origin = useHoverCardOrigin(anchor);
   return (
-    <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...hoverCardOrigin(anchor) }}>
+    <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...origin }}>
       <HoverCard width={width} pad="l" onMouseEnter={cardHoverProps.onMouseEnter} onMouseLeave={cardHoverProps.onMouseLeave}>
         {children}
       </HoverCard>

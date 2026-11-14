@@ -34,8 +34,10 @@ export type BarKeyContext = {
   bar: ReturnType<typeof useBarText>;
   hero: boolean;
   shownCompletion: string;
+  input: string;
   items: Suggestion[];
   selectedIndex: number;
+  previewing: boolean;
   current: Suggestion | undefined;
   tabScope: ReturnType<typeof offeredScope>;
   cancelBang(): void;
@@ -54,10 +56,11 @@ export function barKeyDown(e: BarKeyEvent, k: BarKeyContext) {
   const select = (index: number) => bar.dispatch({ kind: "selected", index });
   const move = (delta: 1 | -1) => {
     const n = items.length;
-    select(!n ? 0 : selectedIndex < 0 ? (delta > 0 ? 0 : n - 1) : (selectedIndex + delta + n) % n);
+    select(!n ? 0 : (selectedIndex + delta + n) % n);
   };
   k.cancelBang();
   if (key === "Escape") {
+    if (k.previewing) return select(0);
     if (scope) return bar.dispatch({ kind: "leftScope", restore: null });
     if (!k.hero) return k.onDone?.("escape");
     if (k.shownCompletion) return bar.dispatch({ kind: "completionDropped" });
@@ -77,8 +80,8 @@ export function barKeyDown(e: BarKeyEvent, k: BarKeyContext) {
   }
   if (key === "Enter") {
     if (metaKey && shiftKey) return k.forceSearch();
-    if (ctrlKey && !/[\s./:]/.test(typed.trim()) && typed.trim())
-      return k.go(`https://www.${typed.trim()}.com`, shiftKey ? "newWindow" : "current");
+    if (ctrlKey && !/[\s./:]/.test(k.input.trim()) && k.input.trim())
+      return k.go(`https://www.${k.input.trim()}.com`, shiftKey ? "newWindow" : "current");
     if (metaKey || altKey || shiftKey) return k.choose(current, dispositionFor({ metaKey, altKey, shiftKey }), true);
   }
 }

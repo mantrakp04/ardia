@@ -1,15 +1,12 @@
-import { useTheme } from "../ui/theme";
+import { useTheme, type Theme } from "../ui/theme";
 import { duration, period, springs } from "../ui/motion";
-import { colorRoles, font, ink, proseLineHeight, weight } from "../ui/tokens";
+import { font, perLook, proseLineHeight, weight } from "../ui/tokens";
 
 const DARK = {
-  success: colorRoles.dark.success,
-  failure: colorRoles.dark.destructive,
   pending: "#D29922",
   merged: "#A371F7",
   draft: "#8B949E",
   conflict: "#DB6D28",
-  now: colorRoles.dark.destructive,
   ciTrack: "rgba(255,255,255,0.1)",
   chip: "rgba(255,255,255,0.1)",
   badgeRing: "rgba(0,0,0,0.35)",
@@ -17,26 +14,26 @@ const DARK = {
 };
 
 const LIGHT: typeof DARK = {
-  success: colorRoles.light.success,
-  failure: colorRoles.light.destructive,
   pending: "#9A6700",
   merged: "#8250DF",
   draft: "#6E7781",
   conflict: "#BC4C00",
-  now: colorRoles.light.destructive,
   ciTrack: "rgba(0,0,0,0.08)",
   chip: "rgba(0,0,0,0.06)",
   badgeRing: "rgba(255,255,255,0.8)",
   avatarFill: "#D5D5DA",
 };
 
-export type LiveColors = typeof DARK;
+export type LiveColors = typeof DARK & { success: string; failure: string; now: string };
+
+const liveColors = new WeakMap<Theme, LiveColors>();
 
 export function useLiveColors(): LiveColors {
-  return useTheme().dark ? DARK : LIGHT;
+  const theme = useTheme();
+  let colors = liveColors.get(theme);
+  if (!colors) liveColors.set(theme, (colors = { ...(theme.dark ? DARK : LIGHT), success: theme.success, failure: theme.destructive, now: theme.destructive }));
+  return colors;
 }
-
-export const LIVE_NOW_TEXT = ink.white;
 
 export const liveMotion = {
   badgeSpring: springs.bouncy,
@@ -53,10 +50,13 @@ export const liveMotion = {
   ],
 };
 
+const liveHeading = perLook(() => ({ ...font.body, lineHeight: proseLineHeight.body, fontWeight: weight.semibold }));
+const liveDetail = perLook(() => ({ ...font.small, lineHeight: proseLineHeight.small }));
+
 export const liveType = {
-  heading: { ...font.body, lineHeight: proseLineHeight.body, fontWeight: weight.semibold },
-  detail: { ...font.small, lineHeight: proseLineHeight.small },
-  empty: font.small,
-  more: font.tiny,
+  get heading() { return liveHeading(); },
+  get detail() { return liveDetail(); },
+  get empty() { return font.small; },
+  get more() { return font.tiny; },
   avatarScale: 0.42,
 };

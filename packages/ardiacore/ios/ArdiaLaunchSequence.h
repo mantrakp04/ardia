@@ -14,6 +14,12 @@ typedef NS_OPTIONS(NSUInteger, ArdiaLaunchMilestone) {
 @property(class, readonly) ArdiaLaunchSequence *shared;
 
 @property(nonatomic) BOOL engineRunning;
+@property(nonatomic) double mainStartedAt;
+@property(nonatomic) double startupPreparedAt;
+@property(nonatomic) double chromiumEnteredAt;
+@property(nonatomic) double engineStartedAt;
+@property(nonatomic) double reactNativeStartedAt;
+@property(nonatomic) double earlyWindowShownAt;
 @property(nonatomic, readonly) BOOL launchedHidden;
 @property(nonatomic, readonly) BOOL launchedForDocuments;
 @property(nonatomic, readonly) BOOL shutDown;

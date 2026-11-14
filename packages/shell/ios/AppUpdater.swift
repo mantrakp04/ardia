@@ -24,8 +24,10 @@ public final class AppUpdater: NSObject {
   public var channel: UpdateChannel { Self.savedChannel ?? Self.buildChannel }
 
   public func setChannel(_ channel: UpdateChannel) {
+    let switched = channel != self.channel
     UserDefaults.standard.set(channel.rawValue, forKey: Self.channelDefaultsKey)
-    guard started else { return }
+    guard started, switched else { return }
+    switchCheck.handle(.switched(channel: channel.rawValue))
     apply(channelSwitch.switched())
     userDriver.leaveOffChannelUpdate()
     refreshChannelSwitch()
@@ -54,7 +56,7 @@ public final class AppUpdater: NSObject {
     let nightly = survey.found.filter { $0.channel == UpdateChannel.nightly.rawValue }.map(\.copy)
     let sighting = ChannelSwitch.Sighting(copies: Set(nightly), residue: survey.residue, blind: survey.blind)
     let busy = updater.sessionInProgress
-    let facts = channelSwitch.observe(sighting, busy: busy, automaticChecks: updater.automaticallyChecksForUpdates)
+    let facts = channelSwitch.observe(sighting, busy: busy)
     apply(channelSwitch.changed(facts))
     if surveyAgain {
       surveyAgain = false
@@ -67,8 +69,8 @@ public final class AppUpdater: NSObject {
       switch effect {
       case .resume:
         updater.checkForUpdatesInBackground()
-      case .resetCycle:
-        updater.resetUpdateCycle()
+      case .check:
+        checkSwitchedChannel()
       case .watch:
         guard installationWatch == nil, let caches = StagedUpdateCopies.userCaches, let bundleId = Bundle.main.bundleIdentifier else { continue }
         let folder = StagedSurvey.root(caches: caches, bundleId: bundleId)
@@ -87,6 +89,16 @@ public final class AppUpdater: NSObject {
         NSLog("Ardia: \(line)")
       }
     }
+  }
+
+  private func checkSwitchedChannel() {
+    switchCheck.handle(.started)
+    guard updater.canCheckForUpdates else {
+      NSLog("Ardia: Sparkle can't check the \(channel) channel after the switch yet")
+      return switchCheck.handle(.finished(failed: true))
+    }
+    userDriver.quietCheck = !switchCheck.userAsked
+    updater.checkForUpdates()
   }
 
   private static let files = DispatchQueue(label: "com.ardia.updater.staged-copies", qos: .userInitiated)
@@ -118,7 +130,10 @@ public final class AppUpdater: NSObject {
   }
 
   public static var displayVersion: String {
-    let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+    displayVersion(of: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
+  }
+
+  static func displayVersion(of version: String) -> String {
     guard let range = version.range(of: #"-nightly\.(\d+)$"#, options: .regularExpression) else { return version }
     let number = version[range].split(separator: ".").last.map(String.init) ?? ""
     return "\(version[..<range.lowerBound]) Nightly \(number)"
@@ -169,6 +184,7 @@ public final class AppUpdater: NSObject {
   private lazy var updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: userDriver, delegate: self)
   private var deferredUpdate = false
   private var channelSwitch = ChannelSwitch()
+  private var switchCheck = SwitchCheck()
   private var installationWatch: FolderWatch?
   private var quitWaits: [Int: () -> Void] = [:]
   private var lastQuitWait = 0
@@ -213,6 +229,9 @@ public final class AppUpdater: NSObject {
       return showNotSetUp()
     }
     start()
+    let switchPending = switchCheck.pending
+    switchCheck.handle(.manualCheck)
+    guard !switchPending else { return userDriver.quietCheck = false }
     updater.checkForUpdates()
   }
 
@@ -230,6 +249,7 @@ public final class AppUpdater: NSObject {
       "displayVersion": Self.displayVersion,
       "channel": channel.rawValue,
       "buildChannel": Self.buildChannel.rawValue,
+      "switchCheck": switchCheck.report as Any,
     ]
   }
 
@@ -276,10 +296,19 @@ extension AppUpdater: SPUUpdaterDelegate {
 
   public func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
     NSLog("Ardia: update found: \(item.displayVersionString) (build \(item.versionString)\(item.channel.map { ", \($0)" } ?? "")) on the \(channel) channel")
+    switchCheck.handle(.found(version: Self.displayVersion(of: item.displayVersionString)))
   }
 
   public func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: Error) {
     NSLog("Ardia: no update on the \(channel) channel")
+    let reason = ((error as NSError).userInfo[SPUNoUpdateFoundReasonKey] as? NSNumber).flatMap { SPUNoUpdateFoundReason(rawValue: $0.int32Value) }
+    switchCheck.handle(.notFound(newerThanLatest: reason == .onNewerThanLatestVersion))
+  }
+
+  public func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
+    let noUpdate = (error as NSError?).map { $0.domain == SUSparkleErrorDomain && $0.code == Int(SUError.noUpdateError.rawValue) } ?? false
+    switchCheck.handle(.finished(failed: error != nil && !noUpdate))
+    userDriver.quietCheck = false
   }
 
   public func feedParameters(for updater: SPUUpdater, sendingSystemProfile sendingProfile: Bool) -> [[String: String]] {

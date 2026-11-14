@@ -13,7 +13,6 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
@@ -261,31 +260,37 @@ void Settle(Session session, Reply reply, Check landed, int checks_left) {
           landed, checks_left));
 }
 
+std::u16string UTF16Of(const Secret& secret) {
+  return base::UTF8ToUTF16(secret.value());
+}
+
 Check Saved(std::string origin, std::string username, Secret password) {
   return base::BindRepeating(
       [](const std::string& origin, const std::string& username,
          const Secret& password, PasswordsPrivateDelegate* delegate,
          const Entries& entries) {
-        const pp::PasswordUiEntry* entry = Find(entries, origin, username);
-        if (!entry || !password.present()) {
-          return !!entry;
-        }
-        std::optional<password_manager::CredentialUIEntry> credential =
-            delegate->GetCredentialFromId(entry->id);
-        if (!credential) {
-          return false;
-        }
-        std::string saved = base::UTF16ToUTF8(credential->password);
-        const bool same = saved == password.value();
-        Cleanse(saved);
-        Cleanse(credential->password);
-        return same;
+        return std::ranges::any_of(entries, [&](const auto& entry) {
+          if (entry.is_passkey || entry.username != username ||
+              std::ranges::none_of(entry.affiliated_domains, [&](auto& d) {
+                return WithoutSlash(d.signon_realm) == origin;
+              })) {
+            return false;
+          }
+          if (!password.present()) {
+            return true;
+          }
+          auto credential = delegate->GetCredentialFromId(entry.id);
+          if (!credential) {
+            return false;
+          }
+          std::u16string typed = UTF16Of(password);
+          const bool same = credential->password == typed;
+          Cleanse(typed);
+          credential->password.clear();
+          return same;
+        });
       },
       std::move(origin), std::move(username), std::move(password));
-}
-
-std::u16string UTF16Of(const Secret& secret) {
-  return base::UTF8ToUTF16(secret.value());
 }
 
 Check Gone(std::string origin, std::string username) {
@@ -377,7 +382,10 @@ AC_PROFILE_CALL(ac_passwords_reveal) {
                       }
                       base::DictValue result;
                       if (credential) {
-                        result.Set("password", credential->password);
+                        std::u16string plain = credential->password.value();
+                        credential->password.clear();
+                        result.Set("password", plain);
+                        ardia::Cleanse(plain);
                       } else {
                         result.Set("password", base::Value());
                       }
@@ -407,17 +415,17 @@ AC_PROFILE_CALL(ac_passwords_add,
       std::move(*session), call.TakeReply(),
       base::BindOnce(
           [](std::string origin, std::string username, ardia::Secret password,
-             Session session, Reply reply, const Entries&) {
+             Session session, Reply reply, const Entries& entries) {
             std::u16string password16 = ardia::UTF16Of(password);
             const bool added = session.delegate->AddPassword(
                 origin, base::UTF8ToUTF16(username), password16, u"", false);
             ardia::Cleanse(password16);
-            if (!added) {
+            auto saved = ardia::Saved(origin, username, std::move(password));
+            if (!added && !saved.Run(session.delegate.get(), entries)) {
               return reply.Error(
                   "Could not save the password (invalid, or already saved)");
             }
-            ardia::Settle(std::move(session), std::move(reply),
-                          ardia::Saved(origin, username, std::move(password)),
+            ardia::Settle(std::move(session), std::move(reply), saved,
                           ardia::kSettleChecks);
           },
           origin, call.String("username"), std::move(password)));

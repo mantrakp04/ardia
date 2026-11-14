@@ -4,6 +4,8 @@ import { DataTable } from "@/components/data-table";
 import { Loaded, StatsSkeleton, TableSkeleton, useRange, useSection } from "@/components/section";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { PersonInline } from "@/components/person";
+import { SourcePill } from "@/components/people-ui";
 import { rangeSentence } from "@/lib/compare";
 import { formatAgo, formatExact, formatPercent } from "@/lib/format";
 import { THRESHOLDS } from "@/lib/thresholds";
@@ -23,6 +25,7 @@ type Signature = Health["signatures"][number];
 function HealthPage() {
   const range = useRange();
   const health = useSection("health");
+  const cli = useSection("health.cli");
   return (
     <>
       <PageHeader
@@ -46,6 +49,15 @@ function HealthPage() {
       <Panel source="app" title="Crash signatures" description="Grouped by exception type and the first frames of ours (in-app, innermost first; unresolved addresses shown as module +?). JS errors are grouped by message. Click a row for its stack.">
         <Loaded query={health} skeleton={<TableSkeleton rows={8} columns={6} />}>
           {(h) => <Signatures h={h} />}
+        </Loaded>
+      </Panel>
+      <Panel
+        source="app"
+        title={<span className="inline-flex items-center gap-1.5">CLI <SourcePill source="cli" /></span>}
+        description="ardia CLI commands and exceptions from opted-in installs, by CLI version. A command fails when it exits non-zero. Click a command for who hit the failures."
+      >
+        <Loaded query={cli} skeleton={<TableSkeleton rows={5} columns={6} />}>
+          {(c) => <CliHealth c={c} />}
         </Loaded>
       </Panel>
     </>
@@ -199,6 +211,64 @@ function Stack({ s }: { s: Signature }) {
       <div className="text-muted-foreground">
         Per version: <span className="font-mono">{s.versions.map((v) => `${v.version} ×${v.count}`).join(" · ")}</span>
       </div>
+      {s.who.length ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <span className="text-muted-foreground">Who, in the range</span>
+          {s.who.map((id) => (
+            <PersonInline key={id} id={id} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type Cli = SectionData<"health.cli">;
+
+function CliHealth({ c }: { c: Cli }) {
+  if (!c.versions.length) return <p className="py-6 text-center text-sm text-muted-foreground">No CLI events in this range</p>;
+  return (
+    <div className="grid gap-5">
+      <DataTable
+        dense
+        rows={c.versions}
+        rowKey={(r) => r.version}
+        limit={8}
+        columns={[
+          { key: "version", header: "CLI version", sort: (r) => r.version, cell: (r) => <span className="font-mono text-[12px] whitespace-nowrap">{r.version}</span> },
+          { key: "people", header: "People", align: "right", sort: (r) => r.people, cell: (r) => formatExact(r.people) },
+          { key: "commands", header: "Commands", align: "right", sort: (r) => r.commands, cell: (r) => formatExact(r.commands) },
+          { key: "failed", header: "Failed", align: "right", sort: (r) => r.failRate ?? -1, cell: (r) => (r.failed ? <span className="font-medium text-bad">{formatExact(r.failed)} · {formatPercent(r.failRate)}</span> : <span className="text-muted-foreground">0</span>) },
+          { key: "exceptions", header: "Exceptions", align: "right", sort: (r) => r.exceptions, cell: (r) => (r.exceptions ? <span className="font-medium text-bad">{formatExact(r.exceptions)}</span> : <span className="text-muted-foreground">0</span>) },
+          { key: "p50", header: "p50 / p95", align: "right", sort: (r) => r.p50, cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{Math.round(r.p50)} / {Math.round(r.p95)} ms</span> },
+        ]}
+      />
+      <DataTable
+        dense
+        rows={c.commands}
+        rowKey={(r) => r.command}
+        initialSort={{ key: "failed", desc: true }}
+        limit={10}
+        expand={(r) =>
+          r.who.length ? (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3 text-xs">
+              <span className="text-muted-foreground">Failed for</span>
+              {r.who.map((id) => (
+                <PersonInline key={id} id={id} />
+              ))}
+            </div>
+          ) : (
+            <p className="px-4 py-3 text-xs text-muted-foreground">No failures.</p>
+          )
+        }
+        columns={[
+          { key: "command", header: "Command", sort: (r) => r.command, cell: (r) => <span className="font-mono text-[11.5px]">{r.command.startsWith("exception: ") ? r.command : `ardia ${r.command}`}</span> },
+          { key: "runs", header: "Runs", align: "right", sort: (r) => r.runs, cell: (r) => formatExact(r.runs) },
+          { key: "failed", header: "Failed", align: "right", sort: (r) => r.failed, cell: (r) => (r.failed ? <span className="font-medium text-bad">{formatExact(r.failed)}</span> : <span className="text-muted-foreground">0</span>) },
+          { key: "people", header: "People", align: "right", sort: (r) => r.people, cell: (r) => formatExact(r.people) },
+          { key: "last", header: "Last", align: "right", sort: (r) => r.lastSeen, cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{formatAgo(r.lastSeen)}</span> },
+        ]}
+      />
     </div>
   );
 }

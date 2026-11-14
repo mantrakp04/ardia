@@ -2,13 +2,16 @@ import { setPeekModifier, setPeekOtherSiteTabs, setSplitLinkModifier } from "../
 import { hapticTick } from "../../platform/haptics";
 import { webviews } from "../../platform/webviews";
 import { useBrowser, type BrowserState } from "../browser/store";
-import { activeTabId } from "../browser/model";
+import { activeTabId, IDLE_LIVE } from "../browser/model";
 import { splitLinkModifierOf, type PeekModifier, type SplitLinkModifier } from "../settings/settings";
 import { MAX_SPLIT_PANES, splitOf, splitTabIdsOf } from "../splits/splits";
 import { openSplitPane } from "../splits/actions";
 import { showToast } from "../app/toasts";
 import { isPeekTab, otherSitePeekTabIds, shownPageId } from "./peek";
 import { closeFind } from "../find/actions";
+import { hostOf } from "@ardia/core";
+import { linkDestination } from "../../lib/linkWrappers";
+import { navigationOf } from "../tabs/pageSession";
 
 const store = () => useBrowser.getState();
 const closers = new Map<string, () => void>();
@@ -117,6 +120,41 @@ export function startPeeks() {
   useBrowser.subscribe(sync);
   useBrowser.subscribe(bumpOnFirstLoad);
   useBrowser.subscribe(refocusAfterClose);
+  useBrowser.subscribe(landBackOnSite);
+}
+
+type LandingWatch = { nav: number | null; judged: boolean };
+const landings = new Map<string, LandingWatch>();
+const isLinkWrapper = (url: string) => linkDestination(url) !== url;
+
+function landBackOnSite(s: BrowserState, prev: BrowserState) {
+  if (s.tabs === prev.tabs && s.peeks === prev.peeks && s.live === prev.live) return;
+  const shown = new Set(Object.values(s.peeks).map((p) => p.tabId));
+  for (const id of landings.keys()) if (!shown.has(id)) landings.delete(id);
+  for (const [windowId, peek] of Object.entries(s.peeks)) {
+    const landing = peek.landing;
+    const tab = s.tabs[peek.tabId];
+    if (!landing || !tab) continue;
+    const nav = navigationOf(tab)?.seq ?? null;
+    let watch = landings.get(peek.tabId);
+    if (!watch) landings.set(peek.tabId, (watch = { nav, judged: false }));
+    if (watch.judged) continue;
+    if (Date.now() > landing.until || nav !== watch.nav) {
+      watch.judged = true;
+      continue;
+    }
+    const live = s.live[peek.tabId];
+    if (!live || live === IDLE_LIVE || live.isLoading || !/^https?:/i.test(tab.url) || isLinkWrapper(tab.url)) continue;
+    watch.judged = true;
+    if (hostOf(tab.url) !== landing.host) continue;
+    const url = tab.url;
+    queueMicrotask(() => {
+      if (store().peeks[windowId]?.tabId !== peek.tabId) return;
+      if (landing.then === "tab") return openPeekAsTab(windowId);
+      store().closePeek(windowId);
+      store().navigate(peek.sourceId, url, { userInitiated: false });
+    });
+  }
 }
 
 function refocusAfterClose(s: BrowserState, prev: BrowserState) {

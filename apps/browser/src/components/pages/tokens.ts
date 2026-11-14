@@ -1,21 +1,23 @@
 import { duration } from "../ui/motion";
-import { capsule, colorRoles, font, space, type Space } from "../ui/tokens";
+import type { Theme } from "../ui/theme";
+import { capsule, font, space, withAlpha, type Space } from "../ui/tokens";
 
-const dark = {
-  rowSelected: `${colorRoles.dark.formAccent}59`,
-  dropTarget: `${colorRoles.dark.formAccent}40`,
-};
+export type PagesColors = { rowSelected: string; dropTarget: string };
 
-export type PagesColors = typeof dark;
+const ROW_SELECTED_ALPHA = { dark: 0x59 / 255, light: 0x33 / 255 };
+const DROP_TARGET_ALPHA = 0x40 / 255;
+const byTheme = new WeakMap<Theme, PagesColors>();
 
-const light: PagesColors = {
-  rowSelected: `${colorRoles.light.formAccent}33`,
-  dropTarget: `${colorRoles.light.formAccent}40`,
-};
+export function pagesColors(theme: Theme): PagesColors {
+  let colors = byTheme.get(theme);
+  if (!colors) {
+    const rowSelected = withAlpha(theme.formAccent, theme.dark ? ROW_SELECTED_ALPHA.dark : ROW_SELECTED_ALPHA.light);
+    byTheme.set(theme, (colors = { rowSelected, dropTarget: withAlpha(theme.formAccent, DROP_TARGET_ALPHA) }));
+  }
+  return colors;
+}
 
-export const pagesColors = { dark, light } as const;
-
-export const pageType = { fileName: font.body, dayHeader: font.small } as const;
+export const pageType = { get fileName() { return font.body; }, get dayHeader() { return font.small; } } as const;
 
 export const pageHeader = { sideWidth: 200, searchMaxWidth: 480 } as const;
 

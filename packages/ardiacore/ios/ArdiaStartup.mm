@@ -4,11 +4,15 @@
 
 #include <signal.h>
 
+#include <atomic>
+
 #import "ArdiaNativeMessaging.h"
 
 namespace ardia_host {
 
 namespace {
+
+constexpr int64_t kActivationResyncDelay = 2 * NSEC_PER_SEC;
 
 bool ChromeRunsOn(NSString *userDataDir) {
   NSString *lock = [NSFileManager.defaultManager destinationOfSymbolicLinkAtPath:[userDataDir stringByAppendingPathComponent:@"SingletonLock"] error:nil];
@@ -42,14 +46,19 @@ void KeepWebsiteLanguages(NSString *userDataDir) {
 
 void PrepareStartup(NSString *userDataDir) {
   KeepWebsiteLanguages(userDataDir);
-  ardia_native_messaging::SyncHosts(userDataDir);
   static dispatch_queue_t syncQueue = dispatch_queue_create("ardia.native-messaging", DISPATCH_QUEUE_SERIAL);
+  static std::atomic<bool> resyncQueued{false};
   NSString *dir = [userDataDir copy];
+  dispatch_sync(syncQueue, ^{ ardia_native_messaging::SyncHosts(dir); });
   [NSNotificationCenter.defaultCenter addObserverForName:NSApplicationDidBecomeActiveNotification
                                                   object:nil
                                                    queue:nil
                                               usingBlock:^(NSNotification *) {
-                                                dispatch_async(syncQueue, ^{ ardia_native_messaging::SyncHosts(dir); });
+                                                if (resyncQueued.exchange(true)) return;
+                                                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kActivationResyncDelay), syncQueue, ^{
+                                                  resyncQueued = false;
+                                                  ardia_native_messaging::SyncHosts(dir);
+                                                });
                                               }];
 }
 

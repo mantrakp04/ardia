@@ -43,8 +43,14 @@ export function startDevHarness() {
     get history(): typeof import("../../state/history/history") {
       return require("../../state/history/history");
     },
+    get profileLoading(): typeof import("../../state/profiles/profileLoading") {
+      return require("../../state/profiles/profileLoading");
+    },
     get checkIn(): typeof import("../../state/onboarding/defaultBrowserCheckIn") {
       return require("../../state/onboarding/defaultBrowserCheckIn");
+    },
+    get onboarding(): typeof import("../../state/onboarding/onboarding") {
+      return require("../../state/onboarding/onboarding");
     },
     get media(): typeof import("../../state/media/media").useMedia {
       return require("../../state/media/media").useMedia;
@@ -54,6 +60,9 @@ export function startDevHarness() {
     },
     get translate(): typeof import("../../state/site/translate") {
       return require("../../state/site/translate");
+    },
+    get reactNative(): typeof import("react-native") | null {
+      return __DEV__ || require("../../platform/launchConfig").isTestInstance() ? require("react-native") : null;
     },
     get peek(): typeof import("../../state/peek/actions") {
       return require("../../state/peek/actions");
@@ -70,6 +79,12 @@ export function startDevHarness() {
     get bangs(): typeof import("../../state/omnibox/bangs") {
       return require("../../state/omnibox/bangs");
     },
+    get omniboxProviders(): typeof import("../../state/omnibox/activeProviders") & typeof import("../../state/omnibox/providerApproval") & typeof import("../../state/omnibox/providers") {
+      return { ...require("../../state/omnibox/activeProviders"), ...require("../../state/omnibox/providerApproval"), ...require("../../state/omnibox/providers") };
+    },
+    get automationApprovals(): typeof import("../../state/automation/approvals") {
+      return require("../../state/automation/approvals");
+    },
     get switcher(): typeof import("../../state/sidebar/switcher") {
       return require("../../state/sidebar/switcher");
     },
@@ -78,6 +93,9 @@ export function startDevHarness() {
     },
     get sidebarHover(): typeof import("../../state/sidebar/hover") & typeof import("../sidebar/hoverMotion") {
       return { ...require("../../state/sidebar/hover"), ...require("../sidebar/hoverMotion") };
+    },
+    get stripHover(): typeof import("../../state/tabs/stripHover") {
+      return require("../../state/tabs/stripHover");
     },
     get windowLayout(): typeof import("../../state/windows/layout") {
       return require("../../state/windows/layout");
@@ -91,11 +109,23 @@ export function startDevHarness() {
     get settingsSearch(): typeof import("../../state/settings/searchState") & typeof import("../settings/SettingsSearch") & typeof import("../settings/anchors") {
       return { ...require("../../state/settings/searchState"), ...require("../settings/SettingsSearch"), ...require("../settings/anchors") };
     },
+    get settingsData(): typeof import("../../state/settings/paneData") {
+      return require("../../state/settings/paneData");
+    },
     get settingsNav(): typeof import("../../state/settings/settingsWindows").useSettingsNav {
       return require("../../state/settings/settingsWindows").useSettingsNav;
     },
     get preload(): typeof import("../../state/tabs/prewarm") {
       return require("../../state/tabs/prewarm");
+    },
+    get report(): typeof import("../../state/report/actions") & typeof import("../../state/report/recording") & typeof import("../../state/report/store") {
+      return { ...require("../../state/report/actions"), ...require("../../state/report/recording"), ...require("../../state/report/store") };
+    },
+    get model(): typeof import("../../state/browser/model") {
+      return require("../../state/browser/model");
+    },
+    get unread(): typeof import("../../state/tabs/unread") {
+      return require("../../state/tabs/unread");
     },
     get syncSheets(): typeof import("../settings/panes/SyncSheets") {
       return require("../settings/panes/SyncSheets");
@@ -125,8 +155,20 @@ export function startDevHarness() {
       const { WhatsSentSheet } = require("../settings/panes/ShareDiagnostics") as typeof import("../settings/panes/ShareDiagnostics");
       showSettingsSheet(createElement(WhatsSentSheet));
     },
+    get config(): typeof import("../../state/config/basePalette") & typeof import("../../state/config/configFiles") & typeof import("../../state/app/toasts") {
+      return { ...require("../../state/config/basePalette"), ...require("../../state/config/configFiles"), ...require("../../state/app/toasts") };
+    },
     get live(): { store: typeof import("../../state/live/store"); engine: typeof import("../../state/live/engine") } {
       return { store: require("../../state/live/store"), engine: require("../../state/live/engine") };
+    },
+    get sharedFolders(): typeof import("../../state/sharedFolders/store") & typeof import("../../state/sharedFolders/engine") & typeof import("../../state/sharedFolders/actions") {
+      return { ...require("../../state/sharedFolders/store"), ...require("../../state/sharedFolders/engine"), ...require("../../state/sharedFolders/actions") };
+    },
+    get automation(): typeof import("../../state/automation/approvals") & typeof import("../../state/automation/hookRules") & typeof import("../../state/automation/hookPolicy") & typeof import("../../state/automation/decideSocket") {
+      return { ...require("../../state/automation/approvals"), ...require("../../state/automation/hookRules"), ...require("../../state/automation/hookPolicy"), ...require("../../state/automation/decideSocket") };
+    },
+    get airTraffic(): typeof import("../../state/airTraffic/store") & typeof import("../../state/airTraffic/preview") & typeof import("../../state/littleArdia/actions") {
+      return { ...require("../../state/airTraffic/store"), ...require("../../state/airTraffic/preview"), ...require("../../state/littleArdia/actions") };
     },
   };
   (globalThis as { ac?: typeof ac }).ac = ac;

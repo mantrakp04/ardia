@@ -2,7 +2,7 @@ import { DATA_START_MS, windowFor, type RangeKey } from "../../lib/range";
 import { compareVersions, DAILY_COUNT_SINCE, DAILY_COUNT_START_MS, isNightly, sendsDailyCount } from "../../lib/versions";
 import { num, query, str } from "../clickhouse";
 import { github, type Release } from "../github";
-import { APP, ARDIA_VERSION, DAILY, FIRST, bucket, compareStart, dayBucket, isCurrent, isPrevious, prop, since } from "../sql";
+import { APP, APP_SOURCE, ARDIA_VERSION, DAILY, FIRST, bucket, compareStart, dayBucket, isCurrent, isPrevious, prop, since } from "../sql";
 import { dayBuckets, fill, floorDay, windowInfo } from "../series";
 
 const DAY = 86_400_000;
@@ -267,7 +267,7 @@ export async function usersVersions(range: RangeKey, signal?: AbortSignal) {
 export async function usersOptedIn(range: RangeKey, signal?: AbortSignal) {
   const w = windowFor(range);
   const rows = await query(
-    `SELECT ${bucket(w.step)} AS b, uniq(distinct_id), uniqIf(distinct_id, ${isCurrent(w)}), uniqIf(distinct_id, ${isPrevious(w)})
+    `SELECT ${bucket(w)} AS b, uniq(distinct_id), uniqIf(distinct_id, ${isCurrent(w)}), uniqIf(distinct_id, ${isPrevious(w)})
      FROM telemetry.events
      WHERE ${APP} AND ${since(compareStart(w))}
      GROUP BY GROUPING SETS ((b), ())`,
@@ -289,8 +289,11 @@ export async function usersOptedIn(range: RangeKey, signal?: AbortSignal) {
 const NAMES: Record<string, string> = {
   suggestion_chosen: "Omnibox suggestion chosen",
   perf_memory: "Memory sample",
+  page_process_gone: "Page process gone",
+  tab_presses: "Tab presses",
   settings_section_opened: "Settings section opened",
   command_bar_opened: "Command bar opened",
+  calendar_connect: "Connect Calendar pressed",
   usage_counts: "Usage counts",
   perf_journeys: "Journey timings",
   perf_omnibox: "Omnibox timings",
@@ -302,6 +305,7 @@ const NAMES: Record<string, string> = {
   sharing_turned_on: "Telemetry turned on",
   split_view_opened: "Split view opened",
   translate_used: "Translate used",
+  translate_finished: "Translation first pass",
   sync_toggled: "Sync toggled",
   extension_installed: "Extension installed",
 };
@@ -312,23 +316,25 @@ export async function usersUsage(range: RangeKey, signal?: AbortSignal) {
   const rows = await query(
     `SELECT dim, key, uniq(distinct_id) AS people, count() AS n, max(toUnixTimestamp64Milli(timestamp))
      FROM (
-       SELECT distinct_id, timestamp,
-         arrayJoin(arrayConcat(
-           [('event', event)],
-           multiIf(
-             event = 'settings_section_opened', [('section', properties['section'])],
-             event = 'suggestion_chosen', [('suggestion', properties['type'])],
-             event = 'app_updated', [('update', concat(properties['from_version'], ' → ', ${prop("$app_version")}))],
-             event = 'app_session_ended', [('session', multiIf(${minutes} < 5, '0|< 5 min', ${minutes} < 30, '1|5–30 min', ${minutes} < 120, '2|30 min–2 h', ${minutes} < 480, '3|2–8 h', '4|8 h +'))],
-             []
-           )
-         )) AS pair,
-         pair.1 AS dim, pair.2 AS key
+       SELECT distinct_id, timestamp, 'event' AS dim, event AS key
        FROM telemetry.events
        WHERE ${APP} AND ${since(w.start)}
+       UNION ALL
+       SELECT distinct_id, timestamp, pair.1 AS dim, pair.2 AS key
+       FROM (
+         SELECT distinct_id, timestamp,
+           multiIf(
+             event = 'settings_section_opened', ('section', properties['section']),
+             event = 'suggestion_chosen', ('suggestion', properties['type']),
+             event = 'app_updated', ('update', concat(properties['from_version'], ' → ', ${prop("$app_version")})),
+             ('session', multiIf(${minutes} < 5, '0|< 5 min', ${minutes} < 30, '1|5–30 min', ${minutes} < 120, '2|30 min–2 h', ${minutes} < 480, '3|2–8 h', '4|8 h +'))
+           ) AS pair
+         FROM telemetry.events
+         WHERE event IN ('settings_section_opened', 'suggestion_chosen', 'app_updated', 'app_session_ended') AND ${APP_SOURCE} AND ${since(w.start)}
+       )
      )
      GROUP BY dim, key
-     ORDER BY dim, n DESC
+     ORDER BY dim, n DESC, key
      LIMIT 30 BY dim`,
     signal,
   );

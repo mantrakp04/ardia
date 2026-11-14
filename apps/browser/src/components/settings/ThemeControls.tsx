@@ -1,10 +1,11 @@
 import { useRef, type ReactNode } from "react";
-import { StyleSheet, View, type GestureResponderEvent } from "react-native";
+import { StyleSheet, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import { colorHex, flatColors, lookAngle, PAD_LIGHTNESS, padColor, stopLightness, themeGrainAlpha, themeLayerAlpha, themeUnderColor, withStopAt, withStopLightness, type ShownLook } from "../../lib/profileLook";
 import type { ProfileTheme } from "../../state/browser/types";
 import { Box, capsule, Dot, ink, ProgressTrack, radius, tabularNums, Text, ThemeSwatch, useTheme } from "../ui";
 import { MiniWindow } from "./MiniWindow";
 import { settingsInk, themePreview } from "./tokens";
+import { perLook } from "../ui/tokens";
 
 export const PAD = 172;
 const KNOB = 22;
@@ -64,19 +65,26 @@ export function DirectionDial({ angle, onChange }: { angle: number; onChange: (a
     </Box>
   );
 }
+export function ThemeBackdrop({ theme, dark, style, children }: { theme: ProfileTheme; dark: boolean; style?: StyleProp<ViewStyle>; children?: ReactNode }) {
+  return (
+    <View style={[style, { backgroundColor: themeUnderColor(theme, dark) }]}>
+      <ThemeSwatch colors={flatColors(theme)} angle={lookAngle(theme)} style={[StyleSheet.absoluteFill, { opacity: themeLayerAlpha(theme) }]} />
+      <ThemeSwatch colors={[]} grain={themeGrainAlpha(theme)} texture={theme.texture} style={StyleSheet.absoluteFill} />
+      {children}
+    </View>
+  );
+}
 export function Preview({ shown }: { shown: ShownLook }) {
   const { look: theme, dark } = shown;
   const preview = themePreview[dark ? "dark" : "light"];
   return (
-    <View style={[PREVIEW, { backgroundColor: themeUnderColor(theme, dark) }]}>
-      <ThemeSwatch colors={flatColors(theme)} angle={lookAngle(theme)} style={[StyleSheet.absoluteFill, { opacity: themeLayerAlpha(theme) }]} />
-      <ThemeSwatch colors={[]} grain={themeGrainAlpha(theme)} texture={theme.texture} style={StyleSheet.absoluteFill} />
+    <ThemeBackdrop theme={theme} dark={dark} style={PREVIEW()}>
       <MiniWindow size="s" layout="side" bars={PREVIEW_BARS} look={{ window: ink.clear, bar: preview.line, page: preview.card }} />
-    </View>
+    </ThemeBackdrop>
   );
 }
 
-const PREVIEW = { height: 58, borderRadius: radius.tile, overflow: "hidden" } as const;
+const PREVIEW = perLook(() => ({ height: 58, borderRadius: radius.tile, overflow: "hidden" }) as const);
 const PREVIEW_BARS = [1, 0.7, 0.85];
 const CENTER = { alignItems: "center" } as const;
 

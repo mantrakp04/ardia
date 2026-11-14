@@ -19,12 +19,14 @@ NSMutableDictionary<NSString *, NSMutableArray *> *ProfileWaiters();
 NSMutableSet<NSString *> *DeletedProfiles();
 NSMutableSet<NSString *> *ReleasedPrivateNames();
 NSMutableDictionary<NSString *, void (^)(ArdiaCoreProfile *)> *DeletionsAfterLoad();
+NSArray<NSString *> *LoadedDataProfileNames();
 NSString *InstalledDataDirectory();
 bool IsTeamSigned();
 extern ArdiaBootstrapDelegate *gBootstrap;
 extern bool gScratchDataDir;
 extern NSMutableDictionary<NSString *, NSDictionary *> *gInstallPrompts;
 void LinksArrived(NSArray<NSURL *> *urls);
+void ReplayLaunchURLs(NSArray<NSURL *> *urls);
 void StartLaunchTab();
 void StartEarlyWindow();
 

@@ -1,15 +1,21 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, View, type LayoutChangeEvent } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { font } from "../../ui/tokens";
+import { ThemeBackdrop } from "../../settings/ThemeControls";
+import { resolveTheme } from "../../../lib/profileLook";
+import type { ProfileTheme } from "../../../state/browser/types";
 import { DEFAULT_SETTINGS, type Settings } from "../../../state/settings/settings";
 import type { PreviewId } from "../../../state/onboarding/previewIds";
 import { tab } from "./content";
 import { DEMOS } from "./demos";
 import { Pill } from "./Floating";
-import { CARD, CHIP, CRUMB_X, FIELD, fill, geo, LIGHTS_Y, ROW, SIDE_CARD_X, SIDEBAR_ICONS, STRIP_H, TOOLBAR_H, TOOLBAR_ICONS, type Geo } from "./geometry";
+import { CHIP, CRUMB_X, FIELD, fill, geo, LIGHTS_Y, ROW, SIDEBAR_ICONS, SIDEBAR_W, STRIP_H, TOOLBAR_H, TOOLBAR_ICONS, type Geo } from "./geometry";
+import { CARD_INSET, pageFrameInset, pageFrameOf } from "../../../lib/windowLayout";
+import { windowCornerRadius } from "../../../state/windows/layout";
+import { font, radius as radii } from "../../ui/tokens";
 import { Backdrop, Card, Crumb, FieldPlate, Glyph, Label, Lights, NavIcons, Rows, TabRow, ToolbarBand, TopTabPlate, WindowFrame } from "./Kit";
 import { lookFor, type Look } from "./look";
+import { useBasePaletteValue } from "../../../state/config/hooks";
 import { Page } from "./MockPages";
 import type { SceneOpts } from "./scene";
 import { tracker, useDemo } from "./timeline";
@@ -18,7 +24,7 @@ import { mockInk, mockMotion, sceneMs } from "./tokens";
 
 const INSET = { x: 8, top: 5, bottom: 13 };
 
-type Shape = { top: boolean; addressInSidebar: boolean; appearance: Settings["appearance"]; siteColor: boolean };
+type Shape = { top: boolean; addressInSidebar: boolean; appearance: Settings["appearance"]; siteColor: boolean; frame: number };
 
 function shapeOf(settings: Partial<Settings>): Shape {
   const top = (settings.tabLayout ?? DEFAULT_SETTINGS.tabLayout) === "top";
@@ -27,6 +33,7 @@ function shapeOf(settings: Partial<Settings>): Shape {
     addressInSidebar: !top && (settings.addressBar ?? DEFAULT_SETTINGS.addressBar) === "sidebar",
     appearance: settings.appearance ?? DEFAULT_SETTINGS.appearance,
     siteColor: settings.extendWebsiteColor ?? DEFAULT_SETTINGS.extendWebsiteColor,
+    frame: pageFrameInset({ pageFrame: settings.pageFrame ?? DEFAULT_SETTINGS.pageFrame, borderlessMode: settings.borderlessMode }),
   };
 }
 
@@ -59,9 +66,9 @@ function useFadeBetween<T>(value: T) {
   return { layers, fade };
 }
 
-type MockWindowProps = { settings: Partial<Settings>; accent: string; focus: PreviewId | null; switcher?: boolean };
+type MockWindowProps = { settings: Partial<Settings>; accent: string; theme?: ProfileTheme | null; focus: PreviewId | null; switcher?: boolean };
 
-export function MockWindow({ settings, accent, focus, switcher = false }: MockWindowProps) {
+export function MockWindow({ settings, accent, theme = null, focus, switcher = false }: MockWindowProps) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -69,12 +76,12 @@ export function MockWindow({ settings, accent, focus, switcher = false }: MockWi
   };
   return (
     <View style={{ flex: 1, alignSelf: "stretch" }} onLayout={onLayout}>
-      {size ? <Window width={size.width} height={size.height} settings={settings} accent={accent} focus={focus} switcher={switcher} /> : null}
+      {size ? <Window width={size.width} height={size.height} settings={settings} accent={accent} theme={theme} focus={focus} switcher={switcher} /> : null}
     </View>
   );
 }
 
-function Window({ width, height, settings, accent, focus, switcher }: MockWindowProps & { width: number; height: number; switcher: boolean }) {
+function Window({ width, height, settings, accent, theme: custom, focus, switcher }: MockWindowProps & { width: number; height: number; switcher: boolean }) {
   const inner = { w: width - INSET.x * 2, h: height - INSET.top - INSET.bottom };
   const g = useMemo(() => geo(inner.w, inner.h), [inner.w, inner.h]);
   const shape = shapeOf(settings);
@@ -92,12 +99,13 @@ function Window({ width, height, settings, accent, focus, switcher }: MockWindow
     const timer = setTimeout(() => setDemo(null), 240);
     return () => clearTimeout(timer);
   }, [focus]);
-  const look = lookFor(dark, accent);
-  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar: shape.addressInSidebar, systemDark, accent }), [shape.addressInSidebar, systemDark, accent]);
-  const layer = (isDark: boolean) => <WindowState g={g} look={lookFor(isDark, accent)} accent={accent} lay={lay} addr={addr} site={site} icons={switcher ? icons : null} />;
+  const palette = useBasePaletteValue();
+  const look = lookFor(dark, accent, palette);
+  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar: shape.addressInSidebar, systemDark, accent, palette }), [shape.addressInSidebar, systemDark, accent, palette]);
+  const layer = (isDark: boolean) => <WindowState g={g} look={lookFor(isDark, accent, palette)} accent={accent} custom={custom ?? null} lay={lay} addr={addr} site={site} icons={switcher ? icons : null} frame={shape.frame} />;
   return (
     <View style={{ width, height }}>
-      <WindowFrame g={g} look={look} edge={dark ? mockInk.windowEdge.dark : mockInk.windowEdge.light} style={{ position: "absolute", left: INSET.x, top: INSET.top, width: inner.w, height: inner.h }}>
+      <WindowFrame g={g} look={look} edge={dark ? mockInk.windowEdge.dark : mockInk.windowEdge.light} cornerRadius={windowCornerRadius()} style={{ position: "absolute", left: INSET.x, top: INSET.top, width: inner.w, height: inner.h }}>
         <Animated.View style={[fill, { opacity: focusShown.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}>
           {theme.layers.below !== null ? <View style={fill}>{layer(theme.layers.below)}</View> : null}
           <Animated.View style={[fill, { opacity: theme.layers.below !== null ? theme.fade : 1 }]}>{layer(theme.layers.above)}</Animated.View>
@@ -134,30 +142,40 @@ function AutoBadge({ g, look }: { g: Geo; look: Look }) {
   );
 }
 
-function AccentBackdrop({ g, look, accent }: { g: Geo; look: Look; accent: string }) {
+function AccentBackdrop({ look, accent, custom }: { look: Look; accent: string; custom: ProfileTheme | null }) {
   const { layers, fade } = useFadeBetween(accent);
+  const palette = useBasePaletteValue();
+  const customShown = useTo(custom ? 1 : 0, true, mockMotion.fade);
   return (
     <View style={fill} pointerEvents="none">
-      {layers.below !== null ? <Backdrop g={g} look={lookFor(look.dark, layers.below)} /> : null}
+      {layers.below !== null ? <Backdrop look={lookFor(look.dark, layers.below, palette)} /> : null}
       <Animated.View style={[fill, { opacity: layers.below !== null ? fade : 1 }]}>
-        <Backdrop g={g} look={lookFor(look.dark, layers.above)} />
+        <Backdrop look={lookFor(look.dark, layers.above, palette)} />
       </Animated.View>
+      {custom ? (
+        <Animated.View style={[fill, { opacity: customShown }]}>
+          <ThemeBackdrop theme={resolveTheme(custom, look.dark)} dark={look.dark} style={fill} />
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
 
-type WindowStateProps = { g: Geo; look: Look; accent: string; lay: Animated.Value; addr: Animated.Value; site: Animated.Value; icons: Animated.Value | null };
+type WindowStateProps = { g: Geo; look: Look; accent: string; custom: ProfileTheme | null; lay: Animated.Value; addr: Animated.Value; site: Animated.Value; icons: Animated.Value | null; frame: number };
 
-const WindowState = memo(function WindowState({ g, look, accent, lay, addr, site, icons }: WindowStateProps) {
+const WindowState = memo(function WindowState({ g, look, accent, custom, lay, addr, site, icons, frame }: WindowStateProps) {
   const s = g.s;
+  const sideCardX = SIDEBAR_W + Math.max(0, frame - ROW.x);
+  const lightsY = LIGHTS_Y.toolbar - CARD_INSET + frame;
+  const cardRadius = pageFrameOf(frame, windowCornerRadius(), radii.panel).radius * s;
   const lerp = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a * s, b * s] });
   const fade = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a, b] });
-  const sideCardW = g.W - SIDE_CARD_X - CARD;
+  const sideCardW = g.W - sideCardX - frame;
   const step = CHIP.w + CHIP.gap;
   const chips = Math.max(1, Math.min(4, Math.floor((g.W - CHIP.x - 40) / step)));
   const rows = Math.max(1, Math.min(6, Math.floor((g.H - ROW.topWithField - ROW.pitch - 20) / ROW.pitch)));
-  const crumbLeft = Animated.add(lerp(lay, SIDE_CARD_X + CRUMB_X, CARD + 118), lerp(addr, 0, FIELD.x + 12 - (SIDE_CARD_X + CRUMB_X)));
-  const crumbTop = Animated.add(lerp(lay, CARD + 12, STRIP_H + 12), lerp(addr, 0, FIELD.y + 8 - (CARD + 12)));
+  const crumbLeft = Animated.add(lerp(lay, sideCardX + CRUMB_X, frame + 118), lerp(addr, 0, FIELD.x + 12 - (sideCardX + CRUMB_X)));
+  const crumbTop = Animated.add(lerp(lay, frame + 12, STRIP_H + 12), lerp(addr, 0, FIELD.y + 8 - (frame + 12)));
   const bandSite = (
     <Animated.View style={[fill, { opacity: site }]}>
       <View style={[fill, { backgroundColor: look.site.background ?? look.card }]} />
@@ -165,8 +183,8 @@ const WindowState = memo(function WindowState({ g, look, accent, lay, addr, site
   );
   return (
     <View style={fill}>
-      <AccentBackdrop g={g} look={look} accent={accent} />
-      <Animated.View style={{ position: "absolute", left: 0, top: 0, width: 80 * s, height: 50 * s, transform: [{ translateX: lerp(lay, 0, 20.75 - 25) }, { translateY: Animated.add(lerp(lay, 0, LIGHTS_Y.strip - LIGHTS_Y.toolbar), lerp(addr, 0, LIGHTS_Y.field - LIGHTS_Y.toolbar)) }] }}>
+      <AccentBackdrop look={look} accent={accent} custom={custom} />
+      <Animated.View style={{ position: "absolute", left: 0, top: 0, width: 80 * s, height: 50 * s, transform: [{ translateX: lerp(lay, 0, 20.75 - 25) }, { translateY: Animated.add(lerp(lay, lightsY - LIGHTS_Y.toolbar, LIGHTS_Y.strip - LIGHTS_Y.toolbar), lerp(addr, 0, LIGHTS_Y.field - lightsY)) }] }}>
         <Lights g={g} />
       </Animated.View>
       <Animated.View style={[fill, { opacity: fade(lay, 1, 0), transform: [{ translateX: lerp(lay, 0, -60) }] }]}>
@@ -204,10 +222,11 @@ const WindowState = memo(function WindowState({ g, look, accent, lay, addr, site
         g={g}
         look={look}
         style={{
-          left: lerp(lay, SIDE_CARD_X, CARD),
-          top: lerp(lay, CARD, STRIP_H),
-          width: lerp(lay, sideCardW, g.W - 2 * CARD),
-          height: lerp(lay, g.H - 2 * CARD, g.H - STRIP_H - CARD),
+          left: lerp(lay, sideCardX, frame),
+          top: lerp(lay, frame, STRIP_H),
+          width: lerp(lay, sideCardW, g.W - 2 * frame),
+          height: lerp(lay, g.H - 2 * frame, g.H - STRIP_H - frame),
+          borderRadius: cardRadius,
         }}
       >
         <Animated.View style={[fill, { transform: [{ translateY: lerp(addr, 0, -TOOLBAR_H) }] }]}>

@@ -37,7 +37,7 @@ export function links(little: boolean): Scene {
     const arrived = { opacity: t.in(560, 240), transform: [{ translateX: t([[560, -12 * g.s], [860, 0]]) }] };
     return (
       <>
-        <Desktop g={g} look={look} />
+        <Desktop look={look} />
         <MiniArdia
           g={g}
           look={look}

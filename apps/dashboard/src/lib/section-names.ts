@@ -8,6 +8,7 @@ export const SECTION_NAMES = [
   "funnels.installs",
   "funnels.retention",
   "health",
+  "health.cli",
   "performance",
   "settings",
   "settings.tint",

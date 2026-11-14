@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><title>Fixture Login</title></head>
+<body>
+<header><nav><a href="/probe.html">About</a> <a href="/index.html#x">Home</a></nav></header>
+<main>
+<h1>Log in</h1>
+<form id="f" onsubmit="event.preventDefault(); document.getElementById('out').textContent='submitted:'+document.getElementById('email').value">
+<label for="email">Email</label><input id="email" type="email" placeholder="Email">
+<label>Password <input id="pw" type="password" placeholder="Password"></label>
+<label><input id="agree" type="checkbox"> I agree</label>
+<select id="color" name="color"><option value="r">Red</option><option value="g">Green</option><option value="b">Blue</option></select>
+<textarea id="msg" placeholder="Message"></textarea>
+<button type="submit" data-testid="go">Continue</button>
+<button type="button" disabled>Disabled</button>
+</form>
+<p id="out"></p>
+<div style="height:2000px"></div>
+<p id="bottom">Bottom text</p>
+<img alt="Logo" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" title="Logo title">
+<div role="button" tabindex="0" onclick="this.textContent='clicked'">Custom</div>
+<div style="cursor:pointer" onclick="1">Pointer div</div>
+</main>
+<footer><a href="/privacy">Privacy Policy</a></footer>
+</body></html>

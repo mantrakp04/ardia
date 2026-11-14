@@ -1,0 +1,23 @@
+{
+  "id": "fixes-0245n4",
+  "dropEvents": ["asked", "gone", "reopen"],
+  "segments": [
+    {
+      "scene": "n4close",
+      "title": "Closing your last window keeps it",
+      "body": "Pinned tabs, five open tabs and a Weekend group; the red button, then Ardia in the Dock. nightly.3 asked \"Close 5 tabs?\" and the Dock gave a fresh window with only the pins; now it closes without asking and comes back as it was.",
+      "note": "Before's warning drawn from what nightly.3 logged",
+      "cam": [0, 0, 920, 600],
+      "lead": 1.4,
+      "tail": 6.5
+    },
+    {
+      "scene": "n4icons",
+      "title": "Profile icons get room in the switcher",
+      "body": "Five profiles with \"Show profile icons instead of dots\" on, a hover on School and a click on Music. nightly.3 packed each icon into an 18 pt cell, so the targets touched; now each gets 26 pt.",
+      "cam": [0, 750, 260, 110],
+      "lead": 3.3,
+      "tail": 1.6
+    }
+  ]
+}

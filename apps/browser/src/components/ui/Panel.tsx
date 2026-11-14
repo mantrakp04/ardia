@@ -1,7 +1,7 @@
 import { Surface, VisualEffect, type SurfaceProps } from "@ardia/shell";
 import { StyleSheet } from "react-native";
 import { GlassFill, useGlass } from "./Glass";
-import { hex, useTheme } from "./theme";
+import { hex, shadowOpacityOf, useTheme } from "./theme";
 import { hairline, type ShadowLevel } from "./tokens";
 
 export type PanelShadow = ShadowLevel | (Omit<ShadowLevel, "opacity"> & { opacity: number });
@@ -15,8 +15,6 @@ export type PanelProps = Omit<SurfaceProps, "fill" | "cornerRadius" | "borderCol
   material?: string;
   glass?: boolean;
 };
-
-const shadowOpacityOf = (shadow: PanelShadow, dark: boolean) => (typeof shadow.opacity === "number" ? shadow.opacity : dark ? shadow.opacity.dark : shadow.opacity.light);
 
 export function Panel({ fill, radius, border, borderWidth = hairline.panel, borderColors, shadow, material, glass, children, ...rest }: PanelProps) {
   const theme = useTheme();
@@ -39,7 +37,7 @@ export function Panel({ fill, radius, border, borderWidth = hairline.panel, bord
       borderColor={borderColor === null ? undefined : hex(borderColor)}
       borderWidth={borderColor === null ? undefined : borderWidth}
       shadowColor={shadow?.color}
-      shadowOpacity={shadow && shadowOpacityOf(shadow, theme.dark)}
+      shadowOpacity={shadow && shadowOpacityOf(shadow, theme)}
       shadowRadius={shadow?.radius}
       shadowOffset={shadow?.offset}
     >

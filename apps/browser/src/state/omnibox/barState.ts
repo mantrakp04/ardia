@@ -40,6 +40,10 @@ export function focusHeroBar(windowId: string, tabId: string | undefined): boole
   return true;
 }
 
+export function openEmptySidebarField(windowId: string) {
+  useBrowser.getState().openPanel(windowId, "", undefined, "field");
+}
+
 export type BarDismissal = "escape" | "closeKey";
 
 export function closePanelToHeroBar(windowId: string, tabId: string, reason?: BarDismissal) {

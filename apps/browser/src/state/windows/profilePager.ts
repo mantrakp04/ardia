@@ -32,11 +32,15 @@ class ProfilePager {
 
   readonly windowId: string;
 
-  constructor(windowId: string) {
+  constructor(windowId: string, watchesWindow = true) {
     this.windowId = windowId;
     this.pos = new Animated.Value(Math.max(0, this.index()), { useNativeDriver: true });
     this.state.setState({ pages: this.warmPages() });
-    this.unsubscribe = useBrowser.subscribe((s, prev) => {
+    this.unsubscribe = watchesWindow ? this.watchWindow(windowId) : () => {};
+  }
+
+  private watchWindow(windowId: string) {
+    return useBrowser.subscribe((s, prev) => {
       const w = s.windows[windowId];
       if (!w) return this.dispose();
       const was = prev.windows[windowId];
@@ -163,7 +167,9 @@ const pagers = new Map<string, ProfilePager>();
 
 export function pagerFor(windowId: string): ProfilePager {
   let pager = pagers.get(windowId);
-  if (!pager) pagers.set(windowId, (pager = new ProfilePager(windowId)));
+  if (pager) return pager;
+  if (!useBrowser.getState().windows[windowId]) return new ProfilePager(windowId, false);
+  pagers.set(windowId, (pager = new ProfilePager(windowId)));
   return pager;
 }
 

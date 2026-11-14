@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
 const stub = await import("../../test-native/index.ts");
@@ -9,6 +9,7 @@ const { captureException, reportNativeCrashes } = await import("./errors.ts");
 
 globalThis.fetch = async () => ({ status: 200 });
 setSharing(true, "settings");
+after(() => setSharing(false, "settings"));
 
 const queued = () => JSON.parse(stub.docs.get("telemetry-queue.json") ?? "{}").events?.filter((e) => e.event === "$exception") ?? [];
 
@@ -23,10 +24,11 @@ test("a JS error is on disk the moment it's captured, so a crash right after can
   assert.equal(props.$exception_list[0].value, "Attempting to run JS driven animation on a native node");
 });
 
-test("a native crash names its exception, reason and the app's images at the top level", async () => {
+test("a native crash names its exception and the app's images at the top level, never its reason", async () => {
   stub.shellNativeModules.ArdiaApp.crashReports = async () => [
     {
       time: Date.now(),
+      process: "browser",
       appVersion: "0.3.0",
       exceptionType: "EXC_CRASH",
       signal: "SIGABRT",
@@ -42,9 +44,27 @@ test("a native crash names its exception, reason and the app's images at the top
   assert.equal(props.source, "native_crash");
   assert.equal(props.objc_exception, "RCTFatalException");
   assert.deepEqual(props.$exception_types, ["RCTFatalException", "EXC_CRASH"]);
-  assert.deepEqual(props.$exception_values, ["Unhandled JS Exception: moved to <text>", "EXC_CRASH (SIGABRT)"]);
+  assert.deepEqual(props.$exception_values, ["Uncaught RCTFatalException", "EXC_CRASH (SIGABRT)"]);
+  assert.equal(JSON.stringify(queued().at(-1)).includes("GroupBlock"), false);
   assert.deepEqual(props.crash_images, [{ name: "Ardia", uuid: "1c77ef99-77d4-3de8-9ba2-6929e276bc60" }]);
   assert.equal(props.$exception_list[0].stacktrace.frames[0].function, "Ardia + 0x38eab8");
   assert.equal(props.$exception_list[1].stacktrace.frames[0].function, "Chromium Framework + 0x41a36e8");
   assert.equal(props.$geoip_disable, true);
+});
+
+test("a native crash carries the built-in page its session was on as ctx_webui_page, null for a web page or an older sample", async () => {
+  const later = Date.now() + 60 * 60_000;
+  let n = 0;
+  for (const [webui_page, expected] of [["settings/cookies", "settings/cookies"], [null, null], [undefined, null]]) {
+    const time = later + 10_000 * ++n;
+    const saved = { at: time - 500, session_start: time - 5000, tabs: 4, ...(webui_page === undefined ? {} : { webui_page }) };
+    stub.shellNativeModules.ArdiaApp.crashReports = async () => [
+      { time, fileTime: time, process: "browser", exceptionType: "EXC_BREAKPOINT", signal: "SIGTRAP", frames: [{ image: "Chromium Framework", offset: 0x41a36e8 }] },
+    ];
+    await reportNativeCrashes([saved]);
+    const props = queued().at(-1).properties;
+    assert.equal(props.crash_process, "browser");
+    assert.equal(props.ctx_tabs, 4);
+    assert.equal(props.ctx_webui_page, expected, String(webui_page));
+  }
 });

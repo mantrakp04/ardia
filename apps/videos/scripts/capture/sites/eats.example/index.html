@@ -1,0 +1,127 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Night Market Eats</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--chili:#d7263d;--chili2:#fde4e6;--gold:#f4b400;--gold2:#fff3cf;--ink:#22160f;--soft:#5c4d44;--mute:#9a8b80;--line:#efe3d3;--bg:#fffaf2;--leaf:#2f8f4e;--leaf2:#e2f4e7}
+body{font-family:"Avenir Next",-apple-system,"Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14px}
+.disp{font-family:"Avenir Next Condensed","Avenir Next",sans-serif;font-weight:800;letter-spacing:-.01em}
+header{background:#fff;border-bottom:1px solid var(--line)}
+header .in{max-width:1220px;margin:0 auto;padding:0 26px;height:58px;display:flex;align-items:center;gap:12px}
+.logo{display:flex;align-items:center;gap:9px}
+.logo i{width:34px;height:34px;border-radius:10px;background:var(--chili);display:grid;place-items:center}
+.logo b{font:800 22px/1 "Avenir Next Condensed","Avenir Next",sans-serif;letter-spacing:-.01em}
+.logo b span{color:var(--chili)}
+nav{display:flex;gap:22px;margin-left:30px;font-size:14px;font-weight:600;color:var(--soft);white-space:nowrap}
+nav .on{color:var(--chili)}
+.city{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;border:1px solid var(--line);border-radius:18px;padding:7px 13px;white-space:nowrap}
+.city i{width:8px;height:8px;border-radius:50%;background:var(--chili)}
+.sv{height:34px;padding:0 14px;border-radius:17px;background:var(--ink);color:#fff;font-weight:600;font-size:13px;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.wrap{max-width:1220px;margin:0 auto;padding:16px 26px 40px}
+.hero{position:relative;height:232px;border-radius:18px;overflow:hidden}
+.hero img{width:100%;height:100%;object-fit:cover;object-position:center 60%;display:block}
+.hero:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(25,10,5,.82) 0%,rgba(25,10,5,.5) 45%,rgba(25,10,5,0) 75%)}
+.hero .t{position:absolute;left:30px;top:26px;z-index:2;color:#fff;max-width:560px}
+.kick{display:inline-flex;align-items:center;gap:7px;background:var(--gold);color:var(--ink);font-weight:700;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:6px}
+.hero h1{font:800 50px/1 "Avenir Next Condensed","Avenir Next",sans-serif;letter-spacing:-.015em;margin:12px 0 8px}
+.hero p{font-size:15px;line-height:1.45;opacity:.92}
+.hero .facts{display:flex;gap:22px;margin-top:14px;font-size:12.5px;white-space:nowrap}
+.hero .facts b{display:block;font-size:19px;font-weight:700}
+.hero .facts span{opacity:.78}
+.live{position:absolute;right:18px;top:18px;z-index:2;background:#fff;border-radius:12px;padding:9px 13px;display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.live i{width:10px;height:10px;border-radius:50%;background:var(--leaf);box-shadow:0 0 0 4px rgba(47,143,78,.2)}
+.live small{display:block;font-size:11.5px;color:var(--mute);font-weight:500}
+.bar{display:flex;align-items:center;gap:8px;margin:16px 0 14px}
+.chip{height:32px;padding:0 13px;border-radius:16px;border:1px solid var(--line);background:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;color:var(--soft);white-space:nowrap}
+.chip.on{background:var(--chili);border-color:var(--chili);color:#fff}
+.chip em{font-style:normal;font-size:14px}
+.bar .r{margin-left:auto;font-size:13px;color:var(--mute);white-space:nowrap}
+.bar .r b{color:var(--ink)}
+.cols{display:grid;grid-template-columns:1fr 292px;gap:20px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-content:start}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ph{position:relative;height:150px}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.no{position:absolute;left:10px;top:10px;background:rgba(255,255,255,.95);border-radius:7px;padding:3px 8px;font-size:11.5px;font-weight:700}
+.must{position:absolute;right:10px;top:10px;background:var(--gold);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.heart{position:absolute;right:10px;bottom:10px;width:30px;height:30px;border-radius:50%;background:#fff;display:grid;place-items:center;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.cb{padding:10px 12px 12px}
+.cb h3{font:800 18px/1.1 "Avenir Next Condensed","Avenir Next",sans-serif;letter-spacing:-.005em}
+.cb p{font-size:13px;color:var(--soft);margin-top:3px;line-height:1.35}
+.meta{display:flex;align-items:center;gap:6px;margin-top:9px;flex-wrap:wrap}
+.tag{font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:5px;background:#f6efe5;color:var(--soft)}
+.tag.hot{background:var(--chili2);color:var(--chili);display:inline-flex;align-items:center;gap:5px}
+.tag.hot:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--chili)}
+.tag.veg{background:var(--leaf2);color:var(--leaf)}
+.q{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--mute);font-weight:600;white-space:nowrap}
+.q b{display:flex;gap:2px}
+.q b i{width:4px;height:10px;border-radius:2px;background:#eadccb}
+.q b i.f{background:var(--chili)}
+.side .box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:14px}
+.side h4{font:800 17px/1 "Avenir Next Condensed","Avenir Next",sans-serif;display:flex;align-items:center;margin-bottom:10px}
+.side h4 span{margin-left:auto;font:600 12px "Avenir Next",sans-serif;color:var(--chili)}
+.plan{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;padding:10px;background:#f8f1e6;border-radius:10px;position:relative}
+.plan i{aspect-ratio:1;border-radius:4px;background:#fff;border:1px solid #eadfcf;display:grid;place-items:center;font-style:normal;font-size:8.5px;font-weight:700;color:var(--mute)}
+.plan i.s{background:var(--chili);border-color:var(--chili);color:#fff}
+.plan i.g{background:var(--gold);border-color:var(--gold);color:var(--ink)}
+.plan i.w{background:transparent;border:0}
+.plan .aisle{grid-column:span 8;height:12px;border-radius:4px;background:repeating-linear-gradient(90deg,#e9dcc8 0 8px,transparent 8px 14px);opacity:.8}
+.pl{display:flex;justify-content:space-between;font-size:11px;color:var(--mute);margin-top:7px}
+.pk{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #f4ebdf;font-size:13px}
+.pk:first-of-type{border:0;padding-top:0}
+.pk img{width:40px;height:40px;border-radius:9px;object-fit:cover}
+.pk b{display:block;font-size:13.5px}
+.pk span{font-size:12px;color:var(--mute)}
+.av{margin-left:auto;display:flex}
+.av i{width:22px;height:22px;border-radius:50%;border:2px solid #fff;margin-left:-6px;display:grid;place-items:center;font-style:normal;font-size:9px;font-weight:700;color:#fff}
+.tip{position:relative;border-radius:14px;overflow:hidden;height:110px}
+.tip img{width:100%;height:100%;object-fit:cover;display:block}
+.tip:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.75),rgba(0,0,0,.05))}
+.tip p{position:absolute;left:12px;right:12px;bottom:10px;z-index:2;color:#fff;font-size:12.5px;line-height:1.35}
+.tip p b{display:block;font:800 15px "Avenir Next Condensed","Avenir Next",sans-serif}
+@media (max-width:1100px){.cols{grid-template-columns:1fr 260px}nav span:nth-child(n+4){display:none}.bar .chip:nth-child(n+6){display:none}.hero h1{font-size:44px}}
+</style></head><body>
+<header><div class="in">
+<div class="logo"><i><svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 11h18a9 9 0 0 1-18 0z" fill="#fff"/><path d="M8 2.5l3.2 7M15.5 2.5l-2.6 7" stroke="#f4b400" stroke-width="2.2" stroke-linecap="round"/></svg></i><b>Lantern<span>.</span></b></div>
+<nav><span class="on">Night Market</span><span>Stalls A–Z</span><span>Dishes</span><span>Late eats</span><span>Our picks</span></nav>
+<div class="city"><i></i>Port Sela · Quayside</div>
+<div class="sv"><svg width="13" height="13" viewBox="0 0 16 16" fill="#fff"><path d="M8 14.5S1.5 10.5 1.5 6a3.3 3.3 0 0 1 6.5-1 3.3 3.3 0 0 1 6.5 1c0 4.5-6.5 8.5-6.5 8.5z"/></svg>Saved · 7</div>
+</div></header>
+<div class="wrap">
+<div class="hero"><img src="img/0.jpg" alt="">
+<div class="t"><span class="kick">★ Guide · Updated this week</span><h1>Night Market Eats</h1><p>Forty-eight stalls on the old fish quay, charcoal smoke on every corner. Here's what to eat, in what order, and which queues are worth it.</p>
+<div class="facts"><div><b>48</b><span>stalls</span></div><div><b>18:00–01:00</b><span>Thu to Sun</span></div><div><b>132</b><span>dishes tried</span></div><div><b>4 min</b><span>from the ferry</span></div></div></div>
+<div class="live"><i></i><div>Open now<small>Busiest 20:00–21:30</small></div></div>
+</div>
+<div class="bar"><span class="chip on">All</span><span class="chip">Noodles</span><span class="chip">Dumplings</span><span class="chip">Grill</span><span class="chip">Seafood</span><span class="chip">Vegetarian</span><span class="chip">Sweet</span><span class="chip">Short queue</span><span class="r">Sorted by <b>Most loved ▾</b></span></div>
+<div class="cols">
+<main class="grid">
+<div class="card"><div class="ph"><img src="img/2.jpg" alt=""><span class="no">Stall 12</span><span class="must">Must try</span><span class="heart"><svg width="14" height="14" viewBox="0 0 16 16" fill="#d7263d"><path d="M8 14.5S1.5 10.5 1.5 6a3.3 3.3 0 0 1 6.5-1 3.3 3.3 0 0 1 6.5 1c0 4.5-6.5 8.5-6.5 8.5z"/></svg></span></div><div class="cb"><h3>Auntie Bo's Wok</h3><p>Wok-tossed rice noodles, bean sprouts, chives and dried chilli.</p><div class="meta"><span class="tag hot">Spicy</span><span class="tag">Wok</span><span class="q">Queue <b><i class="f"></i><i class="f"></i><i class="f"></i><i></i></b></span></div></div></div>
+<div class="card"><div class="ph"><img src="img/3.jpg" alt=""><span class="no">Stall 3</span><span class="heart"><svg width="14" height="14" viewBox="0 0 16 16" fill="#d7263d"><path d="M8 14.5S1.5 10.5 1.5 6a3.3 3.3 0 0 1 6.5-1 3.3 3.3 0 0 1 6.5 1c0 4.5-6.5 8.5-6.5 8.5z"/></svg></span></div><div class="cb"><h3>Fog Lantern Dumplings</h3><p>Pork and chive, pleated to order. Ask for the black vinegar.</p><div class="meta"><span class="tag">Dumplings</span><span class="tag">Steamed</span><span class="q">Queue <b><i class="f"></i><i class="f"></i><i></i><i></i></b></span></div></div></div>
+<div class="card"><div class="ph"><img src="img/7.jpg" alt=""><span class="no">Stall 27</span><span class="must">Must try</span><span class="heart"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5c4d44" stroke-width="1.6"><path d="M8 14S2 10.3 2 6.2a3 3 0 0 1 6-1 3 3 0 0 1 6 1C14 10.3 8 14 8 14z"/></svg></span></div><div class="cb"><h3>Pier Seven Grill</h3><p>Morning-catch octopus over coals, lemon and sea salt.</p><div class="meta"><span class="tag">Seafood</span><span class="tag">Grill</span><span class="q">Queue <b><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i></b></span></div></div></div>
+<div class="card"><div class="ph"><img src="img/5.jpg" alt=""><span class="no">Stall 9</span><span class="heart"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5c4d44" stroke-width="1.6"><path d="M8 14S2 10.3 2 6.2a3 3 0 0 1 6-1 3 3 0 0 1 6 1C14 10.3 8 14 8 14z"/></svg></span></div><div class="cb"><h3>Lime &amp; Leaf</h3><p>Rice noodles, braised squash, a fistful of herbs.</p><div class="meta"><span class="tag veg">Vegetarian</span><span class="tag">Noodles</span><span class="q">Queue <b><i class="f"></i><i></i><i></i><i></i></b></span></div></div></div>
+<div class="card"><div class="ph"><img src="img/4.jpg" alt=""><span class="no">Stall 18</span><span class="heart"><svg width="14" height="14" viewBox="0 0 16 16" fill="#d7263d"><path d="M8 14.5S1.5 10.5 1.5 6a3.3 3.3 0 0 1 6.5-1 3.3 3.3 0 0 1 6.5 1c0 4.5-6.5 8.5-6.5 8.5z"/></svg></span></div><div class="cb"><h3>Harbour Steam Basket</h3><p>Dim sum by the basket, shared tables, tea refills.</p><div class="meta"><span class="tag">Dim sum</span><span class="tag">Groups</span><span class="q">Queue <b><i class="f"></i><i class="f"></i><i></i><i></i></b></span></div></div></div>
+<div class="card"><div class="ph"><img src="img/6.jpg" alt=""><span class="no">Stall 31</span><span class="heart"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5c4d44" stroke-width="1.6"><path d="M8 14S2 10.3 2 6.2a3 3 0 0 1 6-1 3 3 0 0 1 6 1C14 10.3 8 14 8 14z"/></svg></span></div><div class="cb"><h3>Ember Satay</h3><p>Vegetable skewers in peanut glaze, lime and pickled chilli.</p><div class="meta"><span class="tag veg">Vegetarian</span><span class="tag">Grill</span><span class="q">Queue <b><i class="f"></i><i class="f"></i><i></i><i></i></b></span></div></div></div>
+<div class="card"><div class="ph"><img src="img/10.jpg" alt=""><span class="no">Stall 36</span><span class="heart"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5c4d44" stroke-width="1.6"><path d="M8 14S2 10.3 2 6.2a3 3 0 0 1 6-1 3 3 0 0 1 6 1C14 10.3 8 14 8 14z"/></svg></span></div><div class="cb"><h3>Night Owl Ramen</h3><p>Pork bone broth simmered since noon. Open till last ferry.</p><div class="meta"><span class="tag">Soup</span><span class="tag">Late</span><span class="q">Queue <b><i class="f"></i><i class="f"></i><i></i><i></i></b></span></div></div></div>
+<div class="card"><div class="ph"><img src="img/1.jpg" alt=""><span class="no">Stall 22</span><span class="heart"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5c4d44" stroke-width="1.6"><path d="M8 14S2 10.3 2 6.2a3 3 0 0 1 6-1 3 3 0 0 1 6 1C14 10.3 8 14 8 14z"/></svg></span></div><div class="cb"><h3>Long Table Noodles</h3><p>Thick rice noodles in herb broth, prawns on request.</p><div class="meta"><span class="tag">Noodles</span><span class="tag veg">Vegan option</span><span class="q">Queue <b><i class="f"></i><i></i><i></i><i></i></b></span></div></div></div>
+<div class="card"><div class="ph"><img src="img/8.jpg" alt=""><span class="no">Stall 14</span><span class="heart"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5c4d44" stroke-width="1.6"><path d="M8 14S2 10.3 2 6.2a3 3 0 0 1 6-1 3 3 0 0 1 6 1C14 10.3 8 14 8 14z"/></svg></span></div><div class="cb"><h3>Charcoal Sate</h3><p>Chicken skewers over open coals, sweet soy glaze.</p><div class="meta"><span class="tag hot">Spicy</span><span class="tag">Grill</span><span class="q">Queue <b><i class="f"></i><i class="f"></i><i></i><i></i></b></span></div></div></div>
+</main>
+<aside class="side">
+<div class="box"><h4>Stall map<span>Open full map ↗</span></h4>
+<div class="plan" id="plan"></div>
+<div class="pl"><span>◀ Ferry terminal</span><span>Old Harbour ▶</span></div></div>
+<div class="box"><h4>Saved by your group<span>4 friends</span></h4>
+<div class="pk"><img src="img/3.jpg" alt=""><div><b>Fog Lantern Dumplings</b><span>Stall 3 · first stop</span></div><div class="av"><i style="background:#d7263d">MK</i><i style="background:#2f8f4e">JR</i><i style="background:#3b5bdb">AL</i></div></div>
+<div class="pk"><img src="img/7.jpg" alt=""><div><b>Pier Seven Grill</b><span>Stall 27 · go early</span></div><div class="av"><i style="background:#f4b400">TS</i><i style="background:#d7263d">MK</i></div></div>
+<div class="pk"><img src="img/9.jpg" alt=""><div><b>Sela Fruit Cart</b><span>Stall 40 · dessert</span></div><div class="av"><i style="background:#2f8f4e">JR</i></div></div>
+</div>
+<div class="tip"><img src="img/11.jpg" alt=""><p><b>Local tip</b>Grab a table on the pier side before 19:30, then send one person per queue.</p></div>
+</aside>
+</div>
+</div>
+<script>
+const s={3:"s",9:"s",12:"s",18:"g",27:"s",31:"g",40:"g"};let h="";
+for(let n=1;n<=40;n++){if(n===17||n===33)h+=`<div class="aisle"></div>`;h+=`<i class="${s[n]||""}">${n}</i>`}
+document.getElementById("plan").innerHTML=h;
+</script>
+</body></html>

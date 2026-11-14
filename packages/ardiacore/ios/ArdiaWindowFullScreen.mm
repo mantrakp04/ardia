@@ -1,6 +1,8 @@
 #import "ArdiaChromeWindowInternal.h"
 #import "ArdiaLaunchConfig.h"
 #import "ArdiaWebView.h"
+#import "ArdiaWebViewInternal.h"
+#import "ArdiaWindowSightMath.h"
 
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
@@ -27,6 +29,8 @@ const void *kActingKey = &kActingKey;
 
 const void *kActedOcclusionKey = &kActedOcclusionKey;
 
+const void *kActedWindowServerKey = &kActedWindowServerKey;
+
 }
 
 namespace ardia_window {
@@ -44,6 +48,10 @@ void ActOcclusion(NSWindow *window, NSNumber *visible) {
   objc_setAssociatedObject(window, kActedOcclusionKey, visible, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   if ([ArdiaLaunchConfig.shared traced:@"visibility"]) NSLog(@"[ardiacore-vis] window %ld acted occlusion %@", (long)window.windowNumber, visible ?: @"off");
   [NSNotificationCenter.defaultCenter postNotificationName:NSWindowDidChangeOcclusionStateNotification object:window];
+}
+
+void ActWindowServer(NSWindow *window, BOOL shows) {
+  objc_setAssociatedObject(window, kActedWindowServerKey, shows ? @YES : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 NSTimeInterval gActedOcclusionGap = NAN;
@@ -121,6 +129,43 @@ void ToggleWindowFullScreen(ArdiaCoreWindow *coreWindow) {
 }
 
 NSNotificationName const ArdiaWindowSeenDidChange = @"ArdiaWindowSeenDidChange";
+NSString *const ArdiaWindowSeenLeftAppKey = @"leftApp";
+
+namespace {
+
+const NSTimeInterval kWindowServerRecheck = 1;
+
+ardia_window_sight::Rect SightRect(CGRect r) { return {r.origin.x, r.origin.y, r.size.width, r.size.height}; }
+
+BOOL WindowServerShows(NSWindow *window) {
+  if (!window.visible || window.miniaturized) return NO;
+  if (objc_getAssociatedObject(window, kActedOcclusionKey)) return objc_getAssociatedObject(window, kActedWindowServerKey) != nil;
+  const CGWindowID number = (CGWindowID)window.windowNumber;
+  NSArray<NSDictionary *> *above = CFBridgingRelease(CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenAboveWindow | kCGWindowListOptionIncludingWindow, number));
+  CGRect mine = CGRectNull;
+  std::vector<ardia_window_sight::Rect> covers;
+  for (NSDictionary *info in above) {
+    CGRect bounds;
+    if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &bounds)) continue;
+    if ([info[(id)kCGWindowNumber] unsignedIntValue] == number) {
+      if (![info[(id)kCGWindowIsOnscreen] boolValue]) return NO;
+      mine = bounds;
+      continue;
+    }
+    if (!ardia_window_sight::CountsAsCover([info[(id)kCGWindowLayer] intValue], [info[(id)kCGWindowAlpha] doubleValue])) continue;
+    covers.push_back(SightRect(bounds));
+  }
+  if (CGRectIsNull(mine)) return NO;
+  uint32_t count = 0;
+  CGDirectDisplayID ids[32];
+  if (CGGetActiveDisplayList(32, ids, &count) != kCGErrorSuccess) return NO;
+  std::vector<ardia_window_sight::Rect> displays;
+  for (uint32_t i = 0; i < count; i++)
+    if (!CGDisplayIsAsleep(ids[i])) displays.push_back(SightRect(CGDisplayBounds(ids[i])));
+  return ardia_window_sight::PartlyVisible(SightRect(mine), covers, displays);
+}
+
+}
 
 namespace ardia_window {
 
@@ -151,6 +196,10 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
   __weak ArdiaCoreTab *_lastTab;
   NSUInteger _coverTurn;
   BOOL _picturing;
+  BOOL _overruled;
+  BOOL _overruleChanged;
+  BOOL _watchingWindowServer;
+  BOOL _leftApp;
 }
 
 + (instancetype)ofWindow:(ArdiaCoreWindow *)coreWindow create:(BOOL)create {
@@ -181,9 +230,22 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
                                              [weakSelf windowDid:note.name];
                                            }]];
     }
+    [observers addObject:[center addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:nil usingBlock:^(NSNotification *) {
+                 [weakSelf appActivated:NO];
+               }]];
+    [observers addObject:[center addObserverForName:NSApplicationDidBecomeActiveNotification object:nil queue:nil usingBlock:^(NSNotification *) {
+                 [weakSelf appActivated:YES];
+               }]];
     _observers = observers;
   }
   return self;
+}
+
+- (void)appActivated:(BOOL)active {
+  if (_closed) return;
+  _leftApp = !active;
+  [self updateSeen];
+  _leftApp = NO;
 }
 
 - (void)dealloc {
@@ -198,7 +260,48 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
   NSWindow *window = _coreWindow.window;
   if (!window) return NO;
   if ([self occlusionActed] && !objc_getAssociatedObject(window, kActedOcclusionKey)) return YES;
-  return (window.occlusionState & NSWindowOcclusionStateVisible) != 0;
+  const BOOL appKitShows = (window.occlusionState & NSWindowOcclusionStateVisible) != 0;
+  const BOOL inactive = !NSApp.isActive;
+  const BOOL windowServerShows = (inactive || !appKitShows) && WindowServerShows(window);
+  const BOOL overruled = !appKitShows && windowServerShows;
+  if (overruled != _overruled) {
+    _overruled = overruled;
+    _overruleChanged = YES;
+    if ([ArdiaLaunchConfig.shared traced:@"visibility"])
+      NSLog(@"[ardiacore-vis] window %ld AppKit occlusion %@ by the window server", (long)window.windowNumber, overruled ? @"overruled" : @"trusted");
+  }
+  if ([self wantsWindowServer]) [self watchWindowServer];
+  return inactive ? windowServerShows : appKitShows || overruled;
+}
+
+- (BOOL)wantsWindowServer {
+  NSWindow *window = _coreWindow.window;
+  if (!window || _closed) return NO;
+  if ([self occlusionActed] && !objc_getAssociatedObject(window, kActedOcclusionKey)) return NO;
+  if (NSApp.isActive && (window.occlusionState & NSWindowOcclusionStateVisible) != 0) return NO;
+  return [ArdiaWebView playsForAutoPictureInPictureInWindow:window];
+}
+
+- (void)reconsiderSight {
+  if (!_closed) [self updateSeen];
+}
+
+- (void)watchWindowServer {
+  if (_watchingWindowServer || _closed) return;
+  _watchingWindowServer = YES;
+  __weak ArdiaWindowFullScreen *weakSelf = self;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kWindowServerRecheck * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    ArdiaWindowFullScreen *state = weakSelf;
+    if (!state) return;
+    state->_watchingWindowServer = NO;
+    if (![state wantsWindowServer]) return;
+    [state updateSeen];
+    [state watchWindowServer];
+  });
+}
+
+- (BOOL)seenOnlyByWindowServer {
+  return _seen && _overruled;
 }
 
 - (void)windowDid:(NSNotificationName)name {
@@ -230,12 +333,16 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
 
 - (void)updateSeen {
   if (![self occlusionActed] && [CFBridgingRelease(CGSessionCopyCurrentDictionary())[@"CGSSessionScreenIsLocked"] boolValue]) return;
-  const BOOL seen = _settling || [self windowVisible] || IsWindowFullScreen(_coreWindow.window);
+  if (_settling && !_transitioning && [self windowVisible]) _settling = NO;
+  const BOOL seen = _settling || [self windowVisible] || (NSApp.isActive && IsWindowFullScreen(_coreWindow.window));
   if ([ArdiaLaunchConfig.shared traced:@"visibility"])
     NSLog(@"[ardiacore-vis] window %ld seen=%d (transitioning=%d settling=%d)", (long)_coreWindow.window.windowNumber, seen, _transitioning, _settling);
-  if (seen == _seen) return;
+  const BOOL overruleChanged = _overruleChanged;
+  _overruleChanged = NO;
+  if (seen == _seen && !overruleChanged && !_leftApp) return;
   _seen = seen;
-  if (NSWindow *window = _coreWindow.window) [NSNotificationCenter.defaultCenter postNotificationName:ArdiaWindowSeenDidChange object:window];
+  if (NSWindow *window = _coreWindow.window)
+    [NSNotificationCenter.defaultCenter postNotificationName:ArdiaWindowSeenDidChange object:window userInfo:_leftApp ? @{ArdiaWindowSeenLeftAppKey : @YES} : nil];
 }
 
 - (BOOL)seen {
@@ -262,7 +369,6 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
     if (_tab) _leftTab = _tab;
     _tab = nil;
   }
-  ApplyFullScreenReveal(_coreWindow.window);
   _telling++;
   __weak ArdiaWindowFullScreen *weakSelf = self;
   __weak ArdiaCoreTab *weakTab = tab;

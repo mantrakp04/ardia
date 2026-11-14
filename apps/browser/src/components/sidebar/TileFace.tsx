@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { DockSelection, radius, Surface } from "../ui";
 import { hex, layout, useTheme } from "../ui/theme";
@@ -12,11 +12,10 @@ import { sidebarTokens, TILE_GLOW, TILE_RIM, useSidebarTokens } from "./tokens";
 
 const SELECTION_STROKE = 3;
 const GLASS_RING = 2;
-export const TILE_RADIUS = radius.chrome;
 
 type FaceState = { width: number; active: boolean; selected: boolean; hovered: boolean; pressed: boolean };
 
-export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string; badge?: ReactNode }) {
+export const TileFace = memo(function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string; badge?: ReactNode }) {
   const theme = useTheme();
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
@@ -44,7 +43,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
         theme={tileTheme.theme.kind}
         fill={tileTheme.theme.kind === "template" ? tileTheme.theme.fill : undefined}
         stroke={tileTheme.theme.kind === "template" ? tileTheme.theme.stroke : undefined}
-        cornerRadius={TILE_RADIUS}
+        cornerRadius={radius.pinned}
         strokeWidth={SELECTION_STROKE}
         dark={theme.dark}
         style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}
@@ -64,7 +63,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
     return (
       <Surface
         fill={hex(theme.pinnedSelectedRim)}
-        cornerRadius={TILE_RADIUS}
+        cornerRadius={radius.pinned}
         shadowColor={sidebarTokens(theme).tileGlow}
         shadowOpacity={theme.dark ? TILE_GLOW.opacity.dark : TILE_GLOW.opacity.light}
         shadowRadius={TILE_GLOW.radius}
@@ -74,7 +73,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
         <View
           style={{
             flex: 1,
-            borderRadius: TILE_RADIUS - TILE_RIM,
+            borderRadius: radius.pinned - TILE_RIM,
             backgroundColor: theme.pinnedSelectedFill,
             borderTopWidth: 1,
             borderColor: theme.pinnedSelectedOutline,
@@ -93,7 +92,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
       {badge}
     </RestingTile>
   );
-}
+});
 
 export function RestingTile({ width, selected, hovered, pressed, children }: Omit<FaceState, "active"> & { children: ReactNode }) {
   const theme = useTheme();
@@ -109,7 +108,7 @@ export function RestingTile({ width, selected, hovered, pressed, children }: Omi
       style={{
         width,
         height: layout.pinnedHeight,
-        borderRadius: TILE_RADIUS,
+        borderRadius: radius.pinned,
         borderWidth: selected ? 1 : StyleSheet.hairlineWidth,
         borderColor: selected ? tokens.dragBorder : theme.pinnedRestingStroke,
         backgroundColor: pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting,
@@ -126,25 +125,26 @@ function GlassTile({ width, active, selected, hovered, pressed, tileTheme, child
   const theme = useTheme();
   const tokens = useSidebarTokens();
   return (
-    <View style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}>
-      <GlassFill radius={TILE_RADIUS} state={pressed ? "pressed" : active ? "active" : hovered || selected ? "lit" : "rest"} />
-      {active ? (
-        <DockSelection
-          image={tileTheme?.image}
-          emoji={tileTheme?.emoji}
-          theme={tileTheme?.theme.kind}
-          fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
-          cornerRadius={TILE_RADIUS}
-          strokeWidth={GLASS_RING}
-          dark={theme.dark}
-          glass
-          colorRing
-          style={StyleSheet.absoluteFill}
-        />
-      ) : selected ? (
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: TILE_RADIUS, borderWidth: 1, borderColor: tokens.dragBorder }]} />
-      ) : null}
-      {children}
+    <View style={{ width, height: layout.pinnedHeight }}>
+      <GlassFill radius={radius.pinned} state={pressed ? "pressed" : active ? "active" : hovered || selected ? "lit" : "rest"}>
+        {active ? (
+          <DockSelection
+            image={tileTheme?.image}
+            emoji={tileTheme?.emoji}
+            theme={tileTheme?.theme.kind}
+            fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
+            cornerRadius={radius.pinned}
+            strokeWidth={GLASS_RING}
+            dark={theme.dark}
+            glass
+            colorRing
+            style={StyleSheet.absoluteFill}
+          />
+        ) : selected ? (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: radius.pinned, borderWidth: 1, borderColor: tokens.dragBorder }]} />
+        ) : null}
+        {children}
+      </GlassFill>
     </View>
   );
 }
@@ -168,7 +168,7 @@ export function FolderDropRing({ on }: { on: boolean }) {
         right: -RING_OUTSET,
         top: -RING_OUTSET,
         bottom: -RING_OUTSET,
-        borderRadius: TILE_RADIUS + RING_OUTSET,
+        borderRadius: radius.pinned + RING_OUTSET,
         borderWidth: 2,
         borderColor: theme.accent,
         backgroundColor: sidebarTokens(theme).folderDropFill,

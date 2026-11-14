@@ -1,0 +1,82 @@
+[
+  {"section": "Get started", "items": [
+    {"slug": "overview", "title": "Introduction", "updated": "2026-09-18"},
+    {"slug": "quickstart", "title": "Quickstart", "updated": "2026-10-02"},
+    {"slug": "authentication", "title": "Authentication", "updated": "2026-08-27"},
+    {"group": "Core concepts", "items": [
+      {"slug": "concepts/streams", "title": "Streams and partitions", "updated": "2026-07-14"},
+      {"slug": "concepts/events", "title": "Events", "updated": "2026-07-14"},
+      {"slug": "concepts/consumer-groups", "title": "Consumer groups", "updated": "2026-08-03"},
+      {"slug": "concepts/offsets", "title": "Offsets and replay", "updated": "2026-08-03"},
+      {"slug": "concepts/schemas", "title": "Schemas", "updated": "2026-06-30"}
+    ]},
+    {"slug": "sdks", "title": "Client libraries", "updated": "2026-10-20"}
+  ]},
+  {"section": "Guides", "items": [
+    {"group": "Producing events", "items": [
+      {"slug": "guides/publishing", "title": "Publishing events", "updated": "2026-07-22"},
+      {"slug": "guides/batch-ingest", "title": "Batch ingest", "updated": "2026-07-22"},
+      {"slug": "guides/idempotency", "title": "Idempotent writes", "updated": "2026-05-11"}
+    ]},
+    {"group": "Consuming events", "items": [
+      {"slug": "guides/consuming", "title": "Reading from a stream", "updated": "2026-08-03"},
+      {"slug": "guides/replay", "title": "Replaying history", "updated": "2026-08-03"},
+      {"slug": "guides/dead-letter", "title": "Dead-letter streams", "updated": "2026-06-08"}
+    ]},
+    {"group": "Webhooks", "items": [
+      {"slug": "webhooks/overview", "title": "Webhooks overview", "updated": "2026-09-09"},
+      {"slug": "webhooks/signatures", "title": "Verifying signatures", "updated": "2026-09-09"},
+      {"slug": "webhooks/retries", "title": "Retries and delivery", "updated": "2026-06-21"},
+      {"slug": "webhooks/local-development", "title": "Receiving webhooks locally", "updated": "2026-04-30"}
+    ]},
+    {"slug": "guides/pagination", "title": "Pagination", "updated": "2026-03-19"},
+    {"slug": "guides/errors", "title": "Handling errors", "updated": "2026-05-02"}
+  ]},
+  {"section": "Platform", "items": [
+    {"slug": "platform/plans", "title": "Plans and pricing", "updated": "2026-08-12"},
+    {"slug": "platform/rate-limits", "title": "Rate limits", "updated": "2026-08-12"},
+    {"slug": "platform/quotas", "title": "Size limits and quotas", "updated": "2026-09-09"},
+    {"group": "Security and compliance", "items": [
+      {"slug": "platform/audit-logs", "title": "Audit logs", "updated": "2026-09-30"},
+      {"slug": "platform/sso", "title": "Single sign-on (SAML)", "updated": "2026-04-15"},
+      {"slug": "platform/encryption", "title": "Encryption", "updated": "2026-02-26"},
+      {"slug": "platform/data-residency", "title": "Data residency", "updated": "2026-07-01"}
+    ]},
+    {"slug": "platform/regions", "title": "Regions", "updated": "2026-07-01"},
+    {"slug": "platform/sla", "title": "Service level agreement", "updated": "2026-01-12"}
+  ]},
+  {"section": "API reference", "items": [
+    {"slug": "reference/overview", "title": "API overview", "updated": "2026-09-18"},
+    {"group": "Streams", "items": [
+      {"slug": "reference/list-streams", "title": "List streams", "updated": "2026-06-02"},
+      {"slug": "reference/create-stream", "title": "Create a stream", "updated": "2026-06-02"},
+      {"slug": "reference/get-stream", "title": "Retrieve a stream", "updated": "2026-06-02"},
+      {"slug": "reference/delete-stream", "title": "Delete a stream", "updated": "2026-06-02"}
+    ]},
+    {"group": "Events", "items": [
+      {"slug": "reference/publish-event", "title": "Publish an event", "updated": "2026-07-22"},
+      {"slug": "reference/publish-batch", "title": "Publish a batch", "updated": "2026-07-22"},
+      {"slug": "reference/read-events", "title": "Read events", "updated": "2026-08-03"}
+    ]},
+    {"group": "Consumer groups", "items": [
+      {"slug": "reference/create-consumer-group", "title": "Create a consumer group", "updated": "2026-08-03"},
+      {"slug": "reference/get-offsets", "title": "Retrieve committed offsets", "updated": "2026-08-03"},
+      {"slug": "reference/commit-offsets", "title": "Commit offsets", "updated": "2026-08-03"}
+    ]},
+    {"group": "Webhook endpoints", "items": [
+      {"slug": "reference/create-webhook", "title": "Create a webhook endpoint", "updated": "2026-09-09"},
+      {"slug": "reference/list-webhooks", "title": "List webhook endpoints", "updated": "2026-09-09"},
+      {"slug": "reference/rotate-webhook-secret", "title": "Rotate a signing secret", "updated": "2026-09-09"}
+    ]},
+    {"group": "Audit logs", "items": [
+      {"slug": "reference/list-audit-events", "title": "List audit events", "updated": "2026-09-30"}
+    ]}
+  ]},
+  {"section": "Resources", "items": [
+    {"slug": "resources/changelog", "title": "Changelog", "updated": "2026-10-28"},
+    {"slug": "resources/deprecations", "title": "Deprecations and sunsets", "updated": "2026-10-28"},
+    {"slug": "resources/migrating-from-v2", "title": "Migrating from v2", "updated": "2026-10-28"},
+    {"slug": "resources/glossary", "title": "Glossary", "updated": "2026-03-04"},
+    {"slug": "resources/support", "title": "Support", "updated": "2026-08-12"}
+  ]}
+]

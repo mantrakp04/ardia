@@ -1,6 +1,6 @@
 import { holdThemedWindowsKeyLook, choosePresetColor, setProfileTheme } from "../../state/profiles/themeActions";
-import { useEffect, useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Pressable, View } from "react-native";
 import {
   DEFAULT_THEME_ANGLE,
   flatColors,
@@ -19,9 +19,9 @@ import {
 } from "../../lib/profileLook";
 import { THEME_TEXTURES } from "@ardia/core";
 import { PROFILE_COLORS } from "../ui/theme";
-import { useAppDark, useProfile, useSettings } from "../../state/browser/hooks";
+import { useAppDark, useProfile, useSettings, useWindow } from "../../state/browser/hooks";
 import type { ProfileColor, ProfileTheme, ThemeMode, ThemeTexture } from "../../state/browser/types";
-import { Box, Button, Group, PopUp, Segmented, space, Swatch, swatch, Text, ThemeSwatch } from "../ui";
+import { Box, Button, curve, duration, Group, PopUp, Segmented, space, Swatch, swatch, Text, ThemeSwatch } from "../ui";
 import { importArcTheme } from "../../state/profiles/arcThemes";
 import { Row, SectionHeader } from "./Form";
 import { ColorPad, DirectionDial, LABEL, Labelled, LightnessBar, Preview, Slider } from "./ThemeControls";
@@ -83,7 +83,6 @@ export function ThemeSection({ profileId }: { profileId: string }) {
     return () => holdThemedWindowsKeyLook(false);
   }, [editing]);
   if (!profile) return null;
-  const choosePreset = (color: ProfileColor) => choosePresetColor(profileId, color);
   return (
     <>
       <SectionHeader
@@ -102,23 +101,108 @@ export function ThemeSection({ profileId }: { profileId: string }) {
                 : PROFILE_COLORS[profile.color]?.name
           }
         >
-          <View style={{ flexDirection: "row", gap: swatch.gap }}>
-            {(Object.keys(PROFILE_COLORS) as ProfileColor[]).map((c) => (
-              <Pressable key={c} onPress={() => choosePreset(c)} tooltip={PROFILE_COLORS[c].name}>
-                <Swatch selected={!custom && profile.color === c} ring={PROFILE_COLORS[c].swatch} fill={PROFILE_COLORS[c].swatch} />
-              </Pressable>
-            ))}
-            <Pressable onPress={startCustom} tooltip="Custom">
-              <Swatch selected={!!custom} ring={custom ? themeAccent(custom) : settingsInk.customSwatch}>
-                <CustomSwatch theme={custom} />
-              </Swatch>
-            </Pressable>
-          </View>
+          <ThemeSwatches color={custom ? null : profile.color} onPreset={(c) => choosePresetColor(profileId, c)} custom={custom} onCustom={startCustom} />
         </Row>
-        {custom && shown ? <ThemeEditor theme={custom} shown={shown} followsApp={followsApp} onChange={change} /> : null}
+        {custom && shown ? (
+          <Box pad="l">
+            <ThemeEditor theme={custom} full={{ shown, followsApp }} onChange={change} />
+          </Box>
+        ) : null}
       </Group>
     </>
   );
+}
+
+export function ThemePicker({
+  windowId,
+  size,
+  gap,
+  onPreset,
+  onTheme,
+}: {
+  windowId: string;
+  size?: number;
+  gap?: number;
+  onPreset?: (color: ProfileColor) => void;
+  onTheme?: (theme: ProfileTheme) => void;
+}) {
+  const profileId = useWindow(windowId, (w) => w?.profileId) ?? "";
+  const incognito = useWindow(windowId, (w) => w?.kind === "private");
+  const look = useThemeDraft(profileId, (theme) => (onTheme ? onTheme(theme) : setProfileTheme(profileId, theme)));
+  if (!profileId || incognito || !look.profile) return null;
+  const { custom } = look;
+  return (
+    <View style={{ gap: space.xxxl }}>
+      <ThemeSwatches
+        size={size}
+        gap={gap}
+        color={custom ? null : look.profile.color}
+        onPreset={(c) => (onPreset ? onPreset(c) : choosePresetColor(profileId, c))}
+        custom={custom}
+        onCustom={look.startCustom}
+      />
+      {custom ? (
+        <FadeIn>
+          <ThemeEditor theme={custom} onChange={look.change} />
+        </FadeIn>
+      ) : null}
+    </View>
+  );
+}
+
+const COLORS = Object.keys(PROFILE_COLORS) as ProfileColor[];
+
+export function ThemeSwatches({
+  color,
+  onPreset,
+  custom,
+  onCustom,
+  size = swatch.size,
+  gap = swatch.gap,
+}: {
+  color: ProfileColor | null;
+  onPreset: (color: ProfileColor) => void;
+  custom?: ProfileTheme | null;
+  onCustom?: () => void;
+  size?: number;
+  gap?: number;
+}) {
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap }} accessibilityRole="radiogroup" accessibilityLabel="Theme color">
+      {COLORS.map((c) => (
+        <ColorButton key={c} name={PROFILE_COLORS[c].name} ring={PROFILE_COLORS[c].swatch} size={size} selected={color === c} onPress={() => onPreset(c)} />
+      ))}
+      {onCustom ? (
+        <ColorButton name="Custom" ring={custom ? themeAccent(custom) : settingsInk.customSwatch} size={size} selected={!!custom} onPress={onCustom}>
+          <CustomSwatch theme={custom ?? null} />
+        </ColorButton>
+      ) : null}
+    </View>
+  );
+}
+
+function ColorButton({ name, ring, size, selected, onPress, children }: { name: string; ring: string; size: number; selected: boolean; onPress: () => void; children?: ReactNode }) {
+  return (
+    <View tooltip={name}>
+      <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={name}>
+        {({ pressed }) => (
+          <View style={{ transform: [{ scale: pressed ? PRESSED_SCALE : 1 }] }}>
+            <Swatch animated size={size} selected={selected} ring={ring} fill={children ? undefined : ring}>
+              {children}
+            </Swatch>
+          </View>
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
+function FadeIn({ children }: { children: ReactNode }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, { toValue: 1, duration: duration.base, easing: curve.enter, useNativeDriver: true }).start();
+  }, []);
+  return <Animated.View style={{ opacity: t, transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [FADE_RISE, 0] }) }] }}>{children}</Animated.View>;
 }
 
 const RAINBOW: ProfileTheme = {
@@ -176,14 +260,24 @@ function ThemeStops({ theme, onChange }: { theme: ProfileTheme; onChange: (next:
   );
 }
 
-export function CompactThemeEditor({ theme, onChange }: { theme: ProfileTheme; onChange: (next: ProfileTheme, settle?: boolean) => void }) {
+export function ThemeEditor({
+  theme,
+  full,
+  onChange,
+}: {
+  theme: ProfileTheme;
+  full?: { shown: ShownLook; followsApp: boolean };
+  onChange: (next: ProfileTheme, settle?: boolean) => void;
+}) {
+  const stacked = !full;
   return (
     <Box row gap="xl">
       <ThemeStops theme={theme} onChange={onChange} />
-      <Box gap="xl" style={FILL}>
-        <Slider stacked label="Intensity" value={theme.intensity} onChange={(v, settle) => onChange({ ...theme, intensity: v }, settle)} />
-        <Slider stacked label="Pass-through blur" value={theme.translucency} onChange={(v, settle) => onChange({ ...theme, translucency: v }, settle)} />
-        <Slider stacked label="Noise" value={theme.grain} onChange={(v, settle) => onChange({ ...theme, grain: v }, settle)}>
+      <Box gap={full ? "l" : "xl"} style={FILL}>
+        {full ? <Preview shown={full.shown} /> : null}
+        <Slider stacked={stacked} label="Intensity" value={theme.intensity} onChange={(v, settle) => onChange({ ...theme, intensity: v }, settle)} />
+        <Slider stacked={stacked} label="Pass-through blur" value={theme.translucency} onChange={(v, settle) => onChange({ ...theme, translucency: v }, settle)} />
+        <Slider stacked={stacked} label="Noise" value={theme.grain} onChange={(v, settle) => onChange({ ...theme, grain: v }, settle)}>
           <PopUp
             value={theme.texture}
             minWidth={78}
@@ -191,69 +285,39 @@ export function CompactThemeEditor({ theme, onChange }: { theme: ProfileTheme; o
             onChange={(texture) => onChange({ ...theme, texture, grain: theme.grain || 0.5 }, true)}
           />
         </Slider>
-        <Labelled label="Direction">
+        <EditorRow stacked={stacked} label="Direction">
           <DirectionDial angle={lookAngle(theme)} onChange={(angle, settle) => onChange(withAngle(theme, angle), settle)} />
-        </Labelled>
+        </EditorRow>
+        {full ? (
+          <EditorRow label="Appearance">
+            {full.followsApp ? (
+              <Text size="caption" tone="textSecondary" lines={2} style={FILL}>
+                Follows Settings › Appearance
+              </Text>
+            ) : (
+              <Segmented options={MODE_OPTIONS} value={theme.mode} onChange={(mode) => onChange({ ...theme, mode }, true)} />
+            )}
+            {full.shown.dark !== full.shown.requestedDark ? (
+              <Text size="caption" tone="textSecondary" lines={2} style={KEPT_NOTE}>
+                Kept {full.shown.dark ? "dark" : "light"} so text stays readable
+              </Text>
+            ) : null}
+          </EditorRow>
+        ) : null}
       </Box>
     </Box>
   );
 }
 
-function ThemeEditor({
-  theme,
-  shown,
-  followsApp,
-  onChange,
-}: {
-  theme: ProfileTheme;
-  shown: ShownLook;
-  followsApp: boolean;
-  onChange: (next: ProfileTheme, settle?: boolean) => void;
-}) {
+function EditorRow({ label, stacked, children }: { label: string; stacked?: boolean; children: ReactNode }) {
+  if (stacked) return <Labelled label={label}>{children}</Labelled>;
   return (
-    <Box row pad="l" gap="xl">
-      <ThemeStops theme={theme} onChange={onChange} />
-      <Box gap="l" style={FILL}>
-        <Preview shown={shown} />
-        <Slider label="Intensity" value={theme.intensity} onChange={(v, settle) => onChange({ ...theme, intensity: v }, settle)} />
-        <Slider
-          label="Pass-through blur"
-          value={theme.translucency}
-          onChange={(v, settle) => onChange({ ...theme, translucency: v }, settle)}
-        />
-        <Slider label="Noise" value={theme.grain} onChange={(v, settle) => onChange({ ...theme, grain: v }, settle)}>
-          <PopUp
-            value={theme.texture}
-            minWidth={78}
-            options={THEME_TEXTURES.map((t) => ({ value: t, title: TEXTURE_NAMES[t] }))}
-            onChange={(texture) => onChange({ ...theme, texture, grain: theme.grain || 0.5 }, true)}
-          />
-        </Slider>
-        <View style={LABELLED_ROW}>
-          <Text size="small" style={EDITOR_LABEL}>
-            Direction
-          </Text>
-          <DirectionDial angle={lookAngle(theme)} onChange={(angle, settle) => onChange(withAngle(theme, angle), settle)} />
-        </View>
-        <View style={LABELLED_ROW}>
-          <Text size="small" style={EDITOR_LABEL}>
-            Appearance
-          </Text>
-          {followsApp ? (
-            <Text size="caption" tone="textSecondary" lines={2} style={FILL}>
-              Follows Settings › Appearance
-            </Text>
-          ) : (
-            <Segmented options={MODE_OPTIONS} value={theme.mode} onChange={(mode) => onChange({ ...theme, mode }, true)} />
-          )}
-          {shown.dark !== shown.requestedDark ? (
-            <Text size="caption" tone="textSecondary" lines={2} style={KEPT_NOTE}>
-              Kept {shown.dark ? "dark" : "light"} so text stays readable
-            </Text>
-          ) : null}
-        </View>
-      </Box>
-    </Box>
+    <View style={LABELLED_ROW}>
+      <Text size="small" style={EDITOR_LABEL}>
+        {label}
+      </Text>
+      {children}
+    </View>
   );
 }
 
@@ -261,4 +325,6 @@ const FILL = { flex: 1 } as const;
 const LABELLED_ROW = { flexDirection: "row", alignItems: "center" } as const;
 const EDITOR_LABEL = { width: LABEL + space.ml } as const;
 const KEPT_NOTE = { flex: 1, marginLeft: space.m } as const;
+const PRESSED_SCALE = 0.94;
+const FADE_RISE = 4;
 const MODE_OPTIONS = MODES.map((m) => ({ value: m.value, title: m.title, image: m.symbol }));

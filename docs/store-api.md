@@ -10,7 +10,7 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
 
 ## State
 - `profiles` + `profileOrder`; default profile id is `"default"`.
-- `windows`: `{ profileId, incognito, tabIds (sidebar order, pinned first), activeTabIds[profileId], sidebarOpen, frame }` + `windowOrder`.
+- `windows`: `{ profileId, incognito, tabIds (sidebar order, pinned first), activeTabIds[profileId], frame }` + `windowOrder`. Whether a window shows its tabs: `tabsShownIn(s, windowId)` (`state/browser/model.ts`) reads the window's own `autoHideTabs` (set by ⌘S in that window), else `settings.autoHideTabs`. A change to the setting, from any source, removes every window's own value; the saved session writes the result as each window's `sidebarOpen` for the launch window and older builds.
   A private window's `profileId` is `incognito:<window id>@<originalProfileId>` (`incognitoProfileId`, state/browser/model.ts),
   `originalProfileId` the regular profile it was opened from (`createWindow({ incognito: true, profileId })`, default
   `lastActiveProfile`). Its engine profile (`engineProfile`) is that profile's off-the-record one: private windows of one
@@ -22,7 +22,9 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
 - `splits` (state/splits/splits.ts): `{ windowId, tabIds (2–3, pane order), orientation, sizes, stack? }` — `stack` = two panes sharing a slot the other way (Add Bottom Split). Members are contiguous in `window.tabIds`; the window's active tab is the focused pane. A split is one sidebar row (`splitRowPanes`): its panes are all unpinned, or all pinned rows; `placing`, `withGroup`, `createGroup`, `addTabsToGroup` and `removeTabsFromGroup` take every pane of a row they're given one of (`withSplitRows`), pinned panes are always rows, and a pinned split is mirrored to the profile's windows (pinMirror) and parked with them (`ParkedPins.splits`). `window.tabLayout` ("sidebar" | "top", unset = Settings).
 - `history[profileId]`: a view of Chrome's history (HistoryService), one entry per URL, not saved; `historyReady[profileId]`
   once it has been read (state/history/engineSync.ts). `bookmarks`: `{ nodes, roots[profileId]: { bar, other } }`.
-- `closedTabs` / `closedWindows` (full state; a closed window's entry leaves out its pinned tabs and pinned groups);
+- `closedTabs` / `closedWindows` (full state; a closed window's entry leaves out its pinned tabs and pinned groups; the last
+  regular window closed with the close button is marked `lastWindow`, with `activePin` when a pinned tab was showing, and
+  `openLastWindowOrNew` (state/windows/lastWindow.ts) brings it back on a Dock click or at launch);
   `downloads`; `settings` (typed, state/settings/settings.ts).
 - `parkedPins[profileId]` (state/pins/parkedPins.ts): pinned tabs belong to the profile's sidebar, as in Dia. Closing a
   window (⌘W on its last tab, the close button, ⇧⌘W, "Start fresh" on launch) parks its pinned tiles (at their pinned
@@ -49,7 +51,7 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
   `ui.appDark`, `windowUi[windowId]` (command panel, downloads popover), `find[tabId]`.
 
 ## Actions
-- Windows: `createWindow`, `closeWindow`, `switchProfile`, `moveTabsToWindow`, `moveTabToProfile`,
+- Windows: `createWindow`, `closeWindow`, `switchProfile`, `moveTabsToWindow`, `returnRefusedMove`, `moveTabToProfile`,
   `mergeAllWindows`, `reopenClosed` / `reopenClosedTab` / `reopenClosedWindow`, `restoreClosed`.
   Little Ardia (Little Arc): `createWindow({ small: true, url })` makes a `kind: "small"` window with one tab (state/windows/small.ts),
   in `lastActiveProfile(s)` unless `profileId` says otherwise; never private.
@@ -232,7 +234,7 @@ ordered transaction that names its cause. There are no echo windows, timers or "
   strip's window is never inferred from its tabs.
 - Tests: `src/state/tabs/liveTabs.test.mjs` runs the real wiring against a fake engine that keeps this contract.
 
-## Sync (apps/browser/src/sync, packages/sync)
+## Sync (apps/browser/src/state/sync, packages/sync)
 - End-to-end-encrypted sync through a folder the user picks; design in `docs/sync.md`. `state/sync/engine.ts` owns the
   state (`useSync`: status, devices, other devices' tabs), the setup flows and the cycle; `state/sync/adapters.ts` maps the
   store to synced records (bookmarks, history, open tabs, pinned tabs and pinned groups, settings, passwords).

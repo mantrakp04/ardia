@@ -1,11 +1,14 @@
 import { SyncNative, type Adapter, type ExtensionsAdapter } from "../../platform/sync";
 import { useBrowser } from "../browser/store";
 import { bookmarksAdapter, deviceAdapter, deviceTabsAdapter, historyAdapter, inTodaysNames, passwordsAdapter, sharedDataAdapter } from "./adapters";
-import { profilesAdapter, profileThemesAdapter } from "./profileAdapters";
+import { profilesAdapter, profileThemesAdapter, profileTopAppsAdapter } from "./profileAdapters";
 import { settingsAdapter } from "./settingsAdapter";
 import { pinnedAreaAdapters } from "./pinned";
 import { extensionsAdapterFor } from "./extensions";
 import { APP_SCOPE, typeSyncedFor, type DataType, type SyncDoc } from "./syncDoc";
+import { sentTabsAdapter } from "./sentTabsAdapter";
+import { deliverSentTabs, sendLedger } from "./sentTabs";
+import { profileScope } from "./records";
 
 export const deviceName = () => SyncNative?.deviceName() ?? "This Mac";
 
@@ -35,6 +38,7 @@ export function appAdapters(doc: SyncDoc, retiring: boolean): Adapter[] {
     sharedDataAdapter(() => doc.profiles),
     profilesAdapter(enabledLinks),
     profileThemesAdapter(enabledLinks, () => doc.scopes[APP_SCOPE]?.records),
+    profileTopAppsAdapter(enabledLinks),
     deviceAdapter(id, deviceName),
   ];
 }
@@ -50,6 +54,7 @@ export function profileAdapters(doc: SyncDoc, profileId: string, retiring: boole
     ...(synced("bookmarks") ? [inTodaysNames(bookmarksAdapter(profileId))] : []),
     ...(synced("history") ? [inTodaysNames(historyAdapter(profileId))] : []),
     inTodaysNames(deviceTabsAdapter(profileId, id, deviceName, !synced("tabs"))),
+    sentTabsAdapter(id, () => sendLedger(doc, profileScope(doc.profiles[profileId]!.syncId)), (arrived) => deliverSentTabs(doc, profileId, arrived)),
     ...(synced("passwords") ? [passwords(forcePasswords)] : []),
     ...(synced("extensions") ? [extensionsOf(profileId)] : []),
   ];

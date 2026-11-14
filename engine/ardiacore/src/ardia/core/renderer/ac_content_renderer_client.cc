@@ -58,8 +58,7 @@ std::string& PageScript() {
 
 constexpr char kPictureInPictureCandidates[] =
     "const videos = [...document.querySelectorAll('video')].filter((v) => "
-    "v.readyState > 0 && !v.disablePictureInPicture && v.clientWidth * "
-    "v.clientHeight > 0);";
+    "v.readyState > 0 && v.clientWidth * v.clientHeight > 0);";
 
 constexpr char kHasPictureInPictureCandidateScript[] =
     "return videos.length > 0;";

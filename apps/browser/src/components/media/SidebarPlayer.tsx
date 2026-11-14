@@ -1,10 +1,10 @@
-import { Dot, Panel, Symbol, Button, useHover } from "../ui";
+import { Dot, Panel, Symbol, Button, tabularNums, Text, useHover } from "../ui";
 import { useShallow } from "zustand/react/shallow";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, Pressable, View } from "react-native";
 import { switchToTab, toggleMute } from "../../state/browser/actions";
 import { useTheme } from "../ui/theme";
-import { curve, duration } from "../ui/motion";
+import { buttonMotion, curve, duration, usePressScaleMotion } from "../ui/motion";
 import { font, radius, space, weight } from "../ui/tokens";
 import { useTab } from "../../state/browser/hooks";
 import { useMuteState } from "../../state/tabs/hooks";
@@ -15,9 +15,11 @@ import { GlassFill, useGlass } from "../ui/Glass";
 import { useArtwork } from "../../state/media/artwork";
 import {
   dismissPlayer,
+  formatTime,
   isPlaying,
   mediaCommand,
   playerTabFor,
+  positionOf,
   skipOrTrack,
   transportIcons,
   useHiddenPlayerTabs,
@@ -85,6 +87,19 @@ function PlayButton({ tabId, playing, size }: { tabId: string; playing: boolean;
   return <Button variant="icon" icon={playing ? "pause.fill" : "play.fill"} size={size} tooltip={playing ? "Pause" : "Play"} onPress={() => mediaCommand(tabId, "toggle")} />;
 }
 
+function TimeLeft({ session }: { session: Session }) {
+  const media = useMediaTokens();
+  useTicker(true);
+  const left = formatTime((session.duration ?? 0) - positionOf(session));
+  return (
+    <View accessibilityLabel={`${left} left`} style={{ height: BUTTON, minWidth: BUTTON, paddingHorizontal: space.xs, alignItems: "flex-end", justifyContent: "center" }}>
+      <Text size="caption" color={media.secondary} style={tabularNums}>
+        -{left}
+      </Text>
+    </View>
+  );
+}
+
 const PlayerControls = memo(function PlayerControls({ tabId, reveal, onSeeking }: { tabId: string; reveal: Animated.Value; onSeeking: (seeking: boolean) => void }) {
   const media = useMediaTokens();
   const session = useSession(tabId);
@@ -124,16 +139,25 @@ const PlayerRow = memo(function PlayerRow({ tabId, mounted, hovered, reveal }: {
   const tab = useTab(tabId);
   const mute = useMuteState(tabId);
   const artwork = useArtwork(tabId, session?.artwork);
+  const pressMotion = usePressScaleMotion(true, buttonMotion.controlPressScale);
+  const artScaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   const artistHeight = useMemo(() => reveal.interpolate({ inputRange: [0, 1], outputRange: [0, ARTIST_HEIGHT] }), [reveal]);
   const title = session?.title || tab?.title || "";
   const artist = session?.artist || (tab ? hostOf(tab.url) : "");
   const marquee = useMarqueeGroup(`${title}|${artist}`, hovered ? -1 : MARQUEE_PASSES_AT_REST);
   if (!session || !tab) return null;
   return (
-    <Pressable onPress={() => switchToTab(tabId)} style={{ flex: 1, minWidth: 0, alignSelf: "stretch", flexDirection: "row", alignItems: "center", marginRight: TRAILING_INSET }}>
-      <View tooltip="Back to Tab" style={{ width: ART, height: ART, borderRadius: radius.control, overflow: "hidden", backgroundColor: media.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
-        {artwork ? <Image source={{ uri: artwork }} resizeMode="cover" style={{ width: ART, height: ART }} /> : <Favicon url={tab.url} favicon={tab.favicon} size={16} profileId={tab.profileId} />}
-      </View>
+    <Pressable
+      onPress={() => switchToTab(tabId)}
+      onPressIn={pressMotion.onPressIn}
+      onPressOut={pressMotion.onPressOut}
+      style={{ flex: 1, minWidth: 0, alignSelf: "stretch", flexDirection: "row", alignItems: "center", marginRight: TRAILING_INSET }}
+    >
+      <Animated.View tooltip="Back to Tab" style={artScaleStyle}>
+        <View style={{ width: ART, height: ART, borderRadius: radius.control, overflow: "hidden", backgroundColor: media.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
+          {artwork ? <Image source={{ uri: artwork }} resizeMode="cover" style={{ width: ART, height: ART }} /> : <Favicon url={tab.url} favicon={tab.favicon} size={16} profileId={tab.profileId} />}
+        </View>
+      </Animated.View>
       {isLive(session) ? (
         <View accessibilityLabel="Live" style={{ marginLeft: space.m }}>
           <Dot size={LIVE_DOT} color={theme.destructive} />
@@ -170,6 +194,8 @@ export function SidebarPlayer({ tabId }: { tabId: string }) {
         <PlayerRow tabId={tabId} mounted={mounted} hovered={hovered} reveal={reveal} />
         {expanded ? (
           <Button variant="icon" icon="xmark" size="m" tooltip="Close Player" onPress={() => dismissPlayer(tabId)} />
+        ) : playing && session.duration ? (
+          <TimeLeft session={session} />
         ) : (
           <PlayButton tabId={tabId} playing={playing} size="m" />
         )}

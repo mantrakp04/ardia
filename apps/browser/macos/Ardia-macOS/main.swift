@@ -2,6 +2,8 @@ import AppKit
 import ArdiaCore
 import ArdiaSync
 
+ArdiaHost.markMainStarted()
+
 let config = LaunchConfig.shared
 if config.prewarm { exit(0) }
 

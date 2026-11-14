@@ -14,7 +14,11 @@ export type NavigationState = {
   initialDocumentAccessed?: boolean;
   committedInitial?: boolean;
   committedUrl?: string;
+  committedAt?: number;
+  httpStatus?: number;
 };
+
+export type AppBadge = { origin: string; count: number | null; flag: boolean };
 
 export type MediaState = { playing: boolean; muted: boolean };
 
@@ -45,15 +49,27 @@ export type OpenWindowRequest = {
   postBody?: boolean;
   profile?: string;
   point?: { x: number; y: number };
+  site?: boolean;
+  fromClick?: boolean;
+  linkWait?: "matched" | "skipped" | "timedOut";
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };
 
 export type FindResult = { count: number; active: number; final: boolean };
+export type PageShare = {
+  kind: "text" | "link" | "image" | "video" | "audio" | "page";
+  url?: string;
+  title?: string;
+  text?: string;
+  fileUrl?: string;
+};
 export type PageCommand = {
-  command: "search" | "ask" | "copyLinkToHighlight" | "escape";
+  command: "search" | "ask" | "copyLinkToHighlight" | "escape" | "share";
   text: string;
   modifiers?: { metaKey?: boolean; shiftKey?: boolean; altKey?: boolean; middle?: boolean };
+  share?: PageShare;
+  anchor?: [number, number, number, number];
 };
 export type LoadError = { url: string; code: number; text: string };
 export type NavigationEntry = { url: string; title: string; current: boolean };
@@ -95,7 +111,9 @@ export type WebNotification = {
   isMainFrame: boolean;
 };
 
-export type PictureInPictureState = { kind: "video" | "document"; active: boolean };
+export type PictureInPictureState = { kind: "video" | "document"; active: boolean; fullScreenSpaces?: boolean; leftApp?: boolean };
+export type AutoPictureInPictureHold = "onScreen" | "appSwitch" | "nothingPlaying";
+export type MediaFault = { reason: string; muted?: boolean; blockerActive?: boolean };
 export type ControlPress = { clickAt: number; control: number };
 export type ActivateRequest = { reason: "pictureInPicture" };
 export type DisplayMediaSource = {
@@ -171,7 +189,7 @@ export type WebViewProps = ViewProps & {
   onPopupBlocked?: (popup: BlockedPopup) => void;
   onFindResult?: (result: FindResult) => void;
   onFullscreen?: (fullscreen: boolean) => void;
-  onStatus?: (text: string) => void;
+  onStatus?: (text: string, fromBottom: number | null) => void;
   onCrashed?: (info: CrashInfo) => void;
   onUnresponsive?: () => void;
   onResponsive?: () => void;
@@ -183,6 +201,8 @@ export type WebViewProps = ViewProps & {
   onNotification?: (notification: WebNotification) => void;
   onNotificationClose?: (id: string) => void;
   onPictureInPicture?: (state: PictureInPictureState) => void;
+  onAutoPictureInPictureKept?: (reason: AutoPictureInPictureHold) => void;
+  onMediaFault?: (fault: MediaFault) => void;
   onActivateRequest?: (request: ActivateRequest) => void;
   onDisplayMediaRequest?: (request: DisplayMediaRequest) => void;
   onWindowClose?: () => void;
@@ -193,11 +213,13 @@ export type WebViewProps = ViewProps & {
   onScroll?: (state: ScrollState) => void;
   onProtectedMedia?: (request: ProtectedMediaRequest) => void;
   onReady?: () => void;
-  onDiscarded?: (url: string) => void;
+  onDiscarded?: (url: string, reason: DiscardReason | null) => void;
   onPasswordPrompt?: (prompt: PasswordPrompt) => void;
   onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;
   onExternalApp?: (request: ExternalAppRequest) => void;
   onPreferredSize?: (size: { width: number; height: number }) => void;
+  onTransferRefused?: (fromWindowId: string) => void;
+  onAppBadge?: (badge: AppBadge) => void;
 };
 
 export type WebViewHandle = {
@@ -248,3 +270,4 @@ export type WebViewHandle = {
 };
 
 export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported";
+export type DiscardReason = "external" | "urgent" | "proactive" | "suggested" | "frozen";

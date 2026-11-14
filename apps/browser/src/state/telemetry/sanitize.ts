@@ -202,7 +202,6 @@ type NativeCrash = {
   exceptionType?: string;
   signal?: string;
   exceptionName?: string;
-  exceptionReason?: string;
   exceptionSubtype?: string;
   frames: NativeFrame[];
   exceptionFrames?: NativeFrame[];
@@ -215,15 +214,23 @@ export function nativeCrashExceptions(report: NativeCrash) {
   const name = report.exceptionName && EXCEPTION_NAME.test(report.exceptionName) ? report.exceptionName : null;
   const subtype = report.exceptionSubtype && SUBTYPE.test(report.exceptionSubtype) ? report.exceptionSubtype : null;
   const images = nativeImages(report.images);
-  const reason = scrubText(report.exceptionReason, 300) || null;
   const crash = { type: machType, value: signal ? `${machType} (${signal})` : machType, frames: nativeFrames(report.frames) };
-  if (!report.exceptionFrames?.length && !name && !reason) return { name, signal, reason, subtype, images, exceptions: [crash] };
+  if (!report.exceptionFrames?.length && !name) return { name, signal, subtype, images, exceptions: [crash] };
   const type = name ?? "NSException";
-  const thrown = { type, value: reason ?? `Uncaught ${type}`, frames: nativeFrames(report.exceptionFrames ?? []) };
-  return { name, signal, reason, subtype, images, exceptions: [thrown, crash] };
+  const thrown = { type, value: `Uncaught ${type}`, frames: nativeFrames(report.exceptionFrames ?? []) };
+  return { name, signal, subtype, images, exceptions: [thrown, crash] };
 }
 
+export const nativeCrashTermination = (namespace: string | undefined) => (namespace && SUBTYPE.test(namespace) ? namespace : null);
+
 type PropertyValue = string | number | boolean | null;
+
+const WEBUI_PAGE_KEY = /(?:^|_)webui_page$/;
+export const WEBUI_PAGE_VALUE = /^[a-z0-9-]{1,32}(?:\/[a-z0-9-]{1,32})?$/;
+
+function scrubWebuiPage(value: string): string {
+  return WEBUI_PAGE_VALUE.test(value) ? value : scrubText(value, 64);
+}
 
 export function cleanProperties(props: Record<string, unknown>): Record<string, PropertyValue> {
   const out: Record<string, PropertyValue> = {};
@@ -232,7 +239,7 @@ export function cleanProperties(props: Record<string, unknown>): Record<string, 
     if (value === null || typeof value === "boolean") out[key] = value;
     else if (typeof value === "number") {
       if (Number.isFinite(value)) out[key] = value;
-    } else if (typeof value === "string") out[key] = scrubText(value, 64);
+    } else if (typeof value === "string") out[key] = WEBUI_PAGE_KEY.test(key) ? scrubWebuiPage(value) : scrubText(value, 64);
   }
   return out;
 }

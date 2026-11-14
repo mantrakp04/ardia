@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Bug, Download, FileText, MousePointerClick, MousePointer2, Zap } from "lucide-react";
+import { ArrowLeft, Bug, Download, FileText, MousePointerClick, MousePointer2, Palette, Zap } from "lucide-react";
 import { Suspense, lazy, useMemo, useRef, type ComponentType } from "react";
 import { Panel } from "@/components/blocks";
 import { SectionError, useRange } from "@/components/section";
@@ -26,6 +26,7 @@ const EVENT_LOOK: Record<string, { label: string; icon: ComponentType<{ classNam
   $dead_click: { label: "Dead click", icon: MousePointerClick, tone: "text-chart-5" },
   $exception: { label: "Exception", icon: Bug, tone: "text-bad" },
   download_clicked: { label: "Download clicked", icon: Download, tone: "text-chart-1" },
+  demo_customize: { label: "Customize it clicked", icon: Palette, tone: "text-chart-3" },
 };
 
 function describe(item: TimelineItem) {

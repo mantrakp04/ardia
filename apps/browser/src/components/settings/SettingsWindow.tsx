@@ -13,6 +13,7 @@ import { SettingsPaneContext } from "./Form";
 import { PageToolbar } from "../pages/PageLayout";
 import { SettingsSearchField, SettingsSearchResults } from "./SettingsSearch";
 import { AdvancedPane } from "./panes/Advanced";
+import { AirTrafficPane } from "./panes/AirTraffic";
 import { AppearancePane } from "./panes/Appearance";
 import { CalendarPane } from "./panes/Calendar";
 import { GeneralPane } from "./panes/General";
@@ -28,7 +29,9 @@ import { ShortcutsPane } from "./panes/Shortcuts";
 import { SyncPane } from "./panes/Sync";
 import { TabsPane } from "./panes/Tabs";
 import { useSettingsSheet } from "../../state/settings/sheet";
-import { goToSettingsPane, settingsBack, settingsForward, useSettingsNav, type SettingsPane, type SettingsPlace } from "../../state/settings/settingsWindows";
+import { goToSettingsPane, SETTINGS_WINDOW_ID, settingsBack, settingsForward, useSettingsNav, type SettingsPane, type SettingsPlace } from "../../state/settings/settingsWindows";
+import { closeProfileIconPickerIn } from "../../state/profiles/iconPicker";
+import { ProfileIconPicker } from "../profiles/ProfileIconPicker";
 import { settingsProfileFor } from "../../state/extensions/store";
 import { useSettingsColors } from "./useSettingsColors";
 import { settingsLayout } from "./tokens";
@@ -80,6 +83,7 @@ export function SettingsWindow() {
   const scroller = useRef<ScrollView>(null);
   const key = shown ? shownKey(shown) : "";
   useLayoutEffect(() => scroller.current?.scrollTo({ y: 0, animated: false }), [key]);
+  useEffect(() => closeProfileIconPickerIn(SETTINGS_WINDOW_ID), [key]);
   const content = useRef<View>(null);
   const scrollTop = useRef(0);
   const viewport = useRef(0);
@@ -88,8 +92,9 @@ export function SettingsWindow() {
   const revealPane = reveal ? (findSetting(reveal.id)?.pane ?? null) : null;
   const showAdvanced = useSettings((s) => s.showAdvancedSettings);
   const revealedSections = useSettingsSearch((s) => s.revealedSections);
+  const previewSection = useSettingsSearch((s) => s.previewSection);
   const panes = PANES.filter(
-    (p) => showAdvanced || !ADVANCED_PANES.has(p.id) || nav.pane === p.id || revealedSections.some((k) => k.startsWith(settingsSectionKey(p.id, ""))),
+    (p) => showAdvanced || !ADVANCED_PANES.has(p.id) || nav.pane === p.id || [...revealedSections, previewSection ?? ""].some((k) => k.startsWith(settingsSectionKey(p.id, ""))),
   );
   const switched = useRef(key);
   useEffect(() => {
@@ -159,6 +164,7 @@ export function SettingsWindow() {
           </View>
         </ScrollView>
       </View>
+      <ProfileIconPicker windowId={SETTINGS_WINDOW_ID} />
       {sheet}
     </View>
   );
@@ -174,6 +180,7 @@ const FILL = { flex: 1 } as const;
 const PANE_VIEWS: Record<SettingsPane, (place: SettingsPlace) => ReactNode> = {
   general: () => <GeneralPane />,
   profiles: ({ profileId }) => (profileId ? <ProfileDetailsPane profileId={profileId} /> : <ProfilesPane />),
+  airTraffic: () => <AirTrafficPane />,
   sync: () => <SyncPane />,
   tabs: () => <TabsPane />,
   appearance: () => <AppearancePane />,

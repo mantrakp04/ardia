@@ -1,12 +1,12 @@
 import { useBrowser } from "../browser/store";
-import type { OpenWindowOptions, WindowEvent } from "../../platform/windows";
+import type { LightsPlace, OpenWindowOptions, WindowEvent } from "../../platform/windows";
 import type { BrowserState } from "../browser/store";
 import { engineProfile, windowTitle } from "../browser/model";
 import { windowOpens } from "./windowOpenOrder";
 import { focusedWindowOf } from "./ui";
 import { adoptOf } from "../tabs/pageSession";
 
-export type LightsCenter = [number, number] | null;
+export type LightsCenter = LightsPlace | null;
 
 export type WindowPort = {
   open(id: string, options: OpenWindowOptions, lightsCenter: LightsCenter): void;

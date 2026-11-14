@@ -20,6 +20,7 @@ import type { SceneOpts } from "./scene";
 import { PREVIEW_IDS, type PreviewId } from "../../../state/onboarding/previewIds";
 import { geo } from "./geometry";
 import { lookFor } from "./look";
+import { useBasePaletteValue } from "../../../state/config/hooks";
 import { MockWindow } from "./MockWindow";
 import { mockInk } from "./tokens";
 import { devRegister } from "../../dev/devRegister";
@@ -61,14 +62,15 @@ function FixedFrame({ id, at, opts }: { id: PreviewId; at: number; opts: SceneOp
   const { Scene } = DEMOS[id];
   return (
     <View style={{ ...FRAME, borderRadius: radius.tile, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: dark ? mockInk.frameEdge.dark : mockInk.frameEdge.light }}>
-      <Scene g={g} look={lookFor(dark, PLUM)} p={p} opts={opts} />
+      <Scene g={g} look={lookFor(dark, PLUM, opts.palette)} p={p} opts={opts} />
     </View>
   );
 }
 
 function FramesPage({ index, addressInSidebar }: { index: number; addressInSidebar: boolean }) {
   const systemDark = useTheme().dark;
-  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar, systemDark, accent: PLUM }), [addressInSidebar, systemDark]);
+  const palette = useBasePaletteValue();
+  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar, systemDark, accent: PLUM, palette }), [addressInSidebar, systemDark, palette]);
   const ids = PREVIEW_IDS.slice(index * FRAMES_PER_PAGE, (index + 1) * FRAMES_PER_PAGE);
   return (
     <View style={{ gap: space.s }}>

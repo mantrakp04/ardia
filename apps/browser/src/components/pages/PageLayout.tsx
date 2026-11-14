@@ -1,9 +1,10 @@
 import { appUrlOrigin, urlForDisplay } from "@ardia/core";
 import { displayHostOf } from "../../lib/url";
-import type { ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import type { ReactNode, Ref } from "react";
+import { StyleSheet, View, type TextInput } from "react-native";
 import { Box, display, SearchField, space, Text, useTheme, WindowDragRegion } from "../ui";
 import { pageHeader, pageToolbar } from "./tokens";
+import { perLook } from "../ui/tokens";
 
 export const PAGE_WIDTH = 880;
 
@@ -30,15 +31,15 @@ export function PageToolbar({ size, divider, drag, children }: { size: PageToolb
   );
 }
 
-export function PageHeader({ title, query, onQuery, actions }: { title: string; query: string; onQuery: (q: string) => void; actions?: ReactNode }) {
+export function PageHeader({ title, query, onQuery, actions, searchRef }: { title: string; query: string; onQuery: (q: string) => void; actions?: ReactNode; searchRef?: Ref<TextInput> }) {
   return (
     <PageToolbar size="page">
-      <Text weight="semibold" style={HEADER_TITLE}>
+      <Text weight="semibold" style={HEADER_TITLE()}>
         {title}
       </Text>
       <View style={HEADER_SEARCH}>
         <View style={SEARCH_WIDTH}>
-          <SearchField value={query} onChangeText={onQuery} placeholder={`Search ${title.toLowerCase()}`} />
+          <SearchField value={query} onChangeText={onQuery} placeholder={`Search ${title.toLowerCase()}`} inputRef={searchRef} />
         </View>
       </View>
       <Box row gap="m" style={HEADER_ACTIONS}>
@@ -48,7 +49,7 @@ export function PageHeader({ title, query, onQuery, actions }: { title: string; 
   );
 }
 
-const HEADER_TITLE = { width: pageHeader.sideWidth, ...display.title } as const;
+const HEADER_TITLE = perLook(() => ({ width: pageHeader.sideWidth, ...display.title }) as const);
 const HEADER_SEARCH = { flex: 1, alignItems: "center" } as const;
 const SEARCH_WIDTH = { width: "100%", maxWidth: pageHeader.searchMaxWidth } as const;
 const HEADER_ACTIONS = { width: pageHeader.sideWidth, justifyContent: "flex-end", alignItems: "center" } as const;

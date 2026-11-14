@@ -7,8 +7,9 @@ import { createProfile } from "../../state/profiles/actions";
 import { endCreateProfileRequest, profileNames, takeCreateProfileSheet, useCreateProfileRequest, type CreateProfilePreset } from "../../state/profiles/createProfileRequest";
 import { dataGroups, unusedProfileColor } from "../../state/profiles/profiles";
 import type { ProfileColor } from "../../state/browser/types";
-import { Box, Button, DialogActions, DialogTitle, Divider, Dot, Group, PROFILE_COLORS, radius, Radio, Row, Sheet, Swatch, Text, TextField, Toggle, useTheme } from "../ui";
+import { Box, Button, DialogActions, DialogTitle, Divider, Dot, Group, PROFILE_COLORS, radius, Radio, Row, Sheet, Text, TextField, Toggle, useTheme } from "../ui";
 import { profileColors, SHARE_ROW_HEIGHT } from "./tokens";
+import { ThemeSwatches } from "../settings/ThemeEditor";
 import { closeSettingsSheet, showSettingsSheet } from "../../state/settings/sheet";
 
 useCreateProfileRequest.subscribe((s, prev) => {
@@ -54,11 +55,7 @@ function CreateProfileSheet({ windowId, preset, onDone }: { windowId: string | n
         <DialogTitle subtitle="Profiles separate your logins, cookies, passwords, extensions, history and bookmarks.">Create a Profile</DialogTitle>
         <Box gap="l">
           <TextField value={name} onChangeText={setName} placeholder="Profile name" autoFocus onSubmit={submit} onEscape={() => onDone(null)} />
-          <Box row gap="m">
-            {(Object.keys(PROFILE_COLORS) as ProfileColor[]).map((c) => (
-              <ColorSwatch key={c} color={c} selected={color === c} onPress={() => setColor(c)} />
-            ))}
-          </Box>
+          <ThemeSwatches color={color} onPreset={setColor} />
         </Box>
         <Group>
           <Row
@@ -113,14 +110,5 @@ export function ColorStack({ colors: swatches, size = 12 }: { colors: string[]; 
         <Dot key={i} size={size} color={c} ring={theme.dark ? profileColors.stackRing.dark : profileColors.stackRing.light} style={{ marginLeft: i ? -size * 0.4 : 0 }} />
       ))}
     </View>
-  );
-}
-
-function ColorSwatch({ color, selected, onPress }: { color: ProfileColor; selected: boolean; onPress: () => void }) {
-  const spec = PROFILE_COLORS[color];
-  return (
-    <Pressable onPress={onPress} tooltip={spec.name}>
-      <Swatch selected={selected} ring={spec.swatch} fill={spec.swatch} />
-    </Pressable>
   );
 }

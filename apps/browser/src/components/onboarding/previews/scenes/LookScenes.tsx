@@ -15,8 +15,8 @@ export function appearance(mode: "light" | "dark" | "auto"): Scene {
   return ({ g, p, opts }) => {
     const t = tracker(p, sceneMs.appearance);
     const toDark = mode === "auto" ? opts.systemDark : mode === "dark";
-    const from = lookFor(!toDark, opts.accent);
-    const to = lookFor(toDark, opts.accent);
+    const from = lookFor(!toDark, opts.accent, opts.palette);
+    const to = lookFor(toDark, opts.accent, opts.palette);
     const icon = toDark ? "moon.fill" : "sun.max.fill";
     const label = mode === "auto" ? `Auto · ${toDark ? "Dark" : "Light"} like your Mac` : toDark ? "Dark" : "Light";
     return (

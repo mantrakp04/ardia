@@ -18,7 +18,7 @@ reflects every choice so far and animates from one state to the next.
 | 2 | Where are you coming from? | Arc · Dia · Chrome · Safari · Firefox · Brave/Edge · Starting fresh. Browsers found on this Mac come first ("Found on this Mac"). Picking one sets that browser's preset (see Presets) and, unless it's "Starting fresh", offers the import for that browser, which runs while the next screens are shown. |
 | 3 | Layout | Tabs: Sidebar / Top · Address bar: Toolbar / Sidebar (hidden with top tabs) · ⌘L: Under the address / Centred. A tag shows "Arc-style", "Dia-style" or "Your mix". |
 | 4 | Tabs | ⌘T: New Tab page / Command bar · New tabs: Bottom / Top · Old tabs: Keep / Tidy after 12 h, 1 day, 1 week · On quit: Restore / Start fresh · Windows: Separate / Shared tabs. More options: Top Apps grid, peek modifier, ⌘Z reopens closed tab, ⌘-click tab groups. |
-| 5 | Look | Theme color · Auto / Light / Dark · Website color in the tab bar on / off. More options: app icon, hide toolbar while scrolling, bookmarks bar. |
+| 5 | Look | Theme color · Auto / Light / Dark · Page frame: Framed / Thin / Edge to edge and a slider (asked with every preset) · Website color in the tab bar on / off. More options: app icon, hide toolbar while scrolling, bookmarks bar. |
 | 6 | Search & privacy | Search engine tiles · Typing a word: Website first / Search first · Block ads, trackers, cookie banners · Crash reports (today's receipt). |
 | 7 | Pin your apps | today's step, preselected from the imported history once the import has finished |
 | 8 | Make it home | Default browser (7-day trial), Dock, open at login, links from other apps in Little Ardia / a tab |

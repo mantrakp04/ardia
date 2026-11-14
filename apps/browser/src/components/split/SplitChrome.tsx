@@ -8,10 +8,12 @@ import { resize, type Divider, type Rect } from "../window/geometry";
 import { capsule, space, Symbol, Text, Toast, withAlpha } from "../ui";
 import { hideToast, useToasts } from "../../state/app/toasts";
 import { useWindowId } from "../../state/browser/hooks";
+import { useCardFrame } from "../window/cardFrame";
+import type { Size } from "../ui/useSettled";
 import { overPeek } from "../../state/windows/dockMotion";
 import { zoneHit, zoneRect, type ZoneStage } from "./splitDrop";
 import { setDropTarget, setOnPage, setTargetResolver, useTabDrag } from "../../state/drag/tabDrag";
-import { SPLIT_MOTION, splitColors, TOAST_ACTION_MS, TOAST_MS, ZONE_ACCENT_ALPHA, ZONE_DASH_INSET, ZONE_DASH_RADIUS, ZONE_RADIUS, ZONE_SLIDE_MS } from "./tokens";
+import { FOCUS_RING, SPLIT_MOTION, splitColors, TOAST_ACTION_MS, TOAST_MS, ZONE_ACCENT_ALPHA, ZONE_DASH_INSET, ZONE_SLIDE_MS, zoneDashRadius, zoneRadius } from "./tokens";
 
 export function SplitDividers({ split, dividers, width, height }: { split: SplitView; dividers: Divider[]; width: number; height: number }) {
   return (
@@ -21,6 +23,57 @@ export function SplitDividers({ split, dividers, width, height }: { split: Split
       ))}
     </>
   );
+}
+
+export type WindowShape = Size & { radius: number };
+
+type Corners = { topLeft: number; topRight: number; bottomLeft: number; bottomRight: number };
+
+export const SplitFocusRing = memo(function SplitFocusRing({ rect, origin, windowShape }: { rect: Rect; origin: { x: number; y: number } | null; windowShape: WindowShape | null }) {
+  const theme = useTheme();
+  const { inset, radius, splitGap } = useCardFrame();
+  const framed = inset > 0;
+  const room = framed ? splitGap / 2 : 0;
+  const width = framed ? Math.min(FOCUS_RING.width, room) : FOCUS_RING.width;
+  const outset = Math.min(FOCUS_RING.width + FOCUS_RING.gap, room);
+  const corners = framed ? uniformCorners(radius > 0 ? radius + outset : 0) : windowCorners(rect, origin, windowShape);
+  const box = { x: rect.x - outset, y: rect.y - outset, width: rect.width + outset * 2, height: rect.height + outset * 2 };
+  const color = theme.powerUpColor ?? theme.accent;
+  const edge = (style: { left: number; top: number; width: number; height: number }) => <View style={{ position: "absolute", backgroundColor: color, ...style }} />;
+  const corner = (r: number, left: number, top: number, dx: number, dy: number) =>
+    r > 0 && (
+      <View style={{ position: "absolute", left, top, width: r, height: r, overflow: "hidden" }}>
+        <View style={{ position: "absolute", left: dx, top: dy, width: r * 2, height: r * 2, borderRadius: r, borderWidth: width, borderColor: color, overflow: "hidden" }} />
+      </View>
+    );
+  const { topLeft, topRight, bottomLeft, bottomRight } = corners;
+  const right = box.x + box.width;
+  const bottom = box.y + box.height;
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {edge({ left: box.x + topLeft, top: box.y, width: box.width - topLeft - topRight, height: width })}
+      {edge({ left: box.x + bottomLeft, top: bottom - width, width: box.width - bottomLeft - bottomRight, height: width })}
+      {edge({ left: box.x, top: box.y + topLeft, width, height: box.height - topLeft - bottomLeft })}
+      {edge({ left: right - width, top: box.y + topRight, width, height: box.height - topRight - bottomRight })}
+      {corner(topLeft, box.x, box.y, 0, 0)}
+      {corner(topRight, right - topRight, box.y, -topRight, 0)}
+      {corner(bottomLeft, box.x, bottom - bottomLeft, 0, -bottomLeft)}
+      {corner(bottomRight, right - bottomRight, bottom - bottomRight, -bottomRight, -bottomRight)}
+    </View>
+  );
+});
+
+const uniformCorners = (r: number): Corners => ({ topLeft: r, topRight: r, bottomLeft: r, bottomRight: r });
+
+function windowCorners(rect: Rect, origin: { x: number; y: number } | null, windowShape: WindowShape | null): Corners {
+  if (!origin || !windowShape || windowShape.radius <= 0) return uniformCorners(0);
+  const r = windowShape.radius;
+  const touches = (a: number, b: number) => Math.abs(a - b) < 0.5;
+  const left = touches(origin.x + rect.x, 0);
+  const top = touches(origin.y + rect.y, 0);
+  const right = touches(origin.x + rect.x + rect.width, windowShape.width);
+  const bottom = touches(origin.y + rect.y + rect.height, windowShape.height);
+  return { topLeft: left && top ? r : 0, topRight: right && top ? r : 0, bottomLeft: left && bottom ? r : 0, bottomRight: right && bottom ? r : 0 };
 }
 
 const sizesOf = (split: SplitView) => ({ sizes: split.slots.map((slot) => slot.size), stack: split.slots.find((slot) => "stack" in slot)?.stackSizes });
@@ -45,10 +98,11 @@ function DividerHandle({ split, divider, width, height }: { split: SplitView; di
         onPanResponderMove: (_, g) => {
           const { split: v, divider: d, width: w, height: h } = latest.current;
           const delta = d.vertical ? g.dx : g.dy;
+          const gap = d.vertical ? d.rect.width : d.rect.height;
           if (d.kind === "root") {
-            updateSplit(v.id, { sizes: resize(start.current.sizes, d.index, delta, d.vertical ? w : h) });
+            updateSplit(v.id, { sizes: resize(start.current.sizes, d.index, delta, d.vertical ? w : h, gap) });
           } else if (start.current.stack) {
-            const next = resize(start.current.stack, 0, delta, d.vertical ? w : h) as [number, number];
+            const next = resize(start.current.stack, 0, delta, d.vertical ? w : h, gap) as [number, number];
             updateSplit(v.id, { stackSizes: next });
           }
         },
@@ -173,7 +227,7 @@ const ZONE_SPRING = { ...SPLIT_MOTION.zoneSpring, useNativeDriver: false } as co
 function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect; side: "left" | "right"; shown: boolean; stage: ZoneStage; pointerX: number; onHidden(): void }) {
   const theme = useTheme();
   const rect = zoneRect(pane, side, stage, pointerX);
-  const anim = useRef({ x: new Animated.Value(rect.x), y: new Animated.Value(rect.y), w: new Animated.Value(rect.width), h: new Animated.Value(rect.height) }).current;
+  const [anim] = useState(() => ({ x: new Animated.Value(rect.x), y: new Animated.Value(rect.y), w: new Animated.Value(rect.width), h: new Animated.Value(rect.height) }));
   const glow = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(0)).current;
   const active = stage === "active";
@@ -205,7 +259,7 @@ function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect
         top: anim.y,
         width: anim.w,
         height: anim.h,
-        borderRadius: ZONE_RADIUS,
+        borderRadius: zoneRadius(),
         borderWidth: 0.5,
         borderColor: colors.zoneBorder,
         backgroundColor: glow.interpolate({ inputRange: [0, 1], outputRange: [colors.zoneFill, withAlpha(theme.accent, dark ? ZONE_ACCENT_ALPHA.dark : ZONE_ACCENT_ALPHA.light)] }),
@@ -221,7 +275,7 @@ function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect
           right: ZONE_DASH_INSET,
           top: ZONE_DASH_INSET,
           bottom: ZONE_DASH_INSET,
-          borderRadius: ZONE_DASH_RADIUS,
+          borderRadius: zoneDashRadius(),
           borderStyle: "dashed",
           borderWidth: active ? 2.33 : 2,
           borderColor: active ? theme.accent : colors.zoneDash,

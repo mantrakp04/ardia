@@ -5,6 +5,7 @@ export const VERSION = release.version;
 export const DMG_SIZE = `${Math.round(release.dmgBytes / 1e6)} MB`;
 export const REPO_SLUG = "mantrakp04/ardia";
 export const REPO = `https://github.com/${REPO_SLUG}`;
+export const TESTFLIGHT = "https://testflight.apple.com/join/yXHasDmr";
 export const DISCORD = "https://discord.gg/TdhuXrbcA6";
 export const RELEASES = `${REPO}/releases/latest`;
 export const DMG = `${REPO}/releases/download/v${VERSION}/Ardia-${VERSION}.dmg`;

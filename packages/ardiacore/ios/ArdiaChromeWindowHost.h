@@ -4,6 +4,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface ArdiaChromeWindowHost : NSObject
 
+@property(class, nonatomic, readonly) CGFloat windowCornerRadius;
+
++ (CGFloat)frameCornerRadiusOfWindow:(NSWindow *)window;
+
 + (nullable NSWindow *)makeWindowForProfile:(NSString *)profile;
 + (nullable NSWindow *)makeWindowForProfile:(NSString *)profile chromeWindow:(nullable NSString *)chromeWindow;
 + (nullable NSWindow *)makeWindowForProfile:(NSString *)profile
@@ -22,8 +26,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (void)removeRootViewOfWindow:(NSWindow *)window;
 
-+ (void)setTrafficLightsCenter:(nullable NSValue *)center inWindow:(NSWindow *)window;
-+ (void)moveTrafficLightsCenter:(nullable NSValue *)center inWindow:(NSWindow *)window;
++ (void)setTrafficLightsCenter:(nullable NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window;
++ (void)moveTrafficLightsCenter:(nullable NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window;
 
 + (void)closeWindow:(NSWindow *)window;
 
@@ -35,15 +39,26 @@ NS_ASSUME_NONNULL_BEGIN
 @property(class, nonatomic, copy, nullable) BOOL (^refusesUnhandledKeyHandler)(NSWindow *window, NSEvent *event);
 + (BOOL)windowShouldClose:(NSWindow *)window;
 + (BOOL)windowFullScreenIsForPage:(NSWindow *)window;
++ (BOOL)userSeesWindow:(nullable NSWindow *)window NS_SWIFT_NAME(userSees(_:));
 
 @end
 
+extern NSNotificationName const ArdiaWindowSeenDidChange;
+
 NSView *_Nullable ArdiaWindowRootView(NSWindow *_Nullable window);
 NSValue *_Nullable ArdiaTrafficLightsCenter(NSWindow *_Nullable window);
+BOOL ArdiaTrafficLightsTrailing(NSWindow *_Nullable window);
+FOUNDATION_EXPORT BOOL ArdiaPerformReservedKey(NSEvent *event);
 
 @interface ArdiaChromeWindowHost (Dev)
 
 + (nullable NSString *)devAction:(NSString *)action window:(NSWindow *)window;
+
+@end
+
+@interface ArdiaChromeWindowHost (DevFullScreenProbe)
+
++ (NSString *)devFullScreenProbe:(nullable NSString *)argument window:(NSWindow *)window;
 
 @end
 

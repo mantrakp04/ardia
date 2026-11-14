@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Many buttons</title></head>
+<body>
+<h1>Many buttons</h1>
+<div id="box"></div>
+<script>
+  const box = document.getElementById("box");
+  for (let i = 1; i <= 400; i++) {
+    const button = document.createElement("button");
+    button.textContent = `Button number ${i}`;
+    box.appendChild(button);
+  }
+</script>
+</body>
+</html>

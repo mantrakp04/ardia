@@ -1,0 +1,295 @@
+{
+  "id": "release-0245",
+  "segments": [
+    {
+      "scene": "badges", "source": "reuse", "from": "fixes-0245n3", "source_scene": "n3badges", "section": "New",
+      "title": "Unread counts sit on their tab",
+      "body": "A pinned mail app, a pinned chat and an open forum whose titles carry unread counts. Before, only the title changed; now the count sits on each tab's icon, from the title, the Badging API or a dot on the favicon.",
+      "beforeVersion": "0.2.45-nightly.2", "afterVersion": "0.2.45-nightly.3"
+    },
+    {
+      "scene": "peek", "source": "reuse", "from": "fixes-0245n3", "source_scene": "n3peek", "section": "New",
+      "title": "Links from pinned tabs open in a Peek",
+      "body": "A link in a pinned mail app that opens a new tab, as Gmail's do. Before, it opened a tab and took you off the app; now it opens over the app in a Peek. Inside Little Ardia, new-tab links now stay in Little Ardia.",
+      "beforeVersion": "0.2.45-nightly.2", "afterVersion": "0.2.45-nightly.3"
+    },
+    {
+      "scene": "r45report", "section": "New",
+      "title": "Report a Problem, one sheet for everything",
+      "body": "Help › Report a Problem… (⌥⇧⌘I). 0.2.44 opened a GitHub issue form in a new tab. Now one sheet takes bugs, slowness and ideas, with an optional page-free recording and a preview of exactly what is sent.",
+      "layout": "side", "cam": [0, 0, 1100, 720], "lead": 1.0, "tail": 9.6
+    },
+    {
+      "scene": "r45cli", "section": "New",
+      "title": "Organize tabs from the command line",
+      "body": "ardia tabs lists every window, group and tab; ardia groups creates, nests, renames and recolours groups without changing the tab you're on. 0.2.44's CLI has neither command.",
+      "layout": "side", "cam": [0, 0, 1100, 720], "lead": 1.0, "tail": 12.0,
+      "terminal": { "x": 330, "y": 420, "w": 750, "title": "Terminal — ardia" }
+    },
+    {
+      "scene": "lazyprof", "source": "reuse", "from": "fixes-0245n1", "source_scene": "lazyprof", "section": "New",
+      "title": "Profiles load when you open them",
+      "body": "Eight profiles, idle after launch, then a switch to P4. With every profile started at launch they took 1,832 MiB; now only the one on screen starts, and the first switch to another takes about two seconds.",
+      "beforeVersion": "setting off", "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "wkblock", "source": "reuse", "from": "fixes-0245n1", "source_scene": "wkblock", "section": "New",
+      "title": "WebKit pages block ads and trackers",
+      "body": "Daily Mail in a WebKit tab, headline and photos blurred. 0.2.44 loaded its display ads and a video ad; now uBlock Origin Lite's lists keep them out, and Site Controls counts what it blocked.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "frame", "source": "reuse", "from": "fixes-0245n3", "source_scene": "n3frame", "section": "New",
+      "title": "The page frame goes edge to edge",
+      "body": "Settings › Appearance › Page Frame, a slider stepped from 9 pt to 0. Before, there was no such setting and the 9 pt frame always stayed; it's in onboarding too.",
+      "beforeVersion": "0.2.45-nightly.2", "afterVersion": "0.2.45-nightly.3"
+    },
+    {
+      "scene": "copyurl", "source": "reuse", "from": "fixes-0245n3", "source_scene": "n3copyurl", "section": "New",
+      "title": "Bookmarks can hide",
+      "body": "Show bookmarks off in Settings › General, then a click where the star was. Before, there was no such switch; now the button, the bar and the Bookmarks menu go, and Copy URL takes the star's place.",
+      "beforeVersion": "0.2.45-nightly.2", "afterVersion": "0.2.45-nightly.3"
+    },
+    {
+      "scene": "privacy", "source": "text", "section": "New",
+      "title": "Settings › Privacy shows how you appear to us",
+      "body": "An anonymous name and avatar stand in for your install's random ID, with Reset My Anonymous ID. View My Data saves the last 7 days of what Ardia logged to your Downloads folder.",
+      "reason": "It lives in the Settings window, and this film records only the browser window of each hidden test instance.",
+      "length": 3.4
+    },
+    {
+      "scene": "drops", "source": "text", "section": "New",
+      "title": "Drop things where you are",
+      "body": "Files, links and text dropped on the New Tab page open in that tab, from the Downloads popover too, and a .crx dropped anywhere in a window asks to install it.",
+      "reason": "A drop needs a real drag from Finder. The test hook that fakes one only exists in debug builds, and 0.2.44 is a release build.",
+      "length": 3.4
+    },
+    {
+      "scene": "livefolder", "source": "text", "section": "New",
+      "title": "Live folder tabs go back to their item",
+      "body": "A tab opened from a live folder keeps the item's page as its home, so Back to Pinned URL takes you back to it.",
+      "reason": "Live folders read GitHub with a signed-in account, and test instances have no accounts.",
+      "length": 3.2
+    },
+    {
+      "scene": "browse", "source": "text", "section": "New",
+      "title": "Agents do more, in fewer steps",
+      "body": "ardia browse read and script, HTML5 drag and drop, background tabs that keep drawing, ardia computer for your Mac's other apps, and ardia feedback for agents.",
+      "reason": "These are terminal commands for agents; the app looks the same while they run.",
+      "length": 3.0
+    },
+    {
+      "scene": "engine", "source": "text", "section": "New",
+      "title": "Chromium 157",
+      "body": "The engine moves from 156 to 157.0.8103.38 with Helium 0.21.1's privacy patches and Chrome 157's security fixes. Profiles, tabs, passwords, extensions and filters carry over.",
+      "reason": "Pages look the same. The new engine is in the stable build; the after shots in this film were filmed on 0.2.45's nightlies, which still ran Chromium 156.",
+      "length": 3.4
+    },
+    {
+      "scene": "lastwindow", "source": "reuse", "from": "fixes-0245n4", "source_scene": "n4close", "section": "Fixed",
+      "title": "Closing your last window keeps it",
+      "body": "Pinned tabs, five open tabs and a Weekend group; the red button, then Ardia in the Dock. Before, it asked \"Close 5 tabs?\" and the Dock gave a fresh window; now it closes without asking and comes back as it was.",
+      "beforeVersion": "0.2.45-nightly.3", "afterVersion": "0.2.45-nightly.4"
+    },
+    {
+      "scene": "bmfreeze", "source": "reuse", "from": "fixes-0245n1", "source_scene": "bmfreeze", "section": "Fixed",
+      "title": "Thousands of bookmarks no longer freeze Ardia",
+      "body": "2,500 bookmarks imported with the bar set to Always. 0.2.44 never drew the bar and ignored a tab switch for 40 s; now the import takes half a second and tab switches are instant.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "r45bookmarks", "section": "Fixed", "card": false,
+      "title": "⌘A clears a whole folder",
+      "body": "300 imported bookmarks on the bookmarks page: a click on the first, ⌘A, then ⌫. 0.2.44 kept one row selected and ⌫ did nothing; now ⌘A selects the whole folder, ⌫ deletes it and Undo brings it back.",
+      "layout": "side", "cam": [0, 0, 1100, 720], "lead": 4.6, "tail": 4.2
+    },
+    {
+      "scene": "r45autohide", "section": "Fixed",
+      "title": "Auto-hide tabs remembers your choice",
+      "body": "⌘S hides the tabs, then ⌘N opens a new window. 0.2.44 kept the choice on that window only, so the new one brought the tabs back; now it's a setting, Settings › Tabs › Auto-hide tabs.",
+      "layout": "side", "cam": [0, 0, 1100, 720], "lead": 1.0, "tail": 5.2
+    },
+    {
+      "scene": "r45tophide", "section": "Fixed", "card": false,
+      "title": "Tabs across the top get a hide button",
+      "body": "With tabs across the top, two clicks on the toolbar's first button. 0.2.44 had no button there (that's Back, greyed out); now it hides and shows the strip, and its tooltip says Hide Tabs or Show Tabs.",
+      "layout": "side", "cam": [0, 0, 700, 400], "lead": 2.4, "tail": 4.4
+    },
+    {
+      "scene": "r45arrow", "section": "Fixed",
+      "title": "Arrowing shows the suggestion in the field",
+      "body": "⌘L, \"cr\", then ↓ three times and Esc. In 0.2.44 only the highlight moved; now the field shows each row's query or address, as in Chrome and Dia, and Esc brings back what you typed.",
+      "layout": "side", "cam": [0, 0, 1100, 720], "lead": 1.0, "tail": 7.6
+    },
+    {
+      "scene": "topapps", "source": "reuse", "from": "fixes-0245n1", "source_scene": "topapps", "section": "Fixed",
+      "title": "Top Apps stay in their own profile",
+      "body": "Personal and Work share browsing data. 0.2.44 merged their Top Apps, so unpinning a tile in Work took it out of Personal too. Sharing Top Apps is now off unless a profile turns it on.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "ynab", "source": "reuse", "from": "fixes-0245n1", "source_scene": "ynab903", "section": "Fixed",
+      "title": "Picky sites work",
+      "body": "A YNAB-like test page running the same tamper checks on screen sharing. 0.2.44 failed them and showed Something Went Wrong on every load; now the budget loads. Apple Store guest checkout works too.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "picker", "source": "reuse", "from": "fixes-0245n1", "source_scene": "picker914", "section": "Fixed", "card": false,
+      "title": "No screen picker without a click",
+      "body": "A page asks to share the screen while it loads, and again from a frame, with no click. 0.2.44 opened Chrome's picker and set off screen-recording prompts; now nothing opens until you click.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "ytvpip", "source": "reuse", "from": "fixes-0245n1", "source_scene": "ytv-pip", "section": "Fixed",
+      "title": "Picture in Picture goes where you put it",
+      "body": "A video that tells the browser it can't go into Picture in Picture, as YouTube TV's player does. 0.2.44's button did nothing; now it opens anyway. It also floats over full-screen apps and sits on any display.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "pipwm", "source": "reuse", "from": "fixes-0245n1", "source_scene": "pipwm777", "section": "Fixed", "card": false,
+      "title": "Tiling window managers leave it alone",
+      "body": "AeroSpace's rules over a workspace switch. 0.2.44's Picture in Picture counted as a dialog and was pulled back to Ardia's workspace; now it floats over every workspace.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "fullscreen", "source": "reuse", "from": "fixes-0245n1", "source_scene": "fslights", "section": "Fixed",
+      "title": "Full screen works like Arc's",
+      "body": "Full screen, at rest and through a menu bar reveal. 0.2.44 kept the window buttons up the whole time; now they hide until you point at the top, and come down with macOS's title bar.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "sync", "source": "reuse", "from": "fixes-0245n1", "source_scene": "sync514", "section": "Fixed",
+      "title": "A second Mac joining sync lists the first's profiles",
+      "body": "Mac B's Settings › Sync, after it joined while Mac A's files were still downloading from iCloud. 0.2.44 never read them again and listed none of A's profiles; now they show up.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "display", "source": "reuse", "from": "fixes-0245n1", "source_scene": "monitor852", "section": "Fixed",
+      "title": "A window dragged to another display stays put",
+      "body": "A drag onto a shorter second display on macOS 27. 0.2.44 shrank the window and stopped it following the pointer; now it keeps its size, lands where you drop it and snaps to the edges.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "stylus", "source": "reuse", "from": "fixes-0245n1", "source_scene": "stylus757", "section": "Fixed",
+      "title": "Signing in from an extension opens its own window",
+      "body": "Stylus › Options › Sync to cloud › Google Drive › Connect. 0.2.44 put the sign-in page among your tabs and closed your window when it finished; now it opens in its own window.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "icons", "source": "reuse", "from": "fixes-0245n4", "source_scene": "n4icons", "section": "Fixed",
+      "title": "Profile icons get room in the switcher",
+      "body": "Five profiles with \"Show profile icons instead of dots\" on, a hover on School and a click on Music. Before, each icon sat in an 18 pt cell and the targets touched; now each gets 26 pt.",
+      "beforeVersion": "0.2.45-nightly.3", "afterVersion": "0.2.45-nightly.4"
+    },
+    {
+      "scene": "peekhist", "source": "reuse", "from": "fixes-0245n1", "source_scene": "peekhist", "section": "Fixed",
+      "title": "The hidden sidebar behaves at the edges",
+      "body": "Sidebar hidden with the address bar in it, then a long press on Back. 0.2.44 opened the history menu under the sidebar and let it slide away; now it opens beside it. The corner flicker is gone too.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "drift", "source": "reuse", "from": "fixes-0245n3", "source_scene": "n3drift", "section": "Fixed",
+      "title": "A click that drifts still counts",
+      "body": "Two clicks on sidebar tabs where the pointer drifts 4 to 5 points before it lets go. Before, they read as tiny drags and nothing happened; now each opens its tab.",
+      "beforeVersion": "0.2.45-nightly.2", "afterVersion": "0.2.45-nightly.3"
+    },
+    {
+      "scene": "crashes", "source": "text", "section": "Fixed",
+      "title": "Several crashes are gone",
+      "body": "At launch with thousands of tabs or on early macOS 26, loading certain images, closing a window or moving a tab between windows, an extension popup with no tab, and Cast remoting.",
+      "reason": "Crashing 0.2.44 on purpose would put macOS's crash dialog on the owner's screen.",
+      "length": 3.2
+    },
+    {
+      "scene": "sitecolor", "source": "text", "section": "Fixed",
+      "title": "Website colour in the tab bar is the site's real one",
+      "body": "With \"Extend website color into tab bar\" on, Perplexity's tab bar turned black and Linear's dark red, though both sites are light.",
+      "reason": "It needs Perplexity and Linear themselves, and test instances only load local fixture pages.",
+      "length": 3.2
+    },
+    {
+      "scene": "closewarn", "source": "text", "section": "Fixed",
+      "title": "Closing a window asks about the right tabs",
+      "body": "Two windows that share tabs both close when you close them, and the warning counts only the tabs that will close.",
+      "reason": "The warning is a native sheet, which a hidden test instance logs instead of showing.",
+      "length": 3.0
+    },
+    {
+      "scene": "av1", "source": "text", "section": "Fixed",
+      "title": "Upscaling no longer stripes AV1 video",
+      "body": "On M1 and M2 Macs, video upscaling drew stripes across AV1 video.",
+      "reason": "This Mac isn't an M1 or M2, so it never striped here.",
+      "length": 3.0
+    },
+    {
+      "scene": "sidebarscroll", "source": "text", "section": "Fixed",
+      "title": "Clicking a tab no longer scrolls the sidebar",
+      "body": "After switching to another profile's page, clicking a tab you could see scrolled the sidebar away from it.",
+      "reason": "It needed a long scrolled tab list across profiles that the test sessions here don't recreate on demand.",
+      "length": 3.0
+    },
+    {
+      "scene": "agenttab", "source": "text", "section": "Fixed",
+      "title": "Agents never act on your tab unasked",
+      "body": "An agent's own reads and inspections open tabs of their own, and close leaves your tabs alone.",
+      "reason": "It's a rule in the ardia command; there's nothing different to see unless an agent misbehaves.",
+      "length": 3.0
+    },
+    {
+      "scene": "tilecolor", "source": "reuse", "from": "fixes-0245n1", "source_scene": "tilecolor", "section": "Smaller",
+      "title": "Top Apps tiles look like 0.2.43's again",
+      "body": "A swipe from the Red space to the Green one. 0.2.44 drew the tiles whiter, with a brighter edge; now their glass is back.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "hovercard", "source": "reuse", "from": "fixes-0245n1", "source_scene": "groupclose", "section": "Smaller",
+      "title": "Hover cards leave at a group's header",
+      "body": "A tab's hover card, then the pointer onto its group's header. 0.2.44 kept the card until the click; now it goes. Hover cards also sit under the top strip and keep off the page's edge.",
+      "afterVersion": "0.2.45-nightly.1"
+    },
+    {
+      "scene": "r45sitepanel", "section": "Smaller",
+      "title": "Site panels close when you click away",
+      "body": "Site Controls, then a click in the sidebar, then Esc. 0.2.44 kept the panel open through both; now either closes it. The ⌃Tab switcher lists only open tabs too.",
+      "layout": "side", "cam": [0, 0, 1100, 720], "lead": 1.0, "tail": 10.8, "rate": 1.5
+    },
+    {
+      "scene": "away", "source": "reuse", "from": "fixes-0245n3", "source_scene": "n3away", "section": "Smaller",
+      "title": "A pinned tab away from home shows \"/ title\"",
+      "body": "A pinned Notes row, then a click into one of its notes: a dimmed \"/\" says the pinned tab has left its page. Back to Pinned URL no longer sticks afterwards.",
+      "beforeVersion": "0.2.45-nightly.2", "afterVersion": "0.2.45-nightly.3"
+    },
+    {
+      "scene": "pulse", "source": "reuse", "from": "fixes-0245n3", "source_scene": "n3pulse", "section": "Smaller",
+      "title": "The command bar pulses in the site's colour",
+      "body": "⌘T, \"bing\" and Tab to search Bing: the bar now pulses in Bing's teal.",
+      "beforeVersion": "0.2.45-nightly.2", "afterVersion": "0.2.45-nightly.3"
+    },
+    {
+      "scene": "spaces", "source": "reuse", "from": "fixes-0245n3", "source_scene": "n3spaces", "section": "Smaller",
+      "title": "Shared Top Apps hold still",
+      "body": "Two spaces that share Top Apps, and ⌃2 to Work. Before, the tiles slid out and back in; now only the tabs move.",
+      "beforeVersion": "0.2.45-nightly.2", "afterVersion": "0.2.45-nightly.3"
+    },
+    {
+      "scene": "black", "source": "reuse", "from": "fixes-0245n3", "source_scene": "n3black", "section": "Smaller",
+      "title": "The selected tab stands out on dark profiles",
+      "body": "A near-black custom profile: the selected tab now reads lighter than the sidebar, on near-white ones too.",
+      "beforeVersion": "0.2.45-nightly.2", "afterVersion": "0.2.45-nightly.3"
+    },
+    {
+      "scene": "smallseen", "source": "text", "section": "Smaller",
+      "title": "More small things on screen",
+      "body": "A tab with a Peek shows its icon; the audio indicator holds 2 s; same-site swaps don't flash white; the camera dot leaves slept tabs; a black-icon tile shows its ring; tab-on-tab grouping is a setting.",
+      "reason": "Each lasts a moment or needs a real camera, sound or drag; also a live folder's Completed list folds open, the Dock icon behaves under Tinted and Clear, and an extension's side panel takes focus.",
+      "length": 3.4
+    },
+    {
+      "scene": "smallhood", "source": "text", "section": "Smaller",
+      "title": "And under the hood",
+      "body": "Re-saving a password works; no recovery kit offered too early; Gemini in Chrome is off; crash reports (sharing on) cover page and GPU crashes; Copy Diagnostics names the focused window; ardia exec makes way for browse, pinned and history.",
+      "reason": "None of these change what's on screen.",
+      "length": 3.0
+    }
+  ]
+}

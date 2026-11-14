@@ -1,4 +1,5 @@
 import { serverEnv } from "./env";
+import { paramSearch } from "./query-params";
 
 const FRESH_MS = 5 * 60_000;
 const KEEP_MS = 6 * 60 * 60_000;
@@ -9,6 +10,7 @@ const SETTINGS = {
   max_execution_time: "15",
   cancel_http_readonly_queries_on_client_close: "1",
   max_memory_usage: "500000000",
+  do_not_merge_across_partitions_select_final: "1",
   output_format_json_quote_64bit_integers: "0",
 };
 
@@ -20,8 +22,12 @@ const DEFAULT_POLICY: CachePolicy = { freshMs: FRESH_MS, keepMs: KEEP_MS };
 
 type Entry = { at: number; rows: Rows; bytes: number; policy: CachePolicy };
 
+export type QueryParams = Record<string, string | number>;
+
 type Job = {
+  key: string;
   sql: string;
+  params: QueryParams;
   policy: CachePolicy;
   label: string;
   waiters: number;
@@ -38,11 +44,12 @@ const inFlight = new Map<string, Job>();
 const queue: Job[] = [];
 let running = 0;
 
-function endpoint() {
+function endpoint(params: QueryParams) {
   const base = serverEnv("CLICKHOUSE_URL") ?? (serverEnv("CLICKHOUSE_HOST") ? `http://${serverEnv("CLICKHOUSE_HOST")}:8123/` : null);
   if (!base) throw new Error("ClickHouse is not configured: set CLICKHOUSE_URL or CLICKHOUSE_HOST");
   const url = new URL(base);
   for (const [key, value] of Object.entries(SETTINGS)) url.searchParams.set(key, value);
+  for (const [name, value] of paramSearch(params)) url.searchParams.set(name, value);
   return url;
 }
 
@@ -52,7 +59,7 @@ async function execute(job: Job): Promise<Rows> {
   if (!user || !password) throw new Error("ClickHouse credentials are not configured");
   const timeout = AbortSignal.timeout(20_000);
   const started = performance.now();
-  const res = await fetch(endpoint(), {
+  const res = await fetch(endpoint(job.params), {
     method: "POST",
     headers: { "X-ClickHouse-User": user, "X-ClickHouse-Key": password, "Content-Type": "text/plain" },
     body: `${job.sql}\nFORMAT JSONCompact`,
@@ -77,7 +84,7 @@ function pump() {
   while (running < MAX_IN_FLIGHT && queue.length) {
     const job = queue.shift()!;
     if (job.waiters <= 0) {
-      if (inFlight.get(job.sql) === job) inFlight.delete(job.sql);
+      if (inFlight.get(job.key) === job) inFlight.delete(job.key);
       job.reject(new DOMException("Aborted", "AbortError"));
       continue;
     }
@@ -85,12 +92,12 @@ function pump() {
     job.started = true;
     execute(job)
       .then((rows) => {
-        remember(job.sql, rows, job.policy);
+        remember(job.key, rows, job.policy);
         job.resolve(rows);
       }, job.reject)
       .finally(() => {
         running--;
-        if (inFlight.get(job.sql) === job) inFlight.delete(job.sql);
+        if (inFlight.get(job.key) === job) inFlight.delete(job.key);
         pump();
       });
   }
@@ -116,26 +123,27 @@ function remember(sql: string, rows: Rows, policy: CachePolicy) {
   }
 }
 
-function refreshInBackground(sql: string, policy: CachePolicy) {
-  if (inFlight.has(sql)) return;
-  run(sql, new AbortController().signal, policy).catch(() => undefined);
+function refreshInBackground(key: string, sql: string, params: QueryParams, policy: CachePolicy) {
+  if (inFlight.has(key)) return;
+  run(key, sql, params, new AbortController().signal, policy).catch(() => undefined);
 }
 
-export function query(sql: string, signal?: AbortSignal, policy: CachePolicy = DEFAULT_POLICY): Promise<Rows> {
+export function query(sql: string, signal?: AbortSignal, policy: CachePolicy = DEFAULT_POLICY, params: QueryParams = {}): Promise<Rows> {
+  const key = Object.keys(params).length ? `${sql}\n${JSON.stringify(params)}` : sql;
   const now = Date.now();
-  const hit = cache.get(sql);
+  const hit = cache.get(key);
   if (hit && now - hit.at < hit.policy.keepMs) {
-    cache.delete(sql);
-    cache.set(sql, hit);
-    if (now - hit.at >= hit.policy.freshMs) refreshInBackground(sql, policy);
+    cache.delete(key);
+    cache.set(key, hit);
+    if (now - hit.at >= hit.policy.freshMs) refreshInBackground(key, sql, params, policy);
     return Promise.resolve(hit.rows);
   }
-  if (hit) forget(sql);
-  return run(sql, signal, policy);
+  if (hit) forget(key);
+  return run(key, sql, params, signal, policy);
 }
 
-function run(sql: string, signal: AbortSignal | undefined, policy: CachePolicy): Promise<Rows> {
-  let job = inFlight.get(sql);
+function run(key: string, sql: string, params: QueryParams, signal: AbortSignal | undefined, policy: CachePolicy): Promise<Rows> {
+  let job = inFlight.get(key);
   if (!job) {
     let resolve!: (rows: Rows) => void;
     let reject!: (error: unknown) => void;
@@ -144,8 +152,8 @@ function run(sql: string, signal: AbortSignal | undefined, policy: CachePolicy):
       reject = rej;
     });
     promise.catch(() => undefined);
-    job = { sql, policy, label: sql.replace(/\s+/g, " ").trim().slice(0, 70), waiters: 0, controller: new AbortController(), started: false, promise, resolve, reject };
-    inFlight.set(sql, job);
+    job = { key, sql, params, policy, label: sql.replace(/\s+/g, " ").trim().slice(0, 70), waiters: 0, controller: new AbortController(), started: false, promise, resolve, reject };
+    inFlight.set(key, job);
     queue.push(job);
   }
   const current = job;
@@ -158,7 +166,7 @@ function run(sql: string, signal: AbortSignal | undefined, policy: CachePolicy):
       settled = true;
       current.waiters--;
       if (current.waiters <= 0 && current.started) {
-        if (inFlight.get(current.sql) === current) inFlight.delete(current.sql);
+        if (inFlight.get(current.key) === current) inFlight.delete(current.key);
         current.controller.abort();
       }
       reject(new DOMException("Aborted", "AbortError"));

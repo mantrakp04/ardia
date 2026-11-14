@@ -72,3 +72,39 @@ test("Move Back goes away once the tab leaves the moved site, and never saves a 
   assert.deepEqual(S().settings.websiteEngines, {});
   webviews.clear();
 });
+
+test("moving the same tab to WebKit again keeps one watch on its site, and closing the tab ends it", async () => {
+  S().hydrate({});
+  const realSubscribe = useBrowser.subscribe;
+  let live = 0;
+  useBrowser.subscribe = (listener) => {
+    live++;
+    const stop = realSubscribe(listener);
+    let stopped = false;
+    return () => {
+      if (!stopped) live--;
+      stopped = true;
+      stop();
+    };
+  };
+  try {
+    S().updateSettings({ websiteEngines: { "https://www.netflix.com": "webkit" } });
+    const w = S().createWindow({ url: "https://www.netflix.com/watch/1" });
+    const tabId = model.activeTabId(S(), w);
+    webviews.set(tabId, { evaluate: () => Promise.resolve(false) });
+    for (let i = 0; i < 3; i++) {
+      S().updateTab(tabId, { engine: "chromium", url: "https://www.netflix.com/watch/1" });
+      offerWebKit(tabId, { keySystem: "com.widevine.alpha", main: true });
+      await settle();
+      await settle();
+      assert.equal(S().tabs[tabId].engine, "webkit");
+    }
+    assert.equal(live, 1);
+    S().closeTab(tabId);
+    assert.equal(live, 0);
+  } finally {
+    useBrowser.subscribe = realSubscribe;
+    S().updateSettings({ websiteEngines: {} });
+    webviews.clear();
+  }
+});

@@ -1,0 +1,31 @@
+{
+  "repeats": 3,
+  "max_lanes": 24,
+  "pace_slack": 1.0,
+  "max_round_lead": 3,
+  "app": "~/ardia-scratch/bench-proper/app/Ardia.app",
+  "port": 9371,
+  "cli": "dev",
+  "ardia_test": "cdpTabsVisible",
+  "name": "ardia-fixes-2026-11-10",
+  "tasks": "all",
+  "results": "~/ardia-scratch/bench-proper/results/ardia-fixes-1",
+  "contenders": [
+    {
+      "id": "ardia-claude",
+      "label": "Ardia + Claude Code (Opus 5.5)",
+      "kind": "ardia",
+      "agent": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "id": "ardia-codex",
+      "label": "Ardia + Codex (GPT-6.1 Sol)",
+      "kind": "ardia",
+      "agent": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    }
+  ]
+}

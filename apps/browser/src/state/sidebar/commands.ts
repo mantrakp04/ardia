@@ -5,11 +5,11 @@ import { activeTabId, pinSection, plural } from "../browser/model";
 import { awayFromPin, selectedTabIds } from "../pins/organize";
 import { groupOf } from "../pins/tabGrouping";
 import { newGroupWithSelection, openIconPicker, startRename } from "./actions";
-import { closeAllTabs } from "./clearTabs";
+import { cleanUpWithUndo, closeAllTabs } from "./clearTabs";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { movePinnedTitle, togglePinnedRows } from "./movePinned";
 import { setSidebarUi } from "./sidebarUi";
-import { tidyPins } from "./tidyPinsUi";
+import { tidy } from "./tidyUi";
 import { switcherStep } from "./switcher";
 
 export function runSidebarCommand(command: BrowserCommand, arg: string | null, windowId: string): boolean {
@@ -27,13 +27,13 @@ export function runSidebarCommand(command: BrowserCommand, arg: string | null, w
       newGroupWithSelection(windowId);
       return true;
     case "cleanUpTabs":
-      s.cleanUpTabs(windowId);
+      cleanUpWithUndo(windowId);
       return true;
     case "closeAllTabs":
       closeAllTabs(windowId);
       return true;
     case "tidyPins":
-      tidyPins(windowId);
+      tidy(windowId, "pins");
       return true;
     case "searchTabs":
       setSidebarUi({ searchTabs: windowId, hover: null });
@@ -64,9 +64,12 @@ export function sidebarMenuState(s: BrowserState, windowId: string | undefined) 
   if (windowId) {
     if (!tab || !awayFromPin(tab)) disabled.push("returnToPinnedUrl");
     titles.togglePinnedRow = movePinnedTitle(s, tab);
-    const selected = selectedTabIds(s, windowId).filter((id) => pinSection(s.tabs[id]) !== "tile");
-    if (!selected.length) disabled.push("newGroupWithTabs");
-    if (selected.length > 1) titles.newGroupWithTabs = `New Group with ${plural(selected.length, "Tab")}`;
+    const selected = selectedTabIds(s, windowId);
+    const forGroup = selected.filter((id) => pinSection(s.tabs[id]) !== "tile");
+    if (!forGroup.length) disabled.push("newGroupWithTabs");
+    if (forGroup.length > 1) titles.newGroupWithTabs = `New Group with ${plural(forGroup.length, "Tab")}`;
+    const bar = s.windowUi[windowId]?.panel;
+    if (selected.length > 1 && !bar?.open && !bar?.newTab) titles.closeTab = `Close ${plural(selected.length, "Tab")}`;
   }
   const recentlyClosedGroups: MenuEntry[] = [...s.closedGroups]
     .reverse()

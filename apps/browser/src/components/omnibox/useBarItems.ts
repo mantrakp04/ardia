@@ -1,6 +1,7 @@
 import type { SearchScope } from "@ardia/core";
 import { useMemo, type RefObject } from "react";
 import type { TextInput } from "react-native";
+import { previewText } from "./barText";
 import { offeredScope } from "../../state/omnibox/scopes";
 import { useDropdownStart, useOpenTabsStart } from "./dropdownStart";
 import { useInlineCompletion } from "./useInlineCompletion";
@@ -47,14 +48,16 @@ export function useBarItems({
   const idle = opensTab && !scope && !typed.trim();
   const openTabs = useOpenTabsStart(idle, windowId, profileId);
   const items = dropdown && !edited && !scope ? start : idle ? openTabs : suggested;
-  const inline = useInlineCompletion(input, typed, suppressCompletion || scope ? "" : completion);
-  const shownCompletion = inline.shown;
-  const value = typed + shownCompletion;
-  const selectedIndex = selected < 0 && idle ? -1 : Math.min(Math.max(selected, 0), items.length - 1);
+  const selectedIndex = Math.min(Math.max(selected, 0), items.length - 1);
   const current = items[selectedIndex];
+  const preview = !idle && selectedIndex > 0 ? (previewText(current) ?? typed) : null;
+  const previewing = preview !== null;
+  const inline = useInlineCompletion(input, typed, suppressCompletion || scope ? "" : completion, preview);
+  const shownCompletion = previewing ? "" : inline.shown;
+  const value = preview ?? typed + shownCompletion;
   const tabScope = useMemo(
-    () => (!scope && edited ? offeredScope(typed, shownCompletion, windowId) : null),
-    [scope, edited, typed, shownCompletion, windowId],
+    () => (!scope && edited && !previewing ? offeredScope(typed, shownCompletion, windowId) : null),
+    [scope, edited, previewing, typed, shownCompletion, windowId],
   );
-  return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope };
+  return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing };
 }

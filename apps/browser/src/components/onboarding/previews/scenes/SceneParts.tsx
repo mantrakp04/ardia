@@ -17,7 +17,7 @@ export const listTop = (opts: SceneOpts) => (opts.addressInSidebar ? ROW.topWith
 export function Chrome({ g, look, opts, sel = 0 }: { g: Geo; look: Look; opts: SceneOpts; sel?: number }) {
   return (
     <>
-      <Backdrop g={g} look={look} />
+      <Backdrop look={look} />
       <Lights g={g} y={opts.addressInSidebar ? LIGHTS_Y.field : LIGHTS_Y.toolbar} />
       {opts.addressInSidebar ? (
         <>
@@ -45,7 +45,7 @@ export function Std({ g, look, opts, n = 4, sel = 0, rows, page, card, a = NOTES
   );
 }
 
-export function KeyPress({ g, look, t, label, ms = 0 }: { g: Geo; look: Look; t: Tracker; label: string; ms?: number }) {
+export function KeyPress({ g, t, label, ms = 0 }: { g: Geo; t: Tracker; label: string; ms?: number }) {
   return (
     <Keycap
       g={g}
@@ -127,9 +127,9 @@ export function SwapCrumb({ g, look, t, a, b, ms, x, y }: { g: Geo; look: Look; 
   );
 }
 
-export function Desktop({ g, look }: { g: Geo; look: Look }) {
+export function Desktop({ look }: { look: Look }) {
   const [a, b] = look.dark ? mockInk.desktop.dark : mockInk.desktop.light;
-  return <Backdrop g={g} look={{ ...look, tint: [a, b] }} />;
+  return <Backdrop look={{ ...look, tint: [a, b] }} />;
 }
 
 export function Window({ g, look, rect, children }: { g: Geo; look: Look; rect: Rect; children: ReactNode }) {
@@ -146,7 +146,7 @@ export function MiniArdia({ g, look, rect, tabs, sel, dim, rowStyle, extra, card
   const card: Rect = { x: MINI_SIDE + CARD - ROW.x, y: CARD, w: rect.w - MINI_SIDE - 2 * CARD + ROW.x, h: rect.h - 2 * CARD };
   return (
     <Window g={g} look={look} rect={rect}>
-      <Backdrop g={g} look={look} />
+      <Backdrop look={look} />
       <Lights g={g} />
       {extra}
       {tabs.map((tb, i) => (

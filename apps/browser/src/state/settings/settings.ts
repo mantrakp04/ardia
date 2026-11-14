@@ -10,17 +10,23 @@ import {
   type EngineInput,
   type ExtensionSearchEngine,
   type SearchEngine,
+  isProviderEntryList,
+  type ProviderEntry,
 } from "@ardia/core";
 import type { StateCreator } from "zustand";
 import { fromLegacyUrl } from "../../lib/legacy";
 import type { BrowserState } from "../browser/store";
-import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
+import { DEFAULT_SIDEBAR_WIDTH, PAGE_FRAME, validPageFrame } from "../../lib/windowLayout";
 import { isFields, isString, isStringList } from "../../lib/decode";
 import type { SavedObject } from "../../lib/savedDocument";
+import type { JsonSchema } from "../../lib/jsonSchema";
+import { PROVIDERS_SCHEMA } from "../omnibox/providerSchema";
+import { COMMAND_BAR_START_SCHEMA, isCommandBarStart, type CommandBarStart } from "../omnibox/commandBarStart";
+import { noteAutoHideTabsChosen } from "../telemetry/autoHideTabsChoices";
 
 export const DEFAULT_PROFILE_ID = "default";
 
-export type SettingSpec<T> = { default: T; valid: (value: unknown) => boolean; synced: boolean; values?: readonly T[] };
+export type SettingSpec<T> = { default: T; valid: (value: unknown) => boolean; synced: boolean; schema: JsonSchema; values?: readonly T[] };
 
 const SYNCED = true;
 
@@ -28,17 +34,31 @@ const isRecordOf = (v: unknown, item: (x: unknown) => boolean) => isFields(v) &&
 const isWidth = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v > 0;
 const hasStrings = (v: unknown, keys: readonly string[]) => isFields(v) && keys.every((k) => isString(v[k]));
 
-const flag = (d: boolean, synced = false): SettingSpec<boolean> => ({ default: d, valid: (v) => typeof v === "boolean", synced });
-const text = (d: string, synced = false): SettingSpec<string> => ({ default: d, valid: isString, synced });
-const width = (d: number): SettingSpec<number> => ({ default: d, valid: isWidth, synced: false });
-const fraction = (d: number, synced = false): SettingSpec<number> => ({ default: d, valid: (v) => typeof v === "number" && v >= 0 && v <= 1, synced });
+const STRING_LIST: JsonSchema = { type: "array", items: { type: "string" } };
+const WIDTH: JsonSchema = { type: "number", exclusiveMinimum: 0 };
+const engineRecords = (keys: string[]): JsonSchema => ({
+  type: "array",
+  items: { type: "object", properties: Object.fromEntries(keys.map((k) => [k, { type: "string" }])), required: keys },
+});
+const recordOf = (item: JsonSchema): JsonSchema => ({ type: "object", additionalProperties: item });
+
+const flag = (d: boolean, synced = false): SettingSpec<boolean> => ({ default: d, valid: (v) => typeof v === "boolean", synced, schema: { type: "boolean" } });
+const text = (d: string, synced = false): SettingSpec<string> => ({ default: d, valid: isString, synced, schema: { type: "string" } });
+const width = (d: number): SettingSpec<number> => ({ default: d, valid: isWidth, synced: false, schema: WIDTH });
+const fraction = (d: number, synced = false): SettingSpec<number> => ({
+  default: d,
+  valid: (v) => typeof v === "number" && v >= 0 && v <= 1,
+  synced,
+  schema: { type: "number", minimum: 0, maximum: 1 },
+});
 const oneOf = <const V extends readonly string[]>(values: V, d: V[number], synced = false): SettingSpec<V[number]> & { values: V } => ({
   default: d,
   values,
   valid: (v) => values.includes(v as string),
   synced,
+  schema: { type: "string", enum: values },
 });
-const shaped = <T,>(d: T, valid: (v: unknown) => boolean, synced = false): SettingSpec<T> => ({ default: d, valid, synced });
+const shaped = <T,>(d: T, valid: (v: unknown) => boolean, schema: JsonSchema, synced = false): SettingSpec<T> => ({ default: d, valid, synced, schema });
 
 export const SETTING_SPECS = {
   warnBeforeQuitting: flag(false, SYNCED),
@@ -46,17 +66,25 @@ export const SETTING_SPECS = {
   restoreSession: flag(true),
   searchEngine: text("google", SYNCED),
   customSearchUrl: text("", SYNCED),
-  customSearchEngines: shaped<CustomSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["id", "name", "keyword", "url"])), SYNCED),
-  extensionSearchEngines: shaped<ExtensionSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["profile", "extensionId", "name", "keyword", "url"]))),
+  customSearchEngines: shaped<CustomSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["id", "name", "keyword", "url"])), engineRecords(["id", "name", "keyword", "url"]), SYNCED),
+  extensionSearchEngines: shaped<ExtensionSearchEngine[]>(
+    [],
+    (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["profile", "extensionId", "name", "keyword", "url"])),
+    engineRecords(["profile", "extensionId", "name", "keyword", "url"]),
+  ),
   searchSuggestions: flag(true, SYNCED),
   searchTabsInAllProfiles: flag(false, SYNCED),
   showSelectionSearch: flag(true, SYNCED),
   commandBarPreference: oneOf(["website", "search"], "website", SYNCED),
   tabLayout: oneOf(["sidebar", "top"], "sidebar", SYNCED),
+  sidebarSide: oneOf(["left", "right"], "left", SYNCED),
+  autoHideTabs: flag(false, SYNCED),
   hideToolbarWhileScrolling: flag(true, SYNCED),
   newTabPosition: oneOf(["top", "bottom", "nextToCurrent"], "bottom", SYNCED),
   newTabButtonPosition: oneOf(["top", "bottom"], "bottom", SYNCED),
+  appLinksFirst: flag(false, SYNCED),
   newTabOpens: oneOf(["page", "commandBar"], "page", SYNCED),
+  reuseEmptyNewTab: flag(false, SYNCED),
   warnBeforeClosingLastTab: flag(true, SYNCED),
   undoReopensClosedTab: flag(false, SYNCED),
   warnBeforeMovingTabsToProfile: flag(true, SYNCED),
@@ -65,13 +93,19 @@ export const SETTING_SPECS = {
   extendWebsiteColor: flag(true, SYNCED),
   cmdClickCreatesTabGroup: flag(true, SYNCED),
   optShiftClickOpensInGroup: flag(true, SYNCED),
+  dragToGroupInTopStrip: flag(false, SYNCED),
   peekModifier: oneOf(["alt", "shift", "off"], "shift", SYNCED),
-  peekLinksToOtherSites: flag(false, SYNCED),
+  peekLinksToOtherSites: flag(true, SYNCED),
+  newTabLinksOpenIn: oneOf(["tab", "peek", "littleArdia"], "peek", SYNCED),
   splitLinkModifier: oneOf(["altShift", "alt"], "altShift", SYNCED),
   autoGroupMeetingTabs: flag(true, SYNCED),
-  cleanUpInactiveTabsAfterMinutes: shaped<number | null>(null, (v) => v === null || isWidth(v), SYNCED),
-  mutedSites: shaped<string[]>([], isStringList, SYNCED),
-  neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList)),
+  cleanUpInactiveTabsAfterMinutes: shaped<number | null>(null, (v) => v === null || isWidth(v), { type: ["number", "null"], exclusiveMinimum: 0 }, SYNCED),
+  suggestCleanUp: flag(true, SYNCED),
+  mutedSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
+  showUnreadCounts: flag(false, SYNCED),
+  showTopAppBadges: flag(false, SYNCED),
+  unreadHiddenSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
+  neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST)),
   autoPictureInPicture: flag(true, SYNCED),
   commandScrollZoom: flag(true, SYNCED),
   videoUpscaling: flag(true, SYNCED),
@@ -79,6 +113,7 @@ export const SETTING_SPECS = {
   sidebarWidth: width(DEFAULT_SIDEBAR_WIDTH),
   showSidebarButton: flag(true, SYNCED),
   showClearButton: flag(true, SYNCED),
+  tidyTabs: flag(false, SYNCED),
   balancedTopApps: flag(false, SYNCED),
   showAdvancedSettings: flag(false),
   selectedTabGlow: oneOf(["full", "soft", "off"], "full", SYNCED),
@@ -91,27 +126,39 @@ export const SETTING_SPECS = {
   batterySaverWhen: oneOf(["lowBattery", "unplugged", "never"], "lowBattery"),
   memorySaver: flag(true),
   memorySaverMode: oneOf(["moderate", "balanced", "maximum"], "balanced"),
-  keepActiveSites: shaped<string[]>([], isStringList, SYNCED),
+  loadProfilesWhenOpened: flag(true),
+  keepActiveSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   extensionSidePanelWidth: width(360),
   showFullUrl: flag(false, SYNCED),
   allowJavaScriptFromAppleEvents: flag(false),
   cliControl: flag(false),
+  showBookmarks: flag(true, SYNCED),
   bookmarksBar: oneOf(["always", "newTab", "never"], "never", SYNCED),
   bookmarksBarSize: oneOf(["default", "large"], "default", SYNCED),
   hideBookmarksBarImport: flag(false),
   appearance: oneOf(["auto", "light", "dark"], "auto", SYNCED),
   addressBar: oneOf(["toolbar", "sidebar"], "toolbar", SYNCED),
   compactToolbar: flag(false, SYNCED),
+  pageFrame: shaped<number>(PAGE_FRAME.default, validPageFrame, { type: "integer", minimum: PAGE_FRAME.min, maximum: PAGE_FRAME.max }, SYNCED),
+  borderlessMode: flag(false, SYNCED),
+  pageFrameZeroInFullScreen: flag(false, SYNCED),
+  pageFrameZeroWhenTabsHidden: flag(false, SYNCED),
   commandBarPlacement: oneOf(["field", "centred"], "field", SYNCED),
+  commandBarStart: shaped<CommandBarStart>({}, isCommandBarStart, COMMAND_BAR_START_SCHEMA),
   spacesFollowAppearance: flag(true),
+  adaptTextToColor: flag(true, SYNCED),
   defaultProfileId: text(DEFAULT_PROFILE_ID),
   profileSwitcherIcons: flag(false, SYNCED),
-  shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), SYNCED),
+  shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST), SYNCED),
   openLinksInLittleArdia: flag(true),
-  littleArdiaSize: shaped<[number, number]>([900, 640], (v) => Array.isArray(v) && v.length === 2 && v.every(isWidth)),
+  littleArdiaOpensNewTabLinks: flag(true, SYNCED),
+  littleWindowGestures: flag(true, SYNCED),
+  littleArdiaSize: shaped<[number, number]>([900, 640], (v) => Array.isArray(v) && v.length === 2 && v.every(isWidth), { type: "array", prefixItems: [WIDTH, WIDTH], minItems: 2, maxItems: 2 }),
   pageEngine: oneOf(["chromium", "webkit"], "chromium"),
-  websiteEngines: shaped<Record<string, "chromium" | "webkit">>({}, (v) => isRecordOf(v, (e) => e === "chromium" || e === "webkit")),
+  websiteEngines: shaped<Record<string, "chromium" | "webkit">>({}, (v) => isRecordOf(v, (e) => e === "chromium" || e === "webkit"), recordOf({ type: "string", enum: ["chromium", "webkit"] })),
   protectedVideoInWebKit: flag(true),
+  launchActions: shaped<string[]>([], (v) => isStringList(v) && v.length <= 20, { type: "array", items: { type: "string" }, maxItems: 20 }),
+  omniboxProviders: shaped<ProviderEntry[]>([], isProviderEntryList, PROVIDERS_SCHEMA),
 };
 
 type Specs = typeof SETTING_SPECS;
@@ -122,9 +169,7 @@ export type Settings = { -readonly [K in SettingKey]: Specs[K]["default"] };
 export type SettingsMeta = { chosen: string[]; inferred: string[] };
 export const NO_SETTINGS_META: SettingsMeta = { chosen: [], inferred: [] };
 
-export type SearchEngineId = string;
 export type BatterySaverWhen = Settings["batterySaverWhen"];
-export type SelectedTabGlow = Settings["selectedTabGlow"];
 export type PeekModifier = Settings["peekModifier"];
 export type SplitLinkModifier = Settings["splitLinkModifier"];
 
@@ -190,12 +235,23 @@ function validateCustomEngine(settings: Settings, input: EngineInput, ignoreId?:
   return validateEngine(input, searchEngines(settings), ignoreId);
 }
 
+function withPageFrameDependencies(settings: Settings, patch: Partial<Settings>): Partial<Settings> {
+  const next = { ...settings, ...patch };
+  if (next.pageFrameZeroInFullScreen && !next.pageFrameZeroWhenTabsHidden && !("pageFrameZeroWhenTabsHidden" in patch)) {
+    return { ...patch, pageFrameZeroWhenTabsHidden: true };
+  }
+  return patch;
+}
+
 export function choose(s: Pick<BrowserState, "settings" | "settingsMeta">, patch: Partial<Settings>): Pick<BrowserState, "settings" | "settingsMeta"> {
   const { chosen, inferred } = s.settingsMeta;
+  if (patch.autoHideTabs !== undefined && patch.autoHideTabs !== s.settings.autoHideTabs) noteAutoHideTabsChosen();
+  patch = withPageFrameDependencies(s.settings, patch);
+  const next = { ...s.settings, ...patch };
   const added = Object.keys(patch).filter((k) => !chosen.includes(k));
   const left = inferred.filter((k) => !(k in patch));
   const settingsMeta = added.length || left.length !== inferred.length ? { chosen: added.length ? [...chosen, ...added] : chosen, inferred: left } : s.settingsMeta;
-  return { settings: { ...s.settings, ...patch }, settingsMeta };
+  return { settings: next, settingsMeta };
 }
 
 export function sessionWithSettingsMeta(doc: SavedObject): SavedObject {
@@ -230,6 +286,24 @@ function withoutBatterySaver(saved: (Partial<Settings & SettingsMeta> & { batter
   };
 }
 
+function withoutUntouchedSetting(doc: SavedObject, key: SettingKey, oldDefault: unknown): SavedObject {
+  if (!isFields(doc.settings) || doc.settings[key] !== oldDefault) return doc;
+  const { chosen, inferred } = parseSettingsMeta(doc.settingsMeta);
+  if (chosen.includes(key) && !inferred.includes(key)) return doc;
+  const { [key]: _untouched, ...settings } = doc.settings;
+  const without = (keys: string[]) => keys.filter((k) => k !== key);
+  return { ...doc, settings, settingsMeta: { chosen: without(chosen), inferred: without(inferred) } };
+}
+
+export const sessionWithNewTabLinksInLittleArdia = (doc: SavedObject) => withoutUntouchedSetting(doc, "littleArdiaOpensNewTabLinks", false);
+
+export const sessionWithUnreadCountsOffByDefault = (doc: SavedObject) => withoutUntouchedSetting(doc, "showUnreadCounts", true);
+
+function windowsFollowingAutoHideTabs(s: Pick<BrowserState, "settings" | "windows">, patch: Partial<Settings>): Pick<BrowserState, "windows"> | {} {
+  if (patch.autoHideTabs === undefined || patch.autoHideTabs === s.settings.autoHideTabs) return {};
+  return { windows: Object.fromEntries(Object.entries(s.windows).map(([id, { autoHideTabs: _, ...w }]) => [id, w])) };
+}
+
 export type SettingsSlice = {
   settings: Settings;
   settingsMeta: SettingsMeta;
@@ -247,7 +321,11 @@ export const createSettingsSlice: StateCreator<BrowserState, [], [], SettingsSli
   settings: DEFAULT_SETTINGS,
   settingsMeta: NO_SETTINGS_META,
   updateSettings(patch, { fromSync = false } = {}) {
-    set((s) => (fromSync ? { settings: { ...s.settings, ...patch } } : choose(s, withLinkKeysApart(s.settings, patch))));
+    set((s) => {
+      const windows = windowsFollowingAutoHideTabs(s, patch);
+      if (fromSync) return { settings: { ...s.settings, ...withPageFrameDependencies(s.settings, patch) }, ...windows };
+      return { ...choose(s, withLinkKeysApart(s.settings, patch)), ...windows };
+    });
   },
 
   setSearchEngine(id) {

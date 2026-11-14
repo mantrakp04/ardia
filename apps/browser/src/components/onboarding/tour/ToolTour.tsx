@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
-import { useWindowId } from "../../../state/browser/hooks";
+import { useSidebarSide, useWindowId } from "../../../state/browser/hooks";
+import type { SidebarSide } from "../../../state/browser/model";
 import type { Rect } from "../../window/geometry";
 import { Button, Panel, Surface, Text, usePresence } from "../../ui";
 import { useOnboardingColors } from "../Parts";
 import { locateAnchor } from "./anchors";
 import { endToolTour, openVideoTour, stepToolTour, useTour, videoTourUrl, type TourStop } from "../../../state/onboarding/tour";
-import { curve, springs } from "../../ui/motion";
+import { currentValue, curve, springs } from "../../ui/motion";
 import { proseLineHeight, radius, shadow, space } from "../../ui/tokens";
 import { onboardingMotion, onboardingType, tourRing } from "../tokens";
 
@@ -41,6 +42,7 @@ function Tour({ windowId }: { windowId: string }) {
   const stops = useTour((s) => s.stops);
   const index = useTour((s) => s.index);
   const stop = stops[Math.min(index, stops.length - 1)];
+  const side = useSidebarSide(windowId);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [target, setTarget] = useState<Rect | null>(null);
   const [cardHeight, setCardHeight] = useState(150);
@@ -64,7 +66,7 @@ function Tour({ windowId }: { windowId: string }) {
   }, [stop?.id, windowId]);
 
   const spot = spotlight(stop, target, size);
-  const cardAt = placeCard(stop, spot, size, cardHeight);
+  const cardAt = placeCard(stop, spot, size, cardHeight, side);
 
   useEffect(() => {
     if (!size.width || !stop) return;
@@ -121,11 +123,9 @@ function Tour({ windowId }: { windowId: string }) {
   );
 }
 
-const valueOf = (v: Animated.Value) => (v as unknown as { __getValue(): number }).__getValue();
-
 function Ring({ hole }: { hole: { x: Animated.Value; y: Animated.Value; w: Animated.Value; h: Animated.Value; r: Animated.Value } }) {
   const pulse = useRef(new Animated.Value(0)).current;
-  const [r, setR] = useState(() => valueOf(hole.r));
+  const [r, setR] = useState(() => currentValue(hole.r));
   useEffect(() => {
     const id = hole.r.addListener(({ value }) => setR(Math.max(0, value)));
     const loop = Animated.loop(
@@ -191,13 +191,18 @@ function spotlight(stop: TourStop | undefined, target: Rect | null, size: { widt
   return { x: target.x - pad, y: target.y - pad, width: target.width + pad * 2, height: target.height + pad * 2, radius: (stop.radius ?? radius.tile) + Math.max(0, pad) };
 }
 
-function placeCard(stop: TourStop | undefined, spot: Hole, size: { width: number; height: number }, height: number) {
+function placeCard(stop: TourStop | undefined, spot: Hole, size: { width: number; height: number }, height: number, side: SidebarSide) {
   const clampX = (x: number) => Math.min(Math.max(x, MARGIN), Math.max(MARGIN, size.width - CARD_WIDTH - MARGIN));
   const clampY = (y: number) => Math.min(Math.max(y, MARGIN), Math.max(MARGIN, size.height - height - MARGIN));
   const centre = { x: clampX(size.width / 2 - CARD_WIDTH / 2), y: clampY(size.height * 0.62 - height / 2) };
   if (!stop?.anchor || !spot.width) return centre;
   switch (stop.placement) {
-    case "right": {
+    case "besideSidebar": {
+      if (side === "right") {
+        const x = spot.x - GAP - CARD_WIDTH;
+        if (x < MARGIN) return { x: clampX(spot.x + spot.width - CARD_WIDTH), y: clampY(spot.y + spot.height + GAP) };
+        return { x, y: clampY(spot.y + spot.height / 2 - 36) };
+      }
       const x = spot.x + spot.width + GAP;
       if (x + CARD_WIDTH > size.width - MARGIN) return { x: clampX(spot.x), y: clampY(spot.y + spot.height + GAP) };
       return { x, y: clampY(spot.y + spot.height / 2 - 36) };

@@ -5,11 +5,13 @@
 
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
+#include "chrome/browser/performance_manager/public/user_tuning/user_performance_tuning_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/unload_controller.h"
@@ -135,7 +137,13 @@ using ardiacore::NS;
 }
 
 - (BOOL)audible {
-  return _contents && _contents->IsCurrentlyAudible();
+  if (!_contents) {
+    return NO;
+  }
+  if (auto* helper = RecentlyAudibleHelper::FromWebContents(_contents)) {
+    return helper->WasRecentlyAudible();
+  }
+  return _contents->IsCurrentlyAudible();
 }
 
 - (BOOL)muted {
@@ -164,6 +172,30 @@ using ardiacore::NS;
 
 - (BOOL)discarded {
   return _contents && _contents->WasDiscarded();
+}
+
+- (NSString*)discardReason {
+  if (!_contents || !_contents->WasDiscarded()) {
+    return nil;
+  }
+  auto* usage = performance_manager::user_tuning::UserPerformanceTuningManager::
+      PreDiscardResourceUsage::FromWebContents(_contents);
+  if (!usage) {
+    return nil;
+  }
+  switch (usage->discard_reason()) {
+    case ::mojom::LifecycleUnitDiscardReason::EXTERNAL:
+      return @"external";
+    case ::mojom::LifecycleUnitDiscardReason::URGENT:
+      return @"urgent";
+    case ::mojom::LifecycleUnitDiscardReason::PROACTIVE:
+      return @"proactive";
+    case ::mojom::LifecycleUnitDiscardReason::SUGGESTED:
+      return @"suggested";
+    case ::mojom::LifecycleUnitDiscardReason::FROZEN_WITH_GROWING_MEMORY:
+      return @"frozen";
+  }
+  return nil;
 }
 
 - (BOOL)frozen {

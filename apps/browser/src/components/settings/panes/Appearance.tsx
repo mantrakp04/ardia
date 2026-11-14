@@ -1,5 +1,5 @@
 import type { AppIcon } from "../../../state/app/appSettings";
-import { Box, GlassFill, liquidGlass, PopUp, radius, space, Toggle } from "../../ui";
+import { Box, GlassFill, liquidGlass, PopUp, radius, space, Text, Toggle } from "../../ui";
 import { Image, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
@@ -9,11 +9,13 @@ import { Group, Row, SectionHeader } from "../Form";
 import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { AmountSlider } from "../ThemeControls";
+import { PAGE_FRAME } from "../../../lib/windowLayout";
 import { BookmarksBarSection } from "./BookmarksBarSection";
 import { modePreview, stylePreview } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";
 import { APP_ICON_SIZE, appIconChoices, chooseAppIcon } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
+import { perLook } from "../../ui/tokens";
 
 const MODES: { value: Settings["appearance"]; title: string; description: string }[] = [
   { value: "auto", title: "Automatic", description: "Follow the system appearance setting" },
@@ -24,6 +26,7 @@ const MODES: { value: Settings["appearance"]; title: string; description: string
 export function AppearancePane() {
   const appearance = useSettings((s) => s.appearance);
   const spacesFollow = useSettings((s) => s.spacesFollowAppearance);
+  const adaptText = useSettings((s) => s.adaptTextToColor);
   const choose = (mode: Settings["appearance"]) => updateSettings({ appearance: mode });
   return (
     <View>
@@ -38,10 +41,14 @@ export function AppearancePane() {
           <Row anchor="appearance.spacesFollowAppearance">
             <Toggle value={spacesFollow} onChange={(v) => updateSettings({ spacesFollowAppearance: v })} />
           </Row>
+          <Row anchor="appearance.adaptTextToColor">
+            <Toggle value={adaptText} onChange={(v) => updateSettings({ adaptTextToColor: v })} />
+          </Row>
         </Group>
       </Box>
       <InterfaceStylePicker />
       <AddressBarPicker />
+      <PageFramePicker />
       <BookmarksBarSection />
       <SelectedTabGlowPicker />
       <ScrollBarsPicker />
@@ -97,7 +104,7 @@ function StyleChoice({ value, title, selected, onPress }: { value: Settings["int
       <MiniWindow layout="none" look={{ window: look.backdrop, bar: look.tile, page: look.tile }}>
         <Box row gap="m" pad="xs" style={STYLE_TILES}>
           {[0, 1, 2].map((i) => (
-            <View key={i} style={[STYLE_TILE, glass ? null : { backgroundColor: look.tile, borderWidth: 1, borderColor: look.tileStroke }]}>
+            <View key={i} style={[STYLE_TILE(), glass ? null : { backgroundColor: look.tile, borderWidth: 1, borderColor: look.tileStroke }]}>
               {glass ? <GlassFill radius={radius.tile} state={i === 0 ? "active" : "rest"} /> : null}
             </View>
           ))}
@@ -108,7 +115,7 @@ function StyleChoice({ value, title, selected, onPress }: { value: Settings["int
 }
 
 const STYLE_TILES = { flex: 1 } as const;
-const STYLE_TILE = { flex: 1, alignSelf: "flex-start", height: 30, borderRadius: radius.tile } as const;
+const STYLE_TILE = perLook(() => ({ flex: 1, alignSelf: "flex-start", height: 30, borderRadius: radius.tile }) as const);
 
 function AddressBarPicker() {
   const addressBar = useSettings((s) => s.addressBar);
@@ -148,6 +155,53 @@ function AddressBarPicker() {
         </Row>
         </Group>
       </Box>
+    </>
+  );
+}
+
+const FRAME_SLIDER_WIDTH = 160;
+const FRAME_VALUE_WIDTH = 36;
+const FRAME_CONTROL = { alignItems: "center" } as const;
+
+function PageFramePicker() {
+  const frame = useSettings((s) => s.pageFrame);
+  const borderless = useSettings((s) => s.borderlessMode);
+  const zeroInFullScreen = useSettings((s) => s.pageFrameZeroInFullScreen);
+  const zeroWhenTabsHidden = useSettings((s) => s.pageFrameZeroWhenTabsHidden);
+  return (
+    <>
+      <SectionHeader title="Page Frame" />
+      <Group>
+        <Row anchor="appearance.borderlessMode">
+          <Toggle value={borderless} accessibilityLabel="Borderless mode" onChange={(on) => updateSettings({ borderlessMode: on })} />
+        </Row>
+        <Row anchor="appearance.pageFrame">
+          <Box row gap="m" style={FRAME_CONTROL}>
+            <View style={{ width: FRAME_SLIDER_WIDTH }}>
+              <AmountSlider value={frame / PAGE_FRAME.max} tooltip={`${frame} pt`} onChange={(v) => updateSettings({ pageFrame: Math.round(v * PAGE_FRAME.max) })} />
+            </View>
+            <Text size="small" tone="textSecondary" style={{ width: FRAME_VALUE_WIDTH, textAlign: "right" }}>
+              {frame === 0 ? "None" : `${frame} pt`}
+            </Text>
+          </Box>
+        </Row>
+        <Row anchor="appearance.pageFrameZeroInFullScreen">
+          <Toggle
+            value={zeroInFullScreen}
+            disabled={borderless}
+            accessibilityLabel="Zero in full screen"
+            onChange={(on) => updateSettings(on ? { pageFrameZeroInFullScreen: true, pageFrameZeroWhenTabsHidden: true } : { pageFrameZeroInFullScreen: false })}
+          />
+        </Row>
+        <Row anchor="appearance.pageFrameZeroWhenTabsHidden">
+          <Toggle
+            value={zeroInFullScreen || zeroWhenTabsHidden}
+            disabled={borderless || zeroInFullScreen}
+            accessibilityLabel="Zero in full screen when tabs are hidden"
+            onChange={(on) => updateSettings({ pageFrameZeroWhenTabsHidden: on })}
+          />
+        </Row>
+      </Group>
     </>
   );
 }

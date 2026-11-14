@@ -6,7 +6,7 @@ import ExpoModulesCore
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
-    Constant("apiVersion") { () -> Int in 35 }
+    Constant("apiVersion") { () -> Int in 62 }
 
     OnCreate {
       DispatchQueue.main.async { AppIcons.restore() }
@@ -18,6 +18,10 @@ public class AppModule: Module {
 
     AsyncFunction("share") { (url: String, title: String?, windowId: String?, anchor: [Double]?, promise: Promise) in
       SharePicker.show(url: url, title: title, windowId: windowId, anchor: anchor) { promise.resolve(nil) }
+    }.runOnQueue(.main)
+
+    AsyncFunction("shareText") { (text: String, windowId: String?, anchor: [Double]?, promise: Promise) in
+      SharePicker.show(text: text, windowId: windowId, anchor: anchor) { promise.resolve(nil) }
     }.runOnQueue(.main)
 
     AsyncFunction("shareVia") { (service: String, url: String, title: String?, windowId: String?) in
@@ -65,12 +69,17 @@ public class AppModule: Module {
         "forceReleaseNotes": config.instanceFlag("releaseNotes"),
         "processStart": Self.processStart as Any,
         "bootTime": Self.bootTime as Any,
+        "launchMarks": ArdiaHost.launchMarks,
+        "launchedHidden": ArdiaHost.launchedHidden as Any,
+        "loadAverage1m": Self.loadAverage1m as Any,
         "inApplicationsFolder": Self.inApplicationsFolder,
         "updatePrewarm": UserDefaults.standard.dictionary(forKey: UpdatePrewarm.lastRunKey) as Any,
       ]
     }
 
     AsyncFunction("crashReports") { (since: Double) -> [[String: Any]] in CrashReports.since(since) }
+    AsyncFunction("hardwareInfo") { () -> [String: Any] in DiagnosticsInfo.hardware() }
+    AsyncFunction("diagnosticsSample") { () -> [String: Any] in DiagnosticsInfo.sample() }
 
     AsyncFunction("openExternalURL") { (url: String) -> Bool in
       guard let target = URL(string: url), target.scheme != nil else { return false }
@@ -119,6 +128,11 @@ extension AppModule {
     guard sysctl(&mib, 2, &boot, &size, nil, 0) == 0 else { return nil }
     return Double(boot.tv_sec) * 1000 + Double(boot.tv_usec) / 1000
   }()
+
+  fileprivate static var loadAverage1m: Double? {
+    var loads = [Double](repeating: 0, count: 1)
+    return getloadavg(&loads, 1) == 1 ? loads[0] : nil
+  }
 
   fileprivate static let processStart: Double? = {
     var info = kinfo_proc()

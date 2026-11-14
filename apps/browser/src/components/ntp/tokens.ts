@@ -1,7 +1,7 @@
 import { StyleSheet } from "react-native";
 import { useTheme } from "../ui/theme";
 import { duration, springs } from "../ui/motion";
-import { display, font, ink, proseLineHeight, radius, tracking, weight } from "../ui/tokens";
+import { display, font, ink, perLook, proseLineHeight, radius, tracking, weight } from "../ui/tokens";
 
 const dark = {
   cardFill: "#FFFFFF17",
@@ -49,14 +49,25 @@ export const NTP_BAR: { radius: number; border: number; contentInset: number; sh
   ],
 };
 
-export const PERSONALIZE_PANEL = { radius: radius.sheet, spring: springs.smooth } as const;
+export const PERSONALIZE_PANEL = { get radius() { return radius.sheet; }, spring: springs.smooth } as const;
+
+const NTP_TYPE = perLook(
+  () =>
+    ({
+      incognitoTitle: { ...display.large, fontWeight: weight.bold },
+      releaseDate: { ...font.caption, fontWeight: weight.semibold, letterSpacing: tracking.wide },
+      releaseTitle: { ...display.large, fontWeight: "300" },
+      releaseItemBody: { ...font.small, lineHeight: proseLineHeight.small },
+      artworkVersion: { ...font.caption, fontWeight: weight.bold, letterSpacing: tracking.wide },
+    }) as const,
+);
 
 export const ntpType = {
-  incognitoTitle: { ...display.large, fontWeight: weight.bold },
-  releaseDate: { ...font.caption, fontWeight: weight.semibold, letterSpacing: tracking.wide },
-  releaseTitle: { ...display.large, fontWeight: "300" },
-  releaseItemBody: { ...font.small, lineHeight: proseLineHeight.small },
-  artworkVersion: { ...font.caption, fontWeight: weight.bold, letterSpacing: tracking.wide },
+  get incognitoTitle() { return NTP_TYPE().incognitoTitle; },
+  get releaseDate() { return NTP_TYPE().releaseDate; },
+  get releaseTitle() { return NTP_TYPE().releaseTitle; },
+  get releaseItemBody() { return NTP_TYPE().releaseItemBody; },
+  get artworkVersion() { return NTP_TYPE().artworkVersion; },
   artworkTitle: { fontWeight: "300", fontStyle: "italic", letterSpacing: tracking.tight },
 } as const;
 

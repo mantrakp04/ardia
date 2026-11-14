@@ -27,7 +27,7 @@ const HANDS_PLATFORM_TO_SCRIPTS = new Set(["components/dev/devHarness.ts"]);
 const RULES = ["layout", "imports", "native-calls", "tokens", "scale", "get-state", "set-state", "store-reads", "store-shape", "size", "env", "naming", "comments", "file-names"];
 const SIZE_CAP = { js: 400, native: 600 };
 const SCOPES = ["apps/browser/src", "packages", "engine/ardiacore/src", "engine/chromium/src"];
-const GENERATED = new Set(["packages/core/src/bangList.ts"]);
+const GENERATED = new Set(["packages/core/src/bangList.ts", "packages/demo/src/shims/web/symbols/data.ts", "apps/browser/src/lib/emojiData.ts"]);
 const ONE_INJECTED_SCRIPT = new Set(["packages/ardiacore/ios/page_script.js"]);
 const FROZEN_SPECS = new Set(["packages/core/src/suggest.reference.ts"]);
 const LAUNCH_CONFIG = [/^packages\/ardiacore\/ios\/ArdiaLaunchConfig\.\w+$/, /^apps\/browser\/src\/platform\/launchConfig\.ts$/];
@@ -305,6 +305,7 @@ function layerOf(rel) {
 const count = (text, pattern) => (text.match(pattern) || []).length;
 
 const COLOR_LITERAL = /#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})(?![\w-])|\b(?:rgba?|hsla?)\s*\(/gi;
+const NAMED_CLEAR = /^\s*transparent\s*$/i;
 const MOTION_LITERAL = /\bEasing\s*\.\s*\w|\bduration\s*:\s*-?\.?\d|\bAnimated\s*\.\s*delay\s*\(\s*\d/g;
 const SCALE_PROPERTY =
   /(?<![\w$.])(?:fontSize|letterSpacing|radius|[a-z]\w*Radius|padding(?:Horizontal|Vertical|Top|Bottom|Left|Right|Start|End)?|margin(?:Horizontal|Vertical|Top|Bottom|Left|Right|Start|End)?|gap|rowGap|columnGap|damping|stiffness|friction|tension|bounciness)\s*(?::|=\s*\{|=(?![=>]))/g;
@@ -412,7 +413,7 @@ function checkFile(path, src, add) {
 
   if (!TOKEN_FILE.test(path)) {
     const bindings = hexBindings(codeAndStrings);
-    const colors = strings.reduce((sum, s) => sum + count(withHexHoles(src, s, bindings), COLOR_LITERAL), 0);
+    const colors = strings.reduce((sum, s) => sum + count(withHexHoles(src, s, bindings), COLOR_LITERAL) + (NAMED_CLEAR.test(src.slice(s.start, s.end)) ? 1 : 0), 0);
     add("tokens", path, colors + count(code, MOTION_LITERAL));
     if (rel.startsWith("components/") || rel === "App.tsx") add("scale", path, scaleLiterals(code));
   }
@@ -568,6 +569,10 @@ if (process.argv.includes("--write-baseline")) {
   });
   test("a closing JSX tag doesn't hide a colour after it", () => {
     assert.deepEqual(violationsOf("apps/browser/src/components/hello/Hello.tsx", '<Text>Hello</Text>; const color = "#ff0000";\n'), { tokens: 1 });
+  });
+  test("a transparent colour name counts as a colour literal, the word in copy doesn't", () => {
+    assert.deepEqual(violationsOf("apps/browser/src/components/hello/Hello.tsx", 'const fill = selected ? theme.card : "transparent";\n'), { tokens: 1 });
+    assert.deepEqual(violationsOf("apps/browser/src/components/hello/Hello.tsx", 'const copy = "A transparent toolbar";\n'), {});
   });
   test("scale literals count outside token files, layout geometry and computed values don't", () => {
     const scale = (path, body) => violationsOf(path, `${body}\n`).scale ?? 0;

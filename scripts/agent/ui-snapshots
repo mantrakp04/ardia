@@ -279,7 +279,7 @@ s.setSelection(W, []);
 s.updateGroup("g1", { collapsed: false });
 for (const sp of Object.values(s.splits)) s.separateSplit(sp.id);
 s.updateSettings({ appearance: "dark", tabLayout: "sidebar", addressBar: "toolbar", bookmarksBar: "never" });
-if (!s.windows[W].sidebarOpen) s.toggleSidebar(W);
+if (s.settings.autoHideTabs) s.toggleSidebar(W);
 s.activate("t3");
 s.updateProfile("default", { pinnedCollapsed: false });
 return ac.shell.devSetPointer(W, 0, 0, false);

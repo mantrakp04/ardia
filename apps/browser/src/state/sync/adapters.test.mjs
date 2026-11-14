@@ -1106,7 +1106,7 @@ test("passwords: saved on one Mac, changed or deleted on another; the newer edit
   await syncAll([a, b]);
   assert.deepEqual(list(a), list(b));
   assert.deepEqual(list(b), ["https://bank.example alice=hunter2", "https://mail.example alice=m41l", "https://shop.example bob=sh0p"]);
-  await save(b, "https://bank.example", "alice", "correct horse");
+  await b.with(() => passwords.updatePassword("", "https://bank.example", "alice", { password: "correct horse" }));
   await remove(b, "https://mail.example", "alice");
   await syncAll([b, a]);
   assert.deepEqual(list(a), ["https://bank.example alice=correct horse", "https://shop.example bob=sh0p"]);
@@ -1144,10 +1144,11 @@ test("passwords: a remote change saved in Chrome as quitting begins isn't sent b
   const a = new Device("devA", folder);
   const b = new Device("devB", folder);
   const save = (d, password) => d.with(() => passwords.savePassword("", "https://bank.example", "alice", password));
+  const change = (d, password) => d.with(() => passwords.updatePassword("", "https://bank.example", "alice", { password }));
   const list = (d) => [...stub.passwordStores.get(d.id).values()].map((l) => `${l.username}=${l.password}`);
   await save(a, "one");
   await syncAll([a, b]);
-  await save(a, "two");
+  await change(a, "two");
   await a.sync();
   let quitting = false;
   const logins = sealedLogins();
@@ -1155,7 +1156,7 @@ test("passwords: a remote change saved in Chrome as quitting begins isn't sent b
   await b.sync("default", { holdApply: () => quitting });
   assert.deepEqual(list(b), ["alice=two"], "Chrome has the change");
   await later();
-  await save(a, "three");
+  await change(a, "three");
   await a.sync();
   b.passwords = adapters.passwordsAdapter("default", sealedLogins())(true);
   await syncAll([b, a, b, a]);
@@ -1953,7 +1954,7 @@ test("only evidence that the anchor left the rows after the order record ends th
 
 const { compact } = await import("@ardia/sync");
 
-async function deletedWhileAway(OldMac, withGroup) {
+async function deletedWhileAway(OldMac) {
   const realNow = Date.now;
   let shift = 0;
   Date.now = () => realNow() + shift;
@@ -1964,9 +1965,8 @@ async function deletedWhileAway(OldMac, withGroup) {
     const w = a.with(() => {
       const w = S().createWindow({ url: "https://home.example/" });
       const open = (h) => S().newTab(w, { url: `https://${h}.example/`, background: true });
-      const [r, x, m] = ["r", "x", "member"].map(open);
+      const [r, x] = ["r", "x"].map(open);
       S().placeTabs([r, x], { pinned: true, row: true, beforeId: null });
-      if (withGroup) S().groupTabs([m], { pinned: true, name: "Group" });
       return w;
     });
     other.with(() => S().createWindow({ url: "https://other-home.example/" }));
@@ -1994,13 +1994,8 @@ async function deletedWhileAway(OldMac, withGroup) {
 }
 
 test("a pinned row deleted while a Mac was away past tombstone retention stays deleted when it comes back", async () => {
-  const { a, c, other } = await deletedWhileAway(Device, false);
+  const { a, c, other } = await deletedWhileAway(Device);
   for (const d of [a, c, other]) assert.deepEqual(pinnedAreaOf(d), ["row:r", "row:y"], d.id);
-});
-
-test.skip("known: a group anchored to a row whose tombstone was collected shows the same order on every Mac (a snapshot leaves no tombstone, so the order can't tell a deleted anchor from one still on its way; accepted)", async () => {
-  const { a, c } = await deletedWhileAway(PreInterleaveMac, true);
-  assert.deepEqual(pinnedAreaOf(a), pinnedAreaOf(c));
 });
 
 test("a bookmark made while another adapter is still reading survives that sync", async () => {

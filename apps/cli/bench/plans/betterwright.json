@@ -1,0 +1,24 @@
+{
+  "name": "betterwright-2.9.1-2026-11-13",
+  "repeats": 3,
+  "tasks": "all",
+  "results": "~/ardia-scratch/bench-proper/results/bw-baseline",
+  "contenders": [
+    {
+      "id": "bw-claude",
+      "label": "Betterwright 2.9 CLI + Claude Code (Opus 5.5)",
+      "kind": "betterwright",
+      "agent": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "id": "bw-codex",
+      "label": "Betterwright 2.9 CLI + Codex (GPT-6.1 Sol)",
+      "kind": "betterwright",
+      "agent": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    }
+  ]
+}
