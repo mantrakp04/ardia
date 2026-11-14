@@ -64,6 +64,16 @@ export const takeSearchSuggests = () => {
   return taken;
 };
 
+let downloadsMenus = { downloads_button_menus: 0, downloads_button_menu_clears: 0 };
+
+export const noteDownloadsButtonMenu = (cleared: boolean) => void (downloadsMenus.downloads_button_menus++, cleared && downloadsMenus.downloads_button_menu_clears++);
+
+export const takeDownloadsButtonMenuCounts = () => {
+  const taken = downloadsMenus;
+  downloadsMenus = { downloads_button_menus: 0, downloads_button_menu_clears: 0 };
+  return taken;
+};
+
 let firstWindowAt: number | null = null;
 
 export function markFirstWindow() {
