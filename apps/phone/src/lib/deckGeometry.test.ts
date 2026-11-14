@@ -15,6 +15,7 @@ import {
   focusedIndex,
   initialDeckScroll,
   openingDeckScroll,
+  scrollAfterClosing,
   scrollAfterRemoving,
   titleReveal,
 } from "./deckGeometry.ts";
@@ -95,4 +96,11 @@ test("the deck's buttons keep Compose's place over a gesture bar and clear a 3-b
   assert.ok(buttons.cardCenterY + buttons.cardHeight / 2 < buttons.barCenterY - 22, "cards end above the bar");
   const gesture = deckGeometry(392, 872, 40, 24);
   assert.equal(gesture.barCenterY, 872 - 30);
+});
+
+test("closing the cards at the right end leaves the deck at rest, the last card at the right edge", () => {
+  assert.equal(scrollAfterClosing(3, 3, 3, true), 1);
+  assert.equal(scrollAfterClosing(4, 4, 4, true), 2);
+  assert.equal(scrollAfterClosing(1, 3, 4, false), 2);
+  assert.equal(scrollAfterClosing(0, 0, 1, true), 0);
 });

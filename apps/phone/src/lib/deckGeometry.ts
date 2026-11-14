@@ -134,6 +134,11 @@ export const scrollAfterRemoving = (removed: number, scroll: number, remaining: 
   return Math.min(Math.max(shifted, 0), remaining - 1);
 };
 
+export function scrollAfterClosing(removed: number, scroll: number, remaining: number, onlyTail: boolean): number {
+  const after = scrollAfterRemoving(removed, scroll, remaining);
+  return onlyTail ? Math.min(after, initialDeckScroll(remaining)) : after;
+}
+
 export const lerp = (from: number, to: number, t: number) => {
   "worklet";
   return from + (to - from) * t;

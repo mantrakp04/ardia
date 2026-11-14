@@ -287,6 +287,10 @@ export function handleSystemBack(): boolean {
   const { surface, sheet } = useBrowse.getState();
   const id = selectedId();
   const ui = pageUi();
+  if (searchState().open && surface !== "browsing") {
+    cancelSearch();
+    return true;
+  }
   if (sheet) {
     closeArchive();
     return true;

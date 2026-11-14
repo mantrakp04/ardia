@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { useEffect } from "react";
+import { BackHandler, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { tabsMotion } from "./motion";
 import { Symbol } from "./Symbol";
@@ -12,6 +13,13 @@ type Props = { items: MenuItem[]; place: ViewStyle; onDismiss: () => void };
 
 export function Menu({ items, place, onDismiss }: Props) {
   const theme = useTheme();
+  useEffect(() => {
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      onDismiss();
+      return true;
+    });
+    return () => back.remove();
+  }, [onDismiss]);
   return (
     <View style={StyleSheet.absoluteFill}>
       <Pressable accessibilityLabel="Dismiss" style={[StyleSheet.absoluteFill, { backgroundColor: ink.clear }]} onPress={onDismiss} />
