@@ -13,6 +13,7 @@ import { syncBanner, type BannerIcon } from "../../state/sync/syncRules";
 import {
   Backdrop,
   capsule,
+  Favicon,
   FloatingMenu,
   font,
   space,
@@ -190,7 +191,7 @@ function Row({ row, profileId, tint, onToggle, onShowAll, onLongPress, onFolder 
           onLongPress={(event) => onLongPress(row.url, row.title, event.nativeEvent.pageY)}
           style={({ pressed }) => [styles.row, { paddingLeft: space.l + INDENT * row.depth }, pressed ? { backgroundColor: theme.rowHighlight } : null]}
         >
-          <Symbol name="globe" size={20} color={tint} />
+          <Favicon iconUrl={null} pageUrl={row.url} size={20} />
           <Text style={[font.body, styles.medium, styles.fill, { color: theme.label }]} numberOfLines={1}>
             {row.title}
           </Text>

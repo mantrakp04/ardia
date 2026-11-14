@@ -112,8 +112,8 @@ export function syncedBookmarks(profile: SyncedProfile): { url: string; title: s
   };
   walk(profile.bookmarks);
   for (const tile of profile.pinned.tiles) {
-    out.push({ url: tile.url, title: tile.title, favicon: null });
-    for (const tab of tile.folder ?? []) out.push({ url: tab.url, title: tab.title, favicon: null });
+    out.push({ url: tile.url, title: tile.title, favicon: tile.icon });
+    for (const tab of tile.folder ?? []) out.push({ url: tab.url, title: tab.title, favicon: tab.icon });
   }
   return out;
 }

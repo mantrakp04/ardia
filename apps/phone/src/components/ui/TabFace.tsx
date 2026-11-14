@@ -43,7 +43,7 @@ export function TabFace({ tab, title, host, tone, roles, compact }: Props) {
   const soft = dark ? tabsInk.onDarkSoft : roles.foregroundSecondary;
   return (
     <View style={[StyleSheet.absoluteFill, compact ? styles.compact : styles.page, { backgroundColor: fill }]}>
-      <Favicon url={tab.faviconUrl} size={compact ? 12 : 32} color={soft} />
+      <Favicon iconUrl={tab.faviconUrl} pageUrl={tab.url} size={compact ? 12 : 32} />
       {compact ? null : (
         <>
           <Text style={[font.body, styles.title, { color: ink }]} numberOfLines={4}>

@@ -10,6 +10,12 @@ export function parseColor(color: string): Rgba {
 export const toHex = (channels: readonly number[]) =>
   `#${channels.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 
+export function mixColors(from: string, to: string, amount: number): string {
+  const start = parseColor(from).slice(0, 3);
+  const end = parseColor(to).slice(0, 3);
+  return toHex(start.map((value, index) => value + (end[index]! - value) * amount));
+}
+
 export function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   if (s === 0) return [l, l, l];
   const q = l < 0.5 ? l * (1 + s) : l + s - l * s;

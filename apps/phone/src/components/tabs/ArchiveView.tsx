@@ -154,7 +154,7 @@ function ArchiveRow({ tab, onMenu }: { tab: BrowserTab; onMenu: (y: number) => v
       style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}
     >
       <View style={[styles.icon, { backgroundColor: theme.fieldFill }]}>
-        <Favicon url={tab.faviconUrl} size={tabsLayout.faviconSize} color={theme.rowIcon} />
+        <Favicon iconUrl={tab.faviconUrl} pageUrl={tab.url} size={tabsLayout.faviconSize} />
       </View>
       <View style={styles.label}>
         <Text style={[font.body, { color: theme.label }]} numberOfLines={2}>

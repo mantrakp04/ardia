@@ -168,6 +168,8 @@ export const settingsTint = {
   bottomBar: "#30B0C7",
 } as const;
 
+export const faviconInk = { letter: "#FFFFFF" } as const;
+
 export const trayShadow = { opacity: 0.14, radius: 24, offsetY: -4, elevation: 12 } as const;
 
 export const scanInk = {

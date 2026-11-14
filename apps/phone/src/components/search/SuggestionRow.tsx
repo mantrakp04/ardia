@@ -1,7 +1,9 @@
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { queryPrefixLength, type TrayRow } from "../../state/search/omnibox";
-import { browseLayout, font, radius, space, Symbol, type ColorRoles, type SymbolName } from "../ui";
+import { browseLayout, Favicon, font, radius, space, Symbol, type ColorRoles, type SymbolName } from "../ui";
+
+const FAVICON_SIZE = 20;
 
 const LEADING: Record<TrayRow["kind"], SymbolName> = { query: "magnifyingglass", page: "globe", calc: "equalCircleFill" };
 
@@ -18,7 +20,7 @@ export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, on
       style={({ pressed }) => [styles.row, { backgroundColor: pressed ? roles.rowHighlight : undefined }]}
     >
       <View style={styles.leading}>
-        <Symbol name={LEADING[row.kind]} size={19} color={roles.rowIcon} />
+        {row.kind === "page" ? <Favicon iconUrl={row.favicon} pageUrl={row.url} size={FAVICON_SIZE} /> : <Symbol name={LEADING[row.kind]} size={19} color={roles.rowIcon} />}
       </View>
       <View style={styles.label}>
         {row.kind === "query" ? (

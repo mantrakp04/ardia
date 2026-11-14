@@ -133,7 +133,7 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
               <Symbol name="eyes" size={tabsLayout.faviconSize - 4} color={tabsInk.onDark} />
             </View>
           ) : (
-            <Favicon url={tab.faviconUrl} size={tabsLayout.faviconSize} color={theme.headerText} />
+            <Favicon iconUrl={tab.faviconUrl} pageUrl={tab.url} size={tabsLayout.faviconSize} />
           )}
           <Animated.Text style={[font.caption, styles.title, { color: theme.headerText }, titleStyle]} numberOfLines={1}>
             {title}

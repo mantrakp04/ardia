@@ -12,7 +12,7 @@ import { dedupeByLanding, displayHost, landingKey } from "../../lib/url";
 
 export type TrayRow =
   | { key: string; kind: "query"; title: string; url: string; query: string }
-  | { key: string; kind: "page"; title: string; detail: string; url: string; tabId: string | null; switchesTab: boolean }
+  | { key: string; kind: "page"; title: string; detail: string; url: string; favicon: string | null; tabId: string | null; switchesTab: boolean }
   | { key: string; kind: "calc"; title: string; detail: string; url: string };
 
 export const SWITCH_TO_TAB = "Switch to Tab";
@@ -40,6 +40,7 @@ export function suggest(text: string, remote: readonly string[], context: Sugges
         title: item.title || host,
         detail: item.tabId ? SWITCH_TO_TAB : (macTabs.get(landingKey(item.url)) ?? host),
         url: item.url,
+        favicon: item.favicon ?? null,
         tabId: item.tabId ?? null,
         switchesTab: Boolean(item.tabId),
       });
@@ -49,13 +50,13 @@ export function suggest(text: string, remote: readonly string[], context: Sugges
   return { rows: unique.map((item) => item.row), completion: result.completion };
 }
 
-export function idleRows(queries: readonly string[], macTabs: readonly { url: string; title: string; deviceName: string }[] = []): TrayRow[] {
+export function idleRows(queries: readonly string[], macTabs: readonly { url: string; title: string; deviceName: string; favicon?: string | null }[] = []): TrayRow[] {
   const rows: TrayRow[] = [];
   for (const query of queries) {
     const url = mobileResolve(`?${query}`)?.url;
     if (url) rows.push({ key: `q:${query}`, kind: "query", title: query, url, query });
   }
-  for (const tab of macTabs) rows.push({ key: `r:${tab.url}`, kind: "page", title: tab.title, detail: tab.deviceName, url: tab.url, tabId: null, switchesTab: false });
+  for (const tab of macTabs) rows.push({ key: `r:${tab.url}`, kind: "page", title: tab.title, detail: tab.deviceName, url: tab.url, favicon: tab.favicon ?? null, tabId: null, switchesTab: false });
   return rows.slice(0, IDLE_ROW_LIMIT);
 }
 

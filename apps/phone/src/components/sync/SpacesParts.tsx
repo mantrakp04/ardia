@@ -5,7 +5,7 @@ import { openSettings } from "../../state/settings/nav";
 import { openRemote } from "../../state/sync/actions";
 import { remoteTitle } from "../../state/sync/spaces";
 import type { PinnedTile, SyncedProfile } from "../../state/sync/store";
-import { capsule, font, isSymbolName, space, spacesLayout, Symbol, useTheme } from "../ui";
+import { capsule, Favicon, font, isSymbolName, space, spacesLayout, Symbol, useTheme } from "../ui";
 
 const TILE_MIN_WIDTH = 72;
 const TILE_HEIGHT = 56;
@@ -62,7 +62,7 @@ function TileButton({
       style={styles.tile}
     >
       <View style={[styles.tileFace, { backgroundColor: theme.groupFill }]}>
-        <Symbol name={folder ? "folderFill" : "globe"} size={22} color={theme.secondaryLabel} />
+        {folder ? <Symbol name="folderFill" size={22} color={theme.secondaryLabel} /> : <Favicon iconUrl={null} pageUrl={tile.url} size={24} />}
       </View>
       <Text style={[font.caption, styles.medium, { color: theme.secondaryLabel }]} numberOfLines={1}>
         {label}
