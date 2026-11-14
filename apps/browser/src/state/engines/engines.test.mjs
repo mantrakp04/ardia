@@ -67,6 +67,9 @@ test("streaming sites open in WebKit when the setting is on, over https, subdoma
   assert.equal(protectedVideoSite("http://www.netflix.com/"), false);
   assert.equal(protectedVideoSite("https://v.qq.com/x/cover/1.html"), true);
   assert.equal(protectedVideoSite("https://mail.qq.com/"), false);
+  assert.equal(protectedVideoSite("https://osnplus.com/en-ae/"), true);
+  assert.equal(protectedVideoSite("https://play.anghami.com/"), true);
+  assert.equal(protectedVideoSite("https://www.anghami.com/"), true);
   const off = state([]);
   const on = state([tab("typed", { url: "https://www.netflix.com/" }), tab("page", { engine: "chromium", url: "https://example.com/" })], { protectedVideoInWebKit: true });
   assert.equal(chosenEngine(off, "https://www.netflix.com/"), undefined);
