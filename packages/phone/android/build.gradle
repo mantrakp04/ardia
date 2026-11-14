@@ -23,7 +23,7 @@ def faviconPixels = file("${androidApp}/design/src/main/kotlin")
 def composeSourcesInThisModule = [
   (appModel): ['SystemLink.kt', 'SystemActions.kt'],
   (codeScanner): ['SyncCodeReading.kt', 'SyncCodeCamera.kt'],
-  (speech): ['SpeechRecorder.kt', 'DictationTypes.kt'],
+  (speech): ['SpeechRecorder.kt', 'DictationTypes.kt', 'ClipboardOffer.kt'],
   (faviconPixels): ['FaviconPixels.kt'],
 ]
 def cameraXVersion = '1.5.0-rc01'
