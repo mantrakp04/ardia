@@ -127,6 +127,40 @@ export const readerLayout = { minLeadAspect: 0.75, maxWidth: 680, topBar: 52, li
 
 export const dialogLayout = { width: 312, radius: 28, fieldHeight: 48 } as const;
 
+export const settingsLayout = {
+  groupRadius: 26,
+  rowMinHeight: 52,
+  rowInset: 16,
+  labelGap: 16,
+  tile: 29,
+  heroTile: 64,
+  topBar: 52,
+  swatch: 26,
+  swatchRing: 2,
+  swatchGap: 3,
+  primaryButton: 54,
+  onboardingIcon: 104,
+  stepShift: 60,
+  titleWidth: 240,
+} as const;
+
+export const settingsTint = {
+  neutral: "#86888D",
+  ads: "#FF5A5F",
+  trackers: "#FFC829",
+  cookies: "#FF901A",
+  search: "#007AFF",
+  blue: "#458AFF",
+  archive: "#B059EE",
+  keyboard: "#FFC829",
+  nightShade: "#5856D6",
+  green: "#3EA82E",
+  clearData: "#FF5A5F",
+  export: "#0153FF",
+  onboarding: "#FF901A",
+  downloads: "#458AFF",
+} as const;
+
 export const trayShadow = { opacity: 0.14, radius: 24, offsetY: -4, elevation: 12 } as const;
 
 export const tabsInk = {

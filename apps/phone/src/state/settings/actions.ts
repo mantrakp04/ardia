@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { applyAppearance } from "../../platform/appearance";
+import { appVersion } from "../../platform/appInfo";
 import { blocking, type BlockingCategory, type BlockingState } from "../../platform/blocking";
 import { downloads, type DownloadProgress } from "../../platform/downloads";
 import { pages } from "../../platform/pages";
@@ -18,6 +19,7 @@ import { clearSince, exportableUrls, websiteDataKinds, type ClearChoice, type Cl
 import { currentPreferences, setPreference } from "./store";
 
 export type { BlockingState, DownloadProgress };
+export { appVersion };
 export type FilterListInfo = BlockingState["lists"][number];
 
 export const useBlocking = create<{ state: BlockingState | null; busy: boolean }>()(() => ({ state: null, busy: false }));

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { createContext, useContext, useMemo } from "react";
 import { useColorScheme } from "react-native";
 import { backdropTint, opaqueTint, tintForHue } from "../../lib/windowTint";
 import { colorRoles, PROFILE_COLORS, type ColorRoles, type ProfileColor } from "./tokens";
@@ -13,7 +13,11 @@ export function profileBackdrop(color: ProfileColor, dark: boolean): [string, st
 
 export const rolesFor = (dark: boolean): ColorRoles => (dark ? colorRoles.dark : colorRoles.light);
 
-export function useTheme(color: ProfileColor = "plum"): Theme {
+export const ThemeColorContext = createContext<ProfileColor>("plum");
+
+export function useTheme(override?: ProfileColor): Theme {
+  const chosen = useContext(ThemeColorContext);
+  const color = override ?? chosen;
   const dark = useColorScheme() === "dark";
   return useMemo(() => {
     const backdrop = profileBackdrop(color, dark);
