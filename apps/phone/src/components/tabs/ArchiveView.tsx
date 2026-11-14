@@ -8,7 +8,7 @@ import { usePreferences } from "../../state/settings/hooks";
 import { useArchiveDays, useArchiveLoaded } from "../../state/tabs/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval, type BrowserTab } from "../../state/tabs/tabModels";
 import { clearArchivedTabs, loadArchive, searchArchive, setAutoArchiveInterval } from "../../state/tabs/store";
-import { Backdrop, ConfirmDialog, font, Menu, radius, space, Symbol, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
+import { Backdrop, ConfirmDialog, Favicon, font, Menu, radius, space, Symbol, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
 
 const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -154,7 +154,7 @@ function ArchiveRow({ tab, onMenu }: { tab: BrowserTab; onMenu: (y: number) => v
       style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}
     >
       <View style={[styles.icon, { backgroundColor: theme.fieldFill }]}>
-        <Symbol name="globe" size={tabsLayout.faviconSize} color={theme.rowIcon} />
+        <Favicon url={tab.faviconUrl} size={tabsLayout.faviconSize} color={theme.rowIcon} />
       </View>
       <View style={styles.label}>
         <Text style={[font.body, { color: theme.label }]} numberOfLines={2}>

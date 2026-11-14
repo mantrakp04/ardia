@@ -37,7 +37,7 @@ import {
   useTabs,
 } from "../tabs/store";
 import { deckOrder, findTab, isPrivateTab, selectedTab } from "../tabs/tabsState";
-import { isSyncableUrl, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
+import { isSyncableUrl, pageStatePatch, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
 
 export type Surface = "start" | "browsing" | "deck";
 export type Sheet = "archive" | "spaces" | null;
@@ -312,8 +312,8 @@ function scheduleSnapshot(id: string, tries = SNAPSHOT_RETRIES) {
 function backgroundPageState(id: string, state: PageState) {
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
-  const title = state.title.trim() ? state.title : null;
-  if (title && title !== tab.title) updateTabById(id, { title });
+  const patch = pageStatePatch(tab, state, false);
+  if (patch) updateTabById(id, patch);
   const wasLoading = loading.get(id);
   loading.set(id, state.isLoading);
   if (wasLoading && !state.isLoading) scheduleSnapshot(id);
@@ -323,9 +323,9 @@ export function pageStateChanged(id: string, state: PageState) {
   storeNavigation(id, state);
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
-  const url = state.url && isSyncableUrl(state.url) ? state.url : null;
   const title = state.title.trim() ? state.title : null;
-  if ((url && url !== tab.url) || (title && title !== tab.title)) updateTabById(id, { url: url ?? undefined, title: title ?? undefined });
+  const patch = pageStatePatch(tab, state, true);
+  if (patch) updateTabById(id, patch);
   const visit = lastVisits.get(id);
   if (visit && title && visit.url === state.url && visit.title !== title) lastVisits.set(id, history().amend(visit, { title }));
   const wasLoading = loading.get(id);

@@ -2,6 +2,7 @@ export { isDarkColor } from "../../lib/color";
 export { ArdiaLogo } from "./ArdiaLogo";
 export { Backdrop } from "./Backdrop";
 export { barCenterFromBottom, barHeight, deckCenterFromBottom, pageBottomInset } from "./barGeometry";
+export { Favicon } from "./Favicon";
 export { LoadingLine } from "./LoadingLine";
 export { spring, springs, tabsCurve, tabsMotion } from "./motion";
 export { ConfirmDialog, Dialog, type Confirmation, type DialogButton } from "./Dialog";

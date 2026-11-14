@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AUTO_ARCHIVE_INTERVALS, isAutoArchiveDue, POSITION_STEP } from "./tabModels.ts";
+import { AUTO_ARCHIVE_INTERVALS, isAutoArchiveDue, pageStatePatch, POSITION_STEP } from "./tabModels.ts";
 import {
   archiveTabs,
   clearArchive,
@@ -219,4 +219,13 @@ test("the tab in front comes back in front after a kill, even when it was chosen
   assert.equal(launchTabs(front.open, 0).selectedId, c.id);
   const back = selectTab(front, a.id, 10).data;
   assert.equal(launchTabs(back.open, 0).selectedId, a.id);
+});
+
+test("a tab keeps its page's site icon and theme colour, never a private tab's icon or a non-web one", () => {
+  const { a } = threeTabs();
+  const page = { url: "https://a.example/next", title: "Next", faviconUrl: "https://a.example/favicon.ico", themeColor: "#112233" };
+  assert.deepEqual(pageStatePatch(a, page, true), { url: "https://a.example/next", title: "Next", faviconUrl: "https://a.example/favicon.ico", themeColorHex: "#112233" });
+  assert.deepEqual(pageStatePatch(a, page, false), { title: "Next", faviconUrl: "https://a.example/favicon.ico", themeColorHex: "#112233" });
+  assert.equal(pageStatePatch({ ...a, isPrivate: true }, { ...page, themeColor: null, title: a.title, url: a.url }, true), null);
+  assert.equal(pageStatePatch(a, { ...page, faviconUrl: "data:image/png;base64,AA", themeColor: null, title: "", url: null }, true), null);
 });

@@ -5,7 +5,7 @@ import { DECK, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeomet
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { font, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
+import { Favicon, font, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
@@ -133,7 +133,7 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
               <Symbol name="eyes" size={tabsLayout.faviconSize - 4} color={tabsInk.onDark} />
             </View>
           ) : (
-            <Symbol name="globe" size={tabsLayout.faviconSize} color={theme.headerText} />
+            <Favicon url={tab.faviconUrl} size={tabsLayout.faviconSize} color={theme.headerText} />
           )}
           <Animated.Text style={[font.caption, styles.title, { color: theme.headerText }, titleStyle]} numberOfLines={1}>
             {title}

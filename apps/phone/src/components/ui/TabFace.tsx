@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { isDarkColor } from "../../lib/color";
+import { Favicon } from "./Favicon";
 import { Symbol } from "./Symbol";
 import { font, space, tabsInk, type ColorRoles } from "./tokens";
 
-export type TabFaceTab = { url: string; title: string; isPrivate: boolean; snapshotFileName: string | null; themeColorHex: string | null };
+export type TabFaceTab = { url: string; title: string; isPrivate: boolean; snapshotFileName: string | null; themeColorHex: string | null; faviconUrl: string | null };
 
 export function placeholderTint(url: string, roles: ColorRoles): string {
   let hash = 0;
@@ -42,7 +43,7 @@ export function TabFace({ tab, title, host, tone, roles, compact }: Props) {
   const soft = dark ? tabsInk.onDarkSoft : roles.foregroundSecondary;
   return (
     <View style={[StyleSheet.absoluteFill, compact ? styles.compact : styles.page, { backgroundColor: fill }]}>
-      <Symbol name="globe" size={compact ? 12 : 32} color={soft} />
+      <Favicon url={tab.faviconUrl} size={compact ? 12 : 32} color={soft} />
       {compact ? null : (
         <>
           <Text style={[font.body, styles.title, { color: ink }]} numberOfLines={4}>
