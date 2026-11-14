@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in Ardia crashes, got worse, or behaves wrong.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The steps, what you saw and what you expected. If it only happens sometimes, say how often.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and channel
+      description: Settings › General shows both.
+      placeholder: 0.2.42, nightly
+    validations:
+      required: true
+  - type: dropdown
+    id: app
+    attributes:
+      label: App
+      options:
+        - Mac
+        - iPhone
+        - Android
+        - Windows
+        - Linux
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: layout
+    attributes:
+      label: Layout
+      description: Address bar in the sidebar or on top, tabs in the sidebar or horizontal, and how many profiles and windows are open.
+  - type: textarea
+    id: recording
+    attributes:
+      label: Recording or screenshots
+      description: Drag files in. A screen recording is the fastest way to a fix. If Dia behaves differently, add the same steps recorded in Dia.
+  - type: textarea
+    id: crash-report
+    attributes:
+      label: Crash report
+      description: If it crashed, paste the report from ~/Library/Logs/DiagnosticReports.
+      render: text

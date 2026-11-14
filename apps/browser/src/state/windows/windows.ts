@@ -28,7 +28,7 @@ import { isLastRegularWindow, isOpenRegularWindow, isRegularWindow, isSmall, isS
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
 import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, WindowKind } from "../browser/types";
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
-import { noteAutoHideTabsChosen } from "../telemetry/autoHideTabsChoices";
+import { noteAutoHideTabsChosen, noteTornOffWindowKeptAutoHide } from "../telemetry/autoHideTabsChoices";
 import { lastClosedEntry, lastClosedTab, restoreTab, restoreWindow } from "./reopenClosed";
 import { groupTree, regrouped, splitsWithin, withSplitsBack } from "./groupMoves";
 import { commonGroup, orderSections } from "../groups/groups";
@@ -181,6 +181,11 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
       kind === "small"
         ? { ...smallWindow(id, profileId, o.frame ?? null), ...(o.linkPointer ? { linkPointer: o.linkPointer } : {}) }
         : { ...emptyWindow(id, profileId, kind, o.frame ?? null), ...(o.chromeWindow ? { chromeWindow: o.chromeWindow } : {}) };
+    const from = o.tabIds?.length && !small ? s.windows[s.tabs[o.tabIds[0]!]?.windowId ?? ""] : undefined;
+    if (from?.autoHideTabs !== undefined && !isSmallWindow(from)) {
+      w.autoHideTabs = from.autoHideTabs;
+      noteTornOffWindowKeptAutoHide();
+    }
     let next = withWindow(s, w);
     if (o.tabIds?.length && !small) next = moveTabsInto(next, o.tabIds, id);
     if (!next.windows[id]!.tabIds.length) next = withNewTab(next, id, { url: o.url, adoptId: o.adoptId })[0];

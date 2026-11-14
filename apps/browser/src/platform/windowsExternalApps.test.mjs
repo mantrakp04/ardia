@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { readExternalAppAsk, schemeOf, serializedOrigin, trustworthyOrigin, windowsExternalAppCounts, windowsExternalApps } from "../../../../packages/expo-windows/src/engine/domains/externalApps.ts";
-import { answerExternalApp, showExternalAppPrompt } from "../state/site/prompts.ts";
+import { answerExternalApp, showExternalApp } from "../state/site/prompts.ts";
 import { noteExternalApp, takeExternalAppCounts } from "../state/telemetry/externalAppCounts.ts";
 
 const HANDLERS = { mailto: { name: "Mail", path: "C:\\Mail\\mail.exe", icon: "data:image/png;base64,AA==" }, ardiatest: { name: "Test Handler", path: null, icon: null } };
@@ -105,12 +105,9 @@ test("only a well-formed scheme and a well-formed ask go further", () => {
 
 test("app link prompts and answers are counted and reset once taken", () => {
   takeExternalAppCounts();
-  noteExternalApp("asked");
   noteExternalApp("allowedAlways");
   noteExternalApp("declined");
   assert.deepEqual(takeExternalAppCounts(), {
-    external_app_prompts: 1,
-    external_app_prompts_no_app: 0,
     external_app_allows: 0,
     external_app_allows_always: 1,
     external_app_declines: 1,
@@ -236,7 +233,7 @@ test("a remembered open whose profile is deleted while the engine answers opens 
 
 test("a yes counts as a click, and only a launch Windows confirmed counts as a launch", async () => {
   takeExternalAppCounts();
-  showExternalAppPrompt("t-count", { id: "w1", url: "mailto:a", scheme: "mailto", origin: null, app: "Mail", appPath: null, icon: null, title: "", message: "", remember: null });
+  showExternalApp("t-count", { id: "w1", url: "mailto:a", scheme: "mailto", origin: null, app: "Mail", appPath: null, icon: null, title: "", message: "", remember: null });
   answerExternalApp("t-count", true, false);
   const clicked = takeExternalAppCounts();
   assert.deepEqual([clicked.external_app_allows, clicked.external_app_launches], [1, 0]);

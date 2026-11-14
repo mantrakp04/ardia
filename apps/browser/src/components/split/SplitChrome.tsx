@@ -115,6 +115,7 @@ function DividerHandle({ split, divider, width, height }: { split: SplitView; di
 
   const { rect, vertical } = divider;
   const active = hovered || dragging;
+  const cursor = vertical ? "col-resize" : "row-resize";
   return (
     <View
       {...responder.panHandlers}
@@ -128,11 +129,13 @@ function DividerHandle({ split, divider, width, height }: { split: SplitView; di
         height: rect.height + (vertical ? 0 : 4),
         alignItems: "center",
         justifyContent: "center",
-        cursor: vertical ? "col-resize" : "row-resize",
+        cursor,
       }}
     >
       <View
+        pointerEvents="none"
         style={{
+          cursor,
           width: vertical ? HANDLE_THICKNESS : HANDLE_LENGTH,
           height: vertical ? HANDLE_LENGTH : HANDLE_THICKNESS,
           borderRadius: capsule(HANDLE_THICKNESS),

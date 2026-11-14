@@ -45,6 +45,7 @@ public final class WebTab: DiscardablePage, Identifiable {
   public var host: String? { url.flatMap { BrowserURL.host(of: $0.absoluteString) } }
 
   @ObservationIgnored weak var engine: WebEngine?
+  @ObservationIgnored private var capturingOrigins: [String: Set<SitePermission>] = [:]
   @ObservationIgnored private var popupConfiguration: WKWebViewConfiguration?
   @ObservationIgnored private var coordinator: WebTabCoordinator?
   @ObservationIgnored private var observations: [NSKeyValueObservation] = []
@@ -191,7 +192,7 @@ public final class WebTab: DiscardablePage, Identifiable {
   }
 
   public func makeLive() {
-    guard webView == nil, let engine else { return }
+    guard webView == nil, let engine, popupConfiguration != nil || engine.canMakeWebViews() else { return }
     let isPopup = popupConfiguration != nil
     let configuration = popupConfiguration ?? Self.makeConfiguration(dataStore: isPrivate ? engine.privateDataStore() : .default())
     popupConfiguration = nil
@@ -387,7 +388,20 @@ public final class WebTab: DiscardablePage, Identifiable {
     failure = nil
   }
 
+  func noteCapture(_ permissions: Set<SitePermission>, origin: String) {
+    capturingOrigins[origin, default: []].formUnion(permissions)
+  }
+
+  func endCapture(_ permissions: Set<SitePermission>, origin: String) {
+    guard let active = capturingOrigins[origin]?.intersection(permissions), !active.isEmpty else { return }
+    capturingOrigins[origin]?.subtract(active)
+    if active.contains(.camera) { webView?.setCameraCaptureState(.none, completionHandler: nil) }
+    if active.contains(.microphone) { webView?.setMicrophoneCaptureState(.none, completionHandler: nil) }
+    if active.contains(.location) { webView?.reload() }
+  }
+
   fileprivate func didCommit() {
+    capturingOrigins = [:]
     blockedResources.reset()
     scrollTracker.reset()
     if scrollDirection != .up { scrollDirection = .up }
@@ -636,34 +650,45 @@ final class WebTabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, UIS
 
   func webView(_ webView: WKWebView, decideMediaCapturePermissionsFor origin: WKSecurityOrigin, initiatedBy frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision {
     guard let tab, let engine = tab.engine else { return .deny }
-    let key = "\(origin.protocol)://\(origin.host):\(origin.port)#\(type.rawValue)"
-    if engine.isCaptureGranted(key, isPrivate: tab.isPrivate) { return .grant }
-    let session = engine.privateSession
+    let site = SitePermissions.origin(scheme: origin.protocol, host: origin.host, port: origin.port)
     let kind: MediaCaptureKind = switch type {
     case .camera: .camera
     case .microphone: .microphone
     default: .cameraAndMicrophone
+    }
+    let needed: Set<SitePermission> = switch kind {
+    case .camera: [.camera]
+    case .microphone: [.microphone]
+    case .cameraAndMicrophone: [.camera, .microphone]
+    }
+    if engine.isCaptureGranted(needed, origin: site, isPrivate: tab.isPrivate) {
+      tab.noteCapture(needed, origin: site)
+      return .grant
     }
     let answer: PageRequest.Answer = await withCheckedContinuation { continuation in
       tab.handle(PageRequest(kind: .mediaCapture(kind), host: origin.host) { continuation.resume(returning: $0) })
     }
     guard case .accepted = answer else { return .deny }
     guard tab.webView === webView else { return .deny }
-    engine.grantCapture(key, isPrivate: tab.isPrivate, session: session)
+    engine.grantCapture(needed, origin: site, host: origin.host, isPrivate: tab.isPrivate)
+    tab.noteCapture(needed, origin: site)
     return .grant
   }
 
   func webView(_ webView: WKWebView, requestGeolocationPermissionFor origin: WKSecurityOrigin, initiatedBy frame: WKFrameInfo) async -> WKPermissionDecision {
     guard let tab, let engine = tab.engine else { return .deny }
-    let key = "\(origin.protocol)://\(origin.host):\(origin.port)#location"
-    if engine.isCaptureGranted(key, isPrivate: tab.isPrivate) { return .grant }
-    let session = engine.privateSession
+    let site = SitePermissions.origin(scheme: origin.protocol, host: origin.host, port: origin.port)
+    if engine.isCaptureGranted([.location], origin: site, isPrivate: tab.isPrivate) {
+      tab.noteCapture([.location], origin: site)
+      return .grant
+    }
     let answer: PageRequest.Answer = await withCheckedContinuation { continuation in
       tab.handle(PageRequest(kind: .location, host: origin.host) { continuation.resume(returning: $0) })
     }
     guard case .accepted = answer else { return .deny }
     guard tab.webView === webView else { return .deny }
-    engine.grantCapture(key, isPrivate: tab.isPrivate, session: session)
+    engine.grantCapture([.location], origin: site, host: origin.host, isPrivate: tab.isPrivate)
+    tab.noteCapture([.location], origin: site)
     return .grant
   }
 

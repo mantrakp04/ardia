@@ -11,8 +11,8 @@ extension AppModel {
   }
 
   @discardableResult
-  func copyCurrentLink() -> Bool {
-    guard let tab = tabs.selectedTab, let url = URL(string: tab.url), BrowserURL.isSyncable(tab.url) else { return false }
+  func copyLink(of tabID: UUID) -> Bool {
+    guard let tab = tabs.tab(tabID), let url = URL(string: tab.url), BrowserURL.isSyncable(tab.url) else { return false }
     web.copyLink(url)
     browse.showTitleFeedback(String(localized: "Copied URL"))
     return true
@@ -28,12 +28,17 @@ extension AppModel {
   }
 
   func shareCurrentPage() {
-    guard let tab = tabs.selectedTab, let url = URL(string: tab.url), BrowserURL.isSyncable(tab.url) else { return }
+    guard let tab = tabs.selectedTab else { return }
+    sharePage(tab.id)
+  }
+
+  func sharePage(_ tabID: UUID) {
+    guard let tab = tabs.tab(tabID), let url = URL(string: tab.url), BrowserURL.isSyncable(tab.url) else { return }
     web.share(url)
   }
 
-  func pinCurrentToMac() {
-    guard let tab = tabs.selectedTab else { return }
+  func pinToMac(_ tabID: UUID) {
+    guard let tab = tabs.tab(tabID) else { return }
     guard sync.isEnabled else {
       toasts.show(Toast(String(localized: "Sync With Your Mac to Pin Tabs"), symbol: "laptopcomputer") { [weak self] in
         self?.sheet = .syncSetup

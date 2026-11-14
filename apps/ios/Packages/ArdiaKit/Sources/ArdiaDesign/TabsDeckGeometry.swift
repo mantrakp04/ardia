@@ -7,8 +7,9 @@ public struct TabsDeckGeometry: Equatable, Sendable {
   public static let leftPeek: CGFloat = 70
   public static let stepRatio: CGFloat = 218.0 / 440.0
   public static let headerHeight: CGFloat = 20
-  public static let barReserve: CGFloat = 58
+  public static let barReserve: CGFloat = 67
   public static let topReserve: CGFloat = 12
+  public static let chromeGap: CGFloat = 21
   public static let headerFaviconOnlyWidth: CGFloat = 72
 
   public let container: CGSize
@@ -21,14 +22,14 @@ public struct TabsDeckGeometry: Equatable, Sendable {
   public let leftReach: CGFloat
   public let cardCenterY: CGFloat
 
-  public init(container: CGSize, safeTop: CGFloat, safeBottom: CGFloat, safeSide: CGFloat = 0) {
+  public init(container: CGSize, safeTop: CGFloat, safeBottom: CGFloat, safeSide: CGFloat = 0, chromeBottom: CGFloat? = nil) {
     self.container = container
     self.safeTop = safeTop
     self.safeBottom = safeBottom
     self.safeSide = safeSide
     let width = max(container.width, 1)
     let height = max(container.height, 1)
-    let bandTop = safeTop + Self.topReserve + Self.headerHeight
+    let bandTop = chromeBottom.map { $0 + Self.chromeGap + Self.headerHeight } ?? safeTop + Self.topReserve + Self.headerHeight
     let bandBottom = height - max(safeBottom, 20) - Self.barReserve + 24
     let band = max(bandBottom - bandTop, 120)
     let aspect = height / width
@@ -75,7 +76,7 @@ public struct TabsDeckGeometry: Equatable, Sendable {
     CGPoint(x: safeSide + 16 + 17.5, y: barCenterY)
   }
 
-  public var barCenterY: CGFloat { container.height - max(safeBottom, 20) - 6 }
+  public var barCenterY: CGFloat { container.height - max(safeBottom, 20) - 11 }
 
   public func scrollDelta(forDrag translation: CGFloat) -> Double {
     Double(-translation / spacing)

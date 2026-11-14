@@ -33,6 +33,9 @@ public enum BrowsePalette {
   public static let incognitoField = Color.white.opacity(0.12)
   public static let incognitoCaption = Color.white.opacity(0.55)
   public static let toolbarTile = Color.adaptive(light: .black.opacity(0.05), dark: .white.opacity(0.08))
+  public static let notSecure = Color.adaptive(light: Color(hex: 0xF7931E), dark: Color(hex: 0xFF9F0A))
+  public static let searchField = Color.adaptive(light: .white, dark: .white.opacity(0.12))
+  public static let classicBarShadow = Color.adaptive(light: .black.opacity(0.12), dark: .black.opacity(0.4))
 }
 
 public enum BrowseLayout {
@@ -46,13 +49,27 @@ public enum BrowseLayout {
   public static let trayFieldTop: CGFloat = 15
   public static let trayDim: Double = 0.28
   public static let logoSize: CGFloat = 132
-  public static let plusCapsule = CGSize(width: 84, height: 40)
-  public static let barPillHeight: CGFloat = 54
-  public static let barPillPadding: CGFloat = 5
+  public static let barControl: CGFloat = 48
+  public static let barGap: CGFloat = 8
+  public static let barEdgeInset: CGFloat = 12
+  public static let barGlyph: CGFloat = 19
+  public static let barMenuGlyph: CGFloat = 17
+  public static let barAddressLead: CGFloat = 13
+  public static let barMenuTrail: CGFloat = 0
+  public static let barAddressSpacing: CGFloat = 6
+  public static let barCollapsedHeight: CGFloat = 30
+  public static let barCollapsedMaxWidth: CGFloat = 240
+  public static let barCollapsedScale: CGFloat = 0.62
+  public static let classicBarShadowRadius: CGFloat = 10
+  public static let panelInset: CGFloat = 8
+  public static let panelRadius: CGFloat = 26
+  public static let panelFieldInset: CGFloat = 9
+  public static let panelAboveKeyboard: CGFloat = 8
+  public static let panelTintShare: Double = 0.55
+  public static let panelIncognitoShare: Double = 0.85
   public static let tabStackRadius: CGFloat = 5
   public static let tabStackTile = CGSize(width: 20, height: 26)
-  public static let barCenterFromBottom: CGFloat = 44
-  public static let barSideInset: CGFloat = 20
+  public static let barBottomGap: CGFloat = 21.5
   public static let hitTarget: CGFloat = 44
   public static let barHeight: CGFloat = 75
   public static let barCollapseTravel: CGFloat = 30

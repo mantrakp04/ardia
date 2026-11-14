@@ -7,7 +7,7 @@ struct OnboardingWelcomeStep: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var hasAppeared = false
-  @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 40
+  @ScaledMetric(relativeTo: .title) private var titleSize: CGFloat = 28
 
   var body: some View {
     if dynamicTypeSize.isAccessibilitySize {
@@ -19,7 +19,7 @@ struct OnboardingWelcomeStep: View {
   }
 
   private var content: some View {
-    VStack(spacing: Spacing.large) {
+    VStack(spacing: 0) {
       Spacer(minLength: 0)
       AppIconPreview(side: 104)
         .padding(5)
@@ -28,15 +28,16 @@ struct OnboardingWelcomeStep: View {
         .rotationEffect(.degrees(hasAppeared || reduceMotion ? -6 : -18))
         .scaleEffect(hasAppeared || reduceMotion ? 1 : 0.7)
         .opacity(hasAppeared ? 1 : 0)
+        .padding(.bottom, Spacing.large)
       VStack(spacing: Spacing.small) {
         Text("Meet your new favorite browser")
-          .font(.system(size: titleSize, weight: .bold, design: .rounded))
+          .font(.system(size: titleSize, weight: .bold))
           .multilineTextAlignment(.center)
           .minimumScaleFactor(0.6)
           .fixedSize(horizontal: false, vertical: true)
           .accessibilityAddTraits(.isHeader)
         Text("Get what you want twice as fast.")
-          .font(.title3.weight(.medium))
+          .font(.body)
           .fixedSize(horizontal: false, vertical: true)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
@@ -46,17 +47,11 @@ struct OnboardingWelcomeStep: View {
       .opacity(hasAppeared ? 1 : 0)
       .offset(y: hasAppeared || reduceMotion ? 0 : 16)
       Spacer(minLength: 0)
-      Button(action: onContinue) {
-        Text("Get Started")
-          .font(.body.weight(.semibold))
-          .frame(maxWidth: .infinity, minHeight: 50)
-      }
-      .buttonStyle(.borderedProminent)
-      .buttonBorderShape(.roundedRectangle(radius: 14))
-      .primaryActionColors()
-      .padding(.horizontal, Spacing.medium + 4)
-      .padding(.bottom, Spacing.small)
-      .opacity(hasAppeared ? 1 : 0)
+      OnboardingPrimaryButton("Get Started", action: onContinue)
+        .padding(.top, Spacing.large)
+        .padding(.horizontal, Spacing.medium + 4)
+        .padding(.bottom, Spacing.small)
+        .opacity(hasAppeared ? 1 : 0)
     }
     .onAppear {
       withAnimation(reduceMotion ? .easeOut(duration: 0.3) : .spring(duration: 0.7, bounce: 0.3).delay(0.1)) {

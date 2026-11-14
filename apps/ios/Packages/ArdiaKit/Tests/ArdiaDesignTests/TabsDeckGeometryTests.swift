@@ -11,7 +11,15 @@ struct TabsDeckGeometryTests {
     #expect(abs(proMax.leading(at: 0) - 66) < 0.5)
     #expect(abs(proMax.leading(at: 1) - 284) < 0.5)
     #expect(abs(geometry.leading(at: -1) - 6) < 0.5)
-    #expect(abs(geometry.barCenterY - 812) < 0.5)
+    #expect(abs(geometry.barCenterY - 807) < 0.5)
+  }
+
+  @Test func `the deck's header and archive card push the cards down`() {
+    let bare = TabsDeckGeometry(container: CGSize(width: 402, height: 874), safeTop: 62, safeBottom: 34, chromeBottom: 110)
+    let withCard = TabsDeckGeometry(container: CGSize(width: 402, height: 874), safeTop: 62, safeBottom: 34, chromeBottom: 161.5)
+    #expect(abs(bare.cardCenterY - bare.cardSize.height / 2 - 170) < 1.5)
+    #expect(abs(withCard.cardCenterY - withCard.cardSize.height / 2 - 202.5) < 1.5)
+    #expect(withCard.cardSize.height < bare.cardSize.height)
   }
 
   @Test func `the next card overlaps the focused one`() {
