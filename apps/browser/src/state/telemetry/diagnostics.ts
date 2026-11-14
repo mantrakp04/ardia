@@ -163,7 +163,7 @@ export function contextAt(contexts: (SavedContext | null)[], at: number, session
   let best: SavedContext | null = null;
   for (const c of contexts) {
     if (startOf(c) !== session || (c!.at as number) > at) continue;
-    if (!best || (c!.at as number) > (best.at as number)) best = c;
+    if (!best || (c!.at as number) >= (best.at as number)) best = c;
   }
   return best;
 }
