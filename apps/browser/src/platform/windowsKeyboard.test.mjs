@@ -3,10 +3,12 @@ import { test } from "node:test";
 import { turboModules } from "../test-native/reactNative.ts";
 
 const calls = [];
+let showGate = null;
 turboModules.ArdiaEngineHost = {
   available: () => true,
   hostCall: async (verb, argsJson, windowId) => {
     calls.push({ verb, args: JSON.parse(argsJson), windowId });
+    if (verb === "tab.show" && showGate) await showGate;
     return JSON.stringify(verb === "tab.create" ? { tab: calls.length } : { ok: true });
   },
   engineCall: async () => "{}",
@@ -155,5 +157,28 @@ test("a follow asked before a tab's page exists goes once that page shows, unles
   unmount();
   unmountShown();
   unmountLeft();
+  await settle();
+});
+
+test("a focus waiting for its page's show is dropped when another page is asked while that show is still on its way", async () => {
+  focused = null;
+  const unmountSlow = mountPage("kb-slow-show", { url: "https://slow.example/", windowId: "ws" }, () => {});
+  const unmountClicked = mountPage("kb-clicked", { url: "https://clicked.example/", windowId: "ws" }, () => {});
+  await settle();
+  showPage("kb-clicked", true, shape);
+  await settle();
+  await callPage("kb-slow-show", "focus");
+  let open;
+  showGate = new Promise((resolve) => (open = resolve));
+  showPage("kb-slow-show", true, shape);
+  await settle();
+  await callPage("kb-clicked", "focus");
+  showGate = null;
+  open();
+  await settle();
+  assert.deepEqual(focusCalls("kb-slow-show"), [], "the keyboard went to another page meanwhile");
+  assert.equal(focusCalls("kb-clicked").length, 1);
+  unmountSlow();
+  unmountClicked();
   await settle();
 });

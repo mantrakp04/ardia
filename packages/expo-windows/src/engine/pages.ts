@@ -193,7 +193,7 @@ function askShow(page: Page, args: ShowArgs) {
       const focusArgs = page.focusArgs;
       if (fieldFocusedIn(page.windowId, page.key)) return sent;
       return Promise.resolve(sent).then(() =>
-        page.closed || fieldFocusedIn(page.windowId, page.key) ? undefined : hostCall("tab.call", { ...focusArgs, key: page.key, method: "focus", deferred: true }),
+        page.closed || lastAskedToFocus !== page || fieldFocusedIn(page.windowId, page.key) ? undefined : hostCall("tab.call", { ...focusArgs, key: page.key, method: "focus", deferred: true }),
       );
     }),
   );
