@@ -100,10 +100,10 @@ test("the deck's buttons keep Compose's place over a gesture bar and clear a 3-b
 });
 
 test("closing the cards at the right end leaves the deck at rest, the last card at the right edge", () => {
-  assert.equal(scrollAfterClosing(3, 3, 3, true), 1);
-  assert.equal(scrollAfterClosing(4, 4, 4, true), 2);
-  assert.equal(scrollAfterClosing(1, 3, 4, false), 2);
-  assert.equal(scrollAfterClosing(0, 0, 1, true), 0);
+  assert.equal(scrollAfterClosing(scrollAfterRemoving(3, 3, 3), 3, true), 1);
+  assert.equal(scrollAfterClosing(1, 2, true), 0);
+  assert.equal(scrollAfterClosing(2, 4, false), 2);
+  assert.equal(scrollAfterClosing(0, 1, true), 0);
 });
 
 test("a touch that moves less than the slop is a tap on the card under it", () => {

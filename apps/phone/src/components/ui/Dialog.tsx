@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { BackHandler, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { tabsMotion } from "./motion";
 import { useTheme } from "./theme";
 import { dialogLayout, font, space } from "./tokens";
@@ -19,7 +19,7 @@ export function Dialog({ title, message, buttons, onDismiss, children }: Props) 
     return () => back.remove();
   }, [onDismiss]);
   return (
-    <Animated.View entering={FadeIn.duration(tabsMotion.surfaceFade)} exiting={FadeOut.duration(tabsMotion.surfaceFade)} style={StyleSheet.absoluteFill}>
+    <Animated.View entering={FadeIn.duration(tabsMotion.surfaceFade)} style={StyleSheet.absoluteFill}>
       <Pressable accessibilityLabel="Dismiss" style={[StyleSheet.absoluteFill, { backgroundColor: theme.dialogScrim }]} onPress={onDismiss} />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.center} pointerEvents="box-none">
         <View accessibilityViewIsModal style={[styles.panel, { backgroundColor: theme.panel, shadowColor: theme.trayShadow }]}>

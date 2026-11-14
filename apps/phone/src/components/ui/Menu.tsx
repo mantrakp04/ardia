@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { BackHandler, Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { tabsMotion } from "./motion";
 import { Symbol } from "./Symbol";
 import type { SymbolName } from "./symbolPaths";
@@ -25,7 +25,6 @@ export function Menu({ items, place, onDismiss }: Props) {
       <Pressable accessibilityLabel="Dismiss" style={[StyleSheet.absoluteFill, { backgroundColor: ink.clear }]} onPress={onDismiss} />
       <Animated.View
         entering={FadeIn.duration(tabsMotion.menu)}
-        exiting={FadeOut.duration(tabsMotion.menu)}
         style={[styles.panel, place, { backgroundColor: theme.panel, shadowColor: theme.trayShadow }]}
       >
         {items.map((item, index) => {

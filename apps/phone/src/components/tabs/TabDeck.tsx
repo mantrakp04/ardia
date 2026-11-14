@@ -17,6 +17,7 @@ import {
   initialDeckScroll,
   openingDeckScroll,
   scrollAfterClosing,
+  scrollAfterRemoving,
 } from "../../lib/deckGeometry";
 import {
   closeAllFromDeck,
@@ -108,7 +109,7 @@ export function TabDeck() {
     const stays = focused ? next.indexOf(focused) : -1;
     const removedAt = focused ? order.indexOf(focused) : 0;
     const onlyTail = next.length < order.length && next.every((id, i) => id === order[i]);
-    const after = stays >= 0 ? stays : scrollAfterClosing(removedAt, Math.round(before), next.length, onlyTail);
+    const after = scrollAfterClosing(stays >= 0 ? stays : scrollAfterRemoving(removedAt, Math.round(before), next.length), next.length, onlyTail);
     for (const id of hidden.current) if (!alive.has(id)) hidden.current.delete(id);
     flyIndex.value = -1;
     flyVanish.value = 0;
