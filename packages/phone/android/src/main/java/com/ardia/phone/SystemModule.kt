@@ -10,7 +10,7 @@ class SystemModule : Module() {
     private var listener: PhoneSystemLinks.Listener? = null
 
     override fun definition() = ModuleDefinition {
-        Name("ArdiaSystem")
+        Name("ArdiaPhoneSystem")
 
         Events("onSystemLink")
 

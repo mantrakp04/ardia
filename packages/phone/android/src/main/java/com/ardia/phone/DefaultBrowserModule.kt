@@ -17,7 +17,7 @@ class DefaultBrowserModule : Module() {
     private val system: AndroidSystemActions by lazy { AndroidSystemActions(context) }
 
     override fun definition() = ModuleDefinition {
-        Name("ArdiaDefaultBrowser")
+        Name("ArdiaPhoneDefaultBrowser")
 
         AsyncFunction("status") { -> mapOf("isDefault" to (system.isDefaultBrowser() == true), "canAsk" to (system.browserRoleRequest() != null)) }
 
