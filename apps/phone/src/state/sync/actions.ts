@@ -16,7 +16,7 @@ import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 import { isPinnedOnMac, pinsOnTheirWay } from "./spaces";
 import { noteLocalChange, notePinSent, selectedProfile, selectedProfileId, startSyncSources, syncData, useSync } from "./store";
 import { copy } from "../../lib/platformCopy";
-import { countUsage } from "../telemetry/telemetry";
+import { usageCountingWindow } from "../telemetry/telemetry";
 import {
   CONNECTED_TOAST,
   couldNotSendToast,
@@ -148,6 +148,7 @@ export function sendTargetsFor(tab: BrowserTab | null): SyncedDevice[] {
 
 export async function sendTab(tab: BrowserTab, device: SyncedDevice) {
   if (!isSyncableUrl(tab.url)) return;
+  const countUsage = usageCountingWindow();
   const sent = await settled(() => sync.send({ url: tab.url, title: tab.title, deviceId: device.id, profileSyncId: tab.profileSyncId, fromPrivateTab: tab.isPrivate }), false);
   if (sent && !tab.isPrivate) countUsage("tabs_sent");
   showToast(sent ? sentToast(device.name) : couldNotSendToast(device.name), sent ? "sent" : "warning");
@@ -170,6 +171,7 @@ export async function pinToMac(tab: BrowserTab, onSetup: () => void, showInTitle
     announce("alreadyPinned");
     return;
   }
+  const countUsage = usageCountingWindow();
   const pinned = await settled(() => sync.pinToMac({ url: tab.url, title: tab.title, profileSyncId: tab.profileSyncId }), false);
   if (pinned) {
     notePinSent(tab.profileSyncId ?? selectedProfileId(), tab.url);

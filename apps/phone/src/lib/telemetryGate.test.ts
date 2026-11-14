@@ -174,6 +174,40 @@ test("the schema refuses free text, unknown fields and identifiers it doesn't kn
   assert.notDeepEqual(recordProblems({ ...base, properties: { ...base.properties, $os_version: "Pixel of Ada" } }), []);
   assert.notDeepEqual(recordProblems({ ...base, distinct_id: "ada@example.com" }), []);
   assert.notDeepEqual(recordProblems({ ...base, event: "page_title" as never }), []);
+  for (const inherited of ["constructor", "toString", "valueOf", "hasOwnProperty"]) {
+    assert.deepEqual(recordProblems({ ...base, properties: { ...base.properties, [inherited]: "the best tapas in Lisbon" } }), [`${inherited}: not in the schema`]);
+  }
+});
+
+test("a send or pin that began while sharing was off, or before it was turned off and on again, is never counted", () => {
+  const { gate, stored } = harness();
+  const beganWhileOff = gate.countingWindow();
+  gate.setSharing(true, "settings");
+  beganWhileOff("tabs_sent");
+  assert.equal(stored.get(DAILY_KEY), undefined);
+  const beganBeforeOff = gate.countingWindow();
+  gate.setSharing(false, "settings");
+  gate.setSharing(true, "settings");
+  beganBeforeOff("pins_to_mac");
+  assert.equal(stored.get(DAILY_KEY), undefined);
+  const beganWhileOn = gate.countingWindow();
+  beganWhileOn("tabs_sent");
+  assert.equal(JSON.parse(stored.get(DAILY_KEY)!).tabs_sent, 1);
+});
+
+test("after days away, the last day used goes out once and is not merged with the day Ardia is opened again", async () => {
+  const { gate, runTimers, sent, stored, advance } = harness();
+  gate.setSharing(true, "settings");
+  gate.count("tabs_opened");
+  advance(6 * DAY);
+  gate.count("tabs_opened");
+  gate.count("tabs_opened");
+  gate.rollDaily();
+  await runTimers();
+  const usage = sent().filter((record) => record.event === "usage_counts");
+  assert.equal(usage.length, 1);
+  assert.equal(usage[0]!.properties.tabs_opened, 1);
+  assert.equal(JSON.parse(stored.get(DAILY_KEY)!).tabs_opened, 2);
 });
 
 test("the day's counts go out once, the first time the day has changed, and start again from zero", async () => {

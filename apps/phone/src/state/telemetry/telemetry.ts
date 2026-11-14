@@ -45,6 +45,8 @@ export const setUsageSharing = (on: boolean, source: SharingSource) => gate.setS
 
 export const countUsage = (field: Counted) => gate.count(field);
 
+export const usageCountingWindow = () => gate.countingWindow();
+
 let reported = false;
 
 export async function reportLaunch(firstScreenAt: number) {

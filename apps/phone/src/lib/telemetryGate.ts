@@ -93,6 +93,13 @@ export function createGate(deps: GateDeps) {
     emitDue(next.due);
   }
 
+  function countingWindow(): (field: Counted) => void {
+    const opened = isSharing() ? generation : null;
+    return (field) => {
+      if (opened !== null && opened === generation) count(field);
+    };
+  }
+
   function rollDaily() {
     if (!isSharing()) return;
     const next = rollOver(parseDaily(deps.store.read(DAILY_KEY)), utcDay(deps.now()));
@@ -164,7 +171,7 @@ export function createGate(deps: GateDeps) {
 
   const pending = () => queue.length;
 
-  return { load, isSharing, decided, capture, count, rollDaily, setSharing, flushNow, pending };
+  return { load, isSharing, decided, capture, count, countingWindow, rollDaily, setSharing, flushNow, pending };
 }
 
 export type TelemetryGate = ReturnType<typeof createGate>;

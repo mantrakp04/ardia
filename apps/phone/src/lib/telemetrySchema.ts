@@ -75,7 +75,7 @@ export function recordProblems(record: PhoneRecord): string[] {
   if (!ISO_TIME.test(record.timestamp)) problems.push("timestamp");
   const rules: Record<string, FieldRule> = { ...CONTEXT_FIELDS, ...fields };
   for (const [key, value] of Object.entries(record.properties)) {
-    const rule = rules[key];
+    const rule = Object.hasOwn(rules, key) ? rules[key] : undefined;
     if (!rule) problems.push(`${key}: not in the schema`);
     else {
       const problem = fieldProblem(rule, value);
@@ -121,7 +121,9 @@ export function buildRecord<E extends PhoneEvent>(
   };
 }
 
-export function resourceFor(device: DeviceFacts): Record<string, string> {
+export const RESOURCE_FIELDS = ["service.name", "service.version", "deployment.environment", "os.type", "os.version"] as const;
+
+export function resourceFor(device: DeviceFacts): Record<(typeof RESOURCE_FIELDS)[number], string> {
   return {
     "service.name": PHONE_SERVICE,
     "service.version": device.appVersion,
