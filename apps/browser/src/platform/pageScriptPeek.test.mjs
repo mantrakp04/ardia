@@ -806,6 +806,9 @@ test("a route to the page's own profile routes only where it sends the link some
   const grouped = environment({ page: "https://work.example/inbox" });
   routing(grouped, [own({ group: "g1" })]);
   assert.ok(!grouped.gesture([grouped.link("https://work.example/next")], {}).defaultPrevented);
+  const framed = environment({ top: false, page: "https://work.example/embed" });
+  routing(framed, [own({ group: "g1" })]);
+  assert.ok(framed.gesture([framed.link("https://work.example/next", { target: "_blank" })], {}).defaultPrevented, "a frame's own address doesn't say where its tab is");
 });
 
 test("without the page's own profile (a private window) or without routes, nothing routes", () => {

@@ -913,7 +913,7 @@
       const here = route.profile === null || route.profile === ownProfile;
       if (!here) return true;
       if ((keyed || route.open === "tab") && !route.group) return false;
-      return !matchesSpec(route.spec, location.href);
+      return !isTop || !matchesSpec(route.spec, location.href);
     };
     let routeSent = null;
     handlers.routeRefused = (refusal) => {
