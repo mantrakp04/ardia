@@ -71,8 +71,7 @@ the pins into `pyproject.toml`).
 - `ardia scripts new|test|install|uninstall|list` writes, tests and installs userscripts (see Userscripts).
 - `ardia config path|init|get|set|unset|list|edit|check` reads, writes and checks `config.json` (see
   `docs/config.md`, The ardia command). Never needs Ardia running.
-- `ardia theme new|use|list|check` makes, picks and checks themes: colours, type, metrics, layout and icons (see
-  `docs/config.md`, Themes).
+- `ardia theme new|use|list|check` makes, picks and checks colour themes (see `docs/config.md`).
 - `ardia run COMMAND [ARG]` runs one of Ardia's commands over `<data dir>/ArdiaControl.sock` (see
   `docs/automation.md`).
 - `ardia commands` lists the commands `run` takes (see `docs/automation.md`).
@@ -1405,6 +1404,5 @@ helpers need the token path: an instance launched without `ARDIA_REMOTE_DEBUGGIN
 control server when the port switch is set) and with control on, for example a scratch dir whose `session.json` has
 `"settings": {"cliControl": true}`, opened with `open -g -n --env ARDIA_BACKGROUND=1 --env ARDIA_DATA_DIR=<dir>`.
 Unit tests (matching parity with node, import confinement, store rollback and recovery, symlink refusal; config
-and theme commands against the schemas in `tests/fixtures`: a hand-written `config.schema.json` that uses every keyword
-of the subset, and `theme.schema.json` as the app's `themeSchema` writes it):
+and theme commands against hand-written schemas in `tests/fixtures` that use every keyword of the subset):
 `python -m unittest discover -s apps/cli/tests` with the locked dependencies installed.
