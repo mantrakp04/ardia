@@ -15,6 +15,15 @@ test("Windows native code reads the environment only in the launch config", () =
   assert.deepEqual(readers, [...READERS].sort());
 });
 
+test("the launcher, which runs before the app's DLL, reads only ARDIA_BACKGROUND, and only to keep a failure quiet", () => {
+  const launcher = readFileSync(new URL("../../windows/ArdiaLauncher/Launcher.cpp", import.meta.url), "utf8");
+  const reads = launcher.match(ENVIRONMENT_READ) ?? [];
+  assert.equal(reads.length, 1);
+  assert.match(launcher, /DWORD length = GetEnvironmentVariableW\(L"ARDIA_BACKGROUND", value, 4\);/);
+  assert.match(launcher, /if \(!Background\(\)\) MessageBoxW\(/);
+  assert.equal(launcher.split("Background()").length - 1, 2);
+});
+
 test("only LaunchConfig.h reads ARDIA_TEST, ARDIA_TRACE, ARDIA_CONFIG_DIR and ARDIA_INSTANCE, and a non-test instance drops them", () => {
   for (const variable of ["ARDIA_TEST", "ARDIA_TRACE", "ARDIA_CONFIG_DIR", "ARDIA_INSTANCE", "ARDIA_BACKGROUND"]) {
     const reading = readdirSync(native).filter((name) => /\.(?:h|cpp)$/.test(name) && source(name).includes(`L"${variable}"`));
@@ -45,14 +54,19 @@ test("the test-build marker never reaches an installer, and the harnesses that n
   assert.match(script("installer-check.ps1"), /-Filter "Ardia\.test-build"[^\n]*throw/);
   const smoke = script("launch-smoke.ps1");
   for (const kind of ["no test-build marker", "a relative ARDIA_DATA_DIR", "the real profile folder", "a junction to the real profile folder"]) assert.ok(smoke.includes(`"${kind}"`), kind);
-  for (const harness of ["launch-smoke.ps1", "tour.ps1"]) assert.match(script(harness), /"Ardia\.test-build"\r?\nNew-Item -ItemType File -Force -Path \$testBuild/, harness);
+  assert.match(script("launch-smoke.ps1"), /"Ardia\.test-build"\r?\nNew-Item -ItemType File -Force -Path \$testBuild/);
+  assert.match(script("tour.ps1"), /exit 0\r?\n\}\r?\n\$App = \(Resolve-Path -LiteralPath \$App\)\.Path\r?\nNew-Item -ItemType File -Force -Path \(Join-Path \(Split-Path -Parent \$App\) "Ardia\.test-build"\)/);
+  for (const packaging of ["make-installer.ps1", "installer-check.ps1"]) assert.match(script(packaging), /-Recurse -File -Force -Filter "Ardia\.test-build"/, packaging);
   assert.match(source("TestGate.h"), /constexpr wchar_t TestBuildMarker\[\] = L"Ardia\.test-build";/);
 });
 
 test("a test instance seals its sync key under its own DPAPI purpose, so it can't unseal or stand in for the real one", () => {
   const secrets = source("SyncSecrets.h");
   assert.match(secrets, /constexpr std::string_view TestInstancePurpose = "\/test-instance";/);
-  assert.match(secrets, /AppLaunch::Shared\(\)\.testInstance \? TestInstancePurpose : std::string_view\{\};\n  return std::string\{KeyPurpose\} \+ std::string\{instance\} \+ "\/" \+ account;/);
+  assert.match(secrets, /std::string_view instance = testInstance \? TestInstancePurpose : std::string_view\{\};\n  return std::string\{KeyPurpose\} \+ std::string\{instance\} \+ "\/" \+ account;/);
+  assert.match(secrets, /inline std::string Purpose\(std::string const &account\) \{ return PurposeFor\(account, AppLaunch::Shared\(\)\.testInstance\); \}/);
+  assert.match(secrets, /bool apartFromOtherInstances = stored && !Unprotect\(\*stored, PurposeFor\(account, !AppLaunch::Shared\(\)\.testInstance\)\);/);
+  assert.match(source("SyncModule.h"), /void selfTest\([^\n]*\n    if \(!AppLaunch::Shared\(\)\.testInstance\) return promise\.Reject/);
   assert.equal(secrets.split("CryptProtectData(").length - 1, 1);
   assert.equal(secrets.split("CryptUnprotectData(").length - 1, 1);
   assert.match(secrets, /std::string purpose = Purpose\(account\);\n[^\n]*\n    DATA_BLOB extra\{static_cast<DWORD>\(purpose\.size\(\)\)/);

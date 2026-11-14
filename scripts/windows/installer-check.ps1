@@ -46,7 +46,7 @@ if ($before.Count) { throw "Ardia's browser registration is already here before 
 Invoke-Quietly (Resolve-Path -LiteralPath $Setup).Path "the installer"
 $missing = @($shipped | Where-Object { -not (Test-Path -LiteralPath (Join-Path $folder $_) -PathType Leaf) })
 if ($missing.Count) { throw "the install in $folder lacks $($missing -join ', ')" }
-if (Get-ChildItem -LiteralPath $folder -Recurse -File -Filter "Ardia.test-build" | Select-Object -First 1) { throw "the install in $folder carries an Ardia.test-build marker: a build people install must ignore test keys" }
+if (Get-ChildItem -LiteralPath $folder -Recurse -File -Force -Filter "Ardia.test-build" | Select-Object -First 1) { throw "the install in $folder carries an Ardia.test-build marker: a build people install must ignore test keys" }
 if (-not (Test-Path -LiteralPath $shortcut -PathType Leaf)) { throw "no Start Menu shortcut at $shortcut" }
 $installed = Get-ItemProperty -LiteralPath $entry
 if ($installed.DisplayName -ne "Ardia") { throw "the uninstall entry is named '$($installed.DisplayName)'" }

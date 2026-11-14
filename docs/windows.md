@@ -745,7 +745,8 @@ Swift core wrote (`fixtures/windows-interop/mac`), and the self-check opens that
 
 `LaunchConfig.h` (`AppLaunch::Shared()`) reads the environment once at launch; `Paths.h` holds the one raw reader and
 the data folder, and `TestGate.h` decides whether this launch is a test instance. No other Windows native file reads
-the environment (`platform/windowsLaunchConfig.test.mjs` fails if one does).
+the environment (`platform/windowsLaunchConfig.test.mjs` fails if one does). The one exception is the small
+`ArdiaLauncher`, which runs before the DLL loads and reads `ARDIA_BACKGROUND` only to keep a failed launch quiet.
 
 A test instance needs all of:
 
@@ -774,7 +775,8 @@ folder, Chromium's key sits in the data folder's `Local State`, and the Sync key
 `<data folder>\Sync`, which the folder check covers too, sealed by DPAPI under a purpose a test instance never shares
 (`ardia-sync-key/v1/test-instance/<account>`). A real key copied or hard-linked into a test instance doesn't unseal
 there, and one sealed in a test instance can't stand in for the real one. `reauth=granted` skips Windows Hello only
-for that test key.
+for that test key. A test key sealed by a build before this rule doesn't unseal any more and counts as no key, so
+the scratch instance makes a new one. Sync's `selfTest`, which seals and removes a probe key, needs a test instance.
 
 Outside a test instance the launch config drops `ARDIA_TEST`, `ARDIA_TRACE`, `ARDIA_CONFIG_DIR` and the test-only
 `ARDIA_INSTANCE` keys (`updateFeed`, `importSourceDir`, `importSafariHome`), and the launch log says once why. The other
