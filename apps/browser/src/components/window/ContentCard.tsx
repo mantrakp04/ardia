@@ -13,7 +13,7 @@ import { useFullscreenTab } from "../../state/tabs/pageState";
 import { DropTargets, SplitDividers, SplitFocusRing, SplitToast, type WindowShape } from "../split/SplitChrome";
 import { dockMoving, usePeekSpan, whenDockStill } from "../../state/windows/dockMotion";
 import { FrozenPage } from "./FrozenPage";
-import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, watchToolbarExtensionsWidth, frameCornerRadius, windowFrame } from "../../state/windows/layout";
+import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, watchToolbarExtensionsWidth, frameCornerRadius, onFullScreenLeft, windowFrame } from "../../state/windows/layout";
 import { startSelectionTools } from "../../state/site/selection";
 import { startMedia } from "../../state/media/pip";
 import { urlFieldRight } from "../toolbar/Toolbar";
@@ -90,12 +90,15 @@ export function ContentCard() {
   }, [origin, size.width, size.height, windowId]);
 
   const settled = useRef<{ width: number; height: number } | null>(null);
-  const measure = (width: number, height: number) => {
-    setSize((prev) => (sameSize(prev, { width, height }) ? prev : { width, height }));
-    container.current?.measureInWindow((x, y) => setOrigin((prev) => (prev && prev.x === x && prev.y === y ? prev : { x, y })));
+  const measureWindowShape = () =>
     void Promise.all([windowFrame(windowId), frameCornerRadius(windowId)]).then(([f, radius]) => {
       if (f) setWindowShape((prev) => (prev && prev.radius === radius && sameSize(prev, { width: f[2], height: f[3] }) ? prev : { width: f[2], height: f[3], radius }));
     });
+  useEffect(() => onFullScreenLeft(windowId, measureWindowShape), [windowId]);
+  const measure = (width: number, height: number) => {
+    setSize((prev) => (sameSize(prev, { width, height }) ? prev : { width, height }));
+    container.current?.measureInWindow((x, y) => setOrigin((prev) => (prev && prev.x === x && prev.y === y ? prev : { x, y })));
+    measureWindowShape();
   };
   const settleMeasure = useSettled(({ width, height }: Size) => {
     noteCardResizeLayout(true);
