@@ -32,6 +32,7 @@ AGENTS = {
     "copilot": "Copilot CLI",
     "kiro-cli": "Kiro",
     "cline": "Cline",
+    "hermes": "Hermes",
 }
 INTERPRETERS = ("node", "bun", "deno", "python", "ruby")
 SCRIPT_SUFFIXES = (".js", ".mjs", ".cjs", ".ts", ".py", ".rb")
@@ -75,11 +76,17 @@ def is_interpreter(word: str) -> bool:
     return any(base == name or (base.startswith(name) and base[len(name) :].replace(".", "").isdigit()) for name in INTERPRETERS)
 
 
+def hermes_main(word: str) -> bool:
+    return PurePosixPath(word).parts[-2:] == ("hermes_cli", "main.py")
+
+
 def agent_of(process: Process) -> str | None:
     words = [process.argv[0]] if process.argv else []
     words.append(process.path)
     if any(is_interpreter(word) for word in words):
         words.extend(arg for arg in process.argv[1:2] if not arg.startswith("-"))
+    if any(hermes_main(word) for word in words):
+        return AGENTS["hermes"]
     for word in words:
         name = AGENTS.get(command_name(word))
         if name:

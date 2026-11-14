@@ -30,6 +30,7 @@ Targets and where they install (user level; --project uses the current directory
   claude-code   ~/.claude/skills            ./.claude/skills
   cursor        ~/.cursor/skills            ./.cursor/skills
   opencode      ~/.config/opencode/skills   ./.opencode/skills
+  hermes        ~/.hermes/skills ($HERMES_HOME/skills)   ./.hermes/skills
 
 Next to each one it installs cua-driver's own skill (cua-driver, for computer use in native apps through
 ardia computer), pinned to the bundled driver; --no-cua skips it. A cua-driver skill that ardia didn't install, from
@@ -186,7 +187,7 @@ def build_parser():
     )
     from ardia_cli.skills import TARGETS
 
-    install.add_argument("--target", action="append", choices=sorted(TARGETS), metavar="TARGET", help="general, codex, claude-code, cursor or opencode; repeat for several (default: general)")
+    install.add_argument("--target", action="append", choices=sorted(TARGETS), metavar="TARGET", help="general, codex, claude-code, cursor, opencode or hermes; repeat for several (default: general)")
     install.add_argument("--project", action="store_true", help="install into the current directory's project folders")
     install.add_argument("--no-cua", action="store_true", help="don't install cua-driver's computer-use skill next to it")
     install.add_argument("--replace", action="store_true", help="replace an ardia folder that ardia didn't install (only that folder)")

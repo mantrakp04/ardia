@@ -16,6 +16,7 @@ TARGETS = {
     "claude-code": (".claude/skills", ".claude/skills"),
     "cursor": (".cursor/skills", ".cursor/skills"),
     "opencode": (".config/opencode/skills", ".opencode/skills"),
+    "hermes": (".hermes/skills", ".hermes/skills"),
 }
 
 
@@ -24,6 +25,12 @@ def skill_source() -> Path:
 
 
 def destination(target: str, project: bool) -> Path:
+    if target == "hermes":
+        if project:
+            return Path.cwd() / ".hermes/skills" / SKILL_NAME
+        configured = os.environ.get("HERMES_HOME", "").strip()
+        base = Path(os.path.expandvars(configured)).expanduser() if configured else Path.home() / ".hermes"
+        return base / "skills" / SKILL_NAME
     user_dir, project_dir = TARGETS[target]
     base = Path.cwd() / project_dir if project else Path.home() / user_dir
     return base / SKILL_NAME
