@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Fixture Late</title></head>
+<body>
+<main id="app"><p>Loading…</p></main>
+<script>
+  setTimeout(() => {
+    const rows = Array.from({ length: 12 }, (_, index) => `<li>Result card ${index + 1}: a listing that arrived after hydration</li>`).join("");
+    document.getElementById("app").innerHTML = `<h1>Hydrated results</h1><ul>${rows}</ul>`;
+  }, 4000);
+</script>
+</body>
+</html>

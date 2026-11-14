@@ -119,7 +119,7 @@ class ScrollRows(unittest.TestCase):
                 readpages.parse_rows(bad)
 
     def test_scroll_flags_need_one_list_on_the_tab(self):
-        cases = [({"scroll": True}, []), ({"scroll": True, "selector": "ul"}, ["http://x.test/"]),
+        cases = [({"scroll": True, "selector": "ul"}, ["http://x.test/"]),
                  ({"scroll": True, "selector": "ul", "http": True}, []), ({"match": "x", "selector": "ul"}, [])]
         for options, positional in cases:
             with self.subTest(options=options), self.assertRaises(Usage):

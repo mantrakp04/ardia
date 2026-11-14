@@ -1,8 +1,9 @@
 import { CastMode, preferredCastMode, startCasting, stopCasting, type CastSink, closeCastPicker, useCast } from "../../state/media/cast";
 import { openExternalURL, showMenu } from "../../state/app/system";
 import { Symbol, Button, IconTile, PANEL, PanelHeader, Popover, POPOVER_MARGIN, POPOVER_WIDTH, PopoverValue, Text, useHover } from "../ui";
+import { buttonMotion, usePressScaleMotion } from "../ui/motion";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Animated, Pressable, ScrollView, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { ink, space } from "../ui/tokens";
 import { useMediaTokens } from "./tokens";
@@ -72,11 +73,15 @@ function SinkRow({ sink, onCast, onStop }: { sink: CastSink; onCast(): void; onS
   const { hovered, hoverProps } = useHover();
   const active = sink.state === "connected" && !!sink.routeId;
   const busy = sink.state === "connecting" || sink.state === "disconnecting";
+  const iconPress = usePressScaleMotion(!active && !busy, buttonMotion.controlPressScale);
+  const iconMotionStyle = iconPress.scale ? { transform: [{ scale: iconPress.scale }] } : undefined;
   return (
     <View {...hoverProps}>
-      <Pressable onPress={active || busy ? undefined : onCast}>
+      <Pressable onPress={active || busy ? undefined : onCast} onPressIn={iconPress.onPressIn} onPressOut={iconPress.onPressOut}>
         <View style={{ minHeight: 42, borderRadius: PANEL.rowRadius, flexDirection: "row", alignItems: "center", gap: PANEL.iconGap, paddingHorizontal: PANEL.rowPadding, paddingVertical: space.xs, backgroundColor: hovered && !active ? theme.rowHover : undefined }}>
-          <IconTile symbol={SINK_ICON[sink.icon] ?? "tv"} size="m" fill={active ? theme.accent : tokens.iconTile} glyph={active ? ink.white : theme.icon} />
+          <Animated.View pointerEvents="none" style={iconMotionStyle}>
+            <IconTile symbol={SINK_ICON[sink.icon] ?? "tv"} size="m" fill={active ? theme.accent : tokens.iconTile} glyph={active ? ink.white : theme.icon} />
+          </Animated.View>
           <View style={{ flex: 1 }}>
             <Text lines={1}>
               {sink.name}

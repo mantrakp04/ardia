@@ -14,6 +14,7 @@ import { SplitEmptyState } from "../split/SplitEmptyState";
 import { NewTabPage } from "../ntp/NewTabPage";
 import { EmptyCard } from "./EmptyCard";
 import { NewTabDropArea } from "./NewTabDropArea";
+import { TabContentArea } from "./TabContentArea";
 import { InternalPage } from "../pages";
 import { ShareBar } from "../media/ShareBar";
 import { Toolbar, ToolbarBackdrop } from "../toolbar/Toolbar";
@@ -132,11 +133,17 @@ export const TabPane = memo(function TabPane({
           <View style={{ flex: 1 }}>
             {(mounted || prewarmed) && <TabWebView tabId={tabId} visible={visible && !newTabShown && !isNewTab} warm={!!warm && !newTabShown && !isNewTab} />}
             {visible && isNewTab && !small && (
-              <NewTabDropArea tabId={tabId} accepting={!covered && !lingering}>
-                {inSplit ? <SplitEmptyState tabId={tabId} focused={focused} /> : emptyCard ? <EmptyCard windowId={windowId} tabId={tabId} /> : <NewTabPage key={tabId} tabId={tabId} toolbar={toolbar} />}
-              </NewTabDropArea>
+              <TabContentArea contentAreaOf={tabId}>
+                <NewTabDropArea tabId={tabId} accepting={!covered && !lingering}>
+                  {inSplit ? <SplitEmptyState tabId={tabId} focused={focused} /> : emptyCard ? <EmptyCard windowId={windowId} tabId={tabId} /> : <NewTabPage key={tabId} tabId={tabId} toolbar={toolbar} />}
+                </NewTabDropArea>
+              </TabContentArea>
             )}
-            {visible && <InternalPage tabId={tabId} />}
+            {visible && (
+              <TabContentArea contentAreaOf={tabId}>
+                <InternalPage tabId={tabId} />
+              </TabContentArea>
+            )}
             {visible && (
               <PageOverlays
                 tabId={tabId}

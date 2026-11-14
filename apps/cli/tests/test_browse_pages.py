@@ -788,7 +788,9 @@ class ReadRouting(unittest.TestCase):
 
         with mock.patch("ardia_cli.browse.readurl.run", side_effect=fake):
             result = readpages.run_local({"http": True}, ["http://a/1", "http://a/bad"], None, {})
-        self.assertEqual(result.data["pages"][0], {"url": "http://a/1", "source": "http", "finalUrl": "http://a/1", "title": "T /1", "text": "body http://a/1"})
+        self.assertEqual(result.data["pages"][0], {"url": "http://a/1", "source": "http", "finalUrl": "http://a/1", "title": "T /1", "text": "body http://a/1",
+                                                   "readAt": result.data["pages"][0]["readAt"]})
+        self.assertRegex(result.data["pages"][0]["readAt"], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC$")
         self.assertIn("=== [2/2] ✗ http://a/bad\nhttp://a/bad answered HTTP 404", result.text)
         self.assertTrue(result.failed)
 

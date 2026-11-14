@@ -9,7 +9,7 @@ import { GlassFill, useGlass } from "../ui/Glass";
 import { useTheme } from "../ui/theme";
 import { ITEM_HEIGHT, PINNED_CELL, PINNED_FACE_INSET, PINNED_FACE_RADIUS, PINNED_RING_STROKE } from "./tokens";
 
-export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string; active: boolean; hovered: boolean; pressed: boolean }) {
+export function PinnedFace({ tabId, active, hovered, pressed, frame = "cell" }: { tabId: string; active: boolean; hovered: boolean; pressed: boolean; frame?: "cell" | "face" }) {
   const theme = useTheme();
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
@@ -17,9 +17,12 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
   const badges = useSettings((st) => st.showTopAppBadges);
   if (!tab) return null;
   const glassRing = active && glass;
-  const face = { position: "absolute", left: PINNED_FACE_INSET, right: PINNED_FACE_INSET, top: PINNED_FACE_INSET, bottom: PINNED_FACE_INSET } as const;
+  const compact = frame === "face";
+  const face = compact
+    ? StyleSheet.absoluteFillObject
+    : { position: "absolute", left: PINNED_FACE_INSET, right: PINNED_FACE_INSET, top: PINNED_FACE_INSET, bottom: PINNED_FACE_INSET } as const;
   return (
-    <View style={{ width: PINNED_CELL, height: ITEM_HEIGHT - 1, alignItems: "center", justifyContent: "center" }}>
+    <View style={{ width: PINNED_CELL - (compact ? PINNED_FACE_INSET * 2 : 0), height: ITEM_HEIGHT - 1 - (compact ? PINNED_FACE_INSET * 2 : 0), alignItems: "center", justifyContent: "center" }}>
       {glassRing ? (
         <View style={face}>
           <GlassFill radius={PINNED_FACE_RADIUS} state={pressed ? "pressed" : "active"} />
