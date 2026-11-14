@@ -13,6 +13,7 @@ import {
   type PageTone,
 } from "../pages/store";
 import type { VisitKind } from "../../platform/pages";
+import { showOnboarding } from "../onboarding/store";
 import { currentPreferences, loadPreferences } from "../settings/store";
 import type { VisitTransition, Visit } from "../store/browserDatabase";
 import { resolve, type TrayRow } from "../search/omnibox";
@@ -60,7 +61,8 @@ export function startBrowser() {
   history().pruneBefore(Date.now() - HISTORY_RETENTION_MS);
   archiveDueTabs();
   listenToPages(pageEvent);
-  if (currentPreferences().autoOpensKeyboard) presentSearch("home", "", useTabs.getState().incognito);
+  if (!currentPreferences().hasFinishedOnboarding) showOnboarding();
+  else if (currentPreferences().autoOpensKeyboard) presentSearch("home", "", useTabs.getState().incognito);
 }
 
 export function appBecameActive() {

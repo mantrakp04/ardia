@@ -15,6 +15,8 @@ import { isSyncableUrl } from "../tabs/tabModels";
 import { findTab } from "../tabs/tabsState";
 import { blockersToast, searchQuery, translationUrl, type NightShadeMode } from "./pageMenu";
 import { backLayer, downloadedToast, downloadFailedToast, downloadingToast, pressPlan, type PressAction, type Request } from "./pagePrompts";
+import { onboardingBack } from "../onboarding/store";
+import { popSettings } from "../settings/nav";
 import { pageUi, usePageUi, type Press } from "./store";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 
@@ -267,6 +269,8 @@ export function startPageUi() {
 export const openInOtherApp = (url: string) => quietly(() => openExternal(url));
 
 export function handleSystemBack(): boolean {
+  if (onboardingBack()) return true;
+  if (popSettings()) return true;
   const { surface, sheet } = useBrowse.getState();
   const id = selectedId();
   const ui = pageUi();

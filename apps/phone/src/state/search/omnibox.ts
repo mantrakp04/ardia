@@ -1,5 +1,6 @@
 import {
   mobileDisplay,
+  mobileEngines,
   mobileParseRemote,
   mobileResolve,
   mobileSetSearch,
@@ -41,6 +42,8 @@ export function suggest(text: string, remote: readonly string[], context: Sugges
   }
   return { rows, completion: result.completion };
 }
+
+export const searchEngines = () => mobileEngines().map((engine) => ({ id: engine.id, name: engine.name }));
 
 export const resolve = (text: string) => mobileResolve(text);
 

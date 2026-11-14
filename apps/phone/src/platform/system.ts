@@ -16,3 +16,5 @@ export const tapHaptic = () => impactAsync(ImpactFeedbackStyle.Light);
 export const pressHaptic = () => impactAsync(ImpactFeedbackStyle.Medium);
 
 export const successHaptic = () => notificationAsync(NotificationFeedbackType.Success);
+
+export const shareText = (text: string, title: string) => Share.share({ message: text, title });

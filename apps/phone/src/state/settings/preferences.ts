@@ -20,6 +20,7 @@ export type Preferences = {
   readerStep: number;
   readerSerif: boolean;
   readerTheme: "light" | "sepia" | "dark" | null;
+  appearance: "system" | "light" | "dark";
 };
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -37,6 +38,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   readerStep: 2,
   readerSerif: true,
   readerTheme: null,
+  appearance: "system",
 };
 
 export const PREFERENCE_KEYS: Record<keyof Preferences, string> = {
@@ -54,6 +56,7 @@ export const PREFERENCE_KEYS: Record<keyof Preferences, string> = {
   readerStep: "reader.sizeStep",
   readerSerif: "reader.serif",
   readerTheme: "reader.theme",
+  appearance: "settings.appearance",
 };
 
 const oneOf =
@@ -78,6 +81,7 @@ const PARSERS: { [K in keyof Preferences]: (raw: string) => Preferences[K] | und
   readerStep: (raw) => (/^\d$/.test(raw) && Number(raw) <= 6 ? Number(raw) : undefined),
   readerSerif: flag,
   readerTheme: oneOf<"light" | "sepia" | "dark">(["light", "sepia", "dark"]),
+  appearance: oneOf<"system" | "light" | "dark">(["system", "light", "dark"]),
 };
 
 export function parsePreferences(stored: Record<string, string>): Preferences {
