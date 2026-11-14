@@ -4,10 +4,11 @@ import Animated, { FadeIn, FadeOut, SlideInLeft, SlideInRight, useAnimatedStyle,
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { advanceOnboarding, finishOnboarding, useOnboarding } from "../../state/onboarding/hooks";
 import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/settings/actions";
-import { ArdiaLogo, Backdrop, capsule, font, radius, settingsLayout, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
+import { ArdiaLogo, Backdrop, capsule, onboardingArt, font, radius, settingsLayout, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
 import { ToggleRow } from "../settings/SettingsKit";
 import { SyncConnect } from "../sync/SyncConnect";
 import { DefaultBrowserSteps } from "../settings/DefaultBrowserPage";
+import { LinkBubble } from "./LinkBubble";
 import { useSyncConnected } from "../../state/sync/hooks";
 
 const welcomeSpring = spring(0.7, 0.7);
@@ -38,10 +39,15 @@ export function OnboardingView() {
 }
 
 function DefaultBrowserStep() {
+  const theme = useTheme();
   return (
-    <View style={[styles.column, styles.defaultBrowser]}>
-      <View style={styles.fill} />
-      <DefaultBrowserSteps onLater={advanceOnboarding} onDone={advanceOnboarding} />
+    <View style={styles.fill}>
+      <View style={[styles.fill, styles.art]}>
+        <LinkBubble />
+      </View>
+      <View style={[styles.browserSheet, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]}>
+        <DefaultBrowserSteps onLater={advanceOnboarding} onDone={advanceOnboarding} />
+      </View>
     </View>
   );
 }
@@ -215,7 +221,16 @@ const styles = StyleSheet.create({
   primary: { minHeight: settingsLayout.primaryButton, borderRadius: capsule(settingsLayout.primaryButton), alignItems: "center", justifyContent: "center" },
   illustration: { flex: 1, justifyContent: "flex-end", paddingHorizontal: space.l },
   card: { borderRadius: radius.card, paddingVertical: space.xs, elevation: 8, shadowOpacity: 0.4, shadowRadius: shadowRadius.card },
-  defaultBrowser: { paddingBottom: space.m },
+  art: { alignItems: "center", justifyContent: "center", paddingHorizontal: space.huge },
+  browserSheet: {
+    borderTopLeftRadius: onboardingArt.sheetRadius,
+    borderTopRightRadius: onboardingArt.sheetRadius,
+    paddingTop: space.huge - space.l,
+    paddingBottom: space.m,
+    elevation: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: shadowRadius.card,
+  },
   syncArt: { alignSelf: "center", padding: space.huge, alignItems: "center" },
   secondary: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   tips: { paddingHorizontal: space.xl, paddingVertical: space.xl, gap: space.xl },
