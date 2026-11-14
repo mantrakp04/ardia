@@ -513,3 +513,16 @@ test("usage counts say how many accounts were connected, how many beside another
   assert.equal(counts.live_legacy_account_copies, 1);
   assert.deepEqual(takeLiveFolderCounts(), { ...counts, live_account_connects: 0, live_account_connects_beside_another_profile: 0, live_legacy_account_copies: 0, live_legacy_account_copy_refusals: 0 });
 });
+
+test("an old account whose keychain item couldn't be read at first is copied by a later refresh once it can", async () => {
+  const profile = useBrowser.getState().createProfile({ name: "Late read" });
+  keychainItems.delete("notion");
+  setLegacyAccount("notion", legacyAccount("Acme"));
+  await adoptLegacyAccounts([profile]);
+  keychainItems.set("notion", "legacy-notion-token");
+
+  await retryOwedLegacyAccounts();
+
+  assert.equal(keychainItems.get(`notion:${profile}`), "legacy-notion-token");
+  assert.equal(live().accounts[profile].notion.login, "Acme");
+});

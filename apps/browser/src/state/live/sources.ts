@@ -313,7 +313,7 @@ export function adoptLegacyAccounts(profileIds: string[]): Promise<void> {
 let retryingAdoption = false;
 
 export function retryOwedLegacyAccounts(): Promise<void> {
-  const owed = Object.values(live().legacyAccounts).some((legacy) => legacy?.owedTo !== undefined);
+  const owed = Object.keys(live().legacyAccounts).length > 0;
   if (!owed || retryingAdoption) return adoption;
   retryingAdoption = true;
   return adoptLegacyAccounts(Object.keys(useBrowser.getState().profiles)).finally(() => (retryingAdoption = false));
