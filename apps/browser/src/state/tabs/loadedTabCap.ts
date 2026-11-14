@@ -17,24 +17,31 @@ const LOADED_TABS: Record<Settings["memorySaverMode"], number> = { moderate: 20,
 const SWEEP_MS = 60_000;
 const HIDDEN_FOR_MS = 60_000;
 
-const PAGE_IS_BUSY = `(() => {
-  const fields = Array.from(document.querySelectorAll("input:not([type=hidden]):not([type=submit]):not([type=button]), textarea, select"));
+export const PAGE_IS_BUSY = `(() => {
+  const all = [];
+  const walk = (root) => { for (const el of root.querySelectorAll("*")) { all.push(el); if (el.shadowRoot) walk(el.shadowRoot); } };
+  walk(document);
+  const is = (el, ...names) => names.includes(el.localName);
+  const isField = (el) => is(el, "textarea", "select") || (is(el, "input") && !["hidden", "submit", "button"].includes(el.type));
   const firstSelected = (f) => { const o = Array.from(f.options); const i = o.findLastIndex((x) => x.defaultSelected); return i >= 0 || f.size > 1 ? i : o.findIndex((x) => !x.disabled); };
-  const changed = (f) => f.type === "checkbox" || f.type === "radio" ? f.checked !== f.defaultChecked : f.tagName === "SELECT" ? (f.multiple ? Array.from(f.options).some((o) => o.selected !== o.defaultSelected) : f.selectedIndex !== firstSelected(f)) : f.value !== f.defaultValue;
-  const touchedEditor = !!(navigator.userActivation && navigator.userActivation.hasBeenActive) && (document.designMode === "on" || !!document.querySelector("iframe, frame, [contenteditable]:not([contenteditable=false])"));
-  const playing = Array.from(document.querySelectorAll("video, audio")).some((m) => !m.paused && !m.ended);
+  const changed = (f) => f.type === "checkbox" || f.type === "radio" ? f.checked !== f.defaultChecked : is(f, "select") ? (f.multiple ? Array.from(f.options).some((o) => o.selected !== o.defaultSelected) : f.selectedIndex !== firstSelected(f)) : f.value !== f.defaultValue;
+  const interacted = !!(navigator.userActivation && navigator.userActivation.hasBeenActive);
+  const editor = document.designMode === "on" || all.some((el) => is(el, "iframe", "frame") || el.isContentEditable);
+  const playing = all.some((el) => is(el, "video", "audio") && !el.paused && !el.ended);
   const notifies = typeof Notification !== "undefined" && Notification.permission === "granted";
-  post("result", JSON.stringify(fields.some(changed) || touchedEditor || playing || notifies || document.contentType === "application/pdf"));
+  post("result", JSON.stringify(all.some((el) => isField(el) && changed(el)) || (interacted && editor) || playing || notifies || document.contentType === "application/pdf"));
 })()`;
 
-const SCHEME = /^[a-z][\w+.-]*:\/\//i;
+const siteParts = (url: string): [string, string] => {
+  const [, host = "", rest = ""] = /^(?:[a-z][\w+.-]*:\/\/)?([^/?#]*)(.*)$/is.exec(url.trim()) ?? [];
+  return [host.toLowerCase(), `${host.toLowerCase()}${rest}`];
+};
 
 export function isKeptSite(url: string, sites: string[]): boolean {
-  const bare = url.replace(SCHEME, "").toLowerCase();
-  const host = bare.replace(/[:/?#].*$/, "");
+  const [host, bare] = siteParts(url);
   return sites.some((site) => {
-    const rule = site.replace(SCHEME, "").toLowerCase();
-    if (rule.startsWith("[*.]")) return host === rule.slice(4) || host.endsWith(`.${rule.slice(4)}`);
+    const [ruleHost, rule] = siteParts(site);
+    if (ruleHost.startsWith("[*.]")) return host === ruleHost.slice(4) || host.endsWith(`.${ruleHost.slice(4)}`);
     return host === rule || bare === rule || bare.startsWith(rule.endsWith("/") ? rule : `${rule}/`) || bare.startsWith(`${rule}?`);
   });
 }
@@ -52,27 +59,28 @@ function inUse(s: BrowserState, id: string): boolean {
   );
 }
 
-export function tabsOverCap(s: BrowserState, loaded: string[], seenAt: ReadonlyMap<string, number>, now: number): string[] {
+export function tabsOverCap(s: BrowserState, loaded: string[], seenAt: ReadonlyMap<string, number>, now: number, skip: ReadonlySet<string> = new Set()): string[] {
   if (s.settings.memorySaver === false) return [];
   const cap = LOADED_TABS[s.settings.memorySaverMode] ?? LOADED_TABS.balanced;
   const awake = loaded.filter((id) => s.tabs[id] && hasPage(s.tabs[id]!) && !isSleeping(id));
   if (awake.length <= cap) return [];
   const shown = new Set(withSharedFamily(s, withPinnedPanes(s, [...shownTabIds(s)])));
-  const hidden = awake.filter((id) => !shown.has(id));
   const lastSeen = (id: string) => Math.max(s.tabs[id]!.lastActiveAt, seenAt.get(id) ?? 0);
-  return hidden
-    .sort((a, b) => lastSeen(b) - lastSeen(a))
-    .slice(Math.max(0, cap - (awake.length - hidden.length)))
+  return awake
     .filter((id) => {
       const t = s.tabs[id]!;
       return (
+        !shown.has(id) &&
+        !skip.has(id) &&
         tabEngine(s, id) === "chromium" &&
         /^https?:\/\//i.test(t.url) &&
         now - lastSeen(id) >= HIDDEN_FOR_MS &&
         !inUse(s, id) &&
         !isKeptSite(t.url, s.settings.keepActiveSites)
       );
-    });
+    })
+    .sort((a, b) => lastSeen(a) - lastSeen(b))
+    .slice(0, awake.length - cap);
 }
 
 export function noteLeftShown(seenAt: Map<string, number>, s: BrowserState, prev: BrowserState, now: number) {
@@ -95,15 +103,26 @@ export function startLoadedTabCap() {
     const now = Date.now();
     for (const id of shownTabIds(s)) seenAt.set(id, now);
     for (const id of seenAt.keys()) if (!s.tabs[id]) seenAt.delete(id);
-    const over = tabsOverCap(s, [...webviews.keys()], seenAt, now);
-    if (running || !over.length) return;
+    if (running) return;
     running = true;
+    const busy = new Set<string>();
+    const slept = new Set<string>();
+    const loaded = () => [...webviews.keys()].filter((id) => !slept.has(id));
     try {
-      for (const id of over) {
+      for (let id = tabsOverCap(s, loaded(), seenAt, now, busy)[0]; id; id = tabsOverCap(useBrowser.getState(), loaded(), seenAt, Date.now(), busy)[0]) {
         const view = webviews.get(id);
-        if (!view || (await withDeadline(view.evaluate<boolean>(PAGE_IS_BUSY), 1500, true)) !== false) continue;
-        if (!tabsOverCap(useBrowser.getState(), [...webviews.keys()], seenAt, Date.now()).includes(id)) continue;
-        if ((await view.discard().catch(() => "refused")) === "discarded") noteTabSleptOverCap();
+        if (!view || (await withDeadline(view.evaluate<boolean>(PAGE_IS_BUSY), 1500, true)) !== false) {
+          busy.add(id);
+          continue;
+        }
+        if (!tabsOverCap(useBrowser.getState(), loaded(), seenAt, Date.now(), busy).includes(id)) {
+          busy.add(id);
+          continue;
+        }
+        if ((await view.discard().catch(() => "refused")) === "discarded") {
+          slept.add(id);
+          noteTabSleptOverCap();
+        } else busy.add(id);
       }
     } finally {
       running = false;

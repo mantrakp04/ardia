@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 globalThis.__DEV__ = false;
 
@@ -192,14 +196,16 @@ test("past the mode's cap, the least recently seen hidden tabs go to sleep; a sh
   const active = Object.keys(S().tabs).find((id) => !ids.includes(id));
   const loaded = [active, ...ids];
   const over = (seen = new Map()) => tabsOverCap(S(), loaded, seen, now);
-  assert.deepEqual(over(), ids.slice(9), "Balanced keeps 10 loaded tabs: the shown one and the 9 most recently seen hidden ones");
+  const oldestFirst = (list) => [...list].reverse();
+  assert.deepEqual(over(), oldestFirst(ids.slice(9)), "Balanced keeps 10 loaded tabs: the shown one and the 9 most recently seen hidden ones");
   S().updateSettings({ memorySaverMode: "maximum" });
-  assert.deepEqual(over(), ids.slice(4));
+  assert.deepEqual(over(), oldestFirst(ids.slice(4)));
   S().updateSettings({ memorySaverMode: "balanced" });
-  assert.deepEqual(over(new Map([[ids[13], now - 1000]])), ids.slice(8, 13), "a tab hidden less than a minute ago counts as just seen");
+  assert.deepEqual(over(new Map([[ids[13], now - 1000]])), oldestFirst(ids.slice(8, 13)), "a tab hidden less than a minute ago counts as just seen");
   S().updateLive(ids[12], { playingAudio: true });
   S().updateSettings({ keepActiveSites: ["[*.]site11.com"] });
-  assert.deepEqual(over(), [ids[9], ids[10], ids[13]]);
+  assert.deepEqual(over(), [ids[13], ids[10], ids[9], ids[8], ids[7]], "a protected tab doesn't count as slept: the next oldest hidden tabs go instead");
+  assert.deepEqual(tabsOverCap(S(), loaded, new Map(), now, new Set([ids[13]])), [ids[10], ids[9], ids[8], ids[7], ids[6]], "a tab its page kept awake is skipped for the next one");
   S().updateSettings({ memorySaver: false });
   assert.deepEqual(over(), [], "Memory Saver off keeps every tab loaded");
   S().updateSettings({ memorySaver: true });
@@ -216,4 +222,83 @@ test("past the mode's cap, the least recently seen hidden tabs go to sleep; a sh
   assert.equal(isKeptSite("https://docs.google.com/spreadsheets", ["docs.google.com/document"]), false);
   assert.equal(isKeptSite("https://www.youtube.com/watch", ["[*.]youtube.com"]), true);
   assert.equal(isKeptSite("https://youtube.com.evil.net/", ["youtube.com"]), false);
+  assert.equal(isKeptSite("https://Example.com/Editor?Doc=AbC", ["example.com/Editor?Doc=AbC"]), true);
+  assert.equal(isKeptSite("https://example.com/editor?doc=abc", ["example.com/Editor?Doc=AbC"]), false, "a path keeps its case, as Chrome matches it");
+});
+
+const browserBinary = () => {
+  const home = process.env.HOME ?? "";
+  const cache = [`${home}/.cache/ms-playwright`, `${home}/Library/Caches/ms-playwright`].filter((dir) => existsSync(dir));
+  const fromCache = cache.flatMap((dir) => readdirSync(dir).filter((d) => /^chromium(_headless_shell)?-\d+$/.test(d)).map((d) => join(dir, d)));
+  const candidates = [
+    process.env.CHROME_BIN,
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    ...fromCache.flatMap((dir) => [
+      join(dir, "chrome-headless-shell-linux64/chrome-headless-shell"),
+      join(dir, "chrome-linux/chrome"),
+      join(dir, "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"),
+    ]),
+  ];
+  return candidates.find((path) => path && existsSync(path));
+};
+
+test("the page check keeps edited fields, touched editors and playing media, inside shadow roots too, and lets untouched pages sleep", { skip: !browserBinary() && "no Chrome to run pages in" }, async () => {
+  const { PAGE_IS_BUSY } = await import("./loadedTabCap.ts");
+  const probe = PAGE_IS_BUSY.replace(/post\("result", ([\s\S]*)\);\s*\}\)\(\)$/, "return $1;\n})()");
+  const profile = mkdtempSync(join(tmpdir(), "page-check-"));
+  const chrome = spawn(browserBinary(), ["--headless", "--no-sandbox", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+  try {
+    const endpoint = await new Promise((resolve, reject) => {
+      let text = "";
+      chrome.stderr.on("data", (chunk) => {
+        text += chunk;
+        const found = /DevTools listening on (ws:\S+)/.exec(text);
+        if (found) resolve(found[1]);
+      });
+      chrome.on("exit", () => reject(new Error(text)));
+    });
+    const port = new URL(endpoint).port;
+    const page = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((t) => t.type === "page");
+    const socket = new WebSocket(page.webSocketDebuggerUrl);
+    await new Promise((resolve) => socket.addEventListener("open", resolve));
+    let next = 0;
+    const waiting = new Map();
+    socket.addEventListener("message", (e) => {
+      const message = JSON.parse(e.data);
+      waiting.get(message.id)?.(message);
+    });
+    const call = (method, params) => new Promise((resolve) => {
+      const id = ++next;
+      waiting.set(id, resolve);
+      socket.send(JSON.stringify({ id, method, params }));
+    });
+    await call("Page.enable", {});
+    const busy = async (html, setup = "", gesture = false) => {
+      const loaded = new Promise((resolve) => socket.addEventListener("message", function onLoad(e) {
+        if (JSON.parse(e.data).method === "Page.loadEventFired") socket.removeEventListener("message", onLoad), resolve();
+      }));
+      await call("Page.navigate", { url: `data:text/html,${encodeURIComponent(html)}` });
+      await loaded;
+      if (setup || gesture) await call("Runtime.evaluate", { expression: setup || "0", userGesture: gesture, awaitPromise: true });
+      return JSON.parse((await call("Runtime.evaluate", { expression: probe, returnByValue: true })).result.result.value);
+    };
+    const selects = "<select id=a><option>x<option>y</select><select id=b><option>x<option selected>y</select><select id=c><option selected>p<option selected>q</select><select id=d><option disabled>pick<option>e<option>g</select><select></select><select size=3><option>a</select><select multiple><option>a<option selected>b</select><input id=t value=hi>";
+    const shadow = (inner) => `<x-box></x-box><script>document.querySelector("x-box").attachShadow({ mode: "open" }).innerHTML = ${JSON.stringify(inner)}</script>`;
+    assert.equal(await busy(selects), false, "untouched fields");
+    for (const edit of ["a.selectedIndex = 1", "b.selectedIndex = 0", "c.selectedIndex = 0", "d.selectedIndex = 2", "t.value = 'edited'"])
+      assert.equal(await busy(selects, `const [a, b, c, d, t] = ["a", "b", "c", "d", "t"].map((id) => document.getElementById(id)); ${edit}`), true, edit);
+    assert.equal(await busy(shadow("<textarea></textarea>")), false, "an untouched field in a shadow root");
+    assert.equal(await busy(shadow("<textarea></textarea>"), "document.querySelector('x-box').shadowRoot.querySelector('textarea').value = 'draft'"), true, "an edited field in a shadow root");
+    assert.equal(await busy(shadow("<div contenteditable>hi</div>"), "", true), true, "a touched editor in a shadow root");
+    assert.equal(await busy("<iframe srcdoc='<textarea></textarea>'></iframe>"), false, "an untouched page with an iframe");
+    assert.equal(await busy("<iframe srcdoc='<textarea></textarea>'></iframe>", "", true), true, "a touched page with an iframe");
+    assert.equal(await busy("<div contenteditable>hi</div>", "", true), true, "a touched editor");
+    assert.equal(await busy("<p>text</p>", "", true), false, "a touched page with nothing to lose");
+    socket.close();
+  } finally {
+    chrome.kill();
+    rmSync(profile, { recursive: true, force: true });
+  }
 });
