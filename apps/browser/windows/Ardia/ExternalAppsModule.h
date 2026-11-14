@@ -216,7 +216,7 @@ struct ExternalAppsModule {
     std::optional<std::wstring> widePath = path ? std::optional<std::wstring>(Paths::Wide(*path)) : std::nullopt;
     bool started = AppShell::RunOnShellThread([target, wideScheme, wideName, widePath, promise]() noexcept {
       if (!ExternalApps::SameHandler(wideScheme, wideName, widePath)) {
-        AppLaunch::Note(L"ArdiaExternalApps: the link's handler changed since the prompt, not opening");
+        AppLaunch::Note(L"ArdiaExternalApps: the link's handler isn't the one the prompt named, not opening");
         return promise.Resolve(false);
       }
       bool opened = ExternalApps::Launch(target);
