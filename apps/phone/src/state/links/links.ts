@@ -10,9 +10,9 @@ import { syncData } from "../sync/store";
 import { canSearchByVoice, presentVoiceSearch } from "../voice/store";
 import { currentTabs, setIncognito, useTabs } from "../tabs/store";
 import { findTab } from "../tabs/tabsState";
+import { heldLinks, holdLink, takeHeldLinks } from "./heldLinks";
 import { heldAfterOnboarding, linkAction, type IncomingLink } from "./linkRules";
 
-let held: IncomingLink[] = [];
 let started = false;
 
 function prepare() {
@@ -30,7 +30,7 @@ async function run(link: IncomingLink) {
   });
   switch (action.kind) {
     case "hold":
-      held = [...held, link];
+      holdLink(link);
       return;
     case "openUrl":
       prepare();
@@ -81,9 +81,7 @@ export function startLinks() {
     if (link) take(link);
   });
   useOnboarding.subscribe((state) => {
-    if (state.showing || !held.length) return;
-    const waiting = heldAfterOnboarding(held);
-    held = [];
-    for (const link of waiting) void run(link);
+    if (state.showing || !heldLinks().length) return;
+    for (const link of heldAfterOnboarding(takeHeldLinks())) void run(link);
   });
 }

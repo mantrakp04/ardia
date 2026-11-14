@@ -46,3 +46,5 @@ export function heldAfterOnboarding(held: readonly IncomingLink[]): IncomingLink
   const last = held.filter((link) => link.kind !== "inbox").at(-1);
   return last ? [last] : [];
 }
+
+export const opensLaunchTray = (autoOpensKeyboard: boolean, held: readonly IncomingLink[]) => autoOpensKeyboard && heldAfterOnboarding(held).length === 0;

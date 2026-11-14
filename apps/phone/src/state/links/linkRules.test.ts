@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { heldAfterOnboarding, linkAction, type LinkState } from "./linkRules.ts";
+import { heldAfterOnboarding, linkAction, opensLaunchTray, type LinkState } from "./linkRules.ts";
 
 const browsing: LinkState = { onboarding: false, syncEnabled: true, canSearchByVoice: false, hasTab: (id) => id === "t1" };
 
@@ -47,4 +47,11 @@ test("while onboarding is up a link waits, except the inbox, and only the last o
     [{ kind: "open", url: "https://b.example/" }],
   );
   assert.deepEqual(heldAfterOnboarding([]), []);
+});
+
+test("a link waiting at the end of onboarding is what shows, not the launch tray", () => {
+  assert.equal(opensLaunchTray(true, []), true);
+  assert.equal(opensLaunchTray(false, []), false);
+  assert.equal(opensLaunchTray(true, [{ kind: "open", url: "https://example.com/" }]), false);
+  assert.equal(opensLaunchTray(true, [{ kind: "inbox" }]), true);
 });

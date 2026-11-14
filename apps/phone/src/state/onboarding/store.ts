@@ -5,6 +5,8 @@ import { defaultBrowserStatus, refreshDefaultBrowser } from "../settings/default
 import { nextStep, offersDefaultBrowser, previousStep, type OnboardingStep } from "../settings/settingsRules";
 import { currentPreferences, setPreference } from "../settings/store";
 import { useTabs } from "../tabs/store";
+import { heldLinks } from "../links/heldLinks";
+import { opensLaunchTray } from "../links/linkRules";
 
 export const useOnboarding = create<{ showing: boolean; step: OnboardingStep; forward: boolean }>()(() => ({ showing: false, step: "welcome", forward: true }));
 
@@ -34,7 +36,8 @@ export function onboardingBack(): boolean {
 }
 
 export function finishOnboarding() {
+  const raisesTray = opensLaunchTray(currentPreferences().autoOpensKeyboard, heldLinks());
   setPreference("hasFinishedOnboarding", true);
   useOnboarding.setState({ showing: false });
-  if (currentPreferences().autoOpensKeyboard) presentSearch("home", "", useTabs.getState().incognito);
+  if (raisesTray) presentSearch("home", "", useTabs.getState().incognito);
 }
