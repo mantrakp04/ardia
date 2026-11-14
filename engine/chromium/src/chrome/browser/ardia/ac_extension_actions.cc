@@ -13,6 +13,7 @@
 #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
 #include "chrome/browser/extensions/extension_action_dispatcher.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "extensions/browser/extension_action.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
@@ -24,7 +25,8 @@ namespace {
 class ActionWatch : public ProfileState,
                     public extensions::ExtensionActionDispatcher::Observer,
                     public extensions::SidePanelService::Observer,
-                    public extensions::ExtensionRegistryObserver {
+                    public extensions::ExtensionRegistryObserver,
+                    public ToolbarActionsModel::Observer {
  public:
   explicit ActionWatch(Profile* profile)
       : ProfileState(profile),
@@ -38,6 +40,9 @@ class ActionWatch : public ProfileState,
     }
     if (auto* registry = extensions::ExtensionRegistry::Get(profile)) {
       registry_observation_.Observe(registry);
+    }
+    if (auto* toolbar = ToolbarActionsModel::Get(profile)) {
+      toolbar_observation_.Observe(toolbar);
     }
   }
 
@@ -54,6 +59,7 @@ class ActionWatch : public ProfileState,
       side_panels_ = nullptr;
     }
     registry_observation_.Reset();
+    toolbar_observation_.Reset();
     weak_factory_.InvalidateWeakPtrs();
   }
 
@@ -103,6 +109,23 @@ class ActionWatch : public ProfileState,
     registry_observation_.Reset();
   }
 
+  // The app keeps one extension list per profile. Pins in a list built before
+  // the toolbar model was ready come from the saved pin list, which leaves out
+  // force-pinned actions, so a "registry" change asks for a fresh list once the
+  // model is ready. Pins changed natively (by sync, by policy, or outside the
+  // app's own pin control) reach the app the same way.
+  void OnToolbarModelInitialized() override { Changed({}, "registry"); }
+
+  void OnToolbarPinnedActionsChanged() override { Changed({}, "registry"); }
+
+  void OnToolbarActionAdded(const ToolbarActionsModel::ActionId&) override {}
+  void OnToolbarActionRemoved(const ToolbarActionsModel::ActionId&) override {}
+  void OnToolbarActionUpdated(const ToolbarActionsModel::ActionId&) override {}
+
+  void OnToolbarActionsModelShutdown() override {
+    toolbar_observation_.Reset();
+  }
+
   void Changed(const extensions::ExtensionId& extension_id, const char* kind) {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&ActionWatch::Emit, weak_factory_.GetWeakPtr(),
@@ -120,6 +143,8 @@ class ActionWatch : public ProfileState,
   base::ScopedObservation<extensions::ExtensionRegistry,
                           extensions::ExtensionRegistryObserver>
       registry_observation_{this};
+  base::ScopedObservation<ToolbarActionsModel, ToolbarActionsModel::Observer>
+      toolbar_observation_{this};
   base::WeakPtrFactory<ActionWatch> weak_factory_{this};
 };
 
