@@ -58,6 +58,7 @@ public final class SyncService {
   public private(set) var pendingDownloads = 0
   public private(set) var lastSynced: Date?
   public private(set) var isEnabled = false
+  public var isCycleRunning: Bool { running }
   public private(set) var folderName: String?
   public let isDemo: Bool
 

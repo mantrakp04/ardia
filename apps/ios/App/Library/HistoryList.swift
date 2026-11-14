@@ -71,7 +71,7 @@ struct HistoryList: View {
     let space = syncedSpace
     let synced = syncedVisits(in: space)
     let stored = HiddenHistory.load(space: space?.syncId, isDemo: app.isDemo)
-    hidden = HistoryTimeline.keeping(stored, stillIn: synced)
+    hidden = settled(stored, in: synced)
     if hidden != stored { HiddenHistory.save(hidden, space: space?.syncId, isDemo: app.isDemo) }
     entries = HistoryTimeline.entries(local: localVisits(), synced: synced, hidden: hidden)
     hasLoaded = true
@@ -86,9 +86,13 @@ struct HistoryList: View {
     (space?.history ?? []).map { HistoryVisitInput(url: $0.url, title: $0.title, visitedAt: $0.lastVisit) }
   }
 
+  private func settled(_ hidden: [String: Date], in synced: [HistoryVisitInput]) -> [String: Date] {
+    app.sync.isCycleRunning ? hidden : HistoryTimeline.keeping(hidden, stillIn: synced)
+  }
+
   private func delete(_ entry: HistoryEntry) {
     let space = syncedSpace
-    hidden = HistoryTimeline.keeping(HistoryTimeline.hiding(entry, in: hidden), stillIn: syncedVisits(in: space))
+    hidden = settled(HistoryTimeline.hiding(entry, in: hidden), in: syncedVisits(in: space))
     HiddenHistory.save(hidden, space: space?.syncId, isDemo: app.isDemo)
     withAnimation(Motion.snappy) {
       entries.removeAll { $0.url == entry.url }
