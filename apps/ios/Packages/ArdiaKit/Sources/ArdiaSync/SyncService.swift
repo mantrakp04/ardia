@@ -48,7 +48,7 @@ public enum ConnectResult: Equatable, Sendable {
 @Observable
 public final class SyncService {
   public static let backgroundTaskIdentifier = "com.ardia.browser.ios.sync"
-  public static let wordCount = RecoveryPhrase.wordCount
+  nonisolated public static let wordCount = RecoveryPhrase.wordCount
 
   public private(set) var phase: SyncPhase = .off
   public private(set) var snapshot: SyncSnapshot = .empty {
@@ -225,6 +225,10 @@ public final class SyncService {
   }
 
   public func check(phrase: String) -> PhraseCheck {
+    Self.check(phrase: phrase)
+  }
+
+  nonisolated public static func check(phrase: String) -> PhraseCheck {
     let count = RecoveryPhrase.tokens(in: phrase).count
     let tooLong = count > Self.wordCount
     var problem: String?
@@ -599,7 +603,16 @@ public final class SyncService {
       debounce = nil
       let fetchedAt = now()
       let generation = visitGeneration
-      let local = gatherLocal(at: fetchedAt)
+      let local: LocalBrowsing
+      do {
+        local = try gatherLocal(at: fetchedAt)
+      } catch is LocalBrowsingNotReady {
+        set(\.phase, .stalled(Self.localNotReadyMessage))
+        break
+      } catch {
+        set(\.phase, .stalled(Self.localDataMessage))
+        break
+      }
       let dirty = localDirty
       localDirty = false
       let slow = Task { [weak self] in
@@ -669,15 +682,21 @@ public final class SyncService {
       set(\.phase, .updated)
       lastSynced = now()
       if !outcome.historyRemoved.isEmpty, let source {
-        for removal in outcome.historyRemoved {
-          source.removeVisits(urls: removal.urls, profileSyncId: removal.profileSyncId)
-          if removal.includesUnassigned { source.removeVisits(urls: removal.urls, profileSyncId: nil) }
+        do {
+          for removal in outcome.historyRemoved {
+            try source.removeVisits(urls: removal.urls, profileSyncId: removal.profileSyncId)
+            if removal.includesUnassigned { try source.removeVisits(urls: removal.urls, profileSyncId: nil) }
+          }
+          try? await engine.acknowledgeRemovals(outcome.historyRemoved)
+        } catch {
+          set(\.phase, .stalled(Self.localWriteMessage))
         }
-        try? await engine.acknowledgeRemovals(outcome.historyRemoved)
       }
       if !outcome.received.isEmpty, let source, self.engine === engine {
         if source.receive(outcome.received) {
           try? await engine.acknowledge(outcome.received)
+        } else {
+          set(\.phase, .stalled(Self.localWriteMessage))
         }
       }
     }
@@ -775,17 +794,19 @@ public final class SyncService {
     return landed ? nil : deviceId
   }
 
-  private func gatherLocal(at time: Date) -> LocalBrowsing {
+  private func gatherLocal(at time: Date) throws -> LocalBrowsing {
     guard let source else { return LocalBrowsing(deviceName: meta.deviceName, tabs: nil, visits: nil) }
+    try source.beginRead()
+    defer { source.endRead() }
     var visits: [LocalVisitRecord]?
     if visitsDue {
       let window = time.addingTimeInterval(-Self.historyWindow)
       let since = meta.visitsSyncedThrough.map { max(window, $0.addingTimeInterval(-Self.visitOverlap)) } ?? window
-      visits = source.syncedVisits(since: since)
+      visits = try source.syncedVisits(since: since)
     }
     let due = dueVisits
-    if !due.isEmpty { visits = (visits ?? []) + source.syncedVisits(urls: due) }
-    return LocalBrowsing(deviceName: meta.deviceName, tabs: source.syncedTabs(), visits: visits, fetchedDue: due)
+    if !due.isEmpty { visits = (visits ?? []) + (try source.syncedVisits(urls: due)) }
+    return LocalBrowsing(deviceName: meta.deviceName, tabs: try source.syncedTabs(), visits: visits, fetchedDue: due)
   }
 
   private func saveMeta() {
@@ -812,7 +833,7 @@ public final class SyncService {
     return a == b
   }
 
-  static func message(for problem: RecoveryPhrase.Problem) -> String {
+  nonisolated static func message(for problem: RecoveryPhrase.Problem) -> String {
     switch problem {
     case .wordCount: "Recovery phrase must be exactly 24 words."
     case .unknownWord(let word): "“\(word)” is not a valid recovery phrase word."
@@ -822,6 +843,9 @@ public final class SyncService {
 
   static let stalledMessage = "Ardia couldn’t read or write the sync folder. It will try again."
   static let unavailableMessage = "Ardia can’t read its sync data right now. It will try again."
+  static let localNotReadyMessage = "Ardia is still moving your tabs and history. Sync starts when it’s done."
+  static let localDataMessage = "Ardia couldn’t read this phone’s tabs and history. It will try again."
+  static let localWriteMessage = "Ardia couldn’t save what your other devices sent. It will try again."
 
   private static let relative: RelativeDateTimeFormatter = {
     let formatter = RelativeDateTimeFormatter()

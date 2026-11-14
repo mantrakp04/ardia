@@ -348,16 +348,27 @@ public enum SyncPhase: Equatable, Sendable {
 }
 
 @MainActor
+public struct LocalBrowsingNotReady: Error, Sendable {
+  public init() {}
+}
+
+@MainActor
 public protocol LocalBrowsingSource: AnyObject {
-  func syncedTabs() -> [LocalTabRecord]
-  func syncedVisits(since: Date) -> [LocalVisitRecord]
-  func syncedVisits(urls: Set<String>) -> [LocalVisitRecord]
-  func removeVisits(urls: Set<String>, profileSyncId: String?)
+  func beginRead() throws
+  func endRead()
+  func syncedTabs() throws -> [LocalTabRecord]
+  func syncedVisits(since: Date) throws -> [LocalVisitRecord]
+  func syncedVisits(urls: Set<String>) throws -> [LocalVisitRecord]
+  func removeVisits(urls: Set<String>, profileSyncId: String?) throws
   func receive(_ tabs: [ReceivedTab]) -> Bool
 }
 
 extension LocalBrowsingSource {
-  public func syncedVisits(urls: Set<String>) -> [LocalVisitRecord] {
-    syncedVisits(since: .now.addingTimeInterval(-90 * 86_400)).filter { urls.contains($0.url) }
+  public func beginRead() throws {}
+
+  public func endRead() {}
+
+  public func syncedVisits(urls: Set<String>) throws -> [LocalVisitRecord] {
+    try syncedVisits(since: .now.addingTimeInterval(-90 * 86_400)).filter { urls.contains($0.url) }
   }
 }

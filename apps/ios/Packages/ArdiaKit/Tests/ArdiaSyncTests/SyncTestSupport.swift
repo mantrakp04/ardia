@@ -31,6 +31,14 @@ final class FakeSource: LocalBrowsingSource {
   var savesReceived = true
   var removed: [(urls: Set<String>, profile: String?)] = []
   var visitFetches: [Date] = []
+  var ready = true
+  var failsRemovals = false
+  var reads = 0
+
+  func beginRead() throws {
+    guard ready else { throw LocalBrowsingNotReady() }
+    reads += 1
+  }
 
   func syncedTabs() -> [LocalTabRecord] { tabs }
   var urlFetches: [Set<String>] = []
@@ -44,7 +52,10 @@ final class FakeSource: LocalBrowsingSource {
     urlFetches.append(urls)
     return visits.filter { urls.contains($0.url) }
   }
-  func removeVisits(urls: Set<String>, profileSyncId: String?) { removed.append((urls, profileSyncId)) }
+  func removeVisits(urls: Set<String>, profileSyncId: String?) throws {
+    if failsRemovals { throw CocoaError(.fileWriteUnknown) }
+    removed.append((urls, profileSyncId))
+  }
   func receive(_ tabs: [ReceivedTab]) -> Bool {
     received += tabs
     return savesReceived

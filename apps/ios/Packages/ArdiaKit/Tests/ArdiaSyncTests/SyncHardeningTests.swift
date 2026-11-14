@@ -301,6 +301,59 @@ import Testing
     await j.service.stopSyncing()
   }
 
+  @Test func aRemovalThePhoneCouldNotRecordIsDeliveredAgain() async throws {
+    let j = try await joined()
+    defer { j.sandbox.remove() }
+    let url = "https://kept.example/"
+    j.source.visits = [LocalVisitRecord(url: url, title: "Kept", visitedAt: [j.clock.now], profileSyncId: nil)]
+    j.service.localDidChange()
+    await j.service.syncNow()
+    try j.mac.sync([Self.scope])
+    try j.mac.delete(Self.scope, "h:\(url)")
+    try j.mac.sync([Self.scope])
+    j.source.failsRemovals = true
+    await j.service.syncNow()
+    #expect(j.service.phase == .stalled(SyncService.localWriteMessage))
+    #expect(j.source.removed.isEmpty)
+    j.source.failsRemovals = false
+    await j.service.syncNow()
+    #expect(j.source.removed.filter { $0.urls.contains(url) }.map(\.profile) == [SyncEndToEndTests.profile, nil])
+    await j.service.stopSyncing()
+  }
+
+  @Test func aSourceThatIsNotReadyPublishesNothingUntilItIs() async throws {
+    let j = try await joined()
+    defer { j.sandbox.remove() }
+    j.source.tabs = [LocalTabRecord(url: "https://before.example/", title: "Before", lastActive: j.clock.now, profileSyncId: nil)]
+    j.service.localDidChange()
+    await j.service.syncNow()
+    await j.service.close()
+    let seqs = j.mac.logs(Self.scope, device: j.device).map(\.seq)
+
+    let importing = FakeSource()
+    importing.ready = false
+    let relaunched = makeService(j.sandbox, source: importing, clock: j.clock)
+    relaunched.start()
+    await relaunched.syncNow()
+    relaunched.localDidChange()
+    await relaunched.syncNow()
+    #expect(relaunched.phase == .stalled(SyncService.localNotReadyMessage))
+    #expect(importing.reads == 0)
+    #expect(j.mac.logs(Self.scope, device: j.device).map(\.seq) == seqs)
+    try j.mac.sync([Self.scope])
+    let held = try #require(try j.mac.store(Self.scope)["tabs:\(j.device)"] as? [String: Any])
+    #expect((held["tabs"] as? [[String: String]])?.map { $0["u"] } == ["https://before.example/"])
+
+    importing.tabs = j.source.tabs + [LocalTabRecord(url: "https://imported.example/", title: "Imported", lastActive: j.clock.now, profileSyncId: nil)]
+    importing.ready = true
+    await relaunched.syncNow()
+    #expect(relaunched.phase == .updated)
+    try j.mac.sync([Self.scope])
+    let published = try #require(try j.mac.store(Self.scope)["tabs:\(j.device)"] as? [String: Any])
+    #expect((published["tabs"] as? [[String: String]])?.map { $0["u"] } == ["https://before.example/", "https://imported.example/"])
+    await relaunched.stopSyncing()
+  }
+
   @Test func aVisitThatLostToAConcurrentMacRecordIsFetchedAgainByURL() async throws {
     let j = try await joined()
     defer { j.sandbox.remove() }
