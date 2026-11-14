@@ -117,11 +117,10 @@ export function DockedLayout({
       dock.interpolate({
         inputRange: [0, 1],
         outputRange: [sideInset, dockedCardInset(width, frame.inset)],
-        extrapolate: "clamp",
       }),
     [dock, width, sideInset, frame.inset],
   );
-  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [frame.inset, inset.top], extrapolate: "clamp" }), [dock, frame.inset, inset.top]);
+  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [frame.inset, inset.top] }), [dock, frame.inset, inset.top]);
   const stripY = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-inset.top, 0] }), [dock, inset.top]);
   const stripShown = topTabs && (open || !away);
   const moving = useDockMotion((m) => !!m.moving[windowId]);
