@@ -1,5 +1,6 @@
 import { takeDownloadsPanelCounts } from "./downloadsPanelCounts";
 import { takeExportCounts } from "./exportCounts";
+import { takeExternalAppCounts } from "./externalAppCounts";
 import { takeFirstRunCounts } from "./firstRunCounts";
 import { takeImportRuns } from "./importRuns";
 import { takeInlineCompletionCounts } from "./inlineCompletionCounts";
@@ -9,4 +10,4 @@ import { takeProfileDataCounts } from "./profileDataCounts";
 
 export { watchPlatformCounts };
 
-export const takeHourlyExtras = () => ({ ...takePlatformCounts(), ...takeImportRuns(), ...takeProfileDataCounts(), ...takeExportCounts(), ...takeInlineCompletionCounts(), ...takeFirstRunCounts(), ...takeMemoryTrimCounts(), ...takeDownloadsPanelCounts() });
+export const takeHourlyExtras = () => ({ ...takePlatformCounts(), ...takeImportRuns(), ...takeProfileDataCounts(), ...takeExportCounts(), ...takeInlineCompletionCounts(), ...takeFirstRunCounts(), ...takeMemoryTrimCounts(), ...takeDownloadsPanelCounts(), ...takeExternalAppCounts() });

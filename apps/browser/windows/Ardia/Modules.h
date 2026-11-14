@@ -5,6 +5,7 @@
 #include "DialogsModule.h"
 #include "DocumentsModule.h"
 #include "EngineHostModule.h"
+#include "ExternalAppsModule.h"
 #include "FileDropModule.h"
 #include "FocusModule.h"
 #include "ImportModule.h"

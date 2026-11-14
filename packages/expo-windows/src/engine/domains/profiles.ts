@@ -37,6 +37,7 @@ export const profileCalls: Handlers = {
     const { profile } = args;
     if (profile.includes(END_OF_NAME)) return ok({ remaining: [NOT_ARDIAS] });
     if (profile.includes(OFF_THE_RECORD)) return ok({ remaining: [] });
+    engine.externalApps?.forgetProfile(profile);
     if (!profile) return ok({ remaining: await deleteOriginalProfileData(engine) });
     const folder = profileFolder(profile);
     if (!folder) return ok({ remaining: [NOT_ARDIAS] });

@@ -60,6 +60,13 @@ export type AppModule = AppNative & { windowsApiVersion?: number };
 
 export type IntroMusicModule = { play(muted: boolean): void; setMuted(muted: boolean): void; stop(fade: number): void; embeddedSeconds(): number };
 
+export type ExternalHandler = { name: string; path: string | null; icon: string | null };
+
+export type ExternalAppsModule = {
+  describe(scheme: string): Promise<ExternalHandler | null>;
+  open(url: string, name: string, path: string | null): Promise<boolean>;
+};
+
 export type WindowsHostModule = {
   getConstants(): { selfCheck?: boolean };
   secureRandomHex(byteCount: number): string;

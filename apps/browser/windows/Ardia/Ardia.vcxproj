@@ -146,6 +146,7 @@
     <ClInclude Include="NotificationsModule.h" />
     <ClInclude Include="SaveDialog.h" />
     <ClInclude Include="ShellModule.h" />
+    <ClInclude Include="ExternalAppsModule.h" />
     <ClInclude Include="SystemModule.h" />
     <ClInclude Include="SystemSignalsModule.h" />
     <ClInclude Include="TelemetryLocalModule.h" />

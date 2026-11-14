@@ -75,7 +75,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Downloads (download, panel, Ctrl+J, cancel) | Works: the panel opens for a new download, from its button and Ctrl+J, and closes on Escape, a click in the page and its button; one row per download across a relaunch | #1519 |
 | History (Ctrl+H, ardia://history), Clear Browsing Data | Works | |
 | Bookmarks (Ctrl+D, ardia://bookmarks, bar) | Works | |
-| mailto and other app links | Does nothing | stand-ins `permissions.resolveExternalApp` |
+| mailto and other app links | Does nothing until the engine announces the request: the app side (prompt with the handler's name and icon, per-site "always allow", the launch) is done | #1425 (engine), #1590 |
 | Translate | Not offered | #1520 |
 | Network error page | Works (Chromium's) | |
 | DevTools (F12), Task Manager (Shift+Esc) | Works (Chromium's) | |
@@ -485,7 +485,7 @@ is plain Chromium.
 | `media.devShowBluetoothChooser`, `media.devChooserEvents` | Default | Mac test hooks. |
 | `passwords.autofillEnabled`, `passwords.setAutofillEnabled` | Engine | The profile's `credentials_enable_service` pref, as for autofill. Today Settings › Passwords' offer-to-save toggle reads off and changes nothing. |
 | `permissions.resolve` | Engine | Permission prompts drawn by the app; Chromium's own prompt shows today. |
-| `permissions.resolveExternalApp`, `externalAppAllowances`, `removeExternalAppAllowance` | Engine | `ac_external_apps_*` is Mac-only (`ac_external_apps.mm`); Windows needs its own version. |
+| `externalApp` tab event (no verb) | Engine | The app answers `permissions.resolveExternalApp`, `externalAppAllowances` and `removeExternalAppAllowance` (`domains/externalApps.ts`, `ArdiaExternalApps`), but the Windows engine never raises the request: the `external protocol dialog` hook that `engine/ardiacore/apply.sh` adds to Chromium's `ExternalProtocolHandler` is not in the Windows series. The engine also needs the `externalAppAlive` page call (`tab.call`, `{ id }`, answers `true` while the asking document is alive, like the Mac's `ResolveExternalApp`): the app opens nothing until it answers `true`. The payload and the call are on #1425. |
 | `permissions.devExternalLaunches` | Default | Mac test hook. |
 | `profiles.loaded` | Engine | The profiles the engine has loaded, plus the `profiles.loaded` event. Today the call fails and the app counts every profile as open, as with lazy loading off. |
 | Profile folder names (no verb) | App | The engine names a profile's folder `Ardia ` plus its id, with lowercase letters, digits and `-` kept and every other byte written `_` and two lowercase hex digits (`profiles.cc`), so each name has its own folder even on a case-insensitive disk and Ardia's own ids (`p-<base36>-<base36>`) keep the folder they always had. `profiles.deleteData` still maps only ids of that shape and refuses the rest; it could map the escape too. |
@@ -518,6 +518,41 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
 `unpacked.ts` and `systemState.ts`, with the dialogs, file reads and power reading passed in as the domain engine's
 `desktop` (`domains/desktop.ts`):
 
+- Links to other apps: the engine's `externalApp` tab event (once it sends one, #1425) goes to `domains/externalApps.ts`.
+  - **Describe:** `ArdiaExternalApps.describe` names the scheme's handler and draws its icon (`AssocQueryStringW` with
+    `ASSOCSTR_FRIENDLYAPPNAME` and `ASSOCSTR_EXECUTABLE`, then `SystemShell::FileIcon`). A classic scheme under
+    `Software\Classes` (how Zoom and Slack register) gets no name from `AssocQueryString` on Windows 11 build 26200,
+    so, like Chromium's `GetAppForSchemeUsingRegistry`, it then takes the scheme's own name (without `URL:`) or the
+    program of its `shell\open\command`. A packaged handler (the new Outlook for `mailto`) has a name but no
+    executable, so its prompt shows no icon. Like Chromium, it knows only
+    schemes whose `HKCR` key carries `URL Protocol`, so a file type's ProgID can't pose as a link scheme, and it
+    refuses one-letter schemes (drive letters).
+  - **Prompt:** the Mac's prompt shows in the Mac's words. "Always allow" is offered only for an https or loopback
+    site, outside private windows, and kept per profile in `external-app-allowances.json`; deleting a profile
+    forgets them. A remembered site opens the app without asking only when the request had a user gesture.
+  - **Lifetime:** an ask belongs to its page and is dropped when the page closes. Before any launch the engine must
+    answer `true` to the `externalAppAlive` page call, as the Mac checks that the asking document is still alive, so
+    a prompt survives a single-page site's route change but opens nothing once its document is gone.
+    The prompt carries an id the app makes, so two pages whose engine ids collide never answer each other's
+    prompt. The engine's origin must be a serialized origin (no user info, path or spaces), and a profile deleted
+    while a yes waits for the engine keeps no allowance and opens nothing.
+  - **Counts:** the prompt's buttons are counted in the app (`externalAppCounts.ts`: `external_app_allows`,
+    `external_app_allows_always`, `external_app_declines`), on the Mac too. Only Windows knows whether a launch
+    happened, so `ArdiaExternalAppCounts.takeLaunches` adds `external_app_launches`, `external_app_launches_refused`
+    (allowed, but the page had gone, the profile was deleted or the handler changed) and
+    `external_app_launches_automatic`; the Mac sends 0 for those three. Watch refused against launches.
+  - **Open:** `ArdiaExternalApps.open` opens only the asked URL of a pending request. It never opens http, https or
+    file. It escapes the URL as Chromium's `EscapeExternalHandlerValue` does, and hands it to `ShellExecuteExW` as
+    the single `lpFile`, with the system folder as the working folder as Chromium does. It takes the handler's
+    name and executable from the prompt and opens nothing if the scheme's handler changed since.
+  - **Denied schemes** stay Chromium's own (`ExternalProtocolHandler`), which run before the engine's hook, as on
+    the Mac.
+  - **Self-check** (`selfCheck/externalApps.ts`): `describe` names no handler and `open` opens nothing for browser,
+    one-letter, path, file-type (`txtfile`) and unknown schemes. It launches nothing unless the test instance sets
+    `ARDIA_TEST=externalAppLaunch=1` (read from the launch config, so only in a test instance with its own data folder;
+    it lifts only the background instance's refusal to launch): then each link in the data folder's `external-app-links.txt` goes through the
+    real gate and launch, which must name a handler, open nothing on no and open on yes (a line starting `! ` must
+    stay refused). The VM run uses that with a throwaway handler registered under `HKCU`.
 - `bookmarks.exportHtml` and `passwords.export`: `ArdiaDialogs.saveFile` (a Windows save panel, `SaveDialog.h`; the
   password one carries the Mac's warning that anyone who can open the file can read the passwords), then
   `ac_bookmarks_export_html` or `ac_passwords_export`, which asks Windows to confirm it is you before it writes
