@@ -3,6 +3,7 @@ import { Animated, StyleSheet, type ViewStyle } from "react-native";
 import { ENGINE_OFFER_WIDTH, EngineOfferPrompt } from "../site/EnginePrompt";
 import { useTabValue } from "../../state/tabs/tabWatch";
 import { CliControlPill } from "./CliControlPill";
+import { LoadingPill } from "./LoadingPill";
 import { NewTabNotice } from "./NewTabNotice";
 import { FindBar } from "../find/FindBar";
 import { POPOVER_MARGIN } from "../ui";
@@ -34,6 +35,7 @@ export function PageOverlays({
   statusStyle,
   popovers = true,
   cliPill = false,
+  loadingPill = true,
 }: {
   tabId: string;
   windowId: string;
@@ -44,6 +46,7 @@ export function PageOverlays({
   statusStyle?: Animated.WithAnimatedValue<ViewStyle>;
   popovers?: boolean;
   cliPill?: boolean;
+  loadingPill?: boolean;
 }) {
   const popover = usePages((s) => s.popover[tabId] ?? null);
   const zoom = useTabValue(tabId, (t) => t?.zoom ?? 1);
@@ -58,6 +61,7 @@ export function PageOverlays({
         <StatusBubble tabId={tabId} maxWidth={Math.max(160, width / 2)} />
       </Animated.View>
       <SadTab tabId={tabId} />
+      {!newTabShown && loadingPill && <LoadingPill tabId={tabId} />}
       {cliPill && <CliControlPill style={statusStyle} />}
       {!newTabShown && <PermissionPrompt tabId={tabId} {...at("prompt", PERMISSION_PROMPT_WIDTH)} />}
       <PasswordPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
@@ -90,11 +94,11 @@ export function BesidePeekPopovers({ tabId, windowId, left, top, room }: { tabId
   );
 }
 
-export function PeekPage({ tabId, sourceId, windowId, width }: { tabId: string; sourceId: string; windowId: string; width: number }) {
+export function PeekPage({ tabId, sourceId, windowId, width, fullscreen }: { tabId: string; sourceId: string; windowId: string; width: number; fullscreen: boolean }) {
   return (
     <>
       <TabWebView tabId={tabId} visible warm={false} peekOf={sourceId} />
-      <PageOverlays tabId={tabId} windowId={windowId} width={width} geometry={NO_TOOLBAR} toolbar={false} newTabShown={false} cliPill />
+      <PageOverlays tabId={tabId} windowId={windowId} width={width} geometry={NO_TOOLBAR} toolbar={false} newTabShown={false} cliPill loadingPill={fullscreen} />
     </>
   );
 }

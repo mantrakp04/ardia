@@ -52,6 +52,10 @@ export function ContextMenuArea(props: ContextMenuAreaProps) {
 
 export type SurfaceProps = ViewProps & {
   fill?: string;
+  fillColors?: string[];
+  fillStops?: number[];
+  fade?: number[];
+  fadeStops?: number[];
   cornerRadius?: number;
   borderColor?: string;
   borderWidth?: number;

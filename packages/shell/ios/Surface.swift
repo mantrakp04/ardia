@@ -4,6 +4,10 @@ import ExpoModulesCore
 
 final class Surface: ExpoView {
   var surfaceFill: NSColor? { didSet { apply() } }
+  var surfaceFillColors: [NSColor] = [] { didSet { apply() } }
+  var surfaceFillStops: [Double] = [] { didSet { apply() } }
+  var surfaceFade: [Double] = [] { didSet { apply() } }
+  var surfaceFadeStops: [Double] = [] { didSet { apply() } }
   var surfaceRadius: Double = 0 { didSet { apply() } }
   var surfaceBorderColor: NSColor? { didSet { apply() } }
   var surfaceBorderWidth: Double = 0 { didSet { apply() } }
@@ -14,6 +18,8 @@ final class Surface: ExpoView {
   var surfaceShadowOffset: CGSize = .zero { didSet { apply() } }
 
   private let plate = CALayer()
+  private let fillGradient = CAGradientLayer()
+  private let fadeMask = CAGradientLayer()
   private let shadowLayer = CALayer()
   private let shadowMask = CAShapeLayer()
   private let borderGradient = CAGradientLayer()
@@ -67,6 +73,7 @@ final class Surface: ExpoView {
     plate.backgroundColor = surfaceFill?.cgColor
     plate.borderColor = surfaceBorderColor?.cgColor
     plate.borderWidth = surfaceBorderWidth
+    applyGradientFill(flipped: layer.isGeometryFlipped || isFlipped)
 
     if surfaceBorderColors.count >= 2, surfaceBorderWidth > 0 {
       borderGradient.isHidden = false
@@ -105,5 +112,31 @@ final class Surface: ExpoView {
       shadowLayer.isHidden = true
     }
     CATransaction.commit()
+  }
+
+  private func applyGradientFill(flipped: Bool) {
+    if surfaceFillColors.count >= 2 {
+      if fillGradient.superlayer !== plate { plate.addSublayer(fillGradient) }
+      fillGradient.isHidden = false
+      fillGradient.frame = plate.bounds
+      fillGradient.colors = surfaceFillColors.map(\.cgColor)
+      fillGradient.locations = surfaceFillStops.count == surfaceFillColors.count ? surfaceFillStops.map { NSNumber(value: $0) } : nil
+      fillGradient.startPoint = CGPoint(x: 0.5, y: flipped ? 0 : 1)
+      fillGradient.endPoint = CGPoint(x: 0.5, y: flipped ? 1 : 0)
+      plate.masksToBounds = true
+    } else {
+      fillGradient.isHidden = true
+      plate.masksToBounds = false
+    }
+    if surfaceFade.count >= 2 {
+      fadeMask.frame = plate.bounds
+      fadeMask.colors = surfaceFade.map { NSColor.black.withAlphaComponent($0).cgColor }
+      fadeMask.locations = surfaceFadeStops.count == surfaceFade.count ? surfaceFadeStops.map { NSNumber(value: $0) } : nil
+      fadeMask.startPoint = CGPoint(x: 0, y: 0.5)
+      fadeMask.endPoint = CGPoint(x: 1, y: 0.5)
+      plate.mask = fadeMask
+    } else {
+      plate.mask = nil
+    }
   }
 }

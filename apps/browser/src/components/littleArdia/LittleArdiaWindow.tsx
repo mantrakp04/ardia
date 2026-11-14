@@ -32,7 +32,6 @@ import { perLook } from "../ui/tokens";
 const NAV_LEFT = SMALL_LIGHTS_CENTER[0] + 2 * TRAFFIC_LIGHT_PITCH + NAV_CENTER_PAST_ZOOM - SMALL_BAR_BUTTON / 2;
 const NAV_PITCH = SMALL_BAR_BUTTON + SMALL_BAR_GAP;
 const FIELD_LEFT = NAV_LEFT + NAV_PITCH + SMALL_BAR_BUTTON + SMALL_FIELD_GAP;
-const FIELD_MAX_WIDTH = 520;
 const NAV_HIT = perLook(() => ({ width: SMALL_BAR_BUTTON, height: SMALL_BAR_BUTTON, plateX: 0, plateY: 0, box: smallBarRow().button, radius: smallBarRow().buttonRadius }));
 const BUTTON_TOP = (SMALL_BAR_HEIGHT - SMALL_BAR_BUTTON) / 2;
 const BACK_AT = perLook(() => ({ style: { position: "absolute" as const, top: BUTTON_TOP, left: NAV_LEFT }, hit: NAV_HIT() }));
@@ -151,7 +150,6 @@ function LittleArdiaBar() {
   return (
     <SmallBar
       fieldLeft={FIELD_LEFT}
-      fieldMaxWidth={FIELD_MAX_WIDTH}
       field={tab ? <PageField tab={tab} windowId={windowId} hidden={panelOpen} /> : null}
       buttons={[
         { icon: copied ? "checkmark" : "link", disabled: !tab?.url, tooltip: "Copy Link (⇧⌘C)", onPress: copy },

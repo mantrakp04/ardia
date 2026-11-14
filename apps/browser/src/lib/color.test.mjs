@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { isLight, mix, over, parseColor, toHex } = await import("./color.ts");
+const { colorDistance, isLight, mix, over, parseColor, toHex } = await import("./color.ts");
 
 test("light and dark backgrounds split where the toolbar's ink flips", () => {
   assert.equal(isLight("#F3EEE4"), true);
@@ -32,4 +32,11 @@ test("hex output is clamped, rounded and upper case", () => {
 test("short hex colours expand each digit, as CSS does", () => {
   assert.deepEqual(parseColor("#36A"), [0x33, 0x66, 0xaa, 1]);
   assert.deepEqual(parseColor("#36A8"), [0x33, 0x66, 0xaa, 0x88 / 255]);
+});
+
+test("colour distance is 0 for the same colour, 1 from black to white, and small for a blue site against the accent", () => {
+  assert.equal(colorDistance("#2783EE", "#2783EE"), 0);
+  assert.equal(colorDistance("#000000", "#FFFFFF"), 1);
+  assert.ok(colorDistance("#0A84FF", "#2783EE") < 0.25);
+  assert.ok(colorDistance("#0A84FF", "#FFFFFF") > 0.25);
 });

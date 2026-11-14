@@ -7,9 +7,8 @@ import { useBrowserWhile, useStoreWhile } from "../../state/tabs/tabWatch";
 import type { ToolbarGeometry } from "../window/geometry";
 import { toolbarPalette, useEasedColor } from "../ui/toolbarColors";
 import { useToolbarHeld } from "../../state/app/transientUi";
-import { revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "../../state/windows/toolbarAutoHide";
+import { addressFieldShownIn, revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "../../state/windows/toolbarAutoHide";
 import { Toolbar } from "./Toolbar";
-import { TabProgressBar } from "./ProgressBar";
 import { curve } from "../ui/motion";
 import { reduceMotion, space, Text } from "../ui";
 import { TOOLBAR_MOTION } from "./tokens";
@@ -174,7 +173,6 @@ export function AutoHideToolbar({
   const extendColor = useSettings((s) => s.extendWebsiteColor);
   const palette = toolbarPalette(theme, extendColor && url ? themeColor : null);
   const collapsed = mode === "collapsed";
-  const loading = useTabLive(tabId, (l) => collapsed && l.isLoading);
   const modeNow = useRef(mode);
   modeNow.current = mode;
 
@@ -210,7 +208,7 @@ export function AutoHideToolbar({
         onMouseLeave={() => modeNow.current === "peek" && peekLater(false, UNPEEK_DELAY)}
         style={{ position: "absolute", left: 0, right: 0, top: 0, height: H, opacity: anim ? anim.controls : 1, transform: anim ? anim.shrink : undefined }}
       >
-        <Toolbar tabId={tabId} geometry={geometry} windowId={windowId} inSplit={inSplit} focused={focused} bare />
+        <Toolbar tabId={tabId} geometry={geometry} windowId={windowId} inSplit={inSplit} focused={focused} bare loadFill={addressFieldShownIn(mode)} />
       </Animated.View>
       {anim && (
         <Animated.View pointerEvents={collapsed ? "auto" : "none"} style={{ position: "absolute", left: 0, right: 0, top: 0, height: STRIP_HEIGHT, opacity: anim.label }}>
@@ -228,11 +226,6 @@ export function AutoHideToolbar({
               {host}
             </Text>
           </Pressable>
-          {loading && (
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <TabProgressBar key={tabId} tabId={tabId} color={palette.background ? palette.icon : theme.accent} />
-            </View>
-          )}
         </Animated.View>
       )}
     </View>

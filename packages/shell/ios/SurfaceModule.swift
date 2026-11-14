@@ -9,6 +9,10 @@ public class SurfaceModule: Module {
 
     View(Surface.self) {
       Prop("fill") { (view: Surface, hex: String?) in view.surfaceFill = hex.flatMap { RGBA(hex: $0)?.srgb } }
+      Prop("fillColors") { (view: Surface, hexes: [String]?) in view.surfaceFillColors = (hexes ?? []).compactMap { RGBA(hex: $0)?.srgb } }
+      Prop("fillStops") { (view: Surface, stops: [Double]?) in view.surfaceFillStops = stops ?? [] }
+      Prop("fade") { (view: Surface, alphas: [Double]?) in view.surfaceFade = alphas ?? [] }
+      Prop("fadeStops") { (view: Surface, stops: [Double]?) in view.surfaceFadeStops = stops ?? [] }
       Prop("cornerRadius") { (view: Surface, v: Double) in view.surfaceRadius = v }
       Prop("borderColor") { (view: Surface, hex: String?) in view.surfaceBorderColor = hex.flatMap { RGBA(hex: $0)?.srgb } }
       Prop("borderWidth") { (view: Surface, v: Double) in view.surfaceBorderWidth = v }

@@ -3,7 +3,8 @@ import { Animated, View } from "react-native";
 import { usePrewarm } from "../../state/tabs/prewarm";
 import { activate } from "../../state/tabs/actions";
 import { shallowEqual, useBrowserWhile, useStoreWhile, useTabValue } from "../../state/tabs/tabWatch";
-import { useSettings } from "../../state/browser/hooks";
+import { useSettings, useTabsShown } from "../../state/browser/hooks";
+import { useSidebarField } from "../../state/sidebar/chrome";
 import { splitOf } from "../../state/splits/splits";
 import type { Tab } from "../../state/browser/types";
 import { BookmarksBar, bookmarksBarShown, type BookmarksBarMode } from "../bookmarks/BookmarksBar";
@@ -19,7 +20,7 @@ import { ShareBar } from "../media/ShareBar";
 import { Toolbar, ToolbarBackdrop } from "../toolbar/Toolbar";
 import { AutoHideBackdrop, AutoHideToolbar, useToolbarMode, useToolbarMotion } from "../toolbar/AutoHideToolbar";
 import { publishPaneChrome } from "../toolbar/WindowToolbar";
-import { revealToolbar } from "../../state/windows/toolbarAutoHide";
+import { addressFieldShownIn, revealToolbar } from "../../state/windows/toolbarAutoHide";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { TabWebView } from "./TabWebView";
 import { withoutFragment } from "../../lib/url";
@@ -93,6 +94,10 @@ export const TabPane = memo(function TabPane({
   const autoLayout = bar.kind === "autoHide";
   const hideBar = autoLayout && bar.bar !== null;
   const mode = useToolbarMode(tabId, windowId, hideBar);
+  const addressFieldShown = bar.kind !== "none" && addressFieldShownIn(mode);
+  const sidebarField = useSidebarField();
+  const sidebarOpen = useTabsShown(windowId);
+  const sidebarFieldShown = !!sidebarField && sidebarOpen && !fullscreen;
   const bookmarksBar = bookmarksBarShown(barMode, own.exists ? own : undefined) && !fullscreen && !inSplit && !small;
   const barHeight = useBookmarksBarHeight();
   const cardRadius = useCardFrame().radius;
@@ -148,6 +153,7 @@ export const TabPane = memo(function TabPane({
                 statusStyle={autoLayout ? motion.bottomStyle : undefined}
                 popovers={popovers}
                 cliPill={!peekShown && (fullscreen || focused || !inSplit)}
+                loadingPill={!addressFieldShown && !sidebarFieldShown && !small}
               />
             )}
           </View>
