@@ -1,10 +1,9 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { openArchive } from "../../state/browse/store";
 import { showOnboarding } from "../../state/onboarding/store";
-import { appVersion, exportOpenTabs, setAppearance, setArchiveInterval, setAutoOpenKeyboard, setColorChoice, setSearchSuggestions, useEngines } from "../../state/settings/actions";
+import { appVersion, exportOpenTabs, setArchiveInterval, setAutoOpenKeyboard, setColorChoice, setSearchSuggestions, useEngines } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { closeSettings, pushSettings } from "../../state/settings/nav";
-import { APPEARANCES } from "../../state/settings/settingsRules";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
 import { capsule, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useTheme, type ProfileColor } from "../ui";
 import { BarButton, Group, IconTile, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
@@ -17,7 +16,6 @@ export function SettingsRoot() {
   const suggestions = usePreferences((p) => p.searchSuggestions);
   const keyboard = usePreferences((p) => p.autoOpensKeyboard);
   const interval = usePreferences((p) => p.autoArchiveInterval);
-  const appearance = usePreferences((p) => p.appearance);
   const engines = useEngines((s) => s.engines);
   const engineName = engines.find((engine) => engine.id === engineId)?.name ?? "";
   return (
@@ -37,7 +35,6 @@ export function SettingsRoot() {
       </View>
       <Group>
         <ColorRow />
-        <PickerRow title="Appearance" icon="moonFill" tint={settingsTint.nightShade} options={APPEARANCES} selected={appearance} onSelect={setAppearance} />
       </Group>
       <Group>
         <NavRow title="Site Settings" icon="globe" tint={settingsTint.neutral} onPress={() => pushSettings({ page: "siteSettings" })} />
@@ -50,7 +47,6 @@ export function SettingsRoot() {
       <Group>
         <PickerRow title="Archive Inactive Tabs" icon="archivebox" tint={settingsTint.archive} options={INTERVALS} selected={interval} divider onSelect={setArchiveInterval} />
         <NavRow title="Clear Browsing Data" icon="eraserFill" tint={settingsTint.clearData} divider onPress={() => pushSettings({ page: "clearData" })} />
-        <NavRow title="Downloads" icon="arrowDownCircle" tint={settingsTint.downloads} divider onPress={() => pushSettings({ page: "downloads" })} />
         <Pressable accessibilityRole="button" onPress={exportOpenTabs} style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}>
           <IconTile icon="squareAndArrowUp" tint={settingsTint.export} />
           <Text style={[font.body, { color: theme.label }]}>Export Open Tabs</Text>

@@ -9,7 +9,6 @@ export type SettingsRoute =
   | { page: "myFilters" }
   | { page: "trustedSites" }
   | { page: "clearData" }
-  | { page: "downloads" }
   | { page: "about" }
   | { page: "licenses" };
 

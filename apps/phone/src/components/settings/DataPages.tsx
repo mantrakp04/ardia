@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { appVersion, cancelDownload, clearBrowsingData, openFromSettings, useDownloads } from "../../state/settings/actions";
+import { appVersion, clearBrowsingData, openFromSettings } from "../../state/settings/actions";
 import { popSettings, pushSettings } from "../../state/settings/nav";
 import { CLEAR_RANGES, clearChoice, clearFooter, clearIsEmpty, clearMessage, clearTitle, type ClearRange } from "../../state/settings/settingsRules";
 import { ArdiaLogo, ConfirmDialog, font, settingsLayout, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
-import { ButtonRow, Divider, EmptyState, Group, NavRow, PickerRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
+import { ButtonRow, Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
 
 export function ClearDataPage() {
   const [range, setRange] = useState<ClearRange>("today");
@@ -42,39 +42,6 @@ export function ClearDataPage() {
         />
       </Group>
       {confirmation ? <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} /> : null}
-    </SettingsPage>
-  );
-}
-
-export function DownloadsPage() {
-  const theme = useTheme();
-  const active = useDownloads((s) => s.active);
-  return (
-    <SettingsPage title="Downloads" onBack={popSettings}>
-      {active.length === 0 ? (
-        <EmptyState title="No Downloads in Progress" message="Files you download go to the Downloads folder." icon="arrowDownCircle" />
-      ) : (
-        <Group footer="Files you download go to the Downloads folder.">
-          {active.map((item, index) => (
-            <View key={item.id}>
-              <View style={styles.row}>
-                <View style={styles.fill}>
-                  <Text style={[font.body, { color: theme.label }]} numberOfLines={1}>
-                    {item.fileName}
-                  </Text>
-                  <Text style={[font.footnote, { color: theme.secondaryLabel }]}>
-                    {item.isQueued ? "Waiting…" : item.fraction !== null ? `${Math.round(item.fraction * 100)}%` : "Downloading…"}
-                  </Text>
-                </View>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Cancel ${item.fileName}`} onPress={() => cancelDownload(item.id)} style={styles.cancel}>
-                  <Symbol name="xmarkCircleFill" size={22} color={theme.tertiaryLabel} />
-                </Pressable>
-              </View>
-              {index < active.length - 1 ? <Divider /> : null}
-            </View>
-          ))}
-        </Group>
-      )}
     </SettingsPage>
   );
 }
@@ -156,7 +123,6 @@ export function LicensesPage() {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: space.m, minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.s },
   fill: { flex: 1 },
-  cancel: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   hero: { alignItems: "center", gap: space.s },
   bold: { fontWeight: "600" },
   credit: { paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.m, gap: space.xs },

@@ -1,8 +1,6 @@
 import { create } from "zustand";
-import { applyAppearance } from "../../platform/appearance";
 import { appVersion } from "../../platform/appInfo";
 import { blocking, type BlockingCategory, type BlockingState } from "../../platform/blocking";
-import { downloads, type DownloadProgress } from "../../platform/downloads";
 import { pages } from "../../platform/pages";
 import { openExternal, shareText } from "../../platform/system";
 import { openPage } from "../browse/store";
@@ -18,13 +16,11 @@ import type { ColorChoice, NightShadeMode, Preferences } from "./preferences";
 import { clearSince, exportableUrls, websiteDataKinds, type ClearChoice, type ClearRange } from "./settingsRules";
 import { currentPreferences, setPreference } from "./store";
 
-export type { BlockingState, DownloadProgress };
+export type { BlockingState };
 export { appVersion };
 export type FilterListInfo = BlockingState["lists"][number];
 
 export const useBlocking = create<{ state: BlockingState | null; busy: boolean }>()(() => ({ state: null, busy: false }));
-
-export const useDownloads = create<{ active: DownloadProgress[] }>()(() => ({ active: [] }));
 
 export const useEngines = create<{ engines: { id: string; name: string }[]; nightShade: NightShadeMode }>()(() => ({ engines: [], nightShade: "disabled" }));
 
@@ -35,26 +31,20 @@ let listening = false;
 export function startSettingsSources() {
   if (listening) return;
   listening = true;
-  applyAppearance(currentPreferences().appearance);
   try {
     blocking.addListener((event) => useBlocking.setState({ state: event.state }));
-    downloads.addListener((event) => {
-      if (event.name === "downloads.progress") useDownloads.setState({ active: event.downloads });
-    });
   } catch {
     return;
   }
 }
 
 export async function refreshSettings() {
-  const [state, active, shade, engines] = await Promise.all([
+  const [state, shade, engines] = await Promise.all([
     settled(() => blocking.state(), null),
-    settled(() => downloads.active(), [] as DownloadProgress[]),
     settled(() => pages.nightShade(null, false), null),
     settled(async () => searchEngines(), [] as { id: string; name: string }[]),
   ]);
   if (state) useBlocking.setState({ state });
-  useDownloads.setState({ active });
   useEngines.setState({ engines, nightShade: shade?.defaultMode ?? "disabled" });
 }
 
@@ -67,11 +57,6 @@ export const setSearchSuggestions = (on: boolean) => setPreference("searchSugges
 export const setAutoOpenKeyboard = (on: boolean) => setPreference("autoOpensKeyboard", on);
 export const setColorChoice = (choice: ColorChoice) => setPreference("colorChoice", choice);
 export const setArchiveInterval = (interval: AutoArchiveInterval) => setAutoArchiveInterval(interval);
-
-export function setAppearance(mode: Preferences["appearance"]) {
-  setPreference("appearance", mode);
-  applyAppearance(mode);
-}
 
 export function setDefaultNightShade(mode: NightShadeMode) {
   setPreference("nightShade", mode);
@@ -131,8 +116,6 @@ export function exportOpenTabs() {
   }
   quietly(() => shareText(urls.join("\n"), "Open Tabs from Ardia"));
 }
-
-export const cancelDownload = (id: string) => quietly(() => downloads.cancel(id));
 
 export function openFromSettings(url: string) {
   closeSettings();

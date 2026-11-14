@@ -5,7 +5,7 @@ import { refreshSettings } from "../../state/settings/actions";
 import { useSettingsNav, type SettingsRoute } from "../../state/settings/hooks";
 import { tabsMotion } from "../ui";
 import { FilterListDetailPage, FilterListsPage, MyFiltersPage, TrustedSitesPage } from "./BlockingPages";
-import { AboutPage, ClearDataPage, DownloadsPage, LicensesPage } from "./DataPages";
+import { AboutPage, ClearDataPage, LicensesPage } from "./DataPages";
 import { SettingsRoot } from "./SettingsRoot";
 import { SearchEnginePage, SiteSettingsPage } from "./SitePages";
 
@@ -33,8 +33,6 @@ function Page({ route }: { route: SettingsRoute }) {
       return <TrustedSitesPage />;
     case "clearData":
       return <ClearDataPage />;
-    case "downloads":
-      return <DownloadsPage />;
     case "about":
       return <AboutPage />;
     case "licenses":

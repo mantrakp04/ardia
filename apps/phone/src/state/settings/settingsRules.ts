@@ -172,11 +172,3 @@ export const previousStep = (step: OnboardingStep): OnboardingStep | null => ONB
 
 export const exportableUrls = (tabs: readonly { url: string; isPrivate: boolean }[]) =>
   tabs.filter((tab) => !tab.isPrivate && /^https?:\/\//i.test(tab.url)).map((tab) => tab.url);
-
-export type Appearance = "system" | "light" | "dark";
-
-export const APPEARANCES: { id: Appearance; title: string }[] = [
-  { id: "system", title: "System" },
-  { id: "light", title: "Light" },
-  { id: "dark", title: "Dark" },
-];
