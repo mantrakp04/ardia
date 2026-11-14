@@ -31,12 +31,15 @@ object PageScripts {
   const isViewport = (node) => node.nodeType === 1 && node.tagName === "META" && (node.getAttribute("name") || "").toLowerCase() === "viewport";
   const desktopContent = (declared) => {
     const width = /(?:^|[,;\s])width\s*=\s*(\d+)/i.exec(declared || "");
-    return "width=" + Math.max($DESKTOP_LAYOUT_WIDTH, width ? Number(width[1]) : 0);
+    const layout = Math.max($DESKTOP_LAYOUT_WIDTH, width ? Number(width[1]) : 0);
+    const screenWidth = Number(window.screen && window.screen.width);
+    const scale = screenWidth > 0 && isFinite(screenWidth) ? Math.min(1, Math.max(0.1, screenWidth / layout)) : 0;
+    return "width=" + layout + (scale > 0 ? ", initial-scale=" + scale.toFixed(4) : "");
   };
   const pin = (meta) => {
-    const content = meta.getAttribute("content");
-    if (/^width=\d+${'$'}/.test(content || "") && Number(content.slice(6)) >= $DESKTOP_LAYOUT_WIDTH) return;
-    meta.setAttribute("content", desktopContent(content));
+    const content = meta.getAttribute("content") || "";
+    const wanted = desktopContent(content);
+    if (content !== wanted) meta.setAttribute("content", wanted);
   };
   new MutationObserver((records) => {
     for (const record of records) {

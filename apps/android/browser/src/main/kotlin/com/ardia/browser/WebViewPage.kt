@@ -70,7 +70,7 @@ internal class WebViewPage(
     private var savedBundle: Bundle? = setup.savedState?.let(PageStateBundles::read)
     private var firstVisit: VisitKind? = setup.firstVisit
     private var pendingUrl: String? = null
-    private var desktopSite = false
+    private var desktopSite = savedBundle?.getBoolean(DESKTOP_SITE_KEY, false) ?: false
     private var crashReloads = 0
     private var released = false
     private var systemUserAgent = ""
@@ -498,6 +498,7 @@ internal class WebViewPage(
         } else {
             web.saveState(bundle)
         }
+        bundle.putBoolean(DESKTOP_SITE_KEY, desktopSite)
     }
 
     private fun tearDown(web: WebView) {
@@ -602,7 +603,7 @@ internal class WebViewPage(
         readPageLook(web)
         if (fitsWidthAfterLoad) {
             fitsWidthAfterLoad = false
-            web.postDelayed({ if (web === webView) web.zoomBy(SMALLEST_ZOOM_STEP) }, FIT_WIDTH_DELAY_MILLIS)
+            web.postDelayed({ fitDesktopWidth(web) }, FIT_WIDTH_DELAY_MILLIS)
         }
         restoringScroll?.let { atDiscard ->
             restoringScroll = null
@@ -863,6 +864,17 @@ internal class WebViewPage(
         }
     }
 
+    private fun fitDesktopWidth(web: WebView) {
+        if (web !== webView || !desktopSite) return
+        web.evaluateJavascript(DesktopFit.CONTENT_WIDTH_SCRIPT) { raw ->
+            if (web !== webView || !desktopSite) return@evaluateJavascript
+            val contentWidth = DesktopFit.contentWidth(raw) ?: return@evaluateJavascript
+            @Suppress("DEPRECATION")
+            val factor = DesktopFit.zoomFactor(web.width, contentWidth, web.scale) ?: return@evaluateJavascript
+            web.zoomBy(factor)
+        }
+    }
+
     private fun checkRestoredScroll(web: WebView, atDiscard: Int) {
         if (web !== webView) return
         val restored = web.scrollY
@@ -893,7 +905,7 @@ internal class WebViewPage(
     companion object {
         private const val SAVED_STATE_LIMIT = 512 * 1024
         private const val LOG_TAG = "ArdiaPages"
-        private const val SMALLEST_ZOOM_STEP = 0.01f
+        private const val DESKTOP_SITE_KEY = "ardia.desktopSite"
         private const val FIT_WIDTH_DELAY_MILLIS = 300L
         private const val RESTORED_SCROLL_CHECK_MILLIS = 700L
         private const val PARKED_FRAMES = 3
