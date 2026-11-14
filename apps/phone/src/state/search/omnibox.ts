@@ -8,7 +8,7 @@ import {
   mobileSuggest,
   mobileSuggestRequest,
 } from "@ardia/core/src/mobile";
-import { dedupeByLanding, displayHost } from "../../lib/url";
+import { dedupeByLanding, displayHost, landingKey } from "../../lib/url";
 
 export type TrayRow =
   | { key: string; kind: "query"; title: string; url: string; query: string }
@@ -17,13 +17,15 @@ export type TrayRow =
 
 export const SWITCH_TO_TAB = "Switch to Tab";
 
+export const IDLE_ROW_LIMIT = 5;
+
 export type Suggested = { rows: TrayRow[]; completion: string };
 
 export type SuggestContext = { currentUrl: string | null; currentTabId: string | null };
 
 export type OmniboxSources = Parameters<typeof mobileSetSources>[0];
 
-export function suggest(text: string, remote: readonly string[], context: SuggestContext): Suggested {
+export function suggest(text: string, remote: readonly string[], context: SuggestContext, macTabs: ReadonlyMap<string, string> = new Map()): Suggested {
   if (!text.trim()) return { rows: [], completion: "" };
   const result = mobileSuggest(text, { remote: [...remote], preference: "website", limit: 8, now: Date.now(), ...context });
   const rows: TrayRow[] = [];
@@ -36,7 +38,7 @@ export function suggest(text: string, remote: readonly string[], context: Sugges
         key: `p:${item.tabId ?? ""}:${item.url}`,
         kind: "page",
         title: item.title || host,
-        detail: item.tabId ? SWITCH_TO_TAB : host,
+        detail: item.tabId ? SWITCH_TO_TAB : (macTabs.get(landingKey(item.url)) ?? host),
         url: item.url,
         tabId: item.tabId ?? null,
         switchesTab: Boolean(item.tabId),
@@ -47,13 +49,14 @@ export function suggest(text: string, remote: readonly string[], context: Sugges
   return { rows: unique.map((item) => item.row), completion: result.completion };
 }
 
-export function idleRows(queries: readonly string[]): TrayRow[] {
+export function idleRows(queries: readonly string[], macTabs: readonly { url: string; title: string; deviceName: string }[] = []): TrayRow[] {
   const rows: TrayRow[] = [];
   for (const query of queries) {
     const url = mobileResolve(`?${query}`)?.url;
     if (url) rows.push({ key: `q:${query}`, kind: "query", title: query, url, query });
   }
-  return rows;
+  for (const tab of macTabs) rows.push({ key: `r:${tab.url}`, kind: "page", title: tab.title, detail: tab.deviceName, url: tab.url, tabId: null, switchesTab: false });
+  return rows.slice(0, IDLE_ROW_LIMIT);
 }
 
 export const searchEngines = () => mobileEngines().map((engine) => ({ id: engine.id, name: engine.name }));
@@ -65,6 +68,9 @@ export const display = (url: string) => mobileDisplay(url);
 export const setSources = (sources: OmniboxSources) => mobileSetSources(sources);
 
 export const setSearchEngine = (engineId: string) => mobileSetSearch({ engineId });
+
+export const setSyncedSearch = (search: { engineId: string; customURL: string | null; customEngines: { id: string; name: string; keyword: string; url: string }[] }) =>
+  mobileSetSearch({ engineId: search.engineId, customUrl: search.customURL ?? undefined, customEngines: search.customEngines });
 
 const REMOTE_TIMEOUT_MS = 4000;
 

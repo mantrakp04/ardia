@@ -4,12 +4,14 @@ import type { BrowserTab } from "../tabs/tabModels.ts";
 
 export type SourceTab = { id: string; url: string; title: string; favicon: string | null };
 
-export type Sources = { tabs: SourceTab[]; history: HistoryRow[]; bookmarks: [] };
+export type SourceBookmark = { url: string; title: string; favicon: string | null };
 
-export const buildSources = (openTabs: readonly BrowserTab[], history: readonly HistoryRow[]): Sources => ({
+export type Sources = { tabs: SourceTab[]; history: HistoryRow[]; bookmarks: SourceBookmark[] };
+
+export const buildSources = (openTabs: readonly BrowserTab[], history: readonly HistoryRow[], bookmarks: readonly SourceBookmark[] = []): Sources => ({
   tabs: openTabs.filter((tab) => !tab.isPrivate).map((tab) => ({ id: tab.id, url: tab.url, title: tab.title, favicon: tab.faviconUrl })),
   history: [...history],
-  bookmarks: [],
+  bookmarks: [...bookmarks],
 });
 
 export const RECENT_SEARCH_LIMIT = 3;
@@ -27,4 +29,4 @@ export function recentSearches(rows: readonly HistoryRow[], limit = RECENT_SEARC
   return queries;
 }
 
-export const sourcesKey = (listing: number, historyRevision: number) => `${listing}:${historyRevision}`;
+export const sourcesKey = (listing: number, historyRevision: number, syncRevision = 0) => `${listing}:${historyRevision}:${syncRevision}`;

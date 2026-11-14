@@ -6,6 +6,7 @@ import {
   countArchivedTabs,
   deleteArchivedTabs,
   expiredArchivedIds,
+  knownReceivedKeys,
   readArchivedTabs,
   readOpenTabs,
   readTabState,
@@ -14,6 +15,7 @@ import {
   writeTabs,
 } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
+import { receiveTabs, type IncomingTab } from "./received";
 import type { AutoArchiveInterval, BrowserTab, TabPatch } from "./tabModels";
 import {
   archiveTabs,
@@ -49,6 +51,12 @@ const now = () => Date.now();
 const data = (): TabsData => useTabs.getState();
 
 const privateStates = new Map<string, string>();
+
+let tabProfile: string | null = null;
+
+export const setTabProfile = (profileSyncId: string | null) => {
+  tabProfile = profileSyncId;
+};
 
 function apply(change: TabsChange) {
   const db = browserDatabase();
@@ -93,7 +101,12 @@ export function loadTabs() {
 }
 
 export function openNewTab(request: Omit<OpenRequest, "isPrivate"> & { isPrivate?: boolean }): BrowserTab {
-  const { change, tab } = openTab(data(), { ...request, isPrivate: request.isPrivate ?? useTabs.getState().incognito }, now(), newUuid());
+  const { change, tab } = openTab(
+    data(),
+    { ...request, isPrivate: request.isPrivate ?? useTabs.getState().incognito, profileSyncId: request.profileSyncId ?? tabProfile },
+    now(),
+    newUuid(),
+  );
   apply(change);
   return tab;
 }
@@ -145,5 +158,13 @@ export const deleteArchivedTabsById = (ids: readonly string[]) => apply(deleteAr
 export const clearArchivedTabs = () => apply(clearArchive(data()));
 
 export const archiveTabById = (id: string) => apply(archiveTabs(data(), [id], true, now()));
+
+export function receiveSentTabs(incoming: readonly IncomingTab[]): BrowserTab[] {
+  if (!incoming.length) return [];
+  const known = knownReceivedKeys(browserDatabase(), incoming.map((tab) => tab.key));
+  const { change, opened } = receiveTabs(data(), incoming, known, now(), newUuid);
+  if (opened.length) apply(change);
+  return opened;
+}
 
 export const currentTabs = data;

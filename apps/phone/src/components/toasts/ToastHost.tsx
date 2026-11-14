@@ -12,6 +12,9 @@ const ICONS: Record<ToastIcon, SymbolName> = {
   download: "arrowDownCircle",
   blocking: "handRaised",
   link: "link",
+  laptop: "laptop",
+  star: "starFill",
+  sent: "paperplane",
 };
 
 export function ToastHost() {

@@ -16,6 +16,7 @@ import { showOnboarding, useOnboarding } from "../onboarding/store";
 import { pageUi } from "../page/store";
 import { settingsNav } from "../settings/nav";
 import { forgetPosition, saveTabPosition, watchFrontScroll } from "./positions";
+import { noteLocalChange } from "../sync/store";
 import { currentPreferences, loadPreferences } from "../settings/store";
 import type { VisitTransition, Visit } from "../store/browserDatabase";
 import { resolve, type TrayRow } from "../search/omnibox";
@@ -259,7 +260,10 @@ function pageVisited(id: string, url: string, title: string, kind: VisitKind) {
   const transition = transitions[kind];
   if (!transition || tab.isPrivate) return;
   const visit = history().record(url, title, transition, tab.profileSyncId, Date.now());
-  if (visit) lastVisits.set(id, visit);
+  if (visit) {
+    lastVisits.set(id, visit);
+    noteLocalChange();
+  }
 }
 
 function pageEvent(event: PageEngineEvent) {

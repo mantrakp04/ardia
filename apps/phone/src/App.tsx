@@ -12,6 +12,7 @@ import { SettingsView } from "./components/settings/SettingsView";
 import { ToastHost } from "./components/toasts/ToastHost";
 import { ThemeColorContext } from "./components/ui";
 import { startSettingsSources } from "./state/settings/actions";
+import { startSync } from "./state/sync/actions";
 import { usePreferences, useSettingsNav } from "./state/settings/hooks";
 import { useOnboarding } from "./state/onboarding/hooks";
 import { useBaseSystemBars } from "./state/app/systemBars";
@@ -25,6 +26,7 @@ export default function App() {
     startBrowser();
     startPageUi();
     startSettingsSources();
+    startSync();
   });
   const surface = useSurface();
   const sheet = useSheet();
