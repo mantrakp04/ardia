@@ -254,6 +254,7 @@ class Executor:
 
     def worker(self, item, lane, mode, used, lanes_active):
         run_id = item["run_id"]
+        load = round(os.getloadavg()[0], 1)
         started = []
 
         def on_start():
@@ -283,7 +284,7 @@ class Executor:
             self.sched.finish(run_id, t1, "retry" if rec.get("harness_error") else "done", rate_limited=bool(reason))
             rec.update({"lane": lane.id, "port_offset": item.get("port_offset", 0), "admitted": mode,
                         "lanes_active": lanes_active,
-                        "memory_used_pct_at_start": used, "concurrent_runs": concurrent,
+                        "memory_used_pct_at_start": used, "load_1m_at_start": load, "concurrent_runs": concurrent,
                         "run_started_epoch": round(t0, 3), "run_ended_epoch": round(t1, 3)})
             write_json(self.results_dir / "runs" / f"{run_id}.json", rec)
             with open(self.results_dir / "progress.jsonl", "a") as f:
@@ -316,6 +317,8 @@ class Executor:
                 used = memory_used_pct()
                 with self.lock:
                     if self.plan.get("normal_pressure_only") and self.sched.running and memory_pressure_level() != 1:
+                        used = max(used, 100.0)
+                    if self.plan.get("max_load_1m") and os.getloadavg()[0] > float(self.plan["max_load_1m"]):
                         used = max(used, 100.0)
                     starts = self.sched.decide(time.time(), used)
                     for item, lane, mode in starts:

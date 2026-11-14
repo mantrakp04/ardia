@@ -133,13 +133,17 @@ python3 -I harness/bench.py stop
     - A running run is never killed.
     - With `"normal_pressure_only": true` in the plan, nothing new starts next to a running run unless macOS memory
       pressure (`kern.memorystatus_vm_pressure_level`) is 1.
+    - With `"max_load_1m": N` in the plan, nothing new starts while the 1-minute load average is above `N`. A browser
+      that takes 30 s to open a page on a thrashing Mac measures the Mac. The plan stops after 15 minutes without a
+      start; run it again to resume.
     - Extra lanes that sit idle for 2 minutes are quit.
   - Contenders progress together: a contender may be at most 15% of its runs ahead of the slowest one, and at most
     one round ahead (`pace_slack`, `max_round_lead` in the plan). That way no contender gets all its runs at quiet
     moments.
   - A rate limit or overloaded error counts as a harness error, is retried after 2 minutes, and drops that
     contender to one lane. Other harness errors are retried too, at most 3 times per session.
-  - Every run records `lane`, `port_offset`, `lanes_active`, `memory_used_pct_at_start` and `concurrent_runs`.
+  - Every run records `lane`, `port_offset`, `lanes_active`, `memory_used_pct_at_start`, `load_1m_at_start` and
+    `concurrent_runs`.
     `<results>/memory.jsonl` samples memory and the active runs every 3 s.
   - `--dry-run` prints the simulated timeline. It uses durations from the results dir if there are any, and a
     modeled memory curve.
@@ -151,7 +155,7 @@ python3 -I harness/bench.py stop
   - A plan resumes: finished runs are skipped, and runs that hit a harness error are retried.
 - **A plan file** has `name`, `repeats`, `tasks` (`"all"` or a list of ids; `"all"` is every task in the registry, so
   `full.json`, `opencode.json` and `browseruse.json` now include `bulk`), `contenders`, `results`, and optionally
-  `max_lanes`, `lane_base`, `normal_pressure_only`, `pace_slack`, `max_round_lead` and the Ardia keys (`app`, `port`, `cli`, `ardia_test`). A task the
+  `max_lanes`, `lane_base`, `normal_pressure_only`, `max_load_1m`, `pace_slack`, `max_round_lead` and the Ardia keys (`app`, `port`, `cli`, `ardia_test`). A task the
   registry doesn't have stops the plan, dry run included, with the list of known ids.
   - `plans/realism.json` re-runs `expenses`, `kanban` and `bulk` three times for all eight contenders (Ardia, OpenCode
     Browse and Browser Use with Claude Code and Codex, and the two Aside agents) on up to 24 lanes (memory gating still
