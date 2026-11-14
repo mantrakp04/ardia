@@ -1,5 +1,5 @@
 import { breadcrumb } from "@ardia/core";
-import { WindowBackdrop, ink, Panel, PinchArea, pinchFollow, pinchSettle, reduceMotion, reduceMotionKnown, type PinchMotion } from "../ui";
+import { Button, WindowBackdrop, ink, Panel, PinchArea, pinchFollow, pinchSettle, reduceMotion, reduceMotionKnown, type PinchMotion } from "../ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
@@ -8,7 +8,9 @@ import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
 import { useSettings, useTab } from "../../state/browser/hooks";
 import type { Peek } from "../../state/peek/peek";
 import { PEEK_MOTION, PEEK_SCRIM } from "./tokens";
-import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
+import { PageLabel, SMALL_BAR_BUTTON, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar, type SmallBarButton } from "../littleArdia/SmallChrome";
+import { shadow, space } from "../ui/tokens";
+import type { PeekButtons } from "../../state/settings/settings";
 import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, registerPeekMotion } from "../../state/peek/actions";
 import { notePinch } from "../../state/telemetry/usage";
 
@@ -16,12 +18,23 @@ const INSET_FRACTION = 0.055;
 const MIN_INSET = 16;
 const START_SCALE = 0.12;
 const GROW = PEEK_MOTION.grow;
+const SIDE_GAP = space.m;
+const SIDE_ROOM = SMALL_BAR_BUTTON + 2 * SIDE_GAP;
 
-
-export function peekFrame(width: number, height: number) {
+export function peekFrame(width: number, height: number, buttons: PeekButtons = "top") {
   const x = Math.max(MIN_INSET, Math.round(width * INSET_FRACTION));
   const y = Math.max(MIN_INSET, Math.round(height * INSET_FRACTION));
-  return { left: x, top: y, width: Math.max(0, width - 2 * x), height: Math.max(0, height - 2 * y) };
+  const left = buttons === "left" ? Math.max(x, SIDE_ROOM) : x;
+  const right = buttons === "right" ? Math.max(x, SIDE_ROOM) : x;
+  return { left, top: y, width: Math.max(0, width - left - right), height: Math.max(0, height - 2 * y) };
+}
+
+function peekButtonList(windowId: string, splitFull: boolean): SmallBarButton[] {
+  return [
+    { icon: "rectangle.split.2x1", disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
+    { icon: "arrow.up.left.and.arrow.down.right", tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
+    { icon: "xmark", tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
+  ];
 }
 
 export function PeekOverlay({
@@ -64,7 +77,8 @@ function PeekCard({
   const theme = useTheme();
   const card = useCardFrame();
   const windowFrame = theme.dark ? SMALL_WINDOW_FRAME.dark : SMALL_WINDOW_FRAME.light;
-  const frame = peekFrame(width, height);
+  const buttons = useSettings((s) => s.peekButtons);
+  const frame = peekFrame(width, height, buttons);
   const [motion, setMotion] = useState<"fade" | "grow" | null>(() => {
     const reduce = reduceMotion();
     return reduce === null ? null : reduce ? "fade" : "grow";
@@ -147,7 +161,12 @@ function PeekCard({
         progress.interpolate({ inputRange: [0, 1], outputRange: [START_SCALE, 1] }),
         expand.interpolate({ inputRange: [0, 1], outputRange: [1, height / Math.max(frame.height, 1)] }),
       );
-  const translateX = fade ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [fromX - centerX, 0] });
+  const translateX = fade
+    ? 0
+    : Animated.add(
+        progress.interpolate({ inputRange: [0, 1], outputRange: [fromX - centerX, 0] }),
+        expand.interpolate({ inputRange: [0, 1], outputRange: [0, width / 2 - centerX] }),
+      );
   const translateY = fade ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [fromY - centerY, 0] });
   const cardOpacity = fade ? progress : progress.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 1, 1] });
   const dim = Animated.multiply(progress, expand.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }));
@@ -179,7 +198,7 @@ function PeekCard({
         <PinchArea enabled={!fullscreen && !!motion && gestures} motion={pinch} style={{ flex: 1 }}>
           <View style={{ flex: 1, borderRadius: fullscreen ? 0 : SMALL_WINDOW_RADIUS, overflow: "hidden" }}>
             {!fullscreen && <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />}
-            {!fullscreen && <PeekBar windowId={windowId} tabId={peek.tabId} />}
+            {!fullscreen && <PeekBar windowId={windowId} tabId={peek.tabId} withButtons={buttons === "top"} />}
             <View
               style={
                 fullscreen
@@ -208,11 +227,35 @@ function PeekCard({
           />
         )}
       </Animated.View>
+      {!fullscreen && buttons !== "top" && (
+        <Animated.View
+          style={{
+            position: "absolute",
+            top: frame.top,
+            left: buttons === "left" ? frame.left - SIDE_GAP - SMALL_BAR_BUTTON : frame.left + frame.width + SIDE_GAP,
+            gap: SIDE_GAP,
+            opacity: dim,
+          }}
+        >
+          <PeekSideButtons windowId={windowId} />
+        </Animated.View>
+      )}
     </View>
   );
 }
 
-function PeekBar({ windowId, tabId }: { windowId: string; tabId: string }) {
+function PeekSideButtons({ windowId }: { windowId: string }) {
+  const splitFull = usePeekSplitFull(windowId);
+  return peekButtonList(windowId, splitFull)
+    .reverse()
+    .map((b) => (
+      <Panel key={b.tooltip} radius={SMALL_BAR_BUTTON / 2} shadow={shadow.tooltip} style={{ width: SMALL_BAR_BUTTON, height: SMALL_BAR_BUTTON }}>
+        <Button variant="icon" icon={b.icon} box={SMALL_BAR_BUTTON} capsule disabled={b.disabled} tooltip={b.tooltip} onPress={b.onPress} />
+      </Panel>
+    ));
+}
+
+function PeekBar({ windowId, tabId, withButtons }: { windowId: string; tabId: string; withButtons: boolean }) {
   const tab = useTab(tabId);
   const splitFull = usePeekSplitFull(windowId);
   if (!tab) return null;
@@ -221,11 +264,7 @@ function PeekBar({ windowId, tabId }: { windowId: string; tabId: string }) {
     <SmallBar
       fieldLeft={SMALL_INSET}
       field={<PageLabel tab={tab} label={host ? `Peek: ${host}` : "Peek"} />}
-      buttons={[
-        { icon: "rectangle.split.2x1", disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
-        { icon: "arrow.up.left.and.arrow.down.right", tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
-        { icon: "xmark", tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
-      ]}
+      buttons={withButtons ? peekButtonList(windowId, splitFull) : []}
     />
   );
 }

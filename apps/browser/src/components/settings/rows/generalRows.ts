@@ -263,6 +263,11 @@ export const generalRows = {
           description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.",
           keywords: ["peek", "new tab", "target blank", "links", "preview", "open links"],
         },
+        peekButtons: {
+          title: "Show Peek buttons",
+          description: "Close, Open as Tab and Split View sit in the Peek's title bar, or float beside it on the left or right.",
+          keywords: ["peek", "buttons", "close", "expand", "split view", "left", "right", "side", "position", "arc", "zen"],
+        },
         peekModifier: {
           advanced: true,
           title: "Peek a link with",
