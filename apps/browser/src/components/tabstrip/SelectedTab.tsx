@@ -37,6 +37,7 @@ export function SelectedTab({ width, band, opaque = false }: { width: number; ba
   }
   const body = width - 1;
   const fills: Fill[] = [...(opaque ? [theme.windowTint[0]] : []), theme.card, ...(band ? [band] : [])];
+  const rim = STRIP_COLORS[theme.dark ? "dark" : "light"].selectedRim;
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width, height: TOP_STRIP_HEIGHT }}>
       {fills.map((fill, i) => (
@@ -60,8 +61,8 @@ export function SelectedTab({ width, band, opaque = false }: { width: number; ba
       <Surface
         cornerRadius={TAB_RADIUS + 0.5}
         borderWidth={RIM_WIDTH}
-        borderColors={STRIP_COLORS[theme.dark ? "dark" : "light"].selectedRim}
-        style={{ position: "absolute", left: 0, top: TAB_TOP - 0.5, width, height: RIM_HEIGHT }}
+        borderColors={[...rim, rim.at(-1)!]}
+        style={{ position: "absolute", left: 0, top: TAB_TOP - 0.5, width, height: RIM_HEIGHT * 2 }}
       />
     </View>
   );
