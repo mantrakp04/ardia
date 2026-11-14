@@ -57,6 +57,16 @@ test("free text puts a search first-class and never autocompletes", () => {
   assert.equal(items[0]?.kind, "search");
 });
 
+test("a typed URL keeps its fragment when history has the same page without it", () => {
+  const visited = [{ url: "https://excalidraw.com/", title: "Excalidraw Whiteboard", favicon: null, visits: 3, lastVisit: now - 1000 }];
+  const link = "https://excalidraw.com/#json=VC1a4VETnEa6b4ehPIRqQ,5oEcDgxNWEDK4Clpf9gLmg";
+  for (const preventInline of [false, true]) {
+    const [first] = buildSuggestions(link, { tabs: [], history: visited }, { now, preventInline }).items;
+    assert.deepEqual(first && first.kind === "page" && [first.url, first.title], [link, "Excalidraw Whiteboard"]);
+  }
+  assert.equal(rows(buildSuggestions("https://excalidraw.com/", { tabs: [], history: visited }, { now }).items)[0], "https://excalidraw.com/");
+});
+
 test("preventInline (after a deletion): no completion, and the search is first unless the typed text is the page", () => {
   const typed = (text: string, preventInline: boolean) => buildSuggestions(text, { tabs: [], history }, { now, preventInline });
   const before = typed("gi", false);
