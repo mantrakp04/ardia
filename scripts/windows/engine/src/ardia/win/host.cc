@@ -127,6 +127,9 @@ LRESULT CALLBACK ParentProcedure(HWND window,
   if (message == WM_WINDOWPOSCHANGED) {
     Host::Get()->ParentMoved(window);
   }
+  if (message == WM_ACTIVATE && LOWORD(w_param) != WA_INACTIVE) {
+    Host::Get()->ParentActivated(window);
+  }
   if (message == WM_NCDESTROY) {
     ::RemoveWindowSubclass(window, &ParentProcedure, id);
   }
@@ -272,6 +275,13 @@ void Host::Call(const std::string& verb,
     result = ListTabs();
   } else if (verb == "host.info") {
     result = Info();
+  } else if (verb == "keyboard.field") {
+    field_focused_ = args.FindBool("focused").value_or(false);
+    if (field_focused_) {
+      keyboard_waits_.clear();
+      keyboard_wanted_.clear();
+    }
+    result = Ok();
   } else if (verb == "peek.config") {
     PageLinks::Configure(args);
     result = PageLinks::Config();
@@ -567,7 +577,7 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
       const bool due =
           base::TimeTicks::Now() - waits->second <= kKeyboardHandoff;
       keyboard_waits_.erase(waits);
-      if (due && !args.FindBool("fieldFocused").value_or(false)) {
+      if (due && !field_focused_) {
         GiveKeyboard(browser, contents);
       }
     }
@@ -584,14 +594,14 @@ base::DictValue Host::CloseTab(const base::DictValue& args) {
   if (TabState* state = TabState::FromWebContents(contents)) {
     state->set_closed_by_host();
   }
-  tabs_.erase(key);
   Browser* browser = BrowserOf(contents);
-  if (!browser) {
-    return Ok();
-  }
-  auto found = hosted_.find(browser);
+  auto found = browser ? hosted_.find(browser) : hosted_.end();
   if (found != hosted_.end() && found->second.shown == key) {
     Hide(browser, found->second);
+  }
+  tabs_.erase(key);
+  if (!browser) {
+    return Ok();
   }
   TabStripModel* model = browser->GetTabStripModel();
   int index = model->GetIndexOfWebContents(contents);
@@ -667,7 +677,9 @@ std::optional<base::DictValue> Host::CallTab(content::WebContents* contents,
   } else if (method == "focus") {
     Browser* browser = BrowserOf(contents);
     HWND window = browser ? WindowOf(browser) : nullptr;
-    if (browser && window && ::IsWindowVisible(window)) {
+    const bool refused = args.FindBool("deferred").value_or(false) &&
+                         field_focused_;
+    if (browser && window && ::IsWindowVisible(window) && !refused) {
       GiveKeyboard(browser, contents);
     }
   } else {
@@ -937,7 +949,8 @@ void Host::HandKeyboardOn(HWND parent, const Browser* hidden) {
     next = entry.first;
     latest = other.shown_at;
   }
-  content::WebContents* contents = next ? Find(hosted_[next].shown) : nullptr;
+  content::WebContents* contents =
+      next && !field_focused_ ? Find(hosted_[next].shown) : nullptr;
   if (contents) {
     keyboard_waits_.erase(parent);
     GiveKeyboard(next, contents);
@@ -952,14 +965,50 @@ void Host::HandKeyboardOn(HWND parent, const Browser* hidden) {
 void Host::GiveKeyboard(Browser* browser, content::WebContents* contents) {
   HWND window = WindowOf(browser);
   auto found = hosted_.find(browser);
-  if (found != hosted_.end() && found->second.parent) {
-    keyboard_waits_.erase(found->second.parent);
+  HWND parent = found != hosted_.end() ? found->second.parent : nullptr;
+  if (parent) {
+    keyboard_waits_.erase(parent);
+    keyboard_wanted_.erase(parent);
   }
-  if (!window || !KeyboardMayMove()) {
+  if (!window) {
+    return;
+  }
+  if (!KeyboardMayMove()) {
+    TabState* state = TabState::FromWebContents(contents);
+    if (parent && state && !ardiacore::BackgroundInstance()) {
+      keyboard_wanted_[parent] = state->key();
+    }
     return;
   }
   ::SetFocus(window);
   contents->Focus();
+}
+
+void Host::ParentActivated(HWND parent) {
+  if (!keyboard_wanted_.contains(parent)) {
+    return;
+  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&Host::ApplyWantedKeyboard,
+                                weak_factory_.GetWeakPtr(), parent));
+}
+
+void Host::ApplyWantedKeyboard(HWND parent) {
+  auto wanted = keyboard_wanted_.find(parent);
+  if (wanted == keyboard_wanted_.end() || field_focused_ ||
+      !KeyboardMayMove() || ::GetActiveWindow() != parent) {
+    return;
+  }
+  const std::string key = wanted->second;
+  keyboard_wanted_.erase(wanted);
+  content::WebContents* contents = Find(key);
+  Browser* browser = contents ? BrowserOf(contents) : nullptr;
+  auto found = browser ? hosted_.find(browser) : hosted_.end();
+  if (found == hosted_.end() || found->second.parent != parent ||
+      found->second.shown != key) {
+    return;
+  }
+  GiveKeyboard(browser, contents);
 }
 
 std::string Host::KeyboardPage() const {
@@ -1044,6 +1093,8 @@ void Host::FocusFor(ui::Event* event) {
   if (key.empty()) {
     return;
   }
+  field_focused_ = false;
+  keyboard_wanted_.clear();
   if (content::WebContents* contents = Find(key)) {
     if (TabState* state = TabState::FromWebContents(contents)) {
       state->Send("pagePress", base::DictValue());

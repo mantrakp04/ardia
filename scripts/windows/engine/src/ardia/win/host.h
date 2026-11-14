@@ -56,6 +56,7 @@ class Host : public TabStripModelObserver,
   void TabDestroyed(TabState* state);
   void ParentDestroying(HWND parent);
   void ParentMoved(HWND parent);
+  void ParentActivated(HWND parent);
 
   void OnTabStripModelChanged(
       TabStripModel* tab_strip_model,
@@ -113,6 +114,7 @@ class Host : public TabStripModelObserver,
   void Hide(Browser* browser, Hosted& hosted);
   void HandKeyboardOn(HWND parent, const Browser* hidden);
   void GiveKeyboard(Browser* browser, content::WebContents* contents);
+  void ApplyWantedKeyboard(HWND parent);
   std::string KeyboardPage() const;
   void CloseSparePages();
   void Place(HWND window, const Hosted& hosted);
@@ -136,6 +138,8 @@ class Host : public TabStripModelObserver,
   std::map<Profile*, std::string> profile_names_;
   std::set<HWND> parents_;
   std::map<HWND, base::TimeTicks> keyboard_waits_;
+  std::map<HWND, std::string> keyboard_wanted_;
+  bool field_focused_ = false;
   bool creating_browser_ = false;
   bool creating_tab_ = false;
   bool moving_tab_ = false;

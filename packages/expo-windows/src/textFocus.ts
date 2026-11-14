@@ -1,9 +1,10 @@
 import type { FocusNative } from "@ardia/shell";
 import type { TextInput } from "react-native";
-import { noteAppFieldFocused, takeKeyboardFor } from "./appKeyboard";
+import { noteAppFieldFocused, takeKeyboardFor, windowIdOfField } from "./appKeyboard";
+import { engineAvailable, hostCall } from "./engine/host";
 import { requireNativeModule } from "./modules";
 
-export type FocusOnWindows = FocusNative & { setTextInputFocused(focused: boolean): Promise<void>; textInputFocused(): boolean; takeKeyboardFromPage(): Promise<boolean> };
+export type FocusOnWindows = FocusNative & { setTextInputFocused(focused: boolean): Promise<void>; textInputFocused(): boolean; takeKeyboardFromPage(windowId: string): Promise<boolean> };
 
 type SharedTextInputState = Pick<(typeof TextInput)["State"], "currentlyFocusedInput" | "focusTextInput" | "blurTextInput">;
 type TextField = Parameters<SharedTextInputState["focusTextInput"]>[0];
@@ -31,9 +32,13 @@ export function textInputHasFocus(state: Pick<TextInputState, "currentlyFocusedI
   return field != null && state.isTextInput(field);
 }
 
-export function reportTextInputFocus() {
+const tellHost = (focused: boolean) => {
+  if (engineAvailable()) void hostCall("keyboard.field", { focused }).catch(() => {});
+};
+
+export function reportTextInputFocus(asked = false) {
   const focused = textInputHasFocus();
-  noteAppFieldFocused(focused);
+  noteAppFieldFocused(focused, tellHost, asked && focused);
   if (focused === reported) return;
   reported = focused;
   void Promise.resolve(focus().setTextInputFocused(focused)).catch(() => {
@@ -49,8 +54,9 @@ export function installTextFocusReport() {
     const original = state[name].bind(state);
     state[name] = (field: TextField) => {
       original(field);
-      reportTextInputFocus();
-      if (FOCUSING.has(name) && field != null) takeKeyboardFor(focus(), () => original(field));
+      const asked = FOCUSING.has(name) && field != null;
+      reportTextInputFocus(asked);
+      if (asked) void takeKeyboardFor(focus(), windowIdOfField(field), () => original(field));
     };
   }
 }

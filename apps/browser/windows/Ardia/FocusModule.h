@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <optional>
+#include <string>
 #include <string_view>
 
 #include "NativeModules.h"
@@ -56,14 +57,12 @@ struct KeyboardHandoff {
     return window && GetClassNameW(window, name, 16) >= 7 && std::wstring_view(name, 7) == L"Chrome_";
   }
 
-  static bool FromPage() noexcept {
-    if (WindowManager::Background() || !OursInFront()) return false;
+  static bool FromPage(std::string const &windowId) noexcept {
+    if (windowId.empty() || WindowManager::Background() || !OursInFront()) return false;
+    HWND app = WindowManager::Shared().Hwnd(windowId);
     HWND focus = GetFocus();
     HWND page = focus ? GetAncestor(focus, GA_ROOT) : nullptr;
-    if (!PageWindow(page)) return false;
-    HWND app = GetWindow(page, GW_OWNER);
-    DWORD process = 0;
-    if (!app || !GetWindowThreadProcessId(app, &process) || process != GetCurrentProcessId()) return false;
+    if (!app || !PageWindow(page) || GetWindow(page, GW_OWNER) != app) return false;
     SetActiveWindow(app);
     LaunchLog::Write(L"keys", L"an app field took the keyboard from a page");
     return GetActiveWindow() == app;
@@ -103,8 +102,8 @@ struct FocusModule {
   }
 
   REACT_METHOD(takeKeyboardFromPage)
-  void takeKeyboardFromPage(winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
-    RunOnUI(m_context, [promise]() noexcept { promise.Resolve(KeyboardHandoff::FromPage()); });
+  void takeKeyboardFromPage(std::string windowId, winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
+    RunOnUI(m_context, [windowId, promise]() noexcept { promise.Resolve(KeyboardHandoff::FromPage(windowId)); });
   }
 
   REACT_SYNC_METHOD(textInputFocused)

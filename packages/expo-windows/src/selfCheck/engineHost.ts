@@ -184,7 +184,7 @@ const withEngine: Check[] = [
       await hostCall("tab.show", { key: PAGE_KEY, visible: true, unit: "px", x: 40, y: 60, width: 300, height: 240 }, windowId);
       await hostCall("tab.call", { key: PAGE_KEY, method: "focus" });
       const before = await hostCall<{ keyboardPage?: unknown; keyboardMayMove?: unknown }>("host.info");
-      await hostCall("tab.show", { key: SECOND_PAGE_KEY, visible: true, unit: "px", x: 40, y: 60, width: 300, height: 240, fieldFocused: false }, windowId);
+      await hostCall("tab.show", { key: SECOND_PAGE_KEY, visible: true, unit: "px", x: 40, y: 60, width: 300, height: 240 }, windowId);
       await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
       const after = await hostCall<{ keyboardPage?: unknown; keyboardMayMove?: unknown }>("host.info");
       if (before.keyboardMayMove === true) {

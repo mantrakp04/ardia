@@ -139,7 +139,7 @@ function sendShow(page: Page): Promise<unknown> | undefined {
   const args = page.show;
   if (!args || args === page.showSent || page.closed) return undefined;
   page.showSent = args;
-  return hostCall("tab.show", args.visible ? { ...args, fieldFocused: appFieldFocused() } : args, page.windowId);
+  return hostCall("tab.show", args, page.windowId);
 }
 
 const focusWaits = (page: Page) => lastAskedToFocus === page && page.focusAsked > 0 && Date.now() - page.focusAsked < FOCUS_WAITS_FOR_SHOW_MS;
@@ -152,7 +152,8 @@ function askShow(page: Page, args: ShowArgs) {
       const sent = sendShow(page);
       if (!args.visible || !focusWaits(page)) return sent;
       page.focusAsked = 0;
-      return Promise.resolve(sent).then(() => (page.closed ? undefined : hostCall("tab.call", { key: page.key, method: "focus" })));
+      if (appFieldFocused()) return sent;
+      return Promise.resolve(sent).then(() => (page.closed || appFieldFocused() ? undefined : hostCall("tab.call", { key: page.key, method: "focus", deferred: true })));
     }),
   );
 }
