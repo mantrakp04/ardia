@@ -513,25 +513,79 @@ if (Test-Path $checkLog) {
   $failures += "the self-check wrote no log"
 }
 
-function Test-NotATestInstance([string]$DataDirectory, [string]$Case) {
+$gateApp = (Resolve-Path -LiteralPath $App).Path
+$withEngine = Test-Path -LiteralPath (Join-Path (Split-Path -Parent $gateApp) "chrome.dll")
+$gatePort = 9338
+
+function Test-PortOpen([int]$Port) {
+  $client = New-Object System.Net.Sockets.TcpClient
+  try { return $client.ConnectAsync("127.0.0.1", $Port).Wait(1500) -and $client.Connected } catch { return $false } finally { $client.Dispose() }
+}
+
+function Start-GateLaunch([string]$DataDirectory, [string]$Case, [string]$Test) {
   $caseLog = Join-Path $Out "gate-$Case.log"
   Remove-Item -Force -ErrorAction SilentlyContinue $caseLog
   $env:ARDIA_DATA_DIR = $DataDirectory
-  $env:ARDIA_TEST = "appDialog"
+  $env:ARDIA_TEST = $Test
   $env:ARDIA_BACKGROUND = "1"
+  $env:ARDIA_REMOTE_DEBUGGING_PORT = if ($withEngine) { "$gatePort" } else { "" }
   $run = Start-Process -FilePath $gateApp -ArgumentList "--log-file=`"$caseLog`"" -PassThru
   $env:ARDIA_TEST = ""
-  $refused = $null
-  $deadline = (Get-Date).AddSeconds(40)
-  while ((Get-Date) -lt $deadline -and -not $refused -and -not $run.HasExited) {
-    Start-Sleep -Milliseconds 500
-    if (Test-Path -LiteralPath $caseLog) { $refused = Select-String -LiteralPath $caseLog -Pattern "not a test instance \(" | Select-Object -First 1 }
-  }
-  if (-not $run.HasExited) { Stop-Process -Id $run.Id -Force; $run.WaitForExit(10000) | Out-Null }
-  if ($refused) { Write-Host "test gate, $Case`: $($refused.Line)" } else { $script:failures += "ARDIA_TEST counted, or the launch said nothing, with $Case" }
+  $env:ARDIA_REMOTE_DEBUGGING_PORT = ""
+  return @($run, $caseLog)
 }
 
-$gateApp = (Resolve-Path -LiteralPath $App).Path
+function Wait-GateLine([object]$Run, [string]$CaseLog, [string]$Pattern) {
+  $deadline = (Get-Date).AddSeconds(40)
+  while ((Get-Date) -lt $deadline -and -not $Run.HasExited) {
+    if (Test-Path -LiteralPath $CaseLog) {
+      $line = Select-String -LiteralPath $CaseLog -Pattern $Pattern | Select-Object -First 1
+      if ($line) { return $line }
+    }
+    Start-Sleep -Milliseconds 500
+  }
+  return $null
+}
+
+function Stop-GateLaunch([object]$Run) {
+  if (-not $Run.HasExited) { Stop-Process -Id $Run.Id -Force; $Run.WaitForExit(10000) | Out-Null }
+  Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path -ieq $gateApp } | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
+function Test-NotATestInstance([string]$DataDirectory, [string]$Case) {
+  $run, $caseLog = Start-GateLaunch $DataDirectory $Case "appDialog,reauth=granted"
+  try {
+    $refused = Wait-GateLine $run $caseLog "not a test instance \("
+    if ($refused) { Write-Host "test gate, $Case`: $($refused.Line)" } else { $script:failures += "ARDIA_TEST counted, or the launch said nothing, with $Case"; return }
+    if (-not $withEngine) { return }
+    $chromium = Join-Path ([System.IO.Path]::GetFullPath($DataDirectory)) "Chromium"
+    if (Test-Path -LiteralPath (Join-Path $chromium "DevToolsActivePort")) { $script:failures += "remote debugging wrote DevToolsActivePort with $Case" }
+    if (Test-PortOpen $gatePort) { $script:failures += "remote debugging listened on port $gatePort with $Case" }
+    $engine = Wait-GateLine $run $caseLog "^engine 0 test gate: "
+    if (-not $engine) { $script:failures += "the engine said nothing about the test gate with $Case"; return }
+    Write-Host "engine test gate, $Case`: $($engine.Line)"
+    if ($engine.Line -notmatch "not a test instance \(.*ardiacore test instance: no; reauth=granted honoured: no$") { $script:failures += "the engine counted the test instance or reauth=granted with $Case" }
+  } finally { Stop-GateLaunch $run }
+}
+
+function Test-ATestInstance([string]$DataDirectory, [string]$Case) {
+  $run, $caseLog = Start-GateLaunch $DataDirectory $Case "reauth=granted"
+  try {
+    $engine = Wait-GateLine $run $caseLog "^engine 0 test gate: "
+    if (-not $engine) { $script:failures += "the engine said nothing about the test gate with $Case"; return }
+    Write-Host "engine test gate, $Case`: $($engine.Line)"
+    if ($engine.Line -notmatch "a test instance; remote debugging port: $gatePort; ardiacore test instance: yes; reauth=granted honoured: yes$") { $script:failures += "the engine refused the test instance or reauth=granted with $Case" }
+    $active = Join-Path $DataDirectory "Chromium\DevToolsActivePort"
+    $deadline = (Get-Date).AddSeconds(20)
+    while ((Get-Date) -lt $deadline -and -not (Test-Path -LiteralPath $active)) { Start-Sleep -Milliseconds 500 }
+    if (-not (Test-Path -LiteralPath $active)) { $script:failures += "remote debugging wrote no DevToolsActivePort with $Case"; return }
+    try {
+      $version = Invoke-RestMethod -Uri "http://127.0.0.1:$gatePort/json/version" -TimeoutSec 10
+      Write-Host "remote debugging, $Case`: $($version.Browser)"
+    } catch { $script:failures += "remote debugging didn't answer on port $gatePort with $Case" }
+  } finally { Stop-GateLaunch $run }
+}
+
 $gateData = New-DataDirectory "gate-scratch"
 $marker = Join-Path (Split-Path -Parent $gateApp) "Ardia.test-build"
 Remove-Item -Force -LiteralPath $marker
@@ -545,6 +599,7 @@ if ($env:GITHUB_ACTIONS -eq "true") {
   New-Item -ItemType Junction -Path $junction -Target $realProfile | Out-Null
   try { Test-NotATestInstance $junction "a junction to the real profile folder" } finally { (Get-Item -LiteralPath $junction).Delete() }
 }
+if ($withEngine) { Test-ATestInstance (New-DataDirectory "gate-test-instance") "a scratch folder with the marker" }
 $env:ARDIA_DATA_DIR = ""
 $env:ARDIA_BACKGROUND = ""
 
