@@ -21,8 +21,10 @@ Logic is written once. Only code that calls the OS is written per platform.
 
 Walked by hand on 2026-11-14 in the Windows 11 ARM VM (1920 by 1080), with the `Ardia-Setup-arm64` installer of run
 43544610044 (commit 45a0962e6, engine `windows-engine-20261113-12`, `ArdiaApp.dll` checked against the artifact), from
-a fresh data folder, as a user would: 41 driven runs, every row below seen on that build. Of the 64 rows, 43 work, 9
-work with a difference, 2 are broken, 4 do nothing, 3 are not offered and 3 were not walked. Works with a difference says
+a fresh data folder, as a user would: 41 driven runs, every row below seen on that build. Later that day the rows
+changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
+d83398e1f, engine `windows-engine-20261113-16`); those rows say so. Of the 64 rows, 45 work, 9 work with a difference,
+2 are broken, 4 do nothing, 3 are not offered and 1 was not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
 
@@ -35,11 +37,11 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | First launch with a link | Works: the link opens in a Little Ardia window in front, onboarding waits in the main window behind it | |
 | Onboarding (source, look, last choices) | Works: three steps, Edge found on this PC, Get Started and Take the Tour | |
 | Intro animation and music | Differs: the dawn poster stands in for the animated meadow, then hands over to step 1 after about 20 s; music not checked (the VM has no audio out) | #1547, #1546, #1249 |
-| Tour | Not walked this time (Get Started taken) | |
+| Tour | Works (d83398e1f): Take the Tour shows five stops (search, tabs in the sidebar, room to focus, two pages side by side, all set) with Back, Next and Skip Tour; Done ends it | |
 | Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
 | Check for updates | Differs: Check Now says "No Windows update published yet" and names the build (0.2.47-nightly.1, Windows alpha 290) | #1517 |
 | Default browser | Works: Settings › General says "Ardia is your default browser" in this VM | #1439 |
-| Open at login | Not walked: an instance with its own data folder leaves it alone | |
+| Open at login | Works (d83398e1f, the VM user's own data folder): on, it writes the `Run` entry for the installed `Ardia.exe`; off, it removes it. When Windows has it turned off in Task Manager's Startup apps, the row asks you to allow it there (#1694; it named the Mac's System Settings before). A sign-in wasn't done: it needs the VM account's password | #1694 |
 
 **Windows and tabs**
 
@@ -53,14 +55,14 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Quit and relaunch with the session restored | Works (tabs, the split and the open windows came back) | |
 | Engine memory trimmed after tabs close, once input is idle | Works (logged after closes) | #1544 |
 | Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome; its command bar lists recent pages | |
-| Search Tabs (Ctrl+Shift+A), Ctrl+Tab | Works. The walk saw no element of the new page focused after Ctrl+Tab, so typing went nowhere until a click; #1658's VM run shows the new page has the keyboard after Ctrl+Tab, a numbered tab or closing the active tab (fixed by #1658, not re-walked). Known gap: a tab switched to before its page is mounted (an asleep tab, or one made in front with an address) gets no keyboard, tracked in #1689 | #1658, #1689 |
+| Search Tabs (Ctrl+Shift+A), Ctrl+Tab | Works (d83398e1f): the new page has the keyboard after Ctrl+Tab and after Next Tab into a tab a restore left unloaded (#1658, #1691). Gap: a new tab opened with an address (Ctrl+T, the address, Enter) doesn't get the keyboard, tracked in #1689 | #1658, #1689 |
 | Pin, Top Apps, New Group with Tab, tab menus | Works (the tab menu offers Move to Top Apps, Remove from Split View, Close Split View) | |
 | Page picture (a pinned page in another window) | Works: the other window shows the page picture | #1540 |
-| Tabs in the sidebar or across the top (Ctrl+Shift+S), hide the sidebar (Ctrl+S) | Works; after Ctrl+S twice a pale box stays over the page's top-left corner | #1673 |
+| Tabs in the sidebar or across the top (Ctrl+Shift+S), hide the sidebar (Ctrl+S) | Works. The pale box once left over the page's top-left came from visiting a second profile, not from Ctrl+S: the next profile's sidebar page, parked beside the sidebar, cut a hole in the page. Gone on d83398e1f, on a full-width tab and a split pane | #1673 |
 | Profiles: switch with Alt+1, Alt+2 | Works (Work opened in its own colour) | |
 | Open in WebKit, Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
-| Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Per #1658's VM run, Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window | #1490, #1658 |
-| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it and keys reach the page beneath again. Typing in a Peek needs a click first: the keyboard stays in the page beneath while it is open | #1531 |
+| Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Seen on #1686's build: Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window and gets Escape | #1490, #1658 |
+| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it. Keys reach the Peek's page without a click, and after Escape they reach the source page with the link still focused, as on the Mac (the engine thread saw both in the VM on build 339 of #1708; not re-walked here) | #1531, #1708 |
 | A download while split | Differs: an insecure (http) download is blocked by Chromium's own download bubble; a download from localhost reaches Ardia's panel | #1519 |
 | Pop-up windows from pages | Broken: a bare Chromium window with the Windows title bar | #1518 |
 | Main, Settings and Little Ardia window chrome | Works, no system title bar | |
@@ -866,17 +868,14 @@ Ranked by how much a user notices. Sizes are rough: S is under a day, M is one t
 App side, an agent can do these now:
 1. The close-tabs confirm freezes other windows' pages (#1672): show it without a modal loop on the shared UI
    thread and keep it in front of its window. M.
-2. The box left over the page's top-left (#1673): the next profile's sidebar page, clipped beside the sidebar, still
-   cut a hole in the page (fix in #1686). S.
-3. Typing in a Peek needs a click first: the keyboard stays in the page beneath while the Peek is open (the engine
-   thread is matching the Mac). Also #1689: a tab switched to before its page is mounted gets no keyboard. M, with the
-   engine thread.
-4. Pop-up windows in the app's own frame instead of Chromium's (#1518). M.
-5. The app's own page, link and image menus instead of Chromium's (#1518). M.
-6. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
+2. A new tab opened with an address (Ctrl+T, the address, Enter) gets no keyboard (#1689). S, with the engine
+   thread.
+3. Pop-up windows in the app's own frame instead of Chromium's (#1518). M.
+4. The app's own page, link and image menus instead of Chromium's (#1518). M.
+5. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
    needs). M each once the engine reports them.
-7. The intro: the animated meadow instead of the dawn poster (#1547). L (Direct3D).
-8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
+6. The intro: the animated meadow instead of the dawn poster (#1547). L (Direct3D).
+7. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
 - an `externalApp` tab event and the `externalAppAlive` page call, so the app can ask before launching mailto and other
@@ -893,7 +892,7 @@ Decisions for Shivam:
 - signing, or a per-machine install (#1659).
 
 With the engine and owner items set aside, the app side has not reached parity yet: items 1 and 2 are bugs a user
-hits, and 4 to 6 are visible differences with Chromium's own UI. Everything else in the table works or differs only
+hits, and 3 to 5 are visible differences with Chromium's own UI. Everything else in the table works or differs only
 where the engine, Windows itself or a decision stands in the way.
 
 ## Order of work

@@ -39,9 +39,10 @@ export function GeneralPane() {
       <Group>
         <Row
           anchor="general.openAtLogin"
-          description={loginStatus === "requiresApproval" ? "Allow it in System Settings › General › Login Items." : undefined}
+          description={loginStatus === "requiresApproval" ? `Allow it in ${PLATFORM_TERMS.loginItemsSettings}.` : undefined}
         >
           <Toggle
+            accessibilityLabel={`Open ${APP} at login`}
             value={loginStatus === "enabled" || loginStatus === "requiresApproval"}
             onChange={(on) => void setLaunchAtLogin(on).catch(() => {}).finally(refreshLogin)}
           />
