@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { acknowledgeSyncReset, changeSyncFolder, setDeviceName, stopSyncing, syncNow } from "../../state/sync/actions";
 import { useSyncStatus, useSyncView } from "../../state/sync/hooks";
@@ -60,19 +60,33 @@ function DeviceName({ current }: { current: string }) {
   const theme = useTheme();
   const [draft, setDraft] = useState(current);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const field = useRef<TextInput>(null);
+  const pending = useRef<string | null>(null);
   useEffect(() => setDraft(current), [current]);
+  const save = () => {
+    const trimmed = pending.current?.trim();
+    pending.current = null;
+    if (trimmed && trimmed !== current) setDeviceName(trimmed);
+  };
+  useLayoutEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+      save();
+      if (field.current?.isFocused()) field.current.blur();
+    },
+    [],
+  );
   const change = (text: string) => {
     setDraft(text);
+    pending.current = text;
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      const trimmed = text.trim();
-      if (trimmed && trimmed !== current) setDeviceName(trimmed);
-    }, NAME_SETTLE_MS);
+    timer.current = setTimeout(save, NAME_SETTLE_MS);
   };
   return (
     <Group header="This Phone’s Name" footer="Shown on your Mac.">
       <View style={styles.row}>
         <TextInput
+          ref={field}
           accessibilityLabel="Name"
           value={draft}
           onChangeText={change}

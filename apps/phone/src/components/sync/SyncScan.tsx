@@ -5,6 +5,8 @@ import { makeScanJudge, openCameraSettings, prepareCamera, type CameraAccess } f
 import { SCAN_REJECTED } from "../../state/sync/syncRules";
 import { capsule, CodeCamera, font, ink, scanInk, scanLayout, space, Symbol, useTheme } from "../ui";
 
+const CAMERA_STOP_MS = 120;
+
 type Props = { onScan: (phrase: string) => void; onEnterWords: () => void; onCancel: () => void };
 
 export function SyncScan({ onScan, onEnterWords, onCancel }: Props) {
@@ -13,22 +15,29 @@ export function SyncScan({ onScan, onEnterWords, onCancel }: Props) {
   const [rejected, setRejected] = useState(false);
   const judge = useRef(makeScanJudge()).current;
   const done = useRef(false);
+  const [leaving, setLeaving] = useState(false);
+  const leave = (then: () => void) => {
+    if (leaving) return;
+    setLeaving(true);
+    setTimeout(then, CAMERA_STOP_MS);
+  };
   useEffect(() => {
     void prepareCamera().then(setAccess);
   }, []);
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
-      onCancel();
+      leave(onCancel);
       return true;
     });
     return () => back.remove();
-  }, [onCancel]);
+  }, [onCancel, leaving]);
   const read = (text: string) => {
     if (done.current) return;
     const verdict = judge(text);
     if (verdict.kind === "accept") {
       done.current = true;
-      onScan(verdict.phrase);
+      const phrase = verdict.phrase;
+      leave(() => onScan(phrase));
     } else if (verdict.kind === "reject") setRejected(true);
   };
   return (
@@ -36,7 +45,7 @@ export function SyncScan({ onScan, onEnterWords, onCancel }: Props) {
       {access === "checking" ? <ActivityIndicator style={styles.center} color={ink.white} /> : null}
       {access === "granted" ? (
         <>
-          <CodeCamera onCode={read} />
+          <CodeCamera onCode={read} active={!leaving} />
           <View style={[styles.finder, { paddingTop: insets.top + 44, paddingBottom: insets.bottom + space.xl }]}>
             <View style={styles.words}>
               <Text accessibilityRole="header" style={[font.title3, styles.bold, styles.white]}>
@@ -46,7 +55,7 @@ export function SyncScan({ onScan, onEnterWords, onCancel }: Props) {
             </View>
             <View style={styles.frame} />
             {rejected ? <Text style={[font.subheadline, styles.medium, styles.white, styles.rejected]}>{SCAN_REJECTED}</Text> : <View />}
-            <GlassButton title="Enter Words Instead" onPress={onEnterWords} />
+            <GlassButton title="Enter Words Instead" onPress={() => leave(onEnterWords)} />
           </View>
         </>
       ) : null}
@@ -67,7 +76,7 @@ export function SyncScan({ onScan, onEnterWords, onCancel }: Props) {
           onEnterWords={onEnterWords}
         />
       ) : null}
-      <Pressable accessibilityRole="button" onPress={onCancel} style={[styles.cancel, { top: insets.top + space.xs }]}>
+      <Pressable accessibilityRole="button" onPress={() => leave(onCancel)} style={[styles.cancel, { top: insets.top + space.xs }]}>
         <Text style={[font.body, styles.white]}>Cancel</Text>
       </Pressable>
     </View>
