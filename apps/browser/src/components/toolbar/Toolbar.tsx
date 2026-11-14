@@ -249,6 +249,7 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
   return (
     <View {...field.hoverProps} style={{ flexDirection: "row", alignItems: "center", height, borderRadius: SIDEBAR_FIELD.radius }}>
       <SidebarFieldFill hovered={hovered} />
+      <FieldLoadFill key={tab.id} tabId={tab.id} color={loadFillColor(palette, theme.accent)} height={height} radius={SIDEBAR_FIELD.radius} />
       <FieldSiteButton
         icon={insecure ? "lock.open.trianglebadge.exclamationmark.fill" : "slider.horizontal.3"}
         color={insecure === "certificateError" ? theme.destructive : undefined}
