@@ -16,6 +16,7 @@ struct TabDeckBar: View {
   let leading: () -> Void
   let settings: () -> Void
 
+  @Environment(AppModel.self) private var app
   var body: some View {
     HStack(spacing: 0) {
       DeckCircleButton(
@@ -35,14 +36,15 @@ struct TabDeckBar: View {
 
   private var plusButton: some View {
     Button(action: newTab) {
-      Image(systemName: "plus")
-        .font(.system(size: 20, weight: .medium))
-        .foregroundStyle(.primary)
+      BarPlusGlyph()
         .frame(width: TabsLayout.barPlus.width, height: TabsLayout.barPlus.height)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .opacity(app.browse.trayOwnsPlus ? 0 : 1)
+        .animation(nil, value: app.browse.trayOwnsPlus)
         .contentShape(.capsule)
     }
     .buttonStyle(.plain)
-    .glassEffect(.regular.interactive(), in: .capsule)
+    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { app.browse.floatingPlusFrame = $0 }
     .frame(minHeight: BrowseLayout.hitTarget)
     .contextMenu {
       if isIncognito {

@@ -3,7 +3,7 @@ import ArdiaDesign
 import SwiftUI
 
 struct BottomBar: View {
-  let isSearchPresented: Bool
+  let hidesPlus: Bool
   var sideInset: CGFloat = 0
   var onTabs: () -> Void
   var onPlus: () -> Void
@@ -18,8 +18,7 @@ struct BottomBar: View {
     let order = app.deckOrder
     HStack(spacing: 0) {
       Button(action: onTabs) {
-        TabStackGlyph(tabs: Array(order.suffix(2)))
-          .frame(width: BrowseLayout.hitTarget, height: BrowseLayout.hitTarget)
+        PageBarTabsGlyph(tabs: Array(order.suffix(2)))
           .contentShape(.circle)
       }
       .buttonStyle(BarButtonStyle())
@@ -33,38 +32,35 @@ struct BottomBar: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
 
-      ZStack {
-        if !isSearchPresented {
-          Button(action: onPlus) {
-            Image(systemName: "plus")
-              .font(.system(size: 18, weight: .semibold))
-              .foregroundStyle(BrowsePalette.foregroundPrimary)
-              .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
-              .background(BrowsePalette.fieldFill, in: .capsule)
-              .contentShape(.capsule)
-          }
-          .buttonStyle(BarButtonStyle())
-          .transition(.opacity)
-          .accessibilityLabel("New Search")
-        }
+      Button(action: onPlus) {
+        BarPlusGlyph(weight: .semibold, tint: BrowsePalette.foregroundPrimary)
+          .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
+          .background(BrowsePalette.fieldFill, in: .capsule)
+          .opacity(hidesPlus ? 0 : 1)
+          .animation(nil, value: hidesPlus)
+          .contentShape(.capsule)
       }
+      .buttonStyle(BarButtonStyle())
+      .accessibilityLabel("New Search")
+      .accessibilityHidden(hidesPlus)
       .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
+      .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { app.browse.pagePlusFrame = $0 }
 
       Button(action: onMore) {
-        Image(systemName: "chevron.up")
-          .font(.system(size: 16, weight: .semibold))
-          .foregroundStyle(BrowsePalette.foregroundPrimary)
+        BarChevronGlyph()
           .frame(width: BrowseLayout.hitTarget, height: BrowseLayout.hitTarget)
           .contentShape(.circle)
       }
       .buttonStyle(BarButtonStyle())
       .accessibilityLabel("Page Menu")
+      .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { app.browse.pageChevronFrame = $0 }
       .frame(maxWidth: .infinity, alignment: .trailing)
     }
     .padding(BrowseLayout.barPillPadding)
     .frame(height: BrowseLayout.barPillHeight)
     .glassEffect(.regular.interactive(), in: .capsule)
     .contentShape(.capsule)
+    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { app.browse.pageBarFrame = $0 }
     .padding(.horizontal, sideInset + BrowseLayout.barSideInset)
   }
 
@@ -76,6 +72,55 @@ struct BottomBar: View {
     }
     if !recent.isEmpty { Divider() }
     Button("Close Tab", systemImage: "xmark", role: .destructive, action: onCloseTab)
+  }
+}
+
+struct BarPlusGlyph: View {
+  var weight: Font.Weight = .medium
+  var tint: Color = .primary
+
+  var body: some View {
+    Image(systemName: "plus")
+      .font(.system(size: 18, weight: weight))
+      .foregroundStyle(tint)
+  }
+}
+
+struct BarChevronGlyph: View {
+  var body: some View {
+    Image(systemName: "chevron.up")
+      .font(.system(size: 16, weight: .semibold))
+      .foregroundStyle(BrowsePalette.foregroundPrimary)
+  }
+}
+
+struct PageBarSides: View {
+  var showsChevron = true
+
+  @Environment(AppModel.self) private var app
+
+  var body: some View {
+    HStack(spacing: 0) {
+      PageBarTabsGlyph(tabs: Array(app.deckOrder.suffix(2)))
+        .frame(maxWidth: .infinity, alignment: .leading)
+      Color.clear
+        .frame(width: BrowseLayout.plusCapsule.width, height: BrowseLayout.plusCapsule.height)
+      BarChevronGlyph()
+        .frame(width: BrowseLayout.hitTarget, height: BrowseLayout.hitTarget)
+        .opacity(showsChevron ? 1 : 0)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+    .padding(BrowseLayout.barPillPadding)
+    .frame(height: BrowseLayout.barPillHeight)
+  }
+}
+
+struct PageBarTabsGlyph: View {
+  let tabs: [BrowserTab]
+
+  var body: some View {
+    TabStackGlyph(tabs: tabs)
+      .frame(width: BrowseLayout.hitTarget, height: BrowseLayout.hitTarget)
   }
 }
 

@@ -19,6 +19,12 @@ final class BrowseSession {
 
   var search: SearchRequest?
   var trayHoldsKeyboard = false
+  var trayOwnsPlus = false
+  var trayCoversPageBar = false
+  var pageBarFrame = CGRect.zero
+  var pagePlusFrame = CGRect.zero
+  var floatingPlusFrame = CGRect.zero
+  var pageChevronFrame = CGRect.zero
   var isToolbarPresented = false
   var readerTabID: UUID?
   var titleFeedback: String?
@@ -30,6 +36,10 @@ final class BrowseSession {
 
   var isSearchTrayOnScreen: Bool {
     search != nil || trayHoldsKeyboard
+  }
+
+  func pageBarGrowsIntoTray(reduceMotion: Bool) -> Bool {
+    !reduceMotion && (trayCoversPageBar || search?.origin == .page)
   }
 
   struct StepRequest: Equatable {

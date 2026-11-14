@@ -91,7 +91,13 @@ enum DemoScenario {
     let delay = value("-BrowseDelay").flatMap(Double.init) ?? 6
     Task { @MainActor in
       try? await Task.sleep(for: .seconds(delay))
-      if arguments.contains("-BrowseToolbar") { app.browse.isToolbarPresented = true }
+      if arguments.contains("-BrowseToolbar") {
+        app.browse.isToolbarPresented = true
+        if let hold = value("-BrowseToolbarHold").flatMap(Double.init) {
+          try? await Task.sleep(for: .seconds(hold))
+          app.browse.isToolbarPresented = false
+        }
+      }
       if let text = value("-BrowseOverlay") { app.browse.presentSearch(from: .page, text: text, selectsAll: false) }
       if arguments.contains("-BrowseReader"), let id = app.tabs.selectedTabID { app.browse.readerTabID = id }
       if arguments.contains("-BrowseDeck") {
