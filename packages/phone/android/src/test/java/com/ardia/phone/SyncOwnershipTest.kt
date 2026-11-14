@@ -43,7 +43,7 @@ class SyncOwnershipTest {
             controller.localDidChange()
             requests.awaitAll()
         }
-        controller.close()
+        assertTrue(controller.closeAndWait(5_000))
         assertEquals("never two cycles at once", 1, most.get())
         assertTrue("every cycle ran: ${device.calls}", device.syncs >= 6)
         val syncThreads = device.calls.indices.filter { device.calls[it] == "sync" }.map { device.threads[it] }.toSet()
