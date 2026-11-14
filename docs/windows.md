@@ -44,7 +44,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | --- | --- | --- |
 | New tab, close, reopen closed tab | Works | |
 | New window | Works | |
-| Private window | Differs: its session lasts until Ardia quits | #1453 |
+| Private window | Works: its session ends with its last private window | #1453 |
 | Quit and relaunch with the session restored | Works | |
 | Engine memory trimmed after tabs close, once input is idle | Works: input idle time from `GetLastInputInfo` (`ArdiaWindowsHost.inputIdleSeconds`) | #1544 |
 | Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome | |
@@ -54,7 +54,8 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Tab, pinned tab, sidebar and New Tab row menus | Works | |
 | Tabs in the sidebar or across the top, auto-hide tabs | Works | |
 | Open in WebKit (tab menu), Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
-| Split View | Not offered | #1490 |
+| Split View | Works (each visible page has its own page window; seen in the VM at 125%). Two gaps until #1658: Focus Next Split Pane into an empty pane types into the other pane, and a page that is full screen when its tab is switched away comes back full screen and needs a click before Escape reaches it | #1490, #1658 |
+| Peek | Works as on the Mac: the Peek key on a link, or a plain click to another site on a tab that peeks those; Escape closes it from either page | #1531 |
 | Pop-up windows from pages | Broken: a bare Chromium window with the Windows title bar | #1518 |
 | Main, Settings and Little Ardia window chrome | Works, no system title bar | |
 
