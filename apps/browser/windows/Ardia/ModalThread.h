@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <mutex>
 #include <set>
 #include <thread>
@@ -124,6 +125,39 @@ struct ModalWatch {
   UINT_PTR m_timer = 0;
 };
 
+struct ModalDialogs {
+  std::mutex lock;
+  std::map<HWND, HWND> byOwner;
+
+  static ModalDialogs &Shared() noexcept {
+    static ModalDialogs *dialogs = new ModalDialogs();
+    return *dialogs;
+  }
+};
+
+inline void NoteModalDialog(HWND owner, HWND dialog) noexcept {
+  if (!owner) return;
+  ModalDialogs &dialogs = ModalDialogs::Shared();
+  std::lock_guard<std::mutex> guard(dialogs.lock);
+  if (dialog) dialogs.byOwner[owner] = dialog;
+  else dialogs.byOwner.erase(owner);
+}
+
+inline HWND ModalDialogOf(HWND owner) noexcept {
+  ModalDialogs &dialogs = ModalDialogs::Shared();
+  std::lock_guard<std::mutex> guard(dialogs.lock);
+  auto found = dialogs.byOwner.find(owner);
+  return found == dialogs.byOwner.end() ? nullptr : found->second;
+}
+
+inline bool BringModalForward(HWND owner) noexcept {
+  HWND dialog = ModalDialogOf(owner);
+  if (!dialog || !IsWindow(dialog) || !IsWindowVisible(dialog)) return false;
+  SetWindowPos(dialog, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+  SetForegroundWindow(dialog);
+  return true;
+}
+
 constexpr wchar_t ModalParentClass[] = L"ArdiaModalParent";
 
 inline bool RegisterModalParent() noexcept {
@@ -159,6 +193,7 @@ struct ModalParent {
   void KeepDialogAboveOwner() noexcept {
     HWND dialog = Dialog();
     if (!dialog || !m_owner || !IsWindow(m_owner)) return;
+    NoteModalDialog(m_owner, dialog);
     bool above = false;
     for (HWND higher = GetWindow(m_owner, GW_HWNDPREV); higher && !above; higher = GetWindow(higher, GW_HWNDPREV)) above = higher == dialog;
     if (!above) {
@@ -171,13 +206,13 @@ struct ModalParent {
   void Release() noexcept {
     if (m_released) return;
     m_released = true;
+    NoteModalDialog(m_owner, nullptr);
     if (!m_owner || !IsWindow(m_owner) || !m_ownerWasEnabled) return;
     bool hadFocus = OursInFront();
     EnableWindow(m_owner, TRUE);
     if (hadFocus) SetForegroundWindow(m_owner);
   }
 
- private:
   HWND Dialog() const noexcept {
     if (!m_window) return nullptr;
     HWND found = nullptr;
@@ -193,6 +228,7 @@ struct ModalParent {
     return found;
   }
 
+ private:
   bool OursInFront() const noexcept {
     HWND front = GetForegroundWindow();
     if (!front || front == m_window) return true;

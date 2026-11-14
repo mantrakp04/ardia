@@ -71,9 +71,10 @@ export const checks: Check[] = [
       const [windowId] = await windows().windowIds();
       expectTrue(windowId, "no window is open to own the held confirms");
       const first = dialogs().devHoldConfirm(windowId, false);
-      const second = dialogs().devHoldConfirm(windowId, false);
+      let second: Promise<boolean> = Promise.resolve(false);
       try {
         expectTrue(await heldConfirmShown(), "the first held confirm never opened");
+        second = dialogs().devHoldConfirm(windowId, false);
         expectTrue(await countStays(1, 1000), `${dialogs().openCount()} dialogs open at once for one window`);
         dialogs().devReleaseDialogs();
         await first;

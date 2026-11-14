@@ -56,5 +56,9 @@ test("every native modal runs through RunModal off the UI thread, and the app st
   }
   assert.match(module, /ModalWatch::OnTick\(\[this\] \{\n      pages\.Refresh\(\);\n      parent\.KeepDialogAboveOwner\(\);\n    \}\);/);
   assert.match(native("ModalThread.h"), /SetThreadDpiAwarenessContext\(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2\);/);
+  const windows = native("WindowManager.h");
+  assert.match(windows, /if \(message == WM_ACTIVATE && LOWORD\(wParam\) != WA_INACTIVE && DialogParts::BringModalForward\(hwnd\)\) return 0;/);
+  assert.match(windows, /if \(!DialogParts::BringModalForward\(entry->hwnd\)\) SetForegroundWindow\(entry->hwnd\);/);
+  assert.match(native("NativeDialogs.h"), /else if \(HWND fallback = modal\.parent\.Dialog\(\)\) PostMessageW\(fallback, WM_COMMAND, IDCANCEL, 0\);/);
   assert.match(native("Ardia.cpp"), /void ArdiaAppStop\(void\) \{\n  Ardia::DialogParts::StopAllModals\(\);/);
 });

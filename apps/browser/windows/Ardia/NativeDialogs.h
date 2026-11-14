@@ -36,8 +36,9 @@ inline DialogConfirmReply ShowConfirm(HWND owner, std::wstring const &title, std
   DialogConfirmReply reply;
   ModalOverWindow modal(owner, "confirm");
   HWND shown = nullptr;
-  ModalWatch::OnAbandon([&shown] {
+  ModalWatch::OnAbandon([&shown, &modal] {
     if (shown) SendMessageW(shown, TDM_CLICK_BUTTON, IDCANCEL, 0);
+    else if (HWND fallback = modal.parent.Dialog()) PostMessageW(fallback, WM_COMMAND, IDCANCEL, 0);
   });
   if (TaskDialogIndirectFunction taskDialog = ResolveTaskDialog()) {
     TASKDIALOG_BUTTON buttons[2] = {{ConfirmButtonId, confirmTitle.c_str()}, {IDCANCEL, cancelTitle.c_str()}};

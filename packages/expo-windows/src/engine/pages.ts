@@ -144,7 +144,6 @@ const offeredByEngine = (adopt: string | undefined) => (adopt?.startsWith("ardia
 function start(key: string, from: PageStart): Promise<boolean> {
   const url = from.url ?? "";
   const create = (adopt: string) => hostCall("tab.create", { key, url, profile: from.profile ?? "", adopt }, from.windowId);
-  notePageAsked(key);
   const offered = offeredByEngine(from.adopt);
   const closing = closings.get(key);
   return (closing ? closing.then(() => create(offered)) : create(offered))
@@ -224,6 +223,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
       focusAsked: 0,
       focusArgs: {},
     };
+    notePageAsked(key);
     page.ready = begin(page, from);
     pages.set(key, page);
     if (followBeforeMount === key) {
@@ -289,6 +289,7 @@ const REOPENING_METHODS = new Set(["loadUrl", "reload", "forceReload"]);
 function readyOrReopened(page: Page, url: unknown): Promise<boolean> {
   page.ready = page.ready.then((opened) => {
     if (opened || page.closed) return opened;
+    notePageAsked(page.key);
     return begin(page, { ...page.from, adopt: undefined, windowId: page.windowId }).then((again) => {
       if (page.closed) return again;
       if (again) {
