@@ -24,7 +24,7 @@ const sourceOf = (name) => {
   return pageScript.slice(from, pageScript.indexOf('"""#', from));
 };
 const bridge = sourceOf("mediaBridge").replace("\\#(WebKitMediaFaults.sitesJSON)", JSON.stringify(sites));
-const source = sourceOf("source");
+const source = sourceOf("source").replace("\\#(WebKitMediaFaults.sitesJSON)", JSON.stringify(sites));
 
 test("the streaming sites are the protected video sites the app opens in WebKit", () => {
   const listed = listIn(engines, /export const PROTECTED_VIDEO_SITES: readonly string\[\] = \[([^\]]*)\]/);
@@ -241,4 +241,14 @@ test("the page script relays at most 200 reasons per page", () => {
   const p = page();
   p.run(`for (let i = 0; i < 300; i++) document.dispatchEvent(new CustomEvent("ardia:media-fault", { detail: "media_error_decode" }));`);
   assert.equal(p.reported().length, 200);
+});
+
+test("a page off the streaming sites gets no media fault listener or wrapper", () => {
+  for (const [protocol, hostname] of [["https:", "example.com"], ["http:", sites[0]], ["https:", `not${sites[0]}`]]) {
+    const p = page({ protocol, hostname });
+    assert.equal(p.json("(document._listeners || []).filter((l) => l.type === 'ardia:media-fault' || l.type === 'error').length"), 0, `${protocol}//${hostname}`);
+    assert.equal(p.json("Navigator.prototype.requestMediaKeySystemAccess === originalAccess"), true);
+    p.run(`document.dispatchEvent(new CustomEvent("ardia:media-fault", { detail: "media_error_decode" }));`);
+    assert.deepEqual(p.reported(), [], `${protocol}//${hostname}`);
+  }
 });

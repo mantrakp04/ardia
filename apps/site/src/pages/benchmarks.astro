@@ -69,7 +69,7 @@ const jsonLd = [
               <div class="fact">
                 <dt>The Mac</dt>
                 <dd>
-                  {bench.dated ? `${bench.machine}. ${bench.dated}.` : `${bench.machine}, on ${bench.date}.`} It’s the owner’s working Mac in normal use, so the browsers take turns and share
+                  {bench.dated ? `${bench.machine}. ${bench.dated}.` : `${bench.machine}, on ${bench.date}.`}{bench.elsewhere && ` ${bench.elsewhere}.`} It’s the owner’s working Mac in normal use, so the browsers take turns and share
                   whatever else is going on.
                 </dd>
               </div>

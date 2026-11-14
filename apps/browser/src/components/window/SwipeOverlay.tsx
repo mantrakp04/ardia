@@ -11,6 +11,7 @@ import { Favicon, NewTabIcon } from "../favicon/Favicon";
 import { HISTORY_MENU_WIDTH, underButton, HistoryPopover } from "./HistoryPopover";
 import { goBack, goForward, goToHistoryItem, historyFavicons, historyItems, openHistoryMenu, useHistoryAvailability, useHistoryMenu, type HistoryItem } from "../../state/tabs/navigation";
 import { historyMenuLeft, type PageAnchor } from "./pageAnchors";
+import { useSwipeClose } from "./swipeClose";
 import {
   CAPSULE_INSET,
   CAPSULE_SIZE,
@@ -57,6 +58,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
   const sizeRef = useRef({ width: 0, height: 0 });
   const [shown, setShown] = useState<Shown | null>(null);
   const area = useRef<SwipeAreaHandle>(null);
+  const swipeClose = useSwipeClose();
+  const closing = useRef(false);
 
   const g = useRef({
     active: false,
@@ -169,6 +172,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
 
   const lastDy = useRef(0);
   const onSwipe = (e: SwipeEvent) => {
+    if (e.phase === "began" || e.phase === "swipe") closing.current = !!swipeClose && e.direction === "back" && !history.back;
+    if (closing.current) return swipeClose?.(e);
     lastDy.current = e.dy;
     if (e.phase === "began" || e.phase === "swipe") {
       resetValues(e.direction);
@@ -208,6 +213,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
   useSwipeDevHandle(tabId, area);
 
   const back = shown?.direction !== "forward";
+  const icon = back && history.backCloses ? "xmark" : back ? "chevron.left" : "chevron.right";
   const iconOpacity = Animated.multiply(v.confirm.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }), v.list.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }));
 
   return (
@@ -215,7 +221,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
       <SwipeArea
         ref={area}
         style={StyleSheet.absoluteFill}
-        canSwipeBack={history.back}
+        canSwipeBack={history.back || !!swipeClose}
         canSwipeForward={history.forward}
         allowsVerticalMotion={!!shown?.list}
         onSwipe={onSwipe}
@@ -246,7 +252,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
               {!theme.dark && <Animated.View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: SWIPE_CONFIRMED_WASH, opacity: v.confirm }} />}
               <Animated.View style={{ ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", opacity: iconOpacity }}>
                 <Animated.View style={{ transform: [{ scale: v.icon }] }}>
-                  <Symbol name={back ? "chevron.left" : "chevron.right"} size={ICON} weight="bold" color={colors.swipeChevron} style={{ width: ICON + 6, height: ICON + 6 }} />
+                  <Symbol name={icon} size={ICON} weight="bold" color={colors.swipeChevron} style={{ width: ICON + 6, height: ICON + 6 }} />
                 </Animated.View>
               </Animated.View>
               {shown.list && <DestinationList tabId={tabId} items={shown.list} selected={shown.selected} appear={v.list} pill={v.pill} />}

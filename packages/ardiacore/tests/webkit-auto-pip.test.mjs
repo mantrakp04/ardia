@@ -43,7 +43,7 @@ function pageWithVideos(videos) {
   const window = { document, addEventListener: noop, location: { protocol: "https:", origin: "https://example.test" }, navigator: {}, performance: { now: () => 0 }, setTimeout: noop };
   window.window = window;
   window.top = window;
-  const source = pageScriptSwift.slice(pageScriptSwift.indexOf('#"""') + 4, pageScriptSwift.indexOf('"""#'));
+  const source = pageScriptSwift.slice(pageScriptSwift.indexOf('#"""') + 4, pageScriptSwift.indexOf('"""#')).replace("\\#(WebKitMediaFaults.sitesJSON)", "[]");
   runInNewContext(source, window);
   return window.__ardia;
 }

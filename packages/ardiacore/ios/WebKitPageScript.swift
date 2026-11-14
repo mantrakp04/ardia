@@ -132,15 +132,18 @@ enum WebKitPageScript {
     },
     true,
   );
-  let faultsRelayed = 0;
-  document.addEventListener(
-    "ardia:media-fault",
-    (e) => {
-      if (typeof e.detail !== "string" || e.detail.length > 64 || ++faultsRelayed > 200) return;
-      post("mediaFault", { reason: e.detail });
-    },
-    true,
-  );
+  const mediaFaultSites = \#(WebKitMediaFaults.sitesJSON);
+  if (location.protocol === "https:" && mediaFaultSites.some((site) => location.hostname === site || location.hostname.endsWith("." + site))) {
+    let faultsRelayed = 0;
+    document.addEventListener(
+      "ardia:media-fault",
+      (e) => {
+        if (typeof e.detail !== "string" || e.detail.length > 64 || ++faultsRelayed > 200) return;
+        post("mediaFault", { reason: e.detail });
+      },
+      true,
+    );
+  }
   const knownActions = ["play", "pause", "stop", "seekbackward", "seekforward", "seekto", "previoustrack", "nexttrack", "skipad", "enterpictureinpicture"];
   document.addEventListener(
     "ardia:media-session",

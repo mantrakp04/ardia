@@ -223,6 +223,17 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
   mutating one as an unknown outcome) instead of leaving them to their timeout (a `Page.navigate` waited its 30 s), and
   the load and settle waits stop on it. A multi-page `read` reads that page again in a new tab, once
   (`READER_TRIES`; telemetry `read_tabs_reopened`); a second detach fails that page only.
+- **A crashed tab.** A renderer that dies leaves the CDP session attached but answers nothing, so `Page.enable` on
+  attach waited its 30 s and every command after it too, `reload` included. `Inspector.targetCrashed` now marks the
+  page crashed instead of detaching it, and attach asks `Inspector.enable` first (on the token policy's list; Chrome
+  answers it from the browser and reports a dead renderer at once), so a session that attaches later knows too. A
+  crashed page refuses every method but `Page.reload` and `Page.navigate` at once (`code: "tab_crashed"`, which says
+  to reload or close it), and fails the calls still waiting. `reload` on it sends `Page.reload`, enables the page
+  again and waits for `document.readyState` to be `complete` (about a second); `open <url>` on it navigates first the
+  same way; `close`, `tab close`, `--show` and `set viewport reset` need no answer from the page. A main-frame
+  navigation or `Inspector.targetReloadedAfterCrash` (someone else reloaded it) clears the mark. A session that
+  attached to an already crashed tab skipped `Page.enable` (it would never answer), so the page is enabled before
+  the next command once the mark is gone (`needs_enable`).
 - `close` takes the command lock, marks the session closing, and only then closes its tabs; requests already queued
   or arriving later get `session_closing`. On any stop the daemon lets running handlers settle (up to 5 s, then
   cancels them) before it touches the browser. Every answer is sanitized (registered tokens and any `token=` query
@@ -271,10 +282,14 @@ in `snapshot.py`: dialog, row, form, region names, the page title left out). So 
 or a dialog reopened for another item, never resolves to the wrong element. Otherwise the error names the new ref.
 
 Selectors are CSS, `@eN`, `xpath=…` (or `//…`), `text=Save` (substring, case-insensitive; `text="Save"` exact),
-`role=button[name="Save"]`, and `:has-text("…")` anywhere in a CSS selector (`[role=row]:has-text("FAS-1") td`).
+`role=button[name="Save"]`, and `:has-text("…")` (`:text("…")` too) or `:text-is("…")` (whole text, exact) anywhere
+in a CSS selector (`[role=row]:has-text("FAS-1") td`). `A >> B` finds B inside each A, and `>> nth=N` keeps the Nth
+match from 0 (`-1` the last): `main >> text=Save`, `[role=option] >> nth=3`.
 `[role=main]` also matches `<main>`, and so on for the other implicit roles (`nav`, `dialog`, `tr`, `a[href]`, `h1`–`h6`,
-`select`, text inputs, …); a bare role word such as `grid` that matches no element is tried as that role. A selector
-that matches several elements takes the first visible one. `find` waits up to 1.5 s for its element to appear.
+`select`, text inputs, `input[type=search]` as `searchbox`, `option`, `progress`, …); a bare role word such as `grid`
+that matches no element is tried as that role. A selector that matches several elements takes the first visible one.
+`find` waits up to 1.5 s for its element to appear. `find label`, `text`, `placeholder`, `alt` and `title` take an exact
+match first (case and spacing aside, a trailing `*` or `:` too), then a whole-word one, then any substring.
 
 ### Input
 
@@ -298,7 +313,7 @@ random offset inside the box; a click whose point is covered fails with
 `covered by <tag#id.class>`, and one outside the laid-out viewport with `outside_viewport` (the point and the viewport
 size). A tab with no size yet (0×0, seen on a loaded hidden test instance) is waited for up to 2 s, then given a
 1280×800 device metrics override for that command, cleared afterwards and never over the session's own `set viewport`;
-where Emulation is gated (the token path) it fails with `no_viewport`.
+where the policy refuses it (the token path: the tab isn't off-screen) it fails with `no_viewport`.
 
 `fill` on a `date`, `time`, `datetime-local`, `month`, `week`, `color` or `range` input doesn't type (typing
 `2026-11-09` into the segmented date field stored `0009-02-06`, and a time field stayed empty). As Playwright's
@@ -356,7 +371,8 @@ Every input command confirms the page got it. Capture listeners in the isolated 
 waits up to 1.5 s for the counts it needs (a click's `mousedown` and `mouseup`, one `keydown` and `keyup` per typed
 character, a `wheel` per scroll, a `beforeinput` or `input` for `keyboard inserttext`). If the listeners can't be set
 up the command fails before sending anything (`input_unconfirmable`). If none of the events arrive it fails with
-`input_not_delivered`; if only some do (a `mousedown` without its `mouseup`), or confirmation fails after sending, it
+`input_not_delivered`, or `target_replaced` when the target had left the page by then (the page redrew it, as a list
+does after a search); if only some do (a `mousedown` without its `mouseup`), or confirmation fails after sending, it
 reports an unknown outcome, since part of the gesture may have landed. A navigation or a closed frame counts as
 delivered, and so do keys sent while focus is in an iframe and a raw `mouse` event over one, since those land in
 another frame. The listeners add no DOM and nothing the page's world can enumerate.
@@ -689,7 +705,7 @@ only change needed.
 | --- | --- |
 | `cookies get\|set\|clear`, `cookies set --curl` | `Network.getCookies`, `Network.setCookie`, `Network.clearBrowserCookies` |
 | `state save\|load` | `Network.getAllCookies`, `Network.setCookies` |
-| `set viewport\|device\|geo\|media` | `Emulation.setDeviceMetricsOverride`, `Emulation.setTouchEmulationEnabled`, `Emulation.setUserAgentOverride`, `Emulation.setGeolocationOverride`, `Emulation.setEmulatedMedia` |
+| `set device\|geo\|media` | `Emulation.setTouchEmulationEnabled`, `Emulation.setUserAgentOverride`, `Emulation.setGeolocationOverride`, `Emulation.setEmulatedMedia` |
 | `set offline`, `set headers` | `Network.emulateNetworkConditions`, `Network.setExtraHTTPHeaders` |
 | `set credentials`, `network route\|unroute` | `Fetch.enable` (and `Fetch.fulfillRequest`, `failRequest`, `continueRequest`) |
 | `upload` | `DOM.setFileInputFiles` |
@@ -714,52 +730,56 @@ The policy also refuses some uses of methods it allows (`ac_cli_token_policy.cc`
 | `without flatten` | `Target.attachToTarget`, `setAutoAttach` | The command always sends `flatten`, so this is a bug in it |
 | `to that URL`, `in another browser context` | `Target.createTarget`, `Page.navigate` | Only http, https, data and about:blank pages, in the user's own profile |
 | `in that execution context`, `on that object` | `Runtime.*`, `DOM.*` | A context or object the connection didn't make |
-| `on a tab the ardia command didn't open`, `on a tab the user can see`, `with that option` | `Emulation.setDeviceMetricsOverride`, `clearDeviceMetricsOverride` | The viewport override is for tabs the command opened (below), with a width, height, scale and `mobile` only |
+| `on a tab the ardia command didn't open`, `on a tab that isn't off-screen`, `with that option` | `Emulation.setDeviceMetricsOverride`, `clearDeviceMetricsOverride` | The viewport override is for tabs the command opened (below), with a width, height, scale and `mobile` only |
 | `in a named world`, `as a stream`, `with the command line API`, `without a button`, `with those editing commands` | `Page.addScriptToEvaluateOnNewDocument`, `Page.printToPDF`, `Runtime.evaluate`, `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` | That option isn't allowed |
 
-`set viewport` is gated on the token path, as in 0.2.45: `Emulation.setDeviceMetricsOverride` and
-`clearDeviceMetricsOverride` are off the policy's list (`AllowedMethods`). They were on it from ce0e35bff to
-4aff6b021, and what the engine and the app need for it stays in the tree, unused until the methods are listed again;
-the rest of this section describes that. It isn't enough yet, which is why the methods are off: when the wait for
-the restored frame times out (250 ms) or its callback fails, the hold ends and the stale emulated frame shows; the
-callback it waits on confirms a frame was submitted to the display compositor, not that it is on screen; and the
-hold is asked for only when clearing changes the native view's size, so a hidden emulated tab laid out into a pane
-or window of another size before the report, or an override of the page's own size, gets none. Two hosts attach
-pages without reporting them (`ArdiaEarlyWindow`, `ArdiaPopupWindow`). With the methods listed, the policy allows
-`Emulation.setDeviceMetricsOverride` and `clearDeviceMetricsOverride` only on a session attached to a
-target that a token connection made with `Target.createTarget` (`open`, `tab new`, a reader or script tab) and that
-isn't shown to the user. The engine keeps those tabs for the whole process (`ac_cli_owned_tabs.cc`), learned from
-each `createTarget` reply, so a daemon that reconnects after its idle disconnect still owns its tabs; one goes when
-its page is destroyed. A command's tab is an ordinary sidebar tab, and the command must never resize what someone
-looks at, so the rule is about visibility, not about who did what: the override is for a tab in the background. The
-moment the tab is in a shown slot of any window (the window's tab, a split pane, Little Ardia; a covered or
-minimised window counts), the engine clears the override itself (a `clearDeviceMetricsOverride` it sends on each
-of its sessions attached to that tab, whose replies never reach the command) and the two methods are refused there
-for good (`on a tab the user can see`; telemetry `viewport_tab_taken`), also after the tab is hidden again. It
-doesn't matter who showed it: the user picking it, Ardia showing it because nothing else was open, or the command's
-own `open --show` and `tab <id> --show`, so viewport checks run on a hidden tab, where screenshots, snapshots and
-clicks work at the emulated size. The signal is the app's: `ArdiaWebView` tells the engine before it puts a page on
-screen (`exposePage` → `noteInShownSlot`, kept on the page as `ShownSlot`), from every native path that can: the
-painting pass of a view that is `visible` or revealed, the reveal that shows a tab ahead of React's `visible`
-(`revealAhead`), `setVisible:` before it raises a warm page's alpha, and `revealOffered` before it fronts a new
-tab's page. The engine clears the override inside that call, not after it, and says whether the page's size changed;
-if it did, the view stays at alpha 0, the outgoing page still up, until the renderer confirms a frame after the
-resize (`InsertVisualStateCallback`, 250 ms at most), so no frame at the emulated size reaches the screen. Chromium's own
-`content::Visibility` doesn't say it: Ardia paints a page it is about to show before it is `visible` (warm, at
-alpha 0), and a page the command drives is held visible to its renderer by a capturer count so it keeps drawing in
-the background (`ac_cli_visible_tabs.cc`). An earlier version inferred a takeover from activations, pins and input
-and missed split panes, scrolling and rejected activations. A Peek is never the command's tab (a page opens it, not
-`Target.createTarget`), so it is refused as a tab the command didn't open. Any other tab,
-the user's included, is refused (`on a tab the ardia command didn't open`), also when the session picked it with
-`tab <id>`; a session that only borrowed the user's tab is refused by the command first (`borrowed_tab`). Only
-`width`, `height`, `deviceScaleFactor` and `mobile` pass (`with that option` otherwise). Nothing clears the override
-by hand otherwise: it belongs to the DevTools session, so Chrome drops it when the session detaches (`close`, the
-daemon exiting, Stop, control turned off, the tab closing), and the `emulation` lease keeps the daemon connected
-while it's on. Chrome used to keep the emulated size when the renderer had crashed before the detach
-(`ClearDeviceEmulationSize` returned before forgetting it when the page had no view), so a reload came back at
-390×844 for good; `chromium-device-emulation-size-reset.patch` forgets the size either way. `set device` still fails, before changing anything, on `Emulation.setTouchEmulationEnabled`. The 1280×800
-override a click gives a tab with no size (Input) works on those tabs too. Telemetry: `viewport_set` on the
-command event; watch `error_code` `policy_refused` on `set`.
+`set viewport <w> <h> [scale]` works on the token path only in a window the user never sees. An emulated page is
+never in a user's window, so nothing has to be restored in place or held off the screen (five reviews found each
+version of that unsound: e7f251520 and the commits before it).
+
+- **The automation window.** One per profile, made on first use (`OffscreenWindowFor`, `ArdiaHost.mm`): an
+  `ArdiaCoreWindow` that is `internal` (never ordered on screen, hidden from extensions, not in `ardia windows`) and
+  `automation`, 1280×800. The token policy treats a tab in an internal window as not a web target; the automation
+  window is the exception (`IsPrivilegedContents`), and only tabs the command created ever get into it.
+- **Going off-screen.** `set viewport` first asks the app, over the control socket, to take the session's tab there
+  (`offscreen` `{tab}`, `state/automation/offscreen.ts`). It is refused unless the tab is one a token connection
+  created (`ac_cli_owns_tab`), has never been in a shown slot (the shown-slot report, kept as this check), and isn't
+  shown, warm or being revealed now. The page's view lets go of the tab (`releasePageForOffscreen`), the window
+  adopts the same `WebContents` (`adoptTab:`, no reload), and the store drops the row with no closed-tab record
+  (`removeTabs(…, false)`): the tab has no sidebar row while it is off-screen. `ardia browse tab list` still lists it
+  for its session.
+- **The policy.** `Emulation.setDeviceMetricsOverride` and `clearDeviceMetricsOverride` are allowed only on a session
+  attached to a tab the command created that is in the automation window now and was never in a shown slot
+  (`CliEmulationRefusal`; otherwise `on a tab the ardia command didn't open` or `on a tab that isn't off-screen`),
+  with `width`, `height`, `deviceScaleFactor` and `mobile` only (`with that option`). A tab never leaves the
+  automation window: `canAdoptTab:` refuses to move one out.
+- **Showing it.** `tab <id> --show`, `open --show` and `set viewport reset` don't move the page back. The command
+  opens a new tab of its own at the same address in the user's window, in the background, waits for it to load,
+  closes the off-screen one, and only then shows the new one (not for `reset`). The output says the page was reloaded
+  in a new tab; form state, scroll position and `sessionStorage` are gone. The first frame a user's window gets is
+  from a page that never had an override.
+- **Ending.** `close` and `tab close` close the off-screen tab like any tab the session opened. A session keeps
+  every tab it took off-screen (`State.offscreen`), and the engine is the authority for the rest: on the token path
+  `Target.getTargets` and `Target.getTargetInfo` mark a target in an automation window `"ardiaOffscreen": true`, so
+  `--show`, `reset` and `set viewport` from a session that didn't move it (another session, or the same session's new
+  daemon) take the off-screen path too. Each tab the command created has an owner in the engine
+  (`ac_cli_owned_tabs.cc`): the token connection that created it, then whichever one last set its viewport
+  (`ClaimCliOwnedTarget`, on `setDeviceMetricsOverride` only). When a connection goes (the daemon died, Stop,
+  control turned off), every tab it owned is checked 5 s later and closed if it is still in an automation window and
+  no connection has claimed it since, whatever other connections are open (`ReleaseCliOwnedTargets`); each change
+  of owner bumps the tab's generation, so an older release's check does nothing and a later owner gets its own 5 s.
+  The `offscreen` lease keeps a daemon connected while any of its tabs is off-screen; `State.set_offscreen` derives
+  it from the set, so a reset of another tab or a close (the session's own or anyone's) can't leave it wrong. The app's sweep stays as a backstop for a tab
+  moved off-screen whose viewport was never set: 5 s after the last connection goes it closes every tab in the
+  automation windows (`noteCliConnections`, `cliCloseOffscreenTabs`). Off-screen tabs aren't in the store, so
+  `session.json` never has them, and Chrome's restore list never gets one either: `LiveTabSkipsRestore`
+  (`g_ardia_live_tab_skips_restore`, `ac_seams.mm`) answers yes for a tab in an automation window, so neither a
+  closed tab nor the window snapshot a quit takes (`TabRestoreService::BrowserClosing`) records it, and an
+  automation window with no other tab records no window. A crashed page stays off-screen with no row; `reload`
+  brings it back there.
+- `set device` still fails, before changing anything, on `Emulation.setTouchEmulationEnabled`. A session on a plain
+  `--port` server sets the override where the tab is, as before. Telemetry: `viewport_set` on the command event;
+  watch `error_code` `viewport_needs_hidden_tab` and `viewport_unsupported` on `set`.
 
 A refused `Target.attachToTarget` also says what Ardia's own tab list has for that page (`ardia windows`): the tab and
 its address, or that no tab holds it. The command used to print the off-the-list sentence for every refusal, which hid
@@ -1036,7 +1056,7 @@ from a checkout), `$geoip_disable`, `$process_person_profile: false` and `$sessi
   `snapshot`, `eval_ms` for `eval` or `action_ms` for the rest (the daemon's time less connect, attach and settle),
   `settle_ms` (the wait for the change report's network to settle, `changes.observe`), `snapshot_nodes` and
   `snapshot_chars`, `network_writes_count` and `unsettled` from the change report,
-  `output_chars` and `output_truncated`, `humanize`, `followed_redrawn_ref` (a stale ref followed its redrawn node), `attach_refused` (the policy refused the attach to a tab; watch it with `error_code` `policy_refused` on `read` and `open`, where it should stay at zero), `cell_edits` (grid cells `fill` edited through their editor; watch `error_code` `rejected` and `not_editable` on `fill`), `fill_picked_option` (`fill` picked a `<select>` option), `fill_inserted_text` (`fill` put the text in with one `Input.insertText`), `waited_for_enabled` (a `click`, `fill`, `select` or `check` target was disabled and was waited for; `error_code` `disabled` when it stayed so), `drag_side_given` (`drag --before`/`--after`) and `drag_list_position` (the drag answer named the new place in a list), `script_eval_alias` (a script called `page.eval`), `script_page_world_hint` (a script's error got the page-world hint), `read_scrolled` with `read_rows` (a `read --scroll` and the rows it read) and `read_matched` (it had `--match`), `read_pages` (the pages a multi-page `read` read; watch `output_truncated` on those), `read_tabs_reopened` (reading tabs Ardia detached mid-read that were opened again; watch it with `error_code` `tab_detached`, which should stay near zero), `read_virtualized_grid` (a read printed the virtualized-grid note), `change_text` with `change_text_chars` (a change report carried `text:` lines, and their length), `change_run_choices` (a mixed run listed its enabled members), `open_report` (`open` printed a change report), `open_moved_tab` (`open` moved the session off the user's tab to its own and named the way back), `snapshot_disabled_folded` (`snapshot -i` folded disabled members into a count), `names_clipped` (a name was cut at 100 characters), `daemon_answer_timed_out` (the client gave up waiting for the
+  `output_chars` and `output_truncated`, `humanize`, `followed_redrawn_ref` (a stale ref followed its redrawn node), `attach_refused` (the policy refused the attach to a tab; watch it with `error_code` `policy_refused` on `read` and `open`, where it should stay at zero), `cell_edits` (grid cells `fill` edited through their editor; watch `error_code` `rejected` and `not_editable` on `fill`), `fill_picked_option` (`fill` picked a `<select>` option), `fill_inserted_text` (`fill` put the text in with one `Input.insertText`), `waited_for_enabled` (a `click`, `fill`, `select` or `check` target was disabled and was waited for; `error_code` `disabled` when it stayed so), `drag_side_given` (`drag --before`/`--after`) and `drag_list_position` (the drag answer named the new place in a list), `select_opened_list` (`select` picked from the one list that opened when it opened a field with no linked list; watch `error_code` `no_fresh_suggestions` on `select`, which it should lower), `press_targeted` (`press <sel> <key>` focused the element first), `waited_for_reaction` (after typing into a search or filter field, the next command that targets something else waited, best effort, at least 0.6 s from the last keystroke for the page to redraw and go quiet, longer while anything is `aria-busy`, counting only the results the field `aria-controls` when it names them, up to 1.5 s; key presses without a target, `tab`, `notes`, `frame` and `get url`/`title` don't wait, and `--no-changes` keeps the wait; watch `error_code` `target_replaced` and `input_not_delivered` on `fill`, which it should keep low), `selector_nth` (a selector ended in `>> nth=N`), `script_eval_alias` (a script called `page.eval`), `script_page_world_hint` (a script's error got the page-world hint), `read_scrolled` with `read_rows` (a `read --scroll` and the rows it read) and `read_matched` (it had `--match`), `read_pages` (the pages a multi-page `read` read; watch `output_truncated` on those), `read_tabs_reopened` (reading tabs Ardia detached mid-read that were opened again; watch it with `error_code` `tab_detached`, which should stay near zero), `read_virtualized_grid` (a read printed the virtualized-grid note), `change_text` with `change_text_chars` (a change report carried `text:` lines, and their length), `change_run_choices` (a mixed run listed its enabled members), `open_report` (`open` printed a change report), `open_moved_tab` (`open` moved the session off the user's tab to its own and named the way back), `snapshot_disabled_folded` (`snapshot -i` folded disabled members into a count), `names_clipped` (a name was cut at 100 characters), `daemon_answer_timed_out` (the client gave up waiting for the
   daemon's answer: the queue wait plus the command's own limit plus 30 s, `browse/limits.py`), `batch_steps` (also the operations an `ardia apply`, `tabs …`
   or `groups …` call sent), and `cdp_calls` with `cdp_ms_total` (the
   command's own DevTools calls, counted in `connection.py`). The daemon returns its share as `metrics` in its answer

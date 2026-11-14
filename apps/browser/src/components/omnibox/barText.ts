@@ -22,17 +22,17 @@ export type BarEvent =
   | { kind: "completionDropped" }
   | { kind: "enteredScope"; scope: SearchScope; from: string }
   | { kind: "leftScope"; restore: string | null }
-  | { kind: "reset"; selected: number }
+  | { kind: "reset" }
   | { kind: "selected"; index: number }
   | { kind: "select"; selection: Selection }
   | { kind: "selectionApplied" };
 
-export function initialBar(restored: BarSnapshot | null, initialText: string, noneSelected: number): BarText {
+export function initialBar(restored: BarSnapshot | null, initialText: string): BarText {
   return {
     typed: restored?.typed ?? initialText,
     edited: restored?.edited ?? false,
     suppressCompletion: true,
-    selected: restored?.selected ?? noneSelected,
+    selected: restored?.selected ?? 0,
     scope: restored?.scope ?? null,
     scopeFrom: restored?.scopeFrom ?? "",
     pendingSelection: restored?.selection ?? (initialText ? { start: 0, end: initialText.length } : null),
@@ -67,7 +67,7 @@ export function barReducer(s: BarText, e: BarEvent): BarText {
       if (e.restore === null) return { ...s, scope: null, selected: 0, suppressCompletion: true };
       return { ...s, scope: null, typed: e.restore, edited: true, pendingSelection: caret(e.restore.length), selected: 0, suppressCompletion: true };
     case "reset":
-      return { ...s, typed: "", edited: false, scope: null, selected: e.selected, suppressCompletion: true };
+      return { ...s, typed: "", edited: false, scope: null, selected: 0, suppressCompletion: true };
     case "selected":
       return { ...s, selected: e.index };
     case "select":

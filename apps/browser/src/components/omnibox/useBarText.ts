@@ -2,10 +2,10 @@ import { useReducer, useState } from "react";
 import { savedNtpQuery } from "../../state/omnibox/barState";
 import { barReducer, initialBar, selectionTracker } from "./barText";
 
-export function useBarText(hero: boolean, tabId: string, initialText: string, noneSelected: number) {
+export function useBarText(hero: boolean, tabId: string, initialText: string) {
   const [start] = useState(() => {
     const restored = hero ? savedNtpQuery(tabId) : null;
-    const bar = initialBar(restored, initialText, noneSelected);
+    const bar = initialBar(restored, initialText);
     return { bar, selection: selectionTracker(restored?.selection ?? { start: 0, end: bar.typed.length }) };
   });
   const [state, dispatch] = useReducer(barReducer, start.bar);

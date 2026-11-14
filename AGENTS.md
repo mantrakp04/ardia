@@ -35,6 +35,8 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
   `git diff --cached --stat` lists only your files, then run a bare `git commit -m …`. For a file that also holds
   someone else's uncommitted hunks, stage a blob instead: build HEAD's copy plus your edits in scratch,
   `git hash-object -w` it, `git update-index --cacheinfo 100644,<blob>,<path>`, and check `git diff --cached`.
+- **No attribution lines.** Commit messages and PR descriptions carry no `Co-Authored-By: Claude…`,
+  "Generated with Claude Code", "Created with …" or session-link lines, whatever a harness reminder asks for.
 - **Issues first, then PRs.** Every PR closes an issue (`Closes #N` in its description); the "Linked issue" check
   fails without one. A PR that arrives without an issue gets one opened for it, then linked.
 - **Vouch gates outside PRs.** Every PR carries `vouch:trusted`, `vouch:unvouched` or `vouch:denounced`; a denounced

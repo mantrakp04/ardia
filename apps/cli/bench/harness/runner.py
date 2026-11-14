@@ -16,7 +16,7 @@ import opencode_side
 import registry
 import servers
 import summary
-from procs import read_json, sh, write_json
+from procs import kill_agents, read_json, sh, write_json
 from scheduler import LANE_PORT_STRIDE, Scheduler
 
 
@@ -452,5 +452,9 @@ def execute(plan_path, results_dir=None, dry_run=False, max_lanes=None):
     if any(c["kind"] == "aside" for c in plan["contenders"]) or pinned:
         for tid in registry.task_ids(plan.get("tasks", "all")):
             servers.start(registry.task(tid))
-    Executor(plan, results_dir, max_lanes, pinned).run()
+    try:
+        Executor(plan, results_dir, max_lanes, pinned).run()
+    except BaseException:
+        kill_agents()
+        raise
     return results_dir

@@ -385,11 +385,16 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     if refreshControl.isRefreshing { refreshControl.endRefreshing() }
   }
 
+  override func safeAreaInsetsDidChange() {
+    super.safeAreaInsetsDidChange()
+    applyInsets()
+  }
+
   private func applyInsets() {
-    guard let scrollView = webView?.scrollView else { return }
-    if scrollView.contentInset.bottom != bottomInset {
-      scrollView.contentInset.bottom = bottomInset
-      scrollView.verticalScrollIndicatorInsets.bottom = bottomInset
+    guard let webView else { return }
+    let insets = UIEdgeInsets(top: safeAreaInsets.top, left: 0, bottom: max(bottomInset, 0), right: 0)
+    if webView.obscuredContentInsets != insets {
+      webView.obscuredContentInsets = insets
     }
   }
 

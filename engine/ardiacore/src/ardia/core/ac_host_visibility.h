@@ -5,7 +5,7 @@
 
 #include <optional>
 
-#include "base/functional/callback.h"
+class BrowserWindowInterface;
 
 namespace content {
 class WebContents;
@@ -17,14 +17,13 @@ void NoteTabShownByHost(content::WebContents* contents, bool shown);
 
 std::optional<bool> ShownByHost(content::WebContents* contents);
 
-bool NoteTabInShownSlot(content::WebContents* contents);
+void NoteTabInShownSlot(content::WebContents* contents);
 
 bool TabWasInShownSlot(content::WebContents* contents);
 
-void WhenTabSizeRestored(content::WebContents* contents,
-                         base::OnceClosure restored);
+bool IsAutomationWindow(const BrowserWindowInterface* browser);
 
-void WatchTabsInShownSlot(bool (*resized)(content::WebContents*));
+bool InAutomationWindow(content::WebContents* contents);
 
 void StartHostVisibility();
 

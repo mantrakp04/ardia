@@ -229,10 +229,10 @@ BOOL Above(NSView *a, NSView *b) {
   }
   [CATransaction commit];
   if (TraceVisibility())
-    NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d alpha=%d reveal=%d awaiting=%d restoring=%d",
+    NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d alpha=%d reveal=%d awaiting=%d",
           _transferKey, _visible, _warm, _tab ? (int)_tab.tabId : -1, _tab.view.superview == self ? @"here" : @"elsewhere",
           (long)self.window.windowNumber, _tab.view.isHiddenOrHasHiddenAncestor, (int)self.alphaValue, _reveal.active,
-          _frameHold.awaiting, _frameHold.restoring);
+          _frameHold.awaiting);
 }
 
 + (void)noteShown:(ArdiaCoreTab *)tab {
@@ -340,20 +340,7 @@ BOOL Above(NSView *a, NSView *b) {
 }
 
 - (void)exposePage {
-  if (!_tab || !self.window || _tab.view.superview != self) return;
-  if (![_tab noteInShownSlot] || _frameHold.restoring) return;
-  [self finishFrameHold];
-  _frameHold.awaiting = YES;
-  _frameHold.restoring = YES;
-  _frameHold.tookOverFrom = nil;
-  const NSUInteger generation = ++_frameHold.generation;
-  [AwaitingFrames() addObject:self];
-  if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ waits for a frame at its own size", _transferKey);
-  __weak ArdiaWebView *weakSelf = self;
-  [_tab whenSizeRestored:^{
-    ArdiaWebView *view = weakSelf;
-    if (view && view->_frameHold.restoring && view->_frameHold.generation == generation) [view frameShown:YES];
-  }];
+  if (_tab && self.window && _tab.view.superview == self) [_tab noteInShownSlot];
 }
 
 - (void)beginFrameHoldIfCold {
@@ -403,7 +390,6 @@ BOOL Above(NSView *a, NSView *b) {
       [AwaitingFrames() removeObject:view];
       continue;
     }
-    if (view->_frameHold.restoring) continue;
     NSView *widget = RenderWidgetIn(view->_tab.view);
     if (!widget || ![FrameMarkOf(widget) isEqualToArray:view->_frameHold.mark]) [view frameShown:YES];
   }
@@ -422,7 +408,6 @@ BOOL Above(NSView *a, NSView *b) {
   [self dropStandIn];
   if (!_frameHold.awaiting) return;
   _frameHold.awaiting = NO;
-  _frameHold.restoring = NO;
   _frameHold.mark = nil;
   _frameHold.generation++;
   [AwaitingFrames() removeObject:self];

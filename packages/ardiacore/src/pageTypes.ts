@@ -51,6 +51,7 @@ export type OpenWindowRequest = {
   point?: { x: number; y: number };
   site?: boolean;
   fromClick?: boolean;
+  linkWait?: "matched" | "skipped" | "timedOut";
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };
