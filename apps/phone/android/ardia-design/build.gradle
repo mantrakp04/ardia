@@ -1,0 +1,35 @@
+apply plugin: "com.android.library"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "org.jetbrains.kotlin.plugin.compose"
+
+def design = new File(rootDir, "../../android/design/src/main")
+def designInThisModule = ['ProfileLook.kt', 'Monogram.kt', 'Colors.kt']
+
+android {
+    namespace 'com.ardia.design'
+    compileSdk rootProject.ext.compileSdkVersion
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdkVersion
+    }
+    sourceSets {
+        main {
+            manifest.srcFile "src/main/AndroidManifest.xml"
+            java.srcDirs = ["${design}/kotlin"]
+            res.srcDirs = ["${design}/res"]
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    exclude { element -> !element.directory && !(element.name in designInThisModule) }
+}
+
+dependencies {
+    implementation "androidx.annotation:annotation:1.9.1"
+    api "androidx.compose.runtime:runtime:1.7.8"
+    api "androidx.compose.ui:ui-graphics:1.7.8"
+}

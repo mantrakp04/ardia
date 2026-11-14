@@ -1,5 +1,6 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "org.jetbrains.kotlin.plugin.compose"
 apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
@@ -23,6 +24,12 @@ if (ardiaLab != (System.getenv('EXPO_PUBLIC_ARDIA_LAB') == 'true')) {
 }
 tasks.matching { it.name.startsWith('createBundle') && it.name.endsWith('JsAndAssets') }.configureEach { inputs.property('ardiaLab', ardiaLab) }
 
+def composeApp = "${projectRoot}/../android/app/src/main"
+def composeSystemInThisApp = ['ArdiaWidgets.kt', 'SystemSnapshot.kt', 'SystemSnapshots.kt', 'SearchTileService.kt']
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    exclude { element -> !element.directory && element.file.canonicalPath.startsWith(new File("${composeApp}/kotlin").canonicalPath) && !(element.name in composeSystemInThisApp) }
+}
+
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 
 android {
@@ -31,6 +38,8 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace 'com.ardia.browser.android'
+    sourceSets.main.res.srcDirs += "${composeApp}/res-system"
+    sourceSets.main.java.srcDirs += "${composeApp}/kotlin"
     defaultConfig {
         applicationId 'com.ardia.browser.android'
         minSdkVersion rootProject.ext.minSdkVersion
@@ -72,4 +81,6 @@ android {
 dependencies {
     implementation("com.facebook.react:react-android")
     implementation("com.facebook.react:hermes-android")
+    implementation(project(":ardia-design"))
+    implementation("androidx.glance:glance-appwidget:1.2.0")
 }

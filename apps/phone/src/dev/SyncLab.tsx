@@ -44,6 +44,12 @@ export function SyncLab({ note }: { note: (line: string) => void }) {
   const [incoming, setIncoming] = useState<ReceivedTab[]>([]);
   const [inbox, setInbox] = useState<PhoneInbox[]>([]);
   const check = phrase.trim() ? sync.check(phrase) : null;
+  const [, setClock] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClock((tick) => tick + 1), 5_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const run = useCallback(
     (label: string, work: () => Promise<unknown>) => {

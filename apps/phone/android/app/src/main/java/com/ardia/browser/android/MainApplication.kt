@@ -44,6 +44,7 @@ class MainApplication : Application(), ReactApplication, SyncControllerOwner {
         }.getOrDefault(ReleaseLevel.STABLE)
         loadReactNative(this)
         ApplicationLifecycleDispatcher.onApplicationCreate(this)
+        SystemExport.start(this)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

@@ -5,6 +5,9 @@ import com.ardia.sync.LocalBrowsingSource
 import com.ardia.sync.SyncController
 import com.ardia.sync.SyncFiles
 import java.io.File
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 object PhoneSync {
     const val DEMO_EXTRA = "com.ardia.phone.SYNC_DEMO"
@@ -17,6 +20,14 @@ object PhoneSync {
 
     @Volatile
     private var made: SyncController? = null
+        set(value) {
+            field = value
+            mutableControllers.value = value
+        }
+
+    private val mutableControllers = MutableStateFlow<SyncController?>(null)
+
+    val controllers: StateFlow<SyncController?> = mutableControllers.asStateFlow()
 
     @Volatile
     private var madeInbox: PhoneInbox? = null

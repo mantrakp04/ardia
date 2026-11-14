@@ -32,4 +32,5 @@ rootProject.name = 'ArdiaPhone'
 expoAutolinking.useExpoVersionCatalog()
 
 include ':app'
+include ':ardia-design'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)

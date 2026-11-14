@@ -16,6 +16,8 @@ def syncBundle = file("${repository}/apps/ios/Packages/ArdiaKit/Sources/ArdiaSha
 def syncFixtures = file("${repository}/packages/sync/tests/fixtures")
 def phoneSchema = file("${repository}/apps/phone/src/state/store/schema.ts")
 def pageEngineOutsideThisModule = ['**/Omnibox.kt', '**/PageSurface.kt']
+def appModel = file("${androidApp}/appmodel/src/main/kotlin")
+def appModelInThisModule = ['SystemLink.kt', 'SystemActions.kt']
 def kotlinVersion = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt.getKotlinPluginVersion(project)
 def architectures = (findProperty('reactNativeArchitectures') ?: 'arm64-v8a,x86_64').split(',').collect { it.trim() }
 def reactNative = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).parentFile
@@ -155,7 +157,7 @@ android {
   }
   sourceSets {
     main {
-      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin"]
+      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin", appModel]
       assets.srcDirs += "${pageEngine}/assets"
       res.srcDirs += "${pageEngine}/res"
       resources.srcDirs += "${contentBlocking}/resources"
@@ -185,6 +187,7 @@ android {
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
   exclude(pageEngineOutsideThisModule)
+  exclude { element -> !element.directory && element.file.toPath().startsWith(appModel.toPath()) && !(element.name in appModelInThisModule) }
 }
 
 dependencies {
@@ -202,4 +205,5 @@ dependencies {
   testImplementation "junit:junit:4.13.2"
   testImplementation "org.json:json:20240303"
   testImplementation "org.xerial:sqlite-jdbc:3.41.2.2"
+  testImplementation "org.robolectric:robolectric:4.17"
 }
