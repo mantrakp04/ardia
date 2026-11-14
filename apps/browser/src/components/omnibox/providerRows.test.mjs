@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mount } from "../../test-hooks.mjs";
 
 globalThis.__DEV__ = false;
-const { providerApprovalKey } = await import("@ardia/core");
+const { providerApprovalKey, suggestionKey } = await import("@ardia/core");
 const { useBrowser } = await import("../../state/browser/store.ts");
 const { useSuggestions } = await import("./useSuggestions.ts");
 const { keywordScope, offeredScope } = await import("../../state/omnibox/scopes.ts");
@@ -88,7 +88,7 @@ test("a program provider is off in a private window and its keyword never shadow
 test("late rows never move the selection off the row it was on", () => {
   const row = (url) => ({ kind: "page", url, title: url, favicon: null });
   const before = [row("https://a/"), row("https://b/"), row("https://c/")];
-  const prev = { items: before, typed: "x", scope: null, key: "page:https://c" };
+  const prev = { items: before, typed: "x", scope: null, key: suggestionKey(before[2]) };
   const after = [before[0], before[1], { kind: "provider", providerId: "p", provider: "P", title: "late", url: "https://late/", icon: null }, before[2]];
   assert.equal(heldIndex(prev, after, "x", null, 2), 3);
   assert.equal(heldIndex(prev, after, "xy", null, 0), 0, "typing starts over");

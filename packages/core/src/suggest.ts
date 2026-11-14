@@ -1,17 +1,17 @@
 import { findBang, type BangMatch } from "./bangs.ts";
 import { calculate } from "./calculator.ts";
-import { NO_BOOKMARKS, poolFor, tabsOver, type Candidate } from "./candidatePool.ts";
+import { NO_BOOKMARKS, poolFor, savedBookmark, savedVisit, tabsOver, type Candidate } from "./candidatePool.ts";
 import { extensionSuggestions } from "./extensionRows.ts";
 import { BUILT_IN_ENGINES, searchUrl } from "./engines.ts";
 import { matchActions } from "./fuzzy.ts";
 import { fixupUrl, hostOf, searchUrlFor } from "./omnibox.ts";
 import { matchScore, matchScoreWord, narrowing, parseQuery, remember, TopList, type Ranked } from "./pageMatch.ts";
-import { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, type PageText } from "./pageText.ts";
+import { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, type PageText, withRootSlash } from "./pageText.ts";
 import { globalProviderRows, providerUrl, safeProviderRows, type ProviderSection, type ProviderSuggestion } from "./providerRows.ts";
 import { matchQuickCreate } from "./quickCreate.ts";
 import { scopedSearchUrl, type SearchScope } from "./siteSearch.ts";
 import type { SuggestionResult, SuggestionSource, SuggestOptions, Suggestion } from "./suggestion.ts";
-import { actionRow, createRow, dedupeSuggestions, Output, pageSuggestion } from "./suggestionRows.ts";
+import { actionRow, createRow, dedupeSuggestions, Output, pageSuggestion, type PageRow } from "./suggestionRows.ts";
 
 export type { CommandAction, Suggestion, SuggestionResult, SuggestionSource, SuggestOptions } from "./suggestion.ts";
 export { displayUrl } from "./pageText.ts";
@@ -47,7 +47,14 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const known = (url: string) => {
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
-    return c && pageSuggestion(c, null);
+    if (!c) return undefined;
+    const opened = withRootSlash(url);
+    if (withRootSlash(c.url) === opened) return pageSuggestion(c, null);
+    const visit = savedVisit(source.history, opened);
+    const bookmark = savedBookmark(source.bookmarks ?? NO_BOOKMARKS, opened);
+    const lent = visit ?? bookmark ?? c;
+    const row: PageRow = { url: visit?.url ?? opened, title: lent.title, favicon: lent.favicon, visits: visit?.visits ?? 0, bookmarked: bookmark !== undefined };
+    return pageSuggestion(row, null);
   };
 
   const websiteFirst = preference === "website";

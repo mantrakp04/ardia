@@ -54,6 +54,7 @@ export function displayUrl(url: string): string {
 
 const DAY = 86_400_000;
 const pageKey = (url: string) => url.replace(/#.*$/, "").replace(/\/$/, "");
+const withRootSlash = (url: string) => url.replace(/^(https?:\/\/[^/?#]*)(?=[?#]|$)/i, "$1/");
 
 type HistoryRow = SuggestionSource["history"][number];
 type BookmarkRow = NonNullable<SuggestionSource["bookmarks"]>[number];
@@ -291,7 +292,7 @@ class TopList {
   }
 }
 
-const pageSuggestion = (c: Candidate, tabId: string | null | undefined = c.tabId): Suggestion => ({
+const pageSuggestion = (c: Pick<Candidate, "url" | "title" | "favicon" | "visits" | "bookmarked" | "tabId">, tabId: string | null | undefined = c.tabId): Suggestion => ({
   kind: "page",
   url: c.url,
   title: c.title,
@@ -304,7 +305,7 @@ const pageSuggestion = (c: Candidate, tabId: string | null | undefined = c.tabId
 export function suggestionKey(s: Suggestion): string {
   switch (s.kind) {
     case "page":
-      return `${s.tabId ? "tab" : "page"}:${pageKey(s.url)}`;
+      return s.tabId ? `tab:${pageKey(s.url)}` : `page:${withRootSlash(s.url)}`;
     case "search":
       return `search:${s.url}`;
     case "calc":
@@ -342,7 +343,14 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const known = (url: string) => {
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
-    return c && pageSuggestion(c, null);
+    if (!c) return undefined;
+    const opened = withRootSlash(url);
+    const isOpened = (saved: Pick<Candidate, "url">) => withRootSlash(saved.url) === opened;
+    if (isOpened(c)) return pageSuggestion(c, null);
+    const visit = source.history.find(isOpened);
+    const bookmark = source.bookmarks?.find(isOpened);
+    const lent = visit ?? bookmark ?? c;
+    return pageSuggestion({ url: visit?.url ?? opened, title: lent.title, favicon: lent.favicon, visits: visit?.visits ?? 0, bookmarked: bookmark !== undefined }, null);
   };
 
   const websiteFirst = preference === "website";

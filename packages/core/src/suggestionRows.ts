@@ -1,8 +1,10 @@
 import type { Candidate } from "./candidatePool.ts";
-import { pageKey } from "./pageText.ts";
+import { pageKey, withRootSlash } from "./pageText.ts";
 import type { CommandAction, Suggestion } from "./suggestion.ts";
 
-export const pageSuggestion = (c: Candidate, tabId: string | null | undefined = c.tabId): Suggestion => ({
+export type PageRow = Pick<Candidate, "url" | "title" | "favicon" | "visits" | "bookmarked" | "tabId">;
+
+export const pageSuggestion = (c: PageRow, tabId: string | null | undefined = c.tabId): Suggestion => ({
   kind: "page",
   url: c.url,
   title: c.title,
@@ -15,7 +17,7 @@ export const pageSuggestion = (c: Candidate, tabId: string | null | undefined = 
 export function suggestionKey(s: Suggestion): string {
   switch (s.kind) {
     case "page":
-      return `${s.tabId ? "tab" : "page"}:${pageKey(s.url)}`;
+      return s.tabId ? `tab:${pageKey(s.url)}` : `page:${withRootSlash(s.url)}`;
     case "search":
       return `search:${s.url}`;
     case "calc":
