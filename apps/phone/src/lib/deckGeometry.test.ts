@@ -4,6 +4,7 @@ import {
   deckBarCenterFromBottom,
   deckCardAt,
   deckDragKind,
+  deckIsTap,
   deckGeometry,
   deckLeading,
   deckLift,
@@ -103,4 +104,9 @@ test("closing the cards at the right end leaves the deck at rest, the last card 
   assert.equal(scrollAfterClosing(4, 4, 4, true), 2);
   assert.equal(scrollAfterClosing(1, 3, 4, false), 2);
   assert.equal(scrollAfterClosing(0, 0, 1, true), 0);
+});
+
+test("a touch that moves less than the slop is a tap on the card under it", () => {
+  assert.equal(deckIsTap(3, -4), true);
+  assert.equal(deckIsTap(8, 7), false);
 });

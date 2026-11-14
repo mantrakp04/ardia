@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   deckCardAt,
   deckGeometry,
+  deckIsTap,
   deckDragKind,
   deckLift,
   deckScrollDuringDrag,
@@ -148,6 +149,7 @@ export function TabDeck() {
   const startScroll = useSharedValue(0);
   const vertical = useSharedValue(false);
   const touchDown = useSharedValue({ x: 0, y: 0, absoluteX: 0, absoluteY: 0 });
+  const scrollFrom = useSharedValue(0);
   const pan = Gesture.Pan()
     .minDistance(10)
     .onBegin((e) => {
@@ -157,6 +159,7 @@ export function TabDeck() {
       const down = touchDown.value;
       const card = deckCardAt(g, count, scroll.value, down.x, down.y);
       startScroll.value = scroll.value;
+      scrollFrom.value = e.absoluteX;
       if (deckDragKind(card, e.absoluteX - down.absoluteX, e.absoluteY - down.absoluteY) === "lift") {
         vertical.value = true;
         dragIndex.value = card;
@@ -171,7 +174,7 @@ export function TabDeck() {
         dragLift.value = deckLift(e.absoluteY - down.absoluteY);
         return;
       }
-      scroll.value = deckScrollDuringDrag(g, startScroll.value, e.absoluteX - down.absoluteX, count);
+      scroll.value = deckScrollDuringDrag(g, startScroll.value, e.absoluteX - scrollFrom.value, count);
     })
     .onEnd((e) => {
       if (vertical.value) {
@@ -200,11 +203,20 @@ export function TabDeck() {
       const card = deckCardAt(g, count, scroll.value, e.x, e.y);
       if (card >= 0) runOnJS(showCardMenu)(card, e.x, e.y);
     });
-  const tap = Gesture.Tap().onEnd((e, success) => {
-    if (!success) return;
-    const card = deckCardAt(g, count, scroll.value, e.x, e.y);
-    if (card >= 0) runOnJS(open)(card);
-  });
+  const tapFrom = useSharedValue({ x: 0, y: 0 });
+  const tap = Gesture.Manual()
+    .onTouchesDown((e) => {
+      const touch = e.allTouches[0];
+      if (touch) tapFrom.value = { x: touch.x, y: touch.y };
+    })
+    .onTouchesUp((e, manager) => {
+      const touch = e.changedTouches[0];
+      if (touch && deckIsTap(touch.x - tapFrom.value.x, touch.y - tapFrom.value.y)) {
+        const card = deckCardAt(g, count, scroll.value, touch.x, touch.y);
+        if (card >= 0) runOnJS(open)(card);
+      }
+      manager.fail();
+    });
 
   const cardMenuItems = (index: number): MenuItem[] => {
     const tab = tabs.get(order[index] ?? "");

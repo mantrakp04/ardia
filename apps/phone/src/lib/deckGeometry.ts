@@ -153,6 +153,13 @@ export function titleReveal(width: number): number {
 
 export type DeckDrag = "lift" | "scroll";
 
+export const DECK_TAP_SLOP = 10;
+
+export function deckIsTap(dx: number, dy: number): boolean {
+  "worklet";
+  return Math.hypot(dx, dy) < DECK_TAP_SLOP;
+}
+
 export function deckDragKind(card: number, dx: number, dy: number): DeckDrag {
   "worklet";
   return card >= 0 && Math.abs(dy) > Math.abs(dx) && dy < 0 ? "lift" : "scroll";
