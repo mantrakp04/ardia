@@ -110,3 +110,19 @@ test("a touch that moves less than the slop is a tap on the card under it", () =
   assert.equal(deckIsTap(3, -4), true);
   assert.equal(deckIsTap(8, 7), false);
 });
+
+test("each card's accessibility frame is the strip of it that shows, so activating it at its centre opens that card", () => {
+  const phone = deckGeometry(402, 874, 62, 34);
+  const y = phone.cardCenterY;
+  for (const scroll of [0, 1, 1.4, 2, 3]) {
+    for (let index = 0; index < 4; index++) {
+      const relative = index - scroll;
+      const width = deckVisibleWidth(phone, relative, index === 3);
+      if (width < 1) continue;
+      const centre = deckLeading(phone, relative) + width / 2;
+      assert.equal(deckCardAt(phone, 4, scroll, centre, y), index, `card ${index} at scroll ${scroll}`);
+    }
+  }
+  const covered = deckLeading(phone, 0 - 1) + phone.cardWidth / 2;
+  assert.notEqual(deckCardAt(phone, 4, 1, covered, y), 0, "the whole card's centre lands on the card over it");
+});

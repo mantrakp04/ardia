@@ -100,6 +100,16 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
     const top = p.y - (g.cardHeight * p.scale) / 2 - tabsLayout.headerGap - tabsLayout.headerHeight;
     return { opacity: p.header, width: p.visible, transform: [{ translateX: p.x - (g.cardWidth * p.scale) / 2 }, { translateY: top }] };
   }, [g, role, index, isLast]);
+  const reachStyle = useAnimatedStyle(() => {
+    const flying = flyIndex.value === index;
+    const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
+    const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : 0, isLast);
+    return {
+      width: Math.max(1, p.visible * p.scale),
+      height: g.cardHeight * p.scale,
+      transform: [{ translateX: p.x - (g.cardWidth * p.scale) / 2 }, { translateY: p.y - (g.cardHeight * p.scale) / 2 }],
+    };
+  }, [g, role, index, isLast]);
   const titleStyle = useAnimatedStyle(() => {
     const visible = deckVisibleWidth(g, index + slot.value - scroll.value, isLast);
     return { opacity: titleReveal(visible), maxWidth: Math.max(0, visible - tabsLayout.faviconSize - tabsLayout.headerSpacing) };
@@ -111,13 +121,8 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
   return (
     <>
       <Animated.View
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel={title}
-        accessibilityValue={{ text: tab.isPrivate ? `Incognito, ${host}` : host }}
-        accessibilityHint="Opens the tab."
-        accessibilityActions={[{ name: "activate" }, { name: "close", label: "Close Tab" }]}
-        onAccessibilityAction={(event) => (event.nativeEvent.actionName === "close" ? onClose(index) : onOpen(index))}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
         style={[
           styles.card,
           { width: g.cardWidth, height: g.cardHeight, zIndex: z, borderColor: theme.cardEdge, shadowColor: tabsInk.cardShadow },
@@ -126,6 +131,17 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
       >
         <TabFace tab={tab} title={title} host={host} tone={tone?.top ?? null} roles={theme} />
       </Animated.View>
+      <Animated.View
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityValue={{ text: tab.isPrivate ? `Incognito, ${host}` : host }}
+        accessibilityHint="Opens the tab."
+        accessibilityActions={[{ name: "activate" }, { name: "close", label: "Close Tab" }]}
+        onAccessibilityAction={(event) => (event.nativeEvent.actionName === "close" ? onClose(index) : onOpen(index))}
+        pointerEvents="none"
+        style={[styles.reach, { zIndex: z + 1 }, reachStyle]}
+      />
       <Animated.View style={[styles.header, { zIndex: z + 1 }, headerStyle]} pointerEvents="none">
         <View style={styles.headerRow}>
           {tab.isPrivate ? (
@@ -146,6 +162,7 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
 
 const styles = StyleSheet.create({
   card: { position: "absolute", left: 0, top: 0, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, elevation: 6 },
+  reach: { position: "absolute", left: 0, top: 0 },
   header: { position: "absolute", left: 0, top: 0, height: tabsLayout.headerHeight, overflow: "hidden" },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: tabsLayout.headerSpacing, height: tabsLayout.headerHeight },
   title: { fontWeight: "500", flexShrink: 1 },
