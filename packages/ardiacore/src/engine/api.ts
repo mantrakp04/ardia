@@ -202,6 +202,7 @@ export type EngineEvents = {
   "engine.systemState": SystemState;
   "engine.cliControl": CliControlStatus;
   "engine.hoverLost": HoverLostEpisode;
+  "engine.devToolsKeyKept": Record<string, never>;
   "tabs.strips": TabStripTransaction;
   "downloads.changed": Download;
   "permissions.requested": PermissionRequest;

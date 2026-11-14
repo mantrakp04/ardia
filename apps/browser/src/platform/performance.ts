@@ -7,6 +7,7 @@ export const listTasks = () => call("engine.tasks");
 export const systemState = () => call("engine.systemState");
 export const onSystemState = (listener: (state: SystemState) => void) => on("engine.systemState", listener);
 export const onHoverLost = (listener: (episode: HoverLostEpisode) => void) => on("engine.hoverLost", listener);
+export const onDevToolsKeyKept = (listener: () => void) => on("engine.devToolsKeyKept", listener);
 export const setBatterySaver = (mode: BatterySaverMode) => call("engine.batterySaver", { mode });
 export const setMemorySaver = (request: MemorySaverRequest) => call("engine.memorySaver", request);
 export const isKeepActiveSiteValid = (site: string) => call("engine.validateKeepActiveSite", { site }).then((reply) => reply.valid);
