@@ -413,6 +413,31 @@ const withEngine: Check[] = [
     },
   },
   {
+    name: "engine: the engine keeps only a page's newest asks to open another app, and forgets one the app dropped",
+    async run() {
+      const ids: string[] = [];
+      const watching = onEngineTopic("tab", (event: { key?: unknown; name?: unknown; data?: { id?: unknown } }) => {
+        if (event.key === PAGE_KEY && event.name === "externalApp" && typeof event.data?.id === "string") ids.push(event.data.id);
+      });
+      try {
+        for (let n = 0; n < 12; n++) {
+          await hostCall("tab.call", { key: PAGE_KEY, method: "loadUrl", url: `ardia-self-check-link:ask-${n}`, userInitiated: true });
+          const by = Date.now() + 5000;
+          while (ids.length <= n && Date.now() < by) await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+      } finally {
+        watching.remove();
+      }
+      expectEqual(ids.length, 12, "externalApp asks from 12 typed links");
+      const alive = async (id: string) => (await hostCall<{ alive?: unknown }>("tab.call", { key: PAGE_KEY, method: "externalAppAlive", id })).alive;
+      expectEqual(await alive(ids[0]!), false, "the oldest of 12 asks nobody answered");
+      const newest = ids[11]!;
+      const dropped = ids[10]!;
+      await hostCall("tab.call", { key: PAGE_KEY, method: "externalAppForget", id: dropped });
+      expectEqual({ dropped: await alive(dropped), newest: await alive(newest) }, { dropped: false, newest: true }, "an ask the app dropped, and the newest ask");
+    },
+  },
+  {
     name: "engine: the tab closes",
     async run() {
       await hostCall("tab.close", { key: PAGE_KEY });
