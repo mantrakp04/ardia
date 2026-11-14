@@ -6,6 +6,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property(class, nonatomic, readonly) CGFloat windowCornerRadius;
 
++ (CGFloat)frameCornerRadiusOfWindow:(NSWindow *)window;
+
 + (nullable NSWindow *)makeWindowForProfile:(NSString *)profile;
 + (nullable NSWindow *)makeWindowForProfile:(NSString *)profile chromeWindow:(nullable NSString *)chromeWindow;
 + (nullable NSWindow *)makeWindowForProfile:(NSString *)profile

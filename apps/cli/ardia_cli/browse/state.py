@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from dataclasses import dataclass
 
@@ -9,8 +10,11 @@ from ardia_cli.browse.errors import BrowseError, ConnectionLost, StaleRef
 from ardia_cli.browse.page import Page
 from ardia_cli.browse.tabs import Registry
 
+NTH_SUFFIX = re.compile(r">>\s*nth=-?\d+\s*$")
+
 PAGE_SCHEMES = ("http:", "https:", "about:", "data:", "blob:", "file:")
 ACTIVE_TIMEOUT = 3.0
+APPEAR_POLL = 0.15
 PROBE_TIMEOUT = 3.0
 UNKNOWN = object()
 NO_PAGE = (
@@ -47,6 +51,9 @@ class State:
         self.instance: str | None = None
         self.endpoint = None
         self.pages: dict[str, Page] = {}
+        self.pending_reaction: dict | None = None
+        self.consent_dismissed: str | None = None
+        self.script_state: str = "{}"
         self.sessions: dict[str, Page] = {}
         self.tab_ids: dict[str, str] = {}
         self.next_tab = 1
@@ -482,23 +489,35 @@ class State:
         same = [node.ref for node in snapshot.walk(nodes) if node.ref and node.role == ref.role and node.name == ref.name]
         return self.refs.get(same[0]) if len(same) == 1 else None
 
-    async def locate(self, selector: str, page: Page | None = None):
+    async def locate(self, selector: str, page: Page | None = None, wait: float = 0.0):
         ref = parse_ref(selector)
         if ref:
             return await self.resolve_ref(ref)
         page = page or await self.page()
-        frame = self.frame_for(page) or page.main_frame
-        try:
-            remote = await page.call("(s) => ardiaBrowse.query(s)", selector, frame=frame, by_value=False, read=True)
-        except BrowseError as error:
-            raise BrowseError(f"Invalid selector {selector}: {error.message}") from None
-        element = await page.element_from(remote, frame, selector)
-        if element is None:
-            raise BrowseError(
-                f"Element not found: {selector}. Verify the selector, role, or name is correct and the element exists in the DOM.",
-                code="not_found",
-            )
-        return page, element
+        if NTH_SUFFIX.search(selector):
+            command_metrics.flag("selector_nth", True)
+        deadline = time.monotonic() + wait
+        polled = False
+        while True:
+            frame = self.frame_for(page) or page.main_frame
+            try:
+                remote = await page.call("(s) => ardiaBrowse.query(s)", selector, frame=frame, by_value=False, read=True)
+            except BrowseError as error:
+                raise BrowseError(f"Invalid selector {selector}: {error.message}") from None
+            element = await page.element_from(remote, frame, selector)
+            if element is not None:
+                if polled:
+                    command_metrics.flag("waited_for_element", True)
+                return page, element
+            if time.monotonic() + APPEAR_POLL > deadline:
+                break
+            polled = True
+            await asyncio.sleep(APPEAR_POLL)
+        waited = f" (waited {wait:g} s for it to appear)" if wait else ""
+        raise BrowseError(
+            f"Element not found: {selector}{waited}. Verify the selector, role, or name is correct and the element exists in the DOM.",
+            code="not_found",
+        )
 
     def describe_tabs(self, app_tabs: dict[str, str] | None = None) -> list[dict]:
         opened_elsewhere, used_elsewhere = self.registry.others(self.instance)

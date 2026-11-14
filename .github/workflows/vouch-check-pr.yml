@@ -2,15 +2,16 @@ name: Vouch
 
 on:
   pull_request_target:
-    types: [opened, reopened, labeled]
+    types: [opened, reopened, labeled, edited, synchronize, ready_for_review, converted_to_draft, closed]
   issues:
-    types: [opened, reopened]
+    types: [opened, reopened, labeled, unlabeled]
   issue_comment:
     types: [created]
   push:
     branches: [main]
     paths:
       - ".github/VOUCHED.td"
+      - ".github/TEAM.td"
   schedule:
     - cron: "23 6 * * *"
   workflow_dispatch:
@@ -25,6 +26,8 @@ permissions:
   issues: write
   pull-requests: write
   actions: write
+  statuses: write
+  checks: read
 
 jobs:
   vouch:
@@ -35,7 +38,14 @@ jobs:
        (github.event.issue.pull_request && github.event.issue.state == 'open' &&
         github.event.comment.body == '/recheck')) &&
       (github.event_name != 'pull_request_target' || github.event.action != 'labeled' ||
-       github.event.label.name == 'run-ci')
+       github.event.label.name == 'run-ci') &&
+      (github.event_name != 'issues' || github.event.action == 'opened' || github.event.action == 'reopened' ||
+       (!github.event.issue.pull_request && github.event.label.name == 'bug'))
+    concurrency:
+      group: >-
+        vouch-${{ github.event.pull_request.number || github.event.issue.number || 'sweep' }}-${{
+        github.event_name == 'pull_request_target' && github.event.action == 'labeled' && 'ci' || 'rules' }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

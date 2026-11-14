@@ -229,6 +229,7 @@ function seedMac(mac: Mac) {
   mac.put("app", "set:customSearchUrl", { v: "" });
   mac.put("app", "set:customSearchEngines", { v: [{ id: "c1", name: "Docs", keyword: "docs", url: "https://docs.example/?q=%s" }] });
   mac.put("app", "set:appearance", { v: "dark" });
+  mac.put("app", "set:interfaceStyle", { v: "classic" });
   mac.put("app", "set:shortcuts", { v: { newTab: "cmd+t" } });
   mac.put(s1, `tabs:${MAC}`, { n: "MacBook Pro", tabs: [{ u: "https://news.example/", t: "News" }, { u: "https://mail.example/", t: "Mail" }] });
   mac.put(s1, "pin:t:t1", { g: null, u: "https://calendar.example/", t: null, i: null, ti: "Calendar", pos: "1" });
@@ -682,6 +683,7 @@ test("the view orders pins, bookmarks, profiles and search as the Mac does", asy
   assert.deepEqual(personal.bookmarks.filter((b) => b.root === "other").map(shape), [{ "Loop A": [{ "Loop B": [] }] }, "Orphan"]);
   assert.equal(personal.bookmarks.find((b) => b.title === "Game")!.url, "ardia://game");
   assert.deepEqual(view.search, { engineId: "duckduckgo", customURL: null, customEngines: [{ id: "c1", name: "Docs", keyword: "docs", url: "https://docs.example/?q=%s" }] });
+  assert.deepEqual(view.look, { interfaceStyle: "classic", appearance: "dark" });
   const school = view.profiles.find((p) => p.name === "School")!;
   assert.deepEqual(school.bookmarks, personal.bookmarks);
   assert.deepEqual(school.deviceTabs, []);

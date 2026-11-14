@@ -7,6 +7,7 @@ import { isIncognitoProfile } from "../../state/browser/model";
 import { newCapture } from "../../state/sidebar/listCapture";
 import { useCapturedSidebarEntries, useOffersTidyTabs, usePinnedCollapsed, usePinnedKept } from "../../state/sidebar/hooks";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
+import { useNewTabAtTop } from "../../state/sidebar/chrome";
 import { ClearDivider } from "./ClearDivider";
 import { useDragController, useDragItem } from "./DragProvider";
 import { Fold, useFold } from "./Fold";
@@ -17,7 +18,7 @@ import { usePinnedSequence } from "../../state/sidebar/pinnedOrder";
 import { SCROLL_EDGE } from "./ScrollEdge";
 import { entryHeightNow, firstPaintEntriesNow, usePendingEntriesHeight } from "../../state/sidebar/geometry";
 import { INCOGNITO_ICON } from "../ntp/IncognitoHeading";
-import { ROW_PITCH, ROWS_PER_FRAME, type SidebarGeometry } from "./pageLayout";
+import { rowPitch, ROWS_PER_FRAME, type SidebarGeometry } from "./pageLayout";
 import { NewTabRow } from "./NewTabRow";
 import { CleanUpUpsell } from "./CleanUpUpsell";
 import { sidebarTokens, TAB_ROW } from "./tokens";
@@ -69,7 +70,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
   const pinnedFold = useFold(collapsed);
   const kept = usePinnedKept(windowId, profileId, pinned);
   const pinnedGap = collapsed && !kept && !pinnedFold.moving ? 0 : layout.rowGap;
-  const newTabButtonAtTop = useSettings((s) => s.newTabButtonPosition === "top");
+  const newTabButtonAtTop = useNewTabAtTop();
   const animated = current && !offScreen;
   const motion = useListMotion(windowId, profileId, all, captured, animated);
   const scope = useMemo(() => ({ enabled: animated, slideBelow: motion.slideBelow }), [animated, motion.slideBelow]);
@@ -77,7 +78,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
   return (
     <ListMotionContext.Provider value={scope}>
       <View
-        onLayout={(e) => onListHeight(e.nativeEvent.layout.height + SCROLL_EDGE.inset - (inlineNewTab ? ROW_PITCH : 0))}
+        onLayout={(e) => onListHeight(e.nativeEvent.layout.height + SCROLL_EDGE.inset - (inlineNewTab ? rowPitch() : 0))}
       >
         {isIncognitoProfile(profileId) ? <IncognitoBadge /> : null}
         {tiles.length ? <PinnedGrid tabs={tiles} innerWidth={innerWidth} flush /> : null}

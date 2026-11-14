@@ -41,8 +41,8 @@ EOF
 ardia browse script <<'EOF'
 const out = [];
 const count = await page.count('[role=listitem]');
-for (let i = 1; i <= count; i++) {
-  await page.click(`[role=listitem]:nth-of-type(${i})`);
+for (let i = 0; i < count; i++) {
+  await page.click(`[role=listitem] >> nth=${i}`);
   out.push(await page.text('main'));
 }
 return out;
@@ -80,6 +80,28 @@ for (const name of ['Login bug', 'Offline queue', 'Dark mode']) {
 return { done, failed };
 EOF
 ```
+
+## Long jobs: keep what you gathered in `state`
+
+`state` is one object per session that every script starts with and keeps after it ends, even when it times out.
+Push rows there as you go, and pick up where you stopped in the next script:
+
+```sh
+ardia browse script --timeout 5m --out rows.json <<'EOF'
+state.rows ??= [];
+state.next ??= 1;
+for (; state.next <= 119; state.next++) {
+  await page.goto(`https://example.com/results?page=${state.next}`);
+  state.rows.push(...await page.evaluate(() => [...document.querySelectorAll('.card')].map((c) => c.innerText)));
+}
+return state.rows;
+EOF
+```
+
+## Many records: the site's public API
+
+Before editing dozens of records, look for the site's documented public API and `curl` it with a key the site
+shows you; internal `/api` calls don't count (script the UI). Creating a key changes the account: ask first.
 
 ## Anything else
 

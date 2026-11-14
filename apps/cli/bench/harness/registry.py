@@ -1,4 +1,5 @@
 import copy
+import datetime
 import importlib.util
 import json
 import os
@@ -24,10 +25,17 @@ def load():
     return json.loads(REGISTRY.read_text())["tasks"]
 
 
+def dated_prompt(task):
+    if not task.get("today"):
+        return task["prompt"]
+    day = datetime.date.fromisoformat(task["today"])
+    return f"{task['prompt']}\n\nToday is {day:%A}, {day:%B} {day.day}, {day.year}."
+
+
 def task(task_id, port_offset=0):
     for t in load():
         if t["id"] == task_id:
-            return at_offset(t, port_offset)
+            return at_offset({**t, "prompt": dated_prompt(t)}, port_offset)
     raise SystemExit(f"no task {task_id!r} in {REGISTRY}; known: {', '.join(t['id'] for t in load())}")
 
 

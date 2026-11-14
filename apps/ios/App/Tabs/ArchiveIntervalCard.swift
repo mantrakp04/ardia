@@ -5,27 +5,49 @@ import SwiftUI
 struct ArchiveIntervalCard: View {
   @Binding var interval: AutoArchiveInterval
   let dismiss: () -> Void
-  @ScaledMetric(relativeTo: .body) private var tileSide = TabsLayout.archiveCardTile
+  @ScaledMetric(relativeTo: .subheadline) private var textSize: CGFloat = 14
 
   var body: some View {
-    ViewThatFits(in: .horizontal) {
-      HStack(spacing: 8) {
-        title.fixedSize()
-        Spacer(minLength: 4)
-        picker.fixedSize()
+    HStack(spacing: 4) {
+      Text("Archive inactive tabs")
+        .font(.system(size: textSize))
+        .foregroundStyle(TabsPalette.headerText)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      Menu {
+        Picker("Archive inactive tabs", selection: $interval) {
+          ForEach(AutoArchiveInterval.allCases) { option in
+            Text(option.title).tag(option)
+          }
+        }
+      } label: {
+        HStack(spacing: 3) {
+          Text(interval.title)
+            .font(.system(size: textSize))
+          Image(systemName: "chevron.up.chevron.down")
+            .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(Palette.formAccent)
+        .frame(minHeight: 36)
+        .contentShape(.rect)
       }
-      VStack(alignment: .leading, spacing: 4) {
-        title
-        picker
+      .fixedSize()
+      .accessibilityLabel("Archive inactive tabs, \(interval.title)")
+      Button(action: dismiss) {
+        Image(systemName: "xmark")
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundStyle(.secondary)
+          .frame(width: 36, height: 36)
+          .contentShape(.circle)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .buttonStyle(.plain)
+      .accessibilityLabel("Dismiss")
     }
-    .padding(.leading, 14)
-    .padding(.trailing, 4)
-    .padding(.vertical, 14)
-    .frame(maxWidth: 520)
-    .background(BrowsePalette.popover, in: .rect(cornerRadius: TabsLayout.archiveCardRadius, style: .continuous))
-    .shadow(color: TabsPalette.cardShadow, radius: 24, y: 8)
+    .padding(.leading, 16)
+    .padding(.trailing, 8)
+    .frame(maxWidth: 560, minHeight: TabsLayout.archiveCardHeight)
+    .chromeSurface(in: .capsule, interactive: false)
     .onChange(of: interval) {
       Task { @MainActor in
         try? await Task.sleep(for: .milliseconds(600))
@@ -34,29 +56,5 @@ struct ArchiveIntervalCard: View {
     }
     .accessibilityElement(children: .contain)
     .accessibilityAction(named: "Dismiss", dismiss)
-  }
-
-  private var title: some View {
-    HStack(spacing: 12) {
-      Image(systemName: "archivebox.fill")
-        .font(.system(size: min(tileSide, 48) * 0.5, weight: .semibold))
-        .foregroundStyle(.white)
-        .frame(width: min(tileSide, 48), height: min(tileSide, 48))
-        .background(TabsPalette.archiveTile.gradient, in: .rect(cornerRadius: min(tileSide, 48) * 0.25, style: .continuous))
-      Text("Archive Inactive Tabs")
-        .font(.body)
-        .foregroundStyle(.primary)
-    }
-  }
-
-  private var picker: some View {
-    Picker("Archive Inactive Tabs", selection: $interval) {
-      ForEach(AutoArchiveInterval.allCases) { option in
-        Text(option.title).tag(option)
-      }
-    }
-    .pickerStyle(.menu)
-    .labelsHidden()
-    .tint(.secondary)
   }
 }

@@ -45,7 +45,7 @@ struct TabCardContent: View {
 
   @ViewBuilder private var placeholder: some View {
     if isIncognito {
-      IncognitoCardPlaceholder(title: TabText.title(for: tab))
+      IncognitoCardPlaceholder(host: TabText.host(for: tab))
     } else {
       PageCardPlaceholder(tab: tab)
     }
@@ -85,19 +85,18 @@ struct PageCardPlaceholder: View {
 }
 
 struct IncognitoCardPlaceholder: View {
-  let title: String
+  let host: String
 
   var body: some View {
     VStack(spacing: 12) {
-      IncognitoGlyph(size: 44)
+      IncognitoGlyph(size: 36)
       Text("Incognito Tab")
-        .font(.footnote.weight(.semibold))
-        .foregroundStyle(.white.opacity(0.85))
-      Text(title)
-        .font(.caption)
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.white.opacity(0.9))
+      Text(host)
+        .font(.footnote)
         .foregroundStyle(.white.opacity(0.55))
-        .lineLimit(2)
-        .multilineTextAlignment(.center)
+        .lineLimit(1)
     }
     .padding(.horizontal, 14)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -131,12 +130,11 @@ struct IncognitoGlyph: View {
 
 struct ReceivedBadge: View {
   var body: some View {
-    Label("From Your Mac", systemImage: "macbook")
-      .font(.caption2.weight(.semibold))
-      .labelStyle(.titleAndIcon)
+    Text("From Your Mac")
+      .font(.caption.weight(.semibold))
       .foregroundStyle(Palette.onPrimaryAction)
-      .padding(.horizontal, 8)
-      .padding(.vertical, 4)
+      .padding(.horizontal, 10)
+      .padding(.vertical, 5)
       .background(TabsPalette.receivedBadge, in: .capsule)
       .shadow(color: TabsPalette.receivedBadge.opacity(0.35), radius: 6, y: 2)
   }
@@ -151,6 +149,11 @@ enum TabText {
 
   static func host(for tab: BrowserTab) -> String {
     BrowserURL.host(of: tab.url) ?? String(localized: "New Tab")
+  }
+
+  static func matches(_ tab: BrowserTab, _ query: String) -> Bool {
+    let title = tab.isPrivate ? String(localized: "Incognito") + " " + tab.title : tab.title
+    return title.localizedStandardContains(query) || tab.url.localizedStandardContains(query)
   }
 
   static func isUnseenReceived(_ tab: BrowserTab) -> Bool {

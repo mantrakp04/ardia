@@ -20,6 +20,9 @@ private struct SettingsLaunchHooks: ViewModifier {
       if arguments.contains("-ArdiaTrustedSites") {
         for host in ["nytimes.com", "theverge.com", "bbc.co.uk"] { app.blocking.setExempt(host, true) }
       }
+      if app.isDemo, !arguments.contains("-ArdiaNoSitePermissions") {
+        SitePermissionsSample.seed(app.preferences.sitePermissions)
+      }
       if arguments.contains("-ArdiaMyFiltersSample") {
         _ = await app.filterLists.applyMyFilters(MyFiltersSample.text)
       }
@@ -32,6 +35,9 @@ private struct SettingsLaunchHooks: ViewModifier {
         switch arguments[index + 1] {
         case "archive": app.openArchive()
         case "spaces": app.openSyncedSpaces()
+        case "history": app.sheet = .history
+        case "bookmarks": app.sheet = .bookmarks
+        case "downloads": app.sheet = .downloads
         default: break
         }
       }
@@ -67,6 +73,16 @@ enum FilterStateSample {
     default:
       return [:]
     }
+  }
+}
+
+enum SitePermissionsSample {
+  @MainActor
+  static func seed(_ permissions: SitePermissions) {
+    guard permissions.grants.isEmpty else { return }
+    permissions.allow([.location], origin: "https://maps.apple.com", host: "maps.apple.com")
+    permissions.allow([.camera, .microphone], origin: "https://meet.google.com", host: "meet.google.com")
+    permissions.allow([.microphone], origin: "https://music.youtube.com", host: "music.youtube.com")
   }
 }
 

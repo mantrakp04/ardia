@@ -10,6 +10,8 @@ import { makeRoom, registerSlot, reorderOffsets, settleRoom } from "./stripReord
 import { SLIDE } from "./tokens";
 import { LIFT_MS, LIFT_SLOP, ONTO_EDGE, TOP_STRIP_HEIGHT } from "./tokens";
 import { endHeldTabPress, TAB_CLICK_SLOP } from "../../state/sidebar/heldTabPress";
+import { currentSettings } from "../../state/browser/current";
+import { hapticTick } from "../../state/drag/dragNative";
 
 const IDLE = { kind: "idle" } as const;
 
@@ -165,8 +167,11 @@ export function useStripDrag(item: StripDrag) {
           const across = !lifted && !!cross?.at(drag.current.dx, drag.current.grab);
           setCross(across);
           const aim = across || lifted ? null : aimAt(g.dx);
+          const aimedBefore = drag.current.to >= 0 ? `${drag.current.to}:${ontoKey(drag.current.onto)}` : null;
           setOnto(aim?.onto != null ? (latest.current.targets?.[aim.onto] ?? null) : null);
           if (!across) makeRoomAt(lifted || from < 0 ? -1 : (aim?.to ?? dropIndex(geometry, from, g.dx)));
+          const aimedNow = drag.current.to >= 0 ? `${drag.current.to}:${ontoKey(drag.current.onto)}` : null;
+          if (!across && aimedBefore && aimedNow && aimedNow !== aimedBefore && currentSettings().tabReorderHaptics) hapticTick();
           if (!local) updateTabDrag(g.moveX, g.moveY, lifted);
         },
         onPanResponderRelease: (e, g) => {

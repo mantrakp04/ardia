@@ -15,7 +15,7 @@ struct SearchEnginePage: View {
           LabeledContent {
             Text(SearchEngineNames.name(for: synced, engines: engines))
           } label: {
-            Label("From Your Mac", systemImage: "macbook")
+            Text("From Your Mac")
           }
         } footer: {
           Text("Set on your Mac.")

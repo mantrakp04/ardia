@@ -11,6 +11,7 @@ export const isUtilityWindowId = (id: string | null | undefined) =>
 export const SETTINGS_PANES = [
   "general",
   "profiles",
+  "airTraffic",
   "sync",
   "tabs",
   "appearance",

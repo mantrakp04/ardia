@@ -71,7 +71,9 @@ export function sidebarMenuState(s: BrowserState, windowId: string | undefined) 
     const bar = s.windowUi[windowId]?.panel;
     if (selected.length > 1 && !bar?.open && !bar?.newTab) titles.closeTab = `Close ${plural(selected.length, "Tab")}`;
   }
-  const recentlyClosedGroups: MenuEntry[] = [...s.closedGroups]
+  const w = windowId ? s.windows[windowId] : undefined;
+  const recentlyClosedGroups: MenuEntry[] = s.closedGroups
+    .filter((c) => !w || w.kind === "private" || c.tabs[0]?.profileId === w.profileId)
     .reverse()
     .slice(0, 10)
     .map((c) => ({ id: c.id, title: `${c.group.name} (${plural(c.tabs.length, "Tab")})` }));

@@ -788,7 +788,9 @@ class ReadRouting(unittest.TestCase):
 
         with mock.patch("ardia_cli.browse.readurl.run", side_effect=fake):
             result = readpages.run_local({"http": True}, ["http://a/1", "http://a/bad"], None, {})
-        self.assertEqual(result.data["pages"][0], {"url": "http://a/1", "source": "http", "finalUrl": "http://a/1", "title": "T /1", "text": "body http://a/1"})
+        self.assertEqual(result.data["pages"][0], {"url": "http://a/1", "source": "http", "finalUrl": "http://a/1", "title": "T /1", "text": "body http://a/1",
+                                                   "readAt": result.data["pages"][0]["readAt"]})
+        self.assertRegex(result.data["pages"][0]["readAt"], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC$")
         self.assertIn("=== [2/2] ✗ http://a/bad\nhttp://a/bad answered HTTP 404", result.text)
         self.assertTrue(result.failed)
 
@@ -905,7 +907,7 @@ class ScriptRuns(unittest.TestCase):
         result, closed = self.run_script(controller)
         self.assertEqual(controller.answers[0], [1, {"ok": True, "text": "✓ get", "data": {"text": "get text h1"}}])
         self.assertEqual(controller.answers[1][0], 2)
-        self.assertEqual(result.text, 'read 1 page\n[\n  {\n    "name": "Dock"\n  }\n]')
+        self.assertEqual(result.text, 'read 1 page\n{"name": "Dock"}')
         self.assertEqual(result.data, {"value": [{"name": "Dock"}], "logs": ["read 1 page"]})
         self.assertEqual(closed, ["C1"])
 

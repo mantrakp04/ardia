@@ -1,23 +1,29 @@
 import ArdiaBrowser
 import ArdiaDesign
 import ArdiaSync
+import Combine
 import SwiftUI
 
 struct TabSwitcherView: View {
   @Environment(AppModel.self) private var app
+  @Environment(\.screenLayout) private var screenLayout
 
   var body: some View {
     GeometryReader { proxy in
+      let full = CGSize(
+        width: proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing,
+        height: proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
+      )
+      let column = screenLayout.column
       let geometry = TabsDeckGeometry(
-        container: CGSize(
-          width: proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing,
-          height: proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
-        ),
+        container: CGSize(width: column?.contentWidth(in: full.width) ?? full.width, height: full.height),
         safeTop: proxy.safeAreaInsets.top,
         safeBottom: proxy.safeAreaInsets.bottom,
-        safeSide: max(proxy.safeAreaInsets.leading, proxy.safeAreaInsets.trailing)
+        safeSide: column == nil ? max(proxy.safeAreaInsets.leading, proxy.safeAreaInsets.trailing) : 0
       )
-      TabDeck(geometry: geometry)
+      TabDeck(base: geometry, column: column, fullSize: full)
+        .frame(width: geometry.container.width, height: full.height)
+        .frame(width: full.width, height: full.height, alignment: column?.edge == .leading ? .trailing : .leading)
         .ignoresSafeArea()
     }
     .ignoresSafeArea(.keyboard)
@@ -36,7 +42,9 @@ private enum DragAxis {
 }
 
 struct TabDeck: View {
-  let geometry: TabsDeckGeometry
+  let base: TabsDeckGeometry
+  var column: ScreenLayout.SideColumn?
+  var fullSize: CGSize = .zero
 
   @Environment(AppModel.self) private var app
   @Environment(\.profileLook) private var look
@@ -66,6 +74,10 @@ struct TabDeck: View {
   @State private var clearTicks = 0
   @State private var copyTicks = 0
   @State private var didAppear = false
+  @State private var query = ""
+  @State private var shownSpace: String?
+  @State private var keyboardOverlap: CGFloat = 0
+  @FocusState private var isSearchFocused: Bool
 
   private static let overlayLayer = 1_000_000.0
 
@@ -76,20 +88,55 @@ struct TabDeck: View {
     return false
   }
 
+  private var geometry: TabsDeckGeometry {
+    let chrome = isShowingArchiveCard && !app.deck.isGrid ? TabsLayout.archiveCardBottom : TabsLayout.headerBottom
+    return TabsDeckGeometry(
+      container: base.container,
+      safeTop: base.safeTop,
+      safeBottom: base.safeBottom,
+      safeSide: base.safeSide,
+      chromeBottom: base.safeTop + chrome
+    )
+  }
+
+  private var trimmedQuery: String {
+    query.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private var sourceOrder: [UUID] {
+    let needle = trimmedQuery
+    let ordered = app.deckOrder
+    guard !needle.isEmpty else { return ordered.map(\.id) }
+    return ordered.filter { TabText.matches($0, needle) }.map(\.id)
+  }
+
   private var tabsByID: [UUID: BrowserTab] {
     Dictionary(app.deckTabs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
   }
 
   var body: some View {
     let byID = tabsByID
+    let geometry = geometry
     ZStack {
       TabsBackdrop(look: look)
+        .frame(width: column == nil ? nil : fullSize.width)
+        .frame(width: geometry.container.width, alignment: column?.edge == .leading ? .trailing : .leading)
         .opacity(backdropOpacity)
         .contentShape(.rect)
+        .onTapGesture { isSearchFocused = false }
         .gesture(deckDrag(for: nil))
-      cards(byID)
+      if app.deck.isGrid {
+        grid(byID, geometry: geometry)
+          .opacity(chromeOpacity)
+      } else if column != nil {
+        ZStack { cards(byID) }
+          .frame(width: geometry.container.width, height: geometry.container.height)
+          .clipped()
+      } else {
+        cards(byID)
+      }
       if order.isEmpty, phase == .settled {
-        DeckEmptyState(geometry: geometry, showsArchive: app.hasArchivedTabs) { app.openArchive() }
+        DeckEmptyState(geometry: geometry, isSearching: !trimmedQuery.isEmpty, showsArchive: app.hasArchivedTabs) { app.openArchive() }
           .transition(.opacity)
           .zIndex(Self.overlayLayer)
       }
@@ -97,37 +144,55 @@ struct TabDeck: View {
         PoofBurst(spec: spec)
       }
       .zIndex(Self.overlayLayer)
-      if !app.tabs.privateTabs.isEmpty {
-        IncognitoChip(count: app.tabs.privateTabs.count) { isConfirmingCloseIncognito = true }
-          .position(x: geometry.container.width / 2, y: geometry.safeTop + 22)
-          .opacity(lifts.isEmpty ? chromeOpacity : 0)
-          .zIndex(Self.overlayLayer)
-      }
-      if isShowingArchiveCard {
+      if isShowingArchiveCard, !app.deck.isGrid {
         ArchiveIntervalCard(interval: Bindable(app.tabs).autoArchiveInterval) {
-          hideArchiveCard()
+          dismissArchiveCard()
         }
-        .padding(.horizontal, Spacing.page)
-        .position(x: geometry.container.width / 2, y: geometry.barCenterY - 76)
+        .padding(.horizontal, geometry.safeSide + TabsLayout.headerSide)
+        .frame(width: geometry.container.width)
+        .position(x: geometry.container.width / 2, y: geometry.safeTop + TabsLayout.archiveCardCenter)
+        .opacity(lifts.isEmpty ? chromeOpacity : 0)
         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
         .zIndex(Self.overlayLayer + 1)
       }
-      TabDeckBar(
+      DeckHeader(
         geometry: geometry,
-        isIncognito: app.isIncognito,
-        showsSyncedTabs: app.sync.isEnabled,
-        canReopen: app.tabs.canReopenClosed,
-        hasTabs: !order.isEmpty,
-        newTab: { app.newTab() },
-        newRegularTab: { app.newRegularTab() },
-        newIncognitoTab: { app.newIncognitoTab() },
-        reopen: { app.reopenLastClosed() },
-        closeAll: { isConfirmingCloseAll = true },
-        leading: { app.sync.isEnabled ? app.openSyncedSpaces() : app.openArchive() },
-        settings: { app.sheet = .settings }
+        privateCount: app.tabs.privateTabs.count,
+        hasTabs: !app.deckTabs.isEmpty,
+        closeIncognito: { isConfirmingCloseIncognito = true },
+        closeAll: { isConfirmingCloseAll = true }
       )
       .opacity(chromeOpacity)
       .zIndex(Self.overlayLayer + 2)
+      if let column {
+        DeckColumn(
+          column: column,
+          size: fullSize,
+          isGrid: app.deck.isGrid,
+          query: $query,
+          searchFocus: $isSearchFocused,
+          plus: deckPlusActions,
+          toggleGrid: toggleGrid,
+          closeAll: { isConfirmingCloseAll = true }
+        )
+        .frame(width: fullSize.width, height: fullSize.height)
+        .position(x: fullSize.width / 2 + (column.edge == .leading ? geometry.container.width - fullSize.width : 0), y: fullSize.height / 2)
+        .opacity(chromeOpacity)
+        .zIndex(Self.overlayLayer + 3)
+      } else {
+        DeckBottomBar(
+          geometry: geometry,
+          isGrid: app.deck.isGrid,
+          query: $query,
+          searchFocus: $isSearchFocused,
+          plus: deckPlusActions,
+          toggleGrid: toggleGrid
+        )
+        .frame(width: geometry.container.width)
+        .position(x: geometry.container.width / 2, y: barCenterY(geometry))
+        .opacity(chromeOpacity)
+        .zIndex(Self.overlayLayer + 3)
+      }
     }
     .overlay {
       if let cover {
@@ -140,6 +205,7 @@ struct TabDeck: View {
     .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: flickTicks)
     .sensoryFeedback(.impact(weight: .medium), trigger: clearTicks)
     .sensoryFeedback(.success, trigger: copyTicks)
+    .sensoryFeedback(.selection, trigger: shownSpace)
     .confirmationDialog(closeAllTitle, isPresented: $isConfirmingCloseAll, titleVisibility: .visible) {
       Button(closeAllButton, role: .destructive) {
         clearTicks += 1
@@ -159,10 +225,21 @@ struct TabDeck: View {
     .allowsHitTesting(!isOpeningTab)
     .onAppear(perform: appear)
     .onChange(of: app.deckTabs.map(\.id)) { reconcile(animated: true) }
+    .onChange(of: app.currentSpace?.syncId) { reconcile(animated: true) }
+    .onChange(of: trimmedQuery) { searchChanged() }
     .onChange(of: app.deck.command) { _, command in
       guard let command else { return }
       perform(command.kind)
     }
+    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+      guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+      let overlap = max(0, base.container.height - frame.minY)
+      withAnimation(.smooth(duration: 0.3)) { keyboardOverlap = overlap }
+    }
+    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+      withAnimation(.smooth(duration: 0.3)) { keyboardOverlap = 0 }
+    }
+    .animation(reduceMotion ? nil : TabsMotion.expand, value: isShowingArchiveCard)
     .accessibilityElement(children: .contain)
     .accessibilityScrollAction { edge in
       switch edge {
@@ -171,6 +248,54 @@ struct TabDeck: View {
       default: break
       }
     }
+  }
+
+  private var deckPlusActions: PlusActions {
+    PlusActions(
+      isIncognito: app.isIncognito,
+      canReopen: app.tabs.canReopenClosed,
+      newTab: { app.newTab() },
+      newRegularTab: { app.newRegularTab() },
+      newIncognitoTab: { app.newIncognitoTab() },
+      reopen: { app.reopenLastClosed() }
+    )
+  }
+
+  private func barCenterY(_ geometry: TabsDeckGeometry) -> CGFloat {
+    guard keyboardOverlap > 0 else { return geometry.barCenterY }
+    return geometry.container.height - keyboardOverlap - TabsLayout.barGap - TabsLayout.barCircle / 2
+  }
+
+  private func grid(_ byID: [UUID: BrowserTab], geometry: TabsDeckGeometry) -> some View {
+    TabGridView(
+      tabs: order.compactMap { byID[$0] },
+      selectedID: app.tabs.selectedTabID,
+      cardAspect: geometry.container.width / max(geometry.container.height, 1),
+      topInset: geometry.safeTop + TabsLayout.headerBottom + 8,
+      bottomInset: geometry.container.height - geometry.barCenterY + TabsLayout.barCircle,
+      sideInset: geometry.safeSide + TabsLayout.headerSide + 4,
+      memoryImage: { app.deck.memoryImage(for: $0) },
+      snapshots: app.web.snapshots,
+      open: { id in
+        isSearchFocused = false
+        app.openTab(id)
+      },
+      close: { id in close(id, animated: false) }
+    )
+  }
+
+  private func toggleGrid() {
+    isSearchFocused = false
+    withAnimation(reduceMotion ? TabsMotion.fade : TabsMotion.expand) { app.deck.isGrid.toggle() }
+  }
+
+  private func searchChanged() {
+    let next = sourceOrder
+    let update = {
+      order = next
+      scroll = Double(max(next.count - 1, 0))
+    }
+    if reduceMotion { update() } else { withAnimation(TabsMotion.gapClose, update) }
   }
 
   @ViewBuilder
@@ -261,10 +386,12 @@ struct TabDeck: View {
   private func appear() {
     guard !didAppear else { return }
     didAppear = true
-    order = app.deckOrder.map(\.id)
+    order = sourceOrder
+    shownSpace = app.currentSpace?.syncId
+    isShowingArchiveCard = app.deck.shouldOfferArchiveCard(openTabs: app.deckTabs.count)
     let entrance = app.deck.entrance
     app.deck.entrance = .plain
-    if case .fromPage(let id) = entrance, let index = order.firstIndex(of: id), !reduceMotion {
+    if case .fromPage(let id) = entrance, let index = order.firstIndex(of: id), !reduceMotion, !app.deck.isGrid {
       scroll = Double(max(0, min(index - 1, order.count - 1)))
       if index < order.count - 1 { scroll = Double(index) }
       phase = .opening(id)
@@ -276,7 +403,6 @@ struct TabDeck: View {
           positionProgress = 1
         } completion: {
           phase = .settled
-          offerArchiveCard()
         }
       }
     } else {
@@ -291,12 +417,17 @@ struct TabDeck: View {
         withAnimation(TabsMotion.fade) { cardsOpacity = 1 }
       }
       phase = .settled
-      offerArchiveCard()
     }
   }
 
   private func reconcile(animated: Bool) {
-    let current = app.deckOrder.map(\.id)
+    let space = app.currentSpace?.syncId
+    if space != shownSpace {
+      shownSpace = space
+      showNewSpace()
+      return
+    }
+    let current = sourceOrder
     let live = Set(current)
     let focused = order.isEmpty ? nil : order[min(max(Int(scroll.rounded()), 0), order.count - 1)]
     var next = order.filter { live.contains($0) }
@@ -318,20 +449,36 @@ struct TabDeck: View {
     }
   }
 
-  private func offerArchiveCard(force: Bool = false) {
-    guard force || app.deck.shouldOfferArchiveCard(openTabs: order.count) else { return }
-    app.deck.hasShownArchiveCard = true
-    withAnimation(TabsMotion.fade.delay(0.15)) { isShowingArchiveCard = true }
+  private func showNewSpace() {
+    order = sourceOrder
+    scroll = Double(max(0, order.count - 2))
+    dragScroll = nil
+    settleOrigin = nil
+    lifts = [:]
+    vanishing = []
+    cardsOpacity = 0
+    withAnimation(TabsMotion.fade) { cardsOpacity = 1 }
+    if !isShowingArchiveCard { offerArchiveCard() }
   }
 
-  private func hideArchiveCard() {
+  private func offerArchiveCard(force: Bool = false) {
+    guard force || app.deck.shouldOfferArchiveCard(openTabs: app.deckTabs.count) else { return }
+    if reduceMotion {
+      isShowingArchiveCard = true
+    } else {
+      withAnimation(TabsMotion.fade) { isShowingArchiveCard = true }
+    }
+  }
+
+  private func dismissArchiveCard() {
     guard isShowingArchiveCard else { return }
-    withAnimation(TabsMotion.fade) { isShowingArchiveCard = false }
+    app.deck.hasShownArchiveCard = true
+    isShowingArchiveCard = false
   }
 
   private func open(_ id: UUID) {
     guard phase == .settled, lifts[id] == nil else { return }
-    hideArchiveCard()
+    isSearchFocused = false
     if reduceMotion {
       crossfadeOpen(id)
       return
@@ -371,7 +518,6 @@ struct TabDeck: View {
 
   private func close(_ id: UUID, animated: Bool) {
     guard let index = order.firstIndex(of: id) else { return }
-    hideArchiveCard()
     let remove = {
       guard let index = order.firstIndex(of: id) else {
         lifts[id] = nil
@@ -427,7 +573,6 @@ struct TabDeck: View {
   }
 
   private func closeAll() {
-    hideArchiveCard()
     app.closeAllTabs()
   }
 
@@ -477,8 +622,7 @@ struct TabDeck: View {
             dragStart = currentScroll
             tickedCard = focusedCard(at: currentScroll)
           }
-          hideArchiveCard()
-        }
+              }
         switch axis {
         case .horizontal:
           let raw = dragStart + geometry.scrollDelta(forDrag: value.translation.width)
@@ -520,189 +664,5 @@ struct TabDeck: View {
           break
         }
       }
-  }
-}
-
-struct DeckCard<Menu: View>: View {
-  let tab: BrowserTab
-  let memoryImage: UIImage?
-  let snapshots: TabSnapshotStore
-  @ViewBuilder let menu: () -> Menu
-
-  var body: some View {
-    TabCardContent(tab: tab, isIncognito: tab.isPrivate, memoryImage: memoryImage, snapshots: snapshots)
-      .overlay(alignment: .topLeading) {
-        if TabText.isUnseenReceived(tab) {
-          ReceivedBadge().padding(10)
-        }
-      }
-      .contextMenu { menu() }
-  }
-}
-
-struct DeckCardHeader: View {
-  let tab: BrowserTab
-  let isIncognito: Bool
-
-  @Environment(\.deckHeaderWidth) private var width
-
-  var body: some View {
-    let reveal = DeckHeaderMetrics.titleReveal(width: width)
-    DeckHeaderLayout(titleReveal: reveal) {
-      icon
-      Text(TabText.title(for: tab))
-        .font(.caption.weight(.medium))
-        .foregroundStyle(TabsPalette.headerText)
-        .lineLimit(1)
-        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-        .opacity(reveal)
-    }
-    .frame(maxWidth: .infinity)
-    .mask {
-      HStack(spacing: 0) {
-        Rectangle()
-        LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .leading, endPoint: .trailing)
-          .frame(width: DeckHeaderMetrics.trailingFade)
-      }
-    }
-  }
-
-  @ViewBuilder
-  private var icon: some View {
-    if isIncognito {
-      IncognitoGlyph(size: TabsLayout.faviconSize)
-        .padding(2)
-        .background(TabsPalette.incognitoCardRaised, in: .rect(cornerRadius: TabsLayout.faviconRadius))
-    } else {
-      FaviconImage(iconURL: tab.faviconURL, pageURL: tab.url, size: TabsLayout.faviconSize)
-    }
-  }
-}
-
-struct CardMenu: View {
-  let tab: BrowserTab
-  let close: () -> Void
-  var copied: () -> Void = {}
-  @Environment(AppModel.self) private var app
-
-  var body: some View {
-    if let url = app.shareURL(of: tab) {
-      Button("Copy Link", systemImage: "link") {
-        app.copyLink(of: tab)
-        copied()
-      }
-      ShareLink(item: url, subject: Text(TabText.title(for: tab))) {
-        Label("Share", systemImage: "square.and.arrow.up")
-      }
-      let devices = app.sendTargets(for: tab)
-      if !devices.isEmpty {
-        if devices.count == 1, let device = devices.first {
-          Button("Send to \(device.name)", systemImage: DeviceSymbol.name(for: device)) { app.send(tab, to: device) }
-        } else {
-          Menu("Send to Device", systemImage: "laptopcomputer.and.arrow.down") {
-            ForEach(devices) { device in
-              Button(device.name, systemImage: DeviceSymbol.name(for: device)) { app.send(tab, to: device) }
-            }
-          }
-        }
-      }
-      if !tab.isPrivate, app.sync.isEnabled {
-        if app.isPinnedToMac(tab) {
-          Button("Pinned to Mac", systemImage: "star.fill") {}
-            .disabled(true)
-        } else {
-          Button("Pin to Mac", systemImage: "star") { app.pinToMac(tab) }
-        }
-      }
-      Divider()
-    }
-    Button("Close Tab", systemImage: "xmark", role: .destructive, action: close)
-  }
-}
-
-enum DeviceSymbol {
-  static func name(for device: SyncedDevice) -> String {
-    switch device.kind {
-    case .phone: "iphone"
-    case .mac: device.name.localizedCaseInsensitiveContains("book") ? "laptopcomputer" : "desktopcomputer"
-    }
-  }
-
-  static func name(forDeviceNamed name: String, kind: SyncedDevice.Kind) -> String {
-    switch kind {
-    case .phone: "iphone"
-    case .mac: name.localizedCaseInsensitiveContains("book") ? "laptopcomputer" : "desktopcomputer"
-    }
-  }
-}
-
-struct IncognitoChip: View {
-  let count: Int
-  let close: () -> Void
-
-  var body: some View {
-    Menu {
-      Button("Close Incognito Tabs", systemImage: "xmark", role: .destructive, action: close)
-    } label: {
-      HStack(spacing: 6) {
-        IncognitoGlyph(size: 16)
-        Text("Incognito")
-          .font(.subheadline.weight(.semibold))
-        Text(count, format: .number)
-          .font(.subheadline.weight(.semibold).monospacedDigit())
-          .foregroundStyle(.white.opacity(0.6))
-      }
-      .foregroundStyle(.white)
-      .padding(.horizontal, 12)
-      .frame(minHeight: 32)
-      .background(TabsPalette.incognitoCard, in: .capsule)
-      .frame(minHeight: 44)
-      .contentShape(.capsule)
-    }
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel("Incognito, \(count) tabs")
-    .accessibilityHint("Shows the option to close incognito tabs.")
-  }
-}
-
-struct DeckEmptyState: View {
-  let geometry: TabsDeckGeometry
-  let showsArchive: Bool
-  let openArchive: () -> Void
-
-  var body: some View {
-    VStack(spacing: 6) {
-      Text("No Open Tabs")
-        .font(.title3.weight(.semibold))
-        .foregroundStyle(TabsPalette.headerText)
-      Text("Tabs you open appear here. Inactive tabs move to the Archive.")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .multilineTextAlignment(.center)
-      if showsArchive {
-        Button("Open Archive", action: openArchive)
-          .font(.subheadline.weight(.semibold))
-          .tint(Palette.formAccent)
-          .padding(.top, 6)
-          .frame(minHeight: 44)
-      }
-    }
-    .frame(maxWidth: 300)
-    .padding(.horizontal, Spacing.large)
-    .position(x: geometry.container.width / 2, y: geometry.cardCenterY)
-  }
-}
-
-struct DeckCover: View {
-  let image: Image
-
-  var body: some View {
-    image
-      .resizable()
-      .scaledToFit()
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-      .background(Color(.systemBackground))
-      .ignoresSafeArea()
-      .accessibilityHidden(true)
   }
 }

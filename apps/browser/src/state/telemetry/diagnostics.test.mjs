@@ -132,9 +132,95 @@ test("hardware comes as chip, GPU, memory, displays and hardware decode flags, n
 
 test("a recorded context is saved for the next launch and holds only counts and sizes", async () => {
   const context = await diagnostics.recordContext();
-  assert.deepEqual(Object.keys(context).sort(), ["app_memory_mb", "at", "footprint_mb", "free_disk_gb", "memory_pressure", "page_processes_gone", "profiles", "session_start", "tabs", "windows"]);
+  assert.deepEqual(Object.keys(context).sort(), ["app_memory_mb", "at", "footprint_mb", "free_disk_gb", "memory_pressure", "page_processes_gone", "profiles", "session_start", "tabs", "webui_page", "windows"]);
+  assert.equal(context.webui_page, null);
   assert.equal(context.footprint_mb, 500);
   assert.equal(JSON.parse(stub.docs.get("telemetry.json")).context.footprint_mb, 500);
+});
+
+test("the built-in page is the host and first path segment of an ardia:// or chrome:// URL, and null for any web URL", () => {
+  const page = diagnostics.webuiPage;
+  assert.equal(page("chrome://settings/cookies"), "settings/cookies");
+  assert.equal(page("ardia://settings/cookies"), "settings/cookies");
+  assert.equal(page("CHROME://Settings/Cookies/detail?site=https%3A%2F%2Fprivate.example#top"), "settings/cookies");
+  assert.equal(page("chrome://settings/?search=private"), "settings");
+  assert.equal(page("ardia://history"), "history");
+  assert.equal(page("ardia://newtab/"), "newtab");
+  assert.equal(page("chrome://net-internals#dns"), "net-internals");
+  assert.equal(page("chrome://settings/some-text-that-is-longer-than-a-page-name-could-be"), "settings");
+  for (const url of ["https://example.com/settings/cookies", "http://localhost:3000/chrome://settings", "https://chrome/settings", "view-source:chrome://settings/cookies", "about:blank", "file:///Users/me/ardia://history", "chrome://user@private.example/x", "chrome://my.private.example/x", "chrome://", "", null, undefined]) {
+    assert.equal(page(url), null, String(url));
+  }
+});
+
+test("the context sample records the built-in page the active tab is on, and a navigation to or from one samples at once", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const S = () => useBrowser.getState();
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://private.example/inbox?token=secret" });
+  const tab = S().windows[w].tabIds[0];
+  assert.equal((await diagnostics.recordContext()).webui_page, null);
+
+  const sampled = () => diagnostics.contextSamples().length;
+  const waitForSample = async (from) => {
+    for (let i = 0; i < 200 && sampled() === from; i++) await new Promise((resolve) => setTimeout(resolve, 20));
+    return diagnostics.contextSamples().at(-1);
+  };
+  diagnostics.startContextSamples();
+  try {
+    let from = sampled();
+    S().updateTab(tab, { url: "https://private.example/other", title: "Other" });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(sampled(), from, "a web page change takes no extra sample");
+
+    S().updateTab(tab, { url: "chrome://settings/cookies" });
+    const settings = await waitForSample(from);
+    assert.equal(settings.webui_page, "settings/cookies");
+    assert.equal(settings.session_start, stub.appInfo.processStart);
+    assert.equal(JSON.parse(stub.docs.get("telemetry.json")).context.webui_page, "settings/cookies");
+
+    const after = Math.max(settings.at, client.crashCursor()) + 1000;
+    stub.diagnostics.crashReports = [{ time: after, fileTime: after + 500, process: "browser", frames: [{ image: "Chromium Framework", offset: 0x30 }] }];
+    await reportNativeCrashes([settings]);
+    const crash = events("$exception").at(-1).properties;
+    assert.equal(crash.crash_process, "browser");
+    assert.equal(crash.ctx_webui_page, "settings/cookies");
+
+    from = sampled();
+    S().updateTab(tab, { url: "https://private.example/" });
+    const away = await waitForSample(from);
+    assert.equal(away.webui_page, null, "leaving the page is sampled too, so a later crash isn't blamed on it");
+  } finally {
+    diagnostics.stopContextSamples();
+  }
+});
+
+test("the built-in page comes from the focused window's tab, a Little Ardia window included", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const S = () => useBrowser.getState();
+  S().hydrate({});
+  S().createWindow({ url: "chrome://history" });
+  const small = S().createWindow({ kind: "small", url: "https://private.example/" });
+  S().setFocusedWindow(small);
+  assert.equal((await diagnostics.recordContext()).webui_page, null);
+});
+
+test("a burst of built-in page samples keeps the samples from before it, so a crash read an hour later still finds its context", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  useBrowser.getState().hydrate({});
+  useBrowser.getState().createWindow({ url: "chrome://settings/cookies" });
+  const beforeBurst = await diagnostics.recordContext();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  for (let i = 0; i < 30; i++) await diagnostics.recordContext();
+  const found = diagnostics.contextAt(diagnostics.contextSamples(), beforeBurst.at, [beforeBurst.session_start]);
+  assert.equal(found?.at, beforeBurst.at);
+  assert.equal(found?.webui_page, "settings/cookies");
+});
+
+test("two samples recorded in the same millisecond: the later one is the context", () => {
+  const first = { at: 1000, session_start: 500, webui_page: null };
+  const later = { at: 1000, session_start: 500, webui_page: "settings/cookies" };
+  assert.equal(diagnostics.contextAt([first, later], 1000, [500])?.webui_page, "settings/cookies");
 });
 
 test("a page process that goes away sends its reason, exit code, visibility and counts, capped per session", async () => {

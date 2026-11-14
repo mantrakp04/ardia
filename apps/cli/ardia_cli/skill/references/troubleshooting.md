@@ -16,7 +16,8 @@ These are the places it differs, and what to do when something goes wrong.
 
 ## Input that didn't land
 
-A click, key press, typing or scroll the page never received fails with `input_not_delivered`; one it only partly
+A click, key press, typing or scroll the page never received fails with `input_not_delivered` (`target_replaced` when
+the page redrew the element first: find it again); one it only partly
 received reports an unknown outcome. Check the page before retrying, and never repeat a submit blindly. Input is
 instant; `--humanize` (or `AGENT_BROWSER_HUMANIZE=1`) gives curved mouse paths, human press timing, wheel scrolling
 and per-character typing.
@@ -44,7 +45,7 @@ line succeeded. On `stale_ref`, the answer has the new refs.
 
 ## Custom inputs, covered elements, drag
 
-- `covered by <…>`: act on the covering element first (close the banner or editor), then retry.
+- `covered by <…>`: act on the covering element first (close the dialog or editor), then retry. Click already dismisses cookie banners and scrolls past sticky headers by itself.
 - A field that ignores `fill`: `focus @e1`, then `keyboard inserttext "text"` (or `keyboard type` for keystrokes).
 - A typeahead or chip input: `select`, not `fill`; it types each value and clicks the match
   (`select @e5 "Priya Raman" alex@example.com`). When it lists two or no suggestions, pick an exact one.
@@ -87,8 +88,9 @@ in the page's own world. `console` and `errors` start capturing on first use (or
 
 ## Output cap
 
-Text output stops at about 6,000 characters with a last line saying how to narrow it. Narrow with `-s <sel>`,
-`snapshot -i`, `read --links <pattern>`, or a script that returns only the fields you need. `--json` is never cut.
+Text output stops at about 12,000 characters (20,000 for `script`) with a last line naming the file that holds all of
+it and saying how to narrow it. Narrow with `-s <sel>`, `snapshot -i`, `read --links <pattern>`, or a script that
+returns only the fields you need. `--json` and output redirected to a file (`> out.json`) are never cut.
 
 ## Auth vault
 

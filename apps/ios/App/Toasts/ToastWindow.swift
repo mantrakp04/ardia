@@ -29,6 +29,9 @@ private struct ToastOverlayRoot: View {
       } onInteractiveFrame: { frame in
         window.interactiveFrame = frame
       }
+      .environment(\.usesGlass, center.usesGlass)
+      .environment(\.profileLook, center.look)
+      .preferredColorScheme(center.scheme)
   }
 }
 

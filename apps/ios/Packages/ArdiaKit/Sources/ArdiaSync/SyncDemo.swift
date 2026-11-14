@@ -27,12 +27,12 @@ extension SyncSnapshot {
     let pinned = PinnedArea(
       tiles: [
         PinnedTile(key: "demo-mail", title: "Mail", url: "https://www.icloud.com/mail", icon: nil, folder: nil),
-        PinnedTile(key: "demo-calendar", title: "Calendar", url: "https://www.icloud.com/calendar", icon: nil, folder: nil),
+        PinnedTile(key: "demo-calendar", title: "Calendar", url: "https://www.icloud.com/calendar", icon: "calendar", folder: nil),
         PinnedTile(key: "tilefold:demo-social", title: "Social", url: "https://mastodon.social/", icon: nil, folder: [
           PinnedTab(key: "demo-mastodon", title: "Mastodon", url: "https://mastodon.social/", icon: nil),
           PinnedTab(key: "demo-reddit", title: "Reddit", url: "https://www.reddit.com/", icon: nil),
         ]),
-        PinnedTile(key: "demo-music", title: "Music", url: "https://music.apple.com/", icon: nil, folder: nil),
+        PinnedTile(key: "demo-music", title: "Music", url: "https://music.apple.com/", icon: "🎵", folder: nil),
       ],
       sections: [
         .tab(PinnedTab(key: "demo-notes", title: "Notes", url: "https://www.icloud.com/notes", icon: "note.text")),
@@ -89,15 +89,35 @@ extension SyncSnapshot {
         .init(url: "https://linear.app/", title: "Linear"),
         .init(url: "https://www.notion.so/", title: "Notion"),
       ])],
-      pinned: PinnedArea(tiles: [PinnedTile(key: "demo-work-mail", title: "Mail", url: "https://outlook.office.com/", icon: nil, folder: nil)]),
+      pinned: PinnedArea(tiles: [
+        PinnedTile(key: "demo-work-mail", title: "Mail", url: "https://outlook.office.com/", icon: nil, folder: nil),
+        PinnedTile(key: "demo-work-tasks", title: "Tasks", url: "https://linear.app/", icon: "checklist", folder: nil),
+        PinnedTile(key: "demo-work-design", title: "Design", url: "https://www.figma.com/", icon: "🎨", folder: nil),
+      ]),
+      bookmarks: [],
+      history: [],
+      sendTargets: [mac.id]
+    )
+    let side = SyncedProfile(
+      syncId: "demo-side",
+      name: "Side Project",
+      color: "orange",
+      icon: "hammer",
+      isDefault: false,
+      theme: nil,
+      deviceTabs: [DeviceTabs(deviceId: mac.id, deviceName: mac.name, kind: .mac, tabs: [
+        .init(url: "https://github.com/", title: "GitHub"),
+      ])],
+      pinned: PinnedArea(tiles: [PinnedTile(key: "demo-side-github", title: "GitHub", url: "https://github.com/", icon: nil, folder: nil)]),
       bookmarks: [],
       history: [],
       sendTargets: [mac.id]
     )
     return SyncSnapshot(
       devices: [phone, mac, studio],
-      profiles: [personal, work],
+      profiles: [personal, work, side],
       search: SyncedSearch(engineId: "google", customURL: nil, customEngines: []),
+      look: SyncedLook(interfaceStyle: .glass, appearance: .auto),
       syncedAt: now
     )
   }()

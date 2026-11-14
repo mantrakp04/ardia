@@ -17,9 +17,14 @@ ardia config check
 default and file value; shortcuts are one per command (`''` unbinds); `unset` leaves Ardia's current value in place;
 `check` reports what Ardia would complain about.
 
-Themes are colour overrides in `~/.config/ardia/themes/NAME.json`. `ardia theme new NAME` writes every dark and light
-role with Ardia's values, so change only the ones the user asked about and delete the rest if they like;
-`ardia theme use NAME` (or `none`) picks one, and `ardia theme check` checks it. Ask before replacing the user's
+Themes live in `~/.config/ardia/themes/NAME.json`: `dark` and `light` colour roles, plus `type` (font `family`,
+`mono`, `scale`, `sizes`, `weights`), `metrics` (`rowHeight`, `rowGap`, `pinnedHeight`, `sidebarWidth`, `radius`),
+`layout` (`hide` sidebar parts, `addressField` and `newTab` top or bottom) and `icons` (SF Symbol swaps). Every key
+is optional; a block left out is Ardia's own look. `ardia theme new NAME` writes every role and look key with
+Ardia's values, so change only the ones the user asked about and delete the rest if they like; the ranges and
+defaults are in `theme.schema.json`. `ardia theme use NAME` (or `none`) picks one, and `ardia theme check` checks it
+in Ardia's words; a bad key is skipped on its own and the rest applies. Saving the active theme restyles Ardia at
+once. Ask before replacing the user's
 own theme or config values. Settings that grant control or send data somewhere (`cliControl`, custom search URLs,
 page engines) can't go in the file; tell the user where they are in Settings instead.
 

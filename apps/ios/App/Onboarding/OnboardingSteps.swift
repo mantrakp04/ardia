@@ -12,11 +12,11 @@ struct OnboardingBlockingStep: View {
       subtitle: Text("Trackers and cookie banners too.")
     ) {
       VStack(spacing: 0) {
-        BlockingToggleRow(title: "Block Ads", systemImage: "hand.raised.fill", tint: SettingsTint.ads, isOn: $blocking.blocksAds)
-        Divider().padding(.leading, 58)
-        BlockingToggleRow(title: "Block Trackers", systemImage: "eyeglasses", tint: SettingsTint.trackers, isOn: $blocking.blocksTrackers)
-        Divider().padding(.leading, 58)
-        BlockingToggleRow(title: "Block Cookie Banners", systemImage: "list.bullet.rectangle.portrait.fill", tint: SettingsTint.cookies, isOn: $blocking.hidesCookieBanners)
+        BlockingToggleRow(title: "Block Ads", isOn: $blocking.blocksAds)
+        Divider().padding(.leading, Spacing.page)
+        BlockingToggleRow(title: "Block Trackers", isOn: $blocking.blocksTrackers)
+        Divider().padding(.leading, Spacing.page)
+        BlockingToggleRow(title: "Block Cookie Banners", isOn: $blocking.hidesCookieBanners)
       }
       .padding(.vertical, Spacing.hairline)
       .dynamicTypeSize(...DynamicTypeSize.large)
@@ -31,20 +31,13 @@ struct OnboardingBlockingStep: View {
 
 private struct BlockingToggleRow: View {
   var title: LocalizedStringKey
-  var systemImage: String
-  var tint: Color
   @Binding var isOn: Bool
 
   var body: some View {
-    Toggle(isOn: $isOn) {
-      Label {
-        Text(title)
-      } icon: {
-        SettingsIconTile(systemImage: systemImage, color: tint)
-      }
-    }
-    .padding(.horizontal, Spacing.page)
-    .frame(minHeight: 52)
+    Toggle(title, isOn: $isOn)
+      .tint(Palette.success)
+      .padding(.horizontal, Spacing.page)
+      .frame(minHeight: MenuLayout.rowHeight)
   }
 }
 
@@ -160,13 +153,16 @@ struct OnboardingAllSetStep: View {
       title: Text("You’re all set!"),
       subtitle: Text("Happy browsing.")
     ) {
-      VStack(alignment: .leading, spacing: Spacing.medium) {
-        AllSetTip(symbol: "plus", text: "Tap + to search.")
-        AllSetTip(symbol: "square.on.square", text: "Flick a tab up to close it.")
-        AllSetTip(symbol: "hand.draw", text: "Swipe a page to go back.")
-        AllSetTip(symbol: "archivebox", text: "Old tabs archive after a day.")
+      VStack(alignment: .leading, spacing: 0) {
+        AllSetTip(text: "Tap + to search.")
+        Divider().padding(.leading, Spacing.page)
+        AllSetTip(text: "Flick a tab up to close it.")
+        Divider().padding(.leading, Spacing.page)
+        AllSetTip(text: "Swipe a page to go back.")
+        Divider().padding(.leading, Spacing.page)
+        AllSetTip(text: "Old tabs archive after a day.")
       }
-      .padding(Spacing.medium)
+      .padding(.vertical, Spacing.hairline)
       .background(.background.opacity(0.9), in: .rect(cornerRadius: Radius.card, style: .continuous))
       .shadow(color: .black.opacity(0.06), radius: 16, y: 6)
       .frame(maxHeight: .infinity, alignment: .bottom)
@@ -181,20 +177,12 @@ struct OnboardingAllSetStep: View {
 }
 
 private struct AllSetTip: View {
-  var symbol: String
   var text: LocalizedStringKey
-  @ScaledMetric(relativeTo: .body) private var width: CGFloat = 28
 
   var body: some View {
-    HStack(alignment: .firstTextBaseline, spacing: Spacing.small) {
-      Image(systemName: symbol)
-        .font(.body.weight(.semibold))
-        .foregroundStyle(Color.ardiaAccentText)
-        .frame(width: width)
-        .accessibilityHidden(true)
-      Text(text)
-        .font(.subheadline)
-        .fixedSize(horizontal: false, vertical: true)
-    }
+    Text(text)
+      .fixedSize(horizontal: false, vertical: true)
+      .frame(maxWidth: .infinity, minHeight: MenuLayout.rowHeight, alignment: .leading)
+      .padding(.horizontal, Spacing.page)
   }
 }

@@ -1,8 +1,35 @@
 # Contributing to Ardia
 
-Ardia is a macOS browser with Dia's polish and Arc's sidebar, running on Chrome's own framework (Chromium 157). One
-person runs it, with a lot of help from coding agents, and ships nightlies most days. Pull requests are welcome. This
-page is what the owner keeps asking for, written down so you don't have to learn it from a review.
+Ardia is a macOS browser with Dia's polish and Arc's sidebar, running on Chrome's own framework (Chromium 157). Two
+people run it, with a lot of help from coding agents, and ship nightlies most days. From outside the team we take bug
+fixes, and only bug fixes. This page is the rules, and what the owner keeps asking for in review, written down so you
+don't have to learn it there.
+
+## Who can send what
+
+We are short of review time, not of ideas or code. Reviewing a pull request takes longer than writing one, so what
+you can send depends on who you are.
+
+| You are | You can send |
+| --- | --- |
+| Anyone | A bug fix |
+| On the vouched list, `.github/VOUCHED.td` | Bug fixes and features |
+| The team, `.github/TEAM.td` | Anything |
+
+A crash, a regression, and something that shipped and behaves wrong are bugs. A new setting, a new shortcut, a
+restyle, a new platform, and a Dia feature Ardia doesn't have yet are features, even when the pull request calls it a
+fix. Feature ideas go in [Ideas](https://github.com/ardia-browser/ardia/discussions/categories/ideas), not in an
+issue or a pull request.
+
+The best help often isn't a pull request:
+
+- **Duplicates.** Comment on the issue or pull request with a link to the original.
+- **Fixed bugs.** If an open issue no longer happens on the latest nightly, say so and give the version.
+- **A pull request that already covers your bug.** Test it and comment with what you saw. That beats a second one.
+
+Nothing is closed for breaking a rule on this page. The pull request gets a label and waits. A pull request that
+follows every rule can still wait or be declined: we don't owe a review or a merge. These rules apply to pull
+requests opened from 14 November 2026; earlier ones are looked at one by one.
 
 ## What we will and won't take
 
@@ -15,8 +42,8 @@ Out of scope:
 - **Accounts or sign-in of our own.** Sync goes through the user's iCloud Drive and nothing else.
 - **Telemetry that carries browsing data.** Crash reports are opt-in and never include sites or searches.
 
-`docs/dia-feature-parity.md` is the checklist of what's done and what isn't. Pick from there if you want something
-to do, and update its row in the same PR.
+`docs/dia-feature-parity.md` is the checklist of what's done and what isn't. If you're vouched and want something to
+do, pick from there, and update its row in the same PR.
 
 ## Getting it running
 
@@ -156,6 +183,10 @@ prompts, re-auth) needs a strong reason in the PR.
 
 ## Reporting a bug
 
+Use the bug report form; blank issues are off, and feature requests go to
+[Ideas](https://github.com/ardia-browser/ardia/discussions/categories/ideas). The form adds the `bug` label, and a
+maintainer takes it off when the report turns out to be a feature request.
+
 The fastest bug to fix is one with a screen recording. Include:
 
 - the version and channel (Settings › General; stable or nightly),
@@ -172,20 +203,35 @@ The fastest bug to fix is one with a screen recording. Include:
   "Linked issue" check and won't be reviewed. Several PRs can point at the same issue. GitHub links an issue
   only for a PR into `main`; for a PR stacked on another PR's branch the check reads `Closes #<issue>` from the
   description itself.
-- **Get vouched.** Maintainers vouch for contributors with [vouch](https://github.com/mitchellh/vouch). The list is
-  `.github/VOUCHED.td`; collaborators and bots always count as vouched. Anyone can open a pull request: yours stays
-  open with the `vouch:unvouched` label, and the iOS build and CodeRabbit's automatic review wait until a maintainer
-  starts them or vouches for you. Start with the issue: when a maintainer wants the change, they comment `vouch` on
-  your issue or pull request (`vouch @you` on an issue someone else opened), which adds you to the list until a
-  maintainer removes you. Your pull requests then turn `vouch:trusted` and the waiting build starts by itself, no new
-  push needed. Issues stay open to everyone, except that an account a maintainer has denounced has its pull requests
-  and issues closed.
-- One change per PR. Describe it the way a user would notice it ("dragging a tab onto another groups them"), then
-  how you checked it.
-- For anything visible, attach a recording or before-and-after captures, ideally next to Dia's.
+- **A bug fix, unless you're vouched.** From outside the vouched list, the issue your PR closes has to carry the
+  `bug` label. If it doesn't, the PR gets `not-a-bug-fix` and a failed `bug-fix-only` status. When a maintainer
+  labels the issue `bug`, both clear by themselves.
+- **One problem per PR.** Fix one problem and include everything that fix needs: code, tests, docs. Cleanup,
+  refactors and a second fix go in their own PRs. Describe the change the way a user would notice it ("dragging a
+  tab onto another groups them").
+- **Show that it works.** Under Verification, say how you reproduced the bug and what you saw after the fix, with
+  screenshots, or a video when the change is about motion or timing, ideally next to Dia's. Upload them to the PR;
+  don't commit them. "Tests pass" is not evidence. A change with nothing to see still has something to show: the
+  failing check before and the passing one after.
+- **Handle the review bots.** Greptile reviews every PR, and CodeRabbit joins once a maintainer starts it. Fix or
+  answer each comment and resolve its thread.
+- **`ready` and `incomplete`.** A PR is `ready` when it has a screenshot or video, no open bot threads, no conflicts
+  with `main` and no failed check. Otherwise it is `incomplete`. The labels update on every push and once a day;
+  comment `/recheck` to update them now. We look at `ready` PRs first.
+- **3 open PRs per person**, unless you're vouched. A fourth gets `over-limit` and waits until one of your earlier
+  ones is merged or closed.
+- **Keep it mergeable.** `main` moves fast and the owner commits straight to it. A PR that conflicts gets
+  `needs-rebase`; rebase and it comes off.
+- **Getting vouched.** Maintainers vouch for contributors with [vouch](https://github.com/mitchellh/vouch). The list
+  is `.github/VOUCHED.td`; collaborators and bots always count as vouched. Being vouched means we take features from
+  you, so it follows a few good bug fixes, not a first pull request. A maintainer comments `vouch` on your issue or
+  pull request (`vouch @you` on someone else's), which adds you to the list until a maintainer removes you. Until
+  then your PR carries `vouch:unvouched`, and the iOS and Android builds and CodeRabbit wait for a maintainer to
+  start them with the `run-ci` label; you don't need to push again.
+- **Denouncing is for spam and abuse.** A maintainer does it by hand. No automation denounces anyone, and breaking a
+  rule on this page never does. It is the only thing that closes pull requests and issues automatically.
 - Commit messages carry the why, since the code doesn't have comments. Look at `git log` for the style: a short
   subject saying what changed for the user, then a plain paragraph.
-- `main` moves fast and the owner commits straight to it. Rebase before you ask for a review.
 - Sometimes the owner lands your work in a different shape, or pulls part of a PR into their own commit. When that
   happens you stay on it as a `Co-authored-by:` trailer, and the release notes item ends with "Thanks, @you" linked
   to your PR.
@@ -207,6 +253,7 @@ first. Those files hold the owner's standing rules (hidden test instances, no fo
 no-comments rule), and they're why a change goes in without a long back-and-forth. For risky logic (races, object
 lifetimes, security, migrations, sync), get a second model to review the change before and after, and reproduce each
 finding before acting on it. Check the agent's diff yourself before you open the PR. You're the one answering for it.
+End the PR description with the model and harness that did the work.
 
 ## License
 

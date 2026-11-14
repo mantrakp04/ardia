@@ -5,12 +5,13 @@ import { toggleNewTabBar } from "../../state/omnibox/newTabBar";
 import { openNewTabInSplit } from "../../state/splits/actions";
 import { newTab } from "../../state/tabs/actions";
 import { Button, type IconPalette } from "../ui";
+import { perLook } from "../ui/tokens";
 import { useTheme } from "../ui/theme";
 import type { DragGeometry } from "./stripGroups";
 import { registerSlot } from "./stripReorder";
-import { ITEM_HEIGHT, ITEM_TOP, NEW_TAB_ICON, TAB_RADIUS } from "./tokens";
+import { ITEM_HEIGHT, ITEM_TOP, NEW_TAB_ICON, tabRadius } from "./tokens";
 
-const NEW_TAB_HIT = { width: ITEM_HEIGHT, height: ITEM_HEIGHT, plateX: 0, plateY: 0, box: ITEM_HEIGHT, radius: TAB_RADIUS };
+const NEW_TAB_HIT = perLook(() => ({ width: ITEM_HEIGHT, height: ITEM_HEIGHT, plateX: 0, plateY: 0, box: ITEM_HEIGHT, radius: tabRadius() }));
 
 export function NewTabButton({ windowId, geometry }: { windowId: string; geometry: DragGeometry }) {
   const theme = useTheme();
@@ -28,7 +29,7 @@ export function NewTabButton({ windowId, geometry }: { windowId: string; geometr
   };
   return (
     <Animated.View style={{ marginTop: ITEM_TOP, transform: [{ translateX: shift }] }}>
-      <Button variant="icon" toolbar icon="plus" glyph={NEW_TAB_ICON} hit={NEW_TAB_HIT} palette={palette} tooltip="New Tab (⌘T) — ⌥-click to open in Split View" onPress={open} />
+      <Button variant="icon" toolbar icon="plus" glyph={NEW_TAB_ICON} hit={NEW_TAB_HIT()} palette={palette} tooltip="New Tab (⌘T) — ⌥-click to open in Split View" onPress={open} />
     </Animated.View>
   );
 }

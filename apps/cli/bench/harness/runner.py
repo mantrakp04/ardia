@@ -10,13 +10,14 @@ import time
 from pathlib import Path
 
 import ardia_side
+import betterwright_side
 import browseruse_side
 import grading
 import opencode_side
 import registry
 import servers
 import summary
-from procs import read_json, sh, write_json
+from procs import kill_agents, read_json, sh, write_json
 from scheduler import LANE_PORT_STRIDE, Scheduler
 
 
@@ -126,6 +127,11 @@ def memory_used_pct():
     return round(used * page * 100 / total, 1)
 
 
+def memory_pressure_level():
+    out = sh(["sysctl", "-n", "kern.memorystatus_vm_pressure_level"], timeout=10).stdout.strip()
+    return int(out) if out.isdigit() else 4
+
+
 def lane_overrides(plan, contender, lane, port_offset=0):
     keys = ("app", "port", "cli", "ardia_test", "humanize", "keep_notes", "model", "effort")
     o = {k: contender.get(k, plan.get(k)) for k in keys}
@@ -153,7 +159,7 @@ def rate_limit_reason(rec):
     if rec.get("pass"):
         return None
     texts = [str(rec.get("harness_error") or ""), str(rec.get("error") or ""), str(rec.get("status") or "")]
-    if rec.get("side") in ("ardia", "opencode", "browseruse"):
+    if rec.get("side") in ("ardia", "opencode", "browseruse", "betterwright"):
         failed_cli = rec.get("cli_is_error") or rec.get("errors") or rec.get("exit_code") not in (0, None) or not rec.get("tokens")
         if not failed_cli:
             return None
@@ -178,6 +184,11 @@ def browseruse_overrides(plan, contender, lane, port_offset=0):
                 port_offset=port_offset)
 
 
+def betterwright_overrides(plan, contender, lane, port_offset=0):
+    keys = ("model", "effort", "bin", "chromium_root", "reach_line")
+    return dict({k: contender.get(k) for k in keys}, lane=f"lane{lane.index}", port_offset=port_offset)
+
+
 def run_item(item, lane, results_dir, plan, on_start):
     c, offset = item["contender"], item.get("port_offset", 0)
     if c["kind"] == "aside":
@@ -189,6 +200,10 @@ def run_item(item, lane, results_dir, plan, on_start):
         return browseruse_side.run(item["task"], c["agent"], item["run_id"], results_dir,
                                    browseruse_overrides(plan, c, lane, offset), contender=c["id"],
                                    on_agent_start=on_start)
+    if c["kind"] == "betterwright":
+        return betterwright_side.run(item["task"], c["agent"], item["run_id"], results_dir,
+                                     betterwright_overrides(plan, c, lane, offset), contender=c["id"],
+                                     on_agent_start=on_start)
     return ardia_side.run(item["task"], c["agent"], item["run_id"], results_dir, lane_overrides(plan, c, lane, offset),
                           contender=c["id"], on_agent_start=on_start)
 
@@ -202,9 +217,14 @@ def pending_items(plan, results_dir):
     return out
 
 
+def lane_base(plan):
+    return int(plan.get("lane_base") or 0)
+
+
 def make_scheduler(plan, results_dir, max_lanes, pinned_tasks=()):
     return Scheduler(pending_items(plan, results_dir), max_lanes=max_lanes, lead=int(plan.get("max_round_lead", 1)),
-                     pace_slack=float(plan.get("pace_slack", 0.15)), pinned_tasks=set(pinned_tasks))
+                     pace_slack=float(plan.get("pace_slack", 0.15)), pinned_tasks=set(pinned_tasks),
+                     lane_base=lane_base(plan))
 
 
 class Executor:
@@ -234,6 +254,7 @@ class Executor:
 
     def worker(self, item, lane, mode, used, lanes_active):
         run_id = item["run_id"]
+        load = round(os.getloadavg()[0], 1)
         started = []
 
         def on_start():
@@ -263,7 +284,7 @@ class Executor:
             self.sched.finish(run_id, t1, "retry" if rec.get("harness_error") else "done", rate_limited=bool(reason))
             rec.update({"lane": lane.id, "port_offset": item.get("port_offset", 0), "admitted": mode,
                         "lanes_active": lanes_active,
-                        "memory_used_pct_at_start": used, "concurrent_runs": concurrent,
+                        "memory_used_pct_at_start": used, "load_1m_at_start": load, "concurrent_runs": concurrent,
                         "run_started_epoch": round(t0, 3), "run_ended_epoch": round(t1, 3)})
             write_json(self.results_dir / "runs" / f"{run_id}.json", rec)
             with open(self.results_dir / "progress.jsonl", "a") as f:
@@ -295,6 +316,10 @@ class Executor:
                     self.quit_lane(lane)
                 used = memory_used_pct()
                 with self.lock:
+                    if self.plan.get("normal_pressure_only") and self.sched.running and memory_pressure_level() != 1:
+                        used = max(used, 100.0)
+                    if self.plan.get("max_load_1m") and os.getloadavg()[0] > float(self.plan["max_load_1m"]):
+                        used = max(used, 100.0)
                     starts = self.sched.decide(time.time(), used)
                     for item, lane, mode in starts:
                         if lane.kind == "ardia" and item["contender"]["kind"] == "ardia":
@@ -321,6 +346,8 @@ class Executor:
                 opencode_side.stop_all()
             if any(c["kind"] == "browseruse" for c in self.plan["contenders"]):
                 browseruse_side.stop_all()
+            if any(c["kind"] == "betterwright" for c in self.plan["contenders"]):
+                betterwright_side.stop_all()
             if self.plan.get("stop_after", True):
                 for lane_id in list(self.lanes_used):
                     ardia_side.quit_instance(self.lanes_used.pop(lane_id))
@@ -393,12 +420,14 @@ def reserved_ports(plan, max_lanes):
                       ("OpenCode relay", int(c.get("relay_port") or opencode_side.DEFAULTS["relay_port"]))]
         if c["kind"] == "browseruse":
             bases.append(("Browser Use CDP", int(c.get("cdp_port") or browseruse_side.DEFAULTS["cdp_port"])))
-    return {base + k: f"{name} lane {k}" for name, base in bases for k in range(max_lanes)}
+    first = lane_base(plan)
+    return {base + k: f"{name} lane {k}" for name, base in bases for k in range(first, first + max_lanes)}
 
 
 def port_plan(plan, max_lanes):
     task_ids = registry.task_ids(plan.get("tasks", "all"))
-    offsets = [0] + [LANE_PORT_STRIDE * (k + 1) for k in range(max_lanes)]
+    first = lane_base(plan)
+    offsets = [0] + [LANE_PORT_STRIDE * (k + 1) for k in range(first, first + max_lanes)]
     reserved = reserved_ports(plan, max_lanes)
     owners = dict(reserved)
     clashes = []
@@ -414,7 +443,7 @@ def port_plan(plan, max_lanes):
     if clashes:
         raise SystemExit(f"port offsets collide with {max_lanes} lanes: {', '.join(clashes)}")
     task_ports = [p for tid in task_ids for p in registry.task(tid)["server"]["ports"]]
-    return (f"ports: Aside +0, lane k +{LANE_PORT_STRIDE}(k+1); task ports {min(task_ports)}-{max(task_ports)} up to "
+    return (f"ports: Aside +0, lane k +{LANE_PORT_STRIDE}(k+1) from lane {first}; task ports {min(task_ports)}-{max(task_ports)} up to "
             f"+{offsets[-1]}, clear of the {len(reserved)} harness ports")
 
 
@@ -427,7 +456,7 @@ def pin_offsetless_tasks(plan):
         return []
     pinned = []
     for tid in registry.task_ids(plan.get("tasks", "all")):
-        ok, why = servers.supports_offset(tid, LANE_PORT_STRIDE)
+        ok, why = servers.supports_offset(tid, LANE_PORT_STRIDE * (lane_base(plan) + 1))
         if not ok:
             ardia_side.log(f"{tid}: its server ignores BENCH_PORT_OFFSET, so its runs share the +0 server one at a "
                            f"time ({why})")
@@ -452,5 +481,9 @@ def execute(plan_path, results_dir=None, dry_run=False, max_lanes=None):
     if any(c["kind"] == "aside" for c in plan["contenders"]) or pinned:
         for tid in registry.task_ids(plan.get("tasks", "all")):
             servers.start(registry.task(tid))
-    Executor(plan, results_dir, max_lanes, pinned).run()
+    try:
+        Executor(plan, results_dir, max_lanes, pinned).run()
+    except BaseException:
+        kill_agents()
+        raise
     return results_dir
