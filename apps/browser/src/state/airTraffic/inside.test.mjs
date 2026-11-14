@@ -13,6 +13,7 @@ const { openExternalUrls } = await import("../littleArdia/actions.ts");
 const { setOpeningGate } = await import("../tabs/openingGate.ts");
 const { takeAirTrafficCounts } = await import("../telemetry/airTrafficCounts.ts");
 const { parseMatchPattern } = await import("../../lib/matchPattern.ts");
+const { peekSourceOf } = await import("../peek/peek.ts");
 
 const S = () => useBrowser.getState();
 const PERSONAL = { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 };
@@ -103,6 +104,22 @@ test("a routed click already at its destination opens the way its keys say: âŒ˜â
   openFromPage({ url: "https://mail.example/here", disposition: "foreground", opens: "page", userGesture: true, routed: true, keyed: false }, page);
   await tick();
   assert.equal(S().tabs[source].page.nav?.url, "https://mail.example/here");
+});
+
+test("a plain new-tab click its rule leaves in place still opens the way Open new-tab links in says", async () => {
+  const { w, source, personal } = fresh();
+  const group = S().groupTabs([source]);
+  store.resetAirTrafficForTests({ rules: [rule({ when: site("mail.example"), profileId: personal, groupKey: S().groups[group].pinKey ?? group })], fallback: null });
+  S().updateSettings({ newTabLinksOpenIn: "peek", peekLinksToOtherSites: false });
+  const page = { windowId: w, tabId: source, profileId: personal };
+
+  openFromPage({ url: "https://mail.example/framed", disposition: "foreground", opens: "tab", userGesture: true, routed: true, keyed: false }, page);
+  await tick();
+
+  const opened = tabsAt("https://mail.example/framed");
+  assert.equal(opened.length, 1);
+  assert.equal(peekSourceOf(S(), opened[0].id), source);
+  S().updateSettings({ newTabLinksOpenIn: "tab" });
 });
 
 test("a link from another app with a group rule joins the group's copy in the window shown last, and opens its collapsed group", async () => {

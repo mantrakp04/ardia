@@ -101,6 +101,12 @@ function openRoutedLink(s: BrowserState, request: OpenWindowRequest, page: PageR
     return openAtPlacement(placement, { url, how, from, gated, via: "link" });
   }
   if (how === "foreground" && request.opens !== "tab" && page.tabId) return s.navigate(page.tabId, url, { userInitiated: true, gated });
+  if (how === "foreground" && !request.keyed && page.tabId) {
+    const route = newTabLinkRoute(s, page.tabId, url);
+    if (route === "peek") return void s.openPeek(page.tabId, url, request.point ?? null);
+    if (route === "otherSite") return void s.openPeek(page.tabId, url, request.point ?? null, { landing: siteLanding(s.tabs[page.tabId]!.url, "tab") });
+    if (route === "littleArdia") return void openLittleArdia(url, page.profileId);
+  }
   if (how === "window") return void openWindow(w.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { profileId: page.profileId, url });
   const opened = s.newTab(w.id, { url, openerId: page.tabId, profileId: page.profileId, background: how === "background", gated });
   if (how === "background") noteBackgroundTab(w.id, opened, page.tabId);
