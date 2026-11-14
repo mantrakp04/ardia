@@ -2,6 +2,7 @@
 
 #include "chrome/browser/ardia/ac_engine.h"
 
+#include <algorithm>
 #include <map>
 #include <set>
 #include <memory>
@@ -191,10 +192,30 @@ class ExtensionsState : public ProfileState {
               Reply reply,
               extensions::ExtensionInfoGenerator::ExtensionInfoList infos) {
     Drop(key);
+    // ExtensionInfoGenerator reads pins from ToolbarActionsModel, which knows
+    // no actions until its OnReady() task has run. A list asked for while the
+    // profile is still loading (a secondary profile opened at launch or on
+    // first switch) would otherwise call every extension unpinned. So pins are
+    // read here, when replying: from the model once it's ready, and from the
+    // saved pin list until then.
+    ToolbarActionsModel* toolbar = ToolbarActionsModel::Get(profile());
+    const bool toolbar_ready = toolbar && toolbar->actions_initialized();
+    const extensions::ExtensionIdList saved_pins =
+        toolbar_ready
+            ? extensions::ExtensionIdList()
+            : extensions::ExtensionPrefs::Get(profile())->GetPinnedExtensions();
     base::ListValue list;
     for (const auto& info : infos) {
       if (info.type == developer::ExtensionType::kExtension) {
         base::DictValue entry = Entry(info);
+        // Only enabled extensions have toolbar actions, as in the model.
+        entry.Set("pinned",
+                  toolbar_ready
+                      ? toolbar->HasAction(info.id) &&
+                            toolbar->IsActionPinned(info.id)
+                      : info.state == developer::ExtensionState::kEnabled &&
+                            std::ranges::find(saved_pins, info.id) !=
+                                saved_pins.end());
         const Extension* extension = Find(profile(), info.id);
         if (extension && !info.disable_reasons.blocked_by_policy &&
             info.state != developer::ExtensionState::kEnabled &&
