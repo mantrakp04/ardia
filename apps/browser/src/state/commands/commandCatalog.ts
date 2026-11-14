@@ -50,7 +50,7 @@ export const COMMANDS = {
       dark: { title: "Dark", barTitle: "Dark Appearance", symbol: "moon" },
     },
   },
-  reload: { title: "Refresh", barTitle: "Reload Page", symbol: "arrow.clockwise", keys: ["⌘R"], ...pageInLittleArdia },
+  reload: { title: "Refresh", barTitle: "Reload Page", symbol: "arrow.clockwise", keys: ["⌘R", "F5"], ...pageInLittleArdia },
   forceReload: { title: "Force Refresh the Page", barTitle: "Force Reload Page", symbol: "arrow.clockwise", keys: ["⇧⌘R"], ...pageInLittleArdia },
   toggleTabLayout: { title: "Show Tabs in Sidebar", keys: ["⇧⌘S"], ...windowOffInLittleArdia },
   toggleSidebarSide: { title: "Sidebar on Right", symbol: "sidebar.right", ...offInLittleArdia },

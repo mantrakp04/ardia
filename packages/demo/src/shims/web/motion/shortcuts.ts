@@ -42,6 +42,7 @@ const SHORTCUTS: Shortcut[] = [
   s("Period", ["cmd"], "stop"),
   s("KeyR", ["cmd"], "reload"),
   s("KeyR", ["cmd", "shift"], "forceReload"),
+  s("F5", [], "reload"),
   s("KeyS", ["cmd", "shift"], "toggleTabLayout"),
   s("KeyS", ["cmd"], "toggleSidebar"),
   s("KeyL", ["cmd", "shift"], "toggleSidebar"),

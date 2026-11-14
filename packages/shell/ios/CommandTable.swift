@@ -242,7 +242,7 @@ enum CommandTable {
     "findInPage": [("f", [.command])],
     "findNext": [("g", [.command])],
     "findPrevious": [("g", [.shift, .command])],
-    "reload": [("r", [.command])],
+    "reload": [("r", [.command]), ("\u{F708}", [])],
     "forceReload": [("r", [.shift, .command])],
     "toggleTabLayout": [("s", [.shift, .command])],
     "toggleSidebar": [("s", [.command]), ("l", [.shift, .command]), ("f", [.shift, .command])],
