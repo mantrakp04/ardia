@@ -28,6 +28,7 @@ import type {
   SecurityInfo,
   WebNotification,
   WebViewProps,
+  ZapPick,
   ZoomState,
 } from "./pageTypes";
 
@@ -71,6 +72,7 @@ type NativeEvents = {
   onAutofillPrompt: AutofillPrompt | { id: number; closed: true };
   onExternalApp: ExternalAppRequest;
   onPreferredSize: { width: number; height: number };
+  onZapPicked: ZapPick;
   onTransferRefused: { from: string };
   onAppBadge: AppBadge;
 };
@@ -118,6 +120,7 @@ const PAGE_EVENTS = {
   onAutofillPrompt: "autofillPrompt",
   onExternalApp: "externalApp",
   onPreferredSize: "preferredSize",
+  onZapPicked: "zapPicked",
   onTransferRefused: "transferRefused",
   onAppBadge: "appBadge",
 } as const satisfies Record<Handlers, string>;
@@ -165,6 +168,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onAutofillPrompt: (e) => ("closed" in e ? [null, e.id] : [e, e.id]),
   onExternalApp: (e) => [e],
   onPreferredSize: (e) => [e],
+  onZapPicked: (e) => [e],
   onTransferRefused: (e) => [e.from],
   onAppBadge: (e) => [e],
 };

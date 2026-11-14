@@ -10,6 +10,8 @@ import { menuBarRevision, shortcutHint } from "../commands/commandShortcuts";
 import type { Tab } from "../browser/types";
 import { organizeActions } from "./organizeActions";
 import { muteState, muteTitle, siteMuteTitle } from "../tabs/mute";
+import { canBoostTab, hasActiveSiteBoosts, siteBoostsOfTab } from "../boostUi/actions";
+import { useBoostStore } from "../boosts/store";
 
 type Context = { s: BrowserState; windowId: string; tab: Tab | undefined };
 
@@ -19,7 +21,7 @@ type ActionDef = {
   title?: (c: Context) => string;
   icon?: string;
   keywords?: string[];
-  needs?: "page" | "tab" | "profiles" | "pins";
+  needs?: "page" | "tab" | "profiles" | "pins" | "boostable" | "boosts" | "activeBoosts";
 };
 
 const page = "page" as const;
@@ -47,6 +49,9 @@ const DEFS: ActionDef[] = [
   },
   { command: "duplicateTab", needs: "tab" },
   { command: "renameTab", needs: "tab" },
+  { command: "newBoost", keywords: ["boost", "restyle site", "customize site", "recolor site", "change font"], needs: "boostable" },
+  { command: "editBoost", keywords: ["boost", "restyle site", "customize site"], needs: "boosts" },
+  { command: "turnOffBoosts", keywords: ["boost", "disable boosts", "turn off boosts"], needs: "activeBoosts" },
   { command: "searchTabs" },
   { command: "cleanUpTabs", keywords: ["tidy tabs"] },
   { command: "tidyPins", keywords: ["tidy pinned tabs", "organize pins", "pinned folders", "remove duplicate pins"], needs: "pins" },
@@ -108,6 +113,9 @@ export function barActions(s: BrowserState, windowId: string): CommandAction[] {
     if (d.needs === "tab" && !tab) continue;
     if (d.needs === "profiles" && w?.kind === "private") continue;
     if (d.needs === "pins" && !canTidy(s, windowId)) continue;
+    if (d.needs === "boostable" && !(tab && canBoostTab(tab.id))) continue;
+    if (d.needs === "boosts" && !(tab && siteBoostsOfTab(tab.id).length)) continue;
+    if (d.needs === "activeBoosts" && !(tab && hasActiveSiteBoosts(tab.id))) continue;
     if (hidesBookmarkCommand(s.settings, d.command)) continue;
     const id = actionId(d);
     const hint = shortcutHint(id, s);
@@ -131,10 +139,16 @@ export function barActions(s: BrowserState, windowId: string): CommandAction[] {
   return out;
 }
 
-const barActionsOf = new WeakMap<BrowserState, Map<string, CommandAction[]>>();
+let barActionsOf = new WeakMap<BrowserState, Map<string, CommandAction[]>>();
+let boostsSeen = useBoostStore.getState().boostsByProfile;
 
 export function currentBarActions(windowId: string): CommandAction[] {
   const s = useBrowser.getState();
+  const boosts = useBoostStore.getState().boostsByProfile;
+  if (boosts !== boostsSeen) {
+    boostsSeen = boosts;
+    barActionsOf = new WeakMap();
+  }
   let byWindow = barActionsOf.get(s);
   if (!byWindow) barActionsOf.set(s, (byWindow = new Map()));
   const key = `${windowId}|${menuBarRevision()}`;

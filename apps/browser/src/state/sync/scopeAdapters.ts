@@ -5,6 +5,7 @@ import { profilesAdapter, profileThemesAdapter, profileTopAppsAdapter } from "./
 import { settingsAdapter } from "./settingsAdapter";
 import { pinnedAreaAdapters } from "./pinned";
 import { extensionsAdapterFor } from "./extensions";
+import { boostsAdapter } from "./boostsAdapter";
 import { APP_SCOPE, typeSyncedFor, type DataType, type SyncDoc } from "./syncDoc";
 import { sentTabsAdapter } from "./sentTabsAdapter";
 import { deliverSentTabs, sendLedger } from "./sentTabs";
@@ -57,5 +58,6 @@ export function profileAdapters(doc: SyncDoc, profileId: string, retiring: boole
     sentTabsAdapter(id, () => sendLedger(doc, profileScope(doc.profiles[profileId]!.syncId)), (arrived) => deliverSentTabs(doc, profileId, arrived)),
     ...(synced("passwords") ? [passwords(forcePasswords)] : []),
     ...(synced("extensions") ? [extensionsOf(profileId)] : []),
+    ...(synced("boosts") ? [boostsAdapter(profileId)] : []),
   ];
 }

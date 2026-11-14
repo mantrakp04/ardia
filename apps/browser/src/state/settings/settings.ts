@@ -130,6 +130,7 @@ export const SETTING_SPECS = {
   extensionSidePanelWidth: width(360),
   showFullUrl: flag(false, SYNCED),
   allowJavaScriptFromAppleEvents: flag(false),
+  boostJavaScriptWarned: flag(false),
   cliControl: flag(false),
   showBookmarks: flag(true, SYNCED),
   bookmarksBar: oneOf(["always", "newTab", "never"], "never", SYNCED),

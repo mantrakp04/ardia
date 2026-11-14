@@ -96,6 +96,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
       resolveUnresponsive: (terminate) => call(undefined, (n) => n.resolveUnresponsive(terminate)),
       discard: (options) => call<DiscardOutcome>("refused", (n) => n.discard(options?.unload ?? false)),
       setFrozen: (frozen) => call(undefined, (n) => n.setFrozen(frozen)),
+      zap: (action, level) => call(undefined, (n) => n.zap(action, level ?? 0)),
     };
   });
 

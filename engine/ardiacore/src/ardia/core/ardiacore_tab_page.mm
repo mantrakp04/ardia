@@ -12,6 +12,7 @@
 #include "content/public/common/page_zoom.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ardia/core/ac_boost_tab.h"
 #include "ardia/core/ac_browser.h"
 #include "ardia/core/ac_contents_background.h"
 #include "ardia/core/ac_page_channel.h"
@@ -43,6 +44,16 @@ using ardiacore::NS;
     zoom::PageZoom::Zoom(_contents, direction > 0   ? content::PAGE_ZOOM_IN
                                     : direction < 0 ? content::PAGE_ZOOM_OUT
                                                     : content::PAGE_ZOOM_RESET);
+  }
+}
+
+- (BOOL)previewBoost:(NSString*)json {
+  return _contents && ardiacore::PreviewBoost(_contents, base::SysNSStringToUTF8(json));
+}
+
+- (void)clearBoostPreview {
+  if (_contents) {
+    ardiacore::ClearBoostPreview(_contents);
   }
 }
 

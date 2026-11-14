@@ -22,6 +22,7 @@ import { editClock, startEditClock } from "./editClock";
 import { addLinkedProfile, appScopeOf, linkedProfileId, linkProfiles, readyToPair, remoteProfileRecord, sharedDataChain } from "./profileLinks";
 import { summarize } from "./syncSummary";
 import { profileScope } from "./records";
+import { useBoostStore } from "../boosts/store";
 import { queueSend, sendTargetsIn } from "./sentTabs";
 import { errorText } from "../../lib/errors";
 import { isQuitting, saveBeforeQuit } from "../app/quit";
@@ -379,6 +380,11 @@ export function startSync() {
   useBrowser.subscribe((s, prev) => {
     if (!doc.enabled || cycle) return;
     if (s.bookmarks !== prev.bookmarks || s.settings !== prev.settings || s.profiles !== prev.profiles || s.groups !== prev.groups) scheduleSync();
+  });
+  useBoostStore.subscribe(() => {
+    if (!doc.enabled || !doc.types.boosts) return;
+    if (cycle) again = true;
+    else scheduleSync();
   });
   if (__DEV__) {
     (globalThis as { acSync?: object }).acSync = {

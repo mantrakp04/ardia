@@ -17,6 +17,8 @@ export const PROFILE_THEME = "pth:";
 export const PROFILE_TOP_APPS = "pta:";
 export const BOOKMARK = "bm:";
 export const HISTORY = "h:";
+export const BOOST = "boost:";
+
 export const SEND = "send:";
 
 export const RECEIVES_TABS = "send";
