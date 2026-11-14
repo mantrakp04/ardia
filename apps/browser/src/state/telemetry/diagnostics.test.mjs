@@ -205,6 +205,18 @@ test("the built-in page comes from the focused window's tab, a Little Ardia wind
   assert.equal((await diagnostics.recordContext()).webui_page, null);
 });
 
+test("a burst of built-in page samples keeps the samples from before it, so a crash read an hour later still finds its context", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  useBrowser.getState().hydrate({});
+  useBrowser.getState().createWindow({ url: "chrome://settings/cookies" });
+  const beforeBurst = await diagnostics.recordContext();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  for (let i = 0; i < 30; i++) await diagnostics.recordContext();
+  const found = diagnostics.contextAt(diagnostics.contextSamples(), beforeBurst.at, [beforeBurst.session_start]);
+  assert.equal(found?.at, beforeBurst.at);
+  assert.equal(found?.webui_page, "settings/cookies");
+});
+
 test("a page process that goes away sends its reason, exit code, visibility and counts, capped per session", async () => {
   diagnostics.trackPageProcessGone({ reason: "oom", code: 9 }, true, { translate: "translating", translate_stage: "model", translating_tabs: 2, translated_tabs: 1 });
   diagnostics.trackPageProcessGone({ reason: "https://private.example", code: 1.5 }, false);

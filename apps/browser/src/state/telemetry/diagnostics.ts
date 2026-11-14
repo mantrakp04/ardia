@@ -16,7 +16,9 @@ const MAX_PAGE_PROCESS_EVENTS = 30;
 const MAX_HOVER_LOST_EVENTS = 20;
 const MAX_HOVER_LOST_SECONDS = 24 * 60 * 60;
 const MINUTE_MS = 60_000;
-const MAX_SAMPLES = 12;
+const MIN_SAMPLES = 12;
+const MAX_SAMPLES = 600;
+const SAMPLE_KEEP_MS = 2 * 60 * 60_000;
 const WEBUI_RECORD_GAP_MS = 2_000;
 
 const startedAt = Date.now();
@@ -78,9 +80,14 @@ export async function recordContext(): Promise<SavedContext | null> {
     webui_page: activeWebuiPage(),
   };
   if (!isSharing()) return null;
-  samples = [...samples, context].slice(-MAX_SAMPLES);
+  samples = keepRecent([...samples, context], now);
   saveContext(context);
   return context;
+}
+
+function keepRecent(list: SavedContext[], now: number): SavedContext[] {
+  const recent = list.filter((c) => now - (c.at as number) < SAMPLE_KEEP_MS);
+  return (recent.length >= MIN_SAMPLES ? recent : list.slice(-MIN_SAMPLES)).slice(-MAX_SAMPLES);
 }
 
 export const contextSamples = () => samples;
