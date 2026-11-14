@@ -16,7 +16,14 @@ type SettingsNav = { open: boolean; stack: SettingsRoute[]; popping: boolean };
 
 export const useSettingsNav = create<SettingsNav>()(() => ({ open: false, stack: [], popping: false }));
 
+const scrolls = new Map<string, number>();
+
+export const rememberSettingsScroll = (page: string, y: number) => void scrolls.set(page, y);
+
+export const settingsScroll = (page: string) => scrolls.get(page) ?? 0;
+
 export function openSettings(route: SettingsRoute = { page: "root" }) {
+  scrolls.clear();
   const stack: SettingsRoute[] = route.page === "root" ? [route] : [{ page: "root" }, route];
   useSettingsNav.setState({ open: true, stack, popping: false });
 }
@@ -31,6 +38,9 @@ export function popSettings(): boolean {
   return true;
 }
 
-export const closeSettings = () => useSettingsNav.setState({ open: false, stack: [], popping: false });
+export function closeSettings() {
+  scrolls.clear();
+  useSettingsNav.setState({ open: false, stack: [], popping: false });
+}
 
 export const settingsNav = () => useSettingsNav.getState();

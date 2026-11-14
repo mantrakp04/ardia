@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { AppState, BackHandler, StyleSheet, useColorScheme } from "react-native";
+import { useEffect, useState, type ReactNode } from "react";
+import { AppState, BackHandler, StyleSheet, useColorScheme, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { BrowsingScreen } from "./components/browsing/BrowsingScreen";
@@ -12,7 +12,8 @@ import { SettingsView } from "./components/settings/SettingsView";
 import { ToastHost } from "./components/toasts/ToastHost";
 import { ThemeColorContext } from "./components/ui";
 import { startSettingsSources } from "./state/settings/actions";
-import { usePreferences } from "./state/settings/hooks";
+import { usePreferences, useSettingsNav } from "./state/settings/hooks";
+import { useOnboarding } from "./state/onboarding/hooks";
 import { useBaseSystemBars } from "./state/app/systemBars";
 import { useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
@@ -30,6 +31,8 @@ export default function App() {
   const tab = useSelectedTab();
   const dark = useColorScheme() === "dark";
   const color = usePreferences((p) => p.colorChoice) ?? "plum";
+  const settingsOpen = useSettingsNav((s) => s.open);
+  const onboarding = useOnboarding((s) => s.showing);
   useBaseSystemBars(dark);
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", handleSystemBack);
@@ -44,17 +47,35 @@ export default function App() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <ThemeColorContext.Provider value={color}>
-          {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
-          {surface === "deck" ? <TabDeck /> : null}
-          {surface === "start" ? <StartScreen /> : null}
-          <SearchTray />
-          {sheet === "archive" ? <ArchiveView /> : null}
-          <SettingsView />
+          <Layer covered={sheet !== null || settingsOpen || onboarding}>
+            {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
+            {surface === "deck" ? <TabDeck /> : null}
+            {surface === "start" ? <StartScreen /> : null}
+            <SearchTray />
+          </Layer>
+          <Layer covered={settingsOpen || onboarding}>{sheet === "archive" ? <ArchiveView /> : null}</Layer>
+          <Layer covered={onboarding}>
+            <SettingsView />
+          </Layer>
           <OnboardingView />
           <ToastHost />
         </ThemeColorContext.Provider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function Layer({ covered, children }: { covered: boolean; children: ReactNode }) {
+  return (
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents="box-none"
+      collapsable={false}
+      importantForAccessibility={covered ? "no-hide-descendants" : "auto"}
+      accessibilityElementsHidden={covered}
+    >
+      {children}
+    </View>
   );
 }
 

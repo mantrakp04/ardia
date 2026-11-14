@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
 import { Backdrop, FloatingMenu, font, ink, settingsLayout, space, Symbol, tabsLayout, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
 
 type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean };
@@ -26,7 +27,14 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
         <View style={[styles.topSide, styles.end]}>{trailing}</View>
       </View>
       {scroll ? (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.huge }]} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          style={{ marginBottom: insets.bottom }}
+          contentContainerStyle={[styles.content, { paddingBottom: space.huge }]}
+          contentOffset={{ x: 0, y: settingsScroll(title) }}
+          onScroll={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
+          scrollEventThrottle={64}
+          keyboardShouldPersistTaps="handled"
+        >
           {children}
         </ScrollView>
       ) : (
