@@ -50,5 +50,6 @@ class MainApplication : Application(), ReactApplication, SyncControllerOwner {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)
+        SystemExport.configurationChanged(this, newConfig.uiMode)
     }
 }

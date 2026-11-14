@@ -5,6 +5,7 @@ import com.ardia.browser.android.system.ArdiaWidgets
 import com.ardia.browser.android.system.SystemSnapshotExporter
 import com.ardia.browser.android.system.SystemSnapshots
 import com.ardia.browser.android.system.SystemStore
+import com.ardia.phone.NightChange
 import com.ardia.phone.PhoneSync
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +20,7 @@ object SystemExport {
 
     fun start(context: Context) {
         val app = context.applicationContext
+        configurationChanged(app, app.resources.configuration.uiMode)
         scope.launch {
             PhoneSync.controllers.collectLatest { sync ->
                 sync ?: return@collectLatest
@@ -31,8 +33,14 @@ object SystemExport {
         }
     }
 
-    fun nightModeChanged(context: Context) {
+    private val night = NightChange()
+
+    fun configurationChanged(context: Context, uiMode: Int) {
+        if (!night.changed(uiMode)) return
         val app = context.applicationContext
-        scope.launch { ArdiaWidgets.refreshSearch(app) }
+        scope.launch {
+            ArdiaWidgets.refreshSearch(app)
+            ArdiaWidgets.refreshMacTabs(app)
+        }
     }
 }
