@@ -182,6 +182,7 @@ export const HistoryButton = memo(function HistoryButton({
   onFocus: () => void;
 }) {
   const handoffMotion = useRef(new Animated.Value(0)).current;
+  const pressOffsetMotion = useRef(new Animated.Value(0)).current;
   const icon = direction < 0 ? "chevron.left" : "chevron.right";
   const iconColor = disabled ? palette.iconDisabled : palette.icon;
   const handoffFadeOut = handoffMotion.interpolate({ inputRange: [0, HISTORY_BUTTON_MOTION.duration], outputRange: [1, 0] });
@@ -193,12 +194,27 @@ export const HistoryButton = memo(function HistoryButton({
       if (!reduced) return;
       handoffMotion.stopAnimation();
       handoffMotion.setValue(0);
+      pressOffsetMotion.stopAnimation();
+      pressOffsetMotion.setValue(0);
     });
     return () => {
       subscription.remove();
       handoffMotion.stopAnimation();
+      pressOffsetMotion.stopAnimation();
     };
-  }, [handoffMotion]);
+  }, [handoffMotion, pressOffsetMotion]);
+  const animatePressOffset = (pressed: boolean) => {
+    pressOffsetMotion.stopAnimation();
+    if (reduceMotion() !== false) {
+      pressOffsetMotion.setValue(0);
+      return;
+    }
+    Animated.spring(pressOffsetMotion, {
+      toValue: pressed ? direction * HISTORY_BUTTON_MOTION.pressTravel : 0,
+      ...springs.snappy,
+      useNativeDriver: true,
+    }).start();
+  };
   const animateHandoff = () => {
     if (reduceMotion() !== false) return;
     handoffMotion.stopAnimation();
@@ -230,11 +246,13 @@ export const HistoryButton = memo(function HistoryButton({
         hit={place?.hit}
         disabled={disabled}
         onPress={onPress}
+        onPressIn={() => animatePressOffset(true)}
+        onPressOut={() => animatePressOffset(false)}
         onLongPress={openMenu}
         onContextMenu={openMenu}
         tooltip={withShortcut(direction < 0 ? "Go Back" : "Go Forward", historyHint)}
       >
-        <Animated.View style={ICON_CENTER}>
+        <Animated.View style={[ICON_CENTER, { transform: [{ translateX: pressOffsetMotion }] }]}>
           <Animated.View pointerEvents="none" style={[ICON_LAYER, { opacity: handoffFadeOut, transform: [{ translateX: handoffOutX }] }]}>
             <Symbol name={icon} size={GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
           </Animated.View>

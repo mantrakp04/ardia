@@ -31,6 +31,7 @@ import { AwayTitleLabel } from "../sidebar/AwayTitle";
 import { UnreadCount } from "../unread/UnreadBadge";
 import { useTabUnread } from "../../state/tabs/unread";
 import { titleWithoutUnread } from "../../lib/unread";
+import { buttonMotion, usePressScaleMotion } from "../ui/motion";
 
 export function DraggableChip({
   tabId,
@@ -127,6 +128,8 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
   const closeControl = useTabCloseControl(tabId);
   const { hovered, hoverProps } = useHover();
   const unread = useTabUnread(tabId);
+  const mutePressMotion = usePressScaleMotion(!!(playing || mute), buttonMotion.iconPressScale);
+  const mutePressStyle = mutePressMotion.scale ? { transform: [{ scale: mutePressMotion.scale }] } : undefined;
   if (!tab) return null;
   const title = tab.customTitle ? tabTitle(tab) : titleWithoutUnread(tabTitle(tab), unread);
   const away = awayTitle(tab);
@@ -148,8 +151,10 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
                 <TabBadges tabId={tab.id} />
               </View>
               {(playing || mute) && (
-                <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: CHIP_LABEL_GAP }} tooltip={muteTitle(mute)}>
-                  <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
+                <Pressable onPress={() => toggleMute(tab.id)} onPressIn={mutePressMotion.onPressIn} onPressOut={mutePressMotion.onPressOut} style={{ marginLeft: CHIP_LABEL_GAP }} tooltip={muteTitle(mute)}>
+                  <Animated.View pointerEvents="none" style={mutePressStyle}>
+                    <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
+                  </Animated.View>
                 </Pressable>
               )}
               {away ? (

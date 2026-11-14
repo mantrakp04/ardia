@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, Pressable, View } from "react-native";
 import { switchToTab, toggleMute } from "../../state/browser/actions";
 import { useTheme } from "../ui/theme";
-import { curve, duration } from "../ui/motion";
+import { buttonMotion, curve, duration, usePressScaleMotion } from "../ui/motion";
 import { font, radius, space, weight } from "../ui/tokens";
 import { useTab } from "../../state/browser/hooks";
 import { useMuteState } from "../../state/tabs/hooks";
@@ -139,16 +139,25 @@ const PlayerRow = memo(function PlayerRow({ tabId, mounted, hovered, reveal }: {
   const tab = useTab(tabId);
   const mute = useMuteState(tabId);
   const artwork = useArtwork(tabId, session?.artwork);
+  const pressMotion = usePressScaleMotion(true, buttonMotion.controlPressScale);
+  const artScaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   const artistHeight = useMemo(() => reveal.interpolate({ inputRange: [0, 1], outputRange: [0, ARTIST_HEIGHT] }), [reveal]);
   const title = session?.title || tab?.title || "";
   const artist = session?.artist || (tab ? hostOf(tab.url) : "");
   const marquee = useMarqueeGroup(`${title}|${artist}`, hovered ? -1 : MARQUEE_PASSES_AT_REST);
   if (!session || !tab) return null;
   return (
-    <Pressable onPress={() => switchToTab(tabId)} style={{ flex: 1, minWidth: 0, alignSelf: "stretch", flexDirection: "row", alignItems: "center", marginRight: TRAILING_INSET }}>
-      <View tooltip="Back to Tab" style={{ width: ART, height: ART, borderRadius: radius.control, overflow: "hidden", backgroundColor: media.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
-        {artwork ? <Image source={{ uri: artwork }} resizeMode="cover" style={{ width: ART, height: ART }} /> : <Favicon url={tab.url} favicon={tab.favicon} size={16} profileId={tab.profileId} />}
-      </View>
+    <Pressable
+      onPress={() => switchToTab(tabId)}
+      onPressIn={pressMotion.onPressIn}
+      onPressOut={pressMotion.onPressOut}
+      style={{ flex: 1, minWidth: 0, alignSelf: "stretch", flexDirection: "row", alignItems: "center", marginRight: TRAILING_INSET }}
+    >
+      <Animated.View tooltip="Back to Tab" style={artScaleStyle}>
+        <View style={{ width: ART, height: ART, borderRadius: radius.control, overflow: "hidden", backgroundColor: media.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
+          {artwork ? <Image source={{ uri: artwork }} resizeMode="cover" style={{ width: ART, height: ART }} /> : <Favicon url={tab.url} favicon={tab.favicon} size={16} profileId={tab.profileId} />}
+        </View>
+      </Animated.View>
       {isLive(session) ? (
         <View accessibilityLabel="Live" style={{ marginLeft: space.m }}>
           <Dot size={LIVE_DOT} color={theme.destructive} />

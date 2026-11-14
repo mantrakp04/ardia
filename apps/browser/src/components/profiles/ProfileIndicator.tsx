@@ -1,11 +1,12 @@
 import { useRef } from "react";
-import { Pressable, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { profileNameColor, useTheme } from "../ui/theme";
 import { useIsIncognito, useProfiles, useWindowId, useWindowProfile } from "../../state/browser/hooks";
 import { setMeasuredWidth, useMeasuredWidth } from "../../state/windows/measuredWidths";
 import { ContextMenuArea, radius, Symbol, Text, useHover } from "../ui";
 import { openProfileItemMenu } from "./profileMenu";
 import { openProfileMenu } from "../../state/browser/actions";
+import { buttonMotion, usePressScaleMotion } from "../ui/motion";
 
 const PAD = 9;
 const HEIGHT = 34;
@@ -35,6 +36,7 @@ export function ProfileIndicator({ room }: { room: number }) {
   const windowId = useWindowId();
   const { hovered, hoverProps } = useHover();
   const { incognito, title, textWidth, shown, showName, width, color, profileId } = useIndicator(room);
+  const pressMotion = usePressScaleMotion(!incognito && !showName && !!textWidth, buttonMotion.iconPressScale);
   const indicator = useRef<View>(null);
   if (!shown) return null;
 
@@ -51,7 +53,12 @@ export function ProfileIndicator({ room }: { room: number }) {
         </Text>
       </View>
       <ContextMenuArea onContextMenu={() => !incognito && void openProfileItemMenu(profileId, "sidebar", windowId, indicator.current)}>
-        <Pressable onPress={() => !incognito && void openProfileMenu(windowId)} disabled={incognito}>
+        <Pressable
+          onPress={() => !incognito && void openProfileMenu(windowId)}
+          onPressIn={pressMotion.onPressIn}
+          onPressOut={pressMotion.onPressOut}
+          disabled={incognito}
+        >
           {({ pressed }) => (
             <View
               style={{
@@ -70,7 +77,9 @@ export function ProfileIndicator({ room }: { room: number }) {
                   {title}
                 </Text>
               ) : textWidth ? (
-                <Symbol name="person.fill" size={14} weight="semibold" color={color} style={{ width: 16, height: 16 }} />
+                <Animated.View style={[PROFILE_GLYPH, pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : null]}>
+                  <Symbol name="person.fill" size={14} weight="semibold" color={color} style={PROFILE_GLYPH} />
+                </Animated.View>
               ) : null}
             </View>
           )}
@@ -79,3 +88,5 @@ export function ProfileIndicator({ room }: { room: number }) {
     </View>
   );
 }
+
+const PROFILE_GLYPH = { width: 16, height: 16, alignItems: "center", justifyContent: "center" } as const;
