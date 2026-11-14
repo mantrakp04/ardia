@@ -17,6 +17,7 @@ export function status(patch: Partial<SyncStatus> = {}): SyncStatus {
     deviceName: "POCO M3 Pro",
     selectedProfileId: "work",
     showsResetNotice: false,
+    inboxProblem: null,
     ...patch,
   };
 }

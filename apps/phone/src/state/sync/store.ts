@@ -18,6 +18,7 @@ export const OFF_STATUS: SyncStatus = {
   deviceName: "",
   selectedProfileId: null,
   showsResetNotice: false,
+  inboxProblem: null,
 };
 
 export const EMPTY_VIEW: SyncedView = { devices: [], profiles: [], search: null, syncedAt: null, selectedProfileId: null, receivers: [] };
