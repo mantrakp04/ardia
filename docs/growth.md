@@ -178,7 +178,9 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     `ctx_tabs`, `ctx_windows`, `ctx_profiles`, `ctx_footprint_mb` (the app process's physical footprint),
     `ctx_app_memory_mb` (every Ardia process, from the last hourly memory sample), `ctx_free_disk_gb` (0.1 GB under
     10 GB, whole GB above), `ctx_memory_pressure` (`normal`, `warning`, `critical`), `ctx_page_processes_gone`,
-    `ctx_session_min` and `ctx_age_min` (how old the context was at the crash). The context is the latest one
+    `ctx_webui_page` (the built-in page the active tab was on: the host and first path segment of an `ardia://` or
+    `chrome://` URL, like `settings/cookies` or `history`, never a query or hash; null on any web page, and on a
+    sample saved by an older version), `ctx_session_min` and `ctx_age_min` (how old the context was at the crash). The context is the latest one
     sampled at or before the crash (the report's `captureTime`; the file's date only decides which reports are new)
     in the session that crashed, else none. Native exception reasons are never sent, only the exception's type, name
     and stack (older builds sent a scrubbed reason in `$exception_values`). Before 0.2.45-nightly.3 a report from an
@@ -193,6 +195,14 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     `abnormal` or `unknown`, `exit_code`, `visible` (the tab was on screen), `tabs`, `windows`, `profiles`,
     `session_min`, `gone_this_session`, `memory_pressure`). At most 30 per session. GPU and utility process exits aren't
     visible to the app yet (their crash reports are, through `helper_crash`).
+  - `password_import` (once per import that sent at least one login to the engine; none for an empty list): `source`
+    (`browser` for an import from another browser, `csv` for a CSV file), `tried`, `saved`, `refused` (the engine
+    answered "Could not save the password (invalid, or already saved)"), `not_landed` (it answered "The password store
+    didn't take the change": the store hadn't shown the change within about 1 s) and `other` (any other error, or a
+    save that answered false). Counts only: never a site, a username or a password. The same warnings still reach
+    the log, now with the action in front (`browser import`, `csv import`, `settings edit`, `settings delete`,
+    `sync delete`). Added to tell which of the two engine refusals the daily password-save warnings are, and from
+    which import.
   - `tab_presses` (hourly and at quit, when there were any): `presses` on sidebar rows, pinned tiles and top-strip
     chips, `down_switches` (the press switched to the tab on mouse down), `clicks` (the press opened the tab),
     `drag_clicks` (it became a drag and was rescued as a click), `drags`, `unanswered` (a press that got neither before
@@ -206,6 +216,11 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   - The context is saved in `telemetry.json` (`context`) every 10 minutes and 3 s after launch while sharing is on
     (the last 12 samples also stay in memory), and cleared when sharing is turned off or a profile is deleted. It's
     sent only with a crash report or an unclean launch. Turning sharing off also drops uncounted tab presses.
+  - The context also gets a sample when the active tab goes to a built-in page or leaves one (at most one every 2 s),
+    so `ctx_webui_page` is current at a crash right after opening a page like `ardia://settings/cookies`. This is
+    data only, to find which built-in page a crash happens on (#1244: adding a third-party cookie exception on
+    `ardia://settings/cookies`). The crash property cleaner lets a `webui_page` value through only in the shape
+    `host` or `host/segment` (letters, digits, dashes); anything else is scrubbed like any string.
   - The dashboard's health table credits app crashes to `crashed_version` and lists a version that has crashes but no
     usage in the window, with no rate.
 - **Checks of the pipeline:** send with service `ardia-selftest` (or version `0.0.0-selftest`); the views

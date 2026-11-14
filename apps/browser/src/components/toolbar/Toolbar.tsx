@@ -30,7 +30,7 @@ import { GlassFill, useGlass } from "../ui/Glass";
 import { TranslateButton } from "../site/TranslateControls";
 import { ZoomIndicator } from "../site/ZoomControls";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
-import { curve } from "../ui/motion";
+import { buttonMotion, curve, usePressScaleMotion } from "../ui/motion";
 import { FieldLoadFill } from "./FieldLoadFill";
 import { HistoryButton, ReloadButton } from "./NavButtons";
 import { FIELD_LOAD, TOOLBAR_MOTION } from "./tokens";
@@ -183,6 +183,8 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
   const field = useUrlField(tab, windowId, onFocus);
   const { insecure, hovered, popover, toggleSiteControls } = field;
   const glass = useGlass();
+  const lockPress = usePressScaleMotion(!!insecure, buttonMotion.iconPressScale);
+  const lockScaleStyle = lockPress.scale ? { transform: [{ scale: lockPress.scale }] } : undefined;
 
   return (
     <View {...field.hoverProps} style={[style, { flexDirection: "row", alignItems: "center", height: row.field, borderRadius: row.fieldRadius, backgroundColor: hovered && !glass ? palette.pill : undefined }]}>
@@ -191,13 +193,17 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
       ) : null}
       {loadFill && <FieldLoadFill key={tab.id} tabId={tab.id} color={loadFillColor(palette, theme.accent)} height={row.field} radius={row.fieldRadius} />}
       {insecure && (
-        <Pressable onPress={toggleSiteControls} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
-          <Symbol
-            name="lock.open.trianglebadge.exclamationmark.fill"
-            size={12}
-            color={insecure === "certificateError" ? theme.destructive : palette.secondary}
-            style={{ width: LOCK.width, height: row.field }}
-          />
+        <Pressable onPress={toggleSiteControls} onPressIn={lockPress.onPressIn} onPressOut={lockPress.onPressOut} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
+          <View style={{ width: LOCK.width, height: row.field, alignItems: "center", justifyContent: "center" }}>
+            <Animated.View pointerEvents="none" style={lockScaleStyle}>
+              <Symbol
+                name="lock.open.trianglebadge.exclamationmark.fill"
+                size={12}
+                color={insecure === "certificateError" ? theme.destructive : palette.secondary}
+                style={{ width: LOCK.width, height: 18 }}
+              />
+            </Animated.View>
+          </View>
         </Pressable>
       )}
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void showUrlBarMenu(tab)}>

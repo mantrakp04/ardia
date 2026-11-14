@@ -14,6 +14,10 @@ NOT_DELIVERED = (
     "{action} was sent, but the page received none of its {missing} events. The tab may not be on screen in Ardia "
     "(just switched, or covered by another tab); check it's shown (`ardia browse tab <id> --show`) before trying again"
 )
+TARGET_REPLACED = (
+    "{action} didn't land: {target} was removed from the page before it arrived (the page redrew it, as a list does after "
+    "a search or filter changes), so nothing was entered. Find the element again (snapshot -i) and retry"
+)
 INTERCEPT_TIMEOUT = 1.5
 CLEANUP_TIMEOUT = 2.0
 DRAG_GATED = "the source is an HTML5 draggable, and without drag interception a synthetic drag would start a real macOS drag session"
@@ -162,7 +166,7 @@ def delivered(now: dict, before: dict, name: str) -> int:
     return sum(now.get(part, 0) - before.get(part, 0) for part in name.split("|"))
 
 
-async def expect_input(page, frame, run, needs: dict, action: str):
+async def expect_input(page, frame, run, needs: dict, action: str, element=None):
     from ardia_cli.browse.errors import ConnectionLost, OutcomeUnknown
 
     frame = frame or page.main_frame
@@ -196,9 +200,18 @@ async def expect_input(page, frame, run, needs: dict, action: str):
         if loop.time() >= deadline:
             names = " or ".join(part for name in missing for part in name.split("|"))
             if all(delivered(now, before, name) == 0 for name in needs):
+                if element is not None and not await still_attached(page, element):
+                    raise BrowseError(TARGET_REPLACED.format(action=action, target=element.label), code="target_replaced")
                 raise BrowseError(NOT_DELIVERED.format(action=action, missing="/".join(needs).replace("|", "/")), data={"missing": missing}, code="input_not_delivered")
             raise OutcomeUnknown(action.lower(), PARTLY_DELIVERED.format(missing=names))
         await asyncio.sleep(0.05)
+
+
+async def still_attached(page, element) -> bool:
+    try:
+        return bool(await page.call("(el) => el.isConnected", element, frame=element.frame, read=True))
+    except BrowseError:
+        return False
 
 
 def left_document(error: BrowseError) -> bool:
@@ -442,7 +455,7 @@ async def click(page, element, humanize: bool, count: int = 1, button: str = "le
         for number in range(1, count + 1):
             await mouse.click(x, y, button=which, click_count=number, humanize=False)
 
-    await expect_input(page, element.frame, lambda: page.input.gesture("click", press), {"mousedown": count, "mouseup": count}, "The click")
+    await expect_input(page, element.frame, lambda: page.input.gesture("click", press), {"mousedown": count, "mouseup": count}, "The click", element)
 
 
 async def hover(page, element, humanize: bool):
@@ -497,7 +510,7 @@ async def settle_focus(page, element, loader: str | None):
 async def type_into(page, element, text: str, humanize: bool, guard=None):
     keyboard = page.input.keyboard(element=element, guard=guard)
     await expect_input(page, element.frame, lambda: page.input.gesture("type", lambda: keyboard.type_text(text, humanize=humanize)),
-                       {"keydown": len(text), "keyup": len(text)}, "The typing")
+                       {"keydown": len(text), "keyup": len(text)}, "The typing", element)
 
 
 async def clear_field(page, element, humanize: bool):
@@ -505,9 +518,9 @@ async def clear_field(page, element, humanize: bool):
     if not info.get("value"):
         return
     await expect_input(page, element.frame, lambda: page.input.gesture("clear", lambda: page.input.press_combo("Meta+a", humanize)),
-                       {"keydown": 2}, "Select all")
+                       {"keydown": 2}, "Select all", element)
     await expect_input(page, element.frame, lambda: page.input.gesture("clear", lambda: page.input.press_combo("Backspace", humanize)),
-                       {"keydown": 1}, "Backspace")
+                       {"keydown": 1}, "Backspace", element)
     info = await page.call("(el) => ardiaBrowse.info(el)", element, frame=element.frame)
     if info.get("value"):
         raise BrowseError(f"Couldn't clear {element.label}; it still holds text")
@@ -676,7 +689,7 @@ async def fill_cell(page, element, cell, text: str, humanize: bool) -> dict | No
 async def insert_text(page, element, text: str):
     command_metrics.flag("fill_inserted_text", True)
     await expect_input(page, element.frame, lambda: page.input.gesture("fill", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
-                       {"beforeinput|input": 1}, "The text insert")
+                       {"beforeinput|input": 1}, "The text insert", element)
 
 
 async def set_value(page, element, kind: str, text: str) -> str:
@@ -879,6 +892,8 @@ async def choose(page, element, values: list[str], humanize: bool, where: str, t
                     fresh = True
             if not fresh and exact_pick(value, items) is None:
                 raise await stale_refusal(page, element, value, items, where, timeout)
+            if items and await page.call("(el) => ardiaBrowse.usedOpenedList(el)", element, frame=element.frame, read=True):
+                command_metrics.flag("select_opened_list", True)
         finally:
             await unwatch_suggestions(page, element)
         index = exact_pick(value, items) if not fresh else pick_suggestion(value, items, where)

@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from dataclasses import dataclass
 
@@ -8,6 +9,8 @@ from ardia_cli.browse.connection import Browser
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, StaleRef
 from ardia_cli.browse.page import Page
 from ardia_cli.browse.tabs import Registry
+
+NTH_SUFFIX = re.compile(r">>\s*nth=-?\d+\s*$")
 
 PAGE_SCHEMES = ("http:", "https:", "about:", "data:", "blob:", "file:")
 ACTIVE_TIMEOUT = 3.0
@@ -47,6 +50,7 @@ class State:
         self.instance: str | None = None
         self.endpoint = None
         self.pages: dict[str, Page] = {}
+        self.pending_reaction: dict | None = None
         self.sessions: dict[str, Page] = {}
         self.tab_ids: dict[str, str] = {}
         self.next_tab = 1
@@ -488,6 +492,8 @@ class State:
             return await self.resolve_ref(ref)
         page = page or await self.page()
         frame = self.frame_for(page) or page.main_frame
+        if NTH_SUFFIX.search(selector):
+            command_metrics.flag("selector_nth", True)
         try:
             remote = await page.call("(s) => ardiaBrowse.query(s)", selector, frame=frame, by_value=False, read=True)
         except BrowseError as error:

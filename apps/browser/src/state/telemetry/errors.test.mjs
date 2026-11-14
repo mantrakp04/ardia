@@ -51,3 +51,20 @@ test("a native crash names its exception and the app's images at the top level, 
   assert.equal(props.$exception_list[1].stacktrace.frames[0].function, "Chromium Framework + 0x41a36e8");
   assert.equal(props.$geoip_disable, true);
 });
+
+test("a native crash carries the built-in page its session was on as ctx_webui_page, null for a web page or an older sample", async () => {
+  const later = Date.now() + 60 * 60_000;
+  let n = 0;
+  for (const [webui_page, expected] of [["settings/cookies", "settings/cookies"], [null, null], [undefined, null]]) {
+    const time = later + 10_000 * ++n;
+    const saved = { at: time - 500, session_start: time - 5000, tabs: 4, ...(webui_page === undefined ? {} : { webui_page }) };
+    stub.shellNativeModules.ArdiaApp.crashReports = async () => [
+      { time, fileTime: time, process: "browser", exceptionType: "EXC_BREAKPOINT", signal: "SIGTRAP", frames: [{ image: "Chromium Framework", offset: 0x41a36e8 }] },
+    ];
+    await reportNativeCrashes([saved]);
+    const props = queued().at(-1).properties;
+    assert.equal(props.crash_process, "browser");
+    assert.equal(props.ctx_tabs, 4);
+    assert.equal(props.ctx_webui_page, expected, String(webui_page));
+  }
+});
