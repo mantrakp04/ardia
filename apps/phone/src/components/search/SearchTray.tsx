@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
 import { menuOpenedHaptic, trayRowActions } from "../../state/browse/tabMenus";
-import { useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, useSearchSession, useSearchText } from "../../state/search/hooks";
+import { useSearchFieldVersion, useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, useSearchSession, useSearchText } from "../../state/search/hooks";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
-import { typeSearch } from "../../state/search/store";
+import { searchState, setSearchText, typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
 import { browseLayout, capsule, FloatingMenu, font, ink, radius, rolesFor, space, springs, Symbol, tabsInk, tabsLayout, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
@@ -81,11 +81,19 @@ export function SearchTray() {
 }
 
 function TrayField() {
+  const version = useSearchFieldVersion();
+  return <FieldInput key={version} first={version === 0} />;
+}
+
+function FieldInput({ first }: { first: boolean }) {
   const theme = useTrayTheme();
   const initialText = useSearchInitialText();
-  const text = useSearchText();
+  const [start] = useState(() => searchState().text);
+  const [hasText, setHasText] = useState(start.length > 0);
   const input = useRef<TextInput>(null);
-  const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(initialText ? { start: 0, end: initialText.length } : undefined);
+  const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(
+    first ? (initialText ? { start: 0, end: initialText.length } : undefined) : { start: start.length, end: start.length },
+  );
 
   useEffect(() => {
     const focus = setTimeout(() => input.current?.focus(), 0);
@@ -98,10 +106,15 @@ function TrayField() {
         <TextInput
           ref={input}
           style={[font.body, styles.input, { color: theme.foregroundPrimary }]}
-          value={text}
+          defaultValue={start}
           selection={selection}
-          onSelectionChange={() => setSelection(undefined)}
-          onChangeText={typeSearch}
+          onSelectionChange={() => {
+            if (selection) setSelection(undefined);
+          }}
+          onChangeText={(text) => {
+            if (text.length > 0 !== hasText) setHasText(text.length > 0);
+            typeSearch(text);
+          }}
           onSubmitEditing={(event) => submitSearch(event.nativeEvent.text)}
           placeholder="Search…"
           accessibilityLabel="Search or Enter Address"
@@ -114,8 +127,8 @@ function TrayField() {
           submitBehavior="submit"
           disableFullscreenUI
         />
-        {text ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Clear Text" style={styles.accessory} onPress={() => typeSearch("")}>
+        {hasText ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Clear Text" style={styles.accessory} onPress={() => setSearchText("")}>
             <Symbol name="xmarkCircleFill" size={18} color={theme.foregroundTertiary} />
           </Pressable>
         ) : null}
@@ -148,19 +161,19 @@ function TrayRows() {
   const incognito = useIncognito();
   const { keyboard } = useBottomLift();
   const [room, setRoom] = useState(0);
-  const [bottoms, setBottoms] = useState<Record<string, number>>({});
-  const refine = (row: TrayRow) => typeSearch(refinedText(row));
+  const [bottoms, setBottoms] = useState<number[]>([]);
+  const refine = useCallback((row: TrayRow) => setSearchText(refinedText(row)), []);
   const [menu, setMenu] = useState<{ row: TrayRow; y: number } | null>(null);
   const window = useWindowDimensions();
-  const showMenu = (row: TrayRow, y: number) => {
+  const showMenu = useCallback((row: TrayRow, y: number) => {
     if (!trayRowActions(row).length) return;
     menuOpenedHaptic();
     setMenu({ row, y });
-  };
+  }, []);
   const shown = keyboard
     ? null
     : wholeRowsHeight(
-        rows.map((row) => bottoms[row.key] ?? 0),
+        rows.map((_row, index) => bottoms[index] ?? 0),
         room,
       );
   if (incognito && !typed.trim()) {
@@ -178,13 +191,17 @@ function TrayRows() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="none"
       >
-        {rows.map((row) => (
+        {rows.map((row, index) => (
           <View
-            key={row.key}
-            onLayout={(event) => {
-              const bottom = event.nativeEvent.layout.y + event.nativeEvent.layout.height;
-              setBottoms((known) => (known[row.key] === bottom ? known : { ...known, [row.key]: bottom }));
-            }}
+            key={index}
+            onLayout={
+              keyboard
+                ? undefined
+                : (event) => {
+                    const bottom = event.nativeEvent.layout.y + event.nativeEvent.layout.height;
+                    setBottoms((known) => (known[index] === bottom ? known : Object.assign([...known], { [index]: bottom })));
+                  }
+            }
           >
             <SuggestionRow row={row} typed={typed} roles={theme} onActivate={activateRow} onRefine={refine} onMenu={showMenu} />
           </View>

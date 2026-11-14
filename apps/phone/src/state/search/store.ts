@@ -16,6 +16,7 @@ type SearchState = {
   text: string;
   rows: TrayRow[];
   session: number;
+  fieldVersion: number;
   incognitoOnCancel: boolean | null;
 };
 
@@ -26,6 +27,7 @@ export const useSearch = create<SearchState>()(() => ({
   text: "",
   rows: [],
   session: 0,
+  fieldVersion: 0,
   incognitoOnCancel: null,
 }));
 
@@ -69,6 +71,7 @@ export function presentSearch(origin: SearchOrigin, text = "", incognitoOnCancel
     text,
     rows: rowsFor(text, []),
     session: state.session + 1,
+    fieldVersion: 0,
     incognitoOnCancel,
   }));
 }
@@ -78,18 +81,56 @@ export function dismissSearch() {
   useSearch.setState({ open: false, incognitoOnCancel: null });
 }
 
-export function typeSearch(text: string) {
+const REMOTE_DELAY_MS = 150;
+
+let typed: string | null = null;
+let frame: ReturnType<typeof requestAnimationFrame> | null = null;
+let remoteTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showRows(text: string) {
+  const began = performance.now();
   const carried = remote.text && text.startsWith(remote.text) ? remote.values : [];
-  useSearch.setState({ text, rows: rowsFor(text, carried) });
+  const rows = rowsFor(text, carried);
+  const computed = performance.now();
+  useSearch.setState({ text, rows });
+  const rendered = performance.now();
+  requestAnimationFrame(() =>
+    console.log(
+      `ardia-typing len=${text.length} rows=${rows.length} suggest=${(computed - began).toFixed(1)}ms render=${(rendered - computed).toFixed(1)}ms frame=${(performance.now() - began).toFixed(1)}ms`,
+    ),
+  );
   inFlight?.abort();
+  if (remoteTimer) clearTimeout(remoteTimer);
   if (!text.trim() || !currentPreferences().searchSuggestions) return;
-  const controller = new AbortController();
-  inFlight = controller;
-  void remoteSuggestions(text, controller.signal).then((outcome) => {
-    if (controller.signal.aborted || useSearch.getState().text !== text) return;
-    remote = { text, values: outcome.values };
-    useSearch.setState({ rows: rowsFor(text, outcome.values) });
+  remoteTimer = setTimeout(() => {
+    remoteTimer = null;
+    const controller = new AbortController();
+    inFlight = controller;
+    void remoteSuggestions(text, controller.signal).then((outcome) => {
+      if (controller.signal.aborted || useSearch.getState().text !== text) return;
+      remote = { text, values: outcome.values };
+      useSearch.setState({ rows: rowsFor(text, outcome.values) });
+    });
+  }, REMOTE_DELAY_MS);
+}
+
+export function typeSearch(text: string) {
+  typed = text;
+  if (frame !== null) return;
+  frame = requestAnimationFrame(() => {
+    frame = null;
+    const next = typed;
+    typed = null;
+    if (next !== null) showRows(next);
   });
+}
+
+export function setSearchText(text: string) {
+  if (frame !== null) cancelAnimationFrame(frame);
+  frame = null;
+  typed = null;
+  useSearch.setState((state) => ({ fieldVersion: state.fieldVersion + 1 }));
+  showRows(text);
 }
 
 export const searchState = () => useSearch.getState();

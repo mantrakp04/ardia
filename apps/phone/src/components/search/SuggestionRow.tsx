@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { queryPrefixLength, type TrayRow } from "../../state/search/omnibox";
 import { browseLayout, font, radius, space, Symbol, type ColorRoles, type SymbolName } from "../ui";
@@ -6,7 +7,7 @@ const LEADING: Record<TrayRow["kind"], SymbolName> = { query: "magnifyingglass",
 
 type Props = { row: TrayRow; typed: string; roles: ColorRoles; onActivate: (row: TrayRow) => void; onRefine: (row: TrayRow) => void; onMenu: (row: TrayRow, y: number) => void };
 
-export function SuggestionRow({ row, typed, roles, onActivate, onRefine, onMenu }: Props) {
+export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, onActivate, onRefine, onMenu }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -45,7 +46,7 @@ export function SuggestionRow({ row, typed, roles, onActivate, onRefine, onMenu 
       ) : null}
     </Pressable>
   );
-}
+});
 
 function QueryTitle({ title, typed, roles }: { title: string; typed: string; roles: ColorRoles }) {
   const prefix = queryPrefixLength(title, typed);
