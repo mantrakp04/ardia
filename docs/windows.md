@@ -53,14 +53,14 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Quit and relaunch with the session restored | Works (tabs, the split and the open windows came back) | |
 | Engine memory trimmed after tabs close, once input is idle | Works (logged after closes) | #1544 |
 | Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome; its command bar lists recent pages | |
-| Search Tabs (Ctrl+Shift+A), Ctrl+Tab | Works. The walk saw no element of the new page focused after Ctrl+Tab, so typing went nowhere until a click; #1658's VM run shows the new page has the keyboard after Ctrl+Tab, a numbered tab or closing the active tab (fixed by #1658, not re-walked) | #1658 |
+| Search Tabs (Ctrl+Shift+A), Ctrl+Tab | Works. The walk saw no element of the new page focused after Ctrl+Tab, so typing went nowhere until a click; #1658's VM run shows the new page has the keyboard after Ctrl+Tab, a numbered tab or closing the active tab (fixed by #1658, not re-walked). Known gap: a tab switched to before its page is mounted (an asleep tab, or one made in front with an address) gets no keyboard, tracked in #1689 | #1658, #1689 |
 | Pin, Top Apps, New Group with Tab, tab menus | Works (the tab menu offers Move to Top Apps, Remove from Split View, Close Split View) | |
 | Page picture (a pinned page in another window) | Works: the other window shows the page picture | #1540 |
 | Tabs in the sidebar or across the top (Ctrl+Shift+S), hide the sidebar (Ctrl+S) | Works; after Ctrl+S twice a pale box stays over the page's top-left corner | #1673 |
 | Profiles: switch with Alt+1, Alt+2 | Works (Work opened in its own colour) | |
 | Open in WebKit, Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
 | Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Per #1658's VM run, Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window | #1490, #1658 |
-| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it. Focus stays on the link beneath while it is open (its own field gets no typing) and after it closes | #1531, #1658 |
+| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it and keys reach the page beneath again. Typing in a Peek needs a click first: the keyboard stays in the page beneath while it is open | #1531 |
 | A download while split | Differs: an insecure (http) download is blocked by Chromium's own download bubble; a download from localhost reaches Ardia's panel | #1519 |
 | Pop-up windows from pages | Broken: a bare Chromium window with the Windows title bar | #1518 |
 | Main, Settings and Little Ardia window chrome | Works, no system title bar | |
@@ -862,8 +862,8 @@ App side, an agent can do these now:
    thread and keep it in front of its window. M.
 2. The box left over the page's top-left (#1673): the next profile's sidebar page, clipped beside the sidebar, still
    cut a hole in the page (fix in #1686). S.
-3. Focus in a Peek: the keyboard stays on the link under an open Peek and is still there after Escape (seen on the
-   build before #1658, which fixed Ctrl+Tab, numbered tabs and closing the active tab per its own VM run). M, with the
+3. Typing in a Peek needs a click first: the keyboard stays in the page beneath while the Peek is open (the engine
+   thread is matching the Mac). Also #1689: a tab switched to before its page is mounted gets no keyboard. M, with the
    engine thread.
 4. Pop-up windows in the app's own frame instead of Chromium's (#1518). M.
 5. The app's own page, link and image menus instead of Chromium's (#1518). M.
