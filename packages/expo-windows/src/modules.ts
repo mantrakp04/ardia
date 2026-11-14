@@ -8,6 +8,7 @@ import { windowsImport } from "./import";
 import { windowsInlineCompletion } from "./inlineCompletion";
 import type { WindowsHostModule } from "./nativeModuleTypes";
 import { windowsIntroMusic } from "./introMusic";
+import { windowsExternalAppCounts } from "./engine/domains/externalApps";
 import { windowsLaunchLinks } from "./launchLinks";
 import { noteMissing } from "./missing";
 import { stampedSystemInfo, windowsUpdater } from "./updater";
@@ -42,7 +43,7 @@ const around: Record<string, Record<string, (native: Call) => Call>> = {
 
 const syncOnWindows = windowsSync();
 
-const writtenInJs: Record<string, Record<string, unknown>> = { ...(syncOnWindows ? { ArdiaSync: syncOnWindows } : {}), ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion, ArdiaLaunchLinks: windowsLaunchLinks, ArdiaImport: windowsImport(), ArdiaInlineCompletion: windowsInlineCompletion(() => TurboModuleRegistry.get<TurboModule & WindowsHostModule>("ArdiaWindowsHost")), ArdiaApp: windowsIntroMusic };
+const writtenInJs: Record<string, Record<string, unknown>> = { ...(syncOnWindows ? { ArdiaSync: syncOnWindows } : {}), ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion, ArdiaLaunchLinks: windowsLaunchLinks, ArdiaExternalAppCounts: windowsExternalAppCounts, ArdiaImport: windowsImport(), ArdiaInlineCompletion: windowsInlineCompletion(() => TurboModuleRegistry.get<TurboModule & WindowsHostModule>("ArdiaWindowsHost")), ArdiaApp: windowsIntroMusic };
 
 const inert = (module: string, key: string) => () => {
   noteMissing(`${module}.${key}`);

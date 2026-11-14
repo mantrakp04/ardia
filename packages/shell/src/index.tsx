@@ -16,6 +16,7 @@ export * from "./live";
 export * from "./menus";
 export * from "./notifications";
 export * from "./location";
+export * from "./externalApps";
 export * from "./launchLinks";
 export * from "./motion";
 export * from "./scripting";

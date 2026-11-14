@@ -89,7 +89,7 @@ inline std::vector<std::string_view> const &TestKeys() noexcept {
       "loginsDelay", "loginsReleaseAfter", "cdpTabsVisible",
       "pipSelfTest", "pipHover", "fakeFullScreenMs", "shadersKeyWindow", "peekStrict", "importSecret", "importDiaBundleId", "importDiaWindows",
       "cliInstallScript", "legacySource", "legacyCrashAfter", "bangsUrl", "onboarding", "whatsNew", "telemetry",
-      "liveMock", "calendarFixture", "appMenu", "appDialog", "loginsTimeout",
+      "liveMock", "calendarFixture", "appMenu", "appDialog", "loginsTimeout", "externalAppLaunch",
   };
   return keys;
 }
@@ -544,7 +544,7 @@ struct SystemInfo {
 REACT_MODULE(AppModule, L"ArdiaApp")
 struct AppModule {
   REACT_CONSTANT(windowsApiVersion)
-  const int windowsApiVersion = 15;
+  const int windowsApiVersion = 17;
 
   REACT_SYNC_METHOD(systemInfo)
   SystemInfo systemInfo() noexcept {
