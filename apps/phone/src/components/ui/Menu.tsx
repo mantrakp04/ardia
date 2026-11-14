@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { BackHandler, Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { useEffect, useState, type RefObject } from "react";
+import { BackHandler, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { MENU_ROW, menuHeight, menuTop } from "../../lib/menuPlace";
+import { measureAnchor, Portal, useOverlayFrame } from "./Overlay";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { tabsMotion } from "./motion";
 import { Symbol } from "./Symbol";
@@ -59,35 +61,36 @@ export function Menu({ items, place, onDismiss }: Props) {
   );
 }
 
-export function FloatingMenu(props: Props) {
-  const frame = useRef<View>(null);
-  const [origin, setOrigin] = useState<number | null>(null);
-  const place = props.place;
-  const shifted: ViewStyle =
-    origin === null
-      ? place
-      : {
-          ...place,
-          ...(typeof place.top === "number" ? { top: place.top - origin } : {}),
-          ...(typeof place.bottom === "number" ? { bottom: place.bottom + origin } : {}),
-        };
-  return (
-    <Modal transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={props.onDismiss}>
-      <View
-        ref={frame}
-        style={StyleSheet.absoluteFill}
-        collapsable={false}
-        onLayout={() => frame.current?.measureInWindow((_x, y) => setOrigin(y))}
-      >
-        {origin === null ? null : <Menu {...props} place={shifted} />}
-      </View>
-    </Modal>
-  );
+const MENU_MARGIN = 8;
+
+export function FloatingMenu({ items, place, onDismiss, anchor }: Props & { anchor?: RefObject<View | null> }) {
+  const hostFrame = useOverlayFrame();
+  const [placed, setPlaced] = useState<ViewStyle | null>(null);
+  useEffect(() => {
+    let live = true;
+    void Promise.all([hostFrame(), anchor ? measureAnchor(anchor) : Promise.resolve(null)]).then(([host, row]) => {
+      if (!live) return;
+      if (row && row.height > 0) {
+        const { top: _top, bottom: _bottom, ...across } = place;
+        setPlaced({ ...across, top: menuTop(row, host, menuHeight(items), MENU_MARGIN) });
+      } else if (typeof place.top === "number") {
+        setPlaced({ ...place, top: Math.max(MENU_MARGIN, Math.min(place.top - host.y, host.height - menuHeight(items) - MENU_MARGIN)) });
+      } else setPlaced(place);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return placed ? (
+    <Portal>
+      <Menu items={items} place={placed} onDismiss={onDismiss} />
+    </Portal>
+  ) : null;
 }
 
 const styles = StyleSheet.create({
   panel: { position: "absolute", minWidth: 230, borderRadius: radius.row, paddingVertical: space.xs, elevation: 12 },
-  row: { flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: space.l, minHeight: 46 },
+  row: { flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: space.l, minHeight: MENU_ROW },
   label: { flex: 1 },
   heading: { paddingHorizontal: space.l, paddingVertical: space.xs + 2 },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: space.xs },

@@ -9,6 +9,7 @@ export { spring, springs, tabsCurve, tabsMotion } from "./motion";
 export { ConfirmDialog, Dialog, type Confirmation, type DialogButton } from "./Dialog";
 export { FloatingMenu, Menu, type MenuItem } from "./Menu";
 export { Shade } from "./Shade";
+export { measureAnchor, OverlayHost, Portal } from "./Overlay";
 export { Sheet, usePresence } from "./Sheet";
 export { Toggle } from "./Toggle";
 export { PageView, type PageNavigationState, type PageTone, type PageViewHandle } from "./Page";

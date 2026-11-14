@@ -170,13 +170,10 @@ type PickerProps<T extends string> = RowBase & { options: { id: T; title: string
 export function PickerRow<T extends string>({ title, icon, tint, divider, options, selected, onSelect }: PickerProps<T>) {
   const theme = useTheme();
   const anchor = useRef<View>(null);
-  const { width, height } = useWindowDimensions();
-  const [place, setPlace] = useState<{ top?: number; bottom?: number } | null>(null);
+  const { width } = useWindowDimensions();
+  const [opened, setOpened] = useState(false);
   const current = options.find((option) => option.id === selected)?.title ?? "";
-  const open = () =>
-    anchor.current?.measureInWindow((_x, y, _w, h) => {
-      setPlace(y + h + options.length * settingsLayout.rowMinHeight > height ? { bottom: height - y } : { top: y + h });
-    });
+  const open = () => setOpened(true);
   const items: MenuItem[] = options.map((option) => ({ label: option.title, checked: option.id === selected, onPress: () => onSelect(option.id) }));
   return (
     <View ref={anchor} collapsable={false}>
@@ -188,7 +185,7 @@ export function PickerRow<T extends string>({ title, icon, tint, divider, option
         <Symbol name="chevronUp" size={12} color={theme.tertiaryLabel} />
       </Pressable>
       {divider ? <Divider /> : null}
-      {place ? <FloatingMenu items={items} place={{ ...place, right: space.l * 2, width: Math.min(tabsLayout.menuWidth, width - space.huge * 2) }} onDismiss={() => setPlace(null)} /> : null}
+      {opened ? <FloatingMenu items={items} anchor={anchor} place={{ right: space.l * 2, width: Math.min(tabsLayout.menuWidth, width - space.huge * 2) }} onDismiss={() => setOpened(false)} /> : null}
     </View>
   );
 }

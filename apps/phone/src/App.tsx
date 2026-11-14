@@ -11,7 +11,7 @@ import { OnboardingView } from "./components/onboarding/OnboardingView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
-import { PROFILE_COLORS, Shade, ThemeColorContext, type ProfileColor } from "./components/ui";
+import { OverlayHost, PROFILE_COLORS, Shade, ThemeColorContext, type ProfileColor } from "./components/ui";
 import { useLookColor } from "./state/sync/hooks";
 import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
@@ -53,7 +53,9 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <ThemeColorContext.Provider value={color}>{ready ? <Surfaces /> : null}</ThemeColorContext.Provider>
+        <ThemeColorContext.Provider value={color}>
+          <OverlayHost>{ready ? <Surfaces /> : null}</OverlayHost>
+        </ThemeColorContext.Provider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

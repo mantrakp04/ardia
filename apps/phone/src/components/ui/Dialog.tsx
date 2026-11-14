@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { BackHandler, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { tabsMotion } from "./motion";
+import { Portal } from "./Overlay";
 import { useTheme } from "./theme";
 import { dialogLayout, font, space } from "./tokens";
 
@@ -19,25 +20,27 @@ export function Dialog({ title, message, buttons, onDismiss, children }: Props) 
     return () => back.remove();
   }, [onDismiss]);
   return (
-    <Animated.View entering={FadeIn.duration(tabsMotion.surfaceFade)} style={StyleSheet.absoluteFill}>
-      <Pressable accessibilityLabel="Dismiss" style={[StyleSheet.absoluteFill, { backgroundColor: theme.dialogScrim }]} onPress={onDismiss} />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.center} pointerEvents="box-none">
-        <View accessibilityViewIsModal style={[styles.panel, { backgroundColor: theme.panel, shadowColor: theme.trayShadow }]}>
-          <Text accessibilityRole="header" style={[font.title3, styles.title, { color: theme.label }]}>
-            {title}
-          </Text>
-          {message ? <Text style={[font.body, { color: theme.secondaryLabel }]}>{message}</Text> : null}
-          {children}
-          <View style={styles.buttons}>
-            {buttons.map((button) => (
-              <Pressable key={button.title} accessibilityRole="button" onPress={button.onPress} style={styles.button}>
-                <Text style={[font.body, styles.buttonText, { color: button.destructive ? theme.destructive : theme.formAccent }]}>{button.title}</Text>
-              </Pressable>
-            ))}
+    <Portal>
+      <Animated.View entering={FadeIn.duration(tabsMotion.surfaceFade)} style={StyleSheet.absoluteFill}>
+        <Pressable accessibilityLabel="Dismiss" style={[StyleSheet.absoluteFill, { backgroundColor: theme.dialogScrim }]} onPress={onDismiss} />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.center} pointerEvents="box-none">
+          <View accessibilityViewIsModal style={[styles.panel, { backgroundColor: theme.panel, shadowColor: theme.trayShadow }]}>
+            <Text accessibilityRole="header" style={[font.title3, styles.title, { color: theme.label }]}>
+              {title}
+            </Text>
+            {message ? <Text style={[font.body, { color: theme.secondaryLabel }]}>{message}</Text> : null}
+            {children}
+            <View style={styles.buttons}>
+              {buttons.map((button) => (
+                <Pressable key={button.title} accessibilityRole="button" onPress={button.onPress} style={styles.button}>
+                  <Text style={[font.body, styles.buttonText, { color: button.destructive ? theme.destructive : theme.formAccent }]}>{button.title}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Animated.View>
+        </KeyboardAvoidingView>
+      </Animated.View>
+    </Portal>
   );
 }
 
