@@ -143,6 +143,7 @@ static int Prepare(const ArdiaEngineApi *engine) {
 
 static void ShutDown(Ardia::Host &host) {
   host.engine = nullptr;
+  SetFocus(nullptr);
   if (host.queue) host.queue.ShutdownQueue();
   Ardia::LaunchLog::Write(L"launch", L"process ending");
 }

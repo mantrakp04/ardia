@@ -173,7 +173,7 @@ inline bool RegisterModalParent() noexcept {
 }
 
 struct ModalParent {
-  explicit ModalParent(HWND owner) noexcept : m_owner(owner) {
+  ModalParent(HWND owner, bool givesFocusBack) noexcept : m_owner(owner), m_givesFocusBack(givesFocusBack) {
     if (!owner || !RegisterModalParent()) return;
     RECT area{};
     if (!GetWindowRect(owner, &area)) return;
@@ -208,7 +208,7 @@ struct ModalParent {
     m_released = true;
     NoteModalDialog(m_owner, nullptr);
     if (!m_owner || !IsWindow(m_owner) || !m_ownerWasEnabled) return;
-    bool hadFocus = OursInFront();
+    bool hadFocus = m_givesFocusBack && OursInFront();
     EnableWindow(m_owner, TRUE);
     if (hadFocus) SetForegroundWindow(m_owner);
   }
@@ -238,6 +238,7 @@ struct ModalParent {
   }
 
   HWND m_owner;
+  bool m_givesFocusBack;
   HWND m_window = nullptr;
   bool m_ownerWasEnabled = false;
   bool m_released = false;

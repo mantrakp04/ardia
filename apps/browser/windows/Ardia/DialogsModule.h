@@ -251,7 +251,7 @@ inline void Log(std::string const &what) noexcept {
 }
 
 struct ModalOverWindow {
-  ModalOverWindow(HWND owner, std::string_view kind) noexcept : watch(owner), pages(owner), parent(owner) {
+  ModalOverWindow(HWND owner, std::string_view kind) noexcept : watch(owner), pages(owner), parent(owner, !Background()) {
     if (pages.Count()) LaunchLog::Write(L"info", Paths::Wide(std::string{kind} + " holds " + std::to_string(pages.Count()) + " page window(s) until it closes"));
     ModalWatch::OnTick([this] {
       pages.Refresh();

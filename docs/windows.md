@@ -361,7 +361,10 @@ is plain Chromium.
   then fails fast (`0xc0000602`) when the app quits. The dialog thread owns the dialog by a hidden window of its own
   over the app window (`ModalParent`), disables the app window and its pages, keeps the dialog just above the app
   window and gives the window its focus back when it closes. When the app window is activated (its taskbar button,
-  Alt+Tab, or the app focusing it), `WindowManager` brings that window's dialog forward instead (`BringModalForward`). Keys typed in it no longer reach the app's shortcut hook. One dialog per window at a time; a dialog whose window goes away, or every
+  Alt+Tab, or the app focusing it), `WindowManager` brings that window's dialog forward instead (`BringModalForward`).
+  A hidden instance's dialog never hands the foreground to the app window. The app clears keyboard focus before it
+  shuts down WinUI's queue (`ShutDown` in `Ardia.cpp`): destroying the input site of a focused window moves focus
+  into a site being torn down, and `Microsoft.UI.Input` fails fast (`0xc0000602`, seen in a VM dump). Keys typed in it no longer reach the app's shortcut hook. One dialog per window at a time; a dialog whose window goes away, or every
   dialog when the app stops, is cancelled within 250 ms. Pop-up menus (`TrackPopupMenuEx`) still run on the UI thread
   and stall pages while a menu is open (#1687). The self-check holds a real confirm on both threads and checks that a
   page loads only in the first case; `dialog_pages_asked` and `dialog_pages_stalled` count pages asked while a dialog
