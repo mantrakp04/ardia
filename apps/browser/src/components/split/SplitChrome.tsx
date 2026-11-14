@@ -8,10 +8,11 @@ import { resize, type Divider, type Rect } from "../window/geometry";
 import { capsule, space, Symbol, Text, Toast, withAlpha } from "../ui";
 import { hideToast, useToasts } from "../../state/app/toasts";
 import { useWindowId } from "../../state/browser/hooks";
+import { useCardFrame } from "../window/cardFrame";
 import { overPeek } from "../../state/windows/dockMotion";
 import { zoneHit, zoneRect, type ZoneStage } from "./splitDrop";
 import { setDropTarget, setOnPage, setTargetResolver, useTabDrag } from "../../state/drag/tabDrag";
-import { SPLIT_MOTION, splitColors, TOAST_ACTION_MS, TOAST_MS, ZONE_ACCENT_ALPHA, ZONE_DASH_INSET, ZONE_DASH_RADIUS, ZONE_RADIUS, ZONE_SLIDE_MS } from "./tokens";
+import { FOCUS_RING, SPLIT_MOTION, splitColors, TOAST_ACTION_MS, TOAST_MS, ZONE_ACCENT_ALPHA, ZONE_DASH_INSET, ZONE_DASH_RADIUS, ZONE_RADIUS, ZONE_SLIDE_MS } from "./tokens";
 
 export function SplitDividers({ split, dividers, width, height }: { split: SplitView; dividers: Divider[]; width: number; height: number }) {
   return (
@@ -22,6 +23,29 @@ export function SplitDividers({ split, dividers, width, height }: { split: Split
     </>
   );
 }
+
+export const SplitFocusRing = memo(function SplitFocusRing({ rect }: { rect: Rect }) {
+  const theme = useTheme();
+  const { radius, splitGap } = useCardFrame();
+  const room = splitGap / 2;
+  const width = Math.min(FOCUS_RING.width, room);
+  const outset = Math.min(FOCUS_RING.width + FOCUS_RING.gap, room);
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        left: rect.x - outset,
+        top: rect.y - outset,
+        width: rect.width + outset * 2,
+        height: rect.height + outset * 2,
+        borderRadius: radius > 0 ? radius + outset : 0,
+        borderWidth: width,
+        borderColor: theme.accent,
+      }}
+    />
+  );
+});
 
 const sizesOf = (split: SplitView) => ({ sizes: split.slots.map((slot) => slot.size), stack: split.slots.find((slot) => "stack" in slot)?.stackSizes });
 

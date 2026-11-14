@@ -10,7 +10,7 @@ import { POPOVER_MARGIN } from "../ui";
 import { NO_TOOLBAR, toolbarGeometry, type Rect, type ToolbarGeometry } from "./geometry";
 import { startPermissionPrompts } from "../../state/site/permissions";
 import { useFullscreenTab } from "../../state/tabs/pageState";
-import { DropTargets, SplitDividers, SplitToast } from "../split/SplitChrome";
+import { DropTargets, SplitDividers, SplitFocusRing, SplitToast } from "../split/SplitChrome";
 import { dockMoving, usePeekSpan, whenDockStill } from "../../state/windows/dockMotion";
 import { FrozenPage } from "./FrozenPage";
 import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, watchToolbarExtensionsWidth } from "../../state/windows/layout";
@@ -166,6 +166,7 @@ export function ContentCard() {
         <FrozenPage windowId={windowId} tabId={activeId} top={(chrome.kind !== "none" && !chrome.autoHide ? toolbarRow.height : 0) + (barMode === "always" && !small && !hideWhileScrolling ? barHeight : 0)} />
       )}
       {split && !fullscreenTab && <SplitDividers split={split} dividers={dividers} width={size.width} height={size.height} />}
+      {split && !fullscreenTab && activeRect && <SplitFocusRing rect={activeRect} />}
       {size.width > 0 && popoversOverCard && origin && activeRect && peek !== undefined && (
         <BesidePeekPopovers
           tabId={popoversOverCard}
