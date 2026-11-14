@@ -37,6 +37,8 @@ abstract class CompileSyncBundle extends DefaultTask {
   @Input abstract Property<String> getBabelVersion()
   @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getTranspileScript()
   @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getCheckScript()
+  @InputFiles @PathSensitive(PathSensitivity.NONE) abstract ConfigurableFileCollection getCompanionHooks()
+  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getCompanionTests()
   @Internal abstract DirectoryProperty getPhoneApp()
   @OutputDirectory abstract DirectoryProperty getOutputDir()
   @Inject abstract ExecOperations getExec()
@@ -54,7 +56,12 @@ abstract class CompileSyncBundle extends DefaultTask {
     def transpiled = new File(work, 'ardia-sync.js')
     def bytecode = new File(work, 'ardia-sync.hbc')
     exec.exec { commandLine 'node', transpileScript.get().asFile.absolutePath, bundle.get().asFile.absolutePath, transpiled.absolutePath, phoneApp.get().asFile.absolutePath }
-    exec.exec { commandLine 'node', checkScript.get().asFile.absolutePath, bundle.get().asFile.absolutePath, transpiled.absolutePath }
+    exec.exec { commandLine 'node', checkScript.get().asFile.absolutePath, bundle.get().asFile.absolutePath, transpiled.absolutePath, phoneApp.get().asFile.absolutePath }
+    def register = companionHooks.files.find { it.name == 'sync-bundle-register.mjs' }
+    exec.exec {
+      environment 'ARDIA_SYNC_BUNDLE', transpiled.absolutePath
+      commandLine 'node', '--import', register.toURI().toString(), '--test', '--test-reporter=dot', companionTests.get().asFile.absolutePath
+    }
     exec.exec { commandLine compiler.absolutePath, '-emit-binary', '-O', '-w', '-out', bytecode.absolutePath, transpiled.absolutePath }
     def head = new byte[8]
     bytecode.withInputStream { it.read(head) }
@@ -82,6 +89,8 @@ androidComponents {
       it.babelVersion.set(babelVersion)
       transpileScript.set(file("${projectDir}/scripts/transpile-sync-bundle.mjs"))
       checkScript.set(file("${projectDir}/scripts/check-sync-bundle.mjs"))
+      companionHooks.from(file("${projectDir}/scripts/sync-bundle-register.mjs"), file("${projectDir}/scripts/sync-bundle-hooks.mjs"))
+      companionTests.set(file("${repository}/packages/sync/src/companion/companion.test.ts"))
       it.phoneApp.set(phoneApp)
     }
     variant.sources.assets?.addGeneratedSourceDirectory(task, { CompileSyncBundle compile -> compile.outputDir })

@@ -1,12 +1,79 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { babelFor, transpile } from "./transpile-sync-bundle.mjs";
 
-const [original, transpiled] = process.argv.slice(2);
-if (!original || !transpiled) {
-  console.error("usage: check-sync-bundle.mjs <ardia-sync.js> <transpiled ardia-sync.js>");
+const [original, transpiled, appDirectory] = process.argv.slice(2);
+if (!original || !transpiled || !appDirectory) {
+  console.error("usage: check-sync-bundle.mjs <ardia-sync.js> <transpiled ardia-sync.js> <apps/phone>");
   process.exit(2);
 }
+
+const fail = (message) => {
+  console.error(message);
+  process.exit(1);
+};
+
+function leftoverSyntax(code) {
+  const { babel } = babelFor(appDirectory);
+  const ast = babel.parseSync(code, { babelrc: false, configFile: false, sourceType: "script" });
+  const found = new Map();
+  const note = (kind, node) => {
+    if (!found.has(kind)) found.set(kind, node.loc?.start.line ?? 0);
+  };
+  babel.traverse(ast, {
+    VariableDeclaration(path) {
+      if (path.node.kind !== "var") note(path.node.kind, path.node);
+    },
+    Class(path) {
+      note("class", path.node);
+    },
+    Function(path) {
+      if (path.node.async) note("async function", path.node);
+    },
+    AwaitExpression(path) {
+      note("await", path.node);
+    },
+  });
+  return [...found].map(([kind, line]) => `${kind} at line ${line}`);
+}
+
+const leftovers = leftoverSyntax(readFileSync(transpiled, "utf8"));
+if (leftovers.length) fail(`the transpiled sync bundle still has syntax React Native 0.81's Hermes runs differently: ${leftovers.join(", ")}`);
+
+const loopSamples = `
+globalThis.loopResults = (async () => {
+  const counters = [];
+  for (let i = 0; i < 3; i++) counters.push(() => i);
+  const items = [];
+  for (const item of ["a", "b", "c"]) items.push(() => item);
+  const keyed = [];
+  for (const key in { x: 1, y: 2 }) keyed.push(() => key);
+  const later = [];
+  for (const item of [1, 2, 3]) {
+    await Promise.resolve();
+    later.push(() => item * 10);
+  }
+  const nested = [];
+  for (let row = 0; row < 2; row++) for (let column = 0; column < 2; column++) nested.push(() => row + ":" + column);
+  class Box {
+    #value;
+    constructor(value) { this.#value = value; }
+    get value() { return this.#value; }
+  }
+  const boxes = [];
+  for (const value of [7, 8]) boxes.push(() => new Box(value).value);
+  return [counters, items, keyed, later, nested, boxes].map((list) => list.map((read) => read()));
+})();
+`;
+const loopCode = transpile(loopSamples, appDirectory);
+const loopLeftovers = leftoverSyntax(loopCode);
+if (loopLeftovers.length) fail(`the loop samples kept ${loopLeftovers.join(", ")} after Babel`);
+const loopContext = vm.createContext({ Promise });
+vm.runInContext(loopCode, loopContext);
+const loopResults = JSON.stringify(await loopContext.loopResults);
+const loopExpected = JSON.stringify([[0, 1, 2], ["a", "b", "c"], ["x", "y"], [10, 20, 30], ["0:0", "0:1", "1:0", "1:1"], [7, 8]]);
+if (loopResults !== loopExpected) fail(`a closure in a loop saw the wrong value after Babel: ${loopResults}, expected ${loopExpected}`);
 
 const START = Date.UTC(2026, 9, 1);
 const PHONE = "phone0000000000000000000000";
@@ -111,4 +178,4 @@ if (expected !== actual) {
   console.error(`the transpiled sync bundle behaves differently at character ${at}:\n  original:   ${expected.slice(at - 80, at + 120)}\n  transpiled: ${actual.slice(at - 80, at + 120)}`);
   process.exit(1);
 }
-console.log(`the transpiled sync bundle matches the original over ${JSON.parse(expected).log.length} host calls`);
+console.log(`the transpiled sync bundle has only var bindings, its loop closures keep one binding per pass, and it matches the original over ${JSON.parse(expected).log.length} host calls`);

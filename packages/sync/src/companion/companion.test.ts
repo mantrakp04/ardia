@@ -1066,12 +1066,17 @@ test("a phone killed at any durable step of a cycle loses no write and reuses no
     for (let nth = 1; nth <= 6; nth++) for (const moment of ["before", "after"] as const) steps.push({ call, nth, moment });
   }
   for (let nth = 1; nth <= 3; nth++) for (const moment of ["before", "beforePruning", "after"] as const) steps.push({ call: "saveState", nth, moment });
-  let reached = 0;
+  const reached: string[] = [];
   for (const step of steps) {
     const run = await crashScenario(step);
-    if (run.reached) reached += 1;
+    if (run.reached) reached.push(`${step.moment} ${step.call} #${step.nth}`);
     assertNothingLostOrReused(run.folder, run.mac, `killed ${step.moment} ${step.call} #${step.nth}`);
   }
-  assert.ok(reached >= 8, `only ${reached} crash points were reached in the cycle`);
+  const required = [
+    "before persistJournal #1", "after persistJournal #1", "before write #1", "after write #1",
+    "before persistJournal #2", "after persistJournal #2", "before write #2", "after write #2",
+    "before saveState #1", "beforePruning saveState #1", "after saveState #1",
+  ];
+  assert.deepEqual(required.filter((step) => !reached.includes(step)), [], `crash points the cycle no longer reaches; reached ${reached.join(", ")}`);
 });
 
