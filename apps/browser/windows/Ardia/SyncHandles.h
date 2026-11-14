@@ -240,6 +240,14 @@ inline std::string RemoveAt(HANDLE directory, std::wstring const &name) {
   return "removed";
 }
 
+inline void Writable(HANDLE item) noexcept {
+  FILE_BASIC_INFO basic{};
+  if (!GetFileInformationByHandleEx(item, FileBasicInfo, &basic, sizeof(basic)) || !(basic.FileAttributes & FILE_ATTRIBUTE_READONLY)) return;
+  basic.FileAttributes &= ~FILE_ATTRIBUTE_READONLY;
+  if (!basic.FileAttributes) basic.FileAttributes = FILE_ATTRIBUTE_NORMAL;
+  SetFileInformationByHandle(item, FileBasicInfo, &basic, sizeof(basic));
+}
+
 inline bool EmptyAt(HANDLE directory, int depth) {
   if (depth > DeepestTree) return false;
   std::optional<std::vector<Entry>> entries = Entries(directory);
@@ -248,9 +256,10 @@ inline bool EmptyAt(HANDLE directory, int depth) {
   for (Entry const &entry : *entries) {
     bool link = (entry.attributes & FILE_ATTRIBUTE_REPARSE_POINT) && IsReparseTagNameSurrogate(entry.reparseTag);
     if ((entry.attributes & FILE_ATTRIBUTE_DIRECTORY) && !link) {
-      OpenedFolder child = OpenFolderAt(directory, entry.name, false, DELETE);
+      OpenedFolder child = OpenFolderAt(directory, entry.name, false, DELETE | FILE_WRITE_ATTRIBUTES);
       if (child.state == Folder::Directory) {
         ok = EmptyAt(child.handle.get(), depth + 1) && ok;
+        Writable(child.handle.get());
         FILE_DISPOSITION_INFO gone{TRUE};
         ok = SetFileInformationByHandle(child.handle.get(), FileDispositionInfo, &gone, sizeof(gone)) && ok;
         continue;
@@ -265,14 +274,7 @@ inline bool EmptyAt(HANDLE directory, int depth) {
       ok = SyncFiles::IsMissing(item.error) && ok;
       continue;
     }
-    if (entry.attributes & FILE_ATTRIBUTE_READONLY) {
-      FILE_BASIC_INFO basic{};
-      if (GetFileInformationByHandleEx(item.handle.get(), FileBasicInfo, &basic, sizeof(basic))) {
-        basic.FileAttributes &= ~FILE_ATTRIBUTE_READONLY;
-        if (!basic.FileAttributes) basic.FileAttributes = FILE_ATTRIBUTE_NORMAL;
-        SetFileInformationByHandle(item.handle.get(), FileBasicInfo, &basic, sizeof(basic));
-      }
-    }
+    if (entry.attributes & FILE_ATTRIBUTE_READONLY) Writable(item.handle.get());
     FILE_DISPOSITION_INFO gone{TRUE};
     ok = SetFileInformationByHandle(item.handle.get(), FileDispositionInfo, &gone, sizeof(gone)) && ok;
   }
@@ -280,7 +282,7 @@ inline bool EmptyAt(HANDLE directory, int depth) {
 }
 
 inline bool RemoveFolderAt(HANDLE parent, std::wstring const &name) {
-  OpenedFolder folder = OpenFolderAt(parent, name, false, DELETE);
+  OpenedFolder folder = OpenFolderAt(parent, name, false, DELETE | FILE_WRITE_ATTRIBUTES);
   if (folder.state == Folder::Absent) return true;
   if (folder.state == Folder::Link) {
     Opened link = OpenAt(parent, name, DELETE | FILE_READ_ATTRIBUTES, ShareAll, OpenExisting, NoFollow);
@@ -289,6 +291,7 @@ inline bool RemoveFolderAt(HANDLE parent, std::wstring const &name) {
   }
   if (folder.state != Folder::Directory) return false;
   bool emptied = EmptyAt(folder.handle.get(), 0);
+  Writable(folder.handle.get());
   FILE_DISPOSITION_INFO gone{TRUE};
   return SetFileInformationByHandle(folder.handle.get(), FileDispositionInfo, &gone, sizeof(gone)) && emptied;
 }

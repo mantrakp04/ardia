@@ -219,7 +219,7 @@ export function lookingForProfiles(pending: number): string {
 }
 
 function joinedMessage(found: number, joining: boolean, pending: number, error: string | null): string {
-  if (found) return `These profiles are on your other devices. Add them to this ${PLATFORM_TERMS.computer} to sync their pinned tabs, bookmarks, history and passwords here too.`;
+  if (found) return `These profiles are on your other devices. Add them to this ${PLATFORM_TERMS.computer} to sync their pinned tabs, bookmarks, history${PLATFORM_FEATURES.syncsPasswords ? " and passwords" : ""} here too.`;
   if (error) return error;
   if (joining) return lookingForProfiles(pending);
   return `Every profile on your other devices is on this ${PLATFORM_TERMS.computer} too.`;
