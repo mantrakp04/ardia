@@ -104,7 +104,7 @@ android {
     versionName "0.0.0"
     externalNativeBuild {
       cmake {
-        arguments "-DANDROID_STL=c++_shared", "-DARDIA_SCRIPT_SHIM=${scriptRuntime}/cpp/ardia_hermes.cpp"
+        arguments "-DANDROID_STL=c++_shared", "-DARDIA_SCRIPT_SHIM=${scriptRuntime}/cpp/ardia_hermes.cpp", "-DARDIA_SCRIPT_LOGS=${findProperty('ardiaLab') == 'true' ? 'ON' : 'OFF'}"
         abiFilters(*architectures)
         targets "ardiahermes"
       }

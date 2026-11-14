@@ -144,7 +144,7 @@ internal class WebViewPage(
         val web = webView ?: return
         savedBundle = Bundle().also { saveInto(web, it) }
         scrollAtDiscard = web.scrollY
-        Log.i(LOG_TAG, "discard $id at scroll ${web.scrollY} of ${web.height}")
+        Log.i(LOG_TAG, "discard $id at scroll ${web.scrollY} of ${(web.contentHeight * web.resources.displayMetrics.density).toInt()}")
         tearDown(web)
     }
 

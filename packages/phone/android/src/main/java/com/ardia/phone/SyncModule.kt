@@ -155,7 +155,7 @@ class SyncModule : Module() {
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         picking = { tree ->
             appContext.backgroundCoroutineScope.launch {
-                runCatching { then(tree) }.fold(promise::resolve) { error -> promise.reject(CodedException("ERR_SYNC", error.message, error)) }
+                runCatching { then(tree) }.fold(promise::resolve) { error -> promise.reject(SyncFailure.forScript(error)) }
             }
         }
         try {

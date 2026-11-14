@@ -258,7 +258,9 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_ardia_shared_ScriptEngine_nativeCrea
     Scope scope(*raw, env, self);
     jsi::Runtime &rt = *raw->runtime;
     rt.global().setProperty(rt, "__log", hostFunction(rt, "__log", 1, [](jsi::Runtime &rt, const jsi::Value &, const jsi::Value *args, size_t count) {
+#if !defined(ARDIA_REACT_NATIVE_HERMES) || defined(ARDIA_SCRIPT_LOGS)
       if (count > 0) __android_log_print(ANDROID_LOG_DEBUG, "ArdiaJS", "%s", utf8(jsText(rt, args[0])).c_str());
+#endif
       return jsi::Value::undefined();
     }));
     rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(setup), "ardia://setup.js");

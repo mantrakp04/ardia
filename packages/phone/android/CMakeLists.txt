@@ -10,5 +10,8 @@ find_package(ReactAndroid REQUIRED CONFIG)
 
 add_library(ardiahermes SHARED ${ARDIA_SCRIPT_SHIM})
 target_compile_definitions(ardiahermes PRIVATE ARDIA_REACT_NATIVE_HERMES)
+if(ARDIA_SCRIPT_LOGS)
+  target_compile_definitions(ardiahermes PRIVATE ARDIA_SCRIPT_LOGS)
+endif()
 target_compile_options(ardiahermes PRIVATE -fexceptions -frtti -Wall -Werror)
 target_link_libraries(ardiahermes hermes-engine::libhermes ReactAndroid::jsi fbjni::fbjni log)
