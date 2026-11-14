@@ -294,14 +294,15 @@ test("engine topics reach the app under the Mac's event names, with a burst of t
 });
 
 test("a download carries its profile, and its commands go to that profile", async () => {
-  const engine = fakeEngine((name) => (name === "ac_downloads_list" ? '{"downloads":[{"id":"d2","state":"finished"}]}' : '{"ok":true}'));
+  const startTime = Date.now() + 60_000;
+  const engine = fakeEngine((name) => (name === "ac_downloads_list" ? JSON.stringify({ downloads: [{ id: "d2", state: "finished", startTime }] }) : '{"ok":true}'));
   const route = topicRouter(rows.topics, engine, () => assert.fail("downloads aren't held back"));
   route({ topic: "downloads.changed", payload: { profile: "work", offTheRecord: true, download: { id: "d1", state: "downloading" } } });
   route({ topic: "downloads.changed", payload: { profile: "work" } });
   await watchDownloads(engine, "play");
   assert.deepEqual(engine.events, [
     { name: "downloads.changed", data: { id: "d1", state: "downloading", profile: "work" } },
-    { name: "downloads.changed", data: { id: "d2", state: "finished", profile: "play" } },
+    { name: "downloads.changed", data: { id: "d2", state: "finished", startTime, profile: "play" } },
   ]);
   const downloads = calling(engine, "downloads");
   assert.equal(await downloads("pause", { id: "d1" }), null);

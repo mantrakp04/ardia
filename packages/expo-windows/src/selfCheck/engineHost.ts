@@ -1,7 +1,7 @@
 import type { DomainModule } from "@ardia/ardiacore";
 import type { AppNative, SystemNative, WindowsNative } from "@ardia/shell";
 import { TurboModuleRegistry } from "react-native";
-import type { EngineHostModule } from "../nativeModuleTypes";
+import type { AppWindowsModule, EngineHostModule } from "../nativeModuleTypes";
 import { engineAvailable, engineCallJson, hostCall, onEngineTopic, profileDataFolder, removeProfileFolder } from "../engine/host";
 import { pngImage } from "../engine/domains/favicons";
 import { profileFolder } from "../engine/domains/profiles";
@@ -14,7 +14,10 @@ type ListedTab = { key: string; title: string; shown: boolean; windowVisible: bo
 const PAGE_KEY = "self-check-page";
 const PAGE_TITLE = "ardia self check";
 const PAGE_URL = `data:text/html,<title>${PAGE_TITLE}</title><p>the engine loaded this page</p>`;
+const PAGE_PLACE = { x: 40, y: 60, width: 320, height: 240 };
 const LOAD_MS = 20000;
+const PAINT_MS = 500;
+const JPEG_BASE64 = "/9j/";
 
 const engineHost = () => {
   const found = TurboModuleRegistry.get<EngineHostModule>("ArdiaEngineHost");
@@ -144,11 +147,16 @@ const withEngine: Check[] = [
     name: "engine: the page shows inside the window where it is placed",
     async run() {
       const windowId = await firstWindow();
-      await hostCall("tab.show", { key: PAGE_KEY, visible: true, unit: "px", x: 40, y: 60, width: 320, height: 240 }, windowId);
+      await hostCall("tab.show", { key: PAGE_KEY, visible: true, ...PAGE_PLACE }, windowId);
       const listed = await hostCall<{ tabs: ListedTab[] }>("tabs.list");
       const page = listed.tabs.find((tab) => tab.key === PAGE_KEY);
       expectTrue(page, "the page is not listed");
-      expectEqual({ shown: page.shown, width: page.width, height: page.height, title: page.title }, { shown: true, width: 320, height: 240, title: PAGE_TITLE }, "the shown page");
+      expectEqual({ shown: page.shown, title: page.title }, { shown: true, title: PAGE_TITLE }, "the shown page");
+      const displayScale = page.width / PAGE_PLACE.width;
+      expectTrue(displayScale >= 1 && Math.abs(page.height - PAGE_PLACE.height * displayScale) <= 1, `the page placed at ${PAGE_PLACE.width}×${PAGE_PLACE.height} is ${page.width}×${page.height} pixels`);
+      await new Promise<void>((resolve) => setTimeout(resolve, PAINT_MS));
+      const picture = await requireNativeModule<Pick<AppWindowsModule, "capturePage">>("ArdiaAppWindows").capturePage(windowId, PAGE_PLACE.x, PAGE_PLACE.y, PAGE_PLACE.width, PAGE_PLACE.height, 1);
+      expectTrue(picture.startsWith(JPEG_BASE64), `the shown page's picture is ${picture.slice(0, 16) || "empty"}`);
       await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
       const hidden = (await hostCall<{ tabs: ListedTab[] }>("tabs.list")).tabs.find((tab) => tab.key === PAGE_KEY);
       expectEqual(hidden?.shown, false, "shown after hiding");

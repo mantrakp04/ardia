@@ -1,0 +1,4 @@
+#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec /usr/bin/lockf -t "${ARDIA_GRADLE_WAIT:-540}" /tmp/ardia-android-gradle.lock ./gradlew "$@"

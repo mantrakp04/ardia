@@ -59,9 +59,14 @@ browse screenshot "$shot" >/dev/null
 check "ardia browse screenshot pictures the session's background tab" $ok
 viewport="$(browse set viewport 390 844 --json)"
 sized="$(browse eval "innerWidth + 'x' + innerHeight" --json)"
-[ "$(field code <<<"$viewport")" = policy_refused ] && [ "$(field data.method <<<"$viewport")" = Emulation.setDeviceMetricsOverride ] &&
-  [ "$(field data.result <<<"$sized")" != 390x844 ] && ok=1 || ok=0
-check "ardia browse set viewport is gated over the token connection" $ok "$(head -c 300 <<<"$viewport")"
+if [ "$(field success <<<"$viewport")" = true ]; then
+  [ "$(field data.result <<<"$sized")" = 390x844 ] && ok=1 || ok=0
+  check "ardia browse set viewport sizes a tab it took off-screen" $ok "$(head -c 300 <<<"$sized")"
+  browse set viewport reset >/dev/null
+else
+  [ "$(field code <<<"$viewport")" = viewport_needs_hidden_tab ] && [ "$(field data.result <<<"$sized")" != 390x844 ] && ok=1 || ok=0
+  check "ardia browse set viewport is refused on a tab Ardia has shown" $ok "$(head -c 300 <<<"$viewport")"
+fi
 refused="$(browse cookies --json)"
 [ "$(field code <<<"$refused")" = policy_refused ] && [ "$(field data.method <<<"$refused")" = Network.getCookies ] && ok=1 || ok=0
 check "a method off the policy's list is refused by name" $ok "$(head -c 300 <<<"$refused")"

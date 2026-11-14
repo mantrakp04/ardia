@@ -14,6 +14,7 @@ EVENTS = (
     "Target.attachedToTarget",
     "Inspector.detached",
     "Inspector.targetCrashed",
+    "Inspector.targetReloadedAfterCrash",
     "Page.lifecycleEvent",
     "Page.frameNavigated",
     "Page.navigatedWithinDocument",

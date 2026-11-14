@@ -1,11 +1,11 @@
-import { createElement, isValidElement, type ComponentType } from "react";
+import { createElement, isValidElement } from "react";
 import { requireNativeModule } from "../modules";
 import { appDarkNow } from "../views/appearance";
 import { windowBackdropColors } from "../views/backdrop";
 import { gradientColors } from "../views/Bands";
 import type { Rgba } from "../views/color";
 import { bubblePath, NativeMaterialBlur, NativeMaterialGradient, NativeWindowMaterial, type MaterialsNative } from "../views/nativeMaterials";
-import { viewOnWindows } from "../views/registry";
+import { viewNamed } from "../views/registry";
 import { expectEqual, expectTrue, type Check } from "./check";
 
 const materials = () => requireNativeModule<MaterialsNative>("ArdiaMaterials");
@@ -109,9 +109,9 @@ export const checks: Check[] = [
         expectTrue(isComponent(view), `${name} is not a host component`);
       }
       for (const name of VIEWS_WITH_MATERIALS) {
-        const view = viewOnWindows(name);
+        const view = viewNamed<Record<string, unknown>>(name);
         expectTrue(isComponent(view), `${name} is not a component`);
-        expectTrue(isValidElement(createElement(view as ComponentType<Record<string, unknown>>, MATERIAL_PROPS[name] ?? {})), `${name} made no element`);
+        expectTrue(isValidElement(createElement(view, MATERIAL_PROPS[name] ?? {})), `${name} made no element`);
       }
     },
   },

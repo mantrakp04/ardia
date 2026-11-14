@@ -80,6 +80,8 @@ inline bool Active() noexcept {
 
 REACT_MODULE(WindowsHostModule, L"ArdiaWindowsHost")
 struct WindowsHostModule {
+  static constexpr double kAwaySeconds = 3600;
+
   REACT_CONSTANT(selfCheck)
   const bool selfCheck = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
 
@@ -91,6 +93,17 @@ struct WindowsHostModule {
   REACT_METHOD(textComposing)
   void textComposing(winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
     RunOnUI(m_context, [promise]() noexcept { promise.Resolve(TextComposition::Active()); });
+  }
+
+  REACT_SYNC_METHOD(inputIdleSeconds)
+  double inputIdleSeconds() noexcept {
+    HWND front = GetForegroundWindow();
+    DWORD process = 0;
+    if (front) GetWindowThreadProcessId(front, &process);
+    if (process != GetCurrentProcessId()) return kAwaySeconds;
+    LASTINPUTINFO last{sizeof(LASTINPUTINFO)};
+    if (!GetLastInputInfo(&last)) return kAwaySeconds;
+    return static_cast<double>(GetTickCount() - last.dwTime) / 1000.0;
   }
 
   REACT_SYNC_METHOD(pointerState)

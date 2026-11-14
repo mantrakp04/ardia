@@ -2,7 +2,7 @@ import { caretAllowsInline, completeInline, selectInlineCompletion } from "../..
 import { noteInlineCompletionShown } from "../../state/telemetry/inlineCompletionCounts";
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { findNodeHandle, type TextInput } from "react-native";
-import { acceptsCompletion, completionToWrite, previewFieldChange, withoutFirst, type EditContext, type FieldChange, type Inline, type PendingInline, type Selection } from "./inline";
+import { acceptsCompletion, completionToWrite, previewFieldChange, settlesInline, withoutFirst, type EditContext, type FieldChange, type Inline, type PendingInline, type Selection } from "./inline";
 
 export function useInlineCompletion(input: RefObject<TextInput | null>, typed: string, wanted: string, preview: string | null, caret: () => Selection) {
   const [inline, setInline] = useState<Inline | null>(null);
@@ -25,7 +25,7 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
       if (result === 2) return;
       pending.current = withoutFirst(pending.current, write);
       const { start, end } = caret();
-      if (result === 1 && caretAllowsInline(start, end, write.typed.length)) setInline(write);
+      if (settlesInline(result === 1, write.completion, caretAllowsInline(start, end, write.typed.length))) setInline(write);
     };
     completeInline(tag, write.typed, write.completion).then(settle, () => settle(0));
   }, [input, typed, wanted, shown, preview]);

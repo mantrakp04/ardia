@@ -142,7 +142,7 @@ export const generalRows = {
       rows: {
         autoHideTabs: {
           title: "Auto-hide tabs",
-          description: `In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. ${keyText("⌘S")} ${PLATFORM_FEATURES.menuBar ? "and View › Auto-Hide Tabs flip" : "flips"} this same switch.`,
+          description: `In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. Changing it here resets every window; ${keyText("⌘S")} ${PLATFORM_FEATURES.menuBar ? "and View › Auto-Hide Tabs hide or show" : "hides or shows"} the tabs in one window only.`,
           keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
         },
         sidebarSide: {
@@ -204,6 +204,12 @@ export const generalRows = {
           description: `With Command Bar, ${keyText("⌘T")} and New Tab open the command bar over the page, as in Arc. The tab appears when you pick a result; Esc leaves everything as it was.`,
           keywords: ["new tab page", "command bar", "cmd t"],
         },
+        reuseEmptyNewTab: {
+          title: "Reuse an empty New Tab page",
+          description: "When the tab you're on is still an empty New Tab page, ⌘T, + New Tab and a double-click under the tabs put the cursor in its address field instead of opening another empty tab. Off, each one opens a new tab.",
+          keywords: ["blank tab", "empty tab", "reuse", "one new tab", "multiple new tabs", "cmd t"],
+          shown: (settings) => settings.newTabOpens === "page",
+        },
         newTabPosition: {
           title: "Add new tabs",
           description: `Where ${keyText("⌘T")} and + New Tab put the new tab. Next to the current tab, it joins that tab's group (from a pinned tab, it goes first in the list), and closing it brings you back. Links open next to their page either way.`,
@@ -215,6 +221,11 @@ export const generalRows = {
           description: "Where + New Tab sits in the sidebar, whatever Add new tabs says. At the top it stays above your tabs and scrolls with them; at the bottom it follows your last tab and stays at the sidebar's bottom edge once the tabs fill it.",
           keywords: ["new tab button", "plus", "+", "top", "bottom", "sticky", "docked", "position"],
           shown: inSidebar,
+        },
+        appLinksFirst: {
+          title: "Put links from other apps first",
+          description: "When links from Slack, Mail or any other app open as tabs, not in Little Ardia, they go above your other tabs, just below the pinned ones, whatever Add new tabs says.",
+          keywords: ["external links", "other apps", "default browser", "top", "first", "left", "position"],
         },
         shareTabsAcrossWindows: {
           title: "Share tabs across windows",

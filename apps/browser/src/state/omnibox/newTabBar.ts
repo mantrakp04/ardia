@@ -33,6 +33,7 @@ export function showNewTabBar(windowId: string, target: NewTabTarget = IN_LIST):
 }
 
 function focusShownNewTabPage(s: BrowserState, windowId: string): boolean {
+  if (!s.settings.reuseEmptyNewTab) return false;
   const active = activeTabId(s, windowId);
   if (!active || !isEmptyCardTab(s, s.tabs[active])) return false;
   if (s.windowUi[windowId]?.panel.open) s.closePanel(windowId);

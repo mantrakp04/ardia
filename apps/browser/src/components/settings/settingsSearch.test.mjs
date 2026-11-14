@@ -77,7 +77,7 @@ const TOP = [
   ["little arc", ["general.openLinksInLittleArdia"]],
   ["little ardia", ["general.openLinksInLittleArdia"]],
   ["little window", ["general.openLinksInLittleArdia"]],
-  ["links from other apps", ["general.openLinksInLittleArdia"]],
+  ["links from other apps", ["general.openLinksInLittleArdia", "tabs.appLinksFirst"]],
   ["slack", ["general.openLinksInLittleArdia"]],
   ["onboarding", ["general.redoSetup"]],
   ["redo", ["general.redoSetup"]],

@@ -1,7 +1,7 @@
 import { appUrlOrigin, urlForDisplay } from "@ardia/core";
 import { displayHostOf } from "../../lib/url";
-import type { ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import type { ReactNode, Ref } from "react";
+import { StyleSheet, View, type TextInput } from "react-native";
 import { Box, display, SearchField, space, Text, useTheme, WindowDragRegion } from "../ui";
 import { pageHeader, pageToolbar } from "./tokens";
 
@@ -30,7 +30,7 @@ export function PageToolbar({ size, divider, drag, children }: { size: PageToolb
   );
 }
 
-export function PageHeader({ title, query, onQuery, actions }: { title: string; query: string; onQuery: (q: string) => void; actions?: ReactNode }) {
+export function PageHeader({ title, query, onQuery, actions, searchRef }: { title: string; query: string; onQuery: (q: string) => void; actions?: ReactNode; searchRef?: Ref<TextInput> }) {
   return (
     <PageToolbar size="page">
       <Text weight="semibold" style={HEADER_TITLE}>
@@ -38,7 +38,7 @@ export function PageHeader({ title, query, onQuery, actions }: { title: string; 
       </Text>
       <View style={HEADER_SEARCH}>
         <View style={SEARCH_WIDTH}>
-          <SearchField value={query} onChangeText={onQuery} placeholder={`Search ${title.toLowerCase()}`} />
+          <SearchField value={query} onChangeText={onQuery} placeholder={`Search ${title.toLowerCase()}`} inputRef={searchRef} />
         </View>
       </View>
       <Box row gap="m" style={HEADER_ACTIONS}>
