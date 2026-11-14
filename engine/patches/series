@@ -84,6 +84,7 @@ chromium chromium-angle-metal-shader-cache.patch
 chromium chromium-ungoogled-disable-default-extensions.patch
 chromium chromium-ungoogled-disable-missing-key-warning.patch
 chromium chromium-ungoogled-mime-util-ymp.patch
+chromium chromium-ungoogled-context-info.patch
 chromium chromium-background-instance-no-default-handlers.patch
 chromium chromium-apple-passwords-host-skipped.patch
 chromium chromium-extension-tab-move-closing-window.patch
