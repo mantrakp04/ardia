@@ -5,10 +5,10 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -68,6 +68,7 @@ class SyncController(
     private val timers: SyncTimers = SystemSyncTimers(),
     private val background: SyncBackgroundScheduler = SyncBackgroundScheduler.none,
     executor: Executor? = null,
+    private val idleThreadMs: Long = IDLE_THREAD_MS,
 ) {
     constructor(
         device: SyncDevice,
@@ -76,8 +77,21 @@ class SyncController(
         executor: Executor? = null,
     ) : this({ device }, timers, background, executor)
 
-    private val ownedThread: ExecutorService? = if (executor == null) Executors.newSingleThreadExecutor { work -> Thread(work, THREAD_NAME).apply { isDaemon = true } } else null
-    private val executor: Executor = executor ?: ownedThread!!
+    private val ownedThread: ThreadPoolExecutor? = if (executor == null) {
+        ThreadPoolExecutor(1, 1, idleThreadMs, TimeUnit.MILLISECONDS, LinkedBlockingQueue()) { work -> Thread(work, THREAD_NAME).apply { isDaemon = true } }
+            .apply { allowCoreThreadTimeOut(true) }
+    } else {
+        null
+    }
+    private val executor: Executor = executor ?: Executor { work ->
+        ownedThread!!.execute {
+            try {
+                work.run()
+            } finally {
+                ownedThread.allowCoreThreadTimeOut(made?.isRunning != true)
+            }
+        }
+    }
     private val lock = Any()
     private val cycleQueued = AtomicBoolean(false)
     private val cycleToken = AtomicLong(0)
@@ -482,6 +496,7 @@ class SyncController(
         const val AFTER_EDIT_MS = 3_000L
         const val SLOW_CYCLE_MS = 1_000L
         const val THREAD_NAME = "ardia-sync"
+        const val IDLE_THREAD_MS = 10_000L
 
         @Volatile
         var active: SyncController? = null
