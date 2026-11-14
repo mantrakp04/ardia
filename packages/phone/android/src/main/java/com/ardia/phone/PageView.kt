@@ -60,6 +60,11 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
         gestures.install()
     }
 
+    override fun requestDisallowInterceptTouchEvent(disallow: Boolean) {
+        super.requestDisallowInterceptTouchEvent(disallow)
+        if (disallow) gestures.contentTookTheDrag()
+    }
+
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean = gestures.intercepts(event) || super.onInterceptTouchEvent(event)
 
     override fun onTouchEvent(event: MotionEvent): Boolean = gestures.touch(event) || super.onTouchEvent(event)

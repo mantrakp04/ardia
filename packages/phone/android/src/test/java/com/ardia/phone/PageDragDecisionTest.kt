@@ -49,4 +49,14 @@ class PageDragDecisionTest {
         assertNull(decide(dy = -40f))
         assertEquals(PageDragDecision.Drag.Pull, decide(mode = SwipeMode.Off, dy = 40f)?.drag)
     }
+
+    @Test
+    fun aSidewaysDragWaitsForThePageToSayItsContentTookItBeforeNavigating() {
+        val density = 2.75f
+        assertEquals(PageDragDecision.Settle.Wait, PageDragDecision.settle(contentClaimed = false, travelledPx = 5f * density, millisSinceSlop = 10L, density = density))
+        assertEquals(PageDragDecision.Settle.Wait, PageDragDecision.settle(contentClaimed = false, travelledPx = 40f * density, millisSinceSlop = 20L, density = density))
+        assertEquals(PageDragDecision.Settle.Wait, PageDragDecision.settle(contentClaimed = false, travelledPx = 2f * density, millisSinceSlop = 500L, density = density))
+        assertEquals(PageDragDecision.Settle.Claim, PageDragDecision.settle(contentClaimed = false, travelledPx = 14f * density, millisSinceSlop = 90L, density = density))
+        assertEquals(PageDragDecision.Settle.Yield, PageDragDecision.settle(contentClaimed = true, travelledPx = 40f * density, millisSinceSlop = 500L, density = density))
+    }
 }

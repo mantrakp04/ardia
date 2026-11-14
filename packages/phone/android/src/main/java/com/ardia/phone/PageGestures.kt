@@ -43,6 +43,17 @@ enum class SwipeMode(val raw: String) {
 internal object PageDragDecision {
     enum class Drag { Swipe, Pull }
 
+    enum class Settle { Wait, Claim, Yield }
+
+    const val CONFIRM_DP = 12f
+    const val CONFIRM_MILLIS = 80L
+
+    fun settle(contentClaimed: Boolean, travelledPx: Float, millisSinceSlop: Long, density: Float): Settle = when {
+        contentClaimed -> Settle.Yield
+        travelledPx >= CONFIRM_DP * density && millisSinceSlop >= CONFIRM_MILLIS -> Settle.Claim
+        else -> Settle.Wait
+    }
+
     data class Decided(val drag: Drag, val direction: SwipeDirection?)
 
     fun decide(
@@ -87,6 +98,10 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
     private var downY = 0f
     private var deciding = false
     private var decided: PageDragDecision.Decided? = null
+    private var pending: PageDragDecision.Decided? = null
+    private var pendingAt = 0L
+    private var pendingX = 0f
+    private var contentClaimed = false
     private var activationX = 0f
     private var activationY = 0f
     private var tracker: VelocityTracker? = null
@@ -126,6 +141,8 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
             MotionEvent.ACTION_DOWN -> {
                 deciding = !busy
                 decided = null
+                pending = null
+                contentClaimed = false
                 downX = event.x
                 downY = event.y
                 tracker?.recycle()
@@ -133,6 +150,28 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
             }
             MotionEvent.ACTION_POINTER_DOWN -> deciding = false
             MotionEvent.ACTION_MOVE -> {
+                val waiting = pending
+                if (waiting != null) {
+                    tracker?.addMovement(event)
+                    val dx = event.x - downX
+                    val dy = event.y - downY
+                    when (PageDragDecision.settle(contentClaimed, kotlin.math.abs(dx - pendingX), event.eventTime - pendingAt, density)) {
+                        PageDragDecision.Settle.Wait -> return false
+                        PageDragDecision.Settle.Yield -> {
+                            pending = null
+                            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB swipe left to the page: its content took the drag")
+                            return false
+                        }
+                        PageDragDecision.Settle.Claim -> {
+                            pending = null
+                            decided = waiting
+                            activationX = dx
+                            activationY = dy
+                            beginSwipe(waiting.direction!!, current.state.value.backgroundColor)
+                            return true
+                        }
+                    }
+                }
                 if (!deciding) return false
                 tracker?.addMovement(event)
                 val dx = event.x - downX
@@ -156,15 +195,28 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
                     canScrollUp = web?.canScrollVertically(-1) == true || !state.isScrolledToTop,
                     isLoading = state.isLoading,
                 ) ?: return false
+                if (choice.drag == PageDragDecision.Drag.Swipe) {
+                    pending = choice
+                    pendingAt = event.eventTime
+                    pendingX = dx
+                    return false
+                }
                 decided = choice
                 activationX = dx
                 activationY = dy
-                if (choice.drag == PageDragDecision.Drag.Swipe) beginSwipe(choice.direction!!, state.backgroundColor) else beginPull()
+                beginPull()
                 return true
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> deciding = false
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                deciding = false
+                pending = null
+            }
         }
         return false
+    }
+
+    fun contentTookTheDrag() {
+        contentClaimed = true
     }
 
     fun touch(event: MotionEvent): Boolean {
