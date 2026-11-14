@@ -19,6 +19,7 @@
 #include "DocumentsModule.h"
 #include "Events.h"
 #include "NativeModules.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 
 namespace Ardia {
@@ -51,7 +52,7 @@ inline bool IsWatchable(std::string_view name) noexcept {
 }
 
 inline std::filesystem::path PathOf(std::string_view name) {
-  std::filesystem::path path = Paths::ConfigDirectory() / std::filesystem::path(Paths::Wide(name));
+  std::filesystem::path path = AppLaunch::ConfigDirectory() / std::filesystem::path(Paths::Wide(name));
   return path.make_preferred();
 }
 
@@ -142,7 +143,7 @@ inline Reading Read(std::string_view name) noexcept {
 }
 
 inline bool FolderExists() noexcept {
-  DWORD attributes = GetFileAttributesW(Paths::ConfigDirectory().c_str());
+  DWORD attributes = GetFileAttributesW(AppLaunch::ConfigDirectory().c_str());
   return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 
@@ -161,7 +162,7 @@ inline std::vector<std::string> WriteSchemas(std::map<std::string, std::string> 
       return written;
     }
     std::vector<std::filesystem::path> folders{*schemaDir};
-    if (FolderExists()) folders.push_back(Paths::ConfigDirectory());
+    if (FolderExists()) folders.push_back(AppLaunch::ConfigDirectory());
     for (auto const &folder : folders) {
       for (auto const &[name, contents] : files) {
         if (!IsSchemaName(name)) continue;
@@ -411,7 +412,7 @@ class ConfigWatcher : public std::enable_shared_from_this<ConfigWatcher> {
     std::filesystem::path parentPath;
     std::wstring leaf;
     try {
-      folderPath = Paths::ConfigDirectory();
+      folderPath = AppLaunch::ConfigDirectory();
       parentPath = folderPath.parent_path();
       leaf = Folded(folderPath.filename().wstring());
     } catch (...) {

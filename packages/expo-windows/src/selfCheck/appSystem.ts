@@ -50,6 +50,7 @@ export const checks: Check[] = [
       expectTrue(config.switches !== null && typeof config.switches === "object", "switches is not an object");
       expectTrue(Array.isArray(config.trace), "trace is not an array");
       expectTrue(config.test !== null && typeof config.test === "object", "test is not an object");
+      expectTrue(config.test.pipHover === "last", `a repeated ARDIA_TEST key gives ${JSON.stringify(config.test.pipHover)}, not the last value`);
       dataDirectory();
     },
   },

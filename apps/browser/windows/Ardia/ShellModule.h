@@ -20,6 +20,7 @@
 #include "DialogsModule.h"
 #include "Events.h"
 #include "LaunchLog.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 
 #pragma comment(lib, "advapi32.lib")
@@ -203,29 +204,8 @@ constexpr wchar_t BangListUrl[] = L"https://services.helium.imput.net/bangs.json
 
 inline std::wstring BangListAddress() noexcept {
 #if _DEBUG
-  if (Paths::HasCustomDataDirectory()) {
-    std::wstring requested = Paths::Environment(L"ARDIA_TEST");
-    constexpr std::wstring_view key = L"bangsUrl=";
-    size_t at = requested.find(key);
-    while (at != std::wstring::npos && at != 0 && requested[at - 1] != L',') at = requested.find(key, at + 1);
-    if (at != std::wstring::npos) {
-      std::wstring value = requested.substr(at + key.size());
-      size_t cut = std::wstring::npos;
-      for (size_t comma = value.find(L','); comma != std::wstring::npos; comma = value.find(L',', comma + 1)) {
-        size_t start = comma + 1;
-        size_t end = start;
-        while (end < value.size() && iswalnum(value[end])) end++;
-        if (end > start && iswalpha(value[start]) && (end == value.size() || value[end] == L'=' || value[end] == L',')) {
-          cut = comma;
-          break;
-        }
-      }
-      if (cut != std::wstring::npos) value.resize(cut);
-      while (!value.empty() && iswspace(value.back())) value.pop_back();
-      while (!value.empty() && iswspace(value.front())) value.erase(value.begin());
-      if (!value.empty()) return value;
-    }
-  }
+  std::optional<std::string> requested = AppLaunch::TestValue("bangsUrl");
+  if (requested && !requested->empty()) return Paths::Wide(*requested);
 #endif
   return BangListUrl;
 }

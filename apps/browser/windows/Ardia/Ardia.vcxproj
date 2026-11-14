@@ -109,6 +109,8 @@
     <ClInclude Include="AppIcon.h" />
     <ClInclude Include="AppImage.h" />
     <ClInclude Include="AppModule.h" />
+    <ClInclude Include="LaunchConfig.h" />
+    <ClInclude Include="TestGate.h" />
     <ClInclude Include="EngineApi.h" />
     <ClInclude Include="EngineHostModule.h" />
     <ClInclude Include="CommandTable.h" />

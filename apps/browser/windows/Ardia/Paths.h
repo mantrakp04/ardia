@@ -68,16 +68,6 @@ inline const std::filesystem::path &DataDirectory() noexcept {
   return directory;
 }
 
-inline const std::filesystem::path &ConfigDirectory() noexcept {
-  static const std::filesystem::path directory = [] {
-    std::wstring chosen = Environment(L"ARDIA_CONFIG_DIR");
-    if (!chosen.empty()) return Ensured(std::filesystem::path(chosen));
-    if (HasCustomDataDirectory()) return Ensured(DataDirectory() / L"config");
-    return Ensured(UserFolder(FOLDERID_RoamingAppData, L"APPDATA") / L"Ardia");
-  }();
-  return directory;
-}
-
 inline bool HasSwitch(std::wstring_view name) noexcept {
   int count = 0;
   LPWSTR *arguments = CommandLineToArgvW(GetCommandLineW(), &count);

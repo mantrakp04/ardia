@@ -23,6 +23,7 @@
 #include "Events.h"
 #include "Host.h"
 #include "LaunchLog.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 #include "WindowFade.h"
 
@@ -133,7 +134,7 @@ struct WindowManager {
   }
 
   static bool Background() noexcept {
-    static const bool background = Paths::Environment(L"ARDIA_BACKGROUND") == L"1";
+    static const bool background = AppLaunch::Background();
     return background;
   }
 

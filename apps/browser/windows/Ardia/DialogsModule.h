@@ -19,6 +19,7 @@
 #include "AppImage.h"
 #include "Events.h"
 #include "LaunchLog.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 #include "WindowManager.h"
 
@@ -120,7 +121,7 @@ struct HeldPageWindows {
 };
 
 inline bool Background() noexcept {
-  return Paths::Environment(L"ARDIA_BACKGROUND") == L"1";
+  return AppLaunch::Background();
 }
 
 inline std::string Trimmed(std::string_view text) noexcept {
@@ -131,33 +132,8 @@ inline std::string Trimmed(std::string_view text) noexcept {
   return std::string{text.substr(start, end - start + 1)};
 }
 
-inline std::vector<std::string> Split(std::string_view text, char separator) noexcept {
-  std::vector<std::string> pieces;
-  size_t start = 0;
-  while (true) {
-    size_t at = text.find(separator, start);
-    pieces.emplace_back(text.substr(start, at == std::string_view::npos ? std::string_view::npos : at - start));
-    if (at == std::string_view::npos) break;
-    start = at + 1;
-  }
-  return pieces;
-}
-
-inline std::optional<std::string> TestValue(std::string_view key) noexcept {
-  if (!Paths::HasCustomDataDirectory()) return std::nullopt;
-  std::string requested = Paths::Utf8(Paths::Environment(L"ARDIA_TEST"));
-  for (std::string const &piece : Split(requested, ',')) {
-    size_t equals = piece.find('=');
-    std::string name = Trimmed(std::string_view{piece}.substr(0, equals));
-    if (name != key) continue;
-    return equals == std::string::npos ? std::string{"1"} : Trimmed(std::string_view{piece}.substr(equals + 1));
-  }
-  return std::nullopt;
-}
-
 inline bool TestFlag(std::string_view key) noexcept {
-  std::optional<std::string> value = TestValue(key);
-  return value && *value != "0" && *value != "off" && *value != "false";
+  return AppLaunch::TestFlag(key);
 }
 
 inline std::string JsonQuoted(std::string_view text) noexcept {
