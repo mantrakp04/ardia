@@ -29,6 +29,12 @@ class SystemModule : Module() {
             listener = null
         }
 
+        OnActivityEntersForeground {
+            appContext.reactContext?.applicationContext?.let { app -> PhoneA11yDump.listen(app) { appContext.currentActivity } }
+        }
+
+        OnActivityEntersBackground { PhoneA11yDump.stopListening() }
+
         AsyncFunction("initialLink") { -> PhoneSystemLinks.takeInitial() }
 
         AsyncFunction("setHidesFromRecents") { hidden: Boolean ->
