@@ -64,8 +64,14 @@ public enum SitePermissionMemory: Equatable, Sendable {
 
 public enum SitePermissionSite {
   public static func key(host: String, port: Int) -> String {
-    let site = BlockingSettings.normalize(host)
+    let site = normalize(host)
     return port == 0 ? site : "\(site):\(port)"
+  }
+
+  public static func normalize(_ site: String) -> String {
+    site.lowercased()
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .trimmingCharacters(in: CharacterSet(charactersIn: "."))
   }
 }
 
@@ -81,7 +87,7 @@ public struct SitePermissionUse: Sendable, Equatable {
   }
 
   public func recording(_ permissions: Set<SitePermission>, site: String, tab: UUID) -> SitePermissionUse {
-    let key = BlockingSettings.normalize(site)
+    let key = SitePermissionSite.normalize(site)
     var tabUses = uses[tab] ?? [:]
     tabUses[key] = (tabUses[key] ?? []).union(permissions)
     return SitePermissionUse(uses: uses.merging([tab: tabUses]) { $1 })
@@ -92,7 +98,7 @@ public struct SitePermissionUse: Sendable, Equatable {
   }
 
   public func tabs(using permissions: Set<SitePermission>, site: String) -> Set<UUID> {
-    let key = BlockingSettings.normalize(site)
+    let key = SitePermissionSite.normalize(site)
     return Set(uses.compactMap { tab, sites in
       (sites[key] ?? []).isDisjoint(with: permissions) ? nil : tab
     })

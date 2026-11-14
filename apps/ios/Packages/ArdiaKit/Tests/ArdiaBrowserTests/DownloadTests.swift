@@ -91,6 +91,23 @@ import Testing
 }
 
 @MainActor
+final class FakeDownloadTask: DownloadTask {
+  let progress = Progress()
+  private var cleanup: (@MainActor () -> Void)?
+
+  var cancelled: Bool { cleanup != nil }
+
+  func cancel(then cleanup: @escaping @MainActor () -> Void) {
+    self.cleanup = cleanup
+  }
+
+  func finishCancelling() {
+    cleanup?()
+    cleanup = nil
+  }
+}
+
+@MainActor
 @Suite struct DownloadManagerTests {
   let container: ModelContainer
   let directory: URL
@@ -358,5 +375,44 @@ import Testing
     let reserved = DownloadManager.uniqueURL(in: directory, for: "report.pdf", excluding: ["report 2.pdf"])
     #expect(reserved.lastPathComponent == "report 3.pdf")
     #expect(DownloadManager.uniqueURL(in: directory, for: "../a/b:c.txt").lastPathComponent == "a-b-c.txt")
+  }
+
+  @Test func aLateCancelCleanupNeverDeletesTheNextDownloadsFile() throws {
+    defer { cleanUp() }
+    let downloads = manager()
+    let first = FakeDownloadTask()
+    let firstID = downloads.adopt(first, source: source, isPrivate: false)
+    let firstFile = try #require(downloads.destination(for: first, suggestedFilename: "report.pdf"))
+    try Data(repeating: 1, count: 3).write(to: firstFile)
+    try downloads.delete(firstID)
+    #expect(first.cancelled)
+    #expect(downloads.items.isEmpty)
+
+    let second = FakeDownloadTask()
+    downloads.adopt(second, source: source, isPrivate: false)
+    let secondFile = try #require(downloads.destination(for: second, suggestedFilename: "report.pdf"))
+    #expect(secondFile != firstFile)
+    try Data(repeating: 2, count: 3).write(to: secondFile)
+
+    first.finishCancelling()
+    #expect(exists(secondFile))
+    #expect(!exists(firstFile))
+
+    let third = FakeDownloadTask()
+    downloads.adopt(third, source: source, isPrivate: false)
+    #expect(downloads.destination(for: third, suggestedFilename: "report.pdf") == firstFile)
+  }
+
+  @Test func aCancelledDownloadKeepsItsNameUntilItsCleanupRuns() throws {
+    defer { cleanUp() }
+    let downloads = manager()
+    let first = FakeDownloadTask()
+    let firstID = downloads.adopt(first, source: source, isPrivate: false)
+    let firstFile = try #require(downloads.destination(for: first, suggestedFilename: "report.pdf"))
+    downloads.cancel(firstID)
+    downloads.clearInactive()
+    let second = FakeDownloadTask()
+    downloads.adopt(second, source: source, isPrivate: false)
+    #expect(downloads.destination(for: second, suggestedFilename: "report.pdf") != firstFile)
   }
 }

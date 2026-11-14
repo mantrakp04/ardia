@@ -41,3 +41,42 @@ struct SidebarChromeTests {
     #expect(SidebarChrome.RowParts.titleFade == 30)
   }
 }
+
+struct CommandBarHeightTests {
+  private let shortWindow: CGFloat = 500
+  private let keyboard: CGFloat = 262
+
+  @Test func `the panel stops above the keyboard and the window's bottom margin`() {
+    for overlap: CGFloat in [0, keyboard] {
+      let limit = SidebarChrome.commandBarPanelLimit(windowHeight: shortWindow, keyboardOverlap: overlap)
+      #expect(SidebarChrome.commandBarTop(windowHeight: shortWindow) + limit + overlap + SidebarChrome.CommandBar.bottomMargin == shortWindow)
+    }
+  }
+
+  @Test func `the field and its padding always fit, and the suggestions get what is left`() {
+    for overlap: CGFloat in [0, keyboard] {
+      let panel = SidebarChrome.commandBarPanelLimit(windowHeight: shortWindow, keyboardOverlap: overlap)
+      let rows = SidebarChrome.commandBarRowsLimit(windowHeight: shortWindow, keyboardOverlap: overlap)
+      #expect(panel >= SidebarChrome.CommandBar.fixedHeight)
+      #expect(rows == panel - SidebarChrome.CommandBar.fixedHeight)
+    }
+  }
+
+  @Test func `in a 500 point window eight suggestions do not fit, so they scroll`() {
+    let rows = SidebarChrome.commandBarRowsLimit(windowHeight: shortWindow, keyboardOverlap: 0)
+    let eight = CGFloat(SidebarChrome.CommandBar.rowLimit) * BrowseLayout.suggestionPitch
+    #expect(rows < eight)
+    #expect(rows >= BrowseLayout.suggestionPitch)
+  }
+
+  @Test func `at the largest text size one suggestion still shows without a keyboard, and the list scrolls with one`() {
+    let largestRow = BrowseLayout.suggestionPitch * SidebarChrome.CommandBar.largestTextScale
+    #expect(SidebarChrome.commandBarRowsLimit(windowHeight: shortWindow, keyboardOverlap: 0) >= largestRow)
+    #expect(SidebarChrome.commandBarRowsLimit(windowHeight: shortWindow, keyboardOverlap: keyboard) < largestRow)
+  }
+
+  @Test func `a keyboard taller than the window never makes the limits negative`() {
+    #expect(SidebarChrome.commandBarPanelLimit(windowHeight: shortWindow, keyboardOverlap: 2_000) == SidebarChrome.CommandBar.fixedHeight)
+    #expect(SidebarChrome.commandBarRowsLimit(windowHeight: shortWindow, keyboardOverlap: 2_000) == 0)
+  }
+}

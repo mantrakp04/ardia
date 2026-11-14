@@ -53,16 +53,14 @@ public struct SiteSettings: Codable, Equatable, Sendable {
   public var pageZoom: Double?
   public var nightShade: NightShadeMode?
   public var appLinks: AppLinkPreference?
-  public var permissions: Set<SitePermission>?
 
-  public init(pageZoom: Double? = nil, nightShade: NightShadeMode? = nil, appLinks: AppLinkPreference? = nil, permissions: Set<SitePermission>? = nil) {
+  public init(pageZoom: Double? = nil, nightShade: NightShadeMode? = nil, appLinks: AppLinkPreference? = nil) {
     self.pageZoom = pageZoom
     self.nightShade = nightShade
     self.appLinks = appLinks
-    self.permissions = permissions
   }
 
-  var isEmpty: Bool { pageZoom == nil && nightShade == nil && appLinks == nil && permissions == nil }
+  var isEmpty: Bool { pageZoom == nil && nightShade == nil && appLinks == nil }
 }
 
 @MainActor
@@ -70,7 +68,8 @@ public struct SiteSettings: Codable, Equatable, Sendable {
 public final class BrowsingPreferences {
   static let keys = (
     nightShade: "browsing.nightShade", swipe: "browsing.swipeNavigation", appLinks: "browsing.appLinks",
-    suggestions: "browsing.searchSuggestions", engine: "browsing.searchEngine", sites: "browsing.sites"
+    suggestions: "browsing.searchSuggestions", engine: "browsing.searchEngine", sites: "browsing.sites",
+    permissions: "browsing.sitePermissions"
   )
   static let siteLimit = 500
 
@@ -105,6 +104,7 @@ public final class BrowsingPreferences {
   }
 
   public private(set) var sites: [String: SiteSettings]
+  public private(set) var sitePermissions: [String: Set<SitePermission>]
   private var privateSites: [String: SiteSettings] = [:]
 
   public init(defaults: UserDefaults) {
@@ -114,7 +114,27 @@ public final class BrowsingPreferences {
     appLinks = defaults.string(forKey: Self.keys.appLinks).flatMap(AppLinkPreference.init(rawValue:)) ?? .ardia
     searchSuggestions = defaults.object(forKey: Self.keys.suggestions) as? Bool ?? true
     searchEngineID = defaults.string(forKey: Self.keys.engine) ?? "google"
-    sites = (defaults.data(forKey: Self.keys.sites)).flatMap { try? JSONDecoder().decode([String: SiteSettings].self, from: $0) } ?? [:]
+    let storedSites = defaults.data(forKey: Self.keys.sites)
+    sites = storedSites.flatMap { try? JSONDecoder().decode([String: SiteSettings].self, from: $0) } ?? [:]
+    sitePermissions = (defaults.data(forKey: Self.keys.permissions)).flatMap { try? JSONDecoder().decode([String: Set<SitePermission>].self, from: $0) } ?? [:]
+    if Self.holdsEarlierGrants(storedSites) { saveSites() }
+  }
+
+  private struct EarlierSiteGrants: Decodable {
+    var permissions: [String]?
+  }
+
+  private static func holdsEarlierGrants(_ data: Data?) -> Bool {
+    guard let data, let decoded = try? JSONDecoder().decode([String: EarlierSiteGrants].self, from: data) else { return false }
+    return decoded.values.contains { $0.permissions != nil }
+  }
+
+  private func saveSites() {
+    do {
+      defaults.set(try JSONEncoder().encode(sites), forKey: Self.keys.sites)
+    } catch {
+      Logger(subsystem: "com.ardia.browser.ios", category: "permissions").error("Couldn't save site settings: \(error.localizedDescription, privacy: .public)")
+    }
   }
 
   public func settings(for host: String?, isPrivate: Bool = false) -> SiteSettings {
@@ -132,26 +152,37 @@ public final class BrowsingPreferences {
   }
 
   public var permissionGrants: [SitePermissionGrant] {
-    sites
-      .compactMap { host, settings in
-        guard let permissions = settings.permissions, !permissions.isEmpty else { return nil }
-        return SitePermissionGrant(host: host, permissions: permissions.sorted())
+    sitePermissions
+      .compactMap { site, permissions in
+        permissions.isEmpty ? nil : SitePermissionGrant(host: site, permissions: permissions.sorted())
       }
       .sorted { $0.host.localizedStandardCompare($1.host) == .orderedAscending }
   }
 
   public func isGranted(_ permissions: Set<SitePermission>, host: String) -> Bool {
-    permissions.isSubset(of: sites[BlockingSettings.normalize(host)]?.permissions ?? [])
+    permissions.isSubset(of: sitePermissions[SitePermissionSite.normalize(host)] ?? [])
   }
 
   public func grant(_ permissions: Set<SitePermission>, host: String) {
-    update(host) { $0.permissions = ($0.permissions ?? []).union(permissions) }
+    let site = SitePermissionSite.normalize(host)
+    guard !site.isEmpty else { return }
+    savePermissions(sitePermissions.merging([site: (sitePermissions[site] ?? []).union(permissions)]) { $1 })
   }
 
   public func revoke(_ permissions: Set<SitePermission>, host: String) {
-    update(host) { settings in
-      let left = (settings.permissions ?? []).subtracting(permissions)
-      settings.permissions = left.isEmpty ? nil : left
+    let site = SitePermissionSite.normalize(host)
+    guard let granted = sitePermissions[site] else { return }
+    let left = granted.subtracting(permissions)
+    savePermissions(left.isEmpty ? sitePermissions.filter { $0.key != site } : sitePermissions.merging([site: left]) { $1 })
+  }
+
+  private func savePermissions(_ updated: [String: Set<SitePermission>]) {
+    guard updated != sitePermissions else { return }
+    sitePermissions = updated
+    do {
+      defaults.set(try JSONEncoder().encode(updated), forKey: Self.keys.permissions)
+    } catch {
+      Logger(subsystem: "com.ardia.browser.ios", category: "permissions").error("Couldn't save site permissions: \(error.localizedDescription, privacy: .public)")
     }
   }
 
@@ -178,10 +209,8 @@ public final class BrowsingPreferences {
     change(&value)
     guard value != before else { return }
     if value.isEmpty { sites[key] = nil } else { sites[key] = value }
-    if sites.count > Self.siteLimit, let drop = sites.keys.first(where: { $0 != key && sites[$0]?.permissions == nil }) ?? sites.keys.first(where: { $0 != key }) {
-      sites[drop] = nil
-    }
-    if let data = try? JSONEncoder().encode(sites) { defaults.set(data, forKey: Self.keys.sites) }
+    if sites.count > Self.siteLimit, let drop = sites.keys.first(where: { $0 != key }) { sites[drop] = nil }
+    saveSites()
     if before.nightShade != value.nightShade { onNightShadeChange?() }
   }
 }

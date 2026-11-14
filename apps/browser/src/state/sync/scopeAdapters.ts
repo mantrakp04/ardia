@@ -29,7 +29,7 @@ export function extensionsOf(profileId: string): ExtensionsAdapter {
   return adapter;
 }
 
-const syncedProfileOrder = (links: Record<string, { syncId: string }>) =>
+const syncedProfileOrder = (links: SyncDoc["profiles"]) =>
   useBrowser.getState().profileOrder.flatMap((id) => (links[id] ? [links[id].syncId] : []));
 
 export function appAdapters(doc: SyncDoc, retiring: boolean): Adapter[] {

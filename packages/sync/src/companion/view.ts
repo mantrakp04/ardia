@@ -1,12 +1,12 @@
 import { visible } from "../scope.ts";
 import type { ScopeState } from "../scopeState.ts";
 import { fromLegacy } from "./legacy.ts";
-import { lastVisitOf, type BookmarkValue, type DeviceTabs, type DeviceValue, type HistoryValue } from "./adapters.ts";
+import { lastVisitOf, type BookmarkValue, type CompanionKind, type DeviceTabs, type DeviceValue, type HistoryValue } from "./adapters.ts";
 import { lookSettingsOf, settingOf, themeOf, type ViewLookSettings, type ViewTheme } from "./looks.ts";
 
 export const MAX_HISTORY_ITEMS = 2_000;
 
-type Kind = "mac" | "phone" | "tablet";
+type Kind = "mac" | CompanionKind;
 type ProfileRecord = { n?: unknown; c?: unknown; i?: unknown; d?: unknown; th?: unknown };
 
 export type ViewDevice = { id: string; name: string; kind: Kind; lastSeen: number | null; isCurrent: boolean; canReceiveTabs: boolean };

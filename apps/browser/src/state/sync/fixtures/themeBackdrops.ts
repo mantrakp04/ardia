@@ -12,17 +12,13 @@ import {
   type ProfileTheme,
   type ThemeLook,
 } from "../../../lib/profileLook";
-import type { ThemeMode, ThemeTexture } from "@ardia/core";
-
-type SyncedStop = { r: number; g: number; b: number; a: number; x: number; y: number };
-type SyncedLook = { stops: SyncedStop[]; intensity: number; grain: number; texture: ThemeTexture; translucency: number; angle: number };
-type SyncedTheme = { mode: ThemeMode; light: SyncedLook; dark: SyncedLook | null };
+import type { ViewTheme, ViewThemeLook, ViewThemeStop } from "../../../platform/sync";
 
 type Sample = [x: number, y: number, width: number, height: number];
 
-export type BackdropCase = { theme: SyncedTheme; appDark: boolean; followsAppearance: boolean; samples: Sample[] };
+export type BackdropCase = { theme: ViewTheme; appDark: boolean; followsAppearance: boolean; samples: Sample[] };
 
-const macLook = (look: SyncedLook): ThemeLook => ({
+const macLook = (look: ViewThemeLook): ThemeLook => ({
   stops: look.stops.map(({ r, g, b, a, x, y }) => ({ color: { r, g, b, a }, x, y })),
   intensity: look.intensity,
   grain: look.grain,
@@ -31,7 +27,7 @@ const macLook = (look: SyncedLook): ThemeLook => ({
   angle: look.angle,
 });
 
-export const macTheme = (theme: SyncedTheme): ProfileTheme => ({ ...macLook(theme.light), mode: theme.mode, ...(theme.dark ? { dark: macLook(theme.dark) } : {}) });
+export const macTheme = (theme: ViewTheme): ProfileTheme => ({ ...macLook(theme.light), mode: theme.mode, ...(theme.dark ? { dark: macLook(theme.dark) } : {}) });
 
 export function expectedBackdrop({ theme, appDark, followsAppearance, samples }: BackdropCase) {
   const { look, requestedDark, dark } = shownLook(macTheme(theme), appDark, followsAppearance ? "app" : "own");
@@ -52,9 +48,9 @@ export function expectedBackdrop({ theme, appDark, followsAppearance, samples }:
   };
 }
 
-const stop = (r: number, g: number, b: number, a = 1, x = 0.5, y = 0.5): SyncedStop => ({ r, g, b, a, x, y });
+const stop = (r: number, g: number, b: number, a = 1, x = 0.5, y = 0.5): ViewThemeStop => ({ r, g, b, a, x, y });
 
-const look = (stops: SyncedStop[], fields: Partial<Omit<SyncedLook, "stops">> = {}): SyncedLook => ({
+const look = (stops: ViewThemeStop[], fields: Partial<Omit<ViewThemeLook, "stops">> = {}): ViewThemeLook => ({
   stops,
   intensity: 0.6,
   grain: 0,
@@ -65,9 +61,9 @@ const look = (stops: SyncedStop[], fields: Partial<Omit<SyncedLook, "stops">> = 
 });
 
 const hexByte = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, "0").toUpperCase();
-const hexOf = (s: SyncedStop) => `#${hexByte(s.r)}${hexByte(s.g)}${hexByte(s.b)}${s.a < 1 ? hexByte(s.a) : ""}`;
+const hexOf = (s: ViewThemeStop) => `#${hexByte(s.r)}${hexByte(s.g)}${hexByte(s.b)}${s.a < 1 ? hexByte(s.a) : ""}`;
 
-const theme = (mode: ThemeMode, light: SyncedLook, dark: SyncedLook | null = null) => ({
+const theme = (mode: ViewTheme["mode"], light: ViewThemeLook, dark: ViewThemeLook | null = null): ViewTheme => ({
   colors: light.stops.map(hexOf),
   darkColors: dark ? dark.stops.map(hexOf) : null,
   mode,
@@ -96,7 +92,7 @@ const SAMPLES: Sample[] = [
   [0, 0, 1194, 834], [1194, 0, 1194, 834], [800, 600, 1194, 834],
 ];
 
-const CASES: [name: string, theme: ReturnType<typeof theme>, appDark: boolean, followsAppearance: boolean][] = [
+const CASES: [name: string, theme: ViewTheme, appDark: boolean, followsAppearance: boolean][] = [
   ["two stops in light", MEADOW, false, true],
   ["two stops in dark, darkened as the Mac does", MEADOW, true, true],
   ["three stops with alpha and a dark look, light app", ARC, false, true],

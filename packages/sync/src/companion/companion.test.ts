@@ -3,11 +3,11 @@ import { test } from "node:test";
 import { canonical } from "../canon.ts";
 import { Clock } from "../hlc.ts";
 import { compact, syncScope, visible } from "../scope.ts";
-import { emptyScope, type Adapter, type Listing, type LogFile, type ScopeState, type Transport } from "../scopeState.ts";
+import { emptyScope, type Adapter, type Listing, type LogFile, type ScopeState, type SyncRecord, type Transport } from "../scopeState.ts";
 import { companionAcknowledge, companionAddBookmark, companionRemoveBookmark, companionRemovalsDone, companionSend, companionView, runCompanionCycle, type CycleInput } from "./cycle.ts";
 import { companionLoad, type CompanionState, type Host } from "./state.ts";
 import { buildView } from "./view.ts";
-import type { LocalTab, LocalVisit } from "./adapters.ts";
+import type { DeviceTabs, DeviceValue, LocalTab, LocalVisit } from "./adapters.ts";
 import { fromLegacy } from "./legacy.ts";
 
 const DAY = 86_400_000;
@@ -1128,16 +1128,16 @@ test("spaces take the order of the Mac that last republished its device record, 
 });
 
 test("two device records stamped alike give the order of the lower device id, whatever order they are read in", () => {
-  const record = (v: unknown, h: string) => ({ h, v, o: ["x", 1] as [string, number] });
+  const record = (v: unknown, h: string): SyncRecord => ({ h, v, o: ["x", 1] });
   for (const flipped of [false, true]) {
     const app = emptyScope();
     app.records[`prof:${P1}`] = record({ n: "Personal", c: "blue", i: null, d: true }, "a");
     app.records[`prof:${P2}`] = record({ n: "Work", c: "green", i: null }, "a");
     app.records[`prof:${P3}`] = record({ n: "School", c: "pink", i: null }, "a");
-    const devices = [
+    const devices: [string, SyncRecord][] = [
       [`dev:${MAC2}`, record({ n: "Mac mini", o: [P3, P1, P2] }, "same")],
       [`dev:${MAC}`, record({ n: "MacBook Pro", o: [P2, P3, P1] }, "same")],
-    ] as const;
+    ];
     for (const [key, value] of flipped ? [...devices].reverse() : devices) app.records[key] = value;
     assert.deepEqual(buildView({ app }, PHONE).profiles.map((p) => p.name), MAC2 < MAC ? ["School", "Personal", "Work"] : ["Work", "School", "Personal"]);
   }
@@ -1155,14 +1155,14 @@ test("an iPad says it is a tablet, and other kinds the view doesn't know are Mac
   const out = await phone.cycle({ kind: "tablet" });
   await mac.sync();
   assert.deepEqual(mac.scopes.app!.records[`dev:${PHONE}`]!.v, { n: "iPad", k: "tablet", f: ["send"], s: new Date(folder.now).toISOString().slice(0, 10).replaceAll("-", "") });
-  assert.equal((mac.scopes[s1]!.records[`tabs:${PHONE}`]!.v as { k: string }).k, "tablet");
+  assert.equal((mac.scopes[s1]!.records[`tabs:${PHONE}`]!.v as DeviceTabs).k, "tablet");
   const kinds = Object.fromEntries(out.view!.devices.map((d) => [d.name, d.kind]));
   assert.deepEqual(kinds, { iPad: "tablet", "Other iPad": "tablet", Watch: "mac", "MacBook Pro": "mac" });
   assert.deepEqual(out.view!.profiles.find((p) => p.syncId === P1)!.deviceTabs.map((d) => [d.deviceName, d.kind]), [["MacBook Pro", "mac"], ["Other iPad", "tablet"]]);
   folder.now += 1000;
   await phone.cycle({ kind: "phone" });
   await mac.sync();
-  assert.equal((mac.scopes.app!.records[`dev:${PHONE}`]!.v as { k: string }).k, "phone");
+  assert.equal((mac.scopes.app!.records[`dev:${PHONE}`]!.v as DeviceValue).k, "phone");
 });
 
 test("a deleted theme record falls back to the profile's legacy theme, as a Mac pairing from the folder does", async () => {

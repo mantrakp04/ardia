@@ -15,17 +15,31 @@ import Testing
     defaults.removePersistentDomain(forName: suite)
   }
 
-  @Test func grantsAreSavedPerSiteNextToItsZoom() {
+  @Test func grantsAreSavedPerSiteAndSurviveARelaunch() {
     defer { cleanUp() }
     let preferences = BrowsingPreferences(defaults: defaults)
-    preferences.update("meet.example") { $0.pageZoom = 1.25 }
-    preferences.grant([.camera, .microphone], host: "WWW.Meet.example")
+    preferences.grant([.camera, .microphone], host: "meet.example")
     let relaunched = BrowsingPreferences(defaults: defaults)
     #expect(relaunched.isGranted([.camera], host: "meet.example"))
-    #expect(relaunched.isGranted([.camera, .microphone], host: "www.meet.example"))
+    #expect(relaunched.isGranted([.camera, .microphone], host: "MEET.example."))
     #expect(!relaunched.isGranted([.location], host: "meet.example"))
     #expect(!relaunched.isGranted([.camera], host: "other.example"))
-    #expect(relaunched.settings(for: "meet.example").pageZoom == 1.25)
+  }
+
+  @Test func aGrantOnWwwIsNotAGrantOnTheBareHost() {
+    defer { cleanUp() }
+    let preferences = BrowsingPreferences(defaults: defaults)
+    preferences.update("www.example.com") { $0.pageZoom = 1.25 }
+    preferences.grant([.camera], host: SitePermissionSite.key(host: "www.example.com", port: 0))
+    #expect(preferences.isGranted([.camera], host: "www.example.com"))
+    #expect(!preferences.isGranted([.camera], host: "example.com"))
+    #expect(preferences.settings(for: "example.com").pageZoom == 1.25)
+    preferences.grant([.camera], host: "example.com")
+    preferences.revoke([.camera], host: "www.example.com")
+    let relaunched = BrowsingPreferences(defaults: defaults)
+    #expect(!relaunched.isGranted([.camera], host: "www.example.com"))
+    #expect(relaunched.isGranted([.camera], host: "example.com"))
+    #expect(relaunched.permissionGrants.map(\.host) == ["example.com"])
   }
 
   @Test func revokingOnePermissionKeepsTheRest() {
@@ -38,16 +52,15 @@ import Testing
     #expect(relaunched.isGranted([.microphone], host: "meet.example"))
   }
 
-  @Test func revokingTheLastPermissionForgetsTheSiteUnlessItHasOtherSettings() {
+  @Test func revokingTheLastPermissionForgetsTheSiteButNotItsZoom() {
     defer { cleanUp() }
     let preferences = BrowsingPreferences(defaults: defaults)
     preferences.grant([.location], host: "maps.example")
-    preferences.grant([.camera], host: "zoomed.example")
-    preferences.update("zoomed.example") { $0.pageZoom = 1.5 }
+    preferences.update("maps.example") { $0.pageZoom = 1.5 }
     preferences.revoke(Set(SitePermission.allCases), host: "maps.example")
-    preferences.revoke([.camera], host: "zoomed.example")
-    #expect(Set(BrowsingPreferences(defaults: defaults).sites.keys) == ["zoomed.example"])
-    #expect(preferences.permissionGrants.isEmpty)
+    let relaunched = BrowsingPreferences(defaults: defaults)
+    #expect(relaunched.permissionGrants.isEmpty)
+    #expect(relaunched.settings(for: "maps.example").pageZoom == 1.5)
   }
 
   @Test func theListShowsEachSiteOnceInAlphabeticalOrder() {
@@ -63,24 +76,17 @@ import Testing
     ])
   }
 
-  @Test func settingsSavedBeforePermissionsExistedStillLoad() throws {
+  @Test func grantsSavedInsideSiteSettingsByAnEarlierBuildAreNotHonoured() throws {
     defer { cleanUp() }
-    defaults.set(Data(#"{"zoomed.example":{"pageZoom":1.25,"nightShade":"always"}}"#.utf8), forKey: "browsing.sites")
+    defaults.set(Data(#"{"example.com":{"pageZoom":1.25,"permissions":["camera"]}}"#.utf8), forKey: "browsing.sites")
     let preferences = BrowsingPreferences(defaults: defaults)
-    #expect(preferences.settings(for: "zoomed.example").pageZoom == 1.25)
-    #expect(preferences.settings(for: "zoomed.example").permissions == nil)
+    #expect(preferences.settings(for: "www.example.com").pageZoom == 1.25)
+    #expect(!preferences.isGranted([.camera], host: "example.com"))
+    #expect(!preferences.isGranted([.camera], host: "www.example.com"))
     #expect(preferences.permissionGrants.isEmpty)
-  }
-
-  @Test func aFullSiteListDropsSitesWithoutPermissionsFirst() {
-    defer { cleanUp() }
-    let preferences = BrowsingPreferences(defaults: defaults)
-    preferences.grant([.camera], host: "keep.example")
-    for index in 0...BrowsingPreferences.siteLimit {
-      preferences.update("zoom\(index).example") { $0.pageZoom = 1.25 }
-    }
-    #expect(preferences.sites.count == BrowsingPreferences.siteLimit)
-    #expect(preferences.isGranted([.camera], host: "keep.example"))
+    let stored = try #require(defaults.data(forKey: "browsing.sites"))
+    #expect(!String(decoding: stored, as: UTF8.self).contains("permissions"))
+    #expect(BrowsingPreferences(defaults: defaults).settings(for: "example.com").pageZoom == 1.25)
   }
 
   @Test(arguments: [
@@ -102,11 +108,13 @@ import Testing
 
   @Test(arguments: [
     ("meet.example", 0, "meet.example"),
-    ("WWW.Meet.Example", 0, "meet.example"),
+    ("WWW.Meet.Example", 0, "www.meet.example"),
+    ("www.example.com.", 0, "www.example.com"),
+    (" Example.com ", 0, "example.com"),
     ("meet.example", 443, "meet.example:443"),
     ("localhost", 8443, "localhost:8443"),
   ])
-  func grantsAreKeyedByHostAndPort(host: String, port: Int, expected: String) {
+  func grantsAreKeyedByTheFullHostAndPort(host: String, port: Int, expected: String) {
     #expect(SitePermissionSite.key(host: host, port: port) == expected)
   }
 
@@ -133,5 +141,12 @@ import Testing
     #expect(use.tabs(using: [.camera, .microphone], site: "meet.example") == [call, embed])
     #expect(use.tabs(using: [.camera], site: "maps.example").isEmpty)
     #expect(use.forgetting(tab: call).tabs(using: [.camera, .microphone], site: "meet.example") == [embed])
+  }
+
+  @Test func usageOnWwwIsNotUsageOnTheBareHost() {
+    let tab = UUID()
+    let use = SitePermissionUse().recording([.camera], site: "www.example.com", tab: tab)
+    #expect(use.tabs(using: [.camera], site: "www.example.com") == [tab])
+    #expect(use.tabs(using: [.camera], site: "example.com").isEmpty)
   }
 }

@@ -1529,7 +1529,7 @@ const { lookSettingsOf, settingOf, themeOf } = __require("packages/sync/src/comp
 
 const MAX_HISTORY_ITEMS = 2_000;
 
-                                       
+                                  
                                                                                           
 
                                                                                                                                         
@@ -1883,10 +1883,9 @@ __define("packages/sync/src/companion/looks.ts", function (exports, __require) {
   __export(exports, "themeOf", () => themeOf);
   __export(exports, "settingOf", () => settingOf);
   __export(exports, "lookSettingsOf", () => lookSettingsOf);
+const { THEME_TEXTURES } = __require("packages/core/src/theme.ts");
                                                    
 
-                                                  
-                                                                
                                                                                                  
                                                                                                                                                      
                                                                                                                                              
@@ -1903,7 +1902,6 @@ __define("packages/sync/src/companion/looks.ts", function (exports, __require) {
 
                                       
 
-const TEXTURES                          = ["grain", "sand", "denim", "tweed"];
 const MAX_THEME_STOPS = 3;
 const MAX_SCANNED_STOPS = 16;
 const MAX_CHANNEL = 4;
@@ -1915,6 +1913,8 @@ const isNumber = (v         )              => typeof v === "number" && Number.is
 const clamp01 = (v        ) => Math.min(1, Math.max(0, v));
 const numberOr = (v         , fallback        ) => (isNumber(v) ? v : fallback);
 const angleOf = (v         ) => (isNumber(v) ? ((v % 360) + 360) % 360 : undefined);
+const isChannel = (v         )              => isNumber(v) && Math.abs(v) < MAX_CHANNEL;
+const isTexture = (v         )                    => THEME_TEXTURES.some((texture) => texture === v);
 
 function hexByte(v        ) {
   return Math.round(clamp01(v) * 255).toString(16).padStart(2, "0").toUpperCase();
@@ -1923,10 +1923,10 @@ function hexByte(v        ) {
 const hexOf = (s               ) => `#${hexByte(s.r)}${hexByte(s.g)}${hexByte(s.b)}${s.a < 1 ? hexByte(s.a) : ""}`;
 
 function stopOf(raw         )                       {
-  const color = isFields(raw) ? raw.color : null;
-  if (!isFields(color) || ![color.r, color.g, color.b].every((n) => isNumber(n) && Math.abs(n) < MAX_CHANNEL)) return null;
-  const at = raw          ;
-  return { r: color.r          , g: color.g          , b: color.b          , a: clamp01(numberOr(color.a, 1)), x: clamp01(numberOr(at.x, 0.5)), y: clamp01(numberOr(at.y, 0.5)) };
+  if (!isFields(raw) || !isFields(raw.color)) return null;
+  const { r, g, b, a } = raw.color;
+  if (!isChannel(r) || !isChannel(g) || !isChannel(b)) return null;
+  return { r, g, b, a: clamp01(numberOr(a, 1)), x: clamp01(numberOr(raw.x, 0.5)), y: clamp01(numberOr(raw.y, 0.5)) };
 }
 
 function lookOf(raw         , angle                    )                       {
@@ -1942,7 +1942,7 @@ function lookOf(raw         , angle                    )                       {
     stops,
     intensity: clamp01(numberOr(raw.intensity, 0.6)),
     grain: clamp01(numberOr(raw.grain, 0)),
-    texture: TEXTURES.includes(raw.texture                ) ? (raw.texture                ) : "grain",
+    texture: isTexture(raw.texture) ? raw.texture : "grain",
     translucency: clamp01(numberOr(raw.translucency, 1)),
     angle: angle ?? DEFAULT_THEME_ANGLE,
   };
@@ -1975,7 +1975,7 @@ function settingOf(app            , name        )          {
 function lookSettingsOf(app            )                          {
   const oneOf =                   (name        , values              )           => {
     const v = settingOf(app, name);
-    return values.includes(v     ) ? (v     ) : null;
+    return values.find((value) => value === v) ?? null;
   };
   const flag = (name        ) => {
     const v = settingOf(app, name);
@@ -1989,12 +1989,31 @@ function lookSettingsOf(app            )                          {
     glassTintWithTheme: flag("glassTintWithTheme"),
     glassTintAmount: isNumber(amount) && amount >= 0 && amount <= 1 ? amount : null,
     selectedTabGlow: oneOf("selectedTabGlow", ["full", "soft", "off"]),
-    pageFrame: Number.isInteger(frame) && (frame          ) >= 0 && (frame          ) <= PAGE_FRAME_MAX ? (frame          ) : null,
+    pageFrame: isNumber(frame) && Number.isInteger(frame) && frame >= 0 && frame <= PAGE_FRAME_MAX ? frame : null,
     sidebarSide: oneOf("sidebarSide", ["left", "right"]),
     profileSwitcherIcons: flag("profileSwitcherIcons"),
   };
   return Object.values(settings).some((v) => v !== null) ? settings : null;
 }
+
+});
+__define("packages/core/src/theme.ts", function (exports, __require) {
+  __export(exports, "THEME_TEXTURES", () => THEME_TEXTURES);
+const THEME_TEXTURES = ["grain", "sand", "denim", "tweed"]         ;
+
+                                                           
+
+                                                  
+
+                                  
+                        
+                       
+                         
+                     
+                             
+                             
+                     
+  
 
 });
 globalThis.ArdiaSync = __require("packages/sync/src/companion/index.ts");

@@ -12,6 +12,9 @@ struct CommandBar: View {
   @State private var isFocused = false
   @State private var highlighted: Int?
   @State private var isSubmitting = false
+  @State private var keyboard = KeyboardTracker()
+  @State private var keyboardOverlap: CGFloat = 0
+  @State private var rowsHeight: CGFloat = 0
 
   var body: some View {
     let rows = Array((model?.rows ?? []).prefix(SidebarChrome.CommandBar.rowLimit))
@@ -31,8 +34,16 @@ struct CommandBar: View {
         .keyboardShortcut(.cancelAction)
         .opacity(0)
         .accessibilityHidden(true)
+      KeyboardGuideReader { overlap in
+        guard overlap != keyboardOverlap else { return }
+        withAnimation(keyboard.animation) { keyboardOverlap = overlap }
+      }
+      .accessibilityHidden(true)
     }
-    .onAppear(perform: start)
+    .onAppear {
+      keyboard.start()
+      start()
+    }
     .onDisappear { model?.cancel() }
     .onChange(of: text) { _, value in
       guard !isSubmitting else { return }
@@ -52,13 +63,26 @@ struct CommandBar: View {
           .fill(Tokens.Role.divider)
           .frame(height: Tokens.Hairline.panel)
           .padding(.vertical, Tokens.Space.xs)
-        VStack(spacing: 0) {
-          ForEach(Array(rows.enumerated()), id: \.element.id) { index, suggestion in
-            SuggestionRowView(suggestion: suggestion, typed: text, isHighlighted: highlighted == index, isIncognito: app.isIncognito)
-              .onTapGesture { activate(suggestion) }
-              .onHover { hovering in if hovering { highlighted = index } }
-              .accessibilityAddTraits(.isButton)
-              .accessibilityAction { activate(suggestion) }
+        ScrollViewReader { scroller in
+          ScrollView {
+            VStack(spacing: 0) {
+              ForEach(Array(rows.enumerated()), id: \.element.id) { index, suggestion in
+                SuggestionRowView(suggestion: suggestion, typed: text, isHighlighted: highlighted == index, isIncognito: app.isIncognito)
+                  .id(index)
+                  .onTapGesture { activate(suggestion) }
+                  .onHover { hovering in if hovering { highlighted = index } }
+                  .accessibilityAddTraits(.isButton)
+                  .accessibilityAction { activate(suggestion) }
+              }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rowsHeight = $0 }
+          }
+          .scrollBounceBehavior(.basedOnSize)
+          .scrollDismissesKeyboard(.never)
+          .frame(height: min(rowsHeight, SidebarChrome.commandBarRowsLimit(windowHeight: windowSize.height, keyboardOverlap: keyboardOverlap)))
+          .onChange(of: highlighted) { _, index in
+            guard let index else { return }
+            withAnimation(.easeOut(duration: Tokens.Duration.fast)) { scroller.scrollTo(index) }
           }
         }
       }

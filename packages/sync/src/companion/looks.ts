@@ -1,7 +1,6 @@
+import { THEME_TEXTURES, type ThemeMode, type ThemeTexture } from "../../../core/src/theme.ts";
 import type { ScopeState } from "../scopeState.ts";
 
-export type ThemeMode = "auto" | "light" | "dark";
-export type ThemeTexture = "grain" | "sand" | "denim" | "tweed";
 export type ViewThemeStop = { r: number; g: number; b: number; a: number; x: number; y: number };
 export type ViewThemeLook = { stops: ViewThemeStop[]; intensity: number; grain: number; texture: ThemeTexture; translucency: number; angle: number };
 export type ViewTheme = { colors: string[]; darkColors: string[] | null; mode: ThemeMode; light: ViewThemeLook; dark: ViewThemeLook | null };
@@ -18,7 +17,6 @@ export type ViewLookSettings = {
 
 type Fields = Record<string, unknown>;
 
-const TEXTURES: readonly ThemeTexture[] = ["grain", "sand", "denim", "tweed"];
 const MAX_THEME_STOPS = 3;
 const MAX_SCANNED_STOPS = 16;
 const MAX_CHANNEL = 4;
@@ -30,6 +28,8 @@ const isNumber = (v: unknown): v is number => typeof v === "number" && Number.is
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const numberOr = (v: unknown, fallback: number) => (isNumber(v) ? v : fallback);
 const angleOf = (v: unknown) => (isNumber(v) ? ((v % 360) + 360) % 360 : undefined);
+const isChannel = (v: unknown): v is number => isNumber(v) && Math.abs(v) < MAX_CHANNEL;
+const isTexture = (v: unknown): v is ThemeTexture => THEME_TEXTURES.some((texture) => texture === v);
 
 function hexByte(v: number) {
   return Math.round(clamp01(v) * 255).toString(16).padStart(2, "0").toUpperCase();
@@ -38,10 +38,10 @@ function hexByte(v: number) {
 const hexOf = (s: ViewThemeStop) => `#${hexByte(s.r)}${hexByte(s.g)}${hexByte(s.b)}${s.a < 1 ? hexByte(s.a) : ""}`;
 
 function stopOf(raw: unknown): ViewThemeStop | null {
-  const color = isFields(raw) ? raw.color : null;
-  if (!isFields(color) || ![color.r, color.g, color.b].every((n) => isNumber(n) && Math.abs(n) < MAX_CHANNEL)) return null;
-  const at = raw as Fields;
-  return { r: color.r as number, g: color.g as number, b: color.b as number, a: clamp01(numberOr(color.a, 1)), x: clamp01(numberOr(at.x, 0.5)), y: clamp01(numberOr(at.y, 0.5)) };
+  if (!isFields(raw) || !isFields(raw.color)) return null;
+  const { r, g, b, a } = raw.color;
+  if (!isChannel(r) || !isChannel(g) || !isChannel(b)) return null;
+  return { r, g, b, a: clamp01(numberOr(a, 1)), x: clamp01(numberOr(raw.x, 0.5)), y: clamp01(numberOr(raw.y, 0.5)) };
 }
 
 function lookOf(raw: unknown, angle: number | undefined): ViewThemeLook | null {
@@ -57,7 +57,7 @@ function lookOf(raw: unknown, angle: number | undefined): ViewThemeLook | null {
     stops,
     intensity: clamp01(numberOr(raw.intensity, 0.6)),
     grain: clamp01(numberOr(raw.grain, 0)),
-    texture: TEXTURES.includes(raw.texture as ThemeTexture) ? (raw.texture as ThemeTexture) : "grain",
+    texture: isTexture(raw.texture) ? raw.texture : "grain",
     translucency: clamp01(numberOr(raw.translucency, 1)),
     angle: angle ?? DEFAULT_THEME_ANGLE,
   };
@@ -90,7 +90,7 @@ export function settingOf(app: ScopeState, name: string): unknown {
 export function lookSettingsOf(app: ScopeState): ViewLookSettings | null {
   const oneOf = <T extends string>(name: string, values: readonly T[]): T | null => {
     const v = settingOf(app, name);
-    return values.includes(v as T) ? (v as T) : null;
+    return values.find((value) => value === v) ?? null;
   };
   const flag = (name: string) => {
     const v = settingOf(app, name);
@@ -104,7 +104,7 @@ export function lookSettingsOf(app: ScopeState): ViewLookSettings | null {
     glassTintWithTheme: flag("glassTintWithTheme"),
     glassTintAmount: isNumber(amount) && amount >= 0 && amount <= 1 ? amount : null,
     selectedTabGlow: oneOf("selectedTabGlow", ["full", "soft", "off"]),
-    pageFrame: Number.isInteger(frame) && (frame as number) >= 0 && (frame as number) <= PAGE_FRAME_MAX ? (frame as number) : null,
+    pageFrame: isNumber(frame) && Number.isInteger(frame) && frame >= 0 && frame <= PAGE_FRAME_MAX ? frame : null,
     sidebarSide: oneOf("sidebarSide", ["left", "right"]),
     profileSwitcherIcons: flag("profileSwitcherIcons"),
   };

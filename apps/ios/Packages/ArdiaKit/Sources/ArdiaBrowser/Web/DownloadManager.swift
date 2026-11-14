@@ -9,6 +9,20 @@ public enum DownloadOutcome: Equatable, Sendable {
   case failed(fileName: String)
 }
 
+@MainActor
+protocol DownloadTask: AnyObject {
+  var progress: Progress { get }
+  func cancel(then cleanup: @escaping @MainActor () -> Void)
+}
+
+extension WKDownload: DownloadTask {
+  func cancel(then cleanup: @escaping @MainActor () -> Void) {
+    cancel { _ in
+      Task { @MainActor in cleanup() }
+    }
+  }
+}
+
 public enum DownloadError: Error, Equatable {
   case cannotRetry
   case couldNotDelete(fileName: String)
@@ -31,12 +45,13 @@ public final class DownloadManager {
   @ObservationIgnored private let store: (any DownloadStore)?
   @ObservationIgnored private let now: () -> Date
   @ObservationIgnored private var running: [ObjectIdentifier: Running] = [:]
+  @ObservationIgnored private var cleanupPending: [UUID: URL] = [:]
   @ObservationIgnored private var delegate: DownloadDelegate?
   @ObservationIgnored private var progressTask: Task<Void, Never>?
 
   private struct Running {
     let id: UUID
-    let download: WKDownload
+    let task: any DownloadTask
     var destination: URL?
   }
 
@@ -77,10 +92,8 @@ public final class DownloadManager {
     guard let before = item(id), before.isRunning else { return }
     let partial = ownedFile(of: before)
     if let key = running.first(where: { $0.value.id == id })?.key, let entry = running.removeValue(forKey: key) {
-      let destination = entry.destination ?? partial
-      entry.download.cancel { _ in
-        Task { @MainActor [weak self] in self?.removePartialFile(destination) }
-      }
+      if let destination = entry.destination ?? partial { cleanupPending[id] = destination }
+      entry.task.cancel { [weak self] in self?.finishCleanup(of: id) }
     } else {
       removePartialFile(partial)
     }
@@ -96,7 +109,7 @@ public final class DownloadManager {
   public func delete(_ id: UUID) throws {
     guard let item = item(id) else { return }
     if item.isRunning { cancel(id) }
-    if let file = fileURL(for: item) ?? ownedFile(of: item), FileManager.default.fileExists(atPath: file.path(percentEncoded: false)) {
+    if cleanupPending[id] == nil, let file = fileURL(for: item) ?? ownedFile(of: item), FileManager.default.fileExists(atPath: file.path(percentEncoded: false)) {
       do {
         try FileManager.default.removeItem(at: file)
       } catch {
@@ -128,15 +141,21 @@ public final class DownloadManager {
   func track(_ download: WKDownload) {
     if delegate == nil { delegate = DownloadDelegate(manager: self) }
     download.delegate = delegate
-    let id = UUID()
     let isPrivate = !(download.webView?.configuration.websiteDataStore.isPersistent ?? true)
-    running[ObjectIdentifier(download)] = Running(id: id, download: download)
-    begin(id: id, source: download.originalRequest?.url, isPrivate: isPrivate)
-    watchProgress()
+    adopt(download, source: download.originalRequest?.url, isPrivate: isPrivate)
   }
 
-  func destination(for download: WKDownload, suggestedFilename: String) -> URL? {
-    let key = ObjectIdentifier(download)
+  @discardableResult
+  func adopt(_ task: any DownloadTask, source: URL?, isPrivate: Bool) -> UUID {
+    let id = UUID()
+    running[ObjectIdentifier(task)] = Running(id: id, task: task)
+    begin(id: id, source: source, isPrivate: isPrivate)
+    watchProgress()
+    return id
+  }
+
+  func destination(for task: any DownloadTask, suggestedFilename: String) -> URL? {
+    let key = ObjectIdentifier(task)
     guard let entry = running[key], let current = item(entry.id) else { return nil }
     let folder = folder(for: current)
     do {
@@ -147,15 +166,17 @@ public final class DownloadManager {
       return nil
     }
     let neighbours = items.filter { $0.id != entry.id && $0.isPrivate == current.isPrivate }.map(\.fileName)
-    let reserved = Set(neighbours).union(running.values.compactMap { $0.destination?.lastPathComponent })
+    let reserved = Set(neighbours)
+      .union(running.values.compactMap { $0.destination?.lastPathComponent })
+      .union(cleanupPending.values.filter { $0.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL }.map(\.lastPathComponent))
     let url = Self.uniqueURL(in: folder, for: suggestedFilename, excluding: reserved)
     running[key]?.destination = url
     place(entry.id, as: url.lastPathComponent)
     return url
   }
 
-  func finished(_ download: WKDownload) {
-    guard let entry = running.removeValue(forKey: ObjectIdentifier(download)) else { return }
+  func finished(_ task: any DownloadTask) {
+    guard let entry = running.removeValue(forKey: ObjectIdentifier(task)) else { return }
     if let destination = entry.destination {
       finish(entry.id, file: destination)
     } else {
@@ -163,8 +184,8 @@ public final class DownloadManager {
     }
   }
 
-  func failed(_ download: WKDownload, error: any Error) {
-    guard let entry = running.removeValue(forKey: ObjectIdentifier(download)) else { return }
+  func failed(_ task: any DownloadTask, error: any Error) {
+    guard let entry = running.removeValue(forKey: ObjectIdentifier(task)) else { return }
     fail(entry.id, error: error)
   }
 
@@ -245,6 +266,13 @@ public final class DownloadManager {
     }
   }
 
+  private func finishCleanup(of id: UUID) {
+    guard let file = cleanupPending.removeValue(forKey: id) else { return }
+    let claimed = running.values.contains { $0.destination?.standardizedFileURL == file.standardizedFileURL }
+    guard !claimed else { return }
+    removePartialFile(file)
+  }
+
   private func removeContents(of folder: URL) {
     guard FileManager.default.fileExists(atPath: folder.path(percentEncoded: false)) else { return }
     let files: [URL]
@@ -271,7 +299,7 @@ public final class DownloadManager {
     progressTask = Task { [weak self] in
       while let self, !self.running.isEmpty, !Task.isCancelled {
         for entry in self.running.values {
-          let progress = entry.download.progress
+          let progress = entry.task.progress
           self.progress(entry.id, received: progress.completedUnitCount, expected: progress.totalUnitCount)
         }
         try? await Task.sleep(for: Self.progressInterval)

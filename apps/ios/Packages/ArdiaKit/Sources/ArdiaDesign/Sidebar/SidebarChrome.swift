@@ -49,10 +49,22 @@ public enum SidebarChrome {
     public static let fieldHeight = SidebarMetrics.touch(41)
     public static let inset = Tokens.Space.m
     public static let enterScale: CGFloat = 0.96
+    public static let bottomMargin = Tokens.Space.xl
+    public static let dividerBand = Tokens.Hairline.panel + Tokens.Space.xs * 2
+    public static let fixedHeight = inset * 2 + fieldHeight + dividerBand
+    public static let largestTextScale: CGFloat = 53 / 17
   }
 
   public static func commandBarTop(windowHeight: CGFloat) -> CGFloat {
     (windowHeight * CommandBar.topShareOfWindow).rounded()
+  }
+
+  public static func commandBarPanelLimit(windowHeight: CGFloat, keyboardOverlap: CGFloat) -> CGFloat {
+    max(CommandBar.fixedHeight, windowHeight - commandBarTop(windowHeight: windowHeight) - keyboardOverlap - CommandBar.bottomMargin)
+  }
+
+  public static func commandBarRowsLimit(windowHeight: CGFloat, keyboardOverlap: CGFloat) -> CGFloat {
+    commandBarPanelLimit(windowHeight: windowHeight, keyboardOverlap: keyboardOverlap) - CommandBar.fixedHeight
   }
 
   public static func commandBarWidth(windowWidth: CGFloat) -> CGFloat {

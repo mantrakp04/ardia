@@ -158,7 +158,7 @@ public final class WebEngine {
 
   public func revoke(_ permissions: Set<SitePermission>, host: String) {
     preferences.revoke(permissions, host: host)
-    let site = BlockingSettings.normalize(host)
+    let site = SitePermissionSite.normalize(host)
     let users = permissionUse.tabs(using: permissions, site: site)
     for id in roster.liveIDs {
       guard let page = roster.page(id), !page.isPrivate, let webView = page.webView else { continue }
