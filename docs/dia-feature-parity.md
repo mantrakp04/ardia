@@ -700,7 +700,7 @@ Chrome; n/t = not pressed there by the test (clipboard and window-level AppKit i
 | Save Page As… | — | ⌘S | menu item, no key (⌘S is Dia's Auto-Hide Tabs) | — | ✅ new |
 | Email Page Location | — | ⇧⌘I | ⇧⌘I (File menu) | ✓ ✓ ✓ ✓ | ✅ new |
 | Print / Print Using System Dialog | ⌘P / — | ⌘P / ⌥⌘P | ⌘P / ⌥⌘P (File menu) | ✓ ✓ ✓ ✓ | ✅ ⌥⌘P new |
-| Undo / Redo / Select All | ⌘Z / ⇧⌘Z / ⌘A | same | same; Settings › Keyboard Shortcuts › "⌘Z reopens closed tabs" (Arc's, off by default): outside text fields and editable page content Undo reads Undo Close Tab and reopens the last closed tab, again for each earlier one | ✓ ✓ ✓ ✓ (⌘A selects a page field's text: checked) | ✅ |
+| Undo / Redo / Select All | ⌘Z / ⇧⌘Z / ⌘A | same | same; Settings › Keyboard Shortcuts › "⌘Z reopens closed tabs" (Arc's, off by default): outside text fields and editable page content Undo reads Undo Close Tab and reopens the last closed tab, again for each earlier one. In the command bar and the app's own text fields ⌘Z / ⇧⌘Z undo and redo typing (the field editor the bar edits in records undo, as AppKit's own does) | ✓ ✓ ✓ ✓ (⌘A selects a page field's text: checked) | ✅ |
 | Cut / Copy / Paste / Paste and Match Style | ⌘X / ⌘C / ⌘V / ⇧⌘V | same | same | n/t ✓ n/t n/t (the Edit menu's, untouched) | ✅ |
 | Copy URL / as Markdown | ⇧⌘C / ⌥⇧⌘C | ⇧⌘C inspects | Dia's | ✓ ✓ ✓ ✓ | ✅ |
 | Find / Next / Previous | ⌘F / ⌘G / ⇧⌘G | same | same | ✓ ✓ ✓ ✓ | ✅ |
