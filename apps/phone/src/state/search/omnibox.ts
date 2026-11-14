@@ -7,6 +7,7 @@ import {
   mobileSuggest,
   mobileSuggestRequest,
 } from "@ardia/core/src/mobile";
+import { displayHost } from "../../lib/url";
 
 export type TrayRow =
   | { key: string; kind: "query"; title: string; url: string; query: string }
@@ -27,11 +28,12 @@ export function suggest(text: string, remote: readonly string[], context: Sugges
     if (item.kind === "search") rows.push({ key: `q:${item.query}`, kind: "query", title: item.query, url: item.url, query: item.query });
     else if (item.kind === "page") {
       const shown = mobileDisplay(item.url, item.title);
+      const host = displayHost(shown.host, item.url);
       rows.push({
         key: `p:${item.tabId ?? ""}:${item.url}`,
         kind: "page",
-        title: item.title || shown.host || shown.display,
-        detail: shown.display,
+        title: item.title || host,
+        detail: host,
         url: item.url,
         tabId: item.tabId ?? null,
       });

@@ -41,7 +41,7 @@ export function SearchTray() {
       <Pressable
         accessibilityLabel="Close"
         style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
-        onPress={cancelSearch}
+        onPressIn={cancelSearch}
       />
       <Animated.View
         style={[
