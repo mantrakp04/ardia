@@ -20,6 +20,8 @@ import { Group, Row } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { useSettingsColors } from "../useSettingsColors";
 import { SYNC_CODE_SIZE, syncCodeFrame } from "./syncCodeFrame";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 
 const WORDS = 24;
 
@@ -64,7 +66,7 @@ function RecoveryKitSheet() {
   const more = async () => {
     const choice = await showMenu([
       { id: "copy", title: "Copy", symbol: "doc.on.doc" },
-      { id: "share", title: "Share…", symbol: "square.and.arrow.up" },
+      ...(PLATFORM_FEATURES.sharesFiles ? [{ id: "share", title: "Share…", symbol: "square.and.arrow.up" }] : []),
       { separator: true },
       { id: "text", title: "Save as Text…", symbol: "doc.plaintext" },
     ]);
@@ -119,7 +121,7 @@ const phraseError = (r: Awaited<ReturnType<typeof enterRecoveryPhrase>>): string
     case "noData":
       return "There’s no synced data in this folder yet. Choose the folder your other devices sync to, or wait for it to finish downloading.";
     case "keychain":
-      return "Couldn’t save the sync key in your Keychain.";
+      return `Couldn’t save the sync key in ${PLATFORM_TERMS.secretStore}.`;
     case "unavailable":
       return "Sync isn’t available in this build.";
   }
@@ -206,7 +208,7 @@ export function RemoteProfileRow({ profile }: { profile: RemoteProfile }) {
       title={profile.name}
       description={remoteProfileDescription(profile)}
     >
-      <Button title="Add to This Mac" disabled={!!profile.waiting} onPress={() => addRemoteProfile(profile.syncId)} />
+      <Button title={`Add to This ${PLATFORM_TERMS.computer}`} disabled={!!profile.waiting} onPress={() => addRemoteProfile(profile.syncId)} />
     </Row>
   );
 }
@@ -217,10 +219,10 @@ export function lookingForProfiles(pending: number): string {
 }
 
 function joinedMessage(found: number, joining: boolean, pending: number, error: string | null): string {
-  if (found) return "These profiles are on your other devices. Add them to this Mac to sync their pinned tabs, bookmarks, history and passwords here too.";
+  if (found) return `These profiles are on your other devices. Add them to this ${PLATFORM_TERMS.computer} to sync their pinned tabs, bookmarks, history${PLATFORM_FEATURES.syncsPasswords ? " and passwords" : ""} here too.`;
   if (error) return error;
   if (joining) return lookingForProfiles(pending);
-  return "Every profile on your other devices is on this Mac too.";
+  return `Every profile on your other devices is on this ${PLATFORM_TERMS.computer} too.`;
 }
 
 function JoinedSheet() {
@@ -231,7 +233,7 @@ function JoinedSheet() {
   const addable = remote.filter((p) => !p.waiting).length;
   return (
     <Sheet size="l" onClose={closeSettingsSheet}>
-      <DialogTitle subtitle={joinedMessage(remote.length, joining, pending, error)}>This Mac Is Syncing</DialogTitle>
+      <DialogTitle subtitle={joinedMessage(remote.length, joining, pending, error)}>{`This ${PLATFORM_TERMS.computer} Is Syncing`}</DialogTitle>
       {remote.length ? (
         <View style={SECTION_TOP}>
           <Group>
@@ -260,14 +262,16 @@ function ConnectDeviceSheet() {
   return (
     <Sheet size="l" onClose={closeSettingsSheet}>
       <DialogTitle
-        subtitle="On your other Mac, open Ardia › Settings › Sync and choose the same sync folder. Then click Enter Recovery Phrase and enter the 24 words of your recovery phrase."
+        subtitle={`On your other ${PLATFORM_TERMS.syncedComputer}, open Ardia › Settings › Sync and choose the same sync folder. Then click Enter Recovery Phrase and enter the 24 words of your recovery phrase.`}
       >
         Connect Another Device
       </DialogTitle>
       <Box row gap="xl" style={[SECTION_TOP, { alignItems: "center" }]}>
         <View style={syncCodeFrame(theme, qr !== null)}>{qr ? <Image source={{ uri: qr }} style={QR} /> : <Button title="Show Code" onPress={() => void recoveryQrCode().then(setQr)} />}</View>
         <Text size="small" tone="textSecondary" style={QR_NOTE}>
-          Click Show Code. On your iPhone, open Ardia, tap Sync With Mac, and scan the code. For another Mac, you can also scan it with your iPhone’s camera and paste the words there with Universal Clipboard.
+          {PLATFORM_FEATURES.syncsWithPhone
+            ? "Click Show Code. On your iPhone, open Ardia, tap Sync With Mac, and scan the code. For another Mac, you can also scan it with your iPhone’s camera and paste the words there with Universal Clipboard."
+            : "Click Show Code, then scan it with your phone’s camera to copy the words and enter them on your other computer."}
         </Text>
       </Box>
       {words ? (
@@ -301,7 +305,7 @@ export function showStopSync() {
 function StopSheet() {
   return (
     <Sheet size="s" onClose={closeSettingsSheet}>
-      <DialogTitle subtitle="Syncing will stop on this device. To re-enable sync, you’ll need another device that is currently syncing, or the recovery phrase from your Recovery Kit. Everything on this Mac stays as it is.">
+      <DialogTitle subtitle={`Syncing will stop on this device. To re-enable sync, you’ll need another device that is currently syncing, or the recovery phrase from your Recovery Kit. Everything on this ${PLATFORM_TERMS.computer} stays as it is.`}>
         Stop Syncing This Device?
       </DialogTitle>
       <DialogActions leading={<Button title="Save Recovery Kit" onPress={() => showSettingsSheet(<RecoveryKitSheet />)} />}>
@@ -322,7 +326,7 @@ function DeleteDataSheet() {
   };
   return (
     <Sheet size="s" onClose={() => void finish(false)}>
-      <DialogTitle subtitle="Would you also like to permanently delete your synced data from the sync folder? This will stop syncing on all your other devices too. To sync again, you’ll need to set up each device from scratch. Your data on each Mac stays.">
+      <DialogTitle subtitle={`Would you also like to permanently delete your synced data from the sync folder? This will stop syncing on all your other devices too. To sync again, you’ll need to set up each device from scratch. Your data on each ${PLATFORM_TERMS.syncedComputer} stays.`}>
         Delete Sync Data?
       </DialogTitle>
       <View style={CHECK_TOP}>
@@ -337,6 +341,11 @@ function DeleteDataSheet() {
 }
 
 export function folderLabel(folder: Pick<FolderInfo, "path" | "inICloud">): string {
+  if (folder.path.includes("\\")) {
+    const parts = folder.path.split("\\").filter(Boolean);
+    const root = parts.findIndex((part) => part.startsWith(PLATFORM_TERMS.cloudDrive));
+    return folder.inICloud && root >= 0 ? [PLATFORM_TERMS.cloudDrive, ...parts.slice(root + 1)].join(" › ") : folder.path;
+  }
   if (folder.inICloud) {
     const rest = folder.path.split("com~apple~CloudDocs")[1]?.split("/").filter(Boolean) ?? [];
     return ["iCloud Drive", ...rest].join(" › ");

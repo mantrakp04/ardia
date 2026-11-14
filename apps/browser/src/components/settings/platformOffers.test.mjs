@@ -19,6 +19,7 @@ const { PANES, SETTINGS, unshownSettings } = await import("./src/components/sett
 const { UNAVAILABLE_COMMANDS } = await import("./src/state/commands/commandCatalog.ts");
 const { canSwitchEngine, engineForUrl, tabEngine, typedNavigationEngine } = await import("./src/state/engines/engines.ts");
 const { goToSettingsPane, useSettingsNav } = await import("./src/state/settings/settingsWindows.ts");
+const { DATA_TYPES, SYNCED_KINDS, typeSyncedFor, defaultTypes } = await import("./src/state/sync/syncDoc.ts");
 const S = () => useBrowser.getState();
 S().hydrate({});
 const unshown = new Set(unshownSettings(S().settings, { top: false }).split("\\n"));
@@ -44,6 +45,8 @@ console.log(JSON.stringify({
   switchesEngine: canSwitchEngine("https://example.com/"),
   pageEngines: pageEngines(),
   calendarLink,
+  syncTypes: DATA_TYPES.map((t) => t.id),
+  syncsPasswords: SYNCED_KINDS.includes("passwords") || typeSyncedFor(defaultTypes(), "passwords", true),
   macWords: shownCopy.filter(([, text]) => /macOS|Touch ID|Keychain|this Mac|View ›|Apple silicon/.test(text)).map(([id]) => id),
 }));
 `;
@@ -55,14 +58,16 @@ function offers(onWindows) {
   return JSON.parse(run.stdout.trim().split("\n").at(-1));
 }
 
-test("Windows offers no Sync, Calendar or WebKit pane, no blocker, gesture, upscaling, haptics or scroll bar row, and no Settings copy that names the Mac", () => {
+test("Windows offers Sync without passwords but no Calendar or WebKit pane, no blocker, gesture, upscaling, haptics or scroll bar row, and no Settings copy that names the Mac", () => {
   assert.deepEqual(offers(true), {
-    panes: [],
-    hidden: ["sync.sync", "calendar.access", "engines.defaultEngine", "privacy.blockAds", "privacy.filterLists", "general.littleWindowGestures", "tabs.videoUpscaling", "tabs.tabReorderHaptics", "appearance.pageScrollBars"],
+    panes: ["sync"],
+    hidden: ["calendar.access", "engines.defaultEngine", "privacy.blockAds", "privacy.filterLists", "general.littleWindowGestures", "tabs.videoUpscaling", "tabs.tabReorderHaptics", "appearance.pageScrollBars"],
     engineCommand: true,
     switchesEngine: false,
     pageEngines: ["chromium", "chromium", "chromium", "chromium", "chromium"],
     calendarLink: "general",
+    syncTypes: ["bookmarks", "history", "tabs", "pinned", "extensions", "settings"],
+    syncsPasswords: false,
     macWords: [],
   });
 });
@@ -75,10 +80,12 @@ test("the Mac keeps every pane, row and the engine switch", () => {
   assert.equal(mac.switchesEngine, true);
   assert.deepEqual(mac.pageEngines, ["webkit", "webkit", "webkit", "webkit", "webkit"]);
   assert.equal(mac.calendarLink, "calendar");
+  assert.deepEqual(mac.syncTypes, ["bookmarks", "history", "tabs", "pinned", "passwords", "extensions", "settings"]);
+  assert.equal(mac.syncsPasswords, true);
 });
 
 const PANES_DIR = new URL("./panes/", import.meta.url);
-const HIDDEN_ON_WINDOWS = new Set(["Sync.tsx", "SyncSheets.tsx", "Calendar.tsx", "Engines.tsx"]);
+const HIDDEN_ON_WINDOWS = new Set(["Calendar.tsx", "Engines.tsx"]);
 const MAC_ONLY_STATES = [["General.tsx", "requiresApproval"]];
 const MAC_WORDS = /macOS|Touch ID|Keychain|this Mac|their Mac|View ›|Apple silicon|System Settings/;
 

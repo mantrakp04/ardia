@@ -40,7 +40,7 @@ export function AutofillPane({ profileId: initial }: { profileId?: string | null
     <View>
       <SectionHeader
         title="Autofill"
-        description={`Addresses and cards you save are offered when you fill in a form, separately for each profile. Card numbers are kept in ${PLATFORM_TERMS.cardStore}.`}
+        description={`Addresses and cards you save are offered when you fill in a form, separately for each profile. Card numbers are kept in ${PLATFORM_TERMS.secretStore}.`}
         action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
@@ -240,7 +240,7 @@ function CardSheet({ profile, saved, onChanged }: { profile: string; saved?: Sav
     closeSettingsSheet();
   };
   const remove = async () => {
-    if (!saved || !(await confirmDelete("Delete this card?", `Its number is removed from ${PLATFORM_TERMS.cardStore} too.`))) return;
+    if (!saved || !(await confirmDelete("Delete this card?", `Its number is removed from ${PLATFORM_TERMS.secretStore} too.`))) return;
     await deleteCard(profile, saved.id).catch(orWarn(undefined));
     onChanged();
     closeSettingsSheet();

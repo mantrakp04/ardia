@@ -195,6 +195,9 @@ importers:
       '@ardia/shell':
         specifier: workspace:*
         version: link:../shell
+      '@ardia/sync':
+        specifier: workspace:*
+        version: link:../sync
 
   packages/import:
     dependencies:
