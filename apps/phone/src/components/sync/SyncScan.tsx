@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { makeScanJudge, openCameraSettings, prepareCamera, type CameraAccess } from "../../state/sync/scan";
+import { cameraErrorAccess, makeScanJudge, openCameraSettings, prepareCamera, type CameraAccess } from "../../state/sync/scan";
 import { SCAN_REJECTED } from "../../state/sync/syncRules";
 import { copy } from "../../lib/platformCopy";
 import { capsule, CodeCamera, font, ink, scanInk, scanLayout, space, Symbol, useTheme } from "../ui";
@@ -46,7 +46,12 @@ export function SyncScan({ onScan, onEnterWords, onCancel }: Props) {
       {access === "checking" ? <ActivityIndicator style={styles.center} color={ink.white} /> : null}
       {access === "granted" ? (
         <>
-          <CodeCamera onCode={read} active={!leaving} />
+          <CodeCamera
+            onCode={read}
+            onRejected={() => setRejected(true)}
+            onError={(error) => setAccess(cameraErrorAccess(error))}
+            active={!leaving}
+          />
           <View style={[styles.finder, { paddingTop: insets.top + 44, paddingBottom: insets.bottom + space.xl }]}>
             <View style={styles.words}>
               <Text accessibilityRole="header" style={[font.title3, styles.bold, styles.white]}>

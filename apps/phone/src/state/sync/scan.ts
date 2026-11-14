@@ -22,3 +22,5 @@ export async function prepareCamera(): Promise<CameraAccess> {
 export const openCameraSettings = () => void settled(() => openAppSettings(), undefined);
 
 export const makeScanJudge = () => scanJudge((payload) => checkPhrase(payload).isValid);
+
+export { cameraErrorAccess } from "../../lib/cameraAccess";

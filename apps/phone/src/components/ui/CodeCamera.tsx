@@ -1,16 +1,8 @@
+import { ScanView, type ScanError } from "@ardia/phone-native";
 import { StyleSheet } from "react-native";
 
-type CameraPackage = typeof import("expo-camera");
+type Props = { active: boolean; onCode: (text: string) => void; onRejected: () => void; onError: (error: ScanError) => void };
 
-export function CodeCamera({ onCode, active }: { onCode: (text: string) => void; active: boolean }) {
-  const { CameraView } = require("expo-camera") as CameraPackage;
-  return (
-    <CameraView
-      style={StyleSheet.absoluteFill}
-      facing="back"
-      active={active}
-      barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-      onBarcodeScanned={(result) => onCode(result.data)}
-    />
-  );
+export function CodeCamera({ active, onCode, onRejected, onError }: Props) {
+  return <ScanView style={StyleSheet.absoluteFill} active={active} onCode={onCode} onRejected={onRejected} onError={onError} />;
 }
