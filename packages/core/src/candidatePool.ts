@@ -19,9 +19,9 @@ export type Candidate = {
 };
 
 type Lookup = { get(key: string): Candidate | undefined; has(key: string): boolean };
-export type Pool = { list: Candidate[]; byKey: Lookup };
+export type Pool = { list: Candidate[]; byKey: Lookup; initials: Map<string, Candidate[]> | null };
 
-type BookmarkBase = { list: Candidate[]; byKey: Map<string, Candidate>; keys: Set<string>; cursor: number; done: boolean };
+type BookmarkBase = { list: Candidate[]; byKey: Map<string, Candidate>; cursor: number; done: boolean };
 type Builder = {
   base: BookmarkBase;
   history: readonly HistoryRow[];
@@ -29,6 +29,8 @@ type Builder = {
   byKey: Map<string, Candidate>;
   historyCursor: number;
   bookmarkCursor: number;
+  initials: Map<string, Candidate[]>;
+  initialsCursor: number;
   pool: Pool | null;
 };
 
@@ -40,7 +42,7 @@ const SLICE_CHECK = 64;
 
 function baseFor(bookmarks: readonly BookmarkRow[]): BookmarkBase {
   let base = bases.get(bookmarks);
-  if (!base) bases.set(bookmarks, (base = { list: [], byKey: new Map(), keys: new Set(), cursor: 0, done: false }));
+  if (!base) bases.set(bookmarks, (base = { list: [], byKey: new Map(), cursor: 0, done: false }));
   return base;
 }
 
@@ -52,7 +54,6 @@ function advance(b: Builder, bookmarks: readonly BookmarkRow[], deadline: number
   while (!base.done && base.cursor < bookmarks.length) {
     const row = bookmarks[base.cursor++]!;
     const text = pageText(row);
-    base.keys.add(text.key);
     if (!base.byKey.has(text.key)) {
       const c: Candidate = { url: row.url, title: row.title, favicon: row.favicon, visits: 0, lastVisit: 0, logVisits: 0, bookmarked: true, text };
       base.list.push(c);
@@ -65,7 +66,7 @@ function advance(b: Builder, bookmarks: readonly BookmarkRow[], deadline: number
     const h = b.history[b.historyCursor++]!;
     const text = pageText(h);
     if (!b.byKey.has(text.key)) {
-      const bookmarked = base.keys.has(text.key);
+      const bookmarked = base.byKey.has(text.key);
       let c = historyCandidates.get(h);
       if (!c || c.bookmarked !== bookmarked) {
         c = { url: h.url, title: h.title, favicon: h.favicon, visits: h.visits, lastVisit: h.lastVisit, logVisits: logVisits(h.visits), bookmarked, text };
@@ -85,6 +86,7 @@ function advance(b: Builder, bookmarks: readonly BookmarkRow[], deadline: number
   b.pool = {
     list: b.list,
     byKey: { get: (key) => history.get(key) ?? base.byKey.get(key), has: (key) => history.has(key) || base.byKey.has(key) },
+    initials: null,
   };
   return true;
 }
@@ -93,20 +95,47 @@ function builderFor(history: readonly HistoryRow[], bookmarks: readonly Bookmark
   let byBookmarks = builders.get(history);
   if (!byBookmarks) builders.set(history, (byBookmarks = new WeakMap()));
   let b = byBookmarks.get(bookmarks);
-  if (!b) byBookmarks.set(bookmarks, (b = { base: baseFor(bookmarks), history, list: [], byKey: new Map(), historyCursor: 0, bookmarkCursor: 0, pool: null }));
+  if (!b) byBookmarks.set(bookmarks, (b = { base: baseFor(bookmarks), history, list: [], byKey: new Map(), historyCursor: 0, bookmarkCursor: 0, initials: new Map(), initialsCursor: 0, pool: null }));
   return b;
 }
 
 export function poolFor(history: readonly HistoryRow[], bookmarks: readonly BookmarkRow[]): Pool {
   const b = builderFor(history, bookmarks);
   advance(b, bookmarks, Infinity);
+  indexInitials(b, Infinity);
   return b.pool!;
+}
+
+function indexInitials(b: Builder, deadline: number): boolean {
+  const pool = b.pool!;
+  if (pool.initials) return true;
+  let n = 0;
+  while (b.initialsCursor < pool.list.length) {
+    const candidate = pool.list[b.initialsCursor++]!;
+    const shown = candidate.text.shownLower;
+    const title = candidate.text.titleLower;
+    const chars = new Set<string>();
+    if (/^[a-z0-9]/.test(shown)) chars.add(shown[0]!);
+    if (/^[a-z0-9]/.test(title)) chars.add(title[0]!);
+    for (let i = 1; i < shown.length; i++) {
+      if (shown[i - 1] === "." || shown[i - 1] === "/") chars.add(shown[i]!);
+    }
+    for (const word of candidate.text.titleWords.split(" ")) if (word) chars.add(word[0]!);
+    for (const char of chars) {
+      const rows = b.initials.get(char);
+      if (rows) rows.push(candidate);
+      else b.initials.set(char, [candidate]);
+    }
+    if (++n % SLICE_CHECK === 0 && Date.now() > deadline) return false;
+  }
+  pool.initials = b.initials;
+  return true;
 }
 
 export function prepareSuggestions(source: SuggestionSource, deadline: number): boolean {
   const bookmarks = source.bookmarks ?? NO_BOOKMARKS;
   const b = builderFor(source.history, bookmarks);
-  if (b.pool) return true;
+  if (b.pool) return indexInitials(b, deadline);
   for (const rows of [source.history, bookmarks]) {
     let n = 0;
     for (const row of rows) {
@@ -115,7 +144,8 @@ export function prepareSuggestions(source: SuggestionSource, deadline: number): 
       if (++n % SLICE_CHECK === 0 && Date.now() > deadline) return false;
     }
   }
-  return advance(b, bookmarks, deadline);
+  const ready = advance(b, bookmarks, deadline);
+  return ready && indexInitials(b, deadline);
 }
 
 type TabsOver = { pool: Pool; currentTabId: string | undefined; rows: TabRow[]; tabIds: Map<string, string>; extra: Candidate[] };

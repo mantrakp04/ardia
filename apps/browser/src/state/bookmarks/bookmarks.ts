@@ -12,6 +12,7 @@ export type BookmarksSlice = {
   addBookmarkFolder(options: { profileId: string; title: string; parentId?: string; index?: number }): string;
   updateBookmark(id: string, patch: { title?: string; url?: string; favicon?: string | null }): void;
   moveBookmark(id: string, parentId: string, index?: number): void;
+  moveBookmarks(ids: string[], parentId: string, index?: number): void;
   removeBookmark(id: string): void;
   toggleBookmark(profileId: string, page: { url: string; title: string; favicon: string | null }): boolean;
   addBookmarkTree(profileId: string, drafts: BookmarkDraft[], parentId?: string, index?: number): string[];
@@ -62,11 +63,11 @@ export const rootIdsFor = (engine: string) => ({ bar: `bar@${engine || "default"
 
 export const ROOT_TITLES = { bar: "Bookmarks Bar", other: "Other Bookmarks" } as const;
 
-const MAX_DEPTH = 64;
+const MAX_DEPTH = 512;
 
 export function isWithin(b: Bookmarks, id: string, ancestors: readonly string[]): boolean {
   let node = b.nodes[id];
-  for (let i = 0; node && i < MAX_DEPTH; i++) {
+  for (let i = 0; node && i <= MAX_DEPTH; i++) {
     if (ancestors.includes(node.id)) return true;
     node = node.parentId ? b.nodes[node.parentId] : undefined;
   }
@@ -205,15 +206,43 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
   },
 
   moveBookmark(id, parentId, index) {
+    get().moveBookmarks([id], parentId, index);
+  },
+
+  moveBookmarks(ids, parentId, index) {
     set((s) => {
-      const node = s.bookmarks.nodes[id];
-      if (!node || node.parentId === null || subtree(s.bookmarks, [id]).includes(parentId)) return {};
-      const oldParent = s.bookmarks.nodes[node.parentId];
-      let b = s.bookmarks;
-      if (oldParent?.kind === "folder") {
-        b = { ...b, nodes: { ...b.nodes, [oldParent.id]: { ...oldParent, children: oldParent.children.filter((c) => c !== id) } } };
+      const b = s.bookmarks;
+      const target = b.nodes[parentId];
+      if (target?.kind !== "folder" || !ids.length) return {};
+      const orderedIds = [...new Set(ids)];
+      const requested = new Set(orderedIds);
+      const moving = orderedIds.filter((id) => {
+        const node = b.nodes[id];
+        if (!node?.parentId || isWithin(b, parentId, [id])) return false;
+        let ancestorId: string | null = node.parentId;
+        for (let depth = 0; ancestorId && depth < MAX_DEPTH; depth++) {
+          if (requested.has(ancestorId)) return false;
+          ancestorId = b.nodes[ancestorId]?.parentId ?? null;
+        }
+        return true;
+      });
+      if (!moving.length) return {};
+      const removed = new Set(moving);
+      const nodes = { ...b.nodes };
+      const parents = new Set(moving.map((id) => b.nodes[id]!.parentId!));
+      for (const oldParentId of parents) {
+        const oldParent = nodes[oldParentId];
+        if (oldParent?.kind === "folder") {
+          nodes[oldParentId] = { ...oldParent, children: oldParent.children.filter((id) => !removed.has(id)) };
+        }
       }
-      return { bookmarks: insertChild(b, node, parentId, index) };
+      const nextTarget = nodes[parentId] as BookmarkFolder;
+      const children = [...nextTarget.children];
+      const at = Math.max(0, Math.min(index ?? children.length, children.length));
+      children.splice(at, 0, ...moving);
+      nodes[parentId] = { ...nextTarget, children };
+      for (const id of moving) nodes[id] = { ...nodes[id]!, parentId } as BookmarkNode;
+      return { bookmarks: { ...b, nodes } };
     });
   },
 

@@ -7,7 +7,7 @@ globalThis.setTimeout = (callback, ms, ...args) => {
   return ms >= 1_000 ? timer.unref() : timer;
 };
 const { useBrowser } = await import("../browser/store.ts");
-const { bookmarkRoots, bookmarkUuidFor, isBookmarked, ownerOfBookmark } = await import("./bookmarks.ts");
+const { bookmarkRoots, bookmarkUuidFor, isBookmarked, isWithin, ownerOfBookmark } = await import("./bookmarks.ts");
 const { allArcHolders, restoreArcFolders } = await import("./bookmarkGroups.ts");
 const { migrateBookmarksFile, reloadBookmarks, startBookmarks } = await import("./engineSync.ts");
 const stub = await import("../../test-native/index.ts");
@@ -18,6 +18,18 @@ const cpuMs = (since) => {
   const { user, system } = process.cpuUsage(since);
   return (user + system) / 1000;
 };
+
+test("cycle checks cover the full Chrome bookmark depth", () => {
+  const nodes = {};
+  let parentId = null;
+  for (let depth = 0; depth <= 512; depth++) {
+    const id = `depth-${depth}`;
+    nodes[id] = { kind: "folder", id, parentId, title: id, children: [], addedAt: 0 };
+    if (parentId) nodes[parentId].children.push(id);
+    parentId = id;
+  }
+  assert.equal(isWithin({ nodes }, parentId, ["depth-0"]), true);
+});
 
 function chromeTree(profile = "") {
   const db = stub.chromeBookmarks(profile);
@@ -168,6 +180,25 @@ test("undo puts deleted rows back between the rows that stayed, in every folder 
   S().restoreBookmarks(removed);
   assert.deepEqual(S().bookmarks.nodes[roots.bar].children, [a, b, c, d, e]);
   assert.deepEqual(S().bookmarks.nodes[roots.other].children, [x, y, z]);
+});
+
+test("moving selected bookmarks updates the store once and preserves their order", () => {
+  S().hydrate({});
+  const source = S().addBookmarkFolder({ profileId: "default", title: "Source" });
+  const target = S().addBookmarkFolder({ profileId: "default", title: "Target" });
+  const ids = ["A", "B", "C", "D", "E"].map((title) => S().addBookmark({ profileId: "default", title, url: `https://${title.toLowerCase()}.example/`, parentId: source }));
+  let changes = 0;
+  const unsubscribe = useBrowser.subscribe(() => changes++);
+  S().moveBookmarks([ids[1], ids[3]], target);
+  assert.equal(changes, 1);
+  assert.deepEqual(S().bookmarks.nodes[source].children, [ids[0], ids[2], ids[4]]);
+  assert.deepEqual(S().bookmarks.nodes[target].children, [ids[1], ids[3]]);
+  changes = 0;
+  S().moveBookmarks([ids[2], ids[0]], target, 0);
+  assert.equal(changes, 1);
+  assert.deepEqual(S().bookmarks.nodes[source].children, [ids[4]]);
+  assert.deepEqual(S().bookmarks.nodes[target].children, [ids[2], ids[0], ids[1], ids[3]]);
+  unsubscribe();
 });
 
 test("an edit made at launch, before Chrome's tree is read, reaches Chrome and stays", async () => {
