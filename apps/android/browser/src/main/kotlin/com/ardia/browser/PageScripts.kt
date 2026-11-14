@@ -22,6 +22,25 @@ object PageScripts {
         return builder.append("})();").toString()
     }
 
+    const val DESKTOP_LAYOUT_WIDTH = 980
+
+    val desktopViewport: String = """
+(() => {
+  if (window !== window.top || window.__ardiaDesktopViewport) return;
+  window.__ardiaDesktopViewport = true;
+  const content = "width=$DESKTOP_LAYOUT_WIDTH";
+  const isViewport = (node) => node.nodeType === 1 && node.tagName === "META" && (node.getAttribute("name") || "").toLowerCase() === "viewport";
+  const pin = (meta) => { if (meta.getAttribute("content") !== content) meta.setAttribute("content", content); };
+  new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.type === "attributes") { if (isViewport(record.target)) pin(record.target); continue; }
+      for (const node of record.addedNodes) if (isViewport(node)) pin(node);
+    }
+  }).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ["content", "name"] });
+  for (const meta of document.getElementsByTagName("meta")) if (isViewport(meta)) pin(meta);
+})();
+""".trim()
+
     fun nightShadeCall(mode: NightShadeMode): String = "window.__ardiaNightShade && window.__ardiaNightShade(\"${mode.raw}\")"
 
     fun readerCall(readerScript: String): String = "(() => {\n$readerScript\n})()"

@@ -74,6 +74,7 @@ internal class WebViewPage(
     private var released = false
     private var systemUserAgent = ""
     private var filterHandler: ScriptHandler? = null
+    private var desktopViewportHandler: ScriptHandler? = null
     private var installedStart: List<String>? = null
     private var installedEnd: List<String>? = null
     private var installedBundle: String? = null
@@ -424,6 +425,14 @@ internal class WebViewPage(
     private fun applyUserAgent(web: WebView) {
         val settings = web.settings
         settings.userAgentString = if (desktopSite) BrowserUserAgent.desktop(systemUserAgent) else BrowserUserAgent.mobile(systemUserAgent)
+        if (engine.supportsDocumentStartScripts) {
+            if (desktopSite && desktopViewportHandler == null) {
+                desktopViewportHandler = WebViewCompat.addDocumentStartJavaScript(web, PageScripts.desktopViewport, setOf("*"))
+            } else if (!desktopSite) {
+                desktopViewportHandler?.remove()
+                desktopViewportHandler = null
+            }
+        }
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) return
         runCatching {
             val major = BrowserUserAgent.chromeMajor(systemUserAgent)
@@ -472,6 +481,7 @@ internal class WebViewPage(
         findQuery = ""
         mutableFind.value = null
         filterHandler = null
+        desktopViewportHandler = null
         installedStart = null
         installedEnd = null
         installedBundle = null
@@ -515,6 +525,7 @@ internal class WebViewPage(
         val changed = installFilterScripts(web, url)
         if (!engine.supportsDocumentStartScripts) {
             web.evaluateJavascript(PageScripts.mainFrameOnly(engine.scripts.nightShade), null)
+            if (desktopSite) web.evaluateJavascript(PageScripts.desktopViewport, null)
             installedBundle?.let { web.evaluateJavascript(it, null) }
         } else if (changed) {
             installedBundle?.let { web.evaluateJavascript(it, null) }
