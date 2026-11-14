@@ -11,6 +11,7 @@ extension AppModel {
     web.downloads.onOutcome = { [weak self] outcome in self?.announceDownload(outcome) }
     tabs.onLocalChange = { [weak self] in self?.sync.localDidChange() }
     web.openExternalURL = { url in UIApplication.shared.open(url) }
+    web.canMakeWebViews = { PageWindows.exist }
     web.openUniversalLink = { url in
       await UIApplication.shared.open(url, options: [.universalLinksOnly: true])
     }
@@ -32,7 +33,7 @@ extension AppModel {
 
   func applySyncedSearch() {
     tabs.searchTemplate = SearchTemplates.template(for: sync.snapshot.search, localEngineID: preferences.searchEngineID)
-    tabs.profileSyncId = sync.isEnabled ? sync.selectedProfile?.syncId : nil
+    applySpaces()
     let search = sync.snapshot.search
     let local = preferences.searchEngineID
     let omnibox = omnibox

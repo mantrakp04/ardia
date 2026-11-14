@@ -19,15 +19,7 @@ struct ToastView: View {
     .padding(.horizontal, Spacing.page)
     .padding(.vertical, 11)
     .frame(minHeight: 44)
-    .background {
-      Capsule(style: .continuous)
-        .fill(Palette.toast)
-        .overlay {
-          Capsule(style: .continuous)
-            .strokeBorder(Palette.panelBorder, lineWidth: 0.5)
-        }
-        .shadow(color: Palette.toastShadow, radius: 14, y: 6)
-    }
+    .chromeSurface(in: .capsule(style: .continuous), interactive: false)
     .contentShape(Capsule())
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(toast.onTap == nil ? .isStaticText : .isButton)
@@ -35,7 +27,7 @@ struct ToastView: View {
 }
 
 struct ToastOverlay: ViewModifier {
-  static let barClearance: CGFloat = 64
+  static let barClearance: CGFloat = 59
   static let sheetClearance: CGFloat = 12
 
   let center: ToastCenter

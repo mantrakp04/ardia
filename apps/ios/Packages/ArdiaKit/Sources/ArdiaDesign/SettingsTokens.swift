@@ -4,6 +4,16 @@ public enum SettingsTile {
   public static let side: CGFloat = 29
 }
 
+public enum SiteRow {
+  public static let favicon: CGFloat = 22
+  public static let libraryFavicon: CGFloat = 20
+  public static let libraryRowPadding: CGFloat = 16
+  public static let deviceGlyph: CGFloat = 10
+  public static let switcherIcon: CGFloat = 17
+  public static let switcherSegment: CGFloat = 40
+  public static let barButton: CGFloat = 44
+}
+
 public enum SettingsTint {
   public static let neutral = Color(hex: 0x86888D)
   public static let red = Color(hex: 0xFF5A5F)

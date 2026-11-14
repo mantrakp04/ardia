@@ -28,7 +28,7 @@ final class SpotlightIndexer {
   }
 
   static func entities(in app: AppModel) -> [TabEntity] {
-    let open = app.tabs.openTabs.filter { !$0.isPrivate }
+    let open = app.tabs.allOpenTabs.filter { !$0.isPrivate }
     var descriptor = FetchDescriptor<BrowserTab>(
       predicate: #Predicate { $0.archivedAt != nil },
       sortBy: [SortDescriptor(\.archivedAt, order: .reverse)]

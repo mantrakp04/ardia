@@ -36,7 +36,7 @@ struct VoiceSearchView: View {
         .font(.body.weight(.semibold))
         .foregroundStyle(.white)
         .frame(width: 44, height: 44)
-        .glassEffect(.regular.interactive(), in: .circle)
+        .chromeSurface(in: .circle)
         .padding(.trailing, Spacing.page)
         .padding(.top, Spacing.tight)
     }

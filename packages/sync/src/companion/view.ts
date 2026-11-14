@@ -31,7 +31,8 @@ export type ViewProfile = {
   history: ViewHistory[];
 };
 export type ViewSearch = { engineId: string; customURL: string | null; customEngines: { id: string; name: string; keyword: string; url: string }[] };
-export type View = { devices: ViewDevice[]; profiles: ViewProfile[]; search: ViewSearch | null };
+export type ViewLook = { interfaceStyle: "glass" | "classic" | null; appearance: "auto" | "light" | "dark" | null };
+export type View = { devices: ViewDevice[]; profiles: ViewProfile[]; search: ViewSearch | null; look: ViewLook | null };
 
 const str = (v: unknown, fallback = "") => (typeof v === "string" ? v : fallback);
 const optStr = (v: unknown) => (typeof v === "string" && v ? v : null);
@@ -304,11 +305,23 @@ export function historyList(scope: ScopeState | undefined): ViewHistory[] {
   return out.sort((a, z) => z.lastVisit - a.lastVisit || (a.url < z.url ? -1 : 1)).slice(0, MAX_HISTORY_ITEMS);
 }
 
+function settingOf(app: ScopeState, name: string): unknown {
+  const record = app.records[`set:${name}`]?.v as { v?: unknown } | null | undefined;
+  return record && typeof record === "object" ? fromLegacy(record.v) : undefined;
+}
+
+function oneOf<T extends string>(value: unknown, choices: readonly T[]): T | null {
+  return typeof value === "string" && (choices as readonly string[]).includes(value) ? (value as T) : null;
+}
+
+function lookOf(app: ScopeState): ViewLook | null {
+  const interfaceStyle = oneOf(settingOf(app, "interfaceStyle"), ["glass", "classic"] as const);
+  const appearance = oneOf(settingOf(app, "appearance"), ["auto", "light", "dark"] as const);
+  return interfaceStyle === null && appearance === null ? null : { interfaceStyle, appearance };
+}
+
 function searchOf(app: ScopeState): ViewSearch | null {
-  const setting = (name: string) => {
-    const record = app.records[`set:${name}`]?.v as { v?: unknown } | null | undefined;
-    return record && typeof record === "object" ? fromLegacy(record.v) : undefined;
-  };
+  const setting = (name: string) => settingOf(app, name);
   const engine = setting("searchEngine");
   const customUrl = setting("customSearchUrl");
   const custom = setting("customSearchEngines");
@@ -326,7 +339,7 @@ function searchOf(app: ScopeState): ViewSearch | null {
 
 export function buildView(scopes: Record<string, ScopeState>, me: string): View {
   const app = scopes.app;
-  if (!app) return { devices: [], profiles: [], search: null };
+  if (!app) return { devices: [], profiles: [], search: null, look: null };
   const lastSeen = new Map<string, number>();
   for (const scope of Object.values(scopes)) {
     for (const [device, at] of Object.entries(scope.seen)) lastSeen.set(device, Math.max(at, lastSeen.get(device) ?? 0));
@@ -365,5 +378,5 @@ export function buildView(scopes: Record<string, ScopeState>, me: string): View 
     };
   });
   profileList.sort((a, z) => Number(z.isDefault) - Number(a.isDefault) || a.name.localeCompare(z.name) || (a.syncId < z.syncId ? -1 : 1));
-  return { devices: deviceList, profiles: profileList, search: searchOf(app) };
+  return { devices: deviceList, profiles: profileList, search: searchOf(app), look: lookOf(app) };
 }
