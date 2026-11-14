@@ -68,6 +68,17 @@ OwnedMomentum gMomentum;
 
 constexpr NSTimeInterval kMomentumStartWait = 0.1;
 
+constexpr NSInteger kBackButton = 3;
+
+constexpr NSInteger kForwardButton = 4;
+
+struct SideButtonPress {
+  BOOL held = NO;
+  __weak NSView<ArdiaSwipeTarget> *target;
+};
+
+SideButtonPress gSideButtons[2];
+
 }
 
 namespace {
@@ -284,6 +295,29 @@ BOOL SwallowOwnedMomentum(NSEvent *event, NSWindow *window) {
   return YES;
 }
 
+void SendDiscreteSwipe(NSView<ArdiaSwipeTarget> *target, BOOL back) {
+  [target swipeEvent:@{
+    @"phase" : @"swipe",
+    @"direction" : back ? @"back" : @"forward",
+    @"distance" : @0,
+    @"dy" : @0,
+    @"velocity" : @0,
+    @"available" : @YES,
+    @"width" : @(NSWidth(target.bounds)),
+  }];
+}
+
+NSView<ArdiaSwipeTarget> *SideButtonPager(NSWindow *window, NSPoint location) {
+  NSView<ArdiaSwipeTarget> *target = nil;
+  BOOL fallback = NO;
+  ResolveHit(window, location, &target, &fallback);
+  if (!target || !IsPager(target)) {
+    Diag(@{@"diag" : @"sideButton", @"reject" : target ? @"notPager" : @"noTarget"});
+    return nil;
+  }
+  return target;
+}
+
 }
 
 namespace ardia_swipe {
@@ -359,16 +393,24 @@ BOOL HandleDiscreteSwipe(NSWindow *window, NSPoint location, CGFloat deltaX) {
   if (!target) return NO;
   BOOL back = deltaX > 0;
   if (!(back ? target.canSwipeBack : target.canSwipeForward)) return NO;
-  [target swipeEvent:@{
-    @"phase" : @"swipe",
-    @"direction" : back ? @"back" : @"forward",
-    @"distance" : @0,
-    @"dy" : @0,
-    @"velocity" : @0,
-    @"available" : @YES,
-    @"width" : @(NSWidth(target.bounds)),
-  }];
+  SendDiscreteSwipe(target, back);
   return YES;
+}
+
+NSEvent *HandleOtherMouse(NSEvent *event) {
+  if (event.buttonNumber != kBackButton && event.buttonNumber != kForwardButton) return event;
+  SideButtonPress &press = gSideButtons[event.buttonNumber - kBackButton];
+  if (event.type == NSEventTypeOtherMouseDown) {
+    NSView<ArdiaSwipeTarget> *pager = SideButtonPager(event.window, event.locationInWindow);
+    press = {pager != nil, pager};
+    return pager ? nil : event;
+  }
+  if (!press.held) return event;
+  NSView<ArdiaSwipeTarget> *pager = press.target;
+  press = SideButtonPress();
+  Diag(@{@"diag" : @"sideButton", @"button" : @(event.buttonNumber)});
+  SendDiscreteSwipe(pager, event.buttonNumber == kBackButton);
+  return nil;
 }
 
 }
@@ -377,8 +419,9 @@ namespace {
 
 void InstallMonitor() {
   if (gMonitor) return;
-  gMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel | NSEventMaskSwipe
+  gMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel | NSEventMaskSwipe | NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp
                                                    handler:^NSEvent *(NSEvent *event) {
+                                                     if (event.type == NSEventTypeOtherMouseDown || event.type == NSEventTypeOtherMouseUp) return HandleOtherMouse(event);
                                                      Diag(@{
                                                        @"diag" : @"monitorEntry",
                                                        @"type" : @(event.type),
