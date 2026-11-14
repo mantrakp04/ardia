@@ -154,18 +154,18 @@ async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
         try:
             result = await page.send("Page.navigate", {"url": url}, timeout=ctx.timeout)
         except Gated:
-            raise BrowseError(f"Ardia's policy only lets the ardia command open web pages (http, https, data, about:blank); {url} isn't one") from None
+            raise BrowseError(f"Ardia's policy only lets the ardia command open web pages (http, https, data, about:blank); {url} isn't one", code="policy_refused") from None
         if result.get("errorText"):
-            raise BrowseError(f"Navigation to {url} failed: {result['errorText']}")
+            raise BrowseError(f"Navigation to {url} failed: {result['errorText']}", code="navigation_failed")
         await page.recovered(ctx.timeout)
         return
     before = await readpages.before_navigating(page, url)
     try:
         result = await page.send("Page.navigate", {"url": url}, timeout=ctx.timeout)
     except Gated:
-        raise BrowseError(f"Ardia's policy only lets the ardia command open web pages (http, https, data, about:blank); {url} isn't one") from None
+        raise BrowseError(f"Ardia's policy only lets the ardia command open web pages (http, https, data, about:blank); {url} isn't one", code="policy_refused") from None
     if result.get("errorText"):
-        raise BrowseError(f"Navigation to {url} failed: {result['errorText']}")
+        raise BrowseError(f"Navigation to {url} failed: {result['errorText']}", code="navigation_failed")
     loader = result.get("loaderId")
     if loader:
         await wait_for_load(page, loader, ctx.timeout, until)
@@ -187,7 +187,7 @@ async def new_tab(ctx: Ctx, url: str | None, label: str | None = None, window: b
     try:
         result = await state.browser.send("Target.createTarget", params)
     except Gated as error:
-        raise BrowseError(f"Ardia's policy refused to open a tab for the ardia command ({error.refusal})") from None
+        raise BrowseError(f"Ardia's policy refused to open a tab for the ardia command ({error.refusal})", code="policy_refused") from None
     target_id = result["targetId"]
     state.opened.add(target_id)
     state.registry.note_opened(state.instance, target_id)
@@ -993,7 +993,7 @@ async def evaluate_main(page, expression: str):
     if "exceptionDetails" in result:
         details = result["exceptionDetails"]
         description = (details.get("exception") or {}).get("description") or details.get("text") or "error"
-        raise BrowseError(f"Evaluation error: {description}")
+        raise BrowseError(f"Evaluation error: {description}", code="page_script_error")
     remote = result.get("result") or {}
     if remote.get("type") == "undefined":
         return None
@@ -1290,7 +1290,7 @@ async def cmd_tab(ctx: Ctx, argv):
     if action == "active":
         target_id = await user_active_tab(state)
         if not target_id:
-            raise BrowseError("The user isn't on a web page right now (New Tab or another Ardia view)")
+            raise BrowseError("The user isn't on a web page right now (New Tab or another Ardia view)", code="no_tab")
         action = target_id
     await state.refresh_targets()
     target_id = await state.find_tab(action)

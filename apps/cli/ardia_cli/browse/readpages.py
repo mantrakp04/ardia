@@ -439,9 +439,9 @@ async def goto(ctx, page, url: str, timeout: float):
     try:
         result = await page.send("Page.navigate", {"url": url}, timeout=timeout)
     except Gated:
-        raise BrowseError(f"Ardia's policy only lets the ardia command open web pages; {url} isn't one") from None
+        raise BrowseError(f"Ardia's policy only lets the ardia command open web pages; {url} isn't one", code="policy_refused") from None
     if result.get("errorText"):
-        raise BrowseError(f"couldn't load it: {result['errorText']}")
+        raise BrowseError(f"couldn't load it: {result['errorText']}", code="navigation_failed")
     loader = result.get("loaderId")
     if loader:
         await wait_for_load(page, loader, max(deadline - loop.time(), 0.1), "domcontentloaded")

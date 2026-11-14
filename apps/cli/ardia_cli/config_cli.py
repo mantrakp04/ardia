@@ -136,10 +136,17 @@ def run_theme(args, parser) -> int:
     return guarded("ardia theme", handler, args)
 
 
+def note_error(code: str) -> None:
+    from ardia_cli import telemetry
+
+    telemetry.note_error_code(code)
+
+
 def guarded(prefix: str, handler, args) -> int:
     try:
         return handler(args, files.places(args.data_dir))
     except ConfigError as error:
+        note_error("unknown_setting" if str(error).startswith("unknown setting") else "config_error")
         complain(f"{prefix}: {error}")
         return 1
     except OSError as error:
@@ -342,6 +349,7 @@ def config_get(args, where: Places) -> int:
                 raise ConfigError(f"unknown setting {parts[0]}{did_you_mean(parts[0], specs)}")
             default = files.sub(specs.get(parts[0]), "default") if len(parts) == 1 else None
             hint = f" (Ardia's default: {cell(default)})" if len(parts) == 1 and isinstance(specs.get(parts[0]), dict) and "default" in specs[parts[0]] else ""
+            note_error("not_set")
             complain(f"ardia config: config.json doesn't set {args.key}{hint}")
             return 1
         value = value[part]
