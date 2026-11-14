@@ -1,5 +1,6 @@
 export {
   ActivitySpinner,
+  ClipView,
   ContextMenuArea,
   DockSelection,
   FadeLabel,

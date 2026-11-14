@@ -32,7 +32,7 @@ export function coversIn(windowId: string, except: readonly string[] = []): Cove
   return [...(covers.get(windowId) ?? [])].filter(([id]) => !except.includes(id)).map(([, rect]) => rect);
 }
 
-type Box = Omit<CoverRect, "radius">;
+export type Box = Omit<CoverRect, "radius">;
 
 const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 

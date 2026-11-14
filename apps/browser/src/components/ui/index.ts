@@ -34,6 +34,7 @@ export { TooltipAbove } from "./TooltipAbove";
 export { useHover } from "./useHover";
 export {
   ActivitySpinner,
+  ClipView,
   ContextMenuArea,
   DIA_SPECTRUM,
   DockSelection,
