@@ -27,7 +27,7 @@ function out(e: MouseEvent) {
 }
 
 function install() {
-  if (installed || typeof window === "undefined") return;
+  if (installed || typeof window === "undefined" || typeof document === "undefined") return;
   installed = true;
   window.addEventListener("pointermove", move, true);
   window.addEventListener("pointerdown", move, true);
@@ -44,3 +44,5 @@ export function watchPointer(watcher: Watcher) {
 }
 
 export const currentPointer = () => last;
+
+install();
