@@ -17,6 +17,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -137,7 +139,15 @@ class SyncModule : Module() {
         val inbox = PhoneSync.inbox(context)
         val running = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         scope = running
-        running.launch { sync.state.collect { events.emit(mapOf("name" to "sync.status", "status" to SyncPayloads.status(it, inbox.problem))) } }
+        running.launch {
+            sync.state.collectLatest { state ->
+                events.emit(mapOf("name" to "sync.status", "status" to SyncPayloads.status(state, inbox.problem)))
+                while (SyncPayloads.wordsAge(state)) {
+                    delay(AGE_REFRESH_MILLIS)
+                    events.emit(mapOf("name" to "sync.status", "status" to SyncPayloads.status(state, inbox.problem)))
+                }
+            }
+        }
         running.launch {
             combine(sync.snapshot, sync.state, sync.receivers) { snapshot, state, receivers -> SyncPayloads.view(snapshot, state.selectedProfileId, receivers) }
                 .collect { events.emit(mapOf("name" to "sync.view", "view" to it)) }
@@ -172,5 +182,6 @@ class SyncModule : Module() {
 
     companion object {
         private const val PICK_FOLDER_REQUEST = 47_202
+        private const val AGE_REFRESH_MILLIS = 60_000L
     }
 }

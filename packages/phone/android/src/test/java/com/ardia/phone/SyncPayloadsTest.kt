@@ -22,4 +22,20 @@ class SyncPayloadsTest {
             demo.close()
         }
     }
+
+    @Test
+    fun aStalledStatusSaysHowLongAgoAtTheMomentItIsSentNotWhenItWasMade() {
+        val synced = 1_800_000_000_000L
+        val stalled = com.ardia.sync.SyncState(
+            phase = com.ardia.sync.SyncPhase.Stalled("x"),
+            statusText = com.ardia.sync.SyncStatusText.of(com.ardia.sync.SyncPhase.Stalled("x"), synced, 0, synced + 5_000),
+            isEnabled = true,
+            lastSynced = synced,
+        )
+        assertEquals("Not syncing · Last synced 3 minutes ago", SyncPayloads.status(stalled, null, now = synced + 3 * 60_000 + 10_000)["statusText"])
+        val updated = stalled.copy(phase = com.ardia.sync.SyncPhase.Updated, statusText = "Updated just now")
+        assertEquals("Updated just now", SyncPayloads.status(updated, null, now = synced + 3 * 60_000)["statusText"])
+        assertEquals(true, SyncPayloads.wordsAge(stalled))
+        assertEquals(false, SyncPayloads.wordsAge(updated))
+    }
 }

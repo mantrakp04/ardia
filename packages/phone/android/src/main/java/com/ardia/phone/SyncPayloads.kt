@@ -9,6 +9,7 @@ import com.ardia.sync.ReceivedTab
 import com.ardia.sync.SyncPhase
 import com.ardia.sync.SyncSnapshot
 import com.ardia.sync.SyncState
+import com.ardia.sync.SyncStatusText
 import com.ardia.sync.SyncStatusWords
 import com.ardia.sync.SyncedDevice
 import com.ardia.sync.SyncedProfile
@@ -34,10 +35,12 @@ object SyncPayloads {
         SyncStatusWords.Attention.STALLED -> "stalled"
     }
 
-    fun status(state: SyncState, inboxProblem: String? = null): Map<String, Any?> = mapOf(
+    fun wordsAge(state: SyncState): Boolean = state.phase is SyncPhase.Stalled && state.lastSynced != null
+
+    fun status(state: SyncState, inboxProblem: String? = null, now: Long = System.currentTimeMillis()): Map<String, Any?> = mapOf(
         "inboxProblem" to inboxProblem,
         "phase" to phase(state.phase),
-        "statusText" to state.statusText,
+        "statusText" to if (wordsAge(state)) SyncStatusText.of(state.phase, state.lastSynced, state.pendingDownloads, now) else state.statusText,
         "stalledMessage" to (state.phase as? SyncPhase.Stalled)?.message,
         "attention" to attention(state.words.attention),
         "isEnabled" to state.isEnabled,
