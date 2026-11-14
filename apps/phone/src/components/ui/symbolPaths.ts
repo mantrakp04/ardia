@@ -26,6 +26,23 @@ const HAND =
   "M11 11V5a1.5 1.5 0 0 1 3 0v6" +
   "M14 11V6.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.6-2.2L3.2 15a1.5 1.5 0 0 1 2.3-1.9L8 15.5";
 
+const SHIELD = "M12 2.8l7.5 2.9v5.6c0 4.8-3.1 8.6-7.5 10-4.4-1.4-7.5-5.2-7.5-10V5.7z";
+
+function sparkle(cx: number, cy: number, r: number): string {
+  const k = r * 0.28;
+  return `M${cx} ${cy - r}Q${cx + k} ${cy - k} ${cx + r} ${cy}Q${cx + k} ${cy + k} ${cx} ${cy + r}Q${cx - k} ${cy + k} ${cx - r} ${cy}Q${cx - k} ${cy - k} ${cx} ${cy - r}Z`;
+}
+
+function gear(cx: number, cy: number, outer: number, inner: number, teeth: number): string {
+  const points: number[] = [];
+  for (let i = 0; i < teeth * 4; i++) {
+    const angle = (i / (teeth * 4)) * Math.PI * 2;
+    const r = i % 4 < 2 ? outer : inner;
+    points.push(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+  }
+  return `${polyline(...points)}Z`;
+}
+
 const ellipse = (cx: number, cy: number, rx: number, ry: number) =>
   `M${cx - rx} ${cy}A${rx} ${ry} 0 1 1 ${cx + rx} ${cy}A${rx} ${ry} 0 1 1 ${cx - rx} ${cy}Z`;
 
@@ -97,6 +114,59 @@ export const SYMBOLS = {
   plusSquareOnSquare: [{ d: "M8 3.5h10.5a2 2 0 0 1 2 2V16M5.5 7.5h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zM10 11v6M7 14h6", stroke: STROKE }],
   arrowDownCircle: [{ d: "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18zM12 7.5v8.5M8.5 12.5L12 16l3.5-3.5", stroke: STROKE }],
   exclamationmarkTriangle: [{ d: "M12 3.5L21.5 20h-19zM12 9.5v5M12 17.3h.01", stroke: STROKE }],
+  eyeglasses: [{ d: circle(6.3, 13.5, 3.6) + circle(17.7, 13.5, 3.6) + "M9.9 13.2a2.6 2.6 0 0 1 4.2 0" + line(2.7, 13, 4.4, 7.5) + line(21.3, 13, 19.6, 7.5), stroke: STROKE }],
+  info: [
+    { d: circle(12, 6.3, 1.5), fill: true },
+    { d: polyline(10, 10.5, 12.2, 10.5, 12.2, 18.7) + line(9.6, 18.7, 14.6, 18.7), stroke: 2 },
+  ],
+  paintpaletteFill: [
+    {
+      d:
+        "M12 2.5C6.8 2.5 2.5 6.6 2.5 11.7c0 5 4.1 9.3 9.2 9.3 1.4 0 2.1-.8 2.1-1.8 0-.5-.2-.9-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8h2.2c3 0 5.2-2.3 5.2-5.2C22 6.5 17.5 2.5 12 2.5z" +
+        circle(7.3, 11.6, 1.5) +
+        circle(9.6, 7.4, 1.5) +
+        circle(14.4, 7.4, 1.5) +
+        circle(17.1, 11.2, 1.5),
+      fill: true,
+      evenOdd: true,
+    },
+  ],
+  keyboardFill: [
+    {
+      d:
+        roundRect(1.8, 5.5, 20.4, 13, 2.6) +
+        [8.2, 11.2].map((row) => [0, 1, 2, 3, 4, 5].map((key) => roundRect(3.4 + key * 3, row, 2.2, 1.9, 0.5)).join("")).join("") +
+        roundRect(7, 14.4, 10, 1.9, 0.6),
+      fill: true,
+      evenOdd: true,
+    },
+  ],
+  eraserFill: [
+    {
+      d: "M13.6 3.9a1.6 1.6 0 0 1 2.3 0l4.2 4.2a1.6 1.6 0 0 1 0 2.3L11 19.5H6.8l-3-3a1.6 1.6 0 0 1 0-2.3z" + polyline(7.76, 10.14, 14.06, 16.44, 13.14, 17.36, 6.84, 11.06) + "Z",
+      fill: true,
+      evenOdd: true,
+    },
+  ],
+  sparkles: [{ d: sparkle(10, 13.5, 7) + sparkle(18, 5.5, 3.6) + sparkle(18.6, 18.2, 2.6), fill: true }],
+  line3HorizontalDecrease: [{ d: line(4, 7, 20, 7) + line(7, 12, 17, 12) + line(10, 17, 14, 17), stroke: STROKE }],
+  checkmarkShield: [{ d: SHIELD + polyline(8.6, 12.3, 11.1, 14.8, 15.6, 9.6), stroke: STROKE }],
+  listBulletFill: [
+    {
+      d: roundRect(4.5, 2.5, 15, 19, 3.2) + [8, 12, 16].map((row) => circle(8.4, row, 1.15) + roundRect(10.6, row - 0.9, 5.4, 1.8, 0.9)).join(""),
+      fill: true,
+      evenOdd: true,
+    },
+  ],
+  shieldLefthalf: [
+    { d: SHIELD, stroke: STROKE },
+    { d: "M12 2.8L4.5 5.7v5.6c0 4.8 3.1 8.6 7.5 10z", fill: true },
+  ],
+  gearshape: [{ d: gear(12, 12, 9.6, 7.6, 8) + circle(12, 12, 3.1), stroke: 1.8 }],
+  docText: [{ d: DOCUMENT + DOCUMENT_FOLD + line(8.5, 13, 15.5, 13) + line(8.5, 16.5, 13.5, 16.5), stroke: STROKE }],
+  code: [{ d: polyline(7.5, 7, 2.5, 12, 7.5, 17) + polyline(16.5, 7, 21.5, 12, 16.5, 17) + line(14, 4.5, 10, 19.5), stroke: STROKE }],
+  handWave: [{ d: HAND + "M18.5 4.5c1.2.6 2 1.6 2.3 2.8M20 2.5c1.6.8 2.7 2.2 3 3.8", stroke: STROKE }],
+  arrowRight: [{ d: line(4, 12, 19.5, 12) + polyline(13.5, 6, 19.5, 12, 13.5, 18), stroke: STROKE }],
   chevronLeft: [{ d: polyline(15.5, 5, 8.5, 12, 15.5, 19), stroke: BOLD }],
   chevronRight: [{ d: polyline(8.5, 5, 15.5, 12, 8.5, 19), stroke: BOLD }],
   arrowClockwise: [{ d: "M19.5 12.5A7.5 7.5 0 1 1 15.6 5.9" + polyline(13.96, 2.25, 15.6, 5.9, 11.64, 6.45), stroke: STROKE }],
