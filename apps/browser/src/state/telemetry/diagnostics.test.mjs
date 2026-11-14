@@ -195,6 +195,16 @@ test("the context sample records the built-in page the active tab is on, and a n
   }
 });
 
+test("the built-in page comes from the focused window's tab, a Little Ardia window included", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const S = () => useBrowser.getState();
+  S().hydrate({});
+  S().createWindow({ url: "chrome://history" });
+  const small = S().createWindow({ kind: "small", url: "https://private.example/" });
+  S().setFocusedWindow(small);
+  assert.equal((await diagnostics.recordContext()).webui_page, null);
+});
+
 test("a page process that goes away sends its reason, exit code, visibility and counts, capped per session", async () => {
   diagnostics.trackPageProcessGone({ reason: "oom", code: 9 }, true, { translate: "translating", translate_stage: "model", translating_tabs: 2, translated_tabs: 1 });
   diagnostics.trackPageProcessGone({ reason: "https://private.example", code: 1.5 }, false);

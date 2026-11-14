@@ -2,7 +2,7 @@ import { diagnosticsSample, hardwareInfo, type HardwareInfo } from "../../platfo
 import { onHoverLost, systemState, type HoverLostEpisode } from "../../platform/performance";
 import { cliControlStatus } from "../../platform/cli";
 import { withDeadline } from "../../lib/deadline";
-import { activeTab, resolveWindowId } from "../browser/model";
+import { activeTab } from "../browser/model";
 import { useBrowser } from "../browser/store";
 import { capture, isSharing, saveContext, useTelemetry } from "./client";
 import type { SavedContext } from "./savedContext";
@@ -53,7 +53,7 @@ export function webuiPage(url: string | null | undefined): string | null {
 }
 
 function activeWebuiPage(s = useBrowser.getState()): string | null {
-  const windowId = resolveWindowId(s);
+  const windowId = s.ui.focusOrder.find((id) => s.windows[id]) ?? s.windowOrder[0];
   return webuiPage(windowId ? activeTab(s, windowId)?.url : null);
 }
 
