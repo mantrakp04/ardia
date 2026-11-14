@@ -1,7 +1,7 @@
 import { memo, useState, type ReactNode } from "react";
 import { Animated, Image, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
-import { ContextMenuArea, Divider, space, Symbol, Text, useHover } from "../ui";
+import { ContextMenuArea, Divider, lineHeight, space, Symbol, Text, useHover } from "../ui";
 import { TAB_ROW } from "./tokens";
 import { HoverSlot } from "../ui/HoverSlot";
 import { closeAllTabs } from "../../state/sidebar/clearTabs";
@@ -11,8 +11,8 @@ import { PINNED_FOLD_TITLES, togglePinnedFold } from "../../state/sidebar/pinned
 
 const BROOM = require("../../../assets/tidy-broom.png");
 
-const DIA_DIVIDER_SIDE = 6.5;
-const CLEAR_DIVIDER_HEIGHT = 2 * DIA_DIVIDER_SIDE + 1;
+const LABEL_CLEARANCE = space.xs;
+const CLEAR_DIVIDER_HEIGHT = lineHeight.tiny + 2 * LABEL_CLEARANCE;
 const PADDING = TAB_ROW.contentLeft;
 const ACTIONS_DIVIDER = { marginLeft: space.m } as const;
 
