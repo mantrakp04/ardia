@@ -34,7 +34,7 @@ import {
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
-import { Backdrop, ConfirmDialog, Menu, space, tabsCurve, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
+import { Backdrop, ConfirmDialog, Menu, Shade, space, tabsCurve, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { DeckBar } from "./DeckBar";
@@ -242,7 +242,12 @@ export function TabDeck() {
       run: closeAllFromDeck,
     });
   const confirmLeaveIncognito = () =>
-    setConfirmation({ title: "Close Incognito Tabs?", message: "Their pages, cookies and history are cleared.", action: "Close Incognito Tabs", run: leaveIncognito });
+    setConfirmation({
+      title: "Close Incognito Tabs?",
+      message: "Their pages, cookies and history are cleared.",
+      action: "Close Incognito Tabs",
+      run: leaveIncognito,
+    });
 
   const plusItems: MenuItem[] = incognito
     ? [
@@ -253,47 +258,63 @@ export function TabDeck() {
         { label: "New Incognito Tab", icon: "eyes", onPress: newIncognitoTab },
         ...(canReopen ? [{ label: "Reopen Closed Tab", icon: "arrowUturnBackward" as const, onPress: reopenLastClosed }] : []),
       ];
-  if (count) plusItems.push("divider", { label: incognito ? "Close Incognito Tabs" : "Close All Tabs", icon: "xmark", destructive: true, onPress: incognito ? confirmLeaveIncognito : confirmCloseAll });
+  if (count)
+    plusItems.push("divider", {
+      label: incognito ? "Close Incognito Tabs" : "Close All Tabs",
+      icon: "xmark",
+      destructive: true,
+      onPress: incognito ? confirmLeaveIncognito : confirmCloseAll,
+    });
 
   return (
     <View style={StyleSheet.absoluteFill}>
       <Backdrop colors={theme.backdrop} />
-      <GestureDetector gesture={Gesture.Race(pan, longPress, tap)}>
-        <View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }]} collapsable={false}>
-          {order.map((id, index) => {
-            const tab = tabs.get(id);
-            if (!tab || hidden.current.has(id)) return null;
-            return (
-              <DeckCard
-                key={id}
-                tab={tab}
-                index={index}
-                isLast={index === count - 1}
-                role={roleOf(phase, id, index, order)}
-                geometry={g}
-                motion={motion}
-                shift={shift}
-                onOpen={open}
-                onClose={(at) => close(at, 0)}
-              />
-            );
-          })}
-        </View>
-      </GestureDetector>
-      {!count && phase.kind === "settled" ? <DeckEmpty centerY={g.cardCenterY} showsArchive={hasArchive} onArchive={openArchive} /> : null}
-      {privateCount > 0 && phase.kind === "settled" ? <IncognitoChip count={privateCount} top={g.safeTop} onPress={() => setMenu("chip")} /> : null}
-      {phase.kind === "settled" ? (
-        <View style={[styles.bar, { top: g.barCenterY - tabsLayout.barPlus.height / 2 - 2, paddingHorizontal: tabsLayout.barSideInset - 4 }]}>
-          <DeckBar
-            leading={syncEnabled ? { icon: "laptop", label: "Synced Tabs", onPress: openSpaces } : { icon: "archivebox", label: "Archive", onPress: openArchive }}
-            plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
-            onPlus={newTab}
-            onPlusMenu={() => setMenu("plus")}
-            onSettings={() => openSettings()}
-          />
-        </View>
+      <Shade shaded={menu !== null || cardMenu !== null || confirmation !== null}>
+        <GestureDetector gesture={Gesture.Race(pan, longPress, tap)}>
+          <View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }]} collapsable={false}>
+            {order.map((id, index) => {
+              const tab = tabs.get(id);
+              if (!tab || hidden.current.has(id)) return null;
+              return (
+                <DeckCard
+                  key={id}
+                  tab={tab}
+                  index={index}
+                  isLast={index === count - 1}
+                  role={roleOf(phase, id, index, order)}
+                  geometry={g}
+                  motion={motion}
+                  shift={shift}
+                  onOpen={open}
+                  onClose={(at) => close(at, 0)}
+                />
+              );
+            })}
+          </View>
+        </GestureDetector>
+        {!count && phase.kind === "settled" ? <DeckEmpty centerY={g.cardCenterY} showsArchive={hasArchive} onArchive={openArchive} /> : null}
+        {privateCount > 0 && phase.kind === "settled" ? <IncognitoChip count={privateCount} top={g.safeTop} onPress={() => setMenu("chip")} /> : null}
+        {phase.kind === "settled" ? (
+          <View style={[styles.bar, { top: g.barCenterY - tabsLayout.barPlus.height / 2 - 2, paddingHorizontal: tabsLayout.barSideInset - 4 }]}>
+            <DeckBar
+              leading={
+                syncEnabled ? { icon: "laptop", label: "Synced Tabs", onPress: openSpaces } : { icon: "archivebox", label: "Archive", onPress: openArchive }
+              }
+              plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
+              onPlus={newTab}
+              onPlusMenu={() => setMenu("plus")}
+              onSettings={() => openSettings()}
+            />
+          </View>
+        ) : null}
+      </Shade>
+      {menu === "plus" ? (
+        <Menu
+          items={plusItems}
+          place={{ bottom: height - g.barCenterY + tabsLayout.barPlus.height, left: (width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth }}
+          onDismiss={() => setMenu(null)}
+        />
       ) : null}
-      {menu === "plus" ? <Menu items={plusItems} place={{ bottom: height - g.barCenterY + tabsLayout.barPlus.height, left: (width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth }} onDismiss={() => setMenu(null)} /> : null}
       {menu === "chip" ? (
         <Menu
           items={[{ label: "Close Incognito Tabs", icon: "xmark", destructive: true, onPress: confirmLeaveIncognito }]}

@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Backdrop } from "./Backdrop";
+import { useCoverFocus } from "./coverFocus";
 import { tabsMotion } from "./motion";
 import { useTheme } from "./theme";
 import { menuLayout } from "./tokens";
@@ -24,6 +25,8 @@ export function Sheet({ open, onDismiss, onHidden, children }: Props) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const shown = useSharedValue(0);
+  const panel = useRef<View>(null);
+  useCoverFocus(panel);
   const sheetHeight = useSharedValue(height);
   useEffect(() => {
     if (open) {
@@ -45,6 +48,8 @@ export function Sheet({ open, onDismiss, onHidden, children }: Props) {
         <Pressable accessibilityLabel="Close" style={[StyleSheet.absoluteFill, { backgroundColor: theme.trayDim }]} onPress={onDismiss} />
       </Animated.View>
       <Animated.View
+        ref={panel}
+        accessibilityViewIsModal
         onLayout={(event) => {
           sheetHeight.value = event.nativeEvent.layout.height;
         }}

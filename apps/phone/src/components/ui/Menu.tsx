@@ -1,6 +1,7 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { BackHandler, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { MENU_ROW, menuHeight, menuTop } from "../../lib/menuPlace";
+import { useCoverFocus } from "./coverFocus";
 import { measureAnchor, Portal, useOverlayFrame } from "./Overlay";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { tabsMotion } from "./motion";
@@ -15,6 +16,8 @@ type Props = { items: MenuItem[]; place: ViewStyle; onDismiss: () => void };
 
 export function Menu({ items, place, onDismiss }: Props) {
   const theme = useTheme();
+  const panel = useRef<View>(null);
+  useCoverFocus(panel);
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
       onDismiss();
@@ -26,6 +29,8 @@ export function Menu({ items, place, onDismiss }: Props) {
     <View style={StyleSheet.absoluteFill}>
       <Pressable accessibilityLabel="Dismiss" style={[StyleSheet.absoluteFill, { backgroundColor: ink.clear }]} onPress={onDismiss} />
       <Animated.View
+        ref={panel}
+        accessibilityViewIsModal
         entering={FadeIn.duration(tabsMotion.menu)}
         style={[styles.panel, place, { backgroundColor: theme.panel, shadowColor: theme.trayShadow }]}
       >
