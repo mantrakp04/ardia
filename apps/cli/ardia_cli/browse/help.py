@@ -20,7 +20,7 @@ Core Commands:
   type <sel> <text>          Type into element
   fill <sel> <text>          Clear, then type (date/time/color/range inputs: set the value; a <select>: pick;
                              a grid cell: open its editor, set, Enter)
-  press <key>                Press key (Enter, Tab, Control+a, Meta+a)
+  press [sel] <key>          Press key (Enter, Tab, Control+a, Meta+a), in <sel> if given
   keydown <key> / keyup <key>  Hold or release a key
   keyboard type <text>       Type at the current focus (humanized keystrokes)
   keyboard inserttext <text> Insert text without key events
@@ -40,7 +40,7 @@ Core Commands:
   eval <js>                  Run JavaScript in the page [-b base64] [--stdin]
   close [--all]              Close the tabs this session opened and end the session
 
-Selectors:   CSS, @e3, text=Save (text="Save" exact), role=button[name="Save"], li:has-text("Ana"), xpath=//a;
+Selectors:   CSS, @e3, text=Save (text="Save" exact), role=button[name="Save"], li:has-text("Ana"), li >> nth=2 (third match; -1 last), main >> text=Save, li:text-is("Ana"), xpath=//a;
              [role=main] also matches <main> and the other implicit roles
 Navigation:  back, forward, reload, pushstate <url>
 Get Info:    get text|html|value|attr <name>|title|url|count|box|styles <sel>
@@ -197,7 +197,7 @@ COMMANDS = {
               "  ardia browse select @e5 \"Priya Raman\" alex@example.com\n"
               "Prints what it picked and what changed. A disabled target is waited for up to 1.5 s.",
     "type": "ardia browse type <sel> <text> [--no-humanize]\n\nTypes into the element without clearing it.",
-    "press": "ardia browse press <key> [--no-humanize]\n\nKeys: Enter, Tab, Escape, Backspace, Delete, Space, Arrow*, Home, End, PageUp, PageDown, F1-F12.\n"
+    "press": "ardia browse press [<sel>] <key> [--no-humanize]\n\nWith <sel>, focuses that element first. Keys: Enter, Tab, Escape, Backspace, Delete, Space, Arrow*, Home, End, PageUp, PageDown, F1-F12.\n"
              "Modifiers: Control, Alt, Shift, Meta (Meta+a selects all on macOS).",
     "keyboard": "ardia browse keyboard type <text> | inserttext <text>\n\ntype sends humanized keystrokes to the focused element; inserttext inserts at once.",
     "scroll": "ardia browse scroll [up|down|left|right] [px] [-s <sel>] [--no-humanize]\n\nWheel scrolling with momentum, at the mouse position (moved into the page or the container first).",
@@ -208,7 +208,7 @@ COMMANDS = {
                   "to the page). Without a path it saves under $TMPDIR/ardia-browse/screenshots.",
     "eval": "ardia browse eval <js> | -b <base64> | --stdin\n\nRuns in the page's main world (the one place, with init scripts and the React hook, that does).",
     "get": "ardia browse get text|html|value|attr <name>|title|url|count|box|styles <sel>\n\ncdp-url works only with --port or --ws: the real URL carries Ardia's token.",
-    "find": "ardia browse find <role|text|label|placeholder|alt|title|testid|first|last|nth> <value> [action] [text] [--name n] [--exact]\n\n"
+    "find": "ardia browse find <role|text|label|placeholder|alt|title|testid|first|last|nth> <value> [action] [text] [--name n] [--exact|--partial]\n\n"
             "Actions: click (default), fill, type, check, uncheck, select, hover, focus, dblclick, text. The found element\n"
             "gets the next ref, so later commands can use it.\n\n"
             "find role takes the role and accessible name the snapshot shows, in any order: `find role button\n"

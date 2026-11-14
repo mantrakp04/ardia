@@ -130,6 +130,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Once a day, your on/off, pick-one and number settings (like light or dark, glass or classic, borderless mode, how much tint, and whether text adjusts to your colour), which app icon you picked, each with its default, how many of your profiles use a custom colour, and how many sites you hid unread counts for. Never addresses, names, colours, search engines or anything you typed",
       `How many times ${keyText("⌘W")} closed several selected sidebar tabs at once and how many tabs that closed, summed up once an hour. Never which tabs`,
       `Bringing your last window back from the ${PLATFORM_TERMS.dock} or at launch: how many tabs came back and how long it was closed, in rough ranges, and whether a pinned tab was showing`,
+      "When you import passwords from another browser or from a CSV file: how many passwords Ardia tried to save, how many it saved, how many the password store refused (invalid, or already saved), how many it didn't store in time, and how many failed for another reason, once per import. Never which sites, usernames or passwords",
     ],
   },
   {

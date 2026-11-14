@@ -41,8 +41,8 @@ EOF
 ardia browse script <<'EOF'
 const out = [];
 const count = await page.count('[role=listitem]');
-for (let i = 1; i <= count; i++) {
-  await page.click(`[role=listitem]:nth-of-type(${i})`);
+for (let i = 0; i < count; i++) {
+  await page.click(`[role=listitem] >> nth=${i}`);
   out.push(await page.text('main'));
 }
 return out;

@@ -193,6 +193,14 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     `abnormal` or `unknown`, `exit_code`, `visible` (the tab was on screen), `tabs`, `windows`, `profiles`,
     `session_min`, `gone_this_session`, `memory_pressure`). At most 30 per session. GPU and utility process exits aren't
     visible to the app yet (their crash reports are, through `helper_crash`).
+  - `password_import` (once per import that sent at least one login to the engine; none for an empty list): `source`
+    (`browser` for an import from another browser, `csv` for a CSV file), `tried`, `saved`, `refused` (the engine
+    answered "Could not save the password (invalid, or already saved)"), `not_landed` (it answered "The password store
+    didn't take the change": the store hadn't shown the change within about 1 s) and `other` (any other error, or a
+    save that answered false). Counts only: never a site, a username or a password. The same warnings still reach
+    the log, now with the action in front (`browser import`, `csv import`, `settings edit`, `settings delete`,
+    `sync delete`). Added to tell which of the two engine refusals the daily password-save warnings are, and from
+    which import.
   - `tab_presses` (hourly and at quit, when there were any): `presses` on sidebar rows, pinned tiles and top-strip
     chips, `down_switches` (the press switched to the tab on mouse down), `clicks` (the press opened the tab),
     `drag_clicks` (it became a drag and was rescued as a click), `drags`, `unanswered` (a press that got neither before
