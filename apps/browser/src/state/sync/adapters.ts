@@ -8,7 +8,6 @@ import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { profileOpened } from "../profiles/profileLoading";
 import { isPeekTab } from "../peek/peek";
-import { fromSync } from "../pins/pinOrderChoices";
 import { fromLegacy } from "../../lib/legacy";
 import type { BookmarkNode, HistoryEntry } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";
@@ -159,6 +158,7 @@ export function bookmarksAdapter(profileId: string): Adapter {
         if (folder?.kind === "folder") nodes[parent] = { ...folder, children: ids.sort(byPosition) };
       }
       useBrowser.setState({ bookmarks: { ...b, nodes } });
+      return undefined;
     },
   };
 }
@@ -255,6 +255,7 @@ export function historyAdapter(profileId: string): Adapter {
         const list = [...current.values()].sort((a, z) => z.lastVisit - a.lastVisit).slice(0, MAX_HISTORY);
         return withHistoryList(s, engine, list);
       });
+      return undefined;
     },
   };
 }

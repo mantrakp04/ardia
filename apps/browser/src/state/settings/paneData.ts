@@ -137,6 +137,7 @@ export function followUpdater(settled?: (state: UpdaterState) => void) {
       if (updaterBusy(state) && Date.now() < until) return new Promise<void>((done) => setTimeout(done, FOLLOW_EVERY_MS)).then(tick);
       followingNow = false;
       settled?.(state);
+      return undefined;
     });
   void tick().catch(() => run === following && (followingNow = false));
 }

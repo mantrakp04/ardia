@@ -46,7 +46,6 @@ function listen() {
 
 async function recordingStopped(result: RecordingResult | null) {
   void finishTrace();
-  const r = currentReport().recording;
   lastResult = result;
   if (!result) return patchReport({ recording: { phase: "failed", message: "The recording couldn't be saved." } });
   const thumbnail = `${ensureDraftDir()}/recording-${Date.now()}.png`;

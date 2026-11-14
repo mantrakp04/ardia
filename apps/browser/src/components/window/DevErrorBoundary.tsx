@@ -4,17 +4,17 @@ import { space } from "../ui/tokens";
 import { DEV_ERROR } from "./tokens";
 
 export class DevErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
-  state = { error: null as Error | null };
+  override state = { error: null as Error | null };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
 
-  componentDidCatch(error: Error) {
+  override componentDidCatch(error: Error) {
     (globalThis as { __lastRenderError?: string }).__lastRenderError = `${error.message}\n${error.stack ?? ""}`;
   }
 
-  render() {
+  override render() {
     if (!this.state.error) return this.props.children;
     return (
       <ScrollView style={{ flex: 1, backgroundColor: DEV_ERROR.background, padding: space.xxxl }}>

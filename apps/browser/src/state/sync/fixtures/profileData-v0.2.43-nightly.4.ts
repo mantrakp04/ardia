@@ -134,6 +134,7 @@ export function bookmarksAdapter(profileId: string): Adapter {
         if (folder?.kind === "folder") nodes[parent] = { ...folder, children: ids.sort(byPosition) };
       }
       setStore({ bookmarks: { ...b, nodes } });
+      return undefined;
     },
   };
 }
@@ -227,6 +228,7 @@ export function historyAdapter(profileId: string): Adapter {
         const list = [...current.values()].sort((a, z) => z.lastVisit - a.lastVisit).slice(0, MAX_HISTORY);
         return { history: { ...s.history, [profileId]: list } };
       });
+      return undefined;
     },
   };
 }

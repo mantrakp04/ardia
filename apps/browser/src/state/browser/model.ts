@@ -1,7 +1,7 @@
 import { appUrlOrigin, displayHost } from "@ardia/core";
 import type { BrowserState } from "./store";
 import { DEFAULT_PROFILE_ID } from "../settings/settings";
-import type { BrowserWindow, Navigation, Profile, Tab, TabGroup, TabLive, TabPin, TabSnapshot } from "./types";
+import type { BrowserWindow, Navigation, Profile, Tab, TabLive, TabPin, TabSnapshot } from "./types";
 import { pinnedGroupMembers } from "./structure";
 
 

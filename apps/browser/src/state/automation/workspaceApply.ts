@@ -3,7 +3,6 @@ import type { TabGroup } from "../browser/types";
 import { inPinnedContainer, pinSection } from "../browser/model";
 import { descendantIds, innermostGroupOf, rootOf } from "../groups/groups";
 import type { TabPlacement } from "../pins/placing";
-import { splitOf, splitRowPanes } from "../splits/splits";
 import { groupColor, type IconValue, type Op } from "./workspaceOps";
 import { closeTabs, mute, rename, sleep, tabIcon, wake } from "./workspaceTabOps";
 import {

@@ -7,7 +7,7 @@ import { splitLinkModifierOf, type PeekModifier, type SplitLinkModifier } from "
 import { MAX_SPLIT_PANES, splitOf, splitTabIdsOf } from "../splits/splits";
 import { openSplitPane } from "../splits/actions";
 import { showToast } from "../app/toasts";
-import { isPeekTab, otherSitePeekTabIds, shownPageId } from "./peek";
+import { otherSitePeekTabIds, shownPageId } from "./peek";
 import { closeFind } from "../find/actions";
 import { hostOf } from "@ardia/core";
 import { linkDestination } from "../../lib/linkWrappers";

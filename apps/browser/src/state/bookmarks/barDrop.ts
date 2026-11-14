@@ -25,7 +25,7 @@ export function zoneHitAt(items: ZoneItem[], at: number, draggedId: string | nul
 
 export function roomOffsets(ids: string[], draggedId: string | null, slot: number | null, width: number): number[] {
   const from = draggedId ? ids.indexOf(draggedId) : -1;
-  return ids.map((id, i) => {
+  return ids.map((_id, i) => {
     if (i === from) return 0;
     const pulled = from >= 0 && i > from ? -width : 0;
     const pushed = slot !== null && i >= slot ? width : 0;

@@ -45,6 +45,7 @@ export const watchTabState = keyedWatch<BrowserState>(() => useBrowser, (s, prev
       wakeIds(s.selection[id], wake);
       wakeIds(prev.selection[id], wake);
     }
+  return undefined;
 });
 
 export const useTabState = <T,>(tabId: string | null | undefined, read: (s: BrowserState) => T): T =>

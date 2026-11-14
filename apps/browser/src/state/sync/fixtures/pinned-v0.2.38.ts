@@ -176,6 +176,7 @@ export function pinnedAdapter(profileId: string): Adapter {
       }
       const { find, splits, selection, windowOrder, windowUi } = s;
       useBrowser.setState({ tabs, windows, groups, live, find, splits, selection, windowOrder, windowUi, parkedPins });
+      return undefined;
     },
   };
 }
