@@ -601,6 +601,10 @@ base::DictValue Host::CloseTab(const base::DictValue& args) {
     Hide(browser, found->second);
   }
   tabs_.erase(key);
+  TabState* state = TabState::FromWebContents(contents);
+  if (state) {
+    state->ReleaseKey();
+  }
   if (!browser) {
     return Ok();
   }
@@ -609,7 +613,6 @@ base::DictValue Host::CloseTab(const base::DictValue& args) {
   if (index == TabStripModel::kNoTab) {
     return Ok();
   }
-  TabState* state = TabState::FromWebContents(contents);
   if (state && state->closing_after_unload()) {
     return Ok();
   }
@@ -638,8 +641,10 @@ void Host::DeleteClosedTab(content::WebContents* contents) {
   }
   content::NavigationEntry* committed =
       contents->GetController().GetLastCommittedEntry();
+  TabState* state = TabState::FromWebContents(contents);
   if (!contents->GetBrowserContext()->IsOffTheRecord() && committed &&
-      !committed->IsInitialEntry()) {
+      !committed->IsInitialEntry() &&
+      !(state && state->OnlyShowedOpeningBlank())) {
     model->delegate()->CreateHistoricalTab(contents);
   }
   model->DetachAndDeleteWebContentsAt(index);

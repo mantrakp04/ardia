@@ -38,6 +38,7 @@ class TabState : public content::WebContentsObserver,
   const std::string& key() const { return key_; }
   bool closed_by_host() const { return closed_by_host_; }
   void set_closed_by_host() { closed_by_host_ = true; }
+  void ReleaseKey() { key_.clear(); }
   void CloseAfterUnloadHandlers(bool window_closing);
   bool closing_after_unload() const { return close_step_ != CloseStep::kOpen; }
   void WatchOpeningBlank(int64_t navigation_id);
