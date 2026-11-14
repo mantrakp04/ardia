@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { Pressable, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { Box, Symbol, Text, useHover, useTheme } from "../ui";
 import { SelectableCard } from "./SelectableCard";
 import { pictureChoice } from "./tokens";
+import { buttonMotion, usePressScaleMotion } from "../ui/motion";
 
 const CHECK = { width: 14, height: 14 } as const;
 
@@ -23,20 +24,24 @@ export function PictureChoice({
 }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
+  const pressMotion = usePressScaleMotion(true, buttonMotion.controlPressScale);
+  const scaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   const icon = size === "icon";
   return (
     <View {...hoverProps} style={icon ? { width: pictureChoice.iconWidth } : { flex: 1 }}>
-      <Pressable onPress={onPress} tooltip={tooltip} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
+      <Pressable onPress={onPress} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut} tooltip={tooltip} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
         <Box gap="m" style={{ alignItems: "center" }}>
-          <SelectableCard
-            selected={selected}
-            hovered={hovered}
-            fill={false}
-            radius={icon ? "sheet" : "panel"}
-            style={icon ? { width: pictureChoice.icon, height: pictureChoice.icon, alignItems: "center", justifyContent: "center" } : { width: "100%", height: pictureChoice[size], flexDirection: "row" }}
-          >
-            {children}
-          </SelectableCard>
+          <Animated.View style={[icon ? { width: pictureChoice.icon } : { width: "100%" }, scaleStyle]}>
+            <SelectableCard
+              selected={selected}
+              hovered={hovered}
+              fill={false}
+              radius={icon ? "sheet" : "panel"}
+              style={icon ? { width: pictureChoice.icon, height: pictureChoice.icon, alignItems: "center", justifyContent: "center" } : { width: "100%", height: pictureChoice[size], flexDirection: "row" }}
+            >
+              {children}
+            </SelectableCard>
+          </Animated.View>
           <Box row gap="xs" style={{ alignItems: "center" }}>
             {selected && <Symbol name="checkmark.circle.fill" size={12} color={theme.formAccent} style={CHECK} />}
             <Text size="small" tone={selected ? "textPrimary" : "textSecondary"} lines={1}>

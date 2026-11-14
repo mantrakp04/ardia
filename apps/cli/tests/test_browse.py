@@ -803,7 +803,8 @@ class RenderTest(unittest.TestCase):
 
     def test_page_output_limits(self):
         result = commands.Result({}, "x" * 50, page_content=True)
-        _, out, _ = daemon.render({"max_output": "10"}, result=result)
+        with mock.patch.object(daemon, "spill", return_value=None):
+            _, out, _ = daemon.render({"max_output": "10"}, result=result)
         self.assertTrue(out.startswith("x" * 10 + "\n[output capped at 10 of 50 characters. Narrow it instead:"))
         self.assertIn("Only if you need every line: --max-output 50]", out)
         _, out, _ = daemon.render({"content_boundaries": True}, result=commands.Result({}, "hi", page_content=True))

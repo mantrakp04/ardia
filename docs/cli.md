@@ -195,7 +195,10 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
   interleaves with another, and cancels a command whose client went away (Ctrl-C). Every command has a limit (120 s;
   `batch`, `read` and `record` 600 s; `script` its `--timeout` plus 30 s; `wait` its own timeout plus 30 s), after which
   it's stopped with `command_timeout` (outcome unknown for one that changes something) and the session is free again;
-  a command queued behind another gives up after 30 s with `session_busy`, naming what's running.
+  a command queued behind another gives up after 30 s with `session_busy`, naming what's running and pointing at
+  `--session <name>` for independent work. A `read` of named URLs (or URLs on stdin) doesn't queue: it uses its own
+  background tabs, so when the session is busy it runs at once in a sibling session `<session>-side`. Coding agents
+  ran a long `script` and a `read` in parallel and lost the read after 30 s.
 - **Idle disconnect.** After 30 s with no admitted or queued command, no held key or button and no capture lease
   (console or errors, network log, HAR, route, trace, record, stream, init scripts, emulation; an action's own network
   watch, see Changes after actions, ends with the action and never counts), the daemon drops the
@@ -309,7 +312,14 @@ input on first focus): if the target is detached after the focusing click or `DO
 editable field in the same frame and document that matches it (same tag and type, and a shared id, name, placeholder,
 aria-label or title), they type there and report `retargeted: true` (the text output says so too). Anything else
 fails with `element_replaced` and types nothing. `auth login` never follows a replacement. Click points get a small
-random offset inside the box; a click whose point is covered fails with
+random offset inside the box. A selector (not a ref) that matches nothing yet is polled every 0.15 s for up to 3 s
+before `not_found` ("waited 3 s for it to appear") on every command that acts on or reads one element (`is` checks
+presence, so it doesn't wait): agents on hydrating pages, and scripts written Playwright-style, failed on elements
+that showed up a moment later. A click whose point is covered first tries two fixes, each once: when the cover is a
+cookie or consent layer (it or an ancestor holds consent text, or it's a fixed backdrop over half the viewport and a
+consent layer is showing), it clicks that layer's reject button (else accept, else close), says so in the output
+(`A consent banner was in the way: … "Reject all" button was clicked (reject)`) and retries; otherwise it scrolls
+the element to the middle of the viewport (a sticky header over it) and retries. If it's still covered it fails with
 `covered by <tag#id.class>`, and one outside the laid-out viewport with `outside_viewport` (the point and the viewport
 size). A tab with no size yet (0×0, seen on a loaded hidden test instance) is waited for up to 2 s, then given a
 1280×800 device metrics override for that command, cleared afterwards and never over the session's own `set viewport`;
@@ -592,14 +602,41 @@ POST http://127.0.0.1:8792/api/events → 200
 
 ### Output cap
 
-Text output of every command stops at 6,000 characters, at a line break when there's one in the last fifth, and
-ends with one line that points at narrowing, tailored to the command, and names `--max-output` last: `[output capped
-at 6,000 of 15,920 characters. Narrow it instead: snapshot -i (interactive only), snapshot -s <css> (one region), find
+Text output of every command stops at 6,000 characters (20,000 for `script`, whose result the agent asked for), at a
+line break when there's one in the last fifth, and ends with one line that says where the whole output was saved,
+points at narrowing, tailored to the command, and names `--max-output` last: `[output capped at 6,000 of 15,920
+characters; all of it is in …/ardia-browse-output-501/output-k2x9.txt. Narrow it instead: snapshot -i (interactive only), snapshot -s <css> (one region), find
 role <role> <action> --name <text> (act without a snapshot). Only if you need every line: --max-output 15920]`. It
 used to suggest `--full`, and agents ran `snapshot --full` at up to 35K characters a time. The same line also goes to
 stderr (so does `read`'s own "pages cut to fit" line), so it survives `| head`, `| grep` and `> file`. `--max-output N` (or
-`AGENT_BROWSER_MAX_OUTPUT`) sets another limit (`0` for none), `--full` turns it off; JSON output is never cut. `--full` after `screenshot` or `diff` is still their
-full-page flag. A `read` of several pages gets 3,000 characters a page instead (at least 6,000, at most 24,000) and
+`AGENT_BROWSER_MAX_OUTPUT`) sets another limit (`0` for none), `--full` turns it off; JSON output is never cut, and
+neither is output redirected to a regular file (`> out.json`), which never reaches the agent's context. `script`, `eval`,
+`read`, `snapshot` and `get` take `--out <file>` (`snapshot` and `get` save their full text, uncapped, and print the
+first 12 lines; `read --scroll` saves its rows): the client asks the daemon for JSON, writes the whole result to the file (a script's or
+eval's value as JSON, or a string as is; `read` pages as JSON for a `.json` path, else as text), redacted, through a
+temporary file, and prints a short digest (`✓ Saved to rows.json (84,210 characters): a list of 900 items with fields i, name`, then
+the first and last rows) plus the script's last 20 log lines. A failure prints the error and writes nothing. `read --out` lists each page with its status,
+read time and a 240-character excerpt (12 pages at most), so the transcript keeps evidence of what each page said:
+a BU Bench judge failed `bu3` items whose values lived only in a file. A script starts with `state`, one JSON object per
+session that the daemon keeps between scripts: the worker sends it back (at most once a second, on each command it
+awaits, and at the end), so a script that times out keeps what it gathered, and the timeout error lists what's in
+it. Browser Use's agent keeps data in a persistent REPL and Betterwright's in a `state` object; Ardia's agents lost
+whole loops to timeouts and rebuilt them through files. Browser Use's agent on
+BU Bench keeps extracted data in its program and writes deliverables from it; Ardia's agents saw the output cap in
+every transcript and retyped values, and the judge's faithfulness items were met half as often. The saved
+copy goes in a `0700` folder in the user's temp dir, which keeps the newest 40: agents on BU Bench reran long
+scripts with `--max-output` only to see the result the cap had cut, and complained most about that. `--full` after `screenshot` or `diff` is still their
+full-page flag. A `read` reads every URL it's given (up to 100, so a script's `read(urls)` goes 100 at a time); only
+`--links` stops at 20 unless `--limit`, since agents passed 27-URL lists and lost the last seven. A `read` of a PDF
+prints its text page by page (`[page 1 of 3]`), taken with macOS's PDFKit from bytes fetched with the page's cookies
+(40 MB at most; a scanned PDF says it has no text layer). A page that reads thinner than 120 characters (or whose `-s` matches nothing yet) after it
+settles is read again every 0.5 s for up to 5 s: single-page apps that render their results after the load event
+used to read as a heading or nothing. Each page's header carries its HTTP status and the UTC time it was read
+(`=== Title (HTTP 200, read 2026-11-14 06:04:19 UTC)`), so a judge or reviewer can see when and how each source
+answered. A page that reads like a bot check or block (a 401/403/429, or a short page saying "Just a moment",
+"verify you are human", CAPTCHA, "access denied"…) gets a note under its header: wait 30-60 s and read it again,
+try the site's other pages or another source, and name what stayed blocked. On BU Bench, 60% of the tasks Ardia's
+agents lost by 30+ points showed such a block, and the agent usually gave up after one try. A `read` of several pages gets 3,000 characters a page instead (at least 6,000, at most 24,000) and
 shares it between them (`readpages.pages_cap`): research reads of 8 to 12 pages used to come back cut to a few hundred
 characters each.
 
@@ -611,9 +648,10 @@ built from `display: grid` divs used to come out one cell per line, so 80 lines 
 larger than the rows in the DOM it adds `(25 of 2682 rows rendered; the grid is virtualized: sort, filter or scroll it
 to see others, or read -s <grid> --scroll)`.
 
-`read -s <list> --scroll [--limit rows] [--match <text>] [--timeout ms]` reads a long or virtualized list on the
+`read [-s <list>] --scroll [--limit rows] [--match <text>] [--timeout ms]` reads a long or virtualized list on the
 session's tab in one call, the loop agents used to hand-write in 3 to 4 calls (`readpages.run_scroll`). `-s` takes a
-selector or a ref. Rows are the list's outermost `option`, `row`, `listitem`, `treeitem` or `article` roles, `li`, `tr`
+selector or a ref; without it, the page's main repeated list is used: the element with the most children of one tag
+and class (at least 4), weighted toward children holding links and toward more text (`MAIN_LIST`), or `no_list`. Rows are the list's outermost `option`, `row`, `listitem`, `treeitem` or `article` roles, `li`, `tr`
 or `article` elements, else its children; when the selector matches several elements and they hold no such rows,
 those elements are the rows. It finds the scroll box (the nearest scrollable ancestor of a row, else of the list, else
 a scrollable box inside it, else the page), starts at the top, and each step jumps to the last row rendered (at least
@@ -1056,7 +1094,7 @@ from a checkout), `$geoip_disable`, `$process_person_profile: false` and `$sessi
   `snapshot`, `eval_ms` for `eval` or `action_ms` for the rest (the daemon's time less connect, attach and settle),
   `settle_ms` (the wait for the change report's network to settle, `changes.observe`), `snapshot_nodes` and
   `snapshot_chars`, `network_writes_count` and `unsettled` from the change report,
-  `output_chars` and `output_truncated`, `humanize`, `followed_redrawn_ref` (a stale ref followed its redrawn node), `attach_refused` (the policy refused the attach to a tab; watch it with `error_code` `policy_refused` on `read` and `open`, where it should stay at zero), `cell_edits` (grid cells `fill` edited through their editor; watch `error_code` `rejected` and `not_editable` on `fill`), `fill_picked_option` (`fill` picked a `<select>` option), `fill_inserted_text` (`fill` put the text in with one `Input.insertText`), `waited_for_enabled` (a `click`, `fill`, `select` or `check` target was disabled and was waited for; `error_code` `disabled` when it stayed so), `drag_side_given` (`drag --before`/`--after`) and `drag_list_position` (the drag answer named the new place in a list), `select_opened_list` (`select` picked from the one list that opened when it opened a field with no linked list; watch `error_code` `no_fresh_suggestions` on `select`, which it should lower), `press_targeted` (`press <sel> <key>` focused the element first), `waited_for_reaction` (after typing into a search or filter field, the next command that targets something else waited, best effort, at least 0.6 s from the last keystroke for the page to redraw and go quiet, longer while anything is `aria-busy`, counting only the results the field `aria-controls` when it names them, up to 1.5 s; key presses without a target, `tab`, `notes`, `frame` and `get url`/`title` don't wait, and `--no-changes` keeps the wait; watch `error_code` `target_replaced` and `input_not_delivered` on `fill`, which it should keep low), `selector_nth` (a selector ended in `>> nth=N`), `script_eval_alias` (a script called `page.eval`), `script_page_world_hint` (a script's error got the page-world hint), `read_scrolled` with `read_rows` (a `read --scroll` and the rows it read) and `read_matched` (it had `--match`), `read_pages` (the pages a multi-page `read` read; watch `output_truncated` on those), `read_tabs_reopened` (reading tabs Ardia detached mid-read that were opened again; watch it with `error_code` `tab_detached`, which should stay near zero), `read_virtualized_grid` (a read printed the virtualized-grid note), `change_text` with `change_text_chars` (a change report carried `text:` lines, and their length), `change_run_choices` (a mixed run listed its enabled members), `open_report` (`open` printed a change report), `open_moved_tab` (`open` moved the session off the user's tab to its own and named the way back), `snapshot_disabled_folded` (`snapshot -i` folded disabled members into a count), `names_clipped` (a name was cut at 100 characters), `daemon_answer_timed_out` (the client gave up waiting for the
+  `output_chars` and `output_truncated`, `humanize`, `followed_redrawn_ref` (a stale ref followed its redrawn node), `attach_refused` (the policy refused the attach to a tab; watch it with `error_code` `policy_refused` on `read` and `open`, where it should stay at zero), `cell_edits` (grid cells `fill` edited through their editor; watch `error_code` `rejected` and `not_editable` on `fill`), `fill_picked_option` (`fill` picked a `<select>` option), `fill_inserted_text` (`fill` put the text in with one `Input.insertText`), `waited_for_enabled` (a `click`, `fill`, `select` or `check` target was disabled and was waited for; `error_code` `disabled` when it stayed so), `drag_side_given` (`drag --before`/`--after`) and `drag_list_position` (the drag answer named the new place in a list), `select_opened_list` (`select` picked from the one list that opened when it opened a field with no linked list; watch `error_code` `no_fresh_suggestions` on `select`, which it should lower), `press_targeted` (`press <sel> <key>` focused the element first), `waited_for_reaction` (after typing into a search or filter field, the next command that targets something else waited, best effort, at least 0.6 s from the last keystroke for the page to redraw and go quiet, longer while anything is `aria-busy`, counting only the results the field `aria-controls` when it names them, up to 1.5 s; key presses without a target, `tab`, `notes`, `frame` and `get url`/`title` don't wait, and `--no-changes` keeps the wait; watch `error_code` `target_replaced` and `input_not_delivered` on `fill`, which it should keep low), `selector_nth` (a selector ended in `>> nth=N`), `script_state_kept` (a script ended or timed out with something in `state`), `saved_to_file` (`script`, `eval` or `read` ran with `--out`; watch `output_truncated` on `script`, which it should lower), `waited_for_element` (a selector matched only after polling; watch `error_code` `not_found`, which it should lower), `output_saved` (a capped output was saved whole to a file; watch `output_truncated` on `script`, which it should lower), `consent_dismissed` (a click dismissed the consent banner covering it; watch `error_code` `covered` on `click`, which it should lower), `click_recentered` (a covered or off-screen click target was scrolled to the middle and retried; watch `error_code` `outside_viewport`), `read_bot_check` (a page read like a bot check or block and got the retry note), `read_scroll_guessed` (`read --scroll` without `-s` picked the page's main repeated list; watch `error_code` `no_list`), `read_beside_busy` (a `read` of named URLs ran in the sibling session because its own was busy; watch `error_code` `session_busy` on `read`, which it should lower), `read_waited_for_content` (a page read thin after settling and was read again until it filled in or 5 s passed; watch `read_pages` against it), `read_pdf` (`read` extracted a PDF's text; watch `error_code` `pdf_unreadable`), `script_eval_alias` (a script called `page.eval`), `script_page_world_hint` (a script's error got the page-world hint), `read_scrolled` with `read_rows` (a `read --scroll` and the rows it read) and `read_matched` (it had `--match`), `read_pages` (the pages a multi-page `read` read; watch `output_truncated` on those), `read_tabs_reopened` (reading tabs Ardia detached mid-read that were opened again; watch it with `error_code` `tab_detached`, which should stay near zero), `read_virtualized_grid` (a read printed the virtualized-grid note), `change_text` with `change_text_chars` (a change report carried `text:` lines, and their length), `change_run_choices` (a mixed run listed its enabled members), `open_report` (`open` printed a change report), `open_moved_tab` (`open` moved the session off the user's tab to its own and named the way back), `snapshot_disabled_folded` (`snapshot -i` folded disabled members into a count), `names_clipped` (a name was cut at 100 characters), `daemon_answer_timed_out` (the client gave up waiting for the
   daemon's answer: the queue wait plus the command's own limit plus 30 s, `browse/limits.py`), `batch_steps` (also the operations an `ardia apply`, `tabs …`
   or `groups …` call sent), and `cdp_calls` with `cdp_ms_total` (the
   command's own DevTools calls, counted in `connection.py`). The daemon returns its share as `metrics` in its answer

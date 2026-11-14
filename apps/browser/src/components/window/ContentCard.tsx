@@ -3,17 +3,17 @@ import { View } from "react-native";
 import { startChromeTabs } from "../../state/tabs/chromeTabs";
 import { useIsSmallWindow, useSplitOf } from "../../state/windows/card";
 import { usePeeks } from "../../state/peek/hooks";
-import { useActiveTabId, useSettings, useWindowId } from "../../state/browser/hooks";
+import { useActiveTabId, useSettings, useWindowFullScreen, useWindowId } from "../../state/browser/hooks";
 import { useBookmarksBarHeight } from "../bookmarks/barSize";
 import { useBookmarksBarMode } from "../../state/bookmarks/hooks";
 import { POPOVER_MARGIN } from "../ui";
 import { NO_TOOLBAR, toolbarGeometry, type Rect, type ToolbarGeometry } from "./geometry";
 import { startPermissionPrompts } from "../../state/site/permissions";
 import { useFullscreenTab } from "../../state/tabs/pageState";
-import { DropTargets, SplitDividers, SplitToast } from "../split/SplitChrome";
+import { DropTargets, SplitDividers, SplitFocusRing, SplitToast, type WindowShape } from "../split/SplitChrome";
 import { dockMoving, usePeekSpan, whenDockStill } from "../../state/windows/dockMotion";
 import { FrozenPage } from "./FrozenPage";
-import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useCardCaptionRoom, usePageFrameInset, useTabLayout, watchToolbarExtensionsWidth } from "../../state/windows/layout";
+import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useCardCaptionRoom, usePageFrameInset, useTabLayout, watchToolbarExtensionsWidth, frameCornerRadius, onFullScreenLeft, windowFrame } from "../../state/windows/layout";
 import { startSelectionTools } from "../../state/site/selection";
 import { startMedia } from "../../state/media/pip";
 import { urlFieldRight } from "../toolbar/Toolbar";
@@ -47,6 +47,8 @@ export function ContentCard() {
   const captionRoom = useCardCaptionRoom(usePageFrameInset());
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
+  const [windowShape, setWindowShape] = useState<WindowShape | null>(null);
+  const windowFullScreen = useWindowFullScreen(windowId);
   const container = useRef<View>(null);
   useEffect(startPermissionPrompts, []);
   useEffect(startChromeTabs, []);
@@ -90,9 +92,15 @@ export function ContentCard() {
   }, [origin, size.width, size.height, windowId]);
 
   const settled = useRef<{ width: number; height: number } | null>(null);
+  const measureWindowShape = () =>
+    void Promise.all([windowFrame(windowId), frameCornerRadius(windowId)]).then(([f, radius]) => {
+      if (f) setWindowShape((prev) => (prev && prev.radius === radius && sameSize(prev, { width: f[2], height: f[3] }) ? prev : { width: f[2], height: f[3], radius }));
+    });
+  useEffect(() => onFullScreenLeft(windowId, measureWindowShape), [windowId]);
   const measure = (width: number, height: number) => {
     setSize((prev) => (sameSize(prev, { width, height }) ? prev : { width, height }));
     container.current?.measureInWindow((x, y) => setOrigin((prev) => (prev && prev.x === x && prev.y === y ? prev : { x, y })));
+    measureWindowShape();
   };
   const settleMeasure = useSettled(({ width, height }: Size) => {
     noteCardResizeLayout(true);
@@ -168,6 +176,7 @@ export function ContentCard() {
         <FrozenPage windowId={windowId} tabId={activeId} top={(chrome.kind !== "none" && !chrome.autoHide ? toolbarRow.height : 0) + (barMode === "always" && !small && !hideWhileScrolling ? barHeight : 0)} />
       )}
       {split && !fullscreenTab && <SplitDividers split={split} dividers={dividers} width={size.width} height={size.height} />}
+      {split && !fullscreenTab && activeRect && <SplitFocusRing rect={activeRect} origin={origin} windowShape={windowFullScreen ? null : windowShape} />}
       {size.width > 0 && popoversOverCard && origin && activeRect && peek !== undefined && (
         <BesidePeekPopovers
           tabId={popoversOverCard}

@@ -389,20 +389,35 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
         raise BrowseError(f"Element {element.label} was removed from the page")
     await laid_out(page)
     await scroll_into_view(page, element, humanize)
-    box = await element_box(page, element)
-    if box is None:
-        raise BrowseError(f"Element {element.label} has no visible box (hidden or zero-size)", code="not_visible")
-    left, top, right, bottom = box
-    cx, cy = (left + right) / 2, (top + bottom) / 2
-    if humanize:
-        cx += random.uniform(-0.2, 0.2) * (right - left)
-        cy += random.uniform(-0.2, 0.2) * (bottom - top)
-    if check_cover:
+    tried = set()
+    for _ in range(3):
+        box = await element_box(page, element)
+        if box is None:
+            raise BrowseError(f"Element {element.label} has no visible box (hidden or zero-size)", code="not_visible")
+        left, top, right, bottom = box
+        cx, cy = (left + right) / 2, (top + bottom) / 2
+        if humanize:
+            cx += random.uniform(-0.2, 0.2) * (right - left)
+            cy += random.uniform(-0.2, 0.2) * (bottom - top)
+        if not check_cover:
+            return cx, cy, info
         ox, oy = await frame_offset(page, element.frame)
         cover = await page.call("(el, x, y) => ardiaBrowse.hitTest(el, x, y)", element, cx - ox, cy - oy, frame=element.frame)
         if cover and humanize:
             cx, cy = (left + right) / 2, (top + bottom) / 2
             cover = await page.call("(el, x, y) => ardiaBrowse.hitTest(el, x, y)", element, cx - ox, cy - oy, frame=element.frame)
+        if not cover:
+            break
+        if "consent" not in tried and not cover.startswith("nothing"):
+            tried.add("consent")
+            if await dismissed_consent(page, element, cx - ox, cy - oy):
+                continue
+        if "center" not in tried:
+            tried.add("center")
+            if await centered(page, element):
+                continue
+        break
+    if check_cover:
         if cover and cover.startswith("nothing"):
             vp = await viewport(page)
             raise BrowseError(
@@ -417,6 +432,34 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
                 code="covered",
             )
     return cx, cy, info
+
+
+async def dismissed_consent(page, element, x, y) -> bool:
+    from ardia_cli import command_metrics
+
+    try:
+        done = await page.call("(x, y) => ardiaBrowse.dismissConsent(x, y)", x, y, frame=element.frame)
+    except BrowseError:
+        return False
+    if not done:
+        return False
+    command_metrics.flag("consent_dismissed", True)
+    page.state.consent_dismissed = f'{done["layer"]} covered {element.label}, so its "{done["name"]}" button was clicked ({done["choice"]})'
+    await asyncio.sleep(CONSENT_SETTLE)
+    return True
+
+
+async def centered(page, element) -> bool:
+    from ardia_cli import command_metrics
+
+    try:
+        moved = await page.call(CENTER, element, frame=element.frame)
+    except BrowseError:
+        return False
+    if moved:
+        command_metrics.flag("click_recentered", True)
+        await asyncio.sleep(0.1)
+    return bool(moved)
 
 
 async def disabled_state(page, element) -> dict:
@@ -477,6 +520,8 @@ async def focus_field(page, element, info, humanize: bool, tolerate_detach: bool
             raise
 
 
+CENTER = "(el) => { const before = el.getBoundingClientRect(); el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); const after = el.getBoundingClientRect(); return Math.abs(after.top - before.top) + Math.abs(after.left - before.left) > 1; }"
+CONSENT_SETTLE = 0.5
 REPLACEMENT = """(old) => {
   const active = document.activeElement;
   if (!active || active === old || active === document.body) return null;
@@ -526,6 +571,22 @@ async def clear_field(page, element, humanize: bool):
         raise BrowseError(f"Couldn't clear {element.label}; it still holds text")
 
 
+async def not_editable_message(page, element) -> str:
+    try:
+        facts = await page.call("""(el) => ({ role: (el.getAttribute("role") || el.tagName).toLowerCase(), name: ardiaBrowse.accessibleText(el).trim().slice(0, 60),
+            popup: (el.getAttribute("aria-haspopup") || "").toLowerCase(), expands: el.hasAttribute("aria-expanded"),
+            combo: ardiaBrowse.comboKind(el) })""", element, frame=element.frame, read=True)
+    except BrowseError:
+        return f"Element {element.label} isn't an editable field"
+    named = f'{facts["role"]} "{facts["name"]}"' if facts.get("name") else facts["role"]
+    if facts.get("combo"):
+        return f"{element.label} is a {named}, not a text field: pick from it with `select {element.label} <option>`"
+    if facts.get("popup") and facts["popup"] != "false" or facts.get("expands"):
+        return (f"{element.label} is a {named} that opens a picker, not a text field: click it, then click the value in what opens "
+                "(a date picker's day button usually carries the full date as its name)")
+    return f"{element.label} is a {named}, which takes no typing; use click, select or check"
+
+
 async def fill(page, element, text: str, humanize: bool, guard=None):
     info = await page.call("(el) => ardiaBrowse.info(el)", element, frame=element.frame)
     if info.get("disabled"):
@@ -537,7 +598,7 @@ async def fill(page, element, text: str, humanize: bool, guard=None):
         cell = await cell_of(page, element) if guard is None else None
         if cell is not None:
             return False, await fill_cell(page, element, cell, text, humanize)
-        raise BrowseError(f"Element {element.label} isn't an editable field", code="not_editable")
+        raise BrowseError(await not_editable_message(page, element), code="not_editable")
     if info.get("tag") == "input" and info.get("type") in fields.SET_DIRECTLY:
         return False, await set_value(page, element, info["type"], text)
     loader = page.loader(element.frame)

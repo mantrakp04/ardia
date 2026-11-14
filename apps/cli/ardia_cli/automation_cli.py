@@ -181,6 +181,7 @@ def cmd_run(args) -> int:
     try:
         result, catalog = asyncio.run(control.with_connection(args.data_dir, work))
     except Unreachable as error:
+        error.noted()
         if error.sent:
             complain(f"ardia run: the connection dropped after the request went out, so {command} may or may not have run ({error})")
         else:
@@ -217,6 +218,7 @@ def parse_id(text: str):
 
 
 def unreachable_exit(error: Unreachable) -> int:
+    error.noted()
     complain(f"ardia: {error}")
     return 2
 

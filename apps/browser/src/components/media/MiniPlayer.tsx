@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, Image, Pressable, View, type GestureResponderEvent, type TextStyle } from "react-native";
 import { toggleMute } from "../../state/browser/actions";
 import { hex } from "../ui/theme";
-import { duration as motionDuration } from "../ui/motion";
+import { buttonMotion, duration as motionDuration, usePressScaleMotion } from "../ui/motion";
 import { font, ink, radius, space, weight } from "../ui/tokens";
 import { useTab } from "../../state/browser/hooks";
 import { useMuteState } from "../../state/tabs/hooks";
@@ -101,13 +101,16 @@ function TransportButton({
   onPress: () => void;
 }) {
   const { hovered, hoverProps } = useHover();
+  const pressMotion = usePressScaleMotion();
   const box = Math.max(width, size + 4);
   return (
     <View {...hoverProps} tooltip={tooltip} style={{ position: "absolute", left: left - (box - width) / 2, top: 9, width: box, height: 38 }}>
-      <Pressable onPress={onPress}>
+      <Pressable onPress={onPress} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut}>
         {({ pressed }) => (
-          <View style={{ width: box, height: 38, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.45 : hovered ? 1 : 0.6 }}>
-            <Symbol name={icon} size={size} color={hex(tokens.label)} style={{ width: box, height: 38 }} />
+          <View style={{ width: box, height: 38, alignItems: "center", justifyContent: "center", opacity: hovered ? (pressed ? 0.82 : 1) : 0.6 }}>
+            <Animated.View pointerEvents="none" style={pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined}>
+              <Symbol name={icon} size={size} color={hex(tokens.label)} style={{ width: box, height: 38 }} />
+            </Animated.View>
           </View>
         )}
       </Pressable>
@@ -137,6 +140,8 @@ function AlbumArt({
   onUnmute: () => void;
 }) {
   const { hovered, hoverProps } = useHover();
+  const artPressMotion = usePressScaleMotion(true, buttonMotion.controlPressScale);
+  const unmuteMotion = usePressScaleMotion(muted);
   const [failed, setFailed] = useState<string | null>(null);
   const fade = useRef(new Animated.Value(0)).current;
   const downloaded = useArtwork(tabId, session.artwork);
@@ -144,36 +149,40 @@ function AlbumArt({
   useEffect(() => fade.setValue(0), [art]);
   return (
     <View {...hoverProps} style={{ position: "absolute", left: INSET, top: INSET, width: ART, height: ART }}>
-      <Pressable onPress={onPress} tooltip="Back to Tab">
-        <View style={{ width: ART, height: ART, borderRadius: radius.tile, overflow: "hidden", backgroundColor: tokens.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
-          {art ? (
-            <Animated.View style={{ position: "absolute", left: 0, top: 0, width: ART, height: ART, opacity: fade }}>
-              <Image
-                key={art}
-                source={{ uri: art }}
-                resizeMode="cover"
-                onLoad={() => Animated.timing(fade, { toValue: 1, duration: motionDuration.base, useNativeDriver: true }).start()}
-                onError={() => setFailed(art)}
-                style={{ width: ART, height: ART }}
-              />
-            </Animated.View>
-          ) : (
-            <View style={{ opacity: 0.5 }}>
-              <Favicon url={url} favicon={favicon} size={24} profileId={profileId} />
-            </View>
-          )}
-          {hovered ? (
-            <View style={{ position: "absolute", left: 0, top: 0, width: ART, height: ART, backgroundColor: ART_HOVER_SCRIM, alignItems: "center", justifyContent: "center" }}>
-              <Symbol name="arrow.up.left" size={16} weight="semibold" color={ink.white} style={{ width: 22, height: 22 }} />
-            </View>
-          ) : null}
-        </View>
+      <Pressable onPress={onPress} onPressIn={artPressMotion.onPressIn} onPressOut={artPressMotion.onPressOut} tooltip="Back to Tab">
+        <Animated.View style={[{ width: ART, height: ART }, artPressMotion.scale ? { transform: [{ scale: artPressMotion.scale }] } : undefined]}>
+          <View style={{ width: ART, height: ART, borderRadius: radius.tile, overflow: "hidden", backgroundColor: tokens.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
+            {art ? (
+              <Animated.View style={{ position: "absolute", left: 0, top: 0, width: ART, height: ART, opacity: fade }}>
+                <Image
+                  key={art}
+                  source={{ uri: art }}
+                  resizeMode="cover"
+                  onLoad={() => Animated.timing(fade, { toValue: 1, duration: motionDuration.base, useNativeDriver: true }).start()}
+                  onError={() => setFailed(art)}
+                  style={{ width: ART, height: ART }}
+                />
+              </Animated.View>
+            ) : (
+              <View style={{ opacity: 0.5 }}>
+                <Favicon url={url} favicon={favicon} size={24} profileId={profileId} />
+              </View>
+            )}
+            {hovered ? (
+              <View style={{ position: "absolute", left: 0, top: 0, width: ART, height: ART, backgroundColor: ART_HOVER_SCRIM, alignItems: "center", justifyContent: "center" }}>
+                <Symbol name="arrow.up.left" size={16} weight="semibold" color={ink.white} style={{ width: 22, height: 22 }} />
+              </View>
+            ) : null}
+          </View>
+        </Animated.View>
       </Pressable>
       {muted ? (
-        <Pressable onPress={onUnmute} tooltip="Unmute Site" style={{ position: "absolute", right: -5, bottom: -5 }}>
-          <Dot size={20} color={tokens.background}>
-            <Symbol name="speaker.slash.fill" size={10} color={hex(tokens.label)} style={{ width: 16, height: 16 }} />
-          </Dot>
+        <Pressable onPress={onUnmute} onPressIn={unmuteMotion.onPressIn} onPressOut={unmuteMotion.onPressOut} tooltip="Unmute Site" style={{ position: "absolute", right: -5, bottom: -5 }}>
+          <Animated.View pointerEvents="none" style={unmuteMotion.scale ? { transform: [{ scale: unmuteMotion.scale }] } : undefined}>
+            <Dot size={20} color={tokens.background}>
+              <Symbol name="speaker.slash.fill" size={10} color={hex(tokens.label)} style={{ width: 16, height: 16 }} />
+            </Dot>
+          </Animated.View>
         </Pressable>
       ) : null}
     </View>
