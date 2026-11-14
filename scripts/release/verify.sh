@@ -26,6 +26,7 @@ for key in SUFeedURL SUPublicEDKey NSDockTilePlugIn NSCameraUsageDescription NSM
 done
 [ -d "$app/Contents/Frameworks/Sparkle.framework" ] || die "no Sparkle.framework"
 [ -d "$app/Contents/PlugIns/ArdiaDockTile.plugin" ] || die "no dock tile plug-in"
+[ -x "$app/Contents/Helpers/ArdiaFairPlay.app/Contents/MacOS/ArdiaFairPlay" ] || die "no FairPlay helper"
 [ -f "$app/Contents/embedded.provisionprofile" ] || die "no Developer ID provisioning profile (keychain groups need it)"
 [ -f "$app/Contents/Resources/Extensions/ublock/manifest.json" ] || die "no uBlock Origin in the app"
 [ -f "$app/Contents/Resources/ContentRules/rulesets.json" ] || die "no WebKit content rules in the app"

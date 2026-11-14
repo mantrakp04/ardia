@@ -32,6 +32,8 @@ if ! [[ -f "$stamp" && "$(cat "$stamp")" == "$want" && -d "$frameworks/Chromium 
   echo "$want" > "$stamp"
 fi
 
+"$repo/packages/ardiacore/fairplay/build.sh"
+
 "$here/ubo.sh"
 ubo="$repo/packages/ardiacore/vendor/ubo/ext"
 if [ -n "${UNLOCALIZED_RESOURCES_FOLDER_PATH:-}" ] && [ -f "$ubo/manifest.json" ]; then

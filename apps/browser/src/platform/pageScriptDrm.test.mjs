@@ -22,7 +22,7 @@ class HTMLMediaElement {
   }
 }
 
-function page(supported, { keyless = null } = {}) {
+function page(supported, { keyless = null, bridged = false } = {}) {
   const sent = [];
   const timers = [];
   let now = 0;
@@ -74,8 +74,8 @@ function page(supported, { keyless = null } = {}) {
       } catch (e) {}
     };
   const detachedMediaWatchers = [];
-  const run = new Function("window", "apply", "asNative", "send", "document", "navigator", "HTMLMediaElement", "setTimeout", "guard", "detachedMediaWatchers", source);
-  run(keyless ? { Navigator, MediaKeySystemAccess } : { Navigator }, Reflect.apply, asNative, (kind, data) => sent.push({ kind, data }), document, navigator, HTMLMediaElement, setTimeout, guard, detachedMediaWatchers);
+  const run = new Function("window", "apply", "asNative", "send", "document", "navigator", "HTMLMediaElement", "setTimeout", "guard", "detachedMediaWatchers", "bridgesProtectedPlayback", "reportProtectedPlayback", source);
+  run(keyless ? { Navigator, MediaKeySystemAccess } : { Navigator }, Reflect.apply, asNative, (kind, data) => sent.push({ kind, data }), document, navigator, HTMLMediaElement, setTimeout, guard, detachedMediaWatchers, () => bridged, null);
   const advance = (ms) => {
     now += ms;
     for (let due; (due = timers.filter((t) => t.at <= now).sort((a, b) => a.at - b.at)[0]); ) {
@@ -149,6 +149,14 @@ test("playback that never starts after a refusal prompts once, naming the first 
   p.fire(p.addMedia({ paused: false, readyState: 1 }), "play");
   p.advance(6000);
   assert.deepEqual(p.sent, drm());
+});
+
+test("stalled playback after a refusal stays quiet while Ardia's FairPlay bridge plays the page's media", async () => {
+  const p = page([], { bridged: true });
+  await p.refuse();
+  p.fire(p.addMedia({ paused: false, readyState: 1 }), "play");
+  p.advance(6000);
+  assert.deepEqual(p.sent, []);
 });
 
 test("a play attempt before the refusal is judged once the refusal is known", async () => {

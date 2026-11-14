@@ -24,6 +24,7 @@ export {
   type PageSelection,
   type ScrollState,
   type ProtectedMediaRequest,
+  type FairPlayReport,
   type AppBadge,
 } from "@ardia/ardiacore";
 

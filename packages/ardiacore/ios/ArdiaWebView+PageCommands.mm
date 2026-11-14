@@ -1,5 +1,6 @@
 #import "ArdiaWebViewInternal.h"
 #import "ArdiaRuntime.h"
+#import "ArdiaFairPlay.h"
 
 using namespace ardia_web_view;
 using namespace ardia_runtime;
@@ -7,7 +8,7 @@ using namespace ardia_runtime;
 @implementation ArdiaWebView (PageCommands)
 
 - (void)emitMedia {
-  const BOOL playing = _tab.audible;
+  const BOOL playing = _tab.audible || [ArdiaFairPlay playsInTab:_tab];
   const BOOL muted = _tab ? _tab.muted : _muted;
   [self emit:@"media" payload:@{@"playing" : @(playing), @"muted" : @(muted)}];
 }
@@ -34,6 +35,7 @@ using namespace ardia_runtime;
 
 - (void)tabDidChangeAudio:(ArdiaCoreTab *)tab {
   if (_muted && !tab.muted) tab.muted = YES;
+  [ArdiaFairPlay muteChangedInTab:tab];
   [self emitMedia];
 }
 
@@ -44,6 +46,7 @@ using namespace ardia_runtime;
 - (void)setMuted:(BOOL)muted {
   _muted = muted;
   _tab.muted = muted;
+  [ArdiaFairPlay muteChangedInTab:_tab];
 }
 
 - (void)setZoomFactor:(double)factor {
