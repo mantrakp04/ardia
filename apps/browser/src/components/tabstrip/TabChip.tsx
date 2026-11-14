@@ -1,15 +1,15 @@
-import { useContext, useRef } from "react";
+import { memo, useContext, useRef, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { toggleMute } from "../../state/browser/actions";
 import { useIsActiveTab, useSettings, useTab, useTabLive, useWindowId } from "../../state/browser/hooks";
 import { useMuteState } from "../../state/tabs/hooks";
-import { muteTitle } from "../../state/tabs/mute";
+import { muteTitle, type MuteState } from "../../state/tabs/mute";
 import { firstStaying } from "../../state/drag/drops";
 import { pressTabClose, useTabCloseControl } from "../../state/sidebar/closeControl";
 import { currentMovingTabIds } from "../../state/tabs/topStrip";
 import { TabBadges } from "../media/TabBadges";
 import { TabIcon } from "../sidebar/TabIcon";
-import { Button, FadeLabel, Symbol, useHover, useTooltip } from "../ui";
+import { Button, FadeLabel, Symbol, useTooltip } from "../ui";
 import { HoverSlot } from "../ui/HoverSlot";
 import { surfaceTheme, ThemeContext, useTheme } from "../ui/theme";
 import { toolbarPalette, useEasedColor } from "../ui/toolbarColors";
@@ -24,6 +24,7 @@ import { CELL_STEP, dragRange, leaveIndex, type DragGeometry } from "./stripGrou
 import { CHIP_LABEL_GAP, CHIP_PAD, DROP_RING_WIDTH, GAP, ITEM_HEIGHT, ITEM_TOP, PINNED_CELL, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
 import { useStripCardHover } from "./StripHoverCard";
+import { useChipHover, useChipHovered, useOwnChipHover, type ChipHover } from "./reachableHover";
 import { TabPressArea } from "../sidebar/TabPressArea";
 import { tabTitle } from "../../state/browser/model";
 import { awayTitle } from "../../state/pins/organize";
@@ -83,11 +84,12 @@ export function DraggableChip({
       return true;
     },
   });
-  const card = useStripCardHover(windowId, tabId, drag.ref);
+  const hover = useChipHover();
+  const card = useStripCardHover(windowId, tabId, drag.ref, hover);
   return (
     <Animated.View ref={drag.ref} {...drag.panHandlers} {...card} mouseDownCanMoveWindow={false} style={{ ...drag.style, zIndex: drag.dragging ? 10 : active ? 1 : 0 }}>
       <View style={{ opacity: drag.crossed ? 0 : 1 }}>
-        <TabChip tabId={tabId} width={width} tuck={tuck} dragged={drag.dragging} />
+        <TabChip tabId={tabId} width={width} tuck={tuck} dragged={drag.dragging} hover={hover} />
       </View>
       {drag.crossed && dock && (
         <FadeIn
@@ -113,7 +115,7 @@ export function useWebsiteBand(tabId: string) {
   return { palette, band: useEasedColor(palette.background) };
 }
 
-export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width: number; tuck?: () => void; dragged: boolean }) {
+export const TabChip = memo(function TabChip({ tabId, width, tuck, dragged, hover }: { tabId: string; width: number; tuck?: () => void; dragged: boolean; hover?: ChipHover }) {
   const onTint = useTheme();
   const windowId = useWindowId();
   const tab = useTab(tabId);
@@ -125,8 +127,8 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
   const mute = useMuteState(tabId);
   const { palette, band } = useWebsiteBand(tabId);
   const closeControl = useTabCloseControl(tabId);
-  const { hovered, hoverProps } = useHover();
-  const muteTip = useTooltip(muteTitle(mute));
+  const ownHover = useOwnChipHover();
+  const chipHover = hover ?? ownHover;
   const unread = useTabUnread(tabId);
   if (!tab) return null;
   const title = tab.customTitle ? tabTitle(tab) : titleWithoutUnread(tabTitle(tab), unread);
@@ -135,7 +137,7 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
   const ink = onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab;
   return (
     <ThemeContext.Provider value={theme}>
-      <View {...hoverProps} style={{ width, height: TOP_STRIP_HEIGHT }}>
+      <View {...chipHover.hoverProps} style={{ width, height: TOP_STRIP_HEIGHT }}>
         {active && <SelectedTab width={width} band={band} opaque={dragged} />}
         {dragged && !active && (
           <View pointerEvents="none" style={{ position: "absolute", left: 0, width, top: ITEM_TOP, height: ITEM_HEIGHT, borderRadius: TAB_RADIUS, backgroundColor: theme.windowTint[0] }} />
@@ -143,42 +145,77 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
         {onto && <OntoRing width={width} />}
         <TabPressArea windowId={windowId} tab={tab} style={StyleSheet.absoluteFill} pressStyle={{ flex: 1 }}>
           {({ pressed }) => (
-            <ItemRow hovered={(hovered || dragged) && !active && !onto} pressed={pressed && !active}>
+            <ChipRow
+              hover={chipHover}
+              dragged={dragged}
+              quiet={active || onto}
+              pressed={pressed && !active}
+              action={
+                <Button variant="icon"
+                  icon={tuck ? "minus" : closeControl.icon}
+                  size="xs"
+                  weight="semibold"
+                  color={onBand ? palette.icon : undefined}
+                  onPress={tuck ?? (() => pressTabClose(tab.id))}
+                  tooltip={tuck ? "Hide in Group" : closeControl.tooltip}
+                />
+              }
+              badge={<UnreadCount unread={unread} ink={ink} />}
+            >
               <View pointerEvents="none">
                 <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
                 <TabBadges tabId={tab.id} />
               </View>
               {(playing || mute) && (
-                <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: CHIP_LABEL_GAP }} tooltip={muteTip}>
-                  <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
-                </Pressable>
+                <MuteToggle tabId={tab.id} mute={mute} color={onBand ? palette.icon : theme.textTab} />
               )}
               {away ? (
                 <AwayTitleLabel away={away} color={ink} fontSize={font.small.fontSize} height={16} style={{ flex: 1, marginLeft: CHIP_LABEL_GAP }} />
               ) : (
                 <FadeLabel text={title} fontSize={font.small.fontSize} color={ink} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }} />
               )}
-              <HoverSlot
-                hovered={hovered}
-                width={iconButton.xs.box}
-                hover={
-                  <Button variant="icon"
-                    icon={tuck ? "minus" : closeControl.icon}
-                    size="xs"
-                    weight="semibold"
-                    color={onBand ? palette.icon : undefined}
-                    onPress={tuck ?? (() => pressTabClose(tab.id))}
-                    tooltip={tuck ? "Hide in Group" : closeControl.tooltip}
-                  />
-                }
-              >
-                <UnreadCount unread={unread} ink={ink} />
-              </HoverSlot>
-            </ItemRow>
+            </ChipRow>
           )}
         </TabPressArea>
       </View>
     </ThemeContext.Provider>
+  );
+});
+
+function MuteToggle({ tabId, mute, color }: { tabId: string; mute: MuteState; color: string }) {
+  const tip = useTooltip(muteTitle(mute));
+  return (
+    <Pressable onPress={() => toggleMute(tabId)} style={{ marginLeft: CHIP_LABEL_GAP }} tooltip={tip}>
+      <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={11} color={color} style={{ width: 16, height: 16 }} />
+    </Pressable>
+  );
+}
+
+function ChipRow({
+  hover,
+  dragged,
+  quiet,
+  pressed,
+  action,
+  badge,
+  children,
+}: {
+  hover: ChipHover;
+  dragged: boolean;
+  quiet: boolean;
+  pressed: boolean;
+  action: ReactNode;
+  badge: ReactNode;
+  children: ReactNode;
+}) {
+  const hovered = useChipHovered(hover);
+  return (
+    <ItemRow hovered={(hovered || dragged) && !quiet} pressed={pressed}>
+      {children}
+      <HoverSlot hovered={hovered} width={iconButton.xs.box} hover={action}>
+        {badge}
+      </HoverSlot>
+    </ItemRow>
   );
 }
 

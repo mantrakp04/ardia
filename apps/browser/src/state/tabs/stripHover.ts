@@ -84,7 +84,9 @@ export function stripPageOffstage(windowId: string, profileId: string) {
 }
 
 export function stripChipGone(windowId: string, tabId: string) {
-  if (pointed?.windowId === windowId && pointed.tabId === tabId) pointed = null;
-  const hover = useStripHover.getState().hover;
-  if (hover?.windowId === windowId && hover.tabId === tabId) dismissStripHover();
+  const isGone = (chip: { windowId: string; tabId: string } | null) => chip?.windowId === windowId && chip.tabId === tabId;
+  if (isGone(pointed)) {
+    pointed = null;
+    dismissStripHover();
+  } else if (isGone(useStripHover.getState().hover)) hide();
 }

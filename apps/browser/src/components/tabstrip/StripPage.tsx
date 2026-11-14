@@ -5,10 +5,10 @@ import { tabDragging } from "../../state/drag/tabDrag";
 import { useShownTabIdFor, useStripEntries } from "../../state/tabs/topStrip";
 import { setMeasuredWidth, useMeasuredWidths } from "../../state/windows/measuredWidths";
 import { dismissStripHoverIn, stripPageOffstage } from "../../state/tabs/stripHover";
+import { Offstage } from "../ui/useHover";
 import { usePageStyle } from "../../state/windows/profilePager";
 import { ThemeScope } from "../window/ThemeScope";
 import { TintInk } from "../ui/TintInk";
-import { Offstage } from "../ui/useHover";
 import { DockContext, FloatingStrip } from "./context";
 import { IncomingGap, useIncomingTab } from "./IncomingTab";
 import { chipKey, folderKey, type Strip } from "./model";
@@ -64,6 +64,11 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const scroll = useRef<ScrollView>(null);
   const scrolled = useRef(0);
   const viewport = useRef(pageWidth + flare * 2);
+  const content = useRef(0);
+  const keepInRange = () => {
+    const end = Math.max(0, content.current - viewport.current);
+    if (scrolled.current > end + 0.5) scroll.current?.scrollTo({ x: end, animated: false });
+  };
   const [atStart, setAtStart] = useState(true);
   const inset = atStart ? flare : 0;
   const spanOf = (tabId: string): [number, number] | null => {
@@ -98,16 +103,23 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
       style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: pageWidth + flare * 2, display: resting ? "none" : "flex", ...pageStyle }}
     >
       <PageProfileContext.Provider value={profileId}>
-        <Offstage.Provider value={!current}>
-          <ThemeScope>
-            <TintInk>
-              <DockContext.Provider value={strip}>
+        <ThemeScope>
+          <TintInk>
+            <DockContext.Provider value={strip}>
+              <Offstage.Provider value={!current}>
                 <ScrollView
                   ref={scroll}
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   scrollEventThrottle={16}
-                  onLayout={(e) => void (viewport.current = e.nativeEvent.layout.width)}
+                  onLayout={(e) => {
+                    viewport.current = e.nativeEvent.layout.width;
+                    keepInRange();
+                  }}
+                  onContentSizeChange={(width) => {
+                    content.current = width;
+                    keepInRange();
+                  }}
                   onScroll={(e) => {
                     if (Math.abs(e.nativeEvent.contentOffset.x - scrolled.current) >= 1) dismissStripHoverIn(windowId);
                     scrolled.current = e.nativeEvent.contentOffset.x;
@@ -143,10 +155,10 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                   <NewTabButton windowId={windowId} geometry={top} />
                   {spare ? <View style={{ width: spare, marginLeft: -GAP }} /> : null}
                 </ScrollView>
-              </DockContext.Provider>
-            </TintInk>
-          </ThemeScope>
-        </Offstage.Provider>
+              </Offstage.Provider>
+            </DockContext.Provider>
+          </TintInk>
+        </ThemeScope>
       </PageProfileContext.Provider>
     </Animated.View>
   );

@@ -2,33 +2,35 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Animated, View } from "react-native";
 import { useTab } from "../../state/browser/hooks";
 import { stripChipEntered, stripChipGone, stripChipLeft, stripChipPressed, useStripHover } from "../../state/tabs/stripHover";
-import { markHoverProps } from "../../lib/hoverMarks";
 import { HoverCard as HoverPanel, useOffstage } from "../ui";
 import { TabCardSummary } from "../sidebar/TabCardSummary";
 import { useHoverCardMotion, useHoverCardPlacement } from "../sidebar/hoverMotion";
+import type { ChipHover } from "./reachableHover";
 import { STRIP_CARD_GAP, STRIP_CARD_MARGIN, STRIP_CARD_WIDTH } from "./tokens";
 
-export function useStripCardHover(windowId: string, tabId: string, view: RefObject<View | null>) {
-  const offstage = useOffstage();
-  const latest = useRef({ windowId, tabId, offstage });
-  latest.current = { windowId, tabId, offstage };
-  const [props] = useState(() => {
+export function useStripCardHover(windowId: string, tabId: string, view: RefObject<View | null>, hover: ChipHover) {
+  const reachable = !useOffstage();
+  const latest = useRef({ windowId, tabId, reachable });
+  latest.current = { windowId, tabId, reachable };
+  useEffect(() => {
     const measure = () =>
       new Promise<{ x: number; y: number; width: number; height: number } | null>((resolve) => {
         const node = view.current;
         if (!node) return resolve(null);
         node.measureInWindow((x, y, width, height) => resolve(width > 0 ? { x, y, width, height } : null));
       });
-    return {
-      ...markHoverProps({
-        onMouseEnter: () => void (latest.current.offstage || stripChipEntered(latest.current.windowId, latest.current.tabId, measure)),
-        onMouseLeave: () => stripChipLeft(latest.current.windowId, latest.current.tabId),
-      }),
-      onTouchStart: () => stripChipPressed(latest.current.tabId),
+    const follow = () => {
+      const { windowId, tabId, reachable } = latest.current;
+      if (hover.hovered()) stripChipEntered(windowId, tabId, measure);
+      else if (reachable) stripChipLeft(windowId, tabId);
+      else stripChipGone(windowId, tabId);
     };
-  });
+    const unsubscribe = hover.subscribe(follow);
+    if (hover.hovered()) follow();
+    return unsubscribe;
+  }, [hover]);
   useEffect(() => () => stripChipGone(latest.current.windowId, latest.current.tabId), []);
-  return props;
+  return useState(() => ({ onTouchStart: () => stripChipPressed(latest.current.tabId) }))[0];
 }
 
 export function StripHoverCard({ windowId, stripBottom, windowWidth }: { windowId: string; stripBottom: number; windowWidth: number }) {
