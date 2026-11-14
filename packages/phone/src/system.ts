@@ -18,6 +18,7 @@ type NativeLink = Omit<SystemLink, "query"> & { query?: string };
 type SystemNative = {
   addListener(eventName: "onSystemLink", listener: (link: NativeLink) => void): Subscription;
   initialLink(): Promise<NativeLink | null>;
+  setHidesFromRecents?(hidden: boolean): Promise<boolean>;
 };
 
 const native = requireOptionalNativeModule<SystemNative>("ArdiaPhoneSystem");
@@ -29,6 +30,7 @@ export const system = {
     const link = native ? await native.initialLink() : null;
     return link ? normalize(link) : null;
   },
+  setHidesFromRecents: async (hidden: boolean): Promise<boolean> => (native?.setHidesFromRecents ? native.setHidesFromRecents(hidden) : false),
   addLinkListener: (listener: (link: SystemLink) => void): Subscription =>
     native ? native.addListener("onSystemLink", (link) => listener(normalize(link))) : { remove() {} },
 };
