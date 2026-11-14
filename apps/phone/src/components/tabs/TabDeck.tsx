@@ -149,6 +149,7 @@ export function TabDeck() {
   const close = (index: number, startLift: number) => {
     const id = order[index];
     if (!id) return;
+    hideArchiveCard();
     flyIndex.value = index;
     flyLift.value = startLift;
     flyVanish.value = 0;
@@ -173,6 +174,7 @@ export function TabDeck() {
       const card = deckCardAt(g, count, scroll.value, down.x, down.y);
       startScroll.value = scroll.value;
       scrollFrom.value = e.absoluteX;
+      runOnJS(hideArchiveCard)();
       if (deckDragKind(card, e.absoluteX - down.absoluteX, e.absoluteY - down.absoluteY) === "lift") {
         vertical.value = true;
         dragIndex.value = card;
@@ -207,6 +209,7 @@ export function TabDeck() {
   const showCardMenu = (index: number, x: number, y: number) => {
     if (phase.kind !== "settled" || !order[index]) return;
     menuOpenedHaptic();
+    hideArchiveCard();
     setMenu(null);
     setCardMenu({ index, x, y });
   };
@@ -248,7 +251,10 @@ export function TabDeck() {
       title: count === 1 ? "Close 1 Tab?" : `Close ${count} Tabs?`,
       message: privateCount ? "Incognito tabs aren’t saved. Other tabs stay in your Archive." : "They’ll stay in your Archive.",
       action: count === 1 ? "Close Tab" : "Close All Tabs",
-      run: closeAllFromDeck,
+      run: () => {
+        hideArchiveCard();
+        closeAllFromDeck();
+      },
     });
   const confirmLeaveIncognito = () =>
     setConfirmation({
