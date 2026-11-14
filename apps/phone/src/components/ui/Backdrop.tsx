@@ -1,18 +1,14 @@
-import { StyleSheet } from "react-native";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
+import { useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { linearGradientCss } from "../../lib/gradient";
 
 export function Backdrop({ colors, diagonal = false }: { colors: readonly string[]; diagonal?: boolean }) {
-  const last = Math.max(1, colors.length - 1);
+  const [size, setSize] = useState({ width: 0, height: 0 });
   return (
-    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Defs>
-        <LinearGradient id="backdrop" x1="0" y1="0" x2={diagonal ? "1" : "0"} y2="1">
-          {colors.map((color, index) => (
-            <Stop key={index} offset={index / last} stopColor={color} />
-          ))}
-        </LinearGradient>
-      </Defs>
-      <Rect width="100%" height="100%" fill="url(#backdrop)" />
-    </Svg>
+    <View
+      pointerEvents="none"
+      onLayout={diagonal ? (event) => setSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height }) : undefined}
+      style={[StyleSheet.absoluteFill, { experimental_backgroundImage: linearGradientCss(colors, diagonal, size.width, size.height) }]}
+    />
   );
 }

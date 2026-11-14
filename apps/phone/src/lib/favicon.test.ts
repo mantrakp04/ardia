@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { faviconCandidates, monogram, monogramHash, monogramHost, monogramLetter, monogramTint, tileGradient } from "./favicon.ts";
+import { faviconCandidates, firstUsable, monogram, monogramHash, monogramHost, monogramLetter, monogramTint, tileGradient, usableLook } from "./favicon.ts";
 
 test("a page's own icon comes first, then the site's favicon.ico", () => {
   assert.deepEqual(faviconCandidates("https://cdn.example.com/icon.png", "https://www.example.com/a/b?c=1"), [
@@ -42,4 +42,17 @@ test("the letter tile's colour comes from the same hash as the Compose and Swift
   assert.deepEqual(tileGradient("#000000"), ["#1A1A1A", "#000000"]);
   assert.deepEqual(monogram("https://www.github.com"), { letter: "G", colors: tileGradient("#C2477A") });
   assert.deepEqual(monogram(null), { letter: null, colors: tileGradient("#8E8E93") });
+});
+
+test("the first candidate that decodes to a visible icon wins, with the backing the module chose", async () => {
+  const looks: Record<string, Awaited<Parameters<typeof usableLook>[0]>> = {
+    "https://a.example/icon.png": { tone: "blank", backing: null },
+    "https://a.example/favicon.ico": { tone: "darkOnClear", backing: "light" },
+  };
+  const look = async (url: string) => looks[url] ?? null;
+  assert.deepEqual(await firstUsable(["https://a.example/icon.png", "https://a.example/favicon.ico"], look), { url: "https://a.example/favicon.ico", backing: "light" });
+  assert.equal(await firstUsable(["https://a.example/icon.png", "https://b.example/x.png"], look), null);
+  assert.equal(await firstUsable(["https://c.example/x.png"], async () => { throw new Error("offline"); }), null);
+  assert.equal(usableLook({ tone: "opaque", backing: null }), true);
+  assert.equal(usableLook(null), false);
 });

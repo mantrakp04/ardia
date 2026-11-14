@@ -1,50 +1,82 @@
-import { memo, useMemo, useState } from "react";
+import { favicons } from "@ardia/phone-native";
+import { requireOptionalNativeModule } from "expo-modules-core";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import { faviconCandidates, monogram } from "../../lib/favicon";
+import { FAVICON_USER_AGENT, faviconCandidates, firstUsable, monogram, type FaviconBacking, type FaviconLookResult } from "../../lib/favicon";
+import { linearGradientCss } from "../../lib/gradient";
 import { Symbol } from "./Symbol";
+import { useTheme } from "./theme";
 import { faviconInk } from "./tokens";
 
 const failedIcons = new Set<string>();
+const looks = new Map<string, Promise<FaviconLookResult>>();
+const readsLooks = requireOptionalNativeModule("ArdiaPhoneFavicons") !== null;
+
+function lookOf(url: string, dark: boolean): Promise<FaviconLookResult> {
+  const key = `${dark ? "d" : "l"}|${url}`;
+  let found = looks.get(key);
+  if (!found) {
+    found = favicons.look(url, dark).catch(() => null);
+    looks.set(key, found);
+  }
+  return found;
+}
 
 type Props = { iconUrl: string | null; pageUrl: string | null; size: number };
 
+type Chosen = { url: string; backing: FaviconBacking } | "none" | null;
+
 export const Favicon = memo(function Favicon({ iconUrl, pageUrl, size }: Props) {
-  const candidates = useMemo(() => faviconCandidates(iconUrl, pageUrl), [iconUrl, pageUrl]);
-  const [, setFailures] = useState(0);
-  const shown = candidates.find((url) => !failedIcons.has(url)) ?? null;
+  const dark = useTheme().dark;
+  const [failures, setFailures] = useState(0);
+  const candidates = useMemo(() => faviconCandidates(iconUrl, pageUrl).filter((url) => !failedIcons.has(url)), [iconUrl, pageUrl, failures]);
+  const [chosen, setChosen] = useState<Chosen>(null);
+  useEffect(() => {
+    if (!readsLooks) {
+      setChosen(candidates[0] ? { url: candidates[0], backing: null } : "none");
+      return;
+    }
+    let live = true;
+    void firstUsable(candidates, (url) => lookOf(url, dark)).then((found) => {
+      if (live) setChosen(found ?? "none");
+    });
+    return () => {
+      live = false;
+    };
+  }, [candidates, dark]);
   const corner = size * 0.26;
-  if (!shown) return <MonogramTile pageUrl={pageUrl} size={size} corner={corner} />;
+  if (!chosen || chosen === "none") return <MonogramTile pageUrl={pageUrl} size={size} corner={corner} />;
+  const plate = chosen.backing ? (chosen.backing === "light" ? faviconInk.lightPlate : faviconInk.darkPlate) : null;
+  const inset = plate ? size * 0.14 : 0;
   return (
-    <Image
-      key={shown}
-      source={{ uri: shown }}
+    <View
       accessibilityElementsHidden
-      importantForAccessibility="no"
-      onError={() => {
-        failedIcons.add(shown);
-        setFailures((count) => count + 1);
-      }}
-      style={[styles.icon, { width: size, height: size, borderRadius: corner }]}
-      resizeMode="contain"
-    />
+      importantForAccessibility="no-hide-descendants"
+      style={[styles.icon, { width: size, height: size, borderRadius: corner, backgroundColor: plate ?? undefined, padding: inset }]}
+    >
+      <Image
+        key={chosen.url}
+        source={{ uri: chosen.url, headers: { "User-Agent": FAVICON_USER_AGENT, Accept: "image/*" } }}
+        onError={() => {
+          failedIcons.add(chosen.url);
+          setFailures((count) => count + 1);
+        }}
+        style={styles.fill}
+        resizeMode="contain"
+        resizeMethod="resize"
+      />
+    </View>
   );
 });
 
 function MonogramTile({ pageUrl, size, corner }: { pageUrl: string | null; size: number; corner: number }) {
   const tile = useMemo(() => monogram(pageUrl), [pageUrl]);
-  const id = `monogram-${tile.colors[0].slice(1)}`;
   return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.tile, { width: size, height: size, borderRadius: corner }]}>
-      <Svg style={StyleSheet.absoluteFill} width={size} height={size}>
-        <Defs>
-          <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={tile.colors[0]} />
-            <Stop offset="1" stopColor={tile.colors[1]} />
-          </LinearGradient>
-        </Defs>
-        <Rect width={size} height={size} rx={corner} fill={`url(#${id})`} />
-      </Svg>
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[styles.tile, { width: size, height: size, borderRadius: corner, experimental_backgroundImage: linearGradientCss(tile.colors, false, size, size) }]}
+    >
       {tile.letter ? (
         <Text allowFontScaling={false} style={[styles.letter, { fontSize: size * 0.56, lineHeight: size * 0.56 * 1.15 }]}>
           {tile.letter}
@@ -58,6 +90,7 @@ function MonogramTile({ pageUrl, size, corner }: { pageUrl: string | null; size:
 
 const styles = StyleSheet.create({
   icon: { overflow: "hidden" },
+  fill: { flex: 1 },
   tile: { overflow: "hidden", alignItems: "center", justifyContent: "center" },
   letter: { color: faviconInk.letter, fontWeight: "600", textAlign: "center", includeFontPadding: false },
 });

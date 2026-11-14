@@ -53,3 +53,20 @@ export function monogram(pageUrl: string | null): Monogram {
   const host = monogramHost(pageUrl);
   return { letter: monogramLetter(host), colors: tileGradient(monogramTint(host)) };
 }
+
+export const FAVICON_USER_AGENT =
+  "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36";
+
+export type FaviconBacking = "light" | "dark" | null;
+
+export type FaviconLookResult = { tone: "opaque" | "darkOnClear" | "lightOnClear" | "mixed" | "blank"; backing: FaviconBacking } | null;
+
+export const usableLook = (look: FaviconLookResult): boolean => look !== null && look.tone !== "blank";
+
+export async function firstUsable(candidates: readonly string[], look: (url: string) => Promise<FaviconLookResult>): Promise<{ url: string; backing: FaviconBacking } | null> {
+  for (const url of candidates) {
+    const found = await look(url).catch(() => null);
+    if (usableLook(found)) return { url, backing: found!.backing };
+  }
+  return null;
+}
