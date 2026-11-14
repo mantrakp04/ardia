@@ -26,9 +26,9 @@ export function SplitDividers({ split, dividers, width, height }: { split: Split
 
 export const SplitFocusRing = memo(function SplitFocusRing({ rect }: { rect: Rect }) {
   const theme = useTheme();
-  const { radius, splitGap } = useCardFrame();
-  const room = splitGap / 2;
-  const width = Math.min(FOCUS_RING.width, room);
+  const { inset, radius, splitGap } = useCardFrame();
+  const room = inset > 0 ? splitGap / 2 : 0;
+  const width = room > 0 ? Math.min(FOCUS_RING.width, room) : FOCUS_RING.width;
   const outset = Math.min(FOCUS_RING.width + FOCUS_RING.gap, room);
   return (
     <View
@@ -41,7 +41,7 @@ export const SplitFocusRing = memo(function SplitFocusRing({ rect }: { rect: Rec
         height: rect.height + outset * 2,
         borderRadius: radius > 0 ? radius + outset : 0,
         borderWidth: width,
-        borderColor: theme.accent,
+        borderColor: theme.powerUpColor ?? theme.accent,
       }}
     />
   );
