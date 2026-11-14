@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, useWindowDimensions, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -13,6 +13,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { backgroundScale, draggedOffset, sheetDismisses, sheetProgress } from "../../lib/sheetDrag";
+import { initialPresence, presenceSettled, presenceShown, presenceTarget } from "../../lib/sheetPresence";
 import { tabsCurve, tabsMotion } from "./motion";
 import { useTheme } from "./theme";
 import { sheetInk, sheetLayout } from "./tokens";
@@ -39,7 +40,8 @@ export function FullSheet<T extends string>({ sheet, progress, onDismiss, childr
   const window = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const top = insets.top + sheetLayout.topGap;
-  const [shown, setShown] = useState<T | null>(sheet);
+  const presence = useRef(initialPresence(sheet));
+  const [, redraw] = useState(0);
   const height = useSharedValue(Math.max(1, window.height - top));
   const offset = useSharedValue(sheet ? 0 : height.value);
   const dragFrom = useSharedValue(0);
@@ -49,23 +51,26 @@ export function FullSheet<T extends string>({ sheet, progress, onDismiss, childr
   const listPulls = useSharedValue(false);
 
   useEffect(() => {
-    if (sheet) {
-      if (!shown) offset.value = height.value;
-      setShown(sheet);
+    const step = presenceTarget(presence.current, sheet);
+    presence.current = step.presence;
+    if (step.motion === "none") return;
+    if (step.motion === "in") {
+      if (step.fromHidden) offset.value = height.value;
       scrollTop.value = 0;
       offset.value = reduceMotion ? withTiming(0, { duration: tabsMotion.sheetReduced, easing: tabsCurve.easeOut }) : withSpring(0, tabsMotion.sheetRise);
       return;
     }
-    if (!shown) return;
-    const hide = () => setShown(null);
+    const generation = step.presence.generation;
+    const settle = (finished: boolean) => {
+      const next = presenceSettled(presence.current, generation, finished);
+      if (next === presence.current) return;
+      presence.current = next;
+      redraw((count) => count + 1);
+    };
     offset.value = reduceMotion
-      ? withTiming(height.value, { duration: tabsMotion.sheetReduced, easing: tabsCurve.easeInOut }, (finished) => {
-          if (finished) runOnJS(hide)();
-        })
-      : withSpring(height.value, tabsMotion.sheetDismiss, (finished) => {
-          if (finished) runOnJS(hide)();
-        });
-    const fallback = setTimeout(hide, HIDE_FALLBACK_MS);
+      ? withTiming(height.value, { duration: tabsMotion.sheetReduced, easing: tabsCurve.easeInOut }, (finished) => runOnJS(settle)(finished === true))
+      : withSpring(height.value, tabsMotion.sheetDismiss, (finished) => runOnJS(settle)(finished === true));
+    const fallback = setTimeout(() => settle(true), HIDE_FALLBACK_MS);
     return () => clearTimeout(fallback);
   }, [sheet]);
 
@@ -128,6 +133,7 @@ export function FullSheet<T extends string>({ sheet, progress, onDismiss, childr
 
   const scrim = useAnimatedStyle(() => ({ opacity: progress.value }));
   const slide = useAnimatedStyle(() => ({ transform: [{ translateY: offset.value }] }));
+  const shown = sheet ?? presenceShown(presence.current);
   if (!shown) return null;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={sheet ? "auto" : "none"}>
