@@ -132,6 +132,18 @@ enum WebKitPageScript {
     },
     true,
   );
+  const mediaFaultSites = \#(WebKitMediaFaults.sitesJSON);
+  if (location.protocol === "https:" && mediaFaultSites.some((site) => location.hostname === site || location.hostname.endsWith("." + site))) {
+    let faultsRelayed = 0;
+    document.addEventListener(
+      "ardia:media-fault",
+      (e) => {
+        if (typeof e.detail !== "string" || e.detail.length > 64 || ++faultsRelayed > 200) return;
+        post("mediaFault", { reason: e.detail });
+      },
+      true,
+    );
+  }
   const knownActions = ["play", "pause", "stop", "seekbackward", "seekforward", "seekto", "previoustrack", "nexttrack", "skipad", "enterpictureinpicture"];
   document.addEventListener(
     "ardia:media-session",
@@ -377,7 +389,35 @@ enum WebKitPageScript {
   const Mouse = MouseEvent;
   const now = Date.now;
   const doc = document;
+  const NativePromise = Promise;
+  const then = Promise.prototype.then;
+  const sites = \#(WebKitMediaFaults.sitesJSON);
+  const watched = location.protocol === "https:" && sites.some((site) => location.hostname === site || location.hostname.endsWith("." + site));
+  const noop = () => {};
+  const reported = Object.create(null);
+  const fault = (reason) => {
+    reported[reason] = (reported[reason] || 0) + 1;
+    if (reported[reason] > 20) return;
+    apply(dispatch, doc, [new Custom("ardia:media-fault", { detail: reason })]);
+  };
+  const observe = (promise, onValue, onError) =>
+    apply(then, promise, [
+      (value) => {
+        try {
+          onValue(value);
+        } catch (e) {}
+        return value;
+      },
+      (error) => {
+        try {
+          onError(error);
+        } catch (e) {}
+        throw error;
+      },
+    ]);
   const handedOver = new WeakSet();
+  const errorsHeard = new WeakSet();
+  const errorEventsCounted = new WeakSet();
   const mediaProto = HTMLMediaElement.prototype;
   const play = mediaProto.play;
   mediaProto.play = function () {
@@ -387,8 +427,15 @@ enum WebKitPageScript {
         apply(dispatch, doc, [new Mouse("ardia:media-element", { relatedTarget: this })]);
       } catch (e) {}
     }
-    return apply(play, this, arguments);
+    if (watched && !errorsHeard.has(this) && !apply(connected, this, [])) {
+      errorsHeard.add(this);
+      apply(listen, this, ["error", reportMediaError]);
+    }
+    const result = apply(play, this, arguments);
+    return watched && result instanceof NativePromise ? observe(result, noop, (error) => fault("play_rejected_" + playRejection(error))) : result;
   };
+
+\#(WebKitMediaFaults.pageScript)
 
   const session = navigator.mediaSession;
   const proto = session && Object.getPrototypeOf(session);
