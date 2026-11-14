@@ -34,6 +34,7 @@ export function BookmarksBarSection() {
             minWidth={160}
           />
         </Row>
+        <SettingToggle anchor="appearance.showUntitledBookmarkUrls" />
       </Group>
     </>
   );

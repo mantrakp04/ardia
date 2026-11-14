@@ -134,6 +134,7 @@ export const SETTING_SPECS = {
   showBookmarks: flag(true, SYNCED),
   bookmarksBar: oneOf(["always", "newTab", "never"], "never", SYNCED),
   bookmarksBarSize: oneOf(["default", "large"], "default", SYNCED),
+  showUntitledBookmarkUrls: flag(true, SYNCED),
   hideBookmarksBarImport: flag(false),
   appearance: oneOf(["auto", "light", "dark"], "auto", SYNCED),
   addressBar: oneOf(["toolbar", "sidebar"], "toolbar", SYNCED),

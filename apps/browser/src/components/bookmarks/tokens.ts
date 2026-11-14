@@ -10,6 +10,7 @@ export const folderPicker = { height: 180, row: 24 } as const;
 export const bookmarkDialog = { belowField: space.xs, belowToolbar: space.xxs, rightInset: space.ml } as const;
 
 export const bookmarksBar = {
+  iconOnlyGap: 16,
   overflowWidth: 28,
   dividerHeight: 14,
   dropLine: 2,

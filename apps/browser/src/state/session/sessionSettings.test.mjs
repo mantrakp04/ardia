@@ -32,6 +32,7 @@ for (const version of [3, 4, 7]) {
       stub.docs.set("session.json", JSON.stringify(doc(version, structuredClone(settings))));
       S().hydrate(loadSession());
       assert.deepEqual(loaded(), BEFORE[name]);
+      assert.equal(S().settings.showUntitledBookmarkUrls, true);
       assert.equal("chosen" in S().settings || "inferred" in S().settings, false);
     });
   }

@@ -73,6 +73,12 @@ export const appearanceRows = {
           keywords: ["bookmarks bar", "favorites bar", "favourites bar", "toolbar", "hide bookmarks", "show bookmarks"],
           shown: (s) => s.showBookmarks,
         },
+        showUntitledBookmarkUrls: {
+          title: "Show URLs for unnamed bookmarks",
+          description: "When off, bookmarks without a name show only their icon on the bookmarks bar.",
+          keywords: ["bookmarks bar", "untitled", "favicon", "icon only", "favicon only", "empty title", "no name", "no title", "address", "hide URL"],
+          shown: (s) => s.showBookmarks,
+        },
         bookmarksBarSize: {
           title: "Size",
           description: "Large makes the bar, its icons and its text bigger, and its folder menus roomier.",
