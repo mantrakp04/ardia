@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View } from "react-native";
+import { findNodeHandle, View, type TextInput } from "react-native";
 import { useTab, useWindow } from "../../state/browser/hooks";
 import { useProfileHistory } from "../../state/history/hooks";
 import { removeHistory } from "../../state/history/actions";
 import type { HistoryEntry } from "../../state/browser/types";
 import { requestClearData, useClearDataRequest } from "../../state/profiles/clearDataRequest";
+import { takeHistorySearchFocusRequest, useHistorySearchFocusRequest } from "../../state/history/showHistory";
+import { claimFocusTag, historySearchFocus } from "../../state/focus/focusClaims";
 import { Button, EmptyState, Text } from "../ui";
 import { ClearDataDialog } from "./ClearDataDialog";
 import { layoutHistory } from "./historyLayout";
@@ -29,6 +31,16 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
       requestClearData(null);
     }
   }, [clearRequest, activeHere]);
+
+  const search = useRef<TextInput>(null);
+  const searchFocusRequested = useHistorySearchFocusRequest((r) => r.tabId === tabId);
+  useEffect(() => {
+    if (!searchFocusRequested || !activeHere || !windowId) return;
+    takeHistorySearchFocusRequest();
+    search.current?.focus();
+    search.current?.setSelection(0, query.length);
+    claimFocusTag(windowId, historySearchFocus(tabId), () => findNodeHandle(search.current));
+  }, [searchFocusRequested, activeHere, windowId]);
 
   useEffect(() => setQuery(initialQuery), [initialQuery]);
 
@@ -85,7 +97,7 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
 
   return (
     <View style={{ flex: 1 }}>
-      <PageHeader title="History" query={query} onQuery={setQuery} actions={actions} />
+      <PageHeader title="History" query={query} onQuery={setQuery} actions={actions} searchRef={search} />
       {layout.rows.length === 0 ? (
         <EmptyState
           symbol="clock"

@@ -213,6 +213,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
   useSwipeDevHandle(tabId, area);
 
   const back = shown?.direction !== "forward";
+  const icon = back && history.backCloses ? "xmark" : back ? "chevron.left" : "chevron.right";
   const iconOpacity = Animated.multiply(v.confirm.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }), v.list.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }));
 
   return (
@@ -251,7 +252,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
               {!theme.dark && <Animated.View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: SWIPE_CONFIRMED_WASH, opacity: v.confirm }} />}
               <Animated.View style={{ ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", opacity: iconOpacity }}>
                 <Animated.View style={{ transform: [{ scale: v.icon }] }}>
-                  <Symbol name={back ? "chevron.left" : "chevron.right"} size={ICON} weight="bold" color={colors.swipeChevron} style={{ width: ICON + 6, height: ICON + 6 }} />
+                  <Symbol name={icon} size={ICON} weight="bold" color={colors.swipeChevron} style={{ width: ICON + 6, height: ICON + 6 }} />
                 </Animated.View>
               </Animated.View>
               {shown.list && <DestinationList tabId={tabId} items={shown.list} selected={shown.selected} appear={v.list} pill={v.pill} />}

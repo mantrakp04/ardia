@@ -1,8 +1,8 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ComponentType } from "react";
 import { useAppDark } from "./appearance";
 import { noteFirstWindow } from "../missing";
 
-export type AnyProps = Record<string, unknown> & { children?: ReactNode };
+export type ViewByName = ComponentType<never>;
 
 export const finite = (value: unknown, fallback: number): number => (typeof value === "number" && Number.isFinite(value) ? value : fallback);
 

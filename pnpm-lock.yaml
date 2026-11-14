@@ -189,6 +189,9 @@ importers:
       '@ardia/import':
         specifier: workspace:*
         version: link:../import
+      '@ardia/shaders':
+        specifier: workspace:*
+        version: link:../shaders
       '@ardia/shell':
         specifier: workspace:*
         version: link:../shell

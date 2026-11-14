@@ -316,7 +316,7 @@ async def laid_out(page):
         vp = await viewport(page)
         if vp["width"] >= 1 and vp["height"] >= 1:
             return
-    if "emulation" not in page.state.leases:
+    if not {"emulation", "offscreen"} & page.state.leases:
         try:
             await page.send("Emulation.setDeviceMetricsOverride", {**SANE_VIEWPORT, "deviceScaleFactor": 0, "mobile": False})
         except (Gated, CdpError):

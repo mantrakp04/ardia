@@ -1,10 +1,9 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode, type Ref } from "react";
-import type { LayoutChangeEvent, NativeMethods } from "react-native";
+import type { LayoutChangeEvent, NativeMethods, ViewProps } from "react-native";
 import { followMotion } from "../animation/motion";
 import { setCover } from "./covers";
 import { engineAvailable } from "./host";
 import { WindowIdContext } from "./windowId";
-
 
 export const CoverAncestry = createContext<readonly string[]>([]);
 
@@ -13,14 +12,14 @@ let covers = 0;
 
 function assign<Node>(target: Ref<Node> | undefined, node: Node | null) {
   if (typeof target === "function") target(node);
-  else if (target) (target as { current: Node | null }).current = node;
+  else if (target) target.current = node;
 }
 
-export function usePageCover<Node>(forwarded: Ref<Node> | undefined, onLayout: unknown, radius = 0) {
+export function usePageCover<Node extends Pick<NativeMethods, "measureInWindow">>(forwarded: Ref<Node> | undefined, onLayout: ViewProps["onLayout"], radius = 0) {
   const windowId = useContext(WindowIdContext);
   const above = useContext(CoverAncestry);
   const id = useRef(`cover-${++covers}`).current;
-  const node = useRef<Pick<NativeMethods, "measureInWindow"> | null>(null);
+  const node = useRef<Node | null>(null);
   const live = engineAvailable();
   const ancestry = useMemo(() => [...above, id], [above, id]);
 
@@ -33,7 +32,7 @@ export function usePageCover<Node>(forwarded: Ref<Node> | undefined, onLayout: u
 
   const ref = useCallback(
     (value: Node | null) => {
-      node.current = value as unknown as Pick<NativeMethods, "measureInWindow"> | null;
+      node.current = value;
       assign(forwarded, value);
     },
     [forwarded],
@@ -53,7 +52,7 @@ export function usePageCover<Node>(forwarded: Ref<Node> | undefined, onLayout: u
   const layout = useCallback(
     (event: LayoutChangeEvent) => {
       measure();
-      if (typeof onLayout === "function") (onLayout as (event: LayoutChangeEvent) => void)(event);
+      onLayout?.(event);
     },
     [measure, onLayout],
   );

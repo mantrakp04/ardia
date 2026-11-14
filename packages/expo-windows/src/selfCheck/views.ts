@@ -1,7 +1,8 @@
-import { createElement, isValidElement, type ComponentType } from "react";
+import { createElement, isValidElement } from "react";
 import { renderOnStage } from "./stage";
 import { flatStops, mixOklab, parseColor, sampleStops } from "../views/color";
 import { viewsDrawnInJs } from "../views/index";
+import { viewNamed } from "../views/registry";
 import { expectEqual, expectTrue, type Check } from "./check";
 
 const EXPECTED = [
@@ -49,7 +50,7 @@ export const checks: Check[] = [
       for (const [name, component] of viewsDrawnInJs) {
         expectTrue(isComponent(component), `${name} is not a component`);
         for (const props of [{}, MINIMAL_PROPS[name] ?? {}, { style: { flex: 1 }, children: null, testID: name }]) {
-          const element = createElement(component as ComponentType<Record<string, unknown>>, props);
+          const element = createElement(viewNamed<Record<string, unknown>>(name), props);
           expectTrue(isValidElement(element), `${name} made no element`);
         }
       }
@@ -58,8 +59,8 @@ export const checks: Check[] = [
   {
     name: "views drawn in JS render in a window without throwing",
     async run() {
-      for (const [name, component] of viewsDrawnInJs) {
-        await renderOnStage(createElement(component as ComponentType<Record<string, unknown>>, MINIMAL_PROPS[name] ?? {}), name);
+      for (const name of viewsDrawnInJs.keys()) {
+        await renderOnStage(createElement(viewNamed<Record<string, unknown>>(name), MINIMAL_PROPS[name] ?? {}), name);
       }
     },
   },

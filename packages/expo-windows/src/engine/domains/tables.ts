@@ -11,6 +11,7 @@ import { faviconCalls } from "./favicons";
 import { passwordCalls, savePassword, updatePassword } from "./passwords";
 import { profileCalls } from "./profiles";
 import { siteCalls } from "./sites";
+import { externalAppCalls } from "./externalApps";
 import { webViewCalls } from "./webView";
 
 export type Rows = {
@@ -30,6 +31,7 @@ export const reproduced: Record<string, Handlers> = {
   extensions: { ...extensionCalls, ...unpackedCalls },
   favicons: faviconCalls,
   passwords: { ...passwordCalls, export: exportPasswords },
+  permissions: externalAppCalls,
   profiles: profileCalls,
   search: searchCalls,
   sites: siteCalls,
