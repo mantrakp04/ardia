@@ -20,7 +20,7 @@ import { switcherSwitchProperties } from "./switcherPresses";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
-import { takeAutoHideTabsChoices } from "./autoHideTabsChoices";
+import { takeAutoHideTabsChoices, takeTornOffWindowsKeptAutoHide } from "./autoHideTabsChoices";
 import { takeTabSwitcherOpensInWebKit } from "./tabSwitcherOpens";
 import { takeTabSleepCounts } from "./tabSleepCounts";
 import { noteAutoPictureInPictureNothingPlaying, takePictureInPictureCounts } from "./pictureInPictureCounts";
@@ -46,10 +46,10 @@ const NO_COUNTS = { tabs: 0, windows: 0, fullScreens: 0, sidebarPeeks: 0, sideba
 let counts = { ...NO_COUNTS }, countsSince = Date.now();
 
 function emitCounts() {
-  const snapshots = takeSnapshotWrites(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit(), stuckDrags = takeStuckDragCounts(), urlCopies = takeUrlCopyCounts(), tabSleeps = takeTabSleepCounts(), syncCodes = takeSyncCodeCounts(), escapeCloses = takeLittleArdiaEscapeCloses(), liveCompletedTabsClosed = takeLiveCompletedTabsClosed(), liveHides = takeLiveHideCounts(), tidyTabs = takeTidyTabsCounts(), webKitFaults = takeWebKitMediaFaultCounts(), airTraffic = takeAirTrafficCounts();
+  const snapshots = takeSnapshotWrites(), tornOffKept = takeTornOffWindowsKeptAutoHide(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit(), stuckDrags = takeStuckDragCounts(), urlCopies = takeUrlCopyCounts(), tabSleeps = takeTabSleepCounts(), syncCodes = takeSyncCodeCounts(), escapeCloses = takeLittleArdiaEscapeCloses(), liveCompletedTabsClosed = takeLiveCompletedTabsClosed(), liveHides = takeLiveHideCounts(), tidyTabs = takeTidyTabsCounts(), webKitFaults = takeWebKitMediaFaultCounts(), airTraffic = takeAirTrafficCounts();
   const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab } = takePictureInPictureCounts();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || Object.values(tabSleeps).some(Boolean) || Object.values(syncCodes).some(Boolean) || Object.values(stuckDrags).some(Boolean) || Object.values(escapeCloses).some(Boolean) || Object.values(liveHides).some(Boolean) || Object.values(tidyTabs).some(Boolean) || Object.keys(webKitFaults).length || Object.values(airTraffic).some(Boolean) || urlCopies.url_copies || liveCompletedTabsClosed || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
+  if (Object.values(counts).some(Boolean) || tornOffKept > 0 || Object.values(tabSleeps).some(Boolean) || Object.values(syncCodes).some(Boolean) || Object.values(stuckDrags).some(Boolean) || Object.values(escapeCloses).some(Boolean) || Object.values(liveHides).some(Boolean) || Object.values(tidyTabs).some(Boolean) || Object.keys(webKitFaults).length || Object.values(airTraffic).some(Boolean) || urlCopies.url_copies || liveCompletedTabsClosed || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -72,7 +72,7 @@ function emitCounts() {
       peek_pinch_opens: counts.peekPinchOpens, peek_pinch_closes: counts.peekPinchCloses,
       little_ardia_pinch_opens: counts.littleArdiaPinchOpens, little_ardia_pinch_closes: counts.littleArdiaPinchCloses, ...escapeCloses, little_ardia_swipe_closes: counts.littleArdiaSwipeCloses, little_ardia_swipe_close_cancels: counts.littleArdiaSwipeCloseCancels, external_links_tab_setting_off: counts.externalLinksTabSettingOff, external_links_tab_setting_on: counts.externalLinksTabSettingOn, external_links_little_setting_on: counts.externalLinksLittleSettingOn, external_links_little_setting_off: counts.externalLinksLittleSettingOff,
       auto_hide_tabs_toggles: counts.autoHideTabsToggles,
-      windows_realigned_to_auto_hide_tabs: counts.windowsRealignedToAutoHideTabs,
+      windows_realigned_to_auto_hide_tabs: counts.windowsRealignedToAutoHideTabs, torn_off_windows_kept_auto_hide: tornOffKept,
       tab_strip_peeks: counts.tabStripPeeks,
       tab_peeks_with_auto_hide_off: counts.tabPeeksWithAutoHideOff,
       imported_pinned_rows: counts.importedPinnedRows,
