@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "ardia/win/main.h"
+#include "ardia/win/page_links.h"
 #include "ardia/win/private_sessions.h"
 #include "ardia/win/profiles.h"
 #include "ardia/win/tab_calls.h"
@@ -21,6 +22,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -46,6 +48,7 @@
 #include "ui/base/window_open_disposition.h"
 #include "ui/events/event.h"
 #include "ui/events/types/event_type.h"
+#include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
 
@@ -55,6 +58,8 @@ namespace {
 
 constexpr int kParkedAt = -32000;
 constexpr char kOfferedPrefix[] = "ardiacore:";
+constexpr int kOpenRequestTries = 20;
+constexpr base::TimeDelta kOpenRequestWait = base::Milliseconds(25);
 constexpr UINT_PTR kParentSubclass = 0xA2D1A;
 
 base::DictValue Ok() {
@@ -237,6 +242,14 @@ void Host::Call(const std::string& verb,
     result = ListTabs();
   } else if (verb == "host.info") {
     result = Info();
+  } else if (verb == "peek.config") {
+    PageLinks::Configure(args);
+    result = PageLinks::Config();
+  } else if (verb == "tab.links") {
+    content::WebContents* contents = Find(Text(args, "key"));
+    PageLinks* links = contents ? PageLinks::FromWebContents(contents) : nullptr;
+    result = Ok();
+    result.Set("scriptFrames", links ? links->ScriptFrames() : 0);
   } else if (verb == "profile.release") {
     PrivateSessions::Get()->Release(Text(args, "profile"));
     result = Ok();
@@ -889,23 +902,40 @@ void Host::WatchParent(HWND parent) {
   ::SetWindowSubclass(parent, &ParentProcedure, kParentSubclass, 0);
 }
 
-void Host::FocusFor(ui::Event* event) {
+std::string Host::PageKeyFor(ui::Event* event) const {
   aura::Window* target = static_cast<aura::Window*>(event->target());
   if (!target || !target->GetHost()) {
-    return;
+    return std::string();
   }
   HWND window = target->GetHost()->GetAcceleratedWidget();
   if (!window) {
-    return;
+    return std::string();
   }
   for (const auto& entry : hosted_) {
-    if (entry.second.shown.empty() || WindowOf(entry.first) != window) {
-      continue;
+    if (!entry.second.shown.empty() && WindowOf(entry.first) == window) {
+      return entry.second.shown;
     }
-    if (content::WebContents* contents = Find(entry.second.shown)) {
-      if (TabState* state = TabState::FromWebContents(contents)) {
-        state->Send("pagePress", base::DictValue());
-      }
+  }
+  return std::string();
+}
+
+bool Host::Shows(const std::string& key) const {
+  for (const auto& entry : hosted_) {
+    if (entry.second.shown == key) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void Host::FocusFor(ui::Event* event) {
+  const std::string key = PageKeyFor(event);
+  if (key.empty()) {
+    return;
+  }
+  if (content::WebContents* contents = Find(key)) {
+    if (TabState* state = TabState::FromWebContents(contents)) {
+      state->Send("pagePress", base::DictValue());
     }
   }
 }
@@ -942,6 +972,49 @@ void Host::NoteOpened(Browser* browser,
     parent = found->second.parent;
   }
   payload.Set("parent", base::NumberToString(reinterpret_cast<uintptr_t>(parent)));
+  payload.Set("fromClick", false);
+  if (!foreground || foreign || opener_key.empty() ||
+      !OpenRequest::FromWebContents(contents)) {
+    Emit("tab.opened", std::move(payload));
+    return;
+  }
+  EmitOpened(std::move(payload), contents->GetWeakPtr(), opener_key, 0);
+}
+
+void Host::EmitOpened(base::DictValue payload,
+                      base::WeakPtr<content::WebContents> contents,
+                      std::string opener_key,
+                      int tries) {
+  if (!contents) {
+    return;
+  }
+  OpenRequest* request = OpenRequest::FromWebContents(contents.get());
+  content::WebContents* opener = Find(opener_key);
+  PageLinks* links = opener ? PageLinks::FromWebContents(opener) : nullptr;
+  const bool linked = request && request->clicked() && links &&
+                      links->TakeNewTabLink(
+                          {request->url(), contents->GetVisibleURL()});
+  if (request && !linked && tries < kOpenRequestTries &&
+      (!request->started() || request->clicked())) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(&Host::EmitOpened, weak_factory_.GetWeakPtr(),
+                       std::move(payload), contents, std::move(opener_key),
+                       tries + 1),
+        kOpenRequestWait);
+    return;
+  }
+  if (linked) {
+    payload.Set("fromClick", true);
+    payload.Set("url", request->url().spec());
+    if (std::optional<gfx::PointF> point =
+            PageLinks::RecentClickPoint(opener_key)) {
+      base::DictValue at;
+      at.Set("x", point->x());
+      at.Set("y", point->y());
+      payload.Set("point", std::move(at));
+    }
+  }
   Emit("tab.opened", std::move(payload));
 }
 
@@ -1028,6 +1101,10 @@ void Host::OnBrowserClosed(BrowserWindowInterface* browser) {
 void Host::OnMouseEvent(ui::MouseEvent* event) {
   if (event->type() == ui::EventType::kMousePressed) {
     FocusFor(event);
+  }
+  if (event->type() == ui::EventType::kMousePressed ||
+      event->type() == ui::EventType::kMouseReleased) {
+    PageLinks::NoteMouse(*event, PageKeyFor(event));
   }
 }
 

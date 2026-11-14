@@ -5,14 +5,14 @@ import type { AppWindowsModule } from "../nativeModuleTypes";
 import { followMotion } from "../animation/motion";
 import { noteMissing } from "../missing";
 import { requireNativeModule } from "../modules";
-import { coversIn, hiddenByFullScreen, onCoversChange, pageRadiusIn, setFullScreenPage } from "./covers";
+import { coversIn, hiddenByFullScreen, holesFor, onCoversChange, pageRadiusIn, setFullScreenPage } from "./covers";
 import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./pages";
 import { CoverAncestry } from "./usePageCover";
 import { WindowIdContext } from "./windowId";
 
 type PageEventsOnWindows = { onPageEvent?: (event: Pick<NativeSyntheticEvent<PageEvent>, "nativeEvent">) => void };
 
-type Props = Pick<NativeProps, "url" | "profile" | "adoptId" | "tabId" | "visible" | "style"> & Partial<Pick<NativeProps, "pageEvents">> & PageEventsOnWindows;
+type Props = Pick<NativeProps, "url" | "profile" | "adoptId" | "tabId" | "visible" | "style"> & Partial<Pick<NativeProps, "temporary">> & Partial<Pick<NativeProps, "pageEvents">> & PageEventsOnWindows;
 
 
 const ARGUMENTS: Record<string, string[]> = {
@@ -86,8 +86,6 @@ const setWindowFullScreen = (windowId: string, on: boolean) =>
 
 let unnamed = 0;
 
-const overlaps = (a: PageRect, b: PageRect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
-
 export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(props, ref) {
   const windowId = useContext(WindowIdContext);
   const above = useRef(useContext(CoverAncestry));
@@ -117,9 +115,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         : {
             ...page,
             radius: pageRadiusIn(windowId),
-            holes: coversIn(windowId, above.current)
-              .filter((cover) => overlaps(cover, page))
-              .map((hole) => [hole.x, hole.y, hole.width, hole.height, hole.radius]),
+            holes: holesFor(page, coversIn(windowId, above.current), latest.current.temporary === true),
           };
       const placed = JSON.stringify(shape);
       if (shown.current.visible && shown.current.placed === placed) return;
