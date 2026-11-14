@@ -38,5 +38,6 @@ export function useSendTargets(tabId: string) {
 export function useIsPinned(tabId: string) {
   const tab = useTab(tabId);
   const profile = useSelectedProfile();
-  return Boolean(tab && profile && isPinnedOnMac(profile, tab.url));
+  const onTheirWay = useSync((s) => s.pinsOnTheirWay);
+  return Boolean(tab && profile && isPinnedOnMac(profile, tab.url, onTheirWay));
 }

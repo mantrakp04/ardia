@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { NOW, status, view } from "../../../test/syncFixture.ts";
-import { idleMacTabs, isPinnedOnMac, macTabIndex, mergeSyncedHistory, spaceRows, syncedBookmarks } from "./spaces.ts";
+import { idleMacTabs, isPinnedOnMac, macTabIndex, pinKey, pinsStillOnTheirWay, mergeSyncedHistory, spaceRows, syncedBookmarks } from "./spaces.ts";
 import {
   connectMessage,
   deviceIcon,
@@ -142,13 +142,18 @@ test("a device with many tabs shows eight and Show All until expanded", () => {
   assert.deepEqual(empty, [{ kind: "empty", key: "empty", name: "Personal" }]);
 });
 
-test("a page counts as pinned when any tile, folder or pinned tab lands on it", () => {
+test("a page counts as pinned when the profile's bookmarks hold it, or a pin from this phone is on its way", () => {
   const work = view().profiles[1]!;
-  assert.equal(isPinnedOnMac(work, "https://github.com/ardia/"), false);
-  assert.equal(isPinnedOnMac(work, "http://www.github.com/ardia/"), true);
-  assert.equal(isPinnedOnMac(work, "https://docs.example/spec"), true);
-  assert.equal(isPinnedOnMac(work, "https://plan.example"), true);
-  assert.equal(isPinnedOnMac(null, "https://plan.example"), false);
+  assert.equal(isPinnedOnMac(work, "https://essay.example"), true);
+  assert.equal(isPinnedOnMac(work, "http://essay.example/"), true);
+  assert.equal(isPinnedOnMac(work, "https://mail.example/"), false);
+  assert.equal(isPinnedOnMac(null, "https://essay.example/"), false);
+  const sent = [pinKey("work", "https://new.example/a")];
+  assert.equal(isPinnedOnMac(work, "https://new.example/a/", sent), true);
+  assert.equal(isPinnedOnMac(view().profiles[0]!, "https://new.example/a", sent), false);
+  assert.deepEqual(pinsStillOnTheirWay(sent, view().profiles), sent);
+  const arrived = { ...work, bookmarks: [...work.bookmarks, { key: "b9", title: "A", url: "https://new.example/a", added: 3, root: null, children: null }] };
+  assert.deepEqual(pinsStillOnTheirWay(sent, [arrived]), []);
 });
 
 test("the omnibox gets the Mac's history, bookmarks and open tabs for the selected profile", () => {

@@ -67,26 +67,26 @@ export function spaceRows(profile: SyncedProfile, openGroups: ReadonlySet<string
   return rows;
 }
 
-function pinnedUrls(profile: SyncedProfile): string[] {
-  const urls: string[] = [];
-  for (const tile of profile.pinned.tiles) {
-    urls.push(tile.url);
-    for (const tab of tile.folder ?? []) urls.push(tab.url);
+function bookmarkUrls(items: readonly BookmarkItem[], out: string[] = []): string[] {
+  for (const item of items) {
+    if (item.url) out.push(item.url);
+    if (item.children) bookmarkUrls(item.children, out);
   }
-  const walk = (sections: readonly PinnedSection[]) => {
-    for (const section of sections) {
-      if (section.tab) urls.push(section.tab.url);
-      if (section.group) walk(section.group.items);
-    }
-  };
-  walk(profile.pinned.sections);
-  return urls;
+  return out;
 }
 
-export function isPinnedOnMac(profile: SyncedProfile | null, url: string): boolean {
+export const pinKey = (profileSyncId: string | null, url: string) => `${profileSyncId ?? ""}|${landingKey(url)}`;
+
+export function isPinnedOnMac(profile: SyncedProfile | null, url: string, onTheirWay: readonly string[] = []): boolean {
   if (!profile) return false;
+  if (onTheirWay.includes(pinKey(profile.syncId, url))) return true;
   const key = landingKey(url);
-  return pinnedUrls(profile).some((pinned) => landingKey(pinned) === key);
+  return bookmarkUrls(profile.bookmarks).some((bookmark) => landingKey(bookmark) === key);
+}
+
+export function pinsStillOnTheirWay(onTheirWay: readonly string[], profiles: readonly SyncedProfile[]): string[] {
+  const arrived = new Set(profiles.flatMap((profile) => bookmarkUrls(profile.bookmarks).map((url) => pinKey(profile.syncId, url))));
+  return onTheirWay.filter((key) => !arrived.has(key));
 }
 
 export type HistoryRowLike = { url: string; title: string; favicon: string | null; visits: number; lastVisit: number };

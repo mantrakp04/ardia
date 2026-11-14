@@ -4,7 +4,11 @@ import { sync, type SyncedView, type SyncEvent, type SyncStatus } from "../../pl
 export type { PinnedTile, SyncedProfile } from "../../platform/sync";
 import { settled } from "../pages/store";
 import { setTabProfile } from "../tabs/store";
+import { pinKey, pinsStillOnTheirWay } from "./spaces";
 import { shownProfile } from "./syncRules";
+
+export const notePinSent = (profileSyncId: string | null, url: string) =>
+  useSync.setState((state) => ({ pinsOnTheirWay: [...state.pinsOnTheirWay, pinKey(profileSyncId, url)] }));
 
 export const OFF_STATUS: SyncStatus = {
   phase: "off",
@@ -25,9 +29,9 @@ export const OFF_STATUS: SyncStatus = {
 
 export const EMPTY_VIEW: SyncedView = { devices: [], profiles: [], search: null, syncedAt: null, selectedProfileId: null, receivers: [] };
 
-type SyncData = { available: boolean; status: SyncStatus; view: SyncedView; revision: number };
+type SyncData = { available: boolean; status: SyncStatus; view: SyncedView; revision: number; pinsOnTheirWay: string[] };
 
-export const useSync = create<SyncData>()(() => ({ available: false, status: OFF_STATUS, view: EMPTY_VIEW, revision: 0 }));
+export const useSync = create<SyncData>()(() => ({ available: false, status: OFF_STATUS, view: EMPTY_VIEW, revision: 0, pinsOnTheirWay: [] }));
 
 export const syncData = () => useSync.getState();
 
@@ -54,7 +58,7 @@ function publish(patch: Partial<SyncData>) {
 
 function onEvent(event: SyncEvent) {
   if (event.name === "sync.status") publish({ status: event.status });
-  else if (event.name === "sync.view") publish({ view: event.view });
+  else if (event.name === "sync.view") publish({ view: event.view, pinsOnTheirWay: pinsStillOnTheirWay(syncData().pinsOnTheirWay, event.view.profiles) });
   else if (event.name === "sync.inbox" && event.count > 0) for (const listener of inboxListeners) listener();
 }
 

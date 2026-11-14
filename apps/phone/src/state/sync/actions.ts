@@ -13,7 +13,7 @@ import { isSyncableUrl, type BrowserTab } from "../tabs/tabModels";
 import { findTab } from "../tabs/tabsState";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 import { isPinnedOnMac } from "./spaces";
-import { noteLocalChange, selectedProfile, selectedProfileId, startSyncSources, syncData, useSync } from "./store";
+import { noteLocalChange, notePinSent, selectedProfile, selectedProfileId, startSyncSources, syncData, useSync } from "./store";
 import {
   CONNECTED_TOAST,
   COULD_NOT_PIN_TOAST,
@@ -149,7 +149,7 @@ export async function sendTab(tab: BrowserTab, device: SyncedDevice) {
   showToast(sent ? sentToast(device.name) : couldNotSendToast(device.name), sent ? "sent" : "warning");
 }
 
-export const isTabPinned = (tab: BrowserTab | null) => Boolean(tab && syncData().status.isEnabled && isPinnedOnMac(selectedProfile(), tab.url));
+export const isTabPinned = (tab: BrowserTab | null) => Boolean(tab && syncData().status.isEnabled && isPinnedOnMac(selectedProfile(), tab.url, syncData().pinsOnTheirWay));
 
 export async function pinToMac(tab: BrowserTab, onSetup: () => void) {
   if (tab.isPrivate || !isSyncableUrl(tab.url)) return;
@@ -162,6 +162,7 @@ export async function pinToMac(tab: BrowserTab, onSetup: () => void) {
     return;
   }
   const pinned = await settled(() => sync.pinToMac({ url: tab.url, title: tab.title, profileSyncId: tab.profileSyncId }), false);
+  if (pinned) notePinSent(tab.profileSyncId ?? selectedProfileId(), tab.url);
   showToast(pinned ? PINNED_TOAST : COULD_NOT_PIN_TOAST, pinned ? "star" : "warning");
 }
 
