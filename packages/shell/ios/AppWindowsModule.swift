@@ -28,6 +28,10 @@ public class AppWindowsModule: Module {
     }
 
     Function("windowCornerRadius") { () -> Double in Double(ArdiaChromeWindowHost.windowCornerRadius) }
+    AsyncFunction("frameCornerRadius") { (id: String) -> Double in
+      guard let window = WindowManager.shared.window(id) else { return 0 }
+      return Double(ArdiaChromeWindowHost.frameCornerRadius(of: window))
+    }.runOnQueue(.main)
 
     AsyncFunction("openWindow") { (id: String, options: OpenWindowOptions) in
       WindowManager.shared.open(id: id, options, focus: options.focus)
