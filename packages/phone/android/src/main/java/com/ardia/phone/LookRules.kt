@@ -3,6 +3,7 @@ package com.ardia.phone
 import com.ardia.design.DeckBackdropStyle
 import com.ardia.design.FrostedStyle
 import com.ardia.design.LookFrosting
+import com.ardia.design.ProfileBackdropStyle
 import com.ardia.design.ProfileLook
 import com.ardia.design.TabsBackdropMotion
 import kotlin.math.cos
@@ -30,9 +31,16 @@ object LookRules {
         return (pivotX + dx * cos(angle) - dy * sin(angle)) to (pivotY + dx * sin(angle) + dy * cos(angle))
     }
 
+    const val INCOGNITO = "incognito"
+
     fun look(color: String?, themeColors: List<String>?, darkThemeColors: List<String>?): ProfileLook =
-        ProfileLook.of(color, themeColors.orEmpty(), darkThemeColors)
+        if (color == INCOGNITO) ProfileLook.incognito else ProfileLook.of(color, themeColors.orEmpty(), darkThemeColors)
 
     fun lookOrNull(color: String?, themeColors: List<String>?, darkThemeColors: List<String>?): ProfileLook? =
         if (color == null && themeColors.isNullOrEmpty() && darkThemeColors.isNullOrEmpty()) null else look(color, themeColors, darkThemeColors)
+
+    fun dark(requested: Boolean?, system: Boolean, look: ProfileLook?): Boolean = (requested ?: system) || look?.isAlwaysDark == true
+
+    fun fadeMask(): Pair<FloatArray, FloatArray> =
+        ProfileBackdropStyle.fadeStops.map { it.first }.toFloatArray() to ProfileBackdropStyle.fadeStops.map { it.second }.toFloatArray()
 }

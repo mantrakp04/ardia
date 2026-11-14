@@ -45,4 +45,20 @@ class LookRulesTest {
         assertEquals(ProfileLook.of("green", listOf("#4F7CFF", "#9B6BFF"), null), LookRules.look("green", listOf("#4F7CFF", "#9B6BFF"), null))
         assertNull(LookRules.lookOrNull(null, null, null))
     }
+
+    @Test
+    fun theIncognitoLookIsTheComposeOneAndAlwaysDrawsDark() {
+        assertEquals(ProfileLook.incognito, LookRules.look("incognito", null, null))
+        assertEquals(ProfileLook.incognito, LookRules.lookOrNull("incognito", listOf("#4F7CFF"), null))
+        assertEquals(true, LookRules.dark(requested = false, system = false, look = ProfileLook.incognito))
+        assertEquals(false, LookRules.dark(requested = false, system = true, look = ProfileLook.of("blue")))
+        assertEquals(true, LookRules.dark(requested = null, system = true, look = ProfileLook.of("blue")))
+    }
+
+    @Test
+    fun theFadeIsOnboardingsMaskOpaqueAtTheTopAndGoneAtEightyPercent() {
+        val (positions, alphas) = LookRules.fadeMask()
+        assertEquals(listOf(0f, 0.45f, 0.8f), positions.toList())
+        assertEquals(listOf(1f, 0.6f, 0f), alphas.toList())
+    }
 }

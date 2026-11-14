@@ -7,6 +7,19 @@ class LookModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("ArdiaPhoneLook")
 
+        Function("setPageFrost") { mode: String ->
+            check(PhoneLab.isOn) { "the page frost mode is a lab switch" }
+            FrostSources.pageMode = FrostSources.PageMode.entries.firstOrNull { it.raw == mode } ?: FrostSources.PageMode.Live
+            FrostSources.frosts().forEach { it.invalidate() }
+            FrostSources.pageMode.raw
+        }
+
+        Function("probeFrosts") {
+            check(PhoneLab.isOn) { "the frost probe is a lab tool" }
+            appContext.currentActivity?.let(FrostProbe::probe)
+            Unit
+        }
+
         View(DeckBackdropView::class) {
             Name("DeckBackdrop")
             Prop("color") { view: DeckBackdropView, value: String? -> view.color = value }
@@ -26,6 +39,7 @@ class LookModule : Module() {
             Prop("dark") { view: ProfileBackdropView, value: Boolean? -> view.dark = value }
             Prop("themed") { view: ProfileBackdropView, value: Boolean? -> view.themed = value == true }
             Prop("softened") { view: ProfileBackdropView, value: Boolean? -> view.softened = value == true }
+            Prop("fadesOut") { view: ProfileBackdropView, value: Boolean? -> view.fadesOut = value == true }
             OnViewDidUpdateProps { view -> view.update() }
         }
 

@@ -1,4 +1,4 @@
-import { DeckBackdrop, FilmGrain, Frost, FrostSource, lookIsNative, ProfileBackdrop, type FrostVariant } from "@ardia/phone-native";
+import { DeckBackdrop, FilmGrain, Frost, FrostSource, INCOGNITO_LOOK, lookIsNative, lookLab, PageView, ProfileBackdrop, type FrostVariant } from "@ardia/phone-native";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -6,7 +6,10 @@ const LOOKS = [
   { color: "plum", themeColors: [] as string[] },
   { color: "green", themeColors: ["#4F7CFF", "#9B6BFF"] },
   { color: "orange", themeColors: [] as string[] },
+  { color: INCOGNITO_LOOK, themeColors: [] as string[] },
 ];
+
+const PAGE_URL = "https://en.wikipedia.org/wiki/Hippopotamus";
 
 const VARIANTS: FrostVariant[] = ["bar", "sheet", "glass", "thin"];
 
@@ -23,6 +26,8 @@ export function LookLab() {
   const [dark, setDark] = useState(false);
   const [still, setStill] = useState(false);
   const [variant, setVariant] = useState(0);
+  const [pageFrost, setPageFrost] = useState<"live" | "solid">("live");
+  const [faded, setFaded] = useState(false);
   const look = LOOKS[lookIndex]!;
   return (
     <View style={styles.panel}>
@@ -32,6 +37,13 @@ export function LookLab() {
         <Button label={dark ? "Dark" : "Light"} onPress={() => setDark((on) => !on)} />
         <Button label={still ? "Reduce motion" : "Moving"} onPress={() => setStill((on) => !on)} />
         <Button label={`Frost ${VARIANTS[variant]}`} onPress={() => setVariant((index) => (index + 1) % VARIANTS.length)} />
+        <Button label={faded ? "Fades out" : "No fade"} onPress={() => setFaded((on) => !on)} />
+        <Button label={`Page frost ${pageFrost}`} onPress={() => {
+          const next = pageFrost === "live" ? "solid" : "live";
+          lookLab.setPageFrost(next);
+          setPageFrost(next);
+        }} />
+        <Button label="Probe frost" onPress={() => lookLab.probeFrosts()} />
       </View>
       <FrostSource name="lab" style={styles.stage}>
         <DeckBackdrop style={StyleSheet.absoluteFill} color={look.color} themeColors={look.themeColors} dark={dark} reduceMotion={still} />
@@ -39,12 +51,19 @@ export function LookLab() {
       </FrostSource>
       <View style={styles.pair}>
         <ProfileBackdrop style={styles.tile} color={look.color} themeColors={look.themeColors} dark={dark} themed />
-        <ProfileBackdrop style={styles.tile} color={look.color} themeColors={look.themeColors} dark={dark} softened />
+        <ProfileBackdrop style={styles.tile} color={look.color} themeColors={look.themeColors} dark={dark} softened fadesOut={faded} />
         <FilmGrain style={[styles.tile, { backgroundColor: dark ? "#2a2a2c" : "#e8e4f0" }]} opacity={0.2} />
       </View>
       <Frost source="lab" variant={VARIANTS[variant]} color={look.color} themeColors={look.themeColors} dark={dark} cornerRadius={14} style={styles.frost}>
         <Text style={{ color: dark ? "#fff" : "#1d1a17" }}>Frosted {VARIANTS[variant]}</Text>
       </Frost>
+      <Text style={styles.note}>A sheet frost over a live page: scroll the page; the frost should follow it, not stay black or frozen.</Text>
+      <FrostSource name="lab-page" style={styles.pageStage}>
+        <PageView style={StyleSheet.absoluteFill} pageId="lab-look-page" initialUrl={PAGE_URL} />
+        <Frost source="lab-page" variant="sheet" color={look.color} themeColors={look.themeColors} dark={dark} cornerRadius={14} style={styles.pageFrost} pointerEvents="none">
+          <Text style={{ color: dark ? "#fff" : "#1d1a17" }}>Sheet frost over the page</Text>
+        </Frost>
+      </FrostSource>
     </View>
   );
 }
@@ -59,5 +78,8 @@ const styles = StyleSheet.create({
   stageText: { fontSize: 13 },
   pair: { flexDirection: "row", gap: 6 },
   tile: { flex: 1, height: 70, borderRadius: 8, overflow: "hidden" },
+  note: { fontSize: 11, color: "#1d1a17" },
+  pageStage: { height: 320, borderRadius: 10, overflow: "hidden" },
+  pageFrost: { position: "absolute", left: 12, right: 12, bottom: 12, height: 90, justifyContent: "center", alignItems: "center" },
   frost: { height: 56, marginTop: -150, marginHorizontal: 16, justifyContent: "center", alignItems: "center" },
 });
