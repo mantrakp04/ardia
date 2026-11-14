@@ -101,7 +101,7 @@ inline std::wstring Refusal() noexcept {
   std::filesystem::path requested{Paths::RequestedDataDirectory()};
   if (requested.empty()) return L"no scratch ARDIA_DATA_DIR";
   if (!requested.is_absolute()) return L"ARDIA_DATA_DIR is not an absolute path";
-  std::wstring clash = RealFolderClash({Paths::DataDirectory(), Paths::DataDirectory() / L"Chromium"}, L"ARDIA_DATA_DIR");
+  std::wstring clash = RealFolderClash({Paths::DataDirectory(), Paths::DataDirectory() / L"Chromium", Paths::DataDirectory() / L"Sync"}, L"ARDIA_DATA_DIR");
   if (!clash.empty()) return clash;
   if (!TestBuild()) return std::wstring{L"not a test build: no "} + TestBuildMarker + L" beside the app";
   return {};

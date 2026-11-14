@@ -769,6 +769,13 @@ That code can also decrypt the real profile's DPAPI secrets directly, without Ar
 to the signed app, and Windows has nothing like it until builds are signed or installed per machine. `ARDIA_CONFIG_DIR`
 gets the same folder check, and a folder that can't be resolved on a local volume doesn't count.
 
+Secrets stay apart the way the Mac's mock keychain keeps them: Credential Manager targets are named after the data
+folder, Chromium's key sits in the data folder's `Local State`, and the Sync key (`SyncSecrets.h`) lives in
+`<data folder>\Sync`, which the folder check covers too, sealed by DPAPI under a purpose a test instance never shares
+(`ardia-sync-key/v1/test-instance/<account>`). A real key copied or hard-linked into a test instance doesn't unseal
+there, and one sealed in a test instance can't stand in for the real one. `reauth=granted` skips Windows Hello only
+for that test key.
+
 Outside a test instance the launch config drops `ARDIA_TEST`, `ARDIA_TRACE`, `ARDIA_CONFIG_DIR` and the test-only
 `ARDIA_INSTANCE` keys (`updateFeed`, `importSourceDir`, `importSafariHome`), and the launch log says once why. The other
 `ARDIA_INSTANCE` keys and `ARDIA_BACKGROUND` stay instance settings, as on the Mac. The engine reads its own
@@ -799,7 +806,7 @@ switches before the app loads; its side of the rule is #1663.
   panel must be drawn whole below its field, with the window buttons on the bare bar (screen brightness where the
   panel used to be cut off, and under the buttons). In Settings › Appearance it clicks the Light tile's picture, found by UI Automation,
   and then Automatic's, and each must change `appearance` in `session.json`.
-- The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`; its test keys need a test instance) runs
+- The self-check (`--self-check`, only in a test instance, see Test instances; so are the file-drop fixtures it uses) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the
   launch fails if any check does. A new native method gets a check there. It also renders every view drawn in JS
   in the window (`selfCheck/stage.tsx`), writes `config.json` and waits for the watcher's `onChange`

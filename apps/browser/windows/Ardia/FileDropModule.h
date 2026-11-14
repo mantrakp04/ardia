@@ -12,6 +12,7 @@
 #include "FileDropItems.h"
 #include "FileDropTarget.h"
 #include "NativeModules.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 
 namespace Ardia {
@@ -143,7 +144,7 @@ struct FileDropModule {
 
   REACT_METHOD(devWriteDropFixture)
   void devWriteDropFixture(std::string name, std::string contents, winrt::Microsoft::ReactNative::ReactPromise<std::string> promise) noexcept {
-    if (!FileDropParts::DropHub::DevAvailable() || !Paths::HasCustomDataDirectory()) return promise.Reject("fixtures are for self-check instances only");
+    if (!FileDropParts::DropHub::DevAvailable() || !AppLaunch::Shared().testInstance) return promise.Reject("fixtures are for self-check instances only");
     if (!FileDropParts::IsPlainFileName(name)) return promise.Reject("a fixture name is a plain file name");
     try {
       std::filesystem::path folder = Paths::DataDirectory() / L"drop-fixtures";

@@ -385,7 +385,7 @@ struct WindowManager {
   }
 
   bool DebugAvailable() const noexcept {
-    static const bool available = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
+    static const bool available = Paths::HasSwitch(L"--self-check") && AppLaunch::Shared().testInstance;
     return available;
   }
 

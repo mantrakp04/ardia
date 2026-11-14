@@ -56,6 +56,15 @@ inline std::filesystem::path Ensured(std::filesystem::path directory) noexcept {
   return directory;
 }
 
+inline std::wstring OneDriveFolder() noexcept {
+  for (wchar_t const *variable : {L"OneDrive", L"OneDriveConsumer", L"OneDriveCommercial"}) {
+    std::wstring folder = Environment(variable);
+    DWORD attributes = folder.empty() ? INVALID_FILE_ATTRIBUTES : GetFileAttributesW(folder.c_str());
+    if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY)) return folder;
+  }
+  return {};
+}
+
 inline std::wstring const &RequestedDataDirectory() noexcept {
   static const std::wstring requested = Environment(L"ARDIA_DATA_DIR");
   return requested;

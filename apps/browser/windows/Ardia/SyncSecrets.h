@@ -28,6 +28,7 @@ namespace Ardia::SyncSecrets {
 using SyncCrypto::WipedBytes;
 
 constexpr std::string_view KeyPurpose = "ardia-sync-key/v1";
+constexpr std::string_view TestInstancePurpose = "/test-instance";
 
 inline bool IsAccountName(std::string const &account) noexcept {
   if (account.empty() || account.size() > 64) return false;
@@ -42,7 +43,10 @@ inline std::filesystem::path KeyFolder() noexcept { return Paths::DataDirectory(
 
 inline std::filesystem::path KeyPath(std::string const &account) { return KeyFolder() / (L"sync-key-" + Paths::Wide(account) + L".dpapi"); }
 
-inline std::string Purpose(std::string const &account) { return std::string{KeyPurpose} + "/" + account; }
+inline std::string Purpose(std::string const &account) {
+  std::string_view instance = AppLaunch::Shared().testInstance ? TestInstancePurpose : std::string_view{};
+  return std::string{KeyPurpose} + std::string{instance} + "/" + account;
+}
 
 inline bool SaveKey(std::string const &account, WipedBytes const &entropy) noexcept {
   try {

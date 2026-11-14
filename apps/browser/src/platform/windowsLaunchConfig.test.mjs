@@ -32,7 +32,7 @@ test("a test instance needs an absolute scratch folder clear of the real profile
   assert.match(gate, /if \(!requested\.is_absolute\(\)\) return/);
   assert.match(gate, /FOLDERID_LocalAppData, L"LOCALAPPDATA"\) \/ L"Ardia"/);
   assert.match(gate, /FOLDERID_RoamingAppData, L"APPDATA"\) \/ L"Ardia"/);
-  assert.match(gate, /RealFolderClash\(\{Paths::DataDirectory\(\), Paths::DataDirectory\(\) \/ L"Chromium"\}, L"ARDIA_DATA_DIR"\)/);
+  assert.match(gate, /RealFolderClash\(\{Paths::DataDirectory\(\), Paths::DataDirectory\(\) \/ L"Chromium", Paths::DataDirectory\(\) \/ L"Sync"\}, L"ARDIA_DATA_DIR"\)/);
   assert.match(source("LaunchConfig.h"), /TestGate::RealFolderClash\(\{requested\}, L"ARDIA_CONFIG_DIR"\);\n    if \(clash\.empty\(\)\) return Paths::Ensured\(requested\);/);
   assert.match(gate, /VOLUME_NAME_GUID \| FILE_NAME_NORMALIZED/);
   assert.match(gate, /if \(!TestBuild\(\)\) return/);
@@ -47,4 +47,13 @@ test("the test-build marker never reaches an installer, and the harnesses that n
   for (const kind of ["no test-build marker", "a relative ARDIA_DATA_DIR", "the real profile folder", "a junction to the real profile folder"]) assert.ok(smoke.includes(`"${kind}"`), kind);
   for (const harness of ["launch-smoke.ps1", "tour.ps1"]) assert.match(script(harness), /"Ardia\.test-build"\r?\nNew-Item -ItemType File -Force -Path \$testBuild/, harness);
   assert.match(source("TestGate.h"), /constexpr wchar_t TestBuildMarker\[\] = L"Ardia\.test-build";/);
+});
+
+test("a test instance seals its sync key under its own DPAPI purpose, so it can't unseal or stand in for the real one", () => {
+  const secrets = source("SyncSecrets.h");
+  assert.match(secrets, /constexpr std::string_view TestInstancePurpose = "\/test-instance";/);
+  assert.match(secrets, /AppLaunch::Shared\(\)\.testInstance \? TestInstancePurpose : std::string_view\{\};\n  return std::string\{KeyPurpose\} \+ std::string\{instance\} \+ "\/" \+ account;/);
+  assert.equal(secrets.split("CryptProtectData(").length - 1, 1);
+  assert.equal(secrets.split("CryptUnprotectData(").length - 1, 1);
+  assert.match(secrets, /std::string purpose = Purpose\(account\);\n[^\n]*\n    DATA_BLOB extra\{static_cast<DWORD>\(purpose\.size\(\)\)/);
 });

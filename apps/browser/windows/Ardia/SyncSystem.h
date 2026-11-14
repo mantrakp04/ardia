@@ -253,12 +253,7 @@ inline std::string ComputerName() noexcept {
 }
 
 inline std::string OneDriveFolder() noexcept {
-  for (wchar_t const *variable : {L"OneDrive", L"OneDriveConsumer", L"OneDriveCommercial"}) {
-    std::wstring folder = Paths::Environment(variable);
-    DWORD attributes = folder.empty() ? INVALID_FILE_ATTRIBUTES : GetFileAttributesW(folder.c_str());
-    if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY)) return Paths::Utf8(folder);
-  }
-  return {};
+  return Paths::Utf8(Paths::OneDriveFolder());
 }
 
 inline std::string DocumentsFolder() noexcept {
