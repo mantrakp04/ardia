@@ -141,7 +141,8 @@ The Expo app has the Compose app's entry points (`docs/android.md`), from its ow
 `P=com.ardia.browser.android/.MainActivity`. Open the lab
 (`adb shell am start -n $P --ez com.ardia.phone.PAGE_LAB true`), tap System, and watch
 `adb logcat -s ReactNativeJS:I | grep "PAGELAB system"`. Each command should print one `PAGELAB system link`
-line with the kind and source shown, and nothing else.
+line with the kind and source shown. The lab also prints `PAGELAB system default browser` once when it opens
+and again only when that status changes.
 
 1. **Web link:** `adb shell am start -a android.intent.action.VIEW -d https://example.com/a -n $P`: open, web.
 2. **Ardia links:** the same with `-d ardia://search?q=otters` (search, query otters), `ardia://voice`
@@ -180,7 +181,36 @@ line with the kind and source shown, and nothing else.
     the width. GitHub at 980 px shows its narrow layout, as Chrome's desktop mode does on phones.
 15. **Sync, demo mode:** Stop Syncing turns the demo off (the card and the deck show the disconnected state);
     the next demo launch is on again. A rename shows in the devices list; Pin to Mac fills the star. Damage inbox
-    in the Sync section sets `inboxProblem` and the app shows its notice.
+    in the Sync section sets the status's `inboxProblem` (the Sync section's status lines show it) and the app
+    shows its notice; after a force-stop and relaunch the notice is still there, until sync next writes the
+    inbox.
+16. **Shortcuts with the app in the background:** open the System section, press Home (don't swipe the app
+    away), and use each launcher shortcut. Ardia comes back without restarting (the lab is still open, no
+    splash) and prints one link line with source shortcut. `adb logcat -b main | grep -c "Unable to find viewState"`
+    stays 0.
+17. **Not yet covered:** the tile with the phone locked behind a PIN (it asks to unlock, then opens the
+    search); the Search widget's mic (at its medium size, 4×2: the Compose widget shows the mic only from 250 dp
+    wide); Search in Ardia on text selected in a real app; a share from a real app (Chrome's Share › Ardia).
+18. **Widgets and dark mode:** with the app in the background, switch the phone between light and dark: both
+    widgets' backdrops follow within a second.
+19. **Scanner:** Scanner section › Ask for camera, then point at the Mac's sync code: one
+    `PAGELAB scan code: N characters, 24 words, valid true` line and nothing with the words; another QR code
+    gives `rejected`. Pause stops the camera (its light goes off). The phrase never appears in logcat.
+20. **Voice:** Voice section › Ask for mic, Start, speak: `PAGELAB voice partial "…"` lines and one `final`
+    line; Stop ends it; a silent start ends with `failure nothing heard`. In airplane mode, note whether words
+    still arrive (they do when the phone has an on-device recognizer).
+21. **Swipe and pull:** on the lab's page after two navigations, with Swipe anywhere: a drag right from mid-page
+    goes back, left goes forward, short drags spring back; a horizontally scrolling area (a carousel) scrolls
+    instead. Swipe edges: only drags from within a finger's width of the edge navigate. Pull on: at the top, a
+    pull past the arrow's full turn taps a haptic and reloads with the spinner; scrolled down, a downward drag
+    scrolls.
+22. **Online again and favicons:** System › Favicon looks prints three lines with tones and backings; turn
+    airplane mode on and off: `network lost`, then `online again` once.
+23. **Accessibility dump:** in the app (not the lab), open the tray, the page menu, a long-press menu, Spaces
+    and the Archive sheet in turn, and with each open run
+    `adb shell am broadcast -a com.ardia.phone.A11Y_DUMP -p com.ardia.browser.android` and
+    `adb logcat -d -s PAGELAB | grep "PAGELAB a11y"`. The lines between `begin` and `end` are what TalkBack can
+    reach; the surface behind a cover should not be among them.
 
 ## Build and run
 

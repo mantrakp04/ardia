@@ -1,5 +1,5 @@
 import { defaultBrowser, favicons, network, system, type DefaultBrowserStatus, type SystemLink } from "@ardia/phone-native";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 
 const linkLine = (link: SystemLink | null) => (link ? JSON.stringify(link) : "none");
@@ -17,12 +17,16 @@ export function SystemLab({ note }: { note: (line: string) => void }) {
   const [links, setLinks] = useState<string[]>([]);
   const [status, setStatus] = useState<DefaultBrowserStatus | null>(null);
   const [hidden, setHidden] = useState(false);
+  const lastStatus = useRef<string | null>(null);
 
   const refresh = useCallback(() => {
     defaultBrowser.status().then(
       (next) => {
         setStatus(next);
-        console.log(`PAGELAB system default browser ${JSON.stringify(next)}`);
+        const line = JSON.stringify(next);
+        if (line === lastStatus.current) return;
+        lastStatus.current = line;
+        console.log(`PAGELAB system default browser ${line}`);
       },
       (error: { message?: string }) => note(`default browser status ✗ ${error.message ?? ""}`),
     );
