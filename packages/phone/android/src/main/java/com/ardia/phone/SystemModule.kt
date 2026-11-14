@@ -35,6 +35,8 @@ class SystemModule : Module() {
 
         OnActivityEntersBackground { PhoneA11yDump.stopListening() }
 
+        Function("processStartedAt") { ProcessStart.epochMillis() }
+
         AsyncFunction("initialLink") { -> PhoneSystemLinks.takeInitial() }
 
         AsyncFunction("setHidesFromRecents") { hidden: Boolean ->
