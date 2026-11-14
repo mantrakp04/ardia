@@ -288,6 +288,14 @@ const withEngine: Check[] = [
     },
   },
   {
+    name: "engine: the engine decided this is a test instance and the app took the same decision",
+    async run() {
+      const host = await hostCall<{ testInstance?: unknown }>("host.info");
+      const config = requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig();
+      expectEqual({ engine: host.testInstance, app: config.testInstance }, { engine: true, app: true }, "the test-instance decision");
+    },
+  },
+  {
     name: "engine: native and the engine agree where Chromium keeps profiles",
     async run() {
       expectEqual(comparable(profileDataFolder()), comparable(await userDataDir()), "profileDataFolder() against host.info");
