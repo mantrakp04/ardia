@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BAR_SHOWN, followScroll, pageInsets } from "../../lib/barCollapse";
 import { neighbours } from "../../lib/pagerPhysics";
 import { useSystemBars } from "../../state/app/systemBars";
 import { useFrozenOrder, useNavigation, usePageTone } from "../../state/browse/hooks";
@@ -10,6 +11,7 @@ import { closePageMenu, openPageMenu } from "../../state/page/actions";
 import { useFindOpen, useMenuOpen, usePressOpen, useReaderTabId } from "../../state/page/hooks";
 import { captureCurrentCover, newTab, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
+import { usePreferences } from "../../state/settings/hooks";
 import { closeFrontTab, menuOpenedHaptic, recentTabs, switchToTab, tabTitle } from "../../state/browse/tabMenus";
 import { useDeckOrder } from "../../state/tabs/hooks";
 import type { BrowserTab } from "../../state/tabs/tabModels";
@@ -20,7 +22,6 @@ import {
   isDarkColor,
   LoadingLine,
   Menu,
-  pageBottomInset,
   Shade,
   rolesFor,
   space,
@@ -72,6 +73,8 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const bottom = tone?.bottom ?? theme.surface;
   const barDark = isDarkColor(bottom);
   useSystemBars(isDarkColor(top), barDark);
+  const collapse = useBarCollapse(tab.id);
+  const layout = pageInsets(collapse.collapses, barHeight(insets.bottom), browseLayout.pageOverlap);
   const statusStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(top, { duration: tabsMotion.barTone }) }), [top]);
   const barStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(bottom, { duration: tabsMotion.barTone }) }), [bottom]);
   return (
@@ -80,8 +83,8 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
         <PagerBlack />
         <Animated.View style={[StyleSheet.absoluteFill, styles.outgoing, { backgroundColor: theme.surface }, pager.outgoing]}>
           <Animated.View style={[{ height: insets.top }, statusStyle]} />
-          <View style={[styles.page, { marginBottom: pageBottomInset(insets.bottom) }]}>
-            <PageSurface key={tab.id} tab={tab} />
+          <View style={[styles.page, { marginBottom: layout.pageBottom }]}>
+            <PageSurface key={tab.id} tab={tab} toneBottom={layout.toneBottom} />
           </View>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }, pager.dim]} pointerEvents="none" />
         </Animated.View>
@@ -94,7 +97,11 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
           <FindBar tabId={tab.id} />
         ) : (
           <GestureDetector gesture={pager.gesture}>
-            <Animated.View style={[styles.bar, { height: barHeight(insets.bottom) }, barStyle]}>
+            <Animated.View
+              pointerEvents={collapse.hidden ? "none" : "auto"}
+              importantForAccessibility={collapse.hidden ? "no-hide-descendants" : "auto"}
+              style={[styles.bar, { height: barHeight(insets.bottom) }, barStyle, collapse.style]}
+            >
               <View style={[StyleSheet.absoluteFill, { backgroundColor: barDark ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} />
               <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom) - browseLayout.hitTarget / 2 }]}>
                 <BottomBar
@@ -127,6 +134,21 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
       <PageRequestHost tabId={tab.id} />
     </View>
   );
+}
+
+function useBarCollapse(tabId: string) {
+  const collapses = usePreferences((p) => p.collapsesBottomBar);
+  const direction = useNavigation(tabId, (n) => n?.scrollDirection ?? "up");
+  const reduceMotion = useReducedMotion();
+  const [state, setState] = useState(BAR_SHOWN);
+  useEffect(() => setState((now) => followScroll(now, tabId, direction, collapses)), [tabId, direction, collapses]);
+  const hidden = state.hidden && state.tabId === tabId;
+  const hide = useSharedValue(0);
+  useEffect(() => {
+    hide.value = reduceMotion ? withTiming(hidden ? 1 : 0, { duration: tabsMotion.barCollapseReduced }) : withSpring(hidden ? 1 : 0, tabsMotion.barCollapse);
+  }, [hidden, reduceMotion]);
+  const style = useAnimatedStyle(() => ({ opacity: 1 - hide.value, transform: [{ translateY: hide.value * browseLayout.barCollapseTravel }] }));
+  return { collapses, hidden, style };
 }
 
 function tabsMenuItems(order: BrowserTab[]): MenuItem[] {

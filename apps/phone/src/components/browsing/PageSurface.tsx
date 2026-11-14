@@ -4,9 +4,9 @@ import { pageStateChanged, pageToneChanged } from "../../state/browse/store";
 import { registerPageHandle } from "../../state/pages/store";
 import { tabSavedState } from "../../state/tabs/store";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { browseLayout, PageView, type PageViewHandle } from "../ui";
+import { PageView, type PageViewHandle } from "../ui";
 
-export function PageSurface({ tab }: { tab: BrowserTab }) {
+export function PageSurface({ tab, toneBottom }: { tab: BrowserTab; toneBottom: number }) {
   const handle = useRef<PageViewHandle>(null);
   const id = tab.id;
   const [setup] = useState(() => ({ url: tab.url, title: tab.title, saved: tabSavedState(id) ?? undefined }));
@@ -23,7 +23,7 @@ export function PageSurface({ tab }: { tab: BrowserTab }) {
       title={setup.title}
       isPrivate={tab.isPrivate}
       savedState={setup.saved}
-      toneInsets={{ top: 0, bottom: browseLayout.pageOverlap }}
+      toneInsets={{ top: 0, bottom: toneBottom }}
       onPageState={(state) => pageStateChanged(id, state)}
       onPageTone={(tone) => pageToneChanged(id, tone)}
     />

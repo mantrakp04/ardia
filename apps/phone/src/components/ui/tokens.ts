@@ -260,6 +260,7 @@ export const font = {
 } as const;
 
 export const browseLayout = {
+  barCollapseTravel: 30,
   searchFieldHeight: 47.5,
   searchFieldInset: 15,
   fieldLeading: 18,

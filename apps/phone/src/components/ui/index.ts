@@ -1,7 +1,7 @@
 export { isDarkColor } from "../../lib/color";
 export { ArdiaLogo } from "./ArdiaLogo";
 export { Backdrop } from "./Backdrop";
-export { barCenterFromBottom, barHeight, deckCenterFromBottom, pageBottomInset } from "./barGeometry";
+export { barCenterFromBottom, barHeight, deckCenterFromBottom } from "./barGeometry";
 export { CodeCamera } from "./CodeCamera";
 export { Favicon } from "./Favicon";
 export { LoadingLine } from "./LoadingLine";
