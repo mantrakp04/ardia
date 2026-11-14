@@ -13,7 +13,7 @@ import type { Size } from "../ui/useSettled";
 import { overPeek } from "../../state/windows/dockMotion";
 import { zoneHit, zoneRect, type ZoneStage } from "./splitDrop";
 import { setDropTarget, setOnPage, setTargetResolver, useTabDrag } from "../../state/drag/tabDrag";
-import { FOCUS_RING, SPLIT_MOTION, splitColors, TOAST_ACTION_MS, TOAST_MS, ZONE_ACCENT_ALPHA, ZONE_DASH_INSET, ZONE_DASH_RADIUS, ZONE_RADIUS, ZONE_SLIDE_MS } from "./tokens";
+import { FOCUS_RING, SPLIT_MOTION, splitColors, TOAST_ACTION_MS, TOAST_MS, ZONE_ACCENT_ALPHA, ZONE_DASH_INSET, ZONE_SLIDE_MS, zoneDashRadius, zoneRadius } from "./tokens";
 
 export function SplitDividers({ split, dividers, width, height }: { split: SplitView; dividers: Divider[]; width: number; height: number }) {
   return (
@@ -259,7 +259,7 @@ function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect
         top: anim.y,
         width: anim.w,
         height: anim.h,
-        borderRadius: ZONE_RADIUS,
+        borderRadius: zoneRadius(),
         borderWidth: 0.5,
         borderColor: colors.zoneBorder,
         backgroundColor: glow.interpolate({ inputRange: [0, 1], outputRange: [colors.zoneFill, withAlpha(theme.accent, dark ? ZONE_ACCENT_ALPHA.dark : ZONE_ACCENT_ALPHA.light)] }),
@@ -275,7 +275,7 @@ function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect
           right: ZONE_DASH_INSET,
           top: ZONE_DASH_INSET,
           bottom: ZONE_DASH_INSET,
-          borderRadius: ZONE_DASH_RADIUS,
+          borderRadius: zoneDashRadius(),
           borderStyle: "dashed",
           borderWidth: active ? 2.33 : 2,
           borderColor: active ? theme.accent : colors.zoneDash,

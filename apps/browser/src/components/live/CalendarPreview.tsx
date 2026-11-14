@@ -13,6 +13,7 @@ import type { Anchor } from "../../state/sidebar/sidebarUi";
 import { Avatar, AVATAR_SIZE, HoverSurface } from "./LiveItemCard";
 import { liveType, useLiveColors } from "./tokens";
 import { UI_LOCALE } from "../../lib/uiLocale";
+import { perLook } from "../ui/tokens";
 
 export function useIsCalendarTab(tabId: string | null): boolean {
   const pinnedCalendar = useTab(tabId ?? undefined, (t) => !!t?.pin && isCalendarUrl(t.pinnedUrl ?? t.url));
@@ -85,14 +86,14 @@ function Refresh({ spinning }: { spinning: boolean }) {
 
 function Empty({ text }: { text: string }) {
   return (
-    <Text tone="textSecondary" style={EMPTY}>
+    <Text tone="textSecondary" style={EMPTY()}>
       {text}
     </Text>
   );
 }
 
-const EMPTY = { ...liveType.empty, paddingVertical: space.s } as const;
-const NOTE = { ...liveType.detail, paddingVertical: space.xs } as const;
+const EMPTY = perLook(() => ({ ...liveType.empty, paddingVertical: space.s }) as const);
+const NOTE = perLook(() => ({ ...liveType.detail, paddingVertical: space.xs }) as const);
 const NOTE_WRAP = { paddingVertical: space.xs } as const;
 const UNDERLINE = { textDecorationLine: "underline" } as const;
 const NO_UNDERLINE = { textDecorationLine: "none" } as const;
@@ -130,7 +131,7 @@ function SignIn({ blocked, requesting, failure }: { blocked: boolean; requesting
       </Text>
       {failure ? (
         <>
-          <Text tone="textSecondary" style={NOTE}>
+          <Text tone="textSecondary" style={NOTE()}>
             {failure}
           </Text>
           <OpenSystemSettings />
@@ -144,7 +145,7 @@ function AllDayRow({ event }: { event: CalendarEvent }) {
   const theme = useTheme();
   return (
     <Box row gap="m" padX="xs" style={ALL_DAY}>
-      <View style={[ALL_DAY_DOT, { backgroundColor: event.color }]} />
+      <View style={[ALL_DAY_DOT(), { backgroundColor: event.color }]} />
       <FadeLabel text={event.title || "Untitled event"} fontSize={font.small.fontSize} color={theme.textSecondary} style={ALL_DAY_LABEL} />
       <Text size="caption" tone="textTertiary">
         All day
@@ -154,7 +155,7 @@ function AllDayRow({ event }: { event: CalendarEvent }) {
 }
 
 const ALL_DAY = { height: 22, alignItems: "center" } as const;
-const ALL_DAY_DOT = { width: 7, height: 7, borderRadius: radius.hair } as const;
+const ALL_DAY_DOT = perLook(() => ({ width: 7, height: 7, borderRadius: radius.hair }) as const);
 const ALL_DAY_LABEL = { flex: 1, height: 16 } as const;
 
 function EventRow({ event, now, windowId, tabId }: { event: CalendarEvent; now: number; windowId: string; tabId: string }) {
@@ -215,7 +216,7 @@ export function OverlappingAvatars({ people }: { people: CalendarEvent["attendee
         </View>
       ))}
       {more > 0 ? (
-        <Text tone="textSecondary" style={MORE}>
+        <Text tone="textSecondary" style={MORE()}>
           +{more}
         </Text>
       ) : null}
@@ -224,4 +225,4 @@ export function OverlappingAvatars({ people }: { people: CalendarEvent["attendee
 }
 
 const AVATARS = { flexDirection: "row", alignItems: "center" } as const;
-const MORE = { ...liveType.more, marginLeft: space.xs } as const;
+const MORE = perLook(() => ({ ...liveType.more, marginLeft: space.xs }) as const);

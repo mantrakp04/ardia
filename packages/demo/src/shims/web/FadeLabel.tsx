@@ -3,11 +3,11 @@ import { View, type ViewProps } from "react-native";
 
 const CELL_PADDING = 2;
 
-const WEIGHTS = { light: "300", regular: "400", medium: "500", semibold: "600", bold: "700" } as const;
+const WEIGHTS = { ultraLight: "100", thin: "200", light: "300", regular: "400", medium: "500", semibold: "600", bold: "700", heavy: "800", black: "900" } as const;
 
-export type FadeLabelProps = ViewProps & { text: string; fontSize?: number; weight?: keyof typeof WEIGHTS; color?: string; fadeWidth?: number };
+export type FadeLabelProps = ViewProps & { text: string; fontSize?: number; weight?: keyof typeof WEIGHTS; fontFamily?: string; color?: string; fadeWidth?: number };
 
-export function FadeLabel({ text, fontSize = 13, weight = "regular", color, fadeWidth = 24, style, ...props }: FadeLabelProps) {
+export function FadeLabel({ text, fontSize = 13, weight = "regular", fontFamily, color, fadeWidth = 24, style, ...props }: FadeLabelProps) {
   const field = useRef<HTMLDivElement | null>(null);
   const run = useRef<HTMLSpanElement | null>(null);
   const [overflows, setOverflows] = useState(false);
@@ -24,7 +24,7 @@ export function FadeLabel({ text, fontSize = 13, weight = "regular", color, fade
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [text, fontSize, weight]);
+  }, [text, fontSize, weight, fontFamily]);
 
   const fade = overflows ? `linear-gradient(to right, #000 0, #000 calc(100% - ${fadeWidth}px), transparent 100%)` : undefined;
   return (
@@ -38,6 +38,7 @@ export function FadeLabel({ text, fontSize = 13, weight = "regular", color, fade
           paddingLeft: CELL_PADDING,
           fontSize,
           fontWeight: WEIGHTS[weight],
+          ...(fontFamily ? { fontFamily } : {}),
           fontVariantNumeric: "tabular-nums",
           color: color ?? "currentColor",
           lineHeight: "normal",

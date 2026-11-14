@@ -6,6 +6,7 @@ import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import { Box, Button, Checkbox, EmptyState, PopUp, radius, space, Text, Toggle } from "../../ui";
 import { Group, Row, SectionHeader } from "../Form";
+import { perLook } from "../../ui/tokens";
 
 export function CalendarPane() {
   const settings = useLive((s) => s.calendar);
@@ -117,7 +118,7 @@ function CalendarList({ title, calendars, hidden }: { title: string; calendars: 
       {calendars.map((c) => (
         <Row
           key={c.id}
-          icon={<View style={[CALENDAR_COLOR, { backgroundColor: c.color }]} />}
+          icon={<View style={[CALENDAR_COLOR(), { backgroundColor: c.color }]} />}
           title={<Checkbox value={!hidden.includes(c.id)} onChange={(v) => setCalendarHidden(c.id, !v)} label={c.title} />}
           description={c.account}
         />
@@ -128,4 +129,4 @@ function CalendarList({ title, calendars, hidden }: { title: string; calendars: 
 
 const NO_CALENDARS = { marginTop: space.l } as const;
 const LIST_TITLE = { marginLeft: space.l, marginBottom: space.xxs } as const;
-const CALENDAR_COLOR = { width: 10, height: 10, borderRadius: radius.hair } as const;
+const CALENDAR_COLOR = perLook(() => ({ width: 10, height: 10, borderRadius: radius.hair }) as const);

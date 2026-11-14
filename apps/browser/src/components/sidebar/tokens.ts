@@ -79,11 +79,17 @@ export const TAB_SWITCHER = {
   cardInset: space.xs,
   windowMargin: 80,
   panelRadius: 18,
-  cardRadius: radius.panel,
-  previewRadius: radius.tile,
+  get cardRadius() {
+    return radius.panel;
+  },
+  get previewRadius() {
+    return radius.tile;
+  },
   ring: { focused: 2, rest: 1 },
   icon: { preview: 30, label: 13, globe: 12 },
-  titleSize: font.small.fontSize,
+  get titleSize() {
+    return font.small.fontSize;
+  },
   fill: { dark: "#1C1C1EF2", light: "#2A2A2CF2" },
   focusFill: "rgba(255,255,255,0.14)",
   restRing: "rgba(255,255,255,0.12)",
@@ -112,7 +118,11 @@ export const AWAY_TITLE = { slashAlpha: 0.45, slashGap: 4, pinnedMaxWidth: "45%"
 
 export const TABULAR_NUMS: ("tabular-nums")[] = ["tabular-nums"];
 
-export const SIDEBAR_TYPE = { compact: font.small.fontSize } as const;
+export const SIDEBAR_TYPE = {
+  get compact() {
+    return font.small.fontSize;
+  },
+};
 
 export function groupTint(color: GroupColor | null | undefined): string | null {
   return color && color !== "none" ? (GROUP_COLORS[color]?.hex ?? null) : null;

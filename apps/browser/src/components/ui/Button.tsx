@@ -1,4 +1,5 @@
-import { ContextMenuArea, Symbol, type SymbolProps } from "@ardia/shell";
+import { ContextMenuArea } from "@ardia/shell";
+import { Symbol, type SymbolProps } from "./Symbol";
 import { memo, type ReactNode } from "react";
 import { Animated, Image, Pressable, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import { modifiersOf, type ClickModifiers } from "../../lib/keys";

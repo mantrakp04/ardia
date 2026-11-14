@@ -6,7 +6,13 @@ export const importColors = {
   monogramFallback: "#8E8E93",
 } as const;
 
-export const importType = { heading: display.title, done: display.title, emoji: 15, bodyLine: proseLineHeight.body, smallLine: proseLineHeight.small } as const;
+export const importType = {
+  get heading() { return display.title; },
+  get done() { return display.title; },
+  emoji: 15,
+  get bodyLine() { return proseLineHeight.body; },
+  get smallLine() { return proseLineHeight.small; },
+} as const;
 
 export const importLayout = {
   dragRegion: 40,
@@ -15,7 +21,7 @@ export const importLayout = {
   browserRow: 52,
   categoryRow: 44,
   avatar: 28,
-  spaceIconRadius: radius.tile,
+  get spaceIconRadius() { return radius.tile; },
   appIcon: 56,
   safariIcon: 40,
   stepBadge: 20,

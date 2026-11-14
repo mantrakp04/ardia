@@ -1,3 +1,4 @@
+import { layout } from "../ui/theme";
 import { Animated, type GestureResponderEvent, type View } from "react-native";
 import { NO_DROP } from "../../state/drag/drops";
 import { dropTabs } from "../../state/pins/actions";
@@ -9,7 +10,7 @@ import { arrangeLive } from "../../state/sidebar/pinnedOrder";
 import { suppressHover } from "../../state/sidebar/hover";
 import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { dragMarksOf, markDrag } from "../../state/sidebar/dragMarks";
-import { boxed, type Drop, EDGE, type Item, measure, ROW_GAP, spring, tabCell } from "./dragModel";
+import { boxed, type Drop, EDGE, type Item, measure, spring, tabCell } from "./dragModel";
 import { DragTargeting } from "./dragTargeting";
 import { type DragSession, newDragSession } from "./dragGeometry";
 import { captureEscape } from "../../state/drag/dragNative";
@@ -215,13 +216,13 @@ export class DragController extends DragTargeting {
     const group = source.parentGroup ? this.items.get(entryKey("group", source.parentGroup)) : undefined;
     const emptied = !!group && group.tabIds.every((id) => source.tabIds.includes(id)) && !!group.frame && group.frame.y < top && group !== ref;
     if (!emptied && source !== ref && source.frame && source.frame.y < top)
-      closing += source.parentGroup ? Math.max(0, now(source.size) - ROW_GAP) + ROW_GAP : now(source.size);
+      closing += source.parentGroup ? Math.max(0, now(source.size) - layout.rowGap) + layout.rowGap : now(source.size);
     const container = ref.kind === "tail" ? [...this.items.values()].find((i) => i !== source && i.kind !== "tail" && i.frame && i.section === ref.section && i.parentGroup === ref.parentGroup) : ref;
     const home = target ? null : this.at(source.frame, this.still(source));
     if (home) return Promise.resolve({ x: home.x, y: home.y });
     return Promise.all([measure(ref.view), emptied ? measure(group!.view) : null]).then(([f, gone]) => {
       if (!f) return null;
-      return { x: container?.frame?.x ?? f.x, y: f.y - closing - (gone ? gone.h + ROW_GAP : 0) + (ref.kind === "tail" ? ROW_GAP : 0) };
+      return { x: container?.frame?.x ?? f.x, y: f.y - closing - (gone ? gone.h + layout.rowGap : 0) + (ref.kind === "tail" ? layout.rowGap : 0) };
     });
   }
 

@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Box, proseLineHeight, Symbol, Text, useTheme } from "../ui";
 import { headingTop } from "./newTabLayout";
 import { ntpType } from "./tokens";
+import { perLook } from "../ui/tokens";
 
 export const INCOGNITO_ICON = "eyeglasses";
 
-const BLURB = { lineHeight: proseLineHeight.body, textAlign: "center", maxWidth: 460 } as const;
+const BLURB = perLook(() => ({ lineHeight: proseLineHeight.body, textAlign: "center", maxWidth: 460 }) as const);
 const ICON = { width: 32, height: 28 } as const;
 
 export function IncognitoHeading({ left, barTop, width, onHeight }: { left: number; barTop: number; width: number; onHeight: (height: number) => void }) {
@@ -27,7 +28,7 @@ export function IncognitoHeading({ left, barTop, width, onHeight }: { left: numb
           Incognito
         </Text>
       </Box>
-      <Text size="body" tone="textSecondary" style={BLURB}>
+      <Text size="body" tone="textSecondary" style={BLURB()}>
         Pages you visit here aren't saved to your history. Cookies and site data are deleted when you close all Incognito windows.
       </Text>
     </Box>

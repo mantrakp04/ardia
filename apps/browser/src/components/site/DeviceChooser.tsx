@@ -144,7 +144,7 @@ function Notice({ icon, text, link, onLink }: { icon: string; text: string; link
     <Box row gap="m" padY="s">
       <Symbol name={icon} size={13} color={theme.textSecondary} style={{ width: 18, height: 18 }} />
       <Box gap="xs" style={{ flex: 1 }}>
-        <Text tone="textSecondary" style={noticeType}>
+        <Text tone="textSecondary" style={noticeType()}>
           {text}
         </Text>
         {link && onLink ? <Button variant="text" look="link" title={link} onPress={onLink} /> : null}

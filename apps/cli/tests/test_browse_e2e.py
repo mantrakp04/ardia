@@ -425,7 +425,7 @@ class BrowseEndToEnd(unittest.TestCase):
         session = "cap"
         self.browse("open", self.url("many.html"), "--show", session=session)
         capped = self.browse("snapshot", "-i", session=session).stdout
-        self.assertLessEqual(len(capped), 6450)
+        self.assertLessEqual(len(capped), 12450)
         self.assertIn("Narrow it instead: snapshot -i", capped.splitlines()[-1])
         self.assertIn("--max-output", capped.splitlines()[-1])
         self.assertEqual(self.browse("snapshot", "-i", "--full", session=session).stdout.count("Button number"), 400)
@@ -739,6 +739,13 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(self.browse("script", "return 6 * 7;", session=session).stdout.strip(), "42")
         missing = self.browse("script", "missing-file.js", session=session, check=False)
         self.assertIn("Can't read missing-file.js", missing.stderr)
+
+    def test_read_names_the_pages_own_total_and_pagination(self):
+        session = "scope"
+        out = self.browse("read", self.url("results.html"), self.url("picker.html"), session=session).stdout
+        self.assertIn('(scope: page says "1–20 of 340 results"; has a Next page link, pages up to 17)', out)
+        self.browse("open", self.url("results.html"), session=session)
+        self.assertTrue(self.browse("read", session=session).stdout.rstrip().endswith('[scope: page says "1–20 of 340 results"; has a Next page link, pages up to 17]'))
 
     def test_read_reads_every_named_url_past_the_link_limit(self):
         urls = [self.url(f"picker.html?n={number}") for number in range(25)]

@@ -12,6 +12,7 @@ import { Box, Button, Panel, proseLineHeight, radius, shadow, space, Text, useTh
 import { measureRow, type Anchor } from "../../state/sidebar/sidebarUi";
 import { OverlappingAvatars } from "./CalendarPreview";
 import { liveMotion, useLiveColors } from "./tokens";
+import { perLook } from "../ui/tokens";
 
 const WIDTH = 300;
 const EDGE = space.m;
@@ -69,7 +70,7 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
     >
       <Panel radius={radius.sheet} shadow={shadow.sheet} style={CARD}>
         <Box row gap="s" style={CENTER}>
-          <View style={[DOT, { backgroundColor: event.color }]} />
+          <View style={[DOT(), { backgroundColor: event.color }]} />
           <Text lines={1} size="caption" weight="medium" color={running ? colors.now : theme.textSecondary} style={FILL}>
             {running ? "Now" : relativeTime(event.start, now)}
             {calendarName ? <Span style={{ fontWeight: weight.regular, color: theme.textSecondary }}> · {calendarName}</Span> : null}
@@ -77,7 +78,7 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
           <Button variant="icon" icon="xmark" size="xs" weight="semibold" onPress={() => dismiss(event)} tooltip="Ignore" style={CLOSE} />
         </Box>
         <Box gap="xxs">
-          <Text lines={2} size="title" weight="semibold" style={TITLE}>
+          <Text lines={2} size="title" weight="semibold" style={TITLE()}>
             {event.title || "Untitled event"}
           </Text>
           <Text size="small" tone="textSecondary">
@@ -122,7 +123,7 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
 const FILL = { flex: 1 } as const;
 const CENTER = { alignItems: "center" } as const;
 const CARD = { padding: space.l, gap: space.m } as const;
-const DOT = { width: CALENDAR_DOT, height: CALENDAR_DOT, borderRadius: radius.hair } as const;
+const DOT = perLook(() => ({ width: CALENDAR_DOT, height: CALENDAR_DOT, borderRadius: radius.hair }) as const);
 const CLOSE = { marginRight: -space.xs, marginTop: -space.xxs } as const;
-const TITLE = { lineHeight: proseLineHeight.body } as const;
+const TITLE = perLook(() => ({ lineHeight: proseLineHeight.body }) as const);
 const ACTIONS = { marginTop: space.xxs } as const;

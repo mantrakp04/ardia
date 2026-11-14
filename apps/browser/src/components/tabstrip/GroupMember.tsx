@@ -19,7 +19,7 @@ import { TabIcon } from "../sidebar/TabIcon";
 import { SplitChip } from "./SplitChip";
 import { MEMBERS_INSET, type DragGeometry } from "./stripGroups";
 import { DraggableChip, TabChip } from "./TabChip";
-import { CHIP_HAIRLINE, FOLDER_HEIGHT, FOLDER_PAD, FOLDER_RADIUS, FOLDER_TITLE_GAP, FOLDER_TITLE_MAX, GROUP_GLYPH, MID, TOP_STRIP_HEIGHT, TUCK_FADE_MS } from "./tokens";
+import { CHIP_HAIRLINE, FOLDER_HEIGHT, FOLDER_PAD, folderRadius, FOLDER_TITLE_GAP, FOLDER_TITLE_MAX, GROUP_GLYPH, MID, TOP_STRIP_HEIGHT, TUCK_FADE_MS } from "./tokens";
 
 export function GroupMember({
   member,
@@ -122,14 +122,14 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
                 alignItems: "center",
                 paddingLeft: FOLDER_PAD.left,
                 paddingRight: FOLDER_PAD.right,
-                borderRadius: FOLDER_RADIUS,
+                borderRadius: folderRadius(),
                 borderWidth: CHIP_HAIRLINE,
                 borderColor: bare ? ink.clear : theme.pinnedRestingStroke,
                 backgroundColor: pressed ? theme.tabPressed : tint ? withAlpha(tint, hovered ? 0.3 : 0.22) : hovered ? tokens.groupHeaderHover : bare ? ink.clear : tokens.groupFill,
               }}
             >
               <StripGroupIcon icon={group.icon} tint={tint} />
-              <Text numberOfLines={1} style={{ marginLeft: FOLDER_TITLE_GAP, maxWidth: FOLDER_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: titleInk }}>
+              <Text numberOfLines={1} style={{ marginLeft: FOLDER_TITLE_GAP, maxWidth: FOLDER_TITLE_MAX, ...font.small, fontWeight: weight.semibold, color: titleInk }}>
                 {label}
               </Text>
               <Symbol name="chevron.down" size={8} weight="semibold" color={withAlpha(titleInk, 0.6)} style={{ marginLeft: space.xs, width: 9, height: 9 }} />

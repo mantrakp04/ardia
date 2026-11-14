@@ -15,6 +15,7 @@ import { awaitsFirstPage } from "../tabs/pendingAddress";
 import { noteUrlCopied } from "../telemetry/urlCopies";
 import type { BookmarkFolderChoice } from "./menuParts";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
+import { activeLook } from "../../lib/activeLook";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./sidebarUi";
 
 const store = () => useBrowser.getState();
@@ -29,7 +30,7 @@ export function tabPlace(tabId: string): string {
   return JSON.stringify([tab?.windowId, tab && s.windows[tab.windowId]?.tabIds, tab?.pin, groupOf(s, tabId)?.id ?? null]);
 }
 
-export const resetSidebarWidth = () => store().updateSettings({ sidebarWidth: DEFAULT_SIDEBAR_WIDTH });
+export const resetSidebarWidth = () => store().updateSettings({ sidebarWidth: activeLook().sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH });
 
 export function returnFocusToPage(windowId: string) {
   const s = store();

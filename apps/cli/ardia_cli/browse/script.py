@@ -280,6 +280,21 @@ def render_value(message: dict) -> str | None:
     value = message.get("value")
     if isinstance(value, str):
         return value
+    return render_json(value)
+
+
+def render_json(value) -> str:
+    if isinstance(value, list) and value and all(isinstance(item, (dict, list)) for item in value):
+        return "\n".join(json.dumps(item, ensure_ascii=False) for item in value)
+    if isinstance(value, dict) and any(isinstance(item, list) and item and all(isinstance(row, (dict, list)) for row in item) for item in value.values()):
+        lines = []
+        for key, item in value.items():
+            if isinstance(item, list) and item and all(isinstance(row, (dict, list)) for row in item):
+                lines.append(f"{key}: {len(item)} rows")
+                lines.extend(json.dumps(row, ensure_ascii=False) for row in item)
+            else:
+                lines.append(f"{key}: {json.dumps(item, ensure_ascii=False)}")
+        return "\n".join(lines)
     return json.dumps(value, ensure_ascii=False, indent=2)
 
 

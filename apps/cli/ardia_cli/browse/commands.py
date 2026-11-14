@@ -1017,7 +1017,7 @@ async def cmd_eval(ctx: Ctx, argv):
         hint_once(ctx.state, "fetch", FETCH_HINT)
     value = await evaluate_main(page, script)
     origin = page.frames.get(page.main_frame, {}).get("origin") or ""
-    return Result({"origin": origin + "/" if origin and not origin.endswith("/") else origin, "result": value}, json.dumps(value, ensure_ascii=False, indent=2), page_content=True)
+    return Result({"origin": origin + "/" if origin and not origin.endswith("/") else origin, "result": value}, render_json(value), page_content=True)
 
 
 @command("get")
@@ -1756,8 +1756,28 @@ async def cmd_read(ctx: Ctx, argv):
         content = await page.call("() => ardiaBrowse.readable()", frame=frame, read=True)
     content = readurl.post_process(content, options)
     readpages.note_virtualized(content)
-    return Result({"content": content, "contentType": "text/html", "finalUrl": page.url, "source": "active-tab-html", "truncated": False, "url": page.url},
-                  content, page_content=True)
+    scope = "" if options.get("selector") else await page_scope(page, frame)
+    shown = f"{content}\n[scope: {scope}]" if scope else content
+    return Result({"content": content, "contentType": "text/html", "finalUrl": page.url, "source": "active-tab-html", "truncated": False, "url": page.url,
+                   "scope": scope or None}, shown, page_content=True)
+
+
+def render_json(value) -> str:
+    from ardia_cli.browse.script import render_json as render
+
+    return render(value)
+
+
+async def page_scope(page, frame) -> str:
+    from ardia_cli import command_metrics
+
+    try:
+        scope = await page.call("() => ardiaBrowse.scope()", frame=frame, read=True)
+    except BrowseError:
+        return ""
+    if scope:
+        command_metrics.flag("read_scope_shown", True)
+    return scope or ""
 
 
 @command("script")

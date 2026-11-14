@@ -13,6 +13,7 @@ import { toolbarPalette, type ToolbarPalette } from "../ui/toolbarColors";
 import { Button, type ButtonHit, FadeLabel, font, radius, space, ToolbarRowContext, useHover } from "../ui";
 import { TOOLBAR_ROWS } from "../../lib/toolbarRow";
 import { setUrlAnchor } from "../../state/windows/layout";
+import { useSidebarPart } from "../../state/sidebar/chrome";
 import { SIDEBAR_FIELD } from "./geometry";
 import { SidebarFieldFill } from "./SidebarField";
 import { SidebarUrlField, useToolbarTab } from "../toolbar/Toolbar";
@@ -25,25 +26,26 @@ const BUTTON = layout.toolbarButton;
 const { edge: EDGE } = HEADER_TOOLS;
 const LIGHTS_Y = ARC_LIGHTS_CENTER[1];
 const PLATE = 32;
-const PLATE_RADIUS = radius.toolbar;
 
 export function SidebarHeaderTools({ width }: { width: number }) {
   const windowId = useWindowId();
   const tab = useToolbarTab(useActiveTabId());
   const palette = toolbarPalette(useTheme(), null);
-  const toggle = useSettings((st) => st.showSidebarButton !== false);
+  const toggleWanted = useSettings((st) => st.showSidebarButton !== false);
+  const toggle = useSidebarPart("sidebarButton") && toggleWanted;
+  const navShown = useSidebarPart("navButtons");
   const right = useSidebarSide(windowId) === "right";
   const sidebarHint = useShortcutHint("toggleSidebar");
   const toggleX = headerToggleX(useWindowFullScreen(windowId));
   const { buttons, step } = navButtonsFitting(width, BUTTON, toggle, toggleX);
-  const shown = tab ? buttons : [];
+  const shown = tab && navShown ? buttons : [];
   const last = width - EDGE - BUTTON / 2;
   const centres = shown.map((_, i) => last - (shown.length - 1 - i) * step);
   const at = toggle ? [toggleX, ...centres] : centres;
   const plate = Math.min(PLATE, step);
   const place = (center: number) => ({
     style: { position: "absolute" as const, top: LIGHTS_Y - plate / 2, left: center - plate / 2 },
-    hit: { width: plate, height: plate, plateX: 0, plateY: 0, box: plate, radius: PLATE_RADIUS },
+    hit: { width: plate, height: plate, plateX: 0, plateY: 0, box: plate, radius: radius.toolbar },
   });
   return (
     <>
@@ -99,7 +101,7 @@ function NavigationButtons({
   );
 }
 
-export function SidebarAddressRow({ width }: { width: number }) {
+export function SidebarAddressRow({ width, top }: { width: number; top: number }) {
   const windowId = useWindowId();
   const tab = useToolbarTab(useActiveTabId());
   const field = useRef<View>(null);
@@ -112,7 +114,7 @@ export function SidebarAddressRow({ width }: { width: number }) {
     <View
       ref={field}
       onLayout={anchor}
-      style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, top: SIDEBAR_FIELD.top, height: SIDEBAR_FIELD.height }}
+      style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, top, height: SIDEBAR_FIELD.height }}
     >
       <ToolbarRowContext.Provider value={TOOLBAR_ROWS.regular}>
         {tab?.url ? <PageField tab={tab} windowId={windowId} width={width - 2 * layout.sidebarInset} /> : <EmptyField windowId={windowId} />}

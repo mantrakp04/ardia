@@ -50,9 +50,9 @@ export const settingsInk = {
 } as const;
 
 export const settingsType = {
-  extensionTitle: font.large,
-  lead: font.small,
-  code: display.code,
+  get extensionTitle() { return font.large; },
+  get lead() { return font.small; },
+  get code() { return display.code; },
 } as const;
 
 export const settingsMotion = {

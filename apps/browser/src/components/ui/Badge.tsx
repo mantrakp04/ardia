@@ -6,9 +6,19 @@ import { capsule, font, hairline, lineHeight, space, tabularNums, weight as weig
 export type BadgeTone = "neutral" | "accent" | "chip" | "now";
 
 const BADGE_SIZE = {
-  s: { height: 14, type: font.badge, line: lineHeight.badge, weight: weights.bold },
-  m: { height: 18, type: font.tiny, line: lineHeight.tiny, weight: weights.semibold },
-} as const;
+  s: {
+    height: 14,
+    get type() { return font.badge; },
+    get line() { return lineHeight.badge; },
+    get weight() { return weights.bold; },
+  },
+  m: {
+    height: 18,
+    get type() { return font.tiny; },
+    get line() { return lineHeight.tiny; },
+    get weight() { return weights.semibold; },
+  },
+};
 
 
 function badgeLook(theme: Theme, tone: BadgeTone) {

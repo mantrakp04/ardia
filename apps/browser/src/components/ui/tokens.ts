@@ -1,6 +1,9 @@
 import type { AreaLightPalette } from "@ardia/shaders";
 import type { ProfileColor } from "../../lib/profileLook";
 import { parseColor } from "../../lib/color";
+import { font, radius, weight, withFace, withMono } from "./look";
+
+export { font, lineHeight, monoFace, perLook, proseLineHeight, radius, typeFace, weight, withFace, withMono } from "./look";
 
 export function withAlpha(color: string, alpha: number): string {
   const [r, g, b] = parseColor(color);
@@ -297,57 +300,31 @@ export const space = {
 
 export type Space = keyof typeof space;
 
-export const radius = {
-  none: 0,
-  hair: 2,
-  control: 4,
-  tile: 8,
-  panel: 12,
-  sheet: 16,
-  hero: 20,
-  chrome: 10,
-  toolbar: 7,
-} as const;
-
 export type Radius = keyof typeof radius;
 
 export const concentric = (outer: number, inset: number) => Math.max(0, outer - inset);
 
 export const capsule = (height: number) => height / 2;
 
-export const font = {
-  badge: { fontSize: 9 },
-  tiny: { fontSize: 10 },
-  caption: { fontSize: 11 },
-  small: { fontSize: 12 },
-  body: { fontSize: 13 },
-  title: { fontSize: 15 },
-  large: { fontSize: 17 },
-} as const;
-
 export type TypeSize = keyof typeof font;
-
-export const lineHeight = { badge: 11, tiny: 13, caption: 14, small: 15, body: 16, title: 20, large: 22, display: 32 } as const;
-
-export const proseLineHeight = { small: 17, body: 18 } as const;
 
 export const tabularNums = { fontVariant: ["tabular-nums"] as "tabular-nums"[] };
 
 export const tracking = { tight: -0.4, caps: 0.4, wide: 1.2 } as const;
 
-export const display = {
+const DISPLAY = {
   title: { fontSize: 22 },
   large: { fontSize: 26, letterSpacing: tracking.tight },
-  code: { fontSize: 26, letterSpacing: 3, fontFamily: "Menlo" },
+  code: { fontSize: 26, letterSpacing: 3 },
   wordmark: { fontSize: 64, letterSpacing: -1.5 },
 } as const;
 
-export const weight = {
-  regular: "400",
-  medium: "500",
-  semibold: "600",
-  bold: "700",
-} as const;
+export const display = {
+  get title() { return withFace(DISPLAY.title); },
+  get large() { return withFace(DISPLAY.large); },
+  get code() { return withMono(DISPLAY.code); },
+  wordmark: DISPLAY.wordmark,
+};
 
 export type Weight = keyof typeof weight;
 
@@ -370,7 +347,7 @@ export const swatch = { size: 20, inset: 2, ring: 2, gap: space.m } as const;
 
 export const opacity = { disabled: 0.45 } as const;
 
-export const TOOLTIP = { padX: 6.5, padY: 5, radius: radius.control } as const;
+export const TOOLTIP = { padX: 6.5, padY: 5, get radius() { return radius.control; } };
 
 export const emptyState = { icon: 30, iconBox: 40, liftBottom: 80, subtitleMaxWidth: 360 } as const;
 
