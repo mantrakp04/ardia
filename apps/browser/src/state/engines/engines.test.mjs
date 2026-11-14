@@ -60,7 +60,7 @@ test("typing an address follows a rule, else keeps the page's engine", () => {
 test("streaming sites open in WebKit when the setting is on, over https, subdomains included", () => {
   assert.equal(protectedVideoSite("https://www.netflix.com/watch/1"), true);
   assert.equal(protectedVideoSite("https://netflix.com/"), true);
-  assert.equal(protectedVideoSite("https://open.spotify.com/track/1"), true);
+  assert.equal(protectedVideoSite("https://open.spotify.com/track/1"), false);
   assert.equal(protectedVideoSite("https://www.spotify.com/"), false);
   assert.equal(protectedVideoSite("https://netflix.com.example.com/"), false);
   assert.equal(protectedVideoSite("https://notnetflix.com/"), false);

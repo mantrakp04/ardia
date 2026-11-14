@@ -27,10 +27,11 @@ const filled = (script) => script.replace("\\#(WebKitMediaFaults.sitesJSON)", JS
 const bridge = filled(rawString(pageScript, "mediaBridge"));
 const source = filled(rawString(pageScript, "source"));
 
-test("the streaming sites are the protected video sites the app opens in WebKit", () => {
+test("the streaming sites are the protected video sites the app opens in WebKit, plus Spotify, which plays in Chromium but can still be moved to WebKit", () => {
   const listed = listIn(engines, /export const PROTECTED_VIDEO_SITES: readonly string\[\] = \[([^\]]*)\]/);
   assert.ok(listed.length > 10);
-  assert.deepEqual(sites, listed);
+  assert.ok(sites.includes("open.spotify.com"));
+  assert.deepEqual(sites.filter((site) => site !== "open.spotify.com"), listed);
 });
 
 test("the reasons a page can report are a fixed set, each short enough to send", () => {

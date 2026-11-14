@@ -43,7 +43,6 @@ export const PROTECTED_VIDEO_SITES: readonly string[] = [
   "hulu.com",
   "tv.apple.com",
   "music.apple.com",
-  "open.spotify.com",
   "peacocktv.com",
   "paramountplus.com",
   "crunchyroll.com",

@@ -61,7 +61,7 @@ and a `removeBy` like the switches, don't count against the 8, and the site's sw
 | Experiment | On means |
 |---|---|
 | `serverWindowDragAllOpen` | with `serverWindowDrag`, every view in the titlebar band is left open to window moves (`ServerWindowDrag.swift`) |
-| `webkitSignIn` | moving a Chromium page to WebKit first copies the cookies that page's own address gets (HttpOnly included, partitioned ones left out) into the profile's WebKit store, so a cookie sign-in (Netflix, Spotify…) comes along; at most 1.5 s, then the move goes ahead either way (`state/engines/engineSignIn.ts`, `WebKitCookieImport.swift`) |
+| `webkitSignIn` | moving a Chromium page to WebKit first copies the cookies that page's own address gets (HttpOnly included, partitioned ones left out) into the profile's WebKit store, so a cookie sign-in (Netflix, Disney+…) comes along; at most 1.5 s, then the move goes ahead either way (`state/engines/engineSignIn.ts`, `WebKitCookieImport.swift`) |
 
 The environment-only switches of 2026-10-17 to 10-20 (`ARDIA_EARLY_WINDOW_FIRST`, `ARDIA_SCROLL_FULL_RATE`,
 `ARDIA_WALLET_PASSES`, …) shipped their default in 0.2.40 and are gone with their other branch.

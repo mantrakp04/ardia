@@ -56,6 +56,9 @@ sign_as "$identity" --options restrict,library,kill,runtime "$fwv/Helpers/app_mo
 [ -e "$fwv/Helpers/web_app_shortcut_copier" ] && sign_as "$identity" --options restrict,library,kill,runtime \
   --identifier com.ardia.browser.web_app_shortcut_copier "$fwv/Helpers/web_app_shortcut_copier"
 sign_as "$identity" "$fw"
+fairplay="$app/Contents/Helpers/ArdiaFairPlay.app"
+[ -d "$fairplay" ] || die "no ArdiaFairPlay.app in the export"
+sign_as "$identity" --options restrict,library,kill,runtime "$fairplay"
 [ -d "$app/Contents/Frameworks/hermes.framework" ] \
   && sign_as "$identity" --preserve-metadata=identifier,entitlements,flags,runtime "$app/Contents/Frameworks/hermes.framework"
 sign_as "$identity" --preserve-metadata=entitlements,requirements,flags,runtime "$app"
