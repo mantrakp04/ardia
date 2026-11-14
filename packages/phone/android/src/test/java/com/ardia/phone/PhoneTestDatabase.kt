@@ -65,17 +65,21 @@ internal fun Connection.visit(url: String, at: Long, profile: String? = null, ti
     }
 }
 
-internal class JdbcRows(private val file: File) : BrowserRows {
-    override fun query(sql: String, args: List<String>): List<List<Any?>>? {
+internal class JdbcRows(private val file: File, private val before: (String) -> Unit = {}) : BrowserRows {
+    override fun <T> open(block: (BrowserQuery) -> T): T? {
         if (!file.isFile) return null
         DriverManager.getConnection("jdbc:sqlite:${file.path}").use { connection ->
-            connection.prepareStatement(sql).use { statement ->
-                args.forEachIndexed { index, value -> statement.setString(index + 1, value) }
-                statement.executeQuery().use { result ->
-                    val columns = result.metaData.columnCount
-                    return buildList { while (result.next()) add(List(columns) { result.getObject(it + 1) }) }
+            val query = BrowserQuery { sql, args ->
+                before(sql)
+                connection.prepareStatement(sql).use { statement ->
+                    args.forEachIndexed { index, value -> statement.setString(index + 1, value) }
+                    statement.executeQuery().use { result ->
+                        val columns = result.metaData.columnCount
+                        buildList { while (result.next()) add(List(columns) { result.getObject(it + 1) }) }
+                    }
                 }
             }
+            return block(query)
         }
     }
 }

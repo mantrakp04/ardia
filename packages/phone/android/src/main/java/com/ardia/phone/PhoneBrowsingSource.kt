@@ -9,20 +9,27 @@ import com.ardia.sync.LocalVisitRecord
 import com.ardia.sync.ReceivedTab
 import java.io.File
 
+fun interface BrowserQuery {
+    fun query(sql: String, args: List<String>): List<List<Any?>>
+}
+
 interface BrowserRows {
-    fun query(sql: String, args: List<String>): List<List<Any?>>?
+    fun <T> open(block: (BrowserQuery) -> T): T?
 }
 
 class SqliteBrowserRows(private val file: File) : BrowserRows {
-    override fun query(sql: String, args: List<String>): List<List<Any?>>? {
+    override fun <T> open(block: (BrowserQuery) -> T): T? {
         if (!file.isFile) return null
         val database = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY)
         return database.use { db ->
-            db.rawQuery(sql, args.toTypedArray()).use { cursor ->
-                buildList {
-                    while (cursor.moveToNext()) add(List(cursor.columnCount) { column -> value(cursor, column) })
+            val query = BrowserQuery { sql, args ->
+                db.rawQuery(sql, args.toTypedArray()).use { cursor ->
+                    buildList {
+                        while (cursor.moveToNext()) add(List(cursor.columnCount) { column -> value(cursor, column) })
+                    }
                 }
             }
+            block(query)
         }
     }
 
@@ -40,7 +47,7 @@ class PhoneBrowsingSource(
     private val clock: () -> Long = System::currentTimeMillis,
 ) : LocalBrowsingSource {
     override fun syncedTabs(): List<LocalTabRecord> {
-        val found = rows.query("SELECT url, title, lastActive, profileSyncId FROM tabs WHERE archivedAt IS NULL", emptyList()) ?: return emptyList()
+        val found = query("SELECT url, title, lastActive, profileSyncId FROM tabs WHERE archivedAt IS NULL", emptyList()) ?: return emptyList()
         val counts = HashMap<String?, Int>()
         return found
             .map { LocalTabRecord(it[0] as String, it[1] as String, (it[2] as Number).toLong(), it[3] as String?) }
@@ -72,8 +79,44 @@ class PhoneBrowsingSource(
 
     override fun receive(tabs: List<ReceivedTab>): Boolean = inbox.receive(tabs.filter { isSyncable(it.url) })
 
+    private val session = ThreadLocal<BrowserQuery?>()
+
+    override fun <T> readingTogether(block: () -> T): T {
+        if (session.get() != null) return block()
+        repeat(READ_ATTEMPTS) {
+            val read = rows.open { query ->
+                checkSchema(query)
+                val before = dataVersion(query)
+                session.set(query)
+                try {
+                    block() to (dataVersion(query) == before)
+                } finally {
+                    session.remove()
+                }
+            } ?: return block()
+            if (read.second) return read.first
+        }
+        throw java.io.IOException("the phone's data kept changing while sync read it")
+    }
+
+    private fun query(sql: String, args: List<String>): List<List<Any?>>? {
+        session.get()?.let { return it.query(sql, args) }
+        return rows.open { query ->
+            checkSchema(query)
+            query.query(sql, args)
+        }
+    }
+
+    private fun checkSchema(query: BrowserQuery) {
+        query.query("PRAGMA busy_timeout = $BUSY_TIMEOUT_MILLIS", emptyList())
+        val version = (query.query("PRAGMA user_version", emptyList()).firstOrNull()?.firstOrNull() as? Number)?.toInt() ?: 0
+        check(version <= SCHEMA_VERSION) { "the phone's database is schema $version, newer than the $SCHEMA_VERSION sync reads" }
+    }
+
+    private fun dataVersion(query: BrowserQuery): Long = (query.query("PRAGMA data_version", emptyList()).first().first() as Number).toLong()
+
     private fun visits(sql: String, args: List<String>): List<LocalVisitRecord> {
-        val found = rows.query(sql, args) ?: return emptyList()
+        val found = query(sql, args) ?: return emptyList()
         val removed = HashMap<String?, Set<String>>()
         val records = LinkedHashMap<Pair<String, String?>, LocalVisitRecord>()
         for (row in found) {
@@ -97,6 +140,9 @@ class PhoneBrowsingSource(
         const val SYNCED_TAB_LIMIT = 30
         const val HISTORY_RETENTION_MILLIS = 90L * 24 * 3_600_000
         private const val CHUNK = 500
+        const val SCHEMA_VERSION = 1
+        private const val READ_ATTEMPTS = 3
+        private const val BUSY_TIMEOUT_MILLIS = 5_000
 
         fun isSyncable(url: String): Boolean {
             val lower = url.lowercase()

@@ -566,6 +566,10 @@ class SyncService(
 
     private fun gatherLocal(time: Long, generation: Int): LocalBrowsing {
         val local = source ?: return LocalBrowsing(meta.deviceName, null, null)
+        return local.readingTogether { gatherLocal(local, time, generation) }
+    }
+
+    private fun gatherLocal(local: LocalBrowsingSource, time: Long, generation: Int): LocalBrowsing {
         var visits: List<LocalVisitRecord>? = null
         if (visitsFetchedGeneration != generation) {
             val window = time - HISTORY_WINDOW_MS

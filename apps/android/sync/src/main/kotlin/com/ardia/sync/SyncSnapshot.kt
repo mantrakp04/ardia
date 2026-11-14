@@ -153,4 +153,6 @@ interface LocalBrowsingSource {
     fun removeVisits(urls: Set<String>, profileSyncId: String?)
 
     fun receive(tabs: List<ReceivedTab>): Boolean
+
+    fun <T> readingTogether(block: () -> T): T = block()
 }
