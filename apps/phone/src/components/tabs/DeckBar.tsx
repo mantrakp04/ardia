@@ -19,7 +19,7 @@ export function DeckBar({ leading, plusLabel, onPlus, onPlusMenu, onSettings }: 
       </View>
       <PressScale
         label={plusLabel}
-        hint="Touch and hold for more options"
+        hint="Touch and hold for more options."
         onPress={onPlus}
         onLongPress={onPlusMenu}
         style={[styles.plus, { width: plus.width, height: plus.height, borderRadius: capsule(plus.height), backgroundColor: theme.deckControl, borderColor: theme.controlEdge }]}

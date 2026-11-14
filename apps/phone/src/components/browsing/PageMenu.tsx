@@ -26,12 +26,19 @@ import {
 import { useMenuModel, useMenuTitle, useTitleFeedback } from "../../state/page/hooks";
 import { useIsPinned, useSendTargets } from "../../state/sync/hooks";
 import { useTab } from "../../state/tabs/hooks";
-import { capsule, FloatingMenu, font, menuLayout, PressScale, Sheet, space, Symbol, Toggle, useTheme, type SymbolName } from "../ui";
+import { capsule, ConfirmDialog, FloatingMenu, font, menuLayout, PressScale, Sheet, space, Symbol, Toggle, useTheme, type SymbolName } from "../ui";
 
 export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boolean; onHidden: () => void }) {
   const model = useMenuModel(tabId);
+  const [confirmsTranslation, setConfirmsTranslation] = useState(false);
   return (
     <Sheet open={open} onDismiss={closePageMenu} onHidden={onHidden}>
+      {confirmsTranslation ? (
+        <ConfirmDialog
+          confirmation={{ title: "Translate with Google?", message: "Google will see this page’s address.", action: "Translate", destructive: false, run: translatePage }}
+          onClose={() => setConfirmsTranslation(false)}
+        />
+      ) : null}
       <ScrollView contentContainerStyle={styles.column} bounces={false}>
         <NavigationCapsule tabId={tabId} />
         <View style={styles.tiles}>
@@ -42,7 +49,7 @@ export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boole
         <Group>
           <Row icon="textMagnifyingglass" title="Find on Page" enabled={model.find} divider={model.pageRows} onPress={showFind} />
           {model.pageRows ? <SendRow tabId={tabId} enabled={model.isWebPage} /> : null}
-          {model.pageRows ? <Row icon="translate" title="Translate" enabled={model.translate} divider={false} onPress={translatePage} /> : null}
+          {model.pageRows ? <Row icon="translate" title="Translate" enabled={model.translate} divider={false} onPress={() => setConfirmsTranslation(true)} /> : null}
         </Group>
         {model.pageRows ? (
           <>

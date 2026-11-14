@@ -3,15 +3,35 @@ import type { BrowserTab } from "../../state/tabs/tabModels";
 import { display } from "../../state/search/omnibox";
 import { browseLayout, capsule, PressScale, shadowRadius, Symbol, TabFace, tabsInk, tabsLayout, type ColorRoles } from "../ui";
 
-type Props = { order: BrowserTab[]; roles: ColorRoles; showsPlus: boolean; onTabs: () => void; onTabsMenu: () => void; onPlus: () => void; onMore: () => void };
+type Props = {
+  order: BrowserTab[];
+  roles: ColorRoles;
+  showsPlus: boolean;
+  onTabs: () => void;
+  onTabsMenu: () => void;
+  onStep: (delta: -1 | 1) => void;
+  onPlus: () => void;
+  onMore: () => void;
+};
 
-export function BottomBar({ order, roles, showsPlus, onTabs, onTabsMenu, onPlus, onMore }: Props) {
+export function BottomBar({ order, roles, showsPlus, onTabs, onTabsMenu, onStep, onPlus, onMore }: Props) {
   const plus = browseLayout.plusCapsule;
   const count = order.length;
   return (
     <View style={styles.row}>
       <View style={styles.side}>
-        <PressScale label="Tabs" hint={`${count} ${count === 1 ? "tab" : "tabs"}`} onPress={onTabs} onLongPress={onTabsMenu} style={styles.tabs}>
+        <PressScale
+          label="Tabs"
+          value={`${count} ${count === 1 ? "tab" : "tabs"}`}
+          hint="Touch and hold for recent tabs."
+          actions={[
+            { name: "previousTab", label: "Previous Tab", run: () => onStep(-1) },
+            { name: "nextTab", label: "Next Tab", run: () => onStep(1) },
+          ]}
+          onPress={onTabs}
+          onLongPress={onTabsMenu}
+          style={styles.tabs}
+        >
           <TabStack tabs={order.slice(-2)} roles={roles} />
         </PressScale>
       </View>

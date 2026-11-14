@@ -115,6 +115,10 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
                     menuOpenedHaptic();
                     setTabsMenu(true);
                   }}
+                  onStep={(delta) => {
+                    const id = delta < 0 ? left?.id : right?.id;
+                    if (id) switchToNeighbour(id);
+                  }}
                   onPlus={newTab}
                   onMore={openPageMenu}
                 />

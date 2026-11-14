@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { checkPhrase, connectSync, pastedText } from "../../state/sync/actions";
-import { connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRules";
+import { setupStepLabel, connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRules";
 import { capsule, font, radius, settingsLayout, space, spacesLayout, Symbol, useTheme } from "../ui";
 import { BarButton, Group, SettingsPage } from "../settings/SettingsKit";
 import { CapsuleButton, SyncHero } from "./SyncPage";
@@ -104,7 +104,7 @@ function Step({ number, title, detail, done, current, children }: { number: numb
   const ink = done ? theme.switchOn : current ? theme.formAccent : theme.tertiaryLabel;
   return (
     <View style={styles.step}>
-      <View style={[styles.badge, { borderColor: ink, backgroundColor: done ? ink : undefined }]}>
+      <View accessible accessibilityLabel={setupStepLabel(number, done, current)} style={[styles.badge, { borderColor: ink, backgroundColor: done ? ink : undefined }]}>
         {done ? <Symbol name="checkmark" size={14} color={theme.groupFill} /> : <Text style={[font.footnote, styles.bold, { color: ink }]}>{number}</Text>}
       </View>
       <View style={styles.stepBody}>

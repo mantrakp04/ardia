@@ -115,7 +115,7 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
         accessibilityRole="button"
         accessibilityLabel={title}
         accessibilityValue={{ text: tab.isPrivate ? `Incognito, ${host}` : host }}
-        accessibilityHint="Opens the tab"
+        accessibilityHint="Opens the tab."
         accessibilityActions={[{ name: "activate" }, { name: "close", label: "Close Tab" }]}
         onAccessibilityAction={(event) => (event.nativeEvent.actionName === "close" ? onClose(index) : onOpen(index))}
         style={[

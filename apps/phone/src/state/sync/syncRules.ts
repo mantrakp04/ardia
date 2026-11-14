@@ -183,3 +183,5 @@ export function scanJudge(isValid: (payload: string) => boolean) {
     return isValid(payload) ? { kind: "accept", phrase: payload.trim() } : { kind: "reject" };
   };
 }
+
+export const setupStepLabel = (number: number, done: boolean, current: boolean) => (done ? `Step ${number}, done` : current ? `Step ${number}` : `Step ${number}, later`);
