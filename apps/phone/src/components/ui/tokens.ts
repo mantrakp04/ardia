@@ -1,4 +1,6 @@
-export const ink = { white: "#FFFFFF", black: "#000000", clear: "#00000000" } as const;
+export const ink = { white: "#FFFFFF", black: "#000000", clear: "#00000000", knobShadow: "rgba(0,0,0,0.25)" } as const;
+
+export const toggleLayout = { width: 51, height: 31, knob: 27, inset: 2 } as const;
 
 export type ProfileColor = "plum" | "blue" | "purple" | "pink" | "red" | "orange" | "yellow" | "green" | "neutral";
 
@@ -32,6 +34,7 @@ const lightRoles = {
   disabled: "rgba(0,0,0,0.2)",
   accent: "#6395FC",
   formAccent: "#007AFF",
+  switchOn: "#34C759",
   trayShadow: "#000000",
   trayDim: "rgba(0,0,0,0.28)",
   pageSurface: "#FFFFFF",
@@ -74,6 +77,7 @@ const darkRoles: ColorRoles = {
   disabled: "rgba(255,255,255,0.25)",
   accent: "#4A77D4",
   formAccent: "#0A84FF",
+  switchOn: "#30D158",
   trayShadow: "#000000",
   trayDim: "rgba(0,0,0,0.28)",
   pageSurface: "#000000",

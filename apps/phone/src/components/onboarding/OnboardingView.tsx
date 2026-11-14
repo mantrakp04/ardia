@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   primary: { minHeight: settingsLayout.primaryButton, borderRadius: capsule(settingsLayout.primaryButton), alignItems: "center", justifyContent: "center" },
   illustration: { flex: 1, justifyContent: "flex-end", paddingHorizontal: space.l },
   card: { borderRadius: radius.card, paddingVertical: space.xs, elevation: 8, shadowOpacity: 0.4, shadowRadius: 16 },
-  tips: { padding: space.xl, gap: space.xl },
+  tips: { paddingHorizontal: space.xl, paddingVertical: space.xl, gap: space.xl },
   tip: { flexDirection: "row", alignItems: "center", gap: space.m },
   tipIcon: { width: 28, alignItems: "center" },
 });
