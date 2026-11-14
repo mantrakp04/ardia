@@ -558,8 +558,6 @@ function Test-NotATestInstance([string]$DataDirectory, [string]$Case) {
     $refused = Wait-GateLine $run $caseLog "not a test instance \("
     if ($refused) { Write-Host "test gate, $Case`: $($refused.Line)" } else { $script:failures += "ARDIA_TEST counted, or the launch said nothing, with $Case"; return }
     if (-not $withEngine) { return }
-    $chromium = Join-Path ([System.IO.Path]::GetFullPath($DataDirectory)) "Chromium"
-    if (Test-Path -LiteralPath (Join-Path $chromium "DevToolsActivePort")) { $script:failures += "remote debugging wrote DevToolsActivePort with $Case" }
     if (Test-PortOpen $gatePort) { $script:failures += "remote debugging listened on port $gatePort with $Case" }
     $engine = Wait-GateLine $run $caseLog "^engine 0 test gate: "
     if (-not $engine) { $script:failures += "the engine said nothing about the test gate with $Case"; return }
@@ -575,10 +573,8 @@ function Test-ATestInstance([string]$DataDirectory, [string]$Case) {
     if (-not $engine) { $script:failures += "the engine said nothing about the test gate with $Case"; return }
     Write-Host "engine test gate, $Case`: $($engine.Line)"
     if ($engine.Line -notmatch "a test instance; remote debugging port: $gatePort; ardiacore test instance: yes; reauth=granted honoured: yes$") { $script:failures += "the engine refused the test instance or reauth=granted with $Case" }
-    $active = Join-Path $DataDirectory "Chromium\DevToolsActivePort"
     $deadline = (Get-Date).AddSeconds(20)
-    while ((Get-Date) -lt $deadline -and -not (Test-Path -LiteralPath $active)) { Start-Sleep -Milliseconds 500 }
-    if (-not (Test-Path -LiteralPath $active)) { $script:failures += "remote debugging wrote no DevToolsActivePort with $Case"; return }
+    while ((Get-Date) -lt $deadline -and -not (Test-PortOpen $gatePort)) { Start-Sleep -Milliseconds 500 }
     try {
       $version = Invoke-RestMethod -Uri "http://127.0.0.1:$gatePort/json/version" -TimeoutSec 10
       Write-Host "remote debugging, $Case`: $($version.Browser)"

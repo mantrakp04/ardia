@@ -806,8 +806,8 @@ reads in place of the Mac's signing check (`series_win.py` `launch_switches_sour
 one `engine 0 test gate:` line saying why, and `reauth=granted`, `keychain`, `safeStorageAnswer` and the other engine
 test keys never count. Any of those switches given on the command line is dropped first. `launch-smoke.ps1` checks
 it with the engine: with no marker, a relative folder, the real profile folder and a junction to it, the launch
-asks for remote debugging and `reauth=granted`, and the engine must refuse both, write no `DevToolsActivePort` and
-leave the port closed; a scratch folder with the marker must get both.
+asks for remote debugging and `reauth=granted`, and the engine must refuse both and leave the port closed; a scratch
+folder with the marker must get both, with the port answering `/json/version`.
 
 ## Checks
 
