@@ -239,6 +239,18 @@ test("a page that unmounts and mounts again in one tick under the same key close
   await settle();
 });
 
+test("while a page of a window is full screen, the window's other pages count as hidden, and they come back when it leaves", async () => {
+  const { setFullScreenPage, hiddenByFullScreen } = await import("../../../../packages/expo-windows/src/engine/covers.ts");
+  setFullScreenPage("fs-window", "right", true);
+  assert.equal(hiddenByFullScreen("fs-window", "left"), true);
+  assert.equal(hiddenByFullScreen("fs-window", "right"), false);
+  assert.equal(hiddenByFullScreen("other-window", "left"), false);
+  setFullScreenPage("fs-window", "left", false);
+  assert.equal(hiddenByFullScreen("fs-window", "left"), true, "a page that wasn't full screen can't end another's");
+  setFullScreenPage("fs-window", "right", false);
+  assert.equal(hiddenByFullScreen("fs-window", "left"), false);
+});
+
 test("a private window whose hidden tab was refused gets it once a private page of its session opens, and not after the window went", async () => {
   const restore = quietWarnings();
   const before = calls.length;
@@ -269,4 +281,40 @@ test("a private window whose hidden tab was refused gets it once a private page 
   unmount();
   unmountOther();
   restore();
+});
+
+test("a page asked for the keyboard before it shows takes it once it shows, unless another page was asked since", async () => {
+  const focuses = (key) => calls.filter((call) => call.verb === "tab.call" && call.args.key === key && call.args.method === "focus").length;
+  const shape = { x: 0, y: 0, width: 10, height: 10, radius: 0, holes: [] };
+  const unmountEarly = mountPage("focus-early", { url: "https://a.example/", windowId: "wf" }, () => {});
+  const unmountOther = mountPage("focus-other", { url: "https://b.example/", windowId: "wf" }, () => {});
+  const unmountLost = mountPage("focus-lost", { url: "https://c.example/", windowId: "wf" }, () => {});
+  await settle();
+  await callPage("focus-early", "focus");
+  assert.equal(focuses("focus-early"), 0, "the host ignores focus for a page window that isn't showing");
+  showPage("focus-early", true, shape);
+  await settle();
+  await settle();
+  assert.equal(focuses("focus-early"), 1);
+  const shown = calls.findIndex((call) => call.verb === "tab.show" && call.args.key === "focus-early");
+  const focused = calls.findIndex((call) => call.verb === "tab.call" && call.args.key === "focus-early" && call.args.method === "focus");
+  assert.ok(shown >= 0 && shown < focused, "the focus goes after the show");
+  showPage("focus-early", true, { ...shape, width: 20 });
+  await settle();
+  await settle();
+  assert.equal(focuses("focus-early"), 1, "a later move doesn't take the keyboard again");
+  await callPage("focus-early", "focus");
+  assert.equal(focuses("focus-early"), 2, "a showing page is focused at once");
+  await callPage("focus-lost", "focus");
+  showPage("focus-other", true, shape);
+  await settle();
+  await callPage("focus-other", "focus");
+  showPage("focus-lost", true, shape);
+  await settle();
+  await settle();
+  assert.equal(focuses("focus-lost"), 0, "the keyboard went to another page meanwhile");
+  unmountEarly();
+  unmountOther();
+  unmountLost();
+  await settle();
 });

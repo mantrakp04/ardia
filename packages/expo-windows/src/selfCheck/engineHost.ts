@@ -30,6 +30,7 @@ const system = () => requireNativeModule<Pick<SystemNative, "fileExists">>("Ardi
 const launchData = () => requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().dataDirectory;
 const domain = (name: string) => requireNativeModule<Pick<DomainModule, "call">>(name);
 
+const SECOND_PAGE_KEY = "self-check-second-page";
 const PRIVATE_FIRST = "incognito:self-check-first@";
 const PRIVATE_SECOND = "incognito:self-check-second@";
 const PRIVATE_NEXT = "incognito:self-check-next@";
@@ -159,6 +160,27 @@ const withEngine: Check[] = [
       await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
       const hidden = (await hostCall<{ tabs: ListedTab[] }>("tabs.list")).tabs.find((tab) => tab.key === PAGE_KEY);
       expectEqual(hidden?.shown, false, "shown after hiding");
+    },
+  },
+  {
+    name: "engine: two pages of one window show at once, each in its own page window",
+    async run() {
+      const windowId = await firstWindow();
+      const made = await hostCall<{ tab?: unknown }>("tab.create", { key: SECOND_PAGE_KEY, url: PAGE_URL, profile: "" }, windowId);
+      expectTrue(typeof made.tab === "number" && made.tab > 0, `tab.create said ${JSON.stringify(made)}`);
+      await hostCall("tab.show", { key: PAGE_KEY, visible: true, unit: "px", x: 40, y: 60, width: 300, height: 240 }, windowId);
+      await hostCall("tab.show", { key: SECOND_PAGE_KEY, visible: true, unit: "px", x: 360, y: 60, width: 280, height: 220 }, windowId);
+      const both = (await hostCall<{ tabs: ListedTab[] }>("tabs.list")).tabs;
+      const first = both.find((tab) => tab.key === PAGE_KEY);
+      const second = both.find((tab) => tab.key === SECOND_PAGE_KEY);
+      expectEqual({ shown: first?.shown, width: first?.width, height: first?.height }, { shown: true, width: 300, height: 240 }, "the first page while the second shows");
+      expectEqual({ shown: second?.shown, width: second?.width, height: second?.height }, { shown: true, width: 280, height: 220 }, "the second page");
+      await hostCall("tab.show", { key: SECOND_PAGE_KEY, visible: false }, windowId);
+      const after = (await hostCall<{ tabs: ListedTab[] }>("tabs.list")).tabs;
+      expectEqual(after.find((tab) => tab.key === PAGE_KEY)?.shown, true, "the first page after the second hid");
+      expectEqual(after.find((tab) => tab.key === SECOND_PAGE_KEY)?.shown, false, "the second page after it hid");
+      await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
+      await hostCall("tab.close", { key: SECOND_PAGE_KEY });
     },
   },
   {

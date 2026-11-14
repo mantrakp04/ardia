@@ -38,7 +38,7 @@ import { webviews } from "../../platform/webviews";
 import { togglePageEngine } from "../engines/actions";
 import { goBack, goForward } from "../tabs/navigation";
 import { awaitsFirstPage } from "../tabs/pendingAddress";
-import { openSplitPane } from "../splits/actions";
+import { focusSplitPane, openSplitPane } from "../splits/actions";
 import { isAppCommand, LITTLE_ARDIA_PAGE_COMMANDS, settingChange, UNAVAILABLE_COMMANDS, variantArg } from "./commandCatalog";
 import { APP_COMMAND_HANDLERS } from "./appCommands";
 import { runSidebarCommand } from "../sidebar/commands";
@@ -234,9 +234,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "openSplitPane":
       return void openSplitPane(windowId);
     case "focusNextPane":
-      return s.focusPane(windowId, 1);
     case "focusPreviousPane":
-      return s.focusPane(windowId, -1);
+      return focusSplitPane(windowId, command === "focusNextPane" ? 1 : -1);
     case "toggleSidebar":
       return s.toggleSidebar(windowId);
     case "zoomIn":

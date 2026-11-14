@@ -96,6 +96,10 @@ class Host : public TabStripModelObserver,
   content::WebContents* Find(const std::string& key) const;
   content::WebContents* FindOffered(const std::string& adopt) const;
   Browser* BrowserFor(HWND parent, Profile* profile);
+  Browser* FreePageFor(HWND parent, Profile* profile, const Browser* except);
+  Browser* NewPage(HWND parent, Profile* profile);
+  bool Fits(const Hosted& hosted, HWND parent, const std::string& key) const;
+  bool MoveTab(content::WebContents* contents, Browser* from, Browser* target);
   Browser* BrowserOf(content::WebContents* contents) const;
   Browser* OwnerOf(const TabStripModel* model) const;
   bool PlaceTab(content::WebContents* contents, HWND parent);
@@ -103,6 +107,7 @@ class Host : public TabStripModelObserver,
   void Park(Browser* browser);
   void ParkForeign(base::WeakPtr<BrowserWindowInterface> browser);
   void Hide(Browser* browser, Hosted& hosted);
+  void CloseSparePages();
   void Place(HWND window, const Hosted& hosted);
   void WatchParent(HWND parent);
   void FocusFor(ui::Event* event);

@@ -316,7 +316,7 @@ is plain Chromium.
   hands it the API in `EngineApi.h`: `hostCall(verb, json, window)`, `engineCall(name, profile, json)` and one event
   sink. Chromium's message loop offers each message to the app first, except messages for Chromium's own windows.
 - Every normal browser window Chromium has is hosted: page only, with no frame, tab strip, toolbar, rounded page frame
-  or shortcuts of its own (the `chromium-win-hosted-*` patches). The app keeps one per app window and profile. Each is
+  or shortcuts of its own (the `chromium-win-hosted-*` patches), and each shows one page: its active tab. Each is
   a borderless top-level window owned by the app's window, placed over the page's view: it stays above its owner, hides
   and minimizes with it, and follows it when it moves. It cannot be a child window: with the Windows App SDK in a
   window, no mouse message for a child of it reaches the UI thread (`ARDIA_INPUT_TRACE=<file>` logs what does). A window
@@ -378,13 +378,15 @@ is plain Chromium.
   launch nobody asked for).
 - A page that goes full screen takes its window full screen (`setPageFullScreen`, which puts the window back as it
   was when the page leaves), and nothing is cut out of the page while it is.
-- Split View is off on Windows (`PLATFORM_FEATURES.splitView`): the engine keeps one hosted Chromium window per app
-  window and profile and shows one tab in it, so a second pane had no page. Nothing makes a split (the splits slice
-  refuses, and a split that comes from the session, an import or a reopened window drops to its panes, which stay as
-  ordinary tabs), and its menu items, toolbar and hover buttons, shortcuts, command bar actions, ⌥ clicks and drop
-  zones are not offered; a link meant for a pane opens as a tab. The engine needs one hosted window per visible page:
-  `tab.show` placing a tab in its own borderless window owned by the app window, several shown at once, each with its
-  own bounds, corner radius and holes, and hiding only what the UI hides.
+- Every page the app shows at once has its own page window, so Split View's panes and a Peek over a page show
+  together. `tab.show` makes no assumption about the window's other pages: it hides a page only when the UI says so
+  (`visible: false`, sent when a page is parked, unmounted or hidden). A tab whose page window already shows another
+  visible page, or belongs to another app window, moves to a free page window of that app window and profile, or to a
+  new one; so an app window keeps as many page windows as it ever showed pages at once, plus one while a tab switch
+  shows the new page before hiding the old. Each is placed, scaled and shaped on its own (bounds, corner radius,
+  holes); pages do not overlap, because the UI cuts a hole in a page where another surface, such as the Peek card,
+  sits over it. Owned windows, they minimize and move with the app window, and a press in any of them is that page's
+  `pagePress`.
 - A tab restored from the last session, or duplicated, loads its address: the Windows engine keeps no saved page
   state yet, so only tabs the engine itself offered are adopted.
 - The Windows engine opens every tab on a real `about:blank` and names it as the committed page, where the Mac's tab
