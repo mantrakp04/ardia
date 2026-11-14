@@ -12,13 +12,14 @@ import {
 import { runningAppIcon } from "../../state/app/system";
 import { Symbol, Button, Checkbox, PANEL, PanelHeader, Popover, POPOVER_MARGIN, Text, useHover } from "../ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Image, Pressable, ScrollView, View, type TextStyle } from "react-native";
+import { Animated, Image, Pressable, ScrollView, View, type TextStyle } from "react-native";
 import { useTheme } from "../ui/theme";
 import { concentric, radius, space } from "../ui/tokens";
 import { useMediaTokens } from "./tokens";
 import { Favicon } from "../favicon/Favicon";
 import { useMedia } from "../../state/media/media";
 import { originForSecurityDisplay } from "../../lib/url";
+import { buttonMotion, usePressScaleMotion } from "../ui/motion";
 
 const WIDTH = 460;
 const REFRESH_MS = 2500;
@@ -219,11 +220,13 @@ function ScreenTile({ source, width, selected, onSelect, onShare }: { source: Di
   const theme = useTheme();
   const tokens = useMediaTokens();
   const { hovered, hoverProps } = useHover();
+  const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
+  const iconScaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   const aspect = source.width && source.height ? source.height / source.width : 10 / 16;
   const previewWidth = width - 2 * space.m;
   return (
     <View {...hoverProps} onDoubleClick={onShare}>
-      <Pressable onPress={onSelect}>
+      <Pressable onPress={onSelect} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut}>
         <View style={{ width, padding: space.m, borderRadius: radius.panel, alignItems: "center", backgroundColor: selected ? tokens.pickerSelected : hovered ? theme.rowHover : undefined }}>
           <View
             style={{
@@ -237,7 +240,9 @@ function ScreenTile({ source, width, selected, onSelect, onShare }: { source: Di
               justifyContent: "center",
             }}
           >
-            <Symbol name="display" size={22} color={theme.textSecondary} style={{ width: 30, height: 30 }} />
+            <Animated.View pointerEvents="none" style={iconScaleStyle}>
+              <Symbol name="display" size={22} color={theme.textSecondary} style={{ width: 30, height: 30 }} />
+            </Animated.View>
           </View>
           <Text lines={1} size="small" style={TILE_NAME}>
             {source.name}
@@ -295,11 +300,13 @@ function SourceRow({
   const theme = useTheme();
   const tokens = useMediaTokens();
   const { hovered, hoverProps } = useHover();
+  const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
+  const iconScaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   return (
     <View {...hoverProps} onDoubleClick={onShare}>
-      <Pressable onPress={onSelect}>
+      <Pressable onPress={onSelect} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut}>
         <View style={{ height: 34, borderRadius: PANEL.rowRadius, flexDirection: "row", alignItems: "center", gap: PANEL.iconGap, paddingHorizontal: PANEL.rowPadding, backgroundColor: selected ? tokens.pickerSelected : hovered ? theme.rowHover : undefined }}>
-          {leading}
+          <Animated.View pointerEvents="none" style={iconScaleStyle}>{leading}</Animated.View>
           <Text lines={1} style={ROW_TITLE}>
             {title}
           </Text>
