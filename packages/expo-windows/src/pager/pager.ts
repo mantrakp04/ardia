@@ -1,4 +1,4 @@
-import type { PagerSnapshot, PagerStateEvent } from "@ardia/ardiacore";
+import type { NativePagerConfig, PagerSnapshot, PagerStateEvent } from "@ardia/ardiacore";
 
 export type { PagerSnapshot, PagerStateEvent };
 
@@ -9,7 +9,7 @@ export type PagerArea = {
   state(event: PagerStateEvent): void;
 };
 
-export type PagerConfig = { selected: number; count: number; ack: number; width: number; order?: readonly string[] };
+export type PagerConfig = Omit<NativePagerConfig, "key" | "ack" | "width"> & Required<Pick<NativePagerConfig, "ack" | "width">>;
 
 export type PagerClock = {
   now(): number;

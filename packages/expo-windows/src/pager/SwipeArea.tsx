@@ -1,11 +1,11 @@
 import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import type { NativeSwipeAreaProps } from "@ardia/ardiacore";
+import type { NativePagerConfig, NativeSwipeAreaProps } from "@ardia/ardiacore";
 import { View } from "react-native";
 import { noteFirstWindow, noteMissing } from "../missing";
 import { pagers } from "./index";
 import type { PagerArea, PagerConfig, PagerStateEvent } from "./pager";
 
-type KeyedConfig = PagerConfig & { key: string };
+type KeyedConfig = PagerConfig & Pick<NativePagerConfig, "key">;
 
 const whole = (value: unknown, fallback: number) => (typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : fallback);
 
