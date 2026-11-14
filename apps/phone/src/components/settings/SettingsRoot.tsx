@@ -12,6 +12,8 @@ import { usePreferences } from "../../state/settings/hooks";
 import { closeSettings, pushSettings } from "../../state/settings/nav";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
 import { capsule, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useProfileLook, useTheme, type ProfileColor } from "../ui";
+import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
+import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
 import { BarButton, Group, IconTile, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
 
 const APP_LINKS = [
@@ -29,6 +31,7 @@ export function SettingsRoot() {
   const interval = usePreferences((p) => p.autoArchiveInterval);
   const engines = useEngines((s) => s.engines);
   const appLinks = useEngines((s) => s.appLinks);
+  const sharing = useUsageSharing((s) => s.sharing);
   const syncEnabled = useSyncEnabled();
   const offersDefault = offersDefaultBrowser(useDefaultBrowser((s) => s.status));
   useEffect(() => {
@@ -86,6 +89,17 @@ export function SettingsRoot() {
           <IconTile icon="squareAndArrowUp" tint={settingsTint.export} />
           <Text style={[font.body, { color: theme.label }]}>Export Open Tabs</Text>
         </Pressable>
+      </Group>
+      <Group footer={PHONE_SHARING_COPY.summary}>
+        <ToggleRow
+          title={PHONE_SHARING_COPY.toggle}
+          icon="checkmarkShield"
+          tint={settingsTint.neutral}
+          value={sharing}
+          divider
+          onChange={(on) => setUsageSharing(on, "settings")}
+        />
+        <NavRow title={PHONE_SHARING_COPY.whatsSent} icon="info" tint={settingsTint.neutral} onPress={() => pushSettings({ page: "whatsSent" })} />
       </Group>
       <Group>
         <Pressable accessibilityRole="button" onPress={showOnboarding} style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}>

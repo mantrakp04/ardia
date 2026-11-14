@@ -11,6 +11,7 @@ import { SearchEnginePage, SiteSettingsPage } from "./SitePages";
 import { SyncConnect } from "../sync/SyncConnect";
 import { SyncPage } from "../sync/SyncPage";
 import { DefaultBrowserPage } from "./DefaultBrowserPage";
+import { WhatsSentPage } from "./WhatsSentPage";
 import { popSettings } from "../../state/settings/nav";
 
 const push = SlideInRight.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
@@ -45,6 +46,8 @@ function Page({ route }: { route: SettingsRoute }) {
       return <AboutPage />;
     case "licenses":
       return <LicensesPage />;
+    case "whatsSent":
+      return <WhatsSentPage />;
   }
 }
 

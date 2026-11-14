@@ -30,11 +30,13 @@ import { useSharedValue } from "react-native-reanimated";
 import { closeSettings } from "./state/settings/nav";
 import { frontSheet } from "./state/settings/settingsRules";
 import { inkLayer, lightStatusIcons } from "./lib/statusInk";
+import { reportLaunch, startTelemetry } from "./state/telemetry/telemetry";
 import { useIncognito, useSelectedTab } from "./state/tabs/hooks";
 
 export default function App() {
   useState(() =>
     bootApp(() => {
+      startTelemetry();
       startBrowser();
       startPageUi();
       startSettingsSources();
@@ -43,6 +45,11 @@ export default function App() {
     }),
   );
   const ready = useBoot((s) => s.ready);
+  useEffect(() => {
+    if (!ready) return;
+    const frame = requestAnimationFrame(() => void reportLaunch(Date.now()));
+    return () => cancelAnimationFrame(frame);
+  }, [ready]);
   const dark = useColorScheme() === "dark";
   const look = useLook(PROFILE_PRESETS, DEFAULT_PROFILE_COLOR);
   useBaseSystemBars(dark);

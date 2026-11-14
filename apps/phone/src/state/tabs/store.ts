@@ -17,6 +17,7 @@ import {
 import { browserDatabase } from "../store/database";
 import { receiveTabs, type IncomingTab } from "./received";
 import type { AutoArchiveInterval, BrowserTab, TabPatch } from "./tabModels";
+import { countUsage } from "../telemetry/telemetry";
 import {
   archiveTabs,
   clearArchive,
@@ -108,6 +109,7 @@ export function openNewTab(request: Omit<OpenRequest, "isPrivate"> & { isPrivate
     newUuid(),
   );
   apply(change);
+  if (!tab.isPrivate && !request.received) countUsage("tabs_opened");
   return tab;
 }
 

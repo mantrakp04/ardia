@@ -42,6 +42,7 @@ import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from
 import { setHidesFromRecents } from "../../platform/links";
 import { pasteText } from "../../platform/system";
 import { hideArchiveCard } from "./archiveCard";
+import { countUsage } from "../telemetry/telemetry";
 import { coverIsCapturable, isSyncableUrl, pageStatePatch, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
 
 export type Surface = "start" | "browsing" | "deck";
@@ -113,7 +114,8 @@ const show = (surface: Surface) => useBrowse.setState({ surface });
 
 export function openPage(url: string, origin: TabOrigin) {
   dismissSearch();
-  openNewTab({ url, origin });
+  const tab = openNewTab({ url, origin });
+  if (origin === "search" && !tab.isPrivate) countUsage("searches");
   useBrowse.setState({ surface: "browsing", sheet: null, frozenOrder: null });
 }
 
@@ -332,6 +334,7 @@ function scheduleSnapshot(id: string, tries = SNAPSHOT_RETRIES) {
 function backgroundPageState(id: string, state: PageState) {
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
+  noteCrash(tab, state);
   const patch = pageStatePatch(tab, state, false);
   if (patch) updateTabById(id, patch);
   const wasLoading = loading.get(id);
@@ -339,10 +342,23 @@ function backgroundPageState(id: string, state: PageState) {
   if (wasLoading && !state.isLoading) scheduleSnapshot(id);
 }
 
+const crashedPages = new Set<string>();
+
+function noteCrash(tab: BrowserTab, state: PageState) {
+  if (state.failure?.kind !== "crashed") {
+    crashedPages.delete(tab.id);
+    return;
+  }
+  if (crashedPages.has(tab.id)) return;
+  crashedPages.add(tab.id);
+  if (!tab.isPrivate) countUsage("page_processes_gone");
+}
+
 export function pageStateChanged(id: string, state: PageState) {
   storeNavigation(id, state);
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
+  noteCrash(tab, state);
   const title = state.title.trim() ? state.title : null;
   const patch = pageStatePatch(tab, state, true);
   if (patch) updateTabById(id, patch);

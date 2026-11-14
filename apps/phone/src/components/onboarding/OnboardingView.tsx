@@ -9,6 +9,8 @@ import { ToggleRow } from "../settings/SettingsKit";
 import { SyncConnect } from "../sync/SyncConnect";
 import { DefaultBrowserSteps } from "../settings/DefaultBrowserPage";
 import { LinkBubble } from "./LinkBubble";
+import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
+import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
 import { useSyncConnected } from "../../state/sync/hooks";
 
 const welcomeSpring = spring(0.7, 0.7);
@@ -204,12 +206,28 @@ function AllSet() {
         </Animated.View>
       }
     >
+      <SharingChoice />
       <Primary title="Start Browsing" onPress={finishOnboarding} />
     </Page>
   );
 }
 
+function SharingChoice() {
+  const theme = useTheme();
+  const sharing = useUsageSharing((s) => s.sharing);
+  return (
+    <View style={styles.sharing}>
+      <View style={[styles.sharingCard, { backgroundColor: theme.groupFill }]}>
+        <ToggleRow title={PHONE_SHARING_COPY.toggle} icon="checkmarkShield" tint={settingsTint.neutral} value={sharing} onChange={(on) => setUsageSharing(on, "onboarding")} />
+      </View>
+      <Text style={[font.footnote, styles.centered, { color: theme.secondaryLabel }]}>{PHONE_SHARING_COPY.onboardingNote}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  sharing: { gap: space.s },
+  sharingCard: { borderRadius: radius.card, overflow: "hidden" },
   column: { flex: 1, alignItems: "stretch", gap: space.xxl },
   fill: { flex: 1 },
   logo: { alignSelf: "center", padding: space.l, borderRadius: settingsLayout.onboardingIcon * 0.3, elevation: 12, shadowOpacity: 1, shadowRadius: shadowRadius.lifted },

@@ -13,7 +13,8 @@ export type SettingsRoute =
   | { page: "defaultBrowser" }
   | { page: "syncConnect" }
   | { page: "about" }
-  | { page: "licenses" };
+  | { page: "licenses" }
+  | { page: "whatsSent" };
 
 type SettingsNav = { open: boolean; stack: SettingsRoute[]; popping: boolean };
 
