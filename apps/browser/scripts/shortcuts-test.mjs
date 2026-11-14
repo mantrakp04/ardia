@@ -690,6 +690,30 @@ await sleep(1000);
   for (let i = 0; i < 30 && !(await reservedBy(cmd("t", 17))); i++) await sleep(100);
 }
 {
+  const optionC = K("c", 8, "option"), copyUrlKeys = cmd("C", 8, "shift");
+  await ac(`ac.store.getState().updateSettings({ shortcuts: { ...ac.store.getState().settings.shortcuts, copyUrl: ["c", "option"] } }); return 1;`);
+  let by = "", old = "x";
+  for (let i = 0; i < 30 && (by !== "ardia.command.copyUrl" || old); i++) {
+    await sleep(100);
+    [by, old] = [await reservedBy(optionC), await reservedBy(copyUrlKeys)];
+  }
+  check("Copy URL rebound to ⌥C: the Option-only keys are reserved and ⇧⌘C goes to the page", by === "ardia.command.copyUrl" && !old, `⌥C ${by || "page"}, ⇧⌘C ${old || "page"}`);
+  const url = await activeUrl();
+  await clipboard.set("before ⌥C");
+  await swallowKeys();
+  // A real hardware key sent through AppKit (not dry): its own key-equivalent matching has to accept the Option mask, not a stand-in matcher.
+  const r = await press(optionC, { focus: "page", asKey: true, send: true, wait: 600 });
+  const seen = await pageKeys(), copied = await clipboard.get();
+  const harness = r.error ? `harness: ${r.error}; ` : r.lostEvents ? "harness: a key event never came back from the app's event queue; " : r.keyWindow !== true ? "harness not key: NSApp.keyWindow wasn't the pressed window; " : "";
+  check(
+    "⌥C sent through AppKit to a page that cancels every keydown: Copy URL copies the page's address and the page gets no keydown",
+    !harness && (r.fired ?? []).some((f) => same(f, { command: "copyUrl" })) && copied === url && seen === 0,
+    `${harness}${describe(r)}, clipboard ${JSON.stringify(copied)} (page ${JSON.stringify(url)}), the page saw ${seen} keydown`,
+  );
+  await ac(`const { copyUrl, ...rest } = ac.store.getState().settings.shortcuts; ac.store.getState().updateSettings({ shortcuts: rest }); return 1;`);
+  for (let i = 0; i < 30 && !(await reservedBy(copyUrlKeys)); i++) await sleep(100);
+}
+{
   const fullScreenKey = cmd("f", 3, "control");
   const states = async () => Object.fromEntries(await Promise.all(
     [["⌘T", cmd("t", 17)], ["⌘W", cmd("w", 13)], ["⌘Q", cmd("q", 12)], ["⌃⌘F", fullScreenKey], ["🌐F", K("f", 3, "function")], ["⌃1", K("1", 18, "control")]]

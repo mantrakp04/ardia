@@ -77,7 +77,7 @@ content::KeyboardEventProcessingResult ACBrowserWindow::PreHandleKeyboardEvent(
       extension_shortcuts_->Run(ui::GetAcceleratorFromNativeWebKeyboardEvent(event))) {
     return content::KeyboardEventProcessingResult::HANDLED;
   }
-  if ((ns_event.modifierFlags & NSEventModifierFlagCommand) &&
+  if ((ns_event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagOption)) &&
       MenuHasKeyEquivalent(NSApp.mainMenu, ns_event)) {
     return content::KeyboardEventProcessingResult::NOT_HANDLED_IS_SHORTCUT;
   }
@@ -97,7 +97,7 @@ bool ACBrowserWindow::HandleKeyboardEvent(
     return true;
   }
   if (!(ns_event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagControl |
-                                  NSEventModifierFlagFunction))) {
+                                  NSEventModifierFlagOption | NSEventModifierFlagFunction))) {
     return false;
   }
   return [NSApp.mainMenu performKeyEquivalent:ns_event];
