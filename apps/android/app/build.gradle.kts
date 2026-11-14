@@ -5,6 +5,7 @@ plugins {
 
 android {
     namespace = "com.ardia.browser.android"
+    sourceSets.getByName("main").res.srcDir("src/main/res-system")
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {

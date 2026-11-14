@@ -10,7 +10,11 @@
             android:action="android.intent.action.VIEW"
             android:data="ardia://search"
             android:targetClass="com.ardia.browser.android.MainActivity"
-            android:targetPackage="com.ardia.browser.android" />
+            android:targetPackage="com.ardia.browser.android">
+            <extra
+                android:name="com.ardia.SOURCE"
+                android:value="shortcut" />
+        </intent>
     </shortcut>
     <shortcut
         android:shortcutId="voice"
@@ -22,7 +26,11 @@
             android:action="android.intent.action.VIEW"
             android:data="ardia://voice"
             android:targetClass="com.ardia.browser.android.MainActivity"
-            android:targetPackage="com.ardia.browser.android" />
+            android:targetPackage="com.ardia.browser.android">
+            <extra
+                android:name="com.ardia.SOURCE"
+                android:value="shortcut" />
+        </intent>
     </shortcut>
     <shortcut
         android:shortcutId="incognito"
@@ -34,7 +42,11 @@
             android:action="android.intent.action.VIEW"
             android:data="ardia://incognito"
             android:targetClass="com.ardia.browser.android.MainActivity"
-            android:targetPackage="com.ardia.browser.android" />
+            android:targetPackage="com.ardia.browser.android">
+            <extra
+                android:name="com.ardia.SOURCE"
+                android:value="shortcut" />
+        </intent>
     </shortcut>
     <shortcut
         android:shortcutId="mac-tabs"
@@ -46,6 +58,10 @@
             android:action="android.intent.action.VIEW"
             android:data="ardia://mac-tabs"
             android:targetClass="com.ardia.browser.android.MainActivity"
-            android:targetPackage="com.ardia.browser.android" />
+            android:targetPackage="com.ardia.browser.android">
+            <extra
+                android:name="com.ardia.SOURCE"
+                android:value="shortcut" />
+        </intent>
     </shortcut>
 </shortcuts>

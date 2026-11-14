@@ -180,32 +180,6 @@ object SitePermissions {
     }
 }
 
-data class FileChooserPlan(val documentTypes: Array<String>, val offersPhoto: Boolean, val offersVideo: Boolean, val capturesDirectly: Boolean) {
-    override fun equals(other: Any?): Boolean = other is FileChooserPlan && documentTypes.contentEquals(other.documentTypes) &&
-        offersPhoto == other.offersPhoto && offersVideo == other.offersVideo && capturesDirectly == other.capturesDirectly
-
-    override fun hashCode(): Int = listOf(documentTypes.toList(), offersPhoto, offersVideo, capturesDirectly).hashCode()
-
-    companion object {
-        private val extensionTypes = mapOf(
-            "jpg" to "image/jpeg", "jpeg" to "image/jpeg", "png" to "image/png", "gif" to "image/gif", "webp" to "image/webp",
-            "heic" to "image/heic", "pdf" to "application/pdf", "txt" to "text/plain", "csv" to "text/csv", "mp4" to "video/mp4",
-            "mov" to "video/quicktime", "mp3" to "audio/mpeg", "zip" to "application/zip", "json" to "application/json",
-        )
-
-        fun of(acceptTypes: List<String>, prefersCapture: Boolean): FileChooserPlan {
-            val types = acceptTypes.flatMap { it.split(',') }.map { it.trim().lowercase() }.filter { it.isNotEmpty() }
-                .mapNotNull { type -> if (type.startsWith(".")) extensionTypes[type.drop(1)] else type.takeIf { '/' in it } }
-                .distinct()
-            val anything = types.isEmpty() || "*/*" in types
-            val images = anything || types.any { it.startsWith("image/") }
-            val videos = anything || types.any { it.startsWith("video/") }
-            val documentTypes = if (anything) arrayOf("*/*") else types.toTypedArray()
-            return FileChooserPlan(documentTypes, images, videos, prefersCapture && (images || videos))
-        }
-    }
-}
-
 enum class BrowsingLayer { FullscreenVideo, PressMenu, FindBar, Reader, SubPage, Sheet, PageHistory, TabSwitcher }
 
 data class BackState(
@@ -231,39 +205,4 @@ object BackOrder {
         state.hasTab -> BrowsingLayer.TabSwitcher
         else -> null
     }
-}
-
-enum class VisualMedia { Images, Videos, ImagesAndVideos }
-
-object PickerChoice {
-    fun visualMedia(documentTypes: Array<String>): VisualMedia? {
-        if (documentTypes.isEmpty() || documentTypes.any { !it.startsWith("image/") && !it.startsWith("video/") }) return null
-        val images = documentTypes.any { it.startsWith("image/") }
-        val videos = documentTypes.any { it.startsWith("video/") }
-        return when {
-            images && videos -> VisualMedia.ImagesAndVideos
-            images -> VisualMedia.Images
-            else -> VisualMedia.Videos
-        }
-    }
-}
-
-data class PickedFile(val uri: String, val scheme: String?, val authority: String?, val isGranted: Boolean)
-
-object PickedFileRule {
-    const val CONTENT_SCHEME = "content"
-
-    fun isOwn(authority: String, ownAuthorities: Set<String>, packageName: String): Boolean =
-        ownAuthorities.any { it.equals(authority, ignoreCase = true) } ||
-            authority.equals(packageName, ignoreCase = true) || authority.startsWith("$packageName.", ignoreCase = true)
-
-    fun accepts(file: PickedFile, ownAuthorities: Set<String>, packageName: String, captureUri: String?): Boolean {
-        if (!file.scheme.equals(CONTENT_SCHEME, ignoreCase = true)) return false
-        val authority = file.authority?.takeIf { it.isNotEmpty() } ?: return false
-        if (isOwn(authority, ownAuthorities, packageName)) return captureUri != null && file.uri == captureUri
-        return file.isGranted
-    }
-
-    fun filter(files: List<PickedFile>, ownAuthorities: Set<String>, packageName: String, captureUri: String?): List<PickedFile> =
-        files.filter { accepts(it, ownAuthorities, packageName, captureUri) }
 }

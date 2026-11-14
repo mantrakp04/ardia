@@ -2,10 +2,8 @@ package com.ardia.browsing
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Process
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,54 +32,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import com.ardia.browser.Page
 import com.ardia.browser.PageRequest
 import com.ardia.browser.SitePermission
 import com.ardia.design.ArdiaSymbols
 import com.ardia.design.Spacing
-import java.io.File
-import java.util.UUID
-
-class CaptureFileProvider : FileProvider()
-
-internal object CaptureFiles {
-    fun create(context: Context, extension: String): Uri {
-        val folder = File(context.cacheDir, "captures").apply { mkdirs() }
-        folder.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > STALE_MILLIS }?.forEach { it.delete() }
-        val file = File(folder, "${UUID.randomUUID()}.$extension")
-        return FileProvider.getUriForFile(context, authority(context), file)
-    }
-
-    private const val STALE_MILLIS = 24L * 60 * 60 * 1000
-
-    fun authority(context: Context): String = "${context.packageName}.browsing.captures"
-}
-
-internal object PickedFiles {
-    @Suppress("DEPRECATION")
-    private fun ownAuthorities(context: Context): Set<String> {
-        val declared = runCatching {
-            context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PROVIDERS).providers.orEmpty()
-                .flatMap { it.authority?.split(';').orEmpty() }
-        }.getOrDefault(emptyList())
-        return (declared + CaptureFiles.authority(context)).filter { it.isNotEmpty() }.toSet()
-    }
-
-    private fun isGranted(context: Context, uri: Uri): Boolean =
-        context.checkUriPermission(uri, Process.myPid(), Process.myUid(), Intent.FLAG_GRANT_READ_URI_PERMISSION) == PackageManager.PERMISSION_GRANTED
-
-    fun answer(context: Context, uris: List<Uri>, captureUri: Uri?): PageRequest.Answer {
-        val own = ownAuthorities(context)
-        val capture = captureUri?.toString()
-        val files = uris.map { uri ->
-            val isOwnCapture = capture != null && uri.toString() == capture
-            PickedFile(uri.toString(), uri.scheme, uri.authority, isGranted = !isOwnCapture && isGranted(context, uri))
-        }
-        val accepted = PickedFileRule.filter(files, own, context.packageName, capture).map { it.uri }.toHashSet()
-        return PageRequest.Answer.Files(uris.filter { it.toString() in accepted })
-    }
-}
 
 private fun Context.holds(permissions: Array<String>): Map<String, Boolean> =
     permissions.associateWith { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }

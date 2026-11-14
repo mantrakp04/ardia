@@ -8,15 +8,4 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
-    <application>
-        <provider
-            android:name="com.ardia.browsing.CaptureFileProvider"
-            android:authorities="${applicationId}.browsing.captures"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/browsing_capture_paths" />
-        </provider>
-    </application>
 </manifest>
