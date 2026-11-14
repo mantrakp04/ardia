@@ -1,7 +1,8 @@
+import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "../../state/browse/hooks";
-import { retryPage } from "../../state/page/actions";
-import { failureIcon, type FailureIcon } from "../../state/page/pageFailure";
+import { retryPage, retryWhenOnline } from "../../state/page/actions";
+import { failureIcon, retriesWhenOnline, type FailureIcon } from "../../state/page/pageFailure";
 import { capsule, failureLayout, font, space, Symbol, useTheme, type SymbolName } from "../ui";
 
 const ICONS: Record<FailureIcon, SymbolName> = { crashed: "exclamationmarkTriangle", offline: "wifiSlash", network: "globe" };
@@ -9,6 +10,8 @@ const ICONS: Record<FailureIcon, SymbolName> = { crashed: "exclamationmarkTriang
 export function PageFailureView({ tabId }: { tabId: string }) {
   const theme = useTheme();
   const failure = useNavigation(tabId, (n) => n?.failure ?? null);
+  const waitsForNetwork = failure ? retriesWhenOnline(failure) : false;
+  useEffect(() => (waitsForNetwork ? retryWhenOnline(tabId) : undefined), [waitsForNetwork, tabId]);
   if (!failure) return null;
   return (
     <View style={[StyleSheet.absoluteFill, styles.column, { backgroundColor: theme.surface }]}>

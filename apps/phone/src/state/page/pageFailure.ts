@@ -8,3 +8,5 @@ export function failureIcon(failure: PageFailure): FailureIcon {
   if (failure.kind === "crashed") return "crashed";
   return failure.reason === "offline" ? "offline" : "network";
 }
+
+export const retriesWhenOnline = (failure: PageFailure) => failure.kind === "network" && failure.reason === "offline";

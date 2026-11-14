@@ -21,6 +21,7 @@ import { pinToMac, sendTab } from "../sync/actions";
 import type { SyncedDevice } from "../../platform/sync";
 import { pageUi, usePageUi, type Press } from "./store";
 import { closeVoiceSearch, useVoice } from "../voice/store";
+import { addOnlineAgainListener } from "../../platform/network";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 
 const TITLE_FEEDBACK_MS = 1500;
@@ -101,6 +102,11 @@ export const menuReload = () => {
 };
 
 export const retryPage = (tabId: string) => void pageHandle(tabId)?.reload();
+
+export function retryWhenOnline(tabId: string): () => void {
+  const subscription = addOnlineAgainListener(() => retryPage(tabId));
+  return () => subscription.remove();
+}
 
 export const menuStop = () => void pageHandle(selectedId())?.stopLoading();
 
