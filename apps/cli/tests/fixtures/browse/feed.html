@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Fixture Feed</title>
+<style>body { margin: 0; font: 15px system-ui; } nav li { display: inline-block; margin: 4px; } .card { height: 90px; border-bottom: 1px solid #ddd; }</style>
+</head>
+<body>
+<nav><ul><li><a href="#a">Home</a></li><li><a href="#b">Deals</a></li><li><a href="#c">Help</a></li><li><a href="#d">Cart</a></li><li><a href="#e">Account</a></li></ul></nav>
+<main><ul id="feed"></ul></main>
+<script>
+  const feed = document.getElementById("feed");
+  let shown = 0;
+  const more = () => {
+    for (let i = 0; i < 20 && shown < 60; i++) {
+      shown++;
+      const li = document.createElement("li");
+      li.className = "card";
+      li.innerHTML = `<a href="/item/${shown}">Card ${shown}</a> <span>price ${shown * 3}</span>`;
+      feed.appendChild(li);
+    }
+  };
+  more();
+  addEventListener("scroll", () => { if (innerHeight + scrollY >= document.body.scrollHeight - 200) more(); });
+</script>
+</body>
+</html>

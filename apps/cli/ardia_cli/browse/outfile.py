@@ -71,6 +71,18 @@ def save(path: str, text: str) -> Path:
     return target
 
 
+def list_digest(items: list) -> str:
+    head = f"a list of {len(items)} item{'s' if len(items) != 1 else ''}"
+    if not items:
+        return head
+    keys = sorted({key for item in items[:50] if isinstance(item, dict) for key in item})
+    lines = [head + (f" with fields {', '.join(keys[:20])}" if keys else "")]
+    lines.append(f"first: {json.dumps(items[0], ensure_ascii=False)[:PREVIEW]}")
+    if len(items) > 1:
+        lines.append(f"last: {json.dumps(items[-1], ensure_ascii=False)[:PREVIEW]}")
+    return "\n".join(lines)
+
+
 def content(command: str, data: dict, path: Path) -> tuple[str, str]:
     if command == "read":
         pages = data.get("pages") or []
@@ -87,11 +99,15 @@ def content(command: str, data: dict, path: Path) -> tuple[str, str]:
         return value, f"text starting {json.dumps(value[:PREVIEW], ensure_ascii=False)}"
     text = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
     if isinstance(value, list):
-        first = json.dumps(value[0], ensure_ascii=False)[:PREVIEW] if value else ""
-        return text, f"a list of {len(value)} item{'s' if len(value) != 1 else ''}" + (f"; the first is {first}" if first else "")
+        return text, list_digest(value)
     if isinstance(value, dict):
         keys = list(value)
-        return text, f"an object with {len(keys)} key{'s' if len(keys) != 1 else ''}: {', '.join(map(str, keys[:20]))}{', …' if len(keys) > 20 else ''}"
+        parts = [f"{key} ({len(value[key])} items)" if isinstance(value[key], list) else str(key) for key in keys[:20]]
+        digest = f"an object with {len(keys)} key{'s' if len(keys) != 1 else ''}: {', '.join(parts)}{', …' if len(keys) > 20 else ''}"
+        lists = [key for key in keys if isinstance(value[key], list) and value[key]]
+        if lists:
+            digest += f"\n{lists[0]}: {list_digest(value[lists[0]])}"
+        return text, digest
     if value is None:
         return text, "nothing (the result was undefined or null)"
     return text, f"the value {text.strip()[:PREVIEW]}"

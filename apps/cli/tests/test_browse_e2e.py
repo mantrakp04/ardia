@@ -695,6 +695,20 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertIn("nope", failed.stderr)
         self.assertFalse((self.data / "out" / "never.json").exists())
 
+    def test_read_marks_bot_checks_and_stamps_each_page(self):
+        out = self.browse("read", self.url("challenge.html"), self.url("picker.html"), session="checks").stdout
+        self.assertIn("this looks like a bot check or access block", out)
+        self.assertRegex(out, r"read \d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC")
+        self.assertEqual(out.count("bot check"), 1)
+
+    def test_scroll_finds_the_main_list_without_a_selector(self):
+        session = "feed"
+        self.browse("open", self.url("feed.html"), "--show", session=session)
+        lines = self.browse("read", "--scroll", "--max-output", "0", session=session).stdout.splitlines()
+        self.assertIn("- Card 60 price 180", lines)
+        self.assertFalse(any("Deals" in line for line in lines))
+        self.assertIn("60 rows", lines[-1])
+
     def test_read_reads_every_named_url_past_the_link_limit(self):
         urls = [self.url(f"picker.html?n={number}") for number in range(25)]
         pages = json.loads(self.browse("read", *urls, "--http", "--json", session="many-urls").stdout)["data"]["pages"]

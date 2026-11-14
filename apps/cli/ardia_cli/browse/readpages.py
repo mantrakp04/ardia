@@ -23,6 +23,27 @@ MAX_STDIN = 1024 * 1024
 PAGE_SHARE = 3000
 PAGES_CAP_CEILING = 24000
 
+MAIN_LIST = r"""() => {
+  let best = null, bestScore = 0;
+  for (const el of document.querySelectorAll("body *")) {
+    if (el.childElementCount < 4) continue;
+    const kinds = new Map();
+    for (const child of el.children) {
+      const key = child.tagName + "." + ((typeof child.className === "string" && child.className.trim().split(/\s+/)[0]) || "");
+      kinds.set(key, (kinds.get(key) || 0) + 1);
+    }
+    const [key, count] = [...kinds.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (count < 4) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 100 || rect.height < 100) continue;
+    let linked = 0;
+    for (const child of el.children) if (child.tagName + "." + ((typeof child.className === "string" && child.className.trim().split(/\s+/)[0]) || "") === key && child.querySelector("a[href]")) linked++;
+    const score = count * (1 + linked / count) * Math.log2(2 + (el.innerText || "").length / 1000);
+    if (score > bestScore) { best = el; bestScore = score; }
+  }
+  return best;
+}"""
+
 LINKS = r"""() => {
   const out = [];
   for (const a of document.querySelectorAll("a[href]")) {
@@ -283,7 +304,10 @@ def header(record: dict, index: int, total: int) -> str:
     url = record.get("finalUrl") or record["url"]
     if record.get("error"):
         return f"=== {place}✗ {url}\n{record['error']}"
-    status = f" (HTTP {record['status']})" if record.get("status") and record["status"] >= 400 else ""
+    facts = [f"HTTP {record['status']}"] if record.get("status") else []
+    if record.get("readAt"):
+        facts.append(f"read {record['readAt']}")
+    status = f" ({', '.join(facts)})" if facts else ""
     note = f"\n({record['note']})" if record.get("note") else ""
     return f"=== {place}{record.get('title') or '(no title)'}{status}\n{url}{note}"
 
@@ -455,6 +479,29 @@ async def goto(ctx, page, url: str, timeout: float):
     await page.refresh_frames()
 
 
+CHALLENGE = re.compile(r"just a moment|attention required|verify (that )?you are (a )?human|are you a robot|press (&|and) hold|"
+                       r"captcha|human verification|security check|access denied|unusual traffic|request blocked|bot detection", re.I)
+CHALLENGE_MAX_TEXT = 1500
+
+
+def read_at() -> str:
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def bot_check(title: str, text: str, status) -> str | None:
+    from ardia_cli import command_metrics
+
+    blocked_status = status in (401, 403, 429)
+    if not (blocked_status or CHALLENGE.search(title or "") or (len(text or "") < CHALLENGE_MAX_TEXT and CHALLENGE.search(text or ""))):
+        return None
+    command_metrics.flag("read_bot_check", True)
+    what = "a rate limit (HTTP 429)" if status == 429 else "a bot check or access block"
+    return (f"this looks like {what}, not the page's content: wait 30-60 s and read it again, try the site's other pages "
+            "or another source, and say in your answer which sources stayed blocked")
+
+
 def thin(got: dict, selector: str | None) -> bool:
     return (selector and not got.get("matched")) or len((got.get("text") or "").strip()) < MIN_USEFUL
 
@@ -495,8 +542,11 @@ async def read_in(ctx, page, url: str, selector: str | None, timeout: float, opt
     except BrowseError as error:
         record["error"] = error.message
         return record
-    record.update(finalUrl=page.url, title=got.get("title") or "", status=got.get("status"),
+    record.update(finalUrl=page.url, title=got.get("title") or "", status=got.get("status"), readAt=read_at(),
                   text=readurl.post_process(got.get("text") or "", options))
+    challenge = bot_check(record["title"], record["text"], record.get("status"))
+    if challenge:
+        record["note"] = challenge
     if selector and not got.get("matched"):
         record["error"] = f"nothing on the page matches {selector}"
     return record
@@ -553,7 +603,10 @@ def read_http_one(url: str, options: dict) -> dict:
         record["error"] = error.message
         return record
     data = result.data
-    record.update(finalUrl=data.get("finalUrl") or url, title=data.get("title") or "", text=data.get("content") or "")
+    record.update(finalUrl=data.get("finalUrl") or url, title=data.get("title") or "", text=data.get("content") or "", readAt=read_at())
+    challenge = bot_check(record["title"], record["text"], record.get("status"))
+    if challenge:
+        record["note"] = challenge
     return record
 
 
@@ -724,12 +777,20 @@ async def run_scroll(ctx, options: dict, positional: list[str]):
     selector = options.get("selector")
     if not options.get("scroll"):
         raise Usage("--match goes with --scroll: read -s <list> --scroll --match <text>")
-    if not selector or positional or options.get("stdin") or options.get("links") is not None or fetch_only(options):
-        raise Usage("--scroll reads one list on the session's tab: read -s <list> --scroll [--limit n] [--match <text>]")
+    if positional or options.get("stdin") or options.get("links") is not None or fetch_only(options):
+        raise Usage("--scroll reads one list on the session's tab: read [-s <list>] --scroll [--limit n] [--match <text>]")
     match = options.get("match")
     limit = parse_rows(options.get("limit"), bool(match))
     timeout = scroll_timeout(options)
-    if parse_ref(selector):
+    if not selector:
+        page = await ctx.state.page()
+        frame = ctx.state.frame_for(page) or page.main_frame
+        remote = await page.call(MAIN_LIST, frame=frame, by_value=False, read=True)
+        target = await page.element_from(remote, frame, "the page's main list")
+        if target is None:
+            raise BrowseError("No repeated list stands out on this page; name it: read -s <list> --scroll", code="no_list")
+        command_metrics.flag("read_scroll_guessed", True)
+    elif parse_ref(selector):
         page, target = await ctx.state.locate(selector)
         frame = target.frame
     else:

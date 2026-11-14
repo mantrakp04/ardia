@@ -247,7 +247,7 @@ COMMANDS = {
              "Without a site it's the session tab's (--tab <id> for another tab's). - reads stdin. snapshot prints a\n"
              "site's notes first, and so does an action that lands on another site.",
     "read": "ardia browse read [url...] [--links <pattern>] [-s <selector>] [--stdin] [--limit n] [--timeout ms] [--http] [--list] [--out <file>]\n"
-            "ardia browse read -s <list> --scroll [--limit rows] [--match <text>] [--timeout ms]\n\n"
+            "ardia browse read [-s <list>] --scroll [--limit rows] [--match <text>] [--timeout ms]\n\n"
             "Reads each page in a background tab of this session's own (four at a time, through your logins, after its\n"
             "scripts ran) and prints its title, URL and text: the page's <main>, else its body, or what -s matches.\n"
             "Tables and ARIA grids print one row per line, cells split by ` | `, with a note when a grid renders only\n"
