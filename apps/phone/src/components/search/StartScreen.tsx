@@ -5,6 +5,7 @@ import { newIncognitoTab, newRegularTab, newTab, openArchive, reopenLastClosed, 
 import { useSearchOpen } from "../../state/search/hooks";
 import { useCanReopen, useHasTabs, useIncognito } from "../../state/tabs/hooks";
 import { ArdiaLogo, Backdrop, browseLayout, deckCenterFromBottom, Menu, tabsInk, tabsLayout, useTheme, type MenuItem } from "../ui";
+import { openSettings } from "../../state/settings/hooks";
 import { DeckBar } from "../tabs/DeckBar";
 
 const BAR_RESERVE = 58;
@@ -41,6 +42,7 @@ export function StartScreen() {
             plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
             onPlus={newTab}
             onPlusMenu={() => setMenu(true)}
+            onSettings={() => openSettings()}
           />
         </View>
       )}

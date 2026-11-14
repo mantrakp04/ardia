@@ -3,4 +3,4 @@ import type { Preferences } from "./preferences";
 
 export const usePreferences = <T>(select: (preferences: Preferences) => T) => usePreferencesStore(select);
 
-export { useSettingsNav, type SettingsRoute } from "./nav";
+export { openSettings, useSettingsNav, type SettingsRoute } from "./nav";

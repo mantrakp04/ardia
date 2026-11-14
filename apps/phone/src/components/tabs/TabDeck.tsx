@@ -31,6 +31,7 @@ import {
 } from "../../state/browse/store";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
 import { Backdrop, ConfirmDialog, Menu, tabsCurve, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
+import { openSettings } from "../../state/settings/hooks";
 import { DeckBar } from "./DeckBar";
 import { DeckCard, type DeckMotion, type DeckRole } from "./DeckCard";
 import { DeckEmpty, IncognitoChip } from "./DeckChrome";
@@ -238,6 +239,7 @@ export function TabDeck() {
             plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
             onPlus={newTab}
             onPlusMenu={() => setMenu("plus")}
+            onSettings={() => openSettings()}
           />
         </View>
       ) : null}

@@ -16,7 +16,7 @@ import { findTab } from "../tabs/tabsState";
 import { blockersToast, searchQuery, translationUrl, type NightShadeMode } from "./pageMenu";
 import { backLayer, downloadedToast, downloadFailedToast, downloadingToast, pressPlan, type PressAction, type Request } from "./pagePrompts";
 import { onboardingBack } from "../onboarding/store";
-import { popSettings } from "../settings/nav";
+import { openSettings, popSettings } from "../settings/nav";
 import { pageUi, usePageUi, type Press } from "./store";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 
@@ -51,6 +51,11 @@ export async function openPageMenu() {
 }
 
 export const closePageMenu = () => usePageUi.setState({ menuOpen: false });
+
+export function openSiteSettings() {
+  closePageMenu();
+  openSettings({ page: "siteSettings" });
+}
 
 const withPage = (run: (id: string) => Promise<unknown>) => {
   const id = selectedId();

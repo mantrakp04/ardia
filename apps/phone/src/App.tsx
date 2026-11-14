@@ -7,7 +7,12 @@ import { SearchTray } from "./components/search/SearchTray";
 import { StartScreen } from "./components/search/StartScreen";
 import { ArchiveView } from "./components/tabs/ArchiveView";
 import { TabDeck } from "./components/tabs/TabDeck";
+import { OnboardingView } from "./components/onboarding/OnboardingView";
+import { SettingsView } from "./components/settings/SettingsView";
 import { ToastHost } from "./components/toasts/ToastHost";
+import { ThemeColorContext } from "./components/ui";
+import { startSettingsSources } from "./state/settings/actions";
+import { usePreferences } from "./state/settings/hooks";
 import { useBaseSystemBars } from "./state/app/systemBars";
 import { useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
@@ -18,11 +23,13 @@ export default function App() {
   useState(() => {
     startBrowser();
     startPageUi();
+    startSettingsSources();
   });
   const surface = useSurface();
   const sheet = useSheet();
   const tab = useSelectedTab();
   const dark = useColorScheme() === "dark";
+  const color = usePreferences((p) => p.colorChoice) ?? "plum";
   useBaseSystemBars(dark);
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", handleSystemBack);
@@ -36,12 +43,16 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
-        {surface === "deck" ? <TabDeck /> : null}
-        {surface === "start" ? <StartScreen /> : null}
-        <SearchTray />
-        {sheet === "archive" ? <ArchiveView /> : null}
-        <ToastHost />
+        <ThemeColorContext.Provider value={color}>
+          {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
+          {surface === "deck" ? <TabDeck /> : null}
+          {surface === "start" ? <StartScreen /> : null}
+          <SearchTray />
+          {sheet === "archive" ? <ArchiveView /> : null}
+          <SettingsView />
+          <OnboardingView />
+          <ToastHost />
+        </ThemeColorContext.Provider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

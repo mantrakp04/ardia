@@ -9,6 +9,7 @@ import {
   menuReload,
   menuStop,
   resetZoom,
+  openSiteSettings,
   setBlockersOn,
   setDesktopSite,
   setNightShadeOn,
@@ -57,9 +58,9 @@ export function PageMenu({ tabId }: { tabId: string }) {
                 value={model.blockersEnabled}
                 enabled={model.isWebPage}
                 detail={model.blockedCount}
-                divider={false}
                 onChange={setBlockersOn}
               />
+              <Row icon="gearshape" title="Site Settings" enabled divider={false} onPress={openSiteSettings} />
             </Group>
           </>
         ) : null}

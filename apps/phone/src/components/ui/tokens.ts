@@ -210,6 +210,8 @@ export const radius = { row: 14, field: 16, card: 20, sheet: 40 } as const;
 export const capsule = (height: number) => height / 2;
 
 export const font = {
+  hero: { fontSize: 40, lineHeight: 46 },
+  largeTitle: { fontSize: 34, lineHeight: 41 },
   title3: { fontSize: 20, lineHeight: 25 },
   body: { fontSize: 17, lineHeight: 22 },
   callout: { fontSize: 16, lineHeight: 21 },

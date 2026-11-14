@@ -1,9 +1,9 @@
 import { StyleSheet, View } from "react-native";
 import { browseLayout, capsule, PressScale, Symbol, tabsLayout, useTheme, type SymbolName } from "../ui";
 
-type Props = { leading: { icon: SymbolName; label: string; onPress: () => void } | null; plusLabel: string; onPlus: () => void; onPlusMenu: () => void };
+type Props = { leading: { icon: SymbolName; label: string; onPress: () => void } | null; plusLabel: string; onPlus: () => void; onPlusMenu: () => void; onSettings: () => void };
 
-export function DeckBar({ leading, plusLabel, onPlus, onPlusMenu }: Props) {
+export function DeckBar({ leading, plusLabel, onPlus, onPlusMenu, onSettings }: Props) {
   const theme = useTheme();
   const plus = tabsLayout.barPlus;
   return (
@@ -26,7 +26,13 @@ export function DeckBar({ leading, plusLabel, onPlus, onPlusMenu }: Props) {
       >
         <Symbol name="plus" size={22} color={theme.label} />
       </PressScale>
-      <View style={styles.side} />
+      <View style={[styles.side, styles.end]}>
+        <PressScale label="Settings" onPress={onSettings} style={styles.hit}>
+          <View style={[styles.circle, { backgroundColor: theme.deckControl, borderColor: theme.controlEdge }]}>
+            <Symbol name="gearshape" size={17} color={theme.secondaryLabel} />
+          </View>
+        </PressScale>
+      </View>
     </View>
   );
 }
@@ -34,6 +40,7 @@ export function DeckBar({ leading, plusLabel, onPlus, onPlusMenu }: Props) {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", height: browseLayout.hitTarget },
   side: { flex: 1, alignItems: "flex-start" },
+  end: { alignItems: "flex-end" },
   hit: { width: browseLayout.hitTarget, height: browseLayout.hitTarget, alignItems: "center", justifyContent: "center" },
   circle: {
     width: tabsLayout.barCircle,
