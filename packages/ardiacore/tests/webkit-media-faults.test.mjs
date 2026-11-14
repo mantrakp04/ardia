@@ -57,7 +57,7 @@ class EventTarget {
   addEventListener(type, fn, capture) { (this._listeners ||= []).push({ type, fn, capture: capture === true }); }
   dispatchEvent(event) {
     event._target = this;
-    for (const l of document._listeners || []) if (l.type === event.type && (l.capture || this === document)) l.fn(event);
+    if (this === document || this.isConnected) for (const l of document._listeners || []) if (l.type === event.type && (l.capture || this === document)) l.fn(event);
     if (this !== document) for (const l of this._listeners || []) if (l.type === event.type) l.fn(event);
     return true;
   }
@@ -65,7 +65,7 @@ class EventTarget {
 class Event { constructor(type) { this.type = type; } get target() { return this._target; } preventDefault() {} }
 class CustomEvent extends Event { constructor(type, init = {}) { super(type); this._detail = init.detail ?? null; } get detail() { return this._detail; } }
 class MouseEvent extends Event { constructor(type, init = {}) { super(type); this.relatedTarget = init.relatedTarget ?? null; } }
-class Node extends EventTarget { get isConnected() { return true; } }
+class Node extends EventTarget { get isConnected() { return !this._detached; } }
 class MediaError { constructor(code) { this._code = code; } get code() { return this._code; } }
 class HTMLMediaElement extends Node {
   get error() { return this._error ?? null; }
@@ -188,6 +188,25 @@ test("a media element's error code is reported, and nothing else that fails on t
     new Node().dispatchEvent(new Event("error"));
   `);
   assert.deepEqual(p.reported(), ["media_error_aborted", "media_error_network", "media_error_decode", "media_error_src_not_supported"]);
+});
+
+test("an error on a media element the page played outside the document, like new Audio(), is reported once, before and after it is attached", () => {
+  const p = page();
+  p.run(`
+    const audio = new HTMLMediaElement();
+    audio._detached = true;
+    audio.play();
+    audio._error = new MediaError(3);
+    audio.dispatchEvent(new Event("error"));
+    audio._detached = false;
+    audio._error = new MediaError(2);
+    audio.dispatchEvent(new Event("error"));
+    const unplayed = new HTMLMediaElement();
+    unplayed._detached = true;
+    unplayed._error = new MediaError(4);
+    unplayed.dispatchEvent(new Event("error"));
+  `);
+  assert.deepEqual(p.reported(), ["media_error_decode", "media_error_network"]);
 });
 
 test("a fault the page keeps raising is reported 20 times, not without end", async () => {

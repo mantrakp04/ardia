@@ -416,6 +416,8 @@ enum WebKitPageScript {
       },
     ]);
   const handedOver = new WeakSet();
+  const errorsHeard = new WeakSet();
+  const errorEventsCounted = new WeakSet();
   const mediaProto = HTMLMediaElement.prototype;
   const play = mediaProto.play;
   mediaProto.play = function () {
@@ -424,6 +426,10 @@ enum WebKitPageScript {
       try {
         apply(dispatch, doc, [new Mouse("ardia:media-element", { relatedTarget: this })]);
       } catch (e) {}
+    }
+    if (watched && !errorsHeard.has(this) && !apply(connected, this, [])) {
+      errorsHeard.add(this);
+      apply(listen, this, ["error", reportMediaError]);
     }
     const result = apply(play, this, arguments);
     return watched && result instanceof NativePromise ? observe(result, noop, (error) => fault("play_rejected_" + playRejection(error))) : result;
@@ -497,19 +503,18 @@ enum WebKitPageScript {
       );
     };
   }
-  if (watched) {
-    apply(listen, doc, [
-      "error",
-      (e) => {
-        const target = read(targetOf, e);
-        if (!(target instanceof HTMLMediaElement)) return;
-        const error = read(mediaErrorOf, target);
-        const reason = error && mediaError(read(mediaErrorCodeOf, error));
-        if (reason) fault(reason);
-      },
-      true,
-    ]);
+  function reportMediaError(e) {
+    try {
+      if (errorEventsCounted.has(e)) return;
+      errorEventsCounted.add(e);
+      const target = read(targetOf, e);
+      if (!(target instanceof HTMLMediaElement)) return;
+      const error = read(mediaErrorOf, target);
+      const reason = error && mediaError(read(mediaErrorCodeOf, error));
+      if (reason) fault(reason);
+    } catch (err) {}
   }
+  if (watched) apply(listen, doc, ["error", reportMediaError, true]);
 
   const session = navigator.mediaSession;
   const proto = session && Object.getPrototypeOf(session);
