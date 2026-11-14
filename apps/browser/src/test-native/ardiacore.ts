@@ -103,6 +103,7 @@ export const chromeHistory = (profile = "", device = current.device) => {
   return dbs.get(profile)!;
 };
 export const historyWatches: string[] = [];
+export const bookmarkWatches: string[] = [];
 
 export function chromeHistoryEvent(change: HistoryChange) {
   const wire: HistoryChangedBatch["changes"][number] =
@@ -365,7 +366,7 @@ const fakeModules = {
       if (!profilesLoadedCall.known) throw Object.assign(new Error("profiles.loaded isn't a call"), { code: "ERR_UNKNOWN_CALL" });
       return { profiles: [...loadedEngineProfiles] };
     },
-    release: () => null,
+    release: () => ({ status: "released" }),
     deleteData: ({ profile }) => (deletedProfileData.push(profile), { remaining: profileDataLeft.get(profile) ?? [] }),
     clearBrowsingData: () => null,
   }),
@@ -490,7 +491,7 @@ const fakeModules = {
   ArdiaBookmarks: domain("bookmarks", {
     tree: ({ profile }) => ({ bar: treeOf(chromeBookmarks(profile), "bar"), other: treeOf(chromeBookmarks(profile), "other") }),
     apply: ({ profile, ...args }) => applyBookmarkOps(profile, args),
-    watch: () => null,
+    watch: ({ profile }) => (bookmarkWatches.push(profile), null),
   }),
   ArdiaFavicons: domain("favicons", {
     get: ({ profile, ...args }) => faviconsFor(profile, args),

@@ -109,6 +109,79 @@ test("a profile opens when a window shows it, or when the engine loads it for an
   stop();
 });
 
+test("history and bookmark watches restart after a profile unloads and opens again", async () => {
+  stub.historyWatches.length = 0;
+  stub.bookmarkWatches.length = 0;
+  const stopLoading = launchWith({ loaded: [] });
+  const stops = [startBookmarks(), startHistory()];
+  const watches = (entries, profile) => entries.filter((entry) => entry === profile).length;
+  await until(() => watches(stub.historyWatches, "work") > 0 && watches(stub.bookmarkWatches, "work") > 0, "initial profile watches");
+  const historyCount = watches(stub.historyWatches, "work");
+  const bookmarkCount = watches(stub.bookmarkWatches, "work");
+
+  loading.unloadProfile("work");
+  assert.equal(loading.profileOpened("work"), false);
+  stub.emitEvent("profiles.loaded", { profile: "work" });
+  assert.equal(loading.profileOpened("work"), true);
+  await until(() => watches(stub.historyWatches, "work") > historyCount && watches(stub.bookmarkWatches, "work") > bookmarkCount, "restarted profile watches");
+
+  for (const stop of stops) stop();
+  stopLoading();
+});
+
+test("a profile reopening during a pending native release restarts its data watches", async () => {
+  stub.historyWatches.length = 0;
+  stub.bookmarkWatches.length = 0;
+  const stopLoading = launchWith({ loaded: [] });
+  const stops = [startBookmarks(), startHistory()];
+  const watches = (entries, profile) => entries.filter((entry) => entry === profile).length;
+  await until(() => watches(stub.historyWatches, "work") > 0 && watches(stub.bookmarkWatches, "work") > 0, "initial profile watches");
+  let historyCount = watches(stub.historyWatches, "work");
+  let bookmarkCount = watches(stub.bookmarkWatches, "work");
+
+  loading.noteProfileReleasePending("work");
+  assert.equal(loading.profileOpened("work"), true);
+  stub.emitEvent("profiles.loaded", { profile: "work" });
+  await until(() => watches(stub.historyWatches, "work") > historyCount && watches(stub.bookmarkWatches, "work") > bookmarkCount, "watches after pending release reopens");
+
+  historyCount = watches(stub.historyWatches, "work");
+  bookmarkCount = watches(stub.bookmarkWatches, "work");
+  loading.noteProfileReleasePending("work", true);
+  await until(() => watches(stub.historyWatches, "work") > historyCount && watches(stub.bookmarkWatches, "work") > bookmarkCount, "watches after release returns pending late");
+
+  historyCount = watches(stub.historyWatches, "work");
+  bookmarkCount = watches(stub.bookmarkWatches, "work");
+  loading.noteProfileReleasePending("work");
+  assert.deepEqual(loading.reconcilePendingProfileReleases([""]), ["work"]);
+  assert.equal(loading.profileOpened("work"), false);
+  stub.emitEvent("profiles.loaded", { profile: "work" });
+  await until(() => watches(stub.historyWatches, "work") > historyCount && watches(stub.bookmarkWatches, "work") > bookmarkCount, "watches after poll detects destruction");
+
+  for (const stop of stops) stop();
+  stopLoading();
+});
+
+test("a bookmark deleted while its profile is unloaded stays deleted when it reopens", async () => {
+  stub.docs.clear();
+  stub.bookmarkDbs.clear();
+  const id = "0f0f0f0f-0000-4000-8000-00000000d001";
+  stub.chromeBookmarkEdit("work", [{ op: "add", id, k: "u", t: "Remove me", u: "https://remove.example/", a: 1, parent: "bar", index: 0 }]);
+  const stopLoading = launchWith({ loaded: ["", "work"] });
+  const stopBookmarks = startBookmarks();
+  await until(() => S().bookmarks.nodes[id]?.kind === "url", "initial bookmark tree");
+  await reloadBookmarks();
+
+  loading.unloadProfile("work");
+  assert.equal(loading.profileOpened("work"), false);
+  S().removeBookmark(id);
+  assert.equal(loading.profileOpened("work"), true, "the local edit reopens the profile");
+  await until(() => !stub.chromeBookmarks("work").has(id), "bookmark deletion in Chrome");
+  assert.equal(S().bookmarks.nodes[id], undefined);
+
+  stopBookmarks();
+  stopLoading();
+});
+
 test("at launch nothing reads a deferred profile; its bookmarks, history and favicons load when it opens, current", async () => {
   stub.docs.clear();
   stub.bookmarkDbs.clear();

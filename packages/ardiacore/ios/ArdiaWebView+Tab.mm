@@ -366,7 +366,27 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
 }
 
 - (NSString *)discard:(BOOL)unload {
-  if (unload) return @"unsupported";
+  if (unload) {
+    if (!_tab || !_tab.canUnload || _tab.closed || _tab.profile.offTheRecord ||
+        _visible || _warm || _standalone || _temporary || _extensionHost.length ||
+        _life.closed() || _life.handingOff || _life.moving || _life.pendingURL ||
+        _standIn.tab || _standIn.lentTo || _frameHold.holding || _frameHold.awaiting ||
+        _reveal.active || _reports.capturing || _reports.inPictureInPicture || _devtoolsView)
+      return @"refused";
+    ArdiaCoreProfile *profile = _tab.profile;
+    for (ArdiaWindowController *controller in ArdiaWindowController.all)
+      if (!controller.stray && controller.coreWindow.activeProfile == profile) return @"refused";
+    if (![self preserveHistoryForUnload] || !_tab.canUnload) return @"refused";
+    ArdiaCoreTab *tab = _tab;
+    ArdiaWindowController *controller = [ArdiaWindowController holding:tab];
+    controller.hostChanges++;
+    [self releaseRestoreKey];
+    [self detach];
+    [tab unload];
+    if (!tab.closed) [self attach:tab];
+    controller.hostChanges--;
+    return tab.closed ? @"unloaded" : @"refused";
+  }
   if (!_tab) return @"refused";
   if (_tab.discarded) return @"already";
   return [_tab discard] && _tab.discarded ? @"discarded" : @"refused";
