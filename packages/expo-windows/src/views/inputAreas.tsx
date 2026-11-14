@@ -13,6 +13,7 @@ import type {
   OutsidePressAreaProps,
   WindowProfileProps,
 } from "@ardia/shell";
+import type { Fiber } from "../fiber";
 import type { WindowsHostModule } from "../nativeModuleTypes";
 import { noteMissing } from "../missing";
 import { acceptsOf, useFileDropArea, type DropUpdate } from "./fileDropAreas";
@@ -47,7 +48,6 @@ const FIBER_STEPS = 400;
 
 type ContextMenuMarker = { open(): void; capture: boolean; purpose: string };
 type MiddleClickMarker = { click(state: number): void };
-type FiberLike = { memoizedProps?: unknown; return?: FiberLike | null };
 type Markers = { ardiaContextMenu?: ContextMenuMarker; ardiaMiddleClick?: MiddleClickMarker };
 type SecondaryPress =
   | { kind: "context"; area: ContextMenuMarker | undefined; trail: string }
@@ -78,7 +78,7 @@ const secondaryKindOf = (state: number): SecondaryPress["kind"] | null => {
 
 function markersUnder(event: PointerLike): Markers[] {
   const found: Markers[] = [];
-  let fiber = (event as { _targetInst?: FiberLike | null })._targetInst ?? null;
+  let fiber = (event as { _targetInst?: Fiber | null })._targetInst ?? null;
   for (let step = 0; fiber && step < FIBER_STEPS; step += 1, fiber = fiber.return ?? null) {
     const props = fiber.memoizedProps;
     if (props && typeof props === "object") found.push(props as Markers);
@@ -100,7 +100,7 @@ function nameOf(type: unknown): string {
 
 function trailUnder(event: PointerLike): string {
   const names: string[] = [];
-  let fiber = (event as { _targetInst?: (FiberLike & { type?: unknown }) | null })._targetInst ?? null;
+  let fiber = (event as { _targetInst?: (Fiber & { type?: unknown }) | null })._targetInst ?? null;
   for (let step = 0; fiber && step < FIBER_STEPS && names.length < TRAIL_NAMES; step += 1, fiber = (fiber.return ?? null) as typeof fiber) {
     const name = nameOf(fiber.type);
     if (name && names[names.length - 1] !== name) names.push(name);

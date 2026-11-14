@@ -1,5 +1,6 @@
+import type { Fiber } from "./fiber";
+
 type TakesKeyboard = { takeKeyboardFromPage(windowId: string): Promise<boolean> | boolean };
-type Fiber = { return: Fiber | null; memoizedProps?: unknown };
 type FocusedField = { field: unknown; windowId: string; tabId?: string } | null;
 type FieldPlace = { windowId: string; tabId: string };
 
