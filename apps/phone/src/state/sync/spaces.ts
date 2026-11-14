@@ -1,5 +1,5 @@
 import { landingKey } from "../../lib/url.ts";
-import type { BookmarkItem, PinnedSection, PinnedTile, SyncedDevice, SyncedHistoryItem, SyncedProfile } from "../../platform/sync.ts";
+import type { BookmarkItem, PinnedSection, PinnedTile, SyncedDevice, SyncedHistoryItem, SyncedProfile, SyncedView } from "../../platform/sync.ts";
 
 export const COLLAPSED_LIMIT = 8;
 export const IDLE_MAC_TABS = 3;
@@ -84,9 +84,15 @@ export function isPinnedOnMac(profile: SyncedProfile | null, url: string, onThei
   return bookmarkUrls(profile.bookmarks).some((bookmark) => landingKey(bookmark) === key);
 }
 
-export function pinsStillOnTheirWay(onTheirWay: readonly string[], profiles: readonly SyncedProfile[]): string[] {
+export function pinsStillOnTheirWay(onTheirWay: readonly string[], view: Pick<SyncedView, "profiles" | "pendingPins">): string[] {
+  if (view.pendingPins) return [];
+  const profiles = view.profiles;
   const arrived = new Set(profiles.flatMap((profile) => bookmarkUrls(profile.bookmarks).map((url) => pinKey(profile.syncId, url))));
   return onTheirWay.filter((key) => !arrived.has(key));
+}
+
+export function pinsOnTheirWay(view: Pick<SyncedView, "pendingPins">, sentHere: readonly string[]): string[] {
+  return [...(view.pendingPins ?? []).map((pin) => pinKey(pin.profileSyncId, pin.url)), ...sentHere];
 }
 
 export type HistoryRowLike = { url: string; title: string; favicon: string | null; visits: number; lastVisit: number };

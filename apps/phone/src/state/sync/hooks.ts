@@ -3,7 +3,7 @@ import { lookForApp, type PresetSpec, type ProfileLook } from "../../lib/profile
 import { usePreferences } from "../settings/store";
 import { useTab } from "../tabs/hooks";
 import { isSyncableUrl } from "../tabs/tabModels";
-import { isPinnedOnMac } from "./spaces";
+import { isPinnedOnMac, pinsOnTheirWay } from "./spaces";
 import { useSync } from "./store";
 import { isSyncConnected, sendReceivers, shownProfile } from "./syncRules";
 
@@ -40,6 +40,7 @@ export function useSendTargets(tabId: string) {
 export function useIsPinned(tabId: string) {
   const tab = useTab(tabId);
   const profile = useSelectedProfile();
-  const onTheirWay = useSync((s) => s.pinsOnTheirWay);
-  return Boolean(tab && profile && isPinnedOnMac(profile, tab.url, onTheirWay));
+  const sentHere = useSync((s) => s.pinsOnTheirWay);
+  const view = useSyncView();
+  return Boolean(tab && profile && isPinnedOnMac(profile, tab.url, pinsOnTheirWay(view, sentHere)));
 }

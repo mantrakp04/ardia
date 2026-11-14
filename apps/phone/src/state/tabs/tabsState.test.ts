@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AUTO_ARCHIVE_INTERVALS, isAutoArchiveDue, pageStatePatch, POSITION_STEP } from "./tabModels.ts";
 import {
+  isPrivateOnScreen,
   archiveTabs,
   clearArchive,
   closeAllTabs,
@@ -228,4 +229,10 @@ test("a tab keeps its page's site icon and theme colour, never a private tab's i
   assert.deepEqual(pageStatePatch(a, page, false), { title: "Next", faviconUrl: "https://a.example/favicon.ico", themeColorHex: "#112233" });
   assert.equal(pageStatePatch({ ...a, isPrivate: true }, { ...page, themeColor: null, title: a.title, url: a.url }, true), null);
   assert.equal(pageStatePatch(a, { ...page, faviconUrl: "data:image/png;base64,AA", themeColor: null, title: "", url: null }, true), null);
+});
+
+test("the app hides from Recents while Incognito is on or any private tab is open", () => {
+  assert.equal(isPrivateOnScreen({ privates: [] }, false), false);
+  assert.equal(isPrivateOnScreen({ privates: [] }, true), true);
+  assert.equal(isPrivateOnScreen({ privates: [{ id: "p" } as never] }, false), true);
 });

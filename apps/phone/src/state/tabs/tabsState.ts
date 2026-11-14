@@ -65,6 +65,8 @@ export const tabMenuTitle = (tab: BrowserTab, host: string): string => tab.title
 
 export const deckOrder = (data: TabsData): BrowserTab[] => recencyOrder([...data.open, ...data.privates], data.selectedId);
 
+export const isPrivateOnScreen = (data: Pick<TabsData, "privates">, incognito: boolean) => incognito || data.privates.length > 0;
+
 export const isPrivateTab = (data: TabsData, id: string) => data.privates.some((t) => t.id === id);
 
 function insertSorted(list: readonly BrowserTab[], tab: BrowserTab): BrowserTab[] {

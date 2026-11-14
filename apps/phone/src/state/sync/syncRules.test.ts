@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { NOW, status, view } from "../../../test/syncFixture.ts";
-import { idleMacTabs, isPinnedOnMac, macTabIndex, pinKey, pinsStillOnTheirWay, mergeSyncedHistory, spaceGroupColor, spaceRows, syncedBookmarks } from "./spaces.ts";
+import { idleMacTabs, isPinnedOnMac, macTabIndex, pinKey, pinsOnTheirWay, pinsStillOnTheirWay, mergeSyncedHistory, spaceGroupColor, spaceRows, syncedBookmarks } from "./spaces.ts";
 import {
   connectMessage,
   deviceIcon,
@@ -150,9 +150,20 @@ test("a page counts as pinned when the profile's bookmarks hold it, or a pin fro
   const sent = [pinKey("work", "https://new.example/a")];
   assert.equal(isPinnedOnMac(work, "https://new.example/a/", sent), true);
   assert.equal(isPinnedOnMac(view().profiles[0]!, "https://new.example/a", sent), false);
-  assert.deepEqual(pinsStillOnTheirWay(sent, view().profiles), sent);
+  assert.deepEqual(pinsStillOnTheirWay(sent, { profiles: view().profiles }), sent);
   const arrived = { ...work, bookmarks: [...work.bookmarks, { key: "b9", title: "A", url: "https://new.example/a", added: 3, root: null, children: null }] };
-  assert.deepEqual(pinsStillOnTheirWay(sent, [arrived]), []);
+  assert.deepEqual(pinsStillOnTheirWay(sent, { profiles: [arrived] }), []);
+});
+
+test("the module's pending pins answer once a view carries them; the phone's own list only bridges until then", () => {
+  const work = view().profiles[1]!;
+  const sent = [pinKey("work", "https://new.example/a")];
+  const pending = { profiles: [work], pendingPins: [{ profileSyncId: "work", url: "https://new.example/a" }] };
+  assert.deepEqual(pinsStillOnTheirWay(sent, pending), []);
+  assert.deepEqual(pinsStillOnTheirWay(sent, { profiles: [work], pendingPins: [] }), []);
+  assert.equal(isPinnedOnMac(work, "https://new.example/a", pinsOnTheirWay(pending, [])), true);
+  assert.equal(isPinnedOnMac(work, "https://new.example/a", pinsOnTheirWay({ pendingPins: [] }, [])), false);
+  assert.equal(isPinnedOnMac(work, "https://new.example/a", pinsOnTheirWay({}, sent)), true);
 });
 
 test("the omnibox gets the Mac's history, bookmarks and open tabs for the selected profile", () => {

@@ -58,7 +58,7 @@ function publish(patch: Partial<SyncData>) {
 
 function onEvent(event: SyncEvent) {
   if (event.name === "sync.status") publish({ status: event.status });
-  else if (event.name === "sync.view") publish({ view: event.view, pinsOnTheirWay: pinsStillOnTheirWay(syncData().pinsOnTheirWay, event.view.profiles) });
+  else if (event.name === "sync.view") publish({ view: event.view, pinsOnTheirWay: pinsStillOnTheirWay(syncData().pinsOnTheirWay, event.view) });
   else if (event.name === "sync.inbox" && event.count > 0) for (const listener of inboxListeners) listener();
 }
 

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { history } from "../history/store";
 import { HISTORY_RETENTION_MS } from "../history/historySummary";
-import {
+import { settled,
   livePageIds,
   listenToPages,
   snapshotPage,
@@ -37,7 +37,8 @@ import {
   updateTabById,
   useTabs,
 } from "../tabs/store";
-import { deckOrder, findTab, isPrivateTab, selectedTab } from "../tabs/tabsState";
+import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
+import { setHidesFromRecents } from "../../platform/links";
 import { isSyncableUrl, pageStatePatch, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
 
 export type Surface = "start" | "browsing" | "deck";
@@ -352,7 +353,14 @@ export async function savePageStates() {
   }
 }
 
+let hidesFromRecents = false;
+
 useTabs.subscribe((tabs) => {
+  const hides = isPrivateOnScreen(tabs, tabs.incognito);
+  if (hides !== hidesFromRecents) {
+    hidesFromRecents = hides;
+    void settled(() => setHidesFromRecents(hides), false);
+  }
   for (const id of [...lastVisits.keys(), ...loading.keys()]) {
     if (findTab(tabs, id)) continue;
     lastVisits.delete(id);
