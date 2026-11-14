@@ -83,14 +83,12 @@ object SwipeOrder {
     }
 }
 
-enum class SwipeDirection { Back, Forward }
-
 object SwipeNavigationRules {
-    const val DOMINANCE = 1.6f
-    const val HYSTERESIS_DP = 12f
-    const val EDGE_DP = 24f
-    const val SHADE = 0.12f
-    const val PARALLAX = 0.33f
+    const val DOMINANCE = PageSwipe.DOMINANCE
+    const val HYSTERESIS_DP = PageSwipe.HYSTERESIS_DP
+    const val EDGE_DP = PageSwipe.EDGE_DP
+    const val SHADE = PageSwipe.SHADE
+    const val PARALLAX = PageSwipe.PARALLAX
 
     fun direction(
         mode: SwipeNavigationMode,
@@ -105,43 +103,16 @@ object SwipeNavigationRules {
         canScrollRight: Boolean,
     ): SwipeDirection? {
         if (mode == SwipeNavigationMode.DISABLED) return null
-        if (abs(dx) <= abs(dy) * DOMINANCE) return null
-        val wanted = if (dx > 0) SwipeDirection.Back else SwipeDirection.Forward
-        if (mode == SwipeNavigationMode.SCREEN_EDGES) {
-            val fromEdge = if (wanted == SwipeDirection.Back) startX <= edge else startX >= width - edge
-            if (!fromEdge) return null
-        }
-        return when (wanted) {
-            SwipeDirection.Back -> SwipeDirection.Back.takeIf { canGoBack && !canScrollLeft }
-            SwipeDirection.Forward -> SwipeDirection.Forward.takeIf { canGoForward && !canScrollRight }
-        }
+        return PageSwipe.direction(mode == SwipeNavigationMode.SCREEN_EDGES, dx, dy, startX, width, edge, canGoBack, canGoForward, canScrollLeft, canScrollRight)
     }
 
-    fun signed(translation: Float, direction: SwipeDirection): Float = if (direction == SwipeDirection.Back) translation else -translation
+    fun signed(translation: Float, direction: SwipeDirection): Float = PageSwipe.signed(translation, direction)
 
-    fun progress(translation: Float, direction: SwipeDirection, width: Float): Float =
-        (signed(translation, direction) / max(width, 1f)).coerceIn(0f, 1f)
+    fun progress(translation: Float, direction: SwipeDirection, width: Float): Float = PageSwipe.progress(translation, direction, width)
 
-    fun isPastCommit(signed: Float, wasPast: Boolean, commit: Float, hysteresis: Float): Boolean =
-        if (wasPast) signed > commit - hysteresis else signed > commit
+    fun isPastCommit(signed: Float, wasPast: Boolean, commit: Float, hysteresis: Float): Boolean = PageSwipe.isPastCommit(signed, wasPast, commit, hysteresis)
 
-    fun commits(signed: Float, signedVelocity: Float, commit: Float, flick: Float): Boolean =
-        signed > commit && signedVelocity > -50f || signed > flick && signedVelocity > 600f
-}
-
-object PullToRefreshRules {
-    const val TRIGGER_DP = 64f
-    const val LIMIT_DP = 130f
-    const val DOMINANCE = 1.2f
-
-    fun begins(dx: Float, dy: Float, canScrollUp: Boolean): Boolean = dy > 0f && dy > abs(dx) * DOMINANCE && !canScrollUp
-
-    fun distance(pulled: Float): Float {
-        if (pulled <= 0f) return 0f
-        return LIMIT_DP * (1f - 1f / (pulled / LIMIT_DP + 1f))
-    }
-
-    fun triggers(distance: Float): Boolean = distance >= TRIGGER_DP
+    fun commits(signed: Float, signedVelocity: Float, commit: Float, flick: Float): Boolean = PageSwipe.commits(signed, signedVelocity, commit, flick)
 }
 
 object PageMenuText {
