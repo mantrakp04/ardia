@@ -15,7 +15,7 @@ import type { VisitKind } from "../../platform/pages";
 import { showOnboarding, useOnboarding } from "../onboarding/store";
 import { pageUi } from "../page/store";
 import { settingsNav } from "../settings/nav";
-import { forgetPosition, logRestore, saveTabPosition, watchFrontScroll } from "./positions";
+import { forgetPosition, saveTabPosition, watchFrontScroll } from "./positions";
 import { currentPreferences, loadPreferences } from "../settings/store";
 import type { VisitTransition, Visit } from "../store/browserDatabase";
 import { resolve, type TrayRow } from "../search/omnibox";
@@ -247,15 +247,14 @@ function saveFrontTabSoon(id: string) {
   stateSave = setTimeout(() => {
     stateSave = null;
     if (!findTab(currentTabs(), id) || currentTabs().selectedId !== id) return;
-    void saveTabPosition(id, "commit");
+    void saveTabPosition(id);
   }, STATE_SAVE_DELAY_MS);
 }
 
 function pageVisited(id: string, url: string, title: string, kind: VisitKind) {
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
-  if (kind === "restored") logRestore(id);
-  else saveFrontTabSoon(id);
+  if (kind !== "restored") saveFrontTabSoon(id);
   if (isSyncableUrl(url)) updateTabById(id, { url, title: title.trim() ? title : undefined });
   const transition = transitions[kind];
   if (!transition || tab.isPrivate) return;
@@ -335,7 +334,7 @@ export async function savePageStates() {
   const data = currentTabs();
   for (const tab of [...data.open, ...data.privates]) {
     if (!live.has(tab.id)) continue;
-    await saveTabPosition(tab.id, "background");
+    await saveTabPosition(tab.id);
   }
 }
 
