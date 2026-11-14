@@ -50,6 +50,6 @@ struct DeckColumn: View {
   }
 
   private var searchCenterY: CGFloat {
-    column.top(in: size.height) + DuoLayout.columnButton * 1.5 + DuoLayout.columnSpacing
+    column.top + DuoLayout.columnButton * 1.5 + DuoLayout.columnSpacing
   }
 }

@@ -12,16 +12,16 @@ nonisolated enum ScreenLayout: Equatable, Sendable {
     var edge: HorizontalEdge
     var inset: CGFloat
 
-    var contentReserve: CGFloat { inset + DuoLayout.columnButton + DuoLayout.columnGap }
+    var contentReserve: CGFloat { inset }
 
     func contentWidth(in width: CGFloat) -> CGFloat { max(width - contentReserve, 0) }
 
     func centerX(in width: CGFloat) -> CGFloat {
-      let fromEdge = inset + DuoLayout.columnButton / 2
+      let fromEdge = min(DuoLayout.columnAxis, inset - DuoLayout.columnButton / 2)
       return edge == .trailing ? width - fromEdge : fromEdge
     }
 
-    func top(in height: CGFloat) -> CGFloat { height * DuoLayout.columnTopRatio }
+    var top: CGFloat { DuoLayout.columnTop }
   }
 
   struct Fold: Equatable, Sendable {

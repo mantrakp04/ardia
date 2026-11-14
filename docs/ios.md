@@ -184,14 +184,15 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   typing never changes the layout. The closed Duo is 466 by 678 pt with an 84 pt trailing inset; open it hosts the app
   in 669 by 951 pt (82 pt status bar at the top) or 951 by 669 pt on its side, and half open the division band runs
   across the middle.
-  - **Closed (`column`).** While reading and in the deck, the bar's controls are a column of round glass buttons by
-    the sensor edge (`BottomBar` `Arrangement.column`, `SideColumnStack`): tabs, the site (its favicon, the Incognito
-    eyeglasses or a warning for Not Secure; tap to edit the address), `···` (the page menu) and plus. The page is
-    narrowed by the column so it keeps its full height, with the system background beside it, and the column never
-    collapses. In the deck (`DeckColumn`) the column holds the grid button, Search Tabs (the field floats across the
-    cards beside it), `···` (the deck's menu, which leaves the header) and plus; the cards are clipped at the column.
-    The start screen lays its spaces out in the safe width; search, the page menu, Settings and onboarding keep the
-    iPhone layout.
+  - **Closed (`column`).** The controls are a column of round glass buttons inside the sensor strip, on the line of
+    the system's time and Wi-Fi and directly under them (`SideColumnStack`; `DuoLayout.columnAxis` and `columnTop`
+    are measured from the status items). The page, the deck and the start screen get the whole safe width beside the
+    strip. While reading (`BottomBar` `Arrangement.column`) the column is tabs, the site (its favicon, the Incognito
+    eyeglasses or a warning for Not Secure; tap to edit the address), `···` (the page menu) and plus; it never
+    collapses. In the deck (`DeckColumn`) it holds the grid button, Search Tabs (the field floats across the cards
+    beside it), `···` (the deck's menu, which leaves the header) and plus. On the start screen (`StartBar`) it holds
+    tabs, plus and Settings, and the space dots drop to where the bar's row sits on an iPhone. Search, the page menu,
+    Settings and onboarding keep the iPhone layout.
   - **Open (`wide`).** `DuoBrowsingView`: the page is a rounded card on the space's backdrop, under the status bar,
     with a floating toolbar (`DuoToolbar`): back, forward, reload (stop while loading) on the left, an address capsule
     holding the sidebar button and the host, and share and `···` on the right. As with the phone's bar, WebKit is told

@@ -12,13 +12,11 @@ struct SideColumnStack<Content: View>: View {
       content()
     }
     .fixedSize()
-    .frame(width: DuoLayout.columnButton)
-    .position(x: column.centerX(in: size.width), y: column.top(in: size.height) + stackHeight / 2)
+    .frame(width: DuoLayout.columnButton, height: room, alignment: .top)
+    .position(x: column.centerX(in: size.width), y: column.top + room / 2)
   }
 
-  private var stackHeight: CGFloat {
-    DuoLayout.columnButton * 4 + DuoLayout.columnSpacing * 3
-  }
+  private var room: CGFloat { max(size.height - column.top, 0) }
 }
 
 struct BarSiteButton: View {

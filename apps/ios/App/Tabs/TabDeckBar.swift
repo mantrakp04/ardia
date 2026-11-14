@@ -7,7 +7,21 @@ struct StartBar: View {
   let tabs: () -> Void
   let settings: () -> Void
 
+  @Environment(\.screenLayout) private var screenLayout
+
   var body: some View {
+    if let column = screenLayout.column {
+      SideColumnStack(column: column, size: geometry.container) {
+        GlassCircleButton(symbol: "square.on.square", label: "Tabs", diameter: DuoLayout.columnButton, action: tabs)
+        PlusButton(actions: plus, width: DuoLayout.columnButton)
+        GlassCircleButton(symbol: "gearshape", label: "Settings", diameter: DuoLayout.columnButton, action: settings)
+      }
+    } else {
+      row
+    }
+  }
+
+  private var row: some View {
     HStack(spacing: 0) {
       GlassCircleButton(symbol: "square.on.square", label: "Tabs", action: tabs)
       Spacer(minLength: TabsLayout.barGap)

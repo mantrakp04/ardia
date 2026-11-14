@@ -43,9 +43,9 @@ nonisolated enum DuoLayout {
 
   static let panelTop: CGFloat = 16
 
-  static let columnGap: CGFloat = 7
   static let columnSpacing: CGFloat = 7
-  static let columnTopRatio: CGFloat = 0.315
+  static let columnAxis: CGFloat = 48
+  static let columnTop: CGFloat = 166
   static let columnButton: CGFloat = 48
   static let columnFieldSide: CGFloat = 12
 

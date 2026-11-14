@@ -51,7 +51,7 @@ struct SearchHomeView: View {
   private func spacesGeometry(_ geometry: TabsDeckGeometry) -> TabsDeckGeometry {
     guard let column = screenLayout.column else { return geometry }
     return TabsDeckGeometry(
-      container: CGSize(width: geometry.container.width - column.inset, height: geometry.container.height),
+      container: CGSize(width: column.contentWidth(in: geometry.container.width), height: geometry.container.height),
       safeTop: geometry.safeTop,
       safeBottom: geometry.safeBottom
     )
@@ -91,6 +91,7 @@ struct SearchHomeView: View {
 struct StartSpaces: View {
   let geometry: TabsDeckGeometry
   @Environment(AppModel.self) private var app
+  @Environment(\.screenLayout) private var screenLayout
   @State private var page: String?
 
   var body: some View {
@@ -106,7 +107,7 @@ struct StartSpaces: View {
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
         SpacePageDots(count: spaces.count, index: spaces.firstIndex { $0.syncId == app.currentSpace?.syncId } ?? 0)
-          .position(x: geometry.container.width / 2, y: geometry.barCenterY - TabsLayout.pageDotsAboveBar)
+          .position(x: geometry.container.width / 2, y: screenLayout.column == nil ? geometry.barCenterY - TabsLayout.pageDotsAboveBar : geometry.barCenterY)
       } else if let space = spaces.first {
         StartSpacePage(geometry: geometry, space: space, spaces: spaces)
       } else if app.sync.phase == .off {
