@@ -188,11 +188,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
                         </Animated.ScrollView>
                       </Animated.View>
                     </Animated.View>
-                    {playerTab ? (
-                      <View style={{ paddingHorizontal: layout.sidebarInset, paddingTop: docked ? space.m : 0, paddingBottom: docked ? 0 : space.m }}>
-                        <SidebarPlayer tabId={playerTab} />
-                      </View>
-                    ) : null}
+                    {playerTab ? <SidebarPlayer tabId={playerTab} docked={docked} /> : null}
                     {docked && newTabShown ? (
                       <View style={{ paddingHorizontal: layout.sidebarInset, paddingTop: layout.rowGap, paddingBottom: DOCKED_BOTTOM }}>
                         <NewTabRow windowId={windowId} />

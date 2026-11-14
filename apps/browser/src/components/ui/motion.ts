@@ -57,12 +57,14 @@ export function spring({ response, damping }: SpringSpec) {
 export const springSpec = {
   snappy: { response: 0.2, damping: 0.9 },
   smooth: { response: 0.4, damping: 0.85 },
+  reveal: { response: 0.3, damping: 0.85 },
   bouncy: { response: 0.3, damping: 0.6 },
 } as const satisfies Record<string, SpringSpec>;
 
 export const springs = {
   snappy: spring(springSpec.snappy),
   smooth: spring(springSpec.smooth),
+  reveal: spring(springSpec.reveal),
   bouncy: spring(springSpec.bouncy),
 } as const;
 

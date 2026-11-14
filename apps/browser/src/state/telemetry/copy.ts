@@ -80,6 +80,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times you hid a pull request or a pull request stack from a live folder with its hover button, summed up once an hour. Never which pull requests",
       "How many tabs stayed listed under a collapsed tab group after you opened or switched to them or collapsed their group while they were selected, and how many clicks on a collapsed group's name hid them again, summed up once an hour. Never which tabs or groups",
       "How many times two sidebar animations started in the same moment and were run together, summed up once an hour",
+      "How many times the sidebar's media card opened its full controls on hover, and how many of those came back while it was still closing, summed up once an hour. Never what was playing",
       "How many times a page open in WebKit was kept out of sight while it waited, ready, to be switched to: the open tab of a neighbouring profile, or the tab that takes over while you drag one away. Summed up once an hour, never which page",
       "How many Peek cards and Little Ardia windows you opened or closed with a trackpad pinch, how many Little Ardia windows you closed by swiping back or started to and let go, summed up once an hour",
       "How many Little Ardia windows you closed with Escape, and whether the page had the keyboard, nothing in the window did, or the window was still blank, summed up once an hour",
