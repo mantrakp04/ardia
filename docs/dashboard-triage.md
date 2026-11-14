@@ -111,3 +111,8 @@ Tests: `pnpm -C apps/dashboard test` and `python3 -m unittest discover -s apps/d
 Leads and the reply queue's **Leads on X** group offer **Newest** (default), **Followers** and **Views**. Metrics sort highest first, unknowns last (a known zero stays ahead of unknown). Ties use the newest post, then its ID. Other reply groups keep their order.
 
 `leads.py` already reads followers from the author's `public_metrics.followers_count` and views from the post's `public_metrics.impression_count`. `ch_sync.py` mirrors both as nullable counts (`author_followers`, `views`) in `sandbox.ardia_leads`. To fill missing old values from saved post JSON without fetching X or inventing counts, install `apps/dashboard/pipeline/backfill_lead_metrics.py` beside `leads.py`, run `python3 backfill_lead_metrics.py`, then `python3 ch_sync.py leads`. Existing known values are not overwritten; absent metrics stay null.
+
+## Phone app events
+
+The phone app (`apps/phone`) sends to the same pipeline with service `ardia-phone` and `$lib` `ardia-phone-telemetry`, and tags every event `app: phone` and `platform: android|ios`. Every Mac section filters on `APP_SOURCE` (Mac sources and libs), so phone events never count toward Mac numbers; query them with `PHONE_APP_SOURCE` from `apps/dashboard/src/server/sql.ts`. Their events and fields are listed in `docs/phone.md` › Telemetry. People pages read `APP_SOURCE` too, so a phone install doesn't appear there.
+
