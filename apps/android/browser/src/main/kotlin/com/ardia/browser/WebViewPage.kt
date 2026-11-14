@@ -258,7 +258,15 @@ internal class WebViewPage(
         update { it.copy(isDesktopSite = enabled) }
         val web = webView ?: return
         applyUserAgent(web)
-        reload()
+        val current = web.url?.takeIf(BrowserUrl::isWeb)
+        if (current == null || failedUrl != null) {
+            reload()
+            return
+        }
+        traceDesktop("switched ${if (enabled) "on" else "off"}: loading $current again as a new navigation, so no saved page scale is restored")
+        pendingVisit = null
+        prepareNavigation(web, current)
+        web.loadUrl(current)
     }
 
     override fun download(url: String) {
