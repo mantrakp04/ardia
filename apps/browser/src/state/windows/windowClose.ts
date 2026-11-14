@@ -9,12 +9,17 @@ import { closeWindowAnimated } from "./closeAnimated";
 
 const MIN_TABS = 2;
 
+const pending = new Set<string>();
+
+export function requestWindowClose(windowId: string) {
+  if (pending.has(windowId)) return;
+  pending.add(windowId);
+  void requestClose(windowId).finally(() => pending.delete(windowId));
+}
+
 export function startWindowCloseGuard() {
-  const pending = new Set<string>();
   onWindowEvent((e) => {
-    if (e.type !== "closeRequest" || pending.has(e.id)) return;
-    pending.add(e.id);
-    void requestClose(e.id).finally(() => pending.delete(e.id));
+    if (e.type === "closeRequest") requestWindowClose(e.id);
   });
 }
 

@@ -11,6 +11,7 @@ import { radius, space } from "../../../ui/tokens";
 import { BAR_TYPE, SUGGESTION } from "../../../omnibox/tokens";
 import type { Scene } from "../scene";
 import { centredFrame, CURRENT, Divider, drop, FRESH, grow, KeyPress, listTop, PANEL_H, SelectedUrl, Std, SuggestionList } from "./SceneParts";
+import { keyText } from "../../../../state/commands/keyText";
 
 export const CmdlField: Scene = ({ g, look, p, opts }) => {
   const t = tracker(p, sceneMs.commandBar);
@@ -27,7 +28,7 @@ export const CmdlField: Scene = ({ g, look, p, opts }) => {
           <Divider g={g} look={look} />
           <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
         </Panel>
-        <KeyPress g={g} t={t} label="⌘L" />
+        <KeyPress g={g} t={t} label={keyText("⌘L")} />
       </>
     );
   }
@@ -43,7 +44,7 @@ export const CmdlField: Scene = ({ g, look, p, opts }) => {
         <Divider g={g} look={look} />
         <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
       </Panel>
-      <KeyPress g={g} t={t} label="⌘L" />
+      <KeyPress g={g} t={t} label={keyText("⌘L")} />
     </>
   );
 };
@@ -60,7 +61,7 @@ export const CmdlCentred: Scene = ({ g, look, p, opts }) => {
         <Divider g={g} look={look} />
         <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
       </Panel>
-      <KeyPress g={g} t={t} label="⌘L" />
+      <KeyPress g={g} t={t} label={keyText("⌘L")} />
     </>
   );
 };
@@ -81,7 +82,7 @@ export const NewTabOpensPage: Scene = ({ g, look, p, opts }) => {
           <Rows g={g} look={look} n={4} top={top} newTab={false} />
           <TabRow g={g} look={look} t={BLANK} y={rowY(4, top)} selected style={{ opacity: t.in(300, 240), transform: [{ translateX: t([[300, -12 * g.s], [600, 0]]) }] }} />
           <NewTabButton g={g} look={look} y={rowY(4, top)} style={{ transform: [{ translateY: t([[300, 0], [600, ROW.pitch * g.s]]) }] }} />
-          <KeyPress g={g} t={t} label="⌘T" />
+          <KeyPress g={g} t={t} label={keyText("⌘T")} />
         </>
       }
       card={
@@ -125,7 +126,7 @@ export const NewTabOpensBar: Scene = ({ g, look, p, opts }) => {
         <Divider g={g} look={look} />
         <SuggestionList g={g} look={look} t={t} rows={FRESH} ms={400} />
       </Panel>
-      <KeyPress g={g} t={t} label="⌘T" />
+      <KeyPress g={g} t={t} label={keyText("⌘T")} />
     </>
   );
 };

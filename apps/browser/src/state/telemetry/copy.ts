@@ -1,10 +1,19 @@
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
+import { keyText } from "../commands/keyText";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
+
+export function periodicNote(computer: string, memoryPressure: boolean): string {
+  const noted = ["its tab, window and profile counts", "its memory use", "rough free disk space", ...(memoryPressure ? [`the ${computer}'s memory pressure`] : []), "how long it has been open"];
+  return `Every 10 minutes Ardia notes on this ${computer} ${noted.join(", ")}, and which of Ardia's own pages (like Settings or History) the tab in front was on, never a website's address. Ardia also takes that note when you open or leave one of those pages. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the ${computer} restarted since. Turning sharing off or deleting a profile erases it`;
+}
+
 export const SHARING_COPY = {
   toggle: "Share anonymous crash reports and usage stats",
   summary: "Crashes, errors, rough feature counts and speed. Never the sites you visit, anything you type or search, or what's in your tabs.",
   whatsSent: "What's Sent",
   footnote:
-    "Sent to ardia.dev with a random ID made on this Mac, and kept on our own servers. No third parties. Turning this off stops it at once and deletes anything waiting to be sent. This setting doesn't sync.",
-  keptOnThisMac: "Kept on this Mac",
+    `Sent to ardia.dev with a random ID made on this ${PLATFORM_TERMS.computer}, and kept on our own servers. No third parties. Turning this off stops it at once and deletes anything waiting to be sent. This setting doesn't sync.`,
+  keptOnThisMac: `Kept on this ${PLATFORM_TERMS.computer}`,
   ask: {
     title: "Help fix Ardia?",
     body: "Share anonymous crash reports and usage stats. No sites, searches or typing. Ever.",
@@ -12,8 +21,8 @@ export const SHARING_COPY = {
     notNow: "Not now",
   },
   dailyCount:
-    "One anonymous “opened today” count a day: app version, update channel, macOS version, chip, and whether it's this copy's first day, week or month. No persistent ID.",
-  dailyCountShort: "Either way, Ardia sends one anonymous “opened today” count a day, with its version and macOS version and no persistent ID.",
+    `One anonymous “opened today” count a day: app version, update channel, ${PLATFORM_TERMS.os} version, chip, and whether it's this copy's first day, week or month. No persistent ID.`,
+  dailyCountShort: `Either way, Ardia sends one anonymous “opened today” count a day, with its version and ${PLATFORM_TERMS.os} version and no persistent ID.`,
   updateChecks: "ardia.dev counts update checks by version and day, and whether it's this copy's first. Nothing else.",
   switchFile:
     "While update checks are on, each launch also reads ardia.dev/switches.json: one small file, the same for everyone, that lets us turn off a speed-up that misbehaves. It sends no ID, no cookies and nothing about you.",
@@ -22,7 +31,7 @@ export const SHARING_COPY = {
     row: "Crashes, errors, feature counts and speed. Never your sites, typing or tabs.",
     note: "Off unless you turn it on. Either way, Ardia sends one anonymous “opened today” count a day, with no ID.",
     subtitle:
-      "Off unless you turn it on; change it any time in Settings › Privacy & Security. Either way, Ardia sends one anonymous “opened today” count a day, with its version and macOS version and no persistent ID.",
+      `Off unless you turn it on; change it any time in Settings › Privacy & Security. Either way, Ardia sends one anonymous “opened today” count a day, with its version and ${PLATFORM_TERMS.os} version and no persistent ID.`,
   },
 } as const;
 
@@ -30,9 +39,9 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
   {
     title: "With everything",
     items: [
-      "A random install ID, made on this Mac once and kept through updates. Nothing is sent with it while sharing is off, except a problem report you send and the 14 days of sharing you can agree to with it",
+      `A random install ID, made on this ${PLATFORM_TERMS.computer} once and kept through updates. Nothing is sent with it while sharing is off, except a problem report you send and the 14 days of sharing you can agree to with it`,
       "A random ID for each time Ardia opens, so one session's events can be read together",
-      "App version and build, macOS version, chip (arm64 or x86_64), engine version",
+      `App version and build, ${PLATFORM_TERMS.os} version, chip (arm64 or x86_64), engine version`,
       "Whether it's a test build",
       "During the 14 days you agreed to after a problem report: that report's reference (like FB-1234)",
     ],
@@ -45,7 +54,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "After a crash: the exception type and name (never its message), and the function names where it was thrown and on the crashing thread, from this app's crash report",
       "The same for crashes of Ardia's page, graphics and helper processes, plus the version that crashed, how long the process had run, the total size of its writable memory regions, and how the system ended it (its termination reason, like a signal or a code-signing kill)",
       "When a page's process stops (crashed, killed, out of memory or failed to start): why, its exit code, whether the tab was on screen, how many tabs, windows and profiles were open, and whether that tab was translating (and at which step) and how many other tabs were translating or translated",
-      "Every 10 minutes Ardia notes on this Mac its tab, window and profile counts, its memory use, rough free disk space, the Mac's memory pressure, how long it has been open, and which of Ardia's own pages (like Settings or History) the tab in front was on, never a website's address. Ardia also takes that note when you open or leave one of those pages. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the Mac restarted since. Turning sharing off or deleting a profile erases it",
+      periodicNote(PLATFORM_TERMS.computer, PLATFORM_FEATURES.memoryPressure),
       "When pages stop reacting to the pointer while Ardia is in front: why (Ardia is only half switched to, a menu was left open in the background, the window isn't active, something covers the page, or keyboard focus went missing), whether macOS and Ardia agree that Ardia is the app in front, whether a menu was open, what kind of window was active instead (none, hidden, a pop-up, another Ardia window), whether the page's window could become active and was still the main one, what covered the page (Ardia's own view or another) and whether it was see-through, whether it came from a click or a pointer move, whether Ardia fixed it by itself and whether that worked, how it ended (the pointer worked again, Ardia fixed it, or you switched apps) and how long it lasted. Never which page",
       "Warning and error log lines, cleaned the same way",
     ],
@@ -55,7 +64,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     items: [
       "Launches, updates, and whether the last session ended cleanly",
       "When you turn sharing on from the New Tab question: where it was shown and on how many New Tab pages it was shown first",
-      "At launch: the chip and graphics chip names, how much memory the Mac has, how many displays and their scale, and whether the Mac decodes AV1, VP9, HEVC and H.264 video in hardware",
+      `At launch: the chip and graphics chip names, how much memory the ${PLATFORM_TERMS.computer} has, how many displays and their scale, and whether the ${PLATFORM_TERMS.computer} decodes AV1, VP9, HEVC and H.264 video in hardware`,
       "How many tab presses switched tabs as the button went down, opened a tab, became a drag or got no answer, how many presses lost their release to a menu and were ended at the next press, how many tab and New Tab presses repeated a click that did nothing less than 3 seconds earlier, whether a New Tab page was showing and the kind of interface element that first click landed on, how long the button was held after a switch, and how soon after opening a tab its page was clicked, summed up once an hour. Never where you clicked",
       "How many tabs and windows you open (a count, not which), how often a window goes full screen, how many camera, microphone or screen sharing dots went away because a tab went to sleep or its page stopped, how many pinned tabs and Top Apps Memory Saver put to sleep, and how often the hidden sidebar peeks out and how many of those came back while it was still sliding away",
       "How many times you switched Auto-hide tabs on or off on this Mac, how many windows had their tabs put back in line with that setting at launch, how often the hidden tab strip peeks out from the top edge, and how many times hidden tabs peeked out, from the side or the top, while the setting was off, summed up once an hour",
@@ -72,6 +81,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "With address bar speed: how many search suggestion requests your search engine answered, refused as unusual traffic, or failed, summed up once an hour. Never what you typed or which engine",
       "How many times you switched the update channel, and whether the check that follows offered an update, found you up to date or failed, summed up once an hour. Never which version",
       "How many times ⌥↩ in the command bar opened a split pane, and how many times the split was already full so it opened a background tab instead, summed up once an hour. Never which pages",
+      "How many times the first-launch intro was shown, how many of those started with its music muted, and how many were skipped, summed up once an hour",
       "How many imports you started from the onboarding step that asks where you're coming from, and how many of those were from Helium, and how many times onboarding's Glass or classic? step was answered with Liquid Glass, tinted glass or Classic, how many onboarding steps were completed or skipped, how many times Customize more was opened, and how many times setup was redone from Settings and finished or cancelled, summed up once an hour",
       "How many times the sidebar suggested cleaning up untouched tabs, and how many of those were answered with Clean Up Now, Auto Clean Up, the close button or Don't show again, and how many clean-ups were undone from their toast, summed up once an hour",
       "How many times you closed one pane of a split view or a whole split view, and how many tabs moved to another open window instead of closing with the window you closed, summed up once an hour. Never which tabs",
@@ -79,6 +89,16 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times you hid a pull request or a pull request stack from a live folder with its hover button, summed up once an hour. Never which pull requests",
       "How many tabs stayed listed under a collapsed tab group after you opened or switched to them or collapsed their group while they were selected, and how many clicks on a collapsed group's name hid them again, summed up once an hour. Never which tabs or groups",
       "How many times two sidebar animations started in the same moment and were run together, summed up once an hour",
+      "On Windows, how many animations ran and how many of their frames came late, summed up once an hour",
+      "On Windows, how many links Ardia opened that it was started with while it wasn't running, summed up once an hour. Never which links or which app",
+      "How many times you asked to make Ardia your default browser (on Windows, how many times that opened Windows Settings), and whether Ardia was your default browser when it started, summed up once an hour",
+      "How many times the command bar completed an address inline as you typed, summed up once an hour. Never what you typed or which address",
+      "How many launches after an update didn't open the release notes because setting up Ardia for the first time was still under way, summed up once an hour",
+      "How many times the downloads panel opened because a download started, from its button or from Downloads in a menu or shortcut, and how many times it closed with Escape, a click outside it, its button or the command, summed up once an hour. Never which files",
+      "How many times a page asked to open another app (mail, a meeting app and so on), how many of those had no app for the link, and how many times you clicked Open, Open with Always allow or Cancel. On Windows also how many links did open, how many Ardia refused to open after you allowed them (the page had gone or the link's app had changed) and how many opened on their own for a site you always allow. Summed up once an hour, never which page, link or app",
+      "How many times bookmarks were exported to an HTML file, passwords were exported to a CSV file, and an extension was installed from a folder, and how many of those exports failed, summed up once an hour. Never which bookmarks, passwords, extensions or files",
+      "How many times Ardia freed engine memory after tabs closed, how many of those the engine refused, and how many times it gave up because you kept typing or moving the pointer, summed up once an hour",
+      "How many imports from another browser finished, how many kinds of data (bookmarks, history, passwords and so on) came over or failed, and how many times some passwords or cookies were left behind because they couldn't be decrypted, summed up once an hour. Never which browser, pages, names or passwords",
       "How many times a page open in WebKit was kept out of sight while it waited, ready, to be switched to: the open tab of a neighbouring profile, or the tab that takes over while you drag one away. Summed up once an hour, never which page",
       "How many Peek cards and Little Ardia windows you opened or closed with a trackpad pinch, how many Little Ardia windows you closed by swiping back or started to and let go, summed up once an hour",
       "How many Little Ardia windows you closed with Escape, and whether the page had the keyboard, nothing in the window did, or the window was still blank, summed up once an hour",
@@ -93,7 +113,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times automatic Picture in Picture held back in a WebKit tab because no video was playing at the moment you left it, summed up once an hour",
       "How many times a WebKit tab on a streaming site (Netflix, Spotify, Disney+, Prime Video and the like) had a protected-media fault, by reason: whether the page's request for a Widevine, PlayReady, FairPlay or other key system was granted or refused and why (through either of Safari's two key system interfaces), which key error code a protected-media session raised, which error code a video or audio element reported, and why a play request was rejected. With how many of them came while the tab was muted or while Ardia's content blocker was on for the site. Summed up once an hour and shown in Copy Diagnostics. Never which site, address, title, track or account",
       "How many times you went back to a video's tab from its Picture in Picture window, for Chromium and WebKit tabs separately, summed up once an hour",
-      "How often a site panel (Site Controls, Zoom, blocked pop-ups) is closed by a click outside it or by Esc, how often the ⌃Tab switcher opens and how often it opens over a WebKit page, how many closed pinned tabs it left out and how many tabs opened in the background and not yet viewed it listed last, summed up once an hour",
+      `How often a site panel (Site Controls, Zoom, blocked pop-ups) is closed by a click outside it or by Esc, how often the ${keyText("⌃Tab")} switcher opens and how often it opens over a WebKit page, how many closed pinned tabs it left out and how many tabs opened in the background and not yet viewed it listed last, summed up once an hour`,
       "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",
       "Installing an extension, turning sync on or off, translating a page, and which Settings sections you open",
@@ -102,14 +122,16 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "When a page's first translation pass ends: how long it took, how long until the first text changed, how many passages it translated, how many styled passages had to be translated piece by piece because the answer didn't map back onto their parts, and whether it finished, stopped or failed. Never the page or its text",
       "How many extension install prompts appeared and how many times an extension's toolbar button was used in a private window, summed up once an hour. Never which extension",
       "How many times Settings found the content blocker not answering and how many content-blocking changes failed, summed up once an hour. Never which sites or lists",
+      `How many deleted profiles had their browsing data removed from this ${PLATFORM_TERMS.computer} and how many removals had to wait or failed, summed up once an hour. Never which profile`,
       "Pressing Connect Calendar: Ardia's calendar permission before and after (not asked yet, allowed, add-only, denied or restricted), whether macOS returned an error, whether Ardia or the app that opened it was asked, whether System Settings opened, and how long it took. Never your calendars or events",
       "How many full copies sync wrote to your sync folder and their total size, summed up once an hour. Never what's in them",
+      "On Windows, how many sync files waited because they were online-only or still being written, and how many online-only sync files Ardia downloaded, summed up once an hour. Never which files or what's in them",
       "How many times Connect Another Device showed its code, and how many times it didn't because the Touch ID or password request before it was declined, summed up once an hour. Never the code or the words",
       "Opening Report a Problem and whether it brought back a saved draft (and its recording), when Send was pressed before the report was ready, which field held it back (title, description or contact) and the report's kind, and whether sending worked: at which step it failed, why (no connection, the server's storage, the server, too many reports, an expired upload or a refused report), the server's status code, how many tries it took, and whether it resumed or restarted an earlier attempt. Never what you wrote",
       "Whether a sent problem report's recording showed its window's Picture in Picture, and how many of Ardia's other windows over it the recording left out. Never what was in them",
       "Once a day, your on/off, pick-one and number settings (like light or dark, glass or classic, borderless mode, how much tint, and whether text adjusts to your colour), which app icon you picked, each with its default, how many of your profiles use a custom colour, how many sites you hid unread counts for, and how many Air Traffic Control rules are on and whether Everything Else is set. Never addresses, names, colours, search engines or anything you typed",
-      "How many times ⌘W closed several selected sidebar tabs at once and how many tabs that closed, summed up once an hour. Never which tabs",
-      "Bringing your last window back from the Dock or at launch: how many tabs came back and how long it was closed, in rough ranges, and whether a pinned tab was showing",
+      `How many times ${keyText("⌘W")} closed several selected sidebar tabs at once and how many tabs that closed, summed up once an hour. Never which tabs`,
+      `Bringing your last window back from the ${PLATFORM_TERMS.dock} or at launch: how many tabs came back and how long it was closed, in rough ranges, and whether a pinned tab was showing`,
       "When you import passwords from another browser or from a CSV file: how many passwords Ardia tried to save, how many it saved, how many the password store refused (invalid, or already saved), how many it didn't store in time, and how many failed for another reason, once per import. Never which sites, usernames or passwords",
     ],
   },
@@ -119,8 +141,8 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Time to the first window, profile switch time, and command bar speed (a sample of keystrokes)",
       "How long launches, new tabs, tab switches and page loads take, step by step (for a launch: until the app's own code starts, its setup is done, the engine starts and is up, the interface starts, the first window and the restored page): times and counts only, summed up once an hour, with how many tabs were open",
       "How many tabs a page opened were matched to your click on a link, opened at once because nothing was clicked or typed in that window in the 5 seconds before, or opened only after a 0.2 second wait for a click that never came, summed up once an hour",
-      "How many times ⌘Y asked for the History search field, and how many of those put the cursor in it, summed up once an hour. Never what you searched",
-      "At launch, in rough ranges: how many tabs and windows came back, how much history there is, and whether it's the first launch since the Mac started. Also at launch: the Mac's load average (one number, how busy it was) and whether the app was started as a login item",
+      `How many times ${keyText("⌘Y")} asked for the History search field, and how many of those put the cursor in it, summed up once an hour. Never what you searched`,
+      `At launch, in rough ranges: how many tabs and windows came back, how much history there is, and whether it's the first launch since the ${PLATFORM_TERMS.computer} started${PLATFORM_FEATURES.launchLoad ? `. Also at launch: the ${PLATFORM_TERMS.computer}'s load average (one number, how busy it was) and whether the app was started as a login item` : ""}`,
       "Memory use and the number of tabs, once an hour",
     ],
   },
@@ -129,7 +151,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     items: [
       "Each command's name (like history or browse snapshot), its exit and error codes, and the names of the options it was given, never their values",
       "How long it took, step by step (starting up, starting its helper, connecting to Ardia, finding the tab, the command itself, waiting for the page to settle), plus counts and sizes: browser calls, steps in a batch, how many coding agents the install gave the agent skill to or skipped, the length of a page snapshot and of the output, how many requests an action sent, how many reading tabs it had to open again, and whether the output was cut short, the input humanized, it gave up waiting for its helper, it set a viewport size, it reloaded a crashed page or Ardia refused it a tab. Times, counts and yes or no only",
-      "Its version, macOS version, chip and Python version, with this Mac's install ID",
+      `Its version, ${PLATFORM_TERMS.os} version, chip and Python version, with this ${PLATFORM_TERMS.computer}'s install ID`,
       "After a crash: the error's type (with its message only when it's one of Python's fixed ones, like “division by zero”), and the module, function and line number of each step in the stack trace",
       "Nothing from commands pointed at a test browser (--port, --ws), and nothing at all with DO_NOT_TRACK=1 or ARDIA_TELEMETRY=0 set",
     ],
@@ -141,7 +163,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
   {
     title: "The local copy",
     items: [
-      "Leaves this Mac only as the events above while sharing is on, or when you attach it to a problem report. Settings › Privacy › View My Data saves it to your Downloads folder",
+      `Leaves this ${PLATFORM_TERMS.computer} only as the events above while sharing is on, or when you attach it to a problem report. Settings › Privacy › View My Data saves it to your Downloads folder`,
       "Every hour, how big the local copy is and how long writing it took, so we notice if it ever slows Ardia down",
     ],
   },
@@ -165,24 +187,24 @@ export const IDENTITY_COPY = {
   idDetail: (shortId: string) => `ID ${shortId}…, shown as a name and colours made from it. Never stored or sent.`,
   reset: "Reset My Anonymous ID",
   resetTitle: "Reset your anonymous ID?",
-  resetBody: "Ardia makes a new random ID. Anything sent from now on can't be tied to what was sent before, and the copy kept on this Mac is deleted.",
+  resetBody: `Ardia makes a new random ID. Anything sent from now on can't be tied to what was sent before, and the copy kept on this ${PLATFORM_TERMS.computer} is deleted.`,
   resetConfirm: "Reset",
   resetDone: (name: string) => `You now appear to us as ${name}.`,
 } as const;
 
 export const LOCAL_COPY = {
-  title: "Kept on this Mac",
+  title: `Kept on this ${PLATFORM_TERMS.computer}`,
   summary:
     "Ardia keeps the last 7 days of what it records here (at most 8 MB), whether sharing is on or off, so a problem report can include what led up to it.",
   viewData: "View My Data",
-  viewDataDetail: "Saves the local copy to your Downloads folder and shows it in Finder.",
+  viewDataDetail: `Saves the local copy to your Downloads folder and shows it in ${PLATFORM_TERMS.fileManager}.`,
   exported: (lines: number) => `Saved ${lines.toLocaleString()} ${lines === 1 ? "line" : "lines"} to Downloads`,
   exportFailed: "Couldn't save your data",
   items: [
     "Each event and warning or error line listed in What's Sent, with whether it was sent",
     "With sharing off, they carry no install ID and stay here",
     "Kept 7 days and 8 MB at most, oldest first out; checked when Ardia opens and every hour",
-    "Never leaves this Mac unless sharing is on or you attach it to a problem report",
+    `Never leaves this ${PLATFORM_TERMS.computer} unless sharing is on or you attach it to a problem report`,
     "Resetting your anonymous ID deletes it",
   ],
 } as const;

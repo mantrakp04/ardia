@@ -1,5 +1,5 @@
 import type { BrowserCommand } from "../../platform/commands";
-import { COMMANDS, commandBarTitle } from "../commands/commandCatalog";
+import { COMMANDS, commandBarTitle, UNAVAILABLE_COMMANDS } from "../commands/commandCatalog";
 import { isConfigSettingKey } from "../settings/configAllowlist";
 
 export type AutomationDecision = "run" | "endsApp" | "changesEngine" | "leftOutSetting" | "control" | "needsArgument";
@@ -138,6 +138,6 @@ export type AutomationCommand = { id: BrowserCommand; title: string; scope: stri
 
 export function automationCommands(): AutomationCommand[] {
   return (Object.keys(SPECS) as BrowserCommand[])
-    .filter(isAutomatable)
+    .filter((id) => isAutomatable(id) && !UNAVAILABLE_COMMANDS.has(id))
     .map((id) => ({ id, title: SPECS[id].title ?? (commandBarTitle(id) || id), scope: SPECS[id].scope ?? null, variants: variantsOf(id) }));
 }

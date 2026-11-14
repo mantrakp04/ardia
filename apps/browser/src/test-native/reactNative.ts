@@ -1,5 +1,26 @@
 export const View = () => null;
 
+export const turboModules: Record<string, unknown> = {};
+
+export const TurboModuleRegistry = {
+  get: (name: string) => turboModules[name] ?? null,
+  getEnforcing: (name: string) => turboModules[name],
+};
+
+const deviceListeners = new Map<string, Set<(payload: unknown) => void>>();
+
+export const DeviceEventEmitter = {
+  addListener: (name: string, listener: (payload: unknown) => void) => {
+    let named = deviceListeners.get(name);
+    if (!named) deviceListeners.set(name, (named = new Set()));
+    named.add(listener);
+    return { remove: () => void named.delete(listener) };
+  },
+  emit: (name: string, payload: unknown) => {
+    for (const listener of [...(deviceListeners.get(name) ?? [])]) listener(payload);
+  },
+};
+
 export const NativeModules: Record<string, unknown> = {
   ACFieldTiming: { setEnabled: () => {}, markFrame: () => {}, lastInput: () => [0, 0], drain: () => [] },
 };

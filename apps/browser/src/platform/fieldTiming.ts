@@ -1,6 +1,6 @@
 import { NativeModules } from "react-native";
 
-type FieldTiming = {
+export type FieldTiming = {
   setEnabled(on: boolean): void;
   markFrame(key: string, kind: string): void;
   lastInput(): [at: number, kind: number];

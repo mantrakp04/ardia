@@ -1,0 +1,14 @@
+skip chromium-safe-storage-no-silent-reset.patch
+chromium chromium-win-rtl-unittest-domsub.patch
+chromium chromium-win-load-local-state-delegate.patch
+chromium chromium-win-ardia-layer-calls-mac-only.patch
+chromium chromium-win-mac-host-sdk-any-toolchain.patch
+chromium chromium-win-app-message-pump.patch
+chromium chromium-win-hosted-browser-windows.patch
+chromium chromium-win-child-window-activation.patch
+chromium chromium-win-app-in-browser-process.patch
+chromium chromium-win-install-names.patch
+chromium chromium-win-hosted-page-fills-window.patch
+chromium chromium-win-hosted-no-browser-shortcuts.patch
+chromium chromium-win-relaunch-to-app.patch
+chromium chromium-win-reauth-app-window.patch

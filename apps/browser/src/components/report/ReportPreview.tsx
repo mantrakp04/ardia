@@ -4,6 +4,7 @@ import { previewPayload, reportFiles, setPreview } from "../../state/report/acti
 import { formatBytes, type ReportFile } from "../../state/report/form";
 import { Box, Button, DialogActions, DialogTitle, radius, space, Text, useTheme } from "../ui";
 import { REPORT } from "./tokens";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export function ReportPreview() {
   const theme = useTheme();
@@ -15,7 +16,7 @@ export function ReportPreview() {
   }, []);
   return (
     <>
-      <DialogTitle subtitle="Exactly what leaves your Mac when you press Send. Only the title, description, kind and version go to the public GitHub issue.">
+      <DialogTitle subtitle={`Exactly what leaves your ${PLATFORM_TERMS.computer} when you press Send. Only the title, description, kind and version go to the public GitHub issue.`}>
         What's sent
       </DialogTitle>
       <View style={{ marginTop: space.xl, height: REPORT.previewHeight, borderRadius: radius.tile, backgroundColor: theme.groupFill, borderColor: theme.groupBorder, borderWidth: 1 }}>

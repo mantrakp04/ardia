@@ -1,0 +1,94 @@
+--- a/chrome/browser/ui/window_feature_controller/window_feature_controller.cc
++++ b/chrome/browser/ui/window_feature_controller/window_feature_controller.cc
+@@ -10,6 +10,14 @@
+ #include "chrome/browser/ui/fullscreen/browser_window_fullscreen_controller.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ 
++#if BUILDFLAG(IS_WIN)
++#include "ardia/win/hooks.h"  // nogncheck
++
++// Ardia: the app shows every normal browser window inside its own window
++// (//ardia/win), page only: the app draws the tabs and the toolbar.
++bool g_ardia_win_hosts_normal_windows = false;
++#endif
++
+ DEFINE_USER_DATA(WindowFeatureController);
+ 
+ WindowFeatureController::WindowFeatureController(
+@@ -166,6 +174,13 @@
+ bool WindowFeatureController::SupportsWindowFeatureImpl(
+     WindowFeature feature,
+     bool check_can_support) const {
++#if BUILDFLAG(IS_WIN)
++  // Ardia: a hosted window has no tab strip, toolbar or bookmark bar.
++  if (g_ardia_win_hosts_normal_windows &&
++      browser_type_ == BrowserWindowInterface::Type::TYPE_NORMAL) {
++    return false;
++  }
++#endif
+   switch (browser_type_) {
+     case BrowserWindowInterface::Type::TYPE_NORMAL:
+       return NormalBrowserSupportsWindowFeature(feature, check_can_support);
+--- a/chrome/browser/ui/views/frame/browser_frame_view_factory_views.cc
++++ b/chrome/browser/ui/views/frame/browser_frame_view_factory_views.cc
+@@ -14,6 +14,12 @@
+ #if BUILDFLAG(IS_WIN)
+ #include "chrome/browser/ui/views/frame/browser_frame_view_win.h"
+ #include "chrome/browser/ui/views/frame/picture_in_picture_browser_frame_view.h"
++#include "ardia/win/hooks.h"  // nogncheck
++
++// Ardia: the frame of a browser window the app hosts (//ardia/win).
++std::unique_ptr<BrowserFrameView> (*g_ardia_win_frame_view)(
++    BrowserWidget* widget,
++    BrowserView* browser_view) = nullptr;
+ #endif
+ 
+ #if BUILDFLAG(IS_LINUX)
+@@ -103,6 +109,13 @@
+                                                               browser_view);
+   }
+ 
++  // Ardia: a hosted window has no frame of its own.
++  if (g_ardia_win_frame_view &&
++      browser_view->browser()->GetType() ==
++          BrowserWindowInterface::Type::TYPE_NORMAL) {
++    return g_ardia_win_frame_view(widget, browser_view);
++  }
++
+   if (widget->ShouldUseNativeFrame()) {
+     return std::make_unique<BrowserFrameViewWin>(widget, browser_view);
+   }
+--- a/chrome/browser/ui/views/frame/browser_desktop_window_tree_host_win.cc
++++ b/chrome/browser/ui/views/frame/browser_desktop_window_tree_host_win.cc
+@@ -51,6 +51,7 @@
+ #include "ui/gfx/win/icon_util.h"
+ #include "ui/gfx/win/msg_util.h"
+ #include "ui/views/controls/menu/native_menu_win.h"
++#include "ardia/win/hooks.h"  // nogncheck
+ 
+ class VirtualDesktopHelper
+     : public base::RefCountedDeleteOnSequence<VirtualDesktopHelper> {
+@@ -492,6 +493,11 @@
+   if (!browser_view_) {
+     // If there is no browser view the frame should be system drawn.
+     return views::FrameMode::SYSTEM_DRAWN;
++  }
++
++  // Ardia: a hosted window is a child of the app's window, with no frame.
++  if (g_ardia_win_hosts_normal_windows && browser_view_->GetIsNormalType()) {
++    return views::FrameMode::CUSTOM_DRAWN;
+   }
+ 
+   const views::FrameMode system_frame_mode =
+@@ -514,6 +520,11 @@
+ }
+ 
+ bool BrowserDesktopWindowTreeHostWin::ShouldUseNativeFrame() const {
++  // Ardia: a hosted window is a child of the app's window, with no frame.
++  if (g_ardia_win_hosts_normal_windows && browser_view_ &&
++      browser_view_->GetIsNormalType()) {
++    return false;
++  }
+   if (!browser_view_ ||
+       !views::DesktopWindowTreeHostWin::ShouldUseNativeFrame()) {
+     return false;

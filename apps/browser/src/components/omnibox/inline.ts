@@ -60,6 +60,8 @@ export function completionToWrite(typed: string, wanted: string, shown: string, 
   return wanted === showing ? null : { typed, completion: wanted };
 }
 
+export const settlesInline = (written: boolean, completion: string, caretAllows: boolean) => written && (!completion || caretAllows);
+
 export function withoutFirst(pending: readonly PendingInline[], inline: Inline): PendingInline[] {
   const i = pending.findIndex((p) => p.typed === inline.typed && p.completion === inline.completion);
   return i < 0 ? [...pending] : [...pending.slice(0, i), ...pending.slice(i + 1)];

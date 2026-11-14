@@ -1,4 +1,5 @@
 import { readDocument, saveDocument } from "../../platform/documents";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 import { updaterState } from "../../platform/app";
 import { environment } from "./client";
 import { uuidv4 } from "./ids";
@@ -100,7 +101,7 @@ export function dailyProperties(flags: DailyFlags, channel: string | null): Reco
     $lib_version: "1",
     $app_name: "Ardia",
     $app_version: info.appVersion,
-    $os: "macOS",
+    $os: PLATFORM_TERMS.os,
     os_major: (info.osVersion ?? "").split(".")[0] || null,
     arch: info.arch,
     channel,

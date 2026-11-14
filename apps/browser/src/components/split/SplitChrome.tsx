@@ -5,7 +5,7 @@ import { updateSplit } from "../../state/splits/actions";
 import { useDragFallbackPane } from "../../state/splits/hooks";
 import type { SplitView } from "../../state/browser/types";
 import { resize, type Divider, type Rect } from "../window/geometry";
-import { capsule, space, Symbol, Text, Toast, withAlpha } from "../ui";
+import { capsule, OverPage, space, Symbol, Text, Toast, withAlpha } from "../ui";
 import { hideToast, useToasts } from "../../state/app/toasts";
 import { useWindowId } from "../../state/browser/hooks";
 import { useCardFrame } from "../window/cardFrame";
@@ -13,6 +13,7 @@ import type { Size } from "../ui/useSettled";
 import { overPeek } from "../../state/windows/dockMotion";
 import { zoneHit, zoneRect, type ZoneStage } from "./splitDrop";
 import { setDropTarget, setOnPage, setTargetResolver, useTabDrag } from "../../state/drag/tabDrag";
+import { splitViewAvailable } from "../../state/splits/splits";
 import { FOCUS_RING, SPLIT_MOTION, splitColors, TOAST_ACTION_MS, TOAST_MS, ZONE_ACCENT_ALPHA, ZONE_DASH_INSET, ZONE_DASH_RADIUS, ZONE_RADIUS, ZONE_SLIDE_MS } from "./tokens";
 
 export function SplitDividers({ split, dividers, width, height }: { split: SplitView; dividers: Divider[]; width: number; height: number }) {
@@ -173,7 +174,7 @@ export function DropTargets({ panes, origin }: { panes: Record<string, Rect>; or
     return () => clearTimeout(timer);
   }, [shown]);
 
-  const hit = shown && grown && overPage ? zoneHit(candidates, px, py, target) : null;
+  const hit = splitViewAvailable && shown && grown && overPage ? zoneHit(candidates, px, py, target) : null;
   const preview = shown && overPage;
   const resolver = useRef({ candidates, origin, panes, ready: false });
   resolver.current = { candidates, origin, panes, ready: !!dragging && !!origin && !full && candidates.length > 0 && grown && lifted !== false };
@@ -199,7 +200,7 @@ export function DropTargets({ panes, origin }: { panes: Record<string, Rect>; or
   );
   const [mounted, setMounted] = useState<[string, Rect][]>([]);
   useEffect(() => {
-    if (shown) setMounted(candidates);
+    if (shown && splitViewAvailable) setMounted(candidates);
   }, [shown, candidates]);
 
   if (!mounted.length) return null;
@@ -268,6 +269,7 @@ function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect
         transform: [{ translateX: slide.interpolate({ inputRange: [0, 1], outputRange: [away, 0] }) }],
       }}
     >
+      <OverPage radius={ZONE_RADIUS} />
       <View
         style={{
           position: "absolute",

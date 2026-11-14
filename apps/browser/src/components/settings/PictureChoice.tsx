@@ -29,7 +29,7 @@ export function PictureChoice({
   const icon = size === "icon";
   return (
     <View {...hoverProps} style={icon ? { width: pictureChoice.iconWidth } : { flex: 1 }}>
-      <Pressable onPress={onPress} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut} tooltip={tooltip}>
+      <Pressable onPress={onPress} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut} tooltip={tooltip} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
         <Box gap="m" style={{ alignItems: "center" }}>
           <Animated.View style={[icon ? { width: pictureChoice.icon } : { width: "100%" }, scaleStyle]}>
             <SelectableCard

@@ -8,7 +8,7 @@ import { trackSettingsSection } from "../../state/telemetry/track";
 import { preparePane, usePaneLoaded } from "../../state/settings/paneData";
 import { clearSettingsReveal, flashSetting, settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
 import { anchorView } from "./anchors";
-import { ADVANCED_PANES, findSetting, PANES } from "./settingsIndex";
+import { ADVANCED_PANES, findSetting, PANES, paneTitle } from "./settingsIndex";
 import { SettingsPaneContext } from "./Form";
 import { PageToolbar } from "../pages/PageLayout";
 import { SettingsSearchField, SettingsSearchResults } from "./SettingsSearch";
@@ -36,9 +36,15 @@ import { settingsProfileFor } from "../../state/extensions/store";
 import { useSettingsColors } from "./useSettingsColors";
 import { settingsLayout } from "./tokens";
 import { pageToolbar } from "../pages/tokens";
+import { WINDOW_CHROME, WINDOW_CONTROLS, windowControlsWidth } from "../../lib/windowChrome";
+import { markCaptionRegions } from "../../state/windows/controls";
+import { WindowControls } from "../window/WindowControls";
 
 const SIDEBAR = settingsLayout.sidebarWidth;
 const TOOLBAR = pageToolbar.window.height;
+const SIDEBAR_TOP = WINDOW_CHROME.leadingWidth ? TOOLBAR : space.ml;
+const TITLE_LEFT = SIDEBAR + 96;
+const CONTROLS_ROOM = WINDOW_CONTROLS.edge + windowControlsWidth() + WINDOW_CONTROLS.gap;
 const HOLD_CAP_MS = 250;
 const REVEAL_MARGIN = 16;
 
@@ -77,9 +83,10 @@ export function SettingsWindow() {
   const shown = useShownPane();
   usePrefetchAllPanes(!!shown);
   const profileName = useProfile(shown?.profileId, (p) => p?.name);
-  const title = shown ? (shown.pane === "profiles" && profileName ? profileName : PANES.find((p) => p.id === shown.pane)!.title) : "";
+  const title = shown ? (shown.pane === "profiles" && profileName ? profileName : paneTitle(shown.pane)) : "";
   const sheet = useSettingsSheet((s) => s.sheet);
   useEffect(() => trackSettingsSection(nav.pane), [nav.pane]);
+  useEffect(() => markCaptionRegions(SETTINGS_WINDOW_ID, [[TITLE_LEFT, 0, CONTROLS_ROOM, TOOLBAR]]), []);
   const scroller = useRef<ScrollView>(null);
   const key = shown ? shownKey(shown) : "";
   useLayoutEffect(() => scroller.current?.scrollTo({ y: 0, animated: false }), [key]);
@@ -127,7 +134,7 @@ export function SettingsWindow() {
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: look.windowFill }}>
       <View style={{ width: SIDEBAR }}>
         <VisualEffect material="sidebar" blendingMode="behindWindow" style={StyleSheet.absoluteFill} />
-        <WindowDragRegion style={{ height: TOOLBAR }} />
+        <WindowDragRegion style={{ height: SIDEBAR_TOP }} />
         <SettingsSearchField />
         {query.trim() ? (
           <SettingsSearchResults query={query} />
@@ -166,6 +173,7 @@ export function SettingsWindow() {
       </View>
       <ProfileIconPicker windowId={SETTINGS_WINDOW_ID} />
       {sheet}
+      <WindowControls windowId={SETTINGS_WINDOW_ID} centerY={TOOLBAR / 2} size={WINDOW_CONTROLS.regular} />
     </View>
   );
 }

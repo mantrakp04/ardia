@@ -77,6 +77,7 @@ export function Omnibox({
 
   const { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing } = useBarItems({
     input,
+    caret: () => selection.current,
     typed,
     edited,
     scope,

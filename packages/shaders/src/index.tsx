@@ -92,11 +92,4 @@ export function meadowTextStyle({ tone, halo }: MeadowTone) {
 
 export type MeadowProps = ViewProps & { night: boolean; onTone?: (tone: MeadowTone) => void };
 
-type NativeMeadowProps = ViewProps & { night: boolean; onTone?: (event: { nativeEvent: MeadowTone }) => void };
-
-let NativeMeadow: ComponentType<NativeMeadowProps> | null = null;
-
-export function Meadow({ onTone, ...props }: MeadowProps) {
-  NativeMeadow ??= requireNativeViewManager<NativeMeadowProps>("ArdiaMeadow");
-  return <NativeMeadow pointerEvents="none" {...props} onTone={onTone ? (event) => onTone(event.nativeEvent) : undefined} />;
-}
+export { Meadow } from "./meadow";

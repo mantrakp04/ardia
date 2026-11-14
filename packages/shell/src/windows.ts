@@ -2,11 +2,20 @@ import type { EventSubscription } from "expo-modules-core";
 
 export type Rect4 = [number, number, number, number];
 
+export type CaptionRegion = readonly [left: number, top: number, rightInset: number, height: number];
+
+export type WindowControlsNative = {
+  minimizeWindow(windowId: string): Promise<void>;
+  toggleMaximizeWindow(windowId: string): Promise<void>;
+  setCaptionRegions(windowId: string, regions: readonly CaptionRegion[]): Promise<void>;
+};
+
 export type WindowEvent =
   | { type: "focus"; id: string }
   | { type: "close"; id: string }
   | { type: "frame"; id: string; frame: [number, number, number, number] }
   | { type: "fullScreen"; id: string; on: boolean }
+  | { type: "maximized"; id: string; on: boolean }
   | { type: "sidebarEdge"; id: string; over: boolean; point: [number, number] }
   | { type: "closeRequest"; id: string };
 

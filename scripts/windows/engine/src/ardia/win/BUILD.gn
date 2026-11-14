@@ -1,0 +1,97 @@
+assert(is_win)
+
+source_set("win") {
+  sources = [
+    "ac_calls.cc",
+    "ac_calls.h",
+    "api.cc",
+    "api.h",
+    "frame_view.cc",
+    "frame_view.h",
+    "hooks.h",
+    "host.cc",
+    "host.h",
+    "main.cc",
+    "main.h",
+    "page_links.cc",
+    "page_links.h",
+    "page_links_script.h",
+    "private_sessions.cc",
+    "private_sessions.h",
+    "profiles.cc",
+    "profiles.h",
+    "public/EngineApi.h",
+    "tab_calls.cc",
+    "tab_calls.h",
+    "tab_events.cc",
+    "tab_events.h",
+    "tab_state.cc",
+    "tab_state.h",
+  ]
+
+  deps = [
+    ":launch_switches",
+    "//base",
+    "//chrome/app:command_ids",
+    "//chrome/browser",
+    "//chrome/browser/ardia",
+    "//chrome/browser/devtools",
+    "//chrome/browser/printing",
+    "//chrome/browser/ui:recently_audible_helper",
+    "//chrome/browser/profiles:profile",
+    "//chrome/common",
+    "//components/blocked_content",
+    "//components/content_settings/core/browser",
+    "//components/favicon/content",
+    "//components/favicon/core",
+    "//components/find_in_page",
+    "//components/keep_alive_registry",
+    "//components/policy/core/common",
+    "//components/prefs",
+    "//components/sessions",
+    "//components/url_formatter",
+    "//components/version_info",
+    "//components/web_modal",
+    "//components/zoom",
+    "//content/public/browser",
+    "//content/public/common",
+    "//media",
+    "//net",
+    "//pdf:buildflags",
+    "//printing/buildflags",
+    "//skia",
+    "//third_party/blink/public/common",
+    "//ui/aura",
+    "//ui/base",
+    "//ui/events",
+    "//ui/gfx",
+    "//ui/views",
+    "//url",
+  ]
+}
+
+source_set("launch_switches") {
+  sources = [
+    "//ardia/core/ac_launch_switches.cc",
+    "//ardia/core/ac_launch_switches.h",
+  ]
+
+  deps = [
+    "//base",
+    "//chrome/common:non_code_constants",
+    "//components/os_crypt/common:switches",
+    "//content/public/common",
+  ]
+}
+
+shared_library("probe") {
+  output_name = "ArdiaProbe"
+  sources = [
+    "probe/probe.cc",
+    "public/EngineApi.h",
+  ]
+  libs = [
+    "gdi32.lib",
+    "user32.lib",
+  ]
+}

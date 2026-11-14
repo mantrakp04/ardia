@@ -76,22 +76,24 @@ export type ToolbarGeometry = {
   forward: number;
   reload: number;
   urlLeft: number;
+  trailing: number;
 };
 
 const geometries = new Map<string, ToolbarGeometry>();
 
-export function toolbarGeometry(o: { sidebarButton: boolean }): ToolbarGeometry {
-  const key = `${o.sidebarButton}`;
+export function toolbarGeometry(o: { sidebarButton: boolean; trailing?: number }): ToolbarGeometry {
+  const key = `${o.sidebarButton}|${o.trailing ?? 0}`;
   let g = geometries.get(key);
   if (!g) geometries.set(key, (g = computeToolbarGeometry(o)));
   return g;
 }
 
-function computeToolbarGeometry(o: { sidebarButton: boolean }): ToolbarGeometry {
+function computeToolbarGeometry(o: { sidebarButton: boolean; trailing?: number }): ToolbarGeometry {
   const [c0, c1, c2, c3] = layout.toolbarIconCenters;
-  if (o.sidebarButton) return { sidebarButton: c0, back: c1, forward: c2, reload: c3, urlLeft: layout.breadcrumbX - 8 };
+  const trailing = o.trailing ?? 0;
+  if (o.sidebarButton) return { sidebarButton: c0, back: c1, forward: c2, reload: c3, urlLeft: layout.breadcrumbX - 8, trailing };
   const shift = c1 - c0;
-  return { sidebarButton: null, back: c1 - shift, forward: c2 - shift, reload: c3 - shift, urlLeft: layout.breadcrumbX - 8 - shift };
+  return { sidebarButton: null, back: c1 - shift, forward: c2 - shift, reload: c3 - shift, urlLeft: layout.breadcrumbX - 8 - shift, trailing };
 }
 
-export const NO_TOOLBAR: ToolbarGeometry = { sidebarButton: null, back: 21, forward: 21, reload: 21, urlLeft: 8 };
+export const NO_TOOLBAR: ToolbarGeometry = { sidebarButton: null, back: 21, forward: 21, reload: 21, urlLeft: 8, trailing: 0 };

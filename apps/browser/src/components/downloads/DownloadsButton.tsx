@@ -7,6 +7,7 @@ import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
 import { Button } from "../ui";
 import { anchorInside, type Rect } from "./downloadsPlacement";
 import { DOWNLOADS_BUTTON } from "./tokens";
+import { noteDownloadsPanelToggle } from "../../state/telemetry/downloadsPanelCounts";
 
 const downloadsButtons = new Map<string, Set<View>>();
 
@@ -48,7 +49,10 @@ export function DownloadsButton({ windowId }: { windowId: string }) {
         hit={DOWNLOADS_HIT}
         active={open}
         tooltip={open ? undefined : withShortcut("Downloads", hint)}
-        onPress={() => toggleDownloadsOpen(windowId)}
+        onPress={() => {
+          noteDownloadsPanelToggle(!open, "button");
+          toggleDownloadsOpen(windowId);
+        }}
       />
     </View>
   );

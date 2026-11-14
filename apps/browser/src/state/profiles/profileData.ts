@@ -1,6 +1,7 @@
 import { deleteProfileData } from "../../platform/profiles";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
+import { noteProfileDataDeleted } from "../telemetry/profileDataCounts";
 
 export { clearBrowsingData, type BrowsingDataType } from "../../platform/profiles";
 
@@ -27,6 +28,7 @@ async function drain() {
         continue;
       }
       const remaining = await deleteProfileData(engine).catch((error: unknown) => [String(error)]);
+      noteProfileDataDeleted(!remaining.length);
       if (remaining.length) {
         failed.add(engine);
         console.warn(`Couldn't delete profile data (${engine || "original profile"}): ${remaining.join(", ")}`);

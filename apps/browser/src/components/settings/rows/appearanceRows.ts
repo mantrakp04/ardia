@@ -1,4 +1,7 @@
 import { type SettingSection } from "./types";
+import { keyText } from "../../../state/commands/keyText";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
 
 export const appearanceRows = {
@@ -6,7 +9,7 @@ export const appearanceRows = {
     {
       section: "Appearance Theme",
       rows: {
-        theme: { title: "Appearance Theme", description: "Also in View › Appearance. Incognito windows are always dark.", keywords: ["dark mode", "light mode", "automatic", "night", "system"] },
+        theme: { title: "Appearance Theme", description: `${PLATFORM_FEATURES.menuBar ? "Also in View › Appearance. " : ""}Incognito windows are always dark.`, keywords: ["dark mode", "light mode", "automatic", "night", "system"] },
         spacesFollowAppearance: {
           advanced: true,
           title: "Profile themes follow this appearance",
@@ -48,8 +51,8 @@ export const appearanceRows = {
       rows: {
         addressBar: { title: "Address Bar", description: "In the toolbar or in the sidebar.", keywords: ["url bar", "location bar", "toolbar"] },
         commandBarPlacement: {
-          title: "⌘L opens the command bar",
-          description: "In the centre, ⌘L shows it over the middle of the page, as in Arc. A click on the address always edits it where it is, and ⌘L opens in the centre whenever the address is out of sight.",
+          title: `${keyText("⌘L")} opens the command bar`,
+          description: `In the centre, ${keyText("⌘L")} shows it over the middle of the page, as in Arc. A click on the address always edits it where it is, and ${keyText("⌘L")} opens in the centre whenever the address is out of sight.`,
           keywords: ["cmd l", "command bar", "centred", "centered", "arc", "url bar", "location bar"],
         },
         compactToolbar: {
@@ -69,7 +72,7 @@ export const appearanceRows = {
         },
         bookmarksBar: {
           title: "Show bookmarks bar",
-          description: "Below the toolbar. Also in View › Show Bookmarks Bar, ⇧⌘B.",
+          description: `Below the toolbar. Also ${PLATFORM_FEATURES.menuBar ? "in View › Show Bookmarks Bar, " : ""}${keyText("⇧⌘B")}.`,
           keywords: ["bookmarks bar", "favorites bar", "favourites bar", "toolbar", "hide bookmarks", "show bookmarks"],
           shown: (s) => s.showBookmarks,
         },
@@ -97,12 +100,12 @@ export const appearanceRows = {
         },
         pageFrameZeroInFullScreen: {
           title: "Zero in full screen",
-          description: "In macOS full screen the page goes edge to edge with square corners, whatever the frame above is set to.",
+          description: `In ${PLATFORM_TERMS.fullScreen} the page goes edge to edge with square corners, whatever the frame above is set to.`,
           keywords: ["fullscreen", "full screen", "borderless", "edge to edge", "zero", "none", "frame", "inset", "margin"],
         },
         pageFrameZeroWhenTabsHidden: {
           title: "Zero in full screen when tabs are hidden",
-          description: "In macOS full screen with Auto-Hide Tabs, the page goes edge to edge with square corners. Show the sidebar or top strip, or leave full screen, and the frame comes back.",
+          description: `In ${PLATFORM_TERMS.fullScreen} with Auto-Hide Tabs, the page goes edge to edge with square corners. Show the sidebar or top strip, or leave full screen, and the frame comes back.`,
           keywords: ["auto hide", "autohide", "sidebar", "tabs hidden", "fullscreen", "full screen", "borderless", "edge to edge", "zero", "none", "frame", "inset", "margin"],
         },
       },
@@ -126,9 +129,10 @@ export const appearanceRows = {
           title: "Scroll bars",
           description: "Follow macOS uses System Settings › Appearance › Show scroll bars. Thin shows slim scroll bars over the page only while you scroll, even with a mouse.",
           keywords: ["scrollbar", "scroll bar", "overlay", "thin", "mouse", "trackpad"],
+          shown: () => PLATFORM_FEATURES.thinScrollBars,
         },
       },
     },
-    { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
+    { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", shown: () => PLATFORM_FEATURES.appIcon, keywords: ["dock icon", "logo"] } } },
   ],
 } satisfies Pick<Record<SettingsPane, SettingSection[]>, "appearance">;

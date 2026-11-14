@@ -1,0 +1,23 @@
+{
+  "name": "@ardia/expo-windows",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The expo-modules-core API the app's native packages call, on React Native for Windows",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@ardia/ardiacore": "workspace:*",
+    "@ardia/import": "workspace:*",
+    "@ardia/shaders": "workspace:*",
+    "@ardia/shell": "workspace:*",
+    "@ardia/sync": "workspace:*"
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

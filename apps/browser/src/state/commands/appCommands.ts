@@ -9,6 +9,7 @@ import { openReport } from "../report/actions";
 import { openReleaseNotesPage } from "../releaseNotes/releaseNotesPage";
 import { webKitMediaFaultsLine } from "../telemetry/webkitMediaFaults";
 import type { AppCommand } from "./commandCatalog";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export const APP_COMMAND_HANDLERS: Readonly<Record<AppCommand, (windowId: string | null) => void>> = {
   reportProblem: (windowId) => reportProblem(windowId),
@@ -34,7 +35,7 @@ export async function diagnostics(): Promise<string> {
   return [
     `${app.appName} ${app.appVersion} (${app.appBuild}) — ${app.configuration}`,
     engine ? `Engine: ArdiaCore, Chromium ${engine.chromiumVersion}` : "Engine: unavailable",
-    `macOS ${app.osVersion} (${app.osBuild}), ${app.arch}, ${app.model}, ${Math.round(app.memoryGB)} GB`,
+    `${PLATFORM_TERMS.os} ${app.osVersion} (${app.osBuild}), ${app.arch}, ${app.model}, ${Math.round(app.memoryGB)} GB`,
     `Bundle: ${app.bundleId}, locale ${app.locale}`,
     `Windows: ${regular.length} (+${s.windowOrder.length - regular.length} incognito), tabs: ${Object.keys(s.tabs).length}, profiles: ${s.profileOrder.length}`,
     !updates?.available

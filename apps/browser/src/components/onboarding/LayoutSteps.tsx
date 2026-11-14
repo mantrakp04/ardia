@@ -10,6 +10,7 @@ import { keysOf, questionKeys, useQuestions } from "../../state/onboarding/quest
 import { StepActions, StepLayout } from "./StepLayout";
 import { OptionCard } from "./OptionCard";
 import { OptionRow } from "./Parts";
+import { keyText } from "../../state/commands/keyText";
 
 export function Page({
   id,
@@ -109,11 +110,11 @@ export function LayoutStep() {
     return (
       <Page
         id={id}
-        title="Where does ⌘L open?"
+        title={`Where does ${keyText("⌘L")} open?`}
         subtitle="The command bar, for going anywhere."
         tag={tag}
         patch={{ commandBarPlacement: values.commandBarPlacement }}
-        picked={[values.commandBarPlacement === "centred" ? "⌘L opens in the centre" : "⌘L opens under the address"]}
+        picked={[values.commandBarPlacement === "centred" ? `${keyText("⌘L")} opens in the centre` : `${keyText("⌘L")} opens under the address`]}
         preview={preview}
       >
         <ChoiceList
@@ -163,8 +164,8 @@ const TIDY_AFTER = [
   { value: 7 * 24 * 60, title: "1 week" },
 ];
 const PEEK_WITH: { value: PeekModifier; title: string }[] = [
-  { value: "shift", title: "⇧-click" },
-  { value: "alt", title: "⌥-click" },
+  { value: "shift", title: `${keyText("⇧")}-click` },
+  { value: "alt", title: `${keyText("⌥")}-click` },
   { value: "off", title: "Off" },
 ];
 
@@ -266,10 +267,10 @@ export function TabsStep() {
         <View style={{ gap: space.m }}>
           <OptionCard control="check" title="Top Apps grow with the sidebar" subtitle="Up to four across, as in Arc" selected={values.balancedTopApps} onPress={() => change({ balancedTopApps: !values.balancedTopApps })} />
           <OptionRow title="Peek a link with" value={values.peekModifier} options={PEEK_WITH} onChange={(peekModifier) => change({ peekModifier })} />
-          <OptionCard control="check" title="⌘Z reopens closed tabs" subtitle="Outside text fields, as in Arc" selected={values.undoReopensClosedTab} onPress={() => change({ undoReopensClosedTab: !values.undoReopensClosedTab })} />
+          <OptionCard control="check" title={`${keyText("⌘Z")} reopens closed tabs`} subtitle="Outside text fields, as in Arc" selected={values.undoReopensClosedTab} onPress={() => change({ undoReopensClosedTab: !values.undoReopensClosedTab })} />
           <OptionCard
             control="check"
-            title="⌘-click on a link makes a tab group"
+            title={`${keyText("⌘")}-click on a link makes a tab group`}
             subtitle="Keeps related tabs together"
             selected={values.cmdClickCreatesTabGroup}
             onPress={() => change({ cmdClickCreatesTabGroup: !values.cmdClickCreatesTabGroup })}
@@ -280,10 +281,10 @@ export function TabsStep() {
   return (
     <Page
       id="newTab"
-      title="What does ⌘T open?"
+      title={`What does ${keyText("⌘T")} open?`}
       subtitle="What you see when you open a tab."
       patch={{ newTabOpens: values.newTabOpens }}
-      picked={[values.newTabOpens === "commandBar" ? "⌘T opens the command bar" : "⌘T opens the New Tab page"]}
+      picked={[values.newTabOpens === "commandBar" ? `${keyText("⌘T")} opens the command bar` : `${keyText("⌘T")} opens the New Tab page`]}
       preview={preview}
     >
       <ChoiceList options={NEW_TAB_CHOICES} value={values.newTabOpens} onChange={(newTabOpens) => change({ newTabOpens })} mock={focus} />

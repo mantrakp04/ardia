@@ -69,3 +69,20 @@ test("shortcuts print the way Settings shows them and parse back", () => {
   }
   assert.deepEqual(parseShortcut("⇧⌘C"), { key: "c", modifiers: ["shift", "command"] });
 });
+
+test("Mac glyphs never read Object.prototype names as keys, and every valid Mac shortcut reads and prints as before", async () => {
+  const { formatMacShortcut, parseMacShortcut } = await import("./macGlyphs.ts");
+  for (const name of ["constructor", "toString", "hasOwnProperty", "valueOf", "isPrototypeOf"]) {
+    const parsed = parseMacShortcut(`⌘${name}`);
+    assert.equal(typeof parsed.key, "string", name);
+    assert.equal(typeof formatMacShortcut(parsed), "string", name);
+  }
+  for (let c = 0x21; c < 0x7f; c++) {
+    const ch = String.fromCharCode(c);
+    assert.deepEqual(parseMacShortcut(`⌘${ch}`), { key: ch.toLowerCase(), modifiers: ["command"] });
+    assert.equal(formatMacShortcut(parseMacShortcut(`⇧⌘${ch}`)), `⇧⌘${ch.toUpperCase()}`);
+  }
+  for (const glyph of ["⇥", "↩", "⌤", "⌫", "⌦", "⎋", "Space", "↑", "↓", "←", "→", "↖", "↘", "⇞", "⇟", "F1", "F12", "F20"]) {
+    assert.equal(formatMacShortcut(parseMacShortcut(`⌥⌘${glyph}`)), `⌥⌘${glyph}`);
+  }
+});

@@ -17,6 +17,7 @@ import { SMALL_LIGHTS_CENTER } from "../windows/small";
 import { runCommand } from "../commands/commands";
 import { setMenuBarShortcuts } from "../commands/commandShortcuts";
 import { finishAnimatedCloses } from "../windows/closeAnimated";
+import { startKeyboardFollows } from "../focus/keyboardFollows";
 import { cancelAbandonedFocusMoves, settlingCommandFocus } from "../focus/focusHandoff";
 import { flushPersistence, resumePersistence } from "../session/persist";
 import { flushLive } from "../live/store";
@@ -28,6 +29,7 @@ import { useExtensions } from "../extensions/actions";
 import { answerQuitAfterSaves, isQuitting, setQuitting } from "./quit";
 import { menuInputsChanged, trackedMenuState, type MenuReads } from "../commands/menuState";
 import { usePages } from "../tabs/pageState";
+import { startCaptionRegionSync } from "../windows/captionRegions";
 
 const QUIT_SAVES_WAIT_MS = 3_000;
 
@@ -54,6 +56,7 @@ export function startNativeSync() {
   startExtensionsBridge();
   onOpenURLs((urls, pointer, source) => openExternalUrls(urls, pointer, source));
   startUnclaimedEscape();
+  startKeyboardFollows();
   void lastTabClosesWindow()
     .catch(() => true)
     .then((closes) => setLastTabKeepsWindow(!closes));
@@ -132,4 +135,5 @@ export function startNativeSync() {
     if (e.lists !== prev.lists) menuTimer ??= setTimeout(syncMenu, 120);
   });
   void windows.sweep();
+  startCaptionRegionSync();
 }

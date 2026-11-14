@@ -1,0 +1,417 @@
+#pragma once
+
+#include <shlobj.h>
+#include <winrt/Windows.Data.Json.h>
+
+#include <algorithm>
+#include <filesystem>
+#include <memory>
+#include <optional>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include "NativeModules.h"
+
+#include "AppModule.h"
+#include "Events.h"
+#include "Host.h"
+#include "ImportAutofill.h"
+#include "ImportFiles.h"
+#include "ImportFirefox.h"
+#include "ImportFirefoxCookies.h"
+#include "ImportSecrets.h"
+#include "Paths.h"
+
+namespace Ardia {
+
+namespace ImportParts {
+
+using Promise = winrt::Microsoft::ReactNative::ReactPromise<std::string>;
+using MaybeText = winrt::Microsoft::ReactNative::ReactPromise<std::optional<std::string>>;
+
+inline std::wstring SourceOverride() noexcept {
+  if (!Paths::HasCustomDataDirectory()) return {};
+  try {
+    auto const &settings = AppLaunch::Shared().instance;
+    auto found = settings.find("importSourceDir");
+    return found == settings.end() ? std::wstring{} : Paths::Wide(found->second);
+  } catch (...) {
+    return {};
+  }
+}
+
+inline std::string Folder(REFKNOWNFOLDERID known, const wchar_t *variable, const wchar_t *underOverride) noexcept {
+  std::wstring custom = SourceOverride();
+  if (!custom.empty()) return Paths::Utf8((std::filesystem::path{custom} / underOverride).wstring());
+  return Paths::Utf8(Paths::UserFolder(known, variable).wstring());
+}
+
+inline void RemoveLeftovers() noexcept {
+  std::error_code ignored;
+  auto temp = std::filesystem::temp_directory_path(ignored);
+  if (temp.empty()) return;
+  auto cutoff = std::filesystem::file_time_type::clock::now() - std::chrono::hours(1);
+  for (auto it = std::filesystem::directory_iterator(temp, ignored); !ignored && it != std::filesystem::directory_iterator(); it.increment(ignored)) {
+    std::wstring name = it->path().filename().wstring();
+    if (name.rfind(L"ardia-import-", 0) != 0) continue;
+    std::error_code timeError;
+    auto written = std::filesystem::last_write_time(it->path(), timeError);
+    if (!timeError && written < cutoff) std::filesystem::remove_all(it->path(), timeError);
+  }
+}
+
+struct Writing {
+  winrt::Microsoft::ReactNative::ReactContext context{nullptr};
+  std::shared_ptr<ImportSecrets::VaultEntry> entry;
+  std::string profile;
+  bool cookies = false;
+  bool autofill = false;
+  Promise promise;
+  size_t next = 0;
+  size_t nextAutofill = 0;
+  int64_t imported = 0;
+  int64_t rejected = 0;
+  int64_t existing = 0;
+  int64_t addresses = 0;
+  int64_t cards = 0;
+  std::string error;
+  std::string autofillError;
+};
+
+inline void WipeAll(ImportSecrets::VaultEntry &entry) noexcept {
+  for (auto &batch : entry.batches) batch->Wipe();
+  for (auto &batch : entry.autofill) batch->Wipe();
+}
+
+inline void Finish(std::unique_ptr<Writing> writing) noexcept {
+  try {
+    int64_t dropped = writing->cookies ? static_cast<int64_t>(writing->entry->dropped) : 0;
+    std::string out = "{\"cookies\":" + std::to_string(writing->imported) + ",\"cookiesRejected\":" + std::to_string(writing->rejected + dropped) +
+                      ",\"cookiesExisting\":" + std::to_string(writing->existing) + ",\"addresses\":" + std::to_string(writing->addresses) +
+                      ",\"cards\":" + std::to_string(writing->cards);
+    if (!writing->error.empty()) out.append(",\"cookiesFailed\":1");
+    if (!writing->autofillError.empty()) out.append(",\"autofillFailed\":1");
+    std::string const &error = writing->error.empty() ? writing->autofillError : writing->error;
+    if (!error.empty()) out.append(",\"error\":").append(ImportFiles::JsonString(error));
+    out.push_back('}');
+    WipeAll(*writing->entry);
+    writing->promise.Resolve(out);
+  } catch (...) {
+    writing->promise.Reject("the cookies could not be written");
+  }
+}
+
+inline void Step(std::unique_ptr<Writing> writing) noexcept;
+
+inline void Continue(std::unique_ptr<Writing> writing) noexcept {
+  auto ui = writing->context;
+  auto held = std::make_shared<std::unique_ptr<Writing>>(std::move(writing));
+  RunOnUI(ui, [held]() noexcept {
+    if (*held) Step(std::move(*held));
+  });
+}
+
+inline void OnAutofillReply(void *context, const char *json) noexcept {
+  std::unique_ptr<Writing> writing{static_cast<Writing *>(context)};
+  if (!writing) return;
+  try {
+    writing->entry->autofill[writing->nextAutofill]->Wipe();
+    writing->nextAutofill++;
+    winrt::Windows::Data::Json::JsonObject reply{nullptr};
+    if (!json || !winrt::Windows::Data::Json::JsonObject::TryParse(winrt::to_hstring(std::string_view{json}), reply)) {
+      writing->autofillError = "bad reply from the engine";
+    } else if (reply.HasKey(L"error")) {
+      writing->autofillError = winrt::to_string(reply.GetNamedString(L"error", L"the engine refused the autofill entries"));
+    } else {
+      writing->addresses += static_cast<int64_t>(reply.GetNamedNumber(L"addresses", 0));
+      writing->cards += static_cast<int64_t>(reply.GetNamedNumber(L"cards", 0));
+    }
+  } catch (...) {
+    writing->autofillError = "bad reply from the engine";
+  }
+  Continue(std::move(writing));
+}
+
+inline void OnBatchReply(void *context, const char *json) noexcept {
+  std::unique_ptr<Writing> writing{static_cast<Writing *>(context)};
+  if (!writing) return;
+  try {
+    writing->entry->batches[writing->next]->Wipe();
+    writing->next++;
+    winrt::Windows::Data::Json::JsonObject reply{nullptr};
+    if (!json || !winrt::Windows::Data::Json::JsonObject::TryParse(winrt::to_hstring(std::string_view{json}), reply)) {
+      writing->error = "bad reply from the engine";
+    } else if (reply.HasKey(L"error")) {
+      writing->error = winrt::to_string(reply.GetNamedString(L"error", L"the engine refused the cookies"));
+    } else {
+      writing->imported += static_cast<int64_t>(reply.GetNamedNumber(L"imported", 0));
+      writing->rejected += static_cast<int64_t>(reply.GetNamedNumber(L"rejected", 0));
+      writing->existing += static_cast<int64_t>(reply.GetNamedNumber(L"existing", 0));
+    }
+  } catch (...) {
+    writing->error = "bad reply from the engine";
+  }
+  Continue(std::move(writing));
+}
+
+inline void Step(std::unique_ptr<Writing> writing) noexcept {
+  const ArdiaEngineApi *engine = Host::Engine();
+  bool cookiesLeft = writing->cookies && writing->error.empty() && writing->next < writing->entry->batches.size();
+  bool autofillLeft = writing->autofill && writing->autofillError.empty() && writing->nextAutofill < writing->entry->autofill.size();
+  if (!engine && (cookiesLeft || autofillLeft)) {
+    if (cookiesLeft) writing->error = "no engine";
+    if (autofillLeft) writing->autofillError = "no engine";
+    return Finish(std::move(writing));
+  }
+  if (!cookiesLeft && !autofillLeft) return Finish(std::move(writing));
+  std::string profile = writing->profile;
+  if (cookiesLeft) {
+    auto &batch = *writing->entry->batches[writing->next];
+    return engine->engineCall("ac_cookies_import", profile.c_str(), reinterpret_cast<const char *>(batch.Data()), &OnBatchReply, writing.release());
+  }
+  auto &batch = *writing->entry->autofill[writing->nextAutofill];
+  engine->engineCall("ac_autofill_import", profile.c_str(), reinterpret_cast<const char *>(batch.Data()), &OnAutofillReply, writing.release());
+}
+
+struct Apartment {
+  bool initialized = SUCCEEDED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
+  ~Apartment() noexcept {
+    if (initialized) CoUninitialize();
+  }
+};
+
+template <class TPromise, class TWork>
+void OnAThread(TPromise const &promise, TWork &&work) noexcept {
+  try {
+    std::thread([work = std::forward<TWork>(work)]() noexcept {
+      Apartment apartment;
+      work();
+    }).detach();
+  } catch (...) {
+    promise.Reject("the import could not start");
+  }
+}
+
+}
+
+REACT_MODULE(ImportModule, L"ArdiaWindowsImport")
+struct ImportModule {
+  using Promise = ImportParts::Promise;
+  using MaybeText = ImportParts::MaybeText;
+
+  REACT_INIT(Initialize)
+  void Initialize(winrt::Microsoft::ReactNative::ReactContext const &context) noexcept {
+    m_context = context;
+    try {
+      std::thread(&ImportParts::RemoveLeftovers).detach();
+    } catch (...) {
+    }
+  }
+
+  REACT_CONSTANT(localAppData)
+  const std::string localAppData = ImportParts::Folder(FOLDERID_LocalAppData, L"LOCALAPPDATA", L"Local");
+
+  REACT_CONSTANT(roamingAppData)
+  const std::string roamingAppData = ImportParts::Folder(FOLDERID_RoamingAppData, L"APPDATA", L"Roaming");
+
+  REACT_METHOD(list)
+  void list(std::string path, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [path, promise]() noexcept {
+      try {
+        promise.Resolve(ImportFiles::ListJson(std::filesystem::path{Paths::Wide(path)}));
+      } catch (...) {
+        promise.Reject("the folder could not be listed");
+      }
+    });
+  }
+
+  REACT_METHOD(readText)
+  void readText(std::string path, double largest, MaybeText promise) noexcept {
+    ImportParts::OnAThread(promise, [path, largest, promise]() noexcept {
+      try {
+        auto bytes = ImportFiles::ReadBytes(std::filesystem::path{Paths::Wide(path)}, largest > 0 ? static_cast<uint64_t>(largest) : 0);
+        promise.Resolve(bytes ? std::optional<std::string>{ImportFiles::TextOf(std::move(*bytes))} : std::nullopt);
+      } catch (...) {
+        promise.Reject("the file could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(readBase64)
+  void readBase64(std::string path, double largest, MaybeText promise) noexcept {
+    ImportParts::OnAThread(promise, [path, largest, promise]() noexcept {
+      try {
+        auto bytes = ImportFiles::ReadBytes(std::filesystem::path{Paths::Wide(path)}, largest > 0 ? static_cast<uint64_t>(largest) : 0);
+        if (!bytes) return promise.Resolve(std::nullopt);
+        promise.Resolve(std::optional<std::string>{ImportFiles::Base64(reinterpret_cast<const uint8_t *>(bytes->data()), bytes->size())});
+      } catch (...) {
+        promise.Reject("the file could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(readTextWithin)
+  void readTextWithin(std::string folder, std::string path, double largest, MaybeText promise) noexcept {
+    ImportParts::OnAThread(promise, [folder, path, largest, promise]() noexcept {
+      try {
+        auto bytes = ImportFiles::ReadBytesWithin(std::filesystem::path{Paths::Wide(folder)}, std::filesystem::path{Paths::Wide(path)}, largest > 0 ? static_cast<uint64_t>(largest) : 0);
+        promise.Resolve(bytes ? std::optional<std::string>{ImportFiles::TextOf(std::move(*bytes))} : std::nullopt);
+      } catch (...) {
+        promise.Reject("the file could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(readBase64Within)
+  void readBase64Within(std::string folder, std::string path, double largest, MaybeText promise) noexcept {
+    ImportParts::OnAThread(promise, [folder, path, largest, promise]() noexcept {
+      try {
+        auto bytes = ImportFiles::ReadBytesWithin(std::filesystem::path{Paths::Wide(folder)}, std::filesystem::path{Paths::Wide(path)}, largest > 0 ? static_cast<uint64_t>(largest) : 0);
+        if (!bytes) return promise.Resolve(std::nullopt);
+        promise.Resolve(std::optional<std::string>{ImportFiles::Base64(reinterpret_cast<const uint8_t *>(bytes->data()), bytes->size())});
+      } catch (...) {
+        promise.Reject("the file could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(query)
+  void query(std::string path, winrt::Microsoft::ReactNative::JSValue queries, Promise promise) noexcept {
+    auto shared = std::make_shared<winrt::Microsoft::ReactNative::JSValue>(std::move(queries));
+    ImportParts::OnAThread(promise, [path, shared, promise]() noexcept {
+      try {
+        promise.Resolve(ImportFiles::QueryJson(std::filesystem::path{Paths::Wide(path)}, shared->AsArray()));
+      } catch (...) {
+        promise.Reject("the database could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(openSnapshot)
+  void openSnapshot(std::string path, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [path, promise]() noexcept {
+      try {
+        promise.Resolve(ImportFiles::OpenSnapshots::Shared().Open(std::filesystem::path{Paths::Wide(path)}));
+      } catch (...) {
+        promise.Reject("the database could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(querySnapshot)
+  void querySnapshot(std::string id, winrt::Microsoft::ReactNative::JSValue queries, Promise promise) noexcept {
+    auto shared = std::make_shared<winrt::Microsoft::ReactNative::JSValue>(std::move(queries));
+    ImportParts::OnAThread(promise, [id, shared, promise]() noexcept {
+      try {
+        promise.Resolve(ImportFiles::OpenSnapshots::Shared().Query(id, shared->AsArray()));
+      } catch (...) {
+        promise.Reject("the database could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(closeSnapshot)
+  void closeSnapshot(std::string id) noexcept {
+    try {
+      ImportFiles::OpenSnapshots::Shared().Close(id);
+    } catch (...) {
+    }
+  }
+
+  REACT_METHOD(unlock)
+  void unlock(std::string browserId, std::string localState, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [browserId, localState, promise]() noexcept {
+      try {
+        promise.Resolve(ImportSecrets::Unlock(browserId, std::filesystem::path{Paths::Wide(localState)}));
+      } catch (...) {
+        promise.Reject("the browser's key could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(logins)
+  void logins(std::string browserId, std::vector<std::string> files, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [browserId, files, promise]() noexcept {
+      try {
+        std::vector<std::filesystem::path> paths;
+        for (auto const &file : files) paths.emplace_back(Paths::Wide(file));
+        std::string out = ImportSecrets::Logins(browserId, paths);
+        promise.Resolve(out);
+        SecureZeroMemory(out.data(), out.size());
+      } catch (...) {
+        promise.Reject("the passwords could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(cookies)
+  void cookies(std::string browserId, std::string file, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [browserId, file, promise]() noexcept {
+      try {
+        promise.Resolve(ImportSecrets::Cookies(browserId, std::filesystem::path{Paths::Wide(file)}));
+      } catch (...) {
+        promise.Reject("the cookies could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(firefoxLogins)
+  void firefoxLogins(std::string profile, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [profile, promise]() noexcept {
+      try {
+        std::string out = ImportFirefox::Logins(std::filesystem::path{Paths::Wide(profile)});
+        promise.Resolve(out);
+        SecureZeroMemory(out.data(), out.size());
+      } catch (...) {
+        promise.Reject("the passwords could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(firefoxCookies)
+  void firefoxCookies(std::string file, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [file, promise]() noexcept {
+      try {
+        promise.Resolve(ImportFirefox::Cookies(std::filesystem::path{Paths::Wide(file)}));
+      } catch (...) {
+        promise.Reject("the cookies could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(autofill)
+  void autofill(std::string browserId, std::string file, std::string joinToken, Promise promise) noexcept {
+    ImportParts::OnAThread(promise, [browserId, file, joinToken, promise]() noexcept {
+      try {
+        promise.Resolve(ImportAutofill::Read(browserId, std::filesystem::path{Paths::Wide(file)}, joinToken));
+      } catch (...) {
+        promise.Reject("the autofill entries could not be read");
+      }
+    });
+  }
+
+  REACT_METHOD(writeImported)
+  void writeImported(std::string token, std::string profile, std::vector<std::string> kinds, Promise promise) noexcept {
+    auto entry = ImportSecrets::Store::Shared().Take(token);
+    if (!entry) return promise.Reject("Those cookies are no longer kept; import again");
+    if (!m_context) return promise.Reject("the import has no app context");
+    auto has = [&kinds](std::string_view kind) { return std::find(kinds.begin(), kinds.end(), kind) != kinds.end(); };
+    ImportParts::Continue(std::make_unique<ImportParts::Writing>(ImportParts::Writing{m_context, entry, profile, has("cookies"), has("autofill"), promise}));
+  }
+
+  REACT_METHOD(discard)
+  void discard(std::string token) noexcept {
+    ImportSecrets::Store::Shared().Take(token);
+  }
+
+  REACT_METHOD(forget)
+  void forget() noexcept {
+    ImportSecrets::Store::Shared().Forget();
+  }
+
+ private:
+  winrt::Microsoft::ReactNative::ReactContext m_context{nullptr};
+};
+
+}

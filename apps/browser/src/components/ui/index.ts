@@ -34,6 +34,7 @@ export { TooltipAbove } from "./TooltipAbove";
 export { useHover } from "./useHover";
 export {
   ActivitySpinner,
+  ClipView,
   ContextMenuArea,
   DIA_SPECTRUM,
   DockSelection,
@@ -66,3 +67,4 @@ export {
   type SymbolProps,
   type WebViewHandle,
 } from "./native";
+export { OverPage } from "./OverPage";

@@ -1,0 +1,64 @@
+--- a/chrome/install_static/chromium_install_modes.h
++++ b/chrome/install_static/chromium_install_modes.h
+@@ -17,11 +17,11 @@
+ 
+ // The brand-specific company name to be included as a component of the install
+ // and user data directory paths. May be empty if no such dir is to be used.
+-inline constexpr wchar_t kCompanyPathName[] = L"imput";
++inline constexpr wchar_t kCompanyPathName[] = L"";
+ 
+ // The brand-specific product name to be included as a component of the install
+ // and user data directory paths.
+-inline constexpr wchar_t kProductPathName[] = L"Helium";
++inline constexpr wchar_t kProductPathName[] = L"Ardia";
+ 
+ // The brand-specific safe browsing client name.
+ inline constexpr char kSafeBrowsingName[] = "helium";
+@@ -54,15 +54,15 @@
+         .logo_suffix = L"",  // No logo suffix for the primary install mode.
+         .app_guid =
+             L"{FB68A146-637A-48C2-A0C4-1565DE45FEBD}",
+-        .base_app_name = L"Helium",              // A distinct base_app_name.
+-        .base_app_id = L"Helium",                // A distinct base_app_id.
+-        .browser_prog_id_prefix = L"HeliumHTM",  // Browser ProgID prefix.
++        .base_app_name = L"Ardia",               // A distinct base_app_name.
++        .base_app_id = L"Ardia",                 // A distinct base_app_id.
++        .browser_prog_id_prefix = L"ArdiaHTM",   // Browser ProgID prefix.
+         .browser_prog_id_description =
+-            L"Helium HTML Document",  // Browser ProgID description.
+-        .direct_launch_url_scheme = "helium",
+-        .pdf_prog_id_prefix = L"HeliumPDF",  // PDF ProgID prefix.
++            L"Ardia HTML Document",  // Browser ProgID description.
++        .direct_launch_url_scheme = "ardia",
++        .pdf_prog_id_prefix = L"ArdiaPDF",  // PDF ProgID prefix.
+         .pdf_prog_id_description =
+-            L"Helium PDF Document",  // PDF ProgID description.
++            L"Ardia PDF Document",  // PDF ProgID description.
+         .active_setup_guid =
+             L"{FB68A146-637A-48C2-A0C4-1565DE45FEBD}",  // Active Setup
+                                                         // GUID.
+--- a/chrome/install_static/user_data_dir.cc
++++ b/chrome/install_static/user_data_dir.cc
+@@ -119,6 +119,22 @@
+ 
+   GetUserDataDirFromRegistryPolicyIfSet(mode, &user_data_dir);
+ 
++  // Ardia: a launch with its own data directory (ARDIA_DATA_DIR, a test
++  // instance) keeps Chromium's data inside it, as on the Mac.
++  if (user_data_dir.empty()) {
++    wchar_t data_dir[MAX_PATH];
++    DWORD length =
++        ::GetEnvironmentVariableW(L"ARDIA_DATA_DIR", data_dir, MAX_PATH);
++    if (length > 0 && length < MAX_PATH) {
++      user_data_dir.assign(data_dir, length);
++      while (!user_data_dir.empty() &&
++             (user_data_dir.back() == '\\' || user_data_dir.back() == '/')) {
++        user_data_dir.pop_back();
++      }
++      user_data_dir.append(L"\\Chromium");
++    }
++  }
++
+   // Headless Chrome instances are expected to run in parallel with the headful
+   // Chrome and other headless Chrome instances. In order to do so, headless
+   // Chrome needs a dedicated user data directory for each headless instance.

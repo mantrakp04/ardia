@@ -9,6 +9,7 @@ import { sceneMs } from "../tokens";
 import { font } from "../../../ui/tokens";
 import type { Scene } from "../scene";
 import { Chrome, Desktop, KeyPress, listTop, MINI_SIDE, MiniArdia, Std } from "./SceneParts";
+import { keyText } from "../../../../state/commands/keyText";
 
 export function tidy(auto: boolean): Scene {
   return ({ g, look, p, opts }) => {
@@ -69,7 +70,7 @@ export function quit(fresh: boolean): Scene {
             </Card>
           </Animated.View>
         ) : null}
-        <KeyPress g={g} t={t} label="⌘Q" />
+        <KeyPress g={g} t={t} label={keyText("⌘Q")} />
       </>
     );
   };

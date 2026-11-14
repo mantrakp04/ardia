@@ -1,6 +1,7 @@
 import { focusWindow, openWindow } from "../../platform/windows";
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 
 export const SETTINGS_WINDOW_ID = "settings";
 export const IMPORT_WINDOW_ID = "import";
@@ -29,6 +30,12 @@ export const SETTINGS_PANES = [
 
 export type SettingsPane = (typeof SETTINGS_PANES)[number];
 
+const PANES_OFFERED: Partial<Record<SettingsPane, boolean>> = { sync: PLATFORM_FEATURES.sync, calendar: PLATFORM_FEATURES.calendar, engines: PLATFORM_FEATURES.webKit };
+
+export const paneOffered = (pane: SettingsPane) => PANES_OFFERED[pane] !== false;
+
+export const offeredPane = (pane: SettingsPane): SettingsPane => (paneOffered(pane) ? pane : "general");
+
 export type SettingsPlace = { pane: SettingsPane; profileId: string | null; detail: string | null };
 
 type Nav = SettingsPlace & { back: SettingsPlace[]; forward: SettingsPlace[] };
@@ -37,7 +44,8 @@ const placeOf = ({ pane, profileId, detail }: SettingsPlace): SettingsPlace => (
 
 export const useSettingsNav = create<Nav>()(() => ({ pane: "general", profileId: null, detail: null, back: [], forward: [] }));
 
-export function goToSettingsPane(pane: SettingsPane, profileId: string | null = null, detail: string | null = null) {
+export function goToSettingsPane(asked: SettingsPane, profileId: string | null = null, detail: string | null = null) {
+  const pane = offeredPane(asked);
   const current = useSettingsNav.getState();
   if (current.pane === pane && current.profileId === profileId && current.detail === detail) return;
   useSettingsNav.setState({ pane, profileId, detail, back: [...current.back, placeOf(current)].slice(-30), forward: [] });

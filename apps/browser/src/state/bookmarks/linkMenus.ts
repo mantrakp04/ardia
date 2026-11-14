@@ -3,6 +3,7 @@ import { copyText } from "../../platform/clipboard";
 import type { MenuItem } from "../../platform/menus";
 import { withOptionAlternate, type MenuEntry } from "../app/menuSections";
 import { openLinks, openUrl, type OpenAllMode } from "./actions";
+import { splitViewAvailable } from "../splits/splits";
 
 export type Link = { url: string; title?: string | null };
 
@@ -13,7 +14,7 @@ export function openLinkItems({ split = true }: { split?: boolean } = {}): MenuI
     { id: "tab", title: "Open in New Tab", symbol: OPEN_SYMBOLS.tab },
     { id: "window", title: "Open in New Window", symbol: OPEN_SYMBOLS.window },
     { id: "incognito", title: "Open in Incognito Window", symbol: OPEN_SYMBOLS.incognito },
-    ...(split ? [{ id: "split", title: "Open in Split View", symbol: OPEN_SYMBOLS.split }] : []),
+    ...(split && splitViewAvailable ? [{ id: "split", title: "Open in Split View", symbol: OPEN_SYMBOLS.split }] : []),
   ];
 }
 

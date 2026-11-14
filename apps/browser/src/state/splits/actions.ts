@@ -7,6 +7,7 @@ import { activeTabId } from "../browser/model";
 import { isStacked, MAX_SPLIT_PANES, type OpenPaneOptions, splitOf, type SplitSide, splitTabIds, splitTabIdsOf } from "./splits";
 import type { AdoptId } from "../browser/types";
 import { noteSplit } from "../telemetry/usage";
+import { returnFocusToPage } from "../sidebar/actions";
 
 const store = () => useBrowser.getState();
 
@@ -15,11 +16,24 @@ const maxedOut = (windowId: string) =>
 
 export function openSplitPane(windowId: string, options: OpenPaneOptions = {}): string | null {
   const result = store().openSplitPane(windowId, options);
+  if (!result.ok && result.reason === "unavailable") return options.url ? openAsTab(windowId, options) : null;
   if (!result.ok) {
     if (result.reason === "max") maxedOut(windowId);
     return null;
   }
   return result.tabId;
+}
+
+export function focusSplitPane(windowId: string, delta: 1 | -1) {
+  const before = activeTabId(store(), windowId);
+  store().focusPane(windowId, delta);
+  if (activeTabId(store(), windowId) !== before) returnFocusToPage(windowId);
+}
+
+function openAsTab(windowId: string, { url, adoptId, anchorTabId, background }: OpenPaneOptions): string | null {
+  const anchor = anchorTabId ? store().tabs[anchorTabId] : undefined;
+  if (!store().windows[windowId]) return null;
+  return store().newTab(windowId, { url, adoptId, background, openerId: anchor?.id, profileId: anchor?.profileId, gated: true });
 }
 
 export const openNewTabInSplit = (windowId: string) => openSplitPane(windowId);

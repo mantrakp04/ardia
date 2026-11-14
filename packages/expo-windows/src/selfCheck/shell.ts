@@ -1,0 +1,93 @@
+import type { DialogsNative, ShellNative } from "@ardia/shell";
+import type { NotificationsModule } from "../nativeModuleTypes";
+import { TurboModuleRegistry } from "react-native";
+import { requireNativeModule } from "../modules";
+import { expectEqual, expectTrue, type Check } from "./check";
+
+const shell = () => requireNativeModule<ShellNative>("ArdiaShell");
+const dialogs = () => requireNativeModule<DialogsNative>("ArdiaDialogs");
+const notifications = () => requireNativeModule<NotificationsModule>("ArdiaNotifications");
+const settled = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function waitFor(condition: () => boolean, ms: number) {
+  const deadline = Date.now() + ms;
+  while (!condition() && Date.now() < deadline) await settled(25);
+}
+
+export const checks: Check[] = [
+  {
+    name: "shell: the shell, dialogs and notifications modules are native",
+    run() {
+      for (const name of ["ArdiaShell", "ArdiaDialogs", "ArdiaNotifications"]) expectTrue(TurboModuleRegistry.get(name), `${name} has no native module`);
+    },
+  },
+  {
+    name: "shell: the appearance follows setAppearance and reports each change",
+    async run() {
+      const system = await shell().isDarkAppearance();
+      expectEqual(typeof system, "boolean", "isDarkAppearance");
+      const seen: boolean[] = [];
+      const subscription = shell().addListener("onAppEvent", (event) => {
+        if (event.type === "appearance" && typeof event.dark === "boolean") seen.push(event.dark);
+      });
+      try {
+        await shell().setAppearance("dark");
+        expectEqual(await shell().isDarkAppearance(), true, "dark mode");
+        await shell().setAppearance("light");
+        expectEqual(await shell().isDarkAppearance(), false, "light mode");
+        await shell().setAppearance("auto");
+        expectEqual(await shell().isDarkAppearance(), system, "auto mode");
+        const wanted = system ? [false, true] : [true, false];
+        await waitFor(() => seen.length >= wanted.length, 2000);
+        expectEqual(seen, wanted, "appearance events");
+      } finally {
+        subscription.remove();
+        await shell().setAppearance("auto");
+      }
+    },
+  },
+  {
+    name: "shell: copied text reads back from the clipboard",
+    async run() {
+      const text = `ardia self-check ${Date.now()} ✓ ünïcödé 日本語 🚀`;
+      shell().copyText(text);
+      expectEqual(await shell().readText(), text, "clipboard text");
+    },
+  },
+  {
+    name: "shell: a confirm in background mode answers its Cancel button",
+    async run() {
+      expectEqual(await dialogs().confirm({ title: "Self check", message: "Background confirm", suppression: "Don't ask again" }), { confirmed: false, suppressed: false }, "confirm with Cancel");
+      expectEqual(await dialogs().confirm({ title: "Self check", destructive: true, confirmTitle: "Delete", cancelTitle: "Keep" }), { confirmed: false, suppressed: false }, "confirm whose cancel button has its own title");
+    },
+  },
+  {
+    name: "shell: a prompt and the file panels in background mode answer cancelled",
+    async run() {
+      expectEqual(await dialogs().prompt({ title: "Self check", value: "typed", confirmTitle: "Save" }), null, "prompt");
+      expectEqual(await dialogs().pickFiles(), [], "pickFiles");
+      expectEqual(await dialogs().pickFolder(null, "Use Folder"), null, "pickFolder");
+    },
+  },
+  {
+    name: "shell: notifications answer from Windows App SDK when it registered, and as not set up when it did not",
+    async run() {
+      const path = notifications().notificationCenterPath();
+      if (path !== "appNotifications") {
+        expectTrue(path.startsWith("unregistered: "), `notificationCenterPath: ${path}`);
+        expectEqual(await notifications().notificationPermission(), "notDetermined", "notificationPermission");
+        expectEqual(await notifications().requestNotificationPermission(), false, "requestNotificationPermission");
+        expectEqual(await notifications().postNotification({ title: "Self check", body: "not shown" }), null, "postNotification");
+        await notifications().removeNotifications(["self-check"]);
+        return;
+      }
+      const permission = await notifications().notificationPermission();
+      expectTrue(permission === "granted" || permission === "denied", `notificationPermission: ${permission}`);
+      expectEqual(await notifications().requestNotificationPermission(), permission === "granted", "requestNotificationPermission");
+      expectEqual(await notifications().postNotification({ id: "self-check", title: "Self check", body: "not shown", data: { n: 1 } }), "self-check", "postNotification with an id");
+      const generated = await notifications().postNotification({ title: "Self check", body: "not shown" });
+      expectTrue(typeof generated === "string" && generated.length > 0, `postNotification without an id: ${String(generated)}`);
+      await notifications().removeNotifications(["self-check", generated]);
+    },
+  },
+];

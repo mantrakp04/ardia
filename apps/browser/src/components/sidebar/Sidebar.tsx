@@ -1,11 +1,11 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { ContextMenuArea, space, WindowDragRegion } from "../ui";
+import { ClipView, ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
 import { TintInk } from "../ui/TintInk";
 import { useSettings, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { useHasDownloads, useNoTiles } from "../../state/sidebar/hooks";
-import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
+import { collapsedSidebarHeader, useAddressBarInSidebar, useDownloadsInSidebarFooter, usePageFrameInset, useSidebarCaptionRoom, useSidebarHeaderCollapsed, useToolbarLightsCenter } from "../../state/windows/layout";
 import { DownloadsButton } from "../downloads/DownloadsButton";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "../profiles/ProfileIndicator";
 import { usePagerPages } from "../../state/windows/profilePager";
@@ -42,10 +42,13 @@ export function Sidebar({ width }: { width: number }) {
   const geometry = useRef<SidebarGeometry>({ viewport: 0, regions: { pinnedGroups: 0, list: 0 }, newTabAtTop: false, tilesFixed: true });
   const addressBar = useAddressBarInSidebar();
   const lightsY = useToolbarLightsCenter()[1];
-  const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : layout.sidebarHeader;
+  const captionRoom = useSidebarCaptionRoom();
+  const collapsed = useSidebarHeaderCollapsed();
+  const frame = usePageFrameInset();
+  const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : collapsed ? collapsedSidebarHeader(frame) : layout.sidebarHeader;
   const hasDownloads = useHasDownloads(windowId);
   const dots = useProfileDotsShown();
-  const footerDownloads = addressBar && hasDownloads;
+  const footerDownloads = useDownloadsInSidebarFooter() && hasDownloads;
   const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
   const nothingPinned = useNoTiles(windowId, current);
   const rowLook = useSidebarRowLookSource();
@@ -76,7 +79,7 @@ export function Sidebar({ width }: { width: number }) {
             }}
             style={{ width, height: "100%" }}
           >
-            <View
+            <ClipView
               style={{
                 position: "absolute",
                 left: 0,
@@ -106,7 +109,7 @@ export function Sidebar({ width }: { width: number }) {
                   />
                 ))}
               </SidebarRowLookContext.Provider>
-            </View>
+            </ClipView>
 
             <TintInk>
               {footer ? (
@@ -130,9 +133,9 @@ export function Sidebar({ width }: { width: number }) {
                     <SidebarHeaderTools width={width} />
                     <SidebarAddressRow width={width} />
                   </>
-                ) : (
-                  <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
-                    <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0)} />
+                ) : collapsed ? null : (
+                  <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT + captionRoom, paddingTop: lightsY - 17 }}>
+                    <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - captionRoom - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0)} />
                     <View pointerEvents="none" style={{ flex: 1 }} />
                     {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
                   </View>
@@ -145,7 +148,7 @@ export function Sidebar({ width }: { width: number }) {
               addressBar ? (
                 <PinFieldZone top={SIDEBAR_FIELD.top} height={SIDEBAR_FIELD.height} />
               ) : (
-                <PinSlotZone />
+                <PinSlotZone top={header - layout.sidebarHeader} />
               )
             ) : null}
             <FolderPanel windowId={windowId} />
