@@ -67,17 +67,47 @@ def terminate(record, grace=30):
     return not same_process(record)
 
 
+AGENTS: set = set()
+AGENTS_LOCK = threading.Lock()
+
+
+def spawn_agent(cmd, **kw):
+    proc = subprocess.Popen(cmd, start_new_session=True, **kw)
+    with AGENTS_LOCK:
+        AGENTS.add(proc)
+    return proc
+
+
+def kill_agents():
+    with AGENTS_LOCK:
+        live = list(AGENTS)
+    for proc in live:
+        kill_group(proc, grace=3)
+
+
 def kill_group(proc, grace=10):
-    for sig, wait in ((signal.SIGTERM, grace), (signal.SIGKILL, 5)):
-        try:
-            os.killpg(proc.pid, sig)
-        except (ProcessLookupError, PermissionError):
-            return
-        try:
-            proc.wait(timeout=wait)
-            return
-        except subprocess.TimeoutExpired:
-            continue
+    try:
+        for sig, wait in ((signal.SIGTERM, grace), (signal.SIGKILL, 5)):
+            try:
+                os.killpg(proc.pid, sig)
+            except (ProcessLookupError, PermissionError):
+                return
+            try:
+                proc.wait(timeout=wait)
+                return
+            except subprocess.TimeoutExpired:
+                continue
+    finally:
+        with AGENTS_LOCK:
+            AGENTS.discard(proc)
+
+
+def kill_on_failure(proc, wait):
+    try:
+        return wait()
+    except BaseException:
+        kill_group(proc, grace=3)
+        raise
 
 
 def front_pid():

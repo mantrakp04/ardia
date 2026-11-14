@@ -40,6 +40,17 @@ class InertStream:
         return getattr(self._stream, name)
 
 
+def say(text: str) -> None:
+    sys.stdout.write(text + "\n")
+    sys.stdout.flush()
+
+
+def complain(text: str) -> None:
+    sys.stdout.flush()
+    sys.stderr.write(text + "\n")
+    sys.stderr.flush()
+
+
 def json_requested(argv: list[str]) -> bool:
     head = argv[:argv.index("--")] if "--" in argv else argv
     return "--json" in head

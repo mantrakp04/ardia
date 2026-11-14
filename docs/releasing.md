@@ -112,12 +112,12 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
   keychain profile below, which notarytool keeps in the data-protection keychain: that reads as
   missing while the screen is locked. Otherwise, a notarytool profile named `ardia`:
   `xcrun notarytool store-credentials ardia --apple-id <id> --team-id U5L5T3NGVV` (it asks for an
-  app-specific password). Without it, the script still builds and signs, but the release is unnotarized and
-  Gatekeeper blocks the first launch.
+  app-specific password). Without either, release.sh stops before building unless `ALLOW_UNNOTARIZED=1` is set; then
+  it builds and signs, but the release is unnotarized and Gatekeeper blocks the first launch.
 - The engine: ArdiaCore's `Chromium Framework.framework` built in `~/chromium-build` (`scripts/agent/engine-build`;
   `docs/engine-build.md`), and `pod install` in `apps/browser/macos`. A framework built elsewhere goes in through
   `ARDIACORE_FRAMEWORK`. That skips the tree checks and ships no engine archive, unless `ARDIACORE_FRAMEWORK_ENGINE`
-  names the `engine/` git tree it was built from (`git rev-parse HEAD:engine`, checked against HEAD). Then the
+  names the `engine/` git tree it was built from (`engine/engine-key.sh`: one hash of `engine/` and the offline game it packs, checked against HEAD). Then the
   release packs that engine, and its source when it's Helium, as a build from the tree would.
 
 ## Cutting a release
@@ -131,7 +131,7 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
 3. Commit both ("Release <version>" or "Nightly <version>"), push, and dispatch the Release workflow ("CI releases"
    below), which runs the rest. Or run it here: `scripts/release.sh <version>` (a `-nightly.<n>`
    version is a nightly). It stops right away if the notes file is missing or lacks its `date` and
-   `headline`, if the tree under `apps/browser`, `packages`, `engine` or `scripts/dmg` has uncommitted changes, or if the engine
+   `headline`, if the tree under `apps/browser`, `apps/cli`, `packages`, `engine` or `scripts/dmg` has uncommitted changes, or if the engine
    framework is older than the tree's ArdiaCore sources or the Chromium tree differs from `engine/ardiacore`
    (`apply.sh --check`), if the version doesn't fit the channel or the notes' `channel`, if it can't read the published
    appcast, if the build number isn't above every build in it, or (outside `--rc`) if `prebuilt-engines.tsv` lists no
@@ -195,9 +195,9 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
    latest stable release and `Ardia-Nightly.dmg` onto the `nightly` release. A new engine tree is published before the release
    by `scripts/publish-engine.sh` (`engine-<tree:12>`), never packed by release.sh. Last,
    `update-tap.sh <version>` points the Homebrew tap's `ardia` or `ardia@nightly` cask
-   (https://github.com/mantrakp04/homebrew-tap) at the new DMG: it sets `version` and `sha256` from GitHub's
+   (https://github.com/ardia-browser/homebrew-tap) at the new DMG: it sets `version` and `sha256` from GitHub's
    digest of the published DMG and pushes the tap (`PUBLISH_TAP=0` skips it).
-5. Deploy the site so `/release-notes` shows the new version (for a nightly too: the updated app opens its entry) (the updated app opens it on its first launch):
+5. Deploy the site so `/release-notes` shows the new version (for a nightly too: the updated app opens its entry on its first launch):
    `pnpm -C apps/site run deploy` builds `apps/site` with `SITE_URL=https://ardia.dev` and ships it
    (`infra/site/hexclave.deploy.ts`). For a stable, run `.claude/skills/release/scripts/site-version.mjs <version>`
    first so the download buttons and the README point at the new DMG. The owner has authorized releases to go all the way
@@ -240,13 +240,20 @@ the engine if `engine/` changed (below).
   the app's bundle id, executable and version must be `com.ardia.browser`, `Ardia` and the input version.
   `release.sh --phase sign` reads it from there (`RELEASE_BUILD_INPUT`) into a `dist` it creates fresh, and the export
   takes the expected bundle id as an argument instead of reading it from the build. It takes Sparkle's tools from Sparkle's own 2.9.6 release (SHA-256 pinned; `SPARKLE_BIN`), sets up
-  signing (`.github/release/signing.sh`: a temporary keychain with the Developer ID identity, the provisioning profile,
-  the notary and Sparkle key files), and runs `release.sh … --phase sign`: export, sign, verify, notarize and staple the
+  signing (`.github/release/signing.sh setup`: a temporary keychain with the Developer ID identity, the provisioning
+  profile, the notary and Sparkle key files in `$RUNNER_TEMP/release-signing`; it reads `MACOS_CERTIFICATE_P12`,
+  `MACOS_CERTIFICATE_PASSWORD`, `MACOS_PROVISIONING_PROFILE`, `SPARKLE_ED_PRIVATE_KEY` and, when all three are set,
+  `NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`, and exports only the files' paths to `$GITHUB_ENV`:
+  `RELEASE_PROVISIONING_PROFILE`, `SPARKLE_KEY_FILE`, `NOTARY_KEY`; the signing step passes `NOTARY_KEY_ID` and
+  `NOTARY_ISSUER` itself. Without the notary key it exports `ALLOW_UNNOTARIZED=1` when the workflow sets
+  `ALLOW_MISSING_NOTARY=1` (a dry run) and fails otherwise. It removes nothing: the workflow's own `always()` step
+  does), and runs `release.sh … --phase sign`: export, sign, verify, notarize and staple the
   app, the zip and DMG (the DMG signed, notarized and stapled too), the notes and the appcast. Then a step written in
   the workflow itself (so nothing in the job can rewrite it) deletes the keychain and every key file, a check fails the
   run if the checkout changed, and only then it runs the launch check (`--phase check`, the final app opened hidden, uBO
   must be ready, the signature must survive), checks the zip's EdDSA signature against the app's `SUPublicEDKey`
-  (`.github/release/check-sparkle.sh`) and uploads the DMG, zip, appcast, notes and CLI tarball. A failed launch check
+  (`.github/release/check-sparkle.sh <dist> <version>`, so a `SPARKLE_ED_PRIVATE_KEY` that doesn't match the app
+  fails here instead of on every update) and uploads the DMG, zip, appcast, notes and CLI tarball. A failed launch check
   fails the run, so nothing publishes.
   Every `actions/*` step is pinned by commit SHA.
 - **publish** tags the commit and runs `publish.sh`. Before creating anything, `publish.sh` refuses a build that isn't
@@ -261,7 +268,7 @@ the engine if `engine/` changed (below).
   remove a lock someone else holds. Dry runs take it too, and write nothing else; `PUBLISH_LOCK` renames it for dry
   runs only. The staged-rollout step that opens a release to everyone (`rollout-everyone.sh`, in the release skill)
   takes the same lock. The Homebrew tap needs a token that can push
-  to `mantrakp04/homebrew-tap` (`HOMEBREW_TAP_TOKEN`); without it, run `update-tap.sh <version>` here afterwards.
+  to `ardia-browser/homebrew-tap` (`HOMEBREW_TAP_TOKEN`); without it, run `update-tap.sh <version>` here afterwards.
 
 `dry_run` (on by default) builds a release candidate (`release.sh --rc`: the next build number, no notes needed),
 signed and notarized like a release, and runs `publish.sh --dry-run`: nothing is tagged or published. The site's `VERSION`, the landing page and the stable perf gate stay local (the release skill); the
@@ -277,7 +284,7 @@ Secrets (repository secrets, these names):
 | `NOTARY_KEY_P8` | base64 of the App Store Connect API key `AuthKey_<id>.p8` |
 | `NOTARY_KEY_ID`, `NOTARY_ISSUER` | that key's id and issuer id |
 | `SPARKLE_ED_PRIVATE_KEY` | the file `generate_keys -x` writes (as is) |
-| `HOMEBREW_TAP_TOKEN` (optional) | a token that can push to `mantrakp04/homebrew-tap` |
+| `HOMEBREW_TAP_TOKEN` (optional) | a token that can push to `ardia-browser/homebrew-tap` |
 
 A dry run without the notary secrets builds unnotarized; the others are required. `release.sh` reads the same
 material from `RELEASE_PROVISIONING_PROFILE`, `SPARKLE_KEY_FILE` and `NOTARY_KEY`/`NOTARY_KEY_ID`/`NOTARY_ISSUER`, so

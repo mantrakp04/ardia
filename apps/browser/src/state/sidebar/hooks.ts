@@ -1,17 +1,18 @@
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
 import { activeTabId, tabTitle, viewTabIds } from "../browser/model";
-import { liveTabPlace } from "../live/rows";
+import { liveTabOpen, liveTabPlace, stackMembers } from "../live/rows";
+import { useLive } from "../live/store";
 import type { Tab } from "../browser/types";
 import { awayFromPin } from "../pins/organize";
 import { cleanedTabsFor } from "../pins/closedTabs";
 import { groupLabel } from "../pins/tabGrouping";
-import { canTidyPins } from "../pins/tidyPins";
+import { offersTidyTabs } from "../pins/tidy";
 import { folderIn } from "../pins/tileFolders";
 import { useStoreWhile } from "../tabs/tabWatch";
-import { splitOf, splitRowPanes } from "../splits/splits";
+import { splitRowPanes } from "../splits/splits";
 import { downloadsIn } from "../downloads/downloadsSlice";
-import { groupEntries, keptEntry, sidebarEntries } from "./entries";
+import { groupEntries, keptEntries, showsExtraTabs, sidebarEntries } from "./entries";
 import { groupTabIds } from "./groupPanelRows";
 import { capture, type Capture } from "./listCapture";
 import { pinnedCollapsed, pinnedKept } from "./pinnedFold";
@@ -22,8 +23,6 @@ export function useSidebarWidth(windowId: string): number {
   const dragging = useSidebarUi((u) => u.dragWidth[windowId]);
   return dragging ?? saved;
 }
-
-export const useIsInSplit = (tabId: string) => useBrowser((s) => !!splitOf(s, tabId));
 
 export const useDragGhostLabel = (folderName: string | undefined, groupId: string | undefined, tab: Tab | undefined) =>
   useBrowser((s) => folderName ?? (groupId && s.groups[groupId] ? groupLabel(s, s.groups[groupId]!) : tab ? tabTitle(tab) : ""));
@@ -51,7 +50,9 @@ export const useCapturedSidebarEntries = (windowId: string, profileId: string, c
     return capture(captured, s, entries.list, entries);
   });
 
-export const useKeptEntry = (windowId: string, profileId: string, entries: string[]) => useBrowser((s) => keptEntry(s, windowId, profileId, entries));
+export const useKeptEntries = (windowId: string, profileId: string, groupId: string) => useBrowser(useShallow((s) => keptEntries(s, windowId, profileId, groupId)));
+
+export const useShowsExtraTabs = (windowId: string, profileId: string, groupId: string) => useBrowser((s) => showsExtraTabs(s, windowId, profileId, groupId));
 
 export const usePinnedCollapsed = (profileId: string) => useBrowser((s) => pinnedCollapsed(s, profileId));
 
@@ -74,7 +75,7 @@ const NO_CELLS: string[] = [];
 export const useSidebarCells = (windowId: string, profileId: string, offScreen: boolean) =>
   useBrowser((s) => (offScreen ? NO_CELLS : sidebarEntries(s, windowId, profileId).cells));
 
-export const useCanTidyPins = (windowId: string, profileId: string, offScreen: boolean) => useBrowser((s) => !offScreen && canTidyPins(s, windowId, profileId));
+export const useOffersTidyTabs = (windowId: string, profileId: string, skip: boolean) => useBrowser((s) => !skip && offersTidyTabs(s, windowId, profileId));
 
 export const useCleanedCount = (windowId: string) => useBrowser((s) => cleanedTabsFor(s, windowId).length);
 
@@ -113,6 +114,13 @@ export const useLiveActiveTab = (windowId: string, profileId: string, folderId: 
 
 export const useLiveItemTab = (windowId: string, profileId: string, folderId: string, itemId: string) =>
   useBrowser((s) => viewTabIds(s, windowId, profileId).find((id) => s.tabs[id]?.liveItem?.itemId === itemId && s.tabs[id]?.liveItem?.folderId === folderId) ?? null);
+
+export const useLiveTabOpen = (folderId: string, itemIds: string[]) => useBrowser((s) => liveTabOpen(s.tabs, folderId, itemIds));
+
+export function useStackTabOpen(folderId: string, stackId: string) {
+  const ids = useLive(useShallow((s) => stackMembers(s.items[folderId] ?? [], stackId).map((it) => it.id)));
+  return useLiveTabOpen(folderId, ids);
+}
 
 export const useIsActiveIn = (windowId: string, profileId: string, tabId: string | null) => useBrowser((s) => !!tabId && activeTabId(s, windowId, profileId) === tabId);
 

@@ -15,7 +15,7 @@ export function closedWindowOf(s: BrowserState, w: BrowserWindow, tabs: Tab[], k
     tabs.map((t) => ({ ...snapshotTab(t), active: active.has(t.id), ...(hasLoadedPage(t) ? { tabId: t.id } : pendingRestore(t) ? { tabId: pendingRestore(t) } : {}) })),
     Object.values(s.groups)
       .filter((g) => g.windowId === w.id && !g.pinned && (!sharesTabs(s) || g.tabIds.some((t) => tabIds.includes(t))))
-      .map(({ tabIds: members, windowId: _, ...g }) => ({ ...g, tabIndexes: members.map((t) => tabIds.indexOf(t)) })),
+      .map(({ tabIds: members, windowId: _, shownTabIds: __, ...g }) => ({ ...g, tabIndexes: members.map((t) => tabIds.indexOf(t)) })),
     Date.now(),
   );
   const splits = Object.values(s.splits)

@@ -5,6 +5,7 @@ import { ListSkeleton, Loaded, TableSkeleton, useRange, useSection } from "@/com
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { compareSentence, rangeSentence } from "@/lib/compare";
 import { formatDate, formatExact, formatPercent } from "@/lib/format";
+import { UTC } from "@/lib/zone";
 import { THRESHOLDS } from "@/lib/thresholds";
 import { cn } from "@/lib/utils";
 import type { SectionData } from "@/server/sections";
@@ -178,7 +179,7 @@ function Cohorts({ data }: { data: SectionData<"funnels.retention"> }) {
           </tr>
           {rows.map((c) => (
             <tr key={c.day} className={cn(c.size < THRESHOLDS.minCohort && "opacity-55")}>
-              <td className="py-0.5 whitespace-nowrap">{formatDate(c.day)}</td>
+              <td className="py-0.5 whitespace-nowrap">{formatDate(c.day, UTC)}</td>
               <td className="text-right">{formatExact(c.size)}</td>
               <td className="py-0.5 pl-1">{cell(c.d1, c.size)}</td>
               <td className="py-0.5 pl-1">{cell(c.d3, c.size)}</td>

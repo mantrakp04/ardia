@@ -7,6 +7,7 @@ public class FocusModule: Module {
   private let lifetime = ModuleLifetime()
   private var switcherMonitor: Any?
   private var dragEscapeMonitor: Any?
+  private var unclaimedEscapeMonitor: Any?
   private let switcherPointer = SwitcherPointer()
 
   public func definition() -> ModuleDefinition {
@@ -18,6 +19,8 @@ public class FocusModule: Module {
         self.switcherMonitor = nil
         if let monitor = self.dragEscapeMonitor { NSEvent.removeMonitor(monitor) }
         self.dragEscapeMonitor = nil
+        if let monitor = self.unclaimedEscapeMonitor { NSEvent.removeMonitor(monitor) }
+        self.unclaimedEscapeMonitor = nil
         if Self.pendingUIOwner == ObjectIdentifier(self) {
           Self.pendingUIOwner = nil
           FocusHandoff.shared.afterPendingUI = { DispatchQueue.main.async(execute: $0) }
@@ -26,6 +29,7 @@ public class FocusModule: Module {
       self.lifetime.onMain { [weak self] in
         guard let self else { return }
         FocusHandoff.shared.install()
+        self.watchUnclaimedEscape()
         if let queue = self.appContext?.reactBridge?.uiManager.methodQueue {
           FocusHandoff.shared.afterPendingUI = { block in queue.async { DispatchQueue.main.async(execute: block) } }
           Self.pendingUIOwner = ObjectIdentifier(self)
@@ -35,6 +39,8 @@ public class FocusModule: Module {
 
     OnDestroy { self.lifetime.end() }
 
+    Function("pressesWithoutRelease") { () -> Int in PressRelease.pressesWithoutRelease }
+    AsyncFunction("pressRepeated") { () -> [String: Any]? in PressRelease.pressRepeated }.runOnQueue(.main)
     AsyncFunction("cancelFocusMove") { (generation: Int, restoringSource: Bool) in
       FocusHandoff.shared.cancel(generation, restoringSource: restoringSource)
     }.runOnQueue(.main)
@@ -84,6 +90,18 @@ public class FocusModule: Module {
       default: break
       }
       return nil
+    }
+  }
+
+  private func watchUnclaimedEscape() {
+    guard unclaimedEscapeMonitor == nil else { return }
+    unclaimedEscapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+      let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+      guard let self, event.keyCode == 53, modifiers.isEmpty, !event.isARepeat, self.dragEscapeMonitor == nil, self.switcherMonitor == nil,
+        let window = event.window, window.firstResponder === window, let id = WindowManager.shared.id(of: window)
+      else { return event }
+      ShellEvents.send(.app, ["type": "unclaimedEscape", "windowId": id])
+      return event
     }
   }
 

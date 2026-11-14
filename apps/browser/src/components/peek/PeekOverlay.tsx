@@ -1,16 +1,16 @@
 import { breadcrumb } from "@ardia/core";
-import { WindowBackdrop, ink, MagnifyArea, Panel, reduceMotion, reduceMotionKnown, type MagnifyUpdate } from "../ui";
+import { WindowBackdrop, ink, Panel, PinchArea, pinchFollow, pinchSettle, reduceMotion, reduceMotionKnown, type PinchMotion } from "../ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useCardFrame } from "../window/cardFrame";
 import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
-import { useTab } from "../../state/browser/hooks";
+import { useSettings, useTab } from "../../state/browser/hooks";
 import type { Peek } from "../../state/peek/peek";
 import { PEEK_MOTION, PEEK_SCRIM } from "./tokens";
 import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
 import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, registerPeekMotion } from "../../state/peek/actions";
-import { pinchFollow, pinchOutcome } from "./pinch";
+import { notePinch } from "../../state/telemetry/usage";
 
 const INSET_FRACTION = 0.055;
 const MIN_INSET = 16;
@@ -73,7 +73,6 @@ function PeekCard({
   const [progress] = useState(() => new Animated.Value(0));
   const [expand] = useState(() => new Animated.Value(0));
   const leaving = useRef<"close" | "expand" | null>(null);
-  const pinch = useRef<(update: MagnifyUpdate) => void>(() => {});
 
   const centerX = frame.left + frame.width / 2;
   const centerY = frame.top + frame.height / 2;
@@ -109,28 +108,32 @@ function PeekCard({
       if (fade) return done();
       Animated.timing(expand, { toValue: 1, ...PEEK_MOTION.expand, useNativeDriver: true }).start(done);
     };
-    pinch.current = ({ phase, magnification }) => {
-      if (leaving.current) return;
-      if (phase === "began" && !fade) {
-        progress.stopAnimation();
-        expand.stopAnimation();
-      }
-      if (phase === "ended" || phase === "cancelled") {
-        const outcome = phase === "ended" ? pinchOutcome(magnification) : "stay";
-        if (outcome === "close") return dismissPeek(windowId);
-        if (outcome === "open") return openPeekAsTab(windowId);
-        if (fade) return;
-        const back = { ...GROW, overshootClamping: true, restDisplacementThreshold: 0.001, restSpeedThreshold: 0.01, useNativeDriver: true };
-        Animated.parallel([Animated.spring(progress, { toValue: 1, ...back }), Animated.spring(expand, { toValue: 0, ...back })]).start();
-        return;
-      }
-      if (fade) return;
+    return registerPeekMotion(windowId, close, grown);
+  }, [motion]);
+
+  const gestures = useSettings((s) => s.littleWindowGestures);
+  const pinch: PinchMotion = {
+    reduce: fade,
+    idle: () => !!leaving.current,
+    begin: () => {
+      progress.stopAnimation();
+      expand.stopAnimation();
+    },
+    follow: (magnification) => {
       const follow = pinchFollow(magnification, START_SCALE);
       progress.setValue(follow.progress);
       expand.setValue(follow.expand);
-    };
-    return registerPeekMotion(windowId, close, grown);
-  }, [motion]);
+    },
+    settle: () => pinchSettle([{ value: progress, to: 1 }, { value: expand, to: 0 }]),
+    open: () => {
+      notePinch("peek", "open");
+      openPeekAsTab(windowId);
+    },
+    close: () => {
+      notePinch("peek", "close");
+      dismissPeek(windowId);
+    },
+  };
 
   const scaleX = fade
     ? 1
@@ -161,7 +164,7 @@ function PeekCard({
       <Animated.View
         style={
           fullscreen
-            ? { position: "absolute", left: 0, top: 0, width, height }
+            ? StyleSheet.absoluteFill
             : { position: "absolute", ...frame, opacity: cardOpacity, transform: [{ translateX }, { translateY }, { scaleX }, { scaleY }] }
         }
       >
@@ -173,7 +176,7 @@ function PeekCard({
             style={StyleSheet.absoluteFill}
           />
         )}
-        <MagnifyArea enabled={!fullscreen && !!motion} onMagnify={(update) => pinch.current(update)} style={{ flex: 1 }}>
+        <PinchArea enabled={!fullscreen && !!motion && gestures} motion={pinch} style={{ flex: 1 }}>
           <View style={{ flex: 1, borderRadius: fullscreen ? 0 : SMALL_WINDOW_RADIUS, overflow: "hidden" }}>
             {!fullscreen && <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />}
             {!fullscreen && <PeekBar windowId={windowId} tabId={peek.tabId} />}
@@ -187,7 +190,7 @@ function PeekCard({
               {page(peek.tabId, peek.sourceId, fullscreen ? width : frame.width - 2 * card.inset)}
             </View>
           </View>
-        </MagnifyArea>
+        </PinchArea>
         {!fullscreen && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: SMALL_WINDOW_RADIUS, borderWidth: StyleSheet.hairlineWidth, borderColor: windowFrame.innerRim }]} />}
         {!fullscreen && (
           <View

@@ -1,5 +1,6 @@
 import type { BrowserState } from "../browser/store";
 import { rejoinGroups } from "../groups/groups";
+import { withShownTab } from "../groups/shownTabs";
 import { findLast, IDLE_LIVE, inPinnedContainer, isIncognitoProfile, makeTab, newId, pinKeyOf, resolveWindowId } from "../browser/model";
 import { restoreId } from "../tabs/adoptIds";
 import { adoptedPage, hasPage } from "../tabs/pageSession";
@@ -9,7 +10,7 @@ import { isOpenRegularWindow, lastActiveProfile } from "./small";
 import { activated, apply, withNewTab } from "../tabs/tabs";
 import type { ClosedTab, ClosedWindow, SplitView, TabGroup } from "../browser/types";
 import { mapSlotIds, slotTabIds } from "../splits/splits";
-import { emptyWindow, smallWindow, tabsShownInNewWindows, withWindow } from "./newWindow";
+import { emptyWindow, smallWindow, withWindow } from "./newWindow";
 import { orderSections } from "../groups/groups";
 
 function restoreGroup(groups: Record<string, TabGroup>, g: Omit<TabGroup, "tabIds">, tabIds: string[]): [Record<string, TabGroup>, string] {
@@ -53,7 +54,7 @@ export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string
     let next = s;
     if (!windowId) {
       windowId = newId("w");
-      next = withWindow(next, emptyWindow(windowId, owner, "main", null, tabsShownInNewWindows(next)));
+      next = withWindow(next, emptyWindow(windowId, owner, "main", null));
     }
     next = adoptParkedPins(next, windowId, owner);
     if (next.tabs[entry.tabId]) return restoreTab(next, entry, windowId);
@@ -87,7 +88,7 @@ export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string
   if (!windowId || !canRestoreTabInto(s, entry, windowId)) {
     if (isIncognitoProfile(entry.tab.profileId)) return next;
     windowId = newId("w");
-    next = withWindow(next, emptyWindow(windowId, s.profiles[entry.tab.profileId] ? entry.tab.profileId : s.settings.defaultProfileId, "main", null, tabsShownInNewWindows(next)));
+    next = withWindow(next, emptyWindow(windowId, s.profiles[entry.tab.profileId] ? entry.tab.profileId : s.settings.defaultProfileId, "main", null));
   }
   const w = next.windows[windowId]!;
   const profileId = isIncognitoProfile(entry.tab.profileId) || s.profiles[entry.tab.profileId] ? entry.tab.profileId : w.profileId;
@@ -99,7 +100,7 @@ export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string
     adoptId: entry.tabId && entry.tab.url ? restoreId(entry.restoreFrom ?? entry.tabId) : undefined,
   });
   next = withTab;
-  if (entry.group) next = { ...next, groups: rejoinGroups(next.groups, [entry.group, ...(entry.parents ?? [])], [tabId], windowId, profileId) };
+  if (entry.group) next = { ...next, groups: withShownTab(rejoinGroups(next.groups, [entry.group, ...(entry.parents ?? [])], [tabId], windowId, profileId), tabId) };
   return next;
 }
 
@@ -107,8 +108,8 @@ export function restoreWindow(s: BrowserState, entry: ClosedWindow): BrowserStat
   const id = newId("w");
   const profileOk = (p: string) => (s.profiles[p] ? p : s.settings.defaultProfileId);
   const w = emptyWindow(id, profileOk(entry.window.profileId), "main", entry.window.frame);
-  w.sidebarOpen = entry.window.sidebarOpen;
   if (entry.window.tabLayout) w.tabLayout = entry.window.tabLayout;
+  if (entry.window.autoHideTabs !== undefined) w.autoHideTabs = entry.window.autoHideTabs;
   const tabs = { ...s.tabs };
   const live = { ...s.live };
   const ids: string[] = [];

@@ -8,6 +8,8 @@ type Readable<S> = { getState(): S; subscribe(listener: (s: S, prev: S) => void)
 
 const subscribeOf = <S,>(store: Readable<S>): Readable<S>["subscribe"] => (store.subscribe as { unprobed?: Readable<S>["subscribe"] }).unprobed ?? store.subscribe;
 
+export const watchBrowser = (listener: (s: BrowserState, prev: BrowserState) => void): (() => void) => subscribeOf(useBrowser)(listener);
+
 const watchers = new Map<string, Set<() => void>>();
 let listening = false;
 
@@ -112,6 +114,23 @@ function lookSnapshot<T>(profileId: string, look: Look<T>): () => T {
 
 export function useLookValue<T>(profileId: string, look: Look<T>): T {
   const get = useMemo(() => lookSnapshot(profileId, look), [profileId]);
+  return useSyncExternalStore(watchLooks, get);
+}
+
+type Settings = BrowserState["settings"];
+
+function settingSnapshot<T>(select: (settings: Settings) => T): () => T {
+  let seen: { settings: Settings; value: T } | null = null;
+  return () => {
+    const settings = useBrowser.getState().settings;
+    if (seen && seen.settings === settings) return seen.value;
+    seen = { settings, value: select(settings) };
+    return seen.value;
+  };
+}
+
+export function useSettingValue<T>(select: (settings: Settings) => T): T {
+  const get = useMemo(() => settingSnapshot(select), [select]);
   return useSyncExternalStore(watchLooks, get);
 }
 

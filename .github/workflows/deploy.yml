@@ -49,6 +49,8 @@ jobs:
             dashboard:
               - "infra/dashboard/**"
               - "apps/dashboard/**"
+              - "apps/site/src/data/telemetry.ts"
+              - "packages/core/src/anonymousIdentity.ts"
             telemetry-group:
               - "infra/telemetry/hexclave.deploy.ts"
             clickhouse:

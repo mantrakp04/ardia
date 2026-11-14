@@ -36,8 +36,8 @@ public enum Firefox {
     "mobile______": ("mobile", "Mobile Bookmarks"),
   ]
 
-  public static func bookmarks(places: URL, cancellation: Cancellation = .init()) throws -> BookmarkNode {
-    let db = try SQLiteSnapshot(copying: places)
+  public static func bookmarks(places: URL, cancellation: Cancellation = .init(), snapshots: SQLiteSnapshots = .init()) throws -> BookmarkNode {
+    let db = try snapshots.snapshot(copying: places)
     guard db.tableExists("moz_bookmarks") else { throw ImportError.unreadable("places.sqlite has no bookmarks") }
     struct Row { var id: Int64; var type: Int64; var parent: Int64; var title: String; var url: String?; var added: Double?; var guid: String }
     var children: [Int64: [Row]] = [:]

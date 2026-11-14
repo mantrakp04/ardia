@@ -7,8 +7,14 @@
         "^build"
       ],
       "outputs": [
-        "build/**"
+        "dist/**"
       ]
+    },
+    "@ardia/browser#build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
     },
     "typecheck": {
       "dependsOn": [

@@ -11,6 +11,7 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "components/permissions/chooser_controller.h"
+#include "components/sessions/content/content_live_tab.h"
 #include "components/sessions/core/live_tab.h"
 #include "components/sessions/core/session_id.h"
 #include "components/tabs/public/tab_interface.h"
@@ -25,7 +26,10 @@
 #include "ardia/core/ac_device_chooser.h"
 #include "ardia/core/ac_extension_shortcuts.h"
 #include "ardia/core/ac_extension_view.h"
+#include "ardia/core/ac_host_visibility.h"
 #include "ardia/core/ac_installed_bubble.h"
+#include "ardia/core/ac_launch_switches.h"
+#include "ui/base/cocoa/drag_permission.h"
 #import "ardia/core/ardiacore_api_internal.h"
 #import "ardia/core/ardiacore_internal.h"
 
@@ -53,6 +57,11 @@ bool HandleExtensionSidePanel(BrowserWindowInterface* browser_window,
 }
 
 bool LiveTabSkipsRestore(sessions::LiveTab* live_tab, SessionID* source) {
+  if (live_tab &&
+      InAutomationWindow(
+          &static_cast<sessions::ContentLiveTab*>(live_tab)->GetWebContents())) {
+    return true;
+  }
   int32_t source_id = 0;
   if (!live_tab || !IsTemporaryTabId(live_tab->GetSessionID().id(), &source_id)) {
     return false;
@@ -172,6 +181,9 @@ void InstallChromeHooks() {
   g_ardia_omits_from_session_service = &OmitsFromSessionService;
   g_ardia_viewless_browsers = true;
   ardia::InstallCliVisibleTabs();
+  if (TestFlag("nativeDragRefused")) {
+    ui::ArdiaRefuseDragSessionInitiation();
+  }
 }
 
 }

@@ -29,7 +29,7 @@ const TONE: Record<TimelineEvent["tone"], string> = {
   bad: "bg-bad",
 };
 
-const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23", timeZone: "UTC" });
+const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 
 function PersonPage() {
   const { id } = Route.useParams();
@@ -60,7 +60,7 @@ function PersonPage() {
       {first.data ? <Header d={first.data} /> : null}
       {first.data ? <Reports d={first.data} /> : null}
 
-      <Panel source="app" title="Timeline" description="Grouped by app session ($session_id). Older events without one start a new group at each launch or after 30 minutes with no events (the hourly memory and usage reports count). Click an event for its properties. Times in UTC.">
+      <Panel source="app" title="Timeline" description="Grouped by app session ($session_id). Older events without one start a new group at each launch or after 30 minutes with no events (the hourly memory and usage reports count). Click an event for its properties. Times are local.">
         {first.data === undefined ? <TableSkeleton rows={8} columns={3} /> : null}
         {first.data ? (
           <div className="grid gap-3">

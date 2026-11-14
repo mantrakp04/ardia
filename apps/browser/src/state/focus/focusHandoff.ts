@@ -3,7 +3,8 @@ import type { CommandEvent } from "../../platform/commands";
 import { useBrowser } from "../browser/store";
 import { resolveWindowId } from "../browser/model";
 import { peekTabId } from "../peek/peek";
-import { cancelAbandonedFocus, claimFocusTag, commandBarFocus, expectFocus, findFocus, heroBarFocus, pageFocus, runFocusMove } from "./focusClaims";
+import { cancelAbandonedFocus, claimFocusTag, commandBarFocus, expectFocus, findFocus, heroBarFocus, historySearchFocus, pageFocus, runFocusMove } from "./focusClaims";
+import { internalPageOf, tabDestination } from "../pages/urls";
 import { webviews } from "../../platform/webviews";
 
 const activeTab = (windowId: string) => {
@@ -43,6 +44,7 @@ function stillPossible(windowId: string, destination: string): boolean {
   const peek = peekTabId(s, windowId);
   for (const page of peek ? [active, peek] : [active]) {
     if (destination === findFocus(page)) return !!s.find[page]?.open;
+    if (destination === historySearchFocus(page)) return !!s.tabs[page] && internalPageOf(tabDestination(s.tabs[page]!)) === "history";
     if (destination === pageFocus(page)) return true;
   }
   return destination === heroBarFocus(active);

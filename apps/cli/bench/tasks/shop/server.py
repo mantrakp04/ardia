@@ -4,7 +4,6 @@ import sys
 import threading
 from html import escape
 from pathlib import Path
-from urllib.parse import quote_plus
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))

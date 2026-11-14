@@ -10,7 +10,7 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
 
 ## State
 - `profiles` + `profileOrder`; default profile id is `"default"`.
-- `windows`: `{ profileId, incognito, tabIds (sidebar order, pinned first), activeTabIds[profileId], sidebarOpen, frame }` + `windowOrder`.
+- `windows`: `{ profileId, incognito, tabIds (sidebar order, pinned first), activeTabIds[profileId], frame }` + `windowOrder`. Whether a window shows its tabs: `tabsShownIn(s, windowId)` (`state/browser/model.ts`) reads the window's own `autoHideTabs` (set by ⌘S in that window), else `settings.autoHideTabs`. A change to the setting, from any source, removes every window's own value; the saved session writes the result as each window's `sidebarOpen` for the launch window and older builds.
   A private window's `profileId` is `incognito:<window id>@<originalProfileId>` (`incognitoProfileId`, state/browser/model.ts),
   `originalProfileId` the regular profile it was opened from (`createWindow({ incognito: true, profileId })`, default
   `lastActiveProfile`). Its engine profile (`engineProfile`) is that profile's off-the-record one: private windows of one
@@ -234,7 +234,7 @@ ordered transaction that names its cause. There are no echo windows, timers or "
   strip's window is never inferred from its tabs.
 - Tests: `src/state/tabs/liveTabs.test.mjs` runs the real wiring against a fake engine that keeps this contract.
 
-## Sync (apps/browser/src/sync, packages/sync)
+## Sync (apps/browser/src/state/sync, packages/sync)
 - End-to-end-encrypted sync through a folder the user picks; design in `docs/sync.md`. `state/sync/engine.ts` owns the
   state (`useSync`: status, devices, other devices' tabs), the setup flows and the cycle; `state/sync/adapters.ts` maps the
   store to synced records (bookmarks, history, open tabs, pinned tabs and pinned groups, settings, passwords).

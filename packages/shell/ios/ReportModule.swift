@@ -100,6 +100,26 @@ public class ReportModule: Module {
       self.pill?.snapshot(to: path)
     }.runOnQueue(.main)
 
+    AsyncFunction("devRecordingPages") { (windowId: String) -> [[String: Any]] in
+      WindowManager.shared.window(windowId).map(ReportRecorder.devScan) ?? []
+    }.runOnQueue(.main)
+
+    AsyncFunction("devPlaceWindow") { (windowId: String, frame: [Double]) -> Bool in
+      guard LaunchConfig.shared.background, frame.count == 4, let window = WindowManager.shared.window(windowId) else { return false }
+      window.setFrame(NSRect(x: frame[0], y: frame[1], width: frame[2], height: frame[3]), display: true)
+      return true
+    }.runOnQueue(.main)
+
+    AsyncFunction("devWindowServerAlpha") { (windowNumber: Int, alpha: Double) -> Bool in
+      typealias MainConnection = @convention(c) () -> Int32
+      typealias SetAlpha = @convention(c) (Int32, Int32, Float) -> Int32
+      guard LaunchConfig.shared.background, let connection = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGSMainConnectionID"),
+        let set = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGSSetWindowAlpha")
+      else { return false }
+      let main = unsafeBitCast(connection, to: MainConnection.self)
+      return unsafeBitCast(set, to: SetAlpha.self)(main(), Int32(windowNumber), Float(alpha)) == 0
+    }.runOnQueue(.main)
+
     AsyncFunction("devPages") { (windowId: String) -> [[String: Any]] in
       guard let content = WindowManager.shared.window(windowId)?.contentView else { return [] }
       var out: [[String: Any]] = []
@@ -123,7 +143,7 @@ public class ReportModule: Module {
     guard recorder == nil, let window = WindowManager.shared.window(windowId) else { return false }
     let limits = Self.recordingOptions
     let options = ReportRecorder.Options(
-      includePages: includePages, maxSeconds: min(maxSeconds ?? limits.maxSeconds, limits.maxSeconds),
+      includePages: includePages && !ArdiaWebView.recordingWindowIsPrivate(window), maxSeconds: min(maxSeconds ?? limits.maxSeconds, limits.maxSeconds),
       fps: min(max(fps ?? limits.fps, 1), 30), maxPixelWidth: min(max(maxPixelWidth ?? limits.maxPixelWidth, 320), 2880))
     guard let recorder = ReportRecorder(window: window, path: path, options: options) else { return false }
     let pill = RecordingPill(over: window) { [weak self] in _ = self?.stopRecording() }
@@ -132,6 +152,7 @@ public class ReportModule: Module {
       self?.send(["type": "tick", "seconds": seconds])
     }
     recorder.onLimit = { [weak self] in _ = self?.stopRecording() }
+    recorder.excludedWindows = { [weak pill] in pill.map { [$0.window] } ?? [] }
     guard recorder.start() else { return false }
     self.recorder = recorder
     self.pill = pill

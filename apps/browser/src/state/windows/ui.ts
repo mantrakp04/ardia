@@ -3,6 +3,7 @@ import type { BrowserState } from "../browser/store";
 import { linkProfileOf } from "./small";
 import type { FindState, NewTabTarget, WindowUi } from "../browser/types";
 import { commandBarFocus, expectFocus } from "../focus/focusClaims";
+import type { BarPlacement } from "../omnibox/barPlacement";
 
 export const focusedWindowOf = (s: Pick<BrowserState, "ui">): string | null => s.ui.focusOrder[0] ?? null;
 
@@ -17,7 +18,7 @@ export type UiSlice = {
 
   setFocusedWindow(id: string): void;
   setAppDark(dark: boolean): void;
-  openPanel(windowId: string, initialText?: string, newTab?: NewTabTarget): void;
+  openPanel(windowId: string, initialText?: string, newTab?: NewTabTarget, placement?: BarPlacement): void;
   closePanel(windowId: string): void;
   setDownloadsOpen(windowId: string, open: boolean): void;
   setFind(tabId: string, patch: Partial<FindState>): void;
@@ -48,9 +49,9 @@ export const createUiSlice: StateCreator<BrowserState, [], [], UiSlice> = (set, 
     if (get().ui.appDark !== appDark) set((s) => ({ ui: { ...s.ui, appDark } }));
   },
 
-  openPanel(windowId, initialText = "", newTab) {
+  openPanel(windowId, initialText = "", newTab, placement = "field") {
     expectFocus(windowId, commandBarFocus);
-    set((s) => patchWindowUi(s, windowId, { panel: newTab ? { open: true, initialText, newTab } : { open: true, initialText } }));
+    set((s) => patchWindowUi(s, windowId, { panel: newTab ? { open: true, initialText, newTab } : { open: true, initialText, placement } }));
   },
 
   closePanel(windowId) {

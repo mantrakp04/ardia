@@ -70,6 +70,103 @@ base::apple::ScopedCFTypeRef<IOSurfaceRef> CreateOutputSurface(const gfx::Size& 
       IOSurfaceCreate((__bridge CFDictionaryRef)properties));
 }
 
+std::atomic<bool> g_video_toolbox_quarantined{false};
+
+API_AVAILABLE(macos(26.0))
+NSMutableArray<VTFrameProcessor*>* QuarantinedProcessors() {
+  static NSMutableArray<VTFrameProcessor*>* processors = [[NSMutableArray alloc] init];
+  return processors;
+}
+
+id<MTLTexture> EncodeConvert(ArdiaVideoUpscalerKit* kit,
+                             id<MTLCommandBuffer> buffer,
+                             IOSurfaceRef source,
+                             IOSurfaceRef detail_source,
+                             id<MTLTexture> target,
+                             ConvertParams params) {
+  id<MTLComputeCommandEncoder> encoder = [buffer computeCommandEncoder];
+  [encoder setComputePipelineState:kit.convert];
+  id<MTLTexture> luma =
+      PlaneTexture(kit.device, source, 0, MTLPixelFormatR8Unorm, MTLTextureUsageShaderRead);
+  id<MTLTexture> chroma =
+      PlaneTexture(kit.device, source, 1, MTLPixelFormatRG8Unorm, MTLTextureUsageShaderRead);
+  id<MTLTexture> detail = detail_source ? PlaneTexture(kit.device, detail_source, 0,
+                                                       MTLPixelFormatR8Unorm,
+                                                       MTLTextureUsageShaderRead)
+                                        : luma;
+  params.luma_size = simd_make_float2(luma.width, luma.height);
+  params.detail_size = simd_make_float2(detail.width, detail.height);
+  [encoder setTexture:luma atIndex:0];
+  [encoder setTexture:chroma atIndex:1];
+  [encoder setTexture:detail atIndex:2];
+  [encoder setTexture:target atIndex:3];
+  [encoder setBytes:&params length:sizeof(params) atIndex:0];
+  [encoder dispatchThreads:MTLSizeMake(target.width, target.height, 1)
+      threadsPerThreadgroup:MTLSizeMake(16, 16, 1)];
+  [encoder endEncoding];
+  return target;
+}
+
+void EncodePad(ArdiaVideoUpscalerKit* kit,
+               id<MTLCommandBuffer> buffer,
+               IOSurfaceRef source,
+               IOSurfaceRef padded,
+               const gfx::Rect& region) {
+  id<MTLComputeCommandEncoder> encoder = [buffer computeCommandEncoder];
+  [encoder setComputePipelineState:kit.pad];
+  for (size_t plane = 0; plane < 2; ++plane) {
+    const MTLPixelFormat format = plane ? MTLPixelFormatRG8Unorm : MTLPixelFormatR8Unorm;
+    id<MTLTexture> from =
+        PlaneTexture(kit.device, source, plane, format, MTLTextureUsageShaderRead);
+    id<MTLTexture> to =
+        PlaneTexture(kit.device, padded, plane, format, MTLTextureUsageShaderWrite);
+    const int divisor = plane ? 2 : 1;
+    simd_int4 crop = {region.x() / divisor, region.y() / divisor,
+                      (region.width() + divisor - 1) / divisor,
+                      (region.height() + divisor - 1) / divisor};
+    [encoder setTexture:from atIndex:0];
+    [encoder setTexture:to atIndex:1];
+    [encoder setBytes:&crop length:sizeof(crop) atIndex:0];
+    [encoder dispatchThreads:MTLSizeMake(to.width, to.height, 1)
+        threadsPerThreadgroup:MTLSizeMake(16, 16, 1)];
+  }
+  [encoder endEncoding];
+}
+
+API_AVAILABLE(macos(26.0))
+bool SubmitSuperResolution(ArdiaVideoUpscalerKit* kit,
+                           VTLowLatencySuperResolutionScalerParameters* parameters,
+                           void (^processed)(bool ok)) {
+  VTFrameProcessor* processor = kit.processor;
+  if (!processor || g_video_toolbox_quarantined || kit.processorQuarantined) {
+    return false;
+  }
+  @try {
+    [processor processWithParameters:parameters
+                   completionHandler:^(id<VTFrameProcessorParameters> result, NSError* error) {
+                     processed(error == nil);
+                   }];
+    return true;
+  } @catch (id exception) {
+    kit.processorQuarantined = YES;
+    g_video_toolbox_quarantined = true;
+    TRACE_EVENT_INSTANT0("gpu", "ArdiaVSR.VideoToolboxQuarantined", TRACE_EVENT_SCOPE_THREAD);
+    return false;
+  }
+}
+
+}
+
+bool VideoToolboxQuarantined() {
+  return g_video_toolbox_quarantined;
+}
+
+API_AVAILABLE(macos(26.0))
+void KeepQuarantinedProcessor(VTFrameProcessor* processor) {
+  NSMutableArray<VTFrameProcessor*>* processors = QuarantinedProcessors();
+  @synchronized(processors) {
+    [processors addObject:processor];
+  }
 }
 
 base::apple::ScopedCFTypeRef<IOSurfaceRef> Upscaler::TakeOutputSurface(const gfx::Size& size) {
@@ -89,6 +186,17 @@ base::apple::ScopedCFTypeRef<IOSurfaceRef> Upscaler::TakeOutputSurface(const gfx
   return outputs_.back();
 }
 
+void Upscaler::AbandonStalledJob() {
+  TRACE_EVENT_INSTANT0("gpu", "ArdiaVSR.JobStalled", TRACE_EVENT_SCOPE_THREAD);
+  if (kit_plan_ && kit_plan_->vt_factor > 0) {
+    vt_failed_ = kit_plan_->vt_input;
+  }
+  job_in_flight_ = 0;
+  job_in_flight_source_ = nullptr;
+  kit_ = nil;
+  kit_plan_.reset();
+}
+
 API_AVAILABLE(macos(26.0))
 void Upscaler::Start(const VideoUpscaleCandidate& candidate, const Plan& plan) {
   const base::TimeTicks begin = base::TimeTicks::Now();
@@ -103,39 +211,42 @@ void Upscaler::Start(const VideoUpscaleCandidate& candidate, const Plan& plan) {
   const bool full_range =
       plan.key.format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange;
 
-  id<MTLCommandBuffer> buffer = [kit.queue commandBuffer];
   id<MTLTexture> output_texture =
       PlaneTexture(kit.device, output.get(), 0, MTLPixelFormatBGRA8Unorm,
                    MTLTextureUsageShaderWrite | MTLTextureUsageRenderTarget |
                        MTLTextureUsageShaderRead);
   id<MTLTexture> convert_target = plan.needs_metalfx ? kit.rgb : output_texture;
+  const bool video_toolbox = plan.vt_factor > 0;
+  const float factor = video_toolbox ? plan.vt_factor : 1.0f;
 
+  ConvertParams params = {};
+  params.matrix = YuvToRgbMatrix(weights.first, weights.second, full_range);
+  params.origin = simd_make_float2(plan.key.crop.x(), plan.key.crop.y());
+  params.scale = simd_make_float2(plan.key.crop.width() / (float)convert_target.width,
+                                  plan.key.crop.height() / (float)convert_target.height);
+  const gfx::PointF region_origin =
+      plan.vt_needs_pad ? gfx::PointF(plan.region.origin()) : gfx::PointF();
+  params.detail_offset = simd_make_float2((plan.key.crop.x() - region_origin.x()) * factor,
+                                          (plan.key.crop.y() - region_origin.y()) * factor);
+  params.detail_scale =
+      simd_make_float2(plan.key.crop.width() * factor / convert_target.width,
+                       plan.key.crop.height() * factor / convert_target.height);
+  params.chroma_scale = full_range ? 1.0f : 255.0f / 224.0f;
+  params.use_detail = video_toolbox ? 1.0f : 0.0f;
+
+  id<MTLCommandBuffer> pad_buffer = nil;
+  VTLowLatencySuperResolutionScalerParameters* parameters = nil;
   IOSurfaceRef detail_source = nullptr;
-  if (plan.vt_factor > 0) {
+  if (video_toolbox) {
     IOSurfaceRef padded = CVPixelBufferGetIOSurface(kit.paddedInput);
     CVPixelBufferRef vt_input = nullptr;
     if (plan.vt_needs_pad || !SameRowStrides(source, padded)) {
-      id<MTLComputeCommandEncoder> encoder = [buffer computeCommandEncoder];
-      [encoder setComputePipelineState:kit.pad];
-      for (size_t plane = 0; plane < 2; ++plane) {
-        const MTLPixelFormat format = plane ? MTLPixelFormatRG8Unorm : MTLPixelFormatR8Unorm;
-        id<MTLTexture> from = PlaneTexture(kit.device, source, plane, format,
-                                           MTLTextureUsageShaderRead);
-        id<MTLTexture> to = PlaneTexture(kit.device, padded, plane, format,
-                                         MTLTextureUsageShaderWrite);
-        const int divisor = plane ? 2 : 1;
-        simd_int4 crop = {plan.region.x() / divisor, plan.region.y() / divisor,
-                          (plan.region.width() + divisor - 1) / divisor,
-                          (plan.region.height() + divisor - 1) / divisor};
-        [encoder setTexture:from atIndex:0];
-        [encoder setTexture:to atIndex:1];
-        [encoder setBytes:&crop length:sizeof(crop) atIndex:0];
-        [encoder dispatchThreads:MTLSizeMake(to.width, to.height, 1)
-            threadsPerThreadgroup:MTLSizeMake(16, 16, 1)];
+      pad_buffer = [kit.queue commandBuffer];
+      if (!pad_buffer) {
+        return;
       }
-      [encoder endEncoding];
-      vt_input = kit.paddedInput;
-      CVPixelBufferRetain(vt_input);
+      EncodePad(kit, pad_buffer, source, padded, plan.region);
+      vt_input = CVPixelBufferRetain(kit.paddedInput);
     } else {
       CVPixelBufferCreateWithIOSurface(nullptr, source, nullptr, &vt_input);
     }
@@ -152,58 +263,13 @@ void Upscaler::Start(const VideoUpscaleCandidate& candidate, const Plan& plan) {
     if (!in_frame || !out_frame) {
       return;
     }
-    VTLowLatencySuperResolutionScalerParameters* parameters =
+    parameters =
         [[VTLowLatencySuperResolutionScalerParameters alloc] initWithSourceFrame:in_frame
                                                                 destinationFrame:out_frame];
-    [kit.processor processWithCommandBuffer:buffer parameters:parameters];
+    if (!parameters) {
+      return;
+    }
     detail_source = CVPixelBufferGetIOSurface(kit.vtOutput);
-  }
-
-  {
-    id<MTLComputeCommandEncoder> encoder = [buffer computeCommandEncoder];
-    [encoder setComputePipelineState:kit.convert];
-    id<MTLTexture> luma = PlaneTexture(kit.device, source, 0, MTLPixelFormatR8Unorm,
-                                       MTLTextureUsageShaderRead);
-    id<MTLTexture> chroma = PlaneTexture(kit.device, source, 1, MTLPixelFormatRG8Unorm,
-                                         MTLTextureUsageShaderRead);
-    id<MTLTexture> detail =
-        detail_source ? PlaneTexture(kit.device, detail_source, 0, MTLPixelFormatR8Unorm,
-                                     MTLTextureUsageShaderRead)
-                      : luma;
-    ConvertParams params;
-    params.matrix = YuvToRgbMatrix(weights.first, weights.second, full_range);
-    params.origin = simd_make_float2(plan.key.crop.x(), plan.key.crop.y());
-    params.scale = simd_make_float2(plan.key.crop.width() / (float)convert_target.width,
-                                    plan.key.crop.height() / (float)convert_target.height);
-    params.luma_size = simd_make_float2(luma.width, luma.height);
-    params.detail_size = simd_make_float2(detail.width, detail.height);
-    const float factor = plan.vt_factor > 0 ? plan.vt_factor : 1.0f;
-    const gfx::PointF region_origin = plan.vt_needs_pad ? gfx::PointF(plan.region.origin())
-                                                        : gfx::PointF();
-    params.detail_offset =
-        simd_make_float2((plan.key.crop.x() - region_origin.x()) * factor,
-                         (plan.key.crop.y() - region_origin.y()) * factor);
-    params.detail_scale =
-        simd_make_float2(plan.key.crop.width() * factor / convert_target.width,
-                         plan.key.crop.height() * factor / convert_target.height);
-    params.chroma_scale = full_range ? 1.0f : 255.0f / 224.0f;
-    params.use_detail = detail_source ? 1.0f : 0.0f;
-    [encoder setTexture:luma atIndex:0];
-    [encoder setTexture:chroma atIndex:1];
-    [encoder setTexture:detail atIndex:2];
-    [encoder setTexture:convert_target atIndex:3];
-    [encoder setBytes:&params length:sizeof(params) atIndex:0];
-    [encoder dispatchThreads:MTLSizeMake(convert_target.width, convert_target.height, 1)
-        threadsPerThreadgroup:MTLSizeMake(16, 16, 1)];
-    [encoder endEncoding];
-  }
-
-  if (plan.needs_metalfx) {
-    kit.scaler.colorTexture = kit.rgb;
-    kit.scaler.outputTexture = output_texture;
-    kit.scaler.inputContentWidth = plan.rgb_size.width();
-    kit.scaler.inputContentHeight = plan.rgb_size.height();
-    [kit.scaler encodeToCommandBuffer:buffer];
   }
 
   auto job = std::make_shared<Job>();
@@ -216,24 +282,83 @@ void Upscaler::Start(const VideoUpscaleCandidate& candidate, const Plan& plan) {
   const uint64_t operation = ++last_operation_;
   job_in_flight_ = operation;
   job_in_flight_source_ = source;
+  job_in_flight_started_ = begin;
   ++frame_count_;
   const uint64_t generation = generation_;
-  const float factor = plan.vt_factor;
+  const float reported_factor = plan.vt_factor;
+  const bool needs_metalfx = plan.needs_metalfx;
+  const gfx::Size rgb_size = plan.rgb_size;
   scoped_refptr<base::SequencedTaskRunner> reply_to = task_runner_;
   base::WeakPtr<Upscaler> weak = weak_factory_.GetWeakPtr();
-  ArdiaVideoUpscalerKit* keep_alive = kit;
-  const base::TimeTicks started = job->started;
-  [buffer addCompletedHandler:^(id<MTLCommandBuffer> completed) {
-    const bool ok = completed.status == MTLCommandBufferStatusCompleted;
-    const double gpu_ms = (completed.GPUEndTime - completed.GPUStartTime) * 1000;
-    const double completed_ms = (base::TimeTicks::Now() - started).InMillisecondsF();
-    (void)keep_alive;
+  auto finished = std::make_shared<std::atomic<bool>>(false);
+
+  void (^finish)(bool, double) = ^(bool ok, double gpu_ms) {
+    if (finished->exchange(true)) {
+      return;
+    }
+    const double completed_ms = (base::TimeTicks::Now() - job->started).InMillisecondsF();
+    (void)kit;
     reply_to->PostTask(FROM_HERE, base::BindOnce(&Upscaler::JobDone, weak, operation,
                                                  generation, job, ok, gpu_ms, completed_ms,
-                                                 factor));
+                                                 reported_factor));
+  };
+
+  void (^convert)(bool) = ^(bool detail_ok) {
+    if (!detail_ok) {
+      finish(false, 0);
+      return;
+    }
+    id<MTLCommandBuffer> buffer = [kit.queue commandBuffer];
+    if (!buffer) {
+      finish(false, 0);
+      return;
+    }
+    EncodeConvert(kit, buffer, job->source.get(), detail_source, convert_target, params);
+    if (needs_metalfx) {
+      kit.scaler.colorTexture = kit.rgb;
+      kit.scaler.outputTexture = output_texture;
+      kit.scaler.inputContentWidth = rgb_size.width();
+      kit.scaler.inputContentHeight = rgb_size.height();
+      [kit.scaler encodeToCommandBuffer:buffer];
+    }
+    [buffer addCompletedHandler:^(id<MTLCommandBuffer> completed) {
+      finish(completed.status == MTLCommandBufferStatusCompleted,
+             (completed.GPUEndTime - completed.GPUStartTime) * 1000);
+    }];
+    [buffer commit];
+  };
+
+  if (!video_toolbox) {
+    convert(true);
+    return;
+  }
+
+  void (^super_resolve)(void) = ^{
+    const bool submitted = SubmitSuperResolution(kit, parameters, ^(bool ok) {
+      if (!ok) {
+        TRACE_EVENT_INSTANT0("gpu", "ArdiaVSR.VideoToolboxError", TRACE_EVENT_SCOPE_THREAD);
+      }
+      convert(ok);
+    });
+    if (!submitted) {
+      convert(false);
+    }
+  };
+
+  if (!pad_buffer) {
+    super_resolve();
+    return;
+  }
+  [pad_buffer addCompletedHandler:^(id<MTLCommandBuffer> completed) {
+    if (completed.status != MTLCommandBufferStatusCompleted) {
+      finish(false, 0);
+      return;
+    }
+    super_resolve();
   }];
-  [buffer commit];
+  [pad_buffer commit];
 }
+
 
 void Upscaler::JobDone(uint64_t operation,
                        uint64_t generation,
@@ -242,7 +367,8 @@ void Upscaler::JobDone(uint64_t operation,
                        double gpu_ms,
                        double completed_ms,
                        float factor) {
-  if (operation == job_in_flight_) {
+  const bool in_flight = operation == job_in_flight_;
+  if (in_flight) {
     job_in_flight_ = 0;
     job_in_flight_source_ = nullptr;
   }
@@ -254,13 +380,14 @@ void Upscaler::JobDone(uint64_t operation,
                       job->key.crop.size().ToString(), "target", job->key.target.ToString(),
                       "tags", SurfaceTags(job->source.get()), "space",
                       job->key.color_space.ToString());
-  if (generation != generation_) {
+  if (generation != generation_ || !in_flight) {
     return;
   }
   if (!ok) {
     if (factor > 0) {
       vt_failed_ = kit_plan_ ? kit_plan_->vt_input : gfx::Size();
       kit_plan_.reset();
+      on_upscaled_.Run();
     }
     return;
   }

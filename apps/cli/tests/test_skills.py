@@ -67,6 +67,44 @@ class Refresh(unittest.TestCase):
             (folder / name).parent.mkdir(parents=True, exist_ok=True)
             (folder / name).write_text("---\nname: ardia\n---\nold\n" if name == "SKILL.md" else "old\n", encoding="utf-8")
 
+    def test_auto_installs_for_each_agent_found_and_general_when_none_is(self):
+        status, _ = quiet(skills.install_detected)
+        self.assertEqual(status, 0)
+        self.assertTrue((self.home / ".agents/skills/ardia/SKILL.md").is_file())
+        (self.home / ".claude").mkdir()
+        (self.home / ".cursor").mkdir()
+        status, _ = quiet(skills.install_detected)
+        self.assertEqual(status, 0)
+        self.assertTrue((self.home / ".claude/skills/ardia/SKILL.md").is_file())
+        self.assertTrue((self.home / ".cursor/skills/ardia/SKILL.md").is_file())
+        self.assertFalse((self.home / ".config/opencode/skills/ardia").exists())
+
+    def test_auto_leaves_a_foreign_folder_and_a_copy_the_user_removed(self):
+        (self.home / ".claude").mkdir()
+        (self.home / ".codex").mkdir()
+        foreign = self.home / ".agents/skills/ardia"
+        foreign.mkdir(parents=True)
+        (foreign / "SKILL.md").write_text("---\nname: ardia\ndescription: mine\n---\nmine\n", encoding="utf-8")
+        status, out = quiet(skills.install_detected)
+        self.assertEqual(status, 0)
+        self.assertIn("not installed by ardia", out)
+        self.assertEqual((foreign / "SKILL.md").read_text(encoding="utf-8"), "---\nname: ardia\ndescription: mine\n---\nmine\n")
+        claude = self.home / ".claude/skills/ardia"
+        self.assertTrue((claude / "SKILL.md").is_file())
+        shutil.rmtree(claude)
+        status, out = quiet(skills.install_detected)
+        self.assertEqual(status, 0)
+        self.assertIn("removed after an earlier install", out)
+        self.assertFalse(claude.exists())
+
+    def test_cli_auto_flag_runs_the_detected_install(self):
+        (self.home / ".claude").mkdir()
+        with contextlib.redirect_stdout(io.StringIO()):
+            status = cli.main(["skills", "install", "--auto", "--no-cua"])
+        self.assertEqual(status, 0)
+        self.assertTrue((self.home / ".claude/skills/ardia/SKILL.md").is_file())
+        self.assertFalse((self.home / ".claude/skills/cua-driver").exists())
+
     def test_install_remembers_project_and_user_folders(self):
         self.assertEqual(quiet(skills.install, ["claude-code"], True)[0], 0)
         self.assertEqual(quiet(skills.install, ["codex", "general"], False)[0], 0)

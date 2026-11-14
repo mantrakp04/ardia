@@ -6,6 +6,7 @@ final class WebKitContentBlocker {
   static let shared = WebKitContentBlocker()
   static let changed = Notification.Name("ArdiaContentBlockerDidChange")
 
+  private static let settingsWriter = DispatchQueue(label: "ardia.webkit-content-blocker.settings", qos: .utility)
   private static let format = "f3"
   private static let ruleBudget = 140_000
   private static let ignoreTopDocuments =
@@ -100,6 +101,8 @@ final class WebKitContentBlocker {
     ]
   }
 
+  var isFiltering: Bool { settings.enabled && !lists.isEmpty }
+
   private func start() {
     guard !started else { return }
     started = true
@@ -141,7 +144,7 @@ final class WebKitContentBlocker {
   private func save() {
     let snapshot = settings
     let url = base
-    DispatchQueue.global(qos: .utility).async {
+    Self.settingsWriter.async {
       guard let data = try? JSONEncoder().encode(snapshot) else { return }
       try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
       try? data.write(to: url.appendingPathComponent("settings.json"), options: .atomic)

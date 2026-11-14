@@ -20,13 +20,13 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
   vector icons and logos ardia_resources.txt copies in;
 - Helium's indigo palette is undone (helium-color-scheme.patch reversed): chrome:// pages and dialogs use
   Chromium's colours, as Ardia does today;
-- the onboarding page and Helium's uBlock Origin aren't packed or registered (Ardia has its own onboarding and its
-  own uBlock Origin);
+- the onboarding page and Helium's uBlock Origin aren't registered (Ardia has its own onboarding and its own uBlock
+  Origin; chromium-helium-onboarding-off.patch and chromium-helium-ublock-off.patch leave out their paks);
 - chrome/app/theme/chromium/BRANDING is Chromium's again (Ardia builds with chrome/app/theme/ardia/BRANDING).
 
 --- a/chrome/app/chrome_crash_reporter_client.cc
 +++ b/chrome/app/chrome_crash_reporter_client.cc
-@@ -136,7 +136,7 @@ bool ChromeCrashReporterClient::GetCrashDumpLocation(
+@@ -137,7 +137,7 @@
  void ChromeCrashReporterClient::GetProductInfo(ProductInfo* product_info) {
    CHECK(product_info);
  
@@ -59,7 +59,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
 +MAC_TEAM_ID=
 --- a/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
 +++ b/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
-@@ -421,7 +421,7 @@ std::string ChromeAutocompleteProviderClient::GetAcceptLanguages() const {
+@@ -429,7 +429,7 @@
  std::string
  ChromeAutocompleteProviderClient::GetEmbedderRepresentationOfAboutScheme()
      const {
@@ -70,7 +70,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  std::vector<std::u16string> ChromeAutocompleteProviderClient::GetBuiltinURLs() {
 --- a/chrome/browser/extensions/updater/chrome_extension_downloader_factory.cc
 +++ b/chrome/browser/extensions/updater/chrome_extension_downloader_factory.cc
-@@ -53,7 +53,7 @@ ChromeExtensionDownloaderFactory::CreateForURLLoaderFactory(
+@@ -53,7 +53,7 @@
      manifest_query_params += "&testrequest=1";
    }
    downloader->set_manifest_query_params(manifest_query_params);
@@ -98,7 +98,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
       "Starts the browser maximized, regardless of any previous settings. Chromium feature, ungoogled-chromium flag.",
 --- a/chrome/browser/helium_flag_choices.h
 +++ b/chrome/browser/helium_flag_choices.h
-@@ -32,20 +32,20 @@ constexpr const char kUpdateServerUrlCommandLine[] = "custom-update-server-url";
+@@ -32,20 +32,20 @@
  constexpr const char kMiddleClickAutoscrollCommandLine[] =
      "middle-click-autoscroll";
  
@@ -227,7 +227,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  #endif  // CHROME_BROWSER_HELIUM_FLAG_ENTRIES_H_
 --- a/chrome/browser/profiles/profile_io_data.cc
 +++ b/chrome/browser/profiles/profile_io_data.cc
-@@ -44,7 +44,6 @@ bool ProfileIOData::IsHandledProtocol(std::string_view scheme) {
+@@ -44,7 +44,6 @@
        extensions::kExtensionScheme,
  #endif
        content::kChromeUIScheme,
@@ -237,17 +237,17 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  #if BUILDFLAG(IS_CHROMEOS)
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page.html
-@@ -46,11 +46,6 @@
+@@ -45,11 +45,6 @@
          sub-label="$i18n{siteSettingsSublabel}"
-         on-click="onSiteSettingsLinkRowClick_"
+         @click="${this.onSiteSettingsLinkRowClick_}"
          role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
 -    <cr-link-row id="heliumServicesLinkRow" start-icon="cr:chrome-product"
 -        class="hr" label="$i18n{heliumServicesTitle}"
 -        sub-label="$i18n{heliumServicesDescription}"
--        on-click="onHeliumServicesPageClick_"
+-        @click="${this.onHeliumServicesPageClick_}"
 -        role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
      <cr-toast id="deleteBrowsingDataToast" duration="5000">
-       <div>[[dbdDeletionConfirmationToastLabel_]]</div>
+       <div>${this.dbdDeletionConfirmationToastLabel_}</div>
      </cr-toast>
 --- a/chrome/browser/resources/settings/privacy_page/services_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/services_page.html
@@ -262,7 +262,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
          on-keydown="onOriginOverrideKeydown_"
 --- a/chrome/browser/resources/tab_search/tab_search_item.ts
 +++ b/chrome/browser/resources/tab_search/tab_search_item.ts
-@@ -228,8 +228,8 @@ export class TabSearchItemElement extends TabSearchItemBase {
+@@ -216,8 +216,8 @@
  
      // Show chrome:// if it's a chrome internal url
      const protocol = new URL(normalizeURL(data.tab.url)).protocol;
@@ -275,7 +275,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-@@ -798,13 +798,6 @@ void BrowserWebContentsDelegate::SetContentsBounds(content::WebContents* source,
+@@ -788,13 +788,6 @@
  
  void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
                                                   const GURL& url) {
@@ -289,7 +289,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    std::vector<StatusBubble*> status_bubbles =
        browser_ui_controller_->GetStatusBubbles();
    for (StatusBubble* status_bubble : status_bubbles) {
-@@ -813,7 +806,7 @@ void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
+@@ -803,7 +796,7 @@
      ContentsWebView* anchor =
          static_cast<ContentsWebView*>(status_bubble_views->base_view());
      if (source == anchor->GetWebContents()) {
@@ -300,22 +300,22 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    }
 --- a/chrome/browser/ui/navigator/browser_navigator.cc
 +++ b/chrome/browser/ui/navigator/browser_navigator.cc
-@@ -725,12 +725,6 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+@@ -744,12 +744,6 @@
+     }
    }
  #endif  // BUILDFLAG(IS_CHROMEOS)
- 
+-
 -  if (params->url.scheme() == content::kHeliumUIScheme) {
 -    GURL::Replacements replacements;
 -    replacements.SetSchemeStr(content::kChromeUIScheme);
 -    params->url = params->url.ReplaceComponents(replacements);
 -  }
--
+ 
    // Open System Apps in their standalone window if necessary.
    // TODO(crbug.com/40136163): Remove this code after we integrate with intent
-   // handling.
 --- a/chrome/browser/ui/views/sharing_hub/screenshot/screenshot_captured_bubble.cc
 +++ b/chrome/browser/ui/views/sharing_hub/screenshot/screenshot_captured_bubble.cc
-@@ -169,11 +169,11 @@ void ScreenshotCapturedBubble::Init() {
+@@ -169,11 +169,11 @@
  const std::u16string ScreenshotCapturedBubble::GetFilenameForURL(
      const GURL& url) {
    if (!url.has_host() || url.HostIsIPAddress()) {
@@ -331,7 +331,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  void ScreenshotCapturedBubble::DownloadButtonPressed() {
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-@@ -482,7 +482,6 @@ void RegisterChromeWebUIConfigs() {
+@@ -494,7 +494,6 @@
  #if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
    map.AddWebUIConfig(std::make_unique<DefaultBrowserModalUIConfig>());
    map.AddWebUIConfig(std::make_unique<ManagedUserProfileNoticeUIConfig>());
@@ -361,27 +361,9 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
 -                   true /* foreground */);
 -}
 +    WindowOpenDisposition disposition) {}
---- a/chrome/chrome_paks.gni
-+++ b/chrome/chrome_paks.gni
-@@ -147,7 +147,6 @@ template("chrome_extra_paks") {
-       "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
-       "$root_gen_dir/third_party/blink/public/resources/inspector_overlay_resources.pak",
-       "$root_gen_dir/third_party/blink/public/strings/permission_element_generated_strings.pak",
--      "$root_gen_dir/third_party/ublock/resources/ublock_resources.pak",
-       "$root_gen_dir/ui/resources/ui_lottie_resources.pak",
-       "$root_gen_dir/ui/webui/resources/webui_resources.pak",
-     ]
-@@ -477,7 +476,6 @@ template("chrome_extra_paks") {
-       sources += [
-         "$root_gen_dir/chrome/default_browser_modal_resources.pak",
-         "$root_gen_dir/chrome/profile_picker_resources.pak",
--        "$root_gen_dir/components/helium_onboarding/resources/helium_onboarding_generated.pak",
-       ]
-       deps += [
-         "//chrome/browser/resources/default_browser/default_browser_modal:resources",
 --- a/components/crash/core/app/crash_reporter_client.cc
 +++ b/components/crash/core/app/crash_reporter_client.cc
-@@ -26,10 +26,6 @@ CrashReporterClient* g_client = nullptr;
+@@ -26,10 +26,6 @@
  const char kDefaultUploadURL[] = "https://clients2.9oo91e.qjz9zk/cr/report";
  #endif
  
@@ -392,7 +374,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  }  // namespace
  
  void SetCrashReporterClient(CrashReporterClient* client) {
-@@ -146,18 +142,7 @@ void CrashReporterClient::GetSanitizationInformation(
+@@ -146,18 +142,7 @@
  #endif
  
  std::string CrashReporterClient::GetUploadUrl() {
@@ -413,7 +395,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  bool CrashReporterClient::ShouldRateLimitUploads() {
 --- a/components/crash/core/browser/resources/crashes.ts
 +++ b/components/crash/core/browser/resources/crashes.ts
-@@ -223,7 +223,7 @@ function fileBug(crashId: string, os: string, version: string) {
+@@ -223,7 +223,7 @@
      os,
      additional: commentLines.join('\n'),
    };
@@ -452,7 +434,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
        }
 --- a/components/helium_services/helium_services_helpers.cc
 +++ b/components/helium_services/helium_services_helpers.cc
-@@ -28,7 +28,7 @@ namespace helium {
+@@ -28,7 +28,7 @@
  #endif
  
  #if defined(UPDATES_SUPPORTED)
@@ -461,7 +443,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  constexpr const char kUpdatePath[] =
  #if BUILDFLAG(IS_MAC)
      "mac/appcast-" CPU_ARCH_STR ".xml";
-@@ -78,8 +78,7 @@ GURL GetDummyURL() {
+@@ -78,8 +78,7 @@
  }
  
  bool ShouldAccessServices(const PrefService& prefs) {
@@ -488,7 +470,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  
 --- a/components/helium_services/schema.cc
 +++ b/components/helium_services/schema.cc
-@@ -30,7 +30,7 @@ ServicesChangelog& GetChangelog() {
+@@ -30,7 +30,7 @@
            {
              1,
              "Automatic component updates are now available. They're managed by the same toggle that enables automatic browser updates.\n"
@@ -499,7 +481,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  
 --- a/components/omnibox/browser/builtin_provider.cc
 +++ b/components/omnibox/browser/builtin_provider.cc
-@@ -73,9 +73,7 @@ void BuiltinProvider::DoBuiltinAutocompletion(const std::u16string& text) {
+@@ -73,9 +73,7 @@
      // Include some common builtin URLs as the user types the scheme.
      for (const std::u16string& url :
           client_->GetBuiltinsToProvideAsUserTypes()) {
@@ -512,22 +494,22 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
      // Match input about: or |embedderAbout| URL input against builtin URLs.
 --- a/components/omnibox/browser/omnibox_text_util.cc
 +++ b/components/omnibox/browser/omnibox_text_util.cc
-@@ -166,12 +166,6 @@ void AdjustTextForCopy(
+@@ -165,12 +165,6 @@
+   if (!has_user_modified_text) {
      *url_from_text = navigation_entry_url;
      *write_url = true;
- 
+-
 -    if (url_from_text->scheme() == content::kChromeUIScheme) {
 -      GURL::Replacements replacements;
 -      replacements.SetSchemeStr(content::kHeliumUIScheme);
 -      *url_from_text = url_from_text->ReplaceComponents(replacements);
 -    }
--
+ 
      // Don't let users copy Reader Mode page URLs.
      // We display the original article's URL in the omnibox, so users will
-     // expect that to be what is copied to the clipboard.
 --- a/components/url_formatter/url_fixer.cc
 +++ b/components/url_formatter/url_fixer.cc
-@@ -39,7 +39,6 @@ namespace {
+@@ -40,7 +40,6 @@
  
  // Hardcode these constants to avoid dependences on //chrome and //content.
  const char kChromeUIScheme[] = "chrome";
@@ -535,7 +517,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  const char kDevToolsScheme[] = "devtools";
  const char kChromeUIDefaultHost[] = "version";
  const char kViewSourceScheme[] = "view-source";
-@@ -447,8 +446,7 @@ std::string SegmentURLInternal(std::string* text, url::Parsed* parts) {
+@@ -448,8 +447,7 @@
        (*text)[semicolon] = ':';
        if (GetValidScheme(*text, &parts->scheme, &scheme) &&
            (url::IsStandard(scheme) || scheme == url::kAboutScheme ||
@@ -545,7 +527,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
          found_scheme = true;
        } else {
          (*text)[semicolon] = ';';
-@@ -464,8 +462,7 @@ std::string SegmentURLInternal(std::string* text, url::Parsed* parts) {
+@@ -465,8 +463,7 @@
    // Proceed with about, chrome, and devtools schemes,
    // but not file or nonstandard schemes.
    if ((scheme != url::kAboutScheme) && (scheme != kChromeUIScheme) &&
@@ -555,7 +537,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
      return scheme;
    }
  
-@@ -622,9 +619,7 @@ GURL FixupURLInternal(const std::string& text,
+@@ -623,9 +620,7 @@
  
    // For some schemes whose layouts we understand, we rebuild the URL.
    bool chrome_url =
@@ -566,7 +548,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    bool devtools_url = (scheme == kDevToolsScheme);
    if (chrome_url || devtools_url || url::IsStandard(scheme)) {
      // Replace the about: scheme with the chrome: scheme.
-@@ -753,11 +748,7 @@ bool IsEquivalentScheme(const std::string& scheme1,
+@@ -754,11 +749,7 @@
                          const std::string& scheme2) {
    return scheme1 == scheme2 ||
           (scheme1 == url::kAboutScheme && scheme2 == kChromeUIScheme) ||
@@ -581,10 +563,12 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  }  // namespace url_formatter
 --- a/components/url_formatter/url_formatter.cc
 +++ b/components/url_formatter/url_formatter.cc
-@@ -625,18 +625,6 @@ std::u16string FormatUrlWithAdjustments(
+@@ -623,18 +623,6 @@
+       !HasTwoViewSourceSchemes(url.possibly_invalid_spec())) {
+     return FormatViewSourceUrl(url, format_types, unescape_rules, new_parsed,
                                 prefix_end, adjustments);
-   }
- 
+-  }
+-
 -  if ((format_types & kFormatReplaceChromeProtocol) != 0) {
 -    if (url.SchemeIs(content::kChromeUIScheme)) {
 -      GURL url_;
@@ -595,11 +579,9 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
 -      return FormatUrlWithAdjustments(url_, format_types, unescape_rules,
 -                                      new_parsed, prefix_end, adjustments);
 -    }
--  }
--
+   }
+ 
    // We handle both valid and invalid URLs (this will give us the spec
-   // regardless of validity).
-   const std::string& spec = url.possibly_invalid_spec();
 --- a/components/webui/flags/resources/app.css
 +++ b/components/webui/flags/resources/app.css
 @@ -18,19 +18,14 @@
@@ -647,7 +629,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
      --separator-color: rgba(255, 255, 255, .1);
 --- a/content/common/url_schemes.cc
 +++ b/content/common/url_schemes.cc
-@@ -30,7 +30,6 @@ const char* const kDefaultSavableSchemes[] = {
+@@ -31,7 +31,6 @@
    url::kFileSystemScheme,
    kChromeDevToolsScheme,
    kChromeUIScheme,
@@ -655,7 +637,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    url::kDataScheme
  };
  
-@@ -61,7 +60,6 @@ void RegisterContentSchemes(bool should_lock_registry) {
+@@ -62,7 +61,6 @@
  
    url::AddStandardScheme(kChromeDevToolsScheme, url::SCHEME_WITH_HOST);
    url::AddStandardScheme(kChromeUIScheme, url::SCHEME_WITH_HOST);
@@ -663,7 +645,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    url::AddStandardScheme(kChromeUIUntrustedScheme, url::SCHEME_WITH_HOST);
    url::AddStandardScheme(kChromeErrorScheme, url::SCHEME_WITH_HOST);
    for (auto& scheme : schemes.standard_schemes)
-@@ -72,7 +70,6 @@ void RegisterContentSchemes(bool should_lock_registry) {
+@@ -73,7 +71,6 @@
  
    schemes.secure_schemes.push_back(kChromeDevToolsScheme);
    schemes.secure_schemes.push_back(kChromeUIScheme);
@@ -671,7 +653,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    schemes.secure_schemes.push_back(kChromeUIUntrustedScheme);
    schemes.secure_schemes.push_back(kChromeErrorScheme);
    for (auto& scheme : schemes.secure_schemes)
-@@ -93,7 +90,6 @@ void RegisterContentSchemes(bool should_lock_registry) {
+@@ -102,7 +99,6 @@
      url::AddNoAccessScheme(scheme.c_str());
  
    schemes.cors_enabled_schemes.push_back(kChromeUIScheme);
@@ -679,7 +661,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    schemes.cors_enabled_schemes.push_back(kChromeUIUntrustedScheme);
    for (auto& scheme : schemes.cors_enabled_schemes)
      url::AddCorsEnabledScheme(scheme.c_str());
-@@ -122,7 +118,6 @@ void RegisterContentSchemes(bool should_lock_registry) {
+@@ -131,7 +127,6 @@
    // service workers don't work for chrome[-untrusted]:// when the flag is not
    // enabled.
    schemes.service_worker_schemes.push_back(kChromeUIScheme);
@@ -689,7 +671,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    // Prevent future modification of the scheme lists. This is to prevent
 --- a/content/renderer/render_thread_impl.cc
 +++ b/content/renderer/render_thread_impl.cc
-@@ -887,13 +887,6 @@ void RenderThreadImpl::RegisterSchemes() {
+@@ -890,13 +890,6 @@
        chrome_scheme);
    WebSecurityPolicy::RegisterURLSchemeAsWebUI(chrome_scheme);
  
@@ -705,7 +687,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  
 --- a/tools/licenses/licenses.py
 +++ b/tools/licenses/licenses.py
-@@ -1185,8 +1185,8 @@ def GenerateCredits(args, metadatas):
+@@ -1131,8 +1131,8 @@
    reciprocal_contents = EvaluateTemplate(
      reciprocal_template,
      {
@@ -718,7 +700,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    )
 --- a/ui/color/ref_color_mixer.cc
 +++ b/ui/color/ref_color_mixer.cc
-@@ -28,64 +28,64 @@ void AddBaselinePalette(ColorProvider* provider,
+@@ -28,64 +28,64 @@
                          ColorProviderKey::ColorMode color_mode) {
    ColorMixer& mixer = provider->AddMixer();
    mixer[kColorRefPrimary0] = {SkColorSetRGB(0x00, 0x00, 0x00)};
@@ -832,7 +814,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    mixer[kColorRefError100] = {SkColorSetRGB(0xFF, 0xFF, 0xFF)};
  
    // Sets new neutral ref colors in dark mode. These colors will also be
-@@ -136,46 +136,46 @@ void AddBaselinePalette(ColorProvider* provider,
+@@ -136,46 +136,46 @@
      mixer[kColorRefNeutralVariant100] = {SkColorSetRGB(0xFF, 0xFF, 0xFF)};
    } else {
      mixer[kColorRefNeutral0] = {SkColorSetRGB(0x00, 0x00, 0x00)};
@@ -914,7 +896,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  }
 --- a/ui/color/sys_color_mixer.cc
 +++ b/ui/color/sys_color_mixer.cc
-@@ -82,11 +82,11 @@ void AddGrayscaleSysColorOverrides(ColorMixer& mixer,
+@@ -82,11 +82,11 @@
    mixer[kColorSysOnSurfacePrimary] = {dark_mode ? kColorRefNeutral90
                                                  : kColorRefNeutral10};
    mixer[kColorSysDivider] = {dark_mode ? kColorRefNeutral40
@@ -930,7 +912,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
                  : AlphaBlend({kColorSysHeader}, {kColorRefNeutral98}, 0x48)};
 --- a/ui/gfx/color_palette.h
 +++ b/ui/gfx/color_palette.h
-@@ -15,16 +15,16 @@ constexpr SkColor kPlaceholderColor = SK_ColorRED;
+@@ -15,16 +15,16 @@
  
  // The number refers to the shade of darkness. Each color in the MD
  // palette ranges from 050-900.
@@ -959,7 +941,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  constexpr SkColor kGoogleRed100 = SkColorSetRGB(0xFA, 0xD2, 0xCF);
 --- a/ui/webui/resources/cr_components/theme_color_picker/color_utils.ts
 +++ b/ui/webui/resources/cr_components/theme_color_picker/color_utils.ts
-@@ -41,13 +41,13 @@ export const DARK_BASELINE_BLUE_COLOR: Color = {
+@@ -41,13 +41,13 @@
  };
  
  export const LIGHT_BASELINE_GREY_COLOR: Color = {
@@ -1014,7 +996,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    --google-blue-900: rgb(var(--google-blue-900-rgb));
  
    --google-green-50-rgb: 230, 244, 234;  /* #e6f4ea */
-@@ -200,14 +199,14 @@ html {
+@@ -200,14 +199,14 @@
       the color pipeline. */
    --cr-fallback-color-outline: rgb(116, 119, 117);
  
@@ -1034,7 +1016,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  
    --cr-fallback-color-neutral-container: rgb(242, 242, 242);
    --cr-fallback-color-neutral-outline: rgb(199, 199, 199);
-@@ -226,18 +225,18 @@ html {
+@@ -226,18 +225,18 @@
  
    --cr-fallback-color-on-surface-subtle: rgb(71, 71, 71);
  
@@ -1058,7 +1040,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  
    --cr-fallback-color-state-hover-on-prominent_: rgba(253, 252, 251, .1);
  
-@@ -250,7 +249,7 @@ html {
+@@ -250,7 +249,7 @@
    --cr-fallback-color-state-ripple-primary_: rgba(
        var(--cr-fallback-color-state-ripple-primary-rgb_), 0.32);
  
@@ -1067,7 +1049,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
  
    --cr-fallback-color-disabled-background: rgba(
        var(--cr-fallback-color-on-surface-rgb), .12);
-@@ -309,12 +308,12 @@ html[webui-refresh-2026] {
+@@ -309,12 +308,12 @@
    html {
      /* Colors */
      --cr-fallback-color-outline: rgb(142, 145, 143);
@@ -1086,7 +1068,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
      --cr-fallback-color-neutral-container: rgb(40, 40, 40);
      --cr-fallback-color-neutral-outline: rgb(117, 117, 117);
      --cr-fallback-color-surface: rgb(31, 31, 31);
-@@ -324,24 +323,24 @@ html[webui-refresh-2026] {
+@@ -324,24 +323,24 @@
      --cr-fallback-color-surface4: rgb(52, 54, 58);
      --cr-fallback-color-surface5: rgb(56, 58, 62);
      --cr-fallback-color-on-surface-rgb: 227, 227, 227;
@@ -1121,7 +1103,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
      --cr-card-background-color: var(--google-grey-900-white-4-percent);
 --- a/ui/webui/resources/cr_elements/icons.html.ts
 +++ b/ui/webui/resources/cr_elements/icons.html.ts
-@@ -94,8 +94,8 @@ if (document.documentElement.hasAttribute('webui-rounded-icons')) {
+@@ -94,8 +94,8 @@
        <g id="chevron-right">
          <path d="m13.05 12-4.1-4.102a.87.87 0 0 1-.274-.636.87.87 0 0 1 .273-.637.879.879 0 0 1 1.277 0l4.75 4.75a.84.84 0 0 1 .188.29c.04.105.063.218.063.335 0 .117-.024.23-.063.336a.84.84 0 0 1-.187.289l-4.75 4.75a.822.822 0 0 1-.625.262.902.902 0 0 1-.625-.285.883.883 0 0 1-.278-.641.88.88 0 0 1 .278-.637Zm0 0"></path>
        </g>
@@ -1132,7 +1114,7 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
        </g>
        <g id="close">
          <path d="m12 13.273-4.102 4.102a.816.816 0 0 1-.625.262.91.91 0 0 1-.625-.285.879.879 0 0 1 0-1.278L10.727 12 6.625 7.898a.83.83 0 0 1-.262-.636.914.914 0 0 1 .285-.637.879.879 0 0 1 1.278 0L12 10.727l4.102-4.102a.87.87 0 0 1 .636-.273.87.87 0 0 1 .637.273.87.87 0 0 1 .273.637.87.87 0 0 1-.273.636L13.273 12l4.102 4.102c.184.183.273.39.273.625 0 .23-.09.441-.273.625a.87.87 0 0 1-.637.273.87.87 0 0 1-.636-.273Zm0 0"></path>
-@@ -317,8 +317,8 @@ if (document.documentElement.hasAttribute('webui-rounded-icons')) {
+@@ -317,8 +317,8 @@
        <g id="chevron-right">
          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"></path>
        </g>

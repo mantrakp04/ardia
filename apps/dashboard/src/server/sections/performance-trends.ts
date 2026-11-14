@@ -1,5 +1,6 @@
 import type { PerformanceTrend, TrendFamily, TrendSeries } from "../../lib/performance-trends";
 import { windowFor, type RangeKey } from "../../lib/range";
+import { UTC } from "../../lib/zone";
 import { num, query, str } from "../clickhouse";
 import { APP_SOURCE, bucket, since } from "../sql";
 import { LAUNCH_KIND, PROFILES, TABS } from "./performance";
@@ -31,13 +32,13 @@ const FAMILY: Record<TrendFamily, { event: string; pairs: string; where: string 
   },
 };
 
-export async function performanceTrend(range: RangeKey, family: TrendFamily, signal?: AbortSignal): Promise<PerformanceTrend> {
-  const w = windowFor(range);
+export async function performanceTrend(range: RangeKey, family: TrendFamily, signal?: AbortSignal, zone = UTC): Promise<PerformanceTrend> {
+  const w = windowFor(range, zone);
   const f = FAMILY[family];
   const rows = await query(
     `SELECT b, t.1 AS grp, count(), quantiles(0.5, 0.9, 0.99)(t.2)
      FROM (
-       SELECT ${bucket(w.step)} AS b, arrayJoin(${f.pairs}) AS t
+       SELECT ${bucket(w)} AS b, arrayJoin(${f.pairs}) AS t
        FROM telemetry.events
        WHERE event = '${f.event}' AND ${since(w.start)} AND ${APP_SOURCE} AND ${f.where}
      )
@@ -62,5 +63,5 @@ export async function performanceTrend(range: RangeKey, family: TrendFamily, sig
     series.p90[i] = num(q[1]);
     series.p99[i] = num(q[2]);
   }
-  return { family, step: w.step, buckets: w.buckets, groups };
+  return { family, step: w.step, buckets: w.buckets, zone: w.zone, groups };
 }

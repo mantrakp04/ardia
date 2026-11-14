@@ -4,7 +4,7 @@ import json
 import time
 from dataclasses import dataclass, field
 
-from ardia_cli.browse.errors import BrowseError, CdpError, CdpTimeout, OutcomeUnknown
+from ardia_cli.browse.errors import BrowseError, CdpError, CdpTimeout, Gated, OutcomeUnknown
 from ardia_cli.browse.inputs import Input
 from ardia_cli.browse.js import LIBRARY
 
@@ -21,6 +21,10 @@ HIDDEN_TAB = (
     "use: ardia browse tab {tab} --show (or open <url> --show)"
 )
 LIVE_WAIT = 0.5
+DETACHED = "Ardia detached this tab from the ardia command while it was in use (the tab closed, crashed, went to sleep or moved to a window Ardia keeps for itself). Run the command again"
+CRASHED = "This tab's page crashed. `ardia browse reload` brings it back; `ardia browse close` or `tab close` closes it"
+CRASH_PROBE = 5.0
+CRASH_SAFE = frozenset({"Inspector.enable", "Page.reload", "Page.navigate"})
 STALE_CONTEXT = ("Cannot find context", "Execution context was destroyed", "Cannot find default execution context", "Inspected target navigated")
 
 
@@ -129,13 +133,37 @@ class Page:
         self.url = ""
         self.title = ""
         self.drag_intercepted: asyncio.Future | None = None
+        self.calls: set = set()
+        self.dropped: set = set()
+        self.crashed = False
+        self.needs_enable = False
 
     async def attach(self, browser):
         self.browser = browser
         self.worlds.clear()
-        result = await browser.send("Target.attachToTarget", {"targetId": self.target_id, "flatten": True})
+        try:
+            result = await browser.send("Target.attachToTarget", {"targetId": self.target_id, "flatten": True})
+        except Gated as error:
+            from ardia_cli import command_metrics
+            from ardia_cli.browse import tabs
+
+            command_metrics.flag("attach_refused", True)
+            raise error.during(None, await tabs.where_app_has(self.state, self.target_id) if error.reason else None) from None
         self.session_id = result["sessionId"]
         self.state.sessions[self.session_id] = self
+        known, self.crashed = self.crashed, False
+        try:
+            await self.send("Inspector.enable", timeout=CRASH_PROBE)
+        except Gated:
+            self.crashed = known
+        except BrowseError:
+            pass
+        if self.crashed:
+            self.needs_enable = True
+            return
+        await self.enable_page()
+
+    async def enable_page(self):
         await self.send("Page.enable")
         await self.send("Page.setLifecycleEventsEnabled", {"enabled": True})
         await self.refresh_frames()
@@ -153,22 +181,67 @@ class Page:
         except BrowseError:
             pass
         self.input.bind(viewport)
+        self.needs_enable = False
+
+    def mark_crashed(self):
+        self.crashed = True
+        self.worlds.clear()
+        for call in self.calls:
+            self.dropped.add(call)
+            call.cancel()
+
+    async def revive(self, timeout: float):
+        await self.send("Page.reload", {})
+        await self.recovered(timeout)
+
+    async def recovered(self, timeout: float):
+        from ardia_cli import command_metrics
+        from ardia_cli.browse.state import wait_until
+
+        command_metrics.flag("crashed_reloaded", True)
+        self.crashed = False
+        await self.enable_page()
+
+        async def loaded():
+            return await self.call("() => document.readyState", frame=self.main_frame) == "complete"
+
+        await wait_until(loaded, timeout, 0.1, "the crashed page to reload")
 
     def detach(self):
         if self.session_id:
             self.state.sessions.pop(self.session_id, None)
         self.session_id = None
         self.worlds.clear()
+        for call in self.calls:
+            self.dropped.add(call)
+            call.cancel()
 
     async def send(self, method: str, params: dict | None = None, input_event: bool = False, timeout: float = 30, mutation: bool = False):
         from ardia_cli.browse.connection import is_mutation
 
+        if self.session_id is None:
+            raise BrowseError(DETACHED, code="tab_detached")
+        if self.crashed and method not in CRASH_SAFE:
+            raise BrowseError(CRASHED, code="tab_crashed")
+        call = asyncio.ensure_future(self.browser.send(method, params, self.session_id, timeout))
+        self.calls.add(call)
         try:
-            return await self.browser.send(method, params, self.session_id, timeout)
+            return await call
+        except asyncio.CancelledError:
+            if call not in self.dropped:
+                raise
+            if input_event or mutation or is_mutation(method):
+                raise OutcomeUnknown(f"`{method}`", f"Ardia detached the tab before it answered {method}") from None
+            if self.crashed:
+                raise BrowseError(CRASHED, code="tab_crashed") from None
+            raise BrowseError(DETACHED, code="tab_detached") from None
         except CdpTimeout:
             if input_event or mutation or is_mutation(method):
                 raise OutcomeUnknown(f"`{method}`", f"Ardia didn't answer {method} in {timeout:g}s after it was sent") from None
             raise
+        finally:
+            self.calls.discard(call)
+            self.dropped.discard(call)
 
     async def refresh_frames(self) -> dict:
         tree = (await self.send("Page.getFrameTree"))["frameTree"]
@@ -345,6 +418,7 @@ class Page:
                 }
                 self.worlds.pop(frame_id, None)
                 if not frame.get("parentId"):
+                    self.crashed = False
                     self.main_frame = frame_id
                     self.url = self.frames[frame_id]["url"]
                     self.navigations += 1

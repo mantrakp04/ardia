@@ -59,6 +59,19 @@ async def app_windows(state) -> list | None:
     return windows if isinstance(windows, list) else None
 
 
+async def app_call(state, method: str, params: dict, timeout: float = WINDOWS_TIMEOUT):
+    from ardia_cli import control
+
+    path = control_socket(state)
+    if path is None:
+        raise control.unreachable("this connection has no control socket")
+    connection = await control.connect(path, timeout, state.caller)
+    try:
+        return await connection.call(method, params, timeout)
+    finally:
+        await connection.close()
+
+
 def app_tab_rows(windows) -> list[dict]:
     return [tab for window in windows or [] if isinstance(window, dict) for tab in window.get("tabs") or [] if isinstance(tab, dict) and tab.get("id")]
 
@@ -70,6 +83,20 @@ def reports_targets(rows: list[dict]) -> bool:
 def pair_by_target(app_rows: list[dict], target_infos: dict) -> dict[str, dict]:
     return {row["targetId"]: {"app": row["id"], "generation": row.get("pageGeneration")} for row in app_rows
             if isinstance(row.get("targetId"), str) and row["targetId"] in target_infos}
+
+
+async def where_app_has(state, target_id: str) -> str | None:
+    windows = await app_windows(state)
+    if windows is None:
+        return None
+    rows = app_tab_rows(windows)
+    if not reports_targets(rows):
+        return None
+    row = next((row for row in rows if row.get("targetId") == target_id), None)
+    if row is None:
+        return ("`ardia windows` lists no tab with that page: Ardia closed it, unloaded it, or keeps it in a private window "
+                "or one of its own")
+    return f"Ardia has it open as {row['id']} at {row.get('url') or 'no address yet'}"
 
 
 async def app_tab_map(state) -> dict[str, str]:

@@ -13,6 +13,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
+#include "chrome/browser/ardia/ac_cli_owned_tabs.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
 #include "url/gurl.h"
 
@@ -115,6 +116,18 @@ void StripSecrets(base::Value& value) {
   }
 }
 
+void ForgetDestroyedTarget(const std::string& message) {
+  std::optional<base::Value> parsed =
+      base::JSONReader::Read(message, base::JSON_PARSE_RFC);
+  const base::DictValue* params =
+      parsed && parsed->is_dict() ? parsed->GetDict().FindDict("params")
+                                  : nullptr;
+  if (const std::string* target_id =
+          params ? params->FindString("targetId") : nullptr) {
+    ForgetCliOwnedTarget(*target_id);
+  }
+}
+
 }
 
 bool TokenClient::FilterEvent(std::string& message) {
@@ -144,6 +157,10 @@ bool TokenClient::FilterEvent(std::string& message) {
         method == "Page.frameScheduledNavigation" ||
         method == "Page.frameStartedNavigating") {
       return FilterPageEvent(message);
+    }
+    if (method == "Target.targetDestroyed") {
+      ForgetDestroyedTarget(message);
+      return true;
     }
     if (method == "Inspector.targetCrashed" || method == "Inspector.detached") {
       ForgetSessionOf(message);
@@ -220,16 +237,30 @@ bool TokenClient::FilterResponse(int id,
         return !info.is_dict() ||
                !IsWebTarget(info.GetDict().FindString("targetId"));
       });
+      for (base::Value& info : *infos) {
+        if (IsOffscreenTarget(info.GetDict().FindString("targetId"))) {
+          info.GetDict().Set("ardiaOffscreen", true);
+        }
+      }
       message = base::WriteJson(response).value_or(std::string());
     }
     return !message.empty();
   }
   if (method == "Target.getTargetInfo") {
-    const base::DictValue* info = result->FindDict("targetInfo");
+    base::DictValue* info = result->FindDict("targetInfo");
     if (info && !IsWebTarget(info->FindString("targetId"))) {
       message = ErrorReply(id, session, kRefused,
                            "ardia: Target.getTargetInfo on that target "
                            "isn't allowed for the ardia command");
+    } else if (info && IsOffscreenTarget(info->FindString("targetId"))) {
+      info->Set("ardiaOffscreen", true);
+      message = base::WriteJson(response).value_or(std::string());
+    }
+    return !message.empty();
+  }
+  if (method == "Target.createTarget") {
+    if (const std::string* target_id = result->FindString("targetId")) {
+      NoteCliOwnedTarget(*target_id, this);
     }
     return true;
   }

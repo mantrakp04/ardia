@@ -16,7 +16,7 @@ import { createBangSubmitter, mayBeBang } from "../../state/omnibox/bangs";
 import { traceOmnibox, useOmniboxDriver } from "./devDriver";
 import { claimFocusTag, commandBarFocus, heroBarFocus } from "../../state/focus/focusClaims";
 import { registerHeroBar, saveNtpQuery, type BarDismissal, type BarSnapshot } from "../../state/omnibox/barState";
-import { openFromBar, otherOpenTabs, switchFromBar, type Disposition } from "../../state/omnibox/openFromBar";
+import { barSplitsFrom, openFromBar, otherOpenTabs, switchFromBar, type Disposition } from "../../state/omnibox/openFromBar";
 import { openFromNewTabBar } from "../../state/omnibox/newTabBar";
 import type { NewTabTarget } from "../../state/browser/types";
 import { showFieldMenu } from "../../state/omnibox/paste";
@@ -67,9 +67,7 @@ export function Omnibox({
   const currentUrl = useTab(tabId, (t) => (opensTab ? "" : (t?.url ?? "")));
   const hero = variant === "hero";
   const dropdown = variant === "sidebar";
-
-  const noneSelected = opensTab ? -1 : 0;
-  const bar = useBarText(hero, tabId, initialText, noneSelected);
+  const bar = useBarText(hero, tabId, initialText);
   const { typed, edited, suppressCompletion, selected, scope, scopeFrom, pendingSelection, dispatch, selection } = bar;
   const input = useRef<TextInput>(null);
   const [bangEnter] = useState(createBangSubmitter);
@@ -77,7 +75,7 @@ export function Omnibox({
   useEffect(() => bangEnter.cancel(), [bangEnter, typed, selected, scope]);
   const root = useRef<View>(null);
 
-  const { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing, unpreviewed } = useBarItems({
+  const { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing } = useBarItems({
     input,
     typed,
     edited,
@@ -133,7 +131,7 @@ export function Omnibox({
 
   const reset = () => {
     bangEnter.cancel();
-    dispatch({ kind: "reset", selected: noneSelected });
+    dispatch({ kind: "reset" });
     selection.collapse();
   };
 
@@ -142,10 +140,11 @@ export function Omnibox({
     return hero ? reset() : onDone?.();
   };
 
-  const go = (url: string, disposition: Disposition = "current") => {
+  const go = (url: string, asked: Disposition = "current") => {
     bangEnter.cancel();
     if (!url) return;
-    if (opensTab && disposition !== "newWindow") return openFromNewTabBar(windowId, opensTab, url);
+    const disposition = asked === "split" && !barSplitsFrom(tabId) ? (opensTab ? "newTab" : "current") : asked;
+    if (opensTab && disposition !== "newWindow" && disposition !== "split") return openFromNewTabBar(windowId, opensTab, url);
     if (disposition === "current") journeyNavigate(tabId);
     openFromBar(url, tabId, disposition);
     if (disposition !== "current") dismiss();
@@ -202,7 +201,7 @@ export function Omnibox({
 
   const onKeyDown = (e: BarKeyEvent) => {
     previewSelection.settle();
-    return barKeyDown(e, { bar, hero, shownCompletion, input: previewing ? value : typed, items, selectedIndex, previewing, unpreviewed, current, tabScope, onDone, reset, forceSearch, go, choose, cancelBang: () => bangEnter.cancel(), removeRow: (url) => rowActions.remove(url) });
+    return barKeyDown(e, { bar, hero, shownCompletion, input: previewing ? value : typed, items, selectedIndex, previewing, current, tabScope, onDone, reset, forceSearch, go, choose, cancelBang: () => bangEnter.cancel(), removeRow: (url) => rowActions.remove(url) });
   };
 
   const onContextMenu = async () => {
@@ -211,7 +210,6 @@ export function Omnibox({
     if (pick?.kind === "edit") {
       previewSelection.edited();
       dispatch({ kind: "edited", text: pick.text, caret: pick.caret });
-      if (opensTab && !pick.text.trim()) dispatch({ kind: "selected", index: -1 });
     }
     if (pick?.kind === "selectAll") dispatch({ kind: "select", selection: { start: 0, end: value.length } });
     focusField();
@@ -248,7 +246,7 @@ export function Omnibox({
     const bySpace = scope ? null : keywordBySpace(previewing ? value : typed, next);
     const keyword = bySpace ? keywordScope(bySpace.keyword, windowId) : null;
     if (bySpace && keyword) return dispatch({ kind: "enteredScope", scope: keyword, from: bySpace.from });
-    dispatch({ kind: "typed", text: change.typed, suppress: change.suppress, selected: opensTab && !change.typed.trim() ? -1 : 0 });
+    dispatch({ kind: "typed", text: change.typed, suppress: change.suppress, selected: 0 });
   };
 
   useOmniboxDriver(`${windowId}:${variant}`, {

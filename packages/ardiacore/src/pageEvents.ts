@@ -8,11 +8,13 @@ import type {
   BlockedPopup,
   ContentBlockedState,
   CrashInfo,
+  DiscardReason,
   DisplayMediaRequest,
   DownloadNavigation,
   FindResult,
   LoadError,
   MediaAccess,
+  MediaFault,
   MediaState,
   NavigationState,
   NowPlaying,
@@ -41,7 +43,7 @@ type NativeEvents = {
   onPopupBlocked: BlockedPopup;
   onFindResult: FindResult;
   onFullscreen: { fullscreen: boolean };
-  onStatus: { text: string };
+  onStatus: { text: string; fromBottom?: number };
   onCrashed: CrashInfo;
   onUnresponsive: object;
   onResponsive: object;
@@ -53,6 +55,8 @@ type NativeEvents = {
   onNotification: WebNotification;
   onNotificationClose: { id: string };
   onPictureInPicture: PictureInPictureState;
+  onAutoPictureInPictureKept: { appSwitch?: boolean; reason?: string };
+  onMediaFault: MediaFault;
   onActivateRequest: ActivateRequest;
   onDisplayMediaRequest: DisplayMediaRequest;
   onWindowClose: object;
@@ -63,7 +67,7 @@ type NativeEvents = {
   onScroll: { state: ScrollState };
   onProtectedMedia: ProtectedMediaRequest;
   onReady: object;
-  onDiscarded: { url: string };
+  onDiscarded: { url: string; reason?: DiscardReason | "" };
   onPasswordPrompt: PasswordPrompt;
   onAutofillPrompt: AutofillPrompt | { id: number; closed: true };
   onExternalApp: ExternalAppRequest;
@@ -99,6 +103,8 @@ const PAGE_EVENTS = {
   onNotification: "notification",
   onNotificationClose: "notificationClose",
   onPictureInPicture: "pictureInPicture",
+  onAutoPictureInPictureKept: "autoPictureInPictureKept",
+  onMediaFault: "mediaFault",
   onActivateRequest: "activateRequest",
   onDisplayMediaRequest: "displayMediaRequest",
   onWindowClose: "windowClose",
@@ -133,7 +139,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onPopupBlocked: (e) => [{ ...e, url: toAppUrl(e.url) }],
   onFindResult: (e) => [e],
   onFullscreen: (e) => [e.fullscreen],
-  onStatus: (e) => [e.text],
+  onStatus: (e) => [e.text, typeof e.fromBottom === "number" ? e.fromBottom : null],
   onCrashed: (e) => [e],
   onUnresponsive: () => [],
   onResponsive: () => [],
@@ -145,6 +151,8 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onNotification: (e) => [e],
   onNotificationClose: (e) => [e.id],
   onPictureInPicture: (e) => [e],
+  onAutoPictureInPictureKept: (e) => [e.reason === "nothingPlaying" ? "nothingPlaying" : e.appSwitch ? "appSwitch" : "onScreen"],
+  onMediaFault: (e) => [e],
   onActivateRequest: (e) => [e],
   onDisplayMediaRequest: (e) => [e],
   onWindowClose: () => [],
@@ -155,7 +163,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onScroll: (e) => [e.state],
   onProtectedMedia: (e) => [e],
   onReady: () => [],
-  onDiscarded: (e) => [toAppUrl(e.url)],
+  onDiscarded: (e) => [toAppUrl(e.url), e.reason || null],
   onPasswordPrompt: (e) => [e],
   onAutofillPrompt: (e) => ("closed" in e ? [null, e.id] : [e, e.id]),
   onExternalApp: (e) => [e],

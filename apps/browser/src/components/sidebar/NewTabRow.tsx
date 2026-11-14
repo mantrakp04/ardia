@@ -8,10 +8,12 @@ import { useCleanedCount } from "../../state/sidebar/hooks";
 import { openNewTabInSplit } from "../../state/splits/actions";
 import { openOverflowMenu, openSidebarMenu } from "../../state/sidebar/menus";
 import { toggleNewTabBar } from "../../state/omnibox/newTabBar";
+import { noteRowPressIn } from "../../state/sidebar/heldTabPress";
 import { modifiersOf } from "../../lib/keys";
 import { useClipped, useShift, type ClipSource } from "./EntryMotion";
 import { TAB_ROW, useSidebarTokens } from "./tokens";
 import { SidebarRowLabel } from "./SidebarRow";
+import { buttonMotion, usePressScaleMotion } from "../ui/motion";
 
 const CLIPPED = { marginTop: -layout.rowGap, paddingTop: layout.rowGap, overflow: "hidden" } as const;
 const NEW_TAB_LABEL_X = 30;
@@ -27,6 +29,8 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
   const tokens = useSidebarTokens();
   const cleaned = useCleanedCount(windowId);
   const { hovered, hoverProps } = useHover();
+  const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
+  const iconScale = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   const [moved, movedRef] = useShift(shift);
   const [movedButtons, movedButtonsRef] = useShift(shift);
   const clipped = useClipped(clip);
@@ -51,7 +55,11 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
       </View>
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void openSidebarMenu(windowId)}>
         <Pressable
-          style={{ flex: 1 }}
+          onPressIn={() => {
+            pressMotion.onPressIn?.();
+            noteRowPressIn(windowId);
+          }}
+          onPressOut={pressMotion.onPressOut}
           onPress={(e) => {
             if (modifiersOf(e).altKey) openNewTabInSplit(windowId);
             else toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true });
@@ -74,7 +82,9 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
                 moved.style as object,
               ]}
             >
-              <Symbol name="plus" size={13} weight="medium" color={tokens.newTabIcon} style={{ width: 16, height: 16 }} />
+              <Animated.View pointerEvents="none" style={iconScale}>
+                <Symbol name="plus" size={13} weight="medium" color={tokens.newTabIcon} style={{ width: 16, height: 16 }} />
+              </Animated.View>
               <SidebarRowLabel text="New Tab" color={tokens.newTabLabel} />
             </View>
           )}

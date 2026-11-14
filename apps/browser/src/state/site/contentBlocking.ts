@@ -1,5 +1,7 @@
 import { setContentBlockerEnabled, setFilterListEnabled, type ContentBlockerState, type FilterListCategory } from "../../platform/contentBlocker";
 
+export const blockerAvailable = (s: ContentBlockerState | null): s is ContentBlockerState => !!s && s.stats.ready !== false && s.lists.length > 0;
+
 export const categoryOn = (s: ContentBlockerState, category: FilterListCategory) => s.enabled && s.lists.some((l) => l.category === category && l.enabled);
 
 async function setLists(s: ContentBlockerState, ids: string[], on: boolean) {

@@ -7,7 +7,7 @@ import { TOOLBAR_ROWS, urlFieldOf, type ToolbarRow } from "../../lib/toolbarRow"
 import { ToolbarRowContext } from "../ui/toolbarRowContext";
 import { activate } from "../../state/tabs/actions";
 import { openPanel as openWindowPanel, toggleSidebar } from "../../state/windows/actions";
-import { useIsBookmarked, useSettings, useSidebarSide, useTab, useTabLayout, useTabLive, useWindow } from "../../state/browser/hooks";
+import { useIsBookmarked, useSettings, useSidebarSide, useTab, useTabLayout, useTabLive, useTabsShown } from "../../state/browser/hooks";
 import type { Tab } from "../../state/browser/types";
 import { Button, ContextMenuArea, Divider, FadeLabel, font, ink, space, Symbol, Text, useHover, WindowDragRegion } from "../ui";
 import { type ToolbarGeometry } from "../window/geometry";
@@ -29,7 +29,7 @@ import { GlassFill, useGlass } from "../ui/Glass";
 import { TranslateButton } from "../site/TranslateControls";
 import { ZoomIndicator } from "../site/ZoomControls";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
-import { curve } from "../ui/motion";
+import { buttonMotion, curve, usePressScaleMotion } from "../ui/motion";
 import { HistoryButton, ReloadButton } from "./NavButtons";
 import { ProgressBar, TabProgressBar } from "./ProgressBar";
 import { TOOLBAR_MOTION } from "./tokens";
@@ -72,7 +72,7 @@ export function Toolbar({
   const theme = useTheme();
   const sidebarHint = useShortcutHint("toggleSidebar");
   const tabsIcon = useTabsToggleIcon(windowId);
-  const tabsShown = useWindow(windowId, (w) => w?.sidebarOpen !== false);
+  const tabsShown = useTabsShown(windowId);
   const tab = useToolbarTab(tabId);
   const isLoading = useTabLive(tabId, (l) => l.isLoading);
   const palette = useSitePalette(tabId);
@@ -179,6 +179,8 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
   const field = useUrlField(tab, windowId, onFocus);
   const { insecure, hovered, popover, toggleSiteControls } = field;
   const glass = useGlass();
+  const lockPress = usePressScaleMotion(!!insecure, buttonMotion.iconPressScale);
+  const lockScaleStyle = lockPress.scale ? { transform: [{ scale: lockPress.scale }] } : undefined;
 
   return (
     <View {...field.hoverProps} style={[style, { flexDirection: "row", alignItems: "center", height: row.field, borderRadius: row.fieldRadius, backgroundColor: hovered && !glass ? palette.pill : undefined }]}>
@@ -186,13 +188,17 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
         <GlassFill state={hovered ? "lit" : "rest"} radius={row.fieldRadius} dark={palette.background ? palette.text.startsWith(ink.white) : undefined} />
       ) : null}
       {insecure && (
-        <Pressable onPress={toggleSiteControls} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
-          <Symbol
-            name="lock.open.trianglebadge.exclamationmark.fill"
-            size={12}
-            color={insecure === "certificateError" ? theme.destructive : palette.secondary}
-            style={{ width: LOCK.width, height: row.field }}
-          />
+        <Pressable onPress={toggleSiteControls} onPressIn={lockPress.onPressIn} onPressOut={lockPress.onPressOut} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
+          <View style={{ width: LOCK.width, height: row.field, alignItems: "center", justifyContent: "center" }}>
+            <Animated.View pointerEvents="none" style={lockScaleStyle}>
+              <Symbol
+                name="lock.open.trianglebadge.exclamationmark.fill"
+                size={12}
+                color={insecure === "certificateError" ? theme.destructive : palette.secondary}
+                style={{ width: LOCK.width, height: 18 }}
+              />
+            </Animated.View>
+          </View>
         </Pressable>
       )}
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void showUrlBarMenu(tab)}>

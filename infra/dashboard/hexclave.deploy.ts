@@ -18,6 +18,7 @@ export const deploy = ({ secret, service, hexclave }: any) => ({
         CLICKHOUSE_USER: CLICKHOUSE_USERS.reader,
         CLICKHOUSE_PASSWORD: secret(SECRETS.clickhouseReader),
         REPLAYS_HOST: service(SERVICES.objects).hostname(),
+        FEEDBACK_OBJECTS_HOST: service(SERVICES.feedbackObjects).hostname(),
         GITHUB_TOKEN: secret(SECRETS.dashboardGithubToken),
         TRIAGE_CLICKHOUSE_USER: CLICKHOUSE_USERS.sandbox,
         TRIAGE_CLICKHOUSE_PASSWORD: secret(SECRETS.clickhouseAdmin),

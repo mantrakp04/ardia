@@ -88,10 +88,21 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
   const card = useStripCardHover(windowId, tabId, drag.ref);
   if (!tab) return null;
   return (
-    <Animated.View ref={drag.ref} {...drag.panHandlers} {...card} mouseDownCanMoveWindow={false} style={drag.style}>
-      <View {...hoverProps} style={{ opacity: drag.crossed ? 0 : 1 }}>
+    <Animated.View ref={drag.ref} {...card} mouseDownCanMoveWindow={false} style={[drag.style, { width: PINNED_CELL, height: ITEM_HEIGHT - 1 }]}>
+      <View
+        {...drag.panHandlers}
+        {...hoverProps}
+        style={{
+          position: "absolute",
+          left: PINNED_FACE_INSET,
+          top: PINNED_FACE_INSET,
+          width: PINNED_CELL - PINNED_FACE_INSET * 2,
+          height: ITEM_HEIGHT - 1 - PINNED_FACE_INSET * 2,
+          opacity: drag.crossed ? 0 : 1,
+        }}
+      >
         <TabPressArea windowId={windowId} tab={tab}>
-          {({ pressed }) => <PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} />}
+          {({ pressed }) => <PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} frame="face" />}
         </TabPressArea>
       </View>
       {drag.crossed && strip && (
@@ -123,14 +134,28 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
     drop: (dx, ids) => reorder(ids, { tabId: null, ids: () => ids, pinned: true, groupId: null, geometry, from, width: PINNED_CELL, gap: PINNED_SPACING }, dropIndex(geometry, from, dx)),
   });
   return (
-    <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={drag.style}>
-      <View {...hoverProps} tooltip={`${label}\nShow Folder`}>
+    <Animated.View ref={drag.ref} mouseDownCanMoveWindow={false} style={[drag.style, { width: PINNED_CELL, height: ITEM_HEIGHT - 1 }]}>
+      <View
+        {...drag.panHandlers}
+        {...hoverProps}
+        tooltip={`${label}\nShow Folder`}
+        style={{
+          position: "absolute",
+          left: PINNED_FACE_INSET,
+          top: PINNED_FACE_INSET,
+          width: PINNED_CELL - PINNED_FACE_INSET * 2,
+          height: ITEM_HEIGHT - 1 - PINNED_FACE_INSET * 2,
+        }}
+      >
         <ContextMenuArea onContextMenu={() => void openTileFolderMenu(windowId, folderId)}>
-          <Pressable onPress={() => void openTileFolderStripMenu(windowId, folderId)}>
+          <Pressable
+            onPress={() => void openTileFolderStripMenu(windowId, folderId)}
+            style={{ width: PINNED_CELL - PINNED_FACE_INSET * 2, height: ITEM_HEIGHT - 1 - PINNED_FACE_INSET * 2 }}
+          >
             {({ pressed }) => (
-              <View style={{ width: PINNED_CELL, height: ITEM_HEIGHT - 1, alignItems: "center", justifyContent: "center" }}>
+              <View style={{ width: PINNED_CELL - PINNED_FACE_INSET * 2, height: ITEM_HEIGHT - 1 - PINNED_FACE_INSET * 2, alignItems: "center", justifyContent: "center" }}>
                 {(hovered || pressed) && (
-                  <View style={{ position: "absolute", left: PINNED_FACE_INSET, right: PINNED_FACE_INSET, top: PINNED_FACE_INSET, bottom: PINNED_FACE_INSET, borderRadius: PINNED_FACE_RADIUS, backgroundColor: glass ? undefined : pressed ? theme.tabPressed : theme.tabHover }}>
+                  <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: PINNED_FACE_RADIUS, backgroundColor: glass ? undefined : pressed ? theme.tabPressed : theme.tabHover }}>
                     {glass ? <GlassFill radius={PINNED_FACE_RADIUS} state={pressed ? "pressed" : "lit"} /> : null}
                   </View>
                 )}

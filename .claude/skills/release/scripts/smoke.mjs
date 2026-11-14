@@ -14,6 +14,18 @@ const check = (name, ok, detail = "") => {
 const locked = process.env.SMOKE_LOCKED === "1";
 const checkUnlocked = (name, ok, detail = "") =>
   locked ? console.log(`SKIP  ${name}  (screen locked; ${ok ? "would pass" : "would fail"}${detail ? `: ${detail}` : ""})`) : check(name, ok, detail);
+const access = process.env.SMOKE_ACCESS ?? "post=1 titles=1";
+const canPostKeys = /post=1/.test(access);
+const canReadTitles = /titles=1/.test(access);
+const needs = (able, why) => (name, ok, detail = "") =>
+  able ? check(name, ok, detail) : console.log(`SKIP  ${name}  (${why}; ${ok ? "would pass" : "would fail"}${detail ? `: ${detail}` : ""})`);
+const checkKeys = needs(canPostKeys, "this process can't post key events: give the terminal Accessibility in System Settings › Privacy & Security");
+const checkTitles = needs(canReadTitles, "this process can't read window titles: give the terminal Screen Recording in System Settings › Privacy & Security");
+const pressOrRun = async (code, mods, command, arg) => {
+  if (canPostKeys) return execFileSync(process.env.SMOKE_KEYS, [pid, code, mods]);
+  await instance.eval(`ac.runCommand(${JSON.stringify({ command, ...(arg ? { arg } : {}) })}); return true;`);
+};
+if (!canPostKeys || !canReadTitles) console.log(`note: ${access}: key-routing checks need Accessibility and window-title checks need Screen Recording; the rest runs through the app's own commands`);
 const windows = () =>
   execFileSync(windowsTool, [pid], { encoding: "utf8" }).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
 
@@ -154,7 +166,7 @@ for (let i = 0, last = ""; i < 12; i++) {
   list = windows();
 }
 const dialog = list.find((w) => /passkey/i.test(w.title));
-check("passkey dialog shows", !!dialog, dialog?.title ?? "no passkey window");
+checkTitles("passkey dialog shows", !!dialog, dialog?.title ?? "no passkey window");
 if (dialog) {
   const owner = list.slice(list.indexOf(dialog) + 1).find((w) => level(w) === 0 && w.w > 400 && w.h > 300);
   const inside = owner && dialog.x >= owner.x && dialog.x + dialog.w <= owner.x + owner.w && dialog.y >= owner.y && dialog.y + dialog.h <= owner.y + owner.h;
@@ -165,7 +177,7 @@ if (dialog) {
 }
 await go(`${pages}/form.html`);
 await sleep(1500);
-checkUnlocked("…and closes when the page navigates", !windows().some((w) => /passkey/i.test(w.title)));
+(canReadTitles ? checkUnlocked : checkTitles)("…and closes when the page navigates", !windows().some((w) => /passkey/i.test(w.title)));
 
 const adsOnPage = () => adFate(adScript, () => go(`${pages}/ad.html`));
 const allowAds = (allowed) => instance.eval(`return ac.engine.call("contentBlocker.setAllowed", ${JSON.stringify({ host: "localhost", allowed })})`, { timeout: 30000 });
@@ -223,7 +235,7 @@ for (const [key, code] of [["⌘2", 19], ["⌘9", 25], ["⌘1", 18]]) {
   numbered.push([key, await shownPage()]);
 }
 const [two, nine, one] = numbered.map(([, url]) => url);
-check("⌘2, ⌘9 and ⌘1 select the sidebar's second, last and first (pinned) tab",
+checkKeys("⌘2, ⌘9 and ⌘1 select the sidebar's second, last and first (pinned) tab",
   /\?pin-a$/.test(one ?? "") && !!two && !!nine && new Set([one, two, nine]).size === 3 && !/\?pin-a$/.test(two),
   numbered.map(([key, url]) => `${key} ${url?.replace(/^.*\//, "") ?? "nothing shown"}`).join(", "));
 
@@ -253,7 +265,7 @@ check(
   logged ? `logged: ${logged.slice(0, 80)}` : menu ? `layer ${menu.layer}` : "no menu",
 );
 
-execFileSync(process.env.SMOKE_KEYS, [pid, "18", "t"]);
+await pressOrRun("18", "t", "switchProfile", "default");
 let homeContext;
 for (const start = Date.now(); !homeContext && Date.now() - start < 8000; await sleep(500)) {
   homeContext = (await browserCall("Target.getTargets")).targetInfos?.find((t) => t.type === "page" && t.url.endsWith("?home"))?.browserContextId;
@@ -286,7 +298,7 @@ check("a page that stops responding is reported (Page Unresponsive)", !!hang, ha
 
 const newTabId = await (async () => {
   const before = await instance.eval(`return ac.store.getState().tabs ? Object.keys(ac.store.getState().tabs) : [];`).catch(() => []);
-  execFileSync(process.env.SMOKE_KEYS, [pid, "17", "c"]);
+  await pressOrRun("17", "c", "newTab");
   for (const end = Date.now() + 5000; Date.now() < end; await sleep(200)) {
     const now = await instance.eval(`return Object.keys(ac.store.getState().tabs);`).catch(() => []);
     const added = now.filter((id) => !before.includes(id));

@@ -1,12 +1,13 @@
 import io
 import json
+import re
 import sys
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ardia_cli import telemetry
+from ardia_cli import telemetry, workspace_cli
 from tests.test_automation import Base
 
 TREE = {
@@ -47,6 +48,67 @@ class Workspace(Base):
 
     def sent(self, server):
         return [p["ops"] for m, p in server.requests if m == "apply"]
+
+    def serve_usage(self, usage):
+        server = self.serve()
+
+        def workspace(params):
+            if not params.get("usage"):
+                return {"result": TREE}
+            tree = json.loads(json.dumps(TREE))
+            for tab in workspace_cli.flat_tabs(tree):
+                pid, cpu, memory = usage.get(tab["id"], (None, None, None))
+                for item, _, _ in workspace_cli.walk([node for space in tree["windows"][0]["spaces"] for _, items in workspace_cli.sections(space) for node in items]):
+                    if item.get("id") == tab["id"]:
+                        item.update(pid=pid, cpu=cpu, memory=memory)
+            return {"result": tree}
+
+        server.replies["workspace"] = workspace
+        return server
+
+    def test_usage_lists_the_hottest_tab_first_with_its_process(self):
+        server = self.serve_usage({"tab-1": (501, 3.2, 90_000_000), "tab-2": (777, 87.3, 412_000_000), "tab-3": (777, 87.3, 412_000_000)})
+        status, out, _ = self.run_cli("tabs", "--usage")
+        self.assertEqual(status, 0)
+        lines = out.splitlines()
+        self.assertEqual(lines[0].split(), ["PID", "CPU%", "MEMORY", "TAB"])
+        self.assertEqual([line.split()[:4] for line in lines[1:3]], [["777", "87.3", "412", "MB"]] * 2)
+        self.assertEqual(lines[3].split()[:6], ["501", "3.2", "90", "MB", "*", "tab-1"])
+        self.assertEqual(lines[4].split()[:4], ["-", "-", "-", "tab-9"])
+        self.assertIn("(asleep, pinned tile)", lines[4])
+        self.assertEqual(server.requests[-1], ("workspace", {"usage": True}))
+        status, out, _ = self.run_cli("tabs", "--usage", "--flat", "--json")
+        self.assertEqual({tab["id"]: tab["pid"] for tab in json.loads(out)}, {"tab-9": None, "tab-2": 777, "tab-3": 777, "tab-1": 501})
+        self.run_cli("tabs", "--json")
+        self.assertEqual(server.requests[-1], ("workspace", {}))
+
+    def test_pid_names_the_tabs_of_a_process(self):
+        self.serve_usage({"tab-1": (501, 3.2, 90_000_000), "tab-2": (777, 87.3, 412_000_000), "tab-3": (777, 1.0, 412_000_000)})
+        status, out, _ = self.run_cli("tabs", "--pid", "777")
+        self.assertEqual(status, 0)
+        self.assertEqual([line.split()[3 if "MB" not in line else 4] for line in out.splitlines()[1:]], ["tab-2", "tab-3"])
+        status, out, _ = self.run_cli("tabs", "--pid", "777", "--json")
+        self.assertEqual([tab["id"] for tab in json.loads(out)], ["tab-2", "tab-3"])
+        status, out, err = self.run_cli("tabs", "--pid", "4")
+        self.assertEqual((status, out), (1, ""))
+        self.assertIn("no tab runs in process 4", err)
+
+    def test_an_ardia_without_process_ids_still_shows_usage_and_says_so_for_pid(self):
+        self.serve_usage({"tab-1": (None, 3.2, 90_000_000)})
+        status, out, _ = self.run_cli("tabs", "--usage")
+        self.assertEqual(status, 0)
+        self.assertEqual(out.splitlines()[1].split()[:6], ["-", "3.2", "90", "MB", "*", "tab-1"])
+        self.assertIn("doesn't report process ids yet", out.splitlines()[-1])
+        status, _, err = self.run_cli("tabs", "--pid", "777")
+        self.assertEqual(status, 1)
+        self.assertIn("doesn't report tab process ids yet", err)
+
+    def test_an_older_ardia_says_to_update_for_usage(self):
+        server = self.serve()
+        server.replies["workspace"] = lambda params: {"error": {"code": "bad_request", "message": "workspace takes window and profile, not usage."}}
+        status, _, err = self.run_cli("tabs", "--usage")
+        self.assertEqual(status, 1)
+        self.assertIn("doesn't know --usage and --pid yet; update Ardia", err)
 
     def test_tree_flat_and_groups(self):
         server = self.serve_ops()
@@ -116,6 +178,23 @@ class Workspace(Base):
         status, _, _ = self.run_cli("tabs", "move", "t", "--top", "--group", "g")
         self.assertEqual(status, 2)
         self.assertEqual(self.sent(server), [])
+
+    def test_colors_are_the_ones_the_sidebar_draws(self):
+        core = (Path(__file__).resolve().parents[3] / "packages/core/src/tabGroups.ts").read_text()
+        tints = tuple(re.findall(r'"(\w+)"', re.search(r"TAB_GROUP_COLORS = \[([^\]]*)\]", core).group(1)))
+        self.assertEqual(workspace_cli.TINTS, tints)
+        self.assertEqual(workspace_cli.COLORS, ("neutral", "none", *tints))
+        server = self.serve_ops()
+        for color in workspace_cli.COLORS:
+            status, _, err = self.run_cli("groups", "create", "tab-1", "--color", color)
+            self.assertEqual(status, 0, (color, err))
+            self.assertEqual(self.sent(server)[-1], [{"op": "group.create", "tabs": ["tab-1"], "color": color}])
+        sent = len(self.sent(server))
+        for color in ("magenta", "Purple", "#9B6CF0"):
+            status, _, err = self.run_cli("groups", "create", "tab-1", "--color", color)
+            self.assertEqual(status, 2, color)
+            self.assertIn("invalid choice", err)
+        self.assertEqual(len(self.sent(server)), sent)
 
     def test_failures_and_partial_batches_exit_1(self):
         partial = {"result": {"ok": False, "applied": 1, "results": [{"op": "tab.mute", "tabs": ["tab-1"]}], "error": {"index": 1, "code": "no_window", "message": "Operation 1 (tab.move): There's no tab x the ardia command can use."}, "tabs": [], "groups": [], "windows": []}}

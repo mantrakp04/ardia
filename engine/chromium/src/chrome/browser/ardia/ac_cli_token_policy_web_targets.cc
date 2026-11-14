@@ -5,6 +5,7 @@
 
 #include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_hooks.h"
+#include "ardia/core/ac_host_visibility.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -46,14 +47,15 @@ bool IsPrivilegedContents(content::WebContents* contents) {
     return true;
   }
   return g_ardia_hidden_from_extensions &&
-         g_ardia_hidden_from_extensions(browser);
+         g_ardia_hidden_from_extensions(browser) &&
+         !ardiacore::IsAutomationWindow(browser);
 }
 
 bool IsWebProcess(content::RenderProcessHost* process) {
   if (!process) {
     return false;
   }
-  const int id = process->GetDeprecatedID();
+  const content::ChildProcessId id = process->GetID();
   if (content::ChildProcessSecurityPolicy::GetInstance()->HasWebUIBindings(
           id)) {
     return false;
@@ -183,6 +185,13 @@ bool IsWebHost(content::DevToolsAgentHost* host) {
 bool IsWebTarget(const std::string* target_id) {
   return target_id &&
          IsWebHost(content::ArdiaDevToolsAgentHostForId(*target_id));
+}
+
+bool IsOffscreenTarget(const std::string* target_id) {
+  content::DevToolsAgentHost* host =
+      target_id ? content::ArdiaDevToolsAgentHostForId(*target_id) : nullptr;
+  content::WebContents* contents = host ? host->GetWebContents() : nullptr;
+  return contents && ardiacore::InAutomationWindow(contents);
 }
 
 }

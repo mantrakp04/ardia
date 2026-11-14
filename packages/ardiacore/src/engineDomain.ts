@@ -32,6 +32,7 @@ export type EngineTask = {
   memory: number;
   gpuMemory: number;
   tabIds: (string | null)[];
+  pid?: number;
 };
 
 export type SystemState = {
@@ -58,9 +59,35 @@ export const inputIdleSeconds = () => nativeModule("ArdiaEngine").inputIdleSecon
 
 type CliServer = { connections: number; generation: number; file: string; reason?: string };
 
+export type HoverLostEpisode = {
+  reason: "halfActive" | "staleMenu" | "notKeyOrMain" | "coveredByView" | "responderLost";
+  trigger: "move" | "click";
+  keyWindow: string;
+  mainWindow: string;
+  preventKey: boolean;
+  canKey: boolean;
+  windowMain: boolean;
+  halfActive: boolean;
+  appActive: boolean;
+  runningActive: boolean;
+  frontmost: boolean;
+  menuActive: boolean;
+  overPage: boolean;
+  cover: "none" | "reactNative" | "chromium" | "other";
+  coverClear: boolean;
+  healed: boolean;
+  healWorked: boolean | null;
+  endedBy: "hover" | "heal" | "appInactive" | "windowClosed";
+  seconds: number;
+  episode: number;
+};
+
 export type CliTabTarget = { targetId: string | null; pageGeneration: number };
 
-export type CliControlStatus =
+export type CliDragsEnded = { ownerGone: number; debuggerUnowned: number; nativeRefused: number; sourceGone?: number };
+
+export type CliControlStatus = { dragsEnded?: CliDragsEnded } & (
   | { state: "external" }
   | ({ state: "off" | "starting" } & CliServer)
-  | ({ state: "on"; port: number } & CliServer);
+  | ({ state: "on"; port: number } & CliServer)
+);

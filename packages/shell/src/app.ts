@@ -33,6 +33,16 @@ export type SystemInfo = {
   forceReleaseNotes?: boolean;
   processStart?: number | null;
   bootTime?: number | null;
+  launchMarks?: {
+    mainStarted?: number;
+    startupPrepared?: number;
+    chromiumEntered?: number;
+    engineStarted?: number;
+    earlyWindowShown?: number;
+    reactNativeStarted?: number;
+  } | null;
+  launchedHidden?: boolean | null;
+  loadAverage1m?: number | null;
   inApplicationsFolder?: boolean;
   updatePrewarm?: { build?: string; at?: number; ms?: number; status?: number } | null;
 };

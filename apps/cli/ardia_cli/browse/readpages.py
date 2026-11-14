@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Usage
 
 READ_TABS = 4
+READER_TRIES = 2
 HTTP_WORKERS = 4
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
@@ -17,6 +18,8 @@ SAME_DOCUMENT_WAIT = 3.0
 MIN_USEFUL = 120
 CUT_MARK = 24
 MAX_STDIN = 1024 * 1024
+PAGE_SHARE = 3000
+PAGES_CAP_CEILING = 24000
 
 LINKS = r"""() => {
   const out = [];
@@ -54,11 +57,80 @@ SETTLE_PROBE = r"""() => {
 }"""
 HTTP_ONLY = ("llms", "require_md", "raw")
 
+SCROLL_ROWS_DEFAULT = 1000
+SCROLL_ROWS_MAX = 10000
+SCROLL_TIMEOUT_MS = 30000
+SCROLL_QUIET = 0.1
+SCROLL_SETTLE = 1.5
+SCROLL_BUSY_SETTLE = 8.0
+SCROLL_POLL = 0.04
+
+SCROLL_STEP = r"""(selector, action, to) => {
+  const ROW = "[role=option], [role=row], [role=listitem], [role=treeitem], [role=article], [role=feed] > *, li, tr, article";
+  const LOADING = /^\s*loading(\.\.\.|…)?\s*$/i;
+  const found = (typeof selector === "string" ? ardiaBrowse.queryAll(selector) : [selector]).filter((el) => el && el.nodeType === 1);
+  if (!found.length) return { missing: true };
+  const outermost = (hits, within) => {
+    const set = new Set(hits);
+    return hits.filter((el) => { for (let p = el.parentElement; p && p !== within; p = p.parentElement) if (set.has(p)) return false; return true; });
+  };
+  const rowsIn = (list) => {
+    const hits = outermost(Array.from(list.querySelectorAll(ROW)), list);
+    if (hits.length) return hits;
+    let box = list;
+    for (;;) {
+      const kids = Array.from(box.children).filter((child) => (child.innerText || "").trim());
+      if (kids.length === 1 && kids[0].children.length) box = kids[0];
+      else return kids;
+    }
+  };
+  const list = found.find((el) => ardiaBrowse.visible(el)) || found[0];
+  const rows = found.length > 1 && !list.querySelector(ROW) ? found : rowsIn(list);
+  const page = document.scrollingElement || document.documentElement;
+  const scrolls = (el) => /(auto|scroll|overlay)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 1;
+  const scrollerFrom = (start) => {
+    for (let node = start; node && node !== document.body && node !== document.documentElement; node = node.parentElement) if (scrolls(node)) return node;
+    return null;
+  };
+  const inside = () => {
+    const walker = document.createTreeWalker(list, NodeFilter.SHOW_ELEMENT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) if (scrolls(node)) return node;
+    return null;
+  };
+  const scroller = scrollerFrom(rows[0] || list) || scrollerFrom(list) || inside() || page;
+  const whole = scroller === page || scroller === document.body;
+  const position = () => whole ? window.scrollY : scroller.scrollTop;
+  const view = whole ? window.innerHeight : scroller.clientHeight;
+  const height = whole ? Math.max(page.scrollHeight, document.body ? document.body.scrollHeight : 0) : scroller.scrollHeight;
+  const moveTo = (y) => { if (whole) window.scrollTo(window.scrollX, y); else scroller.scrollTop = y; };
+  const before = position();
+  const base = whole ? 0 : scroller.getBoundingClientRect().top;
+  const lastRendered = () => rows.reduce((far, row) => Math.max(far, row.getBoundingClientRect().top - base + before), 0);
+  if (action === "start") moveTo(0);
+  else if (action === "next") moveTo(Math.max(before + Math.max(view * 0.9, 40), Math.min(lastRendered(), before + view * 20)));
+  else if (action === "restore") moveTo(to);
+  const top = position();
+  const out = [];
+  for (const row of rows) {
+    const text = ardiaBrowse.readable(row).split("\n").map((line) => line.trim()).filter(Boolean).join(" · ");
+    if (!text || LOADING.test(text) || row.getAttribute("aria-busy") === "true") continue;
+    const raw = row.getAttribute("aria-posinset") || row.getAttribute("aria-rowindex") || row.getAttribute("data-index") || row.getAttribute("data-row-index");
+    const index = raw != null && raw !== "" && Number.isFinite(Number(raw)) ? Number(raw) : null;
+    const id = row.getAttribute("data-id") || row.getAttribute("data-key") || row.id || "";
+    out.push({ text, index, id, offset: Math.round(row.getBoundingClientRect().top - base + top) });
+  }
+  const busy = !!list.querySelector("[aria-busy=true]") || list.getAttribute("aria-busy") === "true"
+    || Array.from(scroller.children).some((child) => LOADING.test(child.textContent || ""));
+  return { rows: out, before, position: top, moved: Math.abs(top - before) > 1, height, view, busy,
+           atEnd: top + view >= height - 2, scroller: ardiaBrowse.describe(scroller), hidden: document.visibilityState === "hidden" };
+}"""
+
 
 def flags() -> dict:
     from ardia_cli.browse import readurl
 
-    return {**readurl.FLAGS, "--http": "bool", "--stdin": "bool", "--links": "value", "--limit": "value", "--selector": "value", "--list": "bool"}
+    return {**readurl.FLAGS, "--http": "bool", "--stdin": "bool", "--links": "value", "--limit": "value", "--selector": "value", "--list": "bool",
+            "--scroll": "bool", "--match": "value"}
 
 
 ALIASES = {"-s": "--selector"}
@@ -215,14 +287,29 @@ def footer(limit: int, cut_any: bool, hidden: int, wanted: int) -> str:
             f"Only if you need every line: --max-output {wanted}]")
 
 
-def render(records: list[dict], options: dict, extra: str = "") -> str:
+VIRTUALIZED_MARK = "rows rendered; the grid is virtualized"
+
+
+def note_virtualized(*texts: str) -> None:
+    from ardia_cli import command_metrics
+
+    if any(VIRTUALIZED_MARK in (text or "") for text in texts):
+        command_metrics.flag("read_virtualized_grid", True)
+
+
+def pages_cap(pages: int) -> int:
     from ardia_cli.browse.daemon import OUTPUT_CAP
+
+    return min(max(PAGE_SHARE * pages, OUTPUT_CAP), PAGES_CAP_CEILING)
+
+
+def render(records: list[dict], options: dict, extra: str = "") -> str:
     from ardia_cli.redact import redact
 
     heads = [redact(header(record, index + 1, len(records))) for index, record in enumerate(records)]
     texts = [redact(record.get("text") or ("" if record.get("error") else "(no text)")) for record in records]
     extra = redact(extra)
-    limit = None if options.get("full") else (OUTPUT_CAP if options.get("max_output") is None else int(options["max_output"]))
+    limit = None if options.get("full") else (pages_cap(len(records)) if options.get("max_output") is None else int(options["max_output"]))
     whole = join(heads, texts, [extra])
     if not limit or limit <= 0 or len(whole) <= limit:
         return whole
@@ -284,7 +371,9 @@ async def open_reader(state, opened: list[str]):
 async def probe(page):
     try:
         return tuple(await page.call(SETTLE_PROBE, frame=page.main_frame, read=True))
-    except BrowseError:
+    except BrowseError as error:
+        if error.code == "tab_detached":
+            raise
         return None, None, True
 
 
@@ -372,6 +461,7 @@ async def read_in(ctx, page, url: str, selector: str | None, timeout: float, opt
 
 
 async def read_tabs(ctx, urls: list[str], selector: str | None, timeout: float, options: dict) -> list[dict]:
+    from ardia_cli import command_metrics
     from ardia_cli.browse import temptabs
 
     state = ctx.state
@@ -385,9 +475,13 @@ async def read_tabs(ctx, urls: list[str], selector: str | None, timeout: float, 
         page = None
         while queue:
             index, url = queue.pop(0)
-            if page is None or page.session_id is None:
-                page = await open_reader(state, opened)
-            records[index] = await read_in(ctx, page, url, selector, timeout, options)
+            for attempt in range(READER_TRIES):
+                if page is None or page.session_id is None:
+                    page = await open_reader(state, opened)
+                records[index] = await read_in(ctx, page, url, selector, timeout, options)
+                if page.session_id is not None or "error" not in records[index] or attempt + 1 == READER_TRIES:
+                    break
+                command_metrics.add("read_tabs_reopened")
 
     tasks = [asyncio.ensure_future(worker()) for _ in range(min(READ_TABS, len(urls)))]
     try:
@@ -429,7 +523,12 @@ def read_http(urls: list[str], options: dict) -> list[dict]:
 def result_for(records: list[dict], options: dict, global_options: dict, extra: str = "", data_extra: dict | None = None):
     from ardia_cli.browse.commands import Result
 
+    from ardia_cli import command_metrics
+
     result = Result({"pages": records, **(data_extra or {})}, render(records, global_options, extra), page_content=True)
+    result.output_cap = pages_cap(len(records))
+    command_metrics.count("read_pages", len(records))
+    note_virtualized(*(record.get("text") for record in records))
     if any(record.get("error") for record in records):
         result.failed = True
     return result
@@ -445,6 +544,170 @@ def run_local(options: dict, positional: list[str], stdin: str | None, global_op
         raise Usage("-s needs the browser's DOM; drop --http to read the pages in Ardia")
     extra = limit_note(len(urls), limit, "--limit")
     return result_for(read_http(urls[:limit], options), options, global_options, extra)
+
+
+def parse_rows(value, matching_rows: bool = False) -> int:
+    if value is None:
+        return SCROLL_ROWS_MAX if matching_rows else SCROLL_ROWS_DEFAULT
+    if not str(value).isdigit() or not 1 <= int(value) <= SCROLL_ROWS_MAX:
+        raise Usage(f"--limit with --scroll takes a number of rows from 1 to {SCROLL_ROWS_MAX}, not {value}")
+    return int(value)
+
+
+def scroll_timeout(options: dict) -> float:
+    value = options.get("timeout")
+    if value is None:
+        return SCROLL_TIMEOUT_MS / 1000
+    if not str(value).isdigit() or int(value) <= 0:
+        raise Usage(f"--timeout takes milliseconds, not {value}")
+    return int(value) / 1000
+
+
+def row_key(row: dict):
+    if row.get("index") is not None:
+        return ("index", row["index"])
+    if row.get("id"):
+        return ("id", row["id"])
+    return ("at", row["offset"], row["text"])
+
+
+def row_order(row: dict):
+    return (0, row["index"], row["offset"]) if row.get("index") is not None else (1, row["offset"], 0)
+
+
+class RowCollector:
+    def __init__(self):
+        self.rows: dict = {}
+
+    def absorb(self, step: dict) -> int:
+        added = 0
+        for row in step.get("rows") or []:
+            key = row_key(row)
+            if key not in self.rows:
+                self.rows[key] = row
+                added += 1
+        return added
+
+    def ordered(self) -> list[dict]:
+        return sorted(self.rows.values(), key=row_order)
+
+
+def matching(rows: list[dict], match: str | None) -> list[dict]:
+    if not match:
+        return rows
+    wanted = match.casefold()
+    return [row for row in rows if wanted in row["text"].casefold()]
+
+
+def scroll_summary(total: int, shown: int, match: str | None, stopped: str, limit: int, seconds: float, hidden_tab: str | None = None) -> str:
+    counted = f"{total} row{'s' if total != 1 else ''}"
+    if match:
+        counted = f"{shown} of {counted} match \"{match}\""
+    reasons = {
+        "end": "scrolled to the end of the list",
+        "limit": f"stopped at --limit {limit}; --limit <n> for more",
+        "time": f"stopped after {seconds:g} s before the end of the list; --timeout <ms> for longer",
+    }
+    hidden = (f"; the tab is hidden, so the page may not have drawn every row: ardia browse tab {hidden_tab} --show, then read again"
+              if hidden_tab and stopped == "end" else "")
+    return f"[{counted}; {reasons[stopped]}{hidden}]"
+
+
+async def scroll_step(page, frame, target, action: str, to: float = 0) -> dict:
+    step = await page.call(SCROLL_STEP, target, action, to, frame=frame, read=True)
+    if not step or step.get("missing"):
+        raise BrowseError(f"nothing on the page matches {target}", code="no_match")
+    return step
+
+
+async def settle_rows(page, frame, target, collector: RowCollector, deadline: float) -> dict:
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    last = None
+    since = started
+    while True:
+        step = await scroll_step(page, frame, target, "peek")
+        collector.absorb(step)
+        now = loop.time()
+        fingerprint = (step["height"], len(step["rows"]), step["busy"], tuple(row_key(row) for row in step["rows"][:3]))
+        if fingerprint != last:
+            last, since = fingerprint, now
+        elif not step["busy"] and now - since >= SCROLL_QUIET:
+            return step
+        limit = SCROLL_BUSY_SETTLE if step["busy"] else SCROLL_SETTLE
+        if now - started >= limit or now >= deadline:
+            return step
+        await asyncio.sleep(SCROLL_POLL)
+
+
+async def scroll_rows(page, frame, target, limit: int, timeout: float) -> tuple[list[dict], str, dict]:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    collector = RowCollector()
+    first = await scroll_step(page, frame, target, "start")
+    origin = first["before"]
+    stopped = "end"
+    try:
+        current = await settle_rows(page, frame, target, collector, deadline)
+        while True:
+            if len(collector.rows) >= limit:
+                stopped = "limit"
+                break
+            if loop.time() >= deadline:
+                stopped = "time"
+                break
+            height = current["height"]
+            moved = await scroll_step(page, frame, target, "next")
+            collector.absorb(moved)
+            current = await settle_rows(page, frame, target, collector, deadline)
+            if not moved["moved"] and current["height"] <= height and current["position"] + current["view"] >= current["height"] - 2:
+                break
+    finally:
+        try:
+            await scroll_step(page, frame, target, "restore", origin)
+        except BrowseError:
+            pass
+    return collector.ordered()[:limit], stopped, first
+
+
+def scrolls(options: dict) -> bool:
+    return bool(options.get("scroll") or options.get("match") is not None)
+
+
+async def run_scroll(ctx, options: dict, positional: list[str]):
+    from ardia_cli import command_metrics
+    from ardia_cli.browse.commands import Result
+    from ardia_cli.browse.state import parse_ref
+
+    selector = options.get("selector")
+    if not options.get("scroll"):
+        raise Usage("--match goes with --scroll: read -s <list> --scroll --match <text>")
+    if not selector or positional or options.get("stdin") or options.get("links") is not None or fetch_only(options):
+        raise Usage("--scroll reads one list on the session's tab: read -s <list> --scroll [--limit n] [--match <text>]")
+    match = options.get("match")
+    limit = parse_rows(options.get("limit"), bool(match))
+    timeout = scroll_timeout(options)
+    if parse_ref(selector):
+        page, target = await ctx.state.locate(selector)
+        frame = target.frame
+    else:
+        page = await ctx.state.page()
+        frame = ctx.state.frame_for(page) or page.main_frame
+        target = selector
+    started = asyncio.get_running_loop().time()
+    rows, stopped, first = await scroll_rows(page, frame, target, limit, timeout)
+    seconds = round(asyncio.get_running_loop().time() - started, 1)
+    shown = matching(rows, match)
+    command_metrics.flag("read_scrolled", True)
+    command_metrics.count("read_rows", len(rows))
+    if match:
+        command_metrics.flag("read_matched", True)
+    hidden_tab = ctx.state.tab_id(page.target_id) if first.get("hidden") else None
+    summary = scroll_summary(len(rows), len(shown), match, stopped, limit, seconds, hidden_tab)
+    text = "\n".join([row["text"] for row in shown] + [summary])
+    data = {"rows": [row["text"] for row in shown], "total": len(rows), "matched": len(shown) if match else None,
+            "stopped": stopped, "scroller": first.get("scroller"), "url": page.url}
+    return Result(data, text, page_content=True)
 
 
 def limit_note(found: int, limit: int, flag: str) -> str:

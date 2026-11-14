@@ -1,5 +1,6 @@
 {
   "id": "fixes-0244n3",
+  "dropEvents": ["menu", "submenu"],
   "segments": [
     {
       "scene": "sidebarfield",

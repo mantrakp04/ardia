@@ -1,18 +1,19 @@
 import { openTaskManager } from "../../platform/performance";
 import { copyText } from "../../platform/clipboard";
 import { engineInfo, systemInfo, updaterState } from "../../platform/app";
-import { startOnboarding } from "../onboarding/onboarding";
+import { redoOnboarding } from "../onboarding/onboarding";
 import { openVideoTour, startToolTour } from "../onboarding/tour";
 import { useBrowser } from "../browser/store";
 import { focusedWindowOf } from "../windows/ui";
 import { openReport } from "../report/actions";
 import { openReleaseNotesPage } from "../releaseNotes/releaseNotesPage";
+import { webKitMediaFaultsLine } from "../telemetry/webkitMediaFaults";
 import type { AppCommand } from "./commandCatalog";
 
 export const APP_COMMAND_HANDLERS: Readonly<Record<AppCommand, (windowId: string | null) => void>> = {
   reportProblem: (windowId) => reportProblem(windowId),
   copyDiagnostics: () => void diagnostics().then(copyText),
-  showOnboarding: (windowId) => startOnboarding(windowId),
+  showOnboarding: (windowId) => void redoOnboarding(windowId),
   toolTour: (windowId) => void startToolTour(windowId),
   videoTour: (windowId) => openVideoTour(windowId),
   releaseNotes: (windowId) => openReleaseNotesPage(windowId),
@@ -41,6 +42,7 @@ export async function diagnostics(): Promise<string> {
       : !updates.configured
         ? "Updates: not set up for this build"
         : `Updates: automatic checks ${updates.automaticChecks ? "on" : "off"}, feed ${updates.feedURL ?? "none"}`,
+    webKitMediaFaultsLine(),
     ...(engine?.focus ? [`Focus: ${engine.focus.replace(/\n/g, "\n  ")}`] : []),
   ].join("\n");
 }

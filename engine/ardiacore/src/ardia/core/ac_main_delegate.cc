@@ -241,12 +241,6 @@ class ACContentBrowserClient : public ChromeContentBrowserClient {
     MaybeAddNavigationHoldThrottle(registry);
     ardia::AddScriptsPagesThrottle(registry);
   }
-  void AppendExtraCommandLineSwitches(base::CommandLine* command_line,
-                                      int child_process_id) override {
-    ChromeContentBrowserClient::AppendExtraCommandLineSwitches(command_line,
-                                                               child_process_id);
-    PassSwitchesToGpuProcess(command_line);
-  }
   std::optional<base::TimeDelta> GetSpareRendererDelayForSiteURL(
       const GURL& site_url) override {
     std::optional<base::TimeDelta> delay =
@@ -344,7 +338,6 @@ void QuietIdleTimers(base::CommandLine* command_line) {
 
 std::optional<int> ACMainDelegate::BasicStartupComplete() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  g_ardia_begin_frame_bridge = ExperimentOn("beginFrameBridge");
   MergeFeatures(command_line, switches::kDisableFeatures,
                 "Glic,GlicActor,GlicActorUi,ApiGlicPrivate,ContextualCueing,"
                 "GlicZeroStateSuggestions");

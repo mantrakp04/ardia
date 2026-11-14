@@ -12,7 +12,6 @@ export const startWindowRecording = (windowId: string, includePages: boolean, pa
   Report().startRecording(windowId, includePages, path, maxSeconds, fps, maxPixelWidth);
 export const stopWindowRecording = () => Report().stopRecording();
 export const cancelWindowRecording = () => Report().cancelRecording();
-export const isRecordingWindow = () => Report().isRecording();
 export const recordingThumbnail = (path: string, out: string) => Report().recordingThumbnail(path, out);
 export const gzipFile = (source: string, destination: string, removeSource: boolean) => Report().gzipFile(source, destination, removeSource);
 export const gzipText = (text: string, destination: string) => Report().gzipText(text, destination);

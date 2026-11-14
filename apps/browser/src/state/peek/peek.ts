@@ -119,11 +119,12 @@ export const createPeekSlice: StateCreator<BrowserState, [], [], PeekSlice> = (s
     if (activate) s = forgetOpeners(s, windowId);
     const loaded = hasNavigatedPage(tab);
     const moved = { ...tab, openerId: s.tabs[peek.sourceId] ? peek.sourceId : null, page: loaded ? renavigated(tab, navigationTo(tab.url)) : tab.page, lastActiveAt: Date.now() };
+    if (moved.openerId) moved.linkOpenerId = peek.sourceId;
     const tabs = { ...s.tabs, [tab.id]: moved };
     const w = s.windows[windowId]!;
     const tabIds = [...w.tabIds];
     tabIds.splice(Math.min(insertionIndex({ ...s, tabs }, w, moved, false), tabIds.length), 0, tab.id);
-    s = { ...s, tabs, windows: { ...s.windows, [windowId]: { ...w, tabIds: orderSections(tabIds, tabs, {}) } } };
+    s = { ...s, tabs, windows: { ...s.windows, [windowId]: { ...w, tabIds: orderSections(tabIds, tabs, s.groups) } } };
     if (moved.openerId) s = groupWithOpener(s, tab.id, moved.openerId, false);
     if (activate) s = apply(s, activated(s, tab.id));
     set(s);

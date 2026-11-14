@@ -9,8 +9,14 @@ public protocol SyncKeyStore {
 
 public struct KeychainKeyStore: SyncKeyStore {
   public let service: String
+  let calls: KeychainCalls
 
-  public init(service: String = "Ardia Sync Key") { self.service = service }
+  public init(service: String = "Ardia Sync Key") { self.init(service: service, calls: SystemKeychain()) }
+
+  init(service: String, calls: KeychainCalls) {
+    self.service = service
+    self.calls = calls
+  }
 
   func query(_ account: String) -> [String: Any] {
     [
@@ -28,22 +34,23 @@ public struct KeychainKeyStore: SyncKeyStore {
     #if DEBUG
     q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
     #endif
-    var item: CFTypeRef?
-    guard SecItemCopyMatching(q as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
-    return data
+    let found = calls.copy(q)
+    return found.status == errSecSuccess ? found.data : nil
   }
 
   public func save(_ secret: Data, account: String) -> Bool {
-    SecItemDelete(query(account) as CFDictionary)
+    let status = calls.update(query(account), [kSecValueData as String: secret])
+    if status == errSecSuccess { return true }
+    guard status == errSecItemNotFound else { return false }
     var add = query(account)
     add[kSecValueData as String] = secret
     add[kSecAttrLabel as String] = service
     add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-    return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+    return calls.add(add) == errSecSuccess
   }
 
   public func delete(account: String) {
-    SecItemDelete(query(account) as CFDictionary)
+    _ = calls.delete(query(account))
   }
 }
 
@@ -57,15 +64,60 @@ public struct FileKeyStore: SyncKeyStore {
   public func load(account: String) -> Data? { try? Data(contentsOf: url(account)) }
 
   public func save(_ secret: Data, account: String) -> Bool {
-    do {
-      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-      try secret.write(to: url(account), options: [.atomic])
-      try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url(account).path)
-      return true
-    } catch {
+    guard (try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)) != nil else { return false }
+    let staging = directory.appendingPathComponent(".sync-key-\(UUID().uuidString)").path
+    let fd = open(staging, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+    guard fd >= 0 else { return false }
+    let written = fchmod(fd, 0o600) == 0 && Self.writeAll(secret, to: fd) && fsync(fd) == 0
+    close(fd)
+    guard written, rename(staging, url(account).path) == 0 else {
+      unlink(staging)
       return false
+    }
+    return true
+  }
+
+  private static func writeAll(_ data: Data, to fd: Int32) -> Bool {
+    data.withUnsafeBytes { raw in
+      var offset = 0
+      while offset < raw.count {
+        let n = write(fd, raw.baseAddress! + offset, raw.count - offset)
+        if n < 0 {
+          if errno == EINTR { continue }
+          return false
+        }
+        offset += n
+      }
+      return true
     }
   }
 
   public func delete(account: String) { try? FileManager.default.removeItem(at: url(account)) }
+}
+
+protocol KeychainCalls {
+  func copy(_ query: [String: Any]) -> (status: OSStatus, data: Data?)
+  func update(_ query: [String: Any], _ attributes: [String: Any]) -> OSStatus
+  func add(_ attributes: [String: Any]) -> OSStatus
+  func delete(_ query: [String: Any]) -> OSStatus
+}
+
+struct SystemKeychain: KeychainCalls {
+  func copy(_ query: [String: Any]) -> (status: OSStatus, data: Data?) {
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    return (status, item as? Data)
+  }
+
+  func update(_ query: [String: Any], _ attributes: [String: Any]) -> OSStatus {
+    SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+  }
+
+  func add(_ attributes: [String: Any]) -> OSStatus {
+    SecItemAdd(attributes as CFDictionary, nil)
+  }
+
+  func delete(_ query: [String: Any]) -> OSStatus {
+    SecItemDelete(query as CFDictionary)
+  }
 }

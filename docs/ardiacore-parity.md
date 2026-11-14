@@ -1,5 +1,7 @@
 # ArdiaCore parity: the app's engine API on ArdiaCore
 
+History: the CEF → ArdiaCore cutover ledger (2026-10-01 to 0.2.31); how to run the acceptance checks today is in `docs/testing.md` › "ArdiaCore acceptance".
+
 **The owner chose a full cutover (2026-10-01):** the next release ships ArdiaCore only, and CEF's native side leaves
 the repo. The JS API (once `packages/cef/src`, now `packages/ardiacore/src`, imported as `@ardia/ardiacore`) doesn't
 change: `packages/ardiacore` registers the same Expo modules and view names (`ArdiaCEF`, `ArdiaExtensions`,
@@ -104,37 +106,7 @@ needs.
 
 ## How to build and check it
 
-```bash
-# Engine (once, and after engine/ changes): both apply.sh, then autoninja, under the chromium lock
-#   scripts/agent/engine-build --as <you>   (docs/engine-build.md)
-# App: apps/browser/macos (the only app project; pod install there after adding native files).
-scripts/agent/build-app --as <you>     # into apps/browser/build-<you>; --help
-# Acceptance, hidden (open -g -n, ARDIA_BACKGROUND=1, a scratch data dir); METRO_PORT is a Metro for this checkout.
-METRO_PORT=8081 node packages/ardiacore/scripts/acceptance.mjs apps/browser/build-<you>/Build/Products/Debug/Ardia.app <scratch dir> [check…]
-```
-
-The app (bundle id `com.ardia.browser`, Apple Development signing with the hardened runtime in
-Debug; `scripts/release.sh` signs releases with Developer ID). A Debug build refuses to start without
-`ARDIA_DATA_DIR` (it never falls back to a real profile). A test run hands it its Metro in `ARDIA_INSTANCE` `jsLocation`
-(that launch's argument domain, never written); never `defaults write com.ardia.browser`, the installed app's. Its build stages a copy of the engine framework
-(`packages/ardiacore/scripts/stage-framework.sh`, under the chromium lock, into `ARDIACORE_STAGE_DIR`), links that, and
-`embed.sh` signs the embedded copy with the build's identity.
-
-Test hygiene the run keeps (each was a real failure):
-- Metro is reached through a proxy that refuses its websockets (`/hot`, `/message`), so another session's edits
-  never reload the app mid-run.
-- Every file the app is asked to read lives in the scratch dir: the checkout is under `~/Documents`, and an ad hoc
-  build reading it raises macOS's folder-access prompt and blocks the main thread on it (the extension fixture is
-  copied).
-- Permissions use MIDI and notifications (no macOS prompt behind them), external apps a scheme no app handles;
-  never location or `mailto:`. Camera and microphone only on a copy of the app without the device entitlements
-  (ad hoc, hardened runtime: macOS refuses the devices without asking) and Chrome's fake devices: every hidden
-  instance gets `--use-fake-device-for-media-stream` (ArdiaHost), and with it the engine keeps the microphone on a
-  fake input (`ac_fake_media.mm`), since the fake list's "default" input is the Mac's real one to the audio service and
-  a stream on it raised macOS's microphone dialog on the owner's screen (2026-10-01).
-- A check that needs a page on screen (permission prompts, choosers, context menus) shows it first: Chrome holds
-  those for hidden tabs. Checks that need "no user activation" reload the page first (CDP's `userGesture` leaves
-  one behind).
+Moved to `docs/testing.md` › "ArdiaCore acceptance".
 
 ## Acceptance (hidden instance)
 
@@ -387,7 +359,7 @@ Plain Chromium code over Chrome's services (`engine/chromium/src/chrome/browser/
 
 | Export | JS functions (`packages/ardiacore/src`) |
 |---|---|
-| `ac_engine_abi_version`, `ac_engine_set_event_sink` | `engineCall`, `onEngineEvent` |
+| `ac_engine_set_event_sink` | `onEngineEvent` |
 | `ac_passwords_*` (list, unlock, reveal, add, update, remove, exceptions, allow, export) | the password functions |
 | `ac_passwords_logins` | none: native only. `ArdiaSync.readPasswords` reads every saved login with its password (both stores, profile store first, blocklisted and empty ones left out; ArdiaSync keeps the first of any two with the same realm and username, compared as Swift strings, so canonically equivalent ones count as one) through `ArdiaEngineBridge.callForSecretReply`, which parses the reply from bytes it then wipes and settles once (the reply, or nil at its deadline); the engine builds the JSON in one reserved buffer and cleanses it after the reply. Any store error, Chrome skipping undecryptable passwords (`SkipUndecryptablePasswords`) or the process-bound backing answers an error, so sync never sees part of a list |
 | `ac_autofill_*` | the address and card functions |
