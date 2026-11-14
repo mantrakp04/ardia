@@ -33,8 +33,25 @@ class PhoneInbox(private val file: File, private val clock: () -> Long = System:
     var problem: String? = null
         private set
 
-    var onChange: ((Int) -> Unit)? = null
-    var onProblem: ((String) -> Unit)? = null
+    interface Listener {
+        fun changed(count: Int)
+
+        fun problem(message: String)
+    }
+
+    private val listeners = java.util.concurrent.CopyOnWriteArrayList<Listener>()
+
+    fun listen(listener: Listener) {
+        listeners.addIfAbsent(listener)
+    }
+
+    fun stopListening(listener: Listener) {
+        listeners.remove(listener)
+    }
+
+    private fun tell(each: (Listener) -> Unit) {
+        for (listener in listeners) runCatching { each(listener) }
+    }
 
     fun receive(tabs: List<ReceivedTab>): Boolean = change { current ->
         val pending = current.entries.flatMap { entry -> entry.received.map { it.key } }.toSet()
@@ -75,7 +92,7 @@ class PhoneInbox(private val file: File, private val clock: () -> Long = System:
             contents = next
             next.entries.size
         }
-        onChange?.invoke(count)
+        tell { it.changed(count) }
     }
 
     fun removedUrls(profileSyncId: String?): Set<String> = synchronized(lock) {
@@ -99,7 +116,7 @@ class PhoneInbox(private val file: File, private val clock: () -> Long = System:
             contents = next
             next.entries.size
         }
-        onChange?.invoke(count)
+        tell { it.changed(count) }
         return true
     }
 
@@ -166,7 +183,7 @@ class PhoneInbox(private val file: File, private val clock: () -> Long = System:
 
     private fun report(message: String) {
         problem = message
-        onProblem?.invoke(message)
+        tell { it.problem(message) }
     }
 
     private fun setAside(text: String) {

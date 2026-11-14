@@ -27,6 +27,7 @@ class SyncModule : Module() {
     private val context: Context get() = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "The app context is gone", null)
 
     private var watched: SyncController? = null
+    private var route: SyncEventRoute? = null
 
     private val controller: SyncController
         get() {
@@ -43,19 +44,17 @@ class SyncModule : Module() {
         Events("onSyncEvent")
 
         OnCreate {
-            val inbox = PhoneSync.inbox(context)
-            inbox.onChange = { count -> sendEvent("onSyncEvent", mapOf("name" to "sync.inbox", "count" to count)) }
-            inbox.onProblem = { problem ->
-                PhoneSync.current()?.let { sync -> sendEvent("onSyncEvent", mapOf("name" to "sync.status", "status" to SyncPayloads.status(sync.state.value, problem))) }
+            route = SyncEventRoute(PhoneSync.inbox(context), { event -> sendEvent("onSyncEvent", event) }) { problem ->
+                PhoneSync.current()?.let { sync -> SyncPayloads.status(sync.state.value, problem) }
             }
         }
 
         OnDestroy {
+            route?.close()
+            route = null
             scope?.cancel()
             scope = null
             watched = null
-            PhoneSync.inbox(context).onChange = null
-            PhoneSync.inbox(context).onProblem = null
         }
 
         OnActivityEntersForeground {
@@ -130,16 +129,18 @@ class SyncModule : Module() {
     private fun watch(sync: SyncController) {
         scope?.cancel()
         watched = sync
+        val events = route ?: return
+        val inbox = PhoneSync.inbox(context)
         val running = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         scope = running
-        running.launch { sync.state.collect { sendEvent("onSyncEvent", mapOf("name" to "sync.status", "status" to SyncPayloads.status(it, PhoneSync.inbox(context).problem))) } }
+        running.launch { sync.state.collect { events.emit(mapOf("name" to "sync.status", "status" to SyncPayloads.status(it, inbox.problem))) } }
         running.launch {
             combine(sync.snapshot, sync.state, sync.receivers) { snapshot, state, receivers -> SyncPayloads.view(snapshot, state.selectedProfileId, receivers) }
-                .collect { sendEvent("onSyncEvent", mapOf("name" to "sync.view", "view" to it)) }
+                .collect { events.emit(mapOf("name" to "sync.view", "view" to it)) }
         }
         running.launch {
             sync.incoming.collect { tabs ->
-                if (tabs.isNotEmpty()) sendEvent("onSyncEvent", mapOf("name" to "sync.incoming", "tabs" to tabs.map(SyncPayloads::received)))
+                if (tabs.isNotEmpty()) events.emit(mapOf("name" to "sync.incoming", "tabs" to tabs.map(SyncPayloads::received)))
             }
         }
     }
