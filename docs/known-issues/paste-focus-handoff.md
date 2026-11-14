@@ -21,7 +21,7 @@ The fix is `FocusHandoff` in packages/shell/ios/FocusHandoff.swift.
 
 The page that had focus gets it back, but only while its tab is still the one shown. A dropped action never goes anywhere else.
 
-**Acks from the page:** edit keys a page passes back are tagged with their window and its key epoch, and stale ones are dropped with a beep.
+**Acks from the page:** edit keys a page passes back are tagged with their window and its key epoch, and stale ones are dropped with a beep. The epoch (`KeyEpochs`) moves only when another window took key, and it moves in step with `didBecomeKey` (the observer has no queue). The same window becoming key again after another app handed focus back (Raycast's clipboard, dictation tools, emoji pickers) keeps it, so a ⌘V sent right then is not dropped.
 
 ## Parked (behaves as before)
 Codex reviews r1–r8 found these not to be safely fixable inside this scope:
