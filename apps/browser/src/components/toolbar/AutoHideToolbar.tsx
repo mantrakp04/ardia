@@ -9,6 +9,7 @@ import { toolbarPalette, useEasedColor } from "../ui/toolbarColors";
 import { useToolbarHeld } from "../../state/app/transientUi";
 import { revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "../../state/windows/toolbarAutoHide";
 import { Toolbar } from "./Toolbar";
+import { TabProgressBar } from "./ProgressBar";
 import { curve } from "../ui/motion";
 import { reduceMotion, space, Text } from "../ui";
 import { TOOLBAR_MOTION } from "./tokens";
@@ -173,6 +174,7 @@ export function AutoHideToolbar({
   const extendColor = useSettings((s) => s.extendWebsiteColor);
   const palette = toolbarPalette(theme, extendColor && url ? themeColor : null);
   const collapsed = mode === "collapsed";
+  const loading = useTabLive(tabId, (l) => collapsed && l.isLoading);
   const modeNow = useRef(mode);
   modeNow.current = mode;
 
@@ -226,6 +228,11 @@ export function AutoHideToolbar({
               {host}
             </Text>
           </Pressable>
+          {loading && (
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <TabProgressBar key={tabId} tabId={tabId} color={palette.background ? palette.icon : theme.accent} />
+            </View>
+          )}
         </Animated.View>
       )}
     </View>
