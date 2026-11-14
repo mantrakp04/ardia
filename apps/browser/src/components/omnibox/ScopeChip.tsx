@@ -1,11 +1,13 @@
 import type { SearchScope } from "@ardia/core";
 import { View } from "react-native";
 import { Symbol, Text, useTheme } from "../ui";
-import { Favicon } from "../favicon/Favicon";
+import { usePageProfileId } from "../../state/browser/hooks";
+import { SiteFavicon } from "../favicon/Favicon";
 import { BAR_TYPE, SCOPE_CHIP } from "./tokens";
 
 export function ScopeChip({ scope, large }: { scope: SearchScope; large: boolean }) {
   const theme = useTheme();
+  const profileId = usePageProfileId();
   return (
     <View
       style={{
@@ -20,7 +22,7 @@ export function ScopeChip({ scope, large }: { scope: SearchScope; large: boolean
       }}
     >
       {scope.host ? (
-        <Favicon url={`https://${scope.host}`} size={SCOPE_CHIP.favicon} />
+        <SiteFavicon host={scope.host} profileId={profileId} size={SCOPE_CHIP.favicon} />
       ) : (
         <Symbol name="text.magnifyingglass" size={SCOPE_CHIP.favicon} color={theme.textSecondary} style={{ width: SCOPE_CHIP.favicon, height: SCOPE_CHIP.favicon }} />
       )}

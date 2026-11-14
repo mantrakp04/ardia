@@ -6,9 +6,9 @@ import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
 import { currentEngineProfile, currentProfileOrder } from "../../../state/browser/current";
 import { addCustomEngine, removeCustomEngine, setSearchEngine, updateCustomEngine, updateSettings } from "../../../state/settings/actions";
-import { controllingSearchExtension, defaultSearchEngine, searchEngines } from "../../../state/settings/settings";
+import { controllingSearchExtension, DEFAULT_PROFILE_ID, defaultSearchEngine, searchEngines } from "../../../state/settings/settings";
 import { extensionsProfileId, setEnabled } from "../../../state/extensions/actions";
-import { Favicon } from "../../favicon/Favicon";
+import { SiteFavicon } from "../../favicon/Favicon";
 import { FormField, Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { openSettings } from "../../../state/settings/settingsWindows";
@@ -94,7 +94,7 @@ function EngineRow({ engine, selected, locked, editable }: { engine: SearchEngin
       ? `${engine.keyword} · ${engine.url}`
       : engine.keyword;
   return (
-    <Row icon={<Favicon url={`https://${engineHost(engine)}`} />} title={engine.name} description={description}>
+    <Row icon={<SiteFavicon host={engineHost(engine)} profileId={DEFAULT_PROFILE_ID} />} title={engine.name} description={description}>
       {editable && (
         <Button variant="icon" icon="pencil" size="m" onPress={() => showSettingsSheet(<EngineSheet engine={engine} />)} tooltip="Edit" />
       )}
