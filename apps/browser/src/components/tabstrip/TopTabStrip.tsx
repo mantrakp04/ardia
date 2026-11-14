@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
-import { downloadsOpenIn } from "../../state/browser/current";
+import { topStripPeekHeld, watchTopStripPeekHolds } from "../../state/app/transientUi";
 import { useWindowFullScreen, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { beginExternalDrag, endExternalDrag, moveExternalDrag } from "../../state/drag/tabDrag";
 import { lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "../../state/windows/dockMotion";
@@ -8,7 +8,7 @@ import { useWindowUiOf } from "../../state/windows/hooks";
 import { usePagerPages } from "../../state/windows/profilePager";
 import { DownloadsButton } from "../downloads/DownloadsButton";
 import { ProfileIndicator, useProfileIndicatorWidth } from "../profiles/ProfileIndicator";
-import { Panel, shadow, WindowDragRegion } from "../ui";
+import { ContextMenuArea, Panel, shadow, WindowDragRegion } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { TintInk } from "../ui/TintInk";
 import { radius } from "../ui/tokens";
@@ -18,6 +18,7 @@ import { usePeek } from "../window/usePeek";
 import { noteTabStripPeek } from "../../state/telemetry/usage";
 import { FloatingStrip } from "./context";
 import { setTrafficLightsCenter } from "../../state/windows/nativeWindow";
+import { openTabStripMenu } from "./NewTabButton";
 import { StripPage } from "./StripPage";
 import { StripHoverCard } from "./StripHoverCard";
 import {
@@ -63,12 +64,14 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
   return (
     <FloatingStrip.Provider value={floating}>
       <StripDropArea style={{ height: TOP_STRIP_HEIGHT }}>
-        <WindowDragRegion style={StyleSheet.absoluteFill} />
-        <View style={{ position: "absolute", left: left - flare, right: Math.max(right - flare, controls + 8), top: 0, bottom: 0, overflow: "hidden" }}>
-          {pages.map((page) => (
-            <StripPage key={page.id} profileId={page.id} slot={page.slot} pageWidth={pageWidth} current={page.id === current} resting={!!page.resting} />
-          ))}
-        </View>
+        <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => openTabStripMenu(windowId)}>
+          <WindowDragRegion style={StyleSheet.absoluteFill} />
+          <View style={{ position: "absolute", left: left - flare, right: Math.max(right - flare, controls + 8), top: 0, bottom: 0, overflow: "hidden" }}>
+            {pages.map((page) => (
+              <StripPage key={page.id} profileId={page.id} slot={page.slot} pageWidth={pageWidth} current={page.id === current} resting={!!page.resting} />
+            ))}
+          </View>
+        </ContextMenuArea>
         <View mouseDownCanMoveWindow={false} style={{ position: "absolute", right: 8, top: MID - 17, flexDirection: "row", alignItems: "center", gap: CONTROLS_GAP }}>
           <TintInk>
             <ProfileIndicator room={PROFILE_ROOM} />
@@ -111,10 +114,13 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
   const theme = useTheme();
   const windowId = useWindowId();
   const downloadsOpen = useWindowUiOf(windowId, (u) => !!u?.downloadsOpen);
-  const { slide, live, show, hide, recheck, cancelPending } = usePeek(enabled, false, () => downloadsOpenIn(windowId), undefined, noteTabStripPeek);
+  const { slide, live, show, hide, recheck, cancelPending } = usePeek(enabled, false, () => topStripPeekHeld(windowId), undefined, noteTabStripPeek);
+  const latestRecheck = useRef(recheck);
+  latestRecheck.current = recheck;
   useEffect(() => {
     if (!downloadsOpen) recheck();
   }, [downloadsOpen]);
+  useEffect(() => (live ? watchTopStripPeekHolds(() => latestRecheck.current()) : undefined), [live]);
   useEffect(() => {
     if (!enabled) return;
     void setTrafficLightsCenter(windowId, lightsCenter(layout.sidebarWidth));

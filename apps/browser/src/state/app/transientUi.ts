@@ -92,6 +92,10 @@ export const peekHeld = (windowId: string) => {
   return holds("peek", windowId, field ? (id) => id === field : noTab);
 };
 
+export const topStripPeekHeld = (windowId: string) => menuShown() || SURFACES.downloads.open({ windowId, chrome: null, tab: noTab });
+
+export const watchTopStripPeekHolds = (changed: () => void) => watchMenus(changed);
+
 export const hoverHeld = (windowId: string) => holds("hover", windowId, (id) => browser().tabs[id]?.windowId === windowId);
 
 export const toolbarHeld = (windowId: string, tabId: string) => holds("toolbar", windowId, (id) => id === tabId);

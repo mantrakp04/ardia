@@ -1,6 +1,6 @@
 import type { StripDock, StripEntry, StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
 import type { Dock, DropTarget } from "./model";
-import { DOCK_GAP, GAP, ITEM_HEIGHT, MAX_CHIP, MIN_CHIP, PINNED_CELL, PINNED_SPACING } from "./tokens";
+import { DOCK_GAP, GAP, MAX_CHIP, MIN_CHIP, NEW_TAB_ROOM, PINNED_CELL, PINNED_SPACING } from "./tokens";
 
 export const GROUP_MARGIN_LEFT = 3.5;
 export const GROUP_MARGIN_RIGHT = 4;
@@ -161,7 +161,7 @@ export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: 
     tabUnits: visible.reduce((n, m) => n + units(m, activeId), 0),
     fixed: visible.reduce((n, m) => n + (m.kind === "folder" ? folderChip(m) + (holds(m, activeId) ? MEMBERS_INSET : GAP) : 0), 0),
     gap: GAP,
-    plus: ITEM_HEIGHT,
+    plus: NEW_TAB_ROOM,
     min: MIN_CHIP,
     max: MAX_CHIP,
   });
