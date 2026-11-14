@@ -14,6 +14,7 @@ import {
   readerBodySize,
   readerSource,
   readerTheme,
+  leadImageAspect,
   readingMinutes,
   requestPlan,
   type BackState,
@@ -221,4 +222,11 @@ test("Open in Default Browser hides while Ardia is the default browser", () => {
   assert.equal(menuModel({ ...input, isDefaultBrowser: true }).offersDefaultBrowser, false);
   assert.equal(menuModel({ ...input, isDefaultBrowser: false }).offersDefaultBrowser, true);
   assert.equal(menuModel(input).offersDefaultBrowser, true);
+});
+
+test("the reader's lead image takes the picture's real shape, capped so a tall one doesn't fill the screen", () => {
+  assert.equal(leadImageAspect(1280, 837, 0.75), 1280 / 837);
+  assert.equal(leadImageAspect(600, 1200, 0.75), 0.75);
+  assert.equal(leadImageAspect(1, 1, 0.75), null);
+  assert.equal(leadImageAspect(0, 400, 0.75), null);
 });

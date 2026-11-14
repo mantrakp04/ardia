@@ -7,6 +7,7 @@ import { closeReader, readableContent, setReaderSerif, setReaderStep, setReaderT
 import { useReaderSettings } from "../../state/page/hooks";
 import {
   clampReaderStep,
+  leadImageAspect,
   readerBodySize,
   readerSource,
   readerTheme,
@@ -122,19 +123,18 @@ function Header({ content, family, size, ink }: { content: ReadableContent; fami
 
 function LeadImage({ uri }: { uri: string }) {
   const [aspect, setAspect] = useState<number | null>(null);
-  return (
-    <Image
-      source={{ uri }}
-      accessibilityIgnoresInvertColors
-      resizeMode="cover"
-      onLoad={(event) => {
-        const { width, height } = event.nativeEvent.source;
-        if (width > 1 && height > 1) setAspect(Math.max(width / height, readerLayout.minLeadAspect));
-      }}
-      onError={() => setAspect(null)}
-      style={aspect ? [styles.lead, { aspectRatio: aspect }] : styles.leadPending}
-    />
-  );
+  useEffect(() => {
+    let live = true;
+    setAspect(null);
+    Image.getSize(uri)
+      .then(({ width, height }) => live && setAspect(leadImageAspect(width, height, readerLayout.minLeadAspect)))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [uri]);
+  if (!aspect) return null;
+  return <Image source={{ uri }} accessibilityIgnoresInvertColors resizeMode="cover" onError={() => setAspect(null)} style={[styles.lead, { aspectRatio: aspect }]} />;
 }
 
 const styles = StyleSheet.create({
@@ -148,6 +148,5 @@ const styles = StyleSheet.create({
   header: { gap: space.s, paddingHorizontal: space.xl, paddingTop: space.s, maxWidth: readerLayout.maxWidth, alignSelf: "center", width: "100%" },
   paragraph: { paddingHorizontal: space.xl, maxWidth: readerLayout.maxWidth, alignSelf: "center", width: "100%" },
   lead: { width: "100%", marginTop: space.s },
-  leadPending: { width: 1, height: 1, opacity: 0 },
   navigationBand: { position: "absolute", left: 0, right: 0, bottom: 0 },
 });

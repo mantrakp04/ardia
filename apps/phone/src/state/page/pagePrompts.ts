@@ -180,6 +180,9 @@ export const downloadedToast = (fileName: string) => `Downloaded ${fileName}`;
 
 export const downloadFailedToast = (fileName: string) => (fileName ? `Couldn’t Download ${fileName}` : "Couldn’t Download File");
 
+export const leadImageAspect = (width: number, height: number, tallest: number): number | null =>
+  width > 1 && height > 1 ? Math.max(width / height, tallest) : null;
+
 export const readingMinutes = (wordCount: number) => Math.max(1, Math.round(wordCount / 230));
 
 export function readerSource(siteName: string, byline: string | null): string | null {
