@@ -118,7 +118,7 @@ export function prepareSuggestions(source: SuggestionSource, deadline: number): 
   return advance(b, bookmarks, deadline);
 }
 
-type TabsOver = { pool: Pool; currentTabId: string | undefined; rows: TabRow[]; tabIds: Map<string, string>; extra: Candidate[] };
+type TabsOver = { pool: Pool; currentTabId: string | undefined; rows: TabRow[]; tabIds: Map<string, string>; extra: Candidate[]; renamed: Set<string> };
 const tabsOverCache = new WeakMap<readonly TabRow[], TabsOver>();
 
 export function tabsOver(pool: Pool, tabs: readonly TabRow[], currentTabId?: string): TabsOver {
@@ -130,14 +130,34 @@ export function tabsOver(pool: Pool, tabs: readonly TabRow[], currentTabId?: str
   }
   const tabIds = new Map<string, string>();
   const extra: Candidate[] = [];
+  const renamed = new Set<string>();
   for (const t of tabs) {
     if (!t.url || t.id === currentTabId) continue;
     const text = pageText(t);
+    const visited = pool.byKey.get(text.key);
+    const name = t.customTitle?.trim();
+    if (name) {
+      renamed.add(text.key);
+      extra.push({
+        url: t.url,
+        title: name,
+        favicon: t.favicon,
+        visits: visited?.visits ?? 0,
+        lastVisit: visited?.lastVisit ?? 0,
+        logVisits: visited?.logVisits ?? 0,
+        fresh: !visited,
+        bookmarked: visited?.bookmarked ?? false,
+        tabId: t.id,
+        text: pageText({ url: t.url, title: `${name} ${t.title}` }),
+      });
+      continue;
+    }
     if (tabIds.has(text.key)) continue;
     tabIds.set(text.key, t.id);
-    if (!pool.byKey.has(text.key)) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text });
+    if (!visited) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text });
   }
-  const result = { pool, currentTabId, rows: tabs.slice(), tabIds, extra };
+  for (const key of tabIds.keys()) renamed.delete(key);
+  const result = { pool, currentTabId, rows: tabs.slice(), tabIds, extra, renamed };
   tabsOverCache.set(tabs, result);
   return result;
 }

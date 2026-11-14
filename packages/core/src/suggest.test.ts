@@ -193,3 +193,84 @@ test("a newer request aborts the one in flight, which never answers", async () =
   }
 });
 
+
+test("a renamed tab is found and shown by its custom title, as one switch-to-tab row", () => {
+  const mobile = "https://boards.example.com/team/mobile";
+  const web = "https://boards.example.com/team/web";
+  const hist = [
+    { url: mobile, title: "Board - Tracker", favicon: null, visits: 30, lastVisit: now - 1000 },
+    { url: web, title: "Board - Tracker", favicon: null, visits: 30, lastVisit: now - 1000 },
+  ];
+  const tabs = [
+    { id: "t-mobile", url: mobile, title: "Board - Tracker", favicon: null, customTitle: "Sprint Board (Mobile)" },
+    { id: "t-web", url: web, title: "Board - Tracker", favicon: null, customTitle: "Sprint Board (Web)" },
+  ];
+  const pages = (q: string) => buildSuggestions(q, { tabs, history: hist }, { now, preference: "search" }).items.filter((s) => s.kind === "page");
+
+  const byName = pages("sprint board mobile");
+  assert.equal(byName[0]?.kind === "page" && byName[0].title, "Sprint Board (Mobile)");
+  assert.equal(byName[0]?.kind === "page" && byName[0].tabId, "t-mobile");
+
+  const both = pages("tracker");
+  assert.deepEqual(both.map((s) => s.kind === "page" && s.title).sort(), ["Sprint Board (Mobile)", "Sprint Board (Web)"]);
+  assert.equal(new Set(both.map((s) => s.kind === "page" && s.url)).size, both.length);
+});
+
+test("open tabs that match as well as the third page row come before remote suggestions", () => {
+  const teams = ["Alpha", "Beta", "Gamma", "Delta"];
+  const url = (t: string) => `https://${t.toLowerCase()}.example.com/board`;
+  const hist = teams.map((t, i) => ({ url: url(t), title: "Board - Tracker", favicon: null, visits: 40 - i * 10, lastVisit: now - 1000 }));
+  const tabs = teams.map((t) => ({ id: `t-${t}`, url: url(t), title: "Board - Tracker", favicon: null, customTitle: `Sprint Board (${t})` }));
+  const remote = ["sprint board template", "sprint board app", "sprint board online", "sprint board ideas"];
+  const { items } = buildSuggestions("sprint board", { tabs, history: hist }, { now, preference: "search", remote });
+  const firstRemote = items.findIndex((s) => s.kind === "search" && s.suggested);
+  const tabRows = items.filter((s) => s.kind === "page" && s.tabId);
+  assert.equal(tabRows.length, 4);
+  assert.ok(items.indexOf(tabRows[3]!) < firstRemote, "the fourth matching tab sits above the remote suggestions");
+
+  const weak = buildSuggestions("a", { tabs, history: hist }, { now, preference: "search", remote: ["amazon", "apple", "airbnb", "aws"] }).items;
+  assert.ok(weak.some((s) => s.kind === "search" && s.suggested), "remote suggestions still show for a broad query");
+});
+
+test("a well-matching open tab isn't pushed out by many weaker but busier history pages", () => {
+  const busy = Array.from({ length: 12 }, (_, i) => ({ url: `https://boards.example.com/item-${i}`, title: `sprint item ${i} - Board`, favicon: null, visits: 400, lastVisit: now - 1000 }));
+  const quiet = "https://boards.example.com/team/delta";
+  const hist = [...busy, { url: quiet, title: "delta - Board", favicon: null, visits: 8, lastVisit: now - DAY * 3 }];
+  const tabs = [{ id: "t-delta", url: quiet, title: "delta - Board", favicon: null, customTitle: "Sprint Board (Delta)" }];
+  const remote = ["sprint board template", "sprint board app", "sprint board online", "sprint board ideas"];
+  const { items } = buildSuggestions("sprint board", { tabs, history: hist }, { now, preference: "search", remote });
+  const at = items.findIndex((s) => s.kind === "page" && s.tabId === "t-delta");
+  assert.ok(at >= 0, "the renamed tab is listed");
+  assert.ok(at < items.findIndex((s) => s.kind === "search" && s.suggested), "and sits above the remote suggestions");
+});
+
+test("a renamed copy of a tab is found by its own name, next to the original", () => {
+  const url = "https://boards.example.com/team";
+  const hist = [{ url, title: "Board - Tracker", favicon: null, visits: 30, lastVisit: now - 1000 }];
+  const tabs = [
+    { id: "t-original", url, title: "Board - Tracker", favicon: null },
+    { id: "t-copy", url, title: "Board - Tracker", favicon: null, customTitle: "Sprint Board (Copy)" },
+    { id: "t-fragment", url: `${url}#backlog`, title: "Board - Tracker", favicon: null, customTitle: "Sprint Backlog" },
+  ];
+  const pages = (q: string) => buildSuggestions(q, { tabs, history: hist }, { now, preference: "search" }).items.filter((s) => s.kind === "page");
+
+  assert.deepEqual(pages("sprint board copy").map((s) => s.kind === "page" && s.tabId), ["t-copy"]);
+  assert.deepEqual(pages("sprint backlog").map((s) => s.kind === "page" && s.tabId), ["t-fragment"]);
+  assert.deepEqual(pages("tracker").map((s) => s.kind === "page" && s.tabId).sort(), ["t-copy", "t-fragment", "t-original"]);
+});
+
+test("busy open tabs that match less well don't crowd out a better-matching renamed tab", () => {
+  const archive = Array.from({ length: 9 }, (_, i) => ({ url: `https://boards.example.com/archive-${i}`, title: "Sprint Board archive", favicon: null, visits: 400, lastVisit: now - 1000 }));
+  const items5 = Array.from({ length: 5 }, (_, i) => ({ url: `https://boards.example.com/item-${i}`, title: "sprint item - Board", favicon: null, visits: 400, lastVisit: now - 1000 }));
+  const quiet = "https://boards.example.com/team/delta";
+  const hist = [...archive, ...items5, { url: quiet, title: "delta - Board", favicon: null, visits: 8, lastVisit: now - DAY * 3 }];
+  const tabs = [
+    ...items5.map((h, i) => ({ id: `t-item-${i}`, url: h.url, title: h.title, favicon: null })),
+    { id: "t-delta", url: quiet, title: "delta - Board", favicon: null, customTitle: "Sprint Board (Delta)" },
+  ];
+  const remote = ["sprint board template", "sprint board app", "sprint board online", "sprint board ideas"];
+  const { items } = buildSuggestions("sprint board", { tabs, history: hist }, { now, preference: "search", remote });
+  const at = items.findIndex((s) => s.kind === "page" && s.tabId === "t-delta");
+  assert.ok(at >= 0, "the renamed tab is listed");
+  assert.ok(at < items.findIndex((s) => s.kind === "search" && s.suggested), "and sits above the remote suggestions");
+});
