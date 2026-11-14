@@ -17,7 +17,14 @@ def syncFixtures = file("${repository}/packages/sync/tests/fixtures")
 def phoneSchema = file("${repository}/apps/phone/src/state/store/schema.ts")
 def pageEngineOutsideThisModule = ['**/Omnibox.kt', '**/PageSurface.kt']
 def appModel = file("${androidApp}/appmodel/src/main/kotlin")
-def appModelInThisModule = ['SystemLink.kt', 'SystemActions.kt']
+def codeScanner = file("${androidApp}/settings/src/main/kotlin")
+def speech = file("${androidApp}/search/src/main/kotlin")
+def composeSourcesInThisModule = [
+  (appModel): ['SystemLink.kt', 'SystemActions.kt'],
+  (codeScanner): ['SyncCodeReading.kt', 'SyncCodeCamera.kt'],
+  (speech): ['SpeechRecorder.kt', 'DictationTypes.kt'],
+]
+def cameraXVersion = '1.5.0-rc01'
 def kotlinVersion = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt.getKotlinPluginVersion(project)
 def architectures = (findProperty('reactNativeArchitectures') ?: 'arm64-v8a,x86_64').split(',').collect { it.trim() }
 def reactNative = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).parentFile
@@ -157,7 +164,7 @@ android {
   }
   sourceSets {
     main {
-      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin", appModel]
+      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin", appModel, codeScanner, speech]
       assets.srcDirs += "${pageEngine}/assets"
       res.srcDirs += "${pageEngine}/res"
       resources.srcDirs += "${contentBlocking}/resources"
@@ -187,7 +194,11 @@ android {
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
   exclude(pageEngineOutsideThisModule)
-  exclude { element -> !element.directory && element.file.toPath().startsWith(appModel.toPath()) && !(element.name in appModelInThisModule) }
+  exclude { element ->
+    if (element.directory) return false
+    def root = composeSourcesInThisModule.keySet().find { element.file.toPath().startsWith(it.toPath()) }
+    root != null && !(element.name in composeSourcesInThisModule[root])
+  }
 }
 
 dependencies {
@@ -202,6 +213,11 @@ dependencies {
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
   implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0"
   implementation "com.google.re2j:re2j:1.8"
+  implementation "androidx.camera:camera-core:${cameraXVersion}"
+  implementation "androidx.camera:camera-camera2:${cameraXVersion}"
+  implementation "androidx.camera:camera-lifecycle:${cameraXVersion}"
+  implementation "androidx.camera:camera-view:${cameraXVersion}"
+  implementation "com.google.zxing:core:3.5.4"
   testImplementation "junit:junit:4.13.2"
   testImplementation "org.json:json:20240303"
   testImplementation "org.xerial:sqlite-jdbc:3.41.2.2"
