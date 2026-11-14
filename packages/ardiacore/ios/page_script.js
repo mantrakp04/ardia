@@ -899,6 +899,7 @@
       return null;
     };
     const clickDetail = getter(UIEvent.prototype, "detail");
+    const cancelBubble = getter(Event.prototype, "cancelBubble");
     const linkTarget = (link) => lowered(targetOf(link));
     const routedOpens = (link) => {
       const target = linkTarget(link);
@@ -943,20 +944,33 @@
         const hit = linkAt(e);
         if (!peekable(hit) || chosen(e)) return;
         const how = metaKey(e) ? (shiftKey(e) ? "foreground" : "background") : shiftKey(e) ? "window" : "foreground";
+        const nodes = [];
         let decided = false;
-        const decide = guard((ev) => {
-          if (ev !== e || decided) return;
+        let decide = null;
+        let stopped = null;
+        const finish = () => {
           decided = true;
+          apply(unlisten, window, ["click", decide]);
+          for (let i = 0; i < nodes.length; i++) apply(unlisten, nodes[i], ["click", stopped]);
+        };
+        decide = guard((ev) => {
+          if (ev !== e || decided) return;
+          finish();
           routeUnhandledClick(e, hit.link, how);
         });
+        stopped = guard((ev) => {
+          if (ev !== e || decided || !cancelBubble(e) || defaultPrevented(e)) return;
+          finish();
+          routeUnhandledClick(e, hit.link, how);
+        });
+        for (let i = 0; i < hit.path.length; i++) {
+          const node = hit.path[i];
+          if (node === window) break;
+          nodes[nodes.length] = node;
+          apply(listen, node, ["click", stopped]);
+        }
         apply(listen, window, ["click", decide]);
-        apply(scheduleTimeout, window, [
-          guard(() => {
-            apply(unlisten, window, ["click", decide]);
-            decided = true;
-          }),
-          0,
-        ]);
+        apply(scheduleTimeout, window, [guard(finish), 0]);
       }),
       true,
     );

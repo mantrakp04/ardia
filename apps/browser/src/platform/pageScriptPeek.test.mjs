@@ -17,7 +17,11 @@ function environment({ top = true, page = "https://page.example", selection = nu
   const opened = [];
   const clicked = [];
   const listeners = {};
-  const bubbling = {};
+  const targets = new Map();
+  const bubblingOn = (node) => {
+    if (!targets.has(node)) targets.set(node, {});
+    return targets.get(node);
+  };
   const timers = [];
   let clock = 1000;
   class Node {
@@ -104,6 +108,9 @@ function environment({ top = true, page = "https://page.example", selection = nu
     }
     stopPropagation() {
       this.propagationStopped = true;
+    }
+    get cancelBubble() {
+      return !!(this.propagationStopped || this.stopped);
     }
   }
   class UIEvent extends Event {
@@ -200,8 +207,13 @@ function environment({ top = true, page = "https://page.example", selection = nu
     window,
     document,
     addEventListener: (type, fn) => (listeners[type] ??= []).push(fn),
-    listen: (type, fn, options) => (bubbling[type] ??= []).push({ fn, once: !!options?.once }),
-    unlisten: (type, fn) => (bubbling[type] = (bubbling[type] ?? []).filter((l) => l.fn !== fn)),
+    listen: function (type, fn, options) {
+      (bubblingOn(this)[type] ??= []).push({ fn, once: !!options?.once });
+    },
+    unlisten: function (type, fn) {
+      const own = bubblingOn(this);
+      own[type] = (own[type] ?? []).filter((l) => l.fn !== fn);
+    },
     asNative: (native, call) => (...args) => call(native, window, args),
     Navigator,
     UserActivation,
@@ -228,29 +240,37 @@ function environment({ top = true, page = "https://page.example", selection = nu
       fn(e);
     }
   };
-  const fire = (type, path, init = {}, page) => {
-    const e = new MouseEvent(type, { path: [...path, document, window], ...init });
+  const fire = (type, path, init = {}, page, on = []) => {
+    const chain = [...path, document, window];
+    const e = new MouseEvent(type, { path: chain, ...init });
     dispatch(e);
-    page?.(e);
-    if (e.propagationStopped) return e;
-    const after = bubbling[type] ?? [];
-    bubbling[type] = after.filter((l) => !l.once);
-    for (const l of after) l.fn(e);
+    for (const node of chain) {
+      if (e.stopped) break;
+      if (node === chain[0]) page?.(e);
+      for (const [at, fn] of on) if (at === node && !e.stopped) fn(e);
+      const own = bubblingOn(node);
+      const after = own[type] ?? [];
+      own[type] = after.filter((l) => !l.once);
+      for (const l of after) if (!e.stopped) l.fn.call(node, e);
+      if (e.propagationStopped) break;
+    }
     return e;
   };
-  const gesture = (path, keys, { move = 0, release = path, between, page } = {}) => {
+  const gesture = (path, keys, { move = 0, release = path, between, page, on } = {}) => {
     fire("mousedown", path, keys);
     between?.();
     fire("mouseup", release, { ...keys, x: 10 + move });
-    return fire("click", release, { ...keys, x: 10 + move }, page);
+    return fire("click", release, { ...keys, x: 10 + move }, page, on);
   };
+  const listenerCount = (type) => [...targets.values()].reduce((n, own) => n + (own[type] ?? []).length, 0);
   const transition = (type, init) => dispatch(new PageTransitionEvent(type, init));
   const flush = () => timers.splice(0).forEach((fn) => fn());
   return {
     document,
     window,
     activation,
-    bubbling,
+    bubbling: bubblingOn(window),
+    listenerCount,
     selected,
     transition,
     flush,
@@ -632,10 +652,10 @@ test("a hundred clicks the page stops leave no listener behind", () => {
   env.handlers.peekConfig(siteConfig());
   for (let i = 0; i < 100; i++) env.gesture([env.link("#stop")], {}, { page: (e) => e.stopPropagation() });
   env.flush();
-  assert.equal((env.bubbling.click ?? []).length, 0);
+  assert.equal(env.listenerCount("click"), 0);
   for (let i = 0; i < 100; i++) env.gesture([env.link("https://other.example/", { target: "_blank" })], {});
   env.flush();
-  assert.equal((env.bubbling.click ?? []).length, 0);
+  assert.equal(env.listenerCount("click"), 0);
 });
 
 test("window.open is noted only while the page has a user activation, with the address resolved", () => {
@@ -875,4 +895,64 @@ test("a route wins over links to other sites: the click is routed, not peeked", 
   assert.ok(click.defaultPrevented);
   env.gesture([env.link("https://elsewhere.example/")], {});
   assert.deepEqual(peeks(env).map((p) => p.url), ["https://elsewhere.example/"]);
+});
+
+test("a page handler that stops the click's propagation still has it routed, once, wherever it sits on the path", () => {
+  const stopping = (e) => e.stopPropagation();
+  const cases = [
+    ["the link itself", (env, link) => ({ path: [link], on: [[link, stopping]] })],
+    ["a descendant of the link", (env, link) => {
+      const span = env.div();
+      return { path: [span, link], on: [[span, stopping]] };
+    }],
+    ["an ancestor, as React's root does", (env, link) => {
+      const root = env.div();
+      return { path: [link, root], on: [[root, stopping]] };
+    }],
+  ];
+  for (const [where, build] of cases) {
+    const env = environment();
+    routing(env);
+    const link = env.link("https://work.example/stopped");
+    const { path, on } = build(env, link);
+    const click = env.gesture(path, {}, { on });
+    assert.ok(click.defaultPrevented, where);
+    assert.deepEqual(routes(env).map((r) => r.url), ["https://work.example/stopped"], where);
+    env.flush();
+    assert.equal(routes(env).length, 1, where);
+    assert.equal(env.listenerCount("click"), 0, where);
+  }
+});
+
+test("a page handler that prevents the click keeps it, with or without stopping it; an unstopped click routes once and leaves no listener", () => {
+  for (const handler of [(e) => e.preventDefault(), (e) => (e.preventDefault(), e.stopPropagation())]) {
+    const env = environment();
+    routing(env);
+    const link = env.link("https://work.example/handled");
+    const root = env.div();
+    env.gesture([link, root], {}, { on: [[root, handler]] });
+    env.flush();
+    assert.equal(routes(env).length, 0);
+    assert.equal(env.listenerCount("click"), 0);
+  }
+  const env = environment();
+  routing(env);
+  const link = env.link("https://work.example/plain");
+  env.gesture([link, env.div()], {});
+  env.flush();
+  assert.equal(routes(env).length, 1);
+  assert.equal(env.listenerCount("click"), 0);
+  env.gesture([link, env.div()], { meta: true }, { on: [[link, (e) => e.stopPropagation()]] });
+  assert.deepEqual(routes(env).at(-1), { kind: "route", url: "https://work.example/plain", how: "background", opens: "tab", keyed: true, origin: "https://page.example" });
+});
+
+test("a link handler that stops a click to a site the rule doesn't take leaves it to Chrome", () => {
+  const env = environment();
+  routing(env);
+  const link = env.link("https://elsewhere.example/");
+  const click = env.gesture([link], {}, { on: [[link, (e) => e.stopPropagation()]] });
+  env.flush();
+  assert.ok(!click.defaultPrevented);
+  assert.equal(routes(env).length, 0);
+  assert.equal(env.listenerCount("click"), 0);
 });

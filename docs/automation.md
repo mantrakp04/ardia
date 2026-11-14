@@ -434,7 +434,10 @@ for any app can also take the links you click and the addresses you type in Ardi
   them again when a rule, a profile or a group changes, and retries with backoff while the bridge refuses). Its
   `matchesSpec` is `lib/matchPattern.ts`'s `matchesUrl` (`platform/pageScriptPeek.test.mjs` runs the same cases
   through both). After the page's own click handlers (a late window listener, so a click the page prevented stays the
-  page's), a trusted plain, ⌘-, ⇧- or ⌘⇧-click on an `http(s)` link the first route sends elsewhere is prevented before
+  page's; when a page handler stops the click's propagation before it reaches the window, as React's root does,
+  a one-off listener added last on each node of the click's path, from the target up to the document, catches it on
+  the node where it stopped, and all of them go once one routes, the window listener runs or the click's turn ends),
+  a trusted plain, ⌘-, ⇧- or ⌘⇧-click on an `http(s)` link the first route sends elsewhere is prevented before
   Chrome navigates, and the page posts `route`. Native accepts it only against the last real mouse-up over that page
   (the check Peek uses), takes the disposition from that mouse-up's keys (none: a foreground tab, or the rule's window
   or Little Ardia; ⌘: a background tab; ⇧: a window; ⌘⇧: a foreground tab; the Peek or Split key: nothing) and emits
@@ -445,7 +448,8 @@ for any app can also take the links you click and the addresses you type in Ardi
   ⇧-click opens nothing. Links inside frames route on ⌘- and ⇧-clicks and on plain clicks that open a tab or the whole
   page; a plain click on a named target (`target`, `<base target>`) stays Chrome's. A matching route beats the tab's
   Peek links to other sites. A page back from the back-forward cache gets the current routes with its `peekHello`.
-- **Not routed, by design:** a click the page prevented, links with `download`, the Peek or Split modifier, ⌥-, ⌃- and
+- **Not routed, by design:** a click the page prevented, a click a page handler stopped with
+  `stopImmediatePropagation()` or stopped in the capture phase (before it reaches the link), links with `download`, the Peek or Split modifier, ⌥-, ⌃- and
   middle clicks, keyboard activation, URLs over 8192 characters, WebKit pages (they run WebKit's page script), forms,
   script navigations, `window.open` and redirects.
 - **Typed addresses.** The address bar, the command bar and the new-tab bar route an address the same way

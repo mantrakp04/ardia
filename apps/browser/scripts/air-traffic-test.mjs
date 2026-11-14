@@ -8,7 +8,7 @@ import { launch, session, sleep } from "../../../scripts/lib/instance.mjs";
 const appArg = process.argv.slice(2).find((a) => !a.startsWith("--"));
 if (!appArg) {
   console.error("usage: node air-traffic-test.mjs <Debug Ardia.app>");
-  console.error("Checks Air Traffic Control in a hidden instance: a link from another app (a real GURL Apple Event) into a tab group, trusted plain and ⌘-clicks on a Personal page that a rule sends to Work, a click no rule takes, and an address typed in a Personal tab's address bar.");
+  console.error("Checks Air Traffic Control in a hidden instance: a link from another app (a real GURL Apple Event) into a tab group, trusted plain and ⌘-clicks on a Personal page that a rule sends to Work (one on a link whose page handler stops the click's propagation), a click no rule takes, and an address typed in a Personal tab's address bar.");
   process.exit(2);
 }
 const app = resolve(appArg);
@@ -20,7 +20,9 @@ const failures = [];
 const PAGE = `<!doctype html><title>source</title><body style="margin:0;font:20px sans-serif">
 <a id="routed" href="https://example.net/routed" style="display:block;height:60px">routed</a>
 <a id="meta" href="https://example.net/meta" style="display:block;height:60px">meta</a>
-<a id="plain" href="/plain" style="display:block;height:60px">plain</a></body>`;
+<a id="plain" href="/plain" style="display:block;height:60px">plain</a>
+<div id="root"><a id="stopped" href="https://example.net/stopped" style="display:block;height:60px">stopped</a></div>
+<script>document.getElementById("root").addEventListener("click", (e) => e.stopPropagation());</script></body>`;
 const server = createServer((req, res) => {
   res.writeHead(200, { "content-type": "text/html" });
   res.end(req.url === "/" ? PAGE : `<!doctype html><title>${req.url}</title>${req.url}`);
@@ -100,6 +102,16 @@ try {
     return { ok: !!tab && tab.profileId === "work" && !tab.active && source === `${origin}/`, tab, source };
   });
   record("a ⌘-click on a routed link opens a background Work tab and leaves the Personal page", meta?.ok, meta);
+
+  await inst.eval(`ac.store.getState().activate("t1"); return true;`);
+  await sleep(800);
+  await click("stopped");
+  const stopped = await until(async () => {
+    const [tab] = await tabsAt("https://example.net/stopped");
+    const source = await sourceUrl();
+    return { ok: !!tab && tab.profileId === "work" && source === `${origin}/`, tab, source };
+  });
+  record("a routed link whose page handler stops the click's propagation still opens in Work", stopped?.ok, stopped);
 
   const before = await inst.eval(`return Object.keys(ac.store.getState().tabs).length;`);
   await click("plain");
