@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.View
@@ -75,6 +76,9 @@ internal class WebViewPage(
     private var systemUserAgent = ""
     private var filterHandler: ScriptHandler? = null
     private var desktopViewportHandler: ScriptHandler? = null
+    private var fitsWidthAfterLoad = false
+    private var scrollAtDiscard: Int? = null
+    private var restoringScroll: Int? = null
     private var installedStart: List<String>? = null
     private var installedEnd: List<String>? = null
     private var installedBundle: String? = null
@@ -127,7 +131,10 @@ internal class WebViewPage(
                 popup.transport.sendToTarget()
             }
             pending != null -> navigate(web, pending, VisitKind.Typed)
-            saved != null && restore(web, saved, url) -> Unit
+            saved != null && restore(web, saved, url) -> {
+                restoringScroll = scrollAtDiscard
+                Log.i(LOG_TAG, "recreate $id from saved state, scroll at discard ${scrollAtDiscard ?: "unknown"}")
+            }
             url != null && BrowserUrl.scheme(url) != BrowserUrl.BROWSE_SCHEME -> navigate(web, url, firstVisit ?: VisitKind.Restored)
         }
         firstVisit = null
@@ -136,6 +143,8 @@ internal class WebViewPage(
     override fun discard() {
         val web = webView ?: return
         savedBundle = Bundle().also { saveInto(web, it) }
+        scrollAtDiscard = web.scrollY
+        Log.i(LOG_TAG, "discard $id at scroll ${web.scrollY} of ${web.height}")
         tearDown(web)
     }
 
@@ -207,6 +216,7 @@ internal class WebViewPage(
             mutableFind.value = FindResult("", -1, 0, true)
             return
         }
+        if (mutableFind.value?.query != text) web.clearMatches()
         mutableFind.value = FindResult(text, -1, 0, false)
         web.findAllAsync(text)
     }
@@ -245,6 +255,7 @@ internal class WebViewPage(
         update { it.copy(isDesktopSite = enabled) }
         val web = webView ?: return
         applyUserAgent(web)
+        fitsWidthAfterLoad = enabled
         reload()
     }
 
@@ -573,6 +584,14 @@ internal class WebViewPage(
             )
         }
         readPageLook(web)
+        if (fitsWidthAfterLoad) {
+            fitsWidthAfterLoad = false
+            web.postDelayed({ if (web === webView) web.zoomBy(SMALLEST_ZOOM_STEP) }, FIT_WIDTH_DELAY_MILLIS)
+        }
+        restoringScroll?.let { atDiscard ->
+            restoringScroll = null
+            web.postDelayed({ checkRestoredScroll(web, atDiscard) }, RESTORED_SCROLL_CHECK_MILLIS)
+        }
     }
 
     internal fun historyUpdated(web: WebView, url: String, isReload: Boolean) {
@@ -744,7 +763,8 @@ internal class WebViewPage(
     }
 
     private fun emitDownload(url: String, userAgent: String?, contentDisposition: String?, mimeType: String?, contentLength: Long) {
-        val fileName = URLUtil.guessFileName(url, contentDisposition, mimeType)
+        val linkName = if (mimeType == null && contentDisposition == null) DownloadRules.linkName(url, null, null) { null } else null
+        val fileName = (linkName ?: URLUtil.guessFileName(url, contentDisposition, mimeType))
             .replace('/', '-')
             .replace(':', '-')
             .trim()
@@ -827,6 +847,14 @@ internal class WebViewPage(
         }
     }
 
+    private fun checkRestoredScroll(web: WebView, atDiscard: Int) {
+        if (web !== webView) return
+        val restored = web.scrollY
+        val lost = restored <= 1 && atDiscard > web.height / 2
+        Log.i(LOG_TAG, "restored $id at scroll $restored, scroll at discard $atDiscard${if (lost) ", putting it back" else ""}")
+        if (lost) web.scrollTo(web.scrollX, atDiscard)
+    }
+
     private fun applyZoom(zoom: Double) {
         webView?.settings?.textZoom = (zoom * 100).roundToInt()
         if (mutableState.value.pageZoom != zoom) update { it.copy(pageZoom = zoom) }
@@ -848,6 +876,10 @@ internal class WebViewPage(
 
     companion object {
         private const val SAVED_STATE_LIMIT = 512 * 1024
+        private const val LOG_TAG = "ArdiaPages"
+        private const val SMALLEST_ZOOM_STEP = 0.01f
+        private const val FIT_WIDTH_DELAY_MILLIS = 300L
+        private const val RESTORED_SCROLL_CHECK_MILLIS = 700L
         private const val CLIENT_REDIRECT_WINDOW_MILLIS = 1500L
         private const val BLOCKED_FLUSH_MILLIS = 250L
         private const val DRAW_ATTEMPTS = 2

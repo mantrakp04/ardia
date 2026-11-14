@@ -167,17 +167,21 @@ class SystemDownloads(
         var target: Uri? = null
         var name = requestedName
         try {
-            val (_, response) = DownloadRules.fetch(download.url, download.userAgent, download.referer, DownloadRules.cookiesFor(download, cookies, sessions), isLive, transport, call)
+            val (finalUrl, response) = DownloadRules.fetch(download.url, download.userAgent, download.referer, DownloadRules.cookiesFor(download, cookies, sessions), isLive, transport, call)
             response.use {
                 val served = response.header("content-type")?.substringBefore(';')?.trim()?.ifEmpty { null }
-                val named = requestedName.substringAfterLast('.', "").lowercase().ifEmpty { null }
+                if (download.mimeType == null && download.contentDisposition == null) {
+                    DownloadRules.linkName(finalUrl, response.header("content-disposition"), served) { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
+                        ?.let { name = DownloadRules.safeFileName(it, requestedName) }
+                }
+                val named = name.substringAfterLast('.', "").lowercase().ifEmpty { null }
                     ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
                 val mimeType = named ?: served ?: download.mimeType
                 val total = response.contentLength ?: download.contentLength.takeIf { it > 0 }
                 if (total != null && downloadsFolderSpace() - total < DownloadRules.SPACE_RESERVE_BYTES) {
-                    return DownloadOutcome.Failed(requestedName, DownloadFailure.NoSpace)
+                    return DownloadOutcome.Failed(name, DownloadFailure.NoSpace)
                 }
-                val created = createEntry(requestedName, mimeType) ?: return DownloadOutcome.Failed(requestedName, DownloadFailure.Storage)
+                val created = createEntry(name, mimeType) ?: return DownloadOutcome.Failed(name, DownloadFailure.Storage)
                 target = created.first
                 name = created.second
                 val output = resolver.openOutputStream(created.first, "w") ?: run {

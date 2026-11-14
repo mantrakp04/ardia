@@ -234,6 +234,54 @@ object DownloadRules {
         }
     }
 
+    fun linkName(url: String, contentDisposition: String?, contentType: String?, extensionFor: (String) -> String?): String? {
+        dispositionName(contentDisposition)?.let { return it }
+        val segment = lastPathSegment(url) ?: return null
+        val extension = segment.substringAfterLast('.', "")
+        if (extension.isNotEmpty() && extension.length <= 5 && extension.all(Char::isLetterOrDigit) && extension.length < segment.length) return segment
+        val type = contentType?.substringBefore(';')?.trim()?.lowercase()?.ifEmpty { null } ?: return segment
+        val guessed = extensionFor(type) ?: commonExtensions[type] ?: return segment
+        return "$segment.$guessed"
+    }
+
+    fun dispositionName(header: String?): String? {
+        if (header == null) return null
+        val extended = Regex("filename\\*\\s*=\\s*([^;]+)", RegexOption.IGNORE_CASE).find(header)?.groupValues?.get(1)?.trim()
+        if (extended != null) {
+            val encoded = extended.substringAfter("''", extended).trim('"')
+            percentDecoded(encoded)?.trim()?.ifEmpty { null }?.let { return it }
+        }
+        val plain = Regex("filename\\s*=\\s*(\"[^\"]*\"|[^;]+)", RegexOption.IGNORE_CASE).find(header)?.groupValues?.get(1)?.trim()?.trim('"')
+        return plain?.trim()?.ifEmpty { null }
+    }
+
+    private fun lastPathSegment(url: String): String? {
+        val afterScheme = url.substringAfter("://", "")
+        val path = afterScheme.substringAfter('/', "").substringBefore('?').substringBefore('#')
+        val segment = path.trimEnd('/').substringAfterLast('/')
+        return percentDecoded(segment)?.trim()?.ifEmpty { null }
+    }
+
+    private fun percentDecoded(value: String): String? = runCatching {
+        java.net.URLDecoder.decode(value.replace("+", "%2B"), Charsets.UTF_8.name())
+    }.getOrNull()
+
+    private val commonExtensions = mapOf(
+        "text/html" to "html",
+        "application/xhtml+xml" to "html",
+        "text/plain" to "txt",
+        "application/pdf" to "pdf",
+        "application/json" to "json",
+        "application/zip" to "zip",
+        "image/jpeg" to "jpg",
+        "image/png" to "png",
+        "image/gif" to "gif",
+        "image/webp" to "webp",
+        "image/svg+xml" to "svg",
+        "video/mp4" to "mp4",
+        "audio/mpeg" to "mp3",
+    )
+
     fun uniqueName(name: String, taken: Set<String>): String {
         val lowered = taken.mapTo(HashSet()) { it.lowercase() }
         if (name.lowercase() !in lowered) return name

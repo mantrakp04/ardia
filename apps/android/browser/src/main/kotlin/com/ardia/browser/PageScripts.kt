@@ -28,9 +28,16 @@ object PageScripts {
 (() => {
   if (window !== window.top || window.__ardiaDesktopViewport) return;
   window.__ardiaDesktopViewport = true;
-  const content = "width=$DESKTOP_LAYOUT_WIDTH";
   const isViewport = (node) => node.nodeType === 1 && node.tagName === "META" && (node.getAttribute("name") || "").toLowerCase() === "viewport";
-  const pin = (meta) => { if (meta.getAttribute("content") !== content) meta.setAttribute("content", content); };
+  const desktopContent = (declared) => {
+    const width = /(?:^|[,;\s])width\s*=\s*(\d+)/i.exec(declared || "");
+    return "width=" + Math.max($DESKTOP_LAYOUT_WIDTH, width ? Number(width[1]) : 0);
+  };
+  const pin = (meta) => {
+    const content = meta.getAttribute("content");
+    if (/^width=\d+${'$'}/.test(content || "") && Number(content.slice(6)) >= $DESKTOP_LAYOUT_WIDTH) return;
+    meta.setAttribute("content", desktopContent(content));
+  };
   new MutationObserver((records) => {
     for (const record of records) {
       if (record.type === "attributes") { if (isViewport(record.target)) pin(record.target); continue; }

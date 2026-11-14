@@ -337,4 +337,17 @@ class DownloadRulesTest {
         assertEquals("README 2", DownloadRules.uniqueName("README", setOf("README")))
         assertFalse(DownloadRules.uniqueName("a.pdf", setOf("a.pdf")).contains('/'))
     }
+
+    @Test
+    fun linkDownloadsAreNamedFromTheResponseOrTheAddress() {
+        val none: (String) -> String? = { null }
+        assertEquals("Marine_ecosystem.html", DownloadRules.linkName("https://en.m.wikipedia.org/wiki/Marine_ecosystem", null, "text/html; charset=UTF-8", none))
+        assertEquals("Marine_ecosystem", DownloadRules.linkName("https://en.m.wikipedia.org/wiki/Marine_ecosystem", null, null, none))
+        assertEquals("report.pdf", DownloadRules.linkName("https://example.com/get?id=7", "attachment; filename=\"report.pdf\"", "application/pdf", none))
+        assertEquals("naïve plan.txt", DownloadRules.linkName("https://example.com/x", "attachment; filename=\"fallback.txt\"; filename*=UTF-8''na%C3%AFve%20plan.txt", null, none))
+        assertEquals("archive.tar.gz", DownloadRules.linkName("https://example.com/files/archive.tar.gz?token=1#top", null, "application/octet-stream", none))
+        assertEquals("photo.avif", DownloadRules.linkName("https://example.com/photo", null, "image/avif", { if (it == "image/avif") "avif" else null }))
+        assertEquals("Café menu.pdf", DownloadRules.linkName("https://example.com/Caf%C3%A9%20menu", null, "application/pdf", none))
+        assertNull(DownloadRules.linkName("https://example.com/", null, "text/html", none))
+    }
 }
