@@ -150,6 +150,86 @@ test("a typed or completed address opens, even when a tab has it open: the tab k
   }
 });
 
+test("a pasted address opens with the #fragment it carries, whatever fragment the saved page has", () => {
+  const share = "https://excalidraw.com/#json=id,key";
+  const saved = (url: string) => [{ url, title: "Excalidraw", favicon: "icon", visits: 4, lastVisit: now - 1000 }];
+  for (const url of ["https://excalidraw.com/", "https://excalidraw.com", "https://excalidraw.com/#json=old,key", "https://excalidraw.com/#room=a"]) {
+    const { items } = buildSuggestions(share, { tabs: [], history: saved(url) }, { now });
+    assert.equal(items[0]?.kind === "page" && items[0].url, share, `saved ${url}: the first row opens the pasted address`);
+    assert.equal(items[0]?.kind === "page" && items[0].title, "Excalidraw", `saved ${url}: the saved page lends its title`);
+    assert.equal(items[0]?.kind === "page" && items[0].favicon, "icon", `saved ${url}: and its icon`);
+  }
+  const bookmarks = [{ url: "https://excalidraw.com/", title: "Excalidraw", favicon: null }];
+  assert.equal(rows(buildSuggestions(share, { tabs: [], history: [], bookmarks }, { now }).items)[0], share, "a bookmarked page too");
+  const tabs = [{ id: "t1", url: "https://excalidraw.com/", title: "Excalidraw", favicon: null }];
+  assert.equal(rows(buildSuggestions(share, { tabs, history: [] }, { now }).items)[0], share, "a page open in a tab too");
+});
+
+test("a pasted address with a #fragment is not offered for removal from history unless that exact address is saved", () => {
+  const share = "https://excalidraw.com/#json=id,key";
+  const page = (url: string) => [{ url, title: "Excalidraw", favicon: null, visits: 4, lastVisit: now - 1000 }];
+  const other = buildSuggestions(share, { tabs: [], history: page("https://excalidraw.com/") }, { now }).items[0];
+  assert.equal(other?.kind === "page" && other.visited, undefined, "another address: no remove button that removes nothing");
+  const same = buildSuggestions(share, { tabs: [], history: page(share) }, { now }).items[0];
+  assert.equal(same?.kind === "page" && same.visited, true, "the same address: removable");
+  assert.equal(same?.kind === "page" && same.url, share);
+  const twice = [
+    { url: "https://excalidraw.com/#json=old,key", title: "Old board", favicon: "old", visits: 4, lastVisit: now - 1000 },
+    { url: share, title: "Shared board", favicon: "shared", visits: 1, lastVisit: now - 2000 },
+  ];
+  const later = buildSuggestions(share, { tabs: [], history: twice }, { now }).items[0];
+  assert.equal(later?.kind === "page" && later.url, share, "saved under two fragments: opens the pasted one");
+  assert.equal(later?.kind === "page" && later.visited, true, "the exact address is saved after another fragment of the page: still removable");
+  assert.equal(later?.kind === "page" && later.title, "Shared board", "and lends its own title");
+  assert.equal(later?.kind === "page" && later.favicon, "shared", "and its own icon");
+});
+
+test("a typed address opens the exact address that is saved, whatever other slash or #fragment forms of the page come first", () => {
+  const saved = (url: string, title: string) => ({ url, title, favicon: null, visits: 2, lastVisit: now - 1000 });
+  const first = (typed: string, history: ReturnType<typeof saved>[]) => buildSuggestions(typed, { tabs: [], history }, { now }).items[0];
+  const board = "https://example.com/board";
+  const plain = first(board, [saved(`${board}/`, "Board with slash"), saved(board, "Board")]);
+  assert.equal(plain?.kind === "page" && plain.url, board, "the address without the slash opens without it");
+  assert.equal(plain?.kind === "page" && plain.title, "Board", "and lends its own title");
+  assert.equal(plain?.kind === "page" && plain.visited, true, "and stays removable");
+  const room = first(`${board}#room`, [saved(`${board}/#room`, "Room with slash"), saved(`${board}#room`, "Room")]);
+  assert.equal(room?.kind === "page" && room.url, `${board}#room`, "the same #fragment on the other slash form still opens the typed address");
+  assert.equal(room?.kind === "page" && room.title, "Room", "and lends the exact row's title");
+  assert.equal(room?.kind === "page" && room.visited, true, "and stays removable");
+  const slashOnly = first(`${board}#room`, [saved(`${board}/#room`, "Room with slash")]);
+  assert.equal(slashOnly?.kind === "page" && slashOnly.url, `${board}#room`, "no exact row: the typed address, not the saved slash form");
+  assert.equal(slashOnly?.kind === "page" && slashOnly.visited, undefined, "and no remove button that removes nothing");
+});
+
+test("a typed address that is bookmarked as typed opens as typed with that bookmark's title, icon and flag", () => {
+  const board = "https://example.com/board";
+  const history = (url: string, title: string) => ({ url, title, favicon: null, visits: 2, lastVisit: now - 1000 });
+  const bookmark = (url: string, title: string) => ({ url, title, favicon: "bookmark-icon" });
+  const first = (typed: string, source: Parameters<typeof buildSuggestions>[1]) => buildSuggestions(typed, source, { now }).items[0];
+
+  const slash = first(`${board}#room`, {
+    tabs: [],
+    history: [history(`${board}/#room`, "Room with slash"), history(`${board}#room`, "Room")],
+    bookmarks: [bookmark(`${board}#room`, "Room bookmark")],
+  });
+  assert.equal(slash?.kind === "page" && slash.url, `${board}#room`, "the exact bookmarked address opens as typed");
+  assert.equal(slash?.kind === "page" && slash.bookmarked, true, "and keeps its bookmark flag after another slash form in history");
+  assert.equal(slash?.kind === "page" && slash.visited, true, "and stays removable");
+  assert.equal(slash?.kind === "page" && slash.title, "Room", "and lends the exact history row's title");
+
+  const bookmarkOnly = first(`${board}#new`, { tabs: [], history: [history(`${board}#old`, "Old board")], bookmarks: [bookmark(`${board}#new`, "New board")] });
+  assert.equal(bookmarkOnly?.kind === "page" && bookmarkOnly.url, `${board}#new`, "pasting the bookmarked address opens it, not the history row under another fragment");
+  assert.equal(bookmarkOnly?.kind === "page" && bookmarkOnly.title, "New board", "and lends the exact bookmark's title");
+  assert.equal(bookmarkOnly?.kind === "page" && bookmarkOnly.favicon, "bookmark-icon", "and its icon");
+  assert.equal(bookmarkOnly?.kind === "page" && bookmarkOnly.bookmarked, true, "and is classed as a bookmark");
+  assert.equal(bookmarkOnly?.kind === "page" && bookmarkOnly.visited, undefined, "and no remove button, since no history row has that address");
+
+  const unsaved = first(`${board}#fresh`, { tabs: [], history: [history(`${board}#old`, "Old board")], bookmarks: [bookmark(`${board}#new`, "New board")] });
+  assert.equal(unsaved?.kind === "page" && unsaved.url, `${board}#fresh`, "an address saved under no fragment like it opens as typed");
+  assert.equal(unsaved?.kind === "page" && unsaved.bookmarked, undefined, "and is not classed as a bookmark");
+  assert.equal(unsaved?.kind === "page" && unsaved.visited, undefined, "nor as history");
+});
+
 test("frecency: frequent + recent beats old, and multi-word queries match words", () => {
   const hist = [
     { url: "https://a.com/docs", title: "Rust docs", favicon: null, visits: 2, lastVisit: now - DAY * 60 },

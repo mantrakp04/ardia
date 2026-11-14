@@ -54,6 +54,7 @@ export function displayUrl(url: string): string {
 
 const DAY = 86_400_000;
 const pageKey = (url: string) => url.replace(/#.*$/, "").replace(/\/$/, "");
+const fragmentOf = (url: string) => (url.includes("#") ? url.slice(url.indexOf("#")) : "");
 
 type HistoryRow = SuggestionSource["history"][number];
 type BookmarkRow = NonNullable<SuggestionSource["bookmarks"]>[number];
@@ -339,10 +340,23 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const pool = poolFor(source.history, source.bookmarks ?? NO_BOOKMARKS);
   const { tabIds, extra } = tabsOver(pool, source.tabs, now, options.currentTabId);
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
-  const known = (url: string) => {
+  const known = (url: string): Suggestion | undefined => {
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
-    return c && pageSuggestion(c, null);
+    if (!c) return undefined;
+    if (c.url === url) return pageSuggestion(c, null);
+    const saved = source.history.find((h) => h.url === url);
+    const exact = saved ?? source.bookmarks?.find((b) => b.url === url);
+    if (!exact && !fragmentOf(url)) return pageSuggestion(c, null);
+    const lender = exact ?? c;
+    return {
+      kind: "page",
+      url,
+      title: lender.title,
+      favicon: lender.favicon,
+      ...(exact && c.bookmarked ? { bookmarked: true } : {}),
+      ...(saved && saved.visits > 0 ? { visited: true } : {}),
+    };
   };
 
   const websiteFirst = preference === "website";
