@@ -15,6 +15,7 @@ import { findTab } from "../tabs/tabsState";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 import { isPinnedOnMac, pinsOnTheirWay } from "./spaces";
 import { noteLocalChange, notePinSent, selectedProfile, selectedProfileId, startSyncSources, syncData, useSync } from "./store";
+import { copy } from "../../lib/platformCopy";
 import {
   CONNECTED_TOAST,
   COULD_NOT_PIN_TOAST,
@@ -159,7 +160,7 @@ export async function pinToMac(tab: BrowserTab, onSetup: () => void) {
     return;
   }
   if (isTabPinned(tab)) {
-    showToast(PINNED_TOAST, "star");
+    showToast(copy().alreadyPinnedToast, "star");
     return;
   }
   const pinned = await settled(() => sync.pinToMac({ url: tab.url, title: tab.title, profileSyncId: tab.profileSyncId }), false);

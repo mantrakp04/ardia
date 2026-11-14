@@ -5,6 +5,7 @@ import { useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { connectMessage, deviceIcon, inboxNotice, shownProfile, deviceSeen, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, syncHeroSubtitle } from "../../state/sync/syncRules";
 import { popSettings, pushSettings } from "../../state/settings/nav";
 import { capsule, ConfirmDialog, font, settingsLayout, settingsTint, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
+import { copy } from "../../lib/platformCopy";
 import { ButtonRow, Divider, Group, IconTile, NavRow, SettingsPage, ValueRow } from "../settings/SettingsKit";
 
 const NAME_SETTLE_MS = 600;
@@ -83,7 +84,7 @@ function DeviceName({ current }: { current: string }) {
     timer.current = setTimeout(save, NAME_SETTLE_MS);
   };
   return (
-    <Group header="This Phone’s Name" footer="Shown on your Mac.">
+    <Group header={copy().deviceNameHeader} footer="Shown on your Mac.">
       <View style={styles.row}>
         <TextInput
           ref={field}
@@ -139,7 +140,7 @@ export function SyncPage() {
         {off ? <CapsuleButton title="Connect to Your Mac" prominent onPress={() => pushSettings({ page: "syncConnect" })} /> : null}
       </SyncHero>
       {off ? (
-        <Group header="What You Get" footer="End-to-end encrypted, in a folder you choose.">
+        <Group header="What You Get" footer={copy().syncFeatureFooter}>
           <FeatureRow icon="laptop" title="Your Mac’s Tabs" divider />
           <FeatureRow icon="pinFill" title="Pinned Tabs and Spaces" divider />
           <FeatureRow icon="paperplane" title="Send Tabs Both Ways" divider />
@@ -165,7 +166,7 @@ export function SyncPage() {
         </Group>
       ) : null}
       {status.attention === "reset" ? (
-        <Group footer="Tabs on this phone stay.">
+        <Group footer={copy().syncTabsStay}>
           <NavRow
             title="Connect Again"
             onPress={() => {
@@ -200,7 +201,7 @@ export function SyncPage() {
             <ValueRow title="Folder" value={status.folderName ?? "Ardia Sync"} divider />
             <ButtonRow title="Change Folder…" onPress={() => void chooseFolder()} />
           </Group>
-          <Group footer="Your Mac stops seeing this phone’s tabs.">
+          <Group footer={copy().stopSyncingFooter}>
             <ButtonRow title="Stop Syncing…" destructive enabled={!stopping} busy={stopping} onPress={confirmStop} />
           </Group>
         </>

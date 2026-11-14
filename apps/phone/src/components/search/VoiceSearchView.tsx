@@ -1,16 +1,12 @@
 import { useEffect, useRef } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { copy } from "../../lib/platformCopy";
 import { windowTintStops } from "../../lib/profileLook";
 import { PROBLEM_TEXT, voiceControl, type Dictation } from "../../state/voice/dictation";
 import { closeVoiceSearch, openSpeechSettings, searchSpoken, startListening, stopListening, useDictation, useVoiceLevels, useVoicePresented } from "../../state/voice/store";
 import { ArdiaLogo, Backdrop, capsule, font, space, Symbol, useCoverFocus, useProfileLook, voiceInk, voiceLayout, type SymbolName } from "../ui";
-
-const PERMISSION_DETAIL =
-  Platform.OS === "ios"
-    ? "Allow Microphone and Speech Recognition for Ardia in Settings to search with your voice."
-    : "Allow Microphone for Ardia in Settings to search with your voice.";
 
 export function VoiceSearchView() {
   const presented = useVoicePresented();
@@ -66,7 +62,7 @@ function Transcript({ dictation }: { dictation: Dictation }) {
     return (
       <View style={styles.message}>
         <Text style={[font.title3, styles.bold, styles.centered, { color: voiceInk.label }]}>Speech and Mic permissions required.</Text>
-        <Text style={[font.subheadline, styles.centered, { color: voiceInk.soft }]}>{PERMISSION_DETAIL}</Text>
+        <Text style={[font.subheadline, styles.centered, { color: voiceInk.soft }]}>{copy().voicePermission}</Text>
         <GlassPill title="Open Settings" onPress={openSpeechSettings} />
       </View>
     );

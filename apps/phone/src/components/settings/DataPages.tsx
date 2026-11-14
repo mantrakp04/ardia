@@ -4,6 +4,7 @@ import { appVersion, clearBrowsingData, openFromSettings } from "../../state/set
 import { popSettings, pushSettings } from "../../state/settings/nav";
 import { CLEAR_RANGES, clearChoice, clearFooter, clearIsEmpty, clearMessage, clearTitle, type ClearRange } from "../../state/settings/settingsRules";
 import { ArdiaLogo, ConfirmDialog, font, settingsLayout, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
+import { copy } from "../../lib/platformCopy";
 import { ButtonRow, Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
 
 export function ClearDataPage() {
@@ -69,7 +70,7 @@ export function AboutPage() {
         <Text style={[font.title3, styles.bold, { color: theme.label }]}>Ardia</Text>
         <Text style={[font.subheadline, { color: theme.secondaryLabel }]}>{appVersion()}</Text>
       </View>
-      <Group footer="No accounts. Your data stays on your devices and in the sync folder you choose.">
+      <Group footer={copy().privacy}>
         <LinkRow title="ardia.dev" icon="globe" url="https://ardia.dev" divider />
         <LinkRow title="Release Notes" icon="sparkles" url="https://ardia.dev/release-notes" divider />
         <LinkRow title="Source Code" icon="code" url="https://github.com/mantrakp04/ardia" />

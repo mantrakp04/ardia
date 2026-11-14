@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { copyTable } from "../../lib/platformCopy.ts";
 import {
   clearChoice,
   clearFooter,
@@ -97,7 +98,7 @@ test("onboarding asks about the default browser only where the phone can be aske
   assert.equal(nextStep("defaultBrowser", false), "sync");
   assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: true }), true);
   assert.equal(offersDefaultBrowser({ isDefault: true, canAsk: false }), true);
-  assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: false }), false);
+  assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: false }, false), false);
   assert.equal(offersDefaultBrowser(null), false);
 });
 
@@ -107,11 +108,31 @@ test("the default browser page has the two steps until Ardia is the default, the
     subtitle: "Open links from other apps in Ardia.",
     steps: ["Tap “Set as Default Browser”", "Select Ardia"],
     action: "Set as Default Browser",
+    does: "askForRole",
   });
   assert.deepEqual(defaultBrowserCopy({ isDefault: true, canAsk: false }), {
     title: "Ardia is your default browser",
     subtitle: "Links from other apps open in Ardia.",
     steps: [],
     action: null,
+    does: null,
   });
+});
+
+test("without the browser role on offer, Android sends you to Default Apps to choose the browser app", () => {
+  const copy = defaultBrowserCopy({ isDefault: false, canAsk: false });
+  assert.deepEqual(copy.steps, ["Tap “Open Default Apps”", "Choose Browser app"]);
+  assert.equal(copy.action, "Open Default Apps");
+  assert.equal(copy.does, "openDefaultApps");
+  assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: false }, true), true);
+});
+
+test("on iPhone the page has the three Settings steps and opens Ardia in Settings", () => {
+  const ios = copyTable("ios");
+  const copy = defaultBrowserCopy({ isDefault: true, canAsk: false }, ios.defaultBrowserInstructions);
+  assert.equal(copy.title, "How to change your default browser");
+  assert.deepEqual(copy.steps, ["Open Ardia in Settings", "Tap on “Default Browser App”", "Select Ardia"]);
+  assert.equal(copy.does, "openAppSettings");
+  assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: false }, ios.offersDefaultBrowserAlways), false);
+  assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: true }, ios.offersDefaultBrowserAlways), true);
 });

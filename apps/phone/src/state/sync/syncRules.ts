@@ -1,4 +1,5 @@
 import type { ConnectResult, PhraseCheck, SyncedDevice, SyncedProfile, SyncedView, SyncPhase, SyncStatus } from "../../platform/sync.ts";
+import { copy } from "../../lib/platformCopy.ts";
 
 export const MAC_HINT = "On your Mac: Settings › Sync › Connect Another Device.";
 export const YOUR_MAC = "Your Mac";
@@ -38,7 +39,7 @@ export function syncRowSubtitle(status: SyncStatus): StatusLine {
 }
 
 export function syncHeroSubtitle(status: SyncStatus): StatusLine {
-  if (isSyncOff(status)) return { text: "Your Mac’s tabs here, and this phone’s on your Mac.", isWarning: false };
+  if (isSyncOff(status)) return { text: copy().syncHero, isWarning: false };
   return { text: status.statusText, isWarning: status.attention !== "none" };
 }
 
@@ -71,9 +72,9 @@ export function connectMessage(result: ConnectResult): string | null {
     case "noSyncData":
       return "There’s no synced data in this folder yet. Choose the folder your other devices sync to, or wait for it to finish downloading.";
     case "folderUnavailable":
-      return "Ardia can’t open this folder. Choose the Ardia Sync folder your Mac syncs to.";
+      return copy().folderUnavailable;
     case "keyStoreFailed":
-      return "Couldn’t save the sync key on this phone.";
+      return copy().keySaveFailed;
     case "busy":
       return "Ardia is still turning off sync. Try again in a moment.";
   }
@@ -107,7 +108,7 @@ export function ago(then: number, now: number): string {
 }
 
 export function deviceSeen(device: SyncedDevice, now: number): string {
-  if (device.isCurrent) return "This Phone";
+  if (device.isCurrent) return copy().thisDevice;
   if (device.lastSeen === null) return "Not Yet Synced";
   if (now - device.lastSeen < JUST_NOW_MS) return "Just Now";
   return ago(device.lastSeen, now);

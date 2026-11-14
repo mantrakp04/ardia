@@ -15,7 +15,7 @@ export function DefaultBrowserSteps({ onLater, onDone }: { onLater?: () => void;
   if (!status) return null;
   const copy = defaultBrowserCopy(status);
   const ask = async () => {
-    const after = await askForDefaultBrowser();
+    const after = await askForDefaultBrowser(copy.does);
     if (after?.isDefault) onDone?.();
   };
   return (
@@ -31,13 +31,7 @@ export function DefaultBrowserSteps({ onLater, onDone }: { onLater?: () => void;
           {copy.steps.map((step, index) => (
             <View key={step}>
               <View accessible style={styles.step}>
-                {index === copy.steps.length - 1 ? (
-                  <ArdiaLogo width={settingsLayout.tile} />
-                ) : (
-                  <View style={[styles.tile, { backgroundColor: settingsTint.sync }]}>
-                    <Symbol name="arrowUpForward" size={16} color={theme.groupFill} />
-                  </View>
-                )}
+                <StepIcon index={index} count={copy.steps.length} inSettings={copy.does === "openAppSettings"} />
                 <Text style={[font.body, styles.fill, { color: theme.label }]}>{`${index + 1}. ${step}`}</Text>
               </View>
               {index < copy.steps.length - 1 ? <View style={[styles.divider, { backgroundColor: theme.separator }]} /> : null}
@@ -61,6 +55,30 @@ export function DefaultBrowserSteps({ onLater, onDone }: { onLater?: () => void;
           </Pressable>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+function StepIcon({ index, count, inSettings }: { index: number; count: number; inSettings: boolean }) {
+  const theme = useTheme();
+  if (index === count - 1) return <ArdiaLogo width={settingsLayout.tile} />;
+  if (inSettings && index === 0) {
+    return (
+      <View style={[styles.tile, { backgroundColor: settingsTint.neutral }]}>
+        <Symbol name="gearshape" size={17} color={theme.groupFill} />
+      </View>
+    );
+  }
+  if (inSettings) {
+    return (
+      <View style={styles.tile}>
+        <Symbol name="handRaised" size={18} color={theme.secondaryLabel} />
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.tile, { backgroundColor: settingsTint.sync }]}>
+      <Symbol name="arrowUpForward" size={16} color={theme.groupFill} />
     </View>
   );
 }

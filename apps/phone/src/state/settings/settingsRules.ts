@@ -1,4 +1,5 @@
 export type ClearRange = "lastHour" | "today" | "todayAndYesterday" | "allTime";
+import { copy, type DefaultBrowserSteps } from "../../lib/platformCopy.ts";
 
 export const CLEAR_RANGES: { id: ClearRange; title: string; phrase: string }[] = [
   { id: "lastHour", title: "Last Hour", phrase: "from the last hour" },
@@ -58,7 +59,7 @@ export const clearMessage = (choice: ClearChoice) =>
 export function clearFooter(choice: ClearChoice): string {
   if (clearIsEmpty(choice)) return "Choose what to clear.";
   const lines: string[] = [];
-  if (choice.history) lines.push("History clears from this phone. Your Mac’s history stays on your Mac.");
+  if (choice.history) lines.push(copy().historyClears);
   lines.push(choice.cookies ? "Clearing cookies signs you out of websites." : "You’ll stay signed in to websites.");
   return lines.join(" ");
 }
@@ -180,19 +181,32 @@ export const previousStep = (step: OnboardingStep, offersDefaultBrowser = false)
   return at <= 0 ? null : (steps[at - 1] ?? null);
 };
 
-export type DefaultBrowserCopy = { title: string; subtitle: string; steps: string[]; action: string | null };
+export type DefaultBrowserAction = "askForRole" | "openDefaultApps" | "openAppSettings";
+
+export type DefaultBrowserCopy = { title: string; subtitle: string; steps: string[]; action: string | null; does: DefaultBrowserAction | null };
 
 export const DEFAULT_BROWSER_ACTION = "Set as Default Browser";
+export const OPEN_DEFAULT_APPS = "Open Default Apps";
 
-export const offersDefaultBrowser = (status: { isDefault: boolean; canAsk: boolean } | null) => Boolean(status && (status.canAsk || status.isDefault));
+type Status = { isDefault: boolean; canAsk: boolean };
 
-export function defaultBrowserCopy(status: { isDefault: boolean; canAsk: boolean }): DefaultBrowserCopy {
-  if (status.isDefault) return { title: "Ardia is your default browser", subtitle: "Links from other apps open in Ardia.", steps: [], action: null };
+export function offersDefaultBrowser(status: Status | null, always = copy().offersDefaultBrowserAlways): boolean {
+  if (!status) return false;
+  return always || status.canAsk || status.isDefault;
+}
+
+export function defaultBrowserCopy(status: Status, instructions: DefaultBrowserSteps | null = copy().defaultBrowserInstructions): DefaultBrowserCopy {
+  if (instructions) {
+    return { title: instructions.title, subtitle: instructions.subtitle, steps: instructions.steps, action: instructions.action, does: "openAppSettings" };
+  }
+  if (status.isDefault) return { title: "Ardia is your default browser", subtitle: "Links from other apps open in Ardia.", steps: [], action: null, does: null };
+  const action = status.canAsk ? DEFAULT_BROWSER_ACTION : OPEN_DEFAULT_APPS;
   return {
     title: "Make Ardia your default browser",
     subtitle: "Open links from other apps in Ardia.",
-    steps: [`Tap “${DEFAULT_BROWSER_ACTION}”`, "Select Ardia"],
-    action: DEFAULT_BROWSER_ACTION,
+    steps: [`Tap “${action}”`, status.canAsk ? "Select Ardia" : "Choose Browser app"],
+    action,
+    does: status.canAsk ? "askForRole" : "openDefaultApps",
   };
 }
 

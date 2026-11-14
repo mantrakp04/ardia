@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import "../../platform/copy";
 import { importLegacyStore } from "../legacy/importer";
 
 export const useBoot = create<{ ready: boolean }>()(() => ({ ready: false }));

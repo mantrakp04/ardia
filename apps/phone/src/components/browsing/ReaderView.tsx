@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
 import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSystemBars } from "../../state/app/systemBars";
@@ -13,10 +13,9 @@ import {
   readingMinutes,
   type ReaderTheme,
 } from "../../state/page/pagePrompts";
+import { copy } from "../../lib/platformCopy";
 import { font, Menu, readerInk, readerLayout, space, Symbol, tabsMotion, useTheme, type MenuItem } from "../ui";
 
-const SERIF = Platform.OS === "ios" ? "Georgia" : "serif";
-const SANS = Platform.OS === "ios" ? "System" : "sans-serif";
 
 const rise = SlideInDown.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
 const fall = SlideOutDown.springify().stiffness(tabsMotion.sheetOut.stiffness).damping(tabsMotion.sheetOut.damping);
@@ -43,14 +42,14 @@ export function ReaderView({ tabId }: { tabId: string }) {
     };
   }, [tabId]);
   const size = readerBodySize(settings.step);
-  const family = settings.serif ? SERIF : SANS;
+  const family = settings.serif ? copy().readerSerif.family : copy().readerSans.family;
   const items: MenuItem[] = [
     { label: "Smaller Text", onPress: () => setReaderStep(clampReaderStep(settings.step - 1)) },
     { label: "Larger Text", onPress: () => setReaderStep(clampReaderStep(settings.step + 1)) },
     "divider",
     { heading: "Font" },
-    { label: "Serif", checked: settings.serif, onPress: () => setReaderSerif(true) },
-    { label: "Sans Serif", checked: !settings.serif, onPress: () => setReaderSerif(false) },
+    { label: copy().readerSerif.label, checked: settings.serif, onPress: () => setReaderSerif(true) },
+    { label: copy().readerSans.label, checked: !settings.serif, onPress: () => setReaderSerif(false) },
     "divider",
     { heading: "Theme" },
     ...(["light", "sepia", "dark"] as ReaderTheme[]).map((option) => ({

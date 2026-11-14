@@ -28,6 +28,7 @@ import {
   validListUrl,
 } from "../../state/settings/settingsRules";
 import { ConfirmDialog, Dialog, dialogLayout, font, radius, settingsLayout, settingsTint, space, Symbol, Toggle, useTheme, type Confirmation } from "../ui";
+import { copy } from "../../lib/platformCopy";
 import { BarButton, ButtonRow, Divider, EmptyState, Group, IconTile, NavRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
 
 export function FilterListsPage() {
@@ -127,7 +128,7 @@ export function FilterListDetailPage({ id }: { id: string }) {
           <ButtonRow title="Try Again" onPress={updateLists} />
         </Group>
       ) : null}
-      <Group footer={list.skippedCount > 0 ? "Some rules need features Ardia can’t run." : null}>
+      <Group footer={list.skippedCount > 0 ? copy().filterRulesUnsupported : null}>
         <ValueRow title="Status" value={listStatus(list)} divider />
         <ValueRow title="Last Updated" value={list.updatedAt ? updatedText(list.updatedAt, Date.now()).replace(/^Updated /, "") : "Never"} divider />
         <ValueRow title="Rules" value={formatNumber(list.ruleCount)} divider />

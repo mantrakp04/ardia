@@ -6,6 +6,7 @@ import { capsule, font, radius, settingsLayout, space, spacesLayout, Symbol, use
 import { BarButton, Group, SettingsPage } from "../settings/SettingsKit";
 import { CapsuleButton, SyncHero } from "./SyncPage";
 import { SyncScan } from "./SyncScan";
+import { copy } from "../../lib/platformCopy";
 import { canScanCodes } from "../../state/sync/scan";
 
 type FlowProps = { onClose: () => void; onConnected: () => void; closes?: boolean };
@@ -78,7 +79,7 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
       leading={closes ? <BarButton title="Close" onPress={onClose} enabled={!connecting} /> : undefined}
     >
       <SyncHero title="Connect to Your Mac" subtitle="Two steps, and your Mac’s tabs are here." />
-      <Group header="Two Steps" footer="Your recovery phrase stays on this phone.">
+      <Group header="Two Steps" footer={copy().phraseStays}>
         <Step number={1} title="Show the code on your Mac" detail={MAC_HINT} done={hasPhrase} current>
           {hasPhrase ? (
             <PhraseAdded onChange={() => setEntering(true)} />
@@ -89,7 +90,7 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
             </>
           )}
         </Step>
-        <Step number={2} title="Choose the Ardia Sync folder" detail="Choose the Ardia Sync folder your Mac syncs to." done={false} current={hasPhrase}>
+        <Step number={2} title="Choose the Ardia Sync folder" detail={copy().chooseFolderDetail} done={false} current={hasPhrase}>
           {connecting ? <Connecting /> : <CapsuleButton title="Choose Folder…" enabled={hasPhrase} onPress={() => void connect()} />}
           {failure ? <Problem text={failure} /> : null}
         </Step>
