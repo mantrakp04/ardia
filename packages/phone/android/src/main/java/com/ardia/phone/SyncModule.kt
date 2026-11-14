@@ -20,6 +20,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 class SyncModule : Module() {
@@ -78,7 +79,7 @@ class SyncModule : Module() {
 
         AsyncFunction("view") { ->
             val sync = controller
-            SyncPayloads.view(sync.snapshot.value, sync.state.value.selectedProfileId, sync.receivers.value)
+            SyncPayloads.view(sync.snapshot.value, sync.state.value.selectedProfileId, sync.receivers.value, PhoneSync.pins.waiting(sync.snapshot.value))
         }
 
         AsyncFunction("incoming") { -> controller.incoming.value.map(SyncPayloads::received) }
@@ -97,7 +98,10 @@ class SyncModule : Module() {
             }
         }.runOnQueue(Queues.MAIN)
 
-        AsyncFunction("stopSyncing") Coroutine { -> controller.stopSyncing() }
+        AsyncFunction("stopSyncing") Coroutine { ->
+            controller.stopSyncing()
+            PhoneSync.pins.clear()
+        }
 
         AsyncFunction("acknowledgeReset") Coroutine { -> controller.acknowledgeReset() }
 
@@ -116,7 +120,11 @@ class SyncModule : Module() {
         }
 
         AsyncFunction("pinToMac") Coroutine { url: String, title: String, profileSyncId: String?, fromPrivateTab: Boolean ->
-            controller.pinToMac(url, title, profileSyncId, fromPrivateTab)
+            val sync = controller
+            val pinned = sync.pinToMac(url, title, profileSyncId, fromPrivateTab)
+            val profile = profileSyncId ?: sync.state.value.selectedProfileId ?: sync.snapshot.value.defaultProfile?.syncId
+            if (pinned && profile != null) PhoneSync.pins.pinned(profile, url)
+            pinned
         }
 
         AsyncFunction("clearIncoming") { -> controller.clearIncoming() }
@@ -149,7 +157,9 @@ class SyncModule : Module() {
             }
         }
         running.launch {
-            combine(sync.snapshot, sync.state, sync.receivers) { snapshot, state, receivers -> SyncPayloads.view(snapshot, state.selectedProfileId, receivers) }
+            combine(sync.snapshot, sync.state, sync.receivers, PhoneSync.pins.pending) { snapshot, state, receivers, _ ->
+                SyncPayloads.view(snapshot, state.selectedProfileId, receivers, PhoneSync.pins.waiting(snapshot))
+            }.distinctUntilChanged()
                 .collect { events.emit(mapOf("name" to "sync.view", "view" to it)) }
         }
         running.launch {

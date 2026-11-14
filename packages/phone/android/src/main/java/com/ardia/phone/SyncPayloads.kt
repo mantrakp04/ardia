@@ -82,7 +82,7 @@ object SyncPayloads {
         "canReceiveTabs" to device.canReceiveTabs,
     )
 
-    fun view(snapshot: SyncSnapshot, selectedProfileId: String?, receivers: List<SyncedDevice>): Map<String, Any?> = mapOf(
+    fun view(snapshot: SyncSnapshot, selectedProfileId: String?, receivers: List<SyncedDevice>, pendingPins: Set<Pair<String, String>> = emptySet()): Map<String, Any?> = mapOf(
         "devices" to snapshot.devicesInOrder.map(::device),
         "profiles" to snapshot.profiles.map(::profile),
         "search" to snapshot.search?.let { search ->
@@ -96,6 +96,7 @@ object SyncPayloads {
         "selectedProfileId" to selectedProfileId,
         "shownProfileId" to snapshot.profiles.takeIf { it.isNotEmpty() }?.let { snapshot.profile(selectedProfileId)?.syncId },
         "receivers" to receivers.map(::device),
+        "pendingPins" to pendingPins.sortedWith(compareBy({ it.first }, { it.second })).map { (profile, url) -> mapOf("profileSyncId" to profile, "url" to url) },
     )
 
     private fun profile(profile: SyncedProfile): Map<String, Any?> = mapOf(

@@ -38,4 +38,23 @@ class SyncPayloadsTest {
         assertEquals(true, SyncPayloads.wordsAge(stalled))
         assertEquals(false, SyncPayloads.wordsAge(updated))
     }
+
+    @Test
+    fun aPinStillOnItsWayIsInTheViewUntilThatProfilesBookmarksHoldIt() {
+        val demo = SyncController.demo().apply { start() }
+        try {
+            PhoneTestWaits.until { demo.snapshot.value.profiles.isNotEmpty() }
+            val snapshot = demo.snapshot.value
+            val profile = snapshot.defaultProfile!!
+            val known = profile.bookmarks.first { it.url != null }.url!!
+            val pins = PhonePins()
+            pins.pinned(profile.syncId, "https://new.example/")
+            pins.pinned(profile.syncId, known)
+            val view = SyncPayloads.view(snapshot, null, emptyList(), pins.waiting(snapshot))
+            assertEquals(listOf(mapOf("profileSyncId" to profile.syncId, "url" to "https://new.example/")), view["pendingPins"])
+            assertEquals(setOf(profile.syncId to "https://new.example/"), pins.waiting(snapshot))
+        } finally {
+            demo.close()
+        }
+    }
 }

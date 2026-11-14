@@ -75,6 +75,7 @@ export type SyncedView = {
   syncedAt: number | null;
   selectedProfileId: string | null;
   shownProfileId?: string | null;
+  pendingPins?: { profileSyncId: string; url: string }[];
   receivers: SyncedDevice[];
 };
 

@@ -39,6 +39,8 @@ object PhoneSync {
     var isDemo: Boolean = false
         private set
 
+    val pins = PhonePins()
+
     fun current(): SyncController? = made
 
     fun controller(context: Context, demo: Boolean? = null): SyncController = synchronized(this) {
