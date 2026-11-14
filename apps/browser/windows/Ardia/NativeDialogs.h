@@ -43,9 +43,9 @@ inline DialogConfirmReply ShowConfirm(HWND owner, std::wstring const &title, std
     TASKDIALOG_BUTTON buttons[2] = {{ConfirmButtonId, confirmTitle.c_str()}, {IDCANCEL, cancelTitle.c_str()}};
     TASKDIALOGCONFIG config{};
     config.cbSize = sizeof(config);
-    config.hwndParent = owner;
+    config.hwndParent = modal.Parent();
     config.hInstance = AppImage::Handle();
-    config.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | (owner ? TDF_POSITION_RELATIVE_TO_WINDOW : 0);
+    config.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | (modal.Parent() ? TDF_POSITION_RELATIVE_TO_WINDOW : 0);
     config.pszWindowTitle = L"Ardia";
     config.pszMainInstruction = title.c_str();
     config.pszContent = message.empty() ? nullptr : message.c_str();
@@ -65,8 +65,8 @@ inline DialogConfirmReply ShowConfirm(HWND owner, std::wstring const &title, std
     }
   }
   std::wstring text = message.empty() ? title : title + L"\n\n" + message;
-  UINT style = MB_OKCANCEL | MB_DEFBUTTON1 | (destructive ? MB_ICONWARNING : 0) | (owner ? MB_APPLMODAL : MB_TASKMODAL);
-  reply.confirmed = MessageBoxW(owner, text.c_str(), L"Ardia", style) == IDOK;
+  UINT style = MB_OKCANCEL | MB_DEFBUTTON1 | (destructive ? MB_ICONWARNING : 0) | (modal.Parent() ? MB_APPLMODAL : MB_TASKMODAL);
+  reply.confirmed = MessageBoxW(modal.Parent(), text.c_str(), L"Ardia", style) == IDOK;
   return reply;
 }
 
@@ -190,7 +190,7 @@ inline std::optional<std::wstring> ShowPrompt(HWND owner, PromptState &state) no
   builder.Item(BS_PUSHBUTTON | WS_TABSTOP, width - margin - 50, buttonsY, 50, 14, IDCANCEL, 0x0080, L"Cancel");
   builder.Align();
 
-  INT_PTR result = DialogBoxIndirectParamW(AppImage::Handle(), reinterpret_cast<LPCDLGTEMPLATEW>(builder.words.data()), owner, PromptProcedure, reinterpret_cast<LPARAM>(&state));
+  INT_PTR result = DialogBoxIndirectParamW(AppImage::Handle(), reinterpret_cast<LPCDLGTEMPLATEW>(builder.words.data()), modal.Parent(), PromptProcedure, reinterpret_cast<LPARAM>(&state));
   if (result != IDOK) return std::nullopt;
   return state.answer;
 }
@@ -213,7 +213,7 @@ inline std::vector<std::wstring> ShowOpenFiles(HWND owner) noexcept {
   dialog->GetOptions(&options);
   dialog->SetOptions(options | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST);
   ModalWatch::OnAbandon([shown = dialog.get()] { shown->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED)); });
-  if (FAILED(dialog->Show(owner))) return picked;
+  if (FAILED(dialog->Show(modal.Parent()))) return picked;
   winrt::com_ptr<IShellItemArray> results;
   if (FAILED(dialog->GetResults(results.put())) || !results) return picked;
   DWORD count = 0;
@@ -241,7 +241,7 @@ inline std::optional<std::wstring> ShowOpenFolder(HWND owner, std::optional<std:
     if (SUCCEEDED(SHCreateItemFromParsingName(current->c_str(), nullptr, __uuidof(IShellItem), folder.put_void())) && folder) dialog->SetFolder(folder.get());
   }
   ModalWatch::OnAbandon([shown = dialog.get()] { shown->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED)); });
-  if (FAILED(dialog->Show(owner))) return std::nullopt;
+  if (FAILED(dialog->Show(modal.Parent()))) return std::nullopt;
   winrt::com_ptr<IShellItem> result;
   if (FAILED(dialog->GetResult(result.put())) || !result) return std::nullopt;
   std::wstring path = ItemPath(result.get());

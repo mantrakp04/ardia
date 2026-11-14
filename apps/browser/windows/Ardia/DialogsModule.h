@@ -102,9 +102,12 @@ struct HeldPageWindows {
     EnumWindows(&HeldPageWindows::Collect, reinterpret_cast<LPARAM>(this));
     for (size_t i = before; i < m_pages.size(); i++) EnableWindow(m_pages[i], FALSE);
   }
-  ~HeldPageWindows() noexcept {
+  ~HeldPageWindows() noexcept { Release(); }
+
+  void Release() noexcept {
     for (HWND page : m_pages)
       if (IsWindow(page) && GetWindow(page, GW_OWNER) == m_owner) EnableWindow(page, TRUE);
+    m_pages.clear();
   }
   HeldPageWindows(HeldPageWindows const &) = delete;
   HeldPageWindows &operator=(HeldPageWindows const &) = delete;
@@ -248,17 +251,27 @@ inline void Log(std::string const &what) noexcept {
 }
 
 struct ModalOverWindow {
-  ModalOverWindow(HWND owner, std::string_view kind) noexcept : watch(owner), pages(owner) {
+  ModalOverWindow(HWND owner, std::string_view kind) noexcept : watch(owner), pages(owner), parent(owner) {
     if (pages.Count()) LaunchLog::Write(L"info", Paths::Wide(std::string{kind} + " holds " + std::to_string(pages.Count()) + " page window(s) until it closes"));
-    ModalWatch::OnTick([this] { pages.Refresh(); });
+    ModalWatch::OnTick([this] {
+      pages.Refresh();
+      parent.KeepDialogAboveOwner();
+    });
   }
-  ~ModalOverWindow() noexcept { ModalWatch::OnTick(nullptr); }
+  ~ModalOverWindow() noexcept {
+    ModalWatch::OnTick(nullptr);
+    pages.Release();
+    parent.Release();
+  }
   ModalOverWindow(ModalOverWindow const &) = delete;
   ModalOverWindow &operator=(ModalOverWindow const &) = delete;
+
+  HWND Parent() const noexcept { return parent.Handle(); }
 
   ModalWatch watch;
   OpenDialogScope open;
   HeldPageWindows pages;
+  ModalParent parent;
 };
 
 inline std::vector<std::wstring> TakePicks() noexcept {

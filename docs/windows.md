@@ -348,9 +348,12 @@ is plain Chromium.
   run on a thread of their own (`ModalThread.h` `RunModal`, a COM STA thread), never on the UI thread. The app shares
   that thread with Chromium's browser UI, and Chromium runs none of its own tasks inside a native modal loop, so a
   dialog there stalled every window's pages until it closed (#1672: in the VM, Chromium's DevTools list gave no answer
-  for 5 s while "Close 2 tabs?" was open and a page asked in another window stayed "Untitled"). Owned by its window
-  across threads, the dialog stays in front of that window, disables only it and its pages, and keys typed in it no
-  longer reach the app's shortcut hook. One dialog per window at a time; a dialog whose window goes away, or every
+  for 5 s while "Close 2 tabs?" was open and a page asked in another window stayed "Untitled"). No dialog is owned by
+  a window on another thread: that joins the two threads' input queues, and WinAppSDK's input (`Microsoft.UI.Input.dll`)
+  then fails fast (`0xc0000602`) when the app quits. The dialog thread owns the dialog by a hidden window of its own
+  over the app window (`ModalParent`), disables the app window and its pages, keeps the dialog just above the app
+  window and brings it forward when that window gets the foreground, and gives the window its focus back when it
+  closes. Keys typed in it no longer reach the app's shortcut hook. One dialog per window at a time; a dialog whose window goes away, or every
   dialog when the app stops, is cancelled within 250 ms. Pop-up menus (`TrackPopupMenuEx`) still run on the UI thread
   and stall pages while a menu is open (#1687). The self-check holds a real confirm on both threads and checks that a
   page loads only in the first case; `dialog_pages_asked` and `dialog_pages_stalled` count pages asked while a dialog

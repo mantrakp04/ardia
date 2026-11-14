@@ -39,7 +39,7 @@ inline std::optional<std::wstring> ShowSaveFile(HWND owner, SaveRequest const &r
     if (customize) customize->AddText(kSaveMessageControl, request.message.c_str());
   }
   ModalWatch::OnAbandon([shown = dialog.get()] { shown->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED)); });
-  if (FAILED(dialog->Show(owner))) return std::nullopt;
+  if (FAILED(dialog->Show(modal.Parent()))) return std::nullopt;
   winrt::com_ptr<IShellItem> result;
   if (FAILED(dialog->GetResult(result.put())) || !result) return std::nullopt;
   std::wstring path = ItemPath(result.get());

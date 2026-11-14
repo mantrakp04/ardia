@@ -124,6 +124,89 @@ struct ModalWatch {
   UINT_PTR m_timer = 0;
 };
 
+constexpr wchar_t ModalParentClass[] = L"ArdiaModalParent";
+
+inline bool RegisterModalParent() noexcept {
+  static bool const registered = [] {
+    WNDCLASSEXW type{};
+    type.cbSize = sizeof(type);
+    type.lpfnWndProc = DefWindowProcW;
+    type.hInstance = GetModuleHandleW(nullptr);
+    type.lpszClassName = ModalParentClass;
+    return RegisterClassExW(&type) != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
+  }();
+  return registered;
+}
+
+struct ModalParent {
+  explicit ModalParent(HWND owner) noexcept : m_owner(owner) {
+    if (!owner || !RegisterModalParent()) return;
+    RECT area{};
+    if (!GetWindowRect(owner, &area)) return;
+    m_window = CreateWindowExW(WS_EX_TOOLWINDOW, ModalParentClass, L"", WS_POPUP, area.left, area.top, area.right - area.left, area.bottom - area.top, nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+    m_ownerWasEnabled = IsWindowEnabled(owner) != FALSE;
+    if (m_ownerWasEnabled) EnableWindow(owner, FALSE);
+  }
+  ~ModalParent() noexcept {
+    Release();
+    if (m_window) DestroyWindow(m_window);
+  }
+  ModalParent(ModalParent const &) = delete;
+  ModalParent &operator=(ModalParent const &) = delete;
+
+  HWND Handle() const noexcept { return m_window; }
+
+  void KeepDialogAboveOwner() noexcept {
+    HWND dialog = Dialog();
+    if (!dialog || !m_owner || !IsWindow(m_owner)) return;
+    bool above = false;
+    for (HWND higher = GetWindow(m_owner, GW_HWNDPREV); higher && !above; higher = GetWindow(higher, GW_HWNDPREV)) above = higher == dialog;
+    if (!above) {
+      HWND justAbove = GetWindow(m_owner, GW_HWNDPREV);
+      SetWindowPos(dialog, justAbove ? justAbove : HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+    if (GetForegroundWindow() == m_owner) SetForegroundWindow(dialog);
+  }
+
+  void Release() noexcept {
+    if (m_released) return;
+    m_released = true;
+    if (!m_owner || !IsWindow(m_owner) || !m_ownerWasEnabled) return;
+    bool hadFocus = OursInFront();
+    EnableWindow(m_owner, TRUE);
+    if (hadFocus) SetForegroundWindow(m_owner);
+  }
+
+ private:
+  HWND Dialog() const noexcept {
+    if (!m_window) return nullptr;
+    HWND found = nullptr;
+    auto visit = [](HWND window, LPARAM data) noexcept -> BOOL {
+      auto *self = reinterpret_cast<std::pair<HWND, HWND> *>(data);
+      if (GetWindow(window, GW_OWNER) != self->first || !IsWindowVisible(window)) return TRUE;
+      self->second = window;
+      return FALSE;
+    };
+    std::pair<HWND, HWND> search{m_window, nullptr};
+    EnumThreadWindows(GetCurrentThreadId(), visit, reinterpret_cast<LPARAM>(&search));
+    found = search.second;
+    return found;
+  }
+
+  bool OursInFront() const noexcept {
+    HWND front = GetForegroundWindow();
+    if (!front || front == m_window) return true;
+    DWORD process = 0;
+    GetWindowThreadProcessId(front, &process);
+    return process == GetCurrentProcessId();
+  }
+
+  HWND m_owner;
+  HWND m_window = nullptr;
+  bool m_ownerWasEnabled = false;
+  bool m_released = false;
+};
+
 struct ComApartment {
   bool owned = false;
   ComApartment() noexcept {

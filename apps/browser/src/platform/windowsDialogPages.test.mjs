@@ -47,8 +47,14 @@ test("every native modal runs through RunModal off the UI thread, and the app st
     assert.equal(native(file).split("ModalOverWindow modal(owner,").length - 1, count, file);
     assert.equal(native(file).split("ModalWatch::OnAbandon(").length - 1, count, file);
   }
-  assert.match(module, /  ModalWatch watch;\n  OpenDialogScope open;\n  HeldPageWindows pages;\n\};/);
-  assert.match(module, /ModalWatch::OnTick\(\[this\] \{ pages\.Refresh\(\); \}\);/);
+  assert.match(module, /  ModalWatch watch;\n  OpenDialogScope open;\n  HeldPageWindows pages;\n  ModalParent parent;\n\};/);
+  for (const file of ["NativeDialogs.h", "SaveDialog.h"]) {
+    const source = native(file);
+    for (const call of [/hwndParent = (\w+)/g, /MessageBoxW\((\w+)/g, /builder\.words\.data\(\)\), (\w+(?:\.Parent\(\))?)/g, /->Show\(([\w.()]+)\)/g]) {
+      for (const [, parent] of source.matchAll(call)) assert.ok(parent.startsWith("modal"), `${file} gives ${parent} to a dialog: a window on another thread must never own it`);
+    }
+  }
+  assert.match(module, /ModalWatch::OnTick\(\[this\] \{\n      pages\.Refresh\(\);\n      parent\.KeepDialogAboveOwner\(\);\n    \}\);/);
   assert.match(native("ModalThread.h"), /SetThreadDpiAwarenessContext\(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2\);/);
   assert.match(native("Ardia.cpp"), /void ArdiaAppStop\(void\) \{\n  Ardia::DialogParts::StopAllModals\(\);/);
 });
