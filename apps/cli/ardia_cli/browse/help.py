@@ -267,7 +267,8 @@ COMMANDS = {
             "Exit 1 when any page failed (its block says why).",
     "script": "ardia browse script [file.js] [--timeout 90s] [--out <file>]   (or the script on stdin)\n\n"
               "--out <file> saves the whole returned value (JSON, or a string as is) and prints a summary and the log;\n"
-              "build deliverables from that file instead of copying printed output.\n\n"
+              "build deliverables from that file instead of copying printed output. `state` is an object the session keeps\n"
+              "between scripts, even past a timeout: push rows to it in long loops and continue in the next script.\n\n"
               "Runs a short JavaScript program that drives pages, so a loop over many pages is one call. It runs in a\n"
               "blank background page of its own, outside the page it drives (no document or window: DOM code goes in\n"
               "page.evaluate), and every page action is one of ardia browse's commands on this session (the same tab,\n"

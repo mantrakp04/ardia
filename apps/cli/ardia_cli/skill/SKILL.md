@@ -17,7 +17,7 @@ ardia browse snapshot -i
 ```
 
 It uses the tab the user is looking at; to start on another site, `open <url>` first. It lists what you can act on with refs
-(`textbox "Name" [ref=e11]`); `-u` adds link URLs. If it starts with `# notes for <site>`, follow them.
+(`textbox "Name" [ref=e11]`). If it starts with `# notes for <site>`, follow them.
 
 ## Read
 
@@ -27,9 +27,10 @@ It uses the tab the user is looking at; to start on another site, `open <url>` f
   site's public JSON API.
 - A long or scroll-loaded list (`1–40 of 200`): `read --scroll` (the main list, or `-s <list>`; `--match <text>`).
 - Record only what a page showed; mark the rest `unverified`. Search results are pointers: open the source.
-- Blocked, CAPTCHA or 429 (`read` says so): wait 30–60 s and retry, then the site's other pages or another source.
+- Blocked, CAPTCHA or 429 (`read` says so): wait 30–60 s, retry, then use the site's own search and pages, or
+  another source.
   Cover every item asked before answering; name what stayed blocked.
-- Find a control with `find role button --name Save` or `snapshot -i -s <sel>`, not a snapshot piped to grep.
+- Find a control with `find role button --name Save` or `snapshot -i -s <sel>`.
 - To read pages, not `snapshot --full`, `get html`, `curl`, `eval "fetch(…)"` or a shell loop.
 
 ## Act
@@ -72,8 +73,8 @@ EOF
 - `page.goto/click/fill/select/press/text(sel)/links(pat)/snapshot('-i')`, `read(urls)`, `browse('cmd', …)`.
   The script runs outside the page (no `document`): DOM code goes in `page.evaluate((x) => …, x)`. Recipes:
   `references/script.md`.
-- Data to save or process: `script --out rows.json` (also `read`, `eval`) saves all of it and prints a summary.
-  Build files from it, never by retyping output.
+- Save data with `--out <file>` on `script`, `read` or `eval`, beside your deliverables; build files from it,
+  never by retyping output. `state` keeps its contents between scripts and through a timeout.
 - Click with `page.click(sel)` (i-th match: `` `li >> nth=${i}` ``), not `el.click()` in `page.evaluate`: that
   sends no pointer events; many controls miss it.
 - Before editing dozens of records, look for the site's documented public API and `curl` it with a key the site

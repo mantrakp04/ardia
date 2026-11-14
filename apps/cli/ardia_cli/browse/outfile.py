@@ -8,6 +8,8 @@ from ardia_cli.browse.errors import Usage
 
 TAKES_OUT = ("script", "eval", "read")
 PREVIEW = 300
+EXCERPT = 240
+EXCERPT_PAGES = 12
 LOG_LINES = 20
 
 
@@ -87,13 +89,22 @@ def content(command: str, data: dict, path: Path) -> tuple[str, str]:
     if command == "read":
         pages = data.get("pages") or []
         failed = sum(1 for page in pages if page.get("error"))
-        listed = "; ".join(f"{(page.get('title') or '(no title)')[:50]} ({len(page.get('text') or ''):,})" for page in pages[:8])
-        summary = f"{len(pages)} page{'s' if len(pages) != 1 else ''}{f', {failed} failed' if failed else ''}: {listed}{'; …' if len(pages) > 8 else ''}"
+        lines = [f"{len(pages)} page{'s' if len(pages) != 1 else ''}{f', {failed} failed' if failed else ''}:"]
+        for page in pages[:EXCERPT_PAGES]:
+            facts = ", ".join(str(fact) for fact in (f"HTTP {page['status']}" if page.get("status") else None, page.get("readAt")) if fact)
+            head = f"- {(page.get('title') or '(no title)')[:80]}{f' ({facts})' if facts else ''} {page.get('finalUrl') or page.get('url') or ''}"
+            body = page.get("error") or " ".join((page.get("text") or "").split())[:EXCERPT]
+            lines.append(f"{head}\n  {body}{' …' if not page.get('error') and len(page.get('text') or '') > EXCERPT else ''}")
+            if page.get("note"):
+                lines.append(f"  ({page['note']})")
+        if len(pages) > EXCERPT_PAGES:
+            lines.append(f"- and {len(pages) - EXCERPT_PAGES} more pages in the file")
+        summary = "\n".join(lines)
         if path.suffix.lower() == ".json":
             return json.dumps(pages, ensure_ascii=False, indent=2), summary
         blocks = [f"=== {page.get('title') or '(no title)'}\n{page.get('finalUrl') or page.get('url') or ''}\n\n{page.get('text') or page.get('error') or ''}"
                   for page in pages]
-        return "\n\n".join(blocks) + "\n", summary
+        return "\n".join(blocks) + "\n", summary
     value = data.get("value") if command == "script" else data.get("result")
     if isinstance(value, str):
         return value, f"text starting {json.dumps(value[:PREVIEW], ensure_ascii=False)}"

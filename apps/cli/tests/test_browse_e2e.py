@@ -688,7 +688,8 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(value.read_text(), self.browse("get", "title", session=session).stdout.strip())
         pages = self.data / "out" / "pages.json"
         said = self.browse("read", self.url("late.html"), self.url("picker.html"), "--out", str(pages), session=session).stdout
-        self.assertIn("2 pages", said)
+        self.assertIn("2 pages:", said)
+        self.assertIn("Result card", said)
         self.assertIn("Result card 12", json.loads(pages.read_text())[0]["text"])
         failed = self.browse("script", "--out", str(self.data / "out" / "never.json"), session=session, stdin="throw new Error('nope')", check=False)
         self.assertNotEqual(failed.returncode, 0)
@@ -708,6 +709,21 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertIn("- Card 60 price 180", lines)
         self.assertFalse(any("Deals" in line for line in lines))
         self.assertIn("60 rows", lines[-1])
+
+    def test_script_state_survives_between_scripts_and_a_timeout(self):
+        session = "state"
+        self.browse("open", self.url("picker.html"), session=session)
+        self.browse("script", session=session, stdin="state.seen = ['first']; return 'ok';")
+        timed = self.browse("script", "--timeout", "4s", session=session, check=False,
+                            stdin="state.rows = []; for (let i = 0; ; i++) { state.rows.push(i); await sleep(100); }")
+        self.assertNotEqual(timed.returncode, 0)
+        self.assertIn("What it kept in state survives for the next script", timed.stderr)
+        self.assertIn("state.rows (", timed.stderr)
+        counted = json.loads(self.browse("script", session=session, stdin="return { seen: state.seen, rows: state.rows.length };").stdout)
+        self.assertEqual(counted["seen"], ["first"])
+        self.assertGreater(counted["rows"], 10)
+        other = self.browse("script", session="state-other", stdin="return Object.keys(state).length;").stdout.strip()
+        self.assertEqual(other, "0")
 
     def test_read_reads_every_named_url_past_the_link_limit(self):
         urls = [self.url(f"picker.html?n={number}") for number in range(25)]
