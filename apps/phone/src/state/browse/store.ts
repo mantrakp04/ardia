@@ -41,7 +41,7 @@ import {
 import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
 import { setHidesFromRecents } from "../../platform/links";
 import { pasteText } from "../../platform/system";
-import { isSyncableUrl, pageStatePatch, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
+import { coverIsCapturable, isSyncableUrl, pageStatePatch, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
 
 export type Surface = "start" | "browsing" | "deck";
 export type Sheet = "archive" | "spaces" | null;
@@ -194,7 +194,7 @@ export async function showDeck() {
   const selected = currentTabs().selectedId;
   const covered = pageCovered();
   dismissSearch();
-  if (surface === "browsing" && selected && !covered) {
+  if (surface === "browsing" && selected && coverIsCapturable(loading.get(selected) === false, covered)) {
     await Promise.race([captureSnapshot(selected), new Promise((done) => setTimeout(done, DECK_SNAPSHOT_WAIT_MS))]);
   }
   useBrowse.setState({ surface: "deck", deckEntrance: surface === "browsing" ? selected : null, frozenOrder: null });
@@ -296,7 +296,7 @@ const snapshotTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function captureCurrentCover() {
   const id = currentTabs().selectedId;
-  if (!id || loading.get(id) !== false) return;
+  if (!id || !coverIsCapturable(loading.get(id) === false, false)) return;
   void captureSnapshot(id);
 }
 

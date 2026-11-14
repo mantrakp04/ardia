@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AUTO_ARCHIVE_INTERVALS, isAutoArchiveDue, pageStatePatch, POSITION_STEP } from "./tabModels.ts";
+import { AUTO_ARCHIVE_INTERVALS, coverIsCapturable, isAutoArchiveDue, pageStatePatch, POSITION_STEP } from "./tabModels.ts";
 import {
   isPrivateOnScreen,
   archiveTabs,
@@ -235,4 +235,11 @@ test("the app hides from Recents while Incognito is on or any private tab is ope
   assert.equal(isPrivateOnScreen({ privates: [] }, false), false);
   assert.equal(isPrivateOnScreen({ privates: [] }, true), true);
   assert.equal(isPrivateOnScreen({ privates: [{ id: "p" } as never] }, false), true);
+});
+
+test("a page's cover is captured only once it has finished loading in this session and nothing covers it", () => {
+  assert.equal(coverIsCapturable(undefined, false), false);
+  assert.equal(coverIsCapturable(false, false), false);
+  assert.equal(coverIsCapturable(true, true), false);
+  assert.equal(coverIsCapturable(true, false), true);
 });

@@ -88,3 +88,5 @@ export function pageStatePatch(tab: BrowserTab, page: PageLook, keepsAddress: bo
   if (page.themeColor && page.themeColor !== tab.themeColorHex) patch.themeColorHex = page.themeColor;
   return Object.keys(patch).length ? patch : null;
 }
+
+export const coverIsCapturable = (finishedLoading: boolean | undefined, covered: boolean) => finishedLoading === true && !covered;
