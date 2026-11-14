@@ -337,6 +337,12 @@ struct SyncModule {
     SyncModuleParts::OnQueue(promise, [promise]() { promise.Resolve(SyncSelfTest::Primitives()); });
   }
 
+  REACT_METHOD(checkFiles)
+  void checkFiles(std::string folder, winrt::Microsoft::ReactNative::ReactPromise<std::string> promise) noexcept {
+    if (!AppLaunch::Shared().testInstance) return promise.Reject("checks are for test instances only");
+    SyncModuleParts::OnQueue(promise, [folder, promise]() { promise.Resolve(SyncSelfTest::FileSteps(folder)); });
+  }
+
   REACT_METHOD(checkWith)
   void checkWith(std::string entropyHex, std::string action, std::string first, std::string second, std::string third,
                  winrt::Microsoft::ReactNative::ReactPromise<std::optional<std::string>> promise) noexcept {

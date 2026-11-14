@@ -120,4 +120,5 @@ export type WindowsSyncModule = TurboModule &
     takeHydrated(): number;
     selfTest(): Promise<Record<string, boolean>>;
     checkWith(entropyHex: string, action: string, first: string, second: string, third: string): Promise<string | null>;
+    checkFiles(folder: string): Promise<string>;
   };

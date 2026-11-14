@@ -51,6 +51,16 @@ export const checks: Check[] = [
     },
   },
   {
+    name: "sync: a vault file is published, listed, read and removed through folder handles, and nothing lands in the working folder",
+    async run() {
+      const report = JSON.parse(await native().checkFiles(`${dataFolder()}\\sync-files-${Date.now().toString(36)}`)) as Record<string, string>;
+      const wanted = { root: "0", scope: "0", publish: "ok", inScope: "yes", inWorkingFolder: "no", read: "0:hello", remove: "removed", afterRemove: "gone", removeFolder: "ok" };
+      const got = Object.fromEntries(Object.keys(wanted).map((key) => [key, report[key]]));
+      expectEqual(got, wanted, `file steps (${JSON.stringify(report)})`);
+      expectTrue(report.list?.includes('"name":"aaaaaaaaaaaaaaaaaaaaaaaaaa.nns"'), `the listing was ${report.list}`);
+    },
+  },
+  {
     name: "sync: the module turns on, writes, reads and removes in a folder, refuses to disclose the phrase without the owner check, and forgets its key",
     async run() {
       const sync = contract();

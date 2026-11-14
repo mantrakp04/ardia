@@ -11,6 +11,7 @@
 #include "SyncLogins.h"
 #include "SyncPhrase.h"
 #include "SyncSecrets.h"
+#include "SyncHandles.h"
 #include "SyncVault.h"
 
 namespace Ardia::SyncSelfTest {
@@ -127,6 +128,47 @@ inline bool LoginsStayHidden() {
   std::optional<SyncCrypto::WipedString> restored = SyncLogins::Restore(*hidden, *keys);
   return restored && restored->text().find("correct horse") != std::string::npos && restored->text().find("battery staple") != std::string::npos &&
       restored->text().find("\"s\":") == std::string::npos && !SyncLogins::Hide("{\"pw:1\":{\"v\":{\"o\":\"x\",\"u\":\"y\",\"p\":", *keys);
+}
+
+inline std::string FileSteps(std::string const &folder) {
+  std::string report = "{";
+  auto note = [&report](char const *key, std::string const &value) {
+    if (report.size() > 1) report += ",";
+    report += std::string{"\""} + key + "\":" + SyncFiles::Quoted(value);
+  };
+  std::wstring root = Paths::Wide(folder);
+  CreateDirectoryW(root.c_str(), nullptr);
+  SyncHandles::OpenedFolder held = SyncHandles::OpenRoot(root);
+  note("root", std::to_string(static_cast<int>(held.state)));
+  if (held.state != SyncHandles::Folder::Directory) return report + "}";
+  SyncHandles::OpenedFolder scope = SyncHandles::OpenFolderAt(held.handle.get(), L"scope", true);
+  note("scope", std::to_string(static_cast<int>(scope.state)));
+  if (scope.state != SyncHandles::Folder::Directory) return report + "}";
+  std::wstring name = L"aaaaaaaaaaaaaaaaaaaaaaaaaa.nns";
+  try {
+    SyncHandles::PublishAt(scope.handle.get(), name, "hello");
+    note("publish", "ok");
+  } catch (SyncFiles::Failure const &failure) {
+    note("publish", failure.message);
+  }
+  note("inScope", GetFileAttributesW((root + L"\\scope\\" + name).c_str()) != INVALID_FILE_ATTRIBUTES ? "yes" : "no");
+  note("inWorkingFolder", GetFileAttributesW(name.c_str()) != INVALID_FILE_ATTRIBUTES ? "yes" : "no");
+  try {
+    note("list", SyncHandles::ListJson(scope.handle.get()));
+  } catch (SyncFiles::Failure const &failure) {
+    note("list", failure.message);
+  }
+  try {
+    SyncFiles::Read read = SyncHandles::ReadAt(scope.handle.get(), name);
+    note("read", std::to_string(static_cast<int>(read.state)) + ":" + read.bytes);
+    note("remove", SyncHandles::RemoveAt(scope.handle.get(), name));
+  } catch (SyncFiles::Failure const &failure) {
+    note("read", failure.message);
+  }
+  note("afterRemove", GetFileAttributesW((root + L"\\scope\\" + name).c_str()) != INVALID_FILE_ATTRIBUTES ? "present" : "gone");
+  scope.handle = SyncHandles::Handle{};
+  note("removeFolder", SyncHandles::RemoveFolderAt(held.handle.get(), L"scope") ? "ok" : "failed");
+  return report + "}";
 }
 
 inline winrt::Microsoft::ReactNative::JSValue Primitives() {

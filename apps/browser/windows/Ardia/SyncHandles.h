@@ -181,6 +181,30 @@ inline SyncFiles::Read ReadAt(HANDLE directory, std::wstring const &name) {
   return SyncFiles::ReadOpened(opened.handle.get());
 }
 
+using SetInformation = NTSTATUS(NTAPI *)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, ULONG);
+constexpr ULONG FileRenameInformationClass = 10;
+
+inline bool RenameWithin(HANDLE file, HANDLE directory, std::wstring const &name, DWORD &error) {
+  static SetInformation const set = reinterpret_cast<SetInformation>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtSetInformationFile"));
+  if (!set) {
+    error = ERROR_PROC_NOT_FOUND;
+    return false;
+  }
+  std::vector<uint8_t> buffer(sizeof(FILE_RENAME_INFO) + name.size() * sizeof(wchar_t), 0);
+  auto *info = reinterpret_cast<FILE_RENAME_INFO *>(buffer.data());
+  info->ReplaceIfExists = FALSE;
+  info->RootDirectory = directory;
+  info->FileNameLength = static_cast<DWORD>(name.size() * sizeof(wchar_t));
+  memcpy(info->FileName, name.c_str(), name.size() * sizeof(wchar_t));
+  IO_STATUS_BLOCK io{};
+  NTSTATUS status = set(file, &io, info, static_cast<ULONG>(buffer.size()), FileRenameInformationClass);
+  if (status < 0) {
+    error = RtlNtStatusToDosError(status);
+    return false;
+  }
+  return true;
+}
+
 inline void Discard(HANDLE file) noexcept {
   FILE_DISPOSITION_INFO gone{TRUE};
   SetFileInformationByHandle(file, FileDispositionInfo, &gone, sizeof(gone));
@@ -197,14 +221,8 @@ inline void PublishAt(HANDLE directory, std::wstring const &name, std::string_vi
   ok = ok && GetFileInformationByHandleEx(staged.handle.get(), FileBasicInfo, &basic, sizeof(basic));
   basic.FileAttributes = FILE_ATTRIBUTE_NORMAL;
   ok = ok && SetFileInformationByHandle(staged.handle.get(), FileBasicInfo, &basic, sizeof(basic));
-  std::vector<uint8_t> rename(sizeof(FILE_RENAME_INFO) + name.size() * sizeof(wchar_t), 0);
-  auto *info = reinterpret_cast<FILE_RENAME_INFO *>(rename.data());
-  info->ReplaceIfExists = FALSE;
-  info->RootDirectory = nullptr;
-  info->FileNameLength = static_cast<DWORD>(name.size() * sizeof(wchar_t));
-  memcpy(info->FileName, name.c_str(), name.size() * sizeof(wchar_t));
-  ok = ok && SetFileInformationByHandle(staged.handle.get(), FileRenameInfo, info, static_cast<DWORD>(rename.size()));
   DWORD error = ok ? ERROR_SUCCESS : GetLastError();
+  if (ok) ok = RenameWithin(staged.handle.get(), directory, name, error);
   if (!ok) {
     Discard(staged.handle.get());
     throw Failure(SyncFiles::Problem("a sync file couldn't be written", error));
