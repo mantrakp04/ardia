@@ -2,86 +2,19 @@ package com.ardia.phone
 
 import com.ardia.sync.ReceivedTab
 import java.io.File
-import java.sql.DriverManager
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PhoneBrowsingSourceTest {
-    private val schemaFile = File(System.getProperty("ardia.phoneSchema") ?: error("ardia.phoneSchema isn't set"))
     private val now = 1_800_000_000_000L
-
-    private fun schema(): List<String> {
-        val source = schemaFile.readText()
-        val block = source.substringAfter("0: [").substringBefore("],\n};")
-        val statements = ArrayList<String>()
-        val current = StringBuilder()
-        val piece = Regex("\"((?:[^\"\\\\]|\\\\.)*)\"\\s*(\\+)?")
-        for (match in piece.findAll(block)) {
-            current.append(match.groupValues[1])
-            if (match.groupValues[2].isEmpty()) {
-                statements += current.toString()
-                current.clear()
-            }
-        }
-        return statements
-    }
-
-    private class JdbcRows(private val file: File) : BrowserRows {
-        override fun query(sql: String, args: List<String>): List<List<Any?>>? {
-            if (!file.isFile) return null
-            DriverManager.getConnection("jdbc:sqlite:${file.path}").use { connection ->
-                connection.prepareStatement(sql).use { statement ->
-                    args.forEachIndexed { index, value -> statement.setString(index + 1, value) }
-                    statement.executeQuery().use { result ->
-                        val columns = result.metaData.columnCount
-                        return buildList { while (result.next()) add(List(columns) { result.getObject(it + 1) }) }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun database(seed: (java.sql.Connection) -> Unit): File {
-        val directory = Files.createTempDirectory("phone-browser").toFile().apply { deleteOnExit() }
-        val file = File(directory, "browser.db")
-        DriverManager.getConnection("jdbc:sqlite:${file.path}").use { connection ->
-            connection.createStatement().use { statement -> schema().forEach(statement::execute) }
-            seed(connection)
-        }
-        return file
-    }
-
-    private fun java.sql.Connection.tab(id: String, url: String, lastActive: Long, profile: String? = null, archived: Long? = null) {
-        prepareStatement("INSERT INTO tabs (id, url, title, created, lastActive, archivedAt, position, profileSyncId, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'typed')").use {
-            it.setString(1, id)
-            it.setString(2, url)
-            it.setString(3, "Title $id")
-            it.setLong(4, lastActive)
-            it.setLong(5, lastActive)
-            if (archived == null) it.setNull(6, java.sql.Types.INTEGER) else it.setLong(6, archived)
-            it.setDouble(7, lastActive.toDouble())
-            it.setString(8, profile)
-            it.execute()
-        }
-    }
-
-    private fun java.sql.Connection.visit(url: String, at: Long, profile: String? = null, title: String = "Visit") {
-        prepareStatement("INSERT INTO visits (url, title, visitedAt, profileSyncId, transition) VALUES (?, ?, ?, ?, 'link')").use {
-            it.setString(1, url)
-            it.setString(2, title)
-            it.setLong(3, at)
-            it.setString(4, profile)
-            it.execute()
-        }
-    }
 
     private fun inbox() = PhoneInbox(File(Files.createTempDirectory("phone-inbox").toFile().apply { deleteOnExit() }, "inbox.json"))
 
     @Test
     fun theSchemaIsTheKotlinStoresTablesPlusPreferences() {
-        val statements = schema()
+        val statements = PhoneTestDatabase.schema()
         assertTrue(statements.any { it.startsWith("CREATE TABLE tabs (id TEXT PRIMARY KEY NOT NULL, url TEXT NOT NULL") })
         assertTrue(statements.any { it.startsWith("CREATE TABLE visits (id INTEGER PRIMARY KEY NOT NULL") })
         assertTrue(statements.any { it.startsWith("CREATE TABLE preferences") })
@@ -89,7 +22,7 @@ class PhoneBrowsingSourceTest {
 
     @Test
     fun openTabsAreTheThirtyNewestWebTabsOfEachProfile() {
-        val file = database { db ->
+        val file = PhoneTestDatabase.database { db ->
             repeat(35) { db.tab("t$it", "https://site$it.example/", now + it) }
             db.tab("blank", "about:blank", now + 100)
             db.tab("archived", "https://archived.example/", now + 200, archived = now)
@@ -106,7 +39,7 @@ class PhoneBrowsingSourceTest {
 
     @Test
     fun visitsAreGroupedByAddressAndProfileAndHistoryTheMacRemovedIsLeftOut() {
-        val file = database { db ->
+        val file = PhoneTestDatabase.database { db ->
             db.visit("https://a.example/", now, title = "A")
             db.visit("https://a.example/", now + 10, title = "")
             db.visit("https://a.example/", now + 20, profile = "work")
@@ -129,7 +62,7 @@ class PhoneBrowsingSourceTest {
 
     @Test
     fun receivedTabsWaitInTheInboxOnceUntilTheAppAppliesThem() {
-        val file = database { }
+        val file = PhoneTestDatabase.database { }
         val inbox = inbox()
         val source = PhoneBrowsingSource(JdbcRows(file), inbox)
         val tab = ReceivedTab("k1", "https://sent.example/", "Sent", "MacBook", now, "p1", "mac1")
