@@ -38,7 +38,7 @@ export function SuggestionIcon({ suggestion: s, color }: { suggestion: Suggestio
 function labels(s: Suggestion): [string, string | null] {
   switch (s.kind) {
     case "page":
-      if (s.tabId) return [s.title || displayUrl(s.url), "Switch to Tab"];
+      if (s.tabId) return [s.title || displayUrl(s.url), s.tabProfile ? `Switch to Tab in ${s.tabProfile}` : "Switch to Tab"];
       return s.title ? [s.title, displayUrl(s.url)] : [displayUrl(s.url), null];
     case "search":
       return [s.bang ? `Search ${s.engine} for ${s.query}` : s.query, null];

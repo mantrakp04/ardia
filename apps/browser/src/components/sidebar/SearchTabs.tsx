@@ -1,4 +1,4 @@
-import { displayUrl, fuzzyScore, hostOf } from "@ardia/core";
+import { displayUrl } from "@ardia/core";
 import { useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, View, type TextInput } from "react-native";
 import { switchToTab } from "../../state/browser/actions";
@@ -7,7 +7,9 @@ import { useTheme } from "../ui/theme";
 import { useTabs } from "../../state/tabs/hooks";
 import { restoreClosed } from "../../state/windows/actions";
 import { useClosedGroups, useClosedTabs } from "../../state/sidebar/hooks";
-import { searchCandidates, type Row } from "../../state/sidebar/searchTabs";
+import { searchSections, type Row } from "../../state/sidebar/searchTabs";
+import { useSettings } from "../../state/browser/hooks";
+import { useProfileRecords } from "../../state/profiles/hooks";
 import { setSidebarUi, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 import { SIDEBAR_SHADOW } from "./tokens";
@@ -41,19 +43,11 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
   const tabs = useTabs((t) => t);
   const closedTabs = useClosedTabs();
   const closedGroups = useClosedGroups();
-  const sections = useMemo(() => {
-    const { open, closed } = searchCandidates(windowId);
-    const q = query.trim();
-    if (!q) return [{ title: "Open Tabs", rows: open }, { title: "Recently Closed", rows: closed.slice(0, 8) }];
-    const rank = (rows: Row[]) =>
-      rows
-        .map((r) => ({ r, score: Math.max(fuzzyScore(q, r.title), fuzzyScore(q, hostOf(r.url)) * 0.9, fuzzyScore(q, r.url) * 0.6) }))
-        .filter((x) => x.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .map((x) => x.r);
-    return [{ title: "Open Tabs", rows: rank(open) }, { title: "Recently Closed", rows: rank(closed).slice(0, 8) }];
-  }, [query, tabs, closedTabs, closedGroups, windowId]);
+  const allProfiles = useSettings((s) => s.searchTabsInAllProfiles);
+  const profiles = useProfileRecords();
+  const sections = useMemo(() => searchSections(windowId, query), [query, tabs, closedTabs, closedGroups, windowId, allProfiles, profiles]);
   const rows = sections.flatMap((s) => s.rows);
+  const active = Math.min(selected, rows.length - 1);
   const close = () => setSidebarUi({ searchTabs: null });
   const choose = (row: Row | undefined) => {
     if (!row) return;
@@ -62,7 +56,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
     else restoreClosed(row.id, windowId);
   };
   const move = (delta: number) => {
-    const next = Math.max(0, Math.min(rows.length - 1, selected + delta));
+    const next = Math.max(0, Math.min(rows.length - 1, active + delta));
     setSelected(next);
     scroll.current?.scrollTo({ y: Math.max(0, (next - MAX_ROWS + 2) * ROW), animated: false });
   };
@@ -89,7 +83,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
               scroll.current?.scrollTo({ y: 0, animated: false });
             }}
             placeholder="Search Tabs"
-            onSubmit={() => choose(rows[selected])}
+            onSubmit={() => choose(rows[active])}
             onEscape={close}
             onArrow={move}
             onBlur={close}
@@ -109,7 +103,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
                 {section.rows.map((row) => {
                   index++;
                   const i = index;
-                  return <ResultRow key={`${row.kind}:${row.id}`} row={row} selected={i === selected} onHover={() => setSelected(i)} onPress={() => choose(row)} />;
+                  return <ResultRow key={`${row.kind}:${row.id}`} row={row} selected={i === active} onHover={() => setSelected(i)} onPress={() => choose(row)} />;
                 })}
               </View>
             ) : null,

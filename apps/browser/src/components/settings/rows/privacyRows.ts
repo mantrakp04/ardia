@@ -104,7 +104,17 @@ export const privacyRows = {
       section: "Other search engines",
       rows: { otherEngines: { advanced: true, title: "Other search engines", description: "Type a shortcut and press Tab in the command bar to search a site directly.", keywords: ["custom search", "site search", "keyword"] } },
     },
-    { section: "Suggestions", rows: { suggestions: { title: "Show search suggestions", description: "Sends what you type to your search engine to suggest searches.", keywords: ["autocomplete"] } } },
+    {
+      section: "Suggestions",
+      rows: {
+        suggestions: { title: "Show search suggestions", description: "Sends what you type to your search engine to suggest searches.", keywords: ["autocomplete"] },
+        searchTabsInAllProfiles: {
+          title: "Find open tabs in all profiles",
+          description: "What you type in the command bar or Search Tabs also finds tabs open in your other profiles. Choosing one switches to its profile.",
+          keywords: ["profiles", "open tabs", "switch to tab", "command bar", "omnibox", "search tabs", "cross-profile"],
+        },
+      },
+    },
     {
       section: "Text selection",
       rows: {

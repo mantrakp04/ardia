@@ -11,6 +11,7 @@ export * from "./idn.ts";
 export * from "./ingestKeys.ts";
 export * from "./omnibox.ts";
 export * from "./openTabs.ts";
+export { pageKey } from "./pageText.ts";
 export * from "./providerConfig.ts";
 export * from "./providerNetwork.ts";
 export * from "./providerRows.ts";
