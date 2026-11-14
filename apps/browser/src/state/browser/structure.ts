@@ -1,5 +1,7 @@
-import type { SplitView, TabGroup } from "./types";
+import type { BrowserState } from "./store";
+import type { SplitView, Tab, TabGroup } from "./types";
 import { splitTabIds } from "../splits/splits";
+import { changedIds } from "./changes";
 
 const groupIndexes = new WeakMap<Record<string, TabGroup>, Map<string, TabGroup>>();
 const splitIndexes = new WeakMap<Record<string, SplitView>, Map<string, SplitView[]>>();
@@ -42,6 +44,20 @@ export function splitIndex(splits: Record<string, SplitView>): Map<string, Split
 }
 
 const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+export function onlyHiddenTabTitles(s: Pick<BrowserState, "tabs" | "windows" | "peeks">, prev: Pick<BrowserState, "tabs" | "windows" | "peeks">): boolean {
+  if (s.windows !== prev.windows || s.peeks !== prev.peeks) return false;
+  for (const id of changedIds(s.tabs, prev.tabs)) {
+    const a = s.tabs[id];
+    const b = prev.tabs[id];
+    if (!a || !b) return false;
+    const keys = Object.keys(a) as (keyof Tab)[];
+    if (keys.length !== Object.keys(b).length || keys.some((k) => k !== "title" && k !== "favicon" && a[k] !== b[k])) return false;
+    const w = s.windows[a.windowId];
+    if ((w && Object.values(w.activeTabIds).includes(id)) || s.peeks[a.windowId]?.tabId === id) return false;
+  }
+  return true;
+}
 
 export function stableList(previous: string[] | undefined, next: string[]): string[] {
   return previous && same(previous, next) ? previous : next;

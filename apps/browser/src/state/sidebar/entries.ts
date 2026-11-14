@@ -1,6 +1,9 @@
 import type { BrowserState } from "../browser/store";
 import { activeTabId, isPinnedRow, viewTabIds } from "../browser/model";
 import { hiddenEmptyCard } from "../omnibox/newTabBarPolicy";
+import { changedIds } from "../browser/changes";
+import type { Tab } from "../browser/types";
+import { hasPage } from "../tabs/pageSession";
 import { splitRowPanes, splitTabIds, splitTabIdsOf } from "../splits/splits";
 import { groupIndex, splitIndex, stableList } from "../browser/structure";
 import { tileCells } from "../pins/tileFolders";
@@ -10,11 +13,24 @@ type SidebarEntries = { tiles: string[]; cells: string[]; pinned: string[]; list
 
 const memo = new Map<string, { inputs: unknown[]; result: SidebarEntries }>();
 
+const sameEntryFields = (a: Tab | undefined, b: Tab | undefined) =>
+  a === b || (!!a && !!b && a.pin === b.pin && a.liveItem === b.liveItem && a.profileId === b.profileId && !a.url === !b.url && hasPage(a) === hasPage(b));
+
+export function entriesInputsSame(inputs: unknown[], cached: unknown[]): boolean {
+  if (!inputs.every((v, i) => i === 0 || v === cached[i])) return false;
+  const tabs = inputs[0] as BrowserState["tabs"];
+  const was = cached[0] as BrowserState["tabs"];
+  return tabs === was || changedIds(tabs, was).every((id) => sameEntryFields(tabs[id], was[id]));
+}
+
 export function sidebarEntries(s: BrowserState, windowId: string, profileId?: string): SidebarEntries {
   const inputs = [s.tabs, s.windows, s.groups, s.splits, s.settings.newTabOpens];
   const key = profileId ? `${windowId}|${profileId}` : windowId;
   const cached = memo.get(key);
-  if (cached && cached.inputs.every((v, i) => v === inputs[i])) return cached.result;
+  if (cached && entriesInputsSame(inputs, cached.inputs)) {
+    cached.inputs = inputs;
+    return cached.result;
+  }
   let result = computeEntries(s, windowId, profileId);
   if (cached) {
     const was = cached.result;

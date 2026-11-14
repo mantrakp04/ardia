@@ -8,7 +8,7 @@ import { hiddenEmptyCard } from "../omnibox/newTabBarPolicy";
 import { groupLabel } from "../pins/tabGrouping";
 import { folderCell, folderIn, folderLabel, folderMembers, tileFolderOf } from "../pins/tileFolders";
 import { clickTab } from "../sidebar/actions";
-import { groupEntries } from "../sidebar/entries";
+import { entriesInputsSame, groupEntries } from "../sidebar/entries";
 import { renameFolder } from "../sidebar/tileFolderUi";
 import { chooseFromMenu, type ChoiceItem } from "../app/menuChoice";
 import { entryKey, parseEntry } from "../sidebar/entryKey";
@@ -81,7 +81,10 @@ export function stripEntries(s: BrowserState, windowId: string, profileId: strin
   const key = `${windowId}|${profileId}`;
   const inputs = [s.tabs, s.windows, s.groups, s.splits, s.settings.newTabOpens];
   const cached = stripMemo.get(key);
-  if (cached && cached.inputs.every((v, i) => v === inputs[i])) return cached.entries;
+  if (cached && entriesInputsSame(inputs, cached.inputs)) {
+    cached.inputs = inputs;
+    return cached.entries;
+  }
   const groups = groupIndex(s.groups);
   const folders = foldersUnderRoots(s.groups);
   const splits = splitIndex(s.splits);

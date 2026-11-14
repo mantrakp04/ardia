@@ -50,3 +50,23 @@ test("the reads cover every top-level field the menu used, including through its
   }
   assert.equal(reads.has("history"), false);
 });
+
+test("a hidden tab's new title or icon doesn't rebuild the menu; a shown tab's title, or any other tab change, does", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.example/" });
+  const shown = model.activeTabId(S(), w);
+  const hidden = S().newTab(w, { url: "https://b.example/", background: true });
+  const changes = (step) => {
+    const before = S();
+    const { state, reads } = trackedMenuState(before);
+    step();
+    const changed = menuInputsChanged(reads, S(), before);
+    if (!changed) assert.equal(menuJson(S()), JSON.stringify(state));
+    return changed;
+  };
+  assert.equal(changes(() => S().updateTab(hidden, { title: "(3) Inbox" })), false);
+  assert.equal(changes(() => S().updateTab(hidden, { favicon: "https://b.example/unread.ico" })), false);
+  assert.equal(changes(() => S().updateTab(shown, { title: "A page" })), true);
+  assert.equal(changes(() => S().updateTab(hidden, { muted: true })), true);
+  assert.equal(changes(() => S().closeTab(hidden)), true);
+});

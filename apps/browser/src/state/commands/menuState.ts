@@ -1,6 +1,7 @@
 import type { MenuBookmark, MenuState } from "../../platform/commands";
 import { engineBookmarkRoots, folderChildren, isBookmarked, isWithin, ROOT_TITLES } from "../bookmarks/bookmarks";
 import type { BrowserState } from "../browser/store";
+import { onlyHiddenTabTitles } from "../browser/structure";
 import { activeTab, bookmarkProfileId, engineProfile, IDLE_LIVE, isPinnedRow, tabLabel, togglePinTitle, windowTitle, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { canSwitchEngine, tabEngine } from "../engines/engines";
 import { peekTabId } from "../peek/peek";
@@ -155,6 +156,6 @@ export function trackedMenuState(s: BrowserState): { state: MenuState; reads: Me
 }
 
 export function menuInputsChanged(reads: MenuReads, s: BrowserState, prev: BrowserState): boolean {
-  for (const key of reads) if (s[key] !== prev[key]) return true;
+  for (const key of reads) if (s[key] !== prev[key] && !(key === "tabs" && onlyHiddenTabTitles(s, prev))) return true;
   return false;
 }
