@@ -3,6 +3,7 @@ package com.ardia.sync
 import android.content.Context
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -101,6 +102,7 @@ class SyncController(
     private var loopGeneration = 0L
     private var debounce: SyncCancellable? = null
     private var debounceGeneration = 0L
+    private var retired: CountDownLatch? = null
 
     private val mutableState = MutableStateFlow(SyncState())
     private val mutableSnapshot = MutableStateFlow(SyncSnapshot.empty)
@@ -274,15 +276,34 @@ class SyncController(
     }
 
     fun close() {
+        retire()
+    }
+
+    fun closeAndWait(timeoutMillis: Long): Boolean = retire().await(timeoutMillis, TimeUnit.MILLISECONDS)
+
+    private fun retire(): CountDownLatch = synchronized(lock) {
+        retired?.let { return it }
+        val done = CountDownLatch(1)
+        retired = done
         stopLoop()
         cancelDebounce()
-        submit {
-            made?.close()
+        try {
+            executor.execute {
+                try {
+                    if (!closed) runCatching { made?.close() }
+                } finally {
+                    closed = true
+                    done.countDown()
+                }
+            }
+        } catch (shutDown: RejectedExecutionException) {
             closed = true
+            done.countDown()
         }
         if (active === this) active = null
         ownedThread?.shutdown()
         (timers as? SystemSyncTimers)?.shutdown()
+        done
     }
 
     private fun cycle() {

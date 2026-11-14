@@ -59,11 +59,11 @@ class SyncModule : Module() {
         }
 
         OnActivityEntersForeground {
-            controller.appForegrounded()
+            PhoneSync.current()?.appForegrounded()
         }
 
         OnActivityEntersBackground {
-            controller.appBackgrounded()
+            PhoneSync.current()?.appBackgrounded()
         }
 
         OnActivityResult { _, payload ->
@@ -82,7 +82,7 @@ class SyncModule : Module() {
 
         AsyncFunction("incoming") { -> controller.incoming.value.map(SyncPayloads::received) }
 
-        Function("check") { phrase: String -> SyncPayloads.check(controller.check(phrase)) }
+        Function("check") { phrase: String -> SyncPayloads.check(com.ardia.sync.SyncJoin.check(phrase)) }
 
         AsyncFunction("connect") { phrase: String, promise: Promise ->
             pickFolder(promise) { tree ->
@@ -120,7 +120,7 @@ class SyncModule : Module() {
 
         AsyncFunction("clearIncoming") { -> controller.clearIncoming() }
 
-        Function("localDidChange") { controller.localDidChange() }
+        Function("localDidChange") { PhoneSync.current()?.localDidChange() }
 
         AsyncFunction("inbox") { -> SyncPayloads.inbox(PhoneSync.inbox(context).entries()) }
 

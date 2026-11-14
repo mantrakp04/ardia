@@ -7,6 +7,7 @@ import java.io.File
 
 object PhoneSync {
     const val DEMO_EXTRA = "com.ardia.phone.SYNC_DEMO"
+    private const val RETIRE_TIMEOUT_MILLIS = 10_000L
 
     internal var makeController: (Context, LocalBrowsingSource) -> SyncController = { app, source -> SyncController.forApp(app, source) }
     internal var makeDemo: () -> SyncController = { SyncController.demo() }
@@ -30,7 +31,11 @@ object PhoneSync {
     fun controller(context: Context, demo: Boolean? = null): SyncController = synchronized(this) {
         val current = made
         if (current != null && (demo == null || demo == isDemo)) return current
-        current?.close()
+        if (current != null) {
+            check(android.os.Looper.myLooper()?.let { it != android.os.Looper.getMainLooper() } ?: true) { "sync is replaced off the main thread" }
+            made = null
+            if (!current.closeAndWait(RETIRE_TIMEOUT_MILLIS)) throw IllegalStateException("the sync engine being replaced did not stop in time")
+        }
         val app = context.applicationContext ?: context
         val wantsDemo = demo == true
         val fresh = if (wantsDemo) makeDemo() else makeController(app, source(app))
@@ -50,7 +55,7 @@ object PhoneSync {
     }
 
     internal fun forgetForTests() = synchronized(this) {
-        made?.close()
+        made?.closeAndWait(RETIRE_TIMEOUT_MILLIS)
         made = null
         madeInbox = null
         madeSource = null
