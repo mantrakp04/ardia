@@ -398,7 +398,8 @@ is plain Chromium.
   `pagePress`.
 - The keyboard follows the user between the app's own windows, as the Mac's follows Chromium's tab activation.
   A page never takes the keyboard because it shows. When a window's shown tab changes (a tab switch, a numbered tab,
-  closing the tab, a pane focus), the app asks that tab's page to follow (`state/focus/keyboardFollows.ts` calling
+  closing the tab, a pane focus) or the user opens a Peek, the app asks that tab's (or the Peek's) page to follow, as the
+  Mac's web view focuses a Peek's page when it opens (`state/focus/keyboardFollows.ts` calling
   `platform/keyboardFollow.windows.ts`; the Mac has no such call and subscribes to nothing). `pages.ts` sends it once
   the page shows, unless a text field of that window has the keyboard: React Native's focused field and the window it
   is in decide, and a field the user left by pressing a page of its window no longer counts. A field in the content

@@ -4,15 +4,15 @@ const { startKeyboardFollows } = await import("./keyboardFollows.ts");
 
 const windowOf = (profileId, active) => ({ profileId, activeTabIds: { [profileId]: active } });
 
-function fakeStore(windows) {
-  let state = { windows };
+function fakeStore(windows, peeks = {}) {
+  let state = { windows, peeks };
   const listeners = new Set();
   return {
     getState: () => state,
     subscribe: (listener) => (listeners.add(listener), () => listeners.delete(listener)),
-    set(windows) {
+    set(windows, peeks = state.peeks) {
       const prev = state;
-      state = { windows };
+      state = { windows, peeks };
       for (const listener of listeners) listener(state, prev);
     },
   };
@@ -36,4 +36,17 @@ test("on a platform without the follow call nothing subscribes", () => {
   store.subscribe = () => ((subscribed = true), () => {});
   startKeyboardFollows(null, store)();
   assert.equal(subscribed, false);
+});
+
+test("the keyboard is asked to follow a Peek's page when the user opens one, as the Mac's Peek focuses its page", () => {
+  const followed = [];
+  const windows = { w1: windowOf("p", "a") };
+  const store = fakeStore(windows);
+  const stop = startKeyboardFollows((tabId) => followed.push(tabId), store);
+  store.set(windows, { w1: { tabId: "peek1", sourceId: "a" } });
+  store.set(windows, { w1: { tabId: "peek1", sourceId: "a" } });
+  store.set(windows, {});
+  store.set(windows, { w1: { tabId: "peek2", sourceId: "a" } });
+  assert.deepEqual(followed, ["peek1", "peek2"], "each new Peek once; closing it asks nothing here (the source page refocuses on close)");
+  stop();
 });
