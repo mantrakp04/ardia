@@ -34,6 +34,20 @@ static BOOL InTabPage(NSView *view) {
   return nil;
 }
 
++ (BOOL)focusVisiblePageIn:(NSWindow *)window {
+  ArdiaWebView *chosen = nil;
+  for (ArdiaWebView *view in LiveViews().allObjects) {
+    NSView *page = view->_tab.view;
+    if (view.window != window || !view->_visible || view->_standalone || !page || page.superview != view ||
+        page.isHiddenOrHasHiddenAncestor)
+      continue;
+    if (!chosen || (view->_focus.page == ArdiaPageFocus::Page && chosen->_focus.page != ArdiaPageFocus::Page)) chosen = view;
+  }
+  if (!chosen) return NO;
+  [chosen focusPage];
+  return YES;
+}
+
 - (void)storePageFocus {
   NSResponder *responder = self.window.firstResponder;
   const BOOL unfocused = !responder || responder == self.window;

@@ -32,7 +32,8 @@ constexpr CFTimeInterval kTakeOverLendSeconds = 1;
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ lends its page to %@ until it draws", _transferKey, holder->_transferKey);
   NSWindow *window = self.window;
   NSResponder *responder = window.firstResponder;
-  if ([responder isKindOfClass:NSView.class] && [(NSView *)responder isDescendantOf:page]) [window makeFirstResponder:nil];
+  const BOOL heldFocus = [responder isKindOfClass:NSView.class] && [(NSView *)responder isDescendantOf:page];
+  if (heldFocus) [window makeFirstResponder:nil];
   _standIn.lentTo = holder;
   holder->_standIn.page = page;
   holder->_standIn.tab = _tab;
@@ -44,6 +45,10 @@ constexpr CFTimeInterval kTakeOverLendSeconds = 1;
     else [holder addSubview:page positioned:NSWindowBelow relativeTo:holderPage];
     if (covers) holder.alphaValue = 1;
   });
+  if (heldFocus) {
+    if (holder->_focus.page == ArdiaPageFocus::Elsewhere) holder->_focus.page = ArdiaPageFocus::Page;
+    [holder requestFocusRestoreIn:window];
+  }
   if (covers) return;
   __weak ArdiaWebView *weakHolder = holder;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kStandInTeardownDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{

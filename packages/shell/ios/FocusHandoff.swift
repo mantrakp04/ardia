@@ -273,9 +273,16 @@ final class FocusHandoff {
     note("end restoring=\(restoring && gate.restoresSource)")
     drop(in: gate) { _ in true }
     close(gate)
-    guard restoring, gate.restoresSource, let window = gate.window, Self.unfocused(window), let page = gate.resigned,
-      page.window === window, !page.isHiddenOrHasHiddenAncestor else { return }
-    window.makeFirstResponder(page)
+    guard let window = gate.window, Self.unfocused(window) else { return }
+    if restoring, gate.restoresSource, let page = gate.resigned, page.window === window, !page.isHiddenOrHasHiddenAncestor {
+      window.makeFirstResponder(page)
+      return
+    }
+    afterPendingUI { [weak self, weak window] in
+      guard let self, let window, window.isKeyWindow, Self.unfocused(window) else { return }
+      self.note("refocus page")
+      ArdiaWebView.focusVisiblePage(in: window)
+    }
   }
 
   private func close(_ gate: Gate) {
