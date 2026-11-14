@@ -145,9 +145,10 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
 function useBarCollapse(tabId: string) {
   const collapses = usePreferences((p) => p.collapsesBottomBar);
   const direction = useNavigation(tabId, (n) => n?.scrollDirection ?? "up");
+  const page = useNavigation(tabId, (n) => n?.url ?? null);
   const reduceMotion = useReducedMotion();
   const [state, setState] = useState(BAR_SHOWN);
-  useEffect(() => setState((now) => followScroll(now, tabId, direction, collapses)), [tabId, direction, collapses]);
+  useEffect(() => setState((now) => followScroll(now, tabId, page, direction, collapses)), [tabId, page, direction, collapses]);
   const hidden = state.hidden && state.tabId === tabId;
   const hide = useSharedValue(0);
   useEffect(() => {
