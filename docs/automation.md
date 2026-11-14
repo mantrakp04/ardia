@@ -353,8 +353,8 @@ Hooks that answer before something happens, with a deadline after which Ardia do
   `"fullUrls": true`; a program that rewrites query parameters needs it. The runner trims again on its side.
 - **link.opening** decides before any tab exists. At every launch native holds incoming links (no early Little Ardia
   tab, no parked link tabs) until JS reports its link policy with `setHoldIncomingLinks(hold, hooksStamp)`: the app reports it
-  once its hooks are loaded and again on every change, `true` while an active `tab.opening` or `link.opening` hook
-  exists. `hooksStamp` is the stamp (device, inode, size, mtime, ctime) native returned with the hooks.json read the
+  once its hooks are loaded and again on every change, `true` while an active `tab.opening` or `link.opening` hook,
+  an enabled Air Traffic Control rule or an Everything Else choice exists. `hooksStamp` is the stamp (device, inode, size, mtime, ctime) native returned with the hooks.json read the
   rules came from, so a decision is never filed under a newer file; native keeps the fast-path fingerprint only when
   that stamp is the file's current one. The fingerprint also covers config.json and `automation-approvals.json`, so
   native takes its fast path before JS loads only when the last report said no hold and none of the three changed
@@ -394,6 +394,34 @@ Hooks that answer before something happens, with a deadline after which Ardia do
 - **Floods.** At most 64 pending decisions (16 per runner connection), 200 hooks and 50 rewrite rules per hook; the
   runner runs at most 16 decide programs at once (4 per hook) and gives up at the deadline. Command hooks run at
   most 10 commands per 10 s each, so a hook that triggers itself stops.
+
+## Air Traffic Control
+
+Settings › Air Traffic Control is the same `link.opening` route engine with rules the user makes in Settings, kept in
+the data dir (`air-traffic.json`, version 1: an ordered `rules` list and a `fallback`), not in the config folder.
+
+- **Order.** For a link from another app (after `tab.opening` has had its say): the Settings rules from the top, the
+  first enabled one that fits answering; then the hooks.json `link.opening` hooks as above; then the Everything Else
+  choice when nothing answered (no hook fit, a route hook's profile is gone, or a program hook gave no answer in
+  time). With no Everything Else choice the link takes Ardia's usual routing.
+- **A rule** is `from` (an app by bundle id, or by name when it has none; `null` is any app), a link condition (`any`,
+  a `site` host that also takes its subdomains, matched as `*://*.<host>/*`, or a userscript match `pattern`), a profile
+  id (`null` is the profile used last) and `open` (`tab`, `window`, `littleArdia`). Profiles are stored by id, so a
+  rename keeps the rule; a rule or fallback whose profile was deleted, or is private, doesn't apply and the link
+  goes on down the list.
+- **No approval.** The user makes these rules in Settings, so they count as approved. hooks.json route hooks still need
+  approval in Advanced › Automation; the pane lists them read-only with their state.
+- **The hold.** An enabled rule or an Everything Else choice turns the incoming-link hold on, reported again on every
+  change, so the native fast path never opens a link before the rules have seen it.
+- **Source apps.** The app (bundle id, name) of the last 20 distinct apps that sent a link is kept in
+  `link-sources.json` for the app picker, on this Mac only and never sent.
+- **Try a Link** runs the same `traceLink` the real decision runs (`state/automation/decisions.ts`), so it can't
+  drift: it names the rule, hook, Everything Else or usual routing that would take the link and where it would open.
+  A program hook can't be asked without sending the link, so it shows what happens if the program doesn't answer.
+- Code: `state/airTraffic/rules.ts` (the pure matching and the saved document), `store.ts`, `sourceApps.ts`,
+  `preview.ts`; the pane is `components/settings/panes/AirTraffic.tsx`.
+- Telemetry: `usage_counts.air_traffic_rule_links` and `air_traffic_fallback_links`, and `settings_snapshot`'s
+  `air_traffic_rules` (enabled rules) and `air_traffic_fallback` (true or false).
 
 ## Approvals
 
