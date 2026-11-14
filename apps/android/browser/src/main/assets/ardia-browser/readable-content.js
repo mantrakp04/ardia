@@ -14,8 +14,9 @@ const MARKERS = /\[(?:\d{1,3}|[a-z]|note \d+|nb \d+|citation needed|edit|update)
 
 const clean = (text) => text.replace(MARKERS, "").replace(/\s+/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim();
 const classOf = (el) => (typeof el.className === "string" ? el.className : "") + " " + (el.id || "");
+const isHidden = (el) => el.hasAttribute("hidden") && el.getAttribute("hidden") !== "until-found";
 const isJunk = (el) => {
-  if (SKIP_TAGS.has(el.tagName) || el.hidden) return true;
+  if (SKIP_TAGS.has(el.tagName) || isHidden(el)) return true;
   if (el.matches(JUNK)) return true;
   const style = el.getAttribute("style") || "";
   if (/display\s*:\s*none|visibility\s*:\s*hidden/i.test(style)) return true;

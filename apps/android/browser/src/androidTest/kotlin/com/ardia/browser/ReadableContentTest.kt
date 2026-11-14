@@ -51,6 +51,18 @@ class ReadableContentTest {
     }
 
     @Test
+    fun mobileWikipediaKeepsSectionsItCollapsedUntilFound() {
+        val collapsed = ReaderFixtures.wikipedia
+            .replace("<p>${ReaderFixtures.FILLER}<sup", "<div class=\"collapsible-block\" hidden=\"until-found\"><p>${ReaderFixtures.FILLER}<sup")
+            .replace("castle on the hilltop in the 8th and 9th centuries.</p>", "castle on the hilltop in the 8th and 9th centuries.</p></div><div hidden><p>${ReaderFixtures.FILLER} A draft paragraph nobody can see.</p></div>")
+        val content = extract(collapsed, "/wiki/Sintra")
+        expectClean(content)
+        assertTrue(content.paragraphs.any { it.endsWith("The Moors built a castle on the hilltop in the 8th and 9th centuries.") })
+        assertTrue(content.paragraphs.contains("Geography"))
+        assertFalse(content.paragraphs.any { it.contains("A draft paragraph nobody can see") })
+    }
+
+    @Test
     fun newsArticleKeepsBodyAndSubheadings() {
         val content = extract(ReaderFixtures.news, "/news/articles/x")
         expectClean(content)
