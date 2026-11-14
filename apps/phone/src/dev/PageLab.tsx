@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LAB_BLOCKING_URL, labBlockingHtml, runRestoreTest, runSelfTest, summarize, type TestLine } from "./selfTest";
+import { SyncLab } from "./SyncLab";
 
 const labPage = `<!doctype html><meta name="viewport" content="width=device-width"><title>Page Lab</title>
 <body style="font:16px sans-serif;padding:12px">
@@ -81,6 +82,7 @@ function Lab() {
   const [pageId, setPageId] = useState("lab-a");
   const [privateIds, setPrivateIds] = useState<string[]>([]);
   const [showView, setShowView] = useState(true);
+  const [showSync, setShowSync] = useState(false);
   const [url, setUrl] = useState(LAB_URL);
   const [query, setQuery] = useState("browser");
   const [states, setStates] = useState<Record<string, PageState>>({});
@@ -261,6 +263,7 @@ function Lab() {
         </View>
       )}
       <ScrollView style={styles.controls} contentContainerStyle={styles.controlsContent}>
+        {showSync && <SyncLab note={note} />}
         <Text style={styles.status} numberOfLines={2}>
           {pageId} {isPrivate ? "(private) " : ""}
           {state ? `${state.isLoading ? `loading ${Math.round(state.progress * 100)}% ` : ""}${state.title || "untitled"}` : "no state"}
@@ -301,6 +304,7 @@ function Lab() {
             });
           }} />
           <Button label="Clear results" onPress={() => setResults([])} />
+          <Button label={showSync ? "Hide sync" : "Sync"} active={showSync} onPress={() => setShowSync((shown) => !shown)} />
           <Button label="Discard others" onPress={() => run("discard background", async () => {
             await pages.discardBackgroundPages(pageId);
             return pages.livePageIds();
