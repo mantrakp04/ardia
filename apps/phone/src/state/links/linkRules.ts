@@ -42,6 +42,25 @@ export function linkAction(link: IncomingLink, state: LinkState): LinkAction {
   }
 }
 
+export type Cover = "tray" | "voice" | "sheet" | "settings" | "pageMenu" | "reader" | "find";
+
+export const ALL_COVERS: readonly Cover[] = ["tray", "voice", "sheet", "settings", "pageMenu", "reader", "find"];
+
+export function coversToClose(action: LinkAction): readonly Cover[] {
+  switch (action.kind) {
+    case "hold":
+    case "none":
+    case "inbox":
+      return [];
+    case "tray":
+      return ALL_COVERS.filter((cover) => cover !== "tray");
+    case "voice":
+      return ALL_COVERS.filter((cover) => cover !== "voice");
+    default:
+      return ALL_COVERS;
+  }
+}
+
 export function heldAfterOnboarding(held: readonly IncomingLink[]): IncomingLink[] {
   const last = held.filter((link) => link.kind !== "inbox").at(-1);
   return last ? [last] : [];

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { heldAfterOnboarding, linkAction, opensLaunchTray, type LinkState } from "./linkRules.ts";
+import { ALL_COVERS, coversToClose, heldAfterOnboarding, linkAction, opensLaunchTray, type LinkState } from "./linkRules.ts";
 
 const browsing: LinkState = { onboarding: false, syncEnabled: true, canSearchByVoice: false, hasTab: (id) => id === "t1" };
 
@@ -54,4 +54,22 @@ test("a link waiting at the end of onboarding is what shows, not the launch tray
   assert.equal(opensLaunchTray(false, []), false);
   assert.equal(opensLaunchTray(true, [{ kind: "open", url: "https://example.com/" }]), false);
   assert.equal(opensLaunchTray(true, [{ kind: "inbox" }]), true);
+});
+
+test("a link leaves one surface: Spaces, Sync With Mac, a page or a tab close the tray, the voice screen and any sheet or menu first", () => {
+  for (const link of [{ kind: "macTabs" }, { kind: "open", url: "https://example.com" }, { kind: "tab", id: "t1" }] as const) {
+    assert.deepEqual(coversToClose(linkAction(link, browsing)), ALL_COVERS, link.kind);
+    assert.deepEqual(coversToClose(linkAction(link, { ...browsing, syncEnabled: false })), ALL_COVERS, link.kind);
+  }
+  assert.ok(coversToClose(linkAction({ kind: "macTabs" }, browsing)).includes("tray"));
+});
+
+test("a search link keeps the tray it reopens, voice keeps its screen, and links that do nothing close nothing", () => {
+  assert.ok(!coversToClose(linkAction({ kind: "search", query: "otters" }, browsing)).includes("tray"));
+  assert.ok(coversToClose(linkAction({ kind: "search", query: "otters" }, browsing)).includes("voice"));
+  assert.ok(!coversToClose(linkAction({ kind: "voiceSearch" }, { ...browsing, canSearchByVoice: true })).includes("voice"));
+  assert.ok(coversToClose(linkAction({ kind: "voiceSearch" }, { ...browsing, canSearchByVoice: true })).includes("tray"));
+  assert.deepEqual(coversToClose(linkAction({ kind: "tab", id: "gone" }, browsing)), []);
+  assert.deepEqual(coversToClose(linkAction({ kind: "macTabs" }, { ...browsing, onboarding: true })), []);
+  assert.deepEqual(coversToClose(linkAction({ kind: "inbox" }, browsing)), []);
 });

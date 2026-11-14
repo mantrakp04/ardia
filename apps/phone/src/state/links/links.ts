@@ -1,24 +1,32 @@
 import { addLinkListener, initialLink, type SystemLink } from "../../platform/links";
 import { openPage, openSpaces, openTab, showDeck, useBrowse } from "../browse/store";
 import { useOnboarding } from "../onboarding/store";
-import { closePageMenu } from "../page/actions";
+import { closeFind, closePageMenu, closeReader } from "../page/actions";
 import { settled } from "../pages/store";
-import { presentSearch } from "../search/store";
+import { dismissSearch, presentSearch } from "../search/store";
 import { closeSettings, openSettings } from "../settings/nav";
 import { applyInbox } from "../sync/actions";
 import { syncData } from "../sync/store";
-import { canSearchByVoice, presentVoiceSearch } from "../voice/store";
+import { canSearchByVoice, closeVoiceSearch, presentVoiceSearch } from "../voice/store";
 import { currentTabs, setIncognito, useTabs } from "../tabs/store";
 import { findTab } from "../tabs/tabsState";
 import { heldLinks, holdLink, takeHeldLinks } from "./heldLinks";
-import { heldAfterOnboarding, linkAction, type IncomingLink } from "./linkRules";
+import { ALL_COVERS, coversToClose, heldAfterOnboarding, linkAction, type Cover, type IncomingLink } from "./linkRules";
 
 let started = false;
 
-function prepare() {
-  closeSettings();
-  closePageMenu();
-  useBrowse.setState({ sheet: null });
+const CLOSE: Record<Cover, () => void> = {
+  tray: dismissSearch,
+  voice: closeVoiceSearch,
+  sheet: () => useBrowse.setState({ sheet: null }),
+  settings: closeSettings,
+  pageMenu: closePageMenu,
+  reader: closeReader,
+  find: closeFind,
+};
+
+function close(covers: readonly Cover[]) {
+  for (const cover of covers) CLOSE[cover]();
 }
 
 async function run(link: IncomingLink) {
@@ -28,42 +36,39 @@ async function run(link: IncomingLink) {
     canSearchByVoice: canSearchByVoice(),
     hasTab: (id) => Boolean(findTab(currentTabs(), id)),
   });
+  close(coversToClose(action));
   switch (action.kind) {
     case "hold":
       holdLink(link);
       return;
     case "openUrl":
-      prepare();
       setIncognito(false);
       openPage(action.url, "link");
       return;
     case "tray": {
-      prepare();
       const was = useTabs.getState().incognito;
       setIncognito(action.incognito);
       presentSearch(useBrowse.getState().surface === "start" ? "start" : "page", action.query, was);
       return;
     }
     case "voice":
-      prepare();
       setIncognito(false);
       presentVoiceSearch();
       return;
     case "switchTab":
-      prepare();
       openTab(action.id);
       return;
     case "spaces":
-      prepare();
       openSpaces();
       return;
     case "syncSettings":
-      prepare();
       openSettings({ page: "sync" });
       return;
     case "inbox": {
       const opened = await applyInbox();
-      if (opened > 0 && !useOnboarding.getState().showing) void showDeck();
+      if (opened <= 0 || useOnboarding.getState().showing) return;
+      close(ALL_COVERS);
+      void showDeck();
       return;
     }
     case "none":
