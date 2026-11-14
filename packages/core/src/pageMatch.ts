@@ -117,3 +117,15 @@ export class TopList {
     if (items.length === this.size) this.floor = items[items.length - 1]!.s;
   }
 }
+
+export const LEADING_ROWS = 5;
+
+export function leadingRows(ranked: readonly Ranked[], tabs: readonly Ranked[]): Ranked[] {
+  const lead = ranked.slice(0, 3);
+  const bar = lead.length ? lead[lead.length - 1]!.m : 0;
+  for (const t of tabs) {
+    if (lead.length >= LEADING_ROWS) break;
+    if (t.m >= bar && !lead.some((x) => x.c === t.c)) lead.push(t);
+  }
+  return lead;
+}

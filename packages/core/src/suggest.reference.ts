@@ -7,7 +7,7 @@ import { matchQuickCreate } from "./quickCreate.ts";
 import { scopedSearchUrl, type SearchScope } from "./siteSearch.ts";
 
 export type SuggestionSource = {
-  tabs: readonly { id: string; url: string; title: string; favicon: string | null }[];
+  tabs: readonly { id: string; url: string; title: string; favicon: string | null; customTitle?: string | null }[];
   history: readonly { url: string; title: string; favicon: string | null; visits: number; lastVisit: number }[];
   bookmarks?: readonly { url: string; title: string; favicon: string | null }[];
 };
@@ -198,14 +198,29 @@ export function prepareSuggestions(source: SuggestionSource, deadline: number): 
 function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId?: string) {
   const tabIds = new Map<string, string>();
   const extra: Candidate[] = [];
+  const renamed = new Set<string>();
   for (const t of tabs) {
     if (!t.url || t.id === currentTabId) continue;
     const text = pageText(t);
     if (tabIds.has(text.key)) continue;
     tabIds.set(text.key, t.id);
-    if (!pool.byKey.has(text.key)) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text });
+    const visited = pool.byKey.get(text.key);
+    const name = t.customTitle?.trim();
+    if (name) {
+      renamed.add(text.key);
+      extra.push({
+        url: t.url,
+        title: name,
+        favicon: t.favicon,
+        visits: visited?.visits ?? 0,
+        lastVisit: visited ? visited.lastVisit : now,
+        bookmarked: visited?.bookmarked ?? false,
+        tabId: t.id,
+        text: pageText({ url: t.url, title: `${name} ${t.title}` }),
+      });
+    } else if (!visited) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text });
   }
-  return { tabIds, extra };
+  return { tabIds, extra, renamed };
 }
 
 const isWordChar = (code: number) => (code >= 48 && code <= 57) || (code >= 97 && code <= 122);
@@ -337,7 +352,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   }
 
   const pool = poolFor(source.history, source.bookmarks ?? NO_BOOKMARKS);
-  const { tabIds, extra } = tabsOver(pool, source.tabs, now, options.currentTabId);
+  const { tabIds, extra, renamed } = tabsOver(pool, source.tabs, now, options.currentTabId);
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
   const known = (url: string) => {
     const key = pageKey(url);
@@ -353,6 +368,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const parsed = parseQuery(q, tokens);
   const matched: Candidate[] = [];
   const top = new TopList(limit + 1);
+  const tabTop = new TopList(LEADING_ROWS);
   const onSite = scope ? new TopList(4) : null;
   let inline: Ranked | null = null;
   for (const list of [pages, extra]) {
@@ -360,10 +376,12 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
       const m = matchScore(c.text, parsed);
       if (m <= 0) continue;
       if (list === pages) matched.push(c);
+      if (list === pages && renamed.has(c.text.key)) continue;
       const tabId = c.tabId ?? tabIds.get(c.text.key);
       const derank = currentKey !== null && c.text.key === currentKey ? 80 : 0;
       const r: Ranked = { c, tabId, m, s: m + frecency(c, tabId, now) - derank };
       top.offer(r);
+      if (tabId && !scope) tabTop.offer(r);
       if (onSite) {
         const host = hostOfPage(c.text);
         if (host === scope!.host || host.endsWith(`.${scope!.host}`)) onSite.offer(r);
@@ -413,9 +431,9 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   out.push(...actionMatches.map((m) => actionRow(m.action)));
   out.push(...creates.map(createRow));
   const pageRows = ranked.map((x) => pageSuggestion(x.c, x.tabId));
-  out.push(...pageRows.slice(0, 3));
+  out.push(...leadingRows(ranked, tabTop.items).map((x) => pageSuggestion(x.c, x.tabId)));
   out.push(...remoteRows((text) => searchUrl(engine, text), engine.name));
-  out.push(...pageRows.slice(3));
+  out.push(...pageRows);
   return { items: out.items, completion };
 }
 
@@ -481,4 +499,16 @@ function dedupeSuggestions(remote: readonly string[], query: string): string[] {
     seen.add(key);
     return true;
   });
+}
+
+const LEADING_ROWS = 5;
+
+function leadingRows(ranked: readonly Ranked[], tabs: readonly Ranked[]): Ranked[] {
+  const lead = ranked.slice(0, 3);
+  const bar = lead.length ? lead[lead.length - 1]!.m : 0;
+  for (const t of tabs) {
+    if (lead.length >= LEADING_ROWS) break;
+    if (t.m >= bar && !lead.some((x) => x.c === t.c)) lead.push(t);
+  }
+  return lead;
 }
