@@ -69,7 +69,10 @@ struct LibraryView: View {
       .lookBackdrop()
       .toolbarVisibility(.hidden, for: .navigationBar)
       .navigationDestination(isPresented: $showsClearData) {
-        ClearBrowsingDataPage().settingsChrome().toggleStyle(SettingsSwitchStyle())
+        ClearBrowsingDataPage()
+          .settingsChrome()
+          .toggleStyle(SettingsSwitchStyle())
+          .toolbarVisibility(.visible, for: .navigationBar)
       }
       .confirmationDialog("Delete All Downloads?", isPresented: $isConfirmingDeleteDownloads, titleVisibility: .visible) {
         Button("Delete All", role: .destructive) { downloads.deleteAll() }

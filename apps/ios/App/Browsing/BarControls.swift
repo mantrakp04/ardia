@@ -61,7 +61,7 @@ struct BarTabsButton: View {
 
   @ViewBuilder
   private func recentTabsMenu(_ order: [BrowserTab]) -> some View {
-    let recent = order.dropLast().suffix(8).reversed()
+    let recent = order.filter { $0.id != app.tabs.selectedTabID }.suffix(8).reversed()
     ForEach(Array(recent)) { tab in
       Button(TabText.title(for: tab)) { actions.onSelectTab(tab.id) }
     }
