@@ -10,6 +10,7 @@ struct SearchSuggestion: Identifiable, Hashable {
     case history
     case bookmark
     case calculation
+    case research
   }
 
   var id: String
@@ -30,18 +31,23 @@ struct SearchSuggestion: Identifiable, Hashable {
     case .history: "clock"
     case .bookmark: "star"
     case .calculation: "equal"
+    case .research: "sparkle.magnifyingglass"
     }
   }
 
   var showsFavicon: Bool {
     switch kind {
-    case .query, .calculation: false
+    case .query, .calculation, .research: false
     default: url != nil
     }
   }
 
   static func query(_ text: String) -> SearchSuggestion {
     SearchSuggestion(id: "q:" + text.lowercased(), kind: .query, title: text, detail: nil, url: nil, query: text)
+  }
+
+  static func research(_ text: String) -> SearchSuggestion {
+    SearchSuggestion(id: "ai:" + text.lowercased(), kind: .research, title: String(localized: "Browse for Me"), detail: text, url: nil, query: text)
   }
 }
 

@@ -82,7 +82,15 @@ final class SearchSuggestionsModel {
       rows.insert(.query(trimmed), at: min(isCurrent ? 1 : 0, rows.count))
       if rows.count > Self.rowLimit { rows.removeLast() }
     }
+    if Self.offersResearch(trimmed), let typed = rows.firstIndex(where: { $0.kind == .query && $0.title.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+      rows.insert(.research(trimmed), at: typed + 1)
+      if rows.count > Self.rowLimit { rows.removeLast() }
+    }
     return rows
+  }
+
+  static func offersResearch(_ text: String) -> Bool {
+    text.count >= 3 && SearchInput.url(from: text) == nil && !text.hasPrefix("!") && !text.contains(" !")
   }
 
   static func row(_ row: SearchSuggestion, stillMatches typed: String) -> Bool {

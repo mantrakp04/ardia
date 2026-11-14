@@ -120,6 +120,18 @@ struct VoiceSearchView: View {
             .frame(maxWidth: .infinity, minHeight: 50)
         }
         .buttonStyle(.glass)
+        Button {
+          dictation.stop()
+          dismiss()
+          Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            app.startResearch(text)
+          }
+        } label: {
+          Label("Browse for Me", systemImage: "sparkle.magnifyingglass")
+            .frame(maxWidth: .infinity, minHeight: 50)
+        }
+        .buttonStyle(.glass)
       } else if dictation.state != .requesting {
         Button {
           Task { await dictation.start() }

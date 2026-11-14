@@ -78,6 +78,9 @@ enum DemoScenario {
     if let link = value("-BrowseOpen").flatMap(URL.init(string:)) {
       app.openPage(link, origin: .typed)
     }
+    if let query = value("-BrowseResearch") {
+      app.startResearch(query)
+    }
     if let query = value("-BrowseQuery") {
       app.browse.presentSearch(from: .home, text: query)
     }

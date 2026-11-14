@@ -41,6 +41,7 @@ final class AppModel {
   var surface: Surface = .search
   var sheet: Sheet?
   var isIncognito = false
+  var research: ResearchSession?
   @ObservationIgnored var inboxInFlight: Set<UUID> = []
   @ObservationIgnored var inboxSent: Set<UUID> = []
 
