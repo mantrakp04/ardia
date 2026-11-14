@@ -2,6 +2,7 @@ import { call, saveCard, type CardNetwork, type SavedAddress, type SavedCard, ty
 
 export { saveCard };
 export type { SavedAddress, SavedCard, CardNetwork };
+export type AutofillToggle = "passwords" | "addresses" | "cards";
 
 export const getAutofillSettings = (profile = "") => call("autofill.settings", { profile });
 export const setAutofillSettings = (settings: { addresses?: boolean; cards?: boolean }, profile = "") =>

@@ -308,6 +308,7 @@ const NAMES: Record<string, string> = {
   translate_finished: "Translation first pass",
   sync_toggled: "Sync toggled",
   extension_installed: "Extension installed",
+  autofill_toggle_kept: "Autofill toggle kept by an extension",
 };
 
 export async function usersUsage(range: RangeKey, signal?: AbortSignal) {

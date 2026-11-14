@@ -19,6 +19,7 @@ import type {
 } from "@ardia/ardiacore";
 import type { EventSubscription } from "expo-modules-core";
 import { nativeEvents, unfaked } from "./events";
+import type { AutofillToggle } from "../platform/autofill";
 
 
 type TabStripHost = {
@@ -290,6 +291,14 @@ export const extensionAnswers = {
 
 const tabStripHost = () => testGlobals.acTestTabStrip!;
 let autofillIds = 0;
+export const profileToggles = {
+  user: new Map<string, Partial<Record<AutofillToggle, boolean>>>(),
+  extension: new Map<string, Partial<Record<AutofillToggle, boolean>>>(),
+};
+const profileToggle = (profile: string, name: AutofillToggle) => profileToggles.extension.get(profile)?.[name] ?? profileToggles.user.get(profile)?.[name] ?? true;
+const setProfileToggle = (profile: string, name: AutofillToggle, on: boolean | undefined) => {
+  if (on !== undefined) profileToggles.user.set(profile, { ...profileToggles.user.get(profile), [name]: on });
+};
 
 const extensionEngine = () => testGlobals.acTestUserScripts?.engine;
 function withStrips<Fake extends FakeDomain>(fake: Fake): Fake {
@@ -389,8 +398,8 @@ const fakeModules = {
       neverSaveOrigins: () => ({ origins: [] }),
       allowSaving: () => ({ ok: true }),
       export: () => ({ status: "cancelled" }),
-      autofillEnabled: () => true,
-      setAutofillEnabled: () => null,
+      autofillEnabled: ({ profile }) => profileToggle(profile, "passwords"),
+      setAutofillEnabled: ({ profile, enabled }) => (setProfileToggle(profile, "passwords", enabled), null),
     },
     {
       save: async (_profile: string, origin: string, username: string, password: string) => {
@@ -416,8 +425,12 @@ const fakeModules = {
   ArdiaAutofill: domain(
     "autofill",
     {
-      settings: () => ({ addresses: true, cards: true }),
-      setSettings: () => null,
+      settings: ({ profile }) => ({ addresses: profileToggle(profile, "addresses"), cards: profileToggle(profile, "cards") }),
+      setSettings: ({ profile, addresses, cards }) => {
+        setProfileToggle(profile, "addresses", addresses);
+        setProfileToggle(profile, "cards", cards);
+        return null;
+      },
       addresses: () => ({ addresses: [] }),
       saveAddress: () => ({ id: `address-${++autofillIds}` }),
       cards: () => ({ cards: [] }),
