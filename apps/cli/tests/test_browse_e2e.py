@@ -653,6 +653,24 @@ class BrowseEndToEnd(unittest.TestCase):
         out = self.browse("read", self.url("late.html"), session="late-read").stdout
         self.assertIn("Result card 12", out)
 
+    def test_read_runs_beside_a_session_busy_with_a_script(self):
+        session = "busy"
+        self.browse("open", self.url("picker.html"), session=session)
+        env = dict(os.environ, PYTHONPATH=str(CLI))
+        long = subprocess.Popen([sys.executable, "-m", "ardia_cli", "browse", "--port", str(self.port), "--data-dir", str(self.data), "--session", session,
+                                 "script"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+        long.stdin.write("await sleep(8000); return 'slept';")
+        long.stdin.close()
+        time.sleep(2)
+        started = time.monotonic()
+        out = self.browse("read", self.url("late.html"), session=session, timeout=60).stdout
+        self.assertIn("Result card 12", out)
+        self.assertLess(time.monotonic() - started, 20)
+        self.assertEqual(long.wait(60), 0)
+        self.assertIn("slept", long.stdout.read())
+        long.stdout.close()
+        long.stderr.close()
+
     def test_read_reads_every_named_url_past_the_link_limit(self):
         urls = [self.url(f"picker.html?n={number}") for number in range(25)]
         pages = json.loads(self.browse("read", *urls, "--http", "--json", session="many-urls").stdout)["data"]["pages"]

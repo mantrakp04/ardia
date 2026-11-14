@@ -382,7 +382,10 @@ class Daemon:
                 return
             gone.cancel()
             code, out, err = execute.result()
-            writer.write(encode_answer(code, out, err, command_metrics.answer_fields(request)))
+            fields = command_metrics.answer_fields(request)
+            if request.get("busy_elsewhere"):
+                fields["busy_elsewhere"] = True
+            writer.write(encode_answer(code, out, err, fields))
             await writer.drain()
         except Exception:
             log.exception("request failed")
@@ -411,6 +414,9 @@ class Daemon:
             return self.refuse_closing(options, name)
         if name == "close":
             return await self.close(ctx)
+        if request.get("beside_if_busy") and self.lock.locked():
+            request["busy_elsewhere"] = True
+            return render(options, error=self.busy_error(waited=False), name=name)
         try:
             await asyncio.wait_for(self.lock.acquire(), QUEUE_WAIT)
         except asyncio.TimeoutError:
@@ -450,12 +456,14 @@ class Daemon:
             if getattr(page, "temporary_metrics", False) and page.session_id and self.state.connected:
                 await restore_metrics(page)
 
-    def busy_error(self) -> BrowseError:
+    def busy_error(self, waited: bool = True) -> BrowseError:
         running = self.state.extras.get("running") or {}
         age = f" for {time.monotonic() - running['since']:.0f} s" if running.get("since") else ""
         what = f"`{running['name']}`" if running.get("name") else "another command"
-        return BrowseError(f"This session is still running {what}{age}; this command waited {QUEUE_WAIT:g} s for it and gave up without "
-                           "running. Try again shortly, or use another --session", code="session_busy")
+        waiting = f"this command waited {QUEUE_WAIT:g} s for it and gave up without running" if waited else "this command didn't run"
+        return BrowseError(f"This session is still running {what}{age}; {waiting}. A session runs one command at a time: wait for it "
+                           "(a long `script` returns when done), or run independent work with `--session <name>`, which gets its own tab",
+                           code="session_busy")
 
     async def answer(self, ctx, name, argv, options) -> tuple[int, str, str]:
         try:

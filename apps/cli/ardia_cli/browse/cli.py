@@ -337,6 +337,35 @@ def read_runs_locally(args: list[str]) -> bool:
     return parsed is not None and readpages.runs_locally(*parsed)
 
 
+def reads_named_urls(args: list[str]) -> bool:
+    from ardia_cli.browse import readpages
+
+    parsed = read_args(args)
+    if parsed is None:
+        return False
+    options, positional = parsed
+    named = [url for url in positional if url != "-"]
+    return (options.get("links") is None and not options.get("scroll") and not options.get("list")
+            and (bool(named) or readpages.reads_stdin(options, positional)) and not any(readpages.relative(url) for url in named))
+
+
+def read_beside(request: dict, config: dict, namespace: str, endpoint_key: str, session: str, dir_fd_factory) -> dict:
+    from ardia_cli.browse import client
+
+    beside = f"{session[:59]}-side"
+    key = paths.session_key(namespace, endpoint_key, beside)
+    dir_fd = dir_fd_factory()
+    try:
+        sock = client.ensure_daemon(dir_fd, key, {**config, "session": beside, "key": key})
+    finally:
+        os.close(dir_fd)
+    request = {**request, "options": {**request["options"], "_session": beside}}
+    request.pop("beside_if_busy", None)
+    answer = client.request(sock, request)
+    answer.setdefault("metrics", {})["read_beside_busy"] = True
+    return answer
+
+
 def read_stdin_urls(args: list[str]) -> str | None:
     from ardia_cli.browse import readpages
 
@@ -464,7 +493,11 @@ def run(argv: list[str]) -> int:
             "argv": rest, "options": options, "cwd": os.getcwd(), "env": env_subset, "stdin": stdin, "telemetry": telemetry.shareable(env),
             "caller": caller.current().wire(),
         }
+        if command == "read" and reads_named_urls(args):
+            request["beside_if_busy"] = True
         answer = client.request(sock, request)
+        if answer.get("busy_elsewhere"):
+            answer = read_beside(request, config, namespace, endpoint_key, session, dir_fd_factory)
     except BrowseError as error:
         return print_error(error, as_json)
     except endpoints.EndpointError as error:
