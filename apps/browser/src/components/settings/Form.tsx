@@ -139,11 +139,12 @@ export function Row({
 
 type BooleanSettingKey = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
 
-export function SettingToggle({ anchor, description }: { anchor: SettingId & `${string}.${BooleanSettingKey}`; description?: ReactNode }) {
+export function SettingToggle({ anchor, description, accessory }: { anchor: SettingId & `${string}.${BooleanSettingKey}`; description?: ReactNode; accessory?: ReactNode }) {
   const key = anchor.slice(anchor.indexOf(".") + 1) as BooleanSettingKey;
   const value = useSettings((s) => s[key]);
   return (
     <Row anchor={anchor} description={description}>
+      {accessory}
       <Toggle value={value} accessibilityLabel={setting(anchor).title} onChange={(on) => updateSettings({ [key]: on })} />
     </Row>
   );

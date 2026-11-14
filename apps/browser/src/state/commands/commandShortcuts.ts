@@ -5,7 +5,7 @@ import { useBrowser } from "../browser/store";
 import { shortcutSources } from "./commandCatalog";
 import { formatShortcut, resolveShortcuts, type ResolvedShortcuts, type Shortcut, type ShortcutOverrides, type ShortcutSource } from "./shortcuts";
 
-export { cancelShortcutRecording, recordShortcut, type MenuShortcut } from "../../platform/commands";
+export type { MenuShortcut } from "../../platform/commands";
 
 type MenuModifier = NonNullable<Extract<MenuItem, { id: string }>["modifiers"]>[number];
 type MenuKey = { key?: string; modifiers?: MenuModifier[] };

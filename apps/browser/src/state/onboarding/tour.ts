@@ -6,6 +6,7 @@ import { activeTabId, resolveWindowId, tabLayoutOf, tabsShownIn } from "../brows
 import { closeReleaseNotes } from "../releaseNotes/releaseNotes";
 import { splitOf } from "../splits/splits";
 import { useUrlAnchors } from "../windows/layout";
+import { useShortcutHint } from "../commands/commandShortcuts";
 
 export type TourAnchor = "commandBar" | "page" | "tabs" | "sidebarButton";
 
@@ -28,7 +29,8 @@ export function tourWindowFacts(windowId: string) {
 export type TourStop = {
   id: string;
   title: string;
-  body: string;
+  body: string | ((shortcut: string | undefined) => string);
+  shortcut?: string;
   anchor?: TourAnchor;
   placement?: "below" | "besideSidebar" | "inside";
   radius?: number;
@@ -57,7 +59,8 @@ const TOUR_STOPS: TourStop[] = [
   {
     id: "sidebar",
     title: "Room to focus",
-    body: "⌘S hides the sidebar. Move the pointer to the window's left edge to peek at your tabs while it's hidden.",
+    body: (shortcut) => `${shortcut ?? "This button"} hides the sidebar. Move the pointer to the window's left edge to peek at your tabs while it's hidden.`,
+    shortcut: "toggleSidebar",
     anchor: "sidebarButton",
     placement: "below",
     radius: 9,
@@ -78,6 +81,11 @@ const TOUR_STOPS: TourStop[] = [
     body: "Everything else is in the menu bar and in Settings (⌘,). You can take this tour again from the Help menu.",
   },
 ];
+
+export function useTourStopBody({ body, shortcut }: TourStop): string {
+  const hint = useShortcutHint(shortcut ?? "");
+  return typeof body === "string" ? body : body(hint || undefined);
+}
 
 type TourState = {
   windowId: string | null;

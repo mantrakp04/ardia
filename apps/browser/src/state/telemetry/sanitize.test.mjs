@@ -286,6 +286,17 @@ test("the snapshot says whether text adjusts to the colour, and how many profile
   assert.deepEqual(cleanProperties(counted), counted);
 });
 
+test("the snapshot says whether the Auto-hide tabs shortcut is the default, your own or none, never which keys", () => {
+  const choice = (shortcuts) => settingsSnapshot({ ...DEFAULT_SETTINGS, shortcuts }).toggle_sidebar_shortcut;
+  assert.equal(choice({}), "default");
+  assert.equal(choice({ newTab: ["y", "command"] }), "default");
+  assert.equal(choice({ toggleSidebar: ["y", "command", "option"] }), "custom");
+  assert.equal(choice({ toggleSidebar: [""] }), "none");
+  const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, shortcuts: { toggleSidebar: ["y", "command", "option"] } });
+  assert.deepEqual(cleanProperties(snap), snap);
+  assert.ok(!Object.values(snap).some((v) => v.includes("⌥") || v === "y"));
+});
+
 test("a value the spec doesn't allow is left out rather than sent", () => {
   const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, interfaceStyle: "https://not-an-option.example" });
   assert.equal(snap.setting_interfaceStyle, undefined);
