@@ -284,3 +284,89 @@ test("an outer group expanded and collapsed by the Chrome-side sync starts the g
   assert.deepEqual(kept("n"), []);
   assert.deepEqual(kept(), []);
 });
+
+test("numbered shortcuts skip hidden tabs in a collapsed group", () => {
+  hydrate();
+  assert.deepEqual(entries.numberedTabs(S(), "w"), ["t0", "t1", "t6", "t7", "t8", "t9", "t10", "t11"]);
+});
+
+test("expanded groups number every child between the surrounding rows", () => {
+  hydrate();
+  S().updateGroup("g", { collapsed: false });
+  assert.deepEqual(entries.numberedTabs(S(), "w"), Array.from({ length: 12 }, (_, i) => `t${i}`));
+});
+
+test("a collapsed header and its kept tabs each receive a numbered position", () => {
+  hydrate();
+  S().updateGroup("g", { shownTabIds: ["t3", "t5"] });
+  assert.deepEqual(entries.numberedTabs(S(), "w"), ["t0", "t1", "t6", "t3", "t5", "t7", "t8", "t9", "t10", "t11"]);
+});
+
+test("a collapsed header represents the active member even when another member was used more recently", () => {
+  hydrate();
+  useBrowser.setState((s) => ({ windows: { ...s.windows, w: { ...s.windows.w, activeTabIds: { default: "t3" } } } }));
+  assert.deepEqual(entries.numberedTabs(S(), "w"), ["t0", "t1", "t3", "t3", "t7", "t8", "t9", "t10", "t11"]);
+});
+
+test("nested collapsed headers number only their visible kept descendants", () => {
+  hydrate({ nested: ["t4", "t5"] });
+  assert.deepEqual(entries.numberedTabs(S(), "w"), ["t0", "t1", "t6", "t7", "t8", "t9", "t10", "t11"]);
+  S().updateGroup("g", { shownTabIds: ["t3", "t4"] });
+  S().updateGroup("n", { shownTabIds: ["t4"] });
+  assert.deepEqual(entries.numberedTabs(S(), "w"), ["t0", "t1", "t6", "t3", "t5", "t4", "t7", "t8", "t9", "t10", "t11"]);
+  S().updateGroup("g", { collapsed: false });
+  assert.deepEqual(entries.numberedTabs(S(), "w"), ["t0", "t1", "t2", "t3", "t5", "t6", "t7", "t8", "t9", "t10", "t11"]);
+});
+
+test("collapsed pinned groups retain tile and pinned row ordering", () => {
+  hydrate({ pinned: true });
+  S().pinTabs(["t0"], true, false);
+  S().pinTabs(["t1"], true, true);
+  assert.deepEqual(entries.sidebarEntries(S(), "w").tiles, ["t0"]);
+  assert.deepEqual(entries.sidebarEntries(S(), "w").pinned, ["t:t1", "g:g"]);
+  assert.deepEqual(entries.numberedTabs(S(), "w"), ["t0", "t1", "t6", "t7", "t8", "t9", "t10", "t11"]);
+});
+
+test("a kept split row uses one position and preserves its focused or most recent pane", () => {
+  hydrate();
+  S().createSplit(["t3", "t4"]);
+  S().activate("t0");
+  S().updateTab("t3", { lastActiveAt: 30 });
+  S().updateTab("t4", { lastActiveAt: 40 });
+  S().updateGroup("g", { shownTabIds: ["t3", "t4"] });
+  assert.deepEqual(entries.numberedTabs(S(), "w"), ["t0", "t1", "t4", "t4", "t7", "t8", "t9", "t10", "t11"]);
+  useBrowser.setState((s) => ({ windows: { ...s.windows, w: { ...s.windows.w, activeTabIds: { default: "t3" } } } }));
+  assert.deepEqual(entries.numberedTabs(S(), "w"), ["t0", "t1", "t3", "t3", "t7", "t8", "t9", "t10", "t11"]);
+});
+
+test("numbered shortcuts safely ignore empty groups and missing group members", () => {
+  hydrate();
+  const s = S();
+  const empty = { ...s, groups: { g: { ...s.groups.g, tabIds: [] } } };
+  assert.deepEqual(entries.numberedTabs(empty, "w"), Array.from({ length: 12 }, (_, i) => `t${i}`));
+  const missing = { ...s, groups: { g: { ...s.groups.g, tabIds: ["gone", "t3"] } } };
+  assert.deepEqual(entries.numberedTabs(missing, "w"), ["t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "t9", "t10", "t11"]);
+  assert.deepEqual(entries.numberedTabs(s, "missing"), []);
+});
+
+test("selectTab activates a collapsed header's representative and leaves the group collapsed", async () => {
+  const { runCommand } = await import("../commands/commands.ts");
+  hydrate();
+  runCommand({ command: "selectTab", arg: "3", windowId: "w" });
+  assert.equal(S().windows.w.activeTabIds.default, "t6");
+  assert.equal(S().groups.g.collapsed, true);
+  assert.deepEqual(kept(), ["t:t6"]);
+});
+
+test("selectLastTab uses the collapsed header at the end and then its last visible kept row", async () => {
+  const { runCommand } = await import("../commands/commands.ts");
+  hydrate();
+  const s = S();
+  useBrowser.setState({ windows: { ...s.windows, w: { ...s.windows.w, tabIds: ["t0", "t1", "t7", "t8", "t9", "t10", "t11", "t2", "t3", "t4", "t5", "t6"] } } });
+  runCommand({ command: "selectLastTab", windowId: "w" });
+  assert.equal(S().windows.w.activeTabIds.default, "t6");
+  S().activate("t0");
+  S().updateGroup("g", { shownTabIds: ["t3", "t5"] });
+  runCommand({ command: "selectLastTab", windowId: "w" });
+  assert.equal(S().windows.w.activeTabIds.default, "t5");
+});
