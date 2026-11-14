@@ -47,6 +47,7 @@ import { notePagePress } from "../../state/telemetry/tabPresses";
 import { noteAutoPictureInPictureKept, notePageOverlay, noteReopenedPage, noteWebKitPageKeptHidden } from "../../state/telemetry/usage";
 import { isAdoptKind } from "../../state/tabs/adoptIds";
 import { firstPagePending, isBlankAddress, noteFirstPagePending, reportedAddress, reportedTitle } from "../../state/tabs/pendingAddress";
+import { captureEnded } from "../../state/capture/actions";
 import { STATUS_FLIP_BAND } from "./tokens";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
@@ -270,6 +271,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         else if (command === "escape") escapePressed(tabId, "page");
       }}
       onSelection={(selection) => setPageSelection(tabId, selection)}
+      onCapture={(result) => captureEnded(tabId, result)}
       onScroll={(state) => noteScroll(tabId, state)}
       onProtectedMedia={(request) => offerWebKit(tabId, request)}
       onNotificationClose={closeWebNotification}

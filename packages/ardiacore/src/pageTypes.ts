@@ -19,6 +19,14 @@ export type NavigationState = {
 };
 
 export type AppBadge = { origin: string; count: number | null; flag: boolean };
+export type CaptureResult = {
+  outcome: "copied" | "cancelled" | "failed";
+  kind?: "area";
+  width: number;
+  height: number;
+  ms: number;
+  capture?: number;
+};
 
 export type MediaState = { playing: boolean; muted: boolean };
 
@@ -218,6 +226,7 @@ export type WebViewProps = ViewProps & {
   onPreferredSize?: (size: { width: number; height: number }) => void;
   onTransferRefused?: (fromWindowId: string) => void;
   onAppBadge?: (badge: AppBadge) => void;
+  onCapture?: (result: CaptureResult) => void;
 };
 
 export type WebViewHandle = {
@@ -241,6 +250,7 @@ export type WebViewHandle = {
   evaluate<T = unknown>(code: string): Promise<T | null>;
   navigationEntries(): Promise<NavigationEntry[]>;
   capturePicture(scale: number): Promise<{ data: string; frame: [number, number, number, number] } | null>;
+  toggleCapture(): Promise<boolean>;
   downloadFavicon(url: string): Promise<FaviconImage | null>;
   downloadImage(url: string, maxPixels: number): Promise<FaviconImage | null>;
 
