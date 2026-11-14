@@ -186,6 +186,14 @@
   _host->set_internal(internal);
 }
 
+- (BOOL)automation {
+  return _host->automation();
+}
+
+- (void)setAutomation:(BOOL)automation {
+  _host->set_automation(automation);
+}
+
 - (void)showInactive {
   _host->ShowInactive();
 }
@@ -211,6 +219,10 @@
   Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
   if (_host->ExistingBrowserFor(profile) == from) {
     return ArdiaCoreAdoptionAdopted;
+  }
+  ardiacore::WindowHost* holder = ardiacore::WindowHost::ForBrowser(from);
+  if (holder && holder->automation()) {
+    return ArdiaCoreAdoptionRefused;
   }
   if (!_host->AdmitsTabsFor(profile) ||
       !ardiacore::WindowHost::LetsTabsGo(from, contents)) {

@@ -844,6 +844,8 @@ class RenderTest(unittest.TestCase):
         error = Gated(method, reason=reason).during("set viewport")
         self.assertTrue(error.message.startswith("`set viewport` needs Emulation.setDeviceMetricsOverride, which Ardia allows"))
         self.assertIn("only on a tab this command opened: `ardia browse open <url>`", error.message)
+        taken = Gated(method, reason="on a tab that isn't off-screen").during("set viewport")
+        self.assertIn("only on a tab it has taken off-screen", taken.message)
         self.assertNotIn("once the engine's token policy allows it", error.message)
 
     def test_every_documented_command_is_registered_or_skipped(self):

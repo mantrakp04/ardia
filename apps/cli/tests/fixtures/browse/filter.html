@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Fixture Filter</title>
+<style>
+  body { font: 14px system-ui; margin: 24px; }
+  #report { display: none; }
+</style>
+</head>
+<body>
+<h1>Stock</h1>
+<input id="q" type="search" aria-label="Search rows"> <span id="status" role="status"></span>
+<table aria-label="Rows"><tbody id="rows"></tbody></table>
+<input id="q2" type="text" aria-label="Filter parts" aria-controls="rows2">
+<ul id="rows2" aria-label="Parts"></ul>
+<pre id="report"></pre>
+<script>
+  const ITEMS = ["Hex bolt", "Wing nut", "Lock washer", "Carriage bolt", "Wood screw"];
+  const levels = Object.fromEntries(ITEMS.map((name) => [name, 0]));
+  const rows = document.getElementById("rows");
+  const report = () => { document.getElementById("report").textContent = JSON.stringify(levels); };
+  function render(query) {
+    rows.replaceChildren(...ITEMS.filter((name) => name.toLowerCase().includes(query.toLowerCase())).map((name) => {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.textContent = name;
+      const input = document.createElement("input");
+      input.className = "level";
+      input.setAttribute("aria-label", `Level for ${name}`);
+      input.value = String(levels[name]);
+      input.addEventListener("input", () => { levels[name] = Number(input.value) || 0; report(); });
+      const holder = document.createElement("td");
+      holder.append(input);
+      row.append(cell, holder);
+      return row;
+    }));
+  }
+  let timer = 0;
+  document.getElementById("q").addEventListener("input", (event) => {
+    clearTimeout(timer);
+    document.getElementById("status").textContent = "Searching…";
+    timer = setTimeout(() => { render(event.target.value); document.getElementById("status").textContent = ""; }, 300);
+  });
+  const PARTS = ["Gear", "Spring", "Valve"];
+  const picked = {};
+  const rows2 = document.getElementById("rows2");
+  function renderParts(query) {
+    rows2.replaceChildren(...PARTS.filter((name) => name.toLowerCase().includes(query.toLowerCase())).map((name) => {
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.textContent = `Pick ${name}`;
+      button.className = "pick";
+      button.onclick = () => { levels.picked = name; report(); };
+      item.append(button);
+      return item;
+    }));
+  }
+  let timer2 = 0;
+  document.getElementById("q2").addEventListener("input", (event) => {
+    clearTimeout(timer2);
+    document.body.classList.toggle("typing");
+    rows2.setAttribute("aria-busy", "true");
+    timer2 = setTimeout(() => { renderParts(event.target.value); rows2.removeAttribute("aria-busy"); }, 900);
+  });
+  renderParts("");
+  render("");
+  report();
+</script>
+</body>
+</html>

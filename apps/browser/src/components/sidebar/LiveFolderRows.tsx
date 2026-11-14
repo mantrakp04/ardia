@@ -1,13 +1,14 @@
 import { Pressable, View } from "react-native";
-import { showAllIn, toggleStack, useLive } from "../../state/live/store";
+import { hideStack, showAllIn, toggleStack, useLive } from "../../state/live/store";
 import type { FolderRow } from "../../state/live/rows";
-import { Badge, ContextMenuArea, space, Symbol, Text, useHover } from "../ui";
+import { Badge, Button, space, Symbol, Text, useHover } from "../ui";
+import { HoverSlot } from "../ui/HoverSlot";
 import { layout, useTheme } from "../ui/theme";
 import { lineHeight } from "../ui/tokens";
 import { useLiveColors } from "../live/tokens";
 import { Fold, useFold } from "./Fold";
-import { dismissHover } from "../../state/sidebar/hover";
-import { openLiveStackMenu } from "../../state/sidebar/liveMenus";
+import { useStackTabOpen } from "../../state/sidebar/hooks";
+import { noteLiveStackHide } from "../../state/telemetry/liveHides";
 import { LiveItemRow } from "./LiveItemRow";
 import { RefreshSpinner } from "./RefreshSpinner";
 import { SectionLabel } from "./SectionLabel";
@@ -78,32 +79,34 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
   const collapsed = useLive((s) => s.expandedStacks[stack.id] === false);
   const fold = useFold(collapsed);
   const { hovered, hoverProps } = useHover();
+  const tabOpen = useStackTabOpen(folderId, stack.id);
+  const hide = () => {
+    hideStack(folderId, stack.id);
+    noteLiveStackHide();
+  };
   const repo = stack.repo.split("/")[1] ?? stack.repo;
   return (
     <View>
       <View {...hoverProps}>
-        <ContextMenuArea
-          onContextMenu={() => {
-            dismissHover();
-            void openLiveStackMenu(folderId, stack.id);
-          }}
+        <Pressable
+          onPress={() => toggleStack(stack.id)}
+          accessibilityLabel={collapsed ? "Expand pull request stack" : "Collapse pull request stack"}
         >
-          <Pressable
-            onPress={() => toggleStack(stack.id)}
-            accessibilityLabel={collapsed ? "Expand pull request stack" : "Collapse pull request stack"}
-          >
-            <SidebarListRow height={26} padRight={space.m} fill={hovered ? theme.rowHover : undefined}>
-              <Symbol name="square.stack.3d.up" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
-              <Text lines={1} size="small" weight="medium" tone="textSecondary" style={STACK_TITLE}>
-                {repo} stack
-              </Text>
-              <View style={STACK_COUNT}>
-                <Badge text={stack.items.length} size="m" />
-              </View>
-              <Symbol name={collapsed ? "chevron.right" : "chevron.down"} size={9} weight="semibold" color={theme.textSecondary} style={{ width: 12, height: 12 }} />
-            </SidebarListRow>
-          </Pressable>
-        </ContextMenuArea>
+          <SidebarListRow height={26} padRight={space.m} fill={hovered ? theme.rowHover : undefined}>
+            <Symbol name="square.stack.3d.up" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
+            <Text lines={1} size="small" weight="medium" tone="textSecondary" style={STACK_TITLE}>
+              {repo} stack
+            </Text>
+            <HoverSlot
+              hovered={hovered && !tabOpen}
+              hover={<Button variant="icon" icon="xmark" size="s" weight="semibold" onPress={hide} tooltip="Hide Stack Until Refresh" />}
+              style={STACK_COUNT}
+            >
+              <Badge text={stack.items.length} size="m" />
+            </HoverSlot>
+            <Symbol name={collapsed ? "chevron.right" : "chevron.down"} size={9} weight="semibold" color={theme.textSecondary} style={{ width: 12, height: 12 }} />
+          </SidebarListRow>
+        </Pressable>
       </View>
       <Fold
         fold={fold}

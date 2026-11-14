@@ -97,6 +97,7 @@ const std::set<std::string_view>& AllowedMethods() {
       "Input.dispatchTouchEvent",
       "Input.insertText",
       "Input.setInterceptDrags",
+      "Inspector.enable",
       "Network.disable",
       "Network.enable",
       "Network.getCertificate",

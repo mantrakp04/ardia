@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import contextlib
 import difflib
 import json
 import os
@@ -149,6 +150,15 @@ async def wait_for_load(page, loader: str | None, timeout: float, until: str = "
 async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
     from ardia_cli.browse import readpages
 
+    if page.crashed:
+        try:
+            result = await page.send("Page.navigate", {"url": url}, timeout=ctx.timeout)
+        except Gated:
+            raise BrowseError(f"Ardia's policy only lets the ardia command open web pages (http, https, data, about:blank); {url} isn't one") from None
+        if result.get("errorText"):
+            raise BrowseError(f"Navigation to {url} failed: {result['errorText']}")
+        await page.recovered(ctx.timeout)
+        return
     before = await readpages.before_navigating(page, url)
     try:
         result = await page.send("Page.navigate", {"url": url}, timeout=ctx.timeout)
@@ -195,11 +205,90 @@ async def new_tab(ctx: Ctx, url: str | None, label: str | None = None, window: b
     if url:
         await navigate(ctx, page, normalize_url(url))
     if show:
-        await show_tab(ctx, page)
+        page = await show_tab(ctx, page)
     return page
 
 
+OFFSCREEN_TIMEOUT = 10.0
+NEEDS_HIDDEN_TAB = ("`set viewport` works on a tab this session opened that has never been shown: Ardia takes it off-screen first, so "
+                    "an emulated page is never on screen")
+OPEN_ONE = "Open one with `ardia browse open <url>` (without --show) and set its viewport there"
+
+
+async def engine_offscreen(state, target_id: str) -> bool:
+    if target_id in state.offscreen:
+        return True
+    if state.endpoint is None or state.endpoint.explicit or state.browser is None:
+        return False
+    try:
+        info = (await state.browser.send("Target.getTargetInfo", {"targetId": target_id})).get("targetInfo") or {}
+    except BrowseError:
+        return False
+    if info.get("ardiaOffscreen") is True:
+        state.set_offscreen(target_id, True)
+        return True
+    return False
+
+
+async def go_offscreen(ctx: Ctx, page) -> bool:
+    from ardia_cli import control
+    from ardia_cli.browse import tabs
+
+    state = ctx.state
+    if state.endpoint is None or state.endpoint.explicit:
+        return False
+    if await engine_offscreen(state, page.target_id):
+        return True
+    app_tab = (await tabs.app_tab_map(state)).get(page.target_id)
+    if not app_tab:
+        raise BrowseError(f"{NEEDS_HIDDEN_TAB}. Ardia doesn't list this session's tab. {OPEN_ONE}", code="viewport_needs_hidden_tab")
+    try:
+        await tabs.app_call(state, "offscreen", {"tab": app_tab}, OFFSCREEN_TIMEOUT)
+    except control.MethodError as error:
+        if error.code == "unknown_method":
+            raise BrowseError("This Ardia can't take a tab off-screen for a viewport yet; update Ardia", code="viewport_unsupported") from None
+        raise BrowseError(f"{NEEDS_HIDDEN_TAB}. {error.message} {OPEN_ONE}", code="viewport_needs_hidden_tab") from None
+    except control.Unreachable as error:
+        raise BrowseError(f"Couldn't ask Ardia to take the tab off-screen ({error})", code="viewport_unsupported") from None
+    state.set_offscreen(page.target_id, True)
+    state.app_tabs.pop(page.target_id, None)
+    return True
+
+
+async def leave_offscreen(ctx: Ctx, page):
+    state = ctx.state
+    old = page.target_id
+    known = page.url or state.target_infos.get(old, {}).get("url", "")
+    url = known if known and not known.startswith("about:") else None
+    label = next((label for label, owner in state.labels.items() if owner == old), None)
+    if label:
+        del state.labels[label]
+    try:
+        fresh = await new_tab(ctx, url, label)
+    except BaseException:
+        if label:
+            state.labels.setdefault(label, old)
+        raise
+    state.set_offscreen(old, False)
+    if state.registry.reserve_close(state.instance, old):
+        try:
+            with contextlib.suppress(BrowseError):
+                await state.browser.send("Target.closeTarget", {"targetId": old})
+        finally:
+            state.registry.finish_close(state.instance, old)
+    state.forget_target(old)
+    state.extras["left_offscreen"] = state.tab_id(fresh.target_id)
+    return fresh
+
+
+def offscreen_note(state) -> str:
+    tab = state.extras.pop("left_offscreen", None)
+    return f"\n→ The viewport ended and the page was reloaded in a new tab [{tab}]: Ardia never shows an emulated page" if tab else ""
+
+
 async def show_tab(ctx: Ctx, page):
+    if await engine_offscreen(ctx.state, page.target_id):
+        page = await leave_offscreen(ctx, page)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + 5
     nudge = 0.0
@@ -211,7 +300,7 @@ async def show_tab(ctx: Ctx, page):
         if not await page.hidden() and await tab_shown(ctx.state, page) is not False:
             shown_since = shown_since or loop.time()
             if loop.time() - shown_since >= SHOWN_HOLD:
-                return
+                return page
         else:
             shown_since = None
             nudge = min(nudge, loop.time() + 0.2)
@@ -314,18 +403,21 @@ async def cmd_open(ctx: Ctx, argv):
     else:
         page = await state.page()
         came_from = page.url
+        if page.crashed and url:
+            await navigate(ctx, page, "about:blank")
+            came_from = "about:blank"
         await apply_open_options(ctx, page)
     if reporting:
         await changes.settled(page, lambda: navigate(ctx, page, url))
     elif url and not fresh_tab:
         await navigate(ctx, page, url)
     if show and (reporting or not fresh_tab):
-        await show_tab(ctx, page)
+        page = await show_tab(ctx, page)
     background = await page.takes_input() if fresh_tab and not show else None
     await page.refresh_frames()
     title = await page_title(page)
     data = {"url": page.url, "title": title}
-    text = f"✓ {title}\n  {page.url}"
+    text = f"✓ {title}\n  {page.url}" + offscreen_note(state)
     if background is not None:
         tab = state.tab_id(page.target_id)
         data.update({"tabId": tab, "background": True, "takesInput": background})
@@ -380,6 +472,9 @@ async def cmd_history(ctx: Ctx, argv):
 async def cmd_reload(ctx: Ctx, argv):
     page = await ctx.state.page()
     refuse_on_borrowed(ctx, page, "reload")
+    if page.crashed:
+        await page.revive(ctx.timeout)
+        return Result({"url": page.url, "crashed": True}, f"{page.url}\n→ The page had crashed; it was reloaded")
     before = page.navigations
     await page.send("Page.reload", {})
     await wait_until(lambda: _settled(page, before), ctx.timeout, 0.05, "the reload")
@@ -535,7 +630,7 @@ async def cmd_fill(ctx: Ctx, argv):
         finally:
             await actions.unwatch_suggestions(page, element)
 
-    ((retargeted, stored), found), report = await changes.observe(ctx, page, run)
+    ((retargeted, stored), found), report = await changes.observe(ctx, page, run, None if typeahead else (element, None))
     result = filled_result("filled", args[0], retargeted, text, stored)
     if found:
         result.data["suggestions"] = [item["text"] for item in found]
@@ -569,19 +664,35 @@ async def cmd_type(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool", "--delay": "value"})
     need(args, 2, "type <selector> <text>")
     page, element = await resolve(ctx, args[0])
-    retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize")))
+    retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize")),
+                                               (element, None))
     return changes.attach(typed_result("typed", args[0], retargeted), report)
 
 
 @command("press")
 async def cmd_press(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool"})
-    need(args, 1, "press <key>")
-    page = await ctx.state.page()
+    need(args, 1, "press [selector] <key>")
     humanize = ctx.humanize and not options.get("no_humanize")
+    if len(args) >= 2:
+        key = args[1]
+        page, element = await resolve(ctx, args[0])
+        frame = element.frame or page.main_frame
+
+        async def focus_and_press():
+            from ardia_cli import command_metrics
+
+            command_metrics.flag("press_targeted", True)
+            await page.focus_element(element)
+            return await page.input.gesture("press", lambda: page.input.press_combo(key, humanize))
+
+        _, report = await changes.observe(ctx, page, lambda: actions.expect_input(page, frame, focus_and_press, {"keydown": 1}, "The key press"),
+                                          (element, None))
+        return changes.attach(Result({"pressed": key, "in": args[0]}), report)
+    page = await ctx.state.page()
     frame = ctx.state.frame_for(page) or page.main_frame
     _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
-        page, frame, lambda: page.input.gesture("press", lambda: page.input.press_combo(args[0], humanize)), {"keydown": 1}, "The key press"))
+        page, frame, lambda: page.input.gesture("press", lambda: page.input.press_combo(args[0], humanize)), {"keydown": 1}, "The key press"), (None, frame))
     return changes.attach(Result({"pressed": args[0]}), report)
 
 
@@ -608,7 +719,7 @@ async def cmd_keyboard(ctx: Ctx, argv):
         await page.require_visible()
         _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
             page, frame, lambda: page.input.gesture("keyboard inserttext", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
-            {"beforeinput|input": 1} if text else {}, "The text insert"))
+            {"beforeinput|input": 1} if text else {}, "The text insert"), (None, frame))
         return changes.attach(Result({"inserted": True}), report)
     if args[0] != "type":
         raise Usage(f"Unknown keyboard subcommand: {args[0]} (type or inserttext)")
@@ -616,7 +727,8 @@ async def cmd_keyboard(ctx: Ctx, argv):
     humanize = ctx.humanize and not options.get("no_humanize")
     frame = ctx.state.frame_for(page) or page.main_frame
     _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
-        page, frame, lambda: page.input.gesture("keyboard type", lambda: keyboard.type_text(text, humanize=humanize)), {"keydown": len(text)}, "The typing"))
+        page, frame, lambda: page.input.gesture("keyboard type", lambda: keyboard.type_text(text, humanize=humanize)), {"keydown": len(text)}, "The typing"),
+        (None, frame))
     return changes.attach(Result({"typed": True}), report)
 
 
@@ -993,8 +1105,10 @@ def find_arguments(args: list[str], name: str | None) -> tuple[str, list[str], s
 
 @command("find")
 async def cmd_find(ctx: Ctx, argv):
-    options, args = parse(argv, {"--name": "value", "--exact": "bool", "--no-humanize": "bool"})
+    options, args = parse(argv, {"--name": "value", "--exact": "bool", "--partial": "bool", "--no-humanize": "bool"})
     need(args, 1, "find <locator> <value> [action] [text]")
+    if options.get("exact") and options.get("partial"):
+        raise Usage("find takes --exact or --partial, not both")
     locator, args, wanted_name = find_arguments(args, options.get("name"))
     need(args, 1, "find <locator> <value> [action] [text]")
     page = await ctx.state.page()
@@ -1052,10 +1166,10 @@ async def cmd_find(ctx: Ctx, argv):
         return changes.attach(Result({"clicked": f"@{ref}", "count": 2}), report)
     if action == "fill":
         text = " ".join(rest[1:])
-        (retargeted, stored), report = await changes.observe(ctx, page, lambda: actions.fill(page, element, text, humanize))
+        (retargeted, stored), report = await changes.observe(ctx, page, lambda: actions.fill(page, element, text, humanize), (element, None))
         return changes.attach(filled_result("filled", f"@{ref}", retargeted, text, stored), report)
     if action == "type":
-        retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(rest[1:]), humanize))
+        retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(rest[1:]), humanize), (element, None))
         return changes.attach(typed_result("typed", f"@{ref}", retargeted), report)
     if action in ("check", "uncheck"):
         _, report = await changes.observe(ctx, page, lambda: actions.set_checked(page, element, action == "check", humanize))
@@ -1174,13 +1288,14 @@ async def cmd_tab(ctx: Ctx, argv):
         state.extras["pinned_target"] = target_id
     page = await state.page(target_id)
     if wants_show(ctx, options):
-        await show_tab(ctx, page)
+        page = await show_tab(ctx, page)
+        target_id = page.target_id
     title = await page_title(page)
     from ardia_cli.browse import tabs as tab_registry
 
     await tab_registry.app_tab_map(state)
     data = {"tabId": state.tab_id(target_id), "appTabId": state.app_tabs.get(target_id), "targetId": target_id, "title": title, "url": page.url}
-    return Result(data, f"✓ {title}\n  {page.url}")
+    return Result(data, f"✓ {title}\n  {page.url}" + offscreen_note(state))
 
 
 def tab_line(tab: dict, session: str) -> str:
@@ -1377,11 +1492,22 @@ async def cmd_set(ctx: Ctx, argv):
     refuse_on_borrowed(ctx, page, f"change the {setting} of")
     try:
         if setting == "viewport":
-            need(args, 3, "set viewport <w> <h> [scale]")
+            if len(args) == 2 and args[1] in ("reset", "off"):
+                if await engine_offscreen(ctx.state, page.target_id):
+                    fresh = await leave_offscreen(ctx, page)
+                    tab = ctx.state.extras.pop("left_offscreen", None)
+                    return Result({"reset": True, "tabId": tab, "url": fresh.url}, f"✓ Viewport reset: the page was reloaded in a new background tab [{tab}]")
+                with contextlib.suppress(BrowseError):
+                    await page.send("Emulation.clearDeviceMetricsOverride")
+                ctx.state.leases.discard("emulation")
+                return Result({"reset": True}, "✓ Viewport reset")
+            need(args, 3, "set viewport <w> <h> [scale] | reset")
             width, height = int(args[1]), int(args[2])
             scale = float(args[3]) if len(args) > 3 else 1.0
+            offscreen = await go_offscreen(ctx, page)
             await page.send("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": False})
-            ctx.state.leases.add("emulation")
+            if not offscreen:
+                ctx.state.leases.add("emulation")
             from ardia_cli import command_metrics
 
             command_metrics.flag("viewport_set", True)

@@ -19,6 +19,8 @@ export function reportedAddress(page: ReportedPage, tab: ReportingTab): { url: s
   return { url: written ? "about:blank" : page.url, untouched: page.committedInitial && !written };
 }
 
+export const reportedTitle = (title: string, url: string) => (title === "about:blank" && !isBlankAddress(url) ? "" : title);
+
 const awaitingFirstPage = new Set<string>();
 
 export const firstPagePending = (shown: { url: string; committedInitial?: boolean; isLoading: boolean }) => !!shown.committedInitial && shown.isLoading && !isBlankAddress(shown.url);

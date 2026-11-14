@@ -53,9 +53,20 @@ async function blocks() {
   }
 }
 
+async function blocksBeforeDeadline() {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await bounded(blocks(), "the blocking check");
+    } catch (error) {
+      if (Date.now() + 1000 >= deadline) throw new Error(`${error.message}, after ${attempt} attempts`);
+      await sleep(Math.min(1000, left()));
+    }
+  }
+}
+
 try {
   const ready = await uboReady(port, { seconds: Number(seconds), until: deadline });
-  const blocked = await bounded(blocks(), "the blocking check");
+  const blocked = await blocksBeforeDeadline();
   console.log(`uBlock Origin ready (${ready}) and blocking (${blocked})`);
   process.exit(0);
 } catch (e) {
