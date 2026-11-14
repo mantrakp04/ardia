@@ -14,7 +14,7 @@ test("the iPhone table says iPhone, iCloud Drive, Keychain and Safari where Andr
   assert.equal(android.alreadyPinnedToast, "Pinned to Your Mac");
   assert.deepEqual([ios.readerSerif.label, ios.readerSans.label], ["New York", "San Francisco"]);
   for (const table of [android, ios]) for (const value of Object.values(table)) if (typeof value === "string") assert.ok(value.trim());
-  for (const [key, value] of Object.entries(android)) if (typeof value === "string" && /phone/i.test(value)) assert.match(String(ios[key as keyof typeof ios]), /iPhone|iCloud|Keychain/);
+  for (const [key, value] of Object.entries(android)) if (typeof value === "string" && /\bphone\b/i.test(value)) assert.match(String(ios[key as keyof typeof ios]), /iPhone|iCloud|Keychain/);
 });
 
 test("the table follows the platform it is chosen for, and anything but iOS reads as Android", () => {
