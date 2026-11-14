@@ -83,7 +83,33 @@ minutes, and a flush after the app leaves the screen) runs it without React Nati
   them to its store (`sync.inbox()`, `sync.inboxApplied(ids)`, the `sync.inbox` event). Visits waiting to be
   removed are left out of what sync reads, so they never go back to the Mac.
 - **Lab.** The page lab's Sync button connects with a typed phrase and a picked folder and shows the status and
-  the synced view's counts.
+  the synced view's counts. Runtime checks runs semantic fixtures (closures in loops, microtask order around a
+  host call, sort stability, Map and Set order, large integers, string comparison) in a second sync runtime and
+  prints `PAGELAB PASS` or `PAGELAB FAIL` per check against Node's results from the build.
+
+#### Sync tester script (lab build, a Mac with sync on)
+
+Watch `adb logcat -s PAGELAB ArdiaJS` throughout. Each step passes when the app keeps working, the status
+says what happened, and no tab or removed visit is lost or shows up twice.
+
+1. **Connect.** Sync › connect with the Mac's phrase and its folder. Status reaches `updated`; the view lists
+   the Mac, its profiles and its tabs.
+2. **Runtime checks.** Every check prints PASS.
+3. **Next profile.** Each tap moves `›` to the next profile, and `shown` follows it.
+4. **Two runtimes under teardown and reload.** Tap Runtime checks, and while it runs tap Sync now; then reload
+   the JavaScript (debug build: `r` in Metro; release: kill the app with `adb shell am kill` after leaving it).
+   Repeat three times. Sync keeps cycling, the checks still pass, and nothing crashes (`adb logcat -b crash`).
+5. **A slow or revoked folder.** Point sync at a folder on a provider that lags (a cloud drive's folder with
+   the phone on a slow network): status shows `updating`, then `updated` or `stalled`, never a hang past a
+   minute. Then revoke the grant (Settings › Apps › Ardia › clear the folder permission, or remove the folder in
+   the provider): status turns `needsFolderAccess`, and Change folder recovers it.
+6. **WorkManager with the app process dead.** Make a change on the Mac, leave the app, run
+   `adb shell am kill com.ardia.browser.android`, then
+   `adb shell cmd jobscheduler run -f com.ardia.browser.android <job id>` (ids from
+   `adb shell dumpsys jobscheduler com.ardia.browser.android`). Open the app: the change is there before the
+   first foreground cycle, and the inbox holds any tabs the Mac sent.
+7. **Stalled age.** Turn on airplane mode and wait three minutes: the status reads `Last synced N minutes ago`
+   and N moves each minute.
 - **Scanning the phrase.** The Compose app scans the Mac's QR code with CameraX and ZXing in Compose. The Expo
   screens should scan in JavaScript (expo-camera reads QR codes) and pass the text to `sync.connect`.
 
