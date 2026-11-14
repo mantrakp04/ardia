@@ -561,7 +561,9 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   `externalApp` tab event (`id`, `url`, `origin` or null, `userGesture`, `offTheRecord`) to `domains/externalApps.ts`
   and keeps the asking document. The `externalAppAlive` page call answers `{ alive: true }` once per request while
   that document lives (a request with no page origin, from the browser or an extension, only needs its tab), as the
-  Mac's `ResolveExternalApp` checks. `mailto` never asks: Chromium allows it by default and opens the mail app itself,
+  Mac's `ResolveExternalApp` checks. The engine keeps a page's 8 newest asks at most, and the app tells it
+  (`externalAppForget`) whenever it drops one without launching: a no, no handler, a closed page or a forgotten
+  profile. `mailto` never asks: Chromium allows it by default and opens the mail app itself,
   as on the Mac.
   - **Describe:** `ArdiaExternalApps.describe` names the scheme's handler and draws its icon (`AssocQueryStringW` with
     `ASSOCSTR_FRIENDLYAPPNAME` and `ASSOCSTR_EXECUTABLE`, then `SystemShell::FileIcon`). A classic scheme under

@@ -741,6 +741,13 @@ void ExternalAppAliveCall(content::WebContents* contents,
   std::move(reply).Run(std::move(answer));
 }
 
+void ExternalAppForgetCall(content::WebContents* contents,
+                           const base::DictValue& args,
+                           Reply reply) {
+  ForgetExternalApp(contents, Text(args, "id"));
+  std::move(reply).Run(Ok());
+}
+
 using Method = void (*)(content::WebContents* contents,
                         const base::DictValue& args,
                         Reply reply);
@@ -769,6 +776,7 @@ constexpr NamedMethod kMethods[] = {
     {"setFrozen", &SetFrozen},
     {"resolveUnresponsive", &ResolveUnresponsive},
     {"externalAppAlive", &ExternalAppAliveCall},
+    {"externalAppForget", &ExternalAppForgetCall},
 };
 
 }

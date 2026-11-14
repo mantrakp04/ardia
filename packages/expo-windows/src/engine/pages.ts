@@ -57,6 +57,10 @@ export function answerExternalAppsWith(answers: ExternalAppAnswers) {
   externalAppAnswers = answers;
 }
 
+export function externalAppDropped(key: string, id: string) {
+  quietly(callPage(key, "externalAppForget", { id }));
+}
+
 export function externalAppStillAsked(key: string, id: string): Promise<boolean> {
   return callPage<{ alive?: unknown }>(key, "externalAppAlive", { id }).then((answer) => answer?.alive === true);
 }

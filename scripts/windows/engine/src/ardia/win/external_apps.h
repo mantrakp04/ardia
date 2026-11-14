@@ -13,6 +13,8 @@ void InstallExternalAppAsks();
 
 bool ExternalAppAlive(content::WebContents* contents, const std::string& id);
 
+void ForgetExternalApp(content::WebContents* contents, const std::string& id);
+
 }
 
 #endif

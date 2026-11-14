@@ -25,10 +25,13 @@ namespace ardia_win {
 
 namespace {
 
+constexpr size_t kMostAsksPerPage = 8;
+
 struct Pending {
   base::WeakPtr<content::WebContents> contents;
   content::WeakDocumentPtr initiator;
   bool asked_by_page = false;
+  int sequence = 0;
 };
 
 std::map<std::string, Pending>& PendingAsks() {
@@ -57,12 +60,33 @@ bool AskApp(const GURL& url,
   }
   std::erase_if(PendingAsks(),
                 [](const auto& entry) { return !entry.second.contents; });
+  for (;;) {
+    auto oldest = PendingAsks().end();
+    size_t asks = 0;
+    for (auto entry = PendingAsks().begin(); entry != PendingAsks().end();
+         ++entry) {
+      if (entry->second.contents.get() != web_contents) {
+        continue;
+      }
+      ++asks;
+      if (oldest == PendingAsks().end() ||
+          entry->second.sequence < oldest->second.sequence) {
+        oldest = entry;
+      }
+    }
+    if (asks < kMostAsksPerPage) {
+      break;
+    }
+    PendingAsks().erase(oldest);
+  }
   static int last_id = 0;
-  const std::string id = "x" + base::NumberToString(++last_id);
+  const int sequence = ++last_id;
+  const std::string id = "x" + base::NumberToString(sequence);
   const bool has_origin = initiating_origin && !initiating_origin->opaque();
   PendingAsks()[id] = {
       web_contents->GetWeakPtr(), initiator_document,
-      has_origin && initiating_origin->scheme() != "chrome-extension"};
+      has_origin && initiating_origin->scheme() != "chrome-extension",
+      sequence};
   base::DictValue data;
   data.Set("id", id);
   data.Set("url", url.spec());
@@ -98,6 +122,14 @@ bool ExternalAppAlive(content::WebContents* contents, const std::string& id) {
     PendingAsks().erase(found);
   }
   return alive;
+}
+
+void ForgetExternalApp(content::WebContents* contents, const std::string& id) {
+  auto found = PendingAsks().find(id);
+  if (found != PendingAsks().end() &&
+      (!found->second.contents || found->second.contents.get() == contents)) {
+    PendingAsks().erase(found);
+  }
 }
 
 }
