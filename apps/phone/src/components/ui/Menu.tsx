@@ -8,7 +8,7 @@ import { tabsMotion } from "./motion";
 import { Symbol } from "./Symbol";
 import type { SymbolName } from "./symbolPaths";
 import { useTheme } from "./theme";
-import { font, ink, radius, space } from "./tokens";
+import { font, ink, menuShadow, radius, space } from "./tokens";
 
 export type MenuItem = { label: string; icon?: SymbolName; destructive?: boolean; checked?: boolean; onPress: () => void } | "divider" | { heading: string };
 
@@ -32,7 +32,7 @@ export function Menu({ items, place, onDismiss }: Props) {
         ref={panel}
         accessibilityViewIsModal
         entering={FadeIn.duration(tabsMotion.menu)}
-        style={[styles.panel, place, { backgroundColor: theme.panel, shadowColor: theme.trayShadow }]}
+        style={[styles.panel, place, { backgroundColor: theme.panel, borderColor: theme.controlEdge, shadowColor: theme.trayShadow }]}
       >
         {items.map((item, index) => {
           if (item === "divider") return <View key={`d${index}`} style={[styles.divider, { backgroundColor: theme.divider }]} />;
@@ -94,7 +94,17 @@ export function FloatingMenu({ items, place, onDismiss, anchor }: Props & { anch
 }
 
 const styles = StyleSheet.create({
-  panel: { position: "absolute", minWidth: 230, borderRadius: radius.row, paddingVertical: space.xs, elevation: 12 },
+  panel: {
+    position: "absolute",
+    minWidth: 230,
+    borderRadius: radius.row,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: space.xs,
+    elevation: 12,
+    shadowOpacity: menuShadow.opacity,
+    shadowRadius: menuShadow.radius,
+    shadowOffset: { width: 0, height: menuShadow.offsetY },
+  },
   row: { flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: space.l, minHeight: MENU_ROW },
   label: { flex: 1 },
   heading: { paddingHorizontal: space.l, paddingVertical: space.xs + 2 },

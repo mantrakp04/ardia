@@ -172,6 +172,8 @@ export const settingsTint = {
 
 export const faviconInk = { letter: "#FFFFFF", lightPlate: "rgba(255,255,255,0.92)", darkPlate: "rgba(0,0,0,0.78)" } as const;
 
+export const menuShadow = { opacity: 0.18, radius: 24, offsetY: 8 } as const;
+
 export const trayShadow = { opacity: 0.14, radius: 24, offsetY: -4, elevation: 12 } as const;
 
 export const scanInk = {
