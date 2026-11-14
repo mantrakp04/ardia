@@ -26,6 +26,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const { adoptLegacyAccounts, connectConfluence, connectGithub, connectGoogle, disconnect, forgetMissingProfiles, forgetProfileAccounts, legacyAccountsFor, retryOwedLegacyAccounts, SOURCES } = await import("./sources.ts");
 const { live, setAccount, setLegacyAccount, updateConfig } = await import("./store.ts");
 const { settingsBrowserWindow } = await import("../settings/settingsWindows.ts");
+const { takeLiveFolderCounts } = await import("../telemetry/liveFolders.ts");
 
 const personal = useBrowser.getState().createProfile({ name: "Personal" });
 const work = useBrowser.getState().createProfile({ name: "Work" });
@@ -489,4 +490,26 @@ test("a profile that disconnects while the move copies another one stays off the
   assert.equal(keychainItems.has(`notion:${refused}`), false);
   assert.equal(live().accounts[refused]?.notion, undefined);
   assert.equal(live().accounts[slow].notion.login, "Acme");
+});
+
+test("usage counts say how many accounts were connected, how many beside another profile's, and how the old account's copies went", async () => {
+  const first = useBrowser.getState().createProfile({ name: "Counted" });
+  const second = useBrowser.getState().createProfile({ name: "Counted too" });
+  const copied = useBrowser.getState().createProfile({ name: "Copied to" });
+  takeLiveFolderCounts();
+
+  await connectGithub(first, "personal-token");
+  await connectGithub(second, "work-token");
+  pendingNotion([copied]);
+  keychainRefusals.add(`notion:${copied}`);
+  await adoptLegacyAccounts([copied]);
+  keychainRefusals.clear();
+  await adoptLegacyAccounts([copied]);
+
+  const counts = takeLiveFolderCounts();
+  assert.equal(counts.live_account_connects, 2);
+  assert.equal(counts.live_account_connects_beside_another_profile, 2);
+  assert.equal(counts.live_legacy_account_copy_refusals, 1);
+  assert.equal(counts.live_legacy_account_copies, 1);
+  assert.deepEqual(takeLiveFolderCounts(), { ...counts, live_account_connects: 0, live_account_connects_beside_another_profile: 0, live_legacy_account_copies: 0, live_legacy_account_copy_refusals: 0 });
 });

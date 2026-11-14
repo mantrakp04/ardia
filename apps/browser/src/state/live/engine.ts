@@ -9,7 +9,7 @@ import { repoKey } from "./rows";
 import { adoptLegacyAccounts, forgetMissingProfiles, legacyAccountsFor, SOURCES } from "./sources";
 import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
-import { noteLiveCompletedTabsClosed } from "../telemetry/liveCompletedTabs";
+import { noteLiveFolders } from "../telemetry/liveFolders";
 import { isPlaying, useMedia } from "../media/media";
 import { usePages } from "../tabs/pageState";
 import type { MediaAccess } from "../../platform/tabs";
@@ -235,7 +235,7 @@ function closeCompletedTabs() {
     .map((t) => t.id);
   if (!tabs.length) return;
   s.closeTabs(tabs);
-  noteLiveCompletedTabsClosed(tabs.length);
+  noteLiveFolders("live_completed_tabs_closed", tabs.length);
 }
 
 let started = false;

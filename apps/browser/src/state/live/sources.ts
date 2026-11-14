@@ -5,6 +5,7 @@ import { useBrowser } from "../browser/store";
 import { accountOf, live, removeProfileAccounts, saveLiveDurably, setAccount, setLegacyAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
+import { noteLiveFolders } from "../telemetry/liveFolders";
 
 export type LiveSource = {
   id: LiveSourceId;
@@ -206,7 +207,10 @@ function saveConnection(profileId: string, source: LiveSourceId, value: string, 
     if (!profileExists(profileId)) throw new LiveError("other", "This profile was deleted");
     if (!(await setSecret(source, profileId, value))) throw new LiveError("other", "Couldn't save to the keychain");
     if (!profileExists(profileId)) return void (await deleteSecret(source, profileId));
+    const elsewhere = Object.entries(live().accounts).some(([id, accounts]) => id !== profileId && !!accounts[source]);
     setAccount(profileId, source, connected);
+    noteLiveFolders("live_account_connects");
+    if (elsewhere) noteLiveFolders("live_account_connects_beside_another_profile");
     await saveLiveDurably().catch(() => {});
   });
 }
@@ -342,9 +346,13 @@ function copyLegacy(source: LiveSourceId, profileId: string, value: string, lega
     if (existing) {
       if (accountOf(profileId, source)) return true;
       if (existing !== value) return false;
-    } else if (!(await setSecret(source, profileId, value))) return false;
+    } else if (!(await setSecret(source, profileId, value))) {
+      noteLiveFolders("live_legacy_account_copy_refusals");
+      return false;
+    }
     if (!profileExists(profileId)) return deleteSecret(source, profileId);
     setAccount(profileId, source, legacy);
+    noteLiveFolders("live_legacy_account_copies");
     return true;
   });
 }

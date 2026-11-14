@@ -9,7 +9,7 @@ import type { CompletedItem, LiveItem } from "../../state/live/types";
 import { usePageProfileId } from "../../state/browser/hooks";
 import { useIsActiveIn, useLiveItemTab, useLiveTabOpen, useTabAwayFromPin } from "../../state/sidebar/hooks";
 import type { CloseControl } from "../../state/sidebar/closeControl";
-import { noteLiveRowHide } from "../../state/telemetry/liveHides";
+import { noteLiveFolders } from "../../state/telemetry/liveFolders";
 import { HoverSlot } from "../ui/HoverSlot";
 import { Badge, Button, ContextMenuArea, Dot, hairline, ink, space, Symbol, Text, useHover } from "../ui";
 import { curve, springs } from "../ui/motion";
@@ -129,7 +129,7 @@ function liveRowControl(folderId: string, item: LiveItem, tabId: string | null, 
       tooltip: "Hide Until Refresh",
       press: () => {
         hideItems(folderId, [item]);
-        noteLiveRowHide();
+        noteLiveFolders("live_row_hides");
       },
     };
   return null;
