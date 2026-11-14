@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useMemo, useState, type RefObject } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PinnedTile, SyncedProfile } from "../../state/sync/store";
@@ -34,6 +34,9 @@ const BANNER_ICONS: Record<BannerIcon, SymbolName> = {
 };
 const HEADER_ICONS: Record<"star" | "laptop" | "desktop" | "phone", SymbolName> = { star: "star", laptop: "laptop", desktop: "macDesktop", phone: "iphone" };
 const INDENT = 20;
+
+const SPACE_ROWS_FIRST = 16;
+const SPACE_ROWS_WINDOW = 5;
 
 type RowMenu = { items: MenuItem[]; y: number; anchor?: RefObject<View | null> };
 
@@ -111,7 +114,7 @@ function SpacePage({ profile, onMenu, bottom }: { profile: SyncedProfile; onMenu
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
-  const rows = spaceRows(profile, open, expanded);
+  const rows = useMemo(() => spaceRows(profile, open, expanded), [profile, open, expanded]);
   const toggle = (key: string) => setOpen((now) => (now.has(key) ? new Set([...now].filter((k) => k !== key)) : new Set([...now, key])));
   const linkMenu = (url: string, title: string, y: number) => {
     menuOpenedHaptic();
@@ -127,6 +130,9 @@ function SpacePage({ profile, onMenu, bottom }: { profile: SyncedProfile; onMenu
     <FlatList
       data={rows}
       keyExtractor={(row) => row.key}
+      initialNumToRender={SPACE_ROWS_FIRST}
+      windowSize={SPACE_ROWS_WINDOW}
+      removeClippedSubviews
       contentContainerStyle={{ paddingBottom: bottom + space.l }}
       refreshControl={
         <RefreshControl
