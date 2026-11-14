@@ -151,6 +151,12 @@ class PhoneInbox(private val file: File, private val clock: () -> Long = System:
         while (applied.size > APPLIED_MEMORY) applied.removeFirst()
     }
 
+    internal fun damageForLab() = synchronized(lock) {
+        file.parentFile?.mkdirs()
+        file.writeText(DAMAGED_FOR_LAB)
+        contents = null
+    }
+
     private fun loaded(): Contents = contents ?: read().also { contents = it }
 
     private fun read(): Contents {
@@ -236,6 +242,7 @@ class PhoneInbox(private val file: File, private val clock: () -> Long = System:
     }
 
     companion object {
+        private const val DAMAGED_FOR_LAB = "{\"v\":2,\"entries\":[{\"id\":1,\"received\":[{\"key\":\"lab\",\"url\":\"https://exa"
         const val RECEIVED_LIMIT = 200
         const val APPLIED_MEMORY = 1_000
         private const val FORMAT = 2

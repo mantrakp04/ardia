@@ -108,6 +108,11 @@ export function SyncLab({ note }: { note: (line: string) => void }) {
       <View style={styles.row}>
         <Button label="Ack reset" onPress={() => run("acknowledge reset", () => sync.acknowledgeReset())} />
         <Button label="Rename device" onPress={() => run("rename", () => sync.setDeviceName(`Lab ${localTime(Date.now()).slice(0, 5)}`))} />
+        <Button label="Damage inbox" onPress={() => run("damage inbox", async () => {
+          const result = await syncLab.damageInbox();
+          console.log(`PAGELAB sync inbox damaged: inboxProblem ${result.inboxProblem ?? "none"}`);
+          return result;
+        })} />
         <Button label="Runtime checks" onPress={() => {
           note("runtime checks: running in a second sync runtime");
           syncLab.runtimeChecks().then(

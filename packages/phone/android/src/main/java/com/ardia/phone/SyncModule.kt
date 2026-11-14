@@ -133,6 +133,15 @@ class SyncModule : Module() {
 
         AsyncFunction("inbox") { -> SyncPayloads.inbox(PhoneSync.inbox(context).entries()) }
 
+        AsyncFunction("damageInbox") Coroutine { ->
+            check(PhoneLab.isOn) { "the inbox can be damaged only in lab builds" }
+            val inbox = PhoneSync.inbox(context)
+            inbox.damageForLab()
+            runCatching { controller.syncNow() }
+            inbox.entries()
+            mapOf("inboxProblem" to inbox.problem)
+        }
+
         AsyncFunction("runtimeChecks") { ->
             SyncRuntimeChecks.run(context.assets).map { mapOf("name" to it.name, "pass" to it.pass, "actual" to it.actual, "expected" to it.expected) }
         }

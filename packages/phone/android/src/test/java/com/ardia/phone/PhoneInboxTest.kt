@@ -130,4 +130,15 @@ class PhoneInboxTest {
         assertTrue(restarted.receive(listOf(tab("k1"))))
         assertTrue("a tab already applied is not delivered again", PhoneInbox(file).entries().isEmpty())
     }
+
+    @Test
+    fun theLabCanDamageAnInboxItAlreadyReadSoTheNextReadSetsItAside() {
+        val inbox = PhoneInbox(file)
+        assertTrue(inbox.receive(listOf(tab("a"))))
+        assertEquals(1, inbox.entries().size)
+        inbox.damageForLab()
+        assertEquals(emptyList<PhoneInbox.Entry>(), inbox.entries())
+        assertEquals(1, aside().size)
+        assertTrue(inbox.problem != null)
+    }
 }
