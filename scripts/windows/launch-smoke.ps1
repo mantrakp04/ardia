@@ -522,14 +522,14 @@ function Test-PortOpen([int]$Port) {
   try { return $client.ConnectAsync("127.0.0.1", $Port).Wait(1500) -and $client.Connected } catch { return $false } finally { $client.Dispose() }
 }
 
-function Start-GateLaunch([string]$DataDirectory, [string]$Case, [string]$Test) {
+function Start-GateLaunch([string]$DataDirectory, [string]$Case, [string]$Test, [string[]]$Extra = @()) {
   $caseLog = Join-Path $Out "gate-$Case.log"
   Remove-Item -Force -ErrorAction SilentlyContinue $caseLog
   $env:ARDIA_DATA_DIR = $DataDirectory
   $env:ARDIA_TEST = $Test
   $env:ARDIA_BACKGROUND = "1"
   $env:ARDIA_REMOTE_DEBUGGING_PORT = if ($withEngine) { "$gatePort" } else { "" }
-  $run = Start-Process -FilePath $gateApp -ArgumentList "--log-file=`"$caseLog`"" -PassThru
+  $run = Start-Process -FilePath $gateApp -ArgumentList (@("--log-file=`"$caseLog`"") + $Extra) -PassThru
   $env:ARDIA_TEST = ""
   $env:ARDIA_REMOTE_DEBUGGING_PORT = ""
   return @($run, $caseLog)
@@ -547,9 +547,54 @@ function Wait-GateLine([object]$Run, [string]$CaseLog, [string]$Pattern) {
   return $null
 }
 
+function Stop-Tree([int]$Id) {
+  Get-CimInstance Win32_Process -Filter "ParentProcessId=$Id" -ErrorAction SilentlyContinue | ForEach-Object { Stop-Tree ([int]$_.ProcessId) }
+  Stop-Process -Id $Id -Force -ErrorAction SilentlyContinue
+}
+
 function Stop-GateLaunch([object]$Run) {
-  if (-not $Run.HasExited) { Stop-Process -Id $Run.Id -Force; $Run.WaitForExit(10000) | Out-Null }
-  Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path -ieq $gateApp } | Stop-Process -Force -ErrorAction SilentlyContinue
+  Stop-Tree $Run.Id
+  $Run.WaitForExit(10000) | Out-Null
+}
+
+function Wait-PortOpen([int]$Port, [int]$Seconds) {
+  $deadline = (Get-Date).AddSeconds($Seconds)
+  while ((Get-Date) -lt $deadline) {
+    if (Test-PortOpen $Port) { return $true }
+    Start-Sleep -Milliseconds 500
+  }
+  return $false
+}
+
+function New-CallingExtension([int]$Port) {
+  $folder = New-DataDirectory "gate-extension"
+  Set-Content -LiteralPath (Join-Path $folder "manifest.json") -Encoding ascii -Value ('{"name":"gate","version":"1","manifest_version":3,"permissions":["cookies"],"host_permissions":["<all_urls>"],"background":{"service_worker":"worker.js"}}')
+  Set-Content -LiteralPath (Join-Path $folder "worker.js") -Encoding ascii -Value ('fetch("http://127.0.0.1:' + $Port + '/loaded").catch(() => {});')
+  return $folder
+}
+
+function Test-WalkAround([string]$DataDirectory, [string]$Case, [string]$Test, [string[]]$Extra, [switch]$ExpectEngineLine, [int]$ExtensionPort = 0) {
+  if (-not $withEngine) { return }
+  $listener = $null
+  if ($ExtensionPort) { $listener = New-Object System.Net.Sockets.TcpListener ([System.Net.IPAddress]::Loopback), $ExtensionPort; $listener.Start(); $accept = $listener.AcceptTcpClientAsync() }
+  $run, $caseLog = Start-GateLaunch $DataDirectory $Case $Test $Extra
+  try {
+    if ($ExpectEngineLine) {
+      $engine = Wait-GateLine $run $caseLog "^engine 0 test gate: "
+      if (-not $engine) { $script:failures += "the engine said nothing about the test gate with $Case" }
+      else {
+        Write-Host "engine test gate, $Case`: $($engine.Line)"
+        if ($engine.Line -notmatch "not a test instance \(.*ardiacore test instance: no; reauth=granted honoured: no$") { $script:failures += "the engine counted the test instance or reauth=granted with $Case" }
+      }
+    }
+    if (Wait-PortOpen $gatePort 15) { $script:failures += "remote debugging listened on port $gatePort with $Case" } else { Write-Host "walk-around, $Case`: port $gatePort stayed closed" }
+    if ($listener) {
+      if ($accept.Wait(10000)) { $accept.Result.Dispose(); $script:failures += "an extension from --load-extension ran with $Case" } else { Write-Host "walk-around, $Case`: the extension never ran" }
+    }
+  } finally {
+    Stop-GateLaunch $run
+    if ($listener) { $listener.Stop() }
+  }
 }
 
 function Test-NotATestInstance([string]$DataDirectory, [string]$Case) {
@@ -594,6 +639,13 @@ if ($env:GITHUB_ACTIONS -eq "true") {
   $junction = Join-Path (New-DataDirectory "gate-junction") "profile"
   New-Item -ItemType Junction -Path $junction -Target $realProfile | Out-Null
   try { Test-NotATestInstance $junction "a junction to the real profile folder" } finally { (Get-Item -LiteralPath $junction).Delete() }
+}
+if ($withEngine -and $env:GITHUB_ACTIONS -eq "true") {
+  $realUserData = Join-Path $env:LOCALAPPDATA "Ardia\User Data"
+  Test-WalkAround "" "an empty --type on the real profile" "" @("--type=", "--user-data-dir=`"$realUserData`"", "--remote-debugging-port=$gatePort", "--remote-allow-origins=*")
+  Test-WalkAround (New-DataDirectory "gate-other-user-data") "a --user-data-dir other than the approved folder" "reauth=granted" @("--user-data-dir=`"$realUserData`"") -ExpectEngineLine
+  $extension = New-CallingExtension 9341
+  Test-WalkAround "" "--load-extension and debugging switches without a test instance" "" @("--load-extension=`"$extension`"", "--remote-debugging-port=$gatePort", "--remote-allow-origins=*", "--disable-web-security", "--enable-automation") -ExtensionPort 9341
 }
 if ($withEngine) { Test-ATestInstance (New-DataDirectory "gate-test-instance") "a scratch folder with the marker" }
 $env:ARDIA_DATA_DIR = ""
