@@ -17,6 +17,7 @@ import { SMALL_LIGHTS_CENTER } from "../windows/small";
 import { runCommand } from "../commands/commands";
 import { setMenuBarShortcuts } from "../commands/commandShortcuts";
 import { finishAnimatedCloses } from "../windows/closeAnimated";
+import { startKeyboardFollows } from "../focus/keyboardFollows";
 import { cancelAbandonedFocusMoves, settlingCommandFocus } from "../focus/focusHandoff";
 import { flushPersistence, resumePersistence } from "../session/persist";
 import { flushLive } from "../live/store";
@@ -55,6 +56,7 @@ export function startNativeSync() {
   startExtensionsBridge();
   onOpenURLs((urls, pointer, source) => openExternalUrls(urls, pointer, source));
   startUnclaimedEscape();
+  startKeyboardFollows();
   void lastTabClosesWindow()
     .catch(() => true)
     .then((closes) => setLastTabKeepsWindow(!closes));

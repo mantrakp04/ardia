@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { ContextMenuArea, space, WindowDragRegion } from "../ui";
+import { ClipView, ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
 import { TintInk } from "../ui/TintInk";
 import { useSettings, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
@@ -79,7 +79,7 @@ export function Sidebar({ width }: { width: number }) {
             }}
             style={{ width, height: "100%" }}
           >
-            <View
+            <ClipView
               style={{
                 position: "absolute",
                 left: 0,
@@ -109,7 +109,7 @@ export function Sidebar({ width }: { width: number }) {
                   />
                 ))}
               </SidebarRowLookContext.Provider>
-            </View>
+            </ClipView>
 
             <TintInk>
               {footer ? (
