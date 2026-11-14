@@ -24,9 +24,12 @@ export function SuggestionRow({ row, typed, roles, onActivate, onRefine }: Props
             <Text style={[font.body, { color: roles.foregroundPrimary }]} numberOfLines={1}>
               {row.title}
             </Text>
-            <Text style={[font.subheadline, { color: roles.foregroundSecondary }]} numberOfLines={1}>
-              {row.detail}
-            </Text>
+            <View style={styles.detail}>
+              {row.kind === "page" && row.switchesTab ? <Symbol name="arrowRight" size={13} color={roles.foregroundSecondary} /> : null}
+              <Text style={[font.subheadline, styles.detailText, { color: roles.foregroundSecondary }]} numberOfLines={1}>
+                {row.detail}
+              </Text>
+            </View>
           </>
         )}
       </View>
@@ -63,6 +66,8 @@ const styles = StyleSheet.create({
   },
   leading: { width: browseLayout.suggestionIconSlot, height: browseLayout.suggestionIconSlot, alignItems: "center", justifyContent: "center" },
   label: { flex: 1, gap: 1 },
+  detail: { flexDirection: "row", alignItems: "center", gap: space.xs },
+  detailText: { flexShrink: 1 },
   refine: { width: browseLayout.refineWidth, height: browseLayout.suggestionPitch, alignItems: "center", justifyContent: "center" },
   refineGlyph: { transform: [{ rotate: "-90deg" }] },
 });

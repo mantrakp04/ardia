@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { activateRow, cancelSearch, submitSearch } from "../../state/browse/store";
+import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
 import { useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, useSearchSession, useSearchText } from "../../state/search/hooks";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { typeSearch } from "../../state/search/store";
@@ -91,7 +91,8 @@ function TrayField() {
           onSelectionChange={() => setSelection(undefined)}
           onChangeText={typeSearch}
           onSubmitEditing={(event) => submitSearch(event.nativeEvent.text)}
-          placeholder="Search or Enter URL"
+          placeholder="Search…"
+          accessibilityLabel="Search or Enter Address"
           placeholderTextColor={theme.foregroundTertiary}
           selectionColor={theme.formAccent}
           autoCapitalize="none"
@@ -106,8 +107,25 @@ function TrayField() {
             <Symbol name="xmarkCircleFill" size={18} color={theme.foregroundTertiary} />
           </Pressable>
         ) : null}
+        <IncognitoToggle />
       </View>
     </View>
+  );
+}
+
+function IncognitoToggle() {
+  const theme = useTrayTheme();
+  const on = useIncognito();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={on ? "Deactivate Incognito" : "Activate Incognito"}
+      onPress={toggleTrayIncognito}
+      style={styles.incognito}
+    >
+      {on ? <Text style={[font.footnote, styles.medium, { color: tabsInk.onDarkSoft }]}>Incognito</Text> : null}
+      <Symbol name="eyeglasses" size={22} color={on ? tabsInk.onDark : theme.foregroundTertiary} />
+    </Pressable>
   );
 }
 
@@ -115,11 +133,19 @@ function TrayRows() {
   const theme = useTrayTheme();
   const rows = useSearchRows();
   const typed = useSearchText();
+  const incognito = useIncognito();
   const { keyboard } = useBottomLift();
   const [room, setRoom] = useState(0);
   const [bottoms, setBottoms] = useState<Record<string, number>>({});
   const refine = (row: TrayRow) => typeSearch(refinedText(row));
   const shown = keyboard ? null : wholeRowsHeight(rows.map((row) => bottoms[row.key] ?? 0), room);
+  if (incognito && !typed.trim()) {
+    return (
+      <View style={[styles.rows, styles.incognitoNote]}>
+        <Text style={[font.title3, styles.medium, { color: tabsInk.onDarkSoft }]}>You’re browsing Incognito</Text>
+      </View>
+    );
+  }
   return (
     <View style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
       <ScrollView
@@ -175,5 +201,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, paddingVertical: 0, minHeight: browseLayout.searchFieldHeight },
   accessory: { width: browseLayout.accessory.width, height: browseLayout.accessory.height, alignItems: "center", justifyContent: "center" },
   rows: { flex: 1 },
+  incognito: { flexDirection: "row", alignItems: "center", gap: space.xs + 2, minWidth: 36, minHeight: 40, justifyContent: "flex-end", paddingLeft: space.xs + 2 },
+  incognitoNote: { alignItems: "center", paddingTop: space.huge },
+  medium: { fontWeight: "500" },
   rowsContent: { paddingHorizontal: space.s, paddingBottom: space.s },
 });

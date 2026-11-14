@@ -19,7 +19,7 @@ import { forgetPosition, logRestore, saveTabPosition, watchFrontScroll } from ".
 import { currentPreferences, loadPreferences } from "../settings/store";
 import type { VisitTransition, Visit } from "../store/browserDatabase";
 import { resolve, type TrayRow } from "../search/omnibox";
-import { applySearchEngine, dismissSearch, presentSearch, searchState } from "../search/store";
+import { applySearchEngine, dismissSearch, presentSearch, refreshSearchRows, searchState, useSearch } from "../search/store";
 import {
   archiveDueTabs,
   closeEveryTab,
@@ -151,6 +151,13 @@ export function newRegularTab() {
   const was = useTabs.getState().incognito;
   setIncognito(false);
   presentSearch(trayOrigin(), "", was);
+}
+
+export function toggleTrayIncognito() {
+  const was = useTabs.getState().incognito;
+  if (searchState().incognitoOnCancel === null) useSearch.setState({ incognitoOnCancel: was });
+  setIncognito(!was);
+  refreshSearchRows();
 }
 
 export function cancelSearch() {

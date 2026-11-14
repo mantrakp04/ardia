@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mobileSetSources, mobileSuggest } from "@ardia/core/src/mobile.ts";
 import type { BrowserTab } from "../tabs/tabModels.ts";
-import { buildSources } from "./sources.ts";
+import { buildSources, recentSearches } from "./sources.ts";
 
 const tab = (id: string, url: string, title: string, isPrivate = false): BrowserTab => ({
   id,
@@ -34,4 +34,18 @@ test("open tabs and history reach the omnibox, private tabs do not", () => {
   assert.ok(pages.some((item) => item.kind === "page" && item.tabId === "T1"), "the open tab is offered as a switch");
   assert.ok(pages.some((item) => item.kind === "page" && item.url === "https://otterfacts.example/"), "history is offered");
   assert.ok(!pages.some((item) => item.kind === "page" && item.url.includes("secretotters")), "private tabs never show");
+});
+
+test("an empty tray offers the three most recent distinct searches, newest first", () => {
+  const row = (url: string, lastVisit: number) => ({ url, title: "", favicon: null, visits: 1, lastVisit });
+  const rows = [
+    row("https://www.google.com/search?q=otters", 5),
+    row("https://example.com/", 9),
+    row("https://duckduckgo.com/?q=Lisbon+trams", 8),
+    row("https://www.google.com/search?q=OTTERS&hl=en", 7),
+    row("https://www.bing.com/search?q=tapas", 3),
+    row("https://www.google.com/search?q=sea+otters", 1),
+  ];
+  assert.deepEqual(recentSearches(rows), ["Lisbon trams", "OTTERS", "tapas"]);
+  assert.deepEqual(recentSearches([row("https://example.com/?q=nope", 1)]), []);
 });

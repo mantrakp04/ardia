@@ -12,8 +12,10 @@ import { displayHost } from "../../lib/url";
 
 export type TrayRow =
   | { key: string; kind: "query"; title: string; url: string; query: string }
-  | { key: string; kind: "page"; title: string; detail: string; url: string; tabId: string | null }
+  | { key: string; kind: "page"; title: string; detail: string; url: string; tabId: string | null; switchesTab: boolean }
   | { key: string; kind: "calc"; title: string; detail: string; url: string };
+
+export const SWITCH_TO_TAB = "Switch to Tab";
 
 export type Suggested = { rows: TrayRow[]; completion: string };
 
@@ -34,13 +36,23 @@ export function suggest(text: string, remote: readonly string[], context: Sugges
         key: `p:${item.tabId ?? ""}:${item.url}`,
         kind: "page",
         title: item.title || host,
-        detail: host,
+        detail: item.tabId ? SWITCH_TO_TAB : host,
         url: item.url,
         tabId: item.tabId ?? null,
+        switchesTab: Boolean(item.tabId),
       });
     } else if (item.kind === "calc") rows.push({ key: `c:${item.expression}`, kind: "calc", title: item.value, detail: item.expression, url: item.url });
   }
   return { rows, completion: result.completion };
+}
+
+export function idleRows(queries: readonly string[]): TrayRow[] {
+  const rows: TrayRow[] = [];
+  for (const query of queries) {
+    const url = mobileResolve(`?${query}`)?.url;
+    if (url) rows.push({ key: `q:${query}`, kind: "query", title: query, url, query });
+  }
+  return rows;
 }
 
 export const searchEngines = () => mobileEngines().map((engine) => ({ id: engine.id, name: engine.name }));

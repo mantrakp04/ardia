@@ -2,8 +2,8 @@ import { create } from "zustand";
 import { history } from "../history/store";
 import { currentPreferences } from "../settings/store";
 import { currentTabs, useTabs } from "../tabs/store";
-import { remoteSuggestions, setSearchEngine, setSources, suggest, type SuggestContext, type TrayRow } from "./omnibox";
-import { buildSources, sourcesKey } from "./sources";
+import { idleRows, remoteSuggestions, setSearchEngine, setSources, suggest, type SuggestContext, type TrayRow } from "./omnibox";
+import { buildSources, recentSearches, sourcesKey } from "./sources";
 
 export type SearchOrigin = "home" | "start" | "page";
 
@@ -39,6 +39,13 @@ export function feedSources() {
   setSources(buildSources(currentTabs().open, history().summary()));
 }
 
+function rowsFor(text: string, remoteValues: readonly string[]): TrayRow[] {
+  if (text.trim()) return suggest(text, remoteValues, context).rows;
+  return useTabs.getState().incognito ? [] : idleRows(recentSearches(history().summary()));
+}
+
+export const refreshSearchRows = () => useSearch.setState((state) => ({ rows: rowsFor(state.text, []) }));
+
 export const applySearchEngine = () => void setSearchEngine(currentPreferences().searchEngineId);
 
 export function presentSearch(origin: SearchOrigin, text = "", incognitoOnCancel: boolean | null = null, page: SuggestContext | null = null) {
@@ -51,7 +58,7 @@ export function presentSearch(origin: SearchOrigin, text = "", incognitoOnCancel
     origin,
     initialText: text,
     text,
-    rows: suggest(text, [], context).rows,
+    rows: rowsFor(text, []),
     session: state.session + 1,
     incognitoOnCancel,
   }));
@@ -64,7 +71,7 @@ export function dismissSearch() {
 
 export function typeSearch(text: string) {
   const carried = remote.text && text.startsWith(remote.text) ? remote.values : [];
-  useSearch.setState({ text, rows: suggest(text, carried, context).rows });
+  useSearch.setState({ text, rows: rowsFor(text, carried) });
   inFlight?.abort();
   if (!text.trim() || !currentPreferences().searchSuggestions) return;
   const controller = new AbortController();
