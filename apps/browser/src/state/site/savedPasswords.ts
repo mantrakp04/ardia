@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { onAppEvent } from "../../platform/app";
 import { importModule } from "../../platform/importModule";
 import { orWarn } from "../../lib/fallback";
+import { passwordImportTally } from "../telemetry/passwordSaves";
 import { getPassword, savePassword, unlockPasswords } from "./passwords";
 
 const UNLOCK_MS = 5 * 60_000;
@@ -72,10 +73,12 @@ export async function importPasswordsCsv(profile: string): Promise<PasswordImpor
   const path = await mod.chooseImportFile("passwordsCSV");
   if (!path) return "cancelled";
   const credentials = await mod.importPasswordsCSV(path);
+  const tally = passwordImportTally("csv");
   let saved = 0;
   for (const c of credentials) {
     const origin = originOfLogin(c.url ?? "");
-    if (origin && c.password && (await savePassword(profile, origin, c.username, c.password).catch(orWarn(false)))) saved++;
+    if (origin && c.password && (await tally.attempt(savePassword(profile, origin, c.username, c.password)))) saved++;
   }
+  tally.done();
   return { saved, skipped: credentials.length - saved };
 }

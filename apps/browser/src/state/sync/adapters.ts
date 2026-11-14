@@ -335,7 +335,7 @@ export function passwordsAdapter(profileId: string, logins: SealedPasswords = na
           if (saved) records.landed(key);
           ok = saved && ok;
         } else if (have) {
-          const deleted = await deletePassword(profile(), have.o, have.u).catch(orWarn(false));
+          const deleted = await deletePassword(profile(), have.o, have.u).catch(orWarn(false, "sync delete"));
           if (deleted) records.landed(key);
           ok = deleted && ok;
         }

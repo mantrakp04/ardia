@@ -2,10 +2,11 @@ import { hostCall, onEngineTopic } from "./host";
 import { takerOfOpenedTab } from "./openedTabs";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
 import { privateSessionOpened } from "./privateWindows";
-import type { ExternalAppRequest } from "@ardia/ardiacore";
+import type { ExternalAppRequest, OpenWindowRequest } from "@ardia/ardiacore";
+import type { CoverRect } from "./covers";
 
 export type PageListener = (name: string, data: unknown) => void;
-export type PageRect = { x: number; y: number; width: number; height: number };
+export type PageRect = Omit<CoverRect, "radius">;
 export type PageShape = PageRect & { radius: number; holes: number[][] };
 export type PageStart = { url?: string; profile?: string; adopt?: string; windowId: string };
 
@@ -30,7 +31,7 @@ type Page = {
 };
 
 type OpenedTab = { adopt?: unknown; url?: unknown; foreground?: unknown; window?: unknown; opener?: unknown; profile?: unknown; fromClick?: unknown; point?: unknown };
-type Point = { x: number; y: number };
+type Point = NonNullable<OpenWindowRequest["point"]>;
 type TabEvent = { key?: unknown; name?: unknown; data?: unknown };
 
 const SAME_LOAD_MS = 2000;

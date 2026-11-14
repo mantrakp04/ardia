@@ -16,7 +16,8 @@ These are the places it differs, and what to do when something goes wrong.
 
 ## Input that didn't land
 
-A click, key press, typing or scroll the page never received fails with `input_not_delivered`; one it only partly
+A click, key press, typing or scroll the page never received fails with `input_not_delivered` (`target_replaced` when
+the page redrew the element first: find it again); one it only partly
 received reports an unknown outcome. Check the page before retrying, and never repeat a submit blindly. Input is
 instant; `--humanize` (or `AGENT_BROWSER_HUMANIZE=1`) gives curved mouse paths, human press timing, wheel scrolling
 and per-character typing.

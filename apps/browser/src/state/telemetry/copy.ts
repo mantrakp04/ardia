@@ -4,7 +4,7 @@ import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 
 export function periodicNote(computer: string, memoryPressure: boolean): string {
   const noted = ["its tab, window and profile counts", "its memory use", "rough free disk space", ...(memoryPressure ? [`the ${computer}'s memory pressure`] : []), "how long it has been open"];
-  return `Every 10 minutes Ardia notes on this ${computer} ${noted.slice(0, -1).join(", ")} and ${noted.at(-1)}. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the ${computer} restarted since. Turning sharing off or deleting a profile erases it`;
+  return `Every 10 minutes Ardia notes on this ${computer} ${noted.join(", ")}, and which of Ardia's own pages (like Settings or History) the tab in front was on, never a website's address. Ardia also takes that note when you open or leave one of those pages. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the ${computer} restarted since. Turning sharing off or deleting a profile erases it`;
 }
 
 export const SHARING_COPY = {
@@ -130,16 +130,17 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Once a day, your on/off, pick-one and number settings (like light or dark, glass or classic, borderless mode, how much tint, and whether text adjusts to your colour), which app icon you picked, each with its default, how many of your profiles use a custom colour, and how many sites you hid unread counts for. Never addresses, names, colours, search engines or anything you typed",
       `How many times ${keyText("⌘W")} closed several selected sidebar tabs at once and how many tabs that closed, summed up once an hour. Never which tabs`,
       `Bringing your last window back from the ${PLATFORM_TERMS.dock} or at launch: how many tabs came back and how long it was closed, in rough ranges, and whether a pinned tab was showing`,
+      "When you import passwords from another browser or from a CSV file: how many passwords Ardia tried to save, how many it saved, how many the password store refused (invalid, or already saved), how many it didn't store in time, and how many failed for another reason, once per import. Never which sites, usernames or passwords",
     ],
   },
   {
     title: "Speed",
     items: [
       "Time to the first window, profile switch time, and command bar speed (a sample of keystrokes)",
-      "How long launches, new tabs, tab switches and page loads take, step by step (for a launch: until the engine is up, the interface starts, the first window and the restored page): times and counts only, summed up once an hour, with how many tabs were open",
+      "How long launches, new tabs, tab switches and page loads take, step by step (for a launch: until the app's own code starts, its setup is done, the engine starts and is up, the interface starts, the first window and the restored page): times and counts only, summed up once an hour, with how many tabs were open",
       "How many tabs a page opened were matched to your click on a link, opened at once because nothing was clicked or typed in that window in the 5 seconds before, or opened only after a 0.2 second wait for a click that never came, summed up once an hour",
       `How many times ${keyText("⌘Y")} asked for the History search field, and how many of those put the cursor in it, summed up once an hour. Never what you searched`,
-      `At launch, in rough ranges: how many tabs and windows came back, how much history there is, and whether it's the first launch since the ${PLATFORM_TERMS.computer} started`,
+      `At launch, in rough ranges: how many tabs and windows came back, how much history there is, and whether it's the first launch since the ${PLATFORM_TERMS.computer} started${PLATFORM_FEATURES.launchLoad ? `. Also at launch: the ${PLATFORM_TERMS.computer}'s load average (one number, how busy it was) and whether the app was started as a login item` : ""}`,
       "Memory use and the number of tabs, once an hour",
     ],
   },
