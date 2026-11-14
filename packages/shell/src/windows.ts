@@ -54,6 +54,7 @@ export type WindowsNative = {
   dragPreviewEnd(windowId: string | null, frame: Rect4 | null): Promise<void>;
   raiseView(tag: number, levels: number, raised: boolean): Promise<void>;
   windowFrame(id: string): Promise<Rect4 | null>;
+  frameCornerRadius(id: string): Promise<number>;
   setWindowTitle(id: string, title: string): Promise<void>;
   windowIds(): Promise<string[]>;
   replyToTerminate(ok: boolean): Promise<void>;

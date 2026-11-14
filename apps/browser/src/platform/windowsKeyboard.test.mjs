@@ -3,10 +3,12 @@ import { test } from "node:test";
 import { turboModules } from "../test-native/reactNative.ts";
 
 const calls = [];
+let showGate = null;
 turboModules.ArdiaEngineHost = {
   available: () => true,
   hostCall: async (verb, argsJson, windowId) => {
     calls.push({ verb, args: JSON.parse(argsJson), windowId });
+    if (verb === "tab.show" && showGate) await showGate;
     return JSON.stringify(verb === "tab.create" ? { tab: calls.length } : { ok: true });
   },
   engineCall: async () => "{}",
@@ -108,23 +110,105 @@ test("a field's window is the topmost windowId above it", () => {
   const fieldNode = { __internalInstanceHandle: { return: { return: inner, memoizedProps: { style: {} } }, memoizedProps: {} } };
   assert.equal(windowIdOfField(fieldNode), "outer");
   assert.equal(windowIdOfField(null), "");
-  const inTab = { __internalInstanceHandle: { return: { return: { return: inner, memoizedProps: { tabId: "t-outer" } }, memoizedProps: { tabId: "t-inner" } }, memoizedProps: {} } };
-  assert.deepEqual(placeOfField(inTab), { windowId: "outer", tabId: "t-inner" }, "the topmost window and the innermost tab");
 });
 
-test("a field of the tab the user switched away from doesn't hold the keyboard against the new tab's page", async () => {
-  const unmount = mountPage("kb-next-tab", { url: "https://a.example/", windowId: "w9" }, () => {});
+const fieldUnder = (...propsFromTop) => {
+  let fiber = null;
+  for (const memoizedProps of propsFromTop) fiber = { return: fiber, memoizedProps };
+  return { __internalInstanceHandle: { return: fiber, memoizedProps: {} } };
+};
+const WINDOW = { windowId: "w9" };
+const PANE = (tabId) => ({ tabId, windowId: "w9", geometry: {}, focused: true });
+const REAL_FIELDS = {
+  sidebarRename: fieldUnder(WINDOW, { windowId: "w9", section: "list" }, { tabId: "A", section: "list" }, { tabId: "A", onto: null, shift: null }),
+  commandBar: fieldUnder(WINDOW, { windowWidth: 1200 }, { variant: "panel", floating: true, tabId: "A", initialText: "" }),
+  findBar: fieldUnder(WINDOW, PANE("A"), { tabId: "A", windowId: "w9", width: 600 }, { tabId: "A" }, { tabId: "A", find: {} }),
+  newTabSearch: fieldUnder(WINDOW, PANE("A"), { contentAreaOf: "A" }, { tabId: "A", accepting: true }, { tabId: "A", toolbar: true }, { variant: "hero", tabId: "A" }),
+  emptyPaneSearch: fieldUnder(WINDOW, PANE("A"), { contentAreaOf: "A" }, { tabId: "A", accepting: true }, { tabId: "A", focused: true }, { placeholder: "Search" }),
+  settingsSearch: fieldUnder(WINDOW, PANE("A"), { contentAreaOf: "A" }, { tabId: "A" }, { placeholder: "Search settings" }),
+};
+
+test("a field's place: the topmost window and the innermost tab content area, never any tabId above it", () => {
+  assert.deepEqual(placeOfField(REAL_FIELDS.sidebarRename), { windowId: "w9", contentAreaOf: "" });
+  assert.deepEqual(placeOfField(REAL_FIELDS.commandBar), { windowId: "w9", contentAreaOf: "" });
+  assert.deepEqual(placeOfField(REAL_FIELDS.findBar), { windowId: "w9", contentAreaOf: "" });
+  assert.deepEqual(placeOfField(REAL_FIELDS.newTabSearch), { windowId: "w9", contentAreaOf: "A" });
+  assert.deepEqual(placeOfField(REAL_FIELDS.emptyPaneSearch), { windowId: "w9", contentAreaOf: "A" });
+});
+
+test("only a field in the content area of the tab being left yields to the new tab's page; every other field of the window keeps the keyboard", async () => {
+  const unmount = mountPage("B", { url: "https://b.example/", windowId: "w9" }, () => {});
   await settle();
-  focused = { field: { id: "ntp" }, windowId: "w9", tabId: "kb-left-tab" };
-  assert.equal(fieldFocusedIn("w9", "kb-next-tab"), false, "the New Tab page's field of the tab just left");
-  assert.equal(fieldFocusedIn("w9", "kb-left-tab"), true, "a field of the very tab asked to follow");
-  assert.equal(fieldFocusedIn("w9"), true, "an ask that names no tab");
-  followPage("kb-next-tab");
-  showPage("kb-next-tab", true, shape);
+  const focusedOn = (name) => (focused = { field: REAL_FIELDS[name], ...placeOfField(REAL_FIELDS[name]) });
+  const holds = { sidebarRename: true, commandBar: true, findBar: true, newTabSearch: false, emptyPaneSearch: false, settingsSearch: false };
+  for (const [name, held] of Object.entries(holds)) {
+    focusedOn(name);
+    assert.equal(fieldFocusedIn("w9", "B"), held, `${name} when tab B's page is asked to follow`);
+    assert.equal(fieldFocusedIn("w9", "A"), true, `${name} when its own tab's page is asked`);
+    assert.equal(fieldFocusedIn("w9"), true, `${name} when the ask names no tab`);
+  }
+  focusedOn("sidebarRename");
+  showPage("B", true, shape);
   await settle();
-  assert.deepEqual(focusCalls("kb-next-tab").map((call) => call.follow), [true]);
-  focused = { field: { id: "command bar" }, windowId: "w9" };
-  assert.equal(fieldFocusedIn("w9", "kb-next-tab"), true, "a field that belongs to no tab, like the command bar, still holds");
+  followPage("B");
+  await settle();
+  assert.deepEqual(focusCalls("B"), [], "renaming tab A in the sidebar while tab B is activated keeps the keyboard in the rename field");
+  focusedOn("newTabSearch");
+  followPage("B");
+  await settle();
+  assert.deepEqual(focusCalls("B").map((call) => call.follow), [true], "leaving a New Tab page for B moves the keyboard to B");
   focused = null;
   unmount();
+});
+
+test("a follow asked before a tab's page exists goes once that page shows, unless another page was asked meanwhile", async () => {
+  focused = null;
+  followPage("kb-woken");
+  await settle();
+  assert.deepEqual(focusCalls("kb-woken"), [], "no page yet");
+  const unmount = mountPage("kb-woken", { url: "https://woken.example/", windowId: "ww" }, () => {});
+  await settle();
+  assert.deepEqual(focusCalls("kb-woken"), [], "not before it shows");
+  showPage("kb-woken", true, shape);
+  await settle();
+  assert.deepEqual(focusCalls("kb-woken"), [{ key: "kb-woken", method: "focus", follow: true, deferred: true }]);
+
+  const unmountShown = mountPage("kb-shown", { url: "https://shown.example/", windowId: "ww" }, () => {});
+  await settle();
+  showPage("kb-shown", true, shape);
+  await settle();
+  followPage("kb-left");
+  followPage("kb-shown");
+  const unmountLeft = mountPage("kb-left", { url: "https://left.example/", windowId: "ww" }, () => {});
+  await settle();
+  showPage("kb-left", true, shape);
+  await settle();
+  assert.deepEqual(focusCalls("kb-left"), [], "the user went on to another tab before this one's page existed");
+  unmount();
+  unmountShown();
+  unmountLeft();
+  await settle();
+});
+
+test("a focus waiting for its page's show is dropped when another page is asked while that show is still on its way", async () => {
+  focused = null;
+  const unmountSlow = mountPage("kb-slow-show", { url: "https://slow.example/", windowId: "ws" }, () => {});
+  const unmountClicked = mountPage("kb-clicked", { url: "https://clicked.example/", windowId: "ws" }, () => {});
+  await settle();
+  showPage("kb-clicked", true, shape);
+  await settle();
+  await callPage("kb-slow-show", "focus");
+  let open;
+  showGate = new Promise((resolve) => (open = resolve));
+  showPage("kb-slow-show", true, shape);
+  await settle();
+  await callPage("kb-clicked", "focus");
+  showGate = null;
+  open();
+  await settle();
+  assert.deepEqual(focusCalls("kb-slow-show"), [], "the keyboard went to another page meanwhile");
+  assert.equal(focusCalls("kb-clicked").length, 1);
+  unmountSlow();
+  unmountClicked();
+  await settle();
 });

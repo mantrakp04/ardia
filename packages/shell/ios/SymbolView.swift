@@ -11,7 +11,8 @@ final class SymbolView: ExpoView {
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
-    imageView.imageScaling = .scaleNone
+    imageView.imageScaling = .scaleProportionallyDown
+    imageView.imageAlignment = .alignCenter
     imageView.autoresizingMask = [.width, .height]
     addSubview(imageView)
     update()

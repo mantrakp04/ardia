@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import type { View } from "react-native";
 import type { DropUpdate, DroppedItem, FileDropAreaProps } from "@ardia/shell";
+import type { Fiber } from "../fiber";
 import { requireNativeModule } from "../modules";
 import type { FileDropModule } from "../nativeModuleTypes";
 
@@ -12,7 +13,6 @@ export type WindowDrag = { windowId: string; phase: "enter" | "exit" };
 export type DropAreaFrame = { windowId: string; area: string; depth: number; x: number; y: number; width: number; height: number; accepts: DropAccepts; enabled: boolean };
 
 
-type Fiber = { return: Fiber | null; memoizedProps?: unknown };
 type AreaEntry = { windowId: string; measure: () => void; deliver: (update: DropUpdate) => void };
 
 const MOST_ANCESTORS = 4096;

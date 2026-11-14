@@ -2,6 +2,7 @@ import { createElement, forwardRef, useContext, useEffect, useMemo, useRef, type
 import type { WindowDragRegionProps } from "@ardia/shell";
 import { RootTagContext, View } from "react-native";
 import type { EventSubscription } from "./events";
+import type { Fiber } from "./fiber";
 import { requireNativeModule } from "./modules";
 import type { AppWindowsModule } from "./nativeModuleTypes";
 
@@ -14,7 +15,7 @@ type LatestOptions = { current: DragOptions };
 
 type Props = Record<string, unknown>;
 
-export type HostFiber = {
+export type HostFiber = Fiber & {
   tag: number;
   type: unknown;
   return: HostFiber | null;

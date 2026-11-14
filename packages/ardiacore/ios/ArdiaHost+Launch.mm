@@ -61,7 +61,8 @@ static NSString *LinkPolicyFingerprint(NSString *hooksStamp) {
   NSString *folder = ArdiaLaunchConfig.shared.configDirectory ?: @"";
   return [@[
     folder, hooksStamp, PathStamp([folder stringByAppendingPathComponent:@"config.json"]),
-    PathStamp([AppDataDirectory() stringByAppendingPathComponent:@"automation-approvals.json"])
+    PathStamp([AppDataDirectory() stringByAppendingPathComponent:@"automation-approvals.json"]),
+    PathStamp([AppDataDirectory() stringByAppendingPathComponent:@"air-traffic.json"])
   ] componentsJoinedByString:@"|"];
 }
 

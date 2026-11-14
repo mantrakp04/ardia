@@ -45,9 +45,10 @@ console.log(JSON.stringify({
   switchesEngine: canSwitchEngine("https://example.com/"),
   pageEngines: pageEngines(),
   calendarLink,
+  closedWindows: SETTINGS.find((e) => e.id.endsWith(".windowsAndTabs"))?.description ?? null,
   syncTypes: DATA_TYPES.map((t) => t.id),
   syncsPasswords: SYNCED_KINDS.includes("passwords") || typeSyncedFor(defaultTypes(), "passwords", true),
-  macWords: shownCopy.filter(([, text]) => /macOS|Touch ID|Keychain|this Mac|View ›|Apple silicon/.test(text)).map(([id]) => id),
+  macWords: shownCopy.filter(([, text]) => /macOS|Touch ID|Keychain|this Mac|Apple silicon|[⌘⌥⇧⌃]|(File|Edit|View|History|Window) › /.test(text)).map(([id]) => id),
 }));
 `;
 
@@ -66,6 +67,7 @@ test("Windows offers Sync without passwords but no Calendar or WebKit pane, no b
     switchesEngine: false,
     pageEngines: ["chromium", "chromium", "chromium", "chromium", "chromium"],
     calendarLink: "general",
+    closedWindows: "What you see the next time you open it. Ctrl+Shift+T reopens closed windows too.",
     syncTypes: ["bookmarks", "history", "tabs", "pinned", "extensions", "settings"],
     syncsPasswords: false,
     macWords: [],
@@ -80,6 +82,7 @@ test("the Mac keeps every pane, row and the engine switch", () => {
   assert.equal(mac.switchesEngine, true);
   assert.deepEqual(mac.pageEngines, ["webkit", "webkit", "webkit", "webkit", "webkit"]);
   assert.equal(mac.calendarLink, "calendar");
+  assert.equal(mac.closedWindows, "What you see the next time you open it. Closed windows stay in History › Recently Closed.");
   assert.deepEqual(mac.syncTypes, ["bookmarks", "history", "tabs", "pinned", "passwords", "extensions", "settings"]);
   assert.equal(mac.syncsPasswords, true);
 });
