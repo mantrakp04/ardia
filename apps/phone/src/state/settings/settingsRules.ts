@@ -216,3 +216,7 @@ export const exportableUrls = (tabs: readonly { url: string; isPrivate: boolean 
 export type PageSwipe = "anywhere" | "edges" | "off";
 
 export const pageSwipe = (mode: "anywhere" | "screenEdges" | "disabled"): PageSwipe => (mode === "screenEdges" ? "edges" : mode === "disabled" ? "off" : "anywhere");
+
+export type FrontSheet = "settings" | "archive" | "spaces";
+
+export const frontSheet = (settingsOpen: boolean, browseSheet: "archive" | "spaces" | null): FrontSheet | null => (settingsOpen ? "settings" : browseSheet);

@@ -11,7 +11,7 @@ import { OnboardingView } from "./components/onboarding/OnboardingView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
-import { DEFAULT_PROFILE_COLOR, FullSheet, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade, SheetBackground } from "./components/ui";
+import { useTheme, DEFAULT_PROFILE_COLOR, FullSheet, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade, SheetBackground } from "./components/ui";
 import { useLook } from "./state/sync/hooks";
 import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
@@ -19,7 +19,7 @@ import { useSettingsNav } from "./state/settings/hooks";
 import { useOnboarding } from "./state/onboarding/hooks";
 import { bootApp, useBoot } from "./state/app/boot";
 import { startLinks } from "./state/links/links";
-import { useBaseSystemBars } from "./state/app/systemBars";
+import { useBaseSystemBars, useSystemBars } from "./state/app/systemBars";
 import { useSearchOpen } from "./state/search/hooks";
 import { useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, closeArchive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
@@ -27,7 +27,10 @@ import { handleSystemBack, startPageUi } from "./state/page/actions";
 import { VoiceSearchView } from "./components/search/VoiceSearchView";
 import { useVoicePresented } from "./state/voice/store";
 import { useSharedValue } from "react-native-reanimated";
-import { useSelectedTab } from "./state/tabs/hooks";
+import { closeSettings } from "./state/settings/nav";
+import { frontSheet } from "./state/settings/settingsRules";
+import { inkLayer, lightStatusIcons } from "./lib/statusInk";
+import { useIncognito, useSelectedTab } from "./state/tabs/hooks";
 
 export default function App() {
   useState(() =>
@@ -71,11 +74,16 @@ function Surfaces() {
   const searching = useSearchOpen();
   const voice = useVoicePresented();
   const sheetProgress = useSharedValue(0);
+  const front = frontSheet(settingsOpen, sheet);
+  const theme = useTheme();
+  const incognito = useIncognito();
+  const layer = inkLayer({ onboarding, voice, sheet: front !== null, searching, surface });
+  const lightIcons = lightStatusIcons(layer, { cover: theme.backdrop[0], surface: theme.surface, deck: theme.backdrop[0], incognito });
   useEffect(goBackToStartIfEmpty, [tab, surface]);
   return (
     <>
       <SheetBackground progress={sheetProgress}>
-        <Layer covered={settingsOpen || onboarding || voice} muted={sheet !== null}>
+        <Layer covered={onboarding || voice} muted={front !== null}>
           <Shade shaded={searching}>
             {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
             {surface === "deck" ? <TabDeck /> : null}
@@ -84,21 +92,24 @@ function Surfaces() {
           <SearchTray />
         </Layer>
       </SheetBackground>
-      <Layer covered={settingsOpen || onboarding || voice}>
-        <FullSheet sheet={sheet} progress={sheetProgress} onDismiss={closeArchive}>
-          {(shown) => (shown === "archive" ? <ArchiveView /> : <SpacesView />)}
-        </FullSheet>
-      </Layer>
       <Layer covered={onboarding || voice}>
-        <SettingsView />
+        <FullSheet sheet={front} progress={sheetProgress} onDismiss={front === "settings" ? closeSettings : closeArchive}>
+          {(shown) => (shown === "settings" ? <SettingsView /> : shown === "archive" ? <ArchiveView /> : <SpacesView />)}
+        </FullSheet>
       </Layer>
       <Layer covered={onboarding}>
         <VoiceSearchView />
       </Layer>
       <OnboardingView />
       <ToastHost />
+      {lightIcons !== null ? <LayerInk key={layer} light={lightIcons} /> : null}
     </>
   );
+}
+
+function LayerInk({ light }: { light: boolean }) {
+  useSystemBars(light);
+  return null;
 }
 
 const COVER_SETTLE_MS = 450;

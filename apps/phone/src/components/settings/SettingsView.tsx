@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { StyleSheet } from "react-native";
-import Animated, { SlideInDown, SlideInLeft, SlideInRight, SlideOutDown, SlideOutRight } from "react-native-reanimated";
+import Animated, { SlideInLeft, SlideInRight, SlideOutRight } from "react-native-reanimated";
 import { refreshSettings } from "../../state/settings/actions";
 import { useSettingsNav, type SettingsRoute } from "../../state/settings/hooks";
 import { tabsMotion } from "../ui";
@@ -13,8 +13,6 @@ import { SyncPage } from "../sync/SyncPage";
 import { DefaultBrowserPage } from "./DefaultBrowserPage";
 import { popSettings } from "../../state/settings/nav";
 
-const rise = SlideInDown.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
-const fall = SlideOutDown.springify().stiffness(tabsMotion.sheetOut.stiffness).damping(tabsMotion.sheetOut.damping);
 const push = SlideInRight.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
 const reveal = SlideInLeft.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
 const leave = SlideOutRight.springify().stiffness(tabsMotion.sheetOut.stiffness).damping(tabsMotion.sheetOut.damping);
@@ -57,14 +55,18 @@ export function SettingsView() {
   useEffect(() => {
     if (open) void refreshSettings();
   }, [open]);
-  if (!open || !stack.length) return null;
-  const depth = stack.length;
-  const top = stack[depth - 1]!;
+  const shown = useRef<{ depth: number; route: SettingsRoute } | null>(null);
+  if (open && stack.length) shown.current = { depth: stack.length, route: stack[stack.length - 1]! };
+  const last = shown.current;
+  if (!last) return null;
   return (
-    <Animated.View entering={rise} exiting={fall} style={StyleSheet.absoluteFill}>
-      <Animated.View key={`${depth}:${top.page}`} entering={depth === 1 ? undefined : popping ? reveal : push} exiting={popping ? leave : undefined} style={StyleSheet.absoluteFill}>
-        <Page route={top} />
-      </Animated.View>
+    <Animated.View
+      key={`${last.depth}:${last.route.page}`}
+      entering={last.depth === 1 || !open ? undefined : popping ? reveal : push}
+      exiting={popping && open ? leave : undefined}
+      style={StyleSheet.absoluteFill}
+    >
+      <Page route={last.route} />
     </Animated.View>
   );
 }

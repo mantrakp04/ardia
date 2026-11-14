@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
-import { Backdrop, FloatingMenu, font, ink, settingsLayout, space, Symbol, tabsLayout, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
+import { Backdrop, FloatingMenu, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
 
 type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean };
 
@@ -11,10 +11,11 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
   const insets = useSafeAreaInsets();
   const list = useRef<ScrollView>(null);
   const restored = useRef(false);
+  const frame = useSheetFrame();
   return (
     <View style={StyleSheet.absoluteFill}>
       <Backdrop colors={theme.backdrop} />
-      <View style={[styles.top, { paddingTop: insets.top }]}>
+      <View style={[styles.top, { paddingTop: frame ? 0 : insets.top }]}>
         <View style={styles.topSide}>
           {onBack ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.back}>
@@ -41,6 +42,7 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
           onScrollEndDrag={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
           onMomentumScrollEnd={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
           keyboardShouldPersistTaps="handled"
+          {...frame?.list(false)}
         >
           {children}
         </ScrollView>

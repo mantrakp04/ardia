@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { copyTable } from "../../lib/platformCopy.ts";
 import {
+  frontSheet,
   pageSwipe,
   clearChoice,
   clearFooter,
@@ -142,4 +143,11 @@ test("the Swipe to Navigate setting reaches the page view in the module's words"
   assert.equal(pageSwipe("anywhere"), "anywhere");
   assert.equal(pageSwipe("screenEdges"), "edges");
   assert.equal(pageSwipe("disabled"), "off");
+});
+
+test("Settings takes the one sheet over the Archive or Spaces, which come back when it closes", () => {
+  assert.equal(frontSheet(false, null), null);
+  assert.equal(frontSheet(false, "spaces"), "spaces");
+  assert.equal(frontSheet(true, "spaces"), "settings");
+  assert.equal(frontSheet(true, null), "settings");
 });
