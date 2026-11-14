@@ -271,6 +271,37 @@ class DevelopmentWebViewEngine(
 
     internal fun hostActivity(): Activity? = hostActivity as? Activity
 
+    private var pageSize: Pair<Int, Int>? = null
+    private var parking: android.widget.FrameLayout? = null
+
+    internal fun notePageSize(view: android.view.View, width: Int, height: Int) {
+        if (width > 0 && height > 0 && view.parent !== parking) pageSize = width to height
+    }
+
+    internal suspend fun <T> parked(web: WebView, draw: suspend () -> T?): T? {
+        val activity = hostActivity() ?: return null
+        val decor = activity.window?.decorView as? android.view.ViewGroup ?: return null
+        val (width, height) = pageSize ?: (decor.width to decor.height)
+        if (width <= 0 || height <= 0 || parking != null) return null
+        val holder = android.widget.FrameLayout(activity).apply {
+            alpha = 0f
+            isClickable = false
+            isFocusable = false
+            descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        }
+        parking = holder
+        decor.addView(holder, 0, android.widget.FrameLayout.LayoutParams(width, height))
+        holder.addView(web, android.widget.FrameLayout.LayoutParams(width, height))
+        return try {
+            draw()
+        } finally {
+            if (web.parent === holder) holder.removeView(web)
+            decor.removeView(holder)
+            parking = null
+        }
+    }
+
     private fun privateProfile(): String {
         privateProfileName?.let { return it }
         val name = PRIVATE_PROFILE_PREFIX + java.util.UUID.randomUUID()

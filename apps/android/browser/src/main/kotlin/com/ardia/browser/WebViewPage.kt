@@ -277,7 +277,22 @@ internal class WebViewPage(
 
     override suspend fun snapshot(maxWidth: Int): Bitmap? = withContext(Dispatchers.Main.immediate) {
         val web = webView ?: return@withContext null
-        if (!PageCapture.isDrawable(web) || mutableState.value.url == null) return@withContext null
+        if (mutableState.value.url == null) return@withContext null
+        if (web.parent == null && !web.isAttachedToWindow) {
+            return@withContext engine.parked(web) {
+                repeat(PARKED_FRAMES) { awaitPaintedFrame(web) }
+                if (webView === web) drawSnapshot(web, maxWidth) else null
+            }
+        }
+        drawSnapshot(web, maxWidth)
+    }
+
+    private suspend fun drawSnapshot(web: WebView, maxWidth: Int): Bitmap? {
+        if (!PageCapture.isDrawable(web)) return null
+        return captureSnapshot(web, maxWidth)
+    }
+
+    private suspend fun captureSnapshot(web: WebView, maxWidth: Int): Bitmap? = withContext(Dispatchers.Main.immediate) {
         val scale = min(1f, maxWidth.toFloat() / web.width)
         val width = (web.width * scale).roundToInt().coerceAtLeast(1)
         val height = (web.height * scale).roundToInt().coerceAtLeast(1)
@@ -420,6 +435,7 @@ internal class WebViewPage(
         }
         web.setOnLongClickListener { longPressed(web) }
         web.setOnScrollChangeListener { _, _, scrollY, _, _ -> scrolled(web, scrollY) }
+        web.addOnLayoutChangeListener { view, left, top, right, bottom, _, _, _, _ -> engine.notePageSize(view, right - left, bottom - top) }
         if (engine.supportsDocumentStartScripts) {
             WebViewCompat.addDocumentStartJavaScript(web, PageScripts.mainFrameOnly(engine.scripts.nightShade), setOf("*"))
         }
@@ -880,6 +896,7 @@ internal class WebViewPage(
         private const val SMALLEST_ZOOM_STEP = 0.01f
         private const val FIT_WIDTH_DELAY_MILLIS = 300L
         private const val RESTORED_SCROLL_CHECK_MILLIS = 700L
+        private const val PARKED_FRAMES = 3
         private const val CLIENT_REDIRECT_WINDOW_MILLIS = 1500L
         private const val BLOCKED_FLUSH_MILLIS = 250L
         private const val DRAW_ATTEMPTS = 2
