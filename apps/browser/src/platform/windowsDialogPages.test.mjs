@@ -63,4 +63,8 @@ test("every native modal runs through RunModal off the UI thread, and the app st
   assert.match(native("Ardia.cpp"), /void ArdiaAppStop\(void\) \{\n  Ardia::DialogParts::StopAllModals\(\);/);
   assert.match(native("Ardia.cpp"), /host\.engine = nullptr;\n  SetFocus\(nullptr\);\n  if \(host\.queue\) host\.queue\.ShutdownQueue\(\);/);
   assert.match(module, /parent\(owner, !Background\(\)\)/);
+  const thread = native("ModalThread.h");
+  assert.match(thread, /!m_ownerWasEnabled \|\| Stopping\(\)\) return;\n    bool hadFocus = m_givesFocusBack && DialogInFront\(\);/);
+  assert.doesNotMatch(thread, /OursInFront/);
+  assert.match(module, /void Release\(\) noexcept \{\n    if \(Stopping\(\)\) \{\n      m_pages\.clear\(\);\n      return;\n    \}/);
 });

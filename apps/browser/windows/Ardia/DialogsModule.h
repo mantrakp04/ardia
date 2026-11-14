@@ -105,6 +105,10 @@ struct HeldPageWindows {
   ~HeldPageWindows() noexcept { Release(); }
 
   void Release() noexcept {
+    if (Stopping()) {
+      m_pages.clear();
+      return;
+    }
     for (HWND page : m_pages)
       if (IsWindow(page) && GetWindow(page, GW_OWNER) == m_owner) EnableWindow(page, TRUE);
     m_pages.clear();

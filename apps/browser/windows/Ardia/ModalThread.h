@@ -207,8 +207,8 @@ struct ModalParent {
     if (m_released) return;
     m_released = true;
     NoteModalDialog(m_owner, nullptr);
-    if (!m_owner || !IsWindow(m_owner) || !m_ownerWasEnabled) return;
-    bool hadFocus = m_givesFocusBack && OursInFront();
+    if (!m_owner || !IsWindow(m_owner) || !m_ownerWasEnabled || Stopping()) return;
+    bool hadFocus = m_givesFocusBack && DialogInFront();
     EnableWindow(m_owner, TRUE);
     if (hadFocus) SetForegroundWindow(m_owner);
   }
@@ -229,12 +229,13 @@ struct ModalParent {
   }
 
  private:
-  bool OursInFront() const noexcept {
+  bool DialogInFront() const noexcept {
     HWND front = GetForegroundWindow();
-    if (!front || front == m_window) return true;
-    DWORD process = 0;
-    GetWindowThreadProcessId(front, &process);
-    return process == GetCurrentProcessId();
+    if (!front) return false;
+    if (front == m_window) return true;
+    for (HWND owner = GetWindow(front, GW_OWNER); owner; owner = GetWindow(owner, GW_OWNER))
+      if (owner == m_window) return true;
+    return false;
   }
 
   HWND m_owner;
