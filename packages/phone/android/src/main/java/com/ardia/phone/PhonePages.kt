@@ -69,6 +69,12 @@ object PhonePages {
         made.filter = blocking.pageFilter(isPrivate = false)
         made.privateFilter = blocking.pageFilter(isPrivate = true)
         made.onPrivateBrowsingEnded = ::privateBrowsingEnded
+        if (PhoneLab.isOn) {
+            made.desktopTrace = { pageId, line ->
+                android.util.Log.i("PAGELAB", line)
+                send(pageId, "page.desktop", "line" to line)
+            }
+        }
         shared = made
         downloads = SystemDownloads(context, made)
         host?.get()?.let(made::attach)

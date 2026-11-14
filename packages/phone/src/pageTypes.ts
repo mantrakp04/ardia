@@ -155,6 +155,7 @@ export type PageEngineEvent =
   | { name: "page.longPress"; pageId: string; target: PressTarget; x: number; y: number }
   | { name: "page.closeRequested"; pageId: string }
   | { name: "page.externalAppMissing"; pageId: string; url: string }
+  | { name: "page.desktop"; pageId: string; line: string }
   | { name: "pages.privateSessionEnded" };
 
 export type PageEventPayload =

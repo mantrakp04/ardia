@@ -41,4 +41,14 @@ class DesktopFitTest {
         assertEquals(980.5, DesktopFit.contentWidth(" 980.5 ")!!, 0.0)
         for (raw in listOf(null, "", "null", "undefined", "0", "-3", "NaN", "Infinity", "\"1120\"")) assertNull(raw, DesktopFit.contentWidth(raw))
     }
+
+    @Test
+    fun eachDecisionSaysWhatItDidOrWhichGuardStoppedIt() {
+        assertEquals("zoomBy(0.3506)", DesktopFit.decide(1080, 1120.0, 2.75f).toString())
+        assertEquals("skipped: the view has no width", DesktopFit.decide(0, 1120.0, 2.75f).toString())
+        assertEquals("skipped: no content width", DesktopFit.decide(1080, null, 2.75f).toString())
+        assertEquals("skipped: no current scale", DesktopFit.decide(1080, 1120.0, Float.NaN).toString())
+        assertEquals("skipped: already fits (factor 1.0000)", DesktopFit.decide(1080, 1120.0, 1080 / 1120f).toString())
+        assertEquals("skipped: the content is narrower than the view (factor 3.6000)", DesktopFit.decide(1080, 300.0, 1f).toString())
+    }
 }

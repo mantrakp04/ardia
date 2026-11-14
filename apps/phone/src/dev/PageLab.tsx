@@ -109,7 +109,7 @@ function Lab() {
     setResults((all) => [...all, line]);
   }, []);
 
-  const note = useCallback((line: string) => setLog((lines) => [`${new Date().toTimeString().slice(0, 8)} ${line}`, ...lines].slice(0, 14)), []);
+  const note = useCallback((line: string) => setLog((lines) => [`${new Date().toTimeString().slice(0, 8)} ${line}`, ...lines].slice(0, 40)), []);
   const run = useCallback(
     (label: string, work: () => Promise<unknown>) => {
       work().then(
@@ -137,6 +137,10 @@ function Lab() {
         case "page.popup":
           setPopup({ pageId: event.pageId, popupId: event.popupId, url: event.url });
           note(`popup from ${event.pageId} ${event.url} gesture=${event.isUserGesture}`);
+          return;
+        case "page.desktop":
+          console.log(event.line);
+          note(event.line.replace("PAGELAB desktop ", "desktop "));
           return;
         case "pages.privateSessionEnded":
           note("private session ended");

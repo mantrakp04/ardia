@@ -65,6 +65,8 @@ class DevelopmentWebViewEngine(
 
     override var onPrivateBrowsingEnded: (() -> Unit)? = null
 
+    var desktopTrace: ((pageId: String, line: String) -> Unit)? = null
+
     override var isInspectable: Boolean = false
         set(value) {
             if (field == value) return

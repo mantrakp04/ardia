@@ -76,7 +76,10 @@ internal class WebViewPage(
     private var systemUserAgent = ""
     private var filterHandler: ScriptHandler? = null
     private var desktopViewportHandler: ScriptHandler? = null
-    private var fitsWidthAfterLoad = false
+    private var desktopRewritesShown = 0
+    private var desktopStartShown = false
+    private var desktopFinishedWidth: Double? = null
+    private var desktopLoad = 0
     private var scrollAtDiscard: Int? = null
     private var restoringScroll: Int? = null
     private var installedStart: List<String>? = null
@@ -255,7 +258,6 @@ internal class WebViewPage(
         update { it.copy(isDesktopSite = enabled) }
         val web = webView ?: return
         applyUserAgent(web)
-        fitsWidthAfterLoad = enabled
         reload()
     }
 
@@ -550,6 +552,11 @@ internal class WebViewPage(
         if (web !== webView) return
         filterPageUrl = url
         reportsContent = false
+        desktopLoad += 1
+        desktopRewritesShown = 0
+        desktopStartShown = false
+        desktopFinishedWidth = null
+        if (desktopSite) traceDesktop("start ${viewNumbers(web)}")
         val changed = installFilterScripts(web, url)
         if (!engine.supportsDocumentStartScripts) {
             web.evaluateJavascript(PageScripts.mainFrameOnly(engine.scripts.nightShade), null)
@@ -601,9 +608,10 @@ internal class WebViewPage(
             )
         }
         readPageLook(web)
-        if (fitsWidthAfterLoad) {
-            fitsWidthAfterLoad = false
-            web.postDelayed({ fitDesktopWidth(web) }, FIT_WIDTH_DELAY_MILLIS)
+        if (desktopSite) {
+            val load = desktopLoad
+            web.postDelayed({ if (load == desktopLoad) fitDesktopWidth(web, DESKTOP_FINISHED) }, FIT_WIDTH_DELAY_MILLIS)
+            web.postDelayed({ if (load == desktopLoad) fitDesktopWidth(web, DESKTOP_LATER) }, FIT_WIDTH_LATER_MILLIS)
         }
         restoringScroll?.let { atDiscard ->
             restoringScroll = null
@@ -864,15 +872,63 @@ internal class WebViewPage(
         }
     }
 
-    private fun fitDesktopWidth(web: WebView) {
+    private fun fitDesktopWidth(web: WebView, stage: String) {
         if (web !== webView || !desktopSite) return
-        web.evaluateJavascript(DesktopFit.CONTENT_WIDTH_SCRIPT) { raw ->
+        web.evaluateJavascript(DesktopFit.MEASURE_SCRIPT) { raw ->
             if (web !== webView || !desktopSite) return@evaluateJavascript
-            val contentWidth = DesktopFit.contentWidth(raw) ?: return@evaluateJavascript
+            val measured = PageScripts.decodeEvaluationResult(raw)?.let { runCatching { JSONObject(it) }.getOrNull() }
+            val contentWidth = measured?.let { maxOf(it.optDouble("rootWidth", 0.0), it.optDouble("bodyWidth", 0.0)) }?.takeIf { it > 0.0 }
+            if (measured != null) traceMeasured(web, stage, measured)
+            val grownFrom = desktopFinishedWidth
+            if (stage == DESKTOP_FINISHED) desktopFinishedWidth = contentWidth
             @Suppress("DEPRECATION")
-            val factor = DesktopFit.zoomFactor(web.width, contentWidth, web.scale) ?: return@evaluateJavascript
-            web.zoomBy(factor)
+            val decision = if (stage != DESKTOP_FINISHED && grownFrom != null && contentWidth != null && contentWidth <= grownFrom) {
+                DesktopFit.Decision.Skip("the content did not grow after pageFinished")
+            } else {
+                DesktopFit.decide(web.width, contentWidth, web.scale)
+            }
+            if (decision is DesktopFit.Decision.Zoom) web.zoomBy(decision.factor)
+            traceDesktop("fit at $stage: content ${contentWidth?.let { number(it, 0) } ?: "unknown"} css px, ${viewNumbers(web)} -> $decision")
         }
+    }
+
+    private fun traceMeasured(web: WebView, stage: String, measured: JSONObject) {
+        if (engine.desktopTrace == null) return
+        val trace = measured.optJSONObject("trace")
+        val start = trace?.optJSONObject("start")
+        if (start != null && !desktopStartShown) {
+            desktopStartShown = true
+            traceDesktop("document start: ${pageNumbers(start)} screen ${start.opt("screenWidth")}")
+        }
+        val rewrites = trace?.optJSONArray("rewrites")
+        if (rewrites != null) {
+            while (desktopRewritesShown < rewrites.length()) {
+                val rewrite = rewrites.optJSONObject(desktopRewritesShown)
+                desktopRewritesShown += 1
+                traceDesktop("viewport tag rewritten: \"${rewrite?.optString("before")}\" -> \"${rewrite?.optString("after")}\"")
+            }
+        }
+        if (trace == null) traceDesktop("$stage: the viewport script did not run in this document")
+        val tags = measured.optJSONArray("tags")
+        val tagText = if (tags == null || tags.length() == 0) "none" else (0 until tags.length()).joinToString(" | ") { "\"${tags.optString(it)}\"" }
+        traceDesktop("$stage: ${pageNumbers(measured)} tag $tagText ${viewNumbers(web)}")
+    }
+
+    private fun pageNumbers(values: JSONObject): String {
+        fun value(key: String, digits: Int): String = if (values.isNull(key)) "null" else number(values.optDouble(key), digits)
+        return "scrollWidth ${value("rootWidth", 0)} innerWidth ${value("innerWidth", 0)} visualViewport.width ${value("viewportWidth", 1)} visualViewport.scale ${value("viewportScale", 4)}"
+    }
+
+    @Suppress("DEPRECATION")
+    private fun viewNumbers(web: WebView): String {
+        val density = web.resources.displayMetrics.density
+        return "view ${web.width}px ${number(web.width / density.toDouble(), 1)}dp density ${number(density.toDouble(), 3)} getScale ${number(web.scale.toDouble(), 4)}"
+    }
+
+    private fun number(value: Double, digits: Int): String = if (value.isFinite()) String.format(java.util.Locale.US, "%.${digits}f", value) else "$value"
+
+    private fun traceDesktop(line: String) {
+        engine.desktopTrace?.invoke(id, "PAGELAB desktop $line")
     }
 
     private fun checkRestoredScroll(web: WebView, atDiscard: Int) {
@@ -907,6 +963,9 @@ internal class WebViewPage(
         private const val LOG_TAG = "ArdiaPages"
         private const val DESKTOP_SITE_KEY = "ardia.desktopSite"
         private const val FIT_WIDTH_DELAY_MILLIS = 300L
+        private const val FIT_WIDTH_LATER_MILLIS = 2_000L
+        private const val DESKTOP_FINISHED = "pageFinished"
+        private const val DESKTOP_LATER = "2 s later"
         private const val RESTORED_SCROLL_CHECK_MILLIS = 700L
         private const val PARKED_FRAMES = 3
         private const val CLIENT_REDIRECT_WINDOW_MILLIS = 1500L

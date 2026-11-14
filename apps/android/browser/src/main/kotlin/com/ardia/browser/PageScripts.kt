@@ -28,6 +28,13 @@ object PageScripts {
 (() => {
   if (window !== window.top || window.__ardiaDesktopViewport) return;
   window.__ardiaDesktopViewport = true;
+  const root = document.documentElement;
+  const view = window.visualViewport;
+  const trace = {
+    start: { rootWidth: root ? root.scrollWidth : 0, innerWidth: window.innerWidth, viewportWidth: view ? view.width : null, viewportScale: view ? view.scale : null, screenWidth: window.screen ? window.screen.width : null },
+    rewrites: [],
+  };
+  window.__ardiaDesktopTrace = trace;
   const isViewport = (node) => node.nodeType === 1 && node.tagName === "META" && (node.getAttribute("name") || "").toLowerCase() === "viewport";
   const desktopContent = (declared) => {
     const width = /(?:^|[,;\s])width\s*=\s*(\d+)/i.exec(declared || "");
@@ -39,7 +46,9 @@ object PageScripts {
   const pin = (meta) => {
     const content = meta.getAttribute("content") || "";
     const wanted = desktopContent(content);
-    if (content !== wanted) meta.setAttribute("content", wanted);
+    if (content === wanted) return;
+    if (trace.rewrites.length < 20) trace.rewrites.push({ before: content, after: wanted });
+    meta.setAttribute("content", wanted);
   };
   new MutationObserver((records) => {
     for (const record of records) {
