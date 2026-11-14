@@ -199,3 +199,23 @@ test("a session that ends while its tab is in the background stops being left pa
   media.setNowPlaying(b, null);
   assert.equal(M().leftPaused[b], undefined);
 });
+
+test("the countdown follows a looping video back to its start, and the loop is counted for telemetry", async () => {
+  const { takeMediaPositionCounts } = await import("../telemetry/mediaPositionReports.ts");
+  S().hydrate({});
+  const w = S().createWindow({ url: "a.com" });
+  const b = S().newTab(w, { url: "b.com", background: true });
+  takeMediaPositionCounts();
+  media.setNowPlaying(b, report({ position: 1, duration: 12, timestamp: 0 }));
+  assert.equal(media.positionOf(M().sessions[b], 12_000), 12, "a stale report pins the countdown at the end");
+
+  media.setNowPlaying(b, report({ position: 0.4, duration: 12, timestamp: 11_500 }));
+  assert.equal(media.positionOf(M().sessions[b], 12_000), 0.9, "the page's loop report restarts it");
+  assert.deepEqual(takeMediaPositionCounts(), { media_position_rewinds: 1, media_reports_past_end: 0 });
+
+  media.setNowPlaying(b, report({ position: 0.2, duration: 12, timestamp: 30_000 }));
+  assert.deepEqual(takeMediaPositionCounts(), { media_position_rewinds: 1, media_reports_past_end: 1 }, "a report that came after the countdown ran out");
+
+  media.seekTo(b, M().sessions[b], 0);
+  assert.deepEqual(takeMediaPositionCounts(), { media_position_rewinds: 0, media_reports_past_end: 0 }, "the card's own seek isn't a page report");
+});

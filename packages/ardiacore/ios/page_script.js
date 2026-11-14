@@ -136,6 +136,7 @@
   const session = navigator.mediaSession;
   const actions = new Map();
   let positionState = null;
+  let positionAnchor = null;
   const listening = new WeakSet();
   const LISTEN_TRIES = 20;
   const playingUnmuted = (m) => !m.paused && !m.ended && !m.muted && m.volume > 0;
@@ -184,34 +185,50 @@
     const size = (a) => Math.max(0, ...String(a.sizes || "0x0").split(/\s+/).map((s) => parseInt(s, 10) || 0));
     return absolute([...art].sort((a, b) => size(b) - size(a))[0].src);
   };
+  const POSITION_DRIFT_SECONDS = 1;
+  const anchorPosition = (state, now) => ({ position: state.position ?? 0, rate: state.playbackRate ?? 1, duration: state.duration, at: now, playing: null });
+  const advanceAnchor = (anchor, playing, now) => {
+    const position = anchor.position + ((anchor.playing ?? playing) ? ((now - anchor.at) / 1000) * anchor.rate : 0);
+    return { ...anchor, position: anchor.duration > 0 ? Math.max(0, Math.min(position, anchor.duration)) : Math.max(0, position), at: now, playing };
+  };
+  const expectedPosition = (sent, now) => sent.position + (sent.playbackState === "playing" ? ((now - sent.timestamp) / 1000) * (sent.playbackRate || 1) : 0);
+  const positionDrifted = (sent, state, now) => !!sent && !!state && Math.abs(state.position - expectedPosition(sent, now)) > POSITION_DRIFT_SECONDS;
+  const playbackStateOf = (el) => {
+    const sessionState = session ? session.playbackState : "none";
+    return sessionState !== "none" ? sessionState : el ? (el.paused || el.ended ? "paused" : "playing") : "none";
+  };
+  const settleAnchor = (playbackState) => positionAnchor && (positionAnchor = advanceAnchor(positionAnchor, playbackState === "playing", Date.now()));
   let lastNowPlaying = "";
+  let lastSent = null;
   const reportNowPlaying = later(() => {
     const el = pickMedia();
     const md = session && session.metadata;
     let state = null;
     if (el || md) {
       const duration = positionState?.duration ?? el?.duration;
-      const sessionState = session ? session.playbackState : "none";
+      const playbackState = playbackStateOf(el);
       state = {
         frame,
         title: md?.title || document.title || "",
         artist: md?.artist || "",
         album: md?.album || "",
         artwork: artworkOf(md),
-        playbackState: sessionState !== "none" ? sessionState : el ? (el.paused || el.ended ? "paused" : "playing") : "none",
-        position: positionState?.position ?? el?.currentTime ?? 0,
+        playbackState,
+        position: settleAnchor(playbackState)?.position ?? el?.currentTime ?? 0,
         duration: Number.isFinite(duration) ? duration : null,
-        playbackRate: positionState?.playbackRate ?? el?.playbackRate ?? 1,
+        playbackRate: positionAnchor ? positionAnchor.rate : (el?.playbackRate ?? 1),
         hasVideo: !!el && el.tagName === "VIDEO" && el.videoWidth > 0,
         actions: [...actions.keys()],
-        controllable: !!el && heard.has(el) && (sessionState !== "none" || !oneShot(el)),
+        controllable: !!el && heard.has(el) && ((session ? session.playbackState : "none") !== "none" || !oneShot(el)),
       };
       if (!state.title && !el) state = null;
     }
-    const json = serialize(state && { ...state, position: Math.round(state.position) });
-    if (json === lastNowPlaying) return;
+    const now = Date.now();
+    const json = serialize(state && { ...state, position: 0 });
+    if (json === lastNowPlaying && !positionDrifted(lastSent, state, now)) return;
     lastNowPlaying = json;
-    send("nowPlaying", state && { ...state, timestamp: Date.now() });
+    lastSent = state && { ...state, timestamp: now };
+    send("nowPlaying", lastSent);
   }, 100);
   let blockAutoplay = false;
   let pipTrace = false;
@@ -220,6 +237,7 @@
   const onMediaEvent = (e) => {
     const m = e.target;
     if (!(m instanceof HTMLMediaElement)) return;
+    settleAnchor(playbackStateOf(pickMedia()));
     if (e.type === "play" || e.type === "playing") playingMedia.add(m);
     else if (e.type === "pause" || e.type === "ended" || e.type === "emptied") playingMedia.delete(m);
     if (blockAutoplay && e.type === "play" && !(navigator.userActivation && navigator.userActivation.hasBeenActive)) {
@@ -271,6 +289,7 @@
         ...d,
         set(value) {
           d.set.call(this, value);
+          settleAnchor(playbackStateOf(pickMedia()));
           reportNowPlaying();
         },
       });
@@ -292,6 +311,7 @@
     const setPositionState = proto.setPositionState;
     proto.setPositionState = function (state) {
       positionState = state || null;
+      positionAnchor = state ? anchorPosition(state, Date.now()) : null;
       reportNowPlaying();
       return setPositionState.apply(this, arguments);
     };
