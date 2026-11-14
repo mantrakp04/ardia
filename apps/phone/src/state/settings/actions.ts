@@ -12,7 +12,7 @@ import { showToast } from "../toasts/store";
 import { clearArchivedTabs, currentTabs, setAutoArchiveInterval } from "../tabs/store";
 import type { AutoArchiveInterval } from "../tabs/tabModels";
 import { closeSettings } from "./nav";
-import type { ColorChoice, NightShadeMode, Preferences } from "./preferences";
+import type { ColorChoice, NightShadeMode, Preferences, SwipeNavigationMode } from "./preferences";
 import { clearSince, exportableUrls, websiteDataKinds, type ClearChoice, type ClearRange } from "./settingsRules";
 import { currentPreferences, setPreference } from "./store";
 
@@ -55,6 +55,8 @@ export function setSearchEngine(id: string) {
 
 export const setSearchSuggestions = (on: boolean) => setPreference("searchSuggestions", on);
 export const setAutoOpenKeyboard = (on: boolean) => setPreference("autoOpensKeyboard", on);
+export const setSwipeNavigation = (mode: SwipeNavigationMode) => setPreference("swipeNavigation", mode);
+export const setCollapsesBottomBar = (on: boolean) => setPreference("collapsesBottomBar", on);
 export const setColorChoice = (choice: ColorChoice) => setPreference("colorChoice", choice);
 export const setArchiveInterval = (interval: AutoArchiveInterval) => setAutoArchiveInterval(interval);
 

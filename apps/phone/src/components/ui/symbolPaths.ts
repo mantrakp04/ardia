@@ -1,4 +1,4 @@
-export type SymbolLayer = { d: string; stroke?: number; fill?: boolean; evenOdd?: boolean; rotate?: number };
+export type SymbolLayer = { d: string; stroke?: number; fill?: boolean; evenOdd?: boolean; rotate?: number; scale?: number; shift?: number };
 
 const STROKE = 1.9;
 const BOLD = 2.1;
@@ -216,6 +216,25 @@ export const SYMBOLS = {
   ],
   equalCircleFill: [{ d: circle(12, 12, 10) + roundRect(7.3, 8.8, 9.4, 2, 1) + roundRect(7.3, 13.2, 9.4, 2, 1), fill: true, evenOdd: true }],
   xmarkCircleFill: [{ d: circle(12, 12, 10) + cross(12, 12, 4.4, 1.05), fill: true, evenOdd: true }],
+  mic: [{ d: roundRect(9, 2.8, 6, 11.4, 3) + "M5.8 11a6.2 6.2 0 0 0 12.4 0" + line(12, 17.2, 12, 21), stroke: STROKE }],
+  micFill: [{ d: roundRect(8.6, 2.5, 6.8, 12, 3.4), fill: true }, { d: "M5.8 11a6.2 6.2 0 0 0 12.4 0" + line(12, 17.2, 12, 21), stroke: STROKE }],
+  stopFill: [{ d: roundRect(5.5, 5.5, 13, 13, 2.8), fill: true }],
+  platterBottomArrowDown: [
+    { d: roundRect(6, 2, 12, 20, 2.8), stroke: STROKE },
+    { d: roundRect(8.3, 14.2, 7.4, 5.4, 1.4), fill: true },
+    { d: line(12, 5.2, 12, 11.4) + polyline(9.6, 9.2, 12, 11.6, 14.4, 9.2), stroke: 1.7 },
+  ],
+  handDrawFill: [
+    { d: "M2.5 9.5c1.5-3.5 4-4.5 5-2.5s-1 4.5 1 5 4-3 5.5-3", stroke: 1.6 },
+    {
+      d: roundRect(6.9, 4.6, 2.6, 10, 1.3) + roundRect(9.9, 2.8, 2.6, 11, 1.3) + roundRect(12.9, 3.6, 2.6, 10, 1.3) + roundRect(15.9, 6, 2.4, 8.5, 1.2) + roundRect(6.9, 9.8, 11.4, 11.7, 4.6),
+      fill: true,
+      rotate: -15,
+      scale: 0.62,
+      shift: 4.5,
+    },
+    { d: line(4.39, 17.1, 7.62, 14.58), stroke: 2.5, rotate: -15, scale: 0.62, shift: 4.5 },
+  ],
 } satisfies Record<string, SymbolLayer[]>;
 
 export type SymbolName = keyof typeof SYMBOLS;

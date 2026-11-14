@@ -164,6 +164,8 @@ export const settingsTint = {
   clearData: "#FF5A5F",
   export: "#0153FF",
   onboarding: "#FF901A",
+  swipe: "#458AFF",
+  bottomBar: "#30B0C7",
 } as const;
 
 export const trayShadow = { opacity: 0.14, radius: 24, offsetY: -4, elevation: 12 } as const;

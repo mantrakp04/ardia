@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { setBlockingCategory, setDefaultNightShade, setSearchEngine, useBlocking, useEngines } from "../../state/settings/actions";
+import { setBlockingCategory, setCollapsesBottomBar, setDefaultNightShade, setSwipeNavigation, setSearchEngine, useBlocking, useEngines } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { popSettings, pushSettings } from "../../state/settings/nav";
 import { formatNumber } from "../../state/settings/settingsRules";
@@ -7,6 +7,12 @@ import { font, settingsLayout, settingsTint, Symbol, useTheme } from "../ui";
 import { Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
 import { useSyncEnabled, useSyncView } from "../../state/sync/hooks";
 import { syncedEngineName } from "../../state/sync/syncRules";
+
+const SWIPE_NAVIGATION = [
+  { id: "anywhere" as const, title: "From Anywhere" },
+  { id: "screenEdges" as const, title: "From Screen Edges" },
+  { id: "disabled" as const, title: "Off" },
+];
 
 const NIGHT_SHADE = [
   { id: "disabled" as const, title: "Off" },
@@ -56,6 +62,8 @@ export function SiteSettingsPage() {
   const nightShade = useEngines((s) => s.nightShade);
   const enabledLists = state?.lists.filter((list) => list.isEnabled).length ?? 0;
   const trusted = state?.exemptHosts.length ?? 0;
+  const swipe = usePreferences((p) => p.swipeNavigation);
+  const collapses = usePreferences((p) => p.collapsesBottomBar);
   return (
     <SettingsPage title="Site Settings" onBack={popSettings}>
       <Group>
@@ -73,7 +81,23 @@ export function SiteSettingsPage() {
         <NavRow title="Trusted Sites" icon="checkmarkShield" tint={settingsTint.green} value={trusted ? String(trusted) : "None"} onPress={() => pushSettings({ page: "trustedSites" })} />
       </Group>
       <Group footer="Change one site from its page menu.">
-        <PickerRow title="Night Shade" icon="moonFill" tint={settingsTint.nightShade} options={NIGHT_SHADE} selected={nightShade} onSelect={setDefaultNightShade} />
+        <PickerRow title="Night Shade" icon="moonFill" tint={settingsTint.nightShade} options={NIGHT_SHADE} selected={nightShade} divider onSelect={setDefaultNightShade} />
+        <PickerRow
+          title="Swipe to Navigate"
+          icon="handDrawFill"
+          tint={settingsTint.swipe}
+          options={SWIPE_NAVIGATION}
+          selected={swipe}
+          divider
+          onSelect={setSwipeNavigation}
+        />
+        <ToggleRow
+          title="Collapse Bottom Bar"
+          icon="platterBottomArrowDown"
+          tint={settingsTint.bottomBar}
+          value={collapses}
+          onChange={setCollapsesBottomBar}
+        />
       </Group>
     </SettingsPage>
   );

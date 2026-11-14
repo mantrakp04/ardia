@@ -175,7 +175,7 @@ function Blocking() {
 const TIPS: { icon: SymbolName; text: string }[] = [
   { icon: "plus", text: "Tap + to search." },
   { icon: "squareOnSquare", text: "Flick a tab up to close it." },
-  { icon: "chevronLeft", text: "Swipe the bar to switch tabs." },
+  { icon: "handDrawFill", text: "Swipe a page to go back." },
   { icon: "archivebox", text: "Old tabs archive after a day." },
 ];
 

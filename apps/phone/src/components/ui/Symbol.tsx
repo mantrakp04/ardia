@@ -15,6 +15,8 @@ export function Symbol({ name, size, color }: { name: SymbolName; size: number; 
           strokeLinecap="round"
           strokeLinejoin="round"
           rotation={"rotate" in layer ? layer.rotate : 0}
+          scale={"scale" in layer ? layer.scale : 1}
+          translate={"shift" in layer ? [layer.shift ?? 0, layer.shift ?? 0] : undefined}
           origin="12, 12"
         />
       ))}
