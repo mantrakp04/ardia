@@ -17,12 +17,24 @@ class FilterListsTest {
         val ubo = setOf("ublock-filters", "ublock-badware", "ublock-privacy", "ublock-unbreak", "ublock-quick-fixes", "easylist", "easyprivacy", "urlhaus-1", "plowe-0")
         assertEquals(ubo, catalog.lists.filter { !it.off }.map { it.id }.toSet())
         assertEquals(ubo + "fanboy-cookiemonster", catalog.defaultSelection(listOf("en-US"), isMobile = false))
-        assertEquals(ubo + setOf("fanboy-cookiemonster", "DEU-0", "adguard-mobile"), catalog.defaultSelection(listOf("de-DE", "en-GB"), isMobile = true))
+        assertEquals(ubo - FilterListCatalog.OVER_PHONE_BUDGET + setOf("fanboy-cookiemonster", "DEU-0", "adguard-mobile"), catalog.defaultSelection(listOf("de-DE", "en-GB"), isMobile = true))
         assertTrue("spa-1" in catalog.defaultSelection(listOf("pt-BR"), isMobile = false))
         assertTrue(catalog.lists.all { entry -> entry.urls.isNotEmpty() && entry.urls.all { it.startsWith("https://") } })
         assertEquals(BlockingCategory.COOKIE_BANNERS, catalog.lists.first { it.id == "fanboy-cookiemonster" }.category)
         assertEquals(BlockingCategory.TRACKERS, catalog.lists.first { it.id == "easyprivacy" }.category)
         assertEquals(BlockingCategory.ADS, catalog.lists.first { it.id == "easylist" }.category)
+    }
+
+    @Test
+    fun aPhoneThatSavedTheOldDefaultsDropsTheListOverItsBudgetOnceAndKeepsALaterChoice() {
+        Fixture().use { fixture ->
+            fixture.store.setStrings(FilterLists.KEY_SELECTION, listOf("easylist", "urlhaus-1"))
+            val first = fixture.lists()
+            assertEquals(listOf("easylist"), fixture.store.strings(FilterLists.KEY_SELECTION))
+            runBlocking { first.setEnabled("urlhaus-1", true).join() }
+            fixture.lists()
+            assertEquals(listOf("easylist", "urlhaus-1"), fixture.store.strings(FilterLists.KEY_SELECTION))
+        }
     }
 
     @Test

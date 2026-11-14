@@ -63,11 +63,13 @@ data class FilterListCatalog(val ubo: String, val lists: List<Entry>) {
             if (lang != null && lang.any { it in codes }) selection += entry.id
             if (isMobile && entry.ua == "mobile") selection += entry.id
         }
+        if (isMobile) selection -= OVER_PHONE_BUDGET
         return selection
     }
 
     companion object {
         val ALWAYS_ON: Set<String> = setOf("fanboy-cookiemonster")
+        val OVER_PHONE_BUDGET: Set<String> = setOf("urlhaus-1")
 
         val bundled: FilterListCatalog by lazy {
             val stream = FilterListCatalog::class.java.getResourceAsStream("/com/ardia/blocking/FilterListCatalog.json")

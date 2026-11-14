@@ -156,6 +156,10 @@ class FilterLists(
         } else {
             catalog.defaultSelection(languages, isMobile).toMutableSet().also { store.setStrings(KEY_SELECTION, it.sorted()) }
         }
+        if (isMobile && store.boolean(KEY_PHONE_DEFAULTS) != true) {
+            if (selection.removeAll(FilterListCatalog.OVER_PHONE_BUDGET)) store.setStrings(KEY_SELECTION, selection.sorted())
+            store.setBoolean(KEY_PHONE_DEFAULTS, true)
+        }
         custom = store.string(KEY_CUSTOM)?.let { text ->
             runCatching { blockingJson.decodeFromString(ListSerializer(CustomFilterList.serializer()), text) }.getOrNull()
         }.orEmpty().toMutableList()
@@ -620,6 +624,7 @@ class FilterLists(
         const val KEY_SELECTION = "filters.selection"
         const val KEY_CUSTOM = "filters.custom"
         const val KEY_MINE = "filters.myFilters"
+        const val KEY_PHONE_DEFAULTS = "filters.phoneDefaults"
         const val MAX_LIST_BYTES = 16_000_000
         private const val DAY_MILLIS = 86_400_000L
 
