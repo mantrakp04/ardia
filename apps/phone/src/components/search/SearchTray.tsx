@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
 import { menuOpenedHaptic, trayRowActions } from "../../state/browse/tabMenus";
@@ -7,7 +7,7 @@ import { useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, us
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
-import { browseLayout, capsule, font, ink, Menu, radius, rolesFor, space, springs, Symbol, tabsInk, tabsLayout, trayShadow, useTheme } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, radius, rolesFor, space, springs, Symbol, tabsInk, tabsLayout, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { useBottomLift } from "./useKeyboardHeight";
 
@@ -72,9 +72,7 @@ function TrayField() {
   const initialText = useSearchInitialText();
   const text = useSearchText();
   const input = useRef<TextInput>(null);
-  const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(
-    initialText ? { start: 0, end: initialText.length } : undefined,
-  );
+  const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(initialText ? { start: 0, end: initialText.length } : undefined);
 
   useEffect(() => {
     const focus = setTimeout(() => input.current?.focus(), 0);
@@ -146,7 +144,12 @@ function TrayRows() {
     menuOpenedHaptic();
     setMenu({ row, y });
   };
-  const shown = keyboard ? null : wholeRowsHeight(rows.map((row) => bottoms[row.key] ?? 0), room);
+  const shown = keyboard
+    ? null
+    : wholeRowsHeight(
+        rows.map((row) => bottoms[row.key] ?? 0),
+        room,
+      );
   if (incognito && !typed.trim()) {
     return (
       <View style={[styles.rows, styles.incognitoNote]}>
@@ -175,17 +178,15 @@ function TrayRows() {
         ))}
       </ScrollView>
       {menu ? (
-        <Modal transparent animationType="none" onRequestClose={() => setMenu(null)}>
-          <Menu
-            items={trayRowActions(menu.row).map((action) => ({ label: action.label, icon: action.icon, onPress: action.run }))}
-            place={{
-              top: Math.max(space.l, Math.min(menu.y, window.height - tabsLayout.cardMenuHeight)),
-              left: space.xl,
-              width: Math.min(tabsLayout.menuWidth, window.width - space.xl * 2),
-            }}
-            onDismiss={() => setMenu(null)}
-          />
-        </Modal>
+        <FloatingMenu
+          items={trayRowActions(menu.row).map((action) => ({ label: action.label, icon: action.icon, onPress: action.run }))}
+          place={{
+            top: Math.max(space.l, Math.min(menu.y, window.height - tabsLayout.cardMenuHeight)),
+            left: space.xl,
+            width: Math.min(tabsLayout.menuWidth, window.width - space.xl * 2),
+          }}
+          onDismiss={() => setMenu(null)}
+        />
       ) : null}
     </View>
   );
@@ -222,7 +223,15 @@ const styles = StyleSheet.create({
   input: { flex: 1, paddingVertical: 0, minHeight: browseLayout.searchFieldHeight },
   accessory: { width: browseLayout.accessory.width, height: browseLayout.accessory.height, alignItems: "center", justifyContent: "center" },
   rows: { flex: 1 },
-  incognito: { flexDirection: "row", alignItems: "center", gap: space.xs + 2, minWidth: 36, minHeight: 40, justifyContent: "flex-end", paddingLeft: space.xs + 2 },
+  incognito: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.xs + 2,
+    minWidth: 36,
+    minHeight: 40,
+    justifyContent: "flex-end",
+    paddingLeft: space.xs + 2,
+  },
   incognitoNote: { alignItems: "center", paddingTop: space.huge },
   medium: { fontWeight: "500" },
   rowsContent: { paddingHorizontal: space.s, paddingBottom: space.s },

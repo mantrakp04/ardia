@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BackHandler, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { BackHandler, Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { tabsMotion } from "./motion";
 import { Symbol } from "./Symbol";
@@ -57,6 +57,14 @@ export function Menu({ items, place, onDismiss }: Props) {
         })}
       </Animated.View>
     </View>
+  );
+}
+
+export function FloatingMenu(props: Props) {
+  return (
+    <Modal transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={props.onDismiss}>
+      <Menu {...props} />
+    </Modal>
   );
 }
 
