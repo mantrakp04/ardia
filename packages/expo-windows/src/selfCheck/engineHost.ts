@@ -18,6 +18,7 @@ const OTHER_WINDOW = "self-check-other-window";
 const SHOWN_AT = { unit: "px", x: 40, y: 60, width: 300, height: 240 };
 type KeyboardInfo = { keyboardPage?: unknown; keyboardMayMove?: unknown; keyboardWanted?: unknown };
 const keyboardInfo = () => hostCall<KeyboardInfo>("host.info");
+const focusAsked = async () => ((await keyboardInfo()).keyboardMayMove === true ? {} : { background: true });
 const PAGE_TITLE = "ardia self check";
 const PAGE_URL = `data:text/html,<title>${PAGE_TITLE}</title><p>the engine loaded this page</p>`;
 const PAGE_PLACE = { x: 40, y: 60, width: 320, height: 240 };
@@ -196,12 +197,14 @@ const withEngine: Check[] = [
       const made = await hostCall<{ tab?: unknown }>("tab.create", { key: SECOND_PAGE_KEY, url: PAGE_URL, profile: "" }, windowId);
       expectTrue(typeof made.tab === "number" && made.tab > 0, `tab.create said ${JSON.stringify(made)}`);
       await hostCall("tab.show", { key: PAGE_KEY, visible: true, ...SHOWN_AT }, windowId);
-      await hostCall("tab.call", { key: PAGE_KEY, method: "focus" });
+      const asked = await focusAsked();
+      await hostCall("tab.call", { key: PAGE_KEY, method: "focus", ...asked });
       const before = await keyboardInfo();
       await hostCall("tab.show", { key: PAGE_KEY, visible: false }, windowId);
       await hostCall("tab.show", { key: SECOND_PAGE_KEY, visible: true, ...SHOWN_AT }, windowId);
       const shown = await keyboardInfo();
-      await hostCall("tab.call", { key: SECOND_PAGE_KEY, method: "focus", follow: true });
+      expectTrue(shown.keyboardPage !== SECOND_PAGE_KEY, "the second page took the keyboard by only showing");
+      await hostCall("tab.call", { key: SECOND_PAGE_KEY, method: "focus", follow: true, ...asked });
       const followed = await keyboardInfo();
       if (before.keyboardMayMove === true) {
         expectEqual(before.keyboardPage, PAGE_KEY, "the keyboard after the first page was focused");
@@ -228,7 +231,7 @@ const withEngine: Check[] = [
         expectEqual(fieldFocusedIn(OTHER_WINDOW), true, "the field's own window");
         expectEqual(fieldFocusedIn(windowId), false, "another window while that field is focused");
         await hostCall("tab.show", { key: PAGE_KEY, visible: true, ...SHOWN_AT }, windowId);
-        await hostCall("tab.call", { key: PAGE_KEY, method: "focus", follow: true });
+        await hostCall("tab.call", { key: PAGE_KEY, method: "focus", follow: true, ...(await focusAsked()) });
         const info = await keyboardInfo();
         if (info.keyboardMayMove === true) expectEqual(info.keyboardPage, PAGE_KEY, "the keyboard after a follow in this window");
         else expectEqual(info.keyboardWanted, [PAGE_KEY], "the focus kept for when the app is in front");

@@ -956,7 +956,7 @@ void Host::GiveKeyboard(Browser* browser,
     return;
   }
   if (background || !KeyboardMayMove()) {
-    if (!ardiacore::BackgroundInstance()) {
+    if (background || !ardiacore::BackgroundInstance()) {
       keyboard_wanted_[parent] = state->key();
     }
     return;
