@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import Animated, { useReducedMotion, useSharedValue, withSpring, type EntryAnimationsValues, type ExitAnimationsValues, type LayoutAnimation, type SharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PinnedTile, SyncedProfile } from "../../state/sync/store";
 import { Switcher, Tiles, Unavailable } from "./SpacesParts";
@@ -28,6 +29,7 @@ import {
   spacesLayout,
   syncInk,
   tabsLayout,
+  tabsMotion,
   useTheme,
   type MenuItem,
   type SymbolName,
@@ -64,7 +66,13 @@ export function SpacesView() {
   const contrast = useIncreasedContrast();
   const tone = useMemo(() => spaceTone(profile, theme.dark, contrast, PROFILE_PRESETS, DEFAULT_PROFILE_COLOR), [profile, theme.dark, contrast]);
   const banner = syncBanner(status);
+  const reduceMotion = useReducedMotion();
+  const heading = useSharedValue(1);
+  const slides = useMemo(() => pageSlides(heading), [heading]);
   const choose = (id: string) => {
+    const from = view.profiles.findIndex((p) => p.syncId === profile?.syncId);
+    const to = view.profiles.findIndex((p) => p.syncId === id);
+    heading.value = to >= from ? 1 : -1;
     setChosen(id);
     selectProfile(id);
   };
@@ -91,7 +99,14 @@ export function SpacesView() {
           </View>
         ) : null}
         {profile ? (
-          <SpacePage key={profile.syncId} profile={profile} onMenu={setMenu} bottom={view.profiles.length > 1 ? 0 : insets.bottom} />
+          <Animated.View
+            key={profile.syncId}
+            style={styles.fill}
+            entering={reduceMotion ? undefined : slides.entering}
+            exiting={reduceMotion ? undefined : slides.exiting}
+          >
+            <SpacePage profile={profile} onMenu={setMenu} bottom={view.profiles.length > 1 ? 0 : insets.bottom} />
+          </Animated.View>
         ) : (
           <Unavailable isOff={status.phase === "off"} />
         )}
@@ -107,6 +122,24 @@ export function SpacesView() {
       ) : null}
     </View>
   );
+}
+
+function pageSlides(heading: SharedValue<number>) {
+  const entering = (values: EntryAnimationsValues): LayoutAnimation => {
+    "worklet";
+    return {
+      initialValues: { transform: [{ translateX: heading.value * values.targetWidth }] },
+      animations: { transform: [{ translateX: withSpring(0, tabsMotion.settle) }] },
+    };
+  };
+  const exiting = (values: ExitAnimationsValues): LayoutAnimation => {
+    "worklet";
+    return {
+      initialValues: { transform: [{ translateX: 0 }] },
+      animations: { transform: [{ translateX: withSpring(-heading.value * values.currentWidth, tabsMotion.settle) }] },
+    };
+  };
+  return { entering, exiting };
 }
 
 function HeaderButton({ icon, label, onPress }: { icon: SymbolName; label: string; onPress: () => void }) {
