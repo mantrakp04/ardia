@@ -526,3 +526,12 @@ test("an old account whose keychain item couldn't be read at first is copied by 
   assert.equal(keychainItems.get(`notion:${profile}`), "legacy-notion-token");
   assert.equal(live().accounts[profile].notion.login, "Acme");
 });
+
+test("a sign-in page opens in a regular window, never in a Little Ardia window that would hand it elsewhere", () => {
+  const profile = useBrowser.getState().createProfile({ name: "Little only" });
+  const regular = useBrowser.getState().createWindow({ profileId: work });
+  const little = useBrowser.getState().createWindow({ kind: "small", profileId: profile });
+
+  assert.equal(useBrowser.getState().windows[little].kind, "small");
+  assert.equal(settingsBrowserWindow(profile), regular);
+});

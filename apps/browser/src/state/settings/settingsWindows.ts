@@ -83,13 +83,10 @@ export function openImport(browserId?: string) {
 export function settingsBrowserWindow(profileId?: string): string | null {
   const s = useBrowser.getState();
   const usable = (id: string) => !!s.windows[id] && s.windows[id]!.kind !== "private";
-  const inProfile = (id: string) => usable(id) && s.windows[id]!.profileId === profileId;
-  return (
-    (profileId ? (s.ui.focusOrder.find(inProfile) ?? s.windowOrder.find(inProfile)) : undefined) ??
-    s.ui.focusOrder.find(usable) ??
-    s.windowOrder.find(usable) ??
-    null
-  );
+  const regular = (id: string) => s.windows[id]?.kind === "main";
+  const inProfile = (id: string) => regular(id) && s.windows[id]!.profileId === profileId;
+  const first = (test: (id: string) => boolean) => s.ui.focusOrder.find(test) ?? s.windowOrder.find(test);
+  return (profileId ? first(inProfile) : undefined) ?? first(regular) ?? first(usable) ?? null;
 }
 
 export function openUrlFromSettings(url: string, profileId?: string) {
