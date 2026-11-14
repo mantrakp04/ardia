@@ -56,13 +56,18 @@ inline std::filesystem::path Ensured(std::filesystem::path directory) noexcept {
   return directory;
 }
 
+inline std::wstring const &RequestedDataDirectory() noexcept {
+  static const std::wstring requested = Environment(L"ARDIA_DATA_DIR");
+  return requested;
+}
+
 inline bool HasCustomDataDirectory() noexcept {
-  return !Environment(L"ARDIA_DATA_DIR").empty();
+  return !RequestedDataDirectory().empty();
 }
 
 inline const std::filesystem::path &DataDirectory() noexcept {
   static const std::filesystem::path directory = [] {
-    std::wstring chosen = Environment(L"ARDIA_DATA_DIR");
+    std::wstring const &chosen = RequestedDataDirectory();
     return Ensured(chosen.empty() ? UserFolder(FOLDERID_LocalAppData, L"LOCALAPPDATA") / L"Ardia" : std::filesystem::path(chosen));
   }();
   return directory;

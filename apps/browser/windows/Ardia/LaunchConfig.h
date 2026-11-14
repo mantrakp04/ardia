@@ -69,7 +69,7 @@ inline std::vector<std::string_view> const &TestKeys() noexcept {
       "loginsDelay", "loginsReleaseAfter", "cdpTabsVisible",
       "pipSelfTest", "pipHover", "fakeFullScreenMs", "shadersKeyWindow", "peekStrict", "importSecret", "importDiaBundleId", "importDiaWindows",
       "cliInstallScript", "legacySource", "legacyCrashAfter", "bangsUrl", "onboarding", "whatsNew", "telemetry",
-      "liveMock", "calendarFixture", "appMenu", "appDialog", "loginsTimeout", "externalAppLaunch",
+      "liveMock", "calendarFixture", "appMenu", "appDialog", "loginsTimeout", "externalAppLaunch", "nativeDragRefused",
   };
   return keys;
 }
@@ -165,7 +165,12 @@ inline std::vector<std::string_view> const &TestOnlyInstanceKeys() noexcept {
 
 inline std::filesystem::path ChosenConfigDirectory(bool testInstance) noexcept {
   std::wstring chosen = testInstance ? Paths::Environment(L"ARDIA_CONFIG_DIR") : std::wstring{};
-  if (!chosen.empty()) return Paths::Ensured(std::filesystem::path(chosen));
+  if (!chosen.empty()) {
+    std::filesystem::path requested{chosen};
+    std::wstring clash = TestGate::RealFolderClash({requested}, L"ARDIA_CONFIG_DIR");
+    if (clash.empty()) return Paths::Ensured(requested);
+    Note(L"ARDIA_CONFIG_DIR ignored: " + clash);
+  }
   if (Paths::HasCustomDataDirectory()) return Paths::Ensured(Paths::DataDirectory() / L"config");
   return Paths::Ensured(Paths::UserFolder(FOLDERID_RoamingAppData, L"APPDATA") / L"Ardia");
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -57,19 +58,19 @@ inline bool Overlaps(std::wstring_view a, std::wstring_view b) noexcept {
   return WithinOrSame(a, b) || WithinOrSame(b, a);
 }
 
-inline std::wstring RealFolderClash(std::filesystem::path const &data) noexcept {
+inline std::wstring RealFolderClash(std::initializer_list<std::filesystem::path> checked, std::wstring_view variable) noexcept {
   std::filesystem::path const realFolders[] = {
       Paths::UserFolder(FOLDERID_LocalAppData, L"LOCALAPPDATA") / L"Ardia",
       Paths::UserFolder(FOLDERID_RoamingAppData, L"APPDATA") / L"Ardia",
   };
-  std::filesystem::path const checked[] = {data, data / L"Chromium"};
   for (std::filesystem::path const &real : realFolders) {
     std::optional<std::wstring> canonicalReal = CanonicalPath(real);
     if (!canonicalReal) return L"the real profile folder can't be resolved";
     for (std::filesystem::path const &mine : checked) {
+      if (!mine.is_absolute()) return std::wstring{variable} + L" is not an absolute path";
       std::optional<std::wstring> canonicalMine = CanonicalPath(mine);
-      if (!canonicalMine) return L"ARDIA_DATA_DIR can't be resolved on a local volume";
-      if (Overlaps(*canonicalMine, *canonicalReal)) return L"ARDIA_DATA_DIR is or overlaps the real profile folder";
+      if (!canonicalMine) return std::wstring{variable} + L" can't be resolved on a local volume";
+      if (Overlaps(*canonicalMine, *canonicalReal)) return std::wstring{variable} + L" is or overlaps the real profile folder";
     }
   }
   return {};
@@ -97,10 +98,10 @@ inline bool TestBuild() noexcept {
 }
 
 inline std::wstring Refusal() noexcept {
-  std::filesystem::path requested{Paths::Environment(L"ARDIA_DATA_DIR")};
+  std::filesystem::path requested{Paths::RequestedDataDirectory()};
   if (requested.empty()) return L"no scratch ARDIA_DATA_DIR";
   if (!requested.is_absolute()) return L"ARDIA_DATA_DIR is not an absolute path";
-  std::wstring clash = RealFolderClash(Paths::DataDirectory());
+  std::wstring clash = RealFolderClash({Paths::DataDirectory(), Paths::DataDirectory() / L"Chromium"}, L"ARDIA_DATA_DIR");
   if (!clash.empty()) return clash;
   if (!TestBuild()) return std::wstring{L"not a test build: no "} + TestBuildMarker + L" beside the app";
   return {};

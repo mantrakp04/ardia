@@ -706,6 +706,13 @@ app, ignores test keys. A VM script that tests an installed build with test keys
 folder first. That folder is the user's to write, like the Mac's app bundle: anyone who can drop the marker can also
 replace `ArdiaApp.dll`, and on the Mac a changed bundle is likewise no longer signed for distribution.
 
+What it guards: the unmodified build people install can't be switched into test behaviour by the environment alone,
+and a test instance never runs on the real profile folders by mistake. What it doesn't: code already running as the
+user, which can plant the marker, race the folder check with a junction, or hard-link a scratch file to a real one.
+That code can also decrypt the real profile's DPAPI secrets directly, without Ardia; the Mac's keychain ties its items
+to the signed app, and Windows has nothing like it until builds are signed or installed per machine. `ARDIA_CONFIG_DIR`
+gets the same folder check, and a folder that can't be resolved on a local volume doesn't count.
+
 Outside a test instance the launch config drops `ARDIA_TEST`, `ARDIA_TRACE`, `ARDIA_CONFIG_DIR` and the test-only
 `ARDIA_INSTANCE` keys (`updateFeed`, `importSourceDir`, `importSafariHome`), and the launch log says once why. The other
 `ARDIA_INSTANCE` keys and `ARDIA_BACKGROUND` stay instance settings, as on the Mac. The engine reads its own

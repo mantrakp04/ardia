@@ -5,7 +5,7 @@ import { test } from "node:test";
 const native = new URL("../../windows/Ardia/", import.meta.url);
 const scripts = new URL("../../../../scripts/windows/", import.meta.url);
 const ENVIRONMENT_READ = /\bGetEnvironmentVariable[AW]?\s*\(|\b_?w?getenv(?:_s)?\s*\(|\bPaths::Environment\s*\(|\bEnvironment\s*\(\s*L"/g;
-const READERS = new Set(["Paths.h", "LaunchConfig.h", "TestGate.h"]);
+const READERS = new Set(["Paths.h", "LaunchConfig.h"]);
 const source = (name) => readFileSync(new URL(name, native), "utf8");
 
 test("Windows native code reads the environment only in the launch config", () => {
@@ -32,7 +32,8 @@ test("a test instance needs an absolute scratch folder clear of the real profile
   assert.match(gate, /if \(!requested\.is_absolute\(\)\) return/);
   assert.match(gate, /FOLDERID_LocalAppData, L"LOCALAPPDATA"\) \/ L"Ardia"/);
   assert.match(gate, /FOLDERID_RoamingAppData, L"APPDATA"\) \/ L"Ardia"/);
-  assert.match(gate, /std::filesystem::path const checked\[\] = \{data, data \/ L"Chromium"\};/);
+  assert.match(gate, /RealFolderClash\(\{Paths::DataDirectory\(\), Paths::DataDirectory\(\) \/ L"Chromium"\}, L"ARDIA_DATA_DIR"\)/);
+  assert.match(source("LaunchConfig.h"), /TestGate::RealFolderClash\(\{requested\}, L"ARDIA_CONFIG_DIR"\);\n    if \(clash\.empty\(\)\) return Paths::Ensured\(requested\);/);
   assert.match(gate, /VOLUME_NAME_GUID \| FILE_NAME_NORMALIZED/);
   assert.match(gate, /if \(!TestBuild\(\)\) return/);
 });
@@ -42,6 +43,8 @@ test("the test-build marker never reaches an installer, and the harnesses that n
   assert.match(script("assemble.ps1"), /if \(\$relative -ieq "Ardia\.test-build"\) \{ continue \}/);
   assert.match(script("make-installer.ps1"), /-Filter "Ardia\.test-build"[^\n]*throw/);
   assert.match(script("installer-check.ps1"), /-Filter "Ardia\.test-build"[^\n]*throw/);
+  const smoke = script("launch-smoke.ps1");
+  for (const kind of ["no test-build marker", "a relative ARDIA_DATA_DIR", "the real profile folder", "a junction to the real profile folder"]) assert.ok(smoke.includes(`"${kind}"`), kind);
   for (const harness of ["launch-smoke.ps1", "tour.ps1"]) assert.match(script(harness), /"Ardia\.test-build"\r?\nNew-Item -ItemType File -Force -Path \$testBuild/, harness);
   assert.match(source("TestGate.h"), /constexpr wchar_t TestBuildMarker\[\] = L"Ardia\.test-build";/);
 });
