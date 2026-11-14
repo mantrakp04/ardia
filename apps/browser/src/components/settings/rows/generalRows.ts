@@ -48,7 +48,7 @@ export const generalRows = {
       rows: {
         windowsAndTabs: {
           title: "Windows and tabs",
-          description: `What you see the next time you open it. Closed windows stay in ${PLATFORM_FEATURES.menuBar ? "History › Recently Closed" : "the sidebar’s open and recently closed tabs"}.`,
+          description: `What you see the next time you open it. ${PLATFORM_FEATURES.menuBar ? "Closed windows stay in History › Recently Closed." : `${keyText("⇧⌘T")} reopens closed windows too.`}`,
           keywords: ["restore", "session", "reopen", "preserve tabs", "start fresh"],
         },
       },
