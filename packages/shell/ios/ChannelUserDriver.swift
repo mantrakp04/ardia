@@ -32,6 +32,7 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   private var showing = Showing.nothing
   private var retryTerminating: (() -> Void)?
   private(set) var installPending = false
+  var quietCheck = false
 
   init(standard: SPUStandardUserDriver, isOnChannel: @escaping (SUAppcastItem) -> Bool,
        cancelledInstaller: @escaping (SUAppcastItem) -> Void, button: ReadyUpdateButton) {
@@ -50,6 +51,7 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   }
 
   func showUpdateFound(with appcastItem: SUAppcastItem, state: SPUUserUpdateState, reply: @escaping (SPUUserUpdateChoice) -> Void) {
+    quietCheck = false
     guard isOnChannel(appcastItem) else { return drop(appcastItem, staged: state.stage == .installing, answering: reply) }
     showing = .shown(appcastItem)
     let staged = state.stage == .installing
@@ -117,7 +119,7 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   }
 
   func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {
-    guard button?.checksQuietly != true else { return }
+    guard !quietCheck, button?.checksQuietly != true else { return }
     standard.showUserInitiatedUpdateCheck(cancellation: cancellation)
   }
 
@@ -131,11 +133,16 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
 
   func showUpdateNotFoundWithError(_ error: Error, acknowledgement: @escaping () -> Void) {
     button?.checkEnded(nothingFound: true)
+    guard !quietCheck else { return acknowledgement() }
     standard.showUpdateNotFoundWithError(error, acknowledgement: acknowledgement)
   }
 
   func showUpdaterError(_ error: Error, acknowledgement: @escaping () -> Void) {
     button?.checkFailed()
+    guard !quietCheck else {
+      NSLog("Ardia: the check after a channel switch failed: \(error.localizedDescription)")
+      return acknowledgement()
+    }
     standard.showUpdaterError(error, acknowledgement: acknowledgement)
   }
 

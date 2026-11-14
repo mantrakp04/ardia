@@ -44,6 +44,7 @@ final class QuitFlow {
     guard confirmActiveDownloads() else { return .terminateCancel }
     attempt += 1
     phase = .saving(wait: nil, lateAlert: nil)
+    WindowManager.shared.flushFrameReports()
     ShellEvents.send(.app, ["type": "willQuit"])
     waitForSave()
     return .terminateLater

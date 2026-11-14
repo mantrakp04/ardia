@@ -79,6 +79,7 @@ struct Plan {
 @property(nonatomic) CVPixelBufferRef vtOutput;
 @property(nonatomic) id<MTLFXSpatialScaler> scaler API_AVAILABLE(macos(26.0));
 @property(nonatomic) id<MTLTexture> rgb;
+@property(atomic) BOOL processorQuarantined;
 @end
 
 namespace ardiacore {
@@ -88,6 +89,9 @@ std::optional<std::pair<float, float>> LumaWeights(IOSurfaceRef surface,
 simd_float4x4 YuvToRgbMatrix(float kr, float kb, bool full_range);
 void CopyColorTags(IOSurfaceRef from, IOSurfaceRef to, const gfx::ColorSpace& space);
 std::string SurfaceTags(IOSurfaceRef surface);
+bool VideoToolboxQuarantined();
+API_AVAILABLE(macos(26.0))
+void KeepQuarantinedProcessor(VTFrameProcessor* processor);
 
 API_AVAILABLE(macos(26.0))
 ArdiaVideoUpscalerKit* BuildKit(ArdiaVideoUpscalerKit* previous,
@@ -127,6 +131,7 @@ class Upscaler : public VideoUpscaler {
   base::apple::ScopedCFTypeRef<IOSurfaceRef> TakeOutputSurface(const gfx::Size& size);
   API_AVAILABLE(macos(26.0))
   void Start(const VideoUpscaleCandidate& candidate, const Plan& plan);
+  void AbandonStalledJob();
   void JobDone(uint64_t operation,
                uint64_t generation,
                std::shared_ptr<Job> job,
@@ -153,6 +158,7 @@ class Upscaler : public VideoUpscaler {
   std::shared_ptr<SetupCancel> setup_worker_;
   uint64_t job_in_flight_ = 0;
   IOSurfaceRef job_in_flight_source_ = nullptr;
+  base::TimeTicks job_in_flight_started_;
   int64_t frame_count_ = 0;
   base::apple::ScopedCFTypeRef<IOSurfaceRef> current_source_;
   std::optional<VideoKey> current_key_;

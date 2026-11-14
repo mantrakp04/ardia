@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
-const { closeNewTabBar, openFromNewTabBar, toggleNewTabBar } = await import("./newTabBar.ts");
+const { closeNewTabBar, openFromNewTabBar, showOnceOverEmptyCard, toggleNewTabBar } = await import("./newTabBar.ts");
 const { togglePinnedRows, forgetListSpots } = await import("../sidebar/movePinned.ts");
 
 const S = () => useBrowser.getState();
@@ -33,6 +33,43 @@ test("setting off: no bar, and the last tab still closes its window", () => {
   const solo = S().createWindow({ url: "https://solo.com/" });
   S().closeTab(S().windows[solo].tabIds[0]);
   assert.equal(S().windows[solo], undefined, "the last tab closes its window");
+});
+
+test("by default New Tab on an empty New Tab page opens another tab", async () => {
+  reset();
+  const { registerHeroBar } = await import("./barState.ts");
+  const { w } = windowWith("a", "b");
+  const empty = S().newTab(w, { newTabCommand: true });
+  let focused = 0;
+  const unregister = registerHeroBar(w, empty, () => void focused++);
+  assert.equal(S().settings.reuseEmptyNewTab, false);
+  assert.equal(toggleNewTabBar(w), false, "New Tab opens a tab");
+  assert.equal(focused, 0);
+  unregister();
+});
+
+test("Reuse an empty New Tab page: New Tab on an empty New Tab page focuses its field instead of stacking another empty tab", async () => {
+  reset();
+  S().updateSettings({ reuseEmptyNewTab: true });
+  const { registerHeroBar } = await import("./barState.ts");
+  const { w } = windowWith("a", "b");
+  assert.equal(toggleNewTabBar(w), false, "a page is shown: New Tab opens a tab");
+  const empty = S().newTab(w, { newTabCommand: true });
+  const count = S().windows[w].tabIds.length;
+  assert.equal(toggleNewTabBar(w), false, "no New Tab page is on screen yet");
+  let focused = 0;
+  const unregister = registerHeroBar(w, empty, () => void focused++);
+  assert.equal(toggleNewTabBar(w), true);
+  assert.equal(toggleNewTabBar(w), true);
+  assert.deepEqual([focused, S().windows[w].tabIds.length, model.activeTabId(S(), w)], [2, count, empty]);
+  S().openPanel(w, "", undefined, "field");
+  assert.equal(panel(w).open, true);
+  assert.equal(toggleNewTabBar(w), true);
+  assert.deepEqual([panel(w).open, focused, S().windows[w].tabIds.length], [false, 3, count], "an open command panel closes before the page's field takes focus");
+  assert.equal(toggleNewTabBar(w, { kind: "group", groupId: S().groupTabs([S().windows[w].tabIds[0]], { pinned: false }) }), false, "a group's New Tab still opens in the group");
+  S().navigate(empty, "https://c.com/");
+  assert.equal(toggleNewTabBar(w), false, "the tab has a page now");
+  unregister();
 });
 
 test("setting on: the bar adds nothing; closing it again leaves everything as it was", () => {
@@ -105,6 +142,23 @@ test("closing the last tab leaves an empty window whose pick fills it; ⌘W ther
   const again = model.activeTabId(S(), w);
   S().closeTab(again);
   assert.equal(S().windows[w], undefined);
+});
+
+test("⌘T right after the bar opened on its own over an empty window keeps it; the next ⌘T closes it", () => {
+  reset("commandBar");
+  const { w, ids: [a] } = windowWith("a");
+  S().closeTab(a);
+  const empty = model.activeTabId(S(), w);
+  showOnceOverEmptyCard(w, empty);
+  assert.deepEqual(panel(w).newTab, { kind: "into", tabId: empty }, "the bar shows over the empty window");
+  assert.equal(toggleNewTabBar(w), true);
+  assert.deepEqual(panel(w).newTab, { kind: "into", tabId: empty }, "⌘T keeps it");
+  toggleNewTabBar(w);
+  assert.equal(panel(w).open, false, "⌘T again closes it");
+  toggleNewTabBar(w);
+  assert.equal(panel(w).open, true);
+  toggleNewTabBar(w);
+  assert.equal(panel(w).open, false, "a bar ⌘T opened closes on the next ⌘T");
 });
 
 test("Move to Pinned: a tab goes to the pinned rows and back to where it was, in its group", () => {

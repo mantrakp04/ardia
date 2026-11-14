@@ -23,6 +23,8 @@ export type SpaceSummary = {
   pinnedCount: number;
   tabCount: number;
   theme?: string;
+  container?: number;
+  containerName?: string;
 };
 
 export type BrowserProfile = {
@@ -53,7 +55,7 @@ export type BrowserSource = {
   asksAppForTabs?: boolean;
 };
 
-export type BookmarkRole = "toolbar" | "other" | "mobile" | "menu" | "readingList" | "liveGitHubPullRequests" | "liveBitbucketPullRequests";
+export type BookmarkRole = "toolbar" | "other" | "mobile" | "menu" | "readingList" | "liveGitHubPullRequests" | "liveBitbucketPullRequests" | "split";
 
 export type BookmarkNode = {
   type: "folder" | "url";
@@ -73,9 +75,11 @@ export type ImportedTab = {
   pinned: boolean;
   customTitle?: string;
   groupId?: string;
+  splitId?: string;
   windowIndex: number;
   active: boolean;
   lastActive?: number;
+  container?: number;
 };
 
 export type ImportedTabGroup = { id: string; title: string; color: TabGroupColor | (string & {}); collapsed: boolean };
@@ -104,6 +108,7 @@ export type SpaceSuggestion = {
   pinned: BookmarkNode[];
   tabs: ImportedTab[];
   theme?: string;
+  container?: number;
 };
 
 export type ProfileSuggestion = { name: string; color?: string; avatarPath?: string };
@@ -131,6 +136,7 @@ export type ImportResult = {
   spaces: SpaceSuggestion[];
   favorites: ImportedTab[];
   favicons: ImportedFavicon[];
+  separateEssentials?: boolean;
   failed: ImportKind[];
   warnings: ImportWarning[];
 };

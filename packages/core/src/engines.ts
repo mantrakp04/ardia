@@ -29,7 +29,7 @@ export const BUILT_IN_ENGINES: readonly SearchEngine[] = [
     name: "Google",
     keyword: "google.com",
     url: "https://www.google.com/search?q=%s",
-    suggestUrl: "https://suggestqueries.google.com/complete/search?client=firefox&ie=utf-8&oe=utf-8&q=%s",
+    suggestUrl: "https://www.google.com/complete/search?client=chrome&q=%s",
   },
   { id: "bing", name: "Bing", keyword: "bing.com", url: "https://www.bing.com/search?q=%s", suggestUrl: "https://api.bing.com/osjson.aspx?query=%s" },
   {
@@ -121,9 +121,17 @@ export const suggestRequestUrl = (engine: SearchEngine, query: string) =>
 
 export const engineHost = (engine: Pick<SearchEngine, "url">) => hostOf(engine.url.replace(/%s/g, "q"));
 
+const NOT_QUERIES = new Set(["NAVIGATION", "PERSONALIZED_NAVIGATION", "CALCULATOR"]);
+
+export const suggestReplyJson = (text: string): unknown => JSON.parse(text.replace(/^\)\]\}'\s*/, ""));
+
 export function parseSuggestions(body: unknown): string[] {
   if (!Array.isArray(body) || !Array.isArray(body[1])) return [];
-  return (body[1] as unknown[]).filter((s): s is string => typeof s === "string" && s.trim() !== "").map((s) => s.trim());
+  const extras = body[4] as { "google:suggesttype"?: unknown } | undefined;
+  const types = Array.isArray(extras?.["google:suggesttype"]) ? (extras["google:suggesttype"] as unknown[]) : [];
+  return (body[1] as unknown[])
+    .filter((s, i): s is string => typeof s === "string" && s.trim() !== "" && !NOT_QUERIES.has(String(types[i])))
+    .map((s) => s.trim());
 }
 
 export type EngineInput = { name: string; keyword: string; url: string };

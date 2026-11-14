@@ -11,21 +11,6 @@ const Title = page ? "h1" : "h2";
 const CardTitle = page ? "h2" : "h3";
 
 const card = bench ? scorecardOf(bench) : null;
-const rivals = bench?.rivals ?? [];
-const named = rivals.length > 1 ? `${rivals.slice(0, -1).join(", ")} and ${rivals[rivals.length - 1]}` : (rivals[0] ?? "");
-const listOf = (items: string[]) =>
-  items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : (items[0] ?? "");
-
-const takers = card ? card.takenBy.map((t) => (card.takenBy.length > 1 ? `${t.name} ${t.count}` : t.name)) : [];
-const lede = card
-  ? [
-      `Ardia against ${named}: ${card.total} tests, same Mac, every release.`,
-      card.losses
-        ? `${listOf(takers)} ${card.takenBy.length > 1 ? "take the rest" : `takes ${card.losses === 1 ? "one" : card.losses}`}. They’re in here too.`
-        : "No asterisks.",
-    ].join(" ")
-  : "";
-
 const countAttrs = (f: Figure) => ({
   "data-bench-count": "",
   "data-bench-value": String(f.value),
@@ -46,9 +31,6 @@ const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
             <Title class="poster bb-heading" id="bench-title" data-reveal>
               {page && <span class="visually-hidden">Ardia vs Dia vs Helium: </span>}Benchmarks.
             </Title>
-            <p class="lede" data-reveal style="--i: 1">
-              {lede}
-            </p>
             {bench.sample && <p class="label sample">Sample numbers. Not measured. Dev only.</p>}
           </div>
 
@@ -82,7 +64,7 @@ const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
                         {c.verdict.figure.suffix}
                       </span>
                     ) : (
-                      <span class="fig">Tie</span>
+                      <span class:list={["fig", { word: c.verdict.word }]}>{c.verdict.word ?? "Tie"}</span>
                     )}
                     {c.verdict.photoFinish && c.verdict.figure && <span class="label photo">Photo finish</span>}
                   </p>
@@ -186,7 +168,7 @@ const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
           <li class="colophon" data-bench-land>
             <p class="label colophon-title">The small print</p>
             <p>
-              {bench.machine}, {bench.date}. {bench.versions}.
+              {bench.dated ? `${bench.machine}. ${bench.dated}.` : `${bench.machine}, ${bench.date}. ${bench.versions}.`}{bench.elsewhere && ` ${bench.elsewhere}.`}
             </p>
             <p>Every figure is a median, so one lucky run doesn’t count.</p>
             <a
@@ -210,9 +192,6 @@ const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
 }
 
 <style>
-  :global(#demo) ~ .bb {
-    margin-top: calc(var(--edge) + clamp(32px, 4vw, 64px));
-  }
   .bb {
     --bg: var(--golden);
     --wash: linear-gradient(180deg, #f0c983 0%, var(--golden) 40%, var(--golden-late) 100%);
@@ -241,13 +220,6 @@ const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
   }
   .bb-heading {
     font-size: var(--t-h2);
-  }
-  .lede {
-    margin-top: clamp(18px, 2vw, 28px);
-    max-width: 30em;
-    font-size: var(--t-body);
-    line-height: 1.5;
-    color: var(--ink-2);
   }
   .sample {
     display: inline-block;
@@ -366,6 +338,10 @@ const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
     color: var(--forest-deep);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+  .fig.word {
+    font-size: 0.62em;
+    line-height: 1;
   }
   .loss .verdict,
   .tie .verdict {

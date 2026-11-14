@@ -14,9 +14,10 @@ import { Favicon } from "../../favicon/Favicon";
 import { FormField, Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { engineVersion, widevine as widevineComponent } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
+import { AutomationRules } from "./AutomationRules";
+import { perLook } from "../../ui/tokens";
 
 const REPOSITORY = "https://github.com/mantrakp04/ardia";
-const SOURCE_NOTICE = "Ardia is free software under the GNU General Public License v3, with no warranty.";
 
 const BATTERY_SAVER_DESCRIPTIONS: Record<BatterySaverWhen, string> = {
   lowBattery: "At 20% battery or less, or in Low Power Mode, busy background tabs pause and animations slow down.",
@@ -77,6 +78,7 @@ export function AdvancedPane() {
             minWidth={190}
           />
         </Row>
+        <SettingToggle anchor="advanced.loadProfilesWhenOpened" />
       </Group>
 
       <KeepActiveSites sites={keepActiveSites} />
@@ -92,6 +94,7 @@ export function AdvancedPane() {
       </Group>
 
       <CommandLineSection />
+      <AutomationRules />
 
       <SectionHeader title="Web engine" />
       <Group>
@@ -114,7 +117,7 @@ export function AdvancedPane() {
 
       <SectionHeader title="Source and licenses" />
       <Group>
-        <Row anchor="advanced.source" description={SOURCE_NOTICE}>
+        <Row anchor="advanced.source">
           <Button title="Show on GitHub" onPress={() => openUrls([`${REPOSITORY}/tree/v${systemInfo().appVersion}`])} />
         </Row>
         <Row anchor="advanced.licenses">
@@ -147,7 +150,7 @@ function CommandLineSection() {
         <Row
           anchor="advanced.cliInstall"
           description={
-            <Text selectable size="caption" tone={cli.error && !cli.installing ? "destructive" : "textSecondary"} style={INSTALL_NOTE}>
+            <Text selectable size="caption" tone={cli.error && !cli.installing ? "destructive" : "textSecondary"} style={INSTALL_NOTE()}>
               {describeCliInstall(cli)}
             </Text>
           }
@@ -216,5 +219,5 @@ function KeepActiveSiteSheet() {
   );
 }
 
-const INSTALL_NOTE = { marginTop: space.xxs, lineHeight: lineHeight.caption } as const;
+const INSTALL_NOTE = perLook(() => ({ marginTop: space.xxs, lineHeight: lineHeight.caption }) as const);
 const ERROR = { marginTop: space.ml } as const;

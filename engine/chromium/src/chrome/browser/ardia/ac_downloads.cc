@@ -19,6 +19,8 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/browser/download/download_crx_util.h"
@@ -111,7 +113,12 @@ base::DictValue Describe(DownloadItem* item) {
                         : base::Value(download::DownloadInterruptReasonToString(
                               item->GetLastReason())))
       .Set("offTheRecord", IsOffTheRecord(item))
-      .Set("startTime", item->GetStartTime().InMillisecondsFSinceUnixEpoch());
+      .Set("startTime", item->GetStartTime().InMillisecondsFSinceUnixEpoch())
+      .Set("sha256", item->GetState() == DownloadItem::COMPLETE &&
+                             !item->GetHash().empty()
+                         ? base::Value(base::ToLowerASCII(
+                               base::HexEncode(item->GetHash())))
+                         : base::Value());
 }
 
 class DownloadsState;

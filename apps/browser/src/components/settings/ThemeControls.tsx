@@ -5,6 +5,7 @@ import type { ProfileTheme } from "../../state/browser/types";
 import { Box, capsule, Dot, ink, ProgressTrack, radius, tabularNums, Text, ThemeSwatch, useTheme } from "../ui";
 import { MiniWindow } from "./MiniWindow";
 import { settingsInk, themePreview } from "./tokens";
+import { perLook } from "../ui/tokens";
 
 export const PAD = 172;
 const KNOB = 22;
@@ -77,13 +78,13 @@ export function Preview({ shown }: { shown: ShownLook }) {
   const { look: theme, dark } = shown;
   const preview = themePreview[dark ? "dark" : "light"];
   return (
-    <ThemeBackdrop theme={theme} dark={dark} style={PREVIEW}>
+    <ThemeBackdrop theme={theme} dark={dark} style={PREVIEW()}>
       <MiniWindow size="s" layout="side" bars={PREVIEW_BARS} look={{ window: ink.clear, bar: preview.line, page: preview.card }} />
     </ThemeBackdrop>
   );
 }
 
-const PREVIEW = { height: 58, borderRadius: radius.tile, overflow: "hidden" } as const;
+const PREVIEW = perLook(() => ({ height: 58, borderRadius: radius.tile, overflow: "hidden" }) as const);
 const PREVIEW_BARS = [1, 0.7, 0.85];
 const CENTER = { alignItems: "center" } as const;
 

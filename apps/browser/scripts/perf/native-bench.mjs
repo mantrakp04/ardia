@@ -78,7 +78,7 @@
 //                   usage(), usageDelta(), footprint(): CPU, wakeups and phys_footprint per process kind
 //   Test pages      PAGE_SCRIPT (window.__ac: fcp, frame, visibility, shown), staticPage, animPage, the local server
 //   CDP             Cdp: page targets and their window.__ac
-//   App instances   prepareApp (copy, bundle, marker entitlements, re-sign), buildBundle, Instance (hidden `open -g -n`
+//   App instances   prepareBenchApp (scripts/lib/app-copy.mjs: copy, bundle, marker entitlements, re-sign), buildBundle, Instance (hidden `open -g -n`
 //                   launch, the bench-cmd.js → bench-result.json channel of bench-channel.js, marks(), quit)
 //   Phases          makeTemplate (the seeded data folder each run copies), launchRun, sessionRun, windowsRun, newWindow,
 //                   idleWindow, throttled, throttleRun, churnRun, sampleRun
@@ -120,12 +120,13 @@
 //                                           journeyRun  navigate: the same, from a real Enter; also the page's own FCP over CDP
 // Also printed: "Hidden tabs" (throttleRun), the browser process after each churn round, main-thread sample summaries.
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { loadavg, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { INJECTION_ENTITLEMENTS, prepareApp } from "../../../../scripts/lib/app-copy.mjs";
 import { appEnv, launchVariables, mergeLaunchEnv } from "../../../../scripts/lib/instance.mjs";
 import { buildSeed } from "./seed.mjs";
 import { writeSwitches } from "./js-bench.mjs";
@@ -268,8 +269,6 @@ const footprint = (snap) => {
 
 const PAGE_SCRIPT = `
 window.__ac = { vis: [[Date.now(), document.visibilityState]], shown: [], fcp: null, frame: null, ticks: 0, raf: 0, fast: 0 };
-// The page's first frame (its first animation frame starts): the same event in every build. First contentful paint
-// isn't: CEF (0.2.21) stamps it with that frame's start, Chrome (ArdiaCore) with the frame on screen, ~a frame later.
 requestAnimationFrame(() => (__ac.frame = Date.now()));
 new PerformanceObserver((list) => {
   for (const e of list.getEntries()) if (e.name === "first-contentful-paint") __ac.fcp = performance.timeOrigin + e.startTime;
@@ -373,20 +372,8 @@ class Cdp {
   }
 }
 
-function prepareApp(app, out, bundle) {
-  const copy = join(out, "Ardia.app");
-  rmSync(copy, { recursive: true, force: true });
-  mkdirSync(out, { recursive: true });
-  execFileSync("cp", ["-Rc", app, copy]);
-  cpSync(bundle, join(copy, "Contents/Resources/main.jsbundle"));
-  const info = spawnSync("codesign", ["-dvv", app], { encoding: "utf8" }).stderr;
-  const identity = info.match(/^Authority=(.+)$/m)?.[1] ?? "-";
-  const entitlements = join(out, "entitlements.plist");
-  const granted = execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", app], { encoding: "utf8" });
-  const marker = ["com.apple.security.cs.allow-dyld-environment-variables", "com.apple.security.cs.disable-library-validation"]
-    .filter((key) => !granted.includes(`<key>${key}</key>`)).map((key) => `<key>${key}</key><true/>`).join("");
-  writeFileSync(entitlements, granted.replace(/<\/dict>\s*<\/plist>\s*$/, `${marker}</dict></plist>`));
-  execFileSync("codesign", ["--force", "--sign", identity, "--timestamp=none", "--options", "runtime", "--entitlements", entitlements, copy], { stdio: "inherit" });
+function prepareBenchApp(app, out, bundle) {
+  const copy = prepareApp(app, out, { bundle, entitlements: INJECTION_ENTITLEMENTS });
   writeFileSync(join(out, "prepared.json"), JSON.stringify({ app, bundle, date: new Date().toISOString() }));
   return copy;
 }
@@ -1245,7 +1232,7 @@ try {
     } else {
       const own = side === control ? opt["control-bundle"] : opt.bundle;
       side.bundle = own ? resolve(own) : side === control ? candidate.bundle : buildBundle(join(side.dir, "bundle"));
-      side.app = prepareApp(side.src, join(side.dir, "app"), side.bundle);
+      side.app = prepareBenchApp(side.src, join(side.dir, "app"), side.bundle);
     }
     const other = sides.find((s) => s !== side);
     Object.assign(side.results.meta, { app: side.src, bundle: side.bundle, label: side.label, date: new Date().toISOString(),

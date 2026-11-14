@@ -1,5 +1,6 @@
 {
   "id": "fixes-0243n9",
+  "dropEvents": ["state", "mark"],
   "segments": [
     {
       "scene": "halfglass",

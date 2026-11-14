@@ -1,4 +1,5 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaTabParking.h"
 
 using namespace ardia_web_view;
 
@@ -78,8 +79,21 @@ static ArdiaWebView *ViewForKey(NSString *key) {
       NSLog(@"[ardiacore-vis] %@ front %@ offered=%d closed=%d superview=%@ adopted=%d", key, offer, tab != nil, tab.closed,
             page.superview.className, [ArdiaTabRegistry viewForTab:tab] != nil);
     if (!tab || tab.closed || !page || page.superview || [ArdiaTabRegistry viewForTab:tab]) return;
+    [tab noteInShownSlot];
     [view frontPage:page profile:tab.profile];
   });
+}
+
++ (BOOL)discardOffered:(NSString *)adoptId {
+  if (![adoptId hasPrefix:@"ardiacore:"]) return NO;
+  ArdiaCoreTab *tab = [ArdiaTabRegistry offeredTab:adoptId];
+  if (!tab || tab.closed || [ArdiaTabRegistry viewForTab:tab] || [ArdiaTabParking linkMarkForTab:tab]) return NO;
+  if (NSView *page = tab.view)
+    for (ArdiaWebView *view in LiveViews().allObjects)
+      if (view->_reveal.frontedPage == page) [view dropFront];
+  if ([ArdiaTabRegistry takeOffered:adoptId] != tab) return NO;
+  [tab close];
+  return YES;
 }
 
 - (BOOL)onlyShownInWindow {
@@ -133,6 +147,7 @@ static ArdiaWebView *ViewForKey(NSString *key) {
   NSView *shownPane = PaneUnder(shown, shared);
   if (!shared || !pane || !shownPane || !shownPane.layer || pane == shownPane || pane.isHiddenOrHasHiddenAncestor || pane.alphaValue < 1) return;
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ revealed over %@", _transferKey, shown->_transferKey);
+  [self exposePage];
   _reveal.active = YES;
   _reveal.loweredPane = shownPane;
   _reveal.loweredPaneZ = shownPane.layer.zPosition;

@@ -13,6 +13,7 @@
 #include "base/no_destructor.h"
 #include "base/strings/strcat.h"
 #include "base/values.h"
+#include "chrome/browser/ardia/ac_cli_owned_tabs.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/devtools_agent_host_client.h"
@@ -52,6 +53,7 @@ TokenClient::TokenClient(content::DevToolsAgentHostClient* client,
 
 TokenClient::~TokenClient() {
   Registry().erase(client_);
+  ReleaseCliOwnedTargets(this);
 }
 
 bool TokenClient::FilterCommand(std::string& message, std::string* reply) {
@@ -202,9 +204,32 @@ std::string TokenClient::Refusal(const std::string& method,
     if (params.Find("transferMode") && (!mode || *mode != "ReturnAsBase64")) {
       return "as a stream";
     }
+  } else if (method == "Emulation.setDeviceMetricsOverride" ||
+             method == "Emulation.clearDeviceMetricsOverride") {
+    auto target = targets_.find(session);
+    if (target == targets_.end()) {
+      return "on a tab the ardia command didn't open";
+    }
+    std::string refusal = CliEmulationRefusal(target->second);
+    if (!refusal.empty()) {
+      return refusal;
+    }
+    if (!MetricsOverrideAllowed(params)) {
+      return "with that option";
+    }
+    if (method == "Emulation.setDeviceMetricsOverride") {
+      ClaimCliOwnedTarget(target->second, this);
+    }
   } else if (method == "Runtime.evaluate") {
     if (params.FindBool("includeCommandLineAPI").value_or(false)) {
       return "with the command line API";
+    }
+  } else if (method == "Input.dispatchMouseEvent") {
+    const std::string* type = params.FindString("type");
+    const std::string* button = params.FindString("button");
+    if (type && (*type == "mousePressed" || *type == "mouseReleased") &&
+        (!button || *button == "none")) {
+      return "without a button";
     }
   } else if (method == "Input.dispatchKeyEvent") {
     if (!EditingCommandsAllowed(params.Find("commands"))) {
@@ -233,8 +258,12 @@ bool TokenClientMayAttach(content::DevToolsAgentHostClient* root_client,
 
 bool TokenClientMayInput(content::DevToolsAgentHostClient* root_client,
                          content::RenderFrameHost* frame) {
-  return !cli_token_policy_internal::Registry().contains(root_client) ||
+  return !IsTokenClient(root_client) ||
          cli_token_policy_internal::IsWebFrame(frame);
+}
+
+bool IsTokenClient(content::DevToolsAgentHostClient* root_client) {
+  return cli_token_policy_internal::Registry().contains(root_client);
 }
 
 }

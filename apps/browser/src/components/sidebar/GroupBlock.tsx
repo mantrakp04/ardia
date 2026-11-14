@@ -3,18 +3,19 @@ import { Animated, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useGroup, usePageProfileId, useWindowId } from "../../state/browser/hooks";
 import { updateGroup } from "../../state/groups/actions";
+import { noteGroupHeaderHide } from "../../state/telemetry/usage";
 import { useGroupLabel } from "../../state/groups/hooks";
 import { useSelectionInGroup } from "../../state/pins/hooks";
 import { newCapture } from "../../state/sidebar/listCapture";
-import { useCapturedGroupEntries, useGroupFirstTabIcon, useGroupTabIds, useKeptEntry } from "../../state/sidebar/hooks";
+import { useCapturedGroupEntries, useGroupFirstTabIcon, useGroupTabIds, useKeptEntries, useShowsExtraTabs } from "../../state/sidebar/hooks";
 import { MeetingTimeLabel, useMeetingCountdown } from "../live/MeetingCountdown";
 import { HoverSlot } from "../ui/HoverSlot";
 import { Button, ContextMenuArea, FadeLabel, font, ink, space, Symbol, Text, weight, withAlpha } from "../ui";
-import { commitRename, endRename, startRename } from "../../state/sidebar/actions";
+import { commitRename, endRename } from "../../state/sidebar/actions";
 import { useDragFolded, useDragItem, useDropInto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
 import { Fold, useFold } from "./Fold";
-import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_INDENT, GROUP_RADIUS } from "./geometry";
+import { GROUP_BORDER, GROUP_INNER_RADIUS, GROUP_INDENT, GROUP_INSET, GROUP_RADIUS, groupMembersPadBottom } from "./geometry";
 import { entryHeightNow, foldedGroupHeight, headGap } from "../../state/sidebar/geometry";
 import { dismissHover } from "../../state/sidebar/hover";
 import { useGroupHover, useRowHover } from "./hoverController";
@@ -25,7 +26,7 @@ import { openGroupMenu } from "../../state/sidebar/menus";
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 import { RenameField, SplitRowItem, TabRowItem } from "./TabRow";
-import { groupSurface, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
+import { groupBoxAtRest, groupSurface, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
 import { SidebarRowSurface } from "./SidebarRow";
 import { curve } from "../ui/motion";
 import { entryKey, parseEntry } from "../../state/sidebar/entryKey";
@@ -90,7 +91,7 @@ export const GroupBlock = memo(function GroupBlock({
   const entries = useCapturedGroupEntries(groupId, captured);
   const selectedInside = useSelectionInGroup(windowId, groupId);
   const profileId = usePageProfileId();
-  const activeEntry = useKeptEntry(windowId, profileId, entries);
+  const keptEntries = useKeptEntries(windowId, profileId, groupId);
   const foldedHeight = () => foldedGroupHeight(windowId, profileId, groupId);
   const { wrapper, handle, headerRef } = useDragItem(entryKey("group", groupId), { kind: "group", tabIds, section, groupId, collapsed: stored, foldedHeight, parentGroup }, own?.clip);
   const tail = useDragItem(tailKey({ group: groupId }), { kind: "tail", tabIds: [], section, parentGroup: groupId });
@@ -102,7 +103,7 @@ export const GroupBlock = memo(function GroupBlock({
   const box = useGroupHover(windowId, groupId);
   const dropInto = useDropInto() === groupId;
   const nested = useInnermostHover(groupId, box.hovered);
-  const boxOpacity = useBoxOpacity(nested.innermost || dropInto);
+  const boxOpacity = useBoxOpacity(nested.innermost || dropInto || groupBoxAtRest(color));
 
   const { fill, stroke } = groupSurface(color, tokens);
 
@@ -130,10 +131,12 @@ export const GroupBlock = memo(function GroupBlock({
                     ),
                   },
             )}
-            keep={activeEntry}
+            keep={keptEntries}
             rowHeight={(key) => entryHeightNow(windowId, profileId, key)}
-            padTop={headGap(collapsed && activeEntry ? activeEntry : entries[0])}
+            padTop={headGap(collapsed && keptEntries.length ? keptEntries[0] : entries[0])}
+            padBottom={groupMembersPadBottom(collapsed ? keptEntries.length : entries.length)}
             indent={GROUP_INDENT}
+            indentEnd={GROUP_INSET}
             mountClosed={selectedInside}
             footer={<Animated.View ref={tail.wrapper.ref} style={tail.wrapper.style} />}
           />
@@ -178,11 +181,13 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
   const { hovered, hoverProps } = useRowHover(windowId, collapsed && !renaming ? { kind: "group", id: groupId } : null);
   const countdown = useMeetingCountdown(groupId);
   const closeControl = useGroupCloseControlWhile(groupId, hovered && !renaming);
+  const profileId = usePageProfileId();
+  const showsExtra = useShowsExtraTabs(windowId, profileId, groupId);
   if (!group) return null;
   const target = { kind: "group" as const, id: groupId };
 
   return (
-    <View ref={(v) => registerRow(windowId, groupId, v)} {...hoverProps} onDoubleClick={() => void startRename(windowId, target)}>
+    <View ref={(v) => registerRow(windowId, groupId, v)} {...hoverProps}>
       <ContextMenuArea
         onContextMenu={() => {
           dismissHover();
@@ -192,11 +197,14 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
         <Pressable
           onPress={() => {
             dismissHover();
-            if (!renaming) updateGroup(groupId, { collapsed: !collapsed });
+            if (renaming) return;
+            if (!collapsed || !showsExtra) return updateGroup(groupId, { collapsed: !collapsed });
+            noteGroupHeaderHide();
+            updateGroup(groupId, { shownTabIds: [] });
           }}
         >
-          {({ pressed }) => (
-            <SidebarRowSurface fill={dropInto || pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : ink.clear} cornerRadius={GROUP_HEADER_RADIUS}>
+          {() => (
+            <SidebarRowSurface fill={dropInto ? theme.tabPressed : ink.clear} cornerRadius={GROUP_INNER_RADIUS}>
               {group.icon || firstTab ? (
                 <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} />
               ) : (

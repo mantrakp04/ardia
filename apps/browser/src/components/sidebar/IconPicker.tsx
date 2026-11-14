@@ -4,7 +4,9 @@ import { setSidebarUi, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { useIconPickerCurrent } from "../../state/sidebar/hooks";
 import { NO_GROUP_ICON } from "../../state/groups/groupIcons";
 import { clampLeft, clampTop, IconPickerLayer, type PickerAction, type PickerSymbol } from "../iconPicker/IconPickerPanel";
-import { ICON_PICKER } from "../iconPicker/tokens";
+import { ICON_PICKER, ICON_PICKER_WIDTH } from "../iconPicker/tokens";
+import { useSidebarSide } from "../../state/browser/hooks";
+import type { SidebarSide } from "../../state/browser/model";
 
 const SYMBOLS: PickerSymbol[] = [
   "star", "heart", "bookmark", "flag", "pin", "bolt", "flame", "leaf", "globe", "house", "briefcase", "cart", "bag", "creditcard",
@@ -18,12 +20,22 @@ const SYMBOLS: PickerSymbol[] = [
 
 export function IconPicker({ windowId, sidebarWidth }: { windowId: string; sidebarWidth: number }) {
   const picker = useSidebarUi((u) => (u.iconPicker?.windowId === windowId ? u.iconPicker : null));
-  return picker ? <PickerPanel key={picker.id} picker={picker} sidebarWidth={sidebarWidth} /> : null;
+  const side = useSidebarSide(windowId);
+  return picker ? <PickerPanel key={picker.id} picker={picker} sidebarWidth={sidebarWidth} side={side} /> : null;
 }
 
 type Picker = NonNullable<ReturnType<typeof useSidebarUi.getState>["iconPicker"]>;
 
-function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: number }) {
+function besideSidebar(anchor: Picker["anchor"], sidebarWidth: number, side: SidebarSide, roomWidth: number) {
+  const { sidebarGap } = ICON_PICKER;
+  if (side === "right") {
+    const edge = roomWidth - sidebarWidth - sidebarGap;
+    return (anchor ? Math.max(edge, anchor.x - sidebarGap) : edge) - ICON_PICKER_WIDTH;
+  }
+  return anchor ? Math.min(sidebarWidth + sidebarGap, anchor.x + anchor.width + sidebarGap) : sidebarWidth + sidebarGap;
+}
+
+function PickerPanel({ picker, sidebarWidth, side }: { picker: Picker; sidebarWidth: number; side: SidebarSide }) {
   const liveIcon = useLive((s) => (picker.kind === "live" ? s.folders[picker.id.split("|")[1] ?? ""]?.icon : null));
   const current = useIconPickerCurrent(picker.kind, picker.id, liveIcon);
   const close = () => setSidebarUi({ iconPicker: null });
@@ -32,7 +44,7 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
     close();
   };
   const { anchor } = picker;
-  const { sidebarGap, windowMargin } = ICON_PICKER;
+  const { windowMargin } = ICON_PICKER;
   const actions: PickerAction[] = [
     ...(picker.kind === "group" ? [{ title: "No Icon", icon: "square.stack.fill", primary: current === NO_GROUP_ICON, onPress: () => choose(NO_GROUP_ICON) }] : []),
     ...(current ? [{ title: "Reset Icon", onPress: () => choose(null) }] : []),
@@ -47,7 +59,7 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
       onClose={close}
       placeIn={(height, room) => ({
         top: clampTop((anchor?.y ?? 60) - windowMargin, height, room),
-        left: anchor ? clampLeft(Math.min(sidebarWidth + sidebarGap, anchor.x + anchor.width + sidebarGap), room) : sidebarWidth + sidebarGap,
+        left: anchor ? clampLeft(besideSidebar(anchor, sidebarWidth, side, room.width), room) : besideSidebar(anchor, sidebarWidth, side, room.width),
       })}
     />
   );

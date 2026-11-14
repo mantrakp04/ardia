@@ -5,6 +5,7 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { changedIds } from "../browser/changes";
 import { extensionProfile, findExtension, removeExtension, showInstallPrompt } from "./actions";
 import { focusedWindowOf } from "../windows/ui";
+import { noteExtensionInstallPrompt } from "../telemetry/usage";
 
 const STORE_SCRIPT = `
 const g = window;
@@ -43,6 +44,7 @@ const isStorePage = (url: string | undefined) => !!url && /^https:\/\/chromewebs
 
 export function startWebStoreIntegration() {
   onExtensionInstallPrompt((prompt) => {
+    noteExtensionInstallPrompt();
     const s = useBrowser.getState();
     const tabId = prompt.tabId ?? undefined;
     const windowId = (tabId && s.tabs[tabId]?.windowId) || focusedWindowOf(s) || s.windowOrder[0];

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { barReducer, initialBar, selectionTracker } = await import("./barText.ts");
+const { barReducer, initialBar, previewText, selectionTracker } = await import("./barText.ts");
 
-const fresh = (text = "", none = 0) => initialBar(null, text, none);
+const fresh = (text = "") => initialBar(null, text);
 const run = (state, ...events) => events.reduce(barReducer, state);
 const google = { kind: "site", id: "google", name: "Google" };
 
@@ -16,7 +16,6 @@ test("a bar opened on a page shows its address selected, nothing typed yet", () 
     scopeFrom: "",
     pendingSelection: { start: 0, end: 20 },
   });
-  assert.equal(fresh("", -1).selected, -1);
   assert.equal(fresh("").pendingSelection, null);
 });
 
@@ -25,7 +24,6 @@ test("a key applies the change as the field read it, and the completion comes ba
   assert.equal(s.typed, "g");
   assert.equal(s.edited, true);
   assert.equal(s.suppressCompletion, false);
-  assert.equal(run(s, { kind: "typed", text: "", suppress: true, selected: -1 }).selected, -1);
 });
 
 test("Esc with a completion showing drops only the completion", () => {
@@ -63,16 +61,16 @@ test("Tab or Space after a site enters its search with an empty field, and Backs
 });
 
 test("the New Tab box comes back from a tab switch with its scope and the text it came from", () => {
-  const restored = initialBar({ typed: "", edited: true, selection: { start: 0, end: 0 }, selected: 0, scope: google, scopeFrom: "x.com " }, "", -1);
+  const restored = initialBar({ typed: "", edited: true, selection: { start: 0, end: 0 }, selected: 0, scope: google, scopeFrom: "x.com " }, "");
   assert.equal(restored.scope, google);
   assert.equal(restored.scopeFrom, "x.com ");
   assert.deepEqual(restored.pendingSelection, { start: 0, end: 0 });
 });
 
-test("a calculator row copies its answer into the field, selected, without moving the row", () => {
+test("a calculator row copies its answer into the field, selected, with the top row highlighted since the row is gone", () => {
   const s = run(fresh(), { kind: "typed", text: "2+2", suppress: false, selected: 0 }, { kind: "selected", index: 1 }, { kind: "calculated", text: "4" });
   assert.equal(s.typed, "4");
-  assert.equal(s.selected, 1);
+  assert.equal(s.selected, 0);
   assert.deepEqual(s.pendingSelection, { start: 0, end: 1 });
 });
 
@@ -85,12 +83,12 @@ test("an edit from the field's menu replaces the text with the caret where the m
 });
 
 test("clearing the hero bar empties it and leaves site search, the selection applied once", () => {
-  const scoped = run(fresh("", -1), { kind: "enteredScope", scope: google, from: "google.com" }, { kind: "select", selection: { start: 0, end: 3 } });
-  const cleared = run(scoped, { kind: "reset", selected: -1 }, { kind: "selectionApplied" });
+  const scoped = run(fresh(), { kind: "enteredScope", scope: google, from: "google.com" }, { kind: "select", selection: { start: 0, end: 3 } });
+  const cleared = run(scoped, { kind: "reset" }, { kind: "selectionApplied" });
   assert.equal(cleared.typed, "");
   assert.equal(cleared.edited, false);
   assert.equal(cleared.scope, null);
-  assert.equal(cleared.selected, -1);
+  assert.equal(cleared.selected, 0);
   assert.equal(cleared.pendingSelection, null);
 });
 
@@ -107,4 +105,13 @@ test("a key reads the selection from before its own caret move, and an older mov
   sel.collapse();
   assert.deepEqual(sel.current, { start: 0, end: 0 });
   assert.deepEqual(sel.before, { start: 0, end: 10 });
+});
+
+test("a highlighted row shows its query or address in the field, other rows keep what was typed", () => {
+  assert.equal(previewText({ kind: "search", query: "lebron james age", url: "https://duckduckgo.com/?q=lebron+james+age", engine: "DuckDuckGo", suggested: true }), "lebron james age");
+  assert.equal(previewText({ kind: "page", url: "https://www.example.com/", title: "Example", favicon: null }), "example.com");
+  assert.equal(previewText({ kind: "page", url: "https://example.com/a?b=1", title: "A", favicon: null }), "example.com/a?b=1");
+  assert.equal(previewText({ kind: "action", id: "settings", title: "Settings" }), null);
+  assert.equal(previewText({ kind: "calc", expression: "2+2", value: "4", url: "" }), null);
+  assert.equal(previewText(undefined), null);
 });

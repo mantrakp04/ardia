@@ -4,6 +4,7 @@ import Base from "../layouts/Base.astro";
 import Header from "../components/Header.astro";
 import Bench from "../components/Bench.astro";
 import Closing from "../components/Closing.astro";
+import ComputerUse from "../components/ComputerUse.astro";
 import Footer from "../components/Footer.astro";
 import { bench, BENCH_METHOD } from "../data/bench";
 import { scorecardOf } from "../data/benchScorecard";
@@ -35,7 +36,7 @@ const jsonLd = [
           creator: organization,
           publisher: organization,
           dateModified: bench.measured,
-          temporalCoverage: bench.measured,
+          temporalCoverage: bench.span,
           isAccessibleForFree: true,
           license: "https://www.gnu.org/licenses/gpl-3.0.html",
           keywords: ["browser benchmark", "Mac browser", "Arc alternative", "Dia", "Helium", "Chromium", "memory", "launch time", "power"],
@@ -53,6 +54,7 @@ const jsonLd = [
 <Base title={`Mac browser benchmarks · ${versus}`} description={description} jsonLd={jsonLd}>
   <Header home={`${base}/`} current="benchmarks" />
   <main>
+    <ComputerUse page />
     <Bench page />
     {
       bench && (
@@ -67,7 +69,7 @@ const jsonLd = [
               <div class="fact">
                 <dt>The Mac</dt>
                 <dd>
-                  {bench.machine}, on {bench.date}. It’s the owner’s working Mac in normal use, so the browsers take turns and share
+                  {bench.dated ? `${bench.machine}. ${bench.dated}.` : `${bench.machine}, on ${bench.date}.`}{bench.elsewhere && ` ${bench.elsewhere}.`} It’s the owner’s working Mac in normal use, so the browsers take turns and share
                   whatever else is going on.
                 </dd>
               </div>

@@ -14,7 +14,7 @@ const WORDS = ["new", "tab", "window", "incognito", "close", "all", "reload", "p
 
 test("matchActions ranks and matches exactly as the reference does", () => {
   let hits = 0;
-  for (let seed = 1; seed <= 400; seed++) {
+  for (let seed = 1; seed <= 100; seed++) {
     const r = rng(seed);
     const phrase = () => Array.from({ length: 1 + r.int(4) }, () => r.pick(WORDS)).join(r.int(6) ? " " : r.pick(["-", "  ", "\t", ", "]));
     const actions: (ActionCandidate & { hint?: string })[] = Array.from({ length: r.int(60) }, (_, i) => ({

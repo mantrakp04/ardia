@@ -7,6 +7,7 @@ import { hasOwnGroupIcon } from "../groups/groupIcons";
 import type { GroupColor } from "../browser/types";
 import { GROUP_COLOR_ORDER, GROUP_COLORS, NEUTRAL_GROUP_SWATCH, NO_GROUP_COLOR_SWATCH, nearestGroupColor } from "../groups/tokens";
 import { copyUrls, openIconPicker, startRename } from "./actions";
+import { bookmarksShown } from "../bookmarks/visibility";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { hintWhen, profileItems, sections, windowItems, withAlternate, type Destination } from "./menuParts";
 import { confirmRemovingShared } from "../sharedFolders/removal";
@@ -56,7 +57,7 @@ export function groupMenuItems(s: BrowserState, windowId: string, groupId: strin
     sharedFolderMenuItems(s, groupId),
     [
       { id: "ungroup", title: "Ungroup", symbol: "folder.badge.minus" },
-      { id: "bookmarkBar", title: "Move to Bookmarks Bar", symbol: "bookmark" },
+      bookmarksShown(s.settings) && { id: "bookmarkBar", title: "Move to Bookmarks Bar", symbol: "bookmark" },
       { id: "close", title: "Close Group", symbol: "xmark", ...hintWhen(shown, "closeTabGroup", s) },
       { id: "delete", title: "Delete Group", symbol: "trash" },
     ],

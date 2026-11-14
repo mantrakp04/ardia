@@ -5,8 +5,9 @@
 
 #include <string>
 
+#include "content/public/browser/media_stream_request.h"
+
 namespace content {
-struct MediaStreamRequest;
 class WebContents;
 }
 
@@ -23,6 +24,12 @@ bool IsDesktopCaptureApplicationAudioSupported();
 
 void ApplyDesktopCaptureGrant(content::WebContents* contents,
                               content::MediaStreamRequest& request);
+
+void SetPagesPickDisplayMedia(bool pages_pick);
+bool PagesPickDisplayMedia();
+bool AnswerNativeDisplayCapture(content::WebContents* contents,
+                                const content::MediaStreamRequest& request,
+                                content::MediaResponseCallback* callback);
 
 }
 

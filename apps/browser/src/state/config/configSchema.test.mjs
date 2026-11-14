@@ -82,6 +82,38 @@ test("theme.schema.json has every role but dark with Ardia's values as defaults,
   }
 });
 
+test("theme.schema.json covers type, metrics, layout and icons with Ardia's defaults, and agrees with the app's own check on every key", () => {
+  const schema = themeSchema(colorRoles);
+  assert.deepEqual(Object.keys(schema.properties), ["$schema", "dark", "light", "type", "metrics", "layout", "icons"]);
+  assert.equal(schema.properties.metrics.properties.rowHeight.default, 34);
+  assert.equal(schema.properties.metrics.properties.rowHeight.minimum, 24);
+  assert.equal(schema.properties.type.properties.sizes.properties.body.default, 13);
+  assert.deepEqual(schema.properties.layout.properties.hide.items.enum, ["pinned", "newTab", "addressField", "navButtons", "sidebarButton", "downloads", "profile"]);
+  const numbers = [-1, 0, 0.5, 0.85, 1, 1.3, 2, 3, 8, 10, 12, 13, 20, 24, 30, 34, 41, 56, 60, 72, 100, 160, 190, 400, 500, "13", null, true];
+  const strings = ["Avenir Next", "Menlo", "", " Menlo", "Menlo ", "a".repeat(64), "a".repeat(65), 3, null];
+  const weights = ["100", "400", "550", "900", "1000", 600, 650, "bold", null];
+  const places = ["top", "bottom", "left", "", 1, null];
+  const hides = [[], ["pinned"], ["pinned", "newTab", "pinned"], ["toolbar"], [3], "pinned", {}];
+  const icons = [{}, { plus: "plus.circle" }, { plus: "" }, { "Bad Name": "x" }, { plus: 3 }, { "sidebar.left": "rectangle.lefthalf.inset.filled" }, [], "x"];
+  const blocks = ["x", [], 3, null, {}, { unknown: 1 }];
+  const cases = [
+    ...numbers.map((v) => ({ type: { scale: v } })),
+    ...numbers.flatMap((v) => ["badge", "tiny", "caption", "small", "body", "title", "large"].map((size) => ({ type: { sizes: { [size]: v } } }))),
+    ...strings.flatMap((v) => [{ type: { family: v } }, { type: { mono: v } }]),
+    ...weights.flatMap((v) => [{ type: { weights: { medium: v } } }, { type: { weights: { heavy: v } } }]),
+    ...numbers.flatMap((v) => ["rowHeight", "rowGap", "pinnedHeight", "sidebarWidth"].map((key) => ({ metrics: { [key]: v } }))),
+    ...numbers.flatMap((v) => ["row", "pinned", "tile", "control", "toolbar", "panel", "sheet", "card"].map((key) => ({ metrics: { radius: { [key]: v } } }))),
+    ...places.flatMap((v) => [{ layout: { addressField: v } }, { layout: { newTab: v } }]),
+    ...hides.map((v) => ({ layout: { hide: v } })),
+    ...icons.map((v) => ({ icons: v })),
+    ...blocks.flatMap((v) => [{ type: v }, { metrics: v }, { layout: v }, { type: { sizes: v } }, { metrics: { radius: v } }]),
+  ];
+  for (const doc of cases) {
+    const parsed = parseThemeFile("themes/t.json", JSON.stringify(doc), colorRoles);
+    assert.equal(accepts(schema, doc), parsed.problems.length === 0, `${JSON.stringify(doc)} ${parsed.problems}`);
+  }
+});
+
 test("the schema files are written as 2-space JSON with a final newline", () => {
   const files = schemaFiles(colorRoles);
   assert.deepEqual(Object.keys(files), ["config.schema.json", "theme.schema.json"]);

@@ -1,4 +1,5 @@
 import { hoverHeld } from "../app/transientUi";
+import { sidebarSliding } from "../windows/dockMotion";
 import { cardReach, pointInRect, type Point, type Rect } from "./hoverAim";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./sidebarUi";
 
@@ -115,14 +116,14 @@ export function suppressHover(value: boolean) {
 
 async function show(windowId: string, target: Target, mine: number) {
   const anchor = await measureRow(windowId, target.id);
-  if (mine !== ticket || suppressed || !anchor || hoverHeld(windowId)) return;
+  if (mine !== ticket || suppressed || !anchor || hoverHeld(windowId) || sidebarSliding(windowId)) return;
   if (card.pointerOn && sidebarUi().hover) return;
   card.exit = null;
   setSidebarUi({ hover: { windowId, ...target, anchor } });
 }
 
 export function hoverEnter(windowId: string, target: Target) {
-  if (suppressed || hoverHeld(windowId)) return;
+  if (suppressed || hoverHeld(windowId) || sidebarSliding(windowId)) return;
   stop("show", "hide", "aim");
   card.waiting = null;
   const current = sidebarUi().hover;
@@ -184,6 +185,7 @@ export function rowEntered(windowId: string, target: Target | null, event: Hover
 export function rowShown(windowId: string, target: Target | null) {
   underPointer = target?.id ?? null;
   if (target) hoverEnter(windowId, target);
+  else hoverLeave();
 }
 
 export function rowLeft(windowId: string, target: Target | null, event: HoverPointerEvent, onPage: boolean) {

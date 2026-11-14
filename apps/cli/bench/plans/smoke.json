@@ -1,0 +1,8 @@
+{
+  "name": "smoke",
+  "repeats": 1,
+  "tasks": ["calendar"],
+  "contenders": [
+    {"id": "ardia-claude", "label": "Ardia + Claude Code (Opus 5.5)", "kind": "ardia", "agent": "claude", "model": "claude-opus-5-5", "effort": "high"}
+  ]
+}

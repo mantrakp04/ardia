@@ -119,7 +119,7 @@ test("a damaged file keeps its damage age while it's pending again", async () =>
   assert.equal(b.state.files[file.id]?.k, "bad", "a day after it was first damaged, whatever happened in between");
 });
 
-test("a set-aside file isn't read again, and a file read whole leaves nothing in flight", async () => {
+test("a set-aside file stays given up while it fails, is read once it's whole, and a file read whole leaves nothing in flight", async () => {
   const folder = new Folder();
   const [a, b] = [new Mac("a", folder, homes), new Mac("b", folder, homes)];
   const bad = await oneFileFrom(a, b);
@@ -128,9 +128,15 @@ test("a set-aside file isn't read again, and a file read whole leaves nothing in
   folder.now += DAY + 1;
   await b.sync();
   assert.equal(b.state.files[bad.id]?.k, "bad");
+  await b.sync();
+  assert.deepEqual([b.state.files[bad.id]?.k, Object.keys(b.state.damaged), b.state.pending], ["bad", [], 0], "failing again doesn't hold anything back again");
+  bad.status("pending");
+  await b.sync();
+  assert.deepEqual([b.state.files[bad.id]?.k, b.state.pending, b.state.pendingSince], ["bad", 0, undefined], "nor does downloading it again");
   bad.status("whole");
   await b.sync();
-  assert.equal(b.store.get("ph:a"), undefined, "a set-aside file is known and not read again");
+  assert.equal(b.store.get("ph:a"), "theirs", "a set-aside file that reads whole is applied");
+  assert.equal(b.state.files[bad.id]?.k, "log");
   a.store.set("ph:b", "late");
   await a.sync();
   const late = [...folder.files.keys()].at(-1)!;

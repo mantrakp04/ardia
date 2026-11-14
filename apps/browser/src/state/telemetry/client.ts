@@ -1,20 +1,19 @@
-import { engineInfo } from "../../platform/app";
+import { engineInfo, updaterState } from "../../platform/app";
 import { readDocument, saveDocument, writeDocument } from "../../platform/documents";
-import { create } from "zustand";
 import { MAX_BODY_BYTES } from "./config";
 import { EVENTS_SCOPE, eventRecord, LOGS_SCOPE, logRecord, logsRequest, outcome, type OtlpLogRecord, type QueuedEvent } from "./otlp";
 import { cleanProperties } from "./sanitize";
+import type { SavedContext } from "./savedContext";
 import type { RequestLogEntry } from "./requestLog";
 import { appInfo, mayPost, post } from "./transport";
 import { uuidv4, uuidv7 } from "./ids";
-import { parseSaved, versionedJson, unchanged, type Migrations, type SavedObject } from "../../lib/savedDocument";
+import { parseSaved, versionedJson } from "../../lib/savedDocument";
 import { withDeadline } from "../../lib/deadline";
-import { isFields, isString, numberOr, stringOr } from "../../lib/decode";
+import { isFields, isString } from "../../lib/decode";
+import { dismissAsk, isSharing, loadChoice, NO_WATCH, save, savedChoice as saved, sessionId, startNewSession, useTelemetry } from "./choice";
+import { flushLocalNow, LOCAL_KEEP_DAYS, recordLocal } from "./localStore";
 
-const STATE_DOC = "telemetry.json";
 const QUEUE_DOC = "telemetry-queue.json";
-const STATE_VERSION = 1;
-const STATE_MIGRATIONS: Migrations = { 0: unchanged };
 const QUEUE_VERSION = 1;
 
 const MAX_EVENTS = 1000;
@@ -24,68 +23,7 @@ const FLUSH_DELAY_MS = 30_000;
 const URGENT_FLUSH_DELAY_MS = 3_000;
 const MAX_BACKOFF_MS = 30 * 60_000;
 
-type Session = {
-  decidedAt: number | null;
-  askDoneAt: number | null;
-  crashCursor: number;
-  lastVersion: string | null;
-  sessionOpen: boolean;
-  lastLaunchAt: number | null;
-  lastQuitAt: number | null;
-  lastBuild: string | null;
-  settingsDay: string | null;
-};
-type Sharing = { sharing: false; installId: null } | { sharing: true; installId: string };
-type Saved = Session & Sharing;
-
-const DEFAULT: Saved = {
-  sharing: false,
-  installId: null,
-  decidedAt: null,
-  askDoneAt: null,
-  crashCursor: 0,
-  lastVersion: null,
-  sessionOpen: false,
-  lastLaunchAt: null,
-  lastQuitAt: null,
-  lastBuild: null,
-  settingsDay: null,
-};
-
-function readSaved(doc: SavedObject | null): Saved {
-  if (!doc) return DEFAULT;
-  const sharing: Sharing = doc.sharing === true && isString(doc.installId) && doc.installId ? { sharing: true, installId: doc.installId } : { sharing: false, installId: null };
-  return {
-    ...sharing,
-    decidedAt: numberOr(doc.decidedAt, null),
-    askDoneAt: numberOr(doc.askDoneAt, null),
-    crashCursor: numberOr(doc.crashCursor, 0),
-    lastVersion: stringOr(doc.lastVersion, null),
-    sessionOpen: doc.sessionOpen === true,
-    lastLaunchAt: numberOr(doc.lastLaunchAt, null),
-    lastQuitAt: numberOr(doc.lastQuitAt, null),
-    lastBuild: stringOr(doc.lastBuild, null),
-    settingsDay: stringOr(doc.settingsDay, null),
-  };
-}
-
-let saved: Saved = DEFAULT;
-
-function save(patch: Partial<Session> | (Partial<Session> & Sharing)) {
-  saved = { ...saved, ...patch } as Saved;
-  try {
-    writeDocument(STATE_DOC, versionedJson(saved, STATE_VERSION));
-  } catch {}
-  useTelemetry.setState({ sharing: saved.sharing, decided: saved.decidedAt !== null, askDone: saved.askDoneAt !== null });
-}
-
-export const useTelemetry = create<{ sharing: boolean; decided: boolean; askDone: boolean }>()(() => ({
-  sharing: false,
-  decided: false,
-  askDone: false,
-}));
-
-export const isSharing = () => saved.sharing;
+export { dismissAsk, isSharing, loadChoice, useTelemetry };
 
 let engineVersion: string | null = null;
 
@@ -107,7 +45,14 @@ function context(): Record<string, unknown> {
     $environment: environment(),
     $process_person_profile: false,
     $geoip_disable: true,
+    $session_id: sessionId(),
+    ...watchProperty(),
   };
+}
+
+function watchProperty(): Record<string, string> {
+  const { watchReport, watchUntil } = saved();
+  return watchReport && watchUntil !== null && Date.now() < watchUntil ? { watch_report: watchReport } : {};
 }
 
 type Queue = { events: QueuedEvent[]; logs: OtlpLogRecord[] };
@@ -136,13 +81,17 @@ function loadQueue() {
 }
 
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
+let queueChars = 0;
+export const queuedChars = () => queueChars;
 function persistQueue(now = false) {
   clearTimeout(persistTimer);
   persistTimer = undefined;
   const write = () => {
     try {
       loadQueue();
-      writeDocument(QUEUE_DOC, versionedJson(queue, QUEUE_VERSION));
+      const json = versionedJson(queue, QUEUE_VERSION);
+      queueChars = json.length;
+      writeDocument(QUEUE_DOC, json);
     } catch {}
   };
   if (now) write();
@@ -150,6 +99,10 @@ function persistQueue(now = false) {
 }
 
 export function saveQueueNow(timeoutMs = 1000): Promise<void> {
+  try {
+    flushLocalNow();
+  } catch {}
+  if (!saved().sharing) return Promise.resolve();
   clearTimeout(persistTimer);
   persistTimer = undefined;
   try {
@@ -178,19 +131,23 @@ export type CaptureOptions = {
 };
 
 export function capture(event: string, props: Record<string, unknown> = {}, options: CaptureOptions = {}) {
-  if (!saved.sharing) {
-    droppedWhileOff++;
-    return;
-  }
   try {
-    loadQueue();
-    queue.events.push({
+    const { sharing, installId } = saved();
+    const at = Date.now();
+    const record: QueuedEvent = {
       uuid: uuidv7(),
       event,
-      distinct_id: saved.installId,
-      timestamp: new Date().toISOString(),
+      distinct_id: installId ?? "",
+      timestamp: new Date(at).toISOString(),
       properties: { ...context(), ...cleanProperties(props), ...options.raw },
-    });
+    };
+    recordLocal("event", sharing, { event, uuid: record.uuid, distinct_id: sharing ? installId : null, properties: record.properties }, at);
+    if (!sharing) {
+      droppedWhileOff++;
+      return;
+    }
+    loadQueue();
+    queue.events.push(record);
     if (queue.events.length > MAX_EVENTS) queue.events.splice(0, queue.events.length - MAX_EVENTS);
     persistQueue(options.persist);
     scheduleFlush(options.urgent ? URGENT_FLUSH_DELAY_MS : FLUSH_DELAY_MS);
@@ -198,10 +155,14 @@ export function capture(event: string, props: Record<string, unknown> = {}, opti
 }
 
 export function queueLog(level: "warn" | "error", message: string, attributes: Record<string, string | number | boolean>) {
-  if (!saved.sharing) return;
   try {
+    const sharing = saved().sharing;
+    const at = Date.now();
+    const withSession = { ...attributes, $session_id: sessionId() };
+    recordLocal("log", sharing, { level, message, attributes: withSession }, at);
+    if (!sharing) return;
     loadQueue();
-    queue.logs.push(logRecord(level, message, attributes));
+    queue.logs.push(logRecord(level, message, withSession, at));
     if (queue.logs.length > MAX_LOGS) queue.logs.splice(0, queue.logs.length - MAX_LOGS);
     persistQueue();
     scheduleFlush(FLUSH_DELAY_MS);
@@ -215,7 +176,7 @@ let failures = 0;
 let retryAt = 0;
 
 function scheduleFlush(delay: number) {
-  if (!saved.sharing) return;
+  if (!saved().sharing) return;
   const due = Math.max(Date.now() + delay, retryAt);
   if (flushTimer && flushDueAt <= due) return;
   clearTimeout(flushTimer);
@@ -285,7 +246,7 @@ async function drain<T>(
 
 export async function flush() {
   flushTimer = undefined;
-  if (!saved.sharing || flushing) return;
+  if (!saved().sharing || flushing) return;
   flushing = true;
   const gen = generation;
   let result: DrainResult;
@@ -307,47 +268,62 @@ export async function flush() {
   }
 }
 
-type SharingSource = "settings" | "onboarding" | "ask";
+export type SharingSource = "settings" | "onboarding" | "ask" | "watch" | "watch_ended";
 
-export function setSharing(on: boolean, source: SharingSource) {
+export type AskPlacement = { ask_place: "new_tab_corner"; ask_shown_tabs: number };
+
+export function setSharing(on: boolean, source: SharingSource, placement?: AskPlacement) {
   const now = Date.now();
-  if (on === saved.sharing) return save({ decidedAt: now, askDoneAt: saved.askDoneAt ?? now });
+  const current = saved();
+  if (on === current.sharing) return save({ decidedAt: now, askDoneAt: current.askDoneAt ?? now });
   generation++;
   failures = 0;
   retryAt = 0;
   if (!on) {
     for (const abort of inflight) abort.abort();
     inflight.clear();
-    save({ sharing: false, installId: null, sessionOpen: false, decidedAt: now, askDoneAt: saved.askDoneAt ?? now });
+    save({ sharing: false, installId: current.installId, context: null, decidedAt: now, askDoneAt: current.askDoneAt ?? now, ...NO_WATCH, watchEndedNotice: current.watchEndedNotice });
     clearQueue();
+    capture("sharing_turned_off", { source });
     return;
   }
   save({
     sharing: true,
-    installId: uuidv4(),
+    installId: current.installId ?? uuidv4(),
     crashCursor: now,
     lastVersion: appInfo().appVersion,
     lastBuild: appInfo().appBuild,
     settingsDay: null,
     sessionOpen: true,
     decidedAt: now,
-    askDoneAt: saved.askDoneAt ?? now,
+    askDoneAt: current.askDoneAt ?? now,
   });
-  capture("sharing_turned_on", { source });
+  capture("sharing_turned_on", { source, ...placement });
 }
 
-export const dismissAsk = () => save({ askDoneAt: Date.now() });
+export function ensureInstallId(): string {
+  const current = saved();
+  if (current.installId) return current.installId;
+  const installId = uuidv4();
+  save({ sharing: false, installId });
+  return installId;
+}
+
+export function replaceInstallId(): string {
+  const current = saved();
+  const installId = uuidv4();
+  generation++;
+  for (const abort of inflight) abort.abort();
+  inflight.clear();
+  const session = startNewSession();
+  const keepsSharing = current.sharing && current.sharingUntil === null;
+  if (keepsSharing) save({ sharing: true, installId, sessionId: current.sessionId ? session : null, context: null, ...NO_WATCH });
+  else save({ sharing: false, installId, sessionId: current.sessionId ? session : null, context: null, ...NO_WATCH });
+  clearQueue();
+  return installId;
+}
 
 type PreviousSession = "clean" | "unclean" | "none";
-
-let loaded = false;
-
-export function loadChoice() {
-  if (loaded) return;
-  loaded = true;
-  saved = readSaved(parseSaved(readDocument(STATE_DOC), STATE_VERSION, STATE_MIGRATIONS));
-  useTelemetry.setState({ sharing: saved.sharing, decided: saved.decidedAt !== null, askDone: saved.askDoneAt !== null });
-}
 
 type ClientSession = {
   previous: PreviousSession;
@@ -355,40 +331,58 @@ type ClientSession = {
   lastLaunchAt: number | null;
   lastQuitAt: number | null;
   firstOfVersion: boolean;
+  context: SavedContext | null;
 };
 
-export function startClient(): ClientSession | null {
+export function startClient(): ClientSession {
   loadChoice();
   void engineInfo()
     .then((e) => (engineVersion = `ArdiaCore / Chromium ${e.chromiumVersion}`))
     .catch(() => {});
-  if (!saved.sharing) {
+  void updaterState()
+    .then((u) => {
+      const channel = u.available ? (u.channel ?? u.buildChannel ?? null) : null;
+      if (channel !== saved().channel) save({ channel });
+    })
+    .catch(() => {});
+  const current = saved();
+  if (current.sharing) loadQueue();
+  else {
     const stale = storedQueue();
     if (stale.events.length || stale.logs.length) clearQueue();
-    return null;
   }
-  loadQueue();
-  const previous: PreviousSession = saved.lastVersion === null ? "none" : saved.sessionOpen ? "unclean" : "clean";
+  const previous: PreviousSession = current.lastVersion === null ? "none" : current.sessionOpen ? "unclean" : "clean";
   const version = appInfo().appVersion;
-  const updatedFrom = saved.lastVersion && saved.lastVersion !== version ? saved.lastVersion : null;
+  const updatedFrom = current.lastVersion && current.lastVersion !== version ? current.lastVersion : null;
   const build = appInfo().appBuild;
-  const firstOfVersion = saved.lastVersion !== version || (saved.lastBuild != null && saved.lastBuild !== build);
-  const last = { lastLaunchAt: saved.lastLaunchAt, lastQuitAt: saved.lastQuitAt, firstOfVersion };
-  save({ sessionOpen: true, lastVersion: version, lastBuild: build, lastLaunchAt: appInfo().processStart ?? Date.now() });
-  scheduleFlush(10_000);
+  const firstOfVersion = current.lastVersion !== version || (current.lastBuild != null && current.lastBuild !== build);
+  const last = { lastLaunchAt: current.lastLaunchAt, lastQuitAt: current.lastQuitAt, firstOfVersion, context: current.context };
+  const crashFloor = Date.now() - LOCAL_KEEP_DAYS * 86_400_000;
+  save({
+    sessionOpen: true,
+    sessionId: sessionId(),
+    lastVersion: version,
+    lastBuild: build,
+    lastLaunchAt: appInfo().processStart ?? Date.now(),
+    ...(!current.sharing && current.crashCursor < crashFloor ? { crashCursor: crashFloor } : {}),
+  });
+  scheduleFlush(previous === "unclean" ? 2_000 : 10_000);
   return { previous, updatedFrom, ...last };
 }
 
 export function endSession() {
-  if (!saved.sharing) return;
-  save({ sessionOpen: false, lastQuitAt: Date.now() });
-  persistQueue(true);
+  save({ sessionOpen: false, sessionId: null, lastQuitAt: Date.now() });
+  if (saved().sharing) persistQueue(true);
+  try {
+    flushLocalNow();
+  } catch {}
 }
 
-export const settingsSnapshotDay = () => saved.settingsDay;
+export const settingsSnapshotDay = () => saved().settingsDay;
 export const markSettingsSnapshot = (day: string) => save({ settingsDay: day });
+export const saveContext = (context: SavedContext | null) => saved().sharing && save({ context });
 
-export const crashCursor = () => saved.crashCursor;
-export const advanceCrashCursor = (to: number) => to > saved.crashCursor && save({ crashCursor: to });
+export const crashCursor = () => saved().crashCursor;
+export const advanceCrashCursor = (to: number) => to > saved().crashCursor && save({ crashCursor: to });
 
-export const devState = () => ({ saved, queued: { events: queue.events.length, logs: queue.logs.length }, droppedWhileOff, canSend: mayPost("events") });
+export const devState = () => ({ saved: saved(), queued: { events: queue.events.length, logs: queue.logs.length }, droppedWhileOff, canSend: mayPost("events") });

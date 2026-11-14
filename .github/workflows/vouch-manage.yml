@@ -1,0 +1,39 @@
+name: Vouch manage
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    if: >-
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+      (startsWith(github.event.comment.body, 'vouch') ||
+       startsWith(github.event.comment.body, 'denounce') ||
+       startsWith(github.event.comment.body, 'unvouch'))
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - id: manage
+        uses: mitchellh/vouch/action/manage-by-issue@d66fa29a64600490892131ad87597c30c91fcac4
+        with:
+          issue-id: ${{ github.event.issue.number }}
+          comment-id: ${{ github.event.comment.id }}
+          vouched-file: .github/VOUCHED.td
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.manage.outputs.status != 'unchanged'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        with:
+          retries: 3
+          script: |
+            const vouch = require(`${process.env.GITHUB_WORKSPACE}/.github/vouch/vouch.cjs`);
+            await vouch.listChanged({ github, context, core });

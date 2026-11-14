@@ -28,7 +28,7 @@ import { downloadMenu } from "../../state/downloads/downloadMenu";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { useDownloads, useSidebarOpen, useWindowId, useWindowUi } from "../../state/browser/hooks";
+import { useDownloads, useSidebarOpen, useSidebarSide, useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { clearDownloads, setDownloadsOpen } from "../../state/windows/actions";
 import { watchNewDownloads } from "../../state/windows/downloadWatch";
 import { useDownload } from "../../state/windows/hooks";
@@ -44,6 +44,7 @@ import { dangerWarning, downloadStatus } from "../../state/downloads/status";
 import { useDownloadView } from "./useDownloadView";
 import { FooterButton } from "./FooterButton";
 import { useDownloadsPlacement } from "./useDownloadsPlacement";
+import { sameSize, useSettled, type Size } from "../ui/useSettled";
 import { DOWNLOADS_LIST as L, FILE_ICON_GLYPH_SHARE, MAGNET, useDownloadsColors } from "./tokens";
 
 const rowFill = (theme: Theme, hovered: boolean, pressed: boolean) => (hovered || pressed ? menuRowFill(theme, pressed) : undefined);
@@ -85,8 +86,9 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   const { ids, clearable } = shownList.current;
   const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const sidebarRight = useSidebarSide(windowId) === "right";
   const setOpen = (value: boolean) => setDownloadsOpen(windowId, value);
-  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2 });
+  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2, sidebarRight });
   const placed = p !== null;
   const appear = usePopoverMotion(closing, onClosed, placed);
 
@@ -268,10 +270,12 @@ export function DownloadMagnet() {
   const sidebarOpen = useSidebarOpen();
   const sidebarWidth = useSidebarWidth(windowId);
   const topStrip = useTabLayout() === "top";
+  const right = useSidebarSide(windowId) === "right";
   const addressBar = useAddressBarInSidebar();
   const lightsY = useToolbarLightsCenter()[1];
   const [flight, setFlight] = useState<{ id: string; path: string } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const settleSize = useSettled((next: Size) => setSize((prev) => (sameSize(prev, next) ? prev : next)));
   const t = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -283,22 +287,25 @@ export function DownloadMagnet() {
   }, [windowId]);
 
   const sidebar = !topStrip && sidebarOpen ? sidebarWidth : 0;
-  const footer = { x: layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
+  const sidebarLeft = right ? size.width - sidebarWidth : 0;
+  const footer = { x: sidebarLeft + SIDEBAR_FOOTER_DOWNLOADS.left + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
   const target = topStrip
     ? { x: size.width - MAGNET.topStripTarget.right, y: MAGNET.topStripTarget.y }
     : addressBar
       ? footer
       : sidebarOpen
-        ? { x: sidebarWidth - MAGNET.sidebarTarget.right, y: lightsY }
-        : MAGNET.closedTarget;
-  const start = { x: sidebar + (size.width - sidebar) / 2, y: size.height * MAGNET.startShare };
+        ? { x: sidebarLeft + sidebarWidth - MAGNET.sidebarTarget.right, y: lightsY }
+        : right
+          ? { x: size.width - MAGNET.closedTarget.x, y: MAGNET.closedTarget.y }
+          : MAGNET.closedTarget;
+  const start = { x: (right ? 0 : sidebar) + (size.width - sidebar) / 2, y: size.height * MAGNET.startShare };
   const icon = MAGNET.icon;
   const steps = [0, 0.25, 0.5, 0.75, 1];
   const x = t.interpolate({ inputRange: steps, outputRange: steps.map((p) => start.x + (target.x - start.x) * p - icon / 2) });
   const y = t.interpolate({ inputRange: steps, outputRange: steps.map((p) => start.y + (target.y - start.y) * p - Math.sin(Math.PI * p) * MAGNET.arc - icon / 2) });
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={(e) => setSize(e.nativeEvent.layout)}>
+    <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={(e) => settleSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
       {flight && (
         <Animated.View
           style={{

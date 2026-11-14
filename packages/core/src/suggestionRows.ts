@@ -26,6 +26,8 @@ export function suggestionKey(s: Suggestion): string {
       return `create:${s.id}`;
     case "extension":
       return `extension:${s.open}:${s.id}`;
+    case "provider":
+      return `provider:${s.providerId}:${pageKey(s.url)}`;
   }
 }
 

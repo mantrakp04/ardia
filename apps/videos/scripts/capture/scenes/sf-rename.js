@@ -1,0 +1,10 @@
+const NAME = "Heat map (THE one)";
+then(() => picShown().then(() => rows()).then((r) => snap("rest", { rows: r })));
+then(() => SA.startRename(W, { kind: "tab", id: "a6" }).then(() => sleep(500)).then(() => snap("field")));
+typeChars("type", NAME);
+then(() => sleep(200).then(() => snap("typed")));
+then(() => { slow(5); return Promise.resolve(ac.shell.devTypeKeys(W, "\r", 0)).then(() => snap("commit")); });
+settle("settle", 10, 30);
+then(() => slow(1));
+then(() => sleep(1000).then(() => rows()).then((r) => snap("after", { rows: r })));
+return finish({ links: linksOf(folder()) });

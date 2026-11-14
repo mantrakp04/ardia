@@ -3,6 +3,7 @@ import { Pressable } from "react-native";
 import { Box, Checkbox, duration, IconTile, Text, type Space } from "../ui";
 import { watchWindowActivation, windowActivatedAt } from "../../state/site/promptGuard";
 import { siteLine, useSiteTokens } from "./tokens";
+import { perLook } from "../ui/tokens";
 
 export function PromptIcon({ icon }: { icon: string }) {
   return <IconTile symbol={icon} fill={useSiteTokens().iconTile} />;
@@ -18,14 +19,14 @@ export function Well({ list = false, gap, fill, children }: { list?: boolean; ga
 }
 
 const CHECK_ROW = { alignItems: "flex-start" } as const;
-const CHECK_LABEL = { flex: 1, lineHeight: siteLine.checkLabel } as const;
+const CHECK_LABEL = perLook(() => ({ flex: 1, lineHeight: siteLine.checkLabel }) as const);
 
 export function CheckRow({ value, onChange, label }: { value: boolean; onChange: (value: boolean) => void; label: string }) {
   return (
     <Pressable onPress={() => onChange(!value)}>
       <Box row gap="m" style={CHECK_ROW}>
         <Checkbox value={value} onChange={onChange} />
-        <Text size="small" style={CHECK_LABEL}>
+        <Text size="small" style={CHECK_LABEL()}>
           {label}
         </Text>
       </Box>

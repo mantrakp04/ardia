@@ -10,13 +10,13 @@
 </p>
 
 <h3 align="center">
-  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.43/Ardia-0.2.43.dmg">Download Ardia 0.2.43 for Mac</a>
+  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.46/Ardia-0.2.46.dmg">Download Ardia 0.2.46 for Mac</a>
 </h3>
 
 <p align="center">
-  121 MB DMG · macOS 14 Sonoma or later · Apple Silicon · Notarized by Apple<br>
+  128 MB DMG · macOS 14 Sonoma or later · Apple Silicon · Notarized by Apple<br>
   Like your paint wet? <a href="https://ardia.dev/nightly">The nightly</a> has every fix the day it’s made, smudges and all.<br>
-  Homebrew: <code>brew install mantrakp04/tap/ardia</code><br>
+  Homebrew: <code>brew install ardia-browser/tap/ardia</code><br>
   <a href="https://ardia.dev">ardia.dev</a> · <a href="https://ardia.dev/release-notes">What’s new</a> · <a href="https://github.com/mantrakp04/ardia/releases">All releases</a> · <a href="https://discord.gg/TdhuXrbcA6">Discord</a>
 </p>
 
@@ -74,7 +74,7 @@ Not WebKit. Not Electron. Every window is Chrome’s own, so sites, extensions a
 
 | Part | Details | Status |
 | --- | --- | --- |
-| Engine | Chromium 156, on Chrome’s own framework. | ✓ Yes |
+| Engine | Chromium 157, on Chrome’s own framework. | ✓ Yes |
 | De-Googled | Google’s background services stripped out. | ✓ Yes |
 | H.264 and AAC | The codecs Chromium leaves out. | ✓ Yes |
 | DevTools | Docked, with device mode. Like Chrome. | ✓ Yes |
@@ -85,11 +85,11 @@ Not WebKit. Not Electron. Every window is Chrome’s own, so sites, extensions a
 | Intel Macs | Apple Silicon only. | ✗ No |
 
 <h3 align="center">
-  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.43/Ardia-0.2.43.dmg">Download Ardia 0.2.43</a>
+  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.46/Ardia-0.2.46.dmg">Download Ardia 0.2.46</a>
 </h3>
 
 <p align="center">
-  It’s 121 MB and one drag into Applications.<br>
+  It’s 128 MB and one drag into Applications.<br>
   Not on a Mac? Watch › Custom › Releases up top and GitHub tells you when it is.
 </p>
 
@@ -105,7 +105,7 @@ reconstructed from Dia's own New Tab effects.
 apps/
   browser/            Expo + react-native-macos app (UI in src/, Xcode project in macos/)
 packages/
-  ardiacore/             The engine: Chromium 156's framework with our layer (Chrome tabs hosted in our views), JS API in src/
+  ardiacore/             The engine: Chromium 157's framework with our layer (Chrome tabs hosted in our views), JS API in src/
   shell/              Native menu bar + shortcuts → JS, windows, SF Symbols, native primitives
   shaders/            Metal: New Tab effects + grained OKLab window backdrop
   import/             Import from other browsers (bookmarks, history, passwords, Arc spaces)
@@ -115,7 +115,7 @@ packages/
 
 ## Run it
 
-Requires Xcode 26+, CocoaPods, Node 22.13+ (pinned in `.nvmrc`), pnpm 11.
+Requires Xcode 26+, CocoaPods, Node 24 (pinned in `.nvmrc`), pnpm 11.
 
 ```bash
 pnpm install
@@ -129,7 +129,7 @@ is newer than the last release's, work from a release tag (`v0.2.30`, say), or r
 cards need our team ID and won't work in a build signed by anyone else.
 
 To change the engine itself (anything under `engine/`), build it from source: Chrome's framework from our patched
-Chromium tree in `~/chromium-build` (Chromium 156.0.8078.79 with the patch series in `engine/patches`;
+Chromium tree in `~/chromium-build` (Chromium 157.0.8103.50 with the patch series in `engine/patches`;
 `docs/engine-build.md` › "Rebuilding", then `engine/chromium/apply.sh`,
 `engine/ardiacore/apply.sh` and `autoninja -C out/Release_GN_arm64 chrome_framework`; the first build takes about 2
 hours). The app's build stages it from there when it exists.
@@ -152,8 +152,10 @@ pnpm macos
 ```
 
 Other tasks: `pnpm typecheck`, `pnpm test`, `pnpm shaders:check` (compiles the embedded Metal offline),
-`pnpm build` (Release `.app` with a Hermes bytecode bundle in `apps/browser/build/`).
-Signed releases (DMG, Sparkle zip and appcast): `scripts/release.sh <version>`, see `docs/releasing.md`.
+`scripts/agent/build-app --config Release` (a Release `.app` with a Hermes bytecode bundle in
+`apps/browser/build-<name>`, under the shared build locks; `--help`).
+Signed releases (DMG, Sparkle zip and appcast) are built by the Release workflow with `scripts/release.sh`, see
+`docs/releasing.md`.
 
 Shortcuts: ⌘T new tab, ⌘L command bar, ⌘W close, ⇧⌘T reopen, ⌘S sidebar, ⌘[ / ⌘] back/forward,
 ⌘R reload, ⌘1–⌘9 select tab, ⌃Tab cycle.

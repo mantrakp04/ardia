@@ -18,7 +18,14 @@ export type UpdaterState =
       channel?: UpdateChannel;
       buildChannel?: UpdateChannel;
       ready?: ReadyUpdate | null;
+      switchCheck?: SwitchCheck | null;
     };
+
+export type SwitchCheck = {
+  phase: "waiting" | "checking" | "found" | "upToDate" | "newerThanLatest" | "failed";
+  channel: UpdateChannel;
+  version?: string;
+};
 
 export type UpdateChannel = "stable" | "nightly";
 

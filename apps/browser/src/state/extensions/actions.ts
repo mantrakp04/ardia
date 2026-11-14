@@ -5,6 +5,7 @@ import {
   inspectUnpackedExtension,
   installExtension,
   listExtensions,
+  reloadExtension,
   resolveExtensionInstallPrompt,
   setExtensionEnabled,
   uninstallExtension,
@@ -17,17 +18,18 @@ import { confirm } from "../../platform/dialogs";
 import { showMenu, type MenuItem } from "../../platform/menus";
 import type { ChoiceItem } from "../app/menuChoice";
 import { menuSections } from "../app/menuSections";
-import { openWindow } from "../browser/actions";
+import { focus, openWindow } from "../browser/actions";
 import { webviews } from "../../platform/webviews";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
+import { engineProfiles } from "../profiles/engineProfiles";
 import { shownPageId } from "../peek/peek";
+import { mainWindowFor, originalProfile } from "../windows/small";
 import { goToSettingsPane, openSettings, replaceSettingsPlace, settingsBack, useSettingsNav } from "../settings/settingsWindows";
 import { closeSidePanelsOf, toggleSidePanel } from "./sidePanels";
-import { extensionPageUrl, extensionProfile, extensionsProfileId, pageProfile, shownIn, useExtensions, windowExtensions, readyTabOf, type Anchor } from "./store";
+import { notePrivateWindowExtensionOpen } from "../telemetry/usage";
+import { extensionPageUrl, extensionProfile, extensionsProfileId, isPrivate, pageProfile, shownIn, useExtensions, windowExtensions, readyTabOf, type Anchor } from "./store";
 import { errorText } from "../../lib/errors";
-
-export { reloadExtension } from "../../platform/extensions";
 
 export * from "./sidePanels";
 export * from "./store";
@@ -37,6 +39,7 @@ const EMPTY: InstalledExtension[] = [];
 const loading = new Map<string, Promise<InstalledExtension[]>>();
 
 export function refreshExtensions(profile: string): Promise<InstalledExtension[]> {
+  if (!engineProfiles(useBrowser.getState()).includes(profile)) return Promise.resolve(useExtensions.getState().lists[profile] ?? EMPTY);
   const running = loading.get(profile);
   if (running) return running;
   const job = listExtensions(profile)
@@ -141,37 +144,41 @@ export async function removeExtension(profile: string, ext: InstalledExtension, 
   if (!confirmed) return;
   if (useExtensions.getState().popup?.extensionId === ext.id) closeExtensionPopup();
   closeSidePanelsOf(ext.id);
-  try {
-    await uninstallExtension(ext.id, profile);
-  } finally {
-    await refreshExtensions(profile);
-  }
+  await changeThenRefresh(profile, "remove", () => uninstallExtension(ext.id, profile));
 }
 
 export async function setEnabled(profile: string, id: string, enabled: boolean) {
   patchExtension(profile, id, { enabled, state: enabled ? "ENABLED" : "DISABLED" });
-  try {
-    await setExtensionEnabled(id, profile, enabled);
-  } finally {
-    await refreshExtensions(profile);
-  }
+  await changeThenRefresh(profile, enabled ? "turn on" : "turn off", () => setExtensionEnabled(id, profile, enabled));
 }
 
 export async function setPinned(profile: string, id: string, pinned: boolean) {
   patchExtension(profile, id, { pinned });
-  try {
-    await configureExtension(id, profile, { pinned });
-  } catch {
-    await refreshExtensions(profile);
-  }
+  const done = await changed(pinned ? "pin" : "unpin", () => configureExtension(id, profile, { pinned }));
+  if (!done) await refreshExtensions(profile);
 }
 
 export async function configure(profile: string, id: string, options: Parameters<typeof configureExtension>[2]) {
+  await changeThenRefresh(profile, "configure", () => configureExtension(id, profile, options));
+}
+
+export async function reload(profile: string, id: string) {
+  await changeThenRefresh(profile, "reload", () => reloadExtension(id, profile));
+}
+
+async function changed(what: string, change: () => Promise<void>): Promise<boolean> {
   try {
-    await configureExtension(id, profile, options);
-  } finally {
-    await refreshExtensions(profile);
+    await change();
+    return true;
+  } catch (error) {
+    console.warn(`[extensions] ${what} failed`, error);
+    return false;
   }
+}
+
+async function changeThenRefresh(profile: string, what: string, change: () => Promise<void>) {
+  await changed(what, change);
+  await refreshExtensions(profile);
 }
 
 function patchExtension(profile: string, id: string, patch: Partial<InstalledExtension>) {
@@ -181,7 +188,16 @@ function patchExtension(profile: string, id: string, patch: Partial<InstalledExt
 }
 
 export function openOptions(windowId: string, ext: InstalledExtension) {
-  if (ext.optionsUrl) useBrowser.getState().newTab(windowId, { url: ext.optionsUrl });
+  const url = ext.optionsUrl;
+  if (!url) return;
+  const s = useBrowser.getState();
+  const w = s.windows[windowId];
+  if (w?.kind !== "private" || ext.incognitoSplit) return void s.newTab(windowId, { url });
+  const profileId = originalProfile(s, w);
+  const regular = profileId && mainWindowFor(s, profileId);
+  if (!regular || s.windows[regular]!.profileId !== profileId) return void openWindow({ profileId, url });
+  s.newTab(regular, { url });
+  focus(regular);
 }
 
 export const openManageExtensions = (windowId?: string | null) => openSettings("extensions", extensionsProfileId(null, windowId));
@@ -211,6 +227,7 @@ export async function activateExtension(
   if (current?.windowId === windowId && current.extensionId === ext.id) return closeExtensionPopup();
   if (!ext.enabled) return void showExtensionMenu(windowId, ext);
   if (!shownIn(windowId, ext.id)) return;
+  if (isPrivate(useBrowser.getState(), windowId)) notePrivateWindowExtensionOpen();
   const web = tabId ? webviews.get(tabId) : undefined;
   const result = web ? await web.executeExtensionAction(ext.id) : null;
   const readyTab = readyTabOf(tabId);

@@ -12,6 +12,7 @@ enum MainMenu {
   private static var littleArdiaInProfileItem = NSMenuItem(title: "New Little Ardia Window in Profile", action: nil, keyEquivalent: "")
   private static var bookmarks = NSMenu(title: "Bookmarks")
   private static var bookmarksFixedCount = 0
+  private static var bookmarkItems: [NSMenuItem] = []
   private static var history = NSMenu(title: "History")
   private static var extensions = NSMenu(title: "Extensions")
   private static var extensionIcons: [String: NSImage] = [:]
@@ -45,6 +46,12 @@ enum MainMenu {
       CommandItem(command, arg: arg, title: title)
     }
     func hidden(_ command: CommandTable.Command, arg: String? = nil) -> CommandItem { cmd(command, arg: arg).hiddenShortcut() }
+
+    func bookmarkItem<Item: NSMenuItem>(_ item: Item) -> Item {
+      bookmarkItems.append(item)
+      return item
+    }
+    bookmarkItems = []
 
     let shareMenu = NSMenu(title: "Share")
     shareMenu.delegate = ShareMenu.shared
@@ -175,18 +182,19 @@ enum MainMenu {
       .separator(),
       cmd(.toggleTabLayout),
       cmd(.toggleSidebar),
+      cmd(.toggleSidebarSide),
       .separator(),
       cmd(.openSplitPane),
       cmd(.focusNextPane),
       cmd(.focusPreviousPane),
-      .separator(),
-      sub("Show Bookmarks Bar", [
+      bookmarkItem(NSMenuItem.separator()),
+      bookmarkItem(sub("Show Bookmarks Bar", [
         cmd(.setBookmarksBar, arg: "always"),
         cmd(.setBookmarksBar, arg: "newTab"),
         cmd(.setBookmarksBar, arg: "never"),
         .separator(),
         cmd(.toggleBookmarksBar),
-      ]),
+      ])),
       .separator(),
       cmd(.toggleFullUrl),
       cmd(.toggleAddressBar),
@@ -234,9 +242,9 @@ enum MainMenu {
       .separator(),
       sub("Move to Profile", [], menu: moveToProfile),
       sub("Move to Window", [], menu: moveToWindow),
-      .separator(),
-      cmd(.bookmarkPage),
-      sub("Add Bookmark to Folder", [], menu: bookmarkToFolder),
+      bookmarkItem(NSMenuItem.separator()),
+      bookmarkItem(cmd(.bookmarkPage)),
+      bookmarkItem(sub("Add Bookmark to Folder", [], menu: bookmarkToFolder)),
       .separator(),
       cmd(.renameTab),
       cmd(.changeTabIcon),
@@ -250,6 +258,7 @@ enum MainMenu {
       cmd(.exportBookmarks),
     ])
     bookmarksFixedCount = bookmarks.items.count
+    if let bookmarksRoot = main.items.first(where: { $0.submenu === bookmarks }) { bookmarkItems.append(bookmarksRoot) }
     history = top("History", [])
     extensions = top("Extensions", [])
 
@@ -326,14 +335,13 @@ enum MainMenu {
 
   private static func helpItems() -> [NSMenuItem] {
     var items: [NSMenuItem] = [
-      CommandItem(.sendFeedback),
+      CommandItem(.reportProblem),
       CommandItem(.keyboardShortcuts),
       CommandItem(.toolTour),
       videoTourItem(),
       releaseNotesItem(),
       .separator(),
       CommandItem(.copyDiagnostics),
-      CommandItem(.recordPerformanceIssue),
     ]
     #if DEBUG
     items += [.separator(), CommandItem(.showOnboarding)]
@@ -368,6 +376,7 @@ enum MainMenu {
       undo.target = state.undoReopensClosedTab ? MenuTarget.shared : nil
       undo.title = undo.defaultTitle
     }
+    for item in bookmarkItems where item.isHidden == state.bookmarksShown { item.isHidden = !state.bookmarksShown }
     applyShortcuts(state.shortcuts)
   }
 

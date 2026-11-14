@@ -21,6 +21,7 @@ constexpr float kStopRatio = 1.0f;
 constexpr int kMaxTargetDimension = 6144;
 constexpr int kMinSourceDimension = 64;
 constexpr base::TimeDelta kIdleTeardown = base::Seconds(3);
+constexpr base::TimeDelta kJobStall = base::Seconds(1);
 
 int AlignUp16(int value) {
   return (value + 15) & ~15;
@@ -82,6 +83,9 @@ void Upscaler::Process(bool allowed, std::vector<VideoUpscaleCandidate>& candida
       best->output = cache_output_;
       TRACE_EVENT_INSTANT0("gpu", "ArdiaVSR.CacheHit", TRACE_EVENT_SCOPE_THREAD);
       return;
+    }
+    if (job_in_flight_ && base::TimeTicks::Now() - job_in_flight_started_ > kJobStall) {
+      AbandonStalledJob();
     }
     if (job_in_flight_) {
       best->pending = job_in_flight_source_ == best->source;
@@ -168,7 +172,7 @@ std::optional<Plan> Upscaler::MakePlan(const VideoUpscaleCandidate& candidate, c
   }
   const float ratio = std::min(key.target.width() / key.crop.width(),
                                key.target.height() / key.crop.height());
-  if (VTLowLatencySuperResolutionScalerConfiguration.isSupported &&
+  if (!VideoToolboxQuarantined() && VTLowLatencySuperResolutionScalerConfiguration.isSupported &&
       key.format == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) {
     const gfx::Size aligned(AlignUp16(plan.region.width()), AlignUp16(plan.region.height()));
     const CMVideoDimensions max =

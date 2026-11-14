@@ -41,7 +41,7 @@ export function closedTabEntry(s: Pick<BrowserState, "groups">, t: Tab, at: { wi
 export const closedWindowEntry = (w: BrowserWindow, tabs: ClosedWindow["tabs"], groups: ClosedWindow["groups"], closedAt: number): ClosedWindow => ({
   kind: "window",
   id: newId("cw"),
-  window: { profileId: w.profileId, sidebarOpen: w.sidebarOpen, frame: w.frame },
+  window: { profileId: w.profileId, frame: w.frame, ...(w.tabLayout ? { tabLayout: w.tabLayout } : {}), ...(w.autoHideTabs !== undefined ? { autoHideTabs: w.autoHideTabs } : {}) },
   tabs,
   groups,
   closedAt,

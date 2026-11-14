@@ -1,0 +1,170 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Island Ferry Times</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--blue:#1546c2;--blue2:#0d2f8a;--sky:#e8efff;--foam:#e3f6f3;--teal:#0b8a78;--ink:#101828;--soft:#475467;--mute:#8590a2;--line:#e3e7ef;--bg:#f5f7fb;--amber:#c76a00;--amber2:#fff1db;--red:#c8312b;--red2:#fde8e7}
+body{font-family:"Helvetica Neue",-apple-system,Arial,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14px}
+header{background:var(--blue);color:#fff}
+header .in{max-width:1220px;margin:0 auto;padding:0 28px;height:60px;display:flex;align-items:center;gap:14px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.02em}
+.logo i{width:34px;height:34px;border-radius:50%;background:#fff;display:grid;place-items:center}
+.logo small{display:block;font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-top:1px}
+nav{display:flex;gap:4px;margin-left:30px;font-weight:600;font-size:14px;white-space:nowrap}
+nav span{padding:8px 12px;border-radius:8px;color:#d7e1ff}
+nav .on{background:rgba(255,255,255,.16);color:#fff}
+.status{margin-left:auto;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.12);border-radius:18px;padding:6px 12px 6px 9px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.status i{width:9px;height:9px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.25)}
+.acct{width:34px;height:34px;border-radius:50%;background:#ffd23f;color:var(--blue2);display:grid;place-items:center;font-weight:800;font-size:12px}
+.alert{background:var(--amber2);border-bottom:1px solid #f3dcb5;color:#7a4300;font-size:13px}
+.alert .in{max-width:1220px;margin:0 auto;padding:8px 28px;display:flex;gap:9px;align-items:center}
+.alert b{font-weight:700}
+.alert a{margin-left:auto;font-weight:700;color:#7a4300;text-decoration:underline}
+.top{background:#fff;border-bottom:1px solid var(--line)}
+.top .in{max-width:1220px;margin:0 auto;padding:16px 28px 0}
+.trow{display:flex;align-items:center;gap:18px}
+h1{font-size:28px;font-weight:800;letter-spacing:-.03em}
+.route{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:12px;background:#fff;margin-left:auto;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.route div{padding:7px 14px}
+.route small{display:block;font-size:10.5px;color:var(--mute);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.route b{font-size:14px;font-weight:700;white-space:nowrap}
+.swap{width:32px;height:32px;border-radius:50%;background:var(--sky);display:grid;place-items:center;flex:none}
+.days{display:flex;gap:6px;margin-top:14px}
+.day{padding:8px 14px 11px;font-size:13px;font-weight:600;color:var(--soft);border-radius:9px 9px 0 0;text-align:center;white-space:nowrap}
+.day small{display:block;font-size:11px;font-weight:500;color:var(--mute);margin-top:1px}
+.day.on{color:var(--blue);box-shadow:inset 0 -3px 0 var(--blue);background:var(--sky)}
+.day.on small{color:var(--blue)}
+.line{background:#fff;border-bottom:1px solid var(--line)}
+.line .in{max-width:1220px;margin:0 auto;padding:12px 28px 14px;display:flex;align-items:center;gap:18px}
+.line .lab{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);white-space:nowrap}
+.track{position:relative;flex:1;height:44px}
+.track .rail{position:absolute;left:8px;right:8px;top:12px;height:5px;border-radius:3px;background:repeating-linear-gradient(90deg,var(--blue) 0 10px,transparent 10px 16px)}
+.track .done{position:absolute;left:8px;top:12px;height:5px;width:39%;border-radius:3px;background:var(--blue)}
+.stop{position:absolute;top:6px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px}
+.stop i{width:17px;height:17px;border-radius:50%;background:#fff;border:4px solid var(--blue)}
+.stop.opt i{border-color:#9db4ea}
+.stop span{font-size:12px;font-weight:600;white-space:nowrap}
+.stop.opt span{color:var(--mute);font-weight:500}
+.boat{position:absolute;top:0;left:41%;transform:translateX(-50%);width:30px;height:30px;border-radius:50%;background:#ffd23f;display:grid;place-items:center;box-shadow:0 2px 8px rgba(21,70,194,.35)}
+.body{max-width:1220px;margin:0 auto;padding:16px 28px 40px;display:grid;grid-template-columns:1fr 352px;gap:20px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ph{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.ph h2{font-size:15px;font-weight:700}
+.ph .f{margin-left:auto;display:flex;gap:6px}
+.chip{height:28px;padding:0 11px;border-radius:14px;border:1px solid var(--line);font-size:12.5px;font-weight:600;display:flex;align-items:center;color:var(--soft);white-space:nowrap;gap:6px}
+.chip.on{border-color:var(--blue);color:var(--blue);background:var(--sky)}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--mute);font-weight:700;text-align:left;padding:8px 16px;background:#fafbfd;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 14px;border-bottom:1px solid #eef1f6;font-size:13.5px;white-space:nowrap;vertical-align:middle}
+td.t{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+td.t small{display:block;font-size:11.5px;font-weight:500;color:var(--mute);letter-spacing:0}
+td.ar{font-variant-numeric:tabular-nums;color:var(--soft);font-weight:600}
+tr.gone td{color:#a8b0bd}
+tr.gone td.t{color:#a8b0bd}
+tr.next td{background:#f4f7ff}
+tr.next td:first-child{box-shadow:inset 4px 0 0 var(--blue)}
+.ves{display:flex;align-items:center;gap:8px;font-weight:600}
+.ves i{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:800;color:#fff}
+.ves em{font-style:normal;color:var(--mute);font-weight:500;font-size:12px}
+.via{display:flex;gap:4px}
+.via span{font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;background:#eef1f6;color:var(--soft)}
+.st{font-size:12px;font-weight:700;padding:4px 9px;border-radius:12px;display:inline-flex;gap:6px;align-items:center}
+.st i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.st.ok{background:var(--foam);color:var(--teal)}
+.st.bd{background:var(--blue);color:#fff}
+.st.lt{background:var(--amber2);color:var(--amber)}
+.st.cx{background:var(--red2);color:var(--red)}
+.st.gn{background:#f0f2f5;color:#98a1ae}
+.deck{display:flex;gap:3px;align-items:center;font-size:12px;color:var(--soft)}
+.deck b{display:inline-block;width:46px;height:6px;border-radius:3px;background:#e9edf3;overflow:hidden;margin-right:6px}
+.deck b i{display:block;height:100%;background:var(--teal)}
+.next-card{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:14px;box-shadow:0 6px 20px rgba(13,47,138,.08)}
+.nc-img{position:relative;height:128px}
+.nc-img img{width:100%;height:100%;object-fit:cover;display:block}
+.nc-img:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(13,47,138,.1),rgba(13,47,138,.78))}
+.nc-img span{position:absolute;left:16px;top:14px;z-index:2;background:#ffd23f;color:var(--blue2);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 9px;border-radius:6px}
+.nc-img div{position:absolute;left:16px;bottom:12px;z-index:2;color:#fff}
+.nc-img div b{font-size:40px;font-weight:800;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.nc-img div small{display:block;font-size:13px;font-weight:600;opacity:.92;margin-top:3px}
+.count{position:absolute;right:16px;top:12px;z-index:2;text-align:right;color:#fff}
+.nc-img .count b{display:inline-block;font-size:14px;line-height:1.2;letter-spacing:0;font-weight:800;background:rgba(255,255,255,.2);backdrop-filter:blur(6px);padding:5px 10px;border-radius:14px;margin-bottom:3px}
+.count small{display:block}
+.count small{font-size:11.5px;opacity:.85}
+.nc-b{padding:12px 16px 14px}
+.legs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.legs div{background:var(--bg);border-radius:10px;padding:8px 10px}
+.legs small{display:block;font-size:11px;color:var(--mute);font-weight:600}
+.legs b{font-size:14px;font-weight:700}
+.board{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--soft);margin-bottom:12px}
+.board .pb{flex:1;height:6px;border-radius:3px;background:#e9edf3;overflow:hidden}
+.board .pb i{display:block;height:100%;width:62%;background:var(--blue);border-radius:3px}
+.btns{display:flex;gap:8px}
+.btn{flex:1;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:7px;font-weight:700;font-size:13px;border:1px solid var(--line);color:var(--ink);white-space:nowrap}
+.btn.p{background:var(--blue);border-color:var(--blue);color:#fff}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 16px}
+.card h3{font-size:13.5px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.card h3 span{margin-left:auto;font-size:12px;color:var(--blue)}
+.wx{display:flex;gap:10px}
+.wx div{flex:1;text-align:center;font-size:11.5px;color:var(--mute);padding:6px 0;border-radius:8px}
+.wx div b{display:block;font-size:14px;color:var(--ink);margin:2px 0}
+.wx div.on{background:var(--sky)}
+.trip{margin-top:14px}
+.trip .r{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #eef1f6;font-size:13px}
+.trip .r:first-of-type{border:0}
+.trip .r i{width:30px;height:30px;border-radius:9px;background:var(--sky);color:var(--blue);display:grid;place-items:center;font-style:normal;font-weight:800;font-size:12px;flex:none}
+.trip .r b{display:block;font-size:13.5px}
+.trip .r span{color:var(--mute);font-size:12px}
+.trip .r em{margin-left:auto;font-style:normal;font-size:12px;font-weight:700;color:var(--teal)}
+@media (max-width:1100px){.ph .chip:nth-child(n+3){display:none}.ph h2{white-space:nowrap}.body{grid-template-columns:1fr 318px}nav span:nth-child(n+4){display:none}td.hide,th.hide{display:none}}
+</style></head><body>
+<header><div class="in">
+<div class="logo"><i><svg width="20" height="20" viewBox="0 0 24 24"><path d="M3 14h18l-3 6H6z" fill="#1546c2"/><rect x="7" y="8" width="10" height="5" rx="1" fill="#1546c2"/><rect x="11" y="4" width="2.5" height="4" fill="#1546c2"/></svg></i><div>Sela Line<small>Island ferries</small></div></div>
+<nav><span class="on">Timetables</span><span>Routes</span><span>Tickets</span><span>Vehicles</span><span>Travel updates</span></nav>
+<div class="status"><i></i>Good service on all routes</div>
+<div class="acct">MK</div>
+</div></header>
+<div class="alert"><div class="in"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 1.5l7 12.5H1z" fill="#c76a00"/><rect x="7.2" y="6" width="1.6" height="4.4" fill="#fff"/><rect x="7.2" y="11.3" width="1.6" height="1.6" fill="#fff"/></svg><span><b>Swell on the outer crossing:</b> sailings via Lune Rock may skip the stop after 18:00.</span><a>See updates</a></div></div>
+<section class="top"><div class="in">
+<div class="trow"><h1>Island Ferry Times</h1>
+<div class="route"><div><small>From</small><b>Kessa Quay, mainland</b></div><span class="swap"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#1546c2" stroke-width="1.8"><path d="M2 5h11l-3-3M14 11H3l3 3"/></svg></span><div><small>To</small><b>Port Sela, Old Harbour</b></div></div></div>
+<div class="days"><span class="day on">Today<small>Fri 14 Aug</small></span><span class="day">Sat<small>15 Aug</small></span><span class="day">Sun<small>16 Aug</small></span><span class="day">Mon<small>17 Aug</small></span><span class="day">Tue<small>18 Aug</small></span><span class="day">Wed<small>19 Aug</small></span><span class="day">More dates<small>Summer timetable</small></span></div>
+</div></section>
+<section class="line"><div class="in"><span class="lab">Route S1</span>
+<div class="track"><div class="rail"></div><div class="done"></div>
+<div class="stop" style="left:1.5%"><i></i><span>Kessa Quay</span></div>
+<div class="stop opt" style="left:30%"><i></i><span>Lune Rock</span></div>
+<div class="boat"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M3 14h18l-3 6H6z" fill="#0d2f8a"/><rect x="7" y="8" width="10" height="5" rx="1" fill="#0d2f8a"/></svg></div>
+<div class="stop" style="left:66%"><i></i><span>Port Sela, Old Harbour</span></div>
+<div class="stop opt" style="left:98%"><i></i><span>Marrow Bay</span></div>
+</div><span class="lab" style="color:#1546c2">MV Tern · 18 min to Sela</span></div></section>
+<div class="body">
+<main class="panel">
+<div class="ph"><h2>Departures from Kessa Quay</h2><div class="f"><span class="chip on">All sailings</span><span class="chip">Direct only</span><span class="chip">Vehicle deck</span><span class="chip">After 12:00 ▾</span></div></div>
+<table><thead><tr><th>Departs</th><th>Vessel</th><th class="hide">Calls at</th><th>Car deck</th><th>Status</th></tr></thead><tbody>
+<tr class="gone"><td class="t">12:10<small>arr 13:05 · 55 min</small></td><td><div class="ves"><i style="background:#b4bfd3">GU</i>Gull</div></td><td class="hide"><div class="via"><span>Direct</span></div></td><td><div class="deck"><b><i style="width:100%;background:#b4bfd3"></i></b>Full</div></td><td><span class="st gn">Arrived</span></td></tr>
+<tr class="gone"><td class="t">13:20<small>arr 14:30 · 1 h 10</small></td><td><div class="ves"><i style="background:#b4bfd3">TE</i>Tern</div></td><td class="hide"><div class="via"><span>Lune Rock</span></div></td><td><div class="deck"><b><i style="width:92%;background:#b4bfd3"></i></b>Few spaces</div></td><td><span class="st gn">At sea</span></td></tr>
+<tr class="next"><td class="t">14:35<small>arr 15:30 · 55 min</small></td><td><div class="ves"><i style="background:#1546c2">KI</i>Kittiwake <em>· B2</em></div></td><td class="hide"><div class="via"><span>Direct</span></div></td><td><div class="deck"><b><i style="width:64%"></i></b>Spaces</div></td><td><span class="st bd"><i></i>Boarding 14:15</span></td></tr>
+<tr><td class="t">15:50<small>arr 17:00 · 1 h 10</small></td><td><div class="ves"><i style="background:#0b8a78">PE</i>Petrel</div></td><td class="hide"><div class="via"><span>Lune Rock</span></div></td><td><div class="deck"><b><i style="width:40%"></i></b>Spaces</div></td><td><span class="st ok"><i></i>On time</span></td></tr>
+<tr><td class="t">16:40<small>arr 17:35 · 55 min</small></td><td><div class="ves"><i style="background:#1546c2">GU</i>Gull</div></td><td class="hide"><div class="via"><span>Direct</span></div></td><td><div class="deck"><b><i style="width:78%;background:#c76a00"></i></b>Filling up</div></td><td><span class="st lt"><i></i>10 min late</span></td></tr>
+<tr><td class="t">17:45<small>arr 18:40 · 55 min</small></td><td><div class="ves"><i style="background:#0b8a78">TE</i>Tern</div></td><td class="hide"><div class="via"><span>Direct</span></div></td><td><div class="deck"><b><i style="width:22%"></i></b>Spaces</div></td><td><span class="st ok"><i></i>On time</span></td></tr>
+<tr><td class="t">18:30<small>arr 19:55 · 1 h 25</small></td><td><div class="ves"><i style="background:#1546c2">KI</i>Kittiwake</div></td><td class="hide"><div class="via"><span>Lune Rock</span><span>Marrow Bay</span></div></td><td><div class="deck"><b><i style="width:30%"></i></b>Spaces</div></td><td><span class="st cx"><i></i>Lune Rock skipped</span></td></tr>
+<tr><td class="t">20:15<small>arr 21:10 · 55 min</small></td><td><div class="ves"><i style="background:#0b8a78">PE</i>Petrel</div></td><td class="hide"><div class="via"><span>Direct</span></div></td><td><div class="deck"><b><i style="width:12%"></i></b>Spaces</div></td><td><span class="st ok"><i></i>On time</span></td></tr>
+<tr><td class="t">23:40<small>arr 00:35 · 55 min</small></td><td><div class="ves"><i style="background:#1546c2">GU</i>Gull <em>· Last sailing</em></div></td><td class="hide"><div class="via"><span>Direct</span></div></td><td><div class="deck"><b><i style="width:4%"></i></b>Foot only</div></td><td><span class="st ok"><i></i>On time</span></td></tr>
+</tbody></table>
+</main>
+<aside>
+<div class="next-card">
+<div class="nc-img"><img src="img/0.jpg" alt=""><span>Next sailing</span><div><b>14:35</b><small>Kittiwake · Berth 2 · Direct</small></div><div class="count"><b>in 23 min</b><small>arr. Port Sela 15:30</small></div></div>
+<div class="nc-b">
+<div class="legs"><div><small>Crossing</small><b>55 min</b></div><div><small>Foot</small><b>Plenty</b></div><div><small>Cars</small><b>64% full</b></div></div>
+<div class="board"><span>Check-in</span><div class="pb"><i></i></div><span><b style="color:#101828">Gate open</b></span></div>
+<div class="btns"><span class="btn">♡ Track</span><span class="btn p">Get tickets</span></div>
+</div></div>
+<div class="card"><h3>Sea conditions <span>Kessa Strait</span></h3>
+<div class="wx"><div class="on">Now<b>0.8 m</b>W 14 kn</div><div>15:00<b>0.9 m</b>W 16 kn</div><div>18:00<b>1.6 m</b>SW 22 kn</div><div>21:00<b>1.2 m</b>SW 18 kn</div></div></div>
+<div class="card trip"><h3>Your saved trip <span>4 foot passengers</span></h3>
+<div class="r"><i>OUT</i><div><b>Fri 14 Aug · 14:35</b><span>Kessa Quay → Port Sela</span></div><em>Booked</em></div>
+<div class="r"><i>RTN</i><div><b>Mon 17 Aug · 16:10</b><span>Port Sela → Kessa Quay</span></div><em>Booked</em></div></div>
+</aside>
+</div>
+</body></html>

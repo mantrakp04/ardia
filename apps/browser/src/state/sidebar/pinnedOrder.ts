@@ -7,7 +7,7 @@ import { pinnedAreaKeys } from "../pins/pinnedArea";
 import { findLast, isPinnedRow, pinKeyOf } from "../browser/model";
 import { splitRowPanes, splitTabIdsOf } from "../splits/splits";
 import { mainWindowFor } from "../windows/small";
-import { sidebarEntries } from "../sidebar/entries";
+import { sidebarEntries } from "./entries";
 import { entryId, entryKey, parseEntry } from "./entryKey";
 
 export function anchorKey(s: Pick<BrowserState, "tabs" | "groups" | "splits" | "windows">, entry: string): string {

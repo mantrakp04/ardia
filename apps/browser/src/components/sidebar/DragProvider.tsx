@@ -1,17 +1,19 @@
+import { layout, ThemeContext } from "../ui/theme";
 import { devRegister } from "../dev/devRegister";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Animated, PanResponder, type View } from "react-native";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import { radius } from "../ui";
+import { perLook, radius } from "../ui";
 import { useClipped, type ClipSource } from "./EntryMotion";
 import { noDragMarks } from "../../state/sidebar/dragMarks";
-import { cellKey, RESTING_TAIL, ROW_GAP, type Ghost, type ItemSpec } from "./dragModel";
+import { cellKey, restingTail, type Ghost, type ItemSpec } from "./dragModel";
 import { DragController } from "./dragController";
 import { onAppEvent } from "../../state/drag/dragNative";
 import { WindowDropGlow } from "../tabstrip/WindowDropGlow";
+import { TAB_CLICK_SLOP } from "../../state/sidebar/heldTabPress";
 
-const DROP_GLOW_PLACE = { left: 5, right: 5, top: 44, bottom: 6, borderRadius: radius.chrome } as const;
+const dropGlowPlace = perLook(() => ({ left: 5, right: 5, top: 44, bottom: 6, borderRadius: radius.chrome }));
 
 const DragContext = createContext<DragController | null>(null);
 
@@ -28,7 +30,7 @@ export function DragProvider({ children }: { children: (ghost: Ghost | null, con
   return (
     <DragContext.Provider value={controller}>
       {children(ghost, controller)}
-      <WindowDropGlow place={DROP_GLOW_PLACE} />
+      <WindowDropGlow place={dropGlowPlace()} />
     </DragContext.Provider>
   );
 }
@@ -74,18 +76,29 @@ export function useDragItem(key: string, spec: ItemSpec, clip: ClipSource | null
     };
   }, [controller, item, key]);
 
-  const responder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, g) => spec.kind !== "tail" && Math.hypot(g.dx, g.dy) > 4,
-        onPanResponderGrant: (_, g) => void controller?.begin(key, g.x0, g.y0),
-        onPanResponderMove: (_, g) => controller?.move(g.moveX, g.moveY),
-        onPanResponderRelease: () => controller?.end(true),
-        onPanResponderTerminate: () => controller?.end(false),
-        onPanResponderTerminationRequest: () => false,
-      }),
-    [controller, key],
-  );
+  const responder = useMemo(() => {
+    let far = 0;
+    let pressAt = [0, 0];
+    const reach = (x: number, y: number) => (far = Math.max(far, Math.hypot(x - pressAt[0]!, y - pressAt[1]!)));
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => {
+        pressAt = [g.moveX - g.dx, g.moveY - g.dy];
+        return spec.kind !== "tail" && Math.hypot(g.dx, g.dy) > 4;
+      },
+      onPanResponderGrant: (_, g) => {
+        far = 0;
+        reach(g.moveX, g.moveY);
+        void controller?.begin(key, g.x0, g.y0);
+      },
+      onPanResponderMove: (_, g) => {
+        reach(g.moveX, g.moveY);
+        controller?.move(g.moveX, g.moveY);
+      },
+      onPanResponderRelease: (e, g) => controller?.end(true, Math.max(reach(g.moveX, g.moveY), reach(e.nativeEvent.pageX, e.nativeEvent.pageY)) <= TAB_CLICK_SLOP ? e : null),
+      onPanResponderTerminate: () => controller?.end(false),
+      onPanResponderTerminationRequest: () => false,
+    });
+  }, [controller, key]);
   const ref = useCallback(
     (view: View | null) => {
       if (item) item.view = view;
@@ -103,21 +116,23 @@ export function useDragItem(key: string, spec: ItemSpec, clip: ClipSource | null
   const landing = useStore(marks, (m) => m.landing === key);
   const clipped = useClipped(clip);
   const horizontal = spec.kind === "tile";
-  const tailOffset = useMemo(() => item && Animated.add(item.gap, -ROW_GAP), [item]);
+  useContext(ThemeContext);
+  const rowGap = layout.rowGap;
+  const tailOffset = useMemo(() => item && Animated.add(item.gap, -rowGap), [item, rowGap]);
   const style = item
     ? {
         ...(horizontal ? null : { marginTop: spec.kind === "tail" ? tailOffset! : item.gap }),
         ...(source
           ? horizontal
             ? { opacity: 0 }
-            : { height: item.size, marginBottom: -ROW_GAP, opacity: 0, overflow: "hidden" as const }
+            : { height: item.size, marginBottom: -layout.rowGap, opacity: 0, overflow: "hidden" as const }
           : landing
             ? { opacity: 0 }
             : {}),
-        ...(clipped && !source && !landing ? { marginTop: -ROW_GAP, paddingTop: ROW_GAP, overflow: "hidden" as const } : {}),
+        ...(clipped && !source && !landing ? { marginTop: -layout.rowGap, paddingTop: layout.rowGap, overflow: "hidden" as const } : {}),
       }
     : spec.kind === "tail"
-      ? RESTING_TAIL
+      ? restingTail()
       : {};
   return { wrapper: { ref, style }, handle: responder.panHandlers, headerRef, dragging: source, gap: item?.gap };
 }

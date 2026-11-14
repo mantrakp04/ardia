@@ -47,10 +47,10 @@ export const INSTANCE_KEYS = [
 export const TEST_KEYS = [
   "keychain", "keychainHiddenReads", "keychainFail", "safeStorageAnswer", "reauth", "bluetoothChooser",
   "externalProtocolNoLaunch", "externalProtocolApp", "mediaRouteProvider", "systemMediaPermission", "applyProfileGate", "contextMenu",
-  "loginsDelay", "loginsReleaseAfter",
+  "loginsDelay", "loginsReleaseAfter", "cdpTabsVisible", "nativeDragRefused",
   "pipSelfTest", "pipHover", "fakeFullScreenMs", "shadersKeyWindow", "peekStrict", "importSecret", "importDiaBundleId", "importDiaWindows",
   "cliInstallScript", "legacySource", "legacyCrashAfter", "bangsUrl", "onboarding", "whatsNew", "telemetry",
-  "liveMock", "calendarFixture", "appMenu", "appDialog", "loginsTimeout",
+  "liveMock", "calendarFixture", "appMenu", "appDialog", "loginsTimeout", "screenRecording", "systemLocationPermission",
 ];
 export const COMMA_KEYS = [
   "chromiumSwitches", "downloadsDir", "updateFeed", "cliHome", "cliBinDir", "cliUrl", "syncFolder", "sharedFolders", "importSourceDir",

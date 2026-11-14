@@ -42,80 +42,6 @@ NSEvent *Key(NSWindow *window, NSEventType type, NSEventModifierFlags flags, NSS
 
 namespace {
 
-NSDictionary *ProbeFrame(NSWindow *window, ArdiaWindowFullScreen *state, CFTimeInterval start, NSSize before) {
-  NSView *content = window.contentView;
-  CALayer *layer = content.layer;
-  if (!layer) return nil;
-  const CGFloat scale = 0.125;
-  const NSSize size = content.bounds.size;
-  const size_t w = MAX(1, (size_t)ceil(size.width * scale)), h = MAX(1, (size_t)ceil(size.height * scale));
-  NSMutableData *pixels = [NSMutableData dataWithLength:w * h * 4];
-  CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-  CGContextRef context = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, w * 4, space,
-                                               (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
-  CGColorSpaceRelease(space);
-  if (!context) return nil;
-  CGContextScaleCTM(context, scale, scale);
-  if (content.isFlipped || layer.geometryFlipped) {
-    CGContextTranslateCTM(context, 0, size.height);
-    CGContextScaleCTM(context, 1, -1);
-  }
-  [layer renderInContext:context];
-  CGContextRelease(context);
-  NSMutableDictionary *frame = [@{
-    @"t" : @(round((CACurrentMediaTime() - start) * 1000)),
-    @"size" : @[ @(size.width), @(size.height) ],
-    @"cover" : @(state.covered),
-    @"covers" : @(state.covers),
-    @"transitioning" : @(state.transitioning),
-  } mutableCopy];
-  if (!NSEqualSizes(before, NSZeroSize) && !NSEqualSizes(before, size)) {
-    NSMutableArray<NSView *> *views = [NSMutableArray arrayWithArray:content.subviews];
-    for (NSUInteger i = 0; i < views.count && i < 64; i++) {
-      if (NSEqualSizes(views[i].frame.size, before)) {
-        frame[@"relayout"] = @YES;
-        break;
-      }
-      [views addObjectsFromArray:views[i].subviews];
-    }
-  }
-  NSView *page = state.probedTab.view;
-  if (!page.window || page.window != window) return frame;
-  const NSRect r = [page convertRect:page.bounds toView:content];
-  const CGFloat top = content.isFlipped ? NSMinY(r) : size.height - NSMaxY(r);
-  frame[@"page"] = @[ @(NSMinX(r)), @(top), @(NSWidth(r)), @(NSHeight(r)) ];
-  const long x0 = lround(NSMinX(r) * scale), y0 = lround(top * scale);
-  const long x1 = MIN((long)w, lround(NSMaxX(r) * scale)), y1 = MIN((long)h, lround((top + NSHeight(r)) * scale));
-  if (x1 - x0 < 8 || y1 - y0 < 6) return frame;
-  const uint8_t *p = (const uint8_t *)pixels.bytes;
-  NSMutableDictionary<NSNumber *, NSNumber *> *counts = [NSMutableDictionary dictionary];
-  double sums[6][8][3] = {};
-  long cells[6][8] = {}, n = 0, most = 0;
-  for (long y = y0; y < y1; y++) {
-    for (long x = x0; x < x1; x++) {
-      const uint8_t *px = p + (y * w + x) * 4;
-      NSNumber *key = @(((px[0] >> 3) << 10) | ((px[1] >> 3) << 5) | (px[2] >> 3));
-      const long c = counts[key].longValue + 1;
-      counts[key] = @(c);
-      most = MAX(most, c);
-      const long gy = (y - y0) * 6 / (y1 - y0), gx = (x - x0) * 8 / (x1 - x0);
-      for (int k = 0; k < 3; k++) sums[gy][gx][k] += px[k];
-      cells[gy][gx]++;
-      n++;
-    }
-  }
-  NSMutableArray *grid = [NSMutableArray array];
-  for (int gy = 0; gy < 6; gy++)
-    for (int gx = 0; gx < 8; gx++) {
-      const long c = MAX(1, cells[gy][gx]);
-      [grid addObject:[NSString stringWithFormat:@"%02x%02x%02x", (int)(sums[gy][gx][0] / c), (int)(sums[gy][gx][1] / c),
-                                                 (int)(sums[gy][gx][2] / c)]];
-    }
-  frame[@"uniform"] = @(round((double)most / n * 1000) / 1000);
-  frame[@"grid"] = grid;
-  return frame;
-}
-
 NSString *JSONText(id object, NSString *fallback) {
   NSData *json = [NSJSONSerialization dataWithJSONObject:object options:0 error:nil];
   return json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : fallback;
@@ -131,28 +57,39 @@ NSString *Recorder(NSMutableArray<NSString *> *log) {
 
 using DevHandler = NSString * (^)(NSWindow *window, NSString *argument);
 
-NSString *FullScreenProbe(NSWindow *window, NSString *argument) {
-  static NSMutableArray *frames;
-  static NSTimer *timer;
-  if (!argument) return JSONText(frames ?: @[], @"[]");
-  ArdiaCoreWindow *coreWindow = [ArdiaWindowController forNSWindow:window].coreWindow;
-  ArdiaWindowFullScreen *state = coreWindow ? [ArdiaWindowFullScreen ofWindow:coreWindow create:YES] : nil;
-  if (!state) return @"not an ArdiaCore window";
-  [timer invalidate];
-  frames = [NSMutableArray array];
-  const CFTimeInterval start = CACurrentMediaTime(), until = start + MAX(0, argument.doubleValue) / 1000;
-  __weak NSWindow *weakWindow = window;
-  timer = [NSTimer timerWithTimeInterval:1.0 / 60
-                                 repeats:YES
-                                   block:^(NSTimer *t) {
-                                     NSWindow *w = weakWindow;
-                                     if (!w || CACurrentMediaTime() > until) return [t invalidate];
-                                     NSArray *last = [frames.lastObject objectForKey:@"size"];
-                                     const NSSize before = last ? NSMakeSize([last[0] doubleValue], [last[1] doubleValue]) : NSZeroSize;
-                                     if (NSDictionary *frame = ProbeFrame(w, state, start, before)) [frames addObject:frame];
-                                   }];
-  [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
-  return @"started";
+NSString *SnapshotFrameView(NSWindow *window, NSString *path) {
+  NSView *frameView = window.contentView.superview;
+  CALayer *layer = frameView.layer;
+  if (!layer || !path.length) return @"no frame layer";
+  const CGFloat scale = window.backingScaleFactor ?: 2;
+  const NSSize size = frameView.bounds.size;
+  NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+                                                                   pixelsWide:(NSInteger)(size.width * scale)
+                                                                   pixelsHigh:(NSInteger)(size.height * scale)
+                                                                bitsPerSample:8
+                                                              samplesPerPixel:4
+                                                                     hasAlpha:YES
+                                                                     isPlanar:NO
+                                                               colorSpaceName:NSDeviceRGBColorSpace
+                                                                  bytesPerRow:0
+                                                                 bitsPerPixel:0];
+  NSGraphicsContext *context = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
+  CGContextRef cg = context.CGContext;
+  __block CGColorRef background = NULL;
+  [window.effectiveAppearance performAsCurrentDrawingAppearance:^{
+    background = CGColorRetain(window.backgroundColor.CGColor);
+  }];
+  CGContextSetFillColorWithColor(cg, background);
+  CGColorRelease(background);
+  CGContextFillRect(cg, CGRectMake(0, 0, size.width * scale, size.height * scale));
+  CGContextScaleCTM(cg, scale, scale);
+  if (frameView.isFlipped || layer.isGeometryFlipped) {
+    CGContextTranslateCTM(cg, 0, size.height);
+    CGContextScaleCTM(cg, 1, -1);
+  }
+  [layer renderInContext:cg];
+  NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+  return [png writeToFile:path atomically:YES] ? @"ok" : @"write failed";
 }
 
 NSString *FullScreen(NSWindow *window, NSString *argument) {
@@ -264,10 +201,11 @@ NSString *Click(NSWindow *window, NSString *argument) {
 
 NSString *MouseEvent(NSWindow *window, NSString *argument) {
   NSArray<NSString *> *parts = Fields(argument);
-  if (parts.count < 2) return @"mouse:<down|up|dragged|moved|otherdown|otherup>:<x>,<y>[,<clickCount>[,<flags>]]";
+  if (parts.count < 2) return @"mouse:<down|up|dragged|moved|rightdown|rightup|otherdown|otherup>:<x>,<y>[,<clickCount>[,<flags>[,<eventNumber>]]]";
   NSDictionary<NSString *, NSNumber *> *types = @{
     @"down" : @(NSEventTypeLeftMouseDown), @"up" : @(NSEventTypeLeftMouseUp),
     @"dragged" : @(NSEventTypeLeftMouseDragged), @"moved" : @(NSEventTypeMouseMoved),
+    @"rightdown" : @(NSEventTypeRightMouseDown), @"rightup" : @(NSEventTypeRightMouseUp),
     @"otherdown" : @(NSEventTypeOtherMouseDown), @"otherup" : @(NSEventTypeOtherMouseUp),
   };
   NSNumber *type = types[parts[0]];
@@ -276,13 +214,13 @@ NSString *MouseEvent(NSWindow *window, NSString *argument) {
   NSPoint p = WindowPoint(window, parts[1]);
   const NSEventType t = (NSEventType)type.unsignedIntegerValue;
   NSEvent *event = [NSEvent mouseEventWithType:t location:p modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
-                                  windowNumber:window.windowNumber context:nil eventNumber:0
+                                  windowNumber:window.windowNumber context:nil eventNumber:n.count > 4 ? n[4].integerValue : 0
                                     clickCount:n.count > 2 ? n[2].integerValue : (t == NSEventTypeMouseMoved ? 0 : 1)
-                                      pressure:t == NSEventTypeLeftMouseUp || t == NSEventTypeMouseMoved ? 0 : 1];
+                                      pressure:t == NSEventTypeLeftMouseUp || t == NSEventTypeRightMouseUp || t == NSEventTypeMouseMoved ? 0 : 1];
   const bool other = t == NSEventTypeOtherMouseDown || t == NSEventTypeOtherMouseUp;
   if (other || n.count > 3) {
     CGEventRef cg = event.CGEvent;
-    if (n.count > 3) CGEventSetFlags(cg, (CGEventFlags)n[3].longLongValue);
+    if (n.count > 3 && n[3].longLongValue) CGEventSetFlags(cg, (CGEventFlags)n[3].longLongValue);
     if (other) CGEventSetIntegerValueField(cg, kCGMouseEventButtonNumber, kCGMouseButtonCenter);
     event = [NSEvent eventWithCGEvent:cg];
   }
@@ -292,19 +230,30 @@ NSString *MouseEvent(NSWindow *window, NSString *argument) {
 
 NSString *Drag(NSWindow *window, NSString *argument) {
   NSMutableArray<NSValue *> *points = [NSMutableArray array];
-  for (NSString *spec in [argument componentsSeparatedByString:@";"]) [points addObject:[NSValue valueWithPoint:WindowPoint(window, spec)]];
-  if (points.count < 2) return @"drag needs two points";
-  NSMutableArray<NSEvent *> *events = [NSMutableArray arrayWithObject:Mouse(window, NSEventTypeLeftMouseDown, points[0].pointValue)];
+  NSEventModifierFlags flags = 0;
+  for (NSString *spec in [argument componentsSeparatedByString:@";"]) {
+    if ([spec hasPrefix:@"flags="]) flags = (NSEventModifierFlags)[spec substringFromIndex:6].longLongValue;
+    else [points addObject:[NSValue valueWithPoint:WindowPoint(window, spec)]];
+  }
+  if (points.count < 2) return @"drag:[flags=<modifier flags>;]<x>,<y>;<x>,<y>[;…]";
+  NSEvent * (^held)(NSEventType, NSPoint) = ^NSEvent *(NSEventType type, NSPoint at) {
+    NSEvent *event = Mouse(window, type, at);
+    if (!flags) return event;
+    CGEventRef cg = event.CGEvent;
+    CGEventSetFlags(cg, (CGEventFlags)flags);
+    return [NSEvent eventWithCGEvent:cg];
+  };
+  NSMutableArray<NSEvent *> *events = [NSMutableArray arrayWithObject:held(NSEventTypeLeftMouseDown, points[0].pointValue)];
   for (NSUInteger i = 1; i < points.count; i++) {
     NSPoint a = points[i - 1].pointValue, b = points[i].pointValue;
     for (int k = 1; k <= 12; k++)
-      [events addObject:Mouse(window, NSEventTypeLeftMouseDragged, NSMakePoint(a.x + (b.x - a.x) * k / 12, a.y + (b.y - a.y) * k / 12))];
+      [events addObject:held(NSEventTypeLeftMouseDragged, NSMakePoint(a.x + (b.x - a.x) * k / 12, a.y + (b.y - a.y) * k / 12))];
   }
-  [events addObject:Mouse(window, NSEventTypeLeftMouseUp, points.lastObject.pointValue)];
+  [events addObject:held(NSEventTypeLeftMouseUp, points.lastObject.pointValue)];
   NSString *hit = Describe([window.contentView.superview hitTest:points[0].pointValue]);
   for (NSUInteger i = 0; i < events.count; i++)
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((i ? 150 + i * 16 : 0) * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
-      [window sendEvent:events[i]];
+      [NSApp sendEvent:events[i]];
     });
   return [NSString stringWithFormat:@"%@ (%lu events)", hit, (unsigned long)events.count];
 }
@@ -480,7 +429,7 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
       gPageCoverOff = ![on isEqualToString:@"1"];
       return @(!gPageCoverOff).stringValue;
     },
-    @"fullScreenProbe" : ^NSString *(NSWindow *w, NSString *ms) { return FullScreenProbe(w, ms); },
+    @"fullScreenProbe" : ^NSString *(NSWindow *w, NSString *ms) { return [ArdiaChromeWindowHost devFullScreenProbe:ms window:w]; },
     @"fakeFullScreenOcclusionMs" : ^NSString *(NSWindow *, NSString *ms) {
       gActedOcclusionGap = ms.doubleValue == -1 ? NAN : ms.doubleValue / 1000;
       return [NSString stringWithFormat:@"%.0f", ms.doubleValue];
@@ -494,12 +443,13 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
       ActOcclusion(w, [to isEqualToString:@"off"] ? nil : @([to isEqualToString:@"visible"]));
       return @((w.occlusionState & NSWindowOcclusionStateVisible) != 0).stringValue;
     },
+    @"fakeWindowServer" : ^NSString *(NSWindow *w, NSString *to) {
+      ActWindowServer(w, [to isEqualToString:@"shows"]);
+      return @"ok";
+    },
     @"fullScreen" : ^NSString *(NSWindow *w, NSString *) { return FullScreen(w, nil); },
     @"fakeFullScreen" : ^NSString *(NSWindow *w, NSString *a) { return FullScreen(w, a); },
-    @"fullScreenReveal" : ^NSString *(NSWindow *w, NSString *amount) {
-      if (amount.length) SetFullScreenRevealAmount(w, amount.doubleValue);
-      return JSONText(FullScreenRevealState(w), @"{}");
-    },
+    @"snapshotFrame" : ^NSString *(NSWindow *w, NSString *path) { return SnapshotFrameView(w, path); },
     @"children" : ^NSString *(NSWindow *w, NSString *) {
       NSMutableArray *children = [NSMutableArray array];
       for (NSWindow *child in w.childWindows)
@@ -513,6 +463,9 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
     @"fakeActiveClicks" : ^NSString *(NSWindow *w, NSString *a) { return FakeActiveClicks(w, a); },
     @"click" : ^NSString *(NSWindow *w, NSString *a) { return Click(w, a); },
     @"mouse" : ^NSString *(NSWindow *w, NSString *a) { return MouseEvent(w, a); },
+    @"pageMove" : ^NSString *(NSWindow *w, NSString *a) { return ardia_host::PageMoveAt(w, WindowPoint(w, a)); },
+    @"focusState" : ^NSString *(NSWindow *, NSString *) { return ardia_host::FocusState(); },
+    @"hoverProbe" : ^NSString *(NSWindow *w, NSString *a) { return ardia_host::HoverProbeDev(w, a); },
     @"drag" : ^NSString *(NSWindow *w, NSString *a) { return Drag(w, a); },
     @"type" : ^NSString *(NSWindow *w, NSString *a) { return TypeText(w, a); },
     @"reserved" : ^NSString *(NSWindow *w, NSString *a) { return Reserved(w, a); },

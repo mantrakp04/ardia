@@ -20,11 +20,13 @@ const without = (map: Record<string, true>, tabId: string) => {
   return next;
 };
 
+const hidesWhileScrolling = () => useBrowser.getState().settings.hideToolbarWhileScrolling;
+
 export function noteScroll(tabId: string, state: ScrollState) {
   useToolbarAutoHide.setState((s) => {
     const peek = without(s.peek, tabId);
     const scrolledDown =
-      state === "down" ? (s.scrolledDown[tabId] ? s.scrolledDown : { ...s.scrolledDown, [tabId]: true as const }) : without(s.scrolledDown, tabId);
+      state === "down" && hidesWhileScrolling() ? (s.scrolledDown[tabId] ? s.scrolledDown : { ...s.scrolledDown, [tabId]: true as const }) : without(s.scrolledDown, tabId);
     return scrolledDown === s.scrolledDown && peek === s.peek ? s : { scrolledDown, peek };
   });
 }
@@ -58,6 +60,7 @@ export function toolbarMode(i: ToolbarModeInput): ToolbarMode {
 }
 
 useBrowser.subscribe((s, prev) => {
+  if (prev.settings.hideToolbarWhileScrolling && !s.settings.hideToolbarWhileScrolling) useToolbarAutoHide.setState({ scrolledDown: {}, peek: {} });
   if (s.tabs === prev.tabs) return;
   const { scrolledDown, peek } = useToolbarAutoHide.getState();
   const gone: string[] = [];

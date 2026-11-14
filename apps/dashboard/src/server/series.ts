@@ -10,6 +10,7 @@ export type WindowInfo = {
   end: number;
   prevStart: number | null;
   buckets: number[];
+  zone: string;
 };
 
 export const windowInfo = (w: Window): WindowInfo => ({
@@ -19,6 +20,7 @@ export const windowInfo = (w: Window): WindowInfo => ({
   end: w.end,
   prevStart: w.prevStart,
   buckets: w.buckets,
+  zone: w.zone,
 });
 
 export function fill(buckets: number[], rows: unknown[][], column: number): number[] {

@@ -4,6 +4,8 @@
 !app/**
 !site/
 !site/**
+!core/
+!core/**
 app/node_modules
 app/dist
 app/.output

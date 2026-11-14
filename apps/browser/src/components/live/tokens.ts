@@ -1,6 +1,6 @@
 import { useTheme, type Theme } from "../ui/theme";
 import { duration, period, springs } from "../ui/motion";
-import { font, ink, proseLineHeight, weight } from "../ui/tokens";
+import { font, perLook, proseLineHeight, weight } from "../ui/tokens";
 
 const DARK = {
   pending: "#D29922",
@@ -35,8 +35,6 @@ export function useLiveColors(): LiveColors {
   return colors;
 }
 
-export const LIVE_NOW_TEXT = ink.white;
-
 export const liveMotion = {
   badgeSpring: springs.bouncy,
   badgeHideSpring: springs.snappy,
@@ -52,10 +50,13 @@ export const liveMotion = {
   ],
 };
 
+const liveHeading = perLook(() => ({ ...font.body, lineHeight: proseLineHeight.body, fontWeight: weight.semibold }));
+const liveDetail = perLook(() => ({ ...font.small, lineHeight: proseLineHeight.small }));
+
 export const liveType = {
-  heading: { ...font.body, lineHeight: proseLineHeight.body, fontWeight: weight.semibold },
-  detail: { ...font.small, lineHeight: proseLineHeight.small },
-  empty: font.small,
-  more: font.tiny,
+  get heading() { return liveHeading(); },
+  get detail() { return liveDetail(); },
+  get empty() { return font.small; },
+  get more() { return font.tiny; },
   avatarScale: 0.42,
 };

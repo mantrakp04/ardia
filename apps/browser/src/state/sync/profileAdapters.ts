@@ -3,11 +3,11 @@ import { useBrowser } from "../browser/store";
 import { DEFAULT_PROFILE_ID } from "../settings/settings";
 import { sanitizeTheme } from "../../lib/profileLook";
 import type { Profile, ProfileTheme } from "../browser/types";
-import { PROFILE, PROFILE_THEME, SHARE, profileRecord } from "./records";
+import { PROFILE, PROFILE_THEME, PROFILE_TOP_APPS, SHARE, profileRecord, topAppsRecord, type TopAppsRecord } from "./records";
 
 const store = () => useBrowser.getState();
 
-export type ProfileRecord = { n: string; c: Profile["color"]; i: string | null; d?: true; th?: ProfileTheme | null };
+export type ProfileRecord = { n: string; c: Profile["color"]; i: string | null; d?: true; o?: true; th?: ProfileTheme | null };
 
 export type ProfileThemeRecord = { t: ProfileTheme } | { preset: true };
 
@@ -108,6 +108,32 @@ export function profileThemesAdapter(
         const patch = themeFromRecord(visible.get(`${PROFILE_THEME}${syncId}`), visible.get(angleKey));
         if (!patch) continue;
         store().setProfileLook(id, patch);
+      }
+    },
+  };
+}
+
+export function profileTopAppsAdapter(links: () => Record<string, { syncId: string }>): Adapter {
+  const linked = () => Object.entries(links()).filter(([id]) => store().profiles[id]);
+  return {
+    prefix: PROFILE_TOP_APPS,
+    adoptRemoteOnJoin: true,
+    extract: (base, _queued, _now, known, remote) => {
+      const values = new Map<string, unknown>();
+      for (const [id, { syncId }] of linked()) {
+        const key = `${PROFILE_TOP_APPS}${syncId}`;
+        const on = !!store().profiles[id]!.shareTopApps;
+        const unapplied = known(key) && remote(key) !== null && canonical(remote(key)) !== canonical(base(key) ?? null);
+        if ((on || known(key)) && !unapplied) values.set(key, { on } satisfies TopAppsRecord);
+      }
+      const mine = new Set(values.keys());
+      return { values, ignore: (key) => !mine.has(key) };
+    },
+    apply: (visible, changed) => {
+      for (const [id, { syncId }] of linked()) {
+        const key = `${PROFILE_TOP_APPS}${syncId}`;
+        const record = changed.has(key) ? topAppsRecord(visible.get(key)) : null;
+        if (record) store().updateProfile(id, { shareTopApps: record.on || undefined });
       }
     },
   };

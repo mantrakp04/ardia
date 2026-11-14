@@ -2,7 +2,8 @@ import { confirm } from "../../platform/dialogs";
 import { onWindowEvent } from "../../platform/windows";
 import { useBrowser } from "../browser/store";
 import { inPinnedContainer, plural, profileFor } from "../browser/model";
-import { isSmall } from "./small";
+import { tabsLostWithWindow } from "../tabs/sharedWindowClose";
+import { isLastRegularWindow, isOpenRegularWindow, isSmall } from "./small";
 import { closeLittleArdia } from "../littleArdia/actions";
 import { closeWindowAnimated } from "./closeAnimated";
 
@@ -22,26 +23,33 @@ async function requestClose(windowId: string) {
   const w = s.windows[windowId];
   if (!w) return;
   if (isSmall(s, windowId)) return closeLittleArdia(windowId);
-  const count = closingTabs(windowId).length;
-  if (s.settings.warnBeforeClosingWindow && count >= MIN_TABS) {
-    const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(windowId), suppression: "Don’t ask me again", windowId });
+  const asked = new Set<string>();
+  let last = false;
+  for (;;) {
+    const now = useBrowser.getState();
+    if (!now.windows[windowId]) return;
+    last = isLastRegularWindow(now, windowId);
+    if (last) break;
+    const closing = tabsLostWithWindow(now, windowId, isOpenRegularWindow).map((t) => t.id);
+    if (!now.settings.warnBeforeClosingWindow || closing.length < MIN_TABS || closing.every((id) => asked.has(id))) break;
+    const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(windowId, closing), suppression: "Don’t ask me again", windowId });
     if (suppressed) useBrowser.getState().updateSettings({ warnBeforeClosingWindow: false });
     if (!confirmed) return;
+    for (const id of closing) asked.add(id);
   }
-  closeWindowAnimated(windowId);
+  closeWindowAnimated(windowId, { keepsLastWindow: last });
 }
 
-const closingTabs = (windowId: string) => {
+const unpinnedTabIds = (windowId: string) => {
   const s = useBrowser.getState();
   return (s.windows[windowId]?.tabIds ?? []).filter((id) => !inPinnedContainer(s, id));
 };
 
-export function closeWindowDialog(windowId: string) {
+export function closeWindowDialog(windowId: string, closing = unpinnedTabIds(windowId)) {
   const s = useBrowser.getState();
   const w = s.windows[windowId]!;
   const tabs = (n: number) => plural(n, "tab");
   const byProfile = new Map<string, number>();
-  const closing = closingTabs(windowId);
   for (const id of closing) {
     const profileId = s.tabs[id]?.profileId ?? w.profileId;
     byProfile.set(profileId, (byProfile.get(profileId) ?? 0) + 1);
@@ -50,7 +58,7 @@ export function closeWindowDialog(windowId: string) {
   const message =
     byProfile.size > 1
       ? ["Closing this window closes all tabs open across profiles:", ...[...byProfile].map(([id, n]) => `  • ${tabs(n)} in ${profileFor(s, id).name}`)].join("\n")
-      : `This window has ${tabs(count)} open in your ${profileFor(s, w.profileId).name} profile.`;
+      : `This window has ${tabs(count)} open in your ${profileFor(s, [...byProfile.keys()][0] ?? w.profileId).name} profile.`;
   return {
     title: count === 1 ? "Close 1 tab?" : `Close ${count} tabs?`,
     message,

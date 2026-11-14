@@ -49,7 +49,7 @@ jobs:
           [ "$project" = "$VERSION" ] || check "MARKETING_VERSION is $project: commit the bump to $VERSION first"
           [ -f "docs/release-notes/$VERSION.md" ] || check "no docs/release-notes/$VERSION.md: write and commit the notes first"
           if gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then check "v$VERSION is already published"; fi
-          tree=$(git rev-parse HEAD:engine)
+          tree=$(engine/engine-key.sh)
           echo "tree=$tree" >> "$GITHUB_OUTPUT"
           {
             echo "### Ardia $VERSION ($channel)"
@@ -136,6 +136,10 @@ jobs:
         with:
           path: packages/ardiacore/vendor/ubo
           key: ubo-${{ hashFiles('packages/ardiacore/scripts/ubo.sh') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: packages/ardiacore/vendor/ubol-webkit
+          key: ubol-webkit-${{ hashFiles('packages/ardiacore/scripts/ubol.sh', 'packages/ardiacore/scripts/ubol-webkit.py') }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/Library/Caches/ardia-cli-build
@@ -324,7 +328,7 @@ jobs:
         run: |
           export RELEASE_DIST="$GITHUB_WORKSPACE/dist/$VERSION"
           if [ -n "$TAP_TOKEN" ]; then
-            git config --global url."https://x-access-token:$TAP_TOKEN@github.com/mantrakp04/homebrew-tap".insteadOf https://github.com/mantrakp04/homebrew-tap
+            git config --global url."https://x-access-token:$TAP_TOKEN@github.com/ardia-browser/homebrew-tap".insteadOf https://github.com/ardia-browser/homebrew-tap
             git config --global user.name "github-actions[bot]"
             git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           else

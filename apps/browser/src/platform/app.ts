@@ -11,9 +11,12 @@ export {
   type UpdateChannel,
   type ReadyUpdate,
   type AppIcon,
+  type HardwareInfo,
 } from "@ardia/shell";
 import { call } from "@ardia/ardiacore";
-import { nativeModule, type AppEvent, type AppearanceMode, type ReadyUpdate, type UpdateChannel } from "@ardia/shell";
+import { nativeModule, type AppEvent, type AppearanceMode, type OpenURLSource, type ReadyUpdate, type UpdateChannel } from "@ardia/shell";
+
+export type { OpenURLSource };
 
 export { replyToTerminate } from "./windows";
 
@@ -29,11 +32,13 @@ const Updater = nativeModule("ArdiaUpdater");
 export const setAppearance = (mode: AppearanceMode) => Shell.setAppearance(mode);
 export const isDarkAppearance = () => Shell.isDarkAppearance();
 export const onAppEvent = (listener: (e: AppEvent) => void) => Shell.addListener("onAppEvent", listener);
-export const onOpenURLs = (listener: (urls: string[], pointer?: [number, number]) => void) =>
-  Shell.addListener("onOpenURLs", ({ urls, pointer }) => listener(urls, pointer));
+export const onOpenURLs = (listener: (urls: string[], pointer?: [number, number], source?: OpenURLSource) => void) =>
+  Shell.addListener("onOpenURLs", ({ urls, pointer, source }) => listener(urls, pointer, source));
 
 export const systemInfo = () => App.systemInfo();
 export const crashReports = (since: number) => App.crashReports(since);
+export const hardwareInfo = () => App.hardwareInfo();
+export const diagnosticsSample = () => App.diagnosticsSample();
 export const openExternalURL = (url: string) => App.openExternalURL(url);
 export const appIcons = (size = 64) => App.appIcons(size);
 export const currentAppIcon = () => App.appIcon();

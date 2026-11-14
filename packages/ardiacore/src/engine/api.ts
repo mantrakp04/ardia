@@ -3,14 +3,14 @@ import type { EngineBookmark, BookmarkOp } from "../bookmarks";
 import type { CastDialog, CastRoute, DeviceChooser } from "../media";
 import type { ContentBlockerState, ContentBlockerStats } from "../contentBlocker";
 import type {
-  ActionPopupRequest, ActionState, ChromeSearchEngine, ExtensionActionChange, ExtensionInstallPrompt, ExtensionPackage, ExtensionsChange, ExtensionsSyncApplied, ExtensionsSyncApply,
+  ActionPopupRequest, ActionState, ChromeSearchEngine, ExtensionActionChange, ExtensionInstallPrompt, ExtensionPackage, ExtensionsChange, ExtensionsLoadHealth, ExtensionsSyncApplied, ExtensionsSyncApply,
   ExtensionsSyncState, ExtensionSyncIntent, InstalledExtension, SidePanelRequest, TabsRequest,
 } from "../extensions";
 import type { HistoryChangedBatch, HistoryWireRow } from "../history";
 import type { FaviconImage } from "../favicons";
 import type { Download, DownloadSettings } from "../downloads";
 import type {
-  BatterySaverMode, BatterySaverState, CliControlStatus, EngineComponent, EngineInfo, EngineTask, MemorySaverRequest, MemorySaverState, SystemState,
+  BatterySaverMode, BatterySaverState, CliControlStatus, CliTabTarget, EngineComponent, EngineInfo, EngineTask, HoverLostEpisode, MemorySaverRequest, MemorySaverState, SystemState,
 } from "../engineDomain";
 import type { ExternalAppAllowance, PermissionRequest, PermissionResult } from "../permissions";
 import type { BrowsingDataType } from "../profiles";
@@ -41,6 +41,10 @@ export type EngineCalls = {
   "engine.cliControlStatus": [{}, CliControlStatus];
   "engine.setCliControl": [{ on: boolean }, CliControlStatus];
   "engine.setCliActiveTab": [{ tabId: string | null }, CliControlStatus];
+  "engine.cliTabTargets": [{ tabIds: string[] }, Record<string, CliTabTarget>];
+  "engine.cliOwnsTab": [{ tabId: string }, { owned: boolean; shown: boolean }];
+  "engine.cliMoveOffscreen": [{ tabId: string }, { ok: boolean; reason?: string }];
+  "engine.cliCloseOffscreenTabs": [{}, Done];
 
   "tabs.routeLinkTabs": [{ urls: string[] }, LinkRoute];
   "tabs.stripCommand": [{ id: number; command: TabStripCommand }, null];
@@ -74,6 +78,7 @@ export type EngineCalls = {
   "permissions.removeExternalAppAllowance": [Profile & { origin: string; scheme: string }, null];
   "permissions.devExternalLaunches": [{}, Record<string, unknown>[]];
 
+  "profiles.loaded": [{}, { profiles: string[] }];
   "profiles.release": [Profile, null];
   "profiles.deleteData": [Profile, { remaining: string[] }];
   "profiles.clearBrowsingData": [Profile & { types: BrowsingDataType[]; since: number | null }, null];
@@ -120,11 +125,16 @@ export type EngineCalls = {
   "extensions.watchActions": [Profile, Done];
   "extensions.syncState": [Profile, ExtensionsSyncState];
   "extensions.syncApply": [Profile & ExtensionsSyncApply, ExtensionsSyncApplied];
+  "extensions.loadHealth": [Profile, ExtensionsLoadHealth];
 
   "search.engines": [Profile, { list: { engines: ChromeSearchEngine[] } }];
   "search.setEngineName": [{ name: string }, null];
+  "search.suggest": [Profile & { url: string; id: number }, { status: number; body?: string; netError?: number; stopped?: true }];
+  "search.stopSuggest": [Profile & { id: number }, Done];
 
   "media.displayMediaSources": [{}, DisplayMediaSource[]];
+  "media.screenRecordingAllowed": [{}, boolean];
+  "media.requestScreenRecording": [{}, boolean];
   "media.selectDevice": [{ id: number; index: number }, null];
   "media.cancelDeviceChooser": [{ id: number }, null];
   "media.refreshDeviceChooser": [{ id: number }, null];
@@ -169,6 +179,7 @@ export type EngineCalls = {
   "webView.setPeekOtherSiteTabs": [{ tabIds: string[] }, null];
   "webView.setSelectionPopover": [{ enabled: boolean }, null];
   "webView.setCommandScrollZoom": [{ enabled: boolean }, null];
+  "webView.setLittleArdiaOpensNewTabLinks": [{ enabled: boolean }, null];
   "webView.setAutoPictureInPicture": [{ enabled: boolean }, null];
   "webView.setVideoUpscaling": [{ enabled: boolean }, null];
   "webView.setVideoUpscalingTestConditions": [{ lowPower?: boolean; thermalPressure?: boolean }, null];
@@ -182,6 +193,7 @@ export type EngineCalls = {
   "webKit.devTouchStore": [Profile, boolean];
   "webKit.devHoldStore": [Profile, null];
   "webKit.devParkedTransfers": [{}, string[]];
+  "webKit.devContentBlocker": [{}, Record<string, unknown>];
   "webKit.passkeyAccess": [{}, PasskeyAccess];
   "webKit.requestPasskeyAccess": [{}, PasskeyAccess];
 };
@@ -189,6 +201,7 @@ export type EngineCalls = {
 export type EngineEvents = {
   "engine.systemState": SystemState;
   "engine.cliControl": CliControlStatus;
+  "engine.hoverLost": HoverLostEpisode;
   "tabs.strips": TabStripTransaction;
   "downloads.changed": Download;
   "permissions.requested": PermissionRequest;
@@ -205,6 +218,7 @@ export type EngineEvents = {
   "extensions.sync": { profile: string } & ExtensionSyncIntent;
   "history.changed": HistoryChangedBatch;
   "bookmarks.changed": { profile: string };
+  "profiles.loaded": { profile: string };
   "media.deviceChooser": DeviceChooser;
   "media.castDialog": CastDialog;
   "media.castRoutes": { profile: string; routes: CastRoute[] };

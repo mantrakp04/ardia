@@ -1,6 +1,7 @@
 import type { BrowserState } from "../browser/store";
 import { autoGroupName } from "../groups/groupNames";
 import { ancestorIds, canNest, commonGroup, innermostGroupOf, insertAll, leaveGroups, nestGroups, orderSections, placeBlock, placeGroups, reparent, syncGroupOrder, withParent } from "../groups/groups";
+import { withShownTab } from "../groups/shownTabs";
 import { inPinnedContainer, isIncognitoProfile, isPinnedRow, newId, pinKeyOf } from "../browser/model";
 import { splitOf, splitTabIdsOf, withSplitRows } from "../splits/splits";
 import { markPinned } from "./pinChoices";
@@ -51,7 +52,7 @@ export const pinnedChildGroup = (s: Pick<BrowserState, "groups">, openerId: stri
 function joinGroup(s: BrowserState, w: BrowserWindow, group: TabGroup, tabId: string): BrowserState {
   const members = [...group.tabIds, tabId];
   const window = { ...w, tabIds: placeBlock(w.tabIds, w.tabIds.filter((id) => members.includes(id))) };
-  const groups = { ...s.groups, [group.id]: { ...group, tabIds: window.tabIds.filter((id) => members.includes(id)) } };
+  const groups = withShownTab({ ...s.groups, [group.id]: { ...group, tabIds: window.tabIds.filter((id) => members.includes(id)) } }, tabId);
   return { ...s, groups, windows: { ...s.windows, [w.id]: window } };
 }
 

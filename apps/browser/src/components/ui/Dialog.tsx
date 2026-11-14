@@ -4,7 +4,7 @@ import { curve, duration } from "./motion";
 import { Panel } from "./Panel";
 import { Text } from "./Text";
 import { useTheme } from "./theme";
-import { proseLineHeight, radius, shadow, sheetWidth, space, type SheetSize, type Space } from "./tokens";
+import { perLook, proseLineHeight, radius, shadow, sheetWidth, space, type SheetSize, type Space } from "./tokens";
 
 const CENTERED: StyleProp<ViewStyle> = [StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }];
 
@@ -112,7 +112,7 @@ export function Sheet({ size = "m", onClose, children }: { size?: SheetSize; onC
 
 const TITLE_ROW = { flexDirection: "row", alignItems: "center", gap: space.l } as const;
 const TITLE_TEXT = { flex: 1 } as const;
-const SUBTITLE = { lineHeight: proseLineHeight.small, marginTop: space.s } as const;
+const subtitleStyle = perLook(() => ({ lineHeight: proseLineHeight.small, marginTop: space.s }));
 
 export function DialogTitle({ icon, subtitle, children }: { icon?: ReactNode; subtitle?: ReactNode; children: ReactNode }) {
   const title = (
@@ -122,7 +122,7 @@ export function DialogTitle({ icon, subtitle, children }: { icon?: ReactNode; su
   );
   const sub =
     subtitle == null || subtitle === false ? null : typeof subtitle === "string" ? (
-      <Text size="small" tone="textSecondary" style={SUBTITLE}>
+      <Text size="small" tone="textSecondary" style={subtitleStyle()}>
         {subtitle}
       </Text>
     ) : (

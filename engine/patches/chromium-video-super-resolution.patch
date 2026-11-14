@@ -1,6 +1,6 @@
 --- a/components/viz/service/display/display.cc
 +++ b/components/viz/service/display/display.cc
-@@ -492,6 +492,21 @@ void Display::SetDisplayColorSpaces(
+@@ -512,6 +512,21 @@
      aggregator_->SetDisplayColorSpaces(display_color_spaces_);
  }
  
@@ -22,7 +22,7 @@
  void Display::SetOutputIsSecure(bool secure) {
    if (secure == output_is_secure_)
      return;
-@@ -1097,6 +1112,8 @@ bool Display::DrawAndSwap(const DrawAndSwapParams& params) {
+@@ -1120,6 +1135,8 @@
  #if BUILDFLAG(IS_MAC)
      swap_frame_data.frame_data.is_handling_interaction = has_interactive_frame;
      swap_frame_data.frame_data.is_handling_animation = has_animated_frame;
@@ -33,7 +33,7 @@
      // We must notify scheduler and increase |pending_swaps_| before calling
 --- a/components/viz/service/display/display.h
 +++ b/components/viz/service/display/display.h
-@@ -147,6 +147,9 @@
+@@ -149,6 +149,9 @@
    void SetDisplayColorSpaces(
        const gfx::DisplayColorSpaces& display_color_spaces);
    void SetOutputIsSecure(bool secure);
@@ -43,9 +43,9 @@
    void NotifyMinSupportedVsyncInterval(base::TimeDelta min_vsync_interval);
  
    const SurfaceId& CurrentSurfaceId() const;
-@@ -305,6 +308,9 @@
+@@ -309,6 +312,9 @@
    gfx::DisplayColorSpaces display_color_spaces_;
-   bool visible_ = false;
+   mojom::DisplayVisibility visibility_ = mojom::DisplayVisibility::kInvisible;
    bool output_is_secure_ = false;
 +#if BUILDFLAG(IS_MAC)
 +  bool video_super_resolution_allowed_ = false;
@@ -55,7 +55,7 @@
    std::unique_ptr<gpu::ScopedAllowScheduleGpuTask>
 --- a/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.cc
 +++ b/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.cc
-@@ -381,7 +381,13 @@
+@@ -382,7 +382,13 @@
  
  void RootCompositorFrameSinkImpl::SetOutputIsSecure(bool secure) {
    display_->SetOutputIsSecure(secure);
@@ -102,7 +102,7 @@
    // dispenses viz::LocalSurfaceIds that are renderered into by the renderer
 --- a/content/browser/renderer_host/browser_compositor_view_mac.mm
 +++ b/content/browser/renderer_host/browser_compositor_view_mac.mm
-@@ -274,6 +274,8 @@
+@@ -281,6 +281,8 @@
          current.display_frequency);
      recyclable_compositor_->compositor()->SetRootLayer(root_layer_.get());
      recyclable_compositor_->compositor()->SetBackgroundColor(background_color_);
@@ -111,7 +111,7 @@
      recyclable_compositor_->widget()->SetNSView(
          accelerated_widget_mac_ns_view_);
      recyclable_compositor_->Unsuspend();
-@@ -454,6 +456,14 @@
+@@ -461,6 +463,14 @@
  void BrowserCompositorMac::SetEvictOnHide(bool evict_on_hide) {
    if (delegated_frame_host_) {
      delegated_frame_host_->SetEvictOnHide(evict_on_hide);
@@ -128,7 +128,7 @@
  
 --- a/content/browser/renderer_host/render_widget_host_view_mac.h
 +++ b/content/browser/renderer_host/render_widget_host_view_mac.h
-@@ -196,6 +196,7 @@
+@@ -197,6 +197,7 @@
    viz::SurfaceId GetFallbackSurfaceIdForTesting() const override;
    bool HasSavedCompositorFrame() const override;
    void SetEvictOnHide(bool evict_on_hide) override;
@@ -138,7 +138,7 @@
    gfx::Rect GetBoundsInScreen() override;
 --- a/content/browser/renderer_host/render_widget_host_view_mac.mm
 +++ b/content/browser/renderer_host/render_widget_host_view_mac.mm
-@@ -1535,6 +1535,12 @@
+@@ -1552,6 +1552,12 @@
  void RenderWidgetHostViewMac::SetEvictOnHide(bool evict_on_hide) {
    if (browser_compositor_) {
      browser_compositor_->SetEvictOnHide(evict_on_hide);
@@ -153,7 +153,7 @@
  
 --- a/content/public/browser/render_widget_host_view.h
 +++ b/content/public/browser/render_widget_host_view.h
-@@ -343,6 +343,8 @@
+@@ -356,6 +356,8 @@
  
    // Sets whether the view should evict its saved compositor frame when hidden.
    virtual void SetEvictOnHide(bool evict_on_hide) = 0;
@@ -269,7 +269,7 @@
      base::TimeTicks start_time = base::TimeTicks::Now();
 --- a/services/viz/privileged/mojom/compositing/display_private.mojom
 +++ b/services/viz/privileged/mojom/compositing/display_private.mojom
-@@ -47,6 +47,9 @@
+@@ -59,6 +59,9 @@
    SetDisplayColorSpaces(gfx.mojom.DisplayColorSpaces display_color_spaces);
    SetOutputIsSecure(bool secure);
  
@@ -468,7 +468,7 @@
      gfx::RectF rect_;
 --- a/ui/accelerated_widget_mac/ca_renderer_layer_tree.mm
 +++ b/ui/accelerated_widget_mac/ca_renderer_layer_tree.mm
-@@ -34,6 +34,10 @@
+@@ -35,6 +35,10 @@
  #include "ui/gfx/mac/io_surface.h"
  #include "ui/gl/ca_renderer_layer_params.h"
  
@@ -479,7 +479,7 @@
  namespace ui {
  
  // Transitioning between AVSampleBufferDisplayLayer and CALayer with IOSurface
-@@ -427,6 +431,82 @@
+@@ -430,6 +434,82 @@
    has_committed_ = true;
  }
  
@@ -562,7 +562,7 @@
  void CARendererLayerTree::MatchLayersToOldTree(CARendererLayerTree* old_tree) {
    if (!old_tree)
      return;
-@@ -1167,7 +1247,8 @@
+@@ -1170,7 +1250,8 @@
          old_layer_->io_surface_color_space_ != io_surface_color_space_ ||
          old_layer_->cv_pixel_buffer_ != cv_pixel_buffer_ ||
          old_layer_->solid_color_contents_ != solid_color_contents_ ||
@@ -572,7 +572,7 @@
      // If the HDR headroom has changed then the HDRCopierLayer's tone mapping
      // may change, so re-draw this layer.
      if (old_layer_->type_ == CALayerType::kHDRCopier &&
-@@ -1175,7 +1256,8 @@
+@@ -1178,7 +1259,8 @@
              tree()->display_hdr_headroom_) {
        update_contents = true;
      }
@@ -582,7 +582,7 @@
      update_rect = old_layer_->rect_ != rect_;
      update_background_color =
          old_layer_->background_color_ != background_color_;
-@@ -1252,8 +1334,7 @@
+@@ -1255,8 +1337,7 @@
            }
          } else {
            result = AVSampleBufferDisplayLayerEnqueueIOSurface(
@@ -592,7 +592,7 @@
            if (!result) {
              LOG(ERROR) << "AVSampleBufferDisplayLayerEnqueueIOSurface failed";
            }
-@@ -1266,8 +1347,8 @@
+@@ -1269,8 +1350,8 @@
        break;
      case CALayerType::kDefault:
        if (update_contents) {
@@ -603,7 +603,7 @@
          } else if (solid_color_contents_) {
            ca_layer_.contents = solid_color_contents_->GetContents();
          } else {
-@@ -1296,7 +1377,7 @@
+@@ -1301,7 +1382,7 @@
  
    if (update_contents_rect) {
      if (type_ != CALayerType::kVideo)
@@ -614,7 +614,7 @@
      gfx::RectF dip_rect = gfx::RectF(rect_);
 --- a/ui/compositor/compositor.cc
 +++ b/ui/compositor/compositor.cc
-@@ -374,6 +374,8 @@
+@@ -368,6 +368,8 @@
      display_private_->SetOutputIsSecure(output_is_secure_);
  #if BUILDFLAG(IS_MAC)
      display_private_->SetVSyncDisplayID(display_id_);
@@ -623,7 +623,7 @@
  #endif
      if (has_vsync_params_) {
        display_private_->SetDisplayVSyncParameters(vsync_timebase_,
-@@ -992,7 +994,19 @@
+@@ -989,7 +991,19 @@
    output_is_secure_ = output_is_secure;
    if (display_private_)
      display_private_->SetOutputIsSecure(output_is_secure);
@@ -667,7 +667,7 @@
    const bool is_pixel_canvas_;
 --- a/ui/gfx/frame_data.h
 +++ b/ui/gfx/frame_data.h
-@@ -42,6 +42,7 @@
+@@ -46,6 +46,7 @@
  #if BUILDFLAG(IS_MAC)
    bool is_handling_interaction = false;
    bool is_handling_animation = false;

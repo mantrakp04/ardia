@@ -1,19 +1,29 @@
 import type { ReactNode } from "react";
-import { Pressable, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { Symbol, Text, useHover, type SymbolProps } from "../ui";
-import { space } from "../ui/tokens";
+import { ink, space } from "../ui/tokens";
 import { useOnboardingColors } from "./Parts";
 import { onboardingButton } from "./tokens";
+import { usePressScaleMotion } from "../ui/motion";
 
 function PressScale({ title, onPress, disabled, scale, tooltip, children }: { title: string; onPress: () => void; disabled?: boolean; scale: number; tooltip?: string; children: (state: { hovered: boolean; pressed: boolean }) => ReactNode }) {
   const { hovered, hoverProps } = useHover();
+  const pressMotion = usePressScaleMotion(!disabled, scale);
+  const scaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   return (
     <View {...hoverProps} tooltip={tooltip} style={disabled === undefined ? undefined : { opacity: disabled ? onboardingButton.disabledOpacity : 1 }}>
-      <Pressable disabled={disabled} onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
+      <Pressable
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={pressMotion.onPressIn}
+        onPressOut={pressMotion.onPressOut}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+      >
         {({ pressed }) => (
-          <View mouseDownCanMoveWindow={false} style={{ transform: [{ scale: pressed ? scale : 1 }] }}>
+          <Animated.View mouseDownCanMoveWindow={false} style={scaleStyle}>
             {children({ hovered, pressed })}
-          </View>
+          </Animated.View>
         )}
       </Pressable>
     </View>
@@ -59,7 +69,7 @@ export function SecondaryButton({ title, onPress, filled }: { title: string; onP
             paddingHorizontal: onboardingButton.secondaryPad,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: filled ? (hovered ? colors.buttonHover : colors.button) : hovered ? colors.outlinedHover : "transparent",
+            backgroundColor: filled ? (hovered ? colors.buttonHover : colors.button) : hovered ? colors.outlinedHover : ink.clear,
             borderWidth: filled ? 0 : 1,
             borderColor: colors.noThanksBorder,
           }}
@@ -101,7 +111,7 @@ export function CircleButton({
             borderRadius: onboardingButton.height / 2,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: hovered ? colors.outlinedHover : "transparent",
+            backgroundColor: hovered ? colors.outlinedHover : ink.clear,
             borderWidth: 1,
             borderColor: colors.noThanksBorder,
           }}

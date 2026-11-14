@@ -113,3 +113,17 @@ test("grouping a pinned row onto another keeps the dragged row's home", () => {
   assert.equal(S().tabs[a].pinnedUrl, "https://a.com/", "the dragged row keeps its home");
   assert.equal(S().tabs[b].pinnedUrl, "https://b.com/", "and so does the row it went onto");
 });
+
+test("a live folder tab keeps its item's page as home until it stops being a live tab", () => {
+  reset();
+  const { w } = windowWith("x");
+  const t = S().newTab(w, { url: "https://github.com/o/r/pull/1" });
+  S().updateTab(t, { liveItem: { folderId: "f", itemId: "i" }, pinnedUrl: "https://github.com/o/r/pull/1" });
+  go(t, "https://github.com/o/r/pull/1/files");
+  assert.equal(S().tabs[t].pinnedUrl, "https://github.com/o/r/pull/1");
+  assert.equal(awayFromPin(S().tabs[t]), true);
+  S().returnToPinnedUrl(t);
+  assert.equal(S().tabs[t].page.nav?.url ?? S().tabs[t].url, "https://github.com/o/r/pull/1");
+  S().updateTab(t, { liveItem: undefined });
+  assert.equal(S().tabs[t].pinnedUrl, null);
+});

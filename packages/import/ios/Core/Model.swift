@@ -46,20 +46,24 @@ public struct ImportedTab: Codable, Equatable, Sendable {
   public var pinned: Bool
   public var customTitle: String?
   public var groupId: String?
+  public var splitId: String?
   public var windowIndex: Int
   public var active: Bool
   public var lastActive: Double?
+  public var container: Int?
 
   public init(url: String, title: String, pinned: Bool = false, customTitle: String? = nil, groupId: String? = nil,
-              windowIndex: Int = 0, active: Bool = false, lastActive: Double? = nil) {
+              splitId: String? = nil, windowIndex: Int = 0, active: Bool = false, lastActive: Double? = nil, container: Int? = nil) {
     self.url = url
     self.title = title
     self.pinned = pinned
     self.customTitle = customTitle
     self.groupId = groupId
+    self.splitId = splitId
     self.windowIndex = windowIndex
     self.active = active
     self.lastActive = lastActive
+    self.container = container
   }
 }
 
@@ -207,6 +211,7 @@ public struct SpaceSuggestion: Codable, Equatable, Sendable {
   public var pinned: [BookmarkNode]
   public var tabs: [ImportedTab]
   public var theme: String? = nil
+  public var container: Int? = nil
 }
 
 public struct ProfileSuggestion: Codable, Equatable, Sendable {
@@ -251,6 +256,7 @@ public struct ImportResult: Codable, Equatable, Sendable {
   public var spaces: [SpaceSuggestion] = []
   public var favorites: [ImportedTab] = []
   public var favicons: [ImportedFavicon] = []
+  public var separateEssentials: Bool?
   public var failed: [ImportKind] = []
   public var warnings: [ImportWarning] = []
   public var vaultToken: String?
@@ -264,7 +270,7 @@ public struct ImportResult: Codable, Equatable, Sendable {
 
   enum CodingKeys: String, CodingKey {
     case browserId, profileId, profile, bookmarks, history, historyCount, tabs, tabGroups, credentials, spaces, favorites, favicons,
-         failed, warnings, vaultToken, cookieCount, addressCount, cardCount
+         separateEssentials, failed, warnings, vaultToken, cookieCount, addressCount, cardCount
   }
 
   public init(browserId: String, profileId: String) {

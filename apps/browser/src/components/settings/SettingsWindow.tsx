@@ -13,6 +13,7 @@ import { SettingsPaneContext } from "./Form";
 import { PageToolbar } from "../pages/PageLayout";
 import { SettingsSearchField, SettingsSearchResults } from "./SettingsSearch";
 import { AdvancedPane } from "./panes/Advanced";
+import { AirTrafficPane } from "./panes/AirTraffic";
 import { AppearancePane } from "./panes/Appearance";
 import { CalendarPane } from "./panes/Calendar";
 import { GeneralPane } from "./panes/General";
@@ -91,8 +92,9 @@ export function SettingsWindow() {
   const revealPane = reveal ? (findSetting(reveal.id)?.pane ?? null) : null;
   const showAdvanced = useSettings((s) => s.showAdvancedSettings);
   const revealedSections = useSettingsSearch((s) => s.revealedSections);
+  const previewSection = useSettingsSearch((s) => s.previewSection);
   const panes = PANES.filter(
-    (p) => showAdvanced || !ADVANCED_PANES.has(p.id) || nav.pane === p.id || revealedSections.some((k) => k.startsWith(settingsSectionKey(p.id, ""))),
+    (p) => showAdvanced || !ADVANCED_PANES.has(p.id) || nav.pane === p.id || [...revealedSections, previewSection ?? ""].some((k) => k.startsWith(settingsSectionKey(p.id, ""))),
   );
   const switched = useRef(key);
   useEffect(() => {
@@ -178,6 +180,7 @@ const FILL = { flex: 1 } as const;
 const PANE_VIEWS: Record<SettingsPane, (place: SettingsPlace) => ReactNode> = {
   general: () => <GeneralPane />,
   profiles: ({ profileId }) => (profileId ? <ProfileDetailsPane profileId={profileId} /> : <ProfilesPane />),
+  airTraffic: () => <AirTrafficPane />,
   sync: () => <SyncPane />,
   tabs: () => <TabsPane />,
   appearance: () => <AppearancePane />,

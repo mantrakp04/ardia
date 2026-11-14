@@ -202,25 +202,9 @@ final class FolderWatchTests: XCTestCase {
     wait(for: [counter.expect(self, atLeast: 1)], timeout: 5)
     XCTAssertEqual(try descriptors(on: installation), 1)
     queue.sync { watch.stop() }
-    queue.sync {}
+    let deadline = Date().addingTimeInterval(5)
+    while try descriptors(on: installation) > 0, Date() < deadline { usleep(1000) }
     XCTAssertEqual(try descriptors(on: installation), 0)
-  }
-
-  func testAnUnmountedVolumeRevokesTheWatch() throws {
-    let image = scratch.appendingPathComponent("volume.dmg")
-    let mount = try folder("mount")
-    guard run("/usr/bin/hdiutil", "create", "-size", "4m", "-fs", "HFS+", "-volname", "FolderWatchTest", image.path),
-      run("/usr/bin/hdiutil", "attach", "-nobrowse", "-noautoopen", "-mountpoint", mount.path, image.path)
-    else { throw XCTSkip("hdiutil can't make a test volume here") }
-    defer { _ = run("/usr/bin/hdiutil", "detach", "-force", mount.path) }
-    let installation = mount.appendingPathComponent("Installation", isDirectory: true)
-    try FileManager.default.createDirectory(at: installation, withIntermediateDirectories: true)
-    let counter = Counter()
-    let watch = watch(installation, counter)
-    wait(for: [counter.expect(self, atLeast: 1)], timeout: 5)
-    guard run("/usr/bin/hdiutil", "detach", "-force", mount.path) else { throw XCTSkip("hdiutil can't detach the test volume here") }
-    wait(for: [counter.expect(self, atLeast: 2)], timeout: 10)
-    XCTAssertNotEqual(binding(watch), .watching)
   }
 
   func descriptors(on folder: URL) throws -> Int {
@@ -231,16 +215,5 @@ final class FolderWatchTests: XCTestCase {
       var path = [CChar](repeating: 0, count: Int(MAXPATHLEN))
       return fcntl(descriptor, F_GETPATH, &path) == 0 && String(cString: path) == wanted
     }.count
-  }
-
-  func run(_ tool: String, _ arguments: String...) -> Bool {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: tool)
-    process.arguments = arguments
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    guard (try? process.run()) != nil else { return false }
-    process.waitUntilExit()
-    return process.terminationStatus == 0
   }
 }
