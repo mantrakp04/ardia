@@ -1,4 +1,5 @@
 import ArdiaBrowser
+import Darwin
 import ArdiaDesign
 import ExpoModulesCore
 import UIKit
@@ -121,6 +122,10 @@ public final class SystemModule: Module {
       onMain { PhoneSystemLinks.shared.sink = nil }
     }
 
+    Function("processStartedAt") { () -> Double? in
+      ProcessStart.epochMilliseconds()
+    }
+
     AsyncFunction("initialLink") { () -> [String: Any]? in
       MainActor.assumeIsolated { PhoneSystemLinks.shared.takeInitial() }
     }.runOnQueue(.main)
@@ -149,5 +154,17 @@ public final class DefaultBrowserModule: Module {
         }
       }
     }.runOnQueue(.main)
+  }
+}
+
+enum ProcessStart {
+  static func epochMilliseconds() -> Double? {
+    var record = kinfo_proc()
+    var size = MemoryLayout<kinfo_proc>.stride
+    var name: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+    guard sysctl(&name, UInt32(name.count), &record, &size, nil, 0) == 0, size > 0 else { return nil }
+    let start = record.kp_proc.p_un.__p_starttime
+    let milliseconds = Double(start.tv_sec) * 1000 + Double(start.tv_usec) / 1000
+    return milliseconds > 0 ? milliseconds.rounded() : nil
   }
 }
