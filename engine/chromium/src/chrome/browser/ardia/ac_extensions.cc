@@ -2,6 +2,7 @@
 
 #include "chrome/browser/ardia/ac_engine.h"
 
+#include <algorithm>
 #include <map>
 #include <set>
 #include <memory>
@@ -191,10 +192,23 @@ class ExtensionsState : public ProfileState {
               Reply reply,
               extensions::ExtensionInfoGenerator::ExtensionInfoList infos) {
     Drop(key);
+    ToolbarActionsModel* toolbar = ToolbarActionsModel::Get(profile());
+    const bool toolbar_ready = toolbar && toolbar->actions_initialized();
+    const extensions::ExtensionIdList saved_pins =
+        toolbar_ready
+            ? extensions::ExtensionIdList()
+            : extensions::ExtensionPrefs::Get(profile())->GetPinnedExtensions();
     base::ListValue list;
     for (const auto& info : infos) {
       if (info.type == developer::ExtensionType::kExtension) {
         base::DictValue entry = Entry(info);
+        entry.Set("pinned",
+                  toolbar_ready
+                      ? toolbar->HasAction(info.id) &&
+                            toolbar->IsActionPinned(info.id)
+                      : info.state == developer::ExtensionState::kEnabled &&
+                            std::ranges::find(saved_pins, info.id) !=
+                                saved_pins.end());
         const Extension* extension = Find(profile(), info.id);
         if (extension && !info.disable_reasons.blocked_by_policy &&
             info.state != developer::ExtensionState::kEnabled &&
