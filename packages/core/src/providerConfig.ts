@@ -76,7 +76,8 @@ function checkEntry(value: unknown, where: string): Checked {
   if (v.global !== undefined && typeof v.global !== "boolean") return fail(".global must be true or false");
   if (v.global === true && v.keyword !== undefined) return fail(": a provider with a keyword shows only in its keyword mode; drop global or the keyword");
   if (v.url !== undefined && (typeof v.url !== "string" || !isTemplate(v.url))) return fail(`.url must be an http or https URL containing ${QUERY_SLOT}`);
-  if (v.url !== undefined && v.keyword === undefined) return fail(".url needs a keyword: it turns what you type after the keyword into a link");
+  if (v.url !== undefined && v.keyword === undefined && v.global !== true)
+    return fail(".url without a keyword needs global: true, since it then adds a row for everything you type");
   if (v.suggest !== undefined && (typeof v.suggest !== "string" || !isRemoteEndpoint(v.suggest)))
     return fail(`.suggest must be an https URL containing ${QUERY_SLOT}`);
   if (v.suggest !== undefined && v.keyword === undefined && v.global !== true)

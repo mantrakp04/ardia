@@ -1,4 +1,5 @@
 import {
+  fillProviderTemplate,
   fixupUrl,
   hostOf,
   matchProviderRows,
@@ -44,10 +45,14 @@ function configProvider(c: ProviderConfig, partition: string, remote: boolean): 
     ...(c.url ? { host: hostOf(c.url.split(QUERY_SLOT).join("q")), template: c.url.split(QUERY_SLOT).join("%s") } : {}),
     sendsInput: !!suggest,
     async query(text, signal) {
-      const local: ProviderRow[] = c.global && !text.trim() ? [] : matchProviderRows(c.rows, text);
-      if (!suggest || !text.trim() || (c.global && looksLikeAddress(text.trim()))) return local;
-      const fetched = await fetchRemoteRows(suggest, text.trim(), partition, signal, c.url);
-      return [...local, ...fetched];
+      const typed = text.trim();
+      const address = looksLikeAddress(typed);
+      const link = c.global && c.url && typed && !address ? fillProviderTemplate(c.url, typed) : null;
+      const linked: ProviderRow[] = link ? [{ title: typed, url: link }] : [];
+      const local: ProviderRow[] = c.global && !typed ? [] : matchProviderRows(c.rows, text);
+      if (!suggest || !typed || (c.global && address)) return [...linked, ...local];
+      const fetched = await fetchRemoteRows(suggest, typed, partition, signal, c.url);
+      return [...linked, ...local, ...fetched];
     },
   };
 }

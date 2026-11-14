@@ -28,9 +28,9 @@ export const PROVIDERS_SCHEMA: JsonSchema = {
     properties: {
       keyword: { type: "string", pattern: "^[^\\s/?#:@.!]{1,32}$" },
       title: { type: "string", description: `Shown on the chip and on each row, up to ${PROVIDER_LIMITS.providerTitle} characters` },
-      global: { type: "boolean", description: "No keyword: the rows join the normal list. Needed for a suggest endpoint without a keyword" },
+      global: { type: "boolean", description: "No keyword: the rows join the normal list. Needed for a url or suggest endpoint without a keyword" },
       rows: { type: "array", items: ROW, maxItems: PROVIDER_CONFIG_LIMITS.rows },
-      url: { type: "string", pattern: QUERY_URL, description: `A link template with ${QUERY_SLOT}; needs a keyword` },
+      url: { type: "string", pattern: QUERY_URL, description: `A link template with ${QUERY_SLOT}: what you type after the keyword, or with global, one row for whatever you type` },
       suggest: { type: "string", pattern: QUERY_URL, description: `An https suggestion endpoint with ${QUERY_SLOT}` },
     },
     additionalProperties: false,
