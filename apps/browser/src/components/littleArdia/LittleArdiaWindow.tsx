@@ -31,7 +31,6 @@ import { LITTLE_ARDIA_PINCH, LITTLE_ARDIA_SWIPE_CLOSE, NAV_CENTER_PAST_ZOOM, SMA
 const NAV_LEFT = SMALL_LIGHTS_CENTER[0] + 2 * TRAFFIC_LIGHT_PITCH + NAV_CENTER_PAST_ZOOM - SMALL_BAR_BUTTON / 2;
 const NAV_PITCH = SMALL_BAR_BUTTON + SMALL_BAR_GAP;
 const FIELD_LEFT = NAV_LEFT + NAV_PITCH + SMALL_BAR_BUTTON + SMALL_FIELD_GAP;
-const FIELD_MAX_WIDTH = 520;
 const NAV_HIT = { width: SMALL_BAR_BUTTON, height: SMALL_BAR_BUTTON, plateX: 0, plateY: 0, box: SMALL_BAR_ROW.button, radius: SMALL_BAR_ROW.buttonRadius };
 const BUTTON_TOP = (SMALL_BAR_HEIGHT - SMALL_BAR_BUTTON) / 2;
 const BACK_AT = { style: { position: "absolute" as const, top: BUTTON_TOP, left: NAV_LEFT }, hit: NAV_HIT };
@@ -150,7 +149,6 @@ function LittleArdiaBar() {
   return (
     <SmallBar
       fieldLeft={FIELD_LEFT}
-      fieldMaxWidth={FIELD_MAX_WIDTH}
       field={tab ? <PageField tab={tab} windowId={windowId} hidden={panelOpen} /> : null}
       buttons={[
         { icon: copied ? "checkmark" : "link", disabled: !tab?.url, tooltip: "Copy Link (⇧⌘C)", onPress: copy },

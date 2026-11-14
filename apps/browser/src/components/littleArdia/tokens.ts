@@ -1,5 +1,5 @@
 import { TOOLBAR_ROWS, type ToolbarRow } from "../../lib/toolbarRow";
-import { radius, space } from "../ui/tokens";
+import { radius } from "../ui/tokens";
 
 export const SMALL_WINDOW_RADIUS = radius.sheet;
 
@@ -14,8 +14,6 @@ export const NAV_CENTER_PAST_ZOOM = 27;
 export const SMALL_BAR_BUTTON = 28;
 
 export const SMALL_BAR_ROW: ToolbarRow = { ...TOOLBAR_ROWS.regular, button: SMALL_BAR_BUTTON, buttonRadius: radius.toolbar };
-
-export const SMALL_PROGRESS = { left: space.m, share: "96%" } as const;
 
 export const LITTLE_ARDIA_PINCH = { smallest: 0.6, largest: 1.04 } as const;
 
