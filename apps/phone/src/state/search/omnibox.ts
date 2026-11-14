@@ -8,7 +8,7 @@ import {
   mobileSuggest,
   mobileSuggestRequest,
 } from "@ardia/core/src/mobile";
-import { displayHost } from "../../lib/url";
+import { dedupeByLanding, displayHost } from "../../lib/url";
 
 export type TrayRow =
   | { key: string; kind: "query"; title: string; url: string; query: string }
@@ -43,7 +43,8 @@ export function suggest(text: string, remote: readonly string[], context: Sugges
       });
     } else if (item.kind === "calc") rows.push({ key: `c:${item.expression}`, kind: "calc", title: item.value, detail: item.expression, url: item.url });
   }
-  return { rows, completion: result.completion };
+  const unique = dedupeByLanding(rows.map((row) => ({ row, url: row.kind === "page" ? row.url : row.key, opensTab: row.kind === "page" && row.switchesTab })));
+  return { rows: unique.map((item) => item.row), completion: result.completion };
 }
 
 export function idleRows(queries: readonly string[]): TrayRow[] {
