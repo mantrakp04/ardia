@@ -140,7 +140,7 @@ inline bool LaunchAskedByTest() noexcept {
   AppLaunch::Config const &config = AppLaunch::Shared();
   if (!config.testInstance) return false;
   auto found = config.test.find("externalAppLaunch");
-  return found != config.test.end() && AppLaunch::Truthy(found->second);
+  return found != config.test.end() && found->second == "1";
 }
 
 inline bool HexDigit(char c) noexcept {
