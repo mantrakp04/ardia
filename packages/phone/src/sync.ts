@@ -113,7 +113,7 @@ type SyncNative = {
 };
 
 let loaded: SyncNative | undefined;
-const native = () => (loaded ??= requireNativeModule<SyncNative>("ArdiaSync"));
+const native = () => (loaded ??= requireNativeModule<SyncNative>("ArdiaPhoneSync"));
 
 export const sync = {
   status: () => native().status(),

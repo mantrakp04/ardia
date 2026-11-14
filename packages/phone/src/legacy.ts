@@ -43,7 +43,7 @@ type LegacyNative = {
   read(): Promise<(Omit<LegacyData, "store" | "selectedTabId"> & { store?: string; selectedTabId?: string }) | null>;
 };
 
-const native = requireOptionalNativeModule<LegacyNative>("ArdiaLegacy");
+const native = requireOptionalNativeModule<LegacyNative>("ArdiaPhoneLegacy");
 
 export const legacy = {
   available: async (): Promise<boolean> => (native ? native.available() : false),

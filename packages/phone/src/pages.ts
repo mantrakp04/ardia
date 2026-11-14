@@ -61,7 +61,7 @@ type PagesNative = {
 };
 
 let loaded: PagesNative | undefined;
-const native = () => (loaded ??= requireNativeModule<PagesNative>("ArdiaPageView"));
+const native = () => (loaded ??= requireNativeModule<PagesNative>("ArdiaPhonePageView"));
 
 export const pages = {
   capabilities: () => native().capabilities(),

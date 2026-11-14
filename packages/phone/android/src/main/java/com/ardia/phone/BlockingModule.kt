@@ -21,7 +21,7 @@ class BlockingModule : Module() {
     }
 
     override fun definition() = ModuleDefinition {
-        Name("ArdiaBlocking")
+        Name("ArdiaPhoneBlocking")
 
         Events("onBlockingEvent")
 

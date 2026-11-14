@@ -168,7 +168,7 @@ enum PhoneLegacy {
 
 public final class LegacyModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaLegacy")
+    Name("ArdiaPhoneLegacy")
 
     OnCreate {
       onMain { PhoneLegacy.dumpIfAsked() }

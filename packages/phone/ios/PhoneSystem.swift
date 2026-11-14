@@ -107,7 +107,7 @@ public final class PhoneSystemLinks {
 
 public final class SystemModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaSystem")
+    Name("ArdiaPhoneSystem")
 
     Events("onSystemLink")
 
@@ -129,7 +129,7 @@ public final class SystemModule: Module {
 
 public final class DefaultBrowserModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaDefaultBrowser")
+    Name("ArdiaPhoneDefaultBrowser")
 
     AsyncFunction("status") { () -> [String: Any] in
       MainActor.assumeIsolated {

@@ -9,7 +9,7 @@ type DownloadsNative = {
 };
 
 let loaded: DownloadsNative | undefined;
-const native = () => (loaded ??= requireNativeModule<DownloadsNative>("ArdiaDownloads"));
+const native = () => (loaded ??= requireNativeModule<DownloadsNative>("ArdiaPhoneDownloads"));
 
 export const downloads = {
   active: () => native().active(),

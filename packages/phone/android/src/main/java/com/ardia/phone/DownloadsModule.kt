@@ -13,7 +13,7 @@ class DownloadsModule : Module() {
     private val context: Context get() = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "The app context is gone", null)
 
     override fun definition() = ModuleDefinition {
-        Name("ArdiaDownloads")
+        Name("ArdiaPhoneDownloads")
 
         Events("onDownloadEvent")
 

@@ -25,7 +25,7 @@ struct RequestAnswerRecord: Record {
 
 public final class PageViewModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaPageView")
+    Name("ArdiaPhonePageView")
 
     Events("onPageEngineEvent")
 
@@ -348,7 +348,7 @@ public final class PageViewModule: Module {
 
 public final class BlockingModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaBlocking")
+    Name("ArdiaPhoneBlocking")
 
     Events("onBlockingEvent")
 
@@ -439,7 +439,7 @@ public final class BlockingModule: Module {
 
 public final class DownloadsModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaDownloads")
+    Name("ArdiaPhoneDownloads")
 
     Events("onDownloadEvent")
 

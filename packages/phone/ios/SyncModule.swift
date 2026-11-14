@@ -9,7 +9,7 @@ public final class SyncModule: Module {
   private let alive = OSAllocatedUnfairLock(initialState: true)
 
   public func definition() -> ModuleDefinition {
-    Name("ArdiaSync")
+    Name("ArdiaPhoneSync")
 
     Events("onSyncEvent")
 

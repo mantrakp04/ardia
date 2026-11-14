@@ -18,7 +18,7 @@ type NativeProps = ViewProps & {
   onPageEvent?: (event: NativeSyntheticEvent<PageEventPayload>) => void;
 };
 
-const NativePageView = requireNativeViewManager<NativeProps>("ArdiaPageView");
+const NativePageView = requireNativeViewManager<NativeProps>("ArdiaPhonePageView");
 
 export const closePage = (pageId: string) => pages.close(pageId);
 

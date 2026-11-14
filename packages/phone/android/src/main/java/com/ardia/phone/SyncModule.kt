@@ -41,7 +41,7 @@ class SyncModule : Module() {
         }
 
     override fun definition() = ModuleDefinition {
-        Name("ArdiaSync")
+        Name("ArdiaPhoneSync")
 
         Events("onSyncEvent")
 

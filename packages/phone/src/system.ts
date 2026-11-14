@@ -20,7 +20,7 @@ type SystemNative = {
   initialLink(): Promise<NativeLink | null>;
 };
 
-const native = requireOptionalNativeModule<SystemNative>("ArdiaSystem");
+const native = requireOptionalNativeModule<SystemNative>("ArdiaPhoneSystem");
 
 const normalize = (link: NativeLink): SystemLink => (link.kind === "search" ? { ...link, query: link.query ?? null } : link) as SystemLink;
 
