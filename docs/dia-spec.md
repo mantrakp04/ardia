@@ -578,7 +578,10 @@ Implemented in `apps/browser/src/state/windows/profilePager.ts` (+ `components/w
   page changes.
 - **Wheel mice** (`nonGesturalScrollState`, `0x1005983c4`, events with no phase): scroll deltas add up while they
   come less than ~0.049 s apart; once |Σ| > 1 pt the view pages one page that way (sign flipped by
-  `isDirectionInvertedFromDevice`), then ignores wheel events for 0.25 s.
+  `isDirectionInvertedFromDevice`), then ignores wheel events for 0.25 s. Ardia does not copy the flip: AppKit has
+  already applied the device's scroll-direction setting to `scrollingDeltaX`, so a scroll left (Δx > 0) shows the
+  previous page with Natural scrolling on or off, as the trackpad path does (the flip paged a wheel with it off
+  backwards, #325).
 - `TabSidebar.PagingContainerViewController` keeps `loadedPages` / `transitionPageIDs` and schedules page cleanup:
   pages beside the current one only exist during a transition. `TabStrip.TabStripSpacePagingController` pages the
   top tab strip too (with a content fade on settle, `settleUsesContentFade`, not decoded).
