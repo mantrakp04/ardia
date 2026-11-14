@@ -109,7 +109,7 @@ export function selectTab(data: TabsData, id: string | null, now: number): TabsC
   const put: BrowserTab[] = [];
   const current = selectedTab(data);
   if (current && current.id !== id) {
-    const touched = withLastActive(next, current.id, now);
+    const touched = withLastActive(next, current.id, now - 1);
     next = touched.data;
     put.push(...touched.put);
   }

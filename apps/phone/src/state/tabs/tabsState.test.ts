@@ -56,12 +56,12 @@ test("a tab opened after another goes between it and the next one", () => {
   assert.deepEqual(change.data.open.map((t) => t.id).slice(0, 2), [a.id, tab.id]);
 });
 
-test("selecting a tab touches both the old and the new tab", () => {
+test("selecting a tab touches both, the tab left behind just before the new one", () => {
   const { data, a, c } = threeTabs();
   const change = selectTab(data, a.id, 50);
   assert.equal(change.data.selectedId, a.id);
   assert.equal(change.data.open.find((t) => t.id === a.id)!.lastActive, 50);
-  assert.equal(change.data.open.find((t) => t.id === c.id)!.lastActive, 50);
+  assert.equal(change.data.open.find((t) => t.id === c.id)!.lastActive, 49);
   assert.equal(change.put.length, 2);
 });
 
@@ -211,4 +211,12 @@ test("a tab with no title is listed by its host, then as New Tab", () => {
   assert.equal(tabMenuTitle({ ...a, title: "Otter" }, "en.wikipedia.org"), "Otter");
   assert.equal(tabMenuTitle({ ...a, title: "  " }, "example.com"), "example.com");
   assert.equal(tabMenuTitle({ ...a, title: "" }, ""), "New Tab");
+});
+
+test("the tab in front comes back in front after a kill, even when it was chosen in the same millisecond", () => {
+  const { data, a, c } = threeTabs();
+  const front = selectTab(selectTab(data, a.id, 10).data, c.id, 10).data;
+  assert.equal(launchTabs(front.open, 0).selectedId, c.id);
+  const back = selectTab(front, a.id, 10).data;
+  assert.equal(launchTabs(back.open, 0).selectedId, a.id);
 });
