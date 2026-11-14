@@ -449,7 +449,10 @@ for any app can also take the links you click and the addresses you type in Ardi
   page; a plain click on a named target (`target`, `<base target>`) stays Chrome's. A matching route beats the tab's
   Peek links to other sites. A page back from the back-forward cache gets the current routes with its `peekHello`.
 - **Not routed, by design:** a click the page prevented, a click a page handler stopped with
-  `stopImmediatePropagation()` or stopped in the capture phase (before it reaches the link), links with `download`, the Peek or Split modifier, ⌥-, ⌃- and
+  `stopImmediatePropagation()` or stopped in the capture phase (before it reaches the link), a click stopped or
+  prevented by a handler the page adds while that same click is being dispatched (the page script decides when the
+  click passes each node, not at Chrome's navigation; deciding there would need an engine hook), links with
+  `download`, the Peek or Split modifier, ⌥-, ⌃- and
   middle clicks, keyboard activation, URLs over 8192 characters, WebKit pages (they run WebKit's page script), forms,
   script navigations, `window.open` and redirects.
 - **Typed addresses.** The address bar, the command bar and the new-tab bar route an address the same way
