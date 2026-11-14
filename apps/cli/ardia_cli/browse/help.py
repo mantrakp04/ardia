@@ -20,7 +20,7 @@ Core Commands:
   type <sel> <text>          Type into element
   fill <sel> <text>          Clear, then type (date/time/color/range inputs: set the value; a <select>: pick;
                              a grid cell: open its editor, set, Enter)
-  press <key>                Press key (Enter, Tab, Control+a, Meta+a)
+  press [sel] <key>          Press key (Enter, Tab, Control+a, Meta+a), in <sel> if given
   keydown <key> / keyup <key>  Hold or release a key
   keyboard type <text>       Type at the current focus (humanized keystrokes)
   keyboard inserttext <text> Insert text without key events
@@ -40,7 +40,7 @@ Core Commands:
   eval <js>                  Run JavaScript in the page [-b base64] [--stdin]
   close [--all]              Close the tabs this session opened and end the session
 
-Selectors:   CSS, @e3, text=Save (text="Save" exact), role=button[name="Save"], li:has-text("Ana"), xpath=//a;
+Selectors:   CSS, @e3, text=Save (text="Save" exact), role=button[name="Save"], li:has-text("Ana"), li >> nth=2 (third match; -1 last), main >> text=Save, li:text-is("Ana"), xpath=//a;
              [role=main] also matches <main> and the other implicit roles
 Navigation:  back, forward, reload, pushstate <url>
 Get Info:    get text|html|value|attr <name>|title|url|count|box|styles <sel>
@@ -49,7 +49,7 @@ Find:        find role|text|label|placeholder|alt|title|testid|first|last|nth <v
              actions: click (default), fill, type, check, uncheck, select, hover, focus, dblclick, text
              find role <role> <action> --name <name>: exact name first, several matches list refs
 Mouse:       mouse move <x> <y> | down [btn] | up [btn] | wheel <dy> [dx]
-Settings:    set viewport <w> <h> [scale]                         (a tab this session opened)
+Settings:    set viewport <w> <h> [scale] | reset                 (this session's own hidden tab, off-screen)
              set device|geo|offline|headers|credentials|media    (gated)
 Network:     network requests [--filter --type --method --status --clear] | request <id>
              network har start [--content text|all|none] | har stop [path]
@@ -197,7 +197,7 @@ COMMANDS = {
               "  ardia browse select @e5 \"Priya Raman\" alex@example.com\n"
               "Prints what it picked and what changed. A disabled target is waited for up to 1.5 s.",
     "type": "ardia browse type <sel> <text> [--no-humanize]\n\nTypes into the element without clearing it.",
-    "press": "ardia browse press <key> [--no-humanize]\n\nKeys: Enter, Tab, Escape, Backspace, Delete, Space, Arrow*, Home, End, PageUp, PageDown, F1-F12.\n"
+    "press": "ardia browse press [<sel>] <key> [--no-humanize]\n\nWith <sel>, focuses that element first. Keys: Enter, Tab, Escape, Backspace, Delete, Space, Arrow*, Home, End, PageUp, PageDown, F1-F12.\n"
              "Modifiers: Control, Alt, Shift, Meta (Meta+a selects all on macOS).",
     "keyboard": "ardia browse keyboard type <text> | inserttext <text>\n\ntype sends humanized keystrokes to the focused element; inserttext inserts at once.",
     "scroll": "ardia browse scroll [up|down|left|right] [px] [-s <sel>] [--no-humanize]\n\nWheel scrolling with momentum, at the mouse position (moved into the page or the container first).",
@@ -208,7 +208,7 @@ COMMANDS = {
                   "to the page). Without a path it saves under $TMPDIR/ardia-browse/screenshots.",
     "eval": "ardia browse eval <js> | -b <base64> | --stdin\n\nRuns in the page's main world (the one place, with init scripts and the React hook, that does).",
     "get": "ardia browse get text|html|value|attr <name>|title|url|count|box|styles <sel>\n\ncdp-url works only with --port or --ws: the real URL carries Ardia's token.",
-    "find": "ardia browse find <role|text|label|placeholder|alt|title|testid|first|last|nth> <value> [action] [text] [--name n] [--exact]\n\n"
+    "find": "ardia browse find <role|text|label|placeholder|alt|title|testid|first|last|nth> <value> [action] [text] [--name n] [--exact|--partial]\n\n"
             "Actions: click (default), fill, type, check, uncheck, select, hover, focus, dblclick, text. The found element\n"
             "gets the next ref, so later commands can use it.\n\n"
             "find role takes the role and accessible name the snapshot shows, in any order: `find role button\n"
@@ -332,10 +332,12 @@ COMMANDS = {
     "cookies": "ardia browse cookies [get] | set <name> <value> [--url u] [--domain d] [--path p] [--httpOnly] [--secure]\n"
                "  [--sameSite Strict|Lax|None] [--expires epoch] | set --curl <file> | clear\n\n"
                "Gated by Ardia's policy; works against a plain --port test server.",
-    "set": "ardia browse set viewport <w> <h> [scale] | device <name> | geo <lat> <lng> | offline [on|off] | headers <json>\n"
-           "  | credentials <user> <pass> | media [dark|light|no-preference] [reduced-motion]\n\nset viewport sizes the page of a tab this session opened (open <url> first), for responsive checks: screenshots,\n"
-           "snapshots and clicks then see that size. It lasts until the session closes or disconnects, and never touches\n"
-           "your own tabs. The other settings are gated by Ardia's policy; they work against a plain --port test server.",
+    "set": "ardia browse set viewport <w> <h> [scale] | viewport reset | device <name> | geo <lat> <lng> | offline [on|off] | headers <json>\n"
+           "  | credentials <user> <pass> | media [dark|light|no-preference] [reduced-motion]\n\nset viewport sizes the page of a tab this session opened and never showed, for responsive checks. Ardia first takes\n"
+           "the tab off-screen (it leaves the sidebar), so an emulated page is never on screen; screenshots, snapshots and\n"
+           "clicks work there at that size. To see the page, `tab <id> --show` (or `set viewport reset`, in the background):\n"
+           "the viewport ends and the page is reloaded in a new tab of its own size. The other settings are gated by Ardia's\n"
+           "policy; they work against a plain --port test server.",
     "state": "ardia browse state save|load <path>\n\nSaves or loads cookies and storage (gated).",
     "dialog": "ardia browse dialog status | accept [text] | dismiss\n\nAnswers the page's open alert, confirm or prompt.",
     "diff": "ardia browse diff snapshot [-b baseline] [-s sel] [-i] [-c] [-d n] | screenshot --baseline <png> | url <u1> <u2>\n\n"

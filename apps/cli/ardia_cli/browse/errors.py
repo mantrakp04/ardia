@@ -42,6 +42,7 @@ REFUSAL_HINTS = {
     "to that URL": "only http, https, data and about:blank pages can be opened",
     "on a tab the ardia command didn't open": "the viewport can be set only on a tab this command opened: `ardia browse open <url>`, then set it there",
     "with that option": "only a width, a height, a scale and mobile can be set",
+    "on a tab that isn't off-screen": "Ardia sets a viewport only on a tab it has taken off-screen, which `ardia browse set viewport <w> <h>` does for a tab this session opened and never showed",
 }
 
 

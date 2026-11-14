@@ -67,6 +67,10 @@ async def dispatch(ctx, name, argv):
     handler = COMMANDS.get(name)
     if handler is None:
         raise Usage(f"Unknown command: {name}. Run `ardia browse --help`")
+    if name != "batch":
+        from ardia_cli.browse.changes import settle_reaction
+
+        await settle_reaction(ctx.state, name, argv)
     result = await handler(ctx, argv)
     extras = getattr(ctx.state, "extras", None)
     if name != "batch" and isinstance(extras, dict) and extras.get("top_command") != "script":

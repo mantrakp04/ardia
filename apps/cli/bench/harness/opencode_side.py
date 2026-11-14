@@ -12,7 +12,7 @@ import ardia_side
 import grading
 import registry
 import servers
-from procs import (front_pid, http, kill_group, kill_on_failure, listener_pids, proc_info, read_json, read_jsonl, same_process, sh,
+from procs import (front_pid, http, kill_group, spawn_agent, kill_on_failure, listener_pids, proc_info, read_json, read_jsonl, same_process, sh,
                    terminate, wait_until, write_json)
 
 ROOT = Path(os.environ.get("BENCH_OPENCODE_HOME", Path.home() / "ardia-scratch/opencode-browse"))
@@ -20,7 +20,8 @@ CDP_HELPER = Path(__file__).resolve().parent / "opencode_cdp.mjs"
 EXTENSION_ID = "mfnicocicmmlkpjnaffgihfjhdgjkdjg"
 DEFAULTS = {
     "browse_entry": str(ROOT / "npm/node_modules/@opencode/browse/dist/cli.mjs"),
-    "extension": str(ROOT / "ext/store-0.0.10"),
+    "extension": str(max((ROOT / "ext").glob("store-*"), key=lambda p: tuple(int(n) for n in p.name[6:].split(".") if n.isdigit()),
+                         default=ROOT / "ext/store-0.0.10")),
     "chrome": None,
     "cdp_port": 9571,
     "relay_port": 19990,
@@ -378,8 +379,7 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None, on_
                 on_agent_start()
             start_epoch = time.time()
             t0 = time.monotonic()
-            proc = subprocess.Popen(cmd, cwd=workdir, env=env, stdin=subprocess.DEVNULL, stdout=fo, stderr=fe,
-                                    start_new_session=True)
+            proc = spawn_agent(cmd, cwd=workdir, env=env, stdin=subprocess.DEVNULL, stdout=fo, stderr=fe)
             timed_out = False
             try:
                 code = proc.wait(timeout=deadline)

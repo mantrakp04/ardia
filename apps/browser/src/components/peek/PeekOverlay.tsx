@@ -5,7 +5,7 @@ import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useCardFrame } from "../window/cardFrame";
 import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
-import { useTab } from "../../state/browser/hooks";
+import { useSettings, useTab } from "../../state/browser/hooks";
 import type { Peek } from "../../state/peek/peek";
 import { PEEK_MOTION, PEEK_SCRIM } from "./tokens";
 import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
@@ -111,6 +111,7 @@ function PeekCard({
     return registerPeekMotion(windowId, close, grown);
   }, [motion]);
 
+  const gestures = useSettings((s) => s.littleWindowGestures);
   const pinch: PinchMotion = {
     reduce: fade,
     idle: () => !!leaving.current,
@@ -175,7 +176,7 @@ function PeekCard({
             style={StyleSheet.absoluteFill}
           />
         )}
-        <PinchArea enabled={!fullscreen && !!motion} motion={pinch} style={{ flex: 1 }}>
+        <PinchArea enabled={!fullscreen && !!motion && gestures} motion={pinch} style={{ flex: 1 }}>
           <View style={{ flex: 1, borderRadius: fullscreen ? 0 : SMALL_WINDOW_RADIUS, overflow: "hidden" }}>
             {!fullscreen && <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />}
             {!fullscreen && <PeekBar windowId={windowId} tabId={peek.tabId} />}
