@@ -179,9 +179,10 @@ function HistoryButtons({ tabId, windowId }: { tabId: string; windowId: string }
 
 function ProfileButton({ windowId }: { windowId: string }) {
   const profile = useWindowProfile();
+  const iconsShown = useSettings((s) => s.profileSwitcherIcons);
   return (
     <Button variant="icon" look="row" tooltip={`Profile: ${profile.name}`} onPress={() => void openLittleArdiaProfileMenu(windowId)}>
-      <ProfileBadge profile={profile} size={16} />
+      <ProfileBadge profile={iconsShown ? profile : { ...profile, icon: null }} size={16} />
     </Button>
   );
 }
