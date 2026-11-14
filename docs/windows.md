@@ -401,7 +401,10 @@ is plain Chromium.
   closing the tab, a pane focus), the app asks that tab's page to follow (`state/focus/keyboardFollows.ts` calling
   `platform/keyboardFollow.windows.ts`; the Mac has no such call and subscribes to nothing). `pages.ts` sends it once
   the page shows, unless a text field of that window has the keyboard: React Native's focused field and the window it
-  is in decide, and a field the user left by pressing a page of its window no longer counts. The engine host carries
+  is in decide, and a field the user left by pressing a page of its window no longer counts. A field in the content
+  area of another tab (its New Tab page, an empty split pane, an internal page: the views `TabPane` wraps in
+  `TabContentArea`, whose `contentAreaOf` prop the field walk reads) doesn't count either, since the new page replaces
+  it; the sidebar, the command bar, the find bar and the toolbar keep the keyboard. The engine host carries
   it out only if the keyboard is already in that app window (its own UI or its pages), only while one of the app's
   windows is the foreground window, and never in a background instance. A focus it can't carry out because Ardia
   isn't in front is kept for that window and given when the window is activated again; it is dropped when the window
