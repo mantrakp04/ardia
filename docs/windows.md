@@ -846,7 +846,8 @@ Ranked by how much a user notices. Sizes are rough: S is under a day, M is one t
 App side, an agent can do these now:
 1. The close-tabs confirm freezes other windows' pages (#1672): show it without a modal loop on the shared UI
    thread and keep it in front of its window. M.
-2. The box left over the page after hiding and showing the sidebar (#1673): a page cover that never unregisters. S.
+2. The box left over the page's top-left (#1673): the next profile's sidebar page, clipped beside the sidebar, still
+   cut a hole in the page (fix in #1686). S.
 3. Focus into the page after Ctrl+Tab, and into a Peek's page while it is open and back after it closes (#1658, the
    engine thread's, owns it now; the walk recorded what it saw). M, with the engine thread.
 4. Pop-up windows in the app's own frame instead of Chromium's (#1518). M.
