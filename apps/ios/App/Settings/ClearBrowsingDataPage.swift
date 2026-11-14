@@ -70,7 +70,9 @@ struct ClearBrowsingDataPage: View {
   private func clear(_ choice: ClearChoice) {
     isClearing = true
     Task {
-      await BrowsingDataCleaner.clear(choice.kinds, since: range.since(now: .now), tabs: app.tabs)
+      let since = range.since(now: .now)
+      await BrowsingDataCleaner.clear(choice.kinds, since: since, tabs: app.tabs)
+      if choice.kinds.contains(.history) { HiddenHistory.clear(since: since, isDemo: app.isDemo) }
       if choice.archive { app.tabs.clearArchive() }
       isClearing = false
       app.toasts.show(.clearedBrowsingData)

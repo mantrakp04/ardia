@@ -7,14 +7,14 @@ import { pageHostLabel } from "../../lib/url";
 import type { Tab } from "../../state/browser/types";
 import { usePage } from "../../state/tabs/pageState";
 import { font, radius, space } from "../ui/tokens";
-import { SMALL_BAR_BUTTON, SMALL_BAR_ROW } from "./tokens";
+import { SMALL_BAR_BUTTON, smallBarRow } from "./tokens";
 import { Favicon } from "../favicon/Favicon";
 import { FieldLoadFill } from "../toolbar/FieldLoadFill";
 import { insecureLevel } from "../toolbar/Toolbar";
 import { SMALL_BAR_HEIGHT } from "../../state/windows/small";
 
 export const SMALL_INSET = CARD_INSET;
-export { SMALL_BAR_BUTTON, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS } from "./tokens";
+export { SMALL_BAR_BUTTON, SMALL_WINDOW_FRAME, smallWindowRadius } from "./tokens";
 const MID = SMALL_BAR_HEIGHT / 2;
 const FIELD_HEIGHT = 28;
 export const SMALL_BAR_GAP = 2;
@@ -40,7 +40,7 @@ export function SmallBar({
   const count = buttons.length + (trailing ? 1 : 0);
   const buttonsWidth = count * SMALL_BAR_BUTTON + Math.max(0, count - 1) * SMALL_BAR_GAP;
   return (
-    <ToolbarRowContext.Provider value={SMALL_BAR_ROW}>
+    <ToolbarRowContext.Provider value={smallBarRow()}>
       <View style={{ height: SMALL_BAR_HEIGHT }}>
         {children}
         <View style={{ position: "absolute", left: fieldLeft, right: SMALL_INSET + buttonsWidth + SMALL_FIELD_GAP, top: MID - FIELD_HEIGHT / 2, height: FIELD_HEIGHT }}>{field}</View>

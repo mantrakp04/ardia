@@ -8,6 +8,7 @@ import { Button, DialogActions, DialogTitle, lineHeight, proseLineHeight, Sheet,
 import { Group, Row, SectionHeader } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { AnonymousAvatar } from "../AnonymousAvatar";
+import { perLook } from "../../ui/tokens";
 
 const AVATAR_SIZE = 28;
 
@@ -118,7 +119,7 @@ export function WhatsSentSheet() {
                 <Row
                   key={item}
                   title={
-                    <Text size="small" style={ITEM}>
+                    <Text size="small" style={ITEM()}>
                       {item}
                     </Text>
                   }
@@ -130,7 +131,7 @@ export function WhatsSentSheet() {
       </ScrollView>
       <DialogActions
         note={
-          <Text size="caption" tone="textTertiary" style={FOOTNOTE}>
+          <Text size="caption" tone="textTertiary" style={FOOTNOTE()}>
             {SHARING_COPY.footnote}
           </Text>
         }
@@ -142,5 +143,5 @@ export function WhatsSentSheet() {
 }
 
 const LIST = { maxHeight: 420, marginTop: space.xs } as const;
-const ITEM = { lineHeight: proseLineHeight.small } as const;
-const FOOTNOTE = { lineHeight: lineHeight.caption } as const;
+const ITEM = perLook(() => ({ lineHeight: proseLineHeight.small }) as const);
+const FOOTNOTE = perLook(() => ({ lineHeight: lineHeight.caption }) as const);

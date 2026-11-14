@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -89,7 +90,7 @@ class PagesChecks:
         out = self.browse("read", "--links", "item.html?n=", "-s", "main", session=session).stdout
         self.assertEqual(self.targets(), before)
         for n in range(1, 7):
-            self.assertIn(f"=== [{n}/6] Dock {n} | Fixture Shop\n{self.url(f'item.html?n={n}')}\n# Dock {n}\n", out)
+            self.assertRegex(out, re.escape(f"=== [{n}/6] Dock {n} | Fixture Shop (HTTP 200, read ") + r"[^)]* UTC\)\n" + re.escape(f"{self.url(f'item.html?n={n}')}\n# Dock {n}\n"))
             self.assertIn(f"Charging | {60 + n * 10} W", out)
         self.assertNotIn("Sitewide banner", out)
         self.assertNotIn("Loading", out)
@@ -134,7 +135,7 @@ return rows.filter((row) => row.price < "$140");
         self.assertEqual(len(self.targets()), len(before))
         lines = done.stdout.split("\n", 1)
         self.assertEqual(lines[0], "read 6 docks")
-        self.assertEqual(json.loads(lines[1]), [{"name": f"Dock {n}", "price": f"${100 + n * 10}.00", "cart": "Cart: 1", "reported": True} for n in (1, 2, 3)])
+        self.assertEqual([json.loads(row) for row in lines[1].splitlines()], [{"name": f"Dock {n}", "price": f"${100 + n * 10}.00", "cart": "Cart: 1", "reported": True} for n in (1, 2, 3)])
         as_json = json.loads(self.browse("script", "--json", stdin="return { url: await page.url(), title: await page.title() };", session=session).stdout)
         self.assertEqual(as_json["data"]["value"], {"url": self.url("item.html?n=6"), "title": "Dock 6 | Fixture Shop"})
         pages = json.loads(self.browse("script", stdin="return (await read({ urls: ['/item.html?n=5'], selector: '.price' })).map((p) => p.text);",
@@ -148,7 +149,7 @@ return rows.filter((row) => row.price < "$140");
         before = self.targets()
         failed = self.browse("script", stdin="log('start');\nawait page.wait('#add');\nawait page.click('#nope');\nlog('never');", session=session, check=False)
         self.assertEqual(failed.returncode, 1)
-        self.assertTrue(failed.stderr.startswith("✗ line 3: Element not found: #nope."), failed.stderr)
+        self.assertTrue(failed.stderr.startswith("✗ line 3: Element not found: #nope (waited 3 s for it to appear)."), failed.stderr)
         self.assertIn("(in `click '#nope'`)\nlogged before that:\nstart", failed.stderr)
         caught = self.browse("script", stdin="try { await page.click('#nope'); } catch (e) { return e.code; }", session=session).stdout
         self.assertEqual(caught, "not_found\n")
@@ -173,7 +174,7 @@ return rows.filter((row) => row.price < "$140");
         self.assertEqual(listed, people)
         out = self.browse("read", "--links", "/people/", "-s", "main", session=session).stdout
         for n in range(1, 7):
-            self.assertIn(f"=== [{n}/6] Person {n} | Hash App\n{people[n - 1]}\n# Person {n}\n", out)
+            self.assertRegex(out, re.escape(f"=== [{n}/6] Person {n} | Hash App (") + r"[^)]* UTC\)\n" + re.escape(f"{people[n - 1]}\n# Person {n}\n"))
             self.assertIn(f"Role | Engineer {n * 11}", out)
         self.assertNotIn("Loading", out)
         legacy = self.browse("read", "--links", "#!/", "--list", session=session).stdout

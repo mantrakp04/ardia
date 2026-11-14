@@ -26,15 +26,16 @@ import { SMALL_BAR_HEIGHT, SMALL_LIGHTS_CENTER } from "../../state/windows/small
 import { HistoryButton } from "../toolbar/NavButtons";
 import { toolbarPalette } from "../ui/toolbarColors";
 import { useHistoryAvailability } from "../../state/tabs/navigation";
-import { LITTLE_ARDIA_PINCH, LITTLE_ARDIA_SWIPE_CLOSE, NAV_CENTER_PAST_ZOOM, SMALL_BAR_ROW, TRAFFIC_LIGHT_PITCH } from "./tokens";
+import { LITTLE_ARDIA_PINCH, LITTLE_ARDIA_SWIPE_CLOSE, NAV_CENTER_PAST_ZOOM, smallBarRow, TRAFFIC_LIGHT_PITCH } from "./tokens";
+import { perLook } from "../ui/tokens";
 
 const NAV_LEFT = SMALL_LIGHTS_CENTER[0] + 2 * TRAFFIC_LIGHT_PITCH + NAV_CENTER_PAST_ZOOM - SMALL_BAR_BUTTON / 2;
 const NAV_PITCH = SMALL_BAR_BUTTON + SMALL_BAR_GAP;
 const FIELD_LEFT = NAV_LEFT + NAV_PITCH + SMALL_BAR_BUTTON + SMALL_FIELD_GAP;
-const NAV_HIT = { width: SMALL_BAR_BUTTON, height: SMALL_BAR_BUTTON, plateX: 0, plateY: 0, box: SMALL_BAR_ROW.button, radius: SMALL_BAR_ROW.buttonRadius };
+const NAV_HIT = perLook(() => ({ width: SMALL_BAR_BUTTON, height: SMALL_BAR_BUTTON, plateX: 0, plateY: 0, box: smallBarRow().button, radius: smallBarRow().buttonRadius }));
 const BUTTON_TOP = (SMALL_BAR_HEIGHT - SMALL_BAR_BUTTON) / 2;
-const BACK_AT = { style: { position: "absolute" as const, top: BUTTON_TOP, left: NAV_LEFT }, hit: NAV_HIT };
-const FORWARD_AT = { style: { position: "absolute" as const, top: BUTTON_TOP, left: NAV_LEFT + NAV_PITCH }, hit: NAV_HIT };
+const BACK_AT = perLook(() => ({ style: { position: "absolute" as const, top: BUTTON_TOP, left: NAV_LEFT }, hit: NAV_HIT() }));
+const FORWARD_AT = perLook(() => ({ style: { position: "absolute" as const, top: BUTTON_TOP, left: NAV_LEFT + NAV_PITCH }, hit: NAV_HIT() }));
 const alreadyFocused = () => {};
 
 export function LittleArdiaWindow() {
@@ -168,17 +169,18 @@ function HistoryButtons({ tabId, windowId }: { tabId: string; windowId: string }
   const history = useHistoryAvailability(tabId);
   return (
     <>
-      <HistoryButton place={BACK_AT} tabId={tabId} windowId={windowId} direction={-1} disabled={!history.back} palette={palette} onFocus={alreadyFocused} />
-      <HistoryButton place={FORWARD_AT} tabId={tabId} windowId={windowId} direction={1} disabled={!history.forward} palette={palette} onFocus={alreadyFocused} />
+      <HistoryButton place={BACK_AT()} tabId={tabId} windowId={windowId} direction={-1} disabled={!history.back} palette={palette} onFocus={alreadyFocused} />
+      <HistoryButton place={FORWARD_AT()} tabId={tabId} windowId={windowId} direction={1} disabled={!history.forward} palette={palette} onFocus={alreadyFocused} />
     </>
   );
 }
 
 function ProfileButton({ windowId }: { windowId: string }) {
   const profile = useWindowProfile();
+  const iconsShown = useSettings((s) => s.profileSwitcherIcons);
   return (
     <Button variant="icon" look="row" tooltip={`Profile: ${profile.name}`} onPress={() => void openLittleArdiaProfileMenu(windowId)}>
-      <ProfileBadge profile={profile} size={16} />
+      <ProfileBadge profile={iconsShown ? profile : { ...profile, icon: null }} size={16} />
     </Button>
   );
 }

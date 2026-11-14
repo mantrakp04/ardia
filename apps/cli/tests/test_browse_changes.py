@@ -516,14 +516,22 @@ class NetworkWatchTest(unittest.TestCase):
 class OutputCap(unittest.TestCase):
     def test_text_is_capped_at_a_line_with_ways_to_narrow_it(self):
         text = "\n".join(f"- button \"Button {index}\" [ref=e{index}]" for index in range(400))
-        _, out, _ = daemon.render({}, result=commands.Result({}, text), name="snapshot")
+        with mock.patch.object(daemon, "spill", return_value="/tmp/whole.txt"):
+            _, out, _ = daemon.render({}, result=commands.Result({}, text), name="snapshot")
         body, note = out.rstrip("\n").rsplit("\n", 1)
         self.assertLessEqual(len(body), daemon.OUTPUT_CAP)
         self.assertTrue(body.endswith("]"))
-        self.assertEqual(note, f"[output capped at {len(body):,} of {len(text):,} characters. Narrow it instead: snapshot -i (interactive only), "
+        self.assertEqual(note, f"[output capped at {len(body):,} of {len(text):,} characters; all of it is in /tmp/whole.txt. "
+                               "Narrow it instead: snapshot -i (interactive only), "
                                "snapshot -s <css> (one region), find role <role> <action> --name <text> (act without a snapshot). "
                                f"Only if you need every line: --max-output {len(text)}]")
         self.assertNotIn("--full", note)
+        saved = daemon.spill(text)
+        self.assertEqual(Path(saved).read_text(), text)
+        self.assertEqual(Path(saved).parent.stat().st_mode & 0o777, 0o700)
+        script = "x" * (daemon.OUTPUT_CAP + 100)
+        _, whole, _ = daemon.render({}, result=commands.Result({}, script), name="script")
+        self.assertEqual(whole, script + "\n")
         _, read, _ = daemon.render({}, result=commands.Result({}, text), name="get")
         self.assertIn("Narrow it instead: get text <css> or read -s <css> (one region)", read)
         self.assertEqual(daemon.render({"full": True}, result=commands.Result({}, text))[1], text + "\n")

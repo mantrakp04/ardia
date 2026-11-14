@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Pressable, TextInput, View, type GestureResponderEvent } from "react-native";
+import { Animated, Pressable, TextInput, View, type GestureResponderEvent, type TextStyle } from "react-native";
 import { toggleMute } from "../../state/browser/actions";
 import { layout, useTheme } from "../ui/theme";
 import { useIsActiveTab, usePageProfileId, useTab, useWindow, useWindowId } from "../../state/browser/hooks";
@@ -8,7 +8,7 @@ import { useSplitRowPanes } from "../../state/sidebar/hooks";
 import { muteTitle } from "../../state/tabs/mute";
 import { usePictureInPicture } from "../../state/media/media";
 import { HoverSlot } from "../ui/HoverSlot";
-import { ActivitySpinner, Button, Divider, FadeLabel, font, ink, OutsidePressArea, radius, space, Symbol, useHover } from "../ui";
+import { ActivitySpinner, Button, Divider, FadeLabel, font, ink, OutsidePressArea, radius, space, Symbol, lineHeight, typeFace, useHover } from "../ui";
 import { isPinnedRow, tabTitle } from "../../state/browser/model";
 import { awayFromPin, awayTitle } from "../../state/pins/organize";
 import { commitRename, endRename, startRename } from "../../state/sidebar/actions";
@@ -26,7 +26,7 @@ import { useTabUnread } from "../../state/tabs/unread";
 import { titleWithoutUnread } from "../../lib/unread";
 import { TAB_ROW, useSidebarTokens } from "./tokens";
 import { useSidebarRowLook } from "./rowLook";
-import { ROW_TITLE_FRAME, SidebarRowLabel, SidebarRowSurface } from "./SidebarRow";
+import { rowTitleFrame, SidebarRowLabel, SidebarRowSurface } from "./SidebarRow";
 import { AwayTitleLabel } from "./AwayTitle";
 import { withShortcut } from "../../state/commands/commandShortcuts";
 import { TabPressArea } from "./TabPressArea";
@@ -209,7 +209,7 @@ export function RenameField({
   placeholder: string;
   color: string;
   fontSize?: number;
-  weight?: "500" | "600";
+  weight?: TextStyle["fontWeight"];
   onDone(text: string | null): void;
 }) {
   const theme = useTheme();
@@ -226,7 +226,7 @@ export function RenameField({
     return () => clearTimeout(t);
   }, []);
   return (
-    <OutsidePressArea onOutsidePress={() => finish(text)} style={ROW_TITLE_FRAME}>
+    <OutsidePressArea onOutsidePress={() => finish(text)} style={rowTitleFrame()}>
       <TextInput
         ref={input}
         value={text}
@@ -240,7 +240,7 @@ export function RenameField({
         onBlur={() => finish(text)}
         keyDownEvents={[{ key: "Escape" }]}
         onKeyDown={(e) => e.nativeEvent.key === "Escape" && finish(null)}
-        style={{ flex: 1, fontSize, fontWeight: weight, color, paddingVertical: 0, paddingHorizontal: 0, transform: [{ translateY: TAB_ROW.renameTextOffset }] }}
+        style={{ flex: 1, fontSize, fontWeight: weight, color, paddingVertical: 0, paddingHorizontal: 0, transform: [{ translateY: TAB_ROW.renameTextOffset }], ...typeFace() }}
       />
     </OutsidePressArea>
   );
@@ -314,7 +314,7 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
             }}
           >
             <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact />
-            <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={active ? theme.rowSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: space.xs }} />
+            <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={active ? theme.rowSelectedText : theme.textTab} style={{ flex: 1, height: Math.max(16, lineHeight.small + 1), marginLeft: space.xs }} />
             <HoverSlot
               hovered={hovered}
               reserve="hover"

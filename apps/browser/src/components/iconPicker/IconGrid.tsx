@@ -6,6 +6,7 @@ import { iconSymbol } from "../../lib/customIcon";
 import { sameIcon } from "../../lib/emoji";
 import { ICON_PICKER, iconPickerColors } from "./tokens";
 import { buttonMotion, usePressScaleMotion } from "../ui/motion";
+import { perLook } from "../ui/tokens";
 
 export type GridIcon = { icon: string; label: string };
 export type GridSection = { title: string | null; symbol?: string; icons: GridIcon[] };
@@ -135,7 +136,7 @@ const Cell = memo(function Cell({ icon, label, selected, onPress }: { icon: stri
       <View
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        style={[CELL, hovered || selected ? { backgroundColor: iconPickerColors(theme.dark).cellHover } : null]}
+        style={[CELL(), hovered || selected ? { backgroundColor: iconPickerColors(theme.dark).cellHover } : null]}
       >
         {symbol ? (
           <Animated.View style={[SYMBOL, scaleStyle]}>
@@ -153,7 +154,7 @@ const GRID = { width: GRID_WIDTH, height: GRID_HEIGHT, flexGrow: 0, alignSelf: "
 const GRID_WITHOUT_JUMPS = { ...GRID, height: GRID_HEIGHT + iconButton.m.box + space.m } as const;
 const ROW = { flexDirection: "row", height: ICON_PICKER.cell } as const;
 const HEADER = { height: ICON_PICKER.header, paddingTop: space.ml, paddingLeft: space.xs } as const;
-const CELL = { width: ICON_PICKER.cell, height: ICON_PICKER.cell, borderRadius: radius.tile, alignItems: "center", justifyContent: "center" } as const;
+const CELL = perLook(() => ({ width: ICON_PICKER.cell, height: ICON_PICKER.cell, borderRadius: radius.tile, alignItems: "center", justifyContent: "center" }) as const);
 const SYMBOL = { width: ICON_PICKER.symbolBox, height: ICON_PICKER.symbolBox } as const;
 const EMOJI = { width: ICON_PICKER.cell, textAlign: "center", fontSize: ICON_PICKER.emoji } as const;
 const NO_MATCHES = { padding: space.m } as const;

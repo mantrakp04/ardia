@@ -1,0 +1,1 @@
+@{author}, you have more than {limit} pull requests open, so this one waits with the `over-limit` label. It stays open. When one of your earlier ones is merged or closed, the label comes off by itself. The rule is in [CONTRIBUTING.md](https://github.com/{owner}/{repo}/blob/{default_branch}/CONTRIBUTING.md#pull-requests).

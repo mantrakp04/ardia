@@ -74,7 +74,7 @@ struct SuggestionRowView: View {
     case .remoteTab(let device) where !device.isEmpty:
       Text("\(Image(systemName: "laptopcomputer")) \(suggestion.detail ?? device)")
     case .openTab:
-      Text("\(Image(systemName: "arrow.right.circle")) Switch to Tab")
+      Text("Switch to Tab")
     default:
       suggestion.detail.map { Text($0) }
     }

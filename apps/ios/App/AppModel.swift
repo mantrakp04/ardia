@@ -19,6 +19,9 @@ final class AppModel {
     case onboarding
     case archive
     case syncedSpaces
+    case history
+    case bookmarks
+    case downloads
 
     var id: String { rawValue }
   }

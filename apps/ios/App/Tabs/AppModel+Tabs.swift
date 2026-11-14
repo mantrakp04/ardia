@@ -20,6 +20,9 @@ extension AppModel {
 
   static func recencyOrder(_ tabs: [BrowserTab], selected: UUID?) -> [BrowserTab] {
     tabs.sorted { lhs, rhs in
+      let lhsUnseen = TabText.isUnseenReceived(lhs)
+      let rhsUnseen = TabText.isUnseenReceived(rhs)
+      if lhsUnseen != rhsUnseen { return rhsUnseen }
       if lhs.id == selected { return false }
       if rhs.id == selected { return true }
       if lhs.lastActive != rhs.lastActive { return lhs.lastActive < rhs.lastActive }
@@ -99,12 +102,14 @@ extension AppModel {
 
   func beginOpening(_ id: UUID) {
     guard tabs.tab(id) != nil, tabs.selectedTabID != id else { return }
+    showSpace(of: id)
     isIncognito = tabs.isPrivate(id)
     tabs.select(id)
     _ = web.webTab(for: id)
   }
 
   func openTab(_ id: UUID) {
+    showSpace(of: id)
     isIncognito = tabs.isPrivate(id)
     tabs.select(id)
     _ = web.webTab(for: id)
@@ -163,10 +168,8 @@ extension AppModel {
   func openRemote(url: String, title: String, profileSyncId: String?) {
     guard let target = URL(string: url) else { return }
     if isIncognito { isIncognito = false }
-    if let profileSyncId, sync.isEnabled, profileSyncId != tabs.profileSyncId {
-      switchProfile(to: profileSyncId)
-    }
-    if let existing = tabs.openTabs.first(where: { $0.url == url && !$0.isPrivate && $0.profileSyncId == tabs.profileSyncId }) {
+    if let profileSyncId { switchSpace(to: profileSyncId) }
+    if let existing = tabs.openTabs.first(where: { $0.url == url }) {
       sheet = nil
       openTab(existing.id)
       return
@@ -175,11 +178,6 @@ extension AppModel {
     if !title.isEmpty { tabs.update(tab.id, title: title) }
     sheet = nil
     openTab(tab.id)
-  }
-
-  func switchProfile(to syncId: String) {
-    sync.selectedProfileId = syncId
-    tabs.profileSyncId = syncId
   }
 
   func restoreArchived(_ id: UUID) {

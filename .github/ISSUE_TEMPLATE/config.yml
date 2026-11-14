@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feature request
+    url: https://github.com/ardia-browser/ardia/discussions/categories/ideas
+    about: Suggest a feature or a change in Discussions. Issues are for bugs.

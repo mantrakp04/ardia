@@ -3,6 +3,7 @@ import { memo, useState } from "react";
 import { Image, Text, View } from "react-native";
 import { faviconFailed, useAppearanceDark, useFavicon, useFaviconTheme } from "../../state/favicons/favicons";
 import { radius, Symbol, useTheme, weight } from "../ui";
+import { typeFace } from "../ui/tokens";
 import { bundledSiteIcon } from "./siteIcons";
 
 export const Favicon = memo(function Favicon({
@@ -60,7 +61,7 @@ export const FaviconFallback = memo(function FaviconFallback({ url, size = 16 }:
           justifyContent: "center",
         }}
       >
-        <Text style={{ fontSize: Math.round(tile * 0.64), lineHeight: tile, fontWeight: weight.semibold, color: theme.textSecondary }}>{initial}</Text>
+        <Text style={{ ...typeFace(), fontSize: Math.round(tile * 0.64), lineHeight: tile, fontWeight: weight.semibold, color: theme.textSecondary }}>{initial}</Text>
       </View>
     </View>
   );

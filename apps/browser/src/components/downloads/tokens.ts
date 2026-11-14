@@ -50,7 +50,7 @@ export const DOWNLOADS_LIST = {
   placeDeadlineMs: 120,
 } as const;
 
-export const DOWNLOADS_BUTTON = { icon: 16, radius: radius.chrome } as const;
+export const DOWNLOADS_BUTTON = { icon: 16, get radius() { return radius.chrome; } } as const;
 
 export const FILE_ICON_GLYPH_SHARE = 0.62;
 

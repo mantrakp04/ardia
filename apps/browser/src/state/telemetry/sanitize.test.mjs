@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cleanProperties, errorCode, errorMessage, errorType, nativeCrashExceptions, nativeFrames, parseStack, scrubText } from "./sanitize.ts";
-import { customColorProfiles, settingsSnapshot } from "./settingsSnapshot.ts";
+import { customColorProfiles, settingsSnapshot, themeFileSnapshot } from "./settingsSnapshot.ts";
 const { DEFAULT_SETTINGS, SETTING_SPECS } = await import("../settings/settings.ts");
 
 const leaks = (text, ...secrets) => secrets.filter((s) => text.includes(s));
@@ -302,4 +302,18 @@ test("a native exception's free-text reason never leaves, whatever it holds", ()
     assert.equal(JSON.stringify(out).includes("Alice"), false, JSON.stringify(out));
     assert.equal("reason" in out, false);
   }
+});
+
+test("the theme file snapshot is flags and counts only, and survives sanitizing", () => {
+  assert.deepEqual(themeFileSnapshot(null, null), {
+    theme_file: "false", theme_type: "false", theme_metrics: "false", theme_layout: "false", theme_icons: "false",
+    theme_hidden_parts: "0", theme_moved_parts: "0", theme_icon_overrides: "0",
+  });
+  const snap = themeFileSnapshot("nord", { type: { family: "Avenir Next" }, layout: { hide: ["pinned", "profile"], addressField: "bottom" }, icons: { plus: "plus.circle" } });
+  assert.deepEqual(snap, {
+    theme_file: "true", theme_type: "true", theme_metrics: "false", theme_layout: "true", theme_icons: "true",
+    theme_hidden_parts: "2", theme_moved_parts: "1", theme_icon_overrides: "1",
+  });
+  assert.equal(JSON.stringify(snap).includes("nord") || JSON.stringify(snap).includes("Avenir"), false);
+  assert.deepEqual(cleanProperties(snap), snap);
 });

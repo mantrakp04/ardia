@@ -217,6 +217,12 @@ test("a burst of built-in page samples keeps the samples from before it, so a cr
   assert.equal(found?.webui_page, "settings/cookies");
 });
 
+test("two samples recorded in the same millisecond: the later one is the context", () => {
+  const first = { at: 1000, session_start: 500, webui_page: null };
+  const later = { at: 1000, session_start: 500, webui_page: "settings/cookies" };
+  assert.equal(diagnostics.contextAt([first, later], 1000, [500])?.webui_page, "settings/cookies");
+});
+
 test("a page process that goes away sends its reason, exit code, visibility and counts, capped per session", async () => {
   diagnostics.trackPageProcessGone({ reason: "oom", code: 9 }, true, { translate: "translating", translate_stage: "model", translating_tabs: 2, translated_tabs: 1 });
   diagnostics.trackPageProcessGone({ reason: "https://private.example", code: 1.5 }, false);

@@ -1,11 +1,11 @@
-import { Symbol } from "@ardia/shell";
+import { Symbol } from "./Symbol";
 import type { ReactNode } from "react";
 import { Pressable, Text, View, type GestureResponderEvent } from "react-native";
 import { Divider } from "./Divider";
 import { GlassFill, useGlass } from "./Glass";
 import { PANEL } from "./Popover";
 import { useTheme, type Theme } from "./theme";
-import { opacity, space } from "./tokens";
+import { opacity, space, typeFace } from "./tokens";
 import { useHover } from "./useHover";
 
 export const menuRowFill = (theme: Theme, pressed = false) => (pressed ? theme.popoverRowPressed : theme.rowHover);
@@ -71,11 +71,11 @@ export function MenuRow({
           <Symbol name={icon} size={PANEL.iconSize} color={iconColor ?? (destructive ? tint : theme.icon)} style={{ width: PANEL.iconSlot, height: PANEL.iconSlot }} />
         ) : null}
         <View style={{ flex: 1, paddingVertical: space.s }}>
-          <Text numberOfLines={1} style={{ fontSize: PANEL.titleSize, color: tint }}>
+          <Text numberOfLines={1} style={{ fontSize: PANEL.titleSize, color: tint, ...typeFace() }}>
             {title}
           </Text>
           {detail ? (
-            <Text numberOfLines={2} style={{ fontSize: PANEL.subtitleSize, color: theme.textSecondary }}>
+            <Text numberOfLines={2} style={{ fontSize: PANEL.subtitleSize, color: theme.textSecondary, ...typeFace() }}>
               {detail}
             </Text>
           ) : null}
