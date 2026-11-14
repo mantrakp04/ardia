@@ -1,4 +1,6 @@
+import { clipboard, type ClipboardOffer } from "@ardia/phone-native";
 import { getStringAsync, hasStringAsync, setStringAsync } from "expo-clipboard";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import { impactAsync, ImpactFeedbackStyle, notificationAsync, NotificationFeedbackType } from "expo-haptics";
 import { getLocales } from "expo-localization";
 import { Linking, Share } from "react-native";
@@ -21,4 +23,9 @@ export const shareText = (text: string, title: string) => Share.share({ message:
 
 export const pasteText = () => getStringAsync();
 
-export const clipboardHasText = () => hasStringAsync();
+const readsClipOffers = requireOptionalNativeModule("ArdiaPhoneClipboard") !== null;
+
+export async function clipboardOffer(): Promise<ClipboardOffer | null> {
+  if (readsClipOffers) return clipboard.offer();
+  return (await hasStringAsync()) ? "text" : null;
+}

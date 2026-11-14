@@ -7,7 +7,7 @@ import { selectedProfile, syncData } from "../sync/store";
 import { idleRows, remoteSuggestions, setSearchEngine, setSources, setSyncedSearch, suggest, type SuggestContext, type TrayRow } from "./omnibox";
 import { withPasteRow, type PasteOffer } from "./pasteRow";
 import { copy } from "../../lib/platformCopy";
-import { clipboardHasText } from "../../platform/system";
+import { clipboardOffer } from "../../platform/system";
 import { settled } from "../pages/store";
 import { buildSources, recentSearches, sourcesKey } from "./sources";
 
@@ -60,10 +60,10 @@ function rowsFor(text: string, remoteValues: readonly string[]): TrayRow[] {
 function offerPaste(session: number) {
   paste = null;
   if (!copy().offersPasteAndGo) return;
-  void settled(() => clipboardHasText(), false).then((has) => {
+  void settled(() => clipboardOffer(), null).then((offer) => {
     const state = useSearch.getState();
-    if (!has || !state.open || state.session !== session) return;
-    paste = "text";
+    if (!offer || !state.open || state.session !== session) return;
+    paste = offer;
     if (!state.text.trim()) useSearch.setState({ rows: rowsFor(state.text, []) });
   });
 }
