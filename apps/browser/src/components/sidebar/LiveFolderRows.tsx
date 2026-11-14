@@ -9,7 +9,7 @@ import { useLiveColors } from "../live/tokens";
 import { reduceMotion } from "../ui/reduceMotion";
 import { Fold, useFold } from "./Fold";
 import { useStackTabOpen } from "../../state/sidebar/hooks";
-import { noteLiveStackHide } from "../../state/telemetry/liveHides";
+import { noteLiveFolders } from "../../state/telemetry/liveFolders";
 import { LiveItemRow } from "./LiveItemRow";
 import { RefreshSpinner } from "./RefreshSpinner";
 import { SectionLabel } from "./SectionLabel";
@@ -84,7 +84,7 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
   const chevronRotation = reduceMotion() === false ? fold.open.interpolate({ inputRange: [0, 1], outputRange: ["-90deg", "0deg"] }) : collapsed ? "-90deg" : "0deg";
   const hide = () => {
     hideStack(folderId, stack.id);
-    noteLiveStackHide();
+    noteLiveFolders("live_stack_hides");
   };
   const repo = stack.repo.split("/")[1] ?? stack.repo;
   return (

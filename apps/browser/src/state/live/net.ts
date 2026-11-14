@@ -60,7 +60,10 @@ export function base64(text: string): string {
 
 export const basic = (user: string, secret: string) => `Basic ${base64(`${user}:${secret}`)}`;
 
-const account = (source: LiveSourceId) => (mock ? `mock:${source}` : source);
-export const getSecret = (source: LiveSourceId) => keychainGet(account(source));
-export const setSecret = (source: LiveSourceId, secret: string) => keychainSet(account(source), secret);
-export const deleteSecret = (source: LiveSourceId) => keychainDelete(account(source));
+const account = (source: LiveSourceId, profileId: string | null) => {
+  const key = profileId ? `${source}:${profileId}` : source;
+  return mock ? `mock:${key}` : key;
+};
+export const getSecret = (source: LiveSourceId, profileId: string | null) => keychainGet(account(source, profileId));
+export const setSecret = (source: LiveSourceId, profileId: string | null, secret: string) => keychainSet(account(source, profileId), secret);
+export const deleteSecret = (source: LiveSourceId, profileId: string | null) => keychainDelete(account(source, profileId));

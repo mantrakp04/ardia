@@ -26,7 +26,7 @@ const listed = new Map();
 const merged = new Set();
 const reviewed = new Set();
 SOURCES.github.fetch = async (folder) => listed.get(folder.id) ?? [];
-SOURCES.github.resolveGone = async (items) =>
+SOURCES.github.resolveGone = async (_folder, items) =>
   Object.fromEntries(items.flatMap((it) => (merged.has(it.id) ? [[it.id, "merged"]] : reviewed.has(it.id) ? [[it.id, "reviewed"]] : [])));
 
 S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });

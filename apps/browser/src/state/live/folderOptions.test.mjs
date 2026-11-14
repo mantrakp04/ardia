@@ -145,7 +145,7 @@ test("a refresh doesn't ask whether pull requests its filters leave out have clo
   updateFolder(id, { filters: { authored: false, reviewRequests: true } });
   const asked = [];
   const resolveGone = SOURCES.bitbucket.resolveGone;
-  SOURCES.bitbucket.resolveGone = async (items) => (asked.push(...items.map((it) => it.id)), { x: "merged", y: "merged" });
+  SOURCES.bitbucket.resolveGone = async (_folder, items) => (asked.push(...items.map((it) => it.id)), { x: "merged", y: "merged" });
   try {
     await refreshFolder(id);
   } finally {
@@ -172,7 +172,7 @@ test("a refresh doesn't ask about hidden pull requests from a source the folder 
   updateFolder(id, { sources: ["github"] });
   const asked = [];
   const resolveGone = SOURCES.bitbucket.resolveGone;
-  SOURCES.bitbucket.resolveGone = async (items) => (asked.push(...items.map((it) => it.id)), { x: "merged" });
+  SOURCES.bitbucket.resolveGone = async (_folder, items) => (asked.push(...items.map((it) => it.id)), { x: "merged" });
   try {
     await refreshFolder(id);
   } finally {
@@ -239,7 +239,7 @@ test("a hidden repo stays out through fetches and manual refreshes, keeps its op
   const { fetch, resolveGone } = SOURCES.bitbucket;
   const asked = [];
   SOURCES.bitbucket.fetch = async () => [work, personal];
-  SOURCES.bitbucket.resolveGone = async (items) => (asked.push(...items.map((it) => it.id)), {});
+  SOURCES.bitbucket.resolveGone = async (_folder, items) => (asked.push(...items.map((it) => it.id)), {});
   try {
     await refreshFolder(id);
     setRepoHidden(id, "bitbucket:me/dotfiles", true);

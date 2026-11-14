@@ -6,10 +6,10 @@ import { awayFromPin } from "../pins/organize";
 import { pinnedGroupMembers } from "../browser/structure";
 import { shownTabIds } from "../tabs/shownTabs";
 import { repoKey } from "./rows";
-import { SOURCES } from "./sources";
+import { adoptLegacyAccounts, forgetMissingProfiles, legacyAccountsFor, SOURCES } from "./sources";
 import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
-import { noteLiveCompletedTabsClosed } from "../telemetry/liveCompletedTabs";
+import { noteLiveFolders } from "../telemetry/liveFolders";
 import { isPlaying, useMedia } from "../media/media";
 import { usePages } from "../tabs/pageState";
 import type { MediaAccess } from "../../platform/tabs";
@@ -43,6 +43,9 @@ export function manualRefresh(folderId: string): Promise<void> {
 }
 
 async function run(folderId: string) {
+  const queued = live().folders[folderId];
+  if (!queued) return;
+  await legacyAccountsFor(queued);
   const folder = live().folders[folderId];
   if (!folder) return;
   const before = live();
@@ -73,7 +76,7 @@ async function run(folderId: string) {
   for (const source of new Set(missing.map((it) => it.source))) {
     const resolve = SOURCES[source].resolveGone;
     if (!resolve) continue;
-    Object.assign(gone, await resolve(missing.filter((it) => it.source === source)).catch(() => ({})));
+    Object.assign(gone, await resolve(folder, missing.filter((it) => it.source === source)).catch(() => ({})));
   }
 
   const current = live();
@@ -143,11 +146,11 @@ export function newLiveFolder(windowId: string, kind: LiveFolderKind): string | 
 }
 
 export function newProfileLiveFolder(profileId: string, kind: LiveFolderKind, sources?: LiveSourceId[]): string {
-  const s = live();
+  const accounts = live().accounts[profileId] ?? {};
   const connected: LiveSourceId[] =
     kind === "pullRequests"
-      ? (["github", "bitbucket"] as const).filter((id) => s.accounts[id])
-      : (["notion", "confluence", "gdrive"] as const).filter((id) => s.accounts[id]);
+      ? (["github", "bitbucket"] as const).filter((id) => accounts[id])
+      : (["notion", "confluence", "gdrive"] as const).filter((id) => accounts[id]);
   const id = createFolder(profileId, kind, sources ?? (connected.length ? connected : undefined));
   void refreshFolder(id);
   return id;
@@ -232,7 +235,7 @@ function closeCompletedTabs() {
     .map((t) => t.id);
   if (!tabs.length) return;
   s.closeTabs(tabs);
-  noteLiveCompletedTabsClosed(tabs.length);
+  noteLiveFolders("live_completed_tabs_closed", tabs.length);
 }
 
 let started = false;
@@ -260,7 +263,11 @@ export function startLiveEngine() {
     if (s.groups !== prev.groups) syncLiveHomes();
     if (s.profiles === prev.profiles) return;
     for (const f of Object.values(live().folders)) if (!s.profiles[f.profileId]) removeFolder(f.id);
+    forgetMissingProfiles(Object.keys(prev.profiles));
   });
+  forgetMissingProfiles();
+
+  if (Object.keys(live().legacyAccounts).length) void adoptLegacyAccounts(Object.keys(useBrowser.getState().profiles));
 
   const due = (id: string, maxAge: number) => {
     const f = live().folders[id];
