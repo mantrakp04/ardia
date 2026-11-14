@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { mock, test } from "node:test";
 
 const setTimeoutHoldingExit = globalThis.setTimeout;
 globalThis.setTimeout = (callback, ms, ...args) => {
@@ -9,7 +9,7 @@ globalThis.setTimeout = (callback, ms, ...args) => {
 
 globalThis.__DEV__ = false;
 const { useBrowser } = await import("../browser/store.ts");
-const { reloadHistory, startHistory } = await import("./engineSync.ts");
+const { GAP_REPORT_MS, reloadHistory, startHistory } = await import("./engineSync.ts");
 const { historyOf } = await import("./history.ts");
 const { bookmarkRoots, isBookmarked } = await import("../bookmarks/bookmarks.ts");
 const model = await import("../browser/model.ts");
@@ -207,4 +207,182 @@ test("a history read that lands after the last profile on its engine is deleted 
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(S().history[a], undefined);
   stop();
+});
+
+const settle = async () => {
+  for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
+};
+
+function captureWarnings() {
+  const warn = console.warn;
+  const calls = [];
+  console.warn = (...args) => void calls.push(args);
+  return { calls, lines: () => calls.map((args) => String(args[0])), restore: () => (console.warn = warn) };
+}
+
+const away = { profile: "elsewhere", at: 5, visits: 1 };
+
+test("changes the list can't take are counted and reported once, with kinds and counts only", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const stop = startHistory();
+  await reloadHistory();
+  stub.chromeVisit("", "https://known.example/", "Known", Date.now() - 1000);
+  await tick();
+  const before = view();
+  const warned = captureWarnings();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    stub.chromeHistoryEvent({ kind: "visit", url: "https://secret.example/private", title: "Private title", ...away });
+    stub.chromeHistoryEvent({ kind: "modified", profile: "elsewhere", rows: [{ url: "https://secret.example/private", title: "Private title", visits: 2 }] });
+    stub.chromeHistoryEvent({ kind: "deleted", profile: "elsewhere", all: false, urls: ["https://secret.example/private"] });
+    stub.chromeHistoryEvent({ kind: "modified", profile: "", rows: [{ url: "https://unknown.example/page", title: "Unknown title", visits: 1 }] });
+    stub.chromeHistoryEvent({ kind: "visit", profile: "", url: "https://untitled.example/page", title: "", visits: 1, at: Date.now() });
+    await settle();
+    assert.deepEqual(warned.lines(), [], "nothing is said before the delay");
+    mock.timers.tick(GAP_REPORT_MS - 1);
+    assert.deepEqual(warned.lines(), [], "or just before it");
+    mock.timers.tick(1);
+    assert.deepEqual(warned.lines(), [
+      "[history] changes the list missed for elsewhere: visit-unloaded=1 modified-unloaded=1 deleted-unloaded=1",
+      "[history] changes the list missed for the default profile: modified-unknown=1 visit-untitled=1",
+    ]);
+    assert.ok(warned.calls.every((args) => args.length === 1), "no URL, title or error rides along");
+    mock.timers.tick(GAP_REPORT_MS * 3);
+    assert.equal(warned.calls.length, 2, "and the counts start over rather than repeat");
+    assert.deepEqual(view(), ["https://untitled.example/page  1", ...before], "the list only holds what it can take");
+  } finally {
+    mock.timers.reset();
+    warned.restore();
+    stop();
+  }
+});
+
+test("visits stored with no title are counted but never start a report of their own", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const stop = startHistory();
+  await reloadHistory();
+  const warned = captureWarnings();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    stub.chromeVisit("", "https://untitled.example/", "", Date.now());
+    await settle();
+    mock.timers.tick(GAP_REPORT_MS * 2);
+    assert.deepEqual(warned.lines(), []);
+    stub.chromeHistoryEvent({ kind: "modified", profile: "", rows: [{ url: "https://unknown.example/", title: "Unknown", visits: 1 }] });
+    await settle();
+    mock.timers.tick(GAP_REPORT_MS);
+    assert.deepEqual(warned.lines(), ["[history] changes the list missed for the default profile: visit-untitled=1 modified-unknown=1"]);
+  } finally {
+    mock.timers.reset();
+    warned.restore();
+    stop();
+  }
+});
+
+test("changes Chrome reports while a profile's old history is moving in are counted as moving", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  firstWindowCommitted();
+  stub.docs.set("history.json", legacy(["https://old.com/", "https://older.com/"], Date.now()));
+  const warned = captureWarnings();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const stop = startHistory();
+  try {
+    for (let i = 0; i < 200 && historyOf(S(), "default").length < 2; i++) {
+      mock.timers.tick(1);
+      await new Promise((r) => setImmediate(r));
+    }
+    assert.equal(historyOf(S(), "default").length, 2, "moved and shown");
+    mock.timers.tick(GAP_REPORT_MS);
+    assert.deepEqual(warned.lines(), ["[history] changes the list missed for the default profile: visit-moving=4"]);
+  } finally {
+    mock.timers.reset();
+    warned.restore();
+    stop();
+  }
+});
+
+test("a history read that fails says why: the error's code and message", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const fake = stub.ardiaCoreNativeModules.ArdiaHistory;
+  const call = fake.call;
+  const failure = Object.assign(new Error("database is locked"), { code: "ERR_HISTORY_LOCKED" });
+  fake.call = (verb, profile, json) => (verb === "query" ? Promise.reject(failure) : call(verb, profile, json));
+  const warned = captureWarnings();
+  const stop = startHistory();
+  try {
+    await reloadHistory();
+    await settle();
+    assert.deepEqual(warned.lines(), ["[history] couldn't read the default profile's history: ERR_HISTORY_LOCKED database is locked"]);
+    assert.ok(warned.calls[0][1] instanceof Error, "the error itself still follows");
+    assert.equal(S().history[""], undefined, "and no view is shown");
+  } finally {
+    fake.call = call;
+    warned.restore();
+    stop();
+  }
+});
+
+test("two profiles reporting in the same window can't take a session past ten", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const warned = captureWarnings();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const visit = (profile) => stub.chromeHistoryEvent({ kind: "visit", url: "https://secret.example/private", title: "Private title", ...away, profile });
+  const stop = startHistory();
+  try {
+    for (let i = 0; i < 9; i++) {
+      visit("elsewhere");
+      await settle();
+      mock.timers.tick(GAP_REPORT_MS);
+    }
+    assert.equal(warned.calls.length, 9);
+    visit("elsewhere");
+    visit("somewhere");
+    await settle();
+    mock.timers.tick(GAP_REPORT_MS);
+    assert.equal(warned.calls.length, 10, "the tenth report is the last, whichever profile it names");
+    visit("elsewhere");
+    await settle();
+    mock.timers.tick(GAP_REPORT_MS * 3);
+    assert.equal(warned.calls.length, 10);
+  } finally {
+    mock.timers.reset();
+    warned.restore();
+    stop();
+  }
+});
+
+test("reports stop after ten in a session and start over with the next one", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const warned = captureWarnings();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const round = async () => {
+    stub.chromeHistoryEvent({ kind: "visit", url: "https://secret.example/private", title: "Private title", ...away });
+    await settle();
+    mock.timers.tick(GAP_REPORT_MS);
+  };
+  try {
+    const first = startHistory();
+    for (let i = 0; i < 12; i++) await round();
+    assert.equal(warned.calls.length, 10);
+    first();
+    const second = startHistory();
+    await round();
+    assert.equal(warned.calls.length, 11);
+    second();
+  } finally {
+    mock.timers.reset();
+    warned.restore();
+  }
 });

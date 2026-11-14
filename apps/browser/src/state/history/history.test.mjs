@@ -124,9 +124,39 @@ test("the real functions match the straightforward ones on random changes", () =
       change = { kind: "deleted", profile: "", all: false, urls: known && rand() < 0.8 ? [known.url] : ["https://absent.test/"] };
     }
     real = applyHistoryChange(real, change);
+    const counted = applyHistoryChange(spec, change, () => {});
     spec = reference(spec, change);
+    assert.deepEqual(counted, spec, `step ${step}: counting changes nothing`);
     assert.deepEqual(real, spec, `step ${step}: ${JSON.stringify(change)}`);
   }
+});
+
+test("a title change for a web page the list doesn't hold is counted as unknown, and nothing else is", () => {
+  const list = view(6);
+  const seen = [];
+  const note = (gap, count) => seen.push([gap, count]);
+  const modified = (...rows) => ({ kind: "modified", profile: "", rows });
+  applyHistoryChange(list, modified({ url: list[2].url, title: "Renamed", visits: 9 }), note);
+  assert.deepEqual(seen, [], "a page the list holds");
+  applyHistoryChange(list, modified({ url: "chrome://settings/", title: "Settings", visits: 1 }), note);
+  assert.deepEqual(seen, [], "a page the list never shows");
+  const same = applyHistoryChange(list, modified({ url: "https://absent.test/a", title: "A", visits: 1 }, { url: "https://absent.test/b", title: "B", visits: 1 }, { url: list[0].url, title: "Again", visits: 1 }), note);
+  assert.deepEqual(seen, [["modified-unknown", undefined], ["modified-unknown", undefined]], "one per absent web page");
+  assert.equal(same[0].title, "Again", "the known row is still applied");
+  assert.equal(same.length, list.length, "and the absent ones add nothing");
+});
+
+test("a visit stored with no title is counted, unless the page already has one", () => {
+  const list = view(4);
+  const seen = [];
+  const note = (gap) => seen.push(gap);
+  applyHistoryChange(list, { kind: "visit", profile: "", url: "https://untitled.test/", title: "", visits: 1, at: 2_000_000 }, note);
+  assert.deepEqual(seen, ["visit-untitled"]);
+  applyHistoryChange(list, { kind: "visit", profile: "", url: list[1].url, title: "", visits: 2, at: 2_000_001 }, note);
+  applyHistoryChange(list, { kind: "visit", profile: "", url: "https://titled.test/", title: "Titled", visits: 1, at: 2_000_002 }, note);
+  applyHistoryChange(list, { kind: "visit", profile: "", url: "chrome://settings/", title: "", visits: 1, at: 2_000_003 }, note);
+  applyHistoryChange(list, { kind: "visit", profile: "", url: list[2].url, title: "", visits: 1, at: list[2].visitTimes[0] }, note);
+  assert.deepEqual(seen, ["visit-untitled"], "a kept title, a given title, a hidden page and a repeat are not counted");
 });
 
 test("the view holds at most MAX_HISTORY URLs, dropping the oldest", () => {
