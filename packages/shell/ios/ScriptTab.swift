@@ -12,10 +12,11 @@ final class ScriptTab: NSObject {
   private var info: ScriptTabState? { found?.tab }
 
   override var objectSpecifier: NSScriptObjectSpecifier? {
-    guard let windowId = found?.window.id else { return nil }
-    let window = ScriptWindow(id: windowId)
+    guard let found else { return nil }
+    let shownInWindow = found.window.tabs.contains { $0.id == uniqueID }
+    let container: NSObject = shownInWindow ? ScriptWindow(id: found.window.id) : ScriptProfile(id: found.tab.profileId)
     return NSUniqueIDSpecifier(
-      containerClassDescription: NSScriptClassDescription(for: ScriptWindow.self)!, containerSpecifier: window.objectSpecifier,
+      containerClassDescription: NSScriptClassDescription(for: type(of: container))!, containerSpecifier: container.objectSpecifier,
       key: "appleScriptTabs", uniqueID: uniqueID)
   }
 

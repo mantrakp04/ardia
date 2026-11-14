@@ -5,6 +5,7 @@ export const APP_TARGET = `application id "${BUNDLE_ID}"`;
 export type Tab = {
   windowId: string;
   windowIndex: number;
+  profileId: string;
   tabId: string;
   title: string;
   url: string;
@@ -41,13 +42,29 @@ tell ${target}
   repeat with w in windows
     set windowIndex to windowIndex + 1
     set wId to id of w
-    set tIds to id of every tab of w
-    set tTitles to title of every tab of w
-    set tURLs to URL of every tab of w
-    set tPinned to isPinned of every tab of w
-    set tFocused to isFocused of every tab of w
+    set pId to ""
+    try
+      set pId to id of active profile of w
+    end try
+    if pId is not "" then
+      set tIds to id of every tab of w
+      set tTitles to title of every tab of w
+      set tURLs to URL of every tab of w
+      set tPinned to isPinned of every tab of w
+      set tFocused to isFocused of every tab of w
+      repeat with i from 1 to count of tIds
+        set out to out & wId & fs & windowIndex & fs & pId & fs & (item i of tIds) & fs & (item i of tTitles) & fs & (item i of tURLs) & fs & (item i of tPinned) & fs & (item i of tFocused) & rs
+      end repeat
+    end if
+  end repeat
+  repeat with p in profiles
+    set pId to id of p
+    set tIds to id of every tab of p
+    set tTitles to title of every tab of p
+    set tURLs to URL of every tab of p
+    set tPinned to isPinned of every tab of p
     repeat with i from 1 to count of tIds
-      set out to out & wId & fs & windowIndex & fs & (item i of tIds) & fs & (item i of tTitles) & fs & (item i of tURLs) & fs & (item i of tPinned) & fs & (item i of tFocused) & rs
+      set out to out & fs & 0 & fs & pId & fs & (item i of tIds) & fs & (item i of tTitles) & fs & (item i of tURLs) & fs & (item i of tPinned) & fs & false & rs
     end repeat
   end repeat
 end tell
@@ -55,10 +72,20 @@ return out`;
 }
 
 export function parseTabs(output: string): Tab[] {
-  return records(output).map(
-    ([windowId = "", windowIndex = "0", tabId = "", title = "", url = "", pinned = "", focused = ""]) => ({
+  const tabs = records(output).map(
+    ([
+      windowId = "",
+      windowIndex = "0",
+      profileId = "",
+      tabId = "",
+      title = "",
+      url = "",
+      pinned = "",
+      focused = "",
+    ]) => ({
       windowId: windowId.trim(),
       windowIndex: Number(windowIndex) || 0,
+      profileId: profileId.trim(),
       tabId,
       title,
       url: url === "missing value" ? "" : url,
@@ -66,14 +93,20 @@ export function parseTabs(output: string): Tab[] {
       isFocused: focused === "true",
     }),
   );
+  return tabs.filter((tab, index) => tabs.findIndex((other) => other.tabId === tab.tabId) === index);
 }
 
-export function focusTabScript(tab: Pick<Tab, "windowId" | "tabId">, target = APP_TARGET) {
-  return `tell ${target} to focus (tab id ${quote(tab.tabId)} of window id ${quote(tab.windowId)})`;
+type TabAddress = Pick<Tab, "windowId" | "profileId" | "tabId">;
+
+const tabSpecifier = (tab: TabAddress) =>
+  `tab id ${quote(tab.tabId)} of ${tab.windowId ? `window id ${quote(tab.windowId)}` : `profile id ${quote(tab.profileId)}`}`;
+
+export function focusTabScript(tab: TabAddress, target = APP_TARGET) {
+  return `tell ${target} to focus (${tabSpecifier(tab)})`;
 }
 
-export function closeTabScript(tab: Pick<Tab, "windowId" | "tabId">, target = APP_TARGET) {
-  return `tell ${target} to close (tab id ${quote(tab.tabId)} of window id ${quote(tab.windowId)})`;
+export function closeTabScript(tab: TabAddress, target = APP_TARGET) {
+  return `tell ${target} to close (${tabSpecifier(tab)})`;
 }
 
 export function activateScript(target = APP_TARGET) {
@@ -143,6 +176,26 @@ export function newWindowScript({ profileId, incognito }: NewWindowOptions = {},
 export function newTabScript(input: string, target = APP_TARGET) {
   const text = input.trim();
   return `tell ${target} to make new tab${text ? ` with properties {URL:${quote(text)}}` : ""}`;
+}
+
+export type TabSection = { id: string; title?: string; tabs: Tab[] };
+
+export function tabSections(
+  tabs: Tab[],
+  profiles: Pick<Profile, "id" | "name" | "isCurrent">[],
+  profileId?: string,
+): TabSection[] {
+  if (profileId && profiles.some((profile) => profile.id === profileId)) {
+    return [{ id: profileId, tabs: tabs.filter((tab) => tab.profileId === profileId) }];
+  }
+  if (profiles.length < 2) return [{ id: "all", tabs }];
+  return [...profiles.filter((profile) => profile.isCurrent), ...profiles.filter((profile) => !profile.isCurrent)]
+    .map((profile) => ({
+      id: profile.id,
+      title: profile.name,
+      tabs: tabs.filter((tab) => tab.profileId === profile.id),
+    }))
+    .filter((section) => section.tabs.length > 0);
 }
 
 export function hostOf(url: string) {

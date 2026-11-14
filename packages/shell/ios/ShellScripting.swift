@@ -18,7 +18,7 @@ public enum ShellScripting {
   static func window(_ id: String) -> ScriptWindowState? { state.windows.first { $0.id == id } }
 
   static func tab(_ id: String) -> (window: ScriptWindowState, tab: ScriptTabState)? {
-    for window in state.windows { if let tab = window.tabs.first(where: { $0.id == id }) { return (window, tab) } }
+    for window in state.windows { if let tab = (window.tabs + window.otherProfileTabs).first(where: { $0.id == id }) { return (window, tab) } }
     return nil
   }
 

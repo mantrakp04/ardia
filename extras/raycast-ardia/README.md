@@ -3,25 +3,28 @@
 Search your open Ardia tabs and profiles from Raycast and switch to one, and open new tabs and
 windows, like Dia's Raycast extension.
 
-**Search Tabs** lists every window's tabs (sidebar order, front window first), with the page's
-favicon, its host, a pin for pinned tabs, "Current" for the tab the front window shows and the
-window number when more than one is open. Type to filter by title or URL.
+**Search Tabs** lists the tabs of every profile, not just the ones the windows are showing, in a
+section per profile (the front window's profile first, then sidebar order; private windows' tabs
+aren't listed), with the page's favicon, its host, a pin for pinned tabs, "Current" for the tab the
+front window shows and the window number when more than one is open. Type to filter by title or
+URL. With more than one profile, the dropdown next to the search bar (⌘P) shows one profile's tabs;
+it starts on All Profiles and remembers your choice.
 
-| Action | Shortcut |
-|---|---|
-| Switch to Tab (selects it, brings its window forward, activates Ardia) | ↵ |
-| Copy URL | ⇧⌘C |
-| Close Tab | ⌃X |
-| Reload Tabs | ⌘R |
+| Action                                                                 | Shortcut |
+| ---------------------------------------------------------------------- | -------- |
+| Switch to Tab (selects it, brings its window forward, activates Ardia) | ↵        |
+| Copy URL                                                               | ⇧⌘C      |
+| Close Tab                                                              | ⌃X       |
+| Reload Tabs                                                            | ⌘R       |
 
 **Search Profiles** lists your profiles in Ardia's order, with how many tabs each has open and
 "Current" for the one the front window shows.
 
-| Action | Shortcut |
-|---|---|
-| Switch to Profile (shows it in the front window, or in a new window when the front one is incognito or there's none; activates Ardia) | ↵ |
-| Open in New Window | ⌘↵ |
-| Reload Profiles | ⌘R |
+| Action                                                                                                                                | Shortcut |
+| ------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Switch to Profile (shows it in the front window, or in a new window when the front one is incognito or there's none; activates Ardia) | ↵        |
+| Open in New Window                                                                                                                    | ⌘↵       |
+| Reload Profiles                                                                                                                       | ⌘R       |
 
 **New Tab** opens a tab in the front window. Give it a URL or a search and Ardia reads it the way
 its command bar does, with your search engine; give it nothing and you get a blank tab. Add it to
@@ -53,14 +56,17 @@ and how it reads the answer.
 
 `src/scripts.ts` builds the AppleScript (no Raycast imports, so it can be tested on its own):
 
-- the list reads `id`, `title`, `URL`, `isPinned` and `isFocused` of every tab of each window,
-  one Apple event per property and window, joined with ASCII separators;
-- Switch runs `focus (tab id "…" of window id "…")`, then `activate`;
-- Close runs `close (tab id "…" of window id "…")`;
+- the list reads `id`, `title`, `URL`, `isPinned` and `isFocused` of every tab of each window
+  that has an `active profile` (private windows have none), then `id`, `title`, `URL` and `isPinned` of every tab of each
+  profile for the tabs no window is showing, one Apple event per property and window or profile,
+  joined with ASCII separators;
+- Switch runs `focus (tab id "…" of window id "…")`, or `of profile id "…"` for a tab no window is
+  showing (its window switches to that profile), then `activate`;
+- Close runs `close (tab id "…" of window id "…")`, or `of profile id "…"`;
 - the profile list reads `id` and `name` of every profile, counts each one's tabs, and marks the
   `active profile` of window 1 (none when it's incognito);
 - Switch to Profile runs `focus (profile id "…")`, or `make new window with properties
-  {active profile:(profile id "…")}` when that fails, then `activate`;
+{active profile:(profile id "…")}` when that fails, then `activate`;
 - New Tab runs `make new tab with properties {URL:"…"}`, or `make new tab` when empty, then
   `activate`; Ardia resolves the text with the same parser as its command bar (`resolveInput`
   in `packages/core`);
