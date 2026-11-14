@@ -132,6 +132,18 @@ inline std::string Trimmed(std::string_view text) noexcept {
   return std::string{text.substr(start, end - start + 1)};
 }
 
+inline std::vector<std::string> Split(std::string_view text, char separator) noexcept {
+  std::vector<std::string> pieces;
+  size_t start = 0;
+  while (true) {
+    size_t at = text.find(separator, start);
+    pieces.emplace_back(text.substr(start, at == std::string_view::npos ? std::string_view::npos : at - start));
+    if (at == std::string_view::npos) break;
+    start = at + 1;
+  }
+  return pieces;
+}
+
 inline bool TestFlag(std::string_view key) noexcept {
   return AppLaunch::TestFlag(key);
 }
