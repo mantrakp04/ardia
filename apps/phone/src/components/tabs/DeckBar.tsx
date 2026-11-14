@@ -1,4 +1,6 @@
+import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
+import { noteDeckBarTop, watchDeckBar } from "../../state/toasts/store";
 import { browseLayout, capsule, PressScale, Symbol, tabsLayout, useTheme, type SymbolName } from "../ui";
 
 type Props = { leading: { icon: SymbolName; label: string; onPress: () => void } | null; plusLabel: string; onPlus: () => void; onPlusMenu: () => void; onSettings: () => void };
@@ -6,8 +8,14 @@ type Props = { leading: { icon: SymbolName; label: string; onPress: () => void }
 export function DeckBar({ leading, plusLabel, onPlus, onPlusMenu, onSettings }: Props) {
   const theme = useTheme();
   const plus = tabsLayout.barPlus;
+  const row = useRef<View>(null);
+  const measure = () => row.current?.measureInWindow((_x, y, _width, height) => noteDeckBarTop(height > 0 ? y : null));
+  useEffect(() => {
+    watchDeckBar(measure);
+    return () => watchDeckBar(null);
+  }, []);
   return (
-    <View style={styles.row}>
+    <View ref={row} style={styles.row} onLayout={measure}>
       <View style={styles.side}>
         {leading ? (
           <PressScale label={leading.label} onPress={leading.onPress} style={styles.hit}>

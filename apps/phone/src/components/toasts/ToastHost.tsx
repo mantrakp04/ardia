@@ -1,12 +1,13 @@
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomLift } from "../search/useKeyboardHeight";
-import { deckGeometry } from "../../lib/deckGeometry";
 import { useSurface } from "../../state/browse/hooks";
-import { useToast } from "../../state/toasts/hooks";
+import { useDeckBarTop, useToast } from "../../state/toasts/hooks";
+import { toastBottom } from "../../state/toasts/placement";
 import { tapToast, type ToastIcon } from "../../state/toasts/store";
-import { capsule, deckCenterFromBottom, font, space, Symbol, tabsLayout, tabsMotion, toastLayout, useTheme, type SymbolName } from "../ui";
+import { capsule, font, space, Symbol, tabsMotion, toastLayout, useTheme, type SymbolName } from "../ui";
 
 const ICONS: Record<ToastIcon, SymbolName> = {
   checkmark: "checkmark",
@@ -19,21 +20,37 @@ const ICONS: Record<ToastIcon, SymbolName> = {
   sent: "paperplane",
 };
 
-function barTopFromBottom(surface: string, width: number, height: number, insets: { top: number; bottom: number }): number {
-  if (surface === "deck") return height - deckGeometry(width, height, insets.top, insets.bottom).barCenterY + tabsLayout.barPlus.height / 2;
-  if (surface === "start") return deckCenterFromBottom(insets.bottom) + tabsLayout.barPlus.height / 2;
-  return 0;
-}
-
 export function ToastHost() {
-  const toast = useToast();
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { lift, keyboard } = useBottomLift();
   const surface = useSurface();
-  const window = useWindowDimensions();
+  const barTop = useDeckBarTop();
+  const frame = useRef<View>(null);
+  const [hostBottom, setHostBottom] = useState(0);
+  const bottom = toastBottom({
+    keyboardLift: keyboard ? lift : null,
+    safeBottom: insets.bottom,
+    barClearance: toastLayout.barClearance,
+    hostBottomY: hostBottom,
+    barTopY: surface === "browsing" ? null : barTop,
+    gap: space.s,
+  });
+  return (
+    <View
+      ref={frame}
+      style={StyleSheet.absoluteFill}
+      pointerEvents="box-none"
+      onLayout={() => frame.current?.measureInWindow((_x, y, _width, height) => setHostBottom(y + height))}
+    >
+      <ToastView bottom={bottom} />
+    </View>
+  );
+}
+
+function ToastView({ bottom }: { bottom: number }) {
+  const toast = useToast();
+  const theme = useTheme();
   if (!toast) return null;
-  const bottom = keyboard ? lift + space.xs : Math.max(insets.bottom + toastLayout.barClearance, barTopFromBottom(surface, window.width, window.height, insets) + space.s);
   return (
     <View style={[styles.host, { bottom }]} pointerEvents="box-none">
       <Animated.View key={toast.id} entering={FadeIn.duration(tabsMotion.surfaceFade)} pointerEvents={toast.onTap ? "auto" : "none"}>
